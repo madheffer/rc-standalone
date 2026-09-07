@@ -156,6 +156,20 @@ dotnet run tools/vendor.cs     # fetch + patch ValveResourceFormat
 dotnet build
 ```
 
+### Embedding it in a project that already vendors VRF
+
+Point `Source2CompilerVrfProject` at that copy instead, so you do not end up with
+two assemblies named ValveResourceFormat in one output. It has to carry the
+patches in `VrfRequirements.RequiredPatchIds`; carrying more is expected.
+
+Extra patches are safe as long as they land outside the code this library can
+reach, and `VrfRequirements.ReachableNamespaces` states what that reach is - both
+lists are pinned against the repository by `VrfRequirementsTests`, so they
+describe the library rather than an intention about it. That gives a host
+something to check mechanically: every patch it holds beyond the required set
+should target VRF code outside those namespaces, and the day one does not, it
+should fail loudly rather than silently change what the compiler emits.
+
 The vendor step clones ValveResourceFormat at the commit pinned in
 [`third_party/VENDORED.json`](third_party/VENDORED.json) and applies the twelve
 patches in [`third_party/patches/`](third_party/patches/). Those patches are
