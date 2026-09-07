@@ -52,7 +52,7 @@ public class VrfRequirementsTests
     }
 
     [Fact]
-    public void ReachableNamespaces_CoverEveryVrfNamespaceTheLibraryImports()
+    public void ImportedNamespaces_MatchTheUsingDirectives()
     {
         var src = Path.Combine(RepoRoot(), "src", "Source2.Compiler");
         var imported = new SortedSet<string>(StringComparer.Ordinal);
@@ -69,13 +69,11 @@ public class VrfRequirementsTests
 
         Assert.NotEmpty(imported);
 
-        // Every namespace the code actually imports must be declared reachable.
-        // The reverse is allowed: declaring one the code has stopped using is
-        // conservative, and only ever makes a host's compatibility check stricter.
-        var undeclared = imported.Except(VrfRequirements.ReachableNamespaces, StringComparer.Ordinal).ToArray();
+        // The list is documentation, so it should stay true. Declaring a namespace
+        // the code has stopped importing is harmless; missing one it does import
+        // makes the documentation wrong.
+        var undeclared = imported.Except(VrfRequirements.ImportedNamespaces, StringComparer.Ordinal).ToArray();
         Assert.True(undeclared.Length == 0,
-            "VrfRequirements.ReachableNamespaces does not mention " + string.Join(", ", undeclared) +
-            ". A host checks its own VRF patches against that list, so a namespace missing from it " +
-            "is a patch nobody will think to check.");
+            "VrfRequirements.ImportedNamespaces does not mention " + string.Join(", ", undeclared) + ".");
     }
 }

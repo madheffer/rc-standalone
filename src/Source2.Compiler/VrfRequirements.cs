@@ -14,10 +14,12 @@ namespace Source2.Compiler;
 /// <para><b>Why a host's extra patches are not this library's problem.</b> A host
 /// will usually carry more patches than <see cref="RequiredPatchIds"/>, for
 /// features this library has nothing to do with. That is fine exactly as long as
-/// those patches land outside the code this library can reach, and
-/// <see cref="ReachableNamespaces"/> is the statement of what that reach is.
-/// A host can check its extra patches against it mechanically; the reference
-/// implementation is <c>CompilerVrfCompatTests</c> in the vpkeditor pipeline.</para>
+/// they land outside the code this library can execute — and that is checkable
+/// without anything being declared here: for each extra patch, take the types
+/// declared in the file it targets and ask whether these sources name one. See
+/// <see cref="ImportedNamespaces"/> for why the check is by type and not by
+/// namespace, and <c>CompilerVrfCompatTests</c> in the vpkeditor pipeline for a
+/// working implementation.</para>
 /// </summary>
 public static class VrfRequirements
 {
@@ -62,24 +64,30 @@ public static class VrfRequirements
     ];
 
     /// <summary>
-    /// The VRF namespaces this library's code can reach. Anything outside them is
-    /// code this library never executes, so a host's patches there cannot change
-    /// what it produces.
+    /// The VRF namespaces this library imports. Informational only.
     ///
-    /// <para>Pinned by <c>VrfRequirementsTests</c> against the actual
-    /// <c>using</c> directives in this project, so it describes the code rather
-    /// than an intention about it.</para>
+    /// <para>Deliberately NOT the thing to check a host's extra patches against:
+    /// namespaces are too coarse to express the reach. This imports
+    /// <c>ValveResourceFormat.IO</c> solely so <c>DirFileLoader</c> can implement
+    /// <c>IFileLoader</c>, and never touches <c>GltfModelExporter</c>, which lives
+    /// in the same namespace. Judged by namespace, every glTF patch a host holds
+    /// would look like a hazard, and a check that cries wolf gets switched off.</para>
+    ///
+    /// <para><b>Check by type instead.</b> A host has this library's sources; for
+    /// each patch it holds beyond <see cref="RequiredPatchIds"/>, take the types
+    /// declared in the file that patch targets and ask whether any of these
+    /// sources name one. That answers "can this patch change what the compiler
+    /// emits" exactly, and needs nothing declared here that could drift. The
+    /// reference implementation is <c>CompilerVrfCompatTests</c> in the vpkeditor
+    /// pipeline.</para>
     /// </summary>
-    public static readonly string[] ReachableNamespaces =
+    public static readonly string[] ImportedNamespaces =
     [
         "ValveResourceFormat",
         "ValveResourceFormat.Blocks",
         "ValveResourceFormat.ResourceTypes",
         "ValveResourceFormat.Serialization.KeyValues",
         "ValveResourceFormat.Utils",
-        // Only for DirFileLoader's IFileLoader implementation: the interface it
-        // satisfies, and the ShaderCollection it declines to return. No type
-        // declared under either is otherwise used.
         "ValveResourceFormat.IO",
         "ValveResourceFormat.CompiledShader",
     ];

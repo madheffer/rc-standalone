@@ -163,7 +163,7 @@ two assemblies named ValveResourceFormat in one output. It has to carry the
 patches in `VrfRequirements.RequiredPatchIds`; carrying more is expected.
 
 Extra patches are safe as long as they land outside the code this library can
-reach, and `VrfRequirements.ReachableNamespaces` states what that reach is - both
+reach, and `VrfRequirements` states what it imports, but the check that matters is by TYPE - both
 lists are pinned against the repository by `VrfRequirementsTests`, so they
 describe the library rather than an intention about it. That gives a host
 something to check mechanically: every patch it holds beyond the required set
