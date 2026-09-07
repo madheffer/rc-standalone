@@ -22,6 +22,7 @@ try
         "compile"   => Commands.Compile(args[1..]),
         "decompile" => Commands.Decompile(args[1..]),
         "texture"   => Commands.Texture(args[1..]),
+        "sheet"     => Commands.Sheet(args[1..]),
         "svg"       => Commands.Svg(args[1..]),
         "sound"     => Commands.Sound(args[1..]),
         "id"        => Commands.ResourceId(args[1..]),
@@ -54,10 +55,17 @@ static void Usage()
       s2c decompile <in.*_c> [-o <out.txt>]
                     Compiled resource -> KV3 text (the DATA block's tree).
 
-      s2c texture   <image.png|jpg|...> -o <out.vtex_c> --template <any.vtex_c>
+      s2c texture   <image.png|jpg|...> -o <out.vtex_c> [--template <any.vtex_c>]
                     [--format bc7|bc5|bc4|bc3|bc1|rgba] [--no-mips] [--max-dim N]
                     Image -> compiled texture: mip chain, block compression and
                     the full stock extradata set the CS2 streamer expects.
+                    Needs no template; pass one only to carry its encoding
+                    semantics (a packed normal map's mip algorithm, say).
+
+      s2c sheet     <in.mks> [-o <out.vtex_c>] [--format ...] [--ship-as <path>]
+                    Sprite-sheet script -> animated texture: packs the frames
+                    into an atlas and writes the SHEET block a particle system
+                    animates through. Frame images resolve next to the script.
 
       s2c svg       <in.svg> -o <out.vsvg_c> --template <any.vsvg_c>
                     Raw SVG -> compiled Panorama vector graphic.

@@ -96,6 +96,14 @@
       "find": "vrf-kv3-integer-array-unchecked-uint64.find.txt",
       "replace": "vrf-kv3-integer-array-unchecked-uint64.replace.txt",
       "description": "GetIntegerArray: unchecked UInt64 -> long element conversion (0xFFFFFFFFFFFFFFFF -> -1L). Community models store m_refMeshGroupMasks as UInt64 all-bits; the checked path threw OverflowException and cost 32 library models their mesh-group reads (variant schema/bake, glTF variant export). Mirrors upstream GetUnsignedIntegerArray unchecked handling."
+    },
+    {
+      "id": "vrf-resource-version-settable",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Resource.cs",
+      "find": "vrf-resource-version-settable.find.txt",
+      "replace": "vrf-resource-version-settable.replace.txt",
+      "description": "Open the Resource.Version setter. It is the one header field Serialize() writes that only Read() could previously supply, so a private setter is what forced every from-scratch author to start from a donor file of the right type. With it open, .vtex_c / .vsvg_c / .vmat_c containers can be authored outright."
     }
   ]
 }

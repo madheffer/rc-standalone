@@ -150,7 +150,13 @@ internal static class CS2Fixtures
     /// say, is vacuous against a model that has none, so the fixture has to be
     /// chosen by content rather than by being first in the archive.
     /// </summary>
-    public static string? TemplatePathWhere(string cacheKey, string suffix, Func<byte[], bool> accept, int budget = 400)
+    /// <param name="pathFilter">
+    /// Optional cheap pre-filter on the entry path, so a search for something rare
+    /// does not have to decode its way alphabetically through tens of thousands of
+    /// entries before reaching the part of the tree that has one.
+    /// </param>
+    public static string? TemplatePathWhere(string cacheKey, string suffix, Func<byte[], bool> accept,
+        int budget = 400, Func<string, bool>? pathFilter = null)
     {
         lock (Gate)
         {
@@ -165,7 +171,9 @@ internal static class CS2Fixtures
                 if (_pak.Entries is not null && _pak.Entries.TryGetValue(ext, out var entries))
                 {
                     var seen = 0;
-                    foreach (var e in entries.OrderBy(x => x.GetFullPath(), StringComparer.Ordinal))
+                    foreach (var e in entries
+                        .Where(x => pathFilter is null || pathFilter(x.GetFullPath()))
+                        .OrderBy(x => x.GetFullPath(), StringComparer.Ordinal))
                     {
                         if (seen++ >= budget) break;
                         byte[] bytes;

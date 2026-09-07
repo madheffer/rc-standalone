@@ -57,7 +57,7 @@ namespace Source2.Compiler;
 /// is indistinguishable from a stock compile. When a CS2 update bumps them,
 /// re-run tools/rc-oracle.ps1 and update <see cref="SpecByExtension"/>.
 /// </summary>
-public static class Source2ContainerAuthor
+public static partial class Source2ContainerAuthor
 {
     public sealed record SpecialDep(string Name, string CompilerIdentifier, int Fingerprint, int UserData = 0);
 

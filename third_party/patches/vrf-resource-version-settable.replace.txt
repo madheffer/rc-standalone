@@ -1,0 +1,11 @@
+        /// <summary>
+        /// Gets the file type version.
+        /// </summary>
+        // vpkstuff patch: open the setter so a compiled resource can be AUTHORED
+        // rather than framed from a donor. Version is the only header field
+        // Serialize() writes that Read() alone can supply, so a private setter is
+        // exactly what forces every from-scratch author to find a template file of
+        // the right type first. Nothing else about the header is donor-specific:
+        // Serialize writes fileSize, KnownHeaderVersion (12), Version, the constant
+        // 8, and the block table it derives from Blocks.
+        public ushort Version { get; set; }

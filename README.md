@@ -10,12 +10,12 @@ in this repository, and every structural fact it writes was measured against
 Valve's own compiler output rather than guessed.
 
 Nothing in `src/Source2.Compiler/` reads a game file, and the library builds and
-runs with no CS2 installed. The one honest asterisk is that the binary output
-types (`.vtex_c`, `.vsnd_c`, `.vsvg_c`, `.vmat_c`, `.vmdl_c`) copy their header
-frame from an existing compiled file of the same type. That seed can be any such
-file, **including one this compiler produced** - see
-[What it emits](#what-it-emits) - so it is a one-time bootstrap, not a
-dependency. The KV3 types need nothing at all.
+runs with no CS2 installed. The KV3 types, textures, sprite sheets and materials
+are authored outright, with no donor file of any kind. `.vsnd_c` and `.vsvg_c`
+still copy their header frame from an existing compiled file of the same type -
+any such file, **including one this compiler produced**, so it is a one-time
+bootstrap rather than a dependency.
+[docs/AUTHORING.md](docs/AUTHORING.md) has the measurements behind all of that.
 
 ```
 $ s2c compile my_sounds.vsndevts
@@ -105,10 +105,11 @@ expects.
 | KV3 text | `.vdata_c` | authored from scratch | no template involved |
 | KV3 text | `.vpcf_c` | authored from scratch | RERL re-synthesised from the tree's `resource:` refs |
 | KV3 text | `.vagrp_c` | authored from scratch | extinct in CS2 content; kept for completeness |
-| PNG / JPG / TGA / BMP / WebP | `.vtex_c` | frame from a template | mips + block compression, authored RED2 |
+| PNG / JPG / TGA / BMP / WebP | `.vtex_c` | **authored** | mips + block compression, authored RED2 |
+| `.mks` + frame images | `.vtex_c` | **authored** | atlas packed, SHEET sequences, NO_LOD |
 | WAV (uncompressed PCM) | `.vsnd_c` | frame from a template | authored RED2 |
 | SVG | `.vsvg_c` | frame from a template | sanitised, CRC32 refreshed |
-| descriptor | `.vmat_c` | frame from a template | shader + params + RERL |
+| descriptor | `.vmat_c` | **authored**, given a shader input signature | shader + params + RERL |
 | descriptor | `.vmdl_c` | frame from a template | mesh refs, LoD masks, material groups |
 | any `_c` | KV3 text | — | the decompile direction, including typed blocks |
 
@@ -118,13 +119,18 @@ metadata is authored fresh, which is a fix rather than a limitation: an earlier
 version of this code kept the template's RED2 verbatim and every texture it
 ever produced shipped declaring a third party's source paths and file CRCs.
 
-The template does not have to come from the game, and it does not have to come
-from anywhere in particular: **any** compiled file of that type works, including
-one this compiler produced earlier. Compiling the same image against a template
-lifted from CS2 and against a `.vtex_c` this tool wrote three generations back
-gives byte-identical output. So the game is a one-time bootstrap for the binary
-types, not a dependency: seed one file of each type and the compiler sustains
-itself from there.
+Where a template is still taken it does not have to come from the game: **any**
+compiled file of that type works, including one this compiler produced earlier.
+Compiling the same image against a template lifted from CS2 and against a
+`.vtex_c` this tool wrote three generations back gives byte-identical output.
+
+**Textures, sprite sheets and materials no longer take one at all.** It turned out
+a template was contributing a single 16-bit integer, the resource version, which
+upstream simply had no public setter for. [docs/AUTHORING.md](docs/AUTHORING.md)
+records the measurements: which header fields exist, what every stock file of
+each type agrees on, and the one place the boundary is real (a material's vertex
+input signature follows its shader's feature combo, so it is stated rather than
+invented).
 
 ## What it is not
 
@@ -196,7 +202,8 @@ the game and wants to assert it is really being used.
 ```
 s2c compile   <in.vdata|.vsndevts|.vpcf|.vagrp> [-o <out_c>]
 s2c decompile <in.*_c> [-o <out.txt>]
-s2c texture   <image> -o <out.vtex_c> --template <any.vtex_c> [--format bc7|bc5|bc4|bc3|bc1|rgba]
+s2c texture   <image> -o <out.vtex_c> [--template <any.vtex_c>] [--format bc7|bc5|bc4|bc3|bc1|rgba]
+s2c sheet     <in.mks> [-o <out.vtex_c>] [--format ...]
 s2c svg       <in.svg> -o <out.vsvg_c> --template <any.vsvg_c>
 s2c sound     <in.wav> -o <out.vsnd_c> --template <any.vsnd_c>
 s2c id        <resource/path.vtex>

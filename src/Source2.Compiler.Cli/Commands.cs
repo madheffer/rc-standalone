@@ -51,7 +51,8 @@ internal static class Commands
     {
         var input = Positional(a, "image file");
         var outPath = Require(Opt(a, "-o"), "-o <out.vtex_c>");
-        var template = File.ReadAllBytes(Require(Opt(a, "--template"), "--template <any.vtex_c>"));
+        // --template is optional: without one the container is authored outright.
+        var template = Opt(a, "--template") is { } t ? File.ReadAllBytes(t) : null;
 
         var def = new ResourceBuilder.TextureDef
         {
@@ -66,6 +67,56 @@ internal static class Commands
         File.WriteAllBytes(outPath, bytes);
         Console.WriteLine($"{outPath}  ({bytes.Length:n0} bytes, {def.Compression}, "
                         + $"encoder {ResourceBuilder.Bc7CacheTag(def.Bc7Mode)})");
+        return 0;
+    }
+
+    /// <summary>
+    /// Compile an <c>.mks</c> sprite-sheet script into an animated
+    /// <c>.vtex_c</c>: pack its frame images into an atlas, write the SHEET
+    /// block describing the sequences, and encode the atlas.
+    /// </summary>
+    public static int Sheet(string[] a)
+    {
+        var input = Positional(a, "mks script");
+        var outPath = Opt(a, "-o") ?? Path.ChangeExtension(input, ".vtex_c");
+        var template = Opt(a, "--template") is { } t ? File.ReadAllBytes(t) : null;
+        var root = Path.GetDirectoryName(Path.GetFullPath(input)) ?? ".";
+
+        var script = MksSource.Parse(File.ReadAllBytes(input));
+
+        // Frame images resolve relative to the script, the way mksheet reads them.
+        using var packed = SheetAtlas.Pack(script, name =>
+        {
+            var path = Path.Combine(root, name);
+            if (!File.Exists(path))
+                throw new InvalidOperationException($"Frame image not found next to the script: {name}");
+            return File.ReadAllBytes(path);
+        });
+
+        var atlas = packed.Atlas;
+        var rgba = new byte[atlas.Width * atlas.Height * 4];
+        atlas.GetPixelSpan()[..rgba.Length].CopyTo(rgba);
+
+        var def = new ResourceBuilder.TextureDef
+        {
+            RawRgba = rgba,
+            RawWidth = atlas.Width,
+            RawHeight = atlas.Height,
+            // A mip chain would blend neighbouring frames of the atlas into each
+            // other, which is why stock sheets ship NO_LOD with a single level.
+            GenerateMipmaps = false,
+            Flags = ResourceBuilder.VTexFlags.NO_LOD,
+            Compression = ParseFormat(Opt(a, "--format")),
+            SourceName = Opt(a, "--ship-as") ?? "materials/vpkeditor/" + Path.GetFileName(input),
+            SheetData = SpriteSheet.Write(packed.Sequences),
+        };
+
+        var bytes = ResourceBuilder.BuildTexture(template, def);
+        File.WriteAllBytes(outPath, bytes);
+
+        var frames = script.Sequences.Sum(s => s.Frames.Count);
+        Console.WriteLine($"{outPath}  ({bytes.Length:n0} bytes, {atlas.Width}x{atlas.Height} atlas, "
+                        + $"{script.Sequences.Count} sequence(s), {frames} frame(s), {def.Compression})");
         return 0;
     }
 

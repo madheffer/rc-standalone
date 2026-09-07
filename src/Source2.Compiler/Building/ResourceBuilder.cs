@@ -175,6 +175,58 @@ public static class ResourceBuilder
         /// pipeline opts in to a 2048 cap — see <c>the calling pipeline</c>.
         /// </summary>
         public int MaxDimension { get; set; } = int.MaxValue;
+
+        /// <summary>
+        /// Raw <c>SHEET</c> extra-data payload (sprite-sheet sequences and frame
+        /// UVs) to embed, or null for a plain texture. Build one with
+        /// <see cref="SpriteSheet.Write"/>, usually from an <c>.mks</c> script via
+        /// <see cref="MksSource"/>. Setting it also adds the
+        /// <c>GenerateSheetData</c> compiler dependency stock sheets carry.
+        /// </summary>
+        public byte[]? SheetData { get; set; }
+
+        /// <summary>
+        /// Texture header flags. Stock sprite sheets ship
+        /// <see cref="VTexFlags.NO_LOD"/> (0x8), because a mip chain would blend
+        /// neighbouring frames of the atlas into each other. Defaults to none.
+        /// </summary>
+        public ushort Flags { get; set; }
+
+        /// <summary>
+        /// Special dependencies describing how these pixels are ENCODED, e.g.
+        /// <c>("Texture Compiler Version Mip HemiOctAnisoRoughness",
+        /// "CompileTexture", 3)</c> for a packed normal map. They tell consumers
+        /// how to decode the texture, so dropping one on a normal map makes every
+        /// reader treat it as plain RGB.
+        ///
+        /// <para>When a template is supplied its own set rides along and this adds
+        /// to it. With no template this is the only way to state them, which is
+        /// the point: authoring makes the semantics explicit instead of inheriting
+        /// whatever the donor happened to be.</para>
+        /// </summary>
+        public List<Source2ContainerAuthor.SpecialDep> EncodingSemantics { get; } = [];
+    }
+
+    // VTexExtraData entry types, as the DATA block's extra-data table stores them.
+    private const uint VTexExtraFallbackBits       = 1;
+    private const uint VTexExtraSheet              = 2;
+    private const uint VTexExtraMetadata           = 3;
+    private const uint VTexExtraCompressedMipSize  = 4;
+
+    /// <summary>Texture header flag bits. Only the ones this compiler emits.</summary>
+    public static class VTexFlags
+    {
+        /// <summary>0x8 — no mip chain is used. What stock sprite sheets set.</summary>
+        public const ushort NO_LOD = 0x8;
+    }
+
+    /// <summary>Parse compiled bytes into a <see cref="Resource"/> the caller owns.</summary>
+    private static Resource ReadResource(byte[] bytes)
+    {
+        var res = new Resource();
+        try { res.Read(new MemoryStream(bytes, writable: false)); }
+        catch { res.Dispose(); throw; }
+        return res;
     }
 
     // ── Public build API ─────────────────────────────────────────────────────────
@@ -219,11 +271,23 @@ public static class ResourceBuilder
     /// </summary>
     public static byte[] BuildMaterial(byte[] templateBytes, MaterialDef def)
     {
-        using var ms = new MemoryStream(templateBytes);
-        using var template = new Resource();
-        template.Read(ms);
+        using var template = ReadResource(templateBytes);
         ApplyMaterial(template, def);
         return Serialize(template);
+    }
+
+    /// <summary>
+    /// Produce a <c>.vmat_c</c> with no donor file: the container is authored by
+    /// <see cref="MaterialAuthor.NewContainer"/> and filled the same way. The
+    /// caller states the shader's vertex input signature, which is the one part
+    /// of a material this compiler cannot derive - see
+    /// <see cref="Source2ContainerAuthor.MaterialAuthoring"/>.
+    /// </summary>
+    public static byte[] BuildMaterial(MaterialDef def, Resource container)
+    {
+        ArgumentNullException.ThrowIfNull(container);
+        ApplyMaterial(container, def);
+        return Serialize(container);
     }
 
     /// <summary>
@@ -234,7 +298,20 @@ public static class ResourceBuilder
     /// is emitted — matching what resourcecompiler.exe produces, so CS2's texture
     /// streamer binds it.
     /// </summary>
-    public static byte[] BuildTexture(byte[] templateBytes, TextureDef def)
+    /// <summary>
+    /// Produce a <c>.vtex_c</c> with no donor file at all. Identical to
+    /// <see cref="BuildTexture(byte[], TextureDef)"/> except that the container
+    /// is authored rather than framed from a template, and the encoding-semantics
+    /// special dependencies come from <see cref="TextureDef.EncodingSemantics"/>
+    /// instead of riding along from the donor's RED2.
+    /// </summary>
+    public static byte[] BuildTexture(TextureDef def) => BuildTexture(null, def);
+
+    /// <param name="templateBytes">
+    /// Any valid <c>.vtex_c</c>, used for the container frame only, or null to
+    /// author the container outright.
+    /// </param>
+    public static byte[] BuildTexture(byte[]? templateBytes, TextureDef def)
     {
         if (def.ImageBytes is not { Length: > 0 } && def.RawRgba is not { Length: > 0 })
             throw new ArgumentException("ImageBytes or RawRgba must be set.", nameof(def));
@@ -383,64 +460,81 @@ public static class ResourceBuilder
 
         // ── DATA block layout (matches resourcecompiler output) ──────────────
         //   [0..40)     vtex header
-        //   [40..)      extradata entry table — 3 entries × 12 B
-        //               in order: FALLBACK_BITS(1), METADATA(3), COMPRESSED_MIP_SIZE(4)
-        //   then        payloads, same order:
-        //               FALLBACK_BITS (1024 B) | METADATA (128 B) | CMS (12 B)
+        //   [40..)      extradata entry table — one 12 B entry per payload,
+        //               in ascending type order:
+        //               FALLBACK_BITS(1), SHEET(2) when present, METADATA(3),
+        //               COMPRESSED_MIP_SIZE(4)
+        //   then        the payloads, in the same order
         //   then        per-mip size array (numMips × u32)
         //
         // Each entry's "offset" field = payloadPos − offsetFieldPos (VRF applies
         // a −8 on read; the +12-after-entry / −8 cancels to this). ExtraDataOffset
         // in the header is likewise 8 (entry table sits 8 B past the field).
+        //
+        // The table is built as a list rather than hardcoded because a sprite
+        // sheet adds a fourth entry, and every entry after it shifts.
         const int header = 40;
-        const int entryCount = 3;
-        const int entryTable = entryCount * 12;
-        const int fallbackSize = 1024;   // 32×32 BC7
         const int metadataSize = 128;
         const int cmsSize = 12;
         int mipSizesSize = numMips * 4;
 
-        int fallbackPos = header + entryTable;          // 76
-        int metadataPos = fallbackPos + fallbackSize;   // 1100
-        int cmsPos      = metadataPos + metadataSize;   // 1228
-        int mipSizesPos = cmsPos + cmsSize;             // 1240
+        // METADATA payload: reserved u16, then the pre-power-of-2 display size.
+        var metadataPayload = new byte[metadataSize];
+        BitConverter.GetBytes((ushort)actualW).CopyTo(metadataPayload, 2);
+        BitConverter.GetBytes((ushort)actualH).CopyTo(metadataPayload, 4);
+
+        var extras = new List<(uint Type, byte[] Payload)> { (VTexExtraFallbackBits, fallbackBits) };
+        if (def.SheetData is { Length: > 0 })
+            extras.Add((VTexExtraSheet, def.SheetData));
+        extras.Add((VTexExtraMetadata, metadataPayload));
+        extras.Add((VTexExtraCompressedMipSize, new byte[cmsSize]));   // filled in below
+
+        int entryTable = extras.Count * 12;
+
+        // Positions are fixed once the payload sizes are known, so the
+        // COMPRESSED_MIP_SIZE payload (which points forward at the mip-size
+        // array) can be computed before anything is written.
+        var positions = new int[extras.Count];
+        var cursor = header + entryTable;
+        for (var i = 0; i < extras.Count; i++) { positions[i] = cursor; cursor += extras[i].Payload.Length; }
+        int mipSizesPos = cursor;
         int dataBlockSize = mipSizesPos + mipSizesSize;
+
+        var cmsIndex = extras.Count - 1;
+        int cmsPos = positions[cmsIndex];
+        var cms = new byte[cmsSize];
+        BitConverter.GetBytes(0u).CopyTo(cms, 0);                                  // 0 = mips stored raw
+        BitConverter.GetBytes((uint)(mipSizesPos - (cmsPos + 4))).CopyTo(cms, 4);  // → per-mip size array
+        BitConverter.GetBytes((uint)numMips).CopyTo(cms, 8);
+        extras[cmsIndex] = (VTexExtraCompressedMipSize, cms);
 
         using var ms = new MemoryStream();
         using var w  = new BinaryWriter(ms);
 
         // vtex header (40 B).
-        w.Write((ushort)1);          // Version
-        w.Write((ushort)0);          // Flags
+        w.Write((ushort)1);              // Version
+        w.Write((ushort)def.Flags);      // Flags (NO_LOD etc.)
         w.Write(1f); w.Write(1f); w.Write(1f); w.Write(1f); // Reflectivity
-        w.Write((ushort)pow2W);      // Width
-        w.Write((ushort)pow2H);      // Height
-        w.Write((ushort)1);          // Depth
-        w.Write(formatByte);         // Format
-        w.Write((byte)numMips);      // NumMipLevels
-        w.Write(0u);                 // Picmip0Res
-        w.Write(8u);                 // ExtraDataOffset
-        w.Write((uint)entryCount);   // ExtraDataCount
+        w.Write((ushort)pow2W);          // Width
+        w.Write((ushort)pow2H);          // Height
+        w.Write((ushort)1);              // Depth
+        w.Write(formatByte);             // Format
+        w.Write((byte)numMips);          // NumMipLevels
+        w.Write(0u);                     // Picmip0Res
+        w.Write(8u);                     // ExtraDataOffset
+        w.Write((uint)extras.Count);     // ExtraDataCount
 
-        // Entry table — { u32 type, u32 offsetToPayload, u32 size } × 3.
-        w.Write((uint)1);  w.Write((uint)(fallbackPos - (header + 4)));        w.Write((uint)fallbackSize);
-        w.Write((uint)3);  w.Write((uint)(metadataPos - (header + 12 + 4)));   w.Write((uint)metadataSize);
-        w.Write((uint)4);  w.Write((uint)(cmsPos - (header + 24 + 4)));        w.Write((uint)cmsSize);
+        // Entry table — { u32 type, u32 offsetToPayload, u32 size }.
+        for (var i = 0; i < extras.Count; i++)
+        {
+            var offsetFieldPos = header + i * 12 + 4;
+            w.Write(extras[i].Type);
+            w.Write((uint)(positions[i] - offsetFieldPos));
+            w.Write((uint)extras[i].Payload.Length);
+        }
 
-        // FALLBACK_BITS payload.
-        w.Write(fallbackBits);
-
-        // METADATA payload (128 B): reserved u16, display W/H u16, rest zero.
-        w.Write((ushort)0);
-        w.Write((ushort)actualW);
-        w.Write((ushort)actualH);
-        w.Write(new byte[metadataSize - 6]);
-
-        // COMPRESSED_MIP_SIZE payload (12 B): int1 (0 = mips stored raw),
-        // mipsOffset → the per-mip size array, mip count.
-        w.Write(0u);
-        w.Write((uint)(mipSizesPos - (cmsPos + 4)));
-        w.Write((uint)numMips);
+        foreach (var (_, payload) in extras)
+            w.Write(payload);
 
         // Per-mip size array, mip-index order (mip 0 = full res). The pixel
         // payload itself is appended smallest-first after the container.
@@ -452,10 +546,12 @@ public static class ResourceBuilder
         Debug.Assert(dataBlockBytes.Length == dataBlockSize,
             $"DATA block size mismatch: wrote {dataBlockBytes.Length}, expected {dataBlockSize}");
 
-        // Embed into a Resource container using the template for correct header version.
-        using var tms = new MemoryStream(templateBytes);
-        using var template = new Resource();
-        template.Read(tms);
+        // The container. With a template, its header version comes from that file;
+        // without one it is authored outright (Version 1, measured invariant across
+        // every .vtex_c in the game — see Source2ContainerAuthor.TextureResourceVersion).
+        using var template = templateBytes is { Length: > 0 }
+            ? ReadResource(templateBytes)
+            : new Resource { Version = Source2ContainerAuthor.TextureResourceVersion };
 
         // Remove any RERL block the template carried — stock textures don't
         // have one (textures reference textures only as runtime samplers,
@@ -480,10 +576,26 @@ public static class ResourceBuilder
         // consumer decode the normal as plain RGB (the black-patches class) —
         // GloveSurfaceMapShipTests caught exactly that when this first landed.
         var red2Idx = template.Blocks.FindIndex(b => b.Type == BlockType.RED2);
+        // BuildTextureEditInfo treats this list as "the template's own set, used
+        // instead of the generic fallback". So when there is no template it has to
+        // be seeded with the two dependencies every stock texture carries, or
+        // adding a single caller-stated one would silently displace them.
         var templateDeps = (template.EditInfo?.SpecialDependencies ?? [])
             .Select(d => new Source2ContainerAuthor.SpecialDep(
                 d.String, d.CompilerIdentifier, (int)d.Fingerprint, (int)d.UserData))
             .ToList();
+        if (templateDeps.Count == 0)
+            templateDeps.AddRange(Source2ContainerAuthor.TextureBaseDeps);
+
+        templateDeps.AddRange(def.EncodingSemantics);
+
+        // A sheet texture states that it has one. Measured on stock: every
+        // .vtex_c carrying a SHEET block also carries this special dependency,
+        // and no plain texture does.
+        if (def.SheetData is { Length: > 0 })
+            templateDeps.Add(Source2ContainerAuthor.GenerateSheetDataDep);
+
+        templateDeps = templateDeps.Distinct().ToList();
         var editInfo = Source2ContainerAuthor.BuildTextureEditInfo(
             def.SourceName,
             def.ImageBytes is { Length: > 0 } ? def.ImageBytes : def.RawRgba ?? [],
