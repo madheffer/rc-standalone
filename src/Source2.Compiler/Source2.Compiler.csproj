@@ -34,8 +34,26 @@
     <Using Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <!--
+      Which ValveResourceFormat to build against. Defaults to the copy this
+      repository vendors and patches (tools/vendor.cs). A host that already
+      vendors its own patched VRF - and so must not end up with two assemblies
+      of the same name - overrides this to point at that one:
+
+        <PropertyGroup>
+          <Source2CompilerVrfProject>...\ValveResourceFormat.csproj</Source2CompilerVrfProject>
+        </PropertyGroup>
+        <ProjectReference Include="...\Source2.Compiler.csproj" />
+
+      The host's copy must be pinned to the sha in third_party/VENDORED.json and
+      carry at least the patches in third_party/patches. A superset is fine.
+    -->
+    <Source2CompilerVrfProject Condition="'$(Source2CompilerVrfProject)' == ''">$(MSBuildThisFileDirectory)..\..\third_party\ValveResourceFormat\ValveResourceFormat\ValveResourceFormat.csproj</Source2CompilerVrfProject>
+  </PropertyGroup>
+
   <ItemGroup>
-    <ProjectReference Include="..\..\third_party\ValveResourceFormat\ValveResourceFormat\ValveResourceFormat.csproj" />
+    <ProjectReference Include="$(Source2CompilerVrfProject)" />
   </ItemGroup>
 
   <ItemGroup>

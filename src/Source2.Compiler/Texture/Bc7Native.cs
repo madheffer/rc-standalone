@@ -14,7 +14,7 @@ namespace Source2.Compiler;
 /// back to BCnEncoder.Net. The Linux/production image always builds it (see
 /// the Dockerfile); for Windows dev see <c>Native/bc7enc/CMakeLists.txt</c>.</para>
 /// </summary>
-internal static partial class Bc7Native
+public static partial class Bc7Native
 {
     private const string Lib = "bc7enc_native";
 

@@ -1021,7 +1021,7 @@ public static class ResourceBuilder
     /// Integer types take the rounded value; floating types take it verbatim.
     /// Returns null for non-numeric target types.
     /// </summary>
-    internal static KVObject? BuildNumericTyped(KVValueType type, double value) => type switch
+    public static KVObject? BuildNumericTyped(KVValueType type, double value) => type switch
     {
         KVValueType.Int16            => new KVObject((short)Math.Round(value)),
         KVValueType.UInt16           => new KVObject((ushort)Math.Round(value)),
@@ -1233,7 +1233,7 @@ public static class ResourceBuilder
     /// <summary>Get the KV3 root object from a resource's DATA block.
     /// Internal so <c>another caller</c> shares the
     /// same unwrap instead of growing another copy.</summary>
-    internal static KVObject GetDataRoot(Resource resource)
+    public static KVObject GetDataRoot(Resource resource)
     {
         var dataBlock = resource.GetBlockByType(BlockType.DATA)
             ?? throw new InvalidOperationException("Template resource has no DATA block.");
@@ -1688,7 +1688,7 @@ public static class ResourceBuilder
     /// in place; callers re-serialize via <see cref="Serialize"/>. Internal so
     /// <c>another caller</c> reuses the walker.
     /// </summary>
-    internal static void ReplaceStringsRecursive(KVObject obj, IDictionary<string, string> pathMap)
+    public static void ReplaceStringsRecursive(KVObject obj, IDictionary<string, string> pathMap)
     {
         if (obj is null) return;
 

@@ -540,7 +540,7 @@ public static partial class Source2ContainerAuthor
     /// leaves are typed at construction. Key order, array order and KV3 flags are
     /// preserved, so the RERL/subasset passes above see the same tree either way.
     /// </summary>
-    internal static KVObject NarrowIntegers(KVObject node)
+    public static KVObject NarrowIntegers(KVObject node)
     {
         if (node.IsArray)
         {
@@ -616,7 +616,7 @@ public static partial class Source2ContainerAuthor
 
     /// <summary>Depth-first collect of distinct <c>resource:</c>-flagged string
     /// values (first-encounter order) — the reference set RERL must list.</summary>
-    internal static void CollectResourceRefs(KVObject? node, HashSet<string> seen, List<string> refs)
+    public static void CollectResourceRefs(KVObject? node, HashSet<string> seen, List<string> refs)
     {
         if (node is null) return;
         if (node.IsCollection || node.IsArray)
