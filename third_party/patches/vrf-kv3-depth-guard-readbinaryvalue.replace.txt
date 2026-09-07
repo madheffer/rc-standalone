@@ -1,0 +1,30 @@
+        private static KVObject ReadBinaryValue(Context context, KV3BinaryNodeType datatype, KVFlag flagInfo)
+        {
+            // vpkstuff patch: bound recursion depth. ReadValue recurses into nested
+            // objects/arrays exclusively through this method, so a single counter
+            // here caps the call-stack depth of a hostile deeply-nested KV3 buffer
+            // and turns it into a catchable InvalidDataException instead of an
+            // uncatchable StackOverflowException that kills the whole process.
+            // Siblings release the counter (finally), so only true nesting counts;
+            // 512 is far beyond any real CS2 resource.
+            if (++context.Depth > 512)
+            {
+                context.Depth--;
+                throw new InvalidDataException("KV3 nesting exceeds 512 levels; refusing to parse (malformed or hostile resource).");
+            }
+            try
+            {
+                var result = ReadValue(context, datatype);
+
+                if (flagInfo != KVFlag.None)
+                {
+                    result.Flag = flagInfo;
+                }
+
+                return result;
+            }
+            finally
+            {
+                context.Depth--;
+            }
+        }

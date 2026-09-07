@@ -1,0 +1,4 @@
+            NumMipLevels = reader.ReadByte();
+            Picmip0Res = reader.ReadUInt32();
+
+            var extraDataOffset = reader.ReadUInt32();

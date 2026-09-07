@@ -1,0 +1,11 @@
+        private static KVObject ReadBinaryValue(Context context, KV3BinaryNodeType datatype, KVFlag flagInfo)
+        {
+            var result = ReadValue(context, datatype);
+
+            if (flagInfo != KVFlag.None)
+            {
+                result.Flag = flagInfo;
+            }
+
+            return result;
+        }

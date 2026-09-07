@@ -1,0 +1,5 @@
+        /// <summary>
+        /// Gets an array of long integers by name.
+        /// </summary>
+        public static long[] GetIntegerArray(this KVObject obj, string name)
+            => obj.GetArray<long>(name) ?? [];

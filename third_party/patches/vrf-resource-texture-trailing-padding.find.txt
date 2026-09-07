@@ -1,0 +1,10 @@
+                    // TODO: Valve added null bytes after the png for whatever reason,
+                    // so assume we have the full file if the buffer is bigger than the size we calculated
+                    if (data.IsRawPng)
+                    {
+                        if (Reader.BaseStream.Length > fullFileSize)
+                        {
+                            return;
+                        }
+                    }
+                }

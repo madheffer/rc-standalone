@@ -1,0 +1,15 @@
+        public IEnumerable<(Mesh Mesh, int MeshIndex, string Name, long LoDMask)> GetEmbeddedMeshesAndLoD()
+        {
+            // vpkstuff patch: default to mask 1 (LoD 0 visible) when the masks array doesn't
+            // cover this mesh. CS2 models with only embedded meshes (CTRL-block MVTX format)
+            // ship an EMPTY m_refLODGroupMasks, so the upstream .Zip yields nothing and the
+            // embedded meshes are silently lost.
+            var masks = Data.GetIntegerArray("m_refLODGroupMasks");
+            var i = 0;
+            foreach (var m in GetEmbeddedMeshes())
+            {
+                var mask = i < masks.Length ? masks[i] : 1L;
+                yield return (m.Mesh, m.MeshIndex, m.Name, mask);
+                i++;
+            }
+        }

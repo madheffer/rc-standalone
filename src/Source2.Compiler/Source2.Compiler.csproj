@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Source2.Compiler - authors compiled Source 2 resources in pure managed code.
+
+    The only project reference is the vendored, patched ValveResourceFormat
+    (see third_party/README.md). VRF supplies the container framing, the KV3
+    binary reader/writer and the block model; everything in src/ is the
+    compiler layer on top: container identity, RED2 authoring, RERL ids,
+    texture/mip/BC encoding, and the KV3 text -> _c path.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Source2.Compiler</RootNamespace>
+    <AssemblyName>Source2.Compiler</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS8002;CS1591</NoWarn>
+    <!-- Native/ holds the vendored bc7enc C sources; keep them out of the
+         default item globs (they are built by CMake, not msbuild). -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Native\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Source2.Compiler.Cli" />
+    <InternalsVisibleTo Include="Source2.Compiler.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The library takes ILogger by interface only; the host wires the impl. -->
+    <Using Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\third_party\ValveResourceFormat\ValveResourceFormat\ValveResourceFormat.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <!-- Image decode/encode + mip generation, and the managed BC1/BC3/BC7 fallback. -->
+    <PackageReference Include="SkiaSharp" Version="4.150.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.150.1" />
+    <PackageReference Include="BCnEncoder.Net" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Optional native BC7 encoder. Absent (no C toolchain) => Bc7Native.Available
+         is false and BuildTexture transparently falls back to BCnEncoder.Net.
+         Build it with cmake; see Native/bc7enc/CMakeLists.txt. -->
+    <Content Include="Native\bc7enc\bin\bc7enc_native.dll" Condition="Exists('Native\bc7enc\bin\bc7enc_native.dll')" Link="bc7enc_native.dll" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Native\bc7enc\bin\libbc7enc_native.so" Condition="Exists('Native\bc7enc\bin\libbc7enc_native.so')" Link="libbc7enc_native.so" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

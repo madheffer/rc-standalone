@@ -1,0 +1,55 @@
+        // vpkstuff patch: tracks the m_refAnimIncludeModels names currently on the
+        // load stack so a cyclic include graph can't recurse forever. Thread-static
+        // because each LoadFileCompiled returns a FRESH Model instance (so no
+        // per-instance cache breaks the cycle) and glTF/animation export is
+        // single-threaded (GltfModelExporter.RunExport's IsExporting guard).
+        [ThreadStatic] private static HashSet<string>? _animIncludeStack;
+
+        /// <summary>
+        /// Gets animations referenced from other models.
+        /// </summary>
+        /// <param name="fileLoader">The file loader to use.</param>
+        /// <returns>Enumerable of animations.</returns>
+        public IEnumerable<Animation> GetReferencedAnimations(IFileLoader fileLoader)
+        {
+            var refAnimModels = Data.GetArray<string>("m_refAnimIncludeModels");
+            if (refAnimModels == null || refAnimModels.Length == 0)
+            {
+                return [];
+            }
+
+            // vpkstuff patch: cycle guard. Without it, a model whose
+            // m_refAnimIncludeModels resolves back to itself (e.g. a bare upload
+            // whose include sibling is missing and the loader's filename fallback
+            // returns the model file) recurses GetReferencedAnimations ->
+            // GetEmbeddedAnimationsWithSkeleton -> GetAllAnimations -> here across
+            // fresh instances until the stack overflows (uncatchable process crash).
+            // Skip any include already being processed on this stack.
+            var stack = _animIncludeStack ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var allAnims = new List<Animation>();
+            foreach (var modelName in refAnimModels)
+            {
+                if (string.IsNullOrEmpty(modelName) || !stack.Add(modelName))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    using var resource = fileLoader.LoadFileCompiled(modelName);
+                    if (resource?.DataBlock is not Model model)
+                    {
+                        continue;
+                    }
+
+                    var anims = GetEmbeddedAnimationsWithSkeleton(fileLoader, Skeleton, model);
+                    allAnims.AddRange(anims);
+                }
+                finally
+                {
+                    stack.Remove(modelName);
+                }
+            }
+
+            return allAnims;
+        }

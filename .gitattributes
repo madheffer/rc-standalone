@@ -1,0 +1,20 @@
+* text=auto eol=lf
+
+# resourcecompiler.exe fixtures: byte-exact, never normalised.
+#
+# The parity gate asserts our RED2 input-dependency CRC equals the one Valve's
+# compiler recorded, and that CRC is taken over the source file's bytes. One of
+# these probes has CRLF line endings, so letting git normalise them on checkout
+# would change the CRC and fail the gate on every fresh clone. The compiled _c
+# outputs are binary for the obvious reason.
+tests/Source2.Compiler.Tests/RcReference/** -text
+
+*.vdata_c    binary
+*.vsndevts_c binary
+*.vpcf_c     binary
+*.vtex_c     binary
+*.vsnd_c     binary
+*.vsvg_c     binary
+*.vmat_c     binary
+*.vmdl_c     binary
+*.vpk        binary

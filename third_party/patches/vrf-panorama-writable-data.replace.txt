@@ -1,0 +1,14 @@
+        public List<NameEntry> Names { get; } = [];
+
+        /// <summary>
+        /// Gets or sets the raw data. The setter exists so callers can author a
+        /// new Panorama resource (e.g. a custom .vsvg_c icon) from a template and
+        /// re-serialize it; refresh <see cref="CRC32"/> to match (Serialize writes
+        /// the stored checksum verbatim).
+        /// </summary>
+        public byte[] Data { get; set; } = []; // vpkstuff patch: writable for .vsvg_c authoring
+        /// <summary>
+        /// Gets or sets the CRC32 checksum. Settable so authoring keeps it in sync
+        /// with a replaced <see cref="Data"/> payload.
+        /// </summary>
+        public uint CRC32 { get; set; } // vpkstuff patch: writable for .vsvg_c authoring

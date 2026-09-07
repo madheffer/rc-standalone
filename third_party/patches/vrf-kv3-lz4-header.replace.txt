@@ -1,0 +1,21 @@
+
+            writer.Write(MAGIC4);
+            writer.Write(Data.Header!.Format.Id.ToByteArray());
+            // VPKSTUFF PATCH: emit LZ4-compressed body so the output matches the
+            // shape Valve's resourcecompiler produces. CS2's material loader is
+            // strict — uncompressed vmat_c bytes are rejected — but the KV3
+            // reader at BinaryKV3.cs:317 already handles compressionMethod=1
+            // natively, so this is purely a writer-side change.
+            // IMPORTANT: Only use LZ4 (method 1) when there are no binary blobs.
+            // When binary blobs are present (e.g. MDAT in vmdl_c with meshlet data),
+            // the reader expects blobs to be compressed with the same method — but we
+            // only LZ4 the body, not the blobs. Use method 0 (uncompressed) for those
+            // blocks; CS2 model loader accepts uncompressed KV3, only vmat_c is strict.
+            // See docs/SKINS_TODO.md "Option 2 — Phase B/C" + PATCHES.md.
+            var useLz4 = context.BinaryBlobLengths.Count == 0;
+            writer.Write(useLz4 ? 1 : 0); // compressionMethod: 1=LZ4, 0=uncompressed
+            writer.Write((ushort)0); // compressionDictionaryId
+            writer.Write(useLz4 ? (ushort)16384 : (ushort)0); // compressionFrameSize
+            writer.Write((int)context.Bytes1.Length);
+            writer.Write((int)context.Bytes4.Length / 4);
+            writer.Write((int)context.Bytes8.Length / 8);

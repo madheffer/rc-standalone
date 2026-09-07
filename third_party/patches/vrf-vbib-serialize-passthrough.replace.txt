@@ -1,0 +1,35 @@
+        /// <inheritdoc/>
+        public override void Serialize(Stream stream)
+        {
+            // vpkstuff patch: passthrough — write the original block bytes back
+            // exactly as they were on disk. The vmdl_c RERL rewrite path
+            // (ModelSwapStage.CloneArmsSharedVmats, ModelSwapStage.RewriteResourceRerl)
+            // only mutates RERL/DATA blocks; vertex + index buffers are
+            // byte-stable across that round-trip. Without this, re-serialising
+            // any mutated vmdl_c throws NotImplementedException and the RERL
+            // rewrite never lands, leaving first-person arms translucent
+            // (or, in the swap path, leaving the splice's vmdl pointing at
+            // the source bundle's paths instead of the target slot's).
+            if (Resource?.Reader is null)
+                throw new InvalidOperationException(
+                    "VBIB passthrough requires the source Resource's Reader to still be open.");
+            var src = Resource.Reader.BaseStream;
+            var savedPos = src.Position;
+            try
+            {
+                src.Position = Offset;
+                var remaining = (int)Size;
+                Span<byte> buffer = stackalloc byte[4096];
+                while (remaining > 0)
+                {
+                    var take = Math.Min(buffer.Length, remaining);
+                    var slice = buffer[..take];
+                    var n = src.Read(slice);
+                    if (n <= 0)
+                        throw new EndOfStreamException("Unexpected EOF reading VBIB source bytes.");
+                    stream.Write(slice[..n]);
+                    remaining -= n;
+                }
+            }
+            finally { src.Position = savedPos; }
+        }

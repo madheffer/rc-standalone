@@ -1,0 +1,4 @@
+        private class Context
+        {
+            public int Version;
+            public ArraySegment<byte> Types;

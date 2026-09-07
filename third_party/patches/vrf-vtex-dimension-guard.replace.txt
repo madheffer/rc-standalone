@@ -1,0 +1,19 @@
+            NumMipLevels = reader.ReadByte();
+            Picmip0Res = reader.ReadUInt32();
+
+            // vpkstuff patch: clamp attacker-declared vtex dimensions before any
+            // buffer / SKBitmap is allocated from them. A crafted vtex can declare
+            // 65535x65535x65535 (UInt16 each), making CalculateBufferSizeForMipLevel's
+            // unchecked Int32 width*height*depth*bpp overflow to a small/negative Rent
+            // size and the SKBitmap alloc demand tens of GB (OOM). Reject up front with
+            // a catchable exception. SECURITY (vpkstuff audit F7): reachable via
+            // /compile/gltf + /v1/compile/gltf material decode on an uploaded model.
+            const int VpkMaxTextureDimension = 16384;
+            if (Width > VpkMaxTextureDimension || Height > VpkMaxTextureDimension || Depth > VpkMaxTextureDimension
+                || (long)Width * Height * Depth > 268_435_456L)
+            {
+                throw new System.IO.InvalidDataException(
+                    $"vtex dimensions out of range ({Width}x{Height}x{Depth}); refusing to allocate.");
+            }
+
+            var extraDataOffset = reader.ReadUInt32();

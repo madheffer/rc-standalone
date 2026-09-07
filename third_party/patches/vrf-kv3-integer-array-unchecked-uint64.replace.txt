@@ -1,0 +1,44 @@
+        /// <summary>
+        /// Gets an array of long integers by name.
+        /// </summary>
+        // vpkstuff patch: unchecked UInt64 -> long conversion, mirroring
+        // GetUnsignedIntegerArray's unchecked Int32 handling above. Community-compiled
+        // models store m_refMeshGroupMasks as UInt64 0xFFFFFFFFFFFFFFFF ("member of all
+        // groups"); the checked Convert.ChangeType path in GetArray<long> throws
+        // OverflowException there, which cost 32 library models their whole mesh-group
+        // read (variant schema, variant bake, glTF variant export). Bit semantics are
+        // what every caller wants: 0xFFFFFFFFFFFFFFFF becomes -1L (all bits set).
+        public static long[] GetIntegerArray(this KVObject obj, string name)
+        {
+            if (!obj.TryGetValue(name, out var child) || !child.IsArray)
+            {
+                return [];
+            }
+
+            var span = child.AsArraySpan();
+            var result = new long[span.Length];
+
+            for (var i = 0; i < span.Length; i++)
+            {
+                var elem = span[i];
+
+                if (elem.ValueType is KVValueType.Null or KVValueType.Collection or KVValueType.Array)
+                {
+                    continue;
+                }
+
+                if (elem.ValueType == KVValueType.UInt64)
+                {
+                    unchecked
+                    {
+                        result[i] = (long)(ulong)elem;
+                    }
+                }
+                else
+                {
+                    result[i] = (long)elem;
+                }
+            }
+
+            return result;
+        }

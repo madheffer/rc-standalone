@@ -1,0 +1,101 @@
+{
+  "_comment": "Literal find->replace patches applied to the vendored ValveResourceFormat clone by tools/vendor.ps1 / tools/vendor.sh. Each find snippet must appear EXACTLY ONCE in the pristine upstream file; a miss or a duplicate aborts the apply so the drift is reviewed rather than silently dropped. Rationale for each patch is in third_party/PATCHES.md.",
+  "patches": [
+    {
+      "id": "vrf-model-lod-mask-fallback-lod",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/Model.cs",
+      "find": "vrf-model-lod-mask-fallback-lod.find.txt",
+      "replace": "vrf-model-lod-mask-fallback-lod.replace.txt",
+      "description": "Default LoD mask to 1 (LoD 0 visible) when m_refLODGroupMasks is empty — CS2 CTRL-block MVTX models ship empty masks and the original Zip yields nothing."
+    },
+    {
+      "id": "vrf-panorama-writable-data",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/Panorama.cs",
+      "find": "vrf-panorama-writable-data.find.txt",
+      "replace": "vrf-panorama-writable-data.replace.txt",
+      "description": "Open the Panorama.Data AND Panorama.CRC32 setters so ResourceBuilder can author .vsvg_c icons from a template: replace Data, then refresh CRC32 (upstream's Serialize writes the stored checksum verbatim; it does not recompute)."
+    },
+    {
+      "id": "vrf-kv3-lz4-usings",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Serialization.cs",
+      "find": "vrf-kv3-lz4-usings.find.txt",
+      "replace": "vrf-kv3-lz4-usings.replace.txt",
+      "description": "Add System.Buffers + K4os.Compression.LZ4 usings for the BinaryKV3 LZ4 writer path."
+    },
+    {
+      "id": "vrf-kv3-lz4-header",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Serialization.cs",
+      "find": "vrf-kv3-lz4-header.find.txt",
+      "replace": "vrf-kv3-lz4-header.replace.txt",
+      "description": "Choose LZ4 (method 1) vs uncompressed (method 0) for the BinaryKV3 header based on whether the resource carries binary blobs."
+    },
+    {
+      "id": "vrf-kv3-lz4-body",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Serialization.cs",
+      "find": "vrf-kv3-lz4-body.find.txt",
+      "replace": "vrf-kv3-lz4-body.replace.txt",
+      "description": "Encode the BinaryKV3 body through MemoryStream + LZ4 so CS2 vmat_c loader (which rejects uncompressed KV3) accepts the output. Falls back to uncompressed when binary blobs are present."
+    },
+    {
+      "id": "vrf-kv3-depth-guard-field",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-depth-guard-field.find.txt",
+      "replace": "vrf-kv3-depth-guard-field.replace.txt",
+      "description": "Add a recursion-depth counter (Context.Depth) used by the KV3 read guard below."
+    },
+    {
+      "id": "vrf-kv3-depth-guard-readbinaryvalue",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-depth-guard-readbinaryvalue.find.txt",
+      "replace": "vrf-kv3-depth-guard-readbinaryvalue.replace.txt",
+      "description": "Bound KV3 binary-parser recursion depth (512) so a hostile deeply-nested resource raises a catchable InvalidDataException instead of an uncatchable StackOverflowException that crashes the process. ReadBinaryValue is the single chokepoint every nested value passes through. SECURITY: reachable anonymously via /rig/upload and on any bare VRF parse."
+    },
+    {
+      "id": "vrf-model-anim-include-cycle-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/Model.cs",
+      "find": "vrf-model-anim-include-cycle-guard.find.txt",
+      "replace": "vrf-model-anim-include-cycle-guard.replace.txt",
+      "description": "Cycle guard for m_refAnimIncludeModels: a self/loop reference recurses GetReferencedAnimations across FRESH Model instances with no cache to stop it, overflowing the stack (uncatchable process crash). A thread-static visited-set skips includes already on the load stack. SECURITY: makes ExportAnimations safe again."
+    },
+    {
+      "id": "vrf-vbib-serialize-passthrough",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Blocks/VBIB.cs",
+      "find": "vrf-vbib-serialize-passthrough.find.txt",
+      "replace": "vrf-vbib-serialize-passthrough.replace.txt",
+      "description": "Implement VBIB.Serialize as a byte-exact passthrough (upstream throws NotImplementedException). The pure-C# vmdl_c RERL/DATA rewrite (ModelSwapStage) re-serializes the whole resource; vertex/index buffers are byte-stable, so writing them back verbatim lets the rewrite land. Was applied inline only before this entry; now tracked so it survives re-vendoring."
+    },
+    {
+      "id": "vrf-vtex-dimension-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/Texture.cs",
+      "find": "vrf-vtex-dimension-guard.find.txt",
+      "replace": "vrf-vtex-dimension-guard.replace.txt",
+      "description": "Clamp attacker-declared vtex Width/Height/Depth before any buffer/SKBitmap allocation. A crafted vtex (UInt16 dims up to 65535 each) overflows CalculateBufferSizeForMipLevel's unchecked Int32 size math and/or demands tens of GB, OOMing the process. SECURITY (audit F7): reachable via /compile/gltf + /v1/compile/gltf material decode on an uploaded model."
+    },
+    {
+      "id": "vrf-resource-texture-trailing-padding",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Resource.cs",
+      "find": "vrf-resource-texture-trailing-padding.find.txt",
+      "replace": "vrf-resource-texture-trailing-padding.replace.txt",
+      "description": "Tolerate vtex_c with trailing padding after the texture data (file LARGER than the declared FullFileSize). VRF already ignores trailing bytes for raw PNG/JPEG; some community-packed compressed textures append ~16 trailing bytes, which made Resource.Read throw and fail the whole glb export for ~18 ingest models. A SMALLER (truncated) file still throws. Robustness only."
+    },
+    {
+      "id": "vrf-kv3-integer-array-unchecked-uint64",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Serialization/IKeyValueCollection.cs",
+      "find": "vrf-kv3-integer-array-unchecked-uint64.find.txt",
+      "replace": "vrf-kv3-integer-array-unchecked-uint64.replace.txt",
+      "description": "GetIntegerArray: unchecked UInt64 -> long element conversion (0xFFFFFFFFFFFFFFFF -> -1L). Community models store m_refMeshGroupMasks as UInt64 all-bits; the checked path threw OverflowException and cost 32 library models their mesh-group reads (variant schema/bake, glTF variant export). Mirrors upstream GetUnsignedIntegerArray unchecked handling."
+    }
+  ]
+}

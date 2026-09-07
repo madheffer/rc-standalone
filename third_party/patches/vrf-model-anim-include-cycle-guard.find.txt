@@ -1,0 +1,33 @@
+        /// <summary>
+        /// Gets animations referenced from other models.
+        /// </summary>
+        /// <param name="fileLoader">The file loader to use.</param>
+        /// <returns>Enumerable of animations.</returns>
+        public IEnumerable<Animation> GetReferencedAnimations(IFileLoader fileLoader)
+        {
+            var refAnimModels = Data.GetArray<string>("m_refAnimIncludeModels");
+            if (refAnimModels == null || refAnimModels.Length == 0)
+            {
+                return [];
+            }
+
+            var allAnims = new List<Animation>();
+            foreach (var modelName in refAnimModels)
+            {
+                if (string.IsNullOrEmpty(modelName))
+                {
+                    continue;
+                }
+
+                using var resource = fileLoader.LoadFileCompiled(modelName);
+                if (resource?.DataBlock is not Model model)
+                {
+                    continue;
+                }
+
+                var anims = GetEmbeddedAnimationsWithSkeleton(fileLoader, Skeleton, model);
+                allAnims.AddRange(anims);
+            }
+
+            return allAnims;
+        }

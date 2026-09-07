@@ -1,0 +1,30 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	generic_data_type = "prop_data"
+	scalar_zero = 0
+	scalar_one = 1
+	scalar_neg_one = -1
+	scalar_two = 2
+	scalar_i32max = 2147483647
+	scalar_i32max_p1 = 2147483648
+	scalar_i32min = -2147483648
+	scalar_i32min_m1 = -2147483649
+	scalar_u32max = 4294967295
+	scalar_i64max = 9223372036854775807
+	arr_zeros = [ 0, 0 ]
+	arr_ones = [ 1, 1 ]
+	arr_small = [ 0, 1, 5 ]
+	arr_promote = [ 7, 5000000000 ]
+	arr_promote_rev = [ 5000000000, 7 ]
+	arr_neg = [ -1, -2 ]
+	arr_nested = [ [ 0, 1 ], [ 7 ] ]
+	arr_empty = [ ]
+	mixed_zero_str = [ 0, "s" ]
+	mixed_one_float = [ 1, 1.5 ]
+	mixed_bool_int = [ true, 7 ]
+	obj_in_arr = [ { k = 0 }, { k = 1 } ]
+	float_zero = 0.0
+	float_one = 1.0
+	float_half = 0.5
+	flagged_ref = resource:"materials/particle/bendibeam.vmat"
+}

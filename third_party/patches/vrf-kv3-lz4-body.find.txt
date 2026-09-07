@@ -1,0 +1,28 @@
+            writer.Write((int)context.Bytes2.Length / 2);
+            writer.Write(0); // sizeBlockCompressedSizesBytes
+
+            var start = stream.Position;
+            var countTypes = WriteData(writer, context);
+
+            // If there are no binary blobs, write the trailer in the main buffer
+            if (context.BinaryBlobLengths.Count == 0)
+            {
+                writer.Write(0xFFEEDD00);
+            }
+
+            var end = stream.Position;
+
+            // Go back and write uncompressed size (only the main data, including trailer when no binary blobs)
+            var dataSize = (uint)(end - start);
+            stream.Position = countTypesOffset;
+            writer.Write(countTypes);
+            stream.Position = sizeUncompressedTotalOffset;
+            writer.Write(dataSize);
+            writer.Write(dataSize);
+            stream.Position = end;
+
+            if (context.BinaryBlobLengths.Count > 0)
+            {
+                context.BinaryBlobs.WriteTo(writer.BaseStream);
+
+                // Finish with a trailer after binary blobs

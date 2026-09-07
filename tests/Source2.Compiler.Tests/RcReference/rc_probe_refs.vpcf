@@ -1,0 +1,151 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:vpcf26:version{26288658-411e-4f14-b698-2e1e5d00dec6} -->
+{
+	m_nBehaviorVersion = 8
+	_class = "CParticleSystemDefinition"
+	m_Renderers = 
+	[
+		{
+			_class = "C_OP_RenderRopes"
+			m_hMaterial = resource:"materials/particle/bendibeam.vmat"
+			m_bAdditive = 1
+			m_flOverbrightFactor = 16.0
+			m_flTextureVScrollRate = -500.0
+		},
+	]
+
+	m_Operators = 
+	[
+		{
+			_class = "C_OP_BasicMovement"
+			m_Gravity = [0.0, 0.0, 400.0]
+		},
+		{
+			_class = "C_OP_DampenToCP"
+			m_flRange = 4.0
+		},
+		{
+			_class = "C_OP_Decay"
+			m_flOpStartFadeInTime = 1.0
+			m_flOpEndFadeInTime = 1.0
+		},
+		{
+			_class = "C_OP_FadeOut"
+			m_flFadeOutTimeMin = 0.7
+			m_flFadeOutTimeMax = 0.8
+		},
+		{
+			_class = "C_OP_DampenToCP"
+			m_nControlPointNumber = 1
+			m_flRange = 4.0
+		},
+		{
+			_class = "C_OP_InterpolateRadius"
+			m_flStartScale = 5.0
+			m_flEndScale = 0.5
+		},
+		{
+			_class = "C_OP_FadeIn"
+			m_flFadeInTimeMin = 0.1
+			m_flFadeInTimeMax = 0.1
+		},
+		{
+			_class = "C_OP_PositionLock"
+			m_flRange = 8.0
+		},
+		{
+			_class = "C_OP_ColorInterpolate"
+			m_ColorFade = [27, 48, 154, 255]
+			m_flFadeEndTime = 0.5
+		},
+		{
+			_class = "C_OP_OscillateVector"
+			m_RateMin = [-4.0, -4.0, -4.0]
+			m_RateMax = [4.0, 4.0, 4.0]
+			m_FrequencyMin = [0.1, 0.1, 0.1]
+			m_FrequencyMax = [3.0, 3.0, 3.0]
+			m_flStartTime_min = 0.15
+			m_flStartTime_max = 0.2
+		},
+		{
+			_class = "C_OP_DistanceToCP"
+			m_flInputMax = 256.0
+			m_flOutputMin = 32.0
+			m_nSetMethod = "PARTICLE_SET_SCALE_CURRENT_VALUE"
+		},
+	]
+
+	m_Initializers = 
+	[
+		{
+			_class = "C_INIT_RandomLifeTime"
+			m_fLifetimeMin = 0.5
+			m_fLifetimeMax = 0.5
+		},
+		{
+			_class = "C_INIT_CreateSequentialPathV2"
+			m_bLoop = false
+			m_fMaxDistance = 1.0
+			m_PathParams = 
+			{
+				m_flBulge = 0.125
+				m_nEndControlPointNumber = 1
+				m_nBulgeControl = 2
+				m_flMidPoint = 0.6
+			}
+			m_flNumToAssign = 16.0
+		},
+		{
+			_class = "C_INIT_CreationNoise"
+			m_flNoiseScale = 3.0
+			m_flNoiseScaleLoc = 1.0
+			m_flOutputMin = 0.1
+			m_flOutputMax = 0.5
+		},
+		{
+			_class = "C_INIT_RandomColor"
+			m_ColorMin = [89, 105, 255, 255]
+			m_ColorMax = [89, 105, 255, 255]
+		},
+		{
+			_class = "C_INIT_RemapScalar"
+			m_flStartTime = 0.4
+			m_flEndTime = 0.5
+			m_flInputMin = 0.4
+			m_flInputMax = 0.5
+			m_flOutputMin = 1.0
+			m_flOutputMax = 0.0
+			m_nSetMethod = "PARTICLE_SET_SCALE_CURRENT_VALUE"
+		},
+	]
+
+	m_Emitters = 
+	[
+		{
+			_class = "C_OP_ContinuousEmitter"
+			m_flEmitRate = 110.0
+			m_flEmissionDuration = 0.5
+		},
+	]
+
+	m_Children = 
+	[
+		{
+			m_ChildRef = resource:"particles/electrical_fx/electrical_arc_01_cp0.vpcf"
+		},
+		{
+			m_ChildRef = resource:"particles/electrical_fx/electrical_arc_01_cp1.vpcf"
+			m_flDelay = 0.06
+		},
+	]
+
+	m_ForceGenerators = 
+	[
+		{
+			_class = "C_OP_RandomForce"
+			m_MinForce = [-1500.0, -1500.0, -1500.0]
+			m_MaxForce = [1500.0, 1500.0, 1500.0]
+		},
+	]
+
+	m_bPreventnamebasedlookup = false
+}

@@ -1,0 +1,42 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Fetches the pinned ValveResourceFormat commit and applies this project's
+      # patches. A patch that no longer applies fails here rather than producing
+      # a build that silently lost the behaviour.
+      - name: Vendor ValveResourceFormat
+        run: dotnet run tools/vendor.cs
+
+      - name: Build the native BC7 encoder
+        run: |
+          cmake -S src/Source2.Compiler/Native/bc7enc -B src/Source2.Compiler/Native/bc7enc/build
+          cmake --build src/Source2.Compiler/Native/bc7enc/build --config Release
+
+      - name: Build
+        run: dotnet build -c Release
+
+      # The parity gate against real resourcecompiler.exe output runs with no
+      # game installed. Tests that need genuine game bytes skip on a runner.
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Self-test
+        run: dotnet run -c Release --no-build --project src/Source2.Compiler.Cli -- selftest

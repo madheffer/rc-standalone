@@ -1,0 +1,80 @@
+            writer.Write((int)context.Bytes2.Length / 2);
+            writer.Write(0); // sizeBlockCompressedSizesBytes
+
+            // Build the body (Bytes1+2+4+8 || strings || types || trailer-if-no-blobs)
+            // in memory so we can LZ4-compress it before writing to the resource
+            // stream. WriteData was previously called with the resource's writer
+            // directly; we now hand it a BinaryWriter over a MemoryStream.
+            int countTypes;
+            int sizeUncompressed;
+            int sizeCompressed;
+
+            using (var bodyStream = new MemoryStream())
+            {
+                using (var bodyWriter = new BinaryWriter(bodyStream, System.Text.Encoding.UTF8, leaveOpen: true))
+                {
+                    countTypes = WriteData(bodyWriter, context);
+
+                    // If there are no binary blobs, the trailer goes inside the
+                    // compressed body (matches stock layout). With binary blobs
+                    // the trailer is uncompressed at the very end — handled below.
+                    if (context.BinaryBlobLengths.Count == 0)
+                    {
+                        bodyWriter.Write(0xFFEEDD00);
+                    }
+                }
+
+                sizeUncompressed = (int)bodyStream.Length;
+
+                if (useLz4)
+                {
+                    // LZ4 single-block compression. The reader at BinaryKV3.cs:331
+                    // calls LZ4Codec.Decode(input, output) — the inverse — with
+                    // input sized by sizeCompressedTotal in the header.
+                    var uncompressedBuffer = bodyStream.GetBuffer();
+                    var maxOut = LZ4Codec.MaximumOutputSize(sizeUncompressed);
+                    var compressedBuffer = ArrayPool<byte>.Shared.Rent(maxOut);
+                    try
+                    {
+                        sizeCompressed = LZ4Codec.Encode(
+                            new ReadOnlySpan<byte>(uncompressedBuffer, 0, sizeUncompressed),
+                            compressedBuffer.AsSpan(0, maxOut));
+
+                        if (sizeCompressed < 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"LZ4 encode failed: input {sizeUncompressed} B, output buffer {maxOut} B.");
+                        }
+
+                        writer.Write(compressedBuffer, 0, sizeCompressed);
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(compressedBuffer);
+                    }
+                }
+                else
+                {
+                    // Uncompressed — write body verbatim; sizeCompressed == sizeUncompressed.
+                    bodyStream.Position = 0;
+                    bodyStream.CopyTo(stream);
+                    sizeCompressed = sizeUncompressed;
+                }
+            }
+
+            // Patch the placeholder sizes in the header.
+            var endOfCompressedBody = stream.Position;
+            stream.Position = countTypesOffset;
+            writer.Write(countTypes);
+            stream.Position = sizeUncompressedTotalOffset;
+            writer.Write(sizeUncompressed);
+            writer.Write(sizeCompressed);
+            stream.Position = endOfCompressedBody;
+
+            if (context.BinaryBlobLengths.Count > 0)
+            {
+                // Binary blobs stay uncompressed at the tail of the resource,
+                // matching pre-patch behavior. Only the body buffer is LZ4.
+                context.BinaryBlobs.WriteTo(writer.BaseStream);
+
+                // Finish with a trailer after binary blobs

@@ -1,0 +1,19 @@
+                    // TODO: Valve added null bytes after the png for whatever reason,
+                    // so assume we have the full file if the buffer is bigger than the size we calculated
+                    if (data.IsRawPng)
+                    {
+                        if (Reader.BaseStream.Length > fullFileSize)
+                        {
+                            return;
+                        }
+                    }
+
+                    // vpkstuff patch: some community-packed vtex_c append trailing padding
+                    // (commonly 16 bytes) after the texture data; the texture itself is
+                    // complete, so tolerate a file LARGER than the declared size. A SMALLER
+                    // file is real truncation and still throws below.
+                    if (Reader.BaseStream.Length > fullFileSize)
+                    {
+                        return;
+                    }
+                }

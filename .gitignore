@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+TestResults/
+
+# Vendored upstream source, fetched and patched by tools/vendor.cs.
+# Not committed: it is someone else's repository, pinned by sha in
+# third_party/VENDORED.json and reproduced by the vendor step.
+third_party/ValveResourceFormat/
+
+# Native encoder build output (CMake); the sources ARE committed.
+src/Source2.Compiler/Native/bc7enc/build/
+src/Source2.Compiler/Native/bc7enc/bin/

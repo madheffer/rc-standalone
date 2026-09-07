@@ -1,0 +1,10 @@
+        public List<NameEntry> Names { get; } = [];
+
+        /// <summary>
+        /// Gets the raw data.
+        /// </summary>
+        public byte[] Data { get; private set; } = [];
+        /// <summary>
+        /// Gets the CRC32 checksum.
+        /// </summary>
+        public uint CRC32 { get; private set; }

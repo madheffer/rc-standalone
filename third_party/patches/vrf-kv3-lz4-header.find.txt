@@ -1,0 +1,9 @@
+
+            writer.Write(MAGIC4);
+            writer.Write(Data.Header!.Format.Id.ToByteArray());
+            writer.Write(0); // 0 = no compression
+            writer.Write((ushort)0); // compressionDictionaryId
+            writer.Write((ushort)0); // compressionFrameSize
+            writer.Write((int)context.Bytes1.Length);
+            writer.Write((int)context.Bytes4.Length / 4);
+            writer.Write((int)context.Bytes8.Length / 8);

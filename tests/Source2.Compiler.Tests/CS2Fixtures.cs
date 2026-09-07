@@ -1,0 +1,168 @@
+using SteamDatabase.ValvePak;
+
+namespace Source2.Compiler.Tests;
+
+/// <summary>
+/// Structural templates and ground-truth samples, taken from the tester's own
+/// CS2 install rather than committed to this repository.
+///
+/// <para>Two of the compiled types this project emits (textures, sounds, vector
+/// graphics) reuse an existing compiled file of the same type for its header
+/// frame, and several tests want a genuine Valve compile to diff their output
+/// against. Shipping those files here would mean redistributing game content,
+/// so instead they are lifted out of <c>pak01_dir.vpk</c> at test time. Point
+/// <c>CS2_DIR</c> at the install (or have it in a default Steam location) and
+/// the full suite runs; without it, the tests that need game bytes skip and
+/// say so, and the donor-free paths - the container author, the KV3 compiler,
+/// the RERL ids - still run, because those need nothing from Valve.</para>
+/// </summary>
+internal static class CS2Fixtures
+{
+    private static readonly object Gate = new();
+    private static Package? _pak;
+    private static bool _tried;
+    private static readonly Dictionary<string, byte[]?> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Path to the installed <c>pak01_dir.vpk</c>, or null.</summary>
+    public static string? StockPak()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? "", "game", "csgo", "pak01_dir.vpk"),
+            @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk",
+            @"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk",
+        };
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    /// <summary>
+    /// Bytes of the first entry whose path ends with <paramref name="suffix"/>
+    /// (e.g. <c>".vtex_c"</c>), picked deterministically so a rerun reads the
+    /// same file. Null when CS2 is not installed or the pak holds no such type.
+    /// </summary>
+    public static byte[]? Template(string suffix)
+    {
+        lock (Gate) return TemplateLocked(suffix);
+    }
+
+    private static byte[]? TemplateLocked(string suffix)
+    {
+        {
+            if (Cache.TryGetValue(suffix, out var cached)) return cached;
+
+            if (!_tried)
+            {
+                _tried = true;
+                var path = StockPak();
+                if (path is not null)
+                {
+                    var p = new Package();
+                    try { p.Read(path); _pak = p; }
+                    catch { p.Dispose(); }
+                }
+            }
+
+            byte[]? bytes = null;
+            if (_pak is not null)
+            {
+                var entry = Io.VpkEntries.FirstEndingWith(_pak, suffix);
+                if (entry is not null)
+                {
+                    try { bytes = Io.VpkEntries.Read(_pak, entry); }
+                    catch { bytes = null; }
+                }
+            }
+            return Cache[suffix] = bytes;
+        }
+    }
+
+    /// <summary>
+    /// True when the suite is required to actually exercise the asset-gated
+    /// tests (<c>S2C_REQUIRE_ASSETS=1</c>). Fixture lookups throw instead of
+    /// returning null, because a gate that silently self-skips is not a gate.
+    /// </summary>
+    public static bool AssetsRequired =>
+        Environment.GetEnvironmentVariable("S2C_REQUIRE_ASSETS") is "1" or "true";
+
+    /// <summary>
+    /// <see cref="Template"/>, but written once to a temp file and handed back
+    /// as a path, for the tests that want to read a fixture off disk.
+    /// </summary>
+    public static string? TemplatePath(string suffix)
+    {
+        lock (Gate)
+        {
+            if (PathCache.TryGetValue(suffix, out var cached)) return cached;
+            var bytes = TemplateLocked(suffix);
+            string? path = null;
+            if (bytes is not null)
+            {
+                path = Path.Combine(Path.GetTempPath(), $"s2c_fixture_{suffix.TrimStart('.')}");
+                File.WriteAllBytes(path, bytes);
+            }
+            else if (AssetsRequired)
+            {
+                throw new InvalidOperationException(
+                    $"S2C_REQUIRE_ASSETS=1 but no {suffix} is reachable (install CS2 or set CS2_DIR). "
+                  + "The container gate must FAIL rather than self-skip.");
+            }
+            return PathCache[suffix] = path;
+        }
+    }
+
+    private static readonly Dictionary<string, string?> PathCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Like <see cref="TemplatePath"/>, but keeps scanning entries of that type
+    /// until <paramref name="accept"/> is happy. Some tests need more than "a
+    /// file of the right type": a ground-truth assertion about material groups,
+    /// say, is vacuous against a model that has none, so the fixture has to be
+    /// chosen by content rather than by being first in the archive.
+    /// </summary>
+    public static string? TemplatePathWhere(string cacheKey, string suffix, Func<byte[], bool> accept, int budget = 400)
+    {
+        lock (Gate)
+        {
+            if (PathCache.TryGetValue(cacheKey, out var cached)) return cached;
+
+            TemplateLocked(suffix);              // opens the pak on first use
+            string? path = null;
+
+            if (_pak is not null)
+            {
+                var ext = suffix.TrimStart('.');
+                if (_pak.Entries is not null && _pak.Entries.TryGetValue(ext, out var entries))
+                {
+                    var seen = 0;
+                    foreach (var e in entries.OrderBy(x => x.GetFullPath(), StringComparer.Ordinal))
+                    {
+                        if (seen++ >= budget) break;
+                        byte[] bytes;
+                        try { _pak.ReadEntry(e, out bytes); } catch { continue; }
+                        bool good;
+                        try { good = accept(bytes); } catch { good = false; }
+                        if (!good) continue;
+                        path = Path.Combine(Path.GetTempPath(), $"s2c_fixture_{cacheKey}");
+                        File.WriteAllBytes(path, bytes);
+                        break;
+                    }
+                }
+            }
+
+            if (path is null && AssetsRequired)
+                throw new InvalidOperationException(
+                    $"S2C_REQUIRE_ASSETS=1 but no {suffix} matching '{cacheKey}' is reachable "
+                  + "(install CS2 or set CS2_DIR). The gate must FAIL rather than self-skip.");
+
+            return PathCache[cacheKey] = path;
+        }
+    }
+
+    /// <summary>Report a skipped test and why. Always returns true so callers can
+    /// write <c>if (x is null) { CS2Fixtures.Skip(".vtex_c"); return; }</c>.</summary>
+    public static bool Skip(string needed)
+    {
+        Console.WriteLine($"[SKIP] no {needed} available. Install CS2 or set CS2_DIR to run this test.");
+        return true;
+    }
+}

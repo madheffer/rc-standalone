@@ -1,0 +1,5 @@
+        private class Context
+        {
+            public int Version;
+            public int Depth; // vpkstuff patch: KV3 recursion-depth guard (see ReadBinaryValue)
+            public ArraySegment<byte> Types;
