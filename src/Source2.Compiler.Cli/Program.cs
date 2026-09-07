@@ -55,7 +55,7 @@ static void Usage()
                     Compiled resource -> KV3 text (the DATA block's tree).
 
       s2c texture   <image.png|jpg|...> -o <out.vtex_c> --template <any.vtex_c>
-                    [--format bc7|bc4|dxt1|dxt5|rgba] [--no-mips] [--max-dim N]
+                    [--format bc7|bc5|bc4|bc3|bc1|rgba] [--no-mips] [--max-dim N]
                     Image -> compiled texture: mip chain, block compression and
                     the full stock extradata set the CS2 streamer expects.
 
@@ -63,7 +63,7 @@ static void Usage()
                     Raw SVG -> compiled Panorama vector graphic.
 
       s2c sound     <in.wav> -o <out.vsnd_c> --template <any.vsnd_c>
-                    PCM WAV -> compiled sound container.
+                    Uncompressed PCM WAV -> compiled sound container.
 
       s2c id        <resource/path.vtex>
                     Print the 64-bit RERL id the engine looks that path up by.

@@ -4,10 +4,18 @@ A standalone .NET library and CLI that produces **compiled Source 2 resources**
 (`.vdata_c`, `.vsndevts_c`, `.vpcf_c`, `.vtex_c`, `.vsnd_c`, `.vsvg_c`,
 `.vmat_c`, `.vmdl_c`) that Counter-Strike 2 loads.
 
-It does not use `resourcecompiler.exe`. It does not need the Workshop Tools, a
-CS2 install, or the game running. It shells out to nothing. Every byte of every
-output is written by managed code in this repository, and every structural fact
-it writes was measured against Valve's own compiler output rather than guessed.
+It does not use `resourcecompiler.exe`, the Workshop Tools, or a running game.
+It shells out to nothing. Every byte of every output is written by managed code
+in this repository, and every structural fact it writes was measured against
+Valve's own compiler output rather than guessed.
+
+Nothing in `src/Source2.Compiler/` reads a game file, and the library builds and
+runs with no CS2 installed. The one honest asterisk is that the binary output
+types (`.vtex_c`, `.vsnd_c`, `.vsvg_c`, `.vmat_c`, `.vmdl_c`) copy their header
+frame from an existing compiled file of the same type. That seed can be any such
+file, **including one this compiler produced** - see
+[What it emits](#what-it-emits) - so it is a one-time bootstrap, not a
+dependency. The KV3 types need nothing at all.
 
 ```
 $ s2c compile my_sounds.vsndevts
@@ -98,7 +106,7 @@ expects.
 | KV3 text | `.vpcf_c` | authored from scratch | RERL re-synthesised from the tree's `resource:` refs |
 | KV3 text | `.vagrp_c` | authored from scratch | extinct in CS2 content; kept for completeness |
 | PNG / JPG / TGA / BMP / WebP | `.vtex_c` | frame from a template | mips + block compression, authored RED2 |
-| WAV / MP3 | `.vsnd_c` | frame from a template | authored RED2 |
+| WAV (uncompressed PCM) | `.vsnd_c` | frame from a template | authored RED2 |
 | SVG | `.vsvg_c` | frame from a template | sanitised, CRC32 refreshed |
 | descriptor | `.vmat_c` | frame from a template | shader + params + RERL |
 | descriptor | `.vmdl_c` | frame from a template | mesh refs, LoD masks, material groups |

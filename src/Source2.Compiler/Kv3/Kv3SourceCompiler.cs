@@ -76,7 +76,7 @@ public static class Kv3SourceCompiler
             throw new InvalidOperationException(
                 "A .vsnd_c is an audio container (sound shape + encoded audio), not a KV3 document — " +
                 "it cannot be authored from KV3 text alone. Upload the audio file instead (the sound " +
-                "route compiles WAV/MP3 into a proper vsnd_c).");
+                "route compiles PCM WAV into a proper vsnd_c).");
         }
 
         // 1. Parse user text → KVDocument. ValveKeyValue's KV3 reader handles
