@@ -23,16 +23,30 @@ internal static class CS2Fixtures
     private static bool _tried;
     private static readonly Dictionary<string, byte[]?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Path to the installed <c>pak01_dir.vpk</c>, or null.</summary>
+    /// <summary>
+    /// Path to the installed <c>pak01_dir.vpk</c>, or null.
+    ///
+    /// <para><c>CS2_DIR</c> is authoritative: when it is set, only it is
+    /// consulted, and an install that is not there means "no CS2" rather than
+    /// falling through to a guessed Steam location. That is what makes
+    /// "this compiler needs nothing from the game" a claim you can test on a
+    /// machine that happens to have CS2 installed - point <c>CS2_DIR</c> at
+    /// somewhere empty and the game-dependent tests really do go away.</para>
+    /// </summary>
     public static string? StockPak()
     {
-        var candidates = new[]
+        if (Environment.GetEnvironmentVariable("CS2_DIR") is { Length: > 0 } dir)
         {
-            Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? "", "game", "csgo", "pak01_dir.vpk"),
+            var explicitPath = Path.Combine(dir, "game", "csgo", "pak01_dir.vpk");
+            return File.Exists(explicitPath) ? explicitPath : null;
+        }
+
+        var guesses = new[]
+        {
             @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk",
             @"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk",
         };
-        return candidates.FirstOrDefault(File.Exists);
+        return guesses.FirstOrDefault(File.Exists);
     }
 
     /// <summary>
@@ -42,7 +56,16 @@ internal static class CS2Fixtures
     /// </summary>
     public static byte[]? Template(string suffix)
     {
-        lock (Gate) return TemplateLocked(suffix);
+        lock (Gate)
+        {
+            var bytes = TemplateLocked(suffix);
+            if (bytes is null && AssetsRequired)
+                throw new InvalidOperationException(
+                    $"No {suffix} is reachable, but the asset-gated tests are required to run "
+                  + "(a CS2 install was found, or S2C_REQUIRE_ASSETS is set). A gate that "
+                  + "self-skips is not a gate, so this fails instead.");
+            return bytes;
+        }
     }
 
     private static byte[]? TemplateLocked(string suffix)
@@ -77,12 +100,20 @@ internal static class CS2Fixtures
     }
 
     /// <summary>
-    /// True when the suite is required to actually exercise the asset-gated
-    /// tests (<c>S2C_REQUIRE_ASSETS=1</c>). Fixture lookups throw instead of
-    /// returning null, because a gate that silently self-skips is not a gate.
+    /// True when the asset-gated tests must actually run rather than skip.
+    /// Fixture lookups then throw instead of returning null, because a gate that
+    /// silently self-skips is not a gate.
+    ///
+    /// <para>It is on whenever a CS2 install is reachable, not only under
+    /// <c>S2C_REQUIRE_ASSETS=1</c>. xUnit 2.x has no dynamic skip, so a test
+    /// that returns early still reports as a pass; without this, a fixture
+    /// lookup that broke for some reason other than "no game installed" would
+    /// disappear into a green run. The env var stays, for a CI runner that has
+    /// mounted the game and wants to assert it is really being used.</para>
     /// </summary>
     public static bool AssetsRequired =>
-        Environment.GetEnvironmentVariable("S2C_REQUIRE_ASSETS") is "1" or "true";
+        Environment.GetEnvironmentVariable("S2C_REQUIRE_ASSETS") is "1" or "true"
+        || StockPak() is not null;
 
     /// <summary>
     /// <see cref="Template"/>, but written once to a temp file and handed back
@@ -162,7 +193,7 @@ internal static class CS2Fixtures
     /// write <c>if (x is null) { CS2Fixtures.Skip(".vtex_c"); return; }</c>.</summary>
     public static bool Skip(string needed)
     {
-        Console.WriteLine($"[SKIP] no {needed} available. Install CS2 or set CS2_DIR to run this test.");
+        Console.WriteLine($"[SKIP] {needed} is not available. Install CS2, or set CS2_DIR, to run this test.");
         return true;
     }
 }

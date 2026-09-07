@@ -110,6 +110,14 @@ metadata is authored fresh, which is a fix rather than a limitation: an earlier
 version of this code kept the template's RED2 verbatim and every texture it
 ever produced shipped declaring a third party's source paths and file CRCs.
 
+The template does not have to come from the game, and it does not have to come
+from anywhere in particular: **any** compiled file of that type works, including
+one this compiler produced earlier. Compiling the same image against a template
+lifted from CS2 and against a `.vtex_c` this tool wrote three generations back
+gives byte-identical output. So the game is a one-time bootstrap for the binary
+types, not a dependency: seed one file of each type and the compiler sustains
+itself from there.
+
 ## What it is not
 
 It is not a general replacement for `resourcecompiler.exe`. It does not compile
@@ -155,13 +163,25 @@ The parity suite runs with no game installed: it compares against real
 which are compiles of this project's own probe sources.
 
 Tests that need genuine game bytes (a structural template, or Valve's own
-content as ground truth) read them from your CS2 install and skip cleanly when
-it is absent. Point `CS2_DIR` at the install to run those:
+content as ground truth) read them from your CS2 install. There are 19 tests:
+**9 run with no game installed at all** (the container author, the parity gate,
+the KV3 surface), and the other 10 need it.
 
 ```bash
 CS2_DIR="/path/to/Counter-Strike Global Offensive" dotnet test
-S2C_REQUIRE_ASSETS=1 dotnet test    # fail instead of skipping, for CI
+CS2_DIR=/somewhere/empty dotnet test   # reproduce the no-game case anywhere
 ```
+
+`CS2_DIR` is authoritative: set it and only it is consulted, so you can
+reproduce the no-game case on a machine that does have CS2 installed. It is only
+when the variable is unset that the usual Steam locations are guessed.
+
+**A test may only skip when the game genuinely is not there.** xUnit 2.x has no
+dynamic skip, so a test that returns early still reports as a pass, and a
+fixture lookup that broke for some other reason would vanish into a green run.
+So whenever an install is reachable, a missing fixture throws instead of
+skipping. `S2C_REQUIRE_ASSETS=1` forces that on for a CI runner that has mounted
+the game and wants to assert it is really being used.
 
 ## The CLI
 

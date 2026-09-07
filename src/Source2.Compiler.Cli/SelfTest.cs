@@ -237,16 +237,23 @@ internal static class SelfTest
         return (seen, bad);
     }
 
+    /// <summary>
+    /// The installed game archive, or null when there is none.
+    ///
+    /// <para><c>--cs2</c> / <c>$CS2_DIR</c> is authoritative: when given, only it
+    /// is consulted, so pointing it somewhere empty genuinely reproduces the
+    /// no-game-installed case even on a machine that has CS2. Only when it is
+    /// absent entirely does this guess at the usual Steam locations.</para>
+    /// </summary>
     private static Package? OpenPak(string? cs2Dir)
     {
-        var candidates = new[]
-        {
-            Path.Combine(cs2Dir ?? "", "game", "csgo", "pak01_dir.vpk"),
-            Path.Combine(cs2Dir ?? "", "pak01_dir.vpk"),
-            @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk",
-            @"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk",
-        };
-        var path = candidates.FirstOrDefault(File.Exists);
+        string?[] candidates = cs2Dir is { Length: > 0 }
+            ? [Path.Combine(cs2Dir, "game", "csgo", "pak01_dir.vpk"),
+               Path.Combine(cs2Dir, "pak01_dir.vpk")]
+            : [@"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk",
+               @"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk"];
+
+        var path = candidates.FirstOrDefault(c => c is not null && File.Exists(c));
         if (path is null) return null;
         var p = new Package();
         try { p.Read(path); return p; }
