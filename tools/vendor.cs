@@ -28,6 +28,11 @@ if (!Directory.Exists(Path.Combine(cloneDir, ".git")))
     Console.WriteLine($"==> fetching {repo} @ {sha[..12]}");
     Directory.CreateDirectory(cloneDir);
     Git(cloneDir, "init", "-q");
+    // Upstream nests source files deep enough that a checkout under an already
+    // long directory blows Windows' 260-character MAX_PATH, and git reports it
+    // as "Filename too long" per file while still claiming the checkout worked:
+    // the build then fails on types whose file silently never landed.
+    Git(cloneDir, "config", "core.longpaths", "true");
     Git(cloneDir, "remote", "add", "origin", repo);
     Git(cloneDir, "fetch", "-q", "--depth", "1", "origin", sha);
     Git(cloneDir, "checkout", "-q", "FETCH_HEAD");
