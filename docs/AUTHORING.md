@@ -169,10 +169,14 @@ animates differently from what the author wrote.
 
 ## Still open
 
-- **Nothing here is confirmed in game.** Every claim is about matching what stock
-  files contain. A template-free `.vtex_c` and an `.mks`-built sheet should be
-  loaded by CS2 before either is relied on.
-- `.vsvg_c` and `.vsnd_c` are measured as authorable but still take a template.
+- **Confirmed in game so far:** a template-free `.vtex_c` (rendered at 2048x1024
+  with its full mip chain), an `.mks`-built sheet (CS2 parsed the SHEET block and
+  selected a single frame rather than drawing the whole atlas), and a
+  template-free `.vsvg_c` (drawn in the killfeed and the weapon slot). Loaded
+  from a content VPK on a live CS2 server.
+- **`.vsnd_c` is authored but not yet confirmed in game.** It matches the stock
+  v4 container shape and reads back through VRF, and `ModernizeVsnd` still lifts
+  it to v5, but nothing has played one from an authored container yet.
 - A material's shader dependency (`"csgo_core/csgo_character.vfx" /
   CompileMaterial / fp=8`) carries a per-shader fingerprint only a real compile
   knows, so it is passed in rather than guessed.

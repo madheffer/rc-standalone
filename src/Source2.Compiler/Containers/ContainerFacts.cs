@@ -27,6 +27,22 @@ public static partial class Source2ContainerAuthor
     public const ushort PanoramaVectorGraphicResourceVersion = 2;
 
     /// <summary>
+    /// <c>.vsnd_c</c> resource version for the classic <c>RED2 DATA</c> layout.
+    /// Stock ships both: of 200 sampled, 93 are version 4 with those two blocks
+    /// and 107 are version 5, which adds a <c>CTRL</c> block.
+    /// <c>ResourceBuilder.ModernizeVsnd</c> converts one to the other.
+    /// </summary>
+    public const ushort SoundResourceVersion = 4;
+
+    /// <summary>
+    /// The one dependency every stock <c>.vsnd_c</c> carries (200 of 200).
+    /// </summary>
+    public static readonly SpecialDep[] SoundDeps =
+    [
+        new("Sound Compiler Version", "CompileSound", 1),
+    ];
+
+    /// <summary>
     /// <c>.vmat_c</c> resource version. Invariant across 200 sampled stock
     /// materials (of 21,796), all carrying <c>RERL RED2 DATA INSG</c> — note the
     /// INSG, which is why a material cannot be authored quite as freely as the

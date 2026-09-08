@@ -67,11 +67,13 @@ static void Usage()
                     into an atlas and writes the SHEET block a particle system
                     animates through. Frame images resolve next to the script.
 
-      s2c svg       <in.svg> -o <out.vsvg_c> --template <any.vsvg_c>
-                    Raw SVG -> compiled Panorama vector graphic.
+      s2c svg       <in.svg> -o <out.vsvg_c> [--template <any.vsvg_c>]
+                    Raw SVG -> compiled Panorama vector graphic. Needs no
+                    template.
 
-      s2c sound     <in.wav> -o <out.vsnd_c> --template <any.vsnd_c>
-                    Uncompressed PCM WAV -> compiled sound container.
+      s2c sound     <in.wav> -o <out.vsnd_c> [--template <any.vsnd_c>]
+                    Uncompressed PCM WAV -> compiled sound container. Needs no
+                    template.
 
       s2c id        <resource/path.vtex>
                     Print the 64-bit RERL id the engine looks that path up by.
@@ -82,14 +84,14 @@ static void Usage()
 
       s2c selftest  [--cs2 <CS2 install dir>]
                     Compile one of every supported type and report PASS/timing.
-                    The donor-free KV3 rows always run; the texture / sound /
-                    svg rows need a structural template, which is lifted from
-                    the game's own pak01 when --cs2 (or $CS2_DIR) is given.
+                    Every row runs with no game install; --cs2 (or $CS2_DIR)
+                    additionally enables the rows that read stock files to
+                    compare against, such as the RERL id check.
 
-    Templates: the binary types (vtex/vsnd/vsvg) reuse an existing compiled file
-    of the same type for its header frame only - never for its metadata, which is
-    authored fresh. Any file of that type works, including one from your own
-    CS2 install. See the README, and docs/RC_PARITY.md for the measured
+    Templates: optional everywhere. Every type here is authored outright, so a
+    donor file is only ever a way to carry a detail this compiler does not infer
+    (a packed normal map's mip algorithm, say). When one is given it supplies the
+    header frame only - never the metadata, which is authored fresh either way. See the README, and docs/RC_PARITY.md for the measured
     differences against resourcecompiler.exe.
     """);
 }

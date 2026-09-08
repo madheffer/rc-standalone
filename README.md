@@ -107,8 +107,8 @@ expects.
 | KV3 text | `.vagrp_c` | authored from scratch | extinct in CS2 content; kept for completeness |
 | PNG / JPG / TGA / BMP / WebP | `.vtex_c` | **authored** | mips + block compression, authored RED2 |
 | `.mks` + frame images | `.vtex_c` | **authored** | atlas packed, SHEET sequences, NO_LOD |
-| WAV (uncompressed PCM) | `.vsnd_c` | frame from a template | authored RED2 |
-| SVG | `.vsvg_c` | frame from a template | sanitised, CRC32 refreshed |
+| WAV (uncompressed PCM) | `.vsnd_c` | **authored** | authored RED2 |
+| SVG | `.vsvg_c` | **authored** | sanitised, CRC32 refreshed |
 | descriptor | `.vmat_c` | **authored**, given a shader input signature | shader + params + RERL |
 | descriptor | `.vmdl_c` | frame from a template | mesh refs, LoD masks, material groups |
 | any `_c` | KV3 text | — | the decompile direction, including typed blocks |
@@ -124,9 +124,11 @@ compiled file of that type works, including one this compiler produced earlier.
 Compiling the same image against a template lifted from CS2 and against a
 `.vtex_c` this tool wrote three generations back gives byte-identical output.
 
-**Textures, sprite sheets and materials no longer take one at all.** It turned out
-a template was contributing a single 16-bit integer, the resource version, which
-upstream simply had no public setter for. [docs/AUTHORING.md](docs/AUTHORING.md)
+**Only `.vmdl_c` still needs one.** For everything else it turned out a template
+was contributing a single 16-bit integer, the resource version, which upstream
+simply had no public setter for. Those types still *accept* one, to carry a
+detail this compiler does not infer, but nothing here requires a donor file and
+`s2c selftest` compiles every one of them on a machine with no CS2 installed. [docs/AUTHORING.md](docs/AUTHORING.md)
 records the measurements: which header fields exist, what every stock file of
 each type agrees on, and the one place the boundary is real (a material's vertex
 input signature follows its shader's feature combo, so it is stated rather than
@@ -218,8 +220,8 @@ s2c compile   <in.vdata|.vsndevts|.vpcf|.vagrp> [-o <out_c>]
 s2c decompile <in.*_c> [-o <out.txt>]
 s2c texture   <image> -o <out.vtex_c> [--template <any.vtex_c>] [--format bc7|bc5|bc4|bc3|bc1|rgba]
 s2c sheet     <in.mks> [-o <out.vtex_c>] [--format ...]
-s2c svg       <in.svg> -o <out.vsvg_c> --template <any.vsvg_c>
-s2c sound     <in.wav> -o <out.vsnd_c> --template <any.vsnd_c>
+s2c svg       <in.svg> -o <out.vsvg_c> [--template <any.vsvg_c>]
+s2c sound     <in.wav> -o <out.vsnd_c> [--template <any.vsnd_c>]
 s2c id        <resource/path.vtex>
 s2c inspect   <in.*_c>
 s2c selftest  [--cs2 <CS2 install dir>]

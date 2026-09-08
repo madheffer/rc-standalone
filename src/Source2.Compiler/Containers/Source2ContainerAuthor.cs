@@ -117,6 +117,16 @@ public static partial class Source2ContainerAuthor
         byte[] sourceTextBytes,
         string? sourceFileName = null)
     {
+        ArgumentNullException.ThrowIfNull(userDoc);
+        // The DATA block is stamped with the document's own format GUID, so a
+        // document parsed without one cannot be authored. Kv3SourceCompiler
+        // already refuses that input, but this is public and reachable directly.
+        if (userDoc.Header?.Format is null)
+            throw new InvalidOperationException(
+                "The parsed KV3 document has no Format header, so there is no format GUID to stamp " +
+                "into DATA. The source's first line must be a " +
+                "<!-- kv3 encoding:text:version{...} format:<schema>:version{...} --> comment.");
+
         if (!SpecByExtension.TryGetValue(sourceExtension, out var spec))
             throw new InvalidOperationException($"No container spec for '{sourceExtension}'.");
 

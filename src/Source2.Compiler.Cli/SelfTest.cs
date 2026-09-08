@@ -30,7 +30,7 @@ internal static class SelfTest
         Console.WriteLine("=== Source 2 resource compiler self-test ===");
         Console.WriteLine($"CPU         {Environment.ProcessorCount} logical processors");
         Console.WriteLine($"BC7 encoder {EncoderName()}");
-        Console.WriteLine($"CS2 pak     {(pak is null ? "not found, so the texture / sound / svg rows will skip" : "loaded")}");
+        Console.WriteLine($"CS2 pak     {(pak is null ? "not found, so the rows that compare against stock will skip" : "loaded")}");
         Console.WriteLine();
 
         var rows = new List<Row>();
@@ -109,17 +109,15 @@ internal static class SelfTest
         // 3. Textures across the size range. The managed encoder is roughly two
         // orders of magnitude slower than the native one, so cap the sizes when
         // it is what will run: a self-test nobody waits out reports nothing.
-        var vtexTemplate = FromPak(pak, ".vtex_c");
         var sizes = HaveNativeBc7 ? new[] { 128, 256, 512, 1024, 2048 } : [128, 256, 512];
-        if (!HaveNativeBc7 && vtexTemplate is not null)
+        if (!HaveNativeBc7)
             Skip("vtex (BC7)", "1024 and 2048 png to vtex_c", "managed encoder; pass --all-sizes to run anyway");
         if (args.Contains("--all-sizes")) sizes = [128, 256, 512, 1024, 2048];
         foreach (var size in sizes)
         {
-            if (vtexTemplate is null) { Skip("vtex (BC7)", $"{size}x{size} png to vtex_c", "no CS2 pak"); continue; }
             var png = NoisePng(size);
             Record("vtex (BC7)", $"{size}x{size} png to vtex_c", () =>
-                ResourceBuilder.BuildTexture(vtexTemplate, new ResourceBuilder.TextureDef
+                ResourceBuilder.BuildTexture(new ResourceBuilder.TextureDef
                 {
                     ImageBytes = png,
                     GenerateMipmaps = true,
@@ -128,24 +126,16 @@ internal static class SelfTest
         }
 
         // 4. Sound and vector graphic.
-        var vsndTemplate = FromPak(pak, ".vsnd_c");
-        if (vsndTemplate is null) Skip("vsnd", "2s PCM16 wav to vsnd_c", "no CS2 pak");
-        else
-        {
-            var wav = SineWav(2);
-            Record("vsnd", "2s PCM16 wav to vsnd_c", () => ResourceBuilder.BuildSound(vsndTemplate, wav));
-        }
+        var wav = SineWav(2);
+        Record("vsnd", "2s PCM16 wav to vsnd_c", () => ResourceBuilder.BuildSound(wav));
 
-        var vsvgTemplate = FromPak(pak, ".vsvg_c");
-        if (vsvgTemplate is null) Skip("vsvg", "svg to vsvg_c, then CRC re-read", "no CS2 pak");
-        else
         {
             var svg = Encoding.UTF8.GetBytes(
                 "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"400\" height=\"400\" viewBox=\"0 0 400 400\">"
               + "<path fill=\"#ffffff\" d=\"M60 60 L340 200 L60 340 Z\"/></svg>");
             Record("vsvg", "svg to vsvg_c, then CRC re-read", () =>
             {
-                var built = ResourceBuilder.BuildPanoramaSvg(vsvgTemplate, svg);
+                var built = ResourceBuilder.BuildPanoramaSvg(svg);
                 // Re-reading validates the CRC32 (Panorama.Read throws on a mismatch)
                 // and confirms the payload survived byte for byte.
                 using var res = new Resource();

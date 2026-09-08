@@ -124,7 +124,8 @@ internal static class Commands
     {
         var input = Positional(a, "svg file");
         var outPath = Require(Opt(a, "-o"), "-o <out.vsvg_c>");
-        var template = File.ReadAllBytes(Require(Opt(a, "--template"), "--template <any.vsvg_c>"));
+        // --template is optional: without one the container is authored outright.
+        var template = Opt(a, "--template") is { } t ? File.ReadAllBytes(t) : null;
 
         var bytes = ResourceBuilder.BuildPanoramaSvg(template, File.ReadAllBytes(input), Opt(a, "--ship-as"));
         File.WriteAllBytes(outPath, bytes);
@@ -136,7 +137,8 @@ internal static class Commands
     {
         var input = Positional(a, "wav file");
         var outPath = Require(Opt(a, "-o"), "-o <out.vsnd_c>");
-        var template = File.ReadAllBytes(Require(Opt(a, "--template"), "--template <any.vsnd_c>"));
+        // --template is optional: without one the container is authored outright.
+        var template = Opt(a, "--template") is { } t ? File.ReadAllBytes(t) : null;
 
         var bytes = ResourceBuilder.BuildSound(template, File.ReadAllBytes(input), Opt(a, "--ship-as"));
         File.WriteAllBytes(outPath, bytes);

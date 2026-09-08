@@ -23,7 +23,7 @@ namespace Source2.Compiler;
 /// calling <c>Resource.Serialize()</c>.
 ///
 /// The template resource is mutated and must not be reused after calling
-/// <see cref="BuildMaterial"/> or <see cref="BuildModel"/>.
+/// <see cref="BuildMaterial(byte[], MaterialDef)"/> or <see cref="BuildModel"/>.
 /// </summary>
 public static class ResourceBuilder
 {
@@ -232,7 +232,7 @@ public static class ResourceBuilder
     // ── Public build API ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The BC7 encoder <see cref="BuildTexture"/> will <i>actually</i> use for a
+    /// The BC7 encoder <see cref="BuildTexture(TextureDef)"/> will <i>actually</i> use for a
     /// requested <paramref name="mode"/>: <see cref="Bc7EncoderMode.Gpu"/> only
     /// when <see cref="GpuBc7Encoder"/> reports available, otherwise
     /// <see cref="Bc7EncoderMode.Cpu"/> (the Gpu mode falls back to CPU).
@@ -311,10 +311,27 @@ public static class ResourceBuilder
     /// Any valid <c>.vtex_c</c>, used for the container frame only, or null to
     /// author the container outright.
     /// </param>
+    /// <param name="def">What to compile: the pixels, the format, and the flags.</param>
     public static byte[] BuildTexture(byte[]? templateBytes, TextureDef def)
     {
         if (def.ImageBytes is not { Length: > 0 } && def.RawRgba is not { Length: > 0 })
             throw new ArgumentException("ImageBytes or RawRgba must be set.", nameof(def));
+
+        // RawRgba states its dimensions separately from the buffer, so the two
+        // can disagree - and the copy into the bitmap would not say so. A short
+        // buffer fills the tail with transparent black, which ships as a texture
+        // that is simply wrong from some row down, with nothing raised anywhere.
+        if (def.RawRgba is { Length: > 0 })
+        {
+            if (def.RawWidth <= 0 || def.RawHeight <= 0)
+                throw new ArgumentException(
+                    $"RawRgba needs positive dimensions (got {def.RawWidth}x{def.RawHeight}).", nameof(def));
+            var expected = (long)def.RawWidth * def.RawHeight * 4;
+            if (def.RawRgba.Length != expected)
+                throw new ArgumentException(
+                    $"RawRgba is {def.RawRgba.Length} bytes but {def.RawWidth}x{def.RawHeight} RGBA needs {expected}.",
+                    nameof(def));
+        }
 
         var highQuality = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
 
@@ -675,10 +692,10 @@ public static class ResourceBuilder
 
     /// <summary>
     /// Compile a user-supplied WAV byte array into a fresh <c>.vsnd_c</c>.
-    /// Same template-and-splice strategy as <see cref="BuildTexture"/>: the
-    /// resource container (header, block table, RERL placeholders) comes
-    /// from <paramref name="templateBytes"/>, and we replace its DATA block
-    /// with bytes built from the user's WAV.
+    /// Same strategy as <see cref="BuildTexture(TextureDef)"/>: the resource
+    /// container (header, block table) is authored, or taken from a template
+    /// when one is given, and its DATA block is replaced with bytes built from
+    /// the user's WAV.
     ///
     /// Constraints (matches CS2 / Source 2 vsnd format v4):
     ///   • PCM only (no MP3/AAC/ADPCM compile path here)
@@ -692,11 +709,30 @@ public static class ResourceBuilder
     /// message when the WAV violates one of the above; the caller surfaces
     /// the message as a 400 response.
     /// </summary>
-    /// <param name="templateBytes">Any valid <c>.vsnd_c</c>, used for the container frame only.</param>
+    /// <summary>
+    /// Produce a <c>.vsnd_c</c> with no donor file. The container is authored:
+    /// resource version 4 with the <c>RED2 DATA</c> block pair, the shape every
+    /// stock v4 sound has. <see cref="ModernizeVsnd"/> still upgrades it to the
+    /// v5 <c>RED2 DATA CTRL</c> layout when that is what the caller ships.
+    /// </summary>
     /// <param name="wavBytes">PCM WAV to compile.</param>
     /// <param name="sourceName">Content-relative source path recorded in the authored RED2
     /// (e.g. <c>"sounds/vpkedit/foo.wav"</c>); null records a neutral <c>vpkeditor/</c> name.</param>
-    public static byte[] BuildSound(byte[] templateBytes, byte[] wavBytes, string? sourceName = null)
+    public static byte[] BuildSound(byte[] wavBytes, string? sourceName = null)
+        => BuildSound(null, wavBytes, sourceName);
+
+    /// <summary>
+    /// As <see cref="BuildSound(byte[], string?)"/>, but taking the container
+    /// frame from an existing <c>.vsnd_c</c> instead of authoring it.
+    /// </summary>
+    /// <param name="templateBytes">
+    /// Any valid <c>.vsnd_c</c>, used for the container frame only, or null to
+    /// author it.
+    /// </param>
+    /// <param name="wavBytes">PCM WAV to compile.</param>
+    /// <param name="sourceName">Content-relative source path recorded in the authored RED2;
+    /// null records a neutral <c>vpkeditor/</c> name.</param>
+    public static byte[] BuildSound(byte[]? templateBytes, byte[] wavBytes, string? sourceName = null)
     {
         if (wavBytes is not { Length: > 12 })
             throw new InvalidOperationException("WAV file is empty or too small to be valid.");
@@ -777,9 +813,9 @@ public static class ResourceBuilder
         var soundBlockBytes = ms.ToArray();
 
         // ── Splice into template Resource container ──────────────────────────────
-        using var tms = new MemoryStream(templateBytes);
-        using var template = new Resource();
-        template.Read(tms);
+        using var template = templateBytes is { Length: > 0 }
+            ? ReadResource(templateBytes)
+            : new Resource { Version = Source2ContainerAuthor.SoundResourceVersion };
 
         var dataIdx = template.Blocks.FindIndex(b => b.Type == BlockType.DATA);
         var rawBlock = new RawDataBlock(soundBlockBytes) { Resource = template };
@@ -811,6 +847,8 @@ public static class ResourceBuilder
             .Select(d => new Source2ContainerAuthor.SpecialDep(
                 d.String, d.CompilerIdentifier, (int)d.Fingerprint, (int)d.UserData))
             .ToList();
+        if (sndTemplateDeps.Count == 0)
+            sndTemplateDeps.AddRange(Source2ContainerAuthor.SoundDeps);
         var sndEditInfo = Source2ContainerAuthor.BuildSoundEditInfo(sourceName, wavBytes, sndTemplateDeps);
         var sndRed2 = new BinaryKV3(sndEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2) { Resource = template };
         if (sndRed2Idx >= 0) template.Blocks[sndRed2Idx] = sndRed2;
@@ -844,7 +882,7 @@ public static class ResourceBuilder
 
     /// <summary>
     /// Parsed WAV "fmt " chunk fields we care about. Mirrors the subset of
-    /// the WAVE format header used by <see cref="BuildSound"/>.
+    /// the WAVE format header used by <see cref="BuildSound(byte[], string?)"/>.
     /// </summary>
     private readonly record struct WavFormat(
         ushort AudioFormat,
@@ -1529,23 +1567,73 @@ public static class ResourceBuilder
     }
 
     /// <summary>
-    /// Compile a raw SVG (UTF-8 bytes) into a Source 2 <c>.vsvg_c</c> by
-    /// swapping the DATA (Panorama) block of a template <c>.vsvg_c</c> and
-    /// re-serializing. Same template pattern as <see cref="BuildSound"/> /
-    /// <see cref="BuildTexture"/>: the container (header, RERL/RED2, block
-    /// table) comes from the template; the Panorama block's content is replaced
-    /// with the new SVG and its CRC32 recomputed on serialize.
+    /// Compile a raw SVG (UTF-8 bytes) into a Source 2 <c>.vsvg_c</c> with no
+    /// donor file. The container is authored: resource version 2 and a fresh
+    /// Panorama block with an empty name table, which is what every stock vector
+    /// graphic has (400 of 400 sampled). The SVG is normalized on the way in
+    /// (see <see cref="SvgSanitizer.ForPanorama(byte[])"/>) and the Panorama
+    /// CRC32 is computed over what is actually stored.
     ///
     /// <para>Used for custom killfeed / HUD knife icons
     /// (<c>panorama/images/icons/equipment/*.vsvg_c</c>).</para>
     /// </summary>
-    public static byte[] BuildPanoramaSvg(byte[] templateVsvgC, byte[] svgBytes, string? sourceName = null)
-    {
-        using var resource = new Resource();
-        resource.Read(new MemoryStream(templateVsvgC, writable: false));
+    /// <param name="svgBytes">The SVG document, as UTF-8 bytes.</param>
+    /// <param name="sourceName">Content-relative source path recorded in the authored RED2;
+    /// null records a neutral <c>vpkeditor/</c> name.</param>
+    public static byte[] BuildPanoramaSvg(byte[] svgBytes, string? sourceName = null)
+        => BuildPanoramaSvg(null, svgBytes, sourceName);
 
-        if (resource.DataBlock is not Panorama panorama)
-            throw new InvalidDataException("Template is not a Panorama (.vsvg_c) resource.");
+    /// <summary>
+    /// As <see cref="BuildPanoramaSvg(byte[], string?)"/>, but taking the
+    /// container frame and its name-entry header from an existing
+    /// <c>.vsvg_c</c> instead of authoring them.
+    /// </summary>
+    /// <param name="templateVsvgC">
+    /// Any valid <c>.vsvg_c</c>, used for the container frame and its name-entry
+    /// header, or null to author both.
+    /// </param>
+    /// <param name="svgBytes">The SVG document, as UTF-8 bytes.</param>
+    /// <param name="sourceName">Content-relative source path recorded in the authored RED2;
+    /// null records a neutral <c>vpkeditor/</c> name.</param>
+    public static byte[] BuildPanoramaSvg(byte[]? templateVsvgC, byte[] svgBytes, string? sourceName = null)
+    {
+        Panorama panorama;
+        Resource resource;
+
+        if (templateVsvgC is { Length: > 0 })
+        {
+            resource = new Resource();
+            resource.Read(new MemoryStream(templateVsvgC, writable: false));
+            if (resource.DataBlock is not Panorama fromTemplate)
+            {
+                resource.Dispose();
+                throw new InvalidDataException("Template is not a Panorama (.vsvg_c) resource.");
+            }
+            panorama = fromTemplate;
+        }
+        else
+        {
+            // Authored outright. The name table is what a template was otherwise
+            // contributing, and stock ships it empty without exception, so there
+            // is nothing here a donor could add.
+            resource = new Resource { Version = Source2ContainerAuthor.PanoramaVectorGraphicResourceVersion };
+            panorama = new Panorama([], []) { Resource = resource };
+            resource.Blocks.Add(panorama);
+        }
+
+        using var _ = resource;
+
+        // An SVG is the whole content of a .vsvg_c, and the sanitizer below is a
+        // best-effort normalizer that passes anything it does not recognize
+        // through untouched. Without this check, a non-SVG upload compiles into
+        // a well-formed container holding bytes the engine cannot draw - an icon
+        // that is simply missing in game, with no failure anywhere upstream.
+        if (svgBytes is not { Length: > 0 })
+            throw new InvalidDataException("SVG input is empty.");
+        if (!System.Text.Encoding.UTF8.GetString(svgBytes).Contains("<svg", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException(
+                "Input is not an SVG document (no <svg> element). A .vsvg_c holds vector art, " +
+                "so a raster image has to be converted to SVG first.");
 
         // Replace the SVG payload; keep the template's name-entry header.
         // Sanitize first: CS2's Panorama SVG parser rejects the minified / arc /
@@ -1569,6 +1657,8 @@ public static class ResourceBuilder
             .Select(d => new Source2ContainerAuthor.SpecialDep(
                 d.String, d.CompilerIdentifier, (int)d.Fingerprint, (int)d.UserData))
             .ToList();
+        if (svgTemplateDeps.Count == 0)
+            svgTemplateDeps.AddRange(Source2ContainerAuthor.VectorGraphicDeps);
         var svgEditInfo = Source2ContainerAuthor.BuildVectorGraphicEditInfo(
             sourceName, panorama.Data, svgTemplateDeps);
         var svgRed2 = new BinaryKV3(svgEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2) { Resource = resource };

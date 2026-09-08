@@ -197,4 +197,162 @@ public class TemplateFreeAuthoringTests
 
         Assert.Equal(signature, MaterialAuthor.ExtractInputSignature(bytes));
     }
+
+    /// <summary>A minimal PCM16 mono WAV, so the sound tests need no game file.</summary>
+    private static byte[] SineWav(int seconds = 1, int rate = 22050)
+    {
+        var frames = rate * seconds;
+        var pcm = new byte[frames * 2];
+        for (var i = 0; i < frames; i++)
+        {
+            var v = (short)(8000 * Math.Sin(2 * Math.PI * 440 * i / rate));
+            pcm[i * 2] = (byte)(v & 0xFF);
+            pcm[i * 2 + 1] = (byte)((v >> 8) & 0xFF);
+        }
+        using var ms = new MemoryStream();
+        using (var w = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+        {
+            w.Write("RIFF"u8); w.Write(36 + pcm.Length); w.Write("WAVE"u8);
+            w.Write("fmt "u8); w.Write(16); w.Write((ushort)1); w.Write((ushort)1);
+            w.Write(rate); w.Write(rate * 2); w.Write((ushort)2); w.Write((ushort)16);
+            w.Write("data"u8); w.Write(pcm.Length); w.Write(pcm);
+        }
+        return ms.ToArray();
+    }
+
+    private const string Svg =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" width=\"64\" height=\"64\">"
+      + "<path fill=\"#ffffff\" d=\"M8 8 L56 8 L56 56 L8 56 Z\"/></svg>";
+
+    [Fact]
+    public void VectorGraphic_AuthoredWithNoTemplate_MatchesStockContainerShape()
+    {
+        var bytes = ResourceBuilder.BuildPanoramaSvg(
+            System.Text.Encoding.UTF8.GetBytes(Svg), "panorama/images/icons/equipment/mine.svg");
+
+        using var res = new Resource { FileName = "mine.vsvg_c" };
+        res.Read(new MemoryStream(bytes));
+
+        // 400 of 400 sampled stock vector graphics: version 2, RED2 + DATA,
+        // and an EMPTY name table — which is the only thing a template was
+        // contributing here.
+        Assert.Equal(ResourceType.PanoramaVectorGraphic, res.ResourceType);
+        Assert.Equal(Source2ContainerAuthor.PanoramaVectorGraphicResourceVersion, res.Version);
+        Assert.Equal([BlockType.RED2, BlockType.DATA], res.Blocks.Select(b => b.Type).ToArray());
+
+        var pan = (Panorama)res.DataBlock!;
+        Assert.Empty(pan.Names);
+        // Read() validates CRC32 against the payload, so getting here proves it.
+        Assert.Contains("M8 8", System.Text.Encoding.UTF8.GetString(pan.Data));
+
+        Assert.Contains(res.EditInfo!.SpecialDependencies,
+            d => d.String == "Vector Graphic Version" && d.CompilerIdentifier == "CompileVectorGraphic" && d.Fingerprint == 2);
+        Assert.Contains(res.EditInfo.InputDependencies,
+            d => d.ContentRelativeFilename == "panorama/images/icons/equipment/mine.svg");
+    }
+
+    [Fact]
+    public void Sound_AuthoredWithNoTemplate_MatchesStockContainerShape()
+    {
+        var bytes = ResourceBuilder.BuildSound(SineWav(), "sounds/mine/beep.wav");
+
+        using var res = new Resource { FileName = "beep.vsnd_c" };
+        res.Read(new MemoryStream(bytes));
+
+        // Stock ships v4 as RED2 + DATA (93 of 200 sampled; the rest are v5,
+        // which ModernizeVsnd produces from this).
+        Assert.Equal(ResourceType.Sound, res.ResourceType);
+        Assert.Equal(Source2ContainerAuthor.SoundResourceVersion, res.Version);
+        Assert.Equal([BlockType.RED2, BlockType.DATA], res.Blocks.Select(b => b.Type).ToArray());
+        Assert.Null(res.GetBlockByType(BlockType.RERL));
+
+        Assert.Contains(res.EditInfo!.SpecialDependencies,
+            d => d.String == "Sound Compiler Version" && d.CompilerIdentifier == "CompileSound" && d.Fingerprint == 1);
+        Assert.Contains(res.EditInfo.InputDependencies,
+            d => d.ContentRelativeFilename == "sounds/mine/beep.wav");
+
+        var snd = (Sound)res.DataBlock!;
+        Assert.Equal(22050u, snd.SampleRate);
+        Assert.True(snd.SampleCount > 0);
+    }
+
+    [Fact]
+    public void Sound_AuthoredStillModernizesToV5()
+    {
+        // The v5 layout is what the override path actually ships, so the
+        // authored container has to survive the conversion the same way a
+        // templated one does.
+        var v4 = ResourceBuilder.BuildSound(SineWav(), "sounds/mine/beep.wav");
+        var v5 = ResourceBuilder.ModernizeVsnd(v4);
+
+        using var res = new Resource { FileName = "beep.vsnd_c" };
+        res.Read(new MemoryStream(v5));
+        Assert.Equal(5, res.Version);
+        Assert.NotNull(res.GetBlockByType(BlockType.CTRL));
+        Assert.Contains(res.EditInfo!.SpecialDependencies, d => d.String == "Sound Compiler Version");
+    }
+
+    [Fact]
+    public void VectorGraphic_AuthoredAndTemplated_AgreeByteForByte()
+    {
+        var svg = System.Text.Encoding.UTF8.GetBytes(Svg);
+        var authored = ResourceBuilder.BuildPanoramaSvg(svg, "panorama/images/icons/equipment/mine.svg");
+        var templated = ResourceBuilder.BuildPanoramaSvg(authored, svg, "panorama/images/icons/equipment/mine.svg");
+        Assert.Equal(authored, templated);
+    }
+
+    [Fact]
+    public void Texture_RefusesARawBufferThatDoesNotMatchItsStatedSize()
+    {
+        // RawRgba carries its dimensions separately from the buffer, so the two
+        // can disagree. The copy into the bitmap does not say so when the buffer
+        // is SHORT: the tail stays transparent black and a texture that is wrong
+        // from some row down ships with nothing raised anywhere.
+        var ex = Assert.Throws<ArgumentException>(() => ResourceBuilder.BuildTexture(
+            new ResourceBuilder.TextureDef
+            {
+                RawRgba = new byte[10],
+                RawWidth = 64,
+                RawHeight = 64,
+                Compression = ResourceBuilder.TextureCompression.None,
+            }));
+        Assert.Contains("16384", ex.Message);
+
+        // And the matching buffer still builds.
+        ResourceBuilder.BuildTexture(new ResourceBuilder.TextureDef
+        {
+            RawRgba = new byte[64 * 64 * 4],
+            RawWidth = 64,
+            RawHeight = 64,
+            Compression = ResourceBuilder.TextureCompression.None,
+        });
+    }
+
+    [Theory]
+    [InlineData("", "empty")]
+    [InlineData("just some text", "not an SVG")]
+    [InlineData("PNG-not-svg", "not an SVG")]
+    public void VectorGraphic_RefusesAPayloadThatIsNotSvg(string body, string expected)
+    {
+        // The sanitizer passes anything it does not recognise through untouched,
+        // so without this a non-SVG upload compiles into a well-formed container
+        // holding bytes the engine cannot draw: an icon simply missing in game,
+        // with no failure anywhere upstream.
+        var ex = Assert.Throws<InvalidDataException>(
+            () => ResourceBuilder.BuildPanoramaSvg(System.Text.Encoding.UTF8.GetBytes(body)));
+        Assert.Contains(expected, ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Kv3Authoring_RefusesADocumentWithNoFormatHeader()
+    {
+        // AuthorKv3Resource stamps the document's own format GUID into DATA, so
+        // a header-less document has nothing to stamp. Kv3SourceCompiler already
+        // refuses that input; this entry point is public and reachable directly.
+        var root = new KVObject("root").ToKV3Document().Root;
+        var doc = new ValveKeyValue.KVDocument(header: null, name: null, root);
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => Source2ContainerAuthor.AuthorKv3Resource(doc, ".vdata", [1, 2, 3]));
+        Assert.Contains("Format header", ex.Message);
+    }
 }

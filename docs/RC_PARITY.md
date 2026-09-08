@@ -25,19 +25,47 @@ not a shrug, it is a measurement.
 | `.vdata` | matches | matches | matches | **identical** | yes |
 | `.vpcf` | matches | matches | superset (see G3) | **differs — G2** | yes |
 | `.vagrp` | unknown (G4) | — | — | — | yes |
-| `.vtex` | template frame | **authored (C4)** | n/a | n/a (binary) | metadata yes, frame no |
-| `.vsnd` | template frame | **authored (C5)** | dropped (correct) | n/a (binary) | metadata yes, frame no |
-| `.vsvg` | template frame | **authored (C5)** | n/a | n/a (binary) | metadata yes, frame no |
+| `.vtex` | **authored (C4)** | **authored (C4)** | n/a | n/a (binary) | yes |
+| `.vsnd` | **authored (C6)** | **authored (C5)** | dropped (correct) | n/a (binary) | yes |
+| `.vsvg` | **authored (C6)** | **authored (C5)** | n/a | n/a (binary) | yes |
 
-**No donor metadata leaks remain.** Every compiled type now describes its own
-compile. The container FRAME still comes from a template for the three binary
-types, which is not a correctness problem — `BuildMaterial` takes a
-caller-supplied template the same way.
+**No donor of any kind is required.** Every compiled type describes its own
+compile AND authors its own container frame. A template is still accepted for the
+binary types, to carry a detail this compiler does not infer (a packed normal
+map's mip algorithm, say); compiling with one and without gives byte-identical
+output otherwise. The one real donor left is a material's vertex input signature,
+which follows its shader's feature combo and so is stated rather than guessed.
 
 Pinned by `Source2ContainerAuthorTests` against the real compiler outputs in
 `tests/Source2.Compiler.Tests/RcReference/`.
 
 ## Closed
+
+### C6 — the container frame is authored, so no type needs a donor (fixed 2026-09-08)
+
+C4/C5 stopped the three binary types from shipping a donor's *metadata*, but
+they still lifted the donor's *frame*: the header, and the block layout. That was
+never a metadata leak, but it did mean `.vtex_c`, `.vsnd_c` and `.vsvg_c` could
+not be produced at all without some compiled file of the same type on hand -
+awkward exactly when it matters, since a source file often has no donor to take.
+
+What a frame was actually contributing turned out to be one 16-bit integer, the
+resource version, which upstream VRF had no public setter for. With the
+`vrf-resource-version-settable` patch it is stated outright, and the rest of the
+frame is block construction this code was already doing:
+
+| type | authored version | authored blocks | sample it was measured against |
+|---|---|---|---|
+| `.vtex_c` | 1 | `RED2 DATA` | 200 of 200 stock textures agree |
+| `.vsvg_c` | 2 | `RED2 DATA`, empty name table | 400 of 400 stock vector graphics agree |
+| `.vsnd_c` | 4 | `RED2 DATA` | 93 of 200; the other 107 are v5 (`+ CTRL`), which `ModernizeVsnd` produces from this |
+
+The numbers live in `ContainerFacts.cs` next to how they were taken. A template
+is still *accepted* everywhere, to carry a detail this compiler does not infer,
+and `Texture_AuthoredAndTemplated_AgreeByteForByte` /
+`VectorGraphic_AuthoredAndTemplated_AgreeByteForByte` pin that the two paths
+agree. `s2c selftest` compiles every supported type on a machine with no CS2
+installed, which is the check that this stays true.
 
 ### C1 — integer widths (fixed 2026-08-10)
 
@@ -155,9 +183,8 @@ emitted.
 
 Verified by round-tripping the output back through Valve's `resourceinfo.exe`:
 it parses the authored RED2 field for field and reports our source path and CRC
-with no donor trace. The container FRAME still comes from the template (header
-version + block layout), which is not a correctness problem — `BuildMaterial`
-takes a caller-supplied template the same way.
+with no donor trace. The container frame is authored too (C4/C6), so a donor file
+is optional throughout.
 
 **This moved the `bc7_texture_*` and `glove_normal_container_*` goldens** (the
 RED2 is inside the hashed bytes). All four win-x64 variants were re-baked
@@ -261,7 +288,8 @@ this without a real `.vagrp` sample.
 ### G5 — CLOSED 2026-08-10
 
 Was: `.vsnd` / `.vsvg` shipping donor edit info. Fixed in C5; see above. No
-donor-metadata leak remains on any compiled type.
+donor-metadata leak remains on any compiled type, and since C6 no donor file is
+required at all.
 
 Residual, low priority: `TextureDef.SourceName` is still unset by most texture
 callers (the skin and glove builders know their real source names and should
