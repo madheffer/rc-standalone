@@ -38,7 +38,7 @@ namespace Source2.Compiler;
 /// behavior of wrapping the text in a sound-EVENT skeleton produced a file
 /// with the wrong resource version and compiler identity that no engine path
 /// could meaningfully load. Sounds ship through the audio route
-/// (<see cref="ResourceBuilder.BuildSound"/> / <c>RebuildSound</c>).
+/// (<see cref="ResourceBuilder.BuildSound(byte[], string?)"/> / <c>RebuildSound</c>).
 ///
 /// What this does NOT do (deliberate simplification):
 ///

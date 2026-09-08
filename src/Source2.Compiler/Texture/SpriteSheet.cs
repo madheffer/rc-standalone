@@ -73,6 +73,13 @@ public static class SpriteSheet
     /// <param name="NoAlpha">Colour-only sequence (<c>sequence-rgb</c> in an .mks).</param>
     /// <param name="Name">Sequence name. Valve writes <see cref="DefaultSequenceName"/> for all of them.</param>
     /// <param name="FloatParams">Optional named floats carried alongside the sequence.</param>
+    /// <param name="Id">
+    /// The sequence number a particle selects with <c>m_nSequenceMin</c>/<c>Max</c>,
+    /// and the number the <c>.mks</c> <c>sequence N</c> line names. Null means
+    /// "use the list position", which is right for a sheet numbered 0..n-1 but
+    /// wrong for one that skips or reorders - so an .mks-driven build passes the
+    /// parsed number through rather than letting position stand in for it.
+    /// </param>
     public sealed record Sequence(
         IReadOnlyList<Frame> Frames,
         bool Clamp = true,
@@ -80,7 +87,8 @@ public static class SpriteSheet
         bool NoColor = false,
         bool NoAlpha = false,
         string Name = DefaultSequenceName,
-        IReadOnlyDictionary<string, float>? FloatParams = null);
+        IReadOnlyDictionary<string, float>? FloatParams = null,
+        int? Id = null);
 
     /// <summary>
     /// Serialize sequences into a SHEET payload, ready for
@@ -94,6 +102,15 @@ public static class SpriteSheet
         for (var i = 0; i < sequences.Count; i++)
             if (sequences[i].Frames.Count == 0)
                 throw new ArgumentException($"Sequence {i} has no frames.", nameof(sequences));
+
+        // Ids are how a particle addresses a sequence, so two sequences sharing
+        // one makes the second unreachable. Silently emitting that would look
+        // like the sheet simply lost a sequence.
+        var seenIds = new HashSet<uint>();
+        for (var i = 0; i < sequences.Count; i++)
+            if (!seenIds.Add((uint)(sequences[i].Id ?? i)))
+                throw new ArgumentException(
+                    $"Two sequences share id {sequences[i].Id ?? i}; ids must be distinct.", nameof(sequences));
 
         const int headerSize = 8;
         const int sequenceHeaderSize = 32;
@@ -152,7 +169,7 @@ public static class SpriteSheet
             var seq = sequences[s];
             var at = (int)ms.Position;
 
-            w.Write((uint)s);                       // id
+            w.Write((uint)(seq.Id ?? s));           // id
             w.Write(seq.Clamp);
             w.Write(seq.AlphaCrop);
             w.Write(seq.NoColor);

@@ -39,6 +39,8 @@ public static class SheetAtlas
     /// sequences is packed once and shares its rect, matching how Valve's own
     /// sheets reuse a frame.
     /// </summary>
+    /// <param name="script">The parsed <c>.mks</c> to pack.</param>
+    /// <param name="loadImage">Loads one frame image by the path the script wrote.</param>
     /// <param name="maxAtlasSize">Refuse to produce an atlas larger than this on either axis.</param>
     public static Packed Pack(MksSource.Script script, Func<string, byte[]> loadImage, int maxAtlasSize = 8192)
     {
@@ -63,8 +65,12 @@ public static class SheetAtlas
             using (var canvas = new SKCanvas(atlas))
             {
                 canvas.Clear(SKColors.Transparent);
+                // Every frame is drawn at 1:1, so the sampling mode never gets to
+                // resample anything; nearest is stated so it stays that way.
+                var sampling = new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None);
                 foreach (var (path, rect) in placements)
-                    canvas.DrawBitmap(images[path], SKRect.Create(rect.Left, rect.Top, rect.Width, rect.Height));
+                    canvas.DrawBitmap(images[path],
+                        SKRect.Create(rect.Left, rect.Top, rect.Width, rect.Height), sampling);
             }
 
             var sequences = script.Sequences.Select(seq => new SpriteSheet.Sequence(
@@ -78,7 +84,10 @@ public static class SheetAtlas
                 }).ToList(),
                 Clamp: seq.Clamp,
                 NoColor: seq.NoColor,
-                NoAlpha: seq.NoAlpha)).ToList();
+                NoAlpha: seq.NoAlpha,
+                // The script's own sequence number, not its position: an .mks
+                // that declares only "sequence 3" is addressing sequence 3.
+                Id: seq.Index)).ToList();
 
             return new Packed(atlas, sequences);
         }

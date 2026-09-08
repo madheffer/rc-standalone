@@ -61,6 +61,11 @@ public class SpriteSheetTests
             NoAlpha: s.NoAlpha,
             Name: s.Name)).ToList());
 
+        // Ids are not passed back in because VRF's decoder does not surface them,
+        // so the writer numbers by position here - and the payload still matching
+        // byte for byte is itself the evidence that this stock sheet's ids are
+        // 0..n-1. MksSequenceNumber_ReachesTheSheetId covers the case where they
+        // are not.
         Assert.Equal(expected.Length, rewritten.Length);
         Assert.True(expected.AsSpan().SequenceEqual(rewritten),
             "SHEET payload differs from the stock bytes it was decoded from.");
@@ -220,6 +225,57 @@ public class SpriteSheetTests
 
         // The frames do not overlap in UV space.
         Assert.True(frames[1].Min.X > frames[0].Max.X);
+    }
+
+    [Fact]
+    public void MksSequenceNumber_ReachesTheSheetId()
+    {
+        // A particle addresses a sequence by the number the .mks names, not by
+        // where it sits in the file. A script declaring only "sequence 3" is
+        // addressing sequence 3, so a sheet that renumbered it to 0 would leave
+        // the stock effect selecting a sequence that is not there.
+        var script = MksSource.Parse("""
+            sequence 3
+            frame a.png 1
+            """);
+
+        using var packed = SheetAtlas.Pack(script, _ => Png(16, 16, 200));
+        Assert.Equal(3, packed.Sequences[0].Id);
+
+        var sheet = SpriteSheet.Write(packed.Sequences);
+        Assert.Equal(3u, BitConverter.ToUInt32(sheet, 8));   // first sequence header, id field
+    }
+
+    [Fact]
+    public void SheetWriter_RefusesDuplicateSequenceIds()
+    {
+        var frames = new[] { new SpriteSheet.Frame(1f, (0f, 0f), (1f, 1f)) };
+        var ex = Assert.Throws<ArgumentException>(() => SpriteSheet.Write([
+            new SpriteSheet.Sequence(frames, Id: 2),
+            new SpriteSheet.Sequence(frames, Id: 2),
+        ]));
+        Assert.Contains("share id 2", ex.Message);
+    }
+
+    [Fact]
+    public void MksSource_AcceptsAUtf8Bom()
+    {
+        // U+FEFF is not whitespace, so an editor that saves with a BOM would
+        // otherwise glue it onto the first directive.
+        var bytes = new byte[] { 0xEF, 0xBB, 0xBF }
+            .Concat(System.Text.Encoding.UTF8.GetBytes("sequence 0\nframe a.png 1")).ToArray();
+        var script = MksSource.Parse(bytes);
+        Assert.Single(script.Sequences);
+    }
+
+    [Theory]
+    [InlineData("sequence 0\nframe a.png 1\nsequence 0\nframe b.png 1", "declared more than once")]
+    [InlineData("sequence 0\nframe a.png 0", "positive number")]
+    [InlineData("sequence 0\nframe a.png -2", "positive number")]
+    public void MksSource_RejectsScriptsThatWouldAnimateUndefined(string text, string expected)
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => MksSource.Parse(text));
+        Assert.Contains(expected, ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static byte[] Png(int w, int h, byte red)

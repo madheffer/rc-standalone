@@ -53,6 +53,11 @@ public static class MksSource
     {
         ArgumentNullException.ThrowIfNull(text);
 
+        // A text editor that saves UTF-8 with a BOM puts U+FEFF on the front,
+        // and it is not whitespace, so it would otherwise glue itself to the
+        // first directive and read as an unknown one.
+        text = text.TrimStart('﻿');
+
         var sequences = new List<Sequence>();
         var packModeRgbA = false;
 
@@ -67,6 +72,10 @@ public static class MksSource
             if (currentIndex is not { } idx) return;
             if (currentFrames.Count == 0)
                 throw new InvalidOperationException($"Sequence {idx} declares no frames.");
+            // A particle addresses a sequence by this number, so a repeat means
+            // one of the two can never be played.
+            if (sequences.Any(x => x.Index == idx))
+                throw new InvalidOperationException($"Sequence {idx} is declared more than once.");
             sequences.Add(new Sequence(idx, currentFrames.ToList(), clamp, noColor, noAlpha));
             currentFrames.Clear();
         }
@@ -125,11 +134,19 @@ public static class MksSource
                     if (parts.Length > 3)
                         throw new InvalidOperationException(
                             $"Line {lineNo}: multi-image frames (rgb+a pairs) are not supported. " +
-                            "Combine the colour and alpha images into one RGBA file first.");
+                            "Combine the colour and alpha images into one RGBA file first. " +
+                            "(If the filename contains spaces, rename it - the .mks grammar splits on whitespace.)");
                     var time = 1f;
                     if (parts.Length == 3 &&
                         !float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out time))
                         throw new InvalidOperationException($"Line {lineNo}: '{parts[2]}' is not a display time.");
+                    // A sequence's total time is the sum of these, and it is what
+                    // the engine divides playback across, so a run of zeroes would
+                    // sum to zero. Reject rather than emit a sheet that animates
+                    // undefinedly.
+                    if (!(time > 0) || float.IsInfinity(time))
+                        throw new InvalidOperationException(
+                            $"Line {lineNo}: display time must be a positive number.");
                     currentFrames.Add(new Frame(parts[1], time));
                     break;
 

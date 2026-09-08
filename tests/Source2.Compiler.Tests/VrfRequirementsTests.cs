@@ -47,8 +47,8 @@ public class VrfRequirementsTests
     {
         var pin = JsonDocument.Parse(
             File.ReadAllText(Path.Combine(RepoRoot(), "third_party", "VENDORED.json")));
-        Assert.Equal(pin.RootElement.GetProperty("vrf").GetProperty("sha").GetString(),
-                     VrfRequirements.UpstreamSha);
+        Assert.Equal(VrfRequirements.UpstreamSha,
+                     pin.RootElement.GetProperty("vrf").GetProperty("sha").GetString());
     }
 
     [Fact]

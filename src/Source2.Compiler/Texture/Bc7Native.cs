@@ -10,7 +10,7 @@ namespace Source2.Compiler;
 ///
 /// <para>The native library is optional. When <c>bc7enc_native</c> is not
 /// present (e.g. a dev box with no C compiler), <see cref="Available"/> is
-/// false and <see cref="ResourceBuilder.BuildTexture"/> transparently falls
+/// false and <see cref="ResourceBuilder.BuildTexture(ResourceBuilder.TextureDef)"/> transparently falls
 /// back to BCnEncoder.Net. The Linux/production image always builds it (see
 /// the Dockerfile); for Windows dev see <c>Native/bc7enc/CMakeLists.txt</c>.</para>
 /// </summary>

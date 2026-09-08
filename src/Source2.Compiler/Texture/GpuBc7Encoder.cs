@@ -11,7 +11,7 @@ namespace Source2.Compiler;
 ///
 /// <para><b>Deliberately not implemented yet.</b> The backend currently runs
 /// inside a Docker container with no GPU / OpenGL access, so
-/// <see cref="Available"/> is hard-false. <see cref="ResourceBuilder.BuildTexture"/>
+/// <see cref="Available"/> is hard-false. <see cref="ResourceBuilder.BuildTexture(ResourceBuilder.TextureDef)"/>
 /// checks <see cref="Available"/> before routing here, so setting
 /// <c>BC7_ENCODER=gpu</c> today is harmless — it transparently falls back to the
 /// CPU encoder. This class is the wired-in seam: when the compositor moves to a
@@ -45,7 +45,7 @@ public static class GpuBc7Encoder
     /// of 4 (the trailing edge is clamped to fill the last block row/column).
     /// This is the implementation seam for the GPU path.
     /// </summary>
-    /// <remarks><see cref="ResourceBuilder.BuildTexture"/> only calls
+    /// <remarks><see cref="ResourceBuilder.BuildTexture(ResourceBuilder.TextureDef)"/> only calls
     /// this when <see cref="Available"/> is true, so the throw below is an
     /// unreachable guard until the encoder is implemented.</remarks>
     public static byte[] EncodeBgra(byte[] bgra, int width, int height)

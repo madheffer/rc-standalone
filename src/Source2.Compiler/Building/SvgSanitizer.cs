@@ -37,7 +37,7 @@ namespace Source2.Compiler;
 /// path that lacks one (inheriting the container/svg fill, else white, and
 /// replacing <c>currentColor</c>), and (e) adds width/height from the viewBox when
 /// missing. Applied at the single build choke point
-/// (<see cref="ResourceBuilder.BuildPanoramaSvg"/>), so every current, future, and
+/// (<see cref="ResourceBuilder.BuildPanoramaSvg(byte[], string?)"/>), so every current, future, and
 /// user-uploaded icon is fixed automatically.</para>
 /// </summary>
 public static class SvgSanitizer

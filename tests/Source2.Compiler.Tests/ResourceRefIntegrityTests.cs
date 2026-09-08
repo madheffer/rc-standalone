@@ -346,6 +346,7 @@ public class ResourceRefIntegrityTests
 
         using var package = new Package();
         package.Read(pak);
+        Assert.NotNull(package.Entries);
 
         var checkedFiles = 0;
         var violations = new List<string>();
