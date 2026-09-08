@@ -19,16 +19,16 @@ try
 {
     return args[0] switch
     {
-        "compile"   => Commands.Compile(args[1..]),
+        "compile" => Commands.Compile(args[1..]),
         "decompile" => Commands.Decompile(args[1..]),
-        "texture"   => Commands.Texture(args[1..]),
-        "sheet"     => Commands.Sheet(args[1..]),
-        "svg"       => Commands.Svg(args[1..]),
-        "sound"     => Commands.Sound(args[1..]),
-        "id"        => Commands.ResourceId(args[1..]),
-        "inspect"   => Commands.Inspect(args[1..]),
-        "selftest"  => SelfTest.Run(args[1..]),
-        _           => Unknown(args[0]),
+        "texture" => Commands.Texture(args[1..]),
+        "sheet" => Commands.Sheet(args[1..]),
+        "svg" => Commands.Svg(args[1..]),
+        "sound" => Commands.Sound(args[1..]),
+        "id" => Commands.ResourceId(args[1..]),
+        "inspect" => Commands.Inspect(args[1..]),
+        "selftest" => SelfTest.Run(args[1..]),
+        _ => Unknown(args[0]),
     };
 }
 catch (Exception ex)

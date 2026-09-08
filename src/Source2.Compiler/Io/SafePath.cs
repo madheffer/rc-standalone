@@ -23,7 +23,8 @@ public static class SafePath
     /// empty-rel attempts.</summary>
     public static string JoinUnderRoot(string root, string rel)
     {
-        if (TryJoinUnderRoot(root, rel, out var full)) return full;
+        if (TryJoinUnderRoot(root, rel, out var full))
+            return full;
         throw new InvalidOperationException(
             $"Unsafe path '{rel}' would escape root '{root}'.");
     }
@@ -34,28 +35,33 @@ public static class SafePath
     public static bool TryJoinUnderRoot(string root, string rel, out string full)
     {
         full = null!;
-        if (string.IsNullOrEmpty(root) || string.IsNullOrEmpty(rel)) return false;
+        if (string.IsNullOrEmpty(root) || string.IsNullOrEmpty(rel))
+            return false;
 
         // Cheap pre-checks: reject rooted paths and obvious parent segments
         // before letting Path.GetFullPath normalise. The post-check below is
         // the authoritative guard — these are belt-and-braces against
         // pathological inputs that confuse one or the other.
         var normalisedRel = rel.Replace('\\', '/');
-        if (Path.IsPathRooted(rel) || Path.IsPathRooted(normalisedRel)) return false;
+        if (Path.IsPathRooted(rel) || Path.IsPathRooted(normalisedRel))
+            return false;
         foreach (var seg in normalisedRel.Split('/'))
-            if (seg == "..") return false;
+            if (seg == "..")
+                return false;
 
         // Canonicalise both sides and require the combined path to live
         // strictly under root (the trailing separator stops "/srv/dataX"
         // matching root "/srv/data").
         var rootFull = EnsureTrailingSeparator(Path.GetFullPath(root));
         string combinedFull;
-        try { combinedFull = Path.GetFullPath(Path.Combine(root, normalisedRel.Replace('/', Path.DirectorySeparatorChar))); }
+        try
+        { combinedFull = Path.GetFullPath(Path.Combine(root, normalisedRel.Replace('/', Path.DirectorySeparatorChar))); }
         catch { return false; }  // GetFullPath throws on invalid chars / too-long paths
 
         // OrdinalIgnoreCase: Windows file systems are case-insensitive; on
         // Linux the casing will already match so the comparison is exact.
-        if (!combinedFull.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!combinedFull.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
+            return false;
         full = combinedFull;
         return true;
     }

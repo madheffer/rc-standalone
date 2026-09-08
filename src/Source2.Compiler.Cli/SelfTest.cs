@@ -41,7 +41,8 @@ internal static class SelfTest
             try
             {
                 compile();                                  // warm up JIT + native load
-                var best = double.MaxValue; long size = 0;
+                var best = double.MaxValue;
+                long size = 0;
                 for (var i = 0; i < reps; i++)
                 {
                     var sw = Stopwatch.StartNew();
@@ -74,8 +75,10 @@ internal static class SelfTest
 
         // 2. Round-trip a real compiled resource: decompile it, recompile the text.
         var stockVdata = FromPak(pak, ".vdata_c");
-        if (stockVdata is null) Skip("vdata round-trip", "vdata_c to text to vdata_c", "no CS2 pak");
-        else Record("vdata round-trip", "vdata_c to text to vdata_c", () =>
+        if (stockVdata is null)
+            Skip("vdata round-trip", "vdata_c to text to vdata_c", "no CS2 pak");
+        else
+            Record("vdata round-trip", "vdata_c to text to vdata_c", () =>
         {
             using var res = new Resource { FileName = "stock.vdata_c" };
             res.Read(new MemoryStream(stockVdata));
@@ -88,8 +91,10 @@ internal static class SelfTest
         // A particle carries resource: refs, so this also proves the RERL is
         // re-synthesized with correct engine path-hash ids from the text alone.
         var stockVpcf = FromPak(pak, ".vpcf_c");
-        if (stockVpcf is null) Skip("vpcf round-trip", "vpcf_c to text to vpcf_c, plus RERL", "no CS2 pak");
-        else Record("vpcf round-trip", "vpcf_c to text to vpcf_c, plus RERL", () =>
+        if (stockVpcf is null)
+            Skip("vpcf round-trip", "vpcf_c to text to vpcf_c, plus RERL", "no CS2 pak");
+        else
+            Record("vpcf round-trip", "vpcf_c to text to vpcf_c, plus RERL", () =>
         {
             using var stock = new Resource { FileName = "stock.vpcf_c" };
             stock.Read(new MemoryStream(stockVpcf));
@@ -112,7 +117,8 @@ internal static class SelfTest
         var sizes = HaveNativeBc7 ? new[] { 128, 256, 512, 1024, 2048 } : [128, 256, 512];
         if (!HaveNativeBc7)
             Skip("vtex (BC7)", "1024 and 2048 png to vtex_c", "managed encoder; pass --all-sizes to run anyway");
-        if (args.Contains("--all-sizes")) sizes = [128, 256, 512, 1024, 2048];
+        if (args.Contains("--all-sizes"))
+            sizes = [128, 256, 512, 1024, 2048];
         foreach (var size in sizes)
         {
             var png = NoisePng(size);
@@ -148,13 +154,15 @@ internal static class SelfTest
         }
 
         // 5. The RERL id function, checked against the game's own ids.
-        if (pak is null) Skip("rerl ids", "stock RERL ids reproduce", "no CS2 pak");
+        if (pak is null)
+            Skip("rerl ids", "stock RERL ids reproduce", "no CS2 pak");
         else
         {
             var (checkedRefs, mismatches) = CheckStockIds(pak, 200);
             rows.Add(new("rerl ids", $"{checkedRefs} stock refs re-hashed",
                          mismatches == 0 ? "PASS" : $"FAIL: {mismatches} id mismatches", 0, 0));
-            if (mismatches != 0) ok = false;
+            if (mismatches != 0)
+                ok = false;
         }
 
         // Report.
@@ -182,8 +190,8 @@ internal static class SelfTest
     private static string EncoderName() => EncoderTag switch
     {
         "bc7cpunative" => "native bc7enc",
-        "bc7gpu"       => "GPU",
-        _              => "BCnEncoder.Net (managed fallback; build Native/bc7enc for the fast path)",
+        "bc7gpu" => "GPU",
+        _ => "BCnEncoder.Net (managed fallback; build Native/bc7enc for the fast path)",
     };
 
     private readonly record struct Row(string Type, string Detail, string Result, double Ms, long OutBytes);
@@ -208,19 +216,27 @@ internal static class SelfTest
         int seen = 0, bad = 0;
         foreach (var ext in new[] { "vmat_c", "vmdl_c" })
         {
-            if (pak.Entries is null || !pak.Entries.TryGetValue(ext, out var entries)) continue;
+            if (pak.Entries is null || !pak.Entries.TryGetValue(ext, out var entries))
+                continue;
             foreach (var e in entries)
             {
-                if (seen >= budget) break;
+                if (seen >= budget)
+                    break;
                 byte[] bytes;
-                try { pak.ReadEntry(e, out bytes); } catch { continue; }
+                try
+                { pak.ReadEntry(e, out bytes); }
+                catch { continue; }
                 using var res = new Resource();
-                try { res.Read(new MemoryStream(bytes)); } catch { continue; }
+                try
+                { res.Read(new MemoryStream(bytes)); }
+                catch { continue; }
                 foreach (var r in res.ExternalReferences?.ResourceRefInfoList ?? [])
                 {
-                    if (r.Name is not { Length: > 0 } name) continue;
+                    if (r.Name is not { Length: > 0 } name)
+                        continue;
                     seen++;
-                    if (Source2ResourceId.ForPath(name) != r.Id) bad++;
+                    if (Source2ResourceId.ForPath(name) != r.Id)
+                        bad++;
                 }
             }
         }
@@ -244,18 +260,23 @@ internal static class SelfTest
                @"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk"];
 
         var path = candidates.FirstOrDefault(c => c is not null && File.Exists(c));
-        if (path is null) return null;
+        if (path is null)
+            return null;
         var p = new Package();
-        try { p.Read(path); return p; }
+        try
+        { p.Read(path); return p; }
         catch { p.Dispose(); return null; }
     }
 
     private static byte[]? FromPak(Package? pak, string suffix)
     {
-        if (pak is null) return null;
+        if (pak is null)
+            return null;
         var entry = Io.VpkEntries.FirstEndingWith(pak, suffix);
-        if (entry is null) return null;
-        try { return Io.VpkEntries.Read(pak, entry); }
+        if (entry is null)
+            return null;
+        try
+        { return Io.VpkEntries.Read(pak, entry); }
         catch { return null; }
     }
 
@@ -285,10 +306,20 @@ internal static class SelfTest
         using var ms = new MemoryStream();
         using (var w = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
         {
-            w.Write("RIFF"u8); w.Write(36 + pcm.Length); w.Write("WAVE"u8);
-            w.Write("fmt "u8); w.Write(16); w.Write((ushort)1); w.Write((ushort)1);
-            w.Write(rate); w.Write(rate * 2); w.Write((ushort)2); w.Write((ushort)16);
-            w.Write("data"u8); w.Write(pcm.Length); w.Write(pcm);
+            w.Write("RIFF"u8);
+            w.Write(36 + pcm.Length);
+            w.Write("WAVE"u8);
+            w.Write("fmt "u8);
+            w.Write(16);
+            w.Write((ushort)1);
+            w.Write((ushort)1);
+            w.Write(rate);
+            w.Write(rate * 2);
+            w.Write((ushort)2);
+            w.Write((ushort)16);
+            w.Write("data"u8);
+            w.Write(pcm.Length);
+            w.Write(pcm);
         }
         return ms.ToArray();
     }

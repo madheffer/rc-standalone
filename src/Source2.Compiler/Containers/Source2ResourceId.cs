@@ -48,30 +48,59 @@ public static class Source2ResourceId
 
         while (len >= 8)
         {
-            uint k1 = BitConverter.ToUInt32(data.Slice(i, 4)); i += 4; len -= 4;
-            k1 *= m; k1 ^= k1 >> r; k1 *= m; h1 *= m; h1 ^= k1;
+            uint k1 = BitConverter.ToUInt32(data.Slice(i, 4));
+            i += 4;
+            len -= 4;
+            k1 *= m;
+            k1 ^= k1 >> r;
+            k1 *= m;
+            h1 *= m;
+            h1 ^= k1;
 
-            uint k2 = BitConverter.ToUInt32(data.Slice(i, 4)); i += 4; len -= 4;
-            k2 *= m; k2 ^= k2 >> r; k2 *= m; h2 *= m; h2 ^= k2;
+            uint k2 = BitConverter.ToUInt32(data.Slice(i, 4));
+            i += 4;
+            len -= 4;
+            k2 *= m;
+            k2 ^= k2 >> r;
+            k2 *= m;
+            h2 *= m;
+            h2 ^= k2;
         }
 
         if (len >= 4)
         {
-            uint k1 = BitConverter.ToUInt32(data.Slice(i, 4)); i += 4; len -= 4;
-            k1 *= m; k1 ^= k1 >> r; k1 *= m; h1 *= m; h1 ^= k1;
+            uint k1 = BitConverter.ToUInt32(data.Slice(i, 4));
+            i += 4;
+            len -= 4;
+            k1 *= m;
+            k1 ^= k1 >> r;
+            k1 *= m;
+            h1 *= m;
+            h1 ^= k1;
         }
 
         switch (len)
         {
-            case 3: h2 ^= (uint)data[i + 2] << 16; goto case 2;
-            case 2: h2 ^= (uint)data[i + 1] << 8;  goto case 1;
-            case 1: h2 ^= data[i]; h2 *= m; break;
+            case 3:
+                h2 ^= (uint)data[i + 2] << 16;
+                goto case 2;
+            case 2:
+                h2 ^= (uint)data[i + 1] << 8;
+                goto case 1;
+            case 1:
+                h2 ^= data[i];
+                h2 *= m;
+                break;
         }
 
-        h1 ^= h2 >> 18; h1 *= m;
-        h2 ^= h1 >> 22; h2 *= m;
-        h1 ^= h2 >> 17; h1 *= m;
-        h2 ^= h1 >> 19; h2 *= m;
+        h1 ^= h2 >> 18;
+        h1 *= m;
+        h2 ^= h1 >> 22;
+        h2 *= m;
+        h1 ^= h2 >> 17;
+        h1 *= m;
+        h2 ^= h1 >> 19;
+        h2 *= m;
 
         return ((ulong)h1 << 32) | h2;
     }

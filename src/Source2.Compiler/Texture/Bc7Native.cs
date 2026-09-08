@@ -88,7 +88,8 @@ public static partial class Bc7Native
             Parallel.For(0, strips, i =>
             {
                 int firstBlockRow = i * blockRowsPerStrip;
-                if (firstBlockRow >= blockRows) return;
+                if (firstBlockRow >= blockRows)
+                    return;
                 int stripBlockRows = Math.Min(blockRowsPerStrip, blockRows - firstBlockRow);
 
                 int srcRow0 = firstBlockRow * 4;

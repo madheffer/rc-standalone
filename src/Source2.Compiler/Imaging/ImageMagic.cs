@@ -15,13 +15,13 @@ public static class ImageMagic
     {
         return (ext ?? "").ToLowerInvariant() switch
         {
-            ".png"            => StartsWith(head, new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
+            ".png" => StartsWith(head, new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
             ".jpg" or ".jpeg" => StartsWith(head, new byte[] { 0xFF, 0xD8, 0xFF }),
-            ".gif"            => StartsWith(head, "GIF8"u8),
-            ".bmp"            => StartsWith(head, "BM"u8),
+            ".gif" => StartsWith(head, "GIF8"u8),
+            ".bmp" => StartsWith(head, "BM"u8),
             // RIFF....WEBP
-            ".webp"           => head.Length >= 12 && head[..4].SequenceEqual("RIFF"u8) && head.Slice(8, 4).SequenceEqual("WEBP"u8),
-            _                 => false,
+            ".webp" => head.Length >= 12 && head[..4].SequenceEqual("RIFF"u8) && head.Slice(8, 4).SequenceEqual("WEBP"u8),
+            _ => false,
         };
     }
 

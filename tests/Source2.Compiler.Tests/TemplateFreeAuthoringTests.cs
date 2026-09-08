@@ -212,10 +212,20 @@ public class TemplateFreeAuthoringTests
         using var ms = new MemoryStream();
         using (var w = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
         {
-            w.Write("RIFF"u8); w.Write(36 + pcm.Length); w.Write("WAVE"u8);
-            w.Write("fmt "u8); w.Write(16); w.Write((ushort)1); w.Write((ushort)1);
-            w.Write(rate); w.Write(rate * 2); w.Write((ushort)2); w.Write((ushort)16);
-            w.Write("data"u8); w.Write(pcm.Length); w.Write(pcm);
+            w.Write("RIFF"u8);
+            w.Write(36 + pcm.Length);
+            w.Write("WAVE"u8);
+            w.Write("fmt "u8);
+            w.Write(16);
+            w.Write((ushort)1);
+            w.Write((ushort)1);
+            w.Write(rate);
+            w.Write(rate * 2);
+            w.Write((ushort)2);
+            w.Write((ushort)16);
+            w.Write("data"u8);
+            w.Write(pcm.Length);
+            w.Write(pcm);
         }
         return ms.ToArray();
     }

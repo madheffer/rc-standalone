@@ -1,7 +1,7 @@
+using Source2.Compiler.Io;
 using ValveResourceFormat;
 using ValveResourceFormat.CompiledShader;
 using ValveResourceFormat.IO;
-using Source2.Compiler.Io;
 
 namespace Source2.Compiler.Io;
 
@@ -17,7 +17,8 @@ public sealed class DirFileLoader(string baseDir) : IFileLoader
     public Resource? LoadFile(string file)
     {
         var path = Resolve(file);
-        if (path is null) return null;
+        if (path is null)
+            return null;
         var r = new Resource { FileName = file };
         r.Read(path);
         return r;
@@ -37,7 +38,8 @@ public sealed class DirFileLoader(string baseDir) : IFileLoader
     /// that may be user-uploaded.</summary>
     public Stream? GetFileStream(string file)
     {
-        if (string.IsNullOrEmpty(file)) return null;
+        if (string.IsNullOrEmpty(file))
+            return null;
         var path = Resolve(file);
         return path is null ? null : File.OpenRead(path);
     }
@@ -50,7 +52,8 @@ public sealed class DirFileLoader(string baseDir) : IFileLoader
 
     private Dictionary<string, string> FileNameIndex()
     {
-        if (_byFileName is not null) return _byFileName;
+        if (_byFileName is not null)
+            return _byFileName;
         var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in Directory.EnumerateFiles(BaseDir, "*", SearchOption.AllDirectories)
                                       .OrderBy(p => p, StringComparer.Ordinal))

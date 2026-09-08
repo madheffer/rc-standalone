@@ -1,11 +1,11 @@
 using System.IO.Hashing;
 using System.Text;
+using Source2.Compiler;
 using ValveKeyValue;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Serialization.KeyValues;
-using Source2.Compiler;
 using Xunit;
 
 namespace Source2.Compiler.Tests;
@@ -39,7 +39,8 @@ public class Source2ContainerAuthorTests
         for (var i = 0; i < 8 && dir is not null; i++, dir = Path.GetDirectoryName(dir))
         {
             var candidate = Path.Combine(dir, "RcReference", fileName);
-            if (File.Exists(candidate)) return candidate;
+            if (File.Exists(candidate))
+                return candidate;
         }
         return null;
     }
@@ -127,19 +128,24 @@ public class Source2ContainerAuthorTests
 
         static void Render(KVObject? n, string path, StringBuilder sb)
         {
-            if (n is null) { sb.AppendLine($"{path} = <null>"); return; }
+            if (n is null)
+            { sb.AppendLine($"{path} = <null>"); return; }
             if (n.IsArray)
             {
                 var i = 0;
-                foreach (var c in n.Values) Render(c, $"{path}[{i++}]", sb);
-                if (i == 0) sb.AppendLine($"{path} = []");
+                foreach (var c in n.Values)
+                    Render(c, $"{path}[{i++}]", sb);
+                if (i == 0)
+                    sb.AppendLine($"{path} = []");
                 return;
             }
             if (n.IsCollection)
             {
                 var any = false;
-                foreach (var c in n.Children) { any = true; Render(c.Value, $"{path}.{c.Key}", sb); }
-                if (!any) sb.AppendLine($"{path} = {{}}");
+                foreach (var c in n.Children)
+                { any = true; Render(c.Value, $"{path}.{c.Key}", sb); }
+                if (!any)
+                    sb.AppendLine($"{path} = {{}}");
                 return;
             }
             var val = n.ValueType == KVValueType.String ? $"\"{(string)n}\"" : n.ToString();

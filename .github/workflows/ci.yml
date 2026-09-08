@@ -30,6 +30,12 @@ jobs:
           cmake -S src/Source2.Compiler/Native/bc7enc -B src/Source2.Compiler/Native/bc7enc/build
           cmake --build src/Source2.Compiler/Native/bc7enc/build --config Release
 
+      # Style is machine-checked, so it is never a review topic. Runs on one OS
+      # only: the answer cannot differ between them.
+      - name: Check formatting
+        if: matrix.os == 'ubuntu-latest'
+        run: dotnet format Source2Compiler.slnx --verify-no-changes --exclude third_party
+
       - name: Build
         run: dotnet build -c Release
 

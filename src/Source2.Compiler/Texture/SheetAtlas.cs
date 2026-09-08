@@ -93,7 +93,8 @@ public static class SheetAtlas
         }
         finally
         {
-            foreach (var b in images.Values) b.Dispose();
+            foreach (var b in images.Values)
+                b.Dispose();
         }
     }
 
@@ -151,7 +152,8 @@ public static class SheetAtlas
 
         foreach (var (path, bmp) in ordered)
         {
-            if (bmp.Width > width) return null;
+            if (bmp.Width > width)
+                return null;
             if (x + bmp.Width > width)
             {
                 y += rowHeight;
@@ -170,7 +172,8 @@ public static class SheetAtlas
     private static int NextPow2(int n)
     {
         var p = 1;
-        while (p < n) p <<= 1;
+        while (p < n)
+            p <<= 1;
         return p;
     }
 }

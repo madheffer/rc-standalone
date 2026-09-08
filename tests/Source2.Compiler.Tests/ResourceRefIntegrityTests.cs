@@ -1,10 +1,10 @@
+using Source2.Compiler;
 using SteamDatabase.ValvePak;
 using ValveKeyValue;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Serialization.KeyValues;
-using Source2.Compiler;
 using Xunit;
 
 namespace Source2.Compiler.Tests;
@@ -52,10 +52,12 @@ public class ResourceRefIntegrityTests
 
         void Walk(KVObject? n)
         {
-            if (n is null) return;
+            if (n is null)
+                return;
             if (n.IsCollection || n.IsArray)
             {
-                foreach (var c in n.Children) Walk(c.Value);
+                foreach (var c in n.Children)
+                    Walk(c.Value);
                 return;
             }
             if (n.Flag is KVFlag.Resource or KVFlag.ResourceName
@@ -97,7 +99,8 @@ public class ResourceRefIntegrityTests
         // Every RERL entry should itself be self-consistent, renamed or not.
         foreach (var entry in rerl)
         {
-            if (entry.Name is not { Length: > 0 } name) continue;
+            if (entry.Name is not { Length: > 0 } name)
+                continue;
             Assert.True(entry.Id == Source2ResourceId.ForPath(name),
                 $"{label}: stale RERL id for '{name}' ({entry.Id:x16} != "
               + $"{Source2ResourceId.ForPath(name):x16}).");
@@ -116,7 +119,8 @@ public class ResourceRefIntegrityTests
     public void RewriteParticlePaths_ReHashesRenamedRerlEntries()
     {
         var vpcf = CS2Fixtures.Template(".vpcf_c");
-        if (vpcf is null) { CS2Fixtures.Skip("a compiled .vpcf_c"); return; }
+        if (vpcf is null)
+        { CS2Fixtures.Skip("a compiled .vpcf_c"); return; }
         using var before = new Resource();
         before.Read(new MemoryStream(vpcf));
 
@@ -147,14 +151,15 @@ public class ResourceRefIntegrityTests
     public void AuthoringBuilders_ProduceResolvableReferences()
     {
         var stockVmat = CS2Fixtures.Template(".vmat_c");
-        if (stockVmat is null) { CS2Fixtures.Skip("a compiled .vmat_c"); return; }
+        if (stockVmat is null)
+        { CS2Fixtures.Skip("a compiled .vmat_c"); return; }
 
         var def = new ResourceBuilder.MaterialDef
         {
-            Name   = "materials/vpkedit/refcheck.vmat",
+            Name = "materials/vpkedit/refcheck.vmat",
             Shader = "csgo_complex.vfx",
         };
-        def.TextureParams["g_tColor"]  = "materials/vpkedit/refcheck_color.vtex";
+        def.TextureParams["g_tColor"] = "materials/vpkedit/refcheck_color.vtex";
         def.TextureParams["g_tNormal"] = "materials/vpkedit/refcheck_normal.vtex";
 
         var mat = ResourceBuilder.BuildMaterial(stockVmat, def);
@@ -176,11 +181,13 @@ public class ResourceRefIntegrityTests
     public void BuildTexture_AuthorsItsOwnEditInfo_NotTheDonorTemplates()
     {
         var template = CS2Fixtures.Template(".vtex_c");
-        if (template is null) { CS2Fixtures.Skip("a compiled .vtex_c"); return; }
+        if (template is null)
+        { CS2Fixtures.Skip("a compiled .vtex_c"); return; }
 
         const int w = 64, h = 64;
         var raw = new byte[w * h * 4];
-        for (var i = 0; i < raw.Length; i++) raw[i] = (byte)(i * 7);
+        for (var i = 0; i < raw.Length; i++)
+            raw[i] = (byte)(i * 7);
 
         var def = new ResourceBuilder.TextureDef
         {
@@ -236,7 +243,8 @@ public class ResourceRefIntegrityTests
     public void BuildPanoramaSvg_AuthorsItsOwnEditInfo_NotTheDonorTemplates()
     {
         var template = CS2Fixtures.Template(".vsvg_c");
-        if (template is null) { CS2Fixtures.Skip("a compiled .vsvg_c"); return; }
+        if (template is null)
+        { CS2Fixtures.Skip("a compiled .vsvg_c"); return; }
 
         var donorInputs = ReadInputPaths(template);
 
@@ -274,7 +282,8 @@ public class ResourceRefIntegrityTests
     public void BuildSound_AuthorsItsOwnEditInfo_AndSurvivesModernize()
     {
         var template = CS2Fixtures.Template(".vsnd_c");
-        if (template is null) { CS2Fixtures.Skip("a compiled .vsnd_c"); return; }
+        if (template is null)
+        { CS2Fixtures.Skip("a compiled .vsnd_c"); return; }
         var donorInputs = ReadInputPaths(template);
 
         const int rate = 44100, frames = 4410;
@@ -288,10 +297,20 @@ public class ResourceRefIntegrityTests
         using var wav = new MemoryStream();
         using (var w = new BinaryWriter(wav, System.Text.Encoding.UTF8, leaveOpen: true))
         {
-            w.Write("RIFF"u8); w.Write(36 + pcm.Length); w.Write("WAVE"u8);
-            w.Write("fmt "u8); w.Write(16); w.Write((ushort)1); w.Write((ushort)1);
-            w.Write(rate); w.Write(rate * 2); w.Write((ushort)2); w.Write((ushort)16);
-            w.Write("data"u8); w.Write(pcm.Length); w.Write(pcm);
+            w.Write("RIFF"u8);
+            w.Write(36 + pcm.Length);
+            w.Write("WAVE"u8);
+            w.Write("fmt "u8);
+            w.Write(16);
+            w.Write((ushort)1);
+            w.Write((ushort)1);
+            w.Write(rate);
+            w.Write(rate * 2);
+            w.Write((ushort)2);
+            w.Write((ushort)16);
+            w.Write("data"u8);
+            w.Write(pcm.Length);
+            w.Write(pcm);
         }
         var wavBytes = wav.ToArray();
 
@@ -342,7 +361,8 @@ public class ResourceRefIntegrityTests
     public void StockContent_HoldsTheReferenceInvariant()
     {
         var pak = CS2Fixtures.StockPak();
-        if (pak is null) { CS2Fixtures.Skip("an installed CS2 pak01_dir.vpk"); return; }
+        if (pak is null)
+        { CS2Fixtures.Skip("an installed CS2 pak01_dir.vpk"); return; }
 
         using var package = new Package();
         package.Read(pak);
@@ -352,14 +372,20 @@ public class ResourceRefIntegrityTests
         var violations = new List<string>();
         foreach (var ext in new[] { "vmat_c", "vmdl_c", "vpcf_c" })
         {
-            if (!package.Entries.TryGetValue(ext, out var entries)) continue;
+            if (!package.Entries.TryGetValue(ext, out var entries))
+                continue;
             foreach (var e in entries)
             {
-                if (checkedFiles >= 600) break;      // a representative sweep, not the whole pak
+                if (checkedFiles >= 600)
+                    break;      // a representative sweep, not the whole pak
                 byte[] bytes;
-                try { package.ReadEntry(e, out bytes); } catch { continue; }
+                try
+                { package.ReadEntry(e, out bytes); }
+                catch { continue; }
                 Resource res;
-                try { res = new Resource(); res.Read(new MemoryStream(bytes)); } catch { continue; }
+                try
+                { res = new Resource(); res.Read(new MemoryStream(bytes)); }
+                catch { continue; }
                 using (res)
                 {
                     checkedFiles++;

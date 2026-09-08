@@ -42,8 +42,10 @@ internal static class Commands
         }
 
         var outPath = Opt(a, "-o");
-        if (outPath is null) Console.Out.Write(text);
-        else { File.WriteAllText(outPath, text); Console.WriteLine($"{outPath}  ({text.Length:n0} chars)"); }
+        if (outPath is null)
+            Console.Out.Write(text);
+        else
+        { File.WriteAllText(outPath, text); Console.WriteLine($"{outPath}  ({text.Length:n0} chars)"); }
         return 0;
     }
 
@@ -61,7 +63,8 @@ internal static class Commands
             Compression = ParseFormat(Opt(a, "--format")),
             SourceName = Opt(a, "--ship-as"),
         };
-        if (Opt(a, "--max-dim") is { } md) def.MaxDimension = int.Parse(md);
+        if (Opt(a, "--max-dim") is { } md)
+            def.MaxDimension = int.Parse(md);
 
         var bytes = ResourceBuilder.BuildTexture(template, def);
         File.WriteAllBytes(outPath, bytes);
@@ -188,9 +191,9 @@ internal static class Commands
 
     private static ResourceBuilder.TextureCompression ParseFormat(string? f) => (f ?? "bc7").ToLowerInvariant() switch
     {
-        "bc7"           => ResourceBuilder.TextureCompression.BC7,
-        "bc5"           => ResourceBuilder.TextureCompression.BC5,
-        "bc4"           => ResourceBuilder.TextureCompression.BC4,
+        "bc7" => ResourceBuilder.TextureCompression.BC7,
+        "bc5" => ResourceBuilder.TextureCompression.BC5,
+        "bc4" => ResourceBuilder.TextureCompression.BC4,
         "bc3" or "dxt5" => ResourceBuilder.TextureCompression.BC3,
         "bc1" or "dxt1" => ResourceBuilder.TextureCompression.BC1,
         "rgba" or "none" => ResourceBuilder.TextureCompression.None,

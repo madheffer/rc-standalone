@@ -60,7 +60,8 @@ public class VrfRequirementsTests
         foreach (var file in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
         {
             if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") ||
-                file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")) continue;
+                file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+                continue;
 
             foreach (Match m in Regex.Matches(File.ReadAllText(file),
                          @"^\s*using\s+(?:static\s+)?(ValveResourceFormat(?:\.[\w.]+)?)\s*;", RegexOptions.Multiline))

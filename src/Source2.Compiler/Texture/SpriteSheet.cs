@@ -204,10 +204,14 @@ public static class SpriteSheet
             {
                 var cMin = f.CroppedMin ?? f.Min;
                 var cMax = f.CroppedMax ?? f.Max;
-                w.Write(cMin.X); w.Write(cMin.Y);
-                w.Write(cMax.X); w.Write(cMax.Y);
-                w.Write(f.Min.X); w.Write(f.Min.Y);
-                w.Write(f.Max.X); w.Write(f.Max.Y);
+                w.Write(cMin.X);
+                w.Write(cMin.Y);
+                w.Write(cMax.X);
+                w.Write(cMax.Y);
+                w.Write(f.Min.X);
+                w.Write(f.Min.Y);
+                w.Write(f.Max.X);
+                w.Write(f.Max.Y);
             }
 
             ms.Position = paramsPos[s];

@@ -36,7 +36,8 @@ public class KvObjectRoundTripTests
     public void KvObject_ReadFromBinaryKv3_SurfacesNamedKeys()
     {
         var bytes = FindKv3Fixture();
-        if (bytes is null) { CS2Fixtures.Skip("a compiled .vsndevts_c"); return; }
+        if (bytes is null)
+        { CS2Fixtures.Skip("a compiled .vsndevts_c"); return; }
         Assert.NotEmpty(bytes);
 
         using var resource = new Resource();
@@ -75,9 +76,9 @@ public class KvObjectRoundTripTests
         var obj = new KVObject();
         Assert.True(obj.IsCollection);
 
-        obj.Add("name",   "smoke");      // implicit conversion from string
-        obj.Add("count",  42);            // implicit conversion from int
-        obj.Add("ratio",  3.14);          // implicit conversion from double
+        obj.Add("name", "smoke");      // implicit conversion from string
+        obj.Add("count", 42);            // implicit conversion from int
+        obj.Add("ratio", 3.14);          // implicit conversion from double
         obj.Add("active", true);          // implicit conversion from bool
 
         Assert.True(obj.ContainsKey("name"));

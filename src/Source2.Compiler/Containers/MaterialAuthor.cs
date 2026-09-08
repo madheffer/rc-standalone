@@ -4,10 +4,9 @@ using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Serialization.KeyValues;
 
+using InputSignatureElement = Source2.Compiler.Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement;
+
 namespace Source2.Compiler;
-
-using InputSignatureElement = Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement;
-
 /// <summary>
 /// Authors the container of a compiled material, so <c>BuildMaterial</c> can run
 /// with no donor file.

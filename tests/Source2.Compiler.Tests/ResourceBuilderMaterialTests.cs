@@ -1,9 +1,9 @@
+using Source2.Compiler;
 using ValveKeyValue;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Serialization.KeyValues;
-using Source2.Compiler;
 using Xunit;
 
 namespace Source2.Compiler.Tests;
@@ -73,7 +73,7 @@ public class ResourceBuilderMaterialTests
         foreach (var tp in TextureParams(res))
         {
             var name = tp.GetStringProperty("m_name");
-            var val  = tp["m_pValue"];
+            var val = tp["m_pValue"];
             Assert.NotNull(val);
             Assert.Equal(KVFlag.Resource, val!.Flag);
             seen++;
@@ -99,10 +99,10 @@ public class ResourceBuilderMaterialTests
 
         var def = new ResourceBuilder.MaterialDef
         {
-            Name   = "materials/vpkedit/smoke_material.vmat",
+            Name = "materials/vpkedit/smoke_material.vmat",
             Shader = "csgo_complex.vfx",
         };
-        def.TextureParams["g_tColor"]  = "materials/vpkedit/smoke_color.vtex";
+        def.TextureParams["g_tColor"] = "materials/vpkedit/smoke_color.vtex";
         def.TextureParams["g_tNormal"] = "materials/vpkedit/smoke_normal.vtex";
         def.IntParams["F_TRANSLUCENT"] = 0;
 

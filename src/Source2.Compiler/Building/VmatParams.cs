@@ -25,11 +25,14 @@ public static class VmatParams
     public static double? ReadParamValue(KVObject root, string arrName, string valueKey, string paramName)
     {
         var arr = root[arrName];
-        if (arr is null || !arr.IsArray) return null;
+        if (arr is null || !arr.IsArray)
+            return null;
         foreach (var entry in arr.Values)
         {
-            if (!string.Equals(entry.GetStringProperty("m_name"), paramName, StringComparison.Ordinal)) continue;
-            if (!entry.TryGetValue(valueKey, out var v) || v is null) return null;
+            if (!string.Equals(entry.GetStringProperty("m_name"), paramName, StringComparison.Ordinal))
+                continue;
+            if (!entry.TryGetValue(valueKey, out var v) || v is null)
+                return null;
             return v.ValueType switch
             {
                 KVValueType.FloatingPoint or KVValueType.FloatingPoint64 => (double)v,

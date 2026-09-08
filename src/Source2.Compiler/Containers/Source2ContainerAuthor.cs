@@ -68,14 +68,14 @@ public static partial class Source2ContainerAuthor
         new Dictionary<string, ContainerSpec>(StringComparer.OrdinalIgnoreCase)
         {
             [".vsndevts"] = new(1, [new("Sound Event Script Version", "CompileSoundEventScript", 10)]),
-            [".vdata"]    = new(0, [new("KV3 Compiler Version", "CompileVData", 2),
+            [".vdata"] = new(0, [new("KV3 Compiler Version", "CompileVData", 2),
                                     new("VData Compiler Version", "CompileVData", 1)]),
-            [".vpcf"]     = new(1, [new("KV3 Compiler Version", "CompileParticle", 2),
+            [".vpcf"] = new(1, [new("KV3 Compiler Version", "CompileParticle", 2),
                                     new("Particle Compiler Version", "CompileParticle", 2)]),
             // .vagrp is extinct in CS2 content (0 in pak01 + every base pack,
             // 2026-07-20 audit) so there is no RC ground truth to mirror; it
             // keeps the sound-event identity the legacy donor skeleton gave it.
-            [".vagrp"]    = new(1, [new("Sound Event Script Version", "CompileSoundEventScript", 10)]),
+            [".vagrp"] = new(1, [new("Sound Event Script Version", "CompileSoundEventScript", 10)]),
         };
 
     /// <summary>Build the RC-style relative source path recorded in RED2's input
@@ -91,7 +91,8 @@ public static partial class Source2ContainerAuthor
             _ => "vpkeditor",
         };
         var baseName = Path.GetFileNameWithoutExtension(uploadedFileName ?? "");
-        if (string.IsNullOrWhiteSpace(baseName)) baseName = "compiled";
+        if (string.IsNullOrWhiteSpace(baseName))
+            baseName = "compiled";
         // Keep the recorded path clean: strip anything outside [A-Za-z0-9_-].
         var safe = new string(baseName.Select(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' ? c : '_').ToArray());
         return folder + "/" + safe.ToLowerInvariant() + sourceExtension.ToLowerInvariant();
@@ -148,7 +149,7 @@ public static partial class Source2ContainerAuthor
             foreach (var path in refs)
                 rerl.ResourceRefInfoList.Add(new ResourceExtRefList.ResourceReferenceInfo
                 {
-                    Id   = Source2ResourceId.ForPath(path),
+                    Id = Source2ResourceId.ForPath(path),
                     Name = path,
                 });
             resource.Blocks.Add(rerl);
@@ -565,20 +566,22 @@ public static partial class Source2ContainerAuthor
                 }
                 return arr;
             }
-            foreach (var v in node.Values) arr.Add(NarrowIntegers(v));
+            foreach (var v in node.Values)
+                arr.Add(NarrowIntegers(v));
             return arr;
         }
         if (node.IsCollection)
         {
             var obj = KVObject.Collection();
-            foreach (var kv in node.Children) obj.Add(kv.Key, NarrowIntegers(kv.Value));
+            foreach (var kv in node.Children)
+                obj.Add(kv.Key, NarrowIntegers(kv.Value));
             return obj;
         }
 
         return node.ValueType switch
         {
             KVValueType.UInt64 => RetypeUnsigned((ulong)node, node.Flag),
-            KVValueType.Int64  => RetypeSigned((long)node, node.Flag),
+            KVValueType.Int64 => RetypeSigned((long)node, node.Flag),
             _ => node,
         };
     }
@@ -597,11 +600,14 @@ public static partial class Source2ContainerAuthor
             switch (v.ValueType)
             {
                 case KVValueType.Int64:
-                    if ((long)v is < int.MinValue or > int.MaxValue) needs64 = true;
+                    if ((long)v is < int.MinValue or > int.MaxValue)
+                        needs64 = true;
                     break;
                 case KVValueType.UInt64:
-                    if ((ulong)v > long.MaxValue) return false;
-                    if ((ulong)v > int.MaxValue) needs64 = true;
+                    if ((ulong)v > long.MaxValue)
+                        return false;
+                    if ((ulong)v > int.MaxValue)
+                        needs64 = true;
                     break;
                 default:
                     return false;
@@ -614,21 +620,22 @@ public static partial class Source2ContainerAuthor
         v.ValueType == KVValueType.UInt64 ? (long)(ulong)v : (long)v;
 
     private static KVObject RetypeSigned(long v, KVFlag flag) =>
-        v is 0 or 1                              ? new KVObject(v) { Flag = flag }
+        v is 0 or 1 ? new KVObject(v) { Flag = flag }
         : v >= int.MinValue && v <= int.MaxValue ? new KVObject((int)v) { Flag = flag }
-        :                                          new KVObject(v) { Flag = flag };
+        : new KVObject(v) { Flag = flag };
 
     private static KVObject RetypeUnsigned(ulong v, KVFlag flag) =>
-        v is 0 or 1            ? new KVObject((long)v) { Flag = flag }
-        : v <= int.MaxValue    ? new KVObject((int)v) { Flag = flag }
-        : v <= long.MaxValue   ? new KVObject((long)v) { Flag = flag }
-        :                        new KVObject(v) { Flag = flag };
+        v is 0 or 1 ? new KVObject((long)v) { Flag = flag }
+        : v <= int.MaxValue ? new KVObject((int)v) { Flag = flag }
+        : v <= long.MaxValue ? new KVObject((long)v) { Flag = flag }
+        : new KVObject(v) { Flag = flag };
 
     /// <summary>Depth-first collect of distinct <c>resource:</c>-flagged string
     /// values (first-encounter order) — the reference set RERL must list.</summary>
     public static void CollectResourceRefs(KVObject? node, HashSet<string> seen, List<string> refs)
     {
-        if (node is null) return;
+        if (node is null)
+            return;
         if (node.IsCollection || node.IsArray)
         {
             foreach (var child in node.Children)
@@ -646,7 +653,8 @@ public static partial class Source2ContainerAuthor
     /// sound files a vsndevts references, for RED2's source-audio probes.</summary>
     private static void CollectVsndPaths(KVObject? node, HashSet<string> seen, List<string> refs)
     {
-        if (node is null) return;
+        if (node is null)
+            return;
         if (node.IsCollection || node.IsArray)
         {
             foreach (var child in node.Children)
@@ -664,7 +672,8 @@ public static partial class Source2ContainerAuthor
     /// operator/initializer/emitter/renderer definition carries one).</summary>
     private static void CollectOperatorClasses(KVObject? node, bool isRoot, Dictionary<string, int> census)
     {
-        if (node is null) return;
+        if (node is null)
+            return;
         if (node.IsCollection)
         {
             if (!isRoot && node.TryGetValue("_class", out var cls) && cls.ValueType == KVValueType.String)

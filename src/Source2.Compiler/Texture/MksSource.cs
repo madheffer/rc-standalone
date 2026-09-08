@@ -69,7 +69,8 @@ public static class MksSource
 
         void Flush()
         {
-            if (currentIndex is not { } idx) return;
+            if (currentIndex is not { } idx)
+                return;
             if (currentFrames.Count == 0)
                 throw new InvalidOperationException($"Sequence {idx} declares no frames.");
             // A particle addresses a sequence by this number, so a repeat means
@@ -86,9 +87,11 @@ public static class MksSource
             lineNo++;
             var line = rawLine;
             var comment = line.IndexOf("//", StringComparison.Ordinal);
-            if (comment >= 0) line = line[..comment];
+            if (comment >= 0)
+                line = line[..comment];
             line = line.Trim();
-            if (line.Length == 0) continue;
+            if (line.Length == 0)
+                continue;
 
             var parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
             var verb = parts[0].ToLowerInvariant();

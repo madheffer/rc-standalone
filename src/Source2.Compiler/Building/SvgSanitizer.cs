@@ -44,11 +44,14 @@ public static class SvgSanitizer
 {
     public static byte[] ForPanorama(byte[] svg)
     {
-        if (svg is null || svg.Length == 0) return svg ?? [];
+        if (svg is null || svg.Length == 0)
+            return svg ?? [];
         string text;
-        try { text = Encoding.UTF8.GetString(svg); }
+        try
+        { text = Encoding.UTF8.GetString(svg); }
         catch { return svg; }
-        if (!text.Contains("<svg", StringComparison.OrdinalIgnoreCase)) return svg;
+        if (!text.Contains("<svg", StringComparison.OrdinalIgnoreCase))
+            return svg;
 
         var fill = ResolveDefaultFill(text);     // the colour fill-less paths should take
         text = ConvertPrimitivesToPaths(text);   // rect/circle/ellipse/line/poly* → <path>
@@ -81,12 +84,14 @@ public static class SvgSanitizer
     /// Skia can't parse (left untouched).</summary>
     private static string? NormalizePathData(string d)
     {
-        if (string.IsNullOrWhiteSpace(d)) return null;
+        if (string.IsNullOrWhiteSpace(d))
+            return null;
         SKPath? path = null;
         try
         {
             path = SKPath.ParseSvgPathData(d);
-            if (path is null || path.IsEmpty) return null;
+            if (path is null || path.IsEmpty)
+                return null;
 
             var sb = new StringBuilder(d.Length + 16);
             using var it = path.CreateRawIterator();
@@ -96,8 +101,12 @@ public static class SvgSanitizer
             {
                 switch (verb)
                 {
-                    case SKPathVerb.Move: sb.Append('M').Append(P(pts[0])); break;
-                    case SKPathVerb.Line: sb.Append('L').Append(P(pts[1])); break;
+                    case SKPathVerb.Move:
+                        sb.Append('M').Append(P(pts[0]));
+                        break;
+                    case SKPathVerb.Line:
+                        sb.Append('L').Append(P(pts[1]));
+                        break;
                     case SKPathVerb.Cubic:
                         sb.Append('C').Append(P(pts[1])).Append(' ').Append(P(pts[2])).Append(' ').Append(P(pts[3]));
                         break;
@@ -110,9 +119,12 @@ public static class SvgSanitizer
                         for (int i = 0; i + 2 < quads.Length; i += 2)
                             AppendCubicFromQuad(sb, quads[i], quads[i + 1], quads[i + 2]);
                         break;
-                    case SKPathVerb.Close: sb.Append('Z'); break;
+                    case SKPathVerb.Close:
+                        sb.Append('Z');
+                        break;
                 }
-                if (verb != SKPathVerb.Close && sb.Length > 0 && sb[^1] != ' ') sb.Append(' ');
+                if (verb != SKPathVerb.Close && sb.Length > 0 && sb[^1] != ' ')
+                    sb.Append(' ');
             }
             var outStr = sb.ToString().Trim();
             return outStr.Length == 0 ? null : outStr;
@@ -145,7 +157,8 @@ public static class SvgSanitizer
     {
         var m = Regex.Match(tag, $@"(?<![\w-]){Regex.Escape(name)}\s*=\s*(""[^""]*""|'[^']*')",
             RegexOptions.IgnoreCase);
-        if (!m.Success) return null;
+        if (!m.Success)
+            return null;
         var v = m.Groups[1].Value;
         return v.Substring(1, v.Length - 2);
     }
@@ -162,17 +175,18 @@ public static class SvgSanitizer
         foreach (Match m in Regex.Matches(tag, @"([\w:-]+)\s*=\s*(""[^""]*""|'[^']*')"))
         {
             var name = m.Groups[1].Value;
-            if (drop.Contains(name.ToLowerInvariant())) continue;
+            if (drop.Contains(name.ToLowerInvariant()))
+                continue;
             sb.Append(' ').Append(name).Append('=').Append(m.Groups[2].Value);
         }
         return sb.ToString();
     }
 
-    private static readonly Regex RectTag     = new(@"<rect\b[^>]*?/?>",     RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex CircleTag   = new(@"<circle\b[^>]*?/?>",   RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex EllipseTag  = new(@"<ellipse\b[^>]*?/?>",  RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex LineTag     = new(@"<line\b[^>]*?/?>",     RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex PolygonTag  = new(@"<polygon\b[^>]*?/?>",  RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex RectTag = new(@"<rect\b[^>]*?/?>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex CircleTag = new(@"<circle\b[^>]*?/?>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex EllipseTag = new(@"<ellipse\b[^>]*?/?>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex LineTag = new(@"<line\b[^>]*?/?>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex PolygonTag = new(@"<polygon\b[^>]*?/?>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex PolylineTag = new(@"<polyline\b[^>]*?/?>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static string ConvertPrimitivesToPaths(string svg)
@@ -181,12 +195,17 @@ public static class SvgSanitizer
         {
             var t = m.Value;
             float x = F(Attr(t, "x")), y = F(Attr(t, "y")), w = F(Attr(t, "width")), h = F(Attr(t, "height"));
-            if (w <= 0 || h <= 0) return "";   // a zero-area rect draws nothing
-            var rxS = Attr(t, "rx"); var ryS = Attr(t, "ry");
+            if (w <= 0 || h <= 0)
+                return "";   // a zero-area rect draws nothing
+            var rxS = Attr(t, "rx");
+            var ryS = Attr(t, "ry");
             float rx = F(rxS), ry = F(ryS);
-            if (rxS is null && ryS is not null) rx = ry;
-            if (ryS is null && rxS is not null) ry = rx;
-            rx = MathF.Min(rx, w / 2); ry = MathF.Min(ry, h / 2);
+            if (rxS is null && ryS is not null)
+                rx = ry;
+            if (ryS is null && rxS is not null)
+                ry = rx;
+            rx = MathF.Min(rx, w / 2);
+            ry = MathF.Min(ry, h / 2);
             string d;
             if (rx > 0 && ry > 0)
                 d = $"M{C(x + rx)} {C(y)} L{C(x + w - rx)} {C(y)} A{C(rx)} {C(ry)} 0 0 1 {C(x + w)} {C(y + ry)} " +
@@ -202,7 +221,8 @@ public static class SvgSanitizer
         {
             var t = m.Value;
             float cx = F(Attr(t, "cx")), cy = F(Attr(t, "cy")), r = F(Attr(t, "r"));
-            if (r <= 0) return "";
+            if (r <= 0)
+                return "";
             var d = $"M{C(cx - r)} {C(cy)} A{C(r)} {C(r)} 0 1 0 {C(cx + r)} {C(cy)} A{C(r)} {C(r)} 0 1 0 {C(cx - r)} {C(cy)} Z";
             return $"<path{CarryAttrs(t, CircleGeom)} d=\"{d}\"/>";
         });
@@ -211,7 +231,8 @@ public static class SvgSanitizer
         {
             var t = m.Value;
             float cx = F(Attr(t, "cx")), cy = F(Attr(t, "cy")), rx = F(Attr(t, "rx")), ry = F(Attr(t, "ry"));
-            if (rx <= 0 || ry <= 0) return "";
+            if (rx <= 0 || ry <= 0)
+                return "";
             var d = $"M{C(cx - rx)} {C(cy)} A{C(rx)} {C(ry)} 0 1 0 {C(cx + rx)} {C(cy)} A{C(rx)} {C(ry)} 0 1 0 {C(cx - rx)} {C(cy)} Z";
             return $"<path{CarryAttrs(t, EllipseGeom)} d=\"{d}\"/>";
         });
@@ -223,7 +244,7 @@ public static class SvgSanitizer
             return $"<path{CarryAttrs(t, LineGeom)} d=\"{d}\"/>";
         });
 
-        svg = PolygonTag.Replace(svg,  m => PolyToPath(m.Value, closed: true));
+        svg = PolygonTag.Replace(svg, m => PolyToPath(m.Value, closed: true));
         svg = PolylineTag.Replace(svg, m => PolyToPath(m.Value, closed: false));
         return svg;
     }
@@ -233,23 +254,25 @@ public static class SvgSanitizer
         var pts = Attr(tag, "points") ?? "";
         var nums = Regex.Matches(pts, @"[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?")
                         .Select(m => F(m.Value)).ToArray();
-        if (nums.Length < 4) return "";   // need at least two points
+        if (nums.Length < 4)
+            return "";   // need at least two points
         var sb = new StringBuilder();
         sb.Append('M').Append(C(nums[0])).Append(' ').Append(C(nums[1]));
         for (int i = 2; i + 1 < nums.Length; i += 2)
             sb.Append(" L").Append(C(nums[i])).Append(' ').Append(C(nums[i + 1]));
-        if (closed) sb.Append(" Z");
+        if (closed)
+            sb.Append(" Z");
         var drop = closed ? PolygonGeom : PolylineGeom;
         return $"<path{CarryAttrs(tag, drop)} d=\"{sb}\"/>";
     }
 
     private static string C(float v) => MathF.Round(v, 3).ToString("0.###", CultureInfo.InvariantCulture);
 
-    private static readonly HashSet<string> RectGeom     = new(StringComparer.OrdinalIgnoreCase) { "x", "y", "width", "height", "rx", "ry" };
-    private static readonly HashSet<string> CircleGeom   = new(StringComparer.OrdinalIgnoreCase) { "cx", "cy", "r" };
-    private static readonly HashSet<string> EllipseGeom  = new(StringComparer.OrdinalIgnoreCase) { "cx", "cy", "rx", "ry" };
-    private static readonly HashSet<string> LineGeom     = new(StringComparer.OrdinalIgnoreCase) { "x1", "y1", "x2", "y2" };
-    private static readonly HashSet<string> PolygonGeom  = new(StringComparer.OrdinalIgnoreCase) { "points" };
+    private static readonly HashSet<string> RectGeom = new(StringComparer.OrdinalIgnoreCase) { "x", "y", "width", "height", "rx", "ry" };
+    private static readonly HashSet<string> CircleGeom = new(StringComparer.OrdinalIgnoreCase) { "cx", "cy", "r" };
+    private static readonly HashSet<string> EllipseGeom = new(StringComparer.OrdinalIgnoreCase) { "cx", "cy", "rx", "ry" };
+    private static readonly HashSet<string> LineGeom = new(StringComparer.OrdinalIgnoreCase) { "x1", "y1", "x2", "y2" };
+    private static readonly HashSet<string> PolygonGeom = new(StringComparer.OrdinalIgnoreCase) { "points" };
     private static readonly HashSet<string> PolylineGeom = new(StringComparer.OrdinalIgnoreCase) { "points" };
 
     // ── fill resolution ────────────────────────────────────────────────────────
@@ -259,7 +282,7 @@ public static class SvgSanitizer
     // A `fill:` inside a style="…" value.
     private static readonly Regex FillInStyle = new(@"fill\s*:\s*([^;""']+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ContainerTag = new(@"<(?:svg|g)\b[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex PathOpenTag  = new(@"<path\b[^>]*?(/?)>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex PathOpenTag = new(@"<path\b[^>]*?(/?)>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>The colour a fill-less path should take: the (innermost) explicit
     /// <c>fill</c> declared on a <c>&lt;g&gt;</c>/<c>&lt;svg&gt;</c> container — the
@@ -301,11 +324,13 @@ public static class SvgSanitizer
         if (styleM.Success)
         {
             var fm = FillInStyle.Match(styleM.Groups[1].Value);
-            if (fm.Success && !IsNoneOrCurrent(fm.Groups[1].Value)) return tag;   // real style fill — leave it
+            if (fm.Success && !IsNoneOrCurrent(fm.Groups[1].Value))
+                return tag;   // real style fill — leave it
         }
 
         var fa = FillAttr.Match(tag);
-        if (fa.Success && !IsNoneOrCurrent(fa.Groups[1].Value)) return tag;        // real fill attr — leave it
+        if (fa.Success && !IsNoneOrCurrent(fa.Groups[1].Value))
+            return tag;        // real fill attr — leave it
 
         // No usable fill anywhere on this path → inject one. Replace an existing
         // fill="none"/"currentColor" attribute in place; otherwise add a new attr
@@ -323,8 +348,8 @@ public static class SvgSanitizer
     private static string ExpandShortHexColors(string svg) =>
         ShortHex.Replace(svg, m => $"#{m.Groups[1].Value}{m.Groups[1].Value}{m.Groups[2].Value}{m.Groups[2].Value}{m.Groups[3].Value}{m.Groups[3].Value}");
 
-    private static readonly Regex SvgTag   = new(@"<svg\b[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ViewBox  = new(@"viewBox\s*=\s*[""']\s*[\d.+-]+[\s,]+[\d.+-]+[\s,]+([\d.+-]+)[\s,]+([\d.+-]+)\s*[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SvgTag = new(@"<svg\b[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ViewBox = new(@"viewBox\s*=\s*[""']\s*[\d.+-]+[\s,]+[\d.+-]+[\s,]+([\d.+-]+)[\s,]+([\d.+-]+)\s*[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex HasWidth = new(@"\bwidth\s*=", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>Add explicit width/height (from the viewBox) to the root &lt;svg&gt;
@@ -333,10 +358,13 @@ public static class SvgSanitizer
     private static string EnsureWidthHeight(string svg)
     {
         var tag = SvgTag.Match(svg);
-        if (!tag.Success || HasWidth.IsMatch(tag.Value)) return svg;
+        if (!tag.Success || HasWidth.IsMatch(tag.Value))
+            return svg;
         var vb = ViewBox.Match(tag.Value);
-        if (!vb.Success) return svg;
-        var w = vb.Groups[1].Value; var h = vb.Groups[2].Value;
+        if (!vb.Success)
+            return svg;
+        var w = vb.Groups[1].Value;
+        var h = vb.Groups[2].Value;
         var newTag = tag.Value.Insert(4, $" width=\"{w}\" height=\"{h}\"");
         return svg.Remove(tag.Index, tag.Length).Insert(tag.Index, newTag);
     }
