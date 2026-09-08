@@ -2,8 +2,8 @@
 // Fetch the pinned ValveResourceFormat commit into third_party/ and apply this
 // project's patches to it.
 //
-//   dotnet run tools/vendor.cs            fetch (if needed) + apply patches
-//   dotnet run tools/vendor.cs -- --check verify the tree is patched, change nothing
+//   dotnet run tools/vendor.cs             fetch (if needed), then apply patches
+//   dotnet run tools/vendor.cs -- --check   verify the tree is patched, change nothing
 //
 // A patch is a literal find -> replace against one file. The `find` snippet must
 // occur EXACTLY ONCE in the pristine upstream file. Zero matches or more than one
@@ -82,7 +82,7 @@ if (conflicts.Count > 0) return 1;
 Console.WriteLine("==> vendored tree is ready");
 return 0;
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// helpers
 
 static string ReadSnippet(string path)
 {

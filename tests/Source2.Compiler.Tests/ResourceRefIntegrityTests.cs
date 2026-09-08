@@ -20,9 +20,9 @@ namespace Source2.Compiler.Tests;
 /// <list type="bullet">
 /// <item>a path written WITHOUT the Resource flag reads as a bare string, so
 ///   the asset never resolves (the "attempting to render with error material"
-///   fatal — the 2026-08-10 reference audit, and the L4D2 zoey v4 crash before it);</item>
+///   fatal - the 2026-08-10 reference audit, and the L4D2 zoey v4 crash before it);</item>
 /// <item>a RERL entry renamed WITHOUT re-hashing its id still points at the old
-///   asset (found in both shipped hitmarker particles by the 2026-08-10 audit —
+///   asset (found in both shipped hitmarker particles by the 2026-08-10 audit -
 ///   <c>RewriteParticlePaths</c> was the one rewrite site that renamed without
 ///   re-iding).</item>
 /// </list>
@@ -88,11 +88,11 @@ public class ResourceRefIntegrityTests
         foreach (var path in refs)
         {
             Assert.True(byName.TryGetValue(path, out var entry),
-                $"{label}: DATA references '{path}' but no RERL entry names it — the engine resolves "
+                $"{label}: DATA references '{path}' but no RERL entry names it - the engine resolves "
               + "through the RERL, so the reference is dangling.");
             Assert.True(entry!.Id == Source2ResourceId.ForPath(path),
                 $"{label}: RERL entry '{path}' carries id {entry.Id:x16} but the path hashes to "
-              + $"{Source2ResourceId.ForPath(path):x16} — a renamed entry that was never re-hashed "
+              + $"{Source2ResourceId.ForPath(path):x16} - a renamed entry that was never re-hashed "
               + "still points at the old asset.");
         }
 
@@ -111,7 +111,7 @@ public class ResourceRefIntegrityTests
 
     /// <summary>
     /// REGRESSION PIN: <c>RewriteParticlePaths</c> re-hashes a renamed RERL entry.
-    /// Fails against the pre-2026-08-10 code, which set Name and left Id — the
+    /// Fails against the pre-2026-08-10 code, which set Name and left Id - the
     /// defect the audit found baked into every hitmarker particle we have shipped.
     /// Uses the embedded hitmarker template, so it is fixture-free.
     /// </summary>
@@ -141,7 +141,7 @@ public class ResourceRefIntegrityTests
         Assert.All(names, n => Assert.StartsWith("materials/vpkedit_hm/", n));
 
         Assert.True(AssertRefsResolve(rewritten, "rewritten hitmarker.vpcf_c") > 0,
-            "the template carried no flagged refs — wrong fixture, the pin would be vacuous");
+            "the template carried no flagged refs - wrong fixture, the pin would be vacuous");
     }
 
     /// <summary>The authoring builders hold the invariant too: a from-scratch
@@ -173,7 +173,7 @@ public class ResourceRefIntegrityTests
     /// <c>hitmarker_vtex_template.vtex_c</c>'s RED2 verbatim, so every skin
     /// composite, glove texture, hitmarker and /compile upload shipped declaring
     /// <c>materials/mac/hud_hit_marker_hs.vtex</c> under search path
-    /// <c>csgo_addons/c</c> with that author's file CRCs — the 2026-07-26 KV3
+    /// <c>csgo_addons/c</c> with that author's file CRCs - the 2026-07-26 KV3
     /// donor-metadata defect, still live on the binary types. This pins the fix
     /// from both ends: our identity present, the donor's absent.
     /// </summary>
@@ -273,7 +273,7 @@ public class ResourceRefIntegrityTests
     /// <summary>
     /// And the sound path. A compiled <c>.vsnd_c</c> must name the clip WE
     /// compiled. RC records a fixed set of sibling probes next to the source
-    /// (CRC 0 / optional / not-exists) plus the real file — mirrored, because
+    /// (CRC 0 / optional / not-exists) plus the real file - mirrored, because
     /// each probe is an honest "this file does not exist". Also asserts the pin
     /// survives <see cref="ResourceBuilder.ModernizeVsnd"/>, which is what the
     /// override path actually ships.
@@ -404,7 +404,7 @@ public class ResourceRefIntegrityTests
             }
         }
 
-        Assert.True(checkedFiles > 100, $"only read {checkedFiles} stock resources — sweep did not run");
+        Assert.True(checkedFiles > 100, $"only read {checkedFiles} stock resources - sweep did not run");
         Assert.Empty(violations);
     }
 

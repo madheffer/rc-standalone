@@ -65,7 +65,7 @@ public sealed class DirFileLoader(string baseDir) : IFileLoader
     {
         // SafePath guard: vrfPath comes from a parsed resource's external references,
         // and that resource can be user-uploaded (an upload endpoint, a URL
-        // import) — a crafted "../../../etc/passwd" must NOT resolve outside BaseDir.
+        // import) - a crafted "../../../etc/passwd" must NOT resolve outside BaseDir.
         // Strip a leading separator first (some VRF refs are root-relative, e.g.
         // "/models/foo") so legit paths still resolve, then TryJoinUnderRoot rejects
         // any "../"/rooted escape.

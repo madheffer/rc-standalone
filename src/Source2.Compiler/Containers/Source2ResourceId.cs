@@ -10,13 +10,13 @@ namespace Source2.Compiler;
 /// <para>Reverse-engineered 2026-05-15 by brute-forcing 25 known
 /// (path, Id) pairs lifted from stock CS2 <c>vmat_c</c>/<c>vmdl_c</c> RERL
 /// blocks. The function is <b>MurmurHash64B</b> over the lowercase resource
-/// path — forward slashes, and the <em>uncompiled</em> extension as RERL
-/// stores it (<c>.vtex</c> / <c>.vmat</c>, never <c>.vtex_c</c>) — with seed
+/// path - forward slashes, and the <em>uncompiled</em> extension as RERL
+/// stores it (<c>.vtex</c> / <c>.vmat</c>, never <c>.vtex_c</c>) - with seed
 /// <c>0xEDABCDEF</c>. All 25 pairs matched exactly.</para>
 ///
 /// <para>This is what lets <see cref="ResourceBuilder"/> emit a working
 /// <c>.vmat_c</c> that references brand-new texture paths without routing
-/// through Valve's <c>resourcecompiler.exe</c> — the engine looks resources up
+/// through Valve's <c>resourcecompiler.exe</c> - the engine looks resources up
 /// by this 64-bit id and FATAL-errors on a wrong/zero one.</para>
 /// </summary>
 public static class Source2ResourceId

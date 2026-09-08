@@ -14,20 +14,17 @@ using ValveResourceFormat.Utils;
 namespace Source2.Compiler;
 
 /// <summary>
-/// Builds compiled Source 2 resource files (.vmat_c, .vmdl_c) using
-/// ValveResourceFormat's own serialization pipeline — no external tools required.
+/// Builds compiled Source 2 resources - <c>.vtex_c</c>, <c>.vmat_c</c>,
+/// <c>.vsnd_c</c>, <c>.vsvg_c</c>, <c>.vmdl_c</c> - through
+/// ValveResourceFormat's serializer, with no game tooling involved.
 ///
-/// Strategy: load a same-type compiled resource as a <em>template</em> to
-/// capture the correct header version and KV3 format GUID, then replace the
-/// DATA block's KV3 tree and RERL entries with the new content before
-/// calling <c>Resource.Serialize()</c>.
-///
-/// The template resource is mutated and must not be reused after calling
-/// <see cref="BuildMaterial(byte[], MaterialDef)"/> or <see cref="BuildModel"/>.
+/// <para>Every type here authors its own container. A template of the same type
+/// is accepted but never required, and supplies only the header frame; anything
+/// a caller passes is mutated and must not be reused.</para>
 /// </summary>
 public static class ResourceBuilder
 {
-    // ── Public descriptor types ──────────────────────────────────────────────────
+    // Public descriptor types
 
     /// <summary>All data needed to emit a .vmat_c.</summary>
     public sealed class MaterialDef
@@ -89,27 +86,27 @@ public static class ResourceBuilder
     /// <summary>GPU block-compression format for texture output.</summary>
     public enum TextureCompression
     {
-        /// <summary>BC7 RGBA — highest quality, 16 B per 4×4 block. Recommended default for color.</summary>
+        /// <summary>BC7 RGBA - highest quality, 16 B per 4×4 block. Recommended default for color.</summary>
         BC7,
-        /// <summary>BC5 / ATI2N — two-channel (RG), 16 B per block. Normal / roughness-metalness maps.</summary>
+        /// <summary>BC5 / ATI2N - two-channel (RG), 16 B per block. Normal / roughness-metalness maps.</summary>
         BC5,
-        /// <summary>BC4 / ATI1N — single-channel (R), 8 B per block. AO / mask maps.</summary>
+        /// <summary>BC4 / ATI1N - single-channel (R), 8 B per block. AO / mask maps.</summary>
         BC4,
-        /// <summary>BC3 / DXT5 — RGB + interpolated alpha, 16 B per 4×4 block.</summary>
+        /// <summary>BC3 / DXT5 - RGB + interpolated alpha, 16 B per 4×4 block.</summary>
         BC3,
-        /// <summary>BC1 / DXT1 — RGB only (1-bit alpha), 8 B per 4×4 block. Smallest output.</summary>
+        /// <summary>BC1 / DXT1 - RGB only (1-bit alpha), 8 B per 4×4 block. Smallest output.</summary>
         BC1,
-        /// <summary>No compression — raw BGRA8888. Largest output, instant encoding.</summary>
+        /// <summary>No compression - raw BGRA8888. Largest output, instant encoding.</summary>
         None,
     }
 
     /// <summary>
-    /// Which encoder computes BC7 blocks — the pipeline's heaviest CPU cost.
+    /// Which encoder computes BC7 blocks - the pipeline's heaviest CPU cost.
     /// Only affects <see cref="TextureCompression.BC7"/> output.
     /// </summary>
     public enum Bc7EncoderMode
     {
-        /// <summary>CPU only — native <c>bc7enc</c>, BCnEncoder.Net fallback.
+        /// <summary>CPU only - native <c>bc7enc</c>, BCnEncoder.Net fallback.
         /// The production default; safe inside a Docker container with no GPU.</summary>
         Cpu,
         /// <summary>Prefer <see cref="GpuBc7Encoder"/> when it is
@@ -127,7 +124,7 @@ public static class ResourceBuilder
         /// <summary>Raw image file bytes (PNG, JPG, TGA, BMP, WebP …).</summary>
         public byte[] ImageBytes { get; set; } = [];
 
-        /// <summary>Decoded RGBA8888 pixels — set this (with <see cref="RawWidth"/>
+        /// <summary>Decoded RGBA8888 pixels - set this (with <see cref="RawWidth"/>
         /// / <see cref="RawHeight"/>) instead of <see cref="ImageBytes"/> to skip
         /// the PNG encode/decode round-trip when the source is already raw.</summary>
         public byte[]? RawRgba { get; set; }
@@ -135,12 +132,12 @@ public static class ResourceBuilder
         public int RawHeight { get; set; }
 
         /// <summary>BC7 encoder quality. <c>Fast</c> is ~10× quicker than
-        /// <c>Balanced</c> with a small quality cost — good for previews/bulk.</summary>
+        /// <c>Balanced</c> with a small quality cost - good for previews/bulk.</summary>
         public CompressionQuality Quality { get; set; } = CompressionQuality.Balanced;
 
         /// <summary>Content-relative source path recorded in the authored RED2's
         /// input dependency (e.g. <c>"materials/vpkedit/foo_color.png"</c>). Leave
-        /// null and the author synthesizes a neutral <c>vpkeditor/</c> name — what
+        /// null and the author synthesizes a neutral <c>vpkeditor/</c> name - what
         /// matters is that it is OURS, not a donor's. See
         /// <see cref="Source2ContainerAuthor.BuildTextureEditInfo"/>.</summary>
         public string? SourceName { get; set; }
@@ -161,18 +158,15 @@ public static class ResourceBuilder
         /// Which encoder computes BC7 blocks. Defaults to
         /// <see cref="Bc7EncoderMode.Cpu"/>; only consulted when
         /// <see cref="Compression"/> is <see cref="TextureCompression.BC7"/>.
-        /// Hosts wire this from their own configuration.
-        ///  <see cref="Bc7EncoderMode.Gpu"/>
-        /// still falls back to the CPU encoder until the GPU encoder is built —
-        /// see <see cref="GpuBc7Encoder"/>.
+        /// Hosts wire this from their own configuration. <see cref="Bc7EncoderMode.Gpu"/>
+        /// falls back to the CPU encoder until <see cref="GpuBc7Encoder"/> is built.
         /// </summary>
         public Bc7EncoderMode Bc7Mode { get; set; } = Bc7EncoderMode.Cpu;
 
         /// <summary>
         /// Longest-side cap for the source image, in pixels. A source larger
-        /// than this is downscaled before mip generation + block compression
-        /// (see <see cref="DecodeCapped"/>). Defaults to no cap; the skin
-        /// pipeline opts in to a 2048 cap — see <c>the calling pipeline</c>.
+        /// than this is downscaled before mip generation and block compression.
+        /// Defaults to no cap.
         /// </summary>
         public int MaxDimension { get; set; } = int.MaxValue;
 
@@ -197,12 +191,8 @@ public static class ResourceBuilder
         /// <c>("Texture Compiler Version Mip HemiOctAnisoRoughness",
         /// "CompileTexture", 3)</c> for a packed normal map. They tell consumers
         /// how to decode the texture, so dropping one on a normal map makes every
-        /// reader treat it as plain RGB.
-        ///
-        /// <para>When a template is supplied its own set rides along and this adds
-        /// to it. With no template this is the only way to state them, which is
-        /// the point: authoring makes the semantics explicit instead of inheriting
-        /// whatever the donor happened to be.</para>
+        /// reader treat it as plain RGB. A template's own set rides along and this
+        /// adds to it.
         /// </summary>
         public List<Source2ContainerAuthor.SpecialDep> EncodingSemantics { get; } = [];
     }
@@ -216,7 +206,7 @@ public static class ResourceBuilder
     /// <summary>Texture header flag bits. Only the ones this compiler emits.</summary>
     public static class VTexFlags
     {
-        /// <summary>0x8 — no mip chain is used. What stock sprite sheets set.</summary>
+        /// <summary>0x8 - no mip chain is used. What stock sprite sheets set.</summary>
         public const ushort NO_LOD = 0x8;
     }
 
@@ -230,7 +220,7 @@ public static class ResourceBuilder
         return res;
     }
 
-    // ── Public build API ─────────────────────────────────────────────────────────
+    // Public build API
 
     /// <summary>
     /// The BC7 encoder <see cref="BuildTexture(TextureDef)"/> will <i>actually</i> use for a
@@ -244,22 +234,18 @@ public static class ResourceBuilder
             : Bc7EncoderMode.Cpu;
 
     /// <summary>
-    /// <c>the vtex_c disk cache</c> format tag for BC7 output under
-    /// <paramref name="mode"/>. Reflects the encoder that ACTUALLY produces the
-    /// bytes, so a cached entry can never be served to a different encoder:
+    /// Cache tag for BC7 output under <paramref name="mode"/>, for a host that
+    /// caches compiled textures. It names the encoder that actually produced the
+    /// bytes, so an entry can never be served to a different encoder:
     /// <list type="bullet">
-    ///   <item><c>"bc7gpu"</c> — the GPU encoder.</item>
-    ///   <item><c>"bc7cpunative"</c> — the native <c>bc7enc</c> lib (production default).</item>
-    ///   <item><c>"bc7cpubcn"</c> — the managed <c>BCnEncoder.Net</c> fallback (no native lib).</item>
+    ///   <item><c>"bc7gpu"</c> - the GPU encoder.</item>
+    ///   <item><c>"bc7cpunative"</c> - the native <c>bc7enc</c> lib (production default).</item>
+    ///   <item><c>"bc7cpubcn"</c> - the managed <c>BCnEncoder.Net</c> fallback (no native lib).</item>
     /// </list>
-    /// CRITICAL: the native and managed CPU encoders emit DIFFERENT (both valid)
-    /// BC7 streams for the same pixels, so they MUST tag distinctly. Previously
-    /// both shared <c>"bc7cpu"</c>, so a <c>.vtex_c</c> baked by one encoder was
-    /// served to the other (cross-encoder cache poisoning) — the likely path by
-    /// which a stale/outdated BCnEncoder output went undetected. The tag mirrors
-    /// the exact branch taken in <c>BuildTexture</c> (GPU → native → managed), so
-    /// it always matches the bytes on disk. Tag must stay ≤16 alphanumeric chars
-    /// (<c>the vtex_c disk cache</c> validates it).
+    /// The two CPU encoders emit different (both valid) BC7 streams for the same
+    /// pixels, so they must tag distinctly. They once shared <c>"bc7cpu"</c>, and
+    /// a texture baked by one was served to the other. Keep tags to 16
+    /// alphanumeric characters or fewer.
     /// </summary>
     public static string Bc7CacheTag(Bc7EncoderMode mode)
         => EffectiveBc7Encoder(mode) == Bc7EncoderMode.Gpu ? "bc7gpu"
@@ -292,19 +278,11 @@ public static class ResourceBuilder
     }
 
     /// <summary>
-    /// Produce a <c>.vtex_c</c> binary from <paramref name="def"/> using CPU-only
-    /// encoding. The image is decoded by SkiaSharp, padded to power-of-2, a mip
-    /// chain is generated and block-compressed per <see cref="TextureDef.Compression"/>,
-    /// and the full stock extradata set (FALLBACK_BITS, METADATA, COMPRESSED_MIP_SIZE)
-    /// is emitted — matching what resourcecompiler.exe produces, so CS2's texture
-    /// streamer binds it.
-    /// </summary>
-    /// <summary>
-    /// Produce a <c>.vtex_c</c> with no donor file at all. Identical to
-    /// <see cref="BuildTexture(byte[], TextureDef)"/> except that the container
-    /// is authored rather than framed from a template, and the encoding-semantics
-    /// special dependencies come from <see cref="TextureDef.EncodingSemantics"/>
-    /// instead of riding along from the donor's RED2.
+    /// Produce a <c>.vtex_c</c> with no donor file. The image is decoded, padded
+    /// to power-of-two, mipped and block-compressed per
+    /// <see cref="TextureDef.Compression"/>, and the stock extra-data set
+    /// (FALLBACK_BITS, METADATA, COMPRESSED_MIP_SIZE) is emitted, which is what
+    /// CS2's texture streamer expects.
     /// </summary>
     public static byte[] BuildTexture(TextureDef def) => BuildTexture(null, def);
 
@@ -337,7 +315,7 @@ public static class ResourceBuilder
         var highQuality = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
 
         // Decode the source image, downscaled to def.MaxDimension when it
-        // exceeds the cap — see DecodeCapped (a >2048² skin composite is an
+        // exceeds the cap - see DecodeCapped (a >2048² skin composite is an
         // upscale of ≤2048² source art, so it just burns ~4× the BC7 encode).
         using var decoded = DecodeCapped(def, highQuality);
 
@@ -346,17 +324,12 @@ public static class ResourceBuilder
         int pow2W = NextPow2(actualW);
         int pow2H = NextPow2(actualH);
 
-        // Re-host the decoded image as Bgra8888 with UNPREMULTIPLIED alpha.
-        // SKBitmap.Decode() yields premultiplied alpha for images with an
-        // alpha channel — so RGB would be scaled down by A/255 (a packed
-        // composite where A=pearlescent≈0.2 would have R/G/B clobbered to 20%
-        // of their true value). g_tMetalness packs independent data per
-        // channel (R=roughness, G=metalness, B=1−wear, A=pearlescent); each
-        // must reach the BC7 encoder at its true per-pixel value. Decoding
-        // into an explicit Unpremul SKImageInfo divides the premultiplication
-        // back out. Resize() targets the same Unpremul info, so the resize
-        // branch is already correct — but the no-resize branch must also be
-        // forced through it (SKBitmap.Copy() preserves the source alpha type).
+        // Re-host as Bgra8888 with UNPREMULTIPLIED alpha. SKBitmap.Decode()
+        // premultiplies, which scales RGB by A/255 - fine for a photo, wrong for a
+        // packed map whose channels are independent data (roughness, metalness,
+        // wear), where an alpha of 0.2 would clobber the other three to a fifth of
+        // their value. Targeting an explicit Unpremul SKImageInfo divides it back
+        // out. Both branches below must go through one, not just the resize.
         var unpremulInfo = new SKImageInfo(pow2W, pow2H, SKColorType.Bgra8888, SKAlphaType.Unpremul);
         using var baseBitmap = (pow2W == actualW && pow2H == actualH)
             ? new SKBitmap(unpremulInfo)
@@ -372,7 +345,7 @@ public static class ResourceBuilder
 
         bool blockCompressed = def.Compression != TextureCompression.None;
 
-        // Mip chain. Block-compressed formats stop at 4×4 (a single BC block) —
+        // Mip chain. Block-compressed formats stop at 4×4 (a single BC block) -
         // sub-4×4 BC mips are malformed and CS2's streamer rejects them.
         // Uncompressed goes all the way to 1×1.
         int fullChain = (int)Math.Log2(Math.Max(pow2W, pow2H)) + 1;
@@ -407,15 +380,10 @@ public static class ResourceBuilder
             };
             formatByte = fmt;
 
-            // BC7 encoding is the pipeline bottleneck. Three encoders, in
-            // preference order:
-            //   1. GPU (GpuBc7Encoder) — when def.Bc7Mode is Gpu AND the GPU
-            //      encoder reports available. Hard-off today (no GPU in the
-            //      container); the wired-in seam for the branched-out
-            //      compositor host. Falls through to the CPU path when off.
-            //   2. native bc7enc (Bc7Native) — dozens of times faster than the
-            //      managed encoder at equal quality. The current default.
-            //   3. BCnEncoder.Net — managed fallback when no native lib.
+            // BC7 is the slowest step here, so the fastest available encoder
+            // wins: GPU if one is built (none is), else native bc7enc, which is
+            // dozens of times faster than the managed BCnEncoder.Net at the same
+            // quality, else BCnEncoder.Net.
             bool bc7 = def.Compression == TextureCompression.BC7;
             if (bc7 && EffectiveBc7Encoder(def.Bc7Mode) == Bc7EncoderMode.Gpu)
             {
@@ -460,7 +428,7 @@ public static class ResourceBuilder
 
         int mipDataSize = mipData.Sum(b => b.Length);
 
-        // FALLBACK_BITS — a 32×32 BC7 thumbnail (64 blocks × 16 B = 1024 B), the
+        // FALLBACK_BITS - a 32×32 BC7 thumbnail (64 blocks × 16 B = 1024 B), the
         // always-resident low-res copy CS2's texture streamer binds while the
         // full mip chain streams in. resourcecompiler emits this on every vtex;
         // without it the streamer fails to bind the texture and the material
@@ -476,9 +444,9 @@ public static class ResourceBuilder
             fallbackBits = fbEnc.EncodeToRawBytes(thumb.Bytes, 32, 32, PixelFormat.Bgra32)[0];
         }
 
-        // ── DATA block layout (matches resourcecompiler output) ──────────────
+        // DATA block layout (matches resourcecompiler output)
         //   [0..40)     vtex header
-        //   [40..)      extradata entry table — one 12 B entry per payload,
+        //   [40..)      extradata entry table - one 12 B entry per payload,
         //               in ascending type order:
         //               FALLBACK_BITS(1), SHEET(2) when present, METADATA(3),
         //               COMPRESSED_MIP_SIZE(4)
@@ -546,7 +514,7 @@ public static class ResourceBuilder
         w.Write(8u);                     // ExtraDataOffset
         w.Write((uint)extras.Count);     // ExtraDataCount
 
-        // Entry table — { u32 type, u32 offsetToPayload, u32 size }.
+        // Entry table - { u32 type, u32 offsetToPayload, u32 size }.
         for (var i = 0; i < extras.Count; i++)
         {
             var offsetFieldPos = header + i * 12 + 4;
@@ -570,12 +538,12 @@ public static class ResourceBuilder
 
         // The container. With a template, its header version comes from that file;
         // without one it is authored outright (Version 1, measured invariant across
-        // every .vtex_c in the game — see Source2ContainerAuthor.TextureResourceVersion).
+        // every .vtex_c in the game - see Source2ContainerAuthor.TextureResourceVersion).
         using var template = templateBytes is { Length: > 0 }
             ? ReadResource(templateBytes)
             : new Resource { Version = Source2ContainerAuthor.TextureResourceVersion };
 
-        // Remove any RERL block the template carried — stock textures don't
+        // Remove any RERL block the template carried - stock textures don't
         // have one (textures reference textures only as runtime samplers,
         // not as resource imports).
         for (var i = template.Blocks.Count - 1; i >= 0; i--)
@@ -584,19 +552,10 @@ public static class ResourceBuilder
                 template.Blocks.RemoveAt(i);
         }
 
-        // Author our OWN RED2 rather than inheriting the template's. The donor
-        // (hitmarker_vtex_template.vtex_c) declares "materials/mac/..." source
-        // paths under search path "csgo_addons/c" with that author's file CRCs,
-        // and every texture we have ever compiled shipped carrying them — the
-        // 2026-07-26 KV3 donor-metadata defect, still live on the binary types.
-        // Only the container FRAME comes from the template now; the edit info
-        // describes this compile. See Source2ContainerAuthor.BuildTextureEditInfo
-        // for the resourcecompiler-dumped shape and what is deliberately omitted.
-        // The template's SPECIAL dependencies ride along untouched: they describe
-        // how the pixels are encoded, not who wrote the source. A stock glove
-        // normal carries "Mip HemiOctAnisoRoughness", and losing it makes every
-        // consumer decode the normal as plain RGB (the black-patches class) —
-        // GloveSurfaceMapShipTests caught exactly that when this first landed.
+        // Author the RED2 rather than inheriting a template's, which would name
+        // that file's source path and CRC. Its SPECIAL dependencies do ride along
+        // untouched: they say how the pixels are encoded, not who wrote them.
+        // See Source2ContainerAuthor.BuildTextureEditInfo.
         var red2Idx = template.Blocks.FindIndex(b => b.Type == BlockType.RED2);
         // BuildTextureEditInfo treats this list as "the template's own set, used
         // instead of the generic fallback". So when there is no template it has to
@@ -637,7 +596,7 @@ public static class ResourceBuilder
 
         // Serialize the resource container (header + blocks + DATA-with-just-
         // vtex-header). file_size in the result is exactly the bytes up to
-        // here — Resource.Serialize patches it to `end - start`.
+        // here - Resource.Serialize patches it to `end - start`.
         var resourceBytes = Serialize(template);
 
         // Now append mip pixel data. The engine reads mip count + dimensions
@@ -664,8 +623,7 @@ public static class ResourceBuilder
     /// Decode <paramref name="def"/>'s source image (or re-host its raw RGBA),
     /// downscaled with <paramref name="sampling"/> so its longest side never
     /// exceeds <see cref="TextureDef.MaxDimension"/> (default: no cap). The
-    /// returned bitmap is owned by the caller. See <c>the calling pipeline</c> for
-    /// why the skin pipeline caps its composites.
+    /// returned bitmap is owned by the caller.
     /// </summary>
     private static SKBitmap DecodeCapped(TextureDef def, SKSamplingOptions sampling)
     {
@@ -678,7 +636,7 @@ public static class ResourceBuilder
 
         var maxSide = Math.Max(source.Width, source.Height);
         if (maxSide <= def.MaxDimension)
-            return source;   // within the cap — caller owns and disposes it
+            return source;   // within the cap - caller owns and disposes it
 
         // Over the cap: downscale proportionally, then drop the full-res source.
         try
@@ -698,29 +656,15 @@ public static class ResourceBuilder
     }
 
     /// <summary>
-    /// Compile a user-supplied WAV byte array into a fresh <c>.vsnd_c</c>.
-    /// Same strategy as <see cref="BuildTexture(TextureDef)"/>: the resource
-    /// container (header, block table) is authored, or taken from a template
-    /// when one is given, and its DATA block is replaced with bytes built from
-    /// the user's WAV.
+    /// Compile a PCM WAV into a <c>.vsnd_c</c> with no donor file: resource
+    /// version 4 with the <c>RED2 DATA</c> pair, the shape every stock v4 sound
+    /// has. <see cref="ModernizeVsnd"/> lifts it to the v5 <c>RED2 CTRL DATA</c>
+    /// layout when that is what the caller ships.
     ///
-    /// Constraints (matches CS2 / Source 2 vsnd format v4):
-    ///   • PCM only (no MP3/AAC/ADPCM compile path here)
-    ///   • 8-bit or 16-bit samples
-    ///   • mono or stereo
-    ///   • sample rate ≤ 65535 Hz (the v4 format stores it as uint16; in
-    ///     practice every common rate — 8/11.025/16/22.05/44.1/48 kHz —
-    ///     fits comfortably)
-    ///
-    /// Throws <see cref="InvalidOperationException"/> with a user-readable
-    /// message when the WAV violates one of the above; the caller surfaces
-    /// the message as a 400 response.
-    /// </summary>
-    /// <summary>
-    /// Produce a <c>.vsnd_c</c> with no donor file. The container is authored:
-    /// resource version 4 with the <c>RED2 DATA</c> block pair, the shape every
-    /// stock v4 sound has. <see cref="ModernizeVsnd"/> still upgrades it to the
-    /// v5 <c>RED2 DATA CTRL</c> layout when that is what the caller ships.
+    /// <para>The v4 format constrains the input: PCM only, 8- or 16-bit, mono or
+    /// stereo, and a sample rate that fits a uint16 (every common rate through
+    /// 48 kHz does). Violations throw <see cref="InvalidOperationException"/>
+    /// with a message written to be shown to whoever supplied the file.</para>
     /// </summary>
     /// <param name="wavBytes">PCM WAV to compile.</param>
     /// <param name="sourceName">Content-relative source path recorded in the authored RED2
@@ -747,7 +691,7 @@ public static class ResourceBuilder
         var fmt = ParseWavFormat(wavBytes);
         var pcm = ExtractWavData(wavBytes);
 
-        // Constraints — we surface user-readable messages here so the
+        // Constraints - we surface user-readable messages here so the
         // caller can surface them to a user verbatim.
         if (fmt.AudioFormat != 1)
             throw new InvalidOperationException(
@@ -768,14 +712,14 @@ public static class ResourceBuilder
         var frameSize = bytesPerSample * fmt.NumChannels;
         if (frameSize == 0 || pcm.Length % frameSize != 0)
             throw new InvalidOperationException(
-                "WAV PCM payload size doesn't align with channel/bit-depth — file is malformed.");
+                "WAV PCM payload size doesn't align with channel/bit-depth - file is malformed.");
         var sampleCount = (uint)(pcm.Length / frameSize);
         var duration = (float)sampleCount / fmt.SampleRate;
 
         // Format byte for v4: PCM16=0, PCM8=1.
         byte formatByte = fmt.BitsPerSample == 16 ? (byte)0 : (byte)1;
 
-        // ── Build the v4 Sound DATA block ────────────────────────────────────────
+        // Build the v4 Sound DATA block
         // Layout (matches Sound.Read in VRF):
         //   uint16 SampleRate
         //   byte   AudioFormatV4   (0=PCM16, 1=PCM8, 2=MP3, 3=ADPCM)
@@ -785,7 +729,7 @@ public static class ResourceBuilder
         //   float  Duration
         //   uint32 SentenceOffset  (0 = no phoneme/sentence data)
         //   uint32 _b              (reserved/size; 0)
-        //   int32  HeaderSize      (0 — only ADPCM uses a header)
+        //   int32  HeaderSize      (0 - only ADPCM uses a header)
         //   uint32 StreamingDataSize
         //   uint32 _seekTableA     (0)
         //   uint32 _seekTableB     (0)
@@ -794,7 +738,7 @@ public static class ResourceBuilder
         //   [PCM payload]
         //
         // Total fixed metadata: 48 bytes. The PCM payload is NOT part of the DATA
-        // block — for a vsnd_c the streaming audio lives AFTER the resource's block
+        // block - for a vsnd_c the streaming audio lives AFTER the resource's block
         // section (VRF: FullFileSize = FileSize + StreamingDataSize; Sound.Offset =
         // Resource.FileSize). Embedding the PCM inside the DATA block double-counts
         // it (the bytes are in FileSize AND expected again as StreamingDataSize),
@@ -819,7 +763,7 @@ public static class ResourceBuilder
         w.Flush();
         var soundBlockBytes = ms.ToArray();
 
-        // ── Splice into template Resource container ──────────────────────────────
+        // Splice into template Resource container
         using var template = templateBytes is { Length: > 0 }
             ? ReadResource(templateBytes)
             : new Resource { Version = Source2ContainerAuthor.SoundResourceVersion };
@@ -835,7 +779,7 @@ public static class ResourceBuilder
         // block must be DROPPED, not emptied: the serializer lays an (empty)
         // RERL's data after the DATA payload, so the streaming-PCM trim below
         // would cut it and leave a dangling block-index entry pointing into the
-        // PCM. VRF's re-read then interprets PCM bytes as the RERL header —
+        // PCM. VRF's re-read then interprets PCM bytes as the RERL header -
         // silently fine when the clip starts silent (zeros → size 0), an
         // EndOfStreamException when it starts loud. ModernizeVsnd also drops
         // RERL for the CS2-side reason (an empty RERL makes CS2 reject the
@@ -844,12 +788,8 @@ public static class ResourceBuilder
         if (rerlIdx >= 0)
             template.Blocks.RemoveAt(rerlIdx);
 
-        // Author our OWN RED2 rather than inheriting the donor's. The embedded
-        // generic_template.vsnd_c names ITS source file and CRC, and every sound
-        // we have compiled shipped carrying them. Provenance only: the template's
-        // special dependencies (compiler identity / encoding semantics) ride along
-        // untouched — the vtex lesson, where blanket-replacing the block dropped a
-        // stock normal's Mip HemiOctAnisoRoughness.
+        // Author the RED2, for the reason given on the texture path above: a
+        // template's special dependencies ride along, its provenance does not.
         var sndRed2Idx = template.Blocks.FindIndex(b => b.Type == BlockType.RED2);
         var sndTemplateDeps = (template.EditInfo?.SpecialDependencies ?? [])
             .Select(d => new Source2ContainerAuthor.SpecialDep(
@@ -869,7 +809,7 @@ public static class ResourceBuilder
         //  • VRF's serializer pads the file a few bytes past the last block, but a
         //    vsnd's streaming data must begin EXACTLY at the DATA block's end
         //    (VRF GetSoundStream reads from Offset+Size; the engine reads from
-        //    FileSize) — any gap is read as leading audio garbage. So we trim to
+        //    FileSize) - any gap is read as leading audio garbage. So we trim to
         //    the block-section end and append the PCM there.
         //  • FileSize (header uint32 @0) must equal that block-section end so
         //    FullFileSize = FileSize + StreamingDataSize matches the real length.
@@ -910,7 +850,7 @@ public static class ResourceBuilder
         const uint FmtTag = 0x20746d66; // "fmt " (little-endian)
 
         if (wav.Length < 12)
-            throw new InvalidDataException("Not a valid WAV file — too short for RIFF header.");
+            throw new InvalidDataException("Not a valid WAV file - too short for RIFF header.");
 
         // RIFF header at [0..4) = "RIFF", [8..12) = "WAVE". Skip those.
         var pos = 12;
@@ -929,7 +869,7 @@ public static class ResourceBuilder
                     AudioFormat: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[0..]),
                     NumChannels: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[2..]),
                     SampleRate: System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[4..]),
-                    // skip ByteRate (4) + BlockAlign (2) — derivable
+                    // skip ByteRate (4) + BlockAlign (2) - derivable
                     BitsPerSample: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[14..]));
             }
 
@@ -1092,7 +1032,7 @@ public static class ResourceBuilder
         _ => null,
     };
 
-    // ── Template discovery helpers ───────────────────────────────────────────────
+    // Template discovery helpers
 
     /// <summary>
     /// Read the raw bytes of the first .vmat_c entry found in <paramref name="pkg"/>.
@@ -1115,18 +1055,18 @@ public static class ResourceBuilder
     public static byte[]? FindTextureTemplateBytes(Package pkg)
         => FindFirstEntryBytes(pkg, "vtex_c");
 
-    // ── Material mutation ────────────────────────────────────────────────────────
+    // Material mutation
 
     private static void ApplyMaterial(Resource template, MaterialDef def)
     {
         var root = GetDataRoot(template);
         root.Clear();
 
-        // ── Field order matters! ─────────────────────────────────────────────
+        // Field order matters!
         // CS2's material loader validates the DATA-block field order against a
         // fixed schema (likely NTRO-positional reads under the hood). We
         // hex-diffed stock vmat_c output and a stock-shape resourcecompiler
-        // vmat_c — both lay out the top-level keys in this exact sequence.
+        // vmat_c - both lay out the top-level keys in this exact sequence.
         // VRF's pre-patch order shipped m_textureParams 3rd and pushed
         // m_dynamicParams to the end; CS2 rejected the result with
         // "FATAL ERROR: attempting to render with error material". Keep this
@@ -1202,14 +1142,14 @@ public static class ResourceBuilder
 
         root.Add("m_renderAttributesUsed", KVObject.Array());
 
-        // ── RERL: one entry per referenced texture ───────────────────────────
+        // RERL: one entry per referenced texture
         // CS2 vmat_c stores texture RERL paths WITHOUT the _c suffix (e.g. "foo.vtex"
         // not "foo.vtex_c").  The game resolves the vtex_c file internally.
         // TextureParams.Values are already expected as .vtex paths; use as-is.
         ReplaceRerl(template, def.TextureParams.Values.Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
-    // ── Model mutation ───────────────────────────────────────────────────────────
+    // Model mutation
 
     private static void ApplyModel(Resource template, ModelDef def)
     {
@@ -1268,13 +1208,13 @@ public static class ResourceBuilder
             physArr.Add(new KVObject(ph));
         root.Add("m_refPhysicsData", physArr);
 
-        // m_modelInfo sub-object — required for the skeleton/keyvalue path
+        // m_modelInfo sub-object - required for the skeleton/keyvalue path
         // in Model.cs even when empty.
         var modelInfo = new KVObject();
         modelInfo.Add("m_keyValueText", new KVObject(""));
         root.Add("m_modelInfo", modelInfo);
 
-        // ── RERL: meshes + materials ────────────────────────────────────────
+        // RERL: meshes + materials
         var refs = def.RefMeshes.Select(m => EnsureCompiled(m.Path))
             .Concat(def.MaterialGroups.SelectMany(g => g.Materials).Select(EnsureCompiled))
             .Concat(def.AnimationGroups.Select(EnsureCompiled))
@@ -1285,7 +1225,7 @@ public static class ResourceBuilder
         ReplaceRerl(template, refs);
     }
 
-    // ── Shared helpers ───────────────────────────────────────────────────────────
+    // Shared helpers
 
     /// <summary>Get the KV3 root object from a resource's DATA block.
     /// Internal so <c>another caller</c> shares the
@@ -1296,7 +1236,7 @@ public static class ResourceBuilder
             ?? throw new InvalidOperationException("Template resource has no DATA block.");
 
         // vmat_c DATA blocks are typed as Material (a KeyValuesOrNTRO subclass) which
-        // wraps an inner BinaryKV3 — AsKeyValueCollection() throws for these.
+        // wraps an inner BinaryKV3 - AsKeyValueCollection() throws for these.
         // vmdl_c DATA blocks may be raw BinaryKV3 or also KeyValuesOrNTRO.
         // KeyValuesOrNTRO.Data IS the mutatable KVObject; Serialize() delegates to the
         // inner BinaryKV3, so mutating Data is reflected in serialization.
@@ -1313,7 +1253,7 @@ public static class ResourceBuilder
     ///
     /// <para>CS2's loader resolves referenced resources by this id and
     /// FATAL-errors on a zero/wrong one. The id is MurmurHash64B of the
-    /// lowercase path (reverse-engineered — see <see cref="Source2ResourceId"/>),
+    /// lowercase path (reverse-engineered - see <see cref="Source2ResourceId"/>),
     /// so brand-new texture paths a fresh vmat introduces resolve correctly
     /// without Valve's resourcecompiler.exe.</para>
     /// </summary>
@@ -1361,7 +1301,7 @@ public static class ResourceBuilder
     /// animation writers do NOT round-trip CS2's data: a plain
     /// <see cref="Serialize(Resource)"/> silently rewrites the physics aggregate
     /// (observed: a character model's PHYS grew 11,907 → 13,689 B), producing a
-    /// ragdoll CS2 cannot build — at runtime the physics-body handle resolves to
+    /// ragdoll CS2 cannot build - at runtime the physics-body handle resolves to
     /// null and the client crashes (access violation in vphysics2). A DATA-only
     /// edit (mesh-group fold / mask patch) must therefore leave the physics and
     /// animation blocks untouched. The DATA block still re-encodes from its KV3 so
@@ -1391,18 +1331,18 @@ public static class ResourceBuilder
                 continue;             // re-encodes (carries the edit)
             long off = b.Offset, len = b.Size;
             if (off < 0 || len < 0 || off + len > originalBytes.Length)
-                continue; // unexpected — let VRF handle it
+                continue; // unexpected - let VRF handle it
             resource.Blocks[i] = new TypedRawBlock(b.Type, originalBytes.AsSpan((int)off, (int)len).ToArray()) { Resource = resource };
         }
         return Serialize(resource);
     }
 
     /// <summary>Rebuild a model resource from an EXACT, ordered set of blocks, each written
-    /// BYTE-FOR-BYTE (no re-encode) via VRF's own container serializer — so the header,
+    /// BYTE-FOR-BYTE (no re-encode) via VRF's own container serializer - so the header,
     /// block table, 16-byte alignment and padding match what the CS2 engine accepts. Used to
     /// graft a block (e.g. a missing <c>ASEQ</c>) into a community model: hand-rolling the
     /// container produced a model s2v read but CS2 rejected as an ERROR MODEL, and letting VRF
-    /// re-encode the typed blocks corrupts complex community models — this does neither (VRF
+    /// re-encode the typed blocks corrupts complex community models - this does neither (VRF
     /// lays out the container; every block stays raw). <paramref name="template"/> supplies the
     /// header version fields.</summary>
     public static byte[] RebuildModelRaw(byte[] template, IReadOnlyList<(BlockType Type, byte[] Bytes)> blocks)
@@ -1427,7 +1367,7 @@ public static class ResourceBuilder
 
     /// <summary>Binary-replace a model's PHYS block with <paramref name="donorPhysBytes"/>, keeping
     /// EVERY other block (DATA, meshes, anim, RERL) byte-identical. Pure byte surgery on the
-    /// resource block table — VRF is deliberately NOT used to re-serialize, because its DATA/PHYS
+    /// resource block table - VRF is deliberately NOT used to re-serialize, because its DATA/PHYS
     /// re-encode is lossy for complex MMD models (corrupts materials + animgraph, observed in-game
     /// as a nude/white/T-posed model). Rewrites only the PHYS bytes, the block-table relative
     /// offsets, and the file-size header. Mirrors <c>data/_trans_preview/_kf/swap_phys.py</c>.</summary>
@@ -1447,7 +1387,7 @@ public static class ResourceBuilder
         }
         var physIdx = blocks.FindIndex(b => b.Type == "PHYS");
         if (physIdx < 0)
-            return model;                 // no PHYS — nothing to swap
+            return model;                 // no PHYS - nothing to swap
         var physAbs = blocks[physIdx].Abs;
 
         using var ms = new MemoryStream();
@@ -1486,7 +1426,7 @@ public static class ResourceBuilder
     /// client.dll CalcAnimationState). A donor swap doesn't fix it (the donor's bone hashes resolve
     /// to different model-bone indices, same class of out-of-range map); removing the block removes
     /// the bad map outright. Cost: no death ragdoll for these models (acceptable on the viewmodel
-    /// agents). Requires the model's DATA to carry no embedded physics reference — sk2 models ship
+    /// agents). Requires the model's DATA to carry no embedded physics reference - sk2 models ship
     /// <c>m_refPhysicsData = [ ]</c>, so nothing is orphaned.</para></summary>
     public static byte[] RemovePhysBlockBinary(byte[] model)
     {
@@ -1504,7 +1444,7 @@ public static class ResourceBuilder
         }
         int physIdx = blocks.FindIndex(b => b.Type == "PHYS");
         if (physIdx < 0)
-            return model;                         // no PHYS — nothing to remove
+            return model;                         // no PHYS - nothing to remove
         var kept = blocks.Where((_, i) => i != physIdx).ToList();
         int newBc = kept.Count;
 
@@ -1541,11 +1481,11 @@ public static class ResourceBuilder
     /// PHYS dumps + in-game confirmation: GFL/stock BASE content carries 0-1 jiggle bones and runs
     /// fine live (zombies, vector, isaac_clarke, master_chief all = 0-1); the confirmed crasher EXG
     /// `shinano_kotori` carries 57-152; across the EXG library there's a clean empty gap (~6 → ~59
-    /// bones). 16 sits in that gap — above all base content and the light cluster, below every
-    /// confirmed crasher — so the strip never touches a benign base-game model. A non-empty
+    /// bones). 16 sits in that gap - above all base content and the light cluster, below every
+    /// confirmed crasher - so the strip never touches a benign base-game model. A non-empty
     /// soft-body solver (actual ropes) is treated as dynamic regardless of bone count (rare, but a
     /// genuine live simulation). Earlier this was a substring match for jigglebone/m_ropes/etc.,
-    /// which false-positived on any model with even ONE jiggle bone — those tokens are schema field
+    /// which false-positived on any model with even ONE jiggle bone - those tokens are schema field
     /// names printed even when empty (`m_Ropes = [ ]`). Count, not presence, is the real signal.</summary>
     public const int JiggleBoneCrashThreshold = 16;
 
@@ -1578,7 +1518,7 @@ public static class ResourceBuilder
     }
 
     /// <summary>True if a model carries a dynamic-physics setup heavy enough to crash CS2's
-    /// round-transition ragdoll teardown — a jiggle-bone count at/above
+    /// round-transition ragdoll teardown - a jiggle-bone count at/above
     /// <see cref="JiggleBoneCrashThreshold"/>, or an active soft-body solver. A plain rigid ragdoll
     /// or a base model with a handful of jiggle bones returns false (it runs fine live; stripping
     /// it would needlessly drop working physics).</summary>
@@ -1674,12 +1614,12 @@ public static class ResourceBuilder
 
         // Upstream VRF's Panorama.Serialize writes the STORED checksum verbatim
         // (it does not recompute), and both VRF's reader and the engine validate
-        // it against the data — refresh it to match the new payload.
+        // it against the data - refresh it to match the new payload.
         panorama.CRC32 = System.IO.Hashing.Crc32.HashToUInt32(panorama.Data);
 
         // Author our OWN RED2: the embedded template.vsvg_c names its own source
         // svg and CRC, which every killfeed icon we build has been shipping.
-        // Provenance only — the template's special dependencies ride along (see
+        // Provenance only - the template's special dependencies ride along (see
         // the vtex lesson in Source2ContainerAuthor.BuildBinaryEditInfo). The CRC
         // recorded is of the SANITIZED bytes we actually compiled, not the raw
         // upload, because that is what the DATA block contains.
@@ -1721,7 +1661,7 @@ public static class ResourceBuilder
         using var resource = new Resource();
         resource.Read(ms);
 
-        // DATA block — particle systems extend KeyValuesOrNTRO whose Data
+        // DATA block - particle systems extend KeyValuesOrNTRO whose Data
         // property is the mutable KVObject root. AsKeyValueCollection() throws
         // for KeyValuesOrNTRO subclasses, so unwrap manually.
         var dataBlock = resource.GetBlockByType(BlockType.DATA);
@@ -1736,22 +1676,22 @@ public static class ResourceBuilder
             ReplaceStringsRecursive(dataRoot, pathMap);
             // Scale the on-screen sprite size. The size of a screen-space sprite
             // particle is RADIUS-driven (C_OP_RenderSprites.m_flRadiusScale), not
-            // texture-resolution-driven — so this is the lever that actually
+            // texture-resolution-driven - so this is the lever that actually
             // resizes the in-game marker. factor 1.0 = no-op.
             if (radiusScale is not 1.0)
             {
                 // On-screen size = particle Radius × m_flRadiusScale, and the per-
-                // frame Radius starts at the definition's m_flConstantRadius — which
+                // frame Radius starts at the definition's m_flConstantRadius - which
                 // DEFAULTS TO 5.0 in Source 2 (the Valve Dev wiki "Radius" property
                 // default), NOT 1.0. (VRF's preview renderer approximates the default
-                // as 1.0, which is exactly what historically misread this — a
+                // as 1.0, which is exactly what historically misread this - a
                 // decompile-only check saw the head's explicit 7.5 against an assumed
                 // body default of 1.0 and concluded the head was 7.5× the body.) In
                 // reality the body template OMITS the key (→ engine default 5.0) and
                 // the head bakes 7.5, i.e. only 1.5× that shared baseline. So divide
                 // the render scale by each template's radius-to-default RATIO: body
                 // (5.0/5.0 = 1.0) is untouched, head (7.5/5.0 = 1.5) is brought back
-                // in line — both land at the same on-screen size and the user Size
+                // in line - both land at the same on-screen size and the user Size
                 // mult scales them identically.
                 var factor = normalizeBaseRadius ? radiusScale / ParticleBaseRadiusRatio(dataRoot) : radiusScale;
                 ScaleRenderSpriteRadius(dataRoot, factor);
@@ -1761,7 +1701,7 @@ public static class ResourceBuilder
             // opaque; SETTING (not scaling) it lets opacity=1.0 mean truly 100%.
             if (alphaScale is { } a)
                 SetRenderSpriteAlpha(dataRoot, a);
-            // Cancel CS2's un-aspect-corrected screen-space sprite stretch — see
+            // Cancel CS2's un-aspect-corrected screen-space sprite stretch - see
             // SetRenderSpriteTextureScaleU. Null = leave the template alone.
             if (textureScaleU is { } su)
                 SetRenderSpriteTextureScaleU(dataRoot, su);
@@ -1772,7 +1712,7 @@ public static class ResourceBuilder
                 SetParticleConstantColor(dataRoot, cc.R, cc.G, cc.B);
         }
 
-        // RED2 — source-asset metadata. The legacy REDI is RawBinary (no KV3
+        // RED2 - source-asset metadata. The legacy REDI is RawBinary (no KV3
         // to walk); only RED2 carries strings worth rewriting.
         if (resource.GetBlockByType(BlockType.RED2) is ResourceEditInfo2 redi2 &&
             redi2.Data is { } redoc)
@@ -1780,7 +1720,7 @@ public static class ResourceBuilder
             ReplaceStringsRecursive(redoc.Root, pathMap);
         }
 
-        // RERL — external reference list. The Name is only half of an entry: the
+        // RERL - external reference list. The Name is only half of an entry: the
         // engine resolves a reference by its 64-bit path-hash Id, so a renamed
         // entry MUST be re-hashed or the entry points at the old asset. This was
         // missed until the 2026-08-10 ref audit found both shipped hitmarker
@@ -1789,7 +1729,7 @@ public static class ResourceBuilder
         // pipeline (a skin-material builder, a mesh-group patcher's
         // anim-include repoint, ModelSwapStage) already re-ids; this one did not.
         // The invariant holds in 3953 stock CS2 resources and both base packs
-        // with zero exceptions — see ResourceRefIntegrityTests.
+        // with zero exceptions - see ResourceRefIntegrityTests.
         if (resource.ExternalReferences is { } rerl)
         {
             foreach (var entry in rerl.ResourceRefInfoList)
@@ -1820,7 +1760,7 @@ public static class ResourceBuilder
         {
             // Snapshot keys: the dictionary backing can't be mutated mid-
             // enumeration. The indexer either replaces an existing entry or
-            // appends to a list-backed collection — both are safe after the
+            // appends to a list-backed collection - both are safe after the
             // snapshot.
             var keys = obj.Keys.ToList();
             foreach (var key in keys)
@@ -1829,7 +1769,7 @@ public static class ResourceBuilder
                 if (child.ValueType == KVValueType.String)
                 {
                     var s = (string)child;
-                    // Preserve the KV3 value flag (Resource/Panorama/etc.) —
+                    // Preserve the KV3 value flag (Resource/Panorama/etc.) -
                     // a flagless replacement breaks CS2's reference resolution.
                     if (s is not null && pathMap.TryGetValue(s, out var newStr))
                         obj[key] = new KVObject(newStr) { Flag = child.Flag };
@@ -1861,7 +1801,7 @@ public static class ResourceBuilder
     }
 
     /// <summary>Deep-clone a <see cref="KVObject"/> (collections, arrays, scalars),
-    /// preserving value type and flag — so a cloned node can be inserted elsewhere in
+    /// preserving value type and flag - so a cloned node can be inserted elsewhere in
     /// the tree and then mutated independently. Cloning a real sibling is how we
     /// synthesise a structurally-valid node for a key a template omits: hand-building
     /// a ~40-field Source 2 float-input node risks a shape the engine chokes on.</summary>
@@ -1905,11 +1845,11 @@ public static class ResourceBuilder
     /// literal to <paramref name="scaleU"/>, creating the key when the template omits it.
     ///
     /// <para>This is the aspect-compensation lever. CS2 does NOT aspect-correct
-    /// screen-space sprite quads — a hitmarker renders ~1.78x wider than tall on 16:9
+    /// screen-space sprite quads - a hitmarker renders ~1.78x wider than tall on 16:9
     /// (confirmed in-game 2026-08-12 with a square-outline calibration sprite that came
     /// back a rectangle). GFL's own three hitmarker particles all bake
     /// <c>m_flFinalTextureScaleU = 0.5</c> with <c>m_bClampUVs = true</c>, which is
-    /// evidently how that pack cancels the stretch — and it costs no texture resolution,
+    /// evidently how that pack cancels the stretch - and it costs no texture resolution,
     /// unlike pre-squeezing the source art. Our "mac" templates omit the key entirely,
     /// which is why our markers ship stretched.</para>
     ///
@@ -2030,7 +1970,7 @@ public static class ResourceBuilder
     /// Recursively scale every <c>C_OP_RenderSprites</c> renderer's
     /// <c>m_flRadiusScale</c> literal by <paramref name="factor"/>. For a
     /// screen-space sprite particle (the hitmarker), this multiplier is what sets
-    /// the marker's on-screen size — the source texture's resolution only affects
+    /// the marker's on-screen size - the source texture's resolution only affects
     /// sharpness, not size. Mutates in place; the caller re-serializes.
     /// </summary>
     private static void ScaleRenderSpriteRadius(KVObject obj, double factor)
@@ -2113,7 +2053,7 @@ public static class ResourceBuilder
     /// Source 2's default particle radius when a definition omits
     /// <c>m_flConstantRadius</c>: the Valve Dev wiki documents the "Radius"
     /// property default as <b>5</b> world units, and that is what CS2's client
-    /// spawns particles at. NOT 1.0 — VRF's preview renderer hard-codes 1.0 as
+    /// spawns particles at. NOT 1.0 - VRF's preview renderer hard-codes 1.0 as
     /// its own approximation, so reading a decompile alone misreads the real
     /// in-game base radius. A template that omits the key therefore renders at
     /// the same base radius as one that bakes <c>m_flConstantRadius = 5</c>.
@@ -2127,12 +2067,12 @@ public static class ResourceBuilder
     /// <c>1.0</c> (no normalisation); the hitmarker head bakes <c>7.5</c> →
     /// <c>1.5</c>. On-screen sprite size is base × <c>m_flRadiusScale</c>, so
     /// dividing the render scale by this ratio collapses every template onto one
-    /// on-screen baseline — the body (which omits the key) is left untouched and
+    /// on-screen baseline - the body (which omits the key) is left untouched and
     /// the head's 1.5× base is compensated, so the two render at the same size.
     ///
     /// <para>The earlier version returned the raw radius with a <c>1.0</c>
     /// fallback for the absent case, which wrongly treated the body's base as
-    /// 1.0 instead of the engine's 5.0 — so the head (7.5) was divided by the
+    /// 1.0 instead of the engine's 5.0 - so the head (7.5) was divided by the
     /// full 7.5 while the body was divided by 1.0, shrinking the headshot marker
     /// ~5× and making it nearly invisible in-game (the web preview is a flat Skia
     /// canvas that never exercises the radius, so it hid the bug).</para>
@@ -2198,7 +2138,7 @@ public static class ResourceBuilder
     /// </summary>
     /// <param name="vsndcTemplate">The original `.vsnd_c` whose PCM tail will be replaced.</param>
     /// <param name="scaledWav">A fresh WAV file whose PCM payload matches the template's format byte-for-byte in length.</param>
-    /// <exception cref="InvalidOperationException">If the scaled WAV's PCM payload byte-length doesn't match the template — would mean the format changed.</exception>
+    /// <exception cref="InvalidOperationException">If the scaled WAV's PCM payload byte-length doesn't match the template - would mean the format changed.</exception>
     public static byte[] RebuildSound(byte[] vsndcTemplate, byte[] scaledWav)
     {
         using var ms = new MemoryStream(vsndcTemplate, writable: false);
@@ -2228,30 +2168,25 @@ public static class ResourceBuilder
     /// Convert a LEGACY-container compiled sound (<c>RED2</c>+<c>DATA</c>, no <c>CTRL</c>) into the
     /// MODERN <c>CVoiceContainer</c> form (<c>RED2</c>+<c>CTRL</c>+<c>DATA</c>) by synthesising the
     /// <c>CTRL</c> block (<c>CVoiceContainerDefault</c>) from the legacy DATA params. The DATA
-    /// metadata block and the streaming PCM tail are preserved BYTE-FOR-BYTE — only a CTRL block
+    /// metadata block and the streaming PCM tail are preserved BYTE-FOR-BYTE - only a CTRL block
     /// is inserted ahead of DATA.
     ///
-    /// <para><b>Why this exists (authoritative, in-game confirmed 2026-06-23).</b> CS2 still ships
-    /// some stock sounds in the legacy container — notably the ORIGINAL knife clips
-    /// (<c>knife_stab</c>, <c>knife_slash1/2</c>, <c>knife_hit1/2</c>, <c>knife_deploy1</c>) — and
-    /// loads them from <c>pak01</c> via a back-compat path. An ADDON (workshop content VPK)
-    /// override of one of those at the stock path is <b>silently ignored</b> by the engine unless
-    /// the override carries the modern <c>CVoiceContainer</c> CTRL block: a user's fully-silenced
-    /// legacy <c>knife_stab.vsnd_c</c> still played at full volume in-game, while a re-compiled
-    /// MODERN copy at the same path (lowered to ~2%) muted correctly. Sounds CS2 already ships
-    /// modern (most guns, <c>knife_swish</c>, the newer hit/flesh clips) carry a CTRL already and
-    /// override fine — those are returned unchanged here. So the weapon-sound scaler runs its PCM
-    /// output through this so EVERY shipped override is in the honoured format.</para>
+    /// <para><b>Why it matters (in-game confirmed).</b> CS2 still ships some stock sounds in the
+    /// legacy container, notably the original knife clips, and loads them through a back-compat
+    /// path. A content-VPK override of one of those at the stock path is <b>silently ignored</b>
+    /// unless the override itself carries a CTRL block: a fully silenced legacy
+    /// <c>knife_stab.vsnd_c</c> still played at full volume, while the same audio recompiled
+    /// modern muted correctly. So run every sound override through this.</para>
     ///
-    /// <para>PCM only (PCM8/PCM16 — the only codec the scaler emits). A non-PCM input or one that
-    /// already has a CTRL block is returned unchanged.</para>
+    /// <para>PCM8/PCM16 only. Anything else, or a file that already has a CTRL block, is returned
+    /// unchanged.</para>
     /// </summary>
     public static byte[] ModernizeVsnd(byte[] vsndc)
     {
         using var resource = new Resource { FileName = "audio.vsnd_c" };
         resource.Read(new MemoryStream(vsndc, writable: false), verifyFileSize: false);
 
-        // Already modern (carries a CVoiceContainer CTRL block) — nothing to do.
+        // Already modern (carries a CVoiceContainer CTRL block) - nothing to do.
         if (resource.GetBlockByType(BlockType.CTRL) is not null)
             return vsndc;
         if (resource.DataBlock is not ValveResourceFormat.ResourceTypes.Sound snd)
@@ -2269,7 +2204,7 @@ public static class ResourceBuilder
             return vsndc;
         var pcm = vsndc.AsSpan(audioStart).ToArray();
 
-        // ── Build the CVoiceContainerDefault CTRL block from the legacy params ──
+        // Build the CVoiceContainerDefault CTRL block from the legacy params
         // Field set + types mirror what the CS2 compiler emits (verified against a stock
         // modern knife clip's CTRL via VRF). VRF's Sound.ConstructFromCtrl reads these back.
         var vsound = new KVObject();
@@ -2293,7 +2228,7 @@ public static class ResourceBuilder
         var ctrl = new BinaryKV3(ctrlRoot, KV3IDLookup.Get("generic"), BlockType.CTRL) { Resource = resource };
 
         // Rebuild the block list to MATCH the layout CS2's modern compiler emits (verified against
-        // a stock modern clip): RED2(+any others), then an EMPTY DATA block (size 0 — the modern
+        // a stock modern clip): RED2(+any others), then an EMPTY DATA block (size 0 - the modern
         // container carries ALL sound metadata in CTRL, not DATA), then the synthesised CTRL.
         // Non-DATA blocks (RED2) are preserved byte-for-byte; the legacy 48-byte Sound metadata in
         // the old DATA block is DROPPED (the CTRL replaces it).
@@ -2311,7 +2246,7 @@ public static class ResourceBuilder
             // Drop RERL. A standalone modern sound is RED2+DATA+CTRL with NO external-reference list
             // (verified against pak01's own modern clips + the working community release). Our MP3→PCM
             // rebuild path (BuildSound) leaves an empty RERL behind; left in, the file decodes in VRF
-            // but CS2 REJECTS the override and falls back to the stock (full-volume) clip — observed
+            // but CS2 REJECTS the override and falls back to the stock (full-volume) clip - observed
             // in-game as the loud "ka-chink" on a knife hit while the (RERL-free) PCM swings muted fine.
             else if (type != BlockType.RERL)
             {
@@ -2332,13 +2267,13 @@ public static class ResourceBuilder
         // parser by this version: left at v4 it runs the LEGACY vsound-header path, fails on the
         // now-empty DATA block, and spams "[SoundSystem] WARNING: KV3 failed to parse legacy vsound
         // header" for every clip (it still falls through to the CTRL, so audio plays, but the console
-        // floods). v5 makes CS2 read the CTRL directly — matching pak01's own modern clips (resVer 5)
+        // floods). v5 makes CS2 read the CTRL directly - matching pak01's own modern clips (resVer 5)
         // and the working community release. VRF reads both via Sound.ConstructFromCtrl.
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(modern.AsSpan(6, 2), 5);
         return modern;
     }
 
-    /// <summary>End offset of the last block in a serialized resource — i.e. where the vsnd
+    /// <summary>End offset of the last block in a serialized resource - i.e. where the vsnd
     /// streaming PCM must begin. Parses the block table directly: VRF's Sound block mutates its
     /// own <c>Offset</c> when a CTRL is present, so <c>snd.Offset</c> can't be trusted here.</summary>
     private static int LastBlockEnd(byte[] resource)
@@ -2467,7 +2402,7 @@ public static class ResourceBuilder
     }
 
     /// <summary>A block written verbatim from captured bytes under an arbitrary
-    /// <see cref="BlockType"/> — used by <see cref="SerializeModelDataOnly"/> to
+    /// <see cref="BlockType"/> - used by <see cref="SerializeModelDataOnly"/> to
     /// pass PHYS/anim blocks through untouched.</summary>
     private sealed class TypedRawBlock : Block
     {

@@ -18,10 +18,10 @@ namespace Source2.Compiler.Tests;
 /// resourcecompiler.exe inputs + outputs (compiled 2026-07-26 with the
 /// shipping CS2 toolchain; the probe procedure is documented in
 /// <c>tools/rc-oracle.ps1</c>). The structural
-/// comparison below — resource version, block sequence, compiler identities +
+/// comparison below - resource version, block sequence, compiler identities +
 /// fingerprints, input-dependency identity (name + source CRC), subasset
 /// definitions, RERL entry set with engine path-hash ids, AND the decoded DATA
-/// tree value-for-value including KV3 value types and flags — is what "our
+/// tree value-for-value including KV3 value types and flags - is what "our
 /// compiler produces what Valve's compiler produces" means.
 ///
 /// Byte equality is NOT the contract and is not attainable: RC writes KV3 binary
@@ -65,7 +65,7 @@ public class Source2ContainerAuthorTests
         Assert.Equal(0, res.Version);
         var edit = Assert.IsType<ResourceEditInfo2>(res.EditInfo);
 
-        // The input dependency is THIS compile's source — name and CRC32 —
+        // The input dependency is THIS compile's source - name and CRC32 -
         // not the donor's ("scripts/weapons.vdata" was the old donor leak).
         var input = Assert.Single(edit.InputDependencies);
         Assert.Equal("scripts/my_custom.vdata", input.ContentRelativeFilename);
@@ -90,7 +90,7 @@ public class Source2ContainerAuthorTests
         var edit = Assert.IsType<ResourceEditInfo2>(res.EditInfo);
 
         // resourcecompiler records every defined sound event as a subasset
-        // definition — the old donor path shipped the DONOR's event list.
+        // definition - the old donor path shipped the DONOR's event list.
         Assert.NotNull(edit.SubassetDefinitions);
         var events = Assert.Contains("soundevent", edit.SubassetDefinitions!);
         Assert.Equal(["my.event.one", "my.event.two"], events);
@@ -117,7 +117,7 @@ public class Source2ContainerAuthorTests
     /// <summary>Canonical one-line-per-leaf rendering of a KV3 tree: full path,
     /// KV3 value type, KV3 flag, value. Comparing these strings catches a wrong
     /// value, a wrong integer width, a dropped resource flag, and a reordered
-    /// array — all of which a plain "does it parse" check sails past.</summary>
+    /// array - all of which a plain "does it parse" check sails past.</summary>
     private static string RenderTree(Resource res)
     {
         var data = res.GetBlockByType(BlockType.DATA);
@@ -175,7 +175,7 @@ public class Source2ContainerAuthorTests
         // Container identity.
         Assert.Equal(valve.Version, mine.Version);
 
-        // Block sequence — minus FLCI, the editor-only source-line map we
+        // Block sequence - minus FLCI, the editor-only source-line map we
         // deliberately don't author (pre-FLCI stock resources load without it).
         var valveBlocks = valve.Blocks.Select(b => b.Type).Where(t => t != BlockType.FLCI).ToArray();
         var myBlocks = mine.Blocks.Select(b => b.Type).ToArray();
@@ -188,7 +188,7 @@ public class Source2ContainerAuthorTests
 
         // RED2: same input-dependency file list (we brand m_SearchPath as the
         // stock "csgo" content root rather than the addon RC compiled from, so
-        // paths — not search roots — are compared), and the SAME source CRC on
+        // paths - not search roots - are compared), and the SAME source CRC on
         // the primary entry as resourcecompiler recorded.
         var myInputs = mine.EditInfo!.InputDependencies.Select(d => d.ContentRelativeFilename).ToArray();
         var valveInputs = valve.EditInfo!.InputDependencies.Select(d => d.ContentRelativeFilename).ToArray();
@@ -212,7 +212,7 @@ public class Source2ContainerAuthorTests
         // it cannot resolve (observed: this probe's bendibeam.vmat, absent
         // from the probe addon, is missing from RC's RERL while the equally
         // unresolvable child-vpcf refs are kept). Our compile has no content
-        // tree, so it lists every resource:-flagged ref — which matches RC
+        // tree, so it lists every resource:-flagged ref - which matches RC
         // exactly when the refs resolve (pinned by
         // Kv3SourceCompile_Vpcf_RerlSynthesisReproducesStockRerl on stock
         // blood_impact_basic) and over-declares only what RC would have
@@ -232,7 +232,7 @@ public class Source2ContainerAuthorTests
         // structural checks above all passed anyway.
         //
         // .vpcf is exempt and stays exempt: RC does not merely recompile a
-        // vpcf26 source, it MIGRATES it to the current particle schema —
+        // vpcf26 source, it MIGRATES it to the current particle schema -
         // rewriting operator classes (C_INIT_RandomLifeTime -> C_INIT_InitFloat,
         // C_OP_DistanceToCP -> C_OP_DistanceToTransform), restructuring fields
         // (m_bAdditive -> m_nOutputBlendMode, m_hMaterial -> m_vecTexturesInput)

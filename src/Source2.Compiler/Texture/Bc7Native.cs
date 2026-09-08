@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Source2.Compiler;
 
 /// <summary>
-/// P/Invoke into the vendored native BC7 encoder (<c>Native/bc7enc</c>) — the
+/// P/Invoke into the vendored native BC7 encoder (<c>Native/bc7enc</c>) - the
 /// fast replacement for <c>BCnEncoder.Net</c>'s BC7 path, which is the skin
 /// pipeline's single biggest cost (~48 s on a 4096² texture vs. well under a
 /// second here).
@@ -43,10 +43,10 @@ public static partial class Bc7Native
         }
     }
 
-    // Fast bc7enc settings — uber level 1, 16-partition search. A measured A/B
+    // Fast bc7enc settings - uber level 1, 16-partition search. A measured A/B
     // (encode → decode → PSNR on real 2048²/4096² skin textures) put uber-1/16
-    // within ~0.1–0.2 dB PSNR of the old max-quality uber-4/64 — visually
-    // identical at ~52–54 dB — for ~25–30% less encode time.
+    // within ~0.1–0.2 dB PSNR of the old max-quality uber-4/64 - visually
+    // identical at ~52–54 dB - for ~25–30% less encode time.
     // Linear (non-perceptual) error: the pipeline's BC7 textures include
     // packed data maps (g_tMetalness = roughness/metalness/wear/pearlescent),
     // where YCbCr weighting would distort the non-colour channels.
@@ -56,7 +56,7 @@ public static partial class Bc7Native
 
     /// <summary>
     /// Encode a BGRA8888 image to a BC7 block stream. <paramref name="width"/>
-    /// and <paramref name="height"/> need not be multiples of 4 — the encoder
+    /// and <paramref name="height"/> need not be multiples of 4 - the encoder
     /// clamps the trailing edge to fill the last block row/column. The image is
     /// sliced into horizontal strips encoded in parallel (BC7 blocks are
     /// independent, so a 4-pixel-row boundary is a clean cut).

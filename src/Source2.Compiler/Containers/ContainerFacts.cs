@@ -44,7 +44,7 @@ public static partial class Source2ContainerAuthor
 
     /// <summary>
     /// <c>.vmat_c</c> resource version. Invariant across 200 sampled stock
-    /// materials (of 21,796), all carrying <c>RERL RED2 DATA INSG</c> — note the
+    /// materials (of 21,796), all carrying <c>RERL RED2 DATA INSG</c> - note the
     /// INSG, which is why a material cannot be authored quite as freely as the
     /// other two. See <see cref="MaterialAuthoring"/>.
     /// </summary>
@@ -107,8 +107,8 @@ public static partial class Source2ContainerAuthor
     /// on), not just which shader it is. Producing one from first principles
     /// means resolving the compiled shader, which is a different compiler.</para>
     ///
-    /// <para>So the honest boundary is: everything else about a material — the
-    /// header, RERL, RED2, the whole parameter tree — is authored here, and the
+    /// <para>So the honest boundary is: everything else about a material - the
+    /// header, RERL, RED2, the whole parameter tree - is authored here, and the
     /// input signature has to be stated. Either hand it in, or lift it from a
     /// material that already uses the shader and feature set you want, with
     /// <c>MaterialAuthor.ExtractInputSignature</c>. What this replaces is the

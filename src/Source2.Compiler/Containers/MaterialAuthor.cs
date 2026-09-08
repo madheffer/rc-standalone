@@ -19,19 +19,11 @@ namespace Source2.Compiler;
 /// built from the caller's <see cref="ResourceBuilder.MaterialDef"/> by
 /// <c>ApplyMaterial</c>, which already clears whatever the template held.</para>
 ///
-/// <para><b>INSG is the one that cannot be invented.</b> It is the vertex input
-/// signature the material's shader consumes, and it follows the shader's enabled
-/// feature combo rather than its name: 600 sampled materials produced 22 distinct
-/// signatures across 14 shaders, <c>csgo_character.vfx</c> alone accounting for
-/// seven. Deriving one means resolving the compiled shader, which is a different
-/// compiler than this. So it is a required input here.</para>
-///
-/// <para>That is not a step backwards from the template flow, it is the same
-/// dependency made visible. Passing a donor <c>.vmat_c</c> to
-/// <c>BuildMaterial</c> silently adopts whatever signature that file carried,
-/// which is only correct when the donor used the same shader and features.
-/// <see cref="ExtractInputSignature"/> lifts one deliberately, from a material
-/// you have chosen because it matches.</para>
+/// <para>The fourth, INSG, is a required input: it follows the shader's feature
+/// combo and cannot be derived here. See
+/// <see cref="Source2ContainerAuthor.MaterialAuthoring"/> for the measurements,
+/// and <see cref="ExtractInputSignature"/> to lift one from a material that uses
+/// the shader and features you want.</para>
 /// </summary>
 public static class MaterialAuthor
 {

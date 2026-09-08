@@ -28,7 +28,7 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class ResourceBuilderMaterialTests
 {
-    /// <summary>A genuine Valve-compiled vmat from the CS2 paint-asset tree —
+    /// <summary>A genuine Valve-compiled vmat from the CS2 paint-asset tree -
     /// used both as the ground-truth sample and as BuildMaterial's structural
     /// template (any valid .vmat_c works as a template).</summary>
     private const string StockVmatRel =
@@ -62,7 +62,7 @@ public class ResourceBuilderMaterialTests
         var fixture = FindStockVmat();
         if (fixture is null)
         {
-            Console.WriteLine($"[SKIP] {StockVmatRel} not available — install CS2 or set CS2_DIR.");
+            Console.WriteLine($"[SKIP] {StockVmatRel} not available - install CS2 or set CS2_DIR.");
             return;
         }
 
@@ -78,13 +78,13 @@ public class ResourceBuilderMaterialTests
             Assert.Equal(KVFlag.Resource, val!.Flag);
             seen++;
         }
-        Assert.True(seen > 0, "stock vmat carried no texture params — wrong fixture?");
+        Assert.True(seen > 0, "stock vmat carried no texture params - wrong fixture?");
     }
 
     /// <summary>
     /// REGRESSION PIN (2026-08-10): BuildMaterial's authored texture params must
     /// carry KVFlag.Resource, and the synthesized RERL must list the same paths.
-    /// A flagless m_pValue is a load-time FATAL in CS2, not a cosmetic diff —
+    /// A flagless m_pValue is a load-time FATAL in CS2, not a cosmetic diff -
     /// see the class doc. Fails against the pre-fix `new KVObject(v)`.
     /// </summary>
     [Fact]
@@ -93,7 +93,7 @@ public class ResourceBuilderMaterialTests
         var fixture = FindStockVmat();
         if (fixture is null)
         {
-            Console.WriteLine($"[SKIP] {StockVmatRel} not available — install CS2 or set CS2_DIR.");
+            Console.WriteLine($"[SKIP] {StockVmatRel} not available - install CS2 or set CS2_DIR.");
             return;
         }
 
@@ -122,7 +122,7 @@ public class ResourceBuilderMaterialTests
             Assert.StartsWith("materials/vpkedit/smoke_", (string)val);
         }
 
-        // The flag alone isn't enough — CS2 resolves the ref through the RERL,
+        // The flag alone isn't enough - CS2 resolves the ref through the RERL,
         // so the authored paths must appear there too (ApplyMaterial rebuilds it
         // from def.TextureParams, no stock leftovers).
         var rerl = res.GetBlockByType(BlockType.RERL) as ResourceExtRefList;
@@ -133,7 +133,7 @@ public class ResourceBuilderMaterialTests
         Assert.DoesNotContain(refs, r => r.Contains("bloodhound", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>A genuine Valve-compiled vmdl that carries material groups —
+    /// <summary>A genuine Valve-compiled vmdl that carries material groups -
     /// the ground truth for the sibling defect below.</summary>
     private const string StockVmdlRel =
         "cs2stock/agents/models/shared/arms/glove_bloodhound/glove_bloodhound.vmdl_c";
@@ -166,7 +166,7 @@ public class ResourceBuilderMaterialTests
         var fixture = FindStockVmdl();
         if (fixture is null)
         {
-            Console.WriteLine($"[SKIP] {StockVmdlRel} not available — install CS2 or set CS2_DIR.");
+            Console.WriteLine($"[SKIP] {StockVmdlRel} not available - install CS2 or set CS2_DIR.");
             return;
         }
 

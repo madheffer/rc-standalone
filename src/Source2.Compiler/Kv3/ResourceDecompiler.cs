@@ -6,25 +6,19 @@ using ValveResourceFormat.Serialization.KeyValues;
 namespace Source2.Compiler;
 
 /// <summary>
-/// Decompile a compiled Source 2 resource's DATA block back to KV3 text — the
-/// inverse of <see cref="Kv3SourceCompiler"/>. Single home for the typed-block
-/// handling every decompile surface shares (a drop-a-file endpoint, a batch
-/// worker, a VPK browser); reading a typed block's tree is the whole trick, and
-/// it is easy to get wrong once per caller.
+/// Decompile a compiled Source 2 resource's DATA block back to KV3 text - the
+/// inverse of <see cref="Kv3SourceCompiler"/>.
 ///
-/// Why this is needed: <c>Block.AsKeyValueCollection()</c> only understands the
-/// two generic KV blocks — <see cref="BinaryKV3"/> and <see cref="NTRO"/> — which
-/// back the plain KV3 resources (.vdata_c, .vsndevts_c, .vagrp_c). A .vpcf_c /
-/// .vmdl_c / .vmat_c instead parses into a strongly-typed
-/// <see cref="KeyValuesOrNTRO"/> subclass (ParticleSystem / Model / Material /
-/// World / PhysAggregateData). That block holds the SAME KV3 tree in its public
-/// <c>.Data</c> property, but AsKeyValueCollection() throws on it
-/// ("Cannot use ParticleSystem as key-value collection"). Reading <c>.Data</c>
-/// directly is what lets those typed resources decompile.
+/// <para><c>Block.AsKeyValueCollection()</c> handles only the two generic KV
+/// blocks, <see cref="BinaryKV3"/> and <see cref="NTRO"/>, which back
+/// <c>.vdata_c</c>, <c>.vsndevts_c</c> and <c>.vagrp_c</c>. A <c>.vpcf_c</c>,
+/// <c>.vmdl_c</c> or <c>.vmat_c</c> parses into a typed
+/// <see cref="KeyValuesOrNTRO"/> subclass instead, which holds the same tree in
+/// its <c>.Data</c> property but throws from AsKeyValueCollection(). Reading
+/// <c>.Data</c> is what lets those decompile.</para>
 ///
-/// A few DATA blocks genuinely have no KV3 form (Sound is binary audio metadata
-/// plus a stream; Texture is pixel data). For those we return null and the caller
-/// surfaces the reason it reports.
+/// <para>Some DATA blocks have no KV3 form at all - Sound is audio metadata plus
+/// a stream, Texture is pixels. Those return null with a reason.</para>
 /// </summary>
 public static class ResourceDecompiler
 {

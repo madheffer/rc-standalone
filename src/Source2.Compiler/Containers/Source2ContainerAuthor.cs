@@ -9,15 +9,12 @@ using ValveResourceFormat.Serialization.KeyValues;
 namespace Source2.Compiler;
 
 /// <summary>
-/// Authors compiled Source 2 KV3-resource containers <b>from scratch</b> — no
-/// donor/template <c>_c</c> file involved. Replaces the old approach of
-/// splicing a user's KV3 tree into an embedded donor container (which shipped
-/// the donor's RED2 verbatim: wrong input dependencies, wrong compiler
-/// identity for unmapped extensions, wrong/missing subasset definitions).
+/// Authors compiled Source 2 KV3-resource containers from scratch, with no donor
+/// <c>_c</c> file involved.
 ///
-/// Every structural fact here is ground truth dumped from CS2's own
-/// <c>resourcecompiler.exe</c> / <c>resourceinfo.exe</c> (2026-07-26 probes;
-/// re-derivable any time with <c>tools/rc-oracle.ps1</c>):
+/// <para>Every structural fact here was dumped from CS2's own
+/// <c>resourcecompiler.exe</c> and <c>resourceinfo.exe</c>, and is re-derivable
+/// with <c>tools/rc-oracle.ps1</c>:</para>
 ///
 /// <code>
 ///   uint32 fileSize; uint16 headerVersion (=12); uint16 resourceVersion;
@@ -28,34 +25,15 @@ namespace Source2.Compiler;
 ///
 /// VRF's <see cref="Resource.Serialize"/> emits exactly this framing, so we
 /// author an in-memory <see cref="Resource"/> (blocks constructed
-/// programmatically) and let VRF do the byte layout — the same serializer the
+/// programmatically) and let VRF do the byte layout - the same serializer the
 /// rest of the pipeline already trusts (KV3-LZ4 patch included).
 ///
-/// Per-type facts (RC ground truth):
-/// <list type="bullet">
-/// <item><c>.vsndevts</c> → resver 1; RED2+DATA; special dep
-///   ("Sound Event Script Version", CompileSoundEventScript, 10);
-///   m_SubassetDefinitions.soundevent = the event names; per-sound optional
-///   input-dependency probes (.mp3/.vsnd/.wav).</item>
-/// <item><c>.vdata</c> → resver 0; RED2+DATA(+FLCI, editor-only — we skip it,
-///   matching pre-FLCI stock resources); special deps
-///   ("KV3 Compiler Version", CompileVData, 2) + ("VData Compiler Version",
-///   CompileVData, 1); SearchableUserData carries the tree's
-///   generic_data_type.</item>
-/// <item><c>.vpcf</c> → resver 1; RERL(only when the tree holds resource:
-///   refs)+RED2+DATA; special deps ("KV3 Compiler Version", CompileParticle, 2)
-///   + ("Particle Compiler Version", CompileParticle, 2);
-///   m_SubassetReferences.particle_operator = census of operator _class uses;
-///   SearchableUserData carries groupid/maxcount/time_to_sleep
-///   (defaults 0 / 1000 / 8.0 when the def doesn't override them).</item>
-/// </list>
-///
-/// The compiler-version fingerprints above are what the CURRENT CS2 build's
-/// resourcecompiler stamps. They are tools-side dependency metadata (the
-/// engine's loader keys on resource version + DATA, which is why years-old
-/// community containers still load), but we mirror them exactly so our output
-/// is indistinguishable from a stock compile. When a CS2 update bumps them,
-/// re-run tools/rc-oracle.ps1 and update <see cref="SpecByExtension"/>.
+/// <para>The per-type resource versions, compiler identities and subasset shapes
+/// are in <see cref="SpecByExtension"/> below. Their fingerprints are what the
+/// current CS2 build stamps: tools-side metadata the loader does not key on,
+/// which is why years-old community containers still load, but mirrored exactly
+/// so the output is indistinguishable from a stock compile. Re-run
+/// <c>tools/rc-oracle.ps1</c> after a CS2 update and reconcile.</para>
 /// </summary>
 public static partial class Source2ContainerAuthor
 {
@@ -103,14 +81,14 @@ public static partial class Source2ContainerAuthor
     // upstream property ever moves.
     private static readonly PropertyInfo ResourceVersionProp =
         typeof(Resource).GetProperty(nameof(Resource.Version), BindingFlags.Public | BindingFlags.Instance)
-        ?? throw new InvalidOperationException("Resource.Version property missing — VRF API changed?");
+        ?? throw new InvalidOperationException("Resource.Version property missing - VRF API changed?");
 
     /// <summary>
     /// Author a compiled container for the parsed KV3 source <paramref name="userDoc"/>.
     /// </summary>
     /// <param name="userDoc">The user's parsed KV3 document (its header Format GUID is stamped into DATA).</param>
     /// <param name="sourceExtension">Source extension incl. dot (".vsndevts", ".vdata", ".vpcf", ".vagrp").</param>
-    /// <param name="sourceTextBytes">The raw source text — its CRC32 is recorded in RED2's input dependency, exactly as resourcecompiler records the source file CRC.</param>
+    /// <param name="sourceTextBytes">The raw source text - its CRC32 is recorded in RED2's input dependency, exactly as resourcecompiler records the source file CRC.</param>
     /// <param name="sourceFileName">Relative source path for RED2's input dependency (e.g. "soundevents/my_sounds.vsndevts"); a neutral name is synthesized when the caller doesn't know it.</param>
     public static byte[] AuthorKv3Resource(
         KVDocument userDoc,
@@ -136,11 +114,11 @@ public static partial class Source2ContainerAuthor
         using var resource = new Resource();
         ResourceVersionProp.SetValue(resource, spec.ResourceVersion);
 
-        // RERL — resourcecompiler emits the block ONLY when the compiled data
+        // RERL - resourcecompiler emits the block ONLY when the compiled data
         // actually references other resources (verified: a ref-free vpcf ships
         // just RED2+DATA; one with material refs ships RERL first). Every
         // distinct resource:-flagged string becomes an entry with the engine's
-        // own path-hash id (MurmurHash64B — reproduces stock RERL ids exactly).
+        // own path-hash id (MurmurHash64B - reproduces stock RERL ids exactly).
         var refs = new List<string>();
         CollectResourceRefs(userDoc.Root, new HashSet<string>(StringComparer.OrdinalIgnoreCase), refs);
         if (refs.Count > 0)
@@ -155,15 +133,15 @@ public static partial class Source2ContainerAuthor
             resource.Blocks.Add(rerl);
         }
 
-        // RED2 — authored for THIS compile (real source name + CRC, correct
+        // RED2 - authored for THIS compile (real source name + CRC, correct
         // compiler identity, real subasset data), as a binary-KV3 blob with the
         // "generic" format GUID (the GUID resourcecompiler stamps; the KV3
-        // binary VERSION is whatever VRF's serializer emits — the engine
+        // binary VERSION is whatever VRF's serializer emits - the engine
         // accepts every KV3 binary generation, current RC emits v5).
         var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc);
         resource.Blocks.Add(new BinaryKV3(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2) { Resource = resource });
 
-        // DATA — the user's tree, format GUID from their own kv3 header.
+        // DATA - the user's tree, format GUID from their own kv3 header.
         resource.Blocks.Add(new BinaryKV3(NarrowIntegers(userDoc.Root), userDoc.Header.Format, BlockType.DATA) { Resource = resource });
 
         // FLCI (source-file line map) is deliberately not authored: it is
@@ -179,7 +157,7 @@ public static partial class Source2ContainerAuthor
     {
         var root = KVObject.Collection();
 
-        // m_InputDependencies[0] = the source file itself, CRC32 of its bytes —
+        // m_InputDependencies[0] = the source file itself, CRC32 of its bytes -
         // byte-verified against resourcecompiler output (plain zlib CRC32).
         var inputDeps = KVObject.Array();
         inputDeps.Add(InputDependency(sourceFileName, crc: Crc32.HashToUInt32(sourceTextBytes), optional: false, exists: true));
@@ -239,44 +217,25 @@ public static partial class Source2ContainerAuthor
     }
 
     /// <summary>
-    /// Author the RED2 for a BINARY resource we compiled ourselves (<c>.vtex_c</c>,
-    /// <c>.vsnd_c</c>, <c>.vsvg_c</c>), so the output stops shipping the donor
-    /// template's edit info.
+    /// Author the RED2 for a binary resource compiled here (<c>.vtex_c</c>,
+    /// <c>.vsnd_c</c>, <c>.vsvg_c</c>), describing this compile rather than
+    /// whatever a donor happened to say.
     ///
-    /// <para>Before this, every such compile kept its embedded donor's RED2
-    /// verbatim. A texture declared (dumped with Valve's own resourceinfo.exe,
-    /// 2026-08-10):</para>
-    /// <code>
-    ///   m_RelativeFilename = "materials/mac/hud_hit_marker_hs.vtex"
-    ///   m_SearchPath       = "csgo_addons/c"
-    ///   m_nFileCRC         = 3986264652
-    /// </code>
-    /// <para>i.e. a third party's source paths and their file CRCs, on our output.
-    /// Exactly the defect class fixed for the KV3 types on 2026-07-26, just milder
-    /// because the donor is at least type-correct. Sounds and killfeed icons had
-    /// the same leak from their own donors.</para>
-    ///
-    /// <para><b>Only provenance is replaced.</b> The template's
-    /// <c>m_SpecialDependencies</c> are carried over verbatim when it has them,
-    /// because those describe the DATA's ENCODING SEMANTICS, not who authored the
-    /// source. A stock glove normal template carries
+    /// <para><b>Only provenance is replaced.</b> A template's
+    /// <c>m_SpecialDependencies</c> ride along verbatim, because they describe how
+    /// the DATA is ENCODED, not who wrote the source. A stock glove normal carries
     /// <c>Mip HemiOctAnisoRoughness</c>, and dropping it makes every consumer
-    /// decode the normal as a plain RGB image with roughness read as Z — the
-    /// "black patches" class. An earlier revision authored the generic set
-    /// unconditionally and <c>GloveSurfaceMapShipTests</c> caught it. The
-    /// per-type tables are only the fallback for a template carrying none.</para>
+    /// decode that normal as plain RGB with roughness read as Z. The per-type
+    /// tables are only the fallback for a template carrying none.</para>
     ///
-    /// <para>Deliberately NOT reproduced: RC's per-option
-    /// <c>m_ArgumentDependencies</c> tail (for a texture: <c>fast</c>,
-    /// <c>final</c>, <c>hueShiftFixup</c>, <c>lightmapMaxResolution</c>,
-    /// <c>maxmipsize</c>, <c>minmipsize</c>, plus ImageArg/BinaryBlobArg entries
-    /// naming the source). Those encode options from a source file our in-memory
-    /// composites never had — inventing values would be fabricating metadata
-    /// rather than fixing it. Only <c>___OverrideInputData___</c>, which every RC
-    /// compile of every type carries, is emitted.</para>
+    /// <para>RC's per-option <c>m_ArgumentDependencies</c> tail is deliberately
+    /// not reproduced: it encodes options from a source file an in-memory
+    /// composite never had, so inventing values would be fabricating metadata.
+    /// Only <c>___OverrideInputData___</c>, which every RC compile carries, is
+    /// emitted.</para>
     /// </summary>
     /// <param name="sourceName">Content-relative source path to record, or null for a neutral one.</param>
-    /// <param name="sourceBytes">The bytes we actually encoded — their CRC32 is recorded, as RC records the real source CRC.</param>
+    /// <param name="sourceBytes">The bytes we actually encoded - their CRC32 is recorded, as RC records the real source CRC.</param>
     /// <param name="fallbackSpecialDeps">Per-type compiler identity, used only when the template carries none.</param>
     /// <param name="templateSpecialDeps">The template's special dependencies, preserved verbatim.</param>
     /// <param name="optionalProbes">Sibling paths RC records as optional/non-existent probes (CRC 0) so its incremental rebuild retriggers if one appears. Honest to emit: each is a statement that the file does not exist.</param>
@@ -425,7 +384,7 @@ public static partial class Source2ContainerAuthor
         d.Add("m_RelativeFilename", new KVObject(relativeFilename));
         // Stock CS2 resources record the game's own content root; we author
         // stock-style containers, so mirror it (RC records whatever mod tree
-        // it compiled from — "csgo" for every shipped Valve resource).
+        // it compiled from - "csgo" for every shipped Valve resource).
         d.Add("m_SearchPath", new KVObject("csgo"));
         d.Add("m_nFileCRC", new KVObject(crc));
         d.Add("m_bOptional", new KVObject(optional));
@@ -434,7 +393,7 @@ public static partial class Source2ContainerAuthor
         return d;
     }
 
-    /// <summary>m_SearchableUserData — the asset-browser metadata resourcecompiler
+    /// <summary>m_SearchableUserData - the asset-browser metadata resourcecompiler
     /// derives from the source tree, per type (dump-verified shapes).</summary>
     private static KVObject BuildSearchableUserData(string sourceExtension, KVDocument userDoc)
     {
@@ -466,7 +425,7 @@ public static partial class Source2ContainerAuthor
     }
 
     /// <summary>Per-type m_SubassetReferences / m_SubassetDefinitions (null when the
-    /// type has none — RC writes literal nulls, not empty objects).</summary>
+    /// type has none - RC writes literal nulls, not empty objects).</summary>
     private static (KVObject SubRefs, KVObject SubDefs) BuildSubassets(string sourceExtension, KVDocument userDoc)
     {
         if (sourceExtension.Equals(".vsndevts", StringComparison.OrdinalIgnoreCase) && userDoc.Root.IsCollection)
@@ -519,24 +478,24 @@ public static partial class Source2ContainerAuthor
     /// Our KV3 text reader types every unsigned literal <c>UInt64</c> and every
     /// negative one <c>Int64</c>, so a compile stamped 8-byte integers where RC
     /// stamps 4-byte ones. Measured against the real compiler (2026-08-10, CS2
-    /// resourcecompiler.exe on a boundary probe — see
+    /// resourcecompiler.exe on a boundary probe - see
     /// <c>Source2ContainerAuthorTests.AuthoredContainer_IntegerTypesMatchResourceCompiler</c>):
     ///
     /// <b>Ordinary value position</b> (an object's field, or an element of a
     /// mixed-type array):
     /// <list type="bullet">
     /// <item>0 and 1 → <c>Int64</c>, which VRF's writer emits as the dedicated
-    ///   INT64_ZERO / INT64_ONE type codes (no payload bytes) — exactly what RC
+    ///   INT64_ZERO / INT64_ONE type codes (no payload bytes) - exactly what RC
     ///   does.</item>
     /// <item>anything else representable as a signed 32-bit value → <c>Int32</c>
     ///   (verified at both boundaries: 2147483647 and -2147483648 are Int32,
     ///   2147483648 and -2147483649 are Int64).</item>
     /// <item>everything larger → <c>Int64</c>; above <c>long.MaxValue</c> there
-    ///   is no signed form, so the UInt64 stands (RC was not probed there — no
+    ///   is no signed form, so the UInt64 stands (RC was not probed there - no
     ///   CS2 schema field is a raw uint64 literal).</item>
     /// </list>
     ///
-    /// <b>All-integer array</b> — RC writes these as a TYPED array, one element
+    /// <b>All-integer array</b> - RC writes these as a TYPED array, one element
     /// type for the whole run, so the rule changes twice over:
     /// <list type="bullet">
     /// <item>the singleton codes are unavailable: <c>[0, 0]</c> and <c>[1, 1]</c>
@@ -544,7 +503,7 @@ public static partial class Source2ContainerAuthor
     /// <item>the type is the WIDEST any element needs, applied to all of them:
     ///   <c>[7, 5000000000]</c> is Int64+Int64, not Int32+Int64.</item>
     /// </list>
-    /// A mixed array is not typed and so keeps ordinary per-element rules — a
+    /// A mixed array is not typed and so keeps ordinary per-element rules - a
     /// probed <c>[0, "s"]</c> keeps the singleton. Empty arrays are unaffected.
     ///
     /// RC never emits UInt64. Rebuilds the tree rather than mutating: KVObject
@@ -631,7 +590,7 @@ public static partial class Source2ContainerAuthor
         : new KVObject(v) { Flag = flag };
 
     /// <summary>Depth-first collect of distinct <c>resource:</c>-flagged string
-    /// values (first-encounter order) — the reference set RERL must list.</summary>
+    /// values (first-encounter order) - the reference set RERL must list.</summary>
     public static void CollectResourceRefs(KVObject? node, HashSet<string> seen, List<string> refs)
     {
         if (node is null)
@@ -649,7 +608,7 @@ public static partial class Source2ContainerAuthor
         }
     }
 
-    /// <summary>Collect distinct ".vsnd"-suffixed string values (any flag) — the
+    /// <summary>Collect distinct ".vsnd"-suffixed string values (any flag) - the
     /// sound files a vsndevts references, for RED2's source-audio probes.</summary>
     private static void CollectVsndPaths(KVObject? node, HashSet<string> seen, List<string> refs)
     {

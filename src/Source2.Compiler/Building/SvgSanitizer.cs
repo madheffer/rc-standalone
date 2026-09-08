@@ -12,13 +12,13 @@ namespace Source2.Compiler;
 ///
 /// <list type="number">
 ///   <item><b>Path data.</b> It chokes on the minified path data game-icons.net
-///   (and most icon CDNs) emit — omitted leading zeros (<c>.5</c>), no separators
+///   (and most icon CDNs) emit - omitted leading zeros (<c>.5</c>), no separators
 ///   (<c>11.856.5</c>), elliptical-arc commands, and relative / h / v / s
 ///   shorthands. The icons CS2 DOES render ship clean, space-separated, absolute
 ///   <c>M/L/C/Z</c>.</item>
 ///   <item><b>Fill inheritance.</b> CS2 does NOT inherit <c>fill</c> from a parent
 ///   <c>&lt;g fill="…"&gt;</c> (or the root <c>&lt;svg&gt;</c>) the way a browser
-///   does, and it only reliably draws <c>&lt;path&gt;</c> geometry — not
+///   does, and it only reliably draws <c>&lt;path&gt;</c> geometry - not
 ///   <c>&lt;rect&gt;/&lt;circle&gt;/&lt;polygon&gt;…</c> primitives. So a glyph
 ///   whose colour lives on the group instead of each path (e.g. our authored
 ///   zombie glyphs) renders with the default fill (black) → invisible on the dark
@@ -29,16 +29,10 @@ namespace Source2.Compiler;
 ///   <c>style</c>), never on a container.</item>
 /// </list>
 ///
-/// <para>This therefore (a) converts drawable primitives to <c>&lt;path&gt;</c>,
-/// (b) rewrites every path's <c>d</c> through SkiaSharp
-/// (<see cref="SKPath.ParseSvgPathData"/> robustly parses ANY input form) and
-/// re-emits clean absolute <c>M/L/C/Z</c> (quads + arcs lowered to cubics),
-/// (c) expands 3-digit hex fills, (d) resolves an explicit <c>fill</c> onto every
-/// path that lacks one (inheriting the container/svg fill, else white, and
-/// replacing <c>currentColor</c>), and (e) adds width/height from the viewBox when
-/// missing. Applied at the single build choke point
-/// (<see cref="ResourceBuilder.BuildPanoramaSvg(byte[], string?)"/>), so every current, future, and
-/// user-uploaded icon is fixed automatically.</para>
+/// <para><see cref="ForPanorama(byte[])"/> lists the passes that follow from
+/// this. It runs inside
+/// <see cref="ResourceBuilder.BuildPanoramaSvg(byte[], string?)"/>, so every icon
+/// compiled here is normalized whether or not the caller thought to ask.</para>
 /// </summary>
 public static class SvgSanitizer
 {
@@ -66,7 +60,7 @@ public static class SvgSanitizer
     public static string ForPanorama(string svg) =>
         Encoding.UTF8.GetString(ForPanorama(Encoding.UTF8.GetBytes(svg)));
 
-    // ── path data ───────────────────────────────────────────────────────────
+    // path data
 
     private static readonly Regex DAttr = new(@"\bd\s*=\s*(""[^""]*""|'[^']*')", RegexOptions.Compiled);
 
@@ -144,7 +138,7 @@ public static class SvgSanitizer
     private static string P(SKPoint p) => $"{N(p.X)} {N(p.Y)}";
     private static string N(float v) => MathF.Round(v, 3).ToString("0.###", CultureInfo.InvariantCulture);
 
-    // ── primitives → paths ────────────────────────────────────────────────────
+    // primitives → paths
     //
     // CS2's Panorama renderer only reliably draws <path>; rect/circle/ellipse/
     // line/polygon/polyline silently don't render. Convert each to an equivalent
@@ -275,7 +269,7 @@ public static class SvgSanitizer
     private static readonly HashSet<string> PolygonGeom = new(StringComparer.OrdinalIgnoreCase) { "points" };
     private static readonly HashSet<string> PolylineGeom = new(StringComparer.OrdinalIgnoreCase) { "points" };
 
-    // ── fill resolution ────────────────────────────────────────────────────────
+    // fill resolution
 
     // A plain `fill="…"` on an opening tag (not fill-rule / fill-opacity).
     private static readonly Regex FillAttr = new(@"(?<![\w-])fill\s*=\s*[""']([^""']*)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -285,8 +279,8 @@ public static class SvgSanitizer
     private static readonly Regex PathOpenTag = new(@"<path\b[^>]*?(/?)>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>The colour a fill-less path should take: the (innermost) explicit
-    /// <c>fill</c> declared on a <c>&lt;g&gt;</c>/<c>&lt;svg&gt;</c> container — the
-    /// value a browser would inherit — else white. Killfeed equipment icons are
+    /// <c>fill</c> declared on a <c>&lt;g&gt;</c>/<c>&lt;svg&gt;</c> container - the
+    /// value a browser would inherit - else white. Killfeed equipment icons are
     /// white silhouettes, so white is the right "nothing specified" default and it
     /// guarantees the glyph is visible on the dark HUD.</summary>
     private static string ResolveDefaultFill(string svg)
@@ -314,7 +308,7 @@ public static class SvgSanitizer
     /// alone; one with no fill, or <c>fill="none"</c>/<c>currentColor</c>, gets
     /// <paramref name="defaultFill"/> injected as a <c>fill</c> attribute. This is
     /// the fix for icons whose colour lived on a parent group (CS2 doesn't inherit
-    /// it) — without it those paths render black/invisible in-game.</summary>
+    /// it) - without it those paths render black/invisible in-game.</summary>
     private static string EnsurePathFills(string svg, string defaultFill) => PathOpenTag.Replace(svg, m =>
     {
         var tag = m.Value;
@@ -325,12 +319,12 @@ public static class SvgSanitizer
         {
             var fm = FillInStyle.Match(styleM.Groups[1].Value);
             if (fm.Success && !IsNoneOrCurrent(fm.Groups[1].Value))
-                return tag;   // real style fill — leave it
+                return tag;   // real style fill - leave it
         }
 
         var fa = FillAttr.Match(tag);
         if (fa.Success && !IsNoneOrCurrent(fa.Groups[1].Value))
-            return tag;        // real fill attr — leave it
+            return tag;        // real fill attr - leave it
 
         // No usable fill anywhere on this path → inject one. Replace an existing
         // fill="none"/"currentColor" attribute in place; otherwise add a new attr
@@ -340,7 +334,7 @@ public static class SvgSanitizer
         return tag.Insert("<path".Length, $" fill=\"{defaultFill}\"");
     });
 
-    // ── wrapper normalization ─────────────────────────────────────────────────
+    // wrapper normalization
 
     // #abc -> #aabbcc (CS2's colour parser wants full 6-digit hex). Only matches
     // a 3-hex value bounded by a quote/space/paren so we never touch 6-digit ones.
@@ -353,7 +347,7 @@ public static class SvgSanitizer
     private static readonly Regex HasWidth = new(@"\bwidth\s*=", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>Add explicit width/height (from the viewBox) to the root &lt;svg&gt;
-    /// when absent — the icons CS2 renders all carry them; some viewBox-only icons
+    /// when absent - the icons CS2 renders all carry them; some viewBox-only icons
     /// size to nothing in Panorama.</summary>
     private static string EnsureWidthHeight(string svg)
     {

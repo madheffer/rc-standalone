@@ -3,16 +3,12 @@ namespace Source2.Compiler.Io;
 /// <summary>
 /// Path-traversal safety for "combine a trusted root with an untrusted
 /// relative path." The combined-and-canonicalised result must sit strictly
-/// inside the root — anything else (parent escapes, rooted
+/// inside the root - anything else (parent escapes, rooted
 /// paths, drive-letter swaps on Windows) is rejected.
 ///
-/// <para>Use this everywhere a file/dir name from an external source (VPK
-/// entries, RERL references, archive entries, request bodies) is joined to
-/// one of our managed directories. The codebase has the same pattern repeated
-/// across <c>archive extraction</c>, <c>upload quarantine</c>,
-/// <c>the compile API</c> and others — new call sites
-/// should reach for this helper, and old ones should migrate when they're
-/// next touched.</para>
+/// <para>Use it wherever a name from an external source - a VPK entry, a RERL
+/// reference, an archive entry, a request body - is joined to a managed
+/// directory.</para>
 /// </summary>
 public static class SafePath
 {
@@ -29,7 +25,7 @@ public static class SafePath
             $"Unsafe path '{rel}' would escape root '{root}'.");
     }
 
-    /// <summary>Non-throwing variant — returns <c>false</c> (and a null
+    /// <summary>Non-throwing variant - returns <c>false</c> (and a null
     /// <paramref name="full"/>) on any unsafe input. Prefer this when the
     /// caller wants to skip + log rather than abort a batch.</summary>
     public static bool TryJoinUnderRoot(string root, string rel, out string full)
@@ -40,7 +36,7 @@ public static class SafePath
 
         // Cheap pre-checks: reject rooted paths and obvious parent segments
         // before letting Path.GetFullPath normalise. The post-check below is
-        // the authoritative guard — these are belt-and-braces against
+        // the authoritative guard - these are belt-and-braces against
         // pathological inputs that confuse one or the other.
         var normalisedRel = rel.Replace('\\', '/');
         if (Path.IsPathRooted(rel) || Path.IsPathRooted(normalisedRel))

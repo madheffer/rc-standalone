@@ -14,7 +14,7 @@ namespace Source2.Compiler;
 /// <para><b>Why a host's extra patches are not this library's problem.</b> A host
 /// will usually carry more patches than <see cref="RequiredPatchIds"/>, for
 /// features this library has nothing to do with. That is fine exactly as long as
-/// they land outside the code this library can execute — and that is checkable
+/// they land outside the code this library can execute - and that is checkable
 /// without anything being declared here: for each extra patch, take the types
 /// declared in the file it targets and ask whether these sources name one. See
 /// <see cref="ImportedNamespaces"/> for why the check is by type and not by

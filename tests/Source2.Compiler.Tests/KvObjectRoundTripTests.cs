@@ -8,7 +8,7 @@ namespace Source2.Compiler.Tests;
 /// <summary>
 /// Pins the KVObject API surface that the patched VRF + ValveKeyValue duo
 /// expose. The vendored VRF carries the "KVObject API unification" patch
-/// (see PATCHES.md) — KVObject is now a single value type that holds
+/// (see PATCHES.md) - KVObject is now a single value type that holds
 /// scalars, collections, and arrays, instead of three separate KV*-shaped
 /// classes. So any upstream change to that surface (a renamed indexer, a
 /// re-introduced KVValue, a different ContainsKey signature) is the
@@ -49,7 +49,7 @@ public class KvObjectRoundTripTests
         var root = data.Data.Root;
         Assert.NotNull(root);
         Assert.True(root.IsCollection,
-            "Top-level KV3 DATA block should expose a collection-shaped Root — patched VRF returns a unified KVObject.");
+            "Top-level KV3 DATA block should expose a collection-shaped Root - patched VRF returns a unified KVObject.");
 
         // Pin the public KVObject surface the backend reads through:
         //   • Keys
@@ -61,7 +61,7 @@ public class KvObjectRoundTripTests
         var anyKey = root.Keys.FirstOrDefault();
         Assert.NotNull(anyKey);
         Assert.True(root.ContainsKey(anyKey!),
-            "KVObject.ContainsKey returned false for a key it just listed — iteration/lookup contract diverged.");
+            "KVObject.ContainsKey returned false for a key it just listed - iteration/lookup contract diverged.");
         Assert.NotNull(root[anyKey!]);
     }
 
@@ -71,7 +71,7 @@ public class KvObjectRoundTripTests
         // Mirrors the construction shape Kv3SourceCompiler uses when it
         // builds the BinaryKV3 DATA block from a parsed text source. The
         // ctor + Add + implicit-conversion API needs to keep the same
-        // names — KVObject is now a single value type, so an upstream
+        // names - KVObject is now a single value type, so an upstream
         // change that re-introduces KVValue would break this exact line.
         var obj = new KVObject();
         Assert.True(obj.IsCollection);
@@ -93,7 +93,7 @@ public class KvObjectRoundTripTests
         Assert.True(obj.ContainsKey("active"));
         Assert.True((bool)obj["active"]);
 
-        // Negative path — ContainsKey reports absence correctly.
+        // Negative path - ContainsKey reports absence correctly.
         Assert.False(obj.ContainsKey("absent"));
 
         // TryGetValue out-shape pinned: the backend's lookup helpers route
@@ -107,7 +107,7 @@ public class KvObjectRoundTripTests
     [Fact]
     public void KvObject_ArrayShape_ExposesIsArrayAndCountAndIteration()
     {
-        // Arrays are the second-most-common shape after collections — the
+        // Arrays are the second-most-common shape after collections - the
         // patch history shows several KVObject-array iterator changes
         // upstream, so we pin the contract: build an array via the static
         // factory, push items, read back via Count + Children, expect

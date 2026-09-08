@@ -8,11 +8,10 @@ namespace Source2.Compiler.Imaging;
 ///
 /// <para><see cref="SKBitmap.Decode(byte[])"/> allocates Width*Height*4 bytes up
 /// front, so a tiny compressed file that merely *declares* huge dimensions
-/// (e.g. a 1&#160;KB PNG claiming 30000x30000) forces a ~3.6&#160;GB allocation and
-/// OOM-kills the whole process — an uncatchable crash that no try/catch in the
-/// endpoint can stop. Reading the dimensions via <see cref="SKCodec"/> first
-/// turns that into a clean, catchable rejection. Every request-reachable decode
-/// of attacker-controlled image bytes must go through here.</para>
+/// (a 1 KB PNG claiming 30000x30000) forces a ~3.6 GB allocation and OOM-kills
+/// the process, which no try/catch can stop. Reading the dimensions through
+/// <see cref="SKCodec"/> first turns that into a catchable rejection, so every
+/// decode of untrusted image bytes goes through here.</para>
 /// </summary>
 public static class SafeImageDecode
 {

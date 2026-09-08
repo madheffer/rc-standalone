@@ -244,7 +244,7 @@ public class TemplateFreeAuthoringTests
         res.Read(new MemoryStream(bytes));
 
         // 400 of 400 sampled stock vector graphics: version 2, RED2 + DATA,
-        // and an EMPTY name table — which is the only thing a template was
+        // and an EMPTY name table - which is the only thing a template was
         // contributing here.
         Assert.Equal(ResourceType.PanoramaVectorGraphic, res.ResourceType);
         Assert.Equal(Source2ContainerAuthor.PanoramaVectorGraphicResourceVersion, res.Version);

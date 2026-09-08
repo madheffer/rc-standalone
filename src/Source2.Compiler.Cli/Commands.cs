@@ -187,7 +187,7 @@ internal static class Commands
         return 0;
     }
 
-    // ── argument plumbing ────────────────────────────────────────────────────
+    // argument plumbing
 
     private static ResourceBuilder.TextureCompression ParseFormat(string? f) => (f ?? "bc7").ToLowerInvariant() switch
     {
