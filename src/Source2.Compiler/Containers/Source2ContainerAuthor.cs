@@ -23,17 +23,11 @@ namespace Source2.Compiler;
 ///   16-aligned block payloads (KV3v5 blobs)
 /// </code>
 ///
-/// VRF's <see cref="Resource.Serialize"/> emits exactly this framing, so we
-/// author an in-memory <see cref="Resource"/> (blocks constructed
-/// programmatically) and let VRF do the byte layout - the same serializer the
-/// rest of the pipeline already trusts (KV3-LZ4 patch included).
-///
-/// <para>The per-type resource versions, compiler identities and subasset shapes
-/// are in <see cref="SpecByExtension"/> below. Their fingerprints are what the
-/// current CS2 build stamps: tools-side metadata the loader does not key on,
-/// which is why years-old community containers still load, but mirrored exactly
-/// so the output is indistinguishable from a stock compile. Re-run
-/// <c>tools/rc-oracle.ps1</c> after a CS2 update and reconcile.</para>
+/// <para>VRF's serializer emits exactly that framing, so blocks are built in memory and
+/// it does the layout. Per-type versions and identities are in
+/// <see cref="SpecByExtension"/>; their fingerprints are tools-side metadata the loader
+/// does not key on, mirrored so output is indistinguishable from a stock compile.
+/// Re-run the oracle after a CS2 update.</para>
 /// </summary>
 public static partial class Source2ContainerAuthor
 {
@@ -228,17 +222,16 @@ public static partial class Source2ContainerAuthor
     /// decode that normal as plain RGB with roughness read as Z. The per-type
     /// tables are only the fallback for a template carrying none.</para>
     ///
-    /// <para>RC's per-option <c>m_ArgumentDependencies</c> tail is deliberately
-    /// not reproduced: it encodes options from a source file an in-memory
-    /// composite never had, so inventing values would be fabricating metadata.
-    /// Only <c>___OverrideInputData___</c>, which every RC compile carries, is
-    /// emitted.</para>
+    /// <para>RC's per-option argument-dependency tail is deliberately NOT reproduced:
+    /// it encodes options from a source file an in-memory composite never had, so
+    /// inventing values would be fabricating metadata.</para>
     /// </summary>
-    /// <param name="sourceName">Content-relative source path to record, or null for a neutral one.</param>
-    /// <param name="sourceBytes">The bytes we actually encoded - their CRC32 is recorded, as RC records the real source CRC.</param>
-    /// <param name="fallbackSpecialDeps">Per-type compiler identity, used only when the template carries none.</param>
-    /// <param name="templateSpecialDeps">The template's special dependencies, preserved verbatim.</param>
-    /// <param name="optionalProbes">Sibling paths RC records as optional/non-existent probes (CRC 0) so its incremental rebuild retriggers if one appears. Honest to emit: each is a statement that the file does not exist.</param>
+    /// <param name="sourceName">Content-relative source path, or null for a neutral one.</param>
+    /// <param name="sourceBytes">The bytes actually encoded; their CRC32 is recorded.</param>
+    /// <param name="fallbackSpecialDeps">Used only when the template carries none.</param>
+    /// <param name="templateSpecialDeps">Preserved verbatim.</param>
+    /// <param name="optionalProbes">Sibling paths RC records as absent, so its incremental
+    /// rebuild retriggers if one appears. Each is a statement that the file does not exist.</param>
     public static KVObject BuildBinaryEditInfo(
         string? sourceName,
         ReadOnlySpan<byte> sourceBytes,
@@ -475,40 +468,21 @@ public static partial class Source2ContainerAuthor
     /// Retype every integer leaf the way resourcecompiler does before the tree is
     /// written to binary KV3.
     ///
-    /// Our KV3 text reader types every unsigned literal <c>UInt64</c> and every
-    /// negative one <c>Int64</c>, so a compile stamped 8-byte integers where RC
-    /// stamps 4-byte ones. Measured against the real compiler (2026-08-10, CS2
-    /// resourcecompiler.exe on a boundary probe - see
-    /// <c>Source2ContainerAuthorTests.AuthoredContainer_IntegerTypesMatchResourceCompiler</c>):
+    /// The text reader types every unsigned literal UInt64, so a compile stamps
+    /// 8-byte integers where RC stamps 4-byte ones. The rules below were measured
+    /// against the real compiler at both boundaries; RC never emits UInt64.
     ///
-    /// <b>Ordinary value position</b> (an object's field, or an element of a
-    /// mixed-type array):
-    /// <list type="bullet">
-    /// <item>0 and 1 → <c>Int64</c>, which VRF's writer emits as the dedicated
-    ///   INT64_ZERO / INT64_ONE type codes (no payload bytes) - exactly what RC
-    ///   does.</item>
-    /// <item>anything else representable as a signed 32-bit value → <c>Int32</c>
-    ///   (verified at both boundaries: 2147483647 and -2147483648 are Int32,
-    ///   2147483648 and -2147483649 are Int64).</item>
-    /// <item>everything larger → <c>Int64</c>; above <c>long.MaxValue</c> there
-    ///   is no signed form, so the UInt64 stands (RC was not probed there - no
-    ///   CS2 schema field is a raw uint64 literal).</item>
-    /// </list>
+    /// <para>In ordinary value position, 0 and 1 become <c>Int64</c>, which the writer
+    /// emits as the dedicated no-payload singleton codes; anything else that fits
+    /// signed 32-bit becomes <c>Int32</c>; larger becomes <c>Int64</c>.</para>
     ///
-    /// <b>All-integer array</b> - RC writes these as a TYPED array, one element
-    /// type for the whole run, so the rule changes twice over:
-    /// <list type="bullet">
-    /// <item>the singleton codes are unavailable: <c>[0, 0]</c> and <c>[1, 1]</c>
-    ///   come out <c>Int32</c>, not INT64_ZERO/ONE.</item>
-    /// <item>the type is the WIDEST any element needs, applied to all of them:
-    ///   <c>[7, 5000000000]</c> is Int64+Int64, not Int32+Int64.</item>
-    /// </list>
-    /// A mixed array is not typed and so keeps ordinary per-element rules - a
-    /// probed <c>[0, "s"]</c> keeps the singleton. Empty arrays are unaffected.
+    /// <para>An ALL-INTEGER array is written typed, one element type for the run, so
+    /// the rule changes twice: the singleton codes are unavailable, and the type is the
+    /// widest any element needs applied to all of them. A mixed array is not typed and
+    /// keeps the ordinary per-element rules.</para>
     ///
-    /// RC never emits UInt64. Rebuilds the tree rather than mutating: KVObject
-    /// leaves are typed at construction. Key order, array order and KV3 flags are
-    /// preserved, so the RERL/subasset passes above see the same tree either way.
+    /// <para>Rebuilds rather than mutates, because KVObject leaves are typed at
+    /// construction, preserving key order, array order and flags.</para>
     /// </summary>
     public static KVObject NarrowIntegers(KVObject node)
     {

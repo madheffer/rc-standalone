@@ -60,21 +60,13 @@ public static class MaterialAuthor
     /// The shader's vertex input signature. See the class summary for why this
     /// cannot be defaulted.
     /// </param>
-    /// <param name="sourceName">
-    /// Content-relative source path recorded in RED2 (e.g.
-    /// <c>"materials/mine/thing.vmat"</c>).
-    /// </param>
-    /// <param name="sourceBytes">
-    /// The source text this compile came from, for the RED2 CRC. Pass the
-    /// <c>.vmat</c> source when there is one; otherwise anything stable that
-    /// identifies the input.
-    /// </param>
+    /// <param name="sourceName">Content-relative source path recorded in RED2.</param>
+    /// <param name="sourceBytes">The source this compile came from, for the RED2 CRC.
+    /// Anything stable that identifies the input will do.</param>
     /// <param name="extraSpecialDependencies">
-    /// Dependencies beyond the three every stock material carries: the
-    /// shader's own entry (e.g. <c>"csgo_core/csgo_character.vfx" /
-    /// CompileMaterial / fp=8</c>) and one per texture-processing mode the
-    /// referenced textures used. Their fingerprints are per-shader values only a
-    /// real compile knows, so they are stated rather than guessed.
+    /// Beyond the three every stock material carries: the shader's own entry, and one
+    /// per texture-processing mode its textures used. Their fingerprints are per-shader
+    /// values only a real compile knows, so they are stated rather than guessed.
     /// </param>
     public static Resource NewContainer(
         IReadOnlyList<InputSignatureElement> inputSignature,

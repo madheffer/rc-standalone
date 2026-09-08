@@ -11,15 +11,12 @@ namespace Source2.Compiler;
 /// checks the two agree unless something does so deliberately - which is what
 /// this exists for.</para>
 ///
-/// <para><b>Why a host's extra patches are not this library's problem.</b> A host
-/// will usually carry more patches than <see cref="RequiredPatchIds"/>, for
-/// features this library has nothing to do with. That is fine exactly as long as
-/// they land outside the code this library can execute - and that is checkable
-/// without anything being declared here: for each extra patch, take the types
-/// declared in the file it targets and ask whether these sources name one. See
-/// <see cref="ImportedNamespaces"/> for why the check is by type and not by
-/// namespace, and <c>CompilerVrfCompatTests</c> in the vpkeditor pipeline for a
-/// working implementation.</para>
+/// <para>A host usually carries MORE patches than <see cref="RequiredPatchIds"/>, for
+/// features this library never touches. That is fine as long as they land outside the
+/// code it can execute, which is checkable without anything declared here: for each
+/// extra patch, ask whether these sources name any type declared in the file it
+/// targets. See <see cref="ImportedNamespaces"/> for why by type and not by
+/// namespace.</para>
 /// </summary>
 public static class VrfRequirements
 {

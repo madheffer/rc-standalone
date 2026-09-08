@@ -94,26 +94,19 @@ public static partial class Source2ContainerAuthor
     /// Why a <c>.vmat_c</c> is the one type that cannot be authored end to end
     /// from nothing.
     ///
-    /// <para>Every stock material (200 of 200) and every material in the three
-    /// shipping community packs surveyed (320 of 320) carries an <b>INSG</b>
-    /// block: the vertex input signature the material's shader consumes, as a
-    /// list of <c>{m_pName, m_pSemantic, m_pD3DSemanticName, m_nD3DSemanticIndex}</c>.
-    /// None is empty.</para>
+    /// <para>Every material sampled, 200 stock and 320 community, carries a non-empty
+    /// INSG block: the vertex input signature its shader consumes. It is not derivable
+    /// from the shader NAME, because it follows the enabled feature combo - 600 sampled
+    /// materials gave 22 distinct payloads across 14 shaders, one shader alone
+    /// accounting for seven. Producing one from first principles means resolving the
+    /// compiled shader, which is a different compiler.</para>
     ///
-    /// <para>It is not derivable from the shader name. Across 600 sampled
-    /// materials there were 22 distinct INSG payloads for 14 shaders:
-    /// <c>csgo_character.vfx</c> alone has 7, because the signature follows the
-    /// shader's enabled feature combo (blend weights, per-vertex lighting, and so
-    /// on), not just which shader it is. Producing one from first principles
-    /// means resolving the compiled shader, which is a different compiler.</para>
-    ///
-    /// <para>So the honest boundary is: everything else about a material - the
-    /// header, RERL, RED2, the whole parameter tree - is authored here, and the
-    /// input signature has to be stated. Either hand it in, or lift it from a
-    /// material that already uses the shader and feature set you want, with
-    /// <c>MaterialAuthor.ExtractInputSignature</c>. What this replaces is the
-    /// silent version of the same dependency: taking a donor material wholesale
-    /// and inheriting whatever signature it happened to carry.</para>
+    /// <para>So everything else about a material is authored here and the signature has
+    /// to be stated: hand it in, or lift it with
+    /// <c>MaterialAuthor.ExtractInputSignature</c> from a material using the shader and
+    /// features you want. That replaces the silent version of the same dependency,
+    /// where a donor material was taken wholesale and its signature inherited by
+    /// accident.</para>
     /// </summary>
     public static class MaterialAuthoring
     {

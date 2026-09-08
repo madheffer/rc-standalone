@@ -20,9 +20,21 @@ not, run it.
 The one place `.editorconfig` departs from runtime is local `const` naming, and
 the file says why at the rule.
 
-## Comments
+## Comments (hard rule: 20 lines, one exception)
 
 The formatter cannot judge these, so this is the part that needs a human.
+
+**People come here to read code, not prose about code. No comment block may
+exceed 20 lines, and most should be under 10.** Not a class summary, not a file
+header, not a `//` run inside a method. The tree was brought under this cap by
+hand, so it starts true: a block over it is something you added. If it will not
+fit, it is an article, and it belongs in `docs/` or the README where someone
+looking for it will actually find it.
+
+**The one exception is a binary layout table.** A `<code>` block spelling out the
+bytes of an undocumented Source 2 structure may run long, because that table IS
+the spec and it has to sit beside the code that reads or writes it. The prose
+around it still obeys the cap.
 
 **A comment earns its place by saying something the code cannot.** Almost always
 that is *why*, not *what*. This codebase is reverse-engineered from a closed
@@ -54,6 +66,8 @@ Do not write:
   `<see cref="..."/>` the other.
 - **Section banners made of box-drawing characters.** A short `// helpers` label
   is fine; the rule out to column 80 is not, and it rots when the text changes.
+- **Bulleted lists enumerating members, parameters or routes** the reader can see
+  immediately below. Document the RULE they share instead.
 
 ### XML documentation
 

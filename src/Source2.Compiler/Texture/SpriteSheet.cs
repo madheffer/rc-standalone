@@ -6,42 +6,18 @@ namespace Source2.Compiler;
 /// The <c>SHEET</c> extra-data payload of a compiled texture: the sprite-sheet
 /// sequences a particle system animates through, and the UV rect of every frame.
 ///
-/// <para><b>Where the animation actually lives.</b> Not in the particle. A
-/// <c>.vpcf</c> picks a sequence index (<c>C_INIT_RandomSequence</c> selects
-/// <c>m_nSequenceMin..Max</c>) and a rate; the frames, their display times and
-/// their UVs all come out of the texture's SHEET block. So re-skinning an
-/// existing animated effect needs no particle edit at all: ship a
-/// <c>.vtex_c</c> at the stock path whose SHEET has the same sequence and frame
-/// shape, and the stock effect animates your art.</para>
-///
-/// <para><b>The atlas layout is arbitrary.</b> SHEET stores an explicit UV rect
-/// per frame rather than a grid, so there is no packing convention to imitate -
-/// emit rects matching whatever atlas you built. (Valve's own packer is not a
-/// grid either: in <c>explosion_blast_01_flame</c> the 255x511 frames sit at a
-/// ~240px stride, so neighbours overlap in their black padding.)</para>
-///
-/// <para><b>Layout, version 8.</b> Read out of VRF's own parser and checked by
-/// arithmetic against that stock file - 4 sequences x (20 B name + 16 frames x
-/// 12 B + 16 images x 32 B) + 8 B header + 4 x 32 B sequence headers = 3032 B,
-/// its exact SHEET size. Every offset field is relative to <b>its own
-/// position</b>, not to the start of the block:</para>
+/// <para>The animation lives HERE, not in the particle, which only picks a sequence and
+/// a rate. Version 8 layout, in which every offset is relative to ITS OWN POSITION:</para>
 ///
 /// <code>
-///   u32 version = 8
-///   u32 numSequences
-///   sequence header x numSequences, 32 B each:
-///     u32 id
-///     u8  clamp, u8 alphaCrop, u8 noColor, u8 noAlpha
-///     u32 framesOffset        // relative
-///     u32 numFrames
-///     f32 totalTime           // VRF calls this FramesPerSecond; it is not
-///     u32 nameOffset          // relative
-///     u32 floatParamsOffset   // relative
-///     u32 floatParamsCount
-///   then per sequence, in sequence order:
-///     name, null-terminated UTF-8, padded to a 4 B boundary
-///     frame x numFrames, 12 B each:  f32 displayTime, u32 imageOffset (relative), u32 imageCount
-///     image x sum(imageCount), 32 B each: f32 croppedMin.xy, croppedMax.xy, uncroppedMin.xy, uncroppedMax.xy
+///   u32 version = 8; u32 numSequences
+///   sequence header x numSequences, 32 B: u32 id; u8 clamp, alphaCrop, noColor, noAlpha;
+///     u32 framesOffset; u32 numFrames; f32 totalTime (VRF misnames it FramesPerSecond);
+///     u32 nameOffset; u32 floatParamsOffset; u32 floatParamsCount
+///   then per sequence, in order:
+///     name, null-terminated UTF-8, padded to 4 B
+///     frame x numFrames, 12 B: f32 displayTime; u32 imageOffset; u32 imageCount
+///     image x sum(imageCount), 32 B: f32 cropped min/max xy, then uncropped min/max xy
 /// </code>
 /// </summary>
 public static class SpriteSheet

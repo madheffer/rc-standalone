@@ -735,13 +735,9 @@ public static class ResourceBuilder
         //   int32  LoopEnd         (-1; v4 only)
         //   [PCM payload]
         //
-        // Total fixed metadata: 48 bytes. The PCM payload is NOT part of the DATA
-        // block - for a vsnd_c the streaming audio lives AFTER the resource's block
-        // section (VRF: FullFileSize = FileSize + StreamingDataSize; Sound.Offset =
-        // Resource.FileSize). Embedding the PCM inside the DATA block double-counts
-        // it (the bytes are in FileSize AND expected again as StreamingDataSize),
-        // so VRF/the engine read past the real data → "file size does not match" →
-        // static playback. We write metadata-only here and append the PCM below.
+        // 48 bytes of metadata. The PCM is NOT part of it: a vsnd's audio lives past the
+        // block section entirely, and embedding it here double-counts the bytes so
+        // readers run off the end and the clip plays as static.
         using var ms = new MemoryStream(48);
         using var w = new BinaryWriter(ms);
         w.Write((ushort)fmt.SampleRate);

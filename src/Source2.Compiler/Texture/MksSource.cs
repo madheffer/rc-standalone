@@ -8,24 +8,20 @@ namespace Source2.Compiler;
 /// <c>mksheet</c> takes, listing the sequences of an animated particle texture
 /// and the image file behind each frame.
 ///
-/// <para>The grammar handled here is the one VRF's own mks emitter produces when
-/// it reconstructs a script out of a compiled sheet (<c>TextureExtract.TryGetMksData</c>),
-/// which is the closest thing to a specification that exists:</para>
+/// <para>The grammar is the one VRF's own emitter produces when reconstructing a
+/// script from a compiled sheet, which is the closest thing to a specification that
+/// exists:</para>
 ///
 /// <code>
-///   // comments run to end of line
 ///   packmode rgb+a          // optional, only meaningful with split sequences
-///   sequence 0              // a sequence using both colour and alpha
+///   sequence 0              // colour and alpha; sequence-rgb / sequence-a split them
 ///   LOOP                    // optional; without it the sequence clamps
-///   frame flame_0.png 1
-///   frame flame_1.png 1
-///   sequence-rgb 1          // colour-only  (NoAlpha)
-///   sequence-a 2            // alpha-only   (NoColor)
+///   frame flame_0.png 1     // image, then relative display time
 /// </code>
 ///
-/// <para>Anything else is rejected with the offending line rather than skipped,
-/// because a silently ignored directive would produce a sheet that animates
-/// differently from what the author wrote.</para>
+/// <para>Anything else is REJECTED with the offending line rather than skipped: a
+/// silently ignored directive would animate differently from what the author
+/// wrote.</para>
 /// </summary>
 public static class MksSource
 {

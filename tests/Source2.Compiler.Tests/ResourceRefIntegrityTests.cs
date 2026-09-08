@@ -12,26 +12,16 @@ namespace Source2.Compiler.Tests;
 /// <summary>
 /// The reference-integrity invariant, and the builders that have to hold it.
 ///
-/// A compiled Source 2 resource states its external references twice: as
-/// <c>resource:</c>-flagged strings inside the DATA tree, and as RERL entries
-/// pairing that path with its 64-bit engine path-hash id. Both halves have to
-/// agree, and each half has its own failure mode:
+/// <para>A resource states each external reference TWICE: as a
+/// <c>resource:</c>-flagged string in DATA, and as a RERL entry pairing that path with
+/// its engine path-hash. Each half fails differently. An unflagged path reads as a bare
+/// string and never resolves, which is the render-with-error-material fatal. A RERL
+/// entry renamed without re-hashing still points at the OLD asset.</para>
 ///
-/// <list type="bullet">
-/// <item>a path written WITHOUT the Resource flag reads as a bare string, so
-///   the asset never resolves (the "attempting to render with error material"
-///   fatal - the 2026-08-10 reference audit, and the L4D2 zoey v4 crash before it);</item>
-/// <item>a RERL entry renamed WITHOUT re-hashing its id still points at the old
-///   asset (found in both shipped hitmarker particles by the 2026-08-10 audit -
-///   <c>RewriteParticlePaths</c> was the one rewrite site that renamed without
-///   re-iding).</item>
-/// </list>
-///
-/// This is not a house rule: a sweep of CS2's own pak01 (3953 resources with
-/// flagged refs across vmat_c / vmdl_c / vpcf_c) and both live base packs (176 +
-/// 336) found ZERO missing RERL entries, ZERO id mismatches and ZERO flagless
-/// refs. <see cref="StockContent_HoldsTheReferenceInvariant"/> keeps that claim
-/// honest against the installed game rather than restating it from memory.
+/// <para>Not a house rule: sweeping pak01 and both live base packs found zero missing
+/// entries, zero id mismatches and zero flagless refs.
+/// <see cref="StockContent_HoldsTheReferenceInvariant"/> re-checks that against the
+/// installed game rather than restating it from memory.</para>
 /// </summary>
 public class ResourceRefIntegrityTests
 {

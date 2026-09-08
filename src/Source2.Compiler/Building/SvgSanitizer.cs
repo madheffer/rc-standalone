@@ -10,24 +10,15 @@ namespace Source2.Compiler;
 /// parser is far stricter than a browser's, and it differs in two ways that make
 /// icons that look fine in a browser render blank in-game:
 ///
-/// <list type="number">
-///   <item><b>Path data.</b> It chokes on the minified path data game-icons.net
-///   (and most icon CDNs) emit - omitted leading zeros (<c>.5</c>), no separators
-///   (<c>11.856.5</c>), elliptical-arc commands, and relative / h / v / s
-///   shorthands. The icons CS2 DOES render ship clean, space-separated, absolute
-///   <c>M/L/C/Z</c>.</item>
-///   <item><b>Fill inheritance.</b> CS2 does NOT inherit <c>fill</c> from a parent
-///   <c>&lt;g fill="…"&gt;</c> (or the root <c>&lt;svg&gt;</c>) the way a browser
-///   does, and it only reliably draws <c>&lt;path&gt;</c> geometry - not
-///   <c>&lt;rect&gt;/&lt;circle&gt;/&lt;polygon&gt;…</c> primitives. So a glyph
-///   whose colour lives on the group instead of each path (e.g. our authored
-///   zombie glyphs) renders with the default fill (black) → invisible on the dark
-///   killfeed, even though every browser inherits the group fill and the picker
-///   preview looks right. This was confirmed against the two icons CS2 actually
-///   renders (Mapeadores <c>knife_zombie</c>, GFL <c>zombie_walking</c>): both put
-///   <c>fill</c> directly on each <c>&lt;path&gt;</c> (attribute or inline
-///   <c>style</c>), never on a container.</item>
-/// </list>
+/// <para>PATH DATA: it chokes on the minified form most icon CDNs emit, omitted
+/// leading zeros, missing separators, arcs and relative shorthands. The icons CS2 does
+/// render ship clean absolute <c>M/L/C/Z</c>.</para>
+///
+/// <para>FILL INHERITANCE: it does not inherit <c>fill</c> from a parent group the way
+/// a browser does, and only reliably draws <c>&lt;path&gt;</c>. So a glyph coloured on
+/// its group renders black, invisible on the killfeed, while looking right in every
+/// browser preview. Confirmed against the two icons CS2 does render: both put
+/// <c>fill</c> on each path, never on a container.</para>
 ///
 /// <para><see cref="ForPanorama(byte[])"/> lists the passes that follow from
 /// this. It runs inside
