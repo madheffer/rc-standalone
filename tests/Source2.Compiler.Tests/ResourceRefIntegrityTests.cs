@@ -119,8 +119,7 @@ public class ResourceRefIntegrityTests
     public void RewriteParticlePaths_ReHashesRenamedRerlEntries()
     {
         var vpcf = CS2Fixtures.Template(".vpcf_c");
-        if (vpcf is null)
-        { CS2Fixtures.Skip("a compiled .vpcf_c"); return; }
+        if (vpcf is null) { CS2Fixtures.Skip("a compiled .vpcf_c"); return; }
         using var before = new Resource();
         before.Read(new MemoryStream(vpcf));
 
@@ -151,8 +150,7 @@ public class ResourceRefIntegrityTests
     public void AuthoringBuilders_ProduceResolvableReferences()
     {
         var stockVmat = CS2Fixtures.Template(".vmat_c");
-        if (stockVmat is null)
-        { CS2Fixtures.Skip("a compiled .vmat_c"); return; }
+        if (stockVmat is null) { CS2Fixtures.Skip("a compiled .vmat_c"); return; }
 
         var def = new ResourceBuilder.MaterialDef
         {
@@ -181,8 +179,7 @@ public class ResourceRefIntegrityTests
     public void BuildTexture_AuthorsItsOwnEditInfo_NotTheDonorTemplates()
     {
         var template = CS2Fixtures.Template(".vtex_c");
-        if (template is null)
-        { CS2Fixtures.Skip("a compiled .vtex_c"); return; }
+        if (template is null) { CS2Fixtures.Skip("a compiled .vtex_c"); return; }
 
         const int w = 64, h = 64;
         var raw = new byte[w * h * 4];
@@ -243,8 +240,7 @@ public class ResourceRefIntegrityTests
     public void BuildPanoramaSvg_AuthorsItsOwnEditInfo_NotTheDonorTemplates()
     {
         var template = CS2Fixtures.Template(".vsvg_c");
-        if (template is null)
-        { CS2Fixtures.Skip("a compiled .vsvg_c"); return; }
+        if (template is null) { CS2Fixtures.Skip("a compiled .vsvg_c"); return; }
 
         var donorInputs = ReadInputPaths(template);
 
@@ -282,8 +278,7 @@ public class ResourceRefIntegrityTests
     public void BuildSound_AuthorsItsOwnEditInfo_AndSurvivesModernize()
     {
         var template = CS2Fixtures.Template(".vsnd_c");
-        if (template is null)
-        { CS2Fixtures.Skip("a compiled .vsnd_c"); return; }
+        if (template is null) { CS2Fixtures.Skip("a compiled .vsnd_c"); return; }
         var donorInputs = ReadInputPaths(template);
 
         const int rate = 44100, frames = 4410;
@@ -361,8 +356,7 @@ public class ResourceRefIntegrityTests
     public void StockContent_HoldsTheReferenceInvariant()
     {
         var pak = CS2Fixtures.StockPak();
-        if (pak is null)
-        { CS2Fixtures.Skip("an installed CS2 pak01_dir.vpk"); return; }
+        if (pak is null) { CS2Fixtures.Skip("an installed CS2 pak01_dir.vpk"); return; }
 
         using var package = new Package();
         package.Read(pak);
@@ -379,12 +373,10 @@ public class ResourceRefIntegrityTests
                 if (checkedFiles >= 600)
                     break;      // a representative sweep, not the whole pak
                 byte[] bytes;
-                try
-                { package.ReadEntry(e, out bytes); }
+                try { package.ReadEntry(e, out bytes); }
                 catch { continue; }
                 Resource res;
-                try
-                { res = new Resource(); res.Read(new MemoryStream(bytes)); }
+                try { res = new Resource(); res.Read(new MemoryStream(bytes)); }
                 catch { continue; }
                 using (res)
                 {

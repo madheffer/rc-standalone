@@ -41,8 +41,7 @@ public static class SvgSanitizer
         if (svg is null || svg.Length == 0)
             return svg ?? [];
         string text;
-        try
-        { text = Encoding.UTF8.GetString(svg); }
+        try { text = Encoding.UTF8.GetString(svg); }
         catch { return svg; }
         if (!text.Contains("<svg", StringComparison.OrdinalIgnoreCase))
             return svg;

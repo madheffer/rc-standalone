@@ -214,8 +214,7 @@ public static class ResourceBuilder
     private static Resource ReadResource(byte[] bytes)
     {
         var res = new Resource();
-        try
-        { res.Read(new MemoryStream(bytes, writable: false)); }
+        try { res.Read(new MemoryStream(bytes, writable: false)); }
         catch { res.Dispose(); throw; }
         return res;
     }
@@ -482,8 +481,7 @@ public static class ResourceBuilder
         // array) can be computed before anything is written.
         var positions = new int[extras.Count];
         var cursor = header + entryTable;
-        for (var i = 0; i < extras.Count; i++)
-        { positions[i] = cursor; cursor += extras[i].Payload.Length; }
+        for (var i = 0; i < extras.Count; i++) { positions[i] = cursor; cursor += extras[i].Payload.Length; }
         int mipSizesPos = cursor;
         int dataBlockSize = mipSizesPos + mipSizesSize;
 
@@ -1395,8 +1393,7 @@ public static class ResourceBuilder
         var newAbs = new Dictionary<int, int>();
         foreach (var b in blocks.OrderBy(b => b.Abs))
         {
-            if (b.Abs < physAbs)
-            { newAbs[b.TableOff] = b.Abs; continue; }
+            if (b.Abs < physAbs) { newAbs[b.TableOff] = b.Abs; continue; }
             while (ms.Length % 16 != 0)
                 ms.WriteByte(0); // 16-align, matching the compiler's layout
             newAbs[b.TableOff] = (int)ms.Length;
@@ -1532,8 +1529,7 @@ public static class ResourceBuilder
     private static int CountOccurrences(string haystack, string needle)
     {
         int count = 0, i = 0;
-        while ((i = haystack.IndexOf(needle, i, StringComparison.OrdinalIgnoreCase)) >= 0)
-        { count++; i += needle.Length; }
+        while ((i = haystack.IndexOf(needle, i, StringComparison.OrdinalIgnoreCase)) >= 0) { count++; i += needle.Length; }
         return count;
     }
 

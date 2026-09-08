@@ -81,8 +81,7 @@ internal static class CS2Fixtures
                 if (path is not null)
                 {
                     var p = new Package();
-                    try
-                    { p.Read(path); _pak = p; }
+                    try { p.Read(path); _pak = p; }
                     catch { p.Dispose(); }
                 }
             }
@@ -93,8 +92,7 @@ internal static class CS2Fixtures
                 var entry = Io.VpkEntries.FirstEndingWith(_pak, suffix);
                 if (entry is not null)
                 {
-                    try
-                    { bytes = Io.VpkEntries.Read(_pak, entry); }
+                    try { bytes = Io.VpkEntries.Read(_pak, entry); }
                     catch { bytes = null; }
                 }
             }
@@ -183,12 +181,10 @@ internal static class CS2Fixtures
                         if (seen++ >= budget)
                             break;
                         byte[] bytes;
-                        try
-                        { _pak.ReadEntry(e, out bytes); }
+                        try { _pak.ReadEntry(e, out bytes); }
                         catch { continue; }
                         bool good;
-                        try
-                        { good = accept(bytes); }
+                        try { good = accept(bytes); }
                         catch { good = false; }
                         if (!good)
                             continue;

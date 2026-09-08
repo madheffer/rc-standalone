@@ -223,12 +223,10 @@ internal static class SelfTest
                 if (seen >= budget)
                     break;
                 byte[] bytes;
-                try
-                { pak.ReadEntry(e, out bytes); }
+                try { pak.ReadEntry(e, out bytes); }
                 catch { continue; }
                 using var res = new Resource();
-                try
-                { res.Read(new MemoryStream(bytes)); }
+                try { res.Read(new MemoryStream(bytes)); }
                 catch { continue; }
                 foreach (var r in res.ExternalReferences?.ResourceRefInfoList ?? [])
                 {
@@ -263,8 +261,7 @@ internal static class SelfTest
         if (path is null)
             return null;
         var p = new Package();
-        try
-        { p.Read(path); return p; }
+        try { p.Read(path); return p; }
         catch { p.Dispose(); return null; }
     }
 
@@ -275,8 +272,7 @@ internal static class SelfTest
         var entry = Io.VpkEntries.FirstEndingWith(pak, suffix);
         if (entry is null)
             return null;
-        try
-        { return Io.VpkEntries.Read(pak, entry); }
+        try { return Io.VpkEntries.Read(pak, entry); }
         catch { return null; }
     }
 

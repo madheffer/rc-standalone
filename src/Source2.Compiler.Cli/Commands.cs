@@ -44,8 +44,7 @@ internal static class Commands
         var outPath = Opt(a, "-o");
         if (outPath is null)
             Console.Out.Write(text);
-        else
-        { File.WriteAllText(outPath, text); Console.WriteLine($"{outPath}  ({text.Length:n0} chars)"); }
+        else { File.WriteAllText(outPath, text); Console.WriteLine($"{outPath}  ({text.Length:n0} chars)"); }
         return 0;
     }
 

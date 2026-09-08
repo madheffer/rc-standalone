@@ -50,8 +50,7 @@ public static class SafePath
         // matching root "/srv/data").
         var rootFull = EnsureTrailingSeparator(Path.GetFullPath(root));
         string combinedFull;
-        try
-        { combinedFull = Path.GetFullPath(Path.Combine(root, normalisedRel.Replace('/', Path.DirectorySeparatorChar))); }
+        try { combinedFull = Path.GetFullPath(Path.Combine(root, normalisedRel.Replace('/', Path.DirectorySeparatorChar))); }
         catch { return false; }  // GetFullPath throws on invalid chars / too-long paths
 
         // OrdinalIgnoreCase: Windows file systems are case-insensitive; on

@@ -128,8 +128,7 @@ public class Source2ContainerAuthorTests
 
         static void Render(KVObject? n, string path, StringBuilder sb)
         {
-            if (n is null)
-            { sb.AppendLine($"{path} = <null>"); return; }
+            if (n is null) { sb.AppendLine($"{path} = <null>"); return; }
             if (n.IsArray)
             {
                 var i = 0;
@@ -142,8 +141,7 @@ public class Source2ContainerAuthorTests
             if (n.IsCollection)
             {
                 var any = false;
-                foreach (var c in n.Children)
-                { any = true; Render(c.Value, $"{path}.{c.Key}", sb); }
+                foreach (var c in n.Children) { any = true; Render(c.Value, $"{path}.{c.Key}", sb); }
                 if (!any)
                     sb.AppendLine($"{path} = {{}}");
                 return;

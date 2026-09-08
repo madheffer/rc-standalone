@@ -40,8 +40,7 @@ public class SpriteSheetTests
     public void StockSheet_RoundTripsByteForByte()
     {
         var bytes = SheetTexture();
-        if (bytes is null)
-        { CS2Fixtures.Skip("a compiled .vtex_c carrying a SHEET"); return; }
+        if (bytes is null) { CS2Fixtures.Skip("a compiled .vtex_c carrying a SHEET"); return; }
 
         using var res = new Resource();
         res.Read(new MemoryStream(bytes));

@@ -36,8 +36,7 @@ public class KvObjectRoundTripTests
     public void KvObject_ReadFromBinaryKv3_SurfacesNamedKeys()
     {
         var bytes = FindKv3Fixture();
-        if (bytes is null)
-        { CS2Fixtures.Skip("a compiled .vsndevts_c"); return; }
+        if (bytes is null) { CS2Fixtures.Skip("a compiled .vsndevts_c"); return; }
         Assert.NotEmpty(bytes);
 
         using var resource = new Resource();
