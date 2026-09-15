@@ -2,7 +2,7 @@
 
 `third_party/ValveResourceFormat/` is not committed. `dotnet run tools/vendor.cs`
 fetches the exact upstream commit pinned in [`VENDORED.json`](VENDORED.json) and
-then applies the twelve patches in [`patches/`](patches/) to it.
+then applies the ten patches in [`patches/`](patches/) to it.
 
 Each patch is a literal find-and-replace against one file. The `find` snippet
 must occur **exactly once** in the pristine upstream file; zero matches or more
@@ -22,22 +22,16 @@ write, which is the seam this project sits on.
 
 ### Writing KV3
 
-| id | file |
-|---|---|
-| `vrf-kv3-lz4-usings` | `ResourceTypes/BinaryKV3.Serialization.cs` |
-| `vrf-kv3-lz4-header` | `ResourceTypes/BinaryKV3.Serialization.cs` |
-| `vrf-kv3-lz4-body` | `ResourceTypes/BinaryKV3.Serialization.cs` |
-
-The stock writer emits uncompressed KV3 bodies. CS2's vdata loader tolerates
-that; its **material** loader does not, and a VRF-written `.vmat_c` is rejected
-on load with "attempting to render with error material". Stock `.vmat_c` always
-carries `compressionMethod=1` with a 16384-byte frame. The patch routes the body
-through `K4os.Compression.LZ4` and fixes up the compressed/uncompressed size
-fields. Measured on `weapon_knife_butterfly.vmat_c` (stock 3864 B): unpatched
-round-trip 7757 B (+101%), patched 4053 B (+4.9%), a resourcecompiler reference
-+0.5%. Binary blobs stay uncompressed at the resource tail because the reader
-expects the body and blobs to match, so `useLz4` falls back to false when blobs
-are present.
+Compressing the KV3 body used to be three patches of ours
+(`vrf-kv3-lz4-usings` / `-header` / `-body`), retired at the `661a5f58` re-vendor.
+They existed because the stock writer emitted uncompressed bodies and CS2's
+**material** loader rejects those on load ("attempting to render with error
+material"), while stock `.vmat_c` always carries `compressionMethod=1` at a
+16384-byte frame. Upstream does that itself now, and does more of it: `Serialize`
+honours `SerializationCompressionMethod` for Uncompressed / Lz4 / Zstd, writes the
+frame size, and compresses binary blobs per segment, where the patch could only
+compress the body and only when no blob was present. Choosing the method per block
+is now `AuthoredKv3`, not a fork.
 
 | id | file |
 |---|---|
