@@ -93,9 +93,9 @@ public static class MaterialAuthor
 
         // Stock block order: RERL RED2 DATA INSG.
         res.Blocks.Add(new ResourceExtRefList { Resource = res });
-        res.Blocks.Add(new BinaryKV3(editInfo, KV3IDLookup.Get("generic"), BlockType.RED2) { Resource = res });
-        res.Blocks.Add(new BinaryKV3(KVObject.Collection(), KV3IDLookup.Get("generic"), BlockType.DATA) { Resource = res });
-        res.Blocks.Add(new BinaryKV3(BuildInsg(inputSignature), KV3IDLookup.Get("generic"), BlockType.INSG) { Resource = res });
+        res.Blocks.Add(AuthoredKv3.Block(editInfo, KV3IDLookup.Get("generic"), BlockType.RED2, res));
+        res.Blocks.Add(AuthoredKv3.Block(KVObject.Collection(), KV3IDLookup.Get("generic"), BlockType.DATA, res));
+        res.Blocks.Add(AuthoredKv3.Block(BuildInsg(inputSignature), KV3IDLookup.Get("generic"), BlockType.INSG, res));
 
         return res;
     }

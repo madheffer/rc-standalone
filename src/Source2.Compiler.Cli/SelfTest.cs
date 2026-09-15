@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using SkiaSharp;
-using SteamDatabase.ValvePak;
+using ValvePak;
 using ValveResourceFormat;
 
 namespace Source2.Compiler.Cli;

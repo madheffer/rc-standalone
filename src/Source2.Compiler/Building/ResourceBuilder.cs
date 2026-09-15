@@ -3,7 +3,7 @@ using System.Text.Json;
 using BCnEncoder.Encoder;
 using BCnEncoder.Shared;
 using SkiaSharp;
-using SteamDatabase.ValvePak;
+using ValvePak;
 using ValveKeyValue;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
@@ -579,7 +579,7 @@ public static class ResourceBuilder
             def.SourceName,
             def.ImageBytes is { Length: > 0 } ? def.ImageBytes : def.RawRgba ?? [],
             templateDeps);
-        var red2Block = new BinaryKV3(editInfo, KV3IDLookup.Get("generic"), BlockType.RED2) { Resource = template };
+        var red2Block = AuthoredKv3.Block(editInfo, KV3IDLookup.Get("generic"), BlockType.RED2, template);
         if (red2Idx >= 0)
             template.Blocks[red2Idx] = red2Block;
         else
@@ -792,7 +792,7 @@ public static class ResourceBuilder
         if (sndTemplateDeps.Count == 0)
             sndTemplateDeps.AddRange(Source2ContainerAuthor.SoundDeps);
         var sndEditInfo = Source2ContainerAuthor.BuildSoundEditInfo(sourceName, wavBytes, sndTemplateDeps);
-        var sndRed2 = new BinaryKV3(sndEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2) { Resource = template };
+        var sndRed2 = AuthoredKv3.Block(sndEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2, template);
         if (sndRed2Idx >= 0)
             template.Blocks[sndRed2Idx] = sndRed2;
         else
@@ -1280,6 +1280,7 @@ public static class ResourceBuilder
     /// </summary>
     public static byte[] Serialize(Resource resource)
     {
+        AuthoredKv3.ChooseCompression(resource);
         using var ms = new MemoryStream();
         resource.Serialize(ms);
         return ms.ToArray();
@@ -1496,7 +1497,7 @@ public static class ResourceBuilder
             res.Read(new MemoryStream(model, writable: false), verifyFileSize: false);
             if (res.GetBlockByType(BlockType.PHYS) is not { } phys)
                 return (true, false, 0, false, 0);
-            var w = new ValveResourceFormat.IndentedTextWriter();
+            var w = new ValveResourceFormat.Utils.IndentedTextWriter();
             phys.WriteText(w);
             var s = w.ToString();
             // One "m_jiggleBone =" sub-object per jiggle bone. The plural array header
@@ -1624,7 +1625,7 @@ public static class ResourceBuilder
             svgTemplateDeps.AddRange(Source2ContainerAuthor.VectorGraphicDeps);
         var svgEditInfo = Source2ContainerAuthor.BuildVectorGraphicEditInfo(
             sourceName, panorama.Data, svgTemplateDeps);
-        var svgRed2 = new BinaryKV3(svgEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2) { Resource = resource };
+        var svgRed2 = AuthoredKv3.Block(svgEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2, resource);
         if (svgRed2Idx >= 0)
             resource.Blocks[svgRed2Idx] = svgRed2;
         else
@@ -2217,7 +2218,7 @@ public static class ResourceBuilder
         ctrlRoot.Add("m_vSound", vsound);
         ctrlRoot.Add("m_pEnvelopeAnalyzer", KVObject.Null());
 
-        var ctrl = new BinaryKV3(ctrlRoot, KV3IDLookup.Get("generic"), BlockType.CTRL) { Resource = resource };
+        var ctrl = AuthoredKv3.Block(ctrlRoot, KV3IDLookup.Get("generic"), BlockType.CTRL, resource);
 
         // Rebuild the block list to MATCH the layout CS2's modern compiler emits (verified against
         // a stock modern clip): RED2(+any others), then an EMPTY DATA block (size 0 - the modern

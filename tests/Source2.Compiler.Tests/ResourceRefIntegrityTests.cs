@@ -1,5 +1,5 @@
 using Source2.Compiler;
-using SteamDatabase.ValvePak;
+using ValvePak;
 using ValveKeyValue;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;

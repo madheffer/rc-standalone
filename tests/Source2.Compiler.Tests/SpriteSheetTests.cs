@@ -112,7 +112,7 @@ public class SpriteSheetTests
 
         Assert.False(back.Sequences[0].Clamp);
         Assert.Equal(2, back.Sequences[0].Frames.Length);
-        Assert.Equal(3.5f, back.Sequences[0].FramesPerSecond);      // total time == sum of display times
+        Assert.Equal(3.5f, back.Sequences[0].TotalTime);      // total time == sum of display times
         Assert.Equal(2.5f, back.Sequences[0].Frames[1].DisplayTime);
         Assert.Equal(0.5f, back.Sequences[0].Frames[1].Images[0].UncroppedMin.X);
 

@@ -2,7 +2,7 @@
   "_comment": "Upstream commit this project's vendored ValveResourceFormat is pinned to. tools/vendor.cs fetches exactly this sha, then applies third_party/patches/. Bumping the sha is a deliberate act: re-run the vendor step, expect patch conflicts where upstream moved, and re-run the test suite (the rc-parity gate is what proves the compiler still matches Valve's).",
   "vrf": {
     "repo": "https://github.com/ValveResourceFormat/ValveResourceFormat.git",
-    "sha": "319b6b811f2b2aca7704f5b77e63c0868388fed4",
+    "sha": "661a5f58961a3c88b1607de393a3198124ee622a",
     "dir": "ValveResourceFormat"
   }
 }

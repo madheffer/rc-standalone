@@ -25,7 +25,7 @@ public static class VrfRequirements
     /// against. A host on a different commit is not necessarily broken, but it is
     /// untested; the patches below are expressed as literal snippets of this one.
     /// </summary>
-    public const string UpstreamSha = "319b6b811f2b2aca7704f5b77e63c0868388fed4";
+    public const string UpstreamSha = "661a5f58961a3c88b1607de393a3198124ee622a";
 
     /// <summary>
     /// The patches this library's behaviour depends on. A host's VRF must carry
@@ -37,10 +37,6 @@ public static class VrfRequirements
     /// </summary>
     public static readonly string[] RequiredPatchIds =
     [
-        // KV3 bodies must be LZ4-compressed or CS2's material loader rejects them.
-        "vrf-kv3-lz4-usings",
-        "vrf-kv3-lz4-header",
-        "vrf-kv3-lz4-body",
         // Authoring a .vsvg_c means replacing the Panorama payload and its CRC.
         "vrf-panorama-writable-data",
         // Authoring a container at all: Version is the one header field only Read() could set.

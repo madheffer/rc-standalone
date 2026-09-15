@@ -251,7 +251,7 @@ public class TemplateFreeAuthoringTests
         Assert.Equal([BlockType.RED2, BlockType.DATA], res.Blocks.Select(b => b.Type).ToArray());
 
         var pan = (Panorama)res.DataBlock!;
-        Assert.Empty(pan.Names);
+        Assert.Empty(pan.Images);
         // Read() validates CRC32 against the payload, so getting here proves it.
         Assert.Contains("M8 8", System.Text.Encoding.UTF8.GetString(pan.Data));
 

@@ -1,4 +1,4 @@
-        public List<NameEntry> Names { get; } = [];
+        public List<ImageEntry> Images { get; } = [];
 
         /// <summary>
         /// Gets the raw data.

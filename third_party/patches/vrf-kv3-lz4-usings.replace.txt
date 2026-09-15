@@ -1,7 +1,0 @@
-using System.Buffers;
-using System.Diagnostics;
-using System.IO;
-using K4os.Compression.LZ4;
-using ValveKeyValue;
-
-namespace ValveResourceFormat.ResourceTypes

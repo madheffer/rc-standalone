@@ -237,14 +237,18 @@ change to how references are stated fails loudly instead of being papered over.
 
 ## Open gaps
 
-### G1 — KV3 binary v4 vs v5 (cosmetic, not planned)
+### G1 — KV3 binary v4 vs v5 — **CLOSED** at the 661a5f58 re-vendor
 
-RC emits KV3 binary **version 5**; VRF's writer emits **version 4**. v5 splits
-the payload into two independently sized/compressed buffers with about a dozen
-extra header fields (`BinaryKV3.cs`, `if (version >= 5)`). Both decode to the
-same tree and CS2 reads both — every KV3 generation stays loadable, which is why
-years-old community containers still work. Closing this means writing a v5
-serializer in vendored VRF, and it buys nothing the engine can observe.
+Upstream VRF grew a v5 serializer, so this compiler now emits v5, which is what RC
+emits. `AuthoredKv3` sets it on every block it authors.
+
+Its per-block **compression** matches too, and that is not a uniform setting: RC
+compresses a block's payload above ~256 bytes and stores it raw below. Measured over
+~3,600 Valve-compiled v5 blocks (cs2-paint-assets, cs2stock, weaponviewer, the
+RcReference probes) the cut is sharp — largest uncompressed 252 B, smallest
+compressed 279 B, nothing between, and no uncompressed block anywhere above 252.
+It is NOT "compress when it saves space": LZ4 does shrink a 109-byte KV3 buffer and
+RC still stores that one raw.
 
 ### G2 — `.vpcf` legacy-source schema migration (real, unimplemented)
 
@@ -302,11 +306,7 @@ theirs.
 
 Two independent blockers, both measured rather than assumed:
 
-1. **v5 layout** (G1). Matching byte-for-byte means implementing RC's v5
-   two-buffer split exactly — including how it partitions values between the
-   buffers, which is not documented anywhere and would have to be reversed from
-   samples.
-2. **LZ4 is encoder-defined.** Both sides compress the body with LZ4 at frame
+1. **LZ4 is encoder-defined.** Both sides compress the body with LZ4 at frame
    size 16384, but LZ4 permits many valid encodings of the same input. Matching
    Valve's bytes needs their exact encoder build and settings, not merely "an
    LZ4 encoder". K4os (ours) and Valve's will legitimately disagree.

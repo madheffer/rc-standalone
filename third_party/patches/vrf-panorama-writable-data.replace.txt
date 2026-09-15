@@ -1,4 +1,4 @@
-        public List<NameEntry> Names { get; } = [];
+        public List<ImageEntry> Images { get; } = [];
 
         /// <summary>
         /// Gets or sets the raw data. The setter exists so callers can author a

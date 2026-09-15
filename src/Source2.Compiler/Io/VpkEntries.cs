@@ -1,4 +1,4 @@
-using SteamDatabase.ValvePak;
+using ValvePak;
 
 namespace Source2.Compiler.Io;
 

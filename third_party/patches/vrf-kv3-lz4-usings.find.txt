@@ -1,5 +1,0 @@
-using System.Diagnostics;
-using System.IO;
-using ValveKeyValue;
-
-namespace ValveResourceFormat.ResourceTypes

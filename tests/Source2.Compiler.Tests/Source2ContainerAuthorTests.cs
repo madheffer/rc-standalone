@@ -24,9 +24,9 @@ namespace Source2.Compiler.Tests;
 /// tree value-for-value including KV3 value types and flags - is what "our
 /// compiler produces what Valve's compiler produces" means.
 ///
-/// Byte equality is NOT the contract and is not attainable: RC writes KV3 binary
-/// v5 (a two-buffer split layout) while VRF's writer emits v4, and even matching
-/// that, the LZ4 payload would have to come out of a bit-identical encoder. The
+/// Byte equality is NOT the contract and is not attainable: we now write RC's KV3
+/// binary v5 and match its per-block compression choice, but the LZ4 payload would
+/// still have to come out of a bit-identical encoder, and it does not. The
 /// decoded tree is the thing the engine actually consumes, so that is what is
 /// pinned. See <c>docs/RC_PARITY.md</c> for the measured gap list.
 /// </summary>

@@ -133,10 +133,10 @@ public static partial class Source2ContainerAuthor
         // binary VERSION is whatever VRF's serializer emits - the engine
         // accepts every KV3 binary generation, current RC emits v5).
         var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc);
-        resource.Blocks.Add(new BinaryKV3(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2) { Resource = resource });
+        resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
 
         // DATA - the user's tree, format GUID from their own kv3 header.
-        resource.Blocks.Add(new BinaryKV3(NarrowIntegers(userDoc.Root), userDoc.Header.Format, BlockType.DATA) { Resource = resource });
+        resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(userDoc.Root), userDoc.Header.Format, BlockType.DATA, resource));
 
         // FLCI (source-file line map) is deliberately not authored: it is
         // editor-only metadata and pre-FLCI stock resources load fine without it.

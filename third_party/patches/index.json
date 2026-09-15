@@ -7,7 +7,7 @@
       "file": "ValveResourceFormat/Resource/ResourceTypes/Model.cs",
       "find": "vrf-model-lod-mask-fallback-lod.find.txt",
       "replace": "vrf-model-lod-mask-fallback-lod.replace.txt",
-      "description": "Default LoD mask to 1 (LoD 0 visible) when m_refLODGroupMasks is empty — CS2 CTRL-block MVTX models ship empty masks and the original Zip yields nothing."
+      "description": "Default LoD mask to 1 (LoD 0 visible) when m_refLODGroupMasks is empty \u2014 CS2 CTRL-block MVTX models ship empty masks and the original Zip yields nothing."
     },
     {
       "id": "vrf-panorama-writable-data",
@@ -16,30 +16,6 @@
       "find": "vrf-panorama-writable-data.find.txt",
       "replace": "vrf-panorama-writable-data.replace.txt",
       "description": "Open the Panorama.Data AND Panorama.CRC32 setters so ResourceBuilder can author .vsvg_c icons from a template: replace Data, then refresh CRC32 (upstream's Serialize writes the stored checksum verbatim; it does not recompute)."
-    },
-    {
-      "id": "vrf-kv3-lz4-usings",
-      "clone": "vrf",
-      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Serialization.cs",
-      "find": "vrf-kv3-lz4-usings.find.txt",
-      "replace": "vrf-kv3-lz4-usings.replace.txt",
-      "description": "Add System.Buffers + K4os.Compression.LZ4 usings for the BinaryKV3 LZ4 writer path."
-    },
-    {
-      "id": "vrf-kv3-lz4-header",
-      "clone": "vrf",
-      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Serialization.cs",
-      "find": "vrf-kv3-lz4-header.find.txt",
-      "replace": "vrf-kv3-lz4-header.replace.txt",
-      "description": "Choose LZ4 (method 1) vs uncompressed (method 0) for the BinaryKV3 header based on whether the resource carries binary blobs."
-    },
-    {
-      "id": "vrf-kv3-lz4-body",
-      "clone": "vrf",
-      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Serialization.cs",
-      "find": "vrf-kv3-lz4-body.find.txt",
-      "replace": "vrf-kv3-lz4-body.replace.txt",
-      "description": "Encode the BinaryKV3 body through MemoryStream + LZ4 so CS2 vmat_c loader (which rejects uncompressed KV3) accepts the output. Falls back to uncompressed when binary blobs are present."
     },
     {
       "id": "vrf-kv3-depth-guard-field",
@@ -92,7 +68,7 @@
     {
       "id": "vrf-kv3-integer-array-unchecked-uint64",
       "clone": "vrf",
-      "file": "ValveResourceFormat/Serialization/IKeyValueCollection.cs",
+      "file": "ValveResourceFormat/Serialization/KeyValues/IKeyValueCollection.cs",
       "find": "vrf-kv3-integer-array-unchecked-uint64.find.txt",
       "replace": "vrf-kv3-integer-array-unchecked-uint64.replace.txt",
       "description": "GetIntegerArray: unchecked UInt64 -> long element conversion (0xFFFFFFFFFFFFFFFF -> -1L). Community models store m_refMeshGroupMasks as UInt64 all-bits; the checked path threw OverflowException and cost 32 library models their mesh-group reads (variant schema/bake, glTF variant export). Mirrors upstream GetUnsignedIntegerArray unchecked handling."

@@ -12,7 +12,7 @@ namespace Source2.Compiler;
 /// <code>
 ///   u32 version = 8; u32 numSequences
 ///   sequence header x numSequences, 32 B: u32 id; u8 clamp, alphaCrop, noColor, noAlpha;
-///     u32 framesOffset; u32 numFrames; f32 totalTime (VRF misnames it FramesPerSecond);
+///     u32 framesOffset; u32 numFrames; f32 totalTime;
 ///     u32 nameOffset; u32 floatParamsOffset; u32 floatParamsCount
 ///   then per sequence, in order:
 ///     name, null-terminated UTF-8, padded to 4 B
