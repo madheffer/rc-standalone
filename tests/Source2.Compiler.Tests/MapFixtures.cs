@@ -128,6 +128,136 @@ internal static class MapFixtures
                             .Select(f => f.Path)];
     }
 
+    /// <summary>
+    /// The game's entity schema: <c>csgo.fgd</c> plus everything it includes,
+    /// which lives in <c>game/core</c> beside it. Null without a CS2 install.
+    /// </summary>
+    public static FgdSchema? GameSchema()
+    {
+        lock (Gate)
+        {
+            if (_schema is not null)
+                return _schema;
+            var cs2 = CS2Fixtures.StockPak();
+            if (cs2 is null)
+                return null;
+            var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, ".."));
+            var fgd = Path.Combine(game, "csgo", "csgo.fgd");
+            if (!File.Exists(fgd))
+                return null;
+            return _schema = FgdSchema.Load(fgd, [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
+        }
+    }
+
+    private static FgdSchema? _schema;
+
+    /// <summary>
+    /// A map that exists locally as BOTH a source and a compile: the addon's
+    /// <c>.vmap</c> under <c>content/csgo_addons</c>, and the entity lump out of the
+    /// VPK <c>resourcecompiler.exe</c> produced from it under <c>game/csgo_addons</c>.
+    /// </summary>
+    public static string? VmapSource(string addon, string map)
+    {
+        var cs2 = CS2Fixtures.StockPak();
+        if (cs2 is null)
+            return null;
+        var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, "..", ".."));
+        var source = Path.Combine(root, "content", "csgo_addons", addon, "maps", map + ".vmap");
+        return File.Exists(source) ? source : null;
+    }
+
+    /// <summary>
+    /// Compile a map source with the game's own <c>resourcecompiler.exe</c> and hand
+    /// back the entity lump it produced.
+    ///
+    /// <para>Ground truth has to be CURRENT, not whatever an addon's stale VPK
+    /// holds: a compile from April writes an entity's origin as a fixed-decimal
+    /// string, and one from August writes an array of doubles. Both load, so a test
+    /// pinned to the old output would pin the compiler to a version of Valve's that
+    /// no longer exists.</para>
+    ///
+    /// <para>The compile goes to a scratch addon inside the content tree, because
+    /// that is where the compiler insists on writing, and it is cached: a map takes
+    /// about 30 seconds. Null when the Workshop Tools are not installed.</para>
+    /// </summary>
+    public static byte[]? RcCompiledLump(string sourcePath, string lump = "default_ents")
+    {
+        lock (Gate)
+        {
+            if (RcCache.TryGetValue(sourcePath, out var cached))
+                return cached;
+
+            // Cache on disk as well as in memory: a map costs about 30 seconds of
+            // Valve's compiler, and the answer only changes when the source or the
+            // compiler does, so both go in the key.
+            var disk = DiskCachePath(sourcePath);
+            if (disk is not null && File.Exists(disk))
+                return RcCache[sourcePath] = File.ReadAllBytes(disk);
+
+            var bytes = CompileWithRc(sourcePath, lump);
+            if (bytes is not null && disk is not null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(disk)!);
+                File.WriteAllBytes(disk, bytes);
+            }
+            return RcCache[sourcePath] = bytes;
+        }
+    }
+
+    private static string? DiskCachePath(string sourcePath)
+    {
+        var cs2 = CS2Fixtures.StockPak();
+        if (cs2 is null || !File.Exists(sourcePath))
+            return null;
+        var rc = Path.Combine(Path.GetDirectoryName(cs2)!, "..", "bin", "win64", "resourcecompiler.exe");
+        var stamp = $"{new FileInfo(sourcePath).LastWriteTimeUtc.Ticks:x}-"
+                  + $"{(File.Exists(rc) ? new FileInfo(rc).LastWriteTimeUtc.Ticks : 0):x}";
+        return Path.Combine(Path.GetTempPath(), "s2c_rc_cache",
+                            $"{Path.GetFileNameWithoutExtension(sourcePath)}.{stamp}.vents_c");
+    }
+
+    private static byte[]? CompileWithRc(string sourcePath, string lump)
+    {
+        var cs2 = CS2Fixtures.StockPak();
+        if (cs2 is null || !File.Exists(sourcePath))
+            return null;
+        var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, "..", ".."));
+        var rc = Path.Combine(root, "game", "bin", "win64", "resourcecompiler.exe");
+        if (!File.Exists(rc))
+            return null;
+
+        var addon = "s2c_rc_probe";
+        var name = Path.GetFileNameWithoutExtension(sourcePath);
+        var content = Path.Combine(root, "content", "csgo_addons", addon, "maps");
+        var compiled = Path.Combine(root, "game", "csgo_addons", addon, "maps", name + ".vpk");
+        Directory.CreateDirectory(content);
+        var staged = Path.Combine(content, name + ".vmap");
+        File.Copy(sourcePath, staged, overwrite: true);
+
+        var run = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(rc)
+        {
+            ArgumentList = { "-nop4", "-f", "-game", Path.Combine(root, "game", "csgo"), "-i", staged },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        })!;
+        // Drain both pipes. A map compile writes plenty, and a redirected stream
+        // nobody reads fills its buffer and deadlocks the compiler - which looks
+        // exactly like a slow map.
+        var stdout = run.StandardOutput.ReadToEndAsync();
+        var stderr = run.StandardError.ReadToEndAsync();
+        run.WaitForExit(milliseconds: 10 * 60 * 1000);
+        Task.WaitAll([stdout, stderr], TimeSpan.FromSeconds(10));
+        if (!File.Exists(compiled))
+            return null;
+
+        using var pkg = new Package();
+        pkg.Read(compiled);
+        var entry = Io.VpkEntries.FirstEndingWith(pkg, $"/{lump}.vents_c");
+        return entry is null ? null : Io.VpkEntries.Read(pkg, entry);
+    }
+
+    private static readonly Dictionary<string, byte[]?> RcCache = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Report a skipped map test and why. Always returns true.</summary>
     public static bool Skip(string needed)
     {

@@ -250,6 +250,99 @@ of thing and is deliberately not reproduced, exactly as the texture author alrea
 refuses to invent its option tail. Only `___OverrideInputData___` is written, which
 all 116 maps carry.
 
+## Entities: compiling them, not just re-authoring them
+
+`EntityLumpAuthor` takes the entities out of a `.vmap` and writes the lump, which
+is the first piece of a map this project COMPILES rather than round-trips. The
+rules below were each found by diffing against `resourcecompiler.exe`'s own output
+for the same source, and every one of them was a correction to what was assumed.
+
+**The reference has to be compiled fresh.** An addon's existing VPK is whatever
+Valve's compiler did the day it was built, and that changes: an April 2026 compile
+writes an entity's `origin` as `"-210.738342 109.667847 8.100571"`, and an August
+one writes `[-210.73834228515625, 109.6678466796875, 8.100570678710938]`. Both
+load. A test pinned to the shipped artifact would pin this compiler to a version of
+Valve's that no longer exists, so `MapFixtures.RcCompiledLump` runs the real
+compiler on the source and compares against that.
+
+**The compile writes the class's whole key set, not the source's.** A map saved
+before a key existed still compiles with that key at its FGD default: `probe01`'s
+worldspawn ships thirty-odd Steam Audio settings its `.vmap` has never heard of.
+This is the correction that mattered most - the assumption in the prior art was the
+opposite, that RC emits only keys differing from their default.
+
+**What is dropped is an EMPTY value**, whether it came from the source or from a
+default. Hammer writes an unset key as `""`, and an empty target or vector is what
+the entity system chokes on. A key sitting at a non-empty default is kept, which is
+why a spawn point's `priority 0` and `enabled 1` are both in Valve's lump.
+
+**Types come from the FGD, and integers then follow the C1 rule.** `enabled "1"`
+becomes a boolean, `priority "0"` an integer, a choices field stays a string, and a
+`color255` or `vector` becomes an array. A float is parsed at 32-bit precision and
+widened, so `0.1` lands as `0.10000000149011612` exactly as Valve's does. Integers
+narrow the same way every other KV3 compile here does: 0 and 1 keep the singleton
+codes, the rest is Int32 until it does not fit.
+
+**Entity order is the world's child TREE, depth first** - not the order the
+elements sit in the file. Valve's lump for `cardtest` runs 2138, 4, 5, 6, 7, which
+is the tree; the file lists those elements far apart. `compile_source_id` is the
+index in that order, and it is a NUMBER, while `hammerUniqueId` beside it is a
+string.
+
+**A choices field keeps its FGD spelling.** `rendermode` ships as the string
+`kRenderNormal`, not as an index. This is a second correction to the prior art,
+which has the compiler mapping each choice to its integer. A `flags` field is the
+one place the integer rule bends: `spawnflags 2` ships UInt32, not Int32. A colour
+ships as THREE components even when its type carries alpha and its value has four:
+`point_worldtext`'s `color` is `color255alpha` defaulting to `"0 0 0 255"`, and the
+lump has `[0, 0, 0]`.
+
+**Reading the FGD is most of the work, and it has three traps**, each of which put
+keys into entities that Valve's compile does not write:
+
+- `//` comments must go first. csgo.fgd comments OUT env_sky's fog block, and a
+  comment carrying a bracket unbalances the scan for a class body, so keys bleed
+  from one class into the next.
+- `@OverrideClass` MERGES into an existing class; any other class declaration
+  REDECLARES it. csgo.fgd overrides `light_environment` to strip keys while it
+  keeps everything `lights_base` gives it, and separately restates `env_sky`
+  wholesale. Treating both the same way is wrong either way round.
+- `remove_key` takes a key out of the schema entirely - no type, no default, not
+  inherited. A value the source still carries then ships as the raw string it was,
+  which is why `light_environment`'s `ambient_occlusion` is the string `"0"` rather
+  than a boolean.
+
+**A brush entity is pointed at a model the compile builds for it**, by a derived
+path: `maps/<map>/entities/<lowercased targetname>_<node id>.vmdl`, and `unnamed`
+in place of the name when it has none. The model itself is the brush tier; the key
+is written now because the lump is what references it.
+
+**Entity-name fixup is applied by TYPE, not by meaning.** When the world asks for
+it, every `target_source` and `target_destination` value gets the `[PR#]` prefix
+the engine resolves at spawn - including one that is not a name at all, since
+`light_environment`'s `ambient_occlusion_proxy_position_0` is declared
+`target_destination`, holds `"0 0 0"`, and ships as `"[PR#]0 0 0"`.
+
+### What is left, and how it stays honest
+
+`EntityLumpKnownGapsTests` runs the same full comparison on the maps that still
+differ and fails on any difference OUTSIDE a written-down list, so a gap cannot
+quietly grow and closing one is visible as the list shrinking. The list today:
+
+- **Keys the bakes write back into entities**: a light's baked ids, a light probe
+  volume's atlas textures, handshake and probe dimensions. That is vrad3's output,
+  so it arrives with the lighting tier.
+- **Point prefabs**: an entity whose `classname` is not a class but the name of
+  another map. The compile resolves it in the content tree and marks the entity
+  `isPointPrefab true` with `targetMapName "prefabs/misc/<classname>"`. Resolving
+  that needs a content tree, which this library does not have.
+- **`nearclipplane`**: declared `remove_key` like `ambient_occlusion` beside it,
+  yet it ships typed as a float while the others ship as strings. The FGD cannot
+  tell those apart, so this is waiting on the engine's own schema rather than a
+  guess.
+- **`prefab_has_runtime_entity_by_default`**: added to worldspawn by some compiles
+  and not others, with no trigger found in the source.
+
 ## Reading the source: `.vmap` is DMX
 
 `DmxBinary` reads the binary DMX that Hammer writes, which is the front door to

@@ -27,6 +27,7 @@ try
         "sound" => Commands.Sound(args[1..]),
         "id" => Commands.ResourceId(args[1..]),
         "inspect" => Commands.Inspect(args[1..]),
+        "entities" => Commands.Entities(args[1..]),
         "selftest" => SelfTest.Run(args[1..]),
         _ => Unknown(args[0]),
     };

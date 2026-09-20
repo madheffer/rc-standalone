@@ -1,6 +1,8 @@
 using System.Text;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
+using ValveResourceFormat.Serialization.KeyValues;
+using ValveResourceFormat.ResourceTypes;
 
 namespace Source2.Compiler.Cli;
 
@@ -156,6 +158,44 @@ internal static class Commands
         var path = Positional(a, "resource path");
         Console.WriteLine($"{Source2ResourceId.ForPath(path):x16}  {path}");
         return 0;
+    }
+
+    /// <summary>
+    /// Print an entity lump one key per line, with the KV3 value type, so a diff
+    /// against another compile is a text diff. The type is half the comparison: a
+    /// key RC wrote as a bool and we wrote as the string "1" reads the same in a
+    /// pretty-printed tree and is a different value to the engine.
+    /// </summary>
+    public static int Entities(string[] a)
+    {
+        var input = Positional(a, "compiled entity lump");
+        using var res = new Resource { FileName = Path.GetFileName(input) };
+        res.Read(input);
+
+        var lump = res.DataBlock as EntityLump
+                   ?? throw new InvalidOperationException($"{input} is not an entity lump.");
+        var root = lump.Data;
+        Console.WriteLine($"lump\t{root.GetStringProperty("m_name")}");
+        foreach (var child in root.GetArray<string>("m_childLumps") ?? [])
+            Console.WriteLine($"childLump\t{child}");
+
+        var index = 0;
+        foreach (var entity in root.GetArray("m_entityKeyValues"))
+        {
+            var values = entity.GetSubCollection("keyValues3Data")?.GetSubCollection("values");
+            foreach (var kv in values?.Children ?? [])
+                Console.WriteLine($"{index}\t{kv.Key}\t{kv.Value.ValueType}\t{Render(kv.Value)}");
+            foreach (var c in entity.GetArray("m_connections"))
+                Console.WriteLine($"{index}\t@connection\t-\t{c.GetStringProperty("m_outputName")}"
+                                + $" -> {c.GetStringProperty("m_targetName")}.{c.GetStringProperty("m_inputName")}"
+                                + $" ({c.GetStringProperty("m_overrideParam")})");
+            index++;
+        }
+        Console.WriteLine($"entities\t{index}");
+        return 0;
+
+        static string Render(ValveKeyValue.KVObject v)
+            => v.IsArray ? "[" + string.Join(", ", v.Values.Select(x => x.ToString())) + "]" : v.ToString() ?? "";
     }
 
     public static int Inspect(string[] a)
