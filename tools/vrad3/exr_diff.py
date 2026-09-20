@@ -8,75 +8,76 @@ rather than by looking at screenshots.
 
     python exr_diff.py a.exr b.exr [--threshold 0.01]
 
-Reports, per channel: max and mean absolute difference, RMSE, and how many pixels
-differ by more than the threshold. Pixels that are invalid in BOTH images (the
-lightmap atlas is mostly empty) are ignored.
+Reports per channel: max and mean absolute difference, RMSE, and how many luxels
+differ by more than the threshold. Luxels that are zero in BOTH images are skipped,
+because a lightmap atlas is mostly empty.
+
+Scanlines are compared one row at a time. A 4096x4096 lightmap is 16.7M luxels per
+channel, and holding two of those as Python floats would cost gigabytes.
 """
 import argparse
 import struct
 import sys
 
-HALF, FLOAT, UINT = 1, 2, 0
+HALF, FLOAT = 1, 2
 
 
-def read_exr(path):
-    """{channel: [values]} plus (width, height). Uncompressed scanline only."""
-    data = open(path, "rb").read()
-    if data[:4] != b"\x76\x2f\x31\x01":
-        sys.exit(f"{path}: not an EXR")
+class Exr:
+    """Just enough uncompressed-scanline EXR to read vrad3's output row by row."""
 
-    at = 8
-    attributes = {}
+    def __init__(self, path):
+        self.path = path
+        self.file = open(path, "rb")
+        head = self.file.read(1 << 16)
+        if head[:4] != b"\x76\x2f\x31\x01":
+            sys.exit(f"{path}: not an EXR")
 
-    def cstr(o):
-        end = data.index(b"\0", o)
-        return data[o:end].decode("utf-8", "replace"), end + 1
+        at, attributes = 8, {}
 
-    while True:
-        name, at = cstr(at)
-        if not name:
-            break
-        _type, at = cstr(at)
-        size, = struct.unpack_from("<I", data, at)
-        at += 4
-        attributes[name] = data[at:at + size]
-        at += size
+        def cstr(o):
+            end = head.index(b"\0", o)
+            return head[o:end].decode("utf-8", "replace"), end + 1
 
-    channels = []
-    blob = attributes["channels"]
-    i = 0
-    while i < len(blob) and blob[i] != 0:
-        end = blob.index(b"\0", i)
-        name = blob[i:end].decode()
-        i = end + 1
-        pixel_type, = struct.unpack_from("<I", blob, i)
-        i += 16                                   # type, pLinear+pad, xSampling, ySampling
-        channels.append((name, pixel_type))
-    channels.sort()                               # EXR stores channels alphabetically
+        while True:
+            name, at = cstr(at)
+            if not name:
+                break
+            _type, at = cstr(at)
+            size, = struct.unpack_from("<I", head, at)
+            at += 4
+            attributes[name] = head[at:at + size]
+            at += size
 
-    if attributes.get("compression", b"\x00")[0] != 0:
-        sys.exit(f"{path}: only uncompressed EXR is supported (vrad3 writes uncompressed)")
+        if attributes.get("compression", b"\x00")[0] != 0:
+            sys.exit(f"{path}: only uncompressed EXR is supported (vrad3 writes uncompressed)")
 
-    x0, y0, x1, y1 = struct.unpack("<4i", attributes["dataWindow"])
-    width, height = x1 - x0 + 1, y1 - y0 + 1
+        self.channels = []
+        blob, i = attributes["channels"], 0
+        while i < len(blob) and blob[i] != 0:
+            end = blob.index(b"\0", i)
+            name = blob[i:end].decode()
+            i = end + 1
+            pixel_type, = struct.unpack_from("<I", blob, i)
+            i += 16                                # type, pLinear + pad, xSampling, ySampling
+            self.channels.append((name, pixel_type))
+        self.channels.sort()                       # EXR stores channels alphabetically
 
-    # Scanline offset table, then one block per scanline: y, size, then rows.
-    offsets = struct.unpack_from(f"<{height}Q", data, at)
-    out = {name: [0.0] * (width * height) for name, _ in channels}
-    for row in range(height):
-        o = offsets[row] + 8                      # skip y and packed size
-        for name, pixel_type in channels:
+        x0, y0, x1, y1 = struct.unpack("<4i", attributes["dataWindow"])
+        self.width, self.height = x1 - x0 + 1, y1 - y0 + 1
+        self.offsets = struct.unpack_from(f"<{self.height}Q", head, at)
+
+    def row(self, y):
+        """{channel: tuple of values} for one scanline."""
+        self.file.seek(self.offsets[y] + 8)        # skip y and packed size
+        out = {}
+        for name, pixel_type in self.channels:
             if pixel_type == HALF:
-                values = struct.unpack_from(f"<{width}e", data, o)
-                o += width * 2
+                out[name] = struct.unpack(f"<{self.width}e", self.file.read(self.width * 2))
             elif pixel_type == FLOAT:
-                values = struct.unpack_from(f"<{width}f", data, o)
-                o += width * 4
+                out[name] = struct.unpack(f"<{self.width}f", self.file.read(self.width * 4))
             else:
-                values = struct.unpack_from(f"<{width}I", data, o)
-                o += width * 4
-            out[name][row * width:(row + 1) * width] = values
-    return out, (width, height)
+                out[name] = struct.unpack(f"<{self.width}I", self.file.read(self.width * 4))
+        return out
 
 
 def main():
@@ -86,33 +87,45 @@ def main():
     ap.add_argument("--threshold", type=float, default=0.01)
     args = ap.parse_args()
 
-    left, size_a = read_exr(args.a)
-    right, size_b = read_exr(args.b)
-    if size_a != size_b:
-        sys.exit(f"different sizes: {size_a} vs {size_b}")
-    if left.keys() != right.keys():
-        sys.exit(f"different channels: {sorted(left)} vs {sorted(right)}")
+    left, right = Exr(args.a), Exr(args.b)
+    if (left.width, left.height) != (right.width, right.height):
+        sys.exit(f"different sizes: {left.width}x{left.height} vs {right.width}x{right.height}")
+    names = [c for c, _ in left.channels]
+    if names != [c for c, _ in right.channels]:
+        sys.exit(f"different channels: {names} vs {[c for c, _ in right.channels]}")
 
-    print(f"{size_a[0]}x{size_a[1]}  channels {','.join(sorted(left))}")
-    print(f"{'chan':>5s} {'max |d|':>12s} {'mean |d|':>12s} {'rmse':>12s} {'over thr':>12s}")
-    for channel in sorted(left):
-        x, y = left[channel], right[channel]
-        worst = total = square = over = counted = 0
-        for i in range(len(x)):
-            a, b = x[i], y[i]
-            if a == 0.0 and b == 0.0:
-                continue                          # empty luxel in both
-            d = abs(a - b)
-            counted += 1
-            total += d
-            square += d * d
-            over += d > args.threshold
-            worst = max(worst, d)
-        if counted == 0:
-            print(f"{channel:>5s} {'both empty':>12s}")
+    worst = dict.fromkeys(names, 0.0)
+    total = dict.fromkeys(names, 0.0)
+    square = dict.fromkeys(names, 0.0)
+    over = dict.fromkeys(names, 0)
+    counted = dict.fromkeys(names, 0)
+
+    for y in range(left.height):
+        a_row, b_row = left.row(y), right.row(y)
+        for name in names:
+            a_values, b_values = a_row[name], b_row[name]
+            for i in range(left.width):
+                a, b = a_values[i], b_values[i]
+                if a == 0.0 and b == 0.0:
+                    continue
+                d = a - b if a > b else b - a
+                counted[name] += 1
+                total[name] += d
+                square[name] += d * d
+                if d > args.threshold:
+                    over[name] += 1
+                if d > worst[name]:
+                    worst[name] = d
+
+    print(f"{left.width}x{left.height}  channels {','.join(names)}")
+    print(f"{'chan':>5s} {'max |d|':>12s} {'mean |d|':>12s} {'rmse':>12s} {'over thr':>18s}")
+    for name in names:
+        n = counted[name]
+        if n == 0:
+            print(f"{name:>5s} {'both empty':>12s}")
             continue
-        print(f"{channel:>5s} {worst:12.6f} {total / counted:12.6f} "
-              f"{(square / counted) ** 0.5:12.6f} {over:8d} ({100 * over / counted:.2f}%)")
+        print(f"{name:>5s} {worst[name]:12.6f} {total[name] / n:12.6f} "
+              f"{(square[name] / n) ** 0.5:12.6f} {over[name]:10d} ({100 * over[name] / n:5.2f}%)")
 
 
 if __name__ == "__main__":

@@ -143,6 +143,66 @@ mode is broken upstream in 7.3.1 - `mcp-reva` imports a `reva` module that ships
 in neither the extension nor the PyPI package, and it pins an `mcp` SDK old enough
 that `streamablehttp_client` has since been renamed.
 
+## Measured: where the time actually goes
+
+Three jobs on the same machine (RTX 4070, 15 threads), all of them a single
+4096x4096 atlas in 16 blocks, profiled with `tools/vrad3/profile_vrad3.py`:
+
+| stage | probe01 (15 meshes) | ze_hold_em_p (87) | ze_doom_p2 (3,289) |
+|---|---|---|---|
+| **median filter 7x7** | **7.73 s** | **7.86 s** | **8.24 s** |
+| light probe volumes | 0.08 s (2) | 0.73 s (8) | **4.36 s (39)** |
+| GPU block compute | 0.87 s (16) | 1.22 s (16) | 2.52 s (16) |
+| seam weld | 0.04 s | 0.55 s | 0.99 s |
+| JFA dilate | 0.31 s | 0.35 s | 0.42 s |
+| measured total | 9.58 s | 11.48 s | 17.60 s |
+| wall clock | 18.3 s | 21.2 s | 36.8 s |
+
+Three things fall out of that, and none of them was the expectation:
+
+**The median filter is a FIXED cost.** 7.73 to 8.24 seconds across a 200x range of
+scene complexity, because it is a 7x7 pass over the whole atlas and the atlas is
+4096x4096 either way. On the small maps it is 70-80% of the measured time. It is
+CPU work on an image, which is embarrassingly parallel and a poor fit for where it
+currently runs.
+
+**Light probe volumes are the fastest-growing term.** 0.08 to 0.73 to 4.36 seconds
+for 2, 8 and 39 volumes - roughly linear in volume count, and already 23% of
+ze_doom_p2. A big map with hundreds of them is the first place to look for a
+compile that runs for hours.
+
+**The path trace is not the bottleneck at this scale.** 0.87 to 2.52 seconds for
+the actual GPU tracing. Building the ray trace scene for 3,289 meshes took 0.31 s.
+
+Also: wall clock is about double the sum of the timed stages, so roughly half of
+vrad3's runtime is in things it does not time - startup, Vulkan init, and writing
+five ~134 MB uncompressed EXRs.
+
+**What this does NOT establish** is why a big ZE map is reported to take most of a
+day. Every map here fits one atlas page and none took a minute. The two candidates
+visible in the numbers are atlas pages (each multiplying both the trace and the
+fixed CPU passes) and probe volume count. Settling it needs a big map profiled the
+same way, which is now a 20 second measurement once the map builds.
+
+## Compiling a community port at all
+
+`resourcecompiler` treats a missing material as fatal
+(`content_consider_missing_materials_fatal`), and a ported map names materials
+whose sources nobody has. `tools/vrad3/stub_missing_materials.py` writes
+placeholders from the compile log.
+
+The trap: the stub must be COMPILED before the map. A stub sitting in the content
+tree is invisible to the map build, which resolves materials as compiled
+resources - the error stays "referencing missing material" and looks like the stub
+did not work. Compile the materials first, then the map:
+
+```bash
+resourcecompiler -nop4 -f -game <game/csgo> -i "<addon content>/materials/*.vmat" -r
+resourcecompiler -nop4 -f -game <game/csgo> -i "<addon content>/maps/<name>.vmap"
+```
+
+ze_hold_em_p took three stubs and then compiled in 50 seconds.
+
 ## Where a replacement starts
 
 1. Drive vrad3 ourselves and record per-stage timings on a REAL ZE map, so the
