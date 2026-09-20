@@ -45,13 +45,6 @@ public class Source2ContainerAuthorTests
         return null;
     }
 
-    private static Resource ReadResource(byte[] bytes, string name)
-    {
-        var res = new Resource { FileName = name };
-        res.Read(new MemoryStream(bytes));
-        return res;
-    }
-
     [Fact]
     public void AuthoredVdata_Red2CarriesRealSourceIdentity_NoDonorMetadata()
     {
@@ -60,7 +53,7 @@ public class Source2ContainerAuthorTests
             "{\n\tgeneric_data_type = \"prop_data\"\n\tsome_entry = { base = \"\" }\n}\n");
 
         var compiled = Kv3SourceCompiler.Compile(text, ".vdata", "scripts/my_custom.vdata");
-        using var res = ReadResource(compiled, "my_custom.vdata_c");
+        using var res = ResourceTrees.Read(compiled, "my_custom.vdata_c");
 
         Assert.Equal(0, res.Version);
         var edit = Assert.IsType<ResourceEditInfo2>(res.EditInfo);
@@ -84,7 +77,7 @@ public class Source2ContainerAuthorTests
             "{\n\tmy.event.one = { type = \"csgo_mega\" volume = 1.0 }\n\tmy.event.two = { type = \"csgo_mega\" volume = 0.5 }\n}\n");
 
         var compiled = Kv3SourceCompiler.Compile(text, ".vsndevts", "soundevents/my_events.vsndevts");
-        using var res = ReadResource(compiled, "my_events.vsndevts_c");
+        using var res = ResourceTrees.Read(compiled, "my_events.vsndevts_c");
 
         Assert.Equal(1, res.Version);
         var edit = Assert.IsType<ResourceEditInfo2>(res.EditInfo);
@@ -114,42 +107,6 @@ public class Source2ContainerAuthorTests
         { "rc_probe_refs.vpcf", "rc_probe_refs.vpcf_c", "particles/rc_probe_refs.vpcf" },
     };
 
-    /// <summary>Canonical one-line-per-leaf rendering of a KV3 tree: full path,
-    /// KV3 value type, KV3 flag, value. Comparing these strings catches a wrong
-    /// value, a wrong integer width, a dropped resource flag, and a reordered
-    /// array - all of which a plain "does it parse" check sails past.</summary>
-    private static string RenderTree(Resource res)
-    {
-        var data = res.GetBlockByType(BlockType.DATA);
-        var root = data is KeyValuesOrNTRO kvn ? kvn.Data : data!.AsKeyValueCollection();
-        var sb = new StringBuilder();
-        Render(root, "", sb);
-        return sb.ToString();
-
-        static void Render(KVObject? n, string path, StringBuilder sb)
-        {
-            if (n is null) { sb.AppendLine($"{path} = <null>"); return; }
-            if (n.IsArray)
-            {
-                var i = 0;
-                foreach (var c in n.Values)
-                    Render(c, $"{path}[{i++}]", sb);
-                if (i == 0)
-                    sb.AppendLine($"{path} = []");
-                return;
-            }
-            if (n.IsCollection)
-            {
-                var any = false;
-                foreach (var c in n.Children) { any = true; Render(c.Value, $"{path}.{c.Key}", sb); }
-                if (!any)
-                    sb.AppendLine($"{path} = {{}}");
-                return;
-            }
-            var val = n.ValueType == KVValueType.String ? $"\"{(string)n}\"" : n.ToString();
-            sb.AppendLine($"{path} = [{n.ValueType}{(n.Flag == KVFlag.None ? "" : "/" + n.Flag)}] {val}");
-        }
-    }
 
     [Theory]
     [MemberData(nameof(RcReferenceCases))]
@@ -167,8 +124,8 @@ public class Source2ContainerAuthorTests
         var ext = Path.GetExtension(sourceName);
         var ours = Kv3SourceCompiler.Compile(sourceBytes, ext, relativePath);
 
-        using var mine = ReadResource(ours, compiledName);
-        using var valve = ReadResource(File.ReadAllBytes(refPath), compiledName);
+        using var mine = ResourceTrees.Read(ours, compiledName);
+        using var valve = ResourceTrees.Read(File.ReadAllBytes(refPath), compiledName);
 
         // Container identity.
         Assert.Equal(valve.Version, mine.Version);
@@ -241,7 +198,7 @@ public class Source2ContainerAuthorTests
         // unaffected. Tracked in docs/RC_PARITY.md.
         if (!sourceName.EndsWith(".vpcf", StringComparison.OrdinalIgnoreCase))
         {
-            Assert.Equal(RenderTree(valve), RenderTree(mine));
+            Assert.Equal(ResourceTrees.Render(valve), ResourceTrees.Render(mine));
         }
     }
 }

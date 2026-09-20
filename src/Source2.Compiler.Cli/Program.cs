@@ -52,8 +52,10 @@ static void Usage()
       s2c compile   <in.vdata|.vsndevts|.vpcf|.vagrp> [-o <out_c>] [--ship-as <path>]
                     KV3 text source -> compiled container, authored from scratch.
 
-      s2c decompile <in.*_c> [-o <out.txt>]
-                    Compiled resource -> KV3 text (the DATA block's tree).
+      s2c decompile <in.*_c> [-o <out.txt>] [--block DATA|RED2|CTRL|PHYS|MDAT]
+                    Compiled resource -> KV3 text. Defaults to the DATA block;
+                    --block reads any other KV3-backed block, which is where a
+                    model keeps its collision and every resource its identity.
 
       s2c texture   <image.png|jpg|...> -o <out.vtex_c> [--template <any.vtex_c>]
                     [--format bc7|bc5|bc4|bc3|bc1|rgba] [--no-mips] [--max-dim N]

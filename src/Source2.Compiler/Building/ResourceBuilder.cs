@@ -2394,6 +2394,14 @@ public static class ResourceBuilder
         public override void WriteText(IndentedTextWriter writer) { }
     }
 
+    /// <summary>
+    /// A block whose payload is already laid out. The types whose DATA is not KV3
+    /// need this, because VRF writes no serializer for them: a texture's pixels, and
+    /// a resource manifest's string table.
+    /// </summary>
+    public static Block RawBlock(BlockType type, byte[] bytes, Resource resource)
+        => new TypedRawBlock(type, bytes) { Resource = resource };
+
     /// <summary>A block written verbatim from captured bytes under an arbitrary
     /// <see cref="BlockType"/> - used by <see cref="SerializeModelDataOnly"/> to
     /// pass PHYS/anim blocks through untouched.</summary>

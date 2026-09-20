@@ -1,5 +1,6 @@
 using ValveKeyValue;
 using ValveResourceFormat;
+using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Serialization.KeyValues;
 
@@ -28,13 +29,21 @@ public static class ResourceDecompiler
     /// KV3 representation (or there is no DATA block at all).
     /// </summary>
     public static string? DataBlockToKv3(Resource resource, out string reason)
+        => BlockToKv3(resource, BlockType.DATA, out reason);
+
+    /// <summary>
+    /// Render any KV3-backed block as KV3 text. Most of a map is not in DATA:
+    /// a model's collision is <c>PHYS</c>, its buffer layout is <c>CTRL</c>, and
+    /// the identity every compile is judged by is <c>RED2</c>.
+    /// </summary>
+    public static string? BlockToKv3(Resource resource, BlockType blockType, out string reason)
     {
         reason = string.Empty;
 
-        var data = resource.DataBlock;
+        var data = resource.Blocks.FirstOrDefault(b => b.Type == blockType);
         if (data is null)
         {
-            reason = "No DATA block in resource.";
+            reason = $"No {blockType} block in resource.";
             return null;
         }
 
@@ -42,9 +51,15 @@ public static class ResourceDecompiler
         // identity is exactly why AsKeyValueCollection() throws on them). Plain
         // BinaryKV3 / NTRO keep the original, proven path so the already-working
         // types (.vdata_c / .vsndevts_c / .vagrp_c) produce byte-identical text.
-        KVObject? kv = data is KeyValuesOrNTRO typed
-            ? typed.Data
-            : data is BinaryKV3 or NTRO ? data.AsKeyValueCollection() : null;
+        // RED2 parses into ResourceEditInfo2, which keeps the tree in its own
+        // Data document rather than answering AsKeyValueCollection().
+        KVObject? kv = data switch
+        {
+            KeyValuesOrNTRO typed => typed.Data,
+            ResourceEditInfo2 { Data: { } red2 } => red2.Root,
+            BinaryKV3 or NTRO => data.AsKeyValueCollection(),
+            _ => null,
+        };
 
         if (kv is null)
         {

@@ -1,6 +1,7 @@
 using System.IO.Hashing;
 using System.Reflection;
 using ValveKeyValue;
+using ValveKeyValue.KeyValues3;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes;
@@ -33,7 +34,15 @@ public static partial class Source2ContainerAuthor
 {
     public sealed record SpecialDep(string Name, string CompilerIdentifier, int Fingerprint, int UserData = 0);
 
-    public sealed record ContainerSpec(ushort ResourceVersion, SpecialDep[] SpecialDeps);
+    /// <param name="ResourceVersion">The container header's per-type version.</param>
+    /// <param name="SpecialDeps">The compiler identities the type declares in RED2.</param>
+    /// <param name="ChildResource">
+    /// The resource is compiled as part of a larger one rather than from a source
+    /// file of its own, which is how every piece of a map is built. Such a resource
+    /// records no input dependency and no special input dependency list at all, and
+    /// says so in its searchable user data. Measured across 116 shipped maps.
+    /// </param>
+    public sealed record ContainerSpec(ushort ResourceVersion, SpecialDep[] SpecialDeps, bool ChildResource = false);
 
     /// <summary>Per-source-extension container facts, dumped from resourcecompiler output.</summary>
     public static readonly IReadOnlyDictionary<string, ContainerSpec> SpecByExtension =
@@ -48,6 +57,15 @@ public static partial class Source2ContainerAuthor
             // 2026-07-20 audit) so there is no RC ground truth to mirror; it
             // keeps the sound-event identity the legacy donor skeleton gave it.
             [".vagrp"] = new(1, [new("Sound Event Script Version", "CompileSoundEventScript", 10)]),
+            // The index layer of a map. Every one of these is a child of a .vmap
+            // compile, never compiled from its own source, and all three carry the
+            // same identity in all 116 maps surveyed in docs/MAP_RESOURCES.md.
+            [".vwrld"] = new(1, [new("World Compiler Version", "CompileWorld", 1)], ChildResource: true),
+            [".vwnod"] = new(1, [new("World Node Compiler Version", "CompileWorldNode", 1)], ChildResource: true),
+            [".vents"] = new(1, [new("Entity Lump Compiler Version", "CompileEntityLump", 3)], ChildResource: true),
+            // Not KV3: its DATA is a string table, so it is authored through
+            // ResourceManifestAuthor rather than from a source document.
+            [".vrman"] = new(1, [new("Manifest Compiler Version", "CompileResourceManifest", 2)], ChildResource: true),
         };
 
     /// <summary>Build the RC-style relative source path recorded in RED2's input
@@ -105,6 +123,44 @@ public static partial class Source2ContainerAuthor
 
         sourceFileName ??= "vpkeditor/compiled" + sourceExtension.ToLowerInvariant();
 
+        return Assemble(userDoc.Root, userDoc.Header.Format, spec, sourceExtension,
+                        sourceFileName, sourceTextBytes, userDoc, narrowIntegers: true);
+    }
+
+    /// <summary>
+    /// Author a KV3 resource from a tree that is ALREADY typed, taking its integer
+    /// widths as given.
+    ///
+    /// <para>That is the difference between a map resource and every other type here.
+    /// Compiling KV3 text, RC types each integer by its value, which
+    /// <see cref="NarrowIntegers"/> reproduces. A map resource is not compiled from
+    /// text at all: RC serializes a C++ structure, so a field's width is the
+    /// STRUCT's, and a world's <c>m_nCompileTimestamp</c> ships UInt32 for a value
+    /// that the by-value rule would make Int32. Text cannot express that, so a
+    /// faithful map resource has to be authored from a tree.</para>
+    /// </summary>
+    /// <param name="dataRoot">The DATA tree, typed as it should be written.</param>
+    /// <param name="format">The KV3 format GUID to stamp on DATA.</param>
+    /// <param name="sourceExtension">Source extension incl. dot, e.g. ".vwrld".</param>
+    public static byte[] AuthorKv3Tree(KVObject dataRoot, KV3ID format, string sourceExtension)
+    {
+        ArgumentNullException.ThrowIfNull(dataRoot);
+
+        if (!SpecByExtension.TryGetValue(sourceExtension, out var spec))
+            throw new InvalidOperationException($"No container spec for '{sourceExtension}'.");
+        if (!spec.ChildResource)
+            throw new InvalidOperationException(
+                $"'{sourceExtension}' is compiled from its own source text, whose integer widths "
+              + "follow the value rule. Use AuthorKv3Resource.");
+
+        return Assemble(dataRoot, format, spec, sourceExtension,
+                        sourceFileName: "", sourceTextBytes: [], userDoc: null, narrowIntegers: false);
+    }
+
+    private static byte[] Assemble(
+        KVObject dataRoot, KV3ID format, ContainerSpec spec, string sourceExtension,
+        string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc, bool narrowIntegers)
+    {
         using var resource = new Resource();
         ResourceVersionProp.SetValue(resource, spec.ResourceVersion);
 
@@ -114,7 +170,7 @@ public static partial class Source2ContainerAuthor
         // distinct resource:-flagged string becomes an entry with the engine's
         // own path-hash id (MurmurHash64B - reproduces stock RERL ids exactly).
         var refs = new List<string>();
-        CollectResourceRefs(userDoc.Root, new HashSet<string>(StringComparer.OrdinalIgnoreCase), refs);
+        CollectResourceRefs(dataRoot, new HashSet<string>(StringComparer.OrdinalIgnoreCase), refs);
         if (refs.Count > 0)
         {
             var rerl = new ResourceExtRefList { Resource = resource };
@@ -135,8 +191,9 @@ public static partial class Source2ContainerAuthor
         var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc);
         resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
 
-        // DATA - the user's tree, format GUID from their own kv3 header.
-        resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(userDoc.Root), userDoc.Header.Format, BlockType.DATA, resource));
+        // DATA - the caller's tree, under its own format GUID.
+        resource.Blocks.Add(AuthoredKv3.Block(
+            narrowIntegers ? NarrowIntegers(dataRoot) : dataRoot, format, BlockType.DATA, resource));
 
         // FLCI (source-file line map) is deliberately not authored: it is
         // editor-only metadata and pre-FLCI stock resources load fine without it.
@@ -144,22 +201,66 @@ public static partial class Source2ContainerAuthor
         return ResourceBuilder.Serialize(resource);
     }
 
+    /// <summary>
+    /// Author a container whose DATA block is not KV3, for a resource compiled as
+    /// part of a larger one. Today that is the resource manifest, whose payload is
+    /// a string table rather than a tree.
+    /// </summary>
+    /// <param name="sourceExtension">Source extension incl. dot, e.g. ".vrman".</param>
+    /// <param name="dataBytes">The DATA payload, already laid out.</param>
+    /// <param name="references">Paths the resource points at, in the order it states them.</param>
+    public static byte[] AuthorChildResource(string sourceExtension, byte[] dataBytes, IEnumerable<string> references)
+    {
+        ArgumentNullException.ThrowIfNull(dataBytes);
+        ArgumentNullException.ThrowIfNull(references);
+
+        if (!SpecByExtension.TryGetValue(sourceExtension, out var spec))
+            throw new InvalidOperationException($"No container spec for '{sourceExtension}'.");
+        if (!spec.ChildResource)
+            throw new InvalidOperationException(
+                $"'{sourceExtension}' is compiled from its own source, so it records that source. "
+              + "Use AuthorKv3Resource.");
+
+        using var resource = new Resource();
+        ResourceVersionProp.SetValue(resource, spec.ResourceVersion);
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var rerl = new ResourceExtRefList { Resource = resource };
+        foreach (var path in references)
+            if (!string.IsNullOrWhiteSpace(path) && seen.Add(path))
+                rerl.ResourceRefInfoList.Add(new ResourceExtRefList.ResourceReferenceInfo
+                {
+                    Id = Source2ResourceId.ForPath(path),
+                    Name = path,
+                });
+        if (rerl.ResourceRefInfoList.Count > 0)
+            resource.Blocks.Add(rerl);
+
+        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName: "", sourceTextBytes: [], userDoc: null);
+        resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
+        resource.Blocks.Add(ResourceBuilder.RawBlock(BlockType.DATA, dataBytes, resource));
+
+        return ResourceBuilder.Serialize(resource);
+    }
+
     /// <summary>Build the RED2 CResourceEditInfo document resourcecompiler would
     /// have written for this compile (field set + shapes verified per type).</summary>
     private static KVObject BuildRed2Document(
-        ContainerSpec spec, string sourceExtension, string sourceFileName, byte[] sourceTextBytes, KVDocument userDoc)
+        ContainerSpec spec, string sourceExtension, string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc)
     {
         var root = KVObject.Collection();
 
         // m_InputDependencies[0] = the source file itself, CRC32 of its bytes -
-        // byte-verified against resourcecompiler output (plain zlib CRC32).
+        // byte-verified against resourcecompiler output (plain zlib CRC32). A
+        // child resource has no source file of its own and records none.
         var inputDeps = KVObject.Array();
-        inputDeps.Add(InputDependency(sourceFileName, crc: Crc32.HashToUInt32(sourceTextBytes), optional: false, exists: true));
+        if (!spec.ChildResource)
+            inputDeps.Add(InputDependency(sourceFileName, crc: Crc32.HashToUInt32(sourceTextBytes), optional: false, exists: true));
 
         // vsndevts: RC also records optional source-audio probes (.mp3/.vsnd/.wav
         // per referenced sound) so its incremental rebuild triggers when a WAV
         // appears. Mirrored for fidelity; the engine never reads these.
-        if (sourceExtension.Equals(".vsndevts", StringComparison.OrdinalIgnoreCase))
+        if (userDoc is not null && sourceExtension.Equals(".vsndevts", StringComparison.OrdinalIgnoreCase))
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var sounds = new List<string>();
@@ -197,10 +298,26 @@ public static partial class Source2ContainerAuthor
         }
         root.Add("m_SpecialDependencies", specialDeps);
 
-        root.Add("m_SpecialInputDependencies", KVObject.Array());
+        // A child resource omits the key outright rather than writing it empty,
+        // which is the one structural difference between the two identities.
+        if (!spec.ChildResource)
+            root.Add("m_SpecialInputDependencies", KVObject.Array());
+
         root.Add("m_AdditionalRelatedFiles", KVObject.Array());
         root.Add("m_ChildResourceList", KVObject.Array());
         root.Add("m_WeakReferenceList", KVObject.Array());
+
+        if (spec.ChildResource)
+        {
+            var userData = KVObject.Collection();
+            userData.Add("IsChildResource", new KVObject(1));
+            root.Add("m_SearchableUserData", userData);
+            root.Add("m_SubassetReferences", KVObject.Null());
+            root.Add("m_SubassetDefinitions", KVObject.Null());
+            return root;
+        }
+
+        ArgumentNullException.ThrowIfNull(userDoc);
         root.Add("m_SearchableUserData", BuildSearchableUserData(sourceExtension, userDoc));
 
         var (subRefs, subDefs) = BuildSubassets(sourceExtension, userDoc);

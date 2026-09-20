@@ -102,7 +102,7 @@ pairs it was never fitted to.
 
 ## Ranked by how authoritatively we could author it
 
-### Tier 1 - authorable now, nothing new to reverse engineer
+### Tier 1 - authorable now, nothing new to reverse engineer (implemented, see below)
 
 **`.vrman_c`, the resource manifest.** DATA is 54 to 187 bytes (mean 94) holding
 one to three strings, in a three level self-relative layout that all 301 manifests
@@ -191,6 +191,40 @@ way, listing the `.vmap` source plus optional probes such as
 One value in that set is a setting rather than a version: `Texture Encode Quality`
 carries `user=4` in 51 maps and `user=3` in 49, so it reflects the compile options
 a mapper chose. Everything else was identical everywhere.
+
+## What is implemented
+
+Tier 1 landed, pinned by `MapResourceAuthoringTests` against Valve's own compiles
+lifted from a subscribed workshop map at test time:
+
+| type | authored by | what the test asserts |
+|---|---|---|
+| `.vrman` | `ResourceManifestAuthor` | the DATA payload is **byte-identical** to Valve's, plus identity and references |
+| `.vwrld` | `Source2ContainerAuthor.AuthorKv3Tree` | decoded tree value for value, identity, every RERL id |
+| `.vwnod` | same | same |
+| `.vents` | same | same |
+
+Two things had to be learned to make those pass, and both are worth knowing before
+attempting anything further up the map.
+
+**A map resource is not compiled from text, so it cannot be authored from text.**
+RC serializes a C++ structure, so an integer's width is the struct field's, not the
+value-based rule RC applies when it compiles a KV3 source file (`docs/RC_PARITY.md`
+C1). A world's `m_nCompileTimestamp` ships `UInt32` for a value that the by-value
+rule types `Int32`, and KV3 text cannot express the difference. Decompiled text also
+rounds: an entity lump's `0.1f` reads back as the double `0.10000000149011612` and
+renders as `"0.1"`. So `AuthorKv3Tree` takes an already-typed tree and narrows
+nothing, and the round trip is tree to tree.
+
+**A child resource carries a different RED2 from everything else this compiler
+writes.** Not just a different special dependency: no input dependencies at all, no
+`m_SpecialInputDependencies` key (the others write it empty), `IsChildResource = 1`,
+and null subasset fields. That shape is identical in all 116 maps.
+
+One value in there is not reproducible and does not need to be: the
+`___OverrideInputData___` argument fingerprint is 0 on every world node and physics
+manifest, and non-zero only on `world.vrman_c`, which is the one RC hands override
+input data to. Authoring without that data, 0 is the honest value.
 
 ## Prior art, and what this survey adds
 

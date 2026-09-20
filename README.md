@@ -111,6 +111,8 @@ expects.
 | SVG | `.vsvg_c` | **authored** | sanitised, CRC32 refreshed |
 | descriptor | `.vmat_c` | **authored**, given a shader input signature | shader + params + RERL |
 | descriptor | `.vmdl_c` | frame from a template | mesh refs, LoD masks, material groups |
+| KV3 tree | `.vwrld_c` `.vwnod_c` `.vents_c` | **authored** | a map's index layer, as a compile CHILD (see below) |
+| path list | `.vrman_c` | **authored** | byte-identical to Valve's, payload and all |
 | any `_c` | KV3 text | — | the decompile direction, including typed blocks |
 
 "Frame from a template" means the header version and block layout are taken
@@ -134,10 +136,19 @@ each type agrees on, and the one place the boundary is real (a material's vertex
 input signature follows its shader's feature combo, so it is stated rather than
 invented).
 
+The map types are the exception to "compiled from a source file": each is a CHILD
+of a `.vmap` compile, so it records no source, and its integer widths come from the
+C++ struct RC serialized rather than from the by-value rule that applies to KV3
+text. They are therefore authored from an already-typed tree
+(`Source2ContainerAuthor.AuthorKv3Tree`), and what a map is made of - with the
+measurements behind that - is in [docs/MAP_RESOURCES.md](docs/MAP_RESOURCES.md).
+
 ## What it is not
 
-It is not a general replacement for `resourcecompiler.exe`. It does not compile
-maps (`.vmap`), shaders (`.vfx`), or meshes from DCC formats. It does not
+It is not a general replacement for `resourcecompiler.exe`. It does not compile a
+whole map: the index layer above is authored, but the lightmaps, visibility,
+cubemaps and render geometry that make up 80% of a map's bytes are baked output,
+not a format. It does not compile shaders (`.vfx`), or meshes from DCC formats. It does not
 implement Valve's asset-processing options. Where the output differs from a
 stock compile, the differences are measured and written down in
 [docs/RC_PARITY.md](docs/RC_PARITY.md) rather than assumed away.

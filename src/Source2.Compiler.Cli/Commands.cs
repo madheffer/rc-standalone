@@ -34,7 +34,10 @@ internal static class Commands
         using var res = new Resource { FileName = Path.GetFileName(input) };
         res.Read(input);
 
-        var text = ResourceDecompiler.DataBlockToKv3(res, out var why);
+        var block = Opt(a, "--block") is { } b
+            ? Enum.Parse<BlockType>(b, ignoreCase: true)
+            : BlockType.DATA;
+        var text = ResourceDecompiler.BlockToKv3(res, block, out var why);
         if (text is null)
         {
             Console.Error.WriteLine("cannot decompile: " + why);
