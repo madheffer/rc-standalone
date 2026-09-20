@@ -143,10 +143,12 @@ stock compile, the differences are measured and written down in
 [docs/RC_PARITY.md](docs/RC_PARITY.md) rather than assumed away.
 
 The contract this project holds itself to is **decoded-tree identity**, not byte
-identity. Byte identity is not attainable: Valve's compiler writes KV3 binary v5
-(a two-buffer split layout) while the serializer here emits v4, and even
-matching that would require a bit-identical LZ4 encoder. The decoded tree is
-what the engine consumes, so that is what is pinned.
+identity. The KV3 wire format matches: this writes binary v5, the two-buffer
+split layout Valve's compiler writes, and picks each block's compression the way
+RC does (LZ4 above a 256-byte payload, stored raw below). What remains is the LZ4
+encoder itself, which permits many valid encodings of the same input, so matching
+Valve's bytes would need their exact encoder build. The decoded tree is what the
+engine consumes, so that is what is pinned.
 
 ## Building
 
@@ -173,11 +175,13 @@ should target VRF code outside those namespaces, and the day one does not, it
 should fail loudly rather than silently change what the compiler emits.
 
 The vendor step clones ValveResourceFormat at the commit pinned in
-[`third_party/VENDORED.json`](third_party/VENDORED.json) and applies the twelve
-patches in [`third_party/patches/`](third_party/patches/). Those patches are
-what make VRF *write* rather than only read: an LZ4-compressed KV3 body, a
-writable Panorama payload, a VBIB serialize passthrough, plus recursion and
-dimension guards for untrusted input. Each is a literal find-and-replace that
+[`third_party/VENDORED.json`](third_party/VENDORED.json) and applies the ten
+patches in [`third_party/patches/`](third_party/patches/). Those patches make VRF
+*write* rather than only read (a settable resource version, a writable Panorama
+payload, a VBIB serialize passthrough), make it read community content the engine
+accepts (all-bits mesh-group masks, trailing texture padding, empty LoD masks),
+and guard recursion and dimensions for untrusted input. Each is a literal
+find-and-replace that
 **aborts on conflict**, so an upstream change surfaces as a review rather than a
 silently dropped patch. See [third_party/PATCHES.md](third_party/PATCHES.md).
 
