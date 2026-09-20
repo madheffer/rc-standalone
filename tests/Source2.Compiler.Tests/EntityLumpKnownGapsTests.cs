@@ -58,17 +58,7 @@ public partial class EntityLumpKnownGapsTests
         // still ships as a float; ambient_occlusion, range and occlusion_exponent
         // sit beside it removed AND untyped. The FGD cannot tell those apart, so
         // this waits for the engine's own schema rather than a guess.
-        || line.Contains("nearclipplane: type valve FloatingPoint64", StringComparison.Ordinal)
-        // Added to worldspawn by some compiles and not others, with no trigger
-        // found in the source: probe01 gets it, untitled_1 does not.
-        || line.Contains("prefab_has_runtime_entity_by_default", StringComparison.Ordinal)
-        // A POINT PREFAB is an entity whose classname is not a class at all but
-        // the name of another map: the compile resolves it in the content tree and
-        // marks the entity isPointPrefab true with targetMapName
-        // "prefabs/misc/<classname>". Resolving that needs a content tree, which
-        // this library deliberately does not have yet.
-        || line.Contains("isPointPrefab: missing", StringComparison.Ordinal)
-        || line.Contains("targetMapName: missing", StringComparison.Ordinal);
+        || line.Contains("nearclipplane: type valve FloatingPoint64", StringComparison.Ordinal);
 
     [GeneratedRegex(@"(bakedshadowindex|light_map_uniqueid|light_path_uniqueid|brightness_legacy"
                   + @"|brightness_lumens|lightprobetexture|cubemaptexture|handshake|light_probe_size"

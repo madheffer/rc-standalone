@@ -332,16 +332,35 @@ quietly grow and closing one is visible as the list shrinking. The list today:
 - **Keys the bakes write back into entities**: a light's baked ids, a light probe
   volume's atlas textures, handshake and probe dimensions. That is vrad3's output,
   so it arrives with the lighting tier.
-- **Point prefabs**: an entity whose `classname` is not a class but the name of
-  another map. The compile resolves it in the content tree and marks the entity
-  `isPointPrefab true` with `targetMapName "prefabs/misc/<classname>"`. Resolving
-  that needs a content tree, which this library does not have.
 - **`nearclipplane`**: declared `remove_key` like `ambient_occlusion` beside it,
   yet it ships typed as a float while the others ship as strings. The FGD cannot
   tell those apart, so this is waiting on the engine's own schema rather than a
   guess.
-- **`prefab_has_runtime_entity_by_default`**: added to worldspawn by some compiles
-  and not others, with no trigger found in the source.
+Two that WERE on this list are closed, and both closed the same way: by finding
+the answer in the FGD rather than inferring it.
+
+**A point prefab is a declared class, not a resolved path.** An entity whose
+`classname` looks like a map name - `counterterrorist_team_intro` - is an ordinary
+`@PointClass`, and its metadata carries the keys every instance ships with:
+
+```
+class_game_keys =
+[
+    { key = "isPointPrefab" value = true },
+    { key = "targetMapName" value = "prefabs/misc/counterterrorist_team_intro" }
+]
+```
+
+That is exactly what Valve's compile writes into the entity, so the compiler reads
+it off the schema. The first implementation here indexed every map under
+`game/csgo/maps` and resolved the classname against it, which produced the same
+two keys for the wrong reason and would have been wrong for any class whose game
+keys are not a prefab path. `class_game_keys` is a general mechanism; treating it
+as prefab lookup was a guess that happened to fit.
+
+**`prefab_has_runtime_entity_by_default`** follows from the same thing: worldspawn
+gets it when the map places at least one point prefab. probe01 places four and gets
+the key though its source never mentions it; untitled_1 places none and does not.
 
 ## Reading the source: `.vmap` is DMX
 

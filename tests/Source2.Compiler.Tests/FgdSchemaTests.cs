@@ -60,6 +60,24 @@ public class FgdSchemaTests
     }
 
     [Fact]
+    public void GameKeysOf_ReadsWhatAClassShipsWithoutBeingAsked()
+    {
+        var schema = MapFixtures.GameSchema();
+        if (schema is null) { MapFixtures.Skip("the game's csgo.fgd"); return; }
+
+        // This is what a point prefab actually is. The class is an ordinary
+        // @PointClass whose metadata declares the keys every instance carries, so
+        // the compile reads them off the schema - nothing resolves a content tree.
+        Assert.Equal(
+            [new("isPointPrefab", "true"),
+             new("targetMapName", "prefabs/misc/counterterrorist_team_intro")],
+            schema.GameKeysOf("counterterrorist_team_intro"));
+
+        Assert.Empty(schema.GameKeysOf("info_player_terrorist"));
+        Assert.Empty(schema.GameKeysOf("not_a_real_class"));
+    }
+
+    [Fact]
     public void Load_IgnoresCommentedOutKeys()
     {
         var schema = MapFixtures.GameSchema();

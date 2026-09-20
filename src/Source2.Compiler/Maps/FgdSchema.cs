@@ -60,7 +60,22 @@ public sealed partial class FgdSchema
 
     private readonly Dictionary<string, Class> _classes = new(StringComparer.OrdinalIgnoreCase);
 
-    private sealed record Class(string Name, List<string> Bases, Dictionary<string, Key> Keys);
+    private sealed record Class(
+        string Name, List<string> Bases, Dictionary<string, Key> Keys, List<KeyValuePair<string, string>> GameKeys);
+
+    /// <summary>
+    /// The key/value pairs a class's <c>class_game_keys</c> metadata says every
+    /// entity of that class ships with.
+    ///
+    /// <para>This is how a point prefab works, and it is declared rather than
+    /// discovered: <c>counterterrorist_team_intro</c> is an ordinary
+    /// <c>@PointClass</c> whose metadata carries
+    /// <c>isPointPrefab true</c> and <c>targetMapName
+    /// "prefabs/misc/counterterrorist_team_intro"</c>, which is exactly what Valve's
+    /// compile writes into the entity. Nothing has to search a content tree.</para>
+    /// </summary>
+    public IReadOnlyList<KeyValuePair<string, string>> GameKeysOf(string className)
+        => _classes.TryGetValue(className, out var cls) ? cls.GameKeys : [];
 
     /// <summary>Every class name the schema knows.</summary>
     public IEnumerable<string> ClassNames => _classes.Keys;
@@ -204,6 +219,7 @@ public sealed partial class FgdSchema
         // it. A plain @PointClass REDECLARES: csgo.fgd restates env_sky with its
         // fog block commented out, and Valve's compile writes none of those keys,
         // so the earlier declaration has to go rather than merge.
+        var gameKeys = GameKeysIn(head);
         if (kind.Value.Equals("@OverrideClass", StringComparison.OrdinalIgnoreCase)
             && _classes.TryGetValue(name, out var existing))
         {
@@ -211,9 +227,23 @@ public sealed partial class FgdSchema
                 existing.Keys[keyName] = declared;
             foreach (var b in bases.Where(b => !existing.Bases.Contains(b, StringComparer.OrdinalIgnoreCase)))
                 existing.Bases.Add(b);
+            existing.GameKeys.AddRange(gameKeys.Where(g => !existing.GameKeys.Any(
+                e => e.Key.Equals(g.Key, StringComparison.OrdinalIgnoreCase))));
             return;
         }
-        _classes[name] = new Class(name, bases, keys);
+        _classes[name] = new Class(name, bases, keys, gameKeys);
+    }
+
+    /// <summary>The class_game_keys pairs in a class header's metadata block.</summary>
+    private static List<KeyValuePair<string, string>> GameKeysIn(string head)
+    {
+        var block = GameKeysBlockRegex().Match(head);
+        if (!block.Success)
+            return [];
+        return [.. GameKeyRegex().Matches(block.Groups[1].Value)
+                    .Select(m => new KeyValuePair<string, string>(
+                        m.Groups[1].Value,
+                        m.Groups[2].Value.Length > 0 ? m.Groups[2].Value : m.Groups[3].Value))];
     }
 
     /// <summary>
@@ -326,6 +356,14 @@ public sealed partial class FgdSchema
 
     [GeneratedRegex(@"base\s*\(([^)]*)\)", RegexOptions.IgnoreCase)]
     private static partial Regex BaseRegex();
+
+    // class_game_keys = [ { key = "isPointPrefab" value = true }, ... ]
+    [GeneratedRegex(@"class_game_keys\s*=\s*\[(.*?)\]", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex GameKeysBlockRegex();
+
+    [GeneratedRegex(@"\{\s*key\s*=\s*""([^""]+)""\s+value\s*=\s*(?:""([^""]*)""|([^}\s]+))\s*\}",
+                    RegexOptions.IgnoreCase)]
+    private static partial Regex GameKeyRegex();
 
     // "priority(integer) : "Spawn Priority" : 0" - and not an input/output line.
     [GeneratedRegex(@"^[ \t]*(?!input\b|output\b)([A-Za-z_][\w]*)\s*\(\s*(\w+)\s*\)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]

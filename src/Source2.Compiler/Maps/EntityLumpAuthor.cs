@@ -52,7 +52,8 @@ public static class EntityLumpAuthor
 
         var array = KVObject.Array();
         for (var i = 0; i < entities.Count; i++)
-            array.Add(BuildEntity(entities[i], schema, i, worldName, fixupEntityNames));
+            array.Add(BuildEntity(entities[i], schema, i, worldName, fixupEntityNames,
+                                  HasPointPrefab(entities, schema)));
         root.Add("m_entityKeyValues", array);
         return root;
     }
@@ -68,8 +69,19 @@ public static class EntityLumpAuthor
         => Source2ContainerAuthor.AuthorKv3Tree(
             BuildTree(entities, schema, name, childLumps, worldName, fixupEntityNames), Format, ".vents");
 
+    /// <summary>
+    /// True when any entity in the lump is a point prefab, which is what decides
+    /// whether worldspawn carries prefab_has_runtime_entity_by_default: probe01
+    /// places four and gets the key although its source never mentions it, and
+    /// untitled_1 places none and does not.
+    /// </summary>
+    private static bool HasPointPrefab(IReadOnlyList<MapEntities.Entity> entities, FgdSchema? schema)
+        => entities.Any(e => (schema?.GameKeysOf(e.ClassName) ?? [])
+            .Any(g => g.Key.Equals("isPointPrefab", StringComparison.OrdinalIgnoreCase)));
+
     private static KVObject BuildEntity(
-        MapEntities.Entity entity, FgdSchema? schema, int index, string? worldName, bool fixupEntityNames)
+        MapEntities.Entity entity, FgdSchema? schema, int index, string? worldName, bool fixupEntityNames,
+        bool mapHasPointPrefabs)
     {
         var values = KVObject.Collection();
 
@@ -104,6 +116,14 @@ public static class EntityLumpAuthor
             values.Add(key, new KVObject(text));
         }
 
+        // Keys the CLASS ships rather than the entity. This is how a point prefab
+        // works: counterterrorist_team_intro is an ordinary class whose FGD metadata
+        // declares isPointPrefab and the targetMapName to load, so the compile reads
+        // them off the schema rather than resolving anything.
+        foreach (var (key, value) in schema?.GameKeysOf(entity.ClassName) ?? [])
+            if (!values.ContainsKey(key))
+                values.Add(key, new KVObject(value));
+
         // The compile's own identity for the entity: its ordinal in the lump, and
         // the Hammer node it came from. The id is a number and the node is a
         // string, which is Valve's split, not a slip.
@@ -122,6 +142,8 @@ public static class EntityLumpAuthor
 
         if (entity.IsWorld)
         {
+            if (mapHasPointPrefabs && !values.ContainsKey("prefab_has_runtime_entity_by_default"))
+                values.Add("prefab_has_runtime_entity_by_default", new KVObject("0"));
             if (worldName is { Length: > 0 })
                 values.Add("worldname", new KVObject(worldName));
             values.Add("mapUsageType", new KVObject("standard"));
