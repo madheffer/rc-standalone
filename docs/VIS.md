@@ -180,18 +180,51 @@ ResourceCompiler/VisBuilder/PreMergeSmallRegionsSizeThreshold
 thresholds feed the stages that cost the 400 seconds. These are untested so far;
 that they exist and where they are read from is what is established.
 
-### Running vis on its own
+### Running vis on its own, as an oracle
 
-`-vis` is a real resourcecompiler switch, paired with `-fshallow`
-(`DANGER! Running partial map compile (-world,-vis,etc) in a full force-build.
-You should use -fshallow.`). There is also `-vis_preview`.
+Valve's builder can be re-run per change instead of per full compile, which is
+what makes it usable as a comparison oracle. The recipe, and every part of it was
+needed:
 
-It parses and selects the phase: on Mako it printed `... Building 'vis'` and
-finished in 38 seconds rather than 22 minutes. But it produced **none** of
-visbuilder's stage output and wrote no file other than the repacked VPK, so vis
-was treated as up to date and skipped. Forcing an actual rebuild through this path
-is not solved yet, and it is the prerequisite for using Valve's tool as a
-comparison oracle at iteration speed.
+```bash
+rm "<game>/csgo_addons/<addon>/maps/<map>.vpk"
+resourcecompiler.exe -nop4 -game <game/csgo> -i <content>/maps/<map>.vmap     -world -vis -fshallow
+```
+
+`tools/vis/rebuild_vis.py <addon> <map> --runs N` does this and prints the stage
+timings and the hash of the resulting `world_visibility.vvis_c`.
+
+Four things about it are not obvious, and each cost a wrong run to find:
+
+- **Visibility is built by the `-world` phase, not `-vis`.** Run both and every
+  vis stage prints under `Building 'world'` while `Building 'vis'` prints nothing
+  at all.
+- **`-vis -f` is a hard FAIL**, not the warning its message sounds like. The force
+  flag has to be `-fshallow`.
+- **The up-to-date check is on the source CRC, not its timestamp**, so touching
+  the `.vmap` does not force anything. That is the same CRC a compiled resource
+  records in its RED2. Removing the output VPK is what invalidates.
+- **`-world` alone rebuilds visibility but never repacks the VPK**, so the result
+  is invisible and the map's VPK is simply gone. Both phases have to be passed.
+
+A skipped phase prints no stage lines and silently leaves the previous file in
+place, which looks exactly like a fast deterministic rebuild. The harness says so
+loudly rather than reporting a hash of yesterday's output.
+
+On ze_hold_em_p a forced rebuild is **13.5 seconds, of which 8.2 is visibility**,
+against 50 for a full compile.
+
+### The builder is deterministic, its ray scan is not
+
+Two forced rebuilds of ze_hold_em_p produce a **byte-identical** `vvis_c`
+(sha256 `135ae01c…` both times) while the LOS scan reports a different number of
+useful rays each run, 3,940 against 3,954. So the sampling is threaded and racy
+but the result it feeds converges, and there is also a `DeterministicBuild`
+setting that this default build evidently did not need.
+
+That is the best possible baseline for an error margin: Valve against Valve is
+**zero** difference, so any deviation a replacement shows is entirely its own and
+none of it is noise in the oracle.
 
 ## Comparing two compiles
 
@@ -223,11 +256,14 @@ mean-visible fraction are the error margin to hold a builder to.
 
 ## Where a replacement starts
 
-1. Force Valve's `-vis` to actually rebuild, so the oracle can be re-run per
-   change instead of per 22-minute compile.
-2. Build the point-pair sampler, and first use it to compare Valve against Valve
-   at different `MaxVisClusters` and `BaseVoxelSize`. That calibrates how much two
-   legitimate builds of the same map differ, which is the only honest baseline for
-   judging ours.
-3. Then voxelize and region generation, scored against Valve's node and region
-   counts on the same map before any PVS is computed at all.
+1. ~~Force Valve's builder to re-run~~ done, 13.5 seconds a round on a small map,
+   and its output is byte-stable.
+2. Build the point-pair sampler, and first use it on Valve against Valve at
+   different `MaxVisClusters` and `BaseVoxelSize`. Same-settings runs are already
+   known to be identical, so this measures how much a legitimate settings change
+   moves the answer, which is the scale any replacement's error should be read
+   against.
+3. Then voxelize and region generation, scored against Valve's own counts on the
+   same map before any PVS is computed at all. ze_hold_em_p is the reference:
+   81,625 voxel nodes, 10,554 regions in, 103,358 regions out, collapsed to 4,194,
+   258 clusters against a target of 1,342, and 129 unique masks.
