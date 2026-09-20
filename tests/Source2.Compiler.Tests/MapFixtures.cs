@@ -94,6 +94,57 @@ internal static class MapFixtures
         return null;
     }
 
+    /// <summary>
+    /// Every installed map's resource ending with <paramref name="suffix"/>, as
+    /// (map name, bytes), in a deterministic order. Where <see cref="Resource"/>
+    /// takes one specimen, this is for gates that have to hold on the whole
+    /// corpus - a byte-exact codec is only interesting if it survives all of it.
+    ///
+    /// <para>Maps published under more than one workshop id are yielded once.</para>
+    /// </summary>
+    public static IEnumerable<(string Map, byte[] Bytes)> AllResources(string suffix, int limit = int.MaxValue)
+    {
+        var root = WorkshopDir();
+        if (root is null)
+            yield break;
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in Directory.EnumerateDirectories(root).OrderBy(d => d, StringComparer.Ordinal))
+        {
+            var outerPath = Path.Combine(item, Path.GetFileName(item) + ".vpk");
+            if (!File.Exists(outerPath))
+                continue;
+
+            using var outer = new Package();
+            try { outer.Read(outerPath); }
+            catch { continue; }
+
+            foreach (var mapEntry in MapArchives(outer))
+            {
+                var name = Path.GetFileNameWithoutExtension(mapEntry.GetFullPath());
+                if (!seen.Add(name))
+                    continue;
+
+                byte[]? bytes = null;
+                try
+                {
+                    using var map = new Package();
+                    map.SetFileName(Path.GetFileName(mapEntry.GetFullPath()));
+                    map.Read(new MemoryStream(Io.VpkEntries.Read(outer, mapEntry)));
+                    if (Io.VpkEntries.FirstEndingWith(map, suffix) is { } entry)
+                        bytes = Io.VpkEntries.Read(map, entry);
+                }
+                catch { bytes = null; }
+
+                if (bytes is null)
+                    continue;
+                yield return (name, bytes);
+                if (--limit <= 0)
+                    yield break;
+            }
+        }
+    }
+
     private static IEnumerable<PackageEntry> MapArchives(Package outer)
         => Io.VpkEntries.ByExtension(outer).TryGetValue("vpk", out var vpks)
             ? vpks.OrderBy(e => e.GetFullPath(), StringComparer.Ordinal)
