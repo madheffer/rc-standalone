@@ -203,6 +203,7 @@ lifted from a subscribed workshop map at test time:
 | `.vwrld` | `Source2ContainerAuthor.AuthorKv3Tree` | decoded tree value for value, identity, every RERL id |
 | `.vwnod` | same | same |
 | `.vents` | same | same |
+| `.vmap` | `Source2ContainerAuthor.AuthorMapRoot` | block table, identity union, child list, source CRC, every reference id |
 
 Two things had to be learned to make those pass, and both are worth knowing before
 attempting anything further up the map.
@@ -225,6 +226,63 @@ One value in there is not reproducible and does not need to be: the
 `___OverrideInputData___` argument fingerprint is 0 on every world node and physics
 manifest, and non-zero only on `world.vrman_c`, which is the one RC hands override
 input data to. Authoring without that data, 0 is the honest value.
+
+### The map root's three rules
+
+The root is the one map resource whose identity is assembled rather than stamped,
+and all three of its rules came out of the corpus rather than a guess.
+
+**The identity union follows the children, exactly.** A `.vmap_c` declares the
+compiler identity for a kind of child if and only if its child resource list
+contains one. Checked over 116 maps against 5 kinds of child - 580 observations,
+**zero exceptions**, both directions. So the union is derived from what was
+compiled rather than configured.
+
+**The RERL is not the child list.** It is the children PLUS what the map points at
+without having built it. On `ze_out_into_the_open` that is 212 references against
+171 children, the other 41 being stock materials. Both lists are sorted ordinal.
+
+**Two rows are settings rather than versions.** `Texture Encode Quality` carries
+user data 4 in 51 maps and 3 in 49, and a map whose textures were compiled at two
+qualities carries the row twice. RC's wider argument tail (`bakelighting`,
+`lightmapMaxResolution`, three dozen more, varying by toolchain) is the same class
+of thing and is deliberately not reproduced, exactly as the texture author already
+refuses to invent its option tail. Only `___OverrideInputData___` is written, which
+all 116 maps carry.
+
+## Reading the source: `.vmap` is DMX
+
+`DmxBinary` reads the binary DMX that Hammer writes, which is the front door to
+compiling a map rather than re-authoring one. The layout is in the class doc; the
+two rules that are not guessable from the shape are that an attribute type above 32
+is an array of the type below it, and that a string inside an array is written
+inline even where a scalar string in the same section is a string-table index.
+
+The check that matters is consumption: the reader ends exactly at the last byte of
+Valve's own `.vmap` sources, which is the only way to notice that a length was
+misjudged (the graph would otherwise still "parse", against bytes that mean
+something else). `DmxBinaryTests` asserts that over the sources shipped under
+`content/csgo_addons`, smallest first and capped, because that corpus is 3.2 GB
+with single files near 800 MB.
+
+## Ground truth available for the next tier
+
+| source | what it is | where |
+|---|---|---|
+| compiled maps | 116 map VPKs, 5.27 GB | the workshop install |
+| Valve's own map sources | 36 uncompiled `.vmap`, 3.2 GB | `content/csgo_addons` in the CS2 install |
+| community map sources | 364 `.vmap` for CS2 ZE ports, MIT, **89 of them with a compiled counterpart in the workshop install** | [Source2ZE/Port-Vmaps](https://github.com/Source2ZE/Port-Vmaps) |
+| the compiler itself | `resourcecompiler.exe`, headless | the CS2 install; driven by `tools/rc-oracle.ps1` |
+
+Those 89 pairs are the useful thing: a source and the exact output Valve's compiler
+produced from it, for maps this project already reads.
+
+Two Source 2 hashes are already recovered and worth knowing before starting on
+entities. The resource id is `Source2ResourceId` here (MurmurHash64B, seed
+`0xEDABCDEF`), verified 90,371 times above. The other is **StringToken**, the
+32-bit MurmurHash2 with seed `0x31415926` that Source 2 hashes names through; it
+lives in the vpkeditor pipeline rather than in this repository, and the entity work
+will need it.
 
 ## Prior art, and what this survey adds
 

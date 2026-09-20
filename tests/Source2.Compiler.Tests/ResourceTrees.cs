@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 using ValveKeyValue;
 using ValveResourceFormat;
@@ -23,6 +24,24 @@ internal static class ResourceTrees
         var res = new Resource { FileName = name };
         res.Read(new MemoryStream(bytes));
         return res;
+    }
+
+    /// <summary>
+    /// The container's own block table, read from the bytes rather than from the
+    /// parsed resource. VRF SKIPS a zero-size block when reading, so an empty DATA
+    /// block - which is exactly what a map root ships - is invisible to
+    /// <c>GetBlockByType</c> on Valve's file and ours alike.
+    /// </summary>
+    public static IReadOnlyList<(string FourCC, uint Size)> BlockTable(ReadOnlySpan<byte> file)
+    {
+        var blockOffset = BinaryPrimitives.ReadUInt32LittleEndian(file[8..]);
+        var count = BinaryPrimitives.ReadUInt32LittleEndian(file[12..]);
+        var at = 8 + (int)blockOffset;
+        var table = new List<(string, uint)>();
+        for (var i = 0; i < count; i++, at += 12)
+            table.Add((Encoding.ASCII.GetString(file.Slice(at, 4)),
+                       BinaryPrimitives.ReadUInt32LittleEndian(file[(at + 8)..])));
+        return table;
     }
 
     public static string Render(Resource res)

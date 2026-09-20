@@ -99,6 +99,35 @@ internal static class MapFixtures
             ? vpks.OrderBy(e => e.GetFullPath(), StringComparer.Ordinal)
             : [];
 
+    /// <summary>
+    /// Valve's own <c>.vmap</c> SOURCES, which ship uncompiled under the CS2
+    /// content tree's addons. Ground truth for the DMX reader that needs no
+    /// network and nothing checked in.
+    ///
+    /// <para>Smallest first, and capped, because this corpus is 3.2 GB with single
+    /// files near 800 MB: a test that read them all would measure the disk. The
+    /// small ones are the same format.</para>
+    /// </summary>
+    /// <param name="maxBytes">Skip anything larger.</param>
+    /// <param name="limit">At most this many files.</param>
+    public static IReadOnlyList<string> VmapSources(long maxBytes = 32L * 1024 * 1024, int limit = 8)
+    {
+        var cs2 = CS2Fixtures.StockPak();
+        if (cs2 is null)
+            return [];
+        // <cs2>/game/csgo/pak01_dir.vpk -> <cs2>/content/csgo_addons
+        var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, "..", "..", "content", "csgo_addons"));
+        if (!Directory.Exists(root))
+            return [];
+        return [.. Directory.EnumerateFiles(root, "*.vmap", SearchOption.AllDirectories)
+                            .Select(p => (Path: p, Length: new FileInfo(p).Length))
+                            .Where(f => f.Length <= maxBytes)
+                            .OrderBy(f => f.Length)
+                            .ThenBy(f => f.Path, StringComparer.Ordinal)
+                            .Take(limit)
+                            .Select(f => f.Path)];
+    }
+
     /// <summary>Report a skipped map test and why. Always returns true.</summary>
     public static bool Skip(string needed)
     {

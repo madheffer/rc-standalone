@@ -19,3 +19,5 @@ src/Source2.Compiler/Native/bc7enc/bin/
 # python probe caches
 __pycache__/
 *.pyc
+tools/map-survey/*.json
+tools/map-survey/*.txt

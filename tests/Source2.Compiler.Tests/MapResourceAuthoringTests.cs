@@ -2,6 +2,7 @@ using Source2.Compiler;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.Serialization.KeyValues;
 using Xunit;
 
 namespace Source2.Compiler.Tests;
@@ -79,6 +80,64 @@ public class MapResourceAuthoringTests
         Assert.Equal(theirs, BlockBytes(ours, mine, BlockType.DATA));
         AssertIdentity(valve, mine, "Manifest Compiler Version", "CompileResourceManifest", 2);
         AssertReferences(valve, mine);
+    }
+
+    [Fact]
+    public void MapRoot_MatchesValvesManifestForTheSameChildren()
+    {
+        var bytes = MapFixtures.Resource(".vmap_c");
+        if (bytes is null) { MapFixtures.Skip(".vmap_c"); return; }
+
+        using var valve = ResourceTrees.Read(bytes, "map.vmap_c");
+        var red2 = Assert.IsType<ResourceEditInfo2>(valve.EditInfo).Data!.Root;
+        var children = red2.GetArray<string>("m_ChildResourceList")!;
+        var source = valve.EditInfo!.InputDependencies.Single(d => d.ContentRelativeFilename.EndsWith(".vmap"));
+
+        // Feed our author exactly what RC compiled and compare the manifest. The
+        // external assets are the references that are NOT children: a map root
+        // points at the game content it needs as well as at what it built.
+        var external = valve.ExternalReferences!.ResourceRefInfoList
+            .Select(r => r.Name)
+            .Except(children, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var ours = Source2ContainerAuthor.AuthorMapRoot(
+            source.ContentRelativeFilename, source.FileCRC, children, external);
+        using var mine = ResourceTrees.Read(ours, "map.vmap_c");
+
+        Assert.Equal(valve.Version, mine.Version);
+
+        // Same blocks in the same order, and the map's data really is nothing:
+        // an empty DATA block, which is what all 116 shipped maps carry.
+        var theirTable = ResourceTrees.BlockTable(bytes);
+        var myTable = ResourceTrees.BlockTable(ours);
+        Assert.Equal(theirTable.Select(b => b.FourCC), myTable.Select(b => b.FourCC));
+        Assert.Equal(0u, Assert.Single(myTable, b => b.FourCC == "DATA").Size);
+        Assert.Equal(0u, Assert.Single(theirTable, b => b.FourCC == "DATA").Size);
+
+        // The identity union: an identity is present for a kind of child if and
+        // only if the map has one, which holds without exception across 116 maps
+        // and 5 kinds of child.
+        //
+        // Compared DISTINCT, because "Texture Encode Quality" is a compile SETTING
+        // rather than a version: its user data is 3 in 49 maps and 4 in 51, and a
+        // map whose textures were compiled at both qualities carries the row twice.
+        // Authoring no textures of our own, there is nothing to repeat it for.
+        Assert.Equal(Identities(valve).Distinct(), Identities(mine).Distinct());
+
+        var myRed2 = Assert.IsType<ResourceEditInfo2>(mine.EditInfo).Data!.Root;
+        Assert.Equal(children, myRed2.GetArray<string>("m_ChildResourceList")!);
+        Assert.Equal(1, (int)myRed2["m_SearchableUserData"]!["WorldModelDocAll"]!);
+        Assert.Equal(0, (int)myRed2["m_SearchableUserData"]!["IsChildResource"]!);
+
+        var mySource = Assert.Single(mine.EditInfo!.InputDependencies);
+        Assert.Equal(source.ContentRelativeFilename, mySource.ContentRelativeFilename);
+        Assert.Equal(source.FileCRC, mySource.FileCRC);
+
+        // Every child, under the id the engine resolves it by.
+        AssertReferences(valve, mine);
+        Assert.Equal(
+            valve.ExternalReferences!.ResourceRefInfoList.Select(r => r.Name),
+            mine.ExternalReferences!.ResourceRefInfoList.Select(r => r.Name));
     }
 
     /// <summary>
