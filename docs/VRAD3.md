@@ -203,11 +203,31 @@ same way, which is now a 20 second measurement once the map builds.
 
 `resourcecompiler` treats a missing material as fatal
 (`content_consider_missing_materials_fatal`), and a ported map names materials
-whose sources nobody has. `tools/vrad3/stub_missing_materials.py` writes
-placeholders from the compile log.
+whose sources nobody has.
 
-The trap: the stub must be COMPILED before the map. A stub sitting in the content
-tree is invisible to the map build, which resolves materials as compiled
+**Check the references BEFORE compiling.** resourcecompiler validates materials
+late: on ze_ffvii_mako_reactor_v6_p it spent **22 minutes** preprocessing lights,
+voxelising and building visibility, and only then stopped at the first mesh whose
+material was missing. Every stub round pays that 22 minutes again, and there were
+232 materials to find. `tools/vrad3/check_references.py` reads the `.vmap`
+directly and answers the same question in seconds:
+
+```bash
+python check_references.py <addon> <map>          # what cannot resolve
+python check_references.py <addon> <map> --stub   # and write the placeholders
+```
+
+A reference resolves if it is a source under the addon's content, a compiled
+resource under the addon's game directory, or a compiled resource in an archive
+the game mounts - and that last part means EVERY archive, not just `game/csgo`:
+the tool materials a map is full of (`toolsnodraw`, `toolstrigger`) live in
+`game/core`, and reading only csgo reports them missing on every map ever made.
+
+`stub_missing_materials.py` does the same job from a compile log, for when a
+compile has already failed and the log is what you have.
+
+The other trap: the stub must be COMPILED before the map. A stub sitting in the
+content tree is invisible to the map build, which resolves materials as compiled
 resources - the error stays "referencing missing material" and looks like the stub
 did not work. Compile the materials first, then the map:
 
@@ -217,6 +237,14 @@ resourcecompiler -nop4 -f -game <game/csgo> -i "<addon content>/maps/<name>.vmap
 ```
 
 ze_hold_em_p took three stubs and then compiled in 50 seconds.
+
+**A missing MODEL is not fatal, and that is worse in one way**: the compile
+proceeds and the prop is simply absent from the ray trace scene. Mako Reactor
+names 282 models nobody has the sources for - custom FFVII content that exists
+only inside its published workshop VPK - so any lighting or timing measured from
+that compile is a lower bound, with occluders and bounce surfaces missing. The fix
+is to extract the compiled models from the workshop VPK into the addon's game
+directory, where resourcecompiler resolves them like any other compiled resource.
 
 ## Where a replacement starts
 
