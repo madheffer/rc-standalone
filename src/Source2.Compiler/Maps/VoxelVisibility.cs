@@ -79,11 +79,32 @@ public sealed class VoxelVisibility
     /// </summary>
     public static uint BytesPerCluster(uint clusterCount) => (clusterCount + 31) / 32 * 4;
 
-    /// <summary>Whether cluster <paramref name="from"/> can see <paramref name="to"/>.</summary>
+    /// <summary>
+    /// Whether cluster <paramref name="from"/> can see <paramref name="to"/>.
+    /// Rows are cluster-major and bits are least significant first, which is
+    /// settled rather than assumed: on ze_aztecnoob_p that reading has 4095 of
+    /// 4096 clusters seeing themselves, and the other order only 3136.
+    /// </summary>
     public bool CanSee(uint from, uint to)
     {
         var bit = (int)(from * PVSBytesPerCluster * 8 + to);
         return (VisBlocks[bit >> 3] & (1 << (bit & 7))) != 0;
+    }
+
+    /// <summary>
+    /// Whether a cluster's PVS row is entirely zero, meaning the build allocated
+    /// the id but nothing occupies it. Such a cluster sees nothing, not even
+    /// itself, so it is the one exception to the self-visibility invariant.
+    /// </summary>
+    public bool ClusterIsUnused(uint cluster)
+    {
+        var start = (int)(cluster * PVSBytesPerCluster);
+        for (var i = 0; i < PVSBytesPerCluster; i++)
+        {
+            if (VisBlocks[start + i] != 0)
+                return false;
+        }
+        return true;
     }
 
     /// <summary>Byte offsets and element counts of the six arrays inside VXVS.</summary>

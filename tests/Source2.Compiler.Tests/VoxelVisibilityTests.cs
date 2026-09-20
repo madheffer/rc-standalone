@@ -1,8 +1,4 @@
-using ValveKeyValue;
 using Source2.Compiler.Maps;
-using ValveResourceFormat;
-using ValveResourceFormat.ResourceTypes;
-using ValveResourceFormat.Serialization.KeyValues;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -19,64 +15,12 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public sealed class VoxelVisibilityTests(ITestOutputHelper output)
 {
-    private const string Suffix = "world_visibility.vvis_c";
-
-    private sealed record Specimen(
-        string Map, VoxelVisibility Vis, VoxelVisibility.Layout ValveLayout, byte[] Vxvs);
-
-    private static IEnumerable<Specimen> Specimens(int limit = int.MaxValue)
-    {
-        foreach (var (map, bytes) in MapFixtures.AllResources(Suffix, limit))
-        {
-            using var resource = new Resource();
-            resource.Read(new MemoryStream(bytes));
-
-            var block = resource.GetBlockByType(BlockType.VXVS);
-            if (block is null || resource.DataBlock is not BinaryKV3 kv3)
-                continue;
-
-            var root = kv3.Data.Root;
-            if (!root.ContainsKey("m_nBaseClusterCount"))
-                continue; // the older, pre-octree layout
-
-            var vxvs = bytes.AsSpan((int)block.Offset, (int)block.Size).ToArray();
-            var valve = ValveLayout(root);
-            var scalars = Scalars(root);
-            yield return new Specimen(map, VoxelVisibility.ReadVxvs(vxvs, valve, scalars), valve, vxvs);
-        }
-    }
-
-    private static VoxelVisibility Scalars(KVObject root) => new()
-    {
-        BaseClusterCount = root.GetUInt32Property("m_nBaseClusterCount"),
-        PVSBytesPerCluster = root.GetUInt32Property("m_nPVSBytesPerCluster"),
-        MinBounds = root.GetSubCollection("m_vMinBounds").ToVector3(),
-        MaxBounds = root.GetSubCollection("m_vMaxBounds").ToVector3(),
-        GridSize = root.GetFloatProperty("m_flGridSize"),
-        SkyVisibilityCluster = root.GetUInt32Property("m_nSkyVisibilityCluster"),
-        SunVisibilityCluster = root.GetUInt32Property("m_nSunVisibilityCluster"),
-    };
-
-    private static VoxelVisibility.Layout ValveLayout(KVObject root)
-    {
-        VisBlockRef Ref(string name, int stride)
-        {
-            var block = root.GetSubCollection(name);
-            return new VisBlockRef(block.GetInt32Property("m_nOffset"),
-                                   block.GetInt32Property("m_nElementCount"), stride);
-        }
-        return new VoxelVisibility.Layout(
-            Ref("m_NodeBlock", 8), Ref("m_RegionBlock", 8),
-            Ref("m_EnclosedClusterListBlock", 8), Ref("m_EnclosedClustersBlock", 2),
-            Ref("m_MasksBlock", 8), Ref("m_nVisBlocks", 1));
-    }
-
     [Fact]
     public void ReEncodesEveryMapByteForByte()
     {
         var maps = 0;
         long bytes = 0;
-        foreach (var specimen in Specimens())
+        foreach (var specimen in VisFixtures.All())
         {
             var written = specimen.Vis.WriteVxvs();
             Assert.Equal(specimen.Vxvs.Length, written.Length);
@@ -89,7 +33,7 @@ public sealed class VoxelVisibilityTests(ITestOutputHelper output)
             maps++;
             bytes += written.Length;
         }
-        Skip.IfNoMaps(maps, Suffix);
+        VisFixtures.RequireCorpus(maps);
         output.WriteLine($"{maps} maps, {bytes / 1024 / 1024} MB of VXVS re-encoded byte for byte");
     }
 
@@ -97,14 +41,14 @@ public sealed class VoxelVisibilityTests(ITestOutputHelper output)
     public void DerivesValvesOwnIndexFromTheArraysAlone()
     {
         var maps = 0;
-        foreach (var specimen in Specimens())
+        foreach (var specimen in VisFixtures.All())
         {
             var ours = VoxelVisibility.Layout.For(specimen.Vis);
             Assert.Equal(specimen.ValveLayout, ours);
             Assert.Equal(specimen.Vxvs.Length, ours.TotalBytes);
             maps++;
         }
-        Skip.IfNoMaps(maps, Suffix);
+        VisFixtures.RequireCorpus(maps);
         output.WriteLine($"{maps} maps: all six offsets are prefix sums of the counts");
     }
 
@@ -112,14 +56,14 @@ public sealed class VoxelVisibilityTests(ITestOutputHelper output)
     public void PVSMatrixIsRowsTimesStride()
     {
         var maps = 0;
-        foreach (var specimen in Specimens())
+        foreach (var specimen in VisFixtures.All())
         {
             var vis = specimen.Vis;
             Assert.Equal(VoxelVisibility.BytesPerCluster(vis.BaseClusterCount), vis.PVSBytesPerCluster);
             Assert.Equal((int)(vis.PVSRowCount * vis.PVSBytesPerCluster), vis.VisBlocks.Length);
             maps++;
         }
-        Skip.IfNoMaps(maps, Suffix);
+        VisFixtures.RequireCorpus(maps);
         output.WriteLine($"{maps} maps: PVS is rows * roundUp4(ceil(clusters/8))");
     }
 
@@ -132,7 +76,7 @@ public sealed class VoxelVisibilityTests(ITestOutputHelper output)
     public void EveryIndexPointsInsideTheArrayItAddresses()
     {
         var maps = 0;
-        foreach (var specimen in Specimens())
+        foreach (var specimen in VisFixtures.All())
         {
             var vis = specimen.Vis;
             var where = specimen.Map;
@@ -178,7 +122,7 @@ public sealed class VoxelVisibilityTests(ITestOutputHelper output)
 
             maps++;
         }
-        Skip.IfNoMaps(maps, Suffix);
+        VisFixtures.RequireCorpus(maps);
         output.WriteLine($"{maps} maps: every node, region, mask and cluster index is in range");
     }
 
@@ -191,7 +135,7 @@ public sealed class VoxelVisibilityTests(ITestOutputHelper output)
     public void OctreeIsASingleTreeRootedAtNodeZero()
     {
         var maps = 0;
-        foreach (var specimen in Specimens())
+        foreach (var specimen in VisFixtures.All())
         {
             var vis = specimen.Vis;
             if (vis.Nodes.Length == 0)
@@ -222,7 +166,7 @@ public sealed class VoxelVisibilityTests(ITestOutputHelper output)
             Assert.True(vis.MinBounds.X < vis.MaxBounds.X, $"{specimen.Map}: empty bounds");
             maps++;
         }
-        Skip.IfNoMaps(maps, Suffix);
+        VisFixtures.RequireCorpus(maps);
         output.WriteLine($"{maps} maps: one tree, eight children per branch, no orphans");
     }
 
@@ -236,14 +180,4 @@ public sealed class VoxelVisibilityTests(ITestOutputHelper output)
         return -1;
     }
 
-    private static class Skip
-    {
-        public static void IfNoMaps(int maps, string suffix)
-        {
-            if (maps > 0)
-                return;
-            Assert.True(MapFixtures.WorkshopDir() is null,
-                $"Workshop maps are installed but none yielded a readable {suffix}.");
-        }
-    }
 }
