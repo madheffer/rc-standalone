@@ -228,10 +228,60 @@ Two things that could still change the conclusion, both cheap to test:
 - **282 models are missing** from this compile (see below), so the scene is
   smaller than the real map. That understates the trace - but it understates
   visibility too, since both scale with geometry.
-- These are DEFAULT settings. A map shipped at final quality uses more samples and
-  more bounces, which scales lighting and not visibility. The script exposes those
-  directly (`lightmap_compute_block_gpu 16 16 0.200`), and vrad3 runs standalone,
-  so the scaling curve is an afternoon's measurement rather than a guess.
+- These are DEFAULT settings. A map shipped at final quality uses more samples,
+  which scales lighting and not visibility. That one was directly testable, and
+  the next section is the measurement. It does not rescue the premise either.
+
+## How the trace scales with sample count
+
+`tools/vrad3/sweep_samples.py` rewrites `lightmap_compute_block_gpu X Y T` in a job
+script that already exists, reruns vrad3, and reports the trace. By default it cuts
+the script off after the block loop, so the ~20 s of post passes and 600 MB of EXR
+writes are excluded and only the trace is timed: a run costs 12 s of wall clock
+plus the trace itself.
+
+```bash
+python tools/vrad3/sweep_samples.py s2c_big --samples 8,16,32,64,128
+python tools/vrad3/sweep_samples.py s2c_big --pairs 16:512,512:16
+```
+
+Mako Reactor, one 4096x4096 atlas in 16 blocks, X and Y moved together:
+
+| X = Y | trace s | vs default | s per sample |
+|---|---|---|---|
+| 8 | 3.07 | 0.53x | 0.384 |
+| **16 (default)** | **5.84** | **1.00x** | 0.365 |
+| 32 | 11.41 | 1.95x | 0.357 |
+| 64 | 21.90 | 3.75x | 0.342 |
+| 128 | 44.19 | 7.57x | 0.345 |
+| 256 | 90.24 | 15.45x | 0.353 |
+| 512 | 176.05 | 30.14x | 0.344 |
+
+**The trace is linear in the sample count, at 0.344 s per sample.** Across a 64x
+range the per-sample cost moves by 12%, most of which is a ~0.3 s fixed term that
+only shows at the bottom. It is NOT an X by Y grid of X*Y samples: a grid would
+have cost 4x per doubling and 4,096x across this range. The default was measured
+four times, at 5.62, 5.85, 5.91 and 5.99 s, so treat anything under about 6% as
+run-to-run noise.
+
+**X is clamped by Y.** `512:16` traces in 5.61 s, the same as `16:16` at 5.84, so
+raising X above Y buys nothing at all. Below Y it does count: holding Y at 512, an
+X of 16, 128 and 512 costs 90.33, 104.07 and 176.05 s.
+
+That second relationship is not linear, and a bilinear fit to the endpoints misses
+the interior by 5 to 17% - it predicts 16.7 s for `32:64`, which measures 19.67 -
+so the exact law is NOT known. The `0.200` third argument looks like a convergence
+threshold, and adaptive termination would explain a cost that depends on the scene
+and not only on the counts. Unconfirmed; do not build on it.
+
+**What this does to the premise.** At the default 16 the trace is 5.8 s of a 1,313 s
+compile. At 512, a 32x quality increase, it is 176 s, still under the ~400 s that
+visibility spends. Lighting only becomes the largest single stage past roughly
+1,200 samples, and only exceeds the entire current compile near 3,800. Sample count
+is not a hidden multiplier that turns this map into a day-long compile.
+
+The caveats that remain are scene-side rather than settings-side: this is ONE
+atlas, and a map carrying several pays this cost per atlas.
 
 ## Compiling a community port at all
 
