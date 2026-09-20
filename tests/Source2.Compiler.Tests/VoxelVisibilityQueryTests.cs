@@ -31,17 +31,12 @@ public sealed class VoxelVisibilityQueryTests(ITestOutputHelper output)
             resource.Read(new MemoryStream(bytes));
 
             if (resource.GetBlockByType(BlockType.VXVS) is not ValveResourceFormat.Blocks.VoxelVisibility theirs
-                || resource.DataBlock is not BinaryKV3 kv3
                 || theirs.BaseClusterCount == 0)
             {
                 continue;
             }
 
-            var block = resource.GetBlockByType(BlockType.VXVS)!;
-            var ours = Vis.ReadVxvs(bytes.AsSpan((int)block.Offset, (int)block.Size),
-                                    VisFixtures.LayoutOf(kv3.Data.Root),
-                                    VisFixtures.ScalarsOf(kv3.Data.Root));
-            yield return (map, ours, theirs);
+            yield return (map, VoxelVisibilityReader.Read(bytes, resource), theirs);
         }
     }
 

@@ -241,7 +241,60 @@ any build, so a point-pair sample gives a confusion matrix:
 A replacement is allowed to be looser than Valve's (more overdraw) and is not
 allowed to be tighter in a way that hides geometry. Those two numbers plus the
 mean-visible fraction are the error margin to hold a builder to.
-`VoxelVisibilityQuery` provides the query; the sampling harness is not built yet.
+
+```bash
+s2c vis-diff <reference.vvis_c> -c <candidate.vvis_c> [--points 1500] [--seed N]
+```
+
+It exits non-zero when there is any hole, so it can gate a build.
+
+### Sample the space, not the bounding box
+
+The sampler draws from the space the REFERENCE says exists, by picking one of its
+occupied 4x4x4 leaf cells with probability proportional to that cell's volume and
+then a uniform point inside it. That is uniform over occupied space and every
+draw lands in a cluster.
+
+The first version sampled the bounding box uniformly and it was unusable: on
+ze_eizures_b1_1 that placed 800 points in **139,636 draws**, a 0.57% hit rate,
+because a map's bounding box is almost entirely solid rock and outside. It also
+biased whatever survived toward large open volumes. Occupied sampling places
+**100% of draws** on every map tried.
+
+Every pair of placed points is compared, so 1,500 points is 1.1 million pairs.
+Points the candidate declines to place are counted separately as placement
+disagreement rather than folded into the visibility numbers: a build that
+disagrees about where space IS is not being compared on visibility at all, and
+above a few percent there the pair statistics are comparing two different maps.
+
+The instrument is checked against differences constructed so the answer is known:
+a map against itself gives exactly zero holes, zero overdraw and 100% agreement
+over 319,600 pairs; clearing a seventh of the PVS gives holes and **no** overdraw;
+an all-visible PVS gives overdraw and **no** holes.
+
+### A real reading
+
+ze_hold_em_p exists both as its published workshop build and as our own
+resourcecompiler rebuild, so the two can be compared directly:
+
+| | clusters | mean visible |
+|---|---|---|
+| workshop build | 92 | 95.8% |
+| local rebuild | 260 | 64.3% |
+
+With the workshop build as reference the local rebuild shows 1.18% holes and
+**zero** overdraw; reversed, the workshop build shows 40.7% overdraw. So the local
+build is strictly the tighter of the two, which is what the asymmetry is supposed
+to show.
+
+Two cautions come straight out of that run. The workshop build sees 95.8% of the
+map from an average cluster, against 14% on a typical ZE map, so it is nearly no
+visibility at all and a poor calibration subject. And placement disagreement was
+2.75% one way and **34.4%** the other, which is far too high to attribute the
+difference to settings: these are builds of two different `.vmap` sources, a port
+against the author's original, not one source compiled twice. A clean calibration
+still needs the same source compiled twice at different `MaxVisClusters` /
+`BaseVoxelSize`.
 
 ## What is implemented
 
@@ -252,17 +305,20 @@ mean-visible fraction are the error margin to hold a builder to.
 | structural invariants | every index in range, one octree, no orphans |
 | PVS row law and bit order | pinned on 112 maps |
 | point and visibility queries | agree with an independent reader on 84,673 points |
+| occupied-space sampler | 100% of draws placed, on every map tried |
+| point-pair comparison (`s2c vis-diff`) | zero on identical input, correct sign on constructed differences |
 | the builder | not started |
 
 ## Where a replacement starts
 
 1. ~~Force Valve's builder to re-run~~ done, 13.5 seconds a round on a small map,
    and its output is byte-stable.
-2. Build the point-pair sampler, and first use it on Valve against Valve at
-   different `MaxVisClusters` and `BaseVoxelSize`. Same-settings runs are already
-   known to be identical, so this measures how much a legitimate settings change
-   moves the answer, which is the scale any replacement's error should be read
-   against.
+2. ~~Build the point-pair sampler~~ done and validated. Still owed is the
+   calibration it was built for: the SAME source compiled twice at different
+   `MaxVisClusters` and `BaseVoxelSize`. Same-settings runs are already known to
+   be byte-identical, so this measures how far a legitimate settings change moves
+   the answer, which is the scale any replacement's error should be read against.
+   It needs a `ResourceCompiler { VisBuilder { ... } }` block in gameinfo.gi.
 3. Then voxelize and region generation, scored against Valve's own counts on the
    same map before any PVS is computed at all. ze_hold_em_p is the reference:
    81,625 voxel nodes, 10,554 regions in, 103,358 regions out, collapsed to 4,194,

@@ -37,38 +37,11 @@ internal static class VisFixtures
             if (!root.ContainsKey("m_nBaseClusterCount"))
                 continue;
 
-            var layout = LayoutOf(root);
+            var layout = VoxelVisibilityReader.LayoutOf(root);
             var vxvs = bytes.AsSpan((int)block.Offset, (int)block.Size).ToArray();
-            yield return new Specimen(map, Vis.ReadVxvs(vxvs, layout, ScalarsOf(root)), layout, vxvs);
+            yield return new Specimen(map, VoxelVisibilityReader.Read(bytes, resource), layout, vxvs);
         }
     }
-
-    /// <summary>The six (offset, count) pairs exactly as Valve's DATA index states them.</summary>
-    public static Vis.Layout LayoutOf(KVObject root)
-    {
-        VisBlockRef Ref(string name, int stride)
-        {
-            var sub = root.GetSubCollection(name);
-            return new VisBlockRef(sub.GetInt32Property("m_nOffset"),
-                                   sub.GetInt32Property("m_nElementCount"), stride);
-        }
-        return new Vis.Layout(
-            Ref("m_NodeBlock", 8), Ref("m_RegionBlock", 8),
-            Ref("m_EnclosedClusterListBlock", 8), Ref("m_EnclosedClustersBlock", 2),
-            Ref("m_MasksBlock", 8), Ref("m_nVisBlocks", 1));
-    }
-
-    /// <summary>The scalars from the DATA index, with no arrays attached yet.</summary>
-    public static Vis ScalarsOf(KVObject root) => new()
-    {
-        BaseClusterCount = root.GetUInt32Property("m_nBaseClusterCount"),
-        PVSBytesPerCluster = root.GetUInt32Property("m_nPVSBytesPerCluster"),
-        MinBounds = root.GetSubCollection("m_vMinBounds").ToVector3(),
-        MaxBounds = root.GetSubCollection("m_vMaxBounds").ToVector3(),
-        GridSize = root.GetFloatProperty("m_flGridSize"),
-        SkyVisibilityCluster = root.GetUInt32Property("m_nSkyVisibilityCluster"),
-        SunVisibilityCluster = root.GetUInt32Property("m_nSunVisibilityCluster"),
-    };
 
     /// <summary>
     /// A gate that fails loudly rather than passing on an empty corpus. A test

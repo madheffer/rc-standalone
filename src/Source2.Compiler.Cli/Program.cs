@@ -28,6 +28,7 @@ try
         "id" => Commands.ResourceId(args[1..]),
         "inspect" => Commands.Inspect(args[1..]),
         "entities" => Commands.Entities(args[1..]),
+        "vis-diff" => Commands.VisDiff(args[1..]),
         "selftest" => SelfTest.Run(args[1..]),
         _ => Unknown(args[0]),
     };

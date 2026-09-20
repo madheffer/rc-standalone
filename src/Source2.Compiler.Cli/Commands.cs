@@ -166,6 +166,36 @@ internal static class Commands
     /// key RC wrote as a bool and we wrote as the string "1" reads the same in a
     /// pretty-printed tree and is a different value to the engine.
     /// </summary>
+    public static int VisDiff(string[] a)
+    {
+        var reference = Positional(a, "reference .vvis_c");
+        var candidate = Require(Opt(a, "-c") ?? Opt(a, "--candidate"), "-c <candidate.vvis_c>");
+        var points = int.Parse(Opt(a, "--points") ?? "1500");
+        var seed = int.Parse(Opt(a, "--seed") ?? "20260920");
+
+        var left = Maps.VoxelVisibilityReader.ReadFile(reference);
+        var right = Maps.VoxelVisibilityReader.ReadFile(candidate);
+        var report = Maps.VisComparison.Compare(left, right, points, seed);
+
+        Console.WriteLine($"reference {Path.GetFileName(reference)}  "
+                        + $"{left.BaseClusterCount:n0} clusters, "
+                        + $"{new Maps.VoxelVisibilityQuery(left).MeanVisibleFraction() * 100:F1}% mean visible");
+        Console.WriteLine($"candidate {Path.GetFileName(candidate)}  "
+                        + $"{right.BaseClusterCount:n0} clusters, "
+                        + $"{new Maps.VoxelVisibilityQuery(right).MeanVisibleFraction() * 100:F1}% mean visible");
+        Console.WriteLine();
+        Console.WriteLine($"  points      {report.PlacedPoints:n0} placed by both of {report.Attempts:n0} drawn "
+                        + $"({report.ReferenceOnlyPoints:n0} reference only, {report.CandidateOnlyPoints:n0} candidate only)");
+        Console.WriteLine($"  placement   {report.PlacementDisagreement * 100:F2}% disagreement on where space is");
+        Console.WriteLine($"  pairs       {report.Pairs:n0}");
+        Console.WriteLine($"  agreement   {report.Agreement * 100:F4}%");
+        Console.WriteLine($"  HOLES       {report.Holes:n0}  ({report.HoleRate * 100:F4}% of visible) "
+                        + "- geometry the player should see, culled");
+        Console.WriteLine($"  overdraw    {report.Overdraw:n0}  ({report.OverdrawRate * 100:F4}% of hidden) "
+                        + "- drawn needlessly, frame time only");
+        return report.Holes == 0 ? 0 : 1;
+    }
+
     public static int Entities(string[] a)
     {
         var input = Positional(a, "compiled entity lump");
