@@ -1,8 +1,9 @@
 # vrad3, the lighting compiler: what it is and how to work on it
 
-Lighting is the expensive half of a map compile - big ZE maps are reported at
-around a day - so it is the part worth replacing first. This is the measured
-ground truth for doing that, taken from the shipping CS2 tools on 2026-09-20.
+Lighting was assumed to be the expensive half of a map compile, which is why this
+investigation started. It is not: on the biggest ZE map measured here, lighting is
+under 1% of the compile and visibility is 30%. The measurements are below, taken
+from the shipping CS2 tools on 2026-09-20.
 
 The headline: **vrad3 is a standalone, scriptable tool, and resourcecompiler
 writes its script in plain text.** Nothing here had to be guessed.
@@ -163,15 +164,15 @@ that `streamablehttp_client` has since been renamed.
 Three jobs on the same machine (RTX 4070, 15 threads), all of them a single
 4096x4096 atlas in 16 blocks, profiled with `tools/vrad3/profile_vrad3.py`:
 
-| stage | probe01 (15 meshes) | ze_hold_em_p (87) | ze_doom_p2 (3,289) |
-|---|---|---|---|
-| **median filter 7x7** | **7.73 s** | **7.86 s** | **8.24 s** |
-| light probe volumes | 0.08 s (2) | 0.73 s (8) | **4.36 s (39)** |
-| GPU block compute | 0.87 s (16) | 1.22 s (16) | 2.52 s (16) |
-| seam weld | 0.04 s | 0.55 s | 0.99 s |
-| JFA dilate | 0.31 s | 0.35 s | 0.42 s |
-| measured total | 9.58 s | 11.48 s | 17.60 s |
-| wall clock | 18.3 s | 21.2 s | 36.8 s |
+| stage | probe01 (15 meshes) | ze_hold_em_p (87) | ze_doom_p2 (3,289) | ze_ffvii_mako_reactor_v6_p (5,923) |
+|---|---|---|---|---|
+| **median filter 7x7** | **7.73 s** | **7.86 s** | **8.24 s** | 6.40 s |
+| light probe volumes | 0.08 s (2) | 0.73 s (8) | 4.36 s (39) | **11.28 s (124)** |
+| GPU block compute | 0.87 s (16) | 1.22 s (16) | 2.52 s (16) | 5.94 s (16) |
+| seam weld | 0.04 s | 0.55 s | 0.99 s | 4.65 s |
+| JFA dilate | 0.31 s | 0.35 s | 0.42 s | 0.37 s |
+| measured total | 9.58 s | 11.48 s | 17.60 s | 31.79 s |
+| wall clock | 18.3 s | 21.2 s | 36.8 s | **56.4 s** |
 
 Three things fall out of that, and none of them was the expectation:
 
@@ -193,11 +194,44 @@ Also: wall clock is about double the sum of the timed stages, so roughly half of
 vrad3's runtime is in things it does not time - startup, Vulkan init, and writing
 five ~134 MB uncompressed EXRs.
 
-**What this does NOT establish** is why a big ZE map is reported to take most of a
-day. Every map here fits one atlas page and none took a minute. The two candidates
-visible in the numbers are atlas pages (each multiplying both the trace and the
-fixed CPU passes) and probe volume count. Settling it needs a big map profiled the
-same way, which is now a 20 second measurement once the map builds.
+Across the four, the trends hold: the median filter is flat, probe volumes grow
+roughly with their count (2, 8, 39, 124), and the trace stays small. Even on Mako
+Reactor - 5,923 meshes, 6,882 instances, 124 probe volumes, an 18.8 MB packing
+geometry - the whole lighting stage is **56 seconds**.
+
+## The bigger measurement: lighting is not what costs a compile
+
+Mako Reactor's full compile took **1,313 seconds**. Where it went, by the stages
+resourcecompiler names:
+
+| stage | seconds | share |
+|---|---|---|
+| **Generated clusters for 751,270 regions** | **228.32** | 17% |
+| **Merged cluster lists** (25,471 clusters) | **171.86** | 13% |
+| one unnamed stage | 60.65 | 5% |
+| Preprocessing Lights | 25.85 | 2% |
+| Precomputing light vis membership | 25.59 | 2% |
+| Voxelize (8 units) | 21.33 | 2% |
+| **Lightmapping** | **9.33** | **0.7%** |
+| median filter, seams, dilate, writes | ~20 | 1.5% |
+
+**Visibility is about 400 seconds, 30% of the compile. Lightmapping is 9.3.** And
+the named stages only account for ~608 of the 1,313 seconds, so roughly half the
+compile is work the tool does not narrate at all.
+
+So the premise this file opened with - lighting is the expensive half, replace it
+and put it on a big GPU - does not survive its own measurements. A perfect GPU
+lighting replacement turns 21.9 minutes into 21.8.
+
+Two things that could still change the conclusion, both cheap to test:
+
+- **282 models are missing** from this compile (see below), so the scene is
+  smaller than the real map. That understates the trace - but it understates
+  visibility too, since both scale with geometry.
+- These are DEFAULT settings. A map shipped at final quality uses more samples and
+  more bounces, which scales lighting and not visibility. The script exposes those
+  directly (`lightmap_compute_block_gpu 16 16 0.200`), and vrad3 runs standalone,
+  so the scaling curve is an afternoon's measurement rather than a guess.
 
 ## Compiling a community port at all
 
