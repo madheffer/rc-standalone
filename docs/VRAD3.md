@@ -100,19 +100,34 @@ Uncompressed scanline half float: 4096 x 4096 x 3 x 2 = 100,729,145 bytes, which
 is the file size to the byte. Writing these is a header and raw scanlines, and
 comparing ours against Valve's is an array diff.
 
-### lightmap_info.dat is one u32 per luxel
+### lightmap_info.dat is one CHART ID per luxel
 
-Decoded by inspection, no decompiler needed. The file is **exactly 64 MiB =
-4096 x 4096 x 4**, and the script's `lightmap_image_gpu 4096 4096 1024` plus its
-16 `lightmap_load_block_gpu` calls say why: the atlas is 4096 square, a block is
-1024 square, 4 x 4 = 16 blocks of 4 MiB each.
+Settled from the binary, not inferred. `lightmap_load_block_gpu`'s own log line is
+`"Copy block chart IDs to lightmap image... "`, and the loader's seek arithmetic
+decompiles to:
 
-On the probe map, **71.1% of slots are valid**, `0xFFFFFFFF` marks the rest, and
-the valid values are small dense ids (0 to 70, 71 distinct). So this is the
-per-luxel "which surface am I" map the tracer shoots rays from. Exactly what the
-id indexes - chart, instance or triangle - is the next thing to pin down, against
-`lightmap_packing_geometry.dat` (whose header reads `0, 40, 434, 896.0f, 992.0f`:
-a count, a stride, and rects).
+```c
+blocksAcross = ceil(atlasWidth / blockSize);
+seek = (blockX * blockSize + blockY * atlasWidth) * blockSize * 4;   // bytes
+// then read blockWidth * blockHeight u32s, clipped at the atlas edges
+```
+
+So the file is the atlas stored BLOCK by block in block-row-major order, each
+block `blockSize * blockSize` u32s. For the shipping configuration - a 4096 atlas
+in 1024 blocks - that is 4 MiB per block and 64 MiB total, and block 1 starts at
+4 MiB while block 4 starts at 16 MiB. The file's size matches exactly.
+
+Per luxel, the value is a chart id, or `0xFFFFFFFF` for a luxel that belongs to no
+chart (71.1% of the probe map's atlas is covered). A valid id indexes a **28-byte
+chart record** - the table that comes out of `lightmap_packing_geometry.dat` - and
+the loader copies two flag bits out of bits 28 and 29 of that record's dword at
++0x18 into the per-luxel state, which is 12 bytes wide with a flags byte at +8
+whose bit 0 means "has a chart".
+
+The chart record's own layout is the next thing to pin down, and the header of a
+packing geometry file reads `0, 40, 434, 896.0f, 992.0f` - which is not yet a
+consistent story with a 28-byte stride, so it wants the decompiler rather than
+another guess.
 
 ## Reading the binary
 
