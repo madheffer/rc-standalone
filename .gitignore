@@ -15,3 +15,7 @@ third_party/ValveResourceFormat/
 # Native encoder build output (CMake); the sources ARE committed.
 src/Source2.Compiler/Native/bc7enc/build/
 src/Source2.Compiler/Native/bc7enc/bin/
+
+# python probe caches
+__pycache__/
+*.pyc
