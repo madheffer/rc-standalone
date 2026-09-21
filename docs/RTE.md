@@ -54,7 +54,52 @@ albedo or reflectivity a bounce tracer needs, at its default of white. It lands
 exactly on the end of the file in both files, which is what pins `B` as the
 triangle count and 12 as its stride.
 
-### Section boundaries
+### The whole layout (SOLVED)
+
+Both specimens tile **exactly**, a 348 KB map and a 23 MB one:
+
+```
+offset                size        section
+0                     64          header
+64                    A * 8       kd nodes: (float split, u32 packed child + axis)
+64 + A*8              B * 48      triangles, cache-optimized form
+                      (C-1) * 4   leaf triangle indices, u32 into the triangle array
+                      B * 8       per-triangle, 8 bytes, purpose unknown
+                      B * 12      per-triangle reflectivity, Vector3, all (1,1,1)
+```
+
+| section | ze_hold_em_p | mako |
+|---|---|---|
+| kd nodes | 1,865 | 150,015 |
+| triangles | 4,548 | 279,064 |
+| indices | 5,982 | 770,786 |
+| total | 348,176 = file | 23,259,680 = file |
+
+Every boundary was corroborated independently of the arithmetic: the kd region
+opens at `0x40` with split positions inside the world box, the index region is
+visibly ascending `u32` runs, the index-to-per-triangle boundary is sharp in a hex
+dump (ascending indices, then a new repeating pattern, at exactly
+`filesize - B*20`), and the reflectivity tail is uniformly `(1, 1, 1)`.
+
+**The triangles are not raw vertices.** Testing all four float triples of the
+48-byte record against the world bounding box gives inconsistent results between
+the two maps, and a record reads
+`[1.0, 0.0, -56.0, 0.0, -0.021, 0.0, 1.362, 0.0, -0.002, 14.984, 0.0, 0.0]`:
+mixed scales, normal-like and distance-like together. That is a **cache-optimized
+ray trace triangle**, a plane plus edge equations, which is how Valve's raytrace
+library has always stored them for intersection. Decoding the individual fields is
+still open; the stride and count are not.
+
+**The index array is `C - 1`, not `C`.** That off-by-one is consistent across both
+files to the byte, so one entry is a root or sentinel rather than a leaf index.
+
+The layout also passes a falsifier it had no reason to: read at this offset and
+stride, **every one of ze_hold_em_p's 5,982 leaf indices is below the triangle
+count**, none out of range. A section placed a few bytes wrong, or strided wrong,
+would produce values scattered far past 4,548. `tools/re/read_rte.py` performs
+that check.
+
+### Section boundaries seen before the layout was solved
 
 Classifying each 4-byte word as coordinate-like float, small integer or neither,
 and run-length encoding the result, ze_hold_em_p splits cleanly:
@@ -71,25 +116,26 @@ split position and a packed child-plus-axis word is the standard kd-node layout.
 
 ## What is NOT established
 
-**The middle arrays.** A search over every subset of the header counts crossed
-with plausible strides found **no assignment that tiles both files exactly** after
-a 64-byte header. So either the header is longer than 64 bytes, there are counts
-not in the first nine words, or a section is variable length. Do not guess a
-layout here; the earlier `lightmap_packing_geometry.dat` attempt published a
-field order that ran off the end of all three specimens.
+**The 48-byte triangle record's fields.** It is a plane plus edge equations
+rather than three vertices, but which float is which is not decoded. A reader
+that reconstructs vertices needs this.
 
-**Why the triangle count disagrees with the log.** Mako's header carries
-`B = 279,064` while the compile prints `Convert RTE with 28728 triangles`. Those
-differ by about 9.7x. Either the log counts a filtered subset that visibility
-actually traces against, or `B` counts something other than triangles and the
-`(1,1,1)` array is per-something-else. **Unresolved, and it matters**: it decides
-what the arrays are indexed by.
+**The 8-byte per-triangle array.** Long constant runs, so probably a surface or
+material id plus flags. On Mako only 320 of 279,064 entries match the first, so it
+is not a single constant.
+
+**Why the log says 28,728 triangles when the header says 279,064.** The literal
+28,728 does occur in Mako's file exactly once, but as a VALUE inside the ascending
+index array, not as a count, so it is coincidence. The header count is the array
+length and it is confirmed by the file tiling exactly. The log's number is
+therefore a filtered subset, presumably the opaque or vis-relevant triangles that
+`Convert RTE` keeps. Not confirmed.
 
 ## Next
 
-1. Settle `B` against the log's 28,728 by finding a section whose element count
-   is 28,728 rather than 279,064.
-2. Widen the header search past 64 bytes, and look for counts stored after the
-   kd-tree rather than in the header.
-3. Validate any candidate layout by reconstructing a triangle soup and checking
-   its bounds against the header's stated box, which is a cheap falsifier.
+1. Decode the 48-byte triangle record, ideally by finding Valve's
+   `CacheOptimizedTriangle` layout in the raytrace library, and validate by
+   reconstructing vertices and checking them against the header's bounding box.
+2. Identify the 8-byte per-triangle field.
+3. Then a reader, scored by rebuilding a triangle soup whose bounds match the
+   header's stated box.
