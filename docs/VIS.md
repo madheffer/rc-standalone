@@ -296,6 +296,62 @@ against the author's original, not one source compiled twice. A clean calibratio
 still needs the same source compiled twice at different `MaxVisClusters` /
 `BaseVoxelSize`.
 
+## A shadow install, for changing settings safely
+
+The VisBuilder knobs live in gameinfo.gi, so measuring them means editing it.
+Editing the real one is not on while the game is running, and copying the install
+is not on either: `game/csgo` alone is 60 GB against 92 GB free.
+
+`tools/vis/new-shadow-cs2.ps1` builds one out of links instead. Directories become
+junctions and files become hardlinks, both pointing at the same bytes on the same
+volume, and the ONE file that has to differ is copied for real. 21 junctions, 529
+hardlinks, and a 9 KB gameinfo.gi. Free space did not move.
+
+Compile against it with `-game D:\cs2-shadow\game\csgo`. Verified equivalent:
+`fsutil hardlink list` shows the shadow's gameinfo.gi alone in its own group while
+`pak01_dir.vpk` lists both paths, and the same map compiled both ways produces
+**byte-identical DATA and VXVS**.
+
+One caveat that comes out of that check, and it corrects the determinism claim
+above: the two containers are NOT byte-identical, because RED2's
+`m_nFingerprint` differs (2356852877 against 1695646057). That field is compile
+identity, not visibility. So `vis_digest()` hashes DATA and VXVS only, and
+"identical" in this file means identical visibility.
+
+## How far the knobs move it
+
+ze_hold_em_p, each setting compiled in the shadow and scored against the stock
+compile with `vis-diff` at 2,000 points:
+
+| variant | voxel nodes | clusters | vis time | placement lost | holes | overdraw |
+|---|---|---|---|---|---|---|
+| baseline (8 units) | 81,625 | 258 | 9.73 s | | | |
+| `BaseVoxelSize 16` | 20,585 | 156 | 4.07 s | 1.05% | 1.52% | 0% |
+| `BaseVoxelSize 32` | 6,905 | 151 | **1.23 s** | **25.3%** | 0.49% | 33.0% |
+| `MaxVisClusters 128` | 81,625 | 125 | 10.46 s | 0% | 1.99% | 0.44% |
+| `MaxVisClusters 512` | 81,625 | 258 | 10.65 s | identical to baseline | | |
+
+`MaxVisClusters 512` reproducing the baseline exactly is the control that proves
+the block is read at all: the clamp moved from 1342 to 510 in the log, but this
+map only makes 258 clusters so it never binds.
+
+**`BaseVoxelSize` is the speed lever and it is not free.** 32 units is 8x faster
+end to end, and it loses a QUARTER of the space the baseline places points in:
+navigable volume the coarse voxelization never learns exists. That is a worse
+failure than either holes or overdraw, because those at least presuppose the two
+builds are describing the same world. 16 units costs 1% of placement for 2.4x.
+
+**The calibration number:** a legitimate settings change moves point-pair
+agreement by 1.5 to 2%. A replacement landing within a couple of percent of
+Valve's is inside the range Valve's own settings span, and that is the scale our
+builder's error should be read against.
+
+**With the caveat that this map is a poor subject.** ze_hold_em_p sees 64.3% of
+clusters from an average cluster, and volume-weighted about 97% of sampled pairs
+are visible, so there is very little hiding for a variant to get wrong. A tightly
+occluded map like ze_raccoon_facility_p at 5.0% mean visible would discriminate
+far better, and this table should be redone on one.
+
 ## What is implemented
 
 | piece | state |
@@ -313,12 +369,9 @@ still needs the same source compiled twice at different `MaxVisClusters` /
 
 1. ~~Force Valve's builder to re-run~~ done, 13.5 seconds a round on a small map,
    and its output is byte-stable.
-2. ~~Build the point-pair sampler~~ done and validated. Still owed is the
-   calibration it was built for: the SAME source compiled twice at different
-   `MaxVisClusters` and `BaseVoxelSize`. Same-settings runs are already known to
-   be byte-identical, so this measures how far a legitimate settings change moves
-   the answer, which is the scale any replacement's error should be read against.
-   It needs a `ResourceCompiler { VisBuilder { ... } }` block in gameinfo.gi.
+2. ~~Build the point-pair sampler~~ ~~and calibrate it on settings~~ done, see
+   "How far the knobs move it" above. Owed: redo that calibration on a properly
+   occluded map, because ze_hold_em_p is too open to discriminate.
 3. Then voxelize and region generation, scored against Valve's own counts on the
    same map before any PVS is computed at all. ze_hold_em_p is the reference:
    81,625 voxel nodes, 10,554 regions in, 103,358 regions out, collapsed to 4,194,

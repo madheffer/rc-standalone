@@ -15,7 +15,6 @@ world_visibility.vvis_c that landed in the map VPK, so repeated runs answer
 whether the tool is deterministic before anything is compared against it.
 """
 import argparse
-import hashlib
 import os
 import re
 import subprocess
@@ -25,6 +24,8 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "map-survey"))
 from vpk import Vpk                                       # noqa: E402
+sys.path.insert(0, HERE)
+from vis_index import vis_digest                          # noqa: E402
 
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
@@ -106,9 +107,9 @@ def main():
         if vis is None:
             print("   no world_visibility.vvis_c in the map VPK")
             continue
-        digest = hashlib.sha256(vis).hexdigest()
+        digest = vis_digest(vis) or "unreadable"
         digests.append(digest)
-        print(f"   vvis_c {len(vis):,} bytes  sha256 {digest[:16]}")
+        print(f"   vvis_c {len(vis):,} bytes  vis digest {digest[:16]}")
         if args.keep:
             with open(os.path.join(args.keep, f"{args.map}.run{run}.vvis_c"), "wb") as f:
                 f.write(vis)

@@ -119,3 +119,26 @@ def maps(limit=None):
                 yield name, payload, blocks["VXVS"][1]
                 if limit and len(seen) >= limit:
                     return
+
+
+def vis_digest(container):
+    """A hash of the VISIBILITY in a .vvis_c, ignoring compile identity.
+
+    Two compiles of one map from different install roots produce byte-identical
+    DATA and VXVS but a different RED2 m_nFingerprint, so hashing the whole file
+    reports a difference that is not one. Measured on ze_hold_em_p compiled from
+    the real install and from the shadow: RED2 differs in that one field, the
+    other two blocks match to the byte.
+    """
+    import hashlib
+    header = container_header(container)
+    if not header:
+        return None
+    _, blocks = header
+    digest = hashlib.sha256()
+    for fourcc in ("DATA", "VXVS"):
+        if fourcc not in blocks:
+            continue
+        offset, size = blocks[fourcc]
+        digest.update(container[offset:offset + size])
+    return digest.hexdigest()
