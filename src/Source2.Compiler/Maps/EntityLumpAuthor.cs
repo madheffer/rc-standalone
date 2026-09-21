@@ -50,10 +50,19 @@ public static class EntityLumpAuthor
             lumps.Add(new KVObject(child));
         root.Add("m_childLumps", lumps);
 
+        // An output's override parameter gets the fixup when it NAMES one of the
+        // map's entities. resourcecompiler says so itself while compiling
+        // ze_hold_em_p: "Parameter 'humans' corresponds to an entity target name,
+        // but is sent to input 'SetDamageFilter' ... which is not marked as being
+        // a target name. (FGD Error?)" - and it writes [PR#]humans regardless. So
+        // the test is the map's own name set, not the FGD's input declaration.
+        var entityNames = new HashSet<string>(
+            entities.Select(NameOf).Where(n => n.Length > 0), StringComparer.OrdinalIgnoreCase);
+
         var array = KVObject.Array();
         for (var i = 0; i < entities.Count; i++)
             array.Add(BuildEntity(entities[i], schema, i, worldName, fixupEntityNames,
-                                  HasPointPrefab(entities, schema)));
+                                  HasPointPrefab(entities, schema), entityNames));
         root.Add("m_entityKeyValues", array);
         return root;
     }
@@ -81,7 +90,7 @@ public static class EntityLumpAuthor
 
     private static KVObject BuildEntity(
         MapEntities.Entity entity, FgdSchema? schema, int index, string? worldName, bool fixupEntityNames,
-        bool mapHasPointPrefabs)
+        bool mapHasPointPrefabs, HashSet<string>? entityNames)
     {
         var values = KVObject.Collection();
 
@@ -155,13 +164,25 @@ public static class EntityLumpAuthor
         keyValues.Add("attributes", KVObject.Collection());
 
         var result = KVObject.Collection();
-        result.Add("m_connections", Connections(entity));
+        result.Add("m_connections", Connections(entity, fixupEntityNames, entityNames));
         result.Add("m_keyValuesData", KVObject.Blob([]));
         result.Add("keyValues3Data", keyValues);
         return result;
     }
 
-    private static KVObject Connections(MapEntities.Entity entity)
+    /// <summary>
+    /// Apply the prefab name fixup to an entity name the map refers to.
+    ///
+    /// <para>An engine keyword is NOT a name and does not get one. Valve's lump
+    /// for ze_hold_em_p prefixes 144 of its 145 connection targets; the single
+    /// exception is <c>!activator</c>, and the same goes for its siblings
+    /// <c>!self</c>, <c>!player</c> and <c>!caller</c>.</para>
+    /// </summary>
+    private static string Fixup(string name, bool enabled)
+        => enabled && name.Length > 0 && name[0] != '!' ? NameFixup + name : name;
+
+    private static KVObject Connections(MapEntities.Entity entity, bool fixupEntityNames,
+                                        HashSet<string>? entityNames)
     {
         var array = KVObject.Array();
         foreach (var c in entity.Connections)
@@ -169,15 +190,22 @@ public static class EntityLumpAuthor
             var o = KVObject.Collection();
             o.Add("m_outputName", new KVObject(c.OutputName));
             o.Add("m_targetType", new KVObject("ENTITY_CONNECTION_TARGET_NAME"));
-            o.Add("m_targetName", new KVObject(c.TargetName));
+            o.Add("m_targetName", new KVObject(Fixup(c.TargetName, fixupEntityNames)));
             o.Add("m_inputName", new KVObject(c.InputName));
-            o.Add("m_overrideParam", new KVObject(c.OverrideParam));
+            o.Add("m_overrideParam", new KVObject(
+                entityNames?.Contains(c.OverrideParam) == true
+                    ? Fixup(c.OverrideParam, fixupEntityNames)
+                    : c.OverrideParam));
             o.Add("m_flDelay", new KVObject(c.Delay));
             o.Add("m_nTimesToFire", new KVObject(c.TimesToFire));
             array.Add(o);
         }
         return array;
     }
+
+    /// <summary>An entity's targetname, or empty when it has none.</summary>
+    private static string NameOf(MapEntities.Entity entity)
+        => entity.Keys.FirstOrDefault(k => k.Key.Equals("targetname", StringComparison.OrdinalIgnoreCase)).Value ?? "";
 
     /// <summary>Placement keys live on the map node, not in the game keys, and the
     /// compile writes its own; a stale copy in the props would fight it.</summary>
@@ -249,7 +277,7 @@ public static class EntityLumpAuthor
             // one rewritten by the compile. RC does it by TYPE, not by meaning: a
             // light_environment's ambient_occlusion_proxy_position_0 is declared
             // target_destination and holds "0 0 0", and ships as "[PR#]0 0 0".
-            FgdSchema.FieldType.EntityName when fixupEntityNames => new KVObject(NameFixup + text),
+            FgdSchema.FieldType.EntityName when fixupEntityNames => new KVObject(Fixup(text, true)),
             FgdSchema.FieldType.Boolean => new KVObject(ParseBool(text)),
             FgdSchema.FieldType.Integer when long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)
                 => Integer(i),

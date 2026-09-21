@@ -195,9 +195,17 @@ a mapper chose. Everything else was identical everywhere.
 ## Entity lump: what still differs from resourcecompiler
 
 `EntityLumpAuthor` reproduces `resourcecompiler`'s lump exactly for
-`gflscripts/untitled_1`. On `s2c_lighting/ze_hold_em_p` it does not: **832
-differences**, which resolve into four causes. Measured, not guessed, and each is
-a separate piece of work.
+`gflscripts/untitled_1`. On `s2c_lighting/ze_hold_em_p` it does not. The count has
+come down as causes were fixed:
+
+| | differences |
+|---|---|
+| first measurement | 832 |
+| after the connection target fixup | 546 |
+| after the override parameter fixup | **544** |
+
+Each remaining cause is separate work, and all of them are measured rather than
+guessed.
 
 ### 1. We emit entities the compiler drops
 
@@ -231,17 +239,33 @@ why the compiler drops all 28 is not known. Do not guess it.
 problem `docs/RC_PARITY.md` C1 describes: the width is the C++ field's, not the
 value's.
 
-### 3. Connection targets miss the name fixup
+### 3. Connection name fixup (FIXED)
 
-Every connection appears twice in the report, once as missing and once as ours
-only, and the only difference is the prefix: Valve writes
-`[PR#]door6.Open`, we write `door6.Open`. So the `[PR#]` fixup is being applied to
-entity NAMES but not to the targets named inside outputs. This map uses prefab
-instances; `gflscripts/untitled_1` does not, which is why it passes there.
+Outputs carry two names that need the prefab fixup and were not getting it. Both
+are now applied and connections match.
 
-### 4. A key the compiler writes and we do not
+The **target** is prefixed unless it is an engine keyword: Valve's lump prefixes
+144 of its 145 connection targets and the single exception is `!activator`, so
+the rule is "prefix unless it starts with `!`", which also covers `!self`,
+`!player` and `!caller`.
 
-`hoverposeflags` on `func_physbox`, valve `Int64 0`, missing from ours.
+The **override parameter** is prefixed when it NAMES one of the map's entities.
+resourcecompiler states this itself while compiling ze_hold_em_p:
+
+    Parameter 'humans' corresponds to an entity target name, but is sent to input
+    'SetDamageFilter' on 'boss' which is not marked as being a target name.
+    (FGD Error?)
+
+and writes `[PR#]humans` anyway. So the test is the map's own set of targetnames,
+not the FGD's input declaration, which is why a purely schema-driven rule would
+have missed it.
+
+### 4. Keys the compiler writes and we do not
+
+`hoverposeflags` on `func_physbox`, and a `precomputedbounds` / `precomputedobb`
+family that resourcecompiler derives rather than copies. The baked lighting keys
+in the same list (`bakedshadowindex`, `light_map_uniqueid`, `light_path_uniqueid`)
+are the already documented lighting gap and arrive with vrad3's tier.
 
 ## What is implemented
 
