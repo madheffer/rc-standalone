@@ -58,18 +58,29 @@ A phase that produces any of them must produce all of them consistently.
 
 ---
 
-## Phase 1: prove our containers in game (NEXT, small)
+## Phase 1: prove our containers in game (BUILT, awaiting the in-game load)
 
 Everything we author is currently judged by our own comparison. It has never been
 loaded by CS2.
 
-1. Compile a map with RC using `-novpk`, so children land as loose files that can
-   be replaced one at a time and no VPK writer is needed.
-2. Replace `world.vrman_c`, `world.vwrld_c`, `n0.vwnod_c` and
-   `default_ents.vents_c` with our re-authored versions. All four already report
-   *equivalent*: identical decoded tree, identical references, identical resource
-   version, differing only in KV3 encoding and RED2 fingerprint.
-3. Load it. Walk it. Compare against the unmodified build.
+`-novpk` was the intended route and it hangs (see `CAVEATS.md`), so we write the
+VPK instead. `tools/pipeline/splice_map.py` rebuilds a map VPK with named entries
+replaced, and it round trips Valve's own package byte for byte across all 72
+entries, with ValvePak reading the result.
+
+Done so far:
+
+1. Re-authored `world.vrman_c`, `world.vwrld_c`, `n0.vwnod_c` and
+   `default_ents.vents_c` from the stock compile through our writer. All four
+   report *equivalent*: identical decoded tree, identical references, identical
+   resource version, differing only in KV3 encoding and the RED2 fingerprint.
+2. Spliced them into Valve's compiled map. `map-diff` confirms **exactly those 4
+   of 72 files differ** and the other 68 are byte identical.
+3. Installed at `game/csgo_addons/s2c_lighting/maps/ze_hold_em_p.vpk`, with the
+   stock build kept beside it for an A/B.
+
+Remaining: **load it**. That step needs a person in the game and has not been
+done, so nothing here yet says CS2 accepts our containers.
 
 **Why first:** it is a day's work, it needs no new format knowledge, and it
 converts "our writer produces something that looks right" into "CS2 accepts what

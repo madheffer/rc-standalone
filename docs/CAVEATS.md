@@ -128,6 +128,14 @@ the global help. `-fshallow`, `-novpk`, `-skiptype` and `-vpkincr` are listed.
 Most "options" recovered by scanning the binary for `-xx` patterns are
 compression noise, not switches.
 
+### `-novpk` hangs on a map
+
+Documented as "generate loose files for the map resource and its children instead
+of generating a vpk", and it never returns: 35 minutes at a constant 532 MB
+producing no output and no files, on a map that compiles in 45 seconds. The same
+command without `-novpk` is fine. Write the VPK yourself instead;
+`tools/pipeline/splice_map.py` does, and ValvePak reads the result.
+
 ### Materials are fatal, models are not
 
 A missing material aborts the compile, LATE: on Mako it spent 22 minutes on
