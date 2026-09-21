@@ -76,6 +76,13 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
         // regresses light_environment and point_template, so the narrower rule it
         // belongs to is not known yet.
         "env_texturetoggle",
+        // Six entities, all of them members of a CHILD lump, whose angles Valve
+        // writes as [-0, -90, 0] against the source's [0, 270, 0]. That is a matrix
+        // decompose, and Valve's own precomputedobbangles carry the same
+        // "-0.000000" signature, but no decompose we can derive produces a NEGATIVE
+        // zero pitch, so the exact path is not known. Everything else about a
+        // child lump now matches.
+        "prop_dynamic", "point_teleport",
     };
 
     [Fact]
@@ -95,7 +102,7 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
                 skipped.Add($"{addon}/{map} (no source)");
                 continue;
             }
-            var valve = MapFixtures.RcCompiledLump(source);
+            var valve = MapFixtures.RcCompiledLumps(source);
             if (valve is null)
             {
                 // A map resourcecompiler refuses is not evidence either way, and
@@ -105,15 +112,32 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
             }
 
             var document = DmxBinary.ReadFile(source);
-            var ours = EntityLumpAuthor.Author(
-                MapEntities.From(document), MapFixtures.GameSchema(), worldName: map,
-                fixupEntityNames: MapEntities.FixupEntityNames(document));
+            var ours = EntityLumpSet.Author(
+                MapEntities.From(document), MapFixtures.GameSchema(), map,
+                MapEntities.FixupEntityNames(document));
 
-            var theirs = EntityLumpComparison.Read(valve, $"{map}.valve.vents_c");
+            // EVERY lump, not just default_ents: a point_template's members compile
+            // into a lump of their own, and comparing one file would report all 57
+            // of atixref's as entities we invented.
+            var theirs = new List<EntityLumpComparison.Entity>();
+            var mine = new List<EntityLumpComparison.Entity>();
+            foreach (var lump in ours)
+            {
+                if (!valve.TryGetValue(lump.Path, out var bytes))
+                {
+                    skipped.Add($"{addon}/{map}: {lump.Path} is not in the compile");
+                    continue;
+                }
+                theirs.AddRange(EntityLumpComparison.Read(bytes, lump.Path));
+                mine.AddRange(EntityLumpComparison.Read(lump.Bytes, lump.Path));
+            }
+            foreach (var path in valve.Keys.Where(k => !ours.Any(l => l.Path.Equals(k, StringComparison.OrdinalIgnoreCase))))
+                skipped.Add($"{addon}/{map}: we author no {path}");
+
             foreach (var entity in theirs)
                 entities[entity.ClassName] = entities.GetValueOrDefault(entity.ClassName) + 1;
 
-            foreach (var line in EntityLumpComparison.Diff(theirs, EntityLumpComparison.Read(ours, $"{map}.ours.vents_c")))
+            foreach (var line in EntityLumpComparison.Diff(theirs, mine))
             {
                 var hit = ClassInLine().Match(line);
                 var name = hit.Success ? hit.Groups[1].Value : "(no class)";

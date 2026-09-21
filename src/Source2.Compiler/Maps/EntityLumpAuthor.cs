@@ -32,13 +32,24 @@ public static class EntityLumpAuthor
     /// <param name="name">The lump's own name, e.g. <c>default_ents</c>.</param>
     /// <param name="childLumps">Names of lumps hanging off this one.</param>
     /// <param name="worldName">The map's name, which worldspawn records.</param>
+    /// <param name="order">Which walked entities this lump carries, by their index
+    /// in <paramref name="entities"/> and in the order they should appear. Null is
+    /// all of them in walk order. A child lump is a re-ordered subset, and the
+    /// index still comes from the walk, so the two cannot be the same list.</param>
+    /// <param name="lumpNames">Lump name per point_template node id, for the
+    /// templates that own one.</param>
+    /// <param name="template">Set when this is a CHILD lump, which places and
+    /// may rename its members. Null for default_ents.</param>
     public static KVObject BuildTree(
         IReadOnlyList<MapEntities.Entity> entities,
         FgdSchema? schema,
         string name = "default_ents",
         IReadOnlyList<string>? childLumps = null,
         string? worldName = null,
-        bool fixupEntityNames = false)
+        bool fixupEntityNames = false,
+        IReadOnlyList<int>? order = null,
+        IReadOnlyDictionary<int, string>? lumpNames = null,
+        TemplateLump? template = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
@@ -64,12 +75,32 @@ public static class EntityLumpAuthor
         // of 4,601 walked nodes and its compile_source_id values run to 4,600 with
         // a gap wherever one was filtered.
         var array = KVObject.Array();
-        for (var i = 0; i < entities.Count; i++)
+        var prefabs = HasPointPrefab(entities, schema);
+        var ordinal = 0;
+        foreach (var i in order ?? [.. Enumerable.Range(0, entities.Count)])
             if (ReachesTheLump(entities[i], schema))
                 array.Add(BuildEntity(entities[i], schema, i, worldName, fixupEntityNames,
-                                      HasPointPrefab(entities, schema), entityNames));
+                                      prefabs, entityNames, lumpNames,
+                                      template is null ? null : ordinal++, template));
         root.Add("m_entityKeyValues", array);
         return root;
+    }
+
+    /// <summary>
+    /// The point_template a child lump belongs to.
+    /// </summary>
+    /// <param name="Origin">Members are stored in the template's local space.</param>
+    /// <param name="Suffix">Appended to every member NAME, and to every reference
+    /// to one, before the prefab prefix. A template whose spawnflags lack bit 1,
+    /// "preserve entity names", gets <c>&amp;0000</c>: atixref's deadpool_temp and
+    /// snake_temp are the two at spawnflags 0 and the only two whose members are
+    /// renamed.</param>
+    /// <param name="MemberNames">Member names as the SOURCE states them.</param>
+    public sealed record TemplateLump(Vector3 Origin, string Suffix, IReadOnlySet<string> MemberNames)
+    {
+        /// <summary>A member name with its suffix; anything else unchanged.</summary>
+        public string Rename(string name)
+            => Suffix.Length > 0 && MemberNames.Contains(name) ? name + Suffix : name;
     }
 
     /// <summary>Build and compile the lump.</summary>
@@ -79,9 +110,14 @@ public static class EntityLumpAuthor
         string name = "default_ents",
         IReadOnlyList<string>? childLumps = null,
         string? worldName = null,
-        bool fixupEntityNames = false)
+        bool fixupEntityNames = false,
+        IReadOnlyList<int>? order = null,
+        IReadOnlyDictionary<int, string>? lumpNames = null,
+        TemplateLump? template = null)
         => Source2ContainerAuthor.AuthorKv3Tree(
-            BuildTree(entities, schema, name, childLumps, worldName, fixupEntityNames), Format, ".vents");
+            BuildTree(entities, schema, name, childLumps, worldName, fixupEntityNames,
+                      order, lumpNames, template),
+            Format, ".vents");
 
     /// <summary>
     /// Whether a walked node is written to the lump at all.
@@ -94,7 +130,9 @@ public static class EntityLumpAuthor
     /// </summary>
     private static bool ReachesTheLump(MapEntities.Entity entity, FgdSchema? schema)
         => schema is null
-        || !(schema.HasFlag(entity.ClassName, "static_prop") || schema.HasFlag(entity.ClassName, "editor_only"));
+        || !(schema.HasFlag(entity.ClassName, "static_prop")
+             || schema.HasFlag(entity.ClassName, "editor_only")
+             || (schema.IsSolidClass(entity.ClassName) && !entity.HasGeometry && !entity.IsWorld));
 
     /// <summary>
     /// True when any entity in the lump is a point prefab, which is what decides
@@ -108,7 +146,8 @@ public static class EntityLumpAuthor
 
     private static KVObject BuildEntity(
         MapEntities.Entity entity, FgdSchema? schema, int index, string? worldName, bool fixupEntityNames,
-        bool mapHasPointPrefabs, HashSet<string>? entityNames)
+        bool mapHasPointPrefabs, HashSet<string>? entityNames, IReadOnlyDictionary<int, string>? lumpNames,
+        int? templateIndex, TemplateLump? template)
     {
         var values = KVObject.Collection();
 
@@ -137,7 +176,7 @@ public static class EntityLumpAuthor
                     continue;
                 text = "0";
             }
-            values.Add(key.Name, Typed(key, text, fixupEntityNames));
+            values.Add(key.Name, Typed(key, Rename(key, text, template), fixupEntityNames));
         }
 
         // Anything the source carries that the schema does not know about is still
@@ -152,7 +191,7 @@ public static class EntityLumpAuthor
                 || schema?.KeyOf(entity.ClassName, key) is not null)
                 continue;
             values.Add(key, key.Equals("targetname", StringComparison.OrdinalIgnoreCase)
-                ? new KVObject(Fixup(text, fixupEntityNames))
+                ? new KVObject(Fixup(template?.Rename(text) ?? text, fixupEntityNames))
                 : new KVObject(text));
         }
 
@@ -168,7 +207,14 @@ public static class EntityLumpAuthor
         // the Hammer node it came from. The id is a number and the node is a
         // string, which is Valve's split, not a slip.
         values.Add("compile_source_id", Integer(index));
-        values.Add("origin", Vector(entity.Origin));
+
+        // A point_template's members are stored in the TEMPLATE's local space, and
+        // each carries its ordinal in the lump. Valve's heli_template sits at
+        // (299, 1091.37, 395) and every one of its four members is offset by
+        // exactly that, on three maps and every lump measured.
+        if (templateIndex is { } ordinal)
+            values.Add("_template_lump_ent_index", Integer(ordinal));
+        values.Add("origin", Vector(entity.Origin - (template?.Origin ?? Vector3.Zero)));
         values.Add("angles", Vector(entity.Angles));
         values.Add("scales", Vector(entity.Scales));
         values.Add("hammerUniqueId", new KVObject(entity.NodeId.ToString(CultureInfo.InvariantCulture)));
@@ -179,6 +225,16 @@ public static class EntityLumpAuthor
         // "ImpModel" maps/cardtest/entities/impmodel_2138.vmdl.
         if (entity.HasGeometry && worldName is { Length: > 0 })
             values.Add("model", new KVObject(BrushModelPath(entity, worldName)));
+
+        // A point_template's members are compiled into a lump of their own, and the
+        // template is what names it. The world is recorded with a BACKSLASH, which
+        // is how Valve writes it and not how the model paths above are written.
+        if (lumpNames is not null && lumpNames.TryGetValue(entity.NodeId, out var lump))
+        {
+            values.Add("entityLumpName", new KVObject(lump));
+            if (worldName is { Length: > 0 })
+                values.Add("worldName", new KVObject("maps\\" + worldName));
+        }
 
         if (entity.IsWorld)
         {
@@ -195,7 +251,7 @@ public static class EntityLumpAuthor
         keyValues.Add("attributes", KVObject.Collection());
 
         var result = KVObject.Collection();
-        result.Add("m_connections", Connections(entity, fixupEntityNames, entityNames));
+        result.Add("m_connections", Connections(entity, fixupEntityNames, entityNames, template));
         result.Add("m_keyValuesData", KVObject.Blob([]));
         result.Add("keyValues3Data", keyValues);
         return result;
@@ -213,7 +269,7 @@ public static class EntityLumpAuthor
         => enabled && name.Length > 0 && name[0] != '!' ? NameFixup + name : name;
 
     private static KVObject Connections(MapEntities.Entity entity, bool fixupEntityNames,
-                                        HashSet<string>? entityNames)
+                                        HashSet<string>? entityNames, TemplateLump? template)
     {
         var array = KVObject.Array();
         foreach (var c in entity.Connections)
@@ -221,11 +277,12 @@ public static class EntityLumpAuthor
             var o = KVObject.Collection();
             o.Add("m_outputName", new KVObject(c.OutputName));
             o.Add("m_targetType", new KVObject("ENTITY_CONNECTION_TARGET_NAME"));
-            o.Add("m_targetName", new KVObject(Fixup(c.TargetName, fixupEntityNames)));
+            o.Add("m_targetName", new KVObject(
+                Fixup(template?.Rename(c.TargetName) ?? c.TargetName, fixupEntityNames)));
             o.Add("m_inputName", new KVObject(c.InputName));
             o.Add("m_overrideParam", new KVObject(
                 entityNames?.Contains(c.OverrideParam) == true
-                    ? Fixup(c.OverrideParam, fixupEntityNames)
+                    ? Fixup(template?.Rename(c.OverrideParam) ?? c.OverrideParam, fixupEntityNames)
                     : c.OverrideParam));
             o.Add("m_flDelay", new KVObject(c.Delay));
             o.Add("m_nTimesToFire", new KVObject(c.TimesToFire));
@@ -233,6 +290,11 @@ public static class EntityLumpAuthor
         }
         return array;
     }
+
+    /// <summary>A member's name carries the lump's suffix; only a name-typed key
+    /// is eligible, so a value that merely reads like one is left alone.</summary>
+    private static string Rename(FgdSchema.Key key, string text, TemplateLump? template)
+        => template is null || key.Type != FgdSchema.FieldType.EntityName ? text : template.Rename(text);
 
     /// <summary>An entity's targetname, or empty when it has none.</summary>
     private static string NameOf(MapEntities.Entity entity)

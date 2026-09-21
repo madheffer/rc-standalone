@@ -59,10 +59,23 @@ public sealed partial class FgdSchema
     public sealed record Key(string Name, FieldType Type, string? Default, bool Removed = false);
 
     private readonly Dictionary<string, Class> _classes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _solid = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed record Class(
         string Name, List<string> Bases, Dictionary<string, Key> Keys, List<KeyValuePair<string, string>> GameKeys,
         HashSet<string> Flags);
+
+    /// <summary>
+    /// Whether the class is declared <c>@SolidClass</c>, which is to say it IS its
+    /// brushes.
+    ///
+    /// <para>One of those with no brushes is not compiled at all.
+    /// ze_doom_p2_c_gameplay carries 43 of them, ten func_button and ten
+    /// trigger_hurt among others, and Valve's compile ships none of the 43 in any
+    /// lump. The other three maps measured have none, which is why this only
+    /// surfaced once the corpus grew.</para>
+    /// </summary>
+    public bool IsSolidClass(string className) => _solid.Contains(className);
 
     /// <summary>
     /// Whether the class's <c>metadata</c> block sets this boolean flag.
@@ -235,6 +248,8 @@ public sealed partial class FgdSchema
         // so the earlier declaration has to go rather than merge.
         var gameKeys = GameKeysIn(head);
         var flags = MetadataFlagsIn(head);
+        if (kind.Value.Equals("@SolidClass", StringComparison.OrdinalIgnoreCase))
+            _solid.Add(name);
         if (kind.Value.Equals("@OverrideClass", StringComparison.OrdinalIgnoreCase)
             && _classes.TryGetValue(name, out var existing))
         {

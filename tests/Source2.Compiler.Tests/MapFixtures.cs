@@ -264,6 +264,43 @@ internal static class MapFixtures
         }
     }
 
+    /// <summary>Where resourcecompiler leaves the map it built from this source.
+    /// The compile itself runs in <see cref="RcCompiledLump"/>.</summary>
+    private static string? RcOutputPath(string sourcePath)
+    {
+        var cs2 = CS2Fixtures.StockPak();
+        if (cs2 is null)
+            return null;
+        var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, "..", ".."));
+        return Path.Combine(root, "game", "csgo_addons", "s2c_rc_probe", "maps",
+                            Path.GetFileNameWithoutExtension(sourcePath) + ".vpk");
+    }
+
+    /// <summary>
+    /// EVERY entity lump resourcecompiler produced for the map, by its path in the
+    /// package. A map with point_templates compiles to more than default_ents, and
+    /// comparing only that one makes the template members look invented.
+    /// </summary>
+    public static IReadOnlyDictionary<string, byte[]>? RcCompiledLumps(string sourcePath)
+    {
+        lock (Gate)
+        {
+            if (RcCompiledLump(sourcePath) is null)
+                return null;
+
+            var compiled = RcOutputPath(sourcePath);
+            if (compiled is null || !File.Exists(compiled))
+                return null;
+
+            using var pkg = new Package();
+            pkg.Read(compiled);
+            var lumps = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+                lumps[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
+            return lumps;
+        }
+    }
+
     private static string? DiskCachePath(string sourcePath)
     {
         var cs2 = CS2Fixtures.StockPak();
