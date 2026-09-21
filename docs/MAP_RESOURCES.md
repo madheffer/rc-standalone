@@ -192,6 +192,57 @@ One value in that set is a setting rather than a version: `Texture Encode Qualit
 carries `user=4` in 51 maps and `user=3` in 49, so it reflects the compile options
 a mapper chose. Everything else was identical everywhere.
 
+## Entity lump: what still differs from resourcecompiler
+
+`EntityLumpAuthor` reproduces `resourcecompiler`'s lump exactly for
+`gflscripts/untitled_1`. On `s2c_lighting/ze_hold_em_p` it does not: **832
+differences**, which resolve into four causes. Measured, not guessed, and each is
+a separate piece of work.
+
+### 1. We emit entities the compiler drops
+
+Valve ships 179 entities, we ship 293, and the entire gap is **two classes**:
+
+| class | valve | ours |
+|---|---|---|
+| `prop_static` | 0 | 86 |
+| `game_weapon_manager` | 0 | 28 |
+
+**31 other classes have identical counts**, which is what makes this a filtering
+question rather than a walking question.
+
+For `prop_static` the rule looks declared rather than special-cased: base.fgd
+gives it `metadata { static_prop = true  has_static_mesh = true }`, and a static
+prop is baked into world geometry rather than shipped as a runtime entity.
+
+An attempt to read that flag did NOT work and was reverted rather than left in
+place. The flag comes back empty because csgo.fgd carries a bare
+`@OverrideClass = prop_static` whose header holds no metadata, and that
+registration is the one that wins over base.fgd's real declaration. Fixing it
+means making the schema merge metadata across declarations, which is a change to
+how `@OverrideClass` is handled and wants its own test.
+
+`game_weapon_manager` has **no such marker** and is an ordinary `@PointClass`, so
+why the compiler drops all 28 is not known. Do not guess it.
+
+### 2. Integer width on spawnflags
+
+`spawnflags` comes back `Int64` from Valve and `UInt32` from us. The same class of
+problem `docs/RC_PARITY.md` C1 describes: the width is the C++ field's, not the
+value's.
+
+### 3. Connection targets miss the name fixup
+
+Every connection appears twice in the report, once as missing and once as ours
+only, and the only difference is the prefix: Valve writes
+`[PR#]door6.Open`, we write `door6.Open`. So the `[PR#]` fixup is being applied to
+entity NAMES but not to the targets named inside outputs. This map uses prefab
+instances; `gflscripts/untitled_1` does not, which is why it passes there.
+
+### 4. A key the compiler writes and we do not
+
+`hoverposeflags` on `func_physbox`, valve `Int64 0`, missing from ours.
+
 ## What is implemented
 
 Tier 1 landed, pinned by `MapResourceAuthoringTests` against Valve's own compiles

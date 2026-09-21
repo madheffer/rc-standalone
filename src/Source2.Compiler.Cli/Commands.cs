@@ -353,6 +353,45 @@ internal static class Commands
         return unreadable == 0 ? 0 : 1;
     }
 
+    /// <summary>
+    /// Compile an entity lump from a map SOURCE, the way resourcecompiler would.
+    /// Unlike <see cref="Reauthor"/> this computes the resource rather than
+    /// re-encoding one of Valve's, so it exercises the DMX reader, the entity
+    /// walk and the FGD schema as well as the writer.
+    /// </summary>
+    public static int Entitylump(string[] a)
+    {
+        var source = Positional(a, "map .vmap source");
+        var outPath = Require(Opt(a, "-o"), "-o <default_ents.vents_c>");
+        var worldName = Opt(a, "--world") ?? Path.GetFileNameWithoutExtension(source);
+        var fgd = Opt(a, "--fgd");
+
+        FgdSchema? schema = null;
+        if (fgd is not null)
+        {
+            var game = Path.GetDirectoryName(Path.GetDirectoryName(fgd))!;
+            schema = FgdSchema.Load(fgd, [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
+        }
+
+        var document = DmxBinary.ReadFile(source);
+        var entities = MapEntities.From(document);
+        if (entities.Count == 0)
+        {
+            Console.Error.WriteLine("no entities found in " + source);
+            return 1;
+        }
+
+        var bytes = EntityLumpAuthor.Author(
+            entities, schema, worldName: worldName,
+            fixupEntityNames: MapEntities.FixupEntityNames(document));
+        File.WriteAllBytes(outPath, bytes);
+
+        Console.WriteLine($"{Path.GetFileName(source)}");
+        Console.WriteLine($"  {entities.Count:n0} entities, schema {(schema is null ? "NOT loaded" : "loaded")}");
+        Console.WriteLine($"  wrote {outPath}  ({bytes.Length:n0} bytes)");
+        return 0;
+    }
+
     public static int MapDiff(string[] a)
     {
         var referencePath = Positional(a, "reference .vpk");
