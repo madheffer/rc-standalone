@@ -59,10 +59,15 @@ public static class EntityLumpAuthor
         var entityNames = new HashSet<string>(
             entities.Select(NameOf).Where(n => n.Length > 0), StringComparer.OrdinalIgnoreCase);
 
+        // The index is the ordinal in the WALK, not in the lump, so it is taken
+        // before the filter and not after. Valve's atixref ships 764 entities out
+        // of 4,601 walked nodes and its compile_source_id values run to 4,600 with
+        // a gap wherever one was filtered.
         var array = KVObject.Array();
         for (var i = 0; i < entities.Count; i++)
-            array.Add(BuildEntity(entities[i], schema, i, worldName, fixupEntityNames,
-                                  HasPointPrefab(entities, schema), entityNames));
+            if (ReachesTheLump(entities[i], schema))
+                array.Add(BuildEntity(entities[i], schema, i, worldName, fixupEntityNames,
+                                      HasPointPrefab(entities, schema), entityNames));
         root.Add("m_entityKeyValues", array);
         return root;
     }
@@ -77,6 +82,19 @@ public static class EntityLumpAuthor
         bool fixupEntityNames = false)
         => Source2ContainerAuthor.AuthorKv3Tree(
             BuildTree(entities, schema, name, childLumps, worldName, fixupEntityNames), Format, ".vents");
+
+    /// <summary>
+    /// Whether a walked node is written to the lump at all.
+    ///
+    /// <para>Two FGD metadata flags say it is not. <c>static_prop</c> is
+    /// prop_static, whose geometry the compile bakes into the world: atixref walks
+    /// 3,952 of them and Valve's lump carries none. <c>editor_only</c> is the path
+    /// node classes, which hold a path's shape for Hammer and are serialized into
+    /// the path rather than spawned. Both still take their number.</para>
+    /// </summary>
+    private static bool ReachesTheLump(MapEntities.Entity entity, FgdSchema? schema)
+        => schema is null
+        || !(schema.HasFlag(entity.ClassName, "static_prop") || schema.HasFlag(entity.ClassName, "editor_only"));
 
     /// <summary>
     /// True when any entity in the lump is a point prefab, which is what decides
@@ -288,6 +306,11 @@ public static class EntityLumpAuthor
             FgdSchema.FieldType.Boolean => new KVObject(ParseBool(text)),
             FgdSchema.FieldType.Integer when long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)
                 => Integer(i),
+            // An integer key holding a decimal is TRUNCATED, not left a string. One
+            // of atixref's fifteen func_door carries wait "0.600000" against a
+            // wait(integer) declaration and Valve's lump has Int64 0.
+            FgdSchema.FieldType.Integer when double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+                => Integer((long)d),
             // A flags field ships UNSIGNED: func_brush's spawnflags 2 is UInt32,
             // not the Int32 the ordinary rule would give it. But 0 and 1 keep the
             // ordinary rule and ship Int64, which is the same exception

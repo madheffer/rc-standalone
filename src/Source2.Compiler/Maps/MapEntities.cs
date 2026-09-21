@@ -76,6 +76,19 @@ public static class MapEntities
         return document.OfType("CMapWorld").FirstOrDefault()?.GetValue<bool>("fixupEntityNames") ?? false;
     }
 
+    /// <summary>
+    /// Node types that carry an <c>EditGameClassProps</c> and so take a place in
+    /// the compile's numbering.
+    ///
+    /// <para>It is not only <c>CMapEntity</c>. A rope is authored as a
+    /// <c>CMapPath</c> of <c>CMapPathNode</c> children, and every one of them owns
+    /// game keys: atixref holds 4,588 CMapEntity and 4,601 EditGameClassProps, the
+    /// difference being its 4 paths and 8 path nodes. Walking only CMapEntity left
+    /// every compile_source_id past the first path 12 too low, which reads as a
+    /// difference on every class in the map.</para>
+    /// </summary>
+    private static readonly string[] GameKeyBearer = ["CMapEntity", "CMapPath", "CMapPathNode"];
+
     private static void Walk(DmxBinary.Element node, List<Entity> entities, HashSet<DmxBinary.Element> seen)
     {
         foreach (var child in node.GetElements("children"))
@@ -83,7 +96,7 @@ public static class MapEntities
             // A map can nest groups inside groups, and a cycle would hang the walk.
             if (!seen.Add(child))
                 continue;
-            if (child.Type is "CMapEntity" && Read(child, isWorld: false) is { } entity)
+            if (GameKeyBearer.Contains(child.Type) && Read(child, isWorld: false) is { } entity)
                 entities.Add(entity);
             Walk(child, entities, seen);
         }

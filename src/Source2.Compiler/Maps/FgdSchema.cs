@@ -61,7 +61,21 @@ public sealed partial class FgdSchema
     private readonly Dictionary<string, Class> _classes = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed record Class(
-        string Name, List<string> Bases, Dictionary<string, Key> Keys, List<KeyValuePair<string, string>> GameKeys);
+        string Name, List<string> Bases, Dictionary<string, Key> Keys, List<KeyValuePair<string, string>> GameKeys,
+        HashSet<string> Flags);
+
+    /// <summary>
+    /// Whether the class's <c>metadata</c> block sets this boolean flag.
+    ///
+    /// <para>Two of them decide whether an entity reaches the compiled lump at
+    /// all. <c>static_prop</c> marks prop_static, which the compile bakes into the
+    /// world rather than shipping; <c>editor_only</c> marks the path node classes,
+    /// which exist to carry a path's shape in Hammer. Both still consume a
+    /// compile_source_id, so they are filtered when the lump is written and not
+    /// when the source is walked.</para>
+    /// </summary>
+    public bool HasFlag(string className, string flag)
+        => _classes.TryGetValue(className, out var cls) && cls.Flags.Contains(flag);
 
     /// <summary>
     /// The key/value pairs a class's <c>class_game_keys</c> metadata says every
@@ -220,6 +234,7 @@ public sealed partial class FgdSchema
         // fog block commented out, and Valve's compile writes none of those keys,
         // so the earlier declaration has to go rather than merge.
         var gameKeys = GameKeysIn(head);
+        var flags = MetadataFlagsIn(head);
         if (kind.Value.Equals("@OverrideClass", StringComparison.OrdinalIgnoreCase)
             && _classes.TryGetValue(name, out var existing))
         {
@@ -229,9 +244,10 @@ public sealed partial class FgdSchema
                 existing.Bases.Add(b);
             existing.GameKeys.AddRange(gameKeys.Where(g => !existing.GameKeys.Any(
                 e => e.Key.Equals(g.Key, StringComparison.OrdinalIgnoreCase))));
+            existing.Flags.UnionWith(flags);
             return;
         }
-        _classes[name] = new Class(name, bases, keys, gameKeys);
+        _classes[name] = new Class(name, bases, keys, gameKeys, flags);
     }
 
     /// <summary>The class_game_keys pairs in a class header's metadata block.</summary>
@@ -244,6 +260,33 @@ public sealed partial class FgdSchema
                     .Select(m => new KeyValuePair<string, string>(
                         m.Groups[1].Value,
                         m.Groups[2].Value.Length > 0 ? m.Groups[2].Value : m.Groups[3].Value))];
+    }
+
+    /// <summary>
+    /// The flags a class header's <c>metadata</c> block sets to true.
+    ///
+    /// <para>The block cannot be matched with a regex because it nests: prop_static
+    /// carries <c>model_archetypes = [ "static_prop_model" ]</c> beside its flags,
+    /// so the closing brace has to be found by counting.</para>
+    /// </summary>
+    private static HashSet<string> MetadataFlagsIn(string head)
+    {
+        var flags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var block = MetadataBlockRegex().Match(head);
+        if (!block.Success)
+            return flags;
+
+        var at = block.Index + block.Length;
+        var depth = 1;
+        while (at < head.Length && depth > 0)
+        {
+            if (head[at] == '{') depth++;
+            else if (head[at] == '}') depth--;
+            at++;
+        }
+        foreach (Match flag in MetadataFlagRegex().Matches(head[(block.Index + block.Length)..(at - 1)]))
+            flags.Add(flag.Groups[1].Value);
+        return flags;
     }
 
     /// <summary>
@@ -337,7 +380,12 @@ public sealed partial class FgdSchema
         "integer" => FieldType.Integer,
         "flags" => FieldType.Flags,
         "float" => FieldType.Float,
-        "boolean" => FieldType.Boolean,
+        // The FGD spells the same two types two ways. Valve's compile of atixref
+        // writes path_particle_rope_clientside's static_collision( bool ) as a
+        // Boolean and info_particle_system's snapshot_mesh(node_id) as an Int64,
+        // and reading either as a plain string is what made those classes differ.
+        "boolean" or "bool" => FieldType.Boolean,
+        "node_id" => FieldType.Integer,
         "vector" or "angle" or "vector4" or "origin" => FieldType.Vector,
         "color255" or "color255alpha" or "color1" => FieldType.Color,
         // remove_key is handled as a REMOVAL rather than a type; see Key.Removed.
@@ -369,6 +417,13 @@ public sealed partial class FgdSchema
     [GeneratedRegex(@"\{\s*key\s*=\s*""([^""]+)""\s+value\s*=\s*(?:""([^""]*)""|([^}\s]+))\s*\}",
                     RegexOptions.IgnoreCase)]
     private static partial Regex GameKeyRegex();
+
+    // metadata { static_prop = true ... }, matched only as far as the opening brace.
+    [GeneratedRegex(@"\bmetadata\s*\{", RegexOptions.IgnoreCase)]
+    private static partial Regex MetadataBlockRegex();
+
+    [GeneratedRegex(@"(\w+)\s*=\s*true\b", RegexOptions.IgnoreCase)]
+    private static partial Regex MetadataFlagRegex();
 
     // "priority(integer) : "Spawn Priority" : 0" - and not an input/output line.
     [GeneratedRegex(@"^[ \t]*(?!input\b|output\b)([A-Za-z_][\w]*)\s*\(\s*(\w+)\s*\)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]

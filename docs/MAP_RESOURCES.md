@@ -192,50 +192,186 @@ One value in that set is a setting rather than a version: `Texture Encode Qualit
 carries `user=4` in 51 maps and `user=3` in 49, so it reflects the compile options
 a mapper chose. Everything else was identical everywhere.
 
+## What a `.vmap` can actually contain
+
+Two lists, and the gap between them is the answer to "are we going to be caught
+short by something Hammer can make".
+
+### What 135 real map sources use
+
+Every `.vmap` under `content/csgo_addons`, by DMX element type:
+
+| element | count | what it is |
+|---|---|---|
+| `CDmePolygonMeshDataStream` / `DataArray` | 879,122 | the mesh vertex streams |
+| `DmePlugList`, `EditGameClassProps` | 169,040 | an entity's editor properties |
+| `CMapEntity` | 83,474 | **an entity** |
+| `CDmePolygonMesh` + subdivision | 123,756 | brush geometry |
+| `CMapMesh` | 52,088 | **a brush** |
+| `CMapGroup` | 22,798 | a group |
+| `CMapStaticOverlay` | 5,747 | a decal or overlay |
+| `DmeConnectionData` | 4,143 | **an output wiring two entities** |
+| `CMapPathNode` / `CMapPath` | 749 | paths |
+| `CDmeNodeInstanceData` / `CMapInstance` | 850 | **prefab instances** |
+| `CStoredCamera(s)`, `CMapSelectionSet` | 469 | editor state |
+| `CMapRootElement`, `CMapWorld`, `CMapVariableSet` | 405 | one each per map |
+| `CVisibilityMgr` | 129 | visibility hints |
+| `CMapPrefab` | 42 | prefabs |
+| `CMapNavData` / `CDmeNavData` | 38 | nav |
+| `CMapOpaqueDataBlob` | 2 | |
+
+**14 distinct `CMap*` node types**, and 115 entity classes.
+
+### What the compiler knows how to load
+
+resourcecompiler's RTTI carries **111 `CMap*` classes**. Most are machinery, docs,
+jobs, locators and proxies rather than saved nodes, but these are node types a map
+could hold that **no map in the corpus uses**, so nothing here is tested against
+them:
+
+- `CMapCable` - cables
+- `CMapSmartProp`, `CMapSmartPropInstance`, `CMapSmartPropShapeMesh`,
+  `CMapSmartPropShapePath` - smart props
+- `CMapTerrain` and 17 siblings - a whole terrain and layer system
+- `CMapTileGrid`, `CMapTileMesh`, `CMapTileSet`, `CMapDotaTileGrid` - tile grids,
+  which look like they belong to another game
+- `CMapDeformerLattice`, `CMapDeformerPath`, `CMapDeformerSimple` - deformers
+- `CMapWorldLayer` - map layers
+- `CMapCordon`, `CMapSpawnGroup`, `CMapIsoSurface`, `CMapGrassTile`,
+  `CMapNavLink`, `CMapChoreoAnchor`, `CMapBox`, `CMapPoint`
+
+The honest reading: our entity walk handles the node types real maps are built
+from, and has never been shown a cable, a smart prop, a terrain or a map layer.
+`CMapWorldLayer` is the one to watch, because entities could sit under a layer
+rather than directly under the world, and a walk that does not descend into it
+would silently lose them.
+
+Regenerate both lists with `tools/map-survey` and
+`python tools/re/dump_asserts.py`.
+
 ## Entity lump: what still differs from resourcecompiler
 
-`EntityLumpAuthor` reproduces `resourcecompiler`'s lump exactly for
-`gflscripts/untitled_1`. On `s2c_lighting/ze_hold_em_p` it does not. The count has
-come down as causes were fixed:
+Measured per CLASS across five local map sources, because a total difference count
+is dominated by whichever class appears most and says nothing about whether
+TRIGGERS work. `EntityClassCoverageTests` reports it and ratchets it: every class
+that differs has to be named in the test, so the list only shrinks.
 
-| | differences |
-|---|---|
-| first measurement | 832 |
-| after the connection target fixup | 546 |
-| after the override parameter fixup | 544 |
-| after the spawnflags rule | 511 |
-| after `filterclass` and empty booleans | **497** |
-
-Each remaining cause is separate work, and all of them are measured rather than
-guessed.
-
-### 1. We emit entities the compiler drops
-
-Valve ships 179 entities, we ship 293, and the entire gap is **two classes**:
-
-| class | valve | ours |
+| corpus | classes reproduced exactly | classes differing |
 |---|---|---|
-| `prop_static` | 0 | 86 |
-| `game_weapon_manager` | 0 | 28 |
+| 4 maps | 33 | 5 |
+| + `s2probe/atixref` | 7 | 63 |
+| after the fixes below | **61** | **9** |
 
-**31 other classes have identical counts**, which is what makes this a filtering
-question rather than a walking question.
+Widening the corpus is what made the work possible, and it first made the numbers
+look far worse. That was honest: atixref is a real zombie escape map with 4,588
+entities, 144 instances and 10 point templates, and the four-map figure had never
+been asked a hard question. Five separate causes sat behind those 63, and four
+are now fixed.
 
-For `prop_static` the rule looks declared rather than special-cased: base.fgd
-gives it `metadata { static_prop = true  has_static_mesh = true }`, and a static
-prop is baked into world geometry rather than shipped as a runtime entity.
+The 61 include the classes a ZE map is actually built from: 39 `func_button`,
+70 `func_breakable`, 17 `prop_door_rotating`, 16 `path_track`, 15
+`trigger_teleport`, 10 `trigger_once`, 8 `trigger_hurt`, 5 `trigger_multiple`,
+2 `trigger_push`, 1 `func_tracktrain`, 1 `point_teleport`, plus the filters,
+`logic_*` and `math_counter` that wire them together.
 
-An attempt to read that flag did NOT work and was reverted rather than left in
-place. The flag comes back empty because csgo.fgd carries a bare
-`@OverrideClass = prop_static` whose header holds no metadata, and that
-registration is the one that wins over base.fgd's real declaration. Fixing it
-means making the schema merge metadata across declarations, which is a change to
-how `@OverrideClass` is handled and wants its own test.
+### `compile_source_id` is the ordinal in the WALK, not in the lump (FIXED)
 
-`game_weapon_manager` has **no such marker** and is an ordinary `@PointClass`, so
-why the compiler drops all 28 is not known. Do not guess it.
+The key that made every class on atixref look wrong. Valve's ids there run 0 to
+4,600 over a lump of only 764 entities, with a gap wherever a walked node was not
+shipped, and **583 distinct ids across 764 rows** because instanced copies repeat
+their source's id.
 
-### 2. Integer width on spawnflags (FIXED)
+Our ids drifted 12 low from the first rope onward. The cause is that
+`EditGameClassProps` does not hang off `CMapEntity` alone:
+
+| node type owning game keys | atixref |
+|---|---|
+| `CMapEntity` | 4,588 |
+| `CMapPathNode` | 8 |
+| `CMapPath` | 4 |
+| `CMapWorld` | 1 |
+| total | **4,601**, which is Valve's id range exactly |
+
+The walk now covers `CMapPath` and `CMapPathNode`, and every one of atixref's 565
+matchable entities agrees with Valve's id. The number is taken before the filter
+below and not after.
+
+### Entities the compiler drops, and why
+
+Valve ships 764 of atixref's 4,601 walked nodes. Every part of that gap is now
+accounted for:
+
+| cause | entities | status |
+|---|---|---|
+| `prop_static`, baked into the world | 3,952 | filtered |
+| `path_node_particle_rope`, holds a path's shape | 8 | filtered |
+| written to a CHILD entity lump instead | 57 | known, not built |
+| `CMapInstance` template, the copies ship instead | 18 | known, not built |
+| hidden in `CVisibilityMgr` | 1 | one specimen only |
+| `game_weapon_manager`, no such class in CS2 | 28 (ze_hold_em_p) | known, not built |
+
+The first two are **declared in the FGD**, which is what makes them safe to act
+on. `prop_static` carries `metadata { static_prop = true }` and the five path node
+classes carry `metadata { editor_only = true }`. `FgdSchema.HasFlag` reads them.
+
+An earlier attempt at this returned empty and was reverted. The reason was NOT the
+`@OverrideClass` merge theory recorded here before: the header slice always held
+the metadata block, and `class_game_keys` was being read out of that same slice
+successfully. The regex was at fault, and specifically a word-boundary escape that
+a shell edit had written as a literal backspace byte, so the pattern demanded a
+control character before `metadata` and never matched. Print a regex with
+`cat -A` before concluding it is wrong about its input.
+
+`game_weapon_manager` is an ordinary `@PointClass` with no marker, and RC drops
+all 28 with no diagnostic. The reason is that **CS2 has no such entity class**:
+the string occurs zero times in `server.dll` and `client.dll`, while
+`func_button`, `point_template`, `prop_static` and `game_player_equip` all occur.
+base.fgd is shared across Source 2 games and declares more than CS2 implements, so
+the FGD is not the authority on what ships. The game's entity registry is.
+
+### Child entity lumps
+
+A map compiles to more than `default_ents`. atixref also gets ten
+`maps/atixref/entities/<nodeid>#entitylumpname.vents_c`, and it has exactly ten
+`point_template` entities. The template names its lump in `entityLumpName`
+(`367#entityLumpName`) and the world it came from in `worldName`
+(`maps\atixref`, backslash as shown).
+
+The 57 entities in those lumps are the template's contents: lump `187` holds nine
+`func_button`, two `point_soundevent`, a `logic_case`, two `trigger_teleport`, a
+`point_teleport`, a `func_breakable` and a `logic_relay`. They keep the
+`compile_source_id` their source node was given in the main walk, so the numbering
+is already right for them.
+
+### Instances expand, and the template does not ship
+
+`CMapInstance` carries no children; it carries a `target` pointing at a `CMapGroup`
+elsewhere in the tree. atixref has 144 placements over 15 distinct targets. Valve
+ships one transformed copy per placement, each with its own `hammerUniqueId` and
+**the template's** `compile_source_id`: id 670 carries 30 `light_omni2` and id 671
+carries 30 `light_barn`. The template entities themselves are not in the lump.
+
+That is what the 18 ours-only and 199 valve-only entities on atixref are, and it
+is why 181 of Valve's ids are repeats.
+
+### FGD type aliases (FIXED)
+
+The FGD spells the same types more than one way, and reading an alias as a plain
+string is a per-class difference:
+
+| declared | is | evidence |
+|---|---|---|
+| `bool` | Boolean | `path_particle_rope_clientside.static_collision( bool )` ships Boolean 0 |
+| `node_id` | Integer | `info_particle_system.snapshot_mesh(node_id)` ships Int64 0 |
+
+An integer key holding a decimal is **truncated**, not left a string: one of
+atixref's fifteen `func_door` carries `wait "0.600000"` against a `wait(integer)`
+declaration and Valve's lump has Int64 0.
+
+Still untested, with no evidence either way: `int` (17 uses), `vecline` (11),
+`local_point`, `npcclass`.
+
+### Integer width on spawnflags (FIXED)
 
 A flags field ships UNSIGNED, **except that 0 and 1 ship Int64**, which is the
 same exception `Integer` already made for ordinary integers and which had simply
@@ -250,7 +386,7 @@ so nothing is inherited from the map file.
 plain `String` because their classes do not declare the key, and those already
 matched.
 
-### 3. Connection name fixup (FIXED)
+### Connection name fixup (FIXED)
 
 Outputs carry two names that need the prefab fixup and were not getting it. Both
 are now applied and connections match.
@@ -271,12 +407,15 @@ and writes `[PR#]humans` anyway. So the test is the map's own set of targetnames
 not the FGD's input declaration, which is why a purely schema-driven rule would
 have missed it.
 
-### 4. Keys the compiler writes and we do not
+### What still differs, with its reason
 
-`hoverposeflags` on `func_physbox`, and a `precomputedbounds` / `precomputedobb`
-family that resourcecompiler derives rather than copies. The baked lighting keys
-in the same list (`bakedshadowindex`, `light_map_uniqueid`, `light_path_uniqueid`)
-are the already documented lighting gap and arrive with vrad3's tier.
+| class | entities | reason |
+|---|---|---|
+| the six light and probe classes | 326 | vrad3 writes its results back INTO the lump: `bakedshadowindex`, `light_map_uniqueid`, the probe atlas textures. Arrives with the lighting tier. |
+| `prop_physics_override` | 81 | Valve MOVES the origin, presumably to the hull's mass center, and sets a spawnflag with it: `[-292.998, -568.019, 270.668]` against the source's `[-293, -568, 283.255]`, and spawnflags 5 against 4. |
+| `point_template` | 10 | needs `entityLumpName` and `worldName`, which need child lumps. |
+| `path_particle_rope_clientside` | 4 | needs `pathNodes` and `pathNodeRadiusScales` built from the `CMapPathNode` children, which are already walked and numbered. |
+| `func_physbox` | 1 | `hoverposeflags`, which the compiler writes and we do not. |
 
 ## What is implemented
 
