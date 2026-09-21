@@ -83,53 +83,43 @@ public static class EntityLumpSet
 
     /// <summary>
     /// What default_ents carries: the walk, minus what a child lump took and minus
-    /// the instance TEMPLATES, with each instance's copies spliced in where the
-    /// walk reached that instance.
+    /// the instance TEMPLATES, with each instance's copies spliced in where its
+    /// parent's subtree finishes.
     ///
-    /// <para>Valve's atixref puts the 30 copies of one group at lump positions 76
-    /// onward, in the middle of the walk rather than at its end, and every copy
-    /// carries its template's compile_source_id.</para>
+    /// <para>Valve's atixref puts the 17 copies made under one group at walk 672,
+    /// where that group ends, and the 126 made at the world root after every
+    /// walked entity. Every copy carries its template's compile_source_id.</para>
     /// </summary>
     private static List<EntityLumpAuthor.Emission> MainLump(
         IReadOnlyList<MapEntities.Entity> entities, HashSet<int> claimed, DmxBinary.Document? document)
     {
-        var (placements, templates) = document is null
-            ? ((IReadOnlyList<MapInstances.Placement>)[], (IReadOnlySet<int>)new HashSet<int>())
-            : MapInstances.Find(document, entities);
+        var (copies, templates) = document is null
+            ? ((IReadOnlyList<MapInstances.Copy>)[], (IReadOnlySet<int>)new HashSet<int>())
+            : MapInstances.Expand(document, entities);
 
-        // Copies need an id of their own, and the compile gives each placement a
-        // block as wide as its group plus one. WHERE the blocks start and in what
-        // order is not solved: Valve's atixref runs them from 7268 over a map whose
-        // own ids stop at 7247, in an order that is neither the walk's nor the
-        // group's. These are ours, and they are the one thing about an instanced
-        // copy that does not match.
-        var nextId = entities.Count == 0 ? 1 : entities.Max(e => e.NodeId) + 1;
-        var byPosition = new Dictionary<int, List<EntityLumpAuthor.Emission>>();
-        foreach (var placement in placements)
+        var pending = new Dictionary<int, List<EntityLumpAuthor.Emission>>();
+        foreach (var copy in copies)
         {
-            var block = nextId;
-            nextId += placement.Nodes + 1;
-            if (!byPosition.TryGetValue(placement.AfterEntity, out var here))
-                byPosition[placement.AfterEntity] = here = [];
-            for (var i = 0; i < placement.Templates.Count; i++)
-            {
-                var template = placement.Templates[i];
-                here.Add(new EntityLumpAuthor.Emission(
-                    MapInstances.Place(entities[template], placement) with { NodeId = block + i },
-                    template));
-            }
+            if (!pending.TryGetValue(copy.EmitAt, out var here))
+                pending[copy.EmitAt] = here = [];
+            here.Add(new EntityLumpAuthor.Emission(
+                entities[copy.Template] with
+                {
+                    NodeId = copy.NodeId,
+                    Origin = copy.Origin,
+                    Angles = copy.Angles,
+                },
+                copy.Template));
         }
 
         var emit = new List<EntityLumpAuthor.Emission>();
-        for (var i = 0; i < entities.Count; i++)
+        for (var i = 0; i <= entities.Count; i++)
         {
-            if (byPosition.TryGetValue(i, out var copies))
-                emit.AddRange(copies);
-            if (!claimed.Contains(i) && !templates.Contains(i))
+            if (pending.TryGetValue(i, out var here))
+                emit.AddRange(here);
+            if (i < entities.Count && !claimed.Contains(i) && !templates.Contains(i))
                 emit.Add(new EntityLumpAuthor.Emission(entities[i], i));
         }
-        if (byPosition.TryGetValue(entities.Count, out var last))
-            emit.AddRange(last);
         return emit;
     }
 

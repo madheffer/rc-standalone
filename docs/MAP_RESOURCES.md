@@ -262,7 +262,8 @@ that differs has to be named in the test, so the list only shrinks.
 | + `s2probe/atixref` | 7 | 63 |
 | after the fixes below | 61 | 9 |
 | + the two prefab sources, 7 maps and 1,820 entities | 82 | 12 |
-| + every lump, not just default_ents: 95 classes, 1,889 entities | **82** | **14** |
+| + every lump, not just default_ents: 95 classes, 1,889 entities | 82 | 14 |
+| after instances expand: every entity, in order, with Valve's ids | **82** | **13** |
 
 Widening the corpus is what made the work possible, and it first made the numbers
 look far worse. That was honest: atixref is a real zombie escape map with 4,588
@@ -314,7 +315,7 @@ that gap is accounted for, and four of the five causes are implemented:
 | a `@SolidClass` entity with no brushes | 43 (ze_doom_p2_c_gameplay) | filtered |
 | hidden in the map's `CVisibilityMgr` | 29 | filtered |
 | written to a CHILD entity lump instead | 57 | built |
-| a `CMapInstance` template, the copies ship instead | 18 | built |
+| a `CMapInstance` template, the copies ship instead | 18 | built, exactly |
 
 The first two are **declared in the FGD**, which is what makes them safe to act
 on. `prop_static` carries `metadata { static_prop = true }` and the five path node
@@ -353,40 +354,60 @@ them. A true observation next to an unexplained fact is not an explanation of it
 
 `CMapInstance` carries no children; it carries a `target` pointing at a
 `CMapGroup` elsewhere in the tree. atixref has 144 placements over 15 distinct
-groups, which is 199 of its lump entities.
+groups, which is 199 of its 821 entities.
 
-What is established and implemented:
+**All of it is solved.** `InstanceExpansionTests` pins the strongest claim the
+project can make about entities: every one of atixref's 821, ze_doom_p2's 640 and
+c2m2's 103 comes out in Valve's order carrying Valve's own `hammerUniqueId`. An
+instanced copy exists in no walk, so the compile invents it, places it, numbers it
+and gives it a node id; getting all three right at once is what that test checks.
 
-- one copy per placement per group entity, with the group's own entities filtered
-  by the rules above, which is why 144 placements over 41 template entities yield
-  199 shipped copies rather than 469
-- a copy carries **the template's** `compile_source_id`, which is why 18 of
-  Valve's ids are repeated across 199 entities and why its 764 default_ents rows
-  hold only 583 distinct ids
-- `origin` is the placement's origin plus the template's offset rotated by the
-  placement, verified exactly against Valve's output on an unrotated group
-- `angles` compose by addition wrapped into [0, 360). One template at yaw
-  270.00006 ships at 180.00006, 0, 270.00006 and 90.00005 under placements at yaw
-  270, 90, 0 and 180
-- the template entities themselves are walked, numbered, and not shipped
+**What ships.** One copy per placement per group entity, the group's own entities
+filtered by the rules above, which is why 144 placements over 41 template entities
+yield 199 copies rather than 469. The template entities themselves are walked,
+numbered and never shipped.
 
-We author 818 of atixref's 821 entities. Three `light_barn` copies are missing and
-two things are NOT solved:
+**Its number.** A copy carries **the template's** `compile_source_id`. That is why
+18 of Valve's ids are repeated across 199 entities, and why its 764 default_ents
+rows hold only 583 distinct ids.
 
-**Where a block goes.** Valve emits the 199 copies as just TWO runs: 34 after walk
-index 666, and the remaining 165 at the very end of the lump. One group's 30
-placements are split 17 and 13 across those two runs, so it is neither "at the
-instance" nor "at the group". The leading guess is recursive expansion, an
-instance inside a group another instance targets, which would put the inner copies
-at the outer instance's position. Not confirmed. We emit at the instance's own
-walk position, which puts the right entities in the wrong order.
+**Its place in the lump.** A placement's copies are written where the instance's
+PARENT subtree finishes, not where the instance itself sits. atixref makes the
+distinction visible because it has both: 17 instances live under one `CMapGroup`
+and their copies land at walk 672, exactly where that group's subtree ends, while
+its 126 root-level instances land after every walked entity because the world's
+subtree ends there. Reading it as "at the instance" puts the right entities in the
+wrong order, and the two cases cannot be told apart on a map that has only one of
+them.
 
-**What id a copy gets.** Each placement takes a block as wide as its group's node
-count plus one, confirmed by the stride of 4 across a 3-node group. But Valve's
-blocks start at 7268 over a map whose own node ids stop at 7247, and they are
-ordered neither by walk nor by group. Ours are allocated from the map's maximum
-plus one, so a copy's `hammerUniqueId` is the one thing about it that does not
-match.
+**Its transform.** `origin` is the placement's origin plus the template's offset
+rotated by the placement. `angles` compose by addition wrapped into [0, 360): one
+template at yaw 270.00006 ships at 180.00006, 0, 270.00006 and 90.00005 under
+placements at yaw 270, 90, 0 and 180.
+
+**Its node id.** Each instance takes a block of ids as wide as its target group's
+node count plus one, handed out in tree order from one past the map's highest node
+id. Three details each cost a measurable offset and none of them is guessable:
+
+- the ceiling is over EVERY element, not only the entities. atixref's entities
+  stop at 7244 and its nodes at 7247, and Valve's first block is 7248
+- a copy's id is its slot within that block counted over every node of the group,
+  so a `prop_static` that never ships still takes its place
+- every instance takes a block, including one that sits inside a group which is
+  itself an instance target and so is never placed in its own right
+
+### Nested instances
+
+A target group can hold an instance of its own. atixref has exactly one: group
+6485, placed four times, contains an instance of group 6203. That inner instance
+is expanded once per outer placement, and its four copies are numbered **after
+every top-level block** rather than at its own place in tree order. The 144
+top-level blocks end at 7882 and those four copies are 7882 to 7888, which is what
+confirms the ordering rather than merely fitting it.
+
+Its copies are written inline among the outer placement's, so the lump alternates
+the outer group's entity and the inner one. The transforms compose, the outer
+placement's rotation applying to the inner placement's offset.
 
 ### Child entity lumps
 
@@ -489,11 +510,10 @@ after a change to a shared rule, not just the set of failing class names.
 | the six light and probe classes | 326 | vrad3 writes its results back INTO the lump: `bakedshadowindex`, `light_map_uniqueid`, the probe atlas textures. Arrives with the lighting tier. |
 | `beam_spotlight`, `env_sprite_oriented` | 74 | Valve ships every key as a plain String while we type them from the FGD that declares both. NOT established. They appear only on the two prefab sources, and the guess that they were instance-expanded is DISPROVED: neither map contains a single `CMapInstance`. |
 | `prop_physics_override` | 81 | Valve MOVES the origin, presumably to the hull's mass center, and sets a spawnflag with it: `[-292.998, -568.019, 270.668]` against the source's `[-293, -568, 283.255]`, and spawnflags 5 against 4. |
-| `point_template` | 21 | the ten whose members the compile reorders; the lump itself now matches. |
+| `point_template` | 21 | ten differences left across twenty-one entities. |
 | `path_particle_rope_clientside` | 4 | needs `pathNodes` and `pathNodeRadiusScales` built from the `CMapPathNode` children, which are already walked and numbered. |
 | `env_texturetoggle` | 4 | the unresolved reference above. |
 | `func_physbox` | 4 | `hoverposeflags`, which the compiler writes and we do not. |
-| `light_omni2`, `light_barn` on atixref | 199 | instanced copies. The content is right and the ORDER and `hammerUniqueId` are not, per the instance section above. |
 
 ## What is implemented
 
