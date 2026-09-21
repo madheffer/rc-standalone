@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 
 namespace Source2.Compiler;
@@ -23,6 +24,8 @@ public static class MapEntities
     /// <param name="Connections">The entity's outputs.</param>
     /// <param name="HasGeometry">The entity owns brush geometry, so the compile builds
     /// it a model and points the entity at it.</param>
+    /// <param name="Hidden">The map's visibility manager has the node hidden, so the
+    /// compile walks and numbers it but ships nothing.</param>
     public sealed record Entity(
         string ClassName,
         int NodeId,
@@ -32,7 +35,8 @@ public static class MapEntities
         Vector3 Scales,
         bool IsWorld,
         IReadOnlyList<Connection> Connections,
-        bool HasGeometry = false);
+        bool HasGeometry = false,
+        bool Hidden = false);
 
     /// <summary>One output wired to an input on another entity.</summary>
     public sealed record Connection(
@@ -63,7 +67,38 @@ public static class MapEntities
         if (Read(world, isWorld: true) is { } worldspawn)
             entities.Add(worldspawn);
         Walk(world, entities, new HashSet<DmxBinary.Element>());
-        return entities;
+
+        var hidden = HiddenNodes(document);
+        return hidden.Count == 0
+            ? entities
+            : [.. entities.Select(e => hidden.Contains(e.NodeId) ? e with { Hidden = true } : e)];
+    }
+
+    /// <summary>
+    /// Node ids the map's visibility manager has hidden.
+    ///
+    /// <para>A hidden node is walked and numbered and then not shipped, which is
+    /// the whole of two gaps that looked like separate mysteries: ze_hold_em_p
+    /// hides 28 game_weapon_manager and Valve's lump has none of them, and
+    /// atixref hides one light_environment and Valve's lump has none of it. The
+    /// manager keeps two parallel arrays, the nodes and a flag each.</para>
+    /// </summary>
+    private static HashSet<int> HiddenNodes(DmxBinary.Document document)
+    {
+        var hidden = new HashSet<int>();
+        var manager = document.OfType("CVisibilityMgr").FirstOrDefault();
+        if (manager is null)
+            return hidden;
+
+        // Both arrays are stored untyped, so the flag is read as whatever integer
+        // the file used rather than assumed to be one width.
+        var nodes = manager.GetElements("nodes").ToList();
+        var flags = manager.Get<object[]>("hiddenFlags") ?? [];
+        for (var i = 0; i < nodes.Count && i < flags.Length; i++)
+            if (flags[i] is IConvertible flag && flag.ToInt64(CultureInfo.InvariantCulture) != 0
+                && nodes[i].GetValue<int>("nodeID") is { } id)
+                hidden.Add(id);
+        return hidden;
     }
 
     /// <summary>
@@ -88,6 +123,11 @@ public static class MapEntities
     /// difference on every class in the map.</para>
     /// </summary>
     private static readonly string[] GameKeyBearer = ["CMapEntity", "CMapPath", "CMapPathNode"];
+
+    /// <summary>Whether the node owns an <c>EditGameClassProps</c>, and so takes a
+    /// place in the compile's numbering.</summary>
+    public static bool CarriesGameKeys(DmxBinary.Element node)
+        => node is not null && GameKeyBearer.Contains(node.Type);
 
     private static void Walk(DmxBinary.Element node, List<Entity> entities, HashSet<DmxBinary.Element> seen)
     {

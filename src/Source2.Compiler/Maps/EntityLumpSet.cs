@@ -26,7 +26,8 @@ public static class EntityLumpSet
         IReadOnlyList<MapEntities.Entity> entities,
         FgdSchema? schema,
         string worldName,
-        bool fixupEntityNames = false)
+        bool fixupEntityNames = false,
+        DmxBinary.Document? document = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
@@ -40,13 +41,14 @@ public static class EntityLumpSet
             foreach (var index in template.Members)
                 claimed.Add(index);
 
-        var mainOrder = Enumerable.Range(0, entities.Count).Where(i => !claimed.Contains(i)).ToList();
         var lumps = new List<Lump>();
         foreach (var template in templates)
             lumps.Add(new Lump(
                 PathOf(worldName, template.Name), template.Name,
                 EntityLumpAuthor.Author(entities, schema, template.Name, childLumps: null,
-                                        worldName, fixupEntityNames, template.Members, lumpNames,
+                                        worldName, fixupEntityNames,
+                                        [.. template.Members.Select(m => new EntityLumpAuthor.Emission(entities[m], m))],
+                                        lumpNames,
                                         new EntityLumpAuthor.TemplateLump(
                                             entities[template.Index].Origin,
                                             SuffixOf(entities[template.Index]),
@@ -57,7 +59,8 @@ public static class EntityLumpSet
         lumps.Insert(0, new Lump(
             PathOf(worldName, "default_ents"), "default_ents",
             EntityLumpAuthor.Author(entities, schema, "default_ents", children,
-                                    worldName, fixupEntityNames, mainOrder, lumpNames)));
+                                    worldName, fixupEntityNames,
+                                    MainLump(entities, claimed, document), lumpNames)));
         return lumps;
     }
 
@@ -76,6 +79,58 @@ public static class EntityLumpSet
             k => k.Key.Equals("spawnflags", StringComparison.OrdinalIgnoreCase)).Value;
         return int.TryParse(flags, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bits)
             && (bits & 2) != 0 ? "" : "&0000";
+    }
+
+    /// <summary>
+    /// What default_ents carries: the walk, minus what a child lump took and minus
+    /// the instance TEMPLATES, with each instance's copies spliced in where the
+    /// walk reached that instance.
+    ///
+    /// <para>Valve's atixref puts the 30 copies of one group at lump positions 76
+    /// onward, in the middle of the walk rather than at its end, and every copy
+    /// carries its template's compile_source_id.</para>
+    /// </summary>
+    private static List<EntityLumpAuthor.Emission> MainLump(
+        IReadOnlyList<MapEntities.Entity> entities, HashSet<int> claimed, DmxBinary.Document? document)
+    {
+        var (placements, templates) = document is null
+            ? ((IReadOnlyList<MapInstances.Placement>)[], (IReadOnlySet<int>)new HashSet<int>())
+            : MapInstances.Find(document, entities);
+
+        // Copies need an id of their own, and the compile gives each placement a
+        // block as wide as its group plus one. WHERE the blocks start and in what
+        // order is not solved: Valve's atixref runs them from 7268 over a map whose
+        // own ids stop at 7247, in an order that is neither the walk's nor the
+        // group's. These are ours, and they are the one thing about an instanced
+        // copy that does not match.
+        var nextId = entities.Count == 0 ? 1 : entities.Max(e => e.NodeId) + 1;
+        var byPosition = new Dictionary<int, List<EntityLumpAuthor.Emission>>();
+        foreach (var placement in placements)
+        {
+            var block = nextId;
+            nextId += placement.Nodes + 1;
+            if (!byPosition.TryGetValue(placement.AfterEntity, out var here))
+                byPosition[placement.AfterEntity] = here = [];
+            for (var i = 0; i < placement.Templates.Count; i++)
+            {
+                var template = placement.Templates[i];
+                here.Add(new EntityLumpAuthor.Emission(
+                    MapInstances.Place(entities[template], placement) with { NodeId = block + i },
+                    template));
+            }
+        }
+
+        var emit = new List<EntityLumpAuthor.Emission>();
+        for (var i = 0; i < entities.Count; i++)
+        {
+            if (byPosition.TryGetValue(i, out var copies))
+                emit.AddRange(copies);
+            if (!claimed.Contains(i) && !templates.Contains(i))
+                emit.Add(new EntityLumpAuthor.Emission(entities[i], i));
+        }
+        if (byPosition.TryGetValue(entities.Count, out var last))
+            emit.AddRange(last);
+        return emit;
     }
 
     private static string PathOf(string worldName, string lumpName)

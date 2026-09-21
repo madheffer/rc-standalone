@@ -32,10 +32,11 @@ public static class EntityLumpAuthor
     /// <param name="name">The lump's own name, e.g. <c>default_ents</c>.</param>
     /// <param name="childLumps">Names of lumps hanging off this one.</param>
     /// <param name="worldName">The map's name, which worldspawn records.</param>
-    /// <param name="order">Which walked entities this lump carries, by their index
-    /// in <paramref name="entities"/> and in the order they should appear. Null is
-    /// all of them in walk order. A child lump is a re-ordered subset, and the
-    /// index still comes from the walk, so the two cannot be the same list.</param>
+    /// <param name="emit">What this lump carries, in order, each paired with the
+    /// walk index it is numbered by. Null is every walked entity in walk order. The
+    /// two cannot be one list: a child lump is a re-ordered subset, and an
+    /// instanced copy is not in the walk at all yet carries its template's
+    /// number.</param>
     /// <param name="lumpNames">Lump name per point_template node id, for the
     /// templates that own one.</param>
     /// <param name="template">Set when this is a CHILD lump, which places and
@@ -47,7 +48,7 @@ public static class EntityLumpAuthor
         IReadOnlyList<string>? childLumps = null,
         string? worldName = null,
         bool fixupEntityNames = false,
-        IReadOnlyList<int>? order = null,
+        IReadOnlyList<Emission>? emit = null,
         IReadOnlyDictionary<int, string>? lumpNames = null,
         TemplateLump? template = null)
     {
@@ -77,14 +78,21 @@ public static class EntityLumpAuthor
         var array = KVObject.Array();
         var prefabs = HasPointPrefab(entities, schema);
         var ordinal = 0;
-        foreach (var i in order ?? [.. Enumerable.Range(0, entities.Count)])
-            if (ReachesTheLump(entities[i], schema))
-                array.Add(BuildEntity(entities[i], schema, i, worldName, fixupEntityNames,
+        foreach (var (entity, sourceId) in emit ?? [.. entities.Select((e, i) => new Emission(e, i))])
+            if (ReachesTheLump(entity, schema))
+                array.Add(BuildEntity(entity, schema, sourceId, worldName, fixupEntityNames,
                                       prefabs, entityNames, lumpNames,
                                       template is null ? null : ordinal++, template));
         root.Add("m_entityKeyValues", array);
         return root;
     }
+
+    /// <summary>One entity to write, and the walk index it is numbered by.</summary>
+    /// <param name="Entity">What to write. For an instanced copy this is the
+    /// template placed by its instance, which is in no walk.</param>
+    /// <param name="SourceId">Its compile_source_id. A copy carries its TEMPLATE's,
+    /// which is why Valve's atixref repeats 18 ids across 199 entities.</param>
+    public sealed record Emission(MapEntities.Entity Entity, int SourceId);
 
     /// <summary>
     /// The point_template a child lump belongs to.
@@ -111,12 +119,12 @@ public static class EntityLumpAuthor
         IReadOnlyList<string>? childLumps = null,
         string? worldName = null,
         bool fixupEntityNames = false,
-        IReadOnlyList<int>? order = null,
+        IReadOnlyList<Emission>? emit = null,
         IReadOnlyDictionary<int, string>? lumpNames = null,
         TemplateLump? template = null)
         => Source2ContainerAuthor.AuthorKv3Tree(
             BuildTree(entities, schema, name, childLumps, worldName, fixupEntityNames,
-                      order, lumpNames, template),
+                      emit, lumpNames, template),
             Format, ".vents");
 
     /// <summary>
@@ -129,10 +137,11 @@ public static class EntityLumpAuthor
     /// the path rather than spawned. Both still take their number.</para>
     /// </summary>
     private static bool ReachesTheLump(MapEntities.Entity entity, FgdSchema? schema)
-        => schema is null
+        => !entity.Hidden
+        && (schema is null
         || !(schema.HasFlag(entity.ClassName, "static_prop")
              || schema.HasFlag(entity.ClassName, "editor_only")
-             || (schema.IsSolidClass(entity.ClassName) && !entity.HasGeometry && !entity.IsWorld));
+             || (schema.IsSolidClass(entity.ClassName) && !entity.HasGeometry && !entity.IsWorld)));
 
     /// <summary>
     /// True when any entity in the lump is a point prefab, which is what decides

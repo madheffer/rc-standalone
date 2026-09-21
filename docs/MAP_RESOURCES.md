@@ -261,7 +261,8 @@ that differs has to be named in the test, so the list only shrinks.
 | 4 maps | 33 | 5 |
 | + `s2probe/atixref` | 7 | 63 |
 | after the fixes below | 61 | 9 |
-| + the two prefab sources, 7 maps and 1,820 entities | **82** | **12** |
+| + the two prefab sources, 7 maps and 1,820 entities | 82 | 12 |
+| + every lump, not just default_ents: 95 classes, 1,889 entities | **82** | **14** |
 
 Widening the corpus is what made the work possible, and it first made the numbers
 look far worse. That was honest: atixref is a real zombie escape map with 4,588
@@ -303,17 +304,17 @@ below and not after.
 
 ### Entities the compiler drops, and why
 
-Valve ships 764 of atixref's 4,601 walked nodes. Every part of that gap is now
-accounted for:
+Valve ships 821 of atixref's 4,601 walked nodes across eleven lumps. Every part of
+that gap is accounted for, and four of the five causes are implemented:
 
 | cause | entities | status |
 |---|---|---|
 | `prop_static`, baked into the world | 3,952 | filtered |
 | `path_node_particle_rope`, holds a path's shape | 8 | filtered |
-| written to a CHILD entity lump instead | 57 | known, not built |
-| `CMapInstance` template, the copies ship instead | 18 | known, not built |
-| hidden in `CVisibilityMgr` | 1 | one specimen only |
-| `game_weapon_manager`, no such class in CS2 | 28 (ze_hold_em_p) | known, not built |
+| a `@SolidClass` entity with no brushes | 43 (ze_doom_p2_c_gameplay) | filtered |
+| hidden in the map's `CVisibilityMgr` | 29 | filtered |
+| written to a CHILD entity lump instead | 57 | built |
+| a `CMapInstance` template, the copies ship instead | 18 | built |
 
 The first two are **declared in the FGD**, which is what makes them safe to act
 on. `prop_static` carries `metadata { static_prop = true }` and the five path node
@@ -327,12 +328,65 @@ a shell edit had written as a literal backspace byte, so the pattern demanded a
 control character before `metadata` and never matched. Print a regex with
 `cat -A` before concluding it is wrong about its input.
 
-`game_weapon_manager` is an ordinary `@PointClass` with no marker, and RC drops
-all 28 with no diagnostic. The reason is that **CS2 has no such entity class**:
-the string occurs zero times in `server.dll` and `client.dll`, while
-`func_button`, `point_template`, `prop_static` and `game_player_equip` all occur.
-base.fgd is shared across Source 2 games and declares more than CS2 implements, so
-the FGD is not the authority on what ships. The game's entity registry is.
+A `@SolidClass` entity IS its brushes, and one with none is not compiled at all.
+ze_doom_p2_c_gameplay has 43, ten `func_button` and ten `trigger_hurt` among
+others, and Valve ships none of the 43 in any lump. The other maps measured have
+none, which is why it only surfaced once the corpus grew.
+
+### Hidden nodes are not compiled, and that is the whole of two mysteries
+
+The map's `CVisibilityMgr` keeps two parallel arrays, its nodes and a flag each. A
+flagged node is walked, numbered, and then not written.
+
+This explains both entity-count gaps that had been separately unexplained:
+ze_hold_em_p hides **28 `game_weapon_manager`** and Valve's lump carries none of
+them; atixref hides **one `light_environment`** and Valve's lump carries none of
+it. Nothing else in either map is hidden, and the counts match exactly.
+
+**This corrects an earlier conclusion recorded here.** `game_weapon_manager` does
+occur zero times in `server.dll` and `client.dll` while `func_button`,
+`point_template`, `prop_static` and `game_player_equip` all occur, and that
+observation is real. It is not the reason the compile drops them. The mapper hid
+them. A true observation next to an unexplained fact is not an explanation of it.
+
+### Instances expand, and the template does not ship
+
+`CMapInstance` carries no children; it carries a `target` pointing at a
+`CMapGroup` elsewhere in the tree. atixref has 144 placements over 15 distinct
+groups, which is 199 of its lump entities.
+
+What is established and implemented:
+
+- one copy per placement per group entity, with the group's own entities filtered
+  by the rules above, which is why 144 placements over 41 template entities yield
+  199 shipped copies rather than 469
+- a copy carries **the template's** `compile_source_id`, which is why 18 of
+  Valve's ids are repeated across 199 entities and why its 764 default_ents rows
+  hold only 583 distinct ids
+- `origin` is the placement's origin plus the template's offset rotated by the
+  placement, verified exactly against Valve's output on an unrotated group
+- `angles` compose by addition wrapped into [0, 360). One template at yaw
+  270.00006 ships at 180.00006, 0, 270.00006 and 90.00005 under placements at yaw
+  270, 90, 0 and 180
+- the template entities themselves are walked, numbered, and not shipped
+
+We author 818 of atixref's 821 entities. Three `light_barn` copies are missing and
+two things are NOT solved:
+
+**Where a block goes.** Valve emits the 199 copies as just TWO runs: 34 after walk
+index 666, and the remaining 165 at the very end of the lump. One group's 30
+placements are split 17 and 13 across those two runs, so it is neither "at the
+instance" nor "at the group". The leading guess is recursive expansion, an
+instance inside a group another instance targets, which would put the inner copies
+at the outer instance's position. Not confirmed. We emit at the instance's own
+walk position, which puts the right entities in the wrong order.
+
+**What id a copy gets.** Each placement takes a block as wide as its group's node
+count plus one, confirmed by the stride of 4 across a 3-node group. But Valve's
+blocks start at 7268 over a map whose own node ids stop at 7247, and they are
+ordered neither by walk nor by group. Ours are allocated from the map's maximum
+plus one, so a copy's `hammerUniqueId` is the one thing about it that does not
+match.
 
 ### Child entity lumps
 
@@ -347,17 +401,6 @@ The 57 entities in those lumps are the template's contents: lump `187` holds nin
 `point_teleport`, a `func_breakable` and a `logic_relay`. They keep the
 `compile_source_id` their source node was given in the main walk, so the numbering
 is already right for them.
-
-### Instances expand, and the template does not ship
-
-`CMapInstance` carries no children; it carries a `target` pointing at a `CMapGroup`
-elsewhere in the tree. atixref has 144 placements over 15 distinct targets. Valve
-ships one transformed copy per placement, each with its own `hammerUniqueId` and
-**the template's** `compile_source_id`: id 670 carries 30 `light_omni2` and id 671
-carries 30 `light_barn`. The template entities themselves are not in the lump.
-
-That is what the 18 ours-only and 199 valve-only entities on atixref are, and it
-is why 181 of Valve's ids are repeats.
 
 ### FGD type aliases (FIXED)
 
@@ -444,12 +487,13 @@ after a change to a shared rule, not just the set of failing class names.
 | class | entities | reason |
 |---|---|---|
 | the six light and probe classes | 326 | vrad3 writes its results back INTO the lump: `bakedshadowindex`, `light_map_uniqueid`, the probe atlas textures. Arrives with the lighting tier. |
-| `beam_spotlight`, `env_sprite_oriented` | 74 | Valve ships every key as a plain String while we type them from the FGD that declares both. NOT established. Both appear only on the two prefab sources, and the leading guess is that instance-expanded entities carry their keys verbatim, which the instance work would settle. |
+| `beam_spotlight`, `env_sprite_oriented` | 74 | Valve ships every key as a plain String while we type them from the FGD that declares both. NOT established. They appear only on the two prefab sources, and the guess that they were instance-expanded is DISPROVED: neither map contains a single `CMapInstance`. |
 | `prop_physics_override` | 81 | Valve MOVES the origin, presumably to the hull's mass center, and sets a spawnflag with it: `[-292.998, -568.019, 270.668]` against the source's `[-293, -568, 283.255]`, and spawnflags 5 against 4. |
-| `point_template` | 21 | needs `entityLumpName` and `worldName`, which need child lumps. |
+| `point_template` | 21 | the ten whose members the compile reorders; the lump itself now matches. |
 | `path_particle_rope_clientside` | 4 | needs `pathNodes` and `pathNodeRadiusScales` built from the `CMapPathNode` children, which are already walked and numbered. |
 | `env_texturetoggle` | 4 | the unresolved reference above. |
 | `func_physbox` | 4 | `hoverposeflags`, which the compiler writes and we do not. |
+| `light_omni2`, `light_barn` on atixref | 199 | instanced copies. The content is right and the ORDER and `hammerUniqueId` are not, per the instance section above. |
 
 ## What is implemented
 

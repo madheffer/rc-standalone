@@ -114,7 +114,7 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
             var document = DmxBinary.ReadFile(source);
             var ours = EntityLumpSet.Author(
                 MapEntities.From(document), MapFixtures.GameSchema(), map,
-                MapEntities.FixupEntityNames(document));
+                MapEntities.FixupEntityNames(document), document);
 
             // EVERY lump, not just default_ents: a point_template's members compile
             // into a lump of their own, and comparing one file would report all 57
