@@ -196,6 +196,126 @@ internal static class Commands
         return report.Holes == 0 ? 0 : 1;
     }
 
+    public static int MapDiff(string[] a)
+    {
+        var referencePath = Positional(a, "reference .vpk");
+        var candidatePath = Require(Opt(a, "-c") ?? Opt(a, "--candidate"), "-c <candidate.vpk>");
+        var limit = int.Parse(Opt(a, "--limit") ?? "15");
+
+        using var reference = new ValvePak.Package();
+        reference.Read(referencePath);
+        using var candidate = new ValvePak.Package();
+        candidate.Read(candidatePath);
+
+        var left = Entries(reference);
+        var right = Entries(candidate);
+
+        var onlyReference = left.Keys.Except(right.Keys).OrderBy(p => p, StringComparer.Ordinal).ToList();
+        var onlyCandidate = right.Keys.Except(left.Keys).OrderBy(p => p, StringComparer.Ordinal).ToList();
+        var common = left.Keys.Intersect(right.Keys).OrderBy(p => p, StringComparer.Ordinal).ToList();
+
+        var identical = new List<string>();
+        var differing = new List<(string Path, int Reference, int Candidate, string Blocks)>();
+        foreach (var path in common)
+        {
+            var one = Io.VpkEntries.Read(reference, left[path]);
+            var two = Io.VpkEntries.Read(candidate, right[path]);
+            if (one.AsSpan().SequenceEqual(two))
+                identical.Add(path);
+            else
+                differing.Add((path, one.Length, two.Length, BlockDelta(path, one, two)));
+        }
+
+        Console.WriteLine($"reference {Path.GetFileName(referencePath)}  {left.Count:n0} files");
+        Console.WriteLine($"candidate {Path.GetFileName(candidatePath)}  {right.Count:n0} files");
+        Console.WriteLine();
+        Console.WriteLine($"  identical   {identical.Count:n0}");
+        Console.WriteLine($"  differing   {differing.Count:n0}");
+        Console.WriteLine($"  only in reference  {onlyReference.Count:n0}");
+        Console.WriteLine($"  only in candidate  {onlyCandidate.Count:n0}");
+
+        ByType("differing by type", differing.Select(d => d.Path));
+        ByType("missing from candidate, by type", onlyReference);
+        ByType("added by candidate, by type", onlyCandidate);
+
+        if (differing.Count > 0)
+        {
+            Console.WriteLine($"\ndiffering files (first {Math.Min(limit, differing.Count)}):");
+            foreach (var (path, one, two, blocks) in differing
+                         .OrderByDescending(d => Math.Abs(d.Candidate - d.Reference)).Take(limit))
+            {
+                Console.WriteLine($"  {path}");
+                Console.WriteLine($"      {one,12:n0} -> {two,12:n0} bytes   {blocks}");
+            }
+        }
+        foreach (var (title, list) in new[] { ("only in reference", onlyReference), ("only in candidate", onlyCandidate) })
+        {
+            if (list.Count == 0)
+                continue;
+            Console.WriteLine($"\n{title} (first {Math.Min(limit, list.Count)}):");
+            foreach (var path in list.Take(limit))
+                Console.WriteLine("  " + path);
+        }
+        return differing.Count == 0 && onlyReference.Count == 0 && onlyCandidate.Count == 0 ? 0 : 1;
+
+        static void ByType(string title, IEnumerable<string> paths)
+        {
+            var groups = paths.GroupBy(p => Path.GetExtension(p) is { Length: > 0 } e ? e : "(none)")
+                              .OrderByDescending(g => g.Count()).ToList();
+            if (groups.Count == 0)
+                return;
+            Console.WriteLine($"\n{title}: "
+                + string.Join("  ", groups.Select(g => $"{g.Key} {g.Count():n0}")));
+        }
+    }
+
+    private static Dictionary<string, ValvePak.PackageEntry> Entries(ValvePak.Package package)
+        => Io.VpkEntries.ByExtension(package)
+                        .SelectMany(kv => kv.Value)
+                        .ToDictionary(e => e.GetFullPath(), e => e, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Which blocks of a compiled resource actually differ. A resource whose only
+    /// difference is RED2 is the same asset compiled somewhere else: that block
+    /// carries compile identity, and its m_nFingerprint changes with the install
+    /// root alone.
+    /// </summary>
+    private static string BlockDelta(string path, byte[] one, byte[] two)
+    {
+        if (!path.EndsWith("_c", StringComparison.Ordinal))
+            return "not a compiled resource";
+        try
+        {
+            using var a = new Resource();
+            a.Read(new MemoryStream(one));
+            using var b = new Resource();
+            b.Read(new MemoryStream(two));
+
+            var names = a.Blocks.Select(x => x.Type).Union(b.Blocks.Select(x => x.Type)).ToList();
+            var parts = new List<string>();
+            foreach (var name in names)
+            {
+                var first = Slice(one, a, name);
+                var second = Slice(two, b, name);
+                if (first is null || second is null)
+                    parts.Add($"{name}:only-in-{(first is null ? "candidate" : "reference")}");
+                else if (!first.Value.Span.SequenceEqual(second.Value.Span))
+                    parts.Add($"{name}:differs({first.Value.Length:n0}->{second.Value.Length:n0})");
+            }
+            return parts.Count == 0 ? "blocks identical, container framing differs" : string.Join(" ", parts);
+        }
+        catch (Exception ex)
+        {
+            return "unreadable: " + ex.Message[..Math.Min(60, ex.Message.Length)];
+        }
+
+        static ReadOnlyMemory<byte>? Slice(byte[] bytes, Resource resource, BlockType type)
+        {
+            var block = resource.Blocks.FirstOrDefault(x => x.Type == type);
+            return block is null ? null : bytes.AsMemory((int)block.Offset, (int)block.Size);
+        }
+    }
+
     public static int Entities(string[] a)
     {
         var input = Positional(a, "compiled entity lump");
