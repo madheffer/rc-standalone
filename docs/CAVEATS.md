@@ -128,6 +128,21 @@ the global help. `-fshallow`, `-novpk`, `-skiptype` and `-vpkincr` are listed.
 Most "options" recovered by scanning the binary for `-xx` patterns are
 compression noise, not switches.
 
+### An addon without `addoninfo.txt` is invisible to the game
+
+Compiling into `game/csgo_addons/<addon>/` produces a working map VPK but no
+`addoninfo.txt`, and every addon the game actually mounts has one. A map addon's
+is minimal, just an empty KV3 document with the generic format header. Without it
+the map is on disk and the engine will not find it.
+
+### Driving a running CS2 needs `-netconport`
+
+Console commands cannot be injected into a running instance otherwise: CS2
+launched normally opens no listening socket. `-condebug` is still worth having
+because it mirrors the console to `game/csgo/console.log`, which is readable from
+outside, so a person typing one command gives a full diagnostic back. Addons are
+enumerated at startup, so a newly created one needs a restart regardless.
+
 ### `-novpk` hangs on a map
 
 Documented as "generate loose files for the map resource and its children instead
