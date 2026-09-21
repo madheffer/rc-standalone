@@ -26,6 +26,10 @@ public sealed partial class FgdSchema
         /// <summary>An <c>integer</c>.</summary>
         Integer,
 
+        /// <summary>A <c>particlesystem</c>, which the lump completes to a file
+        /// name when the author left the extension off.</summary>
+        ParticleSystem,
+
         /// <summary>A <c>flags</c> field. The lump writes these UNSIGNED, which is
         /// the one place an entity value's width is not the ordinary integer rule.</summary>
         Flags,
@@ -401,6 +405,10 @@ public sealed partial class FgdSchema
         // and reading either as a plain string is what made those classes differ.
         "boolean" or "bool" => FieldType.Boolean,
         "node_id" => FieldType.Integer,
+        // A particle reference is completed to a file: c2m2 authors
+        // info_particle_system's effect_name as "flag_banner_01" and Valve's lump
+        // carries "flag_banner_01.vpcf".
+        "particlesystem" => FieldType.ParticleSystem,
         "vector" or "angle" or "vector4" or "origin" => FieldType.Vector,
         "color255" or "color255alpha" or "color1" => FieldType.Color,
         // remove_key is handled as a REMOVAL rather than a type; see Key.Removed.

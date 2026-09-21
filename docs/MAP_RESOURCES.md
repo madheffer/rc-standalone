@@ -263,7 +263,8 @@ that differs has to be named in the test, so the list only shrinks.
 | after the fixes below | 61 | 9 |
 | + the two prefab sources, 7 maps and 1,820 entities | 82 | 12 |
 | + every lump, not just default_ents: 95 classes, 1,889 entities | 82 | 14 |
-| after instances expand: every entity, in order, with Valve's ids | **82** | **13** |
+| after instances expand: every entity, in order, with Valve's ids | 82 | 13 |
+| + paths, particles, and a map of multi-node ropes: 8 maps, 2,641 entities | **84** | **14** |
 
 Widening the corpus is what made the work possible, and it first made the numbers
 look far worse. That was honest: atixref is a real zombie escape map with 4,588
@@ -503,15 +504,76 @@ Note that both regressed classes were already on the differing list, so the test
 ratchet would NOT have caught this. Compare per-class difference COUNTS before and
 after a change to a shared rule, not just the set of failing class names.
 
+### Paths: a rope's nodes are serialized into the rope
+
+A `CMapPath` ships as one entity and its `CMapPathNode` children ship as nothing.
+Their shape is folded into three string-valued keys on the path, and the strings
+hold KV3 text rather than real arrays.
+
+**`pathNodes`** is nine floats a node: the position relative to the path, then the
+in and out handles. The handles are not authored. Every node in every source
+measured has `inTangent` and `outTangent` at zero, and the compile derives them
+one SEGMENT at a time rather than smoothing across the path: each handle is a
+third of the way to its neighbour, and zero at an end. A five node rope confirms
+it, with all ten handles exactly a third of the leg they belong to.
+
+**They are computed as a direction and a length, not by dividing.** This is
+visible in the output and is the only way to land on Valve's floats: a leg of
+(-446, -171, 0) divided by three gives exactly -57 and Valve writes -57.000004,
+and one of (191, 627, 170) gives exactly 209 and Valve writes 209.00002.
+Normalising and rescaling reproduces both, and every component of all four legs
+measured, to the bit.
+
+**`pathNodePinsEnabled`** is the one the FGD declares for itself. `pin_enabled`
+carries `{ write_to_path_key = "pathNodePinsEnabled" }`, the only
+`write_to_path_key` in the whole FGD, and the key is written when the node's class
+declares it.
+
+**`pathNodeRadiusScales`** is RC's own and is skipped when it would say nothing. A
+node without the key counts as zero rather than as the FGD's 1.0. atixref writes
+`[ 2.0, 2.0 ]`, c2m2 writes all zeros for a rope whose nodes are a class with no
+such key, and c2m2's ropes whose nodes all sit at 1.0 carry no array at all.
+
+**`closed_loop`** is not an FGD key. It is the `CMapPath` node's own `closedLoop`,
+and the lump carries it as an integer.
+
+**Formatting.** Up to four entries go on one line as `[ a, b ]`; more wrap four to
+a line under one tab per level with a comma after every entry. Measured on ropes
+of four, five, six and seven nodes. Floats print shortest-round-trip and never
+bare, so 0 is `0.0` and -446 is `-446.0`.
+
+Across 144 map sources there are only two path classes, `path_particle_rope` and
+`path_particle_rope_clientside`, and three node classes, `path_node_generic`,
+`path_node_particle_rope` and `path_node_cable`. Every path in the corpus is
+`interpolationType` 0 and `closedLoop` false, so neither of those is exercised.
+Paths run from 0 to 40 nodes.
+
+### Physics props are SETTLED, which is a simulation and not a rule
+
+`prop_physics` and `prop_physics_override` do not ship where the mapper put them.
+The compile drops them, lets them come to rest, writes the resting origin and
+angles, and sets spawnflag 1, which the FGD calls "Start Asleep".
+
+| map | props | moved | also rotated | largest fall |
+|---|---|---|---|---|
+| atixref | 82 | 81 | 71 | 12.59 |
+| c2m2 environment prefab | 435 | 63 | 62 | 11,194.92 |
+
+An 11,000 unit fall is not a transform being normalised. Reproducing this needs
+the world's compiled collision, each model's physics hulls out of its `.vmdl_c`,
+and a rigid body solver run to rest, so it belongs to the geometry tier and cannot
+be done from the entity lump. It is the largest remaining entity difference by
+count and the one with the least to do with entities.
+
 ### What still differs, with its reason
 
 | class | entities | reason |
 |---|---|---|
 | the six light and probe classes | 326 | vrad3 writes its results back INTO the lump: `bakedshadowindex`, `light_map_uniqueid`, the probe atlas textures. Arrives with the lighting tier. |
 | `beam_spotlight`, `env_sprite_oriented` | 74 | Valve ships every key as a plain String while we type them from the FGD that declares both. NOT established. They appear only on the two prefab sources, and the guess that they were instance-expanded is DISPROVED: neither map contains a single `CMapInstance`. |
-| `prop_physics_override` | 81 | Valve MOVES the origin, presumably to the hull's mass center, and sets a spawnflag with it: `[-292.998, -568.019, 270.668]` against the source's `[-293, -568, 283.255]`, and spawnflags 5 against 4. |
+| `prop_physics`, `prop_physics_override` | 517 | the settle above. Geometry tier. |
 | `point_template` | 21 | ten differences left across twenty-one entities. |
-| `path_particle_rope_clientside` | 4 | needs `pathNodes` and `pathNodeRadiusScales` built from the `CMapPathNode` children, which are already walked and numbered. |
+| `path_particle_rope` | 11 | Valve ships its every key as a plain String while typing its clientside twin on the same map. NOT established. |
 | `env_texturetoggle` | 4 | the unresolved reference above. |
 | `func_physbox` | 4 | `hoverposeflags`, which the compiler writes and we do not. |
 

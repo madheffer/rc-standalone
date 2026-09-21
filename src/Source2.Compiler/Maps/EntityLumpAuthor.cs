@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using ValveKeyValue;
 using ValveKeyValue.KeyValues3;
 using ValveResourceFormat.Serialization.KeyValues;
@@ -204,6 +205,15 @@ public static class EntityLumpAuthor
                 : new KVObject(text));
         }
 
+        // A path aggregates its nodes into parallel arrays of its own, and records
+        // whether it loops. closed_loop is not an FGD key; it is the CMapPath
+        // node's own closedLoop, and the lump carries it as an integer.
+        if (entity.PathNodes is not null && !values.ContainsKey("closed_loop"))
+            values.Add("closed_loop", Integer(entity.ClosedLoop ? 1 : 0));
+        foreach (var (key, value) in PathArrays(entity))
+            if (!values.ContainsKey(key))
+                values.Add(key, new KVObject(value));
+
         // Keys the CLASS ships rather than the entity. This is how a point prefab
         // works: counterterrorist_team_intro is an ordinary class whose FGD metadata
         // declares isPointPrefab and the targetMapName to load, so the compile reads
@@ -305,6 +315,113 @@ public static class EntityLumpAuthor
     private static string Rename(FgdSchema.Key key, string text, TemplateLump? template)
         => template is null || key.Type != FgdSchema.FieldType.EntityName ? text : template.Rename(text);
 
+    /// <summary>
+    /// The three arrays a path writes for its nodes, each as KV3 TEXT in a string
+    /// value rather than as a real array.
+    ///
+    /// <para><c>pathNodes</c> is nine floats a node: its position relative to the
+    /// path, then the in and out tangents. The tangents are not authored, they are
+    /// derived, and it is one segment at a time rather than any smoothing across
+    /// the path: each is a third of the way to the neighbour, and zero at an end.
+    /// Checked against a five node rope where every one of the ten tangents is
+    /// exactly (neighbour - node) / 3.</para>
+    ///
+    /// <para>The other two come from the node's own game keys, and the key is
+    /// written only when a node declares it: c2m2 has ropes with radii and no
+    /// pins, and ropes with pins and no radii.</para>
+    /// </summary>
+    private static IEnumerable<KeyValuePair<string, string>> PathArrays(MapEntities.Entity entity)
+    {
+        if (entity.PathNodes is not { Count: > 0 } nodes)
+            yield break;
+
+        var rows = new List<string>();
+        for (var i = 0; i < nodes.Count; i++)
+        {
+            var here = nodes[i].Origin - entity.Origin;
+            var back = i > 0 ? Handle(nodes[i - 1].Origin - nodes[i].Origin) : Vector3.Zero;
+            var on = i < nodes.Count - 1 ? Handle(nodes[i + 1].Origin - nodes[i].Origin) : Vector3.Zero;
+            rows.Add(Kv3Array([here.X, here.Y, here.Z, back.X, back.Y, back.Z, on.X, on.Y, on.Z], 2));
+        }
+        yield return new("pathNodes", Kv3Rows(rows));
+
+        // A node that does not carry a radius scale counts as zero rather than as
+        // the fgd's 1.0, and the array is skipped entirely when every node is at
+        // 1.0 and it would say nothing. atixref writes [2.0, 2.0], c2m2 writes
+        // [0.0 ...] for nodes of a class that has no such key, and c2m2's ropes
+        // whose nodes are all at 1.0 carry no array at all.
+        float[] radii = [.. nodes.Select(n => float.TryParse(NodeKey(n, "radius_scale"),
+            NumberStyles.Float, CultureInfo.InvariantCulture, out var r) ? r : 0f)];
+        if (radii.Any(r => r != 1f))
+            yield return new("pathNodeRadiusScales", Kv3Array(radii, 1));
+
+        if (nodes.Any(n => NodeKey(n, "pin_enabled") is not null))
+            yield return new("pathNodePinsEnabled", Kv3Words(
+                [.. nodes.Select(n => ParseBool(NodeKey(n, "pin_enabled") ?? "0") ? "true" : "false")]));
+    }
+
+    /// <summary>
+    /// A node's control handle: a third of the way to its neighbour, but computed
+    /// as a DIRECTION and a length rather than by dividing the offset.
+    ///
+    /// <para>That round trip is visible in the output and is the only way to land
+    /// on Valve's floats. A rope leg of (-446, -171, 0) divided by three gives
+    /// exactly -57 on the second component and Valve writes -57.000004; one of
+    /// (191, 627, 170) gives exactly 209 and Valve writes 209.00002. Normalising
+    /// and rescaling reproduces both, and every component of all four legs
+    /// measured.</para>
+    /// </summary>
+    private static Vector3 Handle(Vector3 offset)
+    {
+        var length = offset.Length();
+        if (length == 0f)
+            return Vector3.Zero;
+        var unit = offset * (1f / length);
+        return unit * (length / 3f);
+    }
+
+    private static string? NodeKey(MapEntities.PathNode node, string name)
+        => node.Keys.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+
+    /// <summary>
+    /// A KV3 array as the compile prints it: on one line up to four entries, and
+    /// otherwise wrapped four to a line under one tab per level, every entry
+    /// followed by a comma. Measured on ropes of four, five, six and seven nodes.
+    /// </summary>
+    private static string Kv3Words(IReadOnlyList<string> parts, int depth = 1)
+    {
+        if (parts.Count <= 4)
+            return "[ " + string.Join(", ", parts) + " ]";
+
+        var pad = new string('\t', depth);
+        var text = new StringBuilder("[\n");
+        for (var i = 0; i < parts.Count; i++)
+            text.Append(i % 4 == 0 ? pad : " ").Append(parts[i]).Append(',')
+                .Append(i % 4 == 3 || i == parts.Count - 1 ? "\n" : "");
+        return text.Append(new string('\t', depth - 1)).Append(']').ToString();
+    }
+
+    private static string Kv3Array(IReadOnlyList<float> values, int depth)
+        => Kv3Words([.. values.Select(Number)], depth);
+
+    /// <summary>The rows of pathNodes, which is an array of arrays and so always
+    /// breaks a line.</summary>
+    private static string Kv3Rows(IReadOnlyList<string> rows)
+    {
+        var text = new StringBuilder("[\n");
+        foreach (var row in rows)
+            text.Append('\t').Append(row).Append(",\n");
+        return text.Append(']').ToString();
+    }
+
+    /// <summary>A float as the compile prints it: shortest round trip, and never
+    /// bare, so 0 is "0.0" and -446 is "-446.0".</summary>
+    private static string Number(float value)
+    {
+        var text = value.ToString(CultureInfo.InvariantCulture);
+        return text.AsSpan().IndexOfAny('.', 'E', 'e') >= 0 ? text : text + ".0";
+    }
+
     /// <summary>An entity's targetname, or empty when it has none.</summary>
     private static string NameOf(MapEntities.Entity entity)
         => entity.Keys.FirstOrDefault(k => k.Key.Equals("targetname", StringComparison.OrdinalIgnoreCase)).Value ?? "";
@@ -381,6 +498,10 @@ public static class EntityLumpAuthor
             // target_destination and holds "0 0 0", and ships as "[PR#]0 0 0".
             FgdSchema.FieldType.EntityName when fixupEntityNames => new KVObject(Fixup(text, true)),
             FgdSchema.FieldType.Boolean => new KVObject(ParseBool(text)),
+            // A particle reference names a file, and the compile finishes the name
+            // when the author gave a bare one.
+            FgdSchema.FieldType.ParticleSystem
+                => new KVObject(text.AsSpan(text.LastIndexOf('/') + 1).Contains('.') ? text : text + ".vpcf"),
             FgdSchema.FieldType.Integer when long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)
                 => Integer(i),
             // An integer key holding a decimal is TRUNCATED, not left a string. One

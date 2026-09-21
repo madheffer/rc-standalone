@@ -36,7 +36,18 @@ public static class MapEntities
         bool IsWorld,
         IReadOnlyList<Connection> Connections,
         bool HasGeometry = false,
-        bool Hidden = false);
+        bool Hidden = false,
+        IReadOnlyList<PathNode>? PathNodes = null,
+        bool ClosedLoop = false);
+
+    /// <summary>
+    /// One node of a path, as the source states it.
+    /// </summary>
+    /// <param name="Origin">World position; the lump stores it relative to the
+    /// path.</param>
+    /// <param name="Keys">The node's own game keys, which the path aggregates into
+    /// parallel arrays.</param>
+    public sealed record PathNode(Vector3 Origin, IReadOnlyList<KeyValuePair<string, string>> Keys);
 
     /// <summary>One output wired to an input on another entity.</summary>
     public sealed record Connection(
@@ -171,7 +182,34 @@ public static class MapEntities
             ReadConnections(element),
             // A brush entity is a node with mesh children. The world has meshes too,
             // but those are the world's own geometry rather than an entity model.
-            !isWorld && element.GetElements("children").Any(c => c.Type is "CMapMesh"));
+            !isWorld && element.GetElements("children").Any(c => c.Type is "CMapMesh"),
+            Hidden: false,
+            PathNodes: ReadPathNodes(element),
+            ClosedLoop: element.GetValue<bool>("closedLoop") ?? false);
+    }
+
+    /// <summary>
+    /// A path's nodes, in the order the source lists them. Only a
+    /// <c>CMapPath</c> has any; everything else gets none rather than an empty
+    /// list, so the lump can tell "no nodes" from "not a path".
+    /// </summary>
+    private static IReadOnlyList<PathNode>? ReadPathNodes(DmxBinary.Element element)
+    {
+        if (element.Type is not "CMapPath")
+            return null;
+
+        var nodes = new List<PathNode>();
+        foreach (var child in element.GetElements("children"))
+        {
+            if (child.Type is not "CMapPathNode")
+                continue;
+            var keys = new List<KeyValuePair<string, string>>();
+            foreach (var (key, value) in child.Get<DmxBinary.Element>("entity_properties")?.Attributes ?? [])
+                if (value is string text)
+                    keys.Add(new(key, text));
+            nodes.Add(new PathNode(child.GetValue<Vector3>("origin") ?? Vector3.Zero, keys));
+        }
+        return nodes;
     }
 
     private static IReadOnlyList<Connection> ReadConnections(DmxBinary.Element element)

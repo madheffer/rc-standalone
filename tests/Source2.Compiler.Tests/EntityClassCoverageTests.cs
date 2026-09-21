@@ -37,6 +37,9 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
         ("s2probe", "atixref"),
         ("doom_p2", "ze_doom_p2_c_gameplay"),
         ("c2m2", "c2m2_fairgrounds_csgo_gameplay"),
+        // The only local source with multi-node paths: ropes of four, five, six and
+        // seven nodes, the path_particle_rope class, and path_node_generic children.
+        ("c2m2", "c2m2_fairgrounds_csgo_environment_prefab"),
     ];
 
     /// <summary>
@@ -52,10 +55,19 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
         "env_cubemap", "env_light_probe_volume", "env_combined_light_probe_volume",
         // hoverposeflags, which the compiler writes and we do not.
         "func_physbox",
-        // A brush physics entity's origin is not the one the source states: Valve
-        // moves it, presumably to the hull's mass center, and sets a spawnflag
-        // with it. atixref has 81 and every one differs in both.
-        "prop_physics_override",
+        // The compile SETTLES a physics prop before shipping it: it writes the
+        // origin and angles the prop comes to rest at and sets spawnflag 1, which
+        // the fgd calls "Start Asleep". 81 of atixref's 82 move, 71 of them also
+        // turn, and one of c2m2's falls 11,195 units. That needs world collision,
+        // the model's physics hulls and a solver, so it arrives with the geometry
+        // tier and not before.
+        "prop_physics_override", "prop_physics",
+        // Valve ships every key on this one as a plain String, defaults included,
+        // while typing its clientside twin on the same map from the same fgd base
+        // class. Its path nodes are path_node_generic rather than the
+        // path_node_class the fgd names, which is the only difference found. NOT
+        // established.
+        "path_particle_rope",
         // Needs child entity lumps. A point_template's entities are compiled into
         // maps/<map>/entities/<nodeid>#entitylumpname.vents_c rather than into
         // default_ents, and the template names that lump in entityLumpName.
