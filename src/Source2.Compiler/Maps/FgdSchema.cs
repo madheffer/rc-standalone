@@ -342,7 +342,12 @@ public sealed partial class FgdSchema
         "color255" or "color255alpha" or "color1" => FieldType.Color,
         // remove_key is handled as a REMOVAL rather than a type; see Key.Removed.
         "remove_key" => FieldType.String,
-        "target_source" or "target_destination" or "target_name_or_class" => FieldType.EntityName,
+        // filterclass names a FILTER ENTITY, and the compile fixes it up like any
+        // other name: Valve writes filtername = "[PR#]humans" on ze_hold_em_p's
+        // trigger_multiple, trigger_hurt and trigger_teleport. Leaving it a plain
+        // string is the only thing that made those three classes differ.
+        "target_source" or "target_destination" or "target_name_or_class" or "filterclass"
+            => FieldType.EntityName,
         _ => FieldType.String,
     };
 

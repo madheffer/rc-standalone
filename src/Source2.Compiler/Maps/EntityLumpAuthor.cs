@@ -111,7 +111,14 @@ public static class EntityLumpAuthor
                 continue;
             var text = source.TryGetValue(key.Name, out var authored) ? authored : key.Default;
             if (string.IsNullOrEmpty(text))
-                continue;
+            {
+                // A BOOLEAN is the exception: empty means false and still ships.
+                // point_soundevent declares startOnSpawn and toLocalPlayer with an
+                // empty default and Valve's lump carries both as Boolean 0.
+                if (key.Type != FgdSchema.FieldType.Boolean)
+                    continue;
+                text = "0";
+            }
             values.Add(key.Name, Typed(key, text, fixupEntityNames));
         }
 
@@ -282,9 +289,14 @@ public static class EntityLumpAuthor
             FgdSchema.FieldType.Integer when long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)
                 => Integer(i),
             // A flags field ships UNSIGNED: func_brush's spawnflags 2 is UInt32,
-            // not the Int32 the ordinary rule would give it.
+            // not the Int32 the ordinary rule would give it. But 0 and 1 keep the
+            // ordinary rule and ship Int64, which is the same exception
+            // <see cref="Integer"/> already makes. ze_hold_em_p shows both sides on
+            // ONE class: func_door has six spawnflags 0 as Int64 and seven
+            // spawnflags 6144 as UInt32, so this is the value's rule, not the
+            // class's.
             FgdSchema.FieldType.Flags when uint.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var u)
-                => new KVObject(u),
+                => u is 0 or 1 ? Integer(u) : new KVObject(u),
             // A float key is parsed at 32-bit precision and widened, so 0.1 lands
             // as 0.10000000149011612 exactly as Valve's lump has it.
             FgdSchema.FieldType.Float when float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var f)

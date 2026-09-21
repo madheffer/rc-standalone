@@ -202,7 +202,9 @@ come down as causes were fixed:
 |---|---|
 | first measurement | 832 |
 | after the connection target fixup | 546 |
-| after the override parameter fixup | **544** |
+| after the override parameter fixup | 544 |
+| after the spawnflags rule | 511 |
+| after `filterclass` and empty booleans | **497** |
 
 Each remaining cause is separate work, and all of them are measured rather than
 guessed.
@@ -233,11 +235,20 @@ how `@OverrideClass` is handled and wants its own test.
 `game_weapon_manager` has **no such marker** and is an ordinary `@PointClass`, so
 why the compiler drops all 28 is not known. Do not guess it.
 
-### 2. Integer width on spawnflags
+### 2. Integer width on spawnflags (FIXED)
 
-`spawnflags` comes back `Int64` from Valve and `UInt32` from us. The same class of
-problem `docs/RC_PARITY.md` C1 describes: the width is the C++ field's, not the
-value's.
+A flags field ships UNSIGNED, **except that 0 and 1 ship Int64**, which is the
+same exception `Integer` already made for ordinary integers and which had simply
+never been applied to flags.
+
+The evidence that it is the VALUE's rule and not the class's is one class holding
+both: ze_hold_em_p's `func_door` has six `spawnflags 0` as `Int64` and seven
+`spawnflags 6144` as `UInt32`. The source stores every one of them as a string,
+so nothing is inherited from the map file.
+
+`info_player_terrorist` and `info_player_counterterrorist` carry spawnflags as a
+plain `String` because their classes do not declare the key, and those already
+matched.
 
 ### 3. Connection name fixup (FIXED)
 
