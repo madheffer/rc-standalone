@@ -111,11 +111,18 @@ and always pair as (0,1), (1,2) or (2,0), so the third axis is implied and is th
 one the plane is most perpendicular to. Everything above bit 16 varies per
 surface and is undecoded; `0x0920` and `0x0800` are common.
 
-**Slots 0, 1 and 11 are the normal, in the axis order slot 10 gives**, and slot 2
-is the distance in the SAME arbitrary scale. Normalise the two together to get a
-unit plane. The scale is usually chosen so the dominant component is exactly 1,
-which is the Badouel convention, but not always: that holds for 99.96% of
-ze_hold_em_p's triangles and only 61% of Mako's, so divide rather than assume.
+**Slots 0, 1 and 11 are the normal under a FIXED mapping, `(slot11, slot0, slot1)`
+as x, y, z.** It does not follow slot 10, which only names the two projection
+axes. This is the one place the format invites a wrong answer: reading the normal
+in coord_select order scores 100% on ze_hold_em_p, whose geometry is almost all
+axis aligned, and quietly corrupts Mako. The mapping was settled by correlating
+which slot holds the largest component against the third axis, which pairs only
+ever as (slot1, axis2), (slot0, axis1) and (slot11, axis0).
+
+Slot 2 is the distance in the same arbitrary scale as the normal, so normalise
+the two together. The Badouel convention of scaling so the dominant component is
+exactly 1 holds for 99.96% of ze_hold_em_p's triangles and only 61% of Mako's, so
+divide rather than assume.
 
 How this was settled, since a plausible field order is not evidence:
 
@@ -154,17 +161,33 @@ and run-length encoding the result, ze_hold_em_p splits cleanly:
 The first region is `(float, u32)` pairs, which matches `Loading kd-trees`: a
 split position and a packed child-plus-axis word is the standard kd-node layout.
 
+### Vertices come back out
+
+Slots 4 to 6 and 7 to 9 are two barycentric edge equations over the plane's 2D
+projection, so a vertex is where the barycentric pair reaches (0,0), (1,0) or
+(0,1): a 2x2 solve for the two projected coordinates, then the third recovered
+from the plane. `Rte.vertices()` does it.
+
+**The check that settles the whole format.** Rebuild every triangle in a file and
+take the bounding box of the result. It should be the box the file states in its
+own header, and it is:
+
+| | header says | rebuilt geometry |
+|---|---|---|
+| ze_hold_em_p | `(-13707.0, -608.0, 17.0) .. (7672.0, 398.0, 153.0)` | **identical** |
+| Mako | `(-8192.0, -9088.0, -15360.0) .. (7168.0, 2492.1, 512.0)` | `(-8192.0, -9089.8, -15360.0) .. (7169.4, 2492.1, 512.0)` |
+
+99.96% of ze_hold_em_p's triangles and 97.0% of Mako's land fully inside the
+stated box, and the extremes reproduce it. Recovering vertices from an encoding
+that discards them, and landing on the file's own bounds, is not something a
+wrong decode does.
+
+The output reads as ordinary brush geometry. ze_hold_em_p's first two triangles
+are `(7672, -56, 64) (7672, -56, 17) (7160, -56, 64)` and
+`(7672, -56, 17) (7160, -56, 17) (7160, -56, 64)`: one quad, a wall at y = -56
+spanning x 7160 to 7672 and z 17 to 64, on whole-unit coordinates.
+
 ## What is NOT established
-
-**The two edge equations, slots 4 to 9.** Grouped as (a, b, c) triples by their
-magnitudes, two small coefficients and one large, which is the shape of a 2D line
-equation in the projected plane. Not verified, because verifying them needs the
-vertices they were derived from and those are exactly what the format discards.
-
-**Reconstructing vertices.** The Badouel form is lossy in the sense that vertices
-come back only by intersecting the plane with the two edge equations and a third
-implied one. Worth doing, because a triangle soup whose bounds match the header's
-box would close this out completely.
 
 **The 8-byte per-triangle array.** Long constant runs, so probably a surface or
 material id plus flags. On Mako only 320 of 279,064 entries match the first, so it

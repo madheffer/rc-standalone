@@ -77,23 +77,59 @@ class Rte:
         """The triangle's plane as a unit normal and distance, or None when the
         record is degenerate.
 
-        Slots 0, 1 and 11 hold the normal's components in the axis order
-        coord_select gives, and slot 2 the distance in the SAME arbitrary scale.
-        The scale is often chosen so the dominant component is exactly 1, but not
-        always, so normalise both rather than assuming it. Verified by the plane
-        cutting the file's own stated world box for 99% of triangles in both
-        specimens."""
+        The normal is a FIXED slot mapping, (slot11, slot0, slot1) as x, y and z.
+        It does NOT follow coord_select, which only names the two projection axes.
+        Reading it in coord_select order happens to work on a map whose geometry
+        is mostly axis aligned and silently corrupts one on a map that is not.
+
+        Slot 2 is the distance in the same arbitrary scale as the normal, so
+        normalise the two together rather than assuming the scale."""
         select = self.coord_select(i)
         if select is None:
             return None
-        u, v, dom = select
         t = self.triangle(i)
-        normal = [0.0, 0.0, 0.0]
-        normal[u], normal[v], normal[dom] = t[0], t[1], t[11]
+        normal = [t[11], t[0], t[1]]
         length = math.sqrt(sum(c * c for c in normal))
         if length == 0.0:
             return None
         return tuple(c / length for c in normal), t[2] / length
+
+    def vertices(self, i):
+        """The triangle's three world-space vertices, or None if degenerate.
+
+        The record stores no vertices. It stores the plane and two barycentric
+        edge equations over the plane's 2D projection, so a vertex is where the
+        barycentric pair hits (0,0), (1,0) or (0,1): a 2x2 solve for the two
+        projected coordinates, then the third recovered from the plane.
+
+        Verified by rebuilding every triangle and comparing the result's bounding
+        box with the one the file states in its own header. ze_hold_em_p matches
+        exactly and Mako to within 1.8 units, which a wrong decode cannot do."""
+        select = self.coord_select(i)
+        if select is None:
+            return None
+        u, v, w = select
+        t = self.triangle(i)
+        normal = (t[11], t[0], t[1])
+        if normal[w] == 0.0:
+            return None
+
+        a1, b1, c1 = t[4], t[5], t[6]
+        a2, b2, c2 = t[7], t[8], t[9]
+        det = a1 * b2 - a2 * b1
+        if det == 0.0:
+            return None
+
+        found = []
+        for first, second in ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0)):
+            p1, p2 = first - c1, second - c2
+            along_u = (p1 * b2 - p2 * b1) / det
+            along_v = (a1 * p2 - a2 * p1) / det
+            along_w = (t[2] - normal[u] * along_u - normal[v] * along_v) / normal[w]
+            point = [0.0, 0.0, 0.0]
+            point[u], point[v], point[w] = along_u, along_v, along_w
+            found.append(tuple(point))
+        return found
 
     def reflectivity(self, i):
         return struct.unpack_from("<3f", self.data, self.reflectivity_at + i * 12)
