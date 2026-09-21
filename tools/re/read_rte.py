@@ -9,6 +9,7 @@ wrong for that file and nothing below it should be believed.
 Find one under %TEMP%\\csgo_addons\\<addon>\\maps\\<map>.rte after a -world compile.
 """
 import argparse
+import math
 import struct
 import sys
 
@@ -50,9 +51,49 @@ class Rte:
         return struct.unpack_from("<I", self.data, self.index_at + i * 4)[0]
 
     def triangle(self, i):
-        """The 48-byte record as 12 floats. It is a cache-optimized form, a plane
-        plus edge equations, NOT three vertices; the fields are not decoded."""
+        """The 48-byte record as 12 floats, undecoded."""
         return struct.unpack_from("<12f", self.data, self.triangle_at + i * 48)
+
+    def triangle_id(self, i):
+        """Slot 3. Equals the record's own index in both known specimens."""
+        return int(self.triangle(i)[3])
+
+    def coord_select(self, i):
+        """(u, v, dominant) axis indices. The record stores the plane projected
+        onto the two non-dominant axes, so u and v are always two of 0, 1, 2 and
+        the third is implied."""
+        word = struct.unpack_from("<I", self.data, self.triangle_at + i * 48 + 40)[0]
+        u, v = word & 0xFF, (word >> 8) & 0xFF
+        if u > 2 or v > 2 or u == v:
+            return None
+        return u, v, 3 - u - v
+
+    def flags(self, i):
+        """Everything in the packed word above the two axis bytes."""
+        word = struct.unpack_from("<I", self.data, self.triangle_at + i * 48 + 40)[0]
+        return word >> 16
+
+    def plane(self, i):
+        """The triangle's plane as a unit normal and distance, or None when the
+        record is degenerate.
+
+        Slots 0, 1 and 11 hold the normal's components in the axis order
+        coord_select gives, and slot 2 the distance in the SAME arbitrary scale.
+        The scale is often chosen so the dominant component is exactly 1, but not
+        always, so normalise both rather than assuming it. Verified by the plane
+        cutting the file's own stated world box for 99% of triangles in both
+        specimens."""
+        select = self.coord_select(i)
+        if select is None:
+            return None
+        u, v, dom = select
+        t = self.triangle(i)
+        normal = [0.0, 0.0, 0.0]
+        normal[u], normal[v], normal[dom] = t[0], t[1], t[11]
+        length = math.sqrt(sum(c * c for c in normal))
+        if length == 0.0:
+            return None
+        return tuple(c / length for c in normal), t[2] / length
 
     def reflectivity(self, i):
         return struct.unpack_from("<3f", self.data, self.reflectivity_at + i * 12)
@@ -101,9 +142,14 @@ def main():
         over = sum(1 for i in range(min(rte.indices, 100000)) if rte.index(i) >= rte.triangles)
         print(f"    of the first {min(rte.indices, 100000):,}, {over} are >= the triangle count")
     if args.triangles:
-        print("\n  triangle records (12 floats each, fields not decoded):")
+        print("\n  triangle records:")
         for i in range(min(args.triangles, rte.triangles)):
-            print(f"    {i:>4} {[round(v, 3) for v in rte.triangle(i)]}")
+            plane = rte.plane(i)
+            where = "degenerate" if plane is None else (
+                f"n=({plane[0][0]:+.3f},{plane[0][1]:+.3f},{plane[0][2]:+.3f}) d={plane[1]:>10.2f}")
+            print(f"    {i:>4} id={rte.triangle_id(i):<7} axes={rte.coord_select(i)} "
+                  f"flags={rte.flags(i):#07x}  {where}")
+            print(f"         edge floats {[round(v, 4) for v in rte.triangle(i)[4:10]]}")
         print(f"    reflectivity[0] = {rte.reflectivity(0)}")
 
 

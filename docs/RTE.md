@@ -81,14 +81,54 @@ visibly ascending `u32` runs, the index-to-per-triangle boundary is sharp in a h
 dump (ascending indices, then a new repeating pattern, at exactly
 `filesize - B*20`), and the reflectivity tail is uniformly `(1, 1, 1)`.
 
-**The triangles are not raw vertices.** Testing all four float triples of the
-48-byte record against the world bounding box gives inconsistent results between
-the two maps, and a record reads
-`[1.0, 0.0, -56.0, 0.0, -0.021, 0.0, 1.362, 0.0, -0.002, 14.984, 0.0, 0.0]`:
-mixed scales, normal-like and distance-like together. That is a **cache-optimized
-ray trace triangle**, a plane plus edge equations, which is how Valve's raytrace
-library has always stored them for intersection. Decoding the individual fields is
-still open; the stride and count are not.
+### The 48-byte triangle record
+
+It holds no vertices. It is the **Badouel projected-plane** form a ray tracer uses
+for intersection: the plane, plus two edge equations in the plane's dominant
+projection.
+
+```
+float  0   normal component on axis u          float  1   normal component on axis v           | see the axis word at 40
+float  2   plane distance, same scale as above  |
+float  3   triangle id                          |
+float  4   edge 0, a                            |
+float  5   edge 0, b                            |
+float  6   edge 0, c                            |
+float  7   edge 1, a                            |
+float  8   edge 1, b                            |
+float  9   edge 1, c                            |
+u32   10   bits 0..7   axis u  (0, 1 or 2)      |
+           bits 8..15  axis v  (0, 1 or 2)      |
+           bits 16..   flags and surface data   |
+float 11   normal component on the dominant axis/
+```
+
+**Slot 3 is the triangle id**, and in both specimens it equals the record's own
+index, exactly, for every triangle checked.
+
+**Slot 10's two low bytes are the projection axes.** They only ever hold 0, 1 or 2
+and always pair as (0,1), (1,2) or (2,0), so the third axis is implied and is the
+one the plane is most perpendicular to. Everything above bit 16 varies per
+surface and is undecoded; `0x0920` and `0x0800` are common.
+
+**Slots 0, 1 and 11 are the normal, in the axis order slot 10 gives**, and slot 2
+is the distance in the SAME arbitrary scale. Normalise the two together to get a
+unit plane. The scale is usually chosen so the dominant component is exactly 1,
+which is the Badouel convention, but not always: that holds for 99.96% of
+ze_hold_em_p's triangles and only 61% of Mako's, so divide rather than assume.
+
+How this was settled, since a plausible field order is not evidence:
+
+- placing the components by the axis word rather than in slot order raises the
+  plane test on Mako from 86% to **99.9%**, which a wrong mapping would not do
+- with the normal normalised, **99.2% of ze_hold_em_p's and 99.1% of Mako's
+  planes cut the file's own stated world bounding box**
+- the first records decode as ordinary map geometry: an axis-aligned
+  `n=(0,-1,0) d=1504`, a 45 degree `n=(0,-0.707,-0.707)`, and a back-to-back pair
+  sharing a distance, which is what a quad split into two triangles looks like
+
+`tools/re/read_rte.py` implements this as `plane()`, `triangle_id()`,
+`coord_select()` and `flags()`.
 
 **The index array is `C - 1`, not `C`.** That off-by-one is consistent across both
 files to the byte, so one entry is a root or sentinel rather than a leaf index.
@@ -116,9 +156,15 @@ split position and a packed child-plus-axis word is the standard kd-node layout.
 
 ## What is NOT established
 
-**The 48-byte triangle record's fields.** It is a plane plus edge equations
-rather than three vertices, but which float is which is not decoded. A reader
-that reconstructs vertices needs this.
+**The two edge equations, slots 4 to 9.** Grouped as (a, b, c) triples by their
+magnitudes, two small coefficients and one large, which is the shape of a 2D line
+equation in the projected plane. Not verified, because verifying them needs the
+vertices they were derived from and those are exactly what the format discards.
+
+**Reconstructing vertices.** The Badouel form is lossy in the sense that vertices
+come back only by intersecting the plane with the two edge equations and a third
+implied one. Worth doing, because a triangle soup whose bounds match the header's
+box would close this out completely.
 
 **The 8-byte per-triangle array.** Long constant runs, so probably a surface or
 material id plus flags. On Mako only 320 of 279,064 entries match the first, so it
