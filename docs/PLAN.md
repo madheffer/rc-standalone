@@ -58,7 +58,7 @@ A phase that produces any of them must produce all of them consistently.
 
 ---
 
-## Phase 1: prove our containers in game (BUILT, awaiting the in-game load)
+## Phase 1: prove our containers in game (DONE, loaded and played)
 
 Everything we author is currently judged by our own comparison. It has never been
 loaded by CS2.
@@ -79,8 +79,23 @@ Done so far:
 3. Installed at `game/csgo_addons/s2c_lighting/maps/ze_hold_em_p.vpk`, with the
    stock build kept beside it for an A/B.
 
-Remaining: **load it**. That step needs a person in the game and has not been
-done, so nothing here yet says CS2 accepts our containers.
+4. **Loaded it in CS2 and played it.** The map runs: geometry, spawns, round
+   start, and the map's own entity logic firing its door countdown, which is our
+   re-authored entity lump doing its job.
+
+**CS2 accepts our containers.** Scored against Valve's own build through the same
+load path, our build reports the **same 8 missing resources and not one more**:
+three addon materials, a postprocessing profile, a cubemap array and three
+panorama images, all of which live in the addon and are not mounted when a map is
+loaded out of `csgo/maps`. Valve's stock build fails on exactly the same eight,
+which is what makes the comparison worth anything.
+
+That missing addon content is why the map renders magenta on this load path. It
+is not a defect in what we authored, and the control is what establishes that
+rather than an assumption.
+
+`tools/pipeline/cs2_console.py` drives the game over `-netconport`, so this test
+is now a command rather than a person.
 
 **Why first:** it is a day's work, it needs no new format knowledge, and it
 converts "our writer produces something that looks right" into "CS2 accepts what

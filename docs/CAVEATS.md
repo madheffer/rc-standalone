@@ -135,6 +135,30 @@ Compiling into `game/csgo_addons/<addon>/` produces a working map VPK but no
 is minimal, just an empty KV3 document with the generic format header. Without it
 the map is on disk and the engine will not find it.
 
+### The VConsole protocol, and the two things that block a first attempt
+
+`magic(4) + u16 version + u32 length` big endian, length counting the 10 byte
+header. Packet types seen: `AINF` `CHAN` `PRNT` `ADON` `CVRB` from the game, and
+`CMND` to it.
+
+The version field **must be 212**. Sending 0 is refused with
+`Message Version Mismatch: 'CMND', Expected 212, Got 0`, and the value is sitting
+in plain sight in the `AINF` the game sends on connect.
+
+A `CMND` body starts with **two bytes of padding** before the nul terminated
+command. Without them the game parses from the third byte and answers
+`Unknown command: ho` for `echo hi`, which is how the offset was measured.
+
+### A local addon map will not load in the normal game
+
+`map <name>` answers `invalid map name` for anything under `csgo_addons` unless
+the addon is mounted, and engine2 carries
+`AddonConfig/RestrictFlatFileAddonsToTools`, so flat file addons are tools only.
+Dropping the map VPK into `game/csgo/maps` loads it with no addon at all, which is
+enough to test the map itself, but the addon's materials are then not mounted and
+the map renders magenta. Valve's own build of the same map does this too, so
+compare against it before concluding anything about your own output.
+
 ### Driving a running CS2 needs `-netconport`
 
 Console commands cannot be injected into a running instance otherwise: CS2
