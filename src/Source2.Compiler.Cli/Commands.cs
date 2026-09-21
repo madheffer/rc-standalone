@@ -285,6 +285,74 @@ internal static class Commands
     private static HashSet<ulong> References(Resource resource)
         => [.. (resource.ExternalReferences?.ResourceRefInfoList ?? []).Select(r => r.Id)];
 
+    /// <summary>
+    /// Parse every resource in a map VPK and resolve every reference it names.
+    /// This is what a dangling reference looks like before the game finds it:
+    /// cs2map's iterations rendered wrong rather than failing loudly, and a
+    /// reference that resolves nowhere is the shape of that bug.
+    /// </summary>
+    public static int MapValidate(string[] a)
+    {
+        var path = Positional(a, "map .vpk");
+        using var package = new ValvePak.Package();
+        package.Read(path);
+
+        var entries = Entries(package);
+        var present = new HashSet<ulong>();
+        foreach (var name in entries.Keys)
+        {
+            // A RERL names the UNCOMPILED path, so drop the trailing _c.
+            var uncompiled = name.EndsWith("_c", StringComparison.Ordinal) ? name[..^2] : name;
+            present.Add(Source2ResourceId.ForPath(uncompiled));
+        }
+
+        int parsed = 0, unreadable = 0, references = 0, missing = 0;
+        var problems = new List<string>();
+        var unresolved = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (name, entry) in entries.OrderBy(e => e.Key, StringComparer.Ordinal))
+        {
+            if (!name.EndsWith("_c", StringComparison.Ordinal))
+                continue;
+            byte[] bytes;
+            try { bytes = Io.VpkEntries.Read(package, entry); }
+            catch (Exception ex) { unreadable++; problems.Add($"{name}: unreadable, {ex.Message}"); continue; }
+
+            try
+            {
+                using var resource = new Resource { FileName = Path.GetFileName(name) };
+                resource.Read(new MemoryStream(bytes));
+                parsed++;
+
+                foreach (var reference in resource.ExternalReferences?.ResourceRefInfoList ?? [])
+                {
+                    references++;
+                    if (present.Contains(reference.Id))
+                        continue;
+                    // Anything not in this VPK must come from the game's own
+                    // archives, which this does not open; report it as external.
+                    missing++;
+                    var target = reference.Name ?? $"id {reference.Id:x16}";
+                    unresolved[target] = unresolved.GetValueOrDefault(target) + 1;
+                }
+            }
+            catch (Exception ex)
+            {
+                unreadable++;
+                problems.Add($"{name}: {ex.GetType().Name}, {ex.Message[..Math.Min(80, ex.Message.Length)]}");
+            }
+        }
+
+        Console.WriteLine($"{Path.GetFileName(path)}");
+        Console.WriteLine($"  {entries.Count:n0} entries, {parsed:n0} compiled resources parsed, {unreadable} failed");
+        Console.WriteLine($"  {references:n0} references, {references - missing:n0} resolve inside this map");
+        Console.WriteLine($"  {unresolved.Count:n0} distinct targets resolve outside it (game content, expected)");
+
+        foreach (var problem in problems.Take(15))
+            Console.WriteLine("  PROBLEM " + problem);
+        return unreadable == 0 ? 0 : 1;
+    }
+
     public static int MapDiff(string[] a)
     {
         var referencePath = Positional(a, "reference .vpk");
