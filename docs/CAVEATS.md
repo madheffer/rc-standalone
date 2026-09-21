@@ -251,6 +251,15 @@ Neither on the host nor in the images. Parse binaries with Python.
 A Windows path in a Ghidra script comment (`C:\...\utils\...`) is a compile error
 reading `illegal unicode escape`. Write paths with forward slashes.
 
+### Ghidra dies saving a 56 MB binary at the default heap
+
+`resourcecompiler.dll` analyses but exits 255 while saving, at the default
+`MAXMEM_DEFAULT=2G`. It DOES run post scripts first, so an inventory written by
+one survives while the applied renames do not. Raise `GHIDRA_HEADLESS_MAXMEM`, or
+use `tools/re/dump_asserts.py`, which needs no disassembler at all and recovers
+the same names, files and lines for every binary in a second. Addresses are what
+it cannot give you.
+
 ### Ghidra will not find x64 MSVC RTTI cross references
 
 Those links are 32-bit RVAs, not pointers, so `getReferencesTo` on a type
