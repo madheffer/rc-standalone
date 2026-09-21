@@ -141,13 +141,19 @@ public static class EntityLumpAuthor
         }
 
         // Anything the source carries that the schema does not know about is still
-        // the mapper's data, and RC keeps it as the string it is.
+        // the mapper's data, and RC keeps it as the string it is - except that a
+        // targetname is a NAME whatever the class is. ze_doom_p2_c_gameplay places
+        // four classes the fgd never declares (func_physbox_multiplayer,
+        // player_speedmod, prop_door_rotating_checkpoint, ambient_music) and Valve
+        // prefixes every one of their names.
         foreach (var (key, text) in entity.Keys)
         {
             if (text.Length == 0 || IsPlacement(key) || values.ContainsKey(key)
                 || schema?.KeyOf(entity.ClassName, key) is not null)
                 continue;
-            values.Add(key, new KVObject(text));
+            values.Add(key, key.Equals("targetname", StringComparison.OrdinalIgnoreCase)
+                ? new KVObject(Fixup(text, fixupEntityNames))
+                : new KVObject(text));
         }
 
         // Keys the CLASS ships rather than the entity. This is how a point prefab

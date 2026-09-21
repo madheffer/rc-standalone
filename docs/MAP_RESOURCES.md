@@ -251,7 +251,7 @@ Regenerate both lists with `tools/map-survey` and
 
 ## Entity lump: what still differs from resourcecompiler
 
-Measured per CLASS across five local map sources, because a total difference count
+Measured per CLASS across seven local map sources, because a total difference count
 is dominated by whichever class appears most and says nothing about whether
 TRIGGERS work. `EntityClassCoverageTests` reports it and ratchets it: every class
 that differs has to be named in the test, so the list only shrinks.
@@ -260,15 +260,20 @@ that differs has to be named in the test, so the list only shrinks.
 |---|---|---|
 | 4 maps | 33 | 5 |
 | + `s2probe/atixref` | 7 | 63 |
-| after the fixes below | **61** | **9** |
+| after the fixes below | 61 | 9 |
+| + the two prefab sources, 7 maps and 1,820 entities | **82** | **12** |
 
 Widening the corpus is what made the work possible, and it first made the numbers
 look far worse. That was honest: atixref is a real zombie escape map with 4,588
 entities, 144 instances and 10 point templates, and the four-map figure had never
-been asked a hard question. Five separate causes sat behind those 63, and four
-are now fixed.
+been asked a hard question.
 
-The 61 include the classes a ZE map is actually built from: 39 `func_button`,
+Two of the seven sources live under `maps/prefabs/<parent>/` rather than beside
+the map, so `MapFixtures.VmapSource` searches. They were being SKIPPED, and a
+skipped map is indistinguishable from a passing one unless the harness says so,
+which it now does.
+
+The 82 include the classes a ZE map is actually built from: 39 `func_button`,
 70 `func_breakable`, 17 `prop_door_rotating`, 16 `path_track`, 15
 `trigger_teleport`, 10 `trigger_once`, 8 `trigger_hurt`, 5 `trigger_multiple`,
 2 `trigger_push`, 1 `func_tracktrain`, 1 `point_teleport`, plus the filters,
@@ -407,15 +412,44 @@ and writes `[PR#]humans` anyway. So the test is the map's own set of targetnames
 not the FGD's input declaration, which is why a purely schema-driven rule would
 have missed it.
 
+### The prefab name fixup: a name always, a reference sometimes
+
+A `targetname` is fixed up whatever the class is, including one the FGD never
+declares. `ze_doom_p2_c_gameplay` places four such classes
+(`func_physbox_multiplayer`, `player_speedmod`, `prop_door_rotating_checkpoint`,
+`ambient_music`) and Valve prefixes every one of their names while shipping their
+other keys as plain strings.
+
+A REFERENCE is not always fixed up. The same map wires `env_texturetoggle` at
+`CacoDemonModel`, which is **no entity's targetname anywhere in the map**, and
+Valve ships it bare while prefixing every reference beside it that does resolve.
+That is the same shape as the rule already proven for an output's override
+parameter.
+
+Applying "prefix only when it resolves" to every name-typed key is nonetheless
+WRONG, and the measurement says so rather than the reasoning: it fixes
+`env_texturetoggle` and regresses `light_environment` from 18 differences to 30
+and `point_template` from 36 to 49, and introduces three classes that had been
+exact. `light_environment` is the clearest counterexample, since its
+`ambient_occlusion_proxy_position_0` is declared `target_destination`, holds
+`0 0 0`, and ships as `[PR#]0 0 0`. So some references are prefixed blindly and
+some are tested, and which is which is not known.
+
+Note that both regressed classes were already on the differing list, so the test's
+ratchet would NOT have caught this. Compare per-class difference COUNTS before and
+after a change to a shared rule, not just the set of failing class names.
+
 ### What still differs, with its reason
 
 | class | entities | reason |
 |---|---|---|
 | the six light and probe classes | 326 | vrad3 writes its results back INTO the lump: `bakedshadowindex`, `light_map_uniqueid`, the probe atlas textures. Arrives with the lighting tier. |
+| `beam_spotlight`, `env_sprite_oriented` | 74 | Valve ships every key as a plain String while we type them from the FGD that declares both. NOT established. Both appear only on the two prefab sources, and the leading guess is that instance-expanded entities carry their keys verbatim, which the instance work would settle. |
 | `prop_physics_override` | 81 | Valve MOVES the origin, presumably to the hull's mass center, and sets a spawnflag with it: `[-292.998, -568.019, 270.668]` against the source's `[-293, -568, 283.255]`, and spawnflags 5 against 4. |
-| `point_template` | 10 | needs `entityLumpName` and `worldName`, which need child lumps. |
+| `point_template` | 21 | needs `entityLumpName` and `worldName`, which need child lumps. |
 | `path_particle_rope_clientside` | 4 | needs `pathNodes` and `pathNodeRadiusScales` built from the `CMapPathNode` children, which are already walked and numbered. |
-| `func_physbox` | 1 | `hoverposeflags`, which the compiler writes and we do not. |
+| `env_texturetoggle` | 4 | the unresolved reference above. |
+| `func_physbox` | 4 | `hoverposeflags`, which the compiler writes and we do not. |
 
 ## What is implemented
 

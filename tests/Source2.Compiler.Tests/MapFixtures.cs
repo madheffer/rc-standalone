@@ -213,8 +213,17 @@ internal static class MapFixtures
         if (cs2 is null)
             return null;
         var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, "..", ".."));
-        var source = Path.Combine(root, "content", "csgo_addons", addon, "maps", map + ".vmap");
-        return File.Exists(source) ? source : null;
+        var maps = Path.Combine(root, "content", "csgo_addons", addon, "maps");
+        var source = Path.Combine(maps, map + ".vmap");
+        if (File.Exists(source))
+            return source;
+
+        // A prefab source does not sit beside the map: Hammer writes it under
+        // maps/prefabs/<parent>/<name>.vmap, and a map that places prefabs keeps
+        // its own there too. Looking only beside the map skipped two of the
+        // corpus, and a skipped map cannot be told apart from a passing one.
+        return !Directory.Exists(maps) ? null
+             : Directory.EnumerateFiles(maps, map + ".vmap", SearchOption.AllDirectories).FirstOrDefault();
     }
 
     /// <summary>
