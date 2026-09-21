@@ -196,6 +196,95 @@ internal static class Commands
         return report.Holes == 0 ? 0 : 1;
     }
 
+    /// <summary>
+    /// Re-author one of Valve's compiled map resources through OUR writer and say
+    /// how the result compares. This is the unit the staged pipeline swaps: a file
+    /// that comes back byte-identical is proven, and one that differs is the
+    /// candidate worth putting in front of the game.
+    /// </summary>
+    public static int Reauthor(string[] a)
+    {
+        var input = Positional(a, "compiled map resource");
+        var outPath = Opt(a, "-o");
+
+        var original = File.ReadAllBytes(input);
+        var name = Path.GetFileName(input);
+        using var valve = new Resource { FileName = name };
+        valve.Read(new MemoryStream(original));
+
+        // "world.vwrld_c" is compiled from a ".vwrld", which is what the author
+        // needs to stamp the right identity on it.
+        var compiled = Path.GetExtension(name);
+        var sourceExtension = compiled.EndsWith("_c", StringComparison.Ordinal)
+            ? compiled[..^2]
+            : compiled;
+
+        byte[] ours;
+        if (sourceExtension is ".vrman")
+        {
+            var data = valve.Blocks.First(b => b.Type == BlockType.DATA);
+            var payload = original.AsSpan((int)data.Offset, (int)data.Size).ToArray();
+            ours = ResourceManifestAuthor.Author(ResourceManifestAuthor.ReadData(payload));
+        }
+        else if (valve.DataBlock is KeyValuesOrNTRO { Format: { } format } tree)
+        {
+            ours = Source2ContainerAuthor.AuthorKv3Tree(tree.Data, format, sourceExtension);
+        }
+        else
+        {
+            Console.Error.WriteLine($"cannot re-author {sourceExtension}: its DATA block is not a KV3 tree. "
+                                  + "A map root needs its child list, so use the pipeline for .vmap_c.");
+            return 2;
+        }
+
+        // Bytes are the wrong verdict on their own. KV3 binary has several valid
+        // encodings of one tree - string table order, compression choice - so our
+        // writer reproducing the TREE while differing in bytes is a pass, and it
+        // is what the authoring tests assert. Say which of the two happened.
+        var identical = ours.AsSpan().SequenceEqual(original);
+        using var mine = new Resource { FileName = name };
+        mine.Read(new MemoryStream(ours));
+
+        // A manifest's DATA is a bare string list rather than KV3, so fall back to
+        // comparing that block's bytes instead of calling it "not compared".
+        var theirTree = ResourceDecompiler.DataBlockToKv3(valve, out _);
+        var ourTree = ResourceDecompiler.DataBlockToKv3(mine, out _);
+        var sameTree = theirTree is not null
+            ? theirTree == ourTree
+            : DataBytes(original, valve).Span.SequenceEqual(DataBytes(ours, mine).Span);
+        var theirRefs = References(valve);
+        var ourRefs = References(mine);
+
+        Console.WriteLine($"{name}");
+        Console.WriteLine($"  valve {original.Length,10:n0} bytes   ours {ours.Length,10:n0} bytes");
+        Console.WriteLine($"  bytes      {(identical ? "IDENTICAL" : "differ: " + BlockDelta(name + "_c", original, ours))}");
+        Console.WriteLine($"  DATA       {(sameTree ? "IDENTICAL" : "DIFFERS")}"
+                        + (theirTree is null ? " (raw bytes; this type's DATA is not KV3)" : " (decoded tree)"));
+        Console.WriteLine($"  references {(theirRefs.SetEquals(ourRefs) ? $"IDENTICAL ({theirRefs.Count})" : $"DIFFER ({theirRefs.Count} vs {ourRefs.Count})")}");
+        Console.WriteLine($"  resver     {(valve.Version == mine.Version ? "same" : $"{valve.Version} vs {mine.Version}")}");
+
+        var usable = sameTree && theirRefs.SetEquals(ourRefs) && valve.Version == mine.Version;
+        Console.WriteLine($"  VERDICT    {(identical ? "byte-exact" : usable ? "equivalent, worth an in-game test" : "NOT EQUIVALENT")}");
+
+        if (outPath is not null)
+        {
+            File.WriteAllBytes(outPath, ours);
+            Console.WriteLine($"  wrote {outPath}");
+        }
+        return usable ? 0 : 1;
+    }
+
+    /// <summary>A container's DATA block payload.</summary>
+    private static ReadOnlyMemory<byte> DataBytes(byte[] bytes, Resource resource)
+    {
+        var block = resource.Blocks.FirstOrDefault(b => b.Type == BlockType.DATA);
+        return block is null ? default : bytes.AsMemory((int)block.Offset, (int)block.Size);
+    }
+
+    /// <summary>Every resource id a container's RERL names.</summary>
+    private static HashSet<ulong> References(Resource resource)
+        => [.. (resource.ExternalReferences?.ResourceRefInfoList ?? []).Select(r => r.Id)];
+
     public static int MapDiff(string[] a)
     {
         var referencePath = Positional(a, "reference .vpk");

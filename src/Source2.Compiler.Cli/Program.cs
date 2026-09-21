@@ -30,6 +30,7 @@ try
         "entities" => Commands.Entities(args[1..]),
         "vis-diff" => Commands.VisDiff(args[1..]),
         "map-diff" => Commands.MapDiff(args[1..]),
+        "reauthor" => Commands.Reauthor(args[1..]),
         "selftest" => SelfTest.Run(args[1..]),
         _ => Unknown(args[0]),
     };

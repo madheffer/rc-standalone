@@ -369,8 +369,57 @@ Not in the game tree, which is why an earlier search found nothing:
     %TEMP%\csgo_addons\<addon>\maps\<map>.viscfg     1,308 bytes
 
 They survive the compile. The `.los` line-of-sight cache does **not** get written
-at all (`Loaded 0 LOS hints`, and no file appears), so the 568 second ray scan is
-paid in full on every single compile even though the tool is built to cache it.
+at all, so the 568 second ray scan is paid in full on every compile. That is not a
+missing flag, and the next section is why.
+
+### The LOS cache cannot be turned on
+
+`CVisBuilder::Build` (visbuilder.cpp:106) sets up all three paths correctly. It
+reads `%TEMP%`, formats `<temp>/<...>/<map>.rte` and `.viscfg`, and builds the
+`.los` path from the map's content path with `content\` replaced by `game\`.
+It puts all of them in a KeyValues named `vvis` as the keys `rte`, `viscfg`, `los`
+and `los_errors`, which the vis entry then reads back. The observed load path
+matches exactly, and the load happens: `Loaded 0 LOS hints from ...`.
+
+The writer is `FUN_180049370`, and its call site is **unconditional** - it runs on
+every vis build. It returns immediately:
+
+```c
+uVar14 = *(uint *)(param_2 + 4);      // hints in the set
+if (uVar14 == 0) goto LAB_180049775;  // return, writing nothing
+```
+
+The hint set is empty, so nothing is written, and neither
+`Wrote %d LOS hints for next time` nor `Failed to write %d LOS hints` is ever
+printed. Nothing in the shipped path populates the set: the two messages that
+would say so, `Updating LOS hints (%u given) in hint set` and
+`Found %u useful LOS in hint set`, do not appear either. The 11,923,366 "useful
+LOS rays" the scan reports are not hints in that set.
+
+`-debuglos` does not change this. It is parsed, and it only raises a cap inside
+the writer, from `0x200000` to `0x2000000` hints. Confirmed by running a compile
+with it: the log prints `Increased LOS limit for debugging!` and still no `.los`
+appears, on a map whose scan found 3,949 useful rays, far under even the low cap.
+
+**So the cache is inert in the shipped build and cannot be enabled from outside.**
+The one opening left is that the LOADER works. A `.los` we write ourselves would
+be read, which makes the cache reachable by authoring its format rather than by
+finding a switch. That format is not decoded yet.
+
+### CLargeClusterRegionsRayGenerator: measured, not yet explained
+
+It is the worst line in the compile: **252 seconds, 608,325,057 rays, 383 useful
+results**, run in 2 passes, 19% of the whole build for six hits per ten million
+rays. For contrast `CClusterCenterRayGenerator` finds 10,289,973 useful results
+from 35,143,809 rays in 7.6 seconds.
+
+It does not run at all on ze_hold_em_p, so it is triggered by scale, presumably
+cluster or region size. What it samples and why it misses so completely is NOT
+established: the class is only ever invoked through a base pointer, its name
+string has no code references, and walking its RTTI to a vtable did not resolve
+(x64 MSVC stores those links as 32 bit RVAs and the scan for the descriptor's RVA
+found no complete object locator). Measurements above are real; the mechanism is
+still open.
 
 `.viscfg` is ordinary binary KV3 and decompiles with the KV3 reader this project
 already has. It holds `pvstype`, `vDirToSun`, and the map's `visibility_hint`
