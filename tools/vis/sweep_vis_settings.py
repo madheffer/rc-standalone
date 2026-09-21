@@ -67,7 +67,7 @@ def write_settings(pristine, settings):
         f.write(body)
 
 
-def compile_vis(addon, map_name):
+def compile_vis(addon, map_name, full=False):
     output = os.path.join(CS2, "game", "csgo_addons", addon, "maps", map_name + ".vpk")
     if os.path.exists(output):
         os.remove(output)
@@ -75,7 +75,9 @@ def compile_vis(addon, map_name):
     argv = [os.path.join(CS2, "game", "bin", "win64", "resourcecompiler.exe"),
             "-nop4", "-game", os.path.join(SHADOW, "game", "csgo"),
             "-i", os.path.join(SHADOW, "content", "csgo_addons", addon, "maps", map_name + ".vmap"),
-            "-world", "-vis", "-fshallow"]
+            "-fshallow"]
+    if not full:
+        argv += ["-world", "-vis"]
     started = time.time()
     done = subprocess.run(
         argv, capture_output=True, text=True, errors="replace",
@@ -104,6 +106,8 @@ def main():
     ap.add_argument("map")
     ap.add_argument("--out", required=True, help="where to save each variant's vvis_c")
     ap.add_argument("--only", help="comma separated variant names, default all")
+    ap.add_argument("--full", action="store_true",
+                    help="run every phase, so the VPK is a complete map and not world plus vis only")
     args = ap.parse_args()
 
     if not os.path.exists(gameinfo_path()):
@@ -123,7 +127,7 @@ def main():
         for name in wanted:
             settings = VARIANTS[name]
             write_settings(pristine, settings)
-            log, wall = compile_vis(args.addon, args.map)
+            log, wall = compile_vis(args.addon, args.map, args.full)
 
             stages = [l.strip() for l in log.splitlines() if STAGES.fullmatch(l.strip())]
             print(f"=== {name}  {settings or '(stock)'}  {wall:.1f}s wall ===")
@@ -139,6 +143,10 @@ def main():
             dst = os.path.join(args.out, f"{args.map}.{name}.vvis_c")
             with open(dst, "wb") as f:
                 f.write(vis)
+            if args.full:
+                shutil.copyfile(
+                    os.path.join(CS2, "game", "csgo_addons", args.addon, "maps", args.map + ".vpk"),
+                    os.path.join(args.out, f"{args.map}.{name}.vpk"))
             print(f"   saved {len(vis):,} bytes  vis digest {(vis_digest(vis) or '?')[:16]} "
                   f"-> {os.path.basename(dst)}")
     finally:

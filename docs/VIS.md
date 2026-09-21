@@ -1,8 +1,17 @@
 # Visibility: the structure, the tool, and where a replacement starts
 
-Visibility is the expensive half of a CS2 map compile. On ze_ffvii_mako_reactor_v6_p
-it is about 400 of 1,313 seconds, 30%, against 9.3 seconds for lighting. That
-measurement is in `VRAD3.md`; this file is about the thing that costs the 400.
+Visibility is not the expensive half of a CS2 map compile. It is **almost all of
+it**. resourcecompiler times the phase itself and says so:
+
+    Visibility complete in 1088.67s.
+
+on a 1,299 second compile of ze_ffvii_mako_reactor_v6_p. **83.8%.** Lighting is
+16.02 seconds, 1.2%.
+
+An earlier note in this file put visibility at "about 400 seconds, 30%". That was
+wrong, and wrong in an instructive way: it came from summing the stages we had
+already recognised and it missed the LOS ray scan, 568 seconds, entirely. The
+number to quote is the one the tool prints about itself.
 
 Everything below was read off Valve's own compiles or Valve's own binaries. Where
 something is inferred rather than measured it says so.
@@ -295,6 +304,91 @@ difference to settings: these are builds of two different `.vmap` sources, a por
 against the author's original, not one source compiled twice. A clean calibration
 still needs the same source compiled twice at different `MaxVisClusters` /
 `BaseVoxelSize`.
+
+## Where the 1,088 seconds go
+
+resourcecompiler times these itself, so they survive output buffering:
+
+| stage | seconds | share of vis | what it did |
+|---|---|---|---|
+| **LOS ray scan** | **568** | **52%** | 4,567,126,453 rays cast, 11,923,366 useful (0.26%) |
+| Generated clusters | 231.5 | 21% | 751,270 regions |
+| Merged cluster lists | 173.0 | 16% | down to 25,471 clusters |
+| Voxelize (8 units) | 20.5 | 2% | 2,643,577 nodes |
+| Outside detection | 6.9 | 0.6% | |
+
+The ray scan splits across generators, and one of them is remarkable:
+
+| generator | seconds | rays | useful |
+|---|---|---|---|
+| `CBoundaryPointsRayGenerator` | 309.0 | 3,923,657,587 | 1,633,010 |
+| `CLargeClusterRegionsRayGenerator` | 252.0 | 608,325,057 | **383** |
+| `CClusterCenterRayGenerator` | 7.6 | 35,143,809 | 10,289,973 |
+
+**`CLargeClusterRegionsRayGenerator` spends 252 seconds casting 608 million rays
+to find 383 useful ones.** That is 19% of the whole compile for a hit rate of six
+per ten million. Whatever it is for, it is the most obviously attackable number in
+the build.
+
+Two conclusions follow. Ray casting IS the dominant cost of a map compile, which
+is the opposite of what the lighting investigation found for lighting, and it is
+embarrassingly parallel: 4.6 billion independent rays is exactly the workload a
+rented GPU is for. And the clustering stages behind it, 404 seconds between them,
+are ordinary CPU graph work on 751,270 regions.
+
+## Visibility is not a file you can swap
+
+Compiling ze_hold_em_p twice, identically except `BaseVoxelSize 32`, and diffing
+the two map VPKs with `s2c map-diff`: **11 of 72 files differ**, not one.
+
+| what changed | files |
+|---|---|
+| `world_visibility.vvis_c` | 1 |
+| world node render geometry (`.vmdl_c`, MVTX/MIDX/MDAT all differ) | 6 |
+| `n0.vwnod_c`, the world node index | 1 |
+| `world.vwrld_c` | 1 |
+| `default_ents.vents_c`, the entity lump | 1 |
+| a light probe volume octree `.dat` | 1 |
+
+The compile stage `Splitting geometry using visibility...` is why: render meshes
+are cut along cluster boundaries, so a different clustering produces different
+geometry, a different world node, different entity data and different light probe
+placement.
+
+**So a replacement cannot be dropped in as one file.** Anything that changes
+clustering changes five other kinds of resource downstream, and shipping a new
+`.vvis_c` beside the old geometry means shipping an inconsistent map. This is the
+most likely shape of the failure the cs2map project hit, where geometry, props and
+collision misbehaved after iterating the compile.
+
+## Where the intermediates actually live
+
+Not in the game tree, which is why an earlier search found nothing:
+
+    %TEMP%\csgo_addons\<addon>\maps\<map>.rte        23 MB on Mako
+    %TEMP%\csgo_addons\<addon>\maps\<map>.viscfg     1,308 bytes
+
+They survive the compile. The `.los` line-of-sight cache does **not** get written
+at all (`Loaded 0 LOS hints`, and no file appears), so the 568 second ray scan is
+paid in full on every single compile even though the tool is built to cache it.
+
+`.viscfg` is ordinary binary KV3 and decompiles with the KV3 reader this project
+already has. It holds `pvstype`, `vDirToSun`, and the map's `visibility_hint`
+entities with their `hintType` and bounding boxes. All of it derives from the map
+source, so it is authorable with what is already built.
+
+### Two traps
+
+`-vis` WITHOUT `-world` repacks the VPK without the world content: it turned
+Mako's 74 MB map VPK into 84 KB. It does not rebuild visibility even when the
+`.rte` is present and the output has been deleted, so it buys nothing and costs
+the map.
+
+And when resourcecompiler's stdout is a pipe it block buffers, so arrival timing
+is not stage timing. 5,733 Mako lines arrive in a handful of bursts, which
+produced a convincing but fictional "798 second" stage on the first profiling run.
+`profile_compile.py` now prints the tool's self-timed numbers first and marks any
+gap that ends in a burst as a buffered flush.
 
 ## A shadow install, for changing settings safely
 
