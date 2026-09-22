@@ -1468,13 +1468,57 @@ identical, that rule fires constantly, and it is the obvious candidate for why
 Valve's clusters stay spread out instead of one of them absorbing its
 neighbourhood.
 
-Implemented on its own it does not deliver. probe01 holds its cost at -1.92%,
-but the first pass goes from 1,946 clusters (-1.67%) to 2,197 (+11.02%) and the
-assignment total moves only from -42.18% to -41.94%. So the rule is real and we
-were missing it, but something around it is still wrong, most likely the
-deterministic tie break inside the `1e-4` band, which is what `DeterministicBuild`
-turns on and what the shipped config sets. It is reverted rather than kept,
-because it makes a scored number worse.
+Implemented on its own it does not deliver: probe01 holds its cost at -1.92%,
+but the first pass goes from 1,946 clusters (-1.67%) to 2,197 (+11.02%). The
+reason is that the rule inside the `1e-4` band was still missing, and the two
+are coupled.
+
+### The deterministic tie break, which is `180030d70`
+
+It is reached only through the merge state's vtable at `18017bf40`, slot
+`+0x20`. Given the incumbent candidate and a rival, it prefers the rival when:
+
+1. the incumbent is dead or is one of the shell boxes, or
+2. the rival has **fewer voxels**, or
+3. their voxel counts are equal and the rival's box sorts first.
+
+"Sorts first" is `180027e10`, and it reads only geometry, never an index, which
+is what makes the build reproducible however the pool's threads interleave. It
+compares, taking the first key that differs:
+
+> longest side, then the x extent, then y, then z, then `mins.x`, `mins.y`,
+> `mins.z`.
+
+So both levels of the scan break a tie the same way, towards the smaller side.
+
+### What the two rules together are worth
+
+With both in, probe01's first two passes go from a percent or three out to
+almost exact:
+
+| | before | with both rules | compile |
+|---|---|---|---|
+| first pass | 1,946 (-1.67%) | **1,977 (-0.10%)** | 1,979 |
+| second pass | 1,757 (-3.20%) | **1,826 (+0.61%)** | 1,815 |
+| fifth pass | 1,589 (-1.97%) | 1,286 (**-20.67%**) | 1,621 |
+| first cost | 108,623 (-1.92%) | 107,406 (-3.03%) | 110,760 |
+
+That is strong evidence the ordering is now right: the first two passes are the
+ones that read the merge most directly, and they land inside a percent. What it
+exposes is the fifth pass, which over-merges by 20%.
+
+The per-bucket budget is NOT the cause, and that was checked rather than
+assumed. `CVoxelSampler3::MergeClusterSet` takes one budget for every bucket,
+doubles it for its first parallel pass, averages the costs that produced and
+runs a second pass at that average, which is what we do. `180034220` forms the
+budget as `ceil(total / buckets)`, which is also what we do. Dividing instead by
+the full `acrossX * acrossY` grid, on a reading of `FUN_18002f480` that turned
+out to be wrong, takes the first pass to -9.75%.
+
+So the rules are reverted, for now, on the arithmetic: mean absolute error over
+the three pass counts goes from 2.28% to 7.13%. Re-applying them is worth doing
+the moment the fifth pass is understood, and the rules above are exact enough to
+re-enter from this page.
 
 ### The pre-merge is not the answer either
 
