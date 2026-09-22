@@ -157,11 +157,20 @@ pipeline existing.
    can see. The sampled merge and the shortcut that follows from it agree to the
    unit on all three maps.
 
-   Open here: the probe maps sit about 2.2% short on the cluster count, and it is
-   upstream of the merge. The count per region is n at or under 32 and ONE above
-   it, so a cliff of 31, and cardtest is almost entirely 16-voxel regions where a
-   single voxel of mask difference costs 16 clusters. Its whole gap is 113 such
-   regions out of 7,403.
+   A region is a greedy BOX and not a connected component (`18010c3f0`), and the
+   coarse-only retry fires at every depth because the compile queries the kd tree
+   for it rather than a list. With both, the probe maps' cluster counts land at
+   +0.52% and +0.19%, from -2.4% and -2.7%.
+
+   | | ze_hold_em_p | cardtest | probe01 |
+   |---|---|---|---|
+   | nodes | **exact** | +0.28% | +0.28% |
+   | enclosed regions | **exact** | +2.33% | +1.76% |
+   | clusters generated | **exact** | +0.52% | +0.19% |
+
+   Open here: the probe maps' enclosed REGION count is 2.3% high where their
+   cluster count is 0.5% high, so a handful of leaf masks still differ and we cut
+   some leaves into more boxes than the compile does.
 4. PVS. Score with `vis-diff`: **zero holes is the requirement**, overdraw is
    negotiable, and the settings band says a couple of percent is normal
    variation.
@@ -228,7 +237,10 @@ the right one, and it is the same shape of answer.
 
 ## Open reverse-engineering threads
 
-- **The `.rte` format.** Unlocks Phase 2. Highest value.
+- ~~**The `.rte` format.**~~ SOLVED, exactly, out of `CVisibilityMesh::LoadRTEFromFile`:
+  the 60-byte header, the 48-byte triangle record, the kd tree and the flags. The
+  8-byte per-triangle id groups by surface and is the only field left, and
+  nothing reads it.
 - **The `.los` format.** Unlocks the cache the shipped tool cannot use itself.
 - **`CLargeClusterRegionsRayGenerator`.** Reached only through a base pointer,
   its name string has no code references, and Ghidra cannot follow x64 MSVC RTTI
