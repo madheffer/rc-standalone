@@ -40,6 +40,11 @@ behaviour, so they carry a description rather than a symbol.
 | `180032b80` | the region count the compile prints | fills a vector with the regions whose flag bits 0 and 1 are both clear, immediately before `MergeInsideRegions` logs the count |
 | `18002e050` | classify one region as inside or outside | called per region by outside detection |
 | `18002deb0` | cast one ray through the voxel octree | called per candidate ray by the classifier |
+| `18003ddb0` | the cluster generation job body | the work pointer in the vtable MergeInsideRegions dispatches |
+| `180032d80` | generate one region's clusters | the only thing that job calls; fills the 24-byte record whose first int the log sums |
+| `18002beb0` | candidate boxes for a region | splits the box against the three hint lists and emits what survives |
+| `18002bcd0` | split a box against one hint, and recurse | calls 18002beb0 back |
+| `18002b500` | read the HINT ENTITIES and fill the three lists | reads origin, box_mins, box_maxs and hintType off map objects; types 4, 5 and 6 are the x, y and z axis split hints |
 | `18010be50` | a region's box from its leaf box and mask | shared by the driver and outside detection |
 | `18003f1e0` | the `InitialRegionStatus` job body | the work pointer in the functor vtable the outside pass dispatches |
 | `18004a2f0` | the SEED: inside, outside or undecided for one region box | the only thing the job body calls, and a threshold tree over the gather's counters |

@@ -133,7 +133,12 @@ pipeline existing.
    why it works on geometry that does not seal. The printed count is the regions
    with flag bits 0 and 1 both clear. `VisOutside`, scored by `VisOutsideTests`,
    which also asserts the one parameter that is ours does not carry the answer.
-   What is left in this stage is the cluster generation the region count feeds.
+   What is left in this stage is cluster generation, which is MAPPED but not
+   built: the count is a sum of per-region counts made in `180032d80`, and the
+   three lists that drive the subdivision are HINTS read off map entities by
+   `18002b500` (hintType 4, 5 and 6 are the x, y and z axis splits). A column
+   rule fits the two probe maps to 2.5% and misses ze_hold_em_p by 54%, so
+   nothing was adopted. See docs/VIS.md.
 
    The measurements that led there stand: a region is a connected run of open
    voxels in a leaf and `VisRegions` produces them, and the flood fill the naive

@@ -732,6 +732,65 @@ through `18004b260`, which returns four counters the seed then runs a threshold
 tree over, and neither the record type nor the counters are decoded. The direction
 set and reach here are ours, which is why the spread test above exists.
 
+### Cluster generation, mapped but NOT implemented
+
+The next number after the region count is `93354 clusters generated`, and the path
+to it is now known end to end even though the rule that produces it is not.
+
+`CVoxelSampler3::MergeInsideRegions` (`180034ea0`) gathers the enclosed regions,
+sizes a vector of 24-byte records one per region, and dispatches a thread pool job
+(`18003ddb0`) that calls `180032d80` for each. **The logged count is a sum**: the
+log walks that vector at stride 24 and adds the first int of every record. So
+93,354 is 10,554 per-region counts added up, a mean of 8.85, and cardtest's 81,991
+is 7,416 of them at a mean of 11.05.
+
+Per region, `180032d80` asks `18002beb0` for candidate boxes and then walks the
+region's 64 mask voxels, assigning each to a candidate. `18002beb0` is recursive
+subdivision: it holds the region's box against three lists of splitter boxes on
+the sampler and, for each that contains it, calls `18002bcd0`, which splits and
+recurses back in. A box that survives with no splitter left is emitted.
+
+### The three splitter lists are HINTS, and hints are authored by the mapper
+
+`18002b500` fills all three, and it fills them by reading ENTITIES. It walks the
+map's objects and pulls four keys off each: `origin`, `box_mins`, `box_maxs` and
+`hintType`. The type picks the list:
+
+| hintType | what it is | list |
+|---|---|---|
+| 4 | x-axis split hint | `this+0xa0` |
+| 5 | y-axis split hint | `this+0xb8` |
+| 6 | z-axis split hint | `this+0xd0` |
+| other | voxel hint | handled separately |
+
+which is where the `%d) x-axis split hint %.2f - %.2f` and
+`%d) %dx%dx%d voxel hint` log lines come from. The boxes are the entity's own,
+offset by its origin.
+
+That is worth knowing beyond this stage: **visibility clustering is steerable from
+the map**, and a compiler that ignores hint entities will cluster a hinted map
+differently from Valve's even when everything else matches.
+
+### Why the count is still not reproducible
+
+ze_hold_em_p logs no hints at all, so its three lists are empty and every region
+yields exactly one candidate. Its 93,354 therefore does not come from splitting;
+it comes from the per-voxel assignment inside `180032d80`, whose inner test is not
+decoded.
+
+Two measurements, recorded because they bound the answer and because the second
+one is the reason nothing was adopted:
+
+- a per-region count of voxel COLUMNS, the distinct rows of a 4x4x4 mask along one
+  axis, lands within **0.9% to 2.5%** of the target on cardtest and probe01
+- the same rule is **+54% on ze_hold_em_p**, on every axis, and the difference
+  tracks composition: 47% of ze_hold_em_p's enclosed regions sit in leaves ABOVE
+  the smallest, against 3% on the probe maps
+
+So a rule fitted on the two simple maps does not survive a map with mixed leaf
+sizes, and adopting it would have looked like progress while being wrong. The next
+step is `180032d80`'s assignment loop, which is where the number is actually made.
+
 ### What the printed region count actually counts
 
 `180032b80` fills a vector with the regions whose **flag bits 0 and 1 are both
