@@ -35,6 +35,34 @@ public class VisMarchWalk(ITestOutputHelper output)
                        + $" {target.Inside} inside, {target.Outside} outside,"
                        + $" mean stop {target.Stop:F1}, {target.Leaves:F1} leaves/march");
 
+        // How the seed treats a leaf depending on its size and how open it is.
+        // The marches that promote a region run through big, entirely open
+        // level 1 leaves, so what the seed makes of THOSE is the question.
+        var seeded = new VisOutside.Status[regions.Regions.Count];
+        Parallel.For(0, regions.Regions.Count, i =>
+        {
+            var r = regions.Regions[i];
+            var lf = regions.Leaves[r.Leaf];
+            var e = tree.LeafSize * (1 << lf.Level);
+            var c = tree.Origin + new System.Numerics.Vector3(lf.Cell.X, lf.Cell.Y, lf.Cell.Z) * e;
+            var (lo2, hi2) = VisClusters.Box(e * VisClusters.SubCell, r.Open);
+            seeded[i] = VisSeed.Decide(VisSeed.Gather(rte, c + lo2, c + hi2, VisSeed.Quality));
+        });
+
+        foreach (var band in regions.Regions
+            .Select((r, i) => (Level: regions.Leaves[r.Leaf].Level, Full: r.Open == ulong.MaxValue,
+                               Status: seeded[i]))
+            .GroupBy(x => (x.Level, x.Full))
+            .OrderBy(g => g.Key.Level).ThenBy(g => g.Key.Full))
+        {
+            var all = band.ToList();
+            output.WriteLine($"level {band.Key.Level} {(band.Key.Full ? "FULL " : "part ")}"
+                + $" {all.Count,7:n0} regions:"
+                + $"  inside {all.Count(x => x.Status == VisOutside.Status.Inside),7:n0}"
+                + $"  outside {all.Count(x => x.Status == VisOutside.Status.Outside),7:n0}"
+                + $"  unknown {all.Count(x => x.Status == VisOutside.Status.Unknown),7:n0}");
+        }
+
         // What the seed actually counted for it, and what each threshold says.
         foreach (var pick in promoted.OrderBy(j => j.Inside)
                                      .Where((_, i) => i % (promoted.Count / 6) == 0).Take(6))

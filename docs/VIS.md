@@ -1597,11 +1597,39 @@ about 300 units through large level 1 leaves that are entirely open,
 `ffffffffffffffff`, and seeded Inside. So the promoted regions sit in open space
 that connects to big volumes our seed calls enclosed.
 
-That is the next thing to test. If those large open volumes are the sky or the
-void and the compile seeds them Outside, every one of these marches would meet
-a flagged region and return 2 instead, and the 831 would not exist. It would
-also mean our seed-Inside count landing exactly on 10,554 is two errors
-cancelling rather than a match.
+### Those big open leaves SHOULD be seeded Inside, and that settles it
+
+Breaking every region's seed verdict down by leaf level and by whether its mask
+is completely open:
+
+| level | mask | regions | inside | outside | unknown |
+|---|---|---|---|---|---|
+| 0 | partial | 34,558 | 2,916 | 30,129 | 1,513 |
+| 0 | full | 31,940 | 2,892 | 28,917 | 131 |
+| 1 | full | 6,050 | **4,746** | 653 | 651 |
+| 2 | full | 2,370 | 0 | 1,625 | 745 |
+| 3 | full | 834 | 0 | 329 | 505 |
+| 4 and up | full | 1,128 | 0 | 0 | 1,128 |
+
+The level 1 band is the one the marches run through, and 4,746 of them are
+seeded Inside, which is **45% of the whole 10,554**. Those three inside
+columns add to 2,916 + 2,892 + 4,746 = 10,554 exactly.
+
+So the hypothesis is refuted, and refuting it is what makes the rest
+conclusive. If those volumes were Outside the seed total would fall far below
+10,554 and stop matching the compile's own number, which it currently hits dead
+on. They are enclosed, the seed is right about them, and our seed as a whole
+agrees with the compile.
+
+Which leaves exactly one place for the 831 to come from: `18002e050`. Our
+marches return Inside for 38 of 44 rays where the compile's must return it for
+25 or fewer, and the difference is not the reach, not a cascade, not the
+counters and not the seed. It is in what a march meets on its way.
+
+One thing in that table is worth carrying forward: level 1 is 78% Inside while
+level 2 and above are NEVER Inside, which is a very sharp discontinuity for a
+set of thresholds that are all ratios. Whatever produces it is the same
+machinery the 831 flow through.
 
 ### Three fidelity gaps closed on the way
 
