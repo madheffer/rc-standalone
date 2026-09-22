@@ -63,6 +63,8 @@ public static class VisOutside
     /// <param name="scene">The ray trace scene, which <see cref="VisSeed"/> casts into.</param>
     /// <param name="baseVoxelSize">The compile's BaseVoxelSize.</param>
     /// <param name="quality">Rays a box face is divided into, per side.</param>
+    /// <param name="watch">Told what the second pass made of each region it voted on.</param>
+    /// <param name="trace">Told, per region, what each of its marches walked.</param>
     public static Result Detect(
         VisVoxelizer.Octree tree, VisRegions.Result regions,
         RayTraceEnvironment scene, float baseVoxelSize,

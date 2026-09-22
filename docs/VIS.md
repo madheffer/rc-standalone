@@ -1745,8 +1745,53 @@ answers every map.
 ze_hold_em_p's cluster merge came back from +35.66% to -5.81%, and that is the
 more useful part of the change: the three maps now under-merge by the same 5 to
 6% instead of disagreeing in both directions by wildly different amounts. One
-cause to find rather than three. The assignment stage is untouched at -42% and
--61% and is still the largest gap in the module.
+cause to find rather than three.
+
+## Assignment was dropping two thirds of its own records
+
+`180034ea0`'s tail builds one vector per octree node and then concatenates them,
+and `*(param_1 + 0x40)` -- the length of what it concatenates -- is what the
+compile prints as `Compacted to %d regions`. Two things go into those vectors:
+
+1. every final cluster's (mask, leaf) pairs, scattered into the leaf each pair
+   names and stamped `{running cluster index, leaf * 4, mask}`; and
+2. **every record of the compaction whose `packed & 3` is non-zero, copied
+   through verbatim.**
+
+The second is most of it, and we were feeding it only a third. `180032670`
+emits up to THREE records per leaf and we had only ever modelled one of them:
+the enclosed union at kind 0, the **OUTSIDE union at kind 1**, and the solid
+union at kind 2, each when its own mask is non-empty. Assignment drops the kind
+0 records, because the scatter has just rebuilt those with real cluster ids on
+them, and keeps the other two. We were synthesising a kind 1 record from each
+leaf's SOLID mask and nothing at all for the outside union, so the stage carried
+the solid half and lost the larger one.
+
+Counting the leaves settles it without running the merge at all:
+
+| map | leaves | enclosed union | outside union | solid union | non-open | pairs left for |
+|---|---|---|---|---|---|---|
+| ze_hold_em_p | 71,422 | 10,554 | **63,540** | 29,100 | 92,640 | 10,718 |
+| cardtest | 15,177 | 7,416 | **12,693** | 6,407 | 19,100 | 11,717 |
+| probe01 | 15,065 | 7,316 | **12,693** | 6,377 | 19,070 | 11,595 |
+
+The last column is the compile's own total minus the non-open records, and
+ze_hold_em_p's 10,718 is our merge's pair count **exactly**. So the merge was
+never implicated here at all.
+
+`VisRegions.Collapse` is the full three-union collapse now, `Compact` is its
+kind 0 half, and assignment takes the whole array:
+
+| map | before | after |
+|---|---|---|
+| ze_hold_em_p | -61.48% | **0.00%** |
+| cardtest | -42.21% | -1.02% |
+| probe01 | -42.53% | -1.14% |
+
+The residual 1% on the probes is their merge's own 5%, diluted: pairs are only a
+quarter of the records this stage emits, and the probes' merge under-merges by
+about 5%, which is 350 pairs of 11,595. Fixing the merge closes it; nothing else
+in assignment is outstanding.
 
 ### Three fidelity gaps closed on the way
 

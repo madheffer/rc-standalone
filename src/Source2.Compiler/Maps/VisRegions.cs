@@ -103,6 +103,54 @@ public static class VisRegions
     }
 
     /// <summary>
+    /// The same collapse as <see cref="Compact"/>, but as the entry array
+    /// <c>180032670</c> actually leaves behind rather than only the enclosed part
+    /// of it.
+    ///
+    /// <para>Per leaf it emits up to THREE records, each only when its mask came
+    /// out non-empty and each carrying the leaf in the same packed word: the
+    /// enclosed union at kind <see cref="VisVisibility.Open"/>, the OUTSIDE union
+    /// at kind <see cref="VisVisibility.Blocking"/>, and the solid union at kind
+    /// <see cref="VisVisibility.Skipped"/>. Only the first is counted or
+    /// clustered, which is why <see cref="Compact"/> returns just those, but the
+    /// other two survive into assignment and are most of what it carries: on
+    /// ze_hold_em_p they are 92,640 of the 103,358 records the compile ends
+    /// with.</para>
+    /// </summary>
+    /// <param name="regions">The leaves and their regions.</param>
+    /// <param name="status">Outside detection's verdict per region.</param>
+    public static VisVisibility.Entry[] Collapse(
+        Result regions, IReadOnlyList<VisOutside.Status> status)
+    {
+        ArgumentNullException.ThrowIfNull(regions);
+        ArgumentNullException.ThrowIfNull(status);
+
+        var enclosed = new ulong[regions.Leaves.Count];
+        var outside = new ulong[regions.Leaves.Count];
+        for (var i = 0; i < regions.Regions.Count; i++)
+        {
+            var region = regions.Regions[i];
+            if (status[i] == VisOutside.Status.Inside)
+                enclosed[region.Leaf] |= region.Open;
+            else
+                outside[region.Leaf] |= region.Open;
+        }
+
+        var kept = new List<VisVisibility.Entry>();
+        for (var leaf = 0; leaf < regions.Leaves.Count; leaf++)
+        {
+            if (enclosed[leaf] != 0)
+                kept.Add(new VisVisibility.Entry(0, (leaf << 2) | VisVisibility.Open, enclosed[leaf]));
+            if (outside[leaf] != 0)
+                kept.Add(new VisVisibility.Entry(0, (leaf << 2) | VisVisibility.Blocking, outside[leaf]));
+            if (regions.Leaves[leaf].Solid != 0)
+                kept.Add(new VisVisibility.Entry(
+                    0, (leaf << 2) | VisVisibility.Skipped, regions.Leaves[leaf].Solid));
+        }
+        return [.. kept];
+    }
+
+    /// <summary>
     /// A leaf's open space cut into regions, which is <c>18010c3f0</c>.
     ///
     /// <para>It is NOT connected components, and that is the single thing about

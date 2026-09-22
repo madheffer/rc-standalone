@@ -111,6 +111,56 @@ public class VisAssignTests
     }
 
     /// <summary>
+    /// The compaction hands assignment THREE records per leaf, not one, and the
+    /// two non-open ones are most of what the stage carries: 92,640 of
+    /// ze_hold_em_p's 103,358. Each is emitted only when its own mask came out
+    /// non-empty, and all three carry the leaf in the same packed word.
+    /// </summary>
+    [Fact]
+    public void TheCompactionEmitsTheEnclosedOutsideAndSolidUnionsPerLeaf()
+    {
+        // Leaf 0: some enclosed, some outside, and solid voxels. Leaf 1: outside
+        // only, no solid. Leaf 2: solid only, and no region at all.
+        var leaves = new List<VisRegions.Leaf>
+        {
+            new(0, (0, 0, 0), 0x00F0UL),
+            new(0, (1, 0, 0), 0UL),
+            new(0, (2, 0, 0), 0xFF00UL),
+        };
+        var regions = new VisRegions.Result(leaves,
+        [
+            new VisRegions.Region(0, 0x0001UL),
+            new VisRegions.Region(0, 0x0002UL),
+            new VisRegions.Region(1, 0x0004UL),
+        ]);
+
+        var collapsed = VisRegions.Collapse(regions,
+        [
+            VisOutside.Status.Inside,
+            VisOutside.Status.Outside,
+            VisOutside.Status.Outside,
+        ]);
+
+        Assert.Equal(
+        [
+            (0, VisVisibility.Open, 0x0001UL),
+            (0, VisVisibility.Blocking, 0x0002UL),
+            (0, VisVisibility.Skipped, 0x00F0UL),
+            (1, VisVisibility.Blocking, 0x0004UL),
+            (2, VisVisibility.Skipped, 0xFF00UL),
+        ], collapsed.Select(e => (e.Leaf, e.Kind, e.Cells)));
+
+        // And the enclosed half of it is exactly what Compact returns.
+        var compact = VisRegions.Compact(regions,
+        [
+            VisOutside.Status.Inside,
+            VisOutside.Status.Outside,
+            VisOutside.Status.Outside,
+        ]);
+        Assert.Equal(collapsed.Count(e => e.Kind == VisVisibility.Open), compact.Regions.Count);
+    }
+
+    /// <summary>
     /// The whole point of the stage: what it produces is what the PVS walk reads,
     /// so a line through an assigned leaf finds that leaf's cluster.
     /// </summary>

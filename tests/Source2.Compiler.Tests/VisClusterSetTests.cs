@@ -92,16 +92,12 @@ public class VisClusterSetTests(ITestOutputHelper output)
             }
 
             // Assignment, which is what the PVS walk reads and the only stage
-            // whose number the merge alone cannot produce.
-            // The key in a cluster's (mask, key) pair is an octree LEAF, which is
-            // what the binary's own array is indexed by, so the blockers are keyed
-            // the same way and the array is as long as the leaf list.
-            var blockers = compact.Leaves
-                .Select((leaf, i) => new VisVisibility.Entry(
-                    0, (i << 2) | VisVisibility.Blocking, leaf.Solid))
-                .Where(e => e.Cells != 0)
-                .ToList();
-            var assigned = VisAssign.Run(sets, compact.Leaves.Count, blockers, _ => true);
+            // whose number the merge alone cannot produce. The key in a cluster's
+            // (mask, key) pair is an octree LEAF, which is what the binary's own
+            // array is indexed by, so the compaction's records are keyed the same
+            // way and the array is as long as the leaf list.
+            var collapsed = VisRegions.Collapse(regions, inside.Regions);
+            var assigned = VisAssign.Run(sets, compact.Leaves.Count, collapsed, _ => true);
             var pairs = sets.SelectMany(s => s.Clusters).Sum(c => c.Voxels.Count);
             output.WriteLine($"{specimen.Map,-16} pairs   {pairs,8:n0}"
                            + $"  over {compact.Leaves.Count,8:n0} leaves,"
@@ -109,7 +105,17 @@ public class VisClusterSetTests(ITestOutputHelper output)
             output.WriteLine($"{specimen.Map,-16} assign  {assigned.Regions,8:n0}"
                            + $"  compile {specimen.Assigned,8:n0}"
                            + $"  {(double)assigned.Regions / specimen.Assigned - 1,8:P2}"
-                           + $"  ({assigned.Clusters:n0} clusters, {blockers.Count:n0} blockers)");
+                           + $"  ({assigned.Clusters:n0} clusters,"
+                           + $" {collapsed.Count(e => e.Kind != VisVisibility.Open):n0} kept"
+                           + $" of the compaction's {collapsed.Length:n0})");
+
+            // ze_hold_em_p is exact and pinned at zero. The two probe maps carry
+            // their merge's own 5% into the pair half of this number, which is
+            // only a quarter of it, so they land 1% under.
+            var assignError = (double)assigned.Regions / specimen.Assigned - 1;
+            Assert.True(Math.Abs(assignError) <= (specimen.Map == "ze_hold_em_p" ? 0 : 0.02),
+                $"{specimen.Map} assignment: {assigned.Regions:n0} records against the compile's "
+              + $"{specimen.Assigned:n0}, {assignError:P2} off");
 
             foreach (var (label, ours, theirs) in new[]
             {

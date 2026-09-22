@@ -11,6 +11,13 @@ namespace Source2.Compiler.Maps;
 /// flattens every list into the one array the octree indexes by offset and
 /// count.</para>
 ///
+/// <para>Most of what it carries is not clusters. <c>180034ea0</c> copies every
+/// record of the compaction whose <c>packed &amp; 3</c> is non-zero straight
+/// through, and <see cref="VisRegions.Collapse"/> emits two of those per leaf:
+/// the OUTSIDE union and the solid union. On ze_hold_em_p they are 92,640 of the
+/// 103,358 records the stage ends with, so feeding it only the solid ones scored
+/// it 61% short.</para>
+///
 /// <para>The key in a pair is an octree LEAF, not a region. The binary's own
 /// array is as long as the node array at <c>this+0x30</c> and is indexed
 /// straight by that key, which is also what the compaction packs into a record's
