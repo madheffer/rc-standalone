@@ -67,6 +67,11 @@ public class VisMergeHalt(ITestOutputHelper output)
                     output.WriteLine($"{"",10} the LAST pair each of {merged.Count} actually merged"
                         + $" cost {merged.Average(h => h.Best),12:F1} on average,"
                         + $" dearest {merged.Max(h => h.Best),12:F1}");
+                output.WriteLine($"{"",10} the x128 penalty needs two voxel sizes in a bucket:"
+                    + $" {all.Count(h => h.Sizes > 1),4} of {all.Count,4} buckets have any"
+                    + $"  (mean {all.Average(h => h.Sizes),4:F1} distinct);"
+                    + $" the x32 needs a short side: {all.Average(h => (double)h.Short / Math.Max(1, h.Started)),7:P1}"
+                    + $" of clusters span 80 or less in z");
                 var width = all.Average(h => h.Bits);
                 var share = width > 0 ? all.Average(h => h.Seen) / width : 0;
                 output.WriteLine($"{"",10} as SAMPLED each cluster saw {all.Average(h => h.Seen),8:F1}"

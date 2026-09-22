@@ -2036,6 +2036,43 @@ vectorised OR the absorb folds one visibility vector into another with,
 Ghidra types `void`, returns XMM6 -- reloaded from the average at `1800341b1` --
 so the cost the chain carries forward IS the average, as modelled.
 
+### The cost scale, taken apart
+
+The number the whole chain is steered by is the mean over buckets of what each
+one's FIRST merge returned, and a bucket too small to merge is handed straight
+back returning the incoming limit. So how many buckets are too small moves the
+average as much as the merges do:
+
+| map | buckets | untouched | returning | merged | returning |
+|---|---|---|---|---|---|
+| ze_hold_em_p | 85 | **41** | 20.0 each | 44 | 40,550.2 |
+| probe01 | 20 | 0 | -- | 20 | 109,571.5 |
+
+ze_hold_em_p's 21,000.4 is arithmetic: `(44 x 40,550.2 + 41 x 20) / 85`. Its 41
+untouched buckets hold 3,912 clusters between them, 4.2% of the map in 48% of
+the cells, and each contributes 20 where a merging one contributes forty
+thousand. To reach the compile's 21,940 from the same 40,550 you would need 46
+merging buckets rather than 44.
+
+Every constant the cost is built from has now been read out of the PE rather
+than carried: the size mismatch is `DAT_18017f1a4` = 128, the tag and z span
+penalties `DAT_18017f190` = 32, the spread `DAT_18017f170` = 8, the area limit
+`DAT_18017f1cc` = 4,096, the z limit `DAT_18017f19c` = 80, the scale
+`_DAT_18017f174` = 10 and the coarse weight `DAT_18017f128` = 0.25 as a double.
+All seven match. So does the shape: both penalties are AVAILABLE on
+ze_hold_em_p, with 44 of its 85 buckets holding more than one voxel size and
+99.9% of its clusters spanning 80 units or less in z.
+
+**And the limit is not the lever, which is the useful part.** Ours is 21,000
+against the compile's 21,940 -- LOWER, so it should stop our merges EARLIER and
+leave us with MORE clusters, and we have fewer. Raising it makes ze_hold_em_p
+worse, not better. The costs themselves must be higher, and with the visibility
+saturation shown to be the map rather than the port, the seven constants exact,
+and the cost function read to its end, what is left is not inside the cost at
+all. It is WHICH CLUSTERS SHARE A BUCKET: 41 cells too small to merge is a lot
+of the map sitting out, and both the average and the merging depend on that
+split.
+
 ### And the probes' +3%
 
 Now an OVER-merge where it used to be an under-merge, so whatever is left there

@@ -51,7 +51,7 @@ public static class VisClusterSet
     public static int MergeAll(
         RayTraceEnvironment scene, List<Set> sets, int target,
         VisClusterSample.LeafCube cube, Action<int, float>? after = null,
-        Action<VisMerge.Halt>? halted = null)
+        Action<VisMerge.Halt>? halted = null, Action<VisMerge.Halt>? first = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(sets);
@@ -61,7 +61,7 @@ public static class VisClusterSet
         {
             var pass = Passes[i];
             cost = Regrid(scene, sets, pass.Cell, pass.Margin, cost,
-                          (int)(target * pass.Budget), cube, halted);
+                          (int)(target * pass.Budget), cube, halted, first);
             after?.Invoke(sets.Sum(s => s.Clusters.Count), cost);
         }
         return sets.Sum(s => s.Clusters.Count);
@@ -75,7 +75,7 @@ public static class VisClusterSet
     public static float Regrid(
         RayTraceEnvironment scene, List<Set> sets,
         float cell, float margin, float costLimit, int budget, VisClusterSample.LeafCube cube,
-        Action<VisMerge.Halt>? halted = null)
+        Action<VisMerge.Halt>? halted = null, Action<VisMerge.Halt>? first = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(sets);
@@ -121,7 +121,7 @@ public static class VisClusterSet
 
         var bucketed = order.Select(k => byKey[k]).ToList();
         var perCell = (int)Math.Ceiling((double)budget / bucketed.Count);
-        var cost = MergeClusterSet(scene, bucketed, perCell, costLimit, cube, halted);
+        var cost = MergeClusterSet(scene, bucketed, perCell, costLimit, cube, halted, first);
 
         sets.Clear();
         sets.AddRange(bucketed);
@@ -135,7 +135,8 @@ public static class VisClusterSet
     /// </summary>
     public static float MergeClusterSet(
         RayTraceEnvironment scene, List<Set> sets, int budget, float costLimit,
-        VisClusterSample.LeafCube cube, Action<VisMerge.Halt>? halted = null)
+        VisClusterSample.LeafCube cube, Action<VisMerge.Halt>? halted = null,
+        Action<VisMerge.Halt>? first = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(sets);
@@ -145,7 +146,7 @@ public static class VisClusterSet
         var costs = new float[sets.Count];
         Parallel.For(0, sets.Count, i =>
             costs[i] = VisMerge.Run(scene, sets[i].Clusters, sets[i].Mins, sets[i].Maxs,
-                                    costLimit, budget * 2, padded: false, cube));
+                                    costLimit, budget * 2, padded: false, cube, first));
 
         var average = costs.Sum() / sets.Count;
         Parallel.For(0, sets.Count, i =>

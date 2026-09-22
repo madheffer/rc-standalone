@@ -108,8 +108,15 @@ public static class VisMerge
     /// <param name="Best">The last pair it actually merged, or -1.</param>
     /// <param name="Seen">Mean bits set per cluster as SAMPLED, before any merge.</param>
     /// <param name="Bits">How wide the visibility vectors were.</param>
+    /// <param name="Started">Clusters it was handed.</param>
+    /// <param name="Returned">What it gave back as this bucket's cost.</param>
+    /// <param name="Sizes">Distinct voxel sizes among the clusters it was handed,
+    /// which is what the x128 penalty needs more than one of to ever fire.</param>
+    /// <param name="Short">How many of them span 80 units or less in z, which is
+    /// what the x32 penalty needs one of.</param>
     public readonly record struct Halt(
-        int Live, int Budget, float Limit, float Cost, float Best, float Seen, int Bits);
+        int Live, int Budget, float Limit, float Cost, float Best, float Seen, int Bits,
+        int Started, float Returned, int Sizes, int Short);
 
     public static float Run(
         RayTraceEnvironment scene, List<Cluster> clusters, Vector3 mins, Vector3 maxs,
@@ -119,7 +126,16 @@ public static class VisMerge
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(clusters);
         if (budget >= clusters.Count)
+        {
+            // Reported too: a bucket handed back untouched still contributes its
+            // incoming limit to the average MergeClusterSet takes, and that is
+            // part of what sets the next pass's limit.
+            halted?.Invoke(new Halt(clusters.Count, budget, costLimit, float.MaxValue, -1f,
+                                    0f, clusters.Count, clusters.Count, costLimit,
+                                    clusters.Select(c => c.VoxelSize).Distinct().Count(),
+                                    clusters.Count(c => c.Maxs.Z - c.Mins.Z <= VisMergeCost.ZLimit)));
             return costLimit;
+        }
 
         var shell = padded ? VisClusterSample.Shell.Length : 0;
         VisClusterSample.SampleInto(scene, clusters, mins, maxs, padded, cube);
@@ -127,6 +143,10 @@ public static class VisMerge
         var sampled = halted is null ? 0f
             : clusters.Select(c => (float)c.Visibility.Sum(w => System.Numerics.BitOperations.PopCount(w)))
                       .DefaultIfEmpty(0f).Average();
+
+        var sizes = halted is null ? 0 : clusters.Select(c => c.VoxelSize).Distinct().Count();
+        var shortInZ = halted is null ? 0
+            : clusters.Count(c => c.Maxs.Z - c.Mins.Z <= VisMergeCost.ZLimit);
 
         var live = clusters.Count + shell;
         var state = new Selection(clusters);
@@ -152,7 +172,8 @@ public static class VisMerge
         }
 
         halted?.Invoke(new Halt(live, budget, costLimit, state.Cheapest().Cost, best,
-                                sampled, clusters.Count + shell));
+                                sampled, clusters.Count + shell, clusters.Count,
+                                MathF.Max(best, costLimit), sizes, shortInZ));
         state.Keep(clusters);
         return MathF.Max(best, costLimit);
     }
