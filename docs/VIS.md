@@ -1693,13 +1693,60 @@ on ze_hold_em_p is 256 units at the median because the shipped tree is the
 COLLAPSED one, so it cannot settle the 831 on its own; it does settle that our
 seed invents nothing.
 
-The 831's own profile is the useful part: facing 44.0, behind 9.6, escaped
-**96.4** of 150, against the seed-Inside band's escaped 7.7. They are level 0
-partial regions at the openings in a 4,536 triangle vis shell, and they are
-nowhere near the `n <= behind` boundary that would make them Outside (median
-behind 10, max 20, none at 25). So they are genuinely ambiguous space, and the
-vote promotes them because their marches run down the corridor into the sealed
-interior.
+The 831's own profile is what finally pointed at the answer: facing 44.0,
+behind 9.6, escaped **96.4** of 150, against the seed-Inside band's escaped 7.7.
+Two thirds of the rays cast from a region inside a closed corridor were hitting
+nothing at all, and that is not something the map is.
+
+### The kd traversal was clipping triangles to the leaf that holds them
+
+`RayTraceEnvironment.Trace` tested each of a leaf's triangles only over the
+leaf's own slice of the ray, `Meets(t, origin, direction, from, to)`, and
+abandoned a node once it started beyond the best hit so far. Both are the
+textbook kd shortcuts and both are wrong on this file.
+
+Counting the file settles it: ze_hold_em_p's kd tree holds 4,548 triangles in
+933 leaves using **5,983 index slots**, so a triangle is filed in about 1.3
+leaves rather than in every leaf it overlaps. A large triangle is therefore
+routinely met at a distance outside the slice belonging to the leaf that holds
+it, the clamp threw that hit away, and the ray carried on to something far
+behind. Against a scan of every triangle, on the seed's own rays, it disagreed
+on **1,698 of 6,300**, every single one landing FARTHER than the truth, by up to
+1,750 units. Testing over the whole ray instead, it agrees on all 6,300.
+
+The way to be sure this is an implementation defect and not a misread of the
+algorithm was to write the same descent twice: a replica reading the raw file
+disagreed with the scan on exactly the same 1,698 rays, and stopped disagreeing
+on exactly the same change. A traversal is correct precisely when it returns
+what a scan returns, whichever way Valve's own SIMD packet walk gets there, so
+`VisTraceAgainstBruteForce` holds it to that.
+
+### What the fix did to the module
+
+| stage | before | after |
+|---|---|---|
+| voxelize nodes, ze_hold_em_p | exact | exact |
+| enclosed regions, ze_hold_em_p | +7.87% | **0.00%** |
+| enclosed regions, cardtest | +0.36% | **0.00%** |
+| enclosed regions, probe01 | -0.05% | **0.00%** |
+| clusters generated, ze_hold_em_p | +2.81% | **0.00%** |
+| clusters generated, probes | -1.22% / -1.26% | -0.06% |
+| merge final, ze_hold_em_p | +35.66% | -5.81% |
+| merge final, cardtest | +4.18% | -5.10% |
+| merge final, probe01 | -2.10% | -5.68% |
+| first pass cost, probe01 | -2.70% | -1.15% |
+
+The 831 are gone: the second pass now promotes **nothing** on any of the three
+maps, and all three enclosed counts are exact and pinned at zero. Outside
+detection was never the defect. It was reading a ray trace that put two thirds
+of its rays through solid geometry, and with honest distances the seed alone
+answers every map.
+
+ze_hold_em_p's cluster merge came back from +35.66% to -5.81%, and that is the
+more useful part of the change: the three maps now under-merge by the same 5 to
+6% instead of disagreeing in both directions by wildly different amounts. One
+cause to find rather than three. The assignment stage is untouched at -42% and
+-61% and is still the largest gap in the module.
 
 ### Three fidelity gaps closed on the way
 

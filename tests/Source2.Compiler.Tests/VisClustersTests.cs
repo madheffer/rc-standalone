@@ -24,11 +24,12 @@ public class VisClustersTests(ITestOutputHelper output)
     ];
 
     /// <param name="Tolerance">ze_hold_em_p is exact and pinned at zero. The two
-    /// probe maps sit about 2.5% under, because a region there really does merge
-    /// to more than one cluster and the model here gives it one.</param>
+    /// probe maps sit 0.06% under, which is 49 clusters on 81,700: a region there
+    /// really does merge to more than one cluster and the model here gives it
+    /// one.</param>
     private static readonly (int Map, double Tolerance)[] Counted =
     [
-        (0, 0.03), (1, 0.013), (2, 0.013),
+        (0, 0), (1, 0.001), (2, 0.001),
     ];
 
     /// <summary>The count the compile sums into "N clusters generated".</summary>

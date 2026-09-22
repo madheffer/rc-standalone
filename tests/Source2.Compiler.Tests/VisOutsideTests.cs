@@ -8,9 +8,10 @@ namespace Source2.Compiler.Tests;
 /// Stage 3's second half, scored against the compile's own log.
 ///
 /// <para>The compile prints <c>Generated clusters for 10554 regions</c> after its
-/// outside pass, so the count of ENCLOSED regions is the number to hit. The two
-/// probe maps are scored far wider because 14% of their triangles mis-decode, and
-/// that already puts stage 2 on them 41% out; see docs/VIS.md.</para>
+/// outside pass, so the count of ENCLOSED regions is the number to hit. All three
+/// specimens land on it EXACTLY and are pinned at zero. They only did once the kd
+/// traversal stopped clipping a triangle to the slice of the ray owned by the leaf
+/// that holds it; before that ze_hold_em_p was 7.87% over. Do not widen these.</para>
 /// </summary>
 public class VisOutsideTests(ITestOutputHelper output)
 {
@@ -18,9 +19,9 @@ public class VisOutsideTests(ITestOutputHelper output)
 
     private static readonly Specimen[] Maps =
     [
-        new("s2c_lighting", "ze_hold_em_p", 10_554, 0.08),
-        new("s2c_rc_probe", "cardtest", 7_416, 0.004),
-        new("s2c_rc_probe", "probe01", 7_316, 0.001),
+        new("s2c_lighting", "ze_hold_em_p", 10_554, 0),
+        new("s2c_rc_probe", "cardtest", 7_416, 0),
+        new("s2c_rc_probe", "probe01", 7_316, 0),
     ];
 
     [Fact]

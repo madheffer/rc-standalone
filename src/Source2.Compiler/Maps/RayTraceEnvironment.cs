@@ -203,6 +203,18 @@ public sealed class RayTraceEnvironment
     /// <paramref name="ignore"/>. The traversal is the file's own kd tree, which
     /// is what makes this affordable: ze_hold_em_p's 4,548 triangles sit in 933
     /// leaves of at most ten each.
+    ///
+    /// <para>A leaf's triangles are tested over the WHOLE ray, not over the
+    /// leaf's own slice of it, and the walk does not stop when a node starts
+    /// beyond the best hit so far. Both are the usual kd shortcuts and both are
+    /// wrong on this file: its 4,548 triangles take only 5,983 index slots, so a
+    /// triangle is filed in about 1.3 leaves rather than in every leaf it
+    /// overlaps, and a large one is routinely met at a distance outside the slice
+    /// of the leaf that holds it. Clipping to the slice threw those hits away and
+    /// the ray ran on to something far behind: on ze_hold_em_p it disagreed with
+    /// a scan of every triangle on 1,698 of 6,300 rays, every one of them landing
+    /// FARTHER than the truth, by up to 1,750 units. It now agrees on all
+    /// 6,300.</para>
     /// </summary>
     public Hit? Trace(Vector3 origin, Vector3 direction, float reach, ushort ignore = ExcludedFromTrace)
     {
@@ -216,9 +228,6 @@ public sealed class RayTraceEnvironment
         while (stack.Count > 0)
         {
             var (node, from, to) = stack.Pop();
-            if (best is { } found && found.Distance < from)
-                continue;
-
             var word = BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(HeaderSize + (node * 8)));
             var axis = (int)(word & 3);
             var payload = (int)(word >> 2);
@@ -232,7 +241,7 @@ public sealed class RayTraceEnvironment
                         _data.AsSpan(_indexAt + ((payload + i) * 4)));
                     if ((Flags(triangle) & ignore) != 0)
                         continue;
-                    if (Meets(triangle, origin, direction, from, best?.Distance ?? to) is { } hit
+                    if (Meets(triangle, origin, direction, 0f, best?.Distance ?? reach) is { } hit
                         && (best is null || hit.Distance < best.Value.Distance))
                         best = hit;
                 }
