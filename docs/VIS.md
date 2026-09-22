@@ -1330,6 +1330,31 @@ The region's flag word is doing double duty from here on: bit 0 stays the kept
 flag and everything above it is the offset where that region's records begin.
 That is exactly how the PVS walk finds them.
 
+### What it scores, and where the rest of the gap is
+
+| map | ours | compile | off by | of which blockers |
+|---|---|---|---|---|
+| probe01 | 17,731 | 30,665 | -42.18% | 6,377 |
+| cardtest | 17,705 | 30,817 | -42.55% | 6,407 |
+| ze_hold_em_p | 40,688 | 103,358 | -60.63% | 29,100 |
+
+The key in a cluster's `(mask, key)` pair is an **octree leaf**, not a region,
+and getting that wrong is worth most of the error: scoring it against the region
+count instead dropped 10,389 of ze_hold_em_p's 11,588 pairs as out of range and
+read -95.21%.
+
+What is left is not in this stage. Subtract the blockers and our final clusters
+cover 11,588 leaf records on ze_hold_em_p against roughly 74,000, and 11,354
+against roughly 24,000 on probe01. Our count is almost exactly the region count,
+which means **every region ends up inside exactly one cluster**; Valve's works
+out at about seven clusters per region. Since `18002f250` only ORs records that
+share a leaf WITHIN one cluster, clusters are free to overlap, and Valve's
+plainly do. Ours collapse each region's eight or so newborn clusters into a
+single survivor instead of letting them join different neighbours.
+
+So the remaining error is cluster coverage, which is the merge's ordering, and
+it is the same root cause as ze_hold_em_p's 301 clusters against 258.
+
 ### The entry array is older than assignment, and `180032670` re-compacts it
 
 `180032670` is not the region build. It walks the octree's leaves and collapses

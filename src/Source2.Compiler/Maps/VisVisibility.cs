@@ -28,18 +28,18 @@ public static class VisVisibility
     /// One 16 byte record of the flat array at <c>this+0x48</c>. A region names a
     /// run of these through the offset packed into its own flag word.
     ///
-    /// <para><paramref name="Packed"/> is not a flag word. The region compaction
-    /// writes it as <c>region * 4 | kind</c> and everything downstream reads the
-    /// two halves separately, so the region a record came from survives in the
+    /// <para><paramref name="Packed"/> is not a flag word. The compaction writes
+    /// it as <c>leaf * 4 | kind</c> and everything downstream reads the two
+    /// halves separately, so the octree leaf a record came from survives in the
     /// record itself.</para>
     /// </summary>
     /// <param name="Cluster">The cluster it belongs to, at <c>+0x00</c>, 0 until assignment.</param>
-    /// <param name="Packed">At <c>+0x04</c>: <c>(region &lt;&lt; 2) | kind</c>.</param>
+    /// <param name="Packed">At <c>+0x04</c>: <c>(leaf &lt;&lt; 2) | kind</c>.</param>
     /// <param name="Cells">At <c>+0x08</c>: which of the leaf's 64 sub cells it covers.</param>
     public readonly record struct Entry(int Cluster, int Packed, ulong Cells)
     {
-        /// <summary>The region it was written for.</summary>
-        public int Region => Packed >> 2;
+        /// <summary>The octree leaf it was written for.</summary>
+        public int Leaf => Packed >> 2;
 
         /// <summary>One of <see cref="Open"/>, <see cref="Blocking"/>, <see cref="Skipped"/>.</summary>
         public int Kind => Packed & 3;

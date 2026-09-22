@@ -11,7 +11,7 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class VisAssignTests
 {
-    private static VisClusterSet.Set SetOf(params (ulong Mask, int Region)[][] clusters)
+    private static VisClusterSet.Set SetOf(params (ulong Mask, int Leaf)[][] clusters)
     {
         var set = new VisClusterSet.Set();
         foreach (var voxels in clusters)
@@ -24,11 +24,11 @@ public class VisAssignTests
     }
 
     /// <summary>
-    /// A cluster's pairs scatter into the region each one names, stamped with a
+    /// A cluster's pairs scatter into the octree leaf each one names, stamped with a
     /// running cluster index that spans the sets rather than restarting.
     /// </summary>
     [Fact]
-    public void EveryClusterPairLandsInTheRegionItNames()
+    public void EveryClusterPairLandsInTheLeafItNames()
     {
         var a = SetOf([(0b1101UL, 0), (0b10UL, 2)], [(0xFFUL, 0)]);
         var b = SetOf([(0b11UL, 1)]);
@@ -38,14 +38,14 @@ public class VisAssignTests
         Assert.Equal(3, result.Clusters);
         Assert.Equal(4, result.Regions);
 
-        // Region 0 owns cluster 0 and cluster 1; region 2 owns cluster 0 only.
+        // Leaf 0 owns cluster 0 and cluster 1; leaf 2 owns cluster 0 only.
         Assert.Equal(2, result.Counts[0]);
         Assert.Equal(1, result.Counts[1]);
         Assert.Equal(1, result.Counts[2]);
 
         var first = result.Entries[result.Offsets[0]];
         Assert.Equal(0, first.Cluster);
-        Assert.Equal(0, first.Region);
+        Assert.Equal(0, first.Leaf);
         Assert.Equal(VisVisibility.Open, first.Kind);
         Assert.Equal(0b1101UL, first.Cells);
 
@@ -54,17 +54,17 @@ public class VisAssignTests
     }
 
     /// <summary>
-    /// The region a record came from is packed above the kind bits, so a cluster
+    /// The octree leaf a record came from is packed above the kind bits, so a cluster
     /// record round trips both halves.
     /// </summary>
     [Fact]
-    public void TheRegionAndKindSharePackedWord()
+    public void TheLeafAndKindSharePackedWord()
     {
         var result = VisAssign.Run([SetOf([(1UL, 300)])], 512, [], _ => true);
         var entry = result.Entries[0];
 
         Assert.Equal(300 << 2, entry.Packed);
-        Assert.Equal(300, entry.Region);
+        Assert.Equal(300, entry.Leaf);
         Assert.Equal(VisVisibility.Open, entry.Kind);
     }
 
@@ -86,22 +86,22 @@ public class VisAssignTests
         var result = VisAssign.Run([SetOf([(1UL, 0)])], 2, compacted, _ => true);
 
         Assert.Equal(3, result.Regions);
-        var region0 = result.Entries.AsSpan(result.Offsets[0], result.Counts[0]).ToArray();
+        var leaf0 = result.Entries.AsSpan(result.Offsets[0], result.Counts[0]).ToArray();
         Assert.Equal([VisVisibility.Open, VisVisibility.Blocking],
-                     region0.Select(e => e.Kind));
+                     leaf0.Select(e => e.Kind));
         Assert.DoesNotContain(result.Entries, e => e.Kind == VisVisibility.Open && e.Cells == 0xF0UL);
         Assert.Equal(VisVisibility.Skipped, result.Entries[result.Offsets[1]].Kind);
     }
 
     /// <summary>
-    /// A region that is no longer kept contributes nothing, and the offsets stay
+    /// A leaf that is no longer kept contributes nothing, and the offsets stay
     /// a running total over the ones that are.
     /// </summary>
     [Fact]
-    public void ADroppedRegionContributesNothingAndDoesNotShiftTheRest()
+    public void ADroppedLeafContributesNothingAndDoesNotShiftTheRest()
     {
         var set = SetOf([(1UL, 0)], [(2UL, 1)], [(4UL, 2)]);
-        var result = VisAssign.Run([set], 3, [], region => region != 1);
+        var result = VisAssign.Run([set], 3, [], leaf => leaf != 1);
 
         Assert.Equal(2, result.Regions);
         Assert.Equal(0, result.Offsets[0]);
@@ -112,14 +112,14 @@ public class VisAssignTests
 
     /// <summary>
     /// The whole point of the stage: what it produces is what the PVS walk reads,
-    /// so a line through an assigned region finds that region's cluster.
+    /// so a line through an assigned leaf finds that leaf's cluster.
     /// </summary>
     [Fact]
     public void TheWalkFindsTheClusterAssignmentPutThere()
     {
         var result = VisAssign.Run([SetOf([(ulong.MaxValue, 0)])], 1, [], _ => true);
 
-        // One leaf covering the root, pointing at region 0's single entry.
+        // One leaf covering the root, pointing at leaf 0's single entry.
         VisVisibility.Node[] nodes = [new((uint)((result.Offsets[0] << 1) | 1),
                                           (ushort)result.Counts[0])];
 

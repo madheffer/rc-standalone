@@ -78,12 +78,19 @@ public class VisClusterSetTests(ITestOutputHelper output)
 
             // Assignment, which is what the PVS walk reads and the only stage
             // whose number the merge alone cannot produce.
-            var blockers = compact.Regions
-                .Select((r, i) => new VisVisibility.Entry(
-                    0, (i << 2) | VisVisibility.Blocking, compact.Leaves[r.Leaf].Solid))
+            // The key in a cluster's (mask, key) pair is an octree LEAF, which is
+            // what the binary's own array is indexed by, so the blockers are keyed
+            // the same way and the array is as long as the leaf list.
+            var blockers = compact.Leaves
+                .Select((leaf, i) => new VisVisibility.Entry(
+                    0, (i << 2) | VisVisibility.Blocking, leaf.Solid))
                 .Where(e => e.Cells != 0)
                 .ToList();
-            var assigned = VisAssign.Run(sets, compact.Regions.Count, blockers, _ => true);
+            var assigned = VisAssign.Run(sets, compact.Leaves.Count, blockers, _ => true);
+            var pairs = sets.SelectMany(s => s.Clusters).Sum(c => c.Voxels.Count);
+            output.WriteLine($"{specimen.Map,-16} pairs   {pairs,8:n0}"
+                           + $"  over {compact.Leaves.Count,8:n0} leaves,"
+                           + $" {compact.Regions.Count,8:n0} regions");
             output.WriteLine($"{specimen.Map,-16} assign  {assigned.Regions,8:n0}"
                            + $"  compile {specimen.Assigned,8:n0}"
                            + $"  {(double)assigned.Regions / specimen.Assigned - 1,8:P2}"

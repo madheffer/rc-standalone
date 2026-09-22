@@ -6,71 +6,78 @@ namespace Source2.Compiler.Maps;
 /// merge passes have run.
 ///
 /// <para>The merge leaves clusters bucketed by grid cell, each holding the
-/// (mask, region) pairs it covers. Assignment turns that inside out into a
-/// per-region list, so the PVS walk can ask a leaf which clusters are in it, and
-/// then flattens every list into one array that the octree indexes by offset and
+/// (mask, leaf) pairs it covers. Assignment turns that inside out into a per
+/// leaf list, so the PVS walk can ask a leaf which clusters are in it, and then
+/// flattens every list into the one array the octree indexes by offset and
 /// count.</para>
 ///
-/// <para>It is the line the compile prints as
-/// <c>Compacted to N regions (M clusters)</c>, and N is the length of that flat
-/// array rather than any count of regions or clusters.</para>
+/// <para>The key in a pair is an octree LEAF, not a region. The binary's own
+/// array is as long as the node array at <c>this+0x30</c> and is indexed
+/// straight by that key, which is also what the compaction packs into a record's
+/// <c>+0x04</c>.</para>
 /// </summary>
 public static class VisAssign
 {
     /// <summary>
-    /// What assignment produced: the flat array, and where each region's run of
-    /// it starts.
+    /// What assignment produced: the flat array, and where each leaf's run of it
+    /// starts.
     /// </summary>
     /// <param name="Entries">The array the octree's leaves index into.</param>
-    /// <param name="Offsets">Per region, the first entry, or -1 when dropped.</param>
-    /// <param name="Counts">Per region, how many entries it owns.</param>
-    /// <param name="Clusters">How many clusters were assigned.</param>
+    /// <param name="Offsets">Per octree leaf, the first entry, or -1 when dropped.</param>
+    /// <param name="Counts">Per octree leaf, how many entries it owns.</param>
+    /// <param name="Clusters">How many clusters were assigned, which
+    /// <c>18002ed60</c> takes as the largest id in the array plus one rather than
+    /// as a running count. That is the number the compile prints as
+    /// <c>Assigned N clusters</c>, and the PVS matrix is sized at it plus two for
+    /// sky and sun.</param>
     public readonly record struct Result(
         VisVisibility.Entry[] Entries, int[] Offsets, short[] Counts, int Clusters)
     {
-        /// <summary>The number the compile prints, the flat array's length.</summary>
+        /// <summary>
+        /// The number the compile prints as <c>Compacted to N regions</c>, which
+        /// is the flat array's length and not a count of anything else.
+        /// </summary>
         public int Regions => Entries.Length;
     }
 
     /// <summary>
     /// Run the three passes.
     ///
-    /// <para>The first scatters every final cluster's (mask, region) pairs into
-    /// the region they name, stamping the running cluster index and
-    /// <c>region * 4</c>, which leaves the kind bits clear because a cluster is
-    /// always open space. The second re-adds the blocking and skipped records the
-    /// region compaction had already written, which carry no cluster and would
-    /// otherwise be lost. The third concatenates.</para>
+    /// <para>The first scatters every final cluster's (mask, leaf) pairs into the
+    /// leaf they name, stamping the running cluster index and <c>leaf * 4</c>,
+    /// which leaves the kind bits clear because a cluster is always open space.
+    /// The second re-adds the blocking and skipped records the compaction had
+    /// already written, which carry no cluster and would otherwise be lost. The
+    /// third concatenates.</para>
     /// </summary>
     /// <param name="sets">The merged cluster sets, in the order they are held.</param>
-    /// <param name="regions">How many regions the octree has.</param>
+    /// <param name="leaves">How many leaves the octree has.</param>
     /// <param name="compacted">The compaction's entry array, whose blocking and
     /// skipped records survive into the new one.</param>
-    /// <param name="kept">Whether a region is still live, its flag bit 0. A
-    /// region that is not keeps nothing.</param>
+    /// <param name="kept">Whether a leaf is still live, its flag bit 0. A leaf
+    /// that is not keeps nothing.</param>
     public static Result Run(
-        IReadOnlyList<VisClusterSet.Set> sets, int regions,
+        IReadOnlyList<VisClusterSet.Set> sets, int leaves,
         IReadOnlyList<VisVisibility.Entry> compacted, Func<int, bool> kept)
     {
         ArgumentNullException.ThrowIfNull(sets);
         ArgumentNullException.ThrowIfNull(compacted);
         ArgumentNullException.ThrowIfNull(kept);
-        ArgumentOutOfRangeException.ThrowIfNegative(regions);
+        ArgumentOutOfRangeException.ThrowIfNegative(leaves);
 
-        var byRegion = new List<VisVisibility.Entry>[regions];
-        for (var i = 0; i < regions; i++)
-            byRegion[i] = [];
+        var byLeaf = new List<VisVisibility.Entry>[leaves];
+        for (var i = 0; i < leaves; i++)
+            byLeaf[i] = [];
 
         var cluster = 0;
         foreach (var set in sets)
         {
             foreach (var one in set.Clusters)
             {
-                foreach (var (mask, region) in one.Voxels)
+                foreach (var (mask, leaf) in one.Voxels)
                 {
-                    if ((uint)region < (uint)regions)
-                        byRegion[region].Add(new VisVisibility.Entry(
-                            cluster, region << 2, mask));
+                    if ((uint)leaf < (uint)leaves)
+                        byLeaf[leaf].Add(new VisVisibility.Entry(cluster, leaf << 2, mask));
                 }
                 cluster++;
             }
@@ -80,26 +87,33 @@ public static class VisAssign
         {
             if (entry.Kind == VisVisibility.Open)
                 continue;
-            var region = entry.Region;
-            if ((uint)region < (uint)regions)
-                byRegion[region].Add(entry);
+            if ((uint)entry.Leaf < (uint)leaves)
+                byLeaf[entry.Leaf].Add(entry);
         }
 
         var flat = new List<VisVisibility.Entry>();
-        var offsets = new int[regions];
-        var counts = new short[regions];
-        for (var region = 0; region < regions; region++)
+        var offsets = new int[leaves];
+        var counts = new short[leaves];
+        for (var leaf = 0; leaf < leaves; leaf++)
         {
-            if (!kept(region))
+            if (!kept(leaf))
             {
-                offsets[region] = -1;
+                offsets[leaf] = -1;
                 continue;
             }
-            offsets[region] = flat.Count;
-            counts[region] = checked((short)byRegion[region].Count);
-            flat.AddRange(byRegion[region]);
+            offsets[leaf] = flat.Count;
+            counts[leaf] = checked((short)byLeaf[leaf].Count);
+            flat.AddRange(byLeaf[leaf]);
         }
 
-        return new Result([.. flat], offsets, counts, cluster);
+        // 18002ed60 sweeps the finished array for the highest id and grows the
+        // cluster table to cover it, so a cluster that ended up with no records
+        // at all is not counted unless something above it was.
+        var highest = -1;
+        foreach (var entry in flat)
+            if (entry.Kind == VisVisibility.Open && entry.Cluster > highest)
+                highest = entry.Cluster;
+
+        return new Result([.. flat], offsets, counts, highest + 1);
     }
 }
