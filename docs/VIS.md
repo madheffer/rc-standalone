@@ -1520,6 +1520,67 @@ the three pass counts goes from 2.28% to 7.13%. Re-applying them is worth doing
 the moment the fifth pass is understood, and the rules above are exact enough to
 re-enter from this page.
 
+### Everything in the five-pass chain, verified against the image
+
+The fifth pass over-merges once the ordering is right, so the whole chain was
+checked component by component rather than reasoned about. All of this now
+matches what we do, and none of it is the cause.
+
+**The pass parameters.** Read out of the image rather than trusted: cells
+512, 512, 2048, 2048, 4096; margins 0, 256, 0, 1024, 0; budgets 6, 5.75, 4.5,
+4.25 and 3 times the target; and the first pass's incoming cost limit is
+`DAT_18017f18c` = 20.0, which is the same 20 as the small-region threshold.
+
+**The per-bucket budget.** `FUN_18002f480` resizes the set list to exactly n,
+and `180034220` forms the budget as `ceil(total / n)` with that same n. The set
+index is DENSE over the buckets that actually got a cluster, not the grid: the
+box for slot `lVar4` is computed from the key, so the two are different numbers.
+Dividing by the full `acrossX * acrossY` grid instead takes probe01's first pass
+to -9.75%, and the reading behind that was simply wrong.
+
+**The cost chain.** Ghidra types both `180034220` and
+`CVoxelSampler3::MergeClusterSet` as `void`, which is wrong: the assembly ends
+`MOVAPS XMM0, XMM6`, and XMM6 is reloaded from the slot written immediately
+after the `DIVSS`. So MergeClusterSet returns the **average**, and `180034220`
+passes it straight out. The chain is what we have.
+
+**The cost function `1800301c0`**, term for term. `180014ea0` is
+`dest = x & ~y`, so each side counts what the other can see and it cannot,
+weighted by the other's voxel count, plus one. `18002fec0` is the axis-aligned
+box gap, squared and rooted, added AFTER the scale. Every constant checked
+against the image: coarse weight 0.25 above voxel size 8, size mismatch 128, tag
+mismatch 32, spread 8, area limit 4096, z limit 80, scale 10.
+
+**The sampler.** The switch to the 512 direction golden sphere is at
+`0x1ff < count`, so 512 or more slots, which is what we use. Each slot's bit
+vector is `ceil(n / 32)` words with one bit per slot. Sampling runs 64 slots to
+a `SampleGridsJob`, and each slot goes through `180031a20`: below the sphere
+threshold the directions are `normalize(gridPoint - centre)` per shell entry,
+above it the 512 unit vectors are used as they are, and the reach is the
+diagonal of the merge box.
+
+### What the fifth pass is actually doing
+
+Instrumenting the buckets settles the mechanism, whatever the cause:
+
+| pass | cell | buckets | budget | perCell | biggest | clusters |
+|---|---|---|---|---|---|---|
+| 1 | 512 | 20 | 5,172 | 259 | 259 | 2,484 |
+| 2 | 512 | 20 | 4,956 | 248 | 209 | 1,977 |
+| 3 | 2,048 | 4 | 3,879 | 970 | 820 | 1,826 |
+| 4 | 2,048 | 4 | 3,663 | 916 | 820 | 1,826 |
+| 5 | 4,096 | 4 | 2,586 | 647 | 641 | 1,286 |
+
+The fourth pass does nothing at all, because every bucket is already under its
+budget. The fifth is driven **entirely by the per-bucket cap**: the cost limit
+by then is about 107,000, which almost no individual merge reaches, so the loop
+only stops on the budget. Valve's 1,621 is consistent with capping roughly one
+bucket; ours merges 540 rather than the ~173 that would be.
+
+So the fifth pass's divergence is not the ordering, the parameters, the budget,
+the chain, the cost or the sampler's structure. What is left is the sampled
+values themselves, and that is where the next look belongs.
+
 ### The pre-merge is not the answer either
 
 `18002f5c0` runs `CBoxMerge` (`180028c70` driving

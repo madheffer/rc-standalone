@@ -180,3 +180,21 @@ graph will not find it, and its absence from a dump is not evidence it is dead.
 `CBoxMerge::MergeBestCandidates` (`180027f50`) and its driver `180028c70` are
 NOT this merge. They belong to `18002f5c0`, the distance pre-merge, which is a
 near no-op on every map we have.
+
+## The sampler and the pass chain
+
+| address | what it is | how it was reached |
+|---|---|---|
+| `18002f480` | resize the bucket set list to exactly n | in the subtree |
+| `180033fd0` | `CVoxelSampler3::MergeClusterSet`, returns the AVERAGE | `DumpAt` |
+| `18003ecf0` | `SampleGridsJob`, 64 slots per job | vtable `18017c190` slot `+0x28` |
+| `180031a20` | sample one cluster's visibility | `18003ecf0` |
+| `180014ea0` | `dest = x & ~y` over a bit vector | `1800301c0` |
+| `18002fec0` | the axis-aligned gap between two boxes | `1800301c0` |
+| `180030d70` | the deterministic tie break | vtable `18017bf40` slot `+0x20` |
+| `180030190` | is this candidate still live | vtable `18017bf40` slot `+0x28` |
+| `180027e10` | order two boxes deterministically | `180030d70` |
+
+Ghidra types `180034220` and `180033fd0` as returning `void`, and both are
+wrong: each ends `MOVAPS XMM0, XMM6`. A decompiled signature is not evidence
+about a return value, and the assembly is.

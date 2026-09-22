@@ -61,10 +61,19 @@ public class VisClusterSetTests(ITestOutputHelper output)
                            + $"  in {(DateTime.UtcNow - started).TotalSeconds:F0}s");
 
             var seen = new List<(int Clusters, float Cost)>();
-            VisClusterSet.MergeAll(rte, sets, specimen.Target, (n, c) => seen.Add((n, c)));
-            for (var i = 0; i < seen.Count; i++)
-                output.WriteLine($"   pass {i + 1}: {seen[i].Clusters,7:n0} clusters,"
-                               + $" cost {seen[i].Cost:F1}");
+            VisClusterSet.MergeAll(rte, sets, specimen.Target, (n, c) =>
+            {
+                var pass = VisClusterSet.Passes[seen.Count];
+                var budget = (int)(specimen.Target * pass.Budget);
+                var perCell = (int)Math.Ceiling((double)budget / sets.Count);
+                var capped = sets.Count(b => b.Clusters.Count >= perCell);
+                output.WriteLine($"   pass {seen.Count + 1}: {n,7:n0} clusters, cost {c:F1}"
+                               + $"   cell {pass.Cell,6}  buckets {sets.Count,5:n0}"
+                               + $"  budget {budget,6:n0}  perCell {perCell,5:n0}"
+                               + $"  at cap {capped,4:n0}"
+                               + $"  biggest {sets.Max(b => b.Clusters.Count),5:n0}");
+                seen.Add((n, c));
+            });
 
             if (specimen.Cost > 0)
             {
