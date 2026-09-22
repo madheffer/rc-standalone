@@ -41,7 +41,9 @@ behaviour, so they carry a description rather than a symbol.
 | `18002e050` | classify one region as inside or outside | called per region by outside detection |
 | `18002deb0` | cast one ray through the voxel octree | called per candidate ray by the classifier |
 | `18010be50` | a region's box from its leaf box and mask | shared by the driver and outside detection |
-| `18004b260` | gather the candidate rays for a box | queries the structure at `this+0xe8` |
+| `18003f1e0` | the `InitialRegionStatus` job body | the work pointer in the functor vtable the outside pass dispatches |
+| `18004a2f0` | the SEED: inside, outside or undecided for one region box | the only thing the job body calls, and a threshold tree over the gather's counters |
+| `18004b260` | gather over a box, returning four counters and a ray list | called by the seed, the per-region classifier and one more site; the structure it queries is `this+0xe8` and its record type is NOT decoded |
 
 ## The object layout these agree on
 
@@ -61,6 +63,32 @@ site:
 A region in memory is `{ u32 cluster, u32 (nodeIndex << 2) | flags, u64 mask }`.
 That `nodeIndex << 2` is the same leaf index the compiled file packs into its
 24-bit field, seen from the other side.
+
+## How the whole DLL was inventoried
+
+Chasing a string answers one question. `InventoryDll.java` dumps every function,
+every call edge and every string reference in one pass, which is what the table
+above was actually built from: **3,848 functions, 13,778 call edges and 3,363
+string uses**. Of those, 121 functions log something, which is the behavioural map
+of the builder, and the binary carries **205 RTTI type descriptors of which 80 are
+Valve's own** despite the exports being stripped.
+
+The classes worth knowing, since they name the machinery the stages are made of:
+
+- the sampler and its owners: `CVoxelSampler3`, `CVisBuilder`, `CVisBuilderMgr`,
+  `CResourceCompilerMapVisibility`
+- the ray generators, which are the sampling strategies the PVS stage picks
+  between: `CRayGenerator` and its `CAxial`, `CBoundaryPoints`, `CClusterCenter`,
+  `CClusterView`, `CLOS`, `CLargeClusterRegions`, `CNearlyVisibleNeighbors` and
+  `CRandom` subclasses, plus `CRayProcessJob`
+- the queries and the merge: `CClusterQuery3`, `CClusterQuerySun`,
+  `IClusterSpaceQuery`, `ILeafBoundsQuery`, `IClusterRemap`, `IMergeController`,
+  `CMergeControllerGrid`
+- the job plumbing: `CThreadedJob`, `CUtlMultiJobProcessor`, `IMultipleWorkerJob`
+
+`CLargeClusterRegionsRayGenerator` is the one that burned 252 seconds and 608
+million rays for 383 useful ones in the earlier profiling, so it now has a name
+and a class to go with the measurement.
 
 **Flag bit 0 means outside.** Outside detection sets it, the ray march stops on
 it, and the region count excludes it. Bit 1 is set at region creation and also

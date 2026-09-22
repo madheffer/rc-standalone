@@ -125,12 +125,15 @@ pipeline existing.
    triangles mis-decode, which is an `.rte` problem and not a stage one. The rest
    of the scoring targets stand: 10,554 regions in, 103,358 out, collapsed to
    4,194, 258 clusters against a target of 1,342, 129 unique masks.
-3. Regions and clusters. **Regions built; the outside criterion is now READ OUT
-   OF visbuilder.dll** (`1800321f0`, see docs/VISBUILDER_FUNCTIONS.md). It is a
+3. Regions and clusters. **Regions and outside detection BUILT, -2.59% on
+   ze_hold_em_p** (10,281 enclosed regions against the compile's 10,554), ported
+   from visbuilder.dll (`1800321f0`, see docs/VISBUILDER_FUNCTIONS.md). It is a
    per-region vote over rays marched through the voxel octree, seeded by a bounds
    test and propagated along rays rather than through voxel adjacency, which is
    why it works on geometry that does not seal. The printed count is the regions
-   with flag bits 0 and 1 both clear. Implementing it is the next step.
+   with flag bits 0 and 1 both clear. `VisOutside`, scored by `VisOutsideTests`,
+   which also asserts the one parameter that is ours does not carry the answer.
+   What is left in this stage is the cluster generation the region count feeds.
 
    The measurements that led there stand: a region is a connected run of open
    voxels in a leaf and `VisRegions` produces them, and the flood fill the naive

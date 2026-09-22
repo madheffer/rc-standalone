@@ -33,6 +33,7 @@ public static class EntityLumpAuthor
     /// <param name="name">The lump's own name, e.g. <c>default_ents</c>.</param>
     /// <param name="childLumps">Names of lumps hanging off this one.</param>
     /// <param name="worldName">The map's name, which worldspawn records.</param>
+    /// <param name="fixupEntityNames">Whether the map asks for the prefab fixup.</param>
     /// <param name="emit">What this lump carries, in order, each paired with the
     /// walk index it is numbered by. Null is every walked entity in walk order. The
     /// two cannot be one list: a child lump is a re-ordered subset, and an

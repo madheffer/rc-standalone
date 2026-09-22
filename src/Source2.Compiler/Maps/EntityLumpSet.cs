@@ -16,6 +16,7 @@ public static class EntityLumpSet
     /// <summary>One compiled lump and where it belongs in the map's VPK.</summary>
     /// <param name="Path">Path inside the package, which is lower case.</param>
     /// <param name="Name">The lump's own <c>m_name</c>, which is not.</param>
+    /// <param name="Bytes">The compiled lump.</param>
     public sealed record Lump(string Path, string Name, byte[] Bytes);
 
     /// <summary>

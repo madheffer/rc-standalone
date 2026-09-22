@@ -26,6 +26,8 @@ public static class MapEntities
     /// it a model and points the entity at it.</param>
     /// <param name="Hidden">The map's visibility manager has the node hidden, so the
     /// compile walks and numbers it but ships nothing.</param>
+    /// <param name="PathNodes">A CMapPath's nodes; null for anything else.</param>
+    /// <param name="ClosedLoop">A CMapPath's own closedLoop.</param>
     public sealed record Entity(
         string ClassName,
         int NodeId,

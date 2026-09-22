@@ -662,7 +662,12 @@ after voxelize, so the order in the log is the order in the source.
 **It classifies each region on its own and lets the answer propagate along rays.**
 
 1. Collect every region whose flag bit 1 is clear.
-2. A thread pool job named `InitialRegionStatus` gives each one a status byte.
+2. A thread pool job named `InitialRegionStatus` (`18003f1e0`) gives each one a
+   status byte, by building its box and handing it to `18004a2f0`. That is the
+   SEED, and it is a sampling test: `18004b260` gathers over the box and returns
+   four counters, and a threshold tree over them returns inside, outside or
+   undecided. An earlier note here called the seed a bounds test; that is the
+   early-out inside the per-region classifier below, not the seed.
 3. Any region at status 2 gets flag bit 0 set, which means OUTSIDE.
 4. Every region still at status 0 is then classified by `18002e050`, and any that
    comes back 2 gets bit 0 as well.
@@ -671,7 +676,7 @@ after voxelize, so the order in the log is the order in the source.
 by `18010be50`, and:
 
 - returns **2 immediately if the box's centre lies outside a bounds box** held at
-  `this+0xe8`. That is the seed: nothing else needs to be sealed for this to fire.
+  `this+0xe8`. This is an early-out, not the seed.
 - otherwise gathers candidate rays for the box, casts each one with `18002deb0`,
   and counts the answers. It returns 1 when the inside count beats a threshold
   held beside the gather, and 2 otherwise. So it is a VOTE, not a single test.
@@ -691,6 +696,41 @@ corridor stays inside because its rays terminate on nearby geometry before they
 reach anything already flagged, and that holds whether or not the map has a
 ceiling. This is why a corridor with an open top still produces inside regions,
 and why the flood fill could not.
+
+### Outside detection, implemented and scored
+
+`VisOutside` is the port, and the count it produces is scored against the
+compile's own:
+
+| map | traced triangles | compile | ours | off by |
+|---|---|---|---|---|
+| ze_hold_em_p | 4,536 | 10,554 | **10,281** | **-2.59%** |
+| cardtest | 92 | 7,416 | 9,474 | +27.8% |
+| probe01 | 80 | 7,316 | 9,439 | +29.0% |
+
+The two probe maps are wide for the reason stage 2 is wide on them: 14% of their
+triangles rebuild outside the file's own box, so the voxelization they are being
+classified over is already 41% out.
+
+**The polarity is the thing to get right, and it is the opposite of the obvious
+one.** `18002deb0` returns outside only when a ray reaches a region whose flag bit
+is ALREADY set, never when it leaves the world, and the vote in `18002e050` makes
+a region inside only when enough rays came back having touched a region already
+known inside. So outside is the default and inside is earned. Implemented the
+other way round, every region on an unsealed map comes out outside, which is the
+-100% the flood fill produced and is not a coincidence: both are the same mistake.
+
+**The reach a ray is given is ours and it is not carrying the answer.** Over a
+factor of 32, from 64 units to 2,048, the enclosed count moves from 10,267 to
+10,281, 0.14%. `VisOutsideTests` asserts that spread stays under 2%, so a future
+change that starts depending on the knob fails rather than passing quietly.
+
+What is ported exactly: the seed being a per-region sampling job rather than a
+global fill, the march, the propagation to a fixed point, and the default. What is
+not: the compile gathers its rays per region from a structure at `this+0xe8`
+through `18004b260`, which returns four counters the seed then runs a threshold
+tree over, and neither the record type nor the counters are decoded. The direction
+set and reach here are ours, which is why the spread test above exists.
 
 ### What the printed region count actually counts
 

@@ -239,6 +239,37 @@ Sample the octree's occupied leaf cells weighted by volume instead: 100% placed.
 
 ---
 
+### nodraw has to stay invisible in game
+
+A nodraw surface is a surface the renderer must not draw. It still exists for
+everything else: it blocks, it seals, and visibility is built from it. Anything we
+author has to keep both halves of that, and getting it half right is worse than
+either extreme, because a nodraw face that renders shows as a solid slab across
+the level and one that stops sealing opens the map up.
+
+This is not hypothetical for the vis work. `visbuilder.dll` logs
+
+    Vis geometry appears to be mostly nodraw (%.2f%%), reconfiguring... %s
+
+from the function that converts the ray trace scene (`180049e00`), so the builder
+measures how much of the geometry it was handed is nodraw and CHANGES WHAT IT DOES
+when there is too much of it. Whatever we feed a visibility build has to carry the
+same distinction, and our own compiled output has to mark those surfaces so the
+renderer skips them.
+
+Where it touches what is already built:
+
+- `RayTraceEnvironment` skips triangles whose flag word is `0x0800`, which is what
+  reproduces the compile's own "Convert RTE with 4536 triangles" on three maps.
+  Whether that flag IS the nodraw bit is NOT established; it is established only
+  that the trace conversion drops those triangles.
+- The entity lump work has never had to think about it, because materials are not
+  entity keys. The geometry tier will, and so will anything that authors a surface.
+
+Owed: confirm what the `0x0800` flag means against a map with known nodraw
+brushes, and confirm that a surface we author as nodraw both fails to render and
+still seals.
+
 ## Formats and authoring
 
 ### A map resource cannot be authored from text
