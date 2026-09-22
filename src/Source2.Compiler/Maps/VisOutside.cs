@@ -66,7 +66,8 @@ public static class VisOutside
     public static Result Detect(
         VisVoxelizer.Octree tree, VisRegions.Result regions,
         RayTraceEnvironment scene, float baseVoxelSize,
-        int quality = VisSeed.Quality, Action<Judged>? watch = null)
+        int quality = VisSeed.Quality, Action<Judged>? watch = null,
+        Action<int, string>? trace = null)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(regions);
@@ -91,7 +92,7 @@ public static class VisOutside
         {
             if (status[i] != Status.Unknown)
                 continue;
-            status[i] = Classify(space, scene, status, flagged, i, quality, watch);
+            status[i] = Classify(space, scene, status, flagged, i, quality, watch, trace);
         }
         for (var i = 0; i < status.Length; i++)
             if (status[i] == Status.Outside)
@@ -130,7 +131,7 @@ public static class VisOutside
 
     private static Status Classify(
         Space space, RayTraceEnvironment scene, Status[] status, bool[] flagged, int region,
-        int quality, Action<Judged>? watch = null)
+        int quality, Action<Judged>? watch = null, Action<int, string>? trace = null)
     {
         var (mins, maxs) = space.Box(region);
         var centre = (mins + maxs) * 0.5f;
@@ -156,7 +157,10 @@ public static class VisOutside
 
             var stop = MathF.Max(hit.Distance - MarchBackOff, MarchShortest);
             var reached = space.March(centre, centre + (direction * stop), status, flagged,
-                                      out var walked, out var tested);
+                                      out var walked, out var tested,
+                                      trace is null ? null : line => trace(region, line));
+            trace?.Invoke(region, $"  ray {marched}: dir {direction} hit {hit.Distance:F1}"
+                                + $" stop {stop:F1} -> {reached} ({walked} leaves, {tested} regions)");
             marched++;
             stops += stop;
             leaves += walked;
@@ -257,7 +261,7 @@ public static class VisOutside
             => March(from, to, status, flagged, out _, out _);
 
         public Status March(Vector3 from, Vector3 to, Status[] status, bool[] flagged,
-                            out int leaves, out int seen)
+                            out int leaves, out int seen, Action<string>? trace = null)
         {
             leaves = 0;
             seen = 0;
@@ -295,9 +299,14 @@ public static class VisOutside
 
                 leaves++;
                 var crossed = VisVisibility.Crossed(from, inverse, corner, size, 4);
+                trace?.Invoke($"    leaf {leaf} level {level} at {corner} size {size}"
+                            + $" crossed {crossed:x16} holds {parts.Count}");
                 foreach (var region in parts)
                 {
                     seen++;
+                    trace?.Invoke($"      region {region} open {_regions.Regions[region].Open:x16}"
+                                + $" meets {(_regions.Regions[region].Open & crossed) != 0}"
+                                + $" status {status[region]} flagged {flagged[region]}");
                     if ((_regions.Regions[region].Open & crossed) == 0)
                         continue;
                     if (flagged[region])

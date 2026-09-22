@@ -1559,6 +1559,50 @@ march `18002deb0` returning 1, 2 or **0**, where 0 is no vote at all; the back
 off of 8 units and the 0.1 floor; and the order of the three passes. None of it
 explains the 831.
 
+### One march, walked leaf by leaf
+
+`VisMarchWalk` behind `WALK=1` runs the detection twice: once to find the
+promoted regions, then again tracing every leaf one chosen region's marches
+enter. Region 41587 of ze_hold_em_p, 45 marches, 38 inside votes, 0 outside:
+
+```
+leaf 38645 level 0 at <1208, -108, 24> size 32   holds region 41587, Unknown
+ray 0: stop 32.7 -> Inside (3 leaves)   met region 41586, status Inside
+leaf 51749 level 1 at <1208, -172, 24> size 64   region 55754 open ffff.. Inside
+leaf 51748 level 1 at <1272, -172, 24> size 64   region 55753 open ffff.. Inside
+leaf 51675 level 1 at <1464, -364, 24> size 64   region 55680 open ffff.. Inside
+```
+
+Three things came out of it, and all three close off a line of enquiry.
+
+**It is not a cascade.** Region 41586, which 41587's first ray votes on, is
+itself an Unknown the second pass promoted. But running the second pass against
+a SNAPSHOT of the seed statuses, so nothing it decides can feed the next
+region, gives 830 promoted instead of 831. The marches are reaching regions the
+SEED already called enclosed.
+
+**It is not the ray reach.** The gather's rays run to the scene diagonal where
+the compile runs them to `g_flConfigMaxCoord`, which was an open divergence.
+Forcing 16,384 and then 65,536 leaves every number identical, so the diagonal
+already reaches past everything that matters here.
+
+**The seed counters say Unknown honestly.** For six promoted regions spread
+through the set: facing 36 to 51, behind 5 to 19, insubstantial 0, and
+**escaped 88 to 105 of 150**. Outside needs `n <= behind`, which is 25, and
+none of them are close; `facing <= 3n` holds, so Unknown is what the thresholds
+give. Nothing here is a porting slip.
+
+What the walk DOES show is where the inside votes come from: the marches run
+about 300 units through large level 1 leaves that are entirely open,
+`ffffffffffffffff`, and seeded Inside. So the promoted regions sit in open space
+that connects to big volumes our seed calls enclosed.
+
+That is the next thing to test. If those large open volumes are the sky or the
+void and the compile seeds them Outside, every one of these marches would meet
+a flagged region and return 2 instead, and the 831 would not exist. It would
+also mean our seed-Inside count landing exactly on 10,554 is two errors
+cancelling rather than a match.
+
 ### Three fidelity gaps closed on the way
 
 **`18004b970`, a whole re-trace pass we did not have.** A ray that stops on a
