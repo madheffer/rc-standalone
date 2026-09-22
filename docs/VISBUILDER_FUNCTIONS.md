@@ -49,7 +49,9 @@ behaviour, so they carry a description rather than a symbol.
 | `18010ad30` | add a box to a CBoxMerge pool, returning its handle | NOT a cost function, which is what it looks like at a glance |
 | `180030df0` | set the merge up: sample every cluster's visibility, then build each one's candidate list | the only call between the pool fill and the merge loop |
 | `1800301c0` | **the merge COST** | slot 1 of the merge controller vtable at `18017bf40`, called as `cost(a, b)` and stored beside the candidate's id |
-| `180030a50` | the merge ACTION | slot 2; ORs the bit vectors, sums the voxel counts, takes the minimum tag and unions the boxes |
+| `180030a50` | the merge ACTION | slot 2; ORs the bit vectors, sums the voxel counts, unions the boxes, takes one off the controller's LIVE COUNT, strips the dead cluster from every candidate list, then calls `1800306e0` |
+| `1800306e0` | rebuild the surviving cluster's candidates | clears its list and re-queries the box tree with its NEW box dilated by a unit, recomputing every cost; this is what keeps the candidate graph connected across a merge |
+| `18002d670` | build a leaf's 4x4x4 mask and push its regions | queries the kd tree per cell with the same size-dependent mask, splits the OPEN space into connected components, and pushes the solid voxels as one more region flagged out of the count |
 | `180030d70` | break a tie between two candidates | slot 4; prefers the larger voxel count, then `180027e10` on the boxes |
 | `180030190` | is this entry still live | slot 5; both flag bytes clear |
 | `180031680` | pick the cheapest merge in the whole set | scans every live entry's candidate list, minimum cost, ties by summed voxel count |

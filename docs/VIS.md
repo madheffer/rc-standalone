@@ -886,17 +886,37 @@ Split ze_hold_em_p's enclosed regions by whether the merge runs on them at all:
 | | | **93,354** |
 
 7,882 regions producing 7,882 clusters is one each, and 85,472 + 7,882 is the
-compile's 93,354 to the unit. `VisClusters.Count` is that, and
-`VisClustersTests` asserts equality rather than a tolerance.
+compile's 93,354 to the unit.
 
-**Where the assumption sits, said plainly.** This takes every voxel of a region to
-see alike. That is true of a region holding no occluder, which is what a region
-is most of the time, and it is what makes the count exact here without a ray
-sampler existing. A region whose voxels genuinely differ needs the visibility bits
-`180031a20` samples and would come out above one, so this is a model that happens
-to be exact on this map rather than the general rule. The general rule is
-`VisClusters.MergedCount`, which runs the real loop over a real cost and is tested
-on its own.
+### WHY it is one each, which is not what it first looked like
+
+The obvious reading is that every voxel of a region sees the same things, so the
+cost is at its floor and everything merges. That is wrong, and running the real
+sampler is what proved it: the bit vectors genuinely differ, and with the cost's
+floor of `distance + 10` one differing bit already costs 20 and stops a merge at
+the target.
+
+The count is one per region for two structural reasons instead.
+
+**The live count the loop tests includes the 56 shell boxes.** `1800337a0` sets
+it to `clusters + padding` and `180030a50` takes one off per merge, so a region
+of at most 64 clusters can never bring 120 down to 32. `32 < live` stays true for
+the whole run, and the loop ends when `180031680` finds no valid pair rather than
+when the count reaches the target. The cost therefore decides the ORDER of the
+merges and not where they stop.
+
+**The candidate graph stays connected.** `180030a50` finishes by calling
+`1800306e0` on the surviving cluster, which clears its candidate list and rebuilds
+it from its NEW box dilated by a unit, recomputing every cost against its merged
+bit vector. So a merge never strands a neighbour, and a region - which is one
+connected run of open voxels by construction - collapses whole.
+
+Implemented without either of those, the same sampler gives 180,773 clusters on
+ze_hold_em_p against 93,354, and with only the first it gives 146,481.
+
+`VisClusters.Merge` is the real thing and `VisClusters.Uniform` is the shortcut
+that follows from it, and `VisClustersTests` asserts they are equal rather than
+trusting the shortcut.
 
 The probe maps are scored too now that their regions are right, and they show
 where the model gives out:
@@ -907,12 +927,22 @@ where the model gives out:
 | cardtest | 81,835 | 79,847 | -2.43% |
 | probe01 | 81,707 | 79,529 | -2.67% |
 
-The arithmetic says exactly what is missing. cardtest has 2,637 regions over the
-merge target, and the compile needs them to produce 4,625 clusters, **1.75
-each**; ze_hold_em_p's 7,882 produce 7,882, one each. So a probe map's regions
-really do merge to more than one cluster, and that is the case the uniform
-visibility model cannot see: it needs the per-cluster ray sample `180031a20`
-takes.
+**The residual is not in the merge.** The sampled merge and the shortcut agree to
+the unit on all three maps, so whatever is missing is upstream of both. It is the
+region masks, and the reason a 0.28% region error becomes a 2.4% cluster error is
+that the count per region is `n` at or under the target and **1** above it, a
+cliff of 31 at n = 32. Histogrammed:
+
+| open voxels | ze_hold_em_p regions | cardtest regions |
+|---|---|---|
+| 9 to 16 | 0 | **4,392** (69,767 clusters) |
+| exactly 32 | **2,668** (85,376) | 139 (4,448) |
+| 57 to 64 | 7,638 (7,638) | 2,258 (2,258) |
+
+cardtest's 1,988 missing clusters are 124 regions of 16 voxels, or 62 of 32, out
+of 7,395. ze_hold_em_p has almost nothing between the two extremes and lands
+exact; cardtest is nearly all 16s, where a single voxel of mask difference costs
+16 clusters.
 
 which is where the `%d) x-axis split hint %.2f - %.2f` and
 `%d) %dx%dx%d voxel hint` log lines come from. The boxes are the entity's own,

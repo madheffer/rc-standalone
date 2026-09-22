@@ -257,6 +257,58 @@ public sealed class RayTraceEnvironment
         return best;
     }
 
+    /// <summary>
+    /// Every traced triangle whose own box reaches into the given one, found
+    /// through the kd tree the way <c>18004bf20</c> does.
+    ///
+    /// <para>It exists so a caller with a small box and a great many rays can pay
+    /// for the tree once and then test a handful of triangles per ray. Cluster
+    /// sampling casts thousands of rays inside one 72 unit box, and walking the
+    /// tree for each of them costs more than the triangles do.</para>
+    /// </summary>
+    public int[] Overlapping(Vector3 mins, Vector3 maxs, ushort ignore = ExcludedFromTrace)
+    {
+        var found = new List<int>();
+        var stack = new Stack<int>();
+        stack.Push(0);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            var word = BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(HeaderSize + (node * 8)));
+            var axis = (int)(word & 3);
+            var payload = (int)(word >> 2);
+            if (axis == 3)
+            {
+                var count = (int)BinaryPrimitives.ReadUInt32LittleEndian(
+                    _data.AsSpan(HeaderSize + (node * 8) + 4));
+                for (var i = 0; i < count; i++)
+                {
+                    var triangle = (int)BinaryPrimitives.ReadUInt32LittleEndian(
+                        _data.AsSpan(_indexAt + ((payload + i) * 4)));
+                    if ((Flags(triangle) & ignore) != 0 || found.Contains(triangle))
+                        continue;
+                    if (Vertices(triangle) is not { } corners)
+                        continue;
+                    var lo = Vector3.Min(Vector3.Min(corners[0], corners[1]), corners[2]);
+                    var hi = Vector3.Max(Vector3.Max(corners[0], corners[1]), corners[2]);
+                    if (lo.X <= maxs.X && hi.X >= mins.X && lo.Y <= maxs.Y && hi.Y >= mins.Y
+                        && lo.Z <= maxs.Z && hi.Z >= mins.Z)
+                        found.Add(triangle);
+                }
+                continue;
+            }
+
+            var split = Float(HeaderSize + (node * 8) + 4);
+            var low = axis == 0 ? mins.X : axis == 1 ? mins.Y : mins.Z;
+            var high = axis == 0 ? maxs.X : axis == 1 ? maxs.Y : maxs.Z;
+            if (low <= split)
+                stack.Push(payload);
+            if (high >= split)
+                stack.Push(payload + 1);
+        }
+        return [.. found];
+    }
+
     /// <summary>Where a ray enters and leaves the scene's own box.</summary>
     private (float Enter, float Leave) Slab(Vector3 origin, Vector3 direction, float reach)
     {
@@ -289,7 +341,7 @@ public sealed class RayTraceEnvironment
     /// equations ARE the barycentric pair, so the point is inside when both are
     /// non-negative and they sum to at most one.
     /// </summary>
-    private Hit? Meets(int index, Vector3 origin, Vector3 direction, float from, float to)
+    public Hit? Meets(int index, Vector3 origin, Vector3 direction, float from, float to)
     {
         var at = _triangleAt + (index * 48);
         var normal = new Vector3(Float(at), Float(at + 4), Float(at + 8));

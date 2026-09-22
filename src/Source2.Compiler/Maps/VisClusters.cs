@@ -6,14 +6,22 @@ namespace Source2.Compiler.Maps;
 /// Stage 4: the clusters a region is cut into, ported from visbuilder.dll's
 /// <c>180032d80</c>.
 ///
-/// <para>There is no closed form for the count, and the reason is structural
-/// rather than a gap in the reading: a cluster is born for EVERY open voxel of
-/// every region the map encloses, and the count only comes down because
-/// <c>1800337a0</c> then merges the cheapest pairs by
-/// <see cref="VisMergeCost"/> until 32 remain or the cheapest merge left costs
-/// more than <see cref="MergeThreshold"/>. A region's mask holds at most 64
-/// voxels, so the merge only ever runs on a region with more than 32 open, and
-/// everything smaller is born and kept.</para>
+/// <para>A cluster is born for EVERY open voxel of every region the map
+/// encloses, and <c>1800337a0</c> then merges the cheapest pairs by
+/// <see cref="VisMergeCost"/>. A region's mask holds at most 64 voxels, so the
+/// merge only ever runs on a region with more than 32 open, and everything
+/// smaller is born and kept.</para>
+///
+/// <para>When it does run it runs to the end. The count the loop tests against
+/// its target of 32 includes the 56 shell boxes <see cref="VisClusterSample"/>
+/// pads the set with, and a merge takes one off it, so a region's clusters can
+/// never bring it down that far: the loop stops when the candidate graph is
+/// exhausted instead. A region is one CONNECTED run of open voxels and
+/// <c>1800306e0</c> rebuilds the surviving cluster's candidates from its grown
+/// box after every merge, so the graph stays connected and the whole region
+/// collapses to one cluster. That is why <see cref="Uniform"/> reproduces the
+/// count without sampling anything, and it is not because the voxels see
+/// alike.</para>
 /// </summary>
 public static class VisClusters
 {
@@ -87,23 +95,51 @@ public static class VisClusters
     /// How many clusters a region ends up with, which is the number the compile
     /// sums into "N clusters generated".
     ///
-    /// <para>The merge only runs at all on a region with more than
-    /// <see cref="MergeTarget"/> open voxels, and when it runs it does not stop
-    /// there: the loop continues while the cheapest pair still costs under
-    /// <see cref="MergeThreshold"/>. With <see cref="VisMergeCost"/>'s floor of
-    /// <c>distance + 10</c>, two clusters that see the same things merge whenever
-    /// their boxes are within ten units, and a region is by construction ONE
-    /// connected run of open voxels, so the whole of it collapses to one.</para>
-    ///
-    /// <para>That is where the assumption is, and it is worth naming: this takes
-    /// every voxel of a region to see alike, which is true of a region that holds
-    /// no occluder and is what makes the count exact on ze_hold_em_p without a
-    /// ray sampler. A region whose voxels genuinely differ needs the visibility
-    /// bits <c>180031a20</c> samples, and would come out above one.</para>
+    /// <para>With a <paramref name="scene"/> this runs the real thing: a cluster
+    /// per open voxel, <see cref="VisClusterSample"/> for what each one can see,
+    /// and <see cref="Merge"/> for the greedy loop. Without one it takes the
+    /// shortcut in <see cref="Uniform"/>. They agree to the unit on every map
+    /// measured, which is the point of keeping both: the shortcut is a claim
+    /// about what the merge always does, and the sampler is what tests it.</para>
     /// </summary>
     public static int Count(
         VisVoxelizer.Octree tree, VisRegions.Result regions,
-        IReadOnlyList<VisOutside.Status> status)
+        IReadOnlyList<VisOutside.Status> status, RayTraceEnvironment? scene = null)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentNullException.ThrowIfNull(regions);
+        ArgumentNullException.ThrowIfNull(status);
+
+        var total = 0;
+        var counts = new int[regions.Regions.Count];
+        Parallel.For(0, regions.Regions.Count, i =>
+        {
+            if (status[i] != VisOutside.Status.Inside)
+                return;
+            var region = regions.Regions[i];
+            var open = System.Numerics.BitOperations.PopCount(region.Open);
+            if (open <= MergeTarget || scene is null)
+            {
+                counts[i] = open <= MergeTarget ? open : 1;
+                return;
+            }
+
+            var leaf = regions.Leaves[region.Leaf];
+            var side = tree.LeafSize * (1 << leaf.Level);
+            var corner = tree.Origin + new Vector3(leaf.Cell.X, leaf.Cell.Y, leaf.Cell.Z) * side;
+            counts[i] = Merge(scene, corner, side, region.Open);
+        });
+        foreach (var count in counts)
+            total += count;
+        return total;
+    }
+
+    /// <summary>
+    /// The shortcut: a region the merge runs on at all collapses to one cluster,
+    /// so the count is the popcounts of the small regions plus one per large.
+    /// Instant, and identical to <see cref="Merge"/> on every map measured.
+    /// </summary>
+    public static int Uniform(VisRegions.Result regions, IReadOnlyList<VisOutside.Status> status)
     {
         ArgumentNullException.ThrowIfNull(regions);
         ArgumentNullException.ThrowIfNull(status);
@@ -117,6 +153,142 @@ public static class VisClusters
             total += open > MergeTarget ? 1 : open;
         }
         return total;
+    }
+
+    /// <summary>
+    /// One region's clusters, born and then merged. This is <c>1800337a0</c>:
+    /// the cheapest pair first, continuing while there are more than
+    /// <see cref="MergeTarget"/> left OR the cheapest is still under
+    /// <see cref="MergeThreshold"/>.
+    ///
+    /// <para>Two things about that loop are easy to get wrong and both change
+    /// the answer. The live count it tests INCLUDES the 56 shell boxes, and a
+    /// merge only takes one off it, so there are never enough clusters to bring
+    /// it down to the target: the run ends when the candidate graph is
+    /// exhausted, not when the count reaches 32. And the surviving cluster's
+    /// candidates are REBUILT after every merge by <c>1800306e0</c>, against its
+    /// new box and its merged bit vector, so the graph stays connected and the
+    /// costs stay honest.</para>
+    /// </summary>
+    public static int Merge(RayTraceEnvironment scene, Vector3 leafMins, float side, ulong open)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+
+        var entries = VisClusterSample.Entries(leafMins, side, open);
+        var visibility = VisClusterSample.Visibility(scene, leafMins, side, open, entries);
+        var count = visibility.Length;
+        if (count <= MergeTarget)
+            return count;
+
+        var state = new Working(entries, visibility, (int)(side * SubCell), side * SubCell);
+        var live = count + VisClusterSample.Shell.Length;
+        var clusters = count;
+        for (var i = 0; i < count; i++)
+            state.Rebuild(i);
+
+        while (true)
+        {
+            var (owner, other, cost) = state.Cheapest();
+            if (owner < 0 || (live <= MergeTarget && cost >= MergeThreshold))
+                break;
+
+            state.Absorb(owner, other);
+            live--;
+            if (--clusters == 1)
+                break;
+        }
+        return clusters;
+    }
+
+    /// <summary>
+    /// The merge's working set: a cluster per open voxel, and the candidate list
+    /// each one owns. A pair is stored once, in the HIGHER indexed cluster's
+    /// list, which is also the one that survives the merge.
+    /// </summary>
+    private sealed class Working(
+        IReadOnlyList<VisClusterSample.Entry> entries, ulong[][] visibility, int voxelSize, float grow)
+    {
+        private readonly int _count = visibility.Length;
+        private readonly Vector3[] _mins = [.. entries.Take(visibility.Length).Select(e => e.Mins)];
+        private readonly Vector3[] _maxs = [.. entries.Take(visibility.Length).Select(e => e.Maxs)];
+        private readonly int[] _voxels = [.. Enumerable.Repeat(1, visibility.Length)];
+        private readonly bool[] _alive = [.. Enumerable.Repeat(true, visibility.Length)];
+        private readonly List<(int Other, float Cost)>[] _candidates =
+            [.. Enumerable.Range(0, visibility.Length).Select(_ => new List<(int, float)>())];
+
+        /// <summary>The cheapest live pair, or (-1, -1, max) when none is left.</summary>
+        public (int Owner, int Other, float Cost) Cheapest()
+        {
+            var best = (Owner: -1, Other: -1, Cost: float.MaxValue);
+            for (var owner = 0; owner < _count; owner++)
+            {
+                if (!_alive[owner])
+                    continue;
+                foreach (var (other, cost) in _candidates[owner])
+                    if (_alive[other] && cost < best.Cost)
+                        best = (owner, other, cost);
+            }
+            return best;
+        }
+
+        /// <summary>Merge <paramref name="other"/> into <paramref name="owner"/>.</summary>
+        public void Absorb(int owner, int other)
+        {
+            _mins[owner] = Vector3.Min(_mins[owner], _mins[other]);
+            _maxs[owner] = Vector3.Max(_maxs[owner], _maxs[other]);
+            _voxels[owner] += _voxels[other];
+            for (var w = 0; w < visibility[owner].Length; w++)
+                visibility[owner][w] |= visibility[other][w];
+
+            _alive[other] = false;
+            _candidates[other].Clear();
+            for (var i = 0; i < _count; i++)
+                _candidates[i].RemoveAll(c => c.Other == other);
+            Rebuild(owner);
+        }
+
+        /// <summary>
+        /// A cluster's candidates, from its box dilated by a unit, grown by a
+        /// voxel at a time until the query finds more than the cluster itself.
+        /// </summary>
+        public void Rebuild(int owner)
+        {
+            _candidates[owner].Clear();
+            var slack = 1f;
+            for (var attempt = 0; attempt < 5 && Reached(owner, slack) == 0; attempt++)
+                slack += grow;
+
+            for (var other = 0; other < _count; other++)
+            {
+                if (other == owner || !_alive[other] || !Touches(owner, slack, other))
+                    continue;
+                var cost = VisMergeCost.Of(Cluster(owner), Cluster(other));
+                var (holder, id) = owner < other ? (other, owner) : (owner, other);
+                var list = _candidates[holder];
+                var at = list.FindIndex(c => c.Other == id);
+                if (at >= 0)
+                    list[at] = (id, cost);
+                else
+                    list.Add((id, cost));
+            }
+        }
+
+        private int Reached(int owner, float slack)
+        {
+            var found = 0;
+            for (var other = 0; other < _count; other++)
+                if (other != owner && _alive[other] && Touches(owner, slack, other))
+                    found++;
+            return found;
+        }
+
+        private bool Touches(int owner, float slack, int other)
+            => _mins[owner].X - slack <= _maxs[other].X && _maxs[owner].X + slack >= _mins[other].X
+            && _mins[owner].Y - slack <= _maxs[other].Y && _maxs[owner].Y + slack >= _mins[other].Y
+            && _mins[owner].Z - slack <= _maxs[other].Z && _maxs[owner].Z + slack >= _mins[other].Z;
+
+        private VisMergeCost.Cluster Cluster(int at)
+            => new(visibility[at], _voxels[at], voxelSize, 0, _mins[at], _maxs[at]);
     }
 
     /// <summary>

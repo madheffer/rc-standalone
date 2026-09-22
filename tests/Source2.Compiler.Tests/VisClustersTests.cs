@@ -46,11 +46,20 @@ public class VisClustersTests(ITestOutputHelper output)
                      / VisVoxelizer.VoxelsPerLeaf;
             var regions = VisRegions.Build(tree, side);
             var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
-            var clusters = VisClusters.Count(tree, regions, inside.Regions);
+            var started = DateTime.UtcNow;
+            var clusters = VisClusters.Count(tree, regions, inside.Regions, rte);
+            var uniform = VisClusters.Uniform(regions, inside.Regions);
 
             var error = (double)clusters / specimen.Clusters - 1;
             output.WriteLine($"{specimen.Map,-16} clusters {clusters,8:n0}"
-                           + $"  compile {specimen.Clusters,8:n0}  {error,8:P2}");
+                           + $"  compile {specimen.Clusters,8:n0}  {error,8:P2}"
+                           + $"   (uniform model {uniform,8:n0},"
+                           + $" {(double)uniform / specimen.Clusters - 1,7:P2};"
+                           + $" sampled in {(DateTime.UtcNow - started).TotalSeconds:F0}s)");
+            // The sampler and the shortcut are two routes to the same number and
+            // they have to stay that way: the shortcut is a claim about what the
+            // merge always does, and this is the only thing that tests it.
+            Assert.Equal(uniform, clusters);
             Assert.True(Math.Abs(error) <= tolerance,
                 $"{specimen.Map}: {clusters:n0} clusters against the compile's "
               + $"{specimen.Clusters:n0}, {error:P2} off");
@@ -116,5 +125,50 @@ public class VisClustersTests(ITestOutputHelper output)
                 $"{specimen.Map}: {born.Count:n0} born is under the compile's {specimen.Clusters:n0},"
               + " and a merge can only ever take the count down");
         }
+    }
+
+    /// <summary>
+    /// How the enclosed regions are spread over their open-voxel counts.
+    ///
+    /// <para>The cluster count is <c>n</c> for a region with n open voxels at or
+    /// under the target and ONE above it, so the function has a cliff of 32 at
+    /// the boundary. That makes the total exquisitely sensitive to a region whose
+    /// mask is a voxel out, and this is what says whether a map has any.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("s2c_lighting", "ze_hold_em_p", 93_354)]
+    [InlineData("s2c_rc_probe", "cardtest", 81_835)]
+    public void WhereTheRegionsSitAroundTheMergeTarget(string addon, string map, int clusters)
+    {
+        if (VisFixtures.RayTraceScene(addon, map) is not var (rte, valve))
+            return;
+
+        var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
+        var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
+                 / VisVoxelizer.VoxelsPerLeaf;
+        var regions = VisRegions.Build(tree, side);
+        var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
+
+        var open = new List<int>();
+        for (var i = 0; i < regions.Regions.Count; i++)
+            if (inside.Regions[i] == VisOutside.Status.Inside)
+                open.Add(System.Numerics.BitOperations.PopCount(regions.Regions[i].Open));
+
+        var ours = open.Sum(n => n > VisClusters.MergeTarget ? 1 : n);
+        output.WriteLine($"{map}  {open.Count:n0} enclosed regions, {ours:n0} clusters"
+                       + $" against {clusters:n0}, short by {clusters - ours:n0}");
+        // The shipped file carries the deduplicated mask table the compile built,
+        // so a mask of ours that is not in it is a mask Valve never produced.
+        var theirs = valve.Masks.ToHashSet();
+        var mine = new HashSet<ulong>();
+        for (var i = 0; i < regions.Regions.Count; i++)
+            if (inside.Regions[i] == VisOutside.Status.Inside)
+                mine.Add(regions.Regions[i].Open);
+        output.WriteLine($"   masks: {mine.Count} distinct of ours, {theirs.Count} in the file,"
+                       + $" {mine.Count(m => !theirs.Contains(m))} of ours it never produced");
+
+        foreach (var band in new[] { (1, 8), (9, 16), (17, 24), (25, 31), (32, 32), (33, 40), (41, 56), (57, 64) })
+            output.WriteLine($"   {band.Item1,3} to {band.Item2,3} open: {open.Count(n => n >= band.Item1 && n <= band.Item2),7:n0}"
+                           + $"  contributing {open.Where(n => n >= band.Item1 && n <= band.Item2).Sum(n => n > VisClusters.MergeTarget ? 1 : n),8:n0}");
     }
 }
