@@ -115,37 +115,38 @@ consumes, `Convert RTE with 28728 triangles`. Decoding it lets the visibility
 builder be written and scored now, against a real map, without the geometry
 pipeline existing.
 
-1. Decode the `.rte`. Triangle soup plus whatever spatial structure it carries.
-   Validate by re-deriving counts the log prints.
-2. Voxelize. **DONE, -0.42% on ze_hold_em_p** (81,281 nodes against the compile's
-   81,625), with 99.66% of the shipped octree's branches reproduced. The root is a
-   per-map cube, a leaf is four base voxels because it carries a 4x4x4 mask, and
-   nodes are one root plus eight per branch. `VisVoxelizer`, scored by
-   `VisVoxelizerTests`. The two probe maps are 41% wide because 14% of THEIR
-   triangles mis-decode, which is an `.rte` problem and not a stage one. The rest
-   of the scoring targets stand: 10,554 regions in, 103,358 out, collapsed to
-   4,194, 258 clusters against a target of 1,342, 129 unique masks.
-3. Regions and clusters. **Regions and outside detection BUILT, -2.59% on
-   ze_hold_em_p** (10,281 enclosed regions against the compile's 10,554), ported
-   from visbuilder.dll (`1800321f0`, see docs/VISBUILDER_FUNCTIONS.md). It is a
-   per-region vote over rays marched through the voxel octree, seeded by a bounds
-   test and propagated along rays rather than through voxel adjacency, which is
-   why it works on geometry that does not seal. The printed count is the regions
-   with flag bits 0 and 1 both clear. `VisOutside`, scored by `VisOutsideTests`,
-   which also asserts the one parameter that is ours does not carry the answer.
-   What is left in this stage is cluster generation, which is MAPPED but not
-   built: the count is a sum of per-region counts made in `180032d80`, and the
-   three lists that drive the subdivision are HINTS read off map entities by
-   `18002b500` (hintType 4, 5 and 6 are the x, y and z axis splits). A column
-   rule fits the two probe maps to 2.5% and misses ze_hold_em_p by 54%, so
-   nothing was adopted. See docs/VIS.md.
+1. Decode the `.rte`. **DONE, exactly**, read out of
+   `CVisibilityMesh::LoadRTEFromFile` (`180049e00`) and the unserializer under it
+   rather than inferred: the header is 60 bytes and the index array is `C`, and
+   the two errors in the old reading cancelled in the file-size arithmetic, which
+   is why "both specimens tile exactly" passed for a layout that was one float out
+   of phase. Every traced triangle of all three measured maps rebuilds, all their
+   normals are already unit length, and the rebuilt bounding box is the header's
+   own to the unit. `RayTraceEnvironment`, docs/RTE.md.
+2. Voxelize. **DONE, EXACT on ze_hold_em_p** (81,625 nodes against the compile's
+   81,625), with **100% of the shipped octree's branches reproduced on all three
+   maps**. It is `18002e310`'s top-down build and not a marking pass, because the
+   set of triangles that counts depends on the box: above 256 units everything
+   counts and at or below it a `0x1000` triangle does not, and a node becomes a
+   branch on size alone once its parent found geometry in it. The two probe maps
+   are +0.28%, six branches each. `VisVoxelizer`, scored by `VisVoxelizerTests`.
+   The rest of the scoring targets stand: 10,554 regions in, 103,358 out,
+   collapsed to 4,194, 258 clusters against a target of 1,342, 129 unique masks.
+3. Regions, outside detection and cluster generation. **All three EXACT on
+   ze_hold_em_p**: 10,554 enclosed regions against 10,554, and 93,354 clusters
+   generated against 93,354. Outside detection is `1800321f0`, a per-region vote
+   over rays marched through the voxel octree, propagated along rays rather than
+   through voxel adjacency, which is why it works on geometry that does not seal.
+   Cluster generation is `180032d80`: one cluster per open voxel, then
+   `1800337a0` merges the cheapest pairs by `VisMergeCost` (which is
+   `1800301c0`, slot 1 of the merge controller vtable, with every constant read
+   out of the DLL and pinned by a test that reads them back). `VisOutside`,
+   `VisClusters`, `VisMergeCost`.
 
-   The measurements that led there stand: a region is a connected run of open
-   voxels in a leaf and `VisRegions` produces them, and the flood fill the naive
-   reading calls for returns nothing, because the `.rte` does not seal the map.
-   ze_hold_em_p voxelizes with no ceiling and no far wall and all 6,875,040 of its
-   open voxels reach the world box. Three candidates measured at -29%, -100% and
-   +323% before the binary settled it.
+   Open here: the two probe maps sit at -49% on the enclosed region count, which
+   is no longer a decode problem and is recorded in docs/VIS.md; and the cluster
+   merge currently assumes every voxel of a region sees alike, which is what makes
+   the count exact without the per-cluster ray sample `180031a20` takes.
 4. PVS. Score with `vis-diff`: **zero holes is the requirement**, overdraw is
    negotiable, and the settings band says a couple of percent is normal
    variation.

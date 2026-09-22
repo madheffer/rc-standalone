@@ -114,4 +114,31 @@ public class VisCorpusTests(ITestOutputHelper output)
             at = at.Parent;
         return at?.FullName;
     }
+
+    /// <summary>
+    /// Mako on its own, because it is the biggest thing we have and the numbers
+    /// for it were recorded before the corpus tool existed: 23 MB of ray trace
+    /// scene, 279,064 triangles, 2,643,577 nodes and 751,270 regions, and 1,088
+    /// seconds of Valve's own visibility. It is skipped unless MAKO is set,
+    /// because voxelizing it is minutes rather than seconds.
+    /// </summary>
+    [Fact]
+    public void TheBiggestSceneWeHaveIsScoredToo()
+    {
+        if (Environment.GetEnvironmentVariable("MAKO") is not { Length: > 0 })
+            return;
+        if (VisFixtures.RayTraceScene("s2c_big", "ze_ffvii_mako_reactor_v6_p") is not var (rte, valve))
+        {
+            output.WriteLine("no Mako .rte or compiled vis");
+            return;
+        }
+
+        var traced = Enumerable.Range(0, rte.TriangleCount).Count(rte.Traced);
+        var started = DateTime.UtcNow;
+        var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
+        output.WriteLine($"triangles {traced:n0} of {rte.TriangleCount:n0}"
+                       + $"   nodes {tree.Nodes:n0} against 2,643,577"
+                       + $"   {(double)tree.Nodes / 2_643_577 - 1:P2}"
+                       + $"   in {(DateTime.UtcNow - started).TotalSeconds:F0}s");
+    }
 }
