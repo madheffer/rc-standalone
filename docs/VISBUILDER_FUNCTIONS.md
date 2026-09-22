@@ -165,3 +165,18 @@ The same blind spot hid the four ray generator names, which needed a scan of
 `.text` for RIP-relative displacements onto the strings. Anything reached only
 through a vtable slot or a 32 bit RVA needs one of those two techniques; a call
 graph will not find it, and its absence from a dump is not evidence it is dead.
+
+## The merge, which is also unreachable
+
+| address | what it is | reached by |
+|---|---|---|
+| `1800337a0` | the five passes' merge loop | `DumpCallers` on `180030a50` |
+| `180030a50` | absorb one cluster into another | `DumpCallers` on `18002f250` |
+| `1800306e0` | build one cluster's candidate list | `1800337a0` |
+| `180031680` | scan every slot for the cheapest pair | `1800337a0` |
+| `180030df0` | build every cluster's candidates | `1800337a0` |
+| `180033600` | drop the merged clusters and compact | `1800337a0` |
+
+`CBoxMerge::MergeBestCandidates` (`180027f50`) and its driver `180028c70` are
+NOT this merge. They belong to `18002f5c0`, the distance pre-merge, which is a
+near no-op on every map we have.

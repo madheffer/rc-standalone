@@ -1435,6 +1435,60 @@ above.
 `180016c60` consumes only that last vector, and both of its halves are gated on
 debug fields, so nothing it does reaches the PVS.
 
+### The merge ordering, read in full
+
+The five passes' merger is `1800337a0`, and it, its candidate builder
+`1800306e0`, its scan `180031680` and its compaction `180033600` are all in
+Ghidra's blind spot. They came out through `DumpCallers` on `180030a50`, which
+is the only thing that reaches them.
+
+**`1800306e0` builds one cluster's candidates**, and confirms what we had: the
+box is grown by 1 unit each way, and while fewer than two neighbours come back
+it is grown again by the cluster's voxel size, up to four times. The cost is
+always read as `(this, neighbour)`, but the pair is **filed once, on the HIGHER
+indexed of the two**, and an entry already there is rewritten in place.
+
+That one-sided filing is load-bearing. Filing both directions instead, so every
+cluster carries its own full neighbour list, takes probe01's first-pass cost
+from -1.93% to **-52.97%**: the cost is not symmetric, and holding both
+orientations lets the scan pick the cheaper one every time.
+
+**`180031680` is a full scan, not a heap.** For each live slot it picks that
+slot's own best candidate, keeping the incumbent unless a rival is cheaper by
+`1e-4` (`DAT_18017f0cc`); inside that band it asks a deterministic tie break
+instead. Then the slots are compared, and there is a second rule there we did
+not have:
+
+> when two slots' costs are within `1e-3` (`DAT_18017f0d0`), the pair with the
+> **smaller combined voxel count** wins. A strictly lower cost still wins
+> outright.
+
+Early in a pass, when every cluster is a single voxel and the costs are all but
+identical, that rule fires constantly, and it is the obvious candidate for why
+Valve's clusters stay spread out instead of one of them absorbing its
+neighbourhood.
+
+Implemented on its own it does not deliver. probe01 holds its cost at -1.92%,
+but the first pass goes from 1,946 clusters (-1.67%) to 2,197 (+11.02%) and the
+assignment total moves only from -42.18% to -41.94%. So the rule is real and we
+were missing it, but something around it is still wrong, most likely the
+deterministic tie break inside the `1e-4` band, which is what `DeterministicBuild`
+turns on and what the shipped config sets. It is reverted rather than kept,
+because it makes a scored number worse.
+
+### The pre-merge is not the answer either
+
+`18002f5c0` runs `CBoxMerge` (`180028c70` driving
+`CBoxMerge::MergeBestCandidates`), and that IS a round based Boruvka matching:
+every cluster proposes its cheapest partner in parallel, the global minimum cost
+is taken, and every pair at that cost merges at once with each cluster allowed
+one merge per round. It looks like exactly the mechanism that would spread
+clusters out.
+
+It is not, because on our maps it barely runs: ze_hold_em_p goes 93,354 to
+93,354, nothing merged, and cardtest 81,991 to 81,865. Whatever produces the
+coverage gap happens in the five passes.
+
 ### The rest
 
 | stage | what is known |
