@@ -1520,6 +1520,42 @@ the three pass counts goes from 2.28% to 7.13%. Re-applying them is worth doing
 the moment the fifth pass is understood, and the rules above are exact enough to
 re-enter from this page.
 
+### ze_hold_em_p's cluster count and the assignment gap are ONE defect
+
+Our final clusters cover 11,558 (cluster, leaf) pairs on ze_hold_em_p, over
+11,385 regions. That is a **partition**: essentially every leaf ends up inside
+exactly one cluster. Valve's 258 clusters cover roughly 74,000 pairs over about
+10,554 leaves, so each leaf sits in about seven of them and their clusters
+**overlap**.
+
+Each newborn cluster carries exactly one (mask, leaf) pair, and a leaf is born
+with eight or nine of them, one per open voxel. `18002f250` ORs two records that
+share a leaf when it merges two clusters, so a leaf's siblings collapse to a
+single pair the moment they end up in the same cluster. Ours always do. Valve's
+land in about seven different clusters and survive.
+
+That single fact explains both open numbers:
+
+- **350 clusters against 258.** Merging every leaf's siblings together exhausts
+  the candidate graph early, and the merge stops at its connected components.
+- **Assignment at -60%.** The flat array's length IS the pair count, so a
+  partition can never reach a total that assumes overlap.
+
+So these are not two defects to chase separately. Whatever keeps Valve's
+same-leaf siblings apart is the one thing left in this stage, and it is worth
+saying that neither the cost function, the ordering, the candidate query nor the
+sampler explains it, because all four are now read from the image and match.
+
+### The candidate query grows by BaseVoxelSize
+
+`1800306e0` starts one unit out from the cluster's box and, while the query
+still finds nothing but the cluster itself, grows by `sampler+0xf0` up to four
+more times. That field is `ResourceCompiler/VisBuilder/BaseVoxelSize`, default
+8, which the shipped gameinfo does not override; the constructor stores it at
+`+0x1e` of an eight-byte-stride object, which is `+0xf0`. We were growing by the
+cluster's OWN voxel size, which agrees at level 0 and not above it. Correct now,
+though it moves no number on the three specimens.
+
 ### The sampling marked on the BOX, and the compile marks on the VOXELS
 
 This is what the fifth pass was exposing, and it is in `18003d600`, the walk

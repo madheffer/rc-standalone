@@ -268,9 +268,11 @@ public static class VisMerge
         private void Rebuild(int owner)
         {
             _candidates[owner].Clear();
+            // 1800306e0 starts one unit out and grows by BaseVoxelSize, up to
+            // four more times, while the query still finds nothing but itself.
             var slack = Slack;
-            for (var attempt = 0; attempt < 5 && Reached(owner, slack) == 0; attempt++)
-                slack += _clusters[owner].VoxelSize;
+            for (var attempt = 0; attempt < 4 && Reached(owner, slack) == 0; attempt++)
+                slack += VisClusters.BaseVoxelSize;
 
             for (var other = 0; other < _clusters.Count; other++)
             {

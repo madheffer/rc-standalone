@@ -37,6 +37,14 @@ public static class VisClusters
     /// <summary>What a merge may cost before the loop gives up (<c>DAT_18017f18c</c>).</summary>
     public const float MergeThreshold = 20f;
 
+    /// <summary>
+    /// <c>ResourceCompiler/VisBuilder/BaseVoxelSize</c>, which defaults to 8 and
+    /// which the shipped gameinfo does not override. The sampler keeps it at
+    /// <c>+0xf0</c>, and the candidate query grows its box by this much, not by
+    /// the cluster's own voxel size.
+    /// </summary>
+    public const float BaseVoxelSize = 8f;
+
     /// <summary>Clusters a region is merged down towards, the <c>0x20</c> argument.</summary>
     public const int MergeTarget = 32;
 
