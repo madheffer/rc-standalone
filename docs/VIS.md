@@ -1156,6 +1156,62 @@ independent statement of the format the compiled file uses:
 Both match what `VisVoxelizer` already implements, which is worth having from the
 compiler's own code rather than from inference over shipped files.
 
+## What is left of the stage, and what is known about each piece
+
+The five stages above end at `93354 clusters generated`. `180031f00` and
+`CVoxelSampler3__MergeInsideRegions` name everything after it, and the compile
+prints a number for each, so none of it is guesswork about WHAT to build - only
+about how.
+
+### `18002f5c0`, the distance pre-merge
+
+Gated on `sampler+0xf4`, which is set only when
+`PreMergeOpenSpaceDistanceThreshold` is positive - and the shipped config sets it
+to 128, so it runs on every map. It collects the regions that produced exactly
+ONE cluster carrying the `+0x54` open-space flag, merges their boxes through
+`180028c70` with the max dimension and max ratio from the config, and folds the
+cluster lists together. Numbers to hit: `Distance merged regions (%d merged to
+%d)` and `pre-merged to %d clusters`.
+
+| | clusters generated | pre-merged to |
+|---|---|---|
+| ze_hold_em_p | 93,354 | 93,354, nothing merged |
+| cardtest | 81,991 | 81,865 |
+| probe01 | 81,707 | 81,576 |
+
+### `180034220`, `MergeClusterSet`, run FIVE times
+
+This is the expensive one - 400 of Mako's 1,088 seconds - and it takes
+ze_hold_em_p from 93,354 clusters to 258. The signature is
+`(sampler, clusters, cell, margin, costLimit, budget)` and the five calls are:
+
+| pass | cell | margin | cost limit | budget |
+|---|---|---|---|---|
+| 1a | 512 | 0 | 20 | target x 6 |
+| 1b | 512 | 256 | what 1a returned | target x 5.75 |
+| 2a | 2,048 | 0 | what 1b returned | target x 4.5 |
+| 2b | 2,048 | 1,024 | ... | target x 4.25 |
+| final | 4,096 | 0 | ... | target x 3 |
+
+It buckets clusters into a **2D grid** over the scene's own box - `floor` and
+`ceil` of the bounds against the cell size, offset by half the margin - and hashes
+`(cy % ny) * nx + (cx % nx)` through a 32-bit mixer into an open-addressed table.
+Only x and y are in the key; z is not. The merging then happens within a bucket.
+
+The budgets are not binding on the maps measured: ze_hold_em_p's first pass
+budget is 8,052 and it lands at 258, so the cost limit is what stops it.
+
+### The rest
+
+| stage | what is known |
+|---|---|
+| `18002ed60`, `180037840` | cluster assignment; prints `Assigned %d clusters` |
+| `180036850` | the PVS itself, and the three ray generators that are 52% of a compile |
+| `CVoxelSampler3__AdaptivelySampleBorders` | prints `Adaptive border clusters` |
+| `18003c010`'s volume gate | below 2^20 cubic units of enclosed space the whole PVS is disabled, with `Visibility cannot be determined in this map` |
+| `18003c010`'s collapse | `Collapsing resolution`, `Reduced node count from %d to %d`, `%d unique masks` |
+| `180048120` | the write, which our codec already does byte-exactly |
+
 ## Where a replacement starts
 
 1. ~~Force Valve's builder to re-run~~ done, 13.5 seconds a round on a small map,
