@@ -111,17 +111,25 @@ public static class VisMerge
 
         var live = clusters.Count + shell;
         var state = new Selection(clusters);
+
+        // 1800337a0's loop tests the limit TWICE, and the first test is on the
+        // cost of the pair it merged LAST rather than on the one it is about to
+        // merge: while ((budget < live || best < limit) && (Cheapest(), budget <
+        // live || cost < limit)). Absorbing rebuilds the survivor's candidates,
+        // so a fresh cost can come out below a limit the run had already passed,
+        // and testing only the new one keeps merging there. The seed is
+        // DAT_18017f1e8, which is -1.
         var best = -1f;
-        while (true)
+        while (live > budget || best < costLimit)
         {
             var (owner, other, cost) = state.Cheapest();
-            if (owner < 0 || (live <= budget && cost >= costLimit))
+            if (!(live > budget || cost < costLimit))
+                break;
+            if (owner < 0 || other < 0 || owner == other)
                 break;
             best = cost;
             state.Absorb(owner, other);
             live--;
-            if (state.Live == 1)
-                break;
         }
 
         state.Keep(clusters);
@@ -148,12 +156,21 @@ public static class VisMerge
         private readonly List<Cluster> _clusters;
         private readonly bool[] _alive;
         private readonly List<(int Other, float Cost)>[] _candidates;
+        private readonly VisBoxTree _tree = new();
+        private readonly int[] _proxy;
+        private readonly List<int> _found = [];
 
         public Selection(List<Cluster> clusters)
         {
             _clusters = clusters;
             _alive = [.. Enumerable.Repeat(true, clusters.Count)];
             _candidates = [.. Enumerable.Range(0, clusters.Count).Select(_ => new List<(int, float)>())];
+
+            // 1800337a0 puts every cluster in the tree with its OWN box, payload
+            // its index, before any list is built.
+            _proxy = new int[clusters.Count];
+            for (var i = 0; i < clusters.Count; i++)
+                _proxy[i] = _tree.Create(clusters[i].Mins, clusters[i].Maxs, i);
             for (var i = 0; i < clusters.Count; i++)
                 Rebuild(i);
             Live = clusters.Count;
@@ -246,6 +263,11 @@ public static class VisMerge
         public void Absorb(int owner, int other)
         {
             _clusters[owner].Absorb(_clusters[other]);
+            // 180030a50 moves the survivor to its new box and destroys the other
+            // BEFORE rebuilding, so the rebuild queries a tree that already has
+            // the union in it and no longer has the absorbed cluster.
+            _tree.Move(_proxy[owner], _clusters[owner].Mins, _clusters[owner].Maxs);
+            _tree.Destroy(_proxy[other]);
             _alive[other] = false;
             _candidates[other].Clear();
             for (var i = 0; i < _candidates.Length; i++)
@@ -265,18 +287,35 @@ public static class VisMerge
             into.AddRange(kept);
         }
 
+        /// <summary>
+        /// <c>1800306e0</c>: clear the owner's list, query the tree with its box
+        /// grown by <see cref="Slack"/>, grow by the compile's voxel size up to
+        /// four more times while the query still finds nothing but the owner
+        /// itself, and price everything it came back with.
+        ///
+        /// <para>The order the query returns them in is load bearing. A rival no
+        /// dearer than <see cref="Better"/> displaces the held candidate, so
+        /// which of two equally priced pairs a cluster ends up holding is decided
+        /// by which the traversal reached last. That is why this reads the tree
+        /// rather than scanning the set by index.</para>
+        /// </summary>
         private void Rebuild(int owner)
         {
             _candidates[owner].Clear();
-            // 1800306e0 starts one unit out and grows by BaseVoxelSize, up to
-            // four more times, while the query still finds nothing but itself.
-            var slack = Slack;
-            for (var attempt = 0; attempt < 4 && Reached(owner, slack) == 0; attempt++)
-                slack += VisClusters.BaseVoxelSize;
+            if (_clusters.Count <= 1)
+                return;
 
-            for (var other = 0; other < _clusters.Count; other++)
+            var slack = Slack;
+            Query(owner, slack);
+            for (var attempt = 0; attempt < 4 && _found.Count <= 1; attempt++)
             {
-                if (other == owner || !_alive[other] || !Touches(owner, slack, other))
+                slack += VisClusters.BaseVoxelSize;
+                Query(owner, slack);
+            }
+
+            foreach (var other in _found)
+            {
+                if (other == owner || (uint)other >= (uint)_clusters.Count || !_alive[other])
                     continue;
                 var cost = VisMergeCost.Of(Read(owner), Read(other));
                 var (holder, id) = owner < other ? (other, owner) : (owner, other);
@@ -289,22 +328,11 @@ public static class VisMerge
             }
         }
 
-        private int Reached(int owner, float slack)
+        private void Query(int owner, float slack)
         {
-            var found = 0;
-            for (var other = 0; other < _clusters.Count; other++)
-                if (other != owner && _alive[other] && Touches(owner, slack, other))
-                    found++;
-            return found;
-        }
-
-        private bool Touches(int owner, float slack, int other)
-        {
-            var a = _clusters[owner];
-            var b = _clusters[other];
-            return a.Mins.X - slack <= b.Maxs.X && a.Maxs.X + slack >= b.Mins.X
-                && a.Mins.Y - slack <= b.Maxs.Y && a.Maxs.Y + slack >= b.Mins.Y
-                && a.Mins.Z - slack <= b.Maxs.Z && a.Maxs.Z + slack >= b.Mins.Z;
+            var grow = new Vector3(slack);
+            _found.Clear();
+            _tree.Query(_clusters[owner].Mins - grow, _clusters[owner].Maxs + grow, _found);
         }
 
         private VisMergeCost.Cluster Read(int at)

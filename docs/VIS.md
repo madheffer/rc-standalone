@@ -1793,6 +1793,79 @@ quarter of the records this stage emits, and the probes' merge under-merges by
 about 5%, which is 350 pairs of 11,595. Fixing the merge closes it; nothing else
 in assignment is outstanding.
 
+## The merge, checked end to end, and the tree finally wired
+
+The five passes are `180034220` five times from `180034ea0`, each returning the
+cost the next one starts at, and everything they are made of has now been read
+against the binary rather than inferred:
+
+| | |
+|---|---|
+| `180034220` | one pass: re-bucket by cell and call MergeClusterSet. Ghidra types it `void`; the call sites read its XMM0, which is how the cost chains |
+| `180033fd0` | merge every bucket at the incoming limit with DOUBLE the budget, average what that cost, merge again at the average with the single budget |
+| `1800337a0` | one bucket's merge loop |
+| `180030df0` | the initial candidate lists |
+| `1800306e0` | one cluster's list, rebuilt |
+| `180030a50` | absorb |
+| `180031680` | the cheapest live pair |
+| `1800301c0` | the cost |
+| `18003dea0` / `18003de20` | the two job bodies, both passing padded = false |
+
+Every constant came out of the PE rather than a guess: cells 512/512/2048/2048/4096,
+margins 0/256/0/1024/0, budget multipliers 6, 5.75, 4.5, 4.25 and 3, the first
+limit 20.0, `DAT_18017f1e8` = **-1.0** as the loop's seed cost, `DAT_18017f1dc` =
+**-1e-4** as the gain floor, `DAT_18017f0cc` = 1e-4, `DAT_18017f0d0` = 1e-3, and
+`_DAT_18017f260` = `0x7fffffff` as the abs mask. All of them already matched.
+
+Two things did not, and both are fixed:
+
+**The loop tests the limit twice, and the first test is on the LAST cost it
+merged.** `while ((budget < live || best < limit) && (Cheapest(), budget < live
+|| cost < limit))`. Absorbing rebuilds the survivor's candidates, so a fresh cost
+can come out under a limit the run had already passed, and testing only the new
+one keeps merging there. It is inert on all three specimens, because `live >
+budget` dominates every bucket they have, but it is what the binary does.
+
+**The candidate lists come from the AABB tree, and now they do here too.**
+`1800337a0` gives every cluster a proxy with its own box, `180030a50` moves the
+survivor and destroys the other, and `1800306e0` queries the tree, growing the
+box by 1 unit and then by the compile's voxel size up to four more times while it
+still finds nothing but the cluster itself. Standing that up in place of the
+linear scan had failed twice, taking probe01's first pass from 2,466 clusters to
+1,138; both attempts were reading a ray trace that landed 27% of its rays on the
+wrong triangle. With that fixed the tree reproduces the scan's numbers **to the
+cluster on all three maps**, which is what says the structure was never the
+problem. It is kept rather than reverted because the order a query returns
+candidates in decides which of two equally priced pairs a cluster holds, and only
+the tree gives Valve's order.
+
+### What is still 5% out
+
+The counts did not move: -5.36% / -6.23% / -5.68% on probe01, -4.50% / -4.44% /
+-5.10% on cardtest, -5.81% throughout on ze_hold_em_p. We merge about one pair in
+twenty more than the compile does, and by the same margin on every map, which
+still reads as one cause rather than three.
+
+What is ruled out, by reading rather than by trying: the loop and its stopping
+rule, the cost function and all of its penalties, the candidate build and rebuild,
+the absorb, the cheapest-pair scan including both levels of its tie-break, the
+bucketing and its cell boxes, the pass parameters, the budget arithmetic, and the
+cost chain, whose value we land within 1.15% of on probe01. The tree is no longer
+a candidate either.
+
+What is NOT ruled out, in the order worth trying:
+
+1. **The visibility sampling, `180031a20`.** Every cost is a popcount over these
+   bitsets, so a small systematic difference in what a cluster can see moves every
+   cost and therefore where the loop stops. It is the one input to the merge that
+   has not been diffed against the binary, and the fact that cluster GENERATION is
+   exact only constrains it at the one-voxel scale.
+2. **`18002f5c0`, the distance pre-merge**, which is still not implemented. It
+   prints `pre-merged to %d clusters` between generation and the five passes. It
+   was measured as a near no-op before (cardtest 81,991 to 81,865, ze_hold_em_p
+   nothing), and ze_hold_em_p being 5.81% out with nothing for it to do makes it
+   an unlikely whole answer, but it is a real missing stage.
+
 ### Three fidelity gaps closed on the way
 
 **`18004b970`, a whole re-trace pass we did not have.** A ray that stops on a

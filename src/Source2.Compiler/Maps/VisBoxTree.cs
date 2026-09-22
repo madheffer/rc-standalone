@@ -17,13 +17,16 @@ namespace Source2.Compiler.Maps;
 /// <c>18010bbb0</c> tests an exact inclusive overlap with no margin. So the tree
 /// answers precisely the set of leaves whose boxes meet the query.</para>
 ///
-/// <para>It is NOT yet wired into <see cref="VisMerge"/>. Standing it up in
-/// place of the linear scan changed probe01's first pass from 2,466 clusters to
-/// 1,138, and the cause is in the wiring rather than here: the tree ends up
-/// holding a cluster's box from before it grew, while <see cref="Validate"/>
-/// reports the structure itself clean. The tests below cover create, move,
-/// destroy, pool growth and a query after every absorb, and all of them agree
-/// with a brute force scan.</para>
+/// <para>It IS what <see cref="VisMerge"/> builds its candidate lists from, the
+/// way <c>1800337a0</c> does: every cluster gets a proxy with its own box before
+/// any list is built, an absorb moves the survivor and destroys the other, and
+/// <c>1800306e0</c> then queries it. Two earlier attempts to stand it up moved
+/// probe01's first pass from 2,466 clusters to 1,138; both were reading a ray
+/// trace that landed 27% of its rays on the wrong triangle, and with that fixed
+/// the tree reproduces the linear scan's numbers to the cluster on all three
+/// specimens. It is kept because the ORDER a query returns candidates in decides
+/// which of two equally priced pairs a cluster holds, and only the tree gives
+/// Valve's order.</para>
 /// </summary>
 public sealed class VisBoxTree
 {
