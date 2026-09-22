@@ -54,4 +54,30 @@ internal static class VisFixtures
         Xunit.Assert.True(MapFixtures.WorkshopDir() is null,
             $"Workshop maps are installed but none yielded a readable {Suffix}.");
     }
+
+    /// <summary>
+    /// The ray trace scene the compile left in %TEMP% for a map, with the
+    /// visibility it compiled beside it. Null when either is absent, which is not
+    /// evidence either way and means the caller should skip.
+    /// </summary>
+    public static (RayTraceEnvironment Rte, VoxelVisibility Valve)? RayTraceScene(string addon, string map)
+    {
+        var rte = Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".rte");
+        var cs2 = CS2Fixtures.StockPak();
+        if (!File.Exists(rte) || cs2 is null)
+            return null;
+
+        var vpk = Path.Combine(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, "..")),
+                               "csgo_addons", addon, "maps", map + ".vpk");
+        if (!File.Exists(vpk))
+            return null;
+
+        using var package = new ValvePak.Package();
+        package.Read(vpk);
+        var entry = package.Entries.GetValueOrDefault("vvis_c")?.FirstOrDefault();
+        if (entry is null)
+            return null;
+        package.ReadEntry(entry, out var bytes);
+        return (RayTraceEnvironment.ReadFile(rte), VoxelVisibilityReader.Read(bytes));
+    }
 }

@@ -34,12 +34,20 @@ public static class VisVoxelizer
     /// <summary>The octree a voxelize pass produces.</summary>
     /// <param name="Origin">The root cube's corner.</param>
     /// <param name="LeafSize">World units a leaf spans.</param>
-    /// <param name="Occupied">Leaf cells the geometry reaches, in leaf coordinates.</param>
+    /// <param name="LeafMasks">For every leaf the geometry reaches, which of its
+    /// 64 base voxels it reaches, as the leaf's own 4x4x4 mask.</param>
     /// <param name="BranchesPerLevel">Branch nodes at each level, leaf level first.</param>
     public sealed record Octree(
-        Vector3 Origin, float LeafSize, IReadOnlySet<(int X, int Y, int Z)> Occupied,
+        Vector3 Origin, float LeafSize,
+        IReadOnlyDictionary<(int X, int Y, int Z), ulong> LeafMasks,
         IReadOnlyList<int> BranchesPerLevel)
     {
+        /// <summary>Leaf cells the geometry reaches.</summary>
+        public IEnumerable<(int X, int Y, int Z)> Occupied => LeafMasks.Keys;
+
+        /// <summary>Leaves of the whole tree, most of which hold no geometry.</summary>
+        public int Leaves => Nodes - Branches;
+
         /// <summary>Branch nodes, each of which owns eight children.</summary>
         public int Branches => BranchesPerLevel.Sum();
 
@@ -70,19 +78,22 @@ public static class VisVoxelizer
 
         var leafSize = baseVoxelSize * VoxelsPerLeaf;
         var side = VoxelsPerRoot(origin, max, baseVoxelSize) / VoxelsPerLeaf;
-        var occupied = new HashSet<(int X, int Y, int Z)>();
+        var masks = new Dictionary<(int X, int Y, int Z), ulong>();
 
+        // Marked at BASE voxel resolution, not leaf resolution. The leaf follows
+        // from it, and the mask is what the region stage needs: a leaf holds one
+        // region per connected run of open voxels.
         for (var i = 0; i < rte.TriangleCount; i++)
         {
             if (rte.Flags(i) == RayTraceEnvironment.ExcludedFromTrace)
                 continue;
             if (rte.Vertices(i) is not { } triangle)
                 continue;
-            Mark(triangle, origin, leafSize, side, occupied);
+            Mark(triangle, origin, baseVoxelSize, side * VoxelsPerLeaf, masks);
         }
 
         var levels = new List<int>();
-        var level = occupied;
+        var level = new HashSet<(int X, int Y, int Z)>(masks.Keys);
         for (var depth = side; depth > 1; depth /= 2)
         {
             var parents = new HashSet<(int X, int Y, int Z)>();
@@ -91,25 +102,28 @@ public static class VisVoxelizer
             levels.Add(parents.Count);
             level = parents;
         }
-        return new Octree(origin, leafSize, occupied, levels);
+        return new Octree(origin, leafSize, masks, levels);
     }
 
     private static void Mark(
-        Vector3[] triangle, Vector3 origin, float leafSize, int side,
-        HashSet<(int X, int Y, int Z)> occupied)
+        Vector3[] triangle, Vector3 origin, float voxel, int side,
+        Dictionary<(int X, int Y, int Z), ulong> masks)
     {
         var lo = Vector3.Min(Vector3.Min(triangle[0], triangle[1]), triangle[2]);
         var hi = Vector3.Max(Vector3.Max(triangle[0], triangle[1]), triangle[2]);
-        var from = Cell(lo, origin, leafSize, side);
-        var to = Cell(hi, origin, leafSize, side);
+        var from = Cell(lo, origin, voxel, side);
+        var to = Cell(hi, origin, voxel, side);
 
         for (var x = from.X; x <= to.X; x++)
             for (var y = from.Y; y <= to.Y; y++)
                 for (var z = from.Z; z <= to.Z; z++)
                 {
-                    var centre = origin + new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * leafSize;
-                    if (Overlaps(triangle, centre, leafSize * 0.5f))
-                        occupied.Add((x, y, z));
+                    var centre = origin + new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * voxel;
+                    if (!Overlaps(triangle, centre, voxel * 0.5f))
+                        continue;
+                    var leaf = (x / VoxelsPerLeaf, y / VoxelsPerLeaf, z / VoxelsPerLeaf);
+                    var bit = 1UL << ((x % VoxelsPerLeaf) + 4 * (y % VoxelsPerLeaf) + 16 * (z % VoxelsPerLeaf));
+                    masks[leaf] = masks.GetValueOrDefault(leaf) | bit;
                 }
     }
 

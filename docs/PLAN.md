@@ -125,7 +125,13 @@ pipeline existing.
    triangles mis-decode, which is an `.rte` problem and not a stage one. The rest
    of the scoring targets stand: 10,554 regions in, 103,358 out, collapsed to
    4,194, 258 clusters against a target of 1,342, 129 unique masks.
-3. Regions and clusters. Same scoring.
+3. Regions and clusters. **Regions built, outside detection BLOCKED.** A region
+   is a connected run of open voxels in a leaf and `VisRegions` produces them, but
+   the compile counts regions only after an outside pass, and the obvious
+   criterion is provably wrong: the `.rte` does not seal the map, so nothing is
+   enclosed. ze_hold_em_p voxelizes with no ceiling and no far wall, and all
+   6,875,040 of its open voxels reach the world box. Three candidates measured at
+   -29%, -100% and +323%. Needs visbuilder.dll, not more counting.
 4. PVS. Score with `vis-diff`: **zero holes is the requirement**, overdraw is
    negotiable, and the settings band says a couple of percent is normal
    variation.

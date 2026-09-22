@@ -41,7 +41,7 @@ public class VisVoxelizerTests(ITestOutputHelper output)
             var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
             var error = (double)tree.Nodes / specimen.Target - 1;
             output.WriteLine($"{specimen.Map,-16} ours {tree.Nodes,8:n0}  compile {specimen.Target,8:n0}  {error,8:P2}"
-                           + $"   ({tree.Branches:n0} branches, {tree.Occupied.Count:n0} occupied leaves, depth {tree.Depth})");
+                           + $"   ({tree.Branches:n0} branches, {tree.LeafMasks.Count:n0} occupied leaves, depth {tree.Depth})");
             Assert.True(Math.Abs(error) <= specimen.Tolerance,
                 $"{specimen.Map}: {tree.Nodes:n0} nodes against the compile's {specimen.Target:n0}, {error:P2} off");
             measured++;

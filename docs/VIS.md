@@ -133,7 +133,9 @@ DATA index.
 3. hints: `%d) %dx%dx%d voxel hint`, axis split hints, `Hint %.2f (%.2f regions)`
 4. `Initial regions %d, collapsed to %d`
 5. `Distance merged regions (%d merged to %d)`, `Pre-merged nodes %.2f seconds`
-6. `Outside detection took %.2f seconds`
+6. `Outside detection took %.2f seconds` - at RUNTIME this comes immediately
+   after voxelize, before anything below it, which is what makes stage 7's region
+   count a count of ENCLOSED regions
 7. `Generated clusters for %d regions in %.2f seconds` **(228 s on Mako)**
 8. `Merged to %d clusters in first pass` / `second pass`
 9. `Merged cluster lists in %.2f seconds [%d clusters]` **(172 s on Mako)**
@@ -583,6 +585,81 @@ one map whose geometry decodes cleanly, and the remaining work is in the triangl
 decode rather than in the octree. The fixed slot mapping for the normal was
 settled against ze_hold_em_p and Mako, both of which are dominated by axis-aligned
 geometry; it does not survive contact with these two.
+
+## Stage 3: regions, and the outside detection that blocks it
+
+The stage order is not what the source strings suggested. The compile runs outside
+detection IMMEDIATELY after voxelize and counts regions only afterwards:
+
+```
+Voxelize (8 units) took 0.41 seconds (81,625 nodes)
+Outside detection took 0.10 seconds
+Generated clusters for 10554 regions in 4.34 seconds
+93354 clusters generated
+```
+
+So 10,554 is a count of the regions the map ENCLOSES, not of the regions the
+octree holds. That is what makes it small: ze_hold_em_p's octree has 71,121 leaves
+and 73,659 regions in total.
+
+### What a region is, and what is implemented
+
+A region is one connected run of open voxels inside one leaf, which is exactly
+what the compiled file's 4x4x4 masks hold. `VisRegions` enumerates the octree's
+leaves and cuts each one up, and `VisRegionsTests` pins the properties that must
+hold whatever the stages above do with them: the leaves account for the whole
+tree, two regions of a leaf never claim the same voxel, a leaf's regions cover its
+open voxels exactly, and no leaf above the smallest holds geometry.
+
+| map | leaves | regions | leaves holding geometry |
+|---|---|---|---|
+| ze_hold_em_p | 71,121 | 73,659 | 28,782 |
+| cardtest | 21,309 | 28,464 | 8,609 |
+| probe01 | 21,218 | 28,367 | 8,584 |
+
+### The `.rte` does not seal the map, so outside detection is not a flood fill
+
+This is the finding that blocks the stage, and it is measured rather than
+suspected. Voxelize ze_hold_em_p's geometry onto a dense 8-unit grid over its own
+bounding box, pad it, and flood from the padding: **every one of its 6,875,040
+open voxels is reached**. Nothing is enclosed. cardtest is the same, all 2,230,159
+of them.
+
+The reason is visible in the faces of the map's own box, as the fraction of each
+one that voxelizes solid:
+
+| face | ze_hold_em_p | cardtest |
+|---|---|---|
+| x lo / x hi | 50.0% / 54.2% | 53.4% / 2.7% |
+| y lo / y hi | 93.3% / **0.2%** | 63.7% / **5.0%** |
+| z lo / z hi | 51.2% / **1.5%** | 85.2% / **1.1%** |
+
+ze_hold_em_p has a wall along y lo, end caps on x, a partial floor, and **no
+ceiling and no far wall at all**. The ray trace scene is the geometry a LOS ray
+needs to hit, and it is under no obligation to be closed. So whatever "outside" is
+in this compiler, it is not "cannot reach the world box".
+
+### Three candidates measured and rejected
+
+None of these is close enough to be a near miss, which is why none was adopted:
+
+| candidate | ze_hold_em_p | cardtest | probe01 |
+|---|---|---|---|
+| every leaf's regions | -28.7% | -7.6% | -7.5% |
+| flood fill from the world box | -100% | -100% | -100% |
+| leaves meeting the geometry's own box | +323% | +149% | +151% |
+
+The flood fill is not a coding error: it returns zero because zero open voxels are
+enclosed, which the dense grid proves independently of the octree.
+
+### Where this goes next
+
+The criterion is the whole of the remaining work in this stage, and it wants a
+look at `visbuilder.dll` rather than more guessing from counts. `CVisBuilder` has
+the outside pass under its own timer, so it is one named function. Worth knowing
+before that: an outside test that does not need a closed surface is usually a ray
+cast per voxel against the scene, which is precisely what the `.rte` is built to
+serve and would explain why the pass is given the ray trace environment at all.
 
 ## Where a replacement starts
 
