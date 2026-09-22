@@ -47,6 +47,19 @@ behaviour, so they carry a description rather than a symbol.
 | `1800337a0` | merge a region's per-voxel clusters down by cost | called at the end of each candidate's assignment loop; merges until 32 clusters or the best cost exceeds a threshold |
 | `180027f50` | `CBoxMerge::MergeBestCandidates` | named by an assert; the greedy box merge the above drives |
 | `18010ad30` | add a box to a CBoxMerge pool, returning its handle | NOT a cost function, which is what it looks like at a glance |
+| `180030df0` | set the merge up: sample every cluster's visibility, then build each one's candidate list | the only call between the pool fill and the merge loop |
+| `1800301c0` | **the merge COST** | slot 1 of the merge controller vtable at `18017bf40`, called as `cost(a, b)` and stored beside the candidate's id |
+| `180030a50` | the merge ACTION | slot 2; ORs the bit vectors, sums the voxel counts, takes the minimum tag and unions the boxes |
+| `180030d70` | break a tie between two candidates | slot 4; prefers the larger voxel count, then `180027e10` on the boxes |
+| `180030190` | is this entry still live | slot 5; both flag bytes clear |
+| `180031680` | pick the cheapest merge in the whole set | scans every live entry's candidate list, minimum cost, ties by summed voxel count |
+| `18003ecf0` | the `SampleGridsJob` body | slot 5 of the functor vtable at `18017c190`; runs `180031a20` over a block of 64 entries |
+| `180031a20` | **sample one cluster's visibility** | casts rays from the cluster's box centre and sets a bit per cluster each ray passes through |
+| `18004a690` | gather the ray hits for one origin and direction set | called by the above; hit records are 0x20 bytes, `+0x1e & 1` meaning it hit |
+| `18003d600` | walk a segment through the box tree, setting a bit per box it crosses | the only consumer of those hits |
+| `180014ea0` | `dst = x & ~y` over a dword run | the two calls the cost pops the bits of |
+| `18002fec0` | distance between two boxes, zero when they touch | the cost's last term |
+| `180027e10` | order two boxes by longest side, then lexicographically | the tie-break, so the merge is deterministic |
 | `18002b500` | read the HINT ENTITIES and fill the three lists | reads origin, box_mins, box_maxs and hintType off map objects; types 4, 5 and 6 are the x, y and z axis split hints |
 | `18010be50` | a region's box from its leaf box and mask | shared by the driver and outside detection |
 | `18003f1e0` | the `InitialRegionStatus` job body | the work pointer in the functor vtable the outside pass dispatches |

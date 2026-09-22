@@ -195,6 +195,67 @@ of a mean of 55.8 voxels. Every attempt to find a closed-form rule for that numb
 failed, and it failed because there is no rule: it is the output of a greedy cost
 loop.
 
+### The cost, which is the whole of cluster generation
+
+`1800301c0` is slot 1 of the merge controller vtable at `18017bf40`, and it is
+the function the greedy loop minimises. Every constant in it was read out of the
+DLL and `VisMergeCostTests` reads them back out and compares, so a CS2 update
+that changes one fails the suite rather than quietly changing our output.
+
+```
+cost(a, b):
+    volA = a.voxels * (a.size > 8 ? 0.25 : 1)          # doubles
+    volB = b.voxels * (b.size > 8 ? 0.25 : 1)
+    n    = popcount(a.vis & ~b.vis) * volB
+         + popcount(b.vis & ~a.vis) * volA
+         + 1
+    if a.size != b.size and (a.size < 9 or b.size < 9): n *= 128
+    if a.tag  != b.tag:                                 n *= 32
+    if a.size < 9 or b.size < 9:
+        if area(a) <= 4096 and area(b) <= 4096 and area(a | b) > 4096: n *= 8
+        if zspan(a | b) > 80 and (zheight(a) <= 80 or zheight(b) <= 80): n *= 32
+    return distance(a.box, b.box) + n * 10
+```
+
+The first term is the whole idea and it is the classic one: merging two clusters
+makes each see everything the other sees, so each pays for what it INHERITS,
+priced over its own volume. Everything after it is a shape penalty, and the two
+numbers worth noticing are **4,096 square units** of footprint and **80 units** of
+height, which is a player. A merge that crosses a floor is charged 32x, and one
+that spreads a compact pair across a room 8x.
+
+### Where the visibility bits come from
+
+`a.vis` is not adjacency and it is not the PVS. It is a RAY SAMPLE, taken once
+per cluster before any merging, by `180031a20`:
+
+- rays leave the cluster's box CENTRE
+- with fewer than 512 clusters the directions point at every other cluster's
+  centre; at 512 or more `180027400` builds a fixed 512-direction sphere instead
+- each ray is traced (`18004a690`), and its endpoint is either the hit or the
+  world diagonal away
+- `18003d600` walks centre-to-endpoint through the box tree and sets one bit per
+  cluster the segment crosses
+
+So the sample set is quadratic on small maps and capped on large ones, and that
+switch at 512 is a behaviour to reproduce, not an optimisation to skip: it changes
+which bits are set, which changes every cost, which changes the merge order.
+
+### What the greedy loop actually does
+
+`1800337a0` runs only `if (param_5 < *param_2)`, i.e. when there are more than 32
+clusters. Before merging it pads the set with 56 synthetic boxes off a fixed
+table (`DAT_18017bfa0`) when its bool argument is set; those carry a null cluster
+and flag `+0x19`, so `180030190` rejects them and they never merge. They exist to
+occupy the box tree.
+
+Then, while `count > 32` or the best cost is under the threshold, it takes the
+cheapest pair `180031680` found and applies `180030a50`. Selection ties are
+resolved twice over: within one cluster's candidate list by `180030d70` when two
+costs are within 1e-4, and across the whole set by the summed voxel count when
+two are within 1e-3. Both tie-breaks exist to make the output deterministic, and
+neither can be dropped without the cluster counts drifting run to run.
+
 ### Hints are authored by the mapper
 
 The three splitter lists that drive cluster subdivision are filled by `18002b500`,
