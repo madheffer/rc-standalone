@@ -1179,7 +1179,7 @@ cluster lists together. Numbers to hit: `Distance merged regions (%d merged to
 | cardtest | 81,991 | 81,865 |
 | probe01 | 81,707 | 81,576 |
 
-### `180034220`, `MergeClusterSet`, run FIVE times
+### `180034220`, `MergeClusterSet`, run FIVE times - IMPLEMENTED
 
 This is the expensive one - 400 of Mako's 1,088 seconds - and it takes
 ze_hold_em_p from 93,354 clusters to 258. The signature is
@@ -1200,6 +1200,60 @@ Only x and y are in the key; z is not. The merging then happens within a bucket.
 
 The budgets are not binding on the maps measured: ze_hold_em_p's first pass
 budget is 8,052 and it lands at 258, so the cost limit is what stops it.
+
+Each of those five is only the BUCKETING. The merging is
+`CVoxelSampler3::MergeClusterSet` at `180033fd0`, and it is two passes over the
+buckets rather than one:
+
+```
+costs[i] = 1800337a0(bucket[i], cellBox, costLimit, budget*2, padded=false)   in parallel
+average  = mean(costs)
+           1800337a0(bucket[i], cellBox, average,   budget,   padded=false)   in parallel
+return average
+```
+
+and the average is what the next of the five passes takes as its cost limit. So
+the whole chain is steered by one number, and the compile prints it:
+`MergeClusterSet costs after first pass min:20.0 max:45960.3 avg:21940.0`.
+
+Both jobs call `1800337a0`, which is the same greedy merge cluster generation
+uses - with `padded = false`, which is what changes its character completely.
+With the shell on, the live count can never reach the target and the cost only
+orders the merges; with it off, the budget and the cost limit are exactly what
+stop it.
+
+**Where it lands.** `VisClusterSet` is the port and `VisClusterSetTests` scores
+it, behind `MERGE=1` because it samples every cluster's visibility five times
+over - two to three minutes a map:
+
+| | generated | first pass | second pass | final | first cost |
+|---|---|---|---|---|---|
+| ze_hold_em_p | 95,978 | 301 vs 258 | 301 vs 258 | 301 vs 258 | 21,010.6 vs 21,940.0 |
+| cardtest | 80,991 | 1,887 vs 1,998 | 1,685 vs 1,825 | 1,529 vs 1,626 | |
+| probe01 | 80,676 | 1,946 vs 1,979 | 1,757 vs 1,815 | 1,589 vs 1,621 | 108,623.5 vs 110,760.1 |
+
+**The cost is the number worth watching, not the counts.** It is the average over
+every bucket of where a greedy merge stopped, so it folds in the cost function,
+the sampled visibility, the candidate rule and the merge order all at once, and
+it lands within **1.9% on probe01 and 4.2% on ze_hold_em_p**. The counts follow
+from it and sit between -6% and +17%.
+
+### The 512 direction switch, and why it is not an optimisation
+
+`180030df0` samples a cluster's visibility by aiming at every OTHER cluster's
+centre while the set is under 512 entries, and switches to a fixed sphere of 512
+directions at or above it. The sphere is `180027400`'s golden spiral:
+
+```
+step = 2 / n;  turn = (3 - sqrt(5)) * pi
+y = i*step - 1 + step/2;  r = sqrt(1 - y*y);  a = i*turn
+dir = (cos(a)*r, y, sin(a)*r)
+```
+
+That switch changes which bits are set, so it changes every cost and the whole
+merge order with it. A set of 511 and a set of 512 are sampled differently on
+purpose, and a region's merge (at most 120 entries) never sees the sphere while
+a grid cell's (thousands) never sees anything else.
 
 ### The rest
 

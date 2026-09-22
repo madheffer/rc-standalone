@@ -81,6 +81,113 @@ public static class VisClusterSample
         return found;
     }
 
+    /// <summary>Directions a set of 512 or more clusters samples with.</summary>
+    public const int SphereDirections = 512;
+
+    /// <summary>Boxes above which the segment query goes through an index.</summary>
+    public const int IndexAbove = 256;
+
+    /// <summary>
+    /// The direction set <c>180027400</c> builds when a merge set is big enough
+    /// to stop sampling toward every other cluster: a golden-spiral sphere of
+    /// <see cref="SphereDirections"/> unit vectors.
+    ///
+    /// <para>The switch at 512 is not an optimisation to skip. It changes which
+    /// bits are set, which changes every cost, which changes the merge order, so
+    /// a set of 511 and a set of 512 are sampled differently on purpose.</para>
+    /// </summary>
+    public static readonly Vector3[] Sphere = BuildSphere(SphereDirections);
+
+    private static Vector3[] BuildSphere(int count)
+    {
+        var step = 2f / count;
+        var turn = (3f - MathF.Sqrt(5f)) * MathF.PI;
+        var found = new Vector3[count];
+        for (var i = 0; i < count; i++)
+        {
+            var y = (i * step) - 1f + (step * 0.5f);
+            var radius = MathF.Sqrt(MathF.Max(1f - (y * y), 0f));
+            var angle = i * turn;
+            found[i] = new Vector3(MathF.Cos(angle) * radius, y, MathF.Sin(angle) * radius);
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// Fill every cluster's bit vector over the set it is now part of, which is
+    /// <c>180030df0</c> dispatching <c>180031a20</c>.
+    ///
+    /// <para>The entries are the clusters, then the 56 shell boxes when
+    /// <paramref name="padded"/>. The box is the leaf's when padded, and the
+    /// grid cell's when not; the rays reach its diagonal.</para>
+    /// </summary>
+    public static void SampleInto(
+        RayTraceEnvironment scene, IReadOnlyList<VisMerge.Cluster> clusters,
+        Vector3 mins, Vector3 maxs, bool padded)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(clusters);
+
+        var (boxMins, boxMaxs) = padded ? Padded(mins, maxs.X - mins.X) : (mins, maxs);
+        var reach = (boxMaxs - boxMins).Length();
+        var near = scene.Overlapping(boxMins, boxMaxs, VisSeed.Ignored);
+
+        var boxes = new List<(Vector3 Mins, Vector3 Maxs)>(clusters.Count + Shell.Length);
+        foreach (var cluster in clusters)
+            boxes.Add((cluster.Mins, cluster.Maxs));
+        if (padded)
+        {
+            var half = (maxs.X - mins.X) * 0.5f;
+            foreach (var cell in Shell)
+            {
+                var at = boxMins + new Vector3(cell & 3, (cell >> 2) & 3, (cell >> 4) & 3) * half;
+                boxes.Add((at, at + new Vector3(half)));
+            }
+        }
+
+        var centres = boxes.Select(b => (b.Mins + b.Maxs) * 0.5f).ToArray();
+        var words = (boxes.Count + 63) / 64;
+        var sphere = boxes.Count >= SphereDirections;
+
+        // The compile walks a CBoxMerge hierarchy to find which boxes a segment
+        // crosses. Testing all of them instead is fine for a region's 120 and
+        // hopeless for a grid cell's few thousand, so the index is built only
+        // where it pays: below the threshold the build costs more than it saves.
+        var index = boxes.Count > IndexAbove ? new BoxTree(boxes) : null;
+
+        Parallel.For(0, clusters.Count, i =>
+        {
+            var bits = new ulong[words];
+            var from = centres[i];
+            var aimed = sphere ? Sphere.Length : centres.Length;
+            for (var j = 0; j < aimed; j++)
+            {
+                Vector3 direction;
+                if (sphere)
+                {
+                    direction = Sphere[j];
+                }
+                else
+                {
+                    if (j == i)
+                        continue;
+                    direction = Vector3.Normalize(centres[j] - from);
+                }
+
+                var to = from + (direction * Nearest(scene, near, from, direction, reach));
+                if (index is not null)
+                {
+                    index.Crossed(from, to, bits);
+                    continue;
+                }
+                for (var k = 0; k < boxes.Count; k++)
+                    if (Crosses(from, to, boxes[k].Mins, boxes[k].Maxs))
+                        bits[k >> 6] |= 1UL << (k & 63);
+            }
+            clusters[i].Visibility = bits;
+        });
+    }
+
     /// <summary>
     /// A bit vector per CLUSTER entry, over every entry including the shell. The
     /// shell entries take no vector of their own because they never merge.
@@ -135,6 +242,95 @@ public static class VisClusterSample
             if (scene.Meets(triangle, from, direction, 0f, best) is { } hit)
                 best = hit.Distance;
         return best;
+    }
+
+    /// <summary>
+    /// A bounding volume hierarchy over the merge set's boxes, so a segment finds
+    /// what it crosses in log time rather than by testing all of them.
+    ///
+    /// <para>The compile walks a CBoxMerge hierarchy for this. Testing every box
+    /// instead is fine for a region's 120 and hopeless for a grid cell's few
+    /// thousand, where it is over a billion tests a bucket.</para>
+    /// </summary>
+    private sealed class BoxTree
+    {
+        /// <summary>Boxes below which a node stops splitting.</summary>
+        public const int LeafSize = 8;
+
+        private readonly Vector3[] _mins;
+        private readonly Vector3[] _maxs;
+        private readonly int[] _order;
+        private readonly List<Node> _nodes = [];
+
+        private readonly record struct Node(
+            Vector3 Mins, Vector3 Maxs, int Start, int Count, int Left, int Right);
+
+        public BoxTree(IReadOnlyList<(Vector3 Mins, Vector3 Maxs)> boxes)
+        {
+            ArgumentNullException.ThrowIfNull(boxes);
+            _mins = [.. boxes.Select(b => b.Mins)];
+            _maxs = [.. boxes.Select(b => b.Maxs)];
+            _order = [.. Enumerable.Range(0, boxes.Count)];
+            if (boxes.Count > 0)
+                Build(0, boxes.Count);
+        }
+
+        private int Build(int from, int count)
+        {
+            var lo = new Vector3(float.MaxValue);
+            var hi = new Vector3(float.MinValue);
+            for (var i = from; i < from + count; i++)
+            {
+                lo = Vector3.Min(lo, _mins[_order[i]]);
+                hi = Vector3.Max(hi, _maxs[_order[i]]);
+            }
+
+            var node = _nodes.Count;
+            _nodes.Add(new Node(lo, hi, from, count, -1, -1));
+            if (count <= LeafSize)
+                return node;
+
+            var span = hi - lo;
+            var axis = span.X >= span.Y && span.X >= span.Z ? 0 : span.Y >= span.Z ? 1 : 2;
+            var ids = _order[from..(from + count)];
+            var keys = ids.Select(t => axis == 0 ? _mins[t].X : axis == 1 ? _mins[t].Y : _mins[t].Z).ToArray();
+            Array.Sort(keys, ids);
+            ids.CopyTo(_order, from);
+
+            var half = count / 2;
+            var left = Build(from, half);
+            var right = Build(from + half, count - half);
+            _nodes[node] = _nodes[node] with { Left = left, Right = right };
+            return node;
+        }
+
+        /// <summary>Set a bit for every box the segment reaches into.</summary>
+        public void Crossed(Vector3 from, Vector3 to, ulong[] bits)
+        {
+            if (_nodes.Count == 0)
+                return;
+            Span<int> stack = stackalloc int[64];
+            var depth = 0;
+            stack[depth++] = 0;
+            while (depth > 0)
+            {
+                var node = _nodes[stack[--depth]];
+                if (!Crosses(from, to, node.Mins, node.Maxs))
+                    continue;
+                if (node.Left < 0)
+                {
+                    for (var i = node.Start; i < node.Start + node.Count; i++)
+                    {
+                        var box = _order[i];
+                        if (Crosses(from, to, _mins[box], _maxs[box]))
+                            bits[box >> 6] |= 1UL << (box & 63);
+                    }
+                    continue;
+                }
+                stack[depth++] = node.Left;
+                stack[depth++] = node.Right;
+            }
+        }
     }
 
     /// <summary>Whether a segment reaches into a box, which is the slab test.</summary>

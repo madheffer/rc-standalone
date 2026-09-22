@@ -141,6 +141,65 @@ public static class VisClusters
     }
 
     /// <summary>
+    /// Every enclosed region's clusters, born and merged, as one set per region.
+    /// This is the whole of <c>180032d80</c> and the <c>1800337a0</c> under it,
+    /// and it is what the five <see cref="VisClusterSet"/> passes then work on.
+    /// </summary>
+    public static List<VisClusterSet.Set> Generate(
+        RayTraceEnvironment scene, VisVoxelizer.Octree tree, VisRegions.Result compacted)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentNullException.ThrowIfNull(compacted);
+
+        var sets = new VisClusterSet.Set[compacted.Regions.Count];
+        Parallel.For(0, compacted.Regions.Count, i =>
+        {
+            var region = compacted.Regions[i];
+            var leaf = compacted.Leaves[region.Leaf];
+            var side = tree.LeafSize * (1 << leaf.Level);
+            var corner = tree.Origin + new Vector3(leaf.Cell.X, leaf.Cell.Y, leaf.Cell.Z) * side;
+            var voxel = side * SubCell;
+            var set = new VisClusterSet.Set { Mins = corner, Maxs = corner + new Vector3(side) };
+
+            if (OpenSpace(scene, corner, side, region.Open))
+            {
+                var (mins, maxs) = Box(voxel, region.Open);
+                set.Clusters.Add(new VisMerge.Cluster
+                {
+                    Voxels = { (region.Open, region.Leaf) },
+                    Mins = corner + mins,
+                    Maxs = corner + maxs,
+                    VoxelCount = System.Numerics.BitOperations.PopCount(region.Open),
+                    VoxelSize = (int)voxel,
+                    OpenSpace = true,
+                });
+                sets[i] = set;
+                return;
+            }
+
+            for (var bit = 0; bit < 64; bit++)
+            {
+                if ((region.Open & (1UL << bit)) == 0)
+                    continue;
+                var at = corner + new Vector3(bit & 3, (bit >> 2) & 3, (bit >> 4) & 3) * voxel;
+                set.Clusters.Add(new VisMerge.Cluster
+                {
+                    Voxels = { (1UL << bit, region.Leaf) },
+                    Mins = at,
+                    Maxs = at + new Vector3(voxel),
+                    VoxelCount = 1,
+                    VoxelSize = (int)voxel,
+                });
+            }
+            VisMerge.Run(scene, set.Clusters, set.Mins, set.Maxs,
+                         MergeThreshold, MergeTarget, padded: true);
+            sets[i] = set;
+        });
+        return [.. sets];
+    }
+
+    /// <summary>
     /// Whether a region is far enough from anything to skip cluster generation
     /// entirely, which is <c>180032d80</c>'s first branch:
     /// <c>(f4 == 0 || nearest &lt; f8 || nearest == FLT_MAX)</c> takes the normal
