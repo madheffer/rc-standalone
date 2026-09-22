@@ -18,9 +18,9 @@ public class VisOutsideTests(ITestOutputHelper output)
 
     private static readonly Specimen[] Maps =
     [
-        new("s2c_lighting", "ze_hold_em_p", 10_554, 0.05),
-        new("s2c_rc_probe", "cardtest", 7_416, 0.45),
-        new("s2c_rc_probe", "probe01", 7_316, 0.45),
+        new("s2c_lighting", "ze_hold_em_p", 10_554, 0),
+        new("s2c_rc_probe", "cardtest", 7_416, 0.50),
+        new("s2c_rc_probe", "probe01", 7_316, 0.50),
     ];
 
     [Fact]

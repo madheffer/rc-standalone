@@ -17,16 +17,16 @@ namespace Source2.Compiler.Tests;
 public class VisVoxelizerTests(ITestOutputHelper output)
 {
     /// <param name="Target">The node count the compile logged for this map.</param>
-    /// <param name="Tolerance">How far off we are allowed to be. It is per map and
-    /// not a shared constant because the two probe maps are far wider than the real
-    /// one, for a reason recorded in docs/VIS.md.</param>
+    /// <param name="Tolerance">How far off we are allowed to be. ze_hold_em_p is
+    /// exact and pinned at zero; the two probe maps sit six branches over, which
+    /// docs/VIS.md records as open.</param>
     private sealed record Specimen(string Addon, string Map, int Target, double Tolerance);
 
     private static readonly Specimen[] Maps =
     [
-        new("s2c_lighting", "ze_hold_em_p", 81_625, 0.01),
-        new("s2c_rc_probe", "cardtest", 17_297, 0.45),
-        new("s2c_rc_probe", "probe01", 17_169, 0.45),
+        new("s2c_lighting", "ze_hold_em_p", 81_625, 0),
+        new("s2c_rc_probe", "cardtest", 17_297, 0.003),
+        new("s2c_rc_probe", "probe01", 17_169, 0.003),
     ];
 
     [Fact]
@@ -71,21 +71,13 @@ public class VisVoxelizerTests(ITestOutputHelper output)
                      / VisVoxelizer.VoxelsPerLeaf;
             var theirs = Branches(valve, (int)Math.Log2(side));
 
-            var ours = new HashSet<(int, (int, int, int))>();
-            var level = new HashSet<(int X, int Y, int Z)>(tree.Occupied);
-            for (var depth = 1; depth <= tree.Depth; depth++)
-            {
-                var parents = level.Select(c => (c.X >> 1, c.Y >> 1, c.Z >> 1)).ToHashSet();
-                foreach (var parent in parents)
-                    ours.Add((depth, parent));
-                level = parents;
-            }
-
+            var ours = tree.BranchCells;
             var missing = theirs.Count(t => !ours.Contains(t));
             var share = 1 - (double)missing / theirs.Count;
             output.WriteLine($"{specimen.Map,-16} {theirs.Count,6:n0} branches in the shipped tree, "
-                           + $"{missing} not in ours, {share:P2} covered");
-            Assert.True(share >= 0.95,
+                           + $"{missing} not in ours, {share:P2} covered; "
+                           + $"{ours.Count - (theirs.Count - missing)} of ours are not in it");
+            Assert.True(share >= 1.0,
                 $"{specimen.Map}: only {share:P2} of the shipped tree's branches are branches of ours");
         }
     }

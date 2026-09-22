@@ -23,6 +23,114 @@ Two specimens, both produced by Valve's compiler here:
 | ze_hold_em_p | 348,176 |
 | ze_ffvii_mako_reactor_v6_p | 23,259,680 |
 
+## The layout, read out of Valve's own reader
+
+`CVisibilityMesh::LoadRTEFromFile` is `180049e00` in visbuilder.dll (the source
+path is in the binary: `utils/visbuilder/voxel_utils.cpp`), and `18011a670` is the
+unserializer under it. Reading those settled the format outright, and corrected
+two things that had been inferred from arithmetic and were both wrong.
+
+```
+offset                size        section
+0                     60          header: nine u32 counts, then the world box
+60                    A * 8       kd nodes: (float split, u32 packed child + axis)
+60 + A*8              B * 48      triangles
+                      C * 4       leaf triangle indices, u32 into the triangle array
+                      B * 8       per-triangle, 8 bytes, purpose unknown
+                      B * 12      per-triangle reflectivity, Vector3, all (1,1,1)
+```
+
+**The header is 60 bytes, not 64**, and **the index array is C, not C - 1**. The
+two errors cancelled in the file-size arithmetic, which is why the old layout
+appeared to tile exactly; it tiled four bytes late, and every triangle was read
+one float out of phase. Both layouts sum to the file size on both specimens, so
+tiling alone could never have told them apart.
+
+| section | ze_hold_em_p | cardtest | mako |
+|---|---|---|---|
+| kd nodes A | 1,865 | 183 | 150,015 |
+| triangles B | 4,548 | 300 | 279,064 |
+| indices C | 5,983 | 807 | 770,787 |
+| total | 348,176 = file | 25,152 = file | 23,259,680 = file |
+
+### The 48-byte triangle record
+
+```
+float  0   normal x
+float  1   normal y
+float  2   normal z
+float  3   plane distance, as dot(normal, point) == distance
+float  4   triangle id, which equals the record's own index in every file checked
+float  5   edge 0 a          the two edge equations are over the 2D projection
+float  6   edge 0 b          named by the axis bytes below:
+float  7   edge 0 c          E(u, v) = a*u + b*v + c
+float  8   edge 1 a
+float  9   edge 1 b
+float 10   edge 1 c
+byte  0x2c axis u (0, 1 or 2)
+byte  0x2d axis v (0, 1 or 2); the third axis is (v + 1) % 3
+u16   0x2e flags
+```
+
+The normal is plain xyz in slots 0 to 2 and is ALREADY UNIT LENGTH: 100% of the
+traced triangles of all three maps measured, to within 1e-3. Nothing needs
+normalising, no component is implicit, and the axis bytes name only the
+projection.
+
+### Rebuilding a vertex, which is `180022030` verbatim
+
+```
+det  = 1 / (e1.b * e0.a - e0.b * e1.a)
+v0   = solve(E0 = 0, E1 = 1)
+v1   = solve(E0 = 0, E1 = 0)
+v2   = solve(E0 = 1, E1 = 0)
+p[u], p[v] from the 2x2 solve, p[w] = 0, then
+p[w] -= (dot(normal, p) - distance) / normal[w]
+```
+
+and the record is rejected only when a component comes out non-finite. That
+function is inlined a second time inside `18004bf20`, the kd box query, which is
+an independent corroboration of the whole layout.
+
+### What it scores
+
+| | ids that equal the index | traced | unit normals | rebuilt | box |
+|---|---|---|---|---|---|
+| ze_hold_em_p | 4,548 / 4,548 | 4,536 | 100% | **4,536** | exact |
+| cardtest | 300 / 300 | 92 | 100% | **92** | exact |
+| probe01 | 288 / 288 | 80 | 100% | **80** | exact |
+
+Nothing fails, and the rebuilt bounding box is the header's own to the unit on
+all three. The previous decode lost 14% of the probe maps' triangles and put one
+of cardtest's 27 billion units away; that was the phase error, not the maths.
+
+### The flags, and what nodraw does
+
+```
+0x0001  excluded, with 0x0800: LoadRTEFromFile skips these outright
+0x0010  nodraw in the file, rewritten to 0x0020 before the triangle is stored
+0x0020  nodraw
+0x0100  seen on ten of cardtest's triangles, undecoded
+0x0800  excluded from the trace scene
+0x1000  counts as occupancy only for a voxel box WIDER than 256 units
+```
+
+**Nodraw seals and does not draw, and the compiler treats it exactly that way.**
+A nodraw triangle is converted, traced, and voxelized like any other; the flag
+only feeds a statistic. `LoadRTEFromFile` sums the area of every converted
+triangle and of the nodraw ones, and if nodraw is over 80% of the total it logs
+`Vis geometry appears to be mostly nodraw (%.2f%%), reconfiguring...` and clears
+the mark off every triangle. So the flag can change the map's own accounting and
+never removes a surface from visibility.
+
+`0x1000` is the one flag that changes geometry, and it is size dependent.
+`18002e310` queries the kd tree with mask `0x811` while a box is wider than 256
+units and `0x1811` at or below it, and the mask is "reject a triangle with any of
+these bits". The other three bits are inert by then, so the whole of the rule is:
+**below 256 units a `0x1000` triangle stops being occupancy**. ze_hold_em_p has
+none, and the two probe maps have eight each, which was the entire difference
+between a voxelize that was exact and one that was 43% high.
+
 ## What is established
 
 ### The header
@@ -137,8 +245,8 @@ How this was settled, since a plausible field order is not evidence:
 `tools/re/read_rte.py` implements this as `plane()`, `triangle_id()`,
 `coord_select()` and `flags()`.
 
-**The index array is `C - 1`, not `C`.** That off-by-one is consistent across both
-files to the byte, so one entry is a root or sentinel rather than a leaf index.
+**The index array was read as `C - 1` before the header was known to be 60 bytes.**
+It is `C`; the off-by-one was the header, not a sentinel.
 
 The layout also passes a falsifier it had no reason to: read at this offset and
 stride, **every one of ze_hold_em_p's 5,982 leaf indices is below the triangle
@@ -187,29 +295,34 @@ are `(7672, -56, 64) (7672, -56, 17) (7160, -56, 64)` and
 `(7672, -56, 17) (7160, -56, 17) (7160, -56, 64)`: one quad, a wall at y = -56
 spanning x 7160 to 7672 and z 17 to 64, on whole-unit coordinates.
 
-## Two corrections found by voxelizing
+## What the old decode got wrong, and why it looked right
 
-Both surfaced in `VisVoxelizer`, which consumes the decode far more harshly than
-the bounding box check that settled it.
+The layout above replaces one that had been inferred from file arithmetic, and
+the way it survived is worth recording because the same trap is everywhere in
+this work.
 
-**A zero dominant component is implicit, not degenerate.** The Badouel form scales
-the normal so its dominant component is 1, and some records leave that component
-at zero. Treating those as undecodable throws away real geometry: ze_hold_em_p has
-two, both walls at its own x extremes, and **Mako has 10,168 of them, 3.6% of the
-file**. Read a zero dominant component as 1.
+The old reading put the header at 64 bytes and the index array at `C - 1`. Those
+two errors cancel: `64 + A*8 + B*48 + (C-1)*4 + B*20` and
+`60 + A*8 + B*48 + C*4 + B*20` are the same number. So the check that was
+supposed to settle the layout, "both specimens tile exactly", passed for both,
+and could never have separated them.
 
-**The fixed slot mapping does not survive every map.** It was settled against
-ze_hold_em_p and Mako, which are dominated by axis-aligned geometry. On the two
-probe maps it is measurably wrong: **13 of cardtest's 92 traced triangles and 12 of
-probe01's 80 rebuild OUTSIDE the box the file states for itself**, against 2 of
-ze_hold_em_p's 4,536. One of them has an edge determinant of 2e-6 and lands 27
-billion units away. `RayTraceEnvironment` rejects a reconstruction outside the
-stated box for that reason, which is a guard and not a fix; the mapping itself is
-still wrong for those records and that is open.
+Every triangle was therefore read one float out of phase. That shifted the normal
+out of slots 0 to 2, which is why the normal appeared to need a "fixed slot
+mapping" of `(slot11, slot0, slot1)`, why 3.6% of Mako's records appeared to have
+an implicit dominant component, why 14% of the probe maps' triangles rebuilt
+outside the file's own box, and why one cardtest record with an edge determinant
+of 2e-6 landed 27 billion units away. None of those were properties of the
+format. All of them are gone.
 
-**The excluded-triangle flag is settled.** A triangle whose flag word is `0x0800`
-is not converted into the trace scene, and that reproduces the compile's own count
-on three maps: 4548 - 12 = 4536, 300 - 208 = 92, 288 - 208 = 80.
+The guard that rejected a reconstruction outside the stated box is gone with
+them. It was compensating for the phase error, and with the phase right nothing
+needs rejecting: Valve's own reader rejects only a non-finite component, and on
+these three maps it never fires.
+
+**The lesson is the one the analysis doc already states and this is the sharpest
+case of it: a check that a wrong answer also passes is not a check.** The thing
+that actually settled the format was reading Valve's reader.
 
 ## What is NOT established
 

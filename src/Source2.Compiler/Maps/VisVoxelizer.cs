@@ -37,10 +37,15 @@ public static class VisVoxelizer
     /// <param name="LeafMasks">For every leaf the geometry reaches, which of its
     /// 64 base voxels it reaches, as the leaf's own 4x4x4 mask.</param>
     /// <param name="BranchesPerLevel">Branch nodes at each level, leaf level first.</param>
+    /// <param name="BranchCells">Every branch as (level above a leaf, cell at that
+    /// level), so the tree can be compared against a shipped one node for node
+    /// rather than through the leaves, which do not reach a branch whose geometry
+    /// stops counting further down.</param>
     public sealed record Octree(
         Vector3 Origin, float LeafSize,
         IReadOnlyDictionary<(int X, int Y, int Z), ulong> LeafMasks,
-        IReadOnlyList<int> BranchesPerLevel)
+        IReadOnlyList<int> BranchesPerLevel,
+        IReadOnlySet<(int Level, (int X, int Y, int Z) Cell)> BranchCells)
     {
         /// <summary>Leaf cells the geometry reaches.</summary>
         public IEnumerable<(int X, int Y, int Z)> Occupied => LeafMasks.Keys;
@@ -65,6 +70,15 @@ public static class VisVoxelizer
     /// <summary>
     /// Voxelize a ray trace scene into the octree, over the root cube the compile
     /// would use.
+    ///
+    /// <para>This is <c>18002e310</c>'s shape and not a marking pass: the tree is
+    /// built downwards, and a child is a node at all only when some triangle
+    /// reaches into its box. The difference is not cosmetic, because the set of
+    /// triangles that count depends on the box: a parent wider than 256 units
+    /// tests its children against every triangle, and at or below that width the
+    /// <see cref="RayTraceEnvironment.CoarseOccupancyOnly"/> ones stop counting.
+    /// A bottom-up marking pass cannot express that, and on a map that has such
+    /// triangles it is out by tens of percent.</para>
     /// </summary>
     /// <param name="rte">The scene, whose excluded triangles are skipped.</param>
     /// <param name="origin">The root cube's corner, which the compiled file states
@@ -78,61 +92,93 @@ public static class VisVoxelizer
 
         var leafSize = baseVoxelSize * VoxelsPerLeaf;
         var side = VoxelsPerRoot(origin, max, baseVoxelSize) / VoxelsPerLeaf;
-        var masks = new Dictionary<(int X, int Y, int Z), ulong>();
 
-        // Marked at BASE voxel resolution, not leaf resolution. The leaf follows
-        // from it, and the mask is what the region stage needs: a leaf holds one
-        // region per connected run of open voxels.
+        var triangles = new List<Vector3[]>();
+        var coarseOnly = new List<bool>();
         for (var i = 0; i < rte.TriangleCount; i++)
         {
-            if (rte.Flags(i) == RayTraceEnvironment.ExcludedFromTrace)
+            if (!rte.Traced(i) || rte.Vertices(i) is not { } corners)
                 continue;
-            if (rte.Vertices(i) is not { } triangle)
-                continue;
-            Mark(triangle, origin, baseVoxelSize, side * VoxelsPerLeaf, masks);
+            triangles.Add(corners);
+            coarseOnly.Add((rte.Flags(i) & RayTraceEnvironment.CoarseOccupancyOnly) != 0);
         }
 
-        var levels = new List<int>();
-        var level = new HashSet<(int X, int Y, int Z)>(masks.Keys);
-        for (var depth = side; depth > 1; depth /= 2)
+        var masks = new Dictionary<(int X, int Y, int Z), ulong>();
+        var branches = new int[BitOperations.Log2((uint)side) + 1];
+        var cells = new HashSet<(int Level, (int X, int Y, int Z) Cell)>();
+        var all = Enumerable.Range(0, triangles.Count).ToArray();
+        Descend(origin, side, all, triangles, coarseOnly, baseVoxelSize, (0, 0, 0), masks, branches, cells);
+
+        // The leaf level has no branches of its own, and the array is indexed from
+        // it, so the root's level is last and the count reads leaf-first.
+        return new Octree(origin, leafSize, masks, branches[1..], cells);
+    }
+
+    /// <summary>
+    /// One node, given the triangles that reach its box. A branch filters that set
+    /// down for each child; a leaf turns it into the 4x4x4 mask.
+    /// </summary>
+    /// <param name="cells">The node's side, counted in LEAVES, so 1 is a leaf.</param>
+    private static void Descend(
+        Vector3 origin, int cells, int[] reaching,
+        List<Vector3[]> triangles, List<bool> coarseOnly, float voxel,
+        (int X, int Y, int Z) cell,
+        Dictionary<(int X, int Y, int Z), ulong> masks, int[] branches,
+        HashSet<(int Level, (int X, int Y, int Z) Cell)> branchCells)
+    {
+        var leafSize = voxel * VoxelsPerLeaf;
+        if (cells == 1)
         {
-            var parents = new HashSet<(int X, int Y, int Z)>();
-            foreach (var (x, y, z) in level)
-                parents.Add((x >> 1, y >> 1, z >> 1));
-            levels.Add(parents.Count);
-            level = parents;
+            var mask = 0UL;
+            for (var i = 0; i < 64; i++)
+            {
+                var centre = origin + new Vector3(
+                    (i & 3) + 0.5f, ((i >> 2) & 3) + 0.5f, ((i >> 4) & 3) + 0.5f) * voxel;
+                foreach (var t in reaching)
+                    if (!coarseOnly[t] && Overlaps(triangles[t], centre, voxel * 0.5f))
+                    {
+                        mask |= 1UL << i;
+                        break;
+                    }
+            }
+            if (mask != 0)
+                masks[cell] = mask;
+            return;
         }
-        return new Octree(origin, leafSize, masks, levels);
-    }
 
-    private static void Mark(
-        Vector3[] triangle, Vector3 origin, float voxel, int side,
-        Dictionary<(int X, int Y, int Z), ulong> masks)
-    {
-        var lo = Vector3.Min(Vector3.Min(triangle[0], triangle[1]), triangle[2]);
-        var hi = Vector3.Max(Vector3.Max(triangle[0], triangle[1]), triangle[2]);
-        var from = Cell(lo, origin, voxel, side);
-        var to = Cell(hi, origin, voxel, side);
+        // The mask is chosen from THIS box's width and applied to the children, so
+        // a 512 unit parent still counts what its 256 unit children may not.
+        // The split is not conditional on a child being occupied. A node is only
+        // ever reached because its PARENT found geometry in it, and it then
+        // subdivides on size alone, so it is a branch even when the narrower mask
+        // leaves every one of its eight children empty. That case is real: it is
+        // the two coarse levels a CoarseOccupancyOnly triangle carries on its own.
+        branches[BitOperations.Log2((uint)cells)]++;
+        branchCells.Add((BitOperations.Log2((uint)cells), cell));
 
-        for (var x = from.X; x <= to.X; x++)
-            for (var y = from.Y; y <= to.Y; y++)
-                for (var z = from.Z; z <= to.Z; z++)
-                {
-                    var centre = origin + new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * voxel;
-                    if (!Overlaps(triangle, centre, voxel * 0.5f))
-                        continue;
-                    var leaf = (x / VoxelsPerLeaf, y / VoxelsPerLeaf, z / VoxelsPerLeaf);
-                    var bit = 1UL << ((x % VoxelsPerLeaf) + 4 * (y % VoxelsPerLeaf) + 16 * (z % VoxelsPerLeaf));
-                    masks[leaf] = masks.GetValueOrDefault(leaf) | bit;
-                }
-    }
-
-    private static (int X, int Y, int Z) Cell(Vector3 point, Vector3 origin, float leafSize, int side)
-    {
-        var local = (point - origin) / leafSize;
-        return (Math.Clamp((int)MathF.Floor(local.X), 0, side - 1),
-                Math.Clamp((int)MathF.Floor(local.Y), 0, side - 1),
-                Math.Clamp((int)MathF.Floor(local.Z), 0, side - 1));
+        var fine = cells * leafSize <= RayTraceEnvironment.FineBoxSize;
+        var half = cells / 2;
+        var childSize = half * leafSize * 0.5f;
+        for (var octant = 0; octant < 8; octant++)
+        {
+            var corner = origin + new Vector3(octant & 1, (octant >> 1) & 1, (octant >> 2) & 1)
+                                * (half * leafSize);
+            var centre = corner + new Vector3(childSize, childSize, childSize);
+            var kept = new List<int>();
+            foreach (var t in reaching)
+            {
+                if (fine && coarseOnly[t])
+                    continue;
+                if (Overlaps(triangles[t], centre, childSize))
+                    kept.Add(t);
+            }
+            if (kept.Count == 0)
+                continue;
+            Descend(corner, half, [.. kept], triangles, coarseOnly, voxel,
+                    (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
+                     cell.Z * 2 + ((octant >> 2) & 1)),
+                    masks, branches, branchCells);
+        }
     }
 
     /// <summary>

@@ -52,13 +52,7 @@ public static class VisRegions
     private static List<Leaf> Enumerate(VisVoxelizer.Octree tree)
     {
         var depth = tree.BranchesPerLevel.Count;
-        var branches = new List<HashSet<(int X, int Y, int Z)>>();
-        var level = new HashSet<(int X, int Y, int Z)>(tree.LeafMasks.Keys);
-        for (var i = 0; i < depth; i++)
-        {
-            level = [.. level.Select(c => (c.X >> 1, c.Y >> 1, c.Z >> 1))];
-            branches.Add(level);
-        }
+        var branches = tree.BranchCells;
 
         var leaves = new List<Leaf>();
         var stack = new Stack<(int Level, (int X, int Y, int Z) Cell)>();
@@ -66,7 +60,7 @@ public static class VisRegions
         while (stack.Count > 0)
         {
             var (at, cell) = stack.Pop();
-            if (at > 0 && branches[at - 1].Contains(cell))
+            if (at > 0 && branches.Contains((at, cell)))
             {
                 for (var octant = 0; octant < 8; octant++)
                     stack.Push((at - 1, (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
