@@ -97,9 +97,20 @@ public static class VisMerge
     /// <param name="padded">Whether to add the 56 shell boxes, which is on for
     /// cluster generation and off for every later pass.</param>
     /// <param name="cube">A leaf's cube, which the sampling needs.</param>
+    /// <summary>
+    /// Why one bucket's loop stopped, which is the only way to tell a run that
+    /// hit its budget from one that ran out of pairs to make.
+    /// </summary>
+    /// <param name="Live">Clusters left standing.</param>
+    /// <param name="Budget">What it was aiming at.</param>
+    /// <param name="Limit">The cost it was allowed to spend.</param>
+    /// <param name="Cost">The cheapest pair still on offer, or MaxValue when none is.</param>
+    public readonly record struct Halt(int Live, int Budget, float Limit, float Cost);
+
     public static float Run(
         RayTraceEnvironment scene, List<Cluster> clusters, Vector3 mins, Vector3 maxs,
-        float costLimit, int budget, bool padded, VisClusterSample.LeafCube cube)
+        float costLimit, int budget, bool padded, VisClusterSample.LeafCube cube,
+        Action<Halt>? halted = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(clusters);
@@ -132,6 +143,7 @@ public static class VisMerge
             live--;
         }
 
+        halted?.Invoke(new Halt(live, budget, costLimit, state.Cheapest().Cost));
         state.Keep(clusters);
         return MathF.Max(best, costLimit);
     }

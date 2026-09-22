@@ -1954,15 +1954,52 @@ clusters removed before the five passes is worth about eight percent of the
 final count, because each one it removes is a run of open space that the cost
 driven merge would otherwise have spent its budget joining up.
 
-### What is left
+### Why ze_hold_em_p is a different problem from the probes
 
-1. **ze_hold_em_p's -9.69%**, which none of this touches: the pre-merge finds
-   nothing there, correctly, and the map still merges to its connected
-   components and stops at 233 against Valve's 258. Its first pass cost is
-   -4.28% where the probes are now near 1%, and that is the only per-map signal
-   left pointing anywhere.
-2. **The probes' +3%**, which is now an OVER-merge where it used to be an under-
-   merge, so whatever is left is smaller than what the pre-merge was worth.
+Instrumenting where each bucket's loop STOPS separates them completely. A run
+that hits its budget and one that runs out of pairs to make are the same number
+on the way out and different problems:
+
+```
+ze_hold_em_p  pass 1:  82 buckets ended;  RAN OUT of pairs  82  stopped on cost   0   live     82
+probe01       pass 1:  20 buckets ended;  RAN OUT of pairs   0  stopped on cost  20   live  2,541
+                       the cheapest pair left averaged 122,463 against a limit of 109,571
+```
+
+probe01 is healthy: every bucket stops because the next merge costs more than it
+is allowed, with the cheapest remaining pair 12% over the limit. ze_hold_em_p's
+82 merging buckets each collapse to a SINGLE cluster and stop only because there
+is nothing left to merge. Its other three buckets hold 151 clusters between them
+and never merge at all, because a bucket smaller than twice the per cell budget
+is returned untouched -- 233 is 82 + 151, and the compile's 258 is the same 151
+plus 107, so where we finish 82 buckets at one cluster each the compile finishes
+them at about 1.3.
+
+So the gap is the LAST merge in about 25 buckets, and the cost that should have
+stopped it. The cost function itself is not the suspect any more: `1800301c0`
+has now been read to its end, including the tail we had inferred. The spread
+penalty is x8 over a 4,096 unit footprint, the z span penalty x32 over 80 units
+when at least one side is under it, the whole weighted term is scaled by 10, and
+the distance added to it is `18002fec0`, which is the box GAP -- zero the moment
+two boxes touch, so it can never be what stops a merge between neighbours. All
+of that matches. So do the voxel sizes the x128 penalty keys on: a cluster is
+born at `8 << level`, which is 8 through 2,048 across ze_hold_em_p's nine leaf
+levels.
+
+What the shape of the answer has to be: both penalties stop firing once a
+cluster is big, because a big cluster's own footprint is over 4,096 and its own
+z span is over 80. After that a pair of neighbours costs about 10 against a
+limit of 21,000 and nothing can stop it. The compile stops anyway in 25 buckets,
+so something keeps its cost up that does not keep ours up, and with the cost
+function, the distance, the penalties and the voxel sizes all matching, the
+remaining candidate is the visibility difference itself: what two big clusters
+in the same bucket still do NOT share.
+
+### And the probes' +3%
+
+Now an OVER-merge where it used to be an under-merge, so whatever is left there
+is smaller than what the pre-merge was worth, and it is a cost-limit problem
+rather than an exhaustion one.
 2. Not `g_flConfigMaxCoord`, which was the obvious suspect and is now read
    rather than reasoned about. visbuilder imports the symbol from tier0.dll,
    whose export table puts it in `.data` holding `0x46800000`, so it is
