@@ -88,6 +88,15 @@ public static class VisClusterSample
     public const int IndexAbove = 256;
 
     /// <summary>
+    /// A leaf index to its cube, which the marking walk needs because it
+    /// confirms against a cluster's occupied cells rather than its box. The
+    /// compile reaches the same thing through the sampler at the merge state's
+    /// <c>+0x20</c>.
+    /// </summary>
+    /// <param name="leaf">The leaf a cluster's voxel pair names.</param>
+    public delegate (Vector3 Corner, float Side) LeafCube(int leaf);
+
+    /// <summary>
     /// The direction set <c>180027400</c> builds when a merge set is big enough
     /// to stop sampling toward every other cluster: a golden-spiral sphere of
     /// <see cref="SphereDirections"/> unit vectors.
@@ -123,10 +132,11 @@ public static class VisClusterSample
     /// </summary>
     public static void SampleInto(
         RayTraceEnvironment scene, IReadOnlyList<VisMerge.Cluster> clusters,
-        Vector3 mins, Vector3 maxs, bool padded)
+        Vector3 mins, Vector3 maxs, bool padded, LeafCube cube)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(clusters);
+        ArgumentNullException.ThrowIfNull(cube);
 
         var (boxMins, boxMaxs) = padded ? Padded(mins, maxs.X - mins.X) : (mins, maxs);
         var reach = (boxMaxs - boxMins).Length();
@@ -158,6 +168,7 @@ public static class VisClusterSample
         Parallel.For(0, clusters.Count, i =>
         {
             var bits = new ulong[words];
+            var reached = new List<int>();
             var from = centres[i];
             var aimed = sphere ? Sphere.Length : centres.Length;
             for (var j = 0; j < aimed; j++)
@@ -175,17 +186,63 @@ public static class VisClusterSample
                 }
 
                 var to = from + (direction * Nearest(scene, near, from, direction, reach));
+                reached.Clear();
                 if (index is not null)
                 {
-                    index.Crossed(from, to, bits);
-                    continue;
+                    index.Crossed(from, to, reached);
                 }
-                for (var k = 0; k < boxes.Count; k++)
-                    if (Crosses(from, to, boxes[k].Mins, boxes[k].Maxs))
+                else
+                {
+                    for (var k = 0; k < boxes.Count; k++)
+                        if (Crosses(from, to, boxes[k].Mins, boxes[k].Maxs))
+                            reached.Add(k);
+                }
+
+                foreach (var k in reached)
+                    if (Occupied(clusters, k, cube, from, to))
                         bits[k >> 6] |= 1UL << (k & 63);
             }
             clusters[i].Visibility = bits;
         });
+    }
+
+    /// <summary>
+    /// Whether the segment reaches an entry for real. Crossing the box is only
+    /// the broad phase: <c>18003d600</c> then walks the cluster's own (mask,
+    /// leaf) pairs and keeps it only when the segment passes through a cell the
+    /// cluster actually occupies. A shell entry carries no cluster and the box
+    /// is all there is, so it counts on the box alone.
+    /// </summary>
+    private static bool Occupied(
+        IReadOnlyList<VisMerge.Cluster> clusters, int entry, LeafCube cube, Vector3 from, Vector3 to)
+    {
+        if (entry >= clusters.Count)
+            return true;
+
+        var inverse = Reciprocal(to - from);
+        var last = -1;
+        var cells = 0UL;
+        foreach (var (mask, leaf) in clusters[entry].Voxels)
+        {
+            if (leaf != last)
+            {
+                var (corner, side) = cube(leaf);
+                cells = VisVisibility.Crossed(from, inverse, corner, side, 4);
+                last = leaf;
+            }
+            if ((mask & cells) != 0)
+                return true;
+        }
+        return false;
+    }
+
+    private static Vector3 Reciprocal(Vector3 v)
+    {
+        const float Floor = 1e-20f;
+        return new Vector3(
+            1f / (MathF.Abs(v.X) < Floor ? Floor : v.X),
+            1f / (MathF.Abs(v.Y) < Floor ? Floor : v.Y),
+            1f / (MathF.Abs(v.Z) < Floor ? Floor : v.Z));
     }
 
     /// <summary>
@@ -304,8 +361,8 @@ public static class VisClusterSample
             return node;
         }
 
-        /// <summary>Set a bit for every box the segment reaches into.</summary>
-        public void Crossed(Vector3 from, Vector3 to, ulong[] bits)
+        /// <summary>Collect every box the segment reaches into.</summary>
+        public void Crossed(Vector3 from, Vector3 to, List<int> into)
         {
             if (_nodes.Count == 0)
                 return;
@@ -323,7 +380,7 @@ public static class VisClusterSample
                     {
                         var box = _order[i];
                         if (Crosses(from, to, _mins[box], _maxs[box]))
-                            bits[box >> 6] |= 1UL << (box & 63);
+                            into.Add(box);
                     }
                     continue;
                 }

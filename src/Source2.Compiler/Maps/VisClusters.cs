@@ -193,7 +193,7 @@ public static class VisClusters
                 });
             }
             VisMerge.Run(scene, set.Clusters, set.Mins, set.Maxs,
-                         MergeThreshold, MergeTarget, padded: true);
+                         MergeThreshold, MergeTarget, padded: true, Cubes(tree, compacted));
             sets[i] = set;
         });
         return [.. sets];
@@ -288,6 +288,24 @@ public static class VisClusters
         var wanted = (int)(volume / VolumePerCluster);
         var target = wanted < 1 ? 32 : Math.Max(32, (wanted + 0x21) & ~0x1f);
         return Math.Min(target, MaxVisClusters * 4);
+    }
+
+    /// <summary>
+    /// The leaf cube lookup the sampling needs: a leaf index to its corner and
+    /// edge, which is what a cluster's (mask, leaf) pairs are relative to.
+    /// </summary>
+    /// <param name="tree">The voxel tree the leaves index.</param>
+    /// <param name="regions">The compacted leaves.</param>
+    public static VisClusterSample.LeafCube Cubes(VisVoxelizer.Octree tree, VisRegions.Result regions)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentNullException.ThrowIfNull(regions);
+        return leaf =>
+        {
+            var at = regions.Leaves[leaf];
+            var side = tree.LeafSize * (1 << at.Level);
+            return (tree.Origin + (new Vector3(at.Cell.X, at.Cell.Y, at.Cell.Z) * side), side);
+        };
     }
 
     /// <summary>

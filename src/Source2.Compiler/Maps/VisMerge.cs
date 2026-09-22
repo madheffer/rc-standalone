@@ -96,9 +96,10 @@ public static class VisMerge
     /// <param name="budget">Clusters the loop aims at, the <c>param_5</c> argument.</param>
     /// <param name="padded">Whether to add the 56 shell boxes, which is on for
     /// cluster generation and off for every later pass.</param>
+    /// <param name="cube">A leaf's cube, which the sampling needs.</param>
     public static float Run(
         RayTraceEnvironment scene, List<Cluster> clusters, Vector3 mins, Vector3 maxs,
-        float costLimit, int budget, bool padded)
+        float costLimit, int budget, bool padded, VisClusterSample.LeafCube cube)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(clusters);
@@ -106,7 +107,7 @@ public static class VisMerge
             return costLimit;
 
         var shell = padded ? VisClusterSample.Shell.Length : 0;
-        VisClusterSample.SampleInto(scene, clusters, mins, maxs, padded);
+        VisClusterSample.SampleInto(scene, clusters, mins, maxs, padded, cube);
 
         var live = clusters.Count + shell;
         var state = new Selection(clusters);
@@ -138,6 +139,12 @@ public static class VisMerge
         /// <summary>The slack a candidate query starts at (<c>DAT_18017f1e8</c> and <c>f118</c>).</summary>
         public const float Slack = 1f;
 
+        /// <summary>How much cheaper a rival must be to displace the held candidate, <c>DAT_18017f0cc</c>.</summary>
+        public const float Better = 1e-4f;
+
+        /// <summary>The band two owners' costs count as equal in, <c>DAT_18017f0d0</c>.</summary>
+        public const float Tie = 1e-3f;
+
         private readonly List<Cluster> _clusters;
         private readonly bool[] _alive;
         private readonly List<(int Other, float Cost)>[] _candidates;
@@ -155,7 +162,13 @@ public static class VisMerge
         /// <summary>Clusters still standing.</summary>
         public int Live { get; private set; }
 
-        /// <summary>The cheapest live pair, or (-1, -1, max) when none is left.</summary>
+        /// <summary>
+        /// The cheapest live pair, or (-1, -1, max) when none is left, which is
+        /// <c>180031680</c>. Both levels of it break a tie towards the smaller
+        /// side: a rival candidate no dearer than <see cref="Better"/> wins on
+        /// <see cref="Preferred"/>, and two owners within <see cref="Tie"/> are
+        /// separated by their combined voxel count.
+        /// </summary>
         public (int Owner, int Other, float Cost) Cheapest()
         {
             var best = (Owner: -1, Other: -1, Cost: float.MaxValue);
@@ -163,11 +176,70 @@ public static class VisMerge
             {
                 if (!_alive[owner])
                     continue;
+
+                var mine = (Other: -1, Cost: float.MaxValue);
                 foreach (var (other, cost) in _candidates[owner])
-                    if (_alive[other] && cost < best.Cost)
-                        best = (owner, other, cost);
+                {
+                    if (!_alive[other])
+                        continue;
+                    if (mine.Other < 0)
+                    {
+                        mine = (other, cost);
+                        continue;
+                    }
+                    var gain = mine.Cost - cost;
+                    if (gain >= -Better && (gain >= Better || Preferred(other, mine.Other)))
+                        mine = (other, cost);
+                }
+                if (mine.Other < 0)
+                    continue;
+
+                if (best.Owner >= 0 && MathF.Abs(mine.Cost - best.Cost) < Tie
+                    && Bulk(owner, mine.Other) < Bulk(best.Owner, best.Other))
+                    best = (owner, mine.Other, mine.Cost);
+
+                if (mine.Cost < best.Cost)
+                    best = (owner, mine.Other, mine.Cost);
             }
             return best;
+        }
+
+        private int Bulk(int a, int b) => _clusters[a].VoxelCount + _clusters[b].VoxelCount;
+
+        /// <summary>
+        /// <c>180030d70</c>: the rival wins when the incumbent is gone, when it
+        /// has fewer voxels, or when the counts match and its box sorts first.
+        /// It reads only geometry, never an index, which is what makes the build
+        /// reproducible however the pool's threads interleave.
+        /// </summary>
+        private bool Preferred(int candidate, int incumbent) =>
+            !_alive[incumbent]
+            || _clusters[incumbent].VoxelCount > _clusters[candidate].VoxelCount
+            || Before(_clusters[candidate], _clusters[incumbent]);
+
+        /// <summary>
+        /// <c>180027e10</c>: order two boxes by longest side, then each extent,
+        /// then the corner, taking the first key that differs.
+        /// </summary>
+        private static bool Before(Cluster a, Cluster b)
+        {
+            var one = a.Maxs - a.Mins;
+            var two = b.Maxs - b.Mins;
+            var longest = MathF.Max(MathF.Max(MathF.Abs(one.X), MathF.Abs(one.Y)), MathF.Abs(one.Z));
+            var rival = MathF.Max(MathF.Max(MathF.Abs(two.X), MathF.Abs(two.Y)), MathF.Abs(two.Z));
+            if (longest != rival)
+                return longest < rival;
+            if (one.X != two.X)
+                return one.X < two.X;
+            if (one.Y != two.Y)
+                return one.Y < two.Y;
+            if (one.Z != two.Z)
+                return one.Z < two.Z;
+            if (a.Mins.X != b.Mins.X)
+                return a.Mins.X < b.Mins.X;
+            if (a.Mins.Y != b.Mins.Y)
+                return a.Mins.Y < b.Mins.Y;
+            return a.Mins.Z < b.Mins.Z;
         }
 
         /// <summary>Merge one pair and rebuild the survivor's candidates.</summary>

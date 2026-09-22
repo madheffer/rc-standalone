@@ -1520,6 +1520,52 @@ the three pass counts goes from 2.28% to 7.13%. Re-applying them is worth doing
 the moment the fifth pass is understood, and the rules above are exact enough to
 re-enter from this page.
 
+### The sampling marked on the BOX, and the compile marks on the VOXELS
+
+This is what the fifth pass was exposing, and it is in `18003d600`, the walk
+that turns one traced segment into set bits.
+
+At a leaf of its box hierarchy the payload is a slot index, and there are two
+cases. A slot with **no cluster** is a shell box, and its bit is set on the box
+test alone. A slot **with** a cluster is not: the walk takes the segment's
+reciprocal direction and goes through that cluster's own (mask, leaf) pairs, and
+for each one asks `FUN_18010c6e0` for the 64 bit mask of the leaf sub cells the
+segment crosses. The bit is set only if `pair.mask & crossed` is non zero.
+
+> Crossing a cluster's bounding box is only the broad phase. A cluster is seen
+> when the segment passes through a cell it actually occupies.
+
+We were stopping at the broad phase, so every vector was over-populated, every
+`|A \ B|` came out too small, and the cost the merge is steered by was too low.
+That is why the error grew with cluster size: it is worst exactly where boxes
+are emptiest, which is the fifth pass.
+
+`FUN_18010c6e0` is the same sub-cell mask the PVS walk uses, so it was already
+ported as `VisVisibility.Crossed`. What it needed was a leaf index to cube
+lookup threaded down to the sampler, which the compile reaches through the
+sampler held at the merge state's `+0x20`.
+
+### The two fixes only work together
+
+Neither the voxel confirm nor the ordering tie break is any good on its own, and
+both are needed for the fifth pass. probe01:
+
+| | baseline | tie break only | voxels only | **both** | compile |
+|---|---|---|---|---|---|
+| first pass | 1,946 (-1.67%) | 1,977 (-0.10%) | 1,958 (-1.06%) | **1,954 (-1.26%)** | 1,979 |
+| second pass | 1,757 (-3.20%) | 1,826 (+0.61%) | 1,792 (-1.27%) | **1,781 (-1.87%)** | 1,815 |
+| fifth pass | 1,589 (-1.97%) | 1,286 (-20.67%) | 1,326 (-18.20%) | **1,587 (-2.10%)** | 1,621 |
+
+cardtest moves the same way, from -5.56%/-7.67%/-5.97% to +4.15%/+4.60%/+4.18%.
+
+ze_hold_em_p goes the other way, 301 clusters to 350 against 258, and that is
+worth stating plainly rather than burying. It never reaches its budget or its
+cost limit on any pass: its buckets run out of candidates and it stops at its
+connected components. So its number measures connectivity, not the merge, and
+both fixes being correct made a compensating error elsewhere visible. Its bound
+in the test is wide on purpose and guards drift rather than asserting
+correctness.
+
 ### Everything in the five-pass chain, verified against the image
 
 The fifth pass over-merges once the ordering is right, so the whole chain was
