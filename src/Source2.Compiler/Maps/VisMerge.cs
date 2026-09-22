@@ -48,6 +48,26 @@ public static class VisMerge
         /// <summary>Its box centre, which is what every grid and query keys on.</summary>
         public Vector3 Centre => (Mins + Maxs) * 0.5f;
 
+        /// <summary>
+        /// Fold another cluster's (mask, leaf) pairs in, which is
+        /// <c>18002f250</c>: both lists are sorted by leaf and merged, and two
+        /// entries for the SAME leaf become one with their masks ORed. That is
+        /// what makes the final region count a real number rather than a running
+        /// total of every voxel ever merged.
+        /// </summary>
+        public void Take(IReadOnlyList<(ulong Mask, int Leaf)> other)
+        {
+            ArgumentNullException.ThrowIfNull(other);
+            var byLeaf = new Dictionary<int, ulong>(Voxels.Count + other.Count);
+            foreach (var (mask, leaf) in Voxels)
+                byLeaf[leaf] = byLeaf.GetValueOrDefault(leaf) | mask;
+            foreach (var (mask, leaf) in other)
+                byLeaf[leaf] = byLeaf.GetValueOrDefault(leaf) | mask;
+            Voxels.Clear();
+            foreach (var leaf in byLeaf.Keys.Order())
+                Voxels.Add((byLeaf[leaf], leaf));
+        }
+
         /// <summary>Take another cluster into this one, which is <c>180030a50</c>.</summary>
         public void Absorb(Cluster other)
         {
@@ -58,7 +78,7 @@ public static class VisMerge
             VoxelSize = Math.Min(VoxelSize, other.VoxelSize);
             if (Tag != other.Tag)
                 Tag = 0;
-            Voxels.AddRange(other.Voxels);
+            Take(other.Voxels);
             for (var w = 0; w < Visibility.Length && w < other.Visibility.Length; w++)
                 Visibility[w] |= other.Visibility[w];
         }

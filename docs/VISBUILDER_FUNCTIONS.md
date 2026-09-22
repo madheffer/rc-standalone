@@ -45,6 +45,14 @@ behaviour, so they carry a description rather than a symbol.
 | `180034220` | the re-BUCKETING before each merge | a 2D grid of 512, 512, 2048, 2048 then 4096 units, budgets 6 to 3 times the target; only x and y are in the key and a cell's box spans all of z |
 | `180033fd0` | `CVoxelSampler3::MergeClusterSet` | merges every bucket at the incoming limit with DOUBLE the budget, then again at the average cost that produced; returns that average, which is the next pass's limit |
 | `18003dea0` / `18003de20` | the two merge job bodies | both call `1800337a0`, the first recording each bucket's cost |
+| `180036850` | the PVS entry | branches on `DeterministicBuild`: `180018a30` normally, `1800177d0` on 0 or `-oldvis`, `180017020` on `-updateloshints` |
+| `180018a30` | the deterministic generator set | cluster centre, boundary points, large cluster regions, then the `.los` reader |
+| `1800177d0` | the ORIGINAL sampler | a larger generator set and its own loop; also what `-updateloshints` runs to write the `.los` cache |
+| `18001d610` | `CNeighboringClustersList::Build` | per region, add its volume to its cluster and link the clusters of adjacent regions |
+| `18001f170` | `NeighborsScan BuildTracePointsForClusters` | called on the boundary-points generator |
+| `18001bb60` / `18001bcd0` / `18001bce0` / `18001bcf0` | the four generator NAME accessors | found by scanning .text for a RIP-relative displacement onto each string, which is what Ghidra could not follow |
+| `18002ed60` | per-cluster bounding boxes | max cluster id over the regions, then union each region's box into its cluster's |
+| `18002f250` | merge two (mask, leaf) lists | sorts both by leaf and ORs the masks of equal leaves, which is what makes the shipped region count finite |
 | `180027400` | the 512-direction sphere | a golden spiral, `turn = (3 - sqrt(5)) * pi`, used once a merge set reaches 512 entries |
 | `180032b80` | the region count the compile prints | fills a vector with the regions whose flag bits 0 and 1 are both clear, immediately before `MergeInsideRegions` logs the count |
 | `18002e050` | classify one region as inside or outside | the SECOND pass, sequential and in region order; casts the seed's grid and marches every facing hit, then votes `inside > 2n` or `inside > n and outside < 5` |

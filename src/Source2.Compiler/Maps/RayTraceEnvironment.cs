@@ -103,6 +103,15 @@ public sealed class RayTraceEnvironment
     public bool Traced(int index) => (Flags(index) & ExcludedFromTrace) == 0;
 
     /// <summary>
+    /// The flag word exactly as the file holds it, with no fold. The batch
+    /// tracer reads bit 4 directly (<c>(*(ushort *)(tri + 0x2e) &gt;&gt; 4) &amp; 1</c>)
+    /// and <see cref="Flags"/> rewrites that bit, so the sampler has to come
+    /// here instead.
+    /// </summary>
+    public ushort RawFlags(int index) =>
+        BinaryPrimitives.ReadUInt16LittleEndian(Record(index)[0x2e..]);
+
+    /// <summary>
     /// The bit the voxelizer stops counting as occupancy once a box is small,
     /// which is what <c>18002e310</c>'s mask switch is: <c>0x811</c> for a box
     /// wider than <see cref="FineBoxSize"/> and <c>0x1811</c> at or below it.

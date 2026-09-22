@@ -1255,12 +1255,62 @@ merge order with it. A set of 511 and a set of 512 are sampled differently on
 purpose, and a region's merge (at most 120 entries) never sees the sphere while
 a grid cell's (thousands) never sees anything else.
 
+### The PVS has three modes, and the shipped one is the small function
+
+`180036850` reads `ResourceCompiler/VisBuilder/DeterministicBuild` and branches:
+
+| mode | when | what it is |
+|---|---|---|
+| `180018a30`, 475 bytes | `DeterministicBuild != 0` and no `-oldvis` - **what CS2 ships** | the deterministic generator set |
+| `1800177d0`, 4,703 bytes | `DeterministicBuild == 0`, or `-oldvis`, or under `-updateloshints` | the ORIGINAL sampler, a larger generator set with its own sampling loop |
+| `180017020`, 1,611 bytes | `-updateloshints` | regenerates the `.los` hint cache by running the old sampler over an empty hint set |
+
+**None of them is dead.** The old one is the legacy path AND the engine of the
+tool mode that WRITES the `.los` cache, which is the format `PLAN.md` has had
+open for months. But a stock compile runs neither, and that is not inferred from
+the config - it is what the logs say. `180018a30` calls `18001d610`
+(`CNeighboringClustersList::Build()`) and `18001f170` (`NeighborsScan
+BuildTracePointsForClusters()`); `1800177d0` calls **neither**; and every compile
+log we have prints the first of those. Reverse engineering the 4,703 byte
+function first would have been days spent on code the shipped compiler does not
+execute.
+
+### The four ray generators, and how they were found
+
+Their names are in the binary and **nothing in the code references them** as
+Ghidra sees it, which is the thread `PLAN.md` records as needing an RVA-aware
+walk. Scanning the .text section for a RIP-relative displacement that lands on
+each string finds all four in one pass:
+
+| accessor | name | vtable |
+|---|---|---|
+| `18001bb60` | `CLOSRayGenerator` | `18017b648` |
+| `18001bcd0` | `ClusterCenterRayGenerator` | |
+| `18001bce0` | `CBoundaryPointsRayGenerator` | `18017b688` |
+| `18001bcf0` | `LargeClusterRegionsRayGenerator` | `18017b7c8` |
+
+and `180018a30` builds exactly four objects in that order: the cluster-centre
+one always, then - unless its caller passes the skip flag - boundary points,
+large cluster regions (with 600, 128 and 256 written into it), and the `.los`
+reader handed the hint path. That matches the compile logs, which name
+`ClusterCenterRayGenerator` and `LargeClusterRegionsRayGenerator` and nothing
+else.
+
+### The region count the file ships with
+
+After the five merge passes, `MergeInsideRegions` writes every final cluster's
+(mask, leaf) pairs back out as regions, and `18002f250` has kept those pairs
+sorted by leaf with same-leaf masks ORed all along. So
+`Compacted to 103358 regions (258 clusters)` is simply **the total number of
+(mask, leaf) pairs across the final clusters**, and it falls out of the merge
+with nothing else to compute.
+
 ### The rest
 
 | stage | what is known |
 |---|---|
 | `18002ed60`, `180037840` | cluster assignment; prints `Assigned %d clusters` |
-| `180036850` | the PVS itself, and the three ray generators that are 52% of a compile |
+| `180036850` | the PVS entry, which picks one of THREE modes |
 | `CVoxelSampler3__AdaptivelySampleBorders` | prints `Adaptive border clusters` |
 | `18003c010`'s volume gate | below 2^20 cubic units of enclosed space the whole PVS is disabled, with `Visibility cannot be determined in this map` |
 | `18003c010`'s collapse | `Collapsing resolution`, `Reduced node count from %d to %d`, `%d unique masks` |
