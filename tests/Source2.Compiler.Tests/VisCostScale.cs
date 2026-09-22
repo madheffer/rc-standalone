@@ -64,6 +64,33 @@ public class VisCostScale(ITestOutputHelper output)
                         output.WriteLine($"{"",16} were the untouched ones excluded the average"
                             + $" would be {merged.Average(h => h.Returned),10:F1}"
                             + $"  {merged.Average(h => h.Returned) / compile - 1,8:P2}");
+
+                    // How many more buckets would have to clear the doubled
+                    // budget for the average to land on the compile's.
+                    if (merged.Count > 0)
+                    {
+                        var mean = merged.Average(h => h.Returned);
+                        var need = (compile * first.Count - 20.0 * first.Count) / (mean - 20.0);
+                        output.WriteLine($"{"",16} at {mean,10:F1} a merging bucket, the average"
+                            + $" lands on {compile,9:F1} when {need,5:F1} of the {first.Count}"
+                            + $" merge rather than {merged.Count}");
+                    }
+
+                    if (merged.Count > 0)
+                        output.WriteLine($"{"",16} in the merging buckets each cluster saw"
+                            + $" {merged.Average(h => h.Seen),10:F1} of {merged.Average(h => h.Bits),8:F0}"
+                            + $"  ({merged.Average(h => h.Seen) / merged.Average(h => h.Bits),7:P1})"
+                            + $" as sampled, and the cheapest pair left when they stopped was"
+                            + $" {merged.Average(h => h.Cost),12:F1}");
+
+                    var sizes = first.Select(h => h.Started).Order().ToList();
+                    var threshold = merged.Count > 0 ? merged[0].Budget : 0;
+                    output.WriteLine($"{"",16} bucket sizes: {string.Join(", ",
+                        sizes.Select(x => x.ToString("n0")).Take(50))}");
+                    output.WriteLine($"{"",16} the doubled budget is {threshold:n0};"
+                        + $" {sizes.Count(x => x > threshold * 3 / 4 && x <= threshold),3} buckets sit"
+                        + $" within a quarter of it underneath,"
+                        + $" {sizes.Count(x => x > threshold && x <= threshold * 5 / 4),3} just over");
                 },
                 null, h => { lock (first) first.Add(h); });
         }

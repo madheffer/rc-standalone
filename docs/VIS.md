@@ -2066,12 +2066,65 @@ ze_hold_em_p, with 44 of its 85 buckets holding more than one voxel size and
 **And the limit is not the lever, which is the useful part.** Ours is 21,000
 against the compile's 21,940 -- LOWER, so it should stop our merges EARLIER and
 leave us with MORE clusters, and we have fewer. Raising it makes ze_hold_em_p
-worse, not better. The costs themselves must be higher, and with the visibility
-saturation shown to be the map rather than the port, the seven constants exact,
-and the cost function read to its end, what is left is not inside the cost at
-all. It is WHICH CLUSTERS SHARE A BUCKET: 41 cells too small to merge is a lot
-of the map sitting out, and both the average and the merging depend on that
-split.
+worse, not better.
+
+### The bucketing is not it either
+
+`180034220` was read line by line against the port and every piece matches: the
+origin is `floor((mins - margin/2) / cell) * cell` per axis, the extents are the
+matching `ceil` minus that over the cell, the key is
+`(cyIndex % acrossY) * acrossX + (cxIndex % acrossX)` off the cluster's box
+CENTRE, the number of DISTINCT keys is what `perCell = ceil(budget / buckets)`
+divides by, and a cell's box is `key % acrossX` and `key / acrossX % acrossY`
+with the doubled low z. ze_hold_em_p's grid is 42 by 3 over an RTE box of
+(-13707, -608, 17) to (7672, 398, 153), which is 126 cells of which 85 hold
+anything.
+
+The bucket sizes kill the obvious hypothesis outright. To reach the compile's
+average from our 40,550 per merging bucket you would need 46 of the 85 to merge
+rather than 44, so two of the untouched ones would have to clear the doubled
+budget of 190. They are nowhere near it:
+
+```
+72, then FORTY buckets of exactly 96, then 260, 364, 1628, 2070, 2128, 2128, ...
+```
+
+Not one bucket sits within a quarter of 190 on either side. The two extra would
+have to DOUBLE, not drift. (The forty identical 96s are not a bug either: the
+map is a long repetitive corridor and its edge cells all catch the same strip.)
+
+### Where that leaves it
+
+We have the compile's whole line for ze_hold_em_p, not just the average:
+
+| | min | max | avg |
+|---|---|---|---|
+| compile | 20.0 | 45,960.3 | 21,940.0 |
+| ours | 20.0 | **45,040.0** | 21,000.4 |
+| | exact | -2.0% | -4.28% |
+
+The max is the single dearest bucket and it is twice as close as the average,
+which is what a difference spread thinly across the merging buckets looks like
+rather than a few buckets landing on the wrong side of a threshold.
+
+What each of those numbers IS: the cost of the merge that took a bucket from 191
+clusters to 190, the first merge stopping the moment it reaches the doubled
+budget. Ours is 40,550 where the compile's must be about 42,365. Not a
+threshold, not a constant, not a bucket boundary -- the same point on a rising
+cost curve, 4.5% low.
+
+Everything that curve is built from has now been read: the seven cost constants,
+the cost function to its end, `18002fec0`, `180020580`, the candidate rule, the
+absorb, the tie-break, and finally the BIRTH values in `180032d80` --
+`VoxelCount += popcount(mask)` and `VoxelSize = (int)((maxs.x - mins.x) * 0.25)`,
+both exactly ours. The saturation that makes the late merges free is 31.9% at
+the first merge and only reaches 100% after most of the merging is done, so it
+is not masking the early curve either.
+
+So the remaining ze_hold_em_p error is not a discrete defect anywhere in the
+chain. It is a soft 4.5% offset in where a greedy merge of 2,000 clusters has
+got to after 1,843 of them, which is the accumulated effect of merge ORDER among
+near-equal costs rather than of any one rule being wrong.
 
 ### And the probes' +3%
 
