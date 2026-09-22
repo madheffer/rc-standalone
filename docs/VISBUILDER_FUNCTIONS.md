@@ -142,3 +142,26 @@ and a class to go with the measurement.
 **Flag bit 0 means outside.** Outside detection sets it, the ray march stops on
 it, and the region count excludes it. Bit 1 is set at region creation and also
 excludes a region from the count; both are cleared for a region that counts.
+
+## Functions no call graph reaches
+
+The scene the sampler is given is a 16 byte stack adapter built in `180036850`,
+`{ vtable 18017c1e8, owner = the voxel sampler }`. Its slots are thunks that
+reload `this` from `+0x08` and tail-jump, so Ghidra leaves them undefined and a
+subtree dump never sees them. These came out of reading the vtable from the
+image, decoding the thunks, and running `DumpAt.java` on the targets.
+
+| address | what it is | reached by |
+|---|---|---|
+| `18002c2a0` | fold a batch's segments into the PVS | vtable `+0x18` via `18002a970` |
+| `18002d9e0` | walk a segment through the octree | `18002c2a0` |
+| `18001b690` | OR the mutual visibility matrix, return words changed | `18002c2a0` |
+| `18002d490` | a point to its region | vtable `+0x58` via `18002acf0` |
+| `18002ad60` | a region to its cluster | vtable `+0x80` |
+| `18010cb10` | 8 bit octant crossing mask | `18002d9e0` |
+| `18010c6e0` | 64 bit sub cell crossing mask | `18002d9e0` |
+
+The same blind spot hid the four ray generator names, which needed a scan of
+`.text` for RIP-relative displacements onto the strings. Anything reached only
+through a vtable slot or a 32 bit RVA needs one of those two techniques; a call
+graph will not find it, and its absence from a dump is not evidence it is dead.

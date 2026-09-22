@@ -1296,14 +1296,98 @@ reader handed the hint path. That matches the compile logs, which name
 `ClusterCenterRayGenerator` and `LargeClusterRegionsRayGenerator` and nothing
 else.
 
-### The region count the file ships with
+### The region count the file ships with, and what it is NOT
 
-After the five merge passes, `MergeInsideRegions` writes every final cluster's
-(mask, leaf) pairs back out as regions, and `18002f250` has kept those pairs
-sorted by leaf with same-leaf masks ORed all along. So
-`Compacted to 103358 regions (258 clusters)` is simply **the total number of
-(mask, leaf) pairs across the final clusters**, and it falls out of the merge
-with nothing else to compute.
+`Compacted to 103358 regions (258 clusters)` is printed at the END of
+`180032670`, after the merge, and it is **not** a total over the clusters. It
+was implemented that way first, as the sum of every final cluster's (mask, leaf)
+pairs, and scored at -63% on probe01 and -89% on ze_hold_em_p. The write-back
+loop says why.
+
+The loop walks the REGION array (`this+0x28` entries) and the cluster array in
+lockstep. For every region whose flag bit 0 is set it stamps the region's own
+flag word with `(flags & 1) | (runningTotal << 1)`, writes that cluster's entry
+count into the region at `+0x04` as a `short`, and copies that many 16 byte
+entries into one flat output array. The printed number is the running total:
+
+> **sum over KEPT REGIONS of the entry count of the cluster each one was
+> assigned to.**
+
+The same cluster is therefore counted once per region assigned to it, which is
+why the number is far larger than either the region count or the cluster count.
+For ze_hold_em_p that is 103,358 entries over roughly 10,554 regions, about
+nine each; probe01 is 30,665 over 7,316, about four.
+
+Two consequences. It cannot be computed before **cluster assignment**, so it is
+not a score the merge stage can be held to, and the assertion was removed from
+`VisClusterSetTests` rather than left failing against a number that stage does
+not produce. And the region's flag word is doing double duty: bit 0 stays the
+kept flag and everything above it is an offset, which is where a region's entry
+list is found later.
+
+### The PVS itself, end to end
+
+`180036850` builds a 16 byte stack adapter, `{ vtable 18017c1e8, owner = the
+voxel sampler }`, and hands THAT to the sampler as its scene. The adapter's
+slots are one-line thunks that reload `this` from `+0x08`, so Ghidra leaves them
+as `PTR_LAB_` and nothing in a call-graph dump reaches them. Reading the vtable
+out of the image and decoding the thunks by hand gives the four that matter:
+
+| slot | thunk | target | what it is |
+|---|---|---|---|
+| `+0x10` | `18002a960` | inline | `sampler->[0xe8]`, the ray trace environment |
+| `+0x18` | `18002a970` | `18002c2a0` | fold a batch's segments into the PVS |
+| `+0x58` | `18002acf0` | `18002d490` | a point to its region |
+| `+0x80` | `18002ad60` | - | a region to its cluster |
+
+The algorithm is one rule: **every cluster a clear line passes through can see
+every other cluster that same line passes through.** `18002c2a0` runs it per
+segment:
+
+1. If the batch held no sight ray, step the origin one unit along the line
+   first, because those segments start on the surface that produced them, and
+   let a blocker abandon the line. If it did, start at the segment's own origin
+   and walk straight through blockers.
+2. `18002d9e0` walks the octree from the root cube, breadth first through a
+   4,096 entry ring. At an internal node `18010cb10` gives an 8 bit mask of the
+   octants the line crosses; at a leaf `18010c6e0` gives a 64 bit mask of its
+   4x4x4 sub cells. Both are per axis slab min and max, so each is a product of
+   three ranges rather than a walk. The octant table at `1801a6820` is the plain
+   one, bit 0 x, bit 1 y, bit 2 z, each half the parent edge.
+3. Every leaf entry whose own 64 bit cell mask intersects the line's contributes
+   its cluster id, skipping repeats of the id just taken.
+4. Sort and unique the ids, which is what lets the next step collapse them.
+5. `18001b690` turns the sorted ids into `(word, bits)` runs, then ORs EVERY
+   collected cluster's row with EVERY run, with a CAS because batches run on the
+   pool. It returns how many words it actually changed.
+6. A segment is **useful** when that count is above zero, and only then is it
+   kept in the batch's vector at `+0x30`. That is what the per generator log
+   means by "useful rays found", and why the number is not the ray count.
+
+The matrix is a full square bit matrix, one row per cluster, allocated at
+`clusters + 2` because sky and sun get one each (`m_nSkyVisibilityCluster`,
+`m_nSunVisibilityCluster`). The write stage asks for it by name,
+`MutualVisibilityMatrix`.
+
+The entry array the walk reads at `this+0x48` is exactly the flat 16 byte array
+the assignment write-back builds, and a region finds its own run through the
+offset packed into its flag word. So the PVS cannot run until assignment has,
+and the number that measures assignment is the `Compacted to N regions` line
+above.
+
+### The batch record, which the two halves agree on
+
+| offset | what |
+|---|---|
+| `+0x00` | ray count |
+| `+0x08` | rays, 32 bytes each |
+| `+0x18` | landing count |
+| `+0x20` | landings, 28 bytes each |
+| `+0x30` | useful segment count, which the driver adds to the total |
+| `+0x38` | useful segments, 24 bytes each, preallocated to 4,096 |
+
+`180016c60` consumes only that last vector, and both of its halves are gated on
+debug fields, so nothing it does reaches the PVS.
 
 ### The rest
 
