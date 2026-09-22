@@ -67,53 +67,34 @@ public static class VisOutside
     /// </summary>
     /// <param name="tree">The voxelized octree.</param>
     /// <param name="regions">Its leaves and their regions.</param>
-    /// <param name="worldMin">The geometry's own box, which seeds the pass.</param>
-    /// <param name="worldMax">The geometry's own box.</param>
+    /// <param name="scene">The ray trace scene, which <see cref="VisSeed"/> casts into.</param>
     /// <param name="baseVoxelSize">The compile's BaseVoxelSize.</param>
     /// <param name="directions">Rays cast from each region's centre.</param>
     /// <param name="reach">How far a ray travels before giving up, in world units.</param>
-    /// <param name="sealedAt">Share of the seed's 26 rays that must find geometry
-    /// for a region to start out inside.</param>
-    /// <param name="openAt">Share at or below which it starts out outside.</param>
+    /// <param name="quality">Rays a box face is divided into, per side.</param>
     public static Result Detect(
         VisVoxelizer.Octree tree, VisRegions.Result regions,
-        Vector3 worldMin, Vector3 worldMax, float baseVoxelSize,
+        RayTraceEnvironment scene, float baseVoxelSize,
         IReadOnlyList<Vector3>? directions = null, float reach = 512f,
-        double sealedAt = 5d / 6, double openAt = 1d / 3)
+        int quality = VisSeed.Quality)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(regions);
+        ArgumentNullException.ThrowIfNull(scene);
         directions ??= AxialDirections;
 
         var space = new Space(tree, regions, baseVoxelSize);
         var status = new Status[regions.Regions.Count];
 
-        // The seed. The compile runs a thread pool job named InitialRegionStatus
-        // over every region, and that job samples rays over the region's box and
-        // decides on how many of them find geometry: enclosed enough is inside,
-        // open enough is outside, and anything between is left for the rays below.
-        // The compile's own thresholds are a tree over four counters whose meaning
-        // is not yet decoded, so the ratios here are ours.
-        for (var i = 0; i < status.Length; i++)
+        // The seed, which is VisSeed: a grid of rays through each face of the
+        // region's box, tallied four ways and run through 18004a2f0's threshold
+        // tree. It is the part of this pass that used to be ours, and it was
+        // deciding nothing on one map and half the answer on another.
+        Parallel.For(0, status.Length, i =>
         {
-            var centre = space.Centre(i);
-            if (centre.X < worldMin.X || centre.X > worldMax.X
-                || centre.Y < worldMin.Y || centre.Y > worldMax.Y
-                || centre.Z < worldMin.Z || centre.Z > worldMax.Z)
-            {
-                status[i] = Status.Outside;
-                continue;
-            }
-
-            var enclosed = 0;
-            foreach (var direction in AllDirections)
-                if (space.Blocked(centre, direction))
-                    enclosed++;
-            if (enclosed >= (int)(AllDirections.Length * sealedAt))
-                status[i] = Status.Inside;
-            else if (enclosed <= (int)(AllDirections.Length * openAt))
-                status[i] = Status.Outside;
-        }
+            var (mins, maxs) = space.Box(i);
+            status[i] = VisSeed.Decide(VisSeed.Gather(scene, mins, maxs, quality));
+        });
 
         // Then spread it, and note the polarity: a region is INSIDE only when its
         // rays reach regions already known inside, and outside when they reach one
@@ -194,6 +175,13 @@ public static class VisOutside
         /// </summary>
         public Vector3 Centre(int region)
         {
+            var (lo, hi) = Box(region);
+            return (lo + hi) * 0.5f;
+        }
+
+        /// <summary>The region's own box, which 18010be50 builds the same way.</summary>
+        public (Vector3 Mins, Vector3 Maxs) Box(int region)
+        {
             var leaf = _regions.Leaves[_regions.Regions[region].Leaf];
             var size = _tree.LeafSize * (1 << leaf.Level);
             var origin = _tree.Origin + new Vector3(leaf.Cell.X, leaf.Cell.Y, leaf.Cell.Z) * size;
@@ -210,7 +198,7 @@ public static class VisOutside
                 lo = Vector3.Min(lo, at);
                 hi = Vector3.Max(hi, at + new Vector3(sub));
             }
-            return (lo + hi) * 0.5f;
+            return (lo, hi);
         }
 
         /// <summary>

@@ -23,28 +23,38 @@ public class VisClustersTests(ITestOutputHelper output)
         new("s2c_rc_probe", "probe01", 7_316, 81_707),
     ];
 
-    /// <summary>
-    /// The count the compile sums, on the one map whose regions we reproduce
-    /// exactly. The two probe maps are not scored here because their region set
-    /// is 49% short, and a cluster count over the wrong regions measures nothing.
-    /// </summary>
+    /// <param name="Tolerance">ze_hold_em_p is exact and pinned at zero. The two
+    /// probe maps sit about 2.5% under, because a region there really does merge
+    /// to more than one cluster and the model here gives it one.</param>
+    private static readonly (int Map, double Tolerance)[] Counted =
+    [
+        (0, 0), (1, 0.03), (2, 0.03),
+    ];
+
+    /// <summary>The count the compile sums into "N clusters generated".</summary>
     [Fact]
     public void TheClusterCountLandsOnTheCompilesOwn()
     {
-        var specimen = Maps[0];
-        if (VisFixtures.RayTraceScene(specimen.Addon, specimen.Map) is not var (rte, valve))
-            return;
+        foreach (var (which, tolerance) in Counted)
+        {
+            var specimen = Maps[which];
+            if (VisFixtures.RayTraceScene(specimen.Addon, specimen.Map) is not var (rte, valve))
+                continue;
 
-        var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
-        var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
-                 / VisVoxelizer.VoxelsPerLeaf;
-        var regions = VisRegions.Build(tree, side);
-        var inside = VisOutside.Detect(tree, regions, rte.Mins, rte.Maxs, valve.GridSize);
-        var clusters = VisClusters.Count(tree, regions, inside.Regions);
+            var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
+            var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
+                     / VisVoxelizer.VoxelsPerLeaf;
+            var regions = VisRegions.Build(tree, side);
+            var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
+            var clusters = VisClusters.Count(tree, regions, inside.Regions);
 
-        output.WriteLine($"{specimen.Map,-16} clusters {clusters,8:n0}  compile {specimen.Clusters,8:n0}"
-                       + $"  {(double)clusters / specimen.Clusters - 1,8:P2}");
-        Assert.Equal(specimen.Clusters, clusters);
+            var error = (double)clusters / specimen.Clusters - 1;
+            output.WriteLine($"{specimen.Map,-16} clusters {clusters,8:n0}"
+                           + $"  compile {specimen.Clusters,8:n0}  {error,8:P2}");
+            Assert.True(Math.Abs(error) <= tolerance,
+                $"{specimen.Map}: {clusters:n0} clusters against the compile's "
+              + $"{specimen.Clusters:n0}, {error:P2} off");
+        }
     }
 
     [Fact]
@@ -72,7 +82,7 @@ public class VisClustersTests(ITestOutputHelper output)
             var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
                      / VisVoxelizer.VoxelsPerLeaf;
             var regions = VisRegions.Build(tree, side);
-            var inside = VisOutside.Detect(tree, regions, rte.Mins, rte.Maxs, valve.GridSize);
+            var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
             var born = VisClusters.Born(tree, regions, inside.Regions);
 
             var big = 0;

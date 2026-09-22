@@ -49,7 +49,7 @@ public class VisCorpusTests(ITestOutputHelper output)
             var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
                      / VisVoxelizer.VoxelsPerLeaf;
             var regions = VisRegions.Build(tree, side);
-            var inside = VisOutside.Detect(tree, regions, rte.Mins, rte.Maxs, valve.GridSize);
+            var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
             var clusters = VisClusters.Count(tree, regions, inside.Regions);
 
             var traced = Enumerable.Range(0, rte.TriangleCount).Count(rte.Traced);

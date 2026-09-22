@@ -698,18 +698,29 @@ compile's own:
 | map | traced triangles | compile | ours | off by |
 |---|---|---|---|---|
 | ze_hold_em_p | 4,536 | 10,554 | **10,554** | **exact** |
-| cardtest | 92 | 7,416 | 3,772 | -49.1% |
-| probe01 | 80 | 7,316 | 3,756 | -48.7% |
+| cardtest | 92 | 7,416 | 7,395 | **-0.28%** |
+| probe01 | 80 | 7,316 | 7,261 | **-0.75%** |
 
 ze_hold_em_p landed on the compile's own count the moment the voxelization under
-it became exact, which is the strongest evidence the pass itself is right: nothing
-in `VisOutside` changed to get there.
+it became exact, which is the strongest evidence the propagation is right:
+nothing in it changed to get there.
 
-The two probe maps are open, and they are not a decode problem any more. They are
-geometry that occupies a few thousand units of a 4,096 unit root cube, so almost
-every leaf is a huge empty coarse one, and the seed's ratios decide those. Under
-half as many regions come out enclosed. `VisOutsideTests` holds them at a 50%
-tolerance rather than pretending otherwise.
+### The seed had to be ported, and the way that was proved is the point
+
+The two probe maps sat at -49% while ze_hold_em_p was exact, with everything
+upstream of them measured and right. What settled it was sweeping the one part of
+the pass that was OURS rather than Valve's - a 26 direction "is it blocked" vote
+with two ratios - over twenty threshold pairs on both maps:
+
+| | 70% | 80% | 83.3% | 90% | 96% |
+|---|---|---|---|---|---|
+| ze_hold_em_p, target 10,554 | 10,554 | 10,554 | 10,554 | 10,554 | 10,554 |
+| probe01, target 7,316 | 6,646 | 6,580 | **3,756** | 2,837 | 2,809 |
+
+ze_hold_em_p does not move at all; probe01 moves by 137%, with a cliff between
+requiring 20 of 26 rays blocked and requiring 21. So the approximation was
+deciding nothing on one map and half the answer on the other, and no amount of
+tuning it would have been anything but a fit.
 
 **The polarity is the thing to get right, and it is the opposite of the obvious
 one.** `18002deb0` returns outside only when a ray reaches a region whose flag bit
@@ -735,12 +746,42 @@ it turns out not to decide anything: the propagation does, and the propagation i
 ported. `VisOutsideTests` pins both, so a future change that starts depending on
 either fails rather than passing quietly.
 
-What is ported exactly: the seed being a per-region sampling job rather than a
-global fill, the march, the propagation to a fixed point, and the default. What is
-not: the compile gathers its rays per region from a structure at `this+0xe8`
-through `18004b260`, which returns four counters the seed then runs a threshold
-tree over, and neither the record type nor the counters are decoded. The direction
-set and reach here are ours, which is why the spread test above exists.
+### What the seed actually is
+
+`18004b260` casts a **5 by 5 grid of rays through each of the region box's six
+faces**, 150 in all, from the box centre, and tallies four counters:
+
+| counter | what it counts |
+|---|---|
+| A | landed on an ordinary surface, with the centre on its front side |
+| B | landed on the BACK of a surface |
+| C | landed on a nodraw or coarse-only one (`flags & 0x1030`), facing |
+| D | hit nothing at all |
+
+`18004a2f0` then runs a threshold tree over them, with `n` = 25 rays a face and
+`rays` = 150:
+
+```
+if ((n <= D + B || (A <= rays/3 && C + A <= rays/2)) && (B > 4 || C + A <= 2n)):
+    if (n <= B):                                    return OUTSIDE
+    if (A <= rays/2 or A + D <= rays * 0.8):        return UNDECIDED
+return INSIDE
+```
+
+Reading it out is one thing; being able to RUN it is another, and that needed a
+real ray tracer rather than the voxel march. The `.rte` carries its own kd tree,
+which decodes cleanly: a node is 8 bytes, `axis = w0 & 3` with 3 meaning leaf and
+`w0 >> 2` the first child or the first triangle index, then a float split or a
+`u32` count. Walking it, **every split of both specimens lands inside the file's
+own world box, every leaf index is in range, and the leaf triangle counts sum to
+exactly `C`** - 5,983 on ze_hold_em_p and 788 on probe01. That is the same
+structural confirmation the tiling gave for the sections, and it is what makes
+the 150 rays a region affordable: ze_hold_em_p's 4,548 triangles sit in 933
+leaves of at most ten each.
+
+`VisSeed` is the port and `RayTraceEnvironment.Trace` the tracer. The reach the
+PROPAGATION gives a ray is still ours, and the spread test above still holds it;
+the seed's grid is Valve's own 5, swept 3 to 8 anyway.
 
 ### Cluster generation: the birth rule is implemented, the merge is not
 

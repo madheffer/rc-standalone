@@ -19,8 +19,8 @@ public class VisOutsideTests(ITestOutputHelper output)
     private static readonly Specimen[] Maps =
     [
         new("s2c_lighting", "ze_hold_em_p", 10_554, 0),
-        new("s2c_rc_probe", "cardtest", 7_416, 0.50),
-        new("s2c_rc_probe", "probe01", 7_316, 0.50),
+        new("s2c_rc_probe", "cardtest", 7_416, 0.004),
+        new("s2c_rc_probe", "probe01", 7_316, 0.008),
     ];
 
     [Fact]
@@ -35,7 +35,7 @@ public class VisOutsideTests(ITestOutputHelper output)
             var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
                      / VisVoxelizer.VoxelsPerLeaf;
             var regions = VisRegions.Build(tree, side);
-            var result = VisOutside.Detect(tree, regions, rte.Mins, rte.Maxs, valve.GridSize);
+            var result = VisOutside.Detect(tree, regions, rte, valve.GridSize);
 
             var error = (double)result.Inside / specimen.Target - 1;
             output.WriteLine($"{specimen.Map,-16} inside {result.Inside,7:n0}  outside {result.Outside,7:n0}"
@@ -67,7 +67,7 @@ public class VisOutsideTests(ITestOutputHelper output)
 
         var counts = new List<int>();
         foreach (var reach in new[] { 64f, 512f, 2048f })
-            counts.Add(VisOutside.Detect(tree, regions, rte.Mins, rte.Maxs, valve.GridSize,
+            counts.Add(VisOutside.Detect(tree, regions, rte, valve.GridSize,
                                          VisOutside.AxialDirections, reach).Inside);
 
         output.WriteLine("enclosed regions at reach 64, 512, 2048: " + string.Join(", ", counts));
@@ -76,19 +76,19 @@ public class VisOutsideTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// And it does not hinge on the seed's thresholds either.
+    /// And it does not hinge on how finely the seed samples a face.
     ///
-    /// <para>The compile's seed is a threshold tree over four counters from a
-    /// gather whose record type is not decoded, so the two ratios here are OURS.
-    /// A number we chose landing on Valve's to the unit is either the answer or a
-    /// fit, and the way to tell them apart is to move the knob: if a wide range
-    /// of thresholds all land on 10,554, the thresholds are not what is producing
-    /// it.</para>
+    /// <para>The grid is Valve's own five, passed as a literal at the call site,
+    /// so this is not a knob we chose. It is swept anyway, because a stage that
+    /// only lands on the right number at one sample count is fitting the sample
+    /// count rather than reproducing the stage.</para>
     /// </summary>
-    [Fact]
-    public void TheAnswerDoesNotHingeOnTheSeedThresholdsEither()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void TheAnswerDoesNotHingeOnHowFinelyTheSeedSamples(int which)
     {
-        var specimen = Maps[0];
+        var specimen = Maps[which];
         if (VisFixtures.RayTraceScene(specimen.Addon, specimen.Map) is not var (rte, valve))
             return;
 
@@ -98,21 +98,19 @@ public class VisOutsideTests(ITestOutputHelper output)
         var regions = VisRegions.Build(tree, side);
 
         var counts = new List<int>();
-        foreach (var sealedAt in new[] { 0.70, 0.80, 5d / 6, 0.90, 0.96 })
-            foreach (var openAt in new[] { 0.10, 0.25, 1d / 3, 0.45 })
-            {
-                var result = VisOutside.Detect(tree, regions, rte.Mins, rte.Maxs, valve.GridSize,
-                                               sealedAt: sealedAt, openAt: openAt);
-                counts.Add(result.Inside);
-                output.WriteLine($"  sealed at {sealedAt:P0}, open at {openAt:P0}: {result.Inside,7:n0}");
-            }
+        foreach (var quality in new[] { 3, 4, 5, 6, 8 })
+        {
+            var result = VisOutside.Detect(tree, regions, rte, valve.GridSize, quality: quality);
+            counts.Add(result.Inside);
+            output.WriteLine($"  {quality}x{quality} rays a face: {result.Inside,7:n0}"
+                           + $"  {(double)result.Inside / specimen.Target - 1,8:P2}");
+        }
 
         var spread = (double)(counts.Max() - counts.Min()) / counts.Min();
         output.WriteLine($"{specimen.Map,-16} {counts.Min():n0} to {counts.Max():n0} over"
-                       + $" {counts.Count} threshold pairs, {spread:P2} spread");
-        // Measured at zero: all twenty pairs give 10,554. The knob is not
-        // contributing anything at all, so this is pinned rather than toleranced.
-        Assert.True(spread == 0,
-            $"the seed thresholds move the enclosed count by {spread:P2}, so they are carrying the answer");
+                       + $" {counts.Count} grids, {spread:P2} spread");
+        Assert.True(spread <= 0.05,
+            $"{specimen.Map}: the seed's grid moves the enclosed count by {spread:P2},"
+          + " so the sample count is carrying the answer");
     }
 }

@@ -64,7 +64,9 @@ behaviour, so they carry a description rather than a symbol.
 | `18010be50` | a region's box from its leaf box and mask | shared by the driver and outside detection |
 | `18003f1e0` | the `InitialRegionStatus` job body | the work pointer in the functor vtable the outside pass dispatches |
 | `18004a2f0` | the SEED: inside, outside or undecided for one region box | the only thing the job body calls, and a threshold tree over the gather's counters |
-| `18004b260` | gather over a box, returning four counters and a ray list | called by the seed, the per-region classifier and one more site; the structure it queries is `this+0xe8` and its record type is NOT decoded |
+| `18004b260` | gather over a box: a 5x5 grid of rays through each of its six faces, tallied four ways | called by the seed, the per-region classifier and one more site; the counters are facing hits, back hits, nodraw hits and escapes |
+| `18010e8a0` | trace one ray against the kd tree | the hit record is 56 bytes: normal, triangle id at `+0x0c`, distance at `+0x10` |
+| `180108d70` | distance from a box to a point | the gather's nearest-hit bookkeeping |
 
 ## The object layout these agree on
 

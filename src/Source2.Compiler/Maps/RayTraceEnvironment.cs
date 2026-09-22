@@ -16,6 +16,7 @@ public sealed class RayTraceEnvironment
 {
     private readonly byte[] _data;
     private readonly int _triangleAt;
+    private readonly int _indexAt;
 
     /// <summary>Triangles the file holds, including any visibility excludes.</summary>
     public int TriangleCount { get; }
@@ -63,6 +64,7 @@ public sealed class RayTraceEnvironment
         Mins = Vector(36);
         Maxs = Vector(48);
         _triangleAt = HeaderSize + (nodes * 8);
+        _indexAt = _triangleAt + (TriangleCount * 48);
     }
 
     /// <summary>Read one, or throw when the sections do not tile the file.</summary>
@@ -178,6 +180,141 @@ public sealed class RayTraceEnvironment
             found[i] = new Vector3(corner[0], corner[1], corner[2]);
         }
         return found;
+    }
+
+    /// <summary>What a ray found, or nothing when it left the scene.</summary>
+    /// <param name="Distance">How far along the ray, in world units.</param>
+    /// <param name="Triangle">Which triangle it landed on.</param>
+    /// <param name="Normal">That triangle's plane normal.</param>
+    /// <param name="PlaneDistance">Its plane distance, as <c>dot(n, p) == d</c>.</param>
+    public readonly record struct Hit(float Distance, int Triangle, Vector3 Normal, float PlaneDistance);
+
+    /// <summary>
+    /// The nearest triangle a ray meets, ignoring any carrying a bit of
+    /// <paramref name="ignore"/>. The traversal is the file's own kd tree, which
+    /// is what makes this affordable: ze_hold_em_p's 4,548 triangles sit in 933
+    /// leaves of at most ten each.
+    /// </summary>
+    public Hit? Trace(Vector3 origin, Vector3 direction, float reach, ushort ignore = ExcludedFromTrace)
+    {
+        var (enter, leave) = Slab(origin, direction, reach);
+        if (enter > leave)
+            return null;
+
+        Hit? best = null;
+        var stack = new Stack<(int Node, float Enter, float Leave)>();
+        stack.Push((0, enter, leave));
+        while (stack.Count > 0)
+        {
+            var (node, from, to) = stack.Pop();
+            if (best is { } found && found.Distance < from)
+                continue;
+
+            var word = BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(HeaderSize + (node * 8)));
+            var axis = (int)(word & 3);
+            var payload = (int)(word >> 2);
+            if (axis == 3)
+            {
+                var count = (int)BinaryPrimitives.ReadUInt32LittleEndian(
+                    _data.AsSpan(HeaderSize + (node * 8) + 4));
+                for (var i = 0; i < count; i++)
+                {
+                    var triangle = (int)BinaryPrimitives.ReadUInt32LittleEndian(
+                        _data.AsSpan(_indexAt + ((payload + i) * 4)));
+                    if ((Flags(triangle) & ignore) != 0)
+                        continue;
+                    if (Meets(triangle, origin, direction, from, best?.Distance ?? to) is { } hit
+                        && (best is null || hit.Distance < best.Value.Distance))
+                        best = hit;
+                }
+                continue;
+            }
+
+            var split = Float(HeaderSize + (node * 8) + 4);
+            var along = axis == 0 ? direction.X : axis == 1 ? direction.Y : direction.Z;
+            var start = axis == 0 ? origin.X : axis == 1 ? origin.Y : origin.Z;
+
+            // A child is a pair, low side first, which is the order 18004c400
+            // walks when it decides a box sits wholly above the split.
+            var (near, far) = along >= 0f ? (payload, payload + 1) : (payload + 1, payload);
+            if (along == 0f)
+            {
+                stack.Push((start <= split ? payload : payload + 1, from, to));
+                continue;
+            }
+
+            var at = (split - start) / along;
+            if (at >= to)
+                stack.Push((near, from, to));
+            else if (at <= from)
+                stack.Push((far, from, to));
+            else
+            {
+                stack.Push((far, at, to));
+                stack.Push((near, from, at));
+            }
+        }
+        return best;
+    }
+
+    /// <summary>Where a ray enters and leaves the scene's own box.</summary>
+    private (float Enter, float Leave) Slab(Vector3 origin, Vector3 direction, float reach)
+    {
+        float enter = 0f, leave = reach;
+        for (var axis = 0; axis < 3; axis++)
+        {
+            var d = axis == 0 ? direction.X : axis == 1 ? direction.Y : direction.Z;
+            var o = axis == 0 ? origin.X : axis == 1 ? origin.Y : origin.Z;
+            var lo = axis == 0 ? Mins.X : axis == 1 ? Mins.Y : Mins.Z;
+            var hi = axis == 0 ? Maxs.X : axis == 1 ? Maxs.Y : Maxs.Z;
+            if (d == 0f)
+            {
+                if (o < lo || o > hi)
+                    return (1f, 0f);
+                continue;
+            }
+            var first = (lo - o) / d;
+            var second = (hi - o) / d;
+            if (first > second)
+                (first, second) = (second, first);
+            enter = MathF.Max(enter, first);
+            leave = MathF.Min(leave, second);
+        }
+        return (enter, leave);
+    }
+
+    /// <summary>
+    /// Whether a ray meets one triangle, using the record's own encoding rather
+    /// than rebuilding it: the plane gives the distance, and the two edge
+    /// equations ARE the barycentric pair, so the point is inside when both are
+    /// non-negative and they sum to at most one.
+    /// </summary>
+    private Hit? Meets(int index, Vector3 origin, Vector3 direction, float from, float to)
+    {
+        var at = _triangleAt + (index * 48);
+        var normal = new Vector3(Float(at), Float(at + 4), Float(at + 8));
+        var along = Vector3.Dot(normal, direction);
+        if (along == 0f)
+            return null;
+
+        var distance = Float(at + 12);
+        var t = (distance - Vector3.Dot(normal, origin)) / along;
+        if (t < from || t > to)
+            return null;
+
+        var record = Record(index);
+        int u = record[0x2c], v = record[0x2d];
+        if (u > 2 || v > 2 || u == v)
+            return null;
+
+        var point = origin + (direction * t);
+        var alongU = u == 0 ? point.X : u == 1 ? point.Y : point.Z;
+        var alongV = v == 0 ? point.X : v == 1 ? point.Y : point.Z;
+        var first = (Float(at + 20) * alongU) + (Float(at + 24) * alongV) + Float(at + 28);
+        var second = (Float(at + 32) * alongU) + (Float(at + 36) * alongV) + Float(at + 40);
+        return first >= 0f && second >= 0f && first + second <= 1f
+            ? new Hit(t, index, normal, distance)
+            : null;
     }
 
     private ReadOnlySpan<byte> Record(int index)
