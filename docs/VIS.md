@@ -1520,6 +1520,69 @@ the three pass counts goes from 2.28% to 7.13%. Re-applying them is worth doing
 the moment the fifth pass is understood, and the rules above are exact enough to
 re-enter from this page.
 
+### ze_hold_em_p's +7.87% is entirely the SECOND pass, and the seed is exact
+
+Outside detection is `1800321f0`, and it is two passes over the entries the
+voxelizer left, running BEFORE the kind-collapse (`18002e310`, then
+`1800321f0`, then `180032670`, read off the caller).
+
+Pass one is the parallel `InitialRegionStatus` job, whose body `18003f1e0`
+calls `FUN_18004a2f0(rte, regionBox)` per entry. Pass two walks the same list
+and, only for entries that came back 0, calls `FUN_18002e050`. Between them
+every entry that answered Outside gets `packed |= 1`, which is what later stops
+a march.
+
+Measuring the two separately is what settles the map:
+
+| map | seed only | with the second pass | compile |
+|---|---|---|---|
+| probe01 | 7,312 (-0.05%) | 7,312 (-0.05%) | 7,316 |
+| cardtest | 7,443 (+0.36%) | 7,443 (+0.36%) | 7,416 |
+| ze_hold_em_p | **10,554 (0.00%)** | 11,385 (+7.87%) | 10,554 |
+
+The seed alone lands on ze_hold_em_p's number **exactly**, and on the two probe
+maps the second pass changes nothing at all. Every one of the 831 comes from
+our second pass promoting a region the compile does not.
+
+Their profile is distinctive. Of 4,673 undecided entries, 3,489 fail the bounds
+check outright and 1,184 reach a vote; 831 of those are promoted, with a median
+of 38 inside votes against a threshold of 25, none above 50, and **823 of them
+with zero outside votes at all**. So they are all promoted by the second clause,
+`inside > n && outside < 5`, and our march almost never meets an outside region
+on these.
+
+What has been checked against the image and matches: the decision
+(`18004a2f0`) term for term including the 0.8 as a double; the counters and the
+thresholds in `18002e050`, where `[RSP+0x90]` is `PerFace` once the prologue's
+`MOV RAX,RSP` before the push and the `SUB RSP,0xd0` are accounted for; the
+march `18002deb0` returning 1, 2 or **0**, where 0 is no vote at all; the back
+off of 8 units and the 0.1 floor; and the order of the three passes. None of it
+explains the 831.
+
+### Three fidelity gaps closed on the way
+
+**`18004b970`, a whole re-trace pass we did not have.** A ray that stops on a
+surface which is nodraw and nothing else inside the `0x1030` mask is traced
+again with nodraw ignored, and the second surface replaces the first when it is
+ordinary and the centre faces it. So a nodraw pane is not what a region sees,
+the geometry behind it is. It is implemented now, in the gather and in the
+second pass, and it is inert on all three specimens: ze_hold_em_p's 4,548
+triangles carry only `0x0000` and `0x0800`, and the probes have no
+nodraw-only triangles either. It will matter on a map that has them.
+
+**The march descended exactly, and the compile descends conservatively.**
+`18002deb0` picks children by `18010cb10`'s octant mask and tests a leaf by
+`18010c6e0`'s 64 cell mask, and both are the per axis slab product rather than
+an exact segment test, so the march deliberately reaches cells the segment only
+grazes. Ours tested every child box and every sub cell exactly. Now it uses
+`VisVisibility.Crossed`, which is the port of those two.
+
+**Facing is measured from the landing point.** `18004b260` computes
+`dot(n, centre) - dot(n, hit)` rather than comparing against the triangle's
+stored plane distance. Ours now does the same in both passes. It changes no
+number here, which means the two were already equal, but it is no longer an
+assumption.
+
 ### The candidate query IS a dynamic AABB tree, and it is exactly our test
 
 `Touches` was a substitution, so all five of the tree's functions were

@@ -14,6 +14,12 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class VisOutsideTests(ITestOutputHelper output)
 {
+    private static int Median(IEnumerable<int> xs)
+    {
+        var all = xs.Order().ToList();
+        return all.Count == 0 ? -1 : all[all.Count / 2];
+    }
+
     private sealed record Specimen(string Addon, string Map, int Target, double Tolerance);
 
     private static readonly Specimen[] Maps =
@@ -35,7 +41,16 @@ public class VisOutsideTests(ITestOutputHelper output)
             var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
                      / VisVoxelizer.VoxelsPerLeaf;
             var regions = VisRegions.Build(tree, side);
-            var result = VisOutside.Detect(tree, regions, rte, valve.GridSize);
+            var votes = new List<(int Region, int Inside, int Outside, int Answer)>();
+            var result = VisOutside.Detect(tree, regions, rte, valve.GridSize,
+                VisSeed.Quality, (r, i, o, a) => votes.Add((r, i, o, a)));
+            var promoted = votes.Where(v => v.Answer == (int)VisOutside.Status.Inside).ToList();
+            output.WriteLine($"{specimen.Map,-16} pass2 {votes.Count,6:n0} judged,"
+                + $" {promoted.Count,6:n0} promoted."
+                + $"  of those: inside votes med {Median(promoted.Select(v => v.Inside)),4}"
+                + $"  outside votes med {Median(promoted.Select(v => v.Outside)),4}"
+                + $"  zero-outside {promoted.Count(v => v.Outside == 0),6:n0}"
+                + $"  over-50 {promoted.Count(v => v.Inside > 50),6:n0}");
 
             // The compile compacts every leaf's regions to at most three BEFORE
             // it prints this count, so the number to score is the leaves holding
@@ -47,6 +62,10 @@ public class VisOutsideTests(ITestOutputHelper output)
             output.WriteLine($"{specimen.Map,-16} seed: inside {seed.Count(x => x == VisOutside.Status.Inside),7:n0}"
                 + $"  outside {seed.Count(x => x == VisOutside.Status.Outside),7:n0}"
                 + $"  undecided {seed.Count(x => x == VisOutside.Status.Unknown),7:n0}");
+            var seedOnly = VisRegions.Compact(regions, seed).Regions.Count;
+            output.WriteLine($"{specimen.Map,-16} seed-only compacted {seedOnly,7:n0}"
+                + $"  compile {specimen.Target,7:n0}"
+                + $"  {(double)seedOnly / specimen.Target - 1,8:P2}");
             output.WriteLine($"{specimen.Map,-16} compacted {counted,7:n0}  from inside {result.Inside,7:n0}"
                 + $"  of {regions.Regions.Count,7:n0}   compile {specimen.Target,7:n0}  {error,8:P2}"
                 + $"   ({result.Passes} passes)");

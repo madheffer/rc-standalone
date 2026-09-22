@@ -299,7 +299,9 @@ public static class VisVisibility
     /// vector ORed with a small floor so a zero component becomes an enormous
     /// slope rather than an infinity.
     /// </summary>
-    private static Vector3 Reciprocal(Vector3 v)
+    /// <summary>The guarded reciprocal a segment walk is parameterised by.</summary>
+    /// <param name="v">The segment's full extent.</param>
+    public static Vector3 Reciprocal(Vector3 v)
     {
         const float Floor = 1e-20f;
         return new Vector3(

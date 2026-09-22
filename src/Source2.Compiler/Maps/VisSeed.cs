@@ -36,6 +36,15 @@ public static class VisSeed
     /// <summary>The last threshold's share, <c>DAT_18017f138</c> as a double.</summary>
     public const double EscapeShare = 0.8;
 
+    /// <summary>
+    /// What a hit has to be, inside <see cref="Insubstantial"/>, for the gather
+    /// to look again: nodraw and nothing else.
+    /// </summary>
+    public const ushort NoDrawOnly = 0x0020;
+
+    /// <summary>The second look's ignore mask, <c>0x831</c>, which is <see cref="Ignored"/> plus nodraw.</summary>
+    public const ushort SeeingThroughNoDraw = 0x0831;
+
     /// <summary>What the gather counted for one region.</summary>
     /// <param name="Facing">Rays that landed on an ordinary surface facing the centre.</param>
     /// <param name="Behind">Rays that landed on the BACK of a surface.</param>
@@ -99,17 +108,21 @@ public static class VisSeed
                 continue;
             }
 
-            // Facing means the centre is on the plane's positive side, which is
-            // dot(n, centre) >= d once the hit point is known to be on the plane.
-            if (Vector3.Dot(hit.Normal, centre) < hit.PlaneDistance)
+            hit = Behind(scene, centre, direction, reach, hit);
+
+            // Facing is computed from the LANDING POINT, not the triangle's
+            // stored plane distance: 18004b260 does dot(n, centre) - dot(n, hit)
+            // and keeps the ray when that is not negative.
+            var landed = centre + (direction * hit.Distance);
+            if (Vector3.Dot(hit.Normal, centre) < Vector3.Dot(hit.Normal, landed))
             {
                 behind++;
                 continue;
             }
 
             // The distance kept is from the BOX, not from the centre it cast from.
-            var away = Away(mins, maxs, centre + (direction * hit.Distance));
-            if ((scene.Flags(hit.Triangle) & Insubstantial) != 0)
+            var away = Away(mins, maxs, landed);
+            if ((scene.RawFlags(hit.Triangle) & Insubstantial) != 0)
             {
                 insubstantial++;
                 nearOther = MathF.Min(nearOther, away);
@@ -122,6 +135,27 @@ public static class VisSeed
         }
         var nearest = float.IsInfinity(nearOrdinary) ? nearOther : nearOrdinary;
         return new Counters(facing, behind, insubstantial, escaped, grid * grid, nearest);
+    }
+
+    /// <summary>
+    /// <c>18004b970</c>: a ray that stopped on a surface which is nodraw and
+    /// nothing else looks again with nodraw ignored, and the second surface
+    /// replaces the first when it is an ordinary one the centre faces. So a
+    /// nodraw pane is not what the region sees, the geometry behind it is.
+    /// </summary>
+    public static RayTraceEnvironment.Hit Behind(
+        RayTraceEnvironment scene, Vector3 centre, Vector3 direction, float reach,
+        RayTraceEnvironment.Hit hit)
+    {
+        if ((scene.RawFlags(hit.Triangle) & Insubstantial) != NoDrawOnly)
+            return hit;
+        if (scene.Trace(centre, direction, reach, SeeingThroughNoDraw) is not { } again)
+            return hit;
+        if ((scene.RawFlags(again.Triangle) & Insubstantial) != 0)
+            return hit;
+
+        var landed = centre + (direction * again.Distance);
+        return Vector3.Dot(again.Normal, centre) >= Vector3.Dot(again.Normal, landed) ? again : hit;
     }
 
     /// <summary>

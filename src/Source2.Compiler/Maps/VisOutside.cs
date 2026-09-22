@@ -66,7 +66,7 @@ public static class VisOutside
     public static Result Detect(
         VisVoxelizer.Octree tree, VisRegions.Result regions,
         RayTraceEnvironment scene, float baseVoxelSize,
-        int quality = VisSeed.Quality)
+        int quality = VisSeed.Quality, Action<int, int, int, int>? watch = null)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(regions);
@@ -91,7 +91,7 @@ public static class VisOutside
         {
             if (status[i] != Status.Unknown)
                 continue;
-            status[i] = Classify(space, scene, status, flagged, i, quality);
+            status[i] = Classify(space, scene, status, flagged, i, quality, watch);
         }
         for (var i = 0; i < status.Length; i++)
             if (status[i] == Status.Outside)
@@ -116,7 +116,8 @@ public static class VisOutside
     /// it, stopping a voxel short of what it hit.
     /// </summary>
     private static Status Classify(
-        Space space, RayTraceEnvironment scene, Status[] status, bool[] flagged, int region, int quality)
+        Space space, RayTraceEnvironment scene, Status[] status, bool[] flagged, int region,
+        int quality, Action<int, int, int, int>? watch = null)
     {
         var (mins, maxs) = space.Box(region);
         var centre = (mins + maxs) * 0.5f;
@@ -129,8 +130,14 @@ public static class VisOutside
         int inside = 0, outside = 0;
         foreach (var direction in VisSeed.Directions(mins, maxs, quality))
         {
-            if (scene.Trace(centre, direction, reach, VisSeed.Ignored) is not { } hit
-                || Vector3.Dot(hit.Normal, centre) < hit.PlaneDistance)
+            // The compile walks the gather's own ray records here rather than
+            // tracing afresh, so the second look through nodraw applies to these
+            // distances too.
+            if (scene.Trace(centre, direction, reach, VisSeed.Ignored) is not { } first)
+                continue;
+            var hit = VisSeed.Behind(scene, centre, direction, reach, first);
+            if (Vector3.Dot(hit.Normal, centre)
+                < Vector3.Dot(hit.Normal, centre + (direction * hit.Distance)))
                 continue;
 
             var stop = MathF.Max(hit.Distance - MarchBackOff, MarchShortest);
@@ -140,9 +147,11 @@ public static class VisOutside
         }
 
         var n = grid * grid;
-        return inside > n * 2 || (inside > n && outside < OutsideVotesAllowed)
+        var answer = inside > n * 2 || (inside > n && outside < OutsideVotesAllowed)
             ? Status.Inside
             : Status.Outside;
+        watch?.Invoke(region, inside, outside, (int)answer);
+        return answer;
     }
 
     /// <summary>
@@ -224,23 +233,29 @@ public static class VisOutside
         /// </summary>
         public Status March(Vector3 from, Vector3 to, Status[] status, bool[] flagged)
         {
+            // 18002deb0 descends by the OCTANT MASK and tests a leaf by the 64
+            // cell mask, and both of those are the per axis slab product rather
+            // than an exact segment test. That is deliberately conservative: the
+            // march reaches cells the segment only grazes, which is what lets it
+            // meet an outside region and stop.
+            var inverse = VisVisibility.Reciprocal(to - from);
             var touched = false;
-            var queue = new Stack<(int Level, (int X, int Y, int Z) Cell)>();
-            queue.Push((_depth, (0, 0, 0)));
+            var queue = new Queue<(int Level, (int X, int Y, int Z) Cell)>();
+            queue.Enqueue((_depth, (0, 0, 0)));
             while (queue.Count > 0)
             {
-                var (level, cell) = queue.Pop();
+                var (level, cell) = queue.Dequeue();
                 var size = _tree.LeafSize * (1 << level);
                 var corner = _tree.Origin + new Vector3(cell.X, cell.Y, cell.Z) * size;
-                if (!Crosses(from, to, corner, corner + new Vector3(size)))
-                    continue;
 
                 if (level > 0 && _tree.BranchCells.Contains((level, cell)))
                 {
+                    var octants = VisVisibility.Crossed(from, inverse, corner, size, 2);
                     for (var octant = 0; octant < 8; octant++)
-                        queue.Push((level - 1, (cell.X * 2 + (octant & 1),
-                                                cell.Y * 2 + ((octant >> 1) & 1),
-                                                cell.Z * 2 + ((octant >> 2) & 1))));
+                        if ((octants & (1UL << octant)) != 0)
+                            queue.Enqueue((level - 1, (cell.X * 2 + (octant & 1),
+                                                       cell.Y * 2 + ((octant >> 1) & 1),
+                                                       cell.Z * 2 + ((octant >> 2) & 1))));
                     continue;
                 }
 
@@ -250,7 +265,7 @@ public static class VisOutside
                 if (parts is null)
                     continue;
 
-                var crossed = Voxels(from, to, corner, size * 0.25f);
+                var crossed = VisVisibility.Crossed(from, inverse, corner, size, 4);
                 foreach (var region in parts)
                 {
                     if ((_regions.Regions[region].Open & crossed) == 0)
