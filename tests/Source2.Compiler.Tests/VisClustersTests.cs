@@ -150,9 +150,20 @@ public class VisClustersTests(ITestOutputHelper output)
         var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
 
         var open = new List<int>();
+        int coarseRegions = 0, coarseClusters = 0;
         for (var i = 0; i < regions.Regions.Count; i++)
-            if (inside.Regions[i] == VisOutside.Status.Inside)
-                open.Add(System.Numerics.BitOperations.PopCount(regions.Regions[i].Open));
+        {
+            if (inside.Regions[i] != VisOutside.Status.Inside)
+                continue;
+            var n = System.Numerics.BitOperations.PopCount(regions.Regions[i].Open);
+            open.Add(n);
+            if (regions.Leaves[regions.Regions[i].Leaf].Level <= 0)
+                continue;
+            coarseRegions++;
+            coarseClusters += n > VisClusters.MergeTarget ? 1 : n;
+        }
+        output.WriteLine($"   from COARSE leaves: {coarseRegions:n0} regions"
+                       + $" contributing {coarseClusters:n0} clusters");
 
         var ours = open.Sum(n => n > VisClusters.MergeTarget ? 1 : n);
         output.WriteLine($"{map}  {open.Count:n0} enclosed regions, {ours:n0} clusters"

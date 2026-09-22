@@ -25,30 +25,36 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CORPUS = os.path.join(HERE, "corpus.tsv")
 
 # Chosen for spread rather than convenience: two synthetic probes, a real ZE map,
-# a medium reference map, four gameplay prefabs that are almost all entities and
-# almost no geometry, four environment prefabs that are the opposite, and Mako,
-# which is 23 MB of ray trace scene and 1,088 seconds of visibility on its own.
+# a medium reference map, nine environment prefabs from tiny to enormous, and
+# Mako, which is 23 MB of ray trace scene and 1,088 seconds of visibility alone.
 #
-# Three earlier picks are gone and the reason is worth keeping: ze_doom_p2,
-# ze_doom_p2_d and c2m3_coaster_d are Source 1 KV text, not DMX, and the compiler
-# rejects them with "Unable to determine DMX encoding". A map that cannot compile
-# is not a hard map, it is not a map, and leaving it in the list would have made
-# the corpus look 20% larger than it is.
+# Two kinds of map are deliberately absent and the reasons are worth keeping.
+#
+# ze_doom_p2, ze_doom_p2_d and c2m3_coaster_d are Source 1 KV text rather than
+# DMX and the compiler rejects them outright. A map that cannot compile is not a
+# hard map, it is not a map.
+#
+# The GAMEPLAY prefabs (c2m2_fairgrounds_csgo_gameplay, dkr_m2_carnival_gameplay,
+# dkr_ropelights_prefab, dkr_m1_motel_d_gameplay, ze_doom_p2_gameplay) all hold
+# entities and no brushes, so their .rte is 68 bytes and the compile prints not
+# one visibility line. They were picked for exactly that contrast and they turn
+# out to score nothing here; they are still worth having as ENTITY LUMP
+# specimens, which is where the suite uses them.
 MAPS = [
     ("s2c_rc_probe", "probe01"),
     ("s2c_rc_probe", "cardtest"),
     ("s2c_lighting", "ze_hold_em_p"),
-    ("c2m2", "c2m2_fairgrounds_csgo_gameplay"),
-    ("dkr_remix", "dkr_m2_carnival_gameplay"),
-    ("dkr_remix", "dkr_ropelights_prefab"),
-    ("c2m2", "dkr_m1_motel_d_gameplay"),
-    ("ze_doom_p2", "ze_doom_p2_gameplay"),
     ("s2probe", "atixref"),
     ("c2m2", "c2m3_coaster_d_d_environment_prefab"),
     ("c2m2", "dkr_m1_motel_d_environment_prefab"),
     ("c2m2", "c2m2_fairgrounds_csgo_environment_prefab"),
     ("ze_doom_p2", "ze_doom_p2_environment_prefab"),
+    ("doom_p2", "ze_doom_p2_c_environment_prefab"),
+    ("c2m2", "dkr_m2_carnival_d_environment_prefab"),
     ("dkr_remix", "dkr_m1_motel_environment_prefab"),
+    ("dkr_remix", "dkr_m5_stadium_environment_prefab"),
+    ("dkr_remix", "dkr_m4_ferris_environment_prefab"),
+    ("dkr_remix", "dkr_m2_carnival_environment_prefab"),
     ("s2c_big", "ze_ffvii_mako_reactor_v6_p"),
 ]
 
