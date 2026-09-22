@@ -1583,6 +1583,27 @@ stored plane distance. Ours now does the same in both passes. It changes no
 number here, which means the two were already equal, but it is no longer an
 assumption.
 
+### The tree is ported, and its wiring is not finished
+
+`VisBoxTree` is the real structure now, not a stand-in: the 48 byte node with
+box, height, parent, two children and a payload; the pool of 32 with a free list
+that doubles; `Create` copying the caller's box verbatim; the SAH sibling search
+that descends while going down is cheaper than branching here; `Move` as a
+remove and reinsert; `Destroy`; the refit walk-up from `18010a5d0`, which fixes
+each ancestor's box and height and does NOT rotate; and the exact inclusive
+query. Five tests hold it to a brute force scan, including a query after every
+absorb and a run that grows the pool well past its first block.
+
+Standing it up in place of the linear scan is NOT done, because it changed
+probe01's first pass from 2,466 clusters to 1,138 and I could not close that out
+in the time. A cross check inside the merge says the tree misses genuinely
+overlapping leaves and never adds spurious ones, `Validate` reports the
+structure clean, and printing the stored box against the cluster's shows the
+tree holding the box from BEFORE the cluster grew. So the defect is in keeping
+the tree in step with the merge, not in the tree, and the linear scan is still
+what runs. That is worth being precise about rather than leaving a broken merge
+in place to look finished.
+
 ### The candidate query IS a dynamic AABB tree, and it is exactly our test
 
 `Touches` was a substitution, so all five of the tree's functions were

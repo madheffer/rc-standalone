@@ -14,12 +14,6 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class VisOutsideTests(ITestOutputHelper output)
 {
-    private static int Median(IEnumerable<int> xs)
-    {
-        var all = xs.Order().ToList();
-        return all.Count == 0 ? -1 : all[all.Count / 2];
-    }
-
     private sealed record Specimen(string Addon, string Map, int Target, double Tolerance);
 
     private static readonly Specimen[] Maps =
@@ -41,20 +35,24 @@ public class VisOutsideTests(ITestOutputHelper output)
             var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
                      / VisVoxelizer.VoxelsPerLeaf;
             var regions = VisRegions.Build(tree, side);
-            var votes = new List<(int Region, int Inside, int Outside, int Answer)>();
+            var judged = new List<VisOutside.Judged>();
             var result = VisOutside.Detect(tree, regions, rte, valve.GridSize,
-                VisSeed.Quality, (r, i, o, a) => votes.Add((r, i, o, a)));
-            var promoted = votes.Where(v => v.Answer == (int)VisOutside.Status.Inside).ToList();
-            output.WriteLine($"{specimen.Map,-16} pass2 {votes.Count,6:n0} judged,"
-                + $" {promoted.Count,6:n0} promoted."
-                + $"  of those: inside votes med {Median(promoted.Select(v => v.Inside)),4}"
-                + $"  outside votes med {Median(promoted.Select(v => v.Outside)),4}"
-                + $"  zero-outside {promoted.Count(v => v.Outside == 0),6:n0}"
-                + $"  over-50 {promoted.Count(v => v.Inside > 50),6:n0}");
-
-            // The compile compacts every leaf's regions to at most three BEFORE
-            // it prints this count, so the number to score is the leaves holding
-            // any enclosed space, not the enclosed boxes.
+                                           VisSeed.Quality, judged.Add);
+            foreach (var (label, set) in new[]
+            {
+                ("promoted", judged.Where(j => j.Answer == (int)VisOutside.Status.Inside).ToList()),
+                ("rejected", judged.Where(j => j.Answer != (int)VisOutside.Status.Inside).ToList()),
+            })
+            {
+                if (set.Count == 0)
+                    continue;
+                output.WriteLine($"{specimen.Map,-16} {label,-9} {set.Count,6:n0}:"
+                    + $"  marched {set.Average(x => x.Marched),6:F1}"
+                    + $"  stop {set.Average(x => x.Stop),9:F2}"
+                    + $"  leaves/march {set.Average(x => x.Leaves),7:F2}"
+                    + $"  regions/march {set.Average(x => x.Regions),7:F2}"
+                    + $"  in {set.Average(x => x.Inside),6:F1}  out {set.Average(x => x.Outside),5:F1}");
+            }
             var compact = VisRegions.Compact(regions, result.Regions);
             var counted = compact.Regions.Count;
             var error = (double)counted / specimen.Target - 1;

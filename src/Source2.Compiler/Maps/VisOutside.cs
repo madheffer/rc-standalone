@@ -66,7 +66,7 @@ public static class VisOutside
     public static Result Detect(
         VisVoxelizer.Octree tree, VisRegions.Result regions,
         RayTraceEnvironment scene, float baseVoxelSize,
-        int quality = VisSeed.Quality, Action<int, int, int, int>? watch = null)
+        int quality = VisSeed.Quality, Action<Judged>? watch = null)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(regions);
@@ -115,9 +115,22 @@ public static class VisOutside
     /// grid the seed does and marches every ray that landed on a surface facing
     /// it, stopping a voxel short of what it hit.
     /// </summary>
+    /// <summary>What the second pass made of one region, for diagnosis.</summary>
+    /// <param name="Region">Which region.</param>
+    /// <param name="Answer">The <see cref="Status"/> it settled on.</param>
+    /// <param name="Marched">Rays that landed facing and so were marched.</param>
+    /// <param name="Inside">Marches that reached a region already known enclosed.</param>
+    /// <param name="Outside">Marches that met one already known outside.</param>
+    /// <param name="Stop">Mean length a march ran.</param>
+    /// <param name="Leaves">Mean leaves a march walked.</param>
+    /// <param name="Regions">Mean regions a march tested.</param>
+    public readonly record struct Judged(
+        int Region, int Answer, int Marched, int Inside, int Outside,
+        float Stop, float Leaves, float Regions);
+
     private static Status Classify(
         Space space, RayTraceEnvironment scene, Status[] status, bool[] flagged, int region,
-        int quality, Action<int, int, int, int>? watch = null)
+        int quality, Action<Judged>? watch = null)
     {
         var (mins, maxs) = space.Box(region);
         var centre = (mins + maxs) * 0.5f;
@@ -127,7 +140,8 @@ public static class VisOutside
 
         var grid = Math.Clamp(quality, 2, 10);
         var reach = (scene.Maxs - scene.Mins).Length();
-        int inside = 0, outside = 0;
+        int inside = 0, outside = 0, marched = 0, leaves = 0, regions = 0;
+        var stops = 0f;
         foreach (var direction in VisSeed.Directions(mins, maxs, quality))
         {
             // The compile walks the gather's own ray records here rather than
@@ -141,7 +155,12 @@ public static class VisOutside
                 continue;
 
             var stop = MathF.Max(hit.Distance - MarchBackOff, MarchShortest);
-            var reached = space.March(centre, centre + (direction * stop), status, flagged);
+            var reached = space.March(centre, centre + (direction * stop), status, flagged,
+                                      out var walked, out var tested);
+            marched++;
+            stops += stop;
+            leaves += walked;
+            regions += tested;
             if (reached == Status.Inside) inside++;
             else if (reached == Status.Outside) outside++;
         }
@@ -150,7 +169,10 @@ public static class VisOutside
         var answer = inside > n * 2 || (inside > n && outside < OutsideVotesAllowed)
             ? Status.Inside
             : Status.Outside;
-        watch?.Invoke(region, inside, outside, (int)answer);
+        watch?.Invoke(new Judged(region, (int)answer, marched, inside, outside,
+                                 marched == 0 ? 0f : stops / marched,
+                                 marched == 0 ? 0f : (float)leaves / marched,
+                                 marched == 0 ? 0f : (float)regions / marched));
         return answer;
     }
 
@@ -232,7 +254,13 @@ public static class VisOutside
         /// neither side.</para>
         /// </summary>
         public Status March(Vector3 from, Vector3 to, Status[] status, bool[] flagged)
+            => March(from, to, status, flagged, out _, out _);
+
+        public Status March(Vector3 from, Vector3 to, Status[] status, bool[] flagged,
+                            out int leaves, out int seen)
         {
+            leaves = 0;
+            seen = 0;
             // 18002deb0 descends by the OCTANT MASK and tests a leaf by the 64
             // cell mask, and both of those are the per axis slab product rather
             // than an exact segment test. That is deliberately conservative: the
@@ -265,9 +293,11 @@ public static class VisOutside
                 if (parts is null)
                     continue;
 
+                leaves++;
                 var crossed = VisVisibility.Crossed(from, inverse, corner, size, 4);
                 foreach (var region in parts)
                 {
+                    seen++;
                     if ((_regions.Regions[region].Open & crossed) == 0)
                         continue;
                     if (flagged[region])
