@@ -146,6 +146,58 @@ public sealed class VisBoxTree
         }
     }
 
+    /// <summary>
+    /// Every leaf whose box the SEGMENT from <paramref name="from"/> to
+    /// <paramref name="to"/> meets, by payload, which is the outer walk of
+    /// <c>18003d600</c>.
+    ///
+    /// <para>The slab test is <c>t</c> in [0, 1] and the reciprocal is the plain
+    /// one: a zero component becomes FLT_MAX rather than the guarded epsilon
+    /// <see cref="VisVisibility.Reciprocal"/> uses, because that is what
+    /// <c>18003d600</c> writes. The epsilon guard belongs to the per cell mask it
+    /// calls afterwards, not to this.</para>
+    /// </summary>
+    /// <param name="from">Segment start.</param>
+    /// <param name="to">Segment end.</param>
+    /// <param name="into">Collects the payloads.</param>
+    public void Crossed(Vector3 from, Vector3 to, List<int> into)
+    {
+        ArgumentNullException.ThrowIfNull(into);
+        if (_root == None)
+            return;
+
+        var delta = to - from;
+        var inverse = new Vector3(
+            delta.X != 0f ? 1f / delta.X : float.MaxValue,
+            delta.Y != 0f ? 1f / delta.Y : float.MaxValue,
+            delta.Z != 0f ? 1f / delta.Z : float.MaxValue);
+
+        var stack = new Stack<int>();
+        stack.Push(_root);
+        while (stack.Count > 0)
+        {
+            var at = stack.Pop();
+            ref var node = ref _nodes[at];
+
+            var low = (node.Mins - from) * inverse;
+            var high = (node.Maxs - from) * inverse;
+            var enter = MathF.Max(MathF.Max(MathF.Min(low.X, high.X), MathF.Min(low.Y, high.Y)),
+                                  MathF.Max(MathF.Min(low.Z, high.Z), 0f));
+            var leave = MathF.Min(MathF.Min(MathF.Max(low.X, high.X), MathF.Max(low.Y, high.Y)),
+                                  MathF.Min(MathF.Max(low.Z, high.Z), 1f));
+            if (enter > leave || enter > 1f)
+                continue;
+
+            if (node.Leaf)
+            {
+                into.Add(node.Payload);
+                continue;
+            }
+            stack.Push(node.Right);
+            stack.Push(node.Left);
+        }
+    }
+
     /// <summary>The chain from a leaf up to the root, as node index and box.</summary>
     /// <param name="proxy">The leaf to walk up from.</param>
     public List<(int Node, Vector3 Mins, Vector3 Maxs)> Path(int proxy)

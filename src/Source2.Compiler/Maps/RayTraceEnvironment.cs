@@ -53,6 +53,18 @@ public sealed class RayTraceEnvironment
     /// <summary>Fraction of nodraw area that makes the converter drop the mark.</summary>
     public const float NoDrawReconfigureAt = 0.8f;
 
+    /// <summary>
+    /// How far a cast ray reaches: <c>g_flConfigMaxCoord</c>, which every caster
+    /// in the binary builds its end point with.
+    ///
+    /// <para>It is not a guess and it is not the scene's diagonal. visbuilder
+    /// imports the symbol from tier0.dll, whose export table puts it in
+    /// <c>.data</c> holding <c>0x46800000</c>. On a map longer than this a ray
+    /// down its length is an ESCAPE rather than a hit, which is a real
+    /// difference: ze_hold_em_p is 21,379 units end to end.</para>
+    /// </summary>
+    public const float MaxCoord = 16384f;
+
     /// <summary>Nine counts and the world box, which is all of it.</summary>
     public const int HeaderSize = 60;
 

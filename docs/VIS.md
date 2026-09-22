@@ -1853,18 +1853,62 @@ bucketing and its cell boxes, the pass parameters, the budget arithmetic, and th
 cost chain, whose value we land within 1.15% of on probe01. The tree is no longer
 a candidate either.
 
-What is NOT ruled out, in the order worth trying:
+### The sampler, which was the last input, and four things it had wrong
 
-1. **The visibility sampling, `180031a20`.** Every cost is a popcount over these
-   bitsets, so a small systematic difference in what a cluster can see moves every
-   cost and therefore where the loop stops. It is the one input to the merge that
-   has not been diffed against the binary, and the fact that cluster GENERATION is
-   exact only constrains it at the one-voxel scale.
-2. **`18002f5c0`, the distance pre-merge**, which is still not implemented. It
-   prints `pre-merged to %d clusters` between generation and the five passes. It
-   was measured as a near no-op before (cardtest 81,991 to 81,865, ze_hold_em_p
-   nothing), and ze_hold_em_p being 5.81% out with nothing for it to do makes it
-   an unlikely whole answer, but it is a real missing stage.
+Every cost is a popcount over the visibility bitsets, so what a cluster can see
+decides every merge. `180031a20` fills them and `18004a690`, `18004b970`,
+`18004a420` and `18003d600` are what it is made of. Four things were ours rather
+than the compile's, and all four are now the compile's:
+
+- **The cast was restricted to the triangles overlapping the sampled box**, paid
+  for once per set. Sound for a leaf; wrong for a merge pass, whose box is a 512
+  unit grid cell spanning the full height of the map. Its diagonal is the reach,
+  so a ray leaves the cell long before it runs out, and every triangle it would
+  then have hit was missing from the list. `18004a690` casts against the whole
+  scene.
+- **The cast stops at `g_flConfigMaxCoord`, not at the box's diagonal.** A hit
+  BEYOND the sampled box is still a hit, and the segment is then longer than the
+  diagonal. The diagonal is only what a ray with no hit falls back to.
+- **A BACK facing hit is not a hit.** `18004a420` clears the record's hit bit and
+  puts FLT_MAX back in the distance, exactly as for a ray that met nothing, so
+  the segment runs out to the diagonal instead of stopping on the surface.
+- **The nodraw second look applies here too**, through `18004b970`.
+
+The broad phase is now the real tree as well. `18003d600` walks the merge's OWN
+`VisBoxTree` -- a leaf payload with no cluster behind it is a shell box, which
+counts on its box alone -- and the narrow phase is `18010c6e0` per (mask, leaf)
+pair, which is the per cell test corrected earlier in this session. Both were
+approximated by an ad hoc index with a threshold of our choosing; neither is now.
+
+**The cost the whole chain is steered by improved and the counts did not.**
+probe01's first-pass average is -0.73% against the compile, from -1.15% and from
+-2.70% earlier in the session. But probe01 finishes at -5.92%, cardtest at
+-5.21%, and ze_hold_em_p went the WRONG way, from -5.81% to -9.69%, on the
+full-scene cast alone.
+
+That is recorded rather than reverted, for a reason worth stating: cluster
+GENERATION runs on the same sampler, and it stayed exact through all four changes
+(93,354 against 93,354 on ze_hold_em_p, -0.06% on the probes). A sampler that is
+wrong would not hold that. So the four fixes are right and something they
+interact with is still wrong, which is a better position than the one before,
+where the sampler itself was a suspect.
+
+### What is left
+
+1. **`18002f5c0`, the distance pre-merge**, still not implemented. It prints
+   `pre-merged to %d clusters` between generation and the five passes, and was
+   measured as a near no-op (cardtest 81,991 to 81,865, ze_hold_em_p nothing).
+   ze_hold_em_p being the worst map with nothing for it to do makes it an
+   unlikely whole answer, but it is a real missing stage and it is the last one.
+2. Not `g_flConfigMaxCoord`, which was the obvious suspect and is now read
+   rather than reasoned about. visbuilder imports the symbol from tier0.dll,
+   whose export table puts it in `.data` holding `0x46800000`, so it is
+   **16,384**. We had been casting to the scene box's diagonal instead, which on
+   ze_hold_em_p is 21,403 -- the one map long enough for the difference to exist.
+   It is the compile's constant and it is used now, and it changes nothing on any
+   of the three: the probes are 4,096 units across, and ze_hold_em_p's clusters
+   never have 16,384 units of corridor in front of them inside a 512 unit merge
+   cell. Ruled out by measurement rather than left as a note.
 
 ### Three fidelity gaps closed on the way
 

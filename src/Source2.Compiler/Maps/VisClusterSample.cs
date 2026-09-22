@@ -84,9 +84,6 @@ public static class VisClusterSample
     /// <summary>Directions a set of 512 or more clusters samples with.</summary>
     public const int SphereDirections = 512;
 
-    /// <summary>Boxes above which the segment query goes through an index.</summary>
-    public const int IndexAbove = 256;
-
     /// <summary>
     /// A leaf index to its cube, which the marking walk needs because it
     /// confirms against a cluster's occupied cells rather than its box. The
@@ -140,7 +137,7 @@ public static class VisClusterSample
 
         var (boxMins, boxMaxs) = padded ? Padded(mins, maxs.X - mins.X) : (mins, maxs);
         var reach = (boxMaxs - boxMins).Length();
-        var near = scene.Overlapping(boxMins, boxMaxs, VisSeed.Ignored);
+        var far = RayTraceEnvironment.MaxCoord;
 
         var boxes = new List<(Vector3 Mins, Vector3 Maxs)>(clusters.Count + Shell.Length);
         foreach (var cluster in clusters)
@@ -159,11 +156,13 @@ public static class VisClusterSample
         var words = (boxes.Count + 63) / 64;
         var sphere = boxes.Count >= SphereDirections;
 
-        // The compile walks a CBoxMerge hierarchy to find which boxes a segment
-        // crosses. Testing all of them instead is fine for a region's 120 and
-        // hopeless for a grid cell's few thousand, so the index is built only
-        // where it pays: below the threshold the build costs more than it saves.
-        var index = boxes.Count > IndexAbove ? new BoxTree(boxes) : null;
+        // 18003d600 walks the merge's OWN AABB tree, the one 1800337a0 built and
+        // 1800306e0 queries: a leaf's payload is the entry, and a payload with no
+        // cluster behind it is a shell box, which counts on its box alone. Same
+        // structure, same boxes, so it is built here rather than approximated.
+        var index = new VisBoxTree();
+        for (var i = 0; i < boxes.Count; i++)
+            index.Create(boxes[i].Mins, boxes[i].Maxs, i);
 
         Parallel.For(0, clusters.Count, i =>
         {
@@ -185,18 +184,9 @@ public static class VisClusterSample
                     direction = Vector3.Normalize(centres[j] - from);
                 }
 
-                var to = from + (direction * Nearest(scene, near, from, direction, reach));
+                var to = from + (direction * Nearest(scene, from, direction, reach, far));
                 reached.Clear();
-                if (index is not null)
-                {
-                    index.Crossed(from, to, reached);
-                }
-                else
-                {
-                    for (var k = 0; k < boxes.Count; k++)
-                        if (Crosses(from, to, boxes[k].Mins, boxes[k].Maxs))
-                            reached.Add(k);
-                }
+                index.Crossed(from, to, reached);
 
                 foreach (var k in reached)
                     if (Occupied(clusters, k, cube, from, to))
@@ -257,7 +247,7 @@ public static class VisClusterSample
 
         var (mins, maxs) = Padded(leafMins, side);
         var reach = (maxs - mins).Length();
-        var near = scene.Overlapping(mins, maxs, VisSeed.Ignored);
+        var far = RayTraceEnvironment.MaxCoord;
 
         var clusters = entries.Count(e => !e.Padding);
         var words = (entries.Count + 63) / 64;
@@ -275,7 +265,7 @@ public static class VisClusterSample
                 if (j == i)
                     continue;
                 var direction = Vector3.Normalize(centres[j] - from);
-                var to = from + (direction * Nearest(scene, near, from, direction, reach));
+                var to = from + (direction * Nearest(scene, from, direction, reach, far));
                 for (var k = 0; k < entries.Count; k++)
                     if (Crosses(from, to, entries[k].Mins, entries[k].Maxs))
                         bits[k >> 6] |= 1UL << (k & 63);
@@ -291,14 +281,39 @@ public static class VisClusterSample
     /// the box's own diagonal always carries a ray out of it from any point
     /// inside, so a miss and a distant hit are the same answer.
     /// </summary>
+    /// <summary>
+    /// How far a sampling ray gets: <c>18004a690</c> casting against the whole
+    /// scene, <c>18004b970</c> looking again through nodraw, and
+    /// <c>18004a420</c> deciding what the record ends up holding.
+    ///
+    /// <para>Three things here are the compile's and none of them were obvious.
+    /// The cast runs to <c>g_flConfigMaxCoord</c>, not to
+    /// <paramref name="reach"/>, so a hit BEYOND the sampled box is still a hit
+    /// and the segment is longer than the box's diagonal. A BACK facing hit is
+    /// not a hit at all: <c>18004a420</c> clears the record's hit bit and puts
+    /// FLT_MAX back in the distance, exactly as it does for a ray that met
+    /// nothing. And <paramref name="reach"/> is only the fallback those two cases
+    /// fall back TO, which is where <c>180031a20</c> reads it.</para>
+    ///
+    /// <para>It used to test only the triangles overlapping the box, paid for
+    /// once per set. That is sound for a leaf and wrong for a merge pass, whose
+    /// box is a 512 unit grid cell spanning the full height of the map: a ray
+    /// leaves the cell long before it runs out, and every triangle it would then
+    /// have hit was missing from the list.</para>
+    /// </summary>
+    /// <param name="scene">The ray trace scene.</param>
+    /// <param name="from">The cluster's box centre.</param>
+    /// <param name="direction">Unit direction.</param>
+    /// <param name="reach">The sampled box's diagonal, used when nothing is hit.</param>
+    /// <param name="far">How far the cast runs, <see cref="RayTraceEnvironment.MaxCoord"/>.</param>
     private static float Nearest(
-        RayTraceEnvironment scene, int[] near, Vector3 from, Vector3 direction, float reach)
+        RayTraceEnvironment scene, Vector3 from, Vector3 direction, float reach, float far)
     {
-        var best = reach;
-        foreach (var triangle in near)
-            if (scene.Meets(triangle, from, direction, 0f, best) is { } hit)
-                best = hit.Distance;
-        return best;
+        if (scene.Trace(from, direction, far, VisSeed.Ignored) is not { } first)
+            return reach;
+        var hit = VisSeed.Behind(scene, from, direction, far, first);
+        var landed = from + (direction * hit.Distance);
+        return Vector3.Dot(hit.Normal, from) >= Vector3.Dot(hit.Normal, landed) ? hit.Distance : reach;
     }
 
     /// <summary>
