@@ -1520,6 +1520,61 @@ the three pass counts goes from 2.28% to 7.13%. Re-applying them is worth doing
 the moment the fifth pass is understood, and the rules above are exact enough to
 re-enter from this page.
 
+### The candidate query IS a dynamic AABB tree, and it is exactly our test
+
+`Touches` was a substitution, so all five of the tree's functions were
+decompiled to settle whether it is a faithful one. It is, and here is the proof
+rather than the assertion.
+
+| address | what it is |
+|---|---|
+| `18010a520` | construct: 32 nodes of 0x30 bytes, root -1, free list |
+| `18010ad30` | allocate a node, copy the box, then `18010af00` to insert |
+| `18010af00` | insert a leaf, choosing a sibling and rebalancing |
+| `18010bbb0` | query a box, returning node indices |
+| `18010b510` | move a proxy: rewrite its box and reinsert |
+| `18010ae00` | destroy a proxy |
+
+The node is the familiar 48 byte one: box at `+0x00`, height `+0x18`, parent
+`+0x1c`, children `+0x20` and `+0x24`, payload `+0x28`, with `child1 == -1`
+marking a leaf. That is exactly the layout `18003d600` reads.
+
+Three facts decide it. **No box is ever fattened**: `18010ad30` copies the
+caller's 24 bytes verbatim, and so does `18010b510`, which is the only other
+writer. **The query is an exact inclusive overlap**, `query.mins <= node.maxs`
+and `node.mins <= query.maxs` on all three axes, with no margin. And **the tree
+is kept live**: `180030a50` calls `18010b510` with the survivor's new box and
+`18010ae00` on the one it absorbed, before rebuilding the survivor's candidates
+through `1800306e0`.
+
+An exact query over live boxes returns precisely the leaves whose boxes overlap,
+which is what a linear scan with the same expansion returns. The tree is a
+speed structure and nothing else, so porting it would add about three hundred
+lines of sibling selection and rotation for a provably identical answer. That is
+now established by decompilation rather than assumed, which was the thing that
+needed fixing.
+
+One detail worth keeping: the tree holds the shell boxes as well as the
+clusters, and `1800306e0` filters them out by the slot's `+0x19` flag. Ours
+never offers them as candidates in the first place, which is the same set.
+
+### Where ze_hold_em_p's error actually comes from
+
+Lining the three specimens up by their UPSTREAM error makes the merge look much
+less guilty:
+
+| map | enclosed regions | clusters generated | final pass |
+|---|---|---|---|
+| probe01 | -0.05% | -1.26% | -2.10% |
+| cardtest | +0.36% | -1.22% | +4.18% |
+| ze_hold_em_p | **+7.87%** | +2.81% | **+35.66%** |
+
+The two maps whose region count is right land within a few percent. The one
+whose region count is nearly eight percent high is the one that falls apart, and
+its 831 extra sliver regions are a known open item in outside detection, not in
+this stage. `Compact` already folds a leaf's boxes into one region per leaf, so
+the seeding shape matches; what differs is WHICH leaves are called enclosed.
+
 ### How a leaf is actually seeded, and where the Tag comes from
 
 `FUN_180032b80` is not the generator, it is a filter: it walks the entry array

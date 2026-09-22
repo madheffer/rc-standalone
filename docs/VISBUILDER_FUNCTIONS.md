@@ -212,3 +212,18 @@ about a return value, and the assembly is.
 
 The functor's vtable is only two slots, `{dtor, body}`, and `18017c1e0` after it
 is data, so reading past it lands in the scene adapter's vtable at `18017c1e8`.
+
+## The candidate query's spatial index
+
+| address | what it is |
+|---|---|
+| `18010a520` | construct the tree |
+| `18010ad30` | allocate a node and insert it |
+| `18010af00` | insert a leaf, sibling choice and rebalance |
+| `18010bbb0` | query a box for overlapping leaves |
+| `18010b510` | move a proxy, rewriting its box |
+| `18010ae00` | destroy a proxy |
+| `18010bd80` | grow the node pool |
+
+No writer fattens a box and the query carries no margin, so the tree answers
+exactly what an overlap test answers.
