@@ -59,6 +59,9 @@ public sealed class VisBoxTree
     /// <summary>Leaves currently in the tree.</summary>
     public int Count { get; private set; }
 
+    /// <summary>The root node, or -1.</summary>
+    public int Root => _root;
+
     /// <summary>
     /// <c>18010ad30</c>: take a node off the free list, copy the box in as it
     /// stands, and insert it.
@@ -132,9 +135,22 @@ public sealed class VisBoxTree
                 into.Add(node.Payload);
                 continue;
             }
-            stack.Push(node.Left);
+            // 18010bbb0 writes child2 into the slot it just popped and child1
+            // above it, so child1 comes off next. Candidate order decides which
+            // of two equally priced pairs the merge takes, so it matters.
             stack.Push(node.Right);
+            stack.Push(node.Left);
         }
+    }
+
+    /// <summary>The chain from a leaf up to the root, as node index and box.</summary>
+    /// <param name="proxy">The leaf to walk up from.</param>
+    public List<(int Node, Vector3 Mins, Vector3 Maxs)> Path(int proxy)
+    {
+        var chain = new List<(int, Vector3, Vector3)>();
+        for (var at = proxy; at != None; at = _nodes[at].Parent)
+            chain.Add((at, _nodes[at].Mins, _nodes[at].Maxs));
+        return chain;
     }
 
     /// <summary>The box a leaf is stored under, for checking it against its owner.</summary>

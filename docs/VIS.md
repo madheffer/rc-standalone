@@ -1594,15 +1594,29 @@ each ancestor's box and height and does NOT rotate; and the exact inclusive
 query. Five tests hold it to a brute force scan, including a query after every
 absorb and a run that grows the pool well past its first block.
 
-Standing it up in place of the linear scan is NOT done, because it changed
-probe01's first pass from 2,466 clusters to 1,138 and I could not close that out
-in the time. A cross check inside the merge says the tree misses genuinely
-overlapping leaves and never adds spurious ones, `Validate` reports the
-structure clean, and printing the stored box against the cluster's shows the
-tree holding the box from BEFORE the cluster grew. So the defect is in keeping
-the tree in step with the merge, not in the tree, and the linear scan is still
-what runs. That is worth being precise about rather than leaving a broken merge
-in place to look finished.
+Standing it up in place of the linear scan has now been attempted twice and is
+still NOT done. It takes probe01's first pass from 2,466 clusters to 1,138. What
+a second round of instrumentation established, so the next attempt does not
+repeat it:
+
+- An audit comparing every live cluster's box against the box the tree holds,
+  run after the proxies are created and on both sides of every absorb, **never
+  fires**. The tree is in step, which rules out the stale-box reading from the
+  first attempt.
+- Fixing the query's traversal order does not explain it either. `18010bbb0`
+  writes child2 into the slot it just popped and child1 above it, so child1
+  comes off next; ours pushed Left then Right and popped Right first. Corrected,
+  probe01 moves only from 1,138 to 1,143.
+- Walking the chain from a missing leaf up to the root shows the LEAF ITSELF
+  failing the query test, correctly: a leaf at `<248, 916, 240>` against a query
+  ending at x = 241. So the tree prunes it right and the cross-check's own
+  linear scan is what disagrees, which cannot be true if the boxes match and the
+  two tests are the same expression.
+
+Those three cannot all hold at once, so one of the instrumentation assumptions
+is wrong rather than the tree. The tree keeps its own tests, the linear scan is
+what runs, and the next attempt should start by proving the cross-check itself
+on a case it is known to get right.
 
 ### The candidate query IS a dynamic AABB tree, and it is exactly our test
 
