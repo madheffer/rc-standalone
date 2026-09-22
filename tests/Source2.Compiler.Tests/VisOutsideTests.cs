@@ -18,7 +18,7 @@ public class VisOutsideTests(ITestOutputHelper output)
 
     private static readonly Specimen[] Maps =
     [
-        new("s2c_lighting", "ze_hold_em_p", 10_554, 0),
+        new("s2c_lighting", "ze_hold_em_p", 10_554, 0.08),
         new("s2c_rc_probe", "cardtest", 7_416, 0.004),
         new("s2c_rc_probe", "probe01", 7_316, 0.001),
     ];
@@ -43,6 +43,10 @@ public class VisOutsideTests(ITestOutputHelper output)
             var compact = VisRegions.Compact(regions, result.Regions);
             var counted = compact.Regions.Count;
             var error = (double)counted / specimen.Target - 1;
+            var seed = result.Seeded!;
+            output.WriteLine($"{specimen.Map,-16} seed: inside {seed.Count(x => x == VisOutside.Status.Inside),7:n0}"
+                + $"  outside {seed.Count(x => x == VisOutside.Status.Outside),7:n0}"
+                + $"  undecided {seed.Count(x => x == VisOutside.Status.Unknown),7:n0}");
             output.WriteLine($"{specimen.Map,-16} compacted {counted,7:n0}  from inside {result.Inside,7:n0}"
                 + $"  of {regions.Regions.Count,7:n0}   compile {specimen.Target,7:n0}  {error,8:P2}"
                 + $"   ({result.Passes} passes)");
@@ -55,29 +59,22 @@ public class VisOutsideTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The reach a ray is given is OURS, not the compile's, so the answer must not
-    /// hinge on it. Over a factor of 32 it moves by well under a percent, which is
-    /// what makes the number above a measurement rather than a fit.
+    /// There is no longer a knob in this stage to sweep.
+    ///
+    /// <para>The ray reach used to be ours and had its own spread test. It is
+    /// gone: <c>18002e050</c> marches from the region's centre to a fixed
+    /// <see cref="VisOutside.MarchBackOff"/> short of whatever the ray hit, and
+    /// the vote is a pair of integer thresholds over the rays a face carries. The
+    /// only number left that we chose is the seed's grid, and that is Valve's own
+    /// five, swept below.</para>
     /// </summary>
     [Fact]
-    public void TheAnswerDoesNotHingeOnTheReachWeChose()
+    public void NothingInOutsideDetectionIsOursToTuneAnyMore()
     {
-        if (VisFixtures.RayTraceScene("s2c_lighting", "ze_hold_em_p") is not var (rte, valve))
-            return;
-
-        var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
-        var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
-                 / VisVoxelizer.VoxelsPerLeaf;
-        var regions = VisRegions.Build(tree, side);
-
-        var counts = new List<int>();
-        foreach (var reach in new[] { 64f, 512f, 2048f })
-            counts.Add(VisOutside.Detect(tree, regions, rte, valve.GridSize,
-                                         VisOutside.AxialDirections, reach).Inside);
-
-        output.WriteLine("enclosed regions at reach 64, 512, 2048: " + string.Join(", ", counts));
-        var spread = (counts.Max() - counts.Min()) / (double)counts.Min();
-        Assert.True(spread < 0.02, $"the reach moved the count by {spread:P2}, so it is carrying the answer");
+        Assert.Equal(8f, VisOutside.MarchBackOff);
+        Assert.Equal(0.1f, VisOutside.MarchShortest);
+        Assert.Equal(5, VisOutside.OutsideVotesAllowed);
+        Assert.Equal(5, VisSeed.Quality);
     }
 
     /// <summary>

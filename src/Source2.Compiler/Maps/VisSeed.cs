@@ -42,7 +42,12 @@ public static class VisSeed
     /// <param name="Insubstantial">Rays that landed on a nodraw or coarse-only one, facing.</param>
     /// <param name="Escaped">Rays that hit nothing at all.</param>
     /// <param name="PerFace">Rays per face, which every threshold is a multiple of.</param>
-    public readonly record struct Counters(int Facing, int Behind, int Insubstantial, int Escaped, int PerFace);
+    /// <param name="Nearest">Distance to the closest surface any ray landed on
+    /// facing us, ordinary surfaces first and a nodraw or coarse-only one only
+    /// when there was no ordinary hit at all, or infinity when nothing was hit.
+    /// The seed does not read it; cluster generation does.</param>
+    public readonly record struct Counters(
+        int Facing, int Behind, int Insubstantial, int Escaped, int PerFace, float Nearest);
 
     /// <summary>
     /// The direction set for one box: a <see cref="Quality"/> by
@@ -85,6 +90,7 @@ public static class VisSeed
         var reach = (scene.Maxs - scene.Mins).Length();
 
         int facing = 0, behind = 0, insubstantial = 0, escaped = 0;
+        float nearOrdinary = float.PositiveInfinity, nearOther = float.PositiveInfinity;
         foreach (var direction in Directions(mins, maxs, quality))
         {
             if (scene.Trace(centre, direction, reach, Ignored) is not { } hit)
@@ -100,12 +106,22 @@ public static class VisSeed
                 behind++;
                 continue;
             }
+
+            // The distance kept is from the BOX, not from the centre it cast from.
+            var away = Away(mins, maxs, centre + (direction * hit.Distance));
             if ((scene.Flags(hit.Triangle) & Insubstantial) != 0)
+            {
                 insubstantial++;
+                nearOther = MathF.Min(nearOther, away);
+            }
             else
+            {
                 facing++;
+                nearOrdinary = MathF.Min(nearOrdinary, away);
+            }
         }
-        return new Counters(facing, behind, insubstantial, escaped, grid * grid);
+        var nearest = float.IsInfinity(nearOrdinary) ? nearOther : nearOrdinary;
+        return new Counters(facing, behind, insubstantial, escaped, grid * grid, nearest);
     }
 
     /// <summary>
@@ -131,6 +147,10 @@ public static class VisSeed
         }
         return VisOutside.Status.Inside;
     }
+
+    /// <summary>How far a point lies outside a box, zero when it is inside.</summary>
+    private static float Away(Vector3 mins, Vector3 maxs, Vector3 point)
+        => Vector3.Max(Vector3.Max(mins - point, point - maxs), Vector3.Zero).Length();
 
     /// <summary>Gather and decide, which is the whole of one region's seed.</summary>
     public static VisOutside.Status Of(RayTraceEnvironment scene, Vector3 mins, Vector3 maxs)

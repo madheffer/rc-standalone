@@ -40,6 +40,18 @@ public static class VisClusters
     /// <summary>Clusters a region is merged down towards, the <c>0x20</c> argument.</summary>
     public const int MergeTarget = 32;
 
+    /// <summary>
+    /// How far a region's first voxel must be from any surface before the whole
+    /// region becomes ONE cluster outright, skipping the per-voxel birth and the
+    /// merge. <c>PreMergeOpenSpaceDistanceThreshold</c> in
+    /// <c>csgo_core/gameinfo.gi</c>; the binary's own default is -1, which turns
+    /// the rule off, and the shipped config turns it on.
+    /// </summary>
+    public const float OpenSpaceDistance = 128f;
+
+    /// <summary>Rays a face for the gather cluster generation asks for.</summary>
+    public const int OpenSpaceQuality = 6;
+
     /// <summary>One cluster, in the shape the 0x58 byte record holds it.</summary>
     /// <param name="Region">Which region it was born in.</param>
     /// <param name="Mask">Its voxels within that region's leaf.</param>
@@ -119,11 +131,37 @@ public static class VisClusters
             var leaf = regions.Leaves[region.Leaf];
             var side = tree.LeafSize * (1 << leaf.Level);
             var corner = tree.Origin + new Vector3(leaf.Cell.X, leaf.Cell.Y, leaf.Cell.Z) * side;
-            counts[i] = Merge(scene, corner, side, region.Open);
+            counts[i] = OpenSpace(scene, corner, side, region.Open)
+                ? 1
+                : Merge(scene, corner, side, region.Open);
         });
         foreach (var count in counts)
             total += count;
         return total;
+    }
+
+    /// <summary>
+    /// Whether a region is far enough from anything to skip cluster generation
+    /// entirely, which is <c>180032d80</c>'s first branch:
+    /// <c>(f4 == 0 || nearest &lt; f8 || nearest == FLT_MAX)</c> takes the normal
+    /// path and anything else becomes one cluster flagged at <c>+0x54</c>.
+    ///
+    /// <para>The gather is over the region's FIRST set voxel, not its whole box,
+    /// and it asks for <see cref="OpenSpaceQuality"/> rays a face rather than the
+    /// seed's five.</para>
+    /// </summary>
+    public static bool OpenSpace(RayTraceEnvironment scene, Vector3 leafMins, float side, ulong open)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+
+        var first = System.Numerics.BitOperations.TrailingZeroCount(open);
+        if (first > 63)
+            return false;
+
+        var voxel = side * SubCell;
+        var at = leafMins + new Vector3(first & 3, (first >> 2) & 3, (first >> 4) & 3) * voxel;
+        var nearest = VisSeed.Gather(scene, at, at + new Vector3(voxel), OpenSpaceQuality).Nearest;
+        return nearest >= OpenSpaceDistance && !float.IsInfinity(nearest);
     }
 
     /// <summary>
@@ -147,8 +185,16 @@ public static class VisClusters
     /// <summary>Cubic units of enclosed space a cluster is worth (<c>_DAT_18017f0f8</c>, 2^-20).</summary>
     public const double VolumePerCluster = 1048576d;
 
-    /// <summary>The ceiling the config caps the target at, times four.</summary>
-    public const int MaxVisClusters = 2048;
+    /// <summary>
+    /// The ceiling the config caps the target at, times four.
+    ///
+    /// <para>This is NOT the binary's default of 2,048. CS2 ships a
+    /// <c>ResourceCompiler/VisBuilder</c> block in
+    /// <c>game/csgo_core/gameinfo.gi</c> that overrides five of the six keys the
+    /// driver reads, and taking the defaults out of the binary is wrong for every
+    /// one of them. See docs/VIS.md.</para>
+    /// </summary>
+    public const int MaxVisClusters = 4096;
 
     /// <summary>
     /// The cluster count the whole merge aims at, which <c>180031f00</c> works

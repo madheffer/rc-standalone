@@ -44,7 +44,8 @@ behaviour, so they carry a description rather than a symbol.
 | `18002f5c0` | the distance pre-merge | logs `Distance merged regions (%d merged to %d)` and `pre-merged to %d clusters` |
 | `180034220` | `MergeClusterSet`, called FIVE times | a grid of 512, 512, 2048, 2048 then 4096 units, with budgets of 6, 5.75, 4.5, 4.25 and 3 times the target |
 | `180032b80` | the region count the compile prints | fills a vector with the regions whose flag bits 0 and 1 are both clear, immediately before `MergeInsideRegions` logs the count |
-| `18002e050` | classify one region as inside or outside | called per region by outside detection |
+| `18002e050` | classify one region as inside or outside | the SECOND pass, sequential and in region order; casts the seed's grid and marches every facing hit, then votes `inside > 2n` or `inside > n and outside < 5` |
+| `18010c3f0` | cut a leaf's open voxels into regions | a greedy BOX decomposition, not connected components |
 | `18002deb0` | cast one ray through the voxel octree | called per candidate ray by the classifier |
 | `18003ddb0` | the cluster generation job body | the work pointer in the vtable MergeInsideRegions dispatches |
 | `180032d80` | generate one region's clusters | the only thing that job calls; fills the 24-byte record whose first int the log sums |
@@ -57,7 +58,6 @@ behaviour, so they carry a description rather than a symbol.
 | `1800301c0` | **the merge COST** | slot 1 of the merge controller vtable at `18017bf40`, called as `cost(a, b)` and stored beside the candidate's id |
 | `180030a50` | the merge ACTION | slot 2; ORs the bit vectors, sums the voxel counts, unions the boxes, takes one off the controller's LIVE COUNT, strips the dead cluster from every candidate list, then calls `1800306e0` |
 | `1800306e0` | rebuild the surviving cluster's candidates | clears its list and re-queries the box tree with its NEW box dilated by a unit, recomputing every cost; this is what keeps the candidate graph connected across a merge |
-| `18010c3f0` | cut a leaf's open voxels into regions | a greedy BOX decomposition, not connected components: grow in x, then y, then z, emit, repeat |
 | `18010cc20` | one sub-cell's box from the node's box | `(i & 3, i >> 2 & 3, i >> 4 & 3)` times a quarter of the side, no epsilon |
 | `18002d670` | build a leaf's 4x4x4 mask and push its regions | queries the kd tree per cell with the same size-dependent mask, splits the OPEN space into connected components, and pushes the solid voxels as one more region flagged out of the count |
 | `180030d70` | break a tie between two candidates | slot 4; prefers the larger voxel count, then `180027e10` on the boxes |

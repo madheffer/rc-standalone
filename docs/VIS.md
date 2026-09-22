@@ -746,6 +746,55 @@ it turns out not to decide anything: the propagation does, and the propagation i
 ported. `VisOutsideTests` pins both, so a future change that starts depending on
 either fails rather than passing quietly.
 
+### The propagation, and a case where porting it made the number worse
+
+`1800321f0` is exactly two passes and does NOT iterate to a fixed point. The seed
+runs over every region in a thread pool; a region it called outside has its flag
+bit set; then a SEQUENTIAL pass classifies whatever is left, in region order,
+each one seeing the verdicts of the ones before it.
+
+`18002e050` is that second pass. It casts the same 5x5-a-face grid the seed does
+and marches every ray that landed on a surface FACING it, stopping 8 units short
+of what it hit. `18002deb0` walks the octree along that segment and answers:
+
+- **outside** the moment it touches a region whose FLAG is set, which wins outright
+- **inside** at the end, if any region it crossed is currently marked inside
+- nothing at all otherwise
+
+and the vote is two integer thresholds over `n`, the rays a face carries:
+
+```
+inside if (inside > 2n) or (inside > n and outside < 5)
+```
+
+That condition was checked against the INSTRUCTIONS rather than the decompiler's
+parenthesisation, because a three-term test with two short circuits is exactly
+where a reading can go wrong. `MOV ECX,[RSP+0x90]; LEA EAX,[RCX+RCX*1];
+CMP EDI,EAX; JG inside; CMP EDI,ECX; JLE outside; CMP ESI,5; JL inside`, and
+`[RSP+0x90]` is the gather struct's `+0x30`, which `18004b260` sets to `n*n`.
+
+**It is ported and it made ze_hold_em_p worse, and that is recorded rather than
+reverted.** The seed ALONE gives that map exactly 10,554 enclosed leaves; the
+second pass adds 831 more, which the compile does not count:
+
+| | regions | clusters | target |
+|---|---|---|---|
+| ze_hold_em_p | 11,385 (+7.87%) | 95,978 (+2.81%) | **1,344, exact** |
+| cardtest | 7,443 (+0.36%) | 80,991 (-1.22%) | **864, exact** |
+| probe01 | 7,312 (-0.05%) | 80,678 (-1.26%) | **864, exact** |
+
+Three things are known about those 831. They carry almost no VOLUME - the target
+cluster count is unchanged and still exact - so they are single-voxel slivers.
+They are in leaves the shipped file also has live, and the leaf-by-leaf agreement
+IMPROVES with the pass on (1,506 to 1,628 matched, 1,660 to 1,538 missed). And the
+old approximation that scored exact here was a 26-direction vote iterated to a
+fixed point, which is not what the binary does at all.
+
+So the honest reading is that the slivers should not be regions in the first
+place, which puts the remaining error in the leaf masks rather than in this pass.
+Reverting to the approximation would buy the headline number back and lose the
+one thing that makes the number worth anything.
+
 ### What the seed actually is
 
 `18004b260` casts a **5 by 5 grid of rays through each of the region box's six
@@ -1020,6 +1069,28 @@ nothing to evaluate, there is no ray or cost function in it, and it lands
 That is a single number that only comes out right if the octree, the leaf masks,
 the outside pass and the compaction are all right together, so it is now the
 first thing to check when any of them changes.
+
+### The settings are not the binary's defaults, and that is five of six keys
+
+`18003c010` reads six `ResourceCompiler/VisBuilder/...` keys out of the game's
+KeyValues before anything runs, and CS2 ships a block that overrides nearly all
+of them in **`game/csgo_core/gameinfo.gi`**:
+
+| key | binary default | what CS2 actually ships |
+|---|---|---|
+| `MaxVisClusters` | 2,048 | **4,096** |
+| `PreMergeOpenSpaceDistanceThreshold` | -1, i.e. OFF | **128.0** |
+| `PreMergeOpenSpaceMaxDimension` | 1,024 | **2,048.0** |
+| `PreMergeOpenSpaceMaxRatio` | 4 | **8.0** |
+| `PreMergeSmallRegionsSizeThreshold` | -1, i.e. OFF | **20.0** |
+| `BaseVoxelSize` | 8 | not overridden, so 8 |
+| `DeterministicBuild` | - | **1** |
+
+Two of those turn a whole stage on. `18002f5c0` is wrapped in
+`if (sampler+0xf4 != 0)`, which is set only when the distance threshold is
+positive, so reading the binary alone says the pre-merge never runs - and the
+compile prints `Distance merged regions` on every map. The binary's defaults are
+what the tool would do with no game attached; they are not what the tool does.
 
 It also means `LeafMasks` is keyed by (level, cell) rather than by cell, because
 a mask is 4x4x4 over the node's OWN box whatever size that is.

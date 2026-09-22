@@ -28,7 +28,7 @@ public class VisClustersTests(ITestOutputHelper output)
     /// to more than one cluster and the model here gives it one.</param>
     private static readonly (int Map, double Tolerance)[] Counted =
     [
-        (0, 0), (1, 0.013), (2, 0.013),
+        (0, 0.03), (1, 0.013), (2, 0.013),
     ];
 
     /// <summary>The count the compile sums into "N clusters generated".</summary>

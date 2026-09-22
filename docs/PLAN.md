@@ -17,6 +17,34 @@ Read `CAVEATS.md` before touching any of this.
 
 ---
 
+## The standing rule: read it, do not approximate it
+
+**Every stage matches Valve's as closely as the binary allows, and a number we
+cannot land on is a function we have not read yet.** This is not a preference
+about rigour, it is what the measurements keep showing:
+
+- the outside-detection seed was approximated with a 26-direction vote. It
+  reproduced ze_hold_em_p to the unit at every threshold from 70% to 96% and
+  missed probe01 by half. Porting `18004a2f0` took the probe maps from -49% to
+  -0.3% and did not move ze_hold_em_p at all.
+- a region was taken to be a connected component. `18010c3f0` is a greedy box
+  decomposition, and on ze_hold_em_p the two are the same thing, so the wrong
+  one scored exact and stayed wrong.
+- the printed region count was scored before compaction because `180032670`
+  had not been read in order. Reading `180031f00` settled it in one line.
+
+So the method is: **read the function, port what it does, and if a number is
+still off, the next thing to do is read another function, not tune a constant.**
+Every knob that remains ours carries a test that moves it and asserts the answer
+does not follow - the ray reach over a factor of 32, the seed grid from 3 to 8,
+the seed thresholds over twenty pairs - because a number we chose landing on
+Valve's is either the answer or a fit, and moving it is the only way to tell.
+
+The bar is that a compiled map is indistinguishable from Valve's: no holes, and
+overdraw inside the band a legitimate settings change spans.
+
+---
+
 ## Where the dependencies actually run
 
 This ordering is not a preference, it is what resourcecompiler does, and it is
