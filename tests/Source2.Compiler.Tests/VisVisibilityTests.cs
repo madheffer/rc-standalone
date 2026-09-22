@@ -80,6 +80,31 @@ public class VisVisibilityTests
             Assert.True((cells & (1UL << (z * 16))) != 0, $"cell at z={z} should be crossed");
     }
 
+    /// <summary>
+    /// A diagonal lights up the cells it actually crosses and NOT the box around
+    /// them. <c>18010c6e0</c> gives each of the 64 cells its own slab test, so the
+    /// answer is a staircase; the range product it is easy to mistake it for would
+    /// return the whole bounding sub box, including the two far corners asserted
+    /// clear here.
+    /// </summary>
+    [Fact]
+    public void ADiagonalCrossesItsOwnCellsAndNotTheBoxAroundThem()
+    {
+        // Across a 16 unit box on a 3:1 slope, flat in z, so the segment runs
+        // through the x row 0..3 while y steps from row 0 to row 1 halfway.
+        var delta = new Vector3(12f, 4f, 0f);
+        var cells = VisVisibility.Crossed(new Vector3(2f, 2f, 2f), One(delta), Vector3.Zero, 16f, 4);
+
+        foreach (var (x, y) in new[] { (0, 0), (1, 0), (2, 0), (1, 1), (2, 1), (3, 1) })
+            Assert.True((cells & (1UL << (x + (y * 4)))) != 0, $"cell {x},{y} is on the line");
+
+        // The bounding box of the passage is the whole 4x2 block. These two are
+        // its corners, and the line comes nowhere near either.
+        Assert.True((cells & (1UL << 3)) == 0, "cell 3,0 is only in the bounding box");
+        Assert.True((cells & (1UL << 4)) == 0, "cell 0,1 is only in the bounding box");
+        Assert.Equal(6, System.Numerics.BitOperations.PopCount(cells));
+    }
+
     /// <summary>A segment that never reaches the box crosses nothing.</summary>
     [Fact]
     public void ASegmentThatMissesTheBoxCrossesNothing()

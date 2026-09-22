@@ -246,8 +246,16 @@ public static class VisVisibility
     /// <summary>
     /// Which of a box's <paramref name="side"/> cubed cells the segment passes
     /// through, which is <c>18010cb10</c> at a side of 2 and <c>18010c6e0</c> at
-    /// 4. Both are the per axis slab min and max, so the answer is the product of
-    /// three ranges rather than a walk.
+    /// 4.
+    ///
+    /// <para>Each cell gets its OWN slab test. Both functions build a per axis
+    /// enter and leave for every slice of the axis, then test each cell as
+    /// <c>max(enterX, enterY, enterZ, 0) &lt;= min(leaveX, leaveY, leaveZ, 1)</c>,
+    /// which <c>18010c6e0</c> does as sixteen <c>movmskps</c> nibbles laid down at
+    /// <c>x + 4y + 16z</c>. It is NOT the bounding box of the segment's passage:
+    /// a diagonal through a leaf lights up the cells it actually crosses and not
+    /// the box around them, and the difference is what decides how many regions
+    /// a march reaches.</para>
     /// </summary>
     /// <param name="origin">Segment start.</param>
     /// <param name="inverse">Reciprocal of its extent.</param>
@@ -256,41 +264,36 @@ public static class VisVisibility
     /// <param name="side">Cells per axis, 2 or 4.</param>
     public static ulong Crossed(Vector3 origin, Vector3 inverse, Vector3 mins, float size, int side)
     {
-        var maxs = mins + new Vector3(size);
-        var low = (mins - origin) * inverse;
-        var high = (maxs - origin) * inverse;
-        var enter = MathF.Max(MathF.Max(MathF.Min(low.X, high.X), MathF.Min(low.Y, high.Y)),
-                              MathF.Max(MathF.Min(low.Z, high.Z), 0f));
-        var leave = MathF.Min(MathF.Min(MathF.Max(low.X, high.X), MathF.Max(low.Y, high.Y)),
-                              MathF.Min(MathF.Max(low.Z, high.Z), 1f));
-        if (enter > leave)
-            return 0;
-
-        var delta = Reciprocal(inverse);
-        var a = origin + (delta * enter);
-        var b = origin + (delta * leave);
         var cell = size / side;
-
-        Span<int> from = stackalloc int[3];
-        Span<int> to = stackalloc int[3];
+        Span<float> enter = stackalloc float[12];
+        Span<float> leave = stackalloc float[12];
         for (var axis = 0; axis < 3; axis++)
         {
-            var one = Component(a, axis);
-            var two = Component(b, axis);
-            from[axis] = Slot(MathF.Min(one, two) - Component(mins, axis), cell, side);
-            to[axis] = Slot(MathF.Max(one, two) - Component(mins, axis), cell, side);
+            var from = Component(mins, axis) - Component(origin, axis);
+            var slope = Component(inverse, axis);
+            for (var i = 0; i < side; i++)
+            {
+                var near = (from + (i * cell)) * slope;
+                var far = (from + ((i + 1) * cell)) * slope;
+                enter[(axis * 4) + i] = MathF.Min(near, far);
+                leave[(axis * 4) + i] = MathF.Max(near, far);
+            }
         }
 
         var mask = 0UL;
-        for (var z = from[2]; z <= to[2]; z++)
-            for (var y = from[1]; y <= to[1]; y++)
-                for (var x = from[0]; x <= to[0]; x++)
-                    mask |= 1UL << (x + (y * side) + (z * side * side));
+        for (var z = 0; z < side; z++)
+            for (var y = 0; y < side; y++)
+                for (var x = 0; x < side; x++)
+                {
+                    var into = MathF.Max(MathF.Max(enter[x], enter[4 + y]),
+                                         MathF.Max(enter[8 + z], 0f));
+                    var outOf = MathF.Min(MathF.Min(leave[x], leave[4 + y]),
+                                          MathF.Min(leave[8 + z], 1f));
+                    if (into <= outOf)
+                        mask |= 1UL << (x + (y * side) + (z * side * side));
+                }
         return mask;
     }
-
-    private static int Slot(float along, float cell, int side) =>
-        Math.Clamp((int)MathF.Floor(along / cell), 0, side - 1);
 
     private static float Component(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;
 

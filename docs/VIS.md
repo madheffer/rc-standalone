@@ -592,8 +592,10 @@ Generated clusters for 10554 regions in 4.34 seconds
 ```
 
 So 10,554 is a count of the regions the map ENCLOSES, not of the regions the
-octree holds. That is what makes it small: ze_hold_em_p's octree has 71,121 leaves
-and 73,659 regions in total.
+octree holds. That is what makes it small: ze_hold_em_p's octree has 71,422 leaves
+and 76,880 regions in total. Those leaves are not an estimate: the 81,625 nodes
+the compile logs are 1 + 8 x 10,203 branches, and we reproduce both exactly, so
+the leaf partition the count is taken over is Valve's own.
 
 ### What a region is, and what is implemented
 
@@ -1651,17 +1653,53 @@ Level 1 is the opposite case and the reason the 831 exist: facing 114 of 150,
 escaped only 30.6, so `facing <= 3n` and `facing + escaped <= 4.8n` both fail
 and it lands on Inside. 4,746 of the 6,050 go that way.
 
-**The inversion between level 0 and level 1 is the thing still worth
-explaining.** A 32 cube is deeper inside the shell the voxelizer subdivides
-around geometry than a 64 cube is, so it ought to see MORE surface, not less.
-Instead level 0 escapes 89.6 rays against level 1's 30.6, and level 0 is 90%
-Outside while level 1 is 78% Inside. The reading that fits is that the level 0
-shell straddles surfaces, with as much of it in the void just beyond a wall as
-inside the room, while level 1 is what a room's interior collapses to. That is
-consistent with the counters but it is a reading, not a measurement, and it is
-where the next look belongs: the 831 sit in level 0 leaves whose marches reach
-level 1 Inside volumes without ever crossing a level 0 Outside one, which is
-exactly what the trace shows and exactly what has to be wrong.
+The level 0 / level 1 inversion that looked wrong is not. A 32 cube escapes
+89.6 rays against a 64 cube's 30.6 because the two bands are different
+POPULATIONS, not different sizes of the same thing: level 0 is the shell the
+voxelizer cuts around geometry, half of it in the void just past a wall, and
+level 1 is what a sealed room interior collapses to. Splitting the counters by
+seed verdict shows it directly, and the numbers below close the question.
+
+### What the 831 actually are, and the whole chain checked against the binary
+
+Every function between the seed and the printed count was re-decompiled and
+compared line by line. All of them match what we ship: `1800321f0`, `18002e050`,
+`18002deb0`, `18004b260`, `18004a2f0`, `18004b970`, `18010be50`, `18010c3f0`,
+`180032670`, `180032b80` and the stage driver `180031f00`, which has no step
+between them that we skip. Every float the stage reads was pulled straight out
+of the PE rather than inferred: `18017f170` is 8.0, `18017f0e4` 0.1, `18017f0f0`
+0.25, `18017f108` 0.5, `18017f138` 0.8. `18002e050`'s `local_48` is the vector's
+`param_2[0xc]`, which `18004b260` writes as `grid * grid`, so the vote's n is 25.
+
+Two measurements then say what the 831 are not:
+
+- **The march is exact.** Replaying it beside a brute force scan of all 76,880
+  region boxes against the same segment, ray by ray, it is a superset of the
+  scan and misses nothing. The seed-Outside regions 12 units away sit BEHIND a
+  wall, and the march stops 8 units short of the surface it hit, so meeting none
+  of them is geometrically correct rather than a lookup failure.
+- **The seed is not marginal.** Its 10,554 Inside regions average 142.2 facing
+  rays of 150 and 0.0 behind, and their `facing + insubstantial` bottoms out at
+  83. The 831 sit at 44. Nothing at all lies between 51 and 82, so the two are
+  cleanly separated populations and there is no sub-band of the seed's answer to
+  shave 831 off.
+
+Asking the shipped file directly, by querying its octree at each of our region
+centres, our seed's Inside set is **100% space the compile also holds a cluster
+for, 10,554 of 10,554**, on all three maps (98.7% and 99.2% on the probes). The
+second pass discriminates too: 77.3% of what it promotes is claimed against
+2.5% of what it rejects. That test is only as fine as the answering leaf, which
+on ze_hold_em_p is 256 units at the median because the shipped tree is the
+COLLAPSED one, so it cannot settle the 831 on its own; it does settle that our
+seed invents nothing.
+
+The 831's own profile is the useful part: facing 44.0, behind 9.6, escaped
+**96.4** of 150, against the seed-Inside band's escaped 7.7. They are level 0
+partial regions at the openings in a 4,536 triangle vis shell, and they are
+nowhere near the `n <= behind` boundary that would make them Outside (median
+behind 10, max 20, none at 25). So they are genuinely ambiguous space, and the
+vote promotes them because their marches run down the corridor into the sealed
+interior.
 
 ### Three fidelity gaps closed on the way
 
@@ -1674,12 +1712,19 @@ second pass, and it is inert on all three specimens: ze_hold_em_p's 4,548
 triangles carry only `0x0000` and `0x0800`, and the probes have no
 nodraw-only triangles either. It will matter on a map that has them.
 
-**The march descended exactly, and the compile descends conservatively.**
-`18002deb0` picks children by `18010cb10`'s octant mask and tests a leaf by
-`18010c6e0`'s 64 cell mask, and both are the per axis slab product rather than
-an exact segment test, so the march deliberately reaches cells the segment only
-grazes. Ours tested every child box and every sub cell exactly. Now it uses
-`VisVisibility.Crossed`, which is the port of those two.
+**`18010cb10` and `18010c6e0` are per cell slab tests, not range products.**
+This was read backwards twice and the correction is worth stating plainly.
+`18010c6e0` builds a per axis enter and leave for each of the four slices of
+each axis, then tests every one of the 64 cells on its own as
+`max(enterX, enterY, enterZ, 0) <= min(leaveX, leaveY, leaveZ, 1)`, laying the
+answer down as sixteen `movmskps` nibbles at `x + 4y + 16z`; `18010cb10` does
+the same for 8 octants at `x + 2y + 4z`. Our `Crossed` took the bounding box of
+the segment's passage and returned the product of three ranges, which lights up
+every cell in that box: a diagonal through a leaf returned the block around the
+line instead of the line. Fixed, it takes a march on ze_hold_em_p from 12.52
+leaves and 13.36 regions to 11.25 and 12.02. It does not move the 831 by itself,
+and it is also what `18002d9e0` walks the PVS with, where over-reporting cells
+means over-reporting which clusters a line joins.
 
 **Facing is measured from the landing point.** `18004b260` computes
 `dot(n, centre) - dot(n, hit)` rather than comparing against the triangle's
