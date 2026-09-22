@@ -149,12 +149,23 @@ def main():
         status = "ok" if "nodes" in found else "no vis output"
         have[(addon, name)] = "\t".join([addon, name, status] + [found.get(k, "") for k, _ in PATTERNS])
         print(f" {status}, {time.time() - started:.0f}s, {found.get('nodes', '-')} nodes", flush=True)
+        write(have)
 
+    write(have)
+    print(f"wrote {CORPUS} with {len(have)} map(s)")
+
+
+def write(have):
+    """Rewrite the whole file after every map.
+
+    A big map can hold the run for an hour, and a corpus that only appears when
+    the last one finishes is one nobody can use while it is building. Rewriting
+    the whole file is free next to a compile.
+    """
     with open(CORPUS, "w", encoding="utf-8") as out:
         out.write("\t".join(COLUMNS) + "\n")
         for key in sorted(have):
             out.write(have[key] + "\n")
-    print(f"wrote {CORPUS} with {len(have)} map(s)")
 
 
 if __name__ == "__main__":
