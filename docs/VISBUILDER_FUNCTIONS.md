@@ -198,3 +198,17 @@ near no-op on every map we have.
 Ghidra types `180034220` and `180033fd0` as returning `void`, and both are
 wrong: each ends `MOVAPS XMM0, XMM6`. A decompiled signature is not evidence
 about a return value, and the assembly is.
+
+## Cluster seeding
+
+| address | what it is | how it was reached |
+|---|---|---|
+| `180032b80` | collect the indices of open entries | in the subtree |
+| `18003ddb0` | the parallel functor body that drives seeding | vtable `18017c1d0` slot `+0x08` |
+| `180032d80` | seed one leaf's clusters | `18003ddb0` |
+| `18002beb0` | split a leaf box by the hint lists, tagging each piece | `180032d80` |
+| `18002bcd0` | one split, in x, y or z | `18002beb0` |
+| `18002b500` | load `visibility_hints` into the three lists | the vis entry |
+
+The functor's vtable is only two slots, `{dtor, body}`, and `18017c1e0` after it
+is data, so reading past it lands in the scene adapter's vtable at `18017c1e8`.

@@ -1520,6 +1520,65 @@ the three pass counts goes from 2.28% to 7.13%. Re-applying them is worth doing
 the moment the fifth pass is understood, and the rules above are exact enough to
 re-enter from this page.
 
+### How a leaf is actually seeded, and where the Tag comes from
+
+`FUN_180032b80` is not the generator, it is a filter: it walks the entry array
+and collects the INDEX of every entry whose kind is open. Those indices are the
+work list for a parallel functor whose vtable is `18017c1d0` and whose body is
+`18003ddb0`, and that body calls the real seeder once per open entry:
+
+> `FUN_180032d80(sampler, outSet, entryIndex)`
+
+It does three things. It takes the entry's leaf box and runs the open-space test
+on the **first set bit's** box at quality 6, taking the one-cluster fast path
+only when the nearest surface is at least `PreMergeOpenSpaceDistanceThreshold`
+away and is not the no-hit sentinel. Otherwise it asks `FUN_18002beb0` for a
+list of candidate BOXES over the leaf, and then, for each box in turn, walks the
+64 bits and takes every voxel that falls inside that box, expanded by a small
+epsilon. The LAST box takes whatever is left regardless. Each accepted voxel
+becomes its own cluster record, stamped with `VoxelSize` at `+0x50` and, at
+`+0x52`, **the box's tag**.
+
+That is where `Tag` comes from, and it is the field
+`VisMergeCost`'s `TagMismatchPenalty` multiplies the cost by 32 for.
+
+### The candidate boxes are the mapper's visibility hints
+
+`FUN_18002beb0` walks THREE lists of boxes held on the sampler and splits the
+leaf box by every one that overlaps it, through `FUN_18002bcd0`:
+
+| list | count | mode | what it is |
+|---|---|---|---|
+| `+0xa8` | `+0xa0` | 0 | x-axis split hints |
+| `+0xc0` | `+0xb8` | 1 | y-axis split hints |
+| `+0xd8` | `+0xd0` | 2 | z-axis split hints |
+
+`FUN_18002b500` fills them from the map's `visibility_hints`, classified by
+`hintType`: 4 is x, 5 is y, 6 is z, and the compile logs each one as
+`%d) x-axis split hint %.2f - %.2f`. The tag is a single counter that starts at
+1 and increments across all three lists, so it is the 1-based index of the
+splitter that carved the piece out. When nothing is left to split, the remainder
+box is appended with tag **0**.
+
+So on a map with NO hints exactly one box comes out, the whole leaf with tag 0,
+every cluster in that leaf is tagged 0, and the tag penalty never fires. That is
+the case we implement, and it is why probe01 and cardtest now land within about
+two percent while ze_hold_em_p does not.
+
+**What this would mean for ze_hold_em_p, stated as a hypothesis rather than a
+result.** With hints, a leaf's voxels are split into tagged groups, merging runs
+cheaply WITHIN a group and at 32 times the cost across one, so clusters grow
+along the hint volumes, which span many leaves. That produces few clusters each
+covering many leaves, and leaves shared between clusters, which is exactly
+Valve's 258 clusters over about 74,000 pairs. Without hints everything is tag 0,
+merging is purely local, and you get many small clusters that partition the
+leaves, which is exactly our 350 over 11,558.
+
+It is a hypothesis because the map-specific half is unverified: KV3 stores keys
+by hash, so `visibility_hints` and `hintType` do not appear as strings in the
+map and a text search cannot answer whether ze_hold_em_p ships any. The hashes
+to look for are `0xB5B31646` and `0xEE62A32A`.
+
 ### ze_hold_em_p's cluster count and the assignment gap are ONE defect
 
 Our final clusters cover 11,558 (cluster, leaf) pairs on ze_hold_em_p, over
