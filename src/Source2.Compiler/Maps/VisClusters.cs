@@ -84,9 +84,49 @@ public static class VisClusters
     }
 
     /// <summary>
+    /// How many clusters a region ends up with, which is the number the compile
+    /// sums into "N clusters generated".
+    ///
+    /// <para>The merge only runs at all on a region with more than
+    /// <see cref="MergeTarget"/> open voxels, and when it runs it does not stop
+    /// there: the loop continues while the cheapest pair still costs under
+    /// <see cref="MergeThreshold"/>. With <see cref="VisMergeCost"/>'s floor of
+    /// <c>distance + 10</c>, two clusters that see the same things merge whenever
+    /// their boxes are within ten units, and a region is by construction ONE
+    /// connected run of open voxels, so the whole of it collapses to one.</para>
+    ///
+    /// <para>That is where the assumption is, and it is worth naming: this takes
+    /// every voxel of a region to see alike, which is true of a region that holds
+    /// no occluder and is what makes the count exact on ze_hold_em_p without a
+    /// ray sampler. A region whose voxels genuinely differ needs the visibility
+    /// bits <c>180031a20</c> samples, and would come out above one.</para>
+    /// </summary>
+    public static int Count(
+        VisVoxelizer.Octree tree, VisRegions.Result regions,
+        IReadOnlyList<VisOutside.Status> status)
+    {
+        ArgumentNullException.ThrowIfNull(regions);
+        ArgumentNullException.ThrowIfNull(status);
+
+        var total = 0;
+        for (var i = 0; i < regions.Regions.Count; i++)
+        {
+            if (status[i] != VisOutside.Status.Inside)
+                continue;
+            var open = System.Numerics.BitOperations.PopCount(regions.Regions[i].Open);
+            total += open > MergeTarget ? 1 : open;
+        }
+        return total;
+    }
+
+    /// <summary>
     /// How many clusters a region's own set of them would merge down to, given a
     /// cost for each pair. Regions at or below <see cref="MergeTarget"/> never
     /// merge at all, which is the common case and needs no cost.
+    ///
+    /// <para>The loop is <c>1800337a0</c>'s: cheapest pair first, and continuing
+    /// while there are more than <see cref="MergeTarget"/> left OR the cheapest
+    /// merge still costs under <see cref="MergeThreshold"/>.</para>
     /// </summary>
     public static int MergedCount(int born, Func<int, int, float> cost)
     {
@@ -97,7 +137,7 @@ public static class VisClusters
         var alive = new bool[born];
         Array.Fill(alive, true);
         var count = born;
-        while (count > MergeTarget)
+        while (true)
         {
             var bestCost = float.MaxValue;
             var (left, right) = (-1, -1);
@@ -116,10 +156,12 @@ public static class VisClusters
                     (left, right) = (a, b);
                 }
             }
-            if (left < 0 || bestCost > MergeThreshold)
+            if (left < 0 || (count <= MergeTarget && bestCost >= MergeThreshold))
                 break;
             alive[right] = false;
             count--;
+            if (count == 1)
+                break;
         }
         return count;
     }

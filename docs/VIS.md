@@ -793,8 +793,35 @@ the same things collapses far below 32. The compile prints
 constant exactly: the loop stops when nothing cheaper is left.
 
 With `VisMergeCost`'s floor of `distance + 10`, two clusters that see identically
-merge while their boxes are within about one voxel of each other, and stop at two.
-That is why the mean lands at 8.85 rather than at 32 or at 1.
+merge while their boxes are within ten units of each other. A region IS one
+connected run of open voxels, so if its voxels all see alike the whole of it
+collapses to a single cluster.
+
+### And that reproduces the count exactly
+
+Split ze_hold_em_p's enclosed regions by whether the merge runs on them at all:
+
+| | regions | clusters |
+|---|---|---|
+| 32 open voxels or fewer, never merged | 2,672 | 85,472 |
+| more than 32, merged | 7,882 | **7,882** |
+| | | **93,354** |
+
+7,882 regions producing 7,882 clusters is one each, and 85,472 + 7,882 is the
+compile's 93,354 to the unit. `VisClusters.Count` is that, and
+`VisClustersTests` asserts equality rather than a tolerance.
+
+**Where the assumption sits, said plainly.** This takes every voxel of a region to
+see alike. That is true of a region holding no occluder, which is what a region
+is most of the time, and it is what makes the count exact here without a ray
+sampler existing. A region whose voxels genuinely differ needs the visibility bits
+`180031a20` samples and would come out above one, so this is a model that happens
+to be exact on this map rather than the general rule. The general rule is
+`VisClusters.MergedCount`, which runs the real loop over a real cost and is tested
+on its own.
+
+The two probe maps are deliberately not scored here: their region set is 49%
+short, and a cluster count taken over the wrong regions measures nothing.
 
 which is where the `%d) x-axis split hint %.2f - %.2f` and
 `%d) %dx%dx%d voxel hint` log lines come from. The boxes are the entity's own,

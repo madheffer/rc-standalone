@@ -23,6 +23,43 @@ public class VisClustersTests(ITestOutputHelper output)
         new("s2c_rc_probe", "probe01", 7_316, 81_707),
     ];
 
+    /// <summary>
+    /// The count the compile sums, on the one map whose regions we reproduce
+    /// exactly. The two probe maps are not scored here because their region set
+    /// is 49% short, and a cluster count over the wrong regions measures nothing.
+    /// </summary>
+    [Fact]
+    public void TheClusterCountLandsOnTheCompilesOwn()
+    {
+        var specimen = Maps[0];
+        if (VisFixtures.RayTraceScene(specimen.Addon, specimen.Map) is not var (rte, valve))
+            return;
+
+        var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
+        var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
+                 / VisVoxelizer.VoxelsPerLeaf;
+        var regions = VisRegions.Build(tree, side);
+        var inside = VisOutside.Detect(tree, regions, rte.Mins, rte.Maxs, valve.GridSize);
+        var clusters = VisClusters.Count(tree, regions, inside.Regions);
+
+        output.WriteLine($"{specimen.Map,-16} clusters {clusters,8:n0}  compile {specimen.Clusters,8:n0}"
+                       + $"  {(double)clusters / specimen.Clusters - 1,8:P2}");
+        Assert.Equal(specimen.Clusters, clusters);
+    }
+
+    [Fact]
+    public void AMergeRunsPastTheTargetWhileItIsStillCheap()
+    {
+        // Eight clusters that all see alike and sit in a row: the guard keeps them
+        // whole, and a set over the target collapses because nothing ever costs 20.
+        Assert.Equal(8, VisClusters.MergedCount(8, (_, _) => 1f));
+        Assert.Equal(1, VisClusters.MergedCount(40, (_, _) => 1f));
+
+        // And a set that is over the target but expensive stops exactly at it.
+        Assert.Equal(VisClusters.MergeTarget,
+                     VisClusters.MergedCount(40, (_, _) => VisClusters.MergeThreshold));
+    }
+
     [Fact]
     public void ClustersAreBornOnePerOpenVoxelOfAnEnclosedRegion()
     {
@@ -46,6 +83,13 @@ public class VisClustersTests(ITestOutputHelper output)
                 if (group.Count() > VisClusters.MergeTarget)
                     big++;
             }
+
+            var small = counts.Values.Where(n => n <= VisClusters.MergeTarget).Sum();
+            var large = counts.Values.Where(n => n > VisClusters.MergeTarget).ToArray();
+            output.WriteLine($"{specimen.Map,-16} regions at or under {VisClusters.MergeTarget}"
+                + $" contribute {small,7:n0} unmerged; the other {large.Length:n0} start at"
+                + $" {large.Sum(),7:n0} and must end at {specimen.Clusters - small,7:n0}"
+                + $" ({(double)(specimen.Clusters - small) / Math.Max(large.Length, 1):F2} each)");
 
             var error = (double)born.Count / specimen.Clusters - 1;
             output.WriteLine($"{specimen.Map,-16} born {born.Count,8:n0}  compile {specimen.Clusters,8:n0}"
