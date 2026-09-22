@@ -326,9 +326,14 @@ that actually settled the format was reading Valve's reader.
 
 ## What is NOT established
 
-**The 8-byte per-triangle array.** Long constant runs, so probably a surface or
-material id plus flags. On Mako only 320 of 279,064 entries match the first, so it
-is not a single constant.
+**The 8-byte per-triangle array is an id, and it groups by surface.** It takes
+three distinct values across the whole of ze_hold_em_p (4,482 triangles share the
+first) and five across cardtest, and on cardtest every distinct FLAG word maps to
+exactly one of them: `0x0800` to one id, `0x0120` to another, `0x1120` to a third.
+So the flags are a property of whatever this id names, which is what a material or
+surface would be. It is not a pure function of the flags, though: on ze_hold_em_p
+one id carries both the twelve `0x0800` triangles and thirty-eight with no flags
+at all. What it actually hashes is still open, and visibility does not read it.
 
 **Why the log says 28,728 triangles when the header says 279,064.** The literal
 28,728 does occur in Mako's file exactly once, but as a VALUE inside the ascending
