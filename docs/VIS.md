@@ -1893,13 +1893,76 @@ wrong would not hold that. So the four fixes are right and something they
 interact with is still wrong, which is a better position than the one before,
 where the sampler itself was a suspect.
 
+## The distance pre-merge, built, and it was not a near no-op
+
+`18002f5c0` runs between generation and the five passes and was the last unbuilt
+stage. It collects the sets that produced exactly ONE cluster carrying the open
+space flag, groups the ones that sit face to face, and folds each group into its
+first member. The pieces:
+
+| | |
+|---|---|
+| `18002f5c0` | collect, group, fold, and the two log lines |
+| `180028c70` | compact the list, renumber, and round until nothing merges |
+| `180027f50` | `CBoxMerge::MergeBestCandidates`: one round |
+| `1800284a0` | one run's best partner |
+| `1800294f0` | sorts the round's pairs, its comparator being `180027e10` |
+
+Two things about it are worth writing down because neither is visible from the
+code alone. The stage is gated on `sampler+0xf4`, which the setup sets only when
+`PreMergeOpenSpaceDistanceThreshold` is positive, and the BINARY's default for
+that key is `DAT_18017f1e8`, which is **-1**. Read the binary alone and the stage
+never runs; the shipped config sets it to 128 and the compile prints its line on
+every map. And the threshold is only the switch -- nothing inside reads it. What
+does the work is `PreMergeOpenSpaceMaxDimension` and
+`PreMergeOpenSpaceMaxRatio`, whose binary defaults ARE used: 1,024 and 4.
+
+A pair may merge when their union's longest side is at most 1,024 and at most 4
+times its shortest, and when the two boxes share a face -- lined up within
+`DAT_18017f0dc` = **0.0125** on the two axes across and touching within
+`DAT_18017f0f0` = **0.25** along the third -- or one contains the other. Of those
+the partner whose union has the smallest volume wins, then the smallest aspect
+ratio, then `180027e10`. A round merges every pair at the cheapest volume anyone
+offered, each run taking part at most once, and rounds repeat until none is left.
+
+### What it did
+
+| | pre-merged to | compile | |
+|---|---|---|---|
+| probe01 | 81,598 | 81,576 | +0.03% |
+| cardtest | 81,882 | 81,865 | +0.02% |
+| ze_hold_em_p | 93,354 | 93,354 | **exact** |
+
+ze_hold_em_p is exact for the right reason rather than by luck: with 93,354
+clusters over 10,554 regions it has no set holding a single cluster at all, so
+there is nothing for the stage to collect and it correctly merges nothing.
+
+And downstream it is not a near no-op at all, which is what the old measurement
+had suggested:
+
+| | before | after |
+|---|---|---|
+| assignment, probe01 | -1.42% | **-0.11%** |
+| assignment, cardtest | -1.29% | **-0.15%** |
+| merge final, probe01 | -5.92% | +3.15% |
+| merge final, cardtest | -5.29% | +3.81% |
+| merge first, probe01 | -5.10% | +2.68% |
+| merge second, probe01 | -6.56% | +1.49% |
+
+The merge changed SIGN on both probe maps and roughly halved in size. Sixty
+clusters removed before the five passes is worth about eight percent of the
+final count, because each one it removes is a run of open space that the cost
+driven merge would otherwise have spent its budget joining up.
+
 ### What is left
 
-1. **`18002f5c0`, the distance pre-merge**, still not implemented. It prints
-   `pre-merged to %d clusters` between generation and the five passes, and was
-   measured as a near no-op (cardtest 81,991 to 81,865, ze_hold_em_p nothing).
-   ze_hold_em_p being the worst map with nothing for it to do makes it an
-   unlikely whole answer, but it is a real missing stage and it is the last one.
+1. **ze_hold_em_p's -9.69%**, which none of this touches: the pre-merge finds
+   nothing there, correctly, and the map still merges to its connected
+   components and stops at 233 against Valve's 258. Its first pass cost is
+   -4.28% where the probes are now near 1%, and that is the only per-map signal
+   left pointing anywhere.
+2. **The probes' +3%**, which is now an OVER-merge where it used to be an under-
+   merge, so whatever is left is smaller than what the pre-merge was worth.
 2. Not `g_flConfigMaxCoord`, which was the obvious suspect and is now read
    rather than reasoned about. visbuilder imports the symbol from tier0.dll,
    whose export table puts it in `.data` holding `0x46800000`, so it is

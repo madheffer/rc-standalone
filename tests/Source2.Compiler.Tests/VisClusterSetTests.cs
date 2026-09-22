@@ -23,24 +23,27 @@ public class VisClusterSetTests(ITestOutputHelper output)
     /// <param name="Tolerance">What the counts may be off by.</param>
     /// <param name="Assigned">"Compacted to N regions", the flat entry array's
     /// length after assignment.</param>
+    /// <param name="PreMerged">"pre-merged to N clusters", after 18002f5c0.</param>
     private sealed record Specimen(
-        string Addon, string Map, int Target, int Generated,
+        string Addon, string Map, int Target, int Generated, int PreMerged,
         int First, int Second, int Final, float Cost, int Assigned, double Tolerance);
 
     private static readonly Specimen[] Maps =
     [
-        new("s2c_rc_probe", "probe01", 862, 81_707, 1_979, 1_815, 1_621, 110_760.1f, 30_665, 0.07),
-        new("s2c_rc_probe", "cardtest", 862, 81_991, 1_998, 1_825, 1_626, 0f, 30_817, 0.07),
+        new("s2c_rc_probe", "probe01", 862, 81_707, 81_576, 1_979, 1_815, 1_621, 110_760.1f, 30_665, 0.04),
+        new("s2c_rc_probe", "cardtest", 862, 81_991, 81_865, 1_998, 1_825, 1_626, 0f, 30_817, 0.05),
         // ze_hold_em_p still does not reach its budget or its cost limit: it
-        // merges to its connected components and stops, now 233 of them against
+        // merges to its connected components and stops, 233 of them against
         // Valve's 258. It stopped at 350 before the kd clamp fix and at 243
         // before the sampler was made faithful; making the sampler faithful
         // moved it the WRONG way, on this map only, and that is recorded rather
         // than reverted because the same sampler keeps cluster generation exact
-        // here. The bound is wide to hold the line, not because 10% is
+        // here. The distance pre-merge does not touch it either: the map has no
+        // set holding a single open space cluster, so that stage correctly
+        // merges nothing. The bound is wide to hold the line, not because 10% is
         // acceptable. Tighten it by finding the remaining cause, not by
         // touching the number.
-        new("s2c_lighting", "ze_hold_em_p", 1_342, 93_354, 258, 258, 258, 21_940.0f, 103_358, 0.11),
+        new("s2c_lighting", "ze_hold_em_p", 1_342, 93_354, 93_354, 258, 258, 258, 21_940.0f, 103_358, 0.11),
     ];
 
     [Fact]
@@ -68,6 +71,14 @@ public class VisClusterSetTests(ITestOutputHelper output)
                            + $"  compile {specimen.Generated,8:n0}"
                            + $"  {(double)generated / specimen.Generated - 1,8:P2}"
                            + $"  in {(DateTime.UtcNow - started).TotalSeconds:F0}s");
+
+            // 18002f5c0 runs between generation and the five passes.
+            var pre = VisPreMerge.Run(sets);
+            output.WriteLine($"{specimen.Map,-16} distance merged regions ({pre.Before:n0}"
+                           + $" merged to {pre.After:n0}), pre-merged to"
+                           + $" {sets.Sum(x => x.Clusters.Count),8:n0} clusters"
+                           + $"  compile {specimen.PreMerged,8:n0}"
+                           + $"  {(double)sets.Sum(x => x.Clusters.Count) / specimen.PreMerged - 1,8:P2}");
 
             var seen = new List<(int Clusters, float Cost)>();
             VisClusterSet.MergeAll(rte, sets, specimen.Target, VisClusters.Cubes(tree, compact), (n, c) =>

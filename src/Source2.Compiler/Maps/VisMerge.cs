@@ -137,6 +137,37 @@ public static class VisMerge
     }
 
     /// <summary>
+    /// <c>180027e10</c>: order two boxes by longest side, then each extent, then
+    /// the corner, taking the first key that differs. It reads only geometry,
+    /// never an index, which is what makes every build that uses it reproducible
+    /// however the pool's threads interleave.
+    /// </summary>
+    /// <param name="aMins">The first box.</param>
+    /// <param name="aMaxs">The first box.</param>
+    /// <param name="bMins">The second box.</param>
+    /// <param name="bMaxs">The second box.</param>
+    public static bool Before(Vector3 aMins, Vector3 aMaxs, Vector3 bMins, Vector3 bMaxs)
+    {
+        var one = aMaxs - aMins;
+        var two = bMaxs - bMins;
+        var longest = MathF.Max(MathF.Max(MathF.Abs(one.X), MathF.Abs(one.Y)), MathF.Abs(one.Z));
+        var rival = MathF.Max(MathF.Max(MathF.Abs(two.X), MathF.Abs(two.Y)), MathF.Abs(two.Z));
+        if (longest != rival)
+            return longest < rival;
+        if (one.X != two.X)
+            return one.X < two.X;
+        if (one.Y != two.Y)
+            return one.Y < two.Y;
+        if (one.Z != two.Z)
+            return one.Z < two.Z;
+        if (aMins.X != bMins.X)
+            return aMins.X < bMins.X;
+        if (aMins.Y != bMins.Y)
+            return aMins.Y < bMins.Y;
+        return aMins.Z < bMins.Z;
+    }
+
+    /// <summary>
     /// The candidate lists and the cheapest-pair scan, which are
     /// <c>180030df0</c>, <c>180031680</c> and <c>1800306e0</c> between them. A
     /// pair is stored once, in the HIGHER indexed cluster's list, which is also
@@ -234,30 +265,8 @@ public static class VisMerge
             || _clusters[incumbent].VoxelCount > _clusters[candidate].VoxelCount
             || Before(_clusters[candidate], _clusters[incumbent]);
 
-        /// <summary>
-        /// <c>180027e10</c>: order two boxes by longest side, then each extent,
-        /// then the corner, taking the first key that differs.
-        /// </summary>
         private static bool Before(Cluster a, Cluster b)
-        {
-            var one = a.Maxs - a.Mins;
-            var two = b.Maxs - b.Mins;
-            var longest = MathF.Max(MathF.Max(MathF.Abs(one.X), MathF.Abs(one.Y)), MathF.Abs(one.Z));
-            var rival = MathF.Max(MathF.Max(MathF.Abs(two.X), MathF.Abs(two.Y)), MathF.Abs(two.Z));
-            if (longest != rival)
-                return longest < rival;
-            if (one.X != two.X)
-                return one.X < two.X;
-            if (one.Y != two.Y)
-                return one.Y < two.Y;
-            if (one.Z != two.Z)
-                return one.Z < two.Z;
-            if (a.Mins.X != b.Mins.X)
-                return a.Mins.X < b.Mins.X;
-            if (a.Mins.Y != b.Mins.Y)
-                return a.Mins.Y < b.Mins.Y;
-            return a.Mins.Z < b.Mins.Z;
-        }
+            => VisMerge.Before(a.Mins, a.Maxs, b.Mins, b.Maxs);
 
         /// <summary>Merge one pair and rebuild the survivor's candidates.</summary>
         public void Absorb(int owner, int other)
