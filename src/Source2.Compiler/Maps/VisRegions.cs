@@ -67,7 +67,7 @@ public static class VisRegions
                                          cell.Z * 2 + ((octant >> 2) & 1))));
                 continue;
             }
-            leaves.Add(new Leaf(at, cell, at == 0 ? tree.LeafMasks.GetValueOrDefault(cell) : 0UL));
+            leaves.Add(new Leaf(at, cell, tree.LeafMasks.GetValueOrDefault((at, cell))));
         }
         return leaves;
     }

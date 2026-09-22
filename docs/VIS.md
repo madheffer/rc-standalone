@@ -929,20 +929,40 @@ where the model gives out:
 
 **The residual is not in the merge.** The sampled merge and the shortcut agree to
 the unit on all three maps, so whatever is missing is upstream of both. It is the
-region masks, and the reason a 0.28% region error becomes a 2.4% cluster error is
+region masks, and the reason a 0.2% region error becomes a 2.2% cluster error is
 that the count per region is `n` at or under the target and **1** above it, a
 cliff of 31 at n = 32. Histogrammed:
 
 | open voxels | ze_hold_em_p regions | cardtest regions |
 |---|---|---|
-| 9 to 16 | 0 | **4,392** (69,767 clusters) |
+| 9 to 16 | 0 | **4,404** (69,955 clusters) |
 | exactly 32 | **2,668** (85,376) | 139 (4,448) |
-| 57 to 64 | 7,638 (7,638) | 2,258 (2,258) |
+| 57 to 64 | 7,638 (7,638) | 2,240 (2,240) |
 
-cardtest's 1,988 missing clusters are 124 regions of 16 voxels, or 62 of 32, out
-of 7,395. ze_hold_em_p has almost nothing between the two extremes and lands
-exact; cardtest is nearly all 16s, where a single voxel of mask difference costs
-16 clusters.
+ze_hold_em_p has almost nothing between the two extremes and lands exact;
+cardtest is nearly all 16s, where a single voxel of mask difference costs 16
+clusters and its whole 1,804 gap is 113 such regions out of 7,403.
+
+### A coarse leaf CAN hold a mask, and finding that closed part of it
+
+`18002e310`'s empty-child path is not one branch but two. A child empty under the
+narrow mask is retried with the wide one, and if THAT finds something the child
+becomes a leaf on the spot and is handed to `18002d670` with the wide mask, so it
+gets a 4x4x4 occupancy of its own at whatever size it stopped at. Only a
+`CoarseOccupancyOnly` triangle can put it there, since anything else would have
+been found the first time.
+
+ze_hold_em_p has none of those triangles and is unaffected. The two probe maps
+have eight each, and they put 266 coarse leaves on the board:
+
+| | regions | clusters |
+|---|---|---|
+| cardtest, before | 7,395 (-0.28%) | 79,847 (-2.43%) |
+| cardtest, after | **7,403 (-0.18%)** | **80,031 (-2.20%)** |
+| probe01, after | **7,271 (-0.62%)** | **79,715 (-2.44%)** |
+
+It also means `LeafMasks` is keyed by (level, cell) rather than by cell, because
+a mask is 4x4x4 over the node's OWN box whatever size that is.
 
 which is where the `%d) x-axis split hint %.2f - %.2f` and
 `%d) %dx%dx%d voxel hint` log lines come from. The boxes are the entity's own,

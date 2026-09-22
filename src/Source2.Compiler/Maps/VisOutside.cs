@@ -283,7 +283,7 @@ public static class VisOutside
         private bool Solid(int x, int y, int z)
         {
             var cell = (x / VisVoxelizer.VoxelsPerLeaf, y / VisVoxelizer.VoxelsPerLeaf, z / VisVoxelizer.VoxelsPerLeaf);
-            return _tree.LeafMasks.TryGetValue(cell, out var solid) && (solid & Bit(x, y, z)) != 0;
+            return _tree.LeafMasks.TryGetValue((0, cell), out var solid) && (solid & Bit(x, y, z)) != 0;
         }
 
         private int RegionAt(int x, int y, int z)

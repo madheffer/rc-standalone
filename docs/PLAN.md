@@ -149,10 +149,19 @@ pipeline existing.
    probe maps while ze_hold_em_p stayed exact at any threshold, which is what
    proved it had to be ported rather than tuned.
 
-   Open here: the cluster merge assumes every voxel of a region sees alike, which
-   is exact on ze_hold_em_p and about 2.5% short on the probe maps, where a region
-   really does merge to 1.75 clusters rather than one. That needs the per-cluster
-   ray sample `180031a20` takes.
+   The per-cluster ray sample `180031a20` takes is implemented too
+   (`VisClusterSample`), and running it corrected WHY the count works: the merge
+   loop's live count includes the 56 shell boxes so it never stops on its target,
+   and `1800306e0` rebuilds the survivor's candidates after every merge so the
+   graph stays connected. A region therefore collapses whole whatever its voxels
+   can see. The sampled merge and the shortcut that follows from it agree to the
+   unit on all three maps.
+
+   Open here: the probe maps sit about 2.2% short on the cluster count, and it is
+   upstream of the merge. The count per region is n at or under 32 and ONE above
+   it, so a cliff of 31, and cardtest is almost entirely 16-voxel regions where a
+   single voxel of mask difference costs 16 clusters. Its whole gap is 113 such
+   regions out of 7,403.
 4. PVS. Score with `vis-diff`: **zero holes is the requirement**, overdraw is
    negotiable, and the settings band says a couple of percent is normal
    variation.

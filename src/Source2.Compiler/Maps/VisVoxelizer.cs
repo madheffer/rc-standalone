@@ -35,7 +35,10 @@ public static class VisVoxelizer
     /// <param name="Origin">The root cube's corner.</param>
     /// <param name="LeafSize">World units a leaf spans.</param>
     /// <param name="LeafMasks">For every leaf the geometry reaches, which of its
-    /// 64 base voxels it reaches, as the leaf's own 4x4x4 mask.</param>
+    /// 64 sub-cells it reaches, keyed by (level above a leaf, cell). A mask is
+    /// always 4x4x4 over the node's OWN box, so a coarse leaf has one too: that
+    /// is the case where the only geometry in it is CoarseOccupancyOnly, which
+    /// stops the subdivision but still fills a mask.</param>
     /// <param name="BranchesPerLevel">Branch nodes at each level, leaf level first.</param>
     /// <param name="BranchCells">Every branch as (level above a leaf, cell at that
     /// level), so the tree can be compared against a shipped one node for node
@@ -43,12 +46,13 @@ public static class VisVoxelizer
     /// stops counting further down.</param>
     public sealed record Octree(
         Vector3 Origin, float LeafSize,
-        IReadOnlyDictionary<(int X, int Y, int Z), ulong> LeafMasks,
+        IReadOnlyDictionary<(int Level, (int X, int Y, int Z) Cell), ulong> LeafMasks,
         IReadOnlyList<int> BranchesPerLevel,
         IReadOnlySet<(int Level, (int X, int Y, int Z) Cell)> BranchCells)
     {
-        /// <summary>Leaf cells the geometry reaches.</summary>
-        public IEnumerable<(int X, int Y, int Z)> Occupied => LeafMasks.Keys;
+        /// <summary>Smallest-leaf cells the geometry reaches.</summary>
+        public IEnumerable<(int X, int Y, int Z)> Occupied
+            => from key in LeafMasks.Keys where key.Level == 0 select key.Cell;
 
         /// <summary>Leaves of the whole tree, most of which hold no geometry.</summary>
         public int Leaves => Nodes - Branches;
@@ -103,7 +107,7 @@ public static class VisVoxelizer
             coarseOnly.Add((rte.Flags(i) & RayTraceEnvironment.CoarseOccupancyOnly) != 0);
         }
 
-        var masks = new Dictionary<(int X, int Y, int Z), ulong>();
+        var masks = new Dictionary<(int Level, (int X, int Y, int Z) Cell), ulong>();
         var branches = new int[BitOperations.Log2((uint)side) + 1];
         var cells = new HashSet<(int Level, (int X, int Y, int Z) Cell)>();
         var all = Enumerable.Range(0, triangles.Count).ToArray();
@@ -124,26 +128,13 @@ public static class VisVoxelizer
         Vector3 origin, int cells, int[] reaching,
         List<Vector3[]> triangles, List<bool> coarseOnly, float voxel,
         (int X, int Y, int Z) cell,
-        Dictionary<(int X, int Y, int Z), ulong> masks, int[] branches,
+        Dictionary<(int Level, (int X, int Y, int Z) Cell), ulong> masks, int[] branches,
         HashSet<(int Level, (int X, int Y, int Z) Cell)> branchCells)
     {
         var leafSize = voxel * VoxelsPerLeaf;
         if (cells == 1)
         {
-            var mask = 0UL;
-            for (var i = 0; i < 64; i++)
-            {
-                var centre = origin + new Vector3(
-                    (i & 3) + 0.5f, ((i >> 2) & 3) + 0.5f, ((i >> 4) & 3) + 0.5f) * voxel;
-                foreach (var t in reaching)
-                    if (!coarseOnly[t] && Overlaps(triangles[t], centre, voxel * 0.5f))
-                    {
-                        mask |= 1UL << i;
-                        break;
-                    }
-            }
-            if (mask != 0)
-                masks[cell] = mask;
+            Mask(origin, voxel, reaching, triangles, coarseOnly, fine: true, 0, cell, masks);
             return;
         }
 
@@ -176,7 +167,20 @@ public static class VisVoxelizer
             var childCell = (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
                              cell.Z * 2 + ((octant >> 2) & 1));
             if (kept.Count == 0)
+            {
+                // Empty under the narrow mask, but the compile retries the same
+                // box with the wide one: a child holding nothing but
+                // CoarseOccupancyOnly geometry stops here as a LEAF and still
+                // gets a mask, built from that geometry.
+                if (!fine)
+                    continue;
+                var coarse = reaching.Where(t => coarseOnly[t]
+                                              && Overlaps(triangles[t], centre, childSize)).ToArray();
+                if (coarse.Length > 0)
+                    Mask(corner, half * leafSize * 0.25f, coarse, triangles, coarseOnly,
+                         fine: false, BitOperations.Log2((uint)half), childCell, masks);
                 continue;
+            }
             Descend(corner, half, [.. kept], triangles, coarseOnly, voxel, childCell,
                     masks, branches, branchCells);
         }
@@ -215,6 +219,32 @@ public static class VisVoxelizer
                     return false;
             }
         return true;
+    }
+
+    /// <summary>
+    /// A node's 4x4x4 occupancy, which is <c>18002d670</c>: one kd query per
+    /// sub-cell, under the mask the node's own size picks.
+    /// </summary>
+    private static void Mask(
+        Vector3 origin, float sub, IReadOnlyList<int> reaching,
+        List<Vector3[]> triangles, List<bool> coarseOnly, bool fine,
+        int level, (int X, int Y, int Z) cell,
+        Dictionary<(int Level, (int X, int Y, int Z) Cell), ulong> masks)
+    {
+        var mask = 0UL;
+        for (var i = 0; i < 64; i++)
+        {
+            var centre = origin + new Vector3(
+                (i & 3) + 0.5f, ((i >> 2) & 3) + 0.5f, ((i >> 4) & 3) + 0.5f) * sub;
+            foreach (var t in reaching)
+                if ((!fine || !coarseOnly[t]) && Overlaps(triangles[t], centre, sub * 0.5f))
+                {
+                    mask |= 1UL << i;
+                    break;
+                }
+        }
+        if (mask != 0)
+            masks[(level, cell)] = mask;
     }
 
     private static float Component(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;

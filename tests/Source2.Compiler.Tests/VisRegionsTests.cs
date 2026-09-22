@@ -46,10 +46,20 @@ public class VisRegionsTests(ITestOutputHelper output)
             Assert.True(covered == ~result.Leaves[leaf].Solid,
                 $"{map}: leaf {leaf}'s regions do not cover its open voxels exactly");
 
+        // A coarse leaf holds geometry only in one case, and it is a real one:
+        // the child was empty under the narrow mask, the compile retried it with
+        // the wide one and stopped there, so the only thing in it is
+        // CoarseOccupancyOnly. A map without any such triangle must have none.
+        var coarseOnly = Enumerable.Range(0, rte.TriangleCount)
+            .Count(i => rte.Traced(i)
+                     && (rte.Flags(i) & RayTraceEnvironment.CoarseOccupancyOnly) != 0);
         var bigWithGeometry = result.Leaves.Count(l => l.Level > 0 && l.Solid != 0);
-        Assert.Equal(0, bigWithGeometry);
+        Assert.True(coarseOnly > 0 || bigWithGeometry == 0,
+            $"{map}: {bigWithGeometry} coarse leaves hold geometry and the scene has no"
+          + " coarse-only triangle for them to hold");
 
         output.WriteLine($"{map,-16} {result.Leaves.Count,7:n0} leaves, {result.Regions.Count,7:n0} regions, "
-            + $"{result.Leaves.Count(l => l.Solid != 0),7:n0} of them holding geometry");
+            + $"{result.Leaves.Count(l => l.Solid != 0),7:n0} of them holding geometry"
+            + $" ({bigWithGeometry:n0} coarse, from {coarseOnly:n0} coarse-only triangle(s))");
     }
 }
