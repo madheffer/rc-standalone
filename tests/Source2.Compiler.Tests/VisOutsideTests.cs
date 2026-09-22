@@ -110,7 +110,9 @@ public class VisOutsideTests(ITestOutputHelper output)
         var spread = (double)(counts.Max() - counts.Min()) / counts.Min();
         output.WriteLine($"{specimen.Map,-16} {counts.Min():n0} to {counts.Max():n0} over"
                        + $" {counts.Count} threshold pairs, {spread:P2} spread");
-        Assert.True(spread <= 0.02,
+        // Measured at zero: all twenty pairs give 10,554. The knob is not
+        // contributing anything at all, so this is pinned rather than toleranced.
+        Assert.True(spread == 0,
             $"the seed thresholds move the enclosed count by {spread:P2}, so they are carrying the answer");
     }
 }

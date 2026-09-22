@@ -718,10 +718,21 @@ known inside. So outside is the default and inside is earned. Implemented the
 other way round, every region on an unsealed map comes out outside, which is the
 -100% the flood fill produced and is not a coincidence: both are the same mistake.
 
-**The reach a ray is given is ours and it is not carrying the answer.** Over a
-factor of 32, from 64 units to 2,048, the enclosed count moves from 10,267 to
-10,281, 0.14%. `VisOutsideTests` asserts that spread stays under 2%, so a future
-change that starts depending on the knob fails rather than passing quietly.
+**Both of the knobs here are ours, and NEITHER is carrying the answer.** That
+matters more now than it did at -2.59%, because a number we chose landing on
+Valve's to the unit is either the answer or a fit, and moving the knob is how to
+tell them apart:
+
+- the ray reach, over a factor of 32 from 64 units to 2,048, moves the count by
+  **0.14%**
+- the seed's two thresholds, over twenty pairs from 70%/10% to 96%/45%, move it
+  by **0.00%**: every one of the twenty gives 10,554
+
+The second is the stronger of the two. The seed is the part of the pass that is
+least like Valve's, whose thresholds are a tree over four undecoded counters, and
+it turns out not to decide anything: the propagation does, and the propagation is
+ported. `VisOutsideTests` pins both, so a future change that starts depending on
+either fails rather than passing quietly.
 
 What is ported exactly: the seed being a per-region sampling job rather than a
 global fill, the march, the propagation to a fixed point, and the default. What is
