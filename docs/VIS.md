@@ -1574,10 +1574,37 @@ Valve's 258 clusters over about 74,000 pairs. Without hints everything is tag 0,
 merging is purely local, and you get many small clusters that partition the
 leaves, which is exactly our 350 over 11,558.
 
-It is a hypothesis because the map-specific half is unverified: KV3 stores keys
-by hash, so `visibility_hints` and `hintType` do not appear as strings in the
-map and a text search cannot answer whether ze_hold_em_p ships any. The hashes
-to look for are `0xB5B31646` and `0xEE62A32A`.
+**And it is refuted. None of the three maps ships any hints.**
+
+Chasing it down took three steps, because the first two were inconclusive rather
+than negative. The compiled VPK carries `world.vwrld_c`, `default_ents.vents_c`
+and a `.vmap_c`; walking every KV3 block of every resource in all three maps for
+a key containing "hint" or "visib" returns only `m_nSkyVisibilityCluster` and
+`m_nSunVisibilityCluster`, both from the vvis itself. `m_builderParams` turns out
+to be lighting and compile metadata, and the `.vmap_c` is a stub holding only
+RERL and RED2, so the compiled output could never have answered the question
+either way.
+
+The answer is in the SOURCE map, which is on disk under `content/csgo_addons`.
+A `.vmap` is binary DMX with a plain string table, so a byte search works, and it
+was run with a control: `CMapWorld`, `classname` and `CMapEntity` all appear in
+each of the three, so the search is sound. On that basis:
+
+| map | control | `hint` | `visibility` |
+|---|---|---|---|
+| ze_hold_em_p | ok | **0** | 4 |
+| probe01 | ok | **0** | 0 |
+| cardtest | ok | **0** | 0 |
+
+ze_hold_em_p's four are `visibility_pathrange`, `visibility_threshold`,
+`visibility_radius` and `visibility_samples`, which are light probe properties.
+No hint entity, no `hintType`, nothing.
+
+So Valve's build of ze_hold_em_p tags every cluster 0, exactly as ours does, and
+`TagMismatchPenalty` never fires on any specimen we own. Hints are a real feature
+we do not implement, and implementing them would not move a single number here.
+Whatever makes Valve's clusters span 287 leaves and overlap does so with
+**uniform tags**, which is a much tighter constraint on what is left to find.
 
 ### ze_hold_em_p's cluster count and the assignment gap are ONE defect
 
