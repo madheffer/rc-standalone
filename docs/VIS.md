@@ -873,8 +873,21 @@ to be exact on this map rather than the general rule. The general rule is
 `VisClusters.MergedCount`, which runs the real loop over a real cost and is tested
 on its own.
 
-The two probe maps are deliberately not scored here: their region set is 49%
-short, and a cluster count taken over the wrong regions measures nothing.
+The probe maps are scored too now that their regions are right, and they show
+where the model gives out:
+
+| map | compile | ours | off by |
+|---|---|---|---|
+| ze_hold_em_p | 93,354 | **93,354** | **exact** |
+| cardtest | 81,835 | 79,847 | -2.43% |
+| probe01 | 81,707 | 79,529 | -2.67% |
+
+The arithmetic says exactly what is missing. cardtest has 2,637 regions over the
+merge target, and the compile needs them to produce 4,625 clusters, **1.75
+each**; ze_hold_em_p's 7,882 produce 7,882, one each. So a probe map's regions
+really do merge to more than one cluster, and that is the case the uniform
+visibility model cannot see: it needs the per-cluster ray sample `180031a20`
+takes.
 
 which is where the `%d) x-axis split hint %.2f - %.2f` and
 `%d) %dx%dx%d voxel hint` log lines come from. The boxes are the entity's own,

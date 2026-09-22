@@ -143,10 +143,16 @@ pipeline existing.
    out of the DLL and pinned by a test that reads them back). `VisOutside`,
    `VisClusters`, `VisMergeCost`.
 
-   Open here: the two probe maps sit at -49% on the enclosed region count, which
-   is no longer a decode problem and is recorded in docs/VIS.md; and the cluster
-   merge currently assumes every voxel of a region sees alike, which is what makes
-   the count exact without the per-cluster ray sample `180031a20` takes.
+   The seed is `18004b260` and `18004a2f0` ported outright, a 5 by 5 grid of rays
+   through each face of the region's box tallied four ways, run over the `.rte`'s
+   own kd tree by `RayTraceEnvironment.Trace`. Approximating it cost -49% on the
+   probe maps while ze_hold_em_p stayed exact at any threshold, which is what
+   proved it had to be ported rather than tuned.
+
+   Open here: the cluster merge assumes every voxel of a region sees alike, which
+   is exact on ze_hold_em_p and about 2.5% short on the probe maps, where a region
+   really does merge to 1.75 clusters rather than one. That needs the per-cluster
+   ray sample `180031a20` takes.
 4. PVS. Score with `vis-diff`: **zero holes is the requirement**, overdraw is
    negotiable, and the settings band says a couple of percent is normal
    variation.
