@@ -524,9 +524,9 @@ Voxelize (8 units) took 0.49 seconds (81,625 nodes)
 
 | map | traced triangles | compile | ours | off by |
 |---|---|---|---|---|
-| ze_hold_em_p | 4,536 | 81,625 | 81,281 | **-0.42%** |
-| cardtest | 92 | 17,297 | 24,353 | +40.8% |
-| probe01 | 80 | 17,169 | 24,249 | +41.2% |
+| ze_hold_em_p | 4,536 | 81,625 | **81,625** | **exact** |
+| cardtest | 92 | 17,297 | 17,345 | +0.28% |
+| probe01 | 80 | 17,169 | 17,217 | +0.28% |
 
 ### The shape of the tree, read off Valve's own output
 
@@ -543,48 +543,40 @@ the octree stops at 32 units and the 8-unit resolution lives in the mask. Taking
 the leaf as the base voxel gives 1.2 million nodes against a target of 81,625,
 which is the single biggest thing to get right here.
 
-**A node subdivides when geometry reaches into it**, tested triangle against cube
-by separating axis.
+### The tree is built DOWNWARDS, and that is not an implementation detail
+
+`18002e310` starts at the root and asks the kd tree whether any triangle reaches
+into each child's box, recursing into the ones that do. A marking pass that
+voxelizes each triangle and then derives the tree bottom-up gets close, and it
+cannot be made exact, for two reasons:
+
+**Which triangles count depends on the box.** The query mask is `0x811` while a
+box is wider than 256 units and `0x1811` at or below it, and the mask rejects a
+triangle carrying any of its bits. By the time the trace scene exists the only
+live bit is `0x1000`, so the rule is: below 256 units a `0x1000` triangle stops
+being occupancy. ze_hold_em_p has none of them; the two probe maps have eight
+each, and that alone was the difference between exact and 43% high.
+
+**A node becomes a branch on SIZE alone.** Once its parent has found geometry in
+it, a node subdivides if it is wider than four voxels, whether or not any of its
+own eight children still see anything. That is how a `0x1000` triangle carries two
+coarse levels of branches on its own, and a bottom-up pass cannot represent it
+because there is no occupied leaf underneath.
 
 ### The check that does not depend on a tolerance
 
 A node count can be hit by accident. The stronger test is that **every branch of
 the SHIPPED octree is a branch of ours**: the shipped tree is this one collapsed,
 and a collapse only removes nodes, so anything it still subdivides we must
-subdivide too. 1,175 of ze_hold_em_p's 1,179 survive that, 99.66%, and the two
-probe maps sit at 97%.
+subdivide too. That is now **100% on all three maps**, and `VisVoxelizerTests`
+asserts nothing less.
 
-### Two corrections to the `.rte` decode
+### What the probe maps are still 0.28% wide on
 
-Both were found by voxelizing, which is a far harsher consumer of the decode than
-the bounding box check that settled it.
-
-**The dominant normal component is implicit when it is zero.** The Badouel form
-scales the normal so its dominant component is 1, and some records leave that
-component at zero rather than writing it. Reading those as degenerate throws away
-real geometry: ze_hold_em_p has two, both walls at its own x extremes, and **Mako
-has 10,168, 3.6% of the file**.
-
-**A reconstruction outside the file's own box is a decode failure, not a
-triangle.** One cardtest record has an edge determinant of 2e-6 and rebuilds 27
-billion units away; voxelizing it smeared occupancy across the whole root cube.
-The file states the box its geometry occupies, so that is the test, and applying
-it moves ze_hold_em_p from +4.29% to -0.42%.
-
-### Why the probe maps are 41% wide, which is a decode problem and not a stage one
-
-The two small maps are not small versions of the same thing. **13 of cardtest's 92
-traced triangles and 12 of probe01's 80 rebuild outside the file's own bounding
-box**, against 2 of ze_hold_em_p's 4,536. A map that is 14% mis-decoded cannot
-score its voxelizer, and the guard above removes the worst of them at the cost of
-dropping some real geometry, which is why those two maps lose 3% of the shipped
-tree's branches where ze_hold_em_p loses 0.34%.
-
-So the honest reading is that the STAGE reproduces to within half a percent on the
-one map whose geometry decodes cleanly, and the remaining work is in the triangle
-decode rather than in the octree. The fixed slot mapping for the normal was
-settled against ze_hold_em_p and Mako, both of which are dominated by axis-aligned
-geometry; it does not survive contact with these two.
+Six branches each, identically on both. They are no longer a decode problem: with
+the `.rte` phase corrected every traced triangle of both maps rebuilds and the
+rebuilt box is the header's own to the unit. Six branches out of 2,152 is open
+and recorded as such.
 
 ## Stage 3: regions, and how outside detection actually works
 
@@ -704,13 +696,19 @@ compile's own:
 
 | map | traced triangles | compile | ours | off by |
 |---|---|---|---|---|
-| ze_hold_em_p | 4,536 | 10,554 | **10,281** | **-2.59%** |
-| cardtest | 92 | 7,416 | 9,474 | +27.8% |
-| probe01 | 80 | 7,316 | 9,439 | +29.0% |
+| ze_hold_em_p | 4,536 | 10,554 | **10,554** | **exact** |
+| cardtest | 92 | 7,416 | 3,772 | -49.1% |
+| probe01 | 80 | 7,316 | 3,756 | -48.7% |
 
-The two probe maps are wide for the reason stage 2 is wide on them: 14% of their
-triangles rebuild outside the file's own box, so the voxelization they are being
-classified over is already 41% out.
+ze_hold_em_p landed on the compile's own count the moment the voxelization under
+it became exact, which is the strongest evidence the pass itself is right: nothing
+in `VisOutside` changed to get there.
+
+The two probe maps are open, and they are not a decode problem any more. They are
+geometry that occupies a few thousand units of a 4,096 unit root cube, so almost
+every leaf is a huge empty coarse one, and the seed's ratios decide those. Under
+half as many regions come out enclosed. `VisOutsideTests` holds them at a 50%
+tolerance rather than pretending otherwise.
 
 **The polarity is the thing to get right, and it is the opposite of the obvious
 one.** `18002deb0` returns outside only when a ray reaches a region whose flag bit
@@ -732,13 +730,15 @@ through `18004b260`, which returns four counters the seed then runs a threshold
 tree over, and neither the record type nor the counters are decoded. The direction
 set and reach here are ours, which is why the spread test above exists.
 
-### Cluster generation, mapped but NOT implemented
+### Cluster generation: the birth rule is implemented, the merge is not
 
 The reasoning behind the whole visibility port, and Valve's design decisions that
 forced ours, is in `VISBUILDER_ANALYSIS.md`.
 
-The next number after the region count is `93354 clusters generated`, and the path
-to it is now known end to end even though the rule that produces it is not.
+The next number after the region count is `93354 clusters generated`, and the
+path to it is known end to end. `VisClusters.Born` implements the birth rule and
+`VisMergeCost` is the cost that brings the count down; what is missing between
+them is the ray sample that gives each cluster its visibility bits.
 
 `CVoxelSampler3::MergeInsideRegions` (`180034ea0`) gathers the enclosed regions,
 sizes a vector of 24-byte records one per region, and dispatches a thread pool job
@@ -765,6 +765,36 @@ map's objects and pulls four keys off each: `origin`, `box_mins`, `box_maxs` and
 | 5 | y-axis split hint | `this+0xb8` |
 | 6 | z-axis split hint | `this+0xd0` |
 | other | voxel hint | handled separately |
+
+### What the birth rule turns out to be, and why it needs the cost
+
+`180032d80` walks the region's 64 mask voxels and appends **one cluster record per
+voxel**, so the count before any merging is simply the sum of the popcounts of the
+enclosed regions' masks:
+
+| map | enclosed regions | born | compile | mean voxels a region |
+|---|---|---|---|---|
+| ze_hold_em_p | 10,554 | 585,920 | 93,354 | 55.5 |
+| cardtest | 3,772 | 123,038 | 81,835 | 32.6 |
+| probe01 | 3,756 | 122,782 | 81,707 | 32.7 |
+
+So the merge is not a rounding correction on ze_hold_em_p; it removes six out of
+every seven clusters. `1800337a0` is what does it, and the loop condition is an OR
+that is easy to misread:
+
+```
+while (32 < count || bestCost < threshold)
+```
+
+It does not stop at 32. It merges the cheapest pair while there are more than 32
+OR while the cheapest merge still costs under 20, so a region whose voxels all see
+the same things collapses far below 32. The compile prints
+`MergeClusterSet costs after first pass min:20.0`, and that 20.0 is the threshold
+constant exactly: the loop stops when nothing cheaper is left.
+
+With `VisMergeCost`'s floor of `distance + 10`, two clusters that see identically
+merge while their boxes are within about one voxel of each other, and stop at two.
+That is why the mean lands at 8.85 rather than at 32 or at 1.
 
 which is where the `%d) x-axis split hint %.2f - %.2f` and
 `%d) %dx%dx%d voxel hint` log lines come from. The boxes are the entity's own,

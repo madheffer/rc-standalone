@@ -24,20 +24,30 @@ CS2 = r"D:\Steam\steamapps\common\Counter-Strike Global Offensive"
 HERE = os.path.dirname(os.path.abspath(__file__))
 CORPUS = os.path.join(HERE, "corpus.tsv")
 
-# Chosen for spread rather than convenience: two synthetic probes, four real ZE
-# maps at different sizes, three prefab documents that decode badly, and Mako,
+# Chosen for spread rather than convenience: two synthetic probes, a real ZE map,
+# a medium reference map, four gameplay prefabs that are almost all entities and
+# almost no geometry, four environment prefabs that are the opposite, and Mako,
 # which is 23 MB of ray trace scene and 1,088 seconds of visibility on its own.
+#
+# Three earlier picks are gone and the reason is worth keeping: ze_doom_p2,
+# ze_doom_p2_d and c2m3_coaster_d are Source 1 KV text, not DMX, and the compiler
+# rejects them with "Unable to determine DMX encoding". A map that cannot compile
+# is not a hard map, it is not a map, and leaving it in the list would have made
+# the corpus look 20% larger than it is.
 MAPS = [
     ("s2c_rc_probe", "probe01"),
     ("s2c_rc_probe", "cardtest"),
     ("s2c_lighting", "ze_hold_em_p"),
+    ("c2m2", "c2m2_fairgrounds_csgo_gameplay"),
+    ("dkr_remix", "dkr_m2_carnival_gameplay"),
+    ("dkr_remix", "dkr_ropelights_prefab"),
+    ("c2m2", "dkr_m1_motel_d_gameplay"),
+    ("ze_doom_p2", "ze_doom_p2_gameplay"),
     ("s2probe", "atixref"),
-    ("doom_p2", "ze_doom_p2"),
-    ("doom_p2", "ze_doom_p2_d"),
-    ("ze_doom_p2", "ze_doom_p2_environment_prefab"),
-    ("doom_p2", "ze_doom_p2_c_environment_prefab"),
+    ("c2m2", "c2m3_coaster_d_d_environment_prefab"),
+    ("c2m2", "dkr_m1_motel_d_environment_prefab"),
     ("c2m2", "c2m2_fairgrounds_csgo_environment_prefab"),
-    ("c2m2", "c2m3_coaster_d"),
+    ("ze_doom_p2", "ze_doom_p2_environment_prefab"),
     ("dkr_remix", "dkr_m1_motel_environment_prefab"),
     ("s2c_big", "ze_ffvii_mako_reactor_v6_p"),
 ]
