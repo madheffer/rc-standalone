@@ -525,6 +525,7 @@ Voxelize (8 units) took 0.49 seconds (81,625 nodes)
 | map | traced triangles | compile | ours | off by |
 |---|---|---|---|---|
 | ze_hold_em_p | 4,536 | 81,625 | **81,625** | **exact** |
+| atixref | | 311,305 | 311,745 | +0.14% |
 | cardtest | 92 | 17,297 | 17,345 | +0.28% |
 | probe01 | 80 | 17,169 | 17,217 | +0.28% |
 

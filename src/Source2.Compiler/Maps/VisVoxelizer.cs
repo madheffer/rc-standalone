@@ -119,7 +119,7 @@ public static class VisVoxelizer
     /// One node, given the triangles that reach its box. A branch filters that set
     /// down for each child; a leaf turns it into the 4x4x4 mask.
     /// </summary>
-    /// <param name="cells">The node's side, counted in LEAVES, so 1 is a leaf.</param>
+    /// <para><c>cells</c> is the node's side counted in LEAVES, so 1 is a leaf.</para>
     private static void Descend(
         Vector3 origin, int cells, int[] reaching,
         List<Vector3[]> triangles, List<bool> coarseOnly, float voxel,

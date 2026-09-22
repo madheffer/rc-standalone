@@ -21,3 +21,6 @@ __pycache__/
 *.pyc
 tools/map-survey/*.json
 tools/map-survey/*.txt
+
+# The vis corpus is generated from the tester own CS2 content, per machine.
+tools/vis/corpus.tsv
