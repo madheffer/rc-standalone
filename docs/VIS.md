@@ -1626,10 +1626,42 @@ marches return Inside for 38 of 44 rays where the compile's must return it for
 25 or fewer, and the difference is not the reach, not a cascade, not the
 counters and not the seed. It is in what a march meets on its way.
 
-One thing in that table is worth carrying forward: level 1 is 78% Inside while
-level 2 and above are NEVER Inside, which is a very sharp discontinuity for a
-set of thresholds that are all ratios. Whatever produces it is the same
-machinery the 831 flow through.
+### Why level 2 can never be Inside
+
+The counters answer it outright. Mean over every fully open leaf:
+
+| level | edge | facing | behind | escaped |
+|---|---|---|---|---|
+| 0 | 32 | 12.7 | 47.7 | 89.6 |
+| 1 | 64 | **114.0** | 5.4 | **30.6** |
+| 2 | 128 | 1.1 | 36.9 | 112.0 |
+| 3 | 256 | 0.0 | 20.1 | 129.9 |
+| 4 | 512 | 0.1 | 11.2 | 138.7 |
+| 8 | 8192 | 0.0 | 0.0 | 150.0 |
+
+Inside is only reachable when the outer condition FAILS, and its first term is
+`n <= escaped + behind` with n = 25 out of 150 rays. From level 2 up, escaped
+alone is 112 or more, so that term is always true, the outer condition always
+holds, and the function can only return Outside or Unknown. Level 2 then splits
+on `n <= behind`: behind averages 36.9, so 1,625 of 2,370 are Outside and the
+rest Unknown. Nothing is size-aware in the thresholds; it is entirely that big
+empty cubes see nothing.
+
+Level 1 is the opposite case and the reason the 831 exist: facing 114 of 150,
+escaped only 30.6, so `facing <= 3n` and `facing + escaped <= 4.8n` both fail
+and it lands on Inside. 4,746 of the 6,050 go that way.
+
+**The inversion between level 0 and level 1 is the thing still worth
+explaining.** A 32 cube is deeper inside the shell the voxelizer subdivides
+around geometry than a 64 cube is, so it ought to see MORE surface, not less.
+Instead level 0 escapes 89.6 rays against level 1's 30.6, and level 0 is 90%
+Outside while level 1 is 78% Inside. The reading that fits is that the level 0
+shell straddles surfaces, with as much of it in the void just beyond a wall as
+inside the room, while level 1 is what a room's interior collapses to. That is
+consistent with the counters but it is a reading, not a measurement, and it is
+where the next look belongs: the 831 sit in level 0 leaves whose marches reach
+level 1 Inside volumes without ever crossing a level 0 Outside one, which is
+exactly what the trace shows and exactly what has to be wrong.
 
 ### Three fidelity gaps closed on the way
 

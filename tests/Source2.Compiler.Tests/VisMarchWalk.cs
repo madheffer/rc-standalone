@@ -39,6 +39,7 @@ public class VisMarchWalk(ITestOutputHelper output)
         // The marches that promote a region run through big, entirely open
         // level 1 leaves, so what the seed makes of THOSE is the question.
         var seeded = new VisOutside.Status[regions.Regions.Count];
+        var tally = new VisSeed.Counters[regions.Regions.Count];
         Parallel.For(0, regions.Regions.Count, i =>
         {
             var r = regions.Regions[i];
@@ -46,8 +47,24 @@ public class VisMarchWalk(ITestOutputHelper output)
             var e = tree.LeafSize * (1 << lf.Level);
             var c = tree.Origin + new System.Numerics.Vector3(lf.Cell.X, lf.Cell.Y, lf.Cell.Z) * e;
             var (lo2, hi2) = VisClusters.Box(e * VisClusters.SubCell, r.Open);
-            seeded[i] = VisSeed.Decide(VisSeed.Gather(rte, c + lo2, c + hi2, VisSeed.Quality));
+            tally[i] = VisSeed.Gather(rte, c + lo2, c + hi2, VisSeed.Quality);
+            seeded[i] = VisSeed.Decide(tally[i]);
         });
+
+        foreach (var band in regions.Regions
+            .Select((r, i) => (Level: regions.Leaves[r.Leaf].Level, Full: r.Open == ulong.MaxValue,
+                               C: tally[i]))
+            .Where(x => x.Full)
+            .GroupBy(x => x.Level).OrderBy(g => g.Key))
+        {
+            var all = band.ToList();
+            output.WriteLine($"counters level {band.Key} full {all.Count,7:n0}:"
+                + $"  facing {all.Average(x => x.C.Facing),6:F1}"
+                + $"  behind {all.Average(x => x.C.Behind),6:F1}"
+                + $"  insub {all.Average(x => x.C.Insubstantial),5:F1}"
+                + $"  escaped {all.Average(x => x.C.Escaped),6:F1}"
+                + $"  edge {tree.LeafSize * (1 << band.Key),6}");
+        }
 
         foreach (var band in regions.Regions
             .Select((r, i) => (Level: regions.Leaves[r.Leaf].Level, Full: r.Open == ulong.MaxValue,
