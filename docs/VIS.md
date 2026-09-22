@@ -586,7 +586,7 @@ decode rather than in the octree. The fixed slot mapping for the normal was
 settled against ze_hold_em_p and Mako, both of which are dominated by axis-aligned
 geometry; it does not survive contact with these two.
 
-## Stage 3: regions, and the outside detection that blocks it
+## Stage 3: regions, and how outside detection actually works
 
 The stage order is not what the source strings suggested. The compile runs outside
 detection IMMEDIATELY after voxelize and counts regions only afterwards:
@@ -619,8 +619,8 @@ open voxels exactly, and no leaf above the smallest holds geometry.
 
 ### The `.rte` does not seal the map, so outside detection is not a flood fill
 
-This is the finding that blocks the stage, and it is measured rather than
-suspected. Voxelize ze_hold_em_p's geometry onto a dense 8-unit grid over its own
+This was measured before it was confirmed in the binary, and the section after
+next has the confirmation. Voxelize ze_hold_em_p's geometry onto a dense 8-unit grid over its own
 bounding box, pad it, and flood from the padding: **every one of its 6,875,040
 open voxels is reached**. Nothing is enclosed. cardtest is the same, all 2,230,159
 of them.
@@ -652,14 +652,69 @@ None of these is close enough to be a near miss, which is why none was adopted:
 The flood fill is not a coding error: it returns zero because zero open voxels are
 enclosed, which the dense grid proves independently of the octree.
 
-### Where this goes next
+### Outside detection, from visbuilder.dll
 
-The criterion is the whole of the remaining work in this stage, and it wants a
-look at `visbuilder.dll` rather than more guessing from counts. `CVisBuilder` has
-the outside pass under its own timer, so it is one named function. Worth knowing
-before that: an outside test that does not need a closed surface is usually a ray
-cast per voxel against the scene, which is precisely what the `.rte` is built to
-serve and would explain why the pass is given the ray trace environment at all.
+It is not a flood fill, which is what the measurements already said and what the
+code now confirms. `1800321f0` is the only function referencing `Outside
+detection took %.2f seconds`, and the stage driver `180031f00` calls it directly
+after voxelize, so the order in the log is the order in the source.
+
+**It classifies each region on its own and lets the answer propagate along rays.**
+
+1. Collect every region whose flag bit 1 is clear.
+2. A thread pool job named `InitialRegionStatus` gives each one a status byte.
+3. Any region at status 2 gets flag bit 0 set, which means OUTSIDE.
+4. Every region still at status 0 is then classified by `18002e050`, and any that
+   comes back 2 gets bit 0 as well.
+
+`18002e050` takes the region's box, built from its leaf's box and its 4x4x4 mask
+by `18010be50`, and:
+
+- returns **2 immediately if the box's centre lies outside a bounds box** held at
+  `this+0xe8`. That is the seed: nothing else needs to be sealed for this to fire.
+- otherwise gathers candidate rays for the box, casts each one with `18002deb0`,
+  and counts the answers. It returns 1 when the inside count beats a threshold
+  held beside the gather, and 2 otherwise. So it is a VOTE, not a single test.
+
+`18002deb0` is the part that makes this work on geometry that does not seal. It
+marches one ray through the voxel octree:
+
+- at a branch it takes the octant children the ray enters
+- at a leaf it computes a 64-bit mask of which of that leaf's 4x4x4 voxels the ray
+  crosses, and intersects it with each of the leaf's region masks
+- it returns **2 the moment it reaches a region whose bit 0 is already set**, and
+  1 if it finishes having touched a region already known inside
+
+So outsideness spreads from the bounds seed along rays through the voxel grid,
+one region at a time, rather than through voxel adjacency. A region deep in a
+corridor stays inside because its rays terminate on nearby geometry before they
+reach anything already flagged, and that holds whether or not the map has a
+ceiling. This is why a corridor with an open top still produces inside regions,
+and why the flood fill could not.
+
+### What the printed region count actually counts
+
+`180032b80` fills a vector with the regions whose **flag bits 0 and 1 are both
+clear**, and it runs immediately before `CVoxelSampler3::MergeInsideRegions` logs
+`Generated clusters for %d regions`. The function's own name, recovered earlier
+from an assert, says the same thing: these are the INSIDE regions.
+
+So 10,554 is neither the octree's region count nor a connectivity result. It is
+the count after two independent exclusions: bit 1, set when the region is created,
+and bit 0, set by the pass above.
+
+### What this confirms about the mask layout
+
+`18010be50` builds a region's box from its leaf's box and mask, and it is an
+independent statement of the format the compiled file uses:
+
+- the sub-cell size is `(box.maxX - box.minX) * 0.25`, so a leaf is **four base
+  voxels a side**
+- bit `i` of the mask is the sub-cell at `x = i & 3`, `y = (i >> 2) & 3`,
+  `z = (i >> 4) & 3`
+
+Both match what `VisVoxelizer` already implements, which is worth having from the
+compiler's own code rather than from inference over shipped files.
 
 ## Where a replacement starts
 
