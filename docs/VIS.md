@@ -927,39 +927,58 @@ where the model gives out:
 | cardtest | 81,835 | 79,847 | -2.43% |
 | probe01 | 81,707 | 79,529 | -2.67% |
 
-**The residual is not in the merge.** The sampled merge and the shortcut agree to
-the unit on all three maps, so whatever is missing is upstream of both. It is the
-region masks, and the reason a 0.2% region error becomes a 2.2% cluster error is
-that the count per region is `n` at or under the target and **1** above it, a
-cliff of 31 at n = 32. Histogrammed:
+**The residual was not in the merge.** The sampled merge and the shortcut agree
+to the unit on all three maps, so it had to be upstream of both, and it was: two
+things about the REGIONS, both read out of the binary.
 
-| open voxels | ze_hold_em_p regions | cardtest regions |
-|---|---|---|
-| 9 to 16 | 0 | **4,404** (69,955 clusters) |
-| exactly 32 | **2,668** (85,376) | 139 (4,448) |
-| 57 to 64 | 7,638 (7,638) | 2,240 (2,240) |
+### A region is a greedy BOX, not a connected component
 
-ze_hold_em_p has almost nothing between the two extremes and lands exact;
-cardtest is nearly all 16s, where a single voxel of mask difference costs 16
-clusters and its whole 1,804 gap is 113 such regions out of 7,403.
+`18010c3f0` is not a flood fill. It takes the lowest open voxel nothing has
+claimed, grows the box as far as it will go in x, then in y, then in z, each step
+requiring the whole new slab to be open, emits it, and starts again:
 
-### A coarse leaf CAN hold a mask, and finding that closed part of it
+```
+taken = solid
+while an open voxel is unclaimed:
+    m = that voxel
+    while x < 3 and (solid & (m*2  | m)) == 0: m |= m*2
+    while y < 3 and (solid & (m<<4 | m)) == 0: m |= m<<4
+    while z < 3 and (solid & (m<<16| m)) == 0: m |= m<<16
+    emit m & ~taken;  taken |= m
+```
 
-`18002e310`'s empty-child path is not one branch but two. A child empty under the
-narrow mask is retried with the wide one, and if THAT finds something the child
-becomes a leaf on the spot and is handed to `18002d670` with the wide mask, so it
-gets a 4x4x4 occupancy of its own at whatever size it stopped at. Only a
-`CoarseOccupancyOnly` triangle can put it there, since anything else would have
-been found the first time.
+The growth doubles the accumulated mask rather than tracking a corner, so `m*2`
+is one step in x, `m << 4` one in y and `m << 16` one in z, each bounded by the
+starting cell's own coordinate so the mask cannot wrap into the next row. An
+L-shaped run of open space is ONE component and several boxes.
 
-ze_hold_em_p has none of those triangles and is unaffected. The two probe maps
-have eight each, and they put 266 coarse leaves on the board:
+ze_hold_em_p does not notice: its leaves are almost all either half open or fully
+open, where a component and a box are the same thing, which is why a flood fill
+scored exact there and was still wrong.
+
+### The coarse-only retry happens at every depth
+
+`18002e310` queries the KD TREE for the retry, not a filtered list, so a box that
+holds nothing but `CoarseOccupancyOnly` geometry becomes a leaf wherever it turns
+up. Our descent was dropping those triangles from the candidate list the moment a
+box fell to 256 units, so the retry could only ever fire one level down. Carried
+separately they fire at every level.
+
+### What the two are worth
 
 | | regions | clusters |
 |---|---|---|
-| cardtest, before | 7,395 (-0.28%) | 79,847 (-2.43%) |
-| cardtest, after | **7,403 (-0.18%)** | **80,031 (-2.20%)** |
-| probe01, after | **7,271 (-0.62%)** | **79,715 (-2.44%)** |
+| flood fill, coarse-only leaves at one level | 7,403 (-0.18%) | 80,031 (-2.20%) |
+| greedy boxes | 7,590 (+2.35%) | 80,808 (-1.26%) |
+| **and the retry at every depth** | **7,589 (+2.33%)** | **82,259 (+0.52%)** |
+
+probe01 lands at **+0.19%** the same way. ze_hold_em_p is unmoved and exact at
+every step, which is the test that mattered: neither change is a fit, because
+neither has anywhere to hide on the map that was already right.
+
+What is still open is the enclosed REGION count on the probe maps, now 2.3% HIGH
+where the cluster count is 0.5% high. We are splitting some leaves into more
+boxes than the compile does, which means a handful of leaf masks still differ.
 
 It also means `LeafMasks` is keyed by (level, cell) rather than by cell, because
 a mask is 4x4x4 over the node's OWN box whatever size that is.

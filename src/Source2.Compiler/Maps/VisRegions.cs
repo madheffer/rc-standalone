@@ -6,7 +6,7 @@ namespace Source2.Compiler.Maps;
 /// Stage 3 of visibility, as far as it is established: the octree's leaves, and
 /// the open space inside each of them cut into regions.
 ///
-/// <para>A region is one connected run of open voxels within one leaf, which is
+/// <para>A region is one greedy BOX of open voxels within one leaf, which is
 /// what the compiled file's 4x4x4 masks hold. What is NOT here is the step that
 /// throws away the regions the map does not enclose, because the compile's
 /// criterion for that is not known and the obvious one is provably wrong on this
@@ -39,7 +39,7 @@ public static class VisRegions
         var leaves = Enumerate(tree);
         var regions = new List<Region>();
         for (var i = 0; i < leaves.Count; i++)
-            foreach (var part in Components(~leaves[i].Solid))
+            foreach (var part in Split(leaves[i].Solid))
                 regions.Add(new Region(i, part));
         return new Result(leaves, regions);
     }
@@ -73,48 +73,60 @@ public static class VisRegions
     }
 
     /// <summary>
-    /// Connected runs of the set voxels of a 4x4x4 mask, by face adjacency.
+    /// A leaf's open space cut into regions, which is <c>18010c3f0</c>.
     ///
-    /// <para>Face rather than corner adjacency, though on these maps it makes no
-    /// difference: both give the same count on every leaf of all three measured.</para>
+    /// <para>It is NOT connected components, and that is the single thing about
+    /// this stage most worth getting right. It is a greedy BOX decomposition:
+    /// take the lowest open voxel nothing has claimed, grow the box as far as it
+    /// will go in x, then in y, then in z, each step requiring the whole new slab
+    /// to be open, emit it, and start again. An L-shaped run of open space is one
+    /// component and several boxes.</para>
+    ///
+    /// <para>The growth doubles the accumulated mask rather than tracking a
+    /// corner, so <c>m * 2</c> is one step in x, <c>m &lt;&lt; 4</c> one in y and
+    /// <c>m &lt;&lt; 16</c> one in z, and each is bounded by the starting cell's
+    /// own coordinate so the mask cannot wrap into the next row.</para>
     /// </summary>
-    public static List<ulong> Components(ulong open)
+    public static List<ulong> Split(ulong solid)
     {
         var found = new List<ulong>();
-        var seen = 0UL;
-        for (var start = 0; start < 64; start++)
+        var taken = solid;
+        while (true)
         {
-            var bit = 1UL << start;
-            if ((open & bit) == 0 || (seen & bit) != 0)
-                continue;
+            var at = 0;
+            while (at < 64 && (taken & (1UL << at)) != 0)
+                at++;
+            if (at == 64)
+                return found;
 
-            var part = bit;
-            seen |= bit;
-            var stack = new Stack<int>();
-            stack.Push(start);
-            while (stack.Count > 0)
+            var box = 1UL << at;
+            for (var x = at & 3; x < 3; x++)
             {
-                var at = stack.Pop();
-                int x = at & 3, y = (at >> 2) & 3, z = (at >> 4) & 3;
-                for (var axis = 0; axis < 3; axis++)
-                    for (var step = -1; step <= 1; step += 2)
-                    {
-                        int nx = x + (axis == 0 ? step : 0);
-                        int ny = y + (axis == 1 ? step : 0);
-                        int nz = z + (axis == 2 ? step : 0);
-                        if (nx is < 0 or > 3 || ny is < 0 or > 3 || nz is < 0 or > 3)
-                            continue;
-                        var next = nx + 4 * ny + 16 * nz;
-                        var mask = 1UL << next;
-                        if ((open & mask) == 0 || (seen & mask) != 0)
-                            continue;
-                        seen |= mask;
-                        part |= mask;
-                        stack.Push(next);
-                    }
+                var grown = (box * 2) | box;
+                if ((solid & grown) != 0)
+                    break;
+                box = grown;
             }
-            found.Add(part);
+            for (var y = (at >> 2) & 3; y < 3; y++)
+            {
+                var grown = (box << 4) | box;
+                if ((solid & grown) != 0)
+                    break;
+                box = grown;
+            }
+            for (var z = (at >> 4) & 3; z < 3; z++)
+            {
+                var grown = (box << 16) | box;
+                if ((solid & grown) != 0)
+                    break;
+                box = grown;
+            }
+
+            box &= ~taken;
+            if (box == 0)
+                return found;
+            found.Add(box);
+            taken |= box;
         }
-        return found;
     }
 }
