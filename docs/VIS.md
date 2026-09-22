@@ -508,6 +508,82 @@ far better, and this table should be redone on one.
 | point-pair comparison (`s2c vis-diff`) | zero on identical input, correct sign on constructed differences |
 | the builder | not started |
 
+## Stage 2: voxelize, and what it is scored against
+
+The compile prints a number for this stage, so it can be scored without a geometry
+pipeline existing:
+
+```
+Convert RTE with 4536 triangles in 0.01s
+Voxelize (8 units) took 0.49 seconds (81,625 nodes)
+```
+
+`VisVoxelizer` is that stage and `VisVoxelizerTests` is the score.
+
+| map | traced triangles | compile | ours | off by |
+|---|---|---|---|---|
+| ze_hold_em_p | 4,536 | 81,625 | 81,281 | **-0.42%** |
+| cardtest | 92 | 17,297 | 24,353 | +40.8% |
+| probe01 | 80 | 17,169 | 24,249 | +41.2% |
+
+### The shape of the tree, read off Valve's own output
+
+**Nodes are one root plus eight per branch.** 81,625 is 1 + 8 x 10,203 to the
+unit, and 17,297 is 1 + 8 x 2,162, so every branch owns exactly eight children and
+the count is a count of BRANCHES in disguise.
+
+**The root is a cube, and its size is per map.** The compiled file states it:
+ze_hold_em_p is 32,768 units over a 4,096 voxel side, cardtest 4,096 over 512.
+Reading it as a constant is wrong and costs three levels of depth on a small map.
+
+**A leaf is four base voxels, not one.** A leaf carries a 4x4x4 occupancy mask, so
+the octree stops at 32 units and the 8-unit resolution lives in the mask. Taking
+the leaf as the base voxel gives 1.2 million nodes against a target of 81,625,
+which is the single biggest thing to get right here.
+
+**A node subdivides when geometry reaches into it**, tested triangle against cube
+by separating axis.
+
+### The check that does not depend on a tolerance
+
+A node count can be hit by accident. The stronger test is that **every branch of
+the SHIPPED octree is a branch of ours**: the shipped tree is this one collapsed,
+and a collapse only removes nodes, so anything it still subdivides we must
+subdivide too. 1,175 of ze_hold_em_p's 1,179 survive that, 99.66%, and the two
+probe maps sit at 97%.
+
+### Two corrections to the `.rte` decode
+
+Both were found by voxelizing, which is a far harsher consumer of the decode than
+the bounding box check that settled it.
+
+**The dominant normal component is implicit when it is zero.** The Badouel form
+scales the normal so its dominant component is 1, and some records leave that
+component at zero rather than writing it. Reading those as degenerate throws away
+real geometry: ze_hold_em_p has two, both walls at its own x extremes, and **Mako
+has 10,168, 3.6% of the file**.
+
+**A reconstruction outside the file's own box is a decode failure, not a
+triangle.** One cardtest record has an edge determinant of 2e-6 and rebuilds 27
+billion units away; voxelizing it smeared occupancy across the whole root cube.
+The file states the box its geometry occupies, so that is the test, and applying
+it moves ze_hold_em_p from +4.29% to -0.42%.
+
+### Why the probe maps are 41% wide, which is a decode problem and not a stage one
+
+The two small maps are not small versions of the same thing. **13 of cardtest's 92
+traced triangles and 12 of probe01's 80 rebuild outside the file's own bounding
+box**, against 2 of ze_hold_em_p's 4,536. A map that is 14% mis-decoded cannot
+score its voxelizer, and the guard above removes the worst of them at the cost of
+dropping some real geometry, which is why those two maps lose 3% of the shipped
+tree's branches where ze_hold_em_p loses 0.34%.
+
+So the honest reading is that the STAGE reproduces to within half a percent on the
+one map whose geometry decodes cleanly, and the remaining work is in the triangle
+decode rather than in the octree. The fixed slot mapping for the normal was
+settled against ze_hold_em_p and Mako, both of which are dominated by axis-aligned
+geometry; it does not survive contact with these two.
+
 ## Where a replacement starts
 
 1. ~~Force Valve's builder to re-run~~ done, 13.5 seconds a round on a small map,

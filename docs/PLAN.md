@@ -117,10 +117,14 @@ pipeline existing.
 
 1. Decode the `.rte`. Triangle soup plus whatever spatial structure it carries.
    Validate by re-deriving counts the log prints.
-2. Voxelize. Score against Valve's own numbers on the same map before any
-   visibility is computed: ze_hold_em_p is 81,625 nodes, 10,554 regions in,
-   103,358 out, collapsed to 4,194, 258 clusters against a target of 1,342, 129
-   unique masks.
+2. Voxelize. **DONE, -0.42% on ze_hold_em_p** (81,281 nodes against the compile's
+   81,625), with 99.66% of the shipped octree's branches reproduced. The root is a
+   per-map cube, a leaf is four base voxels because it carries a 4x4x4 mask, and
+   nodes are one root plus eight per branch. `VisVoxelizer`, scored by
+   `VisVoxelizerTests`. The two probe maps are 41% wide because 14% of THEIR
+   triangles mis-decode, which is an `.rte` problem and not a stage one. The rest
+   of the scoring targets stand: 10,554 regions in, 103,358 out, collapsed to
+   4,194, 258 clusters against a target of 1,342, 129 unique masks.
 3. Regions and clusters. Same scoring.
 4. PVS. Score with `vis-diff`: **zero holes is the requirement**, overdraw is
    negotiable, and the settings band says a couple of percent is normal

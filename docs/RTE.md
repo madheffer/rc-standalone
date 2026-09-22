@@ -187,6 +187,30 @@ are `(7672, -56, 64) (7672, -56, 17) (7160, -56, 64)` and
 `(7672, -56, 17) (7160, -56, 17) (7160, -56, 64)`: one quad, a wall at y = -56
 spanning x 7160 to 7672 and z 17 to 64, on whole-unit coordinates.
 
+## Two corrections found by voxelizing
+
+Both surfaced in `VisVoxelizer`, which consumes the decode far more harshly than
+the bounding box check that settled it.
+
+**A zero dominant component is implicit, not degenerate.** The Badouel form scales
+the normal so its dominant component is 1, and some records leave that component
+at zero. Treating those as undecodable throws away real geometry: ze_hold_em_p has
+two, both walls at its own x extremes, and **Mako has 10,168 of them, 3.6% of the
+file**. Read a zero dominant component as 1.
+
+**The fixed slot mapping does not survive every map.** It was settled against
+ze_hold_em_p and Mako, which are dominated by axis-aligned geometry. On the two
+probe maps it is measurably wrong: **13 of cardtest's 92 traced triangles and 12 of
+probe01's 80 rebuild OUTSIDE the box the file states for itself**, against 2 of
+ze_hold_em_p's 4,536. One of them has an edge determinant of 2e-6 and lands 27
+billion units away. `RayTraceEnvironment` rejects a reconstruction outside the
+stated box for that reason, which is a guard and not a fix; the mapping itself is
+still wrong for those records and that is open.
+
+**The excluded-triangle flag is settled.** A triangle whose flag word is `0x0800`
+is not converted into the trace scene, and that reproduces the compile's own count
+on three maps: 4548 - 12 = 4536, 300 - 208 = 92, 288 - 208 = 80.
+
 ## What is NOT established
 
 **The 8-byte per-triangle array.** Long constant runs, so probably a surface or
