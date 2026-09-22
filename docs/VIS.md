@@ -1990,10 +1990,51 @@ What the shape of the answer has to be: both penalties stop firing once a
 cluster is big, because a big cluster's own footprint is over 4,096 and its own
 z span is over 80. After that a pair of neighbours costs about 10 against a
 limit of 21,000 and nothing can stop it. The compile stops anyway in 25 buckets,
-so something keeps its cost up that does not keep ours up, and with the cost
-function, the distance, the penalties and the voxel sizes all matching, the
-remaining candidate is the visibility difference itself: what two big clusters
-in the same bucket still do NOT share.
+so something keeps its cost up that does not keep ours up.
+
+### The visibility difference was the suspect, and it is not a defect
+
+Measuring what a cluster sees AS SAMPLED, before any merge, separates the two
+maps as sharply as the halt reason did:
+
+| map | pass 1, mean clusters seen | of | |
+|---|---|---|---|
+| ze_hold_em_p | 144.1 | 144 | **100.0%** |
+| probe01 | 233.4 | 518 | 45.1% |
+
+Every cluster in a ze_hold_em_p bucket sees every other one. So every difference
+count is zero, every base cost is 1, and the whole cost is penalties times ten
+plus the box gap. The merges that end its buckets cost 898 on average against a
+limit of 21,000, the dearest reaching 20,800, and nothing ever crosses.
+
+The obvious reading was that the sampler over-reports. It does not. Asking the
+question independently of the merge -- bucket every cluster at 512 the way
+`180034220` does, take the fullest cell, and trace centre to centre between the
+clusters in it -- gives:
+
+```
+ze_hold_em_p  fullest 512 cell holds  2,128 clusters spanning <520, 112, 128>
+              of 39,800 lines, 39,800 are CLEAR (100.0%) and 0 are stopped
+probe01       fullest 512 cell holds  8,533 clusters spanning <512, 552, 296>
+              of 39,800 lines, 22,082 are CLEAR ( 55.5%) and 17,718 are stopped
+```
+
+ze_hold_em_p's fullest merge cell is an OPEN BOX, 520 by 112 by 128, with not one
+line in forty thousand stopped by geometry. The saturation is the map, not the
+port. That closes the visibility difference as a suspect and leaves the error
+where the numbers put it: the cost SCALE. The costs that end ze_hold_em_p's
+buckets top out at 20,800 against a limit of 21,000, a one percent margin, and
+its first pass average is 4.28% under the compile's where the probes are now
+near one. Uniformly lower costs would not matter, because the limit is derived
+from the costs -- but the limit comes from the first merge, which the budget
+drives, and the stopping happens in the second, which the cost drives, so the
+two populations do not have to scale together.
+
+Three more pieces were read along the way and all match: `180020580` is the
+vectorised OR the absorb folds one visibility vector into another with,
+`18002fec0` is the box GAP and not a centre distance, and `180034220`, which
+Ghidra types `void`, returns XMM6 -- reloaded from the average at `1800341b1` --
+so the cost the chain carries forward IS the average, as modelled.
 
 ### And the probes' +3%
 

@@ -62,6 +62,15 @@ public class VisMergeHalt(ITestOutputHelper output)
                     output.WriteLine($"{"",10} of the {priced.Count} that still had a pair,"
                         + $" the cheapest one left averaged {priced.Average(h => h.Cost),12:F1}"
                         + $" against a limit of {priced.Average(h => h.Limit),10:F1}");
+                var merged = all.Where(h => h.Best >= 0f).ToList();
+                if (merged.Count > 0)
+                    output.WriteLine($"{"",10} the LAST pair each of {merged.Count} actually merged"
+                        + $" cost {merged.Average(h => h.Best),12:F1} on average,"
+                        + $" dearest {merged.Max(h => h.Best),12:F1}");
+                var width = all.Average(h => h.Bits);
+                var share = width > 0 ? all.Average(h => h.Seen) / width : 0;
+                output.WriteLine($"{"",10} as SAMPLED each cluster saw {all.Average(h => h.Seen),8:F1}"
+                    + $" of {width,8:F0} in the bucket  ({share,6:P1})");
             }
         }
     }

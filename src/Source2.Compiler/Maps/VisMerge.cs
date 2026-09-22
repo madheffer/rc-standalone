@@ -105,7 +105,11 @@ public static class VisMerge
     /// <param name="Budget">What it was aiming at.</param>
     /// <param name="Limit">The cost it was allowed to spend.</param>
     /// <param name="Cost">The cheapest pair still on offer, or MaxValue when none is.</param>
-    public readonly record struct Halt(int Live, int Budget, float Limit, float Cost);
+    /// <param name="Best">The last pair it actually merged, or -1.</param>
+    /// <param name="Seen">Mean bits set per cluster as SAMPLED, before any merge.</param>
+    /// <param name="Bits">How wide the visibility vectors were.</param>
+    public readonly record struct Halt(
+        int Live, int Budget, float Limit, float Cost, float Best, float Seen, int Bits);
 
     public static float Run(
         RayTraceEnvironment scene, List<Cluster> clusters, Vector3 mins, Vector3 maxs,
@@ -119,6 +123,10 @@ public static class VisMerge
 
         var shell = padded ? VisClusterSample.Shell.Length : 0;
         VisClusterSample.SampleInto(scene, clusters, mins, maxs, padded, cube);
+
+        var sampled = halted is null ? 0f
+            : clusters.Select(c => (float)c.Visibility.Sum(w => System.Numerics.BitOperations.PopCount(w)))
+                      .DefaultIfEmpty(0f).Average();
 
         var live = clusters.Count + shell;
         var state = new Selection(clusters);
@@ -143,7 +151,8 @@ public static class VisMerge
             live--;
         }
 
-        halted?.Invoke(new Halt(live, budget, costLimit, state.Cheapest().Cost));
+        halted?.Invoke(new Halt(live, budget, costLimit, state.Cheapest().Cost, best,
+                                sampled, clusters.Count + shell));
         state.Keep(clusters);
         return MathF.Max(best, costLimit);
     }
@@ -295,6 +304,14 @@ public static class VisMerge
                 _candidates[i].RemoveAll(c => c.Other == other);
             Rebuild(owner);
             Live--;
+        }
+
+        /// <summary>The clusters still standing, in order.</summary>
+        public IEnumerable<Cluster> Survivors()
+        {
+            for (var i = 0; i < _clusters.Count; i++)
+                if (_alive[i])
+                    yield return _clusters[i];
         }
 
         /// <summary>Rewrite the caller's list to the survivors, in order.</summary>
