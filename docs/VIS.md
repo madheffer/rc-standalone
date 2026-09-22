@@ -1299,31 +1299,52 @@ else.
 ### The region count the file ships with, and what it is NOT
 
 `Compacted to 103358 regions (258 clusters)` is printed at the END of
-`180032670`, after the merge, and it is **not** a total over the clusters. It
+`CVoxelSampler3::MergeInsideRegions` (`180034ea0`), after the five merge passes,
+and it is **not** a total over the clusters. It
 was implemented that way first, as the sum of every final cluster's (mask, leaf)
 pairs, and scored at -63% on probe01 and -89% on ze_hold_em_p. The write-back
 loop says why.
 
-The loop walks the REGION array (`this+0x28` entries) and the cluster array in
-lockstep. For every region whose flag bit 0 is set it stamps the region's own
-flag word with `(flags & 1) | (runningTotal << 1)`, writes that cluster's entry
-count into the region at `+0x04` as a `short`, and copies that many 16 byte
-entries into one flat output array. The printed number is the running total:
+It is the length of the flat entry array that **cluster assignment** builds, and
+the assignment is the three passes that close out `MergeInsideRegions`.
 
-> **sum over KEPT REGIONS of the entry count of the cluster each one was
-> assigned to.**
+**Pass one** scatters. Every final cluster holds the `(mask, region)` pairs it
+covers, so for each pair it appends a 16 byte record to that region's own list:
+the running cluster index at `+0x00`, `region * 4` at `+0x04`, the 64 bit cell
+mask at `+0x08`. The kind bits come out clear because a cluster is always open
+space.
 
-The same cluster is therefore counted once per region assigned to it, which is
-why the number is far larger than either the region count or the cluster count.
-For ze_hold_em_p that is 103,358 entries over roughly 10,554 regions, about
-nine each; probe01 is 30,665 over 7,316, about four.
+**Pass two** restores. The region compaction had already written blocking and
+skipped records, which carry no cluster and pass one does not regenerate, so
+every record of the old array with `packed & 3` set is re-added to its region.
 
-Two consequences. It cannot be computed before **cluster assignment**, so it is
-not a score the merge stage can be held to, and the assertion was removed from
-`VisClusterSetTests` rather than left failing against a number that stage does
-not produce. And the region's flag word is doing double duty: bit 0 stays the
-kept flag and everything above it is an offset, which is where a region's entry
-list is found later.
+**Pass three** concatenates, and only over regions whose flag bit 0 is still
+set. Each kept region gets its flag word stamped `(flags & 1) | (offset << 1)`
+and its entry count written beside it at `+0x04` as a `short`. The printed
+number is the final running offset, so:
+
+> **the length of the flat array, which is the total of every kept region's
+> cluster records plus its retained blockers.**
+
+The region's flag word is doing double duty from here on: bit 0 stays the kept
+flag and everything above it is the offset where that region's records begin.
+That is exactly how the PVS walk finds them.
+
+### The entry array is older than assignment, and `180032670` re-compacts it
+
+`180032670` is not the region build. It walks the octree's leaves and collapses
+each leaf's records down to **at most three**, one per kind, ORing every mask of
+a kind together and throwing the cluster ids away:
+
+| kind | bits | what it is |
+|---|---|---|
+| 0 | `region * 4` | open space |
+| 1 | `region * 4 \| 1` | blocking, which stops a line |
+| 2 | `region * 4 \| 2` | skipped, which the walk ignores |
+
+So `+0x04` was never a flag word. It is `(region << 2) | kind`, and a record
+carries the region it came from all the way through. That is what lets pass two
+above put a retained blocker back in the right place.
 
 ### The PVS itself, end to end
 
@@ -1393,8 +1414,8 @@ debug fields, so nothing it does reaches the PVS.
 
 | stage | what is known |
 |---|---|
-| `18002ed60`, `180037840` | cluster assignment; prints `Assigned %d clusters` |
-| `180036850` | the PVS entry, which picks one of THREE modes |
+| `18002f5c0` | the distance pre-merge, which prints `pre-merged to %d clusters` |
+| `18002ed60`, `180037840` | the OTHER assignment, which prints `Assigned %d clusters` |
 | `CVoxelSampler3__AdaptivelySampleBorders` | prints `Adaptive border clusters` |
 | `18003c010`'s volume gate | below 2^20 cubic units of enclosed space the whole PVS is disabled, with `Visibility cannot be determined in this map` |
 | `18003c010`'s collapse | `Collapsing resolution`, `Reduced node count from %d to %d`, `%d unique masks` |

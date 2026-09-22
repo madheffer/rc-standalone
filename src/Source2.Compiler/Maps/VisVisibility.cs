@@ -15,21 +15,35 @@ namespace Source2.Compiler.Maps;
 /// </summary>
 public static class VisVisibility
 {
-    /// <summary>An entry's flag bit 0: this one stops a line rather than being seen through.</summary>
+    /// <summary>Open space, which is the only kind that carries a cluster.</summary>
+    public const int Open = 0;
+
+    /// <summary>Kind 1: this one stops a line rather than being seen through.</summary>
     public const int Blocking = 1;
 
-    /// <summary>An entry's flag bit 1: skipped outright.</summary>
+    /// <summary>Kind 2: ignored by the walk outright.</summary>
     public const int Skipped = 2;
 
     /// <summary>
-    /// One 16 byte record of the flat array the assignment write-back builds at
-    /// <c>this+0x48</c>. A region names a run of these through the offset packed
-    /// into its own flag word.
+    /// One 16 byte record of the flat array at <c>this+0x48</c>. A region names a
+    /// run of these through the offset packed into its own flag word.
+    ///
+    /// <para><paramref name="Packed"/> is not a flag word. The region compaction
+    /// writes it as <c>region * 4 | kind</c> and everything downstream reads the
+    /// two halves separately, so the region a record came from survives in the
+    /// record itself.</para>
     /// </summary>
-    /// <param name="Cluster">The cluster it belongs to, at <c>+0x00</c>.</param>
-    /// <param name="Flags">At <c>+0x04</c>: <see cref="Blocking"/>, <see cref="Skipped"/>.</param>
+    /// <param name="Cluster">The cluster it belongs to, at <c>+0x00</c>, 0 until assignment.</param>
+    /// <param name="Packed">At <c>+0x04</c>: <c>(region &lt;&lt; 2) | kind</c>.</param>
     /// <param name="Cells">At <c>+0x08</c>: which of the leaf's 64 sub cells it covers.</param>
-    public readonly record struct Entry(int Cluster, int Flags, ulong Cells);
+    public readonly record struct Entry(int Cluster, int Packed, ulong Cells)
+    {
+        /// <summary>The region it was written for.</summary>
+        public int Region => Packed >> 2;
+
+        /// <summary>One of <see cref="Open"/>, <see cref="Blocking"/>, <see cref="Skipped"/>.</summary>
+        public int Kind => Packed & 3;
+    }
 
     /// <summary>
     /// One octree node, the 8 bytes at <c>this+0x30</c>: the word carries
@@ -205,9 +219,9 @@ public static class VisVisibility
             for (var i = 0; i < node.Count; i++)
             {
                 var entry = entries[node.Payload + i];
-                if ((entry.Flags & Skipped) != 0)
+                if ((entry.Packed & Skipped) != 0)
                     continue;
-                var blocking = (entry.Flags & Blocking) != 0;
+                var blocking = (entry.Packed & Blocking) != 0;
                 if (!blocking && entry.Cluster == last)
                     continue;
                 if ((entry.Cells & cells) == 0)

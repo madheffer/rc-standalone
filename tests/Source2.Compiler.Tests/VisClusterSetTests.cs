@@ -21,15 +21,17 @@ public class VisClusterSetTests(ITestOutputHelper output)
     /// <param name="Cost">The avg the compile prints after the first pass, which
     /// is the number the whole chain is steered by.</param>
     /// <param name="Tolerance">What the counts may be off by.</param>
+    /// <param name="Assigned">"Compacted to N regions", the flat entry array's
+    /// length after assignment.</param>
     private sealed record Specimen(
         string Addon, string Map, int Target, int Generated,
-        int First, int Second, int Final, float Cost, double Tolerance);
+        int First, int Second, int Final, float Cost, int Assigned, double Tolerance);
 
     private static readonly Specimen[] Maps =
     [
-        new("s2c_rc_probe", "probe01", 862, 81_707, 1_979, 1_815, 1_621, 110_760.1f, 0.04),
-        new("s2c_rc_probe", "cardtest", 862, 81_991, 1_998, 1_825, 1_626, 0f, 0.08),
-        new("s2c_lighting", "ze_hold_em_p", 1_342, 93_354, 258, 258, 258, 21_940.0f, 0.17),
+        new("s2c_rc_probe", "probe01", 862, 81_707, 1_979, 1_815, 1_621, 110_760.1f, 30_665, 0.04),
+        new("s2c_rc_probe", "cardtest", 862, 81_991, 1_998, 1_825, 1_626, 0f, 30_817, 0.08),
+        new("s2c_lighting", "ze_hold_em_p", 1_342, 93_354, 258, 258, 258, 21_940.0f, 103_358, 0.17),
     ];
 
     [Fact]
@@ -73,6 +75,19 @@ public class VisClusterSetTests(ITestOutputHelper output)
                     $"{specimen.Map}: the chain's first cost is {cost:P2} off, so the cost"
                   + " function, the sampling or the merge order is wrong");
             }
+
+            // Assignment, which is what the PVS walk reads and the only stage
+            // whose number the merge alone cannot produce.
+            var blockers = compact.Regions
+                .Select((r, i) => new VisVisibility.Entry(
+                    0, (i << 2) | VisVisibility.Blocking, compact.Leaves[r.Leaf].Solid))
+                .Where(e => e.Cells != 0)
+                .ToList();
+            var assigned = VisAssign.Run(sets, compact.Regions.Count, blockers, _ => true);
+            output.WriteLine($"{specimen.Map,-16} assign  {assigned.Regions,8:n0}"
+                           + $"  compile {specimen.Assigned,8:n0}"
+                           + $"  {(double)assigned.Regions / specimen.Assigned - 1,8:P2}"
+                           + $"  ({assigned.Clusters:n0} clusters, {blockers.Count:n0} blockers)");
 
             foreach (var (label, ours, theirs) in new[]
             {
