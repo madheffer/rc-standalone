@@ -44,6 +44,9 @@ behaviour, so they carry a description rather than a symbol.
 | `180032d80` | generate one region's clusters | the only thing that job calls; fills the 24-byte record whose first int the log sums |
 | `18002beb0` | candidate boxes for a region | splits the box against the three hint lists and emits what survives |
 | `18002bcd0` | split a box against one hint, and recurse | calls 18002beb0 back |
+| `1800337a0` | merge a region's per-voxel clusters down by cost | called at the end of each candidate's assignment loop; merges until 32 clusters or the best cost exceeds a threshold |
+| `180027f50` | `CBoxMerge::MergeBestCandidates` | named by an assert; the greedy box merge the above drives |
+| `18010ad30` | add a box to a CBoxMerge pool, returning its handle | NOT a cost function, which is what it looks like at a glance |
 | `18002b500` | read the HINT ENTITIES and fill the three lists | reads origin, box_mins, box_maxs and hintType off map objects; types 4, 5 and 6 are the x, y and z axis split hints |
 | `18010be50` | a region's box from its leaf box and mask | shared by the driver and outside detection |
 | `18003f1e0` | the `InitialRegionStatus` job body | the work pointer in the functor vtable the outside pass dispatches |
@@ -69,11 +72,16 @@ A region in memory is `{ u32 cluster, u32 (nodeIndex << 2) | flags, u64 mask }`.
 That `nodeIndex << 2` is the same leaf index the compiled file packs into its
 24-bit field, seen from the other side.
 
+The reasoning behind all of this, the design decisions it forced on our own
+implementation and the wrong turns it cost, is in **`VISBUILDER_ANALYSIS.md`**.
+
 ## How the whole DLL was inventoried
 
 Chasing a string answers one question. `InventoryDll.java` dumps every function,
-every call edge and every string reference in one pass, which is what the table
-above was actually built from: **3,848 functions, 13,778 call edges and 3,363
+every call edge and every string reference in one pass, and `DumpSubtree.java`
+then dumps a whole STAGE as one readable unit (the visibility pipeline is 400
+functions and 47,757 lines of C that way). Between them that is what the table
+above was built from: **3,848 functions, 13,778 call edges and 3,363
 string uses**. Of those, 121 functions log something, which is the behavioural map
 of the builder, and the binary carries **205 RTTI type descriptors of which 80 are
 Valve's own** despite the exports being stripped.

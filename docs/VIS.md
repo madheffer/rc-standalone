@@ -734,6 +734,9 @@ set and reach here are ours, which is why the spread test above exists.
 
 ### Cluster generation, mapped but NOT implemented
 
+The reasoning behind the whole visibility port, and Valve's design decisions that
+forced ours, is in `VISBUILDER_ANALYSIS.md`.
+
 The next number after the region count is `93354 clusters generated`, and the path
 to it is now known end to end even though the rule that produces it is not.
 
@@ -788,8 +791,17 @@ one is the reason nothing was adopted:
   the smallest, against 3% on the probe maps
 
 So a rule fitted on the two simple maps does not survive a map with mixed leaf
-sizes, and adopting it would have looked like progress while being wrong. The next
-step is `180032d80`'s assignment loop, which is where the number is actually made.
+sizes, and adopting it would have looked like progress while being wrong.
+
+**The assignment loop has since been read, and there is no closed-form rule to
+find.** `180032d80` appends one cluster record per voxel of the region, each
+holding a list of `(mask, leafNode)` pairs so a cluster can later span leaves, and
+then `1800337a0` merges them: it builds a `CBoxMerge` over their boxes and merges
+the cheapest pair repeatedly until the count reaches its limit of 32 OR the best
+remaining merge costs more than a threshold. The 8.85 clusters per region is the
+output of that greedy loop over a mean of 55.8 voxels, which is why every attempt
+to fit it failed. Implementing it needs the cost function, which is the quality
+axis of the whole build.
 
 ### What the printed region count actually counts
 

@@ -6,7 +6,9 @@ what was believed, what is actually true, and how it was settled.
 
 Companion documents: `PLAN.md` (where this is going), `VIS.md` (visibility),
 `VRAD3.md` (lighting), `MAP_RESOURCES.md` (map file formats),
-`VISBUILDER_FUNCTIONS.md` and `RESOURCECOMPILER_FUNCTIONS.md` (recovered symbols).
+`VISBUILDER_FUNCTIONS.md` and `RESOURCECOMPILER_FUNCTIONS.md` (recovered symbols),
+and `VISBUILDER_ANALYSIS.md` (how visbuilder.dll was read, what its design is,
+and which of its decisions our own visibility code had to adopt).
 
 ---
 
