@@ -71,6 +71,15 @@ public class VisLeafDiffTests(ITestOutputHelper output)
                        + $"   only shipped {onlyShipped,7:n0}   only ours {onlyOurs,7:n0}");
         foreach (var sample in samples)
             output.WriteLine($"    shipped-only leaf {sample}");
+
+        // The asymmetry is the assertion. The shipped tree is collapsed and its
+        // regions compacted, so a leaf it keeps live that we do not is expected
+        // and says little. A leaf WE call enclosed that the compile dropped
+        // entirely is a claim on space the map does not have, and there are two
+        // on probe01 and none on ze_hold_em_p.
+        Assert.True(onlyOurs <= bothLive / 100,
+            $"{map}: {onlyOurs:n0} leaves are enclosed for us and dead in the compile,"
+          + $" against {bothLive:n0} we agree on");
     }
 
     /// <summary>The shipped leaf containing one of ours, or null when outside the tree.</summary>

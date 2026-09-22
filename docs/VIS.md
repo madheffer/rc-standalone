@@ -780,8 +780,33 @@ the 150 rays a region affordable: ze_hold_em_p's 4,548 triangles sit in 933
 leaves of at most ten each.
 
 `VisSeed` is the port and `RayTraceEnvironment.Trace` the tracer. The reach the
-PROPAGATION gives a ray is still ours, and the spread test above still holds it;
-the seed's grid is Valve's own 5, swept 3 to 8 anyway.
+PROPAGATION gives a ray is still ours, and the spread test above still holds it.
+The seed's grid is Valve's own 5, passed as a literal at the call site, and it is
+swept anyway:
+
+| rays a face | 3x3 | 4x4 | 5x5 | 6x6 | 8x8 |
+|---|---|---|---|---|---|
+| ze_hold_em_p, target 10,554 | 10,888 | 10,554 | **10,554** | 10,554 | 10,554 |
+
+Four and up are identical, so the sample count is not producing the answer
+either; three is too coarse to resolve a 32 unit leaf and says so.
+
+### Where the fix landed, leaf by leaf
+
+`VisLeafDiffTests` puts our leaves against the shipped ones rather than comparing
+totals, which is what a count that is half wrong cannot tell you:
+
+| probe01 | agree live | agree dead | only shipped | only ours |
+|---|---|---|---|---|
+| the 26-ray vote | 1,819 | 3,915 | 2,814 | 0 |
+| Valve's seed | **4,459** | 3,913 | **174** | 2 |
+
+The asymmetry is what the test asserts. The shipped tree is collapsed and its
+regions compacted, so a leaf it keeps live that we do not is expected; a leaf WE
+call enclosed that the compile dropped entirely is a claim on space that is not
+there, and there are two of those on probe01 and none on ze_hold_em_p. The 174
+that remain sit in one corner of the map, around x 1,120 to 1,280 at z 272, which
+is where its geometry box ends.
 
 ### Cluster generation: the birth rule is implemented, the merge is not
 
