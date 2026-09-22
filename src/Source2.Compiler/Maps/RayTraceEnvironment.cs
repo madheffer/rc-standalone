@@ -117,14 +117,6 @@ public sealed class RayTraceEnvironment
     /// <summary>Box side at or below which <see cref="CoarseOccupancyOnly"/> applies.</summary>
     public const float FineBoxSize = 256f;
 
-    /// <summary>Whether this triangle is occupancy for a box of the given side.</summary>
-    public bool Occupies(int index, float boxSide)
-    {
-        var flags = Flags(index);
-        return (flags & ExcludedFromTrace) == 0
-            && (boxSide > FineBoxSize || (flags & CoarseOccupancyOnly) == 0);
-    }
-
     /// <summary>The surface index the record carries in slot 4.</summary>
     public float SurfaceIndex(int index) => Float(_triangleAt + index * 48 + 16);
 

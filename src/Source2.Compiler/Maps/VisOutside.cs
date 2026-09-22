@@ -72,10 +72,14 @@ public static class VisOutside
     /// <param name="baseVoxelSize">The compile's BaseVoxelSize.</param>
     /// <param name="directions">Rays cast from each region's centre.</param>
     /// <param name="reach">How far a ray travels before giving up, in world units.</param>
+    /// <param name="sealedAt">Share of the seed's 26 rays that must find geometry
+    /// for a region to start out inside.</param>
+    /// <param name="openAt">Share at or below which it starts out outside.</param>
     public static Result Detect(
         VisVoxelizer.Octree tree, VisRegions.Result regions,
         Vector3 worldMin, Vector3 worldMax, float baseVoxelSize,
-        IReadOnlyList<Vector3>? directions = null, float reach = 512f)
+        IReadOnlyList<Vector3>? directions = null, float reach = 512f,
+        double sealedAt = 5d / 6, double openAt = 1d / 3)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(regions);
@@ -105,9 +109,9 @@ public static class VisOutside
             foreach (var direction in AllDirections)
                 if (space.Blocked(centre, direction))
                     enclosed++;
-            if (enclosed >= AllDirections.Length * 5 / 6)
+            if (enclosed >= (int)(AllDirections.Length * sealedAt))
                 status[i] = Status.Inside;
-            else if (enclosed <= AllDirections.Length / 3)
+            else if (enclosed <= (int)(AllDirections.Length * openAt))
                 status[i] = Status.Outside;
         }
 

@@ -74,4 +74,43 @@ public class VisOutsideTests(ITestOutputHelper output)
         var spread = (counts.Max() - counts.Min()) / (double)counts.Min();
         Assert.True(spread < 0.02, $"the reach moved the count by {spread:P2}, so it is carrying the answer");
     }
+
+    /// <summary>
+    /// And it does not hinge on the seed's thresholds either.
+    ///
+    /// <para>The compile's seed is a threshold tree over four counters from a
+    /// gather whose record type is not decoded, so the two ratios here are OURS.
+    /// A number we chose landing on Valve's to the unit is either the answer or a
+    /// fit, and the way to tell them apart is to move the knob: if a wide range
+    /// of thresholds all land on 10,554, the thresholds are not what is producing
+    /// it.</para>
+    /// </summary>
+    [Fact]
+    public void TheAnswerDoesNotHingeOnTheSeedThresholdsEither()
+    {
+        var specimen = Maps[0];
+        if (VisFixtures.RayTraceScene(specimen.Addon, specimen.Map) is not var (rte, valve))
+            return;
+
+        var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
+        var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
+                 / VisVoxelizer.VoxelsPerLeaf;
+        var regions = VisRegions.Build(tree, side);
+
+        var counts = new List<int>();
+        foreach (var sealedAt in new[] { 0.70, 0.80, 5d / 6, 0.90, 0.96 })
+            foreach (var openAt in new[] { 0.10, 0.25, 1d / 3, 0.45 })
+            {
+                var result = VisOutside.Detect(tree, regions, rte.Mins, rte.Maxs, valve.GridSize,
+                                               sealedAt: sealedAt, openAt: openAt);
+                counts.Add(result.Inside);
+                output.WriteLine($"  sealed at {sealedAt:P0}, open at {openAt:P0}: {result.Inside,7:n0}");
+            }
+
+        var spread = (double)(counts.Max() - counts.Min()) / counts.Min();
+        output.WriteLine($"{specimen.Map,-16} {counts.Min():n0} to {counts.Max():n0} over"
+                       + $" {counts.Count} threshold pairs, {spread:P2} spread");
+        Assert.True(spread <= 0.02,
+            $"the seed thresholds move the enclosed count by {spread:P2}, so they are carrying the answer");
+    }
 }

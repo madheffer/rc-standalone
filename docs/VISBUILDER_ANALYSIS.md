@@ -101,10 +101,19 @@ and the compiled file packs the same thing into 8 bytes as
 side. That correspondence is why the in-memory reading can be trusted against
 shipped files at all.
 
-**Flag bit 0 means outside**, set by the outside pass, stopped on by the ray
-march, and excluded from the region count. Bit 1 is set when the region is
-created and also excludes it. The count the compile prints is the regions with
+**A region's flag bit 0 means outside**, set by the outside pass, stopped on by
+the ray march, and excluded from the region count. Bit 1 is set when the region
+is created and also excludes it. The count the compile prints is the regions with
 neither.
+
+**The NODE word's bit 0 is something else entirely, and confusing the two costs a
+day.** A node is `(payload << 1) | isLeaf`, where the payload is the first child
+for a branch and the first region for a leaf; `18002e310` clears it when it
+subdivides and sets it when it does not. Reading that `|= 1` as an outside flag
+suggests that every empty leaf is settled outside before the outside pass runs,
+which is a tidy story and is wrong: implemented, it takes ze_hold_em_p's enclosed
+count from exactly right to -72%. `VisNode.Decode` in our own reader has said
+`(first & 1) != 0` is `IsLeaf` the whole time, which is what settled it.
 
 ---
 

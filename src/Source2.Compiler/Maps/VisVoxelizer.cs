@@ -107,7 +107,8 @@ public static class VisVoxelizer
         var branches = new int[BitOperations.Log2((uint)side) + 1];
         var cells = new HashSet<(int Level, (int X, int Y, int Z) Cell)>();
         var all = Enumerable.Range(0, triangles.Count).ToArray();
-        Descend(origin, side, all, triangles, coarseOnly, baseVoxelSize, (0, 0, 0), masks, branches, cells);
+        Descend(origin, side, all, triangles, coarseOnly, baseVoxelSize, (0, 0, 0),
+                masks, branches, cells);
 
         // The leaf level has no branches of its own, and the array is indexed from
         // it, so the root's level is last and the count reads leaf-first.
@@ -172,11 +173,11 @@ public static class VisVoxelizer
                 if (Overlaps(triangles[t], centre, childSize))
                     kept.Add(t);
             }
+            var childCell = (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
+                             cell.Z * 2 + ((octant >> 2) & 1));
             if (kept.Count == 0)
                 continue;
-            Descend(corner, half, [.. kept], triangles, coarseOnly, voxel,
-                    (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
-                     cell.Z * 2 + ((octant >> 2) & 1)),
+            Descend(corner, half, [.. kept], triangles, coarseOnly, voxel, childCell,
                     masks, branches, branchCells);
         }
     }
