@@ -73,6 +73,36 @@ public static class VisRegions
     }
 
     /// <summary>
+    /// Every leaf's regions collapsed to at most three, which is
+    /// <c>180032670</c>. It runs between outside detection and the cluster
+    /// stage, so the count the compile prints as "Generated clusters for N
+    /// regions" is taken AFTER it.
+    ///
+    /// <para>That is worth stating plainly because it changes what the number
+    /// means: a leaf contributes ONE enclosed region however many boxes it was
+    /// cut into, so N is the number of leaves holding any enclosed space at all.
+    /// The three the compile keeps are the union of the enclosed masks, the
+    /// union of the outside ones, and the solid voxels, tagged 0, 1 and 2 in the
+    /// region's own low bits; only the first is counted or clustered.</para>
+    /// </summary>
+    public static Result Compact(Result regions, IReadOnlyList<VisOutside.Status> status)
+    {
+        ArgumentNullException.ThrowIfNull(regions);
+        ArgumentNullException.ThrowIfNull(status);
+
+        var enclosed = new ulong[regions.Leaves.Count];
+        for (var i = 0; i < regions.Regions.Count; i++)
+            if (status[i] == VisOutside.Status.Inside)
+                enclosed[regions.Regions[i].Leaf] |= regions.Regions[i].Open;
+
+        var kept = new List<Region>();
+        for (var leaf = 0; leaf < enclosed.Length; leaf++)
+            if (enclosed[leaf] != 0)
+                kept.Add(new Region(leaf, enclosed[leaf]));
+        return new Result(regions.Leaves, kept);
+    }
+
+    /// <summary>
     /// A leaf's open space cut into regions, which is <c>18010c3f0</c>.
     ///
     /// <para>It is NOT connected components, and that is the single thing about

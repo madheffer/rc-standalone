@@ -36,7 +36,13 @@ behaviour, so they carry a description rather than a symbol.
 | `180031f00` | the voxel stage driver | logs `Voxelize (%.f units) took...` and `Assigned %d clusters...`, and calls the four below in order |
 | `18002e310` | voxelize | the call the Voxelize timer brackets; takes the voxel size as a float |
 | `1800321f0` | **outside detection** | the only function referencing `Outside detection took %.2f seconds` |
-| `180032670` | region compaction | rewrites each leaf's regions to a merged pair, writing `(node << 2) | bits` |
+| `18003c010` | the visibility driver | reads every `ResourceCompiler/VisBuilder/...` config key, then `180031f00` and `180036850` |
+| `180031f00` | the voxel stage driver | voxelize, outside, COMPACT, work out the cluster target from the enclosed volume, then `MergeInsideRegions` |
+| `180032670` | region compaction | runs BEFORE the printed region count and collapses each leaf's regions to at most three: enclosed, outside, solid, tagged 0, 1 and 2 |
+| `18002beb0` | candidate boxes for a region | splits the box against the three hint lists; with no hints it emits the box itself and nothing else |
+| `18002bcd0` | split a box against one hint, and recurse | calls `18002beb0` back |
+| `18002f5c0` | the distance pre-merge | logs `Distance merged regions (%d merged to %d)` and `pre-merged to %d clusters` |
+| `180034220` | `MergeClusterSet`, called FIVE times | a grid of 512, 512, 2048, 2048 then 4096 units, with budgets of 6, 5.75, 4.5, 4.25 and 3 times the target |
 | `180032b80` | the region count the compile prints | fills a vector with the regions whose flag bits 0 and 1 are both clear, immediately before `MergeInsideRegions` logs the count |
 | `18002e050` | classify one region as inside or outside | called per region by outside detection |
 | `18002deb0` | cast one ray through the voxel octree | called per candidate ray by the classifier |

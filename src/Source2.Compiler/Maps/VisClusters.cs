@@ -58,20 +58,15 @@ public static class VisClusters
     /// would print as "N clusters generated" if nothing merged, and it is the
     /// number it does print for every region with 32 or fewer open voxels.
     /// </summary>
-    public static List<Cluster> Born(
-        VisVoxelizer.Octree tree, VisRegions.Result regions,
-        IReadOnlyList<VisOutside.Status> status)
+    public static List<Cluster> Born(VisVoxelizer.Octree tree, VisRegions.Result compacted)
     {
         ArgumentNullException.ThrowIfNull(tree);
-        ArgumentNullException.ThrowIfNull(regions);
-        ArgumentNullException.ThrowIfNull(status);
+        ArgumentNullException.ThrowIfNull(compacted);
 
+        var regions = compacted;
         var found = new List<Cluster>();
         for (var i = 0; i < regions.Regions.Count; i++)
         {
-            if (status[i] != VisOutside.Status.Inside)
-                continue;
-
             var region = regions.Regions[i];
             var leaf = regions.Leaves[region.Leaf];
             var side = tree.LeafSize * (1 << leaf.Level);
@@ -103,19 +98,16 @@ public static class VisClusters
     /// about what the merge always does, and the sampler is what tests it.</para>
     /// </summary>
     public static int Count(
-        VisVoxelizer.Octree tree, VisRegions.Result regions,
-        IReadOnlyList<VisOutside.Status> status, RayTraceEnvironment? scene = null)
+        VisVoxelizer.Octree tree, VisRegions.Result compacted, RayTraceEnvironment? scene = null)
     {
         ArgumentNullException.ThrowIfNull(tree);
-        ArgumentNullException.ThrowIfNull(regions);
-        ArgumentNullException.ThrowIfNull(status);
+        ArgumentNullException.ThrowIfNull(compacted);
 
+        var regions = compacted;
         var total = 0;
         var counts = new int[regions.Regions.Count];
         Parallel.For(0, regions.Regions.Count, i =>
         {
-            if (status[i] != VisOutside.Status.Inside)
-                return;
             var region = regions.Regions[i];
             var open = System.Numerics.BitOperations.PopCount(region.Open);
             if (open <= MergeTarget || scene is null)
@@ -139,20 +131,77 @@ public static class VisClusters
     /// so the count is the popcounts of the small regions plus one per large.
     /// Instant, and identical to <see cref="Merge"/> on every map measured.
     /// </summary>
-    public static int Uniform(VisRegions.Result regions, IReadOnlyList<VisOutside.Status> status)
+    public static int Uniform(VisRegions.Result compacted)
     {
-        ArgumentNullException.ThrowIfNull(regions);
-        ArgumentNullException.ThrowIfNull(status);
+        ArgumentNullException.ThrowIfNull(compacted);
 
         var total = 0;
-        for (var i = 0; i < regions.Regions.Count; i++)
+        foreach (var region in compacted.Regions)
         {
-            if (status[i] != VisOutside.Status.Inside)
-                continue;
-            var open = System.Numerics.BitOperations.PopCount(regions.Regions[i].Open);
+            var open = System.Numerics.BitOperations.PopCount(region.Open);
             total += open > MergeTarget ? 1 : open;
         }
         return total;
+    }
+
+    /// <summary>Cubic units of enclosed space a cluster is worth (<c>_DAT_18017f0f8</c>, 2^-20).</summary>
+    public const double VolumePerCluster = 1048576d;
+
+    /// <summary>The ceiling the config caps the target at, times four.</summary>
+    public const int MaxVisClusters = 2048;
+
+    /// <summary>
+    /// The cluster count the whole merge aims at, which <c>180031f00</c> works
+    /// out from the enclosed VOLUME before <c>MergeInsideRegions</c> runs:
+    ///
+    /// <code>
+    /// t = (int)(volume / 2^20)
+    /// target = t &lt; 1 ? 32 : max(32, (t + 33) &amp; ~31)
+    /// target = min(target, MaxVisClusters * 4)
+    /// </code>
+    ///
+    /// <para>It is worth more than its own stage. The compile prints it as
+    /// "Target N clusters", so it is a number to hit, and it depends on nothing
+    /// but the compacted regions and their boxes. Landing on it is a check that
+    /// the octree, the masks, the outside pass and the compaction are ALL right,
+    /// with no ray sampling involved at all.</para>
+    /// </summary>
+    public static int TargetClusters(VisVoxelizer.Octree tree, VisRegions.Result compacted)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        ArgumentNullException.ThrowIfNull(compacted);
+
+        var volume = 0d;
+        foreach (var region in compacted.Regions)
+        {
+            var leaf = compacted.Leaves[region.Leaf];
+            var side = tree.LeafSize * (1 << leaf.Level);
+            var (mins, maxs) = Box(side * SubCell, region.Open);
+            volume += (double)(maxs.X - mins.X) * (maxs.Y - mins.Y) * (maxs.Z - mins.Z);
+        }
+
+        var wanted = (int)(volume / VolumePerCluster);
+        var target = wanted < 1 ? 32 : Math.Max(32, (wanted + 0x21) & ~0x1f);
+        return Math.Min(target, MaxVisClusters * 4);
+    }
+
+    /// <summary>
+    /// A mask's box within its leaf, which is <c>18010be50</c>: the corners of
+    /// the set sub-cells, in leaf-local units.
+    /// </summary>
+    public static (Vector3 Mins, Vector3 Maxs) Box(float sub, ulong mask)
+    {
+        var lo = new Vector3(float.MaxValue);
+        var hi = new Vector3(float.MinValue);
+        for (var bit = 0; bit < 64; bit++)
+        {
+            if ((mask & (1UL << bit)) == 0)
+                continue;
+            var at = new Vector3(bit & 3, (bit >> 2) & 3, (bit >> 4) & 3) * sub;
+            lo = Vector3.Min(lo, at);
+            hi = Vector3.Max(hi, at + new Vector3(sub));
+        }
+        return mask == 0 ? (Vector3.Zero, Vector3.Zero) : (lo, hi);
     }
 
     /// <summary>

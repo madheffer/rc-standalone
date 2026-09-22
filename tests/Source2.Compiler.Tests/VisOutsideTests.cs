@@ -19,8 +19,8 @@ public class VisOutsideTests(ITestOutputHelper output)
     private static readonly Specimen[] Maps =
     [
         new("s2c_lighting", "ze_hold_em_p", 10_554, 0),
-        new("s2c_rc_probe", "cardtest", 7_416, 0.024),
-        new("s2c_rc_probe", "probe01", 7_316, 0.024),
+        new("s2c_rc_probe", "cardtest", 7_416, 0.004),
+        new("s2c_rc_probe", "probe01", 7_316, 0.001),
     ];
 
     [Fact]
@@ -37,14 +37,19 @@ public class VisOutsideTests(ITestOutputHelper output)
             var regions = VisRegions.Build(tree, side);
             var result = VisOutside.Detect(tree, regions, rte, valve.GridSize);
 
-            var error = (double)result.Inside / specimen.Target - 1;
-            output.WriteLine($"{specimen.Map,-16} inside {result.Inside,7:n0}  outside {result.Outside,7:n0}"
+            // The compile compacts every leaf's regions to at most three BEFORE
+            // it prints this count, so the number to score is the leaves holding
+            // any enclosed space, not the enclosed boxes.
+            var compact = VisRegions.Compact(regions, result.Regions);
+            var counted = compact.Regions.Count;
+            var error = (double)counted / specimen.Target - 1;
+            output.WriteLine($"{specimen.Map,-16} compacted {counted,7:n0}  from inside {result.Inside,7:n0}"
                 + $"  of {regions.Regions.Count,7:n0}   compile {specimen.Target,7:n0}  {error,8:P2}"
                 + $"   ({result.Passes} passes)");
 
-            Assert.True(result.Inside > 0, $"{specimen.Map}: nothing came out enclosed");
+            Assert.True(counted > 0, $"{specimen.Map}: nothing came out enclosed");
             Assert.True(Math.Abs(error) <= specimen.Tolerance,
-                $"{specimen.Map}: {result.Inside:n0} enclosed regions against the compile's "
+                $"{specimen.Map}: {counted:n0} enclosed regions against the compile's "
               + $"{specimen.Target:n0}, {error:P2} off");
         }
     }
@@ -101,7 +106,7 @@ public class VisOutsideTests(ITestOutputHelper output)
         foreach (var quality in new[] { 3, 4, 5, 6, 8 })
         {
             var result = VisOutside.Detect(tree, regions, rte, valve.GridSize, quality: quality);
-            counts.Add(result.Inside);
+            counts.Add(VisRegions.Compact(regions, result.Regions).Regions.Count);
             output.WriteLine($"  {quality}x{quality} rays a face: {result.Inside,7:n0}"
                            + $"  {(double)result.Inside / specimen.Target - 1,8:P2}");
         }

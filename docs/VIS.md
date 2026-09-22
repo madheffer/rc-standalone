@@ -976,9 +976,50 @@ probe01 lands at **+0.19%** the same way. ze_hold_em_p is unmoved and exact at
 every step, which is the test that mattered: neither change is a fit, because
 neither has anywhere to hide on the map that was already right.
 
-What is still open is the enclosed REGION count on the probe maps, now 2.3% HIGH
-where the cluster count is 0.5% high. We are splitting some leaves into more
-boxes than the compile does, which means a handful of leaf masks still differ.
+### The printed region count is taken AFTER compaction
+
+`180032670` runs between outside detection and the cluster stage, and it
+collapses every leaf's regions to at most three: the union of its enclosed
+masks, the union of its outside ones, and its solid voxels, tagged 0, 1 and 2 in
+the region's own low bits. Only the first is counted or clustered.
+
+So "Generated clusters for N regions" is **the number of leaves holding any
+enclosed space at all**, not the number of enclosed boxes. The order in
+`180031f00` is unambiguous - voxelize, `1800321f0`, `180032670`, then
+`MergeInsideRegions` which prints the count - and reading it in the wrong order
+is what left the probe maps 2.3% high on a number that is not the one the
+compile prints:
+
+| enclosed regions | before | after compaction |
+|---|---|---|
+| ze_hold_em_p | 10,554 (exact) | **10,554 (exact)** |
+| cardtest | 7,589 (+2.33%) | **7,445 (+0.39%)** |
+| probe01 | 7,445 (+1.76%) | **7,314 (-0.03%)** |
+
+### The target cluster count, which is the cheapest strong check in the stage
+
+`180031f00` works out what the whole merge will aim at before any of it runs,
+from the enclosed VOLUME alone:
+
+```
+volume = sum of the box volumes of the compacted enclosed regions
+t      = (int)(volume / 2^20)
+target = t < 1 ? 32 : max(32, (t + 33) & ~31)
+target = min(target, MaxVisClusters * 4)        // MaxVisClusters is 2048
+```
+
+and the compile prints it, as `Target 1344 clusters, clamped to 1342`. It costs
+nothing to evaluate, there is no ray or cost function in it, and it lands
+**exactly** on all three maps:
+
+| | ze_hold_em_p | cardtest | probe01 |
+|---|---|---|---|
+| ours | **1,344** | **864** | **864** |
+| compile | 1,344 | 864 | 864 |
+
+That is a single number that only comes out right if the octree, the leaf masks,
+the outside pass and the compaction are all right together, so it is now the
+first thing to check when any of them changes.
 
 It also means `LeafMasks` is keyed by (level, cell) rather than by cell, because
 a mask is 4x4x4 over the node's OWN box whatever size that is.

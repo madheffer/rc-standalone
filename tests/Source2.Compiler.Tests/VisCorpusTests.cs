@@ -50,12 +50,13 @@ public class VisCorpusTests(ITestOutputHelper output)
                      / VisVoxelizer.VoxelsPerLeaf;
             var regions = VisRegions.Build(tree, side);
             var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
-            var clusters = VisClusters.Count(tree, regions, inside.Regions);
+            var compact = VisRegions.Compact(regions, inside.Regions);
+            var clusters = VisClusters.Count(tree, compact);
 
             var traced = Enumerable.Range(0, rte.TriangleCount).Count(rte.Traced);
             output.WriteLine($"{row.Map,-46} {Score("triangles", traced, row.Triangles, row.Map, misses)}"
                            + $" {Score("nodes", tree.Nodes, row.Nodes, row.Map, misses)}"
-                           + $" {Score("regions", inside.Inside, row.Regions, row.Map, misses)}"
+                           + $" {Score("regions", compact.Regions.Count, row.Regions, row.Map, misses)}"
                            + $" {Score("clusters", clusters, row.Clusters, row.Map, misses)}");
             scored++;
         }

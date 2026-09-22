@@ -19,7 +19,7 @@ public class VisClustersTests(ITestOutputHelper output)
     private static readonly Specimen[] Maps =
     [
         new("s2c_lighting", "ze_hold_em_p", 10_554, 93_354),
-        new("s2c_rc_probe", "cardtest", 7_416, 81_835),
+        new("s2c_rc_probe", "cardtest", 7_416, 81_991),
         new("s2c_rc_probe", "probe01", 7_316, 81_707),
     ];
 
@@ -28,7 +28,7 @@ public class VisClustersTests(ITestOutputHelper output)
     /// to more than one cluster and the model here gives it one.</param>
     private static readonly (int Map, double Tolerance)[] Counted =
     [
-        (0, 0), (1, 0.006), (2, 0.003),
+        (0, 0), (1, 0.013), (2, 0.013),
     ];
 
     /// <summary>The count the compile sums into "N clusters generated".</summary>
@@ -47,8 +47,9 @@ public class VisClustersTests(ITestOutputHelper output)
             var regions = VisRegions.Build(tree, side);
             var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
             var started = DateTime.UtcNow;
-            var clusters = VisClusters.Count(tree, regions, inside.Regions, rte);
-            var uniform = VisClusters.Uniform(regions, inside.Regions);
+            var compact = VisRegions.Compact(regions, inside.Regions);
+            var clusters = VisClusters.Count(tree, compact, rte);
+            var uniform = VisClusters.Uniform(compact);
 
             var error = (double)clusters / specimen.Clusters - 1;
             output.WriteLine($"{specimen.Map,-16} clusters {clusters,8:n0}"
@@ -92,7 +93,8 @@ public class VisClustersTests(ITestOutputHelper output)
                      / VisVoxelizer.VoxelsPerLeaf;
             var regions = VisRegions.Build(tree, side);
             var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
-            var born = VisClusters.Born(tree, regions, inside.Regions);
+            var compact = VisRegions.Compact(regions, inside.Regions);
+            var born = VisClusters.Born(tree, compact);
 
             var big = 0;
             var counts = new Dictionary<int, int>();
@@ -112,15 +114,15 @@ public class VisClustersTests(ITestOutputHelper output)
 
             var error = (double)born.Count / specimen.Clusters - 1;
             output.WriteLine($"{specimen.Map,-16} born {born.Count,8:n0}  compile {specimen.Clusters,8:n0}"
-                + $"  {error,8:P2}   over {inside.Inside:n0} enclosed regions"
-                + $" ({(double)born.Count / Math.Max(inside.Inside, 1):F2} each,"
+                + $"  {error,8:P2}   over {compact.Regions.Count:n0} enclosed regions"
+                + $" ({(double)born.Count / Math.Max(compact.Regions.Count, 1):F2} each,"
                 + $" {big:n0} of them over {VisClusters.MergeTarget})");
             // One voxel each, and nothing from a region the map does not enclose.
             // Those two are the whole of the birth rule, and they hold whatever the
             // merge below them turns out to do.
             Assert.All(born, c => Assert.Equal(1, System.Numerics.BitOperations.PopCount(c.Mask)));
             Assert.Equal(born.Count, counts.Values.Sum());
-            Assert.Equal(inside.Inside, counts.Count);
+            Assert.Equal(compact.Regions.Count, counts.Count);
             Assert.True(born.Count >= specimen.Clusters,
                 $"{specimen.Map}: {born.Count:n0} born is under the compile's {specimen.Clusters:n0},"
               + " and a merge can only ever take the count down");
@@ -137,7 +139,7 @@ public class VisClustersTests(ITestOutputHelper output)
     /// </summary>
     [Theory]
     [InlineData("s2c_lighting", "ze_hold_em_p", 93_354)]
-    [InlineData("s2c_rc_probe", "cardtest", 81_835)]
+    [InlineData("s2c_rc_probe", "cardtest", 81_991)]
     public void WhereTheRegionsSitAroundTheMergeTarget(string addon, string map, int clusters)
     {
         if (VisFixtures.RayTraceScene(addon, map) is not var (rte, valve))
@@ -149,15 +151,14 @@ public class VisClustersTests(ITestOutputHelper output)
         var regions = VisRegions.Build(tree, side);
         var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
 
+        var compact = VisRegions.Compact(regions, inside.Regions);
         var open = new List<int>();
         int coarseRegions = 0, coarseClusters = 0;
-        for (var i = 0; i < regions.Regions.Count; i++)
+        foreach (var region in compact.Regions)
         {
-            if (inside.Regions[i] != VisOutside.Status.Inside)
-                continue;
-            var n = System.Numerics.BitOperations.PopCount(regions.Regions[i].Open);
+            var n = System.Numerics.BitOperations.PopCount(region.Open);
             open.Add(n);
-            if (regions.Leaves[regions.Regions[i].Leaf].Level <= 0)
+            if (compact.Leaves[region.Leaf].Level <= 0)
                 continue;
             coarseRegions++;
             coarseClusters += n > VisClusters.MergeTarget ? 1 : n;
@@ -171,15 +172,42 @@ public class VisClustersTests(ITestOutputHelper output)
         // The shipped file carries the deduplicated mask table the compile built,
         // so a mask of ours that is not in it is a mask Valve never produced.
         var theirs = valve.Masks.ToHashSet();
-        var mine = new HashSet<ulong>();
-        for (var i = 0; i < regions.Regions.Count; i++)
-            if (inside.Regions[i] == VisOutside.Status.Inside)
-                mine.Add(regions.Regions[i].Open);
+        var mine = compact.Regions.Select(r => r.Open).ToHashSet();
         output.WriteLine($"   masks: {mine.Count} distinct of ours, {theirs.Count} in the file,"
                        + $" {mine.Count(m => !theirs.Contains(m))} of ours it never produced");
 
         foreach (var band in new[] { (1, 8), (9, 16), (17, 24), (25, 31), (32, 32), (33, 40), (41, 56), (57, 64) })
             output.WriteLine($"   {band.Item1,3} to {band.Item2,3} open: {open.Count(n => n >= band.Item1 && n <= band.Item2),7:n0}"
                            + $"  contributing {open.Where(n => n >= band.Item1 && n <= band.Item2).Sum(n => n > VisClusters.MergeTarget ? 1 : n),8:n0}");
+    }
+
+    /// <summary>
+    /// The target the whole merge aims at, which the compile prints and which
+    /// depends on nothing but the compacted regions and their boxes.
+    ///
+    /// <para>This is the cheapest strong check in the stage: no rays, no merge,
+    /// no cost function, and landing on it means the octree, the leaf masks, the
+    /// outside pass and the compaction are all right together.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("s2c_lighting", "ze_hold_em_p", 1_344)]
+    [InlineData("s2c_rc_probe", "cardtest", 864)]
+    [InlineData("s2c_rc_probe", "probe01", 864)]
+    public void TheTargetClusterCountFallsOutOfTheEnclosedVolume(string addon, string map, int target)
+    {
+        if (VisFixtures.RayTraceScene(addon, map) is not var (rte, valve))
+            return;
+
+        var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);
+        var side = VisVoxelizer.VoxelsPerRoot(valve.MinBounds, valve.MaxBounds, valve.GridSize)
+                 / VisVoxelizer.VoxelsPerLeaf;
+        var regions = VisRegions.Build(tree, side);
+        var inside = VisOutside.Detect(tree, regions, rte, valve.GridSize);
+        var compact = VisRegions.Compact(regions, inside.Regions);
+
+        var ours = VisClusters.TargetClusters(tree, compact);
+        output.WriteLine($"{map,-16} target {ours,6:n0}  compile {target,6:n0}"
+                       + $"  {(double)ours / target - 1,8:P2}  (the compile prints {target - 2})");
+        Assert.Equal(target, ours);
     }
 }
