@@ -2865,3 +2865,56 @@ merger takes each cluster's bounds from its box list.
 One earlier measurement now has its reason. The sun's first trace ran in batch
 mode 0 although the code computes `(DisableCullingForShadows ^ 1) * 2`:
 CS2's gameinfo sets `BakedLighting { DisableCullingForShadows 1 }`.
+
+### What the world renderer does with them
+
+Reversed from the 2026-09-23 resourcecompiler; the Valve outputs below were
+compiled with that build (probe01, ze_hold_em_p, ze_doom_p2, Mako; c2m2 is
+older and agrees).
+
+Only two parts of the world renderer ask the context for the blocks: the mesh
+clustering, which reads both, and `PrecomputeLightVisMembership`, which reads
+the box list.
+
+**Mesh clustering** (`CVisibilityMeshMerger`) runs three times per world node,
+once per mesh list, and each run logs "Splitting geometry using visibility".
+
+- Each cluster's bounds are the union of its boxes. A cluster with no boxes
+  never matches.
+- A mesh's candidates are the clusters whose bounds overlap the mesh bounds
+  (touching counts) and one of whose boxes does too.
+- A triangle's membership: for each candidate in id order, a box-triangle
+  separating-axis test with 0.001 tolerance against the cluster bounds, then
+  against its boxes; the first box that overlaps adds the cluster. A triangle
+  that would need more than `MaxPrecomputedVisClusterMembership` (16) clusters
+  fails.
+- Triangles with the same membership list become one mesh (grouped by a hash
+  of the ids, seed 0x3501a674). Triangles in no cluster make one leftover mesh
+  and failed triangles another.
+- Small meshes are then merged. The minimums from gameinfo are scaled per pass:
+  x4 (volume x8) with growth limit 1.1 and membership slack 0, then x1 with
+  limit 1000 and slack 16, the pair repeated while the second merges; then x2
+  with 1.25 and slack 1; then x16 with 1.1 and slack 0, repeated while it
+  merges. A pair is rejected when the union box volume over the larger box
+  volume passes the limit, or when the merged list outgrows both lists by more
+  than the slack.
+- Partners are meshes that share a cluster inside the mesh bounds grown by 240,
+  with at most 65,535 vertices and 16 clusters merged. The score multiplies
+  `M[a][b]` over every cluster `a` the merge adds and every cluster `b` the
+  partner has, rounded to twentieths; an empty matrix scores 1.
+
+The lists steer only how geometry is cut into meshes. Every node checked writes
+`m_visClusterMembership = [  ]` on the node and on each aggregate, every
+`m_nVisClusterMemberOffset` and `m_nVisClusterMemberCount` as 0, and no scene
+object carries `OBJECT_TYPE_PRECOMPUTED_VISMEMBERS` (0x4000, the flag that
+would add `m_VisClusterMemberBits`).
+
+**Light membership** would give `light_barn`, `light_rect` and `light_omni2`
+a sorted `precomputed_vis_clusters` key. It needs a context flag,
+`direct_light_shadows` and an in-process lighting bake; the flag's only store
+in the binary is the constructor's zero, and none of the 679 such lights in
+Mako, ze_hold_em_p, ze_doom_p2 and c2m2 carries the key.
+
+So a matching world node needs from vis the vvis and these two blocks exactly,
+because they decide the mesh split, and nothing more. The merger itself belongs
+to the world renderer port.

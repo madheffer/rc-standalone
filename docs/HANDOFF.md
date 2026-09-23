@@ -271,7 +271,7 @@ These are the operator's, and they are not negotiable.
 | `VisBorders` | border sampling, the entry rewrite, `AssignClusters2` |
 | `VisSky`, `VisSun` | sky and sun visibility |
 | `VisCollapse` | the resolution collapse |
-| `VisOutput` | the VXVS assembled from the final state |
+| `VisOutput` | the VXVS assembled from the final state, and the two blocks the world renderer reads |
 
 Two fixes from this session are worth knowing about because both were invisible
 to the tests that existed:
@@ -295,7 +295,7 @@ to the tests that existed:
 | piece | what is known |
 |---|---|
 | wiring into the compiler | the stages exist as functions and a test chain, not yet as a `vvis_c` the compiler writes. |
-| signatures | the post-assignment functions are pinned by RVA in `capture_pvs.py`, not yet in `visbuilder.signatures.json`. |
+| the world renderer's mesh merger | reads the two blocks vis hands over (`FlatVisClusterVector`, `MutualVisibilityMatrix`) to cut and merge world meshes; reversed in VIS.md, "What the world renderer does with them", and part of the world renderer port, not vis. |
 | `-updateloshints` and the legacy sampler | non-deterministic paths a stock compile does not take (`DeterministicBuild 1`); not ported. |
 
 CLOS is ported and measured: in the deterministic build it can contribute
@@ -310,8 +310,8 @@ nothing whatever `los_errors` holds (VIS.md, "CLOS, and the big-map paths").
    `TheWholeBuild`'s chain as the reference order.
 2. **More specimens.** Three maps are exact; a map with nodraw, hint entities
    or `vis_voxel_size` override volumes (the list at sampler+0x88 in
-   `Voxelize`) exercises code paths none of these do, and a map above 10,240
-   clusters is needed for the partitioned merge and large-region pairs.
+   `Voxelize`) exercises code paths none of these do. Mako covers the big-map
+   paths except the large-region generator, whose replay is unfinished.
 3. **One fidelity item recorded and not fixed.** `NormaliseSlowPath` (lengths
    under 1e-17 or over 1e17) is approximated with a double normalise in three
    places; no specimen reaches it.
