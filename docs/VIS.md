@@ -1,10 +1,9 @@
-> **Addresses in this file are for the visbuilder.dll of 2026-07-09** (1,841,304
-> bytes), which is the build the Ghidra project holds and the one all of it was
-> read out of. CS2 rebuilt on 2026-09-23 and every one of them moved. Do not
-> re-read them by hand: `docs/visbuilder.signatures.json` finds them by shape in
-> whatever build is installed, `python tools/sigscan.py <visbuilder.dll>` prints
-> the new address of each, and 91 of the 94 survived that rebuild. See
-> "Addresses do not survive a game update" at the end.
+> **Addresses in this file are for the visbuilder.dll of 2026-07-09**, which is
+> the build they were read out of. CS2 rebuilt on 2026-09-23 and every one of
+> them moved. Do not re-read them by hand and do not rewrite them here: section 9
+> of [`REVERSING.md`](REVERSING.md) translates all 94 old to new, and
+> `python tools/sigscan.py <visbuilder.dll>` prints them for whatever build is
+> installed. `REVERSING.md` is also the procedure for the next update.
 
 # Visibility: the structure, the tool, and where a replacement starts
 
@@ -2579,68 +2578,51 @@ coverage gap happens in the five passes.
 
 On 2026-09-23 CS2 rebuilt and every address in this file moved at once.
 `0x18017f128`, the coarse weight, went from holding `0.25` to holding the ASCII
-of `idates()`. Four tests failed, and the one that failed most usefully was
-`VisMergeCostTests`, which reads the constants back out of the DLL on purpose --
-though its message said "visbuilder.dll has 2.03e-110, we use 0.25", which reads
-as though OUR number were wrong when what was wrong was the build it was looking
-at.
+of `idates()`. Doing that by hand once is research; doing it every patch is not,
+so the addresses are derived now rather than quoted.
 
-Doing that by hand once is research. Doing it again every patch is not, so the
-addresses are now derived rather than quoted.
+`docs/visbuilder.signatures.json` holds, per symbol, the bytes around it with the
+ones the linker moves blanked out, and `tools/sigscan.py` resolves them against
+any build. [`REVERSING.md`](REVERSING.md) is the whole procedure: what is
+installed, the five steps of an update, how a signature is built, how to recover
+one that broke, and where names come from. The short version of the result:
 
-### How it works
+| | 2026-07-09 build | 2026-09-23 build |
+|---|---|---|
+| symbols in the manifest | 94 of 97 | **97 of 97** |
+| known constants read back and matched | -- | **18 of 18** |
 
-`docs/visbuilder.signatures.json` holds, for each symbol, the BYTES around it
-with the ones the linker moves blanked out. `MakeSignatures.java` in the Ghidra
-scripts directory writes it, and the blanks are not guessed: Ghidra knows which
-BITS of an instruction encode each operand, so for any operand carrying a
-reference -- a call's `rel32`, a RIP relative displacement -- `getOperandValueMask`
-says exactly which bytes to wildcard, and every other byte is kept verbatim. A
-pattern grows one instruction at a time until it matches exactly once.
+The manifest is signed against the 2026-09-23 build now and still reaches 94 of
+its 97 symbols backwards into the older one, which is the real evidence that the
+method is build agnostic rather than tuned to one image.
 
-A constant is not code and has no bytes worth matching, so it is signed by the
-instructions that READ it, up to four of them:
+### What the rebuild actually changed
 
-```json
-{ "name": "CoarseWeight", "kind": "data", "was": "18017f128", "sites": [
-  { "pattern": "F2 0F 10 0D ?? ?? ?? ?? 48 8B 9C ?? ?? ?? ?? ??", "disp": 4, "next": 8 } ] }
-```
+Three symbols needed recovering by hand, and what they turned out to be is worth
+recording because two of them looked like behaviour changes and were not:
 
-`F2 0F 10 0D` is `movsd xmm1, [rip+disp32]`; the four blanks are the
-displacement and the answer is `match + next + int32_at(match + disp)`. Several
-sites rather than one, because an update that rewrites one function takes its
-pattern with it and the next site is usually untouched -- and because two sites
-agreeing on an address is the strongest confirmation available. They must agree:
-a symbol whose sites disagree is reported as `split` and not used.
+- **`Normalise` was inlined.** The old `180109570` was a whole normalise, an
+  inline fast path guarded by a magnitude range with a double precision
+  fallback. The new build hoisted the fast path into all 17 callers and left the
+  fallback as `18010ac60`, 201 bytes against 391. Nothing about it behaves
+  differently.
+- **`SampleCluster` grew by 284 bytes and is otherwise identical.** An earlier
+  note here said Valve had changed the visibility sampler, which would have
+  mattered a great deal for the merge. **That was wrong.** Decompiling
+  `180032fa0` against the old `180031a20` shows the same reach from the set box
+  diagonal, the same `(flags & 1) == 0` choosing the reach over the hit
+  distance, and the same walk; the extra bytes are the normalise fast path
+  inlined into its direction loop. The signature broke because its BYTES
+  changed, which is not evidence about what it does.
+- **`AbsMask` had all four of its read sites inside functions that changed.**
+  Found again at `180182500` by reading which `DAT_` the new `CheapestPair`
+  takes as a mask, and confirming the bytes are `7fffffff` four times over.
 
-### Using it
+**Every one of the constants the port depends on came back with the same value.**
+Nothing Valve changed in this update touches what the vis compiler computes.
 
-```bash
-python tools/sigscan.py "D:/Steam/.../game/bin/win64/visbuilder.dll"
-```
-
-prints every symbol with its old address, its new one, and what happened, and
-exits non-zero if anything failed to resolve. `--names` narrows it, `--json`
-writes it out. `BinarySignatures` is the same resolver in C#, which is what
-`VisMergeCostTests` uses now: it looks constants up by NAME and asserts the
-values, so it keeps working across a rebuild and only fails when a number is
-actually wrong.
-
-### What the 2026-09-23 rebuild cost
-
-| | |
-|---|---|
-| symbols in the manifest | 94 (61 code, 33 data) |
-| resolved in the new build | **91 (96.8%)** |
-| known constants read back and matched | **18 of 18** |
-| lost | `Normalise`, `SampleCluster`, `AbsMask` |
-
-`AbsMask` is `0x7fffffff` and all four of its read sites were inside functions
-that changed. The other two are functions Valve rewrote -- and `SampleCluster`
-being one of them is worth its own note, because that is `180031a20`, the
-per cluster visibility sampler, which is the stage the merge is most sensitive
-to. Anyone re-reading the sampler should read the NEW one.
-
-`BinarySignatureTests` keeps the manifest honest: it fails if under 80% still
-resolves, naming what to re-sign, and separately checks that the constants it
-does find still hold the values the port uses.
+One fidelity item did fall out of it, and it is recorded here rather than fixed:
+the compile's normalise has a magnitude guard with a double precision path below
+and above it, and our `VisSeed.Directions` uses a plain `Vector3.Normalize`. For
+direction vectors built from a box's half extents the fast path always applies,
+so it is very unlikely to matter, but it has not been shown not to.
