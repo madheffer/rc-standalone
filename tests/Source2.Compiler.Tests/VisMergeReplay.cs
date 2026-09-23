@@ -327,7 +327,7 @@ public class VisMergeReplay(ITestOutputHelper output)
         {
             // The whole chain on our own input, compared at every pass entry.
             string Brief(VisMerge.Cluster c) => $"{c.Mins}{c.Maxs}|{c.VoxelCount}|{c.VoxelSize}|{c.Voxels.Count}";
-            var target = Environment.GetEnvironmentVariable("REPLAY_TARGET") is { Length: > 0 } t ? int.Parse(t) : VisClusters.TargetClusters(tree, compact);
+            var target = Environment.GetEnvironmentVariable("REPLAY_TARGET") is { Length: > 0 } t ? int.Parse(t) : VisClusters.PassTarget(tree, compact);
             VisClusterSet.MergeAll(rte, sets, target, cube, entering: (k, now) =>
             {
                 if (!Entries.TryGetValue(k, out var e))

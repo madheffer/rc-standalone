@@ -284,19 +284,35 @@ public static class VisClusters
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(compacted);
 
+        // Each region's volume is a FLOAT product, summed in double.
         var volume = 0d;
         foreach (var region in compacted.Regions)
         {
             var leaf = compacted.Leaves[region.Leaf];
             var side = tree.LeafSize * (1 << leaf.Level);
             var (mins, maxs) = Box(side * SubCell, region.Open);
-            volume += (double)(maxs.X - mins.X) * (maxs.Y - mins.Y) * (maxs.Z - mins.Z);
+            volume += (double)((maxs.X - mins.X) * (maxs.Y - mins.Y) * (maxs.Z - mins.Z));
         }
 
-        var wanted = (int)(volume / VolumePerCluster);
-        var target = wanted < 1 ? 32 : Math.Max(32, (wanted + 0x21) & ~0x1f);
-        return Math.Min(target, MaxVisClusters * 4);
+        // VoxelStageDriver would also cap the pre-merge's open space at 2^19 a
+        // run, from sampler+0x108 and +0x110, but it takes the target BEFORE
+        // MergeInsideRegions, which is where the pre-merge runs and fills them.
+        // In one compile they are still zero here, so the rule never fires:
+        // applying it takes probe01 to 606 against the compile's 862.
+        var wanted = (int)(volume * (1.0 / VolumePerCluster));
+        if (wanted < 1)
+            return Math.Min(32, MaxVisClusters * 4);
+        var target = (wanted + 0x21) & ~0x1f;
+        return target < 32 ? 32 : Math.Min(target, MaxVisClusters * 4);
     }
+
+    /// <summary>
+    /// What the five passes actually aim at: <see cref="TargetClusters"/> less
+    /// two, which is what <c>VoxelStageDriver</c> hands <c>MergeInsideRegions</c>
+    /// and what the compile prints as "[target N clusters]".
+    /// </summary>
+    public static int PassTarget(VisVoxelizer.Octree tree, VisRegions.Result compacted)
+        => TargetClusters(tree, compacted) - 2;
 
     /// <summary>
     /// The leaf cube lookup the sampling needs: a leaf index to its corner and

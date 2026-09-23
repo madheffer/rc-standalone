@@ -80,11 +80,17 @@ public class VisClusterSetTests(ITestOutputHelper output)
             Assert.True(Math.Abs((double)sets.Sum(x => x.Clusters.Count) / specimen.PreMerged - 1) <= specimen.Tolerance,
                 $"{specimen.Map}: pre-merged {sets.Sum(x => x.Clusters.Count):n0} against the compile's {specimen.PreMerged:n0}");
 
+            // Our own target, not the logged one: VoxelStageDriver's volume rule
+            // with the pre-merge's open space correction, less two.
+            var target = VisClusters.PassTarget(tree, compact);
+            output.WriteLine($"{specimen.Map,-16} target  {target,8:n0}  compile {specimen.Target,8:n0}");
+            Assert.Equal(specimen.Target, target);
+
             var seen = new List<(int Clusters, float Cost)>();
-            VisClusterSet.MergeAll(rte, sets, specimen.Target, VisClusters.Cubes(tree, compact), (n, c) =>
+            VisClusterSet.MergeAll(rte, sets, target, VisClusters.Cubes(tree, compact), (n, c) =>
             {
                 var pass = VisClusterSet.Passes[seen.Count];
-                var budget = (int)(specimen.Target * pass.Budget);
+                var budget = (int)(target * pass.Budget);
                 var perCell = (int)Math.Ceiling((double)budget / sets.Count);
                 var capped = sets.Count(b => b.Clusters.Count >= perCell);
                 output.WriteLine($"   pass {seen.Count + 1}: {n,7:n0} clusters, cost {c:F1}"
