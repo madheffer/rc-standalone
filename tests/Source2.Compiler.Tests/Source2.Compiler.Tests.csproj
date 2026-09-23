@@ -27,6 +27,11 @@
     <!-- Real resourcecompiler.exe inputs + outputs; the parity gate reads them
          from the source tree via a walk-up, and from the bin dir in a sandbox. -->
     <None Include="RcReference\**" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The byte signatures that find visbuilder.dll's addresses in whatever
+         build is installed. BinarySignatures walks up for it, so this copy is
+         only for a sandbox with no source tree above the binary. -->
+    <None Include="..\..\docs\visbuilder.signatures.json"
+          Link="docs\visbuilder.signatures.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

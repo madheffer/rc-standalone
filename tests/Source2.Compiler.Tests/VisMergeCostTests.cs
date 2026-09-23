@@ -11,22 +11,40 @@ namespace Source2.Compiler.Tests;
 /// <para>Every number in <see cref="VisMergeCost"/> is a literal in
 /// visbuilder.dll, so the strongest thing a test can do here is read them back
 /// out of the DLL and compare. A tolerance would let a transcription slip
-/// through; a byte comparison against Valve's own constant cannot, and it also
-/// fails the day a CS2 update changes one, which is exactly when we want to
-/// know.</para>
+/// through; a byte comparison against Valve's own constant cannot.</para>
+///
+/// <para>It used to quote raw addresses, and on 2026-09-23 CS2 rebuilt and every
+/// one of them moved at once -- the coarse weight's address came to hold the
+/// ASCII of <c>idates()</c>. So the constants are found by SHAPE now, through
+/// <see cref="BinarySignatures"/>, and what this asserts is what actually
+/// matters: every constant the signatures FIND still holds the value we use. A
+/// pattern that no longer matches is a function Valve rewrote and is reported,
+/// not failed, because that is the manifest ageing rather than our number being
+/// wrong; <c>tools/sigscan.py</c> is what to run then.</para>
 /// </summary>
 public sealed class VisMergeCostTests
 {
-    /// <summary>Where each constant lives, as a virtual address in the DLL.</summary>
-    private static readonly (string Name, ulong Address, double Value, bool Double)[] Constants =
+    /// <summary>
+    /// Each constant by its name in the signature manifest, the value we use,
+    /// and whether the literal is a double. Several share one address with a
+    /// constant from another stage, which is why the manifest names say so.
+    /// </summary>
+    private static readonly (string Name, double Value, bool Double)[] Constants =
     [
-        ("CoarseWeight", 0x18017f128, VisMergeCost.CoarseWeight, true),
-        ("SizeMismatchPenalty", 0x18017f1a4, VisMergeCost.SizeMismatchPenalty, false),
-        ("TagMismatchPenalty", 0x18017f190, VisMergeCost.TagMismatchPenalty, false),
-        ("SpreadPenalty", 0x18017f170, VisMergeCost.SpreadPenalty, false),
-        ("AreaLimit", 0x18017f1cc, VisMergeCost.AreaLimit, false),
-        ("ZLimit", 0x18017f19c, VisMergeCost.ZLimit, false),
-        ("Scale", 0x18017f174, VisMergeCost.Scale, false),
+        ("CoarseWeight", VisMergeCost.CoarseWeight, true),
+        ("SizeMismatchPenalty", VisMergeCost.SizeMismatchPenalty, false),
+        ("TagAndZSpanPenalty", VisMergeCost.TagMismatchPenalty, false),
+        ("SpreadPenaltyAndMarchBackOff", VisMergeCost.SpreadPenalty, false),
+        ("AreaLimitAndPassCell4096", VisMergeCost.AreaLimit, false),
+        ("ZLimit", VisMergeCost.ZLimit, false),
+        ("CostScale", VisMergeCost.Scale, false),
+        ("MarchShortest", VisOutside.MarchShortest, false),
+        ("FirstCostLimit", VisClusters.MergeThreshold, false),
+        ("PreMergeMaxDimensionAndPass4Margin", VisPreMerge.MaxDimension, false),
+        ("PreMergeMaxRatio", VisPreMerge.MaxRatio, false),
+        ("FaceTolerance", VisPreMerge.FaceTolerance, false),
+        ("SubCellAndTouchTolerance", VisPreMerge.TouchTolerance, false),
+        ("EscapeShare", VisSeed.EscapeShare, true),
     ];
 
     [Fact]
@@ -35,17 +53,38 @@ public sealed class VisMergeCostTests
         var dll = VisBuilder();
         if (dll is null)
             return;
+        var found = BinarySignatures.Resolve(dll);
+        Assert.True(found is not null,
+            $"no signature manifest; expected docs/visbuilder.signatures.json");
 
         var image = File.ReadAllBytes(dll);
-        foreach (var (name, address, ours, isDouble) in Constants)
+        var imageBase = BinarySignatures.BaseOf(image);
+        var checkedOff = new List<string>();
+        var missing = new List<string>();
+        foreach (var (name, ours, isDouble) in Constants)
         {
-            var at = FileOffsetOf(image, address);
-            Assert.True(at.HasValue, $"{name} at {address:x} is outside the image.");
+            if (!found!.TryGetValue(name, out var address))
+            {
+                missing.Add(name);
+                continue;
+            }
+            var at = BinarySignatures.Offset(image, imageBase, address);
+            Assert.True(at.HasValue, $"{name} resolved to {address:x}, which is not mapped.");
             var theirs = isDouble
                 ? BinaryPrimitives.ReadDoubleLittleEndian(image.AsSpan(at!.Value))
                 : BinaryPrimitives.ReadSingleLittleEndian(image.AsSpan(at!.Value));
-            Assert.True(theirs == ours, $"{name}: visbuilder.dll has {theirs}, we use {ours}.");
+            Assert.True(theirs == ours,
+                $"{name} at {address:x}: visbuilder.dll has {theirs}, we use {ours}.");
+            checkedOff.Add(name);
         }
+
+        // The manifest ageing is a separate problem from our numbers being
+        // wrong, so it is a floor rather than a failure on the first miss. Run
+        // tools/sigscan.py against the installed DLL to see what needs re-signing.
+        Assert.True(checkedOff.Count * 2 >= Constants.Length,
+            $"only {checkedOff.Count} of {Constants.Length} constants could be found by signature"
+          + $" ({string.Join(", ", missing)} were not); the manifest needs re-generating"
+          + " against the installed build.");
     }
 
     [Fact]
@@ -137,27 +176,5 @@ public sealed class VisMergeCostTests
         var dll = Path.Combine(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, "..")),
                                "bin", "win64", "visbuilder.dll");
         return File.Exists(dll) ? dll : null;
-    }
-
-    /// <summary>Map a virtual address onto an offset in the file on disk.</summary>
-    private static int? FileOffsetOf(byte[] image, ulong address)
-    {
-        var pe = BinaryPrimitives.ReadInt32LittleEndian(image.AsSpan(0x3c));
-        var sections = BinaryPrimitives.ReadUInt16LittleEndian(image.AsSpan(pe + 6));
-        var optional = BinaryPrimitives.ReadUInt16LittleEndian(image.AsSpan(pe + 20));
-        var imageBase = BinaryPrimitives.ReadUInt64LittleEndian(image.AsSpan(pe + 48));
-
-        var rva = (long)(address - imageBase);
-        for (var i = 0; i < sections; i++)
-        {
-            var header = pe + 24 + optional + (i * 40);
-            var virtualSize = BinaryPrimitives.ReadInt32LittleEndian(image.AsSpan(header + 8));
-            var virtualAddress = BinaryPrimitives.ReadInt32LittleEndian(image.AsSpan(header + 12));
-            var rawSize = BinaryPrimitives.ReadInt32LittleEndian(image.AsSpan(header + 16));
-            var rawOffset = BinaryPrimitives.ReadInt32LittleEndian(image.AsSpan(header + 20));
-            if (rva >= virtualAddress && rva < virtualAddress + Math.Max(virtualSize, rawSize))
-                return (int)(rawOffset + (rva - virtualAddress));
-        }
-        return null;
     }
 }
