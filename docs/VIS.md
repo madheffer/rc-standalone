@@ -2689,3 +2689,89 @@ flags and guards the walk's divisor as `18003ed60` does.
 - The pre-merge: swap-with-last compaction, the binary's tie-break on equal
   volume (a worse ratio can still win on box order), and MSVC's own
   `std::sort` for the pairs, because mutual partners make equal keys.
+
+## After assignment: the rest of the build, exact (2026-09-23)
+
+Everything the compile does after assignment is now ported, and the VXVS it
+assembles from our own pipeline alone (our scan, no captured inputs) is byte
+identical to the shipped one on all three specimens: probe01 239,244 bytes,
+cardtest 243,546 and ze_hold_em_p 129,978, 0 differing on each. Each stage
+was measured the same way as the first half: `tools/vis/capture_pvs.py` records
+its inputs and outputs from the live compile and `VisPvsReplay` replays them.
+The stages, in the order the compile runs them:
+
+| stage | port | what decided it |
+|---|---|---|
+| PVS scan | `VisPvs.Scan` | three generators on one pass runner, see below |
+| volume gate and target | `VisClusterList.Volume`, `Target` | the pre-merge's group volume and count, capped at 2^19 a group |
+| vis-cluster merge | `VisClusterList.Run` | `CVisClusterList`, see below |
+| border sampling | `VisBorders.Sample`, `Rewrite` | 294 traced points per border record, see below |
+| `AssignClusters2` | `VisBorders.Consolidate` | same cluster and kind within a leaf fold together |
+| sky | `VisSky.Visible` | triangles flagged 0x1000 |
+| sun | `VisSun.Visible` | two traces and a walk cut to open cells |
+| collapse | `VisCollapse.Run` | up to eight breadth-first rebuilds |
+| output | `VisOutput.Build` | unique masks, enclosed lists, PVS rows |
+
+### Earlier statements in this file that were wrong
+
+- **"The boundary-points generator does not run on ze_hold_em_p, so it is
+  triggered by scale."** It is triggered by `pvstype`, worldspawn's key, read
+  from the map's `.viscfg`: `SampleVisForClusters` takes `pvstype == 1` and
+  then builds only the cluster-centre generator. ze_hold_em_p has 1, the probes
+  10.
+- **`0x1000` is "coarse occupancy only".** It is what the voxelizer does with
+  it, but the sky stage reads the same bit as the sky: its triangles are what a
+  cluster must reach to see the sky. ze_hold_em_p has none, so it ships no sky
+  or sun rows.
+
+### The scan
+
+- Begin-pass's set-bit scan stops at the address of each row's LAST word, so a
+  candidate in the final word is never found from below (kept: it decides which
+  rays are cast).
+- The fill hands a pair to the generator lower id first. The boundary generator
+  alternates which end casts by index, so the order matters.
+- Boundary points: per cluster side, the corners of every voxel face on that
+  side, keyed by the two coordinates across it; a key keeps the deepest corner,
+  and a key reached exactly once becomes a point, moved 0.01 toward the centre
+  of the record that first made it. A pair casts from the sides along which the
+  other box reaches past this one by more than half the largest such reach.
+- Large cluster regions: boxes at least 256 apart, the first's half diagonal at
+  most 128, the second's at least 600. No pair qualified on any specimen, so
+  this generator is ported but untested on a live pair.
+- CLOS replays a `.los` hint file that a stock compile does not have.
+
+### The vis-cluster merge
+
+- Clusters 0 and 1 are ordinary here; the finaliser renumbers survivors from 2,
+  giving row 0 all ones and row 1 nothing, and leaves stale words past the new
+  width.
+- The records' `+0x54` and `+0x56` shorts are constructed as 0 and 8 and never
+  overwritten, so every pair costs `costA + costB`. The per-cluster voxel size
+  (the pre-merge record's `+0x50`) only halves a cluster's weight when above 8.
+- The distance weight is `(double)(8 - t * 7.5) * weight`, truncated. Ghidra
+  shows it in float.
+- The neighbour lists are rebuilt from each record's box grown by 8, without
+  the scan's touching test, and small components are bridged to what lies
+  within a box padded toward 128 units.
+
+### The border stage
+
+- Border records carry cluster 0. The rewrite searches a leaf for the ORIGINAL
+  record's cluster, not the claim's, so every claim is appended and only
+  `AssignClusters2` folds them.
+- The traced points are a 7 by 7 grid per face with the edges included.
+- The distinct-normal count that decides whether only the nearest claim is
+  kept accumulates across all of a record's neighbours.
+
+### The sun, and a value read from the stack
+
+The sun's first trace runs under mask 0x5811. The second trace's mask field is
+never written; measured at runtime it reads 0. Both batches run in mode 0. These
+were measured with a one-off Frida probe on the two flush entry points, not
+read from the decompile, which would have suggested mode 2.
+
+### The output
+
+A node whose enclosed list repeats one already stored in node order gets no
+list at all, and lists of 1,024 clusters or more are not stored.

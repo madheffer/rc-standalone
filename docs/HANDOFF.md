@@ -1,4 +1,4 @@
-# Handoff: the vis compiler, as it stands on 2026-09-23
+# Handoff: the vis compiler, as it stands on 2026-09-23 (end of day)
 
 For an agent picking this up cold. It says what the goal is, where the numbers
 are right now so you have a reference position to move from, what the CS2 update
@@ -57,6 +57,11 @@ Per stage, ours against the compile's own printed count, as of 2026-09-23:
 | first pass cost | **exact** | -- | **exact** |
 | merge first / second / final | **exact** | **exact** | **exact** |
 | assignment | **exact** | **exact** | **exact** |
+| PVS scan (matrix) | **exact** | **exact** | **exact** |
+| vis-cluster merge (every merge, map, matrix) | **exact** | **exact** | **exact** |
+| border sampling and rewrite | **exact** | **exact** | **exact** |
+| AssignClusters2, sky, sun, collapse | **exact** | **exact** | **exact** |
+| shipped VXVS, from our pipeline alone | **byte identical** | **byte identical** | **byte identical** |
 
 `VisClusterSetTests` (`MERGE=1`) asserts all of it at 0.01%, on our own target.
 The previous handoff had the merge at -7.36% / +3.75% / +3.15%.
@@ -68,8 +73,9 @@ the rebuilt kd tree node for node, all 13 pre-merge rounds, and each pass's set
 list in order. See section 4 for how that is measured; it is how every one of
 these was fixed.
 
-**Everything after assignment is still unbuilt** (section 8), so the shipped
-`vvis_c` is not yet ours. That is the next front.
+The post-assignment rows are measured by `VisPvsReplay` (`PVS=<map>`) against
+`tools/vis/capture_pvs.py`'s capture; `TheWholeBuild` runs the whole chain on our
+own scan and compares the VXVS with the one the compile shipped.
 
 ## 4. How to run and score anything
 
@@ -254,6 +260,13 @@ These are the operator's, and they are not negotiable.
 | `RayTraceEnvironment` | the file's kd trace, plus `Segment`: the compile's batch tracer on the loader's converted triangles |
 | `TracerKd` | the kd tree the loader rebuilds (`RefineNode`), and the voxelizer's box query through it |
 | `MsvcSort` | MSVC's `std::sort`, where the compile's unstable sort order is observable |
+| `VisPvs` | the PVS scan: scan state, neighbour list, the cluster-centre, boundary-points and large-regions generators |
+| `VisConfig` | the `.viscfg`: `pvstype`, `vDirToSun` |
+| `VisClusterList` | the volume gate, target and vis-cluster merge |
+| `VisBorders` | border sampling, the entry rewrite, `AssignClusters2` |
+| `VisSky`, `VisSun` | sky and sun visibility |
+| `VisCollapse` | the resolution collapse |
+| `VisOutput` | the VXVS assembled from the final state |
 
 Two fixes from this session are worth knowing about because both were invisible
 to the tests that existed:
@@ -274,31 +287,25 @@ to the tests that existed:
 
 ## 8. What is not built
 
-In rough order of how much is known about each:
-
 | piece | what is known |
 |---|---|
-| the four PVS ray generators | found and named, not ported. VIS.md "The four ray generators". |
-| `CNeighboringClustersList::Build` | the neighbour list. |
-| `AdaptivelySampleBorders` | prints `Adaptive border clusters`. |
-| the collapse | `Collapsing resolution`, `Reduced node count from %d to %d`, `%d unique masks`. |
-| sky visibility | not started. |
-| the volume gate | below 2^20 cubic units of enclosed space the whole PVS is disabled. |
-| the write | our codec already does this byte exactly. |
+| the partitioned vis-cluster merge | only above 10,240 clusters; `VisClusterList` throws there. The partition functions are named in the binary. |
+| large-cluster-regions pairs | ported, but no specimen produces a pair, so it is unmeasured. |
+| CLOS | replays a `.los` hint file a stock compile does not have. |
+| wiring into the compiler | the stages exist as functions and a test chain, not yet as a `vvis_c` the compiler writes. |
+| signatures | the post-assignment functions are pinned by RVA in `capture_pvs.py`, not yet in `visbuilder.signatures.json`. |
 
 ---
 
 ## 9. Open, in the order worth taking them
 
-1. **The stages after assignment** (section 8): the PVS ray generators, the
-   neighbour list, adaptive border sampling, the second cluster merge ("Target
-   608 clusters, clamped to 606" on probe01), the collapse, sky visibility.
-   Capture first: the same harness will record their inputs and outputs, and
-   the ray scan is threaded, so check which parts are deterministic before
-   comparing (VIS.md: the file is byte stable across runs, the ray count is not).
+1. **Wire it in.** Every stage from voxelize to the VXVS is ported and
+   measured; the compiler should now write the `vvis_c` from them, with
+   `TheWholeBuild`'s chain as the reference order.
 2. **More specimens.** Three maps are exact; a map with nodraw, hint entities
    or `vis_voxel_size` override volumes (the list at sampler+0x88 in
-   `Voxelize`) exercises code paths none of these do.
+   `Voxelize`) exercises code paths none of these do, and a map above 10,240
+   clusters is needed for the partitioned merge and large-region pairs.
 3. **One fidelity item recorded and not fixed.** `NormaliseSlowPath` (lengths
    under 1e-17 or over 1e17) is approximated with a double normalise in three
    places; no specimen reaches it.
