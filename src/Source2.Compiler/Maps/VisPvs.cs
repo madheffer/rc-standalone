@@ -610,23 +610,67 @@ public static class VisPvs
     }
 
     /// <summary>
-    /// <c>BatchTracer</c> for one sight ray: trace to <c>reach * dir + origin</c>
-    /// with mask 0x4801. A miss gives the whole line; a hit the ray meets from
-    /// the front gives the line to one unit short of it; a back face gives
-    /// nothing. Returns the segment's end, or null.
+    /// <c>BatchTracer</c> for one sight ray (type 2, flag 1), which is what every
+    /// generator but CLOS casts. See <see cref="Traced"/>.
     /// </summary>
-    public static Vector3? Sight(RayTraceEnvironment rte, Ray ray, float reach)
+    public static Vector3? Sight(RayTraceEnvironment rte, Ray ray, float reach) => Traced(rte, ray, 2, true, reach);
+
+    /// <summary>
+    /// <c>BatchTracer</c>'s rule for one ray of a type (the byte at <c>+0x1c</c>)
+    /// and flag (<c>+0x1d</c>): trace to <c>reach * dir + origin</c> with mask
+    /// 0x4801. A miss gives the whole line to a type 2 ray and nothing to any
+    /// other. A hit gives the line to one unit short of it when the face is met
+    /// from the front, the ray is flagged and the face is not nodraw, or when the
+    /// face is nodraw and the ray is type 2; otherwise nothing. The nodraw test
+    /// reads bit 0x10 of the converted flags, which the converter has already
+    /// moved to 0x20, so it never holds. The continuation ray a type 0 hit
+    /// queues is freed unread by the driver and is not modelled. Returns the
+    /// segment's end, or null.
+    /// </summary>
+    public static Vector3? Traced(RayTraceEnvironment rte, Ray ray, int type, bool flag, float reach)
     {
         var o = ray.Origin;
         var d = ray.Direction;
         var end = new Vector3((reach * d.X) + o.X, (reach * d.Y) + o.Y, (reach * d.Z) + o.Z);
         if (rte.Segment(o, end, 0x4801) is not { } hit)
-            return end;
+            return type == 2 ? end : null;
         var n = hit.Normal;
-        if (!((n.Z * d.Z) + (d.Y * n.Y) + (n.X * d.X) < 0f))
+        var front = (n.Z * d.Z) + (d.Y * n.Y) + (n.X * d.X) < 0f;
+        var nodraw = (rte.Flags(hit.Triangle) & RayTraceEnvironment.NoDrawInFile) != 0;
+        if (!((front && flag && !nodraw) || (nodraw && type == 2)))
             return null;
         var t = hit.Distance;
         return new Vector3(((d.X * t) + o.X) - d.X, ((t * d.Y) + o.Y) - d.Y, ((t * d.Z) + o.Z) - d.Z);
+    }
+
+    /// <summary>
+    /// The fold's walk of one traced segment (<c>FUN_18002d710</c>). In a batch
+    /// holding a type 2 ray it walks from the start through blockers; otherwise
+    /// it starts one unit in along the segment and a blocker ends it (null).
+    /// </summary>
+    public static List<int>? WalkSegment(State s, Vector3 start, Vector3 end, bool sight)
+    {
+        if (sight)
+            return Walk(s, start, end, through: true);
+        float dx = end.X - start.X, dy = end.Y - start.Y, dz = end.Z - start.Z;
+        var length = MathF.Sqrt((dy * dy) + (dz * dz) + (dx * dx));
+        float nx, ny, nz;
+        if (length < 1e-17f || length > 1e17f)
+        {
+            if (length == 0f)
+                (nx, ny, nz) = (0f, 0f, 0f);
+            else
+            {
+                var u = Vector3.Normalize(new Vector3(dx, dy, dz));
+                (nx, ny, nz) = (u.X, u.Y, u.Z);
+            }
+        }
+        else
+        {
+            var r = 1f / length;
+            (nx, ny, nz) = (dx * r, dy * r, dz * r);
+        }
+        return Walk(s, new Vector3(start.X + nx, start.Y + ny, start.Z + nz), end, through: false);
     }
 
     /// <summary>
@@ -812,12 +856,13 @@ public static class VisPvs
 
     /// <summary>
     /// The PVS scan (<c>SampleVisForClusters</c>): the generators in the order the
-    /// compile builds them. <c>pvstype</c> 1 stops after cluster centres. The
-    /// CLOS generator replays a <c>.los</c> hint file, which a stock compile does
-    /// not have, and is not run.
+    /// compile builds them. <c>pvstype</c> 1 stops after cluster centres. CLOS
+    /// last replays the map's <c>los_errors</c> segments, if any were given (see
+    /// <see cref="VisLos"/>).
     /// </summary>
     public static Matrix Scan(State s, RayTraceEnvironment rte, VisConfig config,
-                              Action<string, List<(int A, int B)>, long>? passDone = null)
+                              Action<string, List<(int A, int B)>, long>? passDone = null,
+                              IReadOnlyList<VisLos.Segment>? losErrors = null)
     {
         var neighbours = Neighbors(s);
         var matrix = new Matrix(s.Clusters + 2, s.Clusters + 2);
@@ -826,6 +871,7 @@ public static class VisPvs
             return matrix;
         BoundaryPoints(s, neighbours, rte, matrix, (p, n) => passDone?.Invoke("CBoundaryPointsRayGenerator", p, n));
         LargeClusterRegions(s, neighbours, rte, matrix, (p, n) => passDone?.Invoke("LargeClusterRegions", p, n));
+        VisLos.Replay(s, rte, matrix, losErrors ?? []);
         return matrix;
     }
 

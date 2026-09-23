@@ -382,6 +382,38 @@ public class VisPvsReplay(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// CLOS, from a compile run with a <c>los_errors</c> file of 2,000 segments
+    /// in place (<c>&lt;map&gt;_los.pvs.bin</c>, the segments kept as
+    /// <c>&lt;map&gt;_errors.los</c>): our replay on the compile's matrix before
+    /// CLOS must leave the compile's matrix after it.
+    /// </summary>
+    [Fact]
+    public void TheClosGenerator()
+    {
+        if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
+            return;
+        var dir = Path.Combine(Path.GetTempPath(), "vis_capture");
+        if (!File.Exists(Path.Combine(dir, map + "_los.pvs.bin")))
+            return;
+        var cap = new Dictionary<string, (JsonElement Head, byte[] Blob)>();
+        using (var reader = new BinaryReader(File.OpenRead(Path.Combine(dir, map + "_los.pvs.bin"))))
+        {
+            while (reader.BaseStream.Position < reader.BaseStream.Length)
+            {
+                var head = JsonDocument.Parse(reader.ReadBytes(reader.ReadInt32())).RootElement.Clone();
+                cap[head.GetProperty("ev").GetString()!] = (head, reader.ReadBytes(reader.ReadInt32()));
+            }
+        }
+        var hints = VisLos.Read(Path.Combine(dir, map + "_errors.los"));
+        var (s, rte) = OursWithScene(map)!.Value;
+        var matrix = Load(cap["after2"].Head, cap["after2"].Blob);
+        var cast = VisLos.Replay(s, rte, matrix, hints);
+        var (rows, same, mine, theirs) = Diff(matrix, cap["after3"].Blob);
+        output.WriteLine($"CLOS: {hints.Length} hints, {cast} rays; rows identical {same}/{rows}, bits ours-only {mine} valve-only {theirs}");
+        Assert.Equal(rows, same);
+    }
+
     [Fact]
     public void TheBoundaryPointGenerator()
     {

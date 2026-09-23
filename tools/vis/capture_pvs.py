@@ -9,8 +9,8 @@ capture_merge.py (u32 json length, json, u32 blob length, blob):
              array (8 each), node boxes (24 each) and cluster boxes (24 each)
   neighbors  the finished CNeighboringClustersList: per cluster its i64
              accumulator, then its neighbour ids
-  pass<k>    at each generator begin-pass: the matrix going in, then the pairs
-             it produced (u32 pairs)
+  pass<k>    at each generator begin-pass: the pairs it produced (u32 pairs),
+             and with --passin the matrix going in
   after      the matrix after each generator's SamplerDriver returns, with its
              index in the order they ran
   matrix     the MutualVisibilityMatrix as the PVS scan leaves it: rows of
@@ -68,6 +68,16 @@ RVA = {
 
 AGENT = r"""
 const RVA = %(rva)s;
+const PASSIN = %(passin)s;
+// Frida drops the session on a message over 128 MiB, and a big map's matrix is
+// larger than that, so blobs go in parts the host puts back together.
+const PART = 48 * 1024 * 1024;
+function sendBlob(head, buf) {
+  const n = Math.max(1, Math.ceil(buf.byteLength / PART));
+  if (n === 1) { send(head, buf); return; }
+  for (let k = 0; k < n; k++)
+    send(Object.assign({}, head, {part: k, parts: n}), buf.slice(k * PART, Math.min(buf.byteLength, (k + 1) * PART)));
+}
 function rows(m) {
   const n = m.readS32(), ptrs = m.add(8).readPointer(), bits = m.add(0x18).readS32();
   const words = (bits + 31) >> 5, out = new Uint8Array(n * words * 4);
@@ -89,19 +99,21 @@ function hook(m) {
         out.set(new Uint8Array(r.readByteArray(8)), at); dv.setInt32(at + 8, c, true); at += 12;
         if (c) { out.set(new Uint8Array(r.add(0x10).readPointer().readByteArray(c * 4)), at); at += c * 4; }
       }
-      send({ev: 'neighbors', clusters: n}, out.buffer);
+      sendBlob({ev: 'neighbors', clusters: n}, out.buffer);
     }
   });
   let generator = 0, passes = 0;
   Interceptor.attach(m.base.add(RVA.BeginPass), {
     onEnter(a) {
       this.g = a[0];
-      const [n, bits, blob] = rows(this.g.add(0x18).readPointer());
-      send({ev: 'passin' + passes, generator, rows: n, bits}, blob);
+      if (PASSIN) {
+        const [n, bits, blob] = rows(this.g.add(0x18).readPointer());
+        sendBlob({ev: 'passin' + passes, generator, rows: n, bits}, blob);
+      }
     },
     onLeave() {
       const count = this.g.add(0x48).readS32();
-      send({ev: 'pairs' + passes, generator, pairs: count},
+      sendBlob({ev: 'pairs' + passes, generator, pairs: count},
            count > 0 ? this.g.add(0x50).readPointer().readByteArray(count * 8) : new ArrayBuffer(0));
       passes++;
     }
@@ -110,7 +122,7 @@ function hook(m) {
     onEnter(a) { this.m = a[0].readPointer(); },
     onLeave() {
       const [n, bits, blob] = rows(this.m);
-      send({ev: 'after' + generator, generator: generator++, rows: n, bits}, blob);
+      sendBlob({ev: 'after' + generator, generator: generator++, rows: n, bits}, blob);
     }
   });
   Interceptor.attach(m.base.add(RVA.SampleVisForClusters), {
@@ -118,14 +130,14 @@ function hook(m) {
       this.s = a[0];
       const s = a[0];
       const ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32(), nc = s.add(0x198).readS32();
-      send({ev: 'entries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
-      send({ev: 'nodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
-      send({ev: 'nodeboxes', n: nn}, s.add(0x78).readPointer().readByteArray(nn * 24));
+      sendBlob({ev: 'entries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      sendBlob({ev: 'nodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
+      sendBlob({ev: 'nodeboxes', n: nn}, s.add(0x78).readPointer().readByteArray(nn * 24));
       send({ev: 'clusterboxes', n: nc}, s.add(0x1a0).readPointer().readByteArray(nc * 24));
     },
     onLeave() {
       const [n, bits, blob] = rows(this.s.add(0x148));
-      send({ev: 'matrix', rows: n, bits, clusters: this.s.add(0x198).readS32()}, blob);
+      sendBlob({ev: 'matrix', rows: n, bits, clusters: this.s.add(0x198).readS32()}, blob);
     }
   });
   let merges = [];
@@ -154,26 +166,33 @@ function hook(m) {
         if (c) { out.set(new Uint8Array(r.add(8).readPointer().readByteArray(c * 4)), at); at += c * 4; }
         out.set(new Uint8Array(r.add(0x30).readByteArray(32)), at); at += 32;
       }
-      send({ev: 'built', n}, out.buffer);
+      sendBlob({ev: 'built', n}, out.buffer);
     }
   });
   Interceptor.attach(m.base.add(RVA.MergePair), {
     onEnter(a) { merges.push(a[1].toInt32() >>> 0, a[2].toInt32() >>> 0); }
   });
+  // Once per merge step: a big map merges in steps of 8,192 before the final
+  // one. Each step is recorded under its index, and the plain name holds the last.
+  let applies = 0;
   Interceptor.attach(m.base.add(RVA.ApplyClusterMap), {
     onEnter(a) {
       this.s = a[0];
-      send({ev: 'merges', n: merges.length / 2}, new Uint32Array(merges).buffer);
-      merges = [];
+      this.k = applies++;
       const list = a[0].add(0x1b0), count = list.add(8).readS32();
-      send({ev: 'clustermap', n: count, total: a[2].toInt32()}, a[1].readByteArray(count * 4));
+      for (const ev of ['merges' + this.k, 'merges'])
+        sendBlob({ev, n: merges.length / 2}, new Uint32Array(merges).buffer);
+      merges = [];
+      for (const ev of ['clustermap' + this.k, 'clustermap'])
+        send({ev, n: count, total: a[2].toInt32()}, a[1].readByteArray(count * 4));
     },
     onLeave() {
-      const s = this.s, ne = s.add(0x40).readS32(), nc = s.add(0x198).readS32();
-      send({ev: 'appliedentries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      const s = this.s, ne = s.add(0x40).readS32(), nc = s.add(0x198).readS32(), k = this.k;
+      sendBlob({ev: 'appliedentries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
       send({ev: 'appliedboxes', n: nc}, s.add(0x1a0).readPointer().readByteArray(nc * 24));
       const [rn, bits, blob] = rows(s.add(0x148));
-      send({ev: 'appliedmatrix', rows: rn, bits}, blob);
+      sendBlob({ev: 'appliedmatrix', rows: rn, bits}, blob);
+      send({ev: 'applied' + k, entries: ne, clusters: nc});
     }
   });
   Interceptor.attach(m.base.add(RVA.BorderBoxes), {
@@ -190,23 +209,23 @@ function hook(m) {
         dv.setInt32(at, c, true); at += 4;
         if (c) { out.set(new Uint8Array(lists.add(i * 0x18 + 8).readPointer().readByteArray(c * 0x1c)), at); at += c * 0x1c; }
       }
-      send({ev: 'borders', n: k}, out.buffer);
+      sendBlob({ev: 'borders', n: k}, out.buffer);
     }
   });
   Interceptor.attach(m.base.add(RVA.SampleBorders), {
     onEnter(a) { this.s = a[0]; },
     onLeave() {
       const s = this.s, ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32();
-      send({ev: 'resampledentries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
-      send({ev: 'resamplednodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
+      sendBlob({ev: 'resampledentries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      sendBlob({ev: 'resamplednodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
     }
   });
   Interceptor.attach(m.base.add(RVA.AssignClusters2), {
     onEnter(a) { this.s = a[0]; },
     onLeave() {
       const s = this.s, ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32();
-      send({ev: 'assigned2entries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
-      send({ev: 'assigned2nodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
+      sendBlob({ev: 'assigned2entries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      sendBlob({ev: 'assigned2nodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
     }
   });
   for (const [name, ev] of [['Sky', 'sky'], ['Sun', 'sun']]) {
@@ -224,9 +243,9 @@ function hook(m) {
     onEnter(a) { this.s = a[0]; },
     onLeave() {
       const s = this.s, ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32(), k = collapses++;
-      send({ev: 'collapsedentries' + k, n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
-      send({ev: 'collapsednodes' + k, n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
-      send({ev: 'collapsedboxes' + k, n: nn}, s.add(0x78).readPointer().readByteArray(nn * 24));
+      sendBlob({ev: 'collapsedentries' + k, n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      sendBlob({ev: 'collapsednodes' + k, n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
+      sendBlob({ev: 'collapsedboxes' + k, n: nn}, s.add(0x78).readPointer().readByteArray(nn * 24));
     }
   });
   send({ev: 'hooked'});
@@ -242,6 +261,7 @@ def main():
     parser.add_argument("addon")
     parser.add_argument("map")
     parser.add_argument("--out")
+    parser.add_argument("--passin", action="store_true", help="also record the matrix going into every pass")
     args = parser.parse_args()
 
     with open(os.path.join(BIN, "visbuilder.dll"), "rb") as h:
@@ -253,14 +273,24 @@ def main():
     out = open(out_path, "wb")
     lock = threading.Lock()
 
+    pending = {}
+
     def on_message(message, data):
         if message["type"] != "send":
-            print("agent:", message.get("description") or message, file=sys.stderr)
+            print("agent:", message.get("description") or message, file=sys.stderr, flush=True)
             return
-        head = json.dumps(message["payload"]).encode()
-        print(message["payload"])
+        payload = dict(message["payload"])
+        blob = data or b""
+        if "parts" in payload:
+            parts = pending.setdefault(payload["ev"], [])
+            parts.append(blob)
+            if len(parts) < payload["parts"]:
+                return
+            blob = b"".join(pending.pop(payload["ev"]))
+            del payload["part"], payload["parts"]
+        head = json.dumps(payload).encode()
+        print(payload, flush=True)
         with lock:
-            blob = data or b""
             out.write(struct.pack("<I", len(head)) + head + struct.pack("<I", len(blob)) + blob)
 
     vpk = os.path.join(CS2, "game", "csgo_addons", args.addon, "maps", args.map + ".vpk")
@@ -272,7 +302,7 @@ def main():
                         os.path.join(CS2, "game", "csgo"), "-i", source,
                         "-world", "-vis", "-fshallow"], cwd=BIN, stdio="pipe")
     session = device.attach(pid)
-    script = session.create_script(AGENT % {"rva": json.dumps(RVA)})
+    script = session.create_script(AGENT % {"rva": json.dumps(RVA), "passin": "true" if args.passin else "false"})
     script.on("message", on_message)
     script.load()
     done = threading.Event()

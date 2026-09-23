@@ -15,8 +15,12 @@ public static class VisClusterList
     /// <summary>The volume a cluster stands for, the <c>param_5</c> of the steps.</summary>
     public const double VolumePerCluster = 1048576.0;
 
-    /// <summary><c>ResourceCompiler/VisBuilder/MaxVisClusters</c>, capped at 4096 by the binary.</summary>
-    public const int MaxVisClusters = 0x800;
+    /// <summary>
+    /// <c>ResourceCompiler/VisBuilder/MaxVisClusters</c>, which the steps read
+    /// with a default of 2,048 and cap at 4,096. CS2's
+    /// <c>game/csgo_core/gameinfo.gi</c> sets it to 4,096.
+    /// </summary>
+    public const int MaxVisClusters = 4096;
 
     /// <summary>One <c>CVisClusterList</c> record, 0x58 bytes in the binary.</summary>
     public sealed class Record
@@ -282,9 +286,9 @@ public static class VisClusterList
             list.Add(id);
     }
 
-    // Logs_MergedToClustersInSSRecomputePasses, single partition: recompute the
-    // stale cost lists, take every candidate within the factor of the cheapest
-    // and merge it, until the live count reaches the target; then renumber.
+    // Logs_MergedToClustersInSSRecomputePasses: recompute the stale cost lists,
+    // take every candidate within the factor of the cheapest and merge it, until
+    // the live count reaches the target; then renumber.
     private static void Merge(List list, VisPvs.Matrix matrix, int target, int reserved, float factor,
                               List<(int, int)> merges)
     {
@@ -293,46 +297,94 @@ public static class VisClusterList
         var n = list.Records.Length;
         var span = Math.Max(n - 0x2000, 0) / 2048 + 1;
         var partitions = span < 1 ? 1 : Math.Min(span, 250);
-        if (partitions >= 2)
-            throw new NotSupportedException($"{n} clusters: the partitioned merge (above 10,240) is not ported yet.");
         for (var i = 0; i < n; i++)
             list.Records[i].Partition = (byte)(i % partitions);
 
         while (target < list.Live)
         {
-            Recompute(list, matrix);
+            Recompute(list, matrix, null);
             var candidates = Candidates(list, factor);
-            if (candidates.Count == 0)
-                break;
-            var threshold = ToCount(ToFloat(candidates[0].Cost) * factor);
-            var remaining = list.Live - target;
-            foreach (var (c, cost) in candidates)
+            if (partitions < 2)
             {
-                if (remaining == 0 || threshold < cost)
+                if (candidates.Count == 0)
                     break;
-                var rec = list.Records[c];
-                if (rec.Weight == 0 || !rec.CostsCurrent || rec.Best >= rec.Costs.Count)
-                    continue;
-                if (threshold < rec.Costs[rec.Best])
+                Take(list, matrix, candidates, target, factor, merges);
+                continue;
+            }
+
+            // Above 10,240 records: the cheapest candidate's partition is then
+            // worked alone, recomputing only its own records, for up to 31 more
+            // rounds while the target is not met.
+            var partition = candidates.Count > 0 ? list.Records[candidates[0].Id].Partition : (byte)0;
+            for (var round = 0; ; )
+            {
+                if (round != 0)
+                {
+                    Recompute(list, matrix, partition);
+                    candidates = PartitionCandidates(list, partition);
+                }
+                if (candidates.Count != 0)
+                    Take(list, matrix, candidates, target, factor, merges);
+                if (!(target < list.Live) || ++round >= 32)
                     break;
-                var other = rec.Neighbors[rec.Best];
-                if (other < c || list.Records[other].Weight == 0)
-                    break;
-                Pair(list, matrix, c, other);
-                merges.Add((c, other));
-                remaining--;
             }
         }
         Finalise(list, matrix, reserved);
     }
 
-    // CVisClusterList::RecomputeClusterCostLists and FUN_180042890: each stale
-    // record prices every higher live neighbour and keeps the first cheapest.
-    private static void Recompute(List list, VisPvs.Matrix matrix)
+    // The merge walk shared by both paths: every candidate no dearer than the
+    // factor over the first, whose cheapest neighbour is still higher and live.
+    private static void Take(List list, VisPvs.Matrix matrix, List<(int Id, ulong Cost)> candidates, int target,
+                             float factor, List<(int, int)> merges)
+    {
+        var threshold = ToCount(ToFloat(candidates[0].Cost) * factor);
+        var remaining = list.Live - target;
+        foreach (var (c, cost) in candidates)
+        {
+            if (remaining == 0 || threshold < cost)
+                break;
+            var rec = list.Records[c];
+            if (rec.Weight == 0 || !rec.CostsCurrent || rec.Best >= rec.Costs.Count)
+                continue;
+            if (threshold < rec.Costs[rec.Best])
+                break;
+            var other = rec.Neighbors[rec.Best];
+            if (other < c || list.Records[other].Weight == 0)
+                break;
+            Pair(list, matrix, c, other);
+            merges.Add((c, other));
+            remaining--;
+        }
+    }
+
+    // FUN_1800442d0: one partition's candidates, with no running limit.
+    private static List<(int Id, ulong Cost)> PartitionCandidates(List list, byte partition)
+    {
+        var found = new List<(int, ulong)>();
+        for (var c = 0; c < list.Records.Length; c++)
+        {
+            var rec = list.Records[c];
+            if (rec.Partition != partition || rec.Weight == 0 || (uint)rec.Best >= (uint)rec.Costs.Count)
+                continue;
+            var other = rec.Neighbors[rec.Best];
+            if ((uint)other < (uint)c || list.Records[other].Weight == 0)
+                continue;
+            found.Add((c, rec.Costs[rec.Best]));
+        }
+        found.Sort((x, y) => x.Item2 != y.Item2 ? x.Item2.CompareTo(y.Item2) : x.Item1.CompareTo(y.Item1));
+        return found;
+    }
+
+    // CVisClusterList::RecomputeClusterCostLists (or ...ForPartition, the same
+    // over one partition's records) and FUN_180042890: each stale record prices
+    // every higher live neighbour and keeps the first cheapest.
+    private static void Recompute(List list, VisPvs.Matrix matrix, byte? partition)
     {
         var stale = new List<int>();
         for (var c = 0; c < list.Records.Length; c++)
         {
+            if (partition is { } p && list.Records[c].Partition != p)
+                continue;
             if (list.Records[c].Weight != 0 && !list.Records[c].CostsCurrent)
                 stale.Add(c);
         }
