@@ -116,11 +116,21 @@ public static class VisClusterList
         var (_, clamped) = Target(volume);
         var list = Build(s, sizes, grid);
         var merges = new List<(int, int)>();
+        // Each step works on the numbering the last one left: the binary hands
+        // the sampler that step's map and resets its own to the identity over
+        // the surviving records. The steps' maps compose into the result's.
+        var map = (int[])list.Map.Clone();
+        void Step(int target, int reserved, float factor)
+        {
+            Merge(list, matrix, target, reserved, factor, merges);
+            for (var i = 0; i < map.Length; i++)
+                map[i] = list.Map[map[i]];
+            list.Map = Enumerable.Range(0, list.Records.Length).ToArray();
+        }
         var steps = list.Records.Length >> 13;
         for (var at = steps << 13; clamped < at; at -= 0x2000)
-            Merge(list, matrix, at, 0, at < 0x4000 ? 1.05f : 1.1f, merges);
-        Merge(list, matrix, clamped, 2, 1.0f, merges);
-        var map = list.Map;
+            Step(at, 0, at < 0x4000 ? 1.05f : 1.1f);
+        Step(clamped, 2, 1.0f);
         return new Result(map, list.Live, list.Records, merges, Apply(s, map, list.Live));
     }
 
@@ -517,17 +527,21 @@ public static class VisClusterList
         if (keep.Tag != drop.Tag)
             keep.Tag = 0;
 
-        foreach (var nb in drop.Neighbors)
+        // Both walks go by index and re-read the count every step, as the
+        // binary's do, so a list that changes under the walk is walked as it
+        // stands (a record listing itself adds to the list being walked).
+        for (var i = 0; i < drop.Neighbors.Count; i++)
         {
+            var nb = drop.Neighbors[i];
             if (nb == lo)
                 continue;
             AddOnce(keep.Neighbors, nb);
             keep.Costs.Clear();
         }
         SwapRemove(keep.Neighbors, hi);
-        foreach (var nb in keep.Neighbors)
+        for (var i = 0; i < keep.Neighbors.Count; i++)
         {
-            var other = recs[nb];
+            var other = recs[keep.Neighbors[i]];
             SwapRemove(other.Neighbors, hi);
             AddOnce(other.Neighbors, lo);
             other.Costs.Clear();
