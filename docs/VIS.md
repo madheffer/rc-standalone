@@ -2629,3 +2629,63 @@ the compile's normalise has a magnitude guard with a double precision path below
 and above it, and our `VisSeed.Directions` uses a plain `Vector3.Normalize`. For
 direction vectors built from a box's half extents the fast path always applies,
 so it is very unlikely to matter, but it has not been shown not to.
+
+## Parity: every printed stage exact, and how (2026-09-23)
+
+Everything from voxelize to assignment now lands on the compile's own numbers on
+all three specimens, 0.00%, and `VisClusterSetTests` asserts it at 0.01% on our
+own target. None of it came from reading harder. Every defect below was found by
+capturing the compile's intermediate state from the live process with Frida and
+replaying the SAME input through the port (HANDOFF.md section 4 has the tools).
+Stated once and plainly: end-of-stage counts could not have found these, and
+several were hidden by errors that cancelled.
+
+### Earlier statements in this file that were wrong
+
+- **"`18002fec0` is the box GAP, zero the moment two boxes touch."** The
+  decompile stops at the square root; the instructions continue. The term is
+  `0.5 * clamp(gap / 128, 0, 1)` plus a contact half, `0.5 * (1 - shared face
+  area / face area)` over the widest and middle overlap axes, the face being the
+  first box's. Half of all merge prices were off by up to 0.5.
+- **"The candidate query is a speed structure and nothing else."** True of the
+  merge's AABB tree, false of the tracer's kd tree: the voxelizer only ever asks
+  about occupancy THROUGH that tree, and its walk is asymmetric (a box whose
+  minimum lies on a split descends the upper side only). The tree is also not
+  the file's: the loader rebuilds it (`RefineNode`, 65 nodes on probe01 against
+  the file's 181).
+- **"The pre-merge's binary defaults ARE used: 1,024 and 4."** The live
+  `BestPartner` is handed 2,048 and 4.
+- **The pre-merge "barely runs".** It ran wrongly: tree payloads were read as
+  current run indices after compaction, so partners were looked up on the wrong
+  runs.
+- **"The merge sequence is order among near-equal costs."** It was concrete:
+  survivors are handed on in swap-with-last order, and the next merge numbers
+  its clusters by it.
+
+### What the sampler needed, all of it now matching bit for bit
+
+The tracer does not trace the file's triangles. `LoadRTEFromFile` rebuilds each
+triangle's corners (`FUN_1800233f0`), a fresh environment re-derives normal,
+plane, axes and edge equations from them (`FUN_180118e90`), and traces through
+the batch tracer: direction renormalised with `rcpps` and one Newton step, the
+hit accepted only for `0 < t` strictly and `|denom| > 1e-10`, dot products summed
+z first. A cluster whose centre sits on a wall traced every ray to t = -0 before
+this and saw almost nothing: that was all of probe01's sampler loss. The
+sampler also aims at itself, normalises by reciprocal, reads the folded nodraw
+flags and guards the walk's divisor as `18003ed60` does.
+
+### What upstream needed
+
+- Leaves in node pool order: a branch's eight children get consecutive slots
+  when it splits, then it recurses. We had walked the tree in reverse, so no set
+  was at the right position.
+- The merge grid laid over the TRACER's bounds (the loader's rebuilt corners,
+  floor -2.6e-5 on probe01, a whole 512 cell lower than the header's 0).
+- The pass average as a float running sum; the pass target as the volume rule
+  less two.
+- Valve's own SAT (`FUN_18010b310`: normalised edges, its projection pairs,
+  strict rejection) on the tracer's corners, through the rebuilt kd tree. That
+  also closed the probes' long standing +0.28% voxelize gap.
+- The pre-merge: swap-with-last compaction, the binary's tie-break on equal
+  volume (a worse ratio can still win on box order), and MSVC's own
+  `std::sort` for the pairs, because mutual partners make equal keys.

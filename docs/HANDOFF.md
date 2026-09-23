@@ -15,11 +15,11 @@ map to it.
 Produce a self authored map compiler whose output matches what Valve's would
 produce for the same input. The active front is **visibility**: a byte faithful
 reimplementation of `visbuilder.dll`, read out of the binary rather than guessed
-at, targeting **below 0.5% divergence** on every stage the compile prints a
-number for.
+at, targeting **0.01% divergence from a Valve compile** (the operator's bar, which on
+these counts means exact) on every stage the compile prints a number for.
 
 Everything lives in this repo, on branch `research/map-authoring`, remote `box`.
-The head of the work is `239755c`.
+The head of the work is the latest `vis:` commit on the branch.
 
 ---
 
@@ -45,46 +45,31 @@ These are the numbers to beat, and the ones to check you have not broken. Three
 specimen maps: **ze_hold_em_p** (a real Zombie Escape map, long and enclosed),
 **cardtest** and **probe01** (small constructed probes).
 
-Per stage, ours against the compile's own printed count:
+Per stage, ours against the compile's own printed count, as of 2026-09-23:
 
 | stage | ze_hold_em_p | cardtest | probe01 |
 |---|---|---|---|
-| voxelize (nodes) | **exact** | +0.28% | +0.28% |
-| enclosed regions | **0.00%** | **0.00%** | **0.00%** |
-| clusters generated | **0.00%** | -0.06% | -0.06% |
-| pre-merged | **0.00%** | +0.02% | +0.03% |
-| assignment | **0.00%** | -0.15% | -0.11% |
-| **merge final** | **-7.36%** | +3.75% | +3.15% |
+| voxelize (nodes) | **exact** | **exact** | **exact** |
+| enclosed regions | **exact** | **exact** | **exact** |
+| clusters generated | **exact** | **exact** | **exact** |
+| pre-merged | **exact** | **exact** | **exact** |
+| target (pass budget base) | **exact** | **exact** | **exact** |
+| first pass cost | **exact** | -- | **exact** |
+| merge first / second / final | **exact** | **exact** | **exact** |
+| assignment | **exact** | **exact** | **exact** |
 
-Where that came from in one session, for a sense of what moving these looks
-like:
+`VisClusterSetTests` (`MERGE=1`) asserts all of it at 0.01%, on our own target.
+The previous handoff had the merge at -7.36% / +3.75% / +3.15%.
 
-| stage | before | after |
-|---|---|---|
-| enclosed regions | +7.87 / +0.36 / -0.05 | 0.00 / 0.00 / 0.00 |
-| clusters generated | +2.81 / -1.22 / -1.26 | 0.00 / -0.06 / -0.06 |
-| assignment | -61.48 / -42.21 / -42.53 | 0.00 / -0.15 / -0.11 |
-| merge final | +35.66 / +4.18 / -2.10 | -7.36 / +3.75 / +3.15 |
+It is not just the counts. On Valve's own captured inputs every intermediate is
+bit-identical: 528,630 merge prices, every merge in order (79,955 on probe01),
+every sampled visibility bit, every one of 512 rays from a wall-hugging cluster,
+the rebuilt kd tree node for node, all 13 pre-merge rounds, and each pass's set
+list in order. See section 4 for how that is measured; it is how every one of
+these was fixed.
 
-**The merge is the only stage still outside target**, and the two errors are
-different in kind: ze_hold_em_p **under** merges (239 clusters against the
-compile's 258), the probes **over** merge.
-
-Supporting numbers for ze_hold_em_p's merge, because they narrow it a long way:
-
-| | min | max | avg |
-|---|---|---|---|
-| compile, first pass cost | 20.0 | 45,960.3 | 21,940.0 |
-| ours | 20.0 | 45,040.0 | 21,000.4 |
-| | exact | -2.0% | -4.28% |
-
-That is a soft offset spread across the merging buckets, not a few buckets
-landing the wrong side of a threshold. Everything the cost curve is built from
-has been read out of the image and matches: all seven cost constants, the cost
-function to its end, the candidate rule, the absorb, the tie break, and the
-cluster BIRTH values. See VIS.md "Where that leaves it" and everything after it.
-
----
+**Everything after assignment is still unbuilt** (section 8), so the shipped
+`vvis_c` is not yet ours. That is the next front.
 
 ## 4. How to run and score anything
 
@@ -94,7 +79,7 @@ cluster BIRTH values. See VIS.md "Where that leaves it" and everything after it.
 dotnet test tests/Source2.Compiler.Tests -c Release
 ```
 
-Current state of that command: **168 passed, 4 failed**. The four are section 9;
+Current state of that command: **173 passed, 4 failed**. The four are section 9;
 they are not yours.
 
 **Diagnostics are environment gated**, so they do not run in the ordinary suite
@@ -132,6 +117,38 @@ Valve against Valve is a **byte identical** `vvis_c`, so any deviation you
 measure is entirely ours and none of it is oracle noise.
 
 ---
+
+### Capture and replay, which is how parity was actually reached
+
+Counts at the end of a stage cannot localise a defect in a greedy merge: one
+wrong tie-break early shows up as a soft percent later. What works is taking the
+compile's intermediate state out of the running process and feeding the port the
+SAME input. Frida is installed; the tools:
+
+| tool | what it records |
+|---|---|
+| `tools/vis/capture_merge.py <addon> <map> [--vis] [--gen]` | every merge loop call: input set, leaf boxes, sampled visibility, candidate prices, every merge and cost, output; and the whole set list at every pass entry |
+| `tools/vis/capture_rays.py <addon> <map> x,y,z ...` | one cluster's per-ray tracer results |
+
+and the replays that consume them, all env gated:
+
+| var | test | what it compares |
+|---|---|---|
+| `REPLAY=<map>` | `VisMergeReplay` | sampler, cost, merge order per bucket; bucketing per pass; our generation + pre-merge against the pass 0 entry (`REPLAY_CHAIN=1` runs the whole chain and compares every pass entry) |
+| `RAYS=<map>` | `VisRayReplay` | our segment trace against Valve's raw tracer output, ray by ray |
+| `KD=<map>` | `TracerKdReplay` | our rebuilt kd tree against the one dumped from memory |
+
+Dumps of the tracer (kd nodes, triangles) and of pre-merge rounds were taken
+with one-off Frida scripts; the pattern is in `capture_merge.py`. Addresses
+come from the signature manifest, so all of it survives a game update.
+
+**Ghidra/ReVa.** The `ReVa` MCP server is a Ghidra plugin and refuses
+connections unless something serves it. `tools/re/reva_serve.py` serves it
+headless on the `cs2` project (it locks the project while running);
+`tools/re/reva_call.py` calls any ReVa tool over HTTP if the MCP client did not
+connect. Ghidra's decompile has twice been wrong in ways that mattered here: it
+DROPPED the whole tail of `BoxGap` after its square root, and it reordered a load
+past a store in the triangle conversion. Disassemble anything surprising.
 
 ## 5. The CS2 update of 2026-09-23, and signatures
 
@@ -234,7 +251,9 @@ These are the operator's, and they are not negotiable.
 | `VisMerge`, `VisMergeCost` | the greedy merge and its cost function |
 | `VisBoxTree` | the dynamic AABB tree, now WITH its rotation |
 | `VisSampler`, `VisClusterSample` | the visibility sampler |
-| `RayTraceEnvironment` | the kd tree trace |
+| `RayTraceEnvironment` | the file's kd trace, plus `Segment`: the compile's batch tracer on the loader's converted triangles |
+| `TracerKd` | the kd tree the loader rebuilds (`RefineNode`), and the voxelizer's box query through it |
+| `MsvcSort` | MSVC's `std::sort`, where the compile's unstable sort order is observable |
 
 Two fixes from this session are worth knowing about because both were invisible
 to the tests that existed:
@@ -271,20 +290,18 @@ In rough order of how much is known about each:
 
 ## 9. Open, in the order worth taking them
 
-1. **ze_hold_em_p's merge, -7.36%.** 239 clusters against 258. Its 82 merging
-   buckets run out of pairs and collapse to one cluster each where the compile
-   stops at about 1.3, so the difference is the LAST merge in roughly 25
-   buckets. The cost curve is 4.5% low at the same point, uniformly. Not a
-   discrete defect anywhere read so far.
-2. **The probes' +3%**, which is now an over merge where it used to be an under
-   merge, so it is a cost limit problem rather than an exhaustion one.
-3. **The probes' 0.28% voxelize gap**: six branches each, identically on both,
-   with the rebuilt box matching the header to the unit. Open and small.
-4. **One fidelity item recorded and not fixed.** The compile's normalise has a
-   magnitude guard with a double precision path above and below it;
-   `VisSeed.Directions` uses plain `Vector3.Normalize`. For directions built from
-   a box's half extents the fast path always applies, so it is very unlikely to
-   matter, but it has not been shown not to.
+1. **The stages after assignment** (section 8): the PVS ray generators, the
+   neighbour list, adaptive border sampling, the second cluster merge ("Target
+   608 clusters, clamped to 606" on probe01), the collapse, sky visibility.
+   Capture first: the same harness will record their inputs and outputs, and
+   the ray scan is threaded, so check which parts are deterministic before
+   comparing (VIS.md: the file is byte stable across runs, the ray count is not).
+2. **More specimens.** Three maps are exact; a map with nodraw, hint entities
+   or `vis_voxel_size` override volumes (the list at sampler+0x88 in
+   `Voxelize`) exercises code paths none of these do.
+3. **One fidelity item recorded and not fixed.** `NormaliseSlowPath` (lengths
+   under 1e-17 or over 1e17) is approximated with a double normalise in three
+   places; no specimen reaches it.
 
 **Four failing tests that are NOT this work.** `EntityLumpAuthorTests`,
 `EntityLumpKnownGapsTests` (x2) and `EntityClassCoverageTests` are the asset half
