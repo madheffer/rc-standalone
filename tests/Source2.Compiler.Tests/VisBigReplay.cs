@@ -53,7 +53,22 @@ public class VisBigReplay(ITestOutputHelper output)
     private static CaptureFile? Open(out string map)
     {
         map = Environment.GetEnvironmentVariable("BIGPVS") ?? "";
-        return map.Length == 0 ? null : new CaptureFile(Path.Combine(Path.GetTempPath(), "vis_capture", map + ".pvs.bin"));
+        return map.Length == 0 ? null : new CaptureFile(CapturePath(map));
+    }
+
+    private static string CapturePath(string map)
+        => Environment.GetEnvironmentVariable("BIGPVS_CAPTURE") is { Length: > 0 } other
+            ? other : Path.Combine(Path.GetTempPath(), "vis_capture", map + ".pvs.bin");
+
+    // The compile's own scene file: the copy capture_pvs.py keeps beside the
+    // capture when there is one, since the next compile of the map overwrites
+    // the one under csgo_addons and the .rte is not byte-stable between compiles.
+    private static string SceneFile(string map, string ext)
+    {
+        var capture = CapturePath(map);
+        var beside = capture.EndsWith(".pvs.bin") ? capture[..^".pvs.bin".Length] + ext : capture + ext;
+        var addon = Environment.GetEnvironmentVariable("BIGPVS_ADDON") ?? "s2c_big";
+        return File.Exists(beside) ? beside : Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ext);
     }
 
     /// <summary>The sampler's arrays at scan entry, exactly as the compile held them.</summary>
@@ -133,6 +148,130 @@ public class VisBigReplay(ITestOutputHelper output)
         }
         output.WriteLine($"neighbours: {same}/{s.Clusters} clusters identical");
         Assert.Equal(s.Clusters, same);
+    }
+
+    /// <summary>
+    /// The cluster-centre generator from an empty matrix: every pass's pairs, and
+    /// the matrix it leaves.
+    /// </summary>
+    [Fact]
+    public void TheClusterCentresOnABigMap()
+    {
+        using var cap = Open(out _);
+        if (cap is null)
+            return;
+        var s = StateOf(cap);
+        var rte = Scene();
+        var matrix = new VisPvs.Matrix(s.Clusters + 2, s.Clusters + 2);
+        var first = FirstPass(cap, 0);
+        var pass = 0;
+        var samePasses = 0;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var passes = VisPvs.ClusterCentres(s, VisPvs.Neighbors(s), rte, matrix, (pairs, rays) =>
+        {
+            var theirs = Pairs(cap.Blob("pairs" + (first + pass)));
+            var same = pairs.SequenceEqual(theirs);
+            samePasses += same ? 1 : 0;
+            output.WriteLine($"  pass {pass}: pairs ours {pairs.Count:n0} valve {theirs.Count:n0}, in order {same}; {rays:n0} rays ({clock.Elapsed.TotalSeconds:0}s)");
+            pass++;
+        });
+        var (rows, same, mine, valve) = VisPvsReplay.Diff(matrix, cap.Blob("after0"));
+        output.WriteLine($"cluster centres: {passes} passes; rows identical {same}/{rows}, bits ours-only {mine:n0} valve-only {valve:n0}");
+        Assert.Equal(pass, samePasses);
+        Assert.Equal(rows, same);
+    }
+
+    /// <summary>
+    /// The border stage on a big map from Valve's merged state: the border
+    /// entries, every claim, the rewrite and AssignClusters2; and, when the
+    /// capture has them, the two blocks handed to the world renderer.
+    /// </summary>
+    [Fact]
+    public void TheBordersOnABigMap()
+    {
+        using var cap = Open(out var map);
+        if (cap is null)
+            return;
+        var scan = StateOf(cap);
+        var (boxMins, boxMaxs) = Boxes(cap.Blob("appliedboxes"));
+        var merged = scan with { Entries = EntriesOf(cap.Blob("appliedentries")), ClusterMins = boxMins, ClusterMaxs = boxMaxs };
+        var rte = Scene();
+        var (borders, claims) = VisBorders.Sample(merged, rte);
+
+        var be = cap.Blob("borderentries");
+        var theirBorders = Enumerable.Range(0, be.Length / 4).Select(i => BitConverter.ToInt32(be, i * 4)).ToArray();
+        output.WriteLine($"borders: ours {borders.Length:n0} valve {theirBorders.Length:n0}, same {borders.SequenceEqual(theirBorders)}");
+
+        var blob = cap.Blob("borders");
+        int at = 0, same = 0, shown = 0;
+        for (var k = 0; k < claims.Length && at < blob.Length; k++)
+        {
+            var count = BitConverter.ToInt32(blob, at);
+            at += 4;
+            var theirs = Enumerable.Range(0, count)
+                .Select(i => new VisBorders.Claim(V(blob, at + i * 28), V(blob, at + i * 28 + 12), BitConverter.ToInt32(blob, at + i * 28 + 24)))
+                .ToList();
+            at += count * 28;
+            if (theirs.SequenceEqual(claims[k]))
+                same++;
+            else if (shown++ < 6)
+                output.WriteLine($"  border {k} (entry {borders[k]}): ours [{string.Join(" ", claims[k])}] valve [{string.Join(" ", theirs)}]");
+        }
+        output.WriteLine($"claims: {same:n0}/{claims.Length:n0} identical; total ours {claims.Sum(c => c.Count):n0}");
+
+        var rewritten = VisBorders.Rewrite(merged, borders, claims);
+        var rewriteSame = SameState(rewritten, cap.Blob("resampledentries"), cap.Blob("resamplednodes"));
+        var consolidated = VisBorders.Consolidate(rewritten);
+        var assignedSame = SameState(consolidated, cap.Blob("assigned2entries"), cap.Blob("assigned2nodes"));
+        output.WriteLine($"rewrite identical {rewriteSame}; AssignClusters2 identical {assignedSame}");
+
+        var blocks = true;
+        if (cap.Has("flatboxes"))
+        {
+            var flat = VisOutput.FlatClusterBoxes(merged, claims);
+            var fb = cap.Blob("flatboxes");
+            int fat = 0, flatSame = 0;
+            for (var c = 0; c < flat.Length && fat < fb.Length; c++)
+            {
+                var count = BitConverter.ToInt32(fb, fat);
+                fat += 4;
+                var theirs = Enumerable.Range(0, count).Select(k => (V(fb, fat + k * 24), V(fb, fat + k * 24 + 12))).ToList();
+                fat += count * 24;
+                flatSame += theirs.SequenceEqual(flat[c]) ? 1 : 0;
+            }
+            output.WriteLine($"FlatVisClusterVector: {flatSame:n0}/{flat.Length:n0} clusters identical");
+            blocks &= flatSame == flat.Length;
+        }
+        if (cap.Has("mutualvis"))
+        {
+            var addon = Environment.GetEnvironmentVariable("BIGPVS_ADDON") ?? "s2c_big";
+            var (_, shipped) = VisFixtures.RayTraceScene(addon, map)!.Value;
+            var mv = VisOutput.MutualVisibility(shipped);
+            var mb = cap.Blob("mutualvis");
+            int mat = 0, rowsSame = 0;
+            for (var j = 0; j < mv.Length && mat < mb.Length; j++)
+            {
+                var count = BitConverter.ToInt32(mb, mat);
+                mat += 4;
+                var ok = count == mv[j].Length;
+                for (var k = 0; ok && k < count; k++)
+                    ok = BitConverter.ToSingle(mb, mat + k * 4) == mv[j][k];
+                mat += count * 4;
+                rowsSame += ok ? 1 : 0;
+            }
+            output.WriteLine($"MutualVisibilityMatrix: {rowsSame:n0}/{mv.Length:n0} rows identical");
+            blocks &= rowsSame == mv.Length;
+        }
+        Assert.Equal(theirBorders, borders);
+        Assert.Equal(claims.Length, same);
+        Assert.True(rewriteSame && assignedSame && blocks);
+
+        static bool SameState(VisPvs.State st, byte[] e, byte[] n)
+            => e.Length / 16 == st.Entries.Length && n.Length / 8 == st.NodeWords.Length
+               && Enumerable.Range(0, st.Entries.Length).All(i => BitConverter.ToInt32(e, i * 16) == st.Entries[i].Cluster
+                     && BitConverter.ToInt32(e, i * 16 + 4) == st.Entries[i].Packed && BitConverter.ToUInt64(e, i * 16 + 8) == st.Entries[i].Cells)
+               && Enumerable.Range(0, st.NodeWords.Length).All(i => BitConverter.ToUInt32(n, i * 8) == st.NodeWords[i]
+                     && BitConverter.ToUInt16(n, i * 8 + 4) == st.NodeCounts[i]);
     }
 
     /// <summary>
@@ -245,8 +384,7 @@ public class VisBigReplay(ITestOutputHelper output)
         var theirSky = Words(cap.Blob("sky"));
         output.WriteLine($"sky: valve {Pop(theirSky)} clusters, ours {(sky is null ? "none" : $"{Pop(sky)}, identical {sky.SequenceEqual(theirSky)}")}");
 
-        var addon = Environment.GetEnvironmentVariable("BIGPVS_ADDON") ?? "s2c_big";
-        var config = VisConfig.Read(Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".viscfg"));
+        var config = VisConfig.Read(SceneFile(map, ".viscfg"));
         var theirSun = Words(cap.Blob("sun"));
         var sun = config.DirToSun is { } dir ? VisSun.Visible(assigned, rte, dir, VisSun.OpenCells(merged)) : null;
         output.WriteLine($"sun: valve {Pop(theirSun)} clusters, ours {(sun is null ? "none" : $"{Pop(sun)}, identical {sun.SequenceEqual(theirSun)}")}");
@@ -379,8 +517,7 @@ public class VisBigReplay(ITestOutputHelper output)
     private static RayTraceEnvironment Scene()
     {
         var map = Environment.GetEnvironmentVariable("BIGPVS")!;
-        var addon = Environment.GetEnvironmentVariable("BIGPVS_ADDON") ?? "s2c_big";
-        return RayTraceEnvironment.ReadFile(Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".rte"));
+        return RayTraceEnvironment.ReadFile(SceneFile(map, ".rte"));
     }
 
     private static Vector3 V(byte[] b, int at)

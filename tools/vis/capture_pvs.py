@@ -42,6 +42,7 @@ tool follows a game update that moves them and refuses one that changes them.
 import argparse
 import json
 import os
+import shutil
 import struct
 import sys
 import threading
@@ -367,6 +368,15 @@ def main():
     done.wait()
     out.close()
     print("->", out_path)
+    # The scene this compile traced. The .rte is not byte-stable between
+    # compiles and the next compile of the map overwrites it, so a replay must
+    # read this copy, not the one under %TEMP%/csgo_addons.
+    stem = out_path[:-len(".pvs.bin")] if out_path.endswith(".pvs.bin") else out_path
+    scene = os.path.join(os.environ.get("TEMP", "."), "csgo_addons", args.addon, "maps", args.map)
+    for ext in (".rte", ".viscfg"):
+        if os.path.exists(scene + ext):
+            shutil.copyfile(scene + ext, stem + ext)
+            print("->", stem + ext)
 
 
 if __name__ == "__main__":
