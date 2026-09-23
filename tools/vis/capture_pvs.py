@@ -1,0 +1,160 @@
+"""Record the post-assignment half of Valve's vis build from inside the compile.
+
+    python capture_pvs.py <addon> <map> [--out file]
+
+Writes %TEMP%/vis_capture/<map>.pvs.bin, the same record stream as
+capture_merge.py (u32 json length, json, u32 blob length, blob):
+
+  state      at scan entry: the flat entry array (16 bytes each), the node
+             array (8 each), node boxes (24 each) and cluster boxes (24 each)
+  neighbors  the finished CNeighboringClustersList: per cluster its i64
+             accumulator, then its neighbour ids
+  pass<k>    at each generator begin-pass: the matrix going in, then the pairs
+             it produced (u32 pairs)
+  after      the matrix after each generator's SamplerDriver returns, with its
+             index in the order they ran
+  matrix     the MutualVisibilityMatrix as the PVS scan leaves it: rows of
+             ceil(n/32) u32 words, n = clusters + 2 (sky and sun)
+
+The functions hooked here are not in docs/visbuilder.signatures.json yet, so
+their RVAs are pinned to one build and the tool refuses any other.
+"""
+import argparse
+import hashlib
+import json
+import os
+import struct
+import sys
+import threading
+
+import frida
+
+CS2 = os.environ.get(
+    "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
+BIN = os.path.join(CS2, "game", "bin", "win64")
+BUILD = "13f375272e9c99d3d1755013e9eaf1c5"
+RVA = {
+    "SampleVisForClusters": 0x37ee0,
+    "NeighborsBuild": 0x1e7c0,
+    "SamplerDriver": 0x19c40,
+    "BeginPass": 0x1edc0,
+}
+
+AGENT = r"""
+const RVA = %(rva)s;
+function rows(m) {
+  const n = m.readS32(), ptrs = m.add(8).readPointer(), bits = m.add(0x18).readS32();
+  const words = (bits + 31) >> 5, out = new Uint8Array(n * words * 4);
+  for (let i = 0; i < n; i++)
+    out.set(new Uint8Array(ptrs.add(i * 8).readPointer().readByteArray(words * 4)), i * words * 4);
+  return [n, bits, out.buffer];
+}
+function hook(m) {
+  Interceptor.attach(m.base.add(RVA.NeighborsBuild), {
+    onEnter(a) { this.l = a[0]; },
+    onLeave() {
+      const n = this.l.add(8).readS32(), recs = this.l.add(0x10).readPointer();
+      let total = 0;
+      for (let i = 0; i < n; i++) total += 12 + recs.add(i * 0x20 + 8).readS32() * 4;
+      const out = new Uint8Array(total), dv = new DataView(out.buffer);
+      let at = 0;
+      for (let i = 0; i < n; i++) {
+        const r = recs.add(i * 0x20), c = r.add(8).readS32();
+        out.set(new Uint8Array(r.readByteArray(8)), at); dv.setInt32(at + 8, c, true); at += 12;
+        if (c) { out.set(new Uint8Array(r.add(0x10).readPointer().readByteArray(c * 4)), at); at += c * 4; }
+      }
+      send({ev: 'neighbors', clusters: n}, out.buffer);
+    }
+  });
+  let generator = 0, passes = 0;
+  Interceptor.attach(m.base.add(RVA.BeginPass), {
+    onEnter(a) {
+      this.g = a[0];
+      const [n, bits, blob] = rows(this.g.add(0x18).readPointer());
+      send({ev: 'passin' + passes, generator, rows: n, bits}, blob);
+    },
+    onLeave() {
+      const count = this.g.add(0x48).readS32();
+      send({ev: 'pairs' + passes, generator, pairs: count},
+           count > 0 ? this.g.add(0x50).readPointer().readByteArray(count * 8) : new ArrayBuffer(0));
+      passes++;
+    }
+  });
+  Interceptor.attach(m.base.add(RVA.SamplerDriver), {
+    onEnter(a) { this.m = a[0].readPointer(); },
+    onLeave() {
+      const [n, bits, blob] = rows(this.m);
+      send({ev: 'after' + generator, generator: generator++, rows: n, bits}, blob);
+    }
+  });
+  Interceptor.attach(m.base.add(RVA.SampleVisForClusters), {
+    onEnter(a) {
+      this.s = a[0];
+      const s = a[0];
+      const ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32(), nc = s.add(0x198).readS32();
+      send({ev: 'entries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      send({ev: 'nodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
+      send({ev: 'nodeboxes', n: nn}, s.add(0x78).readPointer().readByteArray(nn * 24));
+      send({ev: 'clusterboxes', n: nc}, s.add(0x1a0).readPointer().readByteArray(nc * 24));
+    },
+    onLeave() {
+      const [n, bits, blob] = rows(this.s.add(0x148));
+      send({ev: 'matrix', rows: n, bits, clusters: this.s.add(0x198).readS32()}, blob);
+    }
+  });
+  send({ev: 'hooked'});
+}
+const f = Process.findModuleByName('visbuilder.dll');
+if (f) hook(f); else Process.attachModuleObserver({onAdded(m) {
+  if (m.name.toLowerCase() === 'visbuilder.dll') hook(m); }});
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("addon")
+    parser.add_argument("map")
+    parser.add_argument("--out")
+    args = parser.parse_args()
+
+    with open(os.path.join(BIN, "visbuilder.dll"), "rb") as h:
+        if hashlib.md5(h.read()).hexdigest() != BUILD:
+            sys.exit("visbuilder.dll is not the build these RVAs were read from; sign them first")
+
+    out_path = args.out or os.path.join(os.environ.get("TEMP", "."), "vis_capture", "%s.pvs.bin" % args.map)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    out = open(out_path, "wb")
+    lock = threading.Lock()
+
+    def on_message(message, data):
+        if message["type"] != "send":
+            print("agent:", message.get("description") or message, file=sys.stderr)
+            return
+        head = json.dumps(message["payload"]).encode()
+        print(message["payload"])
+        with lock:
+            blob = data or b""
+            out.write(struct.pack("<I", len(head)) + head + struct.pack("<I", len(blob)) + blob)
+
+    vpk = os.path.join(CS2, "game", "csgo_addons", args.addon, "maps", args.map + ".vpk")
+    if os.path.exists(vpk):
+        os.remove(vpk)
+    source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
+    device = frida.get_local_device()
+    pid = device.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game",
+                        os.path.join(CS2, "game", "csgo"), "-i", source,
+                        "-world", "-vis", "-fshallow"], cwd=BIN, stdio="pipe")
+    session = device.attach(pid)
+    script = session.create_script(AGENT % {"rva": json.dumps(RVA)})
+    script.on("message", on_message)
+    script.load()
+    done = threading.Event()
+    session.on("detached", lambda *a: done.set())
+    device.resume(pid)
+    done.wait()
+    out.close()
+    print("->", out_path)
+
+
+if __name__ == "__main__":
+    main()
