@@ -98,9 +98,79 @@ public class VisPvsReplay(ITestOutputHelper output)
                 output.WriteLine($"   ({x},{y}): neighbours of {x} [{string.Join(",", neighbours[x].Neighbors)}]; of {y} [{string.Join(",", neighbours[y].Neighbors)}]");
         }
         var passes = VisPvs.ClusterCentres(s, neighbours, rte, matrix,
-            (pairs, useful) => output.WriteLine($"  pass: {pairs:n0} rays, {useful:n0} useful"));
+            (pairs, rays) => output.WriteLine($"  pass: {pairs.Count:n0} pairs, {rays:n0} rays"));
         var (rows, same, mine, theirs) = Diff(matrix, cap["after0"].Blob);
         output.WriteLine($"cluster centres: {passes} passes; rows identical {same}/{rows}, bits ours-only {mine:n0} valve-only {theirs:n0}");
+    }
+
+    /// <summary>A captured matrix, as ours.</summary>
+    internal static VisPvs.Matrix Load(JsonElement head, byte[] blob)
+    {
+        var bits = head.GetProperty("bits").GetInt32();
+        var m = new VisPvs.Matrix(head.GetProperty("rows").GetInt32(), bits);
+        for (var r = 0; r < m.Rows.Length; r++)
+        {
+            for (var w = 0; w < m.Words; w++)
+                m.Rows[r][w] = BitConverter.ToUInt32(blob, ((r * m.Words) + w) * 4);
+        }
+        return m;
+    }
+
+    /// <summary>The pairs each begin-pass of one generator produced, in pass order.</summary>
+    internal static List<List<(int, int)>> PassPairs(Dictionary<string, (JsonElement Head, byte[] Blob)> cap, int generator)
+        => cap.Where(kv => kv.Key.StartsWith("pairs") && kv.Value.Head.GetProperty("generator").GetInt32() == generator)
+              .OrderBy(kv => int.Parse(kv.Key[5..]))
+              .Select(kv => Enumerable.Range(0, kv.Value.Blob.Length / 8)
+                  .Select(i => (BitConverter.ToInt32(kv.Value.Blob, i * 8), BitConverter.ToInt32(kv.Value.Blob, i * 8 + 4))).ToList())
+              .ToList();
+
+    /// <summary>The whole scan against the matrix the compile leaves, generator set chosen by the map's pvstype.</summary>
+    [Fact]
+    public void TheWholeScan()
+    {
+        if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
+            return;
+        var cap = Capture(map);
+        var (s, rte) = OursWithScene(map)!.Value;
+        var config = VisConfig.Read(Path.Combine(Path.GetTempPath(), "csgo_addons", Addons[map], "maps", map + ".viscfg"));
+        var valve = cap.Where(kv => kv.Key.StartsWith("pairs"))
+            .OrderBy(kv => int.Parse(kv.Key[5..])).Select(kv => kv.Value.Blob.Length / 8).ToList();
+        var pass = 0;
+        var matrix = VisPvs.Scan(s, rte, config, (name, pairs, rays) =>
+        {
+            // Valve's empty closing begin-pass is captured too; ours returns before recording it.
+            while (pass < valve.Count && valve[pass] == 0 && pairs.Count != 0)
+                pass++;
+            output.WriteLine($"  {name}: pairs ours {pairs.Count:n0} valve {(pass < valve.Count ? valve[pass] : -1):n0}, {rays:n0} rays");
+            pass++;
+        });
+        var (rows, same, mine, theirs) = Diff(matrix, cap["matrix"].Blob);
+        output.WriteLine($"pvstype {config.PvsType}: rows identical {same}/{rows}, bits ours-only {mine:n0} valve-only {theirs:n0}");
+        Assert.Equal(rows, same);
+    }
+
+    [Fact]
+    public void TheBoundaryPointGenerator()
+    {
+        if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
+            return;
+        var cap = Capture(map);
+        var (s, rte) = OursWithScene(map)!.Value;
+        var neighbours = VisPvs.Neighbors(s);
+        var matrix = Load(cap["after0"].Head, cap["after0"].Blob);
+        var theirs = PassPairs(cap, 1);
+        var points = VisPvs.TracePoints(s);
+        output.WriteLine($"trace points: {points.Sum(c => c.Sum(side => side.Length)):n0}"
+                       + $" (+x..+z, the compile's log total: {points.Sum(c => c.Take(5).Sum(side => side.Length)):n0})");
+        var pass = 0;
+        var passes = VisPvs.BoundaryPoints(s, neighbours, rte, matrix, (pairs, cast) =>
+        {
+            var valve = pass < theirs.Count ? theirs[pass] : [];
+            output.WriteLine($"  pass {pass}: pairs ours {pairs.Count:n0} valve {valve.Count:n0}, in order {pairs.SequenceEqual(valve)}; {cast:n0} rays");
+            pass++;
+        });
+        var (rows, same, mine, valveOnly) = Diff(matrix, cap["after1"].Blob);
+        output.WriteLine($"boundary points: {passes} passes; rows identical {same}/{rows}, bits ours-only {mine:n0} valve-only {valveOnly:n0}");
     }
 
     [Fact]

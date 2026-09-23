@@ -710,53 +710,317 @@ public static class VisPvs
     private static float Axis(Vector3 v, int a) => a == 0 ? v.X : a == 1 ? v.Y : v.Z;
 
     /// <summary>
-    /// Trace and fold a set of sight rays into the matrix: each ray's segment is
-    /// walked through blockers, its clusters sorted and made unique, and ORed.
-    /// Rays run in parallel; the ORs are applied after, since their order cannot
-    /// matter.
+    /// One generator's passes (<c>SamplerDriver</c>): each pass takes the begin-pass
+    /// pairs, hands each to <paramref name="raysFor"/> lower id first as the fill
+    /// does (<c>FUN_18001f990</c>), traces every ray and ORs the clusters its
+    /// walk crosses, until a pass finds no pair. Rays run in parallel; the matrix
+    /// only takes ORs, so their order cannot matter. Returns the pass count.
     /// </summary>
-    public static int Fold(State s, RayTraceEnvironment rte, Matrix matrix, IReadOnlyList<Ray> rays, float reach)
+    public static int Passes(State s, Neighbor[] neighbours, RayTraceEnvironment rte, Matrix matrix,
+                             Action<int, int, List<Ray>> raysFor, Func<int, int, bool>? accept = null,
+                             int limit = int.MaxValue, Action<List<(int A, int B)>, long>? passDone = null)
     {
-        var found = new int[rays.Count][];
-        Parallel.For(0, rays.Count, i =>
-        {
-            if (Sight(rte, rays[i], reach) is not { } end)
-                return;
-            if (Walk(s, rays[i].Origin, end, through: true) is not { Count: > 0 } ids)
-                return;
-            var sorted = ids.Distinct().ToArray();
-            Array.Sort(sorted);
-            found[i] = sorted;
-        });
-        var useful = 0;
-        foreach (var ids in found)
-        {
-            if (ids is not null && matrix.Or(ids) > 0)
-                useful++;
-        }
-        return useful;
-    }
-
-    /// <summary>
-    /// <c>ClusterCenterRayGenerator</c>: passes of centre-to-centre rays between
-    /// each cluster and what its neighbours see, until a pass finds no pair.
-    /// </summary>
-    public static int ClusterCentres(State s, Neighbor[] neighbours, RayTraceEnvironment rte, Matrix matrix,
-                                     Action<int, int>? passDone = null)
-    {
-        var centres = Centres(s);
         var tested = Diagonal(s.Clusters);
         var reach = Reach(rte);
         var passes = 0;
         while (true)
         {
-            var pairs = Pairs(matrix, neighbours, tested);
+            var pairs = Pairs(matrix, neighbours, tested, accept, limit);
             if (pairs.Count == 0)
                 return passes;
-            var rays = pairs.Select(p => Toward(centres[Math.Min(p.A, p.B)], centres[Math.Max(p.A, p.B)])).ToList();
-            var useful = Fold(s, rte, matrix, rays, reach);
+            long cast = 0;
+            var gate = new object();
+            Parallel.ForEach(pairs, () => (Rays: new List<Ray>(), Sets: new List<int[]>()), (pair, _, local) =>
+            {
+                local.Rays.Clear();
+                raysFor(Math.Min(pair.A, pair.B), Math.Max(pair.A, pair.B), local.Rays);
+                foreach (var ray in local.Rays)
+                {
+                    if (Sight(rte, ray, reach) is not { } end)
+                        continue;
+                    if (Walk(s, ray.Origin, end, through: true) is not { Count: > 0 } ids)
+                        continue;
+                    var sorted = ids.Distinct().ToArray();
+                    Array.Sort(sorted);
+                    local.Sets.Add(sorted);
+                }
+                Interlocked.Add(ref cast, local.Rays.Count);
+                if (local.Sets.Count > 4096)
+                    Flush(local.Sets);
+                return local;
+            }, local => Flush(local.Sets));
             passes++;
-            passDone?.Invoke(pairs.Count, useful);
+            passDone?.Invoke(pairs, cast);
+
+            void Flush(List<int[]> sets)
+            {
+                lock (gate)
+                {
+                    foreach (var ids in sets)
+                        matrix.Or(ids);
+                }
+                sets.Clear();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The PVS scan (<c>SampleVisForClusters</c>): the generators in the order the
+    /// compile builds them. <c>pvstype</c> 1 stops after cluster centres. The
+    /// CLOS generator replays a <c>.los</c> hint file, which a stock compile does
+    /// not have, and is not run.
+    /// </summary>
+    public static Matrix Scan(State s, RayTraceEnvironment rte, VisConfig config,
+                              Action<string, List<(int A, int B)>, long>? passDone = null)
+    {
+        var neighbours = Neighbors(s);
+        var matrix = new Matrix(s.Clusters + 2, s.Clusters + 2);
+        ClusterCentres(s, neighbours, rte, matrix, (p, n) => passDone?.Invoke("ClusterCenterRayGenerator", p, n));
+        if (config.CentresOnly)
+            return matrix;
+        BoundaryPoints(s, neighbours, rte, matrix, (p, n) => passDone?.Invoke("CBoundaryPointsRayGenerator", p, n));
+        LargeClusterRegions(s, neighbours, rte, matrix, (p, n) => passDone?.Invoke("LargeClusterRegions", p, n));
+        return matrix;
+    }
+
+    /// <summary>
+    /// <c>ClusterCenterRayGenerator</c>: one ray a pair, between the two
+    /// clusters' centre points, with no filter and no pair limit.
+    /// </summary>
+    public static int ClusterCentres(State s, Neighbor[] neighbours, RayTraceEnvironment rte, Matrix matrix,
+                                     Action<List<(int A, int B)>, long>? passDone = null)
+    {
+        var centres = Centres(s);
+        return Passes(s, neighbours, rte, matrix, (lo, hi, rays) => rays.Add(Toward(centres[lo], centres[hi])),
+                      passDone: passDone);
+    }
+
+    private static readonly Vector3[] Sides =
+    [
+        new(1, 0, 0), new(-1, 0, 0), new(0, 1, 0), new(0, -1, 0), new(0, 0, 1), new(0, 0, -1),
+    ];
+
+    /// <summary>
+    /// <c>BuildTracePointsForClusters</c>: per cluster from 2 on, the boundary
+    /// points of each of its six sides (+x, -x, +y, -y, +z, -z). Clusters 0 and
+    /// 1 get none.
+    /// </summary>
+    public static Vector3[][][] TracePoints(State s)
+    {
+        var lists = EntriesByCluster(s);
+        var found = new Vector3[s.Clusters][][];
+        Parallel.For(0, s.Clusters, c =>
+        {
+            found[c] = new Vector3[6][];
+            for (var side = 0; side < 6; side++)
+                found[c][side] = c > 1 ? SidePoints(s, lists[c], Sides[side]) : [];
+        });
+        return found;
+    }
+
+    // FUN_18003b440: every voxel face of the cluster facing the side contributes
+    // its four corners, keyed by the two coordinates across the side. A key keeps
+    // the furthest depth along the side, how many corners reached it, and the
+    // entry that first made the key. Corners reached exactly once become points,
+    // moved 0.01 toward the centre of that entry's box (FUN_18003afc0).
+    private static Vector3[] SidePoints(State s, List<int> entries, Vector3 dir)
+    {
+        var keys = new Dictionary<(float U, float V), (float Depth, int Count, int Entry)>();
+        var corners = new Vector3[4];
+        foreach (var e in entries)
+        {
+            var entry = s.Entries[e];
+            if (entry.Cells == ulong.MaxValue)
+            {
+                Face(RegionBox(s, entry), dir, corners);
+                Add(e);
+                continue;
+            }
+            for (var i = 0; i < 64; i++)
+            {
+                if ((entry.Cells >> i & 1) == 0)
+                    continue;
+                Face(SubBox(s, entry.Leaf, i), dir, corners);
+                Add(e);
+            }
+        }
+        var points = new List<Vector3>();
+        foreach (var ((u, v), (depth, count, e)) in keys)
+        {
+            if (count != 1)
+                continue;
+            var p = dir.X != 0f ? new Vector3(depth * dir.X, u, v)
+                  : dir.Y != 0f ? new Vector3(u, depth * dir.Y, v)
+                  : new Vector3(u, v, depth * dir.Z);
+            var (lo, hi) = RegionBox(s, s.Entries[e]);
+            var n = Toward(p, new Vector3((lo.X + hi.X) * 0.5f, (lo.Y + hi.Y) * 0.5f, (lo.Z + hi.Z) * 0.5f)).Direction;
+            points.Add(new Vector3((n.X * 0.01f) + p.X, (n.Y * 0.01f) + p.Y, (n.Z * 0.01f) + p.Z));
+        }
+        return [.. points];
+
+        void Add(int e)
+        {
+            foreach (var p in corners)
+            {
+                var key = dir.X != 0f ? (p.Y, p.Z) : dir.Y != 0f ? (p.X, p.Z) : (p.X, p.Y);
+                var depth = (dir.Y * p.Y) + (dir.Z * p.Z) + (p.X * dir.X);
+                if (!keys.TryGetValue(key, out var held))
+                    keys[key] = (depth, 1, e);
+                else if (held.Depth < depth)
+                    keys[key] = (depth, 1, held.Entry);
+                else if (depth == held.Depth)
+                    keys[key] = (held.Depth, held.Count + 1, held.Entry);
+            }
+        }
+    }
+
+    // FUN_18003ae80: the four corners of a box's face at the side's far end.
+    private static void Face((Vector3 Lo, Vector3 Hi) box, Vector3 dir, Vector3[] corners)
+    {
+        var (lo, hi) = box;
+        if (dir.X != 0f)
+        {
+            var x = dir.X > 0f ? hi.X : lo.X;
+            corners[0] = new(x, lo.Y, lo.Z);
+            corners[1] = new(x, hi.Y, lo.Z);
+            corners[2] = new(x, lo.Y, hi.Z);
+            corners[3] = new(x, hi.Y, hi.Z);
+        }
+        else if (dir.Y != 0f)
+        {
+            var y = dir.Y > 0f ? hi.Y : lo.Y;
+            corners[0] = new(lo.X, y, lo.Z);
+            corners[1] = new(hi.X, y, lo.Z);
+            corners[2] = new(lo.X, y, hi.Z);
+            corners[3] = new(hi.X, y, hi.Z);
+        }
+        else
+        {
+            var z = dir.Z > 0f ? hi.Z : lo.Z;
+            corners[0] = new(lo.X, lo.Y, z);
+            corners[1] = new(hi.X, lo.Y, z);
+            corners[2] = new(lo.X, hi.Y, z);
+            corners[3] = new(hi.X, hi.Y, z);
+        }
+    }
+
+    /// <summary>
+    /// <c>FUN_180020bc0</c>: the points of cluster <paramref name="c"/> to cast
+    /// from toward <paramref name="other"/>: the sides along which the other box
+    /// reaches past this one by more than half the largest such reach, or every
+    /// side when none does; sorted by x, y, z and made unique.
+    /// </summary>
+    public static Vector3[] Facing(State s, Vector3[][][] points, int c, int other)
+    {
+        Vector3 a0 = s.ClusterMins[c], a1 = s.ClusterMaxs[c], b0 = s.ClusterMins[other], b1 = s.ClusterMaxs[other];
+        Span<float> reach =
+        [
+            Clamp(b1.X - a1.X), Clamp(a0.X - b0.X), Clamp(b1.Y - a1.Y),
+            Clamp(a0.Y - b0.Y), Clamp(b1.Z - a1.Z), Clamp(a0.Z - b0.Z),
+        ];
+        var most = MathF.Max(MathF.Max(MathF.Max(reach[0], reach[2]), reach[4]),
+                             MathF.Max(MathF.Max(reach[1], reach[3]), reach[5])) * 0.5f;
+        var taken = new List<Vector3>();
+        for (var side = 0; side < 6; side++)
+        {
+            if (most < reach[side])
+                taken.AddRange(points[c][side]);
+        }
+        if (taken.Count == 0)
+        {
+            foreach (var side in points[c])
+                taken.AddRange(side);
+        }
+        taken.Sort(static (p, q) => p.X < q.X ? -1 : p.X > q.X ? 1 : p.Y < q.Y ? -1 : p.Y > q.Y ? 1
+                                  : p.Z < q.Z ? -1 : p.Z > q.Z ? 1 : 0);
+        var unique = new List<Vector3>(taken.Count);
+        foreach (var p in taken)
+        {
+            if (unique.Count == 0 || unique[^1].X != p.X || unique[^1].Y != p.Y || unique[^1].Z != p.Z)
+                unique.Add(p);
+        }
+        return [.. unique];
+
+        static float Clamp(float v) => v <= 0f ? 0f : v;
+    }
+
+    /// <summary>
+    /// <c>FUN_1800204f0</c>: a boundary-point pair's rays, every point of one
+    /// against every point of the other, alternating which end casts.
+    /// </summary>
+    public static void PairRays(Vector3[] from, Vector3[] to, List<Ray> rays)
+    {
+        foreach (var p in from)
+        {
+            for (var k = 0; k < to.Length; k++)
+                rays.Add((k & 1) == 0 ? Toward(p, to[k]) : Toward(to[k], p));
+        }
+    }
+
+    /// <summary>
+    /// <c>CBoundaryPointsRayGenerator</c>: every facing boundary point of one
+    /// cluster against every one of the other, at most 8,000,000 pairs a pass.
+    /// </summary>
+    public static int BoundaryPoints(State s, Neighbor[] neighbours, RayTraceEnvironment rte, Matrix matrix,
+                                     Action<List<(int A, int B)>, long>? passDone = null)
+    {
+        var points = TracePoints(s);
+        return Passes(s, neighbours, rte, matrix,
+                      (lo, hi, rays) => PairRays(Facing(s, points, lo, hi), Facing(s, points, hi, lo), rays),
+                      limit: 8_000_000, passDone: passDone);
+    }
+
+    /// <summary>
+    /// The large-cluster-regions generator: for a small cluster far from a big
+    /// one, a ray from every entry box of the one to every entry box of the
+    /// other (<c>FUN_180021190</c>), at most 8,000,000 pairs a pass.
+    /// </summary>
+    public static int LargeClusterRegions(State s, Neighbor[] neighbours, RayTraceEnvironment rte, Matrix matrix,
+                                          Action<List<(int A, int B)>, long>? passDone = null)
+    {
+        var lists = EntriesByCluster(s);
+        return Passes(s, neighbours, rte, matrix, (lo, hi, rays) =>
+        {
+            foreach (var a in lists[lo])
+            {
+                foreach (var b in lists[hi])
+                    rays.Add(Toward(Jittered(s, a, lo), Jittered(s, b, hi)));
+            }
+        }, (c, t) => Distant(s, c, t), 8_000_000, passDone);
+    }
+
+    // An entry box's centre moved +-c/n per axis, the sign from c's low bits.
+    private static Vector3 Jittered(State s, int entry, int c)
+    {
+        var (lo, hi) = RegionBox(s, s.Entries[entry]);
+        var f = (float)c / s.Clusters;
+        float jx = (c & 1) != 0 ? f * -1f : f, jy = (c & 2) != 0 ? f * -1f : f, jz = (c & 4) != 0 ? f * -1f : f;
+        return new Vector3(((lo.X + hi.X) * 0.5f) + jx, ((lo.Y + hi.Y) * 0.5f) + jy, ((lo.Z + hi.Z) * 0.5f) + jz);
+    }
+
+    // FUN_1800216b0: the boxes at least 256 apart, the first's half diagonal at
+    // most 128 and the second's at least 600 (the constructor's +0xa0, +0x9c
+    // and +0x98).
+    private static bool Distant(State s, int c, int t)
+    {
+        Vector3 a0 = s.ClusterMins[c], a1 = s.ClusterMaxs[c], b0 = s.ClusterMins[t], b1 = s.ClusterMaxs[t];
+        float gx = Gap(a0.X - b1.X, b0.X - a1.X), gy = Gap(a0.Y - b1.Y, b0.Y - a1.Y), gz = Gap(a0.Z - b1.Z, b0.Z - a1.Z);
+        if (!(256f <= MathF.Sqrt((gy * gy) + (gz * gz) + (gx * gx))))
+            return false;
+        if (!(Half(a0, a1) <= 128f))
+            return false;
+        return 600f <= Half(b0, b1);
+
+        static float Gap(float first, float second)
+        {
+            var g = first < 0f ? second : first;
+            return 0f <= g ? g : 0f;
+        }
+
+        static float Half(Vector3 lo, Vector3 hi)
+        {
+            float dx = lo.X - ((hi.X + lo.X) * 0.5f), dy = lo.Y - ((hi.Y + lo.Y) * 0.5f), dz = lo.Z - ((hi.Z + lo.Z) * 0.5f);
+            return MathF.Sqrt((dy * dy) + (dz * dz) + (dx * dx));
         }
     }
 }
