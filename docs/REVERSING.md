@@ -34,6 +34,14 @@ file before trusting a decompile. **Keep the old program.** Comparing a new
 decompile against the old one is what turns "this moved" into "this changed",
 and that distinction is the whole game.
 
+The 2026-09-24 update (changelist 11030009) rebuilt most binaries but not
+`visbuilder.dll` (md5 unchanged). The new `resourcecompiler.dll` (md5
+`b147a1e9...`) differs from `resourcecompiler_20260923.dll` only in the debug
+directory's timestamps and the PDB age; `.text`, `.data` and `.pdata` are byte
+identical, so the analysed program still stands. A probe01 capture after it was
+byte identical to one taken before. `vrad3.dll` changed too and was not
+examined; vis does not use it.
+
 Ghidra scripts must sit in the scripts directory to run, so `tools/*.java` are
 the versioned copies and get copied in. They must not drift; the update
 procedure copies them every time so they cannot.

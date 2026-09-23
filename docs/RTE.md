@@ -342,6 +342,14 @@ length and it is confirmed by the file tiling exactly. The log's number is
 therefore a filtered subset, presumably the opaque or vis-relevant triangles that
 `Convert RTE` keeps. Not confirmed.
 
+**The file is not byte-stable between compiles.** Three probe01 compiles on
+2026-09-24 (two with the same binary) gave three different `.rte` files: the
+same header, planes and surface ids, but a different triangle order (so the id
+field and the kd tree differ) and, in each pair, one triangle whose edge floats
+differ. The vis captures from all three were byte identical, so visibility does
+not see the difference. Why the order varies is open; compare `.rte` files by
+content, never by hash.
+
 ## Next
 
 1. Decode the 48-byte triangle record, ideally by finding Valve's
