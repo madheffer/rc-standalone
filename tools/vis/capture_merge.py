@@ -96,7 +96,25 @@ function dumpSet(set) {
 function hook(m) {
   const at = name => m.base.add(RVA[name]);
 
-  Interceptor.attach(at('Regrid'), { onEnter() { pass++; send({ev: 'pass', pass}); } });
+  // Every set the pass is handed, in order: pass 0's is generation and the
+  // pre-merge's output, and each later one is the pass before it, so the
+  // bucketing can be replayed against the next pass's inputs.
+  Interceptor.attach(at('Regrid'), { onEnter(a) {
+    pass++;
+    const sets = a[1], n = sets.readS32(), base = sets.add(8).readPointer();
+    const scene = a[0].add(0xe8).readPointer();
+    const box = []; for (let k = 0; k < 6; k++) box.push(scene.add(4 + k * 4).readFloat());
+    const parts = [];
+    let total = 0;
+    for (let i = 0; i < n; i++) { const [c, blob] = dumpSet(base.add(i * 0x18)); parts.push([c, blob]); total += 8 + blob.byteLength; }
+    const out = new Uint8Array(total), dv = new DataView(out.buffer);
+    let at2 = 0;
+    for (const [c, blob] of parts) {
+      dv.setInt32(at2, c, true); dv.setInt32(at2 + 4, blob.byteLength, true); at2 += 8;
+      out.set(new Uint8Array(blob), at2); at2 += blob.byteLength;
+    }
+    send({ev: 'pass', pass, sets: n, scene: box}, out.buffer);
+  } });
 
   const origLoop = new NativeFunction(at('MergeLoop'), 'float',
       ['pointer', 'pointer', 'pointer', 'float', 'int', 'int']);
@@ -112,7 +130,7 @@ function hook(m) {
         sendLeaves(sampler, set);
         const [n, blob] = dumpSet(set);
         rec = {id: seq++, pass, padded, limit, budget, box: b, n, merges: []};
-        send({ev: 'in', id: rec.id, pass, padded, limit, budget, box: b, n}, blob);
+        send({ev: 'in', id: rec.id, pass, padded, limit, budget, box: b, n, set: set.toString()}, blob);
         live[tid] = rec;
       }
       const ret = origLoop(sampler, set, box, limit, budget, padded);

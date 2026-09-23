@@ -438,6 +438,23 @@ public sealed class RayTraceEnvironment
     }
 
     private float[]? _traced;
+    private Vector3 _tracedMins, _tracedMaxs;
+
+    /// <summary>
+    /// The tracer's own bounds, which the merge passes lay their grid over: the
+    /// loader's rebuilt corners of every triangle it kept, rounding and all, so
+    /// they differ from <see cref="Mins"/> in the last bits. On probe01 the
+    /// floor comes out at -2.6e-5 rather than 0, and at a 512 cell that is a
+    /// whole cell lower.
+    /// </summary>
+    public (Vector3 Mins, Vector3 Maxs) TracedBounds
+    {
+        get
+        {
+            Traced();
+            return (_tracedMins, _tracedMaxs);
+        }
+    }
 
     /// <summary>
     /// The triangles as the compile's tracer holds them, which is NOT the file's
@@ -457,6 +474,9 @@ public sealed class RayTraceEnvironment
         var found = new float[TriangleCount * 13];
         Span<float> v = stackalloc float[9];
         Span<float> c = stackalloc float[13];
+        Span<float> lo = [float.MaxValue, float.MaxValue, float.MaxValue];
+        Span<float> hi = [-float.MaxValue, -float.MaxValue, -float.MaxValue];
+        Span<float> corners = stackalloc float[9];
         for (var i = 0; i < TriangleCount; i++)
         {
             found[i * 13] = float.NaN;
@@ -465,11 +485,23 @@ public sealed class RayTraceEnvironment
             for (var k = 0; k < 11; k++)
                 c[k] = Float(_triangleAt + (i * 48) + (k * 4));
             var record = Record(i);
-            if (!Corners(c, record[0x2c], record[0x2d], v) || !Convert(v, c)
-                || !Corners(c, (int)c[11], (int)c[12], v))
+            if (!Corners(c, record[0x2c], record[0x2d], v))
+                continue;
+            v.CopyTo(corners);
+            if (!Convert(v, c) || !Corners(c, (int)c[11], (int)c[12], v))
                 continue;
             c.CopyTo(found.AsSpan(i * 13, 13));
+            // The setup's running bounds, v0 then v1 then v2, each a <= swap.
+            for (var k = 0; k < 9; k++)
+            {
+                if (corners[k] <= lo[k % 3])
+                    lo[k % 3] = corners[k];
+                if (hi[k % 3] <= corners[k])
+                    hi[k % 3] = corners[k];
+            }
         }
+        _tracedMins = new Vector3(lo[0], lo[1], lo[2]);
+        _tracedMaxs = new Vector3(hi[0], hi[1], hi[2]);
         return _traced = found;
     }
 

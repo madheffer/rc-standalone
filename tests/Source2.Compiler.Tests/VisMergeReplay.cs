@@ -26,6 +26,7 @@ public class VisMergeReplay(ITestOutputHelper output)
         List<VisMerge.Cluster> In, List<(int Owner, int Other, float Cost)> Merges,
         float Returned, int Out)
     {
+        public ulong Set { get; set; }
         public List<ulong[]>? Vis { get; set; }
         public List<List<(int Other, float Cost)>>? Candidates { get; set; }
     }
@@ -151,6 +152,182 @@ public class VisMergeReplay(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void TheBucketingAgainstTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("REPLAY") is not { Length: > 0 } map)
+            return;
+        var rte = RayTraceEnvironment.ReadFile(
+            Path.Combine(Path.GetTempPath(), "csgo_addons", Addons[map], "maps", map + ".rte"));
+        var (buckets, _) = Read(Path.Combine(Path.GetTempPath(), "vis_capture", map + ".bin"));
+
+        foreach (var (k, entry) in Entries.OrderBy(e => e.Key))
+        {
+            var pass = VisClusterSet.Passes[k];
+            var first = buckets.Where(b => b.Pass == k).GroupBy(b => b.Budget).MaxBy(g => g.Key)!
+                               .OrderBy(b => b.Set).ToList();
+            output.WriteLine($"pass {k}: scene box valve {entry.SceneMins:R} {entry.SceneMaxs:R}"
+                           + $" | rte {rte.Mins:R} {rte.Maxs:R}");
+            output.WriteLine($"   traced bounds {rte.TracedBounds.Mins:R} {rte.TracedBounds.Maxs:R}"
+                           + $" exact: {rte.TracedBounds.Mins == entry.SceneMins && rte.TracedBounds.Maxs == entry.SceneMaxs}");
+            foreach (var (label, lo, hi) in new[] { ("valve box", entry.SceneMins, entry.SceneMaxs),
+                                                    ("traced bounds", rte.TracedBounds.Mins, rte.TracedBounds.Maxs) })
+            {
+                var input = entry.Sets.Select(c => new VisClusterSet.Set { Clusters = [.. c] });
+                var ours = VisClusterSet.Bucket(lo, hi, input, pass.Cell, pass.Margin);
+                int boxes = 0, orders = 0;
+                for (var i = 0; i < Math.Min(ours.Count, first.Count); i++)
+                {
+                    if (ours[i].Mins == first[i].Mins && ours[i].Maxs == first[i].Maxs)
+                        boxes++;
+                    var a = ours[i].Clusters;
+                    var b = first[i].In;
+                    if (a.Count == b.Count && a.Zip(b).All(p => p.First.Mins == p.Second.Mins
+                            && p.First.Maxs == p.Second.Maxs && p.First.VoxelCount == p.Second.VoxelCount))
+                        orders++;
+                }
+                output.WriteLine($"   {label}: buckets ours {ours.Count} valve {first.Count},"
+                               + $" boxes exact {boxes}, cluster order exact {orders}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Our own generation and pre-merge against the set list Valve's first pass
+    /// was handed, set by set. Leaf ids are numbered differently on the two
+    /// sides, so a cluster is compared by its box, voxel count, size, tag and
+    /// the boxes and masks of its pairs.
+    /// </summary>
+    [Fact]
+    public void TheGenerationAgainstTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("REPLAY") is not { Length: > 0 } map)
+            return;
+        var (_, leaves) = Read(Path.Combine(Path.GetTempPath(), "vis_capture", map + ".bin"));
+        var valve = Entries[0].Sets;
+        if (VisFixtures.RayTraceScene(Addons[map], map) is not var (rte, shipped))
+            return;
+
+        var tree = VisVoxelizer.Build(rte, shipped.MinBounds, shipped.MaxBounds, shipped.GridSize);
+        var side = VisVoxelizer.VoxelsPerRoot(shipped.MinBounds, shipped.MaxBounds, shipped.GridSize)
+                 / VisVoxelizer.VoxelsPerLeaf;
+        var regions = VisRegions.Build(tree, side);
+        var inside = VisOutside.Detect(tree, regions, rte, shipped.GridSize);
+        var compact = VisRegions.Compact(regions, inside.Regions);
+        var cube = VisClusters.Cubes(tree, compact);
+        var sets = VisClusters.Generate(rte, tree, compact);
+        var generated = sets.Sum(x => x.Clusters.Count);
+        VisPreMerge.Run(sets);
+
+        string Key(VisMerge.Cluster c, Func<int, Vector3> corner)
+            => $"{c.Mins}{c.Maxs}|{c.VoxelCount}|{c.VoxelSize}|{c.Tag}|{c.OpenSpace}|"
+             + string.Join(",", c.Voxels.Select(v => $"{v.Mask:x}@{corner(v.Leaf)}").Order());
+        Vector3 Ours(int leaf) => cube(leaf).Corner;
+        Vector3 Theirs(int leaf) => leaves.TryGetValue(leaf, out var b) ? b.Item1 : new Vector3(float.NaN);
+
+        output.WriteLine($"sets ours {sets.Count} valve {valve.Count}; clusters ours"
+                       + $" {sets.Sum(x => x.Clusters.Count)} (generated {generated}) valve {valve.Sum(x => x.Count)}");
+        var mine = sets.Select(x => x.Clusters.Select(c => Key(c, Ours)).Order().ToList()).ToList();
+        var theirs = valve.Select(x => x.Select(c => Key(c, Theirs)).Order().ToList()).ToList();
+        var byContent = theirs.GroupBy(k => string.Join(";", k)).ToDictionary(g => g.Key, g => g.Count());
+        int matched = 0, orderExact = 0, shown = 0;
+        foreach (var k in mine)
+            if (byContent.TryGetValue(string.Join(";", k), out var n) && n > 0)
+            {
+                byContent[string.Join(";", k)] = n - 1;
+                matched++;
+            }
+        for (var i = 0; i < Math.Min(mine.Count, theirs.Count); i++)
+        {
+            if (mine[i].SequenceEqual(theirs[i]))
+            {
+                orderExact++;
+                continue;
+            }
+            if (shown++ < 6)
+                output.WriteLine($"  set {i}: ours {mine[i].Count} clusters {string.Join(" / ", mine[i].Take(2))}"
+                               + $"\n        valve {theirs[i].Count} clusters {string.Join(" / ", theirs[i].Take(2))}");
+        }
+        output.WriteLine($"sets identical in content {matched}/{valve.Count}, at the same position {orderExact}");
+
+        // Which leaf each set starts at, on both sides, to see what orders them.
+        var firstLeaf = valve.Select(x => x.SelectMany(c => c.Voxels).Select(v => v.Leaf).DefaultIfEmpty(-1).Min()).ToList();
+        var rising = firstLeaf.Zip(firstLeaf.Skip(1)).Count(p => p.Second > p.First);
+        output.WriteLine($"valve: sets whose lowest leaf rises over the previous set's: {rising}/{valve.Count - 1};"
+                       + $" first leaves {string.Join(",", firstLeaf.Take(12))}");
+        output.WriteLine($"valve leaf boxes 0..5: {string.Join(" ", Enumerable.Range(0, 6).Where(leaves.ContainsKey).Select(l => $"{l}:{leaves[l].Item1}-{leaves[l].Item2}"))}");
+        output.WriteLine($"our leaf boxes 0..5: {string.Join(" ", Enumerable.Range(0, 6).Select(l => $"{l}:{cube(l).Corner}+{cube(l).Side}"))}");
+        // Valve numbers a leaf by its node's slot in the pool. Two schemes a
+        // downward build could allocate by, scored against the captured ids.
+        var depth = tree.BranchesPerLevel.Count;
+        var dfs = new Dictionary<(int, (int, int, int)), int>();
+        var bfs = new Dictionary<(int, (int, int, int)), int>();
+        {
+            var next = 1;
+            void Walk(int at, (int X, int Y, int Z) cell)
+            {
+                if (at == 0 || !tree.BranchCells.Contains((at, cell)))
+                    return;
+                var first = next;
+                next += 8;
+                for (var o = 0; o < 8; o++)
+                    dfs[(at - 1, (cell.X * 2 + (o & 1), cell.Y * 2 + ((o >> 1) & 1), cell.Z * 2 + ((o >> 2) & 1)))] = first + o;
+                for (var o = 0; o < 8; o++)
+                    Walk(at - 1, (cell.X * 2 + (o & 1), cell.Y * 2 + ((o >> 1) & 1), cell.Z * 2 + ((o >> 2) & 1)));
+            }
+            Walk(depth, (0, 0, 0));
+            var queue = new Queue<(int, (int X, int Y, int Z))>();
+            queue.Enqueue((depth, (0, 0, 0)));
+            next = 1;
+            while (queue.Count > 0)
+            {
+                var (at, cell) = queue.Dequeue();
+                if (at == 0 || !tree.BranchCells.Contains((at, cell)))
+                    continue;
+                for (var o = 0; o < 8; o++)
+                {
+                    var child = (at - 1, (cell.X * 2 + (o & 1), cell.Y * 2 + ((o >> 1) & 1), cell.Z * 2 + ((o >> 2) & 1)));
+                    bfs[child] = next++;
+                    queue.Enqueue(child);
+                }
+            }
+        }
+        int dfsHit = 0, bfsHit = 0, placed = 0;
+        foreach (var (id, (lo, hi)) in leaves)
+        {
+            var sideLen = hi.X - lo.X;
+            var level = BitOperations.Log2((uint)(sideLen / tree.LeafSize));
+            var c = (lo - tree.Origin) / sideLen;
+            var key = (level, ((int)MathF.Round(c.X), (int)MathF.Round(c.Y), (int)MathF.Round(c.Z)));
+            if (!dfs.ContainsKey(key))
+                continue;
+            placed++;
+            if (dfs[key] == id)
+                dfsHit++;
+            if (bfs.TryGetValue(key, out var b) && b == id)
+                bfsHit++;
+        }
+        var offsets = new SortedDictionary<int, (int Count, int Lowest)>();
+        foreach (var (id, (lo, hi)) in leaves)
+        {
+            var sideLen = hi.X - lo.X;
+            var c = (lo - tree.Origin) / sideLen;
+            var key = (BitOperations.Log2((uint)(sideLen / tree.LeafSize)),
+                       ((int)MathF.Round(c.X), (int)MathF.Round(c.Y), (int)MathF.Round(c.Z)));
+            if (dfs.TryGetValue(key, out var d))
+            {
+                var o = offsets.TryGetValue(d - id, out var had) ? had : (Count: 0, Lowest: int.MaxValue);
+                offsets[d - id] = (o.Count + 1, Math.Min(o.Lowest, id));
+            }
+        }
+        output.WriteLine("dfs - valve id: " + string.Join(", ", offsets.Select(o => $"{o.Key}: {o.Value.Count} from id {o.Value.Lowest}")));
+        output.WriteLine($"leaf numbering: of {leaves.Count} captured leaves, {placed} placed in our tree;"
+                       + $" depth first equal {dfsHit}, breadth first equal {bfsHit}; our nodes {tree.Nodes}");
+
+        var ourFirst = sets.Select(x => x.Clusters.SelectMany(c => c.Voxels).Select(v => v.Leaf).DefaultIfEmpty(-1).Min()).ToList();
+        output.WriteLine($"ours: first leaves {string.Join(",", ourFirst.Take(12))}; leaves {compact.Leaves.Count}, valve leaf table seen {leaves.Count} max {leaves.Keys.Max()}");
+    }
+
     private static int FirstDifference(List<(int, int, float)> ours, List<(int, int, float)> theirs)
     {
         for (var i = 0; i < Math.Max(ours.Count, theirs.Count); i++)
@@ -175,8 +352,13 @@ public class VisMergeReplay(ITestOutputHelper output)
             VoxelSize = c.VoxelSize, Tag = c.Tag, OpenSpace = c.OpenSpace,
         })];
 
+    private sealed record Entry(Vector3 SceneMins, Vector3 SceneMaxs, List<List<VisMerge.Cluster>> Sets);
+
+    private static readonly Dictionary<int, Entry> Entries = [];
+
     private static (List<Bucket>, Dictionary<int, (Vector3, Vector3)>) Read(string path)
     {
+        Entries.Clear();
         var buckets = new Dictionary<int, Bucket>();
         var pending = new Dictionary<int, JsonElement>();
         var inputs = new Dictionary<int, List<VisMerge.Cluster>>();
@@ -200,6 +382,20 @@ public class VisMergeReplay(ITestOutputHelper output)
                 case "vis":
                     vis[head.GetProperty("id").GetInt32()] = blob;
                     break;
+                case "pass" when head.TryGetProperty("scene", out var scene):
+                {
+                    var box = scene.EnumerateArray().Select(e => e.GetSingle()).ToArray();
+                    var sets = new List<List<VisMerge.Cluster>>();
+                    for (var at = 0; at < blob.Length;)
+                    {
+                        var length = BitConverter.ToInt32(blob, at + 4);
+                        sets.Add(Clusters(blob[(at + 8)..(at + 8 + length)]));
+                        at += 8 + length;
+                    }
+                    Entries[head.GetProperty("pass").GetInt32()] = new Entry(
+                        new Vector3(box[0], box[1], box[2]), new Vector3(box[3], box[4], box[5]), sets);
+                    break;
+                }
                 case "out":
                 {
                     var id = head.GetProperty("id").GetInt32();
@@ -219,6 +415,8 @@ public class VisMergeReplay(ITestOutputHelper output)
                         start.GetProperty("limit").GetSingle(), start.GetProperty("budget").GetInt32(),
                         new Vector3(box[0], box[1], box[2]), new Vector3(box[3], box[4], box[5]),
                         inputs[id], merges, head.GetProperty("ret").GetSingle(), head.GetProperty("n").GetInt32());
+                    if (start.TryGetProperty("set", out var set))
+                        bucket.Set = Convert.ToUInt64(set.GetString()!, 16);
                     if (vis.TryGetValue(id, out var v))
                         (bucket.Vis, bucket.Candidates) = Visibility(v, inputs[id].Count);
                     buckets[id] = bucket;

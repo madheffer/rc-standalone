@@ -80,34 +80,56 @@ public static class VisClusterSet
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(sets);
 
+        // The grid is laid over the TRACER's bounds, the object at sampler+0xe8,
+        // not the file header's.
+        var (sceneMins, sceneMaxs) = scene.TracedBounds;
+        var bucketed = Bucket(sceneMins, sceneMaxs, sets, cell, margin);
+        if (bucketed.Count == 0)
+            return costLimit;
+        var perCell = (int)Math.Ceiling((double)budget / bucketed.Count);
+        var cost = MergeClusterSet(scene, bucketed, perCell, costLimit, cube, halted, first);
+
+        sets.Clear();
+        sets.AddRange(bucketed);
+        return cost;
+    }
+
+    /// <summary>
+    /// <c>Regrid</c>'s bucketing alone: every cluster, in set order, keyed by its
+    /// box centre's cell, with a bucket's index the order its key first appears.
+    /// </summary>
+    public static List<Set> Bucket(Vector3 sceneMins, Vector3 sceneMaxs, IEnumerable<Set> sets,
+                                   float cell, float margin)
+    {
+        ArgumentNullException.ThrowIfNull(sets);
         var half = margin * 0.5f;
         var inv = 1f / cell;
-        var originX = MathF.Floor((scene.Mins.X - half) * inv) * cell;
-        var originY = MathF.Floor((scene.Mins.Y - half) * inv) * cell;
-        var lowZ = MathF.Floor((scene.Mins.Z - half) * inv);
-        var highZ = MathF.Ceiling((scene.Maxs.Z + half) * inv);
-        var acrossX = (int)((MathF.Ceiling((scene.Maxs.X + half) * inv) * cell - originX) * inv);
-        var acrossY = (int)((MathF.Ceiling((scene.Maxs.Y + half) * inv) * cell - originY) * inv);
+        var originX = MathF.Floor((sceneMins.X - half) * inv) * cell;
+        var originY = MathF.Floor((sceneMins.Y - half) * inv) * cell;
+        var lowZ = MathF.Floor((sceneMins.Z - half) * inv);
+        var highZ = MathF.Ceiling((sceneMaxs.Z + half) * inv);
+        var acrossX = (int)(MathF.Max((MathF.Ceiling((sceneMaxs.X + half) * inv) * cell) - originX, 0f) * inv);
+        var acrossY = (int)(MathF.Max((MathF.Ceiling((sceneMaxs.Y + half) * inv) * cell) - originY, 0f) * inv);
         if (acrossX < 1 || acrossY < 1)
-            return costLimit;
+            return [];
 
         var order = new List<int>();
         var byKey = new Dictionary<int, Set>();
         foreach (var cluster in sets.SelectMany(s => s.Clusters))
         {
             var centre = cluster.Centre;
-            var key = ((int)((centre.Y - originY) * inv) % acrossY * acrossX)
-                    + ((int)((centre.X - originX) * inv) % acrossX);
+            var key = ((int)(uint)(long)((centre.Y - originY) * inv) % acrossY * acrossX)
+                    + ((int)(uint)(long)((centre.X - originX) * inv) % acrossX);
             if (!byKey.TryGetValue(key, out var set))
             {
-                var corner = new Vector3(originX + (key % acrossX * cell),
-                                         originY + (key / acrossX % acrossY * cell),
+                var corner = new Vector3(((float)(key % acrossX) * cell) + originX,
+                                         ((float)(key / acrossX % acrossY) * cell) + originY,
                                          // The compiler doubles this one, and it is
                                          // implemented as it is rather than as the
                                          // floor it looks like: the box only has to
                                          // contain the cell, and the reach the merge
                                          // samples with is its diagonal.
-                                         lowZ * cell * 2f);
+                                         (lowZ * cell) + (lowZ * cell));
                 set = new Set
                 {
                     Mins = corner,
@@ -118,14 +140,7 @@ public static class VisClusterSet
             }
             set.Clusters.Add(cluster);
         }
-
-        var bucketed = order.Select(k => byKey[k]).ToList();
-        var perCell = (int)Math.Ceiling((double)budget / bucketed.Count);
-        var cost = MergeClusterSet(scene, bucketed, perCell, costLimit, cube, halted, first);
-
-        sets.Clear();
-        sets.AddRange(bucketed);
-        return cost;
+        return [.. order.Select(k => byKey[k])];
     }
 
     /// <summary>
@@ -148,7 +163,12 @@ public static class VisClusterSet
             costs[i] = VisMerge.Run(scene, sets[i].Clusters, sets[i].Mins, sets[i].Maxs,
                                     costLimit, budget * 2, padded: false, cube, first));
 
-        var average = costs.Sum() / sets.Count;
+        // A float running sum in bucket order, then one divide, as the compile
+        // does it; LINQ's Sum accumulates in double and lands a bit elsewhere.
+        var total = 0f;
+        foreach (var c in costs)
+            total += c;
+        var average = total / sets.Count;
         Parallel.For(0, sets.Count, i =>
             VisMerge.Run(scene, sets[i].Clusters, sets[i].Mins, sets[i].Maxs,
                          average, budget, padded: false, cube, halted));

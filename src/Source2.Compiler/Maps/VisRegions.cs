@@ -54,22 +54,39 @@ public static class VisRegions
         var depth = tree.BranchesPerLevel.Count;
         var branches = tree.BranchCells;
 
-        var leaves = new List<Leaf>();
-        var stack = new Stack<(int Level, (int X, int Y, int Z) Cell)>();
-        stack.Push((depth, (0, 0, 0)));
-        while (stack.Count > 0)
+        // In the compile's own order, which is the node pool's: 18002e310 builds
+        // downwards, giving a branch's eight children eight consecutive slots
+        // the moment it splits and only then recursing, octant 0 first. Every
+        // later stage walks leaves in that order, and the merge is sensitive to
+        // it, so it is reproduced rather than any traversal that visits the
+        // same leaves. Checked against the slot numbers the compile's own
+        // clusters carry: equal wherever our branches are its branches.
+        var leaves = new List<(int Slot, Leaf Leaf)>();
+        var next = 1;
+        void Split(int at, (int X, int Y, int Z) cell)
         {
-            var (at, cell) = stack.Pop();
-            if (at > 0 && branches.Contains((at, cell)))
+            var first = next;
+            next += 8;
+            for (var octant = 0; octant < 8; octant++)
             {
-                for (var octant = 0; octant < 8; octant++)
-                    stack.Push((at - 1, (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
-                                         cell.Z * 2 + ((octant >> 2) & 1))));
-                continue;
+                var child = (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
+                             cell.Z * 2 + ((octant >> 2) & 1));
+                if (at - 1 == 0 || !branches.Contains((at - 1, child)))
+                    leaves.Add((first + octant, new Leaf(at - 1, child, tree.LeafMasks.GetValueOrDefault((at - 1, child)))));
             }
-            leaves.Add(new Leaf(at, cell, tree.LeafMasks.GetValueOrDefault((at, cell))));
+            for (var octant = 0; octant < 8; octant++)
+            {
+                var child = (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
+                             cell.Z * 2 + ((octant >> 2) & 1));
+                if (at - 1 > 0 && branches.Contains((at - 1, child)))
+                    Split(at - 1, child);
+            }
         }
-        return leaves;
+        if (depth > 0 && branches.Contains((depth, (0, 0, 0))))
+            Split(depth, (0, 0, 0));
+        else
+            leaves.Add((0, new Leaf(depth, (0, 0, 0), tree.LeafMasks.GetValueOrDefault((depth, (0, 0, 0))))));
+        return [.. leaves.OrderBy(l => l.Slot).Select(l => l.Leaf)];
     }
 
     /// <summary>
