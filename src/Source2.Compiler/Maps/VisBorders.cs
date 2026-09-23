@@ -230,4 +230,64 @@ public static class VisBorders
                 normals.Add(unit);
         }
     }
+
+    /// <summary>
+    /// <c>FUN_18003a630</c>: the entry array rebuilt leaf by leaf in node order.
+    /// An open record stays; a border record becomes one open record per cluster
+    /// that claimed it, with its whole cell mask; an open record whose cluster
+    /// the leaf already holds ORs into that one; blocking records, and borders
+    /// nobody claimed, are gone. Every node's short at <c>+6</c> becomes 0xffff.
+    /// </summary>
+    public static VisPvs.State Rewrite(VisPvs.State s, int[] borders, List<Claim>[] claims)
+    {
+        var slot = new Dictionary<int, int>(borders.Length);
+        for (var k = 0; k < borders.Length; k++)
+            slot[borders[k]] = k;
+        var entries = new List<VisVisibility.Entry>(s.Entries.Length);
+        var words = (uint[])s.NodeWords.Clone();
+        var counts = (ushort[])s.NodeCounts.Clone();
+        var pending = new List<(int Cluster, int Leaf, ulong Cells)>();
+        for (var node = 0; node < words.Length; node++)
+        {
+            var word = s.NodeWords[node];
+            if ((word & 1) == 0)
+                continue;
+            var start = entries.Count;
+            words[node] = (word & 1) | ((uint)start << 1);
+            var first = (int)(word >> 1);
+            for (var i = 0; i < s.NodeCounts[node]; i++)
+            {
+                var e = s.Entries[first + i];
+                if ((e.Packed & 1) != 0)
+                    continue;
+                pending.Clear();
+                if ((e.Packed & 2) == 0)
+                    pending.Add((e.Cluster, e.Packed >> 2, e.Cells));
+                else if (slot.TryGetValue(first + i, out var k))
+                {
+                    foreach (var claim in claims[k])
+                        pending.Add((claim.Cluster, e.Packed >> 2, e.Cells));
+                }
+                // The leaf is searched for the ORIGINAL record's cluster, not the
+                // claim's: a border record carries 0, which nothing open holds
+                // after the vis-cluster renumbering, so every claim is appended.
+                foreach (var (cluster, leaf, cells) in pending)
+                {
+                    var merged = false;
+                    for (var j = start; j < entries.Count; j++)
+                    {
+                        if (entries[j].Cluster != e.Cluster)
+                            continue;
+                        entries[j] = entries[j] with { Cells = entries[j].Cells | cells };
+                        merged = true;
+                        break;
+                    }
+                    if (!merged)
+                        entries.Add(new VisVisibility.Entry(cluster, leaf * 4, cells));
+                }
+            }
+            counts[node] = (ushort)(entries.Count - start);
+        }
+        return s with { Entries = [.. entries], NodeWords = words, NodeCounts = counts };
+    }
 }

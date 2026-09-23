@@ -263,7 +263,20 @@ public class VisPvsReplay(ITestOutputHelper output)
                 output.WriteLine($"  border {k} (entry {borders[k]}): ours [{string.Join(" ", claims[k])}] valve [{string.Join(" ", theirs)}]");
         }
         output.WriteLine($"claims: {same}/{claims.Length} identical, counts {countSame}; total ours {claims.Sum(c => c.Count)}");
+
+        var rewritten = VisBorders.Rewrite(merged.State, borders, claims);
+        var re = cap["resampledentries"].Blob;
+        var entriesSame = Enumerable.Range(0, Math.Min(re.Length / 16, rewritten.Entries.Length)).Count(i =>
+            BitConverter.ToInt32(re, i * 16) == rewritten.Entries[i].Cluster && BitConverter.ToInt32(re, i * 16 + 4) == rewritten.Entries[i].Packed
+            && BitConverter.ToUInt64(re, i * 16 + 8) == rewritten.Entries[i].Cells);
+        var rn = cap["resamplednodes"].Blob;
+        var nodesSame = Enumerable.Range(0, Math.Min(rn.Length / 8, rewritten.NodeWords.Length)).Count(i =>
+            BitConverter.ToUInt32(rn, i * 8) == rewritten.NodeWords[i] && BitConverter.ToUInt16(rn, i * 8 + 4) == rewritten.NodeCounts[i]);
+        var sixes = Enumerable.Range(0, rn.Length / 8).Select(i => BitConverter.ToUInt16(rn, i * 8 + 6)).Distinct();
+        output.WriteLine($"rewritten: entries ours {rewritten.Entries.Length} valve {re.Length / 16}, identical {entriesSame};"
+                       + $" nodes {nodesSame}/{rn.Length / 8}; node +6 values [{string.Join(",", sixes.Take(4))}]");
         Assert.Equal(claims.Length, same);
+        Assert.Equal(re.Length / 16, entriesSame);
     }
 
     [Fact]
