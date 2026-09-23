@@ -1,3 +1,13 @@
+> **Every hex address in this file is for the visbuilder.dll of 2026-07-09**
+> (1,841,304 bytes), which is the build the Ghidra project holds and the one all
+> of this was read out of. CS2 updated on 2026-09-23 and the live DLL is now
+> 1,855,640 bytes with everything shifted: `0x18017f128`, the coarse weight,
+> holds the ASCII of `idates()` in the new build. `VisMergeCostTests` reads the
+> LIVE dll and so fails, which is what it is for -- its message reads as though
+> our constant were wrong, and what is actually wrong is the build it is looking
+> at. Re-pointing it or re-analysing against the new binary is an open decision,
+> not something to paper over.
+
 # Visibility: the structure, the tool, and where a replacement starts
 
 Visibility is not the expensive half of a CS2 map compile. It is **almost all of
@@ -2125,6 +2135,46 @@ So the remaining ze_hold_em_p error is not a discrete defect anywhere in the
 chain. It is a soft 4.5% offset in where a greedy merge of 2,000 clusters has
 got to after 1,843 of them, which is the accumulated effect of merge ORDER among
 near-equal costs rather than of any one rule being wrong.
+
+## The tree was never balanced, and that IS the order
+
+Chasing the order found the one thing in the chain that had been read wrong.
+`18010a5d0`, the refit, does not simply walk to the root fixing boxes. It opens
+every iteration with
+
+```c
+fVar4 = FUN_18010a6e0(param_1, param_2);   // and continues from what this RETURNS
+```
+
+and `18010a6e0` is a rotation: when a node's two children differ in height by
+two, the taller child comes up, hands its own shorter grandchild down into the
+rotated node's place, and the function returns the subtree's new root. It is the
+standard single rotation of a dynamic AABB tree, down to the `F.height >
+G.height` sub-case picking which grandchild stays up. Ours had none.
+
+**Nothing in the test suite could see it**, and that is the lesson worth keeping.
+A query tests BOXES, not shape, so an unbalanced tree answers every query
+correctly -- the five existing tree tests, including the one that checks a query
+against a brute force scan after every absorb, all pass either way. What the
+balance changes is the ORDER a query returns candidates in, and
+`180031680` takes a rival no dearer than `DAT_18017f0cc` over the one it holds,
+so the order decides which of two equally priced pairs a cluster ends up
+offering. `BoxesInsertedInALineStayShallow` pins it now through the one thing it
+is observable through: 4,096 boxes inserted along a line come out 12 deep, where
+without the rotation they are a list.
+
+| | before | after |
+|---|---|---|
+| merge final, ze_hold_em_p | -9.69% | **-7.36%** |
+| merge final, cardtest | +3.81% | +3.75% |
+| merge final, probe01 | +3.15% | +3.15% |
+
+ze_hold_em_p went from 233 clusters to 239 against the compile's 258 **without
+its first pass cost changing by a digit** -- still 21,000.4 against 21,940.0.
+That is exactly what a merge order difference looks like and nothing else does:
+the same costs, spent in a different sequence, ending somewhere else. It also
+made the pass about 20% faster, which is the ordinary reason to balance a tree
+and the reason the omission was invisible until the numbers got this close.
 
 ### And the probes' +3%
 

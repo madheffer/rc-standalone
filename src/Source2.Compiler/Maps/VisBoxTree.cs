@@ -66,6 +66,13 @@ public sealed class VisBoxTree
     public int Root => _root;
 
     /// <summary>
+    /// The root's height, which is what <c>18010a6e0</c> keeps logarithmic. It
+    /// is the only observable difference a missing balance makes: every query
+    /// still answers correctly, just in a different ORDER and more slowly.
+    /// </summary>
+    public int Height => _root == None ? 0 : _nodes[_root].Height;
+
+    /// <summary>
     /// <c>18010ad30</c>: take a node off the free list, copy the box in as it
     /// stands, and insert it.
     /// </summary>
@@ -341,11 +348,23 @@ public sealed class VisBoxTree
         _free = parent;
     }
 
-    /// <summary><c>18010a5d0</c>: walk to the root fixing each box and height.</summary>
+    /// <summary>
+    /// <c>18010a5d0</c>: walk to the root, BALANCING each node on the way and
+    /// then fixing its box and height.
+    ///
+    /// <para>The balance is not optional and it was missing here for a long time.
+    /// <c>18010a5d0</c> opens every iteration with
+    /// <c>FUN_18010a6e0(tree, node)</c> and continues from what it RETURNS, which
+    /// is the new root of that subtree after a rotation. Leaving it out still
+    /// answers every query correctly -- a query tests boxes, not shape -- so the
+    /// tests never saw it. What it changes is the ORDER a query returns candidates
+    /// in, and that decides which of two equally priced pairs a cluster holds.</para>
+    /// </summary>
     private void Refit(int at)
     {
         while (at != None)
         {
+            at = Balance(at);
             var left = _nodes[at].Left;
             var right = _nodes[at].Right;
             _nodes[at].Height = Math.Max(_nodes[left].Height, _nodes[right].Height) + 1;
@@ -353,6 +372,79 @@ public sealed class VisBoxTree
             _nodes[at].Maxs = Vector3.Max(_nodes[left].Maxs, _nodes[right].Maxs);
             at = _nodes[at].Parent;
         }
+    }
+
+    /// <summary>
+    /// <c>18010a6e0</c>: one rotation when a node's two children differ in height
+    /// by two, returning the subtree's new root. The taller child comes up and
+    /// takes its own shorter grandchild's place, which is the standard single
+    /// rotation of a dynamic AABB tree.
+    /// </summary>
+    private int Balance(int a)
+    {
+        if (_nodes[a].Leaf || _nodes[a].Height < 2)
+            return a;
+
+        var b = _nodes[a].Left;
+        var c = _nodes[a].Right;
+        var tilt = _nodes[c].Height - _nodes[b].Height;
+
+        if (tilt > 1)
+        {
+            Raise(a, c, up: true);
+            return c;
+        }
+        if (tilt < -1)
+        {
+            Raise(a, b, up: false);
+            return b;
+        }
+        return a;
+    }
+
+    /// <summary>
+    /// Swap <paramref name="child"/> above <paramref name="at"/> and hand one of
+    /// its own children back down. <paramref name="up"/> says which side the
+    /// child came from, which is the only thing that differs between the two
+    /// halves of <c>18010a6e0</c>.
+    /// </summary>
+    private void Raise(int at, int child, bool up)
+    {
+        var other = up ? _nodes[at].Left : _nodes[at].Right;
+        var first = _nodes[child].Left;
+        var second = _nodes[child].Right;
+
+        _nodes[child].Left = at;
+        _nodes[child].Parent = _nodes[at].Parent;
+        _nodes[at].Parent = child;
+
+        var above = _nodes[child].Parent;
+        if (above == None)
+            _root = child;
+        else if (_nodes[above].Left == at)
+            _nodes[above].Left = child;
+        else
+            _nodes[above].Right = child;
+
+        // The TALLER grandchild stays up with its parent; the shorter one comes
+        // down to take the rotated node's place.
+        var stays = _nodes[first].Height > _nodes[second].Height ? first : second;
+        var drops = stays == first ? second : first;
+
+        _nodes[child].Right = stays;
+        if (up)
+            _nodes[at].Right = drops;
+        else
+            _nodes[at].Left = drops;
+        _nodes[drops].Parent = at;
+
+        _nodes[at].Mins = Vector3.Min(_nodes[other].Mins, _nodes[drops].Mins);
+        _nodes[at].Maxs = Vector3.Max(_nodes[other].Maxs, _nodes[drops].Maxs);
+        _nodes[child].Mins = Vector3.Min(_nodes[at].Mins, _nodes[stays].Mins);
+        _nodes[child].Maxs = Vector3.Max(_nodes[at].Maxs, _nodes[stays].Maxs);
+
+        _nodes[at].Height = Math.Max(_nodes[other].Height, _nodes[drops].Height) + 1;
+        _nodes[child].Height = Math.Max(_nodes[at].Height, _nodes[stays].Height) + 1;
     }
 
     private int Take()

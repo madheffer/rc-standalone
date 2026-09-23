@@ -169,6 +169,38 @@ public class VisBoxTreeTests(ITestOutputHelper output)
         output.WriteLine($"{boxes.Count} live boxes, 200 queries, {checks} hits, all matching a scan");
     }
 
+    /// <summary>
+    /// The balance <c>18010a6e0</c> does, pinned by the one thing it is
+    /// observable through. A query tests boxes, so it answers correctly whatever
+    /// shape the tree is in, and every other test here would pass with the
+    /// rotation removed. What it changes is the ORDER candidates come back in,
+    /// and the proxy for that is the height: boxes inserted in a line are the
+    /// degenerate case, and without a balance the tree becomes a list.
+    /// </summary>
+    [Fact]
+    public void BoxesInsertedInALineStayShallow()
+    {
+        var tree = new VisBoxTree();
+        const int Count = 4096;
+        for (var i = 0; i < Count; i++)
+            tree.Create(new Vector3(i * 8f, 0f, 0f), new Vector3((i * 8f) + 8f, 8f, 8f), i);
+
+        Assert.Equal(Count, tree.Count);
+        Assert.Null(tree.Validate(0));
+
+        // A balanced tree of 4,096 leaves is about 12 deep and tolerates some
+        // slack; an unbalanced one built from a sorted line is thousands.
+        output.WriteLine($"{Count:n0} boxes in a line: height {tree.Height}");
+        Assert.InRange(tree.Height, 1, 40);
+
+        // And it still answers exactly, which is what the height must not cost.
+        var found = new List<int>();
+        tree.Query(new Vector3(1000f, 0f, 0f), new Vector3(1100f, 8f, 8f), found);
+        var expected = Enumerable.Range(0, Count)
+            .Where(i => i * 8f <= 1100f && (i * 8f) + 8f >= 1000f).ToList();
+        Assert.Equal(expected, found.Order());
+    }
+
     /// <summary>An empty tree answers nothing, and the pool grows past its first 32.</summary>
     [Fact]
     public void ItStartsEmptyAndGrowsPastTheFirstBlock()
