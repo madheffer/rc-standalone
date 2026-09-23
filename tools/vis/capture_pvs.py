@@ -15,6 +15,14 @@ capture_merge.py (u32 json length, json, u32 blob length, blob):
              index in the order they ran
   matrix     the MutualVisibilityMatrix as the PVS scan leaves it: rows of
              ceil(n/32) u32 words, n = clusters + 2 (sky and sun)
+  steps      the vis-cluster merge's inputs: the volume per cluster, grid size,
+             the pre-merge's group volume and count (sampler +0x108, +0x110),
+             the neighbour growth (+0xf0), and the per-cluster u16 pairs at +0x18
+  built      the vis-cluster records as built: per record its neighbour ids,
+             weight (u64) and box
+  merges     every merge the vis-cluster merge made, (u32 lo, u32 hi) in order
+  applied    the final cluster map (u32 each) and count, then the entries,
+             cluster boxes and matrix once the sampler has taken it
 
 The functions hooked here are not in docs/visbuilder.signatures.json yet, so
 their RVAs are pinned to one build and the tool refuses any other.
@@ -38,6 +46,10 @@ RVA = {
     "NeighborsBuild": 0x1e7c0,
     "SamplerDriver": 0x19c40,
     "BeginPass": 0x1edc0,
+    "ClustersSteps": 0x46120,
+    "BuiltClusters": 0x45440,
+    "MergePair": 0x42f00,
+    "ApplyClusterMap": 0x38130,
 }
 
 AGENT = r"""
@@ -100,6 +112,54 @@ function hook(m) {
     onLeave() {
       const [n, bits, blob] = rows(this.s.add(0x148));
       send({ev: 'matrix', rows: n, bits, clusters: this.s.add(0x198).readS32()}, blob);
+    }
+  });
+  let merges = [];
+  Interceptor.attach(m.base.add(RVA.ClustersSteps), {
+    onEnter(a) {
+      const s = a[2];
+      const n = s.add(0x10).readS32();
+      send({ev: 'steps', grid: this.context.rsp.add(0x30).readFloat(),
+            limit: this.context.rsp.add(0x28).readDouble(),
+            premergeVolume: s.add(0x108).readDouble(), premergeGroups: s.add(0x110).readU32(),
+            growth: s.add(0xf0).readFloat(), infos: n},
+           n > 0 ? s.add(0x18).readPointer().readByteArray(n * 4) : new ArrayBuffer(0));
+    }
+  });
+  Interceptor.attach(m.base.add(RVA.BuiltClusters), {
+    onEnter(a) { this.l = a[0]; },
+    onLeave() {
+      const n = this.l.add(0x20).readS32(), recs = this.l.add(0x28).readPointer();
+      let total = 0;
+      for (let i = 0; i < n; i++) total += 4 + recs.add(i * 0x58).readS32() * 4 + 8 + 24;
+      const out = new Uint8Array(total), dv = new DataView(out.buffer);
+      let at = 0;
+      for (let i = 0; i < n; i++) {
+        const r = recs.add(i * 0x58), c = r.readS32();
+        dv.setInt32(at, c, true); at += 4;
+        if (c) { out.set(new Uint8Array(r.add(8).readPointer().readByteArray(c * 4)), at); at += c * 4; }
+        out.set(new Uint8Array(r.add(0x30).readByteArray(32)), at); at += 32;
+      }
+      send({ev: 'built', n}, out.buffer);
+    }
+  });
+  Interceptor.attach(m.base.add(RVA.MergePair), {
+    onEnter(a) { merges.push(a[1].toInt32() >>> 0, a[2].toInt32() >>> 0); }
+  });
+  Interceptor.attach(m.base.add(RVA.ApplyClusterMap), {
+    onEnter(a) {
+      this.s = a[0];
+      send({ev: 'merges', n: merges.length / 2}, new Uint32Array(merges).buffer);
+      merges = [];
+      const list = a[0].add(0x1b0), count = list.add(8).readS32();
+      send({ev: 'clustermap', n: count, total: a[2].toInt32()}, a[1].readByteArray(count * 4));
+    },
+    onLeave() {
+      const s = this.s, ne = s.add(0x40).readS32(), nc = s.add(0x198).readS32();
+      send({ev: 'appliedentries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      send({ev: 'appliedboxes', n: nc}, s.add(0x1a0).readPointer().readByteArray(nc * 24));
+      const [rn, bits, blob] = rows(s.add(0x148));
+      send({ev: 'appliedmatrix', rows: rn, bits}, blob);
     }
   });
   send({ev: 'hooked'});

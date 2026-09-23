@@ -234,6 +234,40 @@ public static class VisPvs
         }
     }
 
+    /// <summary>
+    /// <c>FUN_18002dd90</c>: the cluster-id form of the box walk, the same
+    /// inclusive descent and strict cell test, taking each open entry's cluster
+    /// and skipping an immediate repeat. Unsorted.
+    /// </summary>
+    public static void QueryClusters(State s, int node, Vector3 lo, Vector3 hi, List<int> found)
+    {
+        var word = s.NodeWords[node];
+        if ((word & 1) == 0)
+        {
+            var first = (int)(word >> 1);
+            for (var o = 0; o < 8; o++)
+            {
+                var c = first + o;
+                var cmn = s.NodeMins[c];
+                var cmx = s.NodeMaxs[c];
+                if (cmn.X <= hi.X && lo.X <= cmx.X && cmn.Y <= hi.Y && lo.Y <= cmx.Y
+                    && cmn.Z <= hi.Z && lo.Z <= cmx.Z)
+                    QueryClusters(s, c, lo, hi, found);
+            }
+            return;
+        }
+
+        var cells = StrictCells(lo, hi, s.NodeMins[node], s.NodeMaxs[node]);
+        var start = (int)(word >> 1);
+        for (var k = 0; k < s.NodeCounts[node]; k++)
+        {
+            var entry = s.Entries[start + k];
+            if (entry.Kind == VisVisibility.Open && (entry.Cells & cells) != 0 && entry.Cluster != -1
+                && (found.Count == 0 || found[^1] != entry.Cluster))
+                found.Add(entry.Cluster);
+        }
+    }
+
     // FUN_18010dfc0: which of a leaf's 4x4x4 cells a box overlaps, open on both
     // ends: qmin < cell max and cell min < qmax on every axis.
     private static ulong StrictCells(Vector3 qlo, Vector3 qhi, Vector3 leafMin, Vector3 leafMax)

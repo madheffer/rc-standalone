@@ -35,6 +35,10 @@ public class VisPvsReplay(ITestOutputHelper output)
     internal static VisPvs.State? Ours(string map) => OursWithScene(map)?.State;
 
     internal static (VisPvs.State State, RayTraceEnvironment Rte)? OursWithScene(string map)
+        => OursInFull(map) is { } all ? (all.State, all.Rte) : null;
+
+    /// <summary>The same, with what the later stages also read: the pre-merge's result and each cluster's voxel size.</summary>
+    internal static (VisPvs.State State, RayTraceEnvironment Rte, VisPreMerge.Result PreMerge, int[] Sizes)? OursInFull(string map)
     {
         if (VisFixtures.RayTraceScene(Addons[map], map) is not var (rte, shipped))
             return null;
@@ -45,11 +49,12 @@ public class VisPvsReplay(ITestOutputHelper output)
         var inside = VisOutside.Detect(tree, regions, rte, shipped.GridSize);
         var compact = VisRegions.Compact(regions, inside.Regions);
         var sets = VisClusters.Generate(rte, tree, compact);
-        VisPreMerge.Run(sets);
+        var pre = VisPreMerge.Run(sets);
         VisClusterSet.MergeAll(rte, sets, VisClusters.PassTarget(tree, compact), VisClusters.Cubes(tree, compact));
         var collapsed = VisRegions.Collapse(regions, inside.Regions);
         var assigned = VisAssign.Run(sets, compact.Leaves.Count, collapsed, _ => true);
-        return (VisPvs.Build(tree, shipped.MaxBounds, compact, assigned, sets), rte);
+        var sizes = sets.SelectMany(set => set.Clusters).Select(c => c.VoxelSize).ToArray();
+        return (VisPvs.Build(tree, shipped.MaxBounds, compact, assigned, sets), rte, pre, sizes);
     }
 
     /// <summary>Compare a matrix with a captured one, row by row.</summary>
@@ -147,6 +152,77 @@ public class VisPvsReplay(ITestOutputHelper output)
         var (rows, same, mine, theirs) = Diff(matrix, cap["matrix"].Blob);
         output.WriteLine($"pvstype {config.PvsType}: rows identical {same}/{rows}, bits ours-only {mine:n0} valve-only {theirs:n0}");
         Assert.Equal(rows, same);
+    }
+
+    /// <summary>
+    /// The vis-cluster merge, seeded with the compile's own post-scan matrix so
+    /// it is measured alone: the built records, every merge in order, the map,
+    /// and the sampler once it has taken the map.
+    /// </summary>
+    [Fact]
+    public void TheVisClusterMerge()
+    {
+        if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
+            return;
+        var cap = Capture(map);
+        var (s, _, pre, sizes) = OursInFull(map)!.Value;
+        var steps = cap["steps"].Head;
+        output.WriteLine($"pre-merge: ours {pre.Volume} over {pre.After} groups, valve"
+                       + $" {steps.GetProperty("premergeVolume").GetDouble()} over {steps.GetProperty("premergeGroups").GetInt32()}");
+        var infos = cap["steps"].Blob;
+        var sizeSame = Enumerable.Range(0, Math.Min(sizes.Length, infos.Length / 4))
+            .Count(i => BitConverter.ToUInt16(infos, i * 4) == sizes[i]);
+        output.WriteLine($"voxel sizes: {sizeSame}/{infos.Length / 4} identical (ours {sizes.Length})");
+
+        var volume = VisClusterList.Volume(s, pre.Volume, pre.After);
+        output.WriteLine($"volume {volume:n0}, target {VisClusterList.Target(volume)}");
+
+        var built = VisClusterList.Built(s, sizes);
+        var blob = cap["built"].Blob;
+        int at = 0, same = 0, listSame = 0, weightSame = 0, boxSame = 0, shown = 0;
+        for (var c = 0; c < built.Length && at < blob.Length; c++)
+        {
+            var count = BitConverter.ToInt32(blob, at);
+            var ids = Enumerable.Range(0, count).Select(k => BitConverter.ToInt32(blob, at + 4 + k * 4)).ToList();
+            at += 4 + count * 4;
+            var weight = BitConverter.ToUInt64(blob, at);
+            var box = (V(blob, at + 8), V(blob, at + 20));
+            at += 32;
+            bool l = ids.SequenceEqual(built[c].Neighbors), w = weight == built[c].Weight,
+                 b = box == (built[c].Mins, built[c].Maxs);
+            listSame += l ? 1 : 0; weightSame += w ? 1 : 0; boxSame += b ? 1 : 0;
+            if (l && w && b)
+                same++;
+            else if (shown++ < 5)
+                output.WriteLine($"  record {c}: weight ours {built[c].Weight} valve {weight};"
+                               + $" ours [{string.Join(",", built[c].Neighbors)}] valve [{string.Join(",", ids)}]");
+        }
+        output.WriteLine($"built: {same}/{built.Length} identical (lists {listSame}, weights {weightSame}, boxes {boxSame})");
+
+        var matrix = Load(cap["matrix"].Head, cap["matrix"].Blob);
+        var result = VisClusterList.Run(s, matrix, sizes, volume);
+        var mb = cap["merges"].Blob;
+        var theirs = Enumerable.Range(0, mb.Length / 8).Select(i => ((int)BitConverter.ToUInt32(mb, i * 8), (int)BitConverter.ToUInt32(mb, i * 8 + 4))).ToList();
+        var prefix = 0;
+        while (prefix < Math.Min(theirs.Count, result.Merges.Count) && theirs[prefix] == result.Merges[prefix])
+            prefix++;
+        output.WriteLine($"merges: ours {result.Merges.Count} valve {theirs.Count}, identical prefix {prefix}"
+                       + (prefix < Math.Min(theirs.Count, result.Merges.Count) ? $"; at {prefix} ours {result.Merges[prefix]} valve {theirs[prefix]}" : ""));
+
+        var cm = cap["clustermap"];
+        var mapSame = Enumerable.Range(0, Math.Min(result.Map.Length, cm.Blob.Length / 4)).Count(i => BitConverter.ToInt32(cm.Blob, i * 4) == result.Map[i]);
+        output.WriteLine($"map: {mapSame}/{cm.Blob.Length / 4} identical; clusters ours {result.Clusters} valve {cm.Head.GetProperty("total").GetInt32()}");
+
+        var ae = cap["appliedentries"].Blob;
+        var entriesSame = Enumerable.Range(0, Math.Min(ae.Length / 16, result.State.Entries.Length))
+            .Count(i => BitConverter.ToInt32(ae, i * 16) == result.State.Entries[i].Cluster);
+        var ab = cap["appliedboxes"].Blob;
+        var boxesSame = Enumerable.Range(0, Math.Min(ab.Length / 24, result.State.Clusters))
+            .Count(i => V(ab, i * 24) == result.State.ClusterMins[i] && V(ab, i * 24 + 12) == result.State.ClusterMaxs[i]);
+        var (rows, rowsSame, mine, valveOnly) = Diff(matrix, cap["appliedmatrix"].Blob);
+        output.WriteLine($"applied: entries {entriesSame}/{ae.Length / 16}, boxes {boxesSame}/{ab.Length / 24},"
+                       + $" matrix rows {rowsSame}/{rows} (bits ours-only {mine:n0} valve-only {valveOnly:n0})");
+        Assert.Equal(theirs, result.Merges);
     }
 
     [Fact]
