@@ -337,6 +337,51 @@ public class VisPvsReplay(ITestOutputHelper output)
              + (boxes is null ? "" : $", boxes {b}");
     }
 
+    /// <summary>
+    /// Everything after assignment on our own output alone, the scan included,
+    /// against the VXVS the compile shipped: every array, and the bytes.
+    /// </summary>
+    [Fact]
+    public void TheWholeBuild()
+    {
+        if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
+            return;
+        var (s, rte, pre, sizes) = OursInFull(map)!.Value;
+        var (_, shipped) = VisFixtures.RayTraceScene(Addons[map], map)!.Value;
+        var config = VisConfig.Read(Path.Combine(Path.GetTempPath(), "csgo_addons", Addons[map], "maps", map + ".viscfg"));
+
+        var matrix = VisPvs.Scan(s, rte, config);
+        var merged = VisClusterList.Run(s, matrix, sizes, VisClusterList.Volume(s, pre.Volume, pre.After));
+        var open = VisSun.OpenCells(merged.State);
+        var (borders, claims) = VisBorders.Sample(merged.State, rte);
+        var state = VisBorders.Consolidate(VisBorders.Rewrite(merged.State, borders, claims));
+        var sky = VisSky.Visible(state, rte, matrix);
+        var sun = config.DirToSun is { } dir ? VisSun.Visible(state, rte, dir, open) : null;
+        var (collapsed, _) = VisCollapse.Run(state, Enumerable.Repeat((ushort)0xffff, state.NodeWords.Length).ToArray());
+        var ours = VisOutput.Build(collapsed, matrix, sky, sun, shipped.MinBounds, shipped.MaxBounds);
+
+        output.WriteLine($"clusters ours {ours.BaseClusterCount} valve {shipped.BaseClusterCount}; stride {ours.PVSBytesPerCluster}/{shipped.PVSBytesPerCluster};"
+                       + $" sky row {ours.SkyVisibilityCluster}/{shipped.SkyVisibilityCluster}; sun row {ours.SunVisibilityCluster}/{shipped.SunVisibilityCluster};"
+                       + $" grid {ours.GridSize}/{shipped.GridSize}");
+        output.WriteLine($"nodes {Count(ours.Nodes, shipped.Nodes)}");
+        output.WriteLine($"regions {Count(ours.Regions, shipped.Regions)}");
+        output.WriteLine($"masks {Count(ours.Masks, shipped.Masks)}");
+        output.WriteLine($"enclosed lists {Count(ours.EnclosedClusterList, shipped.EnclosedClusterList)}; clusters {Count(ours.EnclosedClusters, shipped.EnclosedClusters)}");
+        output.WriteLine($"vis blocks {Count(ours.VisBlocks, shipped.VisBlocks)}");
+        var a = ours.WriteVxvs();
+        var b = shipped.WriteVxvs();
+        var differing = Enumerable.Range(0, Math.Min(a.Length, b.Length)).Count(i => a[i] != b[i]) + Math.Abs(a.Length - b.Length);
+        output.WriteLine($"VXVS bytes: ours {a.Length:n0} valve {b.Length:n0}, differing {differing:n0} ({100.0 * differing / b.Length:0.0000}%)");
+        Assert.True(differing <= b.Length / 10000, $"{differing} bytes differ");
+
+        static string Count<T>(T[] x, T[] y)
+        {
+            var same = Enumerable.Range(0, Math.Min(x.Length, y.Length)).Count(i => EqualityComparer<T>.Default.Equals(x[i], y[i]));
+            var first = Enumerable.Range(0, Math.Min(x.Length, y.Length)).FirstOrDefault(i => !EqualityComparer<T>.Default.Equals(x[i], y[i]), -1);
+            return $"ours {x.Length} valve {y.Length}, identical {same}" + (first >= 0 ? $" (first diff at {first}: ours {x[first]} valve {y[first]})" : "");
+        }
+    }
+
     [Fact]
     public void TheBoundaryPointGenerator()
     {
