@@ -290,4 +290,42 @@ public static class VisBorders
         }
         return s with { Entries = [.. entries], NodeWords = words, NodeCounts = counts };
     }
+
+    /// <summary>
+    /// <c>AssignClusters2</c>, which runs straight after: within each leaf, a
+    /// record with the cluster and kind bits of one already kept ORs its cells
+    /// into it; any other is kept as it is.
+    /// </summary>
+    public static VisPvs.State Consolidate(VisPvs.State s)
+    {
+        var entries = new List<VisVisibility.Entry>(s.Entries.Length);
+        var words = (uint[])s.NodeWords.Clone();
+        var counts = (ushort[])s.NodeCounts.Clone();
+        for (var node = 0; node < words.Length; node++)
+        {
+            var word = s.NodeWords[node];
+            if ((word & 1) == 0)
+                continue;
+            var start = entries.Count;
+            words[node] = (word & 1) | ((uint)start << 1);
+            var first = (int)(word >> 1);
+            for (var i = 0; i < s.NodeCounts[node]; i++)
+            {
+                var e = s.Entries[first + i];
+                var merged = false;
+                for (var j = start; j < entries.Count; j++)
+                {
+                    if (entries[j].Cluster != e.Cluster || ((entries[j].Packed ^ e.Packed) & 3) != 0)
+                        continue;
+                    entries[j] = entries[j] with { Cells = entries[j].Cells | e.Cells };
+                    merged = true;
+                    break;
+                }
+                if (!merged)
+                    entries.Add(e);
+            }
+            counts[node] = (ushort)(entries.Count - start);
+        }
+        return s with { Entries = [.. entries], NodeWords = words, NodeCounts = counts };
+    }
 }

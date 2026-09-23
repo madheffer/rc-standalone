@@ -279,6 +279,52 @@ public class VisPvsReplay(ITestOutputHelper output)
         Assert.Equal(re.Length / 16, entriesSame);
     }
 
+    /// <summary>
+    /// The stages after the borders, each fed our own output of the one before
+    /// (the scan seeded with the compile's matrix): AssignClusters2, sky
+    /// visibility, and every collapse iteration.
+    /// </summary>
+    [Fact]
+    public void TheLateStages()
+    {
+        if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
+            return;
+        var cap = Capture(map);
+        var (s, rte, pre, sizes) = OursInFull(map)!.Value;
+        var matrix = Load(cap["matrix"].Head, cap["matrix"].Blob);
+        var merged = VisClusterList.Run(s, matrix, sizes, VisClusterList.Volume(s, pre.Volume, pre.After));
+        var (borders, claims) = VisBorders.Sample(merged.State, rte);
+        var state = VisBorders.Consolidate(VisBorders.Rewrite(merged.State, borders, claims));
+        output.WriteLine($"assign2: {Same(state, cap["assigned2entries"].Blob, cap["assigned2nodes"].Blob, null)}");
+
+        var sky = VisSky.Visible(state, rte, matrix);
+        var (skyHead, skyBlob) = cap["sky"];
+        var theirs = Enumerable.Range(0, skyBlob.Length / 4).Select(i => BitConverter.ToUInt32(skyBlob, i * 4)).ToArray();
+        output.WriteLine($"sky: valve ok {skyHead.GetProperty("ok").GetInt32()} with {theirs.Sum(w => System.Numerics.BitOperations.PopCount(w))} clusters;"
+                       + $" ours {(sky is null ? "none" : $"{sky.Sum(w => System.Numerics.BitOperations.PopCount(w))} clusters, identical {sky.SequenceEqual(theirs)}")}");
+
+        var sixes = Enumerable.Repeat((ushort)0xffff, state.NodeWords.Length).ToArray();
+        var (collapsed, _) = VisCollapse.Run(state, sixes, (k, st) =>
+        {
+            if (cap.ContainsKey("collapsedentries" + k))
+                output.WriteLine($"collapse {k}: {Same(st, cap["collapsedentries" + k].Blob, cap["collapsednodes" + k].Blob, cap["collapsedboxes" + k].Blob)}");
+        });
+        Assert.NotNull(collapsed);
+    }
+
+    private static string Same(VisPvs.State s, byte[] entries, byte[] nodes, byte[]? boxes)
+    {
+        var e = Enumerable.Range(0, Math.Min(entries.Length / 16, s.Entries.Length)).Count(i =>
+            BitConverter.ToInt32(entries, i * 16) == s.Entries[i].Cluster && BitConverter.ToInt32(entries, i * 16 + 4) == s.Entries[i].Packed
+            && BitConverter.ToUInt64(entries, i * 16 + 8) == s.Entries[i].Cells);
+        var n = Enumerable.Range(0, Math.Min(nodes.Length / 8, s.NodeWords.Length)).Count(i =>
+            BitConverter.ToUInt32(nodes, i * 8) == s.NodeWords[i] && BitConverter.ToUInt16(nodes, i * 8 + 4) == s.NodeCounts[i]);
+        var b = boxes is null ? -1 : Enumerable.Range(0, Math.Min(boxes.Length / 24, s.NodeMins.Length))
+            .Count(i => V(boxes, i * 24) == s.NodeMins[i] && V(boxes, i * 24 + 12) == s.NodeMaxs[i]);
+        return $"entries {e}/{entries.Length / 16} (ours {s.Entries.Length}), nodes {n}/{nodes.Length / 8} (ours {s.NodeWords.Length})"
+             + (boxes is null ? "" : $", boxes {b}");
+    }
+
     [Fact]
     public void TheBoundaryPointGenerator()
     {

@@ -27,6 +27,10 @@ capture_merge.py (u32 json length, json, u32 blob length, blob):
              per border entry its (cluster, box) records (i32 count, then 28
              bytes each: box then cluster)
   resampled  the entries and nodes once the border stage has rewritten them
+  assigned2  the entries and nodes once AssignClusters2 has consolidated them
+  sky, sun   the clusters visible to sky and to the sun, one bit each, with
+             whether the stage succeeded
+  collapsed<k>  entries, nodes and node boxes after each collapse iteration
 
 The functions hooked here are not in docs/visbuilder.signatures.json yet, so
 their RVAs are pinned to one build and the tool refuses any other.
@@ -56,6 +60,10 @@ RVA = {
     "ApplyClusterMap": 0x38130,
     "SampleBorders": 0x3c3d0,
     "BorderBoxes": 0x3a1a0,
+    "AssignClusters2": 0x38ed0,
+    "Sky": 0x25f00,
+    "Sun": 0x24d30,
+    "Collapse": 0x39390,
 }
 
 AGENT = r"""
@@ -191,6 +199,34 @@ function hook(m) {
       const s = this.s, ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32();
       send({ev: 'resampledentries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
       send({ev: 'resamplednodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
+    }
+  });
+  Interceptor.attach(m.base.add(RVA.AssignClusters2), {
+    onEnter(a) { this.s = a[0]; },
+    onLeave() {
+      const s = this.s, ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32();
+      send({ev: 'assigned2entries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      send({ev: 'assigned2nodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
+    }
+  });
+  for (const [name, ev] of [['Sky', 'sky'], ['Sun', 'sun']]) {
+    Interceptor.attach(m.base.add(RVA[name]), {
+      onEnter(a) { this.v = a[0]; },
+      onLeave(r) {
+        const n = this.v.readS32();
+        send({ev, words: n, ok: r.toInt32() & 0xff},
+             n > 0 ? this.v.add(8).readPointer().readByteArray(n * 4) : new ArrayBuffer(0));
+      }
+    });
+  }
+  let collapses = 0;
+  Interceptor.attach(m.base.add(RVA.Collapse), {
+    onEnter(a) { this.s = a[0]; },
+    onLeave() {
+      const s = this.s, ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32(), k = collapses++;
+      send({ev: 'collapsedentries' + k, n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      send({ev: 'collapsednodes' + k, n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
+      send({ev: 'collapsedboxes' + k, n: nn}, s.add(0x78).readPointer().readByteArray(nn * 24));
     }
   });
   send({ev: 'hooked'});
