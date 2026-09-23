@@ -97,22 +97,14 @@ public static class VisVoxelizer
         var leafSize = baseVoxelSize * VoxelsPerLeaf;
         var side = VoxelsPerRoot(origin, max, baseVoxelSize) / VoxelsPerLeaf;
 
-        var triangles = new List<Vector3[]>();
-        var coarseOnly = new List<bool>();
-        for (var i = 0; i < rte.TriangleCount; i++)
-        {
-            if (!rte.Traced(i) || rte.Vertices(i) is not { } corners)
-                continue;
-            triangles.Add(corners);
-            coarseOnly.Add((rte.Flags(i) & RayTraceEnvironment.CoarseOccupancyOnly) != 0);
-        }
-
+        // Every occupancy question goes through the tracer's own kd tree, the
+        // one the loader rebuilds, because the walk decides which triangles a
+        // box ever meets: see TracerKd.
+        var kd = new TracerKd(rte);
         var masks = new Dictionary<(int Level, (int X, int Y, int Z) Cell), ulong>();
         var branches = new int[BitOperations.Log2((uint)side) + 1];
         var cells = new HashSet<(int Level, (int X, int Y, int Z) Cell)>();
-        var all = Enumerable.Range(0, triangles.Count).ToArray();
-        Descend(origin, side, all, [.. all.Where(t => coarseOnly[t])],
-                triangles, coarseOnly, baseVoxelSize, (0, 0, 0), masks, branches, cells);
+        Descend(kd, origin, max, side, (0, 0, 0), masks, branches, cells);
 
         // The leaf level has no branches of its own, and the array is indexed from
         // it, so the root's level is last and the count reads leaf-first.
@@ -120,130 +112,156 @@ public static class VisVoxelizer
     }
 
     /// <summary>
-    /// One node, given the triangles that reach its box. A branch filters that set
-    /// down for each child; a leaf turns it into the 4x4x4 mask.
+    /// One node of <c>Voxelize</c>. A node wider than a leaf splits on size
+    /// alone and asks the tree about each child under the mask ITS OWN width
+    /// picks: <c>0x811</c> above 256 units, <c>0x1811</c> at or below. An
+    /// occupied child is descended; an empty one under the narrow mask is asked
+    /// again with the wide one and, if that finds something, becomes a leaf
+    /// with a wide mask (<c>LeafEntries(child, 0)</c>). That is how a
+    /// CoarseOccupancyOnly triangle carries coarse levels on its own. A leaf is
+    /// <c>LeafEntries(node, size &lt;= 256)</c>.
     ///
     /// <para><c>cells</c> is the node's side counted in LEAVES, so 1 is a leaf.
-    /// <c>wide</c> carries the CoarseOccupancyOnly triangles separately, because
-    /// the narrow mask drops them from <c>reaching</c> the moment a box is 256
-    /// units or less and the compile can still find them: it queries the kd tree
-    /// rather than a list, at every depth.</para>
+    /// Boxes are halved at their midpoints, as the compile halves them.</para>
     /// </summary>
     private static void Descend(
-        Vector3 origin, int cells, int[] reaching, int[] wide,
-        List<Vector3[]> triangles, List<bool> coarseOnly, float voxel,
-        (int X, int Y, int Z) cell,
+        TracerKd kd, Vector3 mins, Vector3 maxs, int cells, (int X, int Y, int Z) cell,
         Dictionary<(int Level, (int X, int Y, int Z) Cell), ulong> masks, int[] branches,
         HashSet<(int Level, (int X, int Y, int Z) Cell)> branchCells)
     {
-        var leafSize = voxel * VoxelsPerLeaf;
+        var size = maxs.X - mins.X;
         if (cells == 1)
         {
-            Mask(origin, voxel, reaching, triangles, coarseOnly, fine: true, 0, cell, masks);
+            Mask(kd, mins, maxs, fine: size <= RayTraceEnvironment.FineBoxSize, 0, cell, masks);
             return;
         }
 
-        // The mask is chosen from THIS box's width and applied to the children, so
-        // a 512 unit parent still counts what its 256 unit children may not.
-        // The split is not conditional on a child being occupied. A node is only
-        // ever reached because its PARENT found geometry in it, and it then
-        // subdivides on size alone, so it is a branch even when the narrower mask
-        // leaves every one of its eight children empty. That case is real: it is
-        // the two coarse levels a CoarseOccupancyOnly triangle carries on its own.
         branches[BitOperations.Log2((uint)cells)]++;
         branchCells.Add((BitOperations.Log2((uint)cells), cell));
 
-        var fine = cells * leafSize <= RayTraceEnvironment.FineBoxSize;
+        var narrow = size <= RayTraceEnvironment.FineBoxSize;
+        var mask = narrow ? Narrow : Wide;
+        var mid = new Vector3((maxs.X + mins.X) * 0.5f, (maxs.Y + mins.Y) * 0.5f, (maxs.Z + mins.Z) * 0.5f);
         var half = cells / 2;
-        var childSize = half * leafSize * 0.5f;
         for (var octant = 0; octant < 8; octant++)
         {
-            var corner = origin + new Vector3(octant & 1, (octant >> 1) & 1, (octant >> 2) & 1)
-                                * (half * leafSize);
-            var centre = corner + new Vector3(childSize, childSize, childSize);
-            var kept = new List<int>();
-            foreach (var t in reaching)
-            {
-                if (fine && coarseOnly[t])
-                    continue;
-                if (Overlaps(triangles[t], centre, childSize))
-                    kept.Add(t);
-            }
-            var here = wide.Where(t => Overlaps(triangles[t], centre, childSize)).ToArray();
+            var lo = new Vector3((octant & 1) == 0 ? mins.X : mid.X, (octant & 2) == 0 ? mins.Y : mid.Y,
+                                 (octant & 4) == 0 ? mins.Z : mid.Z);
+            var hi = new Vector3((octant & 1) == 0 ? mid.X : maxs.X, (octant & 2) == 0 ? mid.Y : maxs.Y,
+                                 (octant & 4) == 0 ? mid.Z : maxs.Z);
             var childCell = (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
                              cell.Z * 2 + ((octant >> 2) & 1));
-            if (kept.Count == 0)
-            {
-                // Empty under the narrow mask, but the compile retries the same
-                // box with the wide one: a child holding nothing but
-                // CoarseOccupancyOnly geometry stops here as a LEAF and still
-                // gets a mask, built from that geometry.
-                if (fine && here.Length > 0)
-                    Mask(corner, half * leafSize * 0.25f, here, triangles, coarseOnly,
-                         fine: false, BitOperations.Log2((uint)half), childCell, masks);
-                continue;
-            }
-            Descend(corner, half, [.. kept], here, triangles, coarseOnly, voxel, childCell,
-                    masks, branches, branchCells);
+            if (kd.Occupied(lo, hi, mask))
+                Descend(kd, lo, hi, half, childCell, masks, branches, branchCells);
+            else if (narrow && kd.Occupied(lo, hi, Wide))
+                Mask(kd, lo, hi, fine: false, BitOperations.Log2((uint)half), childCell, masks);
         }
     }
 
-    /// <summary>
-    /// Whether a triangle reaches into a cube, by the separating axis test: the
-    /// cube's three faces, the triangle's plane, and the nine edge cross products.
-    /// </summary>
-    private static bool Overlaps(Vector3[] triangle, Vector3 centre, float half)
-    {
-        Span<Vector3> v = [triangle[0] - centre, triangle[1] - centre, triangle[2] - centre];
-        for (var axis = 0; axis < 3; axis++)
-        {
-            var lo = MathF.Min(Component(v[0], axis), MathF.Min(Component(v[1], axis), Component(v[2], axis)));
-            var hi = MathF.Max(Component(v[0], axis), MathF.Max(Component(v[1], axis), Component(v[2], axis)));
-            if (lo > half || hi < -half)
-                return false;
-        }
+    /// <summary>The query masks: reject excluded triangles, and below 256 units the coarse-only ones too.</summary>
+    private const ushort Wide = 0x0811, Narrow = 0x1811;
 
-        Span<Vector3> edge = [v[1] - v[0], v[2] - v[1], v[0] - v[2]];
-        var normal = Vector3.Cross(edge[0], edge[1]);
-        var reach = half * (MathF.Abs(normal.X) + MathF.Abs(normal.Y) + MathF.Abs(normal.Z));
-        if (MathF.Abs(Vector3.Dot(normal, v[0])) > reach)
+    private static bool Overlaps(Vector3[] triangle, Vector3 centre, float half)
+        => Overlaps(triangle[0], triangle[1], triangle[2], centre, new Vector3(half));
+
+    /// <summary>
+    /// Whether a triangle reaches into a box, which is <c>FUN_18010b310</c> with
+    /// its tolerance at 0, transcribed rather than rederived. It is the familiar
+    /// separating axis test with four things of its own, and every one of them
+    /// decides boundary cases: the edges are NORMALISED before the nine cross
+    /// axes, only the two projections that can differ are taken on each, a box
+    /// touching the triangle counts (rejection is strict), and the last test is
+    /// the plane of the normalised edge2 x edge0.
+    /// </summary>
+    internal static bool Overlaps(Vector3 pa, Vector3 pb, Vector3 pc, Vector3 centre, Vector3 h)
+    {
+        float a0 = pa.X - centre.X, b0 = pb.X - centre.X, c0 = pc.X - centre.X;
+        if (!(Min3(a0, b0, c0) <= h.X) || !(-h.X <= Max3(a0, b0, c0)))
+            return false;
+        float a1 = pa.Y - centre.Y, b1 = pb.Y - centre.Y, c1 = pc.Y - centre.Y;
+        if (!(Min3(a1, b1, c1) <= h.Y) || !(-h.Y <= Max3(a1, b1, c1)))
+            return false;
+        float a2 = pa.Z - centre.Z, b2 = pb.Z - centre.Z, c2 = pc.Z - centre.Z;
+        if (!(Min3(a2, b2, c2) <= h.Z) || !(-h.Z <= Max3(a2, b2, c2)))
             return false;
 
-        for (var i = 0; i < 3; i++)
-            for (var axis = 0; axis < 3; axis++)
-            {
-                var a = Axis(edge[i], axis);
-                var p0 = Vector3.Dot(a, v[0]);
-                var p1 = Vector3.Dot(a, v[1]);
-                var p2 = Vector3.Dot(a, v[2]);
-                reach = half * (MathF.Abs(a.X) + MathF.Abs(a.Y) + MathF.Abs(a.Z));
-                if (MathF.Min(p0, MathF.Min(p1, p2)) > reach || MathF.Max(p0, MathF.Max(p1, p2)) < -reach)
-                    return false;
-            }
-        return true;
+        var (ex, ey, ez) = Unit(b0 - a0, b1 - a1, b2 - a2);
+        if (Outside(a1 * ez - a2 * ey, c1 * ez - c2 * ey, (h.Y * MathF.Abs(ez)) + (MathF.Abs(ey) * h.Z))
+            || Outside(a2 * ex - a0 * ez, c2 * ex - c0 * ez, (MathF.Abs(ex) * h.Z) + (h.X * MathF.Abs(ez)))
+            || Outside(c0 * ey - c1 * ex, b0 * ey - b1 * ex, (h.Y * MathF.Abs(ex)) + (h.X * MathF.Abs(ey))))
+            return false;
+        var (e0x, e0y, e0z) = (ex, ey, ez);
+
+        (ex, ey, ez) = Unit(c0 - b0, c1 - b1, c2 - b2);
+        if (Outside(a1 * ez - a2 * ey, b1 * ez - b2 * ey, (h.Y * MathF.Abs(ez)) + (MathF.Abs(ey) * h.Z))
+            || Outside(a2 * ex - a0 * ez, b2 * ex - b0 * ez, (h.X * MathF.Abs(ez)) + (MathF.Abs(ex) * h.Z))
+            || Outside(a0 * ey - a1 * ex, c0 * ey - c1 * ex, (h.Y * MathF.Abs(ex)) + (h.X * MathF.Abs(ey))))
+            return false;
+
+        (ex, ey, ez) = Unit(a0 - c0, a1 - c1, a2 - c2);
+        if (Outside(a1 * ez - a2 * ey, b1 * ez - b2 * ey, (h.Y * MathF.Abs(ez)) + (MathF.Abs(ey) * h.Z))
+            || Outside(a2 * ex - a0 * ez, b2 * ex - b0 * ez, (h.X * MathF.Abs(ez)) + (MathF.Abs(ex) * h.Z))
+            || Outside(c0 * ey - c1 * ex, b0 * ey - b1 * ex, (h.Y * MathF.Abs(ex)) + (h.X * MathF.Abs(ey))))
+            return false;
+
+        var (nx, ny, nz) = Unit((ez * e0y) - (ey * e0z), (ex * e0z) - (ez * e0x), (ey * e0x) - (ex * e0y));
+        var d = (nz * a2) + (ny * a1) + (nx * a0);
+        var r = MathF.Abs(ny * h.Y) + MathF.Abs(nx * h.X) + MathF.Abs(nz * h.Z);
+        return d <= r && -r <= d;
+    }
+
+    // The binary's min and max of three, <= swaps in its order.
+    private static float Min3(float a, float b, float c)
+    {
+        var m = a <= b ? a : b;
+        return m <= c ? m : c;
+    }
+
+    private static float Max3(float a, float b, float c)
+    {
+        var m = b <= a ? a : b;
+        return c <= m ? m : c;
+    }
+
+    // One cross axis. `held` is the projection the binary tests as the lesser
+    // when it is no greater than `other`; the rejection is strict either way.
+    private static bool Outside(float held, float other, float r)
+        => other <= held ? r < other || held < -r : r < held || other < -r;
+
+    // The inline normalise: length summed z first, a reciprocal multiply, zero
+    // below 1e-17, and the double precision path for anything extreme.
+    private static (float, float, float) Unit(float x, float y, float z)
+    {
+        var length = MathF.Sqrt((z * z) + (y * y) + (x * x));
+        if (length < 1e-17f || length > 1e17f)
+        {
+            if (length == 0f)
+                return (0f, 0f, 0f);
+            var l = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
+            return ((float)(x / l), (float)(y / l), (float)(z / l));
+        }
+        var inverse = 1f / length;
+        return (x * inverse, y * inverse, z * inverse);
     }
 
     /// <summary>
-    /// A node's 4x4x4 occupancy, which is <c>18002d670</c>: one kd query per
-    /// sub-cell, under the mask the node's own size picks.
+    /// A node's 4x4x4 occupancy, which is <c>LeafEntries</c>: one query per
+    /// sub-cell, each box built by <c>SubBox</c>, under the mask the node's own
+    /// size picks.
     /// </summary>
     private static void Mask(
-        Vector3 origin, float sub, IReadOnlyList<int> reaching,
-        List<Vector3[]> triangles, List<bool> coarseOnly, bool fine,
-        int level, (int X, int Y, int Z) cell,
+        TracerKd kd, Vector3 mins, Vector3 maxs, bool fine, int level, (int X, int Y, int Z) cell,
         Dictionary<(int Level, (int X, int Y, int Z) Cell), ulong> masks)
     {
         var mask = 0UL;
+        var sub = (maxs.X - mins.X) * 0.25f;
         for (var i = 0; i < 64; i++)
         {
-            var centre = origin + new Vector3(
-                (i & 3) + 0.5f, ((i >> 2) & 3) + 0.5f, ((i >> 4) & 3) + 0.5f) * sub;
-            foreach (var t in reaching)
-                if ((!fine || !coarseOnly[t]) && Overlaps(triangles[t], centre, sub * 0.5f))
-                {
-                    mask |= 1UL << i;
-                    break;
-                }
+            float ox = (i & 3) * sub, oy = ((i >> 2) & 3) * sub, oz = ((i >> 4) & 3) * sub;
+            var lo = new Vector3(ox + mins.X, oy + mins.Y, oz + mins.Z);
+            var hi = new Vector3(mins.X + (ox + sub), mins.Y + (oy + sub), mins.Z + (oz + sub));
+            if (kd.Occupied(lo, hi, fine ? Narrow : Wide))
+                mask |= 1UL << i;
         }
         if (mask != 0)
             masks[(level, cell)] = mask;

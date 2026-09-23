@@ -51,7 +51,8 @@ public static class VisClusterSet
     public static int MergeAll(
         RayTraceEnvironment scene, List<Set> sets, int target,
         VisClusterSample.LeafCube cube, Action<int, float>? after = null,
-        Action<VisMerge.Halt>? halted = null, Action<VisMerge.Halt>? first = null)
+        Action<VisMerge.Halt>? halted = null, Action<VisMerge.Halt>? first = null,
+        Action<int, IReadOnlyList<Set>>? entering = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(sets);
@@ -60,6 +61,7 @@ public static class VisClusterSet
         for (var i = 0; i < Passes.Length; i++)
         {
             var pass = Passes[i];
+            entering?.Invoke(i, sets);
             cost = Regrid(scene, sets, pass.Cell, pass.Margin, cost,
                           (int)(target * pass.Budget), cube, halted, first);
             after?.Invoke(sets.Sum(s => s.Clusters.Count), cost);

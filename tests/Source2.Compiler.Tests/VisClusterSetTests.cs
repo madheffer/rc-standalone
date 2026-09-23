@@ -28,24 +28,18 @@ public class VisClusterSetTests(ITestOutputHelper output)
         string Addon, string Map, int Target, int Generated, int PreMerged,
         int First, int Second, int Final, float Cost, int Assigned, double Tolerance);
 
+    /// <summary>
+    /// The target: 0.01% of a Valve compile, which on these counts means exact.
+    /// Every stage below was brought there by replaying captures of the real
+    /// compile against the port (VisMergeReplay), not by moving a number.
+    /// </summary>
+    private const double Parity = 0.0001;
+
     private static readonly Specimen[] Maps =
     [
-        new("s2c_rc_probe", "probe01", 862, 81_707, 81_576, 1_979, 1_815, 1_621, 110_760.1f, 30_665, 0.04),
-        new("s2c_rc_probe", "cardtest", 862, 81_991, 81_865, 1_998, 1_825, 1_626, 0f, 30_817, 0.05),
-        // ze_hold_em_p still does not reach its budget or its cost limit: it
-        // merges to its connected components and stops, 239 of them against
-        // Valve's 258. It stopped at 350 before the kd clamp fix and at 243
-        // before the sampler was made faithful; making the sampler faithful
-        // moved it the WRONG way, on this map only, and that is recorded rather
-        // than reverted because the same sampler keeps cluster generation exact
-        // here. The distance pre-merge does not touch it either: the map has no
-        // set holding a single open space cluster, so that stage correctly
-        // merges nothing. Adding the tree balance 18010a6e0 does moved it from
-        // 233 to 239 without changing the cost by a digit, which is what merge
-        // ORDER looks like. The bound is wide to hold the line, not because 7%
-        // is acceptable. Tighten it by finding the remaining cause, not by
-        // touching the number.
-        new("s2c_lighting", "ze_hold_em_p", 1_342, 93_354, 93_354, 258, 258, 258, 21_940.0f, 103_358, 0.08),
+        new("s2c_rc_probe", "probe01", 862, 81_707, 81_576, 1_979, 1_815, 1_621, 110_760.1f, 30_665, Parity),
+        new("s2c_rc_probe", "cardtest", 862, 81_991, 81_865, 1_998, 1_825, 1_626, 0f, 30_817, Parity),
+        new("s2c_lighting", "ze_hold_em_p", 1_342, 93_354, 93_354, 258, 258, 258, 21_940.0f, 103_358, Parity),
     ];
 
     [Fact]
@@ -81,6 +75,10 @@ public class VisClusterSetTests(ITestOutputHelper output)
                            + $" {sets.Sum(x => x.Clusters.Count),8:n0} clusters"
                            + $"  compile {specimen.PreMerged,8:n0}"
                            + $"  {(double)sets.Sum(x => x.Clusters.Count) / specimen.PreMerged - 1,8:P2}");
+            Assert.True(Math.Abs((double)generated / specimen.Generated - 1) <= specimen.Tolerance,
+                $"{specimen.Map}: generated {generated:n0} against the compile's {specimen.Generated:n0}");
+            Assert.True(Math.Abs((double)sets.Sum(x => x.Clusters.Count) / specimen.PreMerged - 1) <= specimen.Tolerance,
+                $"{specimen.Map}: pre-merged {sets.Sum(x => x.Clusters.Count):n0} against the compile's {specimen.PreMerged:n0}");
 
             var seen = new List<(int Clusters, float Cost)>();
             VisClusterSet.MergeAll(rte, sets, specimen.Target, VisClusters.Cubes(tree, compact), (n, c) =>
@@ -102,7 +100,7 @@ public class VisClusterSetTests(ITestOutputHelper output)
                 var cost = (double)seen[0].Cost / specimen.Cost - 1;
                 output.WriteLine($"{specimen.Map,-16} cost   {seen[0].Cost,9:n1}"
                                + $"  compile {specimen.Cost,9:n1}  {cost,8:P2}");
-                Assert.True(Math.Abs(cost) <= 0.05,
+                Assert.True(Math.Abs(cost) <= specimen.Tolerance,
                     $"{specimen.Map}: the chain's first cost is {cost:P2} off, so the cost"
                   + " function, the sampling or the merge order is wrong");
             }
@@ -125,11 +123,8 @@ public class VisClusterSetTests(ITestOutputHelper output)
                            + $" {collapsed.Count(e => e.Kind != VisVisibility.Open):n0} kept"
                            + $" of the compaction's {collapsed.Length:n0})");
 
-            // ze_hold_em_p is exact and pinned at zero. The two probe maps carry
-            // their merge's own 5% into the pair half of this number, which is
-            // only a quarter of it, so they land 1% under.
             var assignError = (double)assigned.Regions / specimen.Assigned - 1;
-            Assert.True(Math.Abs(assignError) <= (specimen.Map == "ze_hold_em_p" ? 0 : 0.02),
+            Assert.True(Math.Abs(assignError) <= specimen.Tolerance,
                 $"{specimen.Map} assignment: {assigned.Regions:n0} records against the compile's "
               + $"{specimen.Assigned:n0}, {assignError:P2} off");
 

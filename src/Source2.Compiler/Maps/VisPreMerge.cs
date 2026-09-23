@@ -24,10 +24,19 @@ namespace Source2.Compiler.Maps;
 public static class VisPreMerge
 {
     /// <summary>
-    /// Longest side a merged box may have, <c>PreMergeOpenSpaceMaxDimension</c>
-    /// defaulting to <c>DAT_18017f1c0</c>.
+    /// Longest side a merged box may have. Read out of the live compile, where
+    /// <c>BestPartner</c> is handed 2,048: that is sampler+0xfc, the shipped
+    /// <c>PreMergeOpenSpaceMaxDimension</c> from csgo_core/gameinfo.gi, not the
+    /// binary's 1,024.
     /// </summary>
-    public const float MaxDimension = 1024f;
+    public const float MaxDimension = 2048f;
+
+    /// <summary>
+    /// The binary's own default for <see cref="MaxDimension"/> (<c>DAT_18017f1c0</c>),
+    /// which the shipped gameinfo overrides; kept so the constant test can still
+    /// check what the image holds.
+    /// </summary>
+    public const float BinaryMaxDimension = 1024f;
 
     /// <summary>
     /// How many times longer than thin a merged box may be,
@@ -62,40 +71,58 @@ public static class VisPreMerge
         public int Proxy;
         public int Index;
         public bool Used;
+        public bool Dead;
     }
 
     /// <summary>
     /// Run it over a map's sets, rewriting them in place, and report what it did.
     /// </summary>
     /// <param name="sets">The sets cluster generation produced.</param>
-    public static Result Run(IReadOnlyList<VisClusterSet.Set> sets)
+    /// <param name="round">Called at the start of every round with the runs in order, for replay.</param>
+    public static Result Run(IReadOnlyList<VisClusterSet.Set> sets,
+                             Action<IReadOnlyList<(Vector3 Mins, Vector3 Maxs)>>? round = null)
     {
         ArgumentNullException.ThrowIfNull(sets);
 
         var tree = new VisBoxTree();
         var live = new List<Item?>();
+        // The tree's payload is a run's creation number, which compaction does
+        // not touch; the compile's tree hands back the run record itself and
+        // reads its CURRENT index from it, so a payload is looked up here.
+        var made = new List<Item>();
         for (var i = 0; i < sets.Count; i++)
         {
             if (sets[i].Clusters.Count != 1 || !sets[i].Clusters[0].OpenSpace)
                 continue;
             var cluster = sets[i].Clusters[0];
             var item = new Item { Mins = cluster.Mins, Maxs = cluster.Maxs, Members = [i] };
-            item.Proxy = tree.Create(item.Mins, item.Maxs, live.Count);
+            item.Proxy = tree.Create(item.Mins, item.Maxs, made.Count);
+            made.Add(item);
             live.Add(item);
         }
 
         var started = live.Count;
         while (true)
         {
-            // 180028c70 compacts the nulls out and renumbers before every round,
-            // and the index it writes is what a candidate is named by.
-            live.RemoveAll(x => x is null);
+            // GroupByDistance compacts before every round, walking from the end
+            // and moving the LAST run into each empty slot, then renumbers. The
+            // index it writes is what a candidate is named by, so the order is
+            // kept as it does it rather than as a stable removal would.
+            for (var i = live.Count - 1; i >= 0; i--)
+            {
+                if (live[i] is not null)
+                    continue;
+                if (i != live.Count - 1)
+                    live[i] = live[^1];
+                live.RemoveAt(live.Count - 1);
+            }
             for (var i = 0; i < live.Count; i++)
             {
                 live[i]!.Index = i;
                 live[i]!.Used = false;
             }
-            if (!Round(tree, live))
+            round?.Invoke([.. live.Select(x => (x!.Mins, x.Maxs))]);
+            if (!Round(tree, live, made))
                 break;
         }
 
@@ -121,11 +148,11 @@ public static class VisPreMerge
     /// EVERY pair at that price in one go. Each run may take part once per round,
     /// which is what the used flag is for.
     /// </summary>
-    private static bool Round(VisBoxTree tree, List<Item?> live)
+    private static bool Round(VisBoxTree tree, List<Item?> live, List<Item> made)
     {
         var best = new int[live.Count];
         var cost = new float[live.Count];
-        Parallel.For(0, live.Count, i => (best[i], cost[i]) = Cheapest(tree, live, i));
+        Parallel.For(0, live.Count, i => (best[i], cost[i]) = Cheapest(tree, live, made, i));
 
         var cheapest = float.MaxValue;
         for (var i = 0; i < live.Count; i++)
@@ -143,11 +170,13 @@ public static class VisPreMerge
                        Vector3.Max(live[i]!.Maxs, live[best[i]]!.Maxs), i, best[i]));
         }
 
-        // 1800294f0 sorts them, and its comparator is 180027e10 over the union box.
-        pairs.Sort((a, b) => VisMerge.Before(a.Mins, a.Maxs, b.Mins, b.Maxs) ? -1
-                           : VisMerge.Before(b.Mins, b.Maxs, a.Mins, a.Maxs) ? 1 : 0);
+        // SortPairs is std::sort with 180027e10 over the union box. Two runs that
+        // chose each other make two pairs with the same union, and which comes
+        // first decides which run keeps the merge, so the sort is MSVC's own.
+        var sorted = pairs.ToArray();
+        MsvcSort.Sort(sorted, (a, b) => VisMerge.Before(a.Mins, a.Maxs, b.Mins, b.Maxs));
 
-        foreach (var (_, _, owner, other) in pairs)
+        foreach (var (_, _, owner, other) in sorted)
         {
             var keep = live[owner];
             var drop = live[other];
@@ -155,6 +184,7 @@ public static class VisPreMerge
                 continue;
 
             live[other] = null;
+            drop.Dead = true;
             keep.Mins = Vector3.Min(keep.Mins, drop.Mins);
             keep.Maxs = Vector3.Max(keep.Maxs, drop.Maxs);
             keep.Members.AddRange(drop.Members);
@@ -170,7 +200,7 @@ public static class VisPreMerge
     /// grown by <see cref="Slack"/> and keep the partner whose UNION is smallest
     /// by volume, then by aspect ratio, then by the box order.
     /// </summary>
-    private static (int Best, float Cost) Cheapest(VisBoxTree tree, List<Item?> live, int at)
+    private static (int Best, float Cost) Cheapest(VisBoxTree tree, List<Item?> live, List<Item> made, int at)
     {
         var mine = live[at];
         if (mine is null)
@@ -187,7 +217,7 @@ public static class VisPreMerge
 
         foreach (var index in found)
         {
-            if (index == at || (uint)index >= (uint)live.Count || live[index] is not { } theirs)
+            if ((uint)index >= (uint)made.Count || made[index] is not { Dead: false } theirs || theirs == mine)
                 continue;
 
             var mins = Vector3.Min(mine.Mins, theirs.Mins);
@@ -200,9 +230,11 @@ public static class VisPreMerge
 
             var volume = MathF.Ceiling(size.Y * size.X * size.Z);
             var ratio = longest / MathF.Max(shortest, RatioFloor);
+            // At an equal volume the binary takes a better ratio outright, and
+            // otherwise, WORSE ratio included, whichever union box sorts first.
             if (best >= 0 && (volume > bestVolume
-                || (volume == bestVolume && (ratio > bestRatio
-                    || (ratio == bestRatio && !VisMerge.Before(mins, maxs, bestMins, bestMaxs))))))
+                || (volume == bestVolume && !(ratio < bestRatio)
+                    && !VisMerge.Before(mins, maxs, bestMins, bestMaxs))))
                 continue;
 
             best = theirs.Index;

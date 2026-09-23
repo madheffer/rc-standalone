@@ -217,7 +217,130 @@ public class VisMergeReplay(ITestOutputHelper output)
         var cube = VisClusters.Cubes(tree, compact);
         var sets = VisClusters.Generate(rte, tree, compact);
         var generated = sets.Sum(x => x.Clusters.Count);
-        VisPreMerge.Run(sets);
+        var ourRounds = new List<List<(Vector3 Mins, Vector3 Maxs)>>();
+        var pre = VisPreMerge.Run(sets, r => ourRounds.Add([.. r]));
+        var premerge = Path.Combine(Path.GetTempPath(), "vis_capture", map + ".premerge.jsonl");
+        if (File.Exists(premerge))
+        {
+            var theirRounds = File.ReadLines(premerge).Select(l =>
+            {
+                var b = Convert.FromHexString(JsonDocument.Parse(l).RootElement.GetProperty("hex").GetString()!);
+                return Enumerable.Range(0, b.Length / 28).Select(i => (Mins: V(b, i * 28), Maxs: V(b, i * 28 + 12))).ToList();
+            }).ToList();
+            output.WriteLine($"pre-merge: started {pre.Before} rounds ours {string.Join(",", ourRounds.Select(r => r.Count))}"
+                           + $" valve {string.Join(",", theirRounds.Select(r => r.Count))}");
+            for (var k = 0; k < Math.Min(ourRounds.Count, theirRounds.Count); k++)
+            {
+                var a = ourRounds[k];
+                var b = theirRounds[k];
+                var same = a.Count == b.Count && a.Zip(b).All(p => p.First == p.Second);
+                var setA = a.Select(x => $"{x.Mins}{x.Maxs}").ToHashSet();
+                var setB = b.Select(x => $"{x.Mins}{x.Maxs}").ToHashSet();
+                output.WriteLine($"  round {k}: in order {same}, same set {setA.SetEquals(setB)},"
+                               + $" ours-only {setA.Except(setB).Count()} valve-only {setB.Except(setA).Count()}");
+                if (!setA.SetEquals(setB))
+                {
+                    output.WriteLine($"    ours-only {string.Join(" ", setA.Except(setB).Take(4))}");
+                    output.WriteLine($"    valve-only {string.Join(" ", setB.Except(setA).Take(4))}");
+                    break;
+                }
+            }
+        }
+
+        if (Environment.GetEnvironmentVariable("REPLAY_PASS0") is { Length: > 0 })
+        {
+            // Pass 0's first merges on OUR input, sampled with OUR leaf cubes,
+            // against the visibility Valve sampled for the same buckets.
+            var (bucketsValve, _) = Read(Path.Combine(Path.GetTempPath(), "vis_capture", map + ".bin"));
+            var firsts = bucketsValve.Where(b => b.Pass == 0).GroupBy(b => b.Budget).MaxBy(g => g.Key)!
+                                     .OrderBy(b => b.Set).ToList();
+            var (lo0, hi0) = rte.TracedBounds;
+            var ours0 = VisClusterSet.Bucket(lo0, hi0, sets, 512f, 0f);
+            for (var i = 0; i < ours0.Count && i < firsts.Count; i++)
+            {
+                var b = firsts[i];
+                if (b.Vis is null)
+                    continue;
+                var probeSet = ours0[i].Clusters.Select(c => new VisMerge.Cluster
+                {
+                    Voxels = [.. c.Voxels], Mins = c.Mins, Maxs = c.Maxs, VoxelCount = c.VoxelCount,
+                    VoxelSize = c.VoxelSize, Tag = c.Tag, OpenSpace = c.OpenSpace,
+                }).ToList();
+                VisClusterSample.SampleInto(rte, probeSet, ours0[i].Mins, ours0[i].Maxs, padded: false, cube);
+                var bad = Enumerable.Range(0, probeSet.Count).Where(k => !probeSet[k].Visibility.SequenceEqual(b.Vis[k])).ToList();
+                if (bad.Count > 0)
+                {
+                    var k0 = bad[0];
+                    var c = probeSet[k0];
+                    output.WriteLine($"pass0 bucket {i}: {bad.Count} clusters sample differently; first {k0} box {c.Mins} {c.Maxs}"
+                                   + $" pairs {string.Join(",", c.Voxels.Select(v => $"{v.Mask:x}@{v.Leaf}:{cube(v.Leaf).Corner}+{cube(v.Leaf).Side}"))}");
+                    output.WriteLine($"          valve pairs {string.Join(",", b.In[k0].Voxels.Select(v => $"{v.Mask:x}@{v.Leaf}:{leaves[v.Leaf].Item1}-{leaves[v.Leaf].Item2}"))}");
+                    break;
+                }
+            }
+            // Our average of the first merges' returns against the limit Valve
+            // handed every second merge.
+            var seconds = bucketsValve.Where(b => b.Pass == 0).GroupBy(b => b.Budget).MinBy(g => g.Key)!.ToList();
+            var total = 0f;
+            foreach (var b in firsts)
+                total += b.Returned;
+            var avg = total / firsts.Count;
+            output.WriteLine($"pass0 average ours {avg:R} ({BitConverter.SingleToInt32Bits(avg):x8}),"
+                           + $" valve second-merge limit {seconds[0].Limit:R} ({BitConverter.SingleToInt32Bits(seconds[0].Limit):x8})");
+            // The pass itself, our way, bucket by bucket.
+            var secondsOrdered = seconds.OrderBy(b => b.Set).ToList();
+            var perCell = firsts[0].Budget / 2;
+            var costs0 = new float[ours0.Count];
+            var firstOut = new int[ours0.Count];
+            var firstSeq = new List<(int, int, float)>[ours0.Count];
+            for (var i = 0; i < ours0.Count; i++)
+            {
+                var seq = new List<(int, int, float)>();
+                costs0[i] = VisMerge.Run(rte, ours0[i].Clusters, ours0[i].Mins, ours0[i].Maxs, firsts[i].Limit,
+                                         perCell * 2, padded: false, cube, merged: (o, t, c) => seq.Add((o, t, c)));
+                firstOut[i] = ours0[i].Clusters.Count;
+                firstSeq[i] = seq;
+            }
+            var sum0 = 0f;
+            foreach (var c in costs0)
+                sum0 += c;
+            var avg0 = sum0 / ours0.Count;
+            for (var i = 0; i < ours0.Count; i++)
+            {
+                var seq = new List<(int, int, float)>();
+                var ret = VisMerge.Run(rte, ours0[i].Clusters, ours0[i].Mins, ours0[i].Maxs, avg0,
+                                       perCell, padded: false, cube, merged: (o, t, c) => seq.Add((o, t, c)));
+                var f = firsts[i];
+                var sc = secondsOrdered[i];
+                if (firstOut[i] != f.Out || ours0[i].Clusters.Count != sc.Out
+                    || BitConverter.SingleToInt32Bits(costs0[i]) != BitConverter.SingleToInt32Bits(f.Returned))
+                    output.WriteLine($"pass0 bucket {i}: first out ours {firstOut[i]} valve {f.Out} (ret {costs0[i]:R} vs {f.Returned:R},"
+                                   + $" merges first diff at {FirstDifference(firstSeq[i], f.Merges)}),"
+                                   + $" second out ours {ours0[i].Clusters.Count} valve {sc.Out}"
+                                   + $" (merges first diff at {FirstDifference(seq, sc.Merges)} of {sc.Merges.Count}; in ours {firstOut[i]} valve {sc.In.Count})");
+            }
+            output.WriteLine($"pass0 average ours (chain) {avg0:R}");
+            output.WriteLine("pass0 sampling check done");
+        }
+
+        if (Environment.GetEnvironmentVariable("REPLAY_CHAIN") is { Length: > 0 })
+        {
+            // The whole chain on our own input, compared at every pass entry.
+            string Brief(VisMerge.Cluster c) => $"{c.Mins}{c.Maxs}|{c.VoxelCount}|{c.VoxelSize}|{c.Voxels.Count}";
+            var target = Environment.GetEnvironmentVariable("REPLAY_TARGET") is { Length: > 0 } t ? int.Parse(t) : VisClusters.TargetClusters(tree, compact);
+            VisClusterSet.MergeAll(rte, sets, target, cube, entering: (k, now) =>
+            {
+                if (!Entries.TryGetValue(k, out var e))
+                    return;
+                var mine = now.Select(x => string.Join(";", x.Clusters.Select(Brief))).ToList();
+                var theirs = e.Sets.Select(x => string.Join(";", x.Select(Brief))).ToList();
+                var at = Enumerable.Range(0, Math.Min(mine.Count, theirs.Count)).Where(i => mine[i] != theirs[i]).ToList();
+                output.WriteLine($"chain pass {k} entry: sets ours {mine.Count} valve {theirs.Count},"
+                               + $" clusters ours {now.Sum(x => x.Clusters.Count)} valve {e.Sets.Sum(x => x.Count)},"
+                               + $" differing sets {at.Count} first {(at.Count > 0 ? at[0] : -1)}");
+            });
+            output.WriteLine($"chain final: {sets.Sum(x => x.Clusters.Count)} clusters (target {target})");
+        }
 
         string Key(VisMerge.Cluster c, Func<int, Vector3> corner)
             => $"{c.Mins}{c.Maxs}|{c.VoxelCount}|{c.VoxelSize}|{c.Tag}|{c.OpenSpace}|"
@@ -323,6 +446,23 @@ public class VisMergeReplay(ITestOutputHelper output)
         output.WriteLine("dfs - valve id: " + string.Join(", ", offsets.Select(o => $"{o.Key}: {o.Value.Count} from id {o.Value.Lowest}")));
         output.WriteLine($"leaf numbering: of {leaves.Count} captured leaves, {placed} placed in our tree;"
                        + $" depth first equal {dfsHit}, breadth first equal {bfsHit}; our nodes {tree.Nodes}");
+
+        // One differing leaf, taken apart on our side.
+        {
+            var probe = new Vector3(896, -1004, 48);
+            for (var l = 0; l < regions.Leaves.Count; l++)
+            {
+                var lf = regions.Leaves[l];
+                var sz = tree.LeafSize * (1 << lf.Level);
+                var corner = tree.Origin + new Vector3(lf.Cell.X, lf.Cell.Y, lf.Cell.Z) * sz;
+                if (corner != probe)
+                    continue;
+                output.WriteLine($"leaf {l} at {corner} side {sz}: solid {lf.Solid:x16}, bit44 solid {(lf.Solid >> 44) & 1}");
+                for (var r = 0; r < regions.Regions.Count; r++)
+                    if (regions.Regions[r].Leaf == l)
+                        output.WriteLine($"   region {r}: open {regions.Regions[r].Open:x16} status {inside.Regions[r]}");
+            }
+        }
 
         var ourFirst = sets.Select(x => x.Clusters.SelectMany(c => c.Voxels).Select(v => v.Leaf).DefaultIfEmpty(-1).Min()).ToList();
         output.WriteLine($"ours: first leaves {string.Join(",", ourFirst.Take(12))}; leaves {compact.Leaves.Count}, valve leaf table seen {leaves.Count} max {leaves.Keys.Max()}");

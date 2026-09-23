@@ -339,13 +339,23 @@ public static class VisMerge
                     yield return _clusters[i];
         }
 
-        /// <summary>Rewrite the caller's list to the survivors, in order.</summary>
+        /// <summary>
+        /// Rewrite the caller's list to the survivors in the order
+        /// <c>FUN_180034ca0</c> leaves them: it walks from the end and moves the
+        /// LAST record into each absorbed one's slot. The next merge numbers its
+        /// clusters by that order, so a stable removal changes its result.
+        /// </summary>
         public void Keep(List<Cluster> into)
         {
-            var kept = new List<Cluster>(Live);
-            for (var i = 0; i < _clusters.Count; i++)
+            var kept = new List<Cluster>(_clusters);
+            for (var i = kept.Count - 1; i >= 0; i--)
+            {
                 if (_alive[i])
-                    kept.Add(_clusters[i]);
+                    continue;
+                if (i != kept.Count - 1)
+                    kept[i] = kept[^1];
+                kept.RemoveAt(kept.Count - 1);
+            }
             into.Clear();
             into.AddRange(kept);
         }

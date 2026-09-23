@@ -40,7 +40,7 @@ public sealed class VisMergeCostTests
         ("CostScale", VisMergeCost.Scale, false),
         ("MarchShortest", VisOutside.MarchShortest, false),
         ("FirstCostLimit", VisClusters.MergeThreshold, false),
-        ("PreMergeMaxDimensionAndPass4Margin", VisPreMerge.MaxDimension, false),
+        ("PreMergeMaxDimensionAndPass4Margin", VisPreMerge.BinaryMaxDimension, false),
         ("PreMergeMaxRatio", VisPreMerge.MaxRatio, false),
         ("FaceTolerance", VisPreMerge.FaceTolerance, false),
         ("SubCellAndTouchTolerance", VisPreMerge.TouchTolerance, false),

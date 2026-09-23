@@ -438,7 +438,31 @@ public sealed class RayTraceEnvironment
     }
 
     private float[]? _traced;
+    private float[]? _loaderCorners;
+    private int[]? _tracerOrder;
     private Vector3 _tracedMins, _tracedMaxs;
+
+    /// <summary>
+    /// The tracer's triangles in its own slot order, as file indices: every
+    /// traced triangle whose loader corners are finite, in file order, except
+    /// that the setup drops a triangle whose conversion is not finite by moving
+    /// the LAST one into its slot and looking at that slot again.
+    /// </summary>
+    internal int[] TracerOrder
+    {
+        get
+        {
+            Traced();
+            return _tracerOrder!;
+        }
+    }
+
+    /// <summary>The loader's rebuilt corners of a file triangle, nine floats, which the kd build reads.</summary>
+    internal ReadOnlySpan<float> LoaderCorners(int index)
+    {
+        Traced();
+        return _loaderCorners.AsSpan(index * 9, 9);
+    }
 
     /// <summary>
     /// The tracer's own bounds, which the merge passes lay their grid over: the
@@ -472,6 +496,8 @@ public sealed class RayTraceEnvironment
         if (_traced is { } done)
             return done;
         var found = new float[TriangleCount * 13];
+        var loader = new float[TriangleCount * 9];
+        var added = new List<int>();
         Span<float> v = stackalloc float[9];
         Span<float> c = stackalloc float[13];
         Span<float> lo = [float.MaxValue, float.MaxValue, float.MaxValue];
@@ -488,6 +514,8 @@ public sealed class RayTraceEnvironment
             if (!Corners(c, record[0x2c], record[0x2d], v))
                 continue;
             v.CopyTo(corners);
+            v.CopyTo(loader.AsSpan(i * 9, 9));
+            added.Add(i);
             if (!Convert(v, c) || !Corners(c, (int)c[11], (int)c[12], v))
                 continue;
             c.CopyTo(found.AsSpan(i * 13, 13));
@@ -500,9 +528,38 @@ public sealed class RayTraceEnvironment
                     hi[k % 3] = corners[k];
             }
         }
+        // The setup's pass over the added triangles: one whose conversion fails
+        // takes the last one's slot and the slot is looked at again.
+        for (var slot = 0; slot < added.Count; slot++)
+        {
+            if (!float.IsNaN(found[added[slot] * 13]))
+                continue;
+            added[slot] = added[^1];
+            added.RemoveAt(added.Count - 1);
+            slot--;
+        }
+        _tracerOrder = [.. added];
+        _loaderCorners = loader;
         _tracedMins = new Vector3(lo[0], lo[1], lo[2]);
         _tracedMaxs = new Vector3(hi[0], hi[1], hi[2]);
         return _traced = found;
+    }
+
+    /// <summary>
+    /// A traced triangle's corners as <c>BoxOverlap</c> sees them: rebuilt from
+    /// the tracer's converted record, which is a second round trip on top of
+    /// the loader's and not the same corners as <see cref="Vertices"/>. Null
+    /// for a triangle the tracer does not hold.
+    /// </summary>
+    public Vector3[]? TracedCorners(int index)
+    {
+        var r = Traced().AsSpan(index * 13, 13);
+        if (float.IsNaN(r[0]))
+            return null;
+        Span<float> p = stackalloc float[9];
+        return Corners(r, (int)r[11], (int)r[12], p)
+            ? [new(p[0], p[1], p[2]), new(p[3], p[4], p[5]), new(p[6], p[7], p[8])]
+            : null;
     }
 
     // FUN_1800233f0: the three corners from a record's normal, plane and edges.
