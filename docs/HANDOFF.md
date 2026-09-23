@@ -63,6 +63,11 @@ Per stage, ours against the compile's own printed count, as of 2026-09-23:
 | AssignClusters2, sky, sun, collapse | **exact** | **exact** | **exact** |
 | shipped VXVS, from our pipeline alone | **byte identical** | **byte identical** | **byte identical** |
 
+Big-map paths, on ze_ffvii_mako_reactor_v6_p replayed from Valve's captured
+state (`VisBigReplay`, `BIGPVS=<map>`): the neighbour list (25,471 clusters),
+the 8,000,000 pair limit, and the vis-cluster merge's four 8,192 steps with a
+9-partition first step (21,377 merges) are exact.
+
 `VisClusterSetTests` (`MERGE=1`) asserts all of it at 0.01%, on our own target.
 The previous handoff had the merge at -7.36% / +3.75% / +3.15%.
 
@@ -289,11 +294,12 @@ to the tests that existed:
 
 | piece | what is known |
 |---|---|
-| the partitioned vis-cluster merge | only above 10,240 clusters; `VisClusterList` throws there. The partition functions are named in the binary. |
-| large-cluster-regions pairs | ported, but no specimen produces a pair, so it is unmeasured. |
-| CLOS | replays a `.los` hint file a stock compile does not have. |
 | wiring into the compiler | the stages exist as functions and a test chain, not yet as a `vvis_c` the compiler writes. |
 | signatures | the post-assignment functions are pinned by RVA in `capture_pvs.py`, not yet in `visbuilder.signatures.json`. |
+| `-updateloshints` and the legacy sampler | non-deterministic paths a stock compile does not take (`DeterministicBuild 1`); not ported. |
+
+CLOS is ported and measured: in the deterministic build it can contribute
+nothing whatever `los_errors` holds (VIS.md, "CLOS, and the big-map paths").
 
 ---
 

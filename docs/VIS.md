@@ -2737,9 +2737,9 @@ The stages, in the order the compile runs them:
   of the record that first made it. A pair casts from the sides along which the
   other box reaches past this one by more than half the largest such reach.
 - Large cluster regions: boxes at least 256 apart, the first's half diagonal at
-  most 128, the second's at least 600. No pair qualified on any specimen, so
-  this generator is ported but untested on a live pair.
-- CLOS replays a `.los` hint file that a stock compile does not have.
+  most 128, the second's at least 600. No pair qualifies on the three
+  specimens; Mako produces 248,647 (see below).
+- CLOS: see "CLOS, and the big-map paths" below.
 
 ### The vis-cluster merge
 
@@ -2775,3 +2775,51 @@ read from the decompile, which would have suggested mode 2.
 
 A node whose enclosed list repeats one already stored in node order gets no
 list at all, and lists of 1,024 clusters or more are not stored.
+
+## CLOS, and the big-map paths (2026-09-24)
+
+### CLOS, settled from the binary and by measurement
+
+- The compile builds two `.los` paths. `los` is the content path with
+  `content\` replaced by `game\`, loaded and verified against the scene.
+  `los_errors` is `content/csgo_addons/<addon>/maps/<map>.los`, loaded
+  unverified. Both were read off a live compile.
+- The deterministic setup hands CLOS the `los_errors` set. Its loader format is
+  a u32 count, then that many 24 byte segments (start, end); a count the file
+  cannot hold loads nothing.
+- Nothing in visbuilder writes `los_errors`. The writer writes `los`, but the
+  deterministic run clears the driver's recording byte before the generators
+  run, so the useful segments the fold collects are never kept and the writer
+  is always handed an empty set. Measured: recording 0 for all four generators,
+  0 hints written.
+- CLOS casts one ray per hint, type 0, flagged only if the loader verified it,
+  which it never does for `los_errors`. `BatchTracer` emits for a miss only from
+  a type 2 ray and for a hit only when the ray is flagged (or the face is
+  nodraw and the ray type 2). A type 0 hit queues a continuation ray one unit
+  past the surface, but the driver frees each ray list, continuations
+  included, without reading them.
+- So CLOS emits no segment in the deterministic build, whatever the file
+  holds. Measured: probe01 compiled with 2,000 `los_errors` segments had a
+  matrix after CLOS, and every output after it, byte identical to the run
+  without. `VisLos` ports it whole (loader, generator, tracer rules, the fold's
+  non-sight branch) and replays that run exactly.
+
+### What a big map exercises, on Mako
+
+ze_ffvii_mako_reactor_v6_p enters the scan with 25,471 clusters (the first
+merge caps at `MaxVisClusters * 4`, and CS2's gameinfo sets `MaxVisClusters`
+to 4,096). Its capture needed blobs sent in parts: one matrix is 81 MB and
+Frida drops any message over 128 MiB.
+
+- The boundary generator's first pass stops at 8,000,672 pairs: the 8,000,000
+  limit is checked after each cluster. Exact.
+- The vis-cluster merge steps down by 8,192 before the final pass: 25,471 to
+  24,576 to 16,384 to 8,192 to 4,096. Above 10,240 records it is partitioned
+  (9 partitions here): each outer round recomputes everything, takes the
+  cheapest candidate's partition, and works that partition alone for up to 31
+  more rounds, recomputing only its records and listing its candidates with
+  no running limit. After every step the binary resets its map to the
+  identity over the survivors and hands the sampler that step's map. All
+  21,377 merges match.
+- The steps clamp at `MaxVisClusters` read from the same key, so 4,096 and not
+  the binary's default of 2,048.

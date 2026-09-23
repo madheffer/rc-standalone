@@ -25,9 +25,14 @@ which is Ghidra analysing.
 | staging | `D:\tools\ghidra_staging` -- dated copies, so a program name says which build it is |
 
 The project currently holds `visbuilder.dll` (2026-07-09),
-`visbuilder_20260923.dll`, `resourcecompiler.dll` and `vrad3.dll`. **Keep the
-old program.** Comparing a new decompile against the old one is what turns "this
-moved" into "this changed", and that distinction is the whole game.
+`visbuilder_20260923.dll`, `resourcecompiler.dll` (pre-update, md5
+`f25cc208...`), `resourcecompiler_20260923.dll` (md5 `4392bb6b...`, imported
+and analysed 2026-09-24 from `D:/tools/binaries`) and `vrad3.dll`. The old
+`resourcecompiler.dll` was NOT refreshed by the 2026-09-23 update pass; check
+every program's `executableMD5` in `list-project-files` against the installed
+file before trusting a decompile. **Keep the old program.** Comparing a new
+decompile against the old one is what turns "this moved" into "this changed",
+and that distinction is the whole game.
 
 Ghidra scripts must sit in the scripts directory to run, so `tools/*.java` are
 the versioned copies and get copied in. They must not drift; the update
