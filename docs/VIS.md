@@ -2823,3 +2823,45 @@ Frida drops any message over 128 MiB.
   21,377 merges match.
 - The steps clamp at `MaxVisClusters` read from the same key, so 4,096 and not
   the binary's default of 2,048.
+
+## What vis hands the world renderer (2026-09-24)
+
+Besides the vvis, vis fills two blocks the map build keeps.
+`CVisBuilder::Build` asks the map builder context for two containers it owns
+and registers them in the vis compile's context as `FlatVisClusterVector` and
+`MutualVisibilityMatrix`. The names exist only in visbuilder; resourcecompiler
+reads the same containers through two getters of its own context.
+
+The reader is the world renderer's visibility-guided mesh clustering
+(`CVisibilityMeshMerger`, `visdrivenclustering.cpp`), switched on by CS2's
+`game/csgo_core/gameinfo.gi`:
+
+| key under `ResourceCompiler/WorldRendererBuilder` | binary default | CS2 |
+|---|---|---|
+| `VisibilityGuidedMeshClustering` | 0 | 1 |
+| `MinimumTrianglesPerClusteredMesh` | 64 | 2,048 |
+| `MinimumVerticesPerClusteredMesh` | 32 | 2,048 |
+| `MinimumVolumePerClusteredMesh` | 216 | 1,800 |
+| `MaxPrecomputedVisClusterMembership` | 16 | 16 |
+
+It needs at least three clusters, and otherwise builds its own list. The
+merger takes each cluster's bounds from its box list.
+
+- **`FlatVisClusterVector`**, filled by the border stage before its rewrite:
+  per cluster, the `SplitOpenSpace` boxes of every open record of every leaf
+  in node order (no range check on the cluster), then every border claim whose
+  cluster is in range, its box grown by 0.1f on every side.
+  `SplitOpenSpace` grows a box from the lowest uncovered cell along x, y, then
+  z while it meets no empty cell, keeps what is new, and repeats.
+- **`MutualVisibilityMatrix`**, exported after the output is built, from the
+  real clusters' PVS rows (sky and sun excluded). `count[k]` is how many see k
+  and `pair[j][k]` how many see both, both u16 and divided as signed shorts:
+  `M[j][k] = pair[min][max] / count[max]`, written above the diagonal and then
+  mirrored below.
+
+`VisOutput.FlatClusterBoxes` and `VisOutput.MutualVisibility` port both;
+`capture_pvs.py` records them and `VisPvsReplay.TheNamedBlocks` compares.
+
+One earlier measurement now has its reason. The sun's first trace ran in batch
+mode 0 although the code computes `(DisableCullingForShadows ^ 1) * 2`:
+CS2's gameinfo sets `BakedLighting { DisableCullingForShadows 1 }`.
