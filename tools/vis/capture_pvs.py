@@ -32,11 +32,10 @@ capture_merge.py (u32 json length, json, u32 blob length, blob):
              whether the stage succeeded
   collapsed<k>  entries, nodes and node boxes after each collapse iteration
 
-The functions hooked here are not in docs/visbuilder.signatures.json yet, so
-their RVAs are pinned to one build and the tool refuses any other.
+The hooked functions are found through docs/visbuilder.signatures.json, so the
+tool follows a game update that moves them and refuses one that changes them.
 """
 import argparse
-import hashlib
 import json
 import os
 import struct
@@ -48,23 +47,44 @@ import frida
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
-BUILD = "13f375272e9c99d3d1755013e9eaf1c5"
-RVA = {
-    "SampleVisForClusters": 0x37ee0,
-    "NeighborsBuild": 0x1e7c0,
-    "SamplerDriver": 0x19c40,
-    "BeginPass": 0x1edc0,
-    "ClustersSteps": 0x46120,
-    "BuiltClusters": 0x45440,
-    "MergePair": 0x42f00,
-    "ApplyClusterMap": 0x38130,
-    "SampleBorders": 0x3c3d0,
-    "BorderBoxes": 0x3a1a0,
-    "AssignClusters2": 0x38ed0,
-    "Sky": 0x25f00,
-    "Sun": 0x24d30,
-    "Collapse": 0x39390,
+# Hook name -> symbol in docs/visbuilder.signatures.json. The addresses are
+# resolved from the installed DLL at run time, so a game update that only moves
+# code needs nothing here; one that changes a hooked function reports it.
+# The structure offsets read inside the hooks are still those of the
+# 2026-09-23 build and must be re-checked by hand if a layout changes.
+HOOKS = {
+    "SampleVisForClusters": "SampleVisForClusters",
+    "NeighborsBuild": "NeighborsBuild",
+    "SamplerDriver": "SamplerDriver",
+    "BeginPass": "BeginPass",
+    "ClustersSteps": "ClustersSteps",
+    "BuiltClusters": "BuiltClusters",
+    "MergePair": "MergePair",
+    "ApplyClusterMap": "ApplyClusterMap",
+    "SampleBorders": "SampleBorders",
+    "BorderBoxes": "BorderBoxes",
+    "AssignClusters2": "AssignClusters2",
+    "Sky": "SkyVisibility",
+    "Sun": "SunVisibility",
+    "Collapse": "CollapseOnce",
 }
+
+
+def resolve_hooks(dll):
+    """RVAs for HOOKS from the signature manifest; exits naming any that do not resolve."""
+    here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.join(here, "tools"))
+    import sigscan
+    with open(os.path.join(here, "docs", "visbuilder.signatures.json"), encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    with open(dll, "rb") as handle:
+        image = handle.read()
+    base, _ = sigscan.sections(image)
+    rows = {r["name"]: r for r in sigscan.resolve(image, manifest, set(HOOKS.values()))}
+    lost = [name for name in HOOKS.values() if rows.get(name, {}).get("status") not in ("same", "moved")]
+    if lost:
+        sys.exit("these hooked functions no longer resolve, re-sign them first: " + ", ".join(lost))
+    return {hook: int(rows[name]["now"], 16) - base for hook, name in HOOKS.items()}
 
 AGENT = r"""
 const RVA = %(rva)s;
@@ -264,9 +284,7 @@ def main():
     parser.add_argument("--passin", action="store_true", help="also record the matrix going into every pass")
     args = parser.parse_args()
 
-    with open(os.path.join(BIN, "visbuilder.dll"), "rb") as h:
-        if hashlib.md5(h.read()).hexdigest() != BUILD:
-            sys.exit("visbuilder.dll is not the build these RVAs were read from; sign them first")
+    rva = resolve_hooks(os.path.join(BIN, "visbuilder.dll"))
 
     out_path = args.out or os.path.join(os.environ.get("TEMP", "."), "vis_capture", "%s.pvs.bin" % args.map)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -302,7 +320,7 @@ def main():
                         os.path.join(CS2, "game", "csgo"), "-i", source,
                         "-world", "-vis", "-fshallow"], cwd=BIN, stdio="pipe")
     session = device.attach(pid)
-    script = session.create_script(AGENT % {"rva": json.dumps(RVA), "passin": "true" if args.passin else "false"})
+    script = session.create_script(AGENT % {"rva": json.dumps(rva), "passin": "true" if args.passin else "false"})
     script.on("message", on_message)
     script.load()
     done = threading.Event()
