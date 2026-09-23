@@ -8,7 +8,7 @@ namespace Source2.Compiler.Maps;
 /// binary KV3 with worldspawn's <c>pvstype</c>, the sun direction and the map's
 /// visibility hints. Only what the build reads is exposed.
 /// </summary>
-public sealed record VisConfig(int PvsType)
+public sealed record VisConfig(int PvsType, System.Numerics.Vector3? DirToSun = null)
 {
     /// <summary>
     /// <c>pvstype</c> 1 runs only the cluster-centre generator; any other value
@@ -24,6 +24,13 @@ public sealed record VisConfig(int PvsType)
         var kv = new BinaryKV3 { Resource = owner };
         kv.Read(reader);
         var root = kv.Data.Root;
-        return new VisConfig(root.ContainsKey("pvstype") ? root.GetInt32Property("pvstype") : 0);
+        System.Numerics.Vector3? sun = null;
+        if (root.ContainsKey("vDirToSun"))
+        {
+            var v = root.GetFloatArray("vDirToSun");
+            if (v.Length >= 3)
+                sun = new System.Numerics.Vector3(v[0], v[1], v[2]);
+        }
+        return new VisConfig(root.ContainsKey("pvstype") ? root.GetInt32Property("pvstype") : 0, sun);
     }
 }

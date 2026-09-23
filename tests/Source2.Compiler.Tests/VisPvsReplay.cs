@@ -303,6 +303,18 @@ public class VisPvsReplay(ITestOutputHelper output)
         output.WriteLine($"sky: valve ok {skyHead.GetProperty("ok").GetInt32()} with {theirs.Sum(w => System.Numerics.BitOperations.PopCount(w))} clusters;"
                        + $" ours {(sky is null ? "none" : $"{sky.Sum(w => System.Numerics.BitOperations.PopCount(w))} clusters, identical {sky.SequenceEqual(theirs)}")}");
 
+        var config = VisConfig.Read(Path.Combine(Path.GetTempPath(), "csgo_addons", Addons[map], "maps", map + ".viscfg"));
+        if (cap.TryGetValue("sun", out var sunCap))
+        {
+            var theirSun = Enumerable.Range(0, sunCap.Blob.Length / 4).Select(i => BitConverter.ToUInt32(sunCap.Blob, i * 4)).ToArray();
+            var sun = config.DirToSun is { } dir ? VisSun.Visible(state, rte, dir, VisSun.OpenCells(merged.State)) : null;
+            var diff = sun is null ? -1 : sun.Zip(theirSun).Sum(p => System.Numerics.BitOperations.PopCount(p.First ^ p.Second));
+            output.WriteLine($"sun: dir {config.DirToSun}; valve {theirSun.Sum(w => System.Numerics.BitOperations.PopCount(w))} clusters;"
+                           + $" ours {(sun is null ? "none" : $"{sun.Sum(w => System.Numerics.BitOperations.PopCount(w))}, bits differing {diff}")}");
+        }
+        else
+            output.WriteLine($"sun: not run by the compile; config dir {config.DirToSun}");
+
         var sixes = Enumerable.Repeat((ushort)0xffff, state.NodeWords.Length).ToArray();
         var (collapsed, _) = VisCollapse.Run(state, sixes, (k, st) =>
         {

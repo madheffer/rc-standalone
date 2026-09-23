@@ -633,9 +633,11 @@ public static class VisPvs
     /// <c>FUN_18002ef60</c>: walk a segment through the octree breadth first and
     /// collect the cluster of every open entry whose cells it crosses, skipping
     /// an immediate repeat. A blocking entry ends the walk (null) unless
-    /// <paramref name="through"/>.
+    /// <paramref name="through"/>. With <paramref name="open"/>, a leaf's crossed
+    /// cells are first cut to that leaf's open cells, which is <c>FUN_18002f1c0</c>,
+    /// the sun's walk.
     /// </summary>
-    public static List<int>? Walk(State s, Vector3 o, Vector3 end, bool through)
+    public static List<int>? Walk(State s, Vector3 o, Vector3 end, bool through, ulong[]? open = null)
     {
         var inv = new Vector3(1f / Guard(end.X - o.X), 1f / Guard(end.Y - o.Y), 1f / Guard(end.Z - o.Z));
         var ids = new List<int>();
@@ -663,6 +665,8 @@ public static class VisPvs
                 continue;
             }
             var cells = CellMask(o, inv, c, size + c.X);
+            if (open is not null)
+                cells &= open[node];
             var start = (int)(word >> 1);
             for (var k = 0; k < s.NodeCounts[node]; k++)
             {
