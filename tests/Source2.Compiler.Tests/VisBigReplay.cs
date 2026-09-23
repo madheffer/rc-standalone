@@ -215,6 +215,120 @@ public class VisBigReplay(ITestOutputHelper output)
         Assert.Equal(theirs, result.Merges);
     }
 
+    /// <summary>
+    /// Sky, sun and the collapse on a big map, each from Valve's own state at
+    /// that point: the entries after the merge (the sun's open cells) and after
+    /// AssignClusters2 (sky, sun, collapse), with the final matrix.
+    /// </summary>
+    [Fact]
+    public void TheLateStagesOnABigMap()
+    {
+        using var cap = Open(out var map);
+        if (cap is null)
+            return;
+        var scan = StateOf(cap);
+        var (boxMins, boxMaxs) = Boxes(cap.Blob("appliedboxes"));
+        var merged = scan with { Entries = EntriesOf(cap.Blob("appliedentries")), ClusterMins = boxMins, ClusterMaxs = boxMaxs };
+        var n = cap.Blob("assigned2nodes");
+        var words = new uint[n.Length / 8];
+        var counts = new ushort[words.Length];
+        for (var i = 0; i < words.Length; i++)
+        {
+            words[i] = BitConverter.ToUInt32(n, i * 8);
+            counts[i] = BitConverter.ToUInt16(n, i * 8 + 4);
+        }
+        var assigned = merged with { Entries = EntriesOf(cap.Blob("assigned2entries")), NodeWords = words, NodeCounts = counts };
+        var rte = Scene();
+        var matrix = Matrix(cap, "appliedmatrix");
+
+        var sky = VisSky.Visible(assigned, rte, matrix);
+        var theirSky = Words(cap.Blob("sky"));
+        output.WriteLine($"sky: valve {Pop(theirSky)} clusters, ours {(sky is null ? "none" : $"{Pop(sky)}, identical {sky.SequenceEqual(theirSky)}")}");
+
+        var addon = Environment.GetEnvironmentVariable("BIGPVS_ADDON") ?? "s2c_big";
+        var config = VisConfig.Read(Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".viscfg"));
+        var theirSun = Words(cap.Blob("sun"));
+        var sun = config.DirToSun is { } dir ? VisSun.Visible(assigned, rte, dir, VisSun.OpenCells(merged)) : null;
+        output.WriteLine($"sun: valve {Pop(theirSun)} clusters, ours {(sun is null ? "none" : $"{Pop(sun)}, identical {sun.SequenceEqual(theirSun)}")}");
+
+        var same = 0;
+        var iterations = 0;
+        VisCollapse.Run(assigned, Enumerable.Repeat((ushort)0xffff, words.Length).ToArray(), (k, st) =>
+        {
+            iterations++;
+            if (!cap.Has("collapsedentries" + k))
+                return;
+            var e = cap.Blob("collapsedentries" + k);
+            var nn = cap.Blob("collapsednodes" + k);
+            var ok = e.Length / 16 == st.Entries.Length && nn.Length / 8 == st.NodeWords.Length
+                  && Enumerable.Range(0, st.Entries.Length).All(i => BitConverter.ToInt32(e, i * 16) == st.Entries[i].Cluster
+                        && BitConverter.ToInt32(e, i * 16 + 4) == st.Entries[i].Packed && BitConverter.ToUInt64(e, i * 16 + 8) == st.Entries[i].Cells)
+                  && Enumerable.Range(0, st.NodeWords.Length).All(i => BitConverter.ToUInt32(nn, i * 8) == st.NodeWords[i]
+                        && BitConverter.ToUInt16(nn, i * 8 + 4) == st.NodeCounts[i]);
+            output.WriteLine($"collapse {k}: entries {st.Entries.Length:n0} valve {e.Length / 16:n0}, nodes {st.NodeWords.Length:n0} valve {nn.Length / 8:n0}, identical {ok}");
+            same += ok ? 1 : 0;
+        });
+        Assert.True(sky is not null && sky.SequenceEqual(theirSky));
+        Assert.True(sun is not null && sun.SequenceEqual(theirSun));
+        Assert.Equal(iterations, same);
+
+        static uint[] Words(byte[] b) => Enumerable.Range(0, b.Length / 4).Select(i => BitConverter.ToUInt32(b, i * 4)).ToArray();
+        static int Pop(uint[] w) => w.Sum(x => BitOperations.PopCount(x));
+    }
+
+    /// <summary>
+    /// The output assembly on a big map, from Valve's own final state (the last
+    /// collapse, the final matrix, sky and sun), against the VXVS the compile shipped.
+    /// </summary>
+    [Fact]
+    public void TheOutputOnABigMap()
+    {
+        using var cap = Open(out var map);
+        if (cap is null)
+            return;
+        var addon = Environment.GetEnvironmentVariable("BIGPVS_ADDON") ?? "s2c_big";
+        var (_, shipped) = VisFixtures.RayTraceScene(addon, map)!.Value;
+        var last = 0;
+        while (cap.Has("collapsedentries" + (last + 1)))
+            last++;
+        var scan = StateOf(cap);
+        var (boxMins, boxMaxs) = Boxes(cap.Blob("appliedboxes"));
+        var n = cap.Blob("collapsednodes" + last);
+        var words = new uint[n.Length / 8];
+        var counts = new ushort[words.Length];
+        for (var i = 0; i < words.Length; i++)
+        {
+            words[i] = BitConverter.ToUInt32(n, i * 8);
+            counts[i] = BitConverter.ToUInt16(n, i * 8 + 4);
+        }
+        var (nodeMins, nodeMaxs) = Boxes(cap.Blob("collapsedboxes" + last));
+        var final = scan with
+        {
+            Entries = EntriesOf(cap.Blob("collapsedentries" + last)), NodeWords = words, NodeCounts = counts,
+            NodeMins = nodeMins, NodeMaxs = nodeMaxs, ClusterMins = boxMins, ClusterMaxs = boxMaxs,
+        };
+        uint[]? Vec(string ev) => cap.Has(ev) && cap.Head(ev).GetProperty("ok").GetInt32() != 0
+            ? Enumerable.Range(0, cap.Blob(ev).Length / 4).Select(i => BitConverter.ToUInt32(cap.Blob(ev), i * 4)).ToArray() : null;
+        var ours = VisOutput.Build(final, Matrix(cap, "appliedmatrix"), Vec("sky"), Vec("sun"), shipped.MinBounds, shipped.MaxBounds);
+        var a = ours.WriteVxvs();
+        var b = shipped.WriteVxvs();
+        var differing = Enumerable.Range(0, Math.Min(a.Length, b.Length)).Count(i => a[i] != b[i]) + Math.Abs(a.Length - b.Length);
+        output.WriteLine($"clusters {ours.BaseClusterCount}/{shipped.BaseClusterCount}, nodes {ours.Nodes.Length}/{shipped.Nodes.Length},"
+                       + $" regions {ours.Regions.Length}/{shipped.Regions.Length}, masks {ours.Masks.Length}/{shipped.Masks.Length},"
+                       + $" enclosed {ours.EnclosedClusterList.Length}/{shipped.EnclosedClusterList.Length}");
+        output.WriteLine($"VXVS bytes: ours {a.Length:n0} valve {b.Length:n0}, differing {differing:n0}");
+        Assert.Equal(0, differing);
+    }
+
+    private static VisVisibility.Entry[] EntriesOf(byte[] e)
+    {
+        var entries = new VisVisibility.Entry[e.Length / 16];
+        for (var i = 0; i < entries.Length; i++)
+            entries[i] = new VisVisibility.Entry(BitConverter.ToInt32(e, i * 16), BitConverter.ToInt32(e, i * 16 + 4),
+                                                 BitConverter.ToUInt64(e, i * 16 + 8));
+        return entries;
+    }
+
     private static RayTraceEnvironment Scene()
     {
         var map = Environment.GetEnvironmentVariable("BIGPVS")!;
