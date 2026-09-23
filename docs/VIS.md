@@ -4,6 +4,9 @@
 > of [`REVERSING.md`](REVERSING.md) translates all 94 old to new, and
 > `python tools/sigscan.py <visbuilder.dll>` prints them for whatever build is
 > installed. `REVERSING.md` is also the procedure for the next update.
+>
+> **Starting cold?** [`HANDOFF.md`](HANDOFF.md) is the short version: the goal,
+> the score per stage as it stands, how to run the oracle, and what is open.
 
 # Visibility: the structure, the tool, and where a replacement starts
 
