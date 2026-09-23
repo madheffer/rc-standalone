@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 
 namespace Source2.Compiler.Maps;
 
@@ -229,6 +231,358 @@ public sealed class RayTraceEnvironment
     /// 6,300.</para>
     /// </summary>
     public Hit? Trace(Vector3 origin, Vector3 direction, float reach, ushort ignore = ExcludedFromTrace)
+        => Walk(origin, direction, reach, ignore,
+                (triangle, best) => Meets(triangle, origin, direction, 0f, best ?? reach));
+
+    /// <summary>
+    /// A segment traced the way the compile's batch tracer does it, which is what
+    /// cluster sampling casts through (<c>BatchRay</c>, <c>FlushBatch</c> and the
+    /// packet trace they drive, with the batch's mode word left at 0).
+    ///
+    /// <para>Four things separate it from <see cref="Trace"/>, and each decides
+    /// rays that <see cref="Trace"/> answers differently. The direction is the
+    /// segment renormalised with <c>rcpps</c> and one Newton step, not the unit
+    /// vector the caller built the end from, so it runs on the CPU's own
+    /// reciprocal estimate. A hit needs <c>0 &lt; t</c>, strictly, so a ray whose
+    /// origin lies ON a triangle's plane does not stop there: that is every ray
+    /// of a cluster centred on a wall. The plane must be more than 1e-10 off
+    /// parallel. And every dot product is summed in the binary's order.</para>
+    /// </summary>
+    /// <returns>The hit, its distance measured along the renormalised direction,
+    /// or null when nothing is met before <paramref name="end"/>.</returns>
+    public Hit? Segment(Vector3 origin, Vector3 end, ushort ignore)
+    {
+        var delta = new Vector3(end.X - origin.X, end.Y - origin.Y, end.Z - origin.Z);
+        var length = MathF.Sqrt((delta.Z * delta.Z) + (delta.Y * delta.Y) + (delta.X * delta.X));
+        var guarded = MathF.Abs(length) < 1.17549435e-38f
+            ? BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(length)
+                                             | BitConverter.SingleToInt32Bits(1.1920929e-07f))
+            : length;
+        var scale = Refined(guarded);
+        var direction = new Vector3(delta.X * scale, delta.Y * scale, delta.Z * scale);
+
+        var hit = Nearest(origin, direction, ignore);
+        return hit is { } h && length < h.Distance ? null : hit;
+    }
+
+    private Bvh? _bvh;
+
+    /// <summary>
+    /// The nearest traced triangle along a ray, over every triangle, which is
+    /// what the compile's rebuilt kd tree answers and the file's own tree does
+    /// not: the file files a triangle in about 1.3 leaves, so a walk through it
+    /// misses hits a complete structure finds. Two triangles met at the very
+    /// same distance go to the lower index, the one place this may differ from
+    /// the compile's walk order.
+    /// </summary>
+    private Hit? Nearest(Vector3 origin, Vector3 direction, ushort ignore)
+    {
+        var bvh = _bvh ??= new Bvh(this);
+        Hit? best = null;
+        var inverse = new Vector3(1f / direction.X, 1f / direction.Y, 1f / direction.Z);
+        Span<int> stack = stackalloc int[128];
+        var top = 0;
+        stack[top++] = 0;
+        while (top > 0)
+        {
+            var node = stack[--top];
+            if (!bvh.Enters(node, origin, inverse, best?.Distance ?? float.MaxValue))
+                continue;
+            var (first, count, left) = bvh.Node(node);
+            if (count == 0)
+            {
+                stack[top++] = left;
+                stack[top++] = left + 1;
+                continue;
+            }
+            for (var k = first; k < first + count; k++)
+            {
+                var triangle = bvh.Triangles[k];
+                if ((Flags(triangle) & ignore) != 0)
+                    continue;
+                var limit = best?.Distance ?? float.MaxValue;
+                if (Accepts(triangle, origin, direction, float.MaxValue) is not { } hit || hit.Distance > limit)
+                    continue;
+                if (best is null || hit.Distance < limit || triangle < best.Value.Triangle)
+                    best = hit;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>A plain bounding volume hierarchy over the traced triangles' corners.</summary>
+    private sealed class Bvh
+    {
+        private readonly float[] _box;
+        private readonly int[] _node;
+
+        public int[] Triangles { get; }
+
+        public Bvh(RayTraceEnvironment rte)
+        {
+            var traced = rte.Traced();
+            var ids = new List<int>();
+            var boxes = new List<(Vector3 Lo, Vector3 Hi)>();
+            Span<float> p = stackalloc float[9];
+            for (var i = 0; i < rte.TriangleCount; i++)
+            {
+                var r = traced.AsSpan(i * 13, 13);
+                if (float.IsNaN(r[0]) || !Corners(r, (int)r[11], (int)r[12], p))
+                    continue;
+                var lo = Vector3.Min(Vector3.Min(new(p[0], p[1], p[2]), new(p[3], p[4], p[5])), new(p[6], p[7], p[8]));
+                var hi = Vector3.Max(Vector3.Max(new(p[0], p[1], p[2]), new(p[3], p[4], p[5])), new(p[6], p[7], p[8]));
+                // Conservative: the box only has to contain every point the test
+                // can accept, and the test runs on rounded arithmetic.
+                var pad = new Vector3(0.01f) + (Vector3.Max(Vector3.Abs(lo), Vector3.Abs(hi)) * 1e-5f);
+                ids.Add(i);
+                boxes.Add((lo - pad, hi + pad));
+            }
+            var order = Enumerable.Range(0, ids.Count).ToArray();
+            var nodes = new List<(Vector3 Lo, Vector3 Hi, int First, int Count, int Left)>();
+            Build(order, 0, order.Length, boxes, nodes);
+            Triangles = [.. order.Select(k => ids[k])];
+            _box = new float[nodes.Count * 6];
+            _node = new int[nodes.Count * 3];
+            for (var n = 0; n < nodes.Count; n++)
+            {
+                var (lo, hi, first, count, left) = nodes[n];
+                (_box[n * 6], _box[(n * 6) + 1], _box[(n * 6) + 2]) = (lo.X, lo.Y, lo.Z);
+                (_box[(n * 6) + 3], _box[(n * 6) + 4], _box[(n * 6) + 5]) = (hi.X, hi.Y, hi.Z);
+                (_node[n * 3], _node[(n * 3) + 1], _node[(n * 3) + 2]) = (first, count, left);
+            }
+        }
+
+        private static int Build(int[] order, int from, int to, List<(Vector3 Lo, Vector3 Hi)> boxes,
+                                 List<(Vector3, Vector3, int, int, int)> nodes)
+        {
+            var lo = new Vector3(float.MaxValue);
+            var hi = new Vector3(float.MinValue);
+            for (var k = from; k < to; k++)
+            {
+                lo = Vector3.Min(lo, boxes[order[k]].Lo);
+                hi = Vector3.Max(hi, boxes[order[k]].Hi);
+            }
+            var at = nodes.Count;
+            nodes.Add((lo, hi, from, to - from, -1));
+            if (to - from <= 4)
+                return at;
+            var extent = hi - lo;
+            var axis = extent.X >= extent.Y && extent.X >= extent.Z ? 0 : extent.Y >= extent.Z ? 1 : 2;
+            float Centre(int k) => axis == 0 ? boxes[k].Lo.X + boxes[k].Hi.X
+                                 : axis == 1 ? boxes[k].Lo.Y + boxes[k].Hi.Y : boxes[k].Lo.Z + boxes[k].Hi.Z;
+            Array.Sort(order, from, to - from, Comparer<int>.Create((a, b) => Centre(a).CompareTo(Centre(b))));
+            var mid = (from + to) / 2;
+            var left = nodes.Count;
+            nodes.Add(default);
+            nodes.Add(default);
+            nodes[left] = nodes[Build(order, from, mid, boxes, nodes)];
+            // Children must sit side by side, so each subtree is built and then
+            // its root copied into the reserved pair.
+            nodes[left + 1] = nodes[Build(order, mid, to, boxes, nodes)];
+            nodes[at] = (lo, hi, from, 0, left);
+            return at;
+        }
+
+        public (int First, int Count, int Left) Node(int n) => (_node[n * 3], _node[(n * 3) + 1], _node[(n * 3) + 2]);
+
+        public bool Enters(int n, Vector3 o, Vector3 inverse, float limit)
+        {
+            float enter = 0f, leave = limit;
+            for (var axis = 0; axis < 3; axis++)
+            {
+                var oa = axis == 0 ? o.X : axis == 1 ? o.Y : o.Z;
+                var ia = axis == 0 ? inverse.X : axis == 1 ? inverse.Y : inverse.Z;
+                var a = (_box[(n * 6) + axis] - oa) * ia;
+                var b = (_box[(n * 6) + 3 + axis] - oa) * ia;
+                if (float.IsNaN(a) || float.IsNaN(b))
+                {
+                    if (oa < _box[(n * 6) + axis] || oa > _box[(n * 6) + 3 + axis])
+                        return false;
+                    continue;
+                }
+                if (a > b)
+                    (a, b) = (b, a);
+                enter = MathF.Max(enter, a);
+                leave = MathF.Min(leave, b);
+            }
+            return enter <= leave * 1.0001f + 1e-3f;
+        }
+    }
+
+    /// <summary>Every triangle tested, no tree: what <see cref="Segment"/> would find if the walk were perfect.</summary>
+    internal Hit? SegmentBruteForce(Vector3 origin, Vector3 end, ushort ignore)
+    {
+        var delta = new Vector3(end.X - origin.X, end.Y - origin.Y, end.Z - origin.Z);
+        var length = MathF.Sqrt((delta.Z * delta.Z) + (delta.Y * delta.Y) + (delta.X * delta.X));
+        var scale = Refined(length);
+        var direction = new Vector3(delta.X * scale, delta.Y * scale, delta.Z * scale);
+        Hit? best = null;
+        for (var i = 0; i < TriangleCount; i++)
+            if ((Flags(i) & ignore) == 0 && Accepts(i, origin, direction, best?.Distance ?? float.MaxValue) is { } h)
+                best = h;
+        return best is { } b && length < b.Distance ? null : best;
+    }
+
+    /// <summary>
+    /// <c>rcpps</c> and one Newton step, <c>(r + r) - (r * r) * x</c>, which is
+    /// how the packet trace divides. The estimate is the hardware's, so this is
+    /// exact only on the machine the compile ran on, which is the one scored.
+    /// </summary>
+    public static float Refined(float x)
+    {
+        var r = Sse.IsSupported
+            ? Sse.ReciprocalScalar(
+                Vector128.CreateScalarUnsafe(x)).ToScalar()
+            : 1f / x;
+        return (r + r) - (r * r * x);
+    }
+
+    private float[]? _traced;
+
+    /// <summary>
+    /// The triangles as the compile's tracer holds them, which is NOT the file's
+    /// records. <c>CVisibilityMesh::LoadRTEFromFile</c> rebuilds each traced
+    /// triangle's three corners from the file (<c>FUN_1800233f0</c>), hands them
+    /// to a fresh environment, and that environment's setup derives normal,
+    /// plane, projection axes and edge equations from the corners again
+    /// (<c>FUN_180118e90</c>). The round trip changes low bits: a wall the file
+    /// stores with normal x 0.99999994 comes back as exactly 1. A triangle
+    /// whose corners are not finite either way is dropped. Thirteen floats a
+    /// triangle, the last two the axes; NaN in slot 0 marks one not traced.
+    /// </summary>
+    private float[] Traced()
+    {
+        if (_traced is { } done)
+            return done;
+        var found = new float[TriangleCount * 13];
+        Span<float> v = stackalloc float[9];
+        Span<float> c = stackalloc float[13];
+        for (var i = 0; i < TriangleCount; i++)
+        {
+            found[i * 13] = float.NaN;
+            if ((Flags(i) & 0x0801) != 0)
+                continue;
+            for (var k = 0; k < 11; k++)
+                c[k] = Float(_triangleAt + (i * 48) + (k * 4));
+            var record = Record(i);
+            if (!Corners(c, record[0x2c], record[0x2d], v) || !Convert(v, c)
+                || !Corners(c, (int)c[11], (int)c[12], v))
+                continue;
+            c.CopyTo(found.AsSpan(i * 13, 13));
+        }
+        return _traced = found;
+    }
+
+    // FUN_1800233f0: the three corners from a record's normal, plane and edges.
+    private static bool Corners(ReadOnlySpan<float> r, int u, int v, Span<float> p)
+    {
+        if (u > 2 || v > 2)
+            return false;
+        var w = (v + 1) % 3;
+        var scale = 1f / ((r[9] * r[5]) - (r[6] * r[8]));
+        p.Clear();
+        p[u] = (((r[10] - 1f) * r[6]) - (r[9] * r[7])) * scale;
+        p[v] = ((r[8] * r[7]) - ((r[10] - 1f) * r[5])) * scale;
+        p[3 + u] = ((r[6] * r[10]) - (r[9] * r[7])) * scale;
+        p[3 + v] = ((r[8] * r[7]) - (r[5] * r[10])) * scale;
+        p[6 + u] = ((r[6] * r[10]) - ((r[7] - 1f) * r[9])) * scale;
+        p[6 + v] = (((r[7] - 1f) * r[8]) - (r[5] * r[10])) * scale;
+        for (var k = 0; k < 9; k += 3)
+        {
+            var dot = (r[2] * p[k + 2]) + (r[1] * p[k + 1]) + (r[0] * p[k]);
+            p[k + w] -= (dot - r[3]) / r[w];
+        }
+        foreach (var x in p)
+            if (!float.IsFinite(x))
+                return false;
+        return true;
+    }
+
+    // FUN_180118e90: normal, plane, axes and the two edge equations from corners.
+    private static bool Convert(ReadOnlySpan<float> p, Span<float> r)
+    {
+        float x0 = p[0], y0 = p[1], z0 = p[2], x1 = p[3], y1 = p[4], z1 = p[5];
+        float x2 = p[6], y2 = p[7], z2 = p[8];
+        var dy2 = y2 - y0;
+        var nx = ((y1 - y0) * (z2 - z0)) - ((z1 - z0) * dy2);
+        var nz = ((x1 - x0) * dy2) - ((y1 - y0) * (x2 - x0));
+        var ny = ((z1 - z0) * (x2 - x0)) - ((x1 - x0) * (z2 - z0));
+        var length = MathF.Sqrt((nz * nz) + (ny * ny) + (nx * nx));
+        if (length < 1e-17f || length > 1e17f)
+        {
+            if (length == 0f)
+                return false;
+            var l = Math.Sqrt(((double)nx * nx) + ((double)ny * ny) + ((double)nz * nz));
+            (nx, ny, nz) = ((float)(nx / l), (float)(ny / l), (float)(nz / l));
+        }
+        else
+        {
+            var inverse = 1f / length;
+            (nx, ny, nz) = (inverse * nx, inverse * ny, inverse * nz);
+        }
+        r[0] = nx;
+        r[1] = ny;
+        r[2] = nz;
+        r[3] = (z0 * nz) + (y0 * ny) + (x0 * nx);
+
+        ReadOnlySpan<float> n = [MathF.Abs(nx), MathF.Abs(ny), MathF.Abs(nz)];
+        var major = n[1] > n[0] ? 1 : 0;
+        if (n[2] > n[major])
+            major = 2;
+        int u = (major + 1) % 3, v = (major + 2) % 3;
+        r[11] = u;
+        r[12] = v;
+
+        var a = p[v] - p[3 + v];
+        var b = p[3 + u] - p[u];
+        var c0 = (p[u] * a) + (p[v] * b);
+        var c = -c0;
+        var s = (b * p[6 + v]) + (a * p[6 + u]) + c;
+        if (s < 0f)
+            (a, b, s, c) = (-a, -b, -s, c0);
+        r[5] = a / s;
+        r[6] = b / s;
+        r[7] = c / s;
+
+        a = p[3 + v] - p[6 + v];
+        b = p[6 + u] - p[3 + u];
+        var c1 = (p[3 + v] * b) + (p[3 + u] * a);
+        c = -c1;
+        s = (b * p[v]) + (a * p[u]) + c;
+        if (s < 0f)
+            (a, b, s, c) = (-a, -b, -s, c1);
+        r[8] = a / s;
+        r[9] = b / s;
+        r[10] = c / s;
+        return true;
+    }
+
+    /// <summary>The packet trace's triangle test, in its own order of operations.</summary>
+    private Hit? Accepts(int index, Vector3 o, Vector3 d, float best)
+    {
+        var r = Traced().AsSpan(index * 13, 13);
+        if (float.IsNaN(r[0]))
+            return null;
+        float nx = r[0], ny = r[1], nz = r[2], plane = r[3];
+        var denom = (d.Z * nz) + (d.Y * ny) + (d.X * nx);
+        var t = (plane - ((o.Z * nz) + (o.Y * ny) + (nx * o.X))) / denom;
+        if (!((denom > 1e-10f || denom < -1e-10f) && 0f < t && t < best))
+            return null;
+
+        int u = (int)r[11], v = (int)r[12];
+        var pu = (t * Axis(d, u)) + Axis(o, u);
+        var pv = (t * Axis(d, v)) + Axis(o, v);
+        var first = (r[5] * pu) + (r[6] * pv) + r[7];
+        var second = (r[8] * pu) + (r[9] * pv) + r[10];
+        return 0f <= first && 0f <= second && second + first <= 1f
+            ? new Hit(t, index, new Vector3(nx, ny, nz), plane)
+            : null;
+    }
+
+    private static float Axis(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;
+
+    private Hit? Walk(Vector3 origin, Vector3 direction, float reach, ushort ignore,
+                      Func<int, float?, Hit?> test)
     {
         var (enter, leave) = Slab(origin, direction, reach);
         if (enter > leave)
@@ -253,7 +607,7 @@ public sealed class RayTraceEnvironment
                         _data.AsSpan(_indexAt + ((payload + i) * 4)));
                     if ((Flags(triangle) & ignore) != 0)
                         continue;
-                    if (Meets(triangle, origin, direction, 0f, best?.Distance ?? reach) is { } hit
+                    if (test(triangle, best?.Distance) is { } hit
                         && (best is null || hit.Distance < best.Value.Distance))
                         best = hit;
                 }

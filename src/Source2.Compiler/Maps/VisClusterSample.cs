@@ -136,8 +136,8 @@ public static class VisClusterSample
         ArgumentNullException.ThrowIfNull(cube);
 
         var (boxMins, boxMaxs) = padded ? Padded(mins, maxs.X - mins.X) : (mins, maxs);
-        var reach = (boxMaxs - boxMins).Length();
-        var far = RayTraceEnvironment.MaxCoord;
+        var extent = boxMaxs - boxMins;
+        var reach = MathF.Sqrt((extent.Z * extent.Z) + (extent.Y * extent.Y) + (extent.X * extent.X));
 
         var boxes = new List<(Vector3 Mins, Vector3 Maxs)>(clusters.Count + Shell.Length);
         foreach (var cluster in clusters)
@@ -172,28 +172,75 @@ public static class VisClusterSample
             var aimed = sphere ? Sphere.Length : centres.Length;
             for (var j = 0; j < aimed; j++)
             {
-                Vector3 direction;
-                if (sphere)
-                {
-                    direction = Sphere[j];
-                }
-                else
-                {
-                    if (j == i)
-                        continue;
-                    direction = Vector3.Normalize(centres[j] - from);
-                }
-
-                var to = from + (direction * Nearest(scene, from, direction, reach, far));
+                // Below the sphere switch 180032fa0 aims at EVERY entry, itself
+                // included: the self ray has no direction, meets nothing, and
+                // walks a segment of zero length from the centre.
+                var direction = sphere ? Sphere[j] : Direction(centres[j] - from);
+                var segment = Ray(scene, from, direction, reach);
+                var to = new Vector3(segment.X + from.X, segment.Y + from.Y, segment.Z + from.Z);
                 reached.Clear();
                 index.Crossed(from, to, reached);
 
                 foreach (var k in reached)
-                    if (Occupied(clusters, k, cube, from, to))
+                    if (Occupied(clusters, k, cube, from, segment))
                         bits[k >> 6] |= 1UL << (k & 63);
             }
             clusters[i].Visibility = bits;
         });
+    }
+
+    /// <summary>
+    /// A direction as 180032fa0 normalises one: the length summed z first, a
+    /// reciprocal multiply rather than a divide, and a zero vector for anything
+    /// shorter than 1e-17. The slow path above 1e17 is unreachable inside a map.
+    /// </summary>
+    public static Vector3 Direction(Vector3 v)
+    {
+        var length = MathF.Sqrt((v.Z * v.Z) + (v.Y * v.Y) + (v.X * v.X));
+        if (length < 1e-17f || length > 1e17f)
+        {
+            if (length == 0f)
+                return Vector3.Zero;
+            var l = Math.Sqrt(((double)v.X * v.X) + ((double)v.Y * v.Y) + ((double)v.Z * v.Z));
+            return new Vector3((float)(v.X / l), (float)(v.Y / l), (float)(v.Z / l));
+        }
+        var inverse = 1f / length;
+        return new Vector3(v.X * inverse, v.Y * inverse, v.Z * inverse);
+    }
+
+    /// <summary>
+    /// One sampling ray, as the segment the walk is handed: <c>CastRayGrid</c>
+    /// traces the centre to <c>centre + MaxCoord * dir</c> through the batch
+    /// tracer, <c>NoDrawSecondLook</c> looks past a nodraw-only surface,
+    /// <c>TallyRays</c> drops a hit the centre sees from behind, and
+    /// <c>180032fa0</c> turns what is left into <c>(t * dir + o) - centre</c>,
+    /// with the box diagonal standing in for t when nothing was hit. Every sum
+    /// is in the binary's order because a centre on a wall is decided by them.
+    /// </summary>
+    public static Vector3 Ray(RayTraceEnvironment scene, Vector3 o, Vector3 d, float reach)
+    {
+        var far = RayTraceEnvironment.MaxCoord;
+        var end = new Vector3((far * d.X) + o.X, (far * d.Y) + o.Y, (far * d.Z) + o.Z);
+        var hit = scene.Segment(o, end, VisSeed.Ignored);
+        if (hit is { } first && (scene.Flags(first.Triangle) & VisSeed.Insubstantial) == VisSeed.NoDrawOnly
+            && scene.Segment(o, end, VisSeed.SeeingThroughNoDraw) is { } again
+            && Facing(again, o, d) >= 0f
+            && (scene.Flags(again.Triangle) & VisSeed.Insubstantial) == 0)
+            hit = again;
+        if (hit is { } h && Facing(h, o, d) < 0f)
+            hit = null;
+        var t = hit?.Distance ?? reach;
+        return new Vector3(((t * d.X) + o.X) - o.X, ((t * d.Y) + o.Y) - o.Y, ((t * d.Z) + o.Z) - o.Z);
+    }
+
+    // dot(n, centre) - dot(n, landed), each summed z, y, x as TallyRays does.
+    private static float Facing(RayTraceEnvironment.Hit h, Vector3 o, Vector3 d)
+    {
+        var n = h.Normal;
+        var t = h.Distance;
+        var centre = (n.Z * o.Z) + (o.Y * n.Y) + (n.X * o.X);
+        var landed = (((t * d.Z) + o.Z) * n.Z) + (((t * d.Y) + o.Y) * n.Y) + (((t * d.X) + o.X) * n.X);
+        return centre - landed;
     }
 
     /// <summary>
@@ -204,12 +251,12 @@ public static class VisClusterSample
     /// is all there is, so it counts on the box alone.
     /// </summary>
     private static bool Occupied(
-        IReadOnlyList<VisMerge.Cluster> clusters, int entry, LeafCube cube, Vector3 from, Vector3 to)
+        IReadOnlyList<VisMerge.Cluster> clusters, int entry, LeafCube cube, Vector3 from, Vector3 segment)
     {
         if (entry >= clusters.Count)
             return true;
 
-        var inverse = Reciprocal(to - from);
+        var inverse = new Vector3(1f / Guard(segment.X), 1f / Guard(segment.Y), 1f / Guard(segment.Z));
         var last = -1;
         var cells = 0UL;
         foreach (var (mask, leaf) in clusters[entry].Voxels)
@@ -226,14 +273,12 @@ public static class VisClusterSample
         return false;
     }
 
-    private static Vector3 Reciprocal(Vector3 v)
-    {
-        const float Floor = 1e-20f;
-        return new Vector3(
-            1f / (MathF.Abs(v.X) < Floor ? Floor : v.X),
-            1f / (MathF.Abs(v.Y) < Floor ? Floor : v.Y),
-            1f / (MathF.Abs(v.Z) < Floor ? Floor : v.Z));
-    }
+    // 18003ed60's divisor: under FLT_MIN the bits of FLT_EPSILON are ORed in,
+    // which keeps the sign, so a zero component divides as +-1.19e-7.
+    private static float Guard(float x)
+        => MathF.Abs(x) < 1.17549435e-38f
+            ? BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(x) | 0x34000000)
+            : x;
 
     /// <summary>
     /// A bit vector per CLUSTER entry, over every entry including the shell. The

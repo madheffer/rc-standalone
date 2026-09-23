@@ -15,8 +15,8 @@ namespace Source2.Compiler.Maps;
 ///
 /// <para>The shape is the classic visibility heuristic: merging two clusters makes
 /// each of them see everything the other sees, so the cost is the extra
-/// visibility each side inherits weighted by the other side's volume, plus the
-/// distance between their boxes. Everything else is a multiplier that discourages
+/// visibility each side inherits weighted by the other side's volume, plus a
+/// term under one for how far apart the boxes are and how little face they share. Everything else is a multiplier that discourages
 /// a merge from spanning a floor or spilling across a room.</para>
 /// </summary>
 public static class VisMergeCost
@@ -97,7 +97,7 @@ public static class VisMergeCost
                 cost *= TagMismatchPenalty;
         }
 
-        return Distance(a, b) + (cost * Scale);
+        return Proximity(a, b) + (cost * Scale);
     }
 
     /// <summary>How many bits are set in <paramref name="x"/> and clear in <paramref name="y"/>.</summary>
@@ -112,15 +112,82 @@ public static class VisMergeCost
         return total;
     }
 
-    /// <summary>The gap between two boxes, zero when they touch (<c>18002fec0</c>).</summary>
-    public static float Distance(Cluster a, Cluster b)
+    /// <summary>What <see cref="Proximity"/> divides the gap by (<c>DAT_18018237c</c>, 1/128).</summary>
+    public const float GapScale = 0.0078125f;
+
+    /// <summary>
+    /// The term added after the scale, <c>BoxGap</c> in the manifest, read from
+    /// its instructions rather than its decompile: Ghidra's output stops at the
+    /// square root and everything after it is missing. It is two halves, each
+    /// worth at most 0.5.
+    ///
+    /// <para>The gap half is <c>0.5 * clamp(gap / 128, 0, 1)</c>. The contact
+    /// half takes the two boxes' overlap extents, picks the axis with the
+    /// largest magnitude and the middle one, and charges <c>0.5 * (1 - shared
+    /// area / face area)</c>, where the face is the FIRST box's on those two
+    /// axes. So two boxes that touch at an edge pay the full 0.5, and a pair
+    /// sharing a whole face pays nothing. The order of every comparison is the
+    /// binary's, ties included, because the axis choice is decided by them.</para>
+    /// </summary>
+    public static float Proximity(Cluster a, Cluster b)
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
 
-        var gap = Vector3.Max(Vector3.Max(a.Mins - b.Maxs, b.Mins - a.Maxs), Vector3.Zero);
-        return gap.Length();
+        var gx = a.Mins.X - b.Maxs.X;
+        if (0f > gx)
+            gx = b.Mins.X - a.Maxs.X;
+        var gy = a.Mins.Y - b.Maxs.Y;
+        if (0f > gy)
+            gy = b.Mins.Y - a.Maxs.Y;
+        var gz = a.Mins.Z - b.Maxs.Z;
+        if (0f > gz)
+            gz = b.Mins.Z - a.Maxs.Z;
+        gx = Max(0f, gx);
+        gy = Max(0f, gy);
+        gz = Max(0f, gz);
+        var gap = MathF.Sqrt((gz * gz) + (gy * gy) + (gx * gx));
+        var far = Min(Max(gap * GapScale, 0f), 1f) * 0.5f;
+
+        Span<float> shared =
+        [
+            Min(b.Maxs.X, a.Maxs.X) - Max(b.Mins.X, a.Mins.X),
+            Min(b.Maxs.Y, a.Maxs.Y) - Max(b.Mins.Y, a.Mins.Y),
+            Min(b.Maxs.Z, a.Maxs.Z) - Max(b.Mins.Z, a.Mins.Z),
+        ];
+        var ax = MathF.Abs(shared[0]);
+        var ay = MathF.Abs(shared[1]);
+        var az = MathF.Abs(shared[2]);
+
+        // The widest axis, and the one after it; the rotation is how the binary
+        // encodes it, so it is kept as it is rather than as the sort it amounts to.
+        int widest, next;
+        if (ax > ay)
+            (widest, next) = ax > az ? (0, 1) : (2, 0);
+        else
+            (widest, next) = ay > az ? (1, 2) : (2, 0);
+        int narrowest;
+        if (ay > ax)
+            narrowest = az > ax ? 0 : 2;
+        else
+            narrowest = az <= ay ? 2 : 1;
+        if (next == narrowest)
+            next = (next + 1) % 3;
+
+        var extent = a.Maxs - a.Mins;
+        var face = Axis(extent, next) * Axis(extent, widest);
+        var touch = 0f;
+        if (face > 0f)
+            touch = 0.5f - (Min(Max(shared[next] * shared[widest] / face, 0f), 1f) * 0.5f);
+        return touch + far;
     }
+
+    private static float Axis(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;
+
+    // MAXSS and MINSS: the first operand when the comparison holds, else the second.
+    private static float Max(float x, float y) => x > y ? x : y;
+
+    private static float Min(float x, float y) => x < y ? x : y;
 
     private static float Footprint(Vector3 mins, Vector3 maxs)
         => (maxs.Y - mins.Y) * (maxs.X - mins.X);

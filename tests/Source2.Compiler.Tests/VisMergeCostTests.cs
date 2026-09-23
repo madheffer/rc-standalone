@@ -130,14 +130,15 @@ public sealed class VisMergeCostTests
     }
 
     [Fact]
-    public void ADistantPairCostsTheGapOnTop()
+    public void ADistantPairCostsTheGapAndTheMissingContactOnTop()
     {
-        // Kept narrow in y so the union footprint stays under the area limit and
-        // the gap is the only thing separating this from a touching pair.
+        // Kept narrow in y so the union footprint stays under the area limit.
+        // 100 units apart is 0.5 * 100/128 for the gap, and sharing no face at
+        // all is the whole 0.5 of the contact half.
         var a = At(new Vector3(0, 0, 0), new Vector3(32, 16, 32), 0b1111, voxels: 10);
         var far = At(new Vector3(132, 0, 0), new Vector3(164, 16, 32), 0b1111, voxels: 10);
-        Assert.Equal(100f, VisMergeCost.Distance(a, far), 3);
-        Assert.Equal(100f + VisMergeCost.Scale, VisMergeCost.Of(a, far), 3);
+        Assert.Equal(0.890625f, VisMergeCost.Proximity(a, far));
+        Assert.Equal(0.890625f + VisMergeCost.Scale, VisMergeCost.Of(a, far));
     }
 
     [Fact]
@@ -149,19 +150,26 @@ public sealed class VisMergeCostTests
         Assert.True(Footprint(a) <= VisMergeCost.AreaLimit);
         Assert.True(Footprint(apart) <= VisMergeCost.AreaLimit);
         Assert.True((apart.Maxs.X - a.Mins.X) * (apart.Maxs.Y - a.Mins.Y) > VisMergeCost.AreaLimit);
-        Assert.Equal(100f + (VisMergeCost.SpreadPenalty * VisMergeCost.Scale),
-                     VisMergeCost.Of(a, apart), 3);
+        Assert.Equal(0.890625f + (VisMergeCost.SpreadPenalty * VisMergeCost.Scale),
+                     VisMergeCost.Of(a, apart));
     }
 
     private static float Footprint(VisMergeCost.Cluster c)
         => (c.Maxs.X - c.Mins.X) * (c.Maxs.Y - c.Mins.Y);
 
     [Fact]
-    public void TouchingBoxesHaveNoGap()
+    public void SharingAFaceIsFreeAndTouchingAtAnEdgeIsNot()
     {
+        // The half the decompile hid: 0.5 * (1 - shared area / face area) on the
+        // widest and middle overlap axes, so a whole shared face costs nothing
+        // and an edge, which shares no area, costs all 0.5.
         var a = At(new Vector3(0, 0, 0), new Vector3(32, 32, 32), 0, voxels: 1);
-        var b = At(new Vector3(32, 0, 0), new Vector3(64, 32, 32), 0, voxels: 1);
-        Assert.Equal(0f, VisMergeCost.Distance(a, b), 5);
+        var face = At(new Vector3(32, 0, 0), new Vector3(64, 32, 32), 0, voxels: 1);
+        var edge = At(new Vector3(32, 32, 0), new Vector3(64, 64, 32), 0, voxels: 1);
+        var half = At(new Vector3(32, 16, 0), new Vector3(64, 48, 32), 0, voxels: 1);
+        Assert.Equal(0f, VisMergeCost.Proximity(a, face));
+        Assert.Equal(0.5f, VisMergeCost.Proximity(a, edge));
+        Assert.Equal(0.25f, VisMergeCost.Proximity(a, half));
     }
 
     private static VisMergeCost.Cluster At(Vector3 mins, Vector3 maxs, ulong visible, int voxels)

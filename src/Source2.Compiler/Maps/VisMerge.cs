@@ -121,7 +121,7 @@ public static class VisMerge
     public static float Run(
         RayTraceEnvironment scene, List<Cluster> clusters, Vector3 mins, Vector3 maxs,
         float costLimit, int budget, bool padded, VisClusterSample.LeafCube cube,
-        Action<Halt>? halted = null)
+        Action<Halt>? halted = null, bool sampled = false, Action<int, int, float>? merged = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(clusters);
@@ -138,9 +138,12 @@ public static class VisMerge
         }
 
         var shell = padded ? VisClusterSample.Shell.Length : 0;
-        VisClusterSample.SampleInto(scene, clusters, mins, maxs, padded, cube);
+        // A caller replaying a captured compile hands the visibility in already
+        // filled, so the merge can be scored apart from the sampler.
+        if (!sampled)
+            VisClusterSample.SampleInto(scene, clusters, mins, maxs, padded, cube);
 
-        var sampled = halted is null ? 0f
+        var seen = halted is null ? 0f
             : clusters.Select(c => (float)c.Visibility.Sum(w => System.Numerics.BitOperations.PopCount(w)))
                       .DefaultIfEmpty(0f).Average();
 
@@ -167,12 +170,13 @@ public static class VisMerge
             if (owner < 0 || other < 0 || owner == other)
                 break;
             best = cost;
+            merged?.Invoke(owner, other, cost);
             state.Absorb(owner, other);
             live--;
         }
 
         halted?.Invoke(new Halt(live, budget, costLimit, state.Cheapest().Cost, best,
-                                sampled, clusters.Count + shell, clusters.Count,
+                                seen, clusters.Count + shell, clusters.Count,
                                 MathF.Max(best, costLimit), sizes, shortInZ));
         state.Keep(clusters);
         return MathF.Max(best, costLimit);
