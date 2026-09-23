@@ -201,6 +201,14 @@ public static class VisPvs
         return (new Vector3(mn.X + lo.X, mn.Y + lo.Y, mn.Z + lo.Z), new Vector3(mx.X + lo.X, mx.Y + lo.Y, mx.Z + lo.Z));
     }
 
+    /// <summary><c>FUN_18002e390</c> from the root: the open entries a box overlaps, in walk order.</summary>
+    public static List<int> Entries(State s, Vector3 lo, Vector3 hi)
+    {
+        var found = new List<int>();
+        Query(s, 0, lo, hi, found);
+        return found;
+    }
+
     // FUN_18002e390: the octree walk for a box, children taken in octant order
     // on an inclusive test, and at a leaf every open entry whose cells the box
     // overlaps STRICTLY, skipping an immediate repeat.

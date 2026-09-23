@@ -23,6 +23,10 @@ capture_merge.py (u32 json length, json, u32 blob length, blob):
   merges     every merge the vis-cluster merge made, (u32 lo, u32 hi) in order
   applied    the final cluster map (u32 each) and count, then the entries,
              cluster boxes and matrix once the sampler has taken it
+  borders    what AdaptivelySampleBorders found: the border entry indices, and
+             per border entry its (cluster, box) records (i32 count, then 28
+             bytes each: box then cluster)
+  resampled  the entries and nodes once the border stage has rewritten them
 
 The functions hooked here are not in docs/visbuilder.signatures.json yet, so
 their RVAs are pinned to one build and the tool refuses any other.
@@ -50,6 +54,8 @@ RVA = {
     "BuiltClusters": 0x45440,
     "MergePair": 0x42f00,
     "ApplyClusterMap": 0x38130,
+    "SampleBorders": 0x3c3d0,
+    "BorderBoxes": 0x3a1a0,
 }
 
 AGENT = r"""
@@ -160,6 +166,31 @@ function hook(m) {
       send({ev: 'appliedboxes', n: nc}, s.add(0x1a0).readPointer().readByteArray(nc * 24));
       const [rn, bits, blob] = rows(s.add(0x148));
       send({ev: 'appliedmatrix', rows: rn, bits}, blob);
+    }
+  });
+  Interceptor.attach(m.base.add(RVA.BorderBoxes), {
+    onEnter(a) {
+      const b = a[0], n = b.readS32(), ids = b.add(8).readPointer();
+      send({ev: 'borderentries', n}, n ? ids.readByteArray(n * 4) : new ArrayBuffer(0));
+      const k = b.add(0x30).readS32(), lists = b.add(0x38).readPointer();
+      let total = 0;
+      for (let i = 0; i < k; i++) total += 4 + lists.add(i * 0x18).readS32() * 0x1c;
+      const out = new Uint8Array(total), dv = new DataView(out.buffer);
+      let at = 0;
+      for (let i = 0; i < k; i++) {
+        const c = lists.add(i * 0x18).readS32();
+        dv.setInt32(at, c, true); at += 4;
+        if (c) { out.set(new Uint8Array(lists.add(i * 0x18 + 8).readPointer().readByteArray(c * 0x1c)), at); at += c * 0x1c; }
+      }
+      send({ev: 'borders', n: k}, out.buffer);
+    }
+  });
+  Interceptor.attach(m.base.add(RVA.SampleBorders), {
+    onEnter(a) { this.s = a[0]; },
+    onLeave() {
+      const s = this.s, ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32();
+      send({ev: 'resampledentries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
+      send({ev: 'resamplednodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
     }
   });
   send({ev: 'hooked'});

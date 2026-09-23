@@ -133,7 +133,12 @@ public static class VisMergeCost
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
+        return Proximity((a.Mins, a.Maxs), (b.Mins, b.Maxs));
+    }
 
+    /// <summary><see cref="Proximity(Cluster, Cluster)"/> over two bare boxes, as <c>BoxGap</c> takes them.</summary>
+    public static float Proximity((Vector3 Mins, Vector3 Maxs) a, (Vector3 Mins, Vector3 Maxs) b)
+    {
         var gx = a.Mins.X - b.Maxs.X;
         if (0f > gx)
             gx = b.Mins.X - a.Maxs.X;

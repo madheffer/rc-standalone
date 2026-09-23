@@ -225,6 +225,47 @@ public class VisPvsReplay(ITestOutputHelper output)
         Assert.Equal(theirs, result.Merges);
     }
 
+    /// <summary>
+    /// The border sampling, from the state the vis-cluster merge leaves (seeded
+    /// with the compile's post-scan matrix): which records are borders, and each
+    /// one's claims, cluster and box, in order.
+    /// </summary>
+    [Fact]
+    public void TheBorderSampling()
+    {
+        if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
+            return;
+        var cap = Capture(map);
+        var (s, rte, pre, sizes) = OursInFull(map)!.Value;
+        var merged = VisClusterList.Run(s, Load(cap["matrix"].Head, cap["matrix"].Blob), sizes,
+                                        VisClusterList.Volume(s, pre.Volume, pre.After));
+        var (borders, claims) = VisBorders.Sample(merged.State, rte);
+
+        var be = cap["borderentries"].Blob;
+        var theirBorders = Enumerable.Range(0, be.Length / 4).Select(i => BitConverter.ToInt32(be, i * 4)).ToArray();
+        output.WriteLine($"borders: ours {borders.Length} valve {theirBorders.Length}, same {borders.SequenceEqual(theirBorders)}");
+
+        var blob = cap["borders"].Blob;
+        int at = 0, same = 0, countSame = 0, shown = 0;
+        for (var k = 0; k < claims.Length && at < blob.Length; k++)
+        {
+            var count = BitConverter.ToInt32(blob, at);
+            at += 4;
+            var theirs = Enumerable.Range(0, count)
+                .Select(i => new VisBorders.Claim(V(blob, at + i * 28), V(blob, at + i * 28 + 12), BitConverter.ToInt32(blob, at + i * 28 + 24)))
+                .ToList();
+            at += count * 28;
+            if (count == claims[k].Count)
+                countSame++;
+            if (theirs.SequenceEqual(claims[k]))
+                same++;
+            else if (shown++ < 6)
+                output.WriteLine($"  border {k} (entry {borders[k]}): ours [{string.Join(" ", claims[k])}] valve [{string.Join(" ", theirs)}]");
+        }
+        output.WriteLine($"claims: {same}/{claims.Length} identical, counts {countSame}; total ours {claims.Sum(c => c.Count)}");
+        Assert.Equal(claims.Length, same);
+    }
+
     [Fact]
     public void TheBoundaryPointGenerator()
     {
