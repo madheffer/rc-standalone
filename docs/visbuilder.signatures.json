@@ -508,6 +508,16 @@
    ]
   },
   {
+   "name": "ExportMutualVisibility",
+   "kind": "code",
+   "was": "180049010",
+   "sites": [
+    {
+     "pattern": "40 57 41 54 41 55 48 81 EC A0 00 00 00"
+    }
+   ]
+  },
+  {
    "name": "FacingPoints",
    "kind": "code",
    "was": "180020bc0",

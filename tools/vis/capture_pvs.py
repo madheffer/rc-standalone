@@ -31,6 +31,10 @@ capture_merge.py (u32 json length, json, u32 blob length, blob):
   sky, sun   the clusters visible to sky and to the sun, one bit each, with
              whether the stage succeeded
   collapsed<k>  entries, nodes and node boxes after each collapse iteration
+  flatboxes  FlatVisClusterVector as the border stage leaves it: per cluster
+             an i32 count, then that many 24 byte boxes
+  mutualvis  MutualVisibilityMatrix as exported for the world renderer: per row
+             an i32 count (N), then N floats
 
 The hooked functions are found through docs/visbuilder.signatures.json, so the
 tool follows a game update that moves them and refuses one that changes them.
@@ -67,6 +71,7 @@ HOOKS = {
     "Sky": "SkyVisibility",
     "Sun": "SunVisibility",
     "Collapse": "CollapseOnce",
+    "ExportMatrix": "ExportMutualVisibility",
 }
 
 
@@ -232,9 +237,42 @@ function hook(m) {
       sendBlob({ev: 'borders', n: k}, out.buffer);
     }
   });
-  Interceptor.attach(m.base.add(RVA.SampleBorders), {
-    onEnter(a) { this.s = a[0]; },
+  // The named blocks live in the vis compile's context and are fetched the
+  // way the compile fetches them, through the context's own getter.
+  function named(ctx, name) {
+    const get = new NativeFunction(ctx.readPointer().add(0x80).readPointer(), 'pointer', ['pointer', 'pointer', 'int']);
+    return get(ctx, Memory.allocUtf8String(name), 0);
+  }
+  function vectors(v, stride) {
+    const n = v.readS32(), items = v.add(8).readPointer();
+    let total = 0;
+    for (let i = 0; i < n; i++) total += 4 + items.add(i * 0x18).readS32() * stride;
+    const out = new Uint8Array(total), dv = new DataView(out.buffer);
+    let at = 0;
+    for (let i = 0; i < n; i++) {
+      const c = items.add(i * 0x18).readS32();
+      dv.setInt32(at, c, true); at += 4;
+      if (c) { out.set(new Uint8Array(items.add(i * 0x18 + 8).readPointer().readByteArray(c * stride)), at); at += c * stride; }
+    }
+    return [n, out.buffer];
+  }
+  Interceptor.attach(m.base.add(RVA.ExportMatrix), {
+    onEnter(a) { this.ctx = a[1]; },
     onLeave() {
+      const v = named(this.ctx, 'MutualVisibilityMatrix');
+      if (v.isNull()) return;
+      const [n, blob] = vectors(v, 4);
+      sendBlob({ev: 'mutualvis', n}, blob);
+    }
+  });
+  Interceptor.attach(m.base.add(RVA.SampleBorders), {
+    onEnter(a) { this.s = a[0]; this.ctx = a[1]; },
+    onLeave() {
+      const flat = named(this.ctx, 'FlatVisClusterVector');
+      if (!flat.isNull()) {
+        const [n, blob] = vectors(flat, 24);
+        sendBlob({ev: 'flatboxes', n}, blob);
+      }
       const s = this.s, ne = s.add(0x40).readS32(), nn = s.add(0x28).readS32();
       sendBlob({ev: 'resampledentries', n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
       sendBlob({ev: 'resamplednodes', n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));

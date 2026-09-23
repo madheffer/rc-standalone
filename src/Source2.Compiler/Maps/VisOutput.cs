@@ -159,4 +159,128 @@ public static class VisOutput
             list.RemoveRange(w, list.Count - w);
         }
     }
+
+    /// <summary>
+    /// <c>SplitOpenSpace</c>: a 4x4x4 mask as boxes, greedily. From the lowest
+    /// cell not yet covered a box grows along x, then y, then z while it meets
+    /// no empty cell (it may grow over covered ones); what it adds is kept and
+    /// counts as covered. The pieces are not always boxes themselves.
+    /// </summary>
+    public static List<ulong> SplitOpenSpace(ulong mask)
+    {
+        var pieces = new List<ulong>();
+        var empty = ~mask;
+        var covered = empty;
+        while (true)
+        {
+            var at = 0;
+            while ((covered >> at & 1) != 0)
+            {
+                if (++at > 63)
+                    return pieces;
+            }
+            var box = 1UL << at;
+            if ((empty & box) != 0)
+                return pieces;
+            for (var x = at & 3; x < 3 && (empty & ((box << 1) | box)) == 0; x++)
+                box |= box << 1;
+            for (var y = (at >> 2) & 3; y < 3 && (empty & ((box << 4) | box)) == 0; y++)
+                box |= box << 4;
+            for (var z = (at >> 4) & 3; z < 3 && (empty & ((box << 16) | box)) == 0; z++)
+                box |= box << 16;
+            var piece = ~covered & box;
+            if (piece == 0)
+                return pieces;
+            pieces.Add(piece);
+            covered |= piece;
+        }
+    }
+
+    /// <summary>
+    /// <c>FlatVisClusterVector</c>, the per-cluster box lists the world renderer's
+    /// visibility-guided mesh clustering reads (<c>CVisibilityMeshMerger</c>).
+    /// Filled by the border stage before its rewrite: every open record of every
+    /// leaf in node order adds the boxes of its <see cref="SplitOpenSpace"/>
+    /// pieces to its cluster (<c>FUN_18003a440</c>, no range check); then every
+    /// border claim whose cluster is in range adds its box grown by 0.1f on every
+    /// side (<c>FUN_18003a1a0</c>).
+    /// </summary>
+    public static List<(Vector3 Mins, Vector3 Maxs)>[] FlatClusterBoxes(VisPvs.State merged, IReadOnlyList<List<VisBorders.Claim>> claims)
+    {
+        var flat = new List<(Vector3, Vector3)>[merged.Clusters];
+        for (var c = 0; c < flat.Length; c++)
+            flat[c] = [];
+        for (var node = 0; node < merged.NodeWords.Length; node++)
+        {
+            var word = merged.NodeWords[node];
+            if ((word & 1) == 0)
+                continue;
+            var first = (int)(word >> 1);
+            for (var k = 0; k < merged.NodeCounts[node]; k++)
+            {
+                var e = merged.Entries[first + k];
+                if ((e.Packed & 3) != 0)
+                    continue;
+                foreach (var piece in SplitOpenSpace(e.Cells))
+                    flat[e.Cluster].Add(VisPvs.RegionBox(merged, e with { Cells = piece }));
+            }
+        }
+        foreach (var list in claims)
+        {
+            foreach (var claim in list)
+            {
+                if ((uint)claim.Cluster >= (uint)flat.Length)
+                    continue;
+                flat[claim.Cluster].Add((new Vector3(claim.Mins.X + -0.1f, claim.Mins.Y + -0.1f, claim.Mins.Z + -0.1f),
+                                         new Vector3(claim.Maxs.X + 0.1f, claim.Maxs.Y + 0.1f, claim.Maxs.Z + 0.1f)));
+            }
+        }
+        return flat;
+    }
+
+    /// <summary>
+    /// <c>MutualVisibilityMatrix</c> as <c>FUN_180049010</c> exports it for the
+    /// world renderer, from the finished PVS rows of the real clusters (sky and
+    /// sun excluded). With <c>count[k]</c> the clusters that see k and
+    /// <c>pair[j][k]</c> those that see both, counted as u16 and read back as
+    /// signed shorts, <c>M[j][k] = pair[min][max] / count[max]</c>: written for
+    /// k &gt;= j, then mirrored below the diagonal.
+    /// </summary>
+    public static float[][] MutualVisibility(VoxelVisibility vis)
+    {
+        var n = (int)vis.BaseClusterCount;
+        var stride = (int)vis.PVSBytesPerCluster;
+        var count = new ushort[n];
+        var pair = new ushort[n][];
+        for (var j = 0; j < n; j++)
+            pair[j] = new ushort[n];
+        for (var i = 0; i < n; i++)
+        {
+            var at = i * stride;
+            for (var j = 0; j < n; j++)
+            {
+                if ((vis.VisBlocks[at + (j >> 3)] >> (j & 7) & 1) == 0)
+                    continue;
+                count[j]++;
+                for (var k = j; k < n; k++)
+                {
+                    if ((vis.VisBlocks[at + (k >> 3)] >> (k & 7) & 1) != 0)
+                        pair[j][k]++;
+                }
+            }
+        }
+        var m = new float[n][];
+        for (var j = 0; j < n; j++)
+        {
+            m[j] = new float[n];
+            for (var k = j; k < n; k++)
+                m[j][k] = (float)(short)pair[j][k] / (float)(short)count[k];
+        }
+        for (var j = 0; j < n; j++)
+        {
+            for (var k = 0; k < j; k++)
+                m[j][k] = m[k][j];
+        }
+        return m;
+    }
 }

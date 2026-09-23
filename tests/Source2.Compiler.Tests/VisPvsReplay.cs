@@ -414,6 +414,57 @@ public class VisPvsReplay(ITestOutputHelper output)
         Assert.Equal(rows, same);
     }
 
+    /// <summary>
+    /// The two blocks vis hands the world renderer besides the vvis:
+    /// FlatVisClusterVector from our merged state and border claims, and
+    /// MutualVisibilityMatrix from the shipped VXVS.
+    /// </summary>
+    [Fact]
+    public void TheNamedBlocks()
+    {
+        if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
+            return;
+        var cap = Capture(map);
+        if (!cap.ContainsKey("flatboxes") || !cap.ContainsKey("mutualvis"))
+            return;
+        var (s, rte, pre, sizes) = OursInFull(map)!.Value;
+        var (_, shipped) = VisFixtures.RayTraceScene(Addons[map], map)!.Value;
+        var merged = VisClusterList.Run(s, Load(cap["matrix"].Head, cap["matrix"].Blob), sizes,
+                                        VisClusterList.Volume(s, pre.Volume, pre.After));
+        var (_, claims) = VisBorders.Sample(merged.State, rte);
+        var flat = VisOutput.FlatClusterBoxes(merged.State, claims);
+        var fb = cap["flatboxes"].Blob;
+        int at = 0, same = 0;
+        for (var c = 0; c < flat.Length && at < fb.Length; c++)
+        {
+            var count = BitConverter.ToInt32(fb, at);
+            at += 4;
+            var theirs = Enumerable.Range(0, count).Select(k => (V(fb, at + k * 24), V(fb, at + k * 24 + 12))).ToList();
+            at += count * 24;
+            if (theirs.SequenceEqual(flat[c]))
+                same++;
+        }
+        output.WriteLine($"FlatVisClusterVector: {same}/{flat.Length} clusters identical");
+
+        var mv = VisOutput.MutualVisibility(shipped);
+        var mb = cap["mutualvis"].Blob;
+        int rowsSame = 0;
+        at = 0;
+        for (var j = 0; j < mv.Length && at < mb.Length; j++)
+        {
+            var count = BitConverter.ToInt32(mb, at);
+            at += 4;
+            var ok = count == mv[j].Length;
+            for (var k = 0; ok && k < count; k++)
+                ok = BitConverter.ToSingle(mb, at + k * 4) == mv[j][k];
+            at += count * 4;
+            rowsSame += ok ? 1 : 0;
+        }
+        output.WriteLine($"MutualVisibilityMatrix: {rowsSame}/{mv.Length} rows identical");
+        Assert.Equal(flat.Length, same);
+        Assert.Equal(mv.Length, rowsSame);
+    }
+
     [Fact]
     public void TheBoundaryPointGenerator()
     {

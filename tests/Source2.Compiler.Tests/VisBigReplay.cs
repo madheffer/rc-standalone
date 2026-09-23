@@ -320,6 +320,53 @@ public class VisBigReplay(ITestOutputHelper output)
         Assert.Equal(0, differing);
     }
 
+    /// <summary>
+    /// Where the time goes on a big map's rays: a sample of the large-region
+    /// generator's first-pass pairs, traced and walked separately, one thread.
+    /// Behind <c>BENCH=1</c>.
+    /// </summary>
+    [Fact]
+    public void Benchmark()
+    {
+        if (Environment.GetEnvironmentVariable("BENCH") is null)
+            return;
+        using var cap = Open(out _);
+        if (cap is null)
+            return;
+        var s = StateOf(cap);
+        var rte = Scene();
+        var reach = VisPvs.Reach(rte);
+        var pairs = Pairs(cap.Blob("pairs" + FirstPass(cap, 2)));
+        var lists = VisPvs.EntriesByCluster(s);
+        var rays = new List<VisPvs.Ray>();
+        var random = new Random(5);
+        while (rays.Count < 200_000)
+        {
+            var (a, b) = pairs[random.Next(pairs.Count)];
+            int lo = Math.Min(a, b), hi = Math.Max(a, b);
+            var ea = lists[lo][random.Next(lists[lo].Count)];
+            var eb = lists[hi][random.Next(lists[hi].Count)];
+            var (la, ha) = VisPvs.RegionBox(s, s.Entries[ea]);
+            var (lb, hb) = VisPvs.RegionBox(s, s.Entries[eb]);
+            rays.Add(VisPvs.Toward((la + ha) * 0.5f, (lb + hb) * 0.5f));
+        }
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var ends = new Vector3?[rays.Count];
+        for (var i = 0; i < rays.Count; i++)
+            ends[i] = VisPvs.Sight(rte, rays[i], reach);
+        var trace = clock.Elapsed.TotalSeconds;
+        clock.Restart();
+        long clusters = 0;
+        for (var i = 0; i < rays.Count; i++)
+        {
+            if (ends[i] is { } end && VisPvs.Walk(s, rays[i].Origin, end, through: true) is { } ids)
+                clusters += ids.Count;
+        }
+        var walk = clock.Elapsed.TotalSeconds;
+        output.WriteLine($"{rays.Count:n0} rays, one thread: trace {rays.Count / trace:n0}/s, walk {rays.Count / walk:n0}/s; {clusters / (double)rays.Count:0.0} clusters a walk");
+        output.WriteLine($"Valve's 608,325,057 rays at this rate on 16 threads: {608325057.0 / (1 / (trace / rays.Count + walk / rays.Count)) / 16 / 60:0} minutes");
+    }
+
     private static VisVisibility.Entry[] EntriesOf(byte[] e)
     {
         var entries = new VisVisibility.Entry[e.Length / 16];
