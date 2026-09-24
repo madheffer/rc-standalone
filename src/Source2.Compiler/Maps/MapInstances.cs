@@ -20,7 +20,10 @@ public static class MapInstances
     /// <param name="NodeId">The copy's own hammerUniqueId.</param>
     /// <param name="Origin">World position after the placement's transform.</param>
     /// <param name="Angles">Rotation after the placement's transform.</param>
-    public sealed record Copy(int EmitAt, int Template, int NodeId, Vector3 Origin, Vector3 Angles);
+    /// <param name="Layer">The world layer the placing instance sits in, whose lump
+    /// the copy ships in; null for the world's own.</param>
+    public sealed record Copy(int EmitAt, int Template, int NodeId, Vector3 Origin, Vector3 Angles,
+                              string? Layer = null);
 
     /// <summary>
     /// Every copy the map's instances produce, in lump order, and the walk indices
@@ -41,8 +44,16 @@ public static class MapInstances
             byNode.TryAdd(walked[i].NodeId, i);
 
         var tree = Survey(world, walked);
+        // An instance the map hides places nothing and takes no block of ids:
+        // Mako hides four, and its later blocks start exactly that much lower.
+        // Its group is still a template and still does not ship in its own right.
+        var hidden = MapEntities.HiddenNodes(document);
+        var hiddenTemplates = new HashSet<int>();
+        foreach (var instance in tree.Instances.Where(i => hidden.Contains(i.Node.GetValue<int>("nodeID") ?? -1)))
+            MarkTemplates(instance.Target, byNode, hiddenTemplates);
+        tree.Instances.RemoveAll(i => hidden.Contains(i.Node.GetValue<int>("nodeID") ?? -1));
         if (tree.Instances.Count == 0)
-            return ([], new HashSet<int>());
+            return ([], hiddenTemplates);
 
         // A block of ids per instance, in tree order, starting one past the map's
         // own highest node id. That ceiling is over EVERY element, not only the
@@ -60,11 +71,11 @@ public static class MapInstances
         }
 
         var copies = new List<Copy>();
-        var templates = new HashSet<int>();
+        var templates = new HashSet<int>(hiddenTemplates);
         foreach (var instance in tree.Instances)
             if (!tree.InsideTarget.Contains(instance.Node))
                 Place(instance, Transform.Identity, tree, byNode, block, ref next, copies, templates,
-                      tree.SubtreeEnd.GetValueOrDefault(instance.Parent, walked.Count));
+                      tree.SubtreeEnd.GetValueOrDefault(instance.Parent, walked.Count), LayerOf(instance.Node, tree));
 
         // Lump order is the walk with each instance's copies inserted where its
         // PARENT's subtree finishes. atixref's 17 instances under one group land at
@@ -135,6 +146,28 @@ public static class MapInstances
         }
     }
 
+    /// <summary>The world layer a node sits in, from its nearest CMapWorldLayer
+    /// ancestor; null for the world's own.</summary>
+    private static string? LayerOf(DmxBinary.Element node, Tree tree)
+    {
+        for (var at = tree.Parents.GetValueOrDefault(node); at is not null; at = tree.Parents.GetValueOrDefault(at))
+            if (at.Type is "CMapWorldLayer")
+                return at.Get<string>("worldLayerName");
+        return null;
+    }
+
+    /// <summary>Every entity a group holds, at any depth, as a template.</summary>
+    private static void MarkTemplates(DmxBinary.Element group, Dictionary<int, int> byNode, HashSet<int> templates)
+    {
+        foreach (var child in group.GetElements("children"))
+        {
+            if (MapEntities.CarriesGameKeys(child)
+                && byNode.TryGetValue(child.GetValue<int>("nodeID") ?? -1, out var index))
+                templates.Add(index);
+            MarkTemplates(child, byNode, templates);
+        }
+    }
+
     private static int Count(DmxBinary.Element group)
     {
         var total = 0;
@@ -151,7 +184,7 @@ public static class MapInstances
     private static void Place(
         Instance instance, Transform outer, Tree tree, Dictionary<int, int> byNode,
         Dictionary<DmxBinary.Element, int> block, ref int next,
-        List<Copy> copies, HashSet<int> templates, int emitAt)
+        List<Copy> copies, HashSet<int> templates, int emitAt, string? layer)
     {
         var at = outer.Then(
             instance.Node.GetValue<Vector3>("origin") ?? Vector3.Zero,
@@ -163,21 +196,21 @@ public static class MapInstances
         var slot = 0;
         var nested = new List<DmxBinary.Element>();
         Emit(instance.Target, at, byNode, copies, templates, emitAt,
-             block.GetValueOrDefault(instance.Node), ref slot, nested);
+             block.GetValueOrDefault(instance.Node), ref slot, nested, layer);
 
         foreach (var inner in nested)
             if (tree.Instances.FirstOrDefault(i => i.Node == inner) is { } found)
             {
                 block[found.Node] = next;
                 next += tree.Nodes.GetValueOrDefault(found.Target) + 1;
-                Place(found, at, tree, byNode, block, ref next, copies, templates, emitAt);
+                Place(found, at, tree, byNode, block, ref next, copies, templates, emitAt, layer);
             }
     }
 
     private static void Emit(
         DmxBinary.Element group, Transform at, Dictionary<int, int> byNode,
         List<Copy> copies, HashSet<int> templates, int emitAt, int start, ref int slot,
-        List<DmxBinary.Element> nested)
+        List<DmxBinary.Element> nested, string? layer)
     {
         foreach (var child in group.GetElements("children"))
         {
@@ -194,9 +227,9 @@ public static class MapInstances
                     emitAt, template, start + index,
                     at.Origin + Vector3.Transform(
                         child.GetValue<Vector3>("origin") ?? Vector3.Zero, Rotation(at.Angles)),
-                    Wrap((child.GetValue<Vector3>("angles") ?? Vector3.Zero) + at.Angles)));
+                    Wrap((child.GetValue<Vector3>("angles") ?? Vector3.Zero) + at.Angles), layer));
             }
-            Emit(child, at, byNode, copies, templates, emitAt, start, ref slot, nested);
+            Emit(child, at, byNode, copies, templates, emitAt, start, ref slot, nested, layer);
         }
     }
 

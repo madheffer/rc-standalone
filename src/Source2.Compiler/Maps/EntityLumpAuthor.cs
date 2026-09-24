@@ -27,7 +27,8 @@ public static class EntityLumpAuthor
     /// </summary>
     private const string NameFixup = "[PR#]";
 
-    /// <summary>Build the lump's DATA tree.</summary>
+    /// <summary>Build the lump's DATA tree, with no template pass: every entity
+    /// the walk (or <paramref name="emit"/>) ships, in order.</summary>
     /// <param name="entities">Entities in the order they should appear.</param>
     /// <param name="schema">The game's FGD, which types the values.</param>
     /// <param name="name">The lump's own name, e.g. <c>default_ents</c>.</param>
@@ -35,14 +36,9 @@ public static class EntityLumpAuthor
     /// <param name="worldName">The map's name, which worldspawn records.</param>
     /// <param name="fixupEntityNames">Whether the map asks for the prefab fixup.</param>
     /// <param name="emit">What this lump carries, in order, each paired with the
-    /// walk index it is numbered by. Null is every walked entity in walk order. The
-    /// two cannot be one list: a child lump is a re-ordered subset, and an
+    /// walk index it is numbered by. Null is every walked entity in walk order. An
     /// instanced copy is not in the walk at all yet carries its template's
-    /// number.</param>
-    /// <param name="lumpNames">Lump name per point_template node id, for the
-    /// templates that own one.</param>
-    /// <param name="template">Set when this is a CHILD lump, which places and
-    /// may rename its members. Null for default_ents.</param>
+    /// number, which is why the two are separate.</param>
     public static KVObject BuildTree(
         IReadOnlyList<MapEntities.Entity> entities,
         FgdSchema? schema,
@@ -50,43 +46,14 @@ public static class EntityLumpAuthor
         IReadOnlyList<string>? childLumps = null,
         string? worldName = null,
         bool fixupEntityNames = false,
-        IReadOnlyList<Emission>? emit = null,
-        IReadOnlyDictionary<int, string>? lumpNames = null,
-        TemplateLump? template = null)
+        IReadOnlyList<Emission>? emit = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
-
-        var root = KVObject.Collection();
-        root.Add("m_name", new KVObject(name));
-
-        var lumps = KVObject.Array();
-        foreach (var child in childLumps ?? [])
-            lumps.Add(new KVObject(child));
-        root.Add("m_childLumps", lumps);
-
-        // An output's override parameter gets the fixup when it NAMES one of the
-        // map's entities. resourcecompiler says so itself while compiling
-        // ze_hold_em_p: "Parameter 'humans' corresponds to an entity target name,
-        // but is sent to input 'SetDamageFilter' ... which is not marked as being
-        // a target name. (FGD Error?)" - and it writes [PR#]humans regardless. So
-        // the test is the map's own name set, not the FGD's input declaration.
-        var entityNames = new HashSet<string>(
-            entities.Select(NameOf).Where(n => n.Length > 0), StringComparer.OrdinalIgnoreCase);
-
-        // The index is the ordinal in the WALK, not in the lump, so it is taken
-        // before the filter and not after. Valve's atixref ships 764 entities out
-        // of 4,601 walked nodes and its compile_source_id values run to 4,600 with
-        // a gap wherever one was filtered.
-        var array = KVObject.Array();
-        var prefabs = HasPointPrefab(entities, schema);
-        var ordinal = 0;
-        foreach (var (entity, sourceId) in emit ?? [.. entities.Select((e, i) => new Emission(e, i))])
-            if (ReachesTheLump(entity, schema))
-                array.Add(BuildEntity(entity, schema, sourceId, worldName, fixupEntityNames,
-                                      prefabs, entityNames, lumpNames,
-                                      template is null ? null : ordinal++, template));
-        root.Add("m_entityKeyValues", array);
-        return root;
+        var context = Context.For(entities, schema, worldName, fixupEntityNames);
+        return Lump(name, childLumps ?? [],
+            (emit ?? [.. entities.Select((e, i) => new Emission(e, i))])
+                .Where(e => ReachesTheLump(e.Entity, schema) && !e.Entity.Hidden)
+                .Select(e => BuildEntity(e.Entity, e.SourceId, context)));
     }
 
     /// <summary>One entity to write, and the walk index it is numbered by.</summary>
@@ -96,22 +63,45 @@ public static class EntityLumpAuthor
     /// which is why Valve's atixref repeats 18 ids across 199 entities.</param>
     public sealed record Emission(MapEntities.Entity Entity, int SourceId);
 
-    /// <summary>
-    /// The point_template a child lump belongs to.
-    /// </summary>
-    /// <param name="Origin">Members are stored in the template's local space.</param>
-    /// <param name="Suffix">Appended to every member NAME, and to every reference
-    /// to one, before the prefab prefix. A template whose spawnflags lack bit 1,
-    /// "preserve entity names", gets <c>&amp;0000</c>: atixref's deadpool_temp and
-    /// snake_temp are the two at spawnflags 0 and the only two whose members are
-    /// renamed.</param>
-    /// <param name="MemberNames">Member names as the SOURCE states them.</param>
-    public sealed record TemplateLump(Vector3 Origin, string Suffix, IReadOnlySet<string> MemberNames)
+    /// <summary>What every entity of one map is built against.</summary>
+    /// <param name="Schema">The game's FGD.</param>
+    /// <param name="WorldName">The map's name.</param>
+    /// <param name="FixupEntityNames">Whether the map asks for the prefab fixup.</param>
+    /// <param name="EntityNames">Every targetname in the map. An output's override
+    /// parameter gets the fixup when it NAMES one of them: resourcecompiler says
+    /// so while compiling ze_hold_em_p ("Parameter 'humans' corresponds to an
+    /// entity target name, but is sent to input 'SetDamageFilter' ... (FGD
+    /// Error?)") and writes [PR#]humans regardless.</param>
+    public sealed record Context(
+        FgdSchema? Schema, string? WorldName, bool FixupEntityNames, IReadOnlySet<string> EntityNames)
     {
-        /// <summary>A member name with its suffix; anything else unchanged.</summary>
-        public string Rename(string name)
-            => Suffix.Length > 0 && MemberNames.Contains(name) ? name + Suffix : name;
+        public static Context For(IReadOnlyList<MapEntities.Entity> entities, FgdSchema? schema,
+                                  string? worldName, bool fixupEntityNames)
+            => new(schema, worldName, fixupEntityNames,
+                   new HashSet<string>(entities.Select(NameOf).Where(n => n.Length > 0),
+                                       StringComparer.OrdinalIgnoreCase));
     }
+
+    /// <summary>A lump's DATA tree around entities already built.</summary>
+    public static KVObject Lump(string name, IEnumerable<string> childLumps, IEnumerable<KVObject> entities)
+    {
+        var root = KVObject.Collection();
+        root.Add("m_name", new KVObject(name));
+        // Each child is a resource reference, flagged as one: Valve's default_ents
+        // carries every m_childLumps entry with the KV3 resource flag.
+        var lumps = KVObject.Array();
+        foreach (var child in childLumps)
+            lumps.Add(new KVObject(child) { Flag = KVFlag.Resource });
+        root.Add("m_childLumps", lumps);
+        var array = KVObject.Array();
+        foreach (var entity in entities)
+            array.Add(entity);
+        root.Add("m_entityKeyValues", array);
+        return root;
+    }
+
+    /// <summary>Compile a lump's DATA tree into a <c>.vents_c</c>.</summary>
+    public static byte[] Compile(KVObject lump) => Source2ContainerAuthor.AuthorKv3Tree(lump, Format, ".vents");
 
     /// <summary>Build and compile the lump.</summary>
     public static byte[] Author(
@@ -121,13 +111,8 @@ public static class EntityLumpAuthor
         IReadOnlyList<string>? childLumps = null,
         string? worldName = null,
         bool fixupEntityNames = false,
-        IReadOnlyList<Emission>? emit = null,
-        IReadOnlyDictionary<int, string>? lumpNames = null,
-        TemplateLump? template = null)
-        => Source2ContainerAuthor.AuthorKv3Tree(
-            BuildTree(entities, schema, name, childLumps, worldName, fixupEntityNames,
-                      emit, lumpNames, template),
-            Format, ".vents");
+        IReadOnlyList<Emission>? emit = null)
+        => Compile(BuildTree(entities, schema, name, childLumps, worldName, fixupEntityNames, emit));
 
     /// <summary>
     /// Whether a walked node is written to the lump at all.
@@ -136,79 +121,65 @@ public static class EntityLumpAuthor
     /// prop_static, whose geometry the compile bakes into the world: atixref walks
     /// 3,952 of them and Valve's lump carries none. <c>editor_only</c> is the path
     /// node classes, which hold a path's shape for Hammer and are serialized into
-    /// the path rather than spawned. Both still take their number.</para>
+    /// the path rather than spawned. Both still take their number. A node the map
+    /// HIDES is a separate case: it is still in the list a point_template searches
+    /// (Mako's hidden Baha_Mat_Earth_Physic ships in its template's lump), so it is
+    /// dropped only when default_ents is written.</para>
     /// </summary>
-    private static bool ReachesTheLump(MapEntities.Entity entity, FgdSchema? schema)
-        => !entity.Hidden
+    public static bool ReachesTheLump(MapEntities.Entity entity, FgdSchema? schema)
+        => entity.ClassName.Length > 0 && !Consumed.Contains(entity.ClassName)
         && (schema is null
         || !(schema.HasFlag(entity.ClassName, "static_prop")
              || schema.HasFlag(entity.ClassName, "editor_only")
              || (schema.IsSolidClass(entity.ClassName) && !entity.HasGeometry && !entity.IsWorld)));
 
     /// <summary>
-    /// True when any entity in the lump is a point prefab, which is what decides
-    /// whether worldspawn carries prefab_has_runtime_entity_by_default: probe01
-    /// places four and gets the key although its source never mentions it, and
-    /// untitled_1 places none and does not.
+    /// Classes the export consumes rather than writes (FUN_180240a60): the
+    /// compile reads a visibility_hint into the world's visibility hints, an
+    /// info_cull_triangles into its culling, and ships none of these as entities.
+    /// Mako places seven visibility_hint and a point_scale_reference_human, and
+    /// Valve's lumps carry none of them.
     /// </summary>
-    private static bool HasPointPrefab(IReadOnlyList<MapEntities.Entity> entities, FgdSchema? schema)
-        => entities.Any(e => (schema?.GameKeysOf(e.ClassName) ?? [])
-            .Any(g => g.Key.Equals("isPointPrefab", StringComparison.OrdinalIgnoreCase)));
-
-    private static KVObject BuildEntity(
-        MapEntities.Entity entity, FgdSchema? schema, int index, string? worldName, bool fixupEntityNames,
-        bool mapHasPointPrefabs, HashSet<string>? entityNames, IReadOnlyDictionary<int, string>? lumpNames,
-        int? templateIndex, TemplateLump? template)
+    private static readonly HashSet<string> Consumed = new(StringComparer.OrdinalIgnoreCase)
     {
+        "point_scale_reference_human", "visibility_hint", "info_cull_triangles",
+        "prop_static", "env_world_lighting", "light_irradvolume", "func_deformable_density",
+    };
+
+    /// <summary>One entity's tree, as default_ents carries it before any
+    /// template pass.</summary>
+    public static KVObject BuildEntity(MapEntities.Entity entity, int index, Context context)
+    {
+        var (schema, worldName, fixupEntityNames, entityNames) = context;
         var values = KVObject.Collection();
 
-        // The compile writes the class's WHOLE key set, not the source's. A map
-        // saved before a key existed still compiles with that key at its FGD
-        // default, which is how probe01's worldspawn ships 30-odd steamaudio
-        // settings its .vmap has never heard of.
-        //
-        // An EMPTY value ships too, since the compiler of 2026-09-23: a string or a
-        // name as "", anything numeric as its zero. Before that update the compile
-        // dropped every empty key, and the two cached compiles of cardtest either
-        // side of it differ in exactly this (targetname "", local.scales [0, 0, 0]).
-        var source = entity.Keys.ToDictionary(k => k.Key, k => k.Value, StringComparer.OrdinalIgnoreCase);
-        foreach (var key in Schema(entity, schema))
-        {
-            if (IsPlacement(key.Name))
-                continue;
-            var text = source.TryGetValue(key.Name, out var authored) ? authored : key.Default ?? "";
-            values.Add(key.Name, text.Length == 0 ? Empty(key) : Typed(key, Rename(key, text, template), fixupEntityNames));
-        }
+        // worldspawn's exporter writes the compile's id before any key
+        // (FUN_180fc1560); every other entity writes it after them (FUN_181004020).
+        if (entity.IsWorld)
+            values.Add("compile_source_id", Integer(index));
 
-        // Anything the source carries that the schema does not know about is still
-        // the mapper's data, and RC keeps it as the string it is - except that a
-        // targetname is a NAME whatever the class is. ze_doom_p2_c_gameplay places
-        // four classes the fgd never declares (func_physbox_multiplayer,
-        // player_speedmod, prop_door_rotating_checkpoint, ambient_music) and Valve
-        // prefixes every one of their names.
-        foreach (var (key, text) in entity.Keys)
+        // The node's key table is the source's keys in source order, then every key
+        // of the class the source lacks, at its FGD default, in the class's
+        // finalized order. The compile writes that table BACKWARDS, which is visible
+        // on every entity: trigger_once 83 ships source1_brushmodel_index first and
+        // classname last, and worldspawn's steamaudio defaults lead in reverse FGD
+        // order. An empty value is typed like any other and ships as "" or a zero.
+        foreach (var (key, text) in KeyTable(entity, schema).AsEnumerable().Reverse())
         {
-            if (IsPlacement(key) || values.ContainsKey(key)
-                || schema?.KeyOf(entity.ClassName, key) is not null)
+            var declared = schema?.KeyOf(entity.ClassName, key);
+            if (declared?.Type == FgdSchema.FieldType.Kv3)
                 continue;
-            values.Add(key, key.Equals("targetname", StringComparison.OrdinalIgnoreCase)
-                ? new KVObject(Fixup(template?.Rename(text) ?? text, fixupEntityNames))
-                : new KVObject(text));
+            // A key the schema does not know stays the mapper's string, except that
+            // a targetname is a NAME whatever the class is. ze_doom_p2_c_gameplay
+            // places four classes the fgd never declares (func_physbox_multiplayer,
+            // player_speedmod, prop_door_rotating_checkpoint, ambient_music) and
+            // Valve prefixes every one of their names.
+            values.Add(key, declared is not null
+                ? Typed(declared, text, fixupEntityNames)
+                : key.Equals("targetname", StringComparison.OrdinalIgnoreCase)
+                    ? new KVObject(Fixup(text, fixupEntityNames))
+                    : new KVObject(text));
         }
-
-        // A path aggregates its nodes into parallel arrays of its own, and records
-        // whether it loops. closed_loop is not an FGD key; it is the CMapPath
-        // node's own closedLoop, and the lump carries it as an integer. A path of
-        // a class the compiler does not know gets its node positions and nothing
-        // else: csgo.fgd excludes path_particle_rope, and none of c2m2's eleven
-        // carries closed_loop or radius scales, while atixref's declared
-        // path_particle_rope_clientside carries both.
-        var knownClass = schema is null || schema.KeysOf(entity.ClassName).Count > 0;
-        if (entity.PathNodes is not null && knownClass && !values.ContainsKey("closed_loop"))
-            values.Add("closed_loop", Integer(entity.ClosedLoop ? 1 : 0));
-        foreach (var (key, value) in PathArrays(entity))
-            if ((knownClass || key == "pathNodes") && !values.ContainsKey(key))
-                values.Add(key, new KVObject(value));
 
         // Keys the CLASS ships rather than the entity. This is how a point prefab
         // works: counterterrorist_team_intro is an ordinary class whose FGD metadata
@@ -221,52 +192,57 @@ public static class EntityLumpAuthor
         // The compile's own identity for the entity: its ordinal in the lump, and
         // the Hammer node it came from. The id is a number and the node is a
         // string, which is Valve's split, not a slip.
-        values.Add("compile_source_id", Integer(index));
+        if (!entity.IsWorld)
+            values.Add("compile_source_id", Integer(index));
 
-        // A point_template's members are stored in the TEMPLATE's local space, and
-        // each carries its ordinal in the lump. Valve's heli_template sits at
-        // (299, 1091.37, 395) and every one of its four members is offset by
-        // exactly that, on three maps and every lump measured.
-        if (templateIndex is { } ordinal)
-            values.Add("_template_lump_ent_index", Integer(ordinal));
-        values.Add("origin", Vector(entity.Origin - (template?.Origin ?? Vector3.Zero)));
+        values.Add("origin", Vector(entity.Origin));
         values.Add("angles", Vector(entity.Angles));
         values.Add("scales", Vector(entity.Scales));
         values.Add("hammerUniqueId", new KVObject(entity.NodeId.ToString(CultureInfo.InvariantCulture)));
+
+        // A path's nodes are folded into keys of its own, written after the
+        // entity's (FUN_1810b5480).
+        foreach (var (key, value) in PathKeys(entity, schema))
+            values.Add(key, value);
 
         // A brush entity's geometry is compiled into a model of its own, and the
         // entity is pointed at it by name. The path is derived, not looked up:
         // Valve's cardtest compile names the model of brush entity 2138
         // "ImpModel" maps/cardtest/entities/impmodel_2138.vmdl.
         if (entity.HasGeometry && worldName is { Length: > 0 })
-            values.Add("model", new KVObject(BrushModelPath(entity, worldName)));
-
-        // A point_template's members are compiled into a lump of their own, and the
-        // template is what names it. The world is recorded with a BACKSLASH, which
-        // is how Valve writes it and not how the model paths above are written.
-        if (lumpNames is not null && lumpNames.TryGetValue(entity.NodeId, out var lump))
         {
-            values.Add("entityLumpName", new KVObject(lump));
-            if (worldName is { Length: > 0 })
-                values.Add("worldName", new KVObject("maps\\" + worldName));
+            var model = new KVObject(BrushModelPath(entity, worldName));
+            model.Flag = KVFlag.ResourceName;
+            values.Add("model", model);
         }
 
         if (entity.IsWorld)
         {
-            if (mapHasPointPrefabs && !values.ContainsKey("prefab_has_runtime_entity_by_default"))
-                values.Add("prefab_has_runtime_entity_by_default", new KVObject("0"));
             if (worldName is { Length: > 0 })
                 values.Add("worldname", new KVObject(worldName));
             values.Add("mapUsageType", new KVObject("standard"));
         }
 
+        // An info_world_layer names its layer's lump (FUN_180240a60): its
+        // layerName gains the lump's "world_layer_" prefix where it stands, and the
+        // map's name follows every other key.
+        if (entity.ClassName.Equals("info_world_layer", StringComparison.OrdinalIgnoreCase))
+        {
+            var layerKey = values.Keys.FirstOrDefault(k => k.Equals("layername", StringComparison.OrdinalIgnoreCase));
+            if (layerKey is not null)
+                values[layerKey] = new KVObject("world_layer_" + values[layerKey]);
+            if (worldName is { Length: > 0 })
+                values.Add("worldname", new KVObject(worldName));
+        }
+
+        // version is written through the 0/1 path like any other 1: Int64.
         var keyValues = KVObject.Collection();
-        keyValues.Add("version", new KVObject(1));
+        keyValues.Add("version", Integer(1));
         keyValues.Add("values", values);
         keyValues.Add("attributes", KVObject.Collection());
 
         var result = KVObject.Collection();
-        result.Add("m_connections", Connections(entity, fixupEntityNames, entityNames, template));
+        result.Add("m_connections", Connections(entity, fixupEntityNames, entityNames));
         result.Add("m_keyValuesData", KVObject.Blob([]));
         result.Add("keyValues3Data", keyValues);
         return result;
@@ -283,98 +259,188 @@ public static class EntityLumpAuthor
     private static string Fixup(string name, bool enabled)
         => enabled && name.Length > 0 && name[0] != '!' ? NameFixup + name : name;
 
+    /// <summary>
+    /// ENTITY_CONNECTION_TARGET_NAME, the target type every connection carries.
+    /// The lump stores the enum's value, not its name: 4,543 connections on Mako,
+    /// 613 on atixref and 145 on ze_hold_em_p, <c>!activator</c> targets
+    /// included, all UInt32 7.
+    /// </summary>
+    private const uint TargetByName = 7;
+
+    /// <summary>
+    /// The outputs, each serialized through EntityIOConnectionData_t's schema
+    /// (FUN_1803670b0): four strings, the target type as its enum, the delay as a
+    /// float widened to double, the fire count as an int32 (so -1 is Int32 and 1
+    /// the KV3 one), and an empty parameter map written as null.
+    /// </summary>
     private static KVObject Connections(MapEntities.Entity entity, bool fixupEntityNames,
-                                        HashSet<string>? entityNames, TemplateLump? template)
+                                        IReadOnlySet<string> entityNames)
     {
         var array = KVObject.Array();
         foreach (var c in entity.Connections)
         {
             var o = KVObject.Collection();
             o.Add("m_outputName", new KVObject(c.OutputName));
-            o.Add("m_targetType", new KVObject("ENTITY_CONNECTION_TARGET_NAME"));
-            o.Add("m_targetName", new KVObject(
-                Fixup(template?.Rename(c.TargetName) ?? c.TargetName, fixupEntityNames)));
+            o.Add("m_targetType", new KVObject(TargetByName));
+            o.Add("m_targetName", new KVObject(Fixup(c.TargetName, fixupEntityNames)));
             o.Add("m_inputName", new KVObject(c.InputName));
             o.Add("m_overrideParam", new KVObject(
-                entityNames?.Contains(c.OverrideParam) == true
-                    ? Fixup(template?.Rename(c.OverrideParam) ?? c.OverrideParam, fixupEntityNames)
-                    : c.OverrideParam));
-            o.Add("m_flDelay", new KVObject(c.Delay));
-            o.Add("m_nTimesToFire", new KVObject(c.TimesToFire));
+                entityNames.Contains(c.OverrideParam) ? Fixup(c.OverrideParam, fixupEntityNames) : c.OverrideParam));
+            o.Add("m_flDelay", new KVObject((double)c.Delay));
+            o.Add("m_nTimesToFire", Integer(c.TimesToFire));
+            o.Add("m_paramMap", KVObject.Null());
             array.Add(o);
         }
         return array;
     }
 
-    /// <summary>A member's name carries the lump's suffix; only a name-typed key
-    /// is eligible, so a value that merely reads like one is left alone.</summary>
-    private static string Rename(FgdSchema.Key key, string text, TemplateLump? template)
-        => template is null || key.Type != FgdSchema.FieldType.EntityName ? text : template.Rename(text);
-
     /// <summary>
-    /// The three arrays a path writes for its nodes, each as KV3 TEXT in a string
-    /// value rather than as a real array.
+    /// The keys a path writes for its nodes (FUN_1810b5480), in its order:
+    /// pathNodes, pathNodeNames when any node is named, the two radius arrays when
+    /// any node is off 1.0, closed_loop when the class supports loops, and one
+    /// array per node class key that declares a write_to_path_key. The arrays are
+    /// KV3 TEXT in string values, not real arrays.
     ///
-    /// <para><c>pathNodes</c> is nine floats a node: its position relative to the
-    /// path, then the in and out tangents. The tangents are not authored, they are
-    /// derived, and it is one segment at a time rather than any smoothing across
-    /// the path: each is a third of the way to the neighbour, and zero at an end.
-    /// Checked against a five node rope where every one of the ten tangents is
-    /// exactly (neighbour - node) / 3.</para>
-    ///
-    /// <para>The other two come from the node's own game keys, and the key is
-    /// written only when a node declares it: c2m2 has ropes with radii and no
-    /// pins, and ropes with pins and no radii.</para>
+    /// <para>pathNodeColors is also written when a node's colour is off white, but
+    /// it comes from a node getter this port has not traced to its attribute, and
+    /// no map measured writes one.</para>
     /// </summary>
-    private static IEnumerable<KeyValuePair<string, string>> PathArrays(MapEntities.Entity entity)
+    private static IEnumerable<KeyValuePair<string, KVObject>> PathKeys(MapEntities.Entity entity, FgdSchema? schema)
     {
-        if (entity.PathNodes is not { Count: > 0 } nodes)
+        if (entity.PathNodes is not { } nodes)
             yield break;
 
+        // A closed loop repeats its first node at the end, when the class allows
+        // loops and there is more than one node (FUN_1810b7ca0).
+        var loops = schema?.HasFlag(entity.ClassName, "supports_loop") == true;
         var rows = new List<string>();
         for (var i = 0; i < nodes.Count; i++)
+            rows.Add(Kv3Array(PathNode(entity, nodes, i), 2));
+        if (entity.ClosedLoop && loops && nodes.Count > 1)
+            rows.Add(rows[0]);
+        yield return new("pathNodes", new KVObject(Kv3Rows(rows)));
+
+        var names = string.Concat(nodes.Select((n, i) => (Name: NodeKey(n, "node_name") ?? "", Index: i))
+            .Where(n => n.Name.Length > 0).Select(n => $"{n.Index}: {n.Name};"));
+        if (names.Length > 0)
+            yield return new("pathNodeNames", new KVObject(names));
+
+        var radii = nodes.Select(n => RadiusScales(n, schema)).ToList();
+        if (radii.Any(r => r.Radius != 1f || r.Height != 1f))
         {
-            var here = nodes[i].Origin - entity.Origin;
-            var back = i > 0 ? Handle(nodes[i - 1].Origin - nodes[i].Origin) : Vector3.Zero;
-            var on = i < nodes.Count - 1 ? Handle(nodes[i + 1].Origin - nodes[i].Origin) : Vector3.Zero;
-            rows.Add(Kv3Array([here.X, here.Y, here.Z, back.X, back.Y, back.Z, on.X, on.Y, on.Z], 2));
+            yield return new("pathNodeRadiusScales", new KVObject(Kv3Array([.. radii.Select(r => r.Radius)], 1)));
+            yield return new("pathNodeRadiusHeightScales", new KVObject(Kv3Array([.. radii.Select(r => r.Height)], 1)));
         }
-        yield return new("pathNodes", Kv3Rows(rows));
 
-        // A node that does not carry a radius scale counts as zero rather than as
-        // the fgd's 1.0, and the array is skipped entirely when every node is at
-        // 1.0 and it would say nothing. atixref writes [2.0, 2.0], c2m2 writes
-        // [0.0 ...] for nodes of a class that has no such key, and c2m2's ropes
-        // whose nodes are all at 1.0 carry no array at all.
-        float[] radii = [.. nodes.Select(n => float.TryParse(NodeKey(n, "radius_scale"),
-            NumberStyles.Float, CultureInfo.InvariantCulture, out var r) ? r : 0f)];
-        if (radii.Any(r => r != 1f))
-            yield return new("pathNodeRadiusScales", Kv3Array(radii, 1));
+        if (loops)
+            yield return new("closed_loop", Integer(entity.ClosedLoop ? 1 : 0));
 
-        if (nodes.Any(n => NodeKey(n, "pin_enabled") is not null))
-            yield return new("pathNodePinsEnabled", Kv3Words(
-                [.. nodes.Select(n => ParseBool(NodeKey(n, "pin_enabled") ?? "0") ? "true" : "false")]));
+        // The node class is the path class's path_node_class, if that is a path node
+        // class, and path_node_generic otherwise.
+        var nodeClass = schema?.MetadataOf(entity.ClassName, "path_node_class") ?? "path_node_generic";
+        if (schema is null || !schema.IsPathNodeClass(nodeClass))
+            nodeClass = "path_node_generic";
+        foreach (var key in schema?.KeysOf(nodeClass) ?? [])
+            if (key.WriteToPathKey is { Length: > 0 } pathKey
+                && nodes.Any(n => (NodeKey(n, key.Name) ?? "").Length > 0))
+                yield return new(pathKey, new KVObject(Kv3Words(
+                    [.. nodes.Select(n => PathValue(key, NodeKey(n, key.Name) ?? ""))])));
     }
 
     /// <summary>
-    /// A node's control handle: a third of the way to its neighbour, but computed
-    /// as a DIRECTION and a length rather than by dividing the offset.
-    ///
-    /// <para>That round trip is visible in the output and is the only way to land
-    /// on Valve's floats. A rope leg of (-446, -171, 0) divided by three gives
-    /// exactly -57 on the second component and Valve writes -57.000004; one of
-    /// (191, 627, 170) gives exactly 209 and Valve writes 209.00002. Normalising
-    /// and rescaling reproduces both, and every component of all four legs
-    /// measured.</para>
+    /// One node's nine floats: its position relative to the path, then its in and
+    /// out tangents (FUN_1810b7ca0, FUN_181110ba0). The path's interpolationType 0
+    /// or 1 decides the tangent type of every node; otherwise each node's own does.
+    /// A missing neighbour at an end is the node itself.
     /// </summary>
-    private static Vector3 Handle(Vector3 offset)
+    private static float[] PathNode(MapEntities.Entity path, IReadOnlyList<MapEntities.PathNode> nodes, int i)
     {
-        var length = offset.Length();
+        var here = nodes[i].Origin;
+        var previous = i > 0 ? nodes[i - 1].Origin : here;
+        var next = i < nodes.Count - 1 ? nodes[i + 1].Origin : here;
+        int TypeOf(int own) => path.InterpolationType is 0 or 1 ? path.InterpolationType : own;
+        var toLocal = TemplateTransform.Invert(TemplateTransform.AngleMatrix(path.Origin, path.Angles));
+        var inward = Rotate(toLocal, Tangent(TypeOf(nodes[i].InTangentType), next, here, previous, nodes[i].InTangent));
+        var outward = Rotate(toLocal, Tangent(TypeOf(nodes[i].OutTangentType), previous, here, next, nodes[i].OutTangent));
+        var local = Rotate(toLocal, here) + new Vector3(toLocal[3], toLocal[7], toLocal[11]);
+        return [local.X, local.Y, local.Z, inward.X, inward.Y, inward.Z, outward.X, outward.Y, outward.Z];
+    }
+
+    /// <summary>
+    /// A vector through a path's world-to-local rotation, as the path export
+    /// applies it to every position and tangent. It is visible even on a path with
+    /// no rotation: the zero products it adds turn a tangent's -0 into the 0.0
+    /// Valve prints for Mako's cable. Paths with angles have no specimen yet, so
+    /// only the zero-rotation case is measured.
+    /// </summary>
+    private static Vector3 Rotate(float[] m, Vector3 v)
+        => new(v.X * m[0] + v.Y * m[1] + v.Z * m[2],
+               v.X * m[4] + v.Y * m[5] + v.Z * m[6],
+               v.X * m[8] + v.Y * m[9] + v.Z * m[10]);
+
+    /// <summary>
+    /// A tangent by its type (FUN_1812806d0), toward <paramref name="toward"/>:
+    /// type 0 points at it, type 1 runs from <paramref name="away"/> to it (so a
+    /// middle node's handles are parallel), type 2 is the authored direction and
+    /// type 3 the authored tangent untouched. The first three are scaled to a third
+    /// of the distance to <paramref name="toward"/>.
+    ///
+    /// <para>The direction is normalised and then scaled rather than divided,
+    /// which is visible in the output: a rope leg of (-446, -171, 0) divided by
+    /// three is exactly -57 and Valve writes -57.000004. The squared lengths sum
+    /// z, then y, then x, as the binary does.</para>
+    /// </summary>
+    private static Vector3 Tangent(int type, Vector3 away, Vector3 here, Vector3 toward, Vector3 authored)
+    {
+        if (type == 3)
+            return authored;
+        var direction = type switch
+        {
+            0 => Normalise(toward - here),
+            1 => Normalise(toward - away),
+            2 => Normalise(authored),
+            _ => Vector3.Zero,
+        };
+        var offset = here - toward;
+        var third = MathF.Sqrt(offset.Z * offset.Z + offset.Y * offset.Y + offset.X * offset.X) / 3f;
+        return new Vector3(direction.X * third, direction.Y * third, direction.Z * third);
+    }
+
+    private static Vector3 Normalise(Vector3 v)
+    {
+        var length = MathF.Sqrt(v.Z * v.Z + v.Y * v.Y + v.X * v.X);
         if (length == 0f)
             return Vector3.Zero;
-        var unit = offset * (1f / length);
-        return unit * (length / 3f);
+        var inverse = 1f / length;
+        return new Vector3(inverse * v.X, inverse * v.Y, inverse * v.Z);
     }
+
+    /// <summary>
+    /// A node's radius and height scale (FUN_181111cc0): 1 and 1 unless its class
+    /// declares radius_scale, then that key's value for both, or radius_scale and
+    /// radius_scale_height when it declares both. A declared key the node does not
+    /// carry reads as 0 (FUN_180f32050).
+    /// </summary>
+    private static (float Radius, float Height) RadiusScales(MapEntities.PathNode node, FgdSchema? schema)
+    {
+        var nodeClass = NodeKey(node, "classname") ?? "";
+        if (schema?.KeyOf(nodeClass, "radius_scale") is null)
+            return (1f, 1f);
+        var radius = CNumbers.Atof(NodeKey(node, "radius_scale") ?? "");
+        return schema.KeyOf(nodeClass, "radius_scale_height") is null
+            ? (radius, radius)
+            : (radius, CNumbers.Atof(NodeKey(node, "radius_scale_height") ?? ""));
+    }
+
+    /// <summary>One node's value for a write_to_path_key array, by the key's type
+    /// (FUN_1810bfd50).</summary>
+    private static string PathValue(FgdSchema.Key key, string text) => key.Type switch
+    {
+        FgdSchema.FieldType.Boolean => ParseBool(text) ? "true" : "false",
+        FgdSchema.FieldType.Integer => ((int)CNumbers.Atoi(text)).ToString(CultureInfo.InvariantCulture),
+        FgdSchema.FieldType.Float => Number(CNumbers.Atof(text)),
+        _ => "\"" + text + "\"",
+    };
 
     private static string? NodeKey(MapEntities.PathNode node, string name)
         => node.Keys.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
@@ -470,20 +536,28 @@ public static class EntityLumpAuthor
             : new KVObject((int)value);
 
     /// <summary>
-    /// The class's keys, and <c>classname</c>, which no FGD declares because it IS
-    /// the class.
+    /// The entity node's key table in the order it was filled: the source's keys
+    /// as the source lists them (placement lives on the node, not here), then
+    /// every key of the class the source lacks, at its FGD default, in the class's
+    /// finalized order.
     /// </summary>
-    private static IEnumerable<FgdSchema.Key> Schema(MapEntities.Entity entity, FgdSchema? schema)
+    private static List<KeyValuePair<string, string>> KeyTable(MapEntities.Entity entity, FgdSchema? schema)
     {
-        yield return new FgdSchema.Key("classname", FgdSchema.FieldType.String, entity.ClassName);
+        var table = new List<KeyValuePair<string, string>>();
+        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, text) in entity.Keys)
+            if (!IsPlacement(key) && present.Add(key))
+                table.Add(new(key, text));
         foreach (var key in schema?.KeysOf(entity.ClassName) ?? [])
-            if (!key.Name.Equals("classname", StringComparison.OrdinalIgnoreCase))
-                yield return key;
+            if (!IsPlacement(key.Name) && present.Add(key.Name))
+                table.Add(new(key.Name, key.Default ?? ""));
+        return table;
     }
 
     /// <summary>
-    /// A key's value at the type its class declares. An unparseable number stays a
-    /// string rather than becoming a guess.
+    /// A key's value at the type its class declares, case for case as the lump
+    /// writer converts it (FUN_180fa84e0). Every case turns an empty or bad value
+    /// into its zero rather than keeping the text.
     /// </summary>
     private static KVObject Typed(FgdSchema.Key key, string text, bool fixupEntityNames)
         => key.Type switch
@@ -492,68 +566,49 @@ public static class EntityLumpAuthor
             // one rewritten by the compile. RC does it by TYPE, not by meaning: a
             // light_environment's ambient_occlusion_proxy_position_0 is declared
             // target_destination and holds "0 0 0", and ships as "[PR#]0 0 0".
-            FgdSchema.FieldType.EntityName when fixupEntityNames => new KVObject(Fixup(text, true)),
-            FgdSchema.FieldType.Boolean => new KVObject(ParseBool(text)),
-            // A particle reference names a file, and the compile finishes the name
-            // when the author gave a bare one.
-            FgdSchema.FieldType.ParticleSystem
-                => new KVObject(text.AsSpan(text.LastIndexOf('/') + 1).Contains('.') ? text : text + ".vpcf"),
-            FgdSchema.FieldType.Integer when long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)
-                => Integer(i),
-            // An integer key holding a decimal is TRUNCATED, not left a string. One
-            // of atixref's fifteen func_door carries wait "0.600000" against a
-            // wait(integer) declaration and Valve's lump has Int64 0.
-            FgdSchema.FieldType.Integer when double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
-                => Integer((long)d),
-            // A flags field ships UNSIGNED: func_brush's spawnflags 2 is UInt32,
-            // not the Int32 the ordinary rule would give it. But 0 and 1 keep the
-            // ordinary rule and ship Int64, which is the same exception
-            // <see cref="Integer"/> already makes. ze_hold_em_p shows both sides on
-            // ONE class: func_door has six spawnflags 0 as Int64 and seven
-            // spawnflags 6144 as UInt32, so this is the value's rule, not the
-            // class's.
-            FgdSchema.FieldType.Flags when uint.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var u)
-                => u is 0 or 1 ? Integer(u) : new KVObject(u),
-            // A float key is parsed at 32-bit precision and widened, so 0.1 lands
-            // as 0.10000000149011612 exactly as Valve's lump has it.
-            FgdSchema.FieldType.Float when float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var f)
-                => new KVObject((double)f),
-            FgdSchema.FieldType.Vector when Numbers(text) is { Length: > 0 } v
-                => Array(v.Select(x => new KVObject((double)(float)x))),
-            FgdSchema.FieldType.Vector2 when Numbers(text) is { Length: > 0 } v2
-                => Array(v2.Take(2).Select(x => new KVObject((double)(float)x))),
-            // A colour ships as THREE components even when the schema type carries
-            // alpha and the value has four: point_worldtext's color is declared
-            // color255alpha and defaults to "0 0 0 255", and Valve's lump has
-            // [0, 0, 0].
-            FgdSchema.FieldType.Color when Numbers(text) is { Length: > 0 } c
-                => Array(c.Take(3).Select(x => Integer((long)x))),
+            FgdSchema.FieldType.EntityName => new KVObject(Fixup(text, fixupEntityNames)),
+            FgdSchema.FieldType.Boolean
+                => new KVObject(text.Equals("true", StringComparison.OrdinalIgnoreCase) || CNumbers.Atoi(text) != 0),
+            // V_atoi, so a decimal is truncated: one of atixref's fifteen func_door
+            // carries wait "0.600000" against wait(integer) and ships Int64 0.
+            FgdSchema.FieldType.Integer => Integer((int)CNumbers.Atoi(text)),
+            FgdSchema.FieldType.Int32 => Integer(CNumbers.ToInt32(text)),
+            // A flags field ships UNSIGNED: func_brush's spawnflags 2 is UInt32. The
+            // KV3 zero and one are still Int64, which ze_hold_em_p's func_door shows
+            // on one class: six spawnflags 0 as Int64, seven 6144 as UInt32.
+            FgdSchema.FieldType.Flags => Unsigned(CNumbers.ToUInt32(text)),
+            // A 32-bit float widened, so 0.1 lands as 0.10000000149011612.
+            FgdSchema.FieldType.Float => new KVObject((double)CNumbers.ToFloat32(text)),
+            FgdSchema.FieldType.Vector2 => Floats(CNumbers.Scan(text, 2)),
+            FgdSchema.FieldType.Vector or FgdSchema.FieldType.Angle => Floats(CNumbers.FloatArray(text, 3)),
+            FgdSchema.FieldType.Vector4 => Floats(CNumbers.FloatArray(text, 4)),
+            FgdSchema.FieldType.Color => Color(CNumbers.ToColor(text)),
+            FgdSchema.FieldType.Resource => Resource(text, key.Extension),
             _ => new KVObject(text),
         };
 
-    /// <summary>What an empty value ships as: a Boolean false, a vector of zeros
-    /// (trigger_hurt's damageforce and every local.scales are [0, 0, 0]), a
-    /// numeric zero, and otherwise the empty string.</summary>
-    private static KVObject Empty(FgdSchema.Key key) => key.Type switch
-    {
-        FgdSchema.FieldType.Boolean => new KVObject(false),
-        FgdSchema.FieldType.Vector => Array(Enumerable.Repeat(0, 3).Select(_ => new KVObject(0.0))),
-        FgdSchema.FieldType.Vector2 => Array(Enumerable.Repeat(0, 2).Select(_ => new KVObject(0.0))),
-        FgdSchema.FieldType.Float => new KVObject(0.0),
-        FgdSchema.FieldType.Integer or FgdSchema.FieldType.Flags => Integer(0),
-        _ => new KVObject(""),
-    };
+    private static KVObject Unsigned(uint value) => value is 0 or 1 ? Integer(value) : new KVObject(value);
 
-    /// <summary>The numbers in a whitespace-separated value, or empty when any part
-    /// is not one - a malformed vector stays the string the mapper typed.</summary>
-    private static double[] Numbers(string text)
+    private static KVObject Floats(float[] values)
+        => Array(values.Select(f => new KVObject((double)f)));
+
+    /// <summary>
+    /// A colour as the KV3 colour setter writes it (FUN_181eb82c0): its channels
+    /// as unsigned 32-bit, three of them, and the alpha only when it is not 255.
+    /// point_worldtext's color255alpha "0 0 0 255" ships as [0, 0, 0].
+    /// </summary>
+    private static KVObject Color((byte R, byte G, byte B, byte A) c)
+        => Array((c.A == 255 ? new uint[] { c.R, c.G, c.B } : [c.R, c.G, c.B, c.A]).Select(v => new KVObject(v)));
+
+    /// <summary>
+    /// A resource reference, fixed up the way FUN_181c1ee80 does it and flagged as
+    /// a resource name.
+    /// </summary>
+    private static KVObject Resource(string text, string extension)
     {
-        var parts = text.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-        var values = new double[parts.Length];
-        for (var i = 0; i < parts.Length; i++)
-            if (!double.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out values[i]))
-                return [];
-        return values;
+        var value = new KVObject(ResourcePath.Fixup(text, extension));
+        value.Flag = KVFlag.ResourceName;
+        return value;
     }
 
     private static KVObject Array(IEnumerable<KVObject> items)

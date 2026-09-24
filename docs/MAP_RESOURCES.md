@@ -264,7 +264,22 @@ that differs has to be named in the test, so the list only shrinks.
 | + the two prefab sources, 7 maps and 1,820 entities | 82 | 12 |
 | + every lump, not just default_ents: 95 classes, 1,889 entities | 82 | 14 |
 | after instances expand: every entity, in order, with Valve's ids | 82 | 13 |
-| + paths, particles, and a map of multi-node ropes: 8 maps, 2,641 entities | **84** | **14** |
+| + paths, particles, and a map of multi-node ropes: 8 maps, 2,641 entities | 84 | 14 |
+| compared STRICTLY: every value's type down to array elements, KV3 flags, key order, entity order, every connection field | 58 | 36 |
+| after the typing, order, connection and template rules below | **94** | **8** |
+
+The strict row is the honest one. The comparison used before it read connections
+as four strings, printed arrays without their element types and ignored order, so
+Int32 colour channels passed for Valve's UInt32 ones, a connection's delay type and
+fire count were never looked at, and no key or entity order was checked. Turning
+that on took the exact classes from 84 to 58; what is left after the work below is
+the lights, the settled physics props, one rope's name and one map's instance
+numbering, each in the table at the end of this section.
+
+`EntityLumpAgainstValveTests` now compares EVERY lump of seven maps (Mako among
+them) against Valve's, and fails on any difference outside a written list of gaps.
+ze_doom_p2_c_gameplay (11 lumps) and c2m2_fairgrounds_csgo_gameplay come out with
+no difference at all.
 
 Widening the corpus is what made the work possible, and it first made the numbers
 look far worse. That was honest: atixref is a real zombie escape map with 4,588
@@ -410,36 +425,131 @@ Its copies are written inline among the outer placement's, so the lump alternate
 the outer group's entity and the inner one. The transforms compose, the outer
 placement's rotation applying to the inner placement's offset.
 
-### Child entity lumps
+### Template lumps: the pass that builds them
 
-A map compiles to more than `default_ents`. atixref also gets ten
-`maps/atixref/entities/<nodeid>#entitylumpname.vents_c`, and it has exactly ten
-`point_template` entities. The template names its lump in `entityLumpName`
-(`367#entityLumpName`) and the world it came from in `worldName`
-(`maps\atixref`, backslash as shown).
+A map compiles to more than `default_ents`. The compile builds default_ents'
+entities, then runs a template pass over that list: every entity whose FGD class
+carries `create_entity_template_lumps` metadata gets a lump of its own,
+`maps/<map>/entities/<nodeid>#entitylumpname.vents_c`. point_template is the one
+class a CS2 map uses; npc_template_maker declares the other mode.
 
-The 57 entities in those lumps are the template's contents: lump `187` holds nine
-`func_button`, two `point_soundevent`, a `logic_case`, two `trigger_teleport`, a
-`point_teleport`, a `func_breakable` and a `logic_relay`. They keep the
-`compile_source_id` their source node was given in the main walk, so the numbering
-is already right for them.
+For each of Template01 to Template128, in slot order, the pass takes a COPY of
+every entity in the list whose name matches, in list order. Three consequences,
+each visible in Valve's output:
 
-### FGD type aliases (FIXED)
+- A name listed twice is copied twice. Mako's bridge train template names
+  Bridge_Train_Sound in two slots and its lump holds the sound twice.
+- An entity two templates name is copied into both. There is no "first template
+  claims it" rule; an earlier version of this compiler had one.
+- The wildcards are in the ENTITY's name, not in the template's string: the
+  comparison is called with the targetname first. `*` and `?` in a targetname
+  match the template's literal.
 
-The FGD spells the same types more than one way, and reading an alias as a plain
-string is a per-class difference:
+Each copy is placed in the template's local space through matrices: its origin
+and angles become a matrix, the template's inverse is applied, and the result is
+read back. Reading angles back through a matrix is why members at yaw 270 ship as
+pitch -0, yaw -90: atan2 of a negative zero is a negative zero, and the yaw lands
+in (-180, 180]. Every sum is in the binary's own order and the trigonometry is the
+CRT's, which is what lands on Valve's floats. A copy then gets
+`_template_lump_ent_index`, its place in the lump, after every other key.
 
-| declared | is | evidence |
-|---|---|---|
-| `bool` | Boolean | `path_particle_rope_clientside.static_collision( bool )` ships Boolean 0 |
-| `node_id` | Integer | `info_particle_system.snapshot_mesh(node_id)` ships Int64 0 |
+Unless spawnflag 2 ("preserve entity names") is set, each member with a name
+gets the suffix `&0000`, and every STRING value in every member that equals one
+of the old names is rewritten, with each output's target and parameter. It is by
+value, not by key type, and only inside the lump. The template then records
+`worldName` (the map's path without its extension, with backslashes:
+`maps\atixref`), `entityLumpName`, and `TemplateFixup` true when it renamed
+anything, in that order, after its other keys.
 
-An integer key holding a decimal is **truncated**, not left a string: one of
-atixref's fifteen `func_door` carries `wait "0.600000"` against a `wait(integer)`
-declaration and Valve's lump has Int64 0.
+When every template is done, the originals are removed from the list, all
+entities matching each member name, unless the template's spawnflag 1 ("don't
+remove template entities") is set: Mako's zombie jail knife ships in its lump and
+in default_ents. A member the map HIDES is still in the list the templates
+search, so it ships in the lump and not in default_ents (Mako's
+Baha_Mat_Earth_Physic).
 
-Still untested, with no evidence either way: `int` (17 uses), `vecline` (11),
-`local_point`, `npcclass`.
+default_ents lists its child lumps, each path flagged as a KV3 resource: the world
+layers first, then the template lumps in the order the pass made them.
+
+### Typing: resourcecompiler's own type table (FIXED)
+
+Every key is typed through the class's FGD declaration, by the compiler's own
+table of type names to ids and a switch over those ids, both now ported rather
+than approximated:
+
+| declared type | ships as |
+|---|---|
+| `integer`, `int`, `intchoices` | V_atoi, a prefix read: `"0.600000"` is 0, `"12abc"` is 12 |
+| `node_id` | a strict int32: anything that does not parse to the end is 0 |
+| `flags` | a strict uint32, UInt32 except the KV3 zero and one |
+| `float`, `floatchoices` | a strict float, widened to double |
+| `boolean`, `bool` | true for `"true"` in any case, else V_atoi is nonzero |
+| `vector`, `angle` | three floats, read until one fails, the rest zero |
+| `vector2d` | two floats, as sscanf reads them |
+| `vector4d` | four floats |
+| `color255`, `color255alpha` | three UInt32 channels, four when alpha is not 255; black for anything V_StringToColor refuses, trailing blanks included |
+| `studio`, `sprite`, `material`, `decal`, `particlesystem`, `resource:<kind>` | a path with that kind's extension set, normalised, lower case, flagged as a resource name; a rooted or absolute path is empty |
+| `kv3` | not written by the key writer at all |
+| everything else, `choices` and the name types included | the text |
+
+`resource:<kind>` maps a short list of kinds (texture, material, mesh, particle,
+model, collisionmesh, sky, map, postprocessing, snapshot) to extensions and takes
+anything else as the extension itself. A type name the compiler does not know
+fails the whole class, which is then not loaded.
+
+The class's keys are FINALIZED the compiler's way: each base's keys in the order
+the bases are listed, then the class's own; a redeclared key keeps the place it
+first had and takes the new declaration; `remove_key` takes a key out; an
+`@OverrideClass` merges into the class's own keys and adds no bases. Metadata
+flags and values are inherited the same way, which is how
+path_particle_rope_clientside gets its base's supports_loop. A key's spelling is
+the source's when the source carries it, which is how `SourceEntityName` and
+`startsound` keep the spelling Valve ships.
+
+### Key order: the node's table, backwards
+
+The entity node's keys are the source's in source order, then every key of the
+class the source lacks at its FGD default, in the finalized order. The compile
+writes that table BACKWARDS: trigger_once 83 on ze_hold_em_p ships
+source1_brushmodel_index first and classname last. After it come the class's game
+keys, then compile_source_id, origin, angles, scales and hammerUniqueId, then a
+path's keys, the brush model, and what later passes add. worldspawn is the one
+exception: its exporter writes compile_source_id before its keys.
+
+A map saved before vmap 38 is upgraded on load and its world given
+`prefab_has_runtime_entity_by_default "0"` when it lacks the key, after its own
+keys. atixref and ze_hold_em_p (vmap 37) and probe01 (35) ship it; Mako and
+untitled_1 (40) do not; cardtest (40) ships it because its source carries it.
+
+### Connections: serialised through their schema
+
+An output is not written as text. It goes through EntityIOConnectionData_t's
+schema: the output, target, input and parameter as strings, the target type as its
+enum (UInt32 7, ENTITY_CONNECTION_TARGET_NAME, on all 5,301 connections of the
+three ZE specimens, `!activator` targets included), the delay as a float widened
+to double, the fire count as an int32 (so -1 is Int32 and 1 the KV3 one), and an
+empty parameter map written as null. Every connection of atixref, ze_hold_em_p and
+Mako now matches in every field.
+
+### Classes the export consumes
+
+A few classes are read by the compile and never shipped: `visibility_hint` goes
+into the world's visibility hints, `info_cull_triangles` into its culling, and
+`point_scale_reference_human`, `env_world_lighting`, `light_irradvolume` and
+`func_deformable_density` are dropped outright, as is an entity with no class.
+Mako places seven visibility_hint and a scale reference, and Valve's lumps carry
+none of them.
+
+### World layers
+
+A `CMapWorldLayer` is a lump of its own, `world_layer_<name>.vents_c`, holding the
+entities under it; an instance's copies go with the layer the instance sits in.
+Numbering stays global. The template pass runs over default_ents first and then
+each layer, and every lump it makes is a child of default_ents after the layers.
+An `info_world_layer` gets `world_layer_` in front of its layerName, where the key
+stands, and `worldname` after every other key.
+
+An instance the map hides places nothing and does not ship its group either.
 
 ### Integer width on spawnflags (FIXED)
 
@@ -498,18 +608,28 @@ also gets no `closed_loop` or radius scales, only its node positions (c2m2's
 eleven `path_particle_rope`). Still open: c2m2's one named rope keeps its
 targetname bare, one sample.
 
-### Paths: a rope's nodes are serialized into the rope
+### Paths and cables: a path's nodes are serialized into the path
 
-A `CMapPath` ships as one entity and its `CMapPathNode` children ship as nothing.
-Their shape is folded into three string-valued keys on the path, and the strings
-hold KV3 text rather than real arrays.
+A `CMapPath` or `CMapCable` ships as one entity and its `CMapPathNode` children
+ship as nothing. A cable is walked and numbered like any path, which is what put
+every compile_source_id on Mako past its one cable_dynamic eight out, and it
+ships a model of its own. Their shape is folded into string-valued keys on the
+path, written after its hammerUniqueId, and the strings hold KV3 text rather than
+real arrays.
 
 **`pathNodes`** is nine floats a node: the position relative to the path, then the
 in and out handles. The handles are not authored. Every node in every source
-measured has `inTangent` and `outTangent` at zero, and the compile derives them
-one SEGMENT at a time rather than smoothing across the path: each handle is a
-third of the way to its neighbour, and zero at an end. A five node rope confirms
-it, with all ten handles exactly a third of the leg they belong to.
+measured has `inTangent` and `outTangent` at zero, and the compile derives them by
+tangent type. The path's `interpolationType` 0 or 1 decides the type of every
+node; otherwise each node's own `inTangentType` and `outTangentType` do. Type 0
+points at the neighbour, one segment at a time: each handle is a third of the way
+to it, and zero at an end, which a five node rope confirms on all ten handles.
+Type 1 points from the far neighbour to the near one, so a middle node's handles
+are parallel; Mako's cable is interpolationType 1 and matches on all seven nodes.
+Type 2 uses the authored direction and type 3 the authored tangent untouched.
+Positions and tangents then go through the path's world-to-local rotation, which
+is visible even without a rotation: its zero products turn a tangent's -0 into
+the 0.0 Valve prints. A closed loop repeats its first node at the end.
 
 **They are computed as a direction and a length, not by dividing.** This is
 visible in the output and is the only way to land on Valve's floats: a leg of
@@ -523,13 +643,20 @@ carries `{ write_to_path_key = "pathNodePinsEnabled" }`, the only
 `write_to_path_key` in the whole FGD, and the key is written when the node's class
 declares it.
 
-**`pathNodeRadiusScales`** is RC's own and is skipped when it would say nothing. A
-node without the key counts as zero rather than as the FGD's 1.0. atixref writes
-`[ 2.0, 2.0 ]`, c2m2 writes all zeros for a rope whose nodes are a class with no
-such key, and c2m2's ropes whose nodes all sit at 1.0 carry no array at all.
+**`pathNodeRadiusScales`** and **`pathNodeRadiusHeightScales`** are RC's own and
+are written together, and only when some node is off 1.0. A node's pair is 1 and 1
+unless its class declares `radius_scale`, then that key's value for both, or
+`radius_scale` and `radius_scale_height` when it declares both. A declared key the
+node does not carry reads as zero: nodes are not given their class's defaults.
+atixref writes `[ 2.0, 2.0 ]` twice.
 
-**`closed_loop`** is not an FGD key. It is the `CMapPath` node's own `closedLoop`,
-and the lump carries it as an integer.
+**`pathNodeNames`** lists `<index>: <name>;` for every node with a `node_name`,
+when any has one.
+
+**`closed_loop`** is not an FGD key. It is the path node's own `closedLoop`,
+written as an integer when the class's metadata says `supports_loop`, which is
+inherited from its bases. csgo.fgd excludes path_particle_rope, so c2m2's eleven
+carry none.
 
 **Formatting.** Up to four entries go on one line as `[ a, b ]`; more wrap four to
 a line under one tab per level with a comma after every entry. Measured on ropes
@@ -561,18 +688,16 @@ count and the one with the least to do with entities.
 
 ### What still differs, with its reason
 
-Closed on 2026-09-24: `beam_spotlight`, `env_sprite_oriented`, `env_texturetoggle`
-and most of `path_particle_rope`, all by honouring csgo.fgd's `@exclude`. The
-references for atixref and untitled_1 predate the 2026-09-23 compiler and are
-refused until recompiled, so their counts below are from before the update.
+Measured on 2026-09-25 with the strict comparison, every lump of every map.
 
-| class | entities | reason |
-|---|---|---|
-| the six light and probe classes | 326 | vrad3 writes its results back INTO the lump: `bakedshadowindex`, `light_map_uniqueid`, the probe atlas textures. Arrives with the lighting tier. |
-| `prop_physics`, `prop_physics_override` | 517 | the settle above. Geometry tier. |
-| `point_template` | 21 | ten differences left across twenty-one entities. |
-| `path_particle_rope` | 1 | excluded class: one named rope keeps its targetname bare. One sample; not established. |
-| `func_physbox` | 4 | `hoverposeflags`, which the compiler writes and we do not. |
+| what | reason |
+|---|---|
+| the light and probe classes | two halves, neither ported. The compile derives a light's precomputed bounds, oriented boxes and sub-frusta by casting 24,576 samples of its volume against the world's ray trace scene, so it waits on the geometry the vis tracer already reads; it also rewrites a light's angles through its matrix and sets directlight. The bake writes its results back (shadow index, unique ids, the probe atlas textures). |
+| `prop_physics`, `prop_physics_override`, `prop_physics_multiplayer` | the settle above. Geometry tier. |
+| Mako's world layer lumps | instances placed inside a layer take different id blocks: Valve's Midgar copies start at 33811 where ours start 302 later. The allocator's order with layers is not read yet. |
+| c2m2's environment prefab | its instance copies number one id higher than ours from the first block on, with the same ceiling. Not established. |
+| `path_particle_rope` | excluded class: one named rope keeps its targetname bare. One sample; not established. |
+| Mako's `cable_dynamic` rendercolor | ships as its node's tintColor text where every other colour key is typed. The binding is found, the write is not read. One sample. |
 
 ## What is implemented
 
@@ -745,9 +870,11 @@ two keys for the wrong reason and would have been wrong for any class whose game
 keys are not a prefab path. `class_game_keys` is a general mechanism; treating it
 as prefab lookup was a guess that happened to fit.
 
-**`prefab_has_runtime_entity_by_default`** follows from the same thing: worldspawn
-gets it when the map places at least one point prefab. probe01 places four and gets
-the key though its source never mentions it; untitled_1 places none and does not.
+**`prefab_has_runtime_entity_by_default`** does NOT follow from it, correcting what
+was recorded here. It looked like "the map places a point prefab" on probe01 and
+untitled_1, and Mako broke it: Mako places one and does not get the key. The
+compile adds it in a load-time upgrade for maps saved before vmap 38 (see "Key
+order" above), and probe01 is vmap 35 while untitled_1 is vmap 40.
 
 ## Brush entity models: what the compile builds
 

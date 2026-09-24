@@ -48,53 +48,26 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
     /// </summary>
     private static readonly HashSet<string> Imperfect = new(StringComparer.OrdinalIgnoreCase)
     {
-        // vrad3 writes its results back INTO the lump: a light's baked shadow
-        // index and unique ids, a probe volume's atlas textures. These arrive with
-        // the lighting tier and not before.
-        "light_barn", "light_omni", "light_omni2", "light_spot", "light_ortho", "light_environment",
-        "env_cubemap", "env_light_probe_volume", "env_combined_light_probe_volume",
-        // hoverposeflags, which the compiler writes and we do not.
-        "func_physbox",
+        // Lights carry keys the compile derives from their shape (precomputed
+        // bounds, oriented boxes and sub-frusta, FUN_180f1def0, FUN_180f1e0e0 and
+        // FUN_180f19f20) and keys vrad3 writes back after the bake (baked shadow
+        // index, unique ids, the probe atlas textures). Neither is ported yet.
+        "light_barn", "light_omni", "light_omni2", "light_spot", "light_ortho", "light_rect",
+        "light_environment", "env_cubemap", "env_light_probe_volume", "env_combined_light_probe_volume",
         // The compile SETTLES a physics prop before shipping it: it writes the
         // origin and angles the prop comes to rest at and sets spawnflag 1, which
-        // the fgd calls "Start Asleep". 81 of atixref's 82 move, 71 of them also
-        // turn, and one of c2m2's falls 11,195 units. That needs world collision,
-        // the model's physics hulls and a solver, so it arrives with the geometry
-        // tier and not before.
-        "prop_physics_override", "prop_physics",
-        // Valve ships every key on this one as a plain String, defaults included,
-        // while typing its clientside twin on the same map from the same fgd base
-        // class. Its path nodes are path_node_generic rather than the
-        // path_node_class the fgd names, which is the only difference found. NOT
-        // established.
+        // the fgd calls "Start Asleep". 81 of atixref's 82 move and one of c2m2's
+        // falls 11,195 units. That needs world collision, the model's hulls and a
+        // solver, so it arrives with the geometry tier and not before.
+        "prop_physics_override", "prop_physics", "prop_physics_multiplayer",
+        // csgo.fgd excludes path_particle_rope, and c2m2's one named rope keeps its
+        // targetname bare where the rule for an unknown class prefixes it. One
+        // sample; the rule that separates it is not established.
         "path_particle_rope",
-        // Needs child entity lumps. A point_template's entities are compiled into
-        // maps/<map>/entities/<nodeid>#entitylumpname.vents_c rather than into
-        // default_ents, and the template names that lump in entityLumpName.
-        "point_template",
-        // Needs the path node children serialized into pathNodes and
-        // pathNodeRadiusScales. The nodes are walked and numbered already.
-        "path_particle_rope_clientside",
-        // The two entity-count lines, which the child lumps and instance expansion
-        // above account for. See docs/MAP_RESOURCES.md.
+        // c2m2's environment prefab numbers its instance copies one id higher than
+        // we do from its first block on (5722 against 5721); the ceiling is 5598 on
+        // both sides, so one block is sized differently. Not established.
         "(no class)",
-        // Valve ships every key on these two as a plain String while we type them
-        // from the fgd that declares them. Both appear only on the two prefab
-        // sources, and the cause is NOT established. See docs/MAP_RESOURCES.md.
-        "beam_spotlight", "env_sprite_oriented",
-        // A reference that names nothing in the map is not prefixed:
-        // env_texturetoggle targets "CacoDemonModel", which is no entity's
-        // targetname, and Valve ships it bare. Applying that as a general rule
-        // regresses light_environment and point_template, so the narrower rule it
-        // belongs to is not known yet.
-        "env_texturetoggle",
-        // Six entities, all of them members of a CHILD lump, whose angles Valve
-        // writes as [-0, -90, 0] against the source's [0, 270, 0]. That is a matrix
-        // decompose, and Valve's own precomputedobbangles carry the same
-        // "-0.000000" signature, but no decompose we can derive produces a NEGATIVE
-        // zero pitch, so the exact path is not known. Everything else about a
-        // child lump now matches.
-        "prop_dynamic", "point_teleport",
     };
 
     [Fact]

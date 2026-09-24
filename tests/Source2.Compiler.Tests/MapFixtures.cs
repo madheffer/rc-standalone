@@ -301,6 +301,29 @@ internal static class MapFixtures
         }
     }
 
+    /// <summary>
+    /// Every entity lump in an addon's own compiled package,
+    /// <c>game/csgo_addons/&lt;addon&gt;/maps/&lt;map&gt;.vpk</c>, for a map too big to
+    /// recompile on demand (Mako takes twenty minutes). Null when the package is
+    /// missing or older than the installed resourcecompiler.
+    /// </summary>
+    public static IReadOnlyDictionary<string, byte[]>? AddonLumps(string addon, string map)
+    {
+        var cs2 = CS2Fixtures.StockPak();
+        if (cs2 is null)
+            return null;
+        var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, "..", ".."));
+        var compiled = Path.Combine(root, "game", "csgo_addons", addon, "maps", map + ".vpk");
+        if (!File.Exists(compiled) || OlderThanCompiler(compiled))
+            return null;
+        using var pkg = new Package();
+        pkg.Read(compiled);
+        var lumps = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+            lumps[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
+        return lumps;
+    }
+
     /// <summary>Whether a compiled package predates the installed resourcecompiler,
     /// which makes it a different compiler's answer. atixref's package from
     /// 2026-09-21 still drops empty keys that the 2026-09-23 compiler keeps.</summary>

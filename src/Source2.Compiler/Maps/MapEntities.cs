@@ -28,6 +28,11 @@ public static class MapEntities
     /// compile walks and numbers it but ships nothing.</param>
     /// <param name="PathNodes">A CMapPath's nodes; null for anything else.</param>
     /// <param name="ClosedLoop">A CMapPath's own closedLoop.</param>
+    /// <param name="Layer">The world layer the node sits in (its nearest
+    /// CMapWorldLayer's worldLayerName), whose lump it ships in; null for the
+    /// world's own, which is default_ents.</param>
+    /// <param name="InterpolationType">A CMapPath's own interpolationType: 0 and 1
+    /// decide every node's tangents, anything else leaves each node's own.</param>
     public sealed record Entity(
         string ClassName,
         int NodeId,
@@ -40,7 +45,9 @@ public static class MapEntities
         bool HasGeometry = false,
         bool Hidden = false,
         IReadOnlyList<PathNode>? PathNodes = null,
-        bool ClosedLoop = false);
+        bool ClosedLoop = false,
+        int InterpolationType = 0,
+        string? Layer = null);
 
     /// <summary>
     /// One node of a path, as the source states it.
@@ -49,7 +56,14 @@ public static class MapEntities
     /// path.</param>
     /// <param name="Keys">The node's own game keys, which the path aggregates into
     /// parallel arrays.</param>
-    public sealed record PathNode(Vector3 Origin, IReadOnlyList<KeyValuePair<string, string>> Keys);
+    /// <param name="InTangent">The authored incoming tangent.</param>
+    /// <param name="OutTangent">The authored outgoing tangent.</param>
+    /// <param name="InTangentType">How the incoming tangent is derived.</param>
+    /// <param name="OutTangentType">How the outgoing tangent is derived.</param>
+    public sealed record PathNode(
+        Vector3 Origin, IReadOnlyList<KeyValuePair<string, string>> Keys,
+        Vector3 InTangent = default, Vector3 OutTangent = default,
+        int InTangentType = 0, int OutTangentType = 0);
 
     /// <summary>One output wired to an input on another entity.</summary>
     public sealed record Connection(
@@ -78,14 +92,28 @@ public static class MapEntities
         // the tree does while the file lists those elements far apart.
         var entities = new List<Entity>();
         if (Read(world, isWorld: true) is { } worldspawn)
-            entities.Add(worldspawn);
-        Walk(world, entities, new HashSet<DmxBinary.Element>());
+            entities.Add(Upgrade(worldspawn, document.FormatVersion));
+        Walk(world, entities, new HashSet<DmxBinary.Element>(), null);
 
         var hidden = HiddenNodes(document);
         return hidden.Count == 0
             ? entities
             : [.. entities.Select(e => hidden.Contains(e.NodeId) ? e with { Hidden = true } : e)];
     }
+
+    /// <summary>
+    /// The map loader's upgrade for files saved before vmap 38 (FUN_180d7c3f0,
+    /// one step of the version upgrade table): the world is given
+    /// prefab_has_runtime_entity_by_default "0" when it lacks the key, appended
+    /// after its own. atixref and ze_hold_em_p (vmap 37) and probe01 (35) ship the
+    /// key; Mako and untitled_1 (40) do not, and cardtest (40) ships it because its
+    /// source already carries it.
+    /// </summary>
+    private static Entity Upgrade(Entity world, int formatVersion)
+        => formatVersion >= 38 || world.Keys.Any(k => k.Key.Equals(
+               "prefab_has_runtime_entity_by_default", StringComparison.OrdinalIgnoreCase))
+            ? world
+            : world with { Keys = [.. world.Keys, new("prefab_has_runtime_entity_by_default", "0")] };
 
     /// <summary>
     /// Node ids the map's visibility manager has hidden.
@@ -96,7 +124,7 @@ public static class MapEntities
     /// atixref hides one light_environment and Valve's lump has none of it. The
     /// manager keeps two parallel arrays, the nodes and a flag each.</para>
     /// </summary>
-    private static HashSet<int> HiddenNodes(DmxBinary.Document document)
+    internal static HashSet<int> HiddenNodes(DmxBinary.Document document)
     {
         var hidden = new HashSet<int>();
         var manager = document.OfType("CVisibilityMgr").FirstOrDefault();
@@ -133,16 +161,21 @@ public static class MapEntities
     /// game keys: atixref holds 4,588 CMapEntity and 4,601 EditGameClassProps, the
     /// difference being its 4 paths and 8 path nodes. Walking only CMapEntity left
     /// every compile_source_id past the first path 12 too low, which reads as a
-    /// difference on every class in the map.</para>
+    /// difference on every class in the map. A CMapCable is a path too: Mako's
+    /// one cable_dynamic and its seven nodes put every later id 8 out.</para>
     /// </summary>
-    private static readonly string[] GameKeyBearer = ["CMapEntity", "CMapPath", "CMapPathNode"];
+    private static readonly string[] GameKeyBearer = ["CMapEntity", "CMapPath", "CMapPathNode", "CMapCable"];
+
+    /// <summary>Node types that are paths and carry CMapPathNode children.</summary>
+    private static bool IsPath(DmxBinary.Element element) => element.Type is "CMapPath" or "CMapCable";
 
     /// <summary>Whether the node owns an <c>EditGameClassProps</c>, and so takes a
     /// place in the compile's numbering.</summary>
     public static bool CarriesGameKeys(DmxBinary.Element node)
         => node is not null && GameKeyBearer.Contains(node.Type);
 
-    private static void Walk(DmxBinary.Element node, List<Entity> entities, HashSet<DmxBinary.Element> seen)
+    private static void Walk(DmxBinary.Element node, List<Entity> entities, HashSet<DmxBinary.Element> seen,
+                             string? layer)
     {
         foreach (var child in node.GetElements("children"))
         {
@@ -150,9 +183,36 @@ public static class MapEntities
             if (!seen.Add(child))
                 continue;
             if (GameKeyBearer.Contains(child.Type) && Read(child, isWorld: false) is { } entity)
-                entities.Add(entity);
-            Walk(child, entities, seen);
+                entities.Add(entity with { Layer = layer });
+            Walk(child, entities, seen,
+                 child.Type is "CMapWorldLayer" ? child.Get<string>("worldLayerName") ?? layer : layer);
         }
+    }
+
+    /// <summary>
+    /// The map's world layers, in tree order. Each compiles to a lump of its own,
+    /// <c>world_layer_&lt;name&gt;</c>: Mako has four, and default_ents lists
+    /// their lumps first among its children.
+    /// </summary>
+    public static IReadOnlyList<string> WorldLayers(DmxBinary.Document document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        var layers = new List<string>();
+        void Visit(DmxBinary.Element node, HashSet<DmxBinary.Element> seen)
+        {
+            foreach (var child in node.GetElements("children"))
+            {
+                if (!seen.Add(child))
+                    continue;
+                if (child.Type is "CMapWorldLayer" && child.Get<string>("worldLayerName") is { Length: > 0 } name
+                    && !layers.Contains(name))
+                    layers.Add(name);
+                Visit(child, seen);
+            }
+        }
+        if (document.OfType("CMapWorld").FirstOrDefault() is { } world)
+            Visit(world, []);
+        return layers;
     }
 
     private static Entity? Read(DmxBinary.Element element, bool isWorld)
@@ -183,11 +243,14 @@ public static class MapEntities
             isWorld,
             ReadConnections(element),
             // A brush entity is a node with mesh children. The world has meshes too,
-            // but those are the world's own geometry rather than an entity model.
-            !isWorld && element.GetElements("children").Any(c => c.Type is "CMapMesh"),
+            // but those are the world's own geometry rather than an entity model. A
+            // cable is its own geometry: Mako's cable_dynamic ships a model of its
+            // own, unnamed_20788.vmdl.
+            !isWorld && (element.Type is "CMapCable" || element.GetElements("children").Any(c => c.Type is "CMapMesh")),
             Hidden: false,
             PathNodes: ReadPathNodes(element),
-            ClosedLoop: element.GetValue<bool>("closedLoop") ?? false);
+            ClosedLoop: element.GetValue<bool>("closedLoop") ?? false,
+            InterpolationType: element.GetValue<int>("interpolationType") ?? 0);
     }
 
     /// <summary>
@@ -197,7 +260,7 @@ public static class MapEntities
     /// </summary>
     private static IReadOnlyList<PathNode>? ReadPathNodes(DmxBinary.Element element)
     {
-        if (element.Type is not "CMapPath")
+        if (!IsPath(element))
             return null;
 
         var nodes = new List<PathNode>();
@@ -209,7 +272,12 @@ public static class MapEntities
             foreach (var (key, value) in child.Get<DmxBinary.Element>("entity_properties")?.Attributes ?? [])
                 if (value is string text)
                     keys.Add(new(key, text));
-            nodes.Add(new PathNode(child.GetValue<Vector3>("origin") ?? Vector3.Zero, keys));
+            nodes.Add(new PathNode(
+                child.GetValue<Vector3>("origin") ?? Vector3.Zero, keys,
+                child.GetValue<Vector3>("inTangent") ?? Vector3.Zero,
+                child.GetValue<Vector3>("outTangent") ?? Vector3.Zero,
+                child.GetValue<int>("inTangentType") ?? 0,
+                child.GetValue<int>("outTangentType") ?? 0));
         }
         return nodes;
     }

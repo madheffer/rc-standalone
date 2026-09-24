@@ -14,8 +14,11 @@ namespace Source2.Compiler.Tests;
 /// <para>Reporting all of them matters more than it sounds. An entity lump is a
 /// few thousand keys and the rules behind them are per-class, so a comparison that
 /// stops at the first mismatch turns rule discovery into one rule per test run.
-/// The type is compared as well as the value because <c>enabled = true</c> and
-/// <c>enabled = "1"</c> print the same and are not the same to the entity system.
+/// Types are compared all the way down, flags included, because
+/// <c>enabled = true</c> and <c>enabled = "1"</c> print the same and are not the
+/// same to the entity system, and a colour of Int32 channels is not the colour
+/// of UInt32 channels Valve writes. Connections compare every field, and key
+/// ORDER is compared too, since the lump is only byte-comparable when it holds.
 /// </para>
 /// </summary>
 internal static class EntityLumpComparison
@@ -25,6 +28,7 @@ internal static class EntityLumpComparison
         string ClassName,
         string HammerId,
         IReadOnlyDictionary<string, (KVValueType Type, string Value)> Values,
+        IReadOnlyList<string> KeyOrder,
         IReadOnlyList<string> Connections);
 
     /// <summary>Read the entities of a compiled lump.</summary>
@@ -38,21 +42,22 @@ internal static class EntityLumpComparison
         foreach (var entity in data.Data.GetArray("m_entityKeyValues"))
         {
             var values = new Dictionary<string, (KVValueType, string)>(StringComparer.OrdinalIgnoreCase);
-            var tree = entity.GetSubCollection("keyValues3Data")?.GetSubCollection("values");
-            foreach (var kv in tree?.Children ?? [])
+            var order = new List<string>();
+            var tree = entity.GetSubCollection("keyValues3Data");
+            foreach (var kv in tree?.GetSubCollection("values")?.Children ?? [])
+            {
                 values[kv.Key] = (kv.Value.ValueType, Render(kv.Value));
+                order.Add(kv.Key);
+            }
+            // version and the attributes block are part of every entity too.
+            if (tree?.ContainsKey("version") == true)
+                values["<version>"] = (tree["version"].ValueType, Render(tree["version"]));
 
-            var connections = entity.GetArray("m_connections")
-                .Select(c => $"{c.GetStringProperty("m_outputName")} -> "
-                           + $"{c.GetStringProperty("m_targetName")}.{c.GetStringProperty("m_inputName")}"
-                           + $" '{c.GetStringProperty("m_overrideParam")}'")
-                .ToList();
-
+            var connections = entity.GetArray("m_connections").Select(Render).ToList();
             entities.Add(new Entity(
-                values.TryGetValue("classname", out var cls) ? cls.Item2 : "<no classname>",
-                values.TryGetValue("hammerUniqueId", out var id) ? id.Item2 : "",
-                values,
-                connections));
+                values.TryGetValue("classname", out var cls) ? cls.Item2.Split(':')[^1] : "<no classname>",
+                values.TryGetValue("hammerUniqueId", out var id) ? id.Item2.Split(':')[^1] : "",
+                values, order, connections));
         }
         return entities;
     }
@@ -67,15 +72,24 @@ internal static class EntityLumpComparison
         if (valve.Count != mine.Count)
             report.Add($"entity count: valve {valve.Count}, ours {mine.Count}");
 
-        // Match on Hammer's node id where both sides have one, so a missing entity
-        // does not report every later entity as different.
-        var byId = mine.Where(e => e.HammerId.Length > 0).ToDictionary(e => e.HammerId, e => e);
+        // Match on Hammer's node id, occurrence by occurrence: a template that
+        // names one entity twice ships two copies with one id.
+        var byId = new Dictionary<string, Queue<Entity>>();
+        foreach (var e in mine.Where(e => e.HammerId.Length > 0))
+        {
+            if (!byId.TryGetValue(e.HammerId, out var queue))
+                byId[e.HammerId] = queue = new();
+            queue.Enqueue(e);
+        }
+        if (!valve.Select(e => e.HammerId).SequenceEqual(mine.Select(e => e.HammerId)))
+            report.Add("entity order differs");
+
         for (var i = 0; i < valve.Count; i++)
         {
             var theirs = valve[i];
-            var ours = theirs.HammerId.Length > 0 && byId.TryGetValue(theirs.HammerId, out var matched)
-                ? matched
-                : i < mine.Count ? mine[i] : null;
+            var ours = theirs.HammerId.Length > 0 && byId.TryGetValue(theirs.HammerId, out var queue) && queue.Count > 0
+                ? queue.Dequeue()
+                : null;
             if (ours is null)
             {
                 report.Add($"[{Label(theirs)}] missing from ours");
@@ -85,19 +99,24 @@ internal static class EntityLumpComparison
             foreach (var (key, (type, value)) in theirs.Values)
             {
                 if (!ours.Values.TryGetValue(key, out var got))
-                    report.Add($"[{Label(theirs)}] {key}: missing (valve {type} {value})");
-                else if (got.Type != type)
-                    report.Add($"[{Label(theirs)}] {key}: type valve {type} {value}, ours {got.Type} {got.Value}");
-                else if (!SameValue(got.Value, value))
+                    report.Add($"[{Label(theirs)}] {key}: missing (valve {value})");
+                else if (got.Type != type || !SameValue(got.Value, value))
                     report.Add($"[{Label(theirs)}] {key}: value valve {value}, ours {got.Value}");
             }
             foreach (var key in ours.Values.Keys.Where(k => !theirs.Values.ContainsKey(k)))
-                report.Add($"[{Label(theirs)}] {key}: ours only ({ours.Values[key].Type} {ours.Values[key].Value})");
+                report.Add($"[{Label(theirs)}] {key}: ours only ({ours.Values[key].Value})");
+            if (theirs.KeyOrder.Count == ours.KeyOrder.Count && theirs.Values.Keys.All(ours.Values.ContainsKey)
+                && !theirs.KeyOrder.SequenceEqual(ours.KeyOrder, StringComparer.Ordinal))
+                report.Add($"[{Label(theirs)}] key order differs");
 
-            foreach (var c in theirs.Connections.Where(c => !ours.Connections.Contains(c)))
-                report.Add($"[{Label(theirs)}] connection missing: {c}");
-            foreach (var c in ours.Connections.Where(c => !theirs.Connections.Contains(c)))
-                report.Add($"[{Label(theirs)}] connection ours only: {c}");
+            if (!theirs.Connections.SequenceEqual(ours.Connections))
+                for (var c = 0; c < Math.Max(theirs.Connections.Count, ours.Connections.Count); c++)
+                {
+                    var a = c < theirs.Connections.Count ? theirs.Connections[c] : "-";
+                    var b = c < ours.Connections.Count ? ours.Connections[c] : "-";
+                    if (a != b)
+                        report.Add($"[{Label(theirs)}] connection {c}: valve {a}, ours {b}");
+                }
         }
         return report;
     }
@@ -117,9 +136,20 @@ internal static class EntityLumpComparison
     private static string Label(Entity e) => $"{e.ClassName}#{e.HammerId}";
 
     /// <summary>
-    /// Floats are compared as numbers, because the two sides print a double from
-    /// different paths and "8.100571" against "8.10057067871094" is the same
-    /// placement. Anything else is compared exactly.
+    /// Values print with their type and flag at every level, so a Resource flag or
+    /// an array element's width is part of the comparison.
+    /// </summary>
+    private static string Render(KVObject v)
+        => v.IsArray ? "[" + string.Join(", ", v.Values.Select(Render)) + "]"
+         : v.ValueType == KVValueType.Collection ? "{" + string.Join(", ", v.Children.Select(c => c.Key + "=" + Render(c.Value))) + "}"
+         : v.ValueType == KVValueType.BinaryBlob ? $"<blob {v.AsBlob().Length}>"
+         : $"{v.ValueType}{(v.Flag != 0 ? "/" + v.Flag : "")}:{v}";
+
+    /// <summary>
+    /// Exact, except that the two sides may print one double from different paths:
+    /// "8.100571" against "8.10057067871094" is the same placement. The numbers are
+    /// compared as doubles to the last bit, so this forgives printing and nothing
+    /// else.
     /// </summary>
     private static bool SameValue(string a, string b)
     {
@@ -131,16 +161,21 @@ internal static class EntityLumpComparison
             return false;
         for (var i = 0; i < left.Length; i++)
         {
-            if (!double.TryParse(left[i], NumberStyles.Float, CultureInfo.InvariantCulture, out var x) ||
-                !double.TryParse(right[i], NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
-                return false;
-            // Six decimals is what the lump's own placement strings carry.
-            if (Math.Abs(x - y) > 1e-5 * Math.Max(1, Math.Abs(x)))
+            if (left[i] == right[i])
+                continue;
+            var (lt, lv) = Split(left[i]);
+            var (rt, rv) = Split(right[i]);
+            if (lt != rt || !double.TryParse(lv, NumberStyles.Float, CultureInfo.InvariantCulture, out var x)
+                || !double.TryParse(rv, NumberStyles.Float, CultureInfo.InvariantCulture, out var y)
+                || BitConverter.DoubleToInt64Bits(x) != BitConverter.DoubleToInt64Bits(y))
                 return false;
         }
         return true;
     }
 
-    private static string Render(KVObject v)
-        => v.IsArray ? "[" + string.Join(", ", v.Values.Select(x => x.ToString())) + "]" : v.ToString() ?? "";
+    private static (string Type, string Value) Split(string token)
+    {
+        var colon = token.IndexOf(':');
+        return colon < 0 ? ("", token) : (token[..colon], token[(colon + 1)..]);
+    }
 }

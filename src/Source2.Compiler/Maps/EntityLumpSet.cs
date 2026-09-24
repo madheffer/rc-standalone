@@ -1,15 +1,19 @@
 using System.Globalization;
+using System.Numerics;
+using ValveKeyValue;
+using ValveResourceFormat.Serialization.KeyValues;
 
 namespace Source2.Compiler;
 
 /// <summary>
 /// Every entity lump a map compiles to, not just <c>default_ents</c>.
 ///
-/// <para>A <c>point_template</c> names its members in <c>Template01</c>..
-/// <c>TemplateNN</c>, and the compile moves each of those entities OUT of
-/// default_ents into a lump of the template's own. atixref has ten templates and
-/// ten child lumps holding 57 entities between them; comparing only default_ents
-/// makes those 57 look like entities we invented.</para>
+/// <para>The compile builds default_ents' entities first, then runs the template
+/// pass over them (FUN_18024d710): each entity whose class asks for
+/// create_entity_template_lumps gets a lump of its own holding COPIES of the
+/// entities it names, and afterwards the originals are removed unless the
+/// template says to keep them. atixref has ten templates and ten child lumps;
+/// comparing only default_ents makes their members look invented.</para>
 /// </summary>
 public static class EntityLumpSet
 {
@@ -19,10 +23,8 @@ public static class EntityLumpSet
     /// <param name="Bytes">The compiled lump.</param>
     public sealed record Lump(string Path, string Name, byte[] Bytes);
 
-    /// <summary>
-    /// Author the map's lumps: default_ents first, then one per point_template in
-    /// the order the templates were walked.
-    /// </summary>
+    /// <summary>Author the map's lumps: default_ents first, then the child lumps
+    /// in the order the template pass made them.</summary>
     public static IReadOnlyList<Lump> Author(
         IReadOnlyList<MapEntities.Entity> entities,
         FgdSchema? schema,
@@ -32,59 +34,213 @@ public static class EntityLumpSet
     {
         ArgumentNullException.ThrowIfNull(entities);
 
-        var templates = Templates(entities);
-        var lumpNames = templates.ToDictionary(t => entities[t.Index].NodeId, t => t.Name);
+        var context = EntityLumpAuthor.Context.For(entities, schema, worldName, fixupEntityNames);
 
-        // Claim members before anything is written. An entity belongs to the FIRST
-        // template that names it, so a name two templates list does not land twice.
-        var claimed = new HashSet<int>();
-        foreach (var template in templates)
-            foreach (var index in template.Members)
-                claimed.Add(index);
+        // Each world layer is a lump of its own, world_layer_<name>, holding the
+        // entities under that CMapWorldLayer (instance copies go with the instance
+        // that placed them). Numbering stays global: Mako's layer lumps carry
+        // compile_source_ids from 1,481 to 4,732 among default_ents' 0 to 5,068.
+        List<string> layers = document is null ? [] : [.. MapEntities.WorldLayers(document)];
+        var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
+        worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));
+        foreach (var (entity, sourceId) in MainLump(entities, document))
+            if (EntityLumpAuthor.ReachesTheLump(entity, schema))
+                worlds[entity.Layer is { } layer && layers.IndexOf(layer) is var at and >= 0 ? at + 1 : 0].Items
+                    .Add(new Item(EntityLumpAuthor.BuildEntity(entity, sourceId, context), entity.Hidden));
+
+        // The template pass runs over each world's list in turn, default_ents
+        // first, and every lump it makes is a child of default_ents after the
+        // layers: Mako lists its four layers, then default_ents' templates, then
+        // the layers' own.
+        var children = new List<(string Name, List<KVObject> Members)>();
+        foreach (var (_, items) in worlds)
+            children.AddRange(TemplatePass(items, schema, worldName));
 
         var lumps = new List<Lump>();
-        foreach (var template in templates)
-            lumps.Add(new Lump(
-                PathOf(worldName, template.Name), template.Name,
-                EntityLumpAuthor.Author(entities, schema, template.Name, childLumps: null,
-                                        worldName, fixupEntityNames,
-                                        [.. template.Members.Select(m => new EntityLumpAuthor.Emission(entities[m], m))],
-                                        lumpNames,
-                                        new EntityLumpAuthor.TemplateLump(
-                                            entities[template.Index].Origin,
-                                            SuffixOf(entities[template.Index]),
-                                            template.Members.Select(m => NameOf(entities[m]))
-                                                    .ToHashSet(StringComparer.OrdinalIgnoreCase)))));
+        foreach (var (name, items) in worlds)
+            lumps.Add(new Lump(PathOf(worldName, name), name, EntityLumpAuthor.Compile(
+                EntityLumpAuthor.Lump(name,
+                    name == "default_ents"
+                        ? [.. worlds.Skip(1).Select(w => w.Name).Concat(children.Select(c => c.Name))
+                                 .Select(c => PathOf(worldName, c)[..^2])]         // m_childLumps drops the _c
+                        : [],
+                    items.Where(i => !i.Hidden).Select(i => i.Tree)))));
+        foreach (var (name, members) in children)
+            lumps.Add(new Lump(PathOf(worldName, name), name,
+                               EntityLumpAuthor.Compile(EntityLumpAuthor.Lump(name, [], members))));
+        return lumps;
+    }
 
-        var children = lumps.Select(l => l.Path[..^2]).ToList();       // m_childLumps drops the _c
-        lumps.Insert(0, new Lump(
-            PathOf(worldName, "default_ents"), "default_ents",
-            EntityLumpAuthor.Author(entities, schema, "default_ents", children,
-                                    worldName, fixupEntityNames,
-                                    MainLump(entities, claimed, document), lumpNames)));
+    /// <summary>An entity of default_ents while the lumps are being built. A node
+    /// the map hides is in the list the templates search and is dropped when
+    /// default_ents is written.</summary>
+    private sealed record Item(KVObject Tree, bool Hidden);
+
+    /// <summary>
+    /// FUN_18024d710 and FUN_18024d9c0: build a lump for every entity whose class
+    /// metadata asks for one, in list order, then remove the originals of every
+    /// template that does not keep them. Returns the lumps in the order made.
+    /// </summary>
+    private static List<(string Name, List<KVObject> Members)> TemplatePass(
+        List<Item> list, FgdSchema? schema, string worldName)
+    {
+        var lumps = new List<(string, List<KVObject>)>();
+        var removals = new List<string>();
+        foreach (var item in list.ToList())
+        {
+            var values = ValuesOf(item.Tree);
+            foreach (var template in schema?.TemplateLumpsOf(Text(values, "classname")) ?? [])
+            {
+                var single = template.Mode.Equals("SingleTemplate", StringComparison.OrdinalIgnoreCase);
+                if ((!single && !template.Mode.Equals("PointTemplate", StringComparison.OrdinalIgnoreCase))
+                    || template.WorldKey.Length == 0 || template.LumpKey.Length == 0
+                    || (single && template.SourceKey.Length == 0))
+                    continue;
+
+                // The lump is named after the entity's node: its hammerUniqueId with
+                // any ':' made '_', a '#', and the key its name goes in.
+                var name = Text(values, "hammerUniqueId").Replace(':', '_') + "#" + template.LumpKey;
+                var members = new List<KVObject>();
+                var patterns = new List<string>();
+
+                // A PointTemplate's spawnflags: bit 0 keeps the originals, bit 1
+                // preserves the members' names. A SingleTemplate always removes and
+                // never renames.
+                var flags = single ? 0u : Unsigned(values, "spawnflags");
+                var origin = VectorOf(values, "origin");
+                var angles = VectorOf(values, "angles");
+                if (single)
+                    Collect(list, Text(values, template.SourceKey), null, members, patterns);
+                else
+                    for (var n = 1; n <= 128; n++)
+                        Collect(list, Text(values, "Template" + n.ToString("00", CultureInfo.InvariantCulture)),
+                                (origin, angles), members, patterns);
+
+                lumps.Add((name, members));
+                if (members.Count > 0)
+                {
+                    // The world is recorded as the map's resource path without its
+                    // extension and with BACKSLASHES, which is how Valve writes it.
+                    values[template.WorldKey] = new KVObject("maps\\" + worldName);
+                    values[template.LumpKey] = new KVObject(name);
+                    if (!single && (flags & 2) == 0 && Rename(members))
+                        values["TemplateFixup"] = new KVObject(true);
+                }
+                if (single || (flags & 1) == 0)
+                    removals.AddRange(patterns);
+            }
+        }
+
+        foreach (var pattern in removals)
+            list.RemoveAll(i => Wildcard.Matches(Text(ValuesOf(i.Tree), "targetname"), pattern));
         return lumps;
     }
 
     /// <summary>
-    /// The suffix a template puts on its members' names.
-    ///
-    /// <para>spawnflags bit 1 is "preserve entity names". Without it the compile
-    /// renames every member so an instantiation cannot collide with the map:
-    /// atixref's deadpool_temp and snake_temp are its only two templates at
-    /// spawnflags 0, and theirs are the only two lumps whose names carry
-    /// <c>&amp;0000</c>.</para>
+    /// FUN_18024ccd0 for one name: a COPY of every entity in the list it matches,
+    /// in list order, placed relative to the template (or at the origin, for a
+    /// SingleTemplate) and numbered by its place in the lump. A name listed twice
+    /// is copied twice: Mako's bridge train template names Bridge_Train_Sound in
+    /// two slots and its lump holds the sound twice.
     /// </summary>
-    private static string SuffixOf(MapEntities.Entity template)
+    private static void Collect(List<Item> list, string pattern, (Vector3 Origin, Vector3 Angles)? relativeTo,
+                                List<KVObject> members, List<string> patterns)
     {
-        var flags = template.Keys.FirstOrDefault(
-            k => k.Key.Equals("spawnflags", StringComparison.OrdinalIgnoreCase)).Value;
-        return int.TryParse(flags, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bits)
-            && (bits & 2) != 0 ? "" : "&0000";
+        if (pattern.Length == 0)
+            return;
+        foreach (var item in list)
+        {
+            var source = ValuesOf(item.Tree);
+            if (!Wildcard.Matches(Text(source, "targetname"), pattern))
+                continue;
+
+            var copy = KVObjectDeepClone.Clone(item.Tree);
+            var values = ValuesOf(copy);
+            var (origin, angles) = relativeTo is { } t
+                ? TemplateTransform.Relative(t.Origin, t.Angles, VectorOf(values, "origin"), VectorOf(values, "angles"))
+                : (Vector3.Zero, Vector3.Zero);
+            values["origin"] = Floats(origin);
+            values["angles"] = Floats(angles);
+            values["_template_lump_ent_index"] = members.Count is 0 or 1 ? new KVObject((long)members.Count)
+                                                                           : new KVObject(members.Count);
+            members.Add(copy);
+            patterns.Add(pattern);
+        }
     }
 
     /// <summary>
-    /// What default_ents carries: the walk, minus what a child lump took and minus
-    /// the instance TEMPLATES, with each instance's copies spliced in where its
+    /// FUN_18024c910: give every member that has a name the suffix
+    /// <c>&amp;0000</c>, then (FUN_1801fdae0) rewrite, in every member, each
+    /// string value and each output target or parameter that equals one of the
+    /// old names. It is by value, not by key type. True when anything was
+    /// renamed, which is what sets the template's TemplateFixup.
+    /// </summary>
+    private static bool Rename(List<KVObject> members)
+    {
+        var renamed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var member in members)
+        {
+            var values = ValuesOf(member);
+            var name = Text(values, "targetname");
+            if (name.Length == 0)
+                continue;
+            if (!renamed.TryGetValue(name, out var suffixed))
+                renamed[name] = suffixed = name + "&0000";
+            values["targetname"] = new KVObject(suffixed);
+        }
+        if (renamed.Count == 0)
+            return false;
+
+        foreach (var member in members)
+        {
+            var values = ValuesOf(member);
+            foreach (var key in values.Keys.ToList())
+                if (!key.Equals("targetname", StringComparison.OrdinalIgnoreCase))
+                    Replace(values, key, renamed);
+            foreach (var connection in member["m_connections"].Values)
+            {
+                Replace(connection, "m_targetName", renamed);
+                Replace(connection, "m_overrideParam", renamed);
+            }
+        }
+        return true;
+    }
+
+    private static void Replace(KVObject owner, string key, Dictionary<string, string> renamed)
+    {
+        var value = owner[key];
+        if (value is null || value.ValueType != KVValueType.String
+            || !renamed.TryGetValue(value.ToString() ?? "", out var suffixed))
+            return;
+        owner[key] = new KVObject(suffixed) { Flag = value.Flag };
+    }
+
+    private static KVObject ValuesOf(KVObject entity) => entity["keyValues3Data"]["values"];
+
+    private static string Text(KVObject values, string key)
+        => values.ContainsKey(key) && values[key].ValueType == KVValueType.String ? values[key].ToString() ?? "" : "";
+
+    private static uint Unsigned(KVObject values, string key)
+        => values.ContainsKey(key) && uint.TryParse(values[key].ToString(), NumberStyles.Integer,
+                                                   CultureInfo.InvariantCulture, out var u) ? u : 0;
+
+    private static Vector3 VectorOf(KVObject values, string key)
+    {
+        var parts = values[key].Values.Select(v => (float)Convert.ToDouble(v.ToString(), CultureInfo.InvariantCulture)).ToArray();
+        return new Vector3(parts[0], parts[1], parts[2]);
+    }
+
+    private static KVObject Floats(Vector3 v)
+    {
+        var array = KVObject.Array();
+        foreach (var component in new[] { v.X, v.Y, v.Z })
+            array.Add(new KVObject((double)component));
+        return array;
+    }
+
+    /// <summary>
+    /// What default_ents carries before the template pass: the walk, minus the
+    /// instance TEMPLATES, with each instance's copies spliced in where its
     /// parent's subtree finishes.
     ///
     /// <para>Valve's atixref puts the 17 copies made under one group at walk 672,
@@ -92,7 +248,7 @@ public static class EntityLumpSet
     /// walked entity. Every copy carries its template's compile_source_id.</para>
     /// </summary>
     private static List<EntityLumpAuthor.Emission> MainLump(
-        IReadOnlyList<MapEntities.Entity> entities, HashSet<int> claimed, DmxBinary.Document? document)
+        IReadOnlyList<MapEntities.Entity> entities, DmxBinary.Document? document)
     {
         var (copies, templates) = document is null
             ? ((IReadOnlyList<MapInstances.Copy>)[], (IReadOnlySet<int>)new HashSet<int>())
@@ -109,6 +265,7 @@ public static class EntityLumpSet
                     NodeId = copy.NodeId,
                     Origin = copy.Origin,
                     Angles = copy.Angles,
+                    Layer = copy.Layer,
                 },
                 copy.Template));
         }
@@ -118,7 +275,7 @@ public static class EntityLumpSet
         {
             if (pending.TryGetValue(i, out var here))
                 emit.AddRange(here);
-            if (i < entities.Count && !claimed.Contains(i) && !templates.Contains(i))
+            if (i < entities.Count && !templates.Contains(i))
                 emit.Add(new EntityLumpAuthor.Emission(entities[i], i));
         }
         return emit;
@@ -126,58 +283,4 @@ public static class EntityLumpSet
 
     private static string PathOf(string worldName, string lumpName)
         => $"maps/{worldName}/entities/{lumpName}.vents_c".ToLowerInvariant();
-
-    private sealed record Template(int Index, string Name, List<int> Members);
-
-    /// <summary>
-    /// The point_templates that own a lump, in walk order, each with the walk
-    /// indices of its members in the order its Template keys list them.
-    ///
-    /// <para>Both orders were read off Valve's own output: default_ents lists the
-    /// ten child lumps by ascending template compile_source_id, and lump 187 holds
-    /// its eighteen members in Template01..Template18 order rather than in the
-    /// order the map walks them.</para>
-    /// </summary>
-    private static List<Template> Templates(IReadOnlyList<MapEntities.Entity> entities)
-    {
-        var byName = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < entities.Count; i++)
-        {
-            var name = NameOf(entities[i]);
-            if (name.Length == 0)
-                continue;
-            if (!byName.TryGetValue(name, out var list))
-                byName[name] = list = [];
-            list.Add(i);
-        }
-
-        var templates = new List<Template>();
-        for (var i = 0; i < entities.Count; i++)
-        {
-            if (!entities[i].ClassName.Equals("point_template", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var members = new List<int>();
-            foreach (var (key, value) in entities[i].Keys)
-            {
-                if (!key.StartsWith("Template", StringComparison.OrdinalIgnoreCase)
-                    || !int.TryParse(key.AsSpan("Template".Length), NumberStyles.Integer,
-                                     CultureInfo.InvariantCulture, out _)
-                    || value.Length == 0)
-                    continue;
-                foreach (var member in byName.GetValueOrDefault(value) ?? [])
-                    if (!members.Contains(member))
-                        members.Add(member);
-            }
-            templates.Add(new Template(
-                i, entities[i].NodeId.ToString(CultureInfo.InvariantCulture) + "#entityLumpName", members));
-        }
-        return templates;
-    }
-
-    /// <summary>The entity's targetname as the SOURCE states it, before any prefab
-    /// fixup: a template names its members the way the mapper typed them.</summary>
-    private static string NameOf(MapEntities.Entity entity)
-        => entity.Keys.FirstOrDefault(k => k.Key.Equals("targetname", StringComparison.OrdinalIgnoreCase)).Value
-           ?? string.Empty;
 }
