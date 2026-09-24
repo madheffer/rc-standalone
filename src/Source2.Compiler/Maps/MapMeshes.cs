@@ -119,14 +119,14 @@ public static class MapMeshes
     // horizontal add pairs it, (x + z) + (y + t). Measured on atixref: a roll
     // of -89.999985 degrees and instanced copies of a mesh at a yaw of 180.5
     // tell the orders apart, and only this one rebuilds all of both.
-    private static Vector3 Transform(float[] m, Vector3 v)
+    internal static Vector3 Transform(float[] m, Vector3 v)
         => new(((m[0] * v.X) + (m[2] * v.Z)) + ((m[1] * v.Y) + m[3]),
                ((m[4] * v.X) + (m[6] * v.Z)) + ((m[5] * v.Y) + m[7]),
                ((m[8] * v.X) + (m[10] * v.Z)) + ((m[9] * v.Y) + m[11]));
 
     // A node's own matrix (vtable slot 0xa0, FUN_181255fb0): AngleMatrix of its
     // angles with its origin as the translation.
-    private static float[] Local(DmxBinary.Element node)
+    internal static float[] Local(DmxBinary.Element node)
     {
         var m = AngleMatrix(node.GetValue<Vector3>("angles") ?? Vector3.Zero);
         var origin = node.GetValue<Vector3>("origin") ?? Vector3.Zero;
@@ -152,7 +152,7 @@ public static class MapMeshes
 
     // FUN_181258890 (ConcatTransforms, SIMD): row i of a times b, the terms
     // summed z, y, x and then a's translation (or +0).
-    private static float[] Concat(float[] a, float[] b)
+    internal static float[] Concat(float[] a, float[] b)
     {
         var o = new float[12];
         for (var i = 0; i < 3; i++)
@@ -167,7 +167,7 @@ public static class MapMeshes
     // -(t.z * r2 + t.y * r1 + t.x * r0) against the transposed rows. The
     // rescale it does when the first column is not unit length never applies
     // to a rotation.
-    private static float[] Invert(float[] m)
+    internal static float[] Invert(float[] m)
     {
         float[] o = [m[0], m[4], m[8], 0, m[1], m[5], m[9], 0, m[2], m[6], m[10], 0];
         float tx = m[3], ty = m[7], tz = m[11];

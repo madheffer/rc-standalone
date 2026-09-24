@@ -12,7 +12,11 @@ namespace Source2.Compiler.Tests;
 /// <summary>
 /// Exploration: brush entity hulls built from the <c>.vmap</c> the way the map
 /// builder builds them (<see cref="BrushHulls"/>), against the entity models
-/// the same map compiled to. Only unrotated entities and meshes are compared.
+/// the same map compiled to. Points go to world space through the mesh's
+/// matrix and then into the entity's through its inverse, as the current
+/// compiler rounds them (<c>HULL_XFORM</c>: 0 world minus origin, 1 the
+/// concatenated matrix, 2 world then inverse, the default). Hulls are matched
+/// by vertex set, as the order across pieces is not the mesh order.
 /// <c>HULLVMAP=&lt;vmap&gt;|&lt;compiled vpk&gt;</c>; <c>HULL_FROM=1</c> starts
 /// each face loop at the half-edge's start vertex instead of its end;
 /// <c>HULL_SHOW</c> caps the listed differences.
@@ -34,6 +38,24 @@ public class HullFromVmap(ITestOutputHelper output)
             .Where(e => e.TypeName == "vmdl_c" && e.GetFullPath().Contains("/entities/", StringComparison.Ordinal))
             .ToDictionary(e => Path.GetFileNameWithoutExtension(e.FileName).Split('_')[^1], StringComparer.Ordinal);
         var tally = new Dictionary<string, int>();
+        if (Environment.GetEnvironmentVariable("HULL_PATHOF") is { } pathOf)
+        {
+            void Find(DmxBinary.Element node, List<DmxBinary.Element> path)
+            {
+                foreach (var c in node.GetElements("children"))
+                {
+                    path.Add(c);
+                    if ((c.GetValue<int>("nodeID") ?? -1).ToString(System.Globalization.CultureInfo.InvariantCulture) == pathOf || (path.Count > 1 && (path[^2].GetValue<int>("nodeID") ?? -1).ToString(System.Globalization.CultureInfo.InvariantCulture) == pathOf))
+                        output.WriteLine("PATH " + string.Join(" > ", path.Select(e => $"{e.Type}#{e.GetValue<int>("nodeID")} o={e.GetValue<Vector3>("origin")} a={e.GetValue<Vector3>("angles")}")));
+                    Find(c, path);
+                    path.RemoveAt(path.Count - 1);
+                }
+            }
+            foreach (var w in doc.OfType("CMapWorld"))
+                Find(w, []);
+            foreach (var inst in doc.OfType("CMapInstance"))
+                output.WriteLine($"INSTANCE #{inst.GetValue<int>("nodeID")} target {inst.Get<DmxBinary.Element>("target")?.Type}#{inst.Get<DmxBinary.Element>("target")?.GetValue<int>("nodeID")}");
+        }
         if (Environment.GetEnvironmentVariable("HULL_ATTRS") == "1")
         {
             var seenAttrs = new Dictionary<string, int>();
@@ -57,7 +79,7 @@ public class HullFromVmap(ITestOutputHelper output)
             var id = entity.GetValue<int>("nodeID") ?? -1;
             if (!models.TryGetValue(id.ToString(System.Globalization.CultureInfo.InvariantCulture), out var entry))
                 continue;
-            if ((entity.GetValue<Vector3>("angles") ?? Vector3.Zero) != Vector3.Zero)
+            if ((Environment.GetEnvironmentVariable("HULL_XFORM") == "0" || Environment.GetEnvironmentVariable("HULL_SKIPROT") == "1") && (entity.GetValue<Vector3>("angles") ?? Vector3.Zero) != Vector3.Zero)
             {
                 Count(tally, "entity rotated");
                 continue;
@@ -68,17 +90,24 @@ public class HullFromVmap(ITestOutputHelper output)
             var skip = false;
             foreach (var mesh in Meshes(entity))
             {
-                if ((mesh.GetValue<Vector3>("angles") ?? Vector3.Zero) != Vector3.Zero)
+                if ((Environment.GetEnvironmentVariable("HULL_XFORM") == "0" || Environment.GetEnvironmentVariable("HULL_SKIPROT") == "1") && (mesh.GetValue<Vector3>("angles") ?? Vector3.Zero) != Vector3.Zero)
                 {
                     skip = true;
                     break;
+                }
+                if (Environment.GetEnvironmentVariable("HULL_DEBUGID") is { } dbg && dbg == id.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                {
+                    var md = mesh.Get<DmxBinary.Element>("meshData")!;
+                    var st = md.Get<DmxBinary.Element>("vertexData")!.GetElements("streams").First(x => x.Name.StartsWith("position:", StringComparison.Ordinal));
+                    output.WriteLine($"DEBUG entity origin {entity.GetValue<Vector3>("origin"):R} angles {entity.GetValue<Vector3>("angles")} mesh origin {mesh.GetValue<Vector3>("origin"):R} angles {mesh.GetValue<Vector3>("angles")} scales {mesh.GetValue<Vector3>("scales")}");
+                    output.WriteLine("DEBUG raw " + string.Join(" ", st.Get<object?[]>("data")!.Take(8).Select(o => ((Vector3)o!).ToString("R", System.Globalization.CultureInfo.InvariantCulture))));
                 }
                 var stored = PhysicsTypeOf(mesh);
                 var matNames = (mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => Path.GetFileNameWithoutExtension(x as string ?? "")).ToArray();
                 if (Environment.GetEnvironmentVariable("HULL_NOCLIP") == "1" && matNames.Length > 0 && matNames.All(m => m.Contains("clip", StringComparison.OrdinalIgnoreCase)))
                     continue;
                 var type = BrushHulls.Resolve(stored, true, className == "func_shatterglass", false, false);
-                var (positions, faces) = Read(mesh, origin, fromStart);
+                var (positions, faces) = Read(mesh, origin, fromStart, entity);
                 var materialOf = MaterialIndices(mesh, faces.Length);
                 try
                 {
@@ -116,7 +145,7 @@ public class HullFromVmap(ITestOutputHelper output)
                     foreach (var mesh in Meshes(entity))
                     {
                         mesh.Attributes.TryGetValue("physicsType", out var pt);
-                        var (positions, faces) = Read(mesh, origin, fromStart);
+                        var (positions, faces) = Read(mesh, origin, fromStart, entity);
                         var inputs = BrushHulls.Inputs(positions, faces, BrushHulls.PhysicsType.ConvexMulti);
                         var mats = string.Join(",", (mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => Path.GetFileNameWithoutExtension(x as string ?? "")));
                         output.WriteLine($"  mesh {mesh.GetValue<int>("nodeID")} [{mats}] physicsType={pt ?? "(absent)"} ({pt?.GetType().Name}) verts {positions.Length} faces {faces.Length} groups [{string.Join(",", inputs.Select(i => i.Length))}]");
@@ -290,7 +319,7 @@ public class HullFromVmap(ITestOutputHelper output)
 
     // Entity-local positions (an unrotated mesh: scaled, moved to its origin,
     // less the entity's origin) and each face's vertex loop.
-    private static (Vector3[] Positions, int[][] Faces) Read(DmxBinary.Element mesh, Vector3 entityOrigin, bool fromStart)
+    private static (Vector3[] Positions, int[][] Faces) Read(DmxBinary.Element mesh, Vector3 entityOrigin, bool fromStart, DmxBinary.Element? entity = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         var stream = data.Get<DmxBinary.Element>("vertexData")!.GetElements("streams")
@@ -298,7 +327,23 @@ public class HullFromVmap(ITestOutputHelper output)
         var raw = stream.Get<object?[]>("data")!;
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
         var origin = mesh.GetValue<Vector3>("origin") ?? Vector3.Zero;
-        var positions = raw.Select(p => ((Vector3)p! * scales) + origin - entityOrigin).ToArray();
+        var mode = Environment.GetEnvironmentVariable("HULL_XFORM") ?? "2";
+        Vector3[] positions;
+        if (mode == "0")
+            positions = raw.Select(p => ((Vector3)p! * scales) + origin - entityOrigin).ToArray();
+        else
+        {
+            var e = Source2.Compiler.Maps.MapMeshes.Local(entity!);
+            var m = Source2.Compiler.Maps.MapMeshes.Local(mesh);
+            var inv = Source2.Compiler.Maps.MapMeshes.Invert(e);
+            if (mode == "1")
+            {
+                var em = Source2.Compiler.Maps.MapMeshes.Concat(inv, m);
+                positions = raw.Select(p => Source2.Compiler.Maps.MapMeshes.Transform(em, (Vector3)p! * scales)).ToArray();
+            }
+            else
+                positions = raw.Select(p => Source2.Compiler.Maps.MapMeshes.Transform(inv, Source2.Compiler.Maps.MapMeshes.Transform(m, (Vector3)p! * scales))).ToArray();
+        }
         int[] Ints(string name) => (data.Get<object?[]>(name) ?? []).Select(x => x is int i ? i : -1).ToArray();
         var next = Ints("edgeNextIndices");
         var to = Ints("edgeVertexIndices");

@@ -188,31 +188,39 @@ convex if part of an entity", but the compile resolves it to convex_multi.
    For a map builder hull that is the identity, which still turns every -0
    into +0.
 
-`HullFromVmap` builds every unrotated brush entity's hulls from the `.vmap`
-and compares them with the same map's compile. It checks positions, order,
-floats and topology.
+`HullFromVmap` builds every brush entity's hulls from the `.vmap` and
+compares them with the same map's compile. It checks positions, order, floats
+and topology. It depends on two more findings.
+
+- **The triangulator.** The mesh the map builder hulls from is already
+  triangulated, so vertices are numbered in the order the triangles' corners
+  meet them. A quad keeps the (0,2) diagonal unless that diagonal is the worse
+  fit or more than 1.01 times the other one squared. Then it becomes (0,1,3)
+  (1,2,3) and meets its corners 0,1,3,2. Larger faces go through an ear
+  clipper: best ear by 1/area + 2(1 - largest corner cosine), strict, first
+  wins. `Physics/FaceTriangulator.cs` ports both.
+- **World space first.** A vertex goes to world space through the mesh's
+  matrix, then into the entity's space through the entity's inverse. On Mako
+  that rounding is visible: a .vmap y of -31.999998 under a mesh at y = 448
+  comes out as exactly -32. atixref's package (built on 2026-09-21, before the
+  09-24 compiler update) instead matches p + (mesh origin - entity origin), so
+  it wants a recompile before it can judge this.
 
 | map | exact | order only | near miss | other |
 |---|---|---|---|---|
+| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1177 | 3 | 11 | 4 hull counts, 4 need the simplifier |
 | ze_hold_em_p | 163 | 0 | 0 | 6 doors: a toolsclip mesh ships no hull (the .vmap is older than the compile) |
-| ze_ffvii_mako_reactor_v6_p | 1120 | 31 | 10 | 4 hull counts, 3 need the simplifier, 13 rotated entities skipped |
-| atixref | 198 | 1 | 8 | 3 hull counts, 6 need the simplifier |
+| atixref (older compile) | 236 | 0 | 35 | 6 need the simplifier |
 
-A near miss is a sharpen-sized nudge (0.01 or less) that follows from a
-different order.
+A near miss is a vertex off by a rounding step or a sharpen-sized nudge.
 
 ### What is left
 
-- **The ear clipper.** It triangulates faces with four or more corners; a fan
-  stands in. The triangulation only changes a hash insertion order, which
-  matters when two keys share a home slot, and that happens more often in
-  bigger hulls.
-- **Face fan order around a vertex.** It feeds the neighbour set; a triangle
-  index order stands in.
+- **Face fan order around a vertex.** It feeds the neighbour set, and
+  triangle index order stands in. Reversing it changes nothing on Mako,
+  because it only matters when two faces share a home slot.
 - **The simplifier** that a 5 degree angle between neighbouring faces asks
   for.
-- **Entity-local points for rotated entities and meshes.** Valve's
-  mesh-to-entity matrix is not built here yet.
 - **Hull order across pieces.** It differs from mesh order, so the test
   matches hulls by their vertex sets.
 - **The region SVM.**
