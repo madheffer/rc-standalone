@@ -139,7 +139,7 @@ public static class MapMeshes
     // FUN_181255d60: pitch, yaw, roll in degrees, each times 0.017453292f
     // through tier0's V_sincosf (the CRT sinf and cosf), grouped as the
     // binary groups them. The columns are the forward, left and up axes.
-    private static float[] AngleMatrix(Vector3 angles)
+    internal static float[] AngleMatrix(Vector3 angles)
     {
         const float Radians = 0.017453292f;
         float sp = MathF.Sin(angles.X * Radians), cp = MathF.Cos(angles.X * Radians);

@@ -34,8 +34,11 @@ public static class MapInstances
     /// <param name="createdOnLoad">Nodes the loader creates before the bake, which
     /// take ids first: one per locator a smart prop's definition creates (see
     /// <see cref="SmartProps"/>).</param>
+    /// <param name="placed">Told of every node a placement writes, entity or
+    /// not, with its id and the instances it came through, outermost first.</param>
     public static (IReadOnlyList<Copy> Copies, IReadOnlySet<int> Templates) Expand(
-        DmxBinary.Document document, IReadOnlyList<MapEntities.Entity> walked, int createdOnLoad = 0)
+        DmxBinary.Document document, IReadOnlyList<MapEntities.Entity> walked, int createdOnLoad = 0,
+        Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>>? placed = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(walked);
@@ -81,7 +84,7 @@ public static class MapInstances
         var templates = new HashSet<int>(hiddenTemplates);
         foreach (var instance in tree.Instances)
             if (!tree.InsideTarget.Contains(instance.Node))
-                Place(instance, Transform.Identity, tree, byNode, block, ref next, copies, templates,
+                Place(instance, Transform.Identity, [], tree, byNode, block, ref next, copies, templates, placed,
                       tree.SubtreeEnd.GetValueOrDefault(instance.Parent, walked.Count), LayerOf(instance.Node, tree));
 
         // Lump order is the walk with each instance's copies inserted where its
@@ -189,9 +192,10 @@ public static class MapInstances
     /// is where atixref's four copies of its one nested group get 7882 to 7888.
     /// </summary>
     private static void Place(
-        Instance instance, Transform outer, Tree tree, Dictionary<int, int> byNode,
+        Instance instance, Transform outer, IReadOnlyList<DmxBinary.Element> path, Tree tree, Dictionary<int, int> byNode,
         Dictionary<DmxBinary.Element, int> block, ref int next,
-        List<Copy> copies, HashSet<int> templates, int emitAt, string? layer)
+        List<Copy> copies, HashSet<int> templates, Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>>? placed,
+        int emitAt, string? layer)
     {
         var at = outer.Then(
             instance.Node.GetValue<Vector3>("origin") ?? Vector3.Zero,
@@ -202,7 +206,8 @@ public static class MapInstances
         // its place.
         var slot = 0;
         var nested = new List<DmxBinary.Element>();
-        Emit(instance.Target, at, byNode, copies, templates, emitAt,
+        IReadOnlyList<DmxBinary.Element> through = [.. path, instance.Node];
+        Emit(instance.Target, at, through, byNode, copies, templates, placed, emitAt,
              block.GetValueOrDefault(instance.Node), ref slot, nested, layer);
 
         foreach (var inner in nested)
@@ -210,18 +215,21 @@ public static class MapInstances
             {
                 block[found.Node] = next + 1;
                 next += tree.Nodes.GetValueOrDefault(found.Target) + 1;
-                Place(found, at, tree, byNode, block, ref next, copies, templates, emitAt, layer);
+                Place(found, at, through, tree, byNode, block, ref next, copies, templates, placed, emitAt, layer);
             }
     }
 
     private static void Emit(
-        DmxBinary.Element group, Transform at, Dictionary<int, int> byNode,
-        List<Copy> copies, HashSet<int> templates, int emitAt, int start, ref int slot,
+        DmxBinary.Element group, Transform at, IReadOnlyList<DmxBinary.Element> through, Dictionary<int, int> byNode,
+        List<Copy> copies, HashSet<int> templates, Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>>? placed,
+        int emitAt, int start, ref int slot,
         List<DmxBinary.Element> nested, string? layer)
     {
         foreach (var child in group.GetElements("children"))
         {
             var index = slot++;
+            if (child.Type is not "CMapInstance")
+                placed?.Invoke(child, start + index, through);
             if (child.Type is "CMapInstance")
             {
                 nested.Add(child);
@@ -236,7 +244,7 @@ public static class MapInstances
                         child.GetValue<Vector3>("origin") ?? Vector3.Zero, Rotation(at.Angles)),
                     Wrap((child.GetValue<Vector3>("angles") ?? Vector3.Zero) + at.Angles), layer));
             }
-            Emit(child, at, byNode, copies, templates, emitAt, start, ref slot, nested, layer);
+            Emit(child, at, through, byNode, copies, templates, placed, emitAt, start, ref slot, nested, layer);
         }
     }
 

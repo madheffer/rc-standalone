@@ -43,6 +43,9 @@ public struct RnBodyState
     [FieldOffset(0x80)] public nint Controller;
 
     [FieldOffset(0x88)] public float Scale;
+
+    /// <summary>Multiplies the inverse mass of a dynamic body (FUN_1801c0880).</summary>
+    [FieldOffset(0x8c)] public float MassScale;
     [FieldOffset(0x90)] public float InertiaScale;
     [FieldOffset(0x94)] public float GravityScale;
     [FieldOffset(0x98)] public float FrictionScale;

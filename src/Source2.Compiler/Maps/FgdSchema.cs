@@ -84,7 +84,11 @@ public sealed partial class FgdSchema
     /// values are collected into (<c>pin_enabled</c> writes
     /// <c>pathNodePinsEnabled</c>); null otherwise.</param>
     public sealed record Key(string Name, FieldType Type, string? Default, int TypeId = -1, string Extension = "",
-                             string? WriteToPathKey = null);
+                             string? WriteToPathKey = null)
+    {
+        /// <summary>A flags key's bits and their descriptions, in declaration order.</summary>
+        public IReadOnlyList<(uint Bit, string Name)> Flags { get; init; } = [];
+    }
 
     private readonly Dictionary<string, Class> _classes = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _solid = new(StringComparer.OrdinalIgnoreCase);
@@ -121,6 +125,35 @@ public sealed partial class FgdSchema
     public string? MetadataOf(string className, string key)
         => _classes.TryGetValue(className, out var cls) && cls.FlatMetadata.TryGetValue(key, out var value) ? value : null;
 
+    /// <summary>
+    /// Whether an entity of the class has the spawnflag described as
+    /// <paramref name="description"/> (case blind) set (FUN_180f34460): the
+    /// first choice of that name decides, and a bit of 0 never matches.
+    /// </summary>
+    public bool HasSpawnflag(string className, long spawnflags, string description)
+    {
+        foreach (var (bit, name) in KeyOf(className, "spawnflags")?.Flags ?? [])
+            if (name.Equals(description, StringComparison.OrdinalIgnoreCase))
+                return bit != 0 && ((uint)spawnflags & bit) == bit;
+        return false;
+    }
+
+    /// <summary>A flags key's choices: <c>bit : "description" : default</c> entries of the bracket after the key.</summary>
+    private static IReadOnlyList<(uint Bit, string Name)> FlagsOf(string declaration, string body, int at)
+    {
+        if (!declaration.Trim().Equals("flags", StringComparison.OrdinalIgnoreCase))
+            return [];
+        var open = body.IndexOf('[', at);
+        var eq = body.IndexOf('=', at);
+        if (open < 0 || eq < 0 || eq > open)
+            return [];
+        var close = body.IndexOf(']', open);
+        if (close < 0)
+            return [];
+        return [.. Regex.Matches(body[(open + 1)..close], @"(\d+)\s*:\s*""([^""]*)""")
+            .Select(m => (uint.Parse(m.Groups[1].Value), m.Groups[2].Value))];
+    }
+
     /// <summary>Whether the class is a <c>@PathNodeClass</c>.</summary>
     public bool IsPathNodeClass(string className) => _pathNodes.Contains(className);
 
@@ -155,6 +188,26 @@ public sealed partial class FgdSchema
     /// surfaced once the corpus grew.</para>
     /// </summary>
     public bool IsSolidClass(string className) => _solid.Contains(className);
+
+    /// <summary>
+    /// Whether the class is <paramref name="baseName"/> or inherits it through
+    /// any chain of bases (FUN_180dd2500).
+    /// </summary>
+    public bool Inherits(string className, string baseName)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var stack = new Stack<string>([className]);
+        while (stack.Count > 0)
+        {
+            var at = stack.Pop();
+            if (at.Equals(baseName, StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (seen.Add(at) && _classes.TryGetValue(at, out var cls))
+                foreach (var b in cls.Bases)
+                    stack.Push(b);
+        }
+        return false;
+    }
 
     /// <summary>
     /// Whether the class's <c>metadata</c> block sets this boolean flag.
@@ -358,7 +411,8 @@ public sealed partial class FgdSchema
             if (TypeOfDeclaration(key.Groups[2].Value) is not { } type)
                 return;
             AddVariable(own, new Key(key.Groups[1].Value, type.Type, DefaultOf(body, key.Index + key.Length),
-                                     type.Id, type.Extension, WriteToPathKeyOf(body, key.Index + key.Length)));
+                                     type.Id, type.Extension, WriteToPathKeyOf(body, key.Index + key.Length))
+                             { Flags = FlagsOf(key.Groups[2].Value, body, key.Index + key.Length) });
         }
 
         // @OverrideClass merges into the class it names (FUN_180dd1680): each key
