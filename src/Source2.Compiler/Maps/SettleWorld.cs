@@ -317,10 +317,7 @@ public static partial class SettleWorld
         float[]? matrix = NonUniform(scale) ? [scale.X, 0, 0, 0, 0, scale.Y, 0, 0, 0, 0, scale.Z, 0] : null;
         var shape = parts[0].Shape;
         var props = node.Get<DmxBinary.Element>("entity_properties")!;
-        // An entity that is not solid never reads the model's attributes, so
-        // its layer names take no bits (atixref's non-solid trim block would
-        // otherwise take bit 32 for csgo_grenadeclip ahead of csgo_thrown_grenade).
-        var table = props.Get<string>("solid") == "0" ? [] : phys.CollisionAttributes.Select(rules.Convert).ToArray();
+        var table = phys.CollisionAttributes.Select(rules.Convert).ToArray();
         var surfaces = phys.SurfacePropertyHashes;
         CollisionAttributes Attributes(int index) => ShapeAttributes(props, className, table, index, parts[0].CollisionAttributeIndex);
         ContactSolver.Material Material(int index)
@@ -543,7 +540,10 @@ public static partial class SettleWorld
         ];
 
         private readonly Dictionary<string, ulong> _layers = new(StringComparer.OrdinalIgnoreCase);
-        private int _next = 32;
+        // A name the rules do not know takes the lowest free bit, and 31 is
+        // the first (FUN_180296fa0 registers 0 to 30): atixref's csgo_grenadeclip
+        // takes 31 and csgo_thrown_grenade 32, c2m2's first new layer 31.
+        private int _next = 31;
 
         /// <summary>CONTENTS_SOLID: solid, blocksound, blocklos, blocklight; also what an empty interact-as means.</summary>
         public const ulong ContentsSolid = 0x4c1;

@@ -1,0 +1,317 @@
+using System.Numerics;
+
+namespace Source2.Compiler.Maps;
+
+/// <summary>
+/// A map mesh's faces as triangles, the way the compile's mesh library cuts
+/// them for physics (FUN_18139c100 -> FUN_18139c1f0): every triangle corner
+/// gets a position, and equal positions are then welded into one vertex, in
+/// the order they first appear (FUN_1813858d0).
+/// </summary>
+/// <remarks>
+/// <para>A face with no subdivision level is a polygon: its corners in loop
+/// order, and on each edge whose neighbour is subdivided the points that
+/// neighbour puts there (2^level of them per edge, lerped), all cut by
+/// <see cref="PolygonTriangulator"/>.</para>
+/// <para>A subdivided face (meshData.subdivisionData, a level per face corner)
+/// splits into one quad patch per corner (FUN_1813bda20: the corner, the two
+/// edge midpoints, the face centre), each a bilinear grid of 2^(level-1)
+/// cells a side (FUN_1813bcc40), triangulated with its outer edges stitched
+/// to a finer neighbour (FUN_1813c26a0).</para>
+/// <para>Displacement moves each patch point along the patch frame.</para>
+/// </remarks>
+public static class MeshTessellation
+{
+    /// <summary>The welded vertices, three indices a triangle, and each triangle's face.</summary>
+    public sealed record Result(List<Vector3> Positions, List<int> Indices, List<int> Faces);
+
+    public static Result Triangulate(DmxBinary.Element data)
+    {
+        var next = Ints(data, "edgeNextIndices");
+        var to = Ints(data, "edgeVertexIndices");
+        var opposite = Ints(data, "edgeOppositeIndices");
+        var edgeFace = Ints(data, "edgeFaceIndices");
+        var cornerData = Ints(data, "edgeVertexDataIndices");
+        var first = Ints(data, "faceEdgeIndices");
+        var vertexData = Ints(data, "vertexDataIndices");
+        var positions = Stream(data.Get<DmxBinary.Element>("vertexData"), "position");
+        var subdivision = data.Get<DmxBinary.Element>("subdivisionData");
+        var levels = subdivision?.Get<object?[]>("subdivisionLevels")?.Select(x => x is int i ? i : 0).ToArray() ?? [];
+        var hasSubdivision = subdivision != null && levels.Length > 0;
+        // The displacement stream: a block of (2^(level-1) + 1)^2 offsets per
+        // subdivided face corner, in corner data order.
+        var displacement = subdivision == null ? [] : Stream(subdivision, "displacement");
+        var blockOf = new Dictionary<int, int>();
+        if (displacement.Length > 0)
+        {
+            var at = 0;
+            for (var d = 0; d < levels.Length; d++)
+                if (levels[d] > 0)
+                {
+                    blockOf[d] = at;
+                    var side = (1 << (levels[d] - 1)) + 1;
+                    at += side * side;
+                }
+            if (at != displacement.Length)
+                throw new InvalidDataException($"displacement stream of {displacement.Length}, levels ask {at}");
+        }
+
+        Vector3 Pos(int v) => (Vector3)positions[vertexData[v]]!;
+        int Level(int h) => hasSubdivision && cornerData[h] >= 0 && cornerData[h] < levels.Length ? levels[cornerData[h]] : 0;
+        // FUN_1813c7ae0: the level across a half-edge, 0 where no face is.
+        int Across(int h) => hasSubdivision && opposite[h] >= 0 && edgeFace[opposite[h]] >= 0 ? Level(opposite[h]) : 0;
+
+        var corners = new List<Vector3>();
+        var faces = new List<int>();
+        for (var f = 0; f < first.Length; f++)
+        {
+            var loop = new List<int>();
+            var e = first[f];
+            do
+            {
+                loop.Add(e);
+                e = next[e];
+            } while (e != first[f] && loop.Count <= next.Length);
+            var level = Level(first[f]);
+            if (level > 0)
+                Patches(loop, level);
+            else
+                Polygon(loop);
+
+            void Polygon(List<int> hs)
+            {
+                var c = hs.Select(h => Pos(to[h])).ToArray();
+                var points = new List<Vector3>();
+                for (var i = 0; i < c.Length; i++)
+                {
+                    var a = c[i];
+                    var b = c[(i + 1) % c.Length];
+                    var n = 1 << Across(hs[(i + 1) % hs.Count]);
+                    var step = 1f / n;
+                    for (var k = 0; k < n; k++)
+                    {
+                        var t = k * step;
+                        points.Add(new Vector3(((b.X - a.X) * t) + a.X, ((b.Y - a.Y) * t) + a.Y, ((b.Z - a.Z) * t) + a.Z));
+                    }
+                }
+                var cut = PolygonTriangulator.Triangulate([.. points]);
+                foreach (var j in cut)
+                    corners.Add(points[j]);
+                for (var t = 0; t < cut.Length / 3; t++)
+                    faces.Add(f);
+            }
+
+            void Patches(List<int> hs, int faceLevel)
+            {
+                var m = hs.Count;
+                var ratio = new int[m];
+                for (var i = 0; i < m; i++)
+                    ratio[i] = Math.Max(1, (1 << Across(hs[(i + 1) % m])) / (1 << faceLevel));
+                for (var i = 0; i < m; i++)
+                {
+                    var own = Level(hs[i]);
+                    if (own == 0)
+                        continue;
+                    var grid = Grid(hs, i, own);
+                    if (displacement.Length > 0)
+                        Displace(grid, hs, i, f);
+                    var p = ratio[i];
+                    var q = ratio[(i + m - 1) % m];
+                    var stitched = Stitch(1 << (own - 1), p, q).ToList();
+                    foreach (var (a, b, t) in stitched)
+                    {
+                        var pa = grid[a];
+                        var pb = grid[b];
+                        corners.Add(new Vector3(((pb.X - pa.X) * t) + pa.X, ((pb.Y - pa.Y) * t) + pa.Y, ((pb.Z - pa.Z) * t) + pa.Z));
+                    }
+                    for (var t = 0; t < stitched.Count / 3; t++)
+                        faces.Add(f);
+                }
+            }
+
+            // FUN_1813c7b90: each patch point moved by its displacement in
+            // the patch frame (FUN_1813bc230; Matrix3x4_Rotate, columns B, T, N).
+            void Displace(Vector3[] grid, List<int> hs, int i, int face)
+            {
+                var m = hs.Count;
+                var loopPoints = new Vector3[m];
+                float cx = 0f, cy = 0f, cz = 0f;
+                var inv = 1f / m;
+                for (var k = 0; k < m; k++)
+                {
+                    var v = loopPoints[k] = Pos(to[hs[(i + k) % m]]);
+                    cx = (inv * v.X) + cx;
+                    cy = (v.Y * inv) + cy;
+                    cz = (v.Z * inv) + cz;
+                }
+                var n = PolygonTriangulator.Newell(loopPoints);
+                var e1 = first[face];
+                var a = Pos(to[e1]);
+                var b = Pos(to[next[e1]]);
+                var dx = cx - ((b.X + a.X) * 0.5f);
+                var dy = cy - ((a.Y + b.Y) * 0.5f);
+                var dz = cz - ((b.Z + a.Z) * 0.5f);
+                var t = Unit(new Vector3((dz * n.Y) - (dy * n.Z), (dx * n.Z) - (dz * n.X), (dy * n.X) - (dx * n.Y)));
+                var bt = Unit(new Vector3((t.Y * n.Z) - (t.Z * n.Y), (t.Z * n.X) - (n.Z * t.X), (n.Y * t.X) - (t.Y * n.X)));
+                var start = blockOf[cornerData[hs[i]]];
+                for (var k = 0; k < grid.Length; k++)
+                {
+                    var d = (Vector3)displacement[start + k]!;
+                    var rx = (d.Z * n.X) + ((d.Y * t.X) + (d.X * bt.X));
+                    var ry = (d.Z * n.Y) + ((d.Y * t.Y) + (d.X * bt.Y));
+                    var rz = (d.Z * n.Z) + ((d.Y * t.Z) + (d.X * bt.Z));
+                    grid[k] = new Vector3(rx + grid[k].X, ry + grid[k].Y, rz + grid[k].Z);
+                }
+            }
+
+            // FUN_1813bda20 then FUN_1813bcc40: corner h's patch, a grid of
+            // n + 1 points a side, row r from the corner towards the previous
+            // edge's midpoint, column c towards the next edge's.
+            Vector3[] Grid(List<int> hs, int i, int own)
+            {
+                var m = hs.Count;
+                var inv = 1f / m;
+                float cx = 0f, cy = 0f, cz = 0f;
+                for (var k = 0; k < m; k++)
+                {
+                    var v = Pos(to[hs[(i + k) % m]]);
+                    cx = (inv * v.X) + cx;
+                    cy = (v.Y * inv) + cy;
+                    cz = (v.Z * inv) + cz;
+                }
+                var p0 = Pos(to[hs[i]]);
+                var pn = Pos(to[hs[(i + 1) % m]]);
+                var pp = Pos(to[hs[(i + m - 1) % m]]);
+                var c1 = new Vector3((p0.X + pn.X) * 0.5f, (pn.Y + p0.Y) * 0.5f, (pn.Z + p0.Z) * 0.5f);
+                var c2 = new Vector3((pp.X + p0.X) * 0.5f, (pp.Y + p0.Y) * 0.5f, (pp.Z + p0.Z) * 0.5f);
+                var c3 = new Vector3(cx, cy, cz);
+                var n = 1 << (own - 1);
+                var g = n + 1;
+                var step = 1f / n;
+                var points = new Vector3[g * g];
+                for (var r = 0; r <= n; r++)
+                {
+                    var v = r * step;
+                    var ax = ((c2.X - p0.X) * v) + p0.X;
+                    var ay = ((c2.Y - p0.Y) * v) + p0.Y;
+                    var az = ((c2.Z - p0.Z) * v) + p0.Z;
+                    var bz = ((c3.Z - c1.Z) * v) + c1.Z;
+                    var by = ((c3.Y - c1.Y) * v) + c1.Y;
+                    var dx = (((c3.X - c1.X) * v) + c1.X) - ax;
+                    for (var c = 0; c <= n; c++)
+                    {
+                        var u = c * step;
+                        points[(r * g) + c] = new Vector3((dx * u) + ax, ((by - ay) * u) + ay, ((bz - az) * u) + az);
+                    }
+                }
+                return points;
+            }
+        }
+
+        // FUN_1813858d0: equal positions (bit for bit) are one vertex, numbered as first met.
+        var weld = new Dictionary<(uint, uint, uint), int>();
+        var result = new Result([], [], faces);
+        foreach (var c in corners)
+        {
+            var key = (BitConverter.SingleToUInt32Bits(c.X), BitConverter.SingleToUInt32Bits(c.Y), BitConverter.SingleToUInt32Bits(c.Z));
+            if (!weld.TryGetValue(key, out var index))
+            {
+                index = weld[key] = result.Positions.Count;
+                result.Positions.Add(c);
+            }
+            result.Indices.Add(index);
+        }
+        return result;
+    }
+
+    /// <summary>A vector over its length ((z^2 + y^2) + x^2); a length outside 1e-17..1e17 is not handled.</summary>
+    private static Vector3 Unit(Vector3 v)
+    {
+        var length = MathF.Sqrt(((v.Z * v.Z) + (v.Y * v.Y)) + (v.X * v.X));
+        if (length == 0f)
+            return Vector3.Zero;
+        if (length < 1e-17f || 1e17f < length)
+            throw new NotSupportedException("a patch frame of extreme length");
+        var inv = 1f / length;
+        return new Vector3(v.X * inv, v.Y * inv, v.Z * inv);
+    }
+
+    /// <summary>
+    /// FUN_1813c26a0: a patch of n cells a side as triangles of lerped grid
+    /// points (a, b, t). The first row's cells take p segments each and the
+    /// first column's q, fanned to the next row (column) in halves; the other
+    /// cells are two triangles each.
+    /// </summary>
+    internal static IEnumerable<(int A, int B, float T)> Stitch(int n, int p, int q)
+    {
+        var g = n + 1;
+        float fu = 1f / p, fv = 1f / q;
+        int half = p / 2, halfQ = q / 2;
+        for (var k = 0; k < p; k++)
+        {
+            yield return (0, 1, k * fu);
+            yield return (0, 1, (k + 1) * fu);
+            yield return (g + 1, g + 1, 0f);
+        }
+        for (var c = 2; c <= n; c++)
+        {
+            for (var k = 0; k < half; k++)
+            {
+                yield return (c - 1, c, k * fu);
+                yield return (c - 1, c, (k + 1) * fu);
+                yield return (c + n, c + n, 0f);
+            }
+            for (var k = half; k < p; k++)
+            {
+                yield return (c - 1, c, k * fu);
+                yield return (c - 1, c, (k + 1) * fu);
+                yield return (c + n + 1, c + n + 1, 0f);
+            }
+            yield return (c - 1, c, half * fu);
+            yield return (c + n + 1, c + n + 1, 0f);
+            yield return (c + n, c + n, 0f);
+        }
+        for (var k = 0; k < q; k++)
+        {
+            yield return (0, g, k * fv);
+            yield return (g + 1, g + 1, 0f);
+            yield return (0, g, (k + 1) * fv);
+        }
+        for (var r = 2; r <= n; r++)
+        {
+            int above = (r - 1) * g, here = r * g;
+            for (var k = 0; k < halfQ; k++)
+            {
+                yield return (above, here, k * fv);
+                yield return (above + 1, above + 1, 0f);
+                yield return (above, here, (k + 1) * fv);
+            }
+            for (var k = halfQ; k < q; k++)
+            {
+                yield return (above, here, k * fv);
+                yield return (here + 1, here + 1, 0f);
+                yield return (above, here, (k + 1) * fv);
+            }
+            yield return (above, here, halfQ * fv);
+            yield return (above + 1, above + 1, 0f);
+            yield return (here + 1, here + 1, 0f);
+        }
+        for (var r = 1; r < n; r++)
+            for (var c = 1; c < n; c++)
+            {
+                var p00 = (r * g) + c;
+                yield return (p00, p00, 0f);
+                yield return (p00 + 1, p00 + 1, 0f);
+                yield return (p00 + g + 1, p00 + g + 1, 0f);
+                yield return (p00, p00, 0f);
+                yield return (p00 + g + 1, p00 + g + 1, 0f);
+                yield return (p00 + g, p00 + g, 0f);
+            }
+    }
+
+    private static int[] Ints(DmxBinary.Element data, string name)
+        => (data.Get<object?[]>(name) ?? []).Select(x => x is int i ? i : -1).ToArray();
+
+    private static object?[] Stream(DmxBinary.Element? holder, string name)
+        => holder?.GetElements("streams").FirstOrDefault(s => s.Name.Split(':')[0] == name)?.Get<object?[]>("data") ?? [];
+}

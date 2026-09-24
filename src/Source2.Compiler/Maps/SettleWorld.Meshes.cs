@@ -95,9 +95,9 @@ public static partial class SettleWorld
                 break;
             case "mesh":
                 return 4;
-            case "single_convex":
+            case "convex_single":
                 return 2;
-            case "multi_convex":
+            case "convex_multi":
                 return 3;
             default:
                 throw new NotSupportedException($"physicsType {stored}");
@@ -149,40 +149,26 @@ public static partial class SettleWorld
             soupOf[m] = at;
         }
 
-        var vertexCount = vertexData.Length;
-        var pointOf = soups.Select(_ => Enumerable.Repeat(-1, vertexCount).ToArray()).ToArray();
-        Vector3 Position(int v)
+        // The faces as the mesh library cuts them (subdivided faces into
+        // patches), with equal corner positions welded into one vertex.
+        var cut = MeshTessellation.Triangulate(data);
+        var pointOf = soups.Select(_ => Enumerable.Repeat(-1, cut.Positions.Count).ToArray()).ToArray();
+        for (var t = 0; t < cut.Faces.Count; t++)
         {
-            var p = (Vector3)positions[vertexData[v]]!;
-            return scales == Vector3.One ? p : p * scales;
-        }
-        for (var f = 0; f < first.Length; f++)
-        {
-            var loop = new List<int>();
-            var e = first[f];
-            do
-            {
-                loop.Add(to[e]);
-                e = next[e];
-            } while (e != first[f] && loop.Count <= next.Length);
-            if (loop.Count < 3)
-                continue;
-            var corners = loop.Select(v => (Vector3)positions[vertexData[v]]!).ToArray();
-            // Every face goes through the triangulator, a triangle too: its
-            // ear comes out starting at the second corner.
-            var cut = PolygonTriangulator.Triangulate(corners);
+            var f = cut.Faces[t];
             var material = faceMaterials.Length == 0 ? 0 : faceMaterials[faceData[f]];
             if (material < 0 || material >= soupOf.Length)
                 continue;
             var s = soupOf[material];
             var soup = soups[s];
-            foreach (var j in cut)
+            for (var k = 0; k < 3; k++)
             {
-                var v = loop[j];
+                var v = cut.Indices[(t * 3) + k];
                 if (pointOf[s][v] < 0)
                 {
                     pointOf[s][v] = soup.Points.Count;
-                    soup.Points.Add(Position(v));
+                    var p = cut.Positions[v];
+                    soup.Points.Add(scales == Vector3.One ? p : p * scales);
                 }
                 soup.Indices.Add(pointOf[s][v]);
             }
@@ -296,9 +282,8 @@ public static partial class SettleWorld
     /// group replaces the last; tags join with ", "), then the named
     /// collision property (mapbuilder.collisionproperties) sets the group,
     /// makes it solid and appends its lists. "Drawn" is not nodraw and the
-    /// int attribute 0x84ce10dd unset. Not ported: removing "water" from the
-    /// tags, and the two tag lists (string attributes 0xbc105ab and after),
-    /// which throw when present.
+    /// int attribute 0x84ce10dd unset. Not ported: the two tag lists (string
+    /// attributes 0xbc105ab and after), which throw when present.
     /// </summary>
     private static MaterialPhysics ReadMaterialPhysics(MaterialInfo info, IModels models)
     {
@@ -334,8 +319,10 @@ public static partial class SettleWorld
             with = Join(with, p.InteractWith);
             exclude = Join(exclude, p.InteractExclude);
         }
+        // Water is not a window as well: ", window" comes out of the tags
+        // (CUtlString::Remove, case sensitive).
         if (tags.Contains("water", StringComparison.OrdinalIgnoreCase))
-            throw new NotSupportedException("a material tagged water");
+            tags = tags.Replace(", window", "", StringComparison.Ordinal);
         return new MaterialPhysics(solid, group, tags, with, exclude);
     }
 

@@ -21,8 +21,12 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public sealed class SettleBuildTests(ITestOutputHelper output)
 {
-    private const string Vmap = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\content\csgo_addons\s2c_rc_probe\maps\atixref.vmap";
-    private const string AddonGame = @"D:SteamsteamappsmmonCounter-Strike Global Offensivegamego_addonss2c_rc_probe";
+    /// <summary>The map the bundle compiled (SETTLE_VMAP, else atixref) and its addon's game folder (SETTLE_ADDON).</summary>
+    private static string Vmap => Environment.GetEnvironmentVariable("SETTLE_VMAP")
+        ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\content\csgo_addons\s2c_rc_probe\maps\atixref.vmap";
+
+    private static string AddonGame => Environment.GetEnvironmentVariable("SETTLE_ADDON")
+        ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe";
 
     /// <summary>A captured shape: the build event's kind and its world dump entry.</summary>
     internal sealed record CapturedShape(string Kind, byte[] Head, Dictionary<string, byte[]> Raw, byte[]? Scale);
@@ -91,6 +95,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
                     break;
             }
         }
+        if (world == null)
+            return objects;
         shapes = [];
         var states = new Dictionary<string, byte[]>();
         foreach (var b in world!.RootElement.GetProperty("bodies").EnumerateArray())

@@ -143,9 +143,22 @@ public sealed partial class FgdSchema
     {
         if (!declaration.Trim().Equals("flags", StringComparison.OrdinalIgnoreCase))
             return [];
-        var open = body.IndexOf('[', at);
+        // The choices are the bracket after the '='; a bracket before it is
+        // the key's own metadata (prop_physics: [ group="Physics Properties" ]).
+        while (at < body.Length && char.IsWhiteSpace(body[at]))
+            at++;
+        if (at < body.Length && body[at] == '[')
+        {
+            var end = body.IndexOf(']', at);
+            if (end < 0)
+                return [];
+            at = end + 1;
+        }
         var eq = body.IndexOf('=', at);
-        if (open < 0 || eq < 0 || eq > open)
+        if (eq < 0 || body[at..eq].Trim().Length > 0)
+            return [];
+        var open = body.IndexOf('[', eq);
+        if (open < 0 || body[(eq + 1)..open].Trim().Length > 0)
             return [];
         var close = body.IndexOf(']', open);
         if (close < 0)

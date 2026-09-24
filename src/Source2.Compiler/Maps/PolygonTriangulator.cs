@@ -68,7 +68,7 @@ public static class PolygonTriangulator
     }
 
     // FUN_18125b510: the Newell normal, scaled by 1 / (length + FLT_EPSILON).
-    private static Vector3 Newell(ReadOnlySpan<Vector3> p)
+    internal static Vector3 Newell(ReadOnlySpan<Vector3> p)
     {
         float x = 0f, y = 0f, z = 0f;
         for (var i = 0; i < p.Length; i++)

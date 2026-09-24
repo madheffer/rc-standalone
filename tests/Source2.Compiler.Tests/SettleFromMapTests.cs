@@ -10,12 +10,17 @@ namespace Source2.Compiler.Tests;
 /// atixref's settle from the map alone: the world <see cref="SettleWorld.CreateWorld"/>
 /// builds from the vmap and the stock models, compared body by body with the
 /// bundle's step-0 dump, then stepped 2700 times at 1/90 s, with the settled
-/// props' final frames against the bundle's. SETTLE names the bundle.
+/// props' final frames against the bundle's, which must all be exact.
+/// SETTLE names the bundle.
 /// </summary>
 public sealed class SettleFromMapTests(ITestOutputHelper output)
 {
-    private const string Vmap = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\content\csgo_addons\s2c_rc_probe\maps\atixref.vmap";
-    private const string AddonGame = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe";
+    /// <summary>The map the bundle compiled (SETTLE_VMAP, else atixref) and its addon's game folder (SETTLE_ADDON).</summary>
+    private static string Vmap => Environment.GetEnvironmentVariable("SETTLE_VMAP")
+        ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\content\csgo_addons\s2c_rc_probe\maps\atixref.vmap";
+
+    private static string AddonGame => Environment.GetEnvironmentVariable("SETTLE_ADDON")
+        ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe";
 
     /// <summary>The settled bodies made dynamic in our order (the collected nodes' walk order).</summary>
     [Fact]
@@ -123,9 +128,7 @@ public sealed class SettleFromMapTests(ITestOutputHelper output)
                 output.WriteLine($"  body {ci}: ours {b.State.Position} {b.State.Orientation}, valve {MemoryMarshal.Read<Vec3>(state.AsSpan(0xfc))} {MemoryMarshal.Read<Quat>(state.AsSpan(0x120))}");
         }
         output.WriteLine($"after 2700 steps: {placed}/{end.Count} bodies at the captured position and orientation");
-        // Two props rest on a vertex-painted mesh (node 1383) that the compile
-        // tessellates (subdivisionLevels 2), which is not ported yet.
-        Assert.True(placed >= end.Count - 2, $"{placed}/{end.Count} settled bodies as captured");
+        Assert.Equal(end.Count, placed);
     }
 
     /// <summary>The state words compared: from the scales on, less the frame the first step of a frame writes.</summary>
