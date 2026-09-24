@@ -11,23 +11,20 @@ namespace Source2.Compiler.Maps;
 /// for a solid class whose metadata sets
 /// <c>render_as_world_but_physics_as_entity</c> and 1 (an entity model of its
 /// own) for any other solid class.</item>
-/// <item>A mesh whose shadow mode is "none" is left out: its entry gets bit
-/// 0x2000000000 (<c>FUN_18023f6d0</c>, shadow mode 1), which the collector
-/// drops. The vmap's <c>disableShadows</c> 3 is that mode, measured on
-/// atixref (0 and 1 are not); 2 has not been seen.</item>
 /// <item>A face whose material is left out of the trace
 /// (<see cref="MaterialVisFlags.LeftOutOfTrace"/>) is dropped.</item>
 /// <item>Faces are triangulated as the compile does
 /// (<see cref="PolygonTriangulator"/>); a triangle passes through as is.</item>
 /// </list>
+///
+/// <para>Not yet covered: a face with subdivision levels, which the compile
+/// tessellates, and props, which the collector only adds when its model pass
+/// is on (it is off in every compile measured so far).</para>
 /// </summary>
 public static class MapGeometry
 {
     /// <summary>One traced triangle: its corners in the compile's order, and its material.</summary>
     public readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, string Material);
-
-    /// <summary>The vmap's <c>disableShadows</c> value that means no shadows at all.</summary>
-    public const int NoShadows = 3;
 
     public static List<Triangle> RteTriangles(IEnumerable<MapMeshes.Mesh> meshes, Func<string, MaterialVisFlags> materials,
                                               Func<string, bool> rendersAsWorld)
@@ -36,8 +33,6 @@ public static class MapGeometry
         foreach (var mesh in meshes)
         {
             if (mesh.ParentType == "CMapEntity" && !(mesh.ParentClass is { } c && rendersAsWorld(c)))
-                continue;
-            if (mesh.Element?.GetValue<int>("disableShadows") == NoShadows)
                 continue;
             foreach (var face in mesh.Faces)
             {

@@ -329,24 +329,33 @@ that actually settled the format was reading Valve's reader.
 `MapGeometry.RteTriangles` rebuilds the map-mesh part of the file, and
 `MapGeometryReplay` finds each triangle's 48-byte record bit for bit in the
 `.rte` of the same compile. probe01 (288) and cardtest (300) are exact both
-ways; on atixref 20,610 of our 20,958 are found and the file's other 12,244
-are props, which we do not produce yet.
+ways. On atixref 20,612 of our 21,571 are found; of the file's other 12,242,
+9,196 lie on faces with subdivision levels and 3,015 on no face at all
+(displaced subdivision), and only 71 on plain faces.
 
 **Which meshes.** A mesh under the world or a group counts. One under an
 entity counts only when the class renders as world (FGD metadata
-`render_as_world_but_physics_as_entity`, only `func_water` in CS2). A mesh
-whose shadow mode is "none" (`disableShadows` 3) gets the flag the collector
-drops. A face whose material has `mapbuilder.nodraw` or `mapbuilder.occluder`,
-and none of `visblocker`, `acceptvis` or `sky`, is dropped; the attributes come
-from the compiled `vmat_c` (tools materials live in `core`).
+`render_as_world_but_physics_as_entity`, only `func_water` in CS2). A face
+whose material has `mapbuilder.nodraw` or `mapbuilder.occluder`, and none of
+`visblocker`, `acceptvis` or `sky`, is dropped; the attributes come from the
+compiled `vmat_c` (tools materials live in `core`). The collector also drops
+an entry whose shadow setting is "none", but the vmap's `disableShadows` 3 is
+not that: atixref's one unsubdivided `disableShadows` 3 mesh is in the file.
+An earlier reading that it was came from subdivided meshes, which all carry 3
+there and were missing only because they are tessellated.
+
+**No props.** The collector has a second pass that adds each placed model's
+render meshes through the instance matrix, but it runs only when its caller
+asks for it. On atixref and on Mako no placed prop vertex has an `.rte` vertex
+within 0.05 units (`PropTrianglesReplay`), so those compiles trace map meshes
+only.
 
 **Where they go.** A node's world matrix is the instance path times its own
 `AngleMatrix(angles, origin)`, both in the binary's float order
-(ConcatTransforms sums z, y, x, then the translation). A point goes through as
-each row dotted with (x, y, z, 1) the way a SIMD horizontal add pairs it,
-`(x + z) + (y + t)`: a roll of -89.999985 degrees (mesh 6819 on atixref) and
-instanced copies of a yaw-180.5 mesh tell every other order apart. Faces are
-triangulated in world space.
+(ConcatTransforms sums z, y, x, then the translation). A point goes through
+tier0's SIMD transform, each row dotted with (x, y, z, 1) and summed
+`(x + z) + (y + t)`; the collector's triangle emitter calls the same routine.
+Faces are triangulated in world space.
 
 **Instances.** A group that a `CMapInstance` targets is not compiled where it
 stands. Each instance compiles the group's contents again, and each instance on
@@ -355,20 +364,19 @@ outermost first. Unrotated instances are exact.
 
 **Still open.**
 
+- Subdivision. Every face with subdivision levels is tessellated: a level-3
+  quad becomes an 8x8 grid of 128 triangles, and the stored samples (texcoord,
+  displacement, paint) are 4 corner quadrants of 5x5 each. The map compile's
+  `ExpandSubdivision` and meshutils' subdivision remapping do it; not yet
+  ported. It is most of what atixref and ze_hold_em_p still lack.
 - 240 atixref triangles, all in copies of one mesh (a yaw-180.5 light) under
   instances rotated 90, 180.00002 and 270 degrees, are off by one ulp in y at
   some corners. No summation order, matrix built another way (angles round trip,
   quaternion, double) or perturbation of the six x/y matrix entries by up to two
   ulps rebuilds them all. A capture of the compile's matrices for one of these
   copies should settle it (not taken: CS2 was running).
-- Faces with subdivision levels (`subdivisionData`) are tessellated on
-  ze_hold_em_p: 35 painted-blend slab faces at level 3 become 8x8 grids (128
-  triangles each, 4,482 in all). On atixref, 21 meshes carry subdivision levels
-  and still arrive as plain faces. The map compile's `ExpandSubdivision` and
-  meshutils' subdivision remapping decide which and how; not yet ported.
-- About 110 scattered atixref triangles in ordinary unrotated world meshes
-  (1109, 861 and others) are not found. Coverage by coplanar faces of other
-  meshes does not predict it.
+- 71 triangles on plain atixref faces (meshes 1109, 861 and others) are not
+  found. Coverage by coplanar faces of other meshes does not predict it.
 
 ## What is NOT established
 
@@ -400,8 +408,7 @@ met at the same distance go to the one the kd walk tests first.
 
 ## Next
 
-1. The rotated-instance residual, from a capture of the matrices.
-2. Subdivision: when a face is tessellated, and the exact grid and diagonals.
-3. Props: the collector's second path over the map's models, baked into world
-   space by the world builder.
-4. Identify the 8-byte per-triangle field.
+1. Subdivision: when and how a face is tessellated, the exact grid,
+   displacement and diagonals.
+2. The rotated-instance residual, from a capture of the matrices.
+3. Identify the 8-byte per-triangle field.
