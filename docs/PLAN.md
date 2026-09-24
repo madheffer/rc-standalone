@@ -56,7 +56,7 @@ why the phases below cannot be reordered:
    -> ray trace environment     the .rte, written to %TEMP%
    -> VISIBILITY                voxelize, regions, clusters, PVS
    -> world nodes               geometry SPLIT ALONG cluster boundaries
-   -> entity lump               carries cluster assignment
+   -> entity lump               moves with vis (not through a cluster key)
    -> lighting (vrad3)          needs geometry and visibility
    -> cubemaps, nav, audio
    -> pack
@@ -66,6 +66,12 @@ The hard consequence, measured and not assumed: changing visibility alone change
 **11 of 72 files** in a map VPK. Visibility, world node meshes, the world node
 index, the world, the entity lump and a light probe octree are one coupled unit.
 A phase that produces any of them must produce all of them consistently.
+
+The entity lump is in that unit, but not the way this plan first assumed: a
+current lump carries no per-entity cluster key at all (measured 2026-09-25 on
+atixref, ze_hold_em_p and Mako). Which of its values move with visibility is not
+measured yet; the lights' precomputed bounds, which the compile ray traces
+against the world, are the first suspect.
 
 ---
 
@@ -217,8 +223,9 @@ Phase 3.
 ## Phase 3: the coupled outputs
 
 Once visibility is ours, the five resources that depend on it must be too:
-splitting geometry along our cluster boundaries into world nodes, the entity
-lump's cluster assignment, and light probe placement. `map-diff` is the check:
+splitting geometry along our cluster boundaries into world nodes, whatever in the
+entity lump moves with visibility (see above: not a cluster key), and light probe
+placement. `map-diff` is the check:
 after this phase a full rebuild should differ from Valve's in these files and
 **no others**.
 
@@ -254,7 +261,10 @@ has to come out of our compile, not only the geometry. Noted 2026-09-24:
 - **I/O.** Every entity's connections (outputs, targets, delays, parameters,
   fire-once), templates and point_template spawns, logic_* entities,
   filters, and whatever the compile rewrites in them (names in instances,
-  fixups).
+  fixups). DONE 2026-09-25 for everything but lights: every lump of atixref,
+  ze_hold_em_p and Mako matches Valve's in type, order and every connection
+  field except the gaps listed in MAP_RESOURCES.md (light keys, the physics
+  settle, and instance numbering inside Mako's world layers).
 - **Everything else Hammer compiles in**: nav, sounds and soundscapes,
   particles, env_* entities, and whatever else a ZE map ships, to be listed as
   each is met.
