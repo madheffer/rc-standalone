@@ -80,9 +80,76 @@ of 40 byte nodes over the hull's faces, then flattens it:
 The builder works relative to the hull's centroid. Each plane is copied out and
 its offset gets n·centroid added back.
 
-## What it means for the port
+## The quickhull build
 
-Matching a hull byte for byte means porting vphysics2's quickhull, its
-extrusion and limit passes, the conversion above and the SVM builder. Every
-step is float arithmetic whose order matters. Next: the quickhull build itself,
-then the three finishing passes (mass, area, centroid radius).
+vphysics2 carries Gregorius-style quickhull. `Physics/QuickHull.cs` ports it
+operation for operation:
+
+1. **Centre.** Subtract the points' mean (a plain running sum divided by n).
+2. **Weld.** A later point within the tolerance of an earlier one on all three
+   axes (strict) is replaced by the last point. The tolerance is relative to the
+   AABB extents when the options say so, and the compile's options do.
+3. **Tolerance.** From the welded points' AABB:
+   - m is the largest |coordinate| on any axis, and the axes' largest |values|
+     are also summed;
+   - v = min(sum, m·√3)·3·1.01 + m, floored at 1;
+   - tol[0] = v·50·FLT_EPSILON, tol[1] = 4·tol[0], tol[2] = 2·tol[1].
+4. **Simplex.** The axis of largest extent gives the first two points. The third
+   is the point farthest from their line, the fourth the point farthest from
+   that plane, each by a strict "better than 100·tol[0]". Four faces are built.
+   Every other point goes to the face it is farthest above, if that beats
+   tol[2].
+5. **Grow.** Repeatedly take the conflict point farthest above its face (over
+   tol[2]):
+   - a depth-first horizon, where a neighbour is visible when the point is
+     more than tol[1] above it;
+   - a fan of new faces;
+   - three merge passes: faces whose plane has the interior point in front, then
+     non-convex edges, larger face first, then flagged faces;
+   - orphan points re-filed or dropped;
+   - dead faces freed.
+6. **Finish.** Mark the vertices still on faces, drop the rest, then add the
+   mean back to the vertices and plane offsets.
+
+Two details make the order Valve's rather than any correct hull's:
+
+- **List insertion.** A node goes in just before the first node ever inserted
+  into that list, which is not either end.
+- **Pool order.** Vertices, half-edges and faces come from fixed pools with
+  index free lists. The later sharpen pass visits each edge pair once by
+  comparing the two half-edges' addresses, so pool order changes where
+  vertices end up.
+
+## What is ported, and what matches
+
+`Physics/RnHullBuilder.cs` covers the rest:
+
+- `RnHullCreate`, with the box shortcut and `RnHullCreateBox`;
+- normalisation, the limit and sharpen passes, and the inner-margin check;
+- the conversion and the mass, area and centroid-radius passes.
+
+Not ported: the extrusion retry for an invalid hull, the simplifiers (the
+compile's options only reach them past 256), and the region SVM.
+
+`HullReplay` feeds every shipped brush-entity hull's own vertices back in:
+
+| map | box hulls | other hulls |
+|---|---|---|
+| ze_hold_em_p | 156 of 156 bit-exact | 1 differs by ulps and in order |
+| ze_ffvii_mako_reactor_v6_p | 606 of 611 bit-exact | 4 fully exact; 245 match in every float and differ only in order; 490 differ by ulps and in order |
+
+A general hull fed its own output keeps its floats but not its order, and the
+order changes the sums by an ulp.
+
+The true input is a vertex list, not the mesh. physicsbuilder builds a hull
+shape by hulling the mesh points with the same quickhull. The options come from
+the `CModelDocPhysicsHullFile` node:
+
+- face-merge angle, clamped to 5..80;
+- max hull vertices, 4..256;
+- import mode;
+- optimization algorithm (3 turns the angle off).
+
+The hull's vertex list, in list order, becomes `hull_vertices`, which
+`RnHullCreate` hulls again. Next: the node and attributes the map builder
+gives a brush entity, then that first stage, then the SVM.
