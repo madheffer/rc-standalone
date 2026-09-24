@@ -23,6 +23,7 @@ public sealed class RnHull
     /// <summary>Per face, one half-edge.</summary>
     public byte[] Faces = [];
     public uint Flags;
+    public RegionSvm? RegionSvm;
 }
 
 /// <summary>
@@ -490,9 +491,8 @@ public static class RnHullBuilder
 
     /// <summary>
     /// resourcecompiler's FUN_1819595d0: the cooked hull moved by its shape's
-    /// matrix (row-major 3x4). Even the identity matters, because adding its
-    /// zero terms turns a -0 into +0. The region SVM planes it also moves are
-    /// not built here.
+    /// matrix (row-major 3x4), region SVM planes included. Even the identity
+    /// matters, because adding its zero terms turns a -0 into +0.
     /// </summary>
     public static void Transform(RnHull hull, float[] m)
     {
@@ -532,6 +532,15 @@ public static class RnHullBuilder
         hull.MassProperties[7] = c.Y;
         hull.MassProperties[11] = c.Z;
         hull.OrthographicAreas = Ortho(hull.OrthographicAreas, m);
+        if (hull.RegionSvm is { } svm)
+        {
+            for (var i = 0; i < svm.Planes.Length; i++)
+            {
+                var (n, d) = svm.Planes[i];
+                var r = Rotate(m, n);
+                svm.Planes[i] = (r, (((m[7] * r.Y) + (m[3] * r.X)) + (m[11] * r.Z)) + d);
+            }
+        }
         if ((hull.Flags & 2) != 0)
         {
             var mask = 0;

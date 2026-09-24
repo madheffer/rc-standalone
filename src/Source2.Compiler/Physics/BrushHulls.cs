@@ -220,6 +220,7 @@ public static class BrushHulls
             var hull = RnHullBuilder.Create(vertices, RnHullBuilder.Options.Compile, out _);
             if (hull == null)
                 continue;
+            hull.RegionSvm = RegionSvmBuilder.Build(hull);
             RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
             hulls.Add(hull);
         }

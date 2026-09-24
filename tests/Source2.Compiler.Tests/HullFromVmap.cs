@@ -184,6 +184,7 @@ public class HullFromVmap(ITestOutputHelper output)
                             // A piece the builder cannot hull adds nothing.
                             if (hull == null)
                                 continue;
+                            hull.RegionSvm = RegionSvmBuilder.Build(hull);
                             RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
                             if (HullSimplifier.Runs != before)
                                 simplifiedHulls.Add(hull);
@@ -250,9 +251,21 @@ public class HullFromVmap(ITestOutputHelper output)
                 }
                 if (match != null)
                     pool.Remove(match);
+                if (Environment.GetEnvironmentVariable("HULL_SVM") == "1" && _svmShown++ < 3 && shipped[i].RegionSVM is { } svm)
+                {
+                    output.WriteLine($"SVM {entry.GetFullPath()} hull {i}: {shipped[i].GetVertexPositions().Length} verts, {shipped[i].GetPlanes().Length} faces");
+                    foreach (var line in svm.Data.ToKV3String().Split((char)10).Take(80))
+                        output.WriteLine("SVM   " + line.TrimEnd());
+                }
                 var diff = Differences(shipped[i], match);
                 var verdict = diff.Count == 0 ? "hull exact" : diff[0].Split(' ')[0];
                 Count(tally, verdict);
+                if (match != null && SvmDifference(shipped[i], match) is var svmDiff)
+                {
+                    Count(tally, "svm " + (svmDiff ?? "exact").Split(' ')[0]);
+                    if (svmDiff != null && _svmDiffShown++ < show)
+                        output.WriteLine($"SVMDIFF {entry.GetFullPath()} hull {i} ({diff.Count == 0}): {svmDiff}");
+                }
                 var viaSimplifier = match != null ? simplifiedHulls.Contains(match) : simplified;
                 if (viaSimplifier)
                 {
@@ -411,6 +424,8 @@ public class HullFromVmap(ITestOutputHelper output)
     }
 
     private int _bruteShown;
+    private int _svmShown;
+    private int _svmDiffShown;
     private string? _lastThrow;
 
     // For a small piece whose hull does not come out exact, every ordering of
@@ -596,6 +611,36 @@ public class HullFromVmap(ITestOutputHelper output)
             faces[f] = [.. loop];
         }
         return (positions, faces, [.. raw.Select(p => (Vector3)p! * scales)]);
+    }
+
+    // The region SVM against Valve's: null when every plane float and node matches.
+    private static string? SvmDifference(ValveResourceFormat.ResourceTypes.RubikonPhysics.Shapes.Hull valve, RnHull ours)
+    {
+        if (valve.RegionSVM is not { } svm)
+            return ours.RegionSvm == null ? null : "extra (valve has none)";
+        if (ours.RegionSvm is not { } mine)
+            return "missing";
+        var planes = svm.Data.GetArray<byte>("m_Planes");
+        var nodes = svm.Data.GetArray<byte>("m_Nodes");
+        if (planes.Length != mine.Planes.Length * 16)
+            return $"planes valve {planes.Length / 16} ours {mine.Planes.Length} (hull {ours.Faces.Length} faces, {ours.Edges.Length} half-edges)";
+        for (var i = 0; i < mine.Planes.Length; i++)
+        {
+            var (n, d) = mine.Planes[i];
+            float[] ourFloats = [n.X, n.Y, n.Z, d];
+            for (var k = 0; k < 4; k++)
+            {
+                var theirs = BitConverter.ToInt32(planes, (i * 16) + (k * 4));
+                if (theirs != BitConverter.SingleToInt32Bits(ourFloats[k]))
+                    return $"plane {i}.{k} valve {BitConverter.Int32BitsToSingle(theirs):R} ours {ourFloats[k]:R}";
+            }
+        }
+        if (nodes.Length != mine.Nodes.Length * 4)
+            return $"nodes valve {nodes.Length / 4} ours {mine.Nodes.Length}";
+        for (var i = 0; i < mine.Nodes.Length; i++)
+            if (BitConverter.ToUInt32(nodes, i * 4) != mine.Nodes[i])
+                return $"node {i} valve {BitConverter.ToUInt32(nodes, i * 4):x8} ours {mine.Nodes[i]:x8}";
+        return null;
     }
 
     private static List<string> Differences(ValveResourceFormat.ResourceTypes.RubikonPhysics.Shapes.Hull valve, RnHull? ours)

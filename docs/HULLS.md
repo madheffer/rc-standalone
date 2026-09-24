@@ -70,15 +70,54 @@ bytes, which is where the 256 limits come from.
 
 ## The region SVM
 
-`resourcecompiler.dll` builds it from the cooked hull. The builder makes a tree
-of 40 byte nodes over the hull's faces, then flattens it:
+`resourcecompiler.dll` builds it from the cooked hull, before the hull is moved
+by its shape's matrix; the move then carries the SVM planes along the way it
+carries the face planes. It is a plane tree that takes a point to the hull
+feature nearest it. `Physics/RegionSvm.cs` ports it.
 
-- A leaf stores its value.
-- An inner node packs its child offset and its split into one 32-bit word.
-- An empty node warns "Invalid hull tree".
+**Regions.** One per feature, in this order: the inside, each vertex, each edge
+(its even half-edge), each face. Each is a convex cell written as points in
+homogeneous form, a hull vertex with w -1 and a face normal (a direction the
+cell runs off to) with w 0, plus its bounding planes and half-edges:
 
-The builder works relative to the hull's centroid. Each plane is copied out and
-its offset gets n·centroid added back.
+- Face planes pass through the mean of their corners.
+- Each half-edge has two planes. The first runs along the edge, or across its
+  two face normals when that cross product is the longer vector. The second is
+  square to the first and to the half-edge's face.
+- Everything is relative to the centroid until the planes are written out.
+
+**Splitting**, breadth first until a node holds one region:
+
+1. Each region goes behind a plane, in front of it, or across it. Across means
+   its points reach more than 1e-4 past the plane on both sides.
+2. The candidates are the planes that bound the node's regions. Planes that
+   bound regions on both of their sides are tried first; the rest only if none
+   of those splits.
+3. The winner has the largest product of regions wholly in front and wholly
+   behind. Ties keep the lower plane. A region across the plane goes to both
+   children. A flag that would clip it instead is never set.
+4. When no candidate splits, every pair of regions gets a separating plane.
+   That plane comes from an edge of each region, or failing that a bounding
+   plane. The pair whose plane scores best wins, and its plane is added after
+   the others.
+
+**Writing.** A leaf is the region's word:
+
+| region | word |
+|---|---|
+| inside | `0x00000000` |
+| vertex | `0x20000000`, then its first outgoing half-edge shifted 8, then the vertex |
+| edge | `0x40000000` and the half-edge |
+| face | `0x60000000` and the face |
+
+A split is `0x8000` and the plane in the top half. The bottom half says how far
+past the next node the front child sits, and the back child follows it. An
+empty node warns "Invalid hull tree". Each plane's offset gets n·centroid added
+back.
+
+Every map builder hull on atixref (277), ze_hold_em_p (163) and Mako (1254)
+gets Valve's SVM bit for bit, planes and nodes. On Mako, 59 of those need the
+separating-plane fallback.
 
 ## The quickhull build
 
@@ -128,8 +167,8 @@ Two details make the order Valve's rather than any correct hull's:
 - normalisation, the limit and sharpen passes, and the inner-margin check;
 - the conversion and the mass, area and centroid-radius passes.
 
-Not ported: simplify algorithms 1 and 2 and the region SVM. Algorithm 0, the
-one both the compile and the map builder ask for, is below.
+Not ported: simplify algorithms 1 and 2. Algorithm 0, the one both the
+compile and the map builder ask for, is below. The region SVM is above.
 
 `HullReplay` feeds every shipped brush-entity hull's own vertices back in:
 
@@ -238,7 +277,6 @@ on atixref.
   runs on. On Mako it moves the physics input of one mesh only.
 - **Hull order across pieces.** It differs from mesh order, so the test
   matches hulls by their vertex sets.
-- **The region SVM.**
 
 ## The weld, and measuring the physics input
 
