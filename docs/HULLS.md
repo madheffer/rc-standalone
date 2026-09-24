@@ -215,7 +215,7 @@ and topology. It depends on two more findings.
 
 | map | exact | order only | near miss | other |
 |---|---|---|---|---|
-| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1238 | 0 | 0 | 3 hull counts |
+| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1254 | 0 | 0 | 1 hull count (the weld) |
 | ze_hold_em_p | 163 | 0 | 0 | 6 doors: a toolsclip mesh ships no hull (the .vmap is older than the compile) |
 | atixref (recompiled 2026-09-24) | 277 | 0 | 0 | |
 
@@ -228,6 +228,10 @@ on atixref.
 - **Face fan order around a vertex.** It feeds the neighbour set, and
   triangle index order stands in. Reversing it changes nothing on Mako,
   because it only matters when two faces share a home slot.
+- **Pieces that cannot be hulled.** A material piece the builder cannot hull
+  (a single flat face) adds no hull: FUN_18131efc0 appends only on success
+  and the nodes are made from what it appended. That was two of Mako's hull
+  count mismatches (`sephiroth_bridge_movelinear`, a func_water).
 - **The weld in the pipeline.** `Physics/MeshWeld.cs` is the map builder's
   1/32 weld, replayed bit for bit on 1404 of 1405 captured Mako welds, but the
   hull path does not yet rebuild the per-corner mesh (texcoords, normals) it
@@ -258,6 +262,30 @@ with its matrix. `WeldReplay` (`WELD=<capture>`) replays the welds, and
 `HullFromVmap` with `HULL_PHYS=<capture>` compares each of our pieces with
 the one Valve hulled: 1023 of 1024 Mako pieces are exact, the last being
 the one mesh the weld changes.
+
+### The per-corner mesh (in progress)
+
+`Maps/MapMeshCorners.cs` builds each material's per-corner mesh from the
+.vmap: faces in order, cut by the shared triangulator, each corner's
+position through `vertexDataIndices` and its face-vertex streams through
+`edgeVertexDataIndices` (not the half-edge index), less the tangent. Against
+Mako's 1330 captured weld inputs (`HULL_CORNERS=<capture>`) every position
+and corner order is exact and 549 pieces are exact in every float. Three
+things are not ported yet:
+
+- **Which streams.** Valve keeps `position, texcoord, normal,
+  PerVertexLighting` for most materials and drops the second texcoord and the
+  vertex paint streams; the choice follows the material (468 pieces).
+- **Texcoords.** Valve recomputes them from the face's texture projection
+  (`textureAxisU/V`, `textureScale`, the texture's size) and moves each face
+  by a whole number. The stored .vmap texcoords less their rounded face mean
+  match on many faces, not all (288 pieces).
+- **Normals** on 82 pieces, probably smoothed by the mesh's `smoothingAngle`.
+
+The map builder does all three when it writes the node's
+`hammerMeshDataBuffer` (a DMX mesh read back by FUN_180ffd010 and turned into
+a CMesh by FUN_180d47b90). The writer is still to be found; a probe of the
+buffer's creation during a compile will find it.
 
 ## The simplifier
 

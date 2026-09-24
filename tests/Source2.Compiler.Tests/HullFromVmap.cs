@@ -56,6 +56,14 @@ public class HullFromVmap(ITestOutputHelper output)
             foreach (var inst in doc.OfType("CMapInstance"))
                 output.WriteLine($"INSTANCE #{inst.GetValue<int>("nodeID")} target {inst.Get<DmxBinary.Element>("target")?.Type}#{inst.Get<DmxBinary.Element>("target")?.GetValue<int>("nodeID")}");
         }
+        if (Environment.GetEnvironmentVariable("HULL_MESHATTRS") == "1")
+        {
+            var first = doc.OfType("CMapMesh").First();
+            foreach (var (k, v) in first.Attributes)
+                output.WriteLine($"MESHATTR {k} : {v?.GetType().Name} {(v is byte[] bytes ? $"{bytes.Length} bytes" : v?.ToString())}");
+            foreach (var (k, v) in first.Get<DmxBinary.Element>("meshData")!.Attributes)
+                output.WriteLine($"MESHDATA {k} : {v?.GetType().Name}");
+        }
         if (Environment.GetEnvironmentVariable("HULL_ATTRS") == "1")
         {
             var seenAttrs = new Dictionary<string, int>();
@@ -111,13 +119,36 @@ public class HullFromVmap(ITestOutputHelper output)
                         var fe = md.Get<object?[]>("faceEdgeIndices")!.Select(x => (int)x!).ToArray();
                         var pos = st.Get<object?[]>("data")!;
                         output.WriteLine("DEBUGMESH streams " + string.Join(" ", fv.Select(x => x.Name)));
+                        foreach (var fd in md.Get<DmxBinary.Element>("faceData")!.GetElements("streams"))
+                            output.WriteLine($"DEBUGMESH face0 {fd.Name} {fd.Get<object?[]>("data")![0]}");
+                        output.WriteLine("DEBUGMESH materials " + string.Join(" ", md.Get<object?[]>("materials")!.Select(o => o?.ToString())));
+                        var evd = md.Get<object?[]>("edgeVertexDataIndices")!.Select(x => (int)x!).ToArray();
+                        // Every corner in triangulation order: face, texcoord.
+                        var tc = fv.First(x => x.Name == "texcoord:0").Get<object?[]>("data")!;
+                        using var dump = new StreamWriter(Path.Combine(Path.GetTempPath(), $"corners_{dm}.txt"));
+                        for (var f = 0; f < fe.Length; f++)
+                        {
+                            var loop = new List<int>();
+                            var e0 = fe[f];
+                            do { loop.Add(e0); e0 = nx[e0]; } while (e0 != fe[f]);
+                            var lp = loop.Select(x => (Vector3)pos[md.Get<object?[]>("vertexDataIndices")!.Select(y => (int)y!).ToArray()[tv[x]]]!).ToArray();
+                            int[] cut = loop.Count == 3 ? [0, 1, 2] : Source2.Compiler.Maps.PolygonTriangulator.Triangulate(lp);
+                            foreach (var j in cut)
+                            {
+                                var uv = (Vector2)tc[evd[loop[j]]]!;
+                                dump.WriteLine($"{f} {uv.X:R} {uv.Y:R}");
+                            }
+                        }
+                        var vdi = md.Get<object?[]>("vertexDataIndices")!.Select(x => (int)x!).ToArray();
                         for (int e = fe[0], k = 0; k < 6; e = nx[e], k++)
-                            output.WriteLine($"DEBUGMESH e{e} v{tv[e]} {(Vector3)pos[tv[e]]!:R} " + string.Join(" | ", fv.Select(x => x.Get<object?[]>("data")![e]?.ToString())));
+                            output.WriteLine($"DEBUGMESH e{e} fv{evd[e]} v{tv[e]} vd{vdi[tv[e]]} {(Vector3)pos[vdi[tv[e]]]!:R} " + string.Join(" | ", fv.Select(x => x.Get<object?[]>("data")![evd[e]]?.ToString())));
                     }
                     foreach (var holder in new[] { "vertexData", "faceVertexData", "edgeData", "faceData" })
                         foreach (var sx in md.Get<DmxBinary.Element>(holder)?.GetElements("streams") ?? [])
                             output.WriteLine($"DEBUG {holder} {sx.Name} {string.Join(" ", (sx.Get<object?[]>("data") ?? []).Take(4).Select(o => o?.ToString()))}");
                 }
+                if (Corners() is { } weldIns)
+                    CompareCorners(weldIns, tally, mesh, $"{entry.GetFullPath()} mesh {mesh.GetValue<int>("nodeID")}", ref shown, show);
                 var stored = PhysicsTypeOf(mesh);
                 var matNames = (mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => Path.GetFileNameWithoutExtension(x as string ?? "")).ToArray();
                 if (Environment.GetEnvironmentVariable("HULL_NOCLIP") == "1" && matNames.Length > 0 && matNames.All(m => m.Contains("clip", StringComparison.OrdinalIgnoreCase)))
@@ -133,6 +164,13 @@ public class HullFromVmap(ITestOutputHelper output)
                         if (m >= 0 && m < matNames.Length && Environment.GetEnvironmentVariable("HULL_NOCLIP") == "1" && matNames[m].Contains("clip", StringComparison.OrdinalIgnoreCase))
                             continue;
                         var piece = faces.Where((_, f) => materialOf[f] == m).ToArray();
+                        if (Environment.GetEnvironmentVariable("HULL_PIECES") is { } hp && hp == id.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        {
+                            var tm = BrushHulls.TriangleMesh(positions, piece, local);
+                            var lo = tm.Points.Aggregate(new Vector3(float.MaxValue), Vector3.Min);
+                            var hi = tm.Points.Aggregate(new Vector3(float.MinValue), Vector3.Max);
+                            output.WriteLine($"PIECE mesh {mesh.GetValue<int>("nodeID")} {type} material {m} {(m >= 0 && m < matNames.Length ? matNames[m] : "?")}: {piece.Length} faces, {tm.Points.Count} points, {lo} .. {hi}");
+                        }
                         if (Phys() is { } captured && type != BrushHulls.PhysicsType.Mesh && type != BrushHulls.PhysicsType.None)
                             ComparePhys(captured, tally, BrushHulls.TriangleMesh(positions, piece, local), $"{entry.GetFullPath()} ({className}) mesh {mesh.GetValue<int>("nodeID")} material {m}", ref shown, show);
                         // BrushHulls.Build one input at a time, to see which
@@ -143,12 +181,12 @@ public class HullFromVmap(ITestOutputHelper output)
                             var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
                             var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
                             var hull = points == null ? null : RnHullBuilder.Create(points, RnHullBuilder.Options.Compile, out _);
-                            if (hull != null)
-                            {
-                                RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
-                                if (HullSimplifier.Runs != before)
-                                    simplifiedHulls.Add(hull);
-                            }
+                            // A piece the builder cannot hull adds nothing.
+                            if (hull == null)
+                                continue;
+                            RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
+                            if (HullSimplifier.Runs != before)
+                                simplifiedHulls.Add(hull);
                             ours.Add(hull);
                         }
                         if (Environment.GetEnvironmentVariable("HULL_BRUTE") == "1")
@@ -297,6 +335,77 @@ public class HullFromVmap(ITestOutputHelper output)
                 output.WriteLine($"   first difference at {at}; ours as valve indices: {string.Join(",", ours.Points.Select(p => map[p]))}");
                 output.WriteLine($"   ours tris  {string.Join(" ", ours.Triangles.Take(12).Select(t => $"{map[ours.Points[t.A]]}/{map[ours.Points[t.B]]}/{map[ours.Points[t.C]]}"))}");
                 output.WriteLine($"   valve tris {string.Join(" ", Enumerable.Range(0, Math.Min(12, best.Triangles.Length / 3)).Select(t => $"{best.Triangles[t * 3]}/{best.Triangles[t * 3 + 1]}/{best.Triangles[t * 3 + 2]}"))}");
+            }
+        }
+    }
+
+    // HULL_CORNERS=<capture_weld.py output>: the per-corner meshes Valve's
+    // map builder welded, keyed by their corner positions.
+    private static Dictionary<string, List<(string[] Names, int Stride, float[] V)>>? _corners;
+
+    private static Dictionary<string, List<(string[] Names, int Stride, float[] V)>>? Corners()
+    {
+        if (_corners != null || Environment.GetEnvironmentVariable("HULL_CORNERS") is not { } path)
+            return _corners;
+        _corners = [];
+        var data = File.ReadAllBytes(path);
+        for (var at = 0; at < data.Length;)
+        {
+            var n = BitConverter.ToInt32(data, at);
+            var head = System.Text.Json.JsonDocument.Parse(data.AsMemory(at + 4, n)).RootElement;
+            at += 4 + n;
+            var m = BitConverter.ToInt32(data, at);
+            var blob = data.AsSpan(at + 4, m);
+            at += 4 + m;
+            if (head.GetProperty("ev").GetString() != "in")
+                continue;
+            var nv = head.GetProperty("nv").GetInt32();
+            var stride = head.GetProperty("stride").GetInt32();
+            var v = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(blob[..(nv * stride * 4)]).ToArray();
+            var names = head.GetProperty("streams").EnumerateArray().Select(x => x.GetProperty("name").GetString() ?? "").ToArray();
+            var key = CornerKey(v, stride, nv);
+            if (!_corners.TryGetValue(key, out var list))
+                _corners[key] = list = [];
+            list.Add((names, stride, v));
+        }
+        return _corners;
+    }
+
+    private static string CornerKey(float[] v, int stride, int count) =>
+        string.Join(",", Enumerable.Range(0, count).Select(i => $"{BitConverter.SingleToInt32Bits(v[i * stride])}:{BitConverter.SingleToInt32Bits(v[i * stride + 1])}:{BitConverter.SingleToInt32Bits(v[i * stride + 2])}"));
+
+    private void CompareCorners(Dictionary<string, List<(string[] Names, int Stride, float[] V)>> weldIns, Dictionary<string, int> tally,
+        DmxBinary.Element mesh, string label, ref int shown, int show)
+    {
+        foreach (var piece in Source2.Compiler.Maps.MapMeshCorners.Build(mesh))
+        {
+            var count = piece.Indices.Length;
+            if (!weldIns.TryGetValue(CornerKey(piece.Vertices, piece.Stride, count), out var hits))
+            {
+                Count(tally, "corners: no weld with these positions");
+                continue;
+            }
+            var names = piece.Streams.Select(x => x.Name).ToArray();
+            var hit = hits[0];
+            if (!hit.Names.SequenceEqual(names) || hit.Stride != piece.Stride)
+            {
+                Count(tally, "corners: other streams");
+                if (Environment.GetEnvironmentVariable("HULL_CORNERS_STREAMS") == "1")
+                    output.WriteLine($"CORNERS {label} material {piece.Material}: valve [{string.Join(",", hit.Names)}] ours [{string.Join(",", names)}]");
+                continue;
+            }
+            var bad = new SortedSet<string>();
+            for (var i = 0; i < piece.Vertices.Length; i++)
+            {
+                if (BitConverter.SingleToInt32Bits(piece.Vertices[i]) != BitConverter.SingleToInt32Bits(hit.V[i]))
+                    bad.Add(piece.Streams.Last(x => x.First <= i % piece.Stride).Name);
+            }
+            Count(tally, bad.Count == 0 ? "corners: exact" : "corners: " + string.Join("+", bad) + " differ");
+            if (bad.Count > 0 && shown++ < show)
+            {
+                var i = Enumerable.Range(0, piece.Vertices.Length).First(k => BitConverter.SingleToInt32Bits(piece.Vertices[k]) != BitConverter.SingleToInt32Bits(hit.V[k]));
+                var c = i / piece.Stride;
+                output.WriteLine($"CORNERS {label} material {piece.Material}: corner {c} ours [{string.Join(" ", piece.Vertices.Skip(c * piece.Stride).Take(piece.Stride).Select(x => x.ToString("R")))}] valve [{string.Join(" ", hit.V.Skip(c * piece.Stride).Take(piece.Stride).Select(x => x.ToString("R")))}]");
             }
         }
     }

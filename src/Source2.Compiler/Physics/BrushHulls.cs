@@ -200,27 +200,27 @@ public static class BrushHulls
         return [.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))];
     }
 
-    /// <summary>Each point list hulled by the map builder, then by <c>RnHullCreate</c>.</summary>
-    public static List<RnHull?> Build(Vector3[] positions, int[][] faces, PhysicsType type)
+    /// <summary>
+    /// Each point list hulled by the map builder, then by <c>RnHullCreate</c>.
+    /// A list the builder cannot hull, such as a single flat face, adds no
+    /// hull at all: FUN_18131efc0 only appends on success, and the node list
+    /// is made from what it appended (FUN_18131f680, FUN_1814e81b0).
+    /// </summary>
+    public static List<RnHull> Build(Vector3[] positions, int[][] faces, PhysicsType type, Vector3[]? local = null)
     {
-        var hulls = new List<RnHull?>();
-        foreach (var input in Inputs(positions, faces, type))
+        var hulls = new List<RnHull>();
+        foreach (var input in Inputs(positions, faces, type, local))
         {
             var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
             if (qh == null)
-            {
-                hulls.Add(null);
                 continue;
-            }
             var vertices = ShapePoints(qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z)).ToArray());
             if (vertices == null)
-            {
-                hulls.Add(null);
                 continue;
-            }
             var hull = RnHullBuilder.Create(vertices, RnHullBuilder.Options.Compile, out _);
-            if (hull != null)
-                RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
+            if (hull == null)
+                continue;
+            RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
             hulls.Add(hull);
         }
         return hulls;
