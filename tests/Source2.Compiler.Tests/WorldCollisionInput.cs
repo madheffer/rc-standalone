@@ -74,8 +74,10 @@ public class WorldCollisionInput(ITestOutputHelper output)
             }
             return i;
         }
+        if (parts.Length > 4)
+            CompareInserts(parts[4], pieces);
         var ordered = WorldCollision.PartOrder(pieces, _ => WorldCollision.MeshType);
-        output.WriteLine("part order: " + string.Join(" ", ordered.Select(p => $"{p.NodeId}/{p.Material}")));
+        output.WriteLine("part order: " + string.Join(" ", ordered.Take(60).Select(p => $"{p.NodeId}/{p.Material}")));
         var soups = WorldCollision.Group(ordered.Select(p => (IndexOf(attributes, p.Physics.AttributeKey),
             IndexOf(surfaces, p.Physics.SurfaceProperty.Length == 0 ? "default" : p.Physics.SurfaceProperty), p.Points, p.Indices)));
         output.WriteLine($"attributes: {string.Join(" ; ", attributes)}; surfaces: {string.Join(" ", surfaces)}");
@@ -101,6 +103,51 @@ public class WorldCollisionInput(ITestOutputHelper output)
             }
         }
         Assert.True(allSame);
+    }
+
+    /// <summary>
+    /// Our pieces against the world part's mesh inserts in a
+    /// capture_physshapes.py capture, in insert order: each captured mesh
+    /// shape by vertex count and first vertex, and which of our pieces it is.
+    /// </summary>
+    private void CompareInserts(string capture, List<WorldCollision.Piece> pieces)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(capture));
+        var all = doc.RootElement.EnumerateArray().ToList();
+        var world = all.Where(c => c.TryGetProperty("call", out _)).MaxBy(c => c.GetProperty("count").GetInt32());
+        var count = world.GetProperty("count").GetInt32();
+        var byPart = all.Where(c => c.TryGetProperty("insert", out _)).GroupBy(c => c.GetProperty("part").GetString()).ToList();
+        var inserts = byPart.Last(g => g.Count() == count).ToList();
+        var ours = pieces.Select((p, i) => (p, i)).GroupBy(x => (x.p.Points.Length, x.p.Points[0])).ToDictionary(g => g.Key, g => new Queue<int>(g.Select(x => x.i)));
+        var matched = new HashSet<int>();
+        var lines = new List<string>();
+        var k = 0;
+        foreach (var s in inserts)
+        {
+            var type = s.GetProperty("type").GetInt32();
+            if (type != WorldCollision.MeshType)
+            {
+                k++;
+                continue;
+            }
+            if (!s.TryGetProperty("v0", out var v0e))
+            {
+                lines.Add($"insert {k} mesh with no soup at insert (built mesh?)");
+                k++;
+                continue;
+            }
+            var v0 = v0e.EnumerateArray().Select(e => (float)e.GetDouble()).ToArray();
+            var key = (s.GetProperty("vertices").GetInt32(), new Vector3(v0[0], v0[1], v0[2]));
+            var hit = ours.TryGetValue(key, out var at) && at.Count > 0 ? at.Dequeue() : -1;
+            if (hit >= 0)
+                matched.Add(hit);
+            lines.Add($"insert {k} mesh {key.Item1} v {key.Item2}: " + (hit >= 0 ? $"ours {hit} node {pieces[hit].NodeId}/{pieces[hit].Material} {Path.GetFileNameWithoutExtension(pieces[hit].MaterialName)}" : "not ours"));
+            k++;
+        }
+        output.WriteLine($"captured mesh inserts {lines.Count}, ours {pieces.Count}, matched {matched.Count}; ours unmatched: " +
+                         string.Join(" ", Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i)).Take(40).Select(i => $"{pieces[i].NodeId}/{pieces[i].Material}:{Path.GetFileNameWithoutExtension(pieces[i].MaterialName)}:{pieces[i].Points.Length}@{pieces[i].Points[0]}")));
+        foreach (var l in lines.Take(80))
+            output.WriteLine("  " + l);
     }
 
     private static (int[] Indices, Vector3[] Vertices, byte[]? Materials) Input(string path, int id)

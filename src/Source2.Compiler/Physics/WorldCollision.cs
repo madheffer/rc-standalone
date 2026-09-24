@@ -103,7 +103,7 @@ public static class WorldCollision
         foreach (var mesh in Maps.MapMeshes.Read(doc).Where(m => m.ParentType is "CMapWorld" or "CMapGroup"))
         {
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
-            foreach (var (material, positions, faces, local) in BrushHulls.Pieces(mesh.Element!, world))
+            foreach (var (material, positions, faces, local) in BrushHulls.Pieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
                 var physics = materials(name);

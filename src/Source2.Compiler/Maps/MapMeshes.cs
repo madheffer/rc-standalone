@@ -33,6 +33,9 @@ public static class MapMeshes
         /// <summary>The world matrix the faces were placed with (matrix3x4, row major).</summary>
         internal float[] World { get; init; } = [];
 
+        /// <summary>The instance path's matrix alone, without the node's own transform.</summary>
+        internal float[] Path { get; init; } = [];
+
         /// <summary>The <c>CMapInstance</c> node ids this copy was reached through, outermost first.</summary>
         public int[] Instances { get; init; } = [];
 
@@ -66,7 +69,7 @@ public static class MapMeshes
                     meshes.Add(new Mesh(child.GetValue<int>("nodeID") ?? -1, parent.Type, className,
                                         child.GetValue<Vector3>("origin") ?? Vector3.Zero, child.GetValue<Vector3>("angles") ?? Vector3.Zero,
                                         child.GetValue<Vector3>("scales") ?? Vector3.One, Faces(child, path))
-                               { Element = child, Instances = instances, World = Concat(path, Local(child)) });
+                               { Element = child, Instances = instances, World = Concat(path, Local(child)), Path = path });
                     break;
                 case "CMapInstance":
                     if (child.Get<DmxBinary.Element>("target") is not { } target)

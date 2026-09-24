@@ -6,13 +6,16 @@ shapes into RnShapes; for triangle meshes it calls the mesh gatherer
 (count +0x50, data +0x58). This records, per call, each shape's type (+0x90,
 3 = mesh), name (+0xe0), surface property name (+0xf8), index and vertex
 counts (+0xc8, +0xb0), the first vertex and a hash of all indices, plus the
-first 0x180 bytes of the shape for layout work.
+first 0x180 bytes of the shape for layout work; with --dump, every mesh
+shape's vertices and indices too.
 
 It also logs every shape the part insert (180c28150) takes, in call order,
 with the part, the shape's type and, for a mesh, its vertex count and first
 vertex: the order WorldCollision.PartOrder starts from. With --rnmesh it
-records the RnMeshCreate calls the part builder makes (from 180c28690) in
-capture_rnmesh.py's format.
+records the RnMeshCreate calls the part builder makes (from 180c28690,
+found in the backtrace since the call goes through vphysics2's interface) in
+capture_rnmesh.py's format. The compile is forced (-f): an up-to-date map
+would otherwise be skipped.
 
 A full compile overwrites the map's .vpk: back it up. CS2 must be closed, and
 the script refuses to start if it is running or another compile is.
@@ -62,6 +65,7 @@ function hook() {
             let h = 2166136261 >>> 0;
             for (let k = 0; k < ni; k++) { h = Math.imul(h ^ ip.add(k * 4).readS32(), 16777619) >>> 0; }
             e.indexHash = h;
+            if (DUMP) { e.vdata = hex(vp.readByteArray(nv * 12)); e.idata = hex(ip.readByteArray(ni * 4)); }
           } catch (err) { e.err = String(err); }
         }
         shapes.push(e);
@@ -94,8 +98,10 @@ function hookRnMesh(rc) {
   let k = 0;
   Interceptor.attach(v.findExportByName('RnMeshCreate'), {
     onEnter(args) {
-      const ra = this.returnAddress;
-      if (ra.compare(lo) < 0 || ra.compare(hi) >= 0) return;
+      // The part builder reaches RnMeshCreate through vphysics2's interface,
+      // so its frame is a few up the stack, not the return address.
+      const frames = Thread.backtrace(this.context, Backtracer.ACCURATE).slice(0, 6);
+      if (!frames.some(ra => ra.compare(lo) >= 0 && ra.compare(hi) < 0)) return;
       const tris = args[0].toInt32(), vcount = args[3].toInt32(), opt = args[6];
       const parts = [args[1].readByteArray(tris * 12), args[2].isNull() ? null : args[2].readByteArray(tris),
                      args[4].readByteArray(vcount * 12), opt.isNull() ? null : opt.readByteArray(16)];
@@ -122,11 +128,12 @@ def main():
     p.add_argument("out")
     p.add_argument("--full", action="store_true", help="a full compile rather than -world -fshallow")
     p.add_argument("--rnmesh", help="also record the part builder's RnMeshCreate calls here")
+    p.add_argument("--dump", action="store_true", help="also dump every gathered mesh shape's vertices and indices (hex)")
     a = p.parse_args()
     if busy():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
-    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
+    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
     if not a.full:
         argv += ["-world", "-fshallow"]
     calls = []
@@ -159,7 +166,7 @@ def main():
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    agent = (AGENT.replace("INSERT", hex(INSERT_RVA)).replace("RVA", hex(GATHER_RVA)).replace("RNMESH", "true" if rn else "false")
+    agent = (AGENT.replace("INSERT", hex(INSERT_RVA)).replace("RVA", hex(GATHER_RVA)).replace("RNMESH", "true" if rn else "false").replace("DUMP", "true" if a.dump else "false")
              .replace("MB0", hex(MESHBUILD_RVA[0])).replace("MB1", hex(MESHBUILD_RVA[1])))
     sc = ses.create_script(agent)
     sc.on("message", on_message)

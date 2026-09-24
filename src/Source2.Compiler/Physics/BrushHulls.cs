@@ -55,8 +55,10 @@ public static class BrushHulls
     /// is welded at 1/32 (<see cref="MeshWeld"/>), then moved by the mesh
     /// node's CTransform and the entity's inverse. The faces are the welded
     /// triangles; <c>Local</c> holds the welded points before the move.
+    /// <paramref name="path"/> is the instance path's matrix for a world mesh
+    /// inside an instance.
     /// </summary>
-    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local)> Pieces(DmxBinary.Element mesh, DmxBinary.Element entity)
+    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local)> Pieces(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null)
     {
         var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
@@ -68,6 +70,11 @@ public static class BrushHulls
             for (var i = 0; i < local.Length; i++)
                 local[i] = new Vector3(v[i * piece.Stride], v[(i * piece.Stride) + 1], v[(i * piece.Stride) + 2]);
             var positions = local.Select(p => Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, p))).ToArray();
+            // A mesh inside an instance also moves by the instance path. Applying
+            // it after the node's own move, or as one matrix, place the same
+            // atixref pieces; which one the builder uses is not measured yet.
+            if (path != null)
+                positions = [.. positions.Select(p => Maps.MapMeshes.Transform(path, p))];
             var faces = new int[indices.Length / 3][];
             for (var t = 0; t < faces.Length; t++)
                 faces[t] = [indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]];
