@@ -166,7 +166,9 @@ convex if part of an entity", but the compile resolves it to convex_multi.
    hulls too.
 2. **Triangle mesh.** A piece's faces are triangulated into a fresh mesh. Its
    vertices are numbered in first-appearance order over the faces' corners, and
-   a vertex's handle is simply that number.
+   a vertex's handle is simply that number. Corners are joined by position, not
+   by .vmap vertex: two .vmap vertices at exactly the same point are one vertex
+   (measured: the physics input Valve hulls, captured from a compile).
 3. **Groups.** convex_single hulls every vertex in that order. convex_multi
    first splits the triangles into groups that touch at a vertex:
    - every triangle goes into a hash set;
@@ -207,7 +209,7 @@ and topology. It depends on two more findings.
 
 | map | exact | order only | near miss | other |
 |---|---|---|---|---|
-| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1196 | 4 | 11 | 5 hull counts |
+| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1206 | 2 | 30 | 3 hull counts |
 | ze_hold_em_p | 163 | 0 | 0 | 6 doors: a toolsclip mesh ships no hull (the .vmap is older than the compile) |
 | atixref (older compile) | 242 | 0 | 35 | |
 
@@ -220,12 +222,41 @@ on atixref.
 - **Face fan order around a vertex.** It feeds the neighbour set, and
   triangle index order stands in. Reversing it changes nothing on Mako,
   because it only matters when two faces share a home slot.
-- **The 1/32 weld on the polygon mesh.** Mako's `decoration_door_1` ships
-  21 hulls and we make 123. Its meshes fall apart into many small vertex
-  groups, which a weld of near-coincident vertices would join.
+- **Rotated entities.** Valve builds the mesh-to-world and world-to-entity
+  matrices from quaternions (angles to quaternion, quaternion to matrix, and an
+  inverse that renormalises), not from sines and cosines of the angles. On
+  Mako that moves every point of 17 pieces by up to 0.001 (`decoration_door_1`,
+  the six warehouse buttons, the bomb timer); all 30 "near miss" hulls are
+  those.
+- **The weld in the pipeline.** `Physics/MeshWeld.cs` is the map builder's
+  1/32 weld, replayed bit for bit on 1404 of 1405 captured Mako welds, but the
+  hull path does not yet rebuild the per-corner mesh (texcoords, normals) it
+  runs on. On Mako it moves the physics input of one mesh only.
 - **Hull order across pieces.** It differs from mesh order, so the test
   matches hulls by their vertex sets.
 - **The region SVM.**
+
+## The weld, and measuring the physics input
+
+The map builder copies each per-material piece of a map mesh into a triangle
+mesh with one vertex per corner (position, texcoords, normal, vertex paint)
+and welds it (`Physics/MeshWeld.cs`):
+
+- Every float has a tolerance: 1/32 by default, 1/2048 for texcoords, exact
+  for lightmap coordinates and integer streams.
+- Vertices are visited in order. Each joins the cluster of the first earlier
+  vertex, in the order tier0's `CVertexKDTree` box query returns them, whose
+  cluster's first vertex is within every tolerance.
+- Triangles that lose a corner are dropped.
+
+Because the normals differ, a box's corners stay apart through the weld; the
+faces join later, by position.
+
+`tools/hulls/capture_weld.py` runs a compile under Frida and records every
+weld (in and out), every physics piece's triangle mesh, and every transform
+with its matrix. `WeldReplay` (`WELD=<capture>`) replays the welds, and
+`HullFromVmap` with `HULL_PHYS=<capture>` compares each of our pieces with
+the one Valve hulled: 1000 of 1024 Mako pieces are exact.
 
 ## The simplifier
 

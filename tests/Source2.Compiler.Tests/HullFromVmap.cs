@@ -103,6 +103,9 @@ public class HullFromVmap(ITestOutputHelper output)
                     var st = md.Get<DmxBinary.Element>("vertexData")!.GetElements("streams").First(x => x.Name.StartsWith("position:", StringComparison.Ordinal));
                     output.WriteLine($"DEBUG entity origin {entity.GetValue<Vector3>("origin"):R} angles {entity.GetValue<Vector3>("angles")} mesh origin {mesh.GetValue<Vector3>("origin"):R} angles {mesh.GetValue<Vector3>("angles")} scales {mesh.GetValue<Vector3>("scales")}");
                     output.WriteLine("DEBUG raw " + string.Join(" ", st.Get<object?[]>("data")!.Take(8).Select(o => ((Vector3)o!).ToString("R", System.Globalization.CultureInfo.InvariantCulture))));
+                    foreach (var holder in new[] { "vertexData", "faceVertexData", "edgeData", "faceData" })
+                        foreach (var sx in md.Get<DmxBinary.Element>(holder)?.GetElements("streams") ?? [])
+                            output.WriteLine($"DEBUG {holder} {sx.Name} {string.Join(" ", (sx.Get<object?[]>("data") ?? []).Take(4).Select(o => o?.ToString()))}");
                 }
                 var stored = PhysicsTypeOf(mesh);
                 var matNames = (mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => Path.GetFileNameWithoutExtension(x as string ?? "")).ToArray();
@@ -119,6 +122,8 @@ public class HullFromVmap(ITestOutputHelper output)
                         if (m >= 0 && m < matNames.Length && Environment.GetEnvironmentVariable("HULL_NOCLIP") == "1" && matNames[m].Contains("clip", StringComparison.OrdinalIgnoreCase))
                             continue;
                         var piece = faces.Where((_, f) => materialOf[f] == m).ToArray();
+                        if (Phys() is { } captured && type != BrushHulls.PhysicsType.Mesh && type != BrushHulls.PhysicsType.None)
+                            ComparePhys(captured, tally, BrushHulls.TriangleMesh(positions, piece), $"{entry.GetFullPath()} ({className}) mesh {mesh.GetValue<int>("nodeID")} material {m}", ref shown, show);
                         // BrushHulls.Build one input at a time, to see which
                         // hulls went through the simplifier.
                         foreach (var input in BrushHulls.Inputs(positions, piece, type))
@@ -211,6 +216,70 @@ public class HullFromVmap(ITestOutputHelper output)
         }
         foreach (var (k, v) in tally.OrderBy(kv => kv.Key, StringComparer.Ordinal))
             output.WriteLine($"{k}: {v}");
+    }
+
+    // HULL_PHYS=<capture_weld.py --phys output>: the triangle mesh Valve's
+    // map builder hulled each brush piece from, keyed by its positions.
+    private static Dictionary<string, List<(Vector3[] Points, int[] Triangles)>>? _phys;
+    private static List<(Vector3[] Points, int[] Triangles)> _physAll = [];
+
+    private static Dictionary<string, List<(Vector3[] Points, int[] Triangles)>>? Phys()
+    {
+        if (_phys != null || Environment.GetEnvironmentVariable("HULL_PHYS") is not { } path)
+            return _phys;
+        _phys = [];
+        var data = File.ReadAllBytes(path);
+        for (var at = 0; at < data.Length;)
+        {
+            var n = BitConverter.ToInt32(data, at);
+            var head = System.Text.Json.JsonDocument.Parse(data.AsMemory(at + 4, n)).RootElement;
+            at += 4 + n;
+            var m = BitConverter.ToInt32(data, at);
+            var blob = data.AsSpan(at + 4, m);
+            at += 4 + m;
+            if (head.GetProperty("ev").GetString() != "phys")
+                continue;
+            var count = head.GetProperty("n").GetInt32();
+            var tris = head.GetProperty("t").GetInt32();
+            var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(blob[..(count * 12)]);
+            var pts = new Vector3[count];
+            for (var i = 0; i < count; i++)
+                pts[i] = new Vector3(floats[i * 3], floats[i * 3 + 1], floats[i * 3 + 2]);
+            var idx = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(blob.Slice(count * 12, tris * 12)).ToArray();
+            var rec = (pts, idx);
+            _physAll.Add(rec);
+            var key = PhysKey(pts);
+            if (!_phys.TryGetValue(key, out var list))
+                _phys[key] = list = [];
+            list.Add(rec);
+        }
+        return _phys;
+    }
+
+    private static string PhysKey(IEnumerable<Vector3> pts) =>
+        string.Join(",", pts.Select(p => $"{BitConverter.SingleToInt32Bits(p.X)}:{BitConverter.SingleToInt32Bits(p.Y)}:{BitConverter.SingleToInt32Bits(p.Z)}"));
+
+    private void ComparePhys(Dictionary<string, List<(Vector3[] Points, int[] Triangles)>> phys, Dictionary<string, int> tally,
+        (List<Vector3> Points, List<(int A, int B, int C)> Triangles) ours, string label, ref int shown, int show)
+    {
+        var tris = ours.Triangles.SelectMany(t => new[] { t.A, t.B, t.C }).ToArray();
+        if (phys.TryGetValue(PhysKey(ours.Points), out var hits))
+        {
+            Count(tally, hits.Any(h => h.Triangles.SequenceEqual(tris)) ? "phys exact" : "phys same points, triangles differ");
+            return;
+        }
+        var set = ours.Points.ToHashSet();
+        var best = _physAll.OrderByDescending(r => r.Points.Count(set.Contains) * 2 - r.Points.Length).First();
+        var overlap = best.Points.Count(set.Contains);
+        var verdict = overlap == best.Points.Length && overlap == set.Count ? "phys same set, order differs" : "phys points differ";
+        Count(tally, verdict);
+        if (shown++ < show)
+        {
+            output.WriteLine($"PHYS {label}: {verdict}; ours {ours.Points.Count} points, nearest valve piece {best.Points.Length}, shared {overlap}");
+            var vs = best.Points.ToHashSet();
+            foreach (var p in ours.Points.Where(p => !vs.Contains(p)).Take(4))
+                output.WriteLine($"   ours only {p:R}  nearest valve {best.Points.OrderBy(q => Vector3.Distance(p, q)).First():R}");
+        }
     }
 
     private int _bruteShown;

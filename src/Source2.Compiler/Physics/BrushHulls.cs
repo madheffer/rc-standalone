@@ -51,7 +51,26 @@ public static class BrushHulls
     /// <summary>The point lists the map builder hulls, in its order.</summary>
     public static List<Vector3[]> Inputs(Vector3[] positions, int[][] faces, PhysicsType type)
     {
-        var index = new Dictionary<int, int>();
+        var (points, triangles) = TriangleMesh(positions, faces);
+        if (type == PhysicsType.ConvexSingle)
+            return [[.. points]];
+        if (type != PhysicsType.ConvexMulti)
+            return [];
+        var result = new List<Vector3[]>();
+        foreach (var group in Groups(points.Count, triangles))
+            result.Add([.. GroupVertices(group, triangles).Select(v => points[(int)v])]);
+        return result;
+    }
+
+    /// <summary>
+    /// The triangle mesh FUN_181308060 is handed: vertices in the order the
+    /// triangles' corners meet them, and the triangles.
+    /// </summary>
+    public static (List<Vector3> Points, List<(int A, int B, int C)> Triangles) TriangleMesh(Vector3[] positions, int[][] faces)
+    {
+        // The map builder's half-edge mesh joins corners at the same position,
+        // so two .vmap vertices that coincide are one vertex here.
+        var index = new Dictionary<Vector3, int>();
         var points = new List<Vector3>();
         var triangles = new List<(int A, int B, int C)>();
         foreach (var face in faces)
@@ -68,25 +87,19 @@ public static class BrushHulls
             // numbered in the order the triangles' corners meet them.
             foreach (var j in cut)
             {
-                if (!index.TryGetValue(face[j], out var i))
+                var p = positions[face[j]];
+                if (!index.TryGetValue(p, out var i))
                 {
                     i = points.Count;
-                    index[face[j]] = i;
-                    points.Add(positions[face[j]]);
+                    index[p] = i;
+                    points.Add(p);
                 }
                 local[j] = i;
             }
             for (var j = 0; j + 2 < cut.Length; j += 3)
                 triangles.Add((local[cut[j]], local[cut[j + 1]], local[cut[j + 2]]));
         }
-        if (type == PhysicsType.ConvexSingle)
-            return [[.. points]];
-        if (type != PhysicsType.ConvexMulti)
-            return [];
-        var result = new List<Vector3[]>();
-        foreach (var group in Groups(points.Count, triangles))
-            result.Add([.. GroupVertices(group, triangles).Select(v => points[(int)v])]);
-        return result;
+        return (points, triangles);
     }
 
     private static int[] Corners((int A, int B, int C) t) => [t.A, t.B, t.C];
