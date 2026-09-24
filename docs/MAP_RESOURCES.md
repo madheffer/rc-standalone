@@ -699,13 +699,32 @@ and a rigid body solver run to rest, so it belongs to the geometry tier and cann
 be done from the entity lump. It is the largest remaining entity difference by
 count and the one with the least to do with entities.
 
+What the compile does around the simulation, read from resourcecompiler:
+
+- **Which props.** A CMapEntity whose class derives from BasePhysicsSimulated,
+  unless its skipPreSettle is set, its spawnflags say "Start asleep" or "Motion
+  Disabled", or its model's prop_data says spawn_motion_disabled. Entities with
+  a BasePhysicsNoSettleAttached relation are left out as well.
+- **The simulation.** Every such prop is added to a physics world built from the
+  map's collision and stepped for 30 seconds at 90 Hz.
+- **What is written.** Each object whose bodies are all asleep at the end gets
+  its resting transform back, and "Start asleep" (spawnflag 1) set. That is why
+  81 of atixref's 82 props gain the flag.
+
+This is what ze_atix's shootable physics props are. atixref is cut from ze_atix
+(the workshop compile has the same 821 entities and the same ten template
+lumps): its 82 prop_physics_override carry no parented triggers and no damage
+wiring, and the damage they do in game is physics impact damage. Every key they
+ship already matches Valve's except the three the settle writes, so the settle is
+the whole of what is left for them, and it waits on a port of the physics solver.
+
 ### What still differs, with its reason
 
 Measured on 2026-09-25 with the strict comparison, every lump of every map.
 
 | what | reason |
 |---|---|
-| the light and probe classes | two halves, neither ported. The compile derives a light's precomputed bounds, oriented boxes and sub-frusta by casting 24,576 samples of its volume against the world's ray trace scene, so it waits on the geometry the vis tracer already reads; it also rewrites a light's angles through its matrix and sets directlight. The bake writes its results back (shadow index, unique ids, the probe atlas textures). |
+| the light and probe classes | two halves, neither ported. The compile derives a light's precomputed bounds, oriented boxes and sub-frusta itself: it draws 24,576 samples of the light's volume from Halton sequences in bases 2, 3, 5 and 7, evaluates the light's shape and falloff at each, traces the survivors against the world's ray trace scene, and fits bounds and boxes (a barn light gets one volume, an omni light six frusta) to what the rays reach. It also rewrites a light's angles through its matrix and sets directlight. The bake writes its results back (shadow index, unique ids, the probe atlas textures). |
 | `prop_physics`, `prop_physics_override`, `prop_physics_multiplayer` | the settle above. Geometry tier. |
 | angles of instance copies inside a world layer | Mako ships a handful a round trip or two away from the sum of their placements (179.99994 under a placement at 179.99997). The reparent under the layer that does it is not read. |
 | `path_particle_rope` | excluded class: one named rope keeps its targetname bare. One sample; not established. |
