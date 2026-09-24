@@ -49,7 +49,11 @@ function hook() {
       send({ev: 'in', id: this.id, tris: tris, vcount: vcount, hasMaterials: !args[2].isNull(),
             hasOptions: !opt.isNull(), outGiven: !args[5].isNull(),
             sizes: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, v ? v.byteLength : 0])),
-            caller: DebugSymbol.fromAddress(this.returnAddress).toString()},
+            caller: DebugSymbol.fromAddress(this.returnAddress).toString(),
+            stack: Thread.backtrace(this.context, Backtracer.ACCURATE).slice(0, 24).map(a => {
+              const mod = Process.findModuleByAddress(a);
+              return mod ? mod.name.replace('.dll', '') + '+0x' + a.sub(mod.base).toString(16) : a.toString();
+            })},
            concat([parts.indices, parts.materials, parts.vertices, parts.options]));
     },
     onLeave(ret) {
@@ -111,7 +115,7 @@ def main():
         with lock:
             out.write(struct.pack("<I", len(head)) + head + struct.pack("<I", len(data or b"")) + (data or b""))
         if pay["ev"] == "in":
-            print("in", pay["id"], pay["tris"], "tris", pay["vcount"], "verts", pay["caller"])
+            print("in", pay["id"], pay["tris"], "tris", pay["vcount"], "verts", " ".join(pay.get("stack", [])[:14]))
 
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")

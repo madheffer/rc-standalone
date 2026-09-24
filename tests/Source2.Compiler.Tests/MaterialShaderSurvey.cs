@@ -43,6 +43,13 @@ public class MaterialShaderSurvey(ITestOutputHelper output)
                 continue;
             var flags = string.Join(",", mat.IntParams.Where(p => p.Key.StartsWith("F_", StringComparison.Ordinal) && p.Value != 0).Select(p => $"{p.Key}={p.Value}"));
             output.WriteLine($"MAT {Path.GetFileNameWithoutExtension(name)} | {mat.ShaderName} | {flags}");
+            if (Environment.GetEnvironmentVariable("MATSURVEY_ATTRS") == "1")
+            {
+                foreach (var (key, value) in mat.IntAttributes)
+                    output.WriteLine($"  int {key} = {value}");
+                foreach (var (key, value) in mat.StringAttributes)
+                    output.WriteLine($"  str {key} = {value}");
+            }
         }
     }
 }

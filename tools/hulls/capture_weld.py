@@ -162,6 +162,7 @@ def main():
     parser.add_argument("--limit", type=int, default=1 << 30)
     parser.add_argument("--phys", action="store_true")
     parser.add_argument("--xform", action="store_true")
+    parser.add_argument("--full", action="store_true", help="a full compile (children too) rather than -world -fshallow")
     args = parser.parse_args()
 
     out_path = args.out or os.path.join(
@@ -188,7 +189,9 @@ def main():
         os.remove(vpk)
     source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
     argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4",
-            "-game", os.path.join(CS2, "game", "csgo"), "-i", source, "-world", "-fshallow"]
+            "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
+    if not args.full:
+        argv += ["-world", "-fshallow"]
 
     device = frida.get_local_device()
     pid = device.spawn(argv, cwd=BIN, stdio="pipe")
