@@ -263,10 +263,12 @@ has to come out of our compile, not only the geometry. Noted 2026-09-24:
 
 ## Phase 5: the baked halves
 
-Lighting and cubemaps stay Valve's for now, and that is a measured decision, not
-a concession: lighting is **16 seconds of a 1,299 second compile**. `vrad3.exe`
-runs standalone in 56 seconds on Mako and we already drive it. Replacing it buys
-nothing until everything above is done.
+Lighting, light probes and cubemaps are ported too, like every other stage. For
+now we drive `vrad3.exe`, which runs standalone in 56 seconds on Mako, but that is
+a stopgap, not the plan (decided 2026-09-24). Lighting is **16 seconds of a 1,299
+second compile**, so the reason to port it is ownership of the output, not speed,
+and it comes after everything above: read `vrad3` the way `visbuilder.dll` was
+read, and score it against its own output.
 
 ---
 
@@ -307,4 +309,3 @@ the right one, and it is the same shape of answer.
   more overdraw, faster" is a far more achievable target than reproducing their
   merge heuristics.
 - Byte-identical baked output. Not attainable and not what the engine needs.
-- Replacing vrad3. Measured at 1.2% of a compile.
