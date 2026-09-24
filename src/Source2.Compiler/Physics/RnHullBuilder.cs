@@ -60,6 +60,9 @@ public static class RnHullBuilder
 
         /// <summary>What resourcecompiler passes for a hull shape.</summary>
         public static Options Compile { get; } = new();
+
+        /// <summary>What the map builder passes when it hulls a map mesh (FUN_1801ff720).</summary>
+        public static Options MapBuilder { get; } = new() { Angle = 5f, MinThickness = 1f };
     }
 
     /// <summary>The hull, or null with the failure in <paramref name="error"/>.</summary>
@@ -111,6 +114,16 @@ public static class RnHullBuilder
     // FUN_1803843f0 then FUN_1801a7310
     private static RnHull? Build(ReadOnlySpan<Vector3> points, Options o, out int error)
     {
+        var qh = BuildHull(points, o, out error);
+        return qh == null ? null : Convert(qh);
+    }
+
+    /// <summary>
+    /// FUN_1803843f0 (and the map builder's copy, FUN_18131efc0): the hull,
+    /// scaled and moved back, before any conversion.
+    /// </summary>
+    internal static QuickHull? BuildHull(ReadOnlySpan<Vector3> points, Options o, out int error)
+    {
         error = 0;
         var n = points.Length;
         if (n < 1)
@@ -154,11 +167,44 @@ public static class RnHullBuilder
         if (!o.RelativeTolerance)
             tolerance = tolerance / k;
         var qh = new QuickHull();
-        qh.Build(n, pts, 1.1920929e-05f > tolerance ? 1.1920929e-05f : tolerance, o.RelativeTolerance);
+        var buildTolerance = 1.1920929e-05f > tolerance ? 1.1920929e-05f : tolerance;
+        qh.Build(n, pts, buildTolerance, o.RelativeTolerance);
         if (!qh.IsValid())
         {
-            error = qh.Error + 5;
-            throw new NotSupportedException($"hull is invalid (quickhull error {qh.Error}); the extrusion retry is not ported");
+            // FUN_180384ab0: a flat or degenerate set is pushed out by the
+            // minimum thickness along +x, +y and +z and hulled again.
+            var e = o.MinThickness / k;
+            if (!(0f < e))
+            {
+                error = qh.Error + 5;
+                return null;
+            }
+            var extruded = new float[n * 12];
+            for (var i = 0; i < n; i++)
+            {
+                float x = pts[i * 3], y = pts[i * 3 + 1], z = pts[i * 3 + 2];
+                var o12 = i * 12;
+                extruded[o12] = x;
+                extruded[o12 + 1] = y;
+                extruded[o12 + 2] = z;
+                extruded[o12 + 3] = x + e;
+                extruded[o12 + 4] = y + 0f;
+                extruded[o12 + 5] = z + 0f;
+                extruded[o12 + 6] = x + 0f;
+                extruded[o12 + 7] = y + e;
+                extruded[o12 + 8] = z + 0f;
+                extruded[o12 + 9] = x + 0f;
+                extruded[o12 + 10] = y + 0f;
+                extruded[o12 + 11] = z + e;
+            }
+            var retry = new QuickHull();
+            retry.Build(n * 4, extruded, buildTolerance, o.RelativeTolerance);
+            if (!retry.IsValid())
+            {
+                error = qh.Error + 5;
+                return null;
+            }
+            qh = retry;
         }
         if (!Limits(qh, o, tolerance, out error))
             return null;
@@ -166,7 +212,7 @@ public static class RnHullBuilder
             return null;
         qh.Scale(k);
         qh.Translate(cx, cy, cz);
-        return Convert(qh);
+        return qh;
     }
 
     // frexpf's exponent: x = m 2^e with m in [0.5, 1).
@@ -212,7 +258,8 @@ public static class RnHullBuilder
         return true;
     }
 
-    // FUN_180390040: only reached when the angle or the minimum edge is set.
+    // FUN_180390040: two neighbouring faces within the angle of each other,
+    // or an edge shorter than the minimum, asks for simplification.
     private static bool NeedsSimplify(QuickHull qh, float angle, float minEdge)
     {
         var a = angle * 0.017453292f;
@@ -221,7 +268,30 @@ public static class RnHullBuilder
         var tan = MathF.Tan(a);
         if (tan == 0f && minEdge == 0f)
             return false;
-        throw new NotSupportedException("hull simplification criteria are not ported");
+        foreach (var f in qh.HullFaces)
+        {
+            foreach (var e in QuickHull.Loop(f))
+            {
+                var g = e.Twin!.Face;
+                var dot = ((f.NZ * g.NZ) + (g.NY * f.NY)) + (g.NX * f.NX);
+                if (0f < dot)
+                {
+                    var cx = (f.NY * g.NZ) - (g.NY * f.NZ);
+                    var cy = (f.NZ * g.NX) - (g.NZ * f.NX);
+                    var cz = (g.NY * f.NX) - (f.NY * g.NX);
+                    var len = MathF.Sqrt(((cy * cy) + (cz * cz)) + (cx * cx));
+                    if (len < dot * tan)
+                        return true;
+                }
+                var w = e.Twin.Origin;
+                var dx = e.Origin.X - w.X;
+                var dy = e.Origin.Y - w.Y;
+                var dz = e.Origin.Z - w.Z;
+                if (((dx * dx) + (dy * dy)) + (dz * dz) < minEdge * minEdge)
+                    return true;
+            }
+        }
+        return false;
     }
 
     // FUN_180385100
@@ -406,8 +476,122 @@ public static class RnHullBuilder
         (9, 19, 1, 4), (1, 18, 3, 5), (18, 21, 0, 4), (2, 20, 1, 0), (7, 23, 3, 2), (19, 22, 7, 5),
     ];
 
+    /// <summary>The identity matrix3x4 a map builder hull shape carries.</summary>
+    public static readonly float[] Identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+
+    /// <summary>
+    /// resourcecompiler's FUN_1819595d0: the cooked hull moved by its shape's
+    /// matrix (row-major 3x4). Even the identity matters, because adding its
+    /// zero terms turns a -0 into +0. The region SVM planes it also moves are
+    /// not built here.
+    /// </summary>
+    public static void Transform(RnHull hull, float[] m)
+    {
+        hull.Centroid = Point(m, hull.Centroid);
+        float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue;
+        float maxX = -float.MaxValue, maxY = -float.MaxValue, maxZ = -float.MaxValue;
+        for (var i = 0; i < hull.VertexPositions.Length; i++)
+        {
+            var v = Point(m, hull.VertexPositions[i]);
+            hull.VertexPositions[i] = v;
+            if (maxY <= v.Y) maxY = v.Y;
+            if (maxZ <= v.Z) maxZ = v.Z;
+            if (v.X <= minX) minX = v.X;
+            if (v.Y <= minY) minY = v.Y;
+            if (v.Z <= minZ) minZ = v.Z;
+            if (maxX <= v.X) maxX = v.X;
+        }
+        if (hull.VertexPositions.Length > 0)
+        {
+            hull.BoundsMin = new Vector3(minX, minY, minZ);
+            hull.BoundsMax = new Vector3(maxX, maxY, maxZ);
+        }
+        else
+        {
+            hull.BoundsMin = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+            hull.BoundsMax = new Vector3(-float.MaxValue, -float.MaxValue, -float.MaxValue);
+        }
+        for (var i = 0; i < hull.Planes.Length; i++)
+        {
+            var (n, d) = hull.Planes[i];
+            var r = Rotate(m, n);
+            hull.Planes[i] = (r, (((m[7] * r.Y) + (m[3] * r.X)) + (m[11] * r.Z)) + d);
+        }
+        Inertia(m, hull.MassProperties);
+        var c = Point(m, new Vector3(hull.MassProperties[3], hull.MassProperties[7], hull.MassProperties[11]));
+        hull.MassProperties[3] = c.X;
+        hull.MassProperties[7] = c.Y;
+        hull.MassProperties[11] = c.Z;
+        hull.OrthographicAreas = Ortho(hull.OrthographicAreas, m);
+        if ((hull.Flags & 2) != 0)
+        {
+            var mask = 0;
+            foreach (var v in hull.VertexPositions)
+            {
+                var dx = v.X - ((maxX + minX) * 0.5f);
+                var dy = v.Y - ((maxY + minY) * 0.5f);
+                var dz = v.Z - ((maxZ + minZ) * 0.5f);
+                if (MathF.Abs(MathF.Abs(dx) - ((maxX - minX) * 0.5f)) <= 0.03125f && MathF.Abs(MathF.Abs(dy) - ((maxY - minY) * 0.5f)) <= 0.03125f
+                    && MathF.Abs(MathF.Abs(dz) - ((maxZ - minZ) * 0.5f)) <= 0.03125f)
+                    mask |= 1 << ((SignBit(dx) ? 1 : 0) | (SignBit(dy) ? 2 : 0) | (SignBit(dz) ? 4 : 0));
+            }
+            hull.Flags = mask == 0xff ? hull.Flags | 1 : hull.Flags & ~1u;
+        }
+    }
+
+    // FUN_18125d1f0: (t + y r1) + (x r0 + z r2) per row.
+    private static Vector3 Point(float[] m, Vector3 v)
+        => new(((m[1] * v.Y) + m[3]) + ((m[0] * v.X) + (m[2] * v.Z)),
+               ((m[5] * v.Y) + m[7]) + ((m[4] * v.X) + (m[6] * v.Z)),
+               ((m[9] * v.Y) + m[11]) + ((m[8] * v.X) + (m[10] * v.Z)));
+
+    // FUN_18125d1b0: (x r0 + y r1) + z r2 per row.
+    private static Vector3 Rotate(float[] m, Vector3 v)
+        => new(((v.X * m[0]) + (v.Y * m[1])) + (v.Z * m[2]),
+               ((v.X * m[4]) + (v.Y * m[5])) + (v.Z * m[6]),
+               ((v.X * m[8]) + (v.Y * m[9])) + (v.Z * m[10]));
+
+    // FUN_181a09ad0: R I R^T on the 3x4 mass block, grouped as the binary groups it.
+    private static void Inertia(float[] m, float[] p)
+    {
+        float i1 = p[1], m4 = m[4], i5 = p[5], i0 = p[0], i6 = p[6], i2 = p[2], i10 = p[10];
+        float m0 = m[0], m5 = m[5], m6 = m[6], m8 = m[8], m1 = m[1], m9 = m[9], m2 = m[2], m10 = m[10];
+        var a24 = ((m5 * i5) + (m4 * i1)) + (m6 * i6);
+        var a23 = ((m5 * i1) + (m4 * i0)) + (m6 * i2);
+        var a22 = ((m5 * i6) + (m4 * i2)) + (m6 * i10);
+        var a21 = ((m8 * a23) + (m9 * a24)) + (m10 * a22);
+        var a20 = ((m0 * i1) + (m1 * i5)) + (m2 * i6);
+        var a19 = ((m1 * i1) + (m0 * i0)) + (m2 * i2);
+        var a18 = ((m0 * i2) + (m1 * i6)) + (m2 * i10);
+        var a16 = ((m4 * a19) + (m5 * a20)) + (m6 * a18);
+        var a17 = ((m8 * a19) + (m9 * a20)) + (m10 * a18);
+        p[0] = ((m0 * a19) + (m1 * a20)) + (m2 * a18);
+        p[1] = a16;
+        p[2] = a17;
+        p[4] = a16;
+        p[5] = ((m4 * a23) + (m5 * a24)) + (m6 * a22);
+        p[6] = a21;
+        p[8] = a17;
+        p[9] = a21;
+        p[10] = (((((m9 * i5) + (m8 * i1)) + (m10 * i6)) * m9) + ((((m9 * i1) + (m8 * i0)) + (m10 * i2)) * m8))
+                + ((((m9 * i6) + (m8 * i2)) + (m10 * i10)) * m10);
+    }
+
+    // FUN_181a09e20
+    private static Vector3 Ortho(Vector3 o, float[] m)
+    {
+        var sum = (o.X + o.Y) + o.Z;
+        if (!(1.1920929e-07f <= sum))
+            return o;
+        var d = MathF.Abs(o.X * m[4]) + MathF.Abs(o.Y * m[5]) + MathF.Abs(o.Z * m[6]) + MathF.Abs(o.Y * m[1])
+                + MathF.Abs(o.X * m[0]) + MathF.Abs(o.Z * m[2]) + MathF.Abs(o.X * m[8]) + MathF.Abs(o.Y * m[9])
+                + MathF.Abs(o.Z * m[10]);
+        var f = sum / d;
+        return new Vector3(o.X * f, o.Y * f, o.Z * f);
+    }
+
     // FUN_1801302f0
-    private static void CentroidRadius(RnHull hull)
+    internal static void CentroidRadius(RnHull hull)
     {
         var min = float.MaxValue;
         var c = hull.Centroid;
@@ -421,7 +605,7 @@ public static class RnHullBuilder
     }
 
     // FUN_18012ffd0: area by fanning each face from its first corner.
-    private static void Areas(RnHull hull)
+    internal static void Areas(RnHull hull)
     {
         float area = 0f, ox = 0f, oy = 0f, oz = 0f;
         var p = hull.VertexPositions;
@@ -474,7 +658,7 @@ public static class RnHullBuilder
     }
 
     // FUN_180292700: volume, mass centre and inertia from the faces' fans.
-    private static void MassProperties(RnHull hull)
+    internal static void MassProperties(RnHull hull)
     {
         var c = hull.Centroid;
         float vol6 = 0f, sx = 0f, sy = 0f, sz = 0f, xx = 0f, yy = 0f, zz = 0f, xy = 0f, xz = 0f, yz = 0f;
