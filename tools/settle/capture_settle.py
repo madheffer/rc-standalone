@@ -8,14 +8,18 @@ FUN_180200840). This hooks both and sends:
     {"ev": "settle"}                       the settle starts
     {"ev": "step", "n": i, "dt": f, ...}   before each RnWorld::Step
     {"ev": "blob", "name": s}  + bytes     a raw memory dump from a probe
-    {"ev": "done"}                         the settle returned
+    {"ev": "settle_done"}                  the settle returned
+    {"ev": "done"}                         the settle returned and no probe holds the compile
 
     python capture_settle.py <addon> <map> [--out dir] [--agent extra.js]
 
 Everything lands in <out>/events.jsonl, and each blob in <out>/<name>.bin. The
 agent source has an EXTRA hook point: --agent appends a JS file that may assign
 onSettleStart, onStep = function (world, n) and onSettleEnd, for probes that
-read body state (assign; a function declaration would be overwritten). Never run
+read body state (assign; a function declaration would be overwritten). A probe
+that needs the compile to go on past the settle calls hold() at load and
+release() when done; the compile is stopped once the settle is over and nothing
+holds it, or when it exits. Never run
 it with CS2 open; the tool refuses to, and kills the compile if the game
 starts while it runs.
 """
@@ -48,8 +52,22 @@ function blob(name, ptr, size) {
 function hookRc(m) {
   Interceptor.attach(m.base.add(%(settle)d), {
     onEnter() { inSettle = true; send({ev: 'settle'}); if (onSettleStart) onSettleStart(); },
-    onLeave() { inSettle = false; if (onSettleEnd) onSettleEnd(); send({ev: 'done', steps: step}); }
+    onLeave() {
+      inSettle = false;
+      if (onSettleEnd) onSettleEnd();
+      settleDone = true;
+      send({ev: 'settle_done', steps: step});
+      finishIfDone();
+    }
   });
+}
+// A probe that needs the compile to run on past the settle calls hold() when
+// it loads and release() when it has what it needs.
+let holds = 0, settleDone = false, finished = false;
+function hold() { holds++; }
+function release() { holds--; finishIfDone(); }
+function finishIfDone() {
+  if (settleDone && holds <= 0 && !finished) { finished = true; send({ev: 'done', steps: step}); }
 }
 function hookPhys(m) {
   Interceptor.attach(m.base.add(%(step)d), {
