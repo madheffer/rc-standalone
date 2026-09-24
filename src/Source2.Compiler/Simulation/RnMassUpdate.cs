@@ -19,7 +19,15 @@ public static class RnMassUpdate
 {
     /// <summary>One shape as the update reads it: its geometry, scale, material and whether its function mask counts it.</summary>
     public readonly record struct Shape(int Type, RnHull? Hull, float HullScale, RnMesh? Mesh, Vector3 MeshScale,
-                                        ContactSolver.Material Material, bool Counts);
+                                        ContactSolver.Material Material, bool Counts)
+    {
+        /// <summary>A capsule's centres and radius before its scale (<see cref="HullScale"/>).</summary>
+        public (Vector3 A, Vector3 B, float Radius)? Capsule { get; init; }
+
+        /// <summary>The capsule at its scale, as the shape keeps it at +0xb8.</summary>
+        public (Vector3 A, Vector3 B, float Radius) ScaledCapsule
+            => (Capsule!.Value.A * HullScale, Capsule.Value.B * HullScale, Capsule.Value.Radius * HullScale);
+    }
 
     /// <summary>Mass properties: inertia (row major) about the centre, the centre, the mass.</summary>
     public struct Properties
@@ -99,6 +107,80 @@ public static class RnMassUpdate
     }
 
     /// <summary>
+    /// FUN_1801b9ca0 on a dynamic body: the drag axes. The shapes' bounds in
+    /// the body (vfunc 0x88, 1/16 out on every side) and their projected
+    /// area fractions (FUN_1801b3420: a lone shape's own, vfunc 0x90, several
+    /// shapes' largest) make the linear axes, the bounds' extents times the
+    /// area across each axis times the inverse mass; the angular axes
+    /// integrate the box's half extents against the inverse inertia's
+    /// diagonal (FUN_180007ae0). Only hulls are read.
+    /// </summary>
+    public static void Drag(ref RnBodyState b, IReadOnlyList<Shape> shapes)
+    {
+        if (b.BodyType != 2 || shapes.Count == 0)
+            return;
+        float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue;
+        float maxX = -float.MaxValue, maxY = -float.MaxValue, maxZ = -float.MaxValue;
+        foreach (var shape in shapes)
+        {
+            if (shape.Type != BroadphaseShape.HullType)
+                throw new NotSupportedException("drag over a shape that is not a hull");
+            var h = shape.Hull!;
+            var sc = shape.HullScale;
+            float x0 = (sc * h.BoundsMin.X) - 0.0625f, y0 = (h.BoundsMin.Y * sc) - 0.0625f, z0 = (sc * h.BoundsMin.Z) - 0.0625f;
+            float x1 = (h.BoundsMax.X * sc) + 0.0625f, y1 = (h.BoundsMax.Y * sc) + 0.0625f, z1 = (h.BoundsMax.Z * sc) + 0.0625f;
+            if (x0 <= minX) minX = x0;
+            if (maxX <= x1) maxX = x1;
+            if (y0 <= minY) minY = y0;
+            if (maxY <= y1) maxY = y1;
+            if (z0 <= minZ) minZ = z0;
+            if (maxZ <= z1) maxZ = z1;
+        }
+        Vector3 areas;
+        if (shapes.Count == 1)
+            areas = shapes[0].Hull!.OrthographicAreas;
+        else
+        {
+            areas = Vector3.Zero;
+            foreach (var shape in shapes)
+            {
+                var a = shape.Hull!.OrthographicAreas;
+                if (areas.X <= a.X) areas.X = a.X;
+                if (areas.Y <= a.Y) areas.Y = a.Y;
+                if (areas.Z <= a.Z) areas.Z = a.Z;
+            }
+        }
+        var inverseMass = b.InvMass;
+        float lz = maxZ - minZ, ly = maxY - minY, lx = maxX - minX;
+        b.LinearDragAxes = new Vec3(((lz * ly) * areas.X) * inverseMass, inverseMass * ((lz * lx) * areas.Y),
+                                    inverseMass * ((ly * lx) * areas.Z));
+        var k = 0f;
+        var s = b.Scale;
+        if (b.BodyType == 2)
+        {
+            var s2 = s * s;
+            k = (b.TimeScale * b.InertiaScale) / ((s2 * s) * s2);
+        }
+        var inverse = 1f / b.InertiaDivisor;
+        float m0 = (inverse * b.LocalInvInertia.M0) * k, m4 = (inverse * b.LocalInvInertia.M4) * k, m8 = (inverse * b.LocalInvInertia.M8) * k;
+        const float Third = 0.33333334f;
+        float hx = lx * 0.5f, hz = lz * 0.5f, hy = ly * 0.5f;
+        float x2 = hx * hx, z2 = hz * hz, y2 = hy * hy;
+        var z4 = (z2 * 0.5f) * z2;
+        var y4 = (y2 * 0.5f) * y2;
+        var x4 = (x2 * 0.5f) * x2;
+        var a0 = (((hx * (z2 * Third)) * x2) + (hx * z4)) + ((hx * z2) * y2);
+        var b0 = (((hx * (y2 * Third)) * x2) + (hx * y4)) + ((hx * y2) * z2);
+        var c0 = (((hy * (z2 * Third)) * y2) + (hy * z4)) + ((hy * z2) * x2);
+        var d0 = (((hy * (x2 * Third)) * y2) + (hy * x4)) + ((hy * x2) * z2);
+        var e0 = (((hz * (y2 * Third)) * z2) + (hz * y4)) + ((y2 * hz) * x2);
+        var f0 = (((hz * (x2 * Third)) * z2) + (hz * x4)) + ((hz * x2) * y2);
+        b.AngularDragAxes = new Vec3(((a0 * m0) * areas.Y) + ((b0 * m0) * areas.Z),
+                                     ((c0 * m4) * areas.X) + ((d0 * m4) * areas.Z),
+                                     ((e0 * m8) * areas.X) + ((f0 * m8) * areas.Y));
+    }
+
+    /// <summary>
     /// FUN_1801b2c30: each counted shape with mass adds its mass, its mass
     /// times its centre, and its inertia moved to the origin (FUN_1802930d0);
     /// then the centre is divided out and the inertia moved back to it. A
@@ -112,7 +194,12 @@ public static class RnMassUpdate
         {
             if (!shape.Counts)
                 continue;
-            var p = shape.Type == BroadphaseShape.HullType ? Hull(shape.Hull!, unit ? shape.HullScale : 1f, shape.Material) : default;
+            var p = shape.Type switch
+            {
+                BroadphaseShape.HullType => Hull(shape.Hull!, unit ? shape.HullScale : 1f, shape.Material),
+                1 => CapsuleProperties(unit ? shape.ScaledCapsule : shape.Capsule!.Value, shape.Material),
+                _ => default,
+            };
             if (!(0f < p.Mass))
                 continue;
             sum.Mass = p.Mass + sum.Mass;
@@ -167,6 +254,78 @@ public static class RnMassUpdate
                 p.Inertia[i] = ratio * p.Inertia[i];
         }
         return p;
+    }
+
+    /// <summary>
+    /// FUN_180291d80: a capsule's mass properties. Two hemispheres and a
+    /// cylinder (or their shells, with a thickness), the inertia built about
+    /// the z axis and turned onto the capsule's axis by the rotation taking
+    /// z to it (FUN_180089a30, then FUN_180292de0).
+    /// </summary>
+    public static Properties CapsuleProperties((Vector3 A, Vector3 B, float Radius) c, in ContactSolver.Material material)
+    {
+        var p = new Properties();
+        var d = material.Density;
+        if (d == 0f)
+            return p;
+        var (a, b, r) = c;
+        float dz = a.Z - b.Z, dx = a.X - b.X, dy = a.Y - b.Y;
+        var len = MathF.Sqrt(((dy * dy) + (dx * dx)) + (dz * dz));
+        float sphere, cylinder;
+        var t = material.Thickness;
+        if (t > 0f)
+        {
+            sphere = (((r * 12.566371f) * r) * d) * t;
+            cylinder = (((r * 6.2831855f) * len) * d) * t;
+        }
+        else
+        {
+            sphere = (((r * 4.1887903f) * r) * r) * d;
+            cylinder = (((r * 3.1415927f) * r) * len) * d;
+        }
+        p.Mass = cylinder + sphere;
+        var ends = ((sphere * 0.4f) * r) * r;
+        var side = ((((r * 3f) * r) + (len * len)) * cylinder) / 12f;
+        var axial = (((r * cylinder) * r) * 0.5f) + ends;
+        var across = ((((len + len) + (r * 3f)) * (sphere * len)) * 0.125f) + (ends + side);
+        p.Center = new Vec3((b.X + a.X) * 0.5f, (b.Y + a.Y) * 0.5f, (b.Z + a.Z) * 0.5f);
+        var rotation = new Mat3 { M0 = 1f, M4 = 1f, M8 = 1f };
+        if (0f < len)
+        {
+            float ux = b.X - a.X, uy = b.Y - a.Y, uz = b.Z - a.Z;
+            var n = ((ux * ux) + (uy * uy)) + (uz * uz);
+            if (n > 1.17549435e-35f)
+            {
+                var inverse = 1f / MathF.Sqrt(n);
+                ux *= inverse;
+                uy *= inverse;
+                uz *= inverse;
+            }
+            else
+                ux = uy = uz = 0f;
+            rotation = RnMath.Matrix(Between(new Vec3(0f, 0f, 1f), new Vec3(ux, uy, uz)));
+        }
+        p.Inertia = RnMath.RotateInertia(rotation, new Mat3 { M0 = across, M4 = across, M8 = axial });
+        return p;
+    }
+
+    /// <summary>
+    /// FUN_180089a30: the rotation taking unit vector a to unit vector b, from
+    /// their half-way vector h: (h x a... as the lanes compute it, h . a),
+    /// normalised by the root of its DPPS square; a half-way vector near zero
+    /// takes a perpendicular of a instead, and a zero length the identity.
+    /// </summary>
+    private static Quat Between(Vec3 a, Vec3 b)
+    {
+        float hx = (a.X + b.X) * 0.5f, hy = (a.Y + b.Y) * 0.5f, hz = (a.Z + b.Z) * 0.5f;
+        Quat q;
+        if (((hx * hx) + (hy * hy)) + (hz * hz) <= 1.1920929e-07f)
+            q = MathF.Abs(a.X) <= 0.5f ? new Quat(0f, a.Z, -a.Y, 0f) : new Quat(a.Y, -a.X, 0f, 0f);
+        else
+            q = new Quat((hz * a.Y) - (hy * a.Z), (hx * a.Z) - (hz * a.X), (hy * a.X) - (hx * a.Y),
+                         ((hx * a.X) + (hy * a.Y)) + (hz * a.Z));
+        var length = MathF.Sqrt(((q.X * q.X) + (q.Y * q.Y)) + ((q.Z * q.Z) + (q.W * q.W)));
+        return length == 0f ? Quat.Identity : new Quat(q.X / length, q.Y / length, q.Z / length, q.W / length);
     }
 
     /// <summary>FUN_1802930d0: the inertia of a point mass m at c about the origin.</summary>
@@ -259,9 +418,14 @@ public static class RnMassUpdate
             ((((ty * q.X) - (tx * q.Y)) + ((q.W * tz) + vz)) * 1f) + origin.Z);
     }
 
-    /// <summary>Shape vfunc 200: a hull's least centroid radius times its scale; a mesh's 1/16.</summary>
+    /// <summary>Shape vfunc 200: a hull's least centroid radius times its scale; a capsule's radius; a mesh's 1/16.</summary>
     private static float InnerRadius(in Shape shape)
-        => shape.Type == BroadphaseShape.HullType ? shape.Hull!.MinCentroidRadius * shape.HullScale : 0.0625f;
+        => shape.Type switch
+        {
+            BroadphaseShape.HullType => shape.Hull!.MinCentroidRadius * shape.HullScale,
+            1 => shape.ScaledCapsule.Radius,
+            _ => 0.0625f,
+        };
 
     /// <summary>
     /// Shape vfunc 0xd0: how far the shape reaches from v, a hull by its
@@ -270,6 +434,17 @@ public static class RnMassUpdate
     /// </summary>
     private static float OuterRadius(in Shape shape, Vec3 v)
     {
+        if (shape.Type == 1)
+        {
+            // FUN_18024f530: the farther centre, plus the radius.
+            var (a, c, radius) = shape.ScaledCapsule;
+            float ax = v.X - a.X, az = v.Z - a.Z, cz = v.Z - c.Z, cx = v.X - c.X, ay = v.Y - a.Y, cy = v.Y - c.Y;
+            var da = ((ay * ay) + (ax * ax)) + (az * az);
+            var dc = ((cy * cy) + (cx * cx)) + (cz * cz);
+            if (da <= dc)
+                da = dc;
+            return MathF.Sqrt(da) + radius;
+        }
         if (shape.Type == BroadphaseShape.HullType)
         {
             var h = shape.Hull!;

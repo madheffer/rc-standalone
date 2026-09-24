@@ -45,6 +45,13 @@ internal sealed unsafe class Vphysics2World
     /// <summary>A function Ghidra calls FUN_&lt;va&gt;.</summary>
     public nint At(ulong va) => Vphysics2Oracle.At(_module, va);
 
+    /// <summary>World slot 0x1e8 alone: a body as the default description leaves it.</summary>
+    public Body CreateRawBody()
+    {
+        var wrapper = (nint*)((delegate* unmanaged<nint*, nint>)Slot(_world, 0x1e8))(_world);
+        return new Body(wrapper, *(byte**)((byte*)wrapper + 8));
+    }
+
     /// <summary>World slot 0x1e8 creates a body, body slot 0x18 sets its type, body slot 0x1b8 its transform (scale 1).</summary>
     public Body CreateBody(int type, Vec3 position, Quat orientation)
     {

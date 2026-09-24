@@ -425,6 +425,14 @@ public sealed class RnWorld
 
     private ulong _nextHandle = 0x10;
 
+    /// <summary>The handle the next shape gets when it names none, taken.</summary>
+    public ulong NextHandle()
+    {
+        var h = _nextHandle;
+        _nextHandle += 0x10;
+        return h;
+    }
+
     /// <summary>
     /// A new body (world vfn 0x1e8): the next index, its node in the island
     /// manager. The state is the caller's: Valve's RnBodyDesc_t defaults and

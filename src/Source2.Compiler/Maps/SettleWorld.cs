@@ -23,7 +23,11 @@ public static partial class SettleWorld
 {
     /// <summary>One shape as the settle adds it to its body.</summary>
     public sealed record ShapeBuild(int Type, RnHull? Hull, float HullScale, RnMesh? Mesh, Vector3 MeshScale,
-                                    CollisionAttributes Attributes, ContactSolver.Material Material, string Name);
+                                    CollisionAttributes Attributes, ContactSolver.Material Material, string Name)
+    {
+        /// <summary>A capsule's (type 1) two centres and radius as the model stores them; its scale is <see cref="HullScale"/>.</summary>
+        public (Vector3 A, Vector3 B, float Radius)? Capsule { get; init; }
+    }
 
     /// <summary>
     /// One body: the node it comes from, the transform the settle gives it
@@ -95,6 +99,9 @@ public static partial class SettleWorld
         }
         return found;
     }
+
+    /// <summary>Rubikon's shape type for a capsule (a sphere is 0, a hull 2, a mesh 3).</summary>
+    public const int CapsuleType = 1;
 
     /// <summary>The name hash of the surface property "default", which a shape without one gets.</summary>
     public const uint DefaultSurface = 1977497166;
@@ -319,6 +326,18 @@ public static partial class SettleWorld
         ContactSolver.Material Material(int index)
             => index >= 0 && index < surfaces.Length && models.Surface(surfaces[index]) is { } m ? m
              : models.Surface(DefaultSurface) ?? DefaultMaterial;
+        // Capsules are added before hulls (the shape desc's order); a
+        // non-uniform scale would need the matrix path, which a capsule lacks.
+        foreach (var c in shape.Capsules)
+        {
+            if (matrix != null)
+                throw new NotSupportedException("a capsule at a non-uniform scale");
+            body.Shapes.Add(new ShapeBuild(CapsuleType, null, u, null, Vector3.One, Attributes(c.CollisionAttributeIndex),
+                                           Material(c.SurfacePropertyIndex), c.UserFriendlyName ?? "")
+                            { Capsule = (c.Shape.Center[0], c.Shape.Center[1], c.Shape.Radius) });
+        }
+        if (shape.Spheres.Length > 0)
+            throw new NotSupportedException("a model with sphere shapes");
         foreach (var h in shape.Hulls)
         {
             var hull = Hull(h.Shape);

@@ -19,6 +19,9 @@ public struct RnBodyState
     /// <summary>Index in the world's active list; -1 when asleep or static.</summary>
     [FieldOffset(0x18)] public int ActiveIndex;
 
+    /// <summary>1 while the body is static (SetType writes type == 0).</summary>
+    [FieldOffset(0x44)] public byte StaticFlag;
+
     /// <summary>Flags; bit 7 of the low byte asks the island to sleep.</summary>
     [FieldOffset(0x4a)] public ushort Flags4A;
 
@@ -74,6 +77,10 @@ public struct RnBodyState
     [FieldOffset(0x148)] public float LinearDrag;
     [FieldOffset(0x14c)] public float AngularDrag;
 
+    /// <summary>Two words a fresh body holds at 1 (not yet read by the port).</summary>
+    [FieldOffset(0x150)] public float Word150;
+    [FieldOffset(0x154)] public float Word154;
+
     [FieldOffset(0x158)] public Vec3 Force;
     [FieldOffset(0x164)] public Vec3 Torque;
     [FieldOffset(0x170)] public Vec3 SleepingForce;
@@ -83,9 +90,15 @@ public struct RnBodyState
     [FieldOffset(0x1a0)] public float LinearVelocityScale;
     [FieldOffset(0x1a4)] public float AngularVelocityScale;
 
+    /// <summary>A word a fresh body holds at 0x00c80000 (not yet read by the port).</summary>
+    [FieldOffset(0x1ac)] public int Word1AC;
+
     /// <summary>Drag per local axis (linear, then angular).</summary>
     [FieldOffset(0x1b4)] public Vec3 LinearDragAxes;
     [FieldOffset(0x1c0)] public Vec3 AngularDragAxes;
+
+    /// <summary>A word a fresh body holds at 1 (not yet read by the port).</summary>
+    [FieldOffset(0x1cc)] public float Word1CC;
 
     /// <summary>Gravity for this body alone; used when any component is non-zero.</summary>
     [FieldOffset(0x1d0)] public Vec3 GravityOverride;

@@ -34,6 +34,9 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
 
         /// <summary>Its RnBodyState in the step-0 world dump.</summary>
         public byte[] State { get; set; } = [];
+
+        /// <summary>Its place among the SetType(2) calls, or -1 when it stays static.</summary>
+        public int DynamicOrder { get; set; } = -1;
     }
 
     internal sealed record CapturedObject(int Node, List<CapturedBody> Bodies);
@@ -44,6 +47,7 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
         var objects = new List<CapturedObject>();
         var pending = new List<(CapturedBody Body, List<(string Kind, string Ptr, byte[]? Scale)> Shapes)>();
         var byWrapper = new Dictionary<string, (CapturedBody Body, List<(string, string, byte[]?)> Shapes)>();
+        var dynamicOrder = new Dictionary<string, int>();
         Dictionary<string, JsonElement>? shapes = null;
         JsonDocument? world = null;
         foreach (var line in File.ReadLines(path))
@@ -78,7 +82,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
                     ReplaceBody(objects, b, byWrapper[w].Body);
                     pending[pending.FindIndex(p => p.Body == b)] = byWrapper[w];
                     break;
-                case "type" when e.GetProperty("type").GetInt32() != 0:
+                case "type" when e.GetProperty("type").GetInt32() == 2:
+                    dynamicOrder[byWrapper[w].Body.Rn] = dynamicOrder.Count;
                     break;
                 case "hull" or "mesh":
                     byWrapper[w].Shapes.Add((kind, e.GetProperty("shape").GetString()!,
@@ -93,7 +98,10 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
                 states[bp.GetString()!] = Convert.FromHexString(b.GetProperty("body").GetString()!);
         foreach (var o in objects)
             foreach (var b in o.Bodies)
+            {
                 b.State = states.GetValueOrDefault(b.Rn, []);
+                b.DynamicOrder = dynamicOrder.GetValueOrDefault(b.Rn, -1);
+            }
         foreach (var b in world!.RootElement.GetProperty("bodies").EnumerateArray())
             foreach (var s in b.GetProperty("shapes").EnumerateArray())
                 if (s.TryGetProperty("ptr", out var p))
@@ -294,15 +302,17 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
                     .Where(f => !xf.AsSpan(f.Item2, f.Item3).SequenceEqual(cb.Xf.AsSpan(f.Item2, f.Item3))).Select(f => f.Item1)));
             if (!xf.AsSpan().SequenceEqual(cb.Xf))
                 Example("transform", $"node {body.NodeId}: ours {Convert.ToHexString(xf)} valve {Convert.ToHexString(cb.Xf)}");
-            if (body.Shapes.Count != cb.Shapes.Count || !body.Shapes.Select(s => s.Type).SequenceEqual(cb.Shapes.Select(s => s.Kind == "hull" ? 2 : 3)))
+            // The build log names hulls and meshes only; capsules are compared by the mass update.
+            var listed = body.Shapes.Where(x => x.Type != SettleWorld.CapsuleType).ToList();
+            if (listed.Count != cb.Shapes.Count || !listed.Select(s => s.Type).SequenceEqual(cb.Shapes.Select(s => s.Kind == "hull" ? 2 : 3)))
             {
-                Example("shape list", $"node {body.NodeId}: ours {string.Join(",", body.Shapes.Select(s => s.Type))} valve {string.Join(",", cb.Shapes.Select(s => s.Kind))}");
+                Example("shape list", $"node {body.NodeId}: ours {string.Join(",", listed.Select(s => s.Type))} valve {string.Join(",", cb.Shapes.Select(s => s.Kind))}");
                 continue;
             }
             Count("shape list same");
-            for (var i = 0; i < body.Shapes.Count; i++)
+            for (var i = 0; i < listed.Count; i++)
             {
-                var ours = body.Shapes[i];
+                var ours = listed[i];
                 var theirs = cb.Shapes[i];
                 Count("shapes");
                 var geometry = ours.Type == 2 ? HullDifference(ours.Hull!, theirs.Raw) : MeshDifference(ours.Mesh!, theirs.Raw);
@@ -339,6 +349,12 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             .Select(i => (bodies[i].NodeId, bodies.Take(i).Count(b => b.NodeId == bodies[i].NodeId))).ToHashSet();
         var dynValve = captured.SelectMany(o => o.Bodies.Select((b, k) => (o.Node, k, b)))
             .Where(x => x.b.State.Length >= 0x58 && BitConverter.ToInt32(x.b.State, 0x54) == 2).Select(x => (x.Node, x.k)).ToHashSet();
+        var valveOrder = captured.SelectMany(o => o.Bodies.Select((b, k) => (o.Node, k, b))).Where(x => x.b.DynamicOrder >= 0)
+            .OrderBy(x => x.b.DynamicOrder).Select(x => (x.Node, x.k)).ToList();
+        var ourDynamic = SettleWorld.Settled(document, bodies, models, MapFixtures.GameSchema()!)
+            .Select(i => (bodies[i].NodeId, bodies.Take(i).Count(b => b.NodeId == bodies[i].NodeId))).ToList();
+        output.WriteLine($"SetType(2) order: same {ourDynamic.SequenceEqual(valveOrder)}; valve's nodes {string.Join(",", valveOrder.Select(x => x.Node))}");
+        output.WriteLine($"                   ours {string.Join(",", ourDynamic.Select(x => x.NodeId))}");
         output.WriteLine($"dynamic: ours {dynOurs.Count}, valve {dynValve.Count}, both {dynOurs.Intersect(dynValve).Count()}; only ours {string.Join(",", dynOurs.Except(dynValve).Take(10))}; only valve {string.Join(",", dynValve.Except(dynOurs).Take(10))}");
         // Build order: the capture's body order against ours, as the share of
         // our consecutive pairs that are consecutive there too.
@@ -379,7 +395,7 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
         var q = new Simulation.Quat { X = body.Orientation.X, Y = body.Orientation.Y, Z = body.Orientation.Z, W = body.Orientation.W };
         b.Orientation = q;
         var shapes = body.Shapes.Select(s => new Simulation.RnMassUpdate.Shape(s.Type, s.Hull, s.HullScale, s.Mesh, s.MeshScale, s.Material,
-            (((s.Attributes.MaskIsDirect == 1 ? s.Attributes.FunctionMask : ~s.Attributes.FunctionMask)) & 1) != 0)).ToList();
+            (((s.Attributes.MaskIsDirect == 1 ? s.Attributes.FunctionMask : ~s.Attributes.FunctionMask)) & 1) != 0) { Capsule = s.Capsule }).ToList();
         Simulation.RnMassUpdate.Run(ref b, shapes, new Simulation.Vec3(body.Position.X, body.Position.Y, body.Position.Z), q);
         byte[] Of(in Simulation.RnBodyState x, int at, int n) => MemoryMarshal.AsBytes(new ReadOnlySpan<Simulation.RnBodyState>(in x)).Slice(at, n).ToArray();
         foreach (var (name, at, n) in new[] { ("mass", 0xa0, 4), ("local inverse inertia", 0xa4, 36), ("mass centre", 0xc8, 12), ("inverse mass", 0xd4, 4),
