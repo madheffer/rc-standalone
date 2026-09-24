@@ -19,7 +19,9 @@ namespace Source2.Compiler.Tests;
 /// (before steps, and after the last), a narrowphase capture the collide
 /// events; for the latter SETTLE_END names the directory with b0.bin and
 /// bend.bin (another run) for the final state, and for the former
-/// SETTLE_CONTACTS the narrowphase capture the group table is read from.</para>
+/// SETTLE_CONTACTS the narrowphase capture the group table is read from,
+/// unless the bundle holds the table itself. Passes also on c2m2's prefab
+/// (63 bodies, 2700 steps) with atixref's contacts as the table's source.</para>
 /// </summary>
 public sealed class SettleReplay(ITestOutputHelper output)
 {
@@ -146,15 +148,36 @@ public sealed class SettleReplay(ITestOutputHelper output)
             if (diff == null)
                 exact++;
             else
-                firstDifference ??= $"{when}, body {index}: {diff}";
+            {
+                if (firstDifference == null || firstDifference.StartsWith(when + ","))
+                    firstDifference += $"{(firstDifference == null ? $"{when}, " : "; ")}body {index}: {Fields(world.Bodies[index].State, state)}";
+            }
         }
         return $"{when}: {exact}/{captured.Count} bodies exact";
+    }
+
+    /// <summary>Every differing float of a body, ours then captured.</summary>
+    private static string Fields(in RnBodyState ours, byte[] captured)
+    {
+        var mine = MemoryMarshal.AsBytes(new ReadOnlySpan<RnBodyState>(in ours));
+        var parts = new List<string>();
+        for (var i = 0; i < 0x280; i += 4)
+            if (i is < 0x20 or >= 0x48 && !mine.Slice(i, 4).SequenceEqual(captured.AsSpan(i, 4)))
+                parts.Add($"+0x{i:x} {BitConverter.ToSingle(mine[i..]):R}/{BitConverter.ToSingle(captured, i):R}");
+        return string.Join(", ", parts);
     }
 
     private RnWorld Build(SettleCapture capture, nint module)
     {
         unsafe
         {
+            if (capture.Groups is { } captured)
+            {
+                output.WriteLine("collision group table as captured");
+                var built = capture.Build(captured, capture.GroupDefault, out var direct);
+                output.WriteLine($"{built.Bodies.Count} bodies, {direct.Shapes} shapes; {direct.Mismatches} proxy ids or body indices differ from the capture");
+                return built;
+            }
             var table = new ReadOnlySpan<ushort>((ushort*)Vphysics2Oracle.At(module, 0x18045b328), 4096).ToArray();
             foreach (var ((a, b), flags) in GroupFlags(capture))
             {

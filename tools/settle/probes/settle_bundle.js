@@ -3,7 +3,8 @@
 // 1. build:   the settle world as resourcecompiler builds it, call by call:
 //             bodies created, typed, placed; hulls and meshes added; user data.
 // 2. world:   every body and shape at step 0 with its geometry; the dynamic
-//             bodies before each Collide for steps 0..90 and every 10th after.
+//             bodies before each Collide for steps 0..90 and every 10th after;
+//             with the world, vphysics2's collision group table and default.
 // 3. writeback: each settled object's node before and after the write-back,
 //             with its body and bind pose.
 // 4. lights:  every LightPrecompute_SampleVolume call, arguments and what they
@@ -19,7 +20,9 @@ const RC = {
 const VP = {
   createBody: 0x64190, setType: 0x11210, addHull: 0x114d0, addMesh: 0x11540,
   setTransform: 0x123a0, setUserData: 0x15000, collide: 0x1f6980,
+  groupTable: 0x45b328, groupDefault: 0x45b2b8,
 };
+let vpBase = null;
 
 function hexOf(p, n) {
   if (p.isNull() || n <= 0) return '';
@@ -108,7 +111,9 @@ function dumpWorld(world) {
     });
     bodies.push({ptr: b.toString(), body: hexOf(b, 0x280), shapes: shapes});
   }
-  send({ev: 'world', bodies: bodies, head: hexOf(world, 0xc00)});
+  send({ev: 'world', bodies: bodies, head: hexOf(world, 0xc00),
+        groups: vpBase ? hexOf(vpBase.add(VP.groupTable), 4096 * 2) : '',
+        groupDefault: vpBase ? vpBase.add(VP.groupDefault).readU16() : -1});
 }
 onStep = function (world, n) {
   lastStep = n;
@@ -180,5 +185,5 @@ function hookLights(rc) {
   });
 }
 
-watch('vphysics2.dll', vp => { hookBuild(vp); hookCollide(vp); });
+watch('vphysics2.dll', vp => { vpBase = vp.base; hookBuild(vp); hookCollide(vp); });
 watch('resourcecompiler.dll', rc => { hookObjects(rc); hookWriteBack(rc); hookLights(rc); });

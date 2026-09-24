@@ -23,6 +23,10 @@ internal sealed class SettleCapture
     public readonly List<Body> Bodies = [];
     public byte[] Head = [];
 
+    /// <summary>vphysics2's collision group table (64 × 64) and default as the compile had them, when captured.</summary>
+    public ushort[]? Groups;
+    public ushort GroupDefault;
+
     /// <summary>
     /// From a bundle capture's "build" events, per body: the transform the
     /// settle gave it at creation (pos, scale, quat; null for the world's own
@@ -84,6 +88,11 @@ internal sealed class SettleCapture
             using var doc = JsonDocument.Parse(line);
             var world = doc.RootElement;
             capture = new SettleCapture { Head = Convert.FromHexString(world.GetProperty("head").GetString()!) };
+            if (world.TryGetProperty("groups", out var g) && g.GetString() is { Length: > 0 } hex)
+            {
+                capture.Groups = MemoryMarshal.Cast<byte, ushort>(Convert.FromHexString(hex)).ToArray();
+                capture.GroupDefault = world.GetProperty("groupDefault").GetUInt16();
+            }
             capture.ReadWorld(world);
             capture.ReadBuild(world, wrappers, xf, shapeWrapper, types);
         }
