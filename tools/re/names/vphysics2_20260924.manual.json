@@ -1,0 +1,178 @@
+{
+ "functions": [
+  {
+   "addr": "1801ac5c0",
+   "name": "RnHullCreate",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1801ac890",
+   "name": "RnHullCreateBox",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1801303b0",
+   "name": "RnHull_Aabb",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803843f0",
+   "name": "RnHull_BuildFromPoints",
+   "module": "s2c:physics/hull",
+   "note": "normalise, then quickhull"
+  },
+  {
+   "addr": "1803c3440",
+   "name": "QuickHull_Init",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c5650",
+   "name": "QuickHull_Build",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c6300",
+   "name": "QuickHull_IsValid",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c3510",
+   "name": "QuickHull_Destroy",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "180384ab0",
+   "name": "RnHull_Extrude",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "180385370",
+   "name": "RnHull_Limits",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "180385100",
+   "name": "RnHull_CheckInnerMargin",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "180384f80",
+   "name": "RnHull_Result",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1801a7310",
+   "name": "RnHull_FromQuickHull",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "180292700",
+   "name": "RnHull_MassProperties",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "18012ffd0",
+   "name": "RnHull_SurfaceArea",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1801302f0",
+   "name": "RnHull_CentroidRadius",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1801ad8a0",
+   "name": "RnMeshCreate",
+   "module": "s2c:physics/mesh",
+   "note": ""
+  },
+  {
+   "addr": "180383b00",
+   "name": "CMesh_WeldPositions",
+   "module": "s2c:physics/mesh",
+   "note": "clusters kept in formation order"
+  },
+  {
+   "addr": "1801a4070",
+   "name": "RnMesh_BuildBvhNode",
+   "module": "s2c:physics/mesh",
+   "note": "recursive, leaves of four"
+  },
+  {
+   "addr": "1801aab10",
+   "name": "RnMesh_SahSplit",
+   "module": "s2c:physics/mesh",
+   "note": "32 bins per axis"
+  },
+  {
+   "addr": "1801a93e0",
+   "name": "RnMesh_HalveSplit",
+   "module": "s2c:physics/mesh",
+   "note": ""
+  },
+  {
+   "addr": "1801a3a70",
+   "name": "RnMesh_NewNode",
+   "module": "s2c:physics/mesh",
+   "note": ""
+  },
+  {
+   "addr": "1801a8960",
+   "name": "RnMesh_ReorderLeaves",
+   "module": "s2c:physics/mesh",
+   "note": ""
+  },
+  {
+   "addr": "180165750",
+   "name": "RnMesh_BuildEdgeAdjacency",
+   "module": "s2c:physics/mesh",
+   "note": ""
+  },
+  {
+   "addr": "1801673a0",
+   "name": "RnMesh_ComputeFlags",
+   "module": "s2c:physics/mesh",
+   "note": "closed, inverted"
+  },
+  {
+   "addr": "180164000",
+   "name": "RnMesh_SelfCollide",
+   "module": "s2c:physics/mesh",
+   "note": "the BVH against itself"
+  },
+  {
+   "addr": "180165350",
+   "name": "RnMesh_TrianglePairTouches",
+   "module": "s2c:physics/mesh",
+   "note": "skips a shared vertex; touching below 1.19e-7"
+  },
+  {
+   "addr": "18008d0b0",
+   "name": "TetrahedronVolume",
+   "module": "s2c:physics/mesh",
+   "note": ""
+  },
+  {
+   "addr": "180166ff0",
+   "name": "RnMesh_OrthographicAreas",
+   "module": "s2c:physics/mesh",
+   "note": ""
+  }
+ ]
+}

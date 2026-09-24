@@ -1,0 +1,634 @@
+{
+ "functions": [
+  {
+   "addr": "1802c4a20",
+   "name": "ShapeBuilder_LoopShapes",
+   "module": "s2c:physics/hull",
+   "note": "shape loop over a physics model"
+  },
+  {
+   "addr": "180c253c0",
+   "name": "ShapeBuilder_BuildHullShape",
+   "module": "s2c:physics/hull",
+   "note": "RnHullCreate through the interface, the region SVM, then the move"
+  },
+  {
+   "addr": "1819595d0",
+   "name": "RnHull_Transform",
+   "module": "s2c:physics/hull",
+   "note": "moves a cooked hull by a 3x4: planes, mass, ortho areas, SVM planes"
+  },
+  {
+   "addr": "1819f2a70",
+   "name": "SchemaBind_RnHull_t",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1819d08a0",
+   "name": "RegionSvm_Init",
+   "module": "s2c:physics/svm",
+   "note": "regions and planes"
+  },
+  {
+   "addr": "1819d2250",
+   "name": "RegionSvm_Build",
+   "module": "s2c:physics/svm",
+   "note": "breadth-first splits"
+  },
+  {
+   "addr": "1819d25c0",
+   "name": "RegionSvm_Write",
+   "module": "s2c:physics/svm",
+   "note": "flatten to m_Planes and m_Nodes"
+  },
+  {
+   "addr": "1819d18d0",
+   "name": "RegionSvm_Free",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819d45c0",
+   "name": "RegionSvm_RootRegion",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819d3e90",
+   "name": "RegionSvm_EdgeRegion",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819d41c0",
+   "name": "RegionSvm_FaceRegion",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819d4740",
+   "name": "RegionSvm_VertexRegion",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819d4d70",
+   "name": "RegionSvm_SplitNode",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819d2c80",
+   "name": "RegionSvm_ChoosePlane",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819d2740",
+   "name": "RegionSvm_SeparatingPlaneFallback",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819d3600",
+   "name": "RegionSvm_Separator",
+   "module": "s2c:physics/svm",
+   "note": "edge-edge and face planes between two regions"
+  },
+  {
+   "addr": "1819d34c0",
+   "name": "RegionSvm_RegionEdge",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "1819cfc20",
+   "name": "RegionSvm_ClipRegion",
+   "module": "s2c:physics/svm",
+   "note": "dead: the clip flag is never set"
+  },
+  {
+   "addr": "1819d1ec0",
+   "name": "RegionSvm_NewTreeNode",
+   "module": "s2c:physics/svm",
+   "note": ""
+  },
+  {
+   "addr": "181083540",
+   "name": "MapBuilder_ResolvePhysicsType",
+   "module": "s2c:mapbuilder",
+   "note": "default is convex_multi in an entity, mesh outside"
+  },
+  {
+   "addr": "1801ff720",
+   "name": "MapBuilder_BuildPhysicsPiece",
+   "module": "s2c:mapbuilder",
+   "note": "per piece: hulls for types 2 and 3, else a modeldoc mesh node"
+  },
+  {
+   "addr": "18020b230",
+   "name": "MapBuilder_BuildPhysicsPieces",
+   "module": "s2c:mapbuilder",
+   "note": "copy piece CMesh, weld 1/32, two CTransforms, half-edge build"
+  },
+  {
+   "addr": "18131f680",
+   "name": "MapBuilder_HullsFromMesh",
+   "module": "s2c:physics/hull",
+   "note": "modes 0 single, 1 per mesh, 2 per element"
+  },
+  {
+   "addr": "18131efc0",
+   "name": "MapBuilder_HullBuild",
+   "module": "s2c:physics/hull",
+   "note": "same code as vphysics2's RnHull_BuildFromPoints"
+  },
+  {
+   "addr": "1814e81b0",
+   "name": "MapBuilder_CreateHullNodes",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "18130cb80",
+   "name": "MapBuilder_SplitElements",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "18130c0d0",
+   "name": "MapBuilder_GroupTriangles",
+   "module": "s2c:physics/hull",
+   "note": "breadth-first groups sharing a vertex"
+  },
+  {
+   "addr": "18130f460",
+   "name": "MapBuilder_ElementVertexSet",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1813089b0",
+   "name": "MapBuilder_MeshFromMapMesh",
+   "module": "s2c:mapbuilder",
+   "note": ""
+  },
+  {
+   "addr": "181308060",
+   "name": "MapBuilder_TriangleMesh",
+   "module": "s2c:mapbuilder",
+   "note": "positions joined, vertices in corner order"
+  },
+  {
+   "addr": "181310a90",
+   "name": "MapBuilder_TriangulateFace",
+   "module": "s2c:mapbuilder",
+   "note": "quad diagonal rule, then an ear clipper"
+  },
+  {
+   "addr": "1813207c0",
+   "name": "HullSimplifier_Limits",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813d3db0",
+   "name": "HullSimplifier_Algorithm0",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813e0460",
+   "name": "HullSimplifier_Algorithm1",
+   "module": "s2c:physics/simplifier",
+   "note": "not ported"
+  },
+  {
+   "addr": "1813f11f0",
+   "name": "HullSimplifier_Algorithm2",
+   "module": "s2c:physics/simplifier",
+   "note": "not ported"
+  },
+  {
+   "addr": "1813d1ed0",
+   "name": "HullSimplifier_NeedsSimplify",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813fc5d0",
+   "name": "Qem_Simplify",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813f9e70",
+   "name": "Qem_Adjacency",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813fae30",
+   "name": "Qem_Quadrics",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813fd060",
+   "name": "Qem_EdgeCost",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813fa630",
+   "name": "Qem_Collapse",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813fc310",
+   "name": "Qem_Retarget",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813fbf30",
+   "name": "Qem_Flip",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813fb800",
+   "name": "Qem_Link",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813d02e0",
+   "name": "HullAgglomerator_Ctor",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813d06c0",
+   "name": "HullAgglomerator_Cost",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813d3f00",
+   "name": "HullAgglomerator_Rebuild",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "181bfd190",
+   "name": "HullFromPlanes",
+   "module": "s2c:physics/simplifier",
+   "note": "dual quickhull"
+  },
+  {
+   "addr": "1812d80c0",
+   "name": "CMesh_Weld",
+   "module": "s2c:physics/weld",
+   "note": "per-float tolerances, KD tree clusters"
+  },
+  {
+   "addr": "1812e5880",
+   "name": "CMesh_WeldZeroSubset",
+   "module": "s2c:physics/weld",
+   "note": ""
+  },
+  {
+   "addr": "1812e2530",
+   "name": "CMesh_WeldCluster",
+   "module": "s2c:physics/weld",
+   "note": ""
+  },
+  {
+   "addr": "1812dd2f0",
+   "name": "CMesh_RemoveDegenerateAndRenumber",
+   "module": "s2c:physics/weld",
+   "note": ""
+  },
+  {
+   "addr": "1812d66f0",
+   "name": "CMesh_Copy",
+   "module": "s2c:physics/weld",
+   "note": ""
+  },
+  {
+   "addr": "1812d6a90",
+   "name": "CMesh_Alloc",
+   "module": "s2c:physics/weld",
+   "note": ""
+  },
+  {
+   "addr": "18125d940",
+   "name": "AngleQuaternion",
+   "module": "s2c:math",
+   "note": "half angles times 0.00872664619"
+  },
+  {
+   "addr": "181260150",
+   "name": "QuaternionMatrix",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "181253780",
+   "name": "CTransform_Invert",
+   "module": "s2c:math",
+   "note": "scale 1 path"
+  },
+  {
+   "addr": "1802b1ff0",
+   "name": "CMesh_TransformByMatrix",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "18125d1f0",
+   "name": "Matrix3x4_TransformPoint",
+   "module": "s2c:math",
+   "note": "(t + y r1) + (x r0 + z r2)"
+  },
+  {
+   "addr": "18125d1b0",
+   "name": "Matrix3x4_Rotate",
+   "module": "s2c:math",
+   "note": "(x r0 + y r1) + z r2"
+  },
+  {
+   "addr": "180ffdf20",
+   "name": "MapNode_WorldMatrix",
+   "module": "s2c:mapbuilder",
+   "note": "instance path times AngleMatrix"
+  },
+  {
+   "addr": "180ffddd0",
+   "name": "MapInstance_StepMatrix",
+   "module": "s2c:mapbuilder",
+   "note": ""
+  },
+  {
+   "addr": "18023bd00",
+   "name": "MapBuilder_ReadMeshBuffers",
+   "module": "s2c:geometry/mesh-export",
+   "note": "asks the node for its mesh DMX list"
+  },
+  {
+   "addr": "180f74350",
+   "name": "MapNode_GetMeshBuffersForwarder",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "1810dff20",
+   "name": "CMapMesh_ConvertMeshForBuilder",
+   "module": "s2c:geometry/mesh-export",
+   "note": "the DMX of the mesh the builder reads"
+  },
+  {
+   "addr": "180ffd010",
+   "name": "MapMeshBuffer_Unserialize",
+   "module": "s2c:geometry/mesh-export",
+   "note": "hammerMeshDataBuffer"
+  },
+  {
+   "addr": "180d47810",
+   "name": "DmeMeshToCMeshes",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "180d47b90",
+   "name": "DmeMeshToCMesh",
+   "module": "s2c:geometry/mesh-export",
+   "note": "stream layout from the DMX"
+  },
+  {
+   "addr": "180d5c570",
+   "name": "CMesh_WriteDmeMesh",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "1810c1eb0",
+   "name": "HammerMesh_CopyFrom",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "1810c4e50",
+   "name": "HammerMesh_TransformToWorld",
+   "module": "s2c:geometry/mesh-export",
+   "note": "normals and tangents rotated, not renormalised"
+  },
+  {
+   "addr": "1810e7020",
+   "name": "HammerMesh_TexcoordsOutOfRange",
+   "module": "s2c:geometry/mesh-export",
+   "note": "outside +-1.03125"
+  },
+  {
+   "addr": "1810d93c0",
+   "name": "HammerMesh_ShiftTexcoordIslands",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "1813b6550",
+   "name": "PolyMesh_FindTexcoordIslands",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "1813b6190",
+   "name": "PolyMesh_EdgeTexcoordsContinuous",
+   "module": "s2c:geometry/mesh-export",
+   "note": "squared distance at most 1e-6 at both ends"
+  },
+  {
+   "addr": "1813cc880",
+   "name": "TexcoordIsland_Recentre",
+   "module": "s2c:geometry/mesh-export",
+   "note": "box centre rounded half away from zero"
+  },
+  {
+   "addr": "18140ebc0",
+   "name": "ModelDoc_CreateNode",
+   "module": "s2c:mapbuilder",
+   "note": "node factory; the mesh physics branch makes one per piece"
+  },
+  {
+   "addr": "181373580",
+   "name": "PerfScope_Begin",
+   "module": "s2c:infra",
+   "note": "scope name in rdx; harvest_names.py uses it"
+  },
+  {
+   "addr": "1802472a0",
+   "name": "CWorldRendererBuilder::Build",
+   "module": "s2c:pipeline",
+   "note": "the -world phase: dirs, scene, RTE, world, entity lumps"
+  },
+  {
+   "addr": "1801f9ad0",
+   "name": "CMapBuilderContext::InitializeIntermediateOutputDir",
+   "module": "s2c:pipeline",
+   "note": ""
+  },
+  {
+   "addr": "180f679c0",
+   "name": "Step_LoadingMap",
+   "module": "s2c:pipeline",
+   "note": "Loading map: %s"
+  },
+  {
+   "addr": "18024a0d0",
+   "name": "CWorldRendererBuilder::CreateRayTracingEnvironment",
+   "module": "s2c:geometry/rte",
+   "note": "the .rte visibility traces"
+  },
+  {
+   "addr": "18024b890",
+   "name": "CWorldRendererBuilder::CompileAndSaveNodes",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "180282ef0",
+   "name": "Step_BuildingRenderClusters",
+   "module": "s2c:geometry/world-nodes",
+   "note": "VisibilityGuidedMeshClustering"
+  },
+  {
+   "addr": "180260710",
+   "name": "Step_SplittingMeshWith",
+   "module": "s2c:geometry/world-nodes",
+   "note": "Splitting mesh with %i verts %i tris"
+  },
+  {
+   "addr": "180259b00",
+   "name": "Step_RemovingTrianglesInside",
+   "module": "s2c:geometry/world-nodes",
+   "note": "culling boxes"
+  },
+  {
+   "addr": "180277ab0",
+   "name": "Step_BuildingVertexOverrideStreams",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "180259d30",
+   "name": "CWorldRendererBuilderNode::FixTJunctionEdgeCracks",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1802636b0",
+   "name": "CWorldRendererBuilderNode::BuildAggregateRTProxies",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "180281100",
+   "name": "CWorldRendererBuilderNode::PostCompileNode",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "180287320",
+   "name": "CWorldRendererBuilderNode::LoadMaterialsInMeshList",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "18026e490",
+   "name": "WRB_RemoveZeroExtraAttributeStreams",
+   "module": "s2c:geometry/world-nodes",
+   "note": "Removed %i all-zero extra attribute streams"
+  },
+  {
+   "addr": "18026d9e0",
+   "name": "WRB_LoadStaticPropModels",
+   "module": "s2c:geometry/props",
+   "note": "Failed to load model for prop %s"
+  },
+  {
+   "addr": "180234180",
+   "name": "CVisibilityMeshMerger::MergeMeshes",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18024d710",
+   "name": "WRB_CreateEntityTemplateLumps",
+   "module": "s2c:entities",
+   "note": "create_entity_template_lumps"
+  },
+  {
+   "addr": "18024adc0",
+   "name": "WRB_WriteEntityLump",
+   "module": "s2c:entities",
+   "note": "entity_lump_params, entities\\"
+  },
+  {
+   "addr": "180247d40",
+   "name": "WRB_PrecomputeLightVisMembership",
+   "module": "s2c:baked/light-keys",
+   "note": "precomputed_vis_clusters, light_barn"
+  },
+  {
+   "addr": "180248800",
+   "name": "WRB_BakePrecomputedShadows",
+   "module": "s2c:baked/lighting",
+   "note": "direct_light_shadows"
+  },
+  {
+   "addr": "18023af80",
+   "name": "Vrad3_Init",
+   "module": "s2c:baked/lighting",
+   "note": "VRAD3_PATH, Vrad3_Init_SearchPath"
+  },
+  {
+   "addr": "180285eb0",
+   "name": "WRB_BuildPathTraceSceneInfo",
+   "module": "s2c:baked/lighting",
+   "note": "lights, cameras, instances, mesh_file"
+  },
+  {
+   "addr": "180217740",
+   "name": "CStaticLightingProcessor::BakeLighting",
+   "module": "s2c:baked/lighting",
+   "note": ""
+  },
+  {
+   "addr": "18025db60",
+   "name": "CWorldRendererBuilderNode::BakeLightMaps",
+   "module": "s2c:baked/lighting",
+   "note": ""
+  },
+  {
+   "addr": "18032e3e0",
+   "name": "CModelDocCompileInstance::CompilePhysics",
+   "module": "s2c:physics/model",
+   "note": "a model's physics, world_physics.vmdl included"
+  },
+  {
+   "addr": "1818d77e0",
+   "name": "CNavMesh::CreateArea",
+   "module": "s2c:baked/nav",
+   "note": ""
+  },
+  {
+   "addr": "1818dcb00",
+   "name": "CNavMesh::Update",
+   "module": "s2c:baked/nav",
+   "note": ""
+  }
+ ]
+}

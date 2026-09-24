@@ -1,0 +1,46 @@
+{
+ "functions": [
+  {
+   "addr": "18015aff0",
+   "name": "PhysicsBuilder_BuildHullShape",
+   "module": "s2c:physics/hull",
+   "note": "%s_hull_shape"
+  },
+  {
+   "addr": "18015f450",
+   "name": "PhysicsBuilder_HullOptions",
+   "module": "s2c:physics/hull",
+   "note": "from the CModelDocPhysicsHullFile attributes"
+  },
+  {
+   "addr": "18015b640",
+   "name": "PhysicsBuilder_CopyHullVertices",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1800d4600",
+   "name": "PhysicsBuilder_QuickHull",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1800d3f40",
+   "name": "PhysicsBuilder_QuickHullBuild",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1800d5310",
+   "name": "QuickHull_VertexList",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1800142d0",
+   "name": "CPhysicsBuilder::Build",
+   "module": "s2c:physics/world",
+   "note": "writes world_physics.vmdl; Physics/EnableWorldCompounds"
+  }
+ ]
+}
