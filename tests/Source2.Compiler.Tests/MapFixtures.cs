@@ -289,7 +289,7 @@ internal static class MapFixtures
                 return null;
 
             var compiled = RcOutputPath(sourcePath);
-            if (compiled is null || !File.Exists(compiled))
+            if (compiled is null || !File.Exists(compiled) || OlderThanCompiler(compiled))
                 return null;
 
             using var pkg = new Package();
@@ -299,6 +299,18 @@ internal static class MapFixtures
                 lumps[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
             return lumps;
         }
+    }
+
+    /// <summary>Whether a compiled package predates the installed resourcecompiler,
+    /// which makes it a different compiler's answer. atixref's package from
+    /// 2026-09-21 still drops empty keys that the 2026-09-23 compiler keeps.</summary>
+    private static bool OlderThanCompiler(string compiled)
+    {
+        var cs2 = CS2Fixtures.StockPak();
+        if (cs2 is null)
+            return false;
+        var rc = Path.Combine(Path.GetDirectoryName(cs2)!, "..", "bin", "win64", "resourcecompiler.exe");
+        return File.Exists(rc) && File.GetLastWriteTimeUtc(compiled) < File.GetLastWriteTimeUtc(rc);
     }
 
     private static string? DiskCachePath(string sourcePath)
@@ -323,6 +335,12 @@ internal static class MapFixtures
         if (!File.Exists(rc))
             return null;
 
+        // Never compile beside a running game (the project's standing rule) or
+        // beside another compile, which shares the addon's output package.
+        if (System.Diagnostics.Process.GetProcessesByName("cs2").Length > 0
+            || System.Diagnostics.Process.GetProcessesByName("resourcecompiler").Length > 0)
+            return null;
+
         var addon = "s2c_rc_probe";
         var name = Path.GetFileNameWithoutExtension(sourcePath);
         var content = Path.Combine(root, "content", "csgo_addons", addon, "maps");
@@ -331,6 +349,7 @@ internal static class MapFixtures
         var staged = Path.Combine(content, name + ".vmap");
         File.Copy(sourcePath, staged, overwrite: true);
 
+        var started = DateTime.UtcNow;
         var run = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(rc)
         {
             ArgumentList = { "-nop4", "-f", "-game", Path.Combine(root, "game", "csgo"), "-i", staged },
@@ -344,7 +363,10 @@ internal static class MapFixtures
         var stderr = run.StandardError.ReadToEndAsync();
         run.WaitForExit(milliseconds: 10 * 60 * 1000);
         Task.WaitAll([stdout, stderr], TimeSpan.FromSeconds(10));
-        if (!File.Exists(compiled))
+        // A package the run did not write is an OLDER compile's, and caching it
+        // under this compiler's stamp passed untitled_1's pre-2026-09-23 lump off
+        // as current.
+        if (!File.Exists(compiled) || File.GetLastWriteTimeUtc(compiled) < started)
             return null;
 
         using var pkg = new Package();

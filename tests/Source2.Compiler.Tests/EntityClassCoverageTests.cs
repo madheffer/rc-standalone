@@ -149,8 +149,15 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
             foreach (var entity in theirs)
                 entities[entity.ClassName] = entities.GetValueOrDefault(entity.ClassName) + 1;
 
+            var dump = Environment.GetEnvironmentVariable("ENTCOV_DUMP");
             foreach (var line in EntityLumpComparison.Diff(theirs, mine))
             {
+                if (dump is not null)
+                {
+                    var km = System.Text.RegularExpressions.Regex.Match(line, @"^\[([^#\]]+)#[^\]]*\] ([^:]+):");
+                    var fgd = km.Success ? MapFixtures.GameSchema()?.KeyOf(km.Groups[1].Value, km.Groups[2].Value) : null;
+                    File.AppendAllText(dump, $"{map}\t{fgd?.Type.ToString() ?? "-"}\t{fgd?.Default ?? "-"}\t{line}\n");
+                }
                 var hit = ClassInLine().Match(line);
                 var name = hit.Success ? hit.Groups[1].Value : "(no class)";
                 var shownLine = $"{map}: {line}";

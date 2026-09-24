@@ -17,8 +17,12 @@ public class FgdSchemaTests
     [InlineData("worldspawn", "skyname", FgdSchema.FieldType.String)]
     [InlineData("worldspawn", "steamaudio_reverb_rays", FgdSchema.FieldType.Integer)]
     [InlineData("worldspawn", "steamaudio_reverb_ir_duration", FgdSchema.FieldType.Float)]
-    // Inherited through base(), which is most of what an entity carries.
-    [InlineData("prop_dynamic", "solid", FgdSchema.FieldType.String)]
+    // Inherited through base(), which is most of what an entity carries. solid is
+    // intchoices since the 2026-09-23 FGDs, and ships as an integer.
+    [InlineData("prop_dynamic", "solid", FgdSchema.FieldType.Integer)]
+    // Dotted names and qualified types are keys too.
+    [InlineData("prop_dynamic", "local.scales", FgdSchema.FieldType.Vector)]
+    [InlineData("info_player_start", "PawnSubclass", FgdSchema.FieldType.String)]
     public void TypeOf_ReadsTheGamesOwnSchema(string className, string key, FgdSchema.FieldType expected)
     {
         var schema = MapFixtures.GameSchema();
@@ -40,6 +44,25 @@ public class FgdSchemaTests
         if (schema is null) { MapFixtures.Skip("the game's csgo.fgd"); return; }
 
         Assert.Equal(expected, schema.TypeOf(className, key));
+    }
+
+    /// <summary>
+    /// csgo.fgd's @exclude lines take base classes out of the game, in file
+    /// order: env_texturetoggle and path_particle_rope are unknown to the compiler
+    /// (it ships their keys as the source's strings), while env_sky is excluded
+    /// and then declared again by csgo.fgd itself.
+    /// </summary>
+    [Fact]
+    public void ExcludedClasses_LeaveTheSchema()
+    {
+        var schema = MapFixtures.GameSchema();
+        if (schema is null) { MapFixtures.Skip("the game's FGD"); return; }
+
+        Assert.Empty(schema.KeysOf("env_texturetoggle"));
+        Assert.Empty(schema.KeysOf("path_particle_rope"));
+        Assert.Empty(schema.KeysOf("beam_spotlight"));
+        Assert.NotEmpty(schema.KeysOf("env_sky"));
+        Assert.NotEmpty(schema.KeysOf("path_particle_rope_clientside"));
     }
 
     [Fact]

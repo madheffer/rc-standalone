@@ -26,7 +26,7 @@ public class InstanceExpansionTests(ITestOutputHelper output)
         var source = MapFixtures.VmapSource(addon, map);
         if (source is null || MapFixtures.RcCompiledLumps(source) is not { } valve)
         {
-            Assert.True(MapFixtures.WorkshopDir() is null, $"{addon}/{map} did not compile, so nothing was measured");
+            Assert.True(MapFixtures.WorkshopDir() is null, $"{addon}/{map} has no compile from the installed resourcecompiler (none, or one older than it), so nothing was measured");
             return;
         }
 

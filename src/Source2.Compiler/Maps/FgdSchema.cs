@@ -40,6 +40,10 @@ public sealed partial class FgdSchema
         /// <summary>A <c>boolean</c>, written "0" or "1" by Hammer.</summary>
         Boolean,
 
+        /// <summary>A <c>vector2d</c>: two components, whatever the value holds.
+        /// light_barn's shear authored "-6.268013 0 0" ships as [-6.268013, 0].</summary>
+        Vector2,
+
         /// <summary>A <c>vector</c> or <c>angle</c>: three floats in one string.</summary>
         Vector,
 
@@ -188,8 +192,24 @@ public sealed partial class FgdSchema
                 LoadInto(Path.GetFullPath(resolved), roots, loaded);
         }
 
-        foreach (Match cls in ClassRegex().Matches(text))
-            ParseClass(cls, text);
+        // Declarations and @exclude apply in file order. csgo.fgd excludes forty
+        // base classes (beam_spotlight, env_sprite_oriented, env_texturetoggle,
+        // path_particle_rope among them), so the compiler knows nothing of them
+        // and writes their entities' keys as the plain strings the source holds;
+        // it excludes env_sky too and then declares its own.
+        var events = ClassRegex().Matches(text).Select(m => (m.Index, Class: m, Exclude: (Match?)null))
+            .Concat(ExcludeRegex().Matches(text).Select(m => (m.Index, Class: (Match?)null!, Exclude: (Match?)m)))
+            .OrderBy(e => e.Index);
+        foreach (var (_, cls, exclude) in events)
+        {
+            if (exclude is not null)
+            {
+                _classes.Remove(exclude.Groups[1].Value);
+                _solid.Remove(exclude.Groups[1].Value);
+            }
+            else
+                ParseClass(cls, text);
+        }
     }
 
     /// <summary>
@@ -405,6 +425,11 @@ public sealed partial class FgdSchema
         // and reading either as a plain string is what made those classes differ.
         "boolean" or "bool" => FieldType.Boolean,
         "node_id" => FieldType.Integer,
+        // The 2026-09-23 FGDs declare numeric choices as intchoices, and Valve's
+        // compile of the same day writes them as integers (disableshadows, solid,
+        // object_culling); a plain choices field still ships its text.
+        "intchoices" or "int" => FieldType.Integer,
+        "vector2d" => FieldType.Vector2,
         // A particle reference is completed to a file: c2m2 authors
         // info_particle_system's effect_name as "flag_banner_01" and Valve's lump
         // carries "flag_banner_01.vpcf".
@@ -424,6 +449,9 @@ public sealed partial class FgdSchema
 
     [GeneratedRegex(@"@include\s+""([^""]+)""", RegexOptions.IgnoreCase)]
     private static partial Regex IncludeRegex();
+
+    [GeneratedRegex(@"@exclude\s+([\w.]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex ExcludeRegex();
 
     // Only the "@PointClass" token. The rest of the header is scanned rather than
     // matched, because a metadata block inside it carries '=' of its own.
@@ -449,6 +477,9 @@ public sealed partial class FgdSchema
     private static partial Regex MetadataFlagRegex();
 
     // "priority(integer) : "Spawn Priority" : 0" - and not an input/output line.
-    [GeneratedRegex(@"^[ \t]*(?!input\b|output\b)([A-Za-z_][\w]*)\s*\(\s*(\w+)\s*\)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    // Names may carry dots: base.fgd declares local.origin, local.angles and
+    // local.scales for every parentable class. Types may carry a qualifier:
+    // info_player_start's PawnSubclass is vdata_choice:scripts/player.vdata.
+    [GeneratedRegex(@"^[ \t]*(?!input\b|output\b)([A-Za-z_][\w.]*)\s*\(\s*([^)\s]+)\s*\)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
     private static partial Regex KeyRegex();
 }

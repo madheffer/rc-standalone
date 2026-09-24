@@ -485,24 +485,18 @@ declares. `ze_doom_p2_c_gameplay` places four such classes
 `ambient_music`) and Valve prefixes every one of their names while shipping their
 other keys as plain strings.
 
-A REFERENCE is not always fixed up. The same map wires `env_texturetoggle` at
-`CacoDemonModel`, which is **no entity's targetname anywhere in the map**, and
-Valve ships it bare while prefixing every reference beside it that does resolve.
-That is the same shape as the rule already proven for an output's override
-parameter.
-
-Applying "prefix only when it resolves" to every name-typed key is nonetheless
-WRONG, and the measurement says so rather than the reasoning: it fixes
-`env_texturetoggle` and regresses `light_environment` from 18 differences to 30
-and `point_template` from 36 to 49, and introduces three classes that had been
-exact. `light_environment` is the clearest counterexample, since its
-`ambient_occlusion_proxy_position_0` is declared `target_destination`, holds
-`0 0 0`, and ships as `[PR#]0 0 0`. So some references are prefixed blindly and
-some are tested, and which is which is not known.
-
-Note that both regressed classes were already on the differing list, so the test's
-ratchet would NOT have caught this. Compare per-class difference COUNTS before and
-after a change to a shared rule, not just the set of failing class names.
+**The rule, from the compiler** (the export pass that applies `[PR#]`): for
+each key the entity's FGD class declares with one of four name types, the value is
+prefixed unless it is empty, starts with `!`, `*`, `?` or `@`, or is itself an
+entity class name. There is no "does it resolve" test. What looked like one was
+`@exclude`: csgo.fgd EXCLUDES forty base classes, `env_texturetoggle`,
+`beam_spotlight`, `env_sprite_oriented` and `path_particle_rope` among them, so
+the compiler has no schema for them. Their entities ship the source's keys as
+plain strings, with no defaults, no typing and no key fixup, which is every one of
+the "NOT established" gaps those classes carried. A path of an excluded class
+also gets no `closed_loop` or radius scales, only its node positions (c2m2's
+eleven `path_particle_rope`). Still open: c2m2's one named rope keeps its
+targetname bare, one sample.
 
 ### Paths: a rope's nodes are serialized into the rope
 
@@ -567,14 +561,17 @@ count and the one with the least to do with entities.
 
 ### What still differs, with its reason
 
+Closed on 2026-09-24: `beam_spotlight`, `env_sprite_oriented`, `env_texturetoggle`
+and most of `path_particle_rope`, all by honouring csgo.fgd's `@exclude`. The
+references for atixref and untitled_1 predate the 2026-09-23 compiler and are
+refused until recompiled, so their counts below are from before the update.
+
 | class | entities | reason |
 |---|---|---|
 | the six light and probe classes | 326 | vrad3 writes its results back INTO the lump: `bakedshadowindex`, `light_map_uniqueid`, the probe atlas textures. Arrives with the lighting tier. |
-| `beam_spotlight`, `env_sprite_oriented` | 74 | Valve ships every key as a plain String while we type them from the FGD that declares both. NOT established. They appear only on the two prefab sources, and the guess that they were instance-expanded is DISPROVED: neither map contains a single `CMapInstance`. |
 | `prop_physics`, `prop_physics_override` | 517 | the settle above. Geometry tier. |
 | `point_template` | 21 | ten differences left across twenty-one entities. |
-| `path_particle_rope` | 11 | Valve ships its every key as a plain String while typing its clientside twin on the same map. NOT established. |
-| `env_texturetoggle` | 4 | the unresolved reference above. |
+| `path_particle_rope` | 1 | excluded class: one named rope keeps its targetname bare. One sample; not established. |
 | `func_physbox` | 4 | `hoverposeflags`, which the compiler writes and we do not. |
 
 ## What is implemented
@@ -656,10 +653,13 @@ worldspawn ships thirty-odd Steam Audio settings its `.vmap` has never heard of.
 This is the correction that mattered most - the assumption in the prior art was the
 opposite, that RC emits only keys differing from their default.
 
-**What is dropped is an EMPTY value**, whether it came from the source or from a
-default. Hammer writes an unset key as `""`, and an empty target or vector is what
-the entity system chokes on. A key sitting at a non-empty default is kept, which is
-why a spawn point's `priority 0` and `enabled 1` are both in Valve's lump.
+**An EMPTY value ships** (since the 2026-09-23 update). Until then the compile
+dropped every empty key; the compiler of that day writes a string or name as `""`,
+a vector as `[0, 0, 0]`, a `vector2d` as `[0, 0]`, a number as its zero and a
+boolean as false. The two cached compiles of cardtest either side of the update
+differ in exactly this (`targetname ""`, `local.scales [0, 0, 0]`), plus the typing
+of `intchoices` below. A key the source carries that no FGD declares ships too,
+empty or not (`lightgroup ""`).
 
 **Types come from the FGD, and integers then follow the C1 rule.** `enabled "1"`
 becomes a boolean, `priority "0"` an integer, a choices field stays a string, and a
@@ -675,7 +675,9 @@ index in that order, and it is a NUMBER, while `hammerUniqueId` beside it is a
 string.
 
 **A choices field keeps its FGD spelling.** `rendermode` ships as the string
-`kRenderNormal`, not as an index. This is a second correction to the prior art,
+`kRenderNormal`, not as an index. The 2026-09-23 FGDs split out `intchoices`
+(`solid`, `disableshadows`, `object_culling` and 200 more) and `int`, and those
+ship as integers. This is a second correction to the prior art,
 which has the compiler mapping each choice to its integer. A `flags` field is the
 one place the integer rule bends: `spawnflags 2` ships UInt32, not Int32. A colour
 ships as THREE components even when its type carries alpha and its value has four:

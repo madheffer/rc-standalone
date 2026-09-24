@@ -167,27 +167,17 @@ public static class EntityLumpAuthor
         // default, which is how probe01's worldspawn ships 30-odd steamaudio
         // settings its .vmap has never heard of.
         //
-        // What is dropped is an EMPTY value, whether it came from the source or
-        // from a default: Hammer writes an unset key as "", and handing the entity
-        // system an empty vector or an empty target is what breaks it. A key still
-        // at a non-empty default is kept, which is why a spawn point's priority 0
-        // and enabled 1 are both in Valve's lump.
+        // An EMPTY value ships too, since the compiler of 2026-09-23: a string or a
+        // name as "", anything numeric as its zero. Before that update the compile
+        // dropped every empty key, and the two cached compiles of cardtest either
+        // side of it differ in exactly this (targetname "", local.scales [0, 0, 0]).
         var source = entity.Keys.ToDictionary(k => k.Key, k => k.Value, StringComparer.OrdinalIgnoreCase);
         foreach (var key in Schema(entity, schema))
         {
             if (IsPlacement(key.Name))
                 continue;
-            var text = source.TryGetValue(key.Name, out var authored) ? authored : key.Default;
-            if (string.IsNullOrEmpty(text))
-            {
-                // A BOOLEAN is the exception: empty means false and still ships.
-                // point_soundevent declares startOnSpawn and toLocalPlayer with an
-                // empty default and Valve's lump carries both as Boolean 0.
-                if (key.Type != FgdSchema.FieldType.Boolean)
-                    continue;
-                text = "0";
-            }
-            values.Add(key.Name, Typed(key, Rename(key, text, template), fixupEntityNames));
+            var text = source.TryGetValue(key.Name, out var authored) ? authored : key.Default ?? "";
+            values.Add(key.Name, text.Length == 0 ? Empty(key) : Typed(key, Rename(key, text, template), fixupEntityNames));
         }
 
         // Anything the source carries that the schema does not know about is still
@@ -198,7 +188,7 @@ public static class EntityLumpAuthor
         // prefixes every one of their names.
         foreach (var (key, text) in entity.Keys)
         {
-            if (text.Length == 0 || IsPlacement(key) || values.ContainsKey(key)
+            if (IsPlacement(key) || values.ContainsKey(key)
                 || schema?.KeyOf(entity.ClassName, key) is not null)
                 continue;
             values.Add(key, key.Equals("targetname", StringComparison.OrdinalIgnoreCase)
@@ -208,11 +198,16 @@ public static class EntityLumpAuthor
 
         // A path aggregates its nodes into parallel arrays of its own, and records
         // whether it loops. closed_loop is not an FGD key; it is the CMapPath
-        // node's own closedLoop, and the lump carries it as an integer.
-        if (entity.PathNodes is not null && !values.ContainsKey("closed_loop"))
+        // node's own closedLoop, and the lump carries it as an integer. A path of
+        // a class the compiler does not know gets its node positions and nothing
+        // else: csgo.fgd excludes path_particle_rope, and none of c2m2's eleven
+        // carries closed_loop or radius scales, while atixref's declared
+        // path_particle_rope_clientside carries both.
+        var knownClass = schema is null || schema.KeysOf(entity.ClassName).Count > 0;
+        if (entity.PathNodes is not null && knownClass && !values.ContainsKey("closed_loop"))
             values.Add("closed_loop", Integer(entity.ClosedLoop ? 1 : 0));
         foreach (var (key, value) in PathArrays(entity))
-            if (!values.ContainsKey(key))
+            if ((knownClass || key == "pathNodes") && !values.ContainsKey(key))
                 values.Add(key, new KVObject(value));
 
         // Keys the CLASS ships rather than the entity. This is how a point prefab
@@ -525,6 +520,8 @@ public static class EntityLumpAuthor
                 => new KVObject((double)f),
             FgdSchema.FieldType.Vector when Numbers(text) is { Length: > 0 } v
                 => Array(v.Select(x => new KVObject((double)(float)x))),
+            FgdSchema.FieldType.Vector2 when Numbers(text) is { Length: > 0 } v2
+                => Array(v2.Take(2).Select(x => new KVObject((double)(float)x))),
             // A colour ships as THREE components even when the schema type carries
             // alpha and the value has four: point_worldtext's color is declared
             // color255alpha and defaults to "0 0 0 255", and Valve's lump has
@@ -533,6 +530,19 @@ public static class EntityLumpAuthor
                 => Array(c.Take(3).Select(x => Integer((long)x))),
             _ => new KVObject(text),
         };
+
+    /// <summary>What an empty value ships as: a Boolean false, a vector of zeros
+    /// (trigger_hurt's damageforce and every local.scales are [0, 0, 0]), a
+    /// numeric zero, and otherwise the empty string.</summary>
+    private static KVObject Empty(FgdSchema.Key key) => key.Type switch
+    {
+        FgdSchema.FieldType.Boolean => new KVObject(false),
+        FgdSchema.FieldType.Vector => Array(Enumerable.Repeat(0, 3).Select(_ => new KVObject(0.0))),
+        FgdSchema.FieldType.Vector2 => Array(Enumerable.Repeat(0, 2).Select(_ => new KVObject(0.0))),
+        FgdSchema.FieldType.Float => new KVObject(0.0),
+        FgdSchema.FieldType.Integer or FgdSchema.FieldType.Flags => Integer(0),
+        _ => new KVObject(""),
+    };
 
     /// <summary>The numbers in a whitespace-separated value, or empty when any part
     /// is not one - a malformed vector stays the string the mapper typed.</summary>

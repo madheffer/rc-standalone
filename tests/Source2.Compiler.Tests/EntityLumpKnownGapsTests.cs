@@ -51,7 +51,9 @@ public partial class EntityLumpKnownGapsTests
         // The lighting and cubemap bakes write their results back INTO the entity
         // lump: a light's baked ids, a light probe volume's atlas textures, its
         // handshake and its probe dimensions. Those are vrad3's output, so they
-        // arrive with the lighting tier and not before.
+        // arrive with the lighting tier and not before. Since the compiler keeps
+        // empty values, a texture key the bake fills shows as a value difference
+        // against our "" rather than as a missing key.
         => BakedLightingKeys().IsMatch(line)
         // A key a mod REMOVED from the FGD that the engine nonetheless types.
         // light_environment's nearclipplane is declared remove_key in csgo.fgd and
@@ -62,6 +64,6 @@ public partial class EntityLumpKnownGapsTests
 
     [GeneratedRegex(@"(bakedshadowindex|light_map_uniqueid|light_path_uniqueid|brightness_legacy"
                   + @"|brightness_lumens|lightprobetexture|cubemaptexture|handshake|light_probe_size"
-                  + @"|light_probe_atlas|array_index)\w*: missing")]
+                  + @"|light_probe_atlas|array_index)\w*: (missing|value valve maps/)")]
     private static partial Regex BakedLightingKeys();
 }
