@@ -176,6 +176,15 @@ class Tracer:
             elif off is not None and base in ('rsp', 'rbp'):
                 self.gpr_alias[ops[0]] = f'&{base}{off:+#x}'
             return
+        if m == 'mov' and len(ops) == 2 and ops[1].startswith('qword ptr') and re.fullmatch(r'r\w+', ops[0]):
+            # A pointer loaded from memory: name what it points at.
+            base, off = self.addr(ops[1])
+            self.gpr_alias[ops[0]] = f'*{self.slot_name(base, off)}' if off is not None else f'*{base}'
+            return
+        if m in ('mov', 'movsxd', 'movzx', 'add', 'sub', 'and', 'or', 'xor', 'shl', 'shr', 'imul', 'lea') \
+                and ops and re.fullmatch(r'r\w+', ops[0]) and not (m == 'mov' and 'ptr' in ops[1]):
+            if m != 'lea':
+                self.gpr_alias.pop(ops[0], None)
         if m == 'mov' and len(ops) == 2 and 'ptr' in ops[1] and re.fullmatch(r'e\w+|r\d+d', ops[0]):
             self.gpr_val[ops[0]] = self.load(x, ops[1].replace('dword ptr ', ''), 1)[0]
             return
