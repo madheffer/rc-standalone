@@ -16,21 +16,44 @@ substituted.
 - `tools/re/harvest_names.py <dll> --out <json>` names a stripped Valve DLL from
   the PE alone, in about 10 seconds for resourcecompiler. It uses these sources,
   strongest first:
-  - assert strings
-  - bare `Class::Method` strings
-  - progress messages (`Step_...`)
-  - profiler scope names
   - exports
-  - RTTI vtable slots (`Class::vfN`)
+  - asserts, in either of Valve's two forms (one string, or a record of file,
+    function and expression)
+  - bare `Class::Method` strings
+  - profiler scope names
+  - progress messages (`Step_...`)
+  - RTTI vtable slots (`Class::vfN`), named after the least-derived class that
+    holds the function
 
-  On the 2026-09-23 resourcecompiler it names 28,973 of 74,359 functions.
-  physicsbuilder gets 6,466 and vphysics2 1,089.
+  On the 2026-09-23 resourcecompiler it names 29,026 of 74,359 functions.
+  physicsbuilder gets 6,476 and vphysics2 1,091.
+- Two prefixes mark a name that is not the function's own:
+  - `Inl_X` means "contains X". Inlined code carries its asserts into every
+    caller, so a name whose assert record points into a header (`.h`, `.inl`),
+    or whose string several functions share, only says the code is in there.
+  - `Folded_C::vfN` means unrelated classes share the function (identical-code
+    folding).
+
+  A string name is checked against the vtables that hold the function. A match
+  on the name's class, or on an instantiation of that template, confirms it. A
+  mismatch hands the name to the vtable slot, and the string name moves into
+  the evidence as "contains ...".
+- `tools/re/audit_names.py <dll> <json>` lists what is left to doubt: several
+  function names referenced by one function, names only passed along as
+  arguments, and vtable or hand-kept names that disagree.
 - `tools/re/names/make_manual.py` holds the names established by reading, each
   with a module tag (`s2c:physics/hull`, `s2c:geometry/mesh-export`, and so on).
   Every one of them is backed by a port that matches Valve's output.
 - `tools/re/apply_names.py` writes both into Ghidra through ReVa:
   - It uses primary labels, so no signature gets locked.
   - It never replaces a name someone else set.
+  - `--fix <previous json>` corrects names an earlier harvest got wrong, but
+    only where Ghidra still shows the old harvested name. A label cannot
+    displace a named function, so the fix resubmits the function's current
+    signature under the new name, in its namespace (`CRnWorld::...`). That
+    locks the parameters as the decompiler shows them, hence Ghidra's
+    "unknown calling convention" warning on those few functions.
+    `--rename <json>` does the same for a hand-kept list.
   - It checks the program in.
   - RTTI names stay in the JSON (`--rtti` would take hours through ReVa); `dec.py`
     substitutes them on the fly.
