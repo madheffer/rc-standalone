@@ -164,3 +164,9 @@ for x in md.disasm(img[a - base:b - base], a):
         print("%x ?? %s %s" % (x.address, m, x.op_str))
         if ops and isreg(ops[0]):
             R[ops[0]] = ["%s(%s).%d" % (m, x.op_str, i) for i in range(4)]
+
+# What a function hands back: the return registers at the end of the range.
+for reg in ("xmm0", "xmm1"):
+    if reg in R:
+        for i, v in enumerate(R[reg]):
+            print("END %s.%d = %s" % (reg, i, v))

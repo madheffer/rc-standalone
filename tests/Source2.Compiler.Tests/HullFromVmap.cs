@@ -103,6 +103,17 @@ public class HullFromVmap(ITestOutputHelper output)
                     var st = md.Get<DmxBinary.Element>("vertexData")!.GetElements("streams").First(x => x.Name.StartsWith("position:", StringComparison.Ordinal));
                     output.WriteLine($"DEBUG entity origin {entity.GetValue<Vector3>("origin"):R} angles {entity.GetValue<Vector3>("angles")} mesh origin {mesh.GetValue<Vector3>("origin"):R} angles {mesh.GetValue<Vector3>("angles")} scales {mesh.GetValue<Vector3>("scales")}");
                     output.WriteLine("DEBUG raw " + string.Join(" ", st.Get<object?[]>("data")!.Take(8).Select(o => ((Vector3)o!).ToString("R", System.Globalization.CultureInfo.InvariantCulture))));
+                    if (Environment.GetEnvironmentVariable("HULL_DEBUGMESH") is { } dm && dm == $"{mesh.GetValue<int>("nodeID")}")
+                    {
+                        var fv = md.Get<DmxBinary.Element>("faceVertexData")!.GetElements("streams").ToList();
+                        var nx = md.Get<object?[]>("edgeNextIndices")!.Select(x => (int)x!).ToArray();
+                        var tv = md.Get<object?[]>("edgeVertexIndices")!.Select(x => (int)x!).ToArray();
+                        var fe = md.Get<object?[]>("faceEdgeIndices")!.Select(x => (int)x!).ToArray();
+                        var pos = st.Get<object?[]>("data")!;
+                        output.WriteLine("DEBUGMESH streams " + string.Join(" ", fv.Select(x => x.Name)));
+                        for (int e = fe[0], k = 0; k < 6; e = nx[e], k++)
+                            output.WriteLine($"DEBUGMESH e{e} v{tv[e]} {(Vector3)pos[tv[e]]!:R} " + string.Join(" | ", fv.Select(x => x.Get<object?[]>("data")![e]?.ToString())));
+                    }
                     foreach (var holder in new[] { "vertexData", "faceVertexData", "edgeData", "faceData" })
                         foreach (var sx in md.Get<DmxBinary.Element>(holder)?.GetElements("streams") ?? [])
                             output.WriteLine($"DEBUG {holder} {sx.Name} {string.Join(" ", (sx.Get<object?[]>("data") ?? []).Take(4).Select(o => o?.ToString()))}");
