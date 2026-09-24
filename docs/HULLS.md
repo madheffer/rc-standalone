@@ -141,6 +141,56 @@ compile's options only reach them past 256), and the region SVM.
 A general hull fed its own output keeps its floats but not its order, and the
 order changes the sums by an ulp.
 
+## What the map builder asks for
+
+A map mesh carries `physicsType` (`HammerMeshPhysicsType_t`): none, default,
+convex_single, convex_multi, mesh. The map builder resolves "default" by where
+the mesh sits:
+
+| where | resolves to |
+|---|---|
+| world geometry | mesh |
+| entity with `PhysicsTypeOverride_Mesh` | mesh |
+| entity with `PhysicsTypeOverride_SingleConvex` | convex_single |
+| any other entity | convex_multi |
+
+`base.fgd` defines the three override base classes; in the stock FGDs only
+`func_shatterglass` uses one (Mesh). The editor describes "default" as "single
+convex if part of an entity", but the compile resolves it to convex_multi.
+So a trigger or a door is one hull per connected group of faces, which is why
+end_breakable_475..481 ship two hulls per mesh.
+
+A mesh piece becomes ModelDoc nodes in the map builder itself, not through a
+`PhysicsHullFile`:
+
+- **Mesh:** a `PhysicsShapeMesh` node.
+- **convex_single:** every vertex position of the piece, in stream order,
+  hulled once.
+- **convex_multi:** the piece split into connected face groups, each group's
+  vertices hulled.
+
+The builder is the same code as vphysics2's. The options match the compile's
+except the angle (5 degrees, so the needs-simplify check can fire on nearly
+coplanar neighbours) and a 1.0 at +0x20. Each hull's vertex list, in list
+order, becomes a `PhysicsShapeHull` node's `hull_vertices`. Model compile's
+`CompilePhysics` then runs `RnHullCreate` on it.
+
+A face group's vertices come out of a hash set, not face order:
+
+- the key is each face's vertex handles;
+- the hash is murmur3's fmix32 on the handle;
+- probing is open addressing;
+- the output is read in slot order.
+
+Reproducing hull order from a .vmap needs, in order:
+1. the mesh the map builder converts the map mesh into (its vertex handles);
+2. the face-group split;
+3. that hash set's sizing and probing;
+4. the stage-one hull;
+5. `RnHullCreate`.
+
+## Where the hull points come from
+
 The true input is a vertex list, not the mesh. physicsbuilder builds a hull
 shape by hulling the mesh points with the same quickhull. The options come from
 the `CModelDocPhysicsHullFile` node:
