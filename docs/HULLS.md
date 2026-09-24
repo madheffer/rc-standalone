@@ -154,40 +154,67 @@ the mesh sits:
 | entity with `PhysicsTypeOverride_SingleConvex` | convex_single |
 | any other entity | convex_multi |
 
-`base.fgd` defines the three override base classes; in the stock FGDs only
+`base.fgd` defines the three override base classes. In the stock FGDs only
 `func_shatterglass` uses one (Mesh). The editor describes "default" as "single
 convex if part of an entity", but the compile resolves it to convex_multi.
-So a trigger or a door is one hull per connected group of faces, which is why
-end_breakable_475..481 ship two hulls per mesh.
 
-A mesh piece becomes ModelDoc nodes in the map builder itself, not through a
-`PhysicsHullFile`:
+## From a brush mesh to its shipped hulls
 
-- **Mesh:** a `PhysicsShapeMesh` node.
-- **convex_single:** every vertex position of the piece, in stream order,
-  hulled once.
-- **convex_multi:** the piece split into connected face groups, each group's
-  vertices hulled.
+`Physics/BrushHulls.cs` follows the whole path.
 
-The builder is the same code as vphysics2's. The options match the compile's
-except the angle (5 degrees, so the needs-simplify check can fire on nearly
-coplanar neighbours) and a 1.0 at +0x20. Each hull's vertex list, in list
-order, becomes a `PhysicsShapeHull` node's `hull_vertices`. Model compile's
-`CompilePhysics` then runs `RnHullCreate` on it.
+1. **Pieces.** Each material of a mesh is its own piece. Clip materials make
+   hulls too.
+2. **Triangle mesh.** A piece's faces are triangulated into a fresh mesh. Its
+   vertices are numbered in first-appearance order over the faces' corners, and
+   a vertex's handle is simply that number.
+3. **Groups.** convex_single hulls every vertex in that order. convex_multi
+   first splits the triangles into groups that touch at a vertex:
+   - every triangle goes into a hash set;
+   - each group grows breadth first from the first occupied slot;
+   - neighbours come out of another set, in slot order.
+4. **Group points.** A group's vertices come out of a third set in slot order.
+   The set is murmur3's fmix32 on the handle with chained open addressing, and
+   `Physics/ValveHashSet.cs` ports it. Its size is the next power of two at or
+   above faces x 32 / 3, and at least 32.
+5. **The map builder's hull.** The same builder `RnHullCreate` uses, with the
+   angle at 5 degrees and a minimum thickness of 1. A flat set, such as a
+   single face, is pushed out by 1 along +x, +y and +z and hulled again.
+6. **The model compile's node check.** The node's points are hulled raw
+   (tolerance 0, with no normalisation or sharpening) and the shape keeps that
+   hull's vertex list.
+7. **`RnHullCreate`** on those points.
+8. **The shape's transform.** The shape's matrix is applied (resourcecompiler).
+   For a map builder hull that is the identity, which still turns every -0
+   into +0.
 
-A face group's vertices come out of a hash set, not face order:
+`HullFromVmap` builds every unrotated brush entity's hulls from the `.vmap`
+and compares them with the same map's compile. It checks positions, order,
+floats and topology.
 
-- the key is each face's vertex handles;
-- the hash is murmur3's fmix32 on the handle;
-- probing is open addressing;
-- the output is read in slot order.
+| map | exact | order only | near miss | other |
+|---|---|---|---|---|
+| ze_hold_em_p | 163 | 0 | 0 | 6 doors: a toolsclip mesh ships no hull (the .vmap is older than the compile) |
+| ze_ffvii_mako_reactor_v6_p | 1120 | 31 | 10 | 4 hull counts, 3 need the simplifier, 13 rotated entities skipped |
+| atixref | 198 | 1 | 8 | 3 hull counts, 6 need the simplifier |
 
-Reproducing hull order from a .vmap needs, in order:
-1. the mesh the map builder converts the map mesh into (its vertex handles);
-2. the face-group split;
-3. that hash set's sizing and probing;
-4. the stage-one hull;
-5. `RnHullCreate`.
+A near miss is a sharpen-sized nudge (0.01 or less) that follows from a
+different order.
+
+### What is left
+
+- **The ear clipper.** It triangulates faces with four or more corners; a fan
+  stands in. The triangulation only changes a hash insertion order, which
+  matters when two keys share a home slot, and that happens more often in
+  bigger hulls.
+- **Face fan order around a vertex.** It feeds the neighbour set; a triangle
+  index order stands in.
+- **The simplifier** that a 5 degree angle between neighbouring faces asks
+  for.
+- **Entity-local points for rotated entities and meshes.** Valve's
+  mesh-to-entity matrix is not built here yet.
+- **Hull order across pieces.** It differs from mesh order, so the test
+  matches hulls by their vertex sets.
+- **The region SVM.**
 
 ## Where the hull points come from
 
