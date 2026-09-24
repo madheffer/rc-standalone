@@ -513,6 +513,16 @@ public sealed class RayTraceEnvironment
 
     private TracerKd? _kd;
 
+    /// <summary>A triangle's 48 byte record as the file holds it.</summary>
+    internal ReadOnlySpan<byte> FileRecord(int index) => Record(index);
+
+    /// <summary>
+    /// The record the compile's tracer derives from three corners
+    /// (<c>FUN_180118e90</c>): normal, plane, the two edge equations in slots
+    /// 5 to 10, the projection axes in 11 and 12. False when degenerate.
+    /// </summary>
+    internal static bool RecordFromCorners(ReadOnlySpan<float> corners, Span<float> record) => Convert(corners, record);
+
     /// <summary>
     /// Segments traced the way the compile's batch tracer traces them, which is
     /// what decides ties and hair-thin cracks where <see cref="Segment"/> alone
