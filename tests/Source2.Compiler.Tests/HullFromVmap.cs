@@ -279,6 +279,14 @@ public class HullFromVmap(ITestOutputHelper output)
             var vs = best.Points.ToHashSet();
             foreach (var p in ours.Points.Where(p => !vs.Contains(p)).Take(4))
                 output.WriteLine($"   ours only {p:R}  nearest valve {best.Points.OrderBy(q => Vector3.Distance(p, q)).First():R}");
+            if (verdict == "phys same set, order differs")
+            {
+                var at = Enumerable.Range(0, best.Points.Length).First(i => ours.Points[i] != best.Points[i]);
+                var map = best.Points.Select((p, i) => (p, i)).ToDictionary(x => x.p, x => x.i);
+                output.WriteLine($"   first difference at {at}; ours as valve indices: {string.Join(",", ours.Points.Select(p => map[p]))}");
+                output.WriteLine($"   ours tris  {string.Join(" ", ours.Triangles.Take(12).Select(t => $"{map[ours.Points[t.A]]}/{map[ours.Points[t.B]]}/{map[ours.Points[t.C]]}"))}");
+                output.WriteLine($"   valve tris {string.Join(" ", Enumerable.Range(0, Math.Min(12, best.Triangles.Length / 3)).Select(t => $"{best.Triangles[t * 3]}/{best.Triangles[t * 3 + 1]}/{best.Triangles[t * 3 + 2]}"))}");
+            }
         }
     }
 
@@ -422,10 +430,18 @@ public class HullFromVmap(ITestOutputHelper output)
         var raw = stream.Get<object?[]>("data")!;
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
         var origin = mesh.GetValue<Vector3>("origin") ?? Vector3.Zero;
-        var mode = Environment.GetEnvironmentVariable("HULL_XFORM") ?? "2";
+        var mode = Environment.GetEnvironmentVariable("HULL_XFORM") ?? "3";
         Vector3[] positions;
         if (mode == "0")
             positions = raw.Select(p => ((Vector3)p! * scales) + origin - entityOrigin).ToArray();
+        else if (mode == "3")
+        {
+            // The map builder's CTransforms (FUN_18020b230): the mesh node's
+            // into the world, then the entity's inverse.
+            var toWorld = Source2.Compiler.Maps.CTransform.FromNode(mesh).Matrix();
+            var toEntity = Source2.Compiler.Maps.CTransform.FromNode(entity!).Inverse().Matrix();
+            positions = raw.Select(p => Source2.Compiler.Maps.MapMeshes.Transform(toEntity, Source2.Compiler.Maps.MapMeshes.Transform(toWorld, (Vector3)p! * scales))).ToArray();
+        }
         else
         {
             var e = Source2.Compiler.Maps.MapMeshes.Local(entity!);
