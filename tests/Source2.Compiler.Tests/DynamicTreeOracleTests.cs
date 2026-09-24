@@ -17,6 +17,7 @@ namespace Source2.Compiler.Tests;
 /// to record their arguments and report "already paired", so Valve never goes
 /// on to create a contact.
 /// </summary>
+[Collection(Vphysics2PatchCollection.Name)]
 public unsafe class DynamicTreeOracleTests(ITestOutputHelper output)
 {
     private const ulong InitVa = 0x180333f20;

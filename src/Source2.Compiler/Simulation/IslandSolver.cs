@@ -42,7 +42,7 @@ public static class IslandSolver
     /// body). Returns true when every moving body in it is ready to sleep.
     /// </summary>
     /// <param name="bodies">The island's bodies, written back on return.</param>
-    /// <param name="touchesDynamic">Per body: whether one of its touching contacts joins another dynamic body.</param>
+    /// <param name="touchesDynamic">Per body: whether an enabled joint ties it to another dynamic body (body +0x70; contacts do not count).</param>
     /// <param name="dynamicPairs">Contacts between two dynamic bodies ("contacts A").</param>
     /// <param name="otherPairs">The rest ("contacts B").</param>
     /// <param name="settings">World settings.</param>
@@ -61,7 +61,7 @@ public static class IslandSolver
 
         var solver = new SolverBody[bodies.Length];
         for (var i = 0; i < bodies.Length; i++)
-            BuildAndIntegrate(ref bodies[i], ref solver[i], touchesDynamic[i], settings);
+            BuildAndIntegrate(ref bodies[i], ref solver[i], touchesDynamic[i], false, settings);
 
         var contacts = new List<Contact>(dynamicPairs.Count + otherPairs.Count);
         contacts.AddRange(dynamicPairs);
@@ -112,15 +112,24 @@ public static class IslandSolver
     }
 
     /// <summary>
-    /// The per-body start of a solve (FUN_18030d370): keep the transform the
-    /// step started from, build the solver body, and for a dynamic body without
-    /// a controller integrate its velocities.
+    /// The per-body start of a solve (FUN_18030d370, and FUN_18030d070 for a
+    /// batch of free bodies): keep the transform the step started from (and
+    /// on the first step of a frame the frame's start), build the solver body,
+    /// and for a dynamic body without a controller integrate its velocities.
     /// </summary>
-    private static void BuildAndIntegrate(ref RnBodyState b, ref SolverBody sb, bool touchesDynamic, in Settings settings)
+    internal static void BuildAndIntegrate(ref RnBodyState b, ref SolverBody sb, bool touchesDynamic, bool first,
+                                           in Settings settings, KinematicTarget? target = null)
     {
         b.PreviousPosition = b.Position;
         b.PreviousOrientation = b.Orientation;
         b.Cleared1E8 = 0f;
+        if (first)
+        {
+            b.FrameOrientation = b.Orientation;
+            b.FrameLinearVelocity = b.LinearVelocity;
+            b.FrameAngularVelocity = b.AngularVelocity;
+            b.FrameOrigin = RnTransform.Of(b).T;
+        }
         Integrator.Build(b, ref sb, touchesDynamic);
         if (b.BodyType == 0)
             return;
@@ -130,7 +139,15 @@ public static class IslandSolver
             b.Force = b.SleepingForce;
             b.Torque = b.SleepingTorque;
         }
-        if (b.BodyType == 2)
+        if (b.Controller != 0)
+        {
+            if (target == null)
+                throw new ArgumentException("the body has a controller (+0x80) but no target was given");
+            target.Drive(ref sb, settings.Dt);
+            sb.V0 = sb.V;
+            sb.W0 = sb.W;
+        }
+        else if (b.BodyType == 2)
         {
             Integrator.IntegrateLinear(b, ref sb, settings.Dt, settings.Gravity, settings.AirDensity);
             Integrator.IntegrateAngular(b, ref sb, settings.Dt, settings.AirDensity);
@@ -143,7 +160,7 @@ public static class IslandSolver
     /// skip. Between two bodies of different solve priority, the lower one does
     /// not push the higher unless the higher is immovable.
     /// </summary>
-    private static byte[] Prepare(Contact contact, SolverBody[] solver, float dt)
+    internal static byte[] Prepare(Contact contact, SolverBody[] solver, float dt)
     {
         ref readonly var a = ref solver[contact.BodyA];
         ref readonly var b = ref solver[contact.BodyB];
@@ -223,7 +240,7 @@ public static class IslandSolver
     /// Puts a body to sleep (FUN_1801be270): flags it, keeps the transform it
     /// sleeps in, and restarts its sleep timer. Its velocities are left as they are.
     /// </summary>
-    private static void PutToSleep(ref RnBodyState b)
+    internal static void PutToSleep(ref RnBodyState b)
     {
         b.Flags249 |= 4;
         b.PreviousPosition = b.Position;

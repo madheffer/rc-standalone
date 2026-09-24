@@ -35,8 +35,8 @@ public static class Integrator
     private const float SleepTime = 0.5f;
 
     /// <summary>
-    /// Copies a body into its solver body (FUN_1801b6000). The contact graph walk
-    /// that decides <see cref="SolverBody.NoDynamicContact"/> is the caller's.
+    /// Copies a body into its solver body (FUN_1801b6000). The joint edge walk
+    /// (body +0x70) that decides <see cref="SolverBody.NoDynamicContact"/> is the caller's.
     /// </summary>
     public static void Build(in RnBodyState b, ref SolverBody sb, bool touchesDynamic)
     {

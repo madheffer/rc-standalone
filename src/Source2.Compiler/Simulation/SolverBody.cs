@@ -43,6 +43,6 @@ public struct SolverBody
     [FieldOffset(0xbc)] public byte InfiniteInertia;
     [FieldOffset(0xbd)] public byte ReadyToSleep;
 
-    /// <summary>0 when the body touches another dynamic body; gates restitution.</summary>
+    /// <summary>0 when an enabled joint ties the dynamic body to another dynamic body (not contacts); gates restitution.</summary>
     [FieldOffset(0xbe)] public byte NoDynamicContact;
 }

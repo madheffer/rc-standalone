@@ -25,6 +25,16 @@ public struct RnBodyState
     /// <summary>0 static, 1 kinematic, 2 dynamic.</summary>
     [FieldOffset(0x54)] public int BodyType;
 
+    /// <summary>
+    /// The head of the body's joint edge list (tagged; nodes keep their bodies
+    /// at +0x18/+0x20, an enabled byte at +0x41 and next links at +0x48/+0x50).
+    /// FUN_1801b6000 walks it for NoDynamicContact. Joints are not ported.
+    /// </summary>
+    [FieldOffset(0x70)] public nint JointHead;
+
+    /// <summary>A kinematic body's move-to-target controller (<see cref="KinematicTarget"/>), 0 for none.</summary>
+    [FieldOffset(0x80)] public nint Controller;
+
     [FieldOffset(0x88)] public float Scale;
     [FieldOffset(0x90)] public float InertiaScale;
     [FieldOffset(0x94)] public float GravityScale;
@@ -72,7 +82,25 @@ public struct RnBodyState
 
     [FieldOffset(0x1dc)] public Vec3 PreviousPosition;
     [FieldOffset(0x1e8)] public float Cleared1E8;
+    /// <summary>
+    /// The radii the continuous test (FUN_1801b8f40) weighs motion against:
+    /// the inner one (half of it is the threshold) and the outer one (the
+    /// reach of a rotation).
+    /// </summary>
+    [FieldOffset(0x1ec)] public float InnerRadius;
+    [FieldOffset(0x1f0)] public float OuterRadius;
+
     [FieldOffset(0x1f4)] public float SleepTimer;
+
+    /// <summary>
+    /// The frame and velocities at the start of a step whose Solve is the
+    /// first of a frame (FUN_18030d370 with ctx +0x38): the body origin,
+    /// orientation and both velocities.
+    /// </summary>
+    [FieldOffset(0x1f8)] public Vec3 FrameOrigin;
+    [FieldOffset(0x210)] public Quat FrameOrientation;
+    [FieldOffset(0x220)] public Vec3 FrameLinearVelocity;
+    [FieldOffset(0x22c)] public Vec3 FrameAngularVelocity;
 
     [FieldOffset(0x238)] public int MinVelocityIterations;
     [FieldOffset(0x23c)] public int MinPositionIterations;
@@ -82,6 +110,9 @@ public struct RnBodyState
     /// Bit 1 sleeping allowed, bit 2 put to sleep, bit 5 drag enabled.
     /// </summary>
     [FieldOffset(0x249)] public byte Flags249;
+
+    /// <summary>1 sends a fast dynamic body to the second continuous list (world +0xab0).</summary>
+    [FieldOffset(0x24b)] public byte ContinuousList;
 }
 
 /// <summary>A float triple as vphysics2 stores it.</summary>

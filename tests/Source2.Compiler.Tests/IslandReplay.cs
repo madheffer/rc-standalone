@@ -59,9 +59,9 @@ public class IslandReplay(ITestOutputHelper output)
         var bodies = input.GetProperty("bodies").EnumerateArray().Select(b => Struct<RnBodyState>(b.GetString()!)).ToArray();
         var dynamicPairs = input.GetProperty("ca").EnumerateArray().Select(Contact).ToList();
         var otherPairs = input.GetProperty("cb").EnumerateArray().Select(Contact).ToList();
+        // NoDynamicContact comes from the body's joints (FUN_1801b6000 walks body
+        // +0x70), not its contacts; the settle's props have no joints.
         var touches = new bool[bodies.Length];
-        foreach (var c in dynamicPairs)
-            touches[c.BodyA] = touches[c.BodyB] = true;
         var settings = new IslandSolver.Settings(
             input.GetProperty("dt").GetSingle(), new Vec3(-0f, -0f, -360f), 1.2f,
             input.GetProperty("cvi").GetInt32(), input.GetProperty("cpi").GetInt32(),
