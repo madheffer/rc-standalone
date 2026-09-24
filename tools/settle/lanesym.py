@@ -284,6 +284,10 @@ class Tracer:
             a, b = self.reg(ops[0]), self.src(x, ops[1])
             self.xmm[ops[0]] = [f'{m}({a[i]}, {b[i]})' for i in range(4)]
             return
+        if m == 'blendps':
+            a, b, imm = list(self.reg(ops[0])), self.src(x, ops[1]), int(ops[2], 0)
+            self.xmm[ops[0]] = [b[i] if imm & (1 << i) else a[i] for i in range(4)]
+            return
         if m == 'blendvps':
             a, b, c = self.reg(ops[0]), self.src(x, ops[1]), self.reg('xmm0')
             self.xmm[ops[0]] = [f'({c[i]} ? {b[i]} : {a[i]})' for i in range(4)]

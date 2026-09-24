@@ -16,7 +16,8 @@ Everything lands in <out>/events.jsonl, and each blob in <out>/<name>.bin. The
 agent source has an EXTRA hook point: --agent appends a JS file that may assign
 onSettleStart, onStep = function (world, n) and onSettleEnd, for probes that
 read body state (assign; a function declaration would be overwritten). Never run
-it with CS2 open; the tool refuses to.
+it with CS2 open; the tool refuses to, and kills the compile if the game
+starts while it runs.
 """
 import argparse
 import json
@@ -143,6 +144,17 @@ def main():
     session.on("detached", lambda *a: done.set())
     started = time.time()
     device.resume(pid)
+
+    # If the game starts while we capture, stop at once.
+    def watchdog():
+        while not done.is_set():
+            if cs2_running():
+                print("cs2.exe started; killing the compile.", file=sys.stderr)
+                done.set()
+                return
+            time.sleep(1)
+
+    threading.Thread(target=watchdog, daemon=True).start()
     done.wait()
     try:
         device.kill(pid)
