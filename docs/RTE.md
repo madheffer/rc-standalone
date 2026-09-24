@@ -364,11 +364,28 @@ outermost first. Unrotated instances are exact.
 
 **Still open.**
 
-- Subdivision. Every face with subdivision levels is tessellated: a level-3
-  quad becomes an 8x8 grid of 128 triangles, and the stored samples (texcoord,
-  displacement, paint) are 4 corner quadrants of 5x5 each. The map compile's
-  `ExpandSubdivision` and meshutils' subdivision remapping do it; not yet
-  ported. It is most of what atixref and ze_hold_em_p still lack.
+- Subdivision, partly ported (`SubdivisionReplay`). Established on ze_hold_em_p
+  and atixref:
+  - `subdivisionLevels` is per half-edge. Each half-edge with level L > 0 owns
+    a patch of (2^(L-1)+1)^2 samples in `subdivisionData`, stored in half-edge
+    index order (boundary half-edges included): the totals match on all 22
+    subdivided meshes.
+  - A face with any level > 0 is tessellated at its highest level: a
+    2^L x 2^L grid, 2 * 4^L triangles, whatever the other half-edges hold.
+  - The grid is linear, not Catmull-Clark (smoothing puts vertices whole units
+    away): the face splits at its centre (the midpoint of its two edge
+    midpoints) into four corner patches, each gridded by lerping rows then
+    columns, in the mesh's local space, then placed with the node matrix.
+  - Each cell is cut along the diagonal that points at the face centre in its
+    quadrant.
+  - Undisplaced faces: atixref 4,416 of 4,416 triangles exact; ze_hold_em_p
+    4,129 of 4,480, the rest off by one or two ulps in small interior blobs
+    that no lerp, weight, centre or re-centring variant reproduces.
+  - Displacement: neighbouring patches share their border samples, but which
+    half-edge's patch lands on which corner, in which orientation and space,
+    is not settled; no simple mapping fits mesh 1370 (displacements up to 52).
+  The code that does this is still to be found; a trace of a compile of a
+  one-face test map is the quickest route.
 - 240 atixref triangles, all in copies of one mesh (a yaw-180.5 light) under
   instances rotated 90, 180.00002 and 270 degrees, are off by one ulp in y at
   some corners. No summation order, matrix built another way (angles round trip,

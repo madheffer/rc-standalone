@@ -236,6 +236,31 @@ bounds, material assignment.
 
 ---
 
+## The focus map: zombie escape, and everything Hammer compiles for it
+
+The end goal is compiling zombie escape maps, so everything such a map relies on
+has to come out of our compile, not only the geometry. Noted 2026-09-24:
+
+- **ze_atix (ze_atix2017 / ze_atix_panic, the map atixref is cut from).** It has
+  shootable, movable physics props that do damage and can kill
+  counter-terrorists. Check how those are authored (prop_physics variants,
+  damage filters, trigger_hurt parented to them, outputs on break or on
+  damage) and support whatever the compile does for them: physics collision,
+  the entity lump, and anything baked.
+- **Brush entities.** Triggers (trigger_hurt, trigger_multiple, trigger_once,
+  trigger_teleport, trigger_push and the rest), func_door, func_button,
+  func_breakable, func_brush, func_movelinear, func_rotating, func_tracktrain
+  and path_track: their collision models, their meshes and their keyvalues.
+- **I/O.** Every entity's connections (outputs, targets, delays, parameters,
+  fire-once), templates and point_template spawns, logic_* entities,
+  filters, and whatever the compile rewrites in them (names in instances,
+  fixups).
+- **Everything else Hammer compiles in**: nav, sounds and soundscapes,
+  particles, env_* entities, and whatever else a ZE map ships, to be listed as
+  each is met.
+
+---
+
 ## Phase 5: the baked halves
 
 Lighting and cubemaps stay Valve's for now, and that is a measured decision, not
