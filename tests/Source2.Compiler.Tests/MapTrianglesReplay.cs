@@ -36,7 +36,12 @@ public class MapTrianglesReplay(ITestOutputHelper output)
             {
                 var n = face.Corners.Length;
                 int[] triangles = n == 3 ? [0, 1, 2] : PolygonTriangulator.Triangulate(face.Corners);
-                var origin = $"{mesh.ParentType}{(mesh.ParentClass is { } c ? "/" + c : "")} {Path.GetFileNameWithoutExtension(face.Material)}";
+                var by = Environment.GetEnvironmentVariable("RTEGEO_BY");
+                var origin = by == "transform"
+                    ? $"{mesh.ParentType} transformed={mesh.Transformed}"
+                    : by is { Length: > 0 } && by.StartsWith("attr:")
+                    ? $"{mesh.ParentType}{(mesh.ParentClass is { } c0 ? "/" + c0 : "")} {string.Join(" ", by[5..].Split(',').Select(a => $"{a}={mesh.Element?.Attributes.GetValueOrDefault(a)}"))} {Path.GetFileNameWithoutExtension(face.Material)}"
+                    : $"{mesh.ParentType}{(mesh.ParentClass is { } c ? "/" + c : "")} {Path.GetFileNameWithoutExtension(face.Material)}";
                 var tally = byOrigin.GetValueOrDefault(origin);
                 for (var t = 0; t < triangles.Length; t += 3)
                 {
