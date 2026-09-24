@@ -45,7 +45,7 @@ point scale of 1.0 and 0.01. With no options its first float is 5.0.
   gets 1.1920929e-5.
 - **Fallbacks and limits.** If the hull is invalid, an extrusion retry follows.
   Then a pass enforces the vertex, edge and face limits, and a final check runs.
-  After that the hull goes back to c; one step between those is not read yet.
+  After that the hull is scaled back by k and moved back to c.
 - **Convert to `RnHull_t`** (0xf8 bytes):
 
 | offset | field | how |
@@ -128,8 +128,9 @@ Two details make the order Valve's rather than any correct hull's:
 - normalisation, the limit and sharpen passes, and the inner-margin check;
 - the conversion and the mass, area and centroid-radius passes.
 
-Not ported: the extrusion retry for an invalid hull, the simplifiers (the
-compile's options only reach them past 256), and the region SVM.
+Not ported: the simplifiers (the compile's options only reach them past 256;
+the map builder's 5 degree angle reaches them for nearly coplanar neighbours)
+and the region SVM.
 
 `HullReplay` feeds every shipped brush-entity hull's own vertices back in:
 
