@@ -73,6 +73,7 @@ HOOKS = {
     "Sun": "SunVisibility",
     "Collapse": "CollapseOnce",
     "ExportMatrix": "ExportMutualVisibility",
+    "BorderTrace": "BorderTrace",
 }
 
 
@@ -305,6 +306,44 @@ function hook(m) {
       sendBlob({ev: 'collapsedentries' + k, n: ne}, s.add(0x48).readPointer().readByteArray(ne * 16));
       sendBlob({ev: 'collapsednodes' + k, n: nn}, s.add(0x30).readPointer().readByteArray(nn * 8));
       sendBlob({ev: 'collapsedboxes' + k, n: nn}, s.add(0x78).readPointer().readByteArray(nn * 24));
+    }
+  });
+  // The tracer the compile rebuilt, taken once at the first border trace:
+  // its kd nodes (u32 word, f32 split or count), the leaf index list, and
+  // every slot's 0x30 byte record through the paged array (+0x80 shift,
+  // +0x84 mask, +0x90 pages of 16 bytes, the base at +8), plus its flag
+  // word and box.
+  const tracerHook = Interceptor.attach(m.base.add(RVA.BorderTrace), {
+    onEnter(a) {
+      tracerHook.detach();
+      const p = a[0], nodes = p.add(0x68).readPointer();
+      let maxNode = 0, maxIndex = 0;
+      const stack = [0];
+      while (stack.length) {
+        const i = stack.pop();
+        if (i > maxNode) maxNode = i;
+        const w = nodes.add(i * 8).readU32();
+        if ((w & 3) === 3) {
+          const end = (w >> 2) + nodes.add(i * 8 + 4).readU32();
+          if (end > maxIndex) maxIndex = end;
+        } else {
+          stack.push(w >>> 2, (w >>> 2) + 1);
+        }
+      }
+      const index = p.add(0xa8).readPointer();
+      const list = new Uint32Array(index.readByteArray(maxIndex * 4));
+      let slots = 0;
+      for (const v of list) if (v + 1 > slots) slots = v + 1;
+      const shift = p.add(0x80).readU32(), mask = p.add(0x84).readU32(), pages = p.add(0x90).readPointer();
+      const out = new Uint8Array(slots * 0x30);
+      for (let s = 0; s < slots; s += mask + 1) {
+        const n = Math.min(mask + 1, slots - s);
+        out.set(new Uint8Array(pages.add((s >>> shift) * 16 + 8).readPointer().readByteArray(n * 0x30)), s * 0x30);
+      }
+      sendBlob({ev: 'kdnodes', n: maxNode + 1, flags: p.readU32()}, nodes.readByteArray((maxNode + 1) * 8));
+      sendBlob({ev: 'kdindex', n: maxIndex}, list.buffer);
+      sendBlob({ev: 'kdrecords', n: slots}, out.buffer);
+      send({ev: 'kdbox'}, p.add(4).readByteArray(24));
     }
   });
   send({ev: 'hooked'});

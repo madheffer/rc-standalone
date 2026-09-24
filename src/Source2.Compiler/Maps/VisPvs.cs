@@ -628,11 +628,19 @@ public static class VisPvs
     /// segment's end, or null.
     /// </summary>
     public static Vector3? Traced(RayTraceEnvironment rte, Ray ray, int type, bool flag, float reach)
+        => Traced(rte, ray, type, flag, reach, rte.Segment(ray.Origin, End(ray, reach), 0x4801));
+
+    /// <summary>Where <c>BatchTracer</c> sends a ray: <c>reach * dir + origin</c>.</summary>
+    public static Vector3 End(Ray ray, float reach)
+        => new((reach * ray.Direction.X) + ray.Origin.X, (reach * ray.Direction.Y) + ray.Origin.Y, (reach * ray.Direction.Z) + ray.Origin.Z);
+
+    /// <summary><see cref="Traced(RayTraceEnvironment, Ray, int, bool, float)"/> for a ray already traced.</summary>
+    public static Vector3? Traced(RayTraceEnvironment rte, Ray ray, int type, bool flag, float reach, RayTraceEnvironment.Hit? traced)
     {
         var o = ray.Origin;
         var d = ray.Direction;
-        var end = new Vector3((reach * d.X) + o.X, (reach * d.Y) + o.Y, (reach * d.Z) + o.Z);
-        if (rte.Segment(o, end, 0x4801) is not { } hit)
+        var end = End(ray, reach);
+        if (traced is not { } hit)
             return type == 2 ? end : null;
         var n = hit.Normal;
         var front = (n.Z * d.Z) + (d.Y * n.Y) + (n.X * d.X) < 0f;
@@ -683,10 +691,21 @@ public static class VisPvs
     /// </summary>
     public static List<int>? Walk(State s, Vector3 o, Vector3 end, bool through, ulong[]? open = null)
     {
-        var inv = new Vector3(1f / Guard(end.X - o.X), 1f / Guard(end.Y - o.Y), 1f / Guard(end.Z - o.Z));
         var ids = new List<int>();
+        return WalkInto(s, o, end, through, ids, open) ? ids : null;
+    }
+
+    [ThreadStatic]
+    private static Queue<(int Node, Vector3 Corner, float Size)>? _walkQueue;
+
+    /// <summary><see cref="Walk"/> into a list the caller owns: false where Walk gives null.</summary>
+    public static bool WalkInto(State s, Vector3 o, Vector3 end, bool through, List<int> ids, ulong[]? open = null)
+    {
+        var inv = new Vector3(1f / Guard(end.X - o.X), 1f / Guard(end.Y - o.Y), 1f / Guard(end.Z - o.Z));
+        ids.Clear();
         var last = -1;
-        var queue = new Queue<(int Node, Vector3 Corner, float Size)>();
+        var queue = _walkQueue ??= new Queue<(int Node, Vector3 Corner, float Size)>();
+        queue.Clear();
         var root = s.NodeMins[0];
         queue.Enqueue((0, root, s.NodeMaxs[0].X - root.X));
         while (queue.Count > 0)
@@ -727,12 +746,12 @@ public static class VisPvs
                     }
                     else if (!through)
                     {
-                        return null;
+                        return false;
                     }
                 }
             }
         }
-        return ids;
+        return true;
     }
 
     // divps against 1 with the FLT_EPSILON bits ORed in below FLT_MIN.
@@ -756,16 +775,7 @@ public static class VisPvs
             enter[(a * 2) + 1] = MathF.Min(tm, t1);
             leave[(a * 2) + 1] = MathF.Max(tm, t1);
         }
-        var mask = 0;
-        for (var oct = 0; oct < 8; oct++)
-        {
-            int x = oct & 1, y = (oct >> 1) & 1, z = (oct >> 2) & 1;
-            var into = MathF.Max(MathF.Max(MathF.Max(enter[x], enter[2 + y]), enter[4 + z]), 0f);
-            var outOf = MathF.Min(MathF.Min(MathF.Min(leave[x], leave[2 + y]), leave[4 + z]), 1f);
-            if (into <= outOf)
-                mask |= 1 << oct;
-        }
-        return mask;
+        return (int)Crossed(enter, leave, 2);
     }
 
     // CellMask: a leaf's 4x4x4 cells the segment crosses, cell k starting at (k * sub + min) - o.
@@ -785,16 +795,56 @@ public static class VisPvs
                 leave[(a * 4) + k] = MathF.Max(near, far);
             }
         }
-        var mask = 0UL;
-        for (var i = 0; i < 64; i++)
+        return Crossed(enter, leave, 4);
+    }
+
+    // The cells (n per axis, x fastest) where max(enter x, y, z, 0) <= min(leave
+    // x, y, z, 1), the binary's test. Every value is finite (Guard keeps the
+    // inverse finite), so that is each of the four enters <= each of the four
+    // leaves, checked once per axis and per axis pair rather than per cell.
+    private static ulong Crossed(ReadOnlySpan<float> enter, ReadOnlySpan<float> leave, int n)
+    {
+        Span<uint> alone = stackalloc uint[3];
+        for (var a = 0; a < 3; a++)
         {
-            int x = i & 3, y = (i >> 2) & 3, z = (i >> 4) & 3;
-            var into = MathF.Max(MathF.Max(MathF.Max(enter[x], enter[4 + y]), enter[8 + z]), 0f);
-            var outOf = MathF.Min(MathF.Min(MathF.Min(leave[x], leave[4 + y]), leave[8 + z]), 1f);
-            if (into <= outOf)
-                mask |= 1UL << i;
+            for (var k = 0; k < n; k++)
+            {
+                float e = enter[(a * n) + k], l = leave[(a * n) + k];
+                if (e <= l && e <= 1f && 0f <= l)
+                    alone[a] |= 1u << k;
+            }
+            if (alone[a] == 0)
+                return 0;
+        }
+        uint xy = Pair(enter, leave, n, 0, 1), xz = Pair(enter, leave, n, 0, 2), yz = Pair(enter, leave, n, 1, 2);
+        var mask = 0UL;
+        var bit = 0;
+        for (var z = 0; z < n; z++)
+        {
+            for (var y = 0; y < n; y++)
+            {
+                for (var x = 0; x < n; x++, bit++)
+                {
+                    if ((alone[0] >> x & alone[1] >> y & alone[2] >> z & xy >> ((x * n) + y) & xz >> ((x * n) + z) & yz >> ((y * n) + z) & 1) != 0)
+                        mask |= 1UL << bit;
+                }
+            }
         }
         return mask;
+
+        static uint Pair(ReadOnlySpan<float> enter, ReadOnlySpan<float> leave, int n, int a, int b)
+        {
+            var m = 0u;
+            for (var i = 0; i < n; i++)
+            {
+                for (var j = 0; j < n; j++)
+                {
+                    if (enter[(a * n) + i] <= leave[(b * n) + j] && enter[(b * n) + j] <= leave[(a * n) + i])
+                        m |= 1u << ((i * n) + j);
+                }
+            }
+            return m;
+        }
     }
 
     private static float Axis(Vector3 v, int a) => a == 0 ? v.X : a == 1 ? v.Y : v.Z;
@@ -820,21 +870,22 @@ public static class VisPvs
                 return passes;
             long cast = 0;
             var gate = new object();
-            Parallel.ForEach(pairs, () => (Rays: new List<Ray>(), Sets: new List<int[]>()), (pair, _, local) =>
+            var lists = RayLists(pairs, raysFor);
+            Parallel.ForEach(lists, () => (Sets: new List<int[]>(), Ids: new List<int>()), (list, _, local) =>
             {
-                local.Rays.Clear();
-                raysFor(Math.Min(pair.A, pair.B), Math.Max(pair.A, pair.B), local.Rays);
-                foreach (var ray in local.Rays)
+                var segments = new (Vector3, Vector3)[list.Count];
+                for (var i = 0; i < list.Count; i++)
+                    segments[i] = (list[i].Origin, End(list[i], reach));
+                var hits = rte.Segments(segments, 0x4801);
+                for (var i = 0; i < list.Count; i++)
                 {
-                    if (Sight(rte, ray, reach) is not { } end)
+                    if (Traced(rte, list[i], 2, true, reach, hits[i]) is not { } end)
                         continue;
-                    if (Walk(s, ray.Origin, end, through: true) is not { Count: > 0 } ids)
+                    if (!WalkInto(s, list[i].Origin, end, true, local.Ids) || local.Ids.Count == 0)
                         continue;
-                    var sorted = ids.Distinct().ToArray();
-                    Array.Sort(sorted);
-                    local.Sets.Add(sorted);
+                    local.Sets.Add(SortedUnique(local.Ids));
                 }
-                Interlocked.Add(ref cast, local.Rays.Count);
+                Interlocked.Add(ref cast, list.Count);
                 if (local.Sets.Count > 4096)
                     Flush(local.Sets);
                 return local;
@@ -852,6 +903,58 @@ public static class VisPvs
                 sets.Clear();
             }
         }
+    }
+
+    /// <summary>The rays <c>SamplerDriver</c> asks a generator for at a time.</summary>
+    public const int RayListSize = 0x1000;
+
+    /// <summary>
+    /// <c>FillRays</c>: the lists a pass's rays are traced in, and so the packets
+    /// they share. The generator holds a pending buffer; while the list has
+    /// room it takes the next pair (lower id first) into the buffer when that is
+    /// empty, and otherwise moves as many as fit from the END of the buffer, in
+    /// order, into the list.
+    /// </summary>
+    public static IEnumerable<List<Ray>> RayLists(List<(int A, int B)> pairs, Action<int, int, List<Ray>> raysFor)
+    {
+        var pending = new List<Ray>();
+        var list = new List<Ray>(RayListSize);
+        var next = 0;
+        while (true)
+        {
+            if (list.Count >= RayListSize)
+            {
+                yield return list;
+                list = new List<Ray>(RayListSize);
+            }
+            if (pending.Count == 0)
+            {
+                if (next >= pairs.Count)
+                    break;
+                var (a, b) = pairs[next++];
+                raysFor(Math.Min(a, b), Math.Max(a, b), pending);
+                continue;
+            }
+            var n = Math.Min(pending.Count, RayListSize - list.Count);
+            list.AddRange(pending.GetRange(pending.Count - n, n));
+            pending.RemoveRange(pending.Count - n, n);
+        }
+        if (list.Count > 0)
+            yield return list;
+    }
+
+    // A walk's cluster ids, sorted and without repeats (a walk lists a handful).
+    private static int[] SortedUnique(List<int> ids)
+    {
+        var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(ids);
+        span.Sort();
+        var n = 1;
+        for (var i = 1; i < span.Length; i++)
+        {
+            if (span[i] != span[n - 1])
+                span[n++] = span[i];
+        }
+        return span[..n].ToArray();
     }
 
     /// <summary>

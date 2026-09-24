@@ -264,6 +264,192 @@ internal sealed class TracerKd
             || Walk(node.Lower, clipMins, With(clipMaxs, node.Axis, node.Split), centre, half, mask);
     }
 
+    /// <summary>
+    /// One packet of the batch tracer: <c>FUN_180110cb0</c> normalising up to
+    /// four segments of one octant, then the mode 0 walk, <c>FUN_180115760</c>.
+    /// Lanes past <paramref name="lanes"/>' count copy the first. Each lane
+    /// keeps the nearest hit with 0 &lt; t &lt; its best; a hit beyond the
+    /// segment's length is dropped afterwards.
+    /// </summary>
+    public void Packet(IReadOnlyList<(Vector3 From, Vector3 To)> segments, List<int> lanes, int octant, ushort mask,
+                       RayTraceEnvironment.Hit?[] hits)
+    {
+        Span<float> o = stackalloc float[12];     // axis * 4 + lane
+        Span<float> d = stackalloc float[12];
+        Span<float> inv = stackalloc float[12];
+        Span<float> length = stackalloc float[4];
+        Span<float> tmin = stackalloc float[4];
+        Span<float> tmax = stackalloc float[4];
+        Span<float> best = stackalloc float[4];
+        Span<int> found = stackalloc int[4];
+        for (var l = 0; l < 4; l++)
+        {
+            var (from, to) = segments[lanes[l < lanes.Count ? l : 0]];
+            o[l] = from.X;
+            o[4 + l] = from.Y;
+            o[8 + l] = from.Z;
+            d[l] = to.X - from.X;
+            d[4 + l] = to.Y - from.Y;
+            d[8 + l] = to.Z - from.Z;
+        }
+        for (var l = 0; l < 4; l++)
+        {
+            float dx = d[l], dy = d[4 + l], dz = d[8 + l];
+            length[l] = MathF.Sqrt((dz * dz) + (dy * dy) + (dx * dx));
+            var scale = RayTraceEnvironment.Refined(Guard(length[l]));
+            d[l] = dx * scale;
+            d[4 + l] = dy * scale;
+            d[8 + l] = dz * scale;
+        }
+        for (var k = 0; k < 12; k++)
+            inv[k] = RayTraceEnvironment.Refined(Guard(d[k]));
+
+        var (bmin, bmax) = _rte.TracedBounds;
+        for (var l = 0; l < 4; l++)
+        {
+            tmin[l] = 0f;
+            tmax[l] = length[l];
+            best[l] = float.MaxValue;
+            found[l] = -1;
+            for (var a = 0; a < 3; a++)
+            {
+                var t0 = (Axis(bmin, a) - o[(a * 4) + l]) * inv[(a * 4) + l];
+                var t1 = (Axis(bmax, a) - o[(a * 4) + l]) * inv[(a * 4) + l];
+                var lo = Min(t0, t1);
+                var hi = Max(t0, t1);
+                tmin[l] = Max(tmin[l], lo);
+                tmax[l] = Min(tmax[l], hi);
+            }
+        }
+        var any = false;
+        for (var l = 0; l < 4; l++)
+            any |= tmin[l] <= tmax[l];
+        if (_slots.Length > 0 && any)
+            Walk(o, d, inv, tmin, tmax, best, found, octant, mask);
+
+        for (var l = 0; l < lanes.Count; l++)
+        {
+            if (found[l] < 0 || length[l] < best[l])
+                continue;
+            var r = _rte.TracedRecord(found[l]);
+            hits[lanes[l]] = new RayTraceEnvironment.Hit(best[l], found[l], new Vector3(r[0], r[1], r[2]), r[3]);
+        }
+    }
+
+    // FUN_180115760's walk. The packet's octant picks each axis' near child;
+    // a node is stepped past when no live lane reaches its near side, and its
+    // far side is pushed when a live lane reaches that. Every lane is tested
+    // against a leaf's triangles, each slot once per packet (a 256 entry
+    // mailbox on the slot's low byte). A leaf with triangles ends the walk once
+    // no lane's range reaches past its best hit; an empty one does not.
+    private void Walk(Span<float> o, Span<float> d, Span<float> inv, Span<float> tmin, Span<float> tmax,
+                      Span<float> best, Span<int> found, int octant, ushort mask)
+    {
+        Span<int> mailbox = stackalloc int[256];
+        mailbox.Fill(-1);
+        var stack = new Stack<(int Node, float Min0, float Min1, float Min2, float Min3, float Max0, float Max1, float Max2, float Max3)>();
+        Span<float> ts = stackalloc float[4];
+        var at = 0;
+        while (true)
+        {
+            var node = _nodes[at];
+            while (node.Axis != 3)
+            {
+                var a = node.Axis;
+                var farChild = node.Lower + (((octant >> a) & 1) != 0 ? 0 : 1);
+                var nearChild = node.Lower + (((octant >> a) & 1) != 0 ? 1 : 0);
+                bool nearLive = false, farLive = false;
+                for (var l = 0; l < 4; l++)
+                {
+                    ts[l] = (node.Split - o[(a * 4) + l]) * inv[(a * 4) + l];
+                    var live = tmin[l] <= tmax[l];
+                    nearLive |= live && tmin[l] <= ts[l];
+                    farLive |= live && ts[l] <= tmax[l];
+                }
+                if (!nearLive)
+                {
+                    for (var l = 0; l < 4; l++)
+                        tmin[l] = Max(tmin[l], ts[l]);
+                    node = _nodes[at = farChild];
+                    continue;
+                }
+                if (farLive)
+                {
+                    stack.Push((farChild, Max(tmin[0], ts[0]), Max(tmin[1], ts[1]), Max(tmin[2], ts[2]), Max(tmin[3], ts[3]),
+                                tmax[0], tmax[1], tmax[2], tmax[3]));
+                }
+                for (var l = 0; l < 4; l++)
+                    tmax[l] = Min(tmax[l], ts[l]);
+                node = _nodes[at = nearChild];
+            }
+
+            if (node.Slots.Length > 0)
+            {
+                foreach (var slot in node.Slots)
+                {
+                    if (mailbox[slot & 0xff] == slot)
+                        continue;
+                    var triangle = _slots[slot];
+                    if ((_rte.Flags(triangle) & mask) != 0)
+                        continue;
+                    mailbox[slot & 0xff] = slot;
+                    Test(triangle, o, d, best, found);
+                }
+                var reaching = false;
+                for (var l = 0; l < 4; l++)
+                    reaching |= tmax[l] <= best[l];
+                if (!reaching)
+                    return;
+            }
+            if (stack.Count == 0)
+                return;
+            var next = stack.Pop();
+            at = next.Node;
+            tmin[0] = next.Min0; tmin[1] = next.Min1; tmin[2] = next.Min2; tmin[3] = next.Min3;
+            tmax[0] = next.Max0; tmax[1] = next.Max1; tmax[2] = next.Max2; tmax[3] = next.Max3;
+        }
+    }
+
+    // The mode 0 triangle test, lane by lane in the binary's order of operations.
+    private void Test(int triangle, Span<float> o, Span<float> d, Span<float> best, Span<int> found)
+    {
+        var r = _rte.TracedRecord(triangle);
+        if (float.IsNaN(r[0]))
+            return;
+        float nx = r[0], ny = r[1], nz = r[2], plane = r[3];
+        int u = (int)r[11], v = (int)r[12];
+        for (var l = 0; l < 4; l++)
+        {
+            float ox = o[l], oy = o[4 + l], oz = o[8 + l];
+            float dx = d[l], dy = d[4 + l], dz = d[8 + l];
+            var denom = ((dz * nz) + (dy * ny)) + (dx * nx);
+            if (!(1e-10f < denom || denom < -1e-10f))
+                continue;
+            var t = (plane - (((oz * nz) + (oy * ny)) + (nx * ox))) / denom;
+            if (!(0f < t && t < best[l]))
+                continue;
+            var pu = (t * d[(u * 4) + l]) + o[(u * 4) + l];
+            var pv = (t * d[(v * 4) + l]) + o[(v * 4) + l];
+            var first = ((r[5] * pu) + (r[6] * pv)) + r[7];
+            var second = ((r[8] * pu) + (r[9] * pv)) + r[10];
+            if (!(0f <= first && 0f <= second && (second + first) <= 1f))
+                continue;
+            best[l] = t;
+            found[l] = triangle;
+        }
+    }
+
+    // minps / maxps: the second operand unless the first is strictly less (more).
+    private static float Min(float a, float b) => a < b ? a : b;
+
+    private static float Max(float a, float b) => a > b ? a : b;
+
+    // The divide guard: below FLT_MIN in magnitude, FLT_EPSILON's bits are ORed in.
+    private static float Guard(float x)
+        => MathF.Abs(x) < 1.17549435e-38f
+            ? BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(x) | 0x34000000)
+            : x;
+
     private static float Axis(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;
 
     private static Vector3 With(Vector3 v, int axis, float value)

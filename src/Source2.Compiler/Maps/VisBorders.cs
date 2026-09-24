@@ -179,9 +179,14 @@ public static class VisBorders
     private static void Trace(RayTraceEnvironment rte, Vector3 o, Vector3[] points, List<Vector3> hits, List<Vector3> normals)
     {
         hits.Clear();
-        foreach (var p in points)
+        var segments = new (Vector3, Vector3)[points.Length];
+        for (var i = 0; i < points.Length; i++)
+            segments[i] = (o, points[i]);
+        var traced = rte.Segments(segments, Ignored);
+        for (var i = 0; i < points.Length; i++)
         {
-            if (rte.Segment(o, p, Ignored) is not { } hit)
+            var p = points[i];
+            if (traced[i] is not { } hit)
             {
                 hits.Add(p);
                 continue;

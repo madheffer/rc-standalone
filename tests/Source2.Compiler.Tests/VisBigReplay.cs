@@ -275,6 +275,248 @@ public class VisBigReplay(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// One segment against named triangles, every intermediate value printed
+    /// round-trip exact. <c>BIGSEG=ox,oy,oz;px,py,pz;tri,tri...</c>.
+    /// </summary>
+    [Fact]
+    public void SegmentDetail()
+    {
+        if (Environment.GetEnvironmentVariable("BIGSEG") is not { Length: > 0 } spec || Environment.GetEnvironmentVariable("BIGPVS") is null)
+            return;
+        var parts = spec.Split(';');
+        Vector3 P(string t) { var f = t.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray(); return new(f[0], f[1], f[2]); }
+        var (o, p) = (P(parts[0]), P(parts[1]));
+        var rte = Scene();
+        var hit = rte.Segment(o, p, VisBorders.Ignored);
+        output.WriteLine($"segment {o} -> {p}: nearest {(hit is { } h ? $"tri {h.Triangle} t {h.Distance:R}" : "none")}");
+        foreach (var tri in parts[2].Split(',').Select(int.Parse))
+        {
+            var dt = rte.SegmentDetail(o, p, tri);
+            output.WriteLine($"  tri {tri}: {(dt is { } x ? $"t {x.T:R} u {x.U:R} v {x.V:R} first {x.First:R} second {x.Second:R} sum {x.First + x.Second:R} denom {x.Denom:R}" : "not traced")}"
+                           + $" corners [{string.Join(" ", rte.TracedCorners(tri) ?? [])}]");
+        }
+    }
+
+    /// <summary>
+    /// The tracer the compile rebuilt, against <see cref="TracerKd"/>: the tree
+    /// walked from the root side by side (axis, split bits, each leaf's slots in
+    /// order), every slot's record against ours field by field, and the box.
+    /// Needs a capture with the <c>kd*</c> records.
+    /// </summary>
+    [Fact]
+    public void TheTracerTree()
+    {
+        using var cap = Open(out _);
+        if (cap is null || !cap.Has("kdnodes"))
+            return;
+        var rte = Scene();
+        var kd = new TracerKd(rte);
+        var nodes = cap.Blob("kdnodes");
+        var index = cap.Blob("kdindex");
+        int inner = 0, leaves = 0, differ = 0, shown = 0;
+        var stack = new Stack<(int Valve, int Ours, string Path)>();
+        stack.Push((0, 0, ""));
+        while (stack.Count > 0)
+        {
+            var (v, o, path) = stack.Pop();
+            var word = BitConverter.ToUInt32(nodes, v * 8);
+            var ours = kd.Nodes[o];
+            var axis = (int)(word & 3);
+            string? why = null;
+            if (axis != ours.Axis)
+                why = $"axis valve {axis} ours {ours.Axis}";
+            else if (axis != 3)
+            {
+                var split = BitConverter.ToSingle(nodes, v * 8 + 4);
+                if (BitConverter.SingleToInt32Bits(split) != BitConverter.SingleToInt32Bits(ours.Split))
+                    why = $"split valve {split:R} ours {ours.Split:R}";
+                else
+                {
+                    inner++;
+                    stack.Push(((int)(word >> 2) + 1, ours.Lower + 1, path + $" {"xyz"[axis]}>{split}"));
+                    stack.Push(((int)(word >> 2), ours.Lower, path + $" {"xyz"[axis]}<{split}"));
+                    continue;
+                }
+            }
+            else
+            {
+                leaves++;
+                var count = BitConverter.ToInt32(nodes, v * 8 + 4);
+                var slots = Enumerable.Range((int)(word >> 2), count).Select(k => BitConverter.ToInt32(index, k * 4)).ToArray();
+                if (!slots.SequenceEqual(ours.Slots))
+                    why = $"leaf valve [{string.Join(",", slots.Take(12))}{(slots.Length > 12 ? $" ..{slots.Length}" : "")}]"
+                        + $" ours [{string.Join(",", ours.Slots.Take(12))}{(ours.Slots.Length > 12 ? $" ..{ours.Slots.Length}" : "")}]";
+            }
+            if (why is null)
+                continue;
+            differ++;
+            if (shown++ < 8)
+                output.WriteLine($"  node {v}/{o}{path}: {why}");
+        }
+        output.WriteLine($"tree: {inner:n0} splits and {leaves:n0} leaves identical, {differ} differ");
+
+        var records = cap.Blob("kdrecords");
+        var order = rte.TracerOrder;
+        var slotsCount = records.Length / 0x30;
+        int same = 0, badFloat = 0, badAxes = 0, badFlags = 0;
+        for (var slot = 0; slot < slotsCount && slot < order.Length; slot++)
+        {
+            var r = rte.TracedRecord(order[slot]);
+            var at = slot * 0x30;
+            var ok = true;
+            foreach (var k in new[] { 0, 1, 2, 3, 5, 6, 7, 8, 9, 10 })
+            {
+                if (BitConverter.ToInt32(records, at + k * 4) != BitConverter.SingleToInt32Bits(r[k]))
+                {
+                    ok = false;
+                    if (badFloat++ < 4)
+                        output.WriteLine($"  slot {slot} (tri {order[slot]}) float {k}: valve {BitConverter.ToSingle(records, at + k * 4):R} ours {r[k]:R}");
+                }
+            }
+            if (records[at + 0x2c] != (int)r[11] || records[at + 0x2d] != (int)r[12])
+            {
+                ok = false;
+                badAxes++;
+            }
+            if (BitConverter.ToUInt16(records, at + 0x2e) != rte.Flags(order[slot]))
+            {
+                ok = false;
+                if (badFlags++ < 4)
+                    output.WriteLine($"  slot {slot} (tri {order[slot]}) flags valve {BitConverter.ToUInt16(records, at + 0x2e):x4} ours {rte.Flags(order[slot]):x4}");
+            }
+            same += ok ? 1 : 0;
+        }
+        output.WriteLine($"records: {same:n0}/{slotsCount:n0} identical (ours {order.Length:n0}); bad floats {badFloat}, axes {badAxes}, flags {badFlags};"
+                       + $" slot 4 sample valve {BitConverter.ToSingle(records, 0x10):R}");
+        var box = cap.Blob("kdbox");
+        var (bmin, bmax) = rte.TracedBounds;
+        output.WriteLine($"box valve {V(box, 0)}..{V(box, 12)} ours {bmin}..{bmax}, bits same {V(box, 0) == bmin && V(box, 12) == bmax}");
+        Assert.Equal(0, differ);
+        Assert.Equal(slotsCount, same);
+    }
+
+    /// <summary>
+    /// Where named triangles sit in the rebuilt kd tree: every leaf holding
+    /// one, its box and the triangle's place in it. <c>BIGKD=tri,tri...</c>.
+    /// </summary>
+    [Fact]
+    public void KdLeaves()
+    {
+        if (Environment.GetEnvironmentVariable("BIGKD") is not { Length: > 0 } list || Environment.GetEnvironmentVariable("BIGPVS") is null)
+            return;
+        var rte = Scene();
+        var kd = new TracerKd(rte);
+        var order = rte.TracerOrder;
+        var slotOf = new Dictionary<int, int>();
+        for (var s = 0; s < order.Length; s++)
+            slotOf[order[s]] = s;
+        var wanted = list.Split(',').Select(int.Parse).ToList();
+        foreach (var t in wanted)
+            output.WriteLine($"tri {t}: slot {(slotOf.TryGetValue(t, out var sl) ? sl : -1)} flags {rte.Flags(t):x4} corners [{string.Join(" ", rte.TracedCorners(t) ?? [])}]");
+        var (mins, maxs) = rte.TracedBounds;
+        void Visit(int at, Vector3 lo, Vector3 hi, string path)
+        {
+            var node = kd.Nodes[at];
+            if (node.Axis == 3)
+            {
+                foreach (var t in wanted)
+                {
+                    if (!slotOf.TryGetValue(t, out var slot))
+                        continue;
+                    var at2 = Array.IndexOf(node.Slots, slot);
+                    if (at2 >= 0)
+                        output.WriteLine($"  leaf {at} {lo}..{hi}: tri {t} at {at2} of {node.Slots.Length}; path {path}");
+                }
+                return;
+            }
+            Vector3 With(Vector3 v, int a, float x) => a == 0 ? v with { X = x } : a == 1 ? v with { Y = x } : v with { Z = x };
+            Visit(node.Lower, lo, With(hi, node.Axis, node.Split), path + $" {"xyz"[node.Axis]}<{node.Split}");
+            Visit(node.Lower + 1, With(lo, node.Axis, node.Split), hi, path + $" {"xyz"[node.Axis]}>{node.Split}");
+        }
+        Visit(0, mins, maxs, "");
+    }
+
+    /// <summary>
+    /// For the border entries named in <c>BIGDIAG</c> (comma separated): every
+    /// segment the border stage traces that meets two or more triangles at the
+    /// same nearest distance, and whether those disagree on facing the ray.
+    /// </summary>
+    [Fact]
+    public void BorderTies()
+    {
+        if (Environment.GetEnvironmentVariable("BIGDIAG") is not { Length: > 0 } list)
+            return;
+        using var cap = Open(out _);
+        if (cap is null)
+            return;
+        var scan = StateOf(cap);
+        var (boxMins, boxMaxs) = Boxes(cap.Blob("appliedboxes"));
+        var merged = scan with { Entries = EntriesOf(cap.Blob("appliedentries")), ClusterMins = boxMins, ClusterMaxs = boxMaxs };
+        var rte = Scene();
+        var cube = VisBorders.CubePoints();
+        foreach (var border in list.Split(',').Select(int.Parse))
+        {
+            var (bmin, bmax) = VisPvs.RegionBox(merged, merged.Entries[border]);
+            float cx = (bmax.X + bmin.X) * 0.5f, cy = (bmax.Y + bmin.Y) * 0.5f, cz = (bmax.Z + bmin.Z) * 0.5f;
+            float hx = MathF.Max(0f, (bmax.X - cx) - 0.1f), hy = MathF.Max(0f, (bmax.Y - cy) - 0.1f), hz = MathF.Max(0f, (bmax.Z - cz) - 0.1f);
+            var points = cube.Select(c => new Vector3(cx + (hx * c.X), (hy * c.Y) + cy, (hz * c.Z) + cz)).ToArray();
+            var grow = merged.BaseVoxelSize;
+            var neighbours = VisPvs.Entries(merged, bmin - new Vector3(grow), bmax + new Vector3(grow)).Distinct().ToList();
+            int ties = 0, split = 0;
+            var wide = VisPvs.Entries(merged, bmin - new Vector3(grow * 3), bmax + new Vector3(grow * 3)).Distinct();
+            foreach (var e in wide)
+            {
+                var (elo, ehi) = VisPvs.RegionBox(merged, merged.Entries[e]);
+                var leaf = merged.Entries[e].Packed >> 2;
+                output.WriteLine($"    record {e} cluster {merged.Entries[e].Cluster} kind {merged.Entries[e].Packed & 3} box {elo}..{ehi}"
+                               + $" leaf {leaf} {merged.NodeMins[leaf]}..{merged.NodeMaxs[leaf]} cells {merged.Entries[e].Cells:x16}"
+                               + (neighbours.Contains(e) ? " (neighbour)" : ""));
+            }
+            foreach (var n in neighbours)
+            {
+                if ((merged.Entries[n].Packed & 3) != 0)
+                    continue;
+                var (nlo, nhi) = VisPvs.RegionBox(merged, merged.Entries[n]);
+                var o = (nlo + nhi) * 0.5f;
+                var batch = rte.Segments(points.Select(p => (o, p)).ToArray(), VisBorders.Ignored);
+                for (var i = 0; i < points.Length; i++)
+                {
+                    var single = rte.Segment(o, points[i], VisBorders.Ignored);
+                    if (single?.Triangle != batch[i]?.Triangle || single?.Distance != batch[i]?.Distance)
+                        output.WriteLine($"    packet differs: cluster {merged.Entries[n].Cluster} {o} -> {points[i]} (#{i}): brute "
+                                       + $"{(single is { } s1 ? $"tri {s1.Triangle} n {s1.Normal} t {s1.Distance:R}" : "miss")}, packet "
+                                       + $"{(batch[i] is { } b1 ? $"tri {b1.Triangle} n {b1.Normal} t {b1.Distance:R}" : "miss")}");
+                }
+                foreach (var p in points)
+                {
+                    if (Environment.GetEnvironmentVariable("BIGDIAG_CLUSTER") is { Length: > 0 } only
+                        && merged.Entries[n].Cluster == int.Parse(only) && rte.Segment(o, p, VisBorders.Ignored) is { } seen)
+                    {
+                        var d0 = p - o;
+                        output.WriteLine($"    {o} -> {p}: tri {seen.Triangle} flags {rte.Flags(seen.Triangle):x4} n {seen.Normal} t {seen.Distance} of {d0.Length()},"
+                                       + $" facing {(seen.Normal.Z * d0.Z) + (seen.Normal.Y * d0.Y) + (seen.Normal.X * d0.X) < 0f}"
+                                       + $" corners [{string.Join(" ", rte.TracedCorners(seen.Triangle) ?? [])}]");
+                    }
+                    var tied = rte.SegmentTies(o, p, VisBorders.Ignored);
+                    if (tied.Count < 2)
+                        continue;
+                    ties++;
+                    var d = p - o;
+                    var facing = tied.Select(h => (h.Normal.Z * d.Z) + (h.Normal.Y * d.Y) + (h.Normal.X * d.X) < 0f).Distinct().Count();
+                    if (facing > 1)
+                    {
+                        split++;
+                        if (split <= 3)
+                            output.WriteLine($"  entry {border} cluster {merged.Entries[n].Cluster}: {o} -> {p}: "
+                                           + string.Join(", ", tied.Select(h => $"tri {h.Triangle} n {h.Normal} t {h.Distance}")));
+                    }
+                }
+            }
+            output.WriteLine($"entry {border}: leaf {merged.Entries[border].Packed >> 2} {merged.NodeMins[merged.Entries[border].Packed >> 2]}..{merged.NodeMaxs[merged.Entries[border].Packed >> 2]} cells {merged.Entries[border].Cells:x16} box {bmin}..{bmax}; {neighbours.Count} neighbours; tied segments {ties}, of which facing both ways {split}");
+        }
+    }
+
+    /// <summary>
     /// The boundary generator's first pass on Valve's post-centres matrix: the
     /// 8,000,000 pair limit is checked after each cluster, so the pass stops just
     /// past it. Pair building only, no rays.

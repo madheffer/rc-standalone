@@ -310,6 +310,53 @@ public sealed class RayTraceEnvironment
         return best;
     }
 
+    /// <summary>
+    /// Every triangle a <see cref="Segment"/> meets at its nearest distance, for
+    /// finding the ties <see cref="Nearest"/> settles by index. Diagnostic only.
+    /// </summary>
+    internal List<Hit> SegmentTies(Vector3 origin, Vector3 end, ushort ignore)
+    {
+        var tied = new List<Hit>();
+        if (Segment(origin, end, ignore) is not { } nearest)
+            return tied;
+        var delta = new Vector3(end.X - origin.X, end.Y - origin.Y, end.Z - origin.Z);
+        var length = MathF.Sqrt((delta.Z * delta.Z) + (delta.Y * delta.Y) + (delta.X * delta.X));
+        var scale = Refined(MathF.Abs(length) < 1.17549435e-38f
+            ? BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(length) | BitConverter.SingleToInt32Bits(1.1920929e-07f))
+            : length);
+        var direction = new Vector3(delta.X * scale, delta.Y * scale, delta.Z * scale);
+        var traced = Traced();
+        for (var i = 0; i < TriangleCount; i++)
+        {
+            if (float.IsNaN(traced[i * 13]) || (Flags(i) & ignore) != 0)
+                continue;
+            if (Accepts(i, origin, direction, float.MaxValue) is { } hit && hit.Distance == nearest.Distance)
+                tied.Add(hit);
+        }
+        return tied;
+    }
+
+    /// <summary>
+    /// The packet test's intermediate values for one segment against one
+    /// triangle: t, the projected point and the two edge values. Diagnostic only.
+    /// </summary>
+    internal (float T, float U, float V, float First, float Second, float Denom)? SegmentDetail(Vector3 origin, Vector3 end, int index)
+    {
+        var delta = new Vector3(end.X - origin.X, end.Y - origin.Y, end.Z - origin.Z);
+        var length = MathF.Sqrt((delta.Z * delta.Z) + (delta.Y * delta.Y) + (delta.X * delta.X));
+        var scale = Refined(length);
+        var d = new Vector3(delta.X * scale, delta.Y * scale, delta.Z * scale);
+        var r = Traced().AsSpan(index * 13, 13);
+        if (float.IsNaN(r[0]))
+            return null;
+        var denom = (d.Z * r[2]) + (d.Y * r[1]) + (d.X * r[0]);
+        var t = (r[3] - ((origin.Z * r[2]) + (origin.Y * r[1]) + (r[0] * origin.X))) / denom;
+        int u = (int)r[11], v = (int)r[12];
+        var pu = (t * Axis(d, u)) + Axis(origin, u);
+        var pv = (t * Axis(d, v)) + Axis(origin, v);
+        return (t, pu, pv, (r[5] * pu) + (r[6] * pv) + r[7], (r[8] * pu) + (r[9] * pv) + r[10], denom);
+    }
+
     /// <summary>A plain bounding volume hierarchy over the traced triangles' corners.</summary>
     private sealed class Bvh
     {
@@ -455,6 +502,49 @@ public sealed class RayTraceEnvironment
             Traced();
             return _tracerOrder!;
         }
+    }
+
+    /// <summary>
+    /// A file triangle's record as the tracer holds it: normal, plane, the two
+    /// edge equations in slots 5 to 10, the projection axes in 11 and 12. NaN in
+    /// slot 0 for one it does not hold.
+    /// </summary>
+    internal ReadOnlySpan<float> TracedRecord(int index) => Traced().AsSpan(index * 13, 13);
+
+    private TracerKd? _kd;
+
+    /// <summary>
+    /// Segments traced the way the compile's batch tracer traces them, which is
+    /// what decides ties and hair-thin cracks where <see cref="Segment"/> alone
+    /// cannot. <c>BatchRay</c> files each segment by the signs of its delta
+    /// (x, y, z negative adding 1, 2, 4) and traces a bucket as a packet once it
+    /// holds four; <c>FlushBatch</c> traces what is left, a short packet padded
+    /// with copies of its first ray. See <see cref="TracerKd.Packet"/>.
+    /// </summary>
+    public Hit?[] Segments(IReadOnlyList<(Vector3 From, Vector3 To)> segments, ushort ignore)
+    {
+        var kd = _kd ??= new TracerKd(this);
+        var hits = new Hit?[segments.Count];
+        var buckets = new List<int>[8];
+        for (var b = 0; b < 8; b++)
+            buckets[b] = new List<int>(4);
+        for (var i = 0; i < segments.Count; i++)
+        {
+            var (from, to) = segments[i];
+            var octant = ((to.X - from.X) < 0f ? 1 : 0) | ((to.Y - from.Y) < 0f ? 2 : 0) | ((to.Z - from.Z) < 0f ? 4 : 0);
+            buckets[octant].Add(i);
+            if (buckets[octant].Count == 4)
+            {
+                kd.Packet(segments, buckets[octant], octant, ignore, hits);
+                buckets[octant].Clear();
+            }
+        }
+        for (var b = 0; b < 8; b++)
+        {
+            if (buckets[b].Count > 0)
+                kd.Packet(segments, buckets[b], b, ignore, hits);
+        }
+        return hits;
     }
 
     /// <summary>The loader's rebuilt corners of a file triangle, nine floats, which the kd build reads.</summary>
