@@ -58,14 +58,41 @@ Two parts are not the binary's own code:
 - The self-touch test computes an exact distance rather than running
   vphysics2's GJK. A pair right at the threshold could come out differently.
 
-## What goes in: open
+## What goes in
 
-On cardtest, the world's main mesh takes every world mesh's material pieces,
-except those whose material is `toolsskybox` or `toolslightmapres`:
-- Each piece is welded at 1/32 by the map builder and joined by position, the
-  same per-piece path brush-entity hulls take.
-- The skybox piece is its own mesh, under another collision attribute.
+`Physics/WorldCollision.cs` ports how the soups are put together. Both of
+cardtest's world soups equal the captured RnMeshCreate inputs, vertex for
+vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
 
-The pieces do not come in node order or element order. A mesh's two material
-pieces land at different places. Whether the order follows visibility clusters,
-or is not stable between compiles at all, is the next thing to measure.
+1. **Walk.** physicsbuilder's `CPhysicsBuilder::Build` walks the map's node
+   tree depth first, children in stored order. This is the order
+   `MapMeshes.Read` walks in. Each world mesh is split by material, in
+   material order, and each piece becomes one node of an in-memory ModelDoc.
+2. **Material physics.** A table of material attributes decides each piece's
+   fate:
+   - `mapbuilder.nonsolid` drops the piece (`toolslightmapres`, `toolstrigger`);
+   - the sky, clip, ladder, water and los/sound attributes give the collision
+     group `conditionallysolid` and an interact-as tag;
+   - water forces the piece solid;
+   - `translucent` gives `window`, on materials that are not nodraw.
+
+   `PhysicsSurfaceProperties` names the surface property.
+3. **Order.** resourcecompiler appends each node's shape to the physics part,
+   then re-sorts the whole list by shape type with tier0's `V_qsort` after every
+   append. That is the Microsoft CRT qsort (`Maps/CrtQsort.cs`). On runs of equal
+   types, its selection sort for eight elements or fewer swaps the first and last
+   element every pass. Meshes appended in order 0..17 therefore come out as
+   4,2,5,1,6,3,7,0,8,...,17. This is why a mesh's two pieces land far apart.
+4. **Soups.** The part builder gives each collision attribute one soup, in
+   first-appearance order. A shape joins its attribute's newest soup unless
+   that soup already has triangles and the shape would need a per-triangle
+   surface property above 255. Vertices are appended as they are, and indices
+   are offset. RnMeshCreate then welds the soup.
+
+Still open:
+- The static-prop hulls. They are shapes of another type in the same part, so
+  they change where the meshes land in the sort. atixref will check this.
+- The shipped `m_Materials`. RnMeshCreate gets no materials for cardtest's
+  soups, yet the shipped mesh has 292. They are written afterwards.
+- One material attribute: a named collision property that overrides the group
+  and tags.
