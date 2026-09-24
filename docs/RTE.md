@@ -335,12 +335,12 @@ surface would be. It is not a pure function of the flags, though: on ze_hold_em_
 one id carries both the twelve `0x0800` triangles and thirty-eight with no flags
 at all. What it actually hashes is still open, and visibility does not read it.
 
-**Why the log says 28,728 triangles when the header says 279,064.** The literal
-28,728 does occur in Mako's file exactly once, but as a VALUE inside the ascending
-index array, not as a count, so it is coincidence. The header count is the array
-length and it is confirmed by the file tiling exactly. The log's number is
-therefore a filtered subset, presumably the opaque or vis-relevant triangles that
-`Convert RTE` keeps. Not confirmed.
+**Why the log says 28,728 triangles when the header says 279,064: settled.**
+It is the number the compile's tracer holds. Dumped from a live Mako compile
+(2026-09-24), the rebuilt tracer has 28,728 slots, and `TracerOrder` (the
+triangles not flagged `0x0801` whose loader corners and conversion are finite)
+also comes to 28,728; every slot's 48 byte record matches ours bit for bit.
+The other quarter of a million are excluded from tracing by their flags.
 
 **The file is not byte-stable between compiles.** Three probe01 compiles on
 2026-09-24 (two with the same binary) gave three different `.rte` files: the
@@ -348,7 +348,9 @@ same header, planes and surface ids, but a different triangle order (so the id
 field and the kd tree differ) and, in each pair, one triangle whose edge floats
 differ. The vis captures from all three were byte identical, so visibility does
 not see the difference. Why the order varies is open; compare `.rte` files by
-content, never by hash.
+content, never by hash. A replay must still read the `.rte` of the compile it
+was captured from: slot order follows file order, and ties between triangles
+met at the same distance go to the one the kd walk tests first.
 
 ## Next
 

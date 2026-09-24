@@ -471,6 +471,9 @@ public class VisPvsReplay(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("PVS") is not { Length: > 0 } map)
             return;
         var cap = Capture(map);
+        // pvstype 1 (ze_hold_em_p) stops after the cluster centres.
+        if (!cap.ContainsKey("after1"))
+            return;
         var (s, rte) = OursWithScene(map)!.Value;
         var neighbours = VisPvs.Neighbors(s);
         var matrix = Load(cap["after0"].Head, cap["after0"].Blob);

@@ -410,6 +410,7 @@ public class VisBigReplay(ITestOutputHelper output)
         var slotOf = new Dictionary<int, int>();
         for (var s = 0; s < order.Length; s++)
             slotOf[order[s]] = s;
+        output.WriteLine($"tracer slots {order.Length:n0}, nodes {kd.Nodes.Count:n0}, file triangles {rte.TriangleCount:n0}");
         var wanted = list.Split(',').Select(int.Parse).ToList();
         foreach (var t in wanted)
             output.WriteLine($"tri {t}: slot {(slotOf.TryGetValue(t, out var sl) ? sl : -1)} flags {rte.Flags(t):x4} corners [{string.Join(" ", rte.TracedCorners(t) ?? [])}]");
@@ -533,6 +534,36 @@ public class VisBigReplay(ITestOutputHelper output)
         var theirs = Pairs(cap.Blob("pairs" + first));
         output.WriteLine($"boundary pass 1: ours {ours.Count:n0} valve {theirs.Count:n0}, in order {ours.SequenceEqual(theirs)}");
         Assert.Equal(theirs, ours);
+    }
+
+    /// <summary>
+    /// The boundary-points generator from Valve's matrix after the cluster
+    /// centres: every pass's pairs, and the matrix it leaves.
+    /// </summary>
+    [Fact]
+    public void TheBoundaryPointsOnABigMap()
+    {
+        using var cap = Open(out _);
+        if (cap is null)
+            return;
+        var s = StateOf(cap);
+        var rte = Scene();
+        var matrix = Matrix(cap, "after0");
+        var first = FirstPass(cap, 1);
+        var pass = 0;
+        var samePasses = 0;
+        var passes = VisPvs.BoundaryPoints(s, VisPvs.Neighbors(s), rte, matrix, (pairs, rays) =>
+        {
+            var theirs = Pairs(cap.Blob("pairs" + (first + pass)));
+            var same = pairs.SequenceEqual(theirs);
+            samePasses += same ? 1 : 0;
+            output.WriteLine($"  pass {pass}: pairs ours {pairs.Count:n0} valve {theirs.Count:n0}, in order {same}; {rays:n0} rays");
+            pass++;
+        });
+        var (rows, same, mine, valve) = VisPvsReplay.Diff(matrix, cap.Blob("after1"));
+        output.WriteLine($"boundary points: {passes} passes; rows identical {same}/{rows}, bits ours-only {mine:n0} valve-only {valve:n0}");
+        Assert.Equal(pass, samePasses);
+        Assert.Equal(rows, same);
     }
 
     /// <summary>

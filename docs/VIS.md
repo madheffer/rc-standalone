@@ -2824,6 +2824,60 @@ Frida drops any message over 128 MiB.
 - The steps clamp at `MaxVisClusters` read from the same key, so 4,096 and not
   the binary's default of 2,048.
 
+### Tracing as the batch tracer traces, and every Mako stage exact
+
+With a brute-force nearest hit, Mako's cluster centres ended 18 rows off and
+258 of 1,176,083 border claims differed. Every mismatch was a knife edge: two
+triangles met at the same distance (a wall and a ceiling meeting in a corner,
+one facing the ray and one not), or a segment crossing exactly where two
+triangles' edges leave a 0.0002 crack. Which answer wins there is decided by
+the order Valve's tracer tests triangles and which it tests at all, so the
+tracer is now ported whole.
+
+- `BatchRay` files each segment by the signs of its delta and traces a bucket
+  as a packet of four once it is full; `FlushBatch` traces the rest, padding a
+  short packet with copies of its first ray.
+- The packet walk (batch mode 0) normalises with `rcpps` and one Newton step,
+  clips to the tracer's box, and walks the rebuilt kd tree near side first by
+  the packet's octant, pushing the far side when a live lane reaches it. A
+  leaf's triangles are tested for all four lanes, each slot once per packet (a
+  256 entry mailbox on the slot's low byte), keeping 0 &lt; t &lt; best with best
+  starting at 1e23. After a leaf with triangles the walk stops once no lane's
+  range reaches past its best hit; an empty leaf never stops it.
+- The scan's generators fill ray lists of 4,096 (`FillRays`): a pair's rays
+  go into a pending buffer and move into the list from the END of that buffer,
+  as many as fit. `BatchTracer` traces each list, so the packets are fixed by
+  the pair order. The border stage traces one batch per neighbour, the 294
+  points in order.
+- The kd build's plane move had one wrong rule. When a candidate leaves the
+  lower side empty, the plane goes to the float just below the triangles'
+  lowest edge: `movd`, `inc` or `dec` on the bits, one step away from zero for
+  a negative edge. We had rounded to the integer beside it. It changed 230 of
+  Mako's nodes and none of probe01's.
+
+`capture_pvs.py` now dumps the tracer the compile rebuilt (nodes, leaf lists,
+every slot's record, the box). `TheTracerTree` holds ours to it: Mako's 11,167
+splits and 11,168 leaves and all 28,728 records identical, probe01's too.
+
+On Mako every stage replayed from the same compile's capture is now exact:
+
+| stage | Mako |
+|---|---|
+| neighbour list | 25,471 / 25,471 |
+| cluster centres | 10 passes in order, 25,473 / 25,473 rows |
+| boundary points | 7 passes in order (3.92 billion rays, 49 minutes), 25,473 / 25,473 rows |
+| large cluster regions | 2 passes in order (608 million rays, 13 minutes), 25,473 / 25,473 rows |
+| vis-cluster merge | 21,377 / 21,377 merges |
+| borders | 1,176,083 / 1,176,083 claims; rewrite and AssignClusters2 identical |
+| `FlatVisClusterVector`, `MutualVisibilityMatrix` | 4,096 / 4,096 each |
+| sky, sun, 8 collapse iterations | identical |
+| VXVS | 6,561,250 bytes, 0 differing |
+
+probe01, cardtest and ze_hold_em_p stay exact end to end. A replay must read
+the `.rte` of the compile it was captured from, since slot order follows the
+file's triangle order and the file is not byte-stable between compiles;
+captures now keep a copy beside them.
+
 ## What vis hands the world renderer (2026-09-24)
 
 Besides the vvis, vis fills two blocks the map build keeps.

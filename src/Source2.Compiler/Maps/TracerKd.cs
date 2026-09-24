@@ -204,7 +204,14 @@ internal sealed class TracerKd
         if (left == 0 || both != 0)
         {
             if (right != 0 && both == 0 && left == 0)
-                moved = 0f <= lowest ? (lowest != 0f ? (int)lowest - 1 : -1.1920929e-07f) : (int)lowest + 1;
+            {
+                // The float next below the lowest edge: its bits stepped by one
+                // (movd, inc or dec), away from zero for a negative edge.
+                var bits = BitConverter.SingleToInt32Bits(lowest);
+                moved = 0f <= lowest
+                    ? (lowest != 0f ? BitConverter.Int32BitsToSingle(bits - 1) : -1.1920929e-07f)
+                    : BitConverter.Int32BitsToSingle(bits + 1);
+            }
         }
         else if (right == 0)
         {
@@ -309,7 +316,7 @@ internal sealed class TracerKd
         {
             tmin[l] = 0f;
             tmax[l] = length[l];
-            best[l] = float.MaxValue;
+            best[l] = 1e23f;
             found[l] = -1;
             for (var a = 0; a < 3; a++)
             {

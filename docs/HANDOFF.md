@@ -253,7 +253,7 @@ These are the operator's, and they are not negotiable.
 | VXVS decode and encode | byte exact on 112 maps, 481 MB |
 | DATA index derivation | equals Valve's numbers on 112 maps |
 | point and visibility queries | agree with an independent reader on 84,673 points |
-| `VisVoxelizer` | exact on hold_em, +0.28% on the probes (six branches each) |
+| `VisVoxelizer` | exact (the whole-build replays match node for node on all three maps) |
 | `VisOutside` | outside detection, the seed and the propagation |
 | `VisRegions` | region generation and compaction, three unions per leaf |
 | `VisClusters`, `VisClusterSet` | the birth rule and the five pass chain |
@@ -263,7 +263,7 @@ These are the operator's, and they are not negotiable.
 | `VisBoxTree` | the dynamic AABB tree, now WITH its rotation |
 | `VisSampler`, `VisClusterSample` | the visibility sampler |
 | `RayTraceEnvironment` | the file's kd trace, plus `Segment`: the compile's batch tracer on the loader's converted triangles |
-| `TracerKd` | the kd tree the loader rebuilds (`RefineNode`), and the voxelizer's box query through it |
+| `TracerKd` | the kd tree the loader rebuilds (`RefineNode`), identical to Valve's on Mako and probe01; the voxelizer's box query through it, and the batch tracer's packet walk (`Packet`) |
 | `MsvcSort` | MSVC's `std::sort`, where the compile's unstable sort order is observable |
 | `VisPvs` | the PVS scan: scan state, neighbour list, the cluster-centre, boundary-points and large-regions generators |
 | `VisConfig` | the `.viscfg`: `pvstype`, `vDirToSun` |
@@ -310,8 +310,8 @@ nothing whatever `los_errors` holds (VIS.md, "CLOS, and the big-map paths").
    `TheWholeBuild`'s chain as the reference order.
 2. **More specimens.** Three maps are exact; a map with nodraw, hint entities
    or `vis_voxel_size` override volumes (the list at sampler+0x88 in
-   `Voxelize`) exercises code paths none of these do. Mako covers the big-map
-   paths except the large-region generator, whose replay is unfinished.
+   `Voxelize`) exercises code paths none of these do. Mako now replays exact
+   in every stage (VIS.md, "Tracing as the batch tracer traces").
 3. **One fidelity item recorded and not fixed.** `NormaliseSlowPath` (lengths
    under 1e-17 or over 1e17) is approximated with a double normalise in three
    places; no specimen reaches it.
