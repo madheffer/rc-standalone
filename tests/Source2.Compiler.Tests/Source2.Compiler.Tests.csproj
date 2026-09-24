@@ -8,6 +8,8 @@
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Source2.Compiler.Tests</RootNamespace>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- The vphysics2 oracle tests hand raw structs to the DLL. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
