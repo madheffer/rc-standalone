@@ -65,11 +65,39 @@ public sealed class RnIsland : IslandNode
     /// <summary>+0x98 / +0x9c: the contacts' solver size estimates, per group.</summary>
     public readonly int[] Sizes = new int[2];
 
-    /// <summary>+0xa0 != 0: the island has a graph colouring (solve list C).</summary>
-    public bool Coloured;
+    /// <summary>+0xa0: the graph colouring, null for none. An island with one is in solve list C.</summary>
+    public IslandColouring? Colouring;
+
+    public bool Coloured => Colouring != null;
 
     /// <summary>The island's address when read from a live world, for tests.</summary>
     public nint Native;
+}
+
+/// <summary>
+/// A big island's graph colouring (0x550 bytes at island +0xa0, made by
+/// FUN_180333110): 17 buckets of 0x50, one per colour and the last (16) for
+/// constraints no colour was free for. A bucket keeps four lists (+0x00
+/// joints, +0x10 type-1, +0x20 contacts between two dynamic bodies, +0x30
+/// the other contacts) and their size estimates (+0x40..+0x4c). Joints and
+/// type-1 constraints are not ported, so only the contact lists are kept.
+/// </summary>
+public sealed class IslandColouring
+{
+    public const int Overflow = 16;
+
+    /// <summary>Contacts per bucket and group (contact +0x7a); a contact's index is contact +0x58.</summary>
+    public readonly List<RnContact>[,] Contacts = new List<RnContact>[17, 2];
+
+    /// <summary>Bucket +0x48 / +0x4c: the sum of the contacts' size estimates (contact +0x88).</summary>
+    public readonly int[,] Sizes = new int[17, 2];
+
+    public IslandColouring()
+    {
+        for (var b = 0; b < 17; b++)
+            for (var g = 0; g < 2; g++)
+                Contacts[b, g] = [];
+    }
 }
 
 /// <summary>An intrusive list link: a contact and which of its halves (0 shape A, 1 shape B).</summary>
@@ -171,6 +199,10 @@ public sealed class RnContact(RnShape a, RnShape b)
     /// <summary>+0x50 / +0x5c: the island and the index in its contact group.</summary>
     public RnIsland? Island;
     public int IslandIndex = -1;
+
+    /// <summary>+0x58 the index in its colour bucket and +0x60 the colour (0xff for none).</summary>
+    public int ColourIndex = -1;
+    public byte Colour = 0xff;
 
     /// <summary>+0x61: the contact is an edge of an island.</summary>
     public bool InIsland;
@@ -383,6 +415,13 @@ public sealed class RnWorld
 
     /// <summary>FUN_1801faf80, the world bounds check; unset, <see cref="StepGlue.ShapesOutsideBounds"/>.</summary>
     public Action<RnWorld>? ClampToWorldBounds;
+
+    /// <summary>
+    /// For tests: the order a coloured island's colour is solved in (the
+    /// overflow bucket excepted), standing in for Valve's threads, which take
+    /// a colour's chunks in any order. Unset, bucket order.
+    /// </summary>
+    public Func<List<RnContact>, IEnumerable<RnContact>>? ReorderColour;
 
     private ulong _nextHandle = 0x10;
 

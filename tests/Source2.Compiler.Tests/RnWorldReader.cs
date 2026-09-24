@@ -269,6 +269,8 @@ internal sealed unsafe class RnWorldReader
         var island = *(nint*)(m + 0x50);
         c.Island = island == 0 ? null : (RnIsland)Node(island);
         c.IslandIndex = *(int*)(m + 0x5c);
+        c.ColourIndex = *(int*)(m + 0x58);
+        c.Colour = m[0x60];
         c.InIsland = m[0x61] != 0;
         c.ActiveIndex = *(int*)(m + 0x64);
         c.AllIndex = *(int*)(m + 0x68);
@@ -334,7 +336,24 @@ internal sealed unsafe class RnWorldReader
         i.Flags = *(int*)(m + 0x8c);
         i.Sizes[0] = *(int*)(m + 0x98);
         i.Sizes[1] = *(int*)(m + 0x9c);
-        i.Coloured = *(nint*)(m + 0xa0) != 0;
+        // The colouring: 17 buckets of 0x50, plain vectors of contacts at +0x20 / +0x30, sizes at +0x48 / +0x4c.
+        var colouring = *(byte**)(m + 0xa0);
+        if (colouring != null)
+        {
+            i.Colouring = new IslandColouring();
+            for (var b = 0; b < 17; b++)
+            {
+                var bucket = colouring + 0x50 * b;
+                if (*(int*)bucket != 0 || *(int*)(bucket + 0x10) != 0)
+                    throw new NotSupportedException("a coloured island with joints or type-1 constraints");
+                for (var g = 0; g < 2; g++)
+                {
+                    foreach (var c in Vec<nint>(bucket + 0x20 + 0x10 * g))
+                        i.Colouring.Contacts[b, g].Add(Contact(c));
+                    i.Colouring.Sizes[b, g] = *(int*)(bucket + 0x48 + 4 * g);
+                }
+            }
+        }
     }
 
     private void FillMap(byte* m, RnBody b)

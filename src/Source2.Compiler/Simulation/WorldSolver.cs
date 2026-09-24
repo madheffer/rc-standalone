@@ -15,18 +15,17 @@ public sealed class SolveLists
 
 /// <summary>
 /// The Solve pass of a step (FUN_1801ff820 with the worker FUN_180311610):
-/// every serial island through <see cref="IslandSolver"/>, then the free
-/// single bodies in batches of eight, then the post-pass that moves bodies
-/// between awake and asleep and puts contacts back in the active list.
+/// the graph-coloured islands, then the serial ones, through
+/// <see cref="IslandSolver"/>, then the free single bodies in batches of
+/// eight, then the post-pass that moves bodies between awake and asleep and
+/// puts contacts back in the active list.
 /// </summary>
 /// <remarks>
-/// One thread's order: the worker takes the coloured islands, then the serial
-/// ones, then the free batches, and every list it fills is sorted before use,
+/// One thread's order. Every list the worker fills is sorted before use,
 /// except the two dynamic continuous lists, whose order Valve leaves to its
-/// threads. Graph-coloured islands, joints and mesh shapes on moving bodies
-/// are not ported and throw. The broadphase side is FUN_1802d4ed0
-/// before, the proxy moves of FUN_1801b9270 in each writeback and
-/// FUN_1802d6050 after.
+/// threads. Joints and mesh shapes on moving bodies are not ported and
+/// throw. The broadphase side is FUN_1802d4ed0 before, the proxy moves of
+/// FUN_1801b9270 in each writeback and FUN_1802d6050 after.
 /// </remarks>
 public static class WorldSolver
 {
@@ -34,14 +33,20 @@ public static class WorldSolver
     {
         if (w.ActiveBodies.Count > 0 || w.Count688 > 0)
             w.StepFlags |= 2;
-        if (w.Islands.Coloured.Count > 0)
-            throw new NotSupportedException("graph-coloured islands (solve list C) are not ported");
         var settings = new IslandSolver.Settings(dt, w.Gravity, w.AirDensity,
             w.VelocityIterations, w.PositionIterations, w.Sleeping);
         w.Broadphase?.BeginHierarchyUpdate(w.Hierarchy, 0, w.Threads, w.Priority);
 
+        foreach (var node in w.Islands.Coloured)
+        {
+            var island = (RnIsland)node;
+            SolveIsland(w, island, ColouredOrder(island.Colouring!, w.ReorderColour), first, settings, lists);
+        }
         foreach (var node in w.Islands.Serial)
-            SolveIsland(w, (RnIsland)node, first, settings, lists);
+        {
+            var island = (RnIsland)node;
+            SolveIsland(w, island, [.. island.Contacts[0], .. island.Contacts[1]], first, settings, lists);
+        }
 
         var free = w.Islands.Free;
         for (var start = 0; start < free.Count; start += 8)
@@ -64,11 +69,44 @@ public static class WorldSolver
     }
 
     /// <summary>
-    /// One serial island (FUN_1803111e0 / FUN_180310dc0): the iteration counts
-    /// are the island's maxima raised to the world's minimum; a removed body's
-    /// hole gets a zeroed solver body, which nothing moves or writes back.
+    /// The order a coloured island's contacts are solved in (FUN_180338710
+    /// with FUN_1803377d0, the chain of FUN_1803109c0). Per group, first the
+    /// buckets of more than four contacts (overflow excepted), each a job its
+    /// chunks of four run in parallel, then the others with the overflow
+    /// bucket, each run whole by one thread, all in bucket order. A job ends
+    /// before the next starts, and a colour's contacts share no dynamic body,
+    /// so the order inside a bucket changes no float. <paramref name="reorder"/>
+    /// lets a test take a colour's contacts in another order, as threads may.
     /// </summary>
-    private static void SolveIsland(RnWorld w, RnIsland island, bool first, in IslandSolver.Settings settings, SolveLists lists)
+    internal static List<RnContact> ColouredOrder(IslandColouring colouring,
+                                                  Func<List<RnContact>, IEnumerable<RnContact>>? reorder = null)
+    {
+        var order = new List<RnContact>();
+        for (var g = 0; g < 2; g++)
+        {
+            for (var b = 0; b < IslandColouring.Overflow; b++)
+                if (colouring.Contacts[b, g].Count > 4)
+                    order.AddRange(reorder?.Invoke(colouring.Contacts[b, g]) ?? colouring.Contacts[b, g]);
+            for (var b = 0; b <= IslandColouring.Overflow; b++)
+            {
+                var bucket = colouring.Contacts[b, g];
+                if (bucket.Count > 0 && (b == IslandColouring.Overflow || bucket.Count <= 4))
+                    order.AddRange(b == IslandColouring.Overflow ? bucket : reorder?.Invoke(bucket) ?? bucket);
+            }
+        }
+        return order;
+    }
+
+    /// <summary>
+    /// One island (FUN_1803111e0 / FUN_180310dc0 serial, the job chain of
+    /// FUN_1803109c0 coloured; both run the same per-body and per-contact
+    /// code): the iteration counts are the island's maxima raised to the
+    /// world's minimum; a removed body's hole gets a zeroed solver body, which
+    /// nothing moves or writes back. <paramref name="order"/> is the order
+    /// the contacts are prepared and iterated in.
+    /// </summary>
+    private static void SolveIsland(RnWorld w, RnIsland island, List<RnContact> order, bool first,
+                                    in IslandSolver.Settings settings, SolveLists lists)
     {
         var dt = settings.Dt;
         var velocityIterations = Math.Max(island.VelocityIterations, settings.VelocityIterations);
@@ -80,15 +118,14 @@ public static class WorldSolver
                 IslandSolver.BuildAndIntegrate(ref b.State, ref solver[i], JoinedToDynamic(b), first, settings, b.Target);
 
         var contacts = new List<(RnContact Contact, IslandSolver.Contact Solve)>();
-        foreach (var group in island.Contacts)
-            foreach (var c in group)
-                contacts.Add((c, new IslandSolver.Contact
-                {
-                    BodyA = c.SolverA,
-                    BodyB = c.SolverB,
-                    Cache = [.. c.Manifolds],
-                    Setup = new ContactSolver.ContactSetup(c.A.Material, c.B.Material, c.Slop, c.SoftCap),
-                }));
+        foreach (var c in order)
+            contacts.Add((c, new IslandSolver.Contact
+            {
+                BodyA = c.SolverA,
+                BodyB = c.SolverB,
+                Cache = [.. c.Manifolds],
+                Setup = new ContactSolver.ContactSetup(c.A.Material, c.B.Material, c.Slop, c.SoftCap),
+            }));
         var streams = new byte[contacts.Count][];
         for (var k = 0; k < contacts.Count; k++)
             streams[k] = IslandSolver.Prepare(contacts[k].Solve, solver, dt);

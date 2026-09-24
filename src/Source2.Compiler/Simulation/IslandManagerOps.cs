@@ -9,9 +9,9 @@ namespace Source2.Compiler.Simulation;
 /// the order the island solve runs them in, depends on all of it.
 /// </summary>
 /// <remarks>
-/// Joints and the other constraint lists are not ported (a settle has none),
-/// and neither is the graph colouring of big islands (an island that would
-/// need one throws).
+/// Joints and the other constraint lists are not ported (a settle has none).
+/// An island with 100 or more contacts in one group gets a graph colouring
+/// (<see cref="IslandColouring"/>) and is solved colour by colour.
 /// </remarks>
 public static class IslandManagerOps
 {
@@ -178,8 +178,122 @@ public static class IslandManagerOps
         island.Sizes[c.Group] += c.Size88;
         RegisterBodies(c, island);
         island.EdgeCount++;
-        if (island.Coloured)
-            throw new NotSupportedException("graph-coloured islands (FUN_1802ca570) are not ported");
+        if (island.Colouring is { } colouring)
+            AssignColour(colouring, c);
+    }
+
+    /// <summary>Colours per contact group (0x1803e2900) and their first bit in a body's mask (0x1803e2910).</summary>
+    private static ReadOnlySpan<int> ColourCount => [16, 3];
+    private static ReadOnlySpan<int> ColourShift => [13, 29];
+
+    /// <summary>
+    /// Gives a contact the lowest colour neither dynamic body holds in its
+    /// group (FUN_1802ca570); with none free it goes to the overflow bucket
+    /// and takes no bit. It is appended to its bucket.
+    /// </summary>
+    private static void AssignColour(IslandColouring colouring, RnContact c)
+    {
+        var g = c.Group;
+        uint used = 0;
+        if (c.A.Body.State.BodyType == 2)
+            used = c.A.Body.State.ColourMask;
+        if (c.B.Body.State.BodyType == 2)
+            used |= c.B.Body.State.ColourMask;
+        var free = ~((used >> ColourShift[g]) & ((1u << ColourCount[g]) - 1));
+        var colour = System.Numerics.BitOperations.TrailingZeroCount(free);
+        if (colour == ColourCount[g])
+            colour = IslandColouring.Overflow;
+        var bucket = colouring.Contacts[colour, g];
+        c.ColourIndex = bucket.Count;
+        bucket.Add(c);
+        colouring.Sizes[colour, g] += c.Size88;
+        c.Colour = (byte)colour;
+        if (colour == IslandColouring.Overflow)
+            return;
+        var bit = 1u << (colour + ColourShift[g]);
+        if (c.A.Body.State.BodyType == 2)
+            c.A.Body.State.ColourMask |= bit;
+        if (c.B.Body.State.BodyType == 2)
+            c.B.Body.State.ColourMask |= bit;
+    }
+
+    /// <summary>Takes a contact out of its bucket, the last one moving into its place (the tail of FUN_1802ccce0).</summary>
+    private static void RemoveColour(IslandColouring colouring, RnContact c)
+    {
+        var colour = c.Colour;
+        var g = c.Group;
+        SwapRemove(colouring.Contacts[colour, g], c.ColourIndex, (x, i) => x.ColourIndex = i);
+        c.ColourIndex = -1;
+        colouring.Sizes[colour, g] -= c.Size88;
+        c.Colour = 0xff;
+        if (colour == IslandColouring.Overflow)
+            return;
+        var bit = ~(1u << (colour + ColourShift[g]));
+        if (c.A.Body.State.BodyType == 2)
+            c.A.Body.State.ColourMask &= bit;
+        if (c.B.Body.State.BodyType == 2)
+            c.B.Body.State.ColourMask &= bit;
+    }
+
+    /// <summary>
+    /// Colours an island (FUN_180333110 with FUN_180332cd0): the dynamic
+    /// bodies' masks start empty, then the contacts are coloured group by
+    /// group in island order.
+    /// </summary>
+    internal static void CreateColouring(RnIsland island)
+    {
+        if (island.Colouring != null)
+            return;
+        var colouring = island.Colouring = new IslandColouring();
+        foreach (var b in island.Bodies)
+            if (b != null && b.State.BodyType == 2)
+                b.State.ColourMask = 0;
+        for (var g = 0; g < 2; g++)
+            foreach (var c in island.Contacts[g])
+                AssignColour(colouring, c);
+    }
+
+    /// <summary>
+    /// Drops an island's colouring (FUN_1803331e0): the contacts lose their
+    /// colour (FUN_180332bb0), the dynamic bodies their masks.
+    /// </summary>
+    internal static void DestroyColouring(RnIsland island)
+    {
+        if (island.Colouring == null)
+            return;
+        for (var g = 0; g < 2; g++)
+            foreach (var c in island.Contacts[g])
+            {
+                c.Colour = 0xff;
+                c.ColourIndex = -1;
+            }
+        foreach (var b in island.Bodies)
+            if (b != null && b.State.BodyType == 2)
+                b.State.ColourMask = 0;
+        island.Colouring = null;
+    }
+
+    /// <summary>Empties every bucket but keeps the colouring (FUN_180332b80).</summary>
+    private static void ClearBuckets(IslandColouring colouring)
+    {
+        for (var b = 0; b < 17; b++)
+            for (var g = 0; g < 2; g++)
+            {
+                colouring.Contacts[b, g].Clear();
+                colouring.Sizes[b, g] = 0;
+            }
+    }
+
+    /// <summary>
+    /// A contact's size estimate changed by <paramref name="delta"/> (the
+    /// resize loop of FUN_1801dceb0 and FUN_1801dc6a0): its island and its
+    /// colour bucket count it.
+    /// </summary>
+    public static void Resize(RnIsland island, RnContact c, int delta)
+    {
+        island.Sizes[c.Group] += delta;
+        if (island.Colouring is { } colouring)
+            colouring.Sizes[c.Colour, c.Group] += delta;
     }
 
     /// <summary>
@@ -197,6 +311,7 @@ public static class IslandManagerOps
                 ResetMap(b);
             else if (b.MapHash != null && b.MapHash.Remove(island) && b.MapHash.Count == 0)
                 ResetMap(b);
+            b.State.ColourMask = 0;
             bodies.Add(b);
         }
         island.Bodies.Clear();
@@ -214,7 +329,9 @@ public static class IslandManagerOps
             foreach (var c in from.Contacts[g])
             {
                 c.IslandIndex = -1;
+                c.ColourIndex = -1;
                 c.Island = null;
+                c.Colour = 0xff;
                 AppendContact(to, c);
             }
             from.Contacts[g].Clear();
@@ -240,10 +357,17 @@ public static class IslandManagerOps
         ResetBodies(island);
         MoveContacts(island, target);
         island.EdgeCount = 0;
+        if (island.Colouring is { } colouring)
+            ClearBuckets(colouring);
         RemoveNode(m, island);
+        island.Colouring = null;
     }
 
-    /// <summary>The colouring threshold on an island's lists (FUN_1802cad70 at 0x1802cae0x).</summary>
+    /// <summary>
+    /// The colouring threshold on an island's lists (FUN_1802cad70 at
+    /// 0x1802cae0x, FUN_1802ce7b0): a quarter of either contact group reaches
+    /// 25 when the manager colours (+0x50, on from its constructor FUN_1802cdd40).
+    /// </summary>
     private static bool NeedsColouring(IslandManager m, RnIsland island)
     {
         var limit = m.Colouring ? 25 : int.MaxValue;
@@ -272,7 +396,10 @@ public static class IslandManagerOps
         Absorb(m, target, c.B.Body);
         AppendContact(target, c);
         if (!target.Coloured && NeedsColouring(m, target))
-            throw new NotSupportedException("an island big enough for graph colouring (FUN_180333110)");
+        {
+            Unlist(m, target);
+            CreateColouring(target);
+        }
         if (target.Awake && target.ListIndex == -1)
             RegisterNode(m, target);
     }
@@ -300,6 +427,8 @@ public static class IslandManagerOps
                 returned.Add(b.Node);
         }
         island.EdgeCount--;
+        if (island.Colouring is { } colouring)
+            RemoveColour(colouring, c);
     }
 
     /// <summary>
@@ -316,6 +445,7 @@ public static class IslandManagerOps
             if (island.EdgeCount == 0)
             {
                 RemoveNode(m, island);
+                island.Colouring = null;
             }
             else
             {
@@ -361,7 +491,9 @@ public static class IslandManagerOps
     /// Rebuilds an island by flood fill (FUN_1802ce7b0). The old island is
     /// emptied and reused for the first part; each part grows from the next
     /// unassigned body in the old order, depth first through the bodies'
-    /// touching contacts in shape list order.
+    /// touching contacts in shape list order. The reused island keeps its
+    /// colouring with the buckets emptied, so its part is coloured as it
+    /// grows; then a big part gets a colouring and a small one loses its.
     /// </summary>
     private static void Split(IslandManager m, RnIsland island)
     {
@@ -391,12 +523,15 @@ public static class IslandManagerOps
             {
                 c.Island = null;
                 c.IslandIndex = -1;
+                c.ColourIndex = -1;
+                c.Colour = 0xff;
             }
             island.Contacts[g].Clear();
             island.Sizes[g] = 0;
         }
         island.EdgeCount = 0;
-        island.Coloured = false;
+        if (island.Colouring is { } colouring)
+            ClearBuckets(colouring);
         Unlist(m, island);
         SwapRemove(m.All, island.ManagerIndex, (x, i) => x.ManagerIndex = i);
         island.ManagerIndex = -1;
@@ -429,7 +564,9 @@ public static class IslandManagerOps
                 }
             }
             if (NeedsColouring(m, current))
-                throw new NotSupportedException("an island big enough for graph colouring (FUN_180333110)");
+                CreateColouring(current);
+            else
+                DestroyColouring(current);
             AddNode(m, current);
         }
         island.Flags &= ~1;

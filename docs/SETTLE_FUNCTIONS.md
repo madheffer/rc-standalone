@@ -71,6 +71,32 @@ entity lump (CMapEntity_ExportToLump)
 | 1801be270 | CRnBody_PutToSleep | exact (replay) | IslandSolver |
 | 1801b9270 | CRnBody_UpdateProxies | in progress | |
 
+### Island manager and graph colouring
+
+An island gets a colouring once a quarter of either contact group reaches 25
+(100 contacts) and the manager's +0x50 flag is set, which its constructor does.
+
+| address | name | status | port |
+|---|---|---|---|
+| 1802cdd40 | RnIslandManager_ctor | mapped (+0x50 = 1) | IslandManager.Colouring |
+| 1802cad70 | RnIslandManager_ActivateContact | exact (lockstep) | IslandManagerOps.ActivateEdge |
+| 1802cd2b0 | RnIslandManager_DeactivateContact | exact (lockstep) | IslandManagerOps.DeactivateEdge |
+| 1802ce050 | RnIslandManager_AbsorbBody | exact (lockstep) | IslandManagerOps.Absorb |
+| 1802ce6a0 | RnIslandManager_Unlist | exact (lockstep) | IslandManagerOps.Unlist |
+| 1802ce7b0 | RnIslandManager_SplitIsland | exact (lockstep) | IslandManagerOps.Split |
+| 1802ca8e0 | RnIsland_AddContact | exact (lockstep) | IslandManagerOps.AppendContact |
+| 1802ccce0 | RnIsland_RemoveContact | exact (lockstep) | IslandManagerOps.RemoveContact |
+| 1802cc790 | RnIsland_MoveConstraints | exact (lockstep) | IslandManagerOps.MoveContacts |
+| 1802cca70 | RnIsland_ResetBodies | exact (lockstep) | IslandManagerOps.ResetBodies |
+| 1802cc600 | RnIsland_ResetConstraints | exact (lockstep) | IslandManagerOps.Split |
+| 180332ea0 | RnIsland_dtor | mapped | |
+| 180333110 | RnIsland_CreateColouring | exact (oracle) | IslandManagerOps.CreateColouring |
+| 180332cd0 | RnIsland_ColourConstraints | exact (oracle, contacts) | IslandManagerOps.CreateColouring |
+| 1803331e0 | RnIsland_DestroyColouring | exact (oracle) | IslandManagerOps.DestroyColouring |
+| 180332bb0 | RnIsland_ClearConstraintColours | exact (oracle, contacts) | IslandManagerOps.DestroyColouring |
+| 180332b80 | RnIslandColouring_Clear | exact (lockstep) | IslandManagerOps.ClearBuckets |
+| 1802ca570 | RnIslandColouring_AddContact | exact (oracle) | IslandManagerOps.AssignColour |
+
 ### Solver
 
 | address | name | status | port |
@@ -85,6 +111,20 @@ entity lump (CMapEntity_ExportToLump)
 | 180312010 | RnSolver_PositionIterationContacts | exact (replay) | IslandSolver |
 | 180313090 | RnSolver_WriteBackBody | exact (replay) | IslandSolver.WriteBack |
 | 180313990 | RnSolver_CopyBodyBack | exact (replay) | IslandSolver.WriteBack |
+| 180338710 | RnSolver_BuildColoured | exact (lockstep) | WorldSolver.ColouredOrder |
+| 1803377d0 | RnSolver_BuildColouredContacts | exact (lockstep) | WorldSolver.ColouredOrder |
+| 1803109c0 | RnSolver_ChainColouredJobs | exact (lockstep) | WorldSolver.ColouredOrder |
+| 1803375d0 | RnSolverJobs_Run | mapped | (one thread; order-free, see WorldSolver.ColouredOrder) |
+| 18030d680 | RnSolverJobs_AddPrepareContacts | exact (lockstep) | WorldSolver.ColouredOrder |
+| 18030d860 | RnSolverJobs_AddVelocityContacts | exact (lockstep) | WorldSolver.ColouredOrder |
+| 18030dac0 | RnSolverJobs_AddPositionContacts | exact (lockstep) | WorldSolver.ColouredOrder |
+| 18030ffb0 | RnSolver_PrepareContactsJob | exact (lockstep) | IslandSolver.Prepare |
+| 18030e8b0 | RnSolver_PrepareContactsChunks | exact (lockstep) | IslandSolver.Prepare |
+| 180312c00 | RnSolver_LastVelocityIterationContacts | exact (lockstep) | WorldSolver.SolveIsland |
+| 180311ce0 | RnSolver_PositionIterationContactsJob | exact (lockstep) | WorldSolver.SolveIsland |
+| 180310970 | RnSolver_BuildBodiesJob | exact (lockstep) | IslandSolver.BuildAndIntegrate |
+| 1803105a0 | RnSolver_IntegratePositionsSleepJob | exact (lockstep) | WorldSolver.SolveIsland |
+| 180310850 | RnSolver_WriteBackBodiesJob | exact (lockstep) | WorldSolver.WriteBack |
 | 180312df0 | RnSolveContext_Create | mapped | |
 | 180338a20 | RnSolveContext_Init | mapped | |
 | 1801b6000 | RnSolverBody_Build | exact | Integrator.Build |

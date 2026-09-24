@@ -36,6 +36,11 @@ internal static class WorldSignature
             for (var g = 0; g < 2; g++)
                 lines.Add($"{N(i)} group {g} {string.Join(' ', i.Contacts[g].Select(c => $"{C(c)}#{c.IslandIndex}:{c.SolverA},{c.SolverB}"))}");
             lines.Add($"{N(i)} edges {i.EdgeCount} awake {i.AwakeCount} iterations {i.VelocityIterations}/{i.PositionIterations} split {i.SplitIndex} flags {i.Flags} sizes {i.Sizes[0]},{i.Sizes[1]} coloured {i.Coloured}");
+            if (i.Colouring is { } colouring)
+                for (var b = 0; b < 17; b++)
+                    for (var g = 0; g < 2; g++)
+                        if (colouring.Contacts[b, g].Count > 0 || colouring.Sizes[b, g] != 0)
+                            lines.Add($"{N(i)} colour {b} group {g} size {colouring.Sizes[b, g]} {string.Join(' ', colouring.Contacts[b, g].Select(C))}");
         }
         foreach (var b in w.Bodies)
         {
@@ -59,7 +64,7 @@ internal static class WorldSignature
         }
         foreach (var c in w.AllContacts[0].Concat(w.AllContacts[1]).Concat(w.Destroyed).Distinct())
         {
-            lines.Add($"{C(c)} touch {c.TouchState} island {(c.Island == null ? "-" : N(c.Island))}#{c.IslandIndex} in {c.InIsland} active {c.ActiveIndex} all {c.AllIndex} solver {c.SolverA},{c.SolverB} flags {c.Flags74:x}/{c.Flags78:x} group {c.Group} size {c.Size88}/{c.Size98}");
+            lines.Add($"{C(c)} touch {c.TouchState} island {(c.Island == null ? "-" : N(c.Island))}#{c.IslandIndex} in {c.InIsland} active {c.ActiveIndex} all {c.AllIndex} solver {c.SolverA},{c.SolverB} flags {c.Flags74:x}/{c.Flags78:x} group {c.Group} size {c.Size88}/{c.Size98} colour {c.Colour}#{c.ColourIndex}");
             lines.Add($"{C(c)} links {E(c.Next[0])} {E(c.Next[1])} {E(c.Prev[0])} {E(c.Prev[1])}");
             lines.Add($"{C(c)} manifolds {string.Join(' ', c.Manifolds.Select(Manifold))}");
             if (c.Mesh is { } m)

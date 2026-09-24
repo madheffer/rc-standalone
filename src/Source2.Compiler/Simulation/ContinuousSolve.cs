@@ -500,11 +500,7 @@ public static class ContinuousSolve
         foreach (var c in lists.Resized)
         {
             if (c.Island is { } island)
-            {
-                island.Sizes[c.Group] += c.Size98 - c.Size88;
-                if (island.Coloured)
-                    throw new NotSupportedException("graph-coloured islands are not ported");
-            }
+                IslandManagerOps.Resize(island, c, c.Size98 - c.Size88);
             c.Size88 = c.Size98;
         }
         lists.Resized.Clear();

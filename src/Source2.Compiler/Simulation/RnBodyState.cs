@@ -22,6 +22,13 @@ public struct RnBodyState
     /// <summary>Flags; bit 7 of the low byte asks the island to sleep.</summary>
     [FieldOffset(0x4a)] public ushort Flags4A;
 
+    /// <summary>
+    /// The colours this body's constraints hold in a graph-coloured island
+    /// (FUN_1802ca570): joints bits 0..9, type-1 10..12, contacts between two
+    /// dynamic bodies 13..28, other contacts 29..31. Only kept on dynamic bodies.
+    /// </summary>
+    [FieldOffset(0x50)] public uint ColourMask;
+
     /// <summary>0 static, 1 kinematic, 2 dynamic.</summary>
     [FieldOffset(0x54)] public int BodyType;
 
