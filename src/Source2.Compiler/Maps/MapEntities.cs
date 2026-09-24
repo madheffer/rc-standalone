@@ -31,6 +31,8 @@ public static class MapEntities
     /// <param name="Layer">The world layer the node sits in (its nearest
     /// CMapWorldLayer's worldLayerName), whose lump it ships in; null for the
     /// world's own, which is default_ents.</param>
+    /// <param name="Instanced">A copy an instance placed, which the bake builds as
+    /// a new entity of its class rather than reading from the source.</param>
     /// <param name="InterpolationType">A CMapPath's own interpolationType: 0 and 1
     /// decide every node's tangents, anything else leaves each node's own.</param>
     public sealed record Entity(
@@ -47,7 +49,8 @@ public static class MapEntities
         IReadOnlyList<PathNode>? PathNodes = null,
         bool ClosedLoop = false,
         int InterpolationType = 0,
-        string? Layer = null);
+        string? Layer = null,
+        bool Instanced = false);
 
     /// <summary>
     /// One node of a path, as the source states it.

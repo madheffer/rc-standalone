@@ -545,6 +545,36 @@ public static class EntityLumpAuthor
     {
         var table = new List<KeyValuePair<string, string>>();
         var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // An instance's copy is a NEW entity of its class: its table starts with
+        // classname and targetname, then every other key of the class in the
+        // finalized order, with the template's values in. Mako's func_door copies
+        // ship the class's order reversed, where the walked door ships its
+        // source's; the template's keys the class does not declare follow.
+        if (entity.Instanced && schema is not null && schema.KeysOf(entity.ClassName).Count > 0)
+        {
+            var source = new Dictionary<string, KeyValuePair<string, string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in entity.Keys)
+                if (!IsPlacement(pair.Key))
+                    source.TryAdd(pair.Key, pair);
+            IEnumerable<string> order = ["classname", "targetname"];
+            foreach (var name in order.Concat(schema.KeysOf(entity.ClassName).Select(k => k.Name)))
+            {
+                if (IsPlacement(name) || !present.Add(name))
+                    continue;
+                if (source.TryGetValue(name, out var pair))
+                    table.Add(pair);
+                else if (schema.KeyOf(entity.ClassName, name) is { } declared)
+                    table.Add(new(declared.Name, declared.Default ?? ""));
+                else
+                    present.Remove(name);
+            }
+            foreach (var pair in entity.Keys)
+                if (!IsPlacement(pair.Key) && present.Add(pair.Key))
+                    table.Add(pair);
+            return table;
+        }
+
         foreach (var (key, text) in entity.Keys)
             if (!IsPlacement(key) && present.Add(key))
                 table.Add(new(key, text));

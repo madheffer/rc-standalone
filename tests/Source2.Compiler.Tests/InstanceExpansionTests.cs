@@ -33,7 +33,7 @@ public class InstanceExpansionTests(ITestOutputHelper output)
         var document = DmxBinary.ReadFile(source);
         var ours = EntityLumpSet.Author(
             MapEntities.From(document), MapFixtures.GameSchema(), map,
-            MapEntities.FixupEntityNames(document), document);
+            MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators);
 
         var theirs = new List<EntityLumpComparison.Entity>();
         var mine = new List<EntityLumpComparison.Entity>();

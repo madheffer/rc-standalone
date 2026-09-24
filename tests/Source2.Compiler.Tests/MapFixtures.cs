@@ -324,6 +324,44 @@ internal static class MapFixtures
         return lumps;
     }
 
+    /// <summary>
+    /// The locators a smart prop definition creates, read from the game's own
+    /// compiled definition in pak01. Zero when the game or the definition is
+    /// missing.
+    /// </summary>
+    public static int SmartPropLocators(string path)
+    {
+        lock (Gate)
+        {
+            if (SmartPropCache.TryGetValue(path, out var cached))
+                return cached;
+            var cs2 = CS2Fixtures.StockPak();
+            var count = 0;
+            if (cs2 is not null)
+            {
+                _pak ??= OpenPak(cs2);
+                var entry = _pak.FindEntry(Path.ChangeExtension(path, ".vsmart_c").Replace('\\', '/'));
+                if (entry is not null)
+                {
+                    using var resource = ResourceTrees.Read(Io.VpkEntries.Read(_pak, entry), path);
+                    if (resource.DataBlock is ValveResourceFormat.ResourceTypes.BinaryKV3 kv)
+                        count = SmartProps.LocatorsOf(kv.Data);
+                }
+            }
+            return SmartPropCache[path] = count;
+        }
+    }
+
+    private static Package OpenPak(string path)
+    {
+        var pak = new Package();
+        pak.Read(path);
+        return pak;
+    }
+
+    private static Package? _pak;
+    private static readonly Dictionary<string, int> SmartPropCache = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Whether a compiled package predates the installed resourcecompiler,
     /// which makes it a different compiler's answer. atixref's package from
     /// 2026-09-21 still drops empty keys that the 2026-09-23 compiler keeps.</summary>

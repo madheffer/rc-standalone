@@ -25,12 +25,17 @@ public static class EntityLumpSet
 
     /// <summary>Author the map's lumps: default_ents first, then the child lumps
     /// in the order the template pass made them.</summary>
+    /// <param name="smartPropLocators">How many locators a smart prop definition
+    /// creates, by its path (see <see cref="SmartProps"/>). They take node ids
+    /// before any instance copy, so without it a map with smart props numbers its
+    /// instanced entities too low.</param>
     public static IReadOnlyList<Lump> Author(
         IReadOnlyList<MapEntities.Entity> entities,
         FgdSchema? schema,
         string worldName,
         bool fixupEntityNames = false,
-        DmxBinary.Document? document = null)
+        DmxBinary.Document? document = null,
+        Func<string, int>? smartPropLocators = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
@@ -43,7 +48,7 @@ public static class EntityLumpSet
         List<string> layers = document is null ? [] : [.. MapEntities.WorldLayers(document)];
         var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
         worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));
-        foreach (var (entity, sourceId) in MainLump(entities, document))
+        foreach (var (entity, sourceId) in MainLump(entities, document, smartPropLocators))
             if (EntityLumpAuthor.ReachesTheLump(entity, schema))
                 worlds[entity.Layer is { } layer && layers.IndexOf(layer) is var at and >= 0 ? at + 1 : 0].Items
                     .Add(new Item(EntityLumpAuthor.BuildEntity(entity, sourceId, context), entity.Hidden));
@@ -248,11 +253,12 @@ public static class EntityLumpSet
     /// walked entity. Every copy carries its template's compile_source_id.</para>
     /// </summary>
     private static List<EntityLumpAuthor.Emission> MainLump(
-        IReadOnlyList<MapEntities.Entity> entities, DmxBinary.Document? document)
+        IReadOnlyList<MapEntities.Entity> entities, DmxBinary.Document? document, Func<string, int>? smartPropLocators)
     {
         var (copies, templates) = document is null
             ? ((IReadOnlyList<MapInstances.Copy>)[], (IReadOnlySet<int>)new HashSet<int>())
-            : MapInstances.Expand(document, entities);
+            : MapInstances.Expand(document, entities,
+                smartPropLocators is null ? 0 : SmartProps.NodesCreatedOnLoad(document, smartPropLocators));
 
         var pending = new Dictionary<int, List<EntityLumpAuthor.Emission>>();
         foreach (var copy in copies)
@@ -266,6 +272,7 @@ public static class EntityLumpSet
                     Origin = copy.Origin,
                     Angles = copy.Angles,
                     Layer = copy.Layer,
+                    Instanced = true,
                 },
                 copy.Template));
         }

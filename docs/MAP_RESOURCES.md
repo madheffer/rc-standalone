@@ -401,16 +401,29 @@ rotated by the placement. `angles` compose by addition wrapped into [0, 360): on
 template at yaw 270.00006 ships at 180.00006, 0, 270.00006 and 90.00005 under
 placements at yaw 270, 90, 0 and 180.
 
-**Its node id.** Each instance takes a block of ids as wide as its target group's
-node count plus one, handed out in tree order from one past the map's highest node
-id. Three details each cost a measurable offset and none of them is guessable:
+**Its node id.** Captured from the compiler itself (a Frida hook on the bake,
+which is stopped before anything is written), on atixref, c2m2's environment
+prefab and Mako. The bake collapses the map's instances in tree order, round by
+round; each collapse takes a block of ids as wide as its target group's node count
+plus one, and the copy's root takes the first. Details that each cost an offset:
 
-- the ceiling is over EVERY element, not only the entities. atixref's entities
-  stop at 7244 and its nodes at 7247, and Valve's first block is 7248
-- a copy's id is its slot within that block counted over every node of the group,
-  so a `prop_static` that never ships still takes its place
-- every instance takes a block, including one that sits inside a group which is
-  itself an instance target and so is never placed in its own right
+- the ids start past the map's highest node id over EVERY element (atixref's
+  entities stop at 7244, its nodes at 7247), and past the nodes the LOADER made
+  before the bake: every smart prop whose definition holds a CreateLocator or
+  CreateSizer operation gets a locator node. atixref's one radiator takes 7248,
+  so its first copy's root is 7249; Mako's 19 ladders and 14 wall AC units take
+  33776 to 33808. Counting those needs the smart prop definitions, which the
+  compile reads from the game's own compiled `.vsmart_c`
+- a copy's entities sit one past the root, at their slot counted over every node
+  of the group, so a `prop_static` that never ships still takes its place
+- an instance inside a group that is itself a target is NOT collapsed in the first
+  round; it is reached through its group's copies. The earlier rule here, that it
+  takes a block of its own, only fit atixref because its one such instance and its
+  one smart prop locator cost the same two ids
+- a hidden instance is visited and places nothing, taking no ids
+- an instance's copy is built as a new entity of its class, so its keys follow the
+  class's finalized order (classname and targetname first) where a walked entity's
+  follow its source
 
 ### Nested instances
 
@@ -694,8 +707,7 @@ Measured on 2026-09-25 with the strict comparison, every lump of every map.
 |---|---|
 | the light and probe classes | two halves, neither ported. The compile derives a light's precomputed bounds, oriented boxes and sub-frusta by casting 24,576 samples of its volume against the world's ray trace scene, so it waits on the geometry the vis tracer already reads; it also rewrites a light's angles through its matrix and sets directlight. The bake writes its results back (shadow index, unique ids, the probe atlas textures). |
 | `prop_physics`, `prop_physics_override`, `prop_physics_multiplayer` | the settle above. Geometry tier. |
-| Mako's world layer lumps | instances placed inside a layer take different id blocks: Valve's Midgar copies start at 33811 where ours start 302 later. The allocator's order with layers is not read yet. |
-| c2m2's environment prefab | its instance copies number one id higher than ours from the first block on, with the same ceiling. Not established. |
+| angles of instance copies inside a world layer | Mako ships a handful a round trip or two away from the sum of their placements (179.99994 under a placement at 179.99997). The reparent under the layer that does it is not read. |
 | `path_particle_rope` | excluded class: one named rope keeps its targetname bare. One sample; not established. |
 | Mako's `cable_dynamic` rendercolor | ships as its node's tintColor text where every other colour key is typed. The binding is found, the write is not read. One sample. |
 

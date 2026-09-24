@@ -48,14 +48,14 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         if (source is null) { MapFixtures.Skip($"the s2c_big/{map} source"); return; }
         var valve = MapFixtures.AddonLumps("s2c_big", map);
         if (valve is null) { MapFixtures.Skip($"a current compile of {map}"); return; }
-        Check(map, source, valve, allowLayerIds: true);
+        Check(map, source, valve, layerAngles: true);
     }
 
-    private void Check(string map, string source, IReadOnlyDictionary<string, byte[]> valve, bool allowLayerIds = false)
+    private void Check(string map, string source, IReadOnlyDictionary<string, byte[]> valve, bool layerAngles = false)
     {
         var document = DmxBinary.ReadFile(source);
         var ours = EntityLumpSet.Author(MapEntities.From(document), MapFixtures.GameSchema(), map,
-                                        MapEntities.FixupEntityNames(document), document);
+                                        MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators);
 
         Assert.Equal(valve.Keys.Order(StringComparer.OrdinalIgnoreCase),
                      ours.Select(l => l.Path).Order(StringComparer.OrdinalIgnoreCase),
@@ -69,8 +69,13 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
                 EntityLumpComparison.Read(valve[lump.Path], lump.Path),
                 EntityLumpComparison.Read(lump.Bytes, lump.Path));
             total += report.Count;
+            // An instance copy inside a world layer ships angles a round trip or
+            // two through the layer's transform away from the sum of its
+            // placements: Mako's func_movelinear under a placement at yaw
+            // 179.99997 ships 179.99994. The reparent that does it is not read.
             var layered = lump.Path.Contains("/world_layer_", StringComparison.OrdinalIgnoreCase);
-            unexplained.AddRange(report.Where(line => !IsKnownGap(line) && !(allowLayerIds && layered))
+            unexplained.AddRange(report.Where(line => !IsKnownGap(line)
+                                                      && !(layerAngles && layered && line.Contains("] angles: value ", StringComparison.Ordinal)))
                                        .Select(line => $"{Path.GetFileName(lump.Path)}: {line}"));
         }
         output.WriteLine($"{map}: {ours.Count} lumps, {total} difference(s), {unexplained.Count} unexplained");

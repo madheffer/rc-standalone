@@ -329,6 +329,43 @@ public sealed class EntityLumpRulesTests : IDisposable
         Assert.Equal("testmap", values["worldname"].ToString());
     }
 
+    [Fact]
+    public void InstanceCopy_IsANewEntityOfItsClass()
+    {
+        // A walked entity keeps its source's order; the copy an instance places is
+        // built as a new entity: classname, targetname, then the class's keys in
+        // finalized order, which is what Mako's func_door copies ship reversed.
+        var walked = Entity("thing", 7, ("fifth", "5"), ("targetname", "a"), ("third", "1 1 1"));
+        var copy = walked with { Instanced = true };
+        var copyKeys = ValuesOf(Build(copy)).Keys.TakeWhile(k => k != "compile_source_id").Reverse().ToList();
+        Assert.Equal(["classname", "targetname", "second", "third", "model", "fx", "flags", "on", "size", "quad",
+                      "node", "count", "scale", "parentname", "fifth"], copyKeys);
+        var walkedKeys = ValuesOf(Build(walked)).Keys.TakeWhile(k => k != "compile_source_id").Reverse().ToList();
+        Assert.Equal(["classname", "fifth", "targetname", "third"], walkedKeys.Take(4));
+    }
+
+    [Fact]
+    public void SmartProps_CountTheLocatorsADefinitionCreates()
+    {
+        // Measured: radiator_01 (one CreateSizer) makes one locator, the wall AC
+        // unit (one CreateLocator) one, the industrial lamp none.
+        KVObject Element(string cls, params KVObject[] children)
+        {
+            var e = KVObject.Collection();
+            e.Add("_class", new KVObject(cls));
+            var array = KVObject.Array();
+            foreach (var c in children)
+                array.Add(c);
+            e.Add("m_Children", array);
+            return e;
+        }
+        var definition = Element("CSmartPropRoot",
+            Element("CSmartPropElement_Group", Element("CSmartPropOperation_CreateSizer")),
+            Element("CSmartPropElement_Model", Element("CSmartPropOperation_CreateLocator"), Element("CSmartPropOperation_Translate")));
+        Assert.Equal(2, SmartProps.LocatorsOf(definition));
+        Assert.Equal(0, SmartProps.LocatorsOf(Element("CSmartPropElement_Model")));
+    }
+
     // ---- paths -------------------------------------------------------------------
 
     private static MapEntities.PathNode Node(float x, float y, float z, params (string, string)[] keys)

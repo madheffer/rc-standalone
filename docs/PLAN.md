@@ -264,7 +264,7 @@ has to come out of our compile, not only the geometry. Noted 2026-09-24:
   fixups). DONE 2026-09-25 for everything but lights: every lump of atixref,
   ze_hold_em_p and Mako matches Valve's in type, order and every connection
   field except the gaps listed in MAP_RESOURCES.md (light keys, the physics
-  settle, and instance numbering inside Mako's world layers).
+  settle, and a few instance copies' angles inside Mako's world layers).
 - **Everything else Hammer compiles in**: nav, sounds and soundscapes,
   particles, env_* entities, and whatever else a ZE map ships, to be listed as
   each is met.

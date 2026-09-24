@@ -29,8 +29,13 @@ public static class MapInstances
     /// Every copy the map's instances produce, in lump order, and the walk indices
     /// of the entities that are TEMPLATES and so ship as copies instead.
     /// </summary>
+    /// <param name="document">The map source.</param>
+    /// <param name="walked">The walked entities.</param>
+    /// <param name="createdOnLoad">Nodes the loader creates before the bake, which
+    /// take ids first: one per locator a smart prop's definition creates (see
+    /// <see cref="SmartProps"/>).</param>
     public static (IReadOnlyList<Copy> Copies, IReadOnlySet<int> Templates) Expand(
-        DmxBinary.Document document, IReadOnlyList<MapEntities.Entity> walked)
+        DmxBinary.Document document, IReadOnlyList<MapEntities.Entity> walked, int createdOnLoad = 0)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(walked);
@@ -55,18 +60,20 @@ public static class MapInstances
         if (tree.Instances.Count == 0)
             return ([], hiddenTemplates);
 
-        // A block of ids per instance, in tree order, starting one past the map's
-        // own highest node id. That ceiling is over EVERY element, not only the
-        // entities: atixref's entities stop at 7244 and its nodes at 7247, and
-        // Valve's first block is 7248. The 144 blocks then end at 7882, which is
-        // exactly where the copies made by its one NESTED instance begin. Every
-        // instance takes a block, including one sitting inside a group that is
-        // itself an instance target and so is never placed in its own right.
-        var next = document.Elements.Max(e => e.GetValue<int>("nodeID") ?? 0) + 1;
+        // The bake (FUN_180f60740) collapses each instance in tree order, one
+        // round at a time; each collapse takes a block of ids as wide as its group
+        // plus one, and the copy's root takes the first. Ids start past the map's
+        // highest node id (over EVERY element: atixref's entities stop at 7244 and
+        // its nodes at 7247) and past the nodes the loader made: atixref's radiator
+        // smart prop makes a locator at 7248, so its first collapse returns 7249.
+        // An instance inside a group that is itself a target is not collapsed in
+        // the first round; it is reached through its group's copies, in a later
+        // one (captured on atixref, c2m2's environment prefab and Mako).
+        var next = document.Elements.Max(e => e.GetValue<int>("nodeID") ?? 0) + 1 + createdOnLoad;
         var block = new Dictionary<DmxBinary.Element, int>();
-        foreach (var instance in tree.Instances)
+        foreach (var instance in tree.Instances.Where(i => !tree.InsideTarget.Contains(i.Node)))
         {
-            block[instance.Node] = next;
+            block[instance.Node] = next + 1;
             next += tree.Nodes.GetValueOrDefault(instance.Target) + 1;
         }
 
@@ -201,7 +208,7 @@ public static class MapInstances
         foreach (var inner in nested)
             if (tree.Instances.FirstOrDefault(i => i.Node == inner) is { } found)
             {
-                block[found.Node] = next;
+                block[found.Node] = next + 1;
                 next += tree.Nodes.GetValueOrDefault(found.Target) + 1;
                 Place(found, at, tree, byNode, block, ref next, copies, templates, emitAt, layer);
             }

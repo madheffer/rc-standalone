@@ -64,10 +64,6 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
         // targetname bare where the rule for an unknown class prefixes it. One
         // sample; the rule that separates it is not established.
         "path_particle_rope",
-        // c2m2's environment prefab numbers its instance copies one id higher than
-        // we do from its first block on (5722 against 5721); the ceiling is 5598 on
-        // both sides, so one block is sized differently. Not established.
-        "(no class)",
     };
 
     [Fact]
@@ -99,7 +95,7 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
             var document = DmxBinary.ReadFile(source);
             var ours = EntityLumpSet.Author(
                 MapEntities.From(document), MapFixtures.GameSchema(), map,
-                MapEntities.FixupEntityNames(document), document);
+                MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators);
 
             // EVERY lump, not just default_ents: a point_template's members compile
             // into a lump of their own, and comparing one file would report all 57
