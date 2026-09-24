@@ -749,6 +749,32 @@ as prefab lookup was a guess that happened to fit.
 gets it when the map places at least one point prefab. probe01 places four and gets
 the key though its source never mentions it; untitled_1 places none and does not.
 
+## Brush entity models: what the compile builds
+
+Every brush entity (a trigger, a door, a breakable, a button) is pointed at
+`maps/<map>/entities/<name>_<nodeid>.vmdl`, and the package carries that model
+compiled. Read out of ze_hold_em_p's current compile with `BrushModelSurvey`:
+
+- **Triggers are physics only.** `humans_kill_227` (a trigger_hurt) is a model
+  with no render mesh and one physics part holding one convex hull in the
+  entity's local space (bounds +-10689.5, +-251.5, +-68 around its origin): the
+  hull's vertices, half-edges, faces and planes, its mass properties, volume and
+  area, and a `CRegionSVM` acceleration structure. Collision group `default`.
+- **Breakables render.** Each of the entity's map meshes becomes a render mesh
+  `hammer_mesh_N` with one draw call per material, and the physics part holds
+  convex hulls, two per mesh on end_breakable_475..481.
+- **How.** The world builder builds a ModelDoc document in memory
+  (`_InMemoryModelDocPtr`) and hands it to the model compiler with
+  `_IsMapbuilderModel`, `keep_vertices`, `embedded_map_mesh`,
+  `generate_meshlets`, `mapbuilder_entity_classname` and friends. The hull
+  cooking (and the SVM) is `physicsbuilder.dll`. So a brush model is Valve's
+  whole model compile, and matching it means the ModelDoc mesh path and
+  Rubikon's hull builder.
+- **A model that fails is dropped silently.** ze_hold_em_p's lump points its six
+  func_doors at `door1_95.vmdl` and the rest, and none is in the package: their
+  faces use `dev/dev_hazzardstripe01a.vmat`, which does not exist. The entity
+  still ships with the dangling reference.
+
 ## Reading the source: `.vmap` is DMX
 
 `DmxBinary` reads the binary DMX that Hammer writes, which is the front door to
