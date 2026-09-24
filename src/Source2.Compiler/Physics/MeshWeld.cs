@@ -25,6 +25,14 @@ internal static class MeshWeld
 
     /// <summary>The welded vertices and triangles.</summary>
     public static (float[] Vertices, int[] Indices) Weld(float[] vertices, int stride, int[] indices, IReadOnlyList<Stream> streams, float tolerance)
+        => Weld(vertices, stride, indices, streams, tolerance, true);
+
+    /// <summary>
+    /// With <paramref name="renumberByUse"/> false, the clusters keep the order
+    /// they formed in and every triangle is kept, degenerate or not (the
+    /// caller drops them).
+    /// </summary>
+    public static (float[] Vertices, int[] Indices) Weld(float[] vertices, int stride, int[] indices, IReadOnlyList<Stream> streams, float tolerance, bool renumberByUse)
     {
         var tol = Tolerances(stride, streams, tolerance);
         var count = vertices.Length / stride;
@@ -43,6 +51,14 @@ internal static class MeshWeld
         if (zero.Count > 100 && stride > 5)
             Cluster(vertices, stride, tol, 3, zero, remap, reps);
         Cluster(vertices, stride, tol, 0, Enumerable.Range(0, count).ToList(), remap, reps);
+        if (!renumberByUse)
+        {
+            // Clusters in the order they formed, each at its first vertex.
+            var clusters = new float[reps.Count * stride];
+            for (var r = 0; r < reps.Count; r++)
+                Array.Copy(vertices, reps[r] * stride, clusters, r * stride, stride);
+            return (clusters, [.. indices.Select(i => remap[i])]);
+        }
         var welded = new int[indices.Length];
         for (var i = 0; i < indices.Length; i++)
             welded[i] = remap[indices[i]];
