@@ -766,14 +766,16 @@ compiled. Read out of ze_hold_em_p's current compile with `BrushModelSurvey`:
 - **How.** The world builder builds a ModelDoc document in memory
   (`_InMemoryModelDocPtr`) and hands it to the model compiler with
   `_IsMapbuilderModel`, `keep_vertices`, `embedded_map_mesh`,
-  `generate_meshlets`, `mapbuilder_entity_classname` and friends. The hull
-  cooking (and the SVM) is `physicsbuilder.dll`. So a brush model is Valve's
-  whole model compile, and matching it means the ModelDoc mesh path and
-  Rubikon's hull builder.
-- **A model that fails is dropped silently.** ze_hold_em_p's lump points its six
-  func_doors at `door1_95.vmdl` and the rest, and none is in the package: their
-  faces use `dev/dev_hazzardstripe01a.vmat`, which does not exist. The entity
-  still ships with the dangling reference.
+  `generate_meshlets`, `mapbuilder_entity_classname` and friends. The hull is
+  cooked by vphysics2's `RnHullCreate` and the SVM by resourcecompiler (see
+  [HULLS.md](HULLS.md)). So a brush model is Valve's whole model compile, and
+  matching it means the ModelDoc mesh path and Rubikon's hull builder.
+- **A model that fails is dropped silently.** In our test recompile of
+  ze_hold_em_p, the lump points its six func_doors at `door1_95.vmdl` and the
+  rest, but none is in the package. Their faces use
+  `dev/dev_hazzardstripe01a.vmat`, which is part of the map's custom content
+  and was missing from that recompile; the workshop map itself is fine. The
+  entity still ships with the dangling reference.
 
 ## Reading the source: `.vmap` is DMX
 
