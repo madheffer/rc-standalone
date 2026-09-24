@@ -268,6 +268,10 @@ has to come out of our compile, not only the geometry. Noted 2026-09-24:
 - **Everything else Hammer compiles in**: nav, sounds and soundscapes,
   particles, env_* entities, and whatever else a ZE map ships, to be listed as
   each is met.
+- **Known game bug, parked (reported 2026-09-24).** `math_counter` currently
+  outputs its value as a float, which breaks some ZE maps. It is Valve's to
+  fix; not chased. Revisit when Valve ships a fix, in case the lump or our
+  handling has to follow it.
 
 ---
 
