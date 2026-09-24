@@ -49,9 +49,9 @@ public static class BrushHulls
     }
 
     /// <summary>The point lists the map builder hulls, in its order.</summary>
-    public static List<Vector3[]> Inputs(Vector3[] positions, int[][] faces, PhysicsType type)
+    public static List<Vector3[]> Inputs(Vector3[] positions, int[][] faces, PhysicsType type, Vector3[]? local = null)
     {
-        var (points, triangles) = TriangleMesh(positions, faces);
+        var (points, triangles) = TriangleMesh(positions, faces, local);
         if (type == PhysicsType.ConvexSingle)
             return [[.. points]];
         if (type != PhysicsType.ConvexMulti)
@@ -66,8 +66,11 @@ public static class BrushHulls
     /// The triangle mesh FUN_181308060 is handed: vertices in the order the
     /// triangles' corners meet them, and the triangles.
     /// </summary>
-    public static (List<Vector3> Points, List<(int A, int B, int C)> Triangles) TriangleMesh(Vector3[] positions, int[][] faces)
+    public static (List<Vector3> Points, List<(int A, int B, int C)> Triangles) TriangleMesh(Vector3[] positions, int[][] faces, Vector3[]? local = null)
     {
+        // The map builder cuts faces in the mesh's own space, before any
+        // transform: <paramref name="local"/> when given.
+        local ??= positions;
         // The map builder's half-edge mesh joins corners at the same position,
         // so two .vmap vertices that coincide are one vertex here.
         var index = new Dictionary<Vector3, int>();
@@ -79,10 +82,10 @@ public static class BrushHulls
                 continue;
             // FUN_181310a90: a triangle as it stands, anything larger through
             // the triangulator; a face it cannot cut adds no vertices either.
-            int[] cut = face.Length == 3 ? [0, 1, 2] : FaceTriangulator.Triangulate([.. face.Select(v => positions[v])]);
+            int[] cut = face.Length == 3 ? [0, 1, 2] : Maps.PolygonTriangulator.Triangulate([.. face.Select(v => local[v])]);
             if (cut.Length < 3)
                 continue;
-            var local = new int[face.Length];
+            var slot = new int[face.Length];
             // The source mesh is already triangulated, so vertices are
             // numbered in the order the triangles' corners meet them.
             foreach (var j in cut)
@@ -94,10 +97,10 @@ public static class BrushHulls
                     index[p] = i;
                     points.Add(p);
                 }
-                local[j] = i;
+                slot[j] = i;
             }
             for (var j = 0; j + 2 < cut.Length; j += 3)
-                triangles.Add((local[cut[j]], local[cut[j + 1]], local[cut[j + 2]]));
+                triangles.Add((slot[cut[j]], slot[cut[j + 1]], slot[cut[j + 2]]));
         }
         return (points, triangles);
     }

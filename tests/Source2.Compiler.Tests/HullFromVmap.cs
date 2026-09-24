@@ -112,7 +112,7 @@ public class HullFromVmap(ITestOutputHelper output)
                 if (Environment.GetEnvironmentVariable("HULL_NOCLIP") == "1" && matNames.Length > 0 && matNames.All(m => m.Contains("clip", StringComparison.OrdinalIgnoreCase)))
                     continue;
                 var type = BrushHulls.Resolve(stored, true, className == "func_shatterglass", false, false);
-                var (positions, faces) = Read(mesh, origin, fromStart, entity);
+                var (positions, faces, local) = Read(mesh, origin, fromStart, entity);
                 var materialOf = MaterialIndices(mesh, faces.Length);
                 var runs = HullSimplifier.Runs;
                 try
@@ -123,10 +123,10 @@ public class HullFromVmap(ITestOutputHelper output)
                             continue;
                         var piece = faces.Where((_, f) => materialOf[f] == m).ToArray();
                         if (Phys() is { } captured && type != BrushHulls.PhysicsType.Mesh && type != BrushHulls.PhysicsType.None)
-                            ComparePhys(captured, tally, BrushHulls.TriangleMesh(positions, piece), $"{entry.GetFullPath()} ({className}) mesh {mesh.GetValue<int>("nodeID")} material {m}", ref shown, show);
+                            ComparePhys(captured, tally, BrushHulls.TriangleMesh(positions, piece, local), $"{entry.GetFullPath()} ({className}) mesh {mesh.GetValue<int>("nodeID")} material {m}", ref shown, show);
                         // BrushHulls.Build one input at a time, to see which
                         // hulls went through the simplifier.
-                        foreach (var input in BrushHulls.Inputs(positions, piece, type))
+                        foreach (var input in BrushHulls.Inputs(positions, piece, type, local))
                         {
                             var before = HullSimplifier.Runs;
                             var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
@@ -141,7 +141,7 @@ public class HullFromVmap(ITestOutputHelper output)
                             ours.Add(hull);
                         }
                         if (Environment.GetEnvironmentVariable("HULL_BRUTE") == "1")
-                            Brute(entry, package, positions, piece, type);
+                            Brute(entry, package, positions, piece, type, local);
                     }
                 }
                 catch (NotSupportedException ex)
@@ -169,7 +169,7 @@ public class HullFromVmap(ITestOutputHelper output)
                     foreach (var mesh in Meshes(entity))
                     {
                         mesh.Attributes.TryGetValue("physicsType", out var pt);
-                        var (positions, faces) = Read(mesh, origin, fromStart, entity);
+                        var (positions, faces, local) = Read(mesh, origin, fromStart, entity);
                         var inputs = BrushHulls.Inputs(positions, faces, BrushHulls.PhysicsType.ConvexMulti);
                         var mats = string.Join(",", (mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => Path.GetFileNameWithoutExtension(x as string ?? "")));
                         output.WriteLine($"  mesh {mesh.GetValue<int>("nodeID")} [{mats}] physicsType={pt ?? "(absent)"} ({pt?.GetType().Name}) verts {positions.Length} faces {faces.Length} groups [{string.Join(",", inputs.Select(i => i.Length))}]");
@@ -295,7 +295,7 @@ public class HullFromVmap(ITestOutputHelper output)
 
     // For a small piece whose hull does not come out exact, every ordering of
     // its point list through both stages, printed as vmap vertex indices.
-    private void Brute(PackageEntry entry, Package package, Vector3[] positions, int[][] piece, BrushHulls.PhysicsType type)
+    private void Brute(PackageEntry entry, Package package, Vector3[] positions, int[][] piece, BrushHulls.PhysicsType type, Vector3[] local)
     {
         if (_bruteShown >= (int.TryParse(Environment.GetEnvironmentVariable("HULL_BRUTE_MAX"), out var bm) ? bm : 6))
             return;
@@ -305,7 +305,7 @@ public class HullFromVmap(ITestOutputHelper output)
         if (resource.DataBlock is not Model model || model.GetEmbeddedPhys() is not { } phys)
             return;
         var shipped = phys.Parts.SelectMany(p => p.Shape.Hulls).Select(h => h.Shape).ToList();
-        foreach (var input in BrushHulls.Inputs(positions, piece, type))
+        foreach (var input in BrushHulls.Inputs(positions, piece, type, local))
         {
             if (input.Length > 8 || input.Length < 5)
                 continue;
@@ -422,7 +422,7 @@ public class HullFromVmap(ITestOutputHelper output)
 
     // Entity-local positions (an unrotated mesh: scaled, moved to its origin,
     // less the entity's origin) and each face's vertex loop.
-    private static (Vector3[] Positions, int[][] Faces) Read(DmxBinary.Element mesh, Vector3 entityOrigin, bool fromStart, DmxBinary.Element? entity = null)
+    private static (Vector3[] Positions, int[][] Faces, Vector3[] Local) Read(DmxBinary.Element mesh, Vector3 entityOrigin, bool fromStart, DmxBinary.Element? entity = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         var stream = data.Get<DmxBinary.Element>("vertexData")!.GetElements("streams")
@@ -475,7 +475,7 @@ public class HullFromVmap(ITestOutputHelper output)
                 loop.RemoveAt(loop.Count - 1);
             faces[f] = [.. loop];
         }
-        return (positions, faces);
+        return (positions, faces, [.. raw.Select(p => (Vector3)p! * scales)]);
     }
 
     private static List<string> Differences(ValveResourceFormat.ResourceTypes.RubikonPhysics.Shapes.Hull valve, RnHull? ours)

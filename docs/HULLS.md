@@ -199,7 +199,10 @@ and topology. It depends on two more findings.
   fit or more than 1.01 times the other one squared. Then it becomes (0,1,3)
   (1,2,3) and meets its corners 0,1,3,2. Larger faces go through an ear
   clipper: best ear by 1/area + 2(1 - largest corner cosine), strict, first
-  wins. `Physics/FaceTriangulator.cs` ports both.
+  wins. It is the same triangulator the world geometry uses
+  (`Maps/PolygonTriangulator.cs`), and it runs on the mesh's own positions,
+  before any transform. Valve's physics triangles are the welded mesh's
+  triangles in the same order (1311 of 1311 captured Mako pieces).
 - **World space first, through CTransforms.** A vertex goes to world space
   through the mesh's matrix, then into the entity's space through the entity's
   inverse. Both come from CTransforms (`Maps/CTransform.cs`): angles to a
@@ -212,7 +215,7 @@ and topology. It depends on two more findings.
 
 | map | exact | order only | near miss | other |
 |---|---|---|---|---|
-| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1235 | 2 | 1 | 3 hull counts |
+| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1238 | 0 | 0 | 3 hull counts |
 | ze_hold_em_p | 163 | 0 | 0 | 6 doors: a toolsclip mesh ships no hull (the .vmap is older than the compile) |
 | atixref (recompiled 2026-09-24) | 277 | 0 | 0 | |
 
@@ -225,11 +228,6 @@ on atixref.
 - **Face fan order around a vertex.** It feeds the neighbour set, and
   triangle index order stands in. Reversing it changes nothing on Mako,
   because it only matters when two faces share a home slot.
-- **Triangle and face order.** 7 of 1024 Mako pieces have Valve's points in
-  another order and 3 more other triangles: two faces or two triangles of a
-  face swapped, or an n-gon cut differently. That is the per-corner mesh the
-  map builder builds from the .vmap (FUN_1812d66f0) and the half-edge mesh it
-  rebuilds from it (FUN_1813319d0), neither ported yet.
 - **The weld in the pipeline.** `Physics/MeshWeld.cs` is the map builder's
   1/32 weld, replayed bit for bit on 1404 of 1405 captured Mako welds, but the
   hull path does not yet rebuild the per-corner mesh (texcoords, normals) it
@@ -258,7 +256,8 @@ faces join later, by position.
 weld (in and out), every physics piece's triangle mesh, and every transform
 with its matrix. `WeldReplay` (`WELD=<capture>`) replays the welds, and
 `HullFromVmap` with `HULL_PHYS=<capture>` compares each of our pieces with
-the one Valve hulled: 1000 of 1024 Mako pieces are exact.
+the one Valve hulled: 1023 of 1024 Mako pieces are exact, the last being
+the one mesh the weld changes.
 
 ## The simplifier
 
