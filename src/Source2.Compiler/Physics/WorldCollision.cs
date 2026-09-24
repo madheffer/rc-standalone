@@ -102,14 +102,18 @@ public static class WorldCollision
         var result = new List<Piece>();
         foreach (var mesh in Maps.MapMeshes.Read(doc).Where(m => m.ParentType is "CMapWorld" or "CMapGroup"))
         {
+            // A mesh set to no physics (physicsType "none") gives no pieces;
+            // atixref's railing kit and fluorescent lights are such meshes.
+            if (string.Equals(mesh.Element!.Get<string>("physicsType"), "none", StringComparison.OrdinalIgnoreCase))
+                continue;
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
-            foreach (var (material, positions, faces, local) in BrushHulls.Pieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
+            foreach (var (material, positions, faces, local, corners) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
                 var physics = materials(name);
                 if (!physics.Solid)
                     continue;
-                var (points, triangles) = BrushHulls.TriangleMesh(positions, faces, local);
+                var (points, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners);
                 var indices = new int[triangles.Count * 3];
                 for (var t = 0; t < triangles.Count; t++)
                     (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];

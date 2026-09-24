@@ -40,7 +40,7 @@ public class WorldCollisionInput(ITestOutputHelper output)
         {
             if (cache.TryGetValue(name, out var known))
                 return known;
-            var compiled = name.Replace('\\', '/') + "_c";
+            var compiled = name.Replace((char)92, '/') + "_c";
             byte[]? bytes = null;
             if (File.Exists(Path.Combine(addon, compiled)))
                 bytes = File.ReadAllBytes(Path.Combine(addon, compiled));
@@ -148,6 +148,30 @@ public class WorldCollisionInput(ITestOutputHelper output)
                          string.Join(" ", Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i)).Take(40).Select(i => $"{pieces[i].NodeId}/{pieces[i].Material}:{Path.GetFileNameWithoutExtension(pieces[i].MaterialName)}:{pieces[i].Points.Length}@{pieces[i].Points[0]}")));
         foreach (var l in lines.Take(80))
             output.WriteLine("  " + l);
+        // Vertex totals per material: ours against the captured shapes' surface names.
+        var theirs = inserts.Where(s => s.GetProperty("type").GetInt32() == WorldCollision.MeshType).ToList();
+        var gathered = world.GetProperty("shapes").EnumerateArray().Where(s => s.GetProperty("type").GetInt32() == WorldCollision.MeshType)
+            .GroupBy(s => s.TryGetProperty("surface", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.String ? m.GetString()! : "?")
+            .ToDictionary(g => g.Key.Replace((char)92, '/').ToLowerInvariant(), g => (Shapes: g.Count(), Verts: g.Sum(x => x.TryGetProperty("vertices", out var v) ? v.GetInt32() : 0)));
+        foreach (var g in pieces.GroupBy(p => p.MaterialName.Replace((char)92, '/').ToLowerInvariant()))
+        {
+            var ourVerts = g.Sum(p => p.Points.Length);
+            var t = gathered.GetValueOrDefault(g.Key);
+            if (t.Verts != ourVerts || t.Shapes != g.Count())
+                output.WriteLine($"  MAT {g.Key}: ours {g.Count()} pieces {ourVerts} verts, captured {t.Shapes} shapes {t.Verts} verts");
+        }
+        foreach (var (key, t) in gathered.Where(kv => !pieces.Any(p => p.MaterialName.Replace((char)92, '/').ToLowerInvariant() == kv.Key)))
+            output.WriteLine($"  MAT {key}: ours none, captured {t.Shapes} shapes {t.Verts} verts");
+        // Each unmatched piece against the nearest captured mesh by first vertex.
+        var captured = inserts.Where(s => s.GetProperty("type").GetInt32() == WorldCollision.MeshType && s.TryGetProperty("v0", out _))
+            .Select(s => (Count: s.GetProperty("vertices").GetInt32(), V: s.GetProperty("v0").EnumerateArray().Select(e => (float)e.GetDouble()).ToArray())).ToList();
+        foreach (var i in Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i)))
+        {
+            var p0 = pieces[i].Points[0];
+            var best = captured.MinBy(c => Vector3.DistanceSquared(new Vector3(c.V[0], c.V[1], c.V[2]), p0));
+            var d = Vector3.Distance(new Vector3(best.V[0], best.V[1], best.V[2]), p0);
+            output.WriteLine($"  NEAR {pieces[i].NodeId}/{pieces[i].Material} {Path.GetFileNameWithoutExtension(pieces[i].MaterialName)} ours {pieces[i].Points.Length} v {p0:R} | nearest {best.Count} at distance {d:G4}");
+        }
     }
 
     private static (int[] Indices, Vector3[] Vertices, byte[]? Materials) Input(string path, int id)

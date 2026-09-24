@@ -33,6 +33,10 @@ internal static class MeshWeld
     /// caller drops them).
     /// </summary>
     public static (float[] Vertices, int[] Indices) Weld(float[] vertices, int stride, int[] indices, IReadOnlyList<Stream> streams, float tolerance, bool renumberByUse)
+        => Weld(vertices, stride, indices, streams, tolerance, renumberByUse, null);
+
+    /// <summary>As above, also listing the input triangles kept, in order.</summary>
+    public static (float[] Vertices, int[] Indices) Weld(float[] vertices, int stride, int[] indices, IReadOnlyList<Stream> streams, float tolerance, bool renumberByUse, List<int>? keptTriangles)
     {
         var tol = Tolerances(stride, streams, tolerance);
         var count = vertices.Length / stride;
@@ -72,6 +76,7 @@ internal static class MeshWeld
             int a = welded[t], b = welded[t + 1], c = welded[t + 2];
             if (a == b || b == c || a == c)
                 continue;
+            keptTriangles?.Add(t / 3);
             foreach (var v in new[] { a, b, c })
             {
                 if (renumber[v] == -1)

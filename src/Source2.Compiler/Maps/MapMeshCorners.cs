@@ -24,7 +24,11 @@ namespace Source2.Compiler.Maps;
 internal static class MapMeshCorners
 {
     /// <summary>One material's triangle mesh: vertices of <paramref name="Stride"/> floats, three corners a triangle.</summary>
-    public sealed record Piece(int Material, int Stride, float[] Vertices, int[] Indices, IReadOnlyList<Physics.MeshWeld.Stream> Streams);
+    public sealed record Piece(int Material, int Stride, float[] Vertices, int[] Indices, IReadOnlyList<Physics.MeshWeld.Stream> Streams)
+    {
+        /// <summary>The .vmap vertex each corner comes from, corner for corner.</summary>
+        public int[] VertexIds { get; init; } = [];
+    }
 
     public static List<Piece> Build(DmxBinary.Element mesh)
     {
@@ -65,7 +69,7 @@ internal static class MapMeshCorners
             stride += count;
         }
 
-        var byMaterial = new SortedDictionary<int, (List<float> V, List<int> I)>();
+        var byMaterial = new SortedDictionary<int, (List<float> V, List<int> I, List<int> Ids)>();
         for (var f = 0; f < first.Length; f++)
         {
             var loop = new List<int>();
@@ -83,10 +87,11 @@ internal static class MapMeshCorners
                 continue;
             var material = materials.Length == 0 ? 0 : materials[faceData[f]];
             if (!byMaterial.TryGetValue(material, out var piece))
-                byMaterial[material] = piece = ([], []);
+                byMaterial[material] = piece = ([], [], []);
             foreach (var j in cut)
             {
                 piece.I.Add(piece.I.Count);
+                piece.Ids.Add(to[loop[j]]);
                 var p = local[j];
                 piece.V.Add(p.X);
                 piece.V.Add(p.Y);
@@ -97,7 +102,7 @@ internal static class MapMeshCorners
                 }
             }
         }
-        return [.. byMaterial.Select(kv => new Piece(kv.Key, stride, [.. kv.Value.V], [.. kv.Value.I], layout))];
+        return [.. byMaterial.Select(kv => new Piece(kv.Key, stride, [.. kv.Value.V], [.. kv.Value.I], layout) { VertexIds = [.. kv.Value.Ids] })];
     }
 
     /// <summary>

@@ -59,13 +59,21 @@ public static class BrushHulls
     /// inside an instance.
     /// </summary>
     public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local)> Pieces(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null)
+        => [.. PiecesWithCorners(mesh, entity, path).Select(p => (p.Material, p.Positions, p.Faces, p.Local))];
+
+    /// <summary>
+    /// <see cref="Pieces"/>, with the .vmap vertex behind each face corner
+    /// (<c>CornerIds</c>, face for face).
+    /// </summary>
+    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null)
     {
         var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
-        var result = new List<(int, Vector3[], int[][], Vector3[])>();
+        var result = new List<(int, Vector3[], int[][], Vector3[], int[][])>();
         foreach (var piece in Maps.MapMeshCorners.Build(mesh))
         {
-            var (v, indices) = MeshWeld.Weld(piece.Vertices, piece.Stride, piece.Indices, piece.Streams, 1f / 32f);
+            var kept = new List<int>();
+            var (v, indices) = MeshWeld.Weld(piece.Vertices, piece.Stride, piece.Indices, piece.Streams, 1f / 32f, true, kept);
             var local = new Vector3[v.Length / piece.Stride];
             for (var i = 0; i < local.Length; i++)
                 local[i] = new Vector3(v[i * piece.Stride], v[(i * piece.Stride) + 1], v[(i * piece.Stride) + 2]);
@@ -76,9 +84,14 @@ public static class BrushHulls
             if (path != null)
                 positions = [.. positions.Select(p => Maps.MapMeshes.Transform(path, p))];
             var faces = new int[indices.Length / 3][];
+            var corners = new int[faces.Length][];
             for (var t = 0; t < faces.Length; t++)
+            {
                 faces[t] = [indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]];
-            result.Add((piece.Material, positions, faces, local));
+                var src = kept[t] * 3;
+                corners[t] = piece.VertexIds.Length == 0 ? [] : [piece.VertexIds[src], piece.VertexIds[src + 1], piece.VertexIds[src + 2]];
+            }
+            result.Add((piece.Material, positions, faces, local, corners));
         }
         return result;
     }
@@ -101,7 +114,7 @@ public static class BrushHulls
     /// The triangle mesh FUN_181308060 is handed: vertices in the order the
     /// triangles' corners meet them, and the triangles.
     /// </summary>
-    public static (List<Vector3> Points, List<(int A, int B, int C)> Triangles) TriangleMesh(Vector3[] positions, int[][] faces, Vector3[]? local = null)
+    public static (List<Vector3> Points, List<(int A, int B, int C)> Triangles) TriangleMesh(Vector3[] positions, int[][] faces, Vector3[]? local = null, int[][]? cornerIds = null)
     {
         // The map builder cuts faces in the mesh's own space, before any
         // transform: <paramref name="local"/> when given.
@@ -109,10 +122,16 @@ public static class BrushHulls
         // The map builder's half-edge mesh joins corners at the same position,
         // so two .vmap vertices that coincide are one vertex here.
         var index = new Dictionary<Vector3, int>();
+        // A world mesh shape's CMesh keeps each .vmap vertex apart, so two at
+        // one position stay two (atixref, node 6617); with cornerIds the
+        // corners join by .vmap vertex rather than by position.
+        var byId = new Dictionary<int, int>();
+        var f = -1;
         var points = new List<Vector3>();
         var triangles = new List<(int A, int B, int C)>();
         foreach (var face in faces)
         {
+            f++;
             if (face.Length < 3)
                 continue;
             // FUN_181310a90: a triangle as it stands, anything larger through
@@ -126,10 +145,14 @@ public static class BrushHulls
             foreach (var j in cut)
             {
                 var p = positions[face[j]];
-                if (!index.TryGetValue(p, out var i))
+                int i;
+                if (cornerIds != null ? !byId.TryGetValue(cornerIds[f][j], out i) : !index.TryGetValue(p, out i))
                 {
                     i = points.Count;
-                    index[p] = i;
+                    if (cornerIds != null)
+                        byId[cornerIds[f][j]] = i;
+                    else
+                        index[p] = i;
                     points.Add(p);
                 }
                 slot[j] = i;
