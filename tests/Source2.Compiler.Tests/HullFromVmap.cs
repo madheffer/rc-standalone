@@ -148,7 +148,7 @@ public class HullFromVmap(ITestOutputHelper output)
                             output.WriteLine($"DEBUG {holder} {sx.Name} {string.Join(" ", (sx.Get<object?[]>("data") ?? []).Take(4).Select(o => o?.ToString()))}");
                 }
                 if (Corners() is { } weldIns)
-                    CompareCorners(weldIns, tally, mesh, $"{entry.GetFullPath()} mesh {mesh.GetValue<int>("nodeID")}", ref shown, show);
+                    CompareCorners(weldIns, tally, mesh, $"{entry.GetFullPath()} ({className}) mesh {mesh.GetValue<int>("nodeID")}", ref shown, show);
                 var stored = PhysicsTypeOf(mesh);
                 var matNames = (mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => Path.GetFileNameWithoutExtension(x as string ?? "")).ToArray();
                 if (Environment.GetEnvironmentVariable("HULL_NOCLIP") == "1" && matNames.Length > 0 && matNames.All(m => m.Contains("clip", StringComparison.OrdinalIgnoreCase)))
@@ -164,6 +164,8 @@ public class HullFromVmap(ITestOutputHelper output)
                         if (m >= 0 && m < matNames.Length && Environment.GetEnvironmentVariable("HULL_NOCLIP") == "1" && matNames[m].Contains("clip", StringComparison.OrdinalIgnoreCase))
                             continue;
                         var piece = faces.Where((_, f) => materialOf[f] == m).ToArray();
+                        if (Environment.GetEnvironmentVariable("HULL_WELD") != "0")
+                            (positions, piece, local) = Welded(mesh, entity!, m);
                         if (Environment.GetEnvironmentVariable("HULL_PIECES") is { } hp && hp == id.ToString(System.Globalization.CultureInfo.InvariantCulture))
                         {
                             var tm = BrushHulls.TriangleMesh(positions, piece, local);
@@ -399,21 +401,26 @@ public class HullFromVmap(ITestOutputHelper output)
                 continue;
             }
             var names = piece.Streams.Select(x => x.Name).ToArray();
-            var hit = hits[0];
+            // Copies of a mesh share positions; take the capture that agrees most.
+            var hit = hits.MinBy(h => h.Stride != piece.Stride ? int.MaxValue
+                : Enumerable.Range(0, piece.Vertices.Length).Count(i => BitConverter.SingleToInt32Bits(piece.Vertices[i]) != BitConverter.SingleToInt32Bits(h.V[i])));
             if (!hit.Names.SequenceEqual(names) || hit.Stride != piece.Stride)
             {
                 Count(tally, "corners: other streams");
                 if (Environment.GetEnvironmentVariable("HULL_CORNERS_STREAMS") == "1")
-                    output.WriteLine($"CORNERS {label} material {piece.Material}: valve [{string.Join(",", hit.Names)}] ours [{string.Join(",", names)}]");
+                    output.WriteLine($"CORNERS {label} material {piece.Material} {(mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") is { } mats && piece.Material < mats.Length ? mats[piece.Material] : "?")}: valve [{string.Join(",", hit.Names)}] ours [{string.Join(",", names)}]");
                 continue;
             }
             var bad = new SortedSet<string>();
             for (var i = 0; i < piece.Vertices.Length; i++)
             {
                 if (BitConverter.SingleToInt32Bits(piece.Vertices[i]) != BitConverter.SingleToInt32Bits(hit.V[i]))
-                    bad.Add(piece.Streams.Last(x => x.First <= i % piece.Stride).Name);
+                    bad.Add(piece.Streams.Last(x => x.First <= i % piece.Stride).Name + (MathF.Abs(piece.Vertices[i] - hit.V[i]) < 1e-4f ? " ulps" : ""));
             }
             Count(tally, bad.Count == 0 ? "corners: exact" : "corners: " + string.Join("+", bad) + " differ");
+            if (Environment.GetEnvironmentVariable("HULL_CORNERS_PIECE") is { } pieceOf && label.EndsWith("mesh " + pieceOf, StringComparison.Ordinal))
+                for (var c = 0; c < count; c++)
+                    output.WriteLine($"PIECE {c} ours [{string.Join(" ", piece.Vertices.Skip(c * piece.Stride).Take(piece.Stride).Select(x => x.ToString("R")))}] valve [{string.Join(" ", hit.V.Skip(c * piece.Stride).Take(piece.Stride).Select(x => x.ToString("R")))}]");
             if (bad.Count > 0 && shown++ < show)
             {
                 var i = Enumerable.Range(0, piece.Vertices.Length).First(k => BitConverter.SingleToInt32Bits(piece.Vertices[k]) != BitConverter.SingleToInt32Bits(hit.V[k]));
@@ -553,6 +560,16 @@ public class HullFromVmap(ITestOutputHelper output)
             },
             _ => BrushHulls.PhysicsType.Default,
         };
+    }
+
+    // A material piece as the map builder hulls it (BrushHulls.Pieces);
+    // HULL_WELD=0 goes back to the unwelded .vmap faces.
+    private static (Vector3[] Positions, int[][] Faces, Vector3[] Local) Welded(DmxBinary.Element mesh, DmxBinary.Element entity, int material)
+    {
+        foreach (var (m, positions, faces, local) in BrushHulls.Pieces(mesh, entity))
+            if (m == material)
+                return (positions, faces, local);
+        return ([], [], []);
     }
 
     // Entity-local positions (an unrotated mesh: scaled, moved to its origin,

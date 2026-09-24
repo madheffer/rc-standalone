@@ -115,7 +115,7 @@ past the next node the front child sits, and the back child follows it. An
 empty node warns "Invalid hull tree". Each plane's offset gets n·centroid added
 back.
 
-Every map builder hull on atixref (277), ze_hold_em_p (163) and Mako (1254)
+Every map builder hull on atixref (277), ze_hold_em_p (163) and Mako (1266)
 gets Valve's SVM bit for bit, planes and nodes. On Mako, 59 of those need the
 separating-plane fallback.
 
@@ -254,7 +254,7 @@ and topology. It depends on two more findings.
 
 | map | exact | order only | near miss | other |
 |---|---|---|---|---|
-| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1254 | 0 | 0 | 1 hull count (the weld) |
+| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1266 | 0 | 0 | |
 | ze_hold_em_p | 163 | 0 | 0 | 6 doors: a toolsclip mesh ships no hull (the .vmap is older than the compile) |
 | atixref (recompiled 2026-09-24) | 277 | 0 | 0 | |
 
@@ -271,10 +271,6 @@ on atixref.
   (a single flat face) adds no hull: FUN_18131efc0 appends only on success
   and the nodes are made from what it appended. That was two of Mako's hull
   count mismatches (`sephiroth_bridge_movelinear`, a func_water).
-- **The weld in the pipeline.** `Physics/MeshWeld.cs` is the map builder's
-  1/32 weld, replayed bit for bit on 1404 of 1405 captured Mako welds, but the
-  hull path does not yet rebuild the per-corner mesh (texcoords, normals) it
-  runs on. On Mako it moves the physics input of one mesh only.
 - **Hull order across pieces.** It differs from mesh order, so the test
   matches hulls by their vertex sets.
 
@@ -298,32 +294,45 @@ faces join later, by position.
 weld (in and out), every physics piece's triangle mesh, and every transform
 with its matrix. `WeldReplay` (`WELD=<capture>`) replays the welds, and
 `HullFromVmap` with `HULL_PHYS=<capture>` compares each of our pieces with
-the one Valve hulled: 1023 of 1024 Mako pieces are exact, the last being
-the one mesh the weld changes.
+the one Valve hulled. `BrushHulls.Pieces` runs each piece through the
+per-corner mesh and the weld before hulling, and all 1024 Mako pieces are
+exact. The one mesh the weld changes, a disco crate, was Mako's last hull
+count mismatch; its 12 hulls now match too.
 
-### The per-corner mesh (in progress)
+### The per-corner mesh
 
-`Maps/MapMeshCorners.cs` builds each material's per-corner mesh from the
-.vmap: faces in order, cut by the shared triangulator, each corner's
-position through `vertexDataIndices` and its face-vertex streams through
-`edgeVertexDataIndices` (not the half-edge index), less the tangent. Against
-Mako's 1330 captured weld inputs (`HULL_CORNERS=<capture>`) every position
-and corner order is exact and 549 pieces are exact in every float. Three
-things are not ported yet:
+The builder does not read the .vmap's half-edge mesh directly. Hammer's own
+mesh code, compiled into resourcecompiler (`ConvertMeshForBuilder`), writes
+each mesh node out as a binary DMX (a DmeMesh of polygons with per-corner
+streams), and the builder reads that back. `tools/hulls/dump_meshbuf.py`
+saves every one of those DMX files from a compile.
+`MeshBufferVsVmap` (`MESHBUF=<dir>`, `MESHBUF_VMAP=<vmap>`) pairs each with
+its .vmap mesh. On atixref's 51,417 texcoords, 50,957 match bit for bit:
 
-- **Which streams.** Valve keeps `position, texcoord, normal,
-  PerVertexLighting` for most materials and drops the second texcoord and the
-  vertex paint streams; the choice follows the material (468 pieces).
-- **Texcoords.** Valve recomputes them from the face's texture projection
-  (`textureAxisU/V`, `textureScale`, the texture's size) and moves each face
-  by a whole number. The stored .vmap texcoords less their rounded face mean
-  match on many faces, not all (288 pieces).
-- **Normals** on 82 pieces, probably smoothed by the mesh's `smoothingAngle`.
+- **Space.** A world mesh is moved to world space: positions, and normals
+  and tangents turned by the same matrix with no renormalising. A brush
+  entity's mesh stays in its own space.
+- **Texcoords** are the stored ones, less a whole number per UV island, and
+  only when some texcoord lies outside +-1.03125. Faces share an island
+  across an edge whose two ends carry texcoords within a squared distance
+  of 1e-6 on both sides. An island whose box leaves [0, 1] loses its box
+  centre, rounded half away from zero. `MapMeshCorners.ShiftTexcoords`
+  ports it.
+- **Streams.** The second texcoord and the vertex paint streams survive only
+  when one of the mesh's materials uses a shader that reads them
+  (csgo_environment, csgo_environment_blend, csgo_water_fancy,
+  csgo_simple_2way_blend on Mako). Otherwise the mesh carries position,
+  texcoord, normal and per-vertex lighting. `MapMeshCorners` always takes
+  the short layout: the long one only adds default values, which never keep
+  two corners apart in the weld.
 
-The map builder does all three when it writes the node's
-`hammerMeshDataBuffer` (a DMX mesh read back by FUN_180ffd010 and turned into
-a CMesh by FUN_180d47b90). The writer is still to be found; a probe of the
-buffer's creation during a compile will find it.
+Against Mako's 1330 captured weld inputs (`HULL_CORNERS=<capture>`), 1050
+pieces match in every float. The rest are the long layout (88), and
+texcoords or normals off by about 1e-5 on some faces (192), which Hammer
+seems to re-project from the face's texture axes. Both sit well inside the
+weld's tolerances, so none of them changes a hull. Instanced copies of a
+yaw-180.5 mesh on atixref also land a few ulps off in world space. That
+comes from composing the instance matrices, not from this step.
 
 ## The simplifier
 

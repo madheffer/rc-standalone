@@ -15,10 +15,11 @@ namespace Source2.Compiler.Physics;
 /// list is hulled with the map builder's options, and that hull's vertex list
 /// is hulled again by <c>RnHullCreate</c> when the model compiles.</para>
 ///
-/// <para>Not ported: the 1/32 weld on the polygon mesh, the simplifier a
-/// positive simplification error asks for, and the order faces come round a
-/// vertex (triangle order stands in; it only decides probe order on a hash
-/// collision).</para>
+/// <para>Each material piece is welded at 1/32 first, in the mesh node's
+/// space (<see cref="Pieces"/>).</para>
+///
+/// <para>Not ported: the order faces come round a vertex (triangle order
+/// stands in; it only decides probe order on a hash collision).</para>
 /// </summary>
 public static class BrushHulls
 {
@@ -46,6 +47,33 @@ public static class BrushHulls
         if (multiOverride)
             return PhysicsType.ConvexMulti;
         return singleOverride ? PhysicsType.ConvexSingle : PhysicsType.ConvexMulti;
+    }
+
+    /// <summary>
+    /// FUN_18020b230: a brush entity mesh's material pieces as the builder
+    /// hulls them. Each piece's per-corner mesh (<see cref="Maps.MapMeshCorners"/>)
+    /// is welded at 1/32 (<see cref="MeshWeld"/>), then moved by the mesh
+    /// node's CTransform and the entity's inverse. The faces are the welded
+    /// triangles; <c>Local</c> holds the welded points before the move.
+    /// </summary>
+    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local)> Pieces(DmxBinary.Element mesh, DmxBinary.Element entity)
+    {
+        var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
+        var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
+        var result = new List<(int, Vector3[], int[][], Vector3[])>();
+        foreach (var piece in Maps.MapMeshCorners.Build(mesh))
+        {
+            var (v, indices) = MeshWeld.Weld(piece.Vertices, piece.Stride, piece.Indices, piece.Streams, 1f / 32f);
+            var local = new Vector3[v.Length / piece.Stride];
+            for (var i = 0; i < local.Length; i++)
+                local[i] = new Vector3(v[i * piece.Stride], v[(i * piece.Stride) + 1], v[(i * piece.Stride) + 2]);
+            var positions = local.Select(p => Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, p))).ToArray();
+            var faces = new int[indices.Length / 3][];
+            for (var t = 0; t < faces.Length; t++)
+                faces[t] = [indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]];
+            result.Add((piece.Material, positions, faces, local));
+        }
+        return result;
     }
 
     /// <summary>The point lists the map builder hulls, in its order.</summary>
