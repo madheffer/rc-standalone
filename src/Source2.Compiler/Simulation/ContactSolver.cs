@@ -19,8 +19,13 @@ public static class ContactSolver
     [StructLayout(LayoutKind.Explicit, Size = 0x18)]
     public struct Material
     {
+        /// <summary>The surface's density in kg per cubic inch (the vsurf's times 1.6387063e-5, FUN_180072c70).</summary>
+        [FieldOffset(0x00)] public float Density;
         [FieldOffset(0x04)] public float Friction;
         [FieldOffset(0x08)] public float Restitution;
+
+        /// <summary>The vsurf's thickness (a surface of a hollow object).</summary>
+        [FieldOffset(0x0c)] public float Thickness;
         [FieldOffset(0x10)] public float Frequency;
         [FieldOffset(0x14)] public float DampingRatio;
     }

@@ -24,9 +24,9 @@ public sealed class SolveLists
 /// ones, then the free batches, and every list it fills is sorted before use,
 /// except the two dynamic continuous lists, whose order Valve leaves to its
 /// threads. Graph-coloured islands, joints and mesh shapes on moving bodies
-/// are not ported and throw. The broadphase side (FUN_1802d4ed0
-/// before, the proxy moves of FUN_1801b9270 and FUN_1802d6050 after) is not
-/// modelled here.
+/// are not ported and throw. The broadphase side is FUN_1802d4ed0
+/// before, the proxy moves of FUN_1801b9270 in each writeback and
+/// FUN_1802d6050 after.
 /// </remarks>
 public static class WorldSolver
 {
@@ -38,6 +38,7 @@ public static class WorldSolver
             throw new NotSupportedException("graph-coloured islands (solve list C) are not ported");
         var settings = new IslandSolver.Settings(dt, w.Gravity, w.AirDensity,
             w.VelocityIterations, w.PositionIterations, w.Sleeping);
+        w.Broadphase?.BeginHierarchyUpdate(w.Hierarchy, 0, w.Threads, w.Priority);
 
         foreach (var node in w.Islands.Serial)
             SolveIsland(w, (RnIsland)node, first, settings, lists);
@@ -47,6 +48,7 @@ public static class WorldSolver
             SolveBatch(w, free, start, first, settings, lists);
 
         Flush(w, lists);
+        w.Broadphase?.FinalizeHierarchyUpdate(w.Hierarchy, w.Query);
     }
 
     /// <summary>
@@ -223,6 +225,7 @@ public static class WorldSolver
         }
         if (fast != nowFast)
             s.Flags249 = (byte)((s.Flags249 & 0x7f) | (nowFast ? 0x80 : 0));
+        w.Broadphase?.UpdateBody(b.Proxy, fast != nowFast, w.Hierarchy);
     }
 
     /// <summary>FUN_180313990 and the cleared per-step inputs.</summary>

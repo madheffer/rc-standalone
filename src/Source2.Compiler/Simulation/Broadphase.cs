@@ -173,6 +173,9 @@ public sealed class Broadphase
 
     public BroadphaseShape? Shape(ulong handle) => _shapes.GetValueOrDefault(handle);
 
+    /// <summary>Makes a shape known by its handle without touching the trees (for a broadphase loaded as it stands).</summary>
+    public void Register(BroadphaseShape shape) => _shapes[shape.Handle] = shape;
+
     // ---------------------------------------------------------------- proxies
 
     /// <summary>

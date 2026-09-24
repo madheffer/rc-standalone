@@ -215,13 +215,14 @@ public static class ContactLifecycle
     }
 
     /// <summary>
-    /// Destroys a contact (FUN_1801f7450): off its shapes' lists (and out of
-    /// the broadphase's pair set, which is not modelled here), out of the
+    /// Destroys a contact (FUN_1801f7450): off its shapes' lists and out of
+    /// the broadphase's pair set (FUN_180203980), out of the
     /// active and all-contacts lists, onto the destroyed list, out of its island.
     /// </summary>
     public static void Destroy(RnWorld w, RnContact c)
     {
         Unlink(c);
+        w.Broadphase?.Pairs.Erase(c.A.Proxy.Handle, c.B.Proxy.Handle);
         if (c.ActiveIndex >= 0)
         {
             SwapRemove(w.ActiveContacts, c.ActiveIndex, (x, i) => x.ActiveIndex = i);
@@ -317,7 +318,7 @@ public static class ContactLifecycle
             w.StepFlags |= 2;
         foreach (var c in w.ActiveContacts)
         {
-            if (!ProxiesOverlap(c))
+            if (!ProxiesOverlap(w, c))
             {
                 lists.Lost.Add(c);
                 continue;
@@ -350,17 +351,27 @@ public static class ContactLifecycle
     /// Whether the two proxies' fat boxes overlap (FUN_1801f17e0): apart when
     /// B's max is below A's min or A's max below B's min on some axis.
     /// </summary>
-    private static bool ProxiesOverlap(RnContact c)
+    private static bool ProxiesOverlap(RnWorld w, RnContact c)
     {
         if (c.ChildA != -1 || c.ChildB != -1)
             throw new NotSupportedException("compound children (FUN_1801fc0e0) are not ported");
         if (c.A.ProxyId == -1 || c.B.ProxyId == -1)
             throw new NotSupportedException("a shape without a proxy is not ported");
-        var a = c.A;
-        var b = c.B;
-        var apart = b.FatMax.X < a.FatMin.X || b.FatMax.Y < a.FatMin.Y || b.FatMax.Z < a.FatMin.Z
-                 || a.FatMax.X < b.FatMin.X || a.FatMax.Y < b.FatMin.Y || a.FatMax.Z < b.FatMin.Z;
+        var (aMin, aMax) = FatBox(w, c.A);
+        var (bMin, bMax) = FatBox(w, c.B);
+        var apart = bMax.X < aMin.X || bMax.Y < aMin.Y || bMax.Z < aMin.Z
+                 || aMax.X < bMin.X || aMax.Y < bMin.Y || aMax.Z < bMin.Z;
         return !apart;
+    }
+
+    /// <summary>A proxy's fat box: tree id &amp; 7, node id &gt;&gt; 3.</summary>
+    private static (Vec3 Min, Vec3 Max) FatBox(RnWorld w, RnShape shape)
+    {
+        if (w.Broadphase is not { } broadphase)
+            return (shape.FatMin, shape.FatMax);
+        var id = (uint)shape.ProxyId;
+        ref readonly var node = ref broadphase.Trees[id & 7].Nodes.Nodes[id >> 3];
+        return (node.Min, node.Max);
     }
 
     /// <summary>The contact's update (vtable slot 2): hull pairs through FUN_180307750, hull on mesh through FUN_180305460.</summary>

@@ -32,12 +32,56 @@ internal sealed unsafe class RnWorldReader
         _meshes = meshes;
     }
 
-    /// <summary>Reads the world. Hull and mesh conversions are cached across reads.</summary>
-    public static RnWorld Read(nint module, byte* w, Dictionary<nint, RnHull> hulls, Dictionary<nint, RnMesh> meshes)
+    /// <summary>
+    /// Reads the world. Hull and mesh conversions are cached across reads.
+    /// With <paramref name="broadphase"/> the broadphase comes too (trees,
+    /// dirty bits, fast groups, solve count, pair set), so the world can step.
+    /// </summary>
+    public static RnWorld Read(nint module, byte* w, Dictionary<nint, RnHull> hulls, Dictionary<nint, RnMesh> meshes,
+                               bool broadphase = false)
     {
         var r = new RnWorldReader(module, hulls, meshes);
         r.ReadAll(w);
+        if (broadphase)
+            r.ReadBroadphase(w);
         return r.World;
+    }
+
+    private const ulong GroupTableVa = 0x18045b328, CollidingMaskVa = 0x18045b2b8;
+
+    private void ReadBroadphase(byte* w)
+    {
+        var bp = *(byte**)(w + 0x110);
+        var table = new ReadOnlySpan<ushort>((ushort*)Vphysics2Oracle.At(_module, GroupTableVa), 4096).ToArray();
+        var port = new Broadphase(table, *(ushort*)Vphysics2Oracle.At(_module, CollidingMaskVa));
+        for (var t = 0; t < 7; t++)
+        {
+            var v = bp + t * 0x58;
+            var tree = port.Trees[t];
+            var nodes = tree.Nodes;
+            nodes.Root = *(int*)v;
+            nodes.LeafCount = *(int*)(v + 4);
+            nodes.NodeCount = *(int*)(v + 8);
+            nodes.Capacity = *(int*)(v + 0xc);
+            nodes.FreeHead = *(int*)(v + 0x10);
+            nodes.Nodes = new ReadOnlySpan<TreeNode>(*(TreeNode**)(v + 0x18), nodes.Capacity).ToArray();
+            tree.TopBits.Clear();
+            tree.TopBits.AddRange(Vec<uint>(v + 0x20));
+            tree.LeafBits.Clear();
+            tree.LeafBits.AddRange(Vec<uint>(v + 0x30));
+        }
+        for (var g = 0; g < 64; g++)
+            port.FastGroups[g] = bp[0x273 + g] != 0;
+        port.SolveCount = *(int*)(bp + 0x2b4);
+        var set = *(byte**)(bp + 0x2b8);
+        var pairs = port.Pairs;
+        pairs.Count = *(int*)(set + 0x10);
+        pairs.Buckets = *(int*)(set + 0x14);
+        pairs.MinimumSize = *(int*)(set + 0x18);
+        pairs.Slots = pairs.Buckets == 0 ? [] : new ReadOnlySpan<PairSet.Slot>(*(PairSet.Slot**)(set + 8), pairs.Buckets).ToArray();
+        foreach (var s in _shapes.Values)
+            port.Register(s.Proxy);
+        World.Broadphase = port;
     }
 
     // CUtlVector {int count; uint alloc; T* data} with the data pointer at +8.
@@ -78,6 +122,9 @@ internal sealed unsafe class RnWorldReader
             World.ActiveContacts.Add(Contact(c));
         foreach (var c in Vec<nint>(w + 0x758))
             World.Destroyed.Add(Contact(c));
+        foreach (var b in Vec<nint>(w + 0xa58))
+            World.ForcedBodies.Add(Body(b));
+
         // The step lists (0x38 bytes each): data at +8, count at +0x2c.
         for (var k = 0; k < 3; k++)
         {
@@ -119,7 +166,11 @@ internal sealed unsafe class RnWorldReader
         World.StepFlags = w[0x10c];
         World.Count688 = *(int*)(w + 0x688);
         World.StepCount = *(int*)(w + 0x1d4);
-        World.SortLists = *(int*)(w + 0x1ac) > 1;
+        World.Threads = *(int*)(w + 0x1ac);
+        World.Priority = w[0x1b0];
+        World.MaxCoordinate = *(float*)(w + 0x1b4);
+        World.Time = *(float*)(w + 0x1cc);
+        World.FrameTime = *(float*)(w + 0x1d0);
         World.Gravity = *(Vec3*)(w + 0x190);
         World.AirDensity = *(float*)(w + 0x1a0);
         World.PositionIterations = *(int*)(w + 0x1b8);
@@ -147,8 +198,10 @@ internal sealed unsafe class RnWorldReader
         var m = (byte*)p;
         b = new RnBody { Native = p, Index = *(int*)(m + 0x14), Static = m[0x44] != 0 };
         _bodies[p] = b;
-        fixed (RnBodyState* s = &b.State)
-            Buffer.MemoryCopy(m, s, 0x260, 0x260);
+        var state = default(RnBodyState);
+        Buffer.MemoryCopy(m, &state, 0x260, 0x260);
+        b.State = state;
+        b.Proxy.Id = *(uint*)m;
         if (b.State.Controller != 0)
         {
             var t = (byte*)b.State.Controller;
@@ -166,7 +219,7 @@ internal sealed unsafe class RnWorldReader
         if (_shapes.TryGetValue(p, out var s))
             return s;
         var m = (byte*)p;
-        s = new RnShape(body)
+        s = new RnShape(body, (ulong)p)
         {
             Native = p,
             Type = *(int*)(m + 0x18),
@@ -174,16 +227,16 @@ internal sealed unsafe class RnWorldReader
             Material = *(ContactSolver.Material*)(m + 0x20),
             Reports = m[0xb0] != 0,
         };
+        s.Attributes = *(CollisionAttributes*)(m + 0x50);
+        s.Proxy.HasProxy = m[0xae] != 0;
         if (s.Type == 3)
             s.MeshMode = *(int*)(m + 0x108);
         _shapes[p] = s;
+        World.ShapesByHandle[(ulong)p] = s;
         if (s.Type == 2)
-            s.Hull = new HullRef(Hull(*(byte**)(m + 0xc0)), *(float*)(m + 0xb8));
+            s.SetHull(new HullRef(Hull(*(byte**)(m + 0xc0)), *(float*)(m + 0xb8)));
         else if (s.Type == 3)
-        {
-            s.Mesh = Mesh(*(byte**)(m + 0xc8));
-            s.MeshScale = *(Vec3*)(m + 0xb8);
-        }
+            s.SetMesh(Mesh(*(byte**)(m + 0xc8)), *(Vec3*)(m + 0xb8));
         return s;
     }
 
@@ -316,6 +369,7 @@ internal sealed unsafe class RnWorldReader
         {
             Centroid = *(Vector3*)p,
             MaxAngularRadius = *(float*)(p + 0xc),
+            MinCentroidRadius = *(float*)(p + 0x10),
             BoundsMin = *(Vector3*)(p + 0x14),
             BoundsMax = *(Vector3*)(p + 0x20),
             VertexPositions = Vec<Vector3>(p + 0x70),

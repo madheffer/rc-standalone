@@ -75,16 +75,40 @@ public sealed class RnIsland : IslandNode
 /// <summary>An intrusive list link: a contact and which of its halves (0 shape A, 1 shape B).</summary>
 public readonly record struct EdgeRef(RnContact Contact, int Half);
 
-/// <summary>A collision shape of a body (the fields the world step reads).</summary>
-public sealed class RnShape(RnBody body)
+/// <summary>
+/// A collision shape of a body (the fields the world step reads). What the
+/// broadphase reads (type, proxy, collision attributes, bounds) lives in its
+/// <see cref="BroadphaseShape"/>, whose handle names the shape in the pair set.
+/// </summary>
+public sealed class RnShape
 {
-    public readonly RnBody Body = body;
+    public readonly RnBody Body;
+
+    public readonly BroadphaseShape Proxy;
+
+    public RnShape(RnBody body, ulong handle)
+    {
+        Body = body;
+        Proxy = new BroadphaseShape { Body = body.Proxy, Handle = handle };
+        body.Proxy.Shapes.Add(Proxy);
+    }
 
     /// <summary>+0x18: 0 sphere, 1 capsule, 2 hull, 3 mesh, 4 compound.</summary>
-    public int Type;
+    public int Type
+    {
+        get => Proxy.Type;
+        set => Proxy.Type = value;
+    }
 
     /// <summary>+0x1c: the broadphase proxy (tree in bits 0..2, leaf above).</summary>
-    public int ProxyId = -1;
+    public int ProxyId
+    {
+        get => Proxy.ProxyId;
+        set => Proxy.ProxyId = value;
+    }
+
+    /// <summary>+0x50: the collision attributes.</summary>
+    public ref CollisionAttributes Attributes => ref Proxy.Attributes;
 
     public HullRef Hull;
     public RnMesh? Mesh;
@@ -102,10 +126,32 @@ public sealed class RnShape(RnBody body)
     /// <summary>+0xb0: the shape reports contacts to a listener (FUN_1801fc050, not ported).</summary>
     public bool Reports;
 
-    /// <summary>The proxy's fat box in the broadphase.</summary>
+    /// <summary>The proxy's fat box, for a world read without its broadphase.</summary>
     public Vec3 FatMin, FatMax;
 
     public nint Native;
+
+    /// <summary>A hull at a uniform scale (+0xc0, +0xb8); the broadphase boxes its bounds.</summary>
+    public void SetHull(HullRef hull)
+    {
+        Type = BroadphaseShape.HullType;
+        Hull = hull;
+        Proxy.Scale = new Vec3(hull.Scale, hull.Scale, hull.Scale);
+        Proxy.LocalMin = new Vec3(hull.Hull.BoundsMin.X, hull.Hull.BoundsMin.Y, hull.Hull.BoundsMin.Z);
+        Proxy.LocalMax = new Vec3(hull.Hull.BoundsMax.X, hull.Hull.BoundsMax.Y, hull.Hull.BoundsMax.Z);
+    }
+
+    /// <summary>A triangle mesh at a per-axis scale (+0xc8, +0xb8).</summary>
+    public void SetMesh(RnMesh mesh, Vec3 scale)
+    {
+        Type = BroadphaseShape.MeshType;
+        Mesh = mesh;
+        MeshScale = scale;
+        Proxy.Scale = scale;
+        Proxy.LocalMin = new Vec3(mesh.Min.X, mesh.Min.Y, mesh.Min.Z);
+        Proxy.LocalMax = new Vec3(mesh.Max.X, mesh.Max.Y, mesh.Max.Z);
+        Proxy.Vertices = mesh.Vertices.Select(v => new Vec3(v.X, v.Y, v.Z)).ToArray();
+    }
 }
 
 /// <summary>A contact (pair) between two shapes (CRnContact and its subclasses).</summary>
@@ -173,7 +219,11 @@ public sealed class RnContact(RnShape a, RnShape b)
 /// </summary>
 public sealed class RnBody
 {
-    public RnBodyState State;
+    /// <summary>What the broadphase reads of the body; it holds the body's state.</summary>
+    public readonly BroadphaseBody Proxy = new();
+
+    /// <summary>The CRnBody state, in Valve's layout.</summary>
+    public ref RnBodyState State => ref Proxy.State;
 
     /// <summary>+0x14: index in the world's list of all bodies, the solve lists' sort key.</summary>
     public int Index;
@@ -228,7 +278,20 @@ public sealed class IslandManager
     public bool Colouring;
 }
 
-/// <summary>A Rubikon world as the step's bookkeeping sees it.</summary>
+/// <summary>Where <see cref="RnWorld.Observe"/> is called.</summary>
+public enum StepPhase
+{
+    /// <summary>After the new contacts, before the collide worker.</summary>
+    BeforeCollide,
+
+    /// <summary>After the collide worker, before its post-pass (FUN_1801dceb0).</summary>
+    Collided,
+}
+
+/// <summary>
+/// A Rubikon world (CRnWorld): its bodies and contacts, the island manager,
+/// the broadphase, and the step (FUN_180200840) that drives them.
+/// </summary>
 public sealed class RnWorld
 {
     public readonly List<RnBody> Bodies = [];
@@ -242,7 +305,7 @@ public sealed class RnWorld
     /// <summary>+0x6d8 (solid) / +0x6e8 (sensor): every contact (contact +0x68).</summary>
     public readonly List<RnContact>[] AllContacts = [[], []];
 
-    /// <summary>+0x758: contacts destroyed this step, freed later.</summary>
+    /// <summary>+0x758: contacts destroyed and not yet freed (<see cref="FreeDestroyed"/>).</summary>
     public readonly List<RnContact> Destroyed = [];
 
     public readonly IslandManager Islands = new();
@@ -255,17 +318,29 @@ public sealed class RnWorld
     /// </summary>
     public readonly List<RnBody>[] ContinuousBodies = [[], [], []];
 
+    /// <summary>+0xa58: bodies whose applied forces may wake them at the next step (WakeBodiesFromAppliedForces).</summary>
+    public readonly List<RnBody> ForcedBodies = [];
+
     /// <summary>+0x688: the count of a world list that, like awake bodies, marks a Solve as moving (+0x10c bit 1).</summary>
     public int Count688;
 
-    /// <summary>+0x10c: bit 0 stepped, bit 1 an island was split this step.</summary>
+    /// <summary>+0x10c: bit 0 stepped, bit 1 something moved or an island was split.</summary>
     public int StepFlags;
 
     /// <summary>+0x1d4: steps taken; splits run when it is a multiple of 10.</summary>
     public int StepCount;
 
-    /// <summary>+0x1ac &gt; 1: the flushed lists are sorted (by key or body index).</summary>
-    public bool SortLists = true;
+    /// <summary>+0x1cc: simulated time; +0x1d0 the time at the frame's first step.</summary>
+    public float Time, FrameTime;
+
+    /// <summary>+0x1ac: the thread setting; above 1 the flushed lists are sorted.</summary>
+    public int Threads = int.MaxValue;
+
+    /// <summary>+0x1b0: the job priority the passes pass on.</summary>
+    public byte Priority = 2;
+
+    /// <summary>Whether the flushed lists are sorted (by key or body index).</summary>
+    public bool SortLists => Threads > 1;
 
     public Vec3 Gravity = new(-0f, -0f, -360f);
     public float AirDensity = 1.2f;
@@ -276,4 +351,200 @@ public sealed class RnWorld
 
     /// <summary>ctx +0x45: world +0x1a4 == 1 and +0x1c0 &gt; 0, continuous collision on.</summary>
     public bool Continuous = true;
+
+    /// <summary>+0x1c0: the passes of the TOI solve (FUN_1802001b0).</summary>
+    public int ContinuousPasses = 4;
+
+    /// <summary>+0x1b4: the largest coordinate (g_flConfigMaxCoord); the world bounds check keeps inside it.</summary>
+    public float MaxCoordinate = 16384f;
+
+    /// <summary>+0x110: the broadphase; null for a world read without it (the passes then use <see cref="RnShape.FatMin"/>).</summary>
+    public Broadphase? Broadphase;
+
+    /// <summary>The scratch's hierarchy update (+0) and pair query (+0x4e8).</summary>
+    public readonly HierarchyUpdate Hierarchy = new();
+    public readonly PairQuery Query = new();
+
+    /// <summary>Shapes by broadphase handle, for the contacts the pair query makes.</summary>
+    public readonly Dictionary<ulong, RnShape> ShapesByHandle = [];
+
+    // Passes of CRnWorld::Step that live elsewhere: set, they replace the
+    // step's own (StepGlue's applied-force wake and bounds check); the TOI
+    // solve has none yet, so unset the step throws when it would run.
+
+    /// <summary>Called at points inside <see cref="Step"/>, for tests and tools that follow a step.</summary>
+    public Action<RnWorld, StepPhase>? Observe;
+
+    /// <summary>FUN_180203d70, CRnWorld::WakeBodiesFromAppliedForces; unset, <see cref="StepGlue.WakeBodiesFromAppliedForces"/>.</summary>
+    public Action<RnWorld>? WakeBodiesFromAppliedForces;
+
+    /// <summary>The TOI solve of FUN_1801ffe80 (FUN_1802001b0 over +0xa78, then +0xab0), after <see cref="WorldSolver.GatherContinuous"/>.</summary>
+    public Action<RnWorld, float>? SolveContinuous;
+
+    /// <summary>FUN_1801faf80, the world bounds check; unset, <see cref="StepGlue.ShapesOutsideBounds"/>.</summary>
+    public Action<RnWorld>? ClampToWorldBounds;
+
+    private ulong _nextHandle = 0x10;
+
+    /// <summary>
+    /// A new body (world vfn 0x1e8): the next index, its node in the island
+    /// manager. The state is the caller's: Valve's RnBodyDesc_t defaults and
+    /// the mass update (FUN_1801c0880) are not ported, so a body arrives with
+    /// its mass properties already in its state.
+    /// </summary>
+    public RnBody AddBody(in RnBodyState state)
+    {
+        var b = new RnBody { Index = Bodies.Count };
+        b.State = state;
+        b.State.ActiveIndex = -1;
+        b.Static = state.BodyType == 0;
+        Bodies.Add(b);
+        IslandManagerOps.AddNode(Islands, b.Node);
+        return b;
+    }
+
+    /// <summary>
+    /// A hull (body vfn 0x68) or mesh (0x70) shape joins the body with its
+    /// collision attributes and material; an enabled body gives it a proxy
+    /// at its current frame (FUN_1801b9650). <paramref name="handle"/> names
+    /// the shape in the pair set; by default the world numbers its shapes.
+    /// </summary>
+    public RnShape AddShape(RnBody body, int type, HullRef hull, RnMesh? mesh, Vec3 meshScale,
+                            in CollisionAttributes attributes, in ContactSolver.Material material, ulong? handle = null)
+    {
+        var s = new RnShape(body, handle ?? _nextHandle);
+        _nextHandle = Math.Max(_nextHandle, s.Proxy.Handle) + 0x10;
+        if (type == BroadphaseShape.HullType)
+            s.SetHull(hull);
+        else if (type == BroadphaseShape.MeshType)
+            s.SetMesh(mesh!, meshScale);
+        else
+            throw new NotSupportedException($"shape type {type}");
+        s.Attributes = attributes;
+        s.Material = material;
+        body.Shapes.Add(s);
+        ShapesByHandle[s.Proxy.Handle] = s;
+        Broadphase?.AddShape(s.Proxy);
+        return s;
+    }
+
+    /// <summary>
+    /// The part of SetType(2) (FUN_1801bd3e0) a body without contacts needs:
+    /// its node leaves the manager and joins again at the end (FUN_1802ccbb0,
+    /// FUN_1802ce270), and its proxies move to the dynamic tree
+    /// (FUN_1802d7560). The mass update it also runs is not ported: the
+    /// caller sets the body's mass properties.
+    /// </summary>
+    public void MakeDynamic(RnBody body)
+    {
+        if (body.Shapes.Any(s => s.Heads.Any(h => h != null)))
+            throw new NotSupportedException("SetType on a body with contacts");
+        IslandManagerOps.RemoveNode(Islands, body.Node);
+        body.State.BodyType = 2;
+        body.Static = false;
+        foreach (var s in body.Shapes)
+            Broadphase?.ReselectTree(s.Proxy);
+        IslandManagerOps.AddNode(Islands, body.Node);
+    }
+
+    /// <summary>
+    /// CRnWorld::Step (FUN_180200840). A plain world has no step callbacks,
+    /// controllers, joints to break or soft bodies, so those parts of the
+    /// step are empty here.
+    /// </summary>
+    public void Step(float dt, bool first)
+    {
+        if (!(dt > 1e-6f))
+            return;
+        if (first)
+            FrameTime = Time;
+        if (WakeBodiesFromAppliedForces != null)
+            WakeBodiesFromAppliedForces(this);
+        else
+            StepGlue.WakeBodiesFromAppliedForces(this, ForcedBodies);
+        StepCount++;
+        Time = dt + Time;
+        var broadphase = Broadphase ?? throw new InvalidOperationException("stepping needs the broadphase");
+        broadphase.PreStepQuery(Query, Threads, Priority);
+        BuildNewContacts();
+        Observe?.Invoke(this, StepPhase.BeforeCollide);
+        var collide = new CollideLists();
+        ContactLifecycle.CollideContacts(this, collide);
+        Observe?.Invoke(this, StepPhase.Collided);
+        ContactLifecycle.Flush(this, collide);
+        WorldSolver.Solve(this, dt, first, new SolveLists());
+        BuildNewContacts();
+        WorldSolver.GatherContinuous(this);
+        (SolveContinuous ?? ContinuousSolve.Run)(this, dt);
+        if (ClampToWorldBounds != null)
+            ClampToWorldBounds(this);
+        else
+            StepGlue.ShapesOutsideBounds(broadphase, MaxCoordinate);
+        StepFlags |= 1;
+    }
+
+    /// <summary>
+    /// CRnWorld::BuildNewContactsFromOverlappingPairQuery (FUN_1801f1dc0): the
+    /// pairs the query found, in key order, that entered the pair set become
+    /// contacts: linked at the front of both shapes' not-touching lists and
+    /// appended to the all-contacts list and the active contacts.
+    /// </summary>
+    public void BuildNewContacts()
+    {
+        foreach (var found in Broadphase!.BuildNewContacts(Query))
+        {
+            var c = CreateContact(ShapesByHandle[found.A.Handle], ShapesByHandle[found.B.Handle], found.SubA, found.SubB, found.Flags);
+            for (var h = 0; h < 2; h++)
+            {
+                var shape = c.Shape(h);
+                if (shape.Heads[c.TouchState] is { } head)
+                {
+                    c.Next[h] = head;
+                    head.Contact.Prev[head.Half] = new EdgeRef(c, h);
+                }
+                shape.Heads[c.TouchState] = new EdgeRef(c, h);
+            }
+            var all = AllContacts[(c.Flags78 & 1) == 0 ? 1 : 0];
+            c.AllIndex = all.Count;
+            all.Add(c);
+            ContactLifecycle.Reactivate(this, c);
+        }
+    }
+
+    /// <summary>
+    /// A contact as FUN_1801d1390 builds it (the pair ctor FUN_180306710, the
+    /// base FUN_1801d1170, then the convex FUN_180306900 or mesh FUN_1802fd130
+    /// ctor): not touching, in no list, group 0 only between two dynamic
+    /// bodies, and a slop of 1/16 for each hull or mesh side.
+    /// </summary>
+    private static RnContact CreateContact(RnShape a, RnShape b, int subA, int subB, ushort flags)
+    {
+        var c = new RnContact(a, b)
+        {
+            ChildA = subA,
+            ChildB = subB,
+            SolverA = -1,
+            SolverB = -1,
+            Key = (ulong)(uint)a.ProxyId << 32 | (uint)b.ProxyId,
+            Flags78 = flags,
+            Flags74 = (byte)((flags & 0x1c) != 0 ? 2 : 0),
+            Group = a.Body.State.BodyType == 2 && b.Body.State.BodyType == 2 ? 0 : 1,
+        };
+        if (a.Type is 2 or 3)
+            c.Slop += 0.0625f;
+        if (b.Type is 2 or 3)
+            c.Slop += 0.0625f;
+        if (a.Type == 4 || b.Type == 4)
+            throw new NotSupportedException("compound shapes");
+        if (b.Type == BroadphaseShape.MeshType)
+            c.Mesh = new MeshContactState();
+        return c;
+    }
+
+    /// <summary>
+    /// FUN_1801f8a10's part for contacts: the destroyed contacts are freed.
+    /// Valve does it outside the step (world vfn 0x28 at the end of a
+    /// simulation, and when the world is emptied); nothing reads them.
+    /// </summary>
+    public void FreeDestroyed() => Destroyed.Clear();
 }
