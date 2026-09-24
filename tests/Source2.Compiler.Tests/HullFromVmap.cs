@@ -88,6 +88,8 @@ public class HullFromVmap(ITestOutputHelper output)
             var className = entity.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") ?? "";
             var ours = new List<RnHull?>();
             var skip = false;
+            var simplified = false;
+            var simplifiedHulls = new HashSet<RnHull>(ReferenceEqualityComparer.Instance);
             foreach (var mesh in Meshes(entity))
             {
                 if ((Environment.GetEnvironmentVariable("HULL_XFORM") == "0" || Environment.GetEnvironmentVariable("HULL_SKIPROT") == "1") && (mesh.GetValue<Vector3>("angles") ?? Vector3.Zero) != Vector3.Zero)
@@ -109,6 +111,7 @@ public class HullFromVmap(ITestOutputHelper output)
                 var type = BrushHulls.Resolve(stored, true, className == "func_shatterglass", false, false);
                 var (positions, faces) = Read(mesh, origin, fromStart, entity);
                 var materialOf = MaterialIndices(mesh, faces.Length);
+                var runs = HullSimplifier.Runs;
                 try
                 {
                     foreach (var m in materialOf.Distinct().OrderBy(x => x))
@@ -116,7 +119,22 @@ public class HullFromVmap(ITestOutputHelper output)
                         if (m >= 0 && m < matNames.Length && Environment.GetEnvironmentVariable("HULL_NOCLIP") == "1" && matNames[m].Contains("clip", StringComparison.OrdinalIgnoreCase))
                             continue;
                         var piece = faces.Where((_, f) => materialOf[f] == m).ToArray();
-                        ours.AddRange(BrushHulls.Build(positions, piece, type));
+                        // BrushHulls.Build one input at a time, to see which
+                        // hulls went through the simplifier.
+                        foreach (var input in BrushHulls.Inputs(positions, piece, type))
+                        {
+                            var before = HullSimplifier.Runs;
+                            var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
+                            var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
+                            var hull = points == null ? null : RnHullBuilder.Create(points, RnHullBuilder.Options.Compile, out _);
+                            if (hull != null)
+                            {
+                                RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
+                                if (HullSimplifier.Runs != before)
+                                    simplifiedHulls.Add(hull);
+                            }
+                            ours.Add(hull);
+                        }
                         if (Environment.GetEnvironmentVariable("HULL_BRUTE") == "1")
                             Brute(entry, package, positions, piece, type);
                     }
@@ -127,6 +145,7 @@ public class HullFromVmap(ITestOutputHelper output)
                     skip = true;
                     break;
                 }
+                simplified |= HullSimplifier.Runs != runs;
             }
             if (skip)
                 continue;
@@ -178,7 +197,14 @@ public class HullFromVmap(ITestOutputHelper output)
                 if (match != null)
                     pool.Remove(match);
                 var diff = Differences(shipped[i], match);
-                Count(tally, diff.Count == 0 ? "hull exact" : diff[0].Split(' ')[0]);
+                var verdict = diff.Count == 0 ? "hull exact" : diff[0].Split(' ')[0];
+                Count(tally, verdict);
+                var viaSimplifier = match != null ? simplifiedHulls.Contains(match) : simplified;
+                if (viaSimplifier)
+                {
+                    Count(tally, "simplified, " + verdict);
+                    output.WriteLine($"SIMPLIFIED {entry.GetFullPath()} ({className}) hull {i}: {(diff.Count == 0 ? "exact" : string.Join("; ", diff.Take(6)))}");
+                }
                 if (diff.Count > 0 && shown++ < show)
                     output.WriteLine($"{entry.GetFullPath()} ({className}) hull {i}: {string.Join("; ", diff.Take(6))}");
             }

@@ -35,8 +35,8 @@ public sealed class RnHull
 /// checked against the 256 limits, sharpened, checked for a 0.01 inner
 /// margin, scaled and moved back, and converted.</para>
 ///
-/// <para>Not ported: the extrusion retry for an invalid hull and the
-/// simplifiers, which the compile's options only reach past 256.</para>
+/// <para>Not ported: simplify algorithms 1 and 2; algorithm 0 is
+/// <see cref="HullSimplifier"/>.</para>
 /// </summary>
 public static class RnHullBuilder
 {
@@ -206,7 +206,7 @@ public static class RnHullBuilder
             }
             qh = retry;
         }
-        if (!Limits(qh, o, tolerance, out error))
+        if (!Limits(ref qh, o, tolerance, out error))
             return null;
         if (!Check(qh, o, out error))
             return null;
@@ -230,18 +230,27 @@ public static class RnHullBuilder
         return exp - 126;
     }
 
-    // FUN_180385370
-    private static bool Limits(QuickHull qh, Options o, float tolerance, out int error)
+    // FUN_180385370 (resourcecompiler's copy FUN_1813207c0): up to
+    // Iterations + 1 passes, simplifying while a limit is broken or two
+    // faces sit within the angle; a failed simplification keeps the hull
+    // ("could not simplify hull").
+    private static bool Limits(ref QuickHull qh, Options o, float tolerance, out int error)
     {
         error = 0;
-        // Valve loops Iterations + 1 times, simplifying while a limit is broken.
-        if (o.Iterations >= 0)
+        for (var pass = 0; pass < o.Iterations + 1;)
         {
             var faces = qh.HullFaces.Count();
             var edges = qh.HullFaces.Sum(f => QuickHull.Loop(f).Count());
             var verts = qh.HullVertices.Count();
-            if (faces > o.MaxFaces || edges > o.MaxEdges || verts > o.MaxVertices || NeedsSimplify(qh, o.Angle, tolerance))
-                throw new NotSupportedException("the hull needs simplifying, which is not ported");
+            if (faces <= o.MaxFaces && edges <= o.MaxEdges && verts <= o.MaxVertices && !NeedsSimplify(qh, o.Angle, tolerance))
+                break;
+            if (o.Algorithm != 0)
+                throw new NotSupportedException("simplify algorithms 1 and 2 are not ported");
+            var simplified = HullSimplifier.Simplify(qh, o);
+            if (simplified == null)
+                break;
+            qh = simplified;
+            pass++;
         }
         if (o.Sharpen)
         {

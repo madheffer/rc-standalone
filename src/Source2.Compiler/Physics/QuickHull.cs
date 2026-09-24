@@ -58,9 +58,11 @@ internal sealed class QuickHull
         public readonly Link Conflict = new();
     }
 
-    /// <summary>tol[0], tol[1], tol[2] at +0, +4, +8; the scale 50 at +0xc.</summary>
+    /// <summary>tol[0], tol[1], tol[2] at +0, +4, +8.</summary>
     public readonly float[] Tol = new float[3];
-    private const float ToleranceScale = 50f;
+
+    /// <summary>+0xc: 50 from the constructor; the plane hull's dual sets 1.</summary>
+    public float ToleranceScale = 50f;
     public float IX, IY, IZ;
     public readonly Link Orphans = new();
     public readonly Link Vertices = new();

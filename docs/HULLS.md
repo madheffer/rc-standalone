@@ -128,9 +128,8 @@ Two details make the order Valve's rather than any correct hull's:
 - normalisation, the limit and sharpen passes, and the inner-margin check;
 - the conversion and the mass, area and centroid-radius passes.
 
-Not ported: the simplifiers (the compile's options only reach them past 256;
-the map builder's 5 degree angle reaches them for nearly coplanar neighbours)
-and the region SVM.
+Not ported: simplify algorithms 1 and 2 and the region SVM. Algorithm 0, the
+one both the compile and the map builder ask for, is below.
 
 `HullReplay` feeds every shipped brush-entity hull's own vertices back in:
 
@@ -208,22 +207,85 @@ and topology. It depends on two more findings.
 
 | map | exact | order only | near miss | other |
 |---|---|---|---|---|
-| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1177 | 3 | 11 | 4 hull counts, 4 need the simplifier |
+| ze_ffvii_mako_reactor_v6_p (rotated entities included) | 1196 | 4 | 11 | 5 hull counts |
 | ze_hold_em_p | 163 | 0 | 0 | 6 doors: a toolsclip mesh ships no hull (the .vmap is older than the compile) |
-| atixref (older compile) | 236 | 0 | 35 | 6 need the simplifier |
+| atixref (older compile) | 242 | 0 | 35 | |
 
 A near miss is a vertex off by a rounding step or a sharpen-sized nudge.
+Every hull that goes through the simplifier matches exactly: 3 on Mako and 6
+on atixref.
 
 ### What is left
 
 - **Face fan order around a vertex.** It feeds the neighbour set, and
   triangle index order stands in. Reversing it changes nothing on Mako,
   because it only matters when two faces share a home slot.
-- **The simplifier** that a 5 degree angle between neighbouring faces asks
-  for.
+- **The 1/32 weld on the polygon mesh.** Mako's `decoration_door_1` ships
+  21 hulls and we make 123. Its meshes fall apart into many small vertex
+  groups, which a weld of near-coincident vertices would join.
 - **Hull order across pieces.** It differs from mesh order, so the test
   matches hulls by their vertex sets.
 - **The region SVM.**
+
+## The simplifier
+
+The limits pass runs Iterations + 1 times. Each time a hull breaks a vertex,
+edge or face limit, or two neighbouring faces lie within the merge angle, it
+simplifies. If that fails ("could not simplify hull") the hull is kept as it
+is. The map builder's 5 degree angle is what sends a brush entity's hull
+here. `Physics/HullSimplifier.cs` ports algorithm 0, "Quadric Error Metric",
+which has three stages.
+
+1. **Quadric edge collapse.**
+   - The hull becomes a triangle mesh: vertices in list order, each face
+     fanned from its first half-edge.
+   - Every edge is a pair. Each vertex carries the sum of its triangles'
+     plane quadrics, weighted by half their area.
+   - A pair costs the cheaper of its endpoints. The quadric's minimum wins
+     instead when it is cheaper still and lies nearer either endpoint than
+     the endpoints lie to each other. The kept vertex moves along the edge
+     by the minimum's projection.
+   - Pairs come off a min-heap. One is skipped when its ends share three or
+     more neighbours or when the move would flip a triangle.
+   - Collapsing continues while the error is under the tolerance squared, or
+     there are more vertices than the limit, or more than 85 triangles. It
+     always stops at 4 vertices or 4 triangles.
+   - With the map builder's options, only hulls of more than 85 triangles
+     lose anything. For the others this stage only renumbers the vertices
+     (first use, triangles taken from their lowest corner), and that order
+     is what gets hulled again (tolerance 1e-6, relative).
+2. **`CDualHullAgglomerator`.**
+   - Each face of that hull is a leaf cluster: its plane relative to the
+     vertex centroid, times its area.
+   - Neighbouring clusters merge bottom up until one is left. Each merge
+     takes the cheapest pair, and a pair costs
+     log(sum over both sides of area x tangent to the merged normal x
+     sharpness), plus 90 when either side turns past the angle.
+   - Sharpness starts at 1. It grows when a cluster borders one whose normal
+     is more than 90 degrees away.
+   - Cutting the tree: first every merge whose two children are within the
+     angle (loosened by their sharpness) is taken, in tree order, until 4
+     clusters are left. Then, if there are still more planes than the face
+     limit, plain tree order is used.
+3. **The hull from those planes.**
+   - Each plane's dual point n / d is hulled at tolerance 0, with a tolerance
+     scale of 1 rather than the constructor's 50.
+   - Each dual face gives a vertex, and those vertices are hulled.
+   - If that breaks a limit, the plane budget drops by a sixteenth and the
+     planes are cut again.
+
+The agglomerator's dual mesh (clusters as vertices, the rings of faces round
+each hull vertex as faces) lives in Valve's generic half-edge library. Only
+its adjacency reaches the result, through sharpness. The port keeps it as
+rings of clusters and refuses a merge the way the library's edge collapse
+does: when a shared neighbour is not the tip of a triangle on the common
+edge.
+
+Ghidra's printer drops parentheses in chains of `*` and `+`, so `a * b * c`
+in the decompile can be `a * (b * c)` in the binary. The simplifier's
+arithmetic was checked against the disassembly (`tools/re/symsse.py` traces the
+real association). The same goes for `minss` and `maxss`, whose NaN
+behaviour the decompile does not show.
 
 ## Where the hull points come from
 
