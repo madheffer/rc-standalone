@@ -216,7 +216,7 @@ public class HullFromVmap(ITestOutputHelper output)
             }
             _bruteShown++;
             if (Environment.GetEnvironmentVariable("HULL_BRUTE_DUMP") is { Length: > 0 } dump)
-                File.AppendAllLines(dump, [$"# {entry.GetFullPath()} ours {string.Join(" ", input.Select(Label))}", "# faces " + string.Join(" ", piece.Select(f => string.Join(",", f))), .. hits]);
+                File.AppendAllLines(dump, [$"# {entry.GetFullPath()} ours {string.Join(" ", input.Select(Label))}", "# faces " + string.Join(" ", piece.Select(f => string.Join(",", f))), "# pos " + string.Join(" ", positions.Select((q, i) => $"{i}:{q.X:R},{q.Y:R},{q.Z:R}")), .. hits]);
             output.WriteLine($"BRUTE {entry.GetFullPath()}: ours [{string.Join(" ", input.Select(Label))}], {hits.Count} exact orderings: {string.Join(" | ", hits.Take(3))}");
             output.WriteLine($"  faces: {string.Join(" ", piece.Select(f => "(" + string.Join(",", f) + ")"))}");
         }

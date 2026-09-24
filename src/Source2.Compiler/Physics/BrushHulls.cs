@@ -16,9 +16,9 @@ namespace Source2.Compiler.Physics;
 /// is hulled again by <c>RnHullCreate</c> when the model compiles.</para>
 ///
 /// <para>Not ported: the 1/32 weld on the polygon mesh, the simplifier a
-/// positive simplification error asks for, and the ear clipper for faces of
-/// four or more corners (a fan stands in; it only decides probe order on a
-/// hash collision).</para>
+/// positive simplification error asks for, and the order faces come round a
+/// vertex (triangle order stands in; it only decides probe order on a hash
+/// collision).</para>
 /// </summary>
 public static class BrushHulls
 {
@@ -58,8 +58,15 @@ public static class BrushHulls
         {
             if (face.Length < 3)
                 continue;
+            // FUN_181310a90: a triangle as it stands, anything larger through
+            // the triangulator; a face it cannot cut adds no vertices either.
+            int[] cut = face.Length == 3 ? [0, 1, 2] : FaceTriangulator.Triangulate([.. face.Select(v => positions[v])]);
+            if (cut.Length < 3)
+                continue;
             var local = new int[face.Length];
-            for (var j = 0; j < face.Length; j++)
+            // The source mesh is already triangulated, so vertices are
+            // numbered in the order the triangles' corners meet them.
+            foreach (var j in cut)
             {
                 if (!index.TryGetValue(face[j], out var i))
                 {
@@ -69,8 +76,8 @@ public static class BrushHulls
                 }
                 local[j] = i;
             }
-            for (var j = 1; j + 1 < face.Length; j++)
-                triangles.Add((local[0], local[j], local[j + 1]));
+            for (var j = 0; j + 2 < cut.Length; j += 3)
+                triangles.Add((local[cut[j]], local[cut[j + 1]], local[cut[j + 2]]));
         }
         if (type == PhysicsType.ConvexSingle)
             return [[.. points]];
