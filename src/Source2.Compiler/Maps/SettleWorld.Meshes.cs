@@ -133,6 +133,15 @@ public static partial class SettleWorld
         var positions = MeshStream(data, "vertexData", "position");
         var faceMaterials = MeshStream(data, "faceData", "materialindex").Select(x => x is int i ? i : 0).ToArray();
         var names = (data.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").ToArray();
+        // An entity class with auto_apply_material metadata (the triggers'
+        // toolstrigger) puts that material in every slot of its meshes when
+        // the class is set (FUN_180f3af80 through SetWholeMeshOverrideMaterial;
+        // FUN_1810dcca0 then names each slot after the override). atixref's
+        // two trigger meshes and Mako's 82 all ask FUN_1802e3120 about a
+        // nodraw material, whatever their own faces carry.
+        var ownerClass = owner?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") ?? "";
+        if (owner != null && context.Schema?.MetadataOf(ownerClass, "auto_apply_material") is { Length: > 0 } applied)
+            names = [.. names.Select(_ => applied)];
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
 
         var records = names.Select(n => MaterialRecord(n, mesh, owner, context)).ToList();
@@ -296,7 +305,13 @@ public static partial class SettleWorld
     /// </summary>
     private static MaterialPhysics ReadMaterialPhysics(MaterialInfo info, IModels models)
     {
-        bool On(string key) => info.Ints.TryGetValue(key, out var v) && v != 0;
+        // "translucent" is not a material attribute but the shader's, per
+        // static combo (the material's vfn 0x48 answers it; no vmat_c carries
+        // it). Measured on every drawn material of atixref and Mako: it is
+        // set for csgo_glass and for F_TRANSLUCENT 1, and for nothing else.
+        bool On(string key) => info.Ints.TryGetValue(key, out var v) && v != 0
+            || key == "translucent" && (info.Shader.Equals("csgo_glass.vfx", StringComparison.OrdinalIgnoreCase)
+                                        || info.Params.TryGetValue("F_TRANSLUCENT", out var t) && t != 0);
         var drawn = !On("mapbuilder.nodraw");
         bool solid = true, forced = false;
         string group = "", tags = "", with = "", exclude = "";

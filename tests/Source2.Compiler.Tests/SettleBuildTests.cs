@@ -192,7 +192,11 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             var mat = (Material)res.DataBlock!;
             return _materials[path] = new SettleWorld.MaterialInfo(
                 mat.IntAttributes.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
-                mat.StringAttributes.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase));
+                mat.StringAttributes.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase))
+            {
+                Shader = mat.ShaderName,
+                Params = mat.IntParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
+            };
         }
 
         public SettleWorld.CollisionProperty? CollisionProperty(string name)

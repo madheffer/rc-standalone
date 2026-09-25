@@ -62,7 +62,14 @@ public static partial class SettleWorld
     }
 
     /// <summary>What a compiled material (.vmat_c) carries for physics.</summary>
-    public sealed record MaterialInfo(IReadOnlyDictionary<string, long> Ints, IReadOnlyDictionary<string, string> Strings);
+    public sealed record MaterialInfo(IReadOnlyDictionary<string, long> Ints, IReadOnlyDictionary<string, string> Strings)
+    {
+        /// <summary>The material's shader (its .vfx name).</summary>
+        public string Shader { get; init; } = "";
+
+        /// <summary>The material's int parameters, the F_ static combo choices among them.</summary>
+        public IReadOnlyDictionary<string, long> Params { get; init; } = new Dictionary<string, long>();
+    }
 
     /// <summary>One named collision property: its group and its layer lists, comma separated.</summary>
     public sealed record CollisionProperty(string Group, string InteractAs, string InteractWith, string InteractExclude);
