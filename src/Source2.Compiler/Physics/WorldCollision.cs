@@ -153,17 +153,22 @@ public static class WorldCollision
         var faceMaterials = (data.Get<DmxBinary.Element>("faceData")?.GetElements("streams")
             .FirstOrDefault(st => st.Name.StartsWith("materialindex", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [])
             .Select(x => x is int i ? i : 0).ToArray();
+        var faceBiases = (data.Get<DmxBinary.Element>("faceData")?.GetElements("streams")
+            .FirstOrDefault(st => st.Name.StartsWith("lightmapScaleBias", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [])
+            .Select(x => x is int i ? i : 0).ToArray();
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
         var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
         var cut = Maps.MeshTessellation.Triangulate(data);
-        var byMaterial = new SortedDictionary<int, (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of)>();
+        // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
+        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of)>();
         for (var t = 0; t < cut.Faces.Count; t++)
         {
             var f = cut.Faces[t];
             var material = faceMaterials.Length == 0 ? 0 : faceMaterials[faceData[f]];
-            if (!byMaterial.TryGetValue(material, out var piece))
-                byMaterial[material] = piece = ([], [], []);
+            var bias = faceBiases.Length == 0 ? 0 : faceBiases[faceData[f]];
+            if (!byMaterial.TryGetValue((bias, material), out var piece))
+                byMaterial[(bias, material)] = piece = ([], [], []);
             for (var k = 0; k < 3; k++)
             {
                 var v = cut.Indices[(t * 3) + k];
@@ -177,7 +182,7 @@ public static class WorldCollision
                 piece.Indices.Add(at);
             }
         }
-        return [.. byMaterial.Select(kv => (kv.Key, kv.Value.Points.ToArray(), kv.Value.Indices.ToArray()))];
+        return [.. byMaterial.Select(kv => (kv.Key.Material, kv.Value.Points.ToArray(), kv.Value.Indices.ToArray()))];
     }
 
     /// <summary>

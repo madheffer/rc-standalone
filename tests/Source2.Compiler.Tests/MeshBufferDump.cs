@@ -29,6 +29,20 @@ public class MeshBufferDump(ITestOutputHelper output)
         }
         foreach (var (k, v) in types.OrderBy(kv => kv.Key, StringComparer.Ordinal))
             output.WriteLine($"TYPE {k}: {v}");
+        // MESHBUF_SUMMARY=1: per dump, its vertices, first position and face
+        // sets (material:polygons), in file order.
+        if (Environment.GetEnvironmentVariable("MESHBUF_SUMMARY") == "1")
+        {
+            foreach (var file in Directory.GetFiles(dir, "*.dmx").OrderBy(f => int.Parse(Path.GetFileNameWithoutExtension(f), System.Globalization.CultureInfo.InvariantCulture)))
+            {
+                var doc = DmxBinary.Read(File.ReadAllBytes(file));
+                var vd = doc.Elements.First(e => e.Type == "DmeVertexData");
+                var pos = vd.Get<object?[]>("position$0") ?? [];
+                var sets = doc.Elements.First(e => e.Type == "DmeMesh").GetElements("faceSets")
+                    .Select(fs => $"{Path.GetFileNameWithoutExtension(fs.Get<DmxBinary.Element>("material")?.Get<string>("mtlName") ?? "?")}:{(fs.Get<object?[]>("faces") ?? []).Count(x => x is int i && i == -1)}");
+                output.WriteLine($"DUMP {Path.GetFileNameWithoutExtension(file)} verts {pos.Length} first {(pos.Length > 0 ? pos[0] : null)} sets {string.Join(" ", sets)}");
+            }
+        }
         if (Environment.GetEnvironmentVariable("MESHBUF_SHOW") is { Length: > 0 } show)
         {
             var doc = DmxBinary.Read(File.ReadAllBytes(Path.Combine(dir, show + ".dmx")));

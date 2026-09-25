@@ -31,6 +31,13 @@ public class MeshVertexProbe(ITestOutputHelper output)
             var first = Ints(data, "faceEdgeIndices");
             var materials = data.Get<DmxBinary.Element>("faceData");
             output.WriteLine($"node {node}: {first.Length} faces, instances [{string.Join(",", mesh.Instances)}]");
+            var matNames = data.Get<object?[]>("materials") ?? [];
+            output.WriteLine("  materials: " + string.Join(" ", matNames.Select((m, i) => $"{i}={Path.GetFileNameWithoutExtension(m as string)}")));
+            foreach (var st in data.Get<DmxBinary.Element>("faceData")?.GetElements("streams") ?? [])
+            {
+                var vals = st.Get<object?[]>("data") ?? [];
+                output.WriteLine($"  faceData stream {st.Name}: {vals.Length} values, distinct {string.Join(",", vals.Distinct().Take(8))}");
+            }
             // Connected parts: faces sharing a .vmap vertex, and each part's
             // vertex count per material.
             var loops = new List<int[]>();

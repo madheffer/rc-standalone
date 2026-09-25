@@ -42,6 +42,7 @@ internal static class MapMeshCorners
         var faceData = Ints(data, "faceDataIndices");
         var positions = StreamData(data, "vertexData", "position");
         var materials = (StreamData(data, "faceData", "materialindex") ?? []).Select(x => x is int i ? i : 0).ToArray();
+        var biases = (StreamData(data, "faceData", "lightmapScaleBias") ?? []).Select(x => x is int i ? i : 0).ToArray();
 
         // The streams each corner carries, in the .vmap's order.
         var streams = new List<(string Name, object?[] Data, int Count)>();
@@ -69,7 +70,10 @@ internal static class MapMeshCorners
             stride += count;
         }
 
-        var byMaterial = new SortedDictionary<int, (List<float> V, List<int> I, List<int> Ids)>();
+        // The exported mesh has one face set per (lightmap scale bias,
+        // material), in that order (atixref node 1109: biases -3 to 0, each
+        // run in material index order), so one material can make several pieces.
+        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<float> V, List<int> I, List<int> Ids)>();
         for (var f = 0; f < first.Length; f++)
         {
             var loop = new List<int>();
@@ -86,8 +90,9 @@ internal static class MapMeshCorners
             if (cut.Length < 3)
                 continue;
             var material = materials.Length == 0 ? 0 : materials[faceData[f]];
-            if (!byMaterial.TryGetValue(material, out var piece))
-                byMaterial[material] = piece = ([], [], []);
+            var bias = biases.Length == 0 ? 0 : biases[faceData[f]];
+            if (!byMaterial.TryGetValue((bias, material), out var piece))
+                byMaterial[(bias, material)] = piece = ([], [], []);
             foreach (var j in cut)
             {
                 piece.I.Add(piece.I.Count);
@@ -102,7 +107,7 @@ internal static class MapMeshCorners
                 }
             }
         }
-        return [.. byMaterial.Select(kv => new Piece(kv.Key, stride, [.. kv.Value.V], [.. kv.Value.I], layout) { VertexIds = [.. kv.Value.Ids] })];
+        return [.. byMaterial.Select(kv => new Piece(kv.Key.Material, stride, [.. kv.Value.V], [.. kv.Value.I], layout) { VertexIds = [.. kv.Value.Ids] })];
     }
 
     /// <summary>
