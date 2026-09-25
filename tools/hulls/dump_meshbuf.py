@@ -8,7 +8,8 @@ the entry's bytes and the producer that made its list. FUN_18023bd00 asks
 an interface (slot 0x168) that forwards to another one's slot 0x640; the
 producer is that second function.
 
-The compile overwrites the map's .vpk; back it up first. CS2 must be closed.
+The compile overwrites the map's .vpk; back it up first. It refuses to
+start while CS2 or another compile runs, or with under 10 GB free.
 """
 import argparse
 import json
@@ -62,6 +63,18 @@ hook();
 """
 
 
+def busy():
+    import subprocess
+    out = subprocess.run(["tasklist"], capture_output=True, text=True).stdout.lower()
+    return "cs2.exe" in out or "resourcecompiler.exe" in out
+
+
+def low_disk():
+    """Under 10 GB free on the game's drive: a compile writes the vpk there, and a crash dumps ~2.4 GB."""
+    import shutil
+    return shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("addon")
@@ -70,7 +83,11 @@ def main():
     a = p.parse_args()
     os.makedirs(a.outdir, exist_ok=True)
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
-    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4",
+    if busy():
+        raise SystemExit("CS2 or another resourcecompiler is running; not starting")
+    if low_disk():
+        raise SystemExit("under 10 GB free on the game drive; not starting")
+    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f",
             "-game", os.path.join(CS2, "game", "csgo"), "-i", source, "-world", "-fshallow"]
     index = open(os.path.join(a.outdir, "index.jsonl"), "w", encoding="utf-8", newline="\n")
     sources = set()
