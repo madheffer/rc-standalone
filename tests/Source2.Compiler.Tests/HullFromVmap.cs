@@ -217,7 +217,8 @@ public class HullFromVmap(ITestOutputHelper output)
                 Count(tally, "hull count differs");
                 if (shown++ < show)
                 {
-                    output.WriteLine($"{entry.GetFullPath()} ({className}): shipped {shipped.Count} hulls, ours {ours.Count}");
+                    output.WriteLine($"{entry.GetFullPath()} ({className}): shipped {shipped.Count} hulls, ours {ours.Count}; shipped parts " +
+                        string.Join(" ", (resource.DataBlock as Model)?.GetEmbeddedPhys()?.Parts.Select(p => $"[{p.Shape.Hulls.Length} hulls {p.Shape.Meshes.Length} meshes {p.Shape.Spheres.Length} spheres {p.Shape.Capsules.Length} capsules]") ?? []));
                     foreach (var mesh in Meshes(entity))
                     {
                         mesh.Attributes.TryGetValue("physicsType", out var pt);
