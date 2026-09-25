@@ -254,7 +254,8 @@ public static class WorldCollision
                 }
                 continue;
             }
-            foreach (var (material, positions, faces, local, corners, cornerData) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
+            var setPaint = paint == null ? null : SetPaint(mesh.Element!, paint);
+            foreach (var (material, positions, faces, local, corners, cornerData, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
                          !names.Any(n => n is string m && materials(m).KeepsTexcoords)))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
@@ -266,21 +267,18 @@ public static class WorldCollision
                 var indices = new int[triangles.Count * 3];
                 for (var t = 0; t < triangles.Count; t++)
                     (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
-                // The shape's mesh keeps one vertex per .vmap vertex; its paint
-                // is taken from the corner that made it (the .vmap stores
-                // paint per corner; which corner the builder keeps is not
-                // measured; notes lists pieces where the corners disagree).
+                // The shape's mesh keeps one vertex per .vmap vertex, painted
+                // from the first of its corners met in its own face set
+                // (SetPaint), measured on ze_hold_em_paint_flat: 76 of 76.
                 Vector4[]? vertexPaint = null;
-                if (physics.Blend != null && paint != null)
+                if (physics.Blend != null && setPaint != null && setPaint.TryGetValue((bias, material), out var firstMet))
                 {
-                    vertexPaint = [.. made.Select(m => paint[cornerData[m.Face][m.Corner]])];
-                    // The sampler (18064c460) needs a render device, scene and
-                    // mod-tools system connected; whether a compile has them is
-                    // not measured, so such pieces are listed.
+                    vertexPaint = [.. made.Select(m => firstMet[corners[m.Face][m.Corner]])];
+                    // The sampler (18064c460) runs in a compile (all four
+                    // interfaces connected, one sample per triangle on atixref)
+                    // and is not ported, so such pieces are listed.
                     if (physics.Blend.Sampled)
-                        notes?.Add($"node {mesh.NodeId} material {material}: layers may come from the material sampler");
-                    if (notes != null && Disagreements(corners, cornerData, paint) is > 0 and var n)
-                        notes.Add($"node {mesh.NodeId} material {material}: {n} vertices painted differently at their corners");
+                        notes?.Add($"node {mesh.NodeId} material {material}: layers come from the material sampler (not ported)");
                 }
                 AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices);
             }
@@ -306,26 +304,45 @@ public static class WorldCollision
     }
 
     // The mesh's vertex paint, per corner (faceVertexData "VertexPaintBlendParams").
-    private static Vector4[]? PaintStream(DmxBinary.Element mesh)
+    internal static Vector4[]? PaintStream(DmxBinary.Element mesh)
         => mesh.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams")
                .FirstOrDefault(st => st.Name.Split(':')[0] == "VertexPaintBlendParams")?.Get<object?[]>("data")
                ?.Select(x => x is Vector4 v ? v : Vector4.Zero).ToArray();
 
-    // Vertices whose corners carry different paint.
-    private static int Disagreements(int[][] corners, int[][] cornerData, Vector4[] paint)
+    // Per face set (lightmap scale bias, material): each .vmap vertex's paint
+    // from the first of its corners met walking the set's faces in order and
+    // each face's loop from its first half-edge. The exported mesh keeps one
+    // paint per vertex and set; measured on ze_hold_em_paint_flat, whose
+    // paint differs at nearly every vertex's corners.
+    private static Dictionary<(int Bias, int Material), Dictionary<int, Vector4>> SetPaint(DmxBinary.Element mesh, Vector4[] paint)
     {
-        var seen = new Dictionary<int, Vector4>();
-        var differ = new HashSet<int>();
-        for (var f = 0; f < corners.Length; f++)
+        var data = mesh.Get<DmxBinary.Element>("meshData")!;
+        int[] Ints(string name) => (data.Get<object?[]>(name) ?? []).Select(x => x is int i ? i : -1).ToArray();
+        int[] FaceStream(string name) => (data.Get<DmxBinary.Element>("faceData")?.GetElements("streams").FirstOrDefault(x => x.Name.Split(':')[0] == name)?.Get<object?[]>("data") ?? [])
+            .Select(x => x is int i ? i : 0).ToArray();
+        var next = Ints("edgeNextIndices");
+        var to = Ints("edgeVertexIndices");
+        var cornerOf = Ints("edgeVertexDataIndices");
+        var first = Ints("faceEdgeIndices");
+        var faceData = Ints("faceDataIndices");
+        var materials = FaceStream("materialindex");
+        var biases = FaceStream("lightmapScaleBias");
+        var sets = new Dictionary<(int, int), Dictionary<int, Vector4>>();
+        for (var f = 0; f < first.Length; f++)
         {
-            for (var j = 0; j < corners[f].Length; j++)
+            var key = (biases.Length == 0 ? 0 : biases[faceData[f]], materials.Length == 0 ? 0 : materials[faceData[f]]);
+            if (!sets.TryGetValue(key, out var met))
+                sets[key] = met = [];
+            var h = first[f];
+            var guard = 0;
+            do
             {
-                var p = paint[cornerData[f][j]];
-                if (!seen.TryAdd(corners[f][j], p) && seen[corners[f][j]] != p)
-                    differ.Add(corners[f][j]);
-            }
+                if (cornerOf[h] >= 0 && cornerOf[h] < paint.Length)
+                    met.TryAdd(to[h], paint[cornerOf[h]]);
+                h = next[h];
+            } while (h != first[f] && ++guard <= next.Length);
         }
-        return differ.Count;
+        return sets;
     }
 
     private static bool Subdivided(DmxBinary.Element mesh)
@@ -340,7 +357,7 @@ public static class WorldCollision
     /// material first meets it; positions are scaled and moved like the
     /// other pieces'.
     /// </summary>
-    private static List<(int Material, Vector3[] Points, int[] Indices, Vector4[]? Paint)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered)
+    internal static List<(int Material, Vector3[] Points, int[] Indices, Vector4[]? Paint)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         var faceData = (data.Get<object?[]>("faceDataIndices") ?? []).Select(x => x is int i ? i : 0).ToArray();
@@ -372,8 +389,10 @@ public static class WorldCollision
                     piece.Of[v] = at;
                     var p = Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, cut.Positions[v] * scales));
                     piece.Points.Add(path == null ? p : Maps.MapMeshes.Transform(path, p));
+                    // Each piece is its own face set, so a vertex takes the
+                    // corner that first meets it here.
                     if (cut.Paint != null)
-                        piece.Paint.Add(cut.Paint[v]);
+                        piece.Paint.Add(cut.Paint[(t * 3) + k]);
                 }
                 piece.Indices.Add(at);
             }

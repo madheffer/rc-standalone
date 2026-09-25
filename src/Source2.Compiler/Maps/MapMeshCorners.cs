@@ -31,6 +31,9 @@ internal static class MapMeshCorners
 
         /// <summary>Each corner's index into the .vmap's faceVertexData streams.</summary>
         public int[] CornerData { get; init; } = [];
+
+        /// <summary>The face set's lightmap scale bias (the other half of its key with the material).</summary>
+        public int Bias { get; init; }
     }
 
     /// <remarks>
@@ -117,7 +120,7 @@ internal static class MapMeshCorners
                 }
             }
         }
-        return [.. byMaterial.Select(kv => new Piece(kv.Key.Material, stride, [.. kv.Value.V], [.. kv.Value.I], layout) { VertexIds = [.. kv.Value.Ids], CornerData = [.. kv.Value.Data] })];
+        return [.. byMaterial.Select(kv => new Piece(kv.Key.Material, stride, [.. kv.Value.V], [.. kv.Value.I], layout) { VertexIds = [.. kv.Value.Ids], CornerData = [.. kv.Value.Data], Bias = kv.Key.Bias })];
     }
 
     /// <summary>

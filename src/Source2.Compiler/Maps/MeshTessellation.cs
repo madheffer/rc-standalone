@@ -27,7 +27,7 @@ public static class MeshTessellation
     {
         /// <summary>
         /// Builder order only, for a mesh with a VertexPaintBlendParams stream:
-        /// each welded vertex's paint, from the corner that first made it.
+        /// each triangle corner's paint, index for index with <c>Indices</c>.
         /// </summary>
         public List<Vector4>? Paint { get; init; }
     }
@@ -55,7 +55,9 @@ public static class MeshTessellation
     /// </summary>
     /// <remarks>
     /// With a VertexPaintBlendParams stream the corners carry paint too, as
-    /// the bake sets it (1813baa40 with FUN_1813b82f0): a patch's four corner
+    /// the bake sets it (1813baa40 with FUN_1813b82f0): a subdivided patch
+    /// takes the paint stored per grid point in subdivisionData when there is
+    /// such a stream; otherwise its four corner
     /// values are the face corner, the midpoints towards the next and previous
     /// corners ((b - a) * 0.5 + a, FUN_181046990) and the face mean
     /// (FUN_1813be320: each corner times 1/m added in loop order from this
@@ -94,7 +96,8 @@ public static class MeshTessellation
         // subdivided face corner, in corner data order.
         var displacement = subdivision == null ? [] : Stream(subdivision, "displacement");
         var blockOf = new Dictionary<int, int>();
-        if (displacement.Length > 0)
+        var gridPaint = subdivision == null || !builderOrder ? [] : Stream(subdivision, "VertexPaintBlendParams");
+        if (displacement.Length > 0 || gridPaint.Length > 0)
         {
             var at = 0;
             for (var d = 0; d < levels.Length; d++)
@@ -104,8 +107,10 @@ public static class MeshTessellation
                     var side = (1 << (levels[d] - 1)) + 1;
                     at += side * side;
                 }
-            if (at != displacement.Length)
+            if (displacement.Length > 0 && at != displacement.Length)
                 throw new InvalidDataException($"displacement stream of {displacement.Length}, levels ask {at}");
+            if (gridPaint.Length > 0 && at != gridPaint.Length)
+                throw new InvalidDataException($"subdivision paint stream of {gridPaint.Length}, levels ask {at}");
         }
 
         Vector3 Pos(int v) => (Vector3)positions[vertexData[v]]!;
@@ -335,6 +340,20 @@ public static class MeshTessellation
             // grid laid out like Grid's.
             Vector4[] PaintGrid(List<int> hs, int i, int own)
             {
+                // A subdivided mesh stores paint per grid point (subdivisionData,
+                // in the displacement's layout); the bake's lerp is scaled by 0
+                // then and the stored value added (FUN_1813b82f0 with
+                // FUN_1813c1cc0): every paint value ze_hold_em_paint's floor was
+                // handed is one of them.
+                if (gridPaint.Length > 0)
+                {
+                    var side = (1 << (own - 1)) + 1;
+                    var start = blockOf[cornerData[hs[i]]];
+                    var stored = new Vector4[side * side];
+                    for (var k = 0; k < stored.Length; k++)
+                        stored[k] = (Vector4)gridPaint[start + k]!;
+                    return stored;
+                }
                 var m = hs.Count;
                 var inv = 1f / m;
                 var mean = Vector4.Zero;
@@ -420,9 +439,9 @@ public static class MeshTessellation
             {
                 index = weld[key] = result.Positions.Count;
                 result.Positions.Add(c);
-                result.Paint?.Add(cornerPaint[i]);
             }
             result.Indices.Add(index);
+            result.Paint?.Add(cornerPaint[i]);
         }
         return result;
     }

@@ -64,13 +64,13 @@ public static class BrushHulls
     /// <summary>
     /// <see cref="Pieces"/>, with the .vmap vertex behind each face corner
     /// (<c>CornerIds</c>, face for face) and its faceVertexData index
-    /// (<c>CornerData</c>).
+    /// (<c>CornerData</c>); <c>Bias</c> is the face set's lightmap scale bias.
     /// </summary>
-    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true)
+    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData, int Bias)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true)
     {
         var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
-        var result = new List<(int, Vector3[], int[][], Vector3[], int[][], int[][])>();
+        var result = new List<(int, Vector3[], int[][], Vector3[], int[][], int[][], int)>();
         foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords))
         {
             var kept = new List<int>();
@@ -94,7 +94,7 @@ public static class BrushHulls
                 corners[t] = piece.VertexIds.Length == 0 ? [] : [piece.VertexIds[src], piece.VertexIds[src + 1], piece.VertexIds[src + 2]];
                 cornerData[t] = piece.CornerData.Length == 0 ? [] : [piece.CornerData[src], piece.CornerData[src + 1], piece.CornerData[src + 2]];
             }
-            result.Add((piece.Material, positions, faces, local, corners, cornerData));
+            result.Add((piece.Material, positions, faces, local, corners, cornerData, piece.Bias));
         }
         return result;
     }

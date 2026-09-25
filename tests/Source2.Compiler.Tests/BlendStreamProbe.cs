@@ -23,6 +23,19 @@ public class BlendStreamProbe(ITestOutputHelper output)
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         var levels = data.Get<DmxBinary.Element>("subdivisionData")?.Get<object?[]>("subdivisionLevels") ?? [];
         output.WriteLine($"subdivision levels: {string.Join(" ", levels.GroupBy(x => x).Select(g => $"{g.Key}x{g.Count()}"))}; first 40: {string.Join(",", levels.Take(40))}");
+        var sd = data.Get<DmxBinary.Element>("subdivisionData");
+        if (sd != null)
+        {
+            foreach (var (k, val) in sd.Attributes)
+                output.WriteLine($"SUBDIV ATTR {k}: {(val is object?[] arr ? $"array {arr.Length}" : val?.ToString())}");
+            foreach (var st in sd.GetElements("streams"))
+            {
+                var d = st.Get<object?[]>("data") ?? [];
+                output.WriteLine($"SUBDIV STREAM {st.Name}: {d.Length} values: {string.Join(" ", d.Take(4))}");
+                if (st.Name.StartsWith("VertexPaintBlendParams") && Environment.GetEnvironmentVariable("BLENDSTREAM_DUMP") is { } dump)
+                    File.WriteAllLines(dump, d.Select(x => ((System.Numerics.Vector4)x!).X.ToString("R")));
+            }
+        }
         foreach (var block in new[] { "vertexData", "faceVertexData", "edgeData", "faceData" })
         {
             var element = data.Get<DmxBinary.Element>(block);
