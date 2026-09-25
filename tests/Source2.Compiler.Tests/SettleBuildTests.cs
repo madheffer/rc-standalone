@@ -196,6 +196,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             {
                 Shader = mat.ShaderName,
                 Params = mat.IntParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
+                Floats = mat.FloatParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
+                Vectors = mat.VectorParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
             };
         }
 

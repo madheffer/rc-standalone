@@ -74,7 +74,7 @@ internal static class HullSimplifier
     // hull breaks a limit.
     private static QuickHull? Rebuild(QuickHull qh, RnHullBuilder.Options o)
     {
-        var agg = new Agglomerator(qh, MathF.Tan(o.Angle * 0.017453292f));
+        var agg = new Agglomerator(qh, Maps.LightCrt.Tan(o.Angle * 0.017453292f)); // tier0 V_tanf
         var n = o.MaxFaces;
         var tolerance = o.Tolerance > 1e-6f ? o.Tolerance : 1e-6f;
         QuickHull result;

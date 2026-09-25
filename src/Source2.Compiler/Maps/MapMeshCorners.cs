@@ -33,7 +33,12 @@ internal static class MapMeshCorners
         public int[] CornerData { get; init; } = [];
     }
 
-    public static List<Piece> Build(DmxBinary.Element mesh)
+    /// <remarks>
+    /// <paramref name="shiftTexcoords"/> false skips the texcoord shift, as
+    /// ConvertMeshForBuilder does when one of the mesh's materials keeps its
+    /// texcoords (<see cref="KeepsTexcoords"/>).
+    /// </remarks>
+    public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords = true)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
@@ -59,7 +64,8 @@ internal static class MapMeshCorners
         }
         var texcoords = streams.Select((x, i) => (x, i)).Where(x => x.x.Name == "texcoord").ToList();
         var uvData = texcoords.Select(x => x.x.Data).ToList();
-        ShiftTexcoords(uvData, first, next, cornerData, Ints(data, "edgeOppositeIndices"));
+        if (shiftTexcoords)
+            ShiftTexcoords(uvData, first, next, cornerData, Ints(data, "edgeOppositeIndices"));
         for (var t = 0; t < texcoords.Count; t++)
             streams[texcoords[t].i] = (streams[texcoords[t].i].Name, uvData[t], streams[texcoords[t].i].Count);
         // The short layout: first texcoord, normal, per-vertex lighting.
@@ -112,6 +118,42 @@ internal static class MapMeshCorners
             }
         }
         return [.. byMaterial.Select(kv => new Piece(kv.Key.Material, stride, [.. kv.Value.V], [.. kv.Value.I], layout) { VertexIds = [.. kv.Value.Ids], CornerData = [.. kv.Value.Data] })];
+    }
+
+    /// <summary>
+    /// Whether a loaded material stops ConvertMeshForBuilder (1810dff20) from
+    /// shifting its mesh's texcoords: the material's HasTexcoordTransform is
+    /// set, or its attribute 0x7c928c7c (unnamed, true when missing) is false.
+    /// HasTexcoordTransform is a shader expression, read from CS2's compiled
+    /// shaders: a UV set above 0 whose scale is not 1 or whose rotation is not
+    /// 0, over UV sets 1 and 2 for csgo_environment_blend (3 as well with
+    /// F_ENABLE_LAYER_3, the colour overlay's with F_SHARED_COLOR_OVERLAY) and
+    /// set 1 for csgo_environment. Parameters a material leaves out are taken
+    /// as UV set 0, scale 1 and rotation 0 (not measured). csgo_static_overlay
+    /// declares it on one static combo only and is left out.
+    /// </summary>
+    public static bool KeepsTexcoords(SettleWorld.MaterialInfo info)
+    {
+        var flag = info.Ints.FirstOrDefault(kv => SettleWorld.NameHash(kv.Key) == 0x7c928c7c);
+        if (flag.Key != null && flag.Value == 0)
+            return true;
+        bool On(string key) => info.Params.TryGetValue(key, out var v) && v == 1;
+        bool Transformed(string set, string scale, string rotation)
+        {
+            if (!info.Params.TryGetValue(set, out var uvSet) || uvSet <= 0)
+                return false;
+            var sc = info.Vectors.TryGetValue(scale, out var v) ? v : Vector4.One;
+            var rot = info.Floats.TryGetValue(rotation, out var r) ? r : 0f;
+            return sc.X != 1f || sc.Y != 1f || rot != 0f;
+        }
+        bool Set(int i) => Transformed($"g_nUVSet{i}", $"g_vTexCoordScale{i}", $"g_flTexCoordRotation{i}");
+        return Path.GetFileNameWithoutExtension(info.Shader).ToLowerInvariant() switch
+        {
+            "csgo_environment_blend" => Set(1) || Set(2) || (On("F_ENABLE_LAYER_3") && Set(3))
+                                        || (On("F_SHARED_COLOR_OVERLAY") && Transformed("g_nColorOverlayUVSet", "g_vOverlayTexCoordScale", "g_flOverlayTexCoordRotation")),
+            "csgo_environment" => Set(1),
+            _ => false,
+        };
     }
 
     /// <summary>

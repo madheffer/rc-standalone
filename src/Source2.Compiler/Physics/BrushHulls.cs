@@ -66,12 +66,12 @@ public static class BrushHulls
     /// (<c>CornerIds</c>, face for face) and its faceVertexData index
     /// (<c>CornerData</c>).
     /// </summary>
-    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null)
+    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true)
     {
         var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
         var result = new List<(int, Vector3[], int[][], Vector3[], int[][], int[][])>();
-        foreach (var piece in Maps.MapMeshCorners.Build(mesh))
+        foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords))
         {
             var kept = new List<int>();
             var (v, indices) = MeshWeld.Weld(piece.Vertices, piece.Stride, piece.Indices, piece.Streams, 1f / 32f, true, kept);

@@ -27,37 +27,15 @@ public class WorldCollisionInput(ITestOutputHelper output)
         var cs2 = Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive";
         var game = Path.Combine(cs2, "game");
         var vmap = Path.Combine(cs2, "content", "csgo_addons", parts[0], "maps", parts[1] + ".vmap");
-        var packages = new List<Package>();
-        foreach (var dir in new[] { "csgo", "core" })
-        {
-            var package = new Package();
-            package.Read(Path.Combine(game, dir, "pak01_dir.vpk"));
-            packages.Add(package);
-        }
-        var addon = Path.Combine(game, "csgo_addons", parts[0]);
+        using var models = new SettleBuildTests.PakModels(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", parts[0]));
         var cache = new Dictionary<string, WorldCollision.MaterialPhysics>(StringComparer.OrdinalIgnoreCase);
         WorldCollision.MaterialPhysics Lookup(string name)
         {
             if (cache.TryGetValue(name, out var known))
                 return known;
-            var compiled = name.Replace((char)92, '/') + "_c";
-            byte[]? bytes = null;
-            if (File.Exists(Path.Combine(addon, compiled)))
-                bytes = File.ReadAllBytes(Path.Combine(addon, compiled));
-            foreach (var package in packages)
-            {
-                if (bytes == null && package.FindEntry(compiled) is { } entry)
-                    package.ReadEntry(entry, out bytes);
-            }
-            var physics = WorldCollision.MaterialPhysics.Default;
-            if (bytes != null)
-            {
-                using var resource = new Resource();
-                resource.Read(new MemoryStream(bytes));
-                var mat = (Material)resource.DataBlock!;
-                physics = WorldCollision.ReadMaterial(mat.ShaderName, mat.IntParams, mat.FloatParams, mat.IntAttributes, mat.StringAttributes);
-            }
-            output.WriteLine($"material {name}: {physics}{(physics.Blend is { } b ? $" blend {b.LayerCount} layers, surfaces {string.Join(",", b.Surfaces)}, remap {string.Join(",", b.Remap)}, puddle {b.PuddleChannel}/{b.PuddleLayer}, sampled {b.Sampled}" : "")}{(bytes == null ? " (not found)" : "")}");
+            var info = models.Material(name);
+            var physics = WorldCollision.ReadMaterial(info, models.CollisionProperty);
+            output.WriteLine($"material {name}: {physics}{(physics.Blend is { } b ? $" blend {b.LayerCount} layers, surfaces {string.Join(",", b.Surfaces)}, remap {string.Join(",", b.Remap)}, puddle {b.PuddleChannel}/{b.PuddleLayer}, sampled {b.Sampled}" : "")}{(info == null ? " (not found)" : "")}");
             return cache[name] = physics;
         }
 

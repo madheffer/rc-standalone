@@ -101,7 +101,14 @@ public static class MeshTessellation
         var appended = new List<(int Face, Vector3[] Corners)>();
         var appendedSlots = new List<Slot>();
         var stitched = false;
-        for (var f = 0; f < first.Length; f++)
+        // The builder (1813baa40) gathers the faces to split level by level,
+        // 1 to 5, each level in face order, so a lower level's patches are
+        // appended first; a face above level 5 is not split.
+        bool Splits(int f) => Level(first[f]) is > 0 and var l && (!builderOrder || l <= 5);
+        var order = Enumerable.Range(0, first.Length);
+        if (builderOrder)
+            order = [.. order.Where(f => !Splits(f)), .. order.Where(Splits).OrderBy(f => Level(first[f]))];
+        foreach (var f in order)
         {
             if (builderOrder)
             {
@@ -116,7 +123,7 @@ public static class MeshTessellation
                 e = next[e];
             } while (e != first[f] && loop.Count <= next.Length);
             var level = Level(first[f]);
-            if (level > 0)
+            if (Splits(f))
                 Patches(loop, level);
             else
                 Polygon(loop);

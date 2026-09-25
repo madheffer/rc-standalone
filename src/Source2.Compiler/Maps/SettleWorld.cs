@@ -69,6 +69,12 @@ public static partial class SettleWorld
 
         /// <summary>The material's int parameters, the F_ static combo choices among them.</summary>
         public IReadOnlyDictionary<string, long> Params { get; init; } = new Dictionary<string, long>();
+
+        /// <summary>The material's float parameters.</summary>
+        public IReadOnlyDictionary<string, float> Floats { get; init; } = new Dictionary<string, float>();
+
+        /// <summary>The material's vector parameters.</summary>
+        public IReadOnlyDictionary<string, System.Numerics.Vector4> Vectors { get; init; } = new Dictionary<string, System.Numerics.Vector4>();
     }
 
     /// <summary>One named collision property: its group and its layer lists, comma separated.</summary>

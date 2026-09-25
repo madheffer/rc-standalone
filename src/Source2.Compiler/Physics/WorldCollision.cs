@@ -22,19 +22,27 @@ public static class WorldCollision
     public const int MeshType = 3;
 
     /// <summary>
-    /// What physicsbuilder reads off a material. <c>Solid</c> false drops the
-    /// piece. <c>CollisionGroup</c> and <c>InteractAs</c> make the collision
-    /// attribute, and <c>SurfaceProperty</c> is <c>PhysicsSurfaceProperties</c>.
+    /// What physicsbuilder reads off a material (<see cref="MaterialCollision"/>).
+    /// <c>Solid</c> false drops the piece. The group and the interact lists
+    /// make the collision attribute, and <c>SurfaceProperty</c> is
+    /// <c>PhysicsSurfaceProperties</c>.
     /// </summary>
     public sealed record MaterialPhysics(bool Solid, string CollisionGroup, string InteractAs, string SurfaceProperty)
     {
         public static readonly MaterialPhysics Default = new(true, "", "", "");
 
+        public string InteractWith { get; init; } = "";
+        public string InteractExclude { get; init; } = "";
+
+        /// <summary>Whether the material stops its meshes' texcoord shift (<see cref="Maps.MapMeshCorners.KeepsTexcoords"/>).</summary>
+        public bool KeepsTexcoords { get; init; }
+
         /// <summary>The painted layers, for a blend material (<see cref="ReadBlend"/>).</summary>
         public BlendLayers? Blend { get; init; }
 
         /// <summary>The collision attribute this material's pieces carry.</summary>
-        public string AttributeKey => (CollisionGroup.Length == 0 ? "default" : CollisionGroup) + "|" + InteractAs;
+        public string AttributeKey => (CollisionGroup.Length == 0 ? "default" : CollisionGroup) + "|" + InteractAs
+                                      + (InteractWith.Length + InteractExclude.Length == 0 ? "" : "|" + InteractWith + "|" + InteractExclude);
     }
 
     /// <summary>
@@ -180,73 +188,23 @@ public static class WorldCollision
         return result;
     }
 
-    // physicsbuilder's table (0924: 180ba72b0): attribute, collision group,
-    // interact-as tag, whether a match leaves the material solid, whether it
-    // forces it solid, and whether it applies only to non-nodraw materials.
-    private static readonly (string Attribute, string Group, string InteractAs, bool KeepsSolid, bool ForcesSolid, bool DrawnOnly)[] Table =
-    [
-        ("mapbuilder.nodraw", "", "", true, false, false),
-        ("mapbuilder.nonsolid", "", "", false, false, false),
-        ("mapbuilder.ladder", "", "ladder", true, false, false),
-        ("mapbuilder.blocklos", "conditionallysolid", "blocklos", true, false, false),
-        ("mapbuilder.blocksound", "conditionallysolid", "blocksound", true, false, false),
-        ("mapbuilder.passbullets", "conditionallysolid", "passbullets", true, false, false),
-        ("mapbuilder.npcclip", "conditionallysolid", "npcclip", true, false, false),
-        ("mapbuilder.playerclip", "conditionallysolid", "playerclip", true, false, false),
-        ("mapbuilder.sky", "conditionallysolid", "sky", true, false, false),
-        ("mapbuilder.water", "conditionallysolid", "water", true, true, false),
-        ("mapbuilder.teleportclip", "conditionallysolid", "teleportclip", true, false, false),
-        ("mapbuilder.navclip", "conditionallysolid", "navclip", true, false, false),
-        ("translucent", "conditionallysolid", "window", true, false, true),
-    ];
-
     /// <summary>
-    /// physicsbuilder's material reader (0924: 1800132f0), from a compiled
-    /// material's int and string attributes. Not yet read: its string
-    /// attribute 0xeeb9d970 (a named collision property that overrides the
-    /// group and tags), and how it strips "water" from the tags.
-    /// </summary>
-    public static MaterialPhysics ReadMaterial(IReadOnlyDictionary<string, long> ints, IReadOnlyDictionary<string, string> strings)
-    {
-        bool On(string key) => ints.TryGetValue(key, out var v) && v != 0;
-        var drawn = !On("mapbuilder.nodraw");
-        bool solid = true, forced = false;
-        var group = "";
-        var interactAs = "";
-        foreach (var (attribute, g, tag, keeps, forces, drawnOnly) in Table)
-        {
-            if ((drawnOnly && !drawn) || !On(attribute))
-                continue;
-            if (!keeps && !forced)
-                solid = false;
-            else if (forces)
-            {
-                solid = true;
-                forced = true;
-            }
-            if (g.Length > 0)
-                group = g;
-            if (tag.Length > 0)
-                interactAs = interactAs.Length == 0 ? tag : interactAs + ", " + tag;
-        }
-        var surface = strings.TryGetValue("PhysicsSurfaceProperties", out var s) ? s : "";
-        return new MaterialPhysics(solid, group, interactAs, surface);
-    }
-
-    /// <summary>
-    /// <see cref="ReadMaterial(IReadOnlyDictionary{string, long}, IReadOnlyDictionary{string, string})"/>,
-    /// with the painted layers of a material whose shader declares more than
-    /// one layer or a puddle channel. physicsbuilder reads the layers of any
-    /// mesh with a VertexPaintBlendParams stream; for other shaders that only
-    /// matters with a <c>PhysicsSurfaceProperties1</c> or
+    /// A material's physics (<see cref="MaterialCollision.Read"/>), its
+    /// surface property, and the painted layers of a material whose shader
+    /// declares more than one layer or a puddle channel. physicsbuilder reads
+    /// the layers of any mesh with a VertexPaintBlendParams stream; for other
+    /// shaders that only matters with a <c>PhysicsSurfaceProperties1</c> or
     /// <c>PhysicsSurfacePropertiesWet</c> set, which is left out.
     /// </summary>
-    public static MaterialPhysics ReadMaterial(string shader, IReadOnlyDictionary<string, long> features, IReadOnlyDictionary<string, float> floats,
-                                               IReadOnlyDictionary<string, long> ints, IReadOnlyDictionary<string, string> strings)
+    public static MaterialPhysics ReadMaterial(Maps.SettleWorld.MaterialInfo? info, Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty)
     {
-        var physics = ReadMaterial(ints, strings);
-        var (layers, puddles, _) = ShaderLayers(shader, features);
-        return layers > 1 || puddles ? physics with { Blend = ReadBlend(shader, features, floats, strings) } : physics;
+        if (info == null)
+            return MaterialPhysics.Default;
+        var c = MaterialCollision.Read(info, collisionProperty);
+        var surface = info.Strings.TryGetValue("PhysicsSurfaceProperties", out var s) ? s : "";
+        var physics = new MaterialPhysics(c.Solid, c.Group, c.InteractAs, surface) { InteractWith = c.InteractWith, InteractExclude = c.InteractExclude, KeepsTexcoords = Maps.MapMeshCorners.KeepsTexcoords(info) };
+        var (layers, puddles, _) = ShaderLayers(info.Shader, info.Params);
+        return layers > 1 || puddles ? physics with { Blend = ReadBlend(info.Shader, info.Params, info.Floats, info.Strings) } : physics;
     }
 
     /// <summary>One world piece: a mesh's triangles in one solid material.</summary>
@@ -297,7 +255,8 @@ public static class WorldCollision
                 }
                 continue;
             }
-            foreach (var (material, positions, faces, local, corners, cornerData) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
+            foreach (var (material, positions, faces, local, corners, cornerData) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
+                         !names.Any(n => n is string m && materials(m).KeepsTexcoords)))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
                 var physics = materials(name);
@@ -540,7 +499,12 @@ public static class WorldCollision
         else
             b.Materials.AddRange(Enumerable.Repeat((byte)surface, triangles));
         var baseVertex = b.Vertices.Count;
-        b.Vertices.AddRange(points);
+        // The join (180c27e30 through 180c25a80) moves each vertex by the
+        // shape's transform, rotate then scale then translate, with no
+        // shortcut for the identity. With identity values that adds zeros,
+        // which leaves every value alone but turns -0 into +0.
+        foreach (var p in points)
+            b.Vertices.Add(new Vector3(p.X + 0f, p.Y + 0f, p.Z + 0f));
         foreach (var i in indices)
             b.Indices.Add(i + baseVertex);
     }

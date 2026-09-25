@@ -275,7 +275,7 @@ public static class RnHullBuilder
         var a = angle * 0.017453292f;
         if (1.5697963f <= a)
             a = 1.5697963f;
-        var tan = MathF.Tan(a);
+        var tan = Maps.LightCrt.Tan(a); // tier0 V_tanf, as vphysics2 calls it
         if (tan == 0f && minEdge == 0f)
             return false;
         foreach (var f in qh.HullFaces)

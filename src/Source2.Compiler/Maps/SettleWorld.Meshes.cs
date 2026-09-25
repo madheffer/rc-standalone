@@ -274,80 +274,14 @@ public static partial class SettleWorld
     /// <summary>What FUN_1802e3120 reads off a material for physics.</summary>
     private sealed record MaterialPhysics(bool Solid, string Group, string InteractAs, string InteractWith, string InteractExclude);
 
-    // FUN_1802e3120's table (0923: 183074a70): attribute, collision group,
-    // interact-as tag, whether a match keeps the material solid, whether it
-    // forces it solid, and whether it applies only to a drawn material.
-    private static readonly (string Attribute, string Group, string Tag, bool Keeps, bool Forces, bool DrawnOnly)[] MaterialTable =
-    [
-        ("mapbuilder.nodraw", "", "", true, false, false),
-        ("mapbuilder.nonsolid", "", "", false, false, false),
-        ("mapbuilder.ladder", "", "ladder", true, false, false),
-        ("mapbuilder.blocklos", "conditionallysolid", "blocklos", true, false, false),
-        ("mapbuilder.blocksound", "conditionallysolid", "blocksound", true, false, false),
-        ("mapbuilder.passbullets", "conditionallysolid", "passbullets", true, false, false),
-        ("mapbuilder.npcclip", "conditionallysolid", "npcclip", true, false, false),
-        ("mapbuilder.playerclip", "conditionallysolid", "playerclip", true, false, false),
-        ("mapbuilder.sky", "conditionallysolid", "sky", true, false, false),
-        ("mapbuilder.water", "conditionallysolid", "water", true, true, false),
-        ("mapbuilder.teleportclip", "conditionallysolid", "teleportclip", true, false, false),
-        ("mapbuilder.navclip", "conditionallysolid", "navclip", true, false, false),
-        ("translucent", "conditionallysolid", "window", true, false, true),
-    ];
-
     /// <summary>
-    /// FUN_1802e3120: the table's attributes in order (a match that does not
-    /// keep the material solid clears it unless a forcing one came first; a
-    /// group replaces the last; tags join with ", "), then the named
-    /// collision property (mapbuilder.collisionproperties) sets the group,
-    /// makes it solid and appends its lists. "Drawn" is not nodraw and the
-    /// int attribute 0x84ce10dd unset. Not ported: the two tag lists (string
-    /// attributes 0xbc105ab and after), which throw when present.
+    /// FUN_1802e3120, resourcecompiler's copy of physicsbuilder's material
+    /// reader (<see cref="Physics.MaterialCollision.Read"/>).
     /// </summary>
     private static MaterialPhysics ReadMaterialPhysics(MaterialInfo info, IModels models)
     {
-        // "translucent" is not a material attribute but the shader's, per
-        // static combo (the material's vfn 0x48 answers it; no vmat_c carries
-        // it). Measured on every drawn material of atixref and Mako: it is
-        // set for csgo_glass and for F_TRANSLUCENT 1, and for nothing else.
-        bool On(string key) => info.Ints.TryGetValue(key, out var v) && v != 0
-            || key == "translucent" && (info.Shader.Equals("csgo_glass.vfx", StringComparison.OrdinalIgnoreCase)
-                                        || info.Params.TryGetValue("F_TRANSLUCENT", out var t) && t != 0);
-        var drawn = !On("mapbuilder.nodraw");
-        bool solid = true, forced = false;
-        string group = "", tags = "", with = "", exclude = "";
-        foreach (var (attribute, g, tag, keeps, forces, drawnOnly) in MaterialTable)
-        {
-            if ((drawnOnly && !drawn) || !On(attribute))
-                continue;
-            if (keeps || forced)
-            {
-                if (forces)
-                {
-                    solid = true;
-                    forced = true;
-                }
-            }
-            else
-                solid = false;
-            if (g.Length > 0)
-                group = g;
-            if (tag.Length > 0)
-                tags = tags.Length == 0 ? tag : tags + ", " + tag;
-        }
-        if (info.Strings.TryGetValue("mapbuilder.collisionproperties", out var named) && models.CollisionProperty(named) is { } p)
-        {
-            group = p.Group;
-            solid = true;
-            static string Join(string a, string b) => a.Length == 0 ? b : a + ", " + b;
-            tags = Join(tags, p.InteractAs);
-            with = Join(with, p.InteractWith);
-            exclude = Join(exclude, p.InteractExclude);
-        }
-        // Water is not a window as well: ", window" comes out of the tags
-        // (CUtlString::Remove, case sensitive).
-        if (tags.Contains("water", StringComparison.OrdinalIgnoreCase))
-            tags = tags.Replace(", window", "", StringComparison.Ordinal);
-        return new MaterialPhysics(solid, group, tags, with, exclude);
+        var r = Physics.MaterialCollision.Read(info, models.CollisionProperty);
+        return new MaterialPhysics(r.Solid, r.Group, r.InteractAs, r.InteractWith, r.InteractExclude);
     }
 
     /// <summary>
