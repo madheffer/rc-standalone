@@ -148,6 +148,39 @@ public class WorldCollisionInput(ITestOutputHelper output)
                          string.Join(" ", Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i)).Take(40).Select(i => $"{pieces[i].NodeId}/{pieces[i].Material}:{Path.GetFileNameWithoutExtension(pieces[i].MaterialName)}:{pieces[i].Points.Length}@{pieces[i].Points[0]}")));
         foreach (var l in lines.Take(80))
             output.WriteLine("  " + l);
+        // Bit for bit: each of our pieces against the gathered shape with the
+        // same vertex count and first vertex, when the capture dumped its data (--dump).
+        var dumped = world.GetProperty("shapes").EnumerateArray()
+            .Where(s => s.GetProperty("type").GetInt32() == WorldCollision.MeshType && s.TryGetProperty("vdata", out _))
+            .Select(s => (V: Convert.FromHexString(s.GetProperty("vdata").GetString()!), I: Convert.FromHexString(s.GetProperty("idata").GetString()!)))
+            .ToList();
+        if (dumped.Count > 0)
+        {
+            var byFirst = dumped.GroupBy(d => (d.V.Length / 12, new Vector3(BitConverter.ToSingle(d.V, 0), BitConverter.ToSingle(d.V, 4), BitConverter.ToSingle(d.V, 8))))
+                                .ToDictionary(g => g.Key, g => g.ToList());
+            int exact = 0, sameFirst = 0;
+            var notes = new List<string>();
+            foreach (var p in pieces)
+            {
+                if (!byFirst.TryGetValue((p.Points.Length, p.Points[0]), out var cands))
+                    continue;
+                sameFirst++;
+                var v = MemoryMarshal.AsBytes(p.Points.AsSpan()).ToArray();
+                var ix = MemoryMarshal.AsBytes(p.Indices.AsSpan()).ToArray();
+                if (cands.Any(c => c.V.AsSpan().SequenceEqual(v) && c.I.AsSpan().SequenceEqual(ix)))
+                    exact++;
+                else if (notes.Count < 15)
+                {
+                    var c = cands[0];
+                    var vi = Enumerable.Range(0, p.Points.Length).FirstOrDefault(k => BitConverter.ToSingle(c.V, k * 12) != p.Points[k].X || BitConverter.ToSingle(c.V, (k * 12) + 4) != p.Points[k].Y || BitConverter.ToSingle(c.V, (k * 12) + 8) != p.Points[k].Z, -1);
+                    var ii = Enumerable.Range(0, Math.Min(p.Indices.Length, c.I.Length / 4)).FirstOrDefault(k => BitConverter.ToInt32(c.I, k * 4) != p.Indices[k], -1);
+                    notes.Add($"{p.NodeId}/{p.Material} {Path.GetFileNameWithoutExtension(p.MaterialName)}: first vertex difference at {vi}, first index difference at {ii} (ours {p.Indices.Length}, theirs {c.I.Length / 4})");
+                }
+            }
+            output.WriteLine($"BITEXACT {exact} of {sameFirst} pieces with a captured shape's count and first vertex are identical, vertices and indices");
+            foreach (var n in notes)
+                output.WriteLine("  DIFF " + n);
+        }
         // Vertex totals per material: ours against the captured shapes' surface names.
         var theirs = inserts.Where(s => s.GetProperty("type").GetInt32() == WorldCollision.MeshType).ToList();
         var gathered = world.GetProperty("shapes").EnumerateArray().Where(s => s.GetProperty("type").GetInt32() == WorldCollision.MeshType)

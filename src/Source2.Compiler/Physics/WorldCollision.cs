@@ -159,7 +159,7 @@ public static class WorldCollision
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
         var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
-        var cut = Maps.MeshTessellation.Triangulate(data);
+        var (cut, _) = Maps.MeshTessellation.TriangulateBuilder(data);
         // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
         var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of)>();
         for (var t = 0; t < cut.Faces.Count; t++)

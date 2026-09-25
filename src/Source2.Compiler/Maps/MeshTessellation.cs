@@ -25,7 +25,39 @@ public static class MeshTessellation
     /// <summary>The welded vertices, three indices a triangle, and each triangle's face.</summary>
     public sealed record Result(List<Vector3> Positions, List<int> Indices, List<int> Faces);
 
-    public static Result Triangulate(DmxBinary.Element data)
+    public static Result Triangulate(DmxBinary.Element data) => Build(data, false).ToResult();
+
+    /// <summary>
+    /// The mesh as the map builder bakes it for export (BakeSubdivisionForFaces,
+    /// resourcecompiler 0923: 1813baa40), in the order its faces end up: the
+    /// same triangles as <see cref="Triangulate"/>, ordered by the builder's
+    /// dense face array (measured against atixref's exported meshes).
+    /// <list type="bullet">
+    /// <item>Splitting a face (1813ca560) puts its last corner's patch in the
+    /// face's slot and appends the other patches in corner order.</item>
+    /// <item>Each patch splits the same way: the child at its fourth corner
+    /// keeps the slot, the first three are appended, and the children recurse
+    /// in corner order 0, 1, 3, 2.</item>
+    /// <item>Each leaf cell, patch by patch and row by row, is cut on its
+    /// diagonal: the cell keeps [b, (r+1, c), a] and the builder appends
+    /// [a, (r, c+1), b], where a is grid (r, c) and b is grid (r+1, c+1).</item>
+    /// </list>
+    /// The result is each face's own slot in face order, then the appended
+    /// faces. A face stitched to a finer neighbour is not covered: it keeps
+    /// <see cref="Triangulate"/>'s cut in its slot, and <c>Covered</c> is false.
+    /// </summary>
+    public static (Result Result, bool Covered) TriangulateBuilder(DmxBinary.Element data)
+    {
+        var result = Build(data, true);
+        return (result.ToResult(), !result.Stitched);
+    }
+
+    private sealed record BuiltResult(List<Vector3> Positions, List<int> Indices, List<int> Faces, bool Stitched)
+    {
+        public Result ToResult() => new(Positions, Indices, Faces);
+    }
+
+    private static BuiltResult Build(DmxBinary.Element data, bool builderOrder)
     {
         var next = Ints(data, "edgeNextIndices");
         var to = Ints(data, "edgeVertexIndices");
@@ -63,8 +95,19 @@ public static class MeshTessellation
 
         var corners = new List<Vector3>();
         var faces = new List<int>();
+        // Builder order: each face's own slot, then the appended faces.
+        var slotCorners = new List<Vector3>[first.Length];
+        var slotFaces = new List<int>[first.Length];
+        var appended = new List<(int Face, Vector3[] Corners)>();
+        var appendedSlots = new List<Slot>();
+        var stitched = false;
         for (var f = 0; f < first.Length; f++)
         {
+            if (builderOrder)
+            {
+                corners = slotCorners[f] = [];
+                faces = slotFaces[f] = [];
+            }
             var loop = new List<int>();
             var e = first[f];
             do
@@ -107,6 +150,15 @@ public static class MeshTessellation
                 var ratio = new int[m];
                 for (var i = 0; i < m; i++)
                     ratio[i] = Math.Max(1, (1 << Across(hs[(i + 1) % m])) / (1 << faceLevel));
+                if (builderOrder)
+                {
+                    if (ratio.All(x => x == 1) && Enumerable.Range(0, m).All(i => Level(hs[i]) == faceLevel))
+                    {
+                        BuilderPatches(hs, faceLevel);
+                        return;
+                    }
+                    stitched = true;
+                }
                 for (var i = 0; i < m; i++)
                 {
                     var own = Level(hs[i]);
@@ -127,6 +179,76 @@ public static class MeshTessellation
                     for (var t = 0; t < stitched.Count / 3; t++)
                         faces.Add(f);
                 }
+            }
+
+            // The builder's order for a face whose patches share its level and
+            // meet no finer neighbour (see TriangulateBuilder).
+            void BuilderPatches(List<int> hs, int level)
+            {
+                var m = hs.Count;
+                var n = 1 << (level - 1);
+                var g = n + 1;
+                var grids = new Vector3[m][];
+                for (var i = 0; i < m; i++)
+                {
+                    grids[i] = Grid(hs, i, level);
+                    if (displacement.Length > 0)
+                        Displace(grids[i], hs, i, f);
+                }
+                var faceSlot = new Slot();
+                var patchSlot = new Slot[m];
+                patchSlot[m - 1] = faceSlot;
+                for (var i = 0; i < m - 1; i++)
+                {
+                    patchSlot[i] = new Slot();
+                    appendedSlots.Add(patchSlot[i]);
+                }
+                // A region by its corners in its own order: corner, next
+                // midpoint, centre, previous midpoint, as patch grid (row, col).
+                var cellSlot = new Slot[m, n, n];
+                for (var i = 0; i < m; i++)
+                    Split(i, patchSlot[i], (0, 0), (0, n), (n, n), (n, 0), level - 1);
+
+                void Split(int patch, Slot slot, (int R, int C) p0, (int R, int C) p1, (int R, int C) p2, (int R, int C) p3, int depth)
+                {
+                    if (depth == 0)
+                    {
+                        cellSlot[patch, Math.Min(Math.Min(p0.R, p1.R), Math.Min(p2.R, p3.R)), Math.Min(Math.Min(p0.C, p1.C), Math.Min(p2.C, p3.C))] = slot;
+                        return;
+                    }
+                    (int R, int C)[] q = [p0, p1, p2, p3];
+                    static (int R, int C) Mid((int R, int C) a, (int R, int C) b) => ((a.R + b.R) / 2, (a.C + b.C) / 2);
+                    var centre = Mid(p0, p2);
+                    var slots = new Slot[4];
+                    slots[3] = slot;
+                    for (var k = 0; k < 3; k++)
+                    {
+                        slots[k] = new Slot();
+                        appendedSlots.Add(slots[k]);
+                    }
+                    foreach (var k in new[] { 0, 1, 3, 2 })
+                        Split(patch, slots[k], q[k], Mid(q[k], q[(k + 1) % 4]), centre, Mid(q[(k + 3) % 4], q[k]), depth - 1);
+                }
+
+                for (var i = 0; i < m; i++)
+                {
+                    var grid = grids[i];
+                    for (var r = 0; r < n; r++)
+                    {
+                        for (var c = 0; c < n; c++)
+                        {
+                            var a = grid[(r * g) + c];
+                            var b = grid[((r + 1) * g) + c + 1];
+                            cellSlot[i, r, c].Corners = [b, grid[((r + 1) * g) + c], a];
+                            appendedSlots.Add(new Slot { Corners = [a, grid[(r * g) + c + 1], b] });
+                        }
+                    }
+                }
+                corners.AddRange(faceSlot.Corners!);
+                faces.Add(f);
+                foreach (var s in appendedSlots)
+                    appended.Add((f, s.Corners!));
+                appendedSlots.Clear();
             }
 
             // FUN_1813c7b90: each patch point moved by its displacement in
@@ -208,9 +330,15 @@ public static class MeshTessellation
             }
         }
 
+        if (builderOrder)
+        {
+            corners = [.. slotCorners.SelectMany(x => x), .. appended.SelectMany(x => x.Corners)];
+            faces = [.. slotFaces.SelectMany(x => x), .. appended.Select(x => x.Face)];
+        }
+
         // FUN_1813858d0: equal positions (bit for bit) are one vertex, numbered as first met.
         var weld = new Dictionary<(uint, uint, uint), int>();
-        var result = new Result([], [], faces);
+        var result = new BuiltResult([], [], faces, stitched);
         foreach (var c in corners)
         {
             var key = (BitConverter.SingleToUInt32Bits(c.X), BitConverter.SingleToUInt32Bits(c.Y), BitConverter.SingleToUInt32Bits(c.Z));
@@ -222,6 +350,12 @@ public static class MeshTessellation
             result.Indices.Add(index);
         }
         return result;
+    }
+
+    // A face slot in the builder's dense face array, holding the leaf it ends with.
+    private sealed class Slot
+    {
+        public Vector3[]? Corners { get; set; }
     }
 
     /// <summary>A vector over its length ((z^2 + y^2) + x^2); a length outside 1e-17..1e17 is not handled.</summary>

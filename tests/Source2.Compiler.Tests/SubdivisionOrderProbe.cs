@@ -72,6 +72,44 @@ public class SubdivisionOrderProbe(ITestOutputHelper output)
         output.WriteLine("LOCAL " + string.Join(" ", seq.Select(t => t < 0 ? "?" : $"{cut.Faces[t]}.{t - cut.Faces.IndexOf(cut.Faces[t])}")));
         foreach (var l in lines)
             output.WriteLine("  " + l);
+        // SUBDIVCMP_FACE=<n>: face n's corners (world, loop order) and its
+        // exported triangles in export order, as JSON for a simulator.
+        if (Environment.GetEnvironmentVariable("SUBDIVCMP_FACE") is { Length: > 0 } fn)
+        {
+            var face = int.Parse(fn, System.Globalization.CultureInfo.InvariantCulture);
+            var data = mesh.Element!.Get<DmxBinary.Element>("meshData")!;
+            var next = (data.Get<object?[]>("edgeNextIndices") ?? []).Select(x => (int)x!).ToArray();
+            var to = (data.Get<object?[]>("edgeVertexIndices") ?? []).Select(x => (int)x!).ToArray();
+            var first = (data.Get<object?[]>("faceEdgeIndices") ?? []).Select(x => (int)x!).ToArray();
+            var vdi = (data.Get<object?[]>("vertexDataIndices") ?? []).Select(x => (int)x!).ToArray();
+            var vpos = (data.Get<DmxBinary.Element>("vertexData")!.GetElements("streams").First(st => st.Name.StartsWith("position", StringComparison.Ordinal)).Get<object?[]>("data") ?? []).Select(x => (Vector3)x!).ToArray();
+            var corners = new List<Vector3>();
+            var e = first[face];
+            do
+            {
+                corners.Add(MapMeshes.Transform(world, vpos[vdi[to[e]]] * scales));
+                e = next[e];
+            }
+            while (e != first[face]);
+            var mine = new List<string>();
+            var exportedTris = new List<Vector3[]>();
+            foreach (var fs2 in dmx.Elements.First(x => x.Type == "DmeMesh").GetElements("faceSets"))
+            {
+                var poly = new List<int>();
+                foreach (var c in (fs2.Get<object?[]>("faces") ?? []).Select(x => (int)x!))
+                {
+                    if (c != -1) { poly.Add(c); continue; }
+                    exportedTris.Add([.. poly.Select(i => pos[pidx[i]])]);
+                    poly.Clear();
+                }
+            }
+            for (var k = 0; k < seq.Count; k++)
+            {
+                if (seq[k] >= 0 && cut.Faces[seq[k]] == face)
+                    mine.Add("[" + string.Join(",", exportedTris[k].Select(v => $"[{v.X:R},{v.Y:R},{v.Z:R}]")) + "]");
+            }
+            output.WriteLine("FACEJSON {\"corners\":[" + string.Join(",", corners.Select(v => $"[{v.X:R},{v.Y:R},{v.Z:R}]")) + "],\"tris\":[" + string.Join(",", mine) + "]}");
+        }
     }
 
     private static string Key(Vector3 a, Vector3 b, Vector3 c)
