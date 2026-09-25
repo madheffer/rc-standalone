@@ -141,7 +141,14 @@ function hookBlend() {
       const g = [0xe2a200, 0xe2a188, 0xe2a250, 0xe2a350].map(o => pb.base.add(o).readPointer().toString());
       send({sampler: 'in', globals: g});
     },
-    onLeave(ret) { send({sampler: 'out', ret: ret.toInt32() & 0xff, samples: this.samples.readS32()}); }
+    onLeave(ret) {
+      // The per-triangle layers it chose: a CUtlVector of ints (count +0, data +8).
+      const n = this.samples.readS32();
+      const layers = [];
+      const data = n > 0 ? this.samples.add(8).readPointer() : ptr(0);
+      for (let i = 0; i < n; i++) layers.push(data.add(i * 4).readS32());
+      send({sampler: 'out', ret: ret.toInt32() & 0xff, samples: n, layers: layers});
+    }
   });
   send({hookedBlend: pb.base.toString()});
 }
