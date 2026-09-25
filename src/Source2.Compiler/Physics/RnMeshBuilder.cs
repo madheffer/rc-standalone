@@ -18,6 +18,8 @@ public sealed class RnMesh
     public Vector3 OrthographicAreas;
     public float SurfaceArea;
     public uint Flags;
+    /// <summary>+0xb8: bit 0 when a mesh that would be closed touches itself.</summary>
+    public uint DebugFlags;
 }
 
 /// <summary>
@@ -39,13 +41,15 @@ public sealed class RnMesh
 /// areas (FUN_180166ff0).</para>
 ///
 /// <para>Flags (FUN_1801673a0): a mesh of more than three triangles whose
-/// every half-edge has exactly one twin is closed (1), and inverted (2) when
-/// its signed volume about the box centre is negative.</para>
+/// every edge, direction aside, is shared by exactly two triangles
+/// (FUN_180165750's adjacency has no negative entry) is closed (1), and
+/// inverted (2) when its signed volume about the box centre is negative.</para>
 ///
 /// <para>A closed mesh must also not touch itself: two triangles that share
 /// no vertex may not come within 1.19e-7 (FUN_180164000 walks the BVH
 /// against itself; FUN_180165350 skips pairs sharing a vertex and measures
-/// the rest). The distance here is exact, not vphysics2's GJK, so a pair
+/// the rest). One that does gets no flags and bit 0 of the second flag word
+/// (+0xb8). The distance here is exact, not vphysics2's GJK, so a pair
 /// right at the threshold could come out differently.</para>
 ///
 /// <para>Not ported: the simplifier the options can ask for.</para>
@@ -139,7 +143,7 @@ public static class RnMeshBuilder
         if (materials != null)
             mesh.Materials = [.. array.Select(r => materials[r.Triangle])];
         OrthographicAreas(mesh);
-        mesh.Flags = Flags(mesh);
+        (mesh.Flags, mesh.DebugFlags) = Flags(mesh);
         return mesh;
     }
 
@@ -355,23 +359,28 @@ public static class RnMeshBuilder
         return (a, b, c);
     }
 
-    // FUN_1801673a0 without its self-intersection test.
-    private static uint Flags(RnMesh mesh)
+    // FUN_1801673a0 over FUN_180165750's edge adjacency. The adjacency holds,
+    // per triangle edge, the far vertex of the one other triangle on that
+    // edge: -1 for an edge on one triangle, -2 for more than two. Any negative
+    // entry means no flags, so the test is on edge use counts alone, winding
+    // aside.
+    private static (uint Flags, uint DebugFlags) Flags(RnMesh mesh)
     {
         if (mesh.Triangles.Length <= 3)
-            return 0;
-        // Every half-edge needs exactly one twin: each directed edge once, its reverse once.
-        var edges = new Dictionary<(int, int), int>();
+            return (0, 0);
+        var uses = new Dictionary<(int, int), int>();
         foreach (var (a, b, c) in mesh.Triangles)
         {
-            foreach (var e in new[] { (a, b), (b, c), (c, a) })
-                edges[e] = edges.GetValueOrDefault(e) + 1;
+            foreach (var (p, q) in new[] { (a, b), (b, c), (c, a) })
+            {
+                var e = p < q ? (p, q) : (q, p);
+                uses[e] = uses.GetValueOrDefault(e) + 1;
+            }
         }
-        foreach (var ((a, b), n) in edges)
-            if (n != 1 || edges.GetValueOrDefault((b, a)) != 1)
-                return 0;
+        if (uses.Values.Any(n => n != 2))
+            return (0, 0);
         if (TouchesItself(mesh))
-            return 0;
+            return (0, 1);
         var centre = new Vector3((mesh.Max.X + mesh.Min.X) * 0.5f, (mesh.Max.Y + mesh.Min.Y) * 0.5f, (mesh.Max.Z + mesh.Min.Z) * 0.5f);
         var volume = 0f;
         foreach (var (a, b, c) in mesh.Triangles)
@@ -388,7 +397,7 @@ public static class RnMeshBuilder
                 v = -v;
             volume += v;
         }
-        return volume < 0f ? 3u : 1u;
+        return (volume < 0f ? 3u : 1u, 0);
     }
 
     private static bool TouchesItself(RnMesh mesh)

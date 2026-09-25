@@ -133,6 +133,9 @@ public class RnMeshReplay(ITestOutputHelper output)
         if (!Same(area, ours.SurfaceArea))
             d.Add($"area valve {area:R} ours {ours.SurfaceArea:R}");
         var flags = BitConverter.ToUInt32(head[0xb4..0xb8]);
+        var debugFlags = BitConverter.ToUInt32(head[0xb8..0xbc]);
+        if (debugFlags != ours.DebugFlags)
+            d.Add($"second flags valve {debugFlags} ours {ours.DebugFlags}");
         if (flags != ours.Flags)
             d.Add($"flags valve {flags} ours {ours.Flags}");
         return d;
