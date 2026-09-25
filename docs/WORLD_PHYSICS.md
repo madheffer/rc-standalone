@@ -77,13 +77,43 @@ vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
    - `translucent` gives `window`, on materials that are not nodraw.
 
    `PhysicsSurfaceProperties` names the surface property.
-3. **Order.** resourcecompiler appends each node's shape to the physics part,
+3. **Painted layers.** A piece whose mesh has vertex paint, in a blend
+   material, is cut by layer before it becomes a shape:
+   - The shader says how many layers there are. csgo_simple_2way_blend
+     has 2. csgo_environment_blend has 2, or 3 with `F_ENABLE_LAYER_3`.
+     csgo_water_fancy has 4. csgo_environment_blend and csgo_environment
+     add a puddle channel with `F_WETNESS`. These come from the compiled
+     shaders' attributes (`ShaderAttributeProbe`), and no other CS2 shader
+     declares any.
+   - Layer i takes `PhysicsSurfaceProperties<i>`, falling back to
+     `PhysicsSurfaceProperties`. Layers with the same surface share it.
+     `PhysicsSurfacePropertiesWet` is the puddle surface.
+   - With one surface and no puddles the piece stays whole but takes that
+     surface. Otherwise each triangle averages its corners' paint. Puddle
+     paint above 0.5 picks the puddle surface; else, with two or more layers,
+     the first channel at 0.5 or more picks layer 1.
+   - Each surface gets a shape named `<name> [<surface>]`, even when it gets no
+     triangles. Its triangles go in unshared and are welded at 1/32.
+
+   On ze_hold_em_p the split layers and both empty ones are bit-identical,
+   and so is every soup vertex before the subdivided floor. That floor's
+   triangles are cut slightly differently (see below). atixref's trim splits
+   into 8-vertex `[Wood]` shapes and empty `[plaster]` ones, as captured.
+
+   Not ported:
+   - A two-surface csgo_environment_blend material may instead take its
+     layers from its textures (a sampler that needs a render device, scene
+     system and mod tools connected). Whether a compile has those is not
+     measured, so such pieces are listed.
+   - For a subdivided mesh, the paint is used only when every triangle lands
+     on one layer whatever the interpolation.
+4. **Order.** resourcecompiler appends each node's shape to the physics part,
    then re-sorts the whole list by shape type with tier0's `V_qsort` after every
    append. That is the Microsoft CRT qsort (`Maps/CrtQsort.cs`). On runs of equal
    types, its selection sort for eight elements or fewer swaps the first and last
    element every pass. Meshes appended in order 0..17 therefore come out as
    4,2,5,1,6,3,7,0,8,...,17. This is why a mesh's two pieces land far apart.
-4. **Soups.** The part builder gives each collision attribute one soup, in
+5. **Soups.** The part builder gives each collision attribute one soup, in
    first-appearance order. A shape joins its attribute's newest soup unless
    that soup already has triangles and the shape would need a per-triangle
    surface property above 255. Vertices are appended as they are, and indices
@@ -91,7 +121,10 @@ vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
 
 Still open:
 - The static-prop hulls. They are shapes of another type in the same part, so
-  they change where the meshes land in the sort. atixref will check this.
+  they change where the meshes land in the sort. With the captured hull slots
+  filled in, ze_hold_em_p's pieces sort as captured (the test does this).
+- ze_hold_em_p's subdivided floor: 224 of its 4480 triangles differ from the
+  capture, and their order does too, though its faces are not stitched.
 - The shipped `m_Materials`. RnMeshCreate gets no materials for cardtest's
   soups, yet the shipped mesh has 292. They are written afterwards.
 - One material attribute: a named collision property that overrides the group

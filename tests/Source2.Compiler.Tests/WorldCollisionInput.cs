@@ -55,13 +55,16 @@ public class WorldCollisionInput(ITestOutputHelper output)
                 using var resource = new Resource();
                 resource.Read(new MemoryStream(bytes));
                 var mat = (Material)resource.DataBlock!;
-                physics = WorldCollision.ReadMaterial(mat.IntAttributes, mat.StringAttributes);
+                physics = WorldCollision.ReadMaterial(mat.ShaderName, mat.IntParams, mat.FloatParams, mat.IntAttributes, mat.StringAttributes);
             }
-            output.WriteLine($"material {name}: {physics}{(bytes == null ? " (not found)" : "")}");
+            output.WriteLine($"material {name}: {physics}{(physics.Blend is { } b ? $" blend {b.LayerCount} layers, surfaces {string.Join(",", b.Surfaces)}, remap {string.Join(",", b.Remap)}, puddle {b.PuddleChannel}/{b.PuddleLayer}, sampled {b.Sampled}" : "")}{(bytes == null ? " (not found)" : "")}");
             return cache[name] = physics;
         }
 
-        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup);
+        var notes = new List<string>();
+        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes);
+        foreach (var note in notes)
+            output.WriteLine("PAINT " + note);
         var attributes = new List<string> { "default|" };
         var surfaces = new List<string> { "default" };
         int IndexOf(List<string> table, string key)
@@ -74,9 +77,20 @@ public class WorldCollisionInput(ITestOutputHelper output)
             }
             return i;
         }
+        List<int>? types = null;
         if (parts.Length > 4)
-            CompareInserts(parts[4], pieces);
-        var ordered = WorldCollision.PartOrder(pieces, _ => WorldCollision.MeshType);
+            types = CompareInserts(parts[4], pieces);
+        // Static props' hulls are not ported yet: with a capture, hull slots
+        // (null here) stand where the captured part had them, so the sort
+        // shuffles ties as it did.
+        var slots = new List<WorldCollision.Piece?>();
+        var next = 0;
+        foreach (var type in types ?? [])
+            slots.Add(type == WorldCollision.MeshType && next < pieces.Count ? pieces[next++] : null);
+        slots.AddRange(pieces.Skip(next));
+        if (types != null && types.Count(t => t == WorldCollision.MeshType) != pieces.Count)
+            output.WriteLine($"captured part has {types.Count(t => t == WorldCollision.MeshType)} mesh inserts, ours {pieces.Count}");
+        var ordered = WorldCollision.PartOrder(slots, p => p == null ? 2 : WorldCollision.MeshType).OfType<WorldCollision.Piece>().ToList();
         output.WriteLine("part order: " + string.Join(" ", ordered.Take(60).Select(p => $"{p.NodeId}/{p.Material}")));
         var soups = WorldCollision.Group(ordered.Select(p => (IndexOf(attributes, p.Physics.AttributeKey),
             IndexOf(surfaces, p.Physics.SurfaceProperty.Length == 0 ? "default" : p.Physics.SurfaceProperty), p.Points, p.Indices)));
@@ -95,6 +109,10 @@ public class WorldCollisionInput(ITestOutputHelper output)
             output.WriteLine($"soup {s} attr {soup.Attribute} surf {soup.SurfaceProperty}: {soup.Indices.Count / 3} triangles, {soup.Vertices.Count} vertices, materials {soup.Materials?.Count.ToString() ?? "none"}; " +
                              $"call {first + s}: {indices.Length / 3} triangles, {vertices.Length} vertices, materials {materials?.Length.ToString() ?? "none"}; " +
                              $"vertices {(sameV ? "same" : "differ")}, indices {(sameI ? "same" : "differ")}, materials {(sameM ? "same" : "differ")}");
+            if (!sameM && materials != null && soup.Materials != null)
+                output.WriteLine($"  surfaces per triangle: ours {string.Join(" ", soup.Materials.GroupBy(m => m).OrderBy(g => g.Key).Select(g => $"{g.Key}x{g.Count()}"))}, " +
+                                 $"captured {string.Join(" ", materials.GroupBy(m => m).OrderBy(g => g.Key).Select(g => $"{g.Key}x{g.Count()}"))}; " +
+                                 $"runs ours {string.Join(" ", Runs(soup.Materials))}, captured {string.Join(" ", Runs(materials))}");
             if (!sameV)
             {
                 var i = Enumerable.Range(0, Math.Min(soup.Vertices.Count, vertices.Length)).FirstOrDefault(k => soup.Vertices[k] != vertices[k], -1);
@@ -110,15 +128,16 @@ public class WorldCollisionInput(ITestOutputHelper output)
     /// capture_physshapes.py capture, in insert order: each captured mesh
     /// shape by vertex count and first vertex, and which of our pieces it is.
     /// </summary>
-    private void CompareInserts(string capture, List<WorldCollision.Piece> pieces)
+    private List<int> CompareInserts(string capture, List<WorldCollision.Piece> pieces)
     {
         using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(capture));
         var all = doc.RootElement.EnumerateArray().ToList();
-        var world = all.Where(c => c.TryGetProperty("call", out _)).MaxBy(c => c.GetProperty("count").GetInt32());
+        System.Text.Json.JsonElement world;
+        world = all.Where(c => c.TryGetProperty("call", out _)).MaxBy(c => c.GetProperty("count").GetInt32());
         var count = world.GetProperty("count").GetInt32();
         var byPart = all.Where(c => c.TryGetProperty("insert", out _)).GroupBy(c => c.GetProperty("part").GetString()).ToList();
         var inserts = byPart.Last(g => g.Count() == count).ToList();
-        var ours = pieces.Select((p, i) => (p, i)).GroupBy(x => (x.p.Points.Length, x.p.Points[0])).ToDictionary(g => g.Key, g => new Queue<int>(g.Select(x => x.i)));
+        var ours = pieces.Select((p, i) => (p, i)).Where(x => x.p.Points.Length > 0).GroupBy(x => (x.p.Points.Length, x.p.Points[0])).ToDictionary(g => g.Key, g => new Queue<int>(g.Select(x => x.i)));
         var matched = new HashSet<int>();
         var lines = new List<string>();
         var k = 0;
@@ -145,7 +164,7 @@ public class WorldCollisionInput(ITestOutputHelper output)
             k++;
         }
         output.WriteLine($"captured mesh inserts {lines.Count}, ours {pieces.Count}, matched {matched.Count}; ours unmatched: " +
-                         string.Join(" ", Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i)).Take(40).Select(i => $"{pieces[i].NodeId}/{pieces[i].Material}:{Path.GetFileNameWithoutExtension(pieces[i].MaterialName)}:{pieces[i].Points.Length}@{pieces[i].Points[0]}")));
+                         string.Join(" ", Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i) && pieces[i].Points.Length > 0).Take(40).Select(i => $"{pieces[i].NodeId}/{pieces[i].Material}:{Path.GetFileNameWithoutExtension(pieces[i].MaterialName)}:{pieces[i].Points.Length}@{pieces[i].Points[0]}")));
         foreach (var l in lines.Take(80))
             output.WriteLine("  " + l);
         // Bit for bit: each of our pieces against the gathered shape with the
@@ -160,7 +179,7 @@ public class WorldCollisionInput(ITestOutputHelper output)
                                 .ToDictionary(g => g.Key, g => g.ToList());
             int exact = 0, sameFirst = 0;
             var notes = new List<string>();
-            foreach (var p in pieces)
+            foreach (var p in pieces.Where(p => p.Points.Length > 0))
             {
                 if (!byFirst.TryGetValue((p.Points.Length, p.Points[0]), out var cands))
                     continue;
@@ -198,12 +217,43 @@ public class WorldCollisionInput(ITestOutputHelper output)
         // Each unmatched piece against the nearest captured mesh by first vertex.
         var captured = inserts.Where(s => s.GetProperty("type").GetInt32() == WorldCollision.MeshType && s.TryGetProperty("v0", out _))
             .Select(s => (Count: s.GetProperty("vertices").GetInt32(), V: s.GetProperty("v0").EnumerateArray().Select(e => (float)e.GetDouble()).ToArray())).ToList();
-        foreach (var i in Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i)))
+        foreach (var i in Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i) && pieces[i].Points.Length > 0))
         {
             var p0 = pieces[i].Points[0];
             var best = captured.MinBy(c => Vector3.DistanceSquared(new Vector3(c.V[0], c.V[1], c.V[2]), p0));
             var d = Vector3.Distance(new Vector3(best.V[0], best.V[1], best.V[2]), p0);
-            output.WriteLine($"  NEAR {pieces[i].NodeId}/{pieces[i].Material} {Path.GetFileNameWithoutExtension(pieces[i].MaterialName)} ours {pieces[i].Points.Length} v {p0:R} | nearest {best.Count} at distance {d:G4}");
+            var bv = new Vector3(best.V[0], best.V[1], best.V[2]);
+            output.WriteLine($"  NEAR {pieces[i].NodeId}/{pieces[i].Material} {Path.GetFileNameWithoutExtension(pieces[i].MaterialName)} ours {pieces[i].Points.Length} v {p0:R} | nearest {best.Count} at distance {d:G4}, first {bv:R}, ours at {Array.IndexOf(pieces[i].Points, bv)}");
+            // The same triangles in another order? Each triangle as its corner
+            // positions from its lowest corner on, against a dumped shape of that size.
+            static string Key(Vector3 a, Vector3 b, Vector3 c)
+            {
+                var r = new[] { a, b, c }.Select(v => v.ToString("R", null)).ToArray();
+                var k = Enumerable.Range(0, 3).MinBy(j => r[j], StringComparer.Ordinal);
+                return r[k] + r[(k + 1) % 3] + r[(k + 2) % 3];
+            }
+            var piece = pieces[i];
+            var mine = Enumerable.Range(0, piece.Indices.Length / 3).Select(t => Key(piece.Points[piece.Indices[t * 3]], piece.Points[piece.Indices[(t * 3) + 1]], piece.Points[piece.Indices[(t * 3) + 2]])).Order(StringComparer.Ordinal).ToList();
+            foreach (var shape in world.GetProperty("shapes").EnumerateArray().Where(x => x.TryGetProperty("vdata", out _) && x.GetProperty("vertices").GetInt32() == piece.Points.Length))
+            {
+                var v = MemoryMarshal.Cast<byte, Vector3>(Convert.FromHexString(shape.GetProperty("vdata").GetString()!)).ToArray();
+                var ix = MemoryMarshal.Cast<byte, int>(Convert.FromHexString(shape.GetProperty("idata").GetString()!)).ToArray();
+                var captured3 = Enumerable.Range(0, ix.Length / 3).Select(t => Key(v[ix[t * 3]], v[ix[(t * 3) + 1]], v[ix[(t * 3) + 2]])).Order(StringComparer.Ordinal).ToList();
+                output.WriteLine($"    same triangles in another order: {mine.SequenceEqual(captured3)} (ours {mine.Count}, theirs {captured3.Count}, shared {mine.Intersect(captured3).Count()})");
+            }
+        }
+        return [.. inserts.Select(s => s.GetProperty("type").GetInt32())];
+    }
+
+    private static IEnumerable<string> Runs(IReadOnlyList<byte> m)
+    {
+        for (var i = 0; i < m.Count;)
+        {
+            var j = i;
+            while (j < m.Count && m[j] == m[i])
+                j++;
+            yield return $"{m[i]}x{j - i}";
+            i = j;
         }
     }
 

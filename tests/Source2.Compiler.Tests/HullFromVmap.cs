@@ -261,6 +261,7 @@ public class HullFromVmap(ITestOutputHelper output)
                 }
                 var diff = Differences(shipped[i], match);
                 var verdict = diff.Count == 0 ? "hull exact" : diff[0].Split(' ')[0];
+                Count(tally, $"class {className}: {verdict}");
                 Count(tally, verdict);
                 if (match != null && SvmDifference(shipped[i], match) is var svmDiff)
                 {

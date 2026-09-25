@@ -63,13 +63,14 @@ public static class BrushHulls
 
     /// <summary>
     /// <see cref="Pieces"/>, with the .vmap vertex behind each face corner
-    /// (<c>CornerIds</c>, face for face).
+    /// (<c>CornerIds</c>, face for face) and its faceVertexData index
+    /// (<c>CornerData</c>).
     /// </summary>
-    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null)
+    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null)
     {
         var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
-        var result = new List<(int, Vector3[], int[][], Vector3[], int[][])>();
+        var result = new List<(int, Vector3[], int[][], Vector3[], int[][], int[][])>();
         foreach (var piece in Maps.MapMeshCorners.Build(mesh))
         {
             var kept = new List<int>();
@@ -85,13 +86,15 @@ public static class BrushHulls
                 positions = [.. positions.Select(p => Maps.MapMeshes.Transform(path, p))];
             var faces = new int[indices.Length / 3][];
             var corners = new int[faces.Length][];
+            var cornerData = new int[faces.Length][];
             for (var t = 0; t < faces.Length; t++)
             {
                 faces[t] = [indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]];
                 var src = kept[t] * 3;
                 corners[t] = piece.VertexIds.Length == 0 ? [] : [piece.VertexIds[src], piece.VertexIds[src + 1], piece.VertexIds[src + 2]];
+                cornerData[t] = piece.CornerData.Length == 0 ? [] : [piece.CornerData[src], piece.CornerData[src + 1], piece.CornerData[src + 2]];
             }
-            result.Add((piece.Material, positions, faces, local, corners));
+            result.Add((piece.Material, positions, faces, local, corners, cornerData));
         }
         return result;
     }
@@ -114,7 +117,9 @@ public static class BrushHulls
     /// The triangle mesh FUN_181308060 is handed: vertices in the order the
     /// triangles' corners meet them, and the triangles.
     /// </summary>
-    public static (List<Vector3> Points, List<(int A, int B, int C)> Triangles) TriangleMesh(Vector3[] positions, int[][] faces, Vector3[]? local = null, int[][]? cornerIds = null)
+    /// <remarks><paramref name="firstCorner"/>, when given, receives the (face,
+    /// corner) that made each vertex.</remarks>
+    public static (List<Vector3> Points, List<(int A, int B, int C)> Triangles) TriangleMesh(Vector3[] positions, int[][] faces, Vector3[]? local = null, int[][]? cornerIds = null, List<(int Face, int Corner)>? firstCorner = null)
     {
         // The map builder cuts faces in the mesh's own space, before any
         // transform: <paramref name="local"/> when given.
@@ -149,6 +154,7 @@ public static class BrushHulls
                 if (cornerIds != null ? !byId.TryGetValue(cornerIds[f][j], out i) : !index.TryGetValue(p, out i))
                 {
                     i = points.Count;
+                    firstCorner?.Add((f, j));
                     if (cornerIds != null)
                         byId[cornerIds[f][j]] = i;
                     else

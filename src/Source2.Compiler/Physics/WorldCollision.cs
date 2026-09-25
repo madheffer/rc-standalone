@@ -30,8 +30,154 @@ public static class WorldCollision
     {
         public static readonly MaterialPhysics Default = new(true, "", "", "");
 
+        /// <summary>The painted layers, for a blend material (<see cref="ReadBlend"/>).</summary>
+        public BlendLayers? Blend { get; init; }
+
         /// <summary>The collision attribute this material's pieces carry.</summary>
         public string AttributeKey => (CollisionGroup.Length == 0 ? "default" : CollisionGroup) + "|" + InteractAs;
+    }
+
+    /// <summary>
+    /// A blend material's painted layers as physicsbuilder reads them
+    /// (0924: 1800156a0, 180015080). <c>Surfaces</c> are the layers' distinct
+    /// surface properties, and <c>Remap</c> takes a layer to its surface's
+    /// index. <c>PuddleChannel</c> is the blend channel whose paint puts a
+    /// triangle on the <c>PuddleLayer</c> surface (-1 for none).
+    /// <c>FirstHeightScale</c> below zero turns the first channel around.
+    /// <c>Sampled</c> marks a material whose layers the builder may sample
+    /// from its textures instead (not ported).
+    /// </summary>
+    public sealed record BlendLayers(int LayerCount, int PuddleChannel, int PuddleLayer, string[] Surfaces, int[] Remap, bool Swap, float FirstHeightScale, bool Sampled);
+
+    /// <summary>
+    /// The vertex paint flags a shader declares, as attributes of its
+    /// programs, for a material's feature settings. Read from CS2's compiled
+    /// shaders (1.41.8.4): only these four declare any of them, and none
+    /// declares <c>VertexPaintHeightBlend</c>, <c>VertexPaintLayerCount</c>
+    /// or the flag that swaps the first and third channels (key 0xad12291a).
+    /// </summary>
+    private static (int Layers, bool Puddles, bool Sampling) ShaderLayers(string shader, IReadOnlyDictionary<string, long> features)
+    {
+        bool On(string key) => features.TryGetValue(key, out var v) && v == 1;
+        return Path.GetFileNameWithoutExtension(shader).ToLowerInvariant() switch
+        {
+            "csgo_simple_2way_blend" => (2, false, false),
+            "csgo_environment_blend" => (On("F_ENABLE_LAYER_3") ? 3 : 2, On("F_WETNESS"), true),
+            "csgo_environment" => (1, On("F_WETNESS"), false),
+            "csgo_water_fancy" => (4, false, false),
+            _ => (1, false, false),
+        };
+    }
+
+    /// <summary>
+    /// A material's painted layers (0924: 1800156a0). Layer <c>i</c> (from 1)
+    /// takes <c>PhysicsSurfaceProperties&lt;i&gt;</c>, else the material's
+    /// <c>PhysicsSurfaceProperties</c>, else "default". A layer whose surface
+    /// is already listed shares its index. A <c>PhysicsSurfacePropertiesWet</c>
+    /// is listed last as the puddle surface, puddle channel or not.
+    /// </summary>
+    public static BlendLayers ReadBlend(string shader, IReadOnlyDictionary<string, long> features, IReadOnlyDictionary<string, float> floats, IReadOnlyDictionary<string, string> strings)
+    {
+        string? Text(string key) => strings.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase)).Value;
+        var (layers, puddles, sampling) = ShaderLayers(shader, features);
+        var baseSurface = Text("PhysicsSurfaceProperties") ?? "default";
+        var surfaces = new List<string>();
+        var remap = new int[layers];
+        var firstScale = 1f;
+        for (var i = 1; i <= layers; i++)
+        {
+            var name = Text($"PhysicsSurfaceProperties{i}") ?? baseSurface;
+            var at = surfaces.IndexOf(name);
+            if (at < 0)
+            {
+                surfaces.Add(name);
+                at = surfaces.Count - 1;
+            }
+            if (i == 1)
+                firstScale = floats.FirstOrDefault(kv => string.Equals(kv.Key, "g_flHeightMapScale1", StringComparison.OrdinalIgnoreCase)) is { Key: not null } kv ? kv.Value : 1f;
+            remap[i - 1] = at;
+        }
+        var puddleLayer = -1;
+        if (Text("PhysicsSurfacePropertiesWet") is { Length: > 0 } wet)
+        {
+            puddleLayer = surfaces.IndexOf(wet);
+            if (puddleLayer < 0)
+            {
+                surfaces.Add(wet);
+                puddleLayer = surfaces.Count - 1;
+            }
+        }
+        return new BlendLayers(layers, puddles ? 2 : -1, puddleLayer, [.. surfaces], remap, false, firstScale, surfaces.Count >= 2 && sampling);
+    }
+
+    /// <summary>
+    /// Whether physicsbuilder splits a piece of this material by layer
+    /// (0924: 180016230): more than one surface, or a puddle channel with a
+    /// puddle surface. With one surface the piece stays whole and takes it.
+    /// </summary>
+    private static bool Splits(BlendLayers b)
+        => b.Surfaces.Length > 1 || (b.PuddleChannel >= 0 && b.PuddleLayer >= 0 && b.PuddleLayer < b.Surfaces.Length);
+
+    /// <summary>
+    /// A piece cut into one mesh per layer surface (0924: 180015930). Each
+    /// triangle averages its corners' blend paint, channel by channel as
+    /// (second + first + third) / 3. Paint above 0.5 in the puddle channel
+    /// sends it to the puddle surface; otherwise, with more than one layer,
+    /// the first channel at 0.5 or more picks layer 1, else layer 0. The
+    /// triangle's three positions go to that surface's mesh unshared, and
+    /// each mesh is welded at 1/32 (CMesh_Weld). Meshes left empty are kept.
+    /// </summary>
+    private static List<(Vector3[] Points, int[] Indices)> SplitLayers(BlendLayers b, Vector3[] points, int[] indices, Vector4[] paint)
+    {
+        var corners = new List<Vector3>[b.Surfaces.Length];
+        for (var s = 0; s < corners.Length; s++)
+            corners[s] = [];
+        for (var t = 0; t + 2 < indices.Length; t += 3)
+        {
+            Vector4 p0 = paint[indices[t]], p1 = paint[indices[t + 1]], p2 = paint[indices[t + 2]];
+            var avg = new[] { (p1.X + p0.X + p2.X) / 3f, (p1.Y + p0.Y + p2.Y) / 3f, (p1.Z + p0.Z + p2.Z) / 3f, (p1.W + p0.W + p2.W) / 3f };
+            if (b.Swap)
+                (avg[0], avg[2]) = (avg[2], avg[0]);
+            int into;
+            if (b.PuddleChannel >= 0 && b.PuddleLayer >= 0 && b.PuddleLayer < b.Surfaces.Length && avg[b.PuddleChannel] > 0.5f)
+                into = b.PuddleLayer;
+            else
+            {
+                var layer = 0;
+                if (b.LayerCount > 1)
+                {
+                    var x = b.FirstHeightScale < 0f ? 1f - avg[0] : avg[0];
+                    layer = 0.5f <= x ? 1 : 0;
+                }
+                if (layer >= b.Remap.Length)
+                    into = 0;
+                else if ((into = b.Remap[layer]) < 0)
+                    continue;
+            }
+            if (into >= corners.Length)
+                continue;
+            corners[into].Add(points[indices[t]]);
+            corners[into].Add(points[indices[t + 1]]);
+            corners[into].Add(points[indices[t + 2]]);
+        }
+        var result = new List<(Vector3[], int[])>();
+        foreach (var list in corners)
+        {
+            if (list.Count == 0)
+            {
+                result.Add(([], []));
+                continue;
+            }
+            var flat = new float[list.Count * 3];
+            for (var i = 0; i < list.Count; i++)
+                (flat[i * 3], flat[(i * 3) + 1], flat[(i * 3) + 2]) = (list[i].X, list[i].Y, list[i].Z);
+            var (v, welded) = MeshWeld.Weld(flat, 3, [.. Enumerable.Range(0, list.Count)], [new MeshWeld.Stream("position", 0, 3, false, 42)], 1f / 32f);
+            var outPoints = new Vector3[v.Length / 3];
+            for (var i = 0; i < outPoints.Length; i++)
+                outPoints[i] = new Vector3(v[i * 3], v[(i * 3) + 1], v[(i * 3) + 2]);
+            result.Add((outPoints, welded));
+        }
+        return result;
     }
 
     // physicsbuilder's table (0924: 180ba72b0): attribute, collision group,
@@ -87,6 +233,22 @@ public static class WorldCollision
         return new MaterialPhysics(solid, group, interactAs, surface);
     }
 
+    /// <summary>
+    /// <see cref="ReadMaterial(IReadOnlyDictionary{string, long}, IReadOnlyDictionary{string, string})"/>,
+    /// with the painted layers of a material whose shader declares more than
+    /// one layer or a puddle channel. physicsbuilder reads the layers of any
+    /// mesh with a VertexPaintBlendParams stream; for other shaders that only
+    /// matters with a <c>PhysicsSurfaceProperties1</c> or
+    /// <c>PhysicsSurfacePropertiesWet</c> set, which is left out.
+    /// </summary>
+    public static MaterialPhysics ReadMaterial(string shader, IReadOnlyDictionary<string, long> features, IReadOnlyDictionary<string, float> floats,
+                                               IReadOnlyDictionary<string, long> ints, IReadOnlyDictionary<string, string> strings)
+    {
+        var physics = ReadMaterial(ints, strings);
+        var (layers, puddles, _) = ShaderLayers(shader, features);
+        return layers > 1 || puddles ? physics with { Blend = ReadBlend(shader, features, floats, strings) } : physics;
+    }
+
     /// <summary>One world piece: a mesh's triangles in one solid material.</summary>
     public sealed record Piece(int NodeId, int Material, string MaterialName, MaterialPhysics Physics, Vector3[] Points, int[] Indices);
 
@@ -96,7 +258,7 @@ public static class WorldCollision
     /// material order (<see cref="BrushHulls.Pieces"/>), triangulated the way
     /// the shape reads its mesh (<see cref="BrushHulls.TriangleMesh"/>).
     /// </summary>
-    public static List<Piece> Pieces(DmxBinary.Document doc, Func<string, MaterialPhysics> materials)
+    public static List<Piece> Pieces(DmxBinary.Document doc, Func<string, MaterialPhysics> materials, List<string>? notes = null)
     {
         var world = doc.OfType("CMapWorld").First();
         var result = new List<Piece>();
@@ -107,31 +269,122 @@ public static class WorldCollision
             if (string.Equals(mesh.Element!.Get<string>("physicsType"), "none", StringComparison.OrdinalIgnoreCase))
                 continue;
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
+            var paint = PaintStream(mesh.Element!);
             if (Subdivided(mesh.Element!))
             {
-                foreach (var (material, points, indices) in TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
+                // Subdivision interpolates the paint with non-negative weights
+                // that sum to one, so a new vertex's paint stays within the
+                // mesh's range, channel by channel. When that range puts every
+                // triangle on one layer, its lowest paint stands in for all;
+                // otherwise the paint is not ported for these meshes.
+                var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, out var covered);
+                if (!covered)
+                    notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
+                foreach (var (material, points, indices) in tessellated)
                 {
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
                     var physics = materials(name);
-                    if (physics.Solid)
+                    if (!physics.Solid)
+                        continue;
+                    var uniform = physics.Blend != null && paint != null ? OneLayerPaint(physics.Blend, paint) : null;
+                    if (physics.Blend != null && paint != null && uniform == null && Splits(physics.Blend))
+                    {
+                        notes?.Add($"node {mesh.NodeId} material {material}: subdivided mesh painted across layers, not split");
                         result.Add(new Piece(mesh.NodeId, material, name, physics, points, indices));
+                        continue;
+                    }
+                    AddPieces(result, mesh.NodeId, material, name, physics, uniform is { } u ? [.. points.Select(_ => u)] : null, points, indices);
                 }
                 continue;
             }
-            foreach (var (material, positions, faces, local, corners) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
+            foreach (var (material, positions, faces, local, corners, cornerData) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
                 var physics = materials(name);
                 if (!physics.Solid)
                     continue;
-                var (points, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners);
+                var made = new List<(int Face, int Corner)>();
+                var (points, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners, made);
                 var indices = new int[triangles.Count * 3];
                 for (var t = 0; t < triangles.Count; t++)
                     (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
-                result.Add(new Piece(mesh.NodeId, material, name, physics, [.. points], indices));
+                // The shape's mesh keeps one vertex per .vmap vertex; its paint
+                // is taken from the corner that made it (the .vmap stores
+                // paint per corner; which corner the builder keeps is not
+                // measured; notes lists pieces where the corners disagree).
+                Vector4[]? vertexPaint = null;
+                if (physics.Blend != null && paint != null)
+                {
+                    vertexPaint = [.. made.Select(m => paint[cornerData[m.Face][m.Corner]])];
+                    // The sampler (18064c460) needs a render device, scene and
+                    // mod-tools system connected; whether a compile has them is
+                    // not measured, so such pieces are listed.
+                    if (physics.Blend.Sampled)
+                        notes?.Add($"node {mesh.NodeId} material {material}: layers may come from the material sampler");
+                    if (notes != null && Disagreements(corners, cornerData, paint) is > 0 and var n)
+                        notes.Add($"node {mesh.NodeId} material {material}: {n} vertices painted differently at their corners");
+                }
+                AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices);
             }
         }
         return result;
+    }
+
+    // A piece as physicsbuilder's shape step hands it on (0924: 180016230):
+    // whole, or cut by painted layer when its material has a blend and its
+    // mesh a paint stream.
+    private static void AddPieces(List<Piece> result, int node, int material, string name, MaterialPhysics physics, Vector4[]? paint, Vector3[] points, int[] indices)
+    {
+        if (physics.Blend is not { } blend || paint == null)
+            result.Add(new Piece(node, material, name, physics, points, indices));
+        else if (!Splits(blend))
+            result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[0] }, points, indices));
+        else
+        {
+            var layers = SplitLayers(blend, points, indices, paint);
+            for (var s = 0; s < layers.Count; s++)
+                result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[s] }, layers[s].Points, layers[s].Indices));
+        }
+    }
+
+    // The per-channel lowest of a mesh's paint, when every blend of its paint
+    // lands on the same layer (0.001 clear of the thresholds, for the
+    // averaging's rounding); else null.
+    private static Vector4? OneLayerPaint(BlendLayers b, Vector4[] paint)
+    {
+        var lo = paint.Aggregate(new Vector4(float.MaxValue), Vector4.Min);
+        var hi = paint.Aggregate(new Vector4(float.MinValue), Vector4.Max);
+        bool Clear(float min, float max) => max < 0.499f || min > 0.501f;
+        float Channel(Vector4 v, int c) => c switch { 0 => v.X, 1 => v.Y, 2 => v.Z, _ => v.W };
+        int first = b.Swap ? 2 : 0, puddle = b.PuddleChannel < 0 ? -1 : b.Swap && b.PuddleChannel is 0 or 2 ? 2 - b.PuddleChannel : b.PuddleChannel;
+        if (puddle >= 0 && !Clear(Channel(lo, puddle), Channel(hi, puddle)))
+            return null;
+        if (b.LayerCount > 1 && !Clear(Channel(lo, first), Channel(hi, first)))
+            return null;
+        return lo;
+    }
+
+    // The mesh's vertex paint, per corner (faceVertexData "VertexPaintBlendParams").
+    private static Vector4[]? PaintStream(DmxBinary.Element mesh)
+        => mesh.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams")
+               .FirstOrDefault(st => st.Name.Split(':')[0] == "VertexPaintBlendParams")?.Get<object?[]>("data")
+               ?.Select(x => x is Vector4 v ? v : Vector4.Zero).ToArray();
+
+    // Vertices whose corners carry different paint.
+    private static int Disagreements(int[][] corners, int[][] cornerData, Vector4[] paint)
+    {
+        var seen = new Dictionary<int, Vector4>();
+        var differ = new HashSet<int>();
+        for (var f = 0; f < corners.Length; f++)
+        {
+            for (var j = 0; j < corners[f].Length; j++)
+            {
+                var p = paint[cornerData[f][j]];
+                if (!seen.TryAdd(corners[f][j], p) && seen[corners[f][j]] != p)
+                    differ.Add(corners[f][j]);
+            }
+        }
+        return differ.Count;
     }
 
     private static bool Subdivided(DmxBinary.Element mesh)
@@ -146,7 +399,7 @@ public static class WorldCollision
     /// material first meets it; positions are scaled and moved like the
     /// other pieces'.
     /// </summary>
-    private static List<(int Material, Vector3[] Points, int[] Indices)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path)
+    private static List<(int Material, Vector3[] Points, int[] Indices)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         var faceData = (data.Get<object?[]>("faceDataIndices") ?? []).Select(x => x is int i ? i : 0).ToArray();
@@ -159,7 +412,7 @@ public static class WorldCollision
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
         var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
-        var (cut, _) = Maps.MeshTessellation.TriangulateBuilder(data);
+        (var cut, covered) = Maps.MeshTessellation.TriangulateBuilder(data);
         // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
         var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of)>();
         for (var t = 0; t < cut.Faces.Count; t++)
