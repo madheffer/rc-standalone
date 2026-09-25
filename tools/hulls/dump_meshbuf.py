@@ -9,7 +9,8 @@ an interface (slot 0x168) that forwards to another one's slot 0x640; the
 producer is that second function.
 
 The compile overwrites the map's .vpk; back it up first. It refuses to
-start while CS2 or another compile runs, or with under 10 GB free.
+start while CS2 or another compile runs, or with under 10 GB free. No -f:
+-fshallow already forces the partial build, and -f with -world fails.
 """
 import argparse
 import json
@@ -87,7 +88,7 @@ def main():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
     if low_disk():
         raise SystemExit("under 10 GB free on the game drive; not starting")
-    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f",
+    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4",
             "-game", os.path.join(CS2, "game", "csgo"), "-i", source, "-world", "-fshallow"]
     index = open(os.path.join(a.outdir, "index.jsonl"), "w", encoding="utf-8", newline="\n")
     sources = set()
