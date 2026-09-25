@@ -60,8 +60,27 @@ substituted.
 - The entity side keeps its own lists in `D:/tools/names/` and its map in
   `docs/SETTLE_FUNCTIONS.md`.
 
-After a game update, rerun the harvest on the new DLL. Move the hand-kept
-addresses with `D:/tools/port_addr.py` and reapply.
+After a game update, run `python tools/re/patch_check.py`. It covers three things:
+- Which toolchain DLLs changed. A new build is kept in `D:/tools/binaries`.
+- Every address the port relies on, checked in the installed build:
+  - hand-kept names;
+  - the entity side's lists;
+  - the script RVAs registered in `tools/re/tracked_rvas.json`;
+  - addresses cited in `src/`.
+
+  Each is reported as identical, relocated, moved (with the new address),
+  changed (the code needs re-reading) or missing.
+- What changed in the FGDs and the `pak01` archives since the last run.
+
+It writes a report to `D:/tools/patch_reports`, and exits 2 when something
+needs attention. `--selftest` checks its classifications on edited copies of
+an image.
+
+For a DLL with a new build:
+1. Import it into Ghidra.
+2. Rerun the harvest on it.
+3. Move the addresses the check reports as moved.
+4. Re-read the functions it reports as changed.
 
 ## The spine: `CWorldRendererBuilder::Build`
 

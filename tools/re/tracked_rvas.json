@@ -1,0 +1,20 @@
+{
+  "about": "Hardcoded RVAs in capture and probe scripts, with the DLL and build they were taken from. patch_check.py checks each against a new build and warns about script RVAs missing here.",
+  "rvas": [
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0xc29500", "script": "tools/physics/capture_physshapes.py", "use": "GATHER_RVA: part mesh gatherer"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0xc28150", "script": "tools/physics/capture_physshapes.py", "use": "INSERT_RVA: part shape insert (append + V_qsort)"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0xc28690", "script": "tools/physics/capture_physshapes.py", "use": "MESHBUILD_RVA start: soup -> RnMeshCreate"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0xf1e490", "script": "tools/settle/capture_settle.py", "use": "SETTLE_RVA: MapSettle_Run"},
+    {"dll": "vphysics2", "build": "20260924", "rva": "0x200840", "script": "tools/settle/capture_settle.py", "use": "STEP_RVA: CRnWorld_Step"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0x12d80c0", "script": "tools/hulls/capture_weld.py", "use": "WELD_RVA: CMesh weld"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0x1308060", "script": "tools/hulls/capture_weld.py", "use": "PHYS_RVA: physics piece half-edge build"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0x2b1ff0", "script": "tools/hulls/capture_weld.py", "use": "XFORM_RVA: CTransform"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0xf60740", "script": "tools/entities/capture_instances.py", "use": "BAKE_ALL_RVA: instance bake"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0xf60740", "script": "tools/entities/find_new_nodes.py", "use": "BAKE_ALL_RVA: instance bake"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0xf5ff40", "script": "tools/entities/capture_instances.py", "use": "BAKE_ONE_RVA: one instance bake"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0x12d6a90", "script": "tools/hulls/probe_origin.py", "use": "origin probe 1"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0x12d66f0", "script": "tools/hulls/probe_origin.py", "use": "origin probe 2"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0x23bd00", "script": "tools/hulls/dump_meshbuf.py", "use": "mesh list producer (provider slot 0x168)"},
+    {"dll": "resourcecompiler", "build": "20260924", "rva": "0xffd010", "script": "tools/hulls/dump_meshbuf.py", "use": "MapMeshBuffer_Unserialize"}
+  ]
+}
