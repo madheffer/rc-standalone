@@ -37,10 +37,12 @@ public sealed unsafe class WorldStepLockstepTests(ITestOutputHelper output)
     /// Steps Valve's world and the port's side by side, comparing after each
     /// step; returns the steps that matched. <paramref name="between"/> may
     /// change Valve's scene before a step and returns true when it did, and
-    /// the port's world is then read again.
+    /// the port's world is then read again. <paramref name="ties"/>, when
+    /// given, collects the steps where Valve's active contacts came out in
+    /// another order that an equal-key tie explains (see <see cref="TieReorder"/>).
     /// </summary>
     private int Run(Vphysics2World w, int steps, Func<int, bool>? between = null,
-                    Action<RnWorld>? configure = null, Action<RnWorld, int>? inspect = null)
+                    Action<RnWorld>? configure = null, Action<RnWorld, int>? inspect = null, List<int>? ties = null)
     {
         var module = Vphysics2Oracle.Load()!.Value;
         var hulls = new Dictionary<nint, RnHull>();
@@ -69,10 +71,53 @@ public sealed unsafe class WorldStepLockstepTests(ITestOutputHelper output)
             var valve = WorldSignature.Lines(RnWorldReader.Read(module, w.Rn, hulls, meshes));
             var ours = WorldSignature.Lines(port);
             var failure = CompareBroadphase(w, port) ?? WorldSignature.Diff(valve, ours);
+            if (failure != null && ties != null && TieReorder(RnWorldReader.Read(module, w.Rn, hulls, meshes), port) is { } tie)
+            {
+                output.WriteLine($"step {s}: {tie}");
+                ties.Add(s);
+                failure = CompareBroadphase(w, port) ?? WorldSignature.Diff(valve, WorldSignature.Lines(port));
+            }
             Assert.True(failure == null, $"step {s}: {failure}");
             inspect?.Invoke(port, s);
         }
         return steps;
+    }
+
+    /// <summary>
+    /// Valve's multithreaded collide can order the active contacts in either
+    /// of two ways when two contacts share a key. The key (+0x40) is the two
+    /// proxy ids when the contact was made, and it is not unique: here two
+    /// contacts with the floor both carry 16c00000000. The workers (FUN_1801ecfb0) append
+    /// to the collide lists in thread order (FUN_1801f0ef0), the flush
+    /// (FUN_1801dceb0) sorts each list by key with std::sort (FUN_1801e6a70),
+    /// which is not stable, so two equal keys leave the sort in an order that
+    /// depends on the threads, and the swap-removals from the active contacts
+    /// that follow then move the list's tail in another order. Measured: at
+    /// step 644 both are in the BothAsleep list, and Valve's active order came
+    /// out the other way exactly in the runs where the sorted pair did. When the port's active contacts are Valve's in another order and
+    /// two of the port's contacts share a key, the port takes Valve's order
+    /// and the returned note says so; otherwise null, and nothing changes.
+    /// </summary>
+    private static string? TieReorder(RnWorld valve, RnWorld port)
+    {
+        static (ulong, int, int) Id(RnContact c) => (c.Key, c.A.Body.Index, c.B.Body.Index);
+        var byId = port.ActiveContacts.GroupBy(Id).ToDictionary(g => g.Key, g => g.ToList());
+        if (byId.Values.Any(g => g.Count > 1) || valve.ActiveContacts.Count != port.ActiveContacts.Count
+            || !valve.ActiveContacts.All(c => byId.ContainsKey(Id(c))))
+            return null;
+        var keys = port.AllContacts[0].Concat(port.AllContacts[1]).GroupBy(c => c.Key).Where(g => g.Count() > 1).Select(g => $"{g.Key:x}").ToList();
+        if (keys.Count == 0)
+            return null;
+        var moved = new List<string>();
+        for (var i = 0; i < valve.ActiveContacts.Count; i++)
+        {
+            var c = byId[Id(valve.ActiveContacts[i])][0];
+            if (port.ActiveContacts[i] != c)
+                moved.Add($"c{c.Key:x}@{i}");
+            port.ActiveContacts[i] = c;
+            c.ActiveIndex = i;
+        }
+        return $"Valve's active contacts in the other tie order ({string.Join(' ', moved)}; shared keys {string.Join(' ', keys)})";
     }
 
     /// <summary>The trees node by node (a free node by its next link only), dirty bits, proxy ids, solve count and pair set.</summary>
@@ -286,7 +331,7 @@ public sealed unsafe class WorldStepLockstepTests(ITestOutputHelper output)
     /// sleep, compared with Valve after every step. <paramref name="reorder"/>
     /// takes each colour's contacts in another order, as Valve's threads may.
     /// </summary>
-    private void ColouredScene(Func<List<RnContact>, IEnumerable<RnContact>>? reorder)
+    private void ColouredScene(Func<List<RnContact>, IEnumerable<RnContact>>? reorder, List<int>? ties = null)
     {
         if (Floor() is not { } w)
             return;
@@ -309,7 +354,7 @@ public sealed unsafe class WorldStepLockstepTests(ITestOutputHelper output)
         {
             port.ReorderColour = reorder;
             coverage.Reset();
-        }, (port, _) => coverage.See(port));
+        }, (port, _) => coverage.See(port), ties);
         output.WriteLine($"{steps} steps exact; {coverage}");
     }
 
@@ -404,7 +449,11 @@ public sealed unsafe class WorldStepLockstepTests(ITestOutputHelper output)
     /// most 7}) and stopped after (slot 0x20). CRnWorld::Solve then runs the
     /// coloured island's job chain on up to eight threads (FUN_1801ff820 at
     /// 0x1801ffbaa), and the port, on one thread in bucket order, must still
-    /// match every step.
+    /// match every step. Valve itself is not deterministic here in one way:
+    /// at step 644 two contacts share a key, and in 13 of 81 measured runs
+    /// its active contacts came out in the other tie order (see
+    /// <see cref="TieReorder"/>). That step is let through with the port put
+    /// in Valve's order, and logged; every other line must still match.
     /// </summary>
     [Fact]
     public void ColouredPilesMatchValveOnSevenThreads()
@@ -423,7 +472,9 @@ public sealed unsafe class WorldStepLockstepTests(ITestOutputHelper output)
         {
             output.WriteLine($"pool threads {numThreads(pool)}");
             Assert.True(numThreads(pool) > 0);
-            ColouredScene(null);
+            var ties = new List<int>();
+            ColouredScene(null, ties);
+            output.WriteLine(ties.Count == 0 ? "Valve took the single-thread tie order" : $"Valve took the other tie order at steps {string.Join(',', ties)}");
         }
         finally
         {
