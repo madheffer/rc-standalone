@@ -424,22 +424,44 @@ public static class WorldCollision
 
         /// <summary>A surface property per triangle, once the soup mixes them.</summary>
         public List<byte>? Materials { get; internal set; }
+
+        // +0x80: whether the soup's one shape so far shares the default object
+        // at shape+0x100; null once a second shape has joined.
+        internal bool? SoleShared { get; set; }
     }
+
+    // The count limit the gatherer puts on a soup and a shape joining it.
+    private const int CountLimit = 0xc000000;
 
     /// <summary>
     /// The part builder's mesh gathering (resourcecompiler 0923: 180c29500,
     /// joining in 180c27e30). The shapes go in part order. A shape joins the
-    /// newest soup of its collision attribute unless that soup already has
-    /// triangles and the shape would need a per-triangle surface property
-    /// above 255. Otherwise it starts a new soup, which becomes the
-    /// attribute's newest. Soups left empty are removed, the last moving into
-    /// the gap.
+    /// newest soup of its collision attribute when that soup is empty, or when
+    /// all of these hold:
+    /// <list type="bullet">
+    /// <item>the soup's one shape so far, if it has only one, and the shape
+    /// both hold the shared default at shape+0x100 (tag 0x32de3ab1);</item>
+    /// <item>the soup's and the shape's index and vertex counts are at most
+    /// 0xc000000;</item>
+    /// <item>the surface properties allow it: equal, or both below 256, or
+    /// the soup already per-triangle and the shape's below 256.</item>
+    /// </list>
+    /// Otherwise it starts a new soup, which becomes the attribute's newest.
+    /// Soups left empty are removed, the last moving into the gap.
     /// </summary>
+    /// <remarks>
+    /// Every shape of every part in the atixref and ze_hold_em_p captures,
+    /// world pieces, props and brush entities alike, points at one object at
+    /// +0x100, the shared default; <c>Shared</c> is for a shape that would not.
+    /// </remarks>
     public static List<Bucket> Group(IEnumerable<(int Attribute, int SurfaceProperty, Vector3[] Points, int[] Indices)> shapes)
+        => Group(shapes.Select(x => (x.Attribute, x.SurfaceProperty, x.Points, x.Indices, true)));
+
+    public static List<Bucket> Group(IEnumerable<(int Attribute, int SurfaceProperty, Vector3[] Points, int[] Indices, bool Shared)> shapes)
     {
         var buckets = new List<Bucket>();
         var newest = new Dictionary<int, int>();
-        foreach (var (attribute, surface, points, indices) in shapes)
+        foreach (var (attribute, surface, points, indices, shared) in shapes)
         {
             Bucket? into = null;
             if (newest.TryGetValue(attribute, out var at))
@@ -447,13 +469,17 @@ public static class WorldCollision
                 var b = buckets[at];
                 if (b.Indices.Count == 0)
                     into = b;
-                else if (b.Materials == null)
+                else if (b.SoleShared != false && shared && b.Indices.Count <= CountLimit && indices.Length <= CountLimit
+                         && b.Vertices.Count <= CountLimit && points.Length <= CountLimit)
                 {
-                    if (surface == b.SurfaceProperty || (surface <= 0xff && b.SurfaceProperty < 0x100))
+                    if (b.Materials == null)
+                    {
+                        if (surface == b.SurfaceProperty || (surface <= 0xff && b.SurfaceProperty < 0x100))
+                            into = b;
+                    }
+                    else if (surface < 0x100)
                         into = b;
                 }
-                else if (surface < 0x100)
-                    into = b;
             }
             if (into == null)
             {
@@ -461,6 +487,8 @@ public static class WorldCollision
                 buckets.Add(into);
                 newest[attribute] = buckets.Count - 1;
             }
+            if (indices.Length >= 3)
+                into.SoleShared = into.Indices.Count == 0 ? shared : null;
             Join(into, attribute, surface, points, indices);
         }
         for (var i = 0; i < buckets.Count;)
