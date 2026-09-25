@@ -230,28 +230,27 @@ public static class WorldCollision
             var paint = PaintStream(mesh.Element!);
             if (Subdivided(mesh.Element!))
             {
-                // Subdivision interpolates the paint with non-negative weights
-                // that sum to one, so a new vertex's paint stays within the
-                // mesh's range, channel by channel. When that range puts every
-                // triangle on one layer, its lowest paint stands in for all;
-                // otherwise the paint is not ported for these meshes.
+                // The baked mesh's paint comes from the tessellation, which
+                // lerps it over each patch as the bake does; a mesh with faces
+                // stitched to finer neighbours has no ported paint there.
                 var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, out var covered);
                 if (!covered)
                     notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
-                foreach (var (material, points, indices) in tessellated)
+                foreach (var (material, points, indices, piecePaint) in tessellated)
                 {
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
                     var physics = materials(name);
                     if (!physics.Solid)
                         continue;
-                    var uniform = physics.Blend != null && paint != null ? OneLayerPaint(physics.Blend, paint) : null;
-                    if (physics.Blend != null && paint != null && uniform == null && Splits(physics.Blend))
+                    if (physics.Blend != null && paint != null && !covered && Splits(physics.Blend))
                     {
-                        notes?.Add($"node {mesh.NodeId} material {material}: subdivided mesh painted across layers, not split");
+                        notes?.Add($"node {mesh.NodeId} material {material}: stitched subdivided mesh, not split");
                         result.Add(new Piece(mesh.NodeId, material, name, physics, points, indices));
                         continue;
                     }
-                    AddPieces(result, mesh.NodeId, material, name, physics, uniform is { } u ? [.. points.Select(_ => u)] : null, points, indices);
+                    if (physics.Blend is { Sampled: true } && paint != null && Splits(physics.Blend))
+                        notes?.Add($"node {mesh.NodeId} material {material}: layers may come from the material sampler");
+                    AddPieces(result, mesh.NodeId, material, name, physics, physics.Blend != null ? piecePaint : null, points, indices);
                 }
                 continue;
             }
@@ -306,23 +305,6 @@ public static class WorldCollision
         }
     }
 
-    // The per-channel lowest of a mesh's paint, when every blend of its paint
-    // lands on the same layer (0.001 clear of the thresholds, for the
-    // averaging's rounding); else null.
-    private static Vector4? OneLayerPaint(BlendLayers b, Vector4[] paint)
-    {
-        var lo = paint.Aggregate(new Vector4(float.MaxValue), Vector4.Min);
-        var hi = paint.Aggregate(new Vector4(float.MinValue), Vector4.Max);
-        bool Clear(float min, float max) => max < 0.499f || min > 0.501f;
-        float Channel(Vector4 v, int c) => c switch { 0 => v.X, 1 => v.Y, 2 => v.Z, _ => v.W };
-        int first = b.Swap ? 2 : 0, puddle = b.PuddleChannel < 0 ? -1 : b.Swap && b.PuddleChannel is 0 or 2 ? 2 - b.PuddleChannel : b.PuddleChannel;
-        if (puddle >= 0 && !Clear(Channel(lo, puddle), Channel(hi, puddle)))
-            return null;
-        if (b.LayerCount > 1 && !Clear(Channel(lo, first), Channel(hi, first)))
-            return null;
-        return lo;
-    }
-
     // The mesh's vertex paint, per corner (faceVertexData "VertexPaintBlendParams").
     private static Vector4[]? PaintStream(DmxBinary.Element mesh)
         => mesh.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams")
@@ -358,7 +340,7 @@ public static class WorldCollision
     /// material first meets it; positions are scaled and moved like the
     /// other pieces'.
     /// </summary>
-    private static List<(int Material, Vector3[] Points, int[] Indices)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered)
+    private static List<(int Material, Vector3[] Points, int[] Indices, Vector4[]? Paint)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         var faceData = (data.Get<object?[]>("faceDataIndices") ?? []).Select(x => x is int i ? i : 0).ToArray();
@@ -373,14 +355,14 @@ public static class WorldCollision
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
         (var cut, covered) = Maps.MeshTessellation.TriangulateBuilder(data);
         // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
-        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of)>();
+        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of, List<Vector4> Paint)>();
         for (var t = 0; t < cut.Faces.Count; t++)
         {
             var f = cut.Faces[t];
             var material = faceMaterials.Length == 0 ? 0 : faceMaterials[faceData[f]];
             var bias = faceBiases.Length == 0 ? 0 : faceBiases[faceData[f]];
             if (!byMaterial.TryGetValue((bias, material), out var piece))
-                byMaterial[(bias, material)] = piece = ([], [], []);
+                byMaterial[(bias, material)] = piece = ([], [], [], []);
             for (var k = 0; k < 3; k++)
             {
                 var v = cut.Indices[(t * 3) + k];
@@ -390,11 +372,13 @@ public static class WorldCollision
                     piece.Of[v] = at;
                     var p = Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, cut.Positions[v] * scales));
                     piece.Points.Add(path == null ? p : Maps.MapMeshes.Transform(path, p));
+                    if (cut.Paint != null)
+                        piece.Paint.Add(cut.Paint[v]);
                 }
                 piece.Indices.Add(at);
             }
         }
-        return [.. byMaterial.Select(kv => (kv.Key.Material, kv.Value.Points.ToArray(), kv.Value.Indices.ToArray()))];
+        return [.. byMaterial.Select(kv => (kv.Key.Material, kv.Value.Points.ToArray(), kv.Value.Indices.ToArray(), cut.Paint == null ? null : kv.Value.Paint.ToArray()))];
     }
 
     /// <summary>

@@ -89,7 +89,55 @@ function hook() {
     }
   });
   if (RNMESH) hookRnMesh(m);
+  if (BLEND) hookBlend();
   send({hooked: m.base.add(RVA).toString()});
+}
+// A CMesh: vertex floats +0x00, stream table +0x08 (0x28 each: name, ...,
+// semantic index +0x10, float offset +0x14, float count +0x18), indices
+// +0x10, vertex count +0x18, stride in floats +0x1c, streams +0x20, indices +0x24.
+function cmesh(p) {
+  const nv = p.add(0x18).readS32(), stride = p.add(0x1c).readS32(), ns = p.add(0x20).readS32(), ni = p.add(0x24).readS32();
+  const streams = [];
+  const t = p.add(8).readPointer();
+  for (let i = 0; i < ns && !t.isNull(); i++) {
+    const e = t.add(i * 0x28);
+    streams.push({name: str(e), index: e.add(0x10).readS32(), offset: e.add(0x14).readS32(), count: e.add(0x18).readS32()});
+  }
+  const o = {vertices: nv, stride: stride, indices: ni, streams: streams};
+  if (nv > 0 && stride > 0) o.vdata = hex(p.readPointer().readByteArray(nv * stride * 4));
+  if (ni > 0) o.idata = hex(p.add(0x10).readPointer().readByteArray(ni * 4));
+  return o;
+}
+// physicsbuilder's blend split (0924: 180015930) and the material sampler
+// it may use (18064c460): the table, the mesh in, the meshes out, and
+// whether the sampler ran.
+function hookBlend() {
+  const pb = Process.findModuleByName('physicsbuilder.dll');
+  if (pb === null) { setTimeout(hookBlend, 5); return; }
+  Interceptor.attach(pb.base.add(0x15930), {
+    onEnter(args) {
+      const t = args[0];
+      this.out = args[1];
+      const table = {layers: t.readS32(), puddleChannel: t.add(4).readS32(), puddleLayer: t.add(8).readS32(),
+                     sampled: t.add(0xc).readU8(), swap: t.add(0xd).readU8(), scale1: t.add(0x10).readFloat(), surfaces: t.add(0x20).readS32()};
+      send({blend: 'in', table: table, mesh: cmesh(args[2])});
+    },
+    onLeave() {
+      const n = this.out.readS32(), data = this.out.add(8).readPointer();
+      const meshes = [];
+      for (let i = 0; i < n; i++) meshes.push(cmesh(data.add(i * 0x198)));
+      send({blend: 'out', meshes: meshes});
+    }
+  });
+  Interceptor.attach(pb.base.add(0x64c460), {
+    onEnter(args) {
+      this.samples = args[4];
+      const g = [0xe2a200, 0xe2a188, 0xe2a250, 0xe2a350].map(o => pb.base.add(o).readPointer().toString());
+      send({sampler: 'in', globals: g});
+    },
+    onLeave(ret) { send({sampler: 'out', ret: ret.toInt32() & 0xff, samples: this.samples.readS32()}); }
+  });
+  send({hookedBlend: pb.base.toString()});
 }
 function hookRnMesh(rc) {
   const v = Process.findModuleByName('vphysics2.dll');
@@ -135,6 +183,7 @@ def main():
     p.add_argument("--full", action="store_true", help="a full compile rather than -world -fshallow")
     p.add_argument("--rnmesh", help="also record the part builder's RnMeshCreate calls here")
     p.add_argument("--dump", action="store_true", help="also dump every gathered mesh shape's vertices and indices (hex)")
+    p.add_argument("--blend", action="store_true", help="also record physicsbuilder's blend splits (mesh in, meshes out) and its material sampler")
     a = p.parse_args()
     if busy():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
@@ -159,6 +208,11 @@ def main():
                 rn.write(struct.pack("<I", len(head)) + head + struct.pack("<I", len(data or b"")) + (data or b""))
             print("rnmesh", pay["id"], pay["tris"], "tris", flush=True)
             return
+        if "blend" in pay or "sampler" in pay:
+            with lock:
+                calls.append(pay)
+            print("blend" if "blend" in pay else "sampler", pay.get("blend") or pay.get("sampler"), pay.get("ret", ""), flush=True)
+            return
         if "insert" in pay:
             with lock:
                 calls.append(pay)
@@ -174,7 +228,7 @@ def main():
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    agent = (AGENT.replace("INSERT", hex(INSERT_RVA)).replace("RVA", hex(GATHER_RVA)).replace("RNMESH", "true" if rn else "false").replace("DUMP", "true" if a.dump else "false")
+    agent = (AGENT.replace("INSERT", hex(INSERT_RVA)).replace("RVA", hex(GATHER_RVA)).replace("RNMESH", "true" if rn else "false").replace("DUMP", "true" if a.dump else "false").replace("BLEND", "true" if a.blend else "false")
              .replace("MB0", hex(MESHBUILD_RVA[0])).replace("MB1", hex(MESHBUILD_RVA[1])))
     sc = ses.create_script(agent)
     sc.on("message", on_message)

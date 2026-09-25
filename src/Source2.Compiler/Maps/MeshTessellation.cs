@@ -23,7 +23,14 @@ namespace Source2.Compiler.Maps;
 public static class MeshTessellation
 {
     /// <summary>The welded vertices, three indices a triangle, and each triangle's face.</summary>
-    public sealed record Result(List<Vector3> Positions, List<int> Indices, List<int> Faces);
+    public sealed record Result(List<Vector3> Positions, List<int> Indices, List<int> Faces)
+    {
+        /// <summary>
+        /// Builder order only, for a mesh with a VertexPaintBlendParams stream:
+        /// each welded vertex's paint, from the corner that first made it.
+        /// </summary>
+        public List<Vector4>? Paint { get; init; }
+    }
 
     public static Result Triangulate(DmxBinary.Element data) => Build(data, false).ToResult();
 
@@ -46,6 +53,17 @@ public static class MeshTessellation
     /// faces. A face stitched to a finer neighbour is not covered: it keeps
     /// <see cref="Triangulate"/>'s cut in its slot, and <c>Covered</c> is false.
     /// </summary>
+    /// <remarks>
+    /// With a VertexPaintBlendParams stream the corners carry paint too, as
+    /// the bake sets it (1813baa40 with FUN_1813b82f0): a patch's four corner
+    /// values are the face corner, the midpoints towards the next and previous
+    /// corners ((b - a) * 0.5 + a, FUN_181046990) and the face mean
+    /// (FUN_1813be320: each corner times 1/m added in loop order from this
+    /// corner), and each grid point lerps them the way the positions are
+    /// lerped. Points a subdivided neighbour puts on a polygon face's edge get
+    /// nested midpoints from the edge's start (the library's edge splits;
+    /// not measured).
+    /// </remarks>
     public static (Result Result, bool Covered) TriangulateBuilder(DmxBinary.Element data)
     {
         var result = Build(data, true);
@@ -54,7 +72,9 @@ public static class MeshTessellation
 
     private sealed record BuiltResult(List<Vector3> Positions, List<int> Indices, List<int> Faces, bool Stitched)
     {
-        public Result ToResult() => new(Positions, Indices, Faces);
+        public List<Vector4>? Paint { get; set; }
+
+        public Result ToResult() => new(Positions, Indices, Faces) { Paint = Paint };
     }
 
     private static BuiltResult Build(DmxBinary.Element data, bool builderOrder)
@@ -93,12 +113,18 @@ public static class MeshTessellation
         // FUN_1813c7ae0: the level across a half-edge, 0 where no face is.
         int Across(int h) => hasSubdivision && opposite[h] >= 0 && edgeFace[opposite[h]] >= 0 ? Level(opposite[h]) : 0;
 
+        // The paint per corner, when asked for (builder order) and present.
+        var paintStream = builderOrder ? Stream(data.Get<DmxBinary.Element>("faceVertexData"), "VertexPaintBlendParams") : [];
+        var withPaint = paintStream.Length > 0;
+        Vector4 Paint(int h) => withPaint && cornerData[h] >= 0 && cornerData[h] < paintStream.Length && paintStream[cornerData[h]] is Vector4 p ? p : Vector4.Zero;
         var corners = new List<Vector3>();
+        var cornerPaint = new List<Vector4>();
         var faces = new List<int>();
         // Builder order: each face's own slot, then the appended faces.
         var slotCorners = new List<Vector3>[first.Length];
+        var slotPaint = new List<Vector4>[first.Length];
         var slotFaces = new List<int>[first.Length];
-        var appended = new List<(int Face, Vector3[] Corners)>();
+        var appended = new List<(int Face, Vector3[] Corners, Vector4[] Paint)>();
         var appendedSlots = new List<Slot>();
         var stitched = false;
         // The builder (1813baa40) gathers the faces to split level by level,
@@ -113,6 +139,7 @@ public static class MeshTessellation
             if (builderOrder)
             {
                 corners = slotCorners[f] = [];
+                cornerPaint = slotPaint[f] = [];
                 faces = slotFaces[f] = [];
             }
             var loop = new List<int>();
@@ -132,6 +159,7 @@ public static class MeshTessellation
             {
                 var c = hs.Select(h => Pos(to[h])).ToArray();
                 var points = new List<Vector3>();
+                var paints = new List<Vector4>();
                 for (var i = 0; i < c.Length; i++)
                 {
                     var a = c[i];
@@ -142,11 +170,15 @@ public static class MeshTessellation
                     {
                         var t = k * step;
                         points.Add(new Vector3(((b.X - a.X) * t) + a.X, ((b.Y - a.Y) * t) + a.Y, ((b.Z - a.Z) * t) + a.Z));
+                        paints.Add(EdgePaint(Paint(hs[i]), Paint(hs[(i + 1) % hs.Count]), 0, n, k));
                     }
                 }
                 var cut = PolygonTriangulator.Triangulate([.. points]);
                 foreach (var j in cut)
+                {
                     corners.Add(points[j]);
+                    cornerPaint.Add(paints[j]);
+                }
                 for (var t = 0; t < cut.Length / 3; t++)
                     faces.Add(f);
             }
@@ -182,6 +214,8 @@ public static class MeshTessellation
                         var pa = grid[a];
                         var pb = grid[b];
                         corners.Add(new Vector3(((pb.X - pa.X) * t) + pa.X, ((pb.Y - pa.Y) * t) + pa.Y, ((pb.Z - pa.Z) * t) + pa.Z));
+                        // Stitched patches are not covered; their paint is not ported.
+                        cornerPaint.Add(new Vector4(float.NaN));
                     }
                     for (var t = 0; t < stitched.Count / 3; t++)
                         faces.Add(f);
@@ -196,8 +230,10 @@ public static class MeshTessellation
                 var n = 1 << (level - 1);
                 var g = n + 1;
                 var grids = new Vector3[m][];
+                var paintGrids = new Vector4[m][];
                 for (var i = 0; i < m; i++)
                 {
+                    paintGrids[i] = PaintGrid(hs, i, level);
                     grids[i] = Grid(hs, i, level);
                     if (displacement.Length > 0)
                         Displace(grids[i], hs, i, f);
@@ -240,21 +276,23 @@ public static class MeshTessellation
                 for (var i = 0; i < m; i++)
                 {
                     var grid = grids[i];
+                    var pg = paintGrids[i];
                     for (var r = 0; r < n; r++)
                     {
                         for (var c = 0; c < n; c++)
                         {
-                            var a = grid[(r * g) + c];
-                            var b = grid[((r + 1) * g) + c + 1];
-                            cellSlot[i, r, c].Corners = [b, grid[((r + 1) * g) + c], a];
-                            appendedSlots.Add(new Slot { Corners = [a, grid[(r * g) + c + 1], b] });
+                            int a = (r * g) + c, b = ((r + 1) * g) + c + 1, below = ((r + 1) * g) + c, right = (r * g) + c + 1;
+                            cellSlot[i, r, c].Corners = [grid[b], grid[below], grid[a]];
+                            cellSlot[i, r, c].Paint = [pg[b], pg[below], pg[a]];
+                            appendedSlots.Add(new Slot { Corners = [grid[a], grid[right], grid[b]], Paint = [pg[a], pg[right], pg[b]] });
                         }
                     }
                 }
                 corners.AddRange(faceSlot.Corners!);
+                cornerPaint.AddRange(faceSlot.Paint!);
                 faces.Add(f);
                 foreach (var s in appendedSlots)
-                    appended.Add((f, s.Corners!));
+                    appended.Add((f, s.Corners!, s.Paint!));
                 appendedSlots.Clear();
             }
 
@@ -291,6 +329,33 @@ public static class MeshTessellation
                     var rz = (d.Z * n.Z) + ((d.Y * t.Z) + (d.X * bt.Z));
                     grid[k] = new Vector3(rx + grid[k].X, ry + grid[k].Y, rz + grid[k].Z);
                 }
+            }
+
+            // FUN_1813be320 then FUN_1813b82f0: corner i's patch of paint, a
+            // grid laid out like Grid's.
+            Vector4[] PaintGrid(List<int> hs, int i, int own)
+            {
+                var m = hs.Count;
+                var inv = 1f / m;
+                var mean = Vector4.Zero;
+                for (var k = 0; k < m; k++)
+                    mean = MulAdd(Paint(hs[(i + k) % m]), inv, mean);
+                var s0 = Paint(hs[i]);
+                var s1 = Lerp(s0, Paint(hs[(i + 1) % m]), 0.5f);
+                var s2 = Lerp(s0, Paint(hs[(i + m - 1) % m]), 0.5f);
+                var n = 1 << (own - 1);
+                var g = n + 1;
+                var step = 1f / n;
+                var points = new Vector4[g * g];
+                for (var r = 0; r <= n; r++)
+                {
+                    var v = r * step;
+                    var left = Lerp(s0, s2, v);
+                    var right = Lerp(s1, mean, v);
+                    for (var c = 0; c <= n; c++)
+                        points[(r * g) + c] = Lerp(left, right, c * step);
+                }
+                return points;
             }
 
             // FUN_1813bda20 then FUN_1813bcc40: corner h's patch, a grid of
@@ -340,19 +405,22 @@ public static class MeshTessellation
         if (builderOrder)
         {
             corners = [.. slotCorners.SelectMany(x => x), .. appended.SelectMany(x => x.Corners)];
+            cornerPaint = [.. slotPaint.SelectMany(x => x), .. appended.SelectMany(x => x.Paint)];
             faces = [.. slotFaces.SelectMany(x => x), .. appended.Select(x => x.Face)];
         }
 
         // FUN_1813858d0: equal positions (bit for bit) are one vertex, numbered as first met.
         var weld = new Dictionary<(uint, uint, uint), int>();
-        var result = new BuiltResult([], [], faces, stitched);
-        foreach (var c in corners)
+        var result = new BuiltResult([], [], faces, stitched) { Paint = withPaint ? [] : null };
+        for (var i = 0; i < corners.Count; i++)
         {
+            var c = corners[i];
             var key = (BitConverter.SingleToUInt32Bits(c.X), BitConverter.SingleToUInt32Bits(c.Y), BitConverter.SingleToUInt32Bits(c.Z));
             if (!weld.TryGetValue(key, out var index))
             {
                 index = weld[key] = result.Positions.Count;
                 result.Positions.Add(c);
+                result.Paint?.Add(cornerPaint[i]);
             }
             result.Indices.Add(index);
         }
@@ -363,6 +431,37 @@ public static class MeshTessellation
     private sealed class Slot
     {
         public Vector3[]? Corners { get; set; }
+        public Vector4[]? Paint { get; set; }
+    }
+
+    // FUN_181046990: (b - a) * t + a, component by component.
+    private static Vector4 Lerp(Vector4 a, Vector4 b, float t)
+        => new(((b.X - a.X) * t) + a.X, ((b.Y - a.Y) * t) + a.Y, ((b.Z - a.Z) * t) + a.Z, ((b.W - a.W) * t) + a.W);
+
+    // FUN_1813be320's mean: value * w + sum.
+    private static Vector4 MulAdd(Vector4 value, float w, Vector4 sum)
+        => new((value.X * w) + sum.X, (value.Y * w) + sum.Y, (value.Z * w) + sum.Z, (value.W * w) + sum.W);
+
+    // The paint at point k of an edge halved and halved again from klo to
+    // khi: nested midpoints, each from the lower end.
+    private static Vector4 EdgePaint(Vector4 lo, Vector4 hi, int klo, int khi, int k)
+    {
+        while (k != klo)
+        {
+            var mid = (klo + khi) / 2;
+            var m = Lerp(lo, hi, 0.5f);
+            if (k < mid)
+            {
+                hi = m;
+                khi = mid;
+            }
+            else
+            {
+                lo = m;
+                klo = mid;
+            }
+        }
+        return lo;
     }
 
     /// <summary>A vector over its length ((z^2 + y^2) + x^2); a length outside 1e-17..1e17 is not handled.</summary>
