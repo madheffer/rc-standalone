@@ -202,6 +202,9 @@ public sealed partial class FgdSchema
     /// </summary>
     public bool IsSolidClass(string className) => _solid.Contains(className);
 
+    /// <summary>Whether the FGD declares the class at all.</summary>
+    public bool HasClass(string className) => _classes.ContainsKey(className);
+
     /// <summary>
     /// Whether the class is <paramref name="baseName"/> or inherits it through
     /// any chain of bases (FUN_180dd2500).

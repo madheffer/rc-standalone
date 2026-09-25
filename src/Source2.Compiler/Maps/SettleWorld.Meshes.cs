@@ -192,8 +192,13 @@ public static partial class SettleWorld
         // material), with no attributes: atixref's milwall001 faces join the
         // soup of the other plain material beside them.
         var info = context.Models.Material(path) ?? new MaterialInfo(new Dictionary<string, long>(), new Dictionary<string, string>());
-        var surface = info.Strings.GetValueOrDefault("PhysicsSurfaceProperties", "");
-        var material = SurfaceMaterial(surface, context.Models);
+        // The record is named after the surface the name finds (an unknown one
+        // finds "default"), so surfaces differing only in case, or two
+        // unknown ones, merge (FUN_1810578b0 compares the names).
+        var stated = info.Strings.GetValueOrDefault("PhysicsSurfaceProperties", "");
+        var hash = stated.Length > 0 && context.Models.Surface(NameHash(stated)) != null ? NameHash(stated) : DefaultSurface;
+        var surface = context.Models.SurfaceName(hash) ?? "default";
+        var material = SurfaceMaterial(stated, context.Models);
         var physics = ReadMaterialPhysics(info, context.Models);
         if (!physics.Solid)
             return new Record(surface, dropped, material);
@@ -222,7 +227,11 @@ public static partial class SettleWorld
         a.InteractsAs |= rules.Mask(mesh.Get<string>("physicsInteractsAs") ?? "");
         a.InteractsWith |= rules.Mask(mesh.Get<string>("physicsInteractsWith") ?? "");
         a.InteractsExclude |= rules.Mask(mesh.Get<string>("physicsInteractsExclude") ?? "");
-        if (owner == null)
+        // The owner's FGD class (entity +0x550) is null outside an entity and
+        // for a class the FGD does not declare (Mako's func_monitor); either
+        // way the mesh gets the world's rules.
+        var className = owner?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") ?? "";
+        if (owner == null || context.Schema?.HasClass(className) == false)
             a.InteractsAs |= 0x40000000;
         else
             OwnerRules(owner, context.Schema, ref a);

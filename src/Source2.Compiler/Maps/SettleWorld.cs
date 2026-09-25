@@ -48,6 +48,9 @@ public static partial class SettleWorld
         /// <summary>The surface property with this name hash as a Rubikon material (FUN_180072c70), or null for none.</summary>
         ContactSolver.Material? Surface(uint nameHash);
 
+        /// <summary>The surface property with this name hash's own name (its surfacePropertyName), or null for none.</summary>
+        string? SurfaceName(uint nameHash);
+
         /// <summary>A compiled material's int and string attributes, or null when it is missing.</summary>
         MaterialInfo? Material(string path);
 
@@ -100,6 +103,10 @@ public static partial class SettleWorld
         return found;
     }
 
+    /// <summary>The compiled surface properties' names (surfacePropertyName), by name hash.</summary>
+    public static Dictionary<uint, string> SurfaceNames(ValveKeyValue.KVObject vsurf)
+        => vsurf.GetArray("SurfacePropertiesList").ToDictionary(e => (uint)e.GetUInt32Property("m_nameHash"), e => e.GetStringProperty("surfacePropertyName"));
+
     /// <summary>Rubikon's shape type for a capsule (a sphere is 0, a hull 2, a mesh 3).</summary>
     public const int CapsuleType = 1;
 
@@ -121,8 +128,12 @@ public static partial class SettleWorld
         foreach (var instance in document.OfType("CMapInstance"))
             if (instance.Get<DmxBinary.Element>("target") is { } target)
                 targets.Add(target);
+        // A node the visibility manager hides is not compiled, so it has no
+        // body: Mako's ten hidden meshes are missing from Valve's settle, and
+        // no captured body (atixref, c2m2, Mako) sits under a hidden node.
+        var hidden = MapEntities.HiddenNodes(document);
         foreach (var world in document.OfType("CMapWorld"))
-            Walk(world, null, context, targets);
+            Walk(world, null, context, targets, hidden);
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var e in document.Elements)
             foreach (var child in e.GetElements("children"))
@@ -170,19 +181,22 @@ public static partial class SettleWorld
 
     /// <summary>
     /// The document walk: each node's children in stored order, a model's
-    /// entity and a map mesh built where they stand. owner is the nearest
-    /// entity above (FUN_180f8b770).
+    /// entity and a map mesh built where they stand, hidden nodes and what
+    /// is under them left out. owner is the nearest entity above (FUN_180f8b770).
     /// </summary>
-    private static void Walk(DmxBinary.Element node, DmxBinary.Element? owner, Context context, HashSet<DmxBinary.Element> targets)
+    private static void Walk(DmxBinary.Element node, DmxBinary.Element? owner, Context context, HashSet<DmxBinary.Element> targets,
+                             HashSet<int> hidden)
     {
         foreach (var child in node.GetElements("children"))
         {
+            if (hidden.Contains(child.GetValue<int>("nodeID") ?? -1))
+                continue;
             if (ModelOf(child, context.Models) is { } phys)
                 FromModel(child, NodeWorld(MapMeshes.Local(child)), child.GetValue<int>("nodeID") ?? -1, phys, context);
             else if (child.Type == "CMapMesh")
                 FromMesh(child, NodeWorld(MapMeshes.Local(child)), child.GetValue<int>("nodeID") ?? -1, owner, context);
             if (child.Type != "CMapInstance" && !targets.Contains(child))
-                Walk(child, child.Type == "CMapEntity" ? child : owner, context, targets);
+                Walk(child, child.Type == "CMapEntity" ? child : owner, context, targets, hidden);
         }
     }
 
@@ -562,10 +576,14 @@ public static partial class SettleWorld
             return i;
         }
 
+        /// <summary>
+        /// A layer's bit, registering an unknown name. An empty name is a name
+        /// like any other: Mako's spindle_01_a lists "" as its interact-as and
+        /// Valve gives it a new bit (32). Lists parsed from text drop empty
+        /// entries before they get here (see <see cref="Mask"/>).
+        /// </summary>
         public ulong Layer(string name)
         {
-            if (name.Length == 0)
-                return 0;
             if (!_layers.TryGetValue(name, out var bits))
                 _layers[name] = bits = 1ul << _next++;
             return bits;

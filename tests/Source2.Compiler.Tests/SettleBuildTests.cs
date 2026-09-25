@@ -18,6 +18,7 @@ namespace Source2.Compiler.Tests;
 /// geometry, scale, collision attributes and materials.
 /// Set SETTLE to the bundle's events.jsonl; the map is read from the CS2
 /// content addon s2c_rc_probe and the models from the game's pak01.
+/// SETTLE_LIST=1 prints every mismatch with its node, owner and materials.
 /// </summary>
 public sealed class SettleBuildTests(ITestOutputHelper output)
 {
@@ -215,14 +216,27 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
 
         public Simulation.ContactSolver.Material? Surface(uint nameHash)
         {
-            if (_surfaces == null)
-            {
-                _pak.ReadEntry(_pak.FindEntry("surfaceproperties/surfaceproperties.vsurf_c")!, out var bytes);
-                using var res = new Resource();
-                res.Read(new MemoryStream(bytes));
-                _surfaces = SettleWorld.SurfaceMaterials(((BinaryKV3)res.DataBlock!).Data);
-            }
-            return _surfaces.TryGetValue(nameHash, out var m) ? m : null;
+            ReadSurfaces();
+            return _surfaces!.TryGetValue(nameHash, out var m) ? m : null;
+        }
+
+        public string? SurfaceName(uint nameHash)
+        {
+            ReadSurfaces();
+            return _surfaceNames!.GetValueOrDefault(nameHash);
+        }
+
+        private Dictionary<uint, string>? _surfaceNames;
+
+        private void ReadSurfaces()
+        {
+            if (_surfaces != null)
+                return;
+            _pak.ReadEntry(_pak.FindEntry("surfaceproperties/surfaceproperties.vsurf_c")!, out var bytes);
+            using var res = new Resource();
+            res.Read(new MemoryStream(bytes));
+            _surfaces = SettleWorld.SurfaceMaterials(((BinaryKV3)res.DataBlock!).Data);
+            _surfaceNames = SettleWorld.SurfaceNames(((BinaryKV3)res.DataBlock!).Data);
         }
 
         private readonly Dictionary<string, Model?> _models = new(StringComparer.OrdinalIgnoreCase);
@@ -278,6 +292,10 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
         var examples = new Dictionary<string, string>();
         void Example(string what, string text) => examples.TryAdd(what, text);
         var seen = new Dictionary<int, int>();
+        var parentOf = new Dictionary<DmxBinary.Element, DmxBinary.Element>();
+        foreach (var e in document.Elements)
+            foreach (var child in e.GetElements("children"))
+                parentOf.TryAdd(child, e);
         foreach (var body in bodies)
         {
             var k = seen[body.NodeId] = seen.GetValueOrDefault(body.NodeId);
@@ -286,6 +304,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             {
                 var node = document.Elements.First(e => e.GetValue<int>("nodeID") == body.NodeId && e.Type.StartsWith("CMap"));
                 var hidden = MapEntities.HiddenNodes(document).Contains(body.NodeId);
+                if (Environment.GetEnvironmentVariable("SETTLE_LIST") == "1")
+                    output.WriteLine($"  not in the capture: node {body.NodeId} {node.Type} {node.Get<string>("name")} hidden {hidden} parent {(parentOf.GetValueOrDefault(node) is { } np ? $"{np.Type} {np.GetValue<int>("nodeID")} {np.Get<string>("name")}" : "")}");
                 Count($"body not in the capture: {node.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")}{(hidden ? " (hidden)" : "")}");
                 continue;
             }
@@ -313,6 +333,17 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             if (listed.Count != cb.Shapes.Count || !listed.Select(s => s.Type).SequenceEqual(cb.Shapes.Select(s => s.Kind == "hull" ? 2 : 3)))
             {
                 Example("shape list", $"node {body.NodeId}: ours {string.Join(",", listed.Select(s => s.Type))} valve {string.Join(",", cb.Shapes.Select(s => s.Kind))}");
+                var owner = body.Node is { } bn ? parentOf.GetValueOrDefault(bn) : null;
+                var ownerClass = owner?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") ?? owner?.Type ?? "";
+                if (Environment.GetEnvironmentVariable("SETTLE_LIST") == "1")
+                    output.WriteLine($"  shape list: node {body.NodeId} {body.Node?.Type} under {ownerClass}: ours {string.Join(",", listed.Select(s => s.Type))} valve {string.Join(",", cb.Shapes.Select(s => s.Kind))}"
+                        + $"; type {body.Node?.Get<string>("physicsType")}; materials {string.Join(" ", (body.Node?.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(m => $"{m}{(models.Material(m as string ?? "") is { } mi ? $"[{mi.Strings.GetValueOrDefault("PhysicsSurfaceProperties", "")}{(mi.Strings.GetValueOrDefault("PhysicsSurfaceProperties", "") is { Length: > 0 } sp && models.Surface(SettleWorld.NameHash(sp)) == null ? "?" : "")}]" : "(missing)")}"))}");
+                if (Environment.GetEnvironmentVariable("SETTLE_LIST") == "1")
+                    for (var i = 0; i < listed.Count; i++)
+                        for (var j = 0; j < cb.Shapes.Count; j++)
+                            if (listed[i].Type == (cb.Shapes[j].Kind == "hull" ? 2 : 3))
+                                output.WriteLine($"    ours {i} ({listed[i].Name}) vs valve {j}: {(listed[i].Type == 2 ? HullDifference(listed[i].Hull!, cb.Shapes[j].Raw) : MeshDifference(listed[i].Mesh!, cb.Shapes[j].Raw)) ?? "exact"}");
+                Count($"shape list differs under {ownerClass}: ours {string.Join(",", listed.Select(s => s.Type))} valve {string.Join(",", cb.Shapes.Select(s => s.Kind))}");
                 continue;
             }
             Count("shape list same");
@@ -338,6 +369,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
                 else
                 {
                     Count($"attributes differ: ours {Convert.ToHexString(attributes)} valve {Convert.ToHexString(theirs.Head, 0x50, 0x28)}");
+                    if (Environment.GetEnvironmentVariable("SETTLE_LIST") == "1")
+                        output.WriteLine($"  attributes: node {body.NodeId} shape {i} ({ours.Name}) under {(body.Node is { } an && parentOf.GetValueOrDefault(an) is { } ap ? ap.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") ?? ap.Type : "")}: ours {Convert.ToHexString(attributes)} valve {Convert.ToHexString(theirs.Head, 0x50, 0x28)}; {body.Node?.Type} {body.Node?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")} {body.Node?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("model")}; materials {string.Join(" ", (body.Node?.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []))}");
                     Example("attributes", $"node {body.NodeId}: ours {Convert.ToHexString(attributes)} valve {Convert.ToHexString(theirs.Head, 0x50, 0x28)}");
                 }
                 var material = Raw(ours.Material);
@@ -374,6 +407,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
         foreach (var o in missing)
         {
             var node = document.Elements.FirstOrDefault(e => e.GetValue<int>("nodeID") == o.Node && e.Type.StartsWith("CMap"));
+            if (Environment.GetEnvironmentVariable("SETTLE_LIST") == "1")
+                output.WriteLine($"  not built: node {o.Node} {node?.Type ?? "not in file"} bodies {o.Bodies.Count} shapes {string.Join("|", o.Bodies.Select(b => string.Join("", b.Shapes.Select(x => x.Kind[0]))))}");
             Count($"not built: {node?.Type ?? "not in file"} with {string.Join(",", o.Bodies.Select(b => b.Shapes.Count == 0 ? "none" : string.Join("", b.Shapes.Select(x => x.Kind[0]))).Distinct().Take(3))}");
         }
         foreach (var (k, v) in counts.OrderBy(x => x.Key))

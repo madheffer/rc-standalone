@@ -96,9 +96,9 @@ public sealed class SettleFromMapTests(ITestOutputHelper output)
                 exact++;
         }
         output.WriteLine($"step 0: {exact}/{ours.Count} bodies exact");
-        // Open: the two toolsclip meshes under entities (nodes 351 and 6181),
-        // which Valve builds with no shape; and, outside Valve's order, the
-        // awake indices the SetType order sets.
+        // Open: the two meshes under trigger entities (nodes 351 and 6181),
+        // which Valve builds with no shape (Mako has 82 such); and, outside
+        // Valve's order, the awake indices the SetType order sets.
         Assert.True(exact >= ours.Count - 2 - (valveOrder ? 0 : settled.Count), $"{exact}/{ours.Count} bodies exact at step 0");
         foreach (var (off, n) in differs.OrderBy(x => x.Key))
             output.WriteLine($"  +0x{off:x}: {n} bodies differ, e.g. {examples[off]}");
