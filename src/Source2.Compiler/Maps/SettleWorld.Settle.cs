@@ -21,30 +21,44 @@ public static partial class SettleWorld
     /// </remarks>
     public static List<int> Settled(DmxBinary.Document document, IReadOnlyList<BodyBuild> bodies, IModels models, FgdSchema schema)
     {
+        var eligible = Eligible(document, bodies, models, schema);
+        return [.. eligible.Where(i => bodies[i].Shapes.All(s => s.Type <= Simulation.BroadphaseShape.HullType))];
+    }
+
+    /// <summary>
+    /// The bodies of the nodes FUN_180f1e490 collects for the settle, before
+    /// the shape test: every node among them whose objects all end asleep,
+    /// the ones left static included, gets "Start asleep" afterwards. The
+    /// candidates are PhysDoc_GetNodes', the nodes that have physics objects,
+    /// so an entity without a body (a model with no physics) is never one:
+    /// c2m2's 265 such props and Mako's 53 ship without the flag.
+    /// </summary>
+    public static List<int> Eligible(DmxBinary.Document document, IReadOnlyList<BodyBuild> bodies, IModels models, FgdSchema schema)
+    {
         var excluded = Excluded(document, schema);
         var result = new List<int>();
         for (var i = 0; i < bodies.Count; i++)
-        {
-            var node = bodies[i].Node;
-            if (node?.Type != "CMapEntity" || excluded.Contains(node) || node.Get<DmxBinary.Element>("entity_properties") is not { } props)
-                continue;
-            var className = props.Get<string>("classname") ?? "";
-            if (!schema.Inherits(className, "BasePhysicsSimulated"))
-                continue;
-            if (Int(props, "skipPreSettle") != 0)
-                continue;
-            var spawnflags = Int(props, "spawnflags");
-            if (schema.HasSpawnflag(className, spawnflags, "Start asleep") || schema.HasSpawnflag(className, spawnflags, "Motion Disabled"))
-                continue;
-            if (props.Get<string>("model") is { Length: > 0 } model && models.ModelKeyValues(model) is { } kv
-                && kv.ContainsKey("prop_data") && kv.GetSubCollection("prop_data") is { } propData
-                && propData.ContainsKey("spawn_motion_disabled")
-                && propData["spawn_motion_disabled"]?.ToString() is "1" or "true" or "True")
-                continue;
-            if (bodies[i].Shapes.All(s => s.Type <= Simulation.BroadphaseShape.HullType))
+            if (bodies[i].Node is { } node && IsEligible(node, excluded, models, schema))
                 result.Add(i);
-        }
         return result;
+    }
+
+    private static bool IsEligible(DmxBinary.Element node, HashSet<DmxBinary.Element> excluded, IModels models, FgdSchema schema)
+    {
+        if (node.Type != "CMapEntity" || excluded.Contains(node) || node.Get<DmxBinary.Element>("entity_properties") is not { } props)
+            return false;
+        var className = props.Get<string>("classname") ?? "";
+        if (!schema.Inherits(className, "BasePhysicsSimulated"))
+            return false;
+        if (Int(props, "skipPreSettle") != 0)
+            return false;
+        var spawnflags = Int(props, "spawnflags");
+        if (schema.HasSpawnflag(className, spawnflags, "Start asleep") || schema.HasSpawnflag(className, spawnflags, "Motion Disabled"))
+            return false;
+        return !(props.Get<string>("model") is { Length: > 0 } model && models.ModelKeyValues(model) is { } kv
+                 && kv.ContainsKey("prop_data") && kv.GetSubCollection("prop_data") is { } propData
+                 && propData.ContainsKey("spawn_motion_disabled")
+                 && propData["spawn_motion_disabled"]?.ToString() is "1" or "true" or "True");
     }
 
     /// <summary>

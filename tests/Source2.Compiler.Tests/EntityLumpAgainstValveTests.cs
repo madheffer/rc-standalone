@@ -55,7 +55,8 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     {
         var document = DmxBinary.ReadFile(source);
         var ours = EntityLumpSet.Author(MapEntities.From(document), MapFixtures.GameSchema(), map,
-                                        MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators);
+                                        MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators,
+                                        SettleLumpTests.Settle(document, source));
 
         Assert.Equal(valve.Keys.Order(StringComparer.OrdinalIgnoreCase),
                      ours.Select(l => l.Path).Order(StringComparer.OrdinalIgnoreCase),
@@ -95,9 +96,6 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         // The bake writes its results back into the lump: a light's shadow index
         // and unique ids, a probe volume's atlas textures, handshake and size.
         || BakedKeys().IsMatch(line)
-        // Physics props are SETTLED: the compile simulates them to rest, writes the
-        // resting origin and angles and sets spawnflag 1. Geometry tier.
-        || SettledProp().IsMatch(line)
         // A cable's rendercolor ships as the plain string its node's tintColor
         // spells ("255 255 255") where every other colour255 key is typed. The
         // node binds tintColor to rendercolor through hammer_embedded_properties
@@ -111,7 +109,4 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     [GeneratedRegex(@"\] (bakedshadowindex|light_map_uniqueid|light_path_uniqueid|brightness_legacy|brightness_lumens"
                   + @"|lightprobetexture\w*|cubemaptexture|handshake|light_probe_size_\w|light_probe_atlas\w*|array_index): ")]
     private static partial Regex BakedKeys();
-
-    [GeneratedRegex(@"^\[prop_physics(_override|_multiplayer)?#\d+\] (origin|angles|spawnflags): ")]
-    private static partial Regex SettledProp();
 }

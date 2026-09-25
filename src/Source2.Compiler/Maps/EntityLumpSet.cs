@@ -29,13 +29,17 @@ public static class EntityLumpSet
     /// creates, by its path (see <see cref="SmartProps"/>). They take node ids
     /// before any instance copy, so without it a map with smart props numbers its
     /// instanced entities too low.</param>
+    /// <param name="settled">The physics settle's results by node id
+    /// (<see cref="Maps.SettleWorld.Run"/>); without them props keep their
+    /// authored placement.</param>
     public static IReadOnlyList<Lump> Author(
         IReadOnlyList<MapEntities.Entity> entities,
         FgdSchema? schema,
         string worldName,
         bool fixupEntityNames = false,
         DmxBinary.Document? document = null,
-        Func<string, int>? smartPropLocators = null)
+        Func<string, int>? smartPropLocators = null,
+        IReadOnlyDictionary<int, Maps.SettleWorld.Settlement>? settled = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
@@ -48,7 +52,7 @@ public static class EntityLumpSet
         List<string> layers = document is null ? [] : [.. MapEntities.WorldLayers(document)];
         var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
         worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));
-        foreach (var (entity, sourceId) in MainLump(entities, document, smartPropLocators))
+        foreach (var (entity, sourceId) in MainLump(entities, document, smartPropLocators, settled, schema))
             if (EntityLumpAuthor.ReachesTheLump(entity, schema))
                 worlds[entity.Layer is { } layer && layers.IndexOf(layer) is var at and >= 0 ? at + 1 : 0].Items
                     .Add(new Item(EntityLumpAuthor.BuildEntity(entity, sourceId, context), entity.Hidden));
@@ -253,8 +257,21 @@ public static class EntityLumpSet
     /// walked entity. Every copy carries its template's compile_source_id.</para>
     /// </summary>
     private static List<EntityLumpAuthor.Emission> MainLump(
-        IReadOnlyList<MapEntities.Entity> entities, DmxBinary.Document? document, Func<string, int>? smartPropLocators)
+        IReadOnlyList<MapEntities.Entity> entities, DmxBinary.Document? document, Func<string, int>? smartPropLocators,
+        IReadOnlyDictionary<int, Maps.SettleWorld.Settlement>? settled, FgdSchema? schema)
     {
+        // A settled prop, placed or copied, stands where the settle left it
+        // (SettleWorld.Run), with the keys CMapEntity_SetStartAsleep changed.
+        MapEntities.Entity Settle(MapEntities.Entity e)
+            => settled is not null && schema is not null && settled.TryGetValue(e.NodeId, out var s)
+                ? e with
+                {
+                    Origin = s.Moved ? s.Origin : e.Origin,
+                    Angles = s.Moved ? s.Angles : e.Angles,
+                    Keys = Maps.SettleWorld.SettledKeys(e.ClassName, e.Keys, schema, s.Asleep),
+                }
+                : e;
+
         var (copies, templates) = document is null
             ? ((IReadOnlyList<MapInstances.Copy>)[], (IReadOnlySet<int>)new HashSet<int>())
             : MapInstances.Expand(document, entities,
@@ -266,14 +283,14 @@ public static class EntityLumpSet
             if (!pending.TryGetValue(copy.EmitAt, out var here))
                 pending[copy.EmitAt] = here = [];
             here.Add(new EntityLumpAuthor.Emission(
-                entities[copy.Template] with
+                Settle(entities[copy.Template] with
                 {
                     NodeId = copy.NodeId,
                     Origin = copy.Origin,
                     Angles = copy.Angles,
                     Layer = copy.Layer,
                     Instanced = true,
-                },
+                }),
                 copy.Template));
         }
 
@@ -283,7 +300,7 @@ public static class EntityLumpSet
             if (pending.TryGetValue(i, out var here))
                 emit.AddRange(here);
             if (i < entities.Count && !templates.Contains(i))
-                emit.Add(new EntityLumpAuthor.Emission(entities[i], i));
+                emit.Add(new EntityLumpAuthor.Emission(Settle(entities[i]), i));
         }
         return emit;
     }
