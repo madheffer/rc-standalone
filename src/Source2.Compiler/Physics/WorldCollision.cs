@@ -107,6 +107,17 @@ public static class WorldCollision
             if (string.Equals(mesh.Element!.Get<string>("physicsType"), "none", StringComparison.OrdinalIgnoreCase))
                 continue;
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
+            if (Subdivided(mesh.Element!))
+            {
+                foreach (var (material, points, indices) in TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
+                {
+                    var name = material < names.Length ? (names[material] as string ?? "") : "";
+                    var physics = materials(name);
+                    if (physics.Solid)
+                        result.Add(new Piece(mesh.NodeId, material, name, physics, points, indices));
+                }
+                continue;
+            }
             foreach (var (material, positions, faces, local, corners) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
@@ -121,6 +132,52 @@ public static class WorldCollision
             }
         }
         return result;
+    }
+
+    private static bool Subdivided(DmxBinary.Element mesh)
+        => mesh.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("subdivisionData")?.Get<object?[]>("subdivisionLevels") is { } levels
+           && levels.Any(x => x is int i && i > 0);
+
+    /// <summary>
+    /// A mesh with subdivided faces, cut as the mesh library cuts it for
+    /// physics (<see cref="Maps.MeshTessellation"/>: patches for subdivided
+    /// faces, neighbours stitched to them, equal positions welded). Each
+    /// material's triangles go in face order, a vertex numbered where the
+    /// material first meets it; positions are scaled and moved like the
+    /// other pieces'.
+    /// </summary>
+    private static List<(int Material, Vector3[] Points, int[] Indices)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path)
+    {
+        var data = mesh.Get<DmxBinary.Element>("meshData")!;
+        var faceData = (data.Get<object?[]>("faceDataIndices") ?? []).Select(x => x is int i ? i : 0).ToArray();
+        var faceMaterials = (data.Get<DmxBinary.Element>("faceData")?.GetElements("streams")
+            .FirstOrDefault(st => st.Name.StartsWith("materialindex", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [])
+            .Select(x => x is int i ? i : 0).ToArray();
+        var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
+        var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
+        var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
+        var cut = Maps.MeshTessellation.Triangulate(data);
+        var byMaterial = new SortedDictionary<int, (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of)>();
+        for (var t = 0; t < cut.Faces.Count; t++)
+        {
+            var f = cut.Faces[t];
+            var material = faceMaterials.Length == 0 ? 0 : faceMaterials[faceData[f]];
+            if (!byMaterial.TryGetValue(material, out var piece))
+                byMaterial[material] = piece = ([], [], []);
+            for (var k = 0; k < 3; k++)
+            {
+                var v = cut.Indices[(t * 3) + k];
+                if (!piece.Of.TryGetValue(v, out var at))
+                {
+                    at = piece.Points.Count;
+                    piece.Of[v] = at;
+                    var p = Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, cut.Positions[v] * scales));
+                    piece.Points.Add(path == null ? p : Maps.MapMeshes.Transform(path, p));
+                }
+                piece.Indices.Add(at);
+            }
+        }
+        return [.. byMaterial.Select(kv => (kv.Key, kv.Value.Points.ToArray(), kv.Value.Indices.ToArray()))];
     }
 
     /// <summary>

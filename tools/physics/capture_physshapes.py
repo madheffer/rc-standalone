@@ -121,6 +121,12 @@ def busy():
     return "cs2.exe" in out or "resourcecompiler.exe" in out
 
 
+def low_disk():
+    """Under 10 GB free on the game's drive: a compile writes the vpk there, and a crash dumps ~2.4 GB."""
+    import shutil
+    return shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("addon")
@@ -132,6 +138,8 @@ def main():
     a = p.parse_args()
     if busy():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
+    if low_disk():
+        raise SystemExit("under 10 GB free on the game drive; not starting")
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
     if not a.full:
