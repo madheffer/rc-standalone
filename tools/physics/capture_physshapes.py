@@ -120,6 +120,12 @@ function hookBlend() {
       this.out = args[1];
       const table = {layers: t.readS32(), puddleChannel: t.add(4).readS32(), puddleLayer: t.add(8).readS32(),
                      sampled: t.add(0xc).readU8(), swap: t.add(0xd).readU8(), scale1: t.add(0x10).readFloat(), surfaces: t.add(0x20).readS32()};
+      // Surface names: CUtlStrings at +0x28, count +0x20. Remap: ints at +0x40, count +0x38.
+      table.names = [];
+      for (let i = 0; i < table.surfaces; i++) table.names.push(str(t.add(0x28).readPointer().add(i * 8)));
+      table.remap = [];
+      const nr = t.add(0x38).readS32();
+      for (let i = 0; i < nr; i++) table.remap.push(t.add(0x40).readPointer().add(i * 4).readS32());
       send({blend: 'in', table: table, mesh: cmesh(args[2])});
     },
     onLeave() {

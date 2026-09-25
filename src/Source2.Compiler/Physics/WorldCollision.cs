@@ -135,7 +135,7 @@ public static class WorldCollision
     /// triangle's three positions go to that surface's mesh unshared, and
     /// each mesh is welded at 1/32 (CMesh_Weld). Meshes left empty are kept.
     /// </summary>
-    private static List<(Vector3[] Points, int[] Indices)> SplitLayers(BlendLayers b, Vector3[] points, int[] indices, Vector4[] paint)
+    internal static List<(Vector3[] Points, int[] Indices)> SplitLayers(BlendLayers b, Vector3[] points, int[] indices, Vector4[] paint)
     {
         var corners = new List<Vector3>[b.Surfaces.Length];
         for (var s = 0; s < corners.Length; s++)
