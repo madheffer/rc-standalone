@@ -101,20 +101,6 @@ public static class EntityPhysicsModels
             {
                 var names = mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
                 var type = BrushHulls.Resolve(PhysicsTypeOf(mesh), true, className == "func_shatterglass", false, false);
-                // A mesh with a water material gives every shape the mesh's collision
-                // attribute, gathered over all its materials (Mako's func_water: its
-                // toolsnodraw hull is water too); otherwise each keeps its own
-                // (atixref's breakables: glass is window, toolsnodraw default).
-                // Surfaces stay each material's own.
-                var gathered = Union(names.Select(n => WorldCollision.ReadMaterial(material(applied ?? (n as string ?? "")), collisionProperty)));
-                var water = false;
-                WorldCollision.MaterialPhysics Attributed(WorldCollision.MaterialPhysics own) => !water ? own : own with
-                {
-                    CollisionGroup = gathered.CollisionGroup,
-                    InteractAs = gathered.InteractAs,
-                    InteractWith = gathered.InteractWith,
-                    InteractExclude = gathered.InteractExclude,
-                };
                 foreach (var (slot, positions, faces, local) in BrushHulls.Pieces(mesh, entity, transformOf: transformOf))
                 {
                     var own = slot < names.Length ? (names[slot] as string ?? "") : "";
@@ -125,7 +111,7 @@ public static class EntityPhysicsModels
                         continue;
                     if (type == BrushHulls.PhysicsType.Mesh)
                         continue;
-                    var physics = Attributed(WorldCollision.ReadMaterial(material(name), collisionProperty));
+                    var physics = WorldCollision.ReadMaterial(material(name), collisionProperty, shaderTranslucency: false);
                     foreach (var input in BrushHulls.Inputs(positions, faces, type, local))
                     {
                         var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
@@ -147,7 +133,7 @@ public static class EntityPhysicsModels
                     {
                         var own = slot < names.Length ? (names[slot] as string ?? "") : "";
                         var name = applied ?? own;
-                        var physics = Attributed(WorldCollision.ReadMaterial(material(name), collisionProperty));
+                        var physics = WorldCollision.ReadMaterial(material(name), collisionProperty, shaderTranslucency: false);
                         var (points, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners);
                         var indices = new int[triangles.Count * 3];
                         for (var t = 0; t < triangles.Count; t++)
@@ -169,22 +155,6 @@ public static class EntityPhysicsModels
     public static byte[] Author(Model model, Func<uint, string?> surfaceName)
         => WorldPhysicsAuthor.Container(model.Physics.AllShapes.Any() ? WorldPhysicsTrees.Phys(model.Physics, partFlags: model.Physics.Meshes.Count > 0 ? 2u : 0u) : null,
             WorldPhysicsTrees.Red2(model.Physics, surfaceName, model.ClassName), WorldPhysicsTrees.ModelData(model.Path));
-
-    // The materials' collision settings together: the first group any of them
-    // sets, and each tag list joined in material order.
-    private static WorldCollision.MaterialPhysics Union(IEnumerable<WorldCollision.MaterialPhysics> all)
-    {
-        var list = all.ToList();
-        string Join(Func<WorldCollision.MaterialPhysics, string> of)
-            => string.Join(", ", list.Select(of).Where(x => x.Length > 0));
-        return WorldCollision.MaterialPhysics.Default with
-        {
-            CollisionGroup = list.Select(m => m.CollisionGroup).FirstOrDefault(g => g.Length > 0) ?? "",
-            InteractAs = Join(m => m.InteractAs),
-            InteractWith = Join(m => m.InteractWith),
-            InteractExclude = Join(m => m.InteractExclude),
-        };
-    }
 
     // Meshes under a node, depth first in children order.
     private static IEnumerable<DmxBinary.Element> Meshes(DmxBinary.Element node)

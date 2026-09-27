@@ -233,9 +233,11 @@ public static partial class SettleWorld
 
     /// <summary>The origin and angles a node's copy carries once the bake has moved it (<see cref="Baked"/>).</summary>
     internal static (Vector3 Origin, Vector3 Angles) BakedPlacement(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through)
+        => BakedPlacement(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through);
+
+    /// <summary>A placement moved through instances as the collapse moves a node there.</summary>
+    internal static (Vector3 Origin, Vector3 Angles) BakedPlacement(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through)
     {
-        var origin = node.GetValue<Vector3>("origin") ?? Vector3.Zero;
-        var angles = node.GetValue<Vector3>("angles") ?? Vector3.Zero;
         float[]? delta = null;
         foreach (var instance in through)
         {

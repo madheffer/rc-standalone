@@ -96,6 +96,36 @@ Valve's own package does not, and behave the same: a player dropped at the
 spawn stops at the same height, and ze_hold_em_p's trigger_teleport_1, enabled,
 sends the player to its destination.
 
+## Mako (a full compile, 2026-09-28)
+
+A full compile of ze_ffvii_mako_reactor_v6_p (21 minutes) gave the first world
+physics to test Mako against. What it took, beyond the rules above:
+
+- Meshes in world layers (`CMapWorldLayer`, 1,966 on Mako) are world geometry.
+- A node the visibility manager hides, and everything under it, is left out
+  (Mako's hidden skybox and train meshes).
+- A world mesh set to `convex_single` or `convex_multi` is hulled like a brush
+  entity's mesh, in the world's space; a blend material's hull takes its first
+  layer's surface (`PhysicsSurfaceProperties1`).
+- A mesh inside an instance is placed by its node's baked placement (moved
+  through the instances as the collapse moves nodes) and then its own matrix;
+  the instance path applied after the node's matrix drifts by up to 5e-4.
+- A smart prop inside an instance starts from its node's matrix under the
+  instance path (all 16 of Mako's industrial lamp pieces).
+- A prop surface the game's surface table does not know becomes the default
+  (Mako's street bench, 2586520238).
+
+Now 4,787 of Mako's 4,821 mesh inserts match the capture bit for bit, the
+surface table and RED2 are Valve's, and the file differs in 16 hulls of two
+instanced `convex_multi` crate meshes (grouping and order) and the stitched
+subdivided pieces (7; see below). The whole file was 47,448 differences
+before and is 408 now.
+
+In brush entity models a material's shader translucency does not make it a
+window: Mako's baggage glass breakables are default, and atixref's glass is
+window only through its collision property. With that, every entity model's
+physics on Mako matches the full compile (324 physics-only, 237 with render).
+
 ## Brush entity models (`EntityPhysicsModels`)
 
 A brush entity's collision ships in its own model,
@@ -127,10 +157,8 @@ container facts) on atixref (86), ze_hold_em_p (24) and Mako (324).
   water (Mako's func_water); first, it registers default. The world follows
   the same rule. Surfaces and tool material hashes stay each material's own.
 - The physics block of models with render meshes comes from the same builder
-  and matches Valve's too: atixref 58 of 58, ze_hold_em_p 8 of 8, Mako 204 of
-  237. Mako's other 33 are glass breakables whose glass Valve's build of that
-  package did not read as translucent; that build was a shallow one (it has no
-  world_physics), so it is not taken as ground truth.
+  and matches Valve's too: atixref 58 of 58, ze_hold_em_p 8 of 8, Mako 237 of
+  237 against a full compile.
 - The part's flags are 0, or 2 when it has meshes. RED2: keep_vertices is an
   IntArg and mapbuilder_entity_classname's fingerprint is the class's string
   token. A shape kind's count appears only when there are such shapes.

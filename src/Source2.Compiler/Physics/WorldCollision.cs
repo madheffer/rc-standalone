@@ -238,11 +238,12 @@ public static class WorldCollision
     /// shaders that only matters with a <c>PhysicsSurfaceProperties1</c> or
     /// <c>PhysicsSurfacePropertiesWet</c> set, which is left out.
     /// </summary>
-    public static MaterialPhysics ReadMaterial(Maps.SettleWorld.MaterialInfo? info, Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty)
+    public static MaterialPhysics ReadMaterial(Maps.SettleWorld.MaterialInfo? info, Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty,
+        bool shaderTranslucency = true)
     {
         if (info == null)
             return MaterialPhysics.Default;
-        var c = MaterialCollision.Read(info, collisionProperty);
+        var c = MaterialCollision.Read(info, collisionProperty, shaderTranslucency);
         var surface = info.Strings.TryGetValue("PhysicsSurfaceProperties", out var s) ? s : "";
         var physics = new MaterialPhysics(c.Solid, c.Group, c.InteractAs, surface) { InteractWith = c.InteractWith, InteractExclude = c.InteractExclude, KeepsTexcoords = Maps.MapMeshCorners.KeepsTexcoords(info) };
         var (layers, puddles, _) = ShaderLayers(info.Shader, info.Params);
@@ -306,6 +307,20 @@ public static class WorldCollision
         // mesh first meets one). Applied to the previous mesh's pieces when the
         // next begins, and to the last at the end.
         var meshStart = 0;
+        // A mesh inside an instance is placed as the collapse left it: its node
+        // moved through the instances (BakedPlacement), then its own matrix
+        // (Mako's pipes and train rails, where the path applied after the
+        // node's own matrix drifts by up to 5e-4).
+        var instanceById = doc.OfType("CMapInstance").GroupBy(e => e.GetValue<int>("nodeID") ?? -1).ToDictionary(g => g.Key, g => g.First());
+        float[]? Placed(Maps.MapMeshes.Mesh mesh)
+        {
+            if (mesh.Instances.Length == 0 || mesh.Element == null)
+                return null;
+            var (origin, angles) = Maps.SettleWorld.BakedPlacement(mesh.Element, [.. mesh.Instances.Select(i => instanceById[i])]);
+            var m = Maps.MapMeshes.AngleMatrix(angles);
+            (m[3], m[7], m[11]) = (origin.X, origin.Y, origin.Z);
+            return m;
+        }
         void NameSurfaces(int end)
         {
             if (Enumerable.Range(meshStart, end - meshStart).Any(i => result[i].Name.Length > 0))
@@ -314,7 +329,20 @@ public static class WorldCollision
                         result[i] = result[i] with { Physics = result[i].Physics with { SurfaceProperty = "default" } };
             meshStart = end;
         }
-        foreach (var mesh in meshes.Where(m => m.ParentType is "CMapWorld" or "CMapGroup"))
+        // A node the visibility manager hides is not compiled, nor anything under
+        // it (Mako's hidden skybox and train meshes; MapEntities.HiddenNodes).
+        var hiddenIds = MapEntities.HiddenNodes(doc);
+        var hidden = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        void HideUnder(DmxBinary.Element node)
+        {
+            if (!hidden.Add(node))
+                return;
+            foreach (var child in node.GetElements("children"))
+                HideUnder(child);
+        }
+        foreach (var e in doc.Elements.Where(e => hiddenIds.Contains(e.GetValue<int>("nodeID") ?? int.MinValue)))
+            HideUnder(e);
+        foreach (var mesh in meshes.Where(m => m.ParentType is "CMapWorld" or "CMapGroup" or "CMapWorldLayer" && !hidden.Contains(m.Element!)))
         {
             while (sequences.Count < result.Count)
                 sequences.Add(last);
@@ -326,6 +354,36 @@ public static class WorldCollision
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
             var paint = PaintStream(mesh.Element!);
             NameSurfaces(result.Count);
+            // A world mesh set to convex_single or convex_multi is hulled as a
+            // brush entity's is, in the world's space (Mako: 90 such meshes).
+            var stored = mesh.Element!.Get<string>("physicsType");
+            if (stored is "convex_single" or "convex_multi")
+            {
+                var type = stored == "convex_single" ? BrushHulls.PhysicsType.ConvexSingle : BrushHulls.PhysicsType.ConvexMulti;
+                foreach (var (material, positions, faces, local, _, _, _) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, placed: Placed(mesh)))
+                {
+                    var name = material < names.Length ? (names[material] as string ?? "") : "";
+                    var physics = materials(name);
+                    if (!physics.Solid)
+                        continue;
+                    // A blend material's hull takes its first layer's surface, as an
+                    // unsplit blend piece does (Mako: bk01_trim_wood01b is Wood).
+                    if (physics.Blend is { } blend)
+                        physics = physics with { SurfaceProperty = blend.Surfaces[0] };
+                    foreach (var input in BrushHulls.Inputs(positions, faces, type, local))
+                    {
+                        var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
+                        var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
+                        var hull = points == null ? null : RnHullBuilder.Create(points, RnHullBuilder.Options.Compile, out _);
+                        if (hull == null)
+                            continue;
+                        hull.RegionSvm = RegionSvmBuilder.Build(hull);
+                        RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
+                        result.Add(new Piece(mesh.NodeId, material, name, physics, hull.VertexPositions, []) { Hull = hull, ToolMaterial = name });
+                    }
+                }
+                continue;
+            }
             if (Subdivided(mesh.Element!))
             {
                 // The baked mesh's paint comes from the tessellation, which
@@ -355,7 +413,7 @@ public static class WorldCollision
             var firstCorners = paint == null ? null : FirstCorners(mesh.Element!);
             var texcoords = paint == null ? null : TexcoordStream(mesh.Element!);
             foreach (var (material, positions, faces, local, corners, cornerData, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
-                         !names.Any(n => n is string m && materials(m).KeepsTexcoords)))
+                         !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh)))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
                 var physics = materials(name);
@@ -395,7 +453,7 @@ public static class WorldCollision
             sequences.Add(last);
         if (propPhysics != null)
         {
-            foreach (var entity in entities)
+            foreach (var entity in entities.Where(e => !hidden.Contains(e.Element)))
             {
                 foreach (var piece in PropPieces(entity, propPhysics, smartProps, notes))
                 {
@@ -435,7 +493,8 @@ public static class WorldCollision
     /// A smart prop's models as prop entities (<see cref="Maps.SmartPropEvaluator"/>),
     /// in the order its definition emits them. Each gets the node's collision
     /// mode as its solid key when that is set (0 or more), else stays solid.
-    /// One inside an instance, or a scaled one, is not ported and is listed.
+    /// One inside an instance starts from its node's matrix under the instance
+    /// path; a scaled one is not ported and is listed.
     /// </summary>
     private static IEnumerable<Piece> SmartPropPieces(Maps.MapMeshes.EntityNode entity, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics,
                                                       Func<string, ValveKeyValue.KVObject?>? smartProps, List<string>? notes)
@@ -445,9 +504,9 @@ public static class WorldCollision
         var file = e.Get<string>("smartPropFilename") ?? "";
         if ((e.GetValue<int>("collisionMode") ?? -1) is >= 0 and not 6)
             yield break;
-        if (entity.Through.Count > 0 || (e.GetValue<Vector3>("scales") ?? Vector3.One) != Vector3.One)
+        if ((e.GetValue<Vector3>("scales") ?? Vector3.One) != Vector3.One)
         {
-            notes?.Add($"smart prop {nodeId} ({file}): inside an instance or scaled, not ported");
+            notes?.Add($"smart prop {nodeId} ({file}): scaled, not ported");
             yield break;
         }
         if (smartProps?.Invoke(file) is not { } definition)
@@ -456,7 +515,13 @@ public static class WorldCollision
             yield break;
         }
         var (configuration, parameters) = Maps.SmartPropEvaluator.NodeData(e);
-        var node = Maps.SmartPropEvaluator.NodeTransform(Maps.MapMeshes.Local(e));
+        // One inside an instance starts from its node's matrix under the
+        // instance path (Mako's industrial lamps: all 16 pieces; the node's
+        // baked placement leaves six a thousandth off).
+        var nodeWorld = Maps.MapMeshes.Local(e);
+        if (entity.Through.Count > 0)
+            nodeWorld = Maps.MapMeshes.Concat(entity.Path, nodeWorld);
+        var node = Maps.SmartPropEvaluator.NodeTransform(nodeWorld);
         // A definition using something not ported gives no pieces, listed,
         // rather than stopping the whole build (Mako's scale operations).
         List<Maps.SmartPropEvaluator.Placement> placements;

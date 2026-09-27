@@ -195,8 +195,8 @@ public class WorldCollisionInput(ITestOutputHelper output)
             k++;
         }
         output.WriteLine($"captured mesh inserts {lines.Count}, ours {pieces.Count}, matched {matched.Count}; ours unmatched: " +
-                         string.Join(" ", Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i) && pieces[i].Points.Length > 0).Take(40).Select(i => $"{pieces[i].NodeId}/{pieces[i].Material}:{Path.GetFileNameWithoutExtension(pieces[i].MaterialName)}:{pieces[i].Points.Length}@{pieces[i].Points[0]}")));
-        foreach (var l in lines.Where(l => !l.Contains(": ours ")).Take(80))
+                         string.Join(" ", Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i) && pieces[i].Points.Length > 0).Take(int.TryParse(Environment.GetEnvironmentVariable("WORLDCOL_UNMATCHED"), out var um) ? um : 40).Select(i => $"{pieces[i].NodeId}/{pieces[i].Material}:{Path.GetFileNameWithoutExtension(pieces[i].MaterialName)}:{pieces[i].Points.Length}@{pieces[i].Points[0]}")));
+        foreach (var l in lines.Where(l => !l.Contains(": ours ")).Take(int.TryParse(Environment.GetEnvironmentVariable("WORLDCOL_UNMATCHED"), out var um2) ? um2 : 80))
             output.WriteLine("  " + l);
         // Bit for bit: each of our pieces against the gathered shape with the
         // same vertex count and first vertex, when the capture dumped its data (--dump).

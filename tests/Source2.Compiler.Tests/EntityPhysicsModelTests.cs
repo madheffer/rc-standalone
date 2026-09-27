@@ -27,6 +27,17 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
         var doc = DmxBinary.ReadFile(Path.Combine(cs2, "content", "csgo_addons", p[0], "maps", p[1] + ".vmap"));
         var notes = new List<string>();
         var models = Physics.EntityPhysicsModels.Build(doc, p[1], content.Material, content.CollisionProperty, MapFixtures.GameSchema(), notes, content.SmartProp);
+        if (Environment.GetEnvironmentVariable("ENTBUILD_NODE") is { Length: > 0 } nodeText)
+        {
+            var src = doc.Elements.First(e => e.Type == "CMapEntity" && e.GetValue<int>("nodeID")?.ToString() == nodeText);
+            foreach (var m in src.GetElements("children").Where(c => c.Type == "CMapMesh"))
+                foreach (var mat in (m.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => x as string ?? ""))
+                {
+                    var info = content.Material(mat);
+                    output.WriteLine($"node material {mat} shader {info?.Shader} attr '{Physics.WorldCollision.ReadMaterial(info, content.CollisionProperty).AttributeKey}' strings {string.Join(",", info?.Strings.Select(kv => kv.Key + "=" + kv.Value) ?? [])}");
+                }
+            return;
+        }
         using var package = new Package();
         package.Read(p[2]);
         int exact = 0, differ = 0, missing = 0, kindWrong = 0, shown = 0, renderPhysExact = 0, renderPhysDiffer = 0;

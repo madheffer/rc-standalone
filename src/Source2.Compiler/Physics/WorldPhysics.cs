@@ -62,9 +62,10 @@ public sealed class WorldPhysics
         int AttributeOf(WorldCollision.MaterialPhysics physics, WorldCollision.Piece piece)
         {
             // A shape whose material sets no collision group or tags leaves its
-            // attribute unset and takes attribute 0, whichever registered it
-            // (atixref's glass breakables: toolsnodraw after glass is window;
-            // Mako's func_water: toolsnodraw after water is water).
+            // node's attribute unset; rc 180c25900 pushes the node's attribute
+            // over the part's (180c2d4c0) before taking the index, so it keeps
+            // attribute 0, whichever registered it (atixref's glass breakables:
+            // toolsnodraw after glass is window; Mako's func_water: water).
             if (Unset(physics) && attributeKeys.Count > 0)
                 return 0;
             var at = attributeKeys.IndexOf(physics.AttributeKey);
@@ -81,6 +82,10 @@ public sealed class WorldPhysics
             var hash = physics.SurfaceKey;
             var name = physics.SurfaceHash != null ? surfaceName?.Invoke(hash)
                 : physics.SurfaceProperty.Length == 0 ? "default" : physics.SurfaceProperty;
+            // A prop's surface the game's table does not know comes back as the
+            // default (Mako's street bench, 2586520238: not in Valve's table).
+            if (physics.SurfaceHash != null && surfaceName != null && name == null)
+                (hash, name) = (Maps.SettleWorld.NameHash("default"), surfaceName(Maps.SettleWorld.NameHash("default")));
             var at = model.Surfaces.FindIndex(s => s.Hash == hash && string.Equals(s.Name, name, StringComparison.Ordinal));
             if (at < 0)
             {

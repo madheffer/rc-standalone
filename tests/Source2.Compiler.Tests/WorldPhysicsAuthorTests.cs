@@ -57,6 +57,69 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         using var gpu = Environment.GetEnvironmentVariable("WPBUILD_GPU") == "1"
             ? new Source2.Compiler.Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), models.Read)
             : null;
+        if (Environment.GetEnvironmentVariable("WPBUILD_HULLIDX") is { Length: > 0 } idxText)
+        {
+            var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
+            var hullPieces = Physics.WorldCollision.PartOrder(pieces, x => x.Type).Where(x => x.Type == Physics.WorldCollision.HullType).ToList();
+            foreach (var i in idxText.Split(',').Select(int.Parse))
+                output.WriteLine($"hullidx {i}: node {hullPieces[i].NodeId} {hullPieces[i].MaterialName} verts {hullPieces[i].Points.Length}");
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("WPBUILD_NODEATTRS") is { Length: > 0 } attrNode)
+        {
+            var el = doc.Elements.First(e => e.GetValue<int>("nodeID")?.ToString() == attrNode);
+            foreach (var (k, v) in el.Attributes)
+                output.WriteLine($"nodeattr {k} = {(v is DmxBinary.Element ce ? ce.Type : v is object?[] arr ? $"[{arr.Length}]" : v)}");
+            var md = el.Get<DmxBinary.Element>("meshData");
+            output.WriteLine("nodeattr materials: " + string.Join(", ", md?.Get<object?[]>("materials") ?? []));
+            var fm = md?.Get<DmxBinary.Element>("faceData")?.GetElements("streams").FirstOrDefault(x => x.Name.StartsWith("materialindex", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [];
+            output.WriteLine("nodeattr face materials: " + string.Join(",", fm.GroupBy(x => x).Select(g => $"{g.Key}x{g.Count()}")));
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("WPBUILD_HULLSURF") is { Length: > 0 } nodesText)
+        {
+            var wanted = nodesText.Split(',').Select(int.Parse).ToHashSet();
+            var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(Read(p[2], $"maps/{p[1]}/world_physics.vmdl_c")));
+            var phys = ((ValveResourceFormat.ResourceTypes.Model)res.DataBlock!).GetEmbeddedPhys()!;
+            var hulls = phys.Parts[0].Shape.Hulls;
+            foreach (var piece in pieces.Where(x => x.Hull != null && wanted.Contains(x.NodeId)))
+            {
+                var set = piece.Hull!.VertexPositions.ToHashSet();
+                var at = Array.FindIndex(hulls, h => h.Shape.GetVertexPositions().ToArray() is { } v && v.Length == set.Count && v.All(set.Contains));
+                output.WriteLine($"hullsurf node {piece.NodeId} {piece.MaterialName} ours '{piece.Physics.SurfaceProperty}' -> valve hull {at} surface {(at >= 0 ? phys.SurfacePropertyHashes[hulls[at].SurfacePropertyIndex] : 0)} attr {(at >= 0 ? hulls[at].CollisionAttributeIndex : -1)}");
+            }
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("WPBUILD_WORLDS") == "1")
+        {
+            var worlds = doc.OfType("CMapWorld").ToList();
+            foreach (var w in worlds)
+            {
+                var holders = doc.Elements.Where(e => e.Attributes.Any(kv => ReferenceEquals(kv.Value, w) || (kv.Value is object?[] arr && arr.Any(x => ReferenceEquals(x, w)))))
+                    .Select(e => $"{e.Type}#{e.GetValue<int>("nodeID")} {e.Get<string>("targetMapPath") ?? e.Get<string>("name") ?? ""}");
+                output.WriteLine($"world #{w.GetValue<int>("nodeID")} children {w.GetElements("children").Count()} held by {string.Join("; ", holders)}");
+            }
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("WPBUILD_PARENTS") == "1")
+        {
+            var (meshes, _) = Maps.MapMeshes.ReadWithEntities(doc);
+            foreach (var g in meshes.GroupBy(m => $"{m.ParentType} instances {(m.Instances.Length > 0 ? "yes" : "no")} physics {m.Element?.Get<string>("physicsType") ?? "?"}").OrderByDescending(g => g.Count()))
+                output.WriteLine($"parents: {g.Count(),6} {g.Key}");
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("WPBUILD_FINDHASH") is { Length: > 0 } find)
+        {
+            var built = Physics.WorldPhysics.Build(Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp), models.SurfaceName);
+            foreach (var source in built.SurfaceSources.Where(x => x.Contains(find, StringComparison.Ordinal)))
+                output.WriteLine($"found: {source}");
+            return;
+        }
         var files = Physics.WorldPhysicsFiles.Build(doc, p[0], p[1], models, gpu == null ? null : gpu.For, notes);
         var mine = files.Model;
         var valve = Read(p[2], files.ModelPath);

@@ -29,6 +29,8 @@ public class MaterialAttributesProbe(ITestOutputHelper output)
                 output.WriteLine($"  str {k} = {v}");
             foreach (var (k, v) in info.Ints)
                 output.WriteLine($"  int {k} = {v}");
+            foreach (var (k, v) in info.Params)
+                output.WriteLine($"  param {k} = {v}");
         }
     }
 }

@@ -81,11 +81,15 @@ public static class MaterialCollision
     /// non-empty makes the material solid.</item>
     /// </list>
     /// </summary>
-    public static Result Read(Maps.SettleWorld.MaterialInfo? info, Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty)
+    /// <param name="shaderTranslucency">Whether a shader's translucency counts (the world's
+    /// pieces); a brush entity's does not: Mako's baggage glass breakables are
+    /// default, atixref's glass is window only through its collision property.</param>
+    public static Result Read(Maps.SettleWorld.MaterialInfo? info, Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty,
+        bool shaderTranslucency = true)
     {
         if (info == null)
             return Result.Default;
-        var translucent = Translucent(info.Shader, info.Params);
+        var translucent = shaderTranslucency && Translucent(info.Shader, info.Params);
         bool On(string key) => key == "translucent" ? translucent : info.Ints.TryGetValue(key, out var v) && v != 0;
         var drawn = !On("mapbuilder.nodraw") && IntByHash(info, SecondDrawnKey) == 0;
         bool solid = true, forced = false;
