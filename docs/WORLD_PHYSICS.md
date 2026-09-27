@@ -89,6 +89,13 @@ and writes them into a copy of a compiled package. Into ze_hold_em_p's, 54 of 56
 entries stay byte-identical and the two world physics files differ only in
 KV3 encoding.
 
+In game (2026-09-28, CS2 1.41.8.5, `-tools -insecure`, `tools/pipeline/map_test.py`):
+ze_hold_em_p and atixref with our world_physics, its manifest and every
+physics-only entity model spliced in load with "Created physics", log no error
+Valve's own package does not, and behave the same: a player dropped at the
+spawn stops at the same height, and ze_hold_em_p's trigger_teleport_1, enabled,
+sends the player to its destination.
+
 ## Brush entity models (`EntityPhysicsModels`)
 
 A brush entity's collision ships in its own model,
