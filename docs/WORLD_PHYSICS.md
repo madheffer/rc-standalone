@@ -56,6 +56,39 @@ Built from the map, the whole file is Valve's on atixref, ze_hold_em_nb,
 ze_hold_em_p, ze_hold_em_paint and ze_hold_em_paint_flat (every block's tree
 and the container facts; ze_hold_em_nb with the GPU sampler).
 
+## Into the package (`WorldPhysicsFiles`, `VpkWriter`, `s2c map-physics`)
+
+The model goes in beside a manifest that lists it, and `world.vrman` names that
+manifest (`world_physics.vrman`, from rc's table of world files).
+
+- `world_physics.vrman_c` is compiled from a file RC saves first (AddManifest,
+  rc 1801f9550): KV3 text, generic format, the paths in a flat
+  `resourceManifest` array (181c1f980), CRLF and no final newline (SaveKV3
+  through 181c1fae0). Its RED2 names that file under `csgo_addons/<addon>`
+  with the CRC32 of those bytes; the CRC matches Valve's on four maps.
+  `world.vrman` is built in memory (1800ff1f0) and names no file.
+- A child resource's RED2 is RC's struct written out: 64-bit fingerprints and
+  user data, an unsigned 32-bit compiler fingerprint, and
+  `m_SpecialInputDependencies` written empty. Workshop maps from older
+  compilers leave that key out.
+- Built from the map, the manifest matches Valve's (RED2 tree, DATA bytes,
+  references, block order) on the same five maps as the model.
+
+A map package is a single-file VPK v2, and `VpkWriter` rewrites Valve's own
+byte for byte (atixref twice, ze_hold_em_p, ze_hold_em_paint):
+- data in ordinal path order; the tree lists each extension, folder and name in
+  reverse order of first appearance, as if each new one were put at the front;
+- a chunk section with one entry per MiB of data: archive 0x7FFF, hash type 1
+  and the chunk's BLAKE3 cut to 16 bytes (packages from June and August use
+  type 0x8000, MD5);
+- MD5s of the tree, of the chunk section and of everything before the last,
+  then an empty signature section (magic, version 1).
+
+`s2c map-physics <addon> <map> --into <map.vpk> -o <out.vpk>` builds both files
+and writes them into a copy of a compiled package. Into ze_hold_em_p's, 54 of 56
+entries stay byte-identical and the two world physics files differ only in
+KV3 encoding.
+
 ## How a mesh is built: `RnMeshCreate`
 
 vphysics2's `RnMeshCreate` turns a triangle soup into the shape.

@@ -35,6 +35,37 @@ public static class ResourceManifestAuthor
     }
 
     /// <summary>
+    /// A manifest RC compiles from a file it saved first (AddManifest,
+    /// rc 1801f9550): a physics or world node manifest. RED2 names that file,
+    /// <paramref name="relativeFilename"/> under <c>csgo_addons/&lt;addon&gt;</c>,
+    /// with the CRC32 of <see cref="SourceText"/>.
+    /// </summary>
+    public static byte[] AuthorSaved(IReadOnlyList<string> resources, string relativeFilename, string addon)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        var crc = System.IO.Hashing.Crc32.HashToUInt32(Encoding.UTF8.GetBytes(SourceText(resources)));
+        return Source2ContainerAuthor.AuthorChildResource(".vrman", BuildData([resources]), resources,
+            new SavedSource(relativeFilename, "csgo_addons/" + addon, crc));
+    }
+
+    /// <summary>
+    /// The saved source: rc 181c1f980 appends each path to a flat
+    /// <c>resourceManifest</c> array, 181c1fae0 writes it with SaveKV3 (text,
+    /// generic), CRLF and no final newline. Its CRC matches Valve's on four maps.
+    /// </summary>
+    public static string SourceText(IReadOnlyList<string> resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        var text = new StringBuilder();
+        text.Append("<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\r\n");
+        text.Append("{\r\n\tresourceManifest = \r\n\t[\r\n");
+        foreach (var resource in resources)
+            text.Append("\t\t\"").Append(resource).Append("\",\r\n");
+        text.Append("\t]\r\n}");
+        return text.ToString();
+    }
+
+    /// <summary>
     /// The DATA payload on its own, for a caller assembling the container itself
     /// and for the round-trip test that compares it against Valve's bytes.
     /// </summary>

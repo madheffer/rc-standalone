@@ -758,7 +758,9 @@ nothing, and the round trip is tree to tree.
 **A child resource carries a different RED2 from everything else this compiler
 writes.** Not just a different special dependency: no input dependencies at all, no
 `m_SpecialInputDependencies` key (the others write it empty), `IsChildResource = 1`,
-and null subasset fields. That shape is identical in all 116 maps.
+and null subasset fields. That shape is identical in all 116 maps. The 0923
+compiler writes `m_SpecialInputDependencies` empty here too, which is what the
+authoring now does (docs/WORLD_PHYSICS.md).
 
 One value in there is not reproducible and does not need to be: the
 `___OverrideInputData___` argument fingerprint is 0 on every world node and physics

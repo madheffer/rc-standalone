@@ -392,6 +392,66 @@ internal static class Commands
         return 0;
     }
 
+    /// <summary>
+    /// A map's world collision, built from its .vmap: world_physics.vmdl_c and
+    /// its manifest, written to a folder or spliced into a copy of a compiled
+    /// map package (the package given is never written).
+    /// </summary>
+    public static int MapPhysics(string[] a)
+    {
+        if (a.Length < 2 || a[0].StartsWith('-') || a[1].StartsWith('-'))
+            throw new ArgumentException("usage: map-physics <addon> <map> (--into <map.vpk> -o <out.vpk> | -o <dir>)");
+        var (addon, map) = (a[0], a[1]);
+        var outPath = Require(Opt(a, "-o"), "-o <out.vpk or folder>");
+        var into = Opt(a, "--into");
+        var cs2 = Require(Opt(a, "--cs2") ?? Environment.GetEnvironmentVariable("CS2_DIR"), "--cs2 <CS2 install dir> (or CS2_DIR)");
+        if (into is not null && Path.GetFullPath(into).Equals(Path.GetFullPath(outPath), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("-o must not be the package given to --into");
+
+        var game = Path.Combine(cs2, "game");
+        var vmap = Path.Combine(cs2, "content", "csgo_addons", addon, "maps", map + ".vmap");
+        using var content = new Maps.GameContent(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", addon));
+        using var gpu = a.Contains("--gpu") ? new Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), content.Read) : null;
+        var notes = new List<string>();
+        var files = Physics.WorldPhysicsFiles.Build(DmxBinary.ReadFile(vmap), addon, map, content, gpu is null ? null : gpu.For, notes);
+
+        Console.WriteLine($"{map}.vmap");
+        Console.WriteLine($"  {files.ModelPath}  {files.Model.Length:n0} bytes");
+        Console.WriteLine($"  {files.ManifestPath}  {files.Manifest.Length:n0} bytes");
+        foreach (var note in notes.Take(10))
+            Console.WriteLine($"  note: {note}");
+
+        if (into is null)
+        {
+            foreach (var (path, bytes) in new[] { (files.ModelPath, files.Model), (files.ManifestPath, files.Manifest) })
+            {
+                var target = Path.Combine(outPath, path.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.WriteAllBytes(target, bytes);
+            }
+            Console.WriteLine($"  wrote both under {outPath}");
+            return 0;
+        }
+
+        var entries = Io.VpkWriter.ReadAll(into);
+        entries[files.ModelPath] = files.Model;
+        entries[files.ManifestPath] = files.Manifest;
+        // world.vrman lists the physics manifest; a package without it would never load the file.
+        var world = $"maps/{map}/world.vrman_c";
+        var listed = entries.TryGetValue(world, out var worldBytes) && ManifestPaths(worldBytes).Contains($"maps/{map}/world_physics.vrman");
+        File.WriteAllBytes(outPath, Io.VpkWriter.Write(entries));
+        Console.WriteLine($"  wrote {outPath}  ({entries.Count:n0} entries; {world} {(listed ? "lists" : "does NOT list")} the physics manifest)");
+        return listed ? 0 : 1;
+
+        static List<string> ManifestPaths(byte[] bytes)
+        {
+            using var resource = new Resource();
+            resource.Read(new MemoryStream(bytes));
+            var data = resource.Blocks.First(b => b.Type == BlockType.DATA);
+            return [.. ResourceManifestAuthor.ReadData(bytes.AsSpan((int)data.Offset, (int)data.Size)).SelectMany(g => g)];
+        }
+    }
+
     public static int MapDiff(string[] a)
     {
         var referencePath = Positional(a, "reference .vpk");

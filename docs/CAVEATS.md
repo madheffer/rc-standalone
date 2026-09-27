@@ -300,6 +300,9 @@ VXVS when you mean "the same visibility"; `vis_digest()` does.
 
 No input dependencies, no `m_SpecialInputDependencies` key at all,
 `IsChildResource = 1`, null subasset fields. Identical in all 116 maps.
+The 0923 compiler writes `m_SpecialInputDependencies` empty on child resources
+too, and a physics or world node manifest names the file RC saved it from
+(docs/WORLD_PHYSICS.md); the authoring follows the current compiler.
 
 ### `.vmap_c` carries no map data
 

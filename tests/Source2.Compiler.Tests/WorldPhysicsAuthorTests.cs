@@ -57,11 +57,9 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         using var gpu = Environment.GetEnvironmentVariable("WPBUILD_GPU") == "1"
             ? new Source2.Compiler.Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), models.Read)
             : null;
-        var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
-            notes, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
-        var model = Physics.WorldPhysics.Build(pieces);
-        var mine = WorldPhysicsAuthor.Container(Physics.WorldPhysicsTrees.Phys(model), Physics.WorldPhysicsTrees.Red2(model, models.SurfaceName), Physics.WorldPhysicsTrees.Data(p[1]));
-        var valve = Read(p[2], $"maps/{p[1]}/world_physics.vmdl_c");
+        var files = Physics.WorldPhysicsFiles.Build(doc, p[0], p[1], models, gpu == null ? null : gpu.For, notes);
+        var mine = files.Model;
+        var valve = Read(p[2], files.ModelPath);
         output.WriteLine($"valve {Facts(valve)}");
         output.WriteLine($"mine  {Facts(mine)}");
         var ta = Trees(valve);
@@ -75,11 +73,37 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             foreach (var d in diffs.Take(show))
                 output.WriteLine($"  {name}{d}");
         }
-        foreach (var source in model.AttributeSources)
-            output.WriteLine($"attribute source: {source}");
         foreach (var note in notes.Take(10))
             output.WriteLine($"note: {note}");
-        Assert.Equal(0, total);
+
+        // The manifest beside it: container facts, RED2's tree, DATA's bytes.
+        var valveManifest = Read(p[2], files.ManifestPath);
+        var manifest = new List<string>();
+        using (var a = new Resource())
+        using (var b = new Resource())
+        {
+            a.Read(new MemoryStream(valveManifest));
+            b.Read(new MemoryStream(files.Manifest));
+            if (a.Version != b.Version || !a.Blocks.Select(x => x.Type).SequenceEqual(b.Blocks.Select(x => x.Type)))
+                manifest.Add("container: version or block order");
+            if (!a.ExternalReferences!.ResourceRefInfoList.Select(r => (r.Id, r.Name)).SequenceEqual(b.ExternalReferences!.ResourceRefInfoList.Select(r => (r.Id, r.Name))))
+                manifest.Add("RERL differs");
+        }
+        manifest.AddRange(KvTreeDiff.Diff(Trees(valveManifest)["RED2"], Trees(files.Manifest)["RED2"]).Select(l => $"RED2{l}"));
+        if (!Block(valveManifest, "DATA").SequenceEqual(Block(files.Manifest, "DATA")))
+            manifest.Add("DATA bytes differ");
+        output.WriteLine($"manifest: {manifest.Count} differences");
+        foreach (var d in manifest.Take(show))
+            output.WriteLine($"  {d}");
+        Assert.Equal(0, total + manifest.Count);
+    }
+
+    private static byte[] Block(byte[] bytes, string name)
+    {
+        using var resource = new Resource();
+        resource.Read(new MemoryStream(bytes));
+        var block = resource.Blocks.First(b => b.Type.ToString() == name);
+        return bytes.AsSpan((int)block.Offset, (int)block.Size).ToArray();
     }
 
     internal static byte[] Read(string vpk, string path)

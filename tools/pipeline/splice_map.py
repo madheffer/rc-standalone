@@ -13,6 +13,10 @@ constant 532 MB producing no output on a map that compiles in 45 seconds. Writin
 the VPK ourselves is both the working route and something the compiler needs
 anyway.
 
+Superseded by Source2.Compiler's VpkWriter (`s2c map-physics`): current map
+packages also carry a BLAKE3 chunk section, a signature section and a tree in
+reverse first-appearance order, none of which this script writes.
+
 VPK v2 is a directory tree of null terminated strings followed by the file data.
 Only single file packages are written here, which is what a map VPK is: every
 entry lives in this file rather than in numbered side archives.

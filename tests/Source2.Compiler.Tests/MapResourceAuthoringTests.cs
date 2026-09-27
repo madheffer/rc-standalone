@@ -153,10 +153,13 @@ public class MapResourceAuthoringTests
         Assert.Empty(valve.EditInfo!.InputDependencies);
         Assert.Empty(mine.EditInfo!.InputDependencies);
 
+        // Workshop fixtures come from older compilers, which omit
+        // m_SpecialInputDependencies; the 0923 compiler writes it empty, as we do.
         foreach (var res in new[] { valve, mine })
         {
             var red2 = Assert.IsType<ResourceEditInfo2>(res.EditInfo).Data!.Root;
-            Assert.False(red2.ContainsKey("m_SpecialInputDependencies"));
+            if (res == mine || red2.ContainsKey("m_SpecialInputDependencies"))
+                Assert.Empty(red2["m_SpecialInputDependencies"]!.Values);
             Assert.Equal(1, (int)red2["m_SearchableUserData"]!["IsChildResource"]!);
         }
     }

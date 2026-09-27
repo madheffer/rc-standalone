@@ -30,6 +30,7 @@ try
         "entities" => Commands.Entities(args[1..]),
         "vis-diff" => Commands.VisDiff(args[1..]),
         "map-diff" => Commands.MapDiff(args[1..]),
+        "map-physics" => Commands.MapPhysics(args[1..]),
         "map-validate" => Commands.MapValidate(args[1..]),
         "entitylump" => Commands.Entitylump(args[1..]),
         "reauthor" => Commands.Reauthor(args[1..]),
@@ -82,6 +83,12 @@ static void Usage()
       s2c sound     <in.wav> -o <out.vsnd_c> [--template <any.vsnd_c>]
                     Uncompressed PCM WAV -> compiled sound container. Needs no
                     template.
+
+      s2c map-physics <addon> <map> (--into <map.vpk> -o <out.vpk> | -o <dir>)
+                    [--cs2 <CS2 install dir>] [--gpu]
+                    The map's world collision from its .vmap: world_physics.vmdl_c
+                    and its manifest, into a folder or a copy of a compiled map
+                    package. --gpu samples new-blending materials on the GPU.
 
       s2c id        <resource/path.vtex>
                     Print the 64-bit RERL id the engine looks that path up by.
