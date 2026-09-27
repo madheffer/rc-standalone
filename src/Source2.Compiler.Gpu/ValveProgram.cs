@@ -22,21 +22,54 @@ public sealed class ValveProgram
     /// <summary>The static combo's attributes (such as BindlessResources).</summary>
     public required IReadOnlyList<VfxShaderAttribute> Attributes { get; init; }
 
-    /// <summary>
-    /// Loads <c>shaders/vfx/&lt;shader&gt;_&lt;platform&gt;_&lt;stage&gt;.vcs</c> and picks the
-    /// combo; switches not given are 0. Needs a VRF that reads VCS 72.
-    /// </summary>
-    public static ValveProgram Load(Package package, string shader, string platform, string stage,
-                                    IReadOnlyDictionary<string, int> statics, IReadOnlyDictionary<string, int> dynamics)
+    /// <summary>The whole program file, and the picked combo's write sequence (evaluated, render state, constants).</summary>
+    public required VfxProgramData Program { get; init; }
+    public required VfxVariableIndexArray Sequence { get; init; }
+
+    /// <summary>The shader's feature names (F_...), in the order expressions index them.</summary>
+    public required IReadOnlyList<string> FeatureNames { get; init; }
+
+    private static VfxProgramData Read(Package package, string name)
     {
-        var name = $"{shader}_{platform}_{stage}";
         var entry = package.FindEntry($"shaders/vfx/{name}.vcs") ?? throw new FileNotFoundException(name);
         package.ReadEntry(entry, out var bytes);
         var program = new VfxProgramData();
         program.Read($"{name}.vcs", new MemoryStream(bytes));
+        return program;
+    }
+
+    /// <summary>
+    /// Loads <c>shaders/vfx/&lt;shader&gt;_&lt;platform&gt;_&lt;stage&gt;.vcs</c> and picks the
+    /// combo. A static combo tied to a feature takes the material's feature
+    /// value (== or != a value where the combo says so); <paramref name="statics"/>
+    /// overrides; the rest are 0. Needs a VRF that reads VCS 72.
+    /// </summary>
+    public static ValveProgram Load(Package package, string shader, string platform, string stage,
+                                    IReadOnlyDictionary<string, int> statics, IReadOnlyDictionary<string, int> dynamics,
+                                    IReadOnlyDictionary<string, int>? features = null)
+    {
+        var name = $"{shader}_{platform}_{stage}";
+        var program = Read(package, name);
+        using var featureFile = Read(package, $"{shader}_{platform}_features");
+        string[] featureNames = [.. featureFile.StaticComboArray.Select(f => f.Name)];
         long staticId = 0;
         foreach (var c in program.StaticComboArray)
-            staticId += (statics.GetValueOrDefault(c.Name, 0) - c.RangeMin) * c.ComboIndexValue;
+        {
+            var value = 0;
+            if (statics.TryGetValue(c.Name, out var given))
+                value = given;
+            else if (c.FeatureIndex >= 0 && features != null)
+            {
+                var f = features.GetValueOrDefault(featureNames[c.FeatureIndex], 0);
+                value = (VfxStaticComboSourceType)c.ComboSourceType switch
+                {
+                    VfxStaticComboSourceType.__SET_BY_FEATURE_EQ__ => f == c.FeatureComparisonValue ? 1 : 0,
+                    VfxStaticComboSourceType.__SET_BY_FEATURE_NE__ => f != c.FeatureComparisonValue ? 1 : 0,
+                    _ => f,
+                };
+            }
+            staticId += (value - c.RangeMin) * c.ComboIndexValue;
+        }
         if (!program.StaticComboEntries.ContainsKey(staticId))
             throw new InvalidDataException($"{name}: no static combo {staticId}");
         var combo = program.GetStaticCombo(staticId);
@@ -61,6 +94,9 @@ public sealed class ValveProgram
             Reflection = SpirvReflection.Parse(spirv),
             Constants = constants,
             Attributes = combo.Attributes,
+            Program = program,
+            Sequence = sequence,
+            FeatureNames = featureNames,
         };
     }
 }

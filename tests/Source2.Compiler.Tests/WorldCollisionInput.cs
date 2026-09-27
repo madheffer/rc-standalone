@@ -14,7 +14,8 @@ namespace Source2.Compiler.Tests;
 /// against the RnMeshCreate inputs a full compile made
 /// (<c>tools/physics/capture_rnmesh.py --full</c>). The soups are compared in
 /// order with the captured calls from the first world call on.
-/// <c>WORLDCOL=&lt;addon&gt;|&lt;map&gt;|&lt;capture&gt;|&lt;first world call id&gt;</c>.
+/// <c>WORLDCOL=&lt;addon&gt;|&lt;map&gt;|&lt;capture&gt;|&lt;first world call id&gt;</c>, and
+/// <c>WORLDCOL_GPU=1</c> to draw new-blending materials' sample points.
 /// </summary>
 public class WorldCollisionInput(ITestOutputHelper output)
 {
@@ -39,8 +40,12 @@ public class WorldCollisionInput(ITestOutputHelper output)
             return cache[name] = physics;
         }
 
+        // WORLDCOL_GPU=1: new-blending pieces take their layers from the GPU sampler.
+        using var gpu = Environment.GetEnvironmentVariable("WORLDCOL_GPU") == "1"
+            ? new Source2.Compiler.Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), models.Read)
+            : null;
         var notes = new List<string>();
-        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes);
+        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes, gpu == null ? null : gpu.For);
         foreach (var note in notes)
             output.WriteLine("PAINT " + note);
         var attributes = new List<string> { "default|" };

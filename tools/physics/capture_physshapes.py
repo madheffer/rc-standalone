@@ -150,6 +150,19 @@ function hookBlend() {
       send({sampler: 'out', ret: ret.toInt32() & 0xff, samples: n, layers: layers});
     }
   });
+  // The sampler's read-back (18064d790: count, RGB8 bytes, weights out) and
+  // its vertex records (18064e530: count, 0x58-byte samples, 40-byte records
+  // out, three per sample): the render's ground truth.
+  Interceptor.attach(pb.base.add(0x64d790), {
+    onEnter(args) {
+      const n = args[0].toInt32();
+      send({sampler: 'pixels', count: n, rgb: hex(args[1].readByteArray(n * 3))});
+    }
+  });
+  Interceptor.attach(pb.base.add(0x64e530), {
+    onEnter(args) { this.n = args[0].toInt32(); this.out = args[2]; },
+    onLeave() { send({sampler: 'records', count: this.n, data: hex(this.out.readByteArray(this.n * 3 * 40))}); }
+  });
   send({hookedBlend: pb.base.toString()});
 }
 function hookRnMesh(rc) {
@@ -197,6 +210,7 @@ def main():
     p.add_argument("--rnmesh", help="also record the part builder's RnMeshCreate calls here")
     p.add_argument("--dump", action="store_true", help="also dump every gathered mesh shape's vertices and indices (hex)")
     p.add_argument("--blend", action="store_true", help="also record physicsbuilder's blend splits (mesh in, meshes out) and its material sampler")
+    p.add_argument("--vulkan", action="store_true", help="compile with -vulkan (resourcecompiler otherwise renders the material sampler through rendersystemdx11)")
     a = p.parse_args()
     if busy():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
@@ -206,6 +220,8 @@ def main():
     argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
     if not a.full:
         argv += ["-world", "-fshallow"]
+    if a.vulkan:
+        argv.append("-vulkan")
     calls = []
     lock = threading.Lock()
     rn = open(a.rnmesh, "wb") if a.rnmesh else None

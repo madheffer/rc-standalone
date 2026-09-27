@@ -11,6 +11,51 @@ namespace Source2.Compiler.Physics;
 /// </summary>
 public static class MaterialSampler
 {
+    /// <summary>
+    /// The GPU half: draws <paramref name="count"/> points' records (three
+    /// vertices each, <see cref="Records"/>) through one material's ToolsVis
+    /// mode 80 on a <paramref name="side"/> square target and returns each
+    /// point's read-back RGB8, or null when it cannot.
+    /// </summary>
+    public delegate byte[]? Renderer(byte[] records, int count, int side);
+
+    /// <summary>The most points one render takes (FUN_18064c7e0 draws in batches of this many).</summary>
+    public const int BatchPoints = 1 << 20;
+
+    /// <summary>
+    /// FUN_18064c460: each triangle's layer, from its points drawn through the
+    /// material and voted (<see cref="Vote"/>). FUN_18064c7e0 draws them in
+    /// batches, all on one target sized for the largest batch. The texcoords are uv0 for both
+    /// sets: the ze_hold_em_nb records hold uv0 at uv1 too, bit for bit, though
+    /// the split's mesh has a second (zero) texcoord set. Null when a render
+    /// fails, and physicsbuilder then keeps its 0.5 rule.
+    /// </summary>
+    public static int[]? Layers(Renderer render, Vector3[] positions, int[] indices, Vector2[] uv0, Vector4[] paint)
+    {
+        var (samples, perTriangle) = Samples(positions, indices, uv0, null, paint);
+        var rgb = new byte[samples.Count * 3];
+        var side = TargetSide(Math.Min(samples.Count, BatchPoints));
+        for (var start = 0; start < samples.Count; start += BatchPoints)
+        {
+            var n = Math.Min(BatchPoints, samples.Count - start);
+            var got = render(Records(samples.GetRange(start, n)), n, side);
+            if (got == null || got.Length < n * 3)
+                return null;
+            got.AsSpan(0, n * 3).CopyTo(rgb.AsSpan(start * 3));
+        }
+        var layers = new int[perTriangle.Length];
+        var at = 0;
+        Span<Vector4> weights = stackalloc Vector4[53];
+        for (var t = 0; t < perTriangle.Length; t++)
+        {
+            for (var k = 0; k < perTriangle[t]; k++)
+                weights[k] = Weights(rgb[(at + k) * 3], rgb[((at + k) * 3) + 1], rgb[((at + k) * 3) + 2]);
+            layers[t] = Vote(weights[..perTriangle[t]]);
+            at += perTriangle[t];
+        }
+        return layers;
+    }
+
     /// <summary>One sample point: the interpolated texcoords, paint and position.</summary>
     public readonly record struct Sample(Vector2 Uv0, Vector2 Uv1, Vector4 Paint, Vector3 Position);
 
@@ -124,6 +169,27 @@ public static class MaterialSampler
         record[34] = Unorm8(s.Paint.Z);
         record[35] = Unorm8(s.Paint.W);
         record[36] = record[37] = record[38] = record[39] = 0xff;
+    }
+
+    /// <summary>
+    /// The packed tangent frame every record carries: normal (0, 0, 1), tangent
+    /// (1, 0, 0) with sign 1, as D_COMPRESSED_NORMALS_AND_TANGENTS unpacks it
+    /// (10 bits each for the octahedral normal, 11 for the angle, 1 for the
+    /// sign). Every record of the ze_hold_em_nb capture holds it.
+    /// </summary>
+    public const uint TangentFrame = 0x80200fff;
+
+    /// <summary>The vertex records of a list of points: three identical records per point, one per vertex of its pixel triangle.</summary>
+    public static byte[] Records(IReadOnlyList<Sample> samples)
+    {
+        var records = new byte[samples.Count * 120];
+        for (var i = 0; i < samples.Count; i++)
+        {
+            Pack(samples[i], TangentFrame, records.AsSpan(i * 120, 40));
+            records.AsSpan(i * 120, 40).CopyTo(records.AsSpan((i * 120) + 40));
+            records.AsSpan(i * 120, 40).CopyTo(records.AsSpan((i * 120) + 80));
+        }
+        return records;
     }
 
     /// <summary>FUN_18064bcb0: the square target's side for a batch, the next power of two of ceil(sqrt(count)), at least 16.</summary>

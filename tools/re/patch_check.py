@@ -51,7 +51,8 @@ import harvest_names as hn  # noqa: E402
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
-DLLS = ["resourcecompiler", "vphysics2", "physicsbuilder", "tier0", "visbuilder"]
+# rendersystemvulkan and rendersystemdx11: the material sampler's render (texture preload cap).
+DLLS = ["resourcecompiler", "vphysics2", "physicsbuilder", "tier0", "visbuilder", "rendersystemvulkan", "rendersystemdx11"]
 BASELINE_DIRS = [r"D:\tools\binaries", r"D:\tools\ghidra_staging"]
 ENTITY_NAMES = r"D:\tools\names"
 STATE_DIR = r"D:\tools\patch_state"
@@ -360,6 +361,11 @@ def main():
     for game in ("csgo", "core"):
         p = os.path.join(CS2, "game", game, "pak01_dir.vpk")
         state["pak"][game] = vpk_manifest(p)
+    # The programs the GPU material sampler runs (and their DX11 build, which a default compile runs).
+    for key, name in (("shaders_vulkan", "shaders_vulkan_dir.vpk"), ("shaders_pc", "shaders_pc_dir.vpk")):
+        p = os.path.join(CS2, "game", "csgo", name)
+        if os.path.exists(p):
+            state["pak"][key] = vpk_manifest(p)
     prev_path = os.path.join(STATE_DIR, "latest.json")
     if os.path.exists(prev_path):
         prev = json.load(open(prev_path, encoding="utf-8"))
@@ -373,15 +379,17 @@ def main():
             added = [k for k in man if k not in old]
             removed = [k for k in old if k not in man]
             changed = [k for k in man if k in old and old[k] != man[k]]
-            lines.append(f"- pak01 {game}: {len(added)} added, {len(removed)} removed, {len(changed)} changed")
+            title = game if game.startswith("shaders") else f"pak01 {game}"
+            lines.append(f"- {title}: {len(added)} added, {len(removed)} removed, {len(changed)} changed")
             for label, ks in (("added", added), ("removed", removed), ("changed", changed)):
-                interesting = [k for k in ks if k.endswith((".vmat_c", ".vmdl_c", ".vphys_c", ".vdata_c", ".vpulse_c", ".vsndevts_c"))]
+                interesting = [k for k in ks if k.endswith((".vmat_c", ".vmdl_c", ".vphys_c", ".vdata_c", ".vpulse_c", ".vsndevts_c", ".vcs"))]
                 for k in interesting[:40]:
                     lines.append(f"  - {label}: {k}")
                 if len(interesting) > 40:
                     lines.append(f"  - ... and {len(interesting) - 40} more {label}")
             if changed or removed:
-                attention.append(f"pak01 {game}: {len(changed)} entries changed, {len(removed)} removed (materials/models the compile reads)")
+                what = "shader programs the material sampler runs" if game.startswith("shaders") else "materials/models the compile reads"
+                attention.append(f"{title}: {len(changed)} entries changed, {len(removed)} removed ({what})")
     else:
         lines.append("No earlier state: this run records the baseline.")
 

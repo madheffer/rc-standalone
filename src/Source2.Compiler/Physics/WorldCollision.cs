@@ -56,7 +56,8 @@ public static class WorldCollision
     /// the material sampler instead (18064c460, a GPU render of the
     /// material's ToolsVis mode 80). <c>NewBlending</c> is the material's
     /// F_USE_NEW_BLENDING: without it the sampler reads layer 0 for every
-    /// triangle; with it the layers come from the shader's blend (not ported).
+    /// triangle; with it the layers come from the shader's blend, drawn on the
+    /// GPU (<see cref="MaterialSampler.Layers"/>).
     /// </summary>
     public sealed record BlendLayers(int LayerCount, int PuddleChannel, int PuddleLayer, string[] Surfaces, int[] Remap, bool Swap, float FirstHeightScale, bool Sampled)
     {
@@ -140,13 +141,17 @@ public static class WorldCollision
     /// triangle averages its corners' blend paint, channel by channel as
     /// (second + first + third) / 3. Paint above 0.5 in the puddle channel
     /// sends it to the puddle surface; otherwise a sampled material takes the
-    /// sampler's layer, and else, with more than one layer, the first channel
-    /// at 0.5 or more picks layer 1, else layer 0. The
+    /// sampler's layer (<paramref name="sampled"/>, one per triangle; the
+    /// builder uses it only when it has one per triangle), and else, with more
+    /// than one layer, the first channel at 0.5 or more picks layer 1, else
+    /// layer 0. The
     /// triangle's three positions go to that surface's mesh unshared, and
     /// each mesh is welded at 1/32 (CMesh_Weld). Meshes left empty are kept.
     /// </summary>
-    internal static List<(Vector3[] Points, int[] Indices)> SplitLayers(BlendLayers b, Vector3[] points, int[] indices, Vector4[] paint)
+    internal static List<(Vector3[] Points, int[] Indices)> SplitLayers(BlendLayers b, Vector3[] points, int[] indices, Vector4[] paint, int[]? sampled = null)
     {
+        if (sampled != null && sampled.Length != indices.Length / 3)
+            sampled = null;
         var corners = new List<Vector3>[b.Surfaces.Length];
         for (var s = 0; s < corners.Length; s++)
             corners[s] = [];
@@ -167,9 +172,11 @@ public static class WorldCollision
                 // at most, so every point and every triangle reads layer 0
                 // (read from all 96 such csgo_environment_blend programs;
                 // atixref's 5 sampled splits, all layer 0). With new blending
-                // the weights come from the blend itself: not ported, and the
-                // 0.5 rule stands in.
-                if (b.Sampled && !b.NewBlending)
+                // the weights come from the blend: the GPU render's layers,
+                // and without one the builder's own fallback, the 0.5 rule.
+                if (b.Sampled && sampled != null)
+                    layer = sampled[t / 3];
+                else if (b.Sampled && !b.NewBlending)
                     layer = 0;
                 else if (b.LayerCount > 1)
                 {
@@ -234,8 +241,12 @@ public static class WorldCollision
     /// ModelDoc: meshes in node-walk order, each split by material in
     /// material order (<see cref="BrushHulls.Pieces"/>), triangulated the way
     /// the shape reads its mesh (<see cref="BrushHulls.TriangleMesh"/>).
+    /// <paramref name="sampler"/> draws a new-blending material's sample points
+    /// (<see cref="MaterialSampler.Layers"/>) by material name; without one,
+    /// or when it cannot, such pieces take the builder's 0.5 rule and are listed.
     /// </summary>
-    public static List<Piece> Pieces(DmxBinary.Document doc, Func<string, MaterialPhysics> materials, List<string>? notes = null)
+    public static List<Piece> Pieces(DmxBinary.Document doc, Func<string, MaterialPhysics> materials, List<string>? notes = null,
+                                     Func<string, MaterialSampler.Renderer?>? sampler = null)
     {
         var world = doc.OfType("CMapWorld").First();
         var result = new List<Piece>();
@@ -268,12 +279,13 @@ public static class WorldCollision
                         continue;
                     }
                     if (physics.Blend is { Sampled: true, NewBlending: true } && paint != null && Splits(physics.Blend))
-                        notes?.Add($"node {mesh.NodeId} material {material}: new-blending layers come from the material sampler on the GPU (not ported)");
+                        notes?.Add($"node {mesh.NodeId} material {material}: subdivided new-blending piece, texcoords not carried through the tessellation; the 0.5 rule stands in");
                     AddPieces(result, mesh.NodeId, material, name, physics, physics.Blend != null ? piecePaint : null, points, indices);
                 }
                 continue;
             }
-            var setPaint = paint == null ? null : SetPaint(mesh.Element!, paint);
+            var firstCorners = paint == null ? null : FirstCorners(mesh.Element!);
+            var texcoords = paint == null ? null : TexcoordStream(mesh.Element!);
             foreach (var (material, positions, faces, local, corners, cornerData, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
                          !names.Any(n => n is string m && materials(m).KeepsTexcoords)))
             {
@@ -288,18 +300,26 @@ public static class WorldCollision
                     (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
                 // The shape's mesh keeps one vertex per .vmap vertex, painted
                 // from the first of its corners met in its own face set
-                // (SetPaint), measured on ze_hold_em_paint_flat: 76 of 76.
+                // (FirstCorners), measured on ze_hold_em_paint_flat: 76 of 76.
+                // Its texcoords are that corner's as stored (ze_hold_em_nb).
                 Vector4[]? vertexPaint = null;
-                if (physics.Blend != null && setPaint != null && setPaint.TryGetValue((bias, material), out var firstMet))
+                int[]? sampled = null;
+                if (physics.Blend != null && firstCorners != null && firstCorners.TryGetValue((bias, material), out var firstMet))
                 {
-                    vertexPaint = [.. made.Select(m => firstMet[corners[m.Face][m.Corner]])];
-                    // The sampler (18064c460) runs in a compile (all four
-                    // interfaces connected, one sample per triangle on atixref)
-                    // and is not ported, so such pieces are listed.
-                    if (physics.Blend is { Sampled: true, NewBlending: true })
-                        notes?.Add($"node {mesh.NodeId} material {material}: new-blending layers come from the material sampler on the GPU (not ported)");
+                    var vertexCorners = made.Select(m => firstMet[corners[m.Face][m.Corner]]).ToArray();
+                    vertexPaint = [.. vertexCorners.Select(c => c < paint!.Length ? paint[c] : Vector4.Zero)];
+                    // The sampler (18064c460) runs in every compile; only
+                    // new-blending materials need its render.
+                    if (physics.Blend is { Sampled: true, NewBlending: true } && Splits(physics.Blend))
+                    {
+                        // FUN_18064cd80 gives up without a texcoord 0 stream.
+                        if (texcoords != null && sampler?.Invoke(name) is { } render)
+                            sampled = MaterialSampler.Layers(render, [.. points], indices, [.. vertexCorners.Select(c => c < texcoords.Length ? texcoords[c] : Vector2.Zero)], vertexPaint);
+                        if (sampled == null)
+                            notes?.Add($"node {mesh.NodeId} material {material}: new-blending layers need the material sampler's GPU render; the 0.5 rule stands in");
+                    }
                 }
-                AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices);
+                AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices, sampled);
             }
         }
         return result;
@@ -308,7 +328,7 @@ public static class WorldCollision
     // A piece as physicsbuilder's shape step hands it on (0924: 180016230):
     // whole, or cut by painted layer when its material has a blend and its
     // mesh a paint stream.
-    private static void AddPieces(List<Piece> result, int node, int material, string name, MaterialPhysics physics, Vector4[]? paint, Vector3[] points, int[] indices)
+    private static void AddPieces(List<Piece> result, int node, int material, string name, MaterialPhysics physics, Vector4[]? paint, Vector3[] points, int[] indices, int[]? sampled = null)
     {
         if (physics.Blend is not { } blend || paint == null)
             result.Add(new Piece(node, material, name, physics, points, indices));
@@ -316,7 +336,7 @@ public static class WorldCollision
             result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[0] }, points, indices));
         else
         {
-            var layers = SplitLayers(blend, points, indices, paint);
+            var layers = SplitLayers(blend, points, indices, paint, sampled);
             for (var s = 0; s < layers.Count; s++)
                 result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[s] }, layers[s].Points, layers[s].Indices));
         }
@@ -328,12 +348,18 @@ public static class WorldCollision
                .FirstOrDefault(st => st.Name.Split(':')[0] == "VertexPaintBlendParams")?.Get<object?[]>("data")
                ?.Select(x => x is Vector4 v ? v : Vector4.Zero).ToArray();
 
-    // Per face set (lightmap scale bias, material): each .vmap vertex's paint
-    // from the first of its corners met walking the set's faces in order and
-    // each face's loop from its first half-edge. The exported mesh keeps one
-    // paint per vertex and set; measured on ze_hold_em_paint_flat, whose
+    // The mesh's first texcoord set, per corner (faceVertexData "texcoord").
+    internal static Vector2[]? TexcoordStream(DmxBinary.Element mesh)
+        => mesh.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams")
+               .FirstOrDefault(st => st.Name.Split(':')[0] == "texcoord")?.Get<object?[]>("data")
+               ?.Select(x => x is Vector2 v ? v : Vector2.Zero).ToArray();
+
+    // Per face set (lightmap scale bias, material): each .vmap vertex's corner
+    // (faceVertexData index), the first met walking the set's faces in order
+    // and each face's loop from its first half-edge. The exported mesh keeps
+    // one paint per vertex and set; measured on ze_hold_em_paint_flat, whose
     // paint differs at nearly every vertex's corners.
-    private static Dictionary<(int Bias, int Material), Dictionary<int, Vector4>> SetPaint(DmxBinary.Element mesh, Vector4[] paint)
+    private static Dictionary<(int Bias, int Material), Dictionary<int, int>> FirstCorners(DmxBinary.Element mesh)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         int[] Ints(string name) => (data.Get<object?[]>(name) ?? []).Select(x => x is int i ? i : -1).ToArray();
@@ -346,7 +372,7 @@ public static class WorldCollision
         var faceData = Ints("faceDataIndices");
         var materials = FaceStream("materialindex");
         var biases = FaceStream("lightmapScaleBias");
-        var sets = new Dictionary<(int, int), Dictionary<int, Vector4>>();
+        var sets = new Dictionary<(int, int), Dictionary<int, int>>();
         for (var f = 0; f < first.Length; f++)
         {
             var key = (biases.Length == 0 ? 0 : biases[faceData[f]], materials.Length == 0 ? 0 : materials[faceData[f]]);
@@ -356,8 +382,8 @@ public static class WorldCollision
             var guard = 0;
             do
             {
-                if (cornerOf[h] >= 0 && cornerOf[h] < paint.Length)
-                    met.TryAdd(to[h], paint[cornerOf[h]]);
+                if (cornerOf[h] >= 0)
+                    met.TryAdd(to[h], cornerOf[h]);
                 h = next[h];
             } while (h != first[f] && ++guard <= next.Length);
         }

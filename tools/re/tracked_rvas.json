@@ -21,6 +21,8 @@
     {"dll": "physicsbuilder", "build": "20260924", "rva": "0xe2a200", "script": "tools/physics/capture_physshapes.py", "use": "RenderDevice003 global"},
     {"dll": "physicsbuilder", "build": "20260924", "rva": "0xe2a188", "script": "tools/physics/capture_physshapes.py", "use": "VMaterialSystem2_001 global"},
     {"dll": "physicsbuilder", "build": "20260924", "rva": "0xe2a250", "script": "tools/physics/capture_physshapes.py", "use": "SceneSystem_002 global"},
-    {"dll": "physicsbuilder", "build": "20260924", "rva": "0xe2a350", "script": "tools/physics/capture_physshapes.py", "use": "Source2ModTools001 global"}
+    {"dll": "physicsbuilder", "build": "20260924", "rva": "0xe2a350", "script": "tools/physics/capture_physshapes.py", "use": "Source2ModTools001 global"},
+    {"dll": "physicsbuilder", "build": "20260924", "rva": "0x64d790", "script": "tools/physics/capture_physshapes.py", "use": "material sampler read-back conversion"},
+    {"dll": "physicsbuilder", "build": "20260924", "rva": "0x64e530", "script": "tools/physics/capture_physshapes.py", "use": "material sampler vertex records"}
   ]
 }

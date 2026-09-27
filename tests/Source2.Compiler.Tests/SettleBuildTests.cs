@@ -166,7 +166,7 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             _loose = loose;
         }
 
-        private byte[]? Read(string path)
+        public byte[]? Read(string path)
         {
             path = path.Replace((char)92, '/');
             foreach (var dir in _loose)

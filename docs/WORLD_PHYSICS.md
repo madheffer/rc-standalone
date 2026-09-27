@@ -108,56 +108,86 @@ vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
    - A subdivided face takes the paint stored per grid point in
      subdivisionData (the displacement's layout), not a lerp.
 
-   Not ported: the **material sampler**. A two-surface csgo_environment_blend
-   material (its shader sets SupportsMaterialLayerSampling) takes each
-   triangle's layer from a GPU render of the material. It runs in every
-   compile: atixref's plaster/concrete pieces get plaster where the 0.5 rule
-   gives concrete. How it works (physicsbuilder, see `CMaterialSampler`):
+   The **material sampler**. A two-surface csgo_environment_blend material
+   (its shader sets SupportsMaterialLayerSampling) takes each triangle's
+   layer from a GPU render of the material. It runs in every compile:
+   atixref's plaster/concrete pieces get plaster where the 0.5 rule gives
+   concrete. How it works (physicsbuilder, see `CMaterialSampler`):
    1. **Sample points.** Per triangle, round(area / 128) clamped to 1..53
       picks a count from a fixed table, and that many points are taken from
-      a fixed 53-point barycentric table. Each point gets uv0, uv1 (uv0 when
-      there is no second set), the paint, a tint of 1, a tangent (1,0,0,1),
-      a normal (0,0,1) and its position.
-   2. **Render.** Batches of up to 2^20 points, each a small triangle
-      centred on its own pixel of a square target (the next power of two of
-      the square root of the count, at least 16), drawn with an orthographic
-      view through the material's **ToolsVis** mode (`S_MODE_TOOLS_VIS` 1,
-      `g_nToolsVisMode` at its default 0) with the render attribute
-      MaterialSamplerMode 0. The vertex layout "MaterialSampler" is PosXyz,
-      CompressedTangentFrame, LowPrecisionUv, LowPrecisionUv1 and
-      VertexPaintBlendParams, the paint as RGBA8 (x * 255 clamped).
-   3. **Read back.** Only the colour target, RGB8: with m = min(R, G, B), the
-      layer weights are (R - m, G - m, B - m, m) / 255.
+      a fixed 53-point barycentric table. Each point gets uv0 twice, the
+      paint, a tint of 1, a packed tangent frame (normal (0,0,1), tangent
+      (1,0,0), sign 1) and its position. The code asks the mesh for a second
+      texcoord set, and the split's mesh has one (zeros), yet every captured
+      record holds uv0 there; ours match the ze_hold_em_nb records bit for
+      bit that way. Without a texcoord 0 stream the sampler gives up.
+   2. **Render.** Batches of up to 2^20 points, all on one square target
+      sized for the largest batch (the next power of two of the square root
+      of the count, at least 16), each point a small triangle centred on its
+      own pixel, drawn with an orthographic view through the material's
+      **ToolsVis** mode (`S_MODE_TOOLS_VIS` 1) with `g_nToolsVisMode` 80 and
+      the render attribute MaterialSamplerMode 0. The vertex layout
+      "MaterialSampler" is PosXyz (a stream of its own), then the 40-byte
+      records: uv0, uv1, position, packed frame, paint as RGBA8 (x * 255
+      truncated and clamped), tint.
+   3. **Read back.** Only the colour target (RGBA8 unorm), RGB: with
+      m = min(R, G, B), the layer weights are (R - m, G - m, B - m, m) / 255.
    4. **Vote.** Each point picks its largest weight (the lower layer on a
       tie) and each triangle the layer most of its points picked (the lower
-      layer on a tie).
+      layer on a tie). The split uses the result only when it has one layer
+      per triangle; otherwise (the sampler failed) it keeps the 0.5 rule.
 
    What the programs write (csgo_environment_blend, read from all 384 of
    its ToolsVis pixel programs with `ShaderProgramDump`; the pixel side only
-   exists at `S_SHADER_QUALITY` 1). The sampler selects `g_nToolsVisMode` 80,
-   which writes mix(mix(mix(red * w.x, green, w.y), blue, w.z), white, w.w)
-   for the layer weights w:
+   exists at `S_SHADER_QUALITY` 1). Mode 80 writes
+   mix(mix(mix(red * w.x, green, w.y), blue, w.z), white, w.w) for the
+   layer weights w:
    - Without `S_USE_NEW_BLENDING` (F_USE_NEW_BLENDING 0), w is
      (1, 0, 0, 0), scaled down by puddles at most, so every triangle reads
-     layer 0. Ported: atixref's 5 sampled splits are exact. 188 of CS2's 239
-     two-surface environment_blend materials are like this.
+     layer 0. Ported without a render: atixref's 5 sampled splits are exact.
+     188 of CS2's 239 two-surface environment_blend materials are like this.
    - With it, w is (1 - b, b, 0, 0) (or three layers), b being the height
-     blend of the layers' textures, paint, softness and scales. That needs the
-     program run on the GPU: 51 of CS2's materials. The 0.5 rule stands in,
-     and such pieces are listed.
+     blend of the layers' height textures, paint, softness and scales: 51 of
+     CS2's materials. These run on the GPU (`Source2.Compiler.Gpu`, Vulkan,
+     `GpuMaterialSampler`), drawing Valve's own programs from
+     shaders_vulkan_dir.vpk.
 
-   The GPU runner will need, per the Vulkan programs (vs static combo with
-   `S_MODE_TOOLS_VIS` 1 and dynamic `D_COMPRESSED_NORMALS_AND_TANGENTS` 1;
-   ps with `S_SHADER_QUALITY` 1 and the material's `S_USE_NEW_BLENDING`,
-   `S_ENABLE_LAYER_3`, `S_BLEND_EFFECTS_*`, `S_DETAIL_NORMAL`,
-   `S_SHARED_COLOR_OVERLAY`, `S_ALPHA_TEST`):
-   - vertex inputs vPositionOs, vTexCoord, vTexCoord2, nPackedFrame,
-     vBlendIndices, nInstanceIdx, vBlendColorTint and vColorBlendValues (the
-     paint), with an instance and a transform buffer (identity here);
-   - the per-view constant buffers (an orthographic view over the target);
-   - `_Globals_`, the material's parameters, `g_nToolsVisMode` 80 among them;
-   - the layers' colour, normal and height textures through Vulkan bindless
-     descriptor arrays, with the material's samplers.
+   The GPU runner, as it matches resourcecompiler:
+   - Programs: vs with `S_MODE_TOOLS_VIS` 1 and dynamic
+     `D_COMPRESSED_NORMALS_AND_TANGENTS` 1; ps with `S_SHADER_QUALITY` 1 and
+     the statics the material's features set (a static tied to a feature
+     takes its value, or == / != a value where the combo says so).
+   - `_Globals_`: each constant of the combo's write sequence from the
+     material's value or the shader default, expressions evaluated over them
+     (`VfxExpression`, single precision; matrix builders and
+     TextureAverageColor only feed colour matrices, so they stand as the
+     identity and zero), render attributes by source name, features by
+     index. Textures and samplers are slots in the bindless arrays.
+   - Samplers: the engine's by name, and g_sUserConfig (the state with
+     Filter 255) with the material's address modes.
+   - Textures: resourcecompiler never streams, so a texture loads from its
+     preload level, the first mip whose longer side is at most
+     RenderSystem/MaxPreloadTextureResolution (default 512; the render
+     system compares max(width, height) of the resident top mip with it).
+     Sampling the 4096 grass textures at mip 0 missed by up to 21 steps; at
+     mip 3 (512) they match.
+   - Inside each point's triangle the texcoords are constant, so the UV
+     derivatives are zero: textures read their top loaded mip, and the
+     blend's distance term (textureQueryLod, fwidth) is zero.
+
+   Measured on ze_hold_em_nb (ch2_blend_grass_backdrop_001, 2 splits,
+   3,816 points): 3,793 points bit for bit and the other 23 one step off in
+   one channel, each within about 0.1 of a rounding step; every point's
+   layer and both splits' meshes are exact (`GpuSamplerReplay`,
+   `BlendSplitReplay` with `BLENDREPLAY_GPU`), and the world soup's
+   vertices and indices match the capture (`WorldCollisionInput` with
+   `WORLDCOL_GPU=1`). The one-step points come from the API: by default
+   resourcecompiler loads rendersystemdx11 (DefaultToolsRenderSystem, or
+   `-vulkan`), so that compile ran the DX11 build of the programs. Valve's
+   own output therefore depends on the render system and GPU.
+   Still open: a subdivided new-blending piece (the tessellation does not
+   carry texcoords), and a texture's own request for more than the preload
+   cap (the render system takes the larger of the two).
 4. **Order.** resourcecompiler appends each node's shape to the physics part,
    then re-sorts the whole list by shape type with tier0's `V_qsort` after every
    append. That is the Microsoft CRT qsort (`Maps/CrtQsort.cs`). On runs of equal

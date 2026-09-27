@@ -180,13 +180,14 @@ public sealed unsafe class ProgramRunner : IDisposable
 
     /// <summary>
     /// Draws the vertex buffers (one per binding, <paramref name="vertexCount"/>
-    /// vertices) into a cleared width x height target and returns its RGBA8
-    /// pixels, row by row from the top.
+    /// vertices) into a cleared width x height target and returns its pixels
+    /// (RGBA8, or RGBA32F for that target format), row by row from the top.
     /// </summary>
     public byte[] Draw(byte[][] vertexBuffers, uint vertexCount, uint width, uint height, float[] clear)
     {
         var target = _gpu.CreateImage(width, height, 1, TargetFormat, ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.TransferSrcBit);
-        var readback = _gpu.CreateBuffer(width * height * 4, BufferUsageFlags.TransferDstBit);
+        var bytesPerPixel = TargetFormat == Format.R32G32B32A32Sfloat ? 16u : 4u;
+        var readback = _gpu.CreateBuffer(width * height * bytesPerPixel, BufferUsageFlags.TransferDstBit);
         var vbs = vertexBuffers.Select(v => _gpu.Upload(v, BufferUsageFlags.VertexBufferBit)).ToArray();
         var view = target.View;
         var fbInfo = new FramebufferCreateInfo { SType = StructureType.FramebufferCreateInfo, RenderPass = _renderPass, AttachmentCount = 1, PAttachments = &view, Width = width, Height = height, Layers = 1 };
@@ -213,7 +214,7 @@ public sealed unsafe class ProgramRunner : IDisposable
             var region = new BufferImageCopy(0, 0, 0, new ImageSubresourceLayers(ImageAspectFlags.ColorBit, 0, 0, 1), new Offset3D(0, 0, 0), new Extent3D(width, height, 1));
             _vk.CmdCopyImageToBuffer(cmd, target.Image, ImageLayout.TransferSrcOptimal, readback.Buffer, 1, &region);
         });
-        var pixels = new byte[width * height * 4];
+        var pixels = new byte[width * height * bytesPerPixel];
         new ReadOnlySpan<byte>((void*)readback.Mapped, pixels.Length).CopyTo(pixels);
         _vk.DestroyFramebuffer(_gpu.Device, framebuffer, null);
         foreach (var vb in vbs)

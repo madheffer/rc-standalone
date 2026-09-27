@@ -49,12 +49,13 @@ public class BlendMaterialSurvey(ITestOutputHelper output)
             if (nb && two)
             {
                 both++;
-                if (examples.Count < 15)
-                    examples.Add(entry.GetFullPath());
+                examples.Add(entry.GetFullPath());
             }
         }
         output.WriteLine($"environment_blend materials {total}: F_USE_NEW_BLENDING {newBlending}, two surfaces {twoSurfaces}, both {both}");
         foreach (var e in examples)
             output.WriteLine("  " + e);
+        if (Environment.GetEnvironmentVariable("BLENDMATSURVEY_OUT") is { } outPath)
+            File.WriteAllLines(outPath, examples.Select(e => e.Replace(".vmat_c", ".vmat")));
     }
 }
