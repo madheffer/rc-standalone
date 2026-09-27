@@ -61,6 +61,37 @@ internal readonly record struct CTransform(Vector3 Position, float Scale, Quater
         return new CTransform(p, Scale, new Quaternion(a / len, b / len, c / len, w / len));
     }
 
+    /// <summary>
+    /// FUN_181253510 (SIMD): <paramref name="a"/> applied after <paramref name="b"/>.
+    /// The position is a's plus a's scale times b's rotated by a (t = 2 q x p,
+    /// then (q x t) + (w t + p)); the rotation is a * b, grouped as
+    /// a.z-terms + ((a.w b + a.x-terms) + a.y-terms), normalised by a dpps
+    /// length; the scale is the product.
+    /// </summary>
+    public static CTransform Compose(CTransform a, CTransform b)
+    {
+        Quaternion q = a.Rotation, r = b.Rotation;
+        var p = b.Position;
+        var tx = (p.Z * q.Y) - (p.Y * q.Z);
+        var ty = (p.X * q.Z) - (p.Z * q.X);
+        var tz = (p.Y * q.X) - (p.X * q.Y);
+        tx += tx;
+        ty += ty;
+        tz += tz;
+        var moved = new Vector3(
+            ((((tz * q.Y) - (ty * q.Z)) + ((q.W * tx) + p.X)) * a.Scale) + a.Position.X,
+            ((((tx * q.Z) - (tz * q.X)) + ((q.W * ty) + p.Y)) * a.Scale) + a.Position.Y,
+            ((((ty * q.X) - (tx * q.Y)) + ((q.W * tz) + p.Z)) * a.Scale) + a.Position.Z);
+        var x = (q.Z * -r.Y) + (((q.W * r.X) + (q.X * r.W)) + (q.Y * r.Z));
+        var y = (q.Z * r.X) + (((q.W * r.Y) + (q.X * -r.Z)) + (q.Y * r.W));
+        var z = (q.Z * r.W) + (((q.W * r.Z) + (q.X * r.Y)) + (q.Y * -r.X));
+        var w = (q.Z * -r.Z) + (((q.W * r.W) + (q.X * -r.X)) + (q.Y * -r.Y));
+        var len = MathF.Sqrt(((x * x) + (y * y)) + ((z * z) + (w * w)));
+        if (len == 0f)
+            throw new NotSupportedException("composing to a zero quaternion is not ported");
+        return new CTransform(moved, a.Scale * b.Scale, new Quaternion(x / len, y / len, z / len, w / len));
+    }
+
     /// <summary>FUN_181260150: the rotation's 3x4 matrix with the position as its translation.</summary>
     public float[] Matrix()
     {

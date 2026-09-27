@@ -633,7 +633,7 @@ public class HullFromVmap(ITestOutputHelper output)
     }
 
     // The region SVM against Valve's: null when every plane float and node matches.
-    private static string? SvmDifference(ValveResourceFormat.ResourceTypes.RubikonPhysics.Shapes.Hull valve, RnHull ours)
+    internal static string? SvmDifference(ValveResourceFormat.ResourceTypes.RubikonPhysics.Shapes.Hull valve, RnHull ours)
     {
         if (valve.RegionSVM is not { } svm)
             return ours.RegionSvm == null ? null : "extra (valve has none)";
@@ -662,7 +662,7 @@ public class HullFromVmap(ITestOutputHelper output)
         return null;
     }
 
-    private static List<string> Differences(ValveResourceFormat.ResourceTypes.RubikonPhysics.Shapes.Hull valve, RnHull? ours)
+    internal static List<string> Differences(ValveResourceFormat.ResourceTypes.RubikonPhysics.Shapes.Hull valve, RnHull? ours)
     {
         if (ours == null)
             return [$"failed (no hull of ours with these {valve.GetVertexPositions().Length} positions)"];
