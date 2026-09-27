@@ -275,7 +275,8 @@ public static class WorldCollision
     /// </summary>
     public static List<Piece> Pieces(DmxBinary.Document doc, Func<string, MaterialPhysics> materials, List<string>? notes = null,
                                      Func<string, MaterialSampler.Renderer?>? sampler = null,
-                                     Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?>? propPhysics = null)
+                                     Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?>? propPhysics = null,
+                                     Func<string, ValveKeyValue.KVObject?>? smartProps = null)
     {
         var world = doc.OfType("CMapWorld").First();
         var result = new List<Piece>();
@@ -366,7 +367,7 @@ public static class WorldCollision
         {
             foreach (var entity in entities)
             {
-                foreach (var piece in PropPieces(entity, propPhysics, notes))
+                foreach (var piece in PropPieces(entity, propPhysics, smartProps, notes))
                 {
                     result.Add(piece);
                     sequences.Add(entity.Sequence);
@@ -385,21 +386,63 @@ public static class WorldCollision
     /// mesh node (<see cref="StaticPropHulls.Meshes"/>). A prop inside an
     /// instance, and a prop's spheres and capsules, are not ported and are listed.
     /// </summary>
-    private static IEnumerable<Piece> PropPieces(Maps.MapMeshes.EntityNode entity, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics, List<string>? notes)
+    private static IEnumerable<Piece> PropPieces(Maps.MapMeshes.EntityNode entity, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics,
+                                                 Func<string, ValveKeyValue.KVObject?>? smartProps, List<string>? notes)
     {
         var e = entity.Element;
+        var nodeId = e.GetValue<int>("nodeID") ?? -1;
+        if (e.Type == "CMapSmartProp")
+            return SmartPropPieces(entity, propPhysics, smartProps, notes);
         var kv = e.Get<DmxBinary.Element>("entity_properties");
         if (kv?.Get<string>("classname") != "prop_static")
-            yield break;
+            return [];
         if (int.TryParse(kv.Get<string>("solid") ?? "6", System.Globalization.CultureInfo.InvariantCulture, out var solid) && solid != 6)
-            yield break;
+            return [];
+        return PropPieces(PropOf(entity), propPhysics, notes);
+    }
+
+    /// <summary>
+    /// A smart prop's models as prop entities (<see cref="Maps.SmartPropEvaluator"/>),
+    /// in the order its definition emits them. Each gets the node's collision
+    /// mode as its solid key when that is set (0 or more), else stays solid.
+    /// One inside an instance, or a scaled one, is not ported and is listed.
+    /// </summary>
+    private static IEnumerable<Piece> SmartPropPieces(Maps.MapMeshes.EntityNode entity, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics,
+                                                      Func<string, ValveKeyValue.KVObject?>? smartProps, List<string>? notes)
+    {
+        var e = entity.Element;
         var nodeId = e.GetValue<int>("nodeID") ?? -1;
-        var model = kv.Get<string>("model") ?? "";
+        var file = e.Get<string>("smartPropFilename") ?? "";
+        if ((e.GetValue<int>("collisionMode") ?? -1) is >= 0 and not 6)
+            yield break;
+        if (entity.Through.Count > 0 || (e.GetValue<Vector3>("scales") ?? Vector3.One) != Vector3.One)
+        {
+            notes?.Add($"smart prop {nodeId} ({file}): inside an instance or scaled, not ported");
+            yield break;
+        }
+        if (smartProps?.Invoke(file) is not { } definition)
+        {
+            notes?.Add($"smart prop {nodeId} ({file}): no definition");
+            yield break;
+        }
+        var (configuration, parameters) = Maps.SmartPropEvaluator.NodeData(e);
+        var node = Maps.SmartPropEvaluator.NodeTransform(Maps.MapMeshes.Local(e));
+        foreach (var placement in Maps.SmartPropEvaluator.Evaluate(definition, configuration, parameters, node))
+        {
+            var (origin, angles, scales) = Maps.SmartPropEvaluator.PropPlacement(node, placement);
+            foreach (var piece in PropPieces(new StaticPropHulls.Prop(nodeId, placement.Model, origin, angles, scales), propPhysics, notes))
+                yield return piece;
+        }
+    }
+
+    private static IEnumerable<Piece> PropPieces(StaticPropHulls.Prop prop, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics, List<string>? notes)
+    {
+        var nodeId = prop.NodeId;
+        var model = prop.Model;
         if (propPhysics(model) is not { } phys)
             yield break;
         if (phys.Parts.Any(p => p.Shape.Spheres.Length + p.Shape.Capsules.Length > 0))
             notes?.Add($"prop {nodeId} ({model}): spheres or capsules, not ported");
-        var prop = PropOf(entity);
         var hashes = phys.SurfacePropertyHashes;
         var attributes = phys.CollisionAttributes;
         MaterialPhysics Physics(int attributeIndex, int surfaceIndex)
@@ -428,7 +471,19 @@ public static class WorldCollision
                 yield return new Piece(nodeId, node.Part, model, Physics(desc.CollisionAttributeIndex, desc.SurfacePropertyIndex), hull.VertexPositions, []) { Hull = hull };
             }
             foreach (var node in meshes.Where(n => n.Part == part))
-                yield return new Piece(nodeId, node.Part, model, Physics(node.Desc.CollisionAttributeIndex, node.Surface >= 0 ? node.Surface : node.Desc.SurfacePropertyIndex), node.Points, node.Indices);
+            {
+                // The node's half-edge mesh (180106be0) comes back as a triangle
+                // mesh numbered in the order the triangles meet its vertices, each
+                // vertex kept apart (atixref's radiator smart prop, 13 of 13).
+                var faces = new int[node.Indices.Length / 3][];
+                for (var t = 0; t < faces.Length; t++)
+                    faces[t] = [node.Indices[t * 3], node.Indices[(t * 3) + 1], node.Indices[(t * 3) + 2]];
+                var (points, triangles) = BrushHulls.TriangleMesh(node.Points, faces, cornerIds: faces);
+                var indices = new int[triangles.Count * 3];
+                for (var t = 0; t < triangles.Count; t++)
+                    (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
+                yield return new Piece(nodeId, node.Part, model, Physics(node.Desc.CollisionAttributeIndex, node.Surface >= 0 ? node.Surface : node.Desc.SurfacePropertyIndex), [.. points], indices);
+            }
         }
     }
 

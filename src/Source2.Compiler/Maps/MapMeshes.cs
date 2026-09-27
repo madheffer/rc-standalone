@@ -102,7 +102,7 @@ public static class MapMeshes
                     if (targets.Contains(child))
                         break;
                     // An entity's own shapes come before its children's.
-                    if (child.Type == "CMapEntity")
+                    if (child.Type is "CMapEntity" or "CMapSmartProp")
                         entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through });
                     Walk(child, child, path, instances, through, targets, meshes, entities, ref sequence);
                     break;

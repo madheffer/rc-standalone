@@ -270,6 +270,17 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             return _cache[model] = phys;
         }
 
+        /// <summary>A smart prop definition's compiled data (.vsmart_c), from loose files or the pak.</summary>
+        public ValveKeyValue.KVObject? SmartProp(string file)
+        {
+            if (Read(Path.ChangeExtension(file, ".vsmart_c")) is not { } bytes)
+                return null;
+            var res = new Resource();
+            res.Read(new MemoryStream(bytes));
+            _keep.Add(res);
+            return (res.DataBlock as ValveResourceFormat.ResourceTypes.BinaryKV3)?.Data;
+        }
+
         public void Dispose()
         {
             foreach (var r in _keep)

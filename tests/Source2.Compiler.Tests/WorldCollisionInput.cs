@@ -45,7 +45,7 @@ public class WorldCollisionInput(ITestOutputHelper output)
             ? new Source2.Compiler.Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), models.Read)
             : null;
         var notes = new List<string>();
-        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes, gpu == null ? null : gpu.For, models.Physics);
+        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
         foreach (var note in notes)
             output.WriteLine("PAINT " + note);
         var meshPieces = pieces.Where(p => p.Hull == null).ToList();
@@ -283,6 +283,14 @@ public class WorldCollisionInput(ITestOutputHelper output)
             var d = Vector3.Distance(new Vector3(best.V[0], best.V[1], best.V[2]), p0);
             var bv = new Vector3(best.V[0], best.V[1], best.V[2]);
             output.WriteLine($"  NEAR {pieces[i].NodeId}/{pieces[i].Material} {Path.GetFileNameWithoutExtension(pieces[i].MaterialName)} ours {pieces[i].Points.Length} v {p0:R} | nearest {best.Count} at distance {d:G4}, first {bv:R}, ours at {Array.IndexOf(pieces[i].Points, bv)}");
+            // WORLDCOL_NEAR=<count>: both vertex lists of unmatched pieces of that size.
+            if (Environment.GetEnvironmentVariable("WORLDCOL_NEAR") == pieces[i].Points.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                && dumped.FirstOrDefault(x => x.V.Length >= 12 && new Vector3(BitConverter.ToSingle(x.V, 0), BitConverter.ToSingle(x.V, 4), BitConverter.ToSingle(x.V, 8)) == bv) is { V: not null } near)
+            {
+                var tv = MemoryMarshal.Cast<byte, float>(near.V).ToArray();
+                for (var q = 0; q < Math.Max(pieces[i].Points.Length, tv.Length / 3); q++)
+                    output.WriteLine($"    v{q}: ours {(q < pieces[i].Points.Length ? pieces[i].Points[q].ToString("R", null) : "-")} theirs {(q < tv.Length / 3 ? new Vector3(tv[q * 3], tv[(q * 3) + 1], tv[(q * 3) + 2]).ToString("R", null) : "-")}");
+            }
             // The same triangles in another order? Each triangle as its corner
             // positions from its lowest corner on, against a dumped shape of that size.
             static string Key(Vector3 a, Vector3 b, Vector3 c)

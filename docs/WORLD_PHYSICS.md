@@ -222,7 +222,9 @@ Static props (`StaticPropHulls`, `WorldCollision.PropPieces`):
 - **Meshes.** Every vertex moved by the same matrix, triangles as stored; a
   mesh with per-triangle materials is split into one node per surface index
   (each node keeps every vertex, then appends the ones its triangles use).
-  Ported, not yet seen in a test map.
+  The node holds a half-edge mesh, which comes back to the part builder as a
+  triangle mesh numbered in the order its triangles meet the vertices, each
+  vertex kept apart. Measured on atixref's radiator (below): 13 of 13.
 - **Attributes.** Each shape carries its body's collision attribute (group and
   interact lists) and surface property hash. The part builder writes spheres,
   capsules, hulls, then gathers the meshes, registering attributes and
@@ -242,13 +244,31 @@ World mesh pieces (measured on atixref's full-compile capture):
 - A subdivided world mesh's tessellated pieces then go through the 1/32 piece
   weld on their world positions, which joins points of neighbouring patches a
   hair apart.
-- 509 of atixref's 525 captured mesh pieces are ours, 501 bit for bit.
+- 522 of atixref's 525 captured mesh pieces are ours (the other three are
+  empty), 514 bit for bit.
+
+Smart props (CMapSmartProp), measured on atixref's radiator_01.vsmart:
+- The .vmap keeps only each element's random seed and locator deltas, keyed
+  by element path; the models come from evaluating the .vsmart the way
+  smartprops.dll does. Each element's stream is tier0's uniform random stream,
+  seeded on first use from its path's stored seed. FitOnLine takes a start
+  cap, the end cap, then random fillers while the line is not covered (the
+  slack is the length over 1024, held between 1/32 and 1), each at the
+  running length along the line.
+- The evaluation starts from the node's world transform (its world matrix's
+  rotation as a quaternion, its translation, scale 1), so every placement is
+  in the world. The compile then brings each one back into the node's space
+  with the inverse and places the prop by the node's transform again. That
+  round trip through coordinates near 14000 moves the props by about 1e-4;
+  evaluating in the node's own space instead misses every radiator piece.
+- Each placement becomes a prop_static with the node's collision mode as its
+  solid key when that is set, and goes through the static prop path above.
+- Ported: groups, models, FitOnLine with a random pick and fixed lengths,
+  the sizer (with its constraints), Translate and the variable filter, with
+  the classes' own defaults. Smart props in instances, scaled ones, stretched
+  line items, other pick modes, detail objects and surface overrides are not.
 
 Still open:
-- Smart props (CMapSmartProp): atixref's radiator_01.vsmart makes the other
-  13 mesh pieces. The .vmap keeps only each element's random seed and locator
-  deltas; the placement comes from evaluating the .vsmart (FitOnLine, Model,
-  selection criteria, sizer, translate).
 - Six atixref pieces whose faces are cut in another order (a 16-gon cap on a
   rotated cylinder, sliver quads on large ceiling faces), and two subdivided
   pieces with 4 vertices an ulp off.
