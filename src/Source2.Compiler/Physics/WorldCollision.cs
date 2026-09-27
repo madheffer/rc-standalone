@@ -362,6 +362,63 @@ public static class WorldCollision
                 var type = stored == "convex_single" ? BrushHulls.PhysicsType.ConvexSingle : BrushHulls.PhysicsType.ConvexMulti;
                 var convexFirst = paint == null ? null : FirstCorners(mesh.Element!);
                 var convexTexcoords = paint == null ? null : TexcoordStream(mesh.Element!);
+                void AddHulls(int material, string name, IEnumerable<Vector3[]> inputs, MaterialPhysics hullPhysics, string pieceName, string tool)
+                {
+                    foreach (var input in inputs)
+                    {
+                        var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
+                        var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
+                        var hull = points == null ? null : RnHullBuilder.Create(points, RnHullBuilder.Options.Compile, out _);
+                        if (hull == null)
+                            continue;
+                        hull.RegionSvm = RegionSvmBuilder.Build(hull);
+                        RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
+                        result.Add(new Piece(mesh.NodeId, material, name, hullPhysics, hull.VertexPositions, []) { Hull = hull, ToolMaterial = tool, Name = pieceName });
+                    }
+                }
+                // Every vertex of a per-material mesh, as physicsbuilder hulls it
+                // (18001a950 copies the CMesh vertex buffer), or its groups.
+                IEnumerable<Vector3[]> Inputs(Vector3[] points, int[] indices)
+                    => type == BrushHulls.PhysicsType.ConvexSingle ? [points]
+                        : BrushHulls.Inputs(points, [.. Enumerable.Range(0, indices.Length / 3).Select(t => indices[(t * 3)..((t * 3) + 3)])], type);
+                // A painted piece is split by layer first (physicsbuilder 180016230):
+                // each layer's triangles become a mesh of their own, positions only
+                // and welded at 1/32 (180015930), hulled on its own, named
+                // " [surface]" and with no tool material. Mako, node 17466.
+                void AddLayers(int material, string name, MaterialPhysics physics, BlendLayers blend, Vector3[] points, int[] indices, Vector4[] piecePaint, int[]? sampled)
+                {
+                    var layers = SplitLayers(blend, points, indices, piecePaint, sampled);
+                    for (var s = 0; s < layers.Count; s++)
+                        if (layers[s].Indices.Length > 0)
+                            AddHulls(material, name, Inputs(layers[s].Points, layers[s].Indices), physics with { SurfaceProperty = blend.Surfaces[s] }, $" [{blend.Surfaces[s]}]", "");
+                }
+                // A subdivided mesh reaches physicsbuilder tessellated, positions
+                // only: the pieces the mesh path cuts (Mako's pipes: 492 vertices a
+                // pipe against 126 .vmap vertices, captured).
+                if (Subdivided(mesh.Element!))
+                {
+                    var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, out var convexCovered);
+                    if (!convexCovered)
+                        notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
+                    foreach (var (material, points, indices, piecePaint) in tessellated)
+                    {
+                        var name = material < names.Length ? (names[material] as string ?? "") : "";
+                        var physics = materials(name);
+                        if (!physics.Solid)
+                            continue;
+                        if (physics.Blend is { } blend)
+                        {
+                            physics = physics with { SurfaceProperty = blend.Surfaces[0] };
+                            if (piecePaint != null && Splits(blend))
+                            {
+                                AddLayers(material, name, physics, blend, points, indices, piecePaint, null);
+                                continue;
+                            }
+                        }
+                        AddHulls(material, name, Inputs(points, indices), physics, "", name);
+                    }
+                    continue;
+                }
                 // The same per-material mesh the mesh path reads, texcoord shift included.
                 foreach (var (material, positions, faces, local, corners, _, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
                              !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh)))
@@ -370,48 +427,21 @@ public static class WorldCollision
                     var physics = materials(name);
                     if (!physics.Solid)
                         continue;
-                    void AddHulls(IEnumerable<Vector3[]> inputs, MaterialPhysics hullPhysics, string pieceName, string tool)
-                    {
-                        foreach (var input in inputs)
-                        {
-                            var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
-                            var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
-                            var hull = points == null ? null : RnHullBuilder.Create(points, RnHullBuilder.Options.Compile, out _);
-                            if (hull == null)
-                                continue;
-                            hull.RegionSvm = RegionSvmBuilder.Build(hull);
-                            RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
-                            result.Add(new Piece(mesh.NodeId, material, name, hullPhysics, hull.VertexPositions, []) { Hull = hull, ToolMaterial = tool, Name = pieceName });
-                        }
-                    }
                     // A blend material's hull takes its first layer's surface, as an
                     // unsplit blend piece does (Mako: bk01_trim_wood01b is Wood).
                     if (physics.Blend is { } blend)
                     {
                         physics = physics with { SurfaceProperty = blend.Surfaces[0] };
-                        // A painted piece is split by layer first (physicsbuilder 180016230):
-                        // each layer's triangles become a mesh of their own, positions only
-                        // and welded at 1/32 (180015930), hulled on its own (18001a950
-                        // takes every vertex of it), named " [surface]" and with no tool
-                        // material. Mako, node 17466: all of it Wood_Plank.
                         if (paint != null && Splits(blend) && PaintedTriangles(mesh.NodeId, material, name, physics, positions, faces, local, corners, convexFirst, convexTexcoords, (bias, material), paint, sampler, notes) is { } painted)
                         {
-                            var layers = SplitLayers(blend, painted.Points, painted.Indices, painted.Paint, painted.Sampled);
-                            for (var s = 0; s < layers.Count; s++)
-                            {
-                                if (layers[s].Indices.Length == 0)
-                                    continue;
-                                var layerFaces = Enumerable.Range(0, layers[s].Indices.Length / 3).Select(t => layers[s].Indices[(t * 3)..((t * 3) + 3)]).ToArray();
-                                var inputs = type == BrushHulls.PhysicsType.ConvexSingle ? [layers[s].Points] : BrushHulls.Inputs(layers[s].Points, layerFaces, type);
-                                AddHulls(inputs, physics with { SurfaceProperty = blend.Surfaces[s] }, $" [{blend.Surfaces[s]}]", "");
-                            }
+                            AddLayers(material, name, physics, blend, painted.Points, painted.Indices, painted.Paint, painted.Sampled);
                             continue;
                         }
                     }
                     // The hull's input joins corners by .vmap vertex, as a world mesh
-                    // piece's triangle mesh does (12 Mako hulls change to Valve's
-                    // order; three hard-edged pipes, smoothing angle 40, still differ).
-                    AddHulls(BrushHulls.Inputs(positions, faces, type, local, corners), physics, "", name);
+                    // piece's triangle mesh does: 106 of Mako's convex_single inputs
+                    // match the captured CMesh vertex buffers point for point.
+                    AddHulls(material, name, BrushHulls.Inputs(positions, faces, type, local, corners), physics, "", name);
                 }
                 continue;
             }

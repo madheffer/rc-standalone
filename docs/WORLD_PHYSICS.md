@@ -134,15 +134,11 @@ physics to test Mako against. What it took, beyond the rules above:
   added after that. Mako's first soup is six " [Wood]" and "; ...".
 
 Now 4,787 of Mako's 4,821 mesh inserts match the capture bit for bit, the
-surface table and RED2 are Valve's, and the file differs in 113 places: three
-hard-edged pipe hulls (metalpipe007a, smoothing angle 40) whose hull vertex
-order is Valve's only when the input keeps duplicate corners, and the stitched
-subdivided pieces (7; see below) in two soups. No join key measured so far
-(vertex, vertex and normal, vertex and texcoord, the welded vertex) fits the
-pipes and the rest together; Valve's per-material mesh likely keys on the
-smoothed normals and shifted texcoords ConvertMeshForBuilder makes, which are
-not ported. The whole file was 47,448 differences before this work and is
-113 now.
+surface table and RED2 are Valve's, every hull is exact, and the file
+differs in 62 places, all in two soups holding the stitched subdivided
+pieces (7; see below). A subdivided convex mesh is hulled from its
+tessellation, as physicsbuilder receives it (three pipes). The whole file was
+47,448 differences before this work and is 62 now.
 
 In brush entity models a material's shader translucency does not make it a
 window: Mako's baggage glass breakables are default, and atixref's glass is

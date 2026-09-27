@@ -21,12 +21,6 @@ game can answer is raised with the user first, and runs with -insecure.
 ## Open
 
 ### World physics
-1. **Convex world hull input.** A convex world mesh is hulled from every
-   vertex of its per-material mesh, in that mesh's vertex order. Joining the
-   triangle corners by .vmap vertex matches every hull but three hard-edged
-   pipes on Mako. The per-material mesh's vertex key (normals from the
-   smoothing angle, shifted texcoords) is not read. Settle by reading the
-   per-material mesh build and capturing the hull builder's input.
 2. **Painted convex_multi pieces**: each layer's mesh is grouped by
    connectivity as an unsplit piece is; physicsbuilder's multi path is not
    read yet. (convex_single is settled below.)
@@ -111,3 +105,11 @@ game can answer is raised with the user first, and runs with -insecure.
 - **Painted convex_single pieces** (2026-09-28, decompile). Each layer's
   triangles become a positions-only mesh welded at 1/32, and every vertex of
   it is hulled on its own, named " [surface]" with no tool material.
+- **Convex world hull input** (2026-09-28, capture and decompile).
+  physicsbuilder hulls every vertex of the per-material mesh in its buffer
+  order: a Frida capture of Mako's full compile shows the quickhull input
+  equal to the mesh's vertex buffer on all 124 convex_single calls, and the
+  port's input (corners joined by .vmap vertex) equal to it on all 106 it
+  could place. A subdivided mesh arrives tessellated and positions-only:
+  Mako's three pipes are subdivision surfaces (492 vertices each against 126
+  .vmap vertices), which the port now tessellates as the mesh path does.
