@@ -121,10 +121,13 @@ physics to test Mako against. What it took, beyond the rules above:
   vertex order changes (12 of Mako's hulls).
 - A painted blend mesh set to convex is split by layer first, as a mesh piece
   is. The layer's piece carries the name " [surface]" and a tool material
-  hash of 0 (measured; where the builder drops it is not read); Mako's
-  painted_wood_trim_1 box is all Wood_Plank. Split mesh pieces are given no
-  tool material either, which the painted maps cannot confirm (their soups
-  mix materials, so the hash is 0 either way).
+  hash of 0: the split builds new meshes that never get a material name, and
+  a node's tool material is its mesh's material name (decompiled). Mako's
+  painted_wood_trim_1 box is all Wood_Plank. Split mesh pieces have none for
+  the same reason.
+- A tool material hash is taken of the name after FixupResourceName, as the
+  compile does (see GROUND_TRUTH.md); for the usual "materials/....vmat"
+  names that is the lowercase name.
 - A soup's name (resourcecompiler's soup join) is the first member's name,
   then each later non-empty one after "; ". Once it passes 50 characters it
   is long; the next non-empty name adds "; ..." and seals it, and nothing is

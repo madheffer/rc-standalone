@@ -374,9 +374,9 @@ public static class WorldCollision
                     if (physics.Blend is { } blend)
                     {
                         physics = physics with { SurfaceProperty = blend.Surfaces[0] };
-                        // A painted piece is split by layer first, as a mesh piece is;
-                        // the layer's piece carries " [surface]" and no tool material
-                        // (Mako, node 17466: all of it Wood_Plank).
+                        // A painted piece is split by layer first (180016230), as a mesh
+                        // piece is; the layer's piece carries " [surface]" and no tool
+                        // material (Mako, node 17466: all of it Wood_Plank).
                         if (paint != null && Splits(blend) && ConvexLayer(blend, positions, faces, local, corners, convexFirst, (bias, material), paint) is { } layer)
                         {
                             if (layer < 0)
@@ -657,9 +657,9 @@ public static class WorldCollision
             for (var s = 0; s < layers.Count; s++)
                 result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[s] }, layers[s].Points, layers[s].Indices)
                 {
-                    // No tool material, as a split convex piece has none (Mako,
-                    // node 17466); the painted maps' soups mix materials, so their
-                    // hash is 0 either way.
+                    // No tool material: physicsbuilder 180015930 builds each layer's
+                    // mesh without a material name, and a node's tool material is
+                    // its mesh's (18001b0a0 -> 1801749f0).
                     ToolMaterial = "",
                     Name = $" [{blend.Surfaces[s]}]",
                 });

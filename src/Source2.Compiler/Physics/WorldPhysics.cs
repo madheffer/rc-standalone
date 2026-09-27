@@ -109,7 +109,7 @@ public sealed class WorldPhysics
             model.Capsules.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p), 0, null, null) { Round = p.Round });
         foreach (var p in ordered.Where(p => p.Type == WorldCollision.HullType))
             model.Hulls.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p),
-                p.ToolMaterial.Length > 0 ? Maps.SettleWorld.NameHash(p.ToolMaterial) : 0, p.Hull, null) { Name = p.Name });
+                Io.ResourceNames.ToolMaterialHash(p.ToolMaterial), p.Hull, null) { Name = p.Name });
         var meshPieces = ordered.Where(p => p.Type == WorldCollision.MeshType).ToList();
         var meshes = meshPieces.Select(p => (Attribute: AttributeOf(p.Physics, p), Surface: SurfaceOf(p.Physics, p), p.Points, p.Indices)).ToList();
         model.MeshPieces = meshes.Count;
@@ -118,9 +118,12 @@ public sealed class WorldPhysics
             var mesh = RnMeshBuilder.Create([.. soup.Indices], [.. soup.Vertices], soup.Materials?.ToArray());
             if (mesh == null)
                 continue;
-            var tools = soup.Members.Select(m => meshPieces[m].ToolMaterial).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            var tool = tools.Count == 1 && tools[0].Length > 0 ? Maps.SettleWorld.NameHash(tools[0]) : 0;
-            var (name, isSealed, isLong) = SoupName(soup.Members.Select(m => meshPieces[m].Name));
+            // rc 180c27e30 counts each member's triangles under its tool hash
+            // (180c25900); 180c28690 keeps the hash when exactly one has any.
+            var withTriangles = soup.Members.Where(m => meshPieces[m].Indices.Length >= 3)
+                .Select(m => Io.ResourceNames.ToolMaterialHash(meshPieces[m].ToolMaterial)).Distinct().ToList();
+            var tool = withTriangles.Count == 1 ? withTriangles[0] : 0;
+            var (name, isSealed, isLong) = SoupName(soup.Members.Where(m => meshPieces[m].Indices.Length >= 3).Select(m => meshPieces[m].Name));
             model.Meshes.Add(new Shape(soup.Attribute, soup.SurfaceProperty, tool, null, mesh)
             {
                 Name = name, NameSealed = isSealed, NameLong = isLong,
@@ -130,7 +133,8 @@ public sealed class WorldPhysics
     }
 
     /// <summary>
-    /// A soup's name as rc 180c27e30 joins its members': the first member's name,
+    /// A soup's name as rc 180c27e30 joins its members' (those with triangles;
+    /// it skips the rest outright): the first member's name,
     /// then each later non-empty one after "; " until the name passes 50
     /// characters (long); the next non-empty name after that adds "; ..." and
     /// seals it, and nothing is added after (Mako's first soup).
