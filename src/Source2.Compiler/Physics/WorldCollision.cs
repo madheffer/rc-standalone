@@ -360,7 +360,8 @@ public static class WorldCollision
             if (stored is "convex_single" or "convex_multi")
             {
                 var type = stored == "convex_single" ? BrushHulls.PhysicsType.ConvexSingle : BrushHulls.PhysicsType.ConvexMulti;
-                foreach (var (material, positions, faces, local, _, _, _) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, placed: Placed(mesh)))
+                var convexFirst = paint == null ? null : FirstCorners(mesh.Element!);
+                foreach (var (material, positions, faces, local, corners, _, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, placed: Placed(mesh)))
                 {
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
                     var physics = materials(name);
@@ -368,9 +369,32 @@ public static class WorldCollision
                         continue;
                     // A blend material's hull takes its first layer's surface, as an
                     // unsplit blend piece does (Mako: bk01_trim_wood01b is Wood).
+                    var pieceName = "";
+                    var tool = name;
                     if (physics.Blend is { } blend)
+                    {
                         physics = physics with { SurfaceProperty = blend.Surfaces[0] };
-                    foreach (var input in BrushHulls.Inputs(positions, faces, type, local))
+                        // A painted piece is split by layer first, as a mesh piece is;
+                        // the layer's piece carries " [surface]" and no tool material
+                        // (Mako, node 17466: all of it Wood_Plank).
+                        if (paint != null && Splits(blend) && ConvexLayer(blend, positions, faces, local, corners, convexFirst, (bias, material), paint) is { } layer)
+                        {
+                            if (layer < 0)
+                            {
+                                notes?.Add($"node {mesh.NodeId} material {material}: convex piece painted with several layers, per-layer hulls not ported");
+                            }
+                            else
+                            {
+                                physics = physics with { SurfaceProperty = blend.Surfaces[layer] };
+                                pieceName = $" [{blend.Surfaces[layer]}]";
+                                tool = "";
+                            }
+                        }
+                    }
+                    // The hull's input joins corners by .vmap vertex, as a world mesh
+                    // piece's triangle mesh does (12 Mako hulls change to Valve's
+                    // order; three hard-edged pipes, smoothing angle 40, still differ).
+                    foreach (var input in BrushHulls.Inputs(positions, faces, type, local, corners))
                     {
                         var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
                         var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
@@ -379,7 +403,7 @@ public static class WorldCollision
                             continue;
                         hull.RegionSvm = RegionSvmBuilder.Build(hull);
                         RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
-                        result.Add(new Piece(mesh.NodeId, material, name, physics, hull.VertexPositions, []) { Hull = hull, ToolMaterial = name });
+                        result.Add(new Piece(mesh.NodeId, material, name, physics, hull.VertexPositions, []) { Hull = hull, ToolMaterial = tool, Name = pieceName });
                     }
                 }
                 continue;
@@ -633,10 +657,31 @@ public static class WorldCollision
             for (var s = 0; s < layers.Count; s++)
                 result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[s] }, layers[s].Points, layers[s].Indices)
                 {
-                    ToolMaterial = name,
+                    // No tool material, as a split convex piece has none (Mako,
+                    // node 17466); the painted maps' soups mix materials, so their
+                    // hash is 0 either way.
+                    ToolMaterial = "",
                     Name = $" [{blend.Surfaces[s]}]",
                 });
         }
+    }
+
+    // The one layer a painted convex piece's triangles all go to (SplitLayers,
+    // with the mesh path's per-vertex paint), -1 when they go to several, null
+    // when the piece has no paint.
+    private static int? ConvexLayer(BlendLayers blend, Vector3[] positions, int[][] faces, Vector3[] local, int[][] corners,
+        Dictionary<(int Bias, int Material), Dictionary<int, int>>? firstCorners, (int Bias, int Material) set, Vector4[] paint)
+    {
+        if (firstCorners == null || !firstCorners.TryGetValue(set, out var firstMet))
+            return null;
+        var made = new List<(int Face, int Corner)>();
+        var (points, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners, made);
+        var indices = new int[triangles.Count * 3];
+        for (var t = 0; t < triangles.Count; t++)
+            (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
+        var vertexPaint = made.Select(m => firstMet[corners[m.Face][m.Corner]]).Select(c => c < paint.Length ? paint[c] : Vector4.Zero).ToArray();
+        var used = SplitLayers(blend, [.. points], indices, vertexPaint).Select((l, i) => (l, i)).Where(x => x.l.Indices.Length > 0).ToList();
+        return used.Count == 1 ? used[0].i : -1;
     }
 
     // The mesh's vertex paint, per corner (faceVertexData "VertexPaintBlendParams").

@@ -24,6 +24,10 @@ public sealed class WorldPhysics
     {
         public string Name { get; init; } = "";
 
+        /// <summary>The name's flags: sealed once "; ..." ends it, long once it passed 50 characters.</summary>
+        public bool NameSealed { get; init; }
+        public bool NameLong { get; init; }
+
         /// <summary>A sphere's centre or a capsule's two, and the radius.</summary>
         public (Vector3[] Centers, float Radius)? Round { get; init; }
     }
@@ -105,7 +109,7 @@ public sealed class WorldPhysics
             model.Capsules.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p), 0, null, null) { Round = p.Round });
         foreach (var p in ordered.Where(p => p.Type == WorldCollision.HullType))
             model.Hulls.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p),
-                p.ToolMaterial.Length > 0 ? Maps.SettleWorld.NameHash(p.ToolMaterial) : 0, p.Hull, null));
+                p.ToolMaterial.Length > 0 ? Maps.SettleWorld.NameHash(p.ToolMaterial) : 0, p.Hull, null) { Name = p.Name });
         var meshPieces = ordered.Where(p => p.Type == WorldCollision.MeshType).ToList();
         var meshes = meshPieces.Select(p => (Attribute: AttributeOf(p.Physics, p), Surface: SurfaceOf(p.Physics, p), p.Points, p.Indices)).ToList();
         model.MeshPieces = meshes.Count;
@@ -116,12 +120,48 @@ public sealed class WorldPhysics
                 continue;
             var tools = soup.Members.Select(m => meshPieces[m].ToolMaterial).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             var tool = tools.Count == 1 && tools[0].Length > 0 ? Maps.SettleWorld.NameHash(tools[0]) : 0;
+            var (name, isSealed, isLong) = SoupName(soup.Members.Select(m => meshPieces[m].Name));
             model.Meshes.Add(new Shape(soup.Attribute, soup.SurfaceProperty, tool, null, mesh)
             {
-                Name = string.Join("; ", soup.Members.Select(m => meshPieces[m].Name).Where(n => n.Length > 0)),
+                Name = name, NameSealed = isSealed, NameLong = isLong,
             });
         }
         return model;
+    }
+
+    /// <summary>
+    /// A soup's name as rc 180c27e30 joins its members': the first member's name,
+    /// then each later non-empty one after "; " until the name passes 50
+    /// characters (long); the next non-empty name after that adds "; ..." and
+    /// seals it, and nothing is added after (Mako's first soup).
+    /// </summary>
+    internal static (string Name, bool Sealed, bool Long) SoupName(IEnumerable<string> members)
+    {
+        var name = "";
+        bool first = true, isSealed = false, isLong = false;
+        foreach (var member in members)
+        {
+            if (first)
+            {
+                name = member;
+                first = false;
+                continue;
+            }
+            if (member.Length == 0 || isSealed)
+                continue;
+            if (isLong)
+            {
+                isSealed = true;
+                name += "; ...";
+                continue;
+            }
+            if (name.Length > 0)
+                name += "; ";
+            name += member;
+            if (name.Length > 50)
+                isLong = true;
+        }
+        return (name, isSealed, isLong);
     }
 
     private static bool Unset(WorldCollision.MaterialPhysics p)
@@ -291,7 +331,7 @@ public static class WorldPhysicsTrees
 
     private static KVObject ShapeDesc(WorldPhysics.Shape s, string key, KVObject body) => Collection(
         ("m_nCollisionAttributeIndex", U((uint)s.Attribute)), ("m_nSurfacePropertyIndex", U((uint)s.Surface)),
-        ("m_UserFriendlyName", new KVObject(s.Name)), ("m_bUserFriendlyNameSealed", new KVObject(false)), ("m_bUserFriendlyNameLong", new KVObject(false)),
+        ("m_UserFriendlyName", new KVObject(s.Name)), ("m_bUserFriendlyNameSealed", new KVObject(s.NameSealed)), ("m_bUserFriendlyNameLong", new KVObject(s.NameLong)),
         ("m_nToolMaterialHash", U(s.ToolMaterialHash)), (key, body));
 
     private static KVObject Hull(RnHull h)

@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Buffers.Binary;
 using ValveKeyValue;
 using ValvePak;
@@ -18,6 +19,20 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class WorldPhysicsAuthorTests(ITestOutputHelper output)
 {
+    // Mako's first soup: six " [Wood]" names reach 52 characters (long), the
+    // next non-empty name adds "; ..." and seals it, and later ones add nothing.
+    [Fact]
+    public void SoupNameSealsAfterFiftyCharacters()
+    {
+        var (name, isSealed, isLong) = Physics.WorldPhysics.SoupName([.. Enumerable.Repeat(" [Wood]", 9), "", " [brick]"]);
+        Assert.Equal(" [Wood];  [Wood];  [Wood];  [Wood];  [Wood];  [Wood]; ...", name);
+        Assert.True(isSealed);
+        Assert.True(isLong);
+
+        // Empty names are skipped after the first; short joins stay open.
+        Assert.Equal((" [wet];  [concrete_block]", false, false), Physics.WorldPhysics.SoupName(["", " [wet]", "", " [concrete_block]"]));
+    }
+
     [Fact]
     public void ReauthorsValvesTrees()
     {
@@ -112,6 +127,21 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                 output.WriteLine($"parents: {g.Count(),6} {g.Key}");
             return;
         }
+        // WPBUILD_MESHINFO=<node,...>: each mesh node's parent, instances and physics type.
+        if (Environment.GetEnvironmentVariable("WPBUILD_MESHINFO") is { Length: > 0 } infoText)
+        {
+            var wanted = infoText.Split(',').Select(int.Parse).ToHashSet();
+            var (meshes, _) = Maps.MapMeshes.ReadWithEntities(doc);
+            foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId)))
+                output.WriteLine($"meshinfo {m.NodeId}: {m.ParentType}/{m.ParentClass} instances [{string.Join(",", m.Instances)}] physics {m.Element?.Get<string>("physicsType")} origin {m.Origin} angles {m.Angles} scales {m.Scales}");
+            foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId) && m.Instances.Length == 0).DistinctBy(m => m.NodeId))
+                foreach (var piece in Physics.BrushHulls.PiecesWithCorners(m.Element!, doc.OfType("CMapWorld").First()))
+                {
+                    var (pts, tris) = Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local, piece.CornerIds);
+                    output.WriteLine($"meshinfo {m.NodeId} material {piece.Material}: faces {piece.Faces.Length} sizes {string.Join(",", piece.Faces.GroupBy(f => f.Length).OrderBy(g => g.Key).Select(g => $"{g.Key}x{g.Count()}"))} positions {piece.Positions.Length} points {pts.Count} triangles {tris.Count}");
+                }
+            return;
+        }
         if (Environment.GetEnvironmentVariable("WPBUILD_FINDHASH") is { Length: > 0 } find)
         {
             var built = Physics.WorldPhysics.Build(Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
@@ -123,6 +153,121 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         var files = Physics.WorldPhysicsFiles.Build(doc, p[0], p[1], models, gpu == null ? null : gpu.For, notes);
         var mine = files.Model;
         var valve = Read(p[2], files.ModelPath);
+        // WPBUILD_HULLORDER=<node>: a convex_single world mesh hulled from several
+        // candidate input orders, each against Valve's hull with the same vertices.
+        if (Environment.GetEnvironmentVariable("WPBUILD_HULLORDER") is { Length: > 0 } orderNode)
+        {
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(valve));
+            var valveHulls = ((ValveResourceFormat.ResourceTypes.Model)res.DataBlock!).GetEmbeddedPhys()!.Parts[0].Shape.Hulls
+                .Select(h => h.Shape.GetVertexPositions().ToArray()).ToList();
+            var (meshes, _) = Maps.MapMeshes.ReadWithEntities(doc);
+            var m = meshes.First(x => x.NodeId.ToString() == orderNode);
+            var world = doc.OfType("CMapWorld").First();
+            foreach (var piece in Physics.BrushHulls.PiecesWithCorners(m.Element!, world))
+            {
+                var candidates = new List<(string, Vector3[])>();
+                candidates.Add(("by id", [.. Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local, piece.CornerIds).Points]));
+                candidates.Add(("by position", [.. Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local).Points]));
+                candidates.Add(("weld order", piece.Positions));
+                var firstOfId = new Dictionary<int, Vector3>();
+                for (var f = 0; f < piece.Faces.Length; f++)
+                    for (var c = 0; c < 3; c++)
+                        firstOfId.TryAdd(piece.CornerIds[f][c], piece.Positions[piece.Faces[f][c]]);
+                candidates.Add(("id ascending", [.. firstOfId.OrderBy(kv => kv.Key).Select(kv => kv.Value)]));
+                var weldFirst = new List<Vector3>();
+                var seenId = new HashSet<int>();
+                var idOfWelded = new Dictionary<int, int>();
+                for (var f = 0; f < piece.Faces.Length; f++)
+                    for (var c = 0; c < 3; c++)
+                        idOfWelded.TryAdd(piece.Faces[f][c], piece.CornerIds[f][c]);
+                for (var i = 0; i < piece.Positions.Length; i++)
+                    if (idOfWelded.TryGetValue(i, out var id) && seenId.Add(id))
+                        weldFirst.Add(piece.Positions[i]);
+                candidates.Add(("weld order, one per id", [.. weldFirst]));
+                candidates.Add(("face loops, distinct", [.. m.Faces.SelectMany(f => f.Corners).Distinct()]));
+                var matName = (m.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [])[piece.Material] as string;
+                candidates.Add(("face loops, all", [.. m.Faces.Where(f => f.Material == matName).SelectMany(f => f.Corners)]));
+                candidates.Add(("triangles, all corners", [.. piece.Faces.SelectMany(f => f).Select(i => piece.Positions[i])]));
+                candidates.Add(("fan, all corners", [.. m.Faces.Where(f => f.Material == matName).SelectMany(f => Enumerable.Range(1, Math.Max(0, f.Corners.Length - 2)).SelectMany(k => new[] { f.Corners[0], f.Corners[k], f.Corners[k + 1] }))]));
+                candidates.Add(("by welded index", [.. Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local, piece.Faces).Points]));
+                candidates.Add(("by corner data", [.. Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local, piece.CornerData).Points]));
+                {
+                    var md = m.Element!.Get<DmxBinary.Element>("meshData")!;
+                    int[] Arr(string n) => (md.Get<object?[]>(n) ?? []).Select(x => x is int i ? i : -1).ToArray();
+                    var nextE = Arr("edgeNextIndices");
+                    var toV = Arr("edgeVertexIndices");
+                    var firstE = Arr("faceEdgeIndices");
+                    var matStream = md.Get<DmxBinary.Element>("faceData")?.GetElements("streams").FirstOrDefault(x => x.Name.StartsWith("materialindex", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [];
+                    var idPos = new Dictionary<int, Vector3>();
+                    for (var f = 0; f < piece.Faces.Length; f++)
+                        for (var c = 0; c < 3; c++)
+                            idPos.TryAdd(piece.CornerIds[f][c], piece.Positions[piece.Faces[f][c]]);
+                    var loopIds = new List<int>();
+                    for (var f = 0; f < firstE.Length; f++)
+                    {
+                        if (f < matStream.Length && matStream[f] is int mi && mi != piece.Material)
+                            continue;
+                        var e = firstE[f];
+                        do { loopIds.Add(toV[e]); e = nextE[e]; } while (e != firstE[f]);
+                    }
+                    output.WriteLine($"hullorder material {piece.Material} loop ids without a position: {loopIds.Count(i => !idPos.ContainsKey(i))}");
+                    candidates.Add(("id loops, all", [.. loopIds.Where(idPos.ContainsKey).Select(i => idPos[i])]));
+                    candidates.Add(("id loops, distinct", [.. loopIds.Where(idPos.ContainsKey).Distinct().Select(i => idPos[i])]));
+                }
+                {
+                    var fvd = m.Element!.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("faceVertexData")!;
+                    object?[] StreamOf(string n) => fvd.GetElements("streams").FirstOrDefault(x => x.Name.Split(':')[0] == n)?.Get<object?[]>("data") ?? [];
+                    foreach (var sn in new[] { "normal", "texcoord", "normal+texcoord" })
+                    {
+                        var parts = sn.Split('+').Select(StreamOf).ToArray();
+                        var st = Enumerable.Range(0, parts.Max(x => x.Length)).Select(i => (object?)string.Join("|", parts.Select(x => i < x.Length ? x[i]?.ToString() : ""))).ToArray();
+                        var keys = new Dictionary<(int, string), int>();
+                        var ids = piece.Faces.Select((f, fi) => f.Select((_, c) =>
+                        {
+                            var key = (piece.CornerIds[fi][c], st.Length > piece.CornerData[fi][c] ? st[piece.CornerData[fi][c]]?.ToString() ?? "" : "");
+                            if (!keys.TryGetValue(key, out var k))
+                                keys[key] = k = keys.Count;
+                            return k;
+                        }).ToArray()).ToArray();
+                        candidates.Add(($"by id+{sn}", [.. Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local, ids).Points]));
+                    }
+                }
+                candidates.Add(("by id, reversed", [.. Enumerable.Reverse(Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local, piece.CornerIds).Points)]));
+                var loopSet = candidates.First(c => c.Item1 == "face loops, all").Item2.ToHashSet();
+                var idPoints = candidates[0].Item2;
+                var idSet = idPoints.ToHashSet();
+                var extra = loopSet.Where(x => !idSet.Contains(x)).ToList();
+                output.WriteLine($"hullorder material {piece.Material} loop points not in by-id: {extra.Count} {string.Join(" ", extra.Take(6).Select(x => $"({x.X:R},{x.Y:R},{x.Z:R})"))}");
+                var missing = idPoints.Where(x => !loopSet.Contains(x)).ToList();
+                output.WriteLine($"hullorder material {piece.Material} by-id points not in loops: {missing.Count} {string.Join(" ", missing.Take(4).Select(x => $"({x.X:R},{x.Y:R},{x.Z:R})"))} nearest {string.Join(" ", missing.Take(4).Select(x => loopSet.MinBy(y => Vector3.DistanceSquared(x, y))).Select(x => $"({x.X:R},{x.Y:R},{x.Z:R})"))}");
+                foreach (var (label, input) in candidates)
+                {
+                    var qh = Physics.RnHullBuilder.BuildHull(input, Physics.RnHullBuilder.Options.MapBuilder, out _);
+                    var pts = qh == null ? null : Physics.BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
+                    var hull = pts == null ? null : Physics.RnHullBuilder.Create(pts, Physics.RnHullBuilder.Options.Compile, out _);
+                    var ours = hull?.VertexPositions ?? [];
+                    var set = ours.ToHashSet();
+                    var at = valveHulls.FindIndex(v => v.Length == set.Count && v.All(set.Contains));
+                    var same = at >= 0 && valveHulls[at].SequenceEqual(ours);
+                    output.WriteLine($"hullorder material {piece.Material} {label}: input {input.Length} verts {ours.Length} valve hull {at} order {(same ? "SAME" : "differs")}");
+                }
+            }
+            return;
+        }
+        // WPBUILD_HULLVERTS=<index,...>: the hull's vertices, Valve's and ours.
+        if (Environment.GetEnvironmentVariable("WPBUILD_HULLVERTS") is { Length: > 0 } vertsText)
+        {
+            foreach (var (label, bytes) in new[] { ("valve", valve), ("ours", mine) })
+            {
+                using var res = new ValveResourceFormat.Resource();
+                res.Read(new MemoryStream(bytes));
+                var hulls = ((ValveResourceFormat.ResourceTypes.Model)res.DataBlock!).GetEmbeddedPhys()!.Parts[0].Shape.Hulls;
+                foreach (var i in vertsText.Split(',').Select(int.Parse))
+                    output.WriteLine($"hullverts {i} {label}: " + string.Join(" ", hulls[i].Shape.GetVertexPositions().ToArray().Select(v => $"({v.X:R},{v.Y:R},{v.Z:R})")));
+            }
+            return;
+        }
         output.WriteLine($"valve {Facts(valve)}");
         output.WriteLine($"mine  {Facts(mine)}");
         var ta = Trees(valve);

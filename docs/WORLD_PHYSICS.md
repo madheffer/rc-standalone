@@ -115,11 +115,31 @@ physics to test Mako against. What it took, beyond the rules above:
 - A prop surface the game's surface table does not know becomes the default
   (Mako's street bench, 2586520238).
 
+- A convex world mesh's hull takes its points joined by .vmap vertex, in the
+  order the triangles meet them, as the mesh path's triangle mesh does. Joined
+  by position instead, two vertices a float step apart swap and the hull's
+  vertex order changes (12 of Mako's hulls).
+- A painted blend mesh set to convex is split by layer first, as a mesh piece
+  is. The layer's piece carries the name " [surface]" and a tool material
+  hash of 0 (measured; where the builder drops it is not read); Mako's
+  painted_wood_trim_1 box is all Wood_Plank. Split mesh pieces are given no
+  tool material either, which the painted maps cannot confirm (their soups
+  mix materials, so the hash is 0 either way).
+- A soup's name (resourcecompiler's soup join) is the first member's name,
+  then each later non-empty one after "; ". Once it passes 50 characters it
+  is long; the next non-empty name adds "; ..." and seals it, and nothing is
+  added after that. Mako's first soup is six " [Wood]" and "; ...".
+
 Now 4,787 of Mako's 4,821 mesh inserts match the capture bit for bit, the
-surface table and RED2 are Valve's, and the file differs in 16 hulls of two
-instanced `convex_multi` crate meshes (grouping and order) and the stitched
-subdivided pieces (7; see below). The whole file was 47,448 differences
-before and is 408 now.
+surface table and RED2 are Valve's, and the file differs in 113 places: three
+hard-edged pipe hulls (metalpipe007a, smoothing angle 40) whose hull vertex
+order is Valve's only when the input keeps duplicate corners, and the stitched
+subdivided pieces (7; see below) in two soups. No join key measured so far
+(vertex, vertex and normal, vertex and texcoord, the welded vertex) fits the
+pipes and the rest together; Valve's per-material mesh likely keys on the
+smoothed normals and shifted texcoords ConvertMeshForBuilder makes, which are
+not ported. The whole file was 47,448 differences before this work and is
+113 now.
 
 In brush entity models a material's shader translucency does not make it a
 window: Mako's baggage glass breakables are default, and atixref's glass is

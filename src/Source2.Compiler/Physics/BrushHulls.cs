@@ -138,9 +138,9 @@ public static class BrushHulls
     }
 
     /// <summary>The point lists the map builder hulls, in its order.</summary>
-    public static List<Vector3[]> Inputs(Vector3[] positions, int[][] faces, PhysicsType type, Vector3[]? local = null)
+    public static List<Vector3[]> Inputs(Vector3[] positions, int[][] faces, PhysicsType type, Vector3[]? local = null, int[][]? cornerIds = null)
     {
-        var (points, triangles) = TriangleMesh(positions, faces, local);
+        var (points, triangles) = TriangleMesh(positions, faces, local, cornerIds);
         if (type == PhysicsType.ConvexSingle)
             return [[.. points]];
         if (type != PhysicsType.ConvexMulti)
