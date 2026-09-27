@@ -13,7 +13,9 @@ namespace Source2.Compiler.Maps;
 ///
 /// <para>Scored against Valve's <c>.rte</c> on atixref, cardtest and probe01:
 /// 6,087 faces of four or more corners, the same triangles in the same corner
-/// order on every one whose mesh is not rotated.</para>
+/// order on every one whose mesh is not rotated. The physics build cuts a
+/// world mesh's faces on their world positions (atixref's full capture: six
+/// pieces whose ties go the other way in the mesh's own space).</para>
 /// </summary>
 public static class PolygonTriangulator
 {

@@ -8,7 +8,8 @@ namespace Source2.Compiler.Maps;
 /// of the node's mesh data before welding them at 1/32).
 ///
 /// <para>Faces are taken in order and cut by <see cref="PolygonTriangulator"/>
-/// on the mesh's own positions. A corner carries its position (the
+/// on the mesh's own positions, or on the positions the caller moves them to
+/// (a world mesh's are its world positions). A corner carries its position (the
 /// vertexData stream through vertexDataIndices, times the mesh's scales),
 /// then its texcoord, normal and per-vertex lighting through
 /// edgeVertexDataIndices.</para>
@@ -39,9 +40,12 @@ internal static class MapMeshCorners
     /// <remarks>
     /// <paramref name="shiftTexcoords"/> false skips the texcoord shift, as
     /// ConvertMeshForBuilder does when one of the mesh's materials keeps its
-    /// texcoords (<see cref="KeepsTexcoords"/>).
+    /// texcoords (<see cref="KeepsTexcoords"/>). <paramref name="cutSpace"/>,
+    /// when given, moves the corners the triangulator scores (the corners
+    /// themselves stay in the mesh's space): a world mesh's faces are cut on
+    /// their world positions.
     /// </remarks>
-    public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords = true)
+    public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords = true, Func<Vector3, Vector3>? cutSpace = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
@@ -98,7 +102,7 @@ internal static class MapMeshCorners
             if (loop.Count < 3)
                 continue;
             var local = loop.Select(x => (Vector3)positions![vertexData[to[x]]]! * scales).ToArray();
-            int[] cut = loop.Count == 3 ? [0, 1, 2] : PolygonTriangulator.Triangulate(local);
+            int[] cut = loop.Count == 3 ? [0, 1, 2] : PolygonTriangulator.Triangulate(cutSpace == null ? local : [.. local.Select(cutSpace)]);
             if (cut.Length < 3)
                 continue;
             var material = materials.Length == 0 ? 0 : materials[faceData[f]];

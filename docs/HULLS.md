@@ -239,8 +239,9 @@ and topology. It depends on two more findings.
   (1,2,3) and meets its corners 0,1,3,2. Larger faces go through an ear
   clipper: best ear by 1/area + 2(1 - largest corner cosine), strict, first
   wins. It is the same triangulator the world geometry uses
-  (`Maps/PolygonTriangulator.cs`), and it runs on the mesh's own positions,
-  before any transform. Valve's physics triangles are the welded mesh's
+  (`Maps/PolygonTriangulator.cs`), and for a brush entity it runs on the
+  mesh's own positions, before any transform (a world mesh's faces are cut
+  on their world positions, see WORLD_PHYSICS.md). Valve's physics triangles are the welded mesh's
   triangles in the same order (1311 of 1311 captured Mako pieces).
 - **World space first, through CTransforms.** A vertex goes to world space
   through the mesh's matrix, then into the entity's space through the entity's

@@ -75,20 +75,43 @@ public static class BrushHulls
         // the CTransforms (Mako's 1266 hulls).
         var toWorld = entity.Type == "CMapWorld" ? Maps.MapMeshes.Local(mesh) : Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
+        Vector3 Place(Vector3 p)
+        {
+            var moved = Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, p));
+            return path == null ? moved : Maps.MapMeshes.Transform(path, moved);
+        }
+        // A world mesh's faces are cut on their world positions: in the mesh's
+        // own space eleven atixref faces (ceilings and floors of 17 to 55
+        // corners, a rotated cylinder's caps) break near ties the other way.
+        // A brush entity's stay in its own space.
         var result = new List<(int, Vector3[], int[][], Vector3[], int[][], int[][], int)>();
-        foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords))
+        foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords, entity.Type == "CMapWorld" ? Place : null))
         {
             var kept = new List<int>();
-            var (v, indices) = MeshWeld.Weld(piece.Vertices, piece.Stride, piece.Indices, piece.Streams, 1f / 32f, true, kept);
-            var local = new Vector3[v.Length / piece.Stride];
+            var (vertices, stride, streams) = (piece.Vertices, piece.Stride, piece.Streams);
+            if (entity.Type == "CMapWorld" && piece.VertexIds.Length > 0)
+            {
+                // A world mesh's weld never joins two .vmap vertices: each corner
+                // also carries its vertex, matched exactly. atixref's ceiling
+                // (node 6490) has a sliver quad whose corners 0.004 apart stay
+                // two, and the triangle between them stays.
+                stride = piece.Stride + 1;
+                vertices = new float[piece.VertexIds.Length * stride];
+                for (var c = 0; c < piece.VertexIds.Length; c++)
+                {
+                    Array.Copy(piece.Vertices, c * piece.Stride, vertices, c * stride, piece.Stride);
+                    vertices[(c * stride) + piece.Stride] = piece.VertexIds[c];
+                }
+                streams = [.. piece.Streams, new MeshWeld.Stream("vertex", piece.Stride, 1, false, 0x22)];
+            }
+            var (v, indices) = MeshWeld.Weld(vertices, stride, piece.Indices, streams, 1f / 32f, true, kept);
+            var local = new Vector3[v.Length / stride];
             for (var i = 0; i < local.Length; i++)
-                local[i] = new Vector3(v[i * piece.Stride], v[(i * piece.Stride) + 1], v[(i * piece.Stride) + 2]);
-            var positions = local.Select(p => Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, p))).ToArray();
+                local[i] = new Vector3(v[i * stride], v[(i * stride) + 1], v[(i * stride) + 2]);
             // A mesh inside an instance also moves by the instance path. Applying
             // it after the node's own move, or as one matrix, place the same
             // atixref pieces; which one the builder uses is not measured yet.
-            if (path != null)
-                positions = [.. positions.Select(p => Maps.MapMeshes.Transform(path, p))];
+            var positions = local.Select(Place).ToArray();
             var faces = new int[indices.Length / 3][];
             var corners = new int[faces.Length][];
             var cornerData = new int[faces.Length][];

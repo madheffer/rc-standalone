@@ -427,7 +427,19 @@ public static class WorldCollision
         }
         var (configuration, parameters) = Maps.SmartPropEvaluator.NodeData(e);
         var node = Maps.SmartPropEvaluator.NodeTransform(Maps.MapMeshes.Local(e));
-        foreach (var placement in Maps.SmartPropEvaluator.Evaluate(definition, configuration, parameters, node))
+        // A definition using something not ported gives no pieces, listed,
+        // rather than stopping the whole build (Mako's scale operations).
+        List<Maps.SmartPropEvaluator.Placement> placements;
+        try
+        {
+            placements = Maps.SmartPropEvaluator.Evaluate(definition, configuration, parameters, node);
+        }
+        catch (NotSupportedException ex)
+        {
+            notes?.Add($"smart prop {nodeId} ({file}): {ex.Message}");
+            yield break;
+        }
+        foreach (var placement in placements)
         {
             var (origin, angles, scales) = Maps.SmartPropEvaluator.PropPlacement(node, placement);
             foreach (var piece in PropPieces(new StaticPropHulls.Prop(nodeId, placement.Model, origin, angles, scales), propPhysics, notes))

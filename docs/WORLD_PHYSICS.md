@@ -244,8 +244,16 @@ World mesh pieces (measured on atixref's full-compile capture):
 - A subdivided world mesh's tessellated pieces then go through the 1/32 piece
   weld on their world positions, which joins points of neighbouring patches a
   hair apart.
+- A world mesh's faces are cut on their world positions, not the mesh's own:
+  ear scores that tie or nearly tie come out the other way in the mesh's
+  space. On atixref that is eleven faces over six pieces: large ceiling and
+  floor faces of 17 to 55 corners, and the two caps of a rotated 16-sided
+  cylinder.
+- A world mesh's weld never joins two .vmap vertices, however close. A sliver
+  quad on atixref's ceiling has two corners 0.004 apart; they stay two
+  vertices and the thin triangle between them stays.
 - 522 of atixref's 525 captured mesh pieces are ours (the other three are
-  empty), 514 bit for bit.
+  empty), 520 bit for bit.
 
 Smart props (CMapSmartProp), measured on atixref's radiator_01.vsmart:
 - The .vmap keeps only each element's random seed and locator deltas, keyed
@@ -269,9 +277,7 @@ Smart props (CMapSmartProp), measured on atixref's radiator_01.vsmart:
   line items, other pick modes, detail objects and surface overrides are not.
 
 Still open:
-- Six atixref pieces whose faces are cut in another order (a 16-gon cap on a
-  rotated cylinder, sliver quads on large ceiling faces), and two subdivided
-  pieces with 4 vertices an ulp off.
+- Two subdivided atixref pieces with 4 vertices an ulp off.
 - Static props: spheres and capsules; a prop's bone overrides (PosableSkeleton);
   props inside a CMapPrefab (c2m2 multi); a lattice deformer; the `solid`
   override keys for a collision property and surface.
