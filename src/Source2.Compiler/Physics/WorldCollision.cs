@@ -609,14 +609,14 @@ public static class WorldCollision
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
         (var cut, covered) = Maps.MeshTessellation.TriangulateBuilder(data);
         // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
-        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of, List<Vector4> Paint)>();
+        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of, List<Vector4> Paint, List<int> Source)>();
         for (var t = 0; t < cut.Faces.Count; t++)
         {
             var f = cut.Faces[t];
             var material = faceMaterials.Length == 0 ? 0 : faceMaterials[faceData[f]];
             var bias = faceBiases.Length == 0 ? 0 : faceBiases[faceData[f]];
             if (!byMaterial.TryGetValue((bias, material), out var piece))
-                byMaterial[(bias, material)] = piece = ([], [], [], []);
+                byMaterial[(bias, material)] = piece = ([], [], [], [], []);
             for (var k = 0; k < 3; k++)
             {
                 var v = cut.Indices[(t * 3) + k];
@@ -624,6 +624,7 @@ public static class WorldCollision
                 {
                     at = piece.Points.Count;
                     piece.Of[v] = at;
+                    piece.Source.Add(v);
                     var p = Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, cut.Positions[v] * scales));
                     piece.Points.Add(path == null ? p : Maps.MapMeshes.Transform(path, p));
                     // Each piece is its own face set, so a vertex takes the
@@ -636,9 +637,11 @@ public static class WorldCollision
         }
         // Each piece goes through the piece weld at 1/32 in the world, as the
         // builder welds the moved mesh: tessellated points a hair apart become
-        // one (atixref's subdivided asphalt and gravel: 1385 bit for bit, 6516
-        // and 1373 to the index with 4 vertices an ulp off). The paint rides
-        // along, ignored by the weld; a cluster keeps its first vertex's.
+        // one. Such points are one vertex of the baked mesh, which the bake
+        // (1813baa40) positions face by face, so the last patch to write it
+        // wins: a cluster takes its latest-written member's position
+        // (atixref's subdivided asphalt and gravel, 1385, 6516 and 1373, all
+        // bit for bit). The paint rides along, ignored by the weld.
         var result = new List<(int, Vector3[], int[], Vector4[]?)>();
         foreach (var kv in byMaterial)
         {
@@ -652,8 +655,9 @@ public static class WorldCollision
                 if (cut.Paint != null)
                     (flat[(i * Stride) + 3], flat[(i * Stride) + 4], flat[(i * Stride) + 5], flat[(i * Stride) + 6]) = (paint[i].X, paint[i].Y, paint[i].Z, paint[i].W);
             }
+            long[]? latest = cut.Written == null ? null : [.. kv.Value.Source.Select(i => cut.Written[i])];
             var (v, ix) = MeshWeld.Weld(flat, Stride, [.. kv.Value.Indices],
-                [new MeshWeld.Stream("position", 0, 3, false, 42), new MeshWeld.Stream("VertexPaintBlendParams", 3, 4, true, 42)], 1f / 32f);
+                [new MeshWeld.Stream("position", 0, 3, false, 42), new MeshWeld.Stream("VertexPaintBlendParams", 3, 4, true, 42)], 1f / 32f, true, null, latest);
             var n = v.Length / Stride;
             result.Add((kv.Key.Material, [.. Enumerable.Range(0, n).Select(i => new Vector3(v[i * Stride], v[(i * Stride) + 1], v[(i * Stride) + 2]))], ix,
                 cut.Paint == null ? null : [.. Enumerable.Range(0, n).Select(i => new Vector4(v[(i * Stride) + 3], v[(i * Stride) + 4], v[(i * Stride) + 5], v[(i * Stride) + 6]))]));

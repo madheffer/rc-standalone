@@ -78,9 +78,28 @@ public class SmartPropReplay(ITestOutputHelper output)
             resource.Read(new MemoryStream(bytes));
             var root = ((BinaryKV3)resource.DataBlock!).Data;
             var (configuration, parameters) = SmartPropEvaluator.NodeData(node);
-            output.WriteLine($"CMapSmartProp {node.GetValue<int>("nodeID")} {file}");
+            if (Environment.GetEnvironmentVariable("SMARTPROP_FILTER") is { Length: > 0 } only && !file.Contains(only, StringComparison.OrdinalIgnoreCase))
+                continue;
+            output.WriteLine($"CMapSmartProp {node.GetValue<int>("nodeID")} {file} at {node.GetValue<System.Numerics.Vector3>("origin")} {node.GetValue<System.Numerics.Vector3>("angles")} {node.GetValue<System.Numerics.Vector3>("scales")}");
+            foreach (var (path, entry) in configuration)
+                output.WriteLine($"  config [{path}] seed {entry.Seed} choice {entry.Choice} locators {string.Join("; ", entry.Locators.Select(l => $"'{l.Name}' {l.DeltaMin} {l.DeltaMax}"))}");
+            foreach (var (name, value) in parameters)
+                output.WriteLine($"  parameter {name} = {(value is float[] a ? string.Join(" ", a) : value)}");
             var start = SmartPropEvaluator.NodeTransform(MapMeshes.Local(node));
-            foreach (var p in SmartPropEvaluator.Evaluate(root, configuration, parameters, start))
+            List<SmartPropEvaluator.Placement> placements;
+            try
+            {
+                placements = SmartPropEvaluator.Evaluate(root, configuration, parameters, start);
+            }
+            catch (NotSupportedException ex)
+            {
+                output.WriteLine($"  not ported: {ex.Message}");
+                continue;
+            }
+            var unstored = placements.Where(p => !configuration.ContainsKey(string.Join(",", p.Path))).Select(p => $"[{string.Join(",", p.Path)}]").ToList();
+            var unused = configuration.Keys.Where(k => !placements.Any(p => string.Join(",", p.Path).StartsWith(k, StringComparison.Ordinal))).ToList();
+            output.WriteLine($"  PATHS {placements.Count} placed, {unstored.Count} without a stored entry {string.Join(" ", unstored)}; stored entries under no placement: {string.Join(" ", unused)}");
+            foreach (var p in placements)
             {
                 var (origin, angles, scales) = SmartPropEvaluator.PropPlacement(start, p);
                 var t = p.Transform;

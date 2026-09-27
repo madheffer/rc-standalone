@@ -37,6 +37,13 @@ internal static class MeshWeld
 
     /// <summary>As above, also listing the input triangles kept, in order.</summary>
     public static (float[] Vertices, int[] Indices) Weld(float[] vertices, int stride, int[] indices, IReadOnlyList<Stream> streams, float tolerance, bool renumberByUse, List<int>? keptTriangles)
+        => Weld(vertices, stride, indices, streams, tolerance, renumberByUse, keptTriangles, null);
+
+    /// <summary>
+    /// As above; with <paramref name="latest"/>, a cluster's data is its member
+    /// with the greatest value there instead of its first.
+    /// </summary>
+    public static (float[] Vertices, int[] Indices) Weld(float[] vertices, int stride, int[] indices, IReadOnlyList<Stream> streams, float tolerance, bool renumberByUse, List<int>? keptTriangles, long[]? latest)
     {
         var tol = Tolerances(stride, streams, tolerance);
         var count = vertices.Length / stride;
@@ -55,6 +62,16 @@ internal static class MeshWeld
         if (zero.Count > 100 && stride > 5)
             Cluster(vertices, stride, tol, 3, zero, remap, reps);
         Cluster(vertices, stride, tol, 0, Enumerable.Range(0, count).ToList(), remap, reps);
+        if (latest != null)
+        {
+            var best = reps.ToArray();
+            for (var i = 0; i < count; i++)
+            {
+                if (latest[i] > latest[best[remap[i]]])
+                    best[remap[i]] = i;
+            }
+            reps = [.. best];
+        }
         if (!renumberByUse)
         {
             // Clusters in the order they formed, each at its first vertex.

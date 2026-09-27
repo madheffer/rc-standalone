@@ -14,8 +14,10 @@ namespace Source2.Compiler.Maps;
 /// space and makes it a prop entity placed by the node's transform again
 /// (18122d020); the round trip through the world is what the props' bits
 /// carry (atixref's radiator: 13 of 13 mesh pieces bit for bit). Ported: the
-/// root, groups, models, FitOnLine (random pick, fixed lengths), the sizer,
-/// Translate and the variable filter; anything else throws.
+/// root, groups, models, ModifyState, PickOne, FitOnLine (random and
+/// largest-first picks, fixed lengths), the sizer, locators, Translate, Scale
+/// and the variable filter; anything else throws, as does a draw from the
+/// unseeded master stream (no stored seed or choice), which no compile repeats.
 /// </summary>
 internal static class SmartPropEvaluator
 {
@@ -23,7 +25,11 @@ internal static class SmartPropEvaluator
     public sealed record Placement(string Model, int[] Path, CTransform Transform, Vector3 ModelScale);
 
     /// <summary>A node's stored configuration entry: the element's random seed and its locators' deltas.</summary>
-    public sealed record Entry(int Seed, List<(string Name, Vector3 DeltaMin, Vector3 DeltaMax)> Locators);
+    public sealed record Entry(int Seed, List<(string Name, Vector3 DeltaMin, Vector3 DeltaMax, CTransform? Delta)> Locators)
+    {
+        /// <summary>The element id a PickOne stored as its choice (int.MinValue when none).</summary>
+        public int Choice { get; init; } = int.MinValue;
+    }
 
     /// <summary>tier0's CUniformRandomStream (ran1: Park-Miller with a 32-entry shuffle).</summary>
     public sealed class UniformRandomStream
@@ -96,8 +102,12 @@ internal static class SmartPropEvaluator
         {
             var path = (value.Get<object?[]>("elementPath") ?? []).Select(Convert.ToInt32);
             var locators = value.GetElements("m_LocatorConfig").Select(e => e.Get<DmxBinary.Element>("value")!)
-                .Select(l => (l.Get<string>("m_LocatorName") ?? "", Floats(l, "m_vDeltaMin"), Floats(l, "m_vDeltaMax"))).ToList();
-            configuration[string.Join(",", path)] = new Entry(value.GetValue<int>("randomSeed") ?? int.MinValue, locators);
+                .Select(l => (l.Get<string>("m_LocatorName") ?? "", Floats(l, "m_vDeltaMin"), Floats(l, "m_vDeltaMax"),
+                              l.Attributes.ContainsKey("m_DeltaTransform") ? throw new NotSupportedException("stored locator m_DeltaTransform is not ported") : (CTransform?)null)).ToList();
+            configuration[string.Join(",", path)] = new Entry(value.GetValue<int>("randomSeed") ?? int.MinValue, locators)
+            {
+                Choice = value.GetValue<int>("choiceValue") ?? int.MinValue,
+            };
         }
         foreach (var value in data.Get<DmxBinary.Element>("parameters")?.GetElements("values").Select(e => e.Get<DmxBinary.Element>("value")!) ?? [])
         {
@@ -128,7 +138,6 @@ internal static class SmartPropEvaluator
         public readonly Dictionary<string, object> Variables = new(StringComparer.OrdinalIgnoreCase);
         public required IReadOnlyDictionary<string, Entry> Configuration { get; init; }
         public readonly List<Placement> Output = [];
-        public readonly UniformRandomStream Master = new();
 
         // The current element's stream: reset on entering an element, seeded
         // on first use from the configuration for the current path (1800118a0).
@@ -140,7 +149,11 @@ internal static class SmartPropEvaluator
         {
             if (Stream != null)
                 return Stream;
-            var seed = Configuration.TryGetValue(PathKey, out var e) && e.Seed != int.MinValue ? e.Seed : Master.RandomInt(0, 0x7fffffff);
+            // Without a stored seed the element draws one from the context's
+            // master stream, which nothing seeds (tier0's default constructor
+            // takes the clock): such a compile cannot be repeated.
+            var seed = Configuration.TryGetValue(PathKey, out var e) && e.Seed != int.MinValue ? e.Seed
+                : throw new NotSupportedException($"element [{PathKey}] has no stored seed; the compile draws one from an unseeded stream");
             Stream = new UniformRandomStream();
             Stream.SetSeed(seed);
             return Stream;
@@ -162,6 +175,8 @@ internal static class SmartPropEvaluator
             var name = v.GetStringProperty("m_VariableName");
             context.Variables[name] = parameters.TryGetValue(name, out var p) ? p : Literal(v["m_DefaultValue"]);
         }
+        if ((root.GetArray("m_Modifiers") ?? []).Count > 0)
+            throw new NotSupportedException("smart prop root modifiers are not ported");
         foreach (var child in root.GetArray("m_Children") ?? [])
             EvaluateChild(child, context);
         return context.Output;
@@ -180,7 +195,10 @@ internal static class SmartPropEvaluator
         if (ApplyModifiers(element, context))
             Evaluate(element, context);
         context.Path.RemoveAt(context.Path.Count - 1);
-        context.Transform = saved;
+        // A ModifyState answers no to slot 0x68: its modifiers change the
+        // state its later siblings see, so its transform is not restored.
+        if (element.GetStringProperty("_class") != "CSmartPropElement_ModifyState")
+            context.Transform = saved;
     }
 
     private static void Evaluate(KVObject element, Context context)
@@ -202,6 +220,12 @@ internal static class SmartPropEvaluator
                 break;
             case "CSmartPropElement_FitOnLine":
                 FitOnLine(element, context);
+                break;
+            case "CSmartPropElement_ModifyState":
+                // Nothing of its own: its modifiers have run (18000b8c0).
+                break;
+            case "CSmartPropElement_PickOne":
+                PickOne(element, context);
                 break;
             default:
                 throw new NotSupportedException($"smart prop element {element.GetStringProperty("_class")} is not ported");
@@ -232,15 +256,19 @@ internal static class SmartPropEvaluator
                     break;
                 }
                 case "CSmartPropOperation_Translate":
-                {
-                    // 180018c00: the context moved by the offset, rotated and scaled
-                    // by it (CTransform composition); the rotation is kept.
-                    var v = Vector(m["m_vPosition"], context);
-                    var t = context.Transform;
-                    var moved = CTransform.Compose(t, new CTransform(v, 1f, Quaternion.Identity));
-                    context.Transform = new CTransform(moved.Position, moved.Scale, t.Rotation);
+                    // 180018c00: the context composed with the offset (scale 1, no
+                    // rotation); the composition's renormalised rotation is kept.
+                    context.Transform = CTransform.Compose(context.Transform,
+                        new CTransform(m.ContainsKey("m_vPosition") ? Vector(m["m_vPosition"], context) : Vector3.Zero, 1f, Quaternion.Identity));
                     break;
-                }
+                case "CSmartPropOperation_Scale":
+                    // 180019410: the context composed with a scale (m_flScale, 1 by default).
+                    context.Transform = CTransform.Compose(context.Transform,
+                        new CTransform(Vector3.Zero, m.ContainsKey("m_flScale") ? Float(m["m_flScale"], context) : 1f, Quaternion.Identity));
+                    break;
+                case "CSmartPropOperation_CreateLocator":
+                    Locator(m, context);
+                    break;
                 case "CSmartPropOperation_CreateSizer":
                     Sizer(m, context);
                     break;
@@ -293,6 +321,64 @@ internal static class SmartPropEvaluator
         Out("m_OutputVariableMaxY", max.Y);
         Out("m_OutputVariableMinZ", min.Z);
         Out("m_OutputVariableMaxZ", max.Z);
+    }
+
+    // 180017910: a configurable locator (m_bConfigurable, true by default)
+    // takes its stored delta for this path and name (identity when none is
+    // stored, 180094470), and the context is composed with it.
+    private static void Locator(KVObject m, Context context)
+    {
+        if (m.ContainsKey("m_bConfigurable") && !Bool(m["m_bConfigurable"], context))
+            return;
+        var name = m.GetStringProperty("m_LocatorName", "");
+        var delta = new CTransform(Vector3.Zero, 1f, Quaternion.Identity);
+        if (context.Configuration.TryGetValue(context.PathKey, out var entry)
+            && entry.Locators.FirstOrDefault(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase)) is { Name: not null } stored)
+            delta = stored.Delta ?? delta;
+        context.Transform = CTransform.Compose(context.Transform, delta);
+    }
+
+    // 180030ad0: one child, by m_SelectionMode. SPECIFIC takes the child at
+    // m_SpecificChildIndex (held to the list); otherwise the enabled children
+    // are the candidates, and the pick is the stored choice for this path when
+    // that is one of them (18000fab0, 18000f8e0; -1 picks none), else the
+    // first for FIRST. RANDOM with nothing stored draws from the unseeded
+    // master stream, weighted by ChoiceWeight: not repeatable.
+    private static void PickOne(KVObject element, Context context)
+    {
+        var children = element.GetArray("m_Children") ?? [];
+        if (children.Count == 0)
+            return;
+        var mode = element.GetStringProperty("m_SelectionMode", "RANDOM");
+        if (mode == "SPECIFIC")
+        {
+            var at = element.ContainsKey("m_SpecificChildIndex") ? (int)Float(element["m_SpecificChildIndex"], context) : 0;
+            EvaluateChild(children[Math.Min(Math.Max(0, at), children.Count - 1)], context);
+            return;
+        }
+        if (mode is not ("RANDOM" or "FIRST"))
+            throw new NotSupportedException($"PickOne selection mode {mode} is not ported");
+        var candidates = new List<int>();
+        for (var i = 0; i < children.Count; i++)
+        {
+            var child = children[i];
+            if (child.ContainsKey("m_bEnabled") && !Bool(child["m_bEnabled"], context))
+                continue;
+            if ((child.GetArray("m_SelectionCriteria") ?? []).Any(c => c.GetStringProperty("_class") == "CSmartPropSelectionCriteria_IsValid"
+                                                                    && (!c.ContainsKey("m_bEnabled") || Bool(c["m_bEnabled"], context))))
+                throw new NotSupportedException("PickOne IsValid criteria are not ported");
+            candidates.Add(i);
+        }
+        if (candidates.Count == 0)
+            return;
+        var choice = context.Configuration.TryGetValue(context.PathKey, out var entry) ? entry.Choice : int.MinValue;
+        if (choice == -1)
+            return;
+        var picked = candidates.FindIndex(i => children[i].GetInt32Property("m_nElementID") == choice);
+        if (picked < 0)
+            picked = mode == "FIRST" ? 0
+                : throw new NotSupportedException($"PickOne [{context.PathKey}] has no stored choice; the compile picks from an unseeded stream");
+        EvaluateChild(children[candidates[picked]], context);
     }
 
     private sealed record Item(KVObject Element, int Type, float Length, float Min, float Max);
@@ -352,37 +438,50 @@ internal static class SmartPropEvaluator
     // items that may stretch (min below max); those are not ported.
     private static List<Item> Select(KVObject element, Context context, string pick, bool scaled, float length)
     {
-        if (pick != "RANDOM")
+        if (pick is not ("RANDOM" or "LARGEST_FIRST"))
             throw new NotSupportedException($"FitOnLine pick mode {pick} is not ported");
         var children = element.GetArray("m_Children") ?? [];
-        Func<int, float, List<Item>> candidates = (type, room) => Candidates(children, context, type, room, scaled);
         var list = new List<Item>();
         var used = 0f;
-        Item? Cap(int type)
+        // RANDOM: RandomInt over the candidates when there is more than one.
+        // LARGEST_FIRST (180024dd0): the greatest length that fits the room
+        // (its minimum when the line scales), the first on a tie; none when
+        // nothing fits.
+        Item? Pick(int type)
         {
-            var found = candidates(type, Slack(length, used));
+            var room = Slack(length, used);
+            var found = Candidates(children, context, type, room, scaled);
             if (found.Count == 0)
                 return null;
-            var at = found.Count - 1 > 0 ? context.ElementStream().RandomInt(0, found.Count - 1) : 0;
-            return found[at];
+            if (pick == "RANDOM")
+                return found[found.Count - 1 > 0 ? context.ElementStream().RandomInt(0, found.Count - 1) : 0];
+            Item? best = null;
+            var longest = -1f;
+            foreach (var item in found)
+            {
+                if ((scaled ? item.Min : item.Length) <= room && longest < item.Length)
+                {
+                    best = item;
+                    longest = item.Length;
+                }
+            }
+            return best;
         }
-        var first = Cap(0);
+        var first = Pick(0);
         if (first != null)
         {
             list.Add(first);
             used += first.Length;
         }
-        var last = Cap(1);
+        var last = Pick(1);
         if (last != null)
             used += last.Length;
         while (used < length && list.Count <= 999)
         {
-            var found = candidates(2, Slack(length, used));
-            if (found.Count == 0)
+            if (Pick(2) is not { } next)
                 break;
-            var at = found.Count - 1 < 1 ? 0 : context.ElementStream().RandomInt(0, found.Count - 1);
-            list.Add(found[at]);
-            used += found[at].Length;
+            list.Add(next);
+            used += next.Length;
         }
         if (last != null)
             list.Add(last);
@@ -468,8 +567,9 @@ internal static class SmartPropEvaluator
         return Literal(v);
     }
 
-    private static object Literal(KVObject v) => v.ValueType switch
+    private static object Literal(KVObject? v) => v?.ValueType switch
     {
+        null => 0f,
         KVValueType.Null => 0f,
         KVValueType.Boolean => (bool)v,
         KVValueType.String => (string)v,

@@ -243,7 +243,10 @@ World mesh pieces (measured on atixref's full-compile capture):
   89.99999, a yaw of 179.99997 or a roll of 90 tell the two apart.
 - A subdivided world mesh's tessellated pieces then go through the 1/32 piece
   weld on their world positions, which joins points of neighbouring patches a
-  hair apart.
+  hair apart. Such points are one vertex of the baked mesh, and the bake
+  positions faces one after another (builder order, a face's patches in
+  corner order), so the last patch to write the point wins: the cluster takes
+  its latest-written member's position, not its first.
 - A world mesh's faces are cut on their world positions, not the mesh's own:
   ear scores that tie or nearly tie come out the other way in the mesh's
   space. On atixref that is eleven faces over six pieces: large ceiling and
@@ -253,7 +256,7 @@ World mesh pieces (measured on atixref's full-compile capture):
   quad on atixref's ceiling has two corners 0.004 apart; they stay two
   vertices and the thin triangle between them stays.
 - 522 of atixref's 525 captured mesh pieces are ours (the other three are
-  empty), 520 bit for bit.
+  empty), all 522 bit for bit, and every captured soup is the same.
 
 Smart props (CMapSmartProp), measured on atixref's radiator_01.vsmart:
 - The .vmap keeps only each element's random seed and locator deltas, keyed
@@ -271,13 +274,25 @@ Smart props (CMapSmartProp), measured on atixref's radiator_01.vsmart:
   evaluating in the node's own space instead misses every radiator piece.
 - Each placement becomes a prop_static with the node's collision mode as its
   solid key when that is set, and goes through the static prop path above.
-- Ported: groups, models, FitOnLine with a random pick and fixed lengths,
-  the sizer (with its constraints), Translate and the variable filter, with
-  the classes' own defaults. Smart props in instances, scaled ones, stretched
-  line items, other pick modes, detail objects and surface overrides are not.
+- Ported: groups, models, ModifyState (its modifiers change the state its
+  later siblings see), PickOne (the stored choice; FIRST and SPECIFIC),
+  FitOnLine with random and largest-first picks and fixed lengths, the sizer
+  (with its constraints), locators, Translate, Scale and the variable filter,
+  with the classes' own defaults. Translate, Scale and a locator store the
+  composition's renormalised rotation.
+- An element with no stored seed, or a random PickOne with no stored choice,
+  draws from the evaluation's master stream, which nothing seeds (tier0's
+  default constructor takes the clock). Such a compile cannot be repeated, so
+  the port lists it instead.
+- Mako's 35 smart props (19 train ladders, 14 wall AC units, 2 floodlights)
+  all evaluate, and every model placed has an entry stored at its element
+  path, every stored entry a model under it. Their positions are not yet
+  checked against a capture.
+- Not ported: smart props in instances, scaled ones, stretched line items,
+  root modifiers, IsValid criteria, detail objects, surface overrides and a
+  stored locator delta transform.
 
 Still open:
-- Two subdivided atixref pieces with 4 vertices an ulp off.
 - Static props: spheres and capsules; a prop's bone overrides (PosableSkeleton);
   props inside a CMapPrefab (c2m2 multi); a lattice deformer; the `solid`
   override keys for a collision property and surface.

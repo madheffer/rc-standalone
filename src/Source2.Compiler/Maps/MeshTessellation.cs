@@ -30,6 +30,9 @@ public static class MeshTessellation
         /// each triangle corner's paint, index for index with <c>Indices</c>.
         /// </summary>
         public List<Vector4>? Paint { get; init; }
+
+        /// <summary>Builder order only: when each position was last written by a patch grid (-1 for none).</summary>
+        public List<long>? Written { get; init; }
     }
 
     public static Result Triangulate(DmxBinary.Element data) => Build(data, false).ToResult();
@@ -76,7 +79,9 @@ public static class MeshTessellation
     {
         public List<Vector4>? Paint { get; set; }
 
-        public Result ToResult() => new(Positions, Indices, Faces) { Paint = Paint };
+        public List<long>? Written { get; set; }
+
+        public Result ToResult() => new(Positions, Indices, Faces) { Paint = Paint, Written = Written };
     }
 
     private static BuiltResult Build(DmxBinary.Element data, bool builderOrder)
@@ -132,6 +137,15 @@ public static class MeshTessellation
         var appended = new List<(int Face, Vector3[] Corners, Vector4[] Paint)>();
         var appendedSlots = new List<Slot>();
         var stitched = false;
+        // Each grid point's last write, in the order the bake positions patches:
+        // faces in builder order, a face's patches in corner order.
+        var written = new Dictionary<(uint, uint, uint), long>();
+        long writes = 0;
+        void Write(Vector3[] grid)
+        {
+            foreach (var p in grid)
+                written[(BitConverter.SingleToUInt32Bits(p.X), BitConverter.SingleToUInt32Bits(p.Y), BitConverter.SingleToUInt32Bits(p.Z))] = writes++;
+        }
         // The builder (1813baa40) gathers the faces to split level by level,
         // 1 to 5, each level in face order, so a lower level's patches are
         // appended first; a face above level 5 is not split.
@@ -211,6 +225,7 @@ public static class MeshTessellation
                     var grid = Grid(hs, i, own);
                     if (displacement.Length > 0)
                         Displace(grid, hs, i, f);
+                    Write(grid);
                     var p = ratio[i];
                     var q = ratio[(i + m - 1) % m];
                     var stitched = Stitch(1 << (own - 1), p, q).ToList();
@@ -242,6 +257,7 @@ public static class MeshTessellation
                     grids[i] = Grid(hs, i, level);
                     if (displacement.Length > 0)
                         Displace(grids[i], hs, i, f);
+                    Write(grids[i]);
                 }
                 var faceSlot = new Slot();
                 var patchSlot = new Slot[m];
@@ -430,7 +446,7 @@ public static class MeshTessellation
 
         // FUN_1813858d0: equal positions (bit for bit) are one vertex, numbered as first met.
         var weld = new Dictionary<(uint, uint, uint), int>();
-        var result = new BuiltResult([], [], faces, stitched) { Paint = withPaint ? [] : null };
+        var result = new BuiltResult([], [], faces, stitched) { Paint = withPaint ? [] : null, Written = builderOrder ? [] : null };
         for (var i = 0; i < corners.Count; i++)
         {
             var c = corners[i];
@@ -439,6 +455,7 @@ public static class MeshTessellation
             {
                 index = weld[key] = result.Positions.Count;
                 result.Positions.Add(c);
+                result.Written?.Add(written.TryGetValue(key, out var w) ? w : -1);
             }
             result.Indices.Add(index);
             result.Paint?.Add(cornerPaint[i]);
