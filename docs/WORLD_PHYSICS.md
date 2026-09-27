@@ -15,6 +15,41 @@ mix surface properties, it also carries a surface property per triangle
 A mesh shape's fields are its bounds, per-triangle materials, orthographic areas,
 flags, surface area, BVH nodes, triangles and vertices.
 
+## The container (`WorldPhysicsAuthor`, `WorldPhysicsTrees`)
+
+Measured on 32 local Valve compiles. Resource version 1; blocks `PHYS CTRL
+RED2 DATA` in that order, all KV3 v5 under the generic format. CTRL only says
+the physics is embedded block 0 and is stored raw. RED2 and DATA take the
+usual cut (LZ4 above 256 bytes of payload). PHYS is LZ4 up to at least
+456,332 bytes of uncompressed payload (buffer plus blobs) and Zstd from
+527,006; 512 KiB is taken as the cut. Compressed bytes are encoder defined,
+so parity means the decoded trees and the container facts (`KvTreeDiff`).
+Re-authoring Valve's own decoded trees gives them back unchanged on five maps
+on both sides of the cut.
+
+The trees, as Valve's decode back: a scalar unsigned field of 0 or 1 comes back
+Int64 (KV3's zero and one), but typed arrays keep UInt32 throughout; floats are
+doubles.
+- DATA: a model named `maps/<map>/world_physics.vmdl` with nothing else.
+- RED2: the ModelDoc compiler (version 3), three argument dependencies, the
+  shape counts (hulls, and mesh pieces rather than soups), and the surface
+  properties in table order under their canonical names
+  (`surfaceproperties.vsurf_c` by hash: `Wood`, `Metal_Box`).
+  `has_default_surface_property` is there only when the table holds `default`.
+- PHYS: one part with the hulls, then the soups as meshes, then one collision
+  attribute index per shape (none at all when every index is 0); the surface
+  hashes; the collision attributes.
+- A soup's `m_nToolMaterialHash` is the string token of its shapes' material
+  path when they all share one (a prop's shape has none), else 0; its
+  `m_UserFriendlyName` joins its shapes' names with "; ", a painted layer's
+  name being " [surface]" (physicsbuilder 180016230).
+
+On atixref the whole file comes out the same but for nine strings in the
+collision attribute table: Valve writes canonical group and layer names
+(`ConditionallySolid`), layers in its own order and without repeats. Those come
+from vphysics2's intersection dictionary, not yet ported. ze_hold_em_p differs
+only in the subdivided floor's soup below.
+
 ## How a mesh is built: `RnMeshCreate`
 
 vphysics2's `RnMeshCreate` turns a triangle soup into the shape.

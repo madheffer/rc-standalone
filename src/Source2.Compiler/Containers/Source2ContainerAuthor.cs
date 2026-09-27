@@ -95,6 +95,9 @@ public static partial class Source2ContainerAuthor
         typeof(Resource).GetProperty(nameof(Resource.Version), BindingFlags.Public | BindingFlags.Instance)
         ?? throw new InvalidOperationException("Resource.Version property missing - VRF API changed?");
 
+    /// <summary>Set a resource's container version (VRF keeps the setter private).</summary>
+    internal static void SetResourceVersion(Resource resource, ushort version) => ResourceVersionProp.SetValue(resource, version);
+
     /// <summary>
     /// Author a compiled container for the parsed KV3 source <paramref name="userDoc"/>.
     /// </summary>

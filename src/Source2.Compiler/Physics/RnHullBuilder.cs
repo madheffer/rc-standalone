@@ -601,9 +601,12 @@ public static class RnHullBuilder
         var sum = (o.X + o.Y) + o.Z;
         if (!(1.1920929e-07f <= sum))
             return o;
-        var d = MathF.Abs(o.X * m[4]) + MathF.Abs(o.Y * m[5]) + MathF.Abs(o.Z * m[6]) + MathF.Abs(o.Y * m[1])
-                + MathF.Abs(o.X * m[0]) + MathF.Abs(o.Z * m[2]) + MathF.Abs(o.X * m[8]) + MathF.Abs(o.Y * m[9])
-                + MathF.Abs(o.Z * m[10]);
+        // Three row sums, (row 1 + row 0) + row 2, as the disassembly adds them
+        // (the decompile prints one running sum).
+        var row1 = (MathF.Abs(o.X * m[4]) + MathF.Abs(o.Y * m[5])) + MathF.Abs(o.Z * m[6]);
+        var row0 = (MathF.Abs(o.Y * m[1]) + MathF.Abs(o.X * m[0])) + MathF.Abs(o.Z * m[2]);
+        var row2 = (MathF.Abs(o.X * m[8]) + MathF.Abs(o.Y * m[9])) + MathF.Abs(o.Z * m[10]);
+        var d = (row1 + row0) + row2;
         var f = sum / d;
         return new Vector3(o.X * f, o.Y * f, o.Z * f);
     }

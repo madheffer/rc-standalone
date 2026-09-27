@@ -67,6 +67,28 @@ internal static class AuthoredKv3
         }
     }
 
+    /// <summary>
+    /// The block's whole uncompressed payload, buffer plus blobs, read back from
+    /// its v5 header (offset 48 is the buffer, offset 60 the blobs): the figure
+    /// the Zstd cut of a map's physics is bracketed on.
+    /// </summary>
+    internal static int TotalPayloadBytes(BinaryKV3 kv3)
+    {
+        var restore = kv3.SerializationCompressionMethod;
+        try
+        {
+            kv3.SerializationCompressionMethod = KV3BinaryCompressionMethod.Uncompressed;
+            using var ms = new MemoryStream();
+            kv3.Serialize(ms);
+            var bytes = ms.GetBuffer();
+            return ms.Length >= 64 ? BitConverter.ToInt32(bytes, 48) + BitConverter.ToInt32(bytes, 60) : 0;
+        }
+        finally
+        {
+            kv3.SerializationCompressionMethod = restore;
+        }
+    }
+
     /// <summary>Uncompressed payload size, read back from the block's own v5 header
     /// (offset 48 is <c>buffer1 + buffer2</c>), which is the figure RC's cut is made on.</summary>
     private static int PayloadBytes(BinaryKV3 kv3)

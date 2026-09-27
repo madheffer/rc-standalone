@@ -257,6 +257,12 @@ public static class WorldCollision
     {
         public RnHull? Hull { get; init; }
 
+        /// <summary>The shape node's tool material: a world piece's material path, nothing for a prop's shape.</summary>
+        public string ToolMaterial { get; init; } = "";
+
+        /// <summary>The shape node's name: " [surface]" for a painted layer (180016230), else empty.</summary>
+        public string Name { get; init; } = "";
+
         /// <summary>The part's shape type: a hull is 2, a triangle mesh <see cref="MeshType"/>.</summary>
         public int Type => Hull != null ? HullType : MeshType;
     }
@@ -314,7 +320,7 @@ public static class WorldCollision
                     if (physics.Blend != null && paint != null && !covered && Splits(physics.Blend))
                     {
                         notes?.Add($"node {mesh.NodeId} material {material}: stitched subdivided mesh, not split");
-                        result.Add(new Piece(mesh.NodeId, material, name, physics, points, indices));
+                        result.Add(new Piece(mesh.NodeId, material, name, physics, points, indices) { ToolMaterial = name });
                         continue;
                     }
                     if (physics.Blend is { Sampled: true, NewBlending: true } && paint != null && Splits(physics.Blend))
@@ -522,14 +528,18 @@ public static class WorldCollision
     private static void AddPieces(List<Piece> result, int node, int material, string name, MaterialPhysics physics, Vector4[]? paint, Vector3[] points, int[] indices, int[]? sampled = null)
     {
         if (physics.Blend is not { } blend || paint == null)
-            result.Add(new Piece(node, material, name, physics, points, indices));
+            result.Add(new Piece(node, material, name, physics, points, indices) { ToolMaterial = name });
         else if (!Splits(blend))
-            result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[0] }, points, indices));
+            result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[0] }, points, indices) { ToolMaterial = name });
         else
         {
             var layers = SplitLayers(blend, points, indices, paint, sampled);
             for (var s = 0; s < layers.Count; s++)
-                result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[s] }, layers[s].Points, layers[s].Indices));
+                result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[s] }, layers[s].Points, layers[s].Indices)
+                {
+                    ToolMaterial = name,
+                    Name = $" [{blend.Surfaces[s]}]",
+                });
         }
     }
 
@@ -690,6 +700,9 @@ public static class WorldCollision
         public List<Vector3> Vertices { get; } = [];
         public List<int> Indices { get; } = [];
 
+        /// <summary>The shapes that joined, by their place in the input.</summary>
+        public List<int> Members { get; } = [];
+
         /// <summary>A surface property per triangle, once the soup mixes them.</summary>
         public List<byte>? Materials { get; internal set; }
 
@@ -729,8 +742,10 @@ public static class WorldCollision
     {
         var buckets = new List<Bucket>();
         var newest = new Dictionary<int, int>();
+        var index = -1;
         foreach (var (attribute, surface, points, indices, shared) in shapes)
         {
+            index++;
             Bucket? into = null;
             if (newest.TryGetValue(attribute, out var at))
             {
@@ -758,6 +773,8 @@ public static class WorldCollision
             if (indices.Length >= 3)
                 into.SoleShared = into.Indices.Count == 0 ? shared : null;
             Join(into, attribute, surface, points, indices);
+            if (indices.Length >= 3)
+                into.Members.Add(index);
         }
         for (var i = 0; i < buckets.Count;)
         {
