@@ -114,6 +114,35 @@ public class Kv3TreeTests
         Assert.Equal(40000, d.GetArray<byte>("pose").Length);
     }
 
+    /// <summary>
+    /// tier0 decodes LZ4 blobs one blob at a time and copies each whole frame into that blob,
+    /// so no frame may span two blobs. Shapes are draw_famas (7812+744) and reload_famas
+    /// (25200+3000), whose single spanning frame corrupted the heap in game.
+    /// </summary>
+    [Theory]
+    [InlineData(new[] { 7812, 744 }, new[] { 1, 1 })]
+    [InlineData(new[] { 25200, 3000 }, new[] { 2, 1 })]
+    [InlineData(new[] { 0, 16384, 1 }, new[] { 0, 1, 1 })]
+    public void Lz4_frames_never_span_two_blobs(int[] lengths, int[] framesPerBlob)
+    {
+        var t = new Kv3Tree { Format = Guid.NewGuid(), Compression = 1 };
+        var obj = new Kv3Node { Type = Kv3Type.Object, Items = [], KeyIds = [] };
+        for (var b = 0; b < lengths.Length; b++)
+        {
+            obj.KeyIds!.Add(t.StringId($"blob{b}"));
+            obj.Items!.Add(new Kv3Node { Type = Kv3Type.BinaryBlob, Blob = Enumerable.Range(0, lengths[b]).Select(i => (byte)((i * 7 + b) % 253)).ToArray() });
+        }
+        t.Root = obj;
+
+        var written = t.Write();
+        var header = new int[30];
+        for (var i = 0; i < 30; i++) header[i] = BinaryPrimitives.ReadInt32LittleEndian(written.AsSpan(i * 4));
+        Assert.Equal(framesPerBlob.Sum() * 2, header[17]);
+
+        var back = Kv3Tree.Read(written);
+        Assert.True(back.ReadSections.Blobs.AsSpan().SequenceEqual(t.Encode().Blobs));
+    }
+
     [Fact]
     public void Stock_animation_blocks_are_lossless()
     {

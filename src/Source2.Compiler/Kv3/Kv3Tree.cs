@@ -260,15 +260,27 @@ public sealed class Kv3Tree
             }
             else
             {
+                // Decoded blob by blob, as tier0's reader does: it copies each whole frame into the
+                // current blob's allocation unchecked, so a frame that crosses into the next blob
+                // overruns the heap in game (the 2026-09-27 anim-builder crash).
                 var dec = new LZ4ChainDecoder(t.FrameSize, 0);
+                var tmp = new byte[t.FrameSize];
+                var sizesEnd = off + h[17];
                 var done = 0;
-                while (done < sizeBlobs)
+                foreach (var len in s.BlobLens)
                 {
-                    var clen = BinaryPrimitives.ReadUInt16LittleEndian(buf2.AsSpan(off)); off += 2;
-                    var frame = Math.Min(t.FrameSize, sizeBlobs - done);
-                    if (!dec.DecodeAndDrain(block.AsSpan(pos, clen), s.Blobs.AsSpan(done, frame), out var n) || n < 1) throw Bad("lz4 blob frame");
-                    pos += clen; done += n;
+                    for (var got = 0; got < len;)
+                    {
+                        if (off + 2 > sizesEnd) throw Bad("lz4 blob frame sizes");
+                        var clen = BinaryPrimitives.ReadUInt16LittleEndian(buf2.AsSpan(off)); off += 2;
+                        if (!dec.DecodeAndDrain(block.AsSpan(pos, clen), tmp, out var n) || n < 1) throw Bad("lz4 blob frame");
+                        if (got + n > len) throw Bad("lz4 frame crosses a blob boundary");
+                        tmp.AsSpan(0, n).CopyTo(s.Blobs.AsSpan(done + got));
+                        pos += clen; got += n;
+                    }
+                    done += len;
                 }
+                if (off != sizesEnd) throw Bad("unused lz4 blob frames");
             }
         }
 
@@ -459,6 +471,12 @@ public sealed class Kv3Tree
     /// (LZ4 output is encoder-defined, so compressed bytes are never compared).</summary>
     public (byte[] Buffer1, byte[] Buffer2, byte[] Blobs, int[] Header) Encode()
     {
+        var (b1, b2, blobs, h, _) = EncodeWithBlobLengths();
+        return (b1, b2, blobs, h);
+    }
+
+    private (byte[] Buffer1, byte[] Buffer2, byte[] Blobs, int[] Header, List<int> BlobLengths) EncodeWithBlobLengths()
+    {
         var s = new WriteState();
         WriteType(s, Root.Type, Root.Flag);
         WriteNode(s, Root);
@@ -510,7 +528,7 @@ public sealed class Kv3Tree
         h[27] = s.TotalObjects;
         h[28] = s.MainArrays;
         h[29] = s.MainElements;
-        return (b1.ToArray(), b2.ToArray(), blobData.ToArray(), h);
+        return (b1.ToArray(), b2.ToArray(), blobData.ToArray(), h, s.Blobs.ConvertAll(bl => bl.Length));
     }
 
     /// <summary>
@@ -523,10 +541,11 @@ public sealed class Kv3Tree
     {
         var method = compression ?? (Compression == 0 ? 0u : 1u);
         if (method > 1) throw new NotSupportedException("writes are uncompressed or LZ4");
-        var (b1, b2Body, blobs, h) = Encode();
+        var (b1, b2Body, blobs, h, blobLens) = EncodeWithBlobLengths();
         var frame = method == 1 ? (FrameSize == 0 ? (ushort)16384 : FrameSize) : (ushort)0;
 
-        // LZ4 blobs are compressed in chained frames; each frame's size trails buffer 2.
+        // One chained stream, but every blob starts a fresh frame: tier0 decodes blob by blob and
+        // a frame spanning two blobs overruns the first one's allocation (see Read).
         var b2 = new MemoryStream();
         b2.Write(b2Body);
         var blobOut = new MemoryStream();
@@ -535,15 +554,20 @@ public sealed class Kv3Tree
         {
             using var enc = new LZ4FastChainEncoder(frame, 0);
             var tmp = new byte[LZ4Codec.MaximumOutputSize(frame)];
-            for (var done = 0; done < blobs.Length;)
+            var start = 0;
+            foreach (var len in blobLens)
             {
-                var n = Math.Min(frame, blobs.Length - done);
-                var action = enc.TopupAndEncode(blobs.AsSpan(done, n), tmp, forceEncode: true, allowCopy: false, out var loaded, out var encoded);
-                if (loaded != n || encoded <= 0 || encoded > ushort.MaxValue) throw new InvalidDataException($"LZ4 blob frame failed ({action})");
-                Put(b2, (uint)encoded, 2);
-                blobOut.Write(tmp, 0, encoded);
-                frameSizes++;
-                done += n;
+                for (var got = 0; got < len;)
+                {
+                    var n = Math.Min(frame, len - got);
+                    var action = enc.TopupAndEncode(blobs.AsSpan(start + got, n), tmp, forceEncode: true, allowCopy: false, out var loaded, out var encoded);
+                    if (loaded != n || encoded <= 0 || encoded > ushort.MaxValue) throw new InvalidDataException($"LZ4 blob frame failed ({action})");
+                    Put(b2, (uint)encoded, 2);
+                    blobOut.Write(tmp, 0, encoded);
+                    frameSizes++;
+                    got += n;
+                }
+                start += len;
             }
         }
         else if (blobs.Length > 0) blobOut.Write(blobs);
