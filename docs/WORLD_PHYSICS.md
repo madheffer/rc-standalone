@@ -183,8 +183,11 @@ vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
    vertices and indices match the capture (`WorldCollisionInput` with
    `WORLDCOL_GPU=1`). The one-step points come from the API: by default
    resourcecompiler loads rendersystemdx11 (DefaultToolsRenderSystem, or
-   `-vulkan`), so that compile ran the DX11 build of the programs. Valve's
-   own output therefore depends on the render system and GPU.
+   `-vulkan`), so that compile ran the DX11 build of the programs. The same
+   compile with `-vulkan` (`capture_physshapes.py --vulkan`) reads back
+   exactly those 23 bytes differently from the DX11 one, and ours match it
+   on all 3,816 points, bit for bit. Valve's own output therefore depends
+   on the render system and GPU; the Vulkan path is the one we reproduce.
    Still open: a subdivided new-blending piece (the tessellation does not
    carry texcoords), and a texture's own request for more than the preload
    cap (the render system takes the larger of the two).
