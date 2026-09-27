@@ -132,9 +132,15 @@ pose, the radius times the largest column length. resourcecompiler moves the
 centres by the node's transform (180c25810, 180c25230; the identity, which
 turns -0 into +0), drops a shape whose radius is not above 0, and writes the
 part's spheres, capsules, hulls, then meshes (180c28230), registering
-attributes in that order. Addon models are read before the game's. Not yet
-checked against a compile: the test map `s2c_rounds` and the model
-`models/s2c_test/round_shapes.vmdl` in s2c_rc_probe wait on one.
+attributes in that order. Addon models are read before the game's. RED2 counts
+each kind in alphabetical key order, only when there are some
+(`physics_shape_capsule_count`, `physics_shape_count`, `..._hull_count`,
+`..._mesh_count`, `..._sphere_count`).
+
+The test map `s2c_rounds` (s2c_rc_probe) places stock sphere and capsule props
+(rotated, scaled, non-uniformly scaled) and an addon model of our own,
+`models/s2c_test/round_shapes.vmdl`, with two spheres and a capsule over two
+surfaces. Its world_physics comes out whole-file exact: 8 spheres, 5 capsules.
 
 ## How a mesh is built: `RnMeshCreate`
 

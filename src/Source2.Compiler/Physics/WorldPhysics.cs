@@ -184,13 +184,13 @@ public static class WorldPhysicsTrees
             ("physics_joint_count", new KVObject(0L))).Children)
             user.Add(key, value);
         // Counts only when there are shapes of the kind (a trigger's model has no
-        // mesh count, atixref's empty func_water model no count at all).
-        if (shapes > 0)
-            user.Add("physics_shape_count", I(shapes));
-        if (model.Hulls.Count > 0)
-            user.Add("physics_shape_hull_count", I(model.Hulls.Count));
-        if (model.MeshPieces > 0)
-            user.Add("physics_shape_mesh_count", I(model.MeshPieces));
+        // mesh count, atixref's empty func_water model no count at all), the keys
+        // in alphabetical order (s2c_rounds: capsule, count, mesh, sphere).
+        foreach (var (key, count) in new[] { ("physics_shape_capsule_count", model.Capsules.Count), ("physics_shape_count", shapes),
+                     ("physics_shape_hull_count", model.Hulls.Count), ("physics_shape_mesh_count", model.MeshPieces),
+                     ("physics_shape_sphere_count", model.Spheres.Count) })
+            if (count > 0)
+                user.Add(key, I(count));
         var names = KVObject.Collection();
         foreach (var (hash, name) in model.Surfaces)
         {
