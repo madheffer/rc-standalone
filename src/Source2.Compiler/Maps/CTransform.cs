@@ -12,7 +12,7 @@ namespace Source2.Compiler.Maps;
 /// entity by up to 0.001 at map coordinates. Measured against the matrices a
 /// compile hands FUN_1802b1ff0, bit for bit.
 /// </summary>
-internal readonly record struct CTransform(Vector3 Position, float Scale, Quaternion Rotation)
+public readonly record struct CTransform(Vector3 Position, float Scale, Quaternion Rotation)
 {
     /// <summary>A map node's transform: its origin and its angles, scale 1.</summary>
     public static CTransform FromNode(DmxBinary.Element node) => new(

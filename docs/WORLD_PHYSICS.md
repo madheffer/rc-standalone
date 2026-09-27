@@ -118,9 +118,19 @@ container facts) on atixref (86), ze_hold_em_p (24) and Mako (324).
   material in every slot. A non-solid material still makes hulls here.
 - Each mesh's pieces are hulled by its physics type as `BrushHulls` does, or,
   for a mesh-type mesh, cut and welded as the world's meshes are, in the
-  entity's space. A shape's collision attribute is the mesh's, gathered over
-  all its materials (Mako's func_water gives its toolsnodraw hull the water
-  attribute); its surface and tool material hash stay its own material's.
+  entity's space. An instance copy's entity and meshes are placed where the
+  collapse moved them (`BakedPlacement`); Mako's train doors and rotated
+  func_doors come out bit for bit only that way.
+- A material that sets no collision group or tags leaves its shape's
+  attribute unset, and the shape takes attribute 0, whichever registered it:
+  toolsnodraw after glass is window (atixref's breakables), after water is
+  water (Mako's func_water); first, it registers default. The world follows
+  the same rule. Surfaces and tool material hashes stay each material's own.
+- The physics block of models with render meshes comes from the same builder
+  and matches Valve's too: atixref 58 of 58, ze_hold_em_p 8 of 8, Mako 204 of
+  237. Mako's other 33 are glass breakables whose glass Valve's build of that
+  package did not read as translucent; that build was a shallow one (it has no
+  world_physics), so it is not taken as ground truth.
 - The part's flags are 0, or 2 when it has meshes. RED2: keep_vertices is an
   IntArg and mapbuilder_entity_classname's fingerprint is the class's string
   token. A shape kind's count appears only when there are such shapes.

@@ -61,6 +61,12 @@ public sealed class WorldPhysics
         var attributeKeys = new List<string>();
         int AttributeOf(WorldCollision.MaterialPhysics physics, WorldCollision.Piece piece)
         {
+            // A shape whose material sets no collision group or tags leaves its
+            // attribute unset and takes attribute 0, whichever registered it
+            // (atixref's glass breakables: toolsnodraw after glass is window;
+            // Mako's func_water: toolsnodraw after water is water).
+            if (Unset(physics) && attributeKeys.Count > 0)
+                return 0;
             var at = attributeKeys.IndexOf(physics.AttributeKey);
             if (at >= 0)
                 return at;
@@ -112,6 +118,9 @@ public sealed class WorldPhysics
         }
         return model;
     }
+
+    private static bool Unset(WorldCollision.MaterialPhysics p)
+        => p.CollisionGroup.Length == 0 && p.InteractAs.Length == 0 && p.InteractWith.Length == 0 && p.InteractExclude.Length == 0;
 
     // A tag list as the table writes it: each name once, in alphabetical order
     // (c2m2: ladder, npcclip, playerclip; atixref: "window, window" is one).

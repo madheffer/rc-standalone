@@ -58,23 +58,28 @@ public static class BrushHulls
     /// <paramref name="path"/> is the instance path's matrix for a world mesh
     /// inside an instance.
     /// </summary>
-    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local)> Pieces(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null)
-        => [.. PiecesWithCorners(mesh, entity, path).Select(p => (p.Material, p.Positions, p.Faces, p.Local))];
+    /// <param name="transformOf">A brush entity node's CTransform, its own by default; an
+    /// instance copy's is its baked placement (<see cref="Maps.SettleWorld.BakedPlacement"/>).</param>
+    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local)> Pieces(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null,
+        Func<DmxBinary.Element, Maps.CTransform>? transformOf = null)
+        => [.. PiecesWithCorners(mesh, entity, path, transformOf: transformOf).Select(p => (p.Material, p.Positions, p.Faces, p.Local))];
 
     /// <summary>
     /// <see cref="Pieces"/>, with the .vmap vertex behind each face corner
     /// (<c>CornerIds</c>, face for face) and its faceVertexData index
     /// (<c>CornerData</c>); <c>Bias</c> is the face set's lightmap scale bias.
     /// </summary>
-    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData, int Bias)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true)
+    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData, int Bias)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true,
+        Func<DmxBinary.Element, Maps.CTransform>? transformOf = null)
     {
+        transformOf ??= Maps.CTransform.FromNode;
         // A world mesh moves by its node's own matrix (AngleMatrix with the
         // origin, vtable slot 0xa0): atixref's rotated tool meshes at a pitch of
         // 89.99999 or a yaw of 179.99997 match only that way (506 pieces placed,
         // 500 bit for bit, against 501 and 492). A brush entity's mesh moves by
         // the CTransforms (Mako's 1266 hulls).
-        var toWorld = entity.Type == "CMapWorld" ? Maps.MapMeshes.Local(mesh) : Maps.CTransform.FromNode(mesh).Matrix();
-        var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
+        var toWorld = entity.Type == "CMapWorld" ? Maps.MapMeshes.Local(mesh) : transformOf(mesh).Matrix();
+        var toEntity = transformOf(entity).Inverse().Matrix();
         Vector3 Place(Vector3 p)
         {
             var moved = Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, p));

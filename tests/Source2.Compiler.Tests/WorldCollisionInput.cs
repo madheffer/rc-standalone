@@ -226,13 +226,20 @@ public class WorldCollisionInput(ITestOutputHelper output)
                     var ourKeys = new List<string>();
                     for (var t = 0; t < p.Indices.Length; t += 3)
                         ourKeys.Add(Key(p.Points[p.Indices[t]], p.Points[p.Indices[t + 1]], p.Points[p.Indices[t + 2]]));
-                    foreach (var d in dumped.Where(d => d.V.Length == p.Points.Length * 12))
+                    // The dumped shape sharing the most triangles, whatever its vertex count.
+                    var ourSet = ourKeys.ToHashSet();
+                    var best = dumped.Select(d =>
                     {
-                        var tv = MemoryMarshal.Cast<byte, Vector3>(d.V).ToArray();
-                        var ti = MemoryMarshal.Cast<byte, int>(d.I).ToArray();
-                        var theirKeys = new List<string>();
-                        for (var t = 0; t < ti.Length; t += 3)
-                            theirKeys.Add(Key(tv[ti[t]], tv[ti[t + 1]], tv[ti[t + 2]]));
+                        var dv = MemoryMarshal.Cast<byte, Vector3>(d.V).ToArray();
+                        var di = MemoryMarshal.Cast<byte, int>(d.I).ToArray();
+                        var keys = new List<string>();
+                        for (var t = 0; t + 2 < di.Length; t += 3)
+                            if (di[t] < dv.Length && di[t + 1] < dv.Length && di[t + 2] < dv.Length)
+                                keys.Add(Key(dv[di[t]], dv[di[t + 1]], dv[di[t + 2]]));
+                        return (Keys: keys, Shared: keys.Count(ourSet.Contains));
+                    }).MaxBy(x => x.Shared);
+                    foreach (var theirKeys in new[] { best.Keys })
+                    {
                         var onlyOurs = ourKeys.Except(theirKeys).ToList();
                         var onlyTheirs = theirKeys.Except(ourKeys).ToList();
                         var firstOrder = Enumerable.Range(0, Math.Min(ourKeys.Count, theirKeys.Count)).FirstOrDefault(i => ourKeys[i] != theirKeys[i], -1);

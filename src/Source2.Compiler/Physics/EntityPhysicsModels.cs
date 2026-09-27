@@ -40,7 +40,7 @@ public static class EntityPhysicsModels
             if (instance.Get<DmxBinary.Element>("target") is { } target)
                 targets.Add(target);
         var hidden = MapEntities.HiddenNodes(doc);
-        var entities = new List<(DmxBinary.Element Element, int NodeId)>();
+        var entities = new List<(DmxBinary.Element Element, int NodeId, IReadOnlyList<DmxBinary.Element> Through)>();
         void Walk(DmxBinary.Element node)
         {
             foreach (var child in node.GetElements("children"))
@@ -48,7 +48,7 @@ public static class EntityPhysicsModels
                 if (targets.Contains(child) || hidden.Contains(child.GetValue<int>("nodeID") ?? -1))
                     continue;
                 if (child.Type == "CMapEntity")
-                    entities.Add((child, child.GetValue<int>("nodeID") ?? -1));
+                    entities.Add((child, child.GetValue<int>("nodeID") ?? -1, []));
                 Walk(child);
             }
         }
@@ -58,20 +58,27 @@ public static class EntityPhysicsModels
         // own id (MapInstances.Expand), named after the template.
         var createdOnLoad = smartProp == null ? 0
             : SmartProps.NodesCreatedOnLoad(doc, path => smartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0);
-        MapInstances.Expand(doc, MapEntities.From(doc), createdOnLoad, (node, id, _) =>
+        MapInstances.Expand(doc, MapEntities.From(doc), createdOnLoad, (node, id, through) =>
         {
             if (node.Type == "CMapEntity")
-                entities.Add((node, id));
+                entities.Add((node, id, through));
         });
-        foreach (var (entity, nodeId) in entities)
+        foreach (var (entity, nodeId, through) in entities)
         {
-            if (One(entity, nodeId) is { } model)
+            if (One(entity, nodeId, through) is { } model)
                 models.Add(model);
         }
         return models;
 
-        Model? One(DmxBinary.Element entity, int nodeId)
+        Model? One(DmxBinary.Element entity, int nodeId, IReadOnlyList<DmxBinary.Element> through)
         {
+            // An instance copy's entity and meshes are where the collapse moved
+            // them (Mako's spawn train doors and rotated func_doors).
+            Func<DmxBinary.Element, CTransform>? transformOf = through.Count == 0 ? null : node =>
+            {
+                var (origin, angles) = SettleWorld.BakedPlacement(node, through);
+                return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
+            };
             // The lump points every brush entity at a model, but a hidden mesh is
             // not compiled, and an entity left with none gets no file.
             var meshes = Meshes(entity).Where(m => !hidden.Contains(m.GetValue<int>("nodeID") ?? -1)).ToList();
@@ -94,11 +101,21 @@ public static class EntityPhysicsModels
             {
                 var names = mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
                 var type = BrushHulls.Resolve(PhysicsTypeOf(mesh), true, className == "func_shatterglass", false, false);
-                // A shape's collision attribute is the mesh's, gathered over all its
-                // materials, while its surface stays its own material's: Mako's
-                // func_water gives its toolsnodraw hull the water attribute.
-                var meshPhysics = Union(names.Select(n => WorldCollision.ReadMaterial(material(applied ?? (n as string ?? "")), collisionProperty)));
-                foreach (var (slot, positions, faces, local) in BrushHulls.Pieces(mesh, entity))
+                // A mesh with a water material gives every shape the mesh's collision
+                // attribute, gathered over all its materials (Mako's func_water: its
+                // toolsnodraw hull is water too); otherwise each keeps its own
+                // (atixref's breakables: glass is window, toolsnodraw default).
+                // Surfaces stay each material's own.
+                var gathered = Union(names.Select(n => WorldCollision.ReadMaterial(material(applied ?? (n as string ?? "")), collisionProperty)));
+                var water = false;
+                WorldCollision.MaterialPhysics Attributed(WorldCollision.MaterialPhysics own) => !water ? own : own with
+                {
+                    CollisionGroup = gathered.CollisionGroup,
+                    InteractAs = gathered.InteractAs,
+                    InteractWith = gathered.InteractWith,
+                    InteractExclude = gathered.InteractExclude,
+                };
+                foreach (var (slot, positions, faces, local) in BrushHulls.Pieces(mesh, entity, transformOf: transformOf))
                 {
                     var own = slot < names.Length ? (names[slot] as string ?? "") : "";
                     if (material(own)?.Ints.GetValueOrDefault("mapbuilder.nodraw") != 1)
@@ -108,13 +125,7 @@ public static class EntityPhysicsModels
                         continue;
                     if (type == BrushHulls.PhysicsType.Mesh)
                         continue;
-                    var physics = WorldCollision.ReadMaterial(material(name), collisionProperty) with
-                    {
-                        CollisionGroup = meshPhysics.CollisionGroup,
-                        InteractAs = meshPhysics.InteractAs,
-                        InteractWith = meshPhysics.InteractWith,
-                        InteractExclude = meshPhysics.InteractExclude,
-                    };
+                    var physics = Attributed(WorldCollision.ReadMaterial(material(name), collisionProperty));
                     foreach (var input in BrushHulls.Inputs(positions, faces, type, local))
                     {
                         var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
@@ -132,17 +143,11 @@ public static class EntityPhysicsModels
                 // as the world's are, in the entity's space (Mako's ladders and pushes).
                 if (type == BrushHulls.PhysicsType.Mesh)
                 {
-                    foreach (var (slot, positions, faces, local, corners, _, _) in BrushHulls.PiecesWithCorners(mesh, entity))
+                    foreach (var (slot, positions, faces, local, corners, _, _) in BrushHulls.PiecesWithCorners(mesh, entity, transformOf: transformOf))
                     {
                         var own = slot < names.Length ? (names[slot] as string ?? "") : "";
                         var name = applied ?? own;
-                        var physics = WorldCollision.ReadMaterial(material(name), collisionProperty) with
-                        {
-                            CollisionGroup = meshPhysics.CollisionGroup,
-                            InteractAs = meshPhysics.InteractAs,
-                            InteractWith = meshPhysics.InteractWith,
-                            InteractExclude = meshPhysics.InteractExclude,
-                        };
+                        var physics = Attributed(WorldCollision.ReadMaterial(material(name), collisionProperty));
                         var (points, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners);
                         var indices = new int[triangles.Count * 3];
                         for (var t = 0; t < triangles.Count; t++)

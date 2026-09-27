@@ -29,7 +29,7 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
         var models = Physics.EntityPhysicsModels.Build(doc, p[1], content.Material, content.CollisionProperty, MapFixtures.GameSchema(), notes, content.SmartProp);
         using var package = new Package();
         package.Read(p[2]);
-        int exact = 0, differ = 0, missing = 0, kindWrong = 0, shown = 0;
+        int exact = 0, differ = 0, missing = 0, kindWrong = 0, shown = 0, renderPhysExact = 0, renderPhysDiffer = 0;
         var tally = new Dictionary<string, int>();
         foreach (var model in models)
         {
@@ -64,7 +64,40 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
                 continue;
             }
             if (!model.PhysicsOnly)
+            {
+                // A model with render meshes: its physics block alone, which the
+                // same builder makes (the render half is not ported).
+                var valvePhys = WorldPhysicsAuthorTests.Trees(bytes).GetValueOrDefault("PHYS");
+                var ourPhys = WorldPhysicsAuthorTests.Trees(Physics.EntityPhysicsModels.Author(model, content.SurfaceName)).GetValueOrDefault("PHYS");
+                var physReport = valvePhys == null || ourPhys == null
+                    ? (valvePhys == null) == (ourPhys == null) ? [] : [$"PHYS: {(valvePhys == null ? "Valve's has none" : "ours has none")}"]
+                    : KvTreeDiff.Diff(valvePhys, ourPhys).Select(l => "PHYS" + l).ToList();
+                if (physReport.Count == 0)
+                    renderPhysExact++;
+                else
+                {
+                    renderPhysDiffer++;
+                    foreach (var line in physReport)
+                    {
+                        var key = System.Text.RegularExpressions.Regex.Replace(line.Split(':')[0], @"\[\d+\]", "[]");
+                        tally[key] = tally.GetValueOrDefault(key) + 1;
+                    }
+                    if (shown++ < show)
+                    {
+                        output.WriteLine($"{model.Path} ({model.ClassName}, with render): {physReport.Count} PHYS differences: {string.Join(" ; ", physReport.Take(6))}");
+                        var src = doc.Elements.FirstOrDefault(e => e.Type == "CMapEntity" && e.GetValue<int>("nodeID") == model.NodeId);
+                        foreach (var m in src?.GetElements("children").Where(c => c.Type == "CMapMesh") ?? [])
+                            foreach (var mat in (m.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => x as string ?? ""))
+                            {
+                                var info = content.Material(mat);
+                                output.WriteLine($"    material {mat} shader {info?.Shader} attr '{Physics.WorldCollision.ReadMaterial(info, content.CollisionProperty).AttributeKey}'"
+                                    + $" ints {string.Join(",", info?.Ints.Where(kv => kv.Key.StartsWith("mapbuilder", StringComparison.Ordinal) || kv.Key.StartsWith("F_", StringComparison.Ordinal)).Select(kv => $"{kv.Key}={kv.Value}") ?? [])}"
+                                    + $" params {string.Join(",", info?.Params.Where(kv => kv.Key.StartsWith("F_", StringComparison.Ordinal)).Select(kv => $"{kv.Key}={kv.Value}") ?? [])}");
+                            }
+                    }
+                }
                 continue;
+            }
             var mine = Physics.EntityPhysicsModels.Author(model, content.SurfaceName);
             var report = WorldPhysicsAuthorTests.Compare(bytes, mine);
             if (report.Count == 0)
@@ -86,11 +119,11 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
         foreach (var x in theirsOnly.Take(show))
             output.WriteLine($"only in Valve's: {x}");
         missing += theirsOnly.Count;
-        output.WriteLine($"{models.Count} brush entity models: physics only exact {exact}, differ {differ}, kind wrong {kindWrong}, not in package {missing - theirsOnly.Count}, only Valve's {theirsOnly.Count}");
+        output.WriteLine($"{models.Count} brush entity models: physics only exact {exact}, differ {differ}, kind wrong {kindWrong}, not in package {missing - theirsOnly.Count}, only Valve's {theirsOnly.Count}; with render: PHYS exact {renderPhysExact}, differ {renderPhysDiffer}");
         foreach (var (key, count) in tally.OrderByDescending(x => x.Value).Take(20))
             output.WriteLine($"  {count,4} {key}");
         foreach (var note in notes.Take(10))
             output.WriteLine($"note: {note}");
-        Assert.Equal(0, differ + kindWrong + missing);
+        Assert.Equal(0, differ + kindWrong + missing + renderPhysDiffer);
     }
 }
