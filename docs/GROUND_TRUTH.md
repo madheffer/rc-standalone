@@ -52,6 +52,11 @@ game can answer is raised with the user first, and runs with -insecure.
 12. **VPK v2 layout** (tree order, chunk hashes, signature section): byte
     exact on four packages, the packer not read.
 
+21. **Case folding.** tier0 folds A-Z only (ToLowerFast, stristr,
+    stricmp_fast); the port uses .NET's wider folding in about 160 places.
+    Identical on ASCII text; audit each against the Valve call it mirrors.
+    The string token hash already uses the ASCII rule.
+
 ### Map resources
 13. The angles of instance copies inside a world layer (a round trip off).
 14. Mako's cable_dynamic rendercolor written as text.

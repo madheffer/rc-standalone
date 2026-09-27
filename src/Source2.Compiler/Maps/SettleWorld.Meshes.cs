@@ -339,39 +339,15 @@ public static partial class SettleWorld
         return [.. groups.Select(g => g.ToArray())];
     }
 
-    /// <summary>MurmurHash2 (32 bit) of the lowercased name with seed 0x31415926, the string token hash.</summary>
+    /// <summary>
+    /// The string token hash: MurmurHash2 with seed 0x31415926 after ASCII
+    /// lowering, as resourcecompiler's 1800c7c10 inlines it (see
+    /// <see cref="Io.ResourceNames.Hash"/>).
+    /// </summary>
     internal static uint NameHash(string name)
     {
-        var data = System.Text.Encoding.UTF8.GetBytes(name.ToLowerInvariant());
-        const uint M = 0x5bd1e995;
-        var h = 0x31415926u ^ (uint)data.Length;
-        var i = 0;
-        for (; i + 4 <= data.Length; i += 4)
-        {
-            var k = BitConverter.ToUInt32(data, i);
-            k *= M;
-            k ^= k >> 24;
-            k *= M;
-            h *= M;
-            h ^= k;
-        }
-        switch (data.Length - i)
-        {
-            case 3:
-                h ^= (uint)data[i + 2] << 16;
-                goto case 2;
-            case 2:
-                h ^= (uint)data[i + 1] << 8;
-                goto case 1;
-            case 1:
-                h ^= data[i];
-                h *= M;
-                break;
-        }
-        h ^= h >> 13;
-        h *= M;
-        h ^= h >> 15;
-        return h;
+        var bytes = Io.ResourceNames.Terminated(name);
+        return Io.ResourceNames.Hash(bytes, bytes.Length - 1, 0x31415926);
     }
 
     private static int[] MeshInts(DmxBinary.Element data, string name)
