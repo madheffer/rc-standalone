@@ -31,8 +31,9 @@ game can answer is raised with the user first, and runs with -insecure.
    layer, welded at 1/32, and each is hulled on its own. The port keeps the
    unsplit hull when one layer takes everything and notes the rest. Port the
    split mesh literally.
-3. **PHYS block compression.** The Zstd threshold was bracketed from sizes
-   (512 KiB assumed). Read the block writer's decision.
+3. **KV3 encodings per resource type.** Most block writers save with
+   binary_auto (settled below), but some call sites pass plain "binary" or
+   "binary_bc". Map each writer to the resource types it serves.
 4. **Face order around a vertex** in the brush hull neighbour set: triangle
    order stands in (it only matters on a hash collision).
 5. **Instance path for brush entity meshes**: applied after the node's own
@@ -84,3 +85,10 @@ game can answer is raised with the user first, and runs with -insecure.
   triangles are skipped outright. The tool hash is kept when exactly one
   hash has triangles. The name joins non-empty names with "; ", is long past
   50 characters, and the next name seals it with "; ...".
+- **KV3 block compression** (2026-09-28, decompile). resourcecompiler saves
+  resource blocks with tier0's binary_auto encoding (the RED2 writer among
+  them). tier0 sums the buffer (its trailer included) and the blobs: under
+  256 bytes the block is raw, under 0x80001 it is LZ4, otherwise Zstd. This
+  replaces the two bracketed cuts (raw at or below 256 on the buffer alone;
+  Zstd above 512 KiB for PHYS only): a block of exactly 256 bytes is now
+  compressed, blobs count, and any block past 0x80000 is Zstd.

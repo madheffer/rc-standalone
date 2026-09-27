@@ -13,11 +13,8 @@ namespace Source2.Compiler;
 /// <para>Measured on every Valve-compiled map at hand (32 local compiles,
 /// resourcecompiler 0923): resource version 1, blocks in the order
 /// <c>PHYS CTRL RED2 DATA</c>, every block KV3 v5 under the generic format.
-/// CTRL only points the model at its embedded physics and is always stored
-/// raw (183 bytes). RED2 and DATA follow the usual payload cut (LZ4 above 256
-/// bytes). PHYS is LZ4 up to at least 456,332 bytes of uncompressed payload
-/// (buffer plus blobs) and Zstd from 527,006; 512 KiB is taken as the cut, the
-/// one round figure in that window.</para>
+/// Every block's compression is binary_auto's (<see cref="AuthoredKv3.ChooseCompression"/>):
+/// CTRL (183 bytes) is raw, and PHYS turns Zstd past 0x80000 bytes.</para>
 ///
 /// <para>Compressed bytes are encoder defined, so parity is the decoded tree
 /// of each block plus the container facts (docs/RC_PARITY.md).</para>
@@ -26,9 +23,6 @@ public static class WorldPhysicsAuthor
 {
     /// <summary>The container's resource version.</summary>
     public const ushort ResourceVersion = 1;
-
-    /// <summary>Uncompressed PHYS payload (buffer plus blobs) above which it is Zstd rather than LZ4.</summary>
-    public const int ZstdThreshold = 512 * 1024;
 
     /// <summary>The CTRL tree every world_physics carries: the model's physics is embedded block 0.</summary>
     public static KVObject Ctrl()
@@ -61,8 +55,6 @@ public static class WorldPhysicsAuthor
         resource.Blocks.Add(AuthoredKv3.Block(red2, generic, BlockType.RED2, resource));
         resource.Blocks.Add(AuthoredKv3.Block(data, generic, BlockType.DATA, resource));
         AuthoredKv3.ChooseCompression(resource);
-        if (physBlock != null && AuthoredKv3.TotalPayloadBytes(physBlock) > ZstdThreshold)
-            physBlock.SerializationCompressionMethod = KV3BinaryCompressionMethod.Zstd;
         using var ms = new MemoryStream();
         resource.Serialize(ms);
         return ms.ToArray();

@@ -86,11 +86,11 @@ public class Kv3CompressionParityTests
     }
 
     [Fact]
-    public void TheThresholdSitsInTheWindowTheSamplesBracket()
+    public void TheRawCutSitsInTheWindowTheSamplesBracket()
     {
-        // Largest block RC left uncompressed was 252 B; smallest it compressed was 279 B,
-        // measured over ~3,600 Valve-compiled v5 blocks. A threshold outside that window
-        // contradicts the corpus, whichever round number is eventually confirmed.
-        Assert.InRange(AuthoredKv3.CompressionThreshold, 253, 279);
+        // tier0 stores a binary_auto block raw below 256 bytes of buffer plus
+        // blobs; the corpus (largest raw 252 B, smallest compressed 279 B over
+        // ~3,600 Valve-compiled v5 blocks) agrees with it.
+        Assert.InRange(AuthoredKv3.RawBelow, 253, 279);
     }
 }
