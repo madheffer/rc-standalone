@@ -235,11 +235,26 @@ Static props (`StaticPropHulls`, `WorldCollision.PropPieces`):
   ze_hold_em_nb and its flat paint copy are exact end to end
   (`WorldCollisionInput`).
 
+World mesh pieces (measured on atixref's full-compile capture):
+- A world mesh moves by its node's own matrix (AngleMatrix with the origin),
+  a brush entity's mesh by the CTransforms. Rotated tool meshes at a pitch of
+  89.99999, a yaw of 179.99997 or a roll of 90 tell the two apart.
+- A subdivided world mesh's tessellated pieces then go through the 1/32 piece
+  weld on their world positions, which joins points of neighbouring patches a
+  hair apart.
+- 509 of atixref's 525 captured mesh pieces are ours, 501 bit for bit.
+
 Still open:
+- Smart props (CMapSmartProp): atixref's radiator_01.vsmart makes the other
+  13 mesh pieces. The .vmap keeps only each element's random seed and locator
+  deltas; the placement comes from evaluating the .vsmart (FitOnLine, Model,
+  selection criteria, sizer, translate).
+- Six atixref pieces whose faces are cut in another order (a 16-gon cap on a
+  rotated cylinder, sliver quads on large ceiling faces), and two subdivided
+  pieces with 4 vertices an ulp off.
 - Static props: spheres and capsules; a prop's bone overrides (PosableSkeleton);
   props inside a CMapPrefab (c2m2 multi); a lattice deformer; the `solid`
-  override keys for a collision property and surface. atixref's soups still
-  differ, from its 24 captured mesh pieces we do not make.
+  override keys for a collision property and surface.
 - ze_hold_em_p's subdivided floor: 224 of its 4480 triangles differ from the
   capture, and their order does too, though its faces are not stitched.
 - The shipped `m_Materials`. RnMeshCreate gets no materials for cardtest's
