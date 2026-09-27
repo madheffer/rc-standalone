@@ -176,3 +176,87 @@ public class VmapTreeProbe(ITestOutputHelper output)
             Walk(w, 0);
     }
 }
+
+/// <summary>Exploration: every attribute of the nodes with given ids, nested elements one level down. <c>VMAPNODE=&lt;.vmap&gt;|id,id,...</c>.</summary>
+public class VmapNodeProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Node()
+    {
+        if (Environment.GetEnvironmentVariable("VMAPNODE") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var ids = p[1].Split(',').Select(int.Parse).ToHashSet();
+        var doc = DmxBinary.ReadFile(p[0]);
+        foreach (var e in doc.Elements.Where(e => e.GetValue<int>("nodeID") is { } id && ids.Contains(id)))
+        {
+            output.WriteLine($"{e.Type} {e.GetValue<int>("nodeID")}:");
+            foreach (var (k, v) in e.Attributes)
+            {
+                output.WriteLine($"  {k} = {(v is object?[] a ? $"[{a.Length}] " + string.Join(" ", a.Take(6)) : v)}");
+                if (v is DmxBinary.Element sub)
+                    foreach (var (k2, v2) in sub.Attributes.Take(40))
+                        output.WriteLine($"    {k2} = {(v2 is object?[] a2 ? $"[{a2.Length}] " + string.Join(" ", a2.Take(6)) : v2)}");
+            }
+        }
+    }
+}
+
+/// <summary>Exploration: an element tree under a node's attribute, recursively. <c>VMAPDEEP=&lt;.vmap&gt;|id|attribute|depth</c>.</summary>
+public class VmapDeepProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Deep()
+    {
+        if (Environment.GetEnvironmentVariable("VMAPDEEP") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var doc = DmxBinary.ReadFile(p[0]);
+        var node = doc.Elements.First(e => e.GetValue<int>("nodeID") == int.Parse(p[1]));
+        var max = int.Parse(p[3]);
+        var seen = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        void Dump(object? v, string name, int depth)
+        {
+            var pad = new string(' ', depth * 2);
+            switch (v)
+            {
+                case DmxBinary.Element e:
+                    output.WriteLine($"{pad}{name}: <{e.Type} \"{e.Name}\">");
+                    if (depth < max && seen.Add(e))
+                        foreach (var (k, x) in e.Attributes)
+                            Dump(x, k, depth + 1);
+                    break;
+                case object?[] a:
+                    output.WriteLine($"{pad}{name}: [{a.Length}]");
+                    for (var i = 0; i < a.Length && i < 40; i++)
+                        Dump(a[i], $"[{i}]", depth + 1);
+                    break;
+                default:
+                    output.WriteLine($"{pad}{name} = {v}");
+                    break;
+            }
+        }
+        Dump(node.Attributes[p[2]], p[2], 0);
+    }
+}
+
+/// <summary>Exploration: mesh nodes' transform, face count and subdivision. <c>MESHINFO=&lt;.vmap&gt;|id,id,...</c>.</summary>
+public class MeshInfoProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Info()
+    {
+        if (Environment.GetEnvironmentVariable("MESHINFO") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var ids = p[1].Split(',').Select(int.Parse).ToHashSet();
+        var doc = DmxBinary.ReadFile(p[0]);
+        foreach (var e in doc.OfType("CMapMesh").Where(e => e.GetValue<int>("nodeID") is { } id && ids.Contains(id)))
+        {
+            var data = e.Get<DmxBinary.Element>("meshData")!;
+            var levels = data.Get<DmxBinary.Element>("subdivisionData")?.Get<object?[]>("subdivisionLevels") ?? [];
+            var faces = (data.Get<object?[]>("faceEdgeIndices") ?? []).Length;
+            output.WriteLine($"mesh {e.GetValue<int>("nodeID")}: origin {e.GetValue<System.Numerics.Vector3>("origin")} angles {e.GetValue<System.Numerics.Vector3>("angles")} scales {e.GetValue<System.Numerics.Vector3>("scales")} faces {faces} subdivided {levels.Count(x => x is int i && i > 0)} physicsType {e.Get<string>("physicsType")}");
+        }
+    }
+}

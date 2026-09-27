@@ -224,7 +224,9 @@ public class WorldCollisionInput(ITestOutputHelper output)
                     var c = cands[0];
                     var vi = Enumerable.Range(0, p.Points.Length).FirstOrDefault(k => BitConverter.ToSingle(c.V, k * 12) != p.Points[k].X || BitConverter.ToSingle(c.V, (k * 12) + 4) != p.Points[k].Y || BitConverter.ToSingle(c.V, (k * 12) + 8) != p.Points[k].Z, -1);
                     var ii = Enumerable.Range(0, Math.Min(p.Indices.Length, c.I.Length / 4)).FirstOrDefault(k => BitConverter.ToInt32(c.I, k * 4) != p.Indices[k], -1);
-                    notes.Add($"{p.NodeId}/{p.Material} {Path.GetFileNameWithoutExtension(p.MaterialName)}: first vertex difference at {vi}, first index difference at {ii} (ours {p.Indices.Length}, theirs {c.I.Length / 4})");
+                    var detail = vi < 0 ? "" : $" ours {p.Points[vi].X:R},{p.Points[vi].Y:R},{p.Points[vi].Z:R} theirs {BitConverter.ToSingle(c.V, vi * 12):R},{BitConverter.ToSingle(c.V, (vi * 12) + 4):R},{BitConverter.ToSingle(c.V, (vi * 12) + 8):R}";
+                    var differing = Enumerable.Range(0, p.Points.Length).Count(k => BitConverter.ToSingle(c.V, k * 12) != p.Points[k].X || BitConverter.ToSingle(c.V, (k * 12) + 4) != p.Points[k].Y || BitConverter.ToSingle(c.V, (k * 12) + 8) != p.Points[k].Z);
+                    notes.Add($"{p.NodeId}/{p.Material} {Path.GetFileNameWithoutExtension(p.MaterialName)}: first vertex difference at {vi}{detail}, {differing} of {p.Points.Length} vertices differ, first index difference at {ii} (ours {p.Indices.Length}, theirs {c.I.Length / 4})");
                 }
             }
             output.WriteLine($"BITEXACT {exact} of {sameFirst} pieces with a captured shape's count and first vertex are identical, vertices and indices");

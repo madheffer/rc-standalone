@@ -68,7 +68,12 @@ public static class BrushHulls
     /// </summary>
     public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData, int Bias)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true)
     {
-        var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
+        // A world mesh moves by its node's own matrix (AngleMatrix with the
+        // origin, vtable slot 0xa0): atixref's rotated tool meshes at a pitch of
+        // 89.99999 or a yaw of 179.99997 match only that way (506 pieces placed,
+        // 500 bit for bit, against 501 and 492). A brush entity's mesh moves by
+        // the CTransforms (Mako's 1266 hulls).
+        var toWorld = entity.Type == "CMapWorld" ? Maps.MapMeshes.Local(mesh) : Maps.CTransform.FromNode(mesh).Matrix();
         var toEntity = Maps.CTransform.FromNode(entity).Inverse().Matrix();
         var result = new List<(int, Vector3[], int[][], Vector3[], int[][], int[][], int)>();
         foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords))
