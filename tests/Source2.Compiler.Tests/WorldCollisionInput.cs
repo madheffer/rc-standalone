@@ -213,6 +213,44 @@ public class WorldCollisionInput(ITestOutputHelper output)
             foreach (var p in pieces.Where(p => p.Points.Length > 0))
             {
                 // WORLDCOL_PIECE on a piece whose count differs: the dumped shape with its first vertex.
+                // WORLDCOL_SETS on a piece: its triangles against the dumped shape of its
+                // vertex count holding the most of them, as sets of corner positions.
+                if (Environment.GetEnvironmentVariable("WORLDCOL_SETS") == $"{p.NodeId}/{p.Material}")
+                {
+                    static string Key(Vector3 a, Vector3 b, Vector3 c)
+                    {
+                        var r = new[] { a, b, c }.Select(v => v.ToString("R", null)).ToArray();
+                        var s = Enumerable.Range(0, 3).MinBy(i => r[i], StringComparer.Ordinal);
+                        return $"{r[s]}|{r[(s + 1) % 3]}|{r[(s + 2) % 3]}";
+                    }
+                    var ourKeys = new List<string>();
+                    for (var t = 0; t < p.Indices.Length; t += 3)
+                        ourKeys.Add(Key(p.Points[p.Indices[t]], p.Points[p.Indices[t + 1]], p.Points[p.Indices[t + 2]]));
+                    foreach (var d in dumped.Where(d => d.V.Length == p.Points.Length * 12))
+                    {
+                        var tv = MemoryMarshal.Cast<byte, Vector3>(d.V).ToArray();
+                        var ti = MemoryMarshal.Cast<byte, int>(d.I).ToArray();
+                        var theirKeys = new List<string>();
+                        for (var t = 0; t < ti.Length; t += 3)
+                            theirKeys.Add(Key(tv[ti[t]], tv[ti[t + 1]], tv[ti[t + 2]]));
+                        var onlyOurs = ourKeys.Except(theirKeys).ToList();
+                        var onlyTheirs = theirKeys.Except(ourKeys).ToList();
+                        var firstOrder = Enumerable.Range(0, Math.Min(ourKeys.Count, theirKeys.Count)).FirstOrDefault(i => ourKeys[i] != theirKeys[i], -1);
+                        output.WriteLine($"  SETS {p.NodeId}/{p.Material}: ours {ourKeys.Count} t, theirs {theirKeys.Count} t; only ours {onlyOurs.Count}, only theirs {onlyTheirs.Count}; first order difference at triangle {firstOrder}");
+                        foreach (var x in onlyOurs.Take(6))
+                            output.WriteLine($"    only ours {x}");
+                        foreach (var x in onlyTheirs.Take(6))
+                            output.WriteLine($"    only theirs {x}");
+                        if (firstOrder >= 0)
+                        {
+                            var at = ourKeys.Select((k, i) => (k, i)).GroupBy(x => x.k).ToDictionary(g => g.Key, g => g.First().i);
+                            output.WriteLine($"    ORDER theirs as ours: {string.Join(" ", theirKeys.Skip(Math.Max(0, firstOrder - 2)).Take(160).Select(k => at.TryGetValue(k, out var i) ? i : -1))}");
+                        }
+                        if (firstOrder >= 0)
+                            for (var i = firstOrder; i < Math.Min(firstOrder + 8, ourKeys.Count); i++)
+                                output.WriteLine($"    t{i}: ours {ourKeys[i]}  theirs {theirKeys[i]}");
+                    }
+                }
                 if (Environment.GetEnvironmentVariable("WORLDCOL_PIECE") == $"{p.NodeId}/{p.Material}" && !byFirst.ContainsKey((p.Points.Length, p.Points[0])))
                 {
                     var any = dumped.FirstOrDefault(d => d.V.Length >= 12 && new Vector3(BitConverter.ToSingle(d.V, 0), BitConverter.ToSingle(d.V, 4), BitConverter.ToSingle(d.V, 8)) == p.Points[0]);

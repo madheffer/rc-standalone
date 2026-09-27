@@ -52,10 +52,9 @@ doubles.
   so it takes the dictionary's spelling (`Default`, `ConditionallySolid`);
   names the game registers itself keep the model's.
 
-Built from the map, the whole file is Valve's on atixref, ze_hold_em_nb and
-ze_hold_em_paint_flat (every block's tree and the container facts;
-ze_hold_em_nb with the GPU sampler). ze_hold_em_p and ze_hold_em_paint differ
-only in the subdivided floor's soup below.
+Built from the map, the whole file is Valve's on atixref, ze_hold_em_nb,
+ze_hold_em_p, ze_hold_em_paint and ze_hold_em_paint_flat (every block's tree
+and the container facts; ze_hold_em_nb with the GPU sampler).
 
 ## How a mesh is built: `RnMeshCreate`
 
@@ -138,8 +137,7 @@ vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
      triangles. Its triangles go in unshared and are welded at 1/32.
 
    On ze_hold_em_p the split layers and both empty ones are bit-identical,
-   and so is every soup vertex before the subdivided floor. That floor's
-   triangles are cut slightly differently (see below). atixref's trim splits
+   and so is the whole soup, subdivided floor included. atixref's trim splits
    into 8-vertex `[Wood]` shapes and empty `[plaster]` ones, as captured.
 
    The paint the split sees, measured from a capture of painted copies of
@@ -289,6 +287,11 @@ World mesh pieces (measured on atixref's full-compile capture):
   positions faces one after another (builder order, a face's patches in
   corner order), so the last patch to write the point wins: the cluster takes
   its latest-written member's position, not its first.
+- Past level 2 a patch is split more than once (FUN_1813ca560): a region's
+  children go in corner order 0, 1, 3, 2, children 0 to 2 appended and child
+  3 keeping the region's slot, and each child keeps its parent's corner order
+  (parent corner k at its own index k). ze_hold_em_p's level 3 floor, 4480
+  triangles, comes out in Valve's order.
 - A world mesh's faces are cut on their world positions, not the mesh's own:
   ear scores that tie or nearly tie come out the other way in the mesh's
   space. On atixref that is eleven faces over six pieces: large ceiling and
@@ -338,8 +341,6 @@ Still open:
 - Static props: spheres and capsules; a prop's bone overrides (PosableSkeleton);
   props inside a CMapPrefab (c2m2 multi); a lattice deformer; the `solid`
   override keys for a collision property and surface.
-- ze_hold_em_p's subdivided floor: 224 of its 4480 triangles differ from the
-  capture, and their order does too, though its faces are not stitched.
 - The shipped `m_Materials`. RnMeshCreate gets no materials for cardtest's
   soups, yet the shipped mesh has 292. They are written afterwards.
 - One material attribute: a named collision property that overrides the group

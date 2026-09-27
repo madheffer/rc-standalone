@@ -12,6 +12,19 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class TessellationWeldProbe(ITestOutputHelper output)
 {
+    /// <summary><c>TESSLEVELS=&lt;.vmap&gt;|&lt;node&gt;</c>: how many face corners carry each subdivision level.</summary>
+    [Fact]
+    public void Levels()
+    {
+        if (Environment.GetEnvironmentVariable("TESSLEVELS") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var mesh = MapMeshes.Read(DmxBinary.ReadFile(p[0])).First(m => m.NodeId == int.Parse(p[1])).Element!;
+        var levels = mesh.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("subdivisionData")!.Get<object?[]>("subdivisionLevels")!;
+        foreach (var g in levels.GroupBy(x => x).OrderBy(g => g.Key))
+            output.WriteLine($"level {g.Key}: {g.Count()} corners");
+    }
+
     [Fact]
     public void Near()
     {

@@ -267,8 +267,8 @@ public static class MeshTessellation
                     patchSlot[i] = new Slot();
                     appendedSlots.Add(patchSlot[i]);
                 }
-                // A region by its corners in its own order: corner, next
-                // midpoint, centre, previous midpoint, as patch grid (row, col).
+                // A region by its four corners as patch grid (row, col); a split
+                // appends children 0..2, child 3 keeps the slot.
                 var cellSlot = new Slot[m, n, n];
                 for (var i = 0; i < m; i++)
                     Split(i, patchSlot[i], (0, 0), (0, n), (n, n), (n, 0), level - 1);
@@ -282,7 +282,6 @@ public static class MeshTessellation
                     }
                     (int R, int C)[] q = [p0, p1, p2, p3];
                     static (int R, int C) Mid((int R, int C) a, (int R, int C) b) => ((a.R + b.R) / 2, (a.C + b.C) / 2);
-                    var centre = Mid(p0, p2);
                     var slots = new Slot[4];
                     slots[3] = slot;
                     for (var k = 0; k < 3; k++)
@@ -290,8 +289,11 @@ public static class MeshTessellation
                         slots[k] = new Slot();
                         appendedSlots.Add(slots[k]);
                     }
+                    // FUN_1813ca560 recurses corners 0, 1, 3, 2; a child keeps its
+                    // parent's corner order, parent corner k at its own index k, so
+                    // its corner j lies between the parent's corners k and j.
                     foreach (var k in new[] { 0, 1, 3, 2 })
-                        Split(patch, slots[k], q[k], Mid(q[k], q[(k + 1) % 4]), centre, Mid(q[(k + 3) % 4], q[k]), depth - 1);
+                        Split(patch, slots[k], Mid(q[k], q[0]), Mid(q[k], q[1]), Mid(q[k], q[2]), Mid(q[k], q[3]), depth - 1);
                 }
 
                 for (var i = 0; i < m; i++)
