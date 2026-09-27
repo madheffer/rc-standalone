@@ -1,4 +1,5 @@
 using System.Numerics;
+using ValveResourceFormat.Serialization.KeyValues;
 
 namespace Source2.Compiler.Physics;
 
@@ -34,6 +35,15 @@ public static class WorldCollision
         public string InteractWith { get; init; } = "";
         public string InteractExclude { get; init; } = "";
 
+        /// <summary>
+        /// The surface property's hash, where only the hash is known (a prop
+        /// model's physics keeps no names); otherwise the name's.
+        /// </summary>
+        public uint? SurfaceHash { get; init; }
+
+        /// <summary>The key the part's surface table goes by: the hash of the name ("default" when empty).</summary>
+        public uint SurfaceKey => SurfaceHash ?? Maps.SettleWorld.NameHash(SurfaceProperty.Length == 0 ? "default" : SurfaceProperty);
+
         /// <summary>Whether the material stops its meshes' texcoord shift (<see cref="Maps.MapMeshCorners.KeepsTexcoords"/>).</summary>
         public bool KeepsTexcoords { get; init; }
 
@@ -41,8 +51,14 @@ public static class WorldCollision
         public BlendLayers? Blend { get; init; }
 
         /// <summary>The collision attribute this material's pieces carry.</summary>
-        public string AttributeKey => (CollisionGroup.Length == 0 ? "default" : CollisionGroup) + "|" + InteractAs
-                                      + (InteractWith.Length + InteractExclude.Length == 0 ? "" : "|" + InteractWith + "|" + InteractExclude);
+        public string AttributeKey => (CollisionGroup.Length == 0 ? "default" : CollisionGroup.ToLowerInvariant()) + "|" + Tags(InteractAs)
+                                      + (InteractWith.Length + InteractExclude.Length == 0 ? "" : "|" + Tags(InteractWith) + "|" + Tags(InteractExclude));
+
+        // A tag list as the attribute holds it: a set of names (the part
+        // compares masks), so order, case, commas and repeats do not matter.
+        private static string Tags(string list)
+            => string.Join(" ", list.Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.ToLowerInvariant()).Distinct().Order(StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -233,8 +249,20 @@ public static class WorldCollision
         return layers > 1 || puddles ? physics with { Blend = ReadBlend(info.Shader, info.Params, info.Floats, info.Strings) } : physics;
     }
 
-    /// <summary>One world piece: a mesh's triangles in one solid material.</summary>
-    public sealed record Piece(int NodeId, int Material, string MaterialName, MaterialPhysics Physics, Vector3[] Points, int[] Indices);
+    /// <summary>
+    /// One world piece: a mesh's triangles in one solid material, or a static
+    /// prop's hull (<c>Hull</c> set, its vertex positions as the points).
+    /// </summary>
+    public sealed record Piece(int NodeId, int Material, string MaterialName, MaterialPhysics Physics, Vector3[] Points, int[] Indices)
+    {
+        public RnHull? Hull { get; init; }
+
+        /// <summary>The part's shape type: a hull is 2, a triangle mesh <see cref="MeshType"/>.</summary>
+        public int Type => Hull != null ? HullType : MeshType;
+    }
+
+    /// <summary>The part's shape type for a convex hull.</summary>
+    public const int HullType = 2;
 
     /// <summary>
     /// The world's solid pieces in the order physicsbuilder hands them to the
@@ -246,12 +274,22 @@ public static class WorldCollision
     /// or when it cannot, such pieces take the builder's 0.5 rule and are listed.
     /// </summary>
     public static List<Piece> Pieces(DmxBinary.Document doc, Func<string, MaterialPhysics> materials, List<string>? notes = null,
-                                     Func<string, MaterialSampler.Renderer?>? sampler = null)
+                                     Func<string, MaterialSampler.Renderer?>? sampler = null,
+                                     Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?>? propPhysics = null)
     {
         var world = doc.OfType("CMapWorld").First();
         var result = new List<Piece>();
-        foreach (var mesh in Maps.MapMeshes.Read(doc).Where(m => m.ParentType is "CMapWorld" or "CMapGroup"))
+        // Each piece's place in the walk: meshes and prop entities share one
+        // depth-first order (physicsbuilder 180014aa0: a node's own meshes and
+        // entities, then its children).
+        var sequences = new List<int>();
+        var last = 0;
+        var (meshes, entities) = Maps.MapMeshes.ReadWithEntities(doc);
+        foreach (var mesh in meshes.Where(m => m.ParentType is "CMapWorld" or "CMapGroup"))
         {
+            while (sequences.Count < result.Count)
+                sequences.Add(last);
+            last = mesh.Sequence;
             // A mesh set to no physics (physicsType "none") gives no pieces;
             // atixref's railing kit and fluorescent lights are such meshes.
             if (string.Equals(mesh.Element!.Get<string>("physicsType"), "none", StringComparison.OrdinalIgnoreCase))
@@ -322,7 +360,93 @@ public static class WorldCollision
                 AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices, sampled);
             }
         }
-        return result;
+        while (sequences.Count < result.Count)
+            sequences.Add(last);
+        if (propPhysics != null)
+        {
+            foreach (var entity in entities)
+            {
+                foreach (var piece in PropPieces(entity, propPhysics, notes))
+                {
+                    result.Add(piece);
+                    sequences.Add(entity.Sequence);
+                }
+            }
+        }
+        // A stable sort on the walk place: each node's pieces keep their order.
+        return [.. result.Select((p, i) => (p, i)).OrderBy(t => sequences[t.i]).ThenBy(t => t.i).Select(t => t.p)];
+    }
+
+    /// <summary>
+    /// A prop_static's hulls as world pieces (<see cref="StaticPropHulls"/>):
+    /// only a solid one (key solid, 6 when absent) whose model has physics.
+    /// Each hull carries its body's collision attribute (group and interact
+    /// lists by name, 180153d40) and its surface property's hash; so does each
+    /// mesh node (<see cref="StaticPropHulls.Meshes"/>). A prop inside an
+    /// instance, and a prop's spheres and capsules, are not ported and are listed.
+    /// </summary>
+    private static IEnumerable<Piece> PropPieces(Maps.MapMeshes.EntityNode entity, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics, List<string>? notes)
+    {
+        var e = entity.Element;
+        var kv = e.Get<DmxBinary.Element>("entity_properties");
+        if (kv?.Get<string>("classname") != "prop_static")
+            yield break;
+        if (int.TryParse(kv.Get<string>("solid") ?? "6", System.Globalization.CultureInfo.InvariantCulture, out var solid) && solid != 6)
+            yield break;
+        var nodeId = e.GetValue<int>("nodeID") ?? -1;
+        var model = kv.Get<string>("model") ?? "";
+        if (propPhysics(model) is not { } phys)
+            yield break;
+        if (phys.Parts.Any(p => p.Shape.Spheres.Length + p.Shape.Capsules.Length > 0))
+            notes?.Add($"prop {nodeId} ({model}): spheres or capsules, not ported");
+        var prop = PropOf(entity);
+        var hashes = phys.SurfacePropertyHashes;
+        var attributes = phys.CollisionAttributes;
+        MaterialPhysics Physics(int attributeIndex, int surfaceIndex)
+        {
+            var attribute = attributeIndex >= 0 && attributeIndex < attributes.Count ? attributes[attributeIndex] : null;
+            string Names(string key) => attribute == null ? "" : string.Join(" ", attribute.GetArray<string>(key) ?? []);
+            var group = attribute?.GetStringProperty("m_CollisionGroupString") ?? "";
+            return new MaterialPhysics(true, string.Equals(group, "default", StringComparison.OrdinalIgnoreCase) ? "" : group.ToLowerInvariant(),
+                Names("m_InteractAsStrings"), "")
+            {
+                InteractWith = Names("m_InteractWithStrings"),
+                InteractExclude = Names("m_InteractExcludeStrings"),
+                SurfaceHash = surfaceIndex >= 0 && surfaceIndex < hashes.Length ? hashes[surfaceIndex] : null,
+            };
+        }
+        // The sink (18001b420) takes each body's spheres, capsules, hulls, then meshes.
+        var hulls = StaticPropHulls.Nodes(prop, phys, out var descs);
+        var meshes = StaticPropHulls.Meshes(prop, phys);
+        for (var part = 0; part < phys.Parts.Length; part++)
+        {
+            foreach (var node in hulls.Where(n => n.Part == part))
+            {
+                if (StaticPropHulls.Shape(node) is not { } hull)
+                    continue;
+                var desc = descs[node];
+                yield return new Piece(nodeId, node.Part, model, Physics(desc.CollisionAttributeIndex, desc.SurfacePropertyIndex), hull.VertexPositions, []) { Hull = hull };
+            }
+            foreach (var node in meshes.Where(n => n.Part == part))
+                yield return new Piece(nodeId, node.Part, model, Physics(node.Desc.CollisionAttributeIndex, node.Surface >= 0 ? node.Surface : node.Desc.SurfacePropertyIndex), node.Points, node.Indices);
+        }
+    }
+
+    /// <summary>
+    /// A prop_static entity node as physicsbuilder reads it (the entity data
+    /// of 181003b60 copies the node's own origin, angles and scales). Inside an
+    /// instance that is the collapsed copy's placement
+    /// (<see cref="Maps.SettleWorld.BakedPlacement"/>).
+    /// </summary>
+    public static StaticPropHulls.Prop PropOf(Maps.MapMeshes.EntityNode entity)
+    {
+        var e = entity.Element;
+        var model = e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("model") ?? "";
+        var origin = e.GetValue<Vector3>("origin") ?? Vector3.Zero;
+        var angles = e.GetValue<Vector3>("angles") ?? Vector3.Zero;
+        if (entity.Through.Count > 0)
+            (origin, angles) = Maps.SettleWorld.BakedPlacement(e, entity.Through);
+        return new StaticPropHulls.Prop(e.GetValue<int>("nodeID") ?? -1, model, origin, angles, e.GetValue<Vector3>("scales") ?? Vector3.One);
     }
 
     // A piece as physicsbuilder's shape step hands it on (0924: 180016230):

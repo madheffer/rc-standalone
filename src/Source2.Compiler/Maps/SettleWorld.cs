@@ -223,6 +223,17 @@ public static partial class SettleWorld
     /// </summary>
     internal static float[] Baked(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through)
     {
+        var (origin, angles) = BakedPlacement(node, through);
+        var m = MapMeshes.AngleMatrix(angles);
+        m[3] = origin.X;
+        m[7] = origin.Y;
+        m[11] = origin.Z;
+        return m;
+    }
+
+    /// <summary>The origin and angles a node's copy carries once the bake has moved it (<see cref="Baked"/>).</summary>
+    internal static (Vector3 Origin, Vector3 Angles) BakedPlacement(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through)
+    {
         var origin = node.GetValue<Vector3>("origin") ?? Vector3.Zero;
         var angles = node.GetValue<Vector3>("angles") ?? Vector3.Zero;
         float[]? delta = null;
@@ -240,11 +251,7 @@ public static partial class SettleWorld
         }
         if (delta != null)
             (origin, angles) = Moved(delta, origin, angles);
-        var m = MapMeshes.AngleMatrix(angles);
-        m[3] = origin.X;
-        m[7] = origin.Y;
-        m[11] = origin.Z;
-        return m;
+        return (origin, angles);
     }
 
     /// <summary>

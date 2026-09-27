@@ -45,12 +45,16 @@ public class WorldCollisionInput(ITestOutputHelper output)
             ? new Source2.Compiler.Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), models.Read)
             : null;
         var notes = new List<string>();
-        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes, gpu == null ? null : gpu.For);
+        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes, gpu == null ? null : gpu.For, models.Physics);
         foreach (var note in notes)
             output.WriteLine("PAINT " + note);
-        var attributes = new List<string> { "default|" };
-        var surfaces = new List<string> { "default" };
-        int IndexOf(List<string> table, string key)
+        var meshPieces = pieces.Where(p => p.Hull == null).ToList();
+        // The part builder registers each shape's attribute and surface as it
+        // writes it (FUN_180c25900: spheres, capsules, hulls, then the mesh
+        // gatherer), so the tables fill in first-appearance order of the sorted part.
+        var attributes = new List<string>();
+        var surfaces = new List<uint>();
+        int IndexOf<T>(List<T> table, T key)
         {
             var i = table.IndexOf(key);
             if (i < 0)
@@ -62,22 +66,60 @@ public class WorldCollisionInput(ITestOutputHelper output)
         }
         List<int>? types = null;
         if (parts.Length > 4)
-            types = CompareInserts(parts[4], pieces);
-        // Static props' hulls are not ported yet: with a capture, hull slots
-        // (null here) stand where the captured part had them, so the sort
-        // shuffles ties as it did.
-        var slots = new List<WorldCollision.Piece?>();
-        var next = 0;
-        foreach (var type in types ?? [])
-            slots.Add(type == WorldCollision.MeshType && next < pieces.Count ? pieces[next++] : null);
-        slots.AddRange(pieces.Skip(next));
-        if (types != null && types.Count(t => t == WorldCollision.MeshType) != pieces.Count)
-            output.WriteLine($"captured part has {types.Count(t => t == WorldCollision.MeshType)} mesh inserts, ours {pieces.Count}");
-        var ordered = WorldCollision.PartOrder(slots, p => p == null ? 2 : WorldCollision.MeshType).OfType<WorldCollision.Piece>().ToList();
+            types = CompareInserts(parts[4], meshPieces);
+        List<WorldCollision.Piece> ordered;
+        if (pieces.Count != meshPieces.Count)
+        {
+            // Our prop hulls stand in the walk; the captured insert types check where.
+            var ours = string.Concat(pieces.Select(p => p.Type));
+            if (types != null)
+            {
+                output.WriteLine($"insert types {(ours == string.Concat(types) ? "same as" : "differ from")} the capture ({pieces.Count - meshPieces.Count} hulls ours, {types.Count(t => t == WorldCollision.HullType)} captured)");
+                // Where the hulls stand: before each matched mesh, as many hulls in ours as in the capture.
+                int same = 0, differ = 0;
+                var hullsBefore = 0;
+                var meshIndex = 0;
+                foreach (var p in pieces)
+                {
+                    if (p.Hull != null)
+                    {
+                        hullsBefore++;
+                        continue;
+                    }
+                    if (_capturedAt.TryGetValue(meshIndex, out var k))
+                    {
+                        if (types.Take(k).Count(t => t == WorldCollision.HullType) == hullsBefore)
+                            same++;
+                        else if (differ++ < 5)
+                            output.WriteLine($"  mesh {p.NodeId}/{p.Material}: {hullsBefore} hulls before it in ours, {types.Take(k).Count(t => t == WorldCollision.HullType)} in the capture");
+                    }
+                    meshIndex++;
+                }
+                output.WriteLine($"hulls before each matched mesh: {same} same, {differ} differ");
+            }
+            ordered = WorldCollision.PartOrder(pieces, p => p.Type);
+        }
+        else
+        {
+            // Without prop physics: with a capture, hull slots (null here) stand
+            // where the captured part had them, so the sort shuffles ties as it did.
+            var slots = new List<WorldCollision.Piece?>();
+            var next = 0;
+            foreach (var type in types ?? [])
+                slots.Add(type == WorldCollision.MeshType && next < pieces.Count ? pieces[next++] : null);
+            slots.AddRange(pieces.Skip(next));
+            if (types != null && types.Count(t => t == WorldCollision.MeshType) != pieces.Count)
+                output.WriteLine($"captured part has {types.Count(t => t == WorldCollision.MeshType)} mesh inserts, ours {pieces.Count}");
+            ordered = WorldCollision.PartOrder(slots, p => p == null ? WorldCollision.HullType : WorldCollision.MeshType).OfType<WorldCollision.Piece>().ToList();
+        }
         output.WriteLine("part order: " + string.Join(" ", ordered.Take(60).Select(p => $"{p.NodeId}/{p.Material}")));
-        var soups = WorldCollision.Group(ordered.Select(p => (IndexOf(attributes, p.Physics.AttributeKey),
-            IndexOf(surfaces, p.Physics.SurfaceProperty.Length == 0 ? "default" : p.Physics.SurfaceProperty), p.Points, p.Indices)));
-        output.WriteLine($"attributes: {string.Join(" ; ", attributes)}; surfaces: {string.Join(" ", surfaces)}");
+        // Hulls are written before the mesh gatherer runs.
+        var shapes = ordered.Where(p => p.Hull != null).Concat(ordered.Where(p => p.Hull == null))
+            .Select(p => (Piece: p, Attribute: IndexOf(attributes, p.Physics.AttributeKey), Surface: IndexOf(surfaces, p.Physics.SurfaceKey))).ToList();
+        var soups = WorldCollision.Group(shapes.Where(x => x.Piece.Hull == null).Select(x => (x.Attribute, x.Surface, x.Piece.Points, x.Piece.Indices)));
+        output.WriteLine($"attributes: {string.Join(" ; ", attributes)}; surfaces: {string.Join(" ", surfaces.Select(h => h.ToString("x8")))}");
+        if (shapes.Any(x => x.Piece.Hull != null))
+            output.WriteLine("hull attr/surf: " + string.Join(" ", shapes.Where(x => x.Piece.Hull != null).Select(x => $"{x.Attribute}/{x.Surface}")));
 
         var first = int.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture);
         var allSame = true;
@@ -111,6 +153,9 @@ public class WorldCollisionInput(ITestOutputHelper output)
     /// capture_physshapes.py capture, in insert order: each captured mesh
     /// shape by vertex count and first vertex, and which of our pieces it is.
     /// </summary>
+    // Our mesh piece index -> the captured insert it matched.
+    private readonly Dictionary<int, int> _capturedAt = [];
+
     private List<int> CompareInserts(string capture, List<WorldCollision.Piece> pieces)
     {
         using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(capture));
@@ -142,13 +187,16 @@ public class WorldCollisionInput(ITestOutputHelper output)
             var key = (s.GetProperty("vertices").GetInt32(), new Vector3(v0[0], v0[1], v0[2]));
             var hit = ours.TryGetValue(key, out var at) && at.Count > 0 ? at.Dequeue() : -1;
             if (hit >= 0)
+            {
                 matched.Add(hit);
+                _capturedAt[hit] = k;
+            }
             lines.Add($"insert {k} mesh {key.Item1} v {key.Item2}: " + (hit >= 0 ? $"ours {hit} node {pieces[hit].NodeId}/{pieces[hit].Material} {Path.GetFileNameWithoutExtension(pieces[hit].MaterialName)}" : "not ours"));
             k++;
         }
         output.WriteLine($"captured mesh inserts {lines.Count}, ours {pieces.Count}, matched {matched.Count}; ours unmatched: " +
                          string.Join(" ", Enumerable.Range(0, pieces.Count).Where(i => !matched.Contains(i) && pieces[i].Points.Length > 0).Take(40).Select(i => $"{pieces[i].NodeId}/{pieces[i].Material}:{Path.GetFileNameWithoutExtension(pieces[i].MaterialName)}:{pieces[i].Points.Length}@{pieces[i].Points[0]}")));
-        foreach (var l in lines.Take(80))
+        foreach (var l in lines.Where(l => !l.Contains(": ours ")).Take(80))
             output.WriteLine("  " + l);
         // Bit for bit: each of our pieces against the gathered shape with the
         // same vertex count and first vertex, when the capture dumped its data (--dump).

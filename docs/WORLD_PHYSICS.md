@@ -203,10 +203,43 @@ vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
    surface property above 255. Vertices are appended as they are, and indices
    are offset. RnMeshCreate then welds the soup.
 
+Static props (`StaticPropHulls`, `WorldCollision.PropPieces`):
+- **Which props.** The builder walks the node tree; at each node it takes the
+  node's own meshes, then its entities, then its children. A `prop_static`
+  whose `solid` key (6 when absent) is 6 gives shapes. A collapsed instance's
+  copy is appended to its parent's children, so instances come after their
+  siblings; the copy's origin and angles are the collapse's (the settle port's
+  `BakedPlacement`).
+- **Hulls.** For each body of the model's physics: the prop's AngleMatrix with
+  its origin, columns scaled by `scales`, times the body's bind pose. Each hull
+  becomes a PhysicsShapeHull node: its vertex positions with the node's origin
+  and MatrixAngles, or, when that matrix is scaled, the positions moved and no
+  transform. The model compile quickhulls the points (tolerance 0, at most 256
+  faces, half-edges and vertices), cooks them with RnHullCreate, builds the
+  region SVM, then moves the hull by QuaternionMatrix of the node's transform
+  composed with the inverse of its parent's. That composition turns a -0 in
+  the quaternion into +0; only the SVM planes show it.
+- **Meshes.** Every vertex moved by the same matrix, triangles as stored; a
+  mesh with per-triangle materials is split into one node per surface index
+  (each node keeps every vertex, then appends the ones its triangles use).
+  Ported, not yet seen in a test map.
+- **Attributes.** Each shape carries its body's collision attribute (group and
+  interact lists) and surface property hash. The part builder writes spheres,
+  capsules, hulls, then gathers the meshes, registering attributes and
+  surfaces as it goes, so hull surfaces come first in the table.
+- **Measured.** Hulls and SVMs bit for bit against shipped world_physics:
+  atixref 3840/3840 (79 in instances), ze_hold_em_nb and ze_hold_em_p
+  129/129, c2m2 environment prefab 1348/1348, cs_script_demo 12/12
+  (`StaticPropHullsReplay`). atixref's hull attribute and surface indices all
+  match, and every matched mesh has as many hulls before it as in the capture;
+  ze_hold_em_nb and its flat paint copy are exact end to end
+  (`WorldCollisionInput`).
+
 Still open:
-- The static-prop hulls. They are shapes of another type in the same part, so
-  they change where the meshes land in the sort. With the captured hull slots
-  filled in, ze_hold_em_p's pieces sort as captured (the test does this).
+- Static props: spheres and capsules; a prop's bone overrides (PosableSkeleton);
+  props inside a CMapPrefab (c2m2 multi); a lattice deformer; the `solid`
+  override keys for a collision property and surface. atixref's soups still
+  differ, from its 24 captured mesh pieces we do not make.
 - ze_hold_em_p's subdivided floor: 224 of its 4480 triangles differ from the
   capture, and their order does too, though its faces are not stitched.
 - The shipped `m_Materials`. RnMeshCreate gets no materials for cardtest's

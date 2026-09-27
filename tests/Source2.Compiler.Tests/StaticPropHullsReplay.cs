@@ -13,7 +13,7 @@ namespace Source2.Compiler.Tests;
 /// The hulls our <see cref="StaticPropHulls"/> makes for a map's solid
 /// prop_static entities, matched by vertex set to the hulls of the map's
 /// shipped world_physics.vmdl_c and compared field by field.
-/// <c>PROPHULLS=&lt;addon&gt;|&lt;map&gt;</c>, <c>PROPHULLS_SHOW</c>.
+/// <c>PROPHULLS=&lt;addon&gt;|&lt;map&gt;[|&lt;compiled .vpk&gt;]</c>, <c>PROPHULLS_SHOW</c>.
 /// </summary>
 public class StaticPropHullsReplay(ITestOutputHelper output)
 {
@@ -30,7 +30,7 @@ public class StaticPropHullsReplay(ITestOutputHelper output)
         using var models = new SettleBuildTests.PakModels(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", parts[0]));
 
         using var package = new Package();
-        package.Read(Path.Combine(game, "csgo_addons", parts[0], "maps", parts[1] + ".vpk"));
+        package.Read(parts.Length > 2 ? parts[2] : Path.Combine(game, "csgo_addons", parts[0], "maps", parts[1] + ".vpk"));
         package.ReadEntry(package.FindEntry($"maps/{parts[1]}/world_physics.vmdl_c")!, out var bytes);
         using var resource = new Resource();
         resource.Read(new MemoryStream(bytes));
@@ -42,8 +42,10 @@ public class StaticPropHullsReplay(ITestOutputHelper output)
         void Count(string key) => tally[key] = tally.GetValueOrDefault(key) + 1;
         var pool = Enumerable.Range(0, shipped.Count).ToList();
         var shown = 0;
-        foreach (var e in doc.Elements.Where(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "prop_static"))
+        foreach (var entity in Source2.Compiler.Maps.MapMeshes.ReadWithEntities(doc).Entities
+                     .Where(x => x.Element.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "prop_static"))
         {
+            var e = entity.Element;
             var kv = e.Get<DmxBinary.Element>("entity_properties")!;
             if (int.TryParse(kv.Get<string>("solid") ?? "6", out var solid) && solid != 6)
                 continue;
@@ -53,8 +55,9 @@ public class StaticPropHullsReplay(ITestOutputHelper output)
                 Count("model without physics");
                 continue;
             }
-            var prop = new StaticPropHulls.Prop(e.GetValue<int>("nodeID") ?? 0, model, e.GetValue<Vector3>("origin") ?? Vector3.Zero,
-                e.GetValue<Vector3>("angles") ?? Vector3.Zero, e.GetValue<Vector3>("scales") ?? Vector3.One);
+            var prop = WorldCollision.PropOf(entity);
+            var inside = entity.Instances.Length > 0 ? " (instanced)" : "";
+            Count(entity.Instances.Length > 0 ? "props instanced" : "props");
             foreach (var node in StaticPropHulls.Nodes(prop, phys))
             {
                 var hull = StaticPropHulls.Shape(node);
@@ -67,7 +70,7 @@ public class StaticPropHullsReplay(ITestOutputHelper output)
                 var at = pool.FindIndex(i => shipped[i].GetVertexPositions().Length == set.Count && shipped[i].GetVertexPositions().ToArray().All(set.Contains));
                 if (at < 0)
                 {
-                    Count("no shipped hull with its vertices");
+                    Count("no shipped hull with its vertices" + inside);
                     if (shown++ < show)
                     {
                         var c = hull.Centroid;
@@ -81,7 +84,7 @@ public class StaticPropHullsReplay(ITestOutputHelper output)
                 pool.RemoveAt(at);
                 var diff = HullFromVmap.Differences(shipped[index], hull);
                 var svm = HullFromVmap.SvmDifference(shipped[index], hull);
-                Count(diff.Count == 0 ? "hull exact" : "hull differs: " + diff[0].Split(' ')[0]);
+                Count((diff.Count == 0 ? "hull exact" : "hull differs: " + diff[0].Split(' ')[0]) + inside);
                 Count("svm " + (svm ?? "exact").Split(' ')[0]);
                 if (svm != null && shown++ < show)
                 {

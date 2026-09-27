@@ -1,3 +1,4 @@
+using ValveResourceFormat.Serialization.KeyValues;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -73,5 +74,105 @@ public class VmapTypesProbe(ITestOutputHelper output)
         foreach (var e in doc.Elements.Where(e => e.Type is "CMapPrefab" or "CMapInstance").Take(3))
             foreach (var (k, v) in e.Attributes)
                 output.WriteLine($"  {e.Type} {k} = {v}");
+    }
+}
+
+/// <summary>
+/// Exploration: a compiled model's physics tables (collision attributes,
+/// surface properties) and each shape's indices into them, part by part.
+/// <c>PHYSTABLES=&lt;.vpk&gt;|&lt;entry&gt;</c> (entry in the vpk, or a model path in pak01 with vpk "pak01").
+/// </summary>
+public class PhysTablesProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Tables()
+    {
+        if (Environment.GetEnvironmentVariable("PHYSTABLES") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var vpk = p[0] == "pak01" ? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\pak01_dir.vpk" : p[0];
+        using var package = new ValvePak.Package();
+        package.Read(vpk);
+        package.ReadEntry(package.FindEntry(p[1])!, out var bytes);
+        using var resource = new ValveResourceFormat.Resource();
+        resource.Read(new MemoryStream(bytes));
+        var phys = ((ValveResourceFormat.ResourceTypes.Model)resource.DataBlock!).GetEmbeddedPhys()!;
+        var data = phys.Data;
+        foreach (var key in new[] { "m_collisionAttributes", "m_surfacePropertyHashes", "m_boneNames", "m_indexNames", "m_indexHash", "m_bindPose" })
+            if (data.ContainsKey(key) && key != "m_bindPose")
+                output.WriteLine($"{key}: {string.Join(" ", data[key]!.ToKV3String().Split((char)10).Select(x => x.Trim()))}");
+        var i = 0;
+        foreach (var part in phys.Parts)
+        {
+            var shape = part.Shape;
+            output.WriteLine($"part {i++}: hulls {shape.Hulls.Length} meshes {shape.Meshes.Length} spheres {shape.Spheres.Length} capsules {shape.Capsules.Length}");
+            output.WriteLine("  hull attr/surf: " + string.Join(" ", shape.Hulls.Select(h => $"{h.CollisionAttributeIndex}/{h.SurfacePropertyIndex}")));
+            output.WriteLine("  mesh attr/surf: " + string.Join(" ", shape.Meshes.Select(h => $"{h.CollisionAttributeIndex}/{h.SurfacePropertyIndex}")));
+        }
+    }
+}
+
+/// <summary>Exploration: the entities of a map (instances included) whose prop model has mesh, sphere or capsule collision. <c>PROPMESHES=&lt;addon&gt;|&lt;map&gt;</c>.</summary>
+public class PropMeshesProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Meshes()
+    {
+        if (Environment.GetEnvironmentVariable("PROPMESHES") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var cs2 = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive";
+        using var models = new SettleBuildTests.PakModels(Path.Combine(cs2, "game", "csgo", "pak01_dir.vpk"), Path.Combine(cs2, "game", "csgo_addons", p[0]));
+        var doc = DmxBinary.ReadFile(Path.Combine(cs2, "content", "csgo_addons", p[0], "maps", p[1] + ".vmap"));
+        foreach (var entity in Source2.Compiler.Maps.MapMeshes.ReadWithEntities(doc).Entities)
+        {
+            var kv = entity.Element.Get<DmxBinary.Element>("entity_properties");
+            var model = kv?.Get<string>("model");
+            if (model == null || models.Physics(model) is not { } phys)
+                continue;
+            int meshes = phys.Parts.Sum(x => x.Shape.Meshes.Length), spheres = phys.Parts.Sum(x => x.Shape.Spheres.Length), capsules = phys.Parts.Sum(x => x.Shape.Capsules.Length);
+            if (meshes + spheres + capsules == 0)
+                continue;
+            var prop = Source2.Compiler.Physics.WorldCollision.PropOf(entity);
+            output.WriteLine($"{kv!.Get<string>("classname")} node {prop.NodeId} solid {kv.Get<string>("solid")} seq {entity.Sequence} {model} at {prop.Origin}: meshes {meshes} [{string.Join(",", phys.Parts.SelectMany(x => x.Shape.Meshes).Select(m => $"{m.Shape.GetVertices().Length}v/{m.Shape.Materials?.Length ?? 0}mat"))}] spheres {spheres} capsules {capsules} instances {entity.Instances.Length}");
+        }
+    }
+}
+
+/// <summary>Exploration: a .vmap's node tree, depth first in stored order, runs of same-kind siblings collapsed. <c>VMAPTREE=&lt;.vmap&gt;</c>, <c>VMAPTREE_DEPTH</c>.</summary>
+public class VmapTreeProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Tree()
+    {
+        if (Environment.GetEnvironmentVariable("VMAPTREE") is not { Length: > 0 } path)
+            return;
+        var maxDepth = int.TryParse(Environment.GetEnvironmentVariable("VMAPTREE_DEPTH"), out var d) ? d : 3;
+        var doc = DmxBinary.ReadFile(path);
+        string Label(DmxBinary.Element e) => e.Type == "CMapEntity" ? $"entity:{e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")}" : e.Type;
+        void Walk(DmxBinary.Element node, int depth)
+        {
+            var kids = node.GetElements("children").ToList();
+            for (var i = 0; i < kids.Count;)
+            {
+                var label = Label(kids[i]);
+                var j = i;
+                while (j < kids.Count && Label(kids[j]) == label && kids[j].GetElements("children").Count() == 0)
+                    j++;
+                if (j - i > 1)
+                {
+                    output.WriteLine($"{new string(' ', depth * 2)}{label} x{j - i} (ids {kids[i].GetValue<int>("nodeID")}..{kids[j - 1].GetValue<int>("nodeID")})");
+                    i = j;
+                    continue;
+                }
+                var k = kids[i];
+                output.WriteLine($"{new string(' ', depth * 2)}{label} {k.GetValue<int>("nodeID")} children {k.GetElements("children").Count()}{(k.Get<DmxBinary.Element>("target") is { } t ? $" target {t.GetValue<int>("nodeID")}" : "")}");
+                if (depth < maxDepth)
+                    Walk(k, depth + 1);
+                i++;
+            }
+        }
+        foreach (var w in doc.OfType("CMapWorld"))
+            Walk(w, 0);
     }
 }

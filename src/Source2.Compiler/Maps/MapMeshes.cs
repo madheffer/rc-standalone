@@ -39,11 +39,27 @@ public static class MapMeshes
         /// <summary>The <c>CMapInstance</c> node ids this copy was reached through, outermost first.</summary>
         public int[] Instances { get; init; } = [];
 
+        /// <summary>The node's place in the depth-first walk, shared with <see cref="EntityNode"/>.</summary>
+        public int Sequence { get; init; }
+
         /// <summary>Whether the mesh is rotated or scaled, which the plain local + origin path does not cover.</summary>
         public bool Transformed => Angles != Vector3.Zero || Scales != Vector3.One;
     }
 
-    public static List<Mesh> Read(DmxBinary.Document doc)
+    /// <summary>An entity node met on the same walk, in walk order with the meshes.</summary>
+    public sealed record EntityNode(int Sequence, DmxBinary.Element Element, int[] Instances)
+    {
+        /// <summary>The instance path's matrix.</summary>
+        internal float[] Path { get; init; } = [];
+
+        /// <summary>The CMapInstance elements the copy was reached through, outermost first.</summary>
+        public IReadOnlyList<DmxBinary.Element> Through { get; init; } = [];
+    }
+
+    public static List<Mesh> Read(DmxBinary.Document doc) => ReadWithEntities(doc).Meshes;
+
+    /// <summary>The meshes and the entity nodes, each carrying its place in the one depth-first walk.</summary>
+    public static (List<Mesh> Meshes, List<EntityNode> Entities) ReadWithEntities(DmxBinary.Document doc)
     {
         var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var instance in doc.OfType("CMapInstance"))
@@ -52,15 +68,20 @@ public static class MapMeshes
                 targets.Add(target);
         }
         var meshes = new List<Mesh>();
+        var entities = new List<EntityNode>();
+        var sequence = 0;
         foreach (var world in doc.OfType("CMapWorld"))
-            Walk(world, world, Identity, [], targets, meshes);
-        return meshes;
+            Walk(world, world, Identity, [], [], targets, meshes, entities, ref sequence);
+        return (meshes, entities);
     }
 
-    private static void Walk(DmxBinary.Element node, DmxBinary.Element parent, float[] path, int[] instances,
-                             HashSet<DmxBinary.Element> targets, List<Mesh> meshes)
+    private static void Walk(DmxBinary.Element node, DmxBinary.Element parent, float[] path, int[] instances, DmxBinary.Element[] through,
+                             HashSet<DmxBinary.Element> targets, List<Mesh> meshes, List<EntityNode> entities, ref int sequence)
     {
-        foreach (var child in node.GetElements("children"))
+        // A collapsed instance's copy is appended to its parent's children
+        // (CMapInstance_Collapse), so instances come after their siblings.
+        var children = node.GetElements("children").ToList();
+        foreach (var child in children.Where(c => c.Type != "CMapInstance").Concat(children.Where(c => c.Type == "CMapInstance")))
         {
             switch (child.Type)
             {
@@ -69,17 +90,21 @@ public static class MapMeshes
                     meshes.Add(new Mesh(child.GetValue<int>("nodeID") ?? -1, parent.Type, className,
                                         child.GetValue<Vector3>("origin") ?? Vector3.Zero, child.GetValue<Vector3>("angles") ?? Vector3.Zero,
                                         child.GetValue<Vector3>("scales") ?? Vector3.One, Faces(child, path))
-                               { Element = child, Instances = instances, World = Concat(path, Local(child)), Path = path });
+                               { Element = child, Instances = instances, World = Concat(path, Local(child)), Path = path, Sequence = sequence++ });
                     break;
                 case "CMapInstance":
                     if (child.Get<DmxBinary.Element>("target") is not { } target)
                         break;
                     var step = Concat(Local(child), Invert(Local(target)));
-                    Walk(target, target, Concat(path, step), [.. instances, child.GetValue<int>("nodeID") ?? -1], targets, meshes);
+                    Walk(target, target, Concat(path, step), [.. instances, child.GetValue<int>("nodeID") ?? -1], [.. through, child], targets, meshes, entities, ref sequence);
                     break;
                 default:
-                    if (!targets.Contains(child))
-                        Walk(child, child, path, instances, targets, meshes);
+                    if (targets.Contains(child))
+                        break;
+                    // An entity's own shapes come before its children's.
+                    if (child.Type == "CMapEntity")
+                        entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through });
+                    Walk(child, child, path, instances, through, targets, meshes, entities, ref sequence);
                     break;
             }
         }

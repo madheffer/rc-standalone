@@ -64,9 +64,13 @@ public static class StaticPropHulls
     /// body name (the instance's table at +0x268) and the lattice branch (a
     /// hull turned into a mesh node) are not ported.
     /// </summary>
-    public static List<HullNode> Nodes(Prop prop, PhysAggregateData phys)
+    public static List<HullNode> Nodes(Prop prop, PhysAggregateData phys) => Nodes(prop, phys, out _);
+
+    /// <summary><see cref="Nodes(Prop, PhysAggregateData)"/>, with each node's hull description (collision attribute and surface indices).</summary>
+    public static List<HullNode> Nodes(Prop prop, PhysAggregateData phys, out Dictionary<HullNode, ValveResourceFormat.ResourceTypes.RubikonPhysics.HullDescriptor> descs)
     {
         var nodes = new List<HullNode>();
+        descs = new(ReferenceEqualityComparer.Instance);
         var m = PropMatrix(prop);
         for (var part = 0; part < phys.Parts.Length; part++)
         {
@@ -89,7 +93,78 @@ public static class StaticPropHulls
                 }
                 if (Complexity(points) is not { } c || c.Faces > 256 || c.HalfEdges > 256 || c.Vertices > 256)
                     continue;
-                nodes.Add(new HullNode(part, points, origin, angles));
+                var hullNode = new HullNode(part, points, origin, angles);
+                nodes.Add(hullNode);
+                descs[hullNode] = desc;
+            }
+        }
+        return nodes;
+    }
+
+    /// <summary>
+    /// One mesh node: its points (moved) and triangle indices, the body, and
+    /// the surface: the mesh's own (<c>Surface</c> -1) or, for a mesh split
+    /// by per-triangle material, that surface index.
+    /// </summary>
+    public sealed record MeshNode(int Part, Vector3[] Points, int[] Indices, ValveResourceFormat.ResourceTypes.RubikonPhysics.MeshDescriptor Desc, int Surface);
+
+    /// <summary>
+    /// The mesh nodes physicsbuilder makes for a prop's meshes (180153390),
+    /// body by body. A mesh with fewer than two per-triangle materials is one
+    /// node: every vertex, then every triangle (1805f1c50). Otherwise each
+    /// surface index with triangles is a node (1805f1740): every vertex
+    /// first, then, for its triangles in order, each vertex they use appended
+    /// again on first use, the indices pointing at the appended copies. Every
+    /// point is moved by the prop matrix times the bind pose (1800b9810),
+    /// scaled or not; the lattice branch is not ported.
+    /// </summary>
+    public static List<MeshNode> Meshes(Prop prop, PhysAggregateData phys)
+    {
+        var nodes = new List<MeshNode>();
+        var m = PropMatrix(prop);
+        var surfaces = phys.SurfacePropertyHashes.Length;
+        for (var part = 0; part < phys.Parts.Length; part++)
+        {
+            var local = MapMeshes.Concat(m, BindPose(phys, part));
+            foreach (var desc in phys.Parts[part].Shape.Meshes)
+            {
+                var mesh = desc.Shape;
+                var vertices = mesh.GetVertices().ToArray();
+                var triangles = mesh.GetTriangles().ToArray();
+                var materials = mesh.Materials ?? [];
+                Vector3 Move(Vector3 v) => MapMeshes.Transform(local, v);
+                if (materials.Length < 2)
+                {
+                    var indices = new int[triangles.Length * 3];
+                    for (var t = 0; t < triangles.Length; t++)
+                        (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = (triangles[t].X, triangles[t].Y, triangles[t].Z);
+                    nodes.Add(new MeshNode(part, [.. vertices.Select(Move)], indices, desc, -1));
+                    continue;
+                }
+                for (var surface = 0; surface < surfaces; surface++)
+                {
+                    if (!materials.Any(x => x == surface))
+                        continue;
+                    var points = new List<Vector3>(vertices.Select(Move));
+                    var remap = new int[vertices.Length];
+                    Array.Fill(remap, -1);
+                    var indices = new List<int>();
+                    for (var t = 0; t < triangles.Length && t < materials.Length; t++)
+                    {
+                        if (materials[t] != surface)
+                            continue;
+                        foreach (var v in new[] { triangles[t].X, triangles[t].Y, triangles[t].Z })
+                        {
+                            if (remap[v] < 0)
+                            {
+                                remap[v] = points.Count;
+                                points.Add(Move(vertices[v]));
+                            }
+                            indices.Add(remap[v]);
+                        }
+                    }
+                    nodes.Add(new MeshNode(part, [.. points], [.. indices], desc, surface));
+                }
             }
         }
         return nodes;
@@ -134,7 +209,7 @@ public static class StaticPropHulls
                MathF.Sqrt((m[2] * m[2]) + (m[6] * m[6]) + (m[10] * m[10])));
 
     // 1800b9240 (MatrixAngles): the same as resourcecompiler's FUN_18125cba0.
-    private static Vector3 MatrixAngles(float[] m)
+    internal static Vector3 MatrixAngles(float[] m)
     {
         const float Degrees = 57.295776f;
         var length = MathF.Sqrt((m[4] * m[4]) + (m[0] * m[0]));
