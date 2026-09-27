@@ -34,6 +34,7 @@ try
         "entitylump" => Commands.Entitylump(args[1..]),
         "reauthor" => Commands.Reauthor(args[1..]),
         "selftest" => SelfTest.Run(args[1..]),
+        "kv3-parity" => Kv3Parity.Run(args[1..]),
         _ => Unknown(args[0]),
     };
 }

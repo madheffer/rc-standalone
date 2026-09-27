@@ -41,6 +41,37 @@ Pinned by `Source2ContainerAuthorTests` against the real compiler outputs in
 
 ## Closed
 
+### C7 — KV3 v5 written losslessly, with Valve's layout (2026-09-27)
+
+VRF's v5 serializer is not a faithful inverse of its reader. It writes every array as a
+generic `ARRAY` (a type byte per element) and never uses Valve's typed forms:
+`ARRAY_TYPED` (10), `ARRAY_TYPE_BYTE_LENGTH` (24) or `ARRAY_TYPE_AUXILIARY_BUFFER` (25), the
+last of which puts its elements in buffer 1. It also writes 0 for three header counters.
+The decoded tree survives, but the file's structure does not: CS2 loaded a VRF-re-encoded
+`.vnmgraph_c` without error and silently played stock animations (vpkstuff, 2026-09-26).
+
+`Kv3/Kv3Tree.cs` keeps every node's wire type, so a tree read and written back reproduces
+Valve's uncompressed sections byte for byte. The three counters, fitted exactly over the
+stock data and not documented anywhere else:
+
+| header offset | meaning |
+|---|---|
+| 104 | nodes carrying their own type byte (every node except typed-array elements) |
+| 112 | arrays whose elements land in buffer 2, plus auxiliary arrays of 32+ elements |
+| 116 | elements of those arrays; a generic array counts `max(1, length)` |
+
+"Lands in buffer 2" follows the buffer swap, so an auxiliary array nested inside another
+flips back. The 32 is pinned by data: 31 never counts, and one stock `vsndevts_c` has an
+auxiliary array of exactly 32 that does. Also: for an uncompressed block the stored-size
+field (offset 52) counts buffers 1 and 2 but not the blobs; compressed, it counts all three.
+
+Measured with `kv3-parity pak01_dir.vpk vnmclip_c vnmgraph_c vnmskel_c vmdl_c vmat_c vpcf_c
+vsndevts_c vdata_c vsnd_c vpost_c --write`: 46,265 of 46,265 blocks identical in every
+uncompressed section and every header field, and every block the writer produces decodes
+back to the original in both our reader and VRF's. `Kv3TreeTests` pins it on the
+RcReference outputs, a hand-built tree with every array kind, and a stock sample.
+
+
 ### C6 — the container frame is authored, so no type needs a donor (fixed 2026-09-08)
 
 C4/C5 stopped the three binary types from shipping a donor's *metadata*, but
