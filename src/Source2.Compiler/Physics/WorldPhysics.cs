@@ -34,21 +34,27 @@ public sealed class WorldPhysics
     public List<Shape> Meshes { get; } = [];
     public List<Attribute> Attributes { get; } = [];
 
-    /// <summary>The surface table: each hash and, where known, its name.</summary>
+    /// <summary>
+    /// The surface table: each entry's hash and the name its shape carried. The
+    /// table goes by that name as spelled, not by hash: a prop's surface comes as
+    /// vphysics2's name ("Wood") and a material's as the material spells it
+    /// ("wood"), so one hash can have two entries (c2m2's prefab).
+    /// </summary>
     public List<(uint Hash, string? Name)> Surfaces { get; } = [];
 
     /// <summary>
-    /// The surfaces some shape names outright (a prop model's, or a material's
-    /// own surface property), as against the implicit default of a material
-    /// with none. RED2 lists only these (entity triggers use the implicit one
-    /// and list nothing; atixref's props name "default").
+    /// The entries RED2 lists, in the order a shape first names them outright (a
+    /// prop model's surface, a material's or a painted layer's own property); the
+    /// implicit default of a material with none is not listed (triggers; c2m2's
+    /// prefab lists "default" only where a painted layer names it).
     /// </summary>
-    public HashSet<uint> NamedSurfaces { get; } = [];
+    public List<int> ListedSurfaces { get; } = [];
 
     /// <summary>How many mesh pieces went into the soups (RED2's physics_shape_mesh_count).</summary>
     public int MeshPieces { get; private set; }
 
-    public static WorldPhysics Build(IReadOnlyList<WorldCollision.Piece> pieces)
+    /// <param name="surfaceName">A surface's name by hash (the game's surfaceproperties), for a prop's.</param>
+    public static WorldPhysics Build(IReadOnlyList<WorldCollision.Piece> pieces, Func<uint, string?>? surfaceName = null)
     {
         var model = new WorldPhysics();
         var ordered = WorldCollision.PartOrder(pieces, p => p.Type);
@@ -64,28 +70,33 @@ public sealed class WorldPhysics
                 Tags(physics.InteractAs), Tags(physics.InteractWith), Tags(physics.InteractExclude)));
             return attributeKeys.Count - 1;
         }
-        int SurfaceOf(WorldCollision.MaterialPhysics physics)
+        int SurfaceOf(WorldCollision.MaterialPhysics physics, WorldCollision.Piece piece)
         {
             var hash = physics.SurfaceKey;
-            if (physics.SurfaceHash != null || physics.SurfaceProperty.Length > 0)
-                model.NamedSurfaces.Add(hash);
-            var at = model.Surfaces.FindIndex(s => s.Hash == hash);
-            if (at >= 0)
-                return at;
-            model.Surfaces.Add((hash, physics.SurfaceHash == null ? (physics.SurfaceProperty.Length == 0 ? "default" : physics.SurfaceProperty) : null));
-            return model.Surfaces.Count - 1;
+            var name = physics.SurfaceHash != null ? surfaceName?.Invoke(hash)
+                : physics.SurfaceProperty.Length == 0 ? "default" : physics.SurfaceProperty;
+            var at = model.Surfaces.FindIndex(s => s.Hash == hash && string.Equals(s.Name, name, StringComparison.Ordinal));
+            if (at < 0)
+            {
+                model.SurfaceSources.Add($"type {piece.Type} node {piece.NodeId} {piece.MaterialName} surface '{physics.SurfaceProperty}' hash {hash}{(physics.SurfaceHash != null ? " (model)" : "")}");
+                model.Surfaces.Add((hash, name));
+                at = model.Surfaces.Count - 1;
+            }
+            if ((physics.SurfaceHash != null || physics.SurfaceProperty.Length > 0) && !model.ListedSurfaces.Contains(at))
+                model.ListedSurfaces.Add(at);
+            return at;
         }
         // The part writes spheres, capsules, then hulls (rc 180c28230) before the
         // mesh gatherer runs, so they register in that order.
         foreach (var p in ordered.Where(p => p.Type == WorldCollision.SphereType))
-            model.Spheres.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics), 0, null, null) { Round = p.Round });
+            model.Spheres.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p), 0, null, null) { Round = p.Round });
         foreach (var p in ordered.Where(p => p.Type == WorldCollision.CapsuleType))
-            model.Capsules.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics), 0, null, null) { Round = p.Round });
+            model.Capsules.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p), 0, null, null) { Round = p.Round });
         foreach (var p in ordered.Where(p => p.Type == WorldCollision.HullType))
-            model.Hulls.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics),
+            model.Hulls.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p),
                 p.ToolMaterial.Length > 0 ? Maps.SettleWorld.NameHash(p.ToolMaterial) : 0, p.Hull, null));
         var meshPieces = ordered.Where(p => p.Type == WorldCollision.MeshType).ToList();
-        var meshes = meshPieces.Select(p => (Attribute: AttributeOf(p.Physics, p), Surface: SurfaceOf(p.Physics), p.Points, p.Indices)).ToList();
+        var meshes = meshPieces.Select(p => (Attribute: AttributeOf(p.Physics, p), Surface: SurfaceOf(p.Physics, p), p.Points, p.Indices)).ToList();
         model.MeshPieces = meshes.Count;
         foreach (var soup in WorldCollision.Group(meshes))
         {
@@ -110,6 +121,9 @@ public sealed class WorldPhysics
 
     /// <summary>Every shape in the part's order: spheres, capsules, hulls, meshes.</summary>
     public IEnumerable<Shape> AllShapes => Spheres.Concat(Capsules).Concat(Hulls).Concat(Meshes);
+
+    /// <summary>Which piece registered each surface, for exploration.</summary>
+    public List<string> SurfaceSources { get; } = [];
 
     /// <summary>Which piece registered each attribute, for exploration.</summary>
     public List<string> AttributeSources { get; } = [];
@@ -170,8 +184,8 @@ public static class WorldPhysicsTrees
             ("m_nFingerprint", U(3)), ("m_nUserData", new KVObject(0L))));
         var shapes = model.Spheres.Count + model.Capsules.Count + model.Hulls.Count + model.MeshPieces;
         var user = Collection(("compile_warnings", new KVObject(0L)));
-        // Only when a shape names "default" (atixref's props do; ze_hold_em_p has none, and no key).
-        if (model.NamedSurfaces.Contains(Maps.SettleWorld.NameHash("default")))
+        // Only when a listed entry is "default" (atixref, c2m2's prefab; ze_hold_em_p has none, and no key).
+        if (model.ListedSurfaces.Any(i => model.Surfaces[i].Hash == Maps.SettleWorld.NameHash("default")))
             user.Add("has_default_surface_property", new KVObject(1L));
         foreach (var (key, value) in Collection(
             ("IsChildResource", new KVObject(1L)),
@@ -191,15 +205,22 @@ public static class WorldPhysicsTrees
                      ("physics_shape_sphere_count", model.Spheres.Count) })
             if (count > 0)
                 user.Add(key, I(count));
-        var names = KVObject.Collection();
-        foreach (var (hash, name) in model.Surfaces)
+        // Each listed entry under its canonical name, the value how many entries
+        // share it (c2m2's prefab: Wood = 2, from "Wood" and "wood").
+        var counts = new List<(string Name, int Count)>();
+        foreach (var i in model.ListedSurfaces)
         {
-            if (!model.NamedSurfaces.Contains(hash))
-                continue;
+            var (hash, name) = model.Surfaces[i];
             var canonical = surfaceName(hash) ?? name ?? throw new InvalidOperationException($"no name for surface property {hash}");
-            if (!names.ContainsKey(canonical))
-                names.Add(canonical, new KVObject(1L));
+            var at = counts.FindIndex(c => c.Name == canonical);
+            if (at < 0)
+                counts.Add((canonical, 1));
+            else
+                counts[at] = (canonical, counts[at].Count + 1);
         }
+        var names = KVObject.Collection();
+        foreach (var (name, count) in counts)
+            names.Add(name, I(count));
         return Collection(
             ("m_InputDependencies", Empty()), ("m_AdditionalInputDependencies", Empty()), ("m_ArgumentDependencies", arguments),
             ("m_SpecialDependencies", special), ("m_SpecialInputDependencies", Empty()), ("m_AdditionalRelatedFiles", Empty()),

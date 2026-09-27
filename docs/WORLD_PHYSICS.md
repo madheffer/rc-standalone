@@ -124,10 +124,16 @@ container facts) on atixref (86), ze_hold_em_p (24) and Mako (324).
 - The part's flags are 0, or 2 when it has meshes. RED2: keep_vertices is an
   IntArg and mapbuilder_entity_classname's fingerprint is the class's string
   token. A shape kind's count appears only when there are such shapes.
-- RED2 lists only surfaces some shape names outright; a material with no
-  surface property registers the default without listing it, and
-  `has_default_surface_property` means a named "default". The same rule holds
-  for the world.
+- The surface table goes by the name a shape carries, as spelled: a prop's
+  surface comes as vphysics2's name ("Wood"), a material's as the material
+  spells it ("wood"), so one hash can have two entries (c2m2's prefab).
+- RED2 lists the entries some shape names outright, in the order first named,
+  each under its canonical name with the count of entries sharing it (Wood = 2).
+  A material with no surface property registers "default" without naming it,
+  except in a mesh cut by painted layers, whose pieces all name theirs.
+  `has_default_surface_property` means a named "default". The same rules hold
+  for the world; world_physics is whole-file exact on cardtest too (per-triangle
+  materials), and c2m2's prefab differs only by its stitched subdivided faces.
 - Not ported: render meshes (the other models), the PhysicsTypeOverride base
   classes beyond func_shatterglass, and the cable model.
 

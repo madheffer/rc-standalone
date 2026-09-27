@@ -75,6 +75,19 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         }
         foreach (var note in notes.Take(10))
             output.WriteLine($"note: {note}");
+        if (Environment.GetEnvironmentVariable("WPBUILD_SURFACES") == "1")
+        {
+            var model = Physics.WorldPhysics.Build(Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp), models.SurfaceName);
+            foreach (var source in model.SurfaceSources)
+                output.WriteLine($"surface source: {source}");
+            output.WriteLine("listed: " + string.Join(",", model.ListedSurfaces.Select(i => $"{i}:{model.Surfaces[i].Name}")));
+            foreach (var piece in Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
+                         null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp).Where(x => x.NodeId.ToString() == Environment.GetEnvironmentVariable("WPBUILD_NODE")))
+                output.WriteLine($"piece node {piece.NodeId} {piece.MaterialName} surface '{piece.Physics.SurfaceProperty}' tris {piece.Indices.Length / 3} name '{piece.Name}'");
+            var hashes = ta["PHYS"]["m_surfacePropertyHashes"];
+            output.WriteLine("valve surfaces: " + string.Join(",", hashes!.Select(h => h.ToString())));
+        }
 
         // The manifest beside it: container facts, RED2's tree, DATA's bytes.
         var valveManifest = Read(p[2], files.ManifestPath);

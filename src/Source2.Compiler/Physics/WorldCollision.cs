@@ -301,6 +301,19 @@ public static class WorldCollision
         var sequences = new List<int>();
         var last = 0;
         var (meshes, entities) = Maps.MapMeshes.ReadWithEntities(doc);
+        // A mesh cut by painted layers names every piece's surface, a material
+        // with none as "default" (c2m2's prefab lists "default" where such a
+        // mesh first meets one). Applied to the previous mesh's pieces when the
+        // next begins, and to the last at the end.
+        var meshStart = 0;
+        void NameSurfaces(int end)
+        {
+            if (Enumerable.Range(meshStart, end - meshStart).Any(i => result[i].Name.Length > 0))
+                for (var i = meshStart; i < end; i++)
+                    if (result[i].Physics.SurfaceProperty.Length == 0)
+                        result[i] = result[i] with { Physics = result[i].Physics with { SurfaceProperty = "default" } };
+            meshStart = end;
+        }
         foreach (var mesh in meshes.Where(m => m.ParentType is "CMapWorld" or "CMapGroup"))
         {
             while (sequences.Count < result.Count)
@@ -312,6 +325,7 @@ public static class WorldCollision
                 continue;
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
             var paint = PaintStream(mesh.Element!);
+            NameSurfaces(result.Count);
             if (Subdivided(mesh.Element!))
             {
                 // The baked mesh's paint comes from the tessellation, which
@@ -376,6 +390,7 @@ public static class WorldCollision
                 AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices, sampled);
             }
         }
+        NameSurfaces(result.Count);
         while (sequences.Count < result.Count)
             sequences.Add(last);
         if (propPhysics != null)
