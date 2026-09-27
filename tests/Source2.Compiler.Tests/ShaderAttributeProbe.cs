@@ -66,6 +66,16 @@ public class ShaderAttributeProbe(ITestOutputHelper output)
                 }
             }
             output.WriteLine($"== {shader}: {program.StaticComboEntries.Count} static combos");
+            // DYNCOMBOS and variables whose names hold the word.
+            output.WriteLine($"DYNCOMBOS {shader}: {string.Join(" ", program.DynamicComboArray.Select(c => $"{c.Name}[{c.RangeMin}..{c.RangeMax}]"))}");
+            foreach (var vd in program.VariableDescriptions)
+            {
+                string expr = "";
+                try { expr = vd.CompiledExpression.Length > 0 ? new ValveResourceFormat.Serialization.VfxEval.VfxEval(vd.CompiledExpression).DynamicExpressionResult : ""; } catch (Exception e) { expr = "?" + e.GetType().Name; }
+                var line = $"{vd.Name} source {vd.VariableSource} {vd.SourceString} type {vd.VfxType} reg {vd.RegisterType} off {vd.RegisterOffset} def i[{string.Join(",", vd.IntDefs)}] f[{string.Join(",", vd.FloatDefs)}] expr {expr}";
+                if (parts[1].Split(',').Any(w => line.Contains(w, StringComparison.OrdinalIgnoreCase)))
+                    output.WriteLine($"VARIABLE {shader}: {line}");
+            }
             foreach (var (key, values) in seen.OrderBy(x => x.Key))
                 foreach (var value in values.Order())
                     output.WriteLine($"{key}: {value}");

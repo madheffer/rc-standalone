@@ -100,13 +100,40 @@ vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
    triangles are cut slightly differently (see below). atixref's trim splits
    into 8-vertex `[Wood]` shapes and empty `[plaster]` ones, as captured.
 
-   Not ported:
-   - A two-surface csgo_environment_blend material may instead take its
-     layers from its textures (a sampler that needs a render device, scene
-     system and mod tools connected). Whether a compile has those is not
-     measured, so such pieces are listed.
-   - For a subdivided mesh, the paint is used only when every triangle lands
-     on one layer whatever the interpolation.
+   The paint the split sees, measured from a capture of painted copies of
+   ze_hold_em_p:
+   - A plain piece keeps one paint per .vmap vertex: the first of its
+     corners met in its own face set (bias, material), faces in order and
+     each loop from its first half-edge.
+   - A subdivided face takes the paint stored per grid point in
+     subdivisionData (the displacement's layout), not a lerp.
+
+   Not ported: the **material sampler**. A two-surface csgo_environment_blend
+   material (its shader sets SupportsMaterialLayerSampling) takes each
+   triangle's layer from a GPU render of the material. It runs in every
+   compile: atixref's plaster/concrete pieces get plaster where the 0.5 rule
+   gives concrete. How it works (physicsbuilder, see `CMaterialSampler`):
+   1. **Sample points.** Per triangle, round(area / 128) clamped to 1..53
+      picks a count from a fixed table, and that many points are taken from
+      a fixed 53-point barycentric table. Each point gets uv0, uv1 (uv0 when
+      there is no second set), the paint, a tint of 1, a tangent (1,0,0,1),
+      a normal (0,0,1) and its position.
+   2. **Render.** Batches of up to 2^20 points, each a small triangle
+      centred on its own pixel of a square target (the next power of two of
+      the square root of the count, at least 16), drawn with an orthographic
+      view through the material's **ToolsVis** mode (`S_MODE_TOOLS_VIS` 1,
+      `g_nToolsVisMode` at its default 0) with the render attribute
+      MaterialSamplerMode 0. The vertex layout "MaterialSampler" is PosXyz,
+      CompressedTangentFrame, LowPrecisionUv, LowPrecisionUv1 and
+      VertexPaintBlendParams, the paint as RGBA8 (x * 255 clamped).
+   3. **Read back.** Only the colour target, RGB8: with m = min(R, G, B), the
+      layer weights are (R - m, G - m, B - m, m) / 255.
+   4. **Vote.** Each point picks its largest weight (the lower layer on a
+      tie) and each triangle the layer most of its points picked (the lower
+      layer on a tie).
+
+   The plan is to run the same ToolsVis programs on the GPU (the Vulkan
+   build on Linux), not to rewrite the shader on the CPU.
 4. **Order.** resourcecompiler appends each node's shape to the physics part,
    then re-sorts the whole list by shape type with tier0's `V_qsort` after every
    append. That is the Microsoft CRT qsort (`Maps/CrtQsort.cs`). On runs of equal
