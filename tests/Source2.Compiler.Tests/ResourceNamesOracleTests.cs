@@ -105,6 +105,57 @@ public unsafe class ResourceNamesOracleTests(ITestOutputHelper output)
         Assert.True(failures.Count == 0, string.Join("\n", failures.Take(40)));
     }
 
+    [Fact]
+    public void Tier0StringsMatchTheExports()
+    {
+        if (ResourceCompilerOracle.Load() == null)
+            return;
+        var stristr = (delegate* unmanaged<byte*, byte*, byte*>)ResourceCompilerOracle.Tier0("?V_stristr_fast@@YAPEBDPEBD0@Z");
+        var split = (delegate* unmanaged<byte*, byte*, byte*, byte, void>)ResourceCompilerOracle.Tier0(
+            "?V_SplitString@@YAXPEBD0AEAV?$CUtlVector@VCUtlString@@HV?$CUtlVectorMemory_Growable@VCUtlString@@H$0A@@@@@_N@Z");
+        var remove = (delegate* unmanaged<nint*, nint*, byte*, byte, nint*>)ResourceCompilerOracle.Tier0("?Remove@CUtlString@@QEBA?AV1@PEBD_N@Z");
+        string[] finds = ["water", ", window", ",", "Ab", "a"];
+        var failures = new List<string>();
+        var texts = Corpus().Concat(["Water, Window, window", "solid, window, WINDOW, water", ",,a,,b,", "a, b ,c", "", ","]).ToList();
+        foreach (var text in texts)
+        {
+            foreach (var find in finds)
+            {
+                fixed (byte* t = ResourceNames.Terminated(text))
+                fixed (byte* f = ResourceNames.Terminated(find))
+                {
+                    var hit = stristr(t, f);
+                    var theirs = hit == null ? -1 : (int)(hit - t);
+                    // Byte offsets equal char offsets on ASCII text only.
+                    if (text.All(c => c < 0x80) && theirs != Tier0Strings.StriStr(text, find))
+                        failures.Add($"StriStr '{text}' '{find}': {theirs} vs {Tier0Strings.StriStr(text, find)}");
+
+                    var self = (nint)t;
+                    nint result = 0;
+                    remove(&self, &result, f, 0);
+                    var removed = result == 0 ? "" : Marshal.PtrToStringUTF8(result) ?? "";
+                    if (removed != Tier0Strings.RemoveIgnoreCase(text, find))
+                        failures.Add($"Remove '{text}' '{find}': '{removed}' vs '{Tier0Strings.RemoveIgnoreCase(text, find)}'");
+
+                    foreach (var empty in new[] { false, true })
+                    {
+                        var vector = (byte*)NativeMemory.AllocZeroed(0x20);
+                        split(t, f, vector, empty ? (byte)1 : (byte)0);
+                        var count = *(int*)vector;
+                        var items = *(nint**)(vector + 8);
+                        var pieces = Enumerable.Range(0, count).Select(i => items[i] == 0 ? "" : Marshal.PtrToStringUTF8(items[i]) ?? "").ToList();
+                        NativeMemory.Free(vector);
+                        var mine = Tier0Strings.SplitString(text, find, empty);
+                        if (!pieces.SequenceEqual(mine))
+                            failures.Add($"Split '{text}' '{find}' {empty}: [{string.Join("|", pieces)}] vs [{string.Join("|", mine)}]");
+                    }
+                }
+            }
+        }
+        output.WriteLine($"compared {texts.Count} texts x {finds.Length} patterns against tier0");
+        Assert.True(failures.Count == 0, string.Join("\n", failures.Take(40)));
+    }
+
     // The named cases, then 4000 random strings over path-ish characters.
     private static IEnumerable<string> Corpus()
     {

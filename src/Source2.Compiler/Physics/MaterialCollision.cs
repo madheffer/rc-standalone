@@ -118,13 +118,13 @@ public static class MaterialCollision
             with = Join(with, p.InteractWith);
             exclude = Join(exclude, p.InteractExclude);
         }
-        // CUtlString::Remove, case sensitive.
-        if (tags.Contains("water", StringComparison.OrdinalIgnoreCase))
-            tags = tags.Replace(", window", "", StringComparison.Ordinal);
-        // V_SplitString with its last argument false; empty pieces are taken
-        // as dropped (not measured).
-        var listA = StringByHash(info, ListAKey)?.Split(',', StringSplitOptions.RemoveEmptyEntries) ?? [];
-        var listB = StringByHash(info, ListBKey)?.Split(',', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        // V_stristr_fast, then CUtlString::Remove with case sensitivity off
+        // (physicsbuilder 180013bc1 passes 0): every ", window", A-Z folded.
+        if (Io.Tier0Strings.StriStr(tags, "water") >= 0)
+            tags = Io.Tier0Strings.RemoveIgnoreCase(tags, ", window");
+        // V_SplitString(list, ",", false): empty pieces dropped, none trimmed.
+        var listA = StringByHash(info, ListAKey) is { } a ? Io.Tier0Strings.SplitString(a, ",", false).ToArray() : [];
+        var listB = StringByHash(info, ListBKey) is { } b ? Io.Tier0Strings.SplitString(b, ",", false).ToArray() : [];
         if (listA.Length != 0 || listB.Length != 0)
             solid = true;
         return new Result(solid, group, tags, with, exclude, listA, listB);

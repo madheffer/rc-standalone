@@ -42,8 +42,6 @@ game can answer is raised with the user first, and runs with -insecure.
    length. Port the bake's face and edge splits (in progress).
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling: assumed, no counter-example.
-8. **Material list splitting**: empty pieces of V_SplitString taken as
-   dropped. Check against tier0's export.
 9. **Texcoord transform defaults** for parameters a material leaves out
    (UV set 0, scale 1, rotation 0).
 10. **Hammer's re-projected texcoords and normals** (about 1e-5 off on some
@@ -92,3 +90,9 @@ game can answer is raised with the user first, and runs with -insecure.
   replaces the two bracketed cuts (raw at or below 256 on the buffer alone;
   Zstd above 512 KiB for PHYS only): a block of exactly 256 bytes is now
   compressed, blobs count, and any block past 0x80000 is Zstd.
+- **Material list splitting and the water rule** (2026-09-28, decompile and
+  oracle). The two collision lists are split with V_SplitString on "," with
+  empty pieces dropped and nothing trimmed. A material whose tags contain
+  "water" (A-Z folded) loses every ", window" with case sensitivity off: the
+  argument is 0 in the binary, where the decompile had shown it as true. The
+  tier0 helpers are checked against tier0's exports on 4,054 texts.
