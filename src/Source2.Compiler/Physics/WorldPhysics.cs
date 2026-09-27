@@ -40,13 +40,14 @@ public sealed class WorldPhysics
         var model = new WorldPhysics();
         var ordered = WorldCollision.PartOrder(pieces, p => p.Type);
         var attributeKeys = new List<string>();
-        int AttributeOf(WorldCollision.MaterialPhysics physics)
+        int AttributeOf(WorldCollision.MaterialPhysics physics, WorldCollision.Piece piece)
         {
             var at = attributeKeys.IndexOf(physics.AttributeKey);
             if (at >= 0)
                 return at;
             attributeKeys.Add(physics.AttributeKey);
-            model.Attributes.Add(new Attribute(physics.CollisionGroup.Length == 0 ? "Default" : physics.CollisionGroup,
+            model.AttributeSources.Add($"{(piece.Hull != null ? "hull" : "mesh")} node {piece.NodeId} {piece.MaterialName} group '{physics.CollisionGroup}'");
+            model.Attributes.Add(new Attribute(physics.CollisionGroup.Length == 0 ? "default" : physics.CollisionGroup,
                 Tags(physics.InteractAs), Tags(physics.InteractWith), Tags(physics.InteractExclude)));
             return attributeKeys.Count - 1;
         }
@@ -61,9 +62,9 @@ public sealed class WorldPhysics
         }
         // Hulls are written before the mesh gatherer runs, so they register first.
         foreach (var p in ordered.Where(p => p.Hull != null))
-            model.Hulls.Add(new Shape(AttributeOf(p.Physics), SurfaceOf(p.Physics), 0, p.Hull, null));
+            model.Hulls.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics), 0, p.Hull, null));
         var meshPieces = ordered.Where(p => p.Hull == null).ToList();
-        var meshes = meshPieces.Select(p => (Attribute: AttributeOf(p.Physics), Surface: SurfaceOf(p.Physics), p.Points, p.Indices)).ToList();
+        var meshes = meshPieces.Select(p => (Attribute: AttributeOf(p.Physics, p), Surface: SurfaceOf(p.Physics), p.Points, p.Indices)).ToList();
         model.MeshPieces = meshes.Count;
         foreach (var soup in WorldCollision.Group(meshes))
         {
@@ -80,8 +81,14 @@ public sealed class WorldPhysics
         return model;
     }
 
+    // A tag list as the table writes it: each name once, in alphabetical order
+    // (c2m2: ladder, npcclip, playerclip; atixref: "window, window" is one).
     private static string[] Tags(string list)
-        => list.Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries);
+        => [.. list.Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>Which piece registered each attribute, for exploration.</summary>
+    public List<string> AttributeSources { get; } = [];
 }
 
 /// <summary>

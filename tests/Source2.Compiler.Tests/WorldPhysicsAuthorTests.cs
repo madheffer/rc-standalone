@@ -53,8 +53,12 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         using var models = new SettleBuildTests.PakModels(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", p[0]));
         var doc = DmxBinary.ReadFile(Path.Combine(cs2, "content", "csgo_addons", p[0], "maps", p[1] + ".vmap"));
         var notes = new List<string>();
+        // WPBUILD_GPU=1: new-blending materials take their layers from the GPU sampler.
+        using var gpu = Environment.GetEnvironmentVariable("WPBUILD_GPU") == "1"
+            ? new Source2.Compiler.Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), models.Read)
+            : null;
         var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
-            notes, null, models.Physics, models.SmartProp);
+            notes, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
         var model = Physics.WorldPhysics.Build(pieces);
         var mine = WorldPhysicsAuthor.Container(Physics.WorldPhysicsTrees.Phys(model), Physics.WorldPhysicsTrees.Red2(model, models.SurfaceName), Physics.WorldPhysicsTrees.Data(p[1]));
         var valve = Read(p[2], $"maps/{p[1]}/world_physics.vmdl_c");
@@ -71,6 +75,8 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             foreach (var d in diffs.Take(show))
                 output.WriteLine($"  {name}{d}");
         }
+        foreach (var source in model.AttributeSources)
+            output.WriteLine($"attribute source: {source}");
         foreach (var note in notes.Take(10))
             output.WriteLine($"note: {note}");
         Assert.Equal(0, total);

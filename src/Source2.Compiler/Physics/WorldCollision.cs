@@ -466,9 +466,11 @@ public static class WorldCollision
         MaterialPhysics Physics(int attributeIndex, int surfaceIndex)
         {
             var attribute = attributeIndex >= 0 && attributeIndex < attributes.Count ? attributes[attributeIndex] : null;
-            string Names(string key) => attribute == null ? "" : string.Join(" ", attribute.GetArray<string>(key) ?? []);
-            var group = attribute?.GetStringProperty("m_CollisionGroupString") ?? "";
-            return new MaterialPhysics(true, string.Equals(group, "default", StringComparison.OrdinalIgnoreCase) ? "" : group.ToLowerInvariant(),
+            // physicsbuilder rebuilds the strings from the cooked attribute through
+            // vphysics2's dictionary (180153d40), so they come out as it spells them.
+            string Names(string key) => attribute == null ? "" : CollisionNames.CanonicalList(string.Join(" ", attribute.GetArray<string>(key) ?? []));
+            var group = CollisionNames.Canonical(attribute?.GetStringProperty("m_CollisionGroupString") ?? "");
+            return new MaterialPhysics(true, group,
                 Names("m_InteractAsStrings"), "")
             {
                 InteractWith = Names("m_InteractWithStrings"),

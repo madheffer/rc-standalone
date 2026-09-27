@@ -44,10 +44,17 @@ doubles.
   `m_UserFriendlyName` joins its shapes' names with "; ", a painted layer's
   name being " [surface]" (physicsbuilder 180016230).
 
-On atixref the whole file comes out the same but for nine strings in the
-collision attribute table: Valve writes canonical group and layer names
-(`ConditionallySolid`), layers in its own order and without repeats. Those come
-from vphysics2's intersection dictionary, not yet ported. ze_hold_em_p differs
+- A collision attribute keeps the strings of the shape that registered it,
+  its tags each once and in alphabetical order (c2m2: `ladder, npcclip,
+  playerclip`). A world material keeps its own spelling (`default`,
+  `conditionallysolid`). A prop's attribute is rebuilt from its model's cooked
+  one through vphysics2's intersection dictionary (physicsbuilder 180153d40),
+  so it takes the dictionary's spelling (`Default`, `ConditionallySolid`);
+  names the game registers itself keep the model's.
+
+Built from the map, the whole file is Valve's on atixref, ze_hold_em_nb and
+ze_hold_em_paint_flat (every block's tree and the container facts;
+ze_hold_em_nb with the GPU sampler). ze_hold_em_p and ze_hold_em_paint differ
 only in the subdivided floor's soup below.
 
 ## How a mesh is built: `RnMeshCreate`
