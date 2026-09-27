@@ -29,6 +29,7 @@ try
         "inspect" => Commands.Inspect(args[1..]),
         "selftest" => SelfTest.Run(args[1..]),
         "kv3-parity" => Kv3Parity.Run(args[1..]),
+        "nmclip-parity" => NmClipParity.Run(args[1..]),
         _ => Unknown(args[0]),
     };
 }
