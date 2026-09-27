@@ -84,6 +84,77 @@ public sealed class Kv3Tree
 
     public string StringOf(int id) => id < 0 ? string.Empty : Strings[id];
 
+    // ---- navigation and typed edits. A setter picks the node form RC would: 0.0 and 1.0 as
+    // DoubleZero / DoubleOne, 0 and 1 as Int64Zero / Int64One (measured in stock clips). A typed
+    // array element keeps its array's element type, since elements carry no type byte.
+
+    public Kv3Node? Get(Kv3Node obj, string key)
+    {
+        if (obj.Type != Kv3Type.Object) return null;
+        for (var i = 0; i < obj.Items!.Count; i++)
+            if (StringOf(obj.KeyIds![i]) == key) return obj.Items[i];
+        return null;
+    }
+
+    public Kv3Node Need(Kv3Node obj, string key) => Get(obj, key) ?? throw new InvalidDataException($"KV3: missing '{key}'");
+
+    public void Replace(Kv3Node obj, string key, Kv3Node value)
+    {
+        for (var i = 0; i < obj.Items!.Count; i++)
+            if (StringOf(obj.KeyIds![i]) == key) { obj.Items[i] = value; return; }
+        throw new InvalidDataException($"KV3: missing '{key}'");
+    }
+
+    public static double AsDouble(Kv3Node n) => n.Type switch
+    {
+        Kv3Type.Double => BitConverter.UInt64BitsToDouble(n.Bits),
+        Kv3Type.Float => BitConverter.UInt32BitsToSingle((uint)n.Bits),
+        Kv3Type.DoubleZero or Kv3Type.Int64Zero => 0,
+        Kv3Type.DoubleOne or Kv3Type.Int64One => 1,
+        _ => AsLong(n),
+    };
+
+    public static long AsLong(Kv3Node n) => n.Type switch
+    {
+        Kv3Type.Int64Zero or Kv3Type.BooleanFalse => 0,
+        Kv3Type.Int64One or Kv3Type.BooleanTrue => 1,
+        Kv3Type.Int32 => (int)(uint)n.Bits,
+        Kv3Type.Int16 => (short)(ushort)n.Bits,
+        Kv3Type.Int64 => (long)n.Bits,
+        Kv3Type.Boolean or Kv3Type.Int32AsByte or Kv3Type.UInt16 or Kv3Type.UInt32 or Kv3Type.UInt64 => (long)n.Bits,
+        Kv3Type.DoubleZero => 0,
+        Kv3Type.DoubleOne => 1,
+        _ => throw new InvalidDataException($"KV3: {n.Type} is not a number"),
+    };
+
+    public static bool AsBool(Kv3Node n) => n.Type switch
+    {
+        Kv3Type.BooleanTrue => true,
+        Kv3Type.BooleanFalse => false,
+        Kv3Type.Boolean => n.Bits != 0,
+        _ => throw new InvalidDataException($"KV3: {n.Type} is not a boolean"),
+    };
+
+    /// <summary>A double as RC writes a described (non-element) node.</summary>
+    public static Kv3Node Double(double v) => v switch
+    {
+        0 when !double.IsNegative(v) => new() { Type = Kv3Type.DoubleZero },
+        1 => new() { Type = Kv3Type.DoubleOne },
+        _ => new() { Type = Kv3Type.Double, Bits = BitConverter.DoubleToUInt64Bits(v) },
+    };
+
+    public static Kv3Node Bool(bool v) => new() { Type = v ? Kv3Type.BooleanTrue : Kv3Type.BooleanFalse };
+
+    /// <summary>An integer in the same width family as <paramref name="like"/>, in RC's form.</summary>
+    public static Kv3Node IntLike(Kv3Node like, long v) => like.Type switch
+    {
+        Kv3Type.Int64 or Kv3Type.Int64Zero or Kv3Type.Int64One =>
+            v == 0 ? new() { Type = Kv3Type.Int64Zero } : v == 1 ? new() { Type = Kv3Type.Int64One } : new() { Type = Kv3Type.Int64, Bits = (ulong)v },
+        Kv3Type.Int32 or Kv3Type.UInt32 or Kv3Type.Int16 or Kv3Type.UInt16 or Kv3Type.Int32AsByte or Kv3Type.UInt64 =>
+            new() { Type = like.Type, Bits = like.Type == Kv3Type.Int32 ? (uint)(int)v : (ulong)v },
+        _ => throw new InvalidDataException($"KV3: {like.Type} is not an integer"),
+    };
+
     // ---- reading
 
     private sealed class Lanes
