@@ -52,10 +52,16 @@ public static class WorldCollision
     /// index. <c>PuddleChannel</c> is the blend channel whose paint puts a
     /// triangle on the <c>PuddleLayer</c> surface (-1 for none).
     /// <c>FirstHeightScale</c> below zero turns the first channel around.
-    /// <c>Sampled</c> marks a material whose layers the builder may sample
-    /// from its textures instead (not ported).
+    /// <c>Sampled</c> marks a material whose layers the builder takes from
+    /// the material sampler instead (18064c460, a GPU render of the
+    /// material's ToolsVis mode 80). <c>NewBlending</c> is the material's
+    /// F_USE_NEW_BLENDING: without it the sampler reads layer 0 for every
+    /// triangle; with it the layers come from the shader's blend (not ported).
     /// </summary>
-    public sealed record BlendLayers(int LayerCount, int PuddleChannel, int PuddleLayer, string[] Surfaces, int[] Remap, bool Swap, float FirstHeightScale, bool Sampled);
+    public sealed record BlendLayers(int LayerCount, int PuddleChannel, int PuddleLayer, string[] Surfaces, int[] Remap, bool Swap, float FirstHeightScale, bool Sampled)
+    {
+        public bool NewBlending { get; init; }
+    }
 
     /// <summary>
     /// The vertex paint flags a shader declares, as attributes of its
@@ -115,7 +121,10 @@ public static class WorldCollision
                 puddleLayer = surfaces.Count - 1;
             }
         }
-        return new BlendLayers(layers, puddles ? 2 : -1, puddleLayer, [.. surfaces], remap, false, firstScale, surfaces.Count >= 2 && sampling);
+        return new BlendLayers(layers, puddles ? 2 : -1, puddleLayer, [.. surfaces], remap, false, firstScale, surfaces.Count >= 2 && sampling)
+        {
+            NewBlending = features.TryGetValue("F_USE_NEW_BLENDING", out var nb) && nb == 1,
+        };
     }
 
     /// <summary>
@@ -130,8 +139,9 @@ public static class WorldCollision
     /// A piece cut into one mesh per layer surface (0924: 180015930). Each
     /// triangle averages its corners' blend paint, channel by channel as
     /// (second + first + third) / 3. Paint above 0.5 in the puddle channel
-    /// sends it to the puddle surface; otherwise, with more than one layer,
-    /// the first channel at 0.5 or more picks layer 1, else layer 0. The
+    /// sends it to the puddle surface; otherwise a sampled material takes the
+    /// sampler's layer, and else, with more than one layer, the first channel
+    /// at 0.5 or more picks layer 1, else layer 0. The
     /// triangle's three positions go to that surface's mesh unshared, and
     /// each mesh is welded at 1/32 (CMesh_Weld). Meshes left empty are kept.
     /// </summary>
@@ -152,7 +162,16 @@ public static class WorldCollision
             else
             {
                 var layer = 0;
-                if (b.LayerCount > 1)
+                // The sampler's ToolsVis programs without S_USE_NEW_BLENDING
+                // write the layer weights (1, 0, 0, 0), scaled down by puddles
+                // at most, so every point and every triangle reads layer 0
+                // (read from all 96 such csgo_environment_blend programs;
+                // atixref's 5 sampled splits, all layer 0). With new blending
+                // the weights come from the blend itself: not ported, and the
+                // 0.5 rule stands in.
+                if (b.Sampled && !b.NewBlending)
+                    layer = 0;
+                else if (b.LayerCount > 1)
                 {
                     var x = b.FirstHeightScale < 0f ? 1f - avg[0] : avg[0];
                     layer = 0.5f <= x ? 1 : 0;
@@ -248,8 +267,8 @@ public static class WorldCollision
                         result.Add(new Piece(mesh.NodeId, material, name, physics, points, indices));
                         continue;
                     }
-                    if (physics.Blend is { Sampled: true } && paint != null && Splits(physics.Blend))
-                        notes?.Add($"node {mesh.NodeId} material {material}: layers may come from the material sampler");
+                    if (physics.Blend is { Sampled: true, NewBlending: true } && paint != null && Splits(physics.Blend))
+                        notes?.Add($"node {mesh.NodeId} material {material}: new-blending layers come from the material sampler on the GPU (not ported)");
                     AddPieces(result, mesh.NodeId, material, name, physics, physics.Blend != null ? piecePaint : null, points, indices);
                 }
                 continue;
@@ -277,8 +296,8 @@ public static class WorldCollision
                     // The sampler (18064c460) runs in a compile (all four
                     // interfaces connected, one sample per triangle on atixref)
                     // and is not ported, so such pieces are listed.
-                    if (physics.Blend.Sampled)
-                        notes?.Add($"node {mesh.NodeId} material {material}: layers come from the material sampler (not ported)");
+                    if (physics.Blend is { Sampled: true, NewBlending: true })
+                        notes?.Add($"node {mesh.NodeId} material {material}: new-blending layers come from the material sampler on the GPU (not ported)");
                 }
                 AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices);
             }

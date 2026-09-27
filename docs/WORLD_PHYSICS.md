@@ -132,8 +132,32 @@ vertex and index for index (`WorldCollisionInput`, `WORLDCOL=...`).
       tie) and each triangle the layer most of its points picked (the lower
       layer on a tie).
 
-   The plan is to run the same ToolsVis programs on the GPU (the Vulkan
-   build on Linux), not to rewrite the shader on the CPU.
+   What the programs write (csgo_environment_blend, read from all 384 of
+   its ToolsVis pixel programs with `ShaderProgramDump`; the pixel side only
+   exists at `S_SHADER_QUALITY` 1). The sampler selects `g_nToolsVisMode` 80,
+   which writes mix(mix(mix(red * w.x, green, w.y), blue, w.z), white, w.w)
+   for the layer weights w:
+   - Without `S_USE_NEW_BLENDING` (F_USE_NEW_BLENDING 0), w is
+     (1, 0, 0, 0), scaled down by puddles at most, so every triangle reads
+     layer 0. Ported: atixref's 5 sampled splits are exact. 188 of CS2's 239
+     two-surface environment_blend materials are like this.
+   - With it, w is (1 - b, b, 0, 0) (or three layers), b being the height
+     blend of the layers' textures, paint, softness and scales. That needs the
+     program run on the GPU: 51 of CS2's materials. The 0.5 rule stands in,
+     and such pieces are listed.
+
+   The GPU runner will need, per the Vulkan programs (vs static combo with
+   `S_MODE_TOOLS_VIS` 1 and dynamic `D_COMPRESSED_NORMALS_AND_TANGENTS` 1;
+   ps with `S_SHADER_QUALITY` 1 and the material's `S_USE_NEW_BLENDING`,
+   `S_ENABLE_LAYER_3`, `S_BLEND_EFFECTS_*`, `S_DETAIL_NORMAL`,
+   `S_SHARED_COLOR_OVERLAY`, `S_ALPHA_TEST`):
+   - vertex inputs vPositionOs, vTexCoord, vTexCoord2, nPackedFrame,
+     vBlendIndices, nInstanceIdx, vBlendColorTint and vColorBlendValues (the
+     paint), with an instance and a transform buffer (identity here);
+   - the per-view constant buffers (an orthographic view over the target);
+   - `_Globals_`, the material's parameters, `g_nToolsVisMode` 80 among them;
+   - the layers' colour, normal and height textures through Vulkan bindless
+     descriptor arrays, with the material's samplers.
 4. **Order.** resourcecompiler appends each node's shape to the physics part,
    then re-sorts the whole list by shape type with tier0's `V_qsort` after every
    append. That is the Microsoft CRT qsort (`Maps/CrtQsort.cs`). On runs of equal
