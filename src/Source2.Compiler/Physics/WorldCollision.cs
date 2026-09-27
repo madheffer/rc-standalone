@@ -537,7 +537,8 @@ public static class WorldCollision
             .FirstOrDefault(st => st.Name.StartsWith("lightmapScaleBias", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [])
             .Select(x => x is int i ? i : 0).ToArray();
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
-        var toWorld = Maps.CTransform.FromNode(mesh).Matrix();
+        // A world mesh moves by its node's own matrix, as the plain pieces do.
+        var toWorld = Maps.MapMeshes.Local(mesh);
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
         (var cut, covered) = Maps.MeshTessellation.TriangulateBuilder(data);
         // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
@@ -566,7 +567,31 @@ public static class WorldCollision
                 piece.Indices.Add(at);
             }
         }
-        return [.. byMaterial.Select(kv => (kv.Key.Material, kv.Value.Points.ToArray(), kv.Value.Indices.ToArray(), cut.Paint == null ? null : kv.Value.Paint.ToArray()))];
+        // Each piece goes through the piece weld at 1/32 in the world, as the
+        // builder welds the moved mesh: tessellated points a hair apart become
+        // one (atixref's subdivided asphalt and gravel: 1385 bit for bit, 6516
+        // and 1373 to the index with 4 vertices an ulp off). The paint rides
+        // along, ignored by the weld; a cluster keeps its first vertex's.
+        var result = new List<(int, Vector3[], int[], Vector4[]?)>();
+        foreach (var kv in byMaterial)
+        {
+            var pts = kv.Value.Points;
+            var paint = kv.Value.Paint;
+            const int Stride = 7;
+            var flat = new float[pts.Count * Stride];
+            for (var i = 0; i < pts.Count; i++)
+            {
+                (flat[i * Stride], flat[(i * Stride) + 1], flat[(i * Stride) + 2]) = (pts[i].X, pts[i].Y, pts[i].Z);
+                if (cut.Paint != null)
+                    (flat[(i * Stride) + 3], flat[(i * Stride) + 4], flat[(i * Stride) + 5], flat[(i * Stride) + 6]) = (paint[i].X, paint[i].Y, paint[i].Z, paint[i].W);
+            }
+            var (v, ix) = MeshWeld.Weld(flat, Stride, [.. kv.Value.Indices],
+                [new MeshWeld.Stream("position", 0, 3, false, 42), new MeshWeld.Stream("VertexPaintBlendParams", 3, 4, true, 42)], 1f / 32f);
+            var n = v.Length / Stride;
+            result.Add((kv.Key.Material, [.. Enumerable.Range(0, n).Select(i => new Vector3(v[i * Stride], v[(i * Stride) + 1], v[(i * Stride) + 2]))], ix,
+                cut.Paint == null ? null : [.. Enumerable.Range(0, n).Select(i => new Vector4(v[(i * Stride) + 3], v[(i * Stride) + 4], v[(i * Stride) + 5], v[(i * Stride) + 6]))]));
+        }
+        return result;
     }
 
     /// <summary>

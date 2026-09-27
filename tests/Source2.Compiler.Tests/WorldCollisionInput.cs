@@ -212,6 +212,21 @@ public class WorldCollisionInput(ITestOutputHelper output)
             var notes = new List<string>();
             foreach (var p in pieces.Where(p => p.Points.Length > 0))
             {
+                // WORLDCOL_PIECE on a piece whose count differs: the dumped shape with its first vertex.
+                if (Environment.GetEnvironmentVariable("WORLDCOL_PIECE") == $"{p.NodeId}/{p.Material}" && !byFirst.ContainsKey((p.Points.Length, p.Points[0])))
+                {
+                    var any = dumped.FirstOrDefault(d => d.V.Length >= 12 && new Vector3(BitConverter.ToSingle(d.V, 0), BitConverter.ToSingle(d.V, 4), BitConverter.ToSingle(d.V, 8)) == p.Points[0]);
+                    if (any.V != null)
+                    {
+                        var tv = MemoryMarshal.Cast<byte, float>(any.V).ToArray();
+                        var ti = MemoryMarshal.Cast<byte, int>(any.I).ToArray();
+                        output.WriteLine($"  PIECE counts: ours {p.Points.Length} v {p.Indices.Length / 3} t, theirs {tv.Length / 3} v {ti.Length / 3} t");
+                        for (var q = 0; q < Math.Max(p.Points.Length, tv.Length / 3); q++)
+                            output.WriteLine($"  PIECE v{q}: ours {(q < p.Points.Length ? $"({p.Points[q].X:R},{p.Points[q].Y:R},{p.Points[q].Z:R})" : "-")} theirs {(q < tv.Length / 3 ? $"({tv[q * 3]:R},{tv[(q * 3) + 1]:R},{tv[(q * 3) + 2]:R})" : "-")}");
+                        for (var t = 0; t < Math.Max(p.Indices.Length, ti.Length) / 3; t++)
+                            output.WriteLine($"  PIECE t{t}: ours {(t * 3 + 2 < p.Indices.Length ? $"{p.Indices[t * 3]} {p.Indices[t * 3 + 1]} {p.Indices[t * 3 + 2]}" : "-")} theirs {(t * 3 + 2 < ti.Length ? $"{ti[t * 3]} {ti[t * 3 + 1]} {ti[t * 3 + 2]}" : "-")}");
+                    }
+                }
                 if (!byFirst.TryGetValue((p.Points.Length, p.Points[0]), out var cands))
                     continue;
                 sameFirst++;
@@ -222,6 +237,17 @@ public class WorldCollisionInput(ITestOutputHelper output)
                 else if (notes.Count < 15)
                 {
                     var c = cands[0];
+                    if (Environment.GetEnvironmentVariable("WORLDCOL_PIECE") == $"{p.NodeId}/{p.Material}")
+                    {
+                        string V(float[] f, int q) => $"({f[q * 3]:R},{f[(q * 3) + 1]:R},{f[(q * 3) + 2]:R})";
+                        var tv = MemoryMarshal.Cast<byte, float>(c.V).ToArray();
+                        var ti = MemoryMarshal.Cast<byte, int>(c.I).ToArray();
+                        var ov = p.Points.SelectMany(x => new[] { x.X, x.Y, x.Z }).ToArray();
+                        for (var q = 0; q < Math.Max(p.Points.Length, tv.Length / 3); q++)
+                            output.WriteLine($"  PIECE v{q}: ours {(q < p.Points.Length ? V(ov, q) : "-")} theirs {(q < tv.Length / 3 ? V(tv, q) : "-")}");
+                        for (var t = 0; t < Math.Max(p.Indices.Length, ti.Length) / 3; t++)
+                            output.WriteLine($"  PIECE t{t}: ours {(t * 3 + 2 < p.Indices.Length ? $"{p.Indices[t * 3]} {p.Indices[t * 3 + 1]} {p.Indices[t * 3 + 2]}" : "-")} theirs {(t * 3 + 2 < ti.Length ? $"{ti[t * 3]} {ti[t * 3 + 1]} {ti[t * 3 + 2]}" : "-")}");
+                    }
                     var vi = Enumerable.Range(0, p.Points.Length).FirstOrDefault(k => BitConverter.ToSingle(c.V, k * 12) != p.Points[k].X || BitConverter.ToSingle(c.V, (k * 12) + 4) != p.Points[k].Y || BitConverter.ToSingle(c.V, (k * 12) + 8) != p.Points[k].Z, -1);
                     var ii = Enumerable.Range(0, Math.Min(p.Indices.Length, c.I.Length / 4)).FirstOrDefault(k => BitConverter.ToInt32(c.I, k * 4) != p.Indices[k], -1);
                     var detail = vi < 0 ? "" : $" ours {p.Points[vi].X:R},{p.Points[vi].Y:R},{p.Points[vi].Z:R} theirs {BitConverter.ToSingle(c.V, vi * 12):R},{BitConverter.ToSingle(c.V, (vi * 12) + 4):R},{BitConverter.ToSingle(c.V, (vi * 12) + 8):R}";
