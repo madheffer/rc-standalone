@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Source2.Compiler\Source2.Compiler.csproj" />
+    <ProjectReference Include="..\..\src\Source2.Compiler.Gpu\Source2.Compiler.Gpu.csproj" />
   </ItemGroup>
 
   <ItemGroup>
