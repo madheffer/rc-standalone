@@ -27,10 +27,9 @@ game can answer is raised with the user first, and runs with -insecure.
    pipes on Mako. The per-material mesh's vertex key (normals from the
    smoothing angle, shifted texcoords) is not read. Settle by reading the
    per-material mesh build and capturing the hull builder's input.
-2. **Painted convex pieces.** The split builds a positions-only mesh per
-   layer, welded at 1/32, and each is hulled on its own. The port keeps the
-   unsplit hull when one layer takes everything and notes the rest. Port the
-   split mesh literally.
+2. **Painted convex_multi pieces**: each layer's mesh is grouped by
+   connectivity as an unsplit piece is; physicsbuilder's multi path is not
+   read yet. (convex_single is settled below.)
 3. **KV3 encodings per resource type.** Most block writers save with
    binary_auto (settled below), but some call sites pass plain "binary" or
    "binary_bc". Map each writer to the resource types it serves.
@@ -46,9 +45,11 @@ game can answer is raised with the user first, and runs with -insecure.
    (UV set 0, scale 1, rotation 0).
 10. **Hammer's re-projected texcoords and normals** (about 1e-5 off on some
     faces). They do not change a hull, but the source is not read.
-11. **Surface table and RED2 listing rules** (entries keyed by the name as
-    spelled; RED2 lists the named ones with counts; a layer-split mesh names
-    "default"): fitted to cardtest, c2m2 and Mako output. Read the writer.
+11. **RED2 surface_prop counts.** Read: each shape's own surface string goes
+    into a case-sensitive symbol table and each distinct one is added once to
+    the compile context as a "surface_prop" subasset. Open: how the context
+    merges two spellings of one surface (the count of 2 for "Wood" and
+    "wood") and which name it keeps. Capture the context call next.
 12. **VPK v2 layout** (tree order, chunk hashes, signature section): byte
     exact on four packages, the packer not read.
 
@@ -101,3 +102,12 @@ game can answer is raised with the user first, and runs with -insecure.
   "water" (A-Z folded) loses every ", window" with case sensitivity off: the
   argument is 0 in the binary, where the decompile had shown it as true. The
   tier0 helpers are checked against tier0's exports on 4,054 texts.
+- **Surface table** (2026-09-28, decompile). The part's surface table is a
+  list of name strings in first-registration order, matched with a
+  case-sensitive compare (an empty name equals an empty one); a shape with no
+  surface of its own inherits the enclosing one.
+- **has_default_surface_property** (2026-09-28, decompile). Set when a
+  physics shape node's own surface string equals "default", A-Z folded.
+- **Painted convex_single pieces** (2026-09-28, decompile). Each layer's
+  triangles become a positions-only mesh welded at 1/32, and every vertex of
+  it is hulled on its own, named " [surface]" with no tool material.

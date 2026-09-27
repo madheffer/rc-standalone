@@ -361,50 +361,57 @@ public static class WorldCollision
             {
                 var type = stored == "convex_single" ? BrushHulls.PhysicsType.ConvexSingle : BrushHulls.PhysicsType.ConvexMulti;
                 var convexFirst = paint == null ? null : FirstCorners(mesh.Element!);
-                foreach (var (material, positions, faces, local, corners, _, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, placed: Placed(mesh)))
+                var convexTexcoords = paint == null ? null : TexcoordStream(mesh.Element!);
+                // The same per-material mesh the mesh path reads, texcoord shift included.
+                foreach (var (material, positions, faces, local, corners, _, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
+                             !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh)))
                 {
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
                     var physics = materials(name);
                     if (!physics.Solid)
                         continue;
+                    void AddHulls(IEnumerable<Vector3[]> inputs, MaterialPhysics hullPhysics, string pieceName, string tool)
+                    {
+                        foreach (var input in inputs)
+                        {
+                            var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
+                            var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
+                            var hull = points == null ? null : RnHullBuilder.Create(points, RnHullBuilder.Options.Compile, out _);
+                            if (hull == null)
+                                continue;
+                            hull.RegionSvm = RegionSvmBuilder.Build(hull);
+                            RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
+                            result.Add(new Piece(mesh.NodeId, material, name, hullPhysics, hull.VertexPositions, []) { Hull = hull, ToolMaterial = tool, Name = pieceName });
+                        }
+                    }
                     // A blend material's hull takes its first layer's surface, as an
                     // unsplit blend piece does (Mako: bk01_trim_wood01b is Wood).
-                    var pieceName = "";
-                    var tool = name;
                     if (physics.Blend is { } blend)
                     {
                         physics = physics with { SurfaceProperty = blend.Surfaces[0] };
-                        // A painted piece is split by layer first (180016230), as a mesh
-                        // piece is; the layer's piece carries " [surface]" and no tool
-                        // material (Mako, node 17466: all of it Wood_Plank).
-                        if (paint != null && Splits(blend) && ConvexLayer(blend, positions, faces, local, corners, convexFirst, (bias, material), paint) is { } layer)
+                        // A painted piece is split by layer first (physicsbuilder 180016230):
+                        // each layer's triangles become a mesh of their own, positions only
+                        // and welded at 1/32 (180015930), hulled on its own (18001a950
+                        // takes every vertex of it), named " [surface]" and with no tool
+                        // material. Mako, node 17466: all of it Wood_Plank.
+                        if (paint != null && Splits(blend) && PaintedTriangles(mesh.NodeId, material, name, physics, positions, faces, local, corners, convexFirst, convexTexcoords, (bias, material), paint, sampler, notes) is { } painted)
                         {
-                            if (layer < 0)
+                            var layers = SplitLayers(blend, painted.Points, painted.Indices, painted.Paint, painted.Sampled);
+                            for (var s = 0; s < layers.Count; s++)
                             {
-                                notes?.Add($"node {mesh.NodeId} material {material}: convex piece painted with several layers, per-layer hulls not ported");
+                                if (layers[s].Indices.Length == 0)
+                                    continue;
+                                var layerFaces = Enumerable.Range(0, layers[s].Indices.Length / 3).Select(t => layers[s].Indices[(t * 3)..((t * 3) + 3)]).ToArray();
+                                var inputs = type == BrushHulls.PhysicsType.ConvexSingle ? [layers[s].Points] : BrushHulls.Inputs(layers[s].Points, layerFaces, type);
+                                AddHulls(inputs, physics with { SurfaceProperty = blend.Surfaces[s] }, $" [{blend.Surfaces[s]}]", "");
                             }
-                            else
-                            {
-                                physics = physics with { SurfaceProperty = blend.Surfaces[layer] };
-                                pieceName = $" [{blend.Surfaces[layer]}]";
-                                tool = "";
-                            }
+                            continue;
                         }
                     }
                     // The hull's input joins corners by .vmap vertex, as a world mesh
                     // piece's triangle mesh does (12 Mako hulls change to Valve's
                     // order; three hard-edged pipes, smoothing angle 40, still differ).
-                    foreach (var input in BrushHulls.Inputs(positions, faces, type, local, corners))
-                    {
-                        var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
-                        var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new Vector3(v.X, v.Y, v.Z))]);
-                        var hull = points == null ? null : RnHullBuilder.Create(points, RnHullBuilder.Options.Compile, out _);
-                        if (hull == null)
-                            continue;
-                        hull.RegionSvm = RegionSvmBuilder.Build(hull);
-                        RnHullBuilder.Transform(hull, RnHullBuilder.Identity);
-                        result.Add(new Piece(mesh.NodeId, material, name, physics, hull.VertexPositions, []) { Hull = hull, ToolMaterial = tool, Name = pieceName });
-                    }
+                    AddHulls(BrushHulls.Inputs(positions, faces, type, local, corners), physics, "", name);
                 }
                 continue;
             }
@@ -666,11 +673,12 @@ public static class WorldCollision
         }
     }
 
-    // The one layer a painted convex piece's triangles all go to (SplitLayers,
-    // with the mesh path's per-vertex paint), -1 when they go to several, null
-    // when the piece has no paint.
-    private static int? ConvexLayer(BlendLayers blend, Vector3[] positions, int[][] faces, Vector3[] local, int[][] corners,
-        Dictionary<(int Bias, int Material), Dictionary<int, int>>? firstCorners, (int Bias, int Material) set, Vector4[] paint)
+    // A painted piece's triangle mesh with the paint and sampled layers the
+    // split reads, as the mesh path builds them; null when the piece's face
+    // set has no paint.
+    private static (Vector3[] Points, int[] Indices, Vector4[] Paint, int[]? Sampled)? PaintedTriangles(int node, int material, string name, MaterialPhysics physics,
+        Vector3[] positions, int[][] faces, Vector3[] local, int[][] corners, Dictionary<(int Bias, int Material), Dictionary<int, int>>? firstCorners,
+        Vector2[]? texcoords, (int Bias, int Material) set, Vector4[] paint, Func<string, MaterialSampler.Renderer?>? sampler, List<string>? notes)
     {
         if (firstCorners == null || !firstCorners.TryGetValue(set, out var firstMet))
             return null;
@@ -679,9 +687,17 @@ public static class WorldCollision
         var indices = new int[triangles.Count * 3];
         for (var t = 0; t < triangles.Count; t++)
             (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
-        var vertexPaint = made.Select(m => firstMet[corners[m.Face][m.Corner]]).Select(c => c < paint.Length ? paint[c] : Vector4.Zero).ToArray();
-        var used = SplitLayers(blend, [.. points], indices, vertexPaint).Select((l, i) => (l, i)).Where(x => x.l.Indices.Length > 0).ToList();
-        return used.Count == 1 ? used[0].i : -1;
+        var vertexCorners = made.Select(m => firstMet[corners[m.Face][m.Corner]]).ToArray();
+        Vector4[] vertexPaint = [.. vertexCorners.Select(c => c < paint.Length ? paint[c] : Vector4.Zero)];
+        int[]? sampled = null;
+        if (physics.Blend is { Sampled: true, NewBlending: true })
+        {
+            if (texcoords != null && sampler?.Invoke(name) is { } render)
+                sampled = MaterialSampler.Layers(render, [.. points], indices, [.. vertexCorners.Select(c => c < texcoords.Length ? texcoords[c] : Vector2.Zero)], vertexPaint);
+            if (sampled == null)
+                notes?.Add($"node {node} material {material}: new-blending layers need the material sampler's GPU render; the 0.5 rule stands in");
+        }
+        return ([.. points], indices, vertexPaint, sampled);
     }
 
     // The mesh's vertex paint, per corner (faceVertexData "VertexPaintBlendParams").
