@@ -116,6 +116,14 @@ public class NmClipEditTests
         Assert.Equal(35, clip.NumFrames);
         using var orig = new Resource();
         orig.Read(new MemoryStream(bytes), verifyFileSize: false);
+        var dataAt = (int)orig.GetBlockByType(BlockType.DATA)!.Offset;
+        Assert.Equal(dataAt, (int)res.GetBlockByType(BlockType.DATA)!.Offset);
+        // Only the DATA entry's size may differ before DATA; restore it and the rest must be Valve's bytes.
+        var head = edited[..dataAt];
+        for (var i = 16; i + 12 <= dataAt; i += 12)
+            if (head.AsSpan(i, 4).SequenceEqual("DATA"u8)) bytes.AsSpan(i + 8, 4).CopyTo(head.AsSpan(i + 8));
+        Assert.True(bytes.AsSpan(4, dataAt - 4).SequenceEqual(head.AsSpan(4)), "header or block table changed");
+        Assert.Equal(edited.Length, BitConverter.ToInt32(edited, 0));
         foreach (var b in orig.Blocks.Where(b => b.Type != BlockType.DATA))
         {
             var mine = res.GetBlockByType(b.Type)!;

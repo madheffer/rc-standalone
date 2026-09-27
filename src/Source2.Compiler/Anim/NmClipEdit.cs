@@ -1,5 +1,5 @@
+using System.Buffers.Binary;
 using Source2.Compiler.Kv3;
-using ValveResourceFormat;
 
 namespace Source2.Compiler.Anim;
 
@@ -11,24 +11,35 @@ namespace Source2.Compiler.Anim;
 /// </summary>
 public static class NmClipEdit
 {
-    /// <summary><paramref name="vnmclipC"/> with its DATA edited by <paramref name="edit"/>; every other block byte-identical.</summary>
-    public static byte[] Rewrite(byte[] vnmclipC, Action<Kv3Tree> edit)
+    /// <summary>
+    /// <paramref name="vnmclipC"/> with its DATA edited by <paramref name="edit"/>. Everything before
+    /// DATA stays byte-identical to Valve's file, header and block table included: only DATA's bytes,
+    /// its size entry and the file size change. (A VRF re-serialize would shift every block by 16 bytes
+    /// and add its own marker.) <paramref name="compression"/> overrides the KV3 compression.
+    /// </summary>
+    public static byte[] Rewrite(byte[] vnmclipC, Action<Kv3Tree> edit, uint? compression = null)
     {
-        using var res = new Resource();
-        res.Read(new MemoryStream(vnmclipC), verifyFileSize: false);
-        var blocks = new List<(BlockType, byte[])>();
-        foreach (var b in res.Blocks)
+        var blockTable = 8 + (int)BinaryPrimitives.ReadUInt32LittleEndian(vnmclipC.AsSpan(8));
+        var count = (int)BinaryPrimitives.ReadUInt32LittleEndian(vnmclipC.AsSpan(12));
+        for (var i = 0; i < count; i++)
         {
-            var raw = vnmclipC.AsSpan((int)b.Offset, (int)b.Size).ToArray();
-            if (b.Type == BlockType.DATA)
-            {
-                var t = Kv3Tree.Read(raw);
-                edit(t);
-                raw = t.Write();
-            }
-            blocks.Add((b.Type, raw));
+            var entry = blockTable + i * 12;
+            if (!vnmclipC.AsSpan(entry, 4).SequenceEqual("DATA"u8)) continue;
+            var start = entry + 4 + (int)BinaryPrimitives.ReadUInt32LittleEndian(vnmclipC.AsSpan(entry + 4));
+            var size = (int)BinaryPrimitives.ReadUInt32LittleEndian(vnmclipC.AsSpan(entry + 8));
+            if (start + size != vnmclipC.Length)
+                throw new InvalidDataException("DATA is not the last block; refusing to rewrite a layout RC does not produce");
+            var t = Kv3Tree.Read(vnmclipC.AsSpan(start, size));
+            edit(t);
+            var data = t.Write(compression);
+            var output = new byte[start + data.Length];
+            vnmclipC.AsSpan(0, start).CopyTo(output);
+            data.CopyTo(output, start);
+            BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(0), (uint)output.Length);
+            BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(entry + 8), (uint)data.Length);
+            return output;
         }
-        return ResourceBuilder.RebuildModelRaw(vnmclipC, blocks);
+        throw new InvalidDataException("no DATA block");
     }
 
     /// <summary>The arms clip, then each secondary (weapon) clip.</summary>
