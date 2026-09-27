@@ -103,4 +103,24 @@ internal readonly record struct CTransform(Vector3 Position, float Scale, Quater
                 (z2 * w) + (y2 * x), (1f - (x * x2)) - (z * z2), (z2 * y) - (x2 * w), Position.Y,
                 (z2 * x) - (y2 * w), (x2 * w) + (z2 * y), (1f - (x * x2)) - (y * y2), Position.Z];
     }
+
+    /// <summary>
+    /// A point moved by this transform, in resourcecompiler's order (a sphere
+    /// or capsule node's centres, 180c25810 and 180c25230): t = 2 q x v, then
+    /// ((q x t) + v + w t) times the scale plus the position.
+    /// </summary>
+    public Vector3 TransformPoint(Vector3 v)
+    {
+        float qx = Rotation.X, qy = Rotation.Y, qz = Rotation.Z, qw = Rotation.W;
+        var tx = (v.Z * qy) - (v.Y * qz);
+        var ty = (v.X * qz) - (v.Z * qx);
+        var tz = (v.Y * qx) - (v.X * qy);
+        tx += tx;
+        ty += ty;
+        tz += tz;
+        return new Vector3(
+            ((((tz * qy) - (ty * qz)) + v.X + (qw * tx)) * Scale) + Position.X,
+            ((((tx * qz) - (tz * qx)) + v.Y + (qw * ty)) * Scale) + Position.Y,
+            ((((ty * qx) - (tx * qy)) + v.Z + (qw * tz)) * Scale) + Position.Z);
+    }
 }

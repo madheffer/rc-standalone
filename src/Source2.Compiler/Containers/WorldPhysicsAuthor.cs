@@ -40,22 +40,28 @@ public static class WorldPhysicsAuthor
         return root;
     }
 
-    /// <summary>The container around the three trees, typed as they are to be written.</summary>
-    public static byte[] Container(KVObject phys, KVObject red2, KVObject data)
+    /// <summary>
+    /// The container around the three trees, typed as they are to be written.
+    /// Without physics it is RED2 and DATA alone (a brush entity model with no
+    /// shapes: atixref's func_water).
+    /// </summary>
+    public static byte[] Container(KVObject? phys, KVObject red2, KVObject data)
     {
-        ArgumentNullException.ThrowIfNull(phys);
         ArgumentNullException.ThrowIfNull(red2);
         ArgumentNullException.ThrowIfNull(data);
         var generic = KV3IDLookup.Get("generic");
         using var resource = new Resource();
         Source2ContainerAuthor.SetResourceVersion(resource, ResourceVersion);
-        var physBlock = AuthoredKv3.Block(phys, generic, BlockType.PHYS, resource);
-        resource.Blocks.Add(physBlock);
-        resource.Blocks.Add(AuthoredKv3.Block(Ctrl(), generic, BlockType.CTRL, resource));
+        var physBlock = phys == null ? null : AuthoredKv3.Block(phys, generic, BlockType.PHYS, resource);
+        if (physBlock != null)
+        {
+            resource.Blocks.Add(physBlock);
+            resource.Blocks.Add(AuthoredKv3.Block(Ctrl(), generic, BlockType.CTRL, resource));
+        }
         resource.Blocks.Add(AuthoredKv3.Block(red2, generic, BlockType.RED2, resource));
         resource.Blocks.Add(AuthoredKv3.Block(data, generic, BlockType.DATA, resource));
         AuthoredKv3.ChooseCompression(resource);
-        if (AuthoredKv3.TotalPayloadBytes(physBlock) > ZstdThreshold)
+        if (physBlock != null && AuthoredKv3.TotalPayloadBytes(physBlock) > ZstdThreshold)
             physBlock.SerializationCompressionMethod = KV3BinaryCompressionMethod.Zstd;
         using var ms = new MemoryStream();
         resource.Serialize(ms);

@@ -121,15 +121,13 @@ public class GameContent : SettleWorld.IModels, IDisposable
         return _models.GetValueOrDefault(model)?.KeyValues;
     }
 
-    /// <summary>A model's embedded physics, read from the game's pak01.</summary>
+    /// <summary>A model's embedded physics: an addon's own compiled model first, then the paks'.</summary>
     public PhysAggregateData? Physics(string model)
     {
         if (_physics.TryGetValue(model, out var phys))
             return phys;
-        var entry = _pak.FindEntry(Path.ChangeExtension(model, ".vmdl_c"));
-        if (entry != null)
+        if (Read(Path.ChangeExtension(model, ".vmdl_c")) is { } bytes)
         {
-            _pak.ReadEntry(entry, out var bytes);
             var res = new Resource();
             res.Read(new MemoryStream(bytes));
             _keep.Add(res);

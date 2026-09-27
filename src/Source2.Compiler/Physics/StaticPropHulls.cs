@@ -102,6 +102,60 @@ public static class StaticPropHulls
     }
 
     /// <summary>
+    /// A sphere or capsule node: its centres (one for a sphere, two for a
+    /// capsule) and radius as physicsbuilder hands them over, the body, and
+    /// the shape's collision attribute and surface indices in the model.
+    /// </summary>
+    public sealed record RoundNode(int Part, Vector3[] Centers, float Radius, int Attribute, int Surface);
+
+    /// <summary>
+    /// The sphere nodes physicsbuilder makes for a prop (180153740) and its
+    /// capsule nodes (180152230), body by body: each centre moved by the prop
+    /// matrix times the bind pose (1800b9810), the radius times the largest of
+    /// that matrix's column lengths (1800b6b50). The lattice branch (the shape
+    /// turned into a mesh node) is not ported.
+    /// </summary>
+    public static (List<RoundNode> Spheres, List<RoundNode> Capsules) Rounds(Prop prop, PhysAggregateData phys)
+    {
+        var spheres = new List<RoundNode>();
+        var capsules = new List<RoundNode>();
+        var m = PropMatrix(prop);
+        for (var part = 0; part < phys.Parts.Length; part++)
+        {
+            var local = MapMeshes.Concat(m, BindPose(phys, part));
+            var c = ColumnLengths(local);
+            var scale = MathF.Abs(c.X);
+            if (scale <= MathF.Abs(c.Y))
+                scale = MathF.Abs(c.Y);
+            if (scale <= MathF.Abs(c.Z))
+                scale = MathF.Abs(c.Z);
+            foreach (var desc in phys.Parts[part].Shape.Spheres)
+                spheres.Add(new RoundNode(part, [MapMeshes.Transform(local, desc.Shape.Center)], scale * desc.Shape.Radius,
+                    desc.CollisionAttributeIndex, desc.SurfacePropertyIndex));
+            foreach (var desc in phys.Parts[part].Shape.Capsules)
+                capsules.Add(new RoundNode(part, [MapMeshes.Transform(local, desc.Shape.Center[0]), MapMeshes.Transform(local, desc.Shape.Center[1])],
+                    scale * desc.Shape.Radius, desc.CollisionAttributeIndex, desc.SurfacePropertyIndex));
+        }
+        return (spheres, capsules);
+    }
+
+    /// <summary>
+    /// resourcecompiler's sphere or capsule for a node (180c25810, 180c25230):
+    /// the centres moved by the node's transform (the world model's identity,
+    /// which turns a -0 into +0), the radius times its scale. Null when the
+    /// radius is not above 0, which drops the shape.
+    /// </summary>
+    public static (Vector3[] Centers, float Radius)? Round(RoundNode node)
+    {
+        var transform = CTransform.Compose(new CTransform(Vector3.Zero, 1f, CTransform.AngleQuaternion(Vector3.Zero)),
+                                           new CTransform(Vector3.Zero, 1f, Quaternion.Identity).Inverse());
+        var radius = transform.Scale * node.Radius;
+        if (!(0f < radius))
+            return null;
+        return ([.. node.Centers.Select(transform.TransformPoint)], radius);
+    }
+
+    /// <summary>
     /// One mesh node: its points (moved) and triangle indices, the body, and
     /// the surface: the mesh's own (<c>Surface</c> -1) or, for a mesh split
     /// by per-triangle material, that surface index.

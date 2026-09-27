@@ -23,14 +23,27 @@ public sealed class WorldPhysics
     public sealed record Shape(int Attribute, int Surface, uint ToolMaterialHash, RnHull? Hull, RnMesh? Mesh)
     {
         public string Name { get; init; } = "";
+
+        /// <summary>A sphere's centre or a capsule's two, and the radius.</summary>
+        public (Vector3[] Centers, float Radius)? Round { get; init; }
     }
 
+    public List<Shape> Spheres { get; } = [];
+    public List<Shape> Capsules { get; } = [];
     public List<Shape> Hulls { get; } = [];
     public List<Shape> Meshes { get; } = [];
     public List<Attribute> Attributes { get; } = [];
 
     /// <summary>The surface table: each hash and, where known, its name.</summary>
     public List<(uint Hash, string? Name)> Surfaces { get; } = [];
+
+    /// <summary>
+    /// The surfaces some shape names outright (a prop model's, or a material's
+    /// own surface property), as against the implicit default of a material
+    /// with none. RED2 lists only these (entity triggers use the implicit one
+    /// and list nothing; atixref's props name "default").
+    /// </summary>
+    public HashSet<uint> NamedSurfaces { get; } = [];
 
     /// <summary>How many mesh pieces went into the soups (RED2's physics_shape_mesh_count).</summary>
     public int MeshPieces { get; private set; }
@@ -46,7 +59,7 @@ public sealed class WorldPhysics
             if (at >= 0)
                 return at;
             attributeKeys.Add(physics.AttributeKey);
-            model.AttributeSources.Add($"{(piece.Hull != null ? "hull" : "mesh")} node {piece.NodeId} {piece.MaterialName} group '{physics.CollisionGroup}'");
+            model.AttributeSources.Add($"{piece.Type switch { WorldCollision.SphereType => "sphere", WorldCollision.CapsuleType => "capsule", WorldCollision.HullType => "hull", _ => "mesh" }} node {piece.NodeId} {piece.MaterialName} group '{physics.CollisionGroup}'");
             model.Attributes.Add(new Attribute(physics.CollisionGroup.Length == 0 ? "default" : physics.CollisionGroup,
                 Tags(physics.InteractAs), Tags(physics.InteractWith), Tags(physics.InteractExclude)));
             return attributeKeys.Count - 1;
@@ -54,16 +67,24 @@ public sealed class WorldPhysics
         int SurfaceOf(WorldCollision.MaterialPhysics physics)
         {
             var hash = physics.SurfaceKey;
+            if (physics.SurfaceHash != null || physics.SurfaceProperty.Length > 0)
+                model.NamedSurfaces.Add(hash);
             var at = model.Surfaces.FindIndex(s => s.Hash == hash);
             if (at >= 0)
                 return at;
             model.Surfaces.Add((hash, physics.SurfaceHash == null ? (physics.SurfaceProperty.Length == 0 ? "default" : physics.SurfaceProperty) : null));
             return model.Surfaces.Count - 1;
         }
-        // Hulls are written before the mesh gatherer runs, so they register first.
-        foreach (var p in ordered.Where(p => p.Hull != null))
-            model.Hulls.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics), 0, p.Hull, null));
-        var meshPieces = ordered.Where(p => p.Hull == null).ToList();
+        // The part writes spheres, capsules, then hulls (rc 180c28230) before the
+        // mesh gatherer runs, so they register in that order.
+        foreach (var p in ordered.Where(p => p.Type == WorldCollision.SphereType))
+            model.Spheres.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics), 0, null, null) { Round = p.Round });
+        foreach (var p in ordered.Where(p => p.Type == WorldCollision.CapsuleType))
+            model.Capsules.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics), 0, null, null) { Round = p.Round });
+        foreach (var p in ordered.Where(p => p.Type == WorldCollision.HullType))
+            model.Hulls.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics),
+                p.ToolMaterial.Length > 0 ? Maps.SettleWorld.NameHash(p.ToolMaterial) : 0, p.Hull, null));
+        var meshPieces = ordered.Where(p => p.Type == WorldCollision.MeshType).ToList();
         var meshes = meshPieces.Select(p => (Attribute: AttributeOf(p.Physics, p), Surface: SurfaceOf(p.Physics), p.Points, p.Indices)).ToList();
         model.MeshPieces = meshes.Count;
         foreach (var soup in WorldCollision.Group(meshes))
@@ -87,6 +108,9 @@ public sealed class WorldPhysics
         => [.. list.Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
 
+    /// <summary>Every shape in the part's order: spheres, capsules, hulls, meshes.</summary>
+    public IEnumerable<Shape> AllShapes => Spheres.Concat(Capsules).Concat(Hulls).Concat(Meshes);
+
     /// <summary>Which piece registered each attribute, for exploration.</summary>
     public List<string> AttributeSources { get; } = [];
 }
@@ -99,7 +123,10 @@ public sealed class WorldPhysics
 public static class WorldPhysicsTrees
 {
     /// <summary>The model DATA: a named model with no meshes, bones or groups.</summary>
-    public static KVObject Data(string mapName)
+    public static KVObject Data(string mapName) => ModelData($"maps/{mapName}/world_physics.vmdl");
+
+    /// <summary>The DATA of a model holding only physics, by its name.</summary>
+    public static KVObject ModelData(string modelName)
     {
         var zero3 = () => Vec(Vector3.Zero);
         var info = Collection(
@@ -110,7 +137,7 @@ public static class WorldPhysicsTrees
         var skeleton = Collection(("m_boneName", Empty()), ("m_nParent", Empty()), ("m_boneSphere", Empty()), ("m_nFlag", Empty()),
             ("m_bonePosParent", Empty()), ("m_boneRotParent", Empty()), ("m_boneScaleParent", Empty()));
         return Collection(
-            ("m_name", new KVObject($"maps/{mapName}/world_physics.vmdl")),
+            ("m_name", new KVObject(modelName)),
             ("m_modelInfo", info),
             ("m_ExtParts", Empty()), ("m_refMeshes", Empty()), ("m_refMeshGroupMasks", Empty()), ("m_refPhysGroupMasks", Empty()),
             ("m_refLODGroupMasks", Empty()), ("m_lodGroupSwitchDistances", Empty()), ("m_refPhysicsData", Empty()),
@@ -129,19 +156,22 @@ public static class WorldPhysicsTrees
     /// the surface properties in table order, each under its canonical name
     /// (the game's surfaceproperties.vsurf_c by hash, <paramref name="surfaceName"/>).
     /// </summary>
-    public static KVObject Red2(WorldPhysics model, Func<uint, string?> surfaceName)
+    /// <param name="entityClass">For a brush entity's model, its class: keep_vertices
+    /// is then an IntArg and the class argument's fingerprint its string token.</param>
+    public static KVObject Red2(WorldPhysics model, Func<uint, string?> surfaceName, string? entityClass = null)
     {
-        KVObject Argument(string name, string type) => Collection(
+        KVObject Argument(string name, string type, uint fingerprint = 0) => Collection(
             ("m_ParameterName", new KVObject(name)), ("m_ParameterType", new KVObject(type)),
-            ("m_nFingerprint", new KVObject(0L)), ("m_nFingerprintDefault", new KVObject(0L)));
-        var arguments = Array(Argument("___OverrideInputData___", "BinaryBlobArg"), Argument("keep_vertices", "FloatArg"),
-            Argument("mapbuilder_entity_classname", "StringArg"));
+            ("m_nFingerprint", fingerprint == 0 ? new KVObject(0L) : new KVObject(fingerprint)), ("m_nFingerprintDefault", new KVObject(0L)));
+        var arguments = Array(Argument("___OverrideInputData___", "BinaryBlobArg"),
+            Argument("keep_vertices", entityClass == null ? "FloatArg" : "IntArg"),
+            Argument("mapbuilder_entity_classname", "StringArg", entityClass == null ? 0 : Maps.SettleWorld.NameHash(entityClass)));
         var special = Array(Collection(("m_String", new KVObject("ModelDoc Compiler Version")), ("m_CompilerIdentifier", new KVObject("CompileModel")),
             ("m_nFingerprint", U(3)), ("m_nUserData", new KVObject(0L))));
-        var shapes = model.Hulls.Count + model.MeshPieces;
+        var shapes = model.Spheres.Count + model.Capsules.Count + model.Hulls.Count + model.MeshPieces;
         var user = Collection(("compile_warnings", new KVObject(0L)));
-        // Only when the table holds "default" (atixref has it; ze_hold_em_p has not, and no key).
-        if (model.Surfaces.Any(s => s.Hash == Maps.SettleWorld.NameHash("default")))
+        // Only when a shape names "default" (atixref's props do; ze_hold_em_p has none, and no key).
+        if (model.NamedSurfaces.Contains(Maps.SettleWorld.NameHash("default")))
             user.Add("has_default_surface_property", new KVObject(1L));
         foreach (var (key, value) in Collection(
             ("IsChildResource", new KVObject(1L)),
@@ -151,12 +181,21 @@ public static class WorldPhysicsTrees
             ("model_materialgroup_count", new KVObject(0L)), ("model_nmskeletonref_count", new KVObject(0L)),
             ("model_primary_associated_entity", new KVObject("")), ("model_total_triangle_count", new KVObject(0L)),
             ("model_total_vertex_count", new KVObject(0L)), ("morph", new KVObject(0L)), ("morph_atlas_pixels", new KVObject(0L)),
-            ("physics_joint_count", new KVObject(0L)),
-            ("physics_shape_count", I(shapes)), ("physics_shape_hull_count", I(model.Hulls.Count)), ("physics_shape_mesh_count", I(model.MeshPieces))).Children)
+            ("physics_joint_count", new KVObject(0L))).Children)
             user.Add(key, value);
+        // Counts only when there are shapes of the kind (a trigger's model has no
+        // mesh count, atixref's empty func_water model no count at all).
+        if (shapes > 0)
+            user.Add("physics_shape_count", I(shapes));
+        if (model.Hulls.Count > 0)
+            user.Add("physics_shape_hull_count", I(model.Hulls.Count));
+        if (model.MeshPieces > 0)
+            user.Add("physics_shape_mesh_count", I(model.MeshPieces));
         var names = KVObject.Collection();
         foreach (var (hash, name) in model.Surfaces)
         {
+            if (!model.NamedSurfaces.Contains(hash))
+                continue;
             var canonical = surfaceName(hash) ?? name ?? throw new InvalidOperationException($"no name for surface property {hash}");
             if (!names.ContainsKey(canonical))
                 names.Add(canonical, new KVObject(1L));
@@ -165,22 +204,27 @@ public static class WorldPhysicsTrees
             ("m_InputDependencies", Empty()), ("m_AdditionalInputDependencies", Empty()), ("m_ArgumentDependencies", arguments),
             ("m_SpecialDependencies", special), ("m_SpecialInputDependencies", Empty()), ("m_AdditionalRelatedFiles", Empty()),
             ("m_ChildResourceList", Empty()), ("m_WeakReferenceList", Empty()), ("m_SearchableUserData", user),
-            ("m_SubassetReferences", Collection(("surface_prop", names))), ("m_SubassetDefinitions", KVObject.Null()));
+            ("m_SubassetReferences", names.Children.Any() ? Collection(("surface_prop", names)) : KVObject.Null()),
+            ("m_SubassetDefinitions", KVObject.Null()));
     }
 
     /// <summary>The embedded physics aggregate: one part holding every shape, and the tables.</summary>
-    public static KVObject Phys(WorldPhysics model)
+    /// <param name="partFlags">The part's flags: 2 for the world, 0 for a brush entity's model.</param>
+    public static KVObject Phys(WorldPhysics model, uint partFlags = 2)
     {
         var shape = Collection(
-            ("m_spheres", Empty()), ("m_capsules", Empty()),
+            ("m_spheres", Array([.. model.Spheres.Select(s => ShapeDesc(s, "m_Sphere", Collection(
+                ("m_vCenter", Vec(s.Round!.Value.Centers[0])), ("m_flRadius", F(s.Round.Value.Radius)))))])),
+            ("m_capsules", Array([.. model.Capsules.Select(s => ShapeDesc(s, "m_Capsule", Collection(
+                ("m_vCenter", Array(Vec(s.Round!.Value.Centers[0]), Vec(s.Round.Value.Centers[1]))), ("m_flRadius", F(s.Round.Value.Radius)))))])),
             ("m_hulls", Array([.. model.Hulls.Select(s => ShapeDesc(s, "m_Hull", Hull(s.Hull!)))])),
             ("m_meshes", Array([.. model.Meshes.Select(s => ShapeDesc(s, "m_Mesh", Mesh(s.Mesh!)))])),
             ("m_compounds", Empty()),
             // Empty when every shape takes attribute 0 (ze_hold_em_p), else one per shape.
-            ("m_CollisionAttributeIndices", model.Hulls.Concat(model.Meshes).All(s => s.Attribute == 0) ? Empty()
-                : Array([.. model.Hulls.Concat(model.Meshes).Select(s => new KVObject((uint)s.Attribute))])));
+            ("m_CollisionAttributeIndices", model.AllShapes.All(s => s.Attribute == 0) ? Empty()
+                : Array([.. model.AllShapes.Select(s => new KVObject((uint)s.Attribute))])));
         var part = Collection(
-            ("m_nFlags", U(2)), ("m_flMass", new KVObject(0.0)), ("m_rnShape", shape),
+            ("m_nFlags", U(partFlags)), ("m_flMass", new KVObject(0.0)), ("m_rnShape", shape),
             ("m_nCollisionAttributeIndex", new KVObject(0L)), ("m_nReserved", new KVObject(0L)),
             ("m_flInertiaScale", new KVObject(1.0)), ("m_flLinearDamping", new KVObject(0.0)), ("m_flAngularDamping", new KVObject(0.0)),
             ("m_flLinearDrag", new KVObject(1.0)), ("m_flAngularDrag", new KVObject(1.0)),

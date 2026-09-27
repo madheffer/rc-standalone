@@ -89,6 +89,53 @@ and writes them into a copy of a compiled package. Into ze_hold_em_p's, 54 of 56
 entries stay byte-identical and the two world physics files differ only in
 KV3 encoding.
 
+## Brush entity models (`EntityPhysicsModels`)
+
+A brush entity's collision ships in its own model,
+`maps/<map>/entities/<name>_<node>.vmdl_c`, in the same container. Built from
+the map, every model that holds only physics is Valve's whole file (trees and
+container facts) on atixref (86), ze_hold_em_p (24) and Mako (324).
+
+- Which entities: the world's walk, less instance groups and hidden nodes, plus
+  each instance copy (`MapInstances.Expand`), which is its template under the
+  copy's id and the template's name. A hidden mesh is not compiled; an entity
+  with no mesh left has no file.
+- A model with a material the game cannot find fails to compile, and there is
+  no file although the lump still names it (atixref 26, ze_hold_em_p 8: every
+  model Valve left out).
+- Physics only: the class's `physics_only_model` or
+  `render_as_world_but_physics_as_entity` metadata flag, or every face's
+  material `mapbuilder.nodraw`. With no shapes (func_water with physics none)
+  the file is RED2 and DATA alone.
+- A class's `auto_apply_material` (the triggers' toolstrigger) names that
+  material in every slot. A non-solid material still makes hulls here.
+- Each mesh's pieces are hulled by its physics type as `BrushHulls` does, or,
+  for a mesh-type mesh, cut and welded as the world's meshes are, in the
+  entity's space. A shape's collision attribute is the mesh's, gathered over
+  all its materials (Mako's func_water gives its toolsnodraw hull the water
+  attribute); its surface and tool material hash stay its own material's.
+- The part's flags are 0, or 2 when it has meshes. RED2: keep_vertices is an
+  IntArg and mapbuilder_entity_classname's fingerprint is the class's string
+  token. A shape kind's count appears only when there are such shapes.
+- RED2 lists only surfaces some shape names outright; a material with no
+  surface property registers the default without listing it, and
+  `has_default_surface_property` means a named "default". The same rule holds
+  for the world.
+- Not ported: render meshes (the other models), the PhysicsTypeOverride base
+  classes beyond func_shatterglass, and the cable model.
+
+## Prop spheres and capsules
+
+physicsbuilder hands a prop's spheres and capsules over before its hulls
+(180153740, 180152230): each centre moved by the prop matrix times the bind
+pose, the radius times the largest column length. resourcecompiler moves the
+centres by the node's transform (180c25810, 180c25230; the identity, which
+turns -0 into +0), drops a shape whose radius is not above 0, and writes the
+part's spheres, capsules, hulls, then meshes (180c28230), registering
+attributes in that order. Addon models are read before the game's. Not yet
+checked against a compile: the test map `s2c_rounds` and the model
+`models/s2c_test/round_shapes.vmdl` in s2c_rc_probe wait on one.
+
 ## How a mesh is built: `RnMeshCreate`
 
 vphysics2's `RnMeshCreate` turns a triangle soup into the shape.

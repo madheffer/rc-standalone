@@ -48,7 +48,7 @@ public class WorldCollisionInput(ITestOutputHelper output)
         var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
         foreach (var note in notes)
             output.WriteLine("PAINT " + note);
-        var meshPieces = pieces.Where(p => p.Hull == null).ToList();
+        var meshPieces = pieces.Where(p => p.Type == WorldCollision.MeshType).ToList();
         // The part builder registers each shape's attribute and surface as it
         // writes it (FUN_180c25900: spheres, capsules, hulls, then the mesh
         // gatherer), so the tables fill in first-appearance order of the sorted part.

@@ -413,35 +413,58 @@ internal static class Commands
         using var content = new Maps.GameContent(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", addon));
         using var gpu = a.Contains("--gpu") ? new Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), content.Read) : null;
         var notes = new List<string>();
-        var files = Physics.WorldPhysicsFiles.Build(DmxBinary.ReadFile(vmap), addon, map, content, gpu is null ? null : gpu.For, notes);
+        Physics.WorldPhysicsFiles.Files? files = null;
+        try
+        {
+            files = Physics.WorldPhysicsFiles.Build(DmxBinary.ReadFile(vmap), addon, map, content, gpu is null ? null : gpu.For, notes);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            // Something the world build does not port yet; the entity models still go in.
+            Console.Error.WriteLine($"  world_physics not built: {ex.Message}");
+        }
+
+        // Brush entities whose models hold only physics (triggers, clips, water):
+        // the whole file is ours. The others carry render meshes, not ported.
+        var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
+        var entityModels = Physics.EntityPhysicsModels.Build(DmxBinary.ReadFile(vmap), map, content.Material, content.CollisionProperty, schema, notes, content.SmartProp)
+            .Where(m => m.PhysicsOnly).Select(m => (Path: m.Path + "_c", Bytes: Physics.EntityPhysicsModels.Author(m, content.SurfaceName))).ToList();
+        var written = new List<(string Path, byte[] Bytes)>();
+        if (files != null)
+            written.AddRange([(files.ModelPath, files.Model), (files.ManifestPath, files.Manifest)]);
+        written.AddRange(entityModels);
 
         Console.WriteLine($"{map}.vmap");
-        Console.WriteLine($"  {files.ModelPath}  {files.Model.Length:n0} bytes");
-        Console.WriteLine($"  {files.ManifestPath}  {files.Manifest.Length:n0} bytes");
+        if (files != null)
+        {
+            Console.WriteLine($"  {files.ModelPath}  {files.Model.Length:n0} bytes");
+            Console.WriteLine($"  {files.ManifestPath}  {files.Manifest.Length:n0} bytes");
+        }
+        Console.WriteLine($"  {entityModels.Count} physics-only entity models");
         foreach (var note in notes.Take(10))
             Console.WriteLine($"  note: {note}");
 
         if (into is null)
         {
-            foreach (var (path, bytes) in new[] { (files.ModelPath, files.Model), (files.ManifestPath, files.Manifest) })
+            foreach (var (path, bytes) in written)
             {
                 var target = Path.Combine(outPath, path.Replace('/', Path.DirectorySeparatorChar));
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 File.WriteAllBytes(target, bytes);
             }
-            Console.WriteLine($"  wrote both under {outPath}");
+            Console.WriteLine($"  wrote {written.Count} files under {outPath}");
             return 0;
         }
 
         var entries = Io.VpkWriter.ReadAll(into);
-        entries[files.ModelPath] = files.Model;
-        entries[files.ManifestPath] = files.Manifest;
+        foreach (var (path, bytes) in written)
+            entries[path] = bytes;
         // world.vrman lists the physics manifest; a package without it would never load the file.
         var world = $"maps/{map}/world.vrman_c";
         var listed = entries.TryGetValue(world, out var worldBytes) && ManifestPaths(worldBytes).Contains($"maps/{map}/world_physics.vrman");
         File.WriteAllBytes(outPath, Io.VpkWriter.Write(entries));
         Console.WriteLine($"  wrote {outPath}  ({entries.Count:n0} entries; {world} {(listed ? "lists" : "does NOT list")} the physics manifest)");
-        return listed ? 0 : 1;
+        return listed || files == null ? 0 : 1;
 
         static List<string> ManifestPaths(byte[] bytes)
         {

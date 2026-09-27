@@ -257,15 +257,24 @@ public static class WorldCollision
     {
         public RnHull? Hull { get; init; }
 
+        /// <summary>A sphere (one centre) or capsule (two) and its radius, as the compile writes it.</summary>
+        public (Vector3[] Centers, float Radius)? Round { get; init; }
+
         /// <summary>The shape node's tool material: a world piece's material path, nothing for a prop's shape.</summary>
         public string ToolMaterial { get; init; } = "";
 
         /// <summary>The shape node's name: " [surface]" for a painted layer (180016230), else empty.</summary>
         public string Name { get; init; } = "";
 
-        /// <summary>The part's shape type: a hull is 2, a triangle mesh <see cref="MeshType"/>.</summary>
-        public int Type => Hull != null ? HullType : MeshType;
+        /// <summary>The part's shape type: a sphere 0, a capsule 1, a hull 2, a triangle mesh <see cref="MeshType"/>.</summary>
+        public int Type => Round is { } r ? (r.Centers.Length == 1 ? SphereType : CapsuleType) : Hull != null ? HullType : MeshType;
     }
+
+    /// <summary>The part's shape type for a sphere.</summary>
+    public const int SphereType = 0;
+
+    /// <summary>The part's shape type for a capsule.</summary>
+    public const int CapsuleType = 1;
 
     /// <summary>The part's shape type for a convex hull.</summary>
     public const int HullType = 2;
@@ -459,8 +468,6 @@ public static class WorldCollision
         var model = prop.Model;
         if (propPhysics(model) is not { } phys)
             yield break;
-        if (phys.Parts.Any(p => p.Shape.Spheres.Length + p.Shape.Capsules.Length > 0))
-            notes?.Add($"prop {nodeId} ({model}): spheres or capsules, not ported");
         var hashes = phys.SurfacePropertyHashes;
         var attributes = phys.CollisionAttributes;
         MaterialPhysics Physics(int attributeIndex, int surfaceIndex)
@@ -479,10 +486,17 @@ public static class WorldCollision
             };
         }
         // The sink (18001b420) takes each body's spheres, capsules, hulls, then meshes.
+        var (spheres, capsules) = StaticPropHulls.Rounds(prop, phys);
         var hulls = StaticPropHulls.Nodes(prop, phys, out var descs);
         var meshes = StaticPropHulls.Meshes(prop, phys);
         for (var part = 0; part < phys.Parts.Length; part++)
         {
+            foreach (var node in spheres.Concat(capsules).Where(n => n.Part == part))
+            {
+                if (StaticPropHulls.Round(node) is not { } round)
+                    continue;
+                yield return new Piece(nodeId, node.Part, model, Physics(node.Attribute, node.Surface), round.Centers, []) { Round = round };
+            }
             foreach (var node in hulls.Where(n => n.Part == part))
             {
                 if (StaticPropHulls.Shape(node) is not { } hull)
