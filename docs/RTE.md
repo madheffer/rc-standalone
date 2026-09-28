@@ -326,12 +326,19 @@ that actually settled the format was reading Valve's reader.
 
 ## Where the map's triangles come from
 
-`MapGeometry.RteTriangles` rebuilds the map-mesh part of the file, and
-`MapGeometryReplay` finds each triangle's 48-byte record bit for bit in the
-`.rte` of the same compile. probe01 (288) and cardtest (300) are exact both
-ways. On atixref 20,612 of our 21,571 are found; of the file's other 12,242,
-9,196 lie on faces with subdivision levels and 3,015 on no face at all
-(displaced subdivision), and only 71 on plain faces.
+`TraceScene.Triangles` rebuilds the map-mesh part of the file (plain faces
+through `MapGeometry.RteTriangles`, subdivided meshes through
+`SubdivisionBake`), and `TraceSceneTests` / `TraceSceneDiagnose` find each
+triangle's 48-byte record bit for bit in the `.rte` of the same compile. Every
+specimen is exact both ways, every file triangle produced and nothing else:
+
+| map | ours | found | file |
+|---|---|---|---|
+| probe01 | 288 | 288 | 288 |
+| cardtest | 300 | 300 | 300 |
+| ze_hold_em_p | 4,548 | 4,548 | 4,548 |
+| atixref | 32,854 | 32,854 | 32,854 |
+| Mako | 279,064 | 279,064 | 279,064 |
 
 **Which meshes.** A mesh under the world or a group counts. One under an
 entity counts only when the class renders as world (FGD metadata
@@ -358,42 +365,39 @@ tier0's SIMD transform, each row dotted with (x, y, z, 1) and summed
 Faces are triangulated in world space.
 
 **Instances.** A group that a `CMapInstance` targets is not compiled where it
-stands. Each instance compiles the group's contents again, and each instance on
-the path contributes the instance's matrix times the inverse of its target's,
-outermost first. Unrotated instances are exact.
+stands. Each instance compiles the group's contents again. The copy is placed
+as the bake's collapse leaves it (`SettleWorld.Baked`): the node's origin and
+angles moved through each instance (the instance's matrix against its
+target's inverse, both built in double, then MatrixAngles and SetAngles),
+then the node's own `AngleMatrix` at the moved placement. Multiplying the
+path's matrix into the node's instead is one ulp out at some corners under
+rotated instances: that was all 240 of atixref's missing triangles (copies of
+one yaw-180.5 light under instances at 90, 180.00002 and 270 degrees). Every
+instanced triangle of atixref and Mako is exact this way.
 
-**Still open.**
+**Hidden nodes.** A mesh the visibility manager hides (`CVisibilityMgr`
+`hiddenFlags`), or one under a hidden node or reached through a hidden
+instance, is not compiled. That was Mako's 7,626 extra triangles: its hidden
+skybox, a pipe run, and train meshes (`MapMeshes.Mesh.Hidden`).
 
-- Subdivision, partly ported (`SubdivisionReplay`). Established on ze_hold_em_p
-  and atixref:
-  - `subdivisionLevels` is per half-edge. Each half-edge with level L > 0 owns
-    a patch of (2^(L-1)+1)^2 samples in `subdivisionData`, stored in half-edge
-    index order (boundary half-edges included): the totals match on all 22
-    subdivided meshes.
-  - A face with any level > 0 is tessellated at its highest level: a
-    2^L x 2^L grid, 2 * 4^L triangles, whatever the other half-edges hold.
-  - The grid is linear, not Catmull-Clark (smoothing puts vertices whole units
-    away): the face splits at its centre (the midpoint of its two edge
-    midpoints) into four corner patches, each gridded by lerping rows then
-    columns, in the mesh's local space, then placed with the node matrix.
-  - Each cell is cut along the diagonal that points at the face centre in its
-    quadrant.
-  - Undisplaced faces: atixref 4,416 of 4,416 triangles exact; ze_hold_em_p
-    4,129 of 4,480, the rest off by one or two ulps in small interior blobs
-    that no lerp, weight, centre or re-centring variant reproduces.
-  - Displacement: neighbouring patches share their border samples, but which
-    half-edge's patch lands on which corner, in which orientation and space,
-    is not settled; no simple mapping fits mesh 1370 (displacements up to 52).
-  The code that does this is still to be found; a trace of a compile of a
-  one-face test map is the quickest route.
-- 240 atixref triangles, all in copies of one mesh (a yaw-180.5 light) under
-  instances rotated 90, 180.00002 and 270 degrees, are off by one ulp in y at
-  some corners. No summation order, matrix built another way (angles round trip,
-  quaternion, double) or perturbation of the six x/y matrix entries by up to two
-  ulps rebuilds them all. A capture of the compile's matrices for one of these
-  copies should settle it (not taken: CS2 was running).
-- 71 triangles on plain atixref faces (meshes 1109, 861 and others) are not
-  found. Coverage by coplanar faces of other meshes does not predict it.
+**Slivers.** `WRB_EmitRteTriangles` (resourcecompiler `1802821f0`) drops a
+triangle before adding it: the three edge lengths, `sqrt((dz^2 + dy^2) + dx^2)`
+for edge 0-1 and `sqrt((dy^2 + dz^2) + dx^2)` for 1-2 and 2-0, all in float,
+are sorted by three compare-and-swaps, and the triangle is kept only when the
+longest is at least 0.0001 and the longest times 1.0001 is no more than the
+other two together (`MapGeometry.Emitted`). That was atixref's 116 extra
+triangles, all slivers of fans over near-collinear corners, and the 10 we had
+as degenerate. The same function also skips a triangle that falls inside one
+of the builder's oriented boxes at `+0x238` that overlap the mesh
+(`FUN_1802597d0` collects them, `FUN_180259130` tests); what places those boxes
+is not identified, and no specimen needs it.
+
+**Still open.** Nothing on the geometry of these five maps. Not covered by any
+specimen: the collector's prop pass (off in every compile measured), the
+oriented-box skip above, and a mesh whose bounds exceed
+`2 * sqrt(3) * g_flConfigMaxCoord` ("Found a bad mesh node", skipped whole).
+Our triangles are in our walk order, not the file's; the file's own order is
+not stable between compiles (below).
 
 ## Where the flag word comes from (read 2026-09-28, not ported)
 
@@ -444,7 +448,5 @@ met at the same distance go to the one the kd walk tests first.
 
 ## Next
 
-1. Subdivision: when and how a face is tessellated, the exact grid,
-   displacement and diagonals.
-2. The rotated-instance residual, from a capture of the matrices.
-3. Identify the 8-byte per-triangle field.
+1. Identify the 8-byte per-triangle field.
+2. What fills the emitter's oriented skip boxes (builder `+0x238`).
