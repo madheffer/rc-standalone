@@ -75,6 +75,16 @@ game can answer is raised with the user first, and runs with -insecure.
 16. Visibility: what triggers the large-scale ray generator; the compile's
     normalise guard against our plain normalise.
 17. RTE: what the per-triangle id hashes.
+26. RTE triangle order: within a mesh the file groups triangles by material,
+    in the order of the mesh's materials array on 66 of atixref's 68
+    multi-material meshes; the rest are the world renderer's own mesh split
+    (measured, not ported: the order follows the render meshes). Whether
+    visibility sees the order is measured only on probe01 (three compiles,
+    three orders, one output).
+27. RTE: what places the emitter's oriented skip boxes (builder +0x238,
+    1802597d0, 180259130); no specimen has one.
+28. Visibility split hints (types 4, 5, 6): ported from the decompile, no
+    specimen map has one.
 18. vrad3 trace cost law (performance only; not output).
 19. Legacy-GUID particles in game (needs the user's go-ahead for a game run).
 20. The vmat_c field order note ("likely NTRO positional"): the order is
@@ -82,6 +92,19 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ## Resolved
 
+- **The .rte's geometry from the .vmap** (2026-09-28, decompile of
+  resourcecompiler 0923 and measurement on five maps). An instanced mesh is
+  placed as the bake's collapse leaves its copy (SettleWorld.Baked), a mesh the
+  visibility manager hides or reached through a hidden node is left out, and
+  WRB_EmitRteTriangles (1802821f0) drops a sliver: sorted float edge lengths,
+  longest under 0.0001 or times 1.0001 over the other two. Every file triangle
+  of probe01, cardtest, ze_hold_em_p, atixref (32,854) and Mako (279,064) is
+  produced bit for bit, and nothing else.
+- **Visibility hints** (2026-09-28, decompile of visbuilder 0923, checked on
+  Mako). The .viscfg's visibility_hint entities: types 4, 5, 6 split lists,
+  any other a voxel hint whose box, voxel and region sizes stop or force the
+  octree's split (Voxelize 18002f890). Mako's octree with its seven hints has
+  Valve's node count, 2,643,577. VIS.md, "Visibility hints, ported".
 - **World physics surface and attribute tables** (2026-09-28, decompile of
   resourcecompiler 0923 and physicsbuilder 0924). Surfaces register by name,
   case-sensitive, spheres, capsules, hulls, then meshes; a shape with no
