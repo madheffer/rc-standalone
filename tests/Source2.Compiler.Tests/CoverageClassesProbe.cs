@@ -53,3 +53,33 @@ public class CoverageClassesProbe(ITestOutputHelper output)
         output.WriteLine($"{found.Count} classes over {parts.Length - 1} maps");
     }
 }
+
+/// <summary>
+/// Coverage: every class's finalized keys as the schema holds them, for the
+/// probe map generator (tools/coverage/probe_map.py).
+/// <c>COVERAGE_KEYS=&lt;out.json&gt;</c> writes {class: {solid, keys: [{name,
+/// type, default, flags}]}}.
+/// </summary>
+public class CoverageKeysProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void ListsKeysPerClass()
+    {
+        if (Environment.GetEnvironmentVariable("COVERAGE_KEYS") is not { Length: > 0 } path)
+            return;
+        var schema = MapFixtures.GameSchema() ?? throw new InvalidOperationException("no game schema");
+        var classes = schema.ClassNames.Order(StringComparer.Ordinal).ToDictionary(c => c, c => new
+        {
+            solid = schema.IsSolidClass(c),
+            keys = schema.KeysOf(c).Select(k => new
+            {
+                name = k.Name,
+                type = k.Type.ToString(),
+                @default = k.Default,
+                flags = k.Flags.Select(f => new { bit = f.Bit, name = f.Name }).ToArray(),
+            }).ToArray(),
+        });
+        File.WriteAllText(path, JsonSerializer.Serialize(classes, new JsonSerializerOptions { WriteIndented = true }));
+        output.WriteLine($"{classes.Count} classes");
+    }
+}

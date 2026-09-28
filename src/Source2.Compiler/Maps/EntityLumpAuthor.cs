@@ -175,9 +175,9 @@ public static class EntityLumpAuthor
             // player_speedmod, prop_door_rotating_checkpoint, ambient_music) and
             // Valve prefixes every one of their names.
             values.Add(key, declared is not null
-                ? Typed(declared, text, fixupEntityNames)
+                ? Typed(declared, text, fixupEntityNames, schema)
                 : key.Equals("targetname", StringComparison.OrdinalIgnoreCase)
-                    ? new KVObject(Fixup(text, fixupEntityNames))
+                    ? new KVObject(Fixup(text, fixupEntityNames, schema))
                     : new KVObject(text));
         }
 
@@ -242,22 +242,37 @@ public static class EntityLumpAuthor
         keyValues.Add("attributes", KVObject.Collection());
 
         var result = KVObject.Collection();
-        result.Add("m_connections", Connections(entity, fixupEntityNames, entityNames));
+        result.Add("m_connections", Connections(entity, fixupEntityNames, entityNames, schema));
         result.Add("m_keyValuesData", KVObject.Blob([]));
         result.Add("keyValues3Data", keyValues);
         return result;
     }
 
     /// <summary>
-    /// Apply the prefab name fixup to an entity name the map refers to.
+    /// Apply the prefab name fixup to an entity name the map refers to
+    /// (CMapGameDataNode::vf157, FUN_180fefb60, FUN_180dcab50).
     ///
-    /// <para>An engine keyword is NOT a name and does not get one. Valve's lump
-    /// for ze_hold_em_p prefixes 144 of its 145 connection targets; the single
-    /// exception is <c>!activator</c>, and the same goes for its siblings
-    /// <c>!self</c>, <c>!player</c> and <c>!caller</c>.</para>
+    /// <para>A value is left alone when it is empty, when it starts with one of
+    /// <c>!*?@</c> (an engine keyword such as <c>!activator</c>, or a wildcard),
+    /// or when it is the name of an FGD class, looked up case-blind: a key that
+    /// names a class names no entity.</para>
     /// </summary>
-    private static string Fixup(string name, bool enabled)
-        => enabled && name.Length > 0 && name[0] != '!' ? NameFixup + name : name;
+    private static string Fixup(string name, bool enabled, FgdSchema? schema)
+        => enabled && name.Length > 0 && name[0] is not ('!' or '*' or '?' or '@')
+           && schema?.HasClass(name) != true
+            ? NameFixup + name
+            : name;
+
+    /// <summary>
+    /// The key types the fixup rewrites (the bit mask 0x830006 in
+    /// CMapGameDataNode::vf157): target_destination, target_name_or_class,
+    /// npcclass, filterclass and pointentityclass. targetname is not among them;
+    /// it takes the fixup as the entity's own name (CMapEntityIONode::vf157),
+    /// so another target_source key keeps its value.
+    /// </summary>
+    private static bool TakesFixup(FgdSchema.Key key)
+        => key.TypeId is 0x1 or 0x2 or 0x10 or 0x11 or 0x17
+           || key.Name.Equals("targetname", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// ENTITY_CONNECTION_TARGET_NAME, the target type every connection carries.
@@ -274,7 +289,7 @@ public static class EntityLumpAuthor
     /// the KV3 one), and an empty parameter map written as null.
     /// </summary>
     private static KVObject Connections(MapEntities.Entity entity, bool fixupEntityNames,
-                                        IReadOnlySet<string> entityNames)
+                                        IReadOnlySet<string> entityNames, FgdSchema? schema)
     {
         var array = KVObject.Array();
         foreach (var c in entity.Connections)
@@ -282,10 +297,10 @@ public static class EntityLumpAuthor
             var o = KVObject.Collection();
             o.Add("m_outputName", new KVObject(c.OutputName));
             o.Add("m_targetType", new KVObject(TargetByName));
-            o.Add("m_targetName", new KVObject(Fixup(c.TargetName, fixupEntityNames)));
+            o.Add("m_targetName", new KVObject(Fixup(c.TargetName, fixupEntityNames, schema)));
             o.Add("m_inputName", new KVObject(c.InputName));
             o.Add("m_overrideParam", new KVObject(
-                entityNames.Contains(c.OverrideParam) ? Fixup(c.OverrideParam, fixupEntityNames) : c.OverrideParam));
+                entityNames.Contains(c.OverrideParam) ? Fixup(c.OverrideParam, fixupEntityNames, schema) : c.OverrideParam));
             o.Add("m_flDelay", new KVObject((double)c.Delay));
             o.Add("m_nTimesToFire", Integer(c.TimesToFire));
             o.Add("m_paramMap", KVObject.Null());
@@ -556,7 +571,7 @@ public static class EntityLumpAuthor
             var source = new Dictionary<string, KeyValuePair<string, string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in entity.Keys)
                 if (!IsPlacement(pair.Key))
-                    source.TryAdd(pair.Key, pair);
+                    source.TryAdd(pair.Key, Masked(pair, entity.ClassName, schema));
             IEnumerable<string> order = ["classname", "targetname"];
             foreach (var name in order.Concat(schema.KeysOf(entity.ClassName).Select(k => k.Name)))
             {
@@ -564,24 +579,54 @@ public static class EntityLumpAuthor
                     continue;
                 if (source.TryGetValue(name, out var pair))
                     table.Add(pair);
-                else if (schema.KeyOf(entity.ClassName, name) is { } declared)
+                else if (schema.KeyOf(entity.ClassName, name) is { } declared && !IsElementName(declared.Name))
                     table.Add(new(declared.Name, declared.Default ?? ""));
                 else
                     present.Remove(name);
             }
             foreach (var pair in entity.Keys)
                 if (!IsPlacement(pair.Key) && present.Add(pair.Key))
-                    table.Add(pair);
+                    table.Add(Masked(pair, entity.ClassName, schema));
             return table;
         }
 
-        foreach (var (key, text) in entity.Keys)
-            if (!IsPlacement(key) && present.Add(key))
-                table.Add(new(key, text));
+        foreach (var pair in entity.Keys)
+            if (!IsPlacement(pair.Key) && present.Add(pair.Key))
+                table.Add(Masked(pair, entity.ClassName, schema));
         foreach (var key in schema?.KeysOf(entity.ClassName) ?? [])
-            if (!IsPlacement(key.Name) && present.Add(key.Name))
+            if (!IsPlacement(key.Name) && !IsElementName(key.Name) && present.Add(key.Name))
                 table.Add(new(key.Name, key.Default ?? ""));
         return table;
+    }
+
+    /// <summary>
+    /// Whether a declared key is spelled like the DMX element's own name. The
+    /// default fill looks keys up case-blind among the element's attributes
+    /// (FUN_180f2d290), and every element carries a "name" attribute, so such a
+    /// key always counts as present and never gets a default. Set in the map, it
+    /// ships as the map spells it: point_gamestats_counter's Name.
+    /// </summary>
+    private static bool IsElementName(string key) => key.Equals("name", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A source key as the entity holds it once its class is set at load
+    /// (CMapGameDataNode::SetClass, FUN_180f2e4d0): a key named spawnflags, when
+    /// the class declares spawnflags with choices, keeps only the declared bits,
+    /// printed "%d". Every other key, and spawnflags on a class without choices,
+    /// is unchanged. Only the name spawnflags: func_nav_markup's flags key is not
+    /// masked.
+    /// </summary>
+    private static KeyValuePair<string, string> Masked(KeyValuePair<string, string> pair, string className,
+                                                       FgdSchema? schema)
+    {
+        if (!pair.Key.Equals("spawnflags", StringComparison.OrdinalIgnoreCase)
+            || schema?.KeyOf(className, "spawnflags") is not { Flags.Count: > 0 } declared)
+            return pair;
+        var declaredBits = 0u;
+        foreach (var (bit, _, _) in declared.Flags)
+            declaredBits |= bit;
+        var value = (uint)(int)CNumbers.Atoi(pair.Value) & declaredBits;
+        return new(pair.Key, ((int)value).ToString(CultureInfo.InvariantCulture));
     }
 
     /// <summary>
@@ -589,14 +634,14 @@ public static class EntityLumpAuthor
     /// writer converts it (FUN_180fa84e0). Every case turns an empty or bad value
     /// into its zero rather than keeping the text.
     /// </summary>
-    private static KVObject Typed(FgdSchema.Key key, string text, bool fixupEntityNames)
+    private static KVObject Typed(FgdSchema.Key key, string text, bool fixupEntityNames, FgdSchema? schema)
         => key.Type switch
         {
             // A map with entity-name fixup on has every NAME and every reference to
             // one rewritten by the compile. RC does it by TYPE, not by meaning: a
             // light_environment's ambient_occlusion_proxy_position_0 is declared
             // target_destination and holds "0 0 0", and ships as "[PR#]0 0 0".
-            FgdSchema.FieldType.EntityName => new KVObject(Fixup(text, fixupEntityNames)),
+            FgdSchema.FieldType.EntityName => new KVObject(TakesFixup(key) ? Fixup(text, fixupEntityNames, schema) : text),
             FgdSchema.FieldType.Boolean
                 => new KVObject(text.Equals("true", StringComparison.OrdinalIgnoreCase) || CNumbers.Atoi(text) != 0),
             // V_atoi, so a decimal is truncated: one of atixref's fifteen func_door

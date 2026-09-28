@@ -40,6 +40,9 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
         // The only local source with multi-node paths: ropes of four, five, six and
         // seven nodes, the path_particle_rope class, and path_node_generic children.
         ("c2m2", "c2m2_fairgrounds_csgo_environment_prefab"),
+        // Every class csgo.fgd offers, bare and with every key set
+        // (tools/coverage/probe_map.py).
+        ("s2probe", "probe_classes"),
     ];
 
     /// <summary>
@@ -53,7 +56,7 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
         // FUN_180f19f20) and keys vrad3 writes back after the bake (baked shadow
         // index, unique ids, the probe atlas textures). Neither is ported yet.
         "light_barn", "light_omni", "light_omni2", "light_spot", "light_ortho", "light_rect",
-        "light_environment", "env_cubemap", "env_light_probe_volume", "env_combined_light_probe_volume",
+        "light_environment", "env_cubemap", "env_cubemap_box", "env_light_probe_volume", "env_combined_light_probe_volume",
         // The compile SETTLES a physics prop before shipping it: it writes the
         // origin and angles the prop comes to rest at and sets spawnflag 1, which
         // the fgd calls "Start Asleep". 81 of atixref's 82 move and one of c2m2's

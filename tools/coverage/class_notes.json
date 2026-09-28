@@ -68,8 +68,8 @@
   "port": "nav not started"
  },
  "info_particle_system": {
-  "compile": "upgrade of older vmaps only: snapshot_file gets .vsnap",
-  "port": "lump ported; vmap upgrader not ported"
+  "compile": "snapshot_mesh naming a map node: snapshot_file set to maps/<map>/particle_snapshots/node_<id>.vsnap and the snapshot generated from the node; upgrade of older vmaps: snapshot_file gets .vsnap",
+  "port": "snapshot_file key ported (not inside instances); .vsnap not generated; vmap upgrader not ported"
  },
  "info_player_start": {
   "compile": "Hammer's map check only",

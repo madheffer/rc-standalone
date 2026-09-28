@@ -59,10 +59,11 @@ game can answer is raised with the user first, and runs with -insecure.
     and the other server, logic and point entities included) and every
     compile option Hammer's build dialog and resourcecompiler's command line
     offer must be handled, not only what the test maps use. Both lists are
-    enumerated in docs/COVERAGE.md (435 classes, every build switch); what
-    is open there: 316 classes with no local sample, the vmap upgrade
-    table, the landmark/camera/cull-triangle world lists, and every switch
-    the port does not yet take.
+    enumerated in docs/COVERAGE.md (354 offered classes, every build
+    switch), and every offered class is measured through the probe map.
+    Open there: the light and probe bake keys, particle snapshot files, the
+    vmap upgrade table, the landmark/camera/cull-triangle world lists, and
+    every switch the port does not yet take.
 
 ### Map resources
 13. The angles of instance copies inside a world layer (a round trip off).
@@ -80,6 +81,17 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ## Resolved
 
+- **Entity key defaults, masks and name fixup** (2026-09-28, decompile and
+  the probe map). A flags key's default is the OR of its default-on choices
+  ("%i"); tag_list and tag_list_dynamic default to their default-on tags
+  joined with ","; a flags key redeclared at the same type merges the
+  inherited choices after its own. spawnflags is masked to the declared
+  bits at load. The name fixup applies to types target_destination,
+  target_name_or_class, npcclass, filterclass and pointentityclass, and to
+  targetname, skipping values starting "!*?@" and FGD class names (case
+  blind). A key spelled "name" gets no default. snapshot_mesh sets
+  snapshot_file from the found node's id. All 353 offered classes, bare and
+  keyed, match Valve's lumps outside the light and probe bake keys.
 - **Split pieces carry no tool material** (2026-09-28, decompile). The
   blend split builds new meshes with positions only and never names their
   material; physicsbuilder sets each node's tool material from its mesh's

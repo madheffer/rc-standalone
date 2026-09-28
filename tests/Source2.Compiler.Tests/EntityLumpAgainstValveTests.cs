@@ -26,6 +26,9 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     [InlineData("s2probe", "atixref")]
     [InlineData("doom_p2", "ze_doom_p2_c_gameplay")]
     [InlineData("c2m2", "c2m2_fairgrounds_csgo_gameplay")]
+    // Every class csgo.fgd offers, twice: bare and with every key set
+    // (tools/coverage/probe_map.py over cardtest).
+    [InlineData("s2probe", "probe_classes")]
     public void EveryLump_DiffersOnlyInTheDocumentedGaps(string addon, string map)
     {
         var source = MapFixtures.VmapSource(addon, map);

@@ -23,6 +23,58 @@ public static class EntityLumpSet
     /// <param name="Bytes">The compiled lump.</param>
     public sealed record Lump(string Path, string Name, byte[] Bytes);
 
+    /// <summary>The ids of the map's nodes: the world and everything under it.
+    /// Other elements carry a nodeID too (the visibility manager's is 0) but are
+    /// no node of the map.</summary>
+    private static HashSet<int> MapNodeIds(DmxBinary.Document document)
+    {
+        var ids = new HashSet<int>();
+        var stack = new Stack<DmxBinary.Element>(document.OfType("CMapWorld"));
+        while (stack.TryPop(out var node))
+        {
+            if (node.GetValue<int>("nodeID") is { } id)
+                ids.Add(id);
+            foreach (var child in node.GetElements("children"))
+                stack.Push(child);
+        }
+        return ids;
+    }
+
+    /// <summary>
+    /// An entity that names a map node in snapshot_mesh gets the particle
+    /// snapshot the compile generates from that node (FUN_180f1d770,
+    /// FUN_180f8ee20): snapshot_file becomes
+    /// <c>maps/&lt;map&gt;/particle_snapshots/node_&lt;id&gt;.vsnap</c>, the id the found
+    /// node's own. Id 1 is the world; an id no node has leaves the key alone.
+    /// The node's type is not checked. The .vsnap itself is not generated here.
+    /// A source without snapshot_file gets it appended; only the case with the
+    /// key present is measured (the probe map).
+    /// </summary>
+    /// <remarks>An entity inside an instance looks the id up in the instance's
+    /// map and names the node by its id chain; that is not ported, so such an
+    /// entity with a node id throws rather than ship a wrong path.</remarks>
+    private static MapEntities.Entity WithParticleSnapshot(MapEntities.Entity entity, IReadOnlySet<int>? nodeIds,
+                                                           string worldName)
+    {
+        var mesh = entity.Keys.FirstOrDefault(k => k.Key.Equals("snapshot_mesh", StringComparison.OrdinalIgnoreCase));
+        if (nodeIds is null || mesh.Key is null)
+            return entity;
+        var id = (int)CNumbers.Atoi(mesh.Value);
+        if (entity.Instanced && id >= 1)
+            throw new NotSupportedException(
+                $"{entity.ClassName} {entity.NodeId}: a particle snapshot node inside an instance is not ported");
+        if (id != 1 && !nodeIds.Contains(id))
+            return entity;
+        var path = $"maps/{worldName}/particle_snapshots/node_{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}.vsnap";
+        var keys = entity.Keys.ToList();
+        var at = keys.FindIndex(k => k.Key.Equals("snapshot_file", StringComparison.OrdinalIgnoreCase));
+        if (at >= 0)
+            keys[at] = new(keys[at].Key, path);
+        else
+            keys.Add(new("snapshot_file", path));
+        return entity with { Keys = keys };
+    }
+
     /// <summary>Author the map's lumps: default_ents first, then the child lumps
     /// in the order the template pass made them.</summary>
     /// <param name="smartPropLocators">How many locators a smart prop definition
@@ -52,8 +104,10 @@ public static class EntityLumpSet
         List<string> layers = document is null ? [] : [.. MapEntities.WorldLayers(document)];
         var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
         worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));
-        foreach (var (entity, sourceId) in MainLump(entities, document, smartPropLocators, settled, schema))
-            if (EntityLumpAuthor.ReachesTheLump(entity, schema))
+        var nodeIds = document is null ? null : MapNodeIds(document);
+        foreach (var (walked, sourceId) in MainLump(entities, document, smartPropLocators, settled, schema))
+            if (WithParticleSnapshot(walked, nodeIds, worldName) is var entity
+                && EntityLumpAuthor.ReachesTheLump(entity, schema))
                 worlds[entity.Layer is { } layer && layers.IndexOf(layer) is var at and >= 0 ? at + 1 : 0].Items
                     .Add(new Item(EntityLumpAuthor.BuildEntity(entity, sourceId, context), entity.Hidden));
 

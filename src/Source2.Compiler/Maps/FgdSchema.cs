@@ -86,8 +86,8 @@ public sealed partial class FgdSchema
     public sealed record Key(string Name, FieldType Type, string? Default, int TypeId = -1, string Extension = "",
                              string? WriteToPathKey = null)
     {
-        /// <summary>A flags key's bits and their descriptions, in declaration order.</summary>
-        public IReadOnlyList<(uint Bit, string Name)> Flags { get; init; } = [];
+        /// <summary>A flags key's bits, their descriptions and whether each is on by default, in declaration order.</summary>
+        public IReadOnlyList<(uint Bit, string Name, bool On)> Flags { get; init; } = [];
     }
 
     private readonly Dictionary<string, Class> _classes = new(StringComparer.OrdinalIgnoreCase);
@@ -132,39 +132,87 @@ public sealed partial class FgdSchema
     /// </summary>
     public bool HasSpawnflag(string className, long spawnflags, string description)
     {
-        foreach (var (bit, name) in KeyOf(className, "spawnflags")?.Flags ?? [])
+        foreach (var (bit, name, _) in KeyOf(className, "spawnflags")?.Flags ?? [])
             if (name.Equals(description, StringComparison.OrdinalIgnoreCase))
                 return bit != 0 && ((uint)spawnflags & bit) == bit;
         return false;
     }
 
-    /// <summary>A flags key's choices: <c>bit : "description" : default</c> entries of the bracket after the key.</summary>
-    private static IReadOnlyList<(uint Bit, string Name)> FlagsOf(string declaration, string body, int at)
+    /// <summary>A flags key's choices: <c>bit : "description" : default</c> entries of the bracket after the key,
+    /// the default read as FUN_180dd7810 stores it (third field non-zero).</summary>
+    private static IReadOnlyList<(uint Bit, string Name, bool On)> FlagsOf(string declaration, string body, int at)
     {
-        if (!declaration.Trim().Equals("flags", StringComparison.OrdinalIgnoreCase))
+        if (!declaration.Trim().Equals("flags", StringComparison.OrdinalIgnoreCase) || ChoicesAfter(body, at) is not { } list)
             return [];
-        // The choices are the bracket after the '='; a bracket before it is
-        // the key's own metadata (prop_physics: [ group="Physics Properties" ]).
-        while (at < body.Length && char.IsWhiteSpace(body[at]))
-            at++;
-        if (at < body.Length && body[at] == '[')
+        return [.. Regex.Matches(list, @"(\d+)\s*:\s*""([^""]*)""(?:\s*:\s*(-?\d+))?")
+            .Select(m => (uint.Parse(m.Groups[1].Value), m.Groups[2].Value,
+                          m.Groups[3].Success && int.Parse(m.Groups[3].Value) != 0))];
+    }
+
+    /// <summary>
+    /// The default a choices list gives its key, where resourcecompiler takes one
+    /// from the list at all (FUN_180dd7810's list end, FUN_180dd6db0, FUN_180dd70d0):
+    /// a flags key's is the OR of its default-on values printed "%i"; a tag_list or
+    /// tag_list_dynamic key's is its default-on tags joined with "," in declaration
+    /// order, an empty tag and a later case-blind duplicate dropped (FUN_180dd65e0).
+    /// The list comes after the header, so it replaces any default the header gave.
+    /// Null for every other type, and for a key with no list.
+    /// </summary>
+    private static string? ListDefaultOf(int typeId, IReadOnlyList<(uint Bit, string Name, bool On)> flags,
+                                         string body, int at)
+    {
+        if (typeId == 0xa)
         {
-            var end = body.IndexOf(']', at);
-            if (end < 0)
-                return [];
-            at = end + 1;
+            if (ChoicesAfter(body, at) is null)
+                return null;
+            var on = 0u;
+            foreach (var (bit, _, set) in flags)
+                if (set)
+                    on |= bit;
+            return ((int)on).ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
-        var eq = body.IndexOf('=', at);
-        if (eq < 0 || body[at..eq].Trim().Length > 0)
-            return [];
-        var open = body.IndexOf('[', eq);
-        if (open < 0 || body[(eq + 1)..open].Trim().Length > 0)
-            return [];
+        if (typeId is 0x22 or 0x23 && ChoicesAfter(body, at) is { } list)
+        {
+            var tags = new List<(string Tag, bool On)>();
+            foreach (Match m in Regex.Matches(list, @"""([^""]*)""\s*:\s*""[^""]*""(?:\s*:\s*(-?\d+))?"))
+            {
+                var tag = m.Groups[1].Value;
+                if (tag.Length == 0 || tags.Any(x => x.Tag.Equals(tag, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                tags.Add((tag, m.Groups[2].Success && int.Parse(m.Groups[2].Value) != 0));
+            }
+            return string.Join(",", tags.Where(x => x.On).Select(x => x.Tag));
+        }
+        return null;
+    }
+
+    /// <summary>The body of a key's choices list: the bracket after an '=' on the
+    /// declaration's own line. Quoted fields (a label, a default) and a metadata
+    /// bracket may come first (prop_physics: [ group="Physics Properties" ];
+    /// func_nav_gen_proj's tag_list: : "nav gen proj markup" =). Null when the
+    /// line ends without one.</summary>
+    private static string? ChoicesAfter(string body, int at)
+    {
+        var i = at;
+        for (; i < body.Length && body[i] != '='; i++)
+        {
+            if (body[i] == '\n')
+                return null;
+            if (body[i] is '"' or '[' or '{')
+            {
+                var end = body.IndexOf(body[i] switch { '"' => '"', '[' => ']', _ => '}' }, i + 1);
+                if (end < 0)
+                    return null;
+                i = end;
+            }
+        }
+        if (i >= body.Length)
+            return null;
+        var open = body.IndexOf('[', i);
+        if (open < 0 || body[(i + 1)..open].Trim().Length > 0)
+            return null;
         var close = body.IndexOf(']', open);
-        if (close < 0)
-            return [];
-        return [.. Regex.Matches(body[(open + 1)..close], @"(\d+)\s*:\s*""([^""]*)""")
-            .Select(m => (uint.Parse(m.Groups[1].Value), m.Groups[2].Value))];
+        return close < 0 ? null : body[(open + 1)..close];
     }
 
     /// <summary>Whether the class is a <c>@PathNodeClass</c>.</summary>
@@ -300,6 +348,13 @@ public sealed partial class FgdSchema
     /// <c>remove_key</c>; anything else is appended, a <c>remove_key</c> for a key
     /// the list does not hold included, so that it removes the key when the
     /// class's bases are merged in ahead of it.
+    ///
+    /// <para>A flags key declared again at the same type keeps the choices it
+    /// had (FUN_180dd37a0): the new declaration's come first, then each old one
+    /// whose value the new list lacks. The default and the spawnflags mask are
+    /// read off that merged list, so trigger_look's own 128 joins the 4097 its
+    /// base turns on. (The other choice types merge too; their lists feed
+    /// nothing the port writes.)</para>
     /// </summary>
     private static void AddVariable(List<Key> list, Key key)
     {
@@ -308,8 +363,20 @@ public sealed partial class FgdSchema
             list.Add(key);
         else if (key.TypeId == RemoveKey)
             list.RemoveAt(at);
+        else if (key.TypeId == 0xa && list[at].TypeId == 0xa && list[at].Flags.Count > 0)
+            list[at] = MergedFlags(key, list[at]);
         else
             list[at] = key;
+    }
+
+    private static Key MergedFlags(Key key, Key old)
+    {
+        var merged = key.Flags.Concat(old.Flags.Where(o => !key.Flags.Any(n => n.Bit == o.Bit))).ToList();
+        var on = 0u;
+        foreach (var (bit, _, set) in merged)
+            if (set)
+                on |= bit;
+        return key with { Default = ((int)on).ToString(System.Globalization.CultureInfo.InvariantCulture), Flags = merged };
     }
 
     /// <summary>
@@ -426,9 +493,12 @@ public sealed partial class FgdSchema
         {
             if (TypeOfDeclaration(key.Groups[2].Value) is not { } type)
                 return;
-            AddVariable(own, new Key(key.Groups[1].Value, type.Type, DefaultOf(body, key.Index + key.Length),
-                                     type.Id, type.Extension, WriteToPathKeyOf(body, key.Index + key.Length))
-                             { Flags = FlagsOf(key.Groups[2].Value, body, key.Index + key.Length) });
+            var at = key.Index + key.Length;
+            var bits = FlagsOf(key.Groups[2].Value, body, at);
+            AddVariable(own, new Key(key.Groups[1].Value, type.Type,
+                                     ListDefaultOf(type.Id, bits, body, at) ?? DefaultOf(body, at),
+                                     type.Id, type.Extension, WriteToPathKeyOf(body, at))
+                             { Flags = bits });
         }
 
         // @OverrideClass merges into the class it names (FUN_180dd1680): each key
@@ -683,10 +753,11 @@ public sealed partial class FgdSchema
         0xb or 0xc => FieldType.Color,
         0x20 or 0x21 => FieldType.Resource,
         0x44 => FieldType.Kv3,
-        // The name types, which entity-name fixup rewrites. filterclass names a
-        // FILTER ENTITY: Valve writes filtername = "[PR#]humans" on ze_hold_em_p's
-        // trigger_multiple, trigger_hurt and trigger_teleport.
-        1 or 2 or 3 or 0x11 => FieldType.EntityName,
+        // The name types. filterclass names a FILTER ENTITY: Valve writes
+        // filtername = "[PR#]humans" on ze_hold_em_p's trigger_multiple,
+        // trigger_hurt and trigger_teleport. Which of them the fixup rewrites is
+        // EntityLumpAuthor.TakesFixup's call (target_source only as targetname).
+        1 or 2 or 3 or 0x10 or 0x11 or 0x17 => FieldType.EntityName,
         _ => FieldType.String,
     };
 
