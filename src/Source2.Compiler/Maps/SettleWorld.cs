@@ -286,7 +286,7 @@ public static partial class SettleWorld
     /// length in the plane, roll from the third row; a column shorter than 0.001
     /// takes yaw from the second column and no roll.
     /// </summary>
-    private static Vector3 MatrixAngles(float[] m)
+    internal static Vector3 MatrixAngles(float[] m)
     {
         const float Degrees = 57.295776f;
         var length = MathF.Sqrt((m[4] * m[4]) + (m[0] * m[0]));

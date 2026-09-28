@@ -102,6 +102,162 @@ public sealed class RayTraceEnvironment
     public static RayTraceEnvironment ReadFile(string path) => Read(File.ReadAllBytes(path));
 
     /// <summary>
+    /// A scene of our own, laid out as resourcecompiler's writer lays out the
+    /// .rte: each triangle's 48-byte record (<see cref="RecordFor"/>; slot 4 the
+    /// triangle's index as a float, as in every file measured), the box of
+    /// every corner, and the kd tree built over every triangle from its own
+    /// corners in that box (<see cref="TracerKd"/>'s builder). The per-triangle
+    /// ids are 0 and the reflectivities (1, 1, 1), as in every compile
+    /// measured; visibility reads neither. Degenerate triangles are left out.
+    /// </summary>
+    public static RayTraceEnvironment FromTriangles(IReadOnlyList<(Vector3 A, Vector3 B, Vector3 C, ushort Flags)> triangles)
+    {
+        ArgumentNullException.ThrowIfNull(triangles);
+        var records = new List<byte[]>();
+        var corners = new List<float[]>();
+        Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
+        foreach (var (a, b, c, flags) in triangles)
+        {
+            var record = new byte[48];
+            if (!RecordFor(a, b, c, flags, record))
+                continue;
+            records.Add(record);
+            corners.Add([a.X, a.Y, a.Z, b.X, b.Y, b.Z, c.X, c.Y, c.Z]);
+            lo = Vector3.Min(lo, Vector3.Min(a, Vector3.Min(b, c)));
+            hi = Vector3.Max(hi, Vector3.Max(a, Vector3.Max(b, c)));
+        }
+        var n = records.Count;
+        // A first pass lays the triangles out under one leaf so the builder can read them.
+        var flat = Layout(records, [(3u, (uint)n)], [.. Enumerable.Range(0, n)], lo, hi);
+        var kd = new TracerKd(flat, [.. Enumerable.Range(0, n)], i => corners[i], lo, hi);
+        var indices = new List<int>();
+        var words = new List<(uint, uint)>();
+        foreach (var node in kd.Nodes)
+        {
+            if (node.Axis == 3)
+            {
+                words.Add((((uint)indices.Count << 2) | 3, (uint)node.Slots.Length));
+                indices.AddRange(node.Slots);
+            }
+            else
+                words.Add((((uint)node.Lower << 2) | (uint)node.Axis, BitConverter.SingleToUInt32Bits(node.Split)));
+        }
+        return Layout(records, words, indices, lo, hi);
+    }
+
+    private static RayTraceEnvironment Layout(List<byte[]> records, List<(uint Word, uint Second)> nodes, List<int> indices,
+                                              Vector3 mins, Vector3 maxs)
+    {
+        var b = records.Count;
+        var data = new byte[HeaderSize + (nodes.Count * 8) + (b * 48) + (indices.Count * 4) + (b * 8) + (b * 12)];
+        WriteHeader(data, nodes.Count, b, indices.Count, mins, maxs);
+        var at = HeaderSize;
+        foreach (var (word, second) in nodes)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(at), word);
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(at + 4), second);
+            at += 8;
+        }
+        for (var i = 0; i < b; i++)
+        {
+            records[i].AsSpan(0, 48).CopyTo(data.AsSpan(at));
+            BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(at + 16), i);
+            at += 48;
+        }
+        foreach (var index in indices)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(at), (uint)index);
+            at += 4;
+        }
+        at += b * 8;
+        for (var i = 0; i < b * 3; i++, at += 4)
+            BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(at), 1f);
+        return Read(data);
+    }
+
+    /// <summary>
+    /// The same triangles with the kd tree and box the vis loader's rebuilt
+    /// tracer holds (<see cref="TracerKd"/> over <see cref="TracedBounds"/>),
+    /// in place of the ones the file was written with. That tracer is what
+    /// the compile's visibility traces against; the file's own tree only ever
+    /// differs from it in the order it meets equal hits.
+    /// </summary>
+    public RayTraceEnvironment WithTracerTree()
+    {
+        var kd = _kd ??= new TracerKd(this);
+        var order = TracerOrder;
+        var nodes = kd.Nodes;
+        var indices = new List<int>();
+        var words = new (uint Word, uint Second)[nodes.Count];
+        for (var n = 0; n < nodes.Count; n++)
+        {
+            var node = nodes[n];
+            if (node.Axis == 3)
+            {
+                words[n] = (((uint)indices.Count << 2) | 3, (uint)node.Slots.Length);
+                indices.AddRange(node.Slots.Select(s => order[s]));
+            }
+            else
+                words[n] = (((uint)node.Lower << 2) | (uint)node.Axis, BitConverter.SingleToUInt32Bits(node.Split));
+        }
+        var b = TriangleCount;
+        var data = new byte[HeaderSize + (nodes.Count * 8) + (b * 48) + (indices.Count * 4) + (b * 8) + (b * 12)];
+        var (mins, maxs) = TracedBounds;
+        WriteHeader(data, nodes.Count, b, indices.Count, mins, maxs);
+        var at = HeaderSize;
+        foreach (var (word, second) in words)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(at), word);
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(at + 4), second);
+            at += 8;
+        }
+        _data.AsSpan(_triangleAt, b * 48).CopyTo(data.AsSpan(at));
+        at += b * 48;
+        foreach (var index in indices)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(at), (uint)index);
+            at += 4;
+        }
+        _data.AsSpan(_indexAt + (IndexCount * 4), b * 20).CopyTo(data.AsSpan(at));
+        return Read(data);
+    }
+
+    private int IndexCount => (int)BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(20));
+
+    private static void WriteHeader(byte[] data, int nodes, int triangles, int indices, Vector3 mins, Vector3 maxs)
+    {
+        uint[] counts = [6, 3, 0, (uint)nodes, (uint)triangles, (uint)indices, (uint)triangles, 0, (uint)triangles];
+        for (var i = 0; i < counts.Length; i++)
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(i * 4), counts[i]);
+        float[] box = [mins.X, mins.Y, mins.Z, maxs.X, maxs.Y, maxs.Z];
+        for (var i = 0; i < box.Length; i++)
+            BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(36 + (i * 4)), box[i]);
+    }
+
+    /// <summary>
+    /// A triangle's 48-byte record from its three corners and its flag word:
+    /// the corners converted as the collector converts them (normal, plane,
+    /// the two edge equations, the projection axes as bytes), the flags at
+    /// 0x2e; slot 4, the triangle's index, is <see cref="FromRecords"/>'s to
+    /// write. False when the triangle is degenerate.
+    /// </summary>
+    public static bool RecordFor(Vector3 a, Vector3 b, Vector3 c, ushort flags, byte[] record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        Span<float> corners = [a.X, a.Y, a.Z, b.X, b.Y, b.Z, c.X, c.Y, c.Z];
+        Span<float> r = stackalloc float[13];
+        if (!Convert(corners, r))
+            return false;
+        for (var k = 0; k < 11; k++)
+            if (k != 4)
+                BinaryPrimitives.WriteSingleLittleEndian(record.AsSpan(k * 4), r[k]);
+        record[0x2c] = (byte)r[11];
+        record[0x2d] = (byte)r[12];
+        BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(0x2e), flags);
+        return true;
+    }
+
+    /// <summary>
     /// The triangle's flag word, at <c>+0x2e</c>, with <see cref="NoDrawInFile"/>
     /// folded into <see cref="NoDraw"/> the way the converter folds it.
     /// </summary>
@@ -512,6 +668,9 @@ public sealed class RayTraceEnvironment
     internal ReadOnlySpan<float> TracedRecord(int index) => Traced().AsSpan(index * 13, 13);
 
     private TracerKd? _kd;
+
+    /// <summary>Whether the tracer holds the file triangle (a probe for tests).</summary>
+    internal bool TracerOrderContains(int index) => Array.IndexOf(TracerOrder, index) >= 0;
 
     /// <summary>A triangle's 48 byte record as the file holds it.</summary>
     internal ReadOnlySpan<byte> FileRecord(int index) => Record(index);

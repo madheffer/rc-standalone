@@ -55,6 +55,7 @@ public class MapGeometryReplay(ITestOutputHelper output)
         Span<float> corners = stackalloc float[9];
         Span<float> record = stackalloc float[13];
         var missedBy = new Dictionary<MapMeshes.Mesh, int>();
+        var flagsSeen = new SortedDictionary<string, int>(StringComparer.Ordinal);
         var all = new List<string>();
         for (var i = 0; i < ours.Count; i++)
         {
@@ -69,8 +70,14 @@ public class MapGeometryReplay(ITestOutputHelper output)
                     (sound && file.TryGetValue(Key(record), out var seen) && seen.Count > 0 ? "found" : "missed") + $" {ownerOf[i].NodeId}");
             if (sound && file.TryGetValue(Key(record), out var q) && q.Count > 0)
             {
-                q.Dequeue();
+                var at = q.Dequeue();
                 found++;
+                // MAPGEO_FLAGS: the file's flag word per material, for the flag port.
+                if (Environment.GetEnvironmentVariable("MAPGEO_FLAGS") is not null)
+                {
+                    var key = $"{Path.GetFileNameWithoutExtension(t.Material)} {materials[t.Material]} under {ownerOf[i].ParentType}/{ownerOf[i].ParentClass}: 0x{rte.RawFlags(at):x4}";
+                    flagsSeen[key] = flagsSeen.GetValueOrDefault(key) + 1;
+                }
             }
             else
             {
@@ -108,6 +115,8 @@ public class MapGeometryReplay(ITestOutputHelper output)
             File.WriteAllLines(dumpAll, all);
         if (Environment.GetEnvironmentVariable("MAPGEO_DUMP") is { } dump)
             File.WriteAllLines(dump, missed.Select(t => FormattableString.Invariant($"{t.A.X} {t.A.Y} {t.A.Z} {t.B.X} {t.B.Y} {t.B.Z} {t.C.X} {t.C.Y} {t.C.Z} {t.Material}")));
+        foreach (var (k, n) in flagsSeen)
+            output.WriteLine($"  flags {k} x{n}");
         foreach (var (m, n) in leftover.OrderByDescending(kv => kv.Value))
             output.WriteLine($"  ours not in the rte: {m} {n}");
         output.WriteLine($"ours {ours.Count}, found {found}, degenerate {degenerate}; rte {rte.TriangleCount}, not produced {rte.TriangleCount - found}");

@@ -33,6 +33,7 @@ internal sealed class TracerKd
     private readonly RayTraceEnvironment _rte;
     private readonly float[] _bounds;   // per slot: minx maxx miny maxy minz maxz
     private readonly int[] _slots;      // slot -> file triangle
+    private readonly Func<int, float[]> _corners;
     private readonly List<Node> _nodes = [];
 
     /// <summary>One node: a split with its two children, or a leaf's slots.</summary>
@@ -45,13 +46,24 @@ internal sealed class TracerKd
     public IReadOnlyList<Node> Nodes => _nodes;
 
     public TracerKd(RayTraceEnvironment rte)
+        : this(rte, rte.TracerOrder, s => rte.LoaderCorners(s).ToArray(), rte.TracedBounds.Mins, rte.TracedBounds.Maxs)
+    {
+    }
+
+    /// <summary>
+    /// The same builder over the given triangles, with the given corners and
+    /// box: how resourcecompiler's writer builds the tree the .rte carries,
+    /// over every triangle it collected, from their own corners.
+    /// </summary>
+    internal TracerKd(RayTraceEnvironment rte, int[] slots, Func<int, float[]> corners, Vector3 mins, Vector3 maxs)
     {
         _rte = rte;
-        _slots = rte.TracerOrder;
+        _slots = slots;
+        _corners = corners;
         _bounds = new float[_slots.Length * 6];
         for (var s = 0; s < _slots.Length; s++)
         {
-            var p = rte.LoaderCorners(_slots[s]);
+            var p = corners(_slots[s]);
             for (var axis = 0; axis < 3; axis++)
             {
                 // The setup's own order of <= swaps, v0 then v1 then v2.
@@ -71,7 +83,6 @@ internal sealed class TracerKd
             }
         }
 
-        var (mins, maxs) = rte.TracedBounds;
         _nodes.Add(null!);
         Refine(0, [.. Enumerable.Range(0, _slots.Length)], mins, maxs, 0);
     }
@@ -151,7 +162,7 @@ internal sealed class TracerKd
             }
             else
             {
-                split = _rte.LoaderCorners(_slots[list[k]])[(corner * 3) + axis];
+                split = _corners(_slots[list[k]])[(corner * 3) + axis];
                 if (!(split <= hi && lo <= split))
                     continue;
             }
