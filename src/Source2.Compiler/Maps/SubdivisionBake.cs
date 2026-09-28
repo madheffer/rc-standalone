@@ -25,7 +25,9 @@ namespace Source2.Compiler.Maps;
 /// </summary>
 internal static class SubdivisionBake
 {
-    public static MeshTessellation.Result Bake(DmxBinary.Element data)
+    /// <param name="cutSpace">Where the export's polygon cutter scores corners: a world
+    /// mesh's faces are cut on their world positions (as <see cref="MapMeshCorners"/>).</param>
+    public static MeshTessellation.Result Bake(DmxBinary.Element data, Func<Vector3, Vector3>? cutSpace = null)
     {
         var a = new FaceArrays(data);
         var mesh = new HalfEdgeMesh();
@@ -120,7 +122,7 @@ internal static class SubdivisionBake
                     mesh.Vertices[v].Written = writes++;
                 }
 
-        return Export(mesh, a.WithPaint);
+        return Export(mesh, a.WithPaint, cutSpace);
     }
 
     // The patch-local grid coordinates of a quad's corners during the recursion.
@@ -332,7 +334,7 @@ internal static class SubdivisionBake
     /// of more than three corners is cut by <see cref="PolygonTriangulator"/>,
     /// its triangles together.
     /// </summary>
-    private static MeshTessellation.Result Export(HalfEdgeMesh mesh, bool withPaint)
+    private static MeshTessellation.Result Export(HalfEdgeMesh mesh, bool withPaint, Func<Vector3, Vector3>? cutSpace)
     {
         var positions = new List<Vector3>();
         var indices = new List<int>();
@@ -365,7 +367,8 @@ internal static class SubdivisionBake
                 faces.Add(source);
                 continue;
             }
-            var cut = PolygonTriangulator.Triangulate([.. loop.Select(v => mesh.Vertices[v].Position)]);
+            var corners = loop.Select(v => mesh.Vertices[v].Position);
+            var cut = PolygonTriangulator.Triangulate([.. cutSpace == null ? corners : corners.Select(cutSpace)]);
             foreach (var j in cut)
                 Corner(loop[j], mesh.He(hs[j]).Paint);
             for (var t = 0; t < cut.Length / 3; t++)

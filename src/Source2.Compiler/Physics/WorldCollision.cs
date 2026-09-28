@@ -806,7 +806,12 @@ public static class WorldCollision
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
         // The builder's own bake on a half-edge mesh (Maps.SubdivisionBake): faces
         // stitched to finer neighbours come out as the bake leaves them.
-        var cut = Maps.SubdivisionBake.Bake(data);
+        Vector3 Place(Vector3 local)
+        {
+            var p = Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, local * scales));
+            return path == null ? p : Maps.MapMeshes.Transform(path, p);
+        }
+        var cut = Maps.SubdivisionBake.Bake(data, Place);
         covered = true;
         // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
         var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of, List<Vector4> Paint, List<int> Source)>();

@@ -31,8 +31,11 @@ game can answer is raised with the user first, and runs with -insecure.
    order stands in (it only matters on a hash collision).
 5. **Instance path for brush entity meshes**: applied after the node's own
    move, or composed first. Both place atixref the same; not read.
-6. **Stitched subdivided faces**: the bake splits half-edge chains by arc
-   length. Port the bake's face and edge splits (in progress).
+6. **Subdivision bake remainder**: the face collapse is modelled from the
+   edge collapses (confirmed by exact output, not read line by line), and
+   the wrapper's vertex merge (tolerance about 1e-6) and edge smoothing are
+   not ported. tools/physics/capture_bake.py logs every operation to settle
+   both when a map needs them.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling: assumed, no counter-example.
 9. **Texcoord transform defaults** for parameters a material leaves out
@@ -119,3 +122,6 @@ game can answer is raised with the user first, and runs with -insecure.
   could place. A subdivided mesh arrives tessellated and positions-only:
   Mako's three pipes are subdivision surfaces (492 vertices each against 126
   .vmap vertices), which the port now tessellates as the mesh path does.
+- **Stitched subdivided faces** (2026-09-28, decompile). The bake runs on a
+  port of Valve's half-edge mesh (containers, edge split, add edge, arc-length
+  split, grid write-back); c2m2's prefab and Mako are whole-file exact.

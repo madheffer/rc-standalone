@@ -133,12 +133,10 @@ physics to test Mako against. What it took, beyond the rules above:
   is long; the next non-empty name adds "; ..." and seals it, and nothing is
   added after that. Mako's first soup is six " [Wood]" and "; ...".
 
-Now 4,787 of Mako's 4,821 mesh inserts match the capture bit for bit, the
-surface table and RED2 are Valve's, every hull is exact, and the file
-differs in 62 places, all in two soups holding the stitched subdivided
-pieces (7; see below). A subdivided convex mesh is hulled from its
-tessellation, as physicsbuilder receives it (three pipes). The whole file was
-47,448 differences before this work and is 62 now.
+With the subdivision bake below, Mako's world_physics is whole-file exact
+against the full compile (it was 47,448 differences before this work):
+every hull, every soup, the surface table and RED2. A subdivided convex mesh
+is hulled from its tessellation, as physicsbuilder receives it (three pipes).
 
 In brush entity models a material's shader translucency does not make it a
 window: Mako's baggage glass breakables are default, and atixref's glass is
@@ -190,9 +188,47 @@ container facts) on atixref (86), ze_hold_em_p (24) and Mako (324).
   except in a mesh cut by painted layers, whose pieces all name theirs.
   `has_default_surface_property` means a named "default". The same rules hold
   for the world; world_physics is whole-file exact on cardtest too (per-triangle
-  materials), and c2m2's prefab differs only by its stitched subdivided faces.
+  materials) and on c2m2's prefab.
 - Not ported: render meshes (the other models), the PhysicsTypeOverride base
   classes beyond func_shatterglass, and the cable model.
+
+## Subdivision bake (`HalfEdgeMesh`, `SubdivisionBake`)
+
+A subdivided face reaches the physics as the map builder bakes it
+(BakeSubdivisionForFaces), and the bake works on Valve's half-edge mesh, so
+the port keeps that mesh as Valve keeps it:
+- Vertices, half-edges and faces live in dense arrays with handle tables. A
+  new element goes at the end and takes the handle at the head of a
+  first-in, first-out free list; a removed element's slot takes the last
+  element. The export walks the dense face array, each face from its first
+  half-edge, so these rules decide the triangle order.
+- Splitting an edge makes the old half-edge end at the new vertex and adds
+  one after it; adding an edge to a face keeps the a-to-b side in the face
+  and appends a new face for the rest. New corners (paint) are lerped as
+  (b - a) * t + a or copied.
+- Faces of level 1 to 5 are gathered level by level, their patch grids
+  computed from the corners first. Each face is then split: the point halfway
+  along each side by arc length (a sub-edge's local t under 0.01 or over 0.99
+  reuses its end, so a finer face reuses a coarser neighbour's points and
+  adds its own between them), corners cut off, the inner face collapsed to
+  the centre, children recursing in corner order 0, 1, 3, 2. Each cell's
+  corners take the patch's paint, each cell is cut on its diagonal, and once
+  every face is split each face's grid points take its grid's positions, the
+  last write winning.
+- A coarser face beside a finer one keeps the finer face's extra points, and
+  the export cuts it (and any plain polygon) on world positions, as plain
+  meshes are cut.
+- Every baked vertex stays its own through the export and the 1/32 weld, as
+  plain world meshes keep their .vmap vertices apart; where a finer face made
+  a second vertex at a coarser face's point, both stay.
+
+This replaced the measured patch model (which the tests keep as a baseline
+for uniform meshes) and made c2m2's prefab and Mako whole-file exact. Read
+rather than modelled: the containers, edge split, add edge, lookups, lerp,
+arc-length split and bake order. Modelled: the face collapse (its face order
+follows from the edge collapses and is confirmed by exact output). Not
+ported: the vertex merge (tolerance about 1e-6) and the edge smoothing the
+bake's wrapper runs afterwards.
 
 ## Prop spheres and capsules
 
