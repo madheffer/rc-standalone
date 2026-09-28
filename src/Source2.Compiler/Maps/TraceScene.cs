@@ -11,7 +11,14 @@ namespace Source2.Compiler.Maps;
 public static class TraceScene
 {
     /// <summary>One triangle and its flag word.</summary>
-    public readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, ushort Flags);
+    public readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, ushort Flags)
+    {
+        /// <summary>The face's material, for diagnostics.</summary>
+        public string Material { get; init; } = "";
+
+        /// <summary>The mesh node, for diagnostics.</summary>
+        public int Node { get; init; }
+    }
 
     /// <summary>
     /// The material's trace flags (Material_VisFlags), each an int attribute
@@ -21,8 +28,10 @@ public static class TraceScene
     /// 0x40 mapbuilder.blocklight; 0x100 tools.toolsmaterial;
     /// 0x200 tools.reference_notrace; 0x800 mapbuilder.detail; 0x1000 mapbuilder.sky.
     /// The loaded material answers its vmat_c int attributes and its shader's
-    /// own attributes; of these the shader side is ported for "translucent"
-    /// only (<see cref="Physics.MaterialCollision.Translucent"/>).
+    /// own attributes (<see cref="Physics.ShaderAttributes"/>: alphatest and
+    /// translucent; bShaderBlended, renderbackfaces and NeedsDynamicShadows
+    /// are not declared by any pixel shader probed and come from elsewhere,
+    /// not read).
     /// </summary>
     public static ushort MaterialFlags(SettleWorld.MaterialInfo? info)
     {
@@ -31,7 +40,8 @@ public static class TraceScene
         bool On(string key) => info.Ints.TryGetValue(key, out var v) && v != 0;
         ushort flags = 0;
         if (On("alphatest") || On("translucent") || On("bShaderBlended")
-            || Physics.MaterialCollision.Translucent(info.Shader, info.Params))
+            || Physics.ShaderAttributes.AlphaTest(info.Shader, info.Params)
+            || Physics.ShaderAttributes.Translucent(info.Shader, info.Params))
             flags |= 1;
         if (On("renderbackfaces"))
             flags |= 2;
@@ -80,11 +90,11 @@ public static class TraceScene
                     continue;
                 foreach (var t in baked)
                     if (!visFlags(t.Material).LeftOutOfTrace)
-                        found.Add(new Triangle(t.A, t.B, t.C, (ushort)(entry | MaterialFlags(material(t.Material)))));
+                        found.Add(new Triangle(t.A, t.B, t.C, (ushort)(entry | MaterialFlags(material(t.Material)))) { Material = t.Material, Node = mesh.NodeId });
                 continue;
             }
             foreach (var t in MapGeometry.RteTriangles([mesh], visFlags, rendersAsWorld))
-                found.Add(new Triangle(t.A, t.B, t.C, (ushort)(entry | MaterialFlags(material(t.Material)))));
+                found.Add(new Triangle(t.A, t.B, t.C, (ushort)(entry | MaterialFlags(material(t.Material)))) { Material = t.Material, Node = mesh.NodeId });
         }
         return found;
     }

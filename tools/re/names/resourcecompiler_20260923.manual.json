@@ -2203,6 +2203,210 @@
    "note": "getter for node +0x108"
   },
   {
+   "addr": "180c22250",
+   "name": "ShapeBuilder_Registry_ctor",
+   "module": "s2c:physics/world",
+   "note": "registry: attribute 'default', surface +0xb0 'default', empty tables"
+  },
+  {
+   "addr": "180c22c40",
+   "name": "ShapeBuilder_BuildAggregate",
+   "module": "s2c:physics/world",
+   "note": "builds each part, then writes the attribute and surface tables"
+  },
+  {
+   "addr": "180c24aa0",
+   "name": "ShapeBuilder_Shape_ctor",
+   "module": "s2c:physics/world",
+   "note": "shape attribute override +8 name 'default', mode +0x88 0"
+  },
+  {
+   "addr": "180c27440",
+   "name": "ShapeBuilder_Part_ctor",
+   "module": "s2c:physics/world",
+   "note": "part surface +0x68 'default', attribute +0xf8 'default', mode +0x178 0"
+  },
+  {
+   "addr": "180c2ae80",
+   "name": "ShapeBuilder_WriteTables",
+   "module": "s2c:physics/world",
+   "note": "m_collisionAttributes, then m_surfacePropertyHashes (lowercase Murmur of each name, 0 if empty)"
+  },
+  {
+   "addr": "180c2ad10",
+   "name": "ShapeBuilder_WriteRecords16",
+   "module": "s2c:physics/world",
+   "note": "copies registry +0xb8 16-byte records (HITGROUP_INVALID default) to aggregate +0x98"
+  },
+  {
+   "addr": "180c2b200",
+   "name": "ShapeBuilder_NextPart",
+   "module": "s2c:physics/world",
+   "note": "bumps the part counter"
+  },
+  {
+   "addr": "180c2b2b0",
+   "name": "ShapeBuilder_AttributeIndex",
+   "module": "s2c:physics/world",
+   "note": "find-or-append the current attribute; linear scan, first match"
+  },
+  {
+   "addr": "180c2b3a0",
+   "name": "ShapeBuilder_SurfaceIndex",
+   "module": "s2c:physics/world",
+   "note": "find-or-append the current surface name; CUtlString == (case-sensitive)"
+  },
+  {
+   "addr": "180c2b5d0",
+   "name": "CUtlStringVector_AppendAll",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "180c2d570",
+   "name": "ShapeBuilder_PopAttribute",
+   "module": "s2c:physics/world",
+   "note": "restores the registry's attribute state"
+  },
+  {
+   "addr": "180c2d5a0",
+   "name": "CollisionAttribute_Equal",
+   "module": "s2c:physics/world",
+   "note": "group V_stricmp_fast, then five tag lists as sets"
+  },
+  {
+   "addr": "180c2d650",
+   "name": "CollisionAttribute_WriteList",
+   "module": "s2c:physics/world",
+   "note": "strings as stored, hashes lowercase Murmur (0 if empty)"
+  },
+  {
+   "addr": "180c2d880",
+   "name": "CollisionAttribute_MergeList",
+   "module": "s2c:physics/world",
+   "note": "mode 2: appends names not already present (case-sensitive)"
+  },
+  {
+   "addr": "180c2da10",
+   "name": "CollisionAttribute_ApplyOverride",
+   "module": "s2c:physics/world",
+   "note": "mode 1: name if non-empty, all five lists replaced; mode 2: merge"
+  },
+  {
+   "addr": "180c2dd00",
+   "name": "CollisionAttribute_Write",
+   "module": "s2c:physics/world",
+   "note": "one m_collisionAttributes entry from a registered attribute"
+  },
+  {
+   "addr": "180c2e030",
+   "name": "CollisionTagList_SetEqual",
+   "module": "s2c:physics/world",
+   "note": "set equality, A-Z folded; hash sets once n*m >= 50"
+  },
+  {
+   "addr": "180c2ec50",
+   "name": "ShapeBuilder_PushSurface",
+   "module": "s2c:physics/world",
+   "note": "saves registry +0xb0, sets it to the shape's surface if non-empty"
+  },
+  {
+   "addr": "180c2ece0",
+   "name": "ShapeBuilder_PopSurface",
+   "module": "s2c:physics/world",
+   "note": "restores registry +0xb0"
+  },
+  {
+   "addr": "1802c05a0",
+   "name": "CollisionAttribute_Copy",
+   "module": "s2c:physics/world",
+   "note": "name and five lists"
+  },
+  {
+   "addr": "1802e3e00",
+   "name": "CollisionTagList_Parse",
+   "module": "s2c:physics/world",
+   "note": "splits on whitespace, ',' and '|' into a sorted set"
+  },
+  {
+   "addr": "1802e3c10",
+   "name": "CollisionTagSet_AddUnique",
+   "module": "s2c:physics/world",
+   "note": "CUtlSortVector<CUtlString> Find by V_stricmp_fast; first spelling kept"
+  },
+  {
+   "addr": "1802e4340",
+   "name": "CollisionTagSet_Insert",
+   "module": "s2c:physics/world",
+   "note": "sorted insert, V_stricmp_fast order"
+  },
+  {
+   "addr": "1802e3af0",
+   "name": "CUtlStringVector_Assign",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "18141b370",
+   "name": "CModelDocPhysicsShapeList_Create",
+   "module": "s2c:physics/world",
+   "note": "+0xba flag 0, body order +0xbc 2"
+  },
+  {
+   "addr": "1801ae380",
+   "name": "ModelDocPhysicsShape_CollisionProperty",
+   "module": "s2c:physics/world",
+   "note": "getter for node +0xc8"
+  },
+  {
+   "addr": "1801ae550",
+   "name": "ModelDocPhysicsShape_SurfaceProperty",
+   "module": "s2c:physics/world",
+   "note": "getter for node +0xc0"
+  },
+  {
+   "addr": "180108e20",
+   "name": "HashLowerCase_Seeded",
+   "module": "s2c:physics/world",
+   "note": "lowercase MurmurHash2, seed 0x31415926; 0 for empty"
+  },
+  {
+   "addr": "1800fafa0",
+   "name": "MurmurHash2LowerCase_Str",
+   "module": "s2c:physics/world",
+   "note": "strlen then lowercase MurmurHash2 with the given seed"
+  },
+  {
+   "addr": "1800ca280",
+   "name": "MurmurHash2_AsciiLower",
+   "module": "s2c:physics/model",
+   "note": "MurmurHash2 folding A-Z; the KV3 member name hash"
+  },
+  {
+   "addr": "180175420",
+   "name": "CResourceCompilerContext::AddSubassetReference",
+   "module": "s2c:physics/model",
+   "note": "vf3: table[type][name] += count, members keyed by the A-Z folded hash"
+  },
+  {
+   "addr": "181eac8c0",
+   "name": "KV3_FindOrAddMember",
+   "module": "s2c:physics/model",
+   "note": "member lookup by 32-bit key hash; first name kept"
+  },
+  {
+   "addr": "181eac740",
+   "name": "KV3_FindMember",
+   "module": "s2c:physics/model",
+   "note": "compares key hashes only"
+  },
+  {
+   "addr": "180311fd0",
+   "name": "ModelDoc_CompilePhysicsWithInstance",
+   "module": "s2c:physics/model",
+   "note": "builds a CModelDocCompileInstance on the stack (symbol tables +0x458/+0x4b8/+0x518 case-sensitive), calls CompilePhysics"
+  },
+  {
    "addr": "18020d860",
    "name": "Material_VisFlags",
    "module": "s2c:visibility",
@@ -2218,13 +2422,25 @@
    "addr": "1802821f0",
    "name": "WRB_EmitRteTriangles",
    "module": "s2c:visibility",
-   "note": "ORs in the material's flag bits"
+   "note": "ORs in the material's flag bits; drops a sliver (longest edge under 0.0001, or times 1.0001 over the other two)"
   },
   {
    "addr": "1802839d0",
    "name": "WRB_CollectRteMeshes",
    "module": "s2c:visibility",
    "note": "builds each mesh entry's flags for the .rte"
+  },
+  {
+   "addr": "1802597d0",
+   "name": "WRB_RteSkipBoxes",
+   "module": "s2c:visibility",
+   "note": "oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified"
+  },
+  {
+   "addr": "180259130",
+   "name": "WRB_TriangleInSkipBox",
+   "module": "s2c:visibility",
+   "note": "whether a triangle lies in one of those boxes; the emitter then skips it"
   },
   {
    "addr": "180eed570",
@@ -2477,6 +2693,534 @@
    "name": "EntityLump_StaticModelRecord",
    "module": "s2c:entities",
    "note": ""
+  },
+  {
+   "addr": "1800fd550",
+   "name": "ResourceCompilerMap_CompileMap",
+   "module": "s2c:baked/light-keys",
+   "note": "sets ctx +0x605/+0x606 (bake now / baked lighting available)"
+  },
+  {
+   "addr": "1801f7960",
+   "name": "CMapBuilderContext_Ctor",
+   "module": "s2c:entities/lump",
+   "note": "+0x10c = content-relative map path, no extension"
+  },
+  {
+   "addr": "1801f8c80",
+   "name": "CMapBuilderContext::vf11",
+   "module": "s2c:entities/lump",
+   "note": "map usage type of the world (0 standard .. 4 sharedenvironment)"
+  },
+  {
+   "addr": "1801f8cf0",
+   "name": "CMapBuilderContext::vf14",
+   "module": "s2c:entities/lump",
+   "note": "+0x10c, e.g. maps\\cardtest; seeds handshake and texture paths"
+  },
+  {
+   "addr": "1801f9030",
+   "name": "CMapBuilderContext::vf30",
+   "module": "s2c:baked/light-keys",
+   "note": "+0x607: a stage switch was given (partial compile)"
+  },
+  {
+   "addr": "1801f9010",
+   "name": "CMapBuilderContext::vf31",
+   "module": "s2c:baked/light-keys",
+   "note": "+0x604: -entities without -world/-all"
+  },
+  {
+   "addr": "1801f9040",
+   "name": "CMapBuilderContext::vf32",
+   "module": "s2c:baked/light-keys",
+   "note": "+0x605: lighting is baked in this compile"
+  },
+  {
+   "addr": "1801f9050",
+   "name": "CMapBuilderContext::vf33",
+   "module": "s2c:baked/light-keys",
+   "note": "+0x606: baked lighting available (baking now or lightmaps on disk)"
+  },
+  {
+   "addr": "180fc9490",
+   "name": "CMapWorld_MapUsageType",
+   "module": "s2c:entities/lump",
+   "note": "index of world +0x2bb8 in standard, background, skybox, minigame, sharedenvironment"
+  },
+  {
+   "addr": "180fa7630",
+   "name": "EntityKv_NodeTransformKeys",
+   "module": "s2c:entities/lump",
+   "note": "origin/angles/scales from node +0xa0/+0xac/+0xb8; hammerUniqueId from +0x310"
+  },
+  {
+   "addr": "180106ee0",
+   "name": "NodeIdPath_Format",
+   "module": "s2c:entities/lump",
+   "note": "node +0x310 ids: 6 inline then heap, %d joined by a separator"
+  },
+  {
+   "addr": "180105f50",
+   "name": "NodeIdPath_Hash",
+   "module": "s2c:baked/light-keys",
+   "note": "MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid"
+  },
+  {
+   "addr": "1802470f0",
+   "name": "EntityLump_FindByIdPath",
+   "module": "s2c:entities/lump",
+   "note": "lump entities whose id path hashes and compares equal"
+  },
+  {
+   "addr": "180fa8b30",
+   "name": "EntityKv_SetResource",
+   "module": "s2c:entities/lump",
+   "note": "resource-name value after the path fix-up"
+  },
+  {
+   "addr": "181c1e340",
+   "name": "EntityKv_FixupResourceValue",
+   "module": "s2c:entities/lump",
+   "note": "resource path fix-up run by EntityKv_SetResource"
+  },
+  {
+   "addr": "180fa8bf0",
+   "name": "EntityKv_SetString",
+   "module": "s2c:entities/lump",
+   "note": "skips an empty value; keeps the key's existing string flag"
+  },
+  {
+   "addr": "180fa8380",
+   "name": "EntityKv_SetInt",
+   "module": "s2c:entities/lump",
+   "note": "type 3, subtype 0x14"
+  },
+  {
+   "addr": "180fa8cc0",
+   "name": "EntityKv_SetVector3",
+   "module": "s2c:entities/lump",
+   "note": "subtype 0x1d"
+  },
+  {
+   "addr": "181eb8970",
+   "name": "KV3_SetMemberInt",
+   "module": "s2c:entities/lump",
+   "note": "find or append member, type 3 with the given subtype"
+  },
+  {
+   "addr": "180fa8260",
+   "name": "EntityKv_GetString",
+   "module": "s2c:entities/lump",
+   "note": "(kv, key, default); from call sites"
+  },
+  {
+   "addr": "180fa8130",
+   "name": "EntityKv_GetInt",
+   "module": "s2c:entities/lump",
+   "note": "(kv, key, default); from call sites"
+  },
+  {
+   "addr": "180fa8100",
+   "name": "EntityKv_GetFloat",
+   "module": "s2c:entities/lump",
+   "note": "(kv, key, default in xmm2); from call sites"
+  },
+  {
+   "addr": "180fa80d0",
+   "name": "EntityKv_GetBool",
+   "module": "s2c:entities/lump",
+   "note": "(kv, key, default); from call sites"
+  },
+  {
+   "addr": "180fa8220",
+   "name": "EntityKv_GetVector",
+   "module": "s2c:entities/lump",
+   "note": "(kv, out, key, default); from call sites"
+  },
+  {
+   "addr": "1801df980",
+   "name": "CBufferString_SetFormat",
+   "module": "s2c:entities/lump",
+   "note": "clears, then AppendFormatV"
+  },
+  {
+   "addr": "180244420",
+   "name": "EntityLump_CopyBakeTexture",
+   "module": "s2c:entities/lump",
+   "note": "no-bake branch: if <old>_c loads, key := new path and <new>_c is written"
+  },
+  {
+   "addr": "18023ae00",
+   "name": "LightProbe_GridSize",
+   "module": "s2c:entities/lump",
+   "note": "ceil(extent / max(voxel,1)), 128 cap, x and y aligned"
+  },
+  {
+   "addr": "18024e890",
+   "name": "WRB_PushProbeRecord",
+   "module": "s2c:entities/lump",
+   "note": "appends a 0x8c0-byte cubemap/probe record"
+  },
+  {
+   "addr": "1801f5a80",
+   "name": "LightProbe_PackAtlas",
+   "module": "s2c:baked/light-keys",
+   "note": "CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z"
+  },
+  {
+   "addr": "1801f5a40",
+   "name": "LightProbe_AtlasCompare",
+   "module": "s2c:baked/light-keys",
+   "note": "qsort key: size z, then y, then x, all descending"
+  },
+  {
+   "addr": "180f67300",
+   "name": "MapDoc_ContentRelativePath",
+   "module": "s2c:baked/light-keys",
+   "note": "doc +0x6a0 through the filesystem with CONTENT, forward slashes"
+  },
+  {
+   "addr": "180ef4c80",
+   "name": "BakeResource_CacheDir",
+   "module": "s2c:entities/lump",
+   "note": "_bakeresourcecache/<map path without extension>_baked"
+  },
+  {
+   "addr": "180ef4ef0",
+   "name": "BakeResource_FilePath",
+   "module": "s2c:entities/lump",
+   "note": "%s.%s, or %s_%s.%s with the node id path joined by _"
+  },
+  {
+   "addr": "180ef48e0",
+   "name": "BakeResource_FillEmptyKeys",
+   "module": "s2c:entities/lump",
+   "note": "empty bakeresource keys get the cache path; set ones get custom<key> 1"
+  },
+  {
+   "addr": "180ef61e0",
+   "name": "BakeResource_IdPathString",
+   "module": "s2c:entities/lump",
+   "note": "vf 0x508 id path joined by a separator"
+  },
+  {
+   "addr": "180f385c0",
+   "name": "MapNode_SetKeyValue",
+   "module": "s2c:entities/lump",
+   "note": "(node, key, string); from call sites"
+  },
+  {
+   "addr": "180f38990",
+   "name": "MapNode_SetKeyInt",
+   "module": "s2c:baked/light-keys",
+   "note": "%d then MapNode_SetKeyValue"
+  },
+  {
+   "addr": "180f38940",
+   "name": "MapNode_SetKeyFloat",
+   "module": "s2c:baked/light-keys",
+   "note": "%g then MapNode_SetKeyValue"
+  },
+  {
+   "addr": "180f1d100",
+   "name": "MapDoc_PreprocessLights",
+   "module": "s2c:baked/light-keys",
+   "note": "Preprocessing Lights: brightness units, lightcookie, precompute keys"
+  },
+  {
+   "addr": "180f1c660",
+   "name": "MapDoc_GatherLights",
+   "module": "s2c:baked/light-keys",
+   "note": "lights of the world and of +0x6b8 docs"
+  },
+  {
+   "addr": "180f1c8b0",
+   "name": "MapWorld_GatherLights",
+   "module": "s2c:baked/light-keys",
+   "note": "light_* legacy classes plus barn/rect/omni2, one entry per world transform"
+  },
+  {
+   "addr": "180eee040",
+   "name": "Light_LegacyType",
+   "module": "s2c:baked/light-keys",
+   "note": "1 omni/capsule, 3 spot, 2 directional/environment, 4 ortho, else 0"
+  },
+  {
+   "addr": "180eece60",
+   "name": "Light_ReadKeys",
+   "module": "s2c:baked/light-keys",
+   "note": "directlight, bouncelight, castshadows, bakedshadowindex, precomputed*"
+  },
+  {
+   "addr": "180eedfe0",
+   "name": "Light_LegacyDescriptionAt",
+   "module": "s2c:baked/light-keys",
+   "note": "step matrix, then Light_LegacyDescription"
+  },
+  {
+   "addr": "180eee150",
+   "name": "Light_SyncBrightnessUnits",
+   "module": "s2c:baked/light-keys",
+   "note": "writes brightness and the other unit keys"
+  },
+  {
+   "addr": "180eed3c0",
+   "name": "Light_BrightnessFromUnits",
+   "module": "s2c:baked/light-keys",
+   "note": "intensity from brightness_units 0..4, else 0"
+  },
+  {
+   "addr": "18129a6d0",
+   "name": "LightUnits_Square",
+   "module": "s2c:baked/light-keys",
+   "note": "x * x"
+  },
+  {
+   "addr": "18129a6e0",
+   "name": "LightUnits_BarnScale",
+   "module": "s2c:baked/light-keys",
+   "note": "1 / (r / (sqrt(r) + d)^2) from record +0xc"
+  },
+  {
+   "addr": "1812938f0",
+   "name": "LightUnits_LuminaireArea",
+   "module": "s2c:baked/light-keys",
+   "note": "by luminaire type at +0xec"
+  },
+  {
+   "addr": "181298c00",
+   "name": "LightUnits_SolidAngle",
+   "module": "s2c:baked/light-keys",
+   "note": "pi for 1/2; 2 pi (1 - mean cos) for 3/4/5; else 0"
+  },
+  {
+   "addr": "1800fe7b0",
+   "name": "CResourceCompilerMap_AssignBakedShadowIndices",
+   "module": "s2c:baked/light-keys",
+   "note": "directlight 2 for unshadowed stationary; shadow slots"
+  },
+  {
+   "addr": "180107cb0",
+   "name": "AssignBakedShadowIndices_PerLight",
+   "module": "s2c:baked/light-keys",
+   "note": "light_path_uniqueid, light_map_uniqueid, bakedshadowindex"
+  },
+  {
+   "addr": "180f45210",
+   "name": "CComputeBakedShadowAssignment_AssignSlots",
+   "module": "s2c:baked/light-keys",
+   "note": "Assigned %d Light Shadow Slots"
+  },
+  {
+   "addr": "180f48f20",
+   "name": "CComputeBakedShadowAssignment_MatchLight",
+   "module": "s2c:baked/light-keys",
+   "note": "stationary with castshadows, equal to the stored record"
+  },
+  {
+   "addr": "180f3fbf0",
+   "name": "CComputeBakedShadowAssignment_ctor",
+   "module": "s2c:baked/light-keys",
+   "note": "icosphere (one split, scaled to its first face), cone hulls every 3 degrees to 180"
+  },
+  {
+   "addr": "180f496b0",
+   "name": "CComputeBakedShadowAssignment_SetWorld",
+   "module": "s2c:baked/light-keys",
+   "note": "drops the records when the world changes"
+  },
+  {
+   "addr": "180f46050",
+   "name": "CComputeBakedShadowAssignment_IncrementalUpdate",
+   "module": "s2c:baked/light-keys",
+   "note": "rebuild list, overlaps, AssignSlots; +9 threadpool job off here"
+  },
+  {
+   "addr": "180f49780",
+   "name": "CComputeBakedShadowAssignment_RebuildList",
+   "module": "s2c:baked/light-keys",
+   "note": "gathers lights, reuses matching records, else BuildRecord"
+  },
+  {
+   "addr": "180f45900",
+   "name": "CComputeBakedShadowAssignment_BuildRecord",
+   "module": "s2c:baked/light-keys",
+   "note": "0x350 record for directlight 3 with castshadows; shape by kind; precomputed box if +8"
+  },
+  {
+   "addr": "180f44db0",
+   "name": "CComputeBakedShadowAssignment_Overlaps",
+   "module": "s2c:baked/light-keys",
+   "note": "pairs i<j: directional always; spheres, precomputed boxes, GJK distance <= 1"
+  },
+  {
+   "addr": "180f3f2c0",
+   "name": "CComputeBakedShadowAssignment_SortWaiting",
+   "module": "s2c:baked/light-keys",
+   "note": "std::sort, assigned neighbours then neighbours, descending"
+  },
+  {
+   "addr": "180f3d040",
+   "name": "CComputeBakedShadowAssignment_SortMedian",
+   "module": "s2c:baked/light-keys",
+   "note": "std::sort guess median for SortWaiting"
+  },
+  {
+   "addr": "180f492b0",
+   "name": "CComputeBakedShadowAssignment_ForEachLight",
+   "module": "s2c:baked/light-keys",
+   "note": "rebuilds the list, calls the callback with slot +0x328 and done +0x320"
+  },
+  {
+   "addr": "180f461c0",
+   "name": "BakedShadow_BarnHull",
+   "module": "s2c:baked/light-keys",
+   "note": "12 superellipse tangent corners at depth 0 and 1 through the record inverse"
+  },
+  {
+   "addr": "180f43360",
+   "name": "BakedShadow_SuperellipseTangent",
+   "module": "s2c:baked/light-keys",
+   "note": "central difference at +-0.01 rad, times 50"
+  },
+  {
+   "addr": "180f43680",
+   "name": "BakedShadow_BoundingSphere",
+   "module": "s2c:baked/light-keys",
+   "note": "mean of the moved points and the largest distance"
+  },
+  {
+   "addr": "180f48c50",
+   "name": "BakedShadow_SphereShape",
+   "module": "s2c:baked/light-keys",
+   "note": "centre the translation, radius the range; icosphere or cone hull by cosine"
+  },
+  {
+   "addr": "180f47430",
+   "name": "BakedShadow_ConeShape",
+   "module": "s2c:baked/light-keys",
+   "note": "legacy light_spot shape; not read"
+  },
+  {
+   "addr": "180f48520",
+   "name": "BakedShadow_HullShape",
+   "module": "s2c:baked/light-keys",
+   "note": "shape from a point hull (ortho, infinite range); not read"
+  },
+  {
+   "addr": "180f417f0",
+   "name": "BakedShadow_ConeHull",
+   "module": "s2c:baked/light-keys",
+   "note": "cone hull of a half angle; threshold cos(angle); not ported"
+  },
+  {
+   "addr": "181293b30",
+   "name": "LightRecord_FalloffRange",
+   "module": "s2c:baked/light-keys",
+   "note": "-a/b of the distance falloff when w and b are nonzero, else FLT_MAX"
+  },
+  {
+   "addr": "1812933b0",
+   "name": "LightRecord_ConeRatio",
+   "module": "s2c:baked/light-keys",
+   "note": "0xe0 / 0xe4, or -1.1 / 1.1 when 0xe4 is 0"
+  },
+  {
+   "addr": "181270590",
+   "name": "Obb_OverlapsObb",
+   "module": "s2c:baked/light-keys",
+   "note": "15-axis separating axis test, thresholds zero"
+  },
+  {
+   "addr": "181271420",
+   "name": "Obb_ReachesSphere",
+   "module": "s2c:baked/light-keys",
+   "note": "nearest box point within the radius"
+  },
+  {
+   "addr": "181270250",
+   "name": "Obb_NearestPoint",
+   "module": "s2c:baked/light-keys",
+   "note": "clamps the local coordinates to the extents"
+  },
+  {
+   "addr": "181267a70",
+   "name": "ConvexDistance_Thunk",
+   "module": "s2c:baked/light-keys",
+   "note": "forwards to ConvexDistance_Gjk"
+  },
+  {
+   "addr": "181266fc0",
+   "name": "ConvexDistance_Gjk",
+   "module": "s2c:baked/light-keys",
+   "note": "GJK distance of two transformed point hulls, 0x20 iterations; modelled, not ported"
+  },
+  {
+   "addr": "181267d20",
+   "name": "ConvexDistance_Support",
+   "module": "s2c:baked/light-keys",
+   "note": "point with the largest dot product"
+  },
+  {
+   "addr": "181268550",
+   "name": "ConvexDistance_SolveTriangle",
+   "module": "s2c:baked/light-keys",
+   "note": "GJK triangle simplex; not read"
+  },
+  {
+   "addr": "181268c20",
+   "name": "ConvexDistance_SolveTetrahedron",
+   "module": "s2c:baked/light-keys",
+   "note": "GJK tetrahedron simplex; not read"
+  },
+  {
+   "addr": "1812651a0",
+   "name": "Matrix3x4_TransformPointXmm",
+   "module": "s2c:baked/light-keys",
+   "note": "point in xmm0-2 through the 3x4 at rcx"
+  },
+  {
+   "addr": "180fc6f40",
+   "name": "MapWorld_FindEntitiesByClass",
+   "module": "s2c:baked/light-keys",
+   "note": "thunk: match mode 2, the caller's flags (3: visible nodes, sub-worlds)"
+  },
+  {
+   "addr": "180fc7220",
+   "name": "MapWorld_FindEntitiesByClassImpl",
+   "module": "s2c:baked/light-keys",
+   "note": "the world's entity list in order, then each referenced world"
+  },
+  {
+   "addr": "180f88460",
+   "name": "MapNode_InstancePaths",
+   "module": "s2c:baked/light-keys",
+   "note": "every instance path that places the node"
+  },
+  {
+   "addr": "180248440",
+   "name": "LightVis_CollectClusters",
+   "module": "s2c:baked/light-keys",
+   "note": "clusters whose boxes overlap the light bounds, then TestClusters"
+  },
+  {
+   "addr": "18024ee30",
+   "name": "LightVis_TestClustersJob",
+   "module": "s2c:baked/light-keys",
+   "note": "sample segments against cluster boxes, eps 0.001"
+  },
+  {
+   "addr": "180f741a0",
+   "name": "CMapNodeDataProvider::vf35",
+   "module": "s2c:entities/lump",
+   "note": "legacy light description at identity; false for barn/rect/omni2"
+  },
+  {
+   "addr": "180ef5870",
+   "name": "CBakeResourceHelper::vf2",
+   "module": "s2c:entities/lump",
+   "note": "Hammer preview scene keys, not the lump"
   }
  ]
 }

@@ -47,24 +47,11 @@ public static class MaterialCollision
     private const uint ListBKey = 0x58df1f2b;
 
     /// <summary>
-    /// Whether a shader declares "translucent" for the material's features,
-    /// read from CS2's compiled pixel shaders (1.41.8.4). csgo_complex and
-    /// csgo_weapon declare it on their S_TRANSLUCENT combos, csgo_glass on all
-    /// but its S_OPAQUE_CUBEMAP_REFRACTION ones, and water_fancy,
-    /// static_overlay, effects, grasstile(_preview) and luminaire on every
-    /// combo. No other shader declares it.
+    /// Whether a shader declares "translucent" for the material's features
+    /// (<see cref="ShaderAttributes.Translucent"/>, csgo and csgo_core shaders).
     /// </summary>
     public static bool Translucent(string shader, IReadOnlyDictionary<string, long> features)
-    {
-        bool On(string key) => features.TryGetValue(key, out var v) && v != 0;
-        return Path.GetFileNameWithoutExtension(shader).ToLowerInvariant() switch
-        {
-            "csgo_complex" or "csgo_weapon" => On("F_TRANSLUCENT"),
-            "csgo_glass" => !On("F_OPAQUE_CUBEMAP_REFRACTION"),
-            "csgo_water_fancy" or "csgo_static_overlay" or "csgo_effects" or "grasstile" or "grasstile_preview" or "luminaire" => true,
-            _ => false,
-        };
-    }
+        => ShaderAttributes.Translucent(shader, features);
 
     /// <summary>
     /// The reader. A missing material is solid with nothing else. Otherwise:

@@ -42,11 +42,6 @@ game can answer is raised with the user first, and runs with -insecure.
    (UV set 0, scale 1, rotation 0).
 10. **Hammer's re-projected texcoords and normals** (about 1e-5 off on some
     faces). They do not change a hull, but the source is not read.
-11. **RED2 surface_prop counts.** Read: each shape's own surface string goes
-    into a case-sensitive symbol table and each distinct one is added once to
-    the compile context as a "surface_prop" subasset. Open: how the context
-    merges two spellings of one surface (the count of 2 for "Wood" and
-    "wood") and which name it keeps. Capture the context call next.
 12. **VPK v2 layout** (tree order, chunk hashes, signature section): byte
     exact on four packages, the packer not read.
 
@@ -86,6 +81,24 @@ game can answer is raised with the user first, and runs with -insecure.
     measured; the loader's reason is not read.
 
 ## Resolved
+
+- **World physics surface and attribute tables** (2026-09-28, decompile of
+  resourcecompiler 0923 and physicsbuilder 0924). Surfaces register by name,
+  case-sensitive, spheres, capsules, hulls, then meshes; a shape with no
+  surface takes the part's "default". The RED2 surface_prop list takes each
+  shape's own non-empty spelling once, merges spellings by their A-Z folded
+  hash and writes the first spelling met, the count being the spellings.
+  Attribute tags split on whitespace, "," and "|", sort by V_stricmp_fast
+  (A-Z lowered, signed chars) and keep the first spelling of a repeat; a
+  shape whose group is empty and whose lists parse to no tag is unset and
+  takes attribute 0. Per-triangle materials: the low byte of each member's
+  surface index, the array only once a member differs. Open: the two
+  detail-layer lists in attribute matching.
+- **Static prop overrides** (2026-09-28, decompile of physicsbuilder
+  180153d40): collision_override names an entry of
+  scripts/collision_properties.txt whose group and three lists (","-joined as
+  authored) replace the body attribute's; surface_property_override replaces
+  the surface by name. Open: whether the property lookup folds case.
 
 - **Map compile switches** (2026-09-28, decompile of hammer.dll and
   resourcecompiler). Hammer's assembler writes the fixed switches, then each

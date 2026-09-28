@@ -16,7 +16,7 @@ namespace Source2.Compiler;
 /// the compile adds an identity of its own. Every rule below was measured against
 /// resourcecompiler output rather than inferred - see docs/MAP_RESOURCES.md.</para>
 /// </summary>
-public static class EntityLumpAuthor
+public static partial class EntityLumpAuthor
 {
     /// <summary>Format GUID a compiled entity lump's DATA carries.</summary>
     private static readonly KV3ID Format = KV3IDLookup.Get("generic");
@@ -75,6 +75,9 @@ public static class EntityLumpAuthor
     public sealed record Context(
         FgdSchema? Schema, string? WorldName, bool FixupEntityNames, IReadOnlySet<string> EntityNames)
     {
+        /// <summary>The lighting keys' inputs; null leaves them out.</summary>
+        public Lighting? LightingKeys { get; init; }
+
         public static Context For(IReadOnlyList<MapEntities.Entity> entities, FgdSchema? schema,
                                   string? worldName, bool fixupEntityNames)
             => new(schema, worldName, fixupEntityNames,
@@ -164,7 +167,9 @@ public static class EntityLumpAuthor
         // on every entity: trigger_once 83 ships source1_brushmodel_index first and
         // classname last, and worldspawn's steamaudio defaults lead in reverse FGD
         // order. An empty value is typed like any other and ships as "" or a zero.
-        foreach (var (key, text) in KeyTable(entity, schema).AsEnumerable().Reverse())
+        var table = KeyTable(entity, schema);
+        Preprocess(entity, table, schema, context.LightingKeys);
+        foreach (var (key, text) in table.AsEnumerable().Reverse())
         {
             var declared = schema?.KeyOf(entity.ClassName, key);
             if (declared?.Type == FgdSchema.FieldType.Kv3)
@@ -178,6 +183,12 @@ public static class EntityLumpAuthor
             // keys (CMapCable::vf217): the tint's red, green and blue as the plain
             // string "%i %i %i", whatever the key held. Measured on probe_cable:
             // tintColor 1 2 3 against a rendercolor key of 12 34 56 ships "1 2 3".
+            if (RewritesDirectLight(entity, context.LightingKeys) && key.Equals("directlight", StringComparison.OrdinalIgnoreCase)
+                && CNumbers.Atoi(text) != 0)
+            {
+                values.Add(key, new KVObject(2));
+                continue;
+            }
             if (entity.Tint is { } tint && key.Equals("rendercolor", StringComparison.OrdinalIgnoreCase)
                 && entity.ClassName.Equals("cable_dynamic", StringComparison.OrdinalIgnoreCase))
             {
@@ -209,6 +220,7 @@ public static class EntityLumpAuthor
         values.Add("angles", Vector(entity.Angles));
         values.Add("scales", Vector(entity.Scales));
         values.Add("hammerUniqueId", new KVObject(entity.NodeId.ToString(CultureInfo.InvariantCulture)));
+        ExportLighting(entity, values, table, context.LightingKeys);
 
         // A path's nodes are folded into keys of its own, written after the
         // entity's (FUN_1810b5480).

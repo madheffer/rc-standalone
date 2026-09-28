@@ -103,10 +103,15 @@ public sealed class WorldPhysics
         }
         // The part writes spheres, capsules, then hulls (rc 180c28230) before the
         // mesh gatherer runs, so they register in that order.
+        // A sphere or capsule registers its attribute and surface before the
+        // per-type pass drops one whose radius is not above 0 (rc 180c25810,
+        // 180c25230).
         foreach (var p in ordered.Where(p => p.Type == WorldCollision.SphereType))
-            model.Spheres.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p), 0, null, null) { Round = p.Round });
+            if (new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p), 0, null, null) { Round = p.Round } is var s && 0f < p.Round!.Value.Radius)
+                model.Spheres.Add(s);
         foreach (var p in ordered.Where(p => p.Type == WorldCollision.CapsuleType))
-            model.Capsules.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p), 0, null, null) { Round = p.Round });
+            if (new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p), 0, null, null) { Round = p.Round } is var c && 0f < p.Round!.Value.Radius)
+                model.Capsules.Add(c);
         foreach (var p in ordered.Where(p => p.Type == WorldCollision.HullType))
             model.Hulls.Add(new Shape(AttributeOf(p.Physics, p), SurfaceOf(p.Physics, p),
                 Io.ResourceNames.ToolMaterialHash(p.ToolMaterial), p.Hull, null) { Name = p.Name });
@@ -168,14 +173,16 @@ public sealed class WorldPhysics
         return (name, isSealed, isLong);
     }
 
+    // The node loop marks a shape's attribute set when its group is non-empty
+    // or any list parses to a tag (rc 1802c3030), so ", " alone is unset.
     private static bool Unset(WorldCollision.MaterialPhysics p)
-        => p.CollisionGroup.Length == 0 && p.InteractAs.Length == 0 && p.InteractWith.Length == 0 && p.InteractExclude.Length == 0;
+        => p.CollisionGroup.Length == 0 && Tags(p.InteractAs).Length == 0 && Tags(p.InteractWith).Length == 0
+           && Tags(p.InteractExclude).Length == 0;
 
-    // A tag list as the table writes it: each name once, in alphabetical order
-    // (c2m2: ladder, npcclip, playerclip; atixref: "window, window" is one).
-    private static string[] Tags(string list)
-        => [.. list.Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
+    // A tag list as the table writes it: each tag once, first spelling kept, in
+    // V_stricmp_fast order (c2m2: ladder, npcclip, playerclip; atixref:
+    // "window, window" is one).
+    private static string[] Tags(string list) => [.. Io.Tier0Strings.ParseTags(list)];
 
     /// <summary>Every shape in the part's order: spheres, capsules, hulls, meshes.</summary>
     public IEnumerable<Shape> AllShapes => Spheres.Concat(Capsules).Concat(Hulls).Concat(Meshes);
@@ -263,21 +270,22 @@ public static class WorldPhysicsTrees
                      ("physics_shape_sphere_count", model.Spheres.Count) })
             if (count > 0)
                 user.Add(key, I(count));
-        // Each listed entry under its canonical name, the value how many entries
-        // share it (c2m2's prefab: Wood = 2, from "Wood" and "wood").
-        var counts = new List<(string Name, int Count)>();
+        // Each listed spelling merged by its A-Z folded hash (rc 180175420 keys the
+        // symbol on it), under the first spelling met, the value how many
+        // spellings share it (c2m2's prefab: Wood = 2, from "Wood" and "wood").
+        var counts = new List<(uint Hash, string Name, int Count)>();
         foreach (var i in model.ListedSurfaces)
         {
             var (hash, name) = model.Surfaces[i];
-            var canonical = surfaceName(hash) ?? name ?? throw new InvalidOperationException($"no name for surface property {hash}");
-            var at = counts.FindIndex(c => c.Name == canonical);
+            var spelled = name ?? surfaceName(hash) ?? throw new InvalidOperationException($"no name for surface property {hash}");
+            var at = counts.FindIndex(c => c.Hash == hash);
             if (at < 0)
-                counts.Add((canonical, 1));
+                counts.Add((hash, spelled, 1));
             else
-                counts[at] = (canonical, counts[at].Count + 1);
+                counts[at] = counts[at] with { Count = counts[at].Count + 1 };
         }
         var names = KVObject.Collection();
-        foreach (var (name, count) in counts)
+        foreach (var (_, name, count) in counts)
             names.Add(name, I(count));
         return Collection(
             ("m_InputDependencies", Empty()), ("m_AdditionalInputDependencies", Empty()), ("m_ArgumentDependencies", arguments),

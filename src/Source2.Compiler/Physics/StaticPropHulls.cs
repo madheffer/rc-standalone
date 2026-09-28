@@ -21,7 +21,14 @@ namespace Source2.Compiler.Physics;
 public static class StaticPropHulls
 {
     /// <summary>A prop_static as the builder reads it: model, node origin, angles and scales.</summary>
-    public sealed record Prop(int NodeId, string Model, Vector3 Origin, Vector3 Angles, Vector3 Scales);
+    public sealed record Prop(int NodeId, string Model, Vector3 Origin, Vector3 Angles, Vector3 Scales)
+    {
+        /// <summary>The prop's collision_override key: a collision property's name, or empty.</summary>
+        public string CollisionOverride { get; init; } = "";
+
+        /// <summary>The prop's surface_property_override key: a surface property's name, or empty.</summary>
+        public string SurfaceOverride { get; init; } = "";
+    }
 
     /// <summary>One hull node: the points it carries and its transform (origin, angles).</summary>
     public sealed record HullNode(int Part, Vector3[] Points, Vector3 Origin, Vector3 Angles);
@@ -145,13 +152,11 @@ public static class StaticPropHulls
     /// which turns a -0 into +0), the radius times its scale. Null when the
     /// radius is not above 0, which drops the shape.
     /// </summary>
-    public static (Vector3[] Centers, float Radius)? Round(RoundNode node)
+    public static (Vector3[] Centers, float Radius) Round(RoundNode node)
     {
         var transform = CTransform.Compose(new CTransform(Vector3.Zero, 1f, CTransform.AngleQuaternion(Vector3.Zero)),
                                            new CTransform(Vector3.Zero, 1f, Quaternion.Identity).Inverse());
         var radius = transform.Scale * node.Radius;
-        if (!(0f < radius))
-            return null;
         return ([.. node.Centers.Select(transform.TransformPoint)], radius);
     }
 

@@ -217,6 +217,24 @@
    "note": "world callback"
   },
   {
+   "addr": "180174820",
+   "name": "ModelDocPhysicsShape_SetCollision",
+   "module": "s2c:physics/world",
+   "note": "group +0x118, interact as/with/exclude +0x120/+0x128/+0x130 verbatim; clears +0xc8"
+  },
+  {
+   "addr": "18016ea10",
+   "name": "ModelDocPhysicsShape_SetSurfaceProperty",
+   "module": "s2c:physics/world",
+   "note": "node +0xc0 from the material record's surface string (folded body)"
+  },
+  {
+   "addr": "180174a20",
+   "name": "ModelDocPhysicsShape_SetString110",
+   "module": "s2c:physics/world",
+   "note": "node +0x110 from the callback's last argument"
+  },
+  {
    "addr": "1800c1050",
    "name": "CMesh_InitPositions",
    "module": "s2c:physics/world",

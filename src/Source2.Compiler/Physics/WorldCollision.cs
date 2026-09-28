@@ -51,14 +51,12 @@ public static class WorldCollision
         public BlendLayers? Blend { get; init; }
 
         /// <summary>The collision attribute this material's pieces carry.</summary>
-        public string AttributeKey => (CollisionGroup.Length == 0 ? "default" : CollisionGroup.ToLowerInvariant()) + "|" + Tags(InteractAs)
+        public string AttributeKey => (CollisionGroup.Length == 0 ? "default" : Io.Tier0Strings.FoldAscii(CollisionGroup)) + "|" + Tags(InteractAs)
                                       + (InteractWith.Length + InteractExclude.Length == 0 ? "" : "|" + Tags(InteractWith) + "|" + Tags(InteractExclude));
 
-        // A tag list as the attribute holds it: a set of names (the part
-        // compares masks), so order, case, commas and repeats do not matter.
+        // A tag list as attributes match it (rc 180c2d5a0): a set, A-Z folded.
         private static string Tags(string list)
-            => string.Join(" ", list.Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.ToLowerInvariant()).Distinct().Order(StringComparer.Ordinal));
+            => string.Join(" ", Io.Tier0Strings.ParseTags(list).Select(Io.Tier0Strings.FoldAscii));
     }
 
     /// <summary>
@@ -292,7 +290,8 @@ public static class WorldCollision
     public static List<Piece> Pieces(DmxBinary.Document doc, Func<string, MaterialPhysics> materials, List<string>? notes = null,
                                      Func<string, MaterialSampler.Renderer?>? sampler = null,
                                      Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?>? propPhysics = null,
-                                     Func<string, ValveKeyValue.KVObject?>? smartProps = null)
+                                     Func<string, ValveKeyValue.KVObject?>? smartProps = null,
+                                     Func<string, Maps.SettleWorld.CollisionProperty?>? collisionProperty = null)
     {
         var world = doc.OfType("CMapWorld").First();
         var result = new List<Piece>();
@@ -516,7 +515,7 @@ public static class WorldCollision
         {
             foreach (var entity in entities.Where(e => !hidden.Contains(e.Element)))
             {
-                foreach (var piece in PropPieces(entity, propPhysics, smartProps, notes))
+                foreach (var piece in PropPieces(entity, propPhysics, smartProps, collisionProperty, notes))
                 {
                     result.Add(piece);
                     sequences.Add(entity.Sequence);
@@ -536,18 +535,19 @@ public static class WorldCollision
     /// instance, and a prop's spheres and capsules, are not ported and are listed.
     /// </summary>
     private static IEnumerable<Piece> PropPieces(Maps.MapMeshes.EntityNode entity, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics,
-                                                 Func<string, ValveKeyValue.KVObject?>? smartProps, List<string>? notes)
+                                                 Func<string, ValveKeyValue.KVObject?>? smartProps,
+                                                 Func<string, Maps.SettleWorld.CollisionProperty?>? collisionProperty, List<string>? notes)
     {
         var e = entity.Element;
         var nodeId = e.GetValue<int>("nodeID") ?? -1;
         if (e.Type == "CMapSmartProp")
-            return SmartPropPieces(entity, propPhysics, smartProps, notes);
+            return SmartPropPieces(entity, propPhysics, smartProps, collisionProperty, notes);
         var kv = e.Get<DmxBinary.Element>("entity_properties");
         if (kv?.Get<string>("classname") != "prop_static")
             return [];
         if (int.TryParse(kv.Get<string>("solid") ?? "6", System.Globalization.CultureInfo.InvariantCulture, out var solid) && solid != 6)
             return [];
-        return PropPieces(PropOf(entity), propPhysics, notes);
+        return PropPieces(PropOf(entity), propPhysics, collisionProperty, notes);
     }
 
     /// <summary>
@@ -558,7 +558,8 @@ public static class WorldCollision
     /// path; a scaled one is not ported and is listed.
     /// </summary>
     private static IEnumerable<Piece> SmartPropPieces(Maps.MapMeshes.EntityNode entity, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics,
-                                                      Func<string, ValveKeyValue.KVObject?>? smartProps, List<string>? notes)
+                                                      Func<string, ValveKeyValue.KVObject?>? smartProps,
+                                                      Func<string, Maps.SettleWorld.CollisionProperty?>? collisionProperty, List<string>? notes)
     {
         var e = entity.Element;
         var nodeId = e.GetValue<int>("nodeID") ?? -1;
@@ -598,12 +599,13 @@ public static class WorldCollision
         foreach (var placement in placements)
         {
             var (origin, angles, scales) = Maps.SmartPropEvaluator.PropPlacement(node, placement);
-            foreach (var piece in PropPieces(new StaticPropHulls.Prop(nodeId, placement.Model, origin, angles, scales), propPhysics, notes))
+            foreach (var piece in PropPieces(new StaticPropHulls.Prop(nodeId, placement.Model, origin, angles, scales), propPhysics, collisionProperty, notes))
                 yield return piece;
         }
     }
 
-    private static IEnumerable<Piece> PropPieces(StaticPropHulls.Prop prop, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics, List<string>? notes)
+    private static IEnumerable<Piece> PropPieces(StaticPropHulls.Prop prop, Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?> propPhysics,
+                                                 Func<string, Maps.SettleWorld.CollisionProperty?>? collisionProperty, List<string>? notes)
     {
         var nodeId = prop.NodeId;
         var model = prop.Model;
@@ -618,13 +620,29 @@ public static class WorldCollision
             // vphysics2's dictionary (180153d40), so they come out as it spells them.
             string Names(string key) => attribute == null ? "" : CollisionNames.CanonicalList(string.Join(" ", attribute.GetArray<string>(key) ?? []));
             var group = CollisionNames.Canonical(attribute?.GetStringProperty("m_CollisionGroupString") ?? "");
-            return new MaterialPhysics(true, group,
+            var physics = new MaterialPhysics(true, group,
                 Names("m_InteractAsStrings"), "")
             {
                 InteractWith = Names("m_InteractWithStrings"),
                 InteractExclude = Names("m_InteractExcludeStrings"),
                 SurfaceHash = surfaceIndex >= 0 && surfaceIndex < hashes.Length ? hashes[surfaceIndex] : null,
             };
+            // The prop's keys (180153d40): a collision_override naming an entry
+            // of scripts/collision_properties.txt replaces the group and the
+            // three lists with that entry's, each list ","-joined as authored
+            // (1805efe40, 1805eff60, 1805efed0); a surface_property_override
+            // replaces the surface by name.
+            if (prop.CollisionOverride.Length > 0 && collisionProperty?.Invoke(prop.CollisionOverride) is { } over)
+                physics = physics with
+                {
+                    CollisionGroup = over.Group,
+                    InteractAs = Commas(over.InteractAs),
+                    InteractWith = Commas(over.InteractWith),
+                    InteractExclude = Commas(over.InteractExclude),
+                };
+            if (prop.SurfaceOverride.Length > 0)
+                physics = physics with { SurfaceProperty = prop.SurfaceOverride, SurfaceHash = null };
+            return physics;
         }
         // The sink (18001b420) takes each body's spheres, capsules, hulls, then meshes.
         var (spheres, capsules) = StaticPropHulls.Rounds(prop, phys);
@@ -634,8 +652,7 @@ public static class WorldCollision
         {
             foreach (var node in spheres.Concat(capsules).Where(n => n.Part == part))
             {
-                if (StaticPropHulls.Round(node) is not { } round)
-                    continue;
+                var round = StaticPropHulls.Round(node);
                 yield return new Piece(nodeId, node.Part, model, Physics(node.Attribute, node.Surface), round.Centers, []) { Round = round };
             }
             foreach (var node in hulls.Where(n => n.Part == part))
@@ -662,6 +679,10 @@ public static class WorldCollision
         }
     }
 
+    // GameContent keeps a collision property's lists ", "-joined; the prop
+    // path joins them with "," alone.
+    private static string Commas(string list) => list.Replace(", ", ",", StringComparison.Ordinal);
+
     /// <summary>
     /// A prop_static entity node as physicsbuilder reads it (the entity data
     /// of 181003b60 copies the node's own origin, angles and scales). Inside an
@@ -676,7 +697,12 @@ public static class WorldCollision
         var angles = e.GetValue<Vector3>("angles") ?? Vector3.Zero;
         if (entity.Through.Count > 0)
             (origin, angles) = Maps.SettleWorld.BakedPlacement(e, entity.Through);
-        return new StaticPropHulls.Prop(e.GetValue<int>("nodeID") ?? -1, model, origin, angles, e.GetValue<Vector3>("scales") ?? Vector3.One);
+        var keys = e.Get<DmxBinary.Element>("entity_properties");
+        return new StaticPropHulls.Prop(e.GetValue<int>("nodeID") ?? -1, model, origin, angles, e.GetValue<Vector3>("scales") ?? Vector3.One)
+        {
+            CollisionOverride = keys?.Get<string>("collision_override") ?? "",
+            SurfaceOverride = keys?.Get<string>("surface_property_override") ?? "",
+        };
     }
 
     // A piece as physicsbuilder's shape step hands it on (0924: 180016230):

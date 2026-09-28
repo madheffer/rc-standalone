@@ -45,7 +45,7 @@ public class WorldCollisionInput(ITestOutputHelper output)
             ? new Source2.Compiler.Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), models.Read)
             : null;
         var notes = new List<string>();
-        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
+        var pieces = WorldCollision.Pieces(DmxBinary.ReadFile(vmap), Lookup, notes, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty);
         foreach (var note in notes)
             output.WriteLine("PAINT " + note);
         var meshPieces = pieces.Where(p => p.Type == WorldCollision.MeshType).ToList();

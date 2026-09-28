@@ -52,7 +52,7 @@
    "addr": "18002f890",
    "name": "Voxelize",
    "module": "s2c:visibility",
-   "note": "the call the Voxelize timer brackets; takes the voxel size"
+   "note": "the call the Voxelize timer brackets; takes the voxel size; the first touching voxel hint stops or forces the split"
   },
   {
    "addr": "18010b310",
@@ -178,7 +178,19 @@
    "addr": "18002c970",
    "name": "Hints_Load",
    "module": "s2c:visibility",
-   "note": "the three splitter lists from the visibility_hints entities"
+   "note": "the visibility_hints entities: types 4, 5, 6 to the x, y, z split lists, any other to the voxel hint list"
+  },
+  {
+   "addr": "18002ced0",
+   "name": "Hints_AddVoxelHint",
+   "module": "s2c:visibility",
+   "note": "box sides past the scene's bounds moved to the root's; voxel size in [4, 256]; region size"
+  },
+  {
+   "addr": "18003f940",
+   "name": "Hints_SortVoxelHints",
+   "module": "s2c:visibility",
+   "note": "std::sort by voxel size, then region size; insertion sort under 33 entries"
   },
   {
    "addr": "18002d320",

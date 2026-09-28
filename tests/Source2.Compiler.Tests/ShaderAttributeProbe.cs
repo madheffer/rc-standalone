@@ -24,6 +24,10 @@ public class ShaderAttributeProbe(ITestOutputHelper output)
             return;
         var parts = spec.Split('|');
         var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game", "csgo");
+        // SHADERATTR_DIR picks the game folder whose shaders to read (csgo_core
+        // ships its own, csgo_lightmappedgeneric among them).
+        if (Environment.GetEnvironmentVariable("SHADERATTR_DIR") is { Length: > 0 } dir)
+            game = Path.Combine(Path.GetDirectoryName(game)!, dir);
         using var package = new Package();
         package.Read(Path.Combine(game, "shaders_pc_dir.vpk"));
         // "*" scans every shader's vs program; the word may then be a murmur ("0x...").

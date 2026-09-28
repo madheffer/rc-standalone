@@ -22,7 +22,7 @@ public static class WorldPhysicsFiles
     {
         var pieces = WorldCollision.Pieces(document,
             name => WorldCollision.ReadMaterial(content.Material(name), content.CollisionProperty),
-            notes, sample, content.Physics, content.SmartProp);
+            notes, sample, content.Physics, content.SmartProp, content.CollisionProperty);
         var model = WorldPhysics.Build(pieces, content.SurfaceName);
         var bytes = WorldPhysicsAuthor.Container(WorldPhysicsTrees.Phys(model), WorldPhysicsTrees.Red2(model, content.SurfaceName),
             WorldPhysicsTrees.Data(mapName));

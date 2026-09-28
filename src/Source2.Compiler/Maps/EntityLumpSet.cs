@@ -91,10 +91,12 @@ public static class EntityLumpSet
         bool fixupEntityNames = false,
         DmxBinary.Document? document = null,
         Func<string, int>? smartPropLocators = null,
-        IReadOnlyDictionary<int, Maps.SettleWorld.Settlement>? settled = null)
+        IReadOnlyDictionary<int, Maps.SettleWorld.Settlement>? settled = null,
+        bool bakedLighting = false)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
+        var nodeIds = document is null ? null : MapNodeIds(document);
         var context = EntityLumpAuthor.Context.For(entities, schema, worldName, fixupEntityNames);
 
         // Each world layer is a lump of its own, world_layer_<name>, holding the
@@ -102,14 +104,25 @@ public static class EntityLumpSet
         // that placed them). Numbering stays global: Mako's layer lumps carry
         // compile_source_ids from 1,481 to 4,732 among default_ents' 0 to 5,068.
         List<string> layers = document is null ? [] : [.. MapEntities.WorldLayers(document)];
-        var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
-        worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));
-        var nodeIds = document is null ? null : MapNodeIds(document);
+        var placed = new List<List<EntityLumpAuthor.Emission>> { new() };
+        placed.AddRange(layers.Select(_ => new List<EntityLumpAuthor.Emission>()));
         foreach (var (walked, sourceId) in MainLump(entities, document, smartPropLocators, settled, schema))
             if (WithParticleSnapshot(walked, nodeIds, worldName) is var entity
                 && EntityLumpAuthor.ReachesTheLump(entity, schema))
-                worlds[entity.Layer is { } layer && layers.IndexOf(layer) is var at and >= 0 ? at + 1 : 0].Items
-                    .Add(new Item(EntityLumpAuthor.BuildEntity(entity, sourceId, context), entity.Hidden));
+                placed[entity.Layer is { } layer && layers.IndexOf(layer) is var at and >= 0 ? at + 1 : 0]
+                    .Add(new(entity, sourceId));
+
+        // The lighting counters run over the export, lump by lump.
+        context = context with
+        {
+            LightingKeys = EntityLumpAuthor.Lighting.For($"maps/{worldName}", bakedLighting,
+                placed.SelectMany(w => w.Select(e => e.Entity))),
+        };
+        var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
+        worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));
+        for (var w = 0; w < placed.Count; w++)
+            foreach (var (entity, sourceId) in placed[w])
+                worlds[w].Items.Add(new Item(EntityLumpAuthor.BuildEntity(entity, sourceId, context), entity.Hidden));
 
         // The template pass runs over each world's list in turn, default_ents
         // first, and every lump it makes is a child of default_ents after the

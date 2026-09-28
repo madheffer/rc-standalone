@@ -75,7 +75,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("WPBUILD_HULLIDX") is { Length: > 0 } idxText)
         {
             var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
-                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty);
             var hullPieces = Physics.WorldCollision.PartOrder(pieces, x => x.Type).Where(x => x.Type == Physics.WorldCollision.HullType).ToList();
             foreach (var i in idxText.Split(',').Select(int.Parse))
                 output.WriteLine($"hullidx {i}: node {hullPieces[i].NodeId} {hullPieces[i].MaterialName} verts {hullPieces[i].Points.Length}");
@@ -96,7 +96,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         {
             var wanted = nodesText.Split(',').Select(int.Parse).ToHashSet();
             var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
-                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp);
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty);
             using var res = new ValveResourceFormat.Resource();
             res.Read(new MemoryStream(Read(p[2], $"maps/{p[1]}/world_physics.vmdl_c")));
             var phys = ((ValveResourceFormat.ResourceTypes.Model)res.DataBlock!).GetEmbeddedPhys()!;
@@ -145,7 +145,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("WPBUILD_FINDHASH") is { Length: > 0 } find)
         {
             var built = Physics.WorldPhysics.Build(Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
-                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp), models.SurfaceName);
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty), models.SurfaceName);
             foreach (var source in built.SurfaceSources.Where(x => x.Contains(find, StringComparison.Ordinal)))
                 output.WriteLine($"found: {source}");
             return;
@@ -218,7 +218,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             var at = Enumerable.Range(0, Math.Min(theirs.Length, ours.Length)).FirstOrDefault(i => theirs[i] != ours[i], -1);
             var owner = new Dictionary<Vector3, string>();
             foreach (var piece in Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
-                         null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp))
+                         null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty))
                 foreach (var pt in piece.Points)
                     owner.TryAdd(pt, $"{piece.NodeId}/{Path.GetFileNameWithoutExtension(piece.MaterialName)}");
             output.WriteLine($"meshcmp soup {soup}: {theirs.Length} vs {ours.Length} vertices, first difference {at}");
@@ -279,12 +279,12 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("WPBUILD_SURFACES") == "1")
         {
             var model = Physics.WorldPhysics.Build(Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
-                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp), models.SurfaceName);
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty), models.SurfaceName);
             foreach (var source in model.SurfaceSources)
                 output.WriteLine($"surface source: {source}");
             output.WriteLine("listed: " + string.Join(",", model.ListedSurfaces.Select(i => $"{i}:{model.Surfaces[i].Name}")));
             foreach (var piece in Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
-                         null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp).Where(x => x.NodeId.ToString() == Environment.GetEnvironmentVariable("WPBUILD_NODE")))
+                         null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty).Where(x => x.NodeId.ToString() == Environment.GetEnvironmentVariable("WPBUILD_NODE")))
                 output.WriteLine($"piece node {piece.NodeId} {piece.MaterialName} surface '{piece.Physics.SurfaceProperty}' tris {piece.Indices.Length / 3} name '{piece.Name}'");
             var hashes = ta["PHYS"]["m_surfacePropertyHashes"];
             output.WriteLine("valve surfaces: " + string.Join(",", hashes!.Select(h => h.ToString())));

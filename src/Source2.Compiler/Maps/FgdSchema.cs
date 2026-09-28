@@ -114,6 +114,40 @@ public sealed partial class FgdSchema
         /// <summary>The metadata values with the bases' merged in, the class's own
         /// winning.</summary>
         public Dictionary<string, string> FlatMetadata { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The class header's own bakeresource(...) entries.</summary>
+        public List<BakeResource> BakeResources { get; init; } = [];
+
+        /// <summary>The bakeresource entries with the bases' ahead of the class's own.</summary>
+        public List<BakeResource> FlatBakeResources { get; set; } = [];
+    }
+
+    /// <summary>
+    /// One key of a class header's <c>bakeresource( keys, extensions, prefixes,
+    /// helper )</c>: the key the compile's preprocessing fills with a baked
+    /// resource path when it is empty, the resource's extension, and the file
+    /// name prefix (<c>env_light_probe_volume_dlshd</c>).
+    /// </summary>
+    public sealed record BakeResource(string Key, string Extension, string Prefix);
+
+    /// <summary>The class's bakeresource keys, bases first, in declaration order.</summary>
+    public IReadOnlyList<BakeResource> BakeResourcesOf(string className)
+        => _classes.TryGetValue(className, out var cls) ? cls.FlatBakeResources : [];
+
+    private static List<BakeResource> BakeResourcesIn(string head)
+    {
+        var found = new List<BakeResource>();
+        foreach (Match m in Regex.Matches(head, @"bakeresource\s*\(([^)]*)\)", RegexOptions.IgnoreCase))
+        {
+            var args = Regex.Matches(m.Groups[1].Value, @"""([^""]*)""|([^,\s""]+)")
+                .Select(a => a.Groups[1].Success ? a.Groups[1].Value : a.Groups[2].Value).ToList();
+            if (args.Count < 3)
+                continue;
+            string[] keys = args[0].Split(','), exts = args[1].Split(','), prefixes = args[2].Split(',');
+            for (var i = 0; i < keys.Length; i++)
+                found.Add(new BakeResource(keys[i].Trim(), exts[Math.Min(i, exts.Length - 1)].Trim(), prefixes[Math.Min(i, prefixes.Length - 1)].Trim()));
+        }
+        return found;
     }
 
     /// <summary>
@@ -408,6 +442,10 @@ public sealed partial class FgdSchema
             cls.FlatFlags.UnionWith(cls.Flags);
             foreach (var (k, v) in cls.Metadata)
                 cls.FlatMetadata[k] = v;
+            foreach (var baseName in cls.Bases)
+                if (_classes.TryGetValue(baseName, out var parent))
+                    cls.FlatBakeResources.AddRange(parent.FlatBakeResources.Where(r => !cls.FlatBakeResources.Any(x => x.Key == r.Key)));
+            cls.FlatBakeResources.AddRange(cls.BakeResources.Where(r => !cls.FlatBakeResources.Any(x => x.Key == r.Key)));
         }
     }
 
@@ -527,7 +565,10 @@ public sealed partial class FgdSchema
             _solid.Add(name);
         if (kind.Value.Equals("@PathNodeClass", StringComparison.OrdinalIgnoreCase))
             _pathNodes.Add(name);
-        var cls = new Class(name, bases, own, gameKeys, flags, TemplateLumpsIn(head), MetadataValuesIn(head));
+        var cls = new Class(name, bases, own, gameKeys, flags, TemplateLumpsIn(head), MetadataValuesIn(head))
+        {
+            BakeResources = BakeResourcesIn(head),
+        };
         _classes[name] = cls;
         _order.Add(cls);
     }
