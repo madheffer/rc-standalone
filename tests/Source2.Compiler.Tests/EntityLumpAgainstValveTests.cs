@@ -64,12 +64,14 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
 
         var unexplained = new List<string>();
         var total = 0;
+        var classes = new List<string>();
         foreach (var lump in ours)
         {
             var report = EntityLumpComparison.Diff(
                 EntityLumpComparison.Read(valve[lump.Path], lump.Path),
                 EntityLumpComparison.Read(lump.Bytes, lump.Path));
             total += report.Count;
+            classes.AddRange(report.Select(line => ClassOf().Match(line)).Where(m => m.Success).Select(m => m.Groups[1].Value));
             // An instance copy inside a world layer ships angles a round trip or
             // two through the layer's transform away from the sum of its
             // placements: Mako's func_movelinear under a placement at yaw
@@ -80,6 +82,9 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
                                        .Select(line => $"{Path.GetFileName(lump.Path)}: {line}"));
         }
         output.WriteLine($"{map}: {ours.Count} lumps, {total} difference(s), {unexplained.Count} unexplained");
+        // The classes that still differ, which docs/COVERAGE.md marks partial.
+        foreach (var group in classes.GroupBy(c => c).OrderBy(g => g.Key, StringComparer.Ordinal))
+            output.WriteLine($"  differs: {group.Key} {group.Count()}");
         Assert.True(unexplained.Count == 0,
             $"{map}: differences outside the documented gaps. " + EntityLumpComparison.Summarize(unexplained));
     }
@@ -109,4 +114,7 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     [GeneratedRegex(@"\] (bakedshadowindex|light_map_uniqueid|light_path_uniqueid|brightness_legacy|brightness_lumens"
                   + @"|lightprobetexture\w*|cubemaptexture|handshake|light_probe_size_\w|light_probe_atlas\w*|array_index): ")]
     private static partial Regex BakedKeys();
+
+    [GeneratedRegex(@"^\[([^#\]]+)#")]
+    private static partial Regex ClassOf();
 }

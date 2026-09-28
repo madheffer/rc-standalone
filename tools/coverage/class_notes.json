@@ -1,0 +1,174 @@
+{
+ "cable_dynamic": {
+  "compile": "lump: rendercolor written as the text \"%i %i %i\"; secondary_material added to the material list",
+  "port": "path keys ported; rendercolor text write not ported; secondary material not checked"
+ },
+ "env_combined_light_probe_volume": {
+  "compile": "cubemap and probe records for the bake; cubemaptexture, array_index and lightprobetexture* keys added; kept",
+  "port": "kept; baked keys not ported (probes, cubemaps)"
+ },
+ "env_cubemap": {
+  "compile": "cubemap record for the bake; cubemaptexture (customcubemaptexture honoured) and array_index added; kept",
+  "port": "baked keys not ported (cubemaps)"
+ },
+ "env_cubemap_box": {
+  "compile": "as env_cubemap with box bounds; upgrade of older vmaps only renames boxproject_* keys",
+  "port": "baked keys not ported; vmap upgrader not ported"
+ },
+ "env_light_probe_volume": {
+  "compile": "probe record for the bake; lightprobetexture* keys added; kept",
+  "port": "kept; baked keys not ported (probes)"
+ },
+ "env_sky": {
+  "compile": "upgrade of older vmaps only: skyname gets .vmat",
+  "port": "lump pass-through ported; vmap upgrader not ported"
+ },
+ "env_volumetric_fog_controller": {
+  "compile": "fog record for the bake; IndirectVoxelDim* and fogirradiancevolume keys added; kept",
+  "port": "not ported (lighting)"
+ },
+ "env_volumetric_fog_volume": {
+  "compile": "fog indirect bake target",
+  "port": "not ported (lighting)"
+ },
+ "func_movelinear": {
+  "compile": "nav: movable nav mesh when CreateMovableNavMesh is set",
+  "port": "lump ported; nav not started"
+ },
+ "func_nav_markup": {
+  "compile": "nav: markup volumes",
+  "port": "lump ported; nav not started"
+ },
+ "func_physbox": {
+  "compile": "upgrade of older vmaps only: spawnflags to gravity-grab keys",
+  "port": "lump ported; vmap upgrader not ported"
+ },
+ "func_shatterglass": {
+  "compile": "its generated model's physics gets a model flag",
+  "port": "mesh override taken in entity physics; the model flag not ported"
+ },
+ "info_cull_triangles": {
+  "compile": "dropped from the lump; a record for render-mesh triangle culling",
+  "port": "dropped as Valve does; culling not ported (render geometry)"
+ },
+ "info_landmark": {
+  "compile": "kept; a landmark record added to a world list",
+  "port": "lump ported; where the list is written not read"
+ },
+ "info_node": {
+  "compile": "nodeid key assigned by editor hooks",
+  "port": "whether the compile runs the hooks is not read"
+ },
+ "info_node_air": {
+  "compile": "nav: air-nav seed when info_nav_space exists",
+  "port": "nav not started"
+ },
+ "info_node_hint": {
+  "compile": "nav: air-nav hint when info_nav_space exists",
+  "port": "nav not started"
+ },
+ "info_particle_system": {
+  "compile": "upgrade of older vmaps only: snapshot_file gets .vsnap",
+  "port": "lump ported; vmap upgrader not ported"
+ },
+ "info_player_start": {
+  "compile": "Hammer's map check only",
+  "port": "nothing to port for the compile"
+ },
+ "info_world_layer": {
+  "compile": "layername becomes world_layer_<name>; worldname set; kept",
+  "port": "ported"
+ },
+ "light_barn": {
+  "compile": "light description for precompute, bake and vis membership; precomputed* keys, directlight, lightcookie resource; upgrade of older vmaps only converts light_spot/omni/ortho",
+  "port": "precompute exact against an empty scene; lump keys, bake and vis membership not ported; vmap upgrader not ported"
+ },
+ "light_omni2": {
+  "compile": "as light_barn",
+  "port": "as light_barn"
+ },
+ "light_rect": {
+  "compile": "as light_barn (no upgrader)",
+  "port": "as light_barn"
+ },
+ "light_environment": {
+  "compile": "legacy directional light for bake and shadows; lump through the light path; upgrade of older vmaps only",
+  "port": "lump partial; bake not ported; vmap upgrader not ported"
+ },
+ "path_corner": {
+  "compile": "nav: air-nav hint when info_nav_space exists",
+  "port": "lump ported; nav not started"
+ },
+ "path_generic": {
+  "compile": "upgrade of older vmaps only: classnames on paths, nodes and cables",
+  "port": "lump ported; vmap upgrader not ported"
+ },
+ "path_node_cable": {
+  "compile": "upgrade of older vmaps only",
+  "port": "lump ported; vmap upgrader not ported"
+ },
+ "path_node_generic": {
+  "compile": "the owning path's node keys (pathNodes, names, colours, radius scales, closed_loop)",
+  "port": "ported"
+ },
+ "path_node_particle_rope": {
+  "compile": "upgrade of older vmaps only",
+  "port": "lump ported; vmap upgrader not ported"
+ },
+ "path_particle_rope": {
+  "compile": "upgrade of older vmaps only",
+  "port": "lump ported; vmap upgrader not ported"
+ },
+ "path_track": {
+  "compile": "editor only (clone chaining)",
+  "port": "nothing to port for the compile"
+ },
+ "point_camera": {
+  "compile": "kept; a camera record added to a world list",
+  "port": "lump ported; where the list is written not read"
+ },
+ "point_nav_walkable": {
+  "compile": "nav: walkable seed",
+  "port": "lump ported; nav not started"
+ },
+ "point_scale_reference_human": {
+  "compile": "dropped from the lump",
+  "port": "ported"
+ },
+ "point_template": {
+  "compile": "entities it names are left out of the settle",
+  "port": "ported (settle)"
+ },
+ "prop_physics_override": {
+  "compile": "upgrade of older vmaps only: spawnflags to gravity-grab keys",
+  "port": "lump and settle ported; vmap upgrader not ported"
+ },
+ "prop_static": {
+  "compile": "dropped from the lump; static prop record for render, lighting and world physics",
+  "port": "dropped as Valve does; world physics hulls exact; render and lighting not started"
+ },
+ "scripted_sequence": {
+  "compile": "upgrade of older vmaps only: spawnflags and m_fMoveTo to keys",
+  "port": "lump ported; vmap upgrader not ported"
+ },
+ "sky_camera": {
+  "compile": "none found at compile time",
+  "port": "nothing found to port"
+ },
+ "snd_event_box_helper": {
+  "compile": "editor only (clone chaining)",
+  "port": "nothing to port for the compile"
+ },
+ "snd_opvar_set_point": {
+  "compile": "Steam Audio probe positions",
+  "port": "not started (Steam Audio)"
+ },
+ "visibility_hint": {
+  "compile": "dropped from the lump; the entity goes into the vis build's hints",
+  "port": "dropped as Valve does; vis hints not wired"
+ },
+ "worldspawn": {
+  "compile": "kept; pvstype and the lightmap/vis settings (max_lightmap_resolution, novis_*, lightmap_queries) read into the build",
+  "port": "lump ported; pvstype read by the vis port; lightmap settings not started"
+ }
+}

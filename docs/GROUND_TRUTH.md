@@ -58,8 +58,11 @@ game can answer is raised with the user first, and runs with -insecure.
 22. **Coverage.** Every entity class the FGD offers (point_servercommand
     and the other server, logic and point entities included) and every
     compile option Hammer's build dialog and resourcecompiler's command line
-    offer must be handled, not only what the test maps use. Enumerate both
-    lists from the binaries and the FGD and check each against the port.
+    offer must be handled, not only what the test maps use. Both lists are
+    enumerated in docs/COVERAGE.md (435 classes, every build switch); what
+    is open there: 316 classes with no local sample, the vmap upgrade
+    table, the landmark/camera/cull-triangle world lists, and every switch
+    the port does not yet take.
 
 ### Map resources
 13. The angles of instance copies inside a world layer (a round trip off).
