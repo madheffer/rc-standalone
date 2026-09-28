@@ -59,7 +59,7 @@ public static partial class Source2ContainerAuthor
             [".vagrp"] = new(1, [new("Sound Event Script Version", "CompileSoundEventScript", 10)]),
             // The index layer of a map. Every one of these is a child of a .vmap
             // compile, never compiled from its own source, and all three carry the
-            // same identity in all 116 maps surveyed in docs/MAP_RESOURCES.md.
+            // same identity in all 116 maps surveyed in docs/CONTAINERS.md.
             [".vwrld"] = new(1, [new("World Compiler Version", "CompileWorld", 1)], ChildResource: true),
             [".vwnod"] = new(1, [new("World Node Compiler Version", "CompileWorldNode", 1)], ChildResource: true),
             [".vents"] = new(1, [new("Entity Lump Compiler Version", "CompileEntityLump", 3)], ChildResource: true),

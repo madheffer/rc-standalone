@@ -7,7 +7,7 @@ namespace Source2.Compiler.Physics;
 /// entry 18064c460): the sample points it renders, the record each point's
 /// vertices carry, the render target's size, and how the read-back colours
 /// become a layer per triangle. The render itself runs the material's
-/// ToolsVis programs on the GPU (docs/WORLD_PHYSICS.md).
+/// ToolsVis programs on the GPU (docs/PHYSICS.md).
 /// </summary>
 public static class MaterialSampler
 {

@@ -60,7 +60,7 @@ Do not write:
 
 - **Restatements.** If the comment paraphrases the line under it, delete it.
 - **Changelog.** "Before this, we used to..." belongs in `git log` and in
-  `docs/RC_PARITY.md`, not above a function. Document what the code does now.
+  `docs/RESOURCES.md`, not above a function. Document what the code does now.
 - **Roadmap.** Plans for other projects, or for work nobody has scheduled.
 - **The same explanation twice.** Put it in the one place it belongs and
   `<see cref="..."/>` the other.

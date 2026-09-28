@@ -116,7 +116,7 @@ static void Usage()
     Templates: optional everywhere. Every type here is authored outright, so a
     donor file is only ever a way to carry a detail this compiler does not infer
     (a packed normal map's mip algorithm, say). When one is given it supplies the
-    header frame only - never the metadata, which is authored fresh either way. See the README, and docs/RC_PARITY.md for the measured
+    header frame only - never the metadata, which is authored fresh either way. See the README, and docs/RESOURCES.md for the measured
     differences against resourcecompiler.exe.
     """);
 }

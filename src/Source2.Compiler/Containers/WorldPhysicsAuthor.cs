@@ -17,7 +17,7 @@ namespace Source2.Compiler;
 /// CTRL (183 bytes) is raw, and PHYS turns Zstd past 0x80000 bytes.</para>
 ///
 /// <para>Compressed bytes are encoder defined, so parity is the decoded tree
-/// of each block plus the container facts (docs/RC_PARITY.md).</para>
+/// of each block plus the container facts (docs/RESOURCES.md).</para>
 /// </summary>
 public static class WorldPhysicsAuthor
 {

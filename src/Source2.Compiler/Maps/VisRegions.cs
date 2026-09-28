@@ -10,7 +10,7 @@ namespace Source2.Compiler.Maps;
 /// what the compiled file's 4x4x4 masks hold. What is NOT here is the step that
 /// throws away the regions the map does not enclose, because the compile's
 /// criterion for that is not known and the obvious one is provably wrong on this
-/// input. docs/VIS.md has the measurements.</para>
+/// input. The old docs/VIS.md (git c2dc317) has the measurements.</para>
 /// </summary>
 public static class VisRegions
 {

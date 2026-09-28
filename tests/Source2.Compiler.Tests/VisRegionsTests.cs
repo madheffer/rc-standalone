@@ -10,7 +10,7 @@ namespace Source2.Compiler.Tests;
 /// <para>There is no number from the compile to score this against yet: its
 /// "Generated clusters for 10554 regions" is counted AFTER an outside detection
 /// pass whose criterion is not known, and every candidate measured so far is out
-/// by between -29% and +323%. See docs/VIS.md. What is checked here is that the
+/// by between -29% and +323%. See the old docs/VIS.md (git c2dc317). What is checked here is that the
 /// regions are a correct partition of the octree's open space, which is what the
 /// stages above them will consume either way.</para>
 /// </summary>

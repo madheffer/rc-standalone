@@ -48,7 +48,7 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
 
     /// <summary>
     /// Classes that still differ, with the reason. Keep in step with
-    /// docs/MAP_RESOURCES.md.
+    /// docs/ENTITIES.md.
     /// </summary>
     private static readonly HashSet<string> Imperfect = new(StringComparer.OrdinalIgnoreCase)
     {

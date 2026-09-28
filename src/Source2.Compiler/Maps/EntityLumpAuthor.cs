@@ -14,7 +14,7 @@ namespace Source2.Compiler;
 /// goes in it. Hammer writes every key as a string, and the compiled lump does
 /// not: each value is typed through the game's FGD, empty values are dropped, and
 /// the compile adds an identity of its own. Every rule below was measured against
-/// resourcecompiler output rather than inferred - see docs/MAP_RESOURCES.md.</para>
+/// resourcecompiler output rather than inferred - see docs/ENTITIES.md.</para>
 /// </summary>
 public static partial class EntityLumpAuthor
 {
@@ -567,7 +567,7 @@ public static partial class EntityLumpAuthor
     /// <summary>
     /// An integer at the width resourcecompiler gives it: 0 and 1 keep the KV3
     /// singleton codes, anything that fits signed 32-bit is Int32, and the rest is
-    /// Int64. Same rule the KV3 compiler applies elsewhere (RC_PARITY C1).
+    /// Int64. Same rule the KV3 compiler applies elsewhere (docs/RESOURCES.md).
     /// </summary>
     private static KVObject Integer(long value)
         => value is 0 or 1 || value is < int.MinValue or > int.MaxValue

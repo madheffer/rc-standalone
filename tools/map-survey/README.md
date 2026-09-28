@@ -3,7 +3,7 @@
 Read-only measurements of published CS2 maps, taken from subscribed workshop VPKs
 at `<Steam>/steamapps/workshop/content/730`. They need no CS2 install and no
 Workshop Tools; they parse the VPKs and the resource containers directly. The
-findings they produced are written up in [`../../docs/MAP_RESOURCES.md`](../../docs/MAP_RESOURCES.md).
+findings they produced are written up in [`../../docs/CONTAINERS.md`](../../docs/CONTAINERS.md).
 
 | script | what it answers |
 |---|---|

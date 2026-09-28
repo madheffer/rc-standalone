@@ -1,6 +1,6 @@
 """Replace individual resources inside a compiled map VPK.
 
-Phase 1 of `docs/PLAN.md`: everything this project authors has so far only been
+The container proof (docs/CONTAINERS.md): everything this project authors has so far only been
 judged by our own comparison and has never been loaded by CS2. This swaps our
 re-authored resources into a map Valve's compiler produced, so the result is
 Valve's map in every respect except the files under test.

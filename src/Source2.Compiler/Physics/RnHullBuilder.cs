@@ -28,7 +28,7 @@ public sealed class RnHull
 
 /// <summary>
 /// vphysics2's <c>RnHullCreate</c> with the options the resource compiler
-/// passes for a hull shape (see <c>docs/HULLS.md</c>).
+/// passes for a hull shape (see <c>docs/PHYSICS.md</c>).
 ///
 /// <para>Eight to 36 points sitting on their bounding box's corners become
 /// <c>RnHullCreateBox</c>. Otherwise the points are centred on the box

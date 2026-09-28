@@ -18,7 +18,7 @@ namespace Source2.Compiler.Tests;
 /// as a CHILD of a .vmap rather than from a source file of its own, so it records
 /// no input dependency, omits the special input dependency list, and declares
 /// IsChildResource. Those three were measured across 116 maps before being
-/// written down here; see docs/MAP_RESOURCES.md.</para>
+/// written down here; see docs/CONTAINERS.md.</para>
 /// </summary>
 public class MapResourceAuthoringTests
 {

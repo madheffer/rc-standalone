@@ -1,6 +1,6 @@
 """Read the `.rte` ray trace environment visibility is built from.
 
-Layout in `docs/RTE.md`. Both known specimens tile exactly, which is the check
+Layout in `docs/GEOMETRY.md`. Both known specimens tile exactly, which is the check
 this performs first: if the sections do not add up to the file size, the layout is
 wrong for that file and nothing below it should be believed.
 

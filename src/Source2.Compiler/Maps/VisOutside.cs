@@ -17,7 +17,7 @@ namespace Source2.Compiler.Maps;
 /// <para>What is ported exactly: the seed, the march, and the propagation. What is
 /// NOT is the set of rays. The compiler gathers those per region from a structure
 /// whose record type is still unidentified, so the direction set and reach are
-/// parameters here, and docs/VIS.md records how the region count moves with
+/// parameters here, and the old docs/VIS.md (git c2dc317) records how the region count moves with
 /// them.</para>
 /// </summary>
 public static class VisOutside

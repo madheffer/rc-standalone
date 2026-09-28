@@ -5,7 +5,7 @@ Measured on ze_ffvii_mako_reactor_v6_p: moving X and Y together is LINEAR at
 0.344 s per sample over 8 to 512, so the pair is not an X by Y grid of X*Y samples.
 X is clamped by Y (512:16 costs what 16:16 costs), and below Y it contributes
 non-linearly, which is consistent with T being a convergence threshold. See
-docs/VRAD3.md; the law for X below Y is not pinned down.
+docs/BAKED.md; the law for X below Y is not pinned down.
 
     python sweep_samples.py <addon> [--samples 8,16,32,64] [--full]
     python sweep_samples.py <addon> --pairs 16:16,16:128,128:128

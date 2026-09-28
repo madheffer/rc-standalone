@@ -19,7 +19,7 @@ public class VisVoxelizerTests(ITestOutputHelper output)
     /// <param name="Target">The node count the compile logged for this map.</param>
     /// <param name="Tolerance">How far off we are allowed to be. ze_hold_em_p is
     /// exact and pinned at zero; the two probe maps sit six branches over, which
-    /// docs/VIS.md records as open.</param>
+    /// docs/VISIBILITY.md records as open.</param>
     private sealed record Specimen(string Addon, string Map, int Target, double Tolerance);
 
     private static readonly Specimen[] Maps =

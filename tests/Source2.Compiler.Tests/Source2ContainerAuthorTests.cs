@@ -28,7 +28,7 @@ namespace Source2.Compiler.Tests;
 /// binary v5 and match its per-block compression choice, but the LZ4 payload would
 /// still have to come out of a bit-identical encoder, and it does not. The
 /// decoded tree is the thing the engine actually consumes, so that is what is
-/// pinned. See <c>docs/RC_PARITY.md</c> for the measured gap list.
+/// pinned. See <c>docs/RESOURCES.md</c> for the measured gap list.
 /// </summary>
 public class Source2ContainerAuthorTests
 {
@@ -195,7 +195,7 @@ public class Source2ContainerAuthorTests
         // migration, so a RAW legacy vpcf source compiles to the legacy schema
         // under its own declared GUID. The product path (decompile a compiled
         // vpcf, edit, recompile) starts from already-migrated text and is
-        // unaffected. Tracked in docs/RC_PARITY.md.
+        // unaffected. Tracked in docs/RESOURCES.md.
         if (!sourceName.EndsWith(".vpcf", StringComparison.OrdinalIgnoreCase))
         {
             Assert.Equal(ResourceTrees.Render(valve), ResourceTrees.Render(mine));

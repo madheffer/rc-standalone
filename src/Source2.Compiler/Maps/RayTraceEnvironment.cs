@@ -12,7 +12,7 @@ namespace Source2.Compiler.Maps;
 /// <para>It matters more than its size suggests: it survives the compile and it is
 /// the geometry input to visibility, so a visibility builder can be written and
 /// scored against a real map before a geometry pipeline exists. The layout is in
-/// docs/RTE.md and both known specimens tile it exactly.</para>
+/// docs/GEOMETRY.md and both known specimens tile it exactly.</para>
 /// </summary>
 public sealed class RayTraceEnvironment
 {

@@ -15,7 +15,7 @@ are authored outright, with no donor file of any kind. `.vsnd_c` and `.vsvg_c`
 still copy their header frame from an existing compiled file of the same type -
 any such file, **including one this compiler produced**, so it is a one-time
 bootstrap rather than a dependency.
-[docs/AUTHORING.md](docs/AUTHORING.md) has the measurements behind all of that.
+[docs/RESOURCES.md](docs/RESOURCES.md) has the measurements behind all of that.
 
 ```
 $ s2c compile my_sounds.vsndevts
@@ -130,7 +130,7 @@ Compiling the same image against a template lifted from CS2 and against a
 was contributing a single 16-bit integer, the resource version, which upstream
 simply had no public setter for. Those types still *accept* one, to carry a
 detail this compiler does not infer, but nothing here requires a donor file and
-`s2c selftest` compiles every one of them on a machine with no CS2 installed. [docs/AUTHORING.md](docs/AUTHORING.md)
+`s2c selftest` compiles every one of them on a machine with no CS2 installed. [docs/RESOURCES.md](docs/RESOURCES.md)
 records the measurements: which header fields exist, what every stock file of
 each type agrees on, and the one place the boundary is real (a material's vertex
 input signature follows its shader's feature combo, so it is stated rather than
@@ -141,17 +141,18 @@ of a `.vmap` compile, so it records no source, and its integer widths come from 
 C++ struct RC serialized rather than from the by-value rule that applies to KV3
 text. They are therefore authored from an already-typed tree
 (`Source2ContainerAuthor.AuthorKv3Tree`), and what a map is made of - with the
-measurements behind that - is in [docs/MAP_RESOURCES.md](docs/MAP_RESOURCES.md).
+measurements behind that - is in [docs/CONTAINERS.md](docs/CONTAINERS.md).
 
 ## What it is not
 
-It is not a general replacement for `resourcecompiler.exe`. It does not compile a
-whole map: the index layer above is authored, but the lightmaps, visibility,
-cubemaps and render geometry that make up 80% of a map's bytes are baked output,
-not a format. It does not compile shaders (`.vfx`), or meshes from DCC formats. It does not
+It is not yet a general replacement for `resourcecompiler.exe`. A port of the
+map compile is in progress on the `research/map-authoring` branch: entity
+lumps, world and entity collision, and visibility match Valve's output, while
+render geometry and the baked halves (lightmaps, cubemaps) are still open.
+[docs/HANDOFF.md](docs/HANDOFF.md) is the entry point. It does not compile shaders (`.vfx`), or meshes from DCC formats. It does not
 implement Valve's asset-processing options. Where the output differs from a
 stock compile, the differences are measured and written down in
-[docs/RC_PARITY.md](docs/RC_PARITY.md) rather than assumed away.
+[docs/RESOURCES.md](docs/RESOURCES.md) rather than assumed away.
 
 The contract this project holds itself to is **decoded-tree identity**, not byte
 identity. The KV3 wire format matches: this writes binary v5, the two-buffer
@@ -267,11 +268,17 @@ src/Source2.Compiler/
   Building/     material / texture / model / sound / SVG builders
   Texture/      BC7 encoders (native P/Invoke + the managed seam)
   Imaging/      bounded image decode
-  Io/           VPK entry access, path-traversal safety, VRF file loader
+  Io/           VPK reading and writing, path safety, tier0 string and path rules
+  Dmx/          the .vmap reader (binary and keyvalues2 DMX)
+  Maps/         the map compile: meshes, trace scene, visibility, entity lump, settle world
+  Physics/      hulls, region SVM, triangle meshes, world and entity collision
+  Simulation/   the Rubikon physics step the settle runs
 src/Source2.Compiler.Cli/    the s2c command
-tests/                       parity gate + reference-integrity invariants
+src/Source2.Compiler.Gpu/    the Vulkan material sampler
+tests/                       parity gates, Valve oracles and replays
 third_party/                 the pinned upstream sha and the patches applied to it
-tools/                       the vendor step, and the resourcecompiler oracle
+tools/                       the vendor step, the oracles, capture and reverse-engineering scripts
+docs/                        HANDOFF.md first, then one doc per module
 ```
 
 ## Credits

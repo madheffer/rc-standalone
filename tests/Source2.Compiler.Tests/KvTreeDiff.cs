@@ -7,7 +7,7 @@ namespace Source2.Compiler.Tests;
 /// Two decoded KV3 trees compared the way the engine would read them: key
 /// order, value types, flags, integer widths, float bits and blob bytes, with
 /// every difference reported by path. Compressed block bytes are encoder
-/// defined (docs/RC_PARITY.md), so the decoded tree is what parity means.
+/// defined (docs/RESOURCES.md), so the decoded tree is what parity means.
 /// </summary>
 internal static class KvTreeDiff
 {

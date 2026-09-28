@@ -17,7 +17,7 @@ namespace Source2.Compiler.Gpu;
 /// RGBA8 target and read back. Matched against resourcecompiler's own
 /// render on ze_hold_em_nb: bit for bit on 106 of 106 points and within one
 /// step on the rest of 3,710, every point's layer the same (that compile ran
-/// the DX11 programs; see docs/WORLD_PHYSICS.md).
+/// the DX11 programs; see docs/PHYSICS.md).
 /// </summary>
 public sealed unsafe class GpuMaterialSampler : IDisposable
 {

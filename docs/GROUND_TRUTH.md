@@ -59,13 +59,15 @@ game can answer is raised with the user first, and runs with -insecure.
     Open there: the light and probe bake keys, particle snapshot files, the
     vmap upgrade table, the landmark/camera/cull-triangle world lists, and
     every switch the port does not yet take.
-23. **The settle for sphere and capsule shapes**: a prop whose model has them
-    (s2c_rounds) is refused by the settle port.
+23. **The settle for sphere and capsule shapes**: all seven round narrowphase
+    cores are oracle-exact (RoundCollisionOracleTests); the mesh contact,
+    contact dispatch and time of impact for round pairs are not wired, and a
+    sphere at a non-uniform scale (s2c_settleround node 102) is refused.
 24. **What an entities-only build clears**: the world step clears the
     entities folder and flammables; whether the entity models survive an
     entities-only build is not settled (compile-map keeps them).
 25. **The .rte flag word** from the mesh entry and material attributes: read
-    in outline (RTE.md), not ported.
+    in outline (GEOMETRY.md), not ported.
 
 26. **Prefab placement**: a node in a prefab's map is placed as instance
     collapse moves a node (SettleWorld.PrefabPlacement: the prefab's own
@@ -79,10 +81,10 @@ game can answer is raised with the user first, and runs with -insecure.
 15. What picks Zstd or LZ4 for map output.
 
 ### Other modules
-16. Visibility: what triggers the large-scale ray generator; the compile's
-    normalise guard against our plain normalise.
+16. Visibility: the compile's normalise guard (NormaliseSlowPath) against our
+    double normalise in three places; no specimen reaches it.
 17. RTE: what the per-triangle id hashes.
-26. RTE triangle order: within a mesh the file groups triangles by material,
+29. RTE triangle order: within a mesh the file groups triangles by material,
     in the order of the mesh's materials array on 66 of atixref's 68
     multi-material meshes; the rest are the world renderer's own mesh split
     (measured, not ported: the order follows the render meshes). Whether
@@ -111,7 +113,7 @@ game can answer is raised with the user first, and runs with -insecure.
   Mako). The .viscfg's visibility_hint entities: types 4, 5, 6 split lists,
   any other a voxel hint whose box, voxel and region sizes stop or force the
   octree's split (Voxelize 18002f890). Mako's octree with its seven hints has
-  Valve's node count, 2,643,577. VIS.md, "Visibility hints, ported".
+  Valve's node count, 2,643,577. VISIBILITY.md, "Visibility hints".
 - **World physics surface and attribute tables** (2026-09-28, decompile of
   resourcecompiler 0923 and physicsbuilder 0924). Surfaces register by name,
   case-sensitive, spheres, capsules, hulls, then meshes; a shape with no

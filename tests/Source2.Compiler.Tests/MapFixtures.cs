@@ -8,7 +8,7 @@ namespace Source2.Compiler.Tests;
 ///
 /// <para>A published map ships as a VPK inside the item's VPK, so a map resource
 /// is two archives deep. Nothing here is committed: workshop maps are other
-/// people's work, and the survey in <c>docs/MAP_RESOURCES.md</c> is reproducible
+/// people's work, and the survey in <c>docs/CONTAINERS.md</c> is reproducible
 /// from any install that has some. Without maps the map tests skip and say so,
 /// the same bargain <see cref="CS2Fixtures"/> makes for game content.</para>
 /// </summary>

@@ -19,7 +19,7 @@ namespace Source2.Compiler;
 /// </code>
 ///
 /// <para>Layout recovered from shipped maps and checked against all 301 manifests
-/// in the survey corpus (docs/MAP_RESOURCES.md). Every one of them has exactly one
+/// in the survey corpus (docs/CONTAINERS.md). Every one of them has exactly one
 /// group holding one to three strings.</para>
 /// </summary>
 public static class ResourceManifestAuthor

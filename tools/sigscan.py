@@ -1,6 +1,6 @@
 """Find visbuilder.dll's addresses again after a game update.
 
-Every address in docs/VIS.md is an offset into one build. CS2 updated on
+Every visbuilder address was an offset into one build. CS2 updated on
 2026-09-23 and all of them moved, which is not work to do twice by hand. This
 reads docs/visbuilder.signatures.json -- byte patterns with the linker-moved
 bytes blanked out, generated from the reference build by

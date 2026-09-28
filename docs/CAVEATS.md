@@ -4,11 +4,7 @@ Traps, corrections and measurements that cost real time to find. Written so the
 next person, or the next session, does not pay for them twice. Each entry says
 what was believed, what is actually true, and how it was settled.
 
-Companion documents: `PLAN.md` (where this is going), `VIS.md` (visibility),
-`VRAD3.md` (lighting), `MAP_RESOURCES.md` (map file formats),
-`VISBUILDER_FUNCTIONS.md` and `RESOURCECOMPILER_FUNCTIONS.md` (recovered symbols),
-and `VISBUILDER_ANALYSIS.md` (how visbuilder.dll was read, what its design is,
-and which of its decisions our own visibility code had to adopt).
+Start from [HANDOFF.md](HANDOFF.md); each module has its own doc there.
 
 ---
 
@@ -35,7 +31,7 @@ The whole effort started from "lighting takes a day, put it on a GPU". Measured:
 lighting is 9.33 s of Mako's compile at default settings, and the sample count
 scales linearly at 0.344 s per sample, so even a 32x quality increase only
 reaches 176 s. Sample count is not a hidden multiplier. Full working in
-`VRAD3.md`.
+[BAKED.md](BAKED.md).
 
 ### A "798 second stage" that never existed
 
@@ -216,7 +212,8 @@ The writer is called unconditionally every build and returns immediately because
 the hint set is empty; nothing in the shipped path fills it. `-debuglos` only
 widens an in-function cap (`0x200000` to `0x2000000`). Confirmed statically and
 by running a compile with it. The loader DOES work, so authoring the format is
-the only route in. See `VIS.md`.
+the only route in. In a deterministic build CLOS contributes nothing whatever
+the file holds ([VISIBILITY.md](VISIBILITY.md)).
 
 ### PVS bit order is least significant first
 
@@ -259,18 +256,11 @@ when there is too much of it. Whatever we feed a visibility build has to carry t
 same distinction, and our own compiled output has to mark those surfaces so the
 renderer skips them.
 
-Where it touches what is already built:
-
-- `RayTraceEnvironment` skips triangles whose flag word is `0x0800`, which is what
-  reproduces the compile's own "Convert RTE with 4536 triangles" on three maps.
-  Whether that flag IS the nodraw bit is NOT established; it is established only
-  that the trace conversion drops those triangles.
-- The entity lump work has never had to think about it, because materials are not
-  entity keys. The geometry tier will, and so will anything that authors a surface.
-
-Owed: confirm what the `0x0800` flag means against a map with known nodraw
-brushes, and confirm that a surface we author as nodraw both fails to render and
-still seals.
+What is settled now (GEOMETRY.md): the `.rte` stores nodraw as 0x0010 and the
+loader rewrites it to 0x0020; 0x0800 (with 0x0001) is "excluded from the trace",
+not nodraw; nodraw triangles are traced and voxelized like any other, and only
+when nodraw passes 80% of the area does the loader clear the mark. Owed: confirm
+in game that a surface we author as nodraw both fails to render and still seals.
 
 ## Formats and authoring
 
@@ -302,7 +292,7 @@ No input dependencies, no `m_SpecialInputDependencies` key at all,
 `IsChildResource = 1`, null subasset fields. Identical in all 116 maps.
 The 0923 compiler writes `m_SpecialInputDependencies` empty on child resources
 too, and a physics or world node manifest names the file RC saved it from
-(docs/WORLD_PHYSICS.md); the authoring follows the current compiler.
+([PHYSICS.md](PHYSICS.md)); the authoring follows the current compiler.
 
 ### `.vmap_c` carries no map data
 
@@ -346,8 +336,9 @@ it cannot give you.
 ### Ghidra will not find x64 MSVC RTTI cross references
 
 Those links are 32-bit RVAs, not pointers, so `getReferencesTo` on a type
-descriptor returns nothing and a vtable walk fails. This is why
-`CLargeClusterRegionsRayGenerator` is still unexplained.
+descriptor returns nothing and a vtable walk fails. Read the functions that
+use the class instead (that is how `CLargeClusterRegionsRayGenerator` was
+finally read).
 
 ### Bash heredocs eat backslashes
 

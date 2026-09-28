@@ -20,7 +20,7 @@ namespace Source2.Compiler.Maps;
 /// texcoord shift (<see cref="ShiftTexcoords"/>) and some re-projected faces
 /// off by about 1e-5. A material whose shader reads a second texcoord or
 /// vertex paint keeps those streams too; they hold defaults, so they are left
-/// out (docs/HULLS.md).</para>
+/// out (docs/PHYSICS.md).</para>
 /// </summary>
 internal static class MapMeshCorners
 {

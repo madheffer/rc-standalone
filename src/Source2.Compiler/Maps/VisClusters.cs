@@ -398,7 +398,7 @@ public static class VisClusters
     /// <c>ResourceCompiler/VisBuilder</c> block in
     /// <c>game/csgo_core/gameinfo.gi</c> that overrides five of the six keys the
     /// driver reads, and taking the defaults out of the binary is wrong for every
-    /// one of them. See docs/VIS.md.</para>
+    /// one of them. See docs/VISIBILITY.md.</para>
     /// </summary>
     public const int MaxVisClusters = 4096;
 
