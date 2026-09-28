@@ -52,8 +52,11 @@ public class TraceSceneDiagnose(ITestOutputHelper output)
         var taken = new bool[rte.TriangleCount];
         var missed = new List<(TraceScene.Triangle T, MapMeshes.Mesh Mesh)>();
         var degenerate = 0;
+        int sameSlot = 0, rising = 0, last = -1, at = -1;
+        var order = Environment.GetEnvironmentVariable("TRACEDIAG_ORDER") is { Length: > 0 } ? new List<string>() : null;
         foreach (var (t, mesh) in ours)
         {
+            at++;
             if (!RayTraceEnvironment.RecordFor(t.A, t.B, t.C, 0, record))
             {
                 degenerate++;
@@ -61,11 +64,21 @@ public class TraceSceneDiagnose(ITestOutputHelper output)
                 continue;
             }
             if (file.TryGetValue(Key(record), out var q) && q.Count > 0)
-                taken[q.Dequeue()] = true;
+            {
+                var slot = q.Dequeue();
+                taken[slot] = true;
+                order?.Add($"{at} {slot} {mesh.NodeId} {t.Flags:x4}");
+                sameSlot += slot == at ? 1 : 0;
+                rising += slot > last ? 1 : 0;
+                last = slot;
+            }
             else
                 missed.Add((t, mesh));
         }
         output.WriteLine($"{map}: ours {ours.Count}, found {ours.Count - missed.Count}, degenerate {degenerate}; file {rte.TriangleCount}, not produced {taken.Count(x => !x)}");
+        output.WriteLine($"  order: at the file's own slot {sameSlot}, after the previous match {rising}");
+        if (order != null)
+            File.WriteAllLines(Environment.GetEnvironmentVariable("TRACEDIAG_ORDER")!, order);
 
         string Kind(MapMeshes.Mesh m)
         {
@@ -219,5 +232,78 @@ public class TraceSceneDiagnose(ITestOutputHelper output)
         parts.Add(r[0x2c].ToString());
         parts.Add(r[0x2d].ToString());
         return string.Join(",", parts);
+    }
+}
+
+/// <summary>A .viscfg as KV3 text. <c>VISCFG=&lt;path&gt;</c>.</summary>
+public class VisCfgDump(ITestOutputHelper output)
+{
+    [Fact]
+    public void Dump()
+    {
+        if (Environment.GetEnvironmentVariable("VISCFG") is not { Length: > 0 } path)
+            return;
+        using var reader = new BinaryReader(File.OpenRead(path));
+        using var owner = new ValveResourceFormat.Resource();
+        var kv = new ValveResourceFormat.ResourceTypes.BinaryKV3 { Resource = owner };
+        kv.Read(reader);
+        output.WriteLine(kv.ToString());
+    }
+}
+
+/// <summary>
+/// The voxel half of visibility (voxelize to assignment, VisBuild.Run up to
+/// the scan's state) against a capture's arrays at scan entry: node count,
+/// entries, node words and boxes, cluster boxes. <c>VOXSTAGE=&lt;capture .pvs.bin&gt;</c>,
+/// with the compile's .rte and .viscfg beside it; <c>VOXSTAGE_NOHINTS=1</c>
+/// leaves the hints out.
+/// </summary>
+public class VisVoxelStageReplay(ITestOutputHelper output)
+{
+    [Fact]
+    public void AgainstTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("VOXSTAGE") is not { Length: > 0 } path)
+            return;
+        var stem = path[..^".pvs.bin".Length];
+        var rte = RayTraceEnvironment.ReadFile(stem + ".rte");
+        var config = VisConfig.Read(stem + ".viscfg");
+        if (Environment.GetEnvironmentVariable("VOXSTAGE_NOHINTS") == "1")
+            config = config with { Hints = [] };
+        using var cap = new VisBigReplay.CaptureFile(path);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        const float baseVoxelSize = 8f;
+        var (mins, maxs) = rte.TracedBounds;
+        var (min, max) = VisVoxelizer.RootCube(mins, maxs, baseVoxelSize);
+        var hints = VisVoxelizer.VoxelHints(config.Hints, mins, maxs, min, max, baseVoxelSize);
+        foreach (var h in hints)
+            output.WriteLine($"hint {h.Mins} {h.Maxs} voxel {h.Voxel} region {h.Region}");
+        var tree = VisVoxelizer.Build(rte, min, max, baseVoxelSize, hints);
+        var theirNodes = cap.Blob("nodes").Length / 8;
+        output.WriteLine($"voxelize: nodes ours {tree.Nodes:n0} capture {theirNodes:n0} ({clock.Elapsed.TotalSeconds:F0} s)");
+        if (Environment.GetEnvironmentVariable("VOXSTAGE_TREE") == "1")
+            return;
+        var side = VisVoxelizer.VoxelsPerRoot(min, max, baseVoxelSize) / VisVoxelizer.VoxelsPerLeaf;
+        var regions = VisRegions.Build(tree, side);
+        var inside = VisOutside.Detect(tree, regions, rte, baseVoxelSize);
+        var compact = VisRegions.Compact(regions, inside.Regions);
+        output.WriteLine($"regions {regions.Regions.Count:n0}, enclosed leaves {compact.Regions.Count:n0} ({clock.Elapsed.TotalSeconds:F0} s)");
+        var sets = VisClusters.Generate(rte, tree, compact);
+        output.WriteLine($"clusters generated {sets.Sum(x => x.Clusters.Count):n0} ({clock.Elapsed.TotalSeconds:F0} s)");
+        var pre = VisPreMerge.Run(sets);
+        VisClusterSet.MergeAll(rte, sets, VisClusters.PassTarget(tree, compact), VisClusters.Cubes(tree, compact));
+        var collapsedRegions = VisRegions.Collapse(regions, inside.Regions);
+        var assigned = VisAssign.Run(sets, compact.Leaves.Count, collapsedRegions, _ => true);
+        var st = VisPvs.Build(tree, max, compact, assigned, sets, baseVoxelSize);
+        var theirs = VisBigReplay.StateOf(cap);
+        output.WriteLine($"state ({clock.Elapsed.TotalSeconds:F0} s): entries {st.Entries.Length:n0}/{theirs.Entries.Length:n0}, nodes {st.NodeWords.Length:n0}/{theirs.NodeWords.Length:n0}, clusters {st.Clusters:n0}/{theirs.Clusters:n0}");
+        var e = Enumerable.Range(0, Math.Min(st.Entries.Length, theirs.Entries.Length)).Count(i => st.Entries[i] == theirs.Entries[i]);
+        var n = Enumerable.Range(0, Math.Min(st.NodeWords.Length, theirs.NodeWords.Length)).Count(i => st.NodeWords[i] == theirs.NodeWords[i] && st.NodeCounts[i] == theirs.NodeCounts[i]);
+        var nb = Enumerable.Range(0, Math.Min(st.NodeMins.Length, theirs.NodeMins.Length)).Count(i => st.NodeMins[i] == theirs.NodeMins[i] && st.NodeMaxs[i] == theirs.NodeMaxs[i]);
+        var cb = Enumerable.Range(0, Math.Min(st.ClusterMins.Length, theirs.ClusterMins.Length)).Count(i => st.ClusterMins[i] == theirs.ClusterMins[i] && st.ClusterMaxs[i] == theirs.ClusterMaxs[i]);
+        output.WriteLine($"same: entries {e:n0}, node words {n:n0}, node boxes {nb:n0}, cluster boxes {cb:n0}");
+        var firstNode = Enumerable.Range(0, Math.Min(st.NodeWords.Length, theirs.NodeWords.Length)).FirstOrDefault(i => st.NodeWords[i] != theirs.NodeWords[i] || st.NodeCounts[i] != theirs.NodeCounts[i], -1);
+        if (firstNode >= 0)
+            output.WriteLine($"first node differing {firstNode}: ours 0x{st.NodeWords[firstNode]:x8}/{st.NodeCounts[firstNode]} {st.NodeMins[firstNode]}-{st.NodeMaxs[firstNode]}, capture 0x{theirs.NodeWords[firstNode]:x8}/{theirs.NodeCounts[firstNode]} {theirs.NodeMins[firstNode]}-{theirs.NodeMaxs[firstNode]}");
     }
 }

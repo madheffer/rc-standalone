@@ -26,7 +26,7 @@ public class VisBuildTests(ITestOutputHelper output)
     [MemberData(nameof(Specimens))]
     public void UnderTheRebuiltTree(string addon, string map) => Check(addon, map, rte => rte.WithTracerTree());
 
-    /// <summary>The .viscfg built from the map: pvstype and the sun, bit for bit.</summary>
+    /// <summary>The .viscfg built from the map: pvstype, the sun and the visibility hints, bit for bit.</summary>
     [Theory]
     [MemberData(nameof(Sources))]
     public void SettingsFromTheMap(string addon, string map, string compiledIn)
@@ -40,8 +40,15 @@ public class VisBuildTests(ITestOutputHelper output)
         }
         var valve = VisConfig.Read(path);
         var ours = VisConfig.FromMap(MapEntities.From(DmxBinary.ReadFile(source)), schema);
-        output.WriteLine($"{map}: pvstype {ours.PvsType}/{valve.PvsType}, sun {ours.DirToSun}/{valve.DirToSun}");
+        output.WriteLine($"{map}: pvstype {ours.PvsType}/{valve.PvsType}, sun {ours.DirToSun}/{valve.DirToSun}, hints {ours.Hints.Count}/{valve.Hints.Count}");
         Assert.Equal(valve.PvsType, ours.PvsType);
+        Assert.Equal(valve.Hints.Count, ours.Hints.Count);
+        for (var i = 0; i < valve.Hints.Count; i++)
+        {
+            var (vh, oh) = (valve.Hints[i], ours.Hints[i]);
+            Assert.True(vh.Type == oh.Type && Bits(vh.Origin) == Bits(oh.Origin) && Bits(vh.BoxMins) == Bits(oh.BoxMins) && Bits(vh.BoxMaxs) == Bits(oh.BoxMaxs),
+                        $"hint {i}: {oh} against {vh}");
+        }
         Assert.Equal(valve.DirToSun.HasValue, ours.DirToSun.HasValue);
         if (valve.DirToSun is { } v && ours.DirToSun is { } o)
             Assert.True(Bits(v) == Bits(o), $"sun {o} against {v}");
@@ -82,6 +89,8 @@ public class VisBuildTests(ITestOutputHelper output)
         { "s2probe", "probe01", "s2c_rc_probe" },
         { "ze_doom_p2", "cardtest", "s2c_rc_probe" },
         { "s2c_lighting", "ze_hold_em_p", "s2c_lighting" },
+        { "s2probe", "atixref", "s2probe" },
+        { "s2c_big", "ze_ffvii_mako_reactor_v6_p", "s2c_big" },
     };
 
     private void Check(string addon, string map, Func<RayTraceEnvironment, RayTraceEnvironment> scene)

@@ -905,6 +905,9 @@ map's objects and pulls four keys off each: `origin`, `box_mins`, `box_maxs` and
 | 6 | z-axis split hint | `this+0xd0` |
 | other | voxel hint | handled separately |
 
+(2026-09-28: "handled separately" is the voxelizer; see "Visibility hints,
+ported" at the end. The split lists are cut z first, then x, then y.)
+
 ### What the birth rule turns out to be, and why it needs the cost
 
 `180032d80` walks the region's 64 mask voxels and appends **one cluster record per
@@ -2357,6 +2360,10 @@ every cluster in that leaf is tagged 0, and the tag penalty never fires. That is
 the case we implement, and it is why probe01 and cardtest now land within about
 two percent while ze_hold_em_p does not.
 
+(2026-09-28: the split path is now ported from the 09-23 build, and the order
+above is wrong: `CandidateBoxes` cuts by the z list, then x, then y; see
+"Visibility hints, ported" at the end.)
+
 **What this would mean for ze_hold_em_p, stated as a hypothesis rather than a
 result.** With hints, a leaf's voxels are split into tagged groups, merging runs
 cheaply WITHIN a group and at 32 times the cost across one, so clusters grow
@@ -2972,3 +2979,55 @@ Mako, ze_hold_em_p, ze_doom_p2 and c2m2 carries the key.
 So a matching world node needs from vis the vvis and these two blocks exactly,
 because they decide the mesh split, and nothing more. The merger itself belongs
 to the world renderer port.
+
+## Visibility hints, ported (2026-09-28)
+
+Read from the 09-23 visbuilder and checked on Mako, the one specimen with
+hints. `VisBuild` reads the `.viscfg`'s `visibility_hints` array (the map's
+`visibility_hint` entities as the export writes them) and hands it to
+`Hints_Load` (`18002c970`). Each hint's box is `origin + box_mins` to
+`origin + box_maxs`, angles ignored. Types 4, 5 and 6 go to the x, y and z
+split lists; every other type is a VOXEL hint (`Hints_AddVoxelHint`,
+`18002ced0`):
+
+| hintType | FGD label | voxel | region |
+|---|---|---|---|
+| 0 | High Resolution (8 unit grid) | 8 | 32 |
+| 2 | Medium Resolution (32) | 32 | 64 |
+| 3 | Low Resolution (64) | 64 | 128 |
+| 7, 8 | Lower Resolution (64, fewer initial clusters) | 64 | 256 |
+| 9 | Lowest Resolution (256, fewest initial clusters) | 64 | 512 |
+| 10 | Reduced Resolution (16) | 16 | 64 |
+| any other (1 included) | Normal | base voxel | 4 x base |
+
+A voxel hint's box side at or past the scene's bounds is moved out to the root
+cube's; the voxel size is clamped to [4, 256]; the region size is the
+requested one held between the unclamped voxel size and four times it. The
+list is sorted by voxel size, then region size (`18003f940`, an insertion sort
+under 33 entries, so equal ones keep entity order).
+
+**Voxel hints change the octree** (`Voxelize`, `18002f890`, called with the
+base voxel size, not the leaf size). For each node wider than the base voxel,
+the first hint in sorted order whose box touches the node's decides: if the
+hint's box holds the node whole, the node stops splitting once
+`(int)(region / base) >= (int)(side / base)` (4 without a hint, the smallest
+leaf of 32 units), becoming a leaf of that size with its own 4x4x4 mask; and
+while `voxel <= side * 0.25`, every child is descended, the empty ones too.
+Mako's seven hints are all voxel hints (four of type 3, one of 9, two of 8).
+Without them our octree has 3,197,641 nodes; with them 2,643,577, the node
+count of Valve's compile captured at scan entry, exactly. The `.viscfg`'s
+hints are rebuilt from the `.vmap` bit for bit (`SettingsFromTheMap`).
+
+**Split hints** (`CandidateBoxes`, `18002d320`, and `CandidateBoxes_SplitOne`,
+`18002d140`) are ported as read and not measured: no specimen has one. A leaf
+box is cut by the z list, then x, then y, a tag counting from 1 over every hint
+of the three lists in that order. The box being cut is given up once any side
+is under 1.1. A hint that touches it cuts it along its axis unless it reaches
+less than 1.1 into it; the piece inside the hint is pushed with the hint's tag;
+with pieces left on both sides the lower one is cut again from the start and
+the upper one carries on, otherwise the one piece left carries on. What
+remains is pushed with tag 0. `GenerateRegionClusters` (`180034420`) then deals
+the region's voxels out box by box: a voxel not yet taken goes to a box when
+its sub-cell lies inside the box grown by 0.1 (the last box takes the rest),
+the box's clusters carry its tag, and each box's clusters are merged on their
+own before they are appended.

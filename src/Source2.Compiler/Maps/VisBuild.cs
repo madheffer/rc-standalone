@@ -22,12 +22,13 @@ public static class VisBuild
         var (mins, maxs) = rte.TracedBounds;
         var (min, max) = VisVoxelizer.RootCube(mins, maxs, baseVoxelSize);
 
-        var tree = VisVoxelizer.Build(rte, min, max, baseVoxelSize);
+        var hints = VisVoxelizer.VoxelHints(config.Hints, mins, maxs, min, max, baseVoxelSize);
+        var tree = VisVoxelizer.Build(rte, min, max, baseVoxelSize, hints);
         var side = VisVoxelizer.VoxelsPerRoot(min, max, baseVoxelSize) / VisVoxelizer.VoxelsPerLeaf;
         var regions = VisRegions.Build(tree, side);
         var inside = VisOutside.Detect(tree, regions, rte, baseVoxelSize);
         var compact = VisRegions.Compact(regions, inside.Regions);
-        var sets = VisClusters.Generate(rte, tree, compact);
+        var sets = VisClusters.Generate(rte, tree, compact, VisClusters.SplitHints.From(config.Hints));
         var pre = VisPreMerge.Run(sets);
         VisClusterSet.MergeAll(rte, sets, VisClusters.PassTarget(tree, compact), VisClusters.Cubes(tree, compact));
         var collapsedRegions = VisRegions.Collapse(regions, inside.Regions);

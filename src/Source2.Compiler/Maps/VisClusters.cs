@@ -153,8 +153,19 @@ public static class VisClusters
     /// This is the whole of <c>180032d80</c> and the <c>1800337a0</c> under it,
     /// and it is what the five <see cref="VisClusterSet"/> passes then work on.
     /// </summary>
+    /// <remarks>
+    /// With split hints (<paramref name="splits"/>) a region's voxels are dealt
+    /// out over the leaf's candidate boxes (<see cref="CandidateBoxes"/>) as
+    /// GenerateRegionClusters (180034420) deals them: box by box, a voxel still
+    /// unclaimed goes to the box when its sub-cell lies within the box grown by
+    /// 0.1 (the last box takes every voxel left), each born cluster carries the
+    /// box's tag, and each box's clusters are merged on their own and then
+    /// appended. Without split hints the only box is the leaf itself, tag 0.
+    /// The split path is read from the binary; no specimen map has a split
+    /// hint, so it is not measured.
+    /// </remarks>
     public static List<VisClusterSet.Set> Generate(
-        RayTraceEnvironment scene, VisVoxelizer.Octree tree, VisRegions.Result compacted)
+        RayTraceEnvironment scene, VisVoxelizer.Octree tree, VisRegions.Result compacted, SplitHints? splits = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(tree);
@@ -186,25 +197,153 @@ public static class VisClusters
                 return;
             }
 
-            for (var bit = 0; bit < 64; bit++)
+            if (splits is not { Any: true })
             {
-                if ((region.Open & (1UL << bit)) == 0)
-                    continue;
-                var at = corner + new Vector3(bit & 3, (bit >> 2) & 3, (bit >> 4) & 3) * voxel;
-                set.Clusters.Add(new VisMerge.Cluster
+                for (var bit = 0; bit < 64; bit++)
                 {
-                    Voxels = { (1UL << bit, region.Leaf) },
-                    Mins = at,
-                    Maxs = at + new Vector3(voxel),
-                    VoxelCount = 1,
-                    VoxelSize = (int)voxel,
-                });
+                    if ((region.Open & (1UL << bit)) == 0)
+                        continue;
+                    var at = corner + new Vector3(bit & 3, (bit >> 2) & 3, (bit >> 4) & 3) * voxel;
+                    set.Clusters.Add(new VisMerge.Cluster
+                    {
+                        Voxels = { (1UL << bit, region.Leaf) },
+                        Mins = at,
+                        Maxs = at + new Vector3(voxel),
+                        VoxelCount = 1,
+                        VoxelSize = (int)voxel,
+                    });
+                }
+                VisMerge.Run(scene, set.Clusters, set.Mins, set.Maxs,
+                             MergeThreshold, MergeTarget, padded: true, Cubes(tree, compacted));
+                sets[i] = set;
+                return;
             }
-            VisMerge.Run(scene, set.Clusters, set.Mins, set.Maxs,
-                         MergeThreshold, MergeTarget, padded: true, Cubes(tree, compacted));
+
+            var boxes = CandidateBoxes(set.Mins, set.Maxs, splits);
+            var left = region.Open;
+            for (var b = 0; b < boxes.Count; b++)
+            {
+                var (bmin, bmax, tag) = boxes[b];
+                var clusters = new List<VisMerge.Cluster>();
+                for (var bit = 0; bit < 64; bit++)
+                {
+                    if ((left & (1UL << bit)) == 0)
+                        continue;
+                    if (b != boxes.Count - 1)
+                    {
+                        // SubBox (18010e610), against the box grown by 0.1.
+                        float ox = (bit & 3) * voxel, oy = ((bit >> 2) & 3) * voxel, oz = ((bit >> 4) & 3) * voxel;
+                        var lo = new Vector3(ox + corner.X, oy + corner.Y, oz + corner.Z);
+                        var hi = new Vector3(corner.X + (ox + voxel), corner.Y + (oy + voxel), corner.Z + (oz + voxel));
+                        if (!(bmin.X + CandidateSlackMin <= lo.X && bmin.Y + CandidateSlackMin <= lo.Y && bmin.Z + CandidateSlackMin <= lo.Z
+                              && hi.X <= bmax.X + CandidateSlackMax && hi.Y <= bmax.Y + CandidateSlackMax && hi.Z <= bmax.Z + CandidateSlackMax))
+                            continue;
+                    }
+                    var at = corner + new Vector3(bit & 3, (bit >> 2) & 3, (bit >> 4) & 3) * voxel;
+                    clusters.Add(new VisMerge.Cluster
+                    {
+                        Voxels = { (1UL << bit, region.Leaf) },
+                        Mins = at,
+                        Maxs = at + new Vector3(voxel),
+                        VoxelCount = 1,
+                        VoxelSize = (int)voxel,
+                        Tag = tag,
+                    });
+                    left &= ~(1UL << bit);
+                }
+                VisMerge.Run(scene, clusters, set.Mins, set.Maxs,
+                             MergeThreshold, MergeTarget, padded: true, Cubes(tree, compacted));
+                set.Clusters.AddRange(clusters);
+            }
             sets[i] = set;
         });
         return [.. sets];
+    }
+
+    /// <summary>
+    /// The split hints as Hints_Load (visbuilder 18002c970) files them: type 4
+    /// on the x list, 5 on the y list, 6 on the z list, each box
+    /// <c>origin + box_mins</c> to <c>origin + box_maxs</c> as it stands.
+    /// </summary>
+    public sealed record SplitHints(IReadOnlyList<(Vector3 Mins, Vector3 Maxs)> X, IReadOnlyList<(Vector3 Mins, Vector3 Maxs)> Y,
+                                    IReadOnlyList<(Vector3 Mins, Vector3 Maxs)> Z)
+    {
+        /// <summary>Whether there is any split hint at all.</summary>
+        public bool Any => X.Count + Y.Count + Z.Count > 0;
+
+        /// <summary>A map's split hints, in entity order within each list.</summary>
+        public static SplitHints From(IReadOnlyList<VisHint> hints)
+        {
+            ArgumentNullException.ThrowIfNull(hints);
+            List<(Vector3, Vector3)> Of(int type) => [.. hints.Where(h => h.Type == type).Select(h => (h.Mins, h.Maxs))];
+            return new SplitHints(Of(4), Of(5), Of(6));
+        }
+    }
+
+    /// <summary>
+    /// A leaf box cut by the split hints (CandidateBoxes, 18002d320, with
+    /// CandidateBoxes_SplitOne, 18002d140): the z list, then x, then y, the
+    /// tag a counter from 1 over every hint of the three in that order. The
+    /// box still being cut is given up (nothing more pushed) once any of its
+    /// sides is under 1.1. A hint that touches it cuts it along its axis
+    /// unless it reaches less than 1.1 into it: the piece inside the hint is
+    /// pushed with the hint's tag; when pieces remain on both sides the lower
+    /// one is cut again from the start and the upper one carries on, otherwise
+    /// the one remaining piece carries on, and with none the cutting ends.
+    /// What is left at the end is pushed with tag 0.
+    /// </summary>
+    public static List<(Vector3 Mins, Vector3 Maxs, short Tag)> CandidateBoxes(Vector3 mins, Vector3 maxs, SplitHints splits)
+    {
+        ArgumentNullException.ThrowIfNull(splits);
+        var found = new List<(Vector3, Vector3, short)>();
+        Cut(mins, maxs, splits, found);
+        return found;
+    }
+
+    private const float SplitMinimum = 1.1f;
+
+    private static void Cut(Vector3 mins, Vector3 maxs, SplitHints splits, List<(Vector3, Vector3, short)> found)
+    {
+        var tag = 1;
+        foreach (var (list, axis) in new[] { (splits.Z, 2), (splits.X, 0), (splits.Y, 1) })
+        {
+            foreach (var (hmin, hmax) in list)
+            {
+                if (!(maxs.X - mins.X >= SplitMinimum) || !(maxs.Y - mins.Y >= SplitMinimum) || !(maxs.Z - mins.Z >= SplitMinimum))
+                    return;
+                if (!(mins.X > hmax.X) && !(hmin.X > maxs.X) && !(mins.Y > hmax.Y) && !(hmin.Y > maxs.Y)
+                    && !(mins.Z > hmax.Z) && !(hmin.Z > maxs.Z))
+                    (mins, maxs) = SplitOne(mins, maxs, hmin, hmax, axis, (short)tag, splits, found);
+                tag++;
+            }
+        }
+        if (!(maxs.X - mins.X >= SplitMinimum) || !(maxs.Y - mins.Y >= SplitMinimum) || !(maxs.Z - mins.Z >= SplitMinimum))
+            return;
+        found.Add((mins, maxs, 0));
+    }
+
+    private static (Vector3 Mins, Vector3 Maxs) SplitOne(Vector3 mins, Vector3 maxs, Vector3 hmin, Vector3 hmax, int axis, short tag,
+                                                         SplitHints splits, List<(Vector3, Vector3, short)> found)
+    {
+        static float Get(Vector3 v, int a) => a == 0 ? v.X : a == 1 ? v.Y : v.Z;
+        static Vector3 With(Vector3 v, int a, float x) => a == 0 ? v with { X = x } : a == 1 ? v with { Y = x } : v with { Z = x };
+        float cmin = Get(mins, axis), cmax = Get(maxs, axis), lo = Get(hmin, axis), hi = Get(hmax, axis);
+        if (SplitMinimum > cmax - lo || SplitMinimum > hi - cmin)
+            return (mins, maxs);
+        var below = lo - cmin >= SplitMinimum;
+        var above = cmax - hi >= SplitMinimum;
+        var from = below ? lo : cmin;
+        var to = above ? hi : cmax;
+        found.Add((With(mins, axis, from), With(maxs, axis, to), tag));
+        if (above)
+        {
+            if (below)
+                Cut(mins, With(maxs, axis, lo), splits, found);
+            return (With(mins, axis, hi), maxs);
+        }
+        if (below)
+            return (mins, With(maxs, axis, lo));
+        return (new Vector3(float.MaxValue), new Vector3(float.MinValue));
     }
 
     /// <summary>

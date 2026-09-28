@@ -143,8 +143,9 @@ public static class VisVoxelizer
     /// as <c>m_vMinBounds</c>.</param>
     /// <param name="max">Its far corner, <c>m_vMaxBounds</c>, which gives the depth.</param>
     /// <param name="baseVoxelSize">The compile's <c>BaseVoxelSize</c>, 8 by default.</param>
+    /// <param name="hints">The map's voxel hints (<see cref="VoxelHints"/>), in their sorted order.</param>
     public static Octree Build(
-        RayTraceEnvironment rte, Vector3 origin, Vector3 max, float baseVoxelSize = 8f)
+        RayTraceEnvironment rte, Vector3 origin, Vector3 max, float baseVoxelSize = 8f, IReadOnlyList<VoxelHint>? hints = null)
     {
         ArgumentNullException.ThrowIfNull(rte);
 
@@ -158,7 +159,7 @@ public static class VisVoxelizer
         var masks = new Dictionary<(int Level, (int X, int Y, int Z) Cell), ulong>();
         var branches = new int[BitOperations.Log2((uint)side) + 1];
         var cells = new HashSet<(int Level, (int X, int Y, int Z) Cell)>();
-        Descend(kd, origin, max, side, (0, 0, 0), masks, branches, cells);
+        Descend(kd, origin, max, side, (0, 0, 0), masks, branches, cells, baseVoxelSize, hints ?? []);
 
         // The leaf level has no branches of its own, and the array is indexed from
         // it, so the root's level is last and the count reads leaf-first.
@@ -177,16 +178,38 @@ public static class VisVoxelizer
     ///
     /// <para><c>cells</c> is the node's side counted in LEAVES, so 1 is a leaf.
     /// Boxes are halved at their midpoints, as the compile halves them.</para>
+    ///
+    /// <para>Voxel hints (Voxelize, 18002f890): the first hint in sorted order
+    /// whose box touches the node's decides for it. A node the hint box holds
+    /// whole stops splitting once its side is no more than the hint's region
+    /// size (<c>(int)(region / base)</c> against <c>(int)(side / base)</c>; 4
+    /// without a hint, which is the smallest leaf); and while the hint's voxel
+    /// size is at most a quarter of the side, every child is descended, the
+    /// empty ones too.</para>
     /// </summary>
     private static void Descend(
         TracerKd kd, Vector3 mins, Vector3 maxs, int cells, (int X, int Y, int Z) cell,
         Dictionary<(int Level, (int X, int Y, int Z) Cell), ulong> masks, int[] branches,
-        HashSet<(int Level, (int X, int Y, int Z) Cell)> branchCells)
+        HashSet<(int Level, (int X, int Y, int Z) Cell)> branchCells, float baseVoxelSize, IReadOnlyList<VoxelHint> hints)
     {
         var size = maxs.X - mins.X;
-        if (cells == 1)
+        var stopAt = VoxelsPerLeaf;
+        var every = false;
+        if (baseVoxelSize < size)
+            foreach (var hint in hints)
+            {
+                if (!(hint.Mins.X <= maxs.X && mins.X <= hint.Maxs.X && hint.Mins.Y <= maxs.Y && mins.Y <= hint.Maxs.Y
+                      && hint.Mins.Z <= maxs.Z && mins.Z <= hint.Maxs.Z))
+                    continue;
+                every = hint.Voxel <= size * 0.25f;
+                if (hint.Mins.X <= mins.X && hint.Mins.Y <= mins.Y && hint.Mins.Z <= mins.Z
+                    && maxs.X <= hint.Maxs.X && maxs.Y <= hint.Maxs.Y && maxs.Z <= hint.Maxs.Z)
+                    stopAt = (int)(hint.Region / baseVoxelSize);
+                break;
+            }
+        if (!(baseVoxelSize < size) || !(stopAt < (int)(size / baseVoxelSize)))
         {
-            Mask(kd, mins, maxs, fine: size <= RayTraceEnvironment.FineBoxSize, 0, cell, masks);
+            Mask(kd, mins, maxs, fine: size <= RayTraceEnvironment.FineBoxSize, BitOperations.Log2((uint)cells), cell, masks);
             return;
         }
 
@@ -205,11 +228,71 @@ public static class VisVoxelizer
                                  (octant & 4) == 0 ? mid.Z : maxs.Z);
             var childCell = (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
                              cell.Z * 2 + ((octant >> 2) & 1));
-            if (kd.Occupied(lo, hi, mask))
-                Descend(kd, lo, hi, half, childCell, masks, branches, branchCells);
+            if (kd.Occupied(lo, hi, mask) || every)
+                Descend(kd, lo, hi, half, childCell, masks, branches, branchCells, baseVoxelSize, hints);
             else if (narrow && kd.Occupied(lo, hi, Wide))
                 Mask(kd, lo, hi, fine: false, BitOperations.Log2((uint)half), childCell, masks);
         }
+    }
+
+    /// <summary>
+    /// One voxel hint as the sampler keeps it (FUN_18002ced0): the hint's box,
+    /// each side that reaches the scene's bounds (at or past them) moved out to
+    /// the root cube's; the voxel size, clamped to [4, 256]; and the region
+    /// size, which is the requested one held between the unclamped voxel size
+    /// and four times it (the voxel size when that is the larger).
+    /// </summary>
+    public sealed record VoxelHint(Vector3 Mins, Vector3 Maxs, float Voxel, float Region);
+
+    /// <summary>
+    /// The voxel hints of a map (Hints_Load, visbuilder 18002c970), sorted as
+    /// FUN_18003f940 sorts them, by voxel size and then region size, equal ones
+    /// kept in entity order. Types 0, 2, 3, 7, 8, 9 and 10 ask for voxels and
+    /// regions of 8 and 32, 32 and 64, 64 and 128, 64 and 256, 64 and 256,
+    /// 64 and 512, and 16 and 64; any other voxel hint asks for the base voxel
+    /// and four times it. Split hints (4, 5, 6) are not voxel hints.
+    /// </summary>
+    public static List<VoxelHint> VoxelHints(IReadOnlyList<VisHint> hints, Vector3 sceneMins, Vector3 sceneMaxs,
+                                             Vector3 rootMin, Vector3 rootMax, float baseVoxelSize)
+    {
+        ArgumentNullException.ThrowIfNull(hints);
+        var found = new List<VoxelHint>();
+        foreach (var hint in hints)
+        {
+            if (hint.Split)
+                continue;
+            var (voxel, region) = hint.Type switch
+            {
+                0 => (8f, 32f),
+                2 => (32f, 64f),
+                3 => (64f, 128f),
+                7 or 8 => (64f, 256f),
+                9 => (64f, 512f),
+                10 => (16f, 64f),
+                _ => (baseVoxelSize, baseVoxelSize * 4f),
+            };
+            Vector3 lo = hint.Mins, hi = hint.Maxs;
+            if (lo.X <= sceneMins.X)
+                lo.X = rootMin.X;
+            if (sceneMaxs.X <= hi.X)
+                hi.X = rootMax.X;
+            if (lo.Y <= sceneMins.Y)
+                lo.Y = rootMin.Y;
+            if (sceneMaxs.Y <= hi.Y)
+                hi.Y = rootMax.Y;
+            if (lo.Z <= sceneMins.Z)
+                lo.Z = rootMin.Z;
+            if (sceneMaxs.Z <= hi.Z)
+                hi.Z = rootMax.Z;
+            var clamped = voxel < 4f ? 4f : voxel <= 256f ? voxel : 256f;
+            var kept = voxel;
+            if (voxel <= region)
+                kept = region <= voxel * 4f ? region : voxel * 4f;
+            found.Add(new VoxelHint(lo, hi, clamped, kept));
+        }
+        // An insertion sort below 33 entries, which keeps equal ones in
+        // order; LINQ's stable sort gives the same.
+        return [.. found.OrderBy(h => h.Voxel).ThenBy(h => h.Region)];
     }
 
     /// <summary>The query masks: reject excluded triangles, and below 256 units the coarse-only ones too.</summary>

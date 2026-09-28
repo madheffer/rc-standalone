@@ -11,6 +11,13 @@ namespace Source2.Compiler.Maps;
 public sealed record VisConfig(int PvsType, System.Numerics.Vector3? DirToSun = null)
 {
     /// <summary>
+    /// The map's <c>visibility_hint</c> entities, in export order: the
+    /// <c>visibility_hints</c> array the build hands the voxel sampler
+    /// (VisBuild, visbuilder 18003d770, then Hints_Load 18002c970).
+    /// </summary>
+    public IReadOnlyList<VisHint> Hints { get; init; } = [];
+
+    /// <summary>
     /// <c>pvstype</c> 1 runs only the cluster-centre generator; any other value
     /// runs the full set (the flag <c>SampleVisForClusters</c> takes as
     /// <c>pvstype == 1</c>).
@@ -27,7 +34,36 @@ public sealed record VisConfig(int PvsType, System.Numerics.Vector3? DirToSun = 
         ArgumentNullException.ThrowIfNull(schema);
         var world = entities.FirstOrDefault(e => e.IsWorld);
         var pvs = world is null ? 10 : (int)CNumbers.Atoi(Key(world, "pvstype", schema) ?? "10");
-        return new VisConfig(pvs, SunOf(entities, schema));
+        return new VisConfig(pvs, SunOf(entities, schema)) { Hints = HintsOf(entities, schema) };
+    }
+
+    /// <summary>
+    /// The <c>visibility_hint</c> entities as the export writes them into the
+    /// .viscfg: each shipped one (a hidden node ships nothing) in export order,
+    /// its hintType (intchoices, FGD default 3), its box_mins and box_maxs
+    /// (vectors, FGD defaults -64 and 64) and its origin. A hint inside an
+    /// instance is placed by the instance, which is not ported: it throws.
+    /// </summary>
+    public static IReadOnlyList<VisHint> HintsOf(IReadOnlyList<MapEntities.Entity> entities, FgdSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(entities);
+        ArgumentNullException.ThrowIfNull(schema);
+        var hints = new List<VisHint>();
+        foreach (var e in entities)
+        {
+            if (!e.ClassName.Equals("visibility_hint", StringComparison.OrdinalIgnoreCase) || e.Hidden)
+                continue;
+            if (e.Instanced)
+                throw new NotSupportedException($"visibility_hint {e.NodeId}: a hint inside an instance is not ported");
+            static System.Numerics.Vector3 Vector(string? text)
+            {
+                var v = CNumbers.FloatArray(text ?? "", 3);
+                return new System.Numerics.Vector3(v[0], v[1], v[2]);
+            }
+            hints.Add(new VisHint((int)CNumbers.Atoi(Key(e, "hintType", schema) ?? "0"), e.Origin,
+                                  Vector(Key(e, "box_mins", schema)), Vector(Key(e, "box_maxs", schema))));
+        }
+        return hints;
     }
 
     /// <summary>
@@ -99,6 +135,36 @@ public sealed record VisConfig(int PvsType, System.Numerics.Vector3? DirToSun = 
             if (v.Length >= 3)
                 sun = new System.Numerics.Vector3(v[0], v[1], v[2]);
         }
-        return new VisConfig(root.ContainsKey("pvstype") ? root.GetInt32Property("pvstype") : 0, sun);
+        var hints = new List<VisHint>();
+        if (root.ContainsKey("visibility_hints"))
+            foreach (var hint in root.GetArray("visibility_hints"))
+            {
+                // Hints_Load reads each with a zero vector (DAT_1801b83a0) or 0
+                // for a key that is not there.
+                System.Numerics.Vector3 Vector(string key)
+                    => hint.ContainsKey(key) && hint.GetFloatArray(key) is { Length: >= 3 } v
+                        ? new System.Numerics.Vector3(v[0], v[1], v[2]) : System.Numerics.Vector3.Zero;
+                hints.Add(new VisHint(hint.ContainsKey("hintType") ? hint.GetInt32Property("hintType") : 0,
+                                      Vector("origin"), Vector("box_mins"), Vector("box_maxs")));
+            }
+        return new VisConfig(root.ContainsKey("pvstype") ? root.GetInt32Property("pvstype") : 0, sun) { Hints = hints };
     }
+}
+
+/// <summary>
+/// One <c>visibility_hint</c> entity as visibility reads it (Hints_Load,
+/// visbuilder 18002c970): the box is <c>origin + box_mins</c> to
+/// <c>origin + box_maxs</c>, angles ignored. Types 4, 5 and 6 are the x, y and
+/// z split hints; every other type is a voxel hint (<see cref="VisVoxelizer.VoxelHint"/>).
+/// </summary>
+public sealed record VisHint(int Type, System.Numerics.Vector3 Origin, System.Numerics.Vector3 BoxMins, System.Numerics.Vector3 BoxMaxs)
+{
+    /// <summary>The box's low corner, <c>origin + box_mins</c> in float.</summary>
+    public System.Numerics.Vector3 Mins => new(Origin.X + BoxMins.X, Origin.Y + BoxMins.Y, Origin.Z + BoxMins.Z);
+
+    /// <summary>The box's high corner, <c>origin + box_maxs</c> in float.</summary>
+    public System.Numerics.Vector3 Maxs => new(Origin.X + BoxMaxs.X, Origin.Y + BoxMaxs.Y, Origin.Z + BoxMaxs.Z);
+
+    /// <summary>Whether the hint is an axis split (types 4, 5, 6) rather than a voxel hint.</summary>
+    public bool Split => Type is 4 or 5 or 6;
 }
