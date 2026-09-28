@@ -219,7 +219,7 @@ public static partial class EntityLumpAuthor
         values.Add("origin", Vector(entity.Origin));
         values.Add("angles", Vector(entity.Angles));
         values.Add("scales", Vector(entity.Scales));
-        values.Add("hammerUniqueId", new KVObject(entity.NodeId.ToString(CultureInfo.InvariantCulture)));
+        values.Add("hammerUniqueId", new KVObject(entity.IdPath));
         ExportLighting(entity, values, table, context.LightingKeys);
 
         // A path's nodes are folded into keys of its own, written after the

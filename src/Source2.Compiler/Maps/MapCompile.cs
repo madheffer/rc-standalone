@@ -62,16 +62,12 @@ public static class MapCompile
 
     /// <summary>
     /// Entity classes whose lump keys the port does not write in full yet: the
-    /// lights' shape and bake keys, and the probe volumes' and cubemaps' bake
-    /// keys (docs/COVERAGE.md). A lump holding one is refused unless the caller
+    /// lights' precomputed shape keys, shadow slots and vis clusters
+    /// (docs/COVERAGE.md). Probe volumes and cubemaps are exact. A lump holding one is refused unless the caller
     /// accepts the gap, because shipping it would lose what Valve's lump has.
     /// </summary>
     public static bool HasLumpGap(string className)
-        => className.StartsWith("light_", StringComparison.OrdinalIgnoreCase)
-           || className.Equals("env_cubemap", StringComparison.OrdinalIgnoreCase)
-           || className.Equals("env_cubemap_box", StringComparison.OrdinalIgnoreCase)
-           || className.Equals("env_light_probe_volume", StringComparison.OrdinalIgnoreCase)
-           || className.Equals("env_combined_light_probe_volume", StringComparison.OrdinalIgnoreCase);
+        => className.StartsWith("light_", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// A map compile from resourcecompiler's own command line, on the parts

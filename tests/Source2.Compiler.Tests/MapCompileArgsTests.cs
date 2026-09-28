@@ -77,12 +77,13 @@ public class MapCompileArgsTests(ITestOutputHelper output)
         // Hammer's Full line is refused, and leaves the package alone.
         Assert.Equal(1, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-world", "-phys", "-vis"]), log));
         Assert.Contains("not ported: world", log.ToString());
-        // Without --accept-gaps a light stops the lump.
-        Assert.Equal(1, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-entities"]), log));
+        // s2c_rounds has no light, so nothing stops the lump (a light would, without --accept-gaps).
+        Assert.DoesNotContain(MapEntities.From(DmxBinary.ReadFile(source)), e => MapCompile.HasLumpGap(e.ClassName));
 
-        // The settle does not port props with sphere shapes, which s2c_rounds has.
-        Assert.Equal(1, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-entities"]), log, acceptGaps: true));
-        Assert.Contains("not ported: a model with sphere shapes", log.ToString());
+        // s2c_rounds' props have sphere shapes, which the settle does not port;
+        // with nothing to settle it builds no world, and the build goes through.
+        Assert.Equal(0, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-entities"]), log, acceptGaps: true));
+        File.Copy(valve, package, overwrite: true);
 
         Assert.Equal(0, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-entities", "-phys", "-nosettle"]), log, acceptGaps: true));
         output.WriteLine(log.ToString());
@@ -93,7 +94,10 @@ public class MapCompileArgsTests(ITestOutputHelper output)
         // Valve's).
         var document = DmxBinary.ReadFile(source);
         using var assets = new GameContent(CS2Fixtures.StockPak()!, Path.GetDirectoryName(Path.GetDirectoryName(valve)!)!);
-        var expected = MapCompile.EntityLumps(document, "s2c_rounds", MapFixtures.GameSchema()!, assets, settle: false)
+        var baked = before.Keys.Any(k => k.StartsWith("maps/s2c_rounds/lightmaps/irradiance.vtex_c", StringComparison.OrdinalIgnoreCase)
+                                      || k.StartsWith("maps/s2c_rounds/lightmaps/direct_light_shadows.vtex_c", StringComparison.OrdinalIgnoreCase));
+        var expected = MapCompile.EntityLumps(document, "s2c_rounds", MapFixtures.GameSchema()!, assets, settle: false,
+                                              bakedLighting: baked, entitiesOnly: true)
             .ToDictionary(l => l.Path, l => l.Bytes);
         var world = Physics.WorldPhysicsFiles.Build(document, "s2c_rc_probe", "s2c_rounds", assets, null, []);
         expected[world.ModelPath] = world.Model;

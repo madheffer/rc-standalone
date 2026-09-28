@@ -31,11 +31,14 @@ public static partial class SettleWorld
     /// </remarks>
     public static Dictionary<int, Settlement> Run(DmxBinary.Document document, IModels models, FgdSchema schema, int createdOnLoad = 0)
     {
-        var bodies = Build(document, models, schema, createdOnLoad);
+        var all = Build(document, models, schema, createdOnLoad);
+        var bodies = all.Where(b => b.Unsupported == null).ToList();
         var eligible = Eligible(document, bodies, models, schema);
         var result = new Dictionary<int, Settlement>();
         if (eligible.Count == 0)
             return result;
+        if (all.FirstOrDefault(b => b.Unsupported != null) is { } refused)
+            throw new NotSupportedException($"node {refused.NodeId}: {refused.Unsupported}");
         var settled = Settled(document, bodies, models, schema);
         var world = CreateWorld(bodies, settled);
         for (var step = 0; step < SettleSteps; step++)

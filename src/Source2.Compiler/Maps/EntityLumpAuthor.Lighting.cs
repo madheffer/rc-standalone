@@ -117,7 +117,7 @@ public static partial class EntityLumpAuthor
                 Set(table, "custom" + r.Key, "1");
                 continue;
             }
-            var path = $"_bakeresourcecache/{lighting.MapPath}_baked/{r.Prefix}_{entity.NodeId.ToString(CultureInfo.InvariantCulture)}.{r.Extension}";
+            var path = $"_bakeresourcecache/{lighting.MapPath}_baked/{r.Prefix}_{entity.IdPath.Replace(':', '_')}.{r.Extension}";
             Set(table, r.Key, path);
         }
 

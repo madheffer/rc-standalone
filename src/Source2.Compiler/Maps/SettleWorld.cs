@@ -38,6 +38,14 @@ public static partial class SettleWorld
     {
         /// <summary>The map node the body comes from (for a placed copy, the template node).</summary>
         public DmxBinary.Element? Node { get; init; }
+
+        /// <summary>
+        /// What of the body is not ported (sphere shapes, a capsule at a
+        /// non-uniform scale, an aggregate), or null. Such a body is left out;
+        /// the settle refuses to simulate while one exists, since it could meet a
+        /// settling prop, but a map with nothing to settle needs no world.
+        /// </summary>
+        public string? Unsupported { get; init; }
     }
 
     /// <summary>The model resources the build reads: a model path's physics aggregate, or null.</summary>
@@ -355,7 +363,10 @@ public static partial class SettleWorld
         if (parts.Length == 0)
             return;
         if (parts.Length > 1)
-            throw new NotSupportedException("a model with several physics parts (an aggregate)");
+        {
+            bodies.Add(new BodyBuild(nodeId, default, 1f, Quaternion.Identity, []) { Node = node, Unsupported = "a model with several physics parts (an aggregate)" });
+            return;
+        }
         var scales = node.GetValue<Vector3>("scales") ?? Vector3.One;
         var u = MathF.Max(MathF.Max(MathF.Abs(scales.X), MathF.Abs(scales.Y)), MathF.Abs(scales.Z));
         // Only a static_prop class keeps a non-uniform scale; any other gets
@@ -386,13 +397,19 @@ public static partial class SettleWorld
         foreach (var c in shape.Capsules)
         {
             if (matrix != null)
-                throw new NotSupportedException("a capsule at a non-uniform scale");
+            {
+                bodies.Add(body with { Unsupported = "a capsule at a non-uniform scale" });
+                return;
+            }
             body.Shapes.Add(new ShapeBuild(CapsuleType, null, u, null, Vector3.One, Attributes(c.CollisionAttributeIndex),
                                            Material(c.SurfacePropertyIndex), c.UserFriendlyName ?? "")
                             { Capsule = (c.Shape.Center[0], c.Shape.Center[1], c.Shape.Radius) });
         }
         if (shape.Spheres.Length > 0)
-            throw new NotSupportedException("a model with sphere shapes");
+        {
+            bodies.Add(body with { Unsupported = "a model with sphere shapes" });
+            return;
+        }
         foreach (var h in shape.Hulls)
         {
             var hull = Hull(h.Shape);

@@ -60,7 +60,7 @@ public static class EntityLumpSet
         if (nodeIds is null || mesh.Key is null)
             return entity;
         var id = (int)CNumbers.Atoi(mesh.Value);
-        if (entity.Instanced && id >= 1)
+        if ((entity.Instanced || entity.Prefabs.Length > 0) && id >= 1)
             throw new NotSupportedException(
                 $"{entity.ClassName} {entity.NodeId}: a particle snapshot node inside an instance is not ported");
         if (id != 1 && !nodeIds.Contains(id))
@@ -333,7 +333,7 @@ public static class EntityLumpSet
         // A settled prop, placed or copied, stands where the settle left it
         // (SettleWorld.Run), with the keys CMapEntity_SetStartAsleep changed.
         MapEntities.Entity Settle(MapEntities.Entity e)
-            => settled is not null && schema is not null && settled.TryGetValue(e.NodeId, out var s)
+            => settled is not null && schema is not null && e.Prefabs.Length == 0 && settled.TryGetValue(e.NodeId, out var s)
                 ? e with
                 {
                     Origin = s.Moved ? s.Origin : e.Origin,

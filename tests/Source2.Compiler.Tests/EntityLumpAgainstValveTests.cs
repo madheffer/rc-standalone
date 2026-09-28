@@ -57,9 +57,32 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         Check(map, source, valve);
     }
 
+    /// <summary>
+    /// The prefab probe (tools/physics/prefab_probe_map.py): s2c_rounds with a
+    /// moved, turned CMapPrefab of s2c_propover. Its entities ship by id path
+    /// (108:3) where the prefab stands. The reference is a full compile kept at
+    /// %TEMP%/gt/s2c_prefabprobe.vpk (tools' gt_compile.sh).
+    /// </summary>
+    [Fact]
+    public void PrefabProbe_DiffersOnlyInTheDocumentedGaps()
+    {
+        const string map = "s2c_prefabprobe";
+        var source = MapFixtures.VmapSource("s2c_rc_probe", map);
+        var package = Path.Combine(Path.GetTempPath(), "gt", map + ".vpk");
+        if (source is null || !File.Exists(package)) { MapFixtures.Skip($"the {map} source and its compile"); return; }
+        using var pkg = new ValvePak.Package();
+        pkg.Read(package);
+        var valve = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+            valve[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
+        Check(map, source, valve);
+    }
+
     private void Check(string map, string source, IReadOnlyDictionary<string, byte[]> valve)
     {
         var document = DmxBinary.ReadFile(source);
+        // content/csgo_addons/<addon>/maps/<map>.vmap: prefabs load from the addon's content.
+        Maps.MapPrefabs.Attach(document, Maps.MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(source))!));
         var ours = EntityLumpSet.Author(MapEntities.From(document), MapFixtures.GameSchema(), map,
                                         MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators,
                                         SettleLumpTests.Settle(document, source), BakedIn(valve));
