@@ -78,8 +78,8 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
                 EntityLumpComparison.Read(lump.Bytes, lump.Path));
             total += report.Count;
             if (Environment.GetEnvironmentVariable("LUMPDIFF") is { Length: > 0 } shown)
-                foreach (var line in report.Where(l => l.Contains(shown, StringComparison.Ordinal)).Take(60))
-                    output.WriteLine("    " + line);
+                foreach (var line in report.Where(l => l.Contains(shown, StringComparison.Ordinal)).Take(Environment.GetEnvironmentVariable("LUMPDIFF_ALL") is null ? 60 : int.MaxValue))
+                    output.WriteLine($"    {Path.GetFileName(lump.Path)} {line}");
             classes.AddRange(report.Select(line => ClassOf().Match(line)).Where(m => m.Success).Select(m => m.Groups[1].Value));
             unexplained.AddRange(report.Where(line => !IsKnownGap(line))
                                        .Select(line => $"{Path.GetFileName(lump.Path)}: {line}"));
@@ -97,9 +97,8 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     /// atlas or carry a light's map unique id, keys only the flag adds.
     /// </summary>
     internal static bool BakedIn(IReadOnlyDictionary<string, byte[]> valve)
-        => valve.Values.Any(b => Contains(b, "env_light_probe_volume_atlas.vtex"u8) || Contains(b, "light_map_uniqueid"u8));
-
-    private static bool Contains(byte[] bytes, ReadOnlySpan<byte> text) => bytes.AsSpan().IndexOf(text) >= 0;
+        => valve.Any(l => EntityLumpComparison.Read(l.Value, l.Key).Any(e => e.Values.ContainsKey("light_map_uniqueid")
+               || e.Values.TryGetValue("lightprobetexture", out var v) && v.Value.EndsWith("env_light_probe_volume_atlas.vtex", StringComparison.Ordinal)));
 
     /// <summary>The gaps, each with its reason. Keep in step with
     /// docs/MAP_RESOURCES.md.</summary>

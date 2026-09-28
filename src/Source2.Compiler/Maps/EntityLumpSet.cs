@@ -92,7 +92,8 @@ public static class EntityLumpSet
         DmxBinary.Document? document = null,
         Func<string, int>? smartPropLocators = null,
         IReadOnlyDictionary<int, Maps.SettleWorld.Settlement>? settled = null,
-        bool bakedLighting = false)
+        bool bakedLighting = false,
+        bool entitiesOnly = false)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
@@ -112,11 +113,13 @@ public static class EntityLumpSet
                 placed[entity.Layer is { } layer && layers.IndexOf(layer) is var at and >= 0 ? at + 1 : 0]
                     .Add(new(entity, sourceId));
 
-        // The lighting counters run over the export, lump by lump.
+        // The lighting counters run over the export, lump by lump; a hidden node
+        // is not exported and takes no count (Mako: three hidden probe volumes).
         context = context with
         {
             LightingKeys = EntityLumpAuthor.Lighting.For($"maps/{worldName}", bakedLighting,
-                placed.SelectMany(w => w.Select(e => e.Entity))),
+                placed.SelectMany(w => w.Select(e => e.Entity)).Where(e => !e.Hidden),
+                packAtlas: bakedLighting || entitiesOnly, schema),
         };
         var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
         worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));

@@ -257,6 +257,8 @@ public static partial class EntityLumpAuthor
                 values.Add("worldname", new KVObject(worldName));
         }
 
+        AtlasKeys(entity, values, context.LightingKeys);
+
         // version is written through the 0/1 path like any other 1: Int64.
         var keyValues = KVObject.Collection();
         keyValues.Add("version", Integer(1));

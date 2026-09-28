@@ -18,9 +18,11 @@ public static partial class EntityLumpAuthor
     /// <param name="Baked">Whether baked lighting is available to this compile.</param>
     /// <param name="Handshake">Each probe or cubemap entity's handshake, in export order.</param>
     /// <param name="CubeIndex">Each cubemap-carrying entity's cube array index, in export order.</param>
+    /// <param name="Atlas">Each probe volume's place in the probe atlas, when the atlas is packed.</param>
     public sealed record Lighting(string MapPath, bool Baked,
                                   IReadOnlyDictionary<MapEntities.Entity, int> Handshake,
-                                  IReadOnlyDictionary<MapEntities.Entity, int> CubeIndex)
+                                  IReadOnlyDictionary<MapEntities.Entity, int> CubeIndex,
+                                  IReadOnlyDictionary<MapEntities.Entity, Maps.ProbeAtlas.Place>? Atlas = null)
     {
         /// <summary>
         /// The counters over the entities in export order. The handshake starts
@@ -29,7 +31,12 @@ public static partial class EntityLumpAuthor
         /// cubemap or probe entity; the cube array index counts from 0 over the
         /// entities that carry a cubemap.
         /// </summary>
-        public static Lighting For(string mapPath, bool baked, IEnumerable<MapEntities.Entity> exportOrder)
+        /// <param name="packAtlas">Whether the probe atlas is packed: CS2's gameinfo sets
+        /// LPVAtlas 1, and the builder packs it in an entities-only build
+        /// (CWorldRendererBuilder_Build) and when it bakes lighting.</param>
+        /// <param name="schema">The FGD, for each probe volume's grid.</param>
+        public static Lighting For(string mapPath, bool baked, IEnumerable<MapEntities.Entity> exportOrder,
+                                   bool packAtlas = false, FgdSchema? schema = null)
         {
             var bytes = Encoding.UTF8.GetBytes(mapPath.Replace('/', '\\'));
             var seed = Io.ResourceNames.Hash(bytes, bytes.Length, 0x3501a674) & 0x7fffffff;
@@ -37,14 +44,28 @@ public static partial class EntityLumpAuthor
                 seed -= 0xff;
             var handshake = new Dictionary<MapEntities.Entity, int>(ReferenceEqualityComparer.Instance);
             var cube = new Dictionary<MapEntities.Entity, int>(ReferenceEqualityComparer.Instance);
+            var volumes = new List<MapEntities.Entity>();
             foreach (var e in exportOrder)
             {
                 if (HandshakeClasses.Contains(e.ClassName))
                     handshake[e] = (int)seed + handshake.Count;
                 if (CubemapClasses.Contains(e.ClassName))
                     cube[e] = cube.Count;
+                if (ProbeVolumeClasses.Contains(e.ClassName))
+                    volumes.Add(e);
             }
-            return new Lighting(mapPath, baked, handshake, cube);
+            // Each probe volume leaves a record in export order (180240a60) whose
+            // sizes are its grid; the packer places them (1801f5a80).
+            Dictionary<MapEntities.Entity, Maps.ProbeAtlas.Place>? atlas = null;
+            if (packAtlas)
+            {
+                var places = Maps.ProbeAtlas.Pack([.. volumes.Select(v => ProbeGrid(KeyTable(v, schema)))
+                                                         .Select(g => new Maps.ProbeAtlas.Place(g.X, g.Y, g.Z))]);
+                atlas = new(ReferenceEqualityComparer.Instance);
+                for (var i = 0; i < volumes.Count; i++)
+                    atlas[volumes[i]] = places[i];
+            }
+            return new Lighting(mapPath, baked, handshake, cube, atlas);
         }
     }
 
@@ -181,6 +202,20 @@ public static partial class EntityLumpAuthor
         if (largest > 128)
             (x, y, z) = (x * 128 / largest, y * 128 / largest, z * 128 / largest);
         return (Math.Max(x, 2), Math.Max(y, 2), Math.Max(z, 2));
+    }
+
+    /// <summary>
+    /// The probe atlas keys, which the packer sets on the exported entity after
+    /// the lump is built, so they follow every other key: light_probe_atlas_x,
+    /// light_probe_atlas_Y and light_probe_atlas_Z, spelled so.
+    /// </summary>
+    private static void AtlasKeys(MapEntities.Entity entity, KVObject values, Lighting? lighting)
+    {
+        if (lighting?.Atlas is not { } atlas || !atlas.TryGetValue(entity, out var place))
+            return;
+        Put(values, "light_probe_atlas_x", Integer(place.X));
+        Put(values, "light_probe_atlas_Y", Integer(place.Y));
+        Put(values, "light_probe_atlas_Z", Integer(place.Z));
     }
 
     /// <summary>A key set where it stands, or added at the end.</summary>
