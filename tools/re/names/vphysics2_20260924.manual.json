@@ -1418,9 +1418,9 @@
   },
   {
    "addr": "1802fe400",
-   "name": "RnMatrixToQuaternion",
+   "name": "CRnMeshContact_ShapeBounds",
    "module": "s2c:entities/settle",
-   "note": ""
+   "note": "shape vfn 0x80 in mesh space (compound children inline); was misnamed RnMatrixToQuaternion"
   },
   {
    "addr": "1802fe660",
@@ -2225,6 +2225,198 @@
    "name": "QuickHull_RebuildFace",
    "module": "s2c:physics/hull",
    "note": "Newell normal, vertex mean, area"
+  },
+  {
+   "addr": "18008b720",
+   "name": "ClosestPointOnTriangle",
+   "module": "s2c:math",
+   "note": "Voronoi region out: 1-3 vertices, 4 ab, 6 ac, 5 bc, 7 face"
+  },
+  {
+   "addr": "18024ba70",
+   "name": "CRnSphereShape::ComputeAabb",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x80; unpadded"
+  },
+  {
+   "addr": "18024bb80",
+   "name": "CRnSphereShape::Bounds",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x88; drag reads it"
+  },
+  {
+   "addr": "18024c8b0",
+   "name": "CRnSphereShape::Areas",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x90; pi/4 on each axis"
+  },
+  {
+   "addr": "18024cbd0",
+   "name": "CRnSphereShape::SetScale",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x98; +0xb8.. = scale times +0xc8.."
+  },
+  {
+   "addr": "18024c750",
+   "name": "CRnSphereShape::BoundingSphere",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xc0; world centre, radius unpadded"
+  },
+  {
+   "addr": "18024c820",
+   "name": "CRnSphereShape::FarthestDistance",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xd0; |c - p| + r"
+  },
+  {
+   "addr": "18024d770",
+   "name": "CRnCapsuleShape::ComputeAabb",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x80; unpadded"
+  },
+  {
+   "addr": "18024d9f0",
+   "name": "CRnCapsuleShape::Bounds",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x88; both ends"
+  },
+  {
+   "addr": "18024f610",
+   "name": "CRnCapsuleShape::Areas",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0x90; swept circle over the box face per axis"
+  },
+  {
+   "addr": "18024f390",
+   "name": "CRnCapsuleShape::BoundingSphere",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xc0; midpoint, half length plus radius"
+  },
+  {
+   "addr": "180292590",
+   "name": "RnSphere_MassProperties",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f5240",
+   "name": "RnCollideSphereSphere",
+   "module": "s2c:entities/settle",
+   "note": "convex dispatch 0x1803e4200 [0][0]"
+  },
+  {
+   "addr": "1802f38c0",
+   "name": "RnCollideSphereCapsule",
+   "module": "s2c:entities/settle",
+   "note": "[0][1]"
+  },
+  {
+   "addr": "1802f3f30",
+   "name": "RnCollideSphereHull",
+   "module": "s2c:entities/settle",
+   "note": "[0][2]; GJK, deepest face when the centre is inside"
+  },
+  {
+   "addr": "1802f0cf0",
+   "name": "RnCollideCapsuleCapsule",
+   "module": "s2c:entities/settle",
+   "note": "[1][1]"
+  },
+  {
+   "addr": "1802efbc0",
+   "name": "RnCollideCapsuleHull",
+   "module": "s2c:entities/settle",
+   "note": "[1][2]; GJK then RnCapsuleHull_Manifold"
+  },
+  {
+   "addr": "1802f29a0",
+   "name": "RnCapsuleHull_Manifold",
+   "module": "s2c:entities/settle",
+   "note": "face clip under the 0.003125 deep threshold, else GJK points"
+  },
+  {
+   "addr": "1802f13a0",
+   "name": "RnCapsuleHull_SeparatingAxes",
+   "module": "s2c:entities/settle",
+   "note": "face then edge queries; edge replaces face by 0.98 and 1/64"
+  },
+  {
+   "addr": "18028c730",
+   "name": "RnCapsuleHull_FaceQuery",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18028b420",
+   "name": "RnCapsuleHull_EdgeQuery",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802edc30",
+   "name": "RnCapsuleHull_FaceContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802eca60",
+   "name": "RnCapsuleHull_EdgeContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f5760",
+   "name": "RnHull_BestFace",
+   "module": "s2c:entities/settle",
+   "note": "first plane furthest along d"
+  },
+  {
+   "addr": "180336e70",
+   "name": "RnClipSegmentToFace",
+   "module": "s2c:entities/settle",
+   "note": "side planes of a hull face"
+  },
+  {
+   "addr": "1803bb660",
+   "name": "RnClipSegmentByPlane",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803bb1c0",
+   "name": "RnClipSegment_Init",
+   "module": "s2c:entities/settle",
+   "note": "features 0 and 0x01000100"
+  },
+  {
+   "addr": "1803bb830",
+   "name": "RnClampDepthShift",
+   "module": "s2c:entities/settle",
+   "note": "b - a held to 0..1/8"
+  },
+  {
+   "addr": "1802f49d0",
+   "name": "RnCollideSphereTriangle",
+   "module": "s2c:entities/settle",
+   "note": "mesh path; clears the 0x3c triangle cache on a miss"
+  },
+  {
+   "addr": "1802efd30",
+   "name": "RnCollideCapsuleTriangle",
+   "module": "s2c:entities/settle",
+   "note": "mesh path; the triangle as a two-faced hull"
+  },
+  {
+   "addr": "1802fbce0",
+   "name": "CRnMeshContact_CollideTriangleByType",
+   "module": "s2c:entities/settle",
+   "note": "sphere, capsule or hull A against one triangle"
+  },
+  {
+   "addr": "180303b70",
+   "name": "CRnMeshContact_ShapeBoundingSphere",
+   "module": "s2c:entities/settle",
+   "note": "shape vfn 0xc0 (compound children inline)"
   },
   {
    "addr": "1803fbf50",

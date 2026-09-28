@@ -57,11 +57,20 @@ public class VisBuildTests(ITestOutputHelper output)
             => (BitConverter.SingleToInt32Bits(x.X), BitConverter.SingleToInt32Bits(x.Y), BitConverter.SingleToInt32Bits(x.Z));
     }
 
-    /// <summary>Everything from the .vmap: our trace scene and our settings.</summary>
+    /// <summary>
+    /// Everything from the .vmap: our trace scene and our settings. atixref
+    /// and Mako take hours (cluster generation alone is about an hour on
+    /// atixref), so they run only with VISBUILD_BIG=1.
+    /// </summary>
     [Theory]
     [MemberData(nameof(Sources))]
     public void FromTheMap(string addon, string map, string compiledIn)
     {
+        if (map is "atixref" or "ze_ffvii_mako_reactor_v6_p" && Environment.GetEnvironmentVariable("VISBUILD_BIG") != "1")
+        {
+            output.WriteLine($"{map}: set VISBUILD_BIG=1 to run it (hours)");
+            return;
+        }
         var source = MapFixtures.VmapSource(addon, map);
         if (source is null || VisFixtures.RayTraceScene(compiledIn, map) is not var (_, shipped)
             || CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)
@@ -76,7 +85,11 @@ public class VisBuildTests(ITestOutputHelper output)
         bool RendersAsWorld(string c) => schema.IsSolidClass(c) && schema.HasFlag(c, "render_as_world_but_physics_as_entity");
         var document = DmxBinary.ReadFile(source);
         var scene = TraceScene.Environment(TraceScene.Triangles(MapMeshes.Read(document), content.Material, m => visFlags[m], RendersAsWorld));
-        var ours = VisBuild.Run(scene, VisConfig.FromMap(MapEntities.From(document), schema)).WriteVxvs();
+        // VISBUILD_PROGRESS names a file each finished stage is appended to, with its time.
+        var progress = Environment.GetEnvironmentVariable("VISBUILD_PROGRESS");
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var ours = VisBuild.Run(scene, VisConfig.FromMap(MapEntities.From(document), schema), stage: progress is { Length: > 0 }
+            ? name => File.AppendAllText(progress, $"{map} {name} {clock.Elapsed.TotalSeconds:F0} s{Environment.NewLine}") : null).WriteVxvs();
         var theirs = shipped.WriteVxvs();
         var differing = Enumerable.Range(0, Math.Min(ours.Length, theirs.Length)).Count(i => ours[i] != theirs[i])
                         + Math.Abs(ours.Length - theirs.Length);

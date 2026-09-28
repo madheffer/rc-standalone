@@ -2683,6 +2683,222 @@
    "note": ""
   },
   {
+   "addr": "180fc9590",
+   "name": "MapWorld_RayTraceSceneAt",
+   "module": "s2c:baked/light-keys",
+   "note": "world +0x2bd0"
+  },
+  {
+   "addr": "180fcad70",
+   "name": "MapWorld_RegisterRaytraceOwner",
+   "module": "s2c:baked/light-keys",
+   "note": "owner -> job at +0x2da0, then the job's update"
+  },
+  {
+   "addr": "180fcaec0",
+   "name": "MapWorld_AddChildWorld",
+   "module": "s2c:baked/light-keys",
+   "note": "a referenced world is itself an owner (+0xf8)"
+  },
+  {
+   "addr": "180fcd780",
+   "name": "MapWorld_UpdateRayTraceScene",
+   "module": "s2c:baked/light-keys",
+   "note": "updates dirty owners, children, then finalises the scene"
+  },
+  {
+   "addr": "18100edc0",
+   "name": "RaytraceOwnerJob_ctor",
+   "module": "s2c:baked/light-keys",
+   "note": "{owner, scene, instances}"
+  },
+  {
+   "addr": "18100fd50",
+   "name": "RaytraceOwnerJob_Update",
+   "module": "s2c:baked/light-keys",
+   "note": "one instance per placement: step matrix times owner vf 0x10; env flags from owner vf 0x30"
+  },
+  {
+   "addr": "181c13ac0",
+   "name": "RayScene_AddInstance",
+   "module": "s2c:baked/light-keys",
+   "note": "0xd0-byte instance of a child scene"
+  },
+  {
+   "addr": "181c19970",
+   "name": "RayScene_SetInstanceTransform",
+   "module": "s2c:baked/light-keys",
+   "note": "+0x10 local to world, +0x40 its inverse (FUN_18125ade0), +0x70 box"
+  },
+  {
+   "addr": "181c15640",
+   "name": "RayScene_Finalise",
+   "module": "s2c:baked/light-keys",
+   "note": "children first, then SetupAccelerationStructure"
+  },
+  {
+   "addr": "181c19be0",
+   "name": "RayScene_SetupAccelerationStructure",
+   "module": "s2c:baked/light-keys",
+   "note": "corners to CacheOptimizedTriangle, kd build"
+  },
+  {
+   "addr": "181c14800",
+   "name": "CacheOptimizedTriangle_FromCorners",
+   "module": "s2c:baked/light-keys",
+   "note": "same record as visbuilder 180118e90"
+  },
+  {
+   "addr": "181c1bf10",
+   "name": "RayBatch_Add",
+   "module": "s2c:baked/light-keys",
+   "note": "files a segment by delta sign octant; traces a full packet"
+  },
+  {
+   "addr": "181c1bd70",
+   "name": "RayBatch_AddSecond",
+   "module": "s2c:baked/light-keys",
+   "note": "the same, for the flag 8 second rays"
+  },
+  {
+   "addr": "181c1c530",
+   "name": "RayBatch_Flush",
+   "module": "s2c:baked/light-keys",
+   "note": "pads short packets with the first ray"
+  },
+  {
+   "addr": "181c1c3c0",
+   "name": "RayBatch_FlushSecond",
+   "module": "s2c:baked/light-keys",
+   "note": ""
+  },
+  {
+   "addr": "181c1d010",
+   "name": "RayBatch_TracePacket",
+   "module": "s2c:baked/light-keys",
+   "note": "dir = delta * refined rcpps(len); mode 1/2/else then the instance pass; hit beyond len dropped"
+  },
+  {
+   "addr": "181c02a20",
+   "name": "RayScene_TracePacket",
+   "module": "s2c:baked/light-keys",
+   "note": "per-scene dispatch on mode; regroups lanes of mixed signs"
+  },
+  {
+   "addr": "181c065f0",
+   "name": "RayScene_TraceMode1",
+   "module": "s2c:baked/light-keys",
+   "note": "keeps hits with denom > 0 unless flag 2"
+  },
+  {
+   "addr": "181c0a000",
+   "name": "RayScene_TraceMode2",
+   "module": "s2c:baked/light-keys",
+   "note": "keeps hits with denom < 0 unless flag 2; |denom| > 1e-10; triangle skipped on mask & flags"
+  },
+  {
+   "addr": "181c10ea0",
+   "name": "RayScene_TraceInstances",
+   "module": "s2c:baked/light-keys",
+   "note": "ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance"
+  },
+  {
+   "addr": "181c12720",
+   "name": "Matrix3x4_TransformPoints4",
+   "module": "s2c:baked/light-keys",
+   "note": "t + ((x m0 + y m1) + z m2) per row, four lanes"
+  },
+  {
+   "addr": "181c15d00",
+   "name": "RayScene_InstanceNodeHit",
+   "module": "s2c:baked/light-keys",
+   "note": "instance tree node box test"
+  },
+  {
+   "addr": "1813ce820",
+   "name": "MapMeshGeometry_BuildRayScene",
+   "module": "s2c:baked/light-keys",
+   "note": "rebuilds the mesh scene when its geometry sums change"
+  },
+  {
+   "addr": "1810d5840",
+   "name": "MapMeshGeometry_RayScene",
+   "module": "s2c:baked/light-keys",
+   "note": "the mesh's own scene (+0x34f0)"
+  },
+  {
+   "addr": "1810d5830",
+   "name": "MapMeshGeometry_RayFlags",
+   "module": "s2c:baked/light-keys",
+   "note": "+0x3508, part of the mesh owner flags; writer not found"
+  },
+  {
+   "addr": "1810e6d10",
+   "name": "CMapMesh_GetDisableShadows",
+   "module": "s2c:baked/light-keys",
+   "note": "node +0x3b6c"
+  },
+  {
+   "addr": "181f045c0",
+   "name": "Model_RayScene",
+   "module": "s2c:baked/light-keys",
+   "note": "a model's scene: its LOD 0 meshes' MeshSystem ray data, instanced"
+  },
+  {
+   "addr": "181f110c0",
+   "name": "ModelRayScene_Build",
+   "module": "s2c:baked/light-keys",
+   "note": "per mesh MeshSystem001 vf 0xe8, instanced at identity"
+  },
+  {
+   "addr": "181f06ff0",
+   "name": "Model_MeshSelected",
+   "module": "s2c:baked/light-keys",
+   "note": "LOD 0 (or no LOD) and the mesh group mask"
+  },
+  {
+   "addr": "180f06c20",
+   "name": "CModelHelper_Init",
+   "module": "s2c:baked/light-keys",
+   "note": "+0xb2 when the class metadata has static_prop"
+  },
+  {
+   "addr": "180dd2630",
+   "name": "EntityClass_HasStaticProp",
+   "module": "s2c:baked/light-keys",
+   "note": "class metadata key static_prop"
+  },
+  {
+   "addr": "18125ade0",
+   "name": "MatrixInvertGeneral",
+   "module": "s2c:math",
+   "note": "3x4 inverse by the adjugate; identity below 1.17549435e-35"
+  },
+  {
+   "addr": "18125bfe0",
+   "name": "Matrix3x4_ScaleColumns",
+   "module": "s2c:math",
+   "note": "columns times a scale vector"
+  },
+  {
+   "addr": "180f0d670",
+   "name": "CModelHelper_RaytraceFlags",
+   "module": "s2c:baked/light-keys",
+   "note": "0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided"
+  },
+  {
+   "addr": "180fff060",
+   "name": "CBaseHelper_RaytraceFlags",
+   "module": "s2c:baked/light-keys",
+   "note": "the helper's entity node flags (its raytrace owner vf 0x30)"
+  },
+  {
+   "addr": "180f7b6a0",
+   "name": "CMapNode_RaytraceFlags",
+   "module": "s2c:baked/light-keys",
+   "note": "0x20 when node +0x278 is 0; 0x1000000, 0x2000000, 0x4000000 by parent and +0x2d0"
+  },
+  {
    "addr": "180244d30",
    "name": "EntityLump_ExportDriver",
    "module": "s2c:entities",

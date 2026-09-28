@@ -7,7 +7,17 @@ public interface ILightTracer
 {
     /// <summary>The distance from start towards end to the first blocking hit, or null for none.</summary>
     float? Trace(Vector3 start, Vector3 end);
+
+    /// <summary>
+    /// The first hit under a ray mask, with the triangle's flag word (the
+    /// precompute looks for flag 8 on it). A scene without flags answers
+    /// through <see cref="Trace"/>.
+    /// </summary>
+    LightTraceHit? Hit(Vector3 start, Vector3 end, uint mask) => Trace(start, end) is { } d ? new LightTraceHit(d, 0) : null;
 }
+
+/// <summary>A hit: the distance along the segment and the triangle's flag word.</summary>
+public readonly record struct LightTraceHit(float Distance, ushort Flags);
 
 /// <summary>A scene with nothing in it.</summary>
 public sealed class EmptyLightScene : ILightTracer
@@ -217,6 +227,7 @@ public static class LightTrace
         }
 
         var points = new List<Vector3> { starts[0] };
+        var second = new List<(int Ray, Vector3 From, Vector3 To)>();
         for (var k = 0; k < count; k++)
         {
             var s = starts[k];
@@ -235,13 +246,42 @@ public static class LightTrace
                 unit = Vector3.Zero;
             else
                 throw new NotSupportedException("normalising a vector longer than 1e17 or shorter than 1e-17 (FUN_18125d000) is not ported");
-            if (scene.Trace(s, e) is { } hit)
-                length = hit <= length ? hit : length;
+            if (scene.Hit(s, e, 0xc00060b1) is { } hit)
+            {
+                // A triangle with flag 8 queues a second ray, from the
+                // segment's end to start + unit * length (the segment's own
+                // length, so nearly the end again), under mask 8.
+                if ((hit.Flags & 8) != 0)
+                    second.Add((k, e, new Vector3(unit.X * length + s.X, unit.Y * length + s.Y, unit.Z * length + s.Z)));
+                length = hit.Distance <= length ? hit.Distance : length;
+            }
             if (!(s.X == starts[0].X && s.Y == starts[0].Y && s.Z == starts[0].Z))
                 points.Add(s);
             var end = new Vector3(unit.X * length + s.X, unit.Y * length + s.Y, unit.Z * length + s.Z);
             ends[k] = end;
             points.Add(end);
+        }
+        // The second rays' hits (LightPrecompute_TraceRay after its flush):
+        // the point along the second ray becomes the ray's end and a point.
+        foreach (var (ray, from, to) in second)
+        {
+            if (scene.Hit(from, to, 8) is not { } back)
+                continue;
+            float dx = to.X - from.X, dy = to.Y - from.Y, dz = to.Z - from.Z;
+            var length = MathF.Sqrt((dz * dz + dy * dy) + dx * dx);
+            if (1e-17f <= length && length <= 1e17f)
+            {
+                var inverse = 1f / length;
+                (dx, dy, dz) = (dx * inverse, dy * inverse, dz * inverse);
+            }
+            else if (length == 0f)
+                (dx, dy, dz) = (0f, 0f, 0f);
+            else
+                throw new NotSupportedException("normalising a vector longer than 1e17 or shorter than 1e-17 (FUN_18125d000) is not ported");
+            var d = back.Distance;
+            var p = new Vector3(dx * d + from.X, dy * d + from.Y, dz * d + from.Z);
+            ends[ray] = p;
+            points.Add(p);
         }
 
         float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue;
