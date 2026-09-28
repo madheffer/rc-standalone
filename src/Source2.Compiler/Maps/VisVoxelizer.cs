@@ -18,6 +18,60 @@ public static class VisVoxelizer
     public const int VoxelsPerLeaf = 4;
 
     /// <summary>
+    /// The root cube, from the scene's box as the loader's tracer holds it
+    /// (<see cref="RayTraceEnvironment.TracedBounds"/>), in the voxel sampler's
+    /// constructor (FUN_18002b730): each axis snapped outward to the voxel grid,
+    /// the largest extent rounded up to a whole voxel, the side the first power
+    /// of two at or above it, and every axis padded by half its shortfall on
+    /// both sides. All in float, in the binary's order.
+    /// </summary>
+    public static (Vector3 Min, Vector3 Max) RootCube(Vector3 mins, Vector3 maxs, float baseVoxelSize)
+    {
+        var g = baseVoxelSize;
+        var inv = 1f / g;
+        float x0 = MathF.Floor(mins.X * inv), x1 = MathF.Ceiling(maxs.X * inv);
+        float y0 = MathF.Floor(mins.Y * inv), y1 = MathF.Ceiling(maxs.Y * inv);
+        float z0 = MathF.Floor(mins.Z * inv), z1 = MathF.Ceiling(maxs.Z * inv);
+        var ex = (x1 * g) - (x0 * g);
+        var ey = (y1 * g) - (y0 * g);
+        var ez = (z1 * g) - (z0 * g);
+        var widest = MathF.Abs(ex);
+        if (widest <= MathF.Abs(ey))
+            widest = MathF.Abs(ey);
+        if (widest <= MathF.Abs(ez))
+            widest = MathF.Abs(ez);
+        var rest = widest % g;
+        if (0f < rest)
+            widest += g - rest;
+        var side = 1f;
+        if (1f < widest)
+            do
+                side += side;
+            while (side < widest);
+        var min = new Vector3(x0 * g, y0 * g, z0 * g);
+        var max = new Vector3(x1 * g, y1 * g, z1 * g);
+        if (ex < side)
+        {
+            var pad = (side - ex) * 0.5f;
+            min.X -= pad;
+            max.X = pad + max.X;
+        }
+        if (ey < side)
+        {
+            var pad = (side - ey) * 0.5f;
+            min.Y -= pad;
+            max.Y = pad + max.Y;
+        }
+        if (ez < side)
+        {
+            var pad = (side - ez) * 0.5f;
+            min.Z -= pad;
+            max.Z = pad + max.Z;
+        }
+        return (min, max);
+    }
+
+    /// <summary>
     /// The root is a CUBE whose side is a power of two multiple of the base voxel,
     /// and the multiple is per map rather than fixed: ze_hold_em_p is 32,768 units
     /// over a 4,096 voxel side and cardtest is 4,096 over 512. The compiled file
