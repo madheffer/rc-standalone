@@ -144,8 +144,15 @@ public static class DmxBinary
         return new Document(encoding, encodingVersion, format, formatVersion, elements, prefix, r.Remaining);
     }
 
-    /// <summary>Parse a file.</summary>
-    public static Document ReadFile(string path) => Read(File.ReadAllBytes(path));
+    /// <summary>Parse a file, binary or keyvalues2 text (<see cref="DmxText"/>).</summary>
+    public static Document ReadFile(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        return DmxText.IsText(bytes) ? DmxText.Read(bytes) : Read(bytes);
+    }
+
+    /// <summary>An element for another reader of the format to fill.</summary>
+    internal static Element NewElement(string type, string name, Guid id) => new(type, name, id);
 
     private static (string Encoding, int EncodingVersion, string Format, int FormatVersion) ReadHeader(ref Reader r)
     {
