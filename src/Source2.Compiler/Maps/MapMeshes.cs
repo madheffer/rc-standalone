@@ -59,6 +59,13 @@ public static class MapMeshes
         /// </summary>
         public bool Hidden { get; init; }
 
+        /// <summary>The <c>CMapPrefab</c> node ids the mesh was reached through, outermost first
+        /// (<see cref="MapPrefabs"/>); its id path is these, then <see cref="NodeId"/>.</summary>
+        public int[] Prefabs { get; init; } = [];
+
+        /// <summary>The <c>CMapPrefab</c> elements the mesh was reached through, outermost first.</summary>
+        public IReadOnlyList<DmxBinary.Element> PrefabChain { get; init; } = [];
+
         /// <summary>Whether the mesh is rotated or scaled, which the plain local + origin path does not cover.</summary>
         public bool Transformed => Angles != Vector3.Zero || Scales != Vector3.One;
     }
@@ -71,6 +78,15 @@ public static class MapMeshes
 
         /// <summary>The CMapInstance elements the copy was reached through, outermost first.</summary>
         public IReadOnlyList<DmxBinary.Element> Through { get; init; } = [];
+
+        /// <summary>The <c>CMapPrefab</c> node ids the node was reached through, outermost first.</summary>
+        public int[] Prefabs { get; init; } = [];
+
+        /// <summary>The <c>CMapPrefab</c> elements the node was reached through, outermost first.</summary>
+        public IReadOnlyList<DmxBinary.Element> PrefabChain { get; init; } = [];
+
+        /// <summary>Whether the node, or one it hangs under or was reached through, is hidden.</summary>
+        public bool Hidden { get; init; }
     }
 
     public static List<Mesh> Read(DmxBinary.Document doc) => ReadWithEntities(doc).Meshes;
@@ -89,13 +105,13 @@ public static class MapMeshes
         var sequence = 0;
         var hidden = MapEntities.HiddenNodes(doc);
         foreach (var world in doc.OfType("CMapWorld"))
-            Walk(world, world, Identity, [], [], targets, hidden, false, meshes, entities, ref sequence);
+            Walk(world, world, Identity, [], [], [], [], targets, hidden, false, meshes, entities, ref sequence);
         return (meshes, entities);
     }
 
     private static void Walk(DmxBinary.Element node, DmxBinary.Element parent, float[] path, int[] instances, DmxBinary.Element[] through,
-                             HashSet<DmxBinary.Element> targets, HashSet<int> hiddenIds, bool hidden, List<Mesh> meshes, List<EntityNode> entities,
-                             ref int sequence)
+                             int[] prefabs, DmxBinary.Element[] prefabChain, HashSet<DmxBinary.Element> targets, HashSet<int> hiddenIds, bool hidden, List<Mesh> meshes,
+                             List<EntityNode> entities, ref int sequence)
     {
         // A collapsed instance's copy is appended to its parent's children
         // (CMapInstance_Collapse), so instances come after their siblings.
@@ -108,16 +124,28 @@ public static class MapMeshes
                 case "CMapMesh":
                     var className = parent.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname");
                     var placed = through.Length == 0 ? Concat(path, Local(child)) : SettleWorld.Baked(child, through);
+                    if (through.Length > 0 && prefabs.Length > 0)
+                        throw new NotSupportedException($"mesh {child.GetValue<int>("nodeID")}: an instance inside a prefab is not ported");
                     meshes.Add(new Mesh(child.GetValue<int>("nodeID") ?? -1, parent.Type, className,
                                         child.GetValue<Vector3>("origin") ?? Vector3.Zero, child.GetValue<Vector3>("angles") ?? Vector3.Zero,
                                         child.GetValue<Vector3>("scales") ?? Vector3.One, Faces(child, placed))
-                               { Element = child, Instances = instances, World = placed, Path = path, Sequence = sequence++, Hidden = hides });
+                               { Element = child, Instances = instances, World = placed, Path = path, Sequence = sequence++, Hidden = hides, Prefabs = prefabs, PrefabChain = prefabChain });
+                    break;
+                case "CMapPrefab":
+                    // The prefab's map, walked where the prefab stands and moved by
+                    // its matrix; its own hidden nodes and instance targets apply.
+                    if (child.Get<DmxBinary.Element>(MapPrefabs.WorldKey) is not { } prefabWorld)
+                        break;
+                    Walk(prefabWorld, prefabWorld, Concat(path, Local(child)), instances, through,
+                         [.. prefabs, child.GetValue<int>("nodeID") ?? -1], [.. prefabChain, child],
+                         new HashSet<DmxBinary.Element>(child.Get<List<DmxBinary.Element>>(MapPrefabs.TargetsKey) ?? [], ReferenceEqualityComparer.Instance),
+                         child.Get<HashSet<int>>(MapPrefabs.HiddenKey) ?? [], hides, meshes, entities, ref sequence);
                     break;
                 case "CMapInstance":
                     if (child.Get<DmxBinary.Element>("target") is not { } target)
                         break;
                     var step = Concat(Local(child), Invert(Local(target)));
-                    Walk(target, target, Concat(path, step), [.. instances, child.GetValue<int>("nodeID") ?? -1], [.. through, child], targets, hiddenIds, hides,
+                    Walk(target, target, Concat(path, step), [.. instances, child.GetValue<int>("nodeID") ?? -1], [.. through, child], prefabs, prefabChain, targets, hiddenIds, hides,
                          meshes, entities, ref sequence);
                     break;
                 default:
@@ -125,8 +153,8 @@ public static class MapMeshes
                         break;
                     // An entity's own shapes come before its children's.
                     if (child.Type is "CMapEntity" or "CMapSmartProp")
-                        entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through });
-                    Walk(child, child, path, instances, through, targets, hiddenIds, hides, meshes, entities, ref sequence);
+                        entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through, Prefabs = prefabs, PrefabChain = prefabChain, Hidden = hides });
+                    Walk(child, child, path, instances, through, prefabs, prefabChain, targets, hiddenIds, hides, meshes, entities, ref sequence);
                     break;
             }
         }

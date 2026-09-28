@@ -67,6 +67,13 @@ game can answer is raised with the user first, and runs with -insecure.
 25. **The .rte flag word** from the mesh entry and material attributes: read
     in outline (RTE.md), not ported.
 
+26. **Prefab placement**: a node in a prefab's map is placed as instance
+    collapse moves a node (SettleWorld.PrefabPlacement: the prefab's own
+    placement as the move, the node's origin through it and its angles
+    rebuilt); a quaternion or plain matrix path each leave spheres a few
+    ulps off. Measured whole-file exact on s2c_prefabprobe; the prefab
+    loader (Hammer's map document, +0x6b8 docs) is not read.
+
 ### Map resources
 13. The angles of instance copies inside a world layer (a round trip off).
 15. What picks Zstd or LZ4 for map output.

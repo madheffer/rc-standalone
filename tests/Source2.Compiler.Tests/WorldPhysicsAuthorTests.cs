@@ -67,6 +67,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         var game = Path.Combine(cs2, "game");
         using var models = new SettleBuildTests.PakModels(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", p[0]));
         var doc = DmxBinary.ReadFile(Path.Combine(cs2, "content", "csgo_addons", p[0], "maps", p[1] + ".vmap"));
+        Maps.MapPrefabs.Attach(doc, Maps.MapPrefabs.FromContent(Path.Combine(cs2, "content", "csgo_addons", p[0])));
         var notes = new List<string>();
         // WPBUILD_GPU=1: new-blending materials take their layers from the GPU sampler.
         using var gpu = Environment.GetEnvironmentVariable("WPBUILD_GPU") == "1"

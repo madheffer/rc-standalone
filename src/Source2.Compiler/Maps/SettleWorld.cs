@@ -257,6 +257,28 @@ public static partial class SettleWorld
     }
 
     /// <summary>
+    /// A placement in a prefab's map moved through the prefabs it hangs under,
+    /// outermost first, each prefab's own placement moved by the ones outside
+    /// it, as <see cref="BakedPlacement(Vector3, Vector3, IReadOnlyList{DmxBinary.Element})"/>
+    /// moves one through instances (a prefab's map has no target to undo).
+    /// </summary>
+    internal static (Vector3 Origin, Vector3 Angles) PrefabPlacement(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        float[]? delta = null;
+        foreach (var prefab in prefabs)
+        {
+            var at = prefab.GetValue<Vector3>("origin") ?? Vector3.Zero;
+            var turn = prefab.GetValue<Vector3>("angles") ?? Vector3.Zero;
+            if (delta != null)
+                (at, turn) = Moved(delta, at, turn);
+            delta = at == Vector3.Zero && turn == Vector3.Zero ? null : AngleMatrixDouble(turn, at);
+        }
+        if (delta != null)
+            (origin, angles) = Moved(delta, origin, angles);
+        return (origin, angles);
+    }
+
+    /// <summary>
     /// A node moved by a matrix (TransformBy with flags 0x41, FUN_181001820):
     /// the origin through the matrix as a 4x4 with a last row of (0, 0, 0, 1)
     /// (FUN_180fdef60), the angles as the matrix's own angles rebuilt, times

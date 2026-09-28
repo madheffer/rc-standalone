@@ -133,6 +133,8 @@ public static class MapCompile
                              HashSet<string> steps, string package)
     {
         var document = DmxBinary.ReadFile(full);
+        // A prefab's map loads from the addon's content, as Hammer's does.
+        MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(root, "content", "csgo_addons", addon)));
         var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
         using var assets = new GameContent(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", addon));
         var entries = Io.VpkWriter.ReadAll(package);

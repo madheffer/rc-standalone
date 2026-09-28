@@ -313,8 +313,20 @@ public static class WorldCollision
         var instanceById = doc.OfType("CMapInstance").GroupBy(e => e.GetValue<int>("nodeID") ?? -1).ToDictionary(g => g.Key, g => g.First());
         float[]? Placed(Maps.MapMeshes.Mesh mesh)
         {
-            if (mesh.Instances.Length == 0 || mesh.Element == null)
+            if (mesh.Element == null)
                 return null;
+            if (mesh.Instances.Length == 0)
+            {
+                if (mesh.PrefabChain.Count == 0)
+                    return null;
+                // A mesh in a prefab's map: its node moved through the prefabs as
+                // the prefab's entities are (PrefabPlacement), then its own matrix.
+                var (at, turn) = Maps.SettleWorld.PrefabPlacement(mesh.Element.GetValue<Vector3>("origin") ?? Vector3.Zero,
+                                                                  mesh.Element.GetValue<Vector3>("angles") ?? Vector3.Zero, mesh.PrefabChain);
+                var pm = Maps.MapMeshes.AngleMatrix(turn);
+                (pm[3], pm[7], pm[11]) = (at.X, at.Y, at.Z);
+                return pm;
+            }
             var (origin, angles) = Maps.SettleWorld.BakedPlacement(mesh.Element, [.. mesh.Instances.Select(i => instanceById[i])]);
             var m = Maps.MapMeshes.AngleMatrix(angles);
             (m[3], m[7], m[11]) = (origin.X, origin.Y, origin.Z);
@@ -341,7 +353,10 @@ public static class WorldCollision
         }
         foreach (var e in doc.Elements.Where(e => hiddenIds.Contains(e.GetValue<int>("nodeID") ?? int.MinValue)))
             HideUnder(e);
-        foreach (var mesh in meshes.Where(m => m.ParentType is "CMapWorld" or "CMapGroup" or "CMapWorldLayer" && !hidden.Contains(m.Element!)))
+        // A prefab's nodes carry the walk's own hidden flag: node ids repeat
+        // across the prefab maps, so the id set above does not reach them.
+        bool Hides(DmxBinary.Element element, int[] prefabs, bool walked) => prefabs.Length > 0 ? walked : hidden.Contains(element);
+        foreach (var mesh in meshes.Where(m => m.ParentType is "CMapWorld" or "CMapGroup" or "CMapWorldLayer" && !Hides(m.Element!, m.Prefabs, m.Hidden)))
         {
             while (sequences.Count < result.Count)
                 sequences.Add(last);
@@ -396,7 +411,7 @@ public static class WorldCollision
                 // pipe against 126 .vmap vertices, captured).
                 if (Subdivided(mesh.Element!))
                 {
-                    var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, out var convexCovered);
+                    var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var convexCovered);
                     if (!convexCovered)
                         notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
                     foreach (var (material, points, indices, piecePaint) in tessellated)
@@ -419,7 +434,7 @@ public static class WorldCollision
                     continue;
                 }
                 // The same per-material mesh the mesh path reads, texcoord shift included.
-                foreach (var (material, positions, faces, local, corners, _, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
+                foreach (var (material, positions, faces, local, corners, _, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null,
                              !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh)))
                 {
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
@@ -449,7 +464,7 @@ public static class WorldCollision
                 // The baked mesh's paint comes from the tessellation, which
                 // lerps it over each patch as the bake does; a mesh with faces
                 // stitched to finer neighbours has no ported paint there.
-                var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null, out var covered);
+                var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var covered);
                 if (!covered)
                     notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
                 foreach (var (material, points, indices, piecePaint) in tessellated)
@@ -472,7 +487,7 @@ public static class WorldCollision
             }
             var firstCorners = paint == null ? null : FirstCorners(mesh.Element!);
             var texcoords = paint == null ? null : TexcoordStream(mesh.Element!);
-            foreach (var (material, positions, faces, local, corners, cornerData, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 ? mesh.Path : null,
+            foreach (var (material, positions, faces, local, corners, cornerData, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null,
                          !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh)))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
@@ -513,7 +528,7 @@ public static class WorldCollision
             sequences.Add(last);
         if (propPhysics != null)
         {
-            foreach (var entity in entities.Where(e => !hidden.Contains(e.Element)))
+            foreach (var entity in entities.Where(e => !Hides(e.Element, e.Prefabs, e.Hidden)))
             {
                 foreach (var piece in PropPieces(entity, propPhysics, smartProps, collisionProperty, notes))
                 {
@@ -697,6 +712,8 @@ public static class WorldCollision
         var angles = e.GetValue<Vector3>("angles") ?? Vector3.Zero;
         if (entity.Through.Count > 0)
             (origin, angles) = Maps.SettleWorld.BakedPlacement(e, entity.Through);
+        else if (entity.PrefabChain.Count > 0)
+            (origin, angles) = Maps.SettleWorld.PrefabPlacement(origin, angles, entity.PrefabChain);
         var keys = e.Get<DmxBinary.Element>("entity_properties");
         return new StaticPropHulls.Prop(e.GetValue<int>("nodeID") ?? -1, model, origin, angles, e.GetValue<Vector3>("scales") ?? Vector3.One)
         {
