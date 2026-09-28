@@ -214,4 +214,102 @@ public unsafe class RoundCollisionOracleTests(ITestOutputHelper output)
         output.WriteLine($"8000 cases, {hits} touching ({inside} with the centre inside), {bad} different");
         Assert.Equal(0, bad);
     }
+
+    /// <summary>
+    /// FUN_1802efbc0 (capsule against hull, GJK then the manifold or the
+    /// separating-axis path) on the hull oracle's hulls, the capsule often
+    /// through the hull: the manifold and the GJK cache must be Valve's. The
+    /// function leaves its callee's answer in AL, compared where it made one.
+    /// </summary>
+    [Fact]
+    public void CapsuleHullIsValves()
+    {
+        if (Vphysics2Oracle.Load() is not { } module)
+            return;
+        var fn = (delegate* unmanaged<CachedManifold*, CachedManifold*, RnTransform*, RoundCollision.Capsule*, RnTransform*,
+                                      HullCollisionOracleTests.NativeRef*, GjkCache*, byte>)Vphysics2Oracle.At(module, 0x1802efbc0);
+        var pool = HullCollisionOracleTests.Pool();
+        var random = new Random(85);
+        int hits = 0, bad = 0, flagsDiffer = 0;
+        var mem = (byte*)NativeMemory.AlignedAlloc(0x400, 16);
+        try
+        {
+            for (var i = 0; i < 8000; i++)
+            {
+                var hull = pool[random.Next(pool.Length)];
+                var scale = random.Next(3) == 0 ? F(random, 0.25, 2) : 1f;
+                var capsule = RandomCapsule(random);
+                var xfB = Frame(random, V(random, 20));
+                var c = hull.Hull.Centroid * scale;
+                var world = new Vec3(((c.X * xfB.R.M0) + (c.Y * xfB.R.M3)) + (c.Z * xfB.R.M6) + xfB.T.X,
+                                     ((c.X * xfB.R.M1) + (c.Y * xfB.R.M4)) + (c.Z * xfB.R.M7) + xfB.T.Y,
+                                     ((c.X * xfB.R.M2) + (c.Y * xfB.R.M5)) + (c.Z * xfB.R.M8) + xfB.T.Z);
+                var reach = random.Next(3) == 0 ? 3.0 : 30.0;
+                var xfA = Frame(random, new Vec3(world.X + F(random, -reach, reach), world.Y + F(random, -reach, reach), world.Z + F(random, -reach, reach)));
+                var withOld = random.Next(2) == 0;
+                var old = Old(random);
+                if (withOld && random.Next(2) == 0)
+                {
+                    old.PointCount = 2;
+                    old.P1.Feature = 0x01000100;
+                    old.P1.Impulse = F(random, 0, 9);
+                }
+                var fill = (byte)random.Next(256);
+                var pOld = (CachedManifold*)mem;
+                var pOut = (CachedManifold*)(mem + 0x100);
+                var pXa = (RnTransform*)(mem + 0x200);
+                var pXb = (RnTransform*)(mem + 0x240);
+                var pA = (RoundCollision.Capsule*)(mem + 0x280);
+                var pRef = (HullCollisionOracleTests.NativeRef*)(mem + 0x2a0);
+                var pCache = (GjkCache*)(mem + 0x2c0);
+                *pOld = old;
+                NativeMemory.Fill(pOut, 0xe0, fill);
+                *pXa = xfA;
+                *pXb = xfB;
+                *pA = capsule;
+                pRef->Hull = hull.Ptr;
+                pRef->Scale = scale;
+                *pCache = default;
+                var valveHit = fn(withOld ? pOld : null, pOut, pXa, pA, pXb, pRef, pCache) != 0;
+                var mine = default(CachedManifold);
+                NativeMemory.Fill(&mine, 0xe0, fill);
+                var cache = default(GjkCache);
+                var mineHit = RoundCollision.CapsuleHull(withOld ? new ReadOnlySpan<CachedManifold>(in old) : default, ref mine,
+                                                         xfA, capsule, xfB, new HullRef(hull.Hull, scale), ref cache);
+                if (mineHit)
+                    hits++;
+                // Bytes 0x26 and 0x27 of each point are padding: where the edge
+                // contact replaces the face contact (FUN_1802f13a0) Valve copies
+                // a whole manifold from an uninitialised stack temporary.
+                // The copy brings the unused point slots along too.
+                for (var k = 0; k < 4; k++)
+                {
+                    ((byte*)pOut)[0x66 + (0x28 * k)] = ((byte*)&mine)[0x66 + (0x28 * k)];
+                    ((byte*)pOut)[0x67 + (0x28 * k)] = ((byte*)&mine)[0x67 + (0x28 * k)];
+                    if (k >= mine.PointCount && pOut->PointCount == mine.PointCount)
+                        new ReadOnlySpan<byte>((byte*)&mine + 0x40 + (0x28 * k), 0x28).CopyTo(new Span<byte>((byte*)pOut + 0x40 + (0x28 * k), 0x28));
+                }
+                var same = new ReadOnlySpan<byte>(pOut, 0xe0).SequenceEqual(new ReadOnlySpan<byte>(&mine, 0xe0))
+                           && new ReadOnlySpan<byte>(pCache, 0x2c).SequenceEqual(new ReadOnlySpan<byte>(&cache, 0x2c));
+                if (mineHit && valveHit != mineHit)
+                    flagsDiffer++;
+                if (!same && bad++ < 8)
+                {
+                    var v = new ReadOnlySpan<byte>(pOut, 0xe0);
+                    var m = new ReadOnlySpan<byte>(&mine, 0xe0);
+                    var at = 0;
+                    while (at < 0xe0 && v[at] == m[at])
+                        at++;
+                    output.WriteLine($"case {i}: hit {valveHit}/{mineHit}, points {pOut->PointCount}/{mine.PointCount}, manifold first difference 0x{at:x}");
+                }
+            }
+        }
+        finally
+        {
+            NativeMemory.AlignedFree(mem);
+        }
+        output.WriteLine($"8000 cases, {hits} touching, {bad} different, {flagsDiffer} answers different");
+        Assert.Equal(0, bad);
+        Assert.Equal(0, flagsDiffer);
+    }
 }

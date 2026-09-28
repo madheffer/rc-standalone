@@ -11,7 +11,7 @@ namespace Source2.Compiler.Simulation;
 /// impulse (-1 without one, which marks the point new). Every sum is in the
 /// binary's order.
 /// </summary>
-public static class RoundCollision
+public static partial class RoundCollision
 {
     /// <summary>A sphere at the shape's scale (+0xb8): centre and radius.</summary>
     public readonly record struct Sphere(Vec3 Centre, float Radius);
