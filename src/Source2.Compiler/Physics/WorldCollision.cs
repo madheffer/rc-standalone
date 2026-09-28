@@ -847,17 +847,20 @@ public static class WorldCollision
         {
             var pts = kv.Value.Points;
             var paint = kv.Value.Paint;
-            const int Stride = 7;
+            // Position, paint (ignored by the weld) and the baked vertex: the
+            // world mesh weld never joins two vertices, as for plain meshes.
+            const int Stride = 8;
             var flat = new float[pts.Count * Stride];
             for (var i = 0; i < pts.Count; i++)
             {
                 (flat[i * Stride], flat[(i * Stride) + 1], flat[(i * Stride) + 2]) = (pts[i].X, pts[i].Y, pts[i].Z);
                 if (cut.Paint != null)
                     (flat[(i * Stride) + 3], flat[(i * Stride) + 4], flat[(i * Stride) + 5], flat[(i * Stride) + 6]) = (paint[i].X, paint[i].Y, paint[i].Z, paint[i].W);
+                flat[(i * Stride) + 7] = kv.Value.Source[i];
             }
             long[]? latest = cut.Written == null ? null : [.. kv.Value.Source.Select(i => cut.Written[i])];
             var (v, ix) = MeshWeld.Weld(flat, Stride, [.. kv.Value.Indices],
-                [new MeshWeld.Stream("position", 0, 3, false, 42), new MeshWeld.Stream("VertexPaintBlendParams", 3, 4, true, 42)], 1f / 32f, true, null, latest);
+                [new MeshWeld.Stream("position", 0, 3, false, 42), new MeshWeld.Stream("VertexPaintBlendParams", 3, 4, true, 42), new MeshWeld.Stream("vertex", 7, 1, false, 0x22)], 1f / 32f, true, null, latest);
             var n = v.Length / Stride;
             result.Add((kv.Key.Material, [.. Enumerable.Range(0, n).Select(i => new Vector3(v[i * Stride], v[(i * Stride) + 1], v[(i * Stride) + 2]))], ix,
                 cut.Paint == null ? null : [.. Enumerable.Range(0, n).Select(i => new Vector4(v[(i * Stride) + 3], v[(i * Stride) + 4], v[(i * Stride) + 5], v[(i * Stride) + 6]))]));

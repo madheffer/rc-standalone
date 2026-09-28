@@ -203,6 +203,51 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             output.WriteLine($"convexcap: exact {exact}, same set other order {sameSet}, unmatched {none}; captured {captured.Count}");
             return;
         }
+        // WPBUILD_MESHCMP=<soup index>: the soup's vertices, Valve's against ours,
+        // around the first difference, with the node each of ours comes from.
+        if (Environment.GetEnvironmentVariable("WPBUILD_MESHCMP") is { Length: > 0 } soupText)
+        {
+            var soup = int.Parse(soupText, System.Globalization.CultureInfo.InvariantCulture);
+            Vector3[] VerticesOf(byte[] bytes)
+            {
+                var blob = Trees(bytes)["PHYS"]["m_parts"]![0]!["m_rnShape"]!["m_meshes"]![soup]!["m_Mesh"]!["m_Vertices"]!.AsBlob();
+                return [.. System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector3>(blob).ToArray()];
+            }
+            var theirs = VerticesOf(valve);
+            var ours = VerticesOf(mine);
+            var at = Enumerable.Range(0, Math.Min(theirs.Length, ours.Length)).FirstOrDefault(i => theirs[i] != ours[i], -1);
+            var owner = new Dictionary<Vector3, string>();
+            foreach (var piece in Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
+                         null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp))
+                foreach (var pt in piece.Points)
+                    owner.TryAdd(pt, $"{piece.NodeId}/{Path.GetFileNameWithoutExtension(piece.MaterialName)}");
+            output.WriteLine($"meshcmp soup {soup}: {theirs.Length} vs {ours.Length} vertices, first difference {at}");
+            for (var i = Math.Max(0, at - 3); i < Math.Min(ours.Length, at + 12) && at >= 0; i++)
+                output.WriteLine($"meshcmp {i}: theirs {theirs[i]:R} ({owner.GetValueOrDefault(theirs[i], "?")}) ours {ours[i]:R} ({owner.GetValueOrDefault(ours[i], "?")})");
+            int[] TrianglesOf(byte[] bytes)
+            {
+                var blob = Trees(bytes)["PHYS"]["m_parts"]![0]!["m_rnShape"]!["m_meshes"]![soup]!["m_Mesh"]!["m_Triangles"]!.AsBlob();
+                return [.. System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(blob).ToArray()];
+            }
+            if (at >= 0)
+            {
+                foreach (var (label, tris, verts) in new[] { ("theirs", TrianglesOf(valve), theirs), ("ours", TrianglesOf(mine), ours) })
+                {
+                    var lines = new List<string>();
+                    for (var t = 0; t < tris.Length / 3 && lines.Count < 14; t++)
+                        if (Enumerable.Range(0, 3).Any(k => tris[(t * 3) + k] >= at - 3 && tris[(t * 3) + k] < at + 5))
+                            lines.Add($"t{t}: " + string.Join(" ", Enumerable.Range(0, 3).Select(k => verts[tris[(t * 3) + k]].ToString("F1", null))));
+                    foreach (var l in lines)
+                        output.WriteLine($"meshcmp {label} {l}");
+                }
+            }
+            var missing = theirs.Except(ours).ToList();
+            var extra = ours.Except(theirs).ToList();
+            output.WriteLine($"meshcmp positions only theirs: {missing.Count}, only ours: {extra.Count}");
+            foreach (var v in missing.Take(10))
+                output.WriteLine($"meshcmp  theirs-only {v:R} near ours {ours.MinBy(o => Vector3.DistanceSquared(o, v)):R} ({owner.GetValueOrDefault(ours.MinBy(o => Vector3.DistanceSquared(o, v)), "?")})");
+            return;
+        }
         // WPBUILD_HULLVERTS=<index,...>: the hull's vertices, Valve's and ours.
         if (Environment.GetEnvironmentVariable("WPBUILD_HULLVERTS") is { Length: > 0 } vertsText)
         {

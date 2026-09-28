@@ -330,7 +330,7 @@ internal static class SubdivisionBake
     /// <summary>
     /// The export: faces in dense order, each from its first half-edge; a face
     /// of more than three corners is cut by <see cref="PolygonTriangulator"/>,
-    /// its triangles together. Equal positions are one vertex (FUN_1813858d0).
+    /// its triangles together.
     /// </summary>
     private static MeshTessellation.Result Export(HalfEdgeMesh mesh, bool withPaint)
     {
@@ -339,15 +339,15 @@ internal static class SubdivisionBake
         var faces = new List<int>();
         var paint = withPaint ? new List<Vector4>() : null;
         var written = new List<long>();
-        var weld = new Dictionary<(uint, uint, uint), int>();
+        // Each baked vertex is its own, numbered as first met: two vertices at
+        // one position stay two (the world mesh weld keeps vertices apart).
+        var numbered = new Dictionary<int, int>();
         void Corner(int v, Vector4 cornerPaint)
         {
-            var p = mesh.Vertices[v].Position;
-            var key = (BitConverter.SingleToUInt32Bits(p.X), BitConverter.SingleToUInt32Bits(p.Y), BitConverter.SingleToUInt32Bits(p.Z));
-            if (!weld.TryGetValue(key, out var index))
+            if (!numbered.TryGetValue(v, out var index))
             {
-                index = weld[key] = positions.Count;
-                positions.Add(p);
+                index = numbered[v] = positions.Count;
+                positions.Add(mesh.Vertices[v].Position);
                 written.Add(mesh.Vertices[v].Written);
             }
             indices.Add(index);
