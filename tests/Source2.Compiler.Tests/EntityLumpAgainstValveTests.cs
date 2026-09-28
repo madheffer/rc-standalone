@@ -67,6 +67,9 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     [InlineData("s2c_prefabprobe")]
     // A prefab of c2m2's gameplay map: brush entities in a prefab.
     [InlineData("s2c_prefabprobe2")]
+    // prop_physics soccer balls and round-shapes models dropped onto s2c_rounds:
+    // the settle of sphere and capsule shapes (tools/physics/settle_round_map.py).
+    [InlineData("s2c_settleround")]
     public void PrefabProbe_DiffersOnlyInTheDocumentedGaps(string map)
     {
         var source = MapFixtures.VmapSource("s2c_rc_probe", map);

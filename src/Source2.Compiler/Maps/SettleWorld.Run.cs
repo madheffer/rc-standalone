@@ -31,14 +31,15 @@ public static partial class SettleWorld
     /// </remarks>
     public static Dictionary<int, Settlement> Run(DmxBinary.Document document, IModels models, FgdSchema schema, int createdOnLoad = 0)
     {
-        var all = Build(document, models, schema, createdOnLoad);
-        var bodies = all.Where(b => b.Unsupported == null).ToList();
-        var eligible = Eligible(document, bodies, models, schema);
+        // A body the port cannot build refuses the settle only when there is
+        // something to settle; it is judged eligible like any other body.
+        var bodies = Build(document, models, schema, createdOnLoad);
         var result = new Dictionary<int, Settlement>();
-        if (eligible.Count == 0)
+        if (Eligible(document, bodies, models, schema).Count == 0)
             return result;
-        if (all.FirstOrDefault(b => b.Unsupported != null) is { } refused)
+        if (bodies.FirstOrDefault(b => b.Unsupported != null) is { } refused)
             throw new NotSupportedException($"node {refused.NodeId}: {refused.Unsupported}");
+        var eligible = Eligible(document, bodies, models, schema);
         var settled = Settled(document, bodies, models, schema);
         var world = CreateWorld(bodies, settled);
         for (var step = 0; step < SettleSteps; step++)
