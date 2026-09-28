@@ -19,14 +19,16 @@ public static class MapCompile
     /// is what the compile does unless it is given nosettle.
     /// </summary>
     public static List<Output> EntityLumps(DmxBinary.Document document, string worldName, FgdSchema schema,
-                                           GameContent content, bool settle)
+                                           GameContent content, bool settle, bool bakedLighting = false,
+                                           bool entitiesOnly = false)
     {
         var locators = Locators(content);
         var settled = settle
             ? SettleWorld.Run(document, content, schema, SmartProps.NodesCreatedOnLoad(document, locators))
             : null;
         return [.. EntityLumpSet.Author(MapEntities.From(document), schema, worldName,
-                                        MapEntities.FixupEntityNames(document), document, locators, settled)
+                                        MapEntities.FixupEntityNames(document), document, locators, settled,
+                                        bakedLighting, entitiesOnly)
             .Select(l => new Output(l.Path, l.Bytes))];
     }
 
@@ -153,7 +155,8 @@ public static class MapCompile
             foreach (var old in entries.Keys.Where(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
                                                         && k.EndsWith(".vents_c", StringComparison.OrdinalIgnoreCase)).ToList())
                 entries.Remove(old);
-            var lumps = EntityLumps(document, map, schema, assets, args.Settle);
+            var lumps = EntityLumps(document, map, schema, assets, args.Settle, BakedLightingIn(entries, map, game, addon),
+                                    entitiesOnly: true);
             foreach (var lump in lumps)
                 entries[lump.Path] = lump.Bytes;
             log.WriteLine($"  entities: {lumps.Count} lumps{(args.Settle ? "" : ", not settled")}");
@@ -176,6 +179,17 @@ public static class MapCompile
         log.WriteLine($"  wrote {entries.Count:n0} entries");
         return 0;
     }
+
+    /// <summary>
+    /// Whether an entities-only build has baked lighting (resourcecompiler
+    /// 1800fd550): maps/&lt;map&gt;/lightmaps/&lt;channel&gt;.vtex_c exists for a
+    /// channel CS2's gameinfo sets to 1 (irradiance, direct_light_shadows),
+    /// in the package being updated or loose beside it.
+    /// </summary>
+    private static bool BakedLightingIn(Dictionary<string, byte[]> entries, string map, string game, string addon)
+        => new[] { "irradiance", "direct_light_shadows" }.Any(channel =>
+               entries.Keys.Any(k => k.Equals($"maps/{map}/lightmaps/{channel}.vtex_c", StringComparison.OrdinalIgnoreCase))
+               || File.Exists(Path.Combine(game, "csgo_addons", addon, "maps", map, "lightmaps", channel + ".vtex_c")));
 
     private static int Fail(TextWriter log, string reason)
     {
