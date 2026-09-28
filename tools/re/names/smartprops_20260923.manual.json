@@ -1,0 +1,184 @@
+{
+ "functions": [
+  {
+   "addr": "18000b8c0",
+   "name": "SmartProp_EvaluateGroup",
+   "module": "s2c:smartprops",
+   "note": "nothing of its own: its modifiers have run"
+  },
+  {
+   "addr": "18000d4b0",
+   "name": "SmartPropContext_ctor",
+   "module": "s2c:smartprops",
+   "note": ""
+  },
+  {
+   "addr": "18000eb00",
+   "name": "SmartPropContext_Setup",
+   "module": "s2c:smartprops",
+   "note": "object +0x170 = element +0x100 = the given transform"
+  },
+  {
+   "addr": "18000f250",
+   "name": "SmartProp_ApplyModifiers",
+   "module": "s2c:smartprops",
+   "note": "each enabled modifier; false when a filter stops the element"
+  },
+  {
+   "addr": "18000f320",
+   "name": "SmartProp_EvaluateChild",
+   "module": "s2c:smartprops",
+   "note": "skips a disabled element; pushes its id"
+  },
+  {
+   "addr": "18000f8e0",
+   "name": "SmartProp_StoredChoiceIndex",
+   "module": "s2c:smartprops",
+   "note": "-1 picks none"
+  },
+  {
+   "addr": "18000fab0",
+   "name": "SmartProp_StoredChoice",
+   "module": "s2c:smartprops",
+   "note": "stored choiceValue"
+  },
+  {
+   "addr": "1800118a0",
+   "name": "SmartProp_RandomStream",
+   "module": "s2c:smartprops",
+   "note": "the stream for the current path, made on first use"
+  },
+  {
+   "addr": "180011a50",
+   "name": "SmartProp_Normalise",
+   "module": "s2c:smartprops",
+   "note": "scaled by 1 / length when it is sane"
+  },
+  {
+   "addr": "180017910",
+   "name": "CreateLocator_Evaluate",
+   "module": "s2c:smartprops",
+   "note": "m_bConfigurable (true) composes the locator's delta"
+  },
+  {
+   "addr": "180018460",
+   "name": "CreateSizer_Evaluate",
+   "module": "s2c:smartprops",
+   "note": "the sizer's box"
+  },
+  {
+   "addr": "180018c00",
+   "name": "Translate_Evaluate",
+   "module": "s2c:smartprops",
+   "note": "context composed with the offset"
+  },
+  {
+   "addr": "180019410",
+   "name": "Scale_Evaluate",
+   "module": "s2c:smartprops",
+   "note": "context composed with m_flScale (1 by default)"
+  },
+  {
+   "addr": "1800249a0",
+   "name": "FitOnLine_LinearLength",
+   "module": "s2c:smartprops",
+   "note": "the first enabled LinearLength's; zero without one"
+  },
+  {
+   "addr": "180024ad0",
+   "name": "FitOnLine_Filter",
+   "module": "s2c:smartprops",
+   "note": "enabled children whose first enabled EndCap matches"
+  },
+  {
+   "addr": "180024dd0",
+   "name": "FitOnLine_LargestFirst",
+   "module": "s2c:smartprops",
+   "note": "the greatest length that fits the room"
+  },
+  {
+   "addr": "180024f20",
+   "name": "FitOnLine_Caps",
+   "module": "s2c:smartprops",
+   "note": ""
+  },
+  {
+   "addr": "1800250b0",
+   "name": "FitOnLine_Select",
+   "module": "s2c:smartprops",
+   "note": "start cap, end cap, then fill"
+  },
+  {
+   "addr": "180025b20",
+   "name": "FitOnLine_ScalePass",
+   "module": "s2c:smartprops",
+   "note": "scale pass"
+  },
+  {
+   "addr": "180025c00",
+   "name": "FitOnLine_ScalePass2",
+   "module": "s2c:smartprops",
+   "note": "scale pass"
+  },
+  {
+   "addr": "180025e60",
+   "name": "FitOnLine_ScalePass3",
+   "module": "s2c:smartprops",
+   "note": "scale pass"
+  },
+  {
+   "addr": "180026030",
+   "name": "FitOnLine_Place",
+   "module": "s2c:smartprops",
+   "note": "placed one after another"
+  },
+  {
+   "addr": "180026230",
+   "name": "FitOnLine_Evaluate",
+   "module": "s2c:smartprops",
+   "note": "children fitted along start-end"
+  },
+  {
+   "addr": "180026af0",
+   "name": "LinearLength_ctor",
+   "module": "s2c:smartprops",
+   "note": "defaults: length, min, max 1; no stretch"
+  },
+  {
+   "addr": "1800273e0",
+   "name": "EndCap_ctor",
+   "module": "s2c:smartprops",
+   "note": "defaults: enabled, start and end true"
+  },
+  {
+   "addr": "180027c00",
+   "name": "FitOnLine_ctor",
+   "module": "s2c:smartprops",
+   "note": "defaults: LARGEST_FIRST, scale NONE, ELEMENT space, no orient"
+  },
+  {
+   "addr": "180030ad0",
+   "name": "PickOne_Evaluate",
+   "module": "s2c:smartprops",
+   "note": "one child by m_SelectionMode"
+  },
+  {
+   "addr": "180051a70",
+   "name": "CreateSizer_ctor",
+   "module": "s2c:smartprops",
+   "note": "defaults: every initial value and constraint 0"
+  },
+  {
+   "addr": "180094470",
+   "name": "SmartProp_LocatorConfig",
+   "module": "s2c:smartprops",
+   "note": "stored locator configuration"
+  },
+  {
+   "addr": "180094890",
+   "name": "SmartProp_LocatorDeltas",
+   "module": "s2c:smartprops",
+   "note": "stored locator deltas for a path"
+  }
+ ]
+}

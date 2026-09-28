@@ -41,6 +41,294 @@
    "name": "CPhysicsBuilder::Build",
    "module": "s2c:physics/world",
    "note": "writes world_physics.vmdl; Physics/EnableWorldCompounds"
+  },
+  {
+   "addr": "180015080",
+   "name": "PhysicsBuilder_BlendSurfaces",
+   "module": "s2c:physics/material-sampler",
+   "note": ""
+  },
+  {
+   "addr": "1800156a0",
+   "name": "PhysicsBuilder_BlendLayers",
+   "module": "s2c:physics/material-sampler",
+   "note": "a material's painted layers"
+  },
+  {
+   "addr": "180015930",
+   "name": "PhysicsBuilder_SplitBlendLayers",
+   "module": "s2c:physics/material-sampler",
+   "note": "a piece cut into positions-only meshes per layer, welded at 1/32"
+  },
+  {
+   "addr": "18064bcb0",
+   "name": "CMaterialSampler_TargetSide",
+   "module": "s2c:physics/material-sampler",
+   "note": "next power of two of ceil(sqrt(count)), at least 16"
+  },
+  {
+   "addr": "18064c2c0",
+   "name": "CMaterialSampler_Vote",
+   "module": "s2c:physics/material-sampler",
+   "note": "a triangle's layer from its points' weights"
+  },
+  {
+   "addr": "18064c460",
+   "name": "CMaterialSampler_Run",
+   "module": "s2c:physics/material-sampler",
+   "note": "renders the ToolsVis programs for two-surface blend pieces"
+  },
+  {
+   "addr": "18064c7e0",
+   "name": "CMaterialSampler_Draw",
+   "module": "s2c:physics/material-sampler",
+   "note": "draws the sample points in batches"
+  },
+  {
+   "addr": "18064cd80",
+   "name": "CMaterialSampler_TrianglePoints",
+   "module": "s2c:physics/material-sampler",
+   "note": "each triangle's sample points; needs texcoord 0"
+  },
+  {
+   "addr": "18064d790",
+   "name": "CMaterialSampler_Weights",
+   "module": "s2c:physics/material-sampler",
+   "note": "(R - m, G - m, B - m, m) / 255, m the smallest"
+  },
+  {
+   "addr": "18064dfb0",
+   "name": "CMaterialSampler_PixelTriangles",
+   "module": "s2c:physics/material-sampler",
+   "note": "point i on pixel i of a side x side target"
+  },
+  {
+   "addr": "18064e530",
+   "name": "CMaterialSampler_PackVertex",
+   "module": "s2c:physics/material-sampler",
+   "note": "a point's 40-byte vertex record"
+  },
+  {
+   "addr": "1809cc940",
+   "name": "CMaterialSampler_PointBits",
+   "module": "s2c:physics/material-sampler",
+   "note": "data: 53 barycentric points as float bits"
+  },
+  {
+   "addr": "1809ccbc0",
+   "name": "CMaterialSampler_PointCounts",
+   "module": "s2c:physics/material-sampler",
+   "note": "data: points per triangle by rounded area / 128"
+  },
+  {
+   "addr": "180ba3440",
+   "name": "CMaterialSampler_VertexLayout",
+   "module": "s2c:physics/material-sampler",
+   "note": "data: vertex layout 'MaterialSampler', paint as RGBA8"
+  },
+  {
+   "addr": "1800b6b50",
+   "name": "Matrix3x4_ColumnLengths",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "1800b9240",
+   "name": "MatrixAngles",
+   "module": "s2c:math",
+   "note": "same as resourcecompiler's"
+  },
+  {
+   "addr": "1800b9550",
+   "name": "Triangle_Area",
+   "module": "s2c:math",
+   "note": "half the cross product's length"
+  },
+  {
+   "addr": "1800b9810",
+   "name": "Matrix3x4_TransformPointW1",
+   "module": "s2c:math",
+   "note": "the point with w = 1 against each row"
+  },
+  {
+   "addr": "1800132f0",
+   "name": "PhysicsBuilder_ReadMaterialPhysics",
+   "module": "s2c:physics/world",
+   "note": "V_SplitString(','), water rule removes ', window'"
+  },
+  {
+   "addr": "180014aa0",
+   "name": "PhysicsBuilder_WalkTree",
+   "module": "s2c:physics/world",
+   "note": "depth first: a node's own meshes, then children"
+  },
+  {
+   "addr": "180014b40",
+   "name": "PhysicsBuilder_WalkNode",
+   "module": "s2c:physics/world",
+   "note": "meshes, then entities (prop_static with solid 6)"
+  },
+  {
+   "addr": "180016230",
+   "name": "PhysicsBuilder_MeshPieces",
+   "module": "s2c:physics/world",
+   "note": "splits by surface; AppendFormat(' [%s]') for blend layers"
+  },
+  {
+   "addr": "180016e90",
+   "name": "PhysicsBuilder_NodeMeshes",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "180017d90",
+   "name": "PhysicsBuilder_MaterialRecord_ctor",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "180018450",
+   "name": "PhysicsBuilder_MaterialRecord",
+   "module": "s2c:physics/world",
+   "note": "material physics record"
+  },
+  {
+   "addr": "18001a950",
+   "name": "PhysicsBuilder_ConvexSingle",
+   "module": "s2c:physics/world",
+   "note": "hulls all vertices of the per-material CMesh buffer"
+  },
+  {
+   "addr": "18001ac20",
+   "name": "PhysicsBuilder_ConvexMulti",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "18001b0a0",
+   "name": "PhysicsBuilder_CreateNode",
+   "module": "s2c:physics/world",
+   "note": "node creator: type 1/4 mesh, 2 convex single, 3 convex multi"
+  },
+  {
+   "addr": "18001b280",
+   "name": "CPhysicsBuilderWorld_ModelDoc::vf1",
+   "module": "s2c:physics/world",
+   "note": "world callback"
+  },
+  {
+   "addr": "1800c1050",
+   "name": "CMesh_InitPositions",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "1800c1ad0",
+   "name": "CMesh_WeldPositions",
+   "module": "s2c:physics/world",
+   "note": "weld at 1/32"
+  },
+  {
+   "addr": "1800c3430",
+   "name": "CMesh_CopyVertexBuffer",
+   "module": "s2c:physics/world",
+   "note": "copies the buffer in order"
+  },
+  {
+   "addr": "1801749f0",
+   "name": "PhysicsBuilder_ToolMaterial",
+   "module": "s2c:physics/world",
+   "note": "node tool material: the mesh +0x68 name (+0x108)"
+  },
+  {
+   "addr": "180ba72b0",
+   "name": "PhysicsBuilder_AttributeTable",
+   "module": "s2c:physics/world",
+   "note": "data: 13 x 0x20 {attribute, collision group, ...}"
+  },
+  {
+   "addr": "1800174e0",
+   "name": "CreateStaticPropShapesForPropInstance",
+   "module": "s2c:geometry/props",
+   "note": "per body of the prop's PHYS, transformed, to the sink"
+  },
+  {
+   "addr": "18001b420",
+   "name": "CPhysicsBuilderWorld_ModelDoc::vf2",
+   "module": "s2c:geometry/props",
+   "note": "sink: spheres, capsules, hulls, meshes, 0x178 entries"
+  },
+  {
+   "addr": "1800b5a50",
+   "name": "PropMatrix_Angles",
+   "module": "s2c:geometry/props",
+   "note": "AngleMatrix of the prop's angles"
+  },
+  {
+   "addr": "1800b8fc0",
+   "name": "PropMatrix_Scale",
+   "module": "s2c:geometry/props",
+   "note": ""
+  },
+  {
+   "addr": "180106be0",
+   "name": "PhysicsBuilder_PropHalfEdgeMesh",
+   "module": "s2c:geometry/props",
+   "note": "a prop mesh as a half-edge mesh (renumbered by first use)"
+  },
+  {
+   "addr": "180152230",
+   "name": "PhysicsBuilder_CapsuleNodes",
+   "module": "s2c:geometry/props",
+   "note": "0x38 entries"
+  },
+  {
+   "addr": "1801525d0",
+   "name": "PhysicsBuilder_Nodes178",
+   "module": "s2c:geometry/props",
+   "note": "0x178-byte entries, unknown kind"
+  },
+  {
+   "addr": "180152fd0",
+   "name": "PhysicsBuilder_HullNode",
+   "module": "s2c:geometry/props",
+   "note": "PhysicsShapeHull: points, origin, MatrixAngles"
+  },
+  {
+   "addr": "180153390",
+   "name": "PhysicsBuilder_MeshNodes",
+   "module": "s2c:geometry/props",
+   "note": ""
+  },
+  {
+   "addr": "180153740",
+   "name": "PhysicsBuilder_SphereNodes",
+   "module": "s2c:geometry/props",
+   "note": "0x28 entries"
+  },
+  {
+   "addr": "180153d40",
+   "name": "PhysicsBuilder_AttributeStrings",
+   "module": "s2c:geometry/props",
+   "note": "strings from the cooked attribute via vphysics2's dictionary"
+  },
+  {
+   "addr": "18015fb60",
+   "name": "PhysicsBuilder_CheckHull",
+   "module": "s2c:geometry/props",
+   "note": "quickhull check; rejects invalid hulls"
+  },
+  {
+   "addr": "1805f1740",
+   "name": "PhysicsBuilder_MeshNodeBySurface",
+   "module": "s2c:geometry/props",
+   "note": "one node per surface index with triangles"
+  },
+  {
+   "addr": "1805f1c50",
+   "name": "PhysicsBuilder_MeshNodeAll",
+   "module": "s2c:geometry/props",
+   "note": "every vertex, then every triangle"
   }
  ]
 }

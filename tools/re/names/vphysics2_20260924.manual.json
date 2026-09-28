@@ -173,6 +173,2064 @@
    "name": "RnMesh_OrthographicAreas",
    "module": "s2c:physics/mesh",
    "note": ""
+  },
+  {
+   "addr": "180007ae0",
+   "name": "Matrix3_Diagonal",
+   "module": "s2c:entities/settle",
+   "note": "the inverse inertia's diagonal"
+  },
+  {
+   "addr": "1800123b0",
+   "name": "CPhysicsBody::vf56",
+   "module": "s2c:entities/settle",
+   "note": "GetTransform: the body's frame"
+  },
+  {
+   "addr": "180058200",
+   "name": "CPhysicsWorld_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180059f30",
+   "name": "CPhysicsWorld_Simulate",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18006b980",
+   "name": "RnPairSet_Displace",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18006dd90",
+   "name": "CVPhysics2Interface_CreateWorld",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18006e1d0",
+   "name": "VPhysics2_InitCollisionGroups",
+   "module": "s2c:entities/settle",
+   "note": "startup: clears the group table with group 0 meeting everything"
+  },
+  {
+   "addr": "180072c70",
+   "name": "CVPhysics2SurfacePropertyManager::vf7",
+   "module": "s2c:entities/settle",
+   "note": "a surface as a Rubikon material; density times 1.6387063e-5"
+  },
+  {
+   "addr": "180075b60",
+   "name": "CVPhysics2Interface_SimulateWorlds",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1800899b0",
+   "name": "Quat_Mul",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180089a30",
+   "name": "Quaternion_Between",
+   "module": "s2c:entities/settle",
+   "note": "the rotation taking unit vector a to b"
+  },
+  {
+   "addr": "18008d4e0",
+   "name": "Vector_NormalizeDouble",
+   "module": "s2c:entities/settle",
+   "note": "normalises in double"
+  },
+  {
+   "addr": "18012e550",
+   "name": "RnGjkProxy_ctor",
+   "module": "s2c:entities/settle",
+   "note": "0x40-byte convex proxy"
+  },
+  {
+   "addr": "1801314f0",
+   "name": "RnHull_LoadPostPass",
+   "module": "s2c:entities/settle",
+   "note": "post pass on a loaded hull"
+  },
+  {
+   "addr": "180138e70",
+   "name": "RnBodyDesc_t_LoadKV3",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801a4a40",
+   "name": "RnPairSet_Place",
+   "module": "s2c:entities/settle",
+   "note": "claims the home bucket"
+  },
+  {
+   "addr": "1801a4e90",
+   "name": "RnPairSet_Grow",
+   "module": "s2c:entities/settle",
+   "note": "the next power of two"
+  },
+  {
+   "addr": "1801b1250",
+   "name": "CRnBody_Advance",
+   "module": "s2c:entities/settle",
+   "note": "moves the body's start on to a fraction"
+  },
+  {
+   "addr": "1801b1750",
+   "name": "RnSolverBody_ApplyPositionImpulse",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b2450",
+   "name": "RnClampAngularVelocity",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b2570",
+   "name": "RnClampLinearVelocity",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b2690",
+   "name": "CRnBody_EndFrame",
+   "module": "s2c:entities/settle",
+   "note": "the end frame from the orientation and centre of mass"
+  },
+  {
+   "addr": "1801b2c30",
+   "name": "CRnBody_SumShapeMass",
+   "module": "s2c:entities/settle",
+   "note": "shape mass properties summed about the body origin"
+  },
+  {
+   "addr": "1801b31a0",
+   "name": "CRnBody_WorldInverseInertia",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b3420",
+   "name": "CRnBody_ProjectedAreas",
+   "module": "s2c:entities/settle",
+   "note": "projected area fractions of the shapes"
+  },
+  {
+   "addr": "1801b5390",
+   "name": "CRnBody_Sweep",
+   "module": "s2c:entities/settle",
+   "note": "start and end orientation of the step"
+  },
+  {
+   "addr": "1801b5430",
+   "name": "CRnBody_SweepAt",
+   "module": "s2c:entities/settle",
+   "note": "the sweep with its start moved on to a step fraction"
+  },
+  {
+   "addr": "1801b5620",
+   "name": "RnSweep_Frame",
+   "module": "s2c:entities/settle",
+   "note": "frame of an orientation, mass-centre offset and centre of mass"
+  },
+  {
+   "addr": "1801b5840",
+   "name": "RnSweep_FrameAt",
+   "module": "s2c:entities/settle",
+   "note": "the frame at a fraction of the sweep"
+  },
+  {
+   "addr": "1801b6000",
+   "name": "RnSolverBody_Build",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b7940",
+   "name": "RnSolverBody_IntegrateLinear",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b7d60",
+   "name": "RnSolverBody_IntegrateAngular",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b8bd0",
+   "name": "CRnBody_FinishStep",
+   "module": "s2c:entities/settle",
+   "note": "moves on with its velocities for the rest of the step"
+  },
+  {
+   "addr": "1801b8f40",
+   "name": "CRnBody_MovedFar",
+   "module": "s2c:entities/settle",
+   "note": "whether the body moved far enough for continuous collision"
+  },
+  {
+   "addr": "1801b9100",
+   "name": "CRnBody_MoveProxies",
+   "module": "s2c:entities/settle",
+   "note": "the proxies' boxes for an enabled body, moved immediately"
+  },
+  {
+   "addr": "1801b9270",
+   "name": "CRnBody_UpdateProxies",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b93e0",
+   "name": "CRnBody_SetTransform",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801b9650",
+   "name": "CRnBody_AddShapeProxy",
+   "module": "s2c:entities/settle",
+   "note": "proxy step for a shape joining an enabled body, at the body's frame"
+  },
+  {
+   "addr": "1801b9ca0",
+   "name": "CRnBody_UpdateDrag",
+   "module": "s2c:entities/settle",
+   "note": "the drag axes; then the proxy refresh"
+  },
+  {
+   "addr": "1801ba3e0",
+   "name": "CRnBody_GetDesc",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801bb2b0",
+   "name": "CRnBody_SetInertia",
+   "module": "s2c:entities/settle",
+   "note": "inertia over mass, scaled below 1e11"
+  },
+  {
+   "addr": "1801bc710",
+   "name": "RnSolverBody_SetOrientation",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801bca60",
+   "name": "CRnBody_SetScale",
+   "module": "s2c:entities/settle",
+   "note": "ignores a change under 0.001"
+  },
+  {
+   "addr": "1801bd3e0",
+   "name": "CRnBody_SetType",
+   "module": "s2c:entities/settle",
+   "note": "SetType(2): dynamic and woken"
+  },
+  {
+   "addr": "1801bdea0",
+   "name": "CRnBody_ShouldCollide",
+   "module": "s2c:entities/settle",
+   "note": "shapes of one body never collide"
+  },
+  {
+   "addr": "1801be270",
+   "name": "CRnBody_PutToSleep",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801be330",
+   "name": "CRnBody_SolveToi",
+   "module": "s2c:entities/settle",
+   "note": "the search, then the advance; sensor contacts not ported"
+  },
+  {
+   "addr": "1801beac0",
+   "name": "CRnBody_ToiSearch",
+   "module": "s2c:entities/settle",
+   "note": "the earliest time of impact of one body"
+  },
+  {
+   "addr": "1801c0040",
+   "name": "RnSolverBody_IntegratePosition",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801c02a0",
+   "name": "RnSolverBody_SleepTest",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801c0360",
+   "name": "CRnBody_ApplyDesc",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801c0880",
+   "name": "CRnBody_UpdateMass",
+   "module": "s2c:entities/settle",
+   "note": "the body's mass update"
+  },
+  {
+   "addr": "1801c0ff0",
+   "name": "CRnBody_Wake",
+   "module": "s2c:entities/settle",
+   "note": "an asleep body wakes; walks its touching lists +0x80, +0x88"
+  },
+  {
+   "addr": "1801c6540",
+   "name": "RnPairSet_Hash",
+   "module": "s2c:entities/settle",
+   "note": "Murmur2-style mix of the two handles"
+  },
+  {
+   "addr": "1801d1170",
+   "name": "CRnContact_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d1390",
+   "name": "RnCreateContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d1560",
+   "name": "CRnContact_Report",
+   "module": "s2c:entities/settle",
+   "note": "not ported"
+  },
+  {
+   "addr": "1801d1610",
+   "name": "RnEffectiveMass",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d17c0",
+   "name": "RnMaterial_Mix",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d18c0",
+   "name": "CRnContact_SolverSize",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d1910",
+   "name": "RnToi_Adjust",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d2030",
+   "name": "RnContactRow_PrepareFriction",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d2860",
+   "name": "RnContactRow_PreparePoint",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d3360",
+   "name": "CRnContact_PreparePoints",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d3fc0",
+   "name": "CRnContact_PrepareSolver",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d4c10",
+   "name": "CRnContact_SolvePosition",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d5880",
+   "name": "CRnContact_StoreImpulses",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d5a00",
+   "name": "RnContactRow_SolveFriction",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801d5e60",
+   "name": "CRnContact_SolveVelocity",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801db2e0",
+   "name": "RnPairSet_Insert",
+   "module": "s2c:entities/settle",
+   "note": "inserts (a, b) unless present"
+  },
+  {
+   "addr": "1801db8e0",
+   "name": "RnPairSet_Erase",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801dc0a0",
+   "name": "RnIslandManager_BodyWoke",
+   "module": "s2c:entities/settle",
+   "note": "each of the body's islands counts it and is listed"
+  },
+  {
+   "addr": "1801dc1e0",
+   "name": "RnIslandManager_BodySlept",
+   "module": "s2c:entities/settle",
+   "note": "an island with no awake body leaves its list"
+  },
+  {
+   "addr": "1801dc300",
+   "name": "CRnWorld_ShapesOutsideBounds",
+   "module": "s2c:entities/settle",
+   "note": "moving shapes outside the world bounds"
+  },
+  {
+   "addr": "1801dc6a0",
+   "name": "CRnWorld_FlushContacts",
+   "module": "s2c:entities/settle",
+   "note": "the collide flush"
+  },
+  {
+   "addr": "1801dcb80",
+   "name": "CRnWorld_FlushContact",
+   "module": "s2c:entities/settle",
+   "note": "flush for one contact"
+  },
+  {
+   "addr": "1801dceb0",
+   "name": "CRnWorld_FlushCollideLists",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801deca0",
+   "name": "CBroadphase_QuerySameTree",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801df510",
+   "name": "CBroadphase_QueryMovedLeaf",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801dfd80",
+   "name": "CBroadphase_QueryTreeSelf",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801e07d0",
+   "name": "CBroadphase_QueryTreePair",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801e2bf0",
+   "name": "CBroadphase_QueryJobTree",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801e4090",
+   "name": "CRnWorld_UpdateContactsParallel",
+   "module": "s2c:entities/settle",
+   "note": "the TOI's contact update, parallel pass"
+  },
+  {
+   "addr": "1801e45f0",
+   "name": "CRnWorld_UpdateContactsSerial",
+   "module": "s2c:entities/settle",
+   "note": "the same, one by one into its own lists"
+  },
+  {
+   "addr": "1801e6170",
+   "name": "RnBodyList_StdSort",
+   "module": "s2c:entities/settle",
+   "note": "std::sort on +0x14"
+  },
+  {
+   "addr": "1801e6a70",
+   "name": "RnContactList_StdSort",
+   "module": "s2c:entities/settle",
+   "note": "MSVC std::sort of contacts by key: unstable on ties"
+  },
+  {
+   "addr": "1801e7df0",
+   "name": "CRnWorld_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801eacc0",
+   "name": "CBroadphase_QueryJobTrees",
+   "module": "s2c:entities/settle",
+   "note": "per job tree, single-threaded"
+  },
+  {
+   "addr": "1801ecfb0",
+   "name": "CRnWorld_CollideWorker",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801eefd0",
+   "name": "CRnWorld_AddAwakeBody",
+   "module": "s2c:entities/settle",
+   "note": "appended to world +0xa00"
+  },
+  {
+   "addr": "1801ef0c0",
+   "name": "CRnWorld_ReactivateContact",
+   "module": "s2c:entities/settle",
+   "note": "puts a contact back in the active contacts"
+  },
+  {
+   "addr": "1801ef120",
+   "name": "CRnWorld_CreateBody",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801ef380",
+   "name": "CRnWorld_PersistTouchEvents",
+   "module": "s2c:entities/settle",
+   "note": "not ported"
+  },
+  {
+   "addr": "1801f17e0",
+   "name": "CRnContact_ProxiesOverlap",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801f1dc0",
+   "name": "CRnWorld_BuildNewContactsFromOverlappingPairQuery",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801f5b70",
+   "name": "CRnWorld_AppliedForceTest",
+   "module": "s2c:entities/settle",
+   "note": "one body in the applied-force list (+0xa58)"
+  },
+  {
+   "addr": "1801f6980",
+   "name": "CRnWorld_Collide",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801f7200",
+   "name": "CRnWorld_RemoveAwakeBody",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801f7450",
+   "name": "CRnWorld_DestroyContact",
+   "module": "s2c:entities/settle",
+   "note": "off its shapes' lists and out of the pair set"
+  },
+  {
+   "addr": "1801f8a10",
+   "name": "CRnWorld_FreeDestroyed",
+   "module": "s2c:entities/settle",
+   "note": "the destroyed contacts are freed"
+  },
+  {
+   "addr": "1801f8c70",
+   "name": "CRnWorld_SortBodies",
+   "module": "s2c:entities/settle",
+   "note": "flushed body list by body index"
+  },
+  {
+   "addr": "1801f8d90",
+   "name": "CRnWorld_SortContacts",
+   "module": "s2c:entities/settle",
+   "note": "sorts new contacts by key"
+  },
+  {
+   "addr": "1801f8fd0",
+   "name": "CRnWorld_DispatchEvents",
+   "module": "s2c:entities/settle",
+   "note": "contact and touch events; not ported"
+  },
+  {
+   "addr": "1801fa710",
+   "name": "RnPairSet_Find",
+   "module": "s2c:entities/settle",
+   "note": "the slot holding (a, b) in either order, or -1"
+  },
+  {
+   "addr": "1801faf80",
+   "name": "CRnWorld_ClampToWorldBounds",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801fc050",
+   "name": "CRnWorld_ContactReports",
+   "module": "s2c:entities/settle",
+   "note": "not ported"
+  },
+  {
+   "addr": "1801fc0e0",
+   "name": "CRnWorld_CompoundChildren",
+   "module": "s2c:entities/settle",
+   "note": "not ported"
+  },
+  {
+   "addr": "1801fe920",
+   "name": "CRnWorld_TouchEvents",
+   "module": "s2c:entities/settle",
+   "note": "not ported"
+  },
+  {
+   "addr": "1801feca0",
+   "name": "CRnWorld_ContactEvents",
+   "module": "s2c:entities/settle",
+   "note": "contact and touch events; not ported"
+  },
+  {
+   "addr": "1801ff820",
+   "name": "CRnWorld_Solve",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1801ffe80",
+   "name": "CRnWorld_SolveContinuous",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802001b0",
+   "name": "CRnWorld::SolveTOIBodies",
+   "module": "s2c:entities/settle",
+   "note": "up to world +0x1c0 passes"
+  },
+  {
+   "addr": "180200840",
+   "name": "CRnWorld_Step",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802038b0",
+   "name": "RnPairFilter_CreateContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180203980",
+   "name": "CRnWorld_RemovePair",
+   "module": "s2c:entities/settle",
+   "note": "out of the broadphase's pair set"
+  },
+  {
+   "addr": "180203d70",
+   "name": "CRnWorld_WakeBodiesFromAppliedForces",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180203fc0",
+   "name": "CRnWorld_NotifyWake",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180241b10",
+   "name": "CRnMeshShape::vf16",
+   "module": "s2c:entities/settle",
+   "note": "mesh bounds; identity rotation offsets only"
+  },
+  {
+   "addr": "180242830",
+   "name": "CRnMeshShape_StepUpdate2",
+   "module": "s2c:entities/settle",
+   "note": "not ported"
+  },
+  {
+   "addr": "1802435d0",
+   "name": "CRnMeshShape_StepUpdate",
+   "module": "s2c:entities/settle",
+   "note": "mesh shape with mode other than 3; not ported"
+  },
+  {
+   "addr": "180244380",
+   "name": "RnMesh_SweptTriangleTest",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180249e90",
+   "name": "RnMesh_SweptBoxQuery",
+   "module": "s2c:entities/settle",
+   "note": "the triangles a swept box meets; rcpps code"
+  },
+  {
+   "addr": "18024a4a0",
+   "name": "RnMesh_QueryBox",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18024b230",
+   "name": "RnMesh_TriangleOverlapsBox",
+   "module": "s2c:entities/settle",
+   "note": "separating axes"
+  },
+  {
+   "addr": "18024f530",
+   "name": "CRnCapsuleShape::vf26",
+   "module": "s2c:entities/settle",
+   "note": "the farther centre plus the radius"
+  },
+  {
+   "addr": "180250100",
+   "name": "CRnHullShape::vf16",
+   "module": "s2c:entities/settle",
+   "note": "the scaled bounds' centre and half extents through the frame"
+  },
+  {
+   "addr": "180251480",
+   "name": "CRnHullShape::vf22",
+   "module": "s2c:entities/settle",
+   "note": "a hull's GJK proxy: vertices, bounds, radius 1/16"
+  },
+  {
+   "addr": "1802515a0",
+   "name": "CRnHullShape::vf24",
+   "module": "s2c:entities/settle",
+   "note": "the hull's bounding sphere, scaled"
+  },
+  {
+   "addr": "1802552f0",
+   "name": "RnToi_Fallback",
+   "module": "s2c:entities/settle",
+   "note": "sphere, capsule or hull that is not soft"
+  },
+  {
+   "addr": "18028b1c0",
+   "name": "RnHull_Support",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18028bbd0",
+   "name": "RnHull_EdgeQuery",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18028cc00",
+   "name": "RnHull_FaceQuery",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180291d80",
+   "name": "RnCapsule_MassProperties",
+   "module": "s2c:entities/settle",
+   "note": "two hemispheres and a cylinder"
+  },
+  {
+   "addr": "180292350",
+   "name": "RnHull_MassPropertiesScaled",
+   "module": "s2c:entities/settle",
+   "note": "a hull's mass properties at a scale and density"
+  },
+  {
+   "addr": "180292de0",
+   "name": "Mat3_RotateInertia",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802930d0",
+   "name": "RnMass_ParallelAxis",
+   "module": "s2c:entities/settle",
+   "note": "inertia of a point mass about the origin"
+  },
+  {
+   "addr": "180296fa0",
+   "name": "RnCollision_RegisterDefaultRules",
+   "module": "s2c:entities/settle",
+   "note": "vphysics2's default collision rules, groups 0 to 30"
+  },
+  {
+   "addr": "1802c4bb0",
+   "name": "RnKinematicTarget_Settle",
+   "module": "s2c:entities/settle",
+   "note": "at writeback, snaps a body that has all but arrived"
+  },
+  {
+   "addr": "1802c4cd0",
+   "name": "RnKinematicTarget_Drive",
+   "module": "s2c:entities/settle",
+   "note": "velocities to cover the rest of the way"
+  },
+  {
+   "addr": "1802ca570",
+   "name": "RnIslandColouring_AddContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ca8e0",
+   "name": "RnIsland_AddContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cad70",
+   "name": "RnIslandManager_ActivateContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cb890",
+   "name": "RnIsland_RegisterBodies",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cc600",
+   "name": "RnIsland_ResetConstraints",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cc790",
+   "name": "RnIsland_MoveConstraints",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cca70",
+   "name": "RnIsland_ResetBodies",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ccbb0",
+   "name": "RnIslandManager_Leave",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ccce0",
+   "name": "RnIsland_RemoveContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cd2b0",
+   "name": "RnIslandManager_DeactivateContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cdc70",
+   "name": "RnIsland_ctor",
+   "module": "s2c:entities/settle",
+   "note": "a heap island"
+  },
+  {
+   "addr": "1802cdd40",
+   "name": "RnIslandManager_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ce050",
+   "name": "RnIslandManager_AbsorbBody",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ce1e0",
+   "name": "RnIslandManager_RegisterNode",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ce270",
+   "name": "RnIslandManager_Rejoin",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ce2d0",
+   "name": "RnIsland_MapRegister",
+   "module": "s2c:entities/settle",
+   "note": "state 0 empty, 1 inline, 2 table"
+  },
+  {
+   "addr": "1802ce480",
+   "name": "RnIslandManager_AddNode",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ce6a0",
+   "name": "RnIslandManager_Unlist",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ce7b0",
+   "name": "RnIslandManager_SplitIsland",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cee50",
+   "name": "RnIslandManager_SplitPending",
+   "module": "s2c:entities/settle",
+   "note": "splits the pending islands on some steps"
+  },
+  {
+   "addr": "1802ceef0",
+   "name": "RnIsland_MapRelease",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cf0d0",
+   "name": "RnIslandManager_RemoveNode",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d3dd0",
+   "name": "CBroadphase_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d49f0",
+   "name": "CBroadphase_SetQueryMode",
+   "module": "s2c:entities/settle",
+   "note": "the mode, threads and priority"
+  },
+  {
+   "addr": "1802d4b00",
+   "name": "CBroadphase_TouchedLeaves",
+   "module": "s2c:entities/settle",
+   "note": "every leaf touched since the last query"
+  },
+  {
+   "addr": "1802d4d60",
+   "name": "CBroadphase_CollectMoved",
+   "module": "s2c:entities/settle",
+   "note": "the moved leaves, then the arrivals"
+  },
+  {
+   "addr": "1802d4ed0",
+   "name": "CBroadphase_BeginHierarchyUpdate",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d5740",
+   "name": "CBroadphase_PreStepQuery",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d57c0",
+   "name": "CBroadphase_GroupOrder",
+   "module": "s2c:entities/settle",
+   "note": "groups, most self-colliding first"
+  },
+  {
+   "addr": "1802d59b0",
+   "name": "CBroadphase_SelectTree",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d5a90",
+   "name": "CBroadphase_GrowDirtyBits",
+   "module": "s2c:entities/settle",
+   "note": "grows the dirty bitsets to cover a leaf"
+  },
+  {
+   "addr": "1802d5c30",
+   "name": "CBroadphase_RemoveLeaf",
+   "module": "s2c:entities/settle",
+   "note": "removes a leaf, clearing its dirty bit"
+  },
+  {
+   "addr": "1802d5d10",
+   "name": "CBroadphase_ClearQueryRecords",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d6050",
+   "name": "CBroadphase_FinalizeHierarchyUpdate",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d6290",
+   "name": "CBroadphase_DropMovedTargets",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d63e0",
+   "name": "CBroadphase_SortListsAndPrune",
+   "module": "s2c:entities/settle",
+   "note": "sorts what each list gained since Begin, prunes the query jobs"
+  },
+  {
+   "addr": "1802d6c90",
+   "name": "CBroadphase_MarkForQuery",
+   "module": "s2c:entities/settle",
+   "note": "marks a leaf for the pre-step query"
+  },
+  {
+   "addr": "1802d6d20",
+   "name": "CBroadphase_MoveOutsideStep",
+   "module": "s2c:entities/settle",
+   "note": "re-fatten on a move outside the step"
+  },
+  {
+   "addr": "1802d6de0",
+   "name": "CBroadphase_MoveProxy",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d7380",
+   "name": "RnTree_Refatten",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d7560",
+   "name": "CBroadphase_ChangeTree",
+   "module": "s2c:entities/settle",
+   "note": "a shape moving to another tree"
+  },
+  {
+   "addr": "1802d7780",
+   "name": "CollisionGroups_Copy",
+   "module": "s2c:entities/settle",
+   "note": "a group takes another group's row and column"
+  },
+  {
+   "addr": "1802d7990",
+   "name": "CollisionGroups_Clear",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802d79a0",
+   "name": "CollisionGroups_SetDefaults",
+   "module": "s2c:entities/settle",
+   "note": "the default pair rules; stripes cover groups 4 to 24"
+  },
+  {
+   "addr": "1802d7cd0",
+   "name": "CollisionGroups_SetStripe",
+   "module": "s2c:entities/settle",
+   "note": "group g meets groups 4 to 24, both ways"
+  },
+  {
+   "addr": "1802d85c0",
+   "name": "RnToiFunction_Create",
+   "module": "s2c:entities/settle",
+   "note": "separation function from the GJK simplex"
+  },
+  {
+   "addr": "1802daf90",
+   "name": "RnToiFunction_EdgesCrossing",
+   "module": "s2c:entities/settle",
+   "note": "edges' cross product at the step end against n"
+  },
+  {
+   "addr": "1802db190",
+   "name": "RnToiFunction_Evaluate",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802dbcf0",
+   "name": "RnToiFunction_FindMinSeparation",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802dccb0",
+   "name": "RnToiFunction_Freeze",
+   "module": "s2c:entities/settle",
+   "note": "an edge pair frozen into its world normal"
+  },
+  {
+   "addr": "1802dddd0",
+   "name": "RnTimeOfImpact",
+   "module": "s2c:entities/settle",
+   "note": "conservative advancement"
+  },
+  {
+   "addr": "1802eb9e0",
+   "name": "RnGjkProxy_Support",
+   "module": "s2c:entities/settle",
+   "note": "vertex furthest along a direction"
+  },
+  {
+   "addr": "1802ebd20",
+   "name": "RnGjk_ReadCache",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ec220",
+   "name": "RnGjk_Distance",
+   "module": "s2c:entities/settle",
+   "note": "GJK distance between two proxies"
+  },
+  {
+   "addr": "1802ed320",
+   "name": "RnHull_EdgeContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ee580",
+   "name": "RnHull_FaceContact",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f15e0",
+   "name": "RnCollideHullHullManifold",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f23f0",
+   "name": "RnCollideHullTriangle",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f2560",
+   "name": "RnCollideHullHull",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f59c0",
+   "name": "RnManifold_MinSeparation",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f5c20",
+   "name": "RnHull_BuildTriangle",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f61a0",
+   "name": "RnManifold_TransferFriction",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802f62d0",
+   "name": "RnSatCache_Revalidate",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802fa8b0",
+   "name": "CollisionGroups_SetPair",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802fa8e0",
+   "name": "CollisionGroups_SetAll",
+   "module": "s2c:entities/settle",
+   "note": "group g meets every group with the flags"
+  },
+  {
+   "addr": "1802faf00",
+   "name": "RnPairFilter_ContactFlags",
+   "module": "s2c:entities/settle",
+   "note": "the pair's contact flags from the group table, or 0"
+  },
+  {
+   "addr": "1802fd130",
+   "name": "CRnMeshContact_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802fd8b0",
+   "name": "RnMeshContact_MergeClusters",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802fe400",
+   "name": "RnMatrixToQuaternion",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802fe660",
+   "name": "RnMeshContact_ClusterNormals",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ff110",
+   "name": "CRnMeshContact_CollideTriangles",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ffd00",
+   "name": "CRnMeshContact_DebugPass",
+   "module": "s2c:entities/settle",
+   "note": "runs only when a global flag is set; not ported"
+  },
+  {
+   "addr": "180300d50",
+   "name": "RnMeshContact_ReducePoints",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180301c80",
+   "name": "RnMeshContact_ThirdSeed",
+   "module": "s2c:entities/settle",
+   "note": "the third cluster seed from the cross product of two normals"
+  },
+  {
+   "addr": "180302250",
+   "name": "CRnMeshContact::vf3",
+   "module": "s2c:entities/settle",
+   "note": "time of impact of a hull swept over a mesh"
+  },
+  {
+   "addr": "180304230",
+   "name": "RnMeshContact_NearestOldPoint",
+   "module": "s2c:entities/settle",
+   "note": "warm start match within 1/8"
+  },
+  {
+   "addr": "180304620",
+   "name": "RnMeshContact_WarmStart",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803049b0",
+   "name": "CRnMeshContact_QueryTriangles",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180305460",
+   "name": "CRnMeshContact_Update",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180305860",
+   "name": "CRnMeshContact_UpdateOverlap",
+   "module": "s2c:entities/settle",
+   "note": "overlap-only (sensor) path; not ported"
+  },
+  {
+   "addr": "180306710",
+   "name": "CRnOverlappingPair_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180306780",
+   "name": "CRnContact_SetTouchList",
+   "module": "s2c:entities/settle",
+   "note": "moves a contact to its shapes' list for a touch state"
+  },
+  {
+   "addr": "180306900",
+   "name": "CRnConvexContact_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803074d0",
+   "name": "CRnConvexContact::vf3",
+   "module": "s2c:entities/settle",
+   "note": "time of impact of two hulls"
+  },
+  {
+   "addr": "180307750",
+   "name": "CRnConvexContact_Update",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18030cc80",
+   "name": "RnSolver_BuildBodiesAndIntegrateJob",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18030d070",
+   "name": "RnSolver_BuildAndIntegrateBatch",
+   "module": "s2c:entities/settle",
+   "note": "per-body start of a batch solve"
+  },
+  {
+   "addr": "18030d370",
+   "name": "RnSolver_BuildBodiesAndIntegrate",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18030d680",
+   "name": "RnSolverJobs_AddPrepareContacts",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18030d860",
+   "name": "RnSolverJobs_AddVelocityContacts",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18030dac0",
+   "name": "RnSolverJobs_AddPositionContacts",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18030e8b0",
+   "name": "RnSolver_PrepareContactsChunks",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18030fd50",
+   "name": "RnSolver_VelocityIteration",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18030ffb0",
+   "name": "RnSolver_PrepareContactsJob",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803100d0",
+   "name": "RnSolver_PrepareContacts",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803104c0",
+   "name": "RnSolver_MoveBatch",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803105a0",
+   "name": "RnSolver_IntegratePositionsSleepJob",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803106f0",
+   "name": "RnSolver_MoveBatchSleep",
+   "module": "s2c:entities/settle",
+   "note": "with the sleep test"
+  },
+  {
+   "addr": "180310850",
+   "name": "RnSolver_WriteBackBodiesJob",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180310970",
+   "name": "RnSolver_BuildBodiesJob",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803109c0",
+   "name": "RnSolver_ChainColouredJobs",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180310dc0",
+   "name": "RnSolver_SolveSerial",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803111e0",
+   "name": "RnSolve_SerialIsland",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180311610",
+   "name": "RnSolve_Worker",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180311ce0",
+   "name": "RnSolver_PositionIterationContactsJob",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180312010",
+   "name": "RnSolver_PositionIterationContacts",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180312c00",
+   "name": "RnSolver_LastVelocityIterationContacts",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180312df0",
+   "name": "RnSolveContext_Create",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180313090",
+   "name": "RnSolver_WriteBackBody",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180313510",
+   "name": "RnSolver_WriteBackBatch",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180313990",
+   "name": "RnSolver_CopyBodyBack",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180315ab0",
+   "name": "RnSimplex_Add",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180315bb0",
+   "name": "RnSimplex_TetrahedronWeights",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180315fa0",
+   "name": "RnSimplex_TriangleWeights",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180316270",
+   "name": "RnSimplex_WitnessPoints",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180316670",
+   "name": "RnSimplex_ClosestPoint",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180316930",
+   "name": "RnSimplex_SearchDirection",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180316b70",
+   "name": "RnSimplex_Metric",
+   "module": "s2c:entities/settle",
+   "note": "0, length, area or volume x6"
+  },
+  {
+   "addr": "180318460",
+   "name": "RnSimplex_Solve",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180321270",
+   "name": "RnClosestPointsLines",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180321560",
+   "name": "RnClosestPointsSegments",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180321cc0",
+   "name": "RnTangents",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180332b80",
+   "name": "RnIslandColouring_Clear",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180332bb0",
+   "name": "RnIsland_ClearConstraintColours",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180332cd0",
+   "name": "RnIsland_ColourConstraints",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180332ea0",
+   "name": "RnIsland_dtor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180333110",
+   "name": "RnIsland_CreateColouring",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803331e0",
+   "name": "RnIsland_DestroyColouring",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180333310",
+   "name": "RnTree_ListNodes",
+   "module": "s2c:entities/settle",
+   "note": "DFS, child1 first"
+  },
+  {
+   "addr": "180333970",
+   "name": "MsvcSort_Median",
+   "module": "s2c:entities/settle",
+   "note": "the median guess"
+  },
+  {
+   "addr": "180333af0",
+   "name": "MsvcSort_Sort",
+   "module": "s2c:entities/settle",
+   "note": "std::sort instance"
+  },
+  {
+   "addr": "180333f20",
+   "name": "RnTree_ctor",
+   "module": "s2c:entities/settle",
+   "note": "32 nodes, all free, threaded ascending"
+  },
+  {
+   "addr": "180333fd0",
+   "name": "RnTree_Refit",
+   "module": "s2c:entities/settle",
+   "note": "union of the children to the root, then rotations"
+  },
+  {
+   "addr": "180334130",
+   "name": "RnTree_InsertLeaf",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803342b0",
+   "name": "RnTree_RemoveLeaf",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180334330",
+   "name": "RnTree_FindBestSibling",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180334990",
+   "name": "RnTree_CollectSubtrees",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180334a40",
+   "name": "RnTree_CollectSubtreesStep",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180334b50",
+   "name": "RnTree_LinkLeaf",
+   "module": "s2c:entities/settle",
+   "note": "links an allocated leaf as the sibling of the best node"
+  },
+  {
+   "addr": "180334de0",
+   "name": "RnTree_RefitLeaves",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180334fc0",
+   "name": "RnTree_RefitAll",
+   "module": "s2c:entities/settle",
+   "note": "post-order refit of every internal node"
+  },
+  {
+   "addr": "180335290",
+   "name": "RnTree_MortonRebuild",
+   "module": "s2c:entities/settle",
+   "note": "LBVH rebuild"
+  },
+  {
+   "addr": "180335ce0",
+   "name": "RnTree_RelinkLeaf",
+   "module": "s2c:entities/settle",
+   "note": "puts an unlinked leaf back, no rotations"
+  },
+  {
+   "addr": "180335cf0",
+   "name": "RnTree_UnlinkLeaf",
+   "module": "s2c:entities/settle",
+   "note": "takes a leaf out, keeps it allocated"
+  },
+  {
+   "addr": "180335d50",
+   "name": "RnTree_DetachLeaf",
+   "module": "s2c:entities/settle",
+   "note": "the sibling takes the parent's place"
+  },
+  {
+   "addr": "180335f20",
+   "name": "RnTree_Grow",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180336000",
+   "name": "RnTree_RotateNodes",
+   "module": "s2c:entities/settle",
+   "note": "b2RotateNodes"
+  },
+  {
+   "addr": "180336c20",
+   "name": "RnTree_Rebuild",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180336c80",
+   "name": "RnHull_IncidentPolygon",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803372b0",
+   "name": "RnHull_IncidentFace",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803375d0",
+   "name": "RnSolverJobs_Run",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803377d0",
+   "name": "RnSolver_BuildColouredContacts",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180338710",
+   "name": "RnSolver_BuildColoured",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180338a20",
+   "name": "RnSolveContext_Init",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803bb1f0",
+   "name": "RnPoints_Centroid",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803bb310",
+   "name": "RnClipPolygon",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803bb850",
+   "name": "RnManifold_CullReduce",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1803bc9d0",
+   "name": "RnFeature_Flip",
+   "module": "s2c:entities/settle",
+   "note": "the feature seen from the other shape"
+  },
+  {
+   "addr": "1803bca10",
+   "name": "RnFeature_Make",
+   "module": "s2c:entities/settle",
+   "note": "feature id bytes"
+  },
+  {
+   "addr": "1803cfec0",
+   "name": "RnMeshContact_BoxReach",
+   "module": "s2c:entities/settle",
+   "note": "data: float 4, how far the cached box reaches past the hull's"
+  },
+  {
+   "addr": "1803da38c",
+   "name": "RnMeshContact_BoxSlack",
+   "module": "s2c:entities/settle",
+   "note": "data: float 1/16, containment slack of the cached box"
+  },
+  {
+   "addr": "1803daa94",
+   "name": "RnManifold_ReduceTolerance",
+   "module": "s2c:entities/settle",
+   "note": "data: float 1/32"
+  },
+  {
+   "addr": "1803db134",
+   "name": "RnKinematicTarget_ArrivedTime",
+   "module": "s2c:entities/settle",
+   "note": "data: float 0.000119, time left that counts as arrived"
+  },
+  {
+   "addr": "1803df0a4",
+   "name": "RnSat_EdgeTolerance",
+   "module": "s2c:entities/settle",
+   "note": "data: float 0.9, favours faces over edges"
+  },
+  {
+   "addr": "1803df1ac",
+   "name": "RnKinematicTarget_StopSpeedSquared",
+   "module": "s2c:entities/settle",
+   "note": "data: float, squared speed under which an arriving body stops"
+  },
+  {
+   "addr": "1803df1d4",
+   "name": "RnSat_AbsoluteTolerance",
+   "module": "s2c:entities/settle",
+   "note": "data: float 1/64; also the cache's drift limit"
+  },
+  {
+   "addr": "1803e2900",
+   "name": "RnIsland_ColoursPerGroup",
+   "module": "s2c:entities/settle",
+   "note": "data: int table"
+  },
+  {
+   "addr": "1803e2910",
+   "name": "RnIsland_ColourFirstBit",
+   "module": "s2c:entities/settle",
+   "note": "data: int table"
+  },
+  {
+   "addr": "1803e3100",
+   "name": "RnMeshContact_PlaneSlack",
+   "module": "s2c:entities/settle",
+   "note": "data: float 0.09375, slack on the triangle plane cull"
+  },
+  {
+   "addr": "1803e3188",
+   "name": "RnTriangleHull_HalfEdges",
+   "module": "s2c:entities/settle",
+   "note": "data: next, twin, origin, face"
+  },
+  {
+   "addr": "1803e31a4",
+   "name": "RnSat_FaceTolerance",
+   "module": "s2c:entities/settle",
+   "note": "data: float 0.98, favours A's faces over B's"
+  },
+  {
+   "addr": "1803e41ac",
+   "name": "RnMeshContact_SameNormal",
+   "module": "s2c:entities/settle",
+   "note": "data: float 0.995, normal agreement for clusters and warm start"
+  },
+  {
+   "addr": "1803fdcd4",
+   "name": "RnContact_TinySquared",
+   "module": "s2c:entities/settle",
+   "note": "data: float 1.17549435e-35"
+  },
+  {
+   "addr": "18045b2b8",
+   "name": "CBroadphase_CollidingFunctionMask",
+   "module": "s2c:entities/settle",
+   "note": "data: function-mask bits that still count as colliding"
+  },
+  {
+   "addr": "18045b328",
+   "name": "CollisionGroupTable",
+   "module": "s2c:entities/settle",
+   "note": "data: 64x64 u16 group pair rules, filled at vphysics startup"
+  },
+  {
+   "addr": "180559388",
+   "name": "RnMeshContact_DebugFlagPtr",
+   "module": "s2c:entities/settle",
+   "note": "data: pointer; +0x58 gates the extra pass"
+  },
+  {
+   "addr": "18055e8a8",
+   "name": "Matrix3_Identity",
+   "module": "s2c:entities/settle",
+   "note": "data: identity 3x3, used when there is no inverse"
+  },
+  {
+   "addr": "18055e910",
+   "name": "RnAabb_Empty",
+   "module": "s2c:entities/settle",
+   "note": "data: the empty box, +FLT_MAX min, -FLT_MAX max"
+  },
+  {
+   "addr": "1801ad740",
+   "name": "RnHullCreateRuntime",
+   "module": "s2c:physics/hull",
+   "note": "export"
+  },
+  {
+   "addr": "180390040",
+   "name": "RnHull_FacesWithinAngle",
+   "module": "s2c:physics/hull",
+   "note": "two neighbouring faces within the angle of each other"
+  },
+  {
+   "addr": "1803c3710",
+   "name": "QuickHull_Sharpen",
+   "module": "s2c:physics/hull",
+   "note": "nudges edge ends toward the line where the two planes meet"
+  },
+  {
+   "addr": "1803c3d40",
+   "name": "QuickHull_Reserve",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c3ee0",
+   "name": "QuickHull_AddNewFaces",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c4120",
+   "name": "QuickHull_BuildHorizon",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c42f0",
+   "name": "QuickHull_InitialHull",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c4aa0",
+   "name": "QuickHull_ComputeTolerance",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c4e30",
+   "name": "QuickHull_Merge",
+   "module": "s2c:physics/hull",
+   "note": "folds the face across an edge into the edge's face"
+  },
+  {
+   "addr": "1803c6010",
+   "name": "QuickHull_CreateFace",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c6580",
+   "name": "QuickHull_MergeFaces",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c67f0",
+   "name": "QuickHull_NextConflictVertex",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c69a0",
+   "name": "QuickHull_FixTopology",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c6b60",
+   "name": "QuickHull_CleanFaces",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c6d60",
+   "name": "QuickHull_ResolveOrphans",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c7020",
+   "name": "QuickHull_Scale",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c70c0",
+   "name": "QuickHull_Translate",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c71c0",
+   "name": "QuickHull_FarthestFromLine",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c77e0",
+   "name": "QuickHull_FarthestFromPlane",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c7b60",
+   "name": "QuickHull_ExtremePair",
+   "module": "s2c:physics/hull",
+   "note": "axis of largest extent, if it beats 100 tol[0]"
+  },
+  {
+   "addr": "1803c7f80",
+   "name": "QuickHull_Weld",
+   "module": "s2c:physics/hull",
+   "note": "drops a later point within tolerance of an earlier one"
+  },
+  {
+   "addr": "1803c8380",
+   "name": "QuickHull_Convex",
+   "module": "s2c:physics/hull",
+   "note": "the neighbour's centroid below this face by more than tol[1]"
+  },
+  {
+   "addr": "1803c83d0",
+   "name": "QuickHull_FaceIsConsistent",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c8480",
+   "name": "QuickHull_Twin",
+   "module": "s2c:physics/hull",
+   "note": ""
+  },
+  {
+   "addr": "1803c84c0",
+   "name": "QuickHull_RebuildFace",
+   "module": "s2c:physics/hull",
+   "note": "Newell normal, vertex mean, area"
+  },
+  {
+   "addr": "1803fbf50",
+   "name": "CVPhysics2Interface_Vtable",
+   "module": "s2c:physics/hull",
+   "note": "data: vtable; slot 0x1f8 is RnHullCreate"
   }
  ]
 }

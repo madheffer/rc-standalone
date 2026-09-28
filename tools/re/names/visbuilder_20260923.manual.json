@@ -1,0 +1,1192 @@
+{
+ "functions": [
+  {
+   "addr": "18003d770",
+   "name": "VisBuild",
+   "module": "s2c:visibility",
+   "note": "the visibility driver: reads the ResourceCompiler/VisBuilder keys, voxel stage, then the PVS"
+  },
+  {
+   "addr": "180049df0",
+   "name": "VisEntry",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18002b730",
+   "name": "VoxelSampler_Ctor",
+   "module": "s2c:visibility",
+   "note": "sampler constructor: the traced bounds snapped out to the voxel grid (root cube)"
+  },
+  {
+   "addr": "18004b4c0",
+   "name": "CVisibilityMesh::LoadRTEFromFile",
+   "module": "s2c:visibility",
+   "note": "the .rte reader (voxel_utils.cpp)"
+  },
+  {
+   "addr": "18011c2a0",
+   "name": "Rte_Unserialize",
+   "module": "s2c:visibility",
+   "note": "the .rte unserializer under LoadRTEFromFile"
+  },
+  {
+   "addr": "1800233f0",
+   "name": "Rte_TriangleCorners",
+   "module": "s2c:visibility",
+   "note": "a triangle's three corners from its record: normal, plane, edges"
+  },
+  {
+   "addr": "180118e90",
+   "name": "Rte_TriangleFromCorners",
+   "module": "s2c:visibility",
+   "note": "normal, plane, axes and the two edge equations from the corners"
+  },
+  {
+   "addr": "1800335a0",
+   "name": "VoxelStageDriver",
+   "module": "s2c:visibility",
+   "note": "voxelize, outside, compaction, cluster target, then MergeInsideRegions"
+  },
+  {
+   "addr": "18002f890",
+   "name": "Voxelize",
+   "module": "s2c:visibility",
+   "note": "the call the Voxelize timer brackets; takes the voxel size"
+  },
+  {
+   "addr": "18010b310",
+   "name": "Voxelize_TriangleBoxSat",
+   "module": "s2c:visibility",
+   "note": "whether a triangle reaches into a box: SAT on normalised edges"
+  },
+  {
+   "addr": "18002ebf0",
+   "name": "LeafEntries",
+   "module": "s2c:visibility",
+   "note": "a leaf's 4x4x4 mask; pushes its regions"
+  },
+  {
+   "addr": "18010dde0",
+   "name": "SplitOpenSpace",
+   "module": "s2c:visibility",
+   "note": "a leaf's open voxels cut into regions: greedy boxes, not components"
+  },
+  {
+   "addr": "18010d840",
+   "name": "RegionBox",
+   "module": "s2c:visibility",
+   "note": "a region's box from its leaf box and mask"
+  },
+  {
+   "addr": "18010e610",
+   "name": "SubBox",
+   "module": "s2c:visibility",
+   "note": "one sub-cell's box: (i & 3, i >> 2 & 3, i >> 4 & 3) quarters, no epsilon"
+  },
+  {
+   "addr": "18010e500",
+   "name": "OctantMask",
+   "module": "s2c:visibility",
+   "note": "8-bit octant crossing mask"
+  },
+  {
+   "addr": "18010e0d0",
+   "name": "CellMask",
+   "module": "s2c:visibility",
+   "note": "64-bit sub-cell crossing mask"
+  },
+  {
+   "addr": "18010dfc0",
+   "name": "Leaf_CellsOverlapped",
+   "module": "s2c:visibility",
+   "note": "which of a leaf's 4x4x4 cells a box overlaps, open on both sides"
+  },
+  {
+   "addr": "180033890",
+   "name": "OutsideDetection",
+   "module": "s2c:visibility",
+   "note": "classify every region inside or outside"
+  },
+  {
+   "addr": "180040940",
+   "name": "Job_InitialRegionStatus",
+   "module": "s2c:visibility",
+   "note": "the InitialRegionStatus job body"
+  },
+  {
+   "addr": "18004b9b0",
+   "name": "SeedDecide",
+   "module": "s2c:visibility",
+   "note": "the seed: inside, outside or undecided for one region box"
+  },
+  {
+   "addr": "18004c9d0",
+   "name": "GatherRays",
+   "module": "s2c:visibility",
+   "note": "a 5x5 grid of rays through each face of a box, tallied four ways"
+  },
+  {
+   "addr": "18004bd50",
+   "name": "CastRayGrid",
+   "module": "s2c:visibility",
+   "note": "the ray hits for one origin and direction set; 0x20-byte hit records"
+  },
+  {
+   "addr": "18004bae0",
+   "name": "TallyRays",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18004d1a0",
+   "name": "NoDrawSecondLook",
+   "module": "s2c:visibility",
+   "note": "a ray stopped on a nodraw surface looks again"
+  },
+  {
+   "addr": "18002f5d0",
+   "name": "ClassifyRegion",
+   "module": "s2c:visibility",
+   "note": "second pass, in region order: cast the seed's grid and march"
+  },
+  {
+   "addr": "18002f430",
+   "name": "MarchRay",
+   "module": "s2c:visibility",
+   "note": "one ray through the voxel octree, breadth first by octant mask"
+  },
+  {
+   "addr": "18010a460",
+   "name": "DistanceToBox",
+   "module": "s2c:visibility",
+   "note": "distance from a box to a point"
+  },
+  {
+   "addr": "180033d10",
+   "name": "Compaction",
+   "module": "s2c:visibility",
+   "note": "region compaction before the printed region count"
+  },
+  {
+   "addr": "180034220",
+   "name": "PrintedRegionCount",
+   "module": "s2c:visibility",
+   "note": "the open entries' indices; the re-bucketing before each merge"
+  },
+  {
+   "addr": "18002c970",
+   "name": "Hints_Load",
+   "module": "s2c:visibility",
+   "note": "the three splitter lists from the visibility_hints entities"
+  },
+  {
+   "addr": "18002d320",
+   "name": "CandidateBoxes",
+   "module": "s2c:visibility",
+   "note": "a leaf box split by the hint lists, each piece tagged"
+  },
+  {
+   "addr": "18002d140",
+   "name": "CandidateBoxes_SplitOne",
+   "module": "s2c:visibility",
+   "note": "one split in x, y or z, recursing into CandidateBoxes"
+  },
+  {
+   "addr": "180034420",
+   "name": "GenerateRegionClusters",
+   "module": "s2c:visibility",
+   "note": "one region's (leaf's) clusters"
+  },
+  {
+   "addr": "18003f510",
+   "name": "Job_GenerateClusters",
+   "module": "s2c:visibility",
+   "note": "the cluster generation job body"
+  },
+  {
+   "addr": "180034e40",
+   "name": "MergeLoop",
+   "module": "s2c:visibility",
+   "note": "merge a region's per-voxel clusters down by cost"
+  },
+  {
+   "addr": "18003f580",
+   "name": "Job_MergeBucket",
+   "module": "s2c:visibility",
+   "note": "merge job body: MergeLoop"
+  },
+  {
+   "addr": "18003f600",
+   "name": "Job_MergeBucketCost",
+   "module": "s2c:visibility",
+   "note": "merge job body: MergeLoop, recording each bucket's cost"
+  },
+  {
+   "addr": "180030a00",
+   "name": "Buckets_Resize",
+   "module": "s2c:visibility",
+   "note": "resize the bucket set list to exactly n"
+  },
+  {
+   "addr": "180034ca0",
+   "name": "Merge_DropMergedAndCompact",
+   "module": "s2c:visibility",
+   "note": "walks from the end, drops merged clusters and compacts"
+  },
+  {
+   "addr": "180036530",
+   "name": "MergeInsideRegions",
+   "module": "s2c:visibility",
+   "note": "CVoxelSampler3::MergeInsideRegions (assert)"
+  },
+  {
+   "addr": "180035670",
+   "name": "MergeClusterSet",
+   "module": "s2c:visibility",
+   "note": "CVoxelSampler3::MergeClusterSet (assert); returns the average"
+  },
+  {
+   "addr": "1800358c0",
+   "name": "Regrid",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180030b40",
+   "name": "DistancePreMerge",
+   "module": "s2c:visibility",
+   "note": "Distance merged regions (%d merged to %d)"
+  },
+  {
+   "addr": "1800293c0",
+   "name": "MergeBestCandidates",
+   "module": "s2c:visibility",
+   "note": "CBoxMerge::MergeBestCandidates (assert): the greedy box merge"
+  },
+  {
+   "addr": "180029910",
+   "name": "BestPartner",
+   "module": "s2c:visibility",
+   "note": "one run's best partner from the box tree"
+  },
+  {
+   "addr": "180029280",
+   "name": "BoxOrder",
+   "module": "s2c:visibility",
+   "note": "order two boxes by longest side, then lexicographically"
+  },
+  {
+   "addr": "18002a960",
+   "name": "SortPairs",
+   "module": "s2c:visibility",
+   "note": "std::sort with BoxOrder over the union box"
+  },
+  {
+   "addr": "18002a0e0",
+   "name": "GroupByDistance",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "1800287c0",
+   "name": "GoldenSpiral",
+   "module": "s2c:visibility",
+   "note": "the 512-direction sphere, turn (3 - sqrt 5) pi"
+  },
+  {
+   "addr": "180032370",
+   "name": "BuildCandidates",
+   "module": "s2c:visibility",
+   "note": "sample every cluster's visibility, then build each candidate list"
+  },
+  {
+   "addr": "180040450",
+   "name": "Job_SampleGrids",
+   "module": "s2c:visibility",
+   "note": "SampleGridsJob body: SampleCluster over 64 entries"
+  },
+  {
+   "addr": "180032fa0",
+   "name": "SampleCluster",
+   "module": "s2c:visibility",
+   "note": "one cluster's visibility from its box centre; grew in the 09-23 build"
+  },
+  {
+   "addr": "180031c60",
+   "name": "RebuildCandidates",
+   "module": "s2c:visibility",
+   "note": "the survivor's candidates from its grown box"
+  },
+  {
+   "addr": "180031740",
+   "name": "MergeCost",
+   "module": "s2c:visibility",
+   "note": "merge controller slot 1: cost(a, b)"
+  },
+  {
+   "addr": "180031fd0",
+   "name": "AbsorbPair",
+   "module": "s2c:visibility",
+   "note": "merge controller slot 2: OR bits, sum voxels, union boxes"
+  },
+  {
+   "addr": "1800322f0",
+   "name": "PreferredCandidate",
+   "module": "s2c:visibility",
+   "note": "merge controller slot 4: the deterministic tie break"
+  },
+  {
+   "addr": "180031710",
+   "name": "CandidateAlive",
+   "module": "s2c:visibility",
+   "note": "merge controller slot 5: both flag bytes clear"
+  },
+  {
+   "addr": "180032c00",
+   "name": "CheapestPair",
+   "module": "s2c:visibility",
+   "note": "the cheapest merge over every live entry; ties by summed voxels"
+  },
+  {
+   "addr": "180031440",
+   "name": "BoxGap",
+   "module": "s2c:visibility",
+   "note": "axis-aligned gap between two boxes, zero when they touch"
+  },
+  {
+   "addr": "1800307d0",
+   "name": "FoldVoxelPairs",
+   "module": "s2c:visibility",
+   "note": "merge two (mask, leaf) lists sorted by leaf"
+  },
+  {
+   "addr": "1800302e0",
+   "name": "AssignClusters",
+   "module": "s2c:visibility",
+   "note": "per-cluster bounding boxes"
+  },
+  {
+   "addr": "180038ed0",
+   "name": "AssignClusters2",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18003ed60",
+   "name": "SamplerWalk",
+   "module": "s2c:visibility",
+   "note": "a segment through the box tree, a bit per box it crosses"
+  },
+  {
+   "addr": "18003c3d0",
+   "name": "SampleBorders",
+   "module": "s2c:visibility",
+   "note": "CVoxelSampler3::AdaptivelySampleBorders (assert)"
+  },
+  {
+   "addr": "18003a1a0",
+   "name": "BorderBoxes",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18002a6e0",
+   "name": "BorderClaim",
+   "module": "s2c:visibility",
+   "note": "a claim for an already claimed cluster grows its box"
+  },
+  {
+   "addr": "18003cbc0",
+   "name": "BorderJob",
+   "module": "s2c:visibility",
+   "note": "job body for one border record"
+  },
+  {
+   "addr": "18003a630",
+   "name": "BorderRewrite",
+   "module": "s2c:visibility",
+   "note": "the entry array rebuilt leaf by leaf in node order"
+  },
+  {
+   "addr": "18004c0e0",
+   "name": "BorderTrace",
+   "module": "s2c:visibility",
+   "note": "a segment from the origin to each point"
+  },
+  {
+   "addr": "18003a440",
+   "name": "FlatClusterBoxes",
+   "module": "s2c:visibility",
+   "note": "pieces to their cluster, no range check"
+  },
+  {
+   "addr": "18003c070",
+   "name": "Cluster_VoxelBoxes",
+   "module": "s2c:visibility",
+   "note": "a cluster's voxel boxes: one for a full leaf, else one per cell"
+  },
+  {
+   "addr": "18003b440",
+   "name": "SidePoints",
+   "module": "s2c:visibility",
+   "note": "every voxel face of the cluster facing the side"
+  },
+  {
+   "addr": "18003afc0",
+   "name": "SideKeep",
+   "module": "s2c:visibility",
+   "note": "a point moved 0.01 toward the centre of its entry's box"
+  },
+  {
+   "addr": "18003ae80",
+   "name": "SideFace",
+   "module": "s2c:visibility",
+   "note": "the four corners of a box's face at the side's far end"
+  },
+  {
+   "addr": "180037ee0",
+   "name": "SampleVisForClusters",
+   "module": "s2c:visibility",
+   "note": "the PVS entry: branches on DeterministicBuild"
+  },
+  {
+   "addr": "180019760",
+   "name": "GeneratorSetup",
+   "module": "s2c:visibility",
+   "note": "the deterministic generator set"
+  },
+  {
+   "addr": "180019940",
+   "name": "GeneratorRun",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180019c40",
+   "name": "SamplerDriver",
+   "module": "s2c:visibility",
+   "note": "the sampler's ray loop (thread pool)"
+  },
+  {
+   "addr": "180018500",
+   "name": "Sampler_Original",
+   "module": "s2c:visibility",
+   "note": "the original sampler: DeterministicBuild 0 or -oldvis"
+  },
+  {
+   "addr": "180017d50",
+   "name": "Sampler_UpdateLosHints",
+   "module": "s2c:visibility",
+   "note": "-updateloshints: rewrites the .los hint cache"
+  },
+  {
+   "addr": "180016d40",
+   "name": "BatchTracer",
+   "module": "s2c:visibility",
+   "note": "trace one batch and sort the hits into segments"
+  },
+  {
+   "addr": "18001e7c0",
+   "name": "NeighborsBuild",
+   "module": "s2c:visibility",
+   "note": "CNeighboringClustersList::Build (assert)"
+  },
+  {
+   "addr": "1800202a0",
+   "name": "BuildTracePoints",
+   "module": "s2c:visibility",
+   "note": "NeighborsScan BuildTracePointsForClusters"
+  },
+  {
+   "addr": "18001edc0",
+   "name": "BeginPass",
+   "module": "s2c:visibility",
+   "note": "the shared begin-pass over clusters from 2 on"
+  },
+  {
+   "addr": "18001f990",
+   "name": "FillRays",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18001fd30",
+   "name": "CentreRays",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18001fda0",
+   "name": "CentrePoints",
+   "module": "s2c:visibility",
+   "note": "the point a cluster-centre ray starts from"
+  },
+  {
+   "addr": "18001c890",
+   "name": "Ray_Toward",
+   "module": "s2c:visibility",
+   "note": "a sampling ray: origin and unit direction toward a point"
+  },
+  {
+   "addr": "1800204f0",
+   "name": "BoundaryPairRays",
+   "module": "s2c:visibility",
+   "note": "a boundary-point pair's rays, every point of one to every point of the other"
+  },
+  {
+   "addr": "180020bc0",
+   "name": "FacingPoints",
+   "module": "s2c:visibility",
+   "note": "the points of a cluster to cast from"
+  },
+  {
+   "addr": "180021190",
+   "name": "LargeRegionRays",
+   "module": "s2c:visibility",
+   "note": "at most 8,000,000 pairs a pass"
+  },
+  {
+   "addr": "1800216b0",
+   "name": "LargeRegionFilter",
+   "module": "s2c:visibility",
+   "note": "the boxes at least 256 apart"
+  },
+  {
+   "addr": "18002a260",
+   "name": "CubePoints",
+   "module": "s2c:visibility",
+   "note": "a 7 by 7 grid per face of the (-1,-1,-1)..(1,1,1) box"
+  },
+  {
+   "addr": "18001c1f0",
+   "name": "MatrixCreate",
+   "module": "s2c:visibility",
+   "note": "the mutual visibility matrix"
+  },
+  {
+   "addr": "18001c3c0",
+   "name": "MatrixOr",
+   "module": "s2c:visibility",
+   "note": "every listed cluster sees every other; returns words changed"
+  },
+  {
+   "addr": "18001cde0",
+   "name": "ClosBegin",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18001e490",
+   "name": "ClosFill",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18001db20",
+   "name": "LosLoad",
+   "module": "s2c:visibility",
+   "note": "reads the .los cache"
+  },
+  {
+   "addr": "180017990",
+   "name": "LosRecord",
+   "module": "s2c:visibility",
+   "note": "debug only"
+  },
+  {
+   "addr": "18004aad0",
+   "name": "LosWrite",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18002d710",
+   "name": "RayFold",
+   "module": "s2c:visibility",
+   "note": "the fold's walk of one traced segment"
+  },
+  {
+   "addr": "18002ef60",
+   "name": "SegmentWalk",
+   "module": "s2c:visibility",
+   "note": "a segment through the octree, breadth first"
+  },
+  {
+   "addr": "18002f1c0",
+   "name": "SunWalk",
+   "module": "s2c:visibility",
+   "note": "cells cut to the leaf's open cells"
+  },
+  {
+   "addr": "18002e390",
+   "name": "EntryQuery",
+   "module": "s2c:visibility",
+   "note": "octree walk for a box: open entries in walk order"
+  },
+  {
+   "addr": "18002dd90",
+   "name": "ClusterQuery",
+   "module": "s2c:visibility",
+   "note": "the cluster-id form of the box walk"
+  },
+  {
+   "addr": "18002dfe0",
+   "name": "ClusterBoxQuery",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18002e0d0",
+   "name": "EntryNeighbourClusters",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18002e8b0",
+   "name": "EntryNeighbours",
+   "module": "s2c:visibility",
+   "note": "open records within the base voxel size"
+  },
+  {
+   "addr": "18002ea10",
+   "name": "Region_OfPoint",
+   "module": "s2c:visibility",
+   "note": "a point to its region"
+  },
+  {
+   "addr": "18002c420",
+   "name": "Entry_Touches",
+   "module": "s2c:visibility",
+   "note": "two entries touch when any cell of one is at distance 0"
+  },
+  {
+   "addr": "180023f70",
+   "name": "SunJob",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180024d30",
+   "name": "SunVisibility",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "1800259f0",
+   "name": "SkyTriangles",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180025f00",
+   "name": "SkyVisibility",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18011bd20",
+   "name": "SkyKdLeaf",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18011c120",
+   "name": "SkyKdQuery",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180110430",
+   "name": "BatchRay",
+   "module": "s2c:visibility",
+   "note": "one ray against the kd tree; 56-byte hit record"
+  },
+  {
+   "addr": "180110740",
+   "name": "FlushBatch",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180110cb0",
+   "name": "Tracer_PacketNormalise",
+   "module": "s2c:visibility",
+   "note": "one packet: up to four segments of one octant normalised"
+  },
+  {
+   "addr": "180115760",
+   "name": "Tracer_PacketWalk",
+   "module": "s2c:visibility",
+   "note": "the packet's kd walk (mode 0)"
+  },
+  {
+   "addr": "180118a90",
+   "name": "TracerKd_PlaneCost",
+   "module": "s2c:visibility",
+   "note": "surface area cost of a split plane"
+  },
+  {
+   "addr": "180119600",
+   "name": "TracerKd_PlaneCandidates",
+   "module": "s2c:visibility",
+   "note": "one candidate kind on one axis; -1 is the box middle"
+  },
+  {
+   "addr": "18004d750",
+   "name": "BoxOverlap",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18004dc30",
+   "name": "BoxTraversal",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180039390",
+   "name": "CollapseOnce",
+   "module": "s2c:visibility",
+   "note": "the resolution collapse, run up to eight times"
+  },
+  {
+   "addr": "180038b70",
+   "name": "CollapseFold",
+   "module": "s2c:visibility",
+   "note": "a child's records at half resolution"
+  },
+  {
+   "addr": "180038970",
+   "name": "CollapseUniform",
+   "module": "s2c:visibility",
+   "note": "every octant touched by at most one open record"
+  },
+  {
+   "addr": "1800382e0",
+   "name": "UniqueMasks",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180038130",
+   "name": "ApplyClusterMap",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180043b10",
+   "name": "RecomputeCosts",
+   "module": "s2c:visibility",
+   "note": "CVisClusterList::RecomputeClusterCostLists (assert)"
+  },
+  {
+   "addr": "180043db0",
+   "name": "RecomputeCostsForPartition",
+   "module": "s2c:visibility",
+   "note": "CVisClusterList::RecomputeClusterCostListsForPartition (assert)"
+  },
+  {
+   "addr": "180042890",
+   "name": "ClusterCosts",
+   "module": "s2c:visibility",
+   "note": "each stale record priced"
+  },
+  {
+   "addr": "1800429c0",
+   "name": "PairCost",
+   "module": "s2c:visibility",
+   "note": "what merging a and b costs"
+  },
+  {
+   "addr": "180042f00",
+   "name": "MergePair",
+   "module": "s2c:visibility",
+   "note": "the higher id folds into the lower"
+  },
+  {
+   "addr": "180044060",
+   "name": "Candidates",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "1800442d0",
+   "name": "PartitionCandidates",
+   "module": "s2c:visibility",
+   "note": "one partition's candidates, no running limit"
+  },
+  {
+   "addr": "180044490",
+   "name": "MergedToClusters",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180043550",
+   "name": "FinaliseClusters",
+   "module": "s2c:visibility",
+   "note": "live records renumbered in index order"
+  },
+  {
+   "addr": "180044eb0",
+   "name": "ComponentFill",
+   "module": "s2c:visibility",
+   "note": "connected components over the lists"
+  },
+  {
+   "addr": "180045230",
+   "name": "BuildWeights",
+   "module": "s2c:visibility",
+   "note": "per open entry its popcount"
+  },
+  {
+   "addr": "180045440",
+   "name": "BuiltClusters",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180046120",
+   "name": "ClustersSteps",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "1800482b0",
+   "name": "EnclosedLists",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180037200",
+   "name": "BuildOutput",
+   "module": "s2c:visibility",
+   "note": "the sampler's final state as the VXVS"
+  },
+  {
+   "addr": "180049010",
+   "name": "ExportMutualVisibility",
+   "module": "s2c:visibility",
+   "note": "MutualVisibilityMatrix export"
+  },
+  {
+   "addr": "180049880",
+   "name": "Output_WriteVisResource",
+   "module": "s2c:visibility",
+   "note": "Wrote vis resource %s bytes"
+  },
+  {
+   "addr": "18010bf10",
+   "name": "TreeInit",
+   "module": "s2c:visibility",
+   "note": "construct the tree"
+  },
+  {
+   "addr": "18010c720",
+   "name": "TreeCreate",
+   "module": "s2c:visibility",
+   "note": "take a node off the free list, copy the box, insert"
+  },
+  {
+   "addr": "18010c8f0",
+   "name": "Tree_InsertLeaf",
+   "module": "s2c:visibility",
+   "note": "insert a leaf: sibling choice and rebalance"
+  },
+  {
+   "addr": "18010c7f0",
+   "name": "TreeDestroy",
+   "module": "s2c:visibility",
+   "note": "pull the leaf out, return its node to the pool"
+  },
+  {
+   "addr": "18010cf00",
+   "name": "TreeMove",
+   "module": "s2c:visibility",
+   "note": "pull the leaf out, rewrite its box, put it back"
+  },
+  {
+   "addr": "18010d5a0",
+   "name": "TreeQuery",
+   "module": "s2c:visibility",
+   "note": "every leaf whose box meets the query, inclusive, no margin"
+  },
+  {
+   "addr": "18010bfc0",
+   "name": "TreeRefit",
+   "module": "s2c:visibility",
+   "note": "walk to the root, balancing each node"
+  },
+  {
+   "addr": "18010c0d0",
+   "name": "TreeBalance",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18010d770",
+   "name": "Tree_GrowPool",
+   "module": "s2c:visibility",
+   "note": "grow the node pool"
+  },
+  {
+   "addr": "180015930",
+   "name": "VectorAndNot",
+   "module": "s2c:visibility",
+   "note": "dst = x & ~y over a dword run"
+  },
+  {
+   "addr": "180021940",
+   "name": "VectorOr",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18004dea0",
+   "name": "VectorGrow",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180154b60",
+   "name": "MemSet",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "18013efb0",
+   "name": "SqrtNegative",
+   "module": "s2c:visibility",
+   "note": "sqrt of a negative: the fallback path"
+  },
+  {
+   "addr": "18010ac60",
+   "name": "NormaliseSlowPath",
+   "module": "s2c:visibility",
+   "note": "the split-off half of the inlined normalise"
+  },
+  {
+   "addr": "180182374",
+   "name": "Better",
+   "module": "s2c:visibility",
+   "note": "data: float 1e-4, how much cheaper a rival must be"
+  },
+  {
+   "addr": "180182378",
+   "name": "Tie",
+   "module": "s2c:visibility",
+   "note": "data: float 1e-3, costs within it count as equal"
+  },
+  {
+   "addr": "18018237c",
+   "name": "Vis_ProximityScale",
+   "module": "s2c:visibility",
+   "note": "data: float 1/128, the merge cost's gap divisor"
+  },
+  {
+   "addr": "180182384",
+   "name": "FaceTolerance",
+   "module": "s2c:visibility",
+   "note": "data: float 0.0125, faces line up as shared"
+  },
+  {
+   "addr": "18018238c",
+   "name": "MarchShortest",
+   "module": "s2c:visibility",
+   "note": "data: float 0.1, shortest marched segment; candidate max slack"
+  },
+  {
+   "addr": "180182398",
+   "name": "SubCellAndTouchTolerance",
+   "module": "s2c:visibility",
+   "note": "data: float 0.25"
+  },
+  {
+   "addr": "1801823a0",
+   "name": "TargetVolumeScale",
+   "module": "s2c:visibility",
+   "note": "data: double"
+  },
+  {
+   "addr": "1801823b0",
+   "name": "Half",
+   "module": "s2c:visibility",
+   "note": "data: float 0.5"
+  },
+  {
+   "addr": "1801823c0",
+   "name": "One",
+   "module": "s2c:visibility",
+   "note": "data: float 1"
+  },
+  {
+   "addr": "1801823d0",
+   "name": "CoarseWeight",
+   "module": "s2c:visibility",
+   "note": "data: double 0.25, coarse clusters' merge weight"
+  },
+  {
+   "addr": "1801823e0",
+   "name": "EscapeShare",
+   "module": "s2c:visibility",
+   "note": "data: double 0.8, the seed's last threshold share"
+  },
+  {
+   "addr": "1801823f0",
+   "name": "ShellPadding",
+   "module": "s2c:visibility",
+   "note": "data: float 2, padded box margin before the grow"
+  },
+  {
+   "addr": "1801823f4",
+   "name": "BudgetMult5",
+   "module": "s2c:visibility",
+   "note": "data: float 3"
+  },
+  {
+   "addr": "1801823fc",
+   "name": "PreMergeMaxRatio",
+   "module": "s2c:visibility",
+   "note": "data: float 4"
+  },
+  {
+   "addr": "180182400",
+   "name": "BudgetMult4",
+   "module": "s2c:visibility",
+   "note": "data: float 4.25"
+  },
+  {
+   "addr": "180182404",
+   "name": "BudgetMult3",
+   "module": "s2c:visibility",
+   "note": "data: float 4.5"
+  },
+  {
+   "addr": "18018240c",
+   "name": "BudgetMult2",
+   "module": "s2c:visibility",
+   "note": "data: float 5.75"
+  },
+  {
+   "addr": "180182410",
+   "name": "BudgetMult1",
+   "module": "s2c:visibility",
+   "note": "data: float 6"
+  },
+  {
+   "addr": "180182418",
+   "name": "SpreadPenaltyAndMarchBackOff",
+   "module": "s2c:visibility",
+   "note": "data: float 8"
+  },
+  {
+   "addr": "18018241c",
+   "name": "CostScale",
+   "module": "s2c:visibility",
+   "note": "data: float 10"
+  },
+  {
+   "addr": "180182420",
+   "name": "PreMergeVolumeFloor",
+   "module": "s2c:visibility",
+   "note": "data: double"
+  },
+  {
+   "addr": "180182434",
+   "name": "FirstCostLimit",
+   "module": "s2c:visibility",
+   "note": "data: float 20"
+  },
+  {
+   "addr": "180182438",
+   "name": "TagAndZSpanPenalty",
+   "module": "s2c:visibility",
+   "note": "data: float 32"
+  },
+  {
+   "addr": "180182444",
+   "name": "ZLimit",
+   "module": "s2c:visibility",
+   "note": "data: float 80, z span of more than one storey"
+  },
+  {
+   "addr": "18018244c",
+   "name": "SizeMismatchPenalty",
+   "module": "s2c:visibility",
+   "note": "data: float 128"
+  },
+  {
+   "addr": "180182450",
+   "name": "FineBoxSizeAndPass2Margin",
+   "module": "s2c:visibility",
+   "note": "data: float 256"
+  },
+  {
+   "addr": "180182460",
+   "name": "PassCell512",
+   "module": "s2c:visibility",
+   "note": "data: float 512"
+  },
+  {
+   "addr": "180182468",
+   "name": "PreMergeMaxDimensionAndPass4Margin",
+   "module": "s2c:visibility",
+   "note": "data: float 1024"
+  },
+  {
+   "addr": "18018246c",
+   "name": "PassCell2048",
+   "module": "s2c:visibility",
+   "note": "data: float 2048"
+  },
+  {
+   "addr": "180182474",
+   "name": "AreaLimitAndPassCell4096",
+   "module": "s2c:visibility",
+   "note": "data: float 4096"
+  },
+  {
+   "addr": "180182484",
+   "name": "FloatMax",
+   "module": "s2c:visibility",
+   "note": "data: FLT_MAX"
+  },
+  {
+   "addr": "180182488",
+   "name": "GainFloor",
+   "module": "s2c:visibility",
+   "note": "data: float -1e-4"
+  },
+  {
+   "addr": "18018248c",
+   "name": "Vis_CandidateSlackMin",
+   "module": "s2c:visibility",
+   "note": "data: float -0.1, slack on a candidate box's minimum"
+  },
+  {
+   "addr": "180182494",
+   "name": "LoopSeedCostAndSlack",
+   "module": "s2c:visibility",
+   "note": "data: float -1, the slack a candidate query starts at"
+  },
+  {
+   "addr": "180182500",
+   "name": "AbsMask",
+   "module": "s2c:visibility",
+   "note": "data: 0x7fffffff x4"
+  },
+  {
+   "addr": "18017f1a0",
+   "name": "Vis_MergeControllerVtable",
+   "module": "s2c:visibility",
+   "note": "data: vtable; slots 1 MergeCost, 2 AbsorbPair, 4 PreferredCandidate, 5 CandidateAlive"
+  },
+  {
+   "addr": "18017f200",
+   "name": "Vis_ShellCells",
+   "module": "s2c:visibility",
+   "note": "data: 56 ints, the cells of a 4x4x4 block outside its 2x2x2 core"
+  }
+ ]
+}

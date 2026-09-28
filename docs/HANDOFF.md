@@ -35,8 +35,14 @@ The rules the user set, all still in force:
 - **One subagent at a time**, at most.
 - **Pushing:** push to `box` only when asked. Commits end with the co-author
   line.
-- **Writing style:** no em dashes, comment blocks of at most 20 lines, and no
-  addresses in prose docs (they go in code comments and memory).
+- **Writing style:** no em dashes, and comment blocks of at most 20 lines.
+- **Addresses live in the repo:** every address read from a DLL goes into
+  `tools/re/names/make_manual.py` under its DLL build. `address_doc.py` then
+  writes [`ADDRESSES.md`](ADDRESSES.md), with each build's identity and where
+  `src/` cites each address. The context around them (what was read, at
+  which offsets and vtable slots) is in [`RE_NOTES.md`](RE_NOTES.md). Nothing
+  is kept only in memory. `patch_check.py` re-finds every listed address after
+  a CS2 patch (2026-09-28: all 1,109 identical in the installed builds).
 - **After big tasks**, re-read each ported function beside Valve's decompile.
 - **After a CS2 patch**, run `tools/re/patch_check.py`.
 
@@ -148,7 +154,9 @@ Measured; the tracker (artifact 4whctxfaTdHEiE4d3oAVHA, collections `items`,
 5. **Physics leftovers:** prop bone overrides, props in CMapPrefab, the lattice
    deformer, the prop override keys, the bake's vertex merge and edge
    smoothing, and ze_hold_em_p's six doors.
-6. **Geometry (render)** and the **baked halves**: the two large remaining
+6. **Stale comments:** some `Vis*.cs` comments cite addresses from the
+   2026-07-09 visbuilder build; `ADDRESSES.md` has the current ones.
+7. **Geometry (render)** and the **baked halves**: the two large remaining
    parts, both unstarted beyond what visibility and physics needed.
 
 The ground-truth ledger's open list ([`GROUND_TRUTH.md`](GROUND_TRUTH.md))

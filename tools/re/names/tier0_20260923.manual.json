@@ -1,0 +1,184 @@
+{
+ "functions": [
+  {
+   "addr": "1800c7220",
+   "name": "Kv3_SaveBinary",
+   "module": "s2c:containers",
+   "note": "binary_auto: LZ4 below 0x80001 bytes, else Zstd; raw below 0x100"
+  },
+  {
+   "addr": "1800c8790",
+   "name": "Kv3_CompressLz4",
+   "module": "s2c:containers",
+   "note": ""
+  },
+  {
+   "addr": "1800c8d80",
+   "name": "Kv3_CompressZstd",
+   "module": "s2c:containers",
+   "note": ""
+  },
+  {
+   "addr": "180124b00",
+   "name": "SaveKV3",
+   "module": "s2c:containers",
+   "note": "export"
+  },
+  {
+   "addr": "180007cf0",
+   "name": "V_qsort",
+   "module": "s2c:io",
+   "note": "export; CRT qsort, shortsort <= 8 unstable on ties"
+  },
+  {
+   "addr": "18000df20",
+   "name": "V_SplitString2",
+   "module": "s2c:io",
+   "note": ""
+  },
+  {
+   "addr": "18000e1e0",
+   "name": "V_SplitString",
+   "module": "s2c:io",
+   "note": "export"
+  },
+  {
+   "addr": "180013780",
+   "name": "V_GetFileExtension",
+   "module": "s2c:io",
+   "note": "export"
+  },
+  {
+   "addr": "1800137f0",
+   "name": "V_RemoveDotSlashes",
+   "module": "s2c:io",
+   "note": "export"
+  },
+  {
+   "addr": "180014830",
+   "name": "V_IsAbsolutePath",
+   "module": "s2c:io",
+   "note": "export; 'vpk:' and 'ugc:' prefixes"
+  },
+  {
+   "addr": "1800544c0",
+   "name": "CBufferString::ToLowerFast",
+   "module": "s2c:io",
+   "note": "export; ASCII-only fold"
+  },
+  {
+   "addr": "180054b40",
+   "name": "CBufferString::FixSlashes",
+   "module": "s2c:io",
+   "note": "export"
+  },
+  {
+   "addr": "180054c60",
+   "name": "CBufferString::FixupPathName",
+   "module": "s2c:io",
+   "note": "export"
+  },
+  {
+   "addr": "1800560c0",
+   "name": "CBufferString::SetExtension",
+   "module": "s2c:io",
+   "note": "export"
+  },
+  {
+   "addr": "18017ebf0",
+   "name": "CVertexKDTree_Partition",
+   "module": "s2c:io",
+   "note": "from the middle up, below the split swapped down"
+  },
+  {
+   "addr": "180306700",
+   "name": "V_IsAbsolutePath_PrefixVpk",
+   "module": "s2c:io",
+   "note": "data: string 'vpk:'"
+  },
+  {
+   "addr": "180306708",
+   "name": "V_IsAbsolutePath_PrefixUgc",
+   "module": "s2c:io",
+   "note": "data: string 'ugc:'"
+  },
+  {
+   "addr": "1802df0a4",
+   "name": "acosf",
+   "module": "s2c:math",
+   "note": "CRT, rational approximation"
+  },
+  {
+   "addr": "1802e0c30",
+   "name": "cosf",
+   "module": "s2c:math",
+   "note": "CRT dispatcher (AMD libm)"
+  },
+  {
+   "addr": "1802e0f10",
+   "name": "cosf_fma3",
+   "module": "s2c:math",
+   "note": "code label: the FMA3 path, entered by a jcc from cosf"
+  },
+  {
+   "addr": "1802e1d80",
+   "name": "expf",
+   "module": "s2c:math",
+   "note": "CRT dispatcher"
+  },
+  {
+   "addr": "1802e1ef0",
+   "name": "expf_fma3",
+   "module": "s2c:math",
+   "note": "code label: the FMA3 path, entered by a jcc from expf"
+  },
+  {
+   "addr": "1802e4ff0",
+   "name": "powf",
+   "module": "s2c:math",
+   "note": "CRT dispatcher (V_powf)"
+  },
+  {
+   "addr": "1802e5756",
+   "name": "powf_fma3",
+   "module": "s2c:math",
+   "note": "code label: the FMA3 path, entered by a jcc from powf"
+  },
+  {
+   "addr": "1802e6430",
+   "name": "sinf",
+   "module": "s2c:math",
+   "note": "CRT dispatcher"
+  },
+  {
+   "addr": "1802e67d0",
+   "name": "sinf_fma3",
+   "module": "s2c:math",
+   "note": "code label: the FMA3 path, entered by a jcc from sinf"
+  },
+  {
+   "addr": "1802e7d50",
+   "name": "tanf",
+   "module": "s2c:math",
+   "note": "CRT dispatcher"
+  },
+  {
+   "addr": "1802e80c0",
+   "name": "tanf_fma3",
+   "module": "s2c:math",
+   "note": "code label: the FMA3 path, entered by a jcc from tanf"
+  },
+  {
+   "addr": "18033e3e0",
+   "name": "Crt_TwoToJOver64",
+   "module": "s2c:math",
+   "note": "data: 2^(j/64), j = 0..63"
+  },
+  {
+   "addr": "1803ab28c",
+   "name": "Crt_Fma3Flag",
+   "module": "s2c:math",
+   "note": "data: CPU flag selecting the FMA3 libm paths"
+  }
+ ]
+}

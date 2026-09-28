@@ -568,7 +568,7 @@
    "addr": "18024d710",
    "name": "WRB_CreateEntityTemplateLumps",
    "module": "s2c:entities",
-   "note": "create_entity_template_lumps"
+   "note": "create_entity_template_lumps; the template pass driver (TemplatePass_Run)"
   },
   {
    "addr": "18024adc0",
@@ -628,6 +628,1854 @@
    "addr": "1818dcb00",
    "name": "CNavMesh::Update",
    "module": "s2c:baked/nav",
+   "note": ""
+  },
+  {
+   "addr": "180f1c060",
+   "name": "MapSettle_BuildExcludedSet",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f1e490",
+   "name": "MapSettle_Run",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f38bf0",
+   "name": "CMapEntity_SetSpawnflagBit",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f3af80",
+   "name": "CMapEntity_SetWholeMeshOverrideMaterial",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f4a620",
+   "name": "PhysDoc_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f4b360",
+   "name": "PhysDoc_CollectNodes",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f4b6a0",
+   "name": "PhysDoc_StopSimulating",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f4bce0",
+   "name": "PhysDoc_SetSimulating",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f4c360",
+   "name": "PhysDoc_GetNodes",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f4c560",
+   "name": "PhysDoc_GetObjectsOfNode",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f4c9e0",
+   "name": "PhysDoc_BuildObjects",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f4d380",
+   "name": "PhysDoc_Simulate",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "180f834d0",
+   "name": "MapInstance_BakedMatrix",
+   "module": "s2c:entities/settle",
+   "note": "the instance's matrix against the target's inverse, in double"
+  },
+  {
+   "addr": "180f8b770",
+   "name": "MapNode_OwnerEntity",
+   "module": "s2c:entities/settle",
+   "note": "the nearest entity above"
+  },
+  {
+   "addr": "180fdeda0",
+   "name": "CMapPoint::vf18",
+   "module": "s2c:entities/settle",
+   "note": "SetAngles: under 0.001 becomes 0, yaw made non-negative"
+  },
+  {
+   "addr": "180fdef60",
+   "name": "CMapPoint::vf25",
+   "module": "s2c:entities/settle",
+   "note": "TransformBy: angles rebuilt from the matrix"
+  },
+  {
+   "addr": "180fdf210",
+   "name": "CMapPoint_Angles",
+   "module": "s2c:entities/settle",
+   "note": "the node's angles"
+  },
+  {
+   "addr": "181001820",
+   "name": "CMapEntity::vf25",
+   "module": "s2c:entities/settle",
+   "note": "TransformBy (flags 0x41)"
+  },
+  {
+   "addr": "181003930",
+   "name": "CMapEntity::vf223",
+   "module": "s2c:entities/settle",
+   "note": "the scale: longest column of the rotation"
+  },
+  {
+   "addr": "181006ee0",
+   "name": "CMapEntity_SetStartAsleep",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1810543f0",
+   "name": "PhysObj_ctor",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1810562e0",
+   "name": "PhysMesh_MaterialRecords",
+   "module": "s2c:entities/settle",
+   "note": "one record per material"
+  },
+  {
+   "addr": "1810564a0",
+   "name": "PhysMesh_MaterialRecord",
+   "module": "s2c:entities/settle",
+   "note": "a mesh material's physics, 0x60-byte record"
+  },
+  {
+   "addr": "181057020",
+   "name": "PhysMesh_Shapes",
+   "module": "s2c:entities/settle",
+   "note": "by physics type: 2 hulls the soup, 3 per group"
+  },
+  {
+   "addr": "1810578b0",
+   "name": "PhysMesh_MaterialsEqual",
+   "module": "s2c:entities/settle",
+   "note": "compares the names"
+  },
+  {
+   "addr": "1810593e0",
+   "name": "MapSettle_Candidates",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "181059770",
+   "name": "PhysMesh_Soups",
+   "module": "s2c:entities/settle",
+   "note": "a map mesh's triangle soups, 0x90-byte entries"
+  },
+  {
+   "addr": "18105a410",
+   "name": "PhysPart_GetEntityTransform",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18105b2d0",
+   "name": "PhysObj_IsAsleep",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18105b350",
+   "name": "PhysObj_WriteBackTransform",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18105c330",
+   "name": "PhysObj_Build",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "18105ce70",
+   "name": "PhysMesh_OwnerRules",
+   "module": "s2c:entities/settle",
+   "note": "the owner entity's physics rules"
+  },
+  {
+   "addr": "18105d760",
+   "name": "PhysMesh_Build",
+   "module": "s2c:entities/settle",
+   "note": "a map mesh's static body and shapes"
+  },
+  {
+   "addr": "18105dbd0",
+   "name": "PhysPart_BuildFromModel",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1810dcca0",
+   "name": "CMapMesh_NameSlotsAfterOverride",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1812d87e0",
+   "name": "CMesh_JoinVertices",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1819c9db0",
+   "name": "PhysMesh_ConnectedComponents",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1819d5190",
+   "name": "PhysModel_HasJoints",
+   "module": "s2c:entities/settle",
+   "note": "joint test on the model's physics; not ported"
+  },
+  {
+   "addr": "18009fe10",
+   "name": "Fgd_TypeAliases",
+   "module": "s2c:entities/lump",
+   "note": "the aliases and extension each type stands for"
+  },
+  {
+   "addr": "1801fdae0",
+   "name": "TemplatePass_RewriteReferences",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180240a60",
+   "name": "EntityLump_ExportNodeLate",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "18024a970",
+   "name": "TemplatePass_RemoveOriginals",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "18024c6d0",
+   "name": "TemplatePass_Step_18024c6d0",
+   "module": "s2c:entities/lump",
+   "note": "a template pass piece"
+  },
+  {
+   "addr": "18024c910",
+   "name": "TemplatePass_RenameCopies",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "18024ccd0",
+   "name": "TemplatePass_Collect",
+   "module": "s2c:entities/lump",
+   "note": "copies of the matching entities in template space"
+  },
+  {
+   "addr": "18024d9c0",
+   "name": "TemplatePass_BuildLumps",
+   "module": "s2c:entities/lump",
+   "note": "a lump for every template entity"
+  },
+  {
+   "addr": "1803670b0",
+   "name": "EntityIOConnection_SchemaBind",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180d7c3f0",
+   "name": "MapDoc_UpgradeTo38",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180dcab50",
+   "name": "Fgd_IsClassName",
+   "module": "s2c:entities/lump",
+   "note": "case-blind class name test"
+  },
+  {
+   "addr": "180dcc5e0",
+   "name": "Fgd_FinalizeClasses",
+   "module": "s2c:entities/lump",
+   "note": "every class in declaration order"
+  },
+  {
+   "addr": "180dcd6b0",
+   "name": "Fgd_LoadBody",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180dd08c0",
+   "name": "FgdClass_AddVariable",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180dd1110",
+   "name": "FgdClass_Finalize",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180dd1680",
+   "name": "FgdClass_MergeOverride",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180dd2500",
+   "name": "FgdClass_Inherits",
+   "module": "s2c:entities/lump",
+   "note": "any chain of bases"
+  },
+  {
+   "addr": "180dd37a0",
+   "name": "FgdClass_MergeChoices",
+   "module": "s2c:entities/lump",
+   "note": "redeclared choice lists: new first, then old"
+  },
+  {
+   "addr": "180dd5550",
+   "name": "FgdClass_Key",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180dd65e0",
+   "name": "FgdVariable_TagListDedupe",
+   "module": "s2c:entities/lump",
+   "note": "empty tags and later case-blind duplicates dropped"
+  },
+  {
+   "addr": "180dd6db0",
+   "name": "FgdVariable_TagListDefault",
+   "module": "s2c:entities/lump",
+   "note": "tag_list default joined with ','"
+  },
+  {
+   "addr": "180dd70d0",
+   "name": "FgdVariable_FlagsDefault",
+   "module": "s2c:entities/lump",
+   "note": "flags default: OR of the on-bits"
+  },
+  {
+   "addr": "180dd7810",
+   "name": "FgdVariable_ReadDefault",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180dda5c0",
+   "name": "Fgd_ResolveType",
+   "module": "s2c:entities/lump",
+   "note": "aliases before the type table"
+  },
+  {
+   "addr": "180f1d770",
+   "name": "CMapParticle_Snapshot",
+   "module": "s2c:entities/lump",
+   "note": "the snapshot the compile generates for a node"
+  },
+  {
+   "addr": "180f24170",
+   "name": "CMapGameDataNode::vf157",
+   "module": "s2c:entities/lump",
+   "note": "fixup types by mask 0x830006, skipping '!*?@' and class names"
+  },
+  {
+   "addr": "180f2d290",
+   "name": "DmElement_IsNameAttribute",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180f2e4d0",
+   "name": "CMapGameDataNode_SetClass",
+   "module": "s2c:entities/lump",
+   "note": "masks spawnflags"
+  },
+  {
+   "addr": "180f34460",
+   "name": "Fgd_HasSpawnflag",
+   "module": "s2c:entities/lump",
+   "note": "case blind"
+  },
+  {
+   "addr": "180f5ff40",
+   "name": "MapDoc_CollapseInstance",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180f60740",
+   "name": "MapDoc_BakeInstances",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180f7aa30",
+   "name": "CMapNode::vf205",
+   "module": "s2c:entities/lump",
+   "note": "snapshot path generator"
+  },
+  {
+   "addr": "180f8ee20",
+   "name": "CMapEntity_SnapshotFile",
+   "module": "s2c:entities/lump",
+   "note": "snapshot_file from snapshot_mesh"
+  },
+  {
+   "addr": "180fa84e0",
+   "name": "EntityKey_TypeValue",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180fc1560",
+   "name": "CMapWorld_ExportToLump",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "180fefb60",
+   "name": "EntityLump_FixupValue",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "181004020",
+   "name": "CMapEntity_ExportToLump",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "181013ec0",
+   "name": "CMapInstance::vf268",
+   "module": "s2c:entities/lump",
+   "note": "calls CMapInstance_Collapse"
+  },
+  {
+   "addr": "181017820",
+   "name": "CMapInstance_Collapse",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "181089940",
+   "name": "CMapCable_RegisterProperties",
+   "module": "s2c:entities/lump",
+   "note": "registers the embedded property binding (rendercolor as text)"
+  },
+  {
+   "addr": "1810b5480",
+   "name": "CMapPath_ExportKeys",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "1810b7ca0",
+   "name": "CMapPath_IsLoop",
+   "module": "s2c:entities/lump",
+   "note": "loops with more than one node"
+  },
+  {
+   "addr": "1810bfd50",
+   "name": "CMapPath_Value",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "181110ba0",
+   "name": "CMapPath_Tangents",
+   "module": "s2c:entities/lump",
+   "note": "in and out tangents"
+  },
+  {
+   "addr": "181111cc0",
+   "name": "CMapPathNode_Scale",
+   "module": "s2c:entities/lump",
+   "note": "radius and height scale, 1 and 1 unless the class"
+  },
+  {
+   "addr": "18114cb20",
+   "name": "CMapCable::vf217",
+   "module": "s2c:entities/lump",
+   "note": "rendercolor = tint as '%i %i %i'"
+  },
+  {
+   "addr": "1812806d0",
+   "name": "Path_ComputeTangents",
+   "module": "s2c:entities/lump",
+   "note": ""
+  },
+  {
+   "addr": "181c1ee80",
+   "name": "EntityLump_FixupResource",
+   "module": "s2c:entities/lump",
+   "note": "a resource reference as the lump writer fixes it"
+  },
+  {
+   "addr": "181eb82c0",
+   "name": "Kv3_SetColor",
+   "module": "s2c:entities/lump",
+   "note": "the KV3 colour setter"
+  },
+  {
+   "addr": "182349b48",
+   "name": "CMapInstance_Vtable",
+   "module": "s2c:entities/lump",
+   "note": "data: vtable; slot 0x860 (vf268) calls the collapse"
+  },
+  {
+   "addr": "182fe7b08",
+   "name": "MapDoc_UpgradeTable",
+   "module": "s2c:entities/lump",
+   "note": "data: vmap upgrade steps; slot 36 is the vmap<38 worldspawn step"
+  },
+  {
+   "addr": "182fe9f60",
+   "name": "Fgd_TypeTable",
+   "module": "s2c:entities/lump",
+   "note": "data: FGD key types {type, pad, name ptr}"
+  },
+  {
+   "addr": "1800c7c10",
+   "name": "MurmurHash2LowerCase",
+   "module": "s2c:containers",
+   "note": "ToLowerFast then MurmurHash2, seed 0x31415926"
+  },
+  {
+   "addr": "1800ff1f0",
+   "name": "ResourceManifest_BuildWorld",
+   "module": "s2c:containers",
+   "note": "world.vrman built in memory, no file"
+  },
+  {
+   "addr": "1801f9550",
+   "name": "CMapBuilderContext::vf23",
+   "module": "s2c:containers",
+   "note": "AddManifest: a physics or world node manifest (.vrman)"
+  },
+  {
+   "addr": "181c1dca0",
+   "name": "FixupResourceName_NoExtension",
+   "module": "s2c:containers",
+   "note": ""
+  },
+  {
+   "addr": "181c1e120",
+   "name": "FixupResourceName",
+   "module": "s2c:containers",
+   "note": "adds the extension ('vmat'); refuses absolute or rooted paths"
+  },
+  {
+   "addr": "181c1ea80",
+   "name": "ResourceName_FixupAndHash",
+   "module": "s2c:containers",
+   "note": "reaches FixupResourceName"
+  },
+  {
+   "addr": "181c1f980",
+   "name": "ResourceManifest_Append",
+   "module": "s2c:containers",
+   "note": "appends to the flat resourceManifest array"
+  },
+  {
+   "addr": "181c1fae0",
+   "name": "ResourceManifest_Save",
+   "module": "s2c:containers",
+   "note": "SaveKV3 text generic, CRLF, no final newline"
+  },
+  {
+   "addr": "181c24a70",
+   "name": "Red2_WriteBlock",
+   "module": "s2c:containers",
+   "note": "RED2 writer; passes binary_auto"
+  },
+  {
+   "addr": "180160ca0",
+   "name": "ResourceCompiler_UnzipVpk",
+   "module": "s2c:containers/compile-map",
+   "note": "UnzipVpk"
+  },
+  {
+   "addr": "18016b550",
+   "name": "ResourceCompilerContext_Tables",
+   "module": "s2c:containers/compile-map",
+   "note": "the context's option tables"
+  },
+  {
+   "addr": "1801742f0",
+   "name": "CResourceCompilerContext::vf10",
+   "module": "s2c:containers/compile-map",
+   "note": "GetBool: GetInt != 0"
+  },
+  {
+   "addr": "180174310",
+   "name": "CResourceCompilerContext::vf11",
+   "module": "s2c:containers/compile-map",
+   "note": "GetInt: falls back to (int)GetFloat"
+  },
+  {
+   "addr": "180188960",
+   "name": "CResourceCompilerSystem::GenerateResourceFile",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "18018b630",
+   "name": "ResourceCompiler_ParseCommandLine",
+   "module": "s2c:containers/compile-map",
+   "note": "its own switch list, else generic: %f, then %i, then string"
+  },
+  {
+   "addr": "1801f7840",
+   "name": "CMapBuilderContext_CompileMap",
+   "module": "s2c:containers/compile-map",
+   "note": "the builder flags and steps (CompileMap)"
+  },
+  {
+   "addr": "1801f9a50",
+   "name": "CMapBuilderContext::vf28",
+   "module": "s2c:containers/compile-map",
+   "note": "IsBuilderEnabled"
+  },
+  {
+   "addr": "1801fcc50",
+   "name": "CMapBuilderContext_CleanupIntermediateCruft",
+   "module": "s2c:containers/compile-map",
+   "note": "lambda body (CleanupIntermediateCruft)"
+  },
+  {
+   "addr": "182771980",
+   "name": "MapBuilder_StepTable",
+   "module": "s2c:containers/compile-map",
+   "note": "data: the compile step table"
+  },
+  {
+   "addr": "183074030",
+   "name": "MapBuilder_BuilderNames",
+   "module": "s2c:containers/compile-map",
+   "note": "data: builder flag name table"
+  },
+  {
+   "addr": "180f1ef70",
+   "name": "Nav_GatherC",
+   "module": "s2c:coverage",
+   "note": "nav gather"
+  },
+  {
+   "addr": "180f20f00",
+   "name": "Nav_GatherA",
+   "module": "s2c:coverage",
+   "note": "nav gather"
+  },
+  {
+   "addr": "180f21760",
+   "name": "Nav_GatherB",
+   "module": "s2c:coverage",
+   "note": "nav gather"
+  },
+  {
+   "addr": "180fbd800",
+   "name": "SteamAudio_Probes",
+   "module": "s2c:coverage",
+   "note": "Steam Audio probes"
+  },
+  {
+   "addr": "1810c65c0",
+   "name": "BakeSubdivisionForFaces",
+   "module": "s2c:geometry/subdivision",
+   "note": "scope name; calls the bake"
+  },
+  {
+   "addr": "181375e20",
+   "name": "HalfEdge_ContainerAdd",
+   "module": "s2c:geometry/subdivision",
+   "note": "handle containers: add"
+  },
+  {
+   "addr": "181376810",
+   "name": "HalfEdge_AddEdge",
+   "module": "s2c:geometry/subdivision",
+   "note": "an edge between the ends of two corners"
+  },
+  {
+   "addr": "181376f80",
+   "name": "HalfEdge_AddEdgeToFace",
+   "module": "s2c:geometry/subdivision",
+   "note": "an edge from a to b across a face unless one is there"
+  },
+  {
+   "addr": "181379a40",
+   "name": "HalfEdge_SplitEdge",
+   "module": "s2c:geometry/subdivision",
+   "note": "h (A to B) ends at a new vertex M; a new half-edge M to B"
+  },
+  {
+   "addr": "18137a050",
+   "name": "HalfEdge_AddVertexToEdge",
+   "module": "s2c:geometry/subdivision",
+   "note": "a vertex on edge a-b at t"
+  },
+  {
+   "addr": "18137a900",
+   "name": "HalfEdge_NewTwinPair",
+   "module": "s2c:geometry/subdivision",
+   "note": "first allocated first"
+  },
+  {
+   "addr": "181382170",
+   "name": "HalfEdge_CollapseEdge",
+   "module": "s2c:geometry/subdivision",
+   "note": "generic half-edge lib: edge collapse"
+  },
+  {
+   "addr": "181384470",
+   "name": "HalfEdge_CollapseInnerFace",
+   "module": "s2c:geometry/subdivision",
+   "note": "inner face collapsed to its centre"
+  },
+  {
+   "addr": "1813858d0",
+   "name": "MeshTessellation_WeldExact",
+   "module": "s2c:geometry/subdivision",
+   "note": "equal positions bit for bit are one vertex, first met"
+  },
+  {
+   "addr": "18138be80",
+   "name": "HalfEdge_Corner",
+   "module": "s2c:geometry/subdivision",
+   "note": "the half-edge of a face ending at a vertex"
+  },
+  {
+   "addr": "18138e6e0",
+   "name": "HalfEdge_Lib_18138e6e0",
+   "module": "s2c:geometry/subdivision",
+   "note": "called by the bake"
+  },
+  {
+   "addr": "18138f230",
+   "name": "HalfEdge_EdgeInFace",
+   "module": "s2c:geometry/subdivision",
+   "note": "edge between two vertices in a face"
+  },
+  {
+   "addr": "18138f9f0",
+   "name": "HalfEdge_FaceWith",
+   "module": "s2c:geometry/subdivision",
+   "note": "the face holding both vertices"
+  },
+  {
+   "addr": "18138fa30",
+   "name": "SubdivisionBake_GridSlot",
+   "module": "s2c:geometry/subdivision",
+   "note": "grid-slot lookup, 2^(level-1) grid"
+  },
+  {
+   "addr": "1813922e0",
+   "name": "HalfEdge_Lib_1813922e0",
+   "module": "s2c:geometry/subdivision",
+   "note": "generic half-edge lib, called by the bake"
+  },
+  {
+   "addr": "1813937a0",
+   "name": "HalfEdge_Between",
+   "module": "s2c:geometry/subdivision",
+   "note": "half-edge from a to b, circling a"
+  },
+  {
+   "addr": "1813995a0",
+   "name": "HalfEdge_ContainerRemove",
+   "module": "s2c:geometry/subdivision",
+   "note": "swap-last, handle to a FIFO free list"
+  },
+  {
+   "addr": "181399f40",
+   "name": "HalfEdge_FaceIndex",
+   "module": "s2c:geometry/subdivision",
+   "note": "face handle to dense index (level byte array +0x1b38)"
+  },
+  {
+   "addr": "18139bd10",
+   "name": "SubdivisionBake_FaceData",
+   "module": "s2c:geometry/subdivision",
+   "note": ""
+  },
+  {
+   "addr": "18139c100",
+   "name": "MeshTessellation_ForPhysics",
+   "module": "s2c:geometry/subdivision",
+   "note": "triangles for physics"
+  },
+  {
+   "addr": "18139c1f0",
+   "name": "MeshTessellation_Corners",
+   "module": "s2c:geometry/subdivision",
+   "note": "every triangle corner"
+  },
+  {
+   "addr": "1813a4a00",
+   "name": "HalfEdge_LerpAttribute",
+   "module": "s2c:geometry/subdivision",
+   "note": "(b - a) * t + a per axis"
+  },
+  {
+   "addr": "1813a54d0",
+   "name": "HalfEdge_LerpCorner",
+   "module": "s2c:geometry/subdivision",
+   "note": "the corner at M lerps the face's corners at a and b"
+  },
+  {
+   "addr": "1813a5740",
+   "name": "HalfEdge_LerpVertex",
+   "module": "s2c:geometry/subdivision",
+   "note": ""
+  },
+  {
+   "addr": "1813a7d00",
+   "name": "HalfEdge_MergeFaces",
+   "module": "s2c:geometry/subdivision",
+   "note": "generic half-edge lib"
+  },
+  {
+   "addr": "1813a8ae0",
+   "name": "HalfEdge_MergeVertices",
+   "module": "s2c:geometry/subdivision",
+   "note": "post-bake weld, tol 0x358637bd; not ported"
+  },
+  {
+   "addr": "1813b7750",
+   "name": "SubdivisionBake_PatchPositions",
+   "module": "s2c:geometry/subdivision",
+   "note": "per-face patch grid of positions"
+  },
+  {
+   "addr": "1813b82f0",
+   "name": "SubdivisionBake_PatchPaint",
+   "module": "s2c:geometry/subdivision",
+   "note": "per-face patch grid of paint"
+  },
+  {
+   "addr": "1813ba570",
+   "name": "HalfEdge_SplitBetween",
+   "module": "s2c:geometry/subdivision",
+   "note": "point at t by arc length along the edge chain; reuses ends within 0.01"
+  },
+  {
+   "addr": "1813baa40",
+   "name": "SubdivisionBake_Bake",
+   "module": "s2c:geometry/subdivision",
+   "note": "splits faces level by level, lower first"
+  },
+  {
+   "addr": "1813bc230",
+   "name": "MeshTessellation_PatchFrame",
+   "module": "s2c:geometry/subdivision",
+   "note": "patch frame: columns B, T, N"
+  },
+  {
+   "addr": "1813bcc40",
+   "name": "MeshTessellation_PatchGrid",
+   "module": "s2c:geometry/subdivision",
+   "note": "the patch's grid of cells"
+  },
+  {
+   "addr": "1813bda20",
+   "name": "MeshTessellation_CornerPatch",
+   "module": "s2c:geometry/subdivision",
+   "note": "one quad patch per corner"
+  },
+  {
+   "addr": "1813be320",
+   "name": "MeshTessellation_CornerPaint",
+   "module": "s2c:geometry/subdivision",
+   "note": "each corner times 1/m in loop order"
+  },
+  {
+   "addr": "1813c1cc0",
+   "name": "MeshTessellation_PaintValues",
+   "module": "s2c:geometry/subdivision",
+   "note": ""
+  },
+  {
+   "addr": "1813c26a0",
+   "name": "MeshTessellation_Stitch",
+   "module": "s2c:geometry/subdivision",
+   "note": "patch to a finer neighbour (the ray-trace scene's path)"
+  },
+  {
+   "addr": "1813c64d0",
+   "name": "SubdivisionBake_Step_1813c64d0",
+   "module": "s2c:geometry/subdivision",
+   "note": "called by the bake after the split"
+  },
+  {
+   "addr": "1813c7a40",
+   "name": "SubdivisionBake_FaceLevel",
+   "module": "s2c:geometry/subdivision",
+   "note": ""
+  },
+  {
+   "addr": "1813c7ae0",
+   "name": "MeshTessellation_LevelAcross",
+   "module": "s2c:geometry/subdivision",
+   "note": "level across a half-edge, 0 where no face"
+  },
+  {
+   "addr": "1813c7b90",
+   "name": "MeshTessellation_Displace",
+   "module": "s2c:geometry/subdivision",
+   "note": "patch points moved by their displacement"
+  },
+  {
+   "addr": "1813c94f0",
+   "name": "SubdivisionBake_WriteBack",
+   "module": "s2c:geometry/subdivision",
+   "note": "grid write-back to +0xd0 positions / +0xb20 paint"
+  },
+  {
+   "addr": "1813ca560",
+   "name": "SubdivisionBake_SplitFace",
+   "module": "s2c:geometry/subdivision",
+   "note": "quad branch recurses corners 0,1,3,2"
+  },
+  {
+   "addr": "18122d020",
+   "name": "SmartProp_NodeTransform",
+   "module": "s2c:smartprops",
+   "note": "world matrix split into column scales and a rotation"
+  },
+  {
+   "addr": "181230360",
+   "name": "SmartProp_EvaluateNode",
+   "module": "s2c:smartprops",
+   "note": "calls SmartPropsSystem_001 +0x88 with the node's world CTransform"
+  },
+  {
+   "addr": "181c51040",
+   "name": "SmartProp_RebaseRecords",
+   "module": "s2c:smartprops",
+   "note": "Compose(CTransform_Invert(W), record)"
+  },
+  {
+   "addr": "181c51410",
+   "name": "SmartProp_ComposeRecords",
+   "module": "s2c:smartprops",
+   "note": "Compose(W, record) again"
+  },
+  {
+   "addr": "183b5b4c0",
+   "name": "g_pSmartPropsSystem",
+   "module": "s2c:smartprops",
+   "note": "data: global, SmartPropsSystem_001"
+  },
+  {
+   "addr": "18130d0b0",
+   "name": "MapBuilder_FaceNeighbours",
+   "module": "s2c:physics/hull",
+   "note": "every face around the corners, through a set"
+  },
+  {
+   "addr": "181a09ad0",
+   "name": "RnHull_RotateInertia",
+   "module": "s2c:physics/hull",
+   "note": "R I R^T on the 3x4 mass block"
+  },
+  {
+   "addr": "181a09e20",
+   "name": "RnHull_OrthoAreas",
+   "module": "s2c:physics/hull",
+   "note": "sums (row1 + row0) + row2"
+  },
+  {
+   "addr": "18399447e",
+   "name": "RegionSvm_ClipFlag",
+   "module": "s2c:physics/hull",
+   "note": "data: bss byte, never written"
+  },
+  {
+   "addr": "183b5b5c0",
+   "name": "g_pVPhysics2Interface",
+   "module": "s2c:physics/hull",
+   "note": "data: global, the physics interface the shape builder calls"
+  },
+  {
+   "addr": "1813cfad0",
+   "name": "HullSimplifier_HullToHalfEdge",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813d0940",
+   "name": "HullAgglomerator_EdgeSharpness",
+   "module": "s2c:physics/simplifier",
+   "note": "1 unless the normals are over 90 degrees apart"
+  },
+  {
+   "addr": "1813d0aa0",
+   "name": "HullAgglomerator_Planes",
+   "module": "s2c:physics/simplifier",
+   "note": "the live clusters' planes after cutting the tree"
+  },
+  {
+   "addr": "1813d0f90",
+   "name": "HullSimplifier_HullToMesh",
+   "module": "s2c:physics/simplifier",
+   "note": "vertices in list order, faces fanned"
+  },
+  {
+   "addr": "1813d1560",
+   "name": "HullAgglomerator_Record",
+   "module": "s2c:physics/simplifier",
+   "note": "a merged node's record, in id order"
+  },
+  {
+   "addr": "1813d20d0",
+   "name": "HullAgglomerator_Dual",
+   "module": "s2c:physics/simplifier",
+   "note": "a ring of faces around each hull vertex"
+  },
+  {
+   "addr": "1813d30f0",
+   "name": "HullAgglomerator_Edges",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813d3700",
+   "name": "HullAgglomerator_MergeFlat",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813d3a30",
+   "name": "HullAgglomerator_Leaves",
+   "module": "s2c:physics/simplifier",
+   "note": "a leaf per face, plane relative to the centroid"
+  },
+  {
+   "addr": "1813fbb20",
+   "name": "Qem_Neighbours",
+   "module": "s2c:physics/simplifier",
+   "note": "next then previous corner"
+  },
+  {
+   "addr": "1813fc1a0",
+   "name": "Qem_HeapPop",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1813fcf10",
+   "name": "Qem_HeapPush",
+   "module": "s2c:physics/simplifier",
+   "note": "min-heap on cost; an equal parent still swaps"
+  },
+  {
+   "addr": "1820682a0",
+   "name": "Cholesky_Factor",
+   "module": "s2c:physics/simplifier",
+   "note": "clamped Cholesky for the QEM cost"
+  },
+  {
+   "addr": "182068430",
+   "name": "Cholesky_Solve",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "182068480",
+   "name": "Cholesky_Back",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1820712f0",
+   "name": "Agglomerate_Init",
+   "module": "s2c:physics/simplifier",
+   "note": "generic clustering"
+  },
+  {
+   "addr": "182071730",
+   "name": "Agglomerate_Run",
+   "module": "s2c:physics/simplifier",
+   "note": "generic clustering"
+  },
+  {
+   "addr": "182071c00",
+   "name": "Agglomerate_Connect",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "182071cb0",
+   "name": "Agglomerate_SiftDown",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "182071ef0",
+   "name": "Agglomerate_SiftDownNear",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "182072070",
+   "name": "Agglomerate_SiftUp",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1820721d0",
+   "name": "Agglomerate_SiftUpNear",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1820722c0",
+   "name": "Agglomerate_Merge",
+   "module": "s2c:physics/simplifier",
+   "note": "generic clustering"
+  },
+  {
+   "addr": "18012a510",
+   "name": "HandleSet_Realloc2",
+   "module": "s2c:mapbuilder",
+   "note": "another instance of the realloc"
+  },
+  {
+   "addr": "18012b8b0",
+   "name": "HandleSet_Shift2",
+   "module": "s2c:mapbuilder",
+   "note": "another instance of the shift"
+  },
+  {
+   "addr": "181102e10",
+   "name": "HandleSet_Shift",
+   "module": "s2c:mapbuilder",
+   "note": ""
+  },
+  {
+   "addr": "181103020",
+   "name": "HandleSet_Realloc",
+   "module": "s2c:mapbuilder",
+   "note": "open-addressed hash set of mesh handles"
+  },
+  {
+   "addr": "181255fb0",
+   "name": "MapNode_LocalMatrix",
+   "module": "s2c:mapbuilder",
+   "note": "vtable slot 0xa0: AngleMatrix of the node's angles"
+  },
+  {
+   "addr": "1812e6810",
+   "name": "HandleSet_InsertIfAbsent",
+   "module": "s2c:mapbuilder",
+   "note": ""
+  },
+  {
+   "addr": "1812f90d0",
+   "name": "HandleSet_Remove",
+   "module": "s2c:mapbuilder",
+   "note": ""
+  },
+  {
+   "addr": "18136c790",
+   "name": "PolygonTriangulator_QuadSplitScore",
+   "module": "s2c:mapbuilder",
+   "note": "squared diagonal, 3 when both triangles degenerate"
+  },
+  {
+   "addr": "18136dcb0",
+   "name": "PolygonTriangulator_Inside",
+   "module": "s2c:mapbuilder",
+   "note": "inner side of all three edges"
+  },
+  {
+   "addr": "18136f7a0",
+   "name": "PolygonTriangulator_Face",
+   "module": "s2c:mapbuilder",
+   "note": "a map mesh face to triangles"
+  },
+  {
+   "addr": "18136f810",
+   "name": "PolygonTriangulator_Triangulate",
+   "module": "s2c:mapbuilder",
+   "note": ""
+  },
+  {
+   "addr": "181370790",
+   "name": "PolygonTriangulator_EarScore",
+   "module": "s2c:mapbuilder",
+   "note": "-1 for a reflex corner"
+  },
+  {
+   "addr": "1810c4000",
+   "name": "HammerMesh_ApplyDeformer",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "1810db6a0",
+   "name": "HammerMesh_Smoothing",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "18013e340",
+   "name": "VectorNormalize",
+   "module": "s2c:math",
+   "note": "length sqrt((y y + z z) + x x)"
+  },
+  {
+   "addr": "1801fea30",
+   "name": "Vector_SafeNormal",
+   "module": "s2c:math",
+   "note": "zero when it has no length"
+  },
+  {
+   "addr": "181046990",
+   "name": "Vector_Lerp",
+   "module": "s2c:math",
+   "note": "(b - a) * t + a"
+  },
+  {
+   "addr": "1811145c0",
+   "name": "AngleMatrixDouble",
+   "module": "s2c:math",
+   "note": "sines and cosines in double"
+  },
+  {
+   "addr": "181253510",
+   "name": "CTransform_Compose",
+   "module": "s2c:math",
+   "note": "SIMD; a applied after b"
+  },
+  {
+   "addr": "181255d60",
+   "name": "AngleMatrix",
+   "module": "s2c:math",
+   "note": "degrees times 0.017453292f"
+  },
+  {
+   "addr": "181256960",
+   "name": "PointSegmentClosest",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "181256bf0",
+   "name": "PointLineDistanceSquared",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "181256f30",
+   "name": "PointSegmentDistance",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "181258890",
+   "name": "ConcatTransforms",
+   "module": "s2c:math",
+   "note": "SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0)"
+  },
+  {
+   "addr": "18125a6c0",
+   "name": "Vector_Basis",
+   "module": "s2c:math",
+   "note": "Frisvad's basis with the sign of z"
+  },
+  {
+   "addr": "18125aba0",
+   "name": "MatrixInvert",
+   "module": "s2c:math",
+   "note": "transpose; translation rotated back"
+  },
+  {
+   "addr": "18125b130",
+   "name": "MatrixInvertRigid",
+   "module": "s2c:math",
+   "note": "rotation transposed, translation turned back"
+  },
+  {
+   "addr": "18125b270",
+   "name": "Matrix3x4_Unscale",
+   "module": "s2c:math",
+   "note": "each column divided by its length"
+  },
+  {
+   "addr": "18125b510",
+   "name": "NewellNormal",
+   "module": "s2c:math",
+   "note": "scaled by 1 / (length + FLT_EPSILON)"
+  },
+  {
+   "addr": "18125bad0",
+   "name": "Matrix3x4_Column0",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "18125c200",
+   "name": "Matrix3x4_Scale",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "18125cba0",
+   "name": "MatrixAngles",
+   "module": "s2c:math",
+   "note": "yaw from the first column"
+  },
+  {
+   "addr": "18125d000",
+   "name": "VectorNormalize_Slow",
+   "module": "s2c:math",
+   "note": "out-of-range lengths; not ported"
+  },
+  {
+   "addr": "18125dcc0",
+   "name": "Quaternion_Forward",
+   "module": "s2c:math",
+   "note": "x axis"
+  },
+  {
+   "addr": "18125dd50",
+   "name": "Quaternion_Left",
+   "module": "s2c:math",
+   "note": "y axis"
+  },
+  {
+   "addr": "18125dde0",
+   "name": "Quaternion_Up",
+   "module": "s2c:math",
+   "note": "z axis"
+  },
+  {
+   "addr": "18125de90",
+   "name": "MatrixQuaternion",
+   "module": "s2c:math",
+   "note": "a 3x4's rotation as a quaternion from its largest diagonal"
+  },
+  {
+   "addr": "18125f4e0",
+   "name": "QuaternionMatrix_Translation",
+   "module": "s2c:math",
+   "note": "a quaternion's 3x4 with a translation"
+  },
+  {
+   "addr": "181260200",
+   "name": "QuaternionAngles",
+   "module": "s2c:math",
+   "note": "pitch, yaw, roll in degrees"
+  },
+  {
+   "addr": "1812636e0",
+   "name": "Matrix4x4_Invert",
+   "module": "s2c:math",
+   "note": "Gauss-Jordan with partial pivoting"
+  },
+  {
+   "addr": "181263af0",
+   "name": "MatrixInvert_Translation",
+   "module": "s2c:math",
+   "note": "inverse of a rotation and translation"
+  },
+  {
+   "addr": "181263eb0",
+   "name": "ConcatTransforms4x4",
+   "module": "s2c:math",
+   "note": "each entry ((a0 b0 + a1 b1) + a2 b2) + a3 b3"
+  },
+  {
+   "addr": "181264350",
+   "name": "MatrixAngles_Template",
+   "module": "s2c:math",
+   "note": "pitch, yaw, roll in degrees"
+  },
+  {
+   "addr": "1812644b0",
+   "name": "Matrix4x4_Transpose",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "181264c60",
+   "name": "AngleMatrix_Translation",
+   "module": "s2c:math",
+   "note": "a 3x4 with a translation"
+  },
+  {
+   "addr": "1812651f0",
+   "name": "Ray_SphereIntersect",
+   "module": "s2c:math",
+   "note": "false when it misses"
+  },
+  {
+   "addr": "18129b520",
+   "name": "Ray_PlaneIntersect",
+   "module": "s2c:math",
+   "note": "0 when parallel"
+  },
+  {
+   "addr": "182035f5c",
+   "name": "nexttowardf",
+   "module": "s2c:math",
+   "note": "CRT"
+  },
+  {
+   "addr": "1802c0820",
+   "name": "ModelDocPhysics_MeshShape",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "1802c0e70",
+   "name": "ModelDocPhysics_HullShape",
+   "module": "s2c:physics/world",
+   "note": "hull node to shape: quickhull tol 0, at most 256 faces/half-edges/verts"
+  },
+  {
+   "addr": "1802c3030",
+   "name": "ModelDocPhysics_NodeLoop",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "1802e3120",
+   "name": "ModelDoc_ReadMaterialPhysics",
+   "module": "s2c:physics/world",
+   "note": "rc's copy of physicsbuilder's material physics reader"
+  },
+  {
+   "addr": "180c25230",
+   "name": "ShapeBuilder_CapsuleNode",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "180c25810",
+   "name": "ShapeBuilder_SphereNode",
+   "module": "s2c:physics/world",
+   "note": "centre: t = 2 q x v, then scale and position"
+  },
+  {
+   "addr": "180c25900",
+   "name": "ShapeBuilder_ToolMaterialHash",
+   "module": "s2c:physics/world",
+   "note": "hashes the shape's material name (+0xf8); 0 for none"
+  },
+  {
+   "addr": "180c25a80",
+   "name": "ShapeBuilder_TransformVertices",
+   "module": "s2c:physics/world",
+   "note": "moves each vertex during the soup join"
+  },
+  {
+   "addr": "180c25ce0",
+   "name": "ShapeBuilder_Init",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "180c261c0",
+   "name": "ShapeBuilder_SetTransform",
+   "module": "s2c:physics/world",
+   "note": "stores the CTransform"
+  },
+  {
+   "addr": "180c26aa0",
+   "name": "ShapeBuilder_SetMaterial",
+   "module": "s2c:physics/world",
+   "note": "shape +0xf8 from the modeldoc node +0x108"
+  },
+  {
+   "addr": "180c26ac0",
+   "name": "ShapeBuilder_Capsules",
+   "module": "s2c:physics/world",
+   "note": "drops radius <= 0"
+  },
+  {
+   "addr": "180c26ce0",
+   "name": "ShapeBuilder_Hulls",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "180c26e50",
+   "name": "ShapeBuilder_Spheres",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "180c27e30",
+   "name": "ShapeBuilder_JoinSoupNames",
+   "module": "s2c:physics/world",
+   "note": "'; ' join of non-empty names, sealed past 50 chars; skips 0-triangle members"
+  },
+  {
+   "addr": "180c28150",
+   "name": "ShapeBuilder_InsertPart",
+   "module": "s2c:physics/world",
+   "note": "append, V_qsort by type, renumber"
+  },
+  {
+   "addr": "180c28210",
+   "name": "ShapeBuilder_ComparePartType",
+   "module": "s2c:physics/world",
+   "note": "V_qsort comparator: a.type - b.type (+0x90)"
+  },
+  {
+   "addr": "180c28230",
+   "name": "ShapeBuilder_BuildPart",
+   "module": "s2c:physics/world",
+   "note": "spheres, capsules, hulls, then meshes"
+  },
+  {
+   "addr": "180c28690",
+   "name": "ShapeBuilder_FinishSoup",
+   "module": "s2c:physics/world",
+   "note": "RnMeshCreate; tool hash = the one hash with triangles, else 0"
+  },
+  {
+   "addr": "180c29500",
+   "name": "ShapeBuilder_GatherMeshes",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "180c2d4c0",
+   "name": "ShapeBuilder_PartSurfaceIndex",
+   "module": "s2c:physics/world",
+   "note": ""
+  },
+  {
+   "addr": "181003b60",
+   "name": "CMapEntity::vf221",
+   "module": "s2c:physics/world",
+   "note": "copies the node's origin, angles and scales"
+  },
+  {
+   "addr": "1814f34e0",
+   "name": "ModelDocNode_Transform",
+   "module": "s2c:physics/world",
+   "note": "Compose(node, parent inverse)"
+  },
+  {
+   "addr": "1814f4fd0",
+   "name": "ModelDocNode_GetMaterial",
+   "module": "s2c:physics/world",
+   "note": "getter for node +0x108"
+  },
+  {
+   "addr": "18020d860",
+   "name": "Material_VisFlags",
+   "module": "s2c:visibility",
+   "note": "material int attributes by murmur hash as triangle flags"
+  },
+  {
+   "addr": "180252ae0",
+   "name": "WRB_MeshEntryFlags",
+   "module": "s2c:visibility",
+   "note": "material flags into a mesh entry"
+  },
+  {
+   "addr": "1802821f0",
+   "name": "WRB_EmitRteTriangles",
+   "module": "s2c:visibility",
+   "note": "ORs in the material's flag bits"
+  },
+  {
+   "addr": "1802839d0",
+   "name": "WRB_CollectRteMeshes",
+   "module": "s2c:visibility",
+   "note": "builds each mesh entry's flags for the .rte"
+  },
+  {
+   "addr": "180eed570",
+   "name": "Light_LegacyDescription",
+   "module": "s2c:visibility",
+   "note": "direction from the world matrix, sign flip for type 2"
+  },
+  {
+   "addr": "1810045b0",
+   "name": "CMapEntity::vf219",
+   "module": "s2c:visibility",
+   "note": "2 when the entity's class renders as world"
+  },
+  {
+   "addr": "1801f6f40",
+   "name": "CMapWorld_RayTraceScene",
+   "module": "s2c:baked/light-keys",
+   "note": "the editor ray-trace scene at world +0x2bd0"
+  },
+  {
+   "addr": "180251040",
+   "name": "Matrix4x4_Project",
+   "module": "s2c:baked/light-keys",
+   "note": "a point through the 4x4, divided by w"
+  },
+  {
+   "addr": "180ee9e30",
+   "name": "LightBuild_TransformVolume",
+   "module": "s2c:baked/light-keys",
+   "note": ""
+  },
+  {
+   "addr": "180eea510",
+   "name": "LightBuild_Record",
+   "module": "s2c:baked/light-keys",
+   "note": "a light record: barn, luminaire, volume"
+  },
+  {
+   "addr": "180f18820",
+   "name": "LightPrecompute_TraceRay",
+   "module": "s2c:baked/light-keys",
+   "note": ""
+  },
+  {
+   "addr": "180f19840",
+   "name": "LightPrecompute_TraceSamples",
+   "module": "s2c:baked/light-keys",
+   "note": ""
+  },
+  {
+   "addr": "180f19f20",
+   "name": "LightPrecompute_SampleVolume",
+   "module": "s2c:baked/light-keys",
+   "note": ""
+  },
+  {
+   "addr": "180f1aa70",
+   "name": "LightPrecompute_FitObb",
+   "module": "s2c:baked/light-keys",
+   "note": "every orientation on a 5 degree grid"
+  },
+  {
+   "addr": "180f1def0",
+   "name": "LightPrecompute_WriteKeys",
+   "module": "s2c:baked/light-keys",
+   "note": "precomputed* key writer: one box per face"
+  },
+  {
+   "addr": "180f1e0e0",
+   "name": "LightPrecompute_WriteBoxes",
+   "module": "s2c:baked/light-keys",
+   "note": ""
+  },
+  {
+   "addr": "180f32050",
+   "name": "V_atofloat32",
+   "module": "s2c:baked/light-keys",
+   "note": "key reader"
+  },
+  {
+   "addr": "180f32130",
+   "name": "V_atoi",
+   "module": "s2c:baked/light-keys",
+   "note": "key reader"
+  },
+  {
+   "addr": "180f32390",
+   "name": "KeyReader_Vector",
+   "module": "s2c:baked/light-keys",
+   "note": "key reader"
+  },
+  {
+   "addr": "1810e11a0",
+   "name": "CMapMeshBase::vf6",
+   "module": "s2c:baked/light-keys",
+   "note": "object flags: 0x4000 under a CMapEntity, 0x20, 0xa000/0x2000"
+  },
+  {
+   "addr": "18125d8e0",
+   "name": "Halton_RadicalInverse",
+   "module": "s2c:baked/light-keys",
+   "note": "in float"
+  },
+  {
+   "addr": "181292560",
+   "name": "Light_AtInfinityTestInner",
+   "module": "s2c:baked/light-keys",
+   "note": "not ported"
+  },
+  {
+   "addr": "181292ce0",
+   "name": "LightBuild_OpeningPlane",
+   "module": "s2c:baked/light-keys",
+   "note": ""
+  },
+  {
+   "addr": "1812933f0",
+   "name": "LightTrace_Falloff",
+   "module": "s2c:baked/light-keys",
+   "note": "how much of the light reaches a point"
+  },
+  {
+   "addr": "181293b70",
+   "name": "LightTrace_BarnShape",
+   "module": "s2c:baked/light-keys",
+   "note": "the barn's cross-section at a clip point"
+  },
+  {
+   "addr": "181294fc0",
+   "name": "LightSampler_Ray",
+   "module": "s2c:baked/light-keys",
+   "note": "one ray for four Halton numbers; the reach"
+  },
+  {
+   "addr": "181296170",
+   "name": "LightBuild_DiscLuminaire",
+   "module": "s2c:baked/light-keys",
+   "note": "type 2"
+  },
+  {
+   "addr": "181296340",
+   "name": "LightBuild_RectLuminaire",
+   "module": "s2c:baked/light-keys",
+   "note": "type 1"
+  },
+  {
+   "addr": "1812966c0",
+   "name": "LightBuild_SphereLuminaire",
+   "module": "s2c:baked/light-keys",
+   "note": "type 3"
+  },
+  {
+   "addr": "181296730",
+   "name": "LightBuild_CapsuleLuminaire",
+   "module": "s2c:baked/light-keys",
+   "note": "not ported"
+  },
+  {
+   "addr": "181296a50",
+   "name": "Light_AtInfinityTest",
+   "module": "s2c:baked/light-keys",
+   "note": "not ported"
+  },
+  {
+   "addr": "181297ed0",
+   "name": "LightBuild_BarnPosition",
+   "module": "s2c:baked/light-keys",
+   "note": "homogeneous"
+  },
+  {
+   "addr": "181298050",
+   "name": "LightBuild_LuminaireSize",
+   "module": "s2c:baked/light-keys",
+   "note": "half extents from degrees"
+  },
+  {
+   "addr": "181298170",
+   "name": "LightOmni_Records",
+   "module": "s2c:baked/light-keys",
+   "note": "an omni light's records in its own space"
+  },
+  {
+   "addr": "181298a90",
+   "name": "LightOmni_FaceJumpTable",
+   "module": "s2c:baked/light-keys",
+   "note": "data: jump table in LightOmni_Records, face rotations"
+  },
+  {
+   "addr": "181298aa8",
+   "name": "LightOmni_FaceJumpTable2",
+   "module": "s2c:baked/light-keys",
+   "note": "data: jump table, second pass rows"
+  },
+  {
+   "addr": "181299bc0",
+   "name": "LightSampler_CapsulePoint",
+   "module": "s2c:baked/light-keys",
+   "note": "capsule luminaires; not ported"
+  },
+  {
+   "addr": "18129a0e0",
+   "name": "LightSampler_LuminairePoint",
+   "module": "s2c:baked/light-keys",
+   "note": "a point on the luminaire and its normal"
+  },
+  {
+   "addr": "18129a5b0",
+   "name": "LightBuild_ShapeCurve",
+   "module": "s2c:baked/light-keys",
+   "note": "shape key into [0.125, 1]"
+  },
+  {
+   "addr": "18129a5f0",
+   "name": "LightBuild_Skirt",
+   "module": "s2c:baked/light-keys",
+   "note": "reciprocal fade lengths"
+  },
+  {
+   "addr": "18129a760",
+   "name": "LightBuild_BarnMatrix",
+   "module": "s2c:baked/light-keys",
+   "note": "the barn's frustum down x"
+  },
+  {
+   "addr": "18129a8d0",
+   "name": "LightBuild_TransformRecord",
+   "module": "s2c:baked/light-keys",
+   "note": "the record moved by a 3x4"
+  },
+  {
+   "addr": "1813ccd20",
+   "name": "RayScene_AddFace",
+   "module": "s2c:baked/light-keys",
+   "note": "skips faces with flag & 3 or no material"
+  },
+  {
+   "addr": "181c14020",
+   "name": "RayScene_AddTriangles",
+   "module": "s2c:baked/light-keys",
+   "note": ""
+  },
+  {
+   "addr": "180244d30",
+   "name": "EntityLump_ExportDriver",
+   "module": "s2c:entities",
+   "note": "per-entity export driver; writes vDirToSun"
+  },
+  {
+   "addr": "180245770",
+   "name": "EntityLump_StaticModelRecord",
+   "module": "s2c:entities",
    "note": ""
   }
  ]

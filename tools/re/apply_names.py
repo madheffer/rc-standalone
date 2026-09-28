@@ -1,4 +1,4 @@
-"""apply_names.py <names.json> [<manual.json>] --program </path/in/ghidra> [--rtti] [--dry-run] -- write names into Ghidra.
+"""apply_names.py <names.json> [<manual.json>] [--program </path/in/ghidra>] [--rtti] [--dry-run] -- write names into Ghidra.
 
 Takes harvest_names.py output and, optionally, a hand-kept list for the same
 binary ({"functions": [{"addr", "name", "module", "note"}]}), and writes
@@ -22,6 +22,11 @@ set-function-prototype with the function's current decompiled signature and
 only the name changed; that fixes the parameter list as the decompiler sees
 it now, which is why it is kept to fixes.
 --rename <json> applies a hand-kept list the same forced way.
+
+A hand-kept list can also go on its own (apply_names.py <dll>_<build>.manual.json),
+for a DLL with no harvest; --program then defaults to /<dll>_<build>.dll. A program
+that is not in the Ghidra project (hammer.dll is read from the PE only) is skipped
+with a message, not an error.
 
 Needs ReVa listening on localhost:8080 (tools/re/reva_serve.py).
 """
@@ -62,6 +67,14 @@ def named(sid, program):
         start = page["nextStartIndex"]
 
 
+def in_project(sid, program):
+    """Whether the Ghidra project holds a program at this path."""
+    listing = call(sid, "list-project-files", {"folderPath": "/"})
+    if isinstance(listing, str):
+        raise RuntimeError(f"list-project-files: {listing[:300]}")
+    return any(i.get("programPath") == program for i in listing.get("items", []))
+
+
 def ghidra_name(name):
     return name.replace("::", "_").replace("~", "Dtor_").replace("<", "_").replace(">", "_").replace(" ", "_")
 
@@ -70,21 +83,31 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("names")
     ap.add_argument("manual", nargs="?")
-    ap.add_argument("--program", required=True)
+    ap.add_argument("--program", help="default: /<dll>_<build>.dll from a <dll>_<build>.manual.json")
     ap.add_argument("--rtti", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--fix", help="the previous harvest: replace its names that changed")
     ap.add_argument("--rename", help="a hand-kept list whose names replace whatever the functions are called")
     a = ap.parse_args()
+    # A hand-kept list on its own: there is no harvest for this DLL.
+    if a.names.endswith(".manual.json") and not a.manual:
+        a.manual, a.names = a.names, None
+    if not a.program:
+        if not (a.manual or "").endswith(".manual.json"):
+            ap.error("--program is required unless a <dll>_<build>.manual.json names it")
+        a.program = os.path.basename(a.manual)[: -len(".manual.json")] + ".dll"
     # Git Bash rewrites a leading "/" into a Windows path; take the program name either way.
     a.program = "/" + a.program.replace("\\", "/").split("/")[-1]
 
     sid = session()
+    if not in_project(sid, a.program):
+        print(f"{a.program} is not in the Ghidra project: skipped")
+        return
     have = named(sid, a.program)
     print(f"{len(have)} functions already named in {a.program}")
     todo = []
-    new = json.load(open(a.names, encoding="utf-8"))["functions"]
+    new = json.load(open(a.names, encoding="utf-8"))["functions"] if a.names else []
     if a.fix:
         old = {int(f["addr"], 16): f["name"] for f in json.load(open(a.fix, encoding="utf-8"))["functions"]}
         for f in new:
@@ -106,7 +129,9 @@ def main():
         todo.append((addr, ghidra_name(f["name"]), None))
     if a.manual:
         for f in json.load(open(a.manual, encoding="utf-8"))["functions"]:
-            todo.append((int(f["addr"], 16), ghidra_name(f["name"]), f.get("module")))
+            # A data row or a code label gets its label; a function tag needs a function.
+            data = (f.get("note") or "").startswith(("data", "code label"))
+            todo.append((int(f["addr"], 16), ghidra_name(f["name"]), None if data else f.get("module")))
     print(f"{len(todo)} to write")
     if a.dry_run:
         for t in todo[:40]:
@@ -164,7 +189,7 @@ def main():
             if (done + failed) % 1000 == 0:
                 print(done + failed, "of", len(todo), flush=True)
     print(f"written {done}, failed {failed}")
-    print(call(sid, "checkin-program", {"programPath": a.program, "message": f"names from {os.path.basename(a.names)}", "keepCheckedOut": True}))
+    print(call(sid, "checkin-program", {"programPath": a.program, "message": f"names from {os.path.basename(a.names or a.manual)}", "keepCheckedOut": True}))
 
 
 if __name__ == "__main__":

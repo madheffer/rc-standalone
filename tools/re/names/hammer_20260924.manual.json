@@ -1,0 +1,70 @@
+{
+ "functions": [
+  {
+   "addr": "1800d54d0",
+   "name": "HammerBuild_ApplyPreset",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "1800d6760",
+   "name": "HammerBuild_WorldWidget",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "1800d7240",
+   "name": "HammerBuild_LightingWidget",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "1800d7ad0",
+   "name": "HammerBuild_PhysWidget",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "1800d7b50",
+   "name": "HammerBuild_VisWidget",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "1800d7e80",
+   "name": "HammerBuild_NavWidget",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "1800dc340",
+   "name": "HammerBuild_Run",
+   "module": "s2c:containers/compile-map",
+   "note": "calls the command line assembler"
+  },
+  {
+   "addr": "1800dc470",
+   "name": "HammerBuild_CommandLine",
+   "module": "s2c:containers/compile-map",
+   "note": "assembles resourcecompiler's command line"
+  },
+  {
+   "addr": "1800de950",
+   "name": "HammerBuild_CopyInPreviousBuild",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "1800df660",
+   "name": "HammerBuild_CopyOutPreviousBuild",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  },
+  {
+   "addr": "1800e2990",
+   "name": "HammerBuild_SteamAudioWidget",
+   "module": "s2c:containers/compile-map",
+   "note": ""
+  }
+ ]
+}

@@ -52,7 +52,10 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
 # rendersystemvulkan and rendersystemdx11: the material sampler's render (texture preload cap).
-DLLS = ["resourcecompiler", "vphysics2", "physicsbuilder", "tier0", "visbuilder", "rendersystemvulkan", "rendersystemdx11"]
+DLLS = ["resourcecompiler", "vphysics2", "physicsbuilder", "tier0", "visbuilder", "smartprops", "hammer",
+        "rendersystemvulkan", "rendersystemdx11"]
+# DLLs not directly in bin/win64: Hammer's build dialog (compile-map follows its command line).
+SUBDIR = {"hammer": "tools"}
 BASELINE_DIRS = [r"D:\tools\binaries", r"D:\tools\ghidra_staging"]
 ENTITY_NAMES = r"D:\tools\names"
 STATE_DIR = r"D:\tools\patch_state"
@@ -309,7 +312,7 @@ def main():
     lines += ["## Toolchain DLLs", ""]
     state = {"patch": patch, "dlls": {}, "fgd": {}, "pak": {}}
     for dll in DLLS:
-        inst = os.path.join(BIN, dll + ".dll")
+        inst = os.path.join(BIN, SUBDIR.get(dll, ""), dll + ".dll")
         if not os.path.exists(inst):
             continue
         h = md5(inst)
