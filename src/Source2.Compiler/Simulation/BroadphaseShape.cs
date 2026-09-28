@@ -72,6 +72,8 @@ public sealed class BroadphaseBody
 /// </summary>
 public sealed class BroadphaseShape
 {
+    public const int SphereType = 0;
+    public const int CapsuleType = 1;
     public const int HullType = 2;
     public const int MeshType = 3;
 
@@ -100,11 +102,55 @@ public sealed class BroadphaseShape
     /// <summary>A hull's uniform scale (+0xB8) as (s, s, s), or a mesh's per-axis scale.</summary>
     public Vec3 Scale = new(1f, 1f, 1f);
 
+    /// <summary>A sphere's scaled centre, or a capsule's first scaled centre (+0xb8).</summary>
+    public Vec3 CentreA;
+
+    /// <summary>A capsule's second scaled centre (+0xc4).</summary>
+    public Vec3 CentreB;
+
+    /// <summary>A sphere's (+0xc4) or a capsule's (+0xd0) scaled radius.</summary>
+    public float Radius;
+
     /// <summary>
     /// Shape vfn 0x80, the fat-less box at a transform, grown by 1/16 each
     /// way: FUN_180250100 for a hull, FUN_180241b10 for a mesh.
     /// </summary>
-    public Aabb ComputeAabb(in RnTransform xf) => Type == HullType ? HullAabb(xf) : MeshAabb(xf);
+    public Aabb ComputeAabb(in RnTransform xf) => Type switch
+    {
+        HullType => HullAabb(xf),
+        MeshType => MeshAabb(xf),
+        SphereType => SphereAabb(xf),
+        CapsuleType => CapsuleAabb(xf),
+        _ => throw new NotSupportedException($"the box of a shape of type {Type}"),
+    };
+
+    /// <summary>FUN_18024ba70 (sphere vfn 0x80): the centre through the frame, the radius out each way, no padding.</summary>
+    private Aabb SphereAabb(in RnTransform xf)
+    {
+        var c = Through(xf, CentreA);
+        var r = Radius;
+        return new(new(c.X - r, c.Y - r, c.Z - r), new(c.X + r, c.Y + r, c.Z + r));
+    }
+
+    /// <summary>FUN_18024d770 (capsule vfn 0x80): both centres through the frame, the radius out, no padding.</summary>
+    private Aabb CapsuleAabb(in RnTransform xf)
+    {
+        var a = Through(xf, CentreA);
+        var b = Through(xf, CentreB);
+        var r = Radius;
+        float Lo(float p, float q) => (q - r) <= (p - r) ? q - r : p - r;
+        float Hi(float p, float q) => (p + r) <= (q + r) ? q + r : p + r;
+        return new(new(Lo(a.X, b.X), Lo(a.Y, b.Y), Lo(a.Z, b.Z)), new(Hi(a.X, b.X), Hi(a.Y, b.Y), Hi(a.Z, b.Z)));
+    }
+
+    /// <summary>A point through the frame, summed as the sphere and capsule boxes sum it.</summary>
+    private static Vec3 Through(in RnTransform xf, Vec3 p)
+    {
+        ref readonly var m = ref xf.R;
+        return new(((p.Y * m.M3) + (p.X * m.M0)) + (p.Z * m.M6) + xf.T.X,
+                   ((p.Y * m.M4) + (p.X * m.M1)) + (p.Z * m.M7) + xf.T.Y,
+                   ((p.Y * m.M5) + (p.X * m.M2)) + (p.Z * m.M8) + xf.T.Z);
+    }
 
     /// <summary>FUN_180250100: the scaled bounds' centre and half extents through the frame.</summary>
     private Aabb HullAabb(in RnTransform xf)

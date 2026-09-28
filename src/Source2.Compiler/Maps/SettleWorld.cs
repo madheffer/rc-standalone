@@ -27,6 +27,9 @@ public static partial class SettleWorld
     {
         /// <summary>A capsule's (type 1) two centres and radius as the model stores them; its scale is <see cref="HullScale"/>.</summary>
         public (Vector3 A, Vector3 B, float Radius)? Capsule { get; init; }
+
+        /// <summary>A sphere's (type 0) centre and radius as the model stores them; its scale is <see cref="HullScale"/>.</summary>
+        public (Vector3 Center, float Radius)? Sphere { get; init; }
     }
 
     /// <summary>
@@ -130,6 +133,8 @@ public static partial class SettleWorld
 
     /// <summary>Rubikon's shape type for a capsule (a sphere is 0, a hull 2, a mesh 3).</summary>
     public const int CapsuleType = 1;
+
+    public const int SphereType = 0;
 
     /// <summary>The name hash of the surface property "default", which a shape without one gets.</summary>
     public const uint DefaultSurface = 1977497166;
@@ -392,8 +397,20 @@ public static partial class SettleWorld
         ContactSolver.Material Material(int index)
             => index >= 0 && index < surfaces.Length && models.Surface(surfaces[index]) is { } m ? m
              : models.Surface(DefaultSurface) ?? DefaultMaterial;
-        // Capsules are added before hulls (the shape desc's order); a
-        // non-uniform scale would need the matrix path, which a capsule lacks.
+        // The shape desc's order: spheres, capsules, hulls, meshes. A
+        // non-uniform scale would need the matrix path, which neither round
+        // shape has.
+        foreach (var s in shape.Spheres)
+        {
+            if (matrix != null)
+            {
+                bodies.Add(body with { Unsupported = "a sphere at a non-uniform scale" });
+                return;
+            }
+            body.Shapes.Add(new ShapeBuild(SphereType, null, u, null, Vector3.One, Attributes(s.CollisionAttributeIndex),
+                                           Material(s.SurfacePropertyIndex), s.UserFriendlyName ?? "")
+                            { Sphere = (s.Shape.Center, s.Shape.Radius) });
+        }
         foreach (var c in shape.Capsules)
         {
             if (matrix != null)
@@ -404,11 +421,6 @@ public static partial class SettleWorld
             body.Shapes.Add(new ShapeBuild(CapsuleType, null, u, null, Vector3.One, Attributes(c.CollisionAttributeIndex),
                                            Material(c.SurfacePropertyIndex), c.UserFriendlyName ?? "")
                             { Capsule = (c.Shape.Center[0], c.Shape.Center[1], c.Shape.Radius) });
-        }
-        if (shape.Spheres.Length > 0)
-        {
-            bodies.Add(body with { Unsupported = "a model with sphere shapes" });
-            return;
         }
         foreach (var h in shape.Hulls)
         {

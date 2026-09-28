@@ -18,14 +18,14 @@ public unsafe class HullCollisionOracleTests(ITestOutputHelper output)
 
     /// <summary>{RnHull*, float scale}, as the shape hands it to the narrowphase.</summary>
     [StructLayout(LayoutKind.Sequential, Size = 0x10)]
-    private struct NativeRef
+    internal struct NativeRef
     {
         public byte* Hull;
         public float Scale;
     }
 
     /// <summary>An RnHull laid out as vphysics2 keeps it (0xf8 bytes and its arrays).</summary>
-    private sealed class NativeHull : IDisposable
+    internal sealed class NativeHull : IDisposable
     {
         public readonly RnHull Hull;
         public readonly byte* Ptr;
@@ -117,7 +117,7 @@ public unsafe class HullCollisionOracleTests(ITestOutputHelper output)
 
     private static NativeHull[]? _pool;
 
-    private static NativeHull[] Pool()
+    internal static NativeHull[] Pool()
     {
         if (_pool != null)
             return _pool;

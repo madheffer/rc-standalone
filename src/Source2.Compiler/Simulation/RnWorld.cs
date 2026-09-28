@@ -169,6 +169,23 @@ public sealed class RnShape
         Proxy.LocalMax = new Vec3(hull.Hull.BoundsMax.X, hull.Hull.BoundsMax.Y, hull.Hull.BoundsMax.Z);
     }
 
+    /// <summary>A sphere, its centre and radius at the shape's scale (+0xb8, +0xc4).</summary>
+    public void SetSphere(Vec3 centre, float radius)
+    {
+        Type = BroadphaseShape.SphereType;
+        Proxy.CentreA = centre;
+        Proxy.Radius = radius;
+    }
+
+    /// <summary>A capsule, its centres and radius at the shape's scale (+0xb8, +0xc4, +0xd0).</summary>
+    public void SetCapsule(Vec3 a, Vec3 b, float radius)
+    {
+        Type = BroadphaseShape.CapsuleType;
+        Proxy.CentreA = a;
+        Proxy.CentreB = b;
+        Proxy.Radius = radius;
+    }
+
     /// <summary>A triangle mesh at a per-axis scale (+0xc8, +0xb8).</summary>
     public void SetMesh(RnMesh mesh, Vec3 scale)
     {
@@ -457,7 +474,8 @@ public sealed class RnWorld
     /// the shape in the pair set; by default the world numbers its shapes.
     /// </summary>
     public RnShape AddShape(RnBody body, int type, HullRef hull, RnMesh? mesh, Vec3 meshScale,
-                            in CollisionAttributes attributes, in ContactSolver.Material material, ulong? handle = null)
+                            in CollisionAttributes attributes, in ContactSolver.Material material, ulong? handle = null,
+                            (Vec3 A, Vec3 B, float Radius)? round = null)
     {
         var s = new RnShape(body, handle ?? _nextHandle);
         _nextHandle = Math.Max(_nextHandle, s.Proxy.Handle) + 0x10;
@@ -465,6 +483,10 @@ public sealed class RnWorld
             s.SetHull(hull);
         else if (type == BroadphaseShape.MeshType)
             s.SetMesh(mesh!, meshScale);
+        else if (type == BroadphaseShape.SphereType && round is { } sphere)
+            s.SetSphere(sphere.A, sphere.Radius);
+        else if (type == BroadphaseShape.CapsuleType && round is { } capsule)
+            s.SetCapsule(capsule.A, capsule.B, capsule.Radius);
         else
             throw new NotSupportedException($"shape type {type}");
         s.Attributes = attributes;

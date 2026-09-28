@@ -27,6 +27,14 @@ public static class RnMassUpdate
         /// <summary>The capsule at its scale, as the shape keeps it at +0xb8.</summary>
         public (Vector3 A, Vector3 B, float Radius) ScaledCapsule
             => (Capsule!.Value.A * HullScale, Capsule.Value.B * HullScale, Capsule.Value.Radius * HullScale);
+
+        /// <summary>A sphere's centre and radius before its scale (<see cref="HullScale"/>).</summary>
+        public (Vector3 Center, float Radius)? Sphere { get; init; }
+
+        /// <summary>The sphere at its scale, as the shape keeps it at +0xb8 (FUN_18024cbd0).</summary>
+        public (Vector3 Center, float Radius) ScaledSphere
+            => (new Vector3(HullScale * Sphere!.Value.Center.X, HullScale * Sphere.Value.Center.Y, HullScale * Sphere.Value.Center.Z),
+                HullScale * Sphere.Value.Radius);
     }
 
     /// <summary>Mass properties: inertia (row major) about the centre, the centre, the mass.</summary>
@@ -113,7 +121,7 @@ public static class RnMassUpdate
     /// shapes' largest) make the linear axes, the bounds' extents times the
     /// area across each axis times the inverse mass; the angular axes
     /// integrate the box's half extents against the inverse inertia's
-    /// diagonal (FUN_180007ae0). Only hulls are read.
+    /// diagonal (FUN_180007ae0). Hulls, spheres and capsules are read.
     /// </summary>
     public static void Drag(ref RnBodyState b, IReadOnlyList<Shape> shapes)
     {
@@ -123,12 +131,8 @@ public static class RnMassUpdate
         float maxX = -float.MaxValue, maxY = -float.MaxValue, maxZ = -float.MaxValue;
         foreach (var shape in shapes)
         {
-            if (shape.Type != BroadphaseShape.HullType)
-                throw new NotSupportedException("drag over a shape that is not a hull");
-            var h = shape.Hull!;
-            var sc = shape.HullScale;
-            float x0 = (sc * h.BoundsMin.X) - 0.0625f, y0 = (h.BoundsMin.Y * sc) - 0.0625f, z0 = (sc * h.BoundsMin.Z) - 0.0625f;
-            float x1 = (h.BoundsMax.X * sc) + 0.0625f, y1 = (h.BoundsMax.Y * sc) + 0.0625f, z1 = (h.BoundsMax.Z * sc) + 0.0625f;
+            var (lo, hi) = Bounds(shape);
+            float x0 = lo.X, y0 = lo.Y, z0 = lo.Z, x1 = hi.X, y1 = hi.Y, z1 = hi.Z;
             if (x0 <= minX) minX = x0;
             if (maxX <= x1) maxX = x1;
             if (y0 <= minY) minY = y0;
@@ -138,13 +142,13 @@ public static class RnMassUpdate
         }
         Vector3 areas;
         if (shapes.Count == 1)
-            areas = shapes[0].Hull!.OrthographicAreas;
+            areas = Areas(shapes[0]);
         else
         {
             areas = Vector3.Zero;
             foreach (var shape in shapes)
             {
-                var a = shape.Hull!.OrthographicAreas;
+                var a = Areas(shape);
                 if (areas.X <= a.X) areas.X = a.X;
                 if (areas.Y <= a.Y) areas.Y = a.Y;
                 if (areas.Z <= a.Z) areas.Z = a.Z;
@@ -198,6 +202,7 @@ public static class RnMassUpdate
             {
                 BroadphaseShape.HullType => Hull(shape.Hull!, unit ? shape.HullScale : 1f, shape.Material),
                 1 => CapsuleProperties(unit ? shape.ScaledCapsule : shape.Capsule!.Value, shape.Material),
+                0 => SphereProperties(unit ? shape.ScaledSphere : shape.Sphere!.Value, shape.Material),
                 _ => default,
             };
             if (!(0f < p.Mass))
@@ -253,6 +258,27 @@ public static class RnMassUpdate
             for (var i = 0; i < 9; i++)
                 p.Inertia[i] = ratio * p.Inertia[i];
         }
+        return p;
+    }
+
+    /// <summary>
+    /// FUN_180292590 (sphere vfunc 0x78): a sphere's mass properties, a solid
+    /// ball of r * 4 pi * r * r / 3 times the density, or a shell of 4 pi r^2
+    /// times the density and thickness; either way 0.4 m r^2 on the
+    /// diagonal, about the centre. None at zero density.
+    /// </summary>
+    public static Properties SphereProperties((Vector3 Center, float Radius) s, in ContactSolver.Material material)
+    {
+        var p = new Properties();
+        var d = material.Density;
+        if (d == 0f)
+            return p;
+        var r = s.Radius;
+        var area = (r * 12.566371f) * r;
+        p.Mass = material.Thickness <= 0f ? ((r * area) / 3f) * d : (area * d) * material.Thickness;
+        p.Center = new Vec3(s.Center.X, s.Center.Y, s.Center.Z);
+        var i = ((p.Mass * 0.4f) * r) * r;
+        p.Inertia = new Mat3 { M0 = i, M4 = i, M8 = i };
         return p;
     }
 
@@ -418,12 +444,77 @@ public static class RnMassUpdate
             ((((ty * q.X) - (tx * q.Y)) + ((q.W * tz) + vz)) * 1f) + origin.Z);
     }
 
+    /// <summary>
+    /// Shape vfunc 0x88, the shape's bounds in the body: a hull's scaled box
+    /// 1/16 out on every side; a sphere's centre less and plus its radius
+    /// (FUN_18024bb80); a capsule's two ends' (FUN_18024d9f0).
+    /// </summary>
+    private static (Vector3 Min, Vector3 Max) Bounds(in Shape shape)
+    {
+        switch (shape.Type)
+        {
+            case BroadphaseShape.HullType:
+                {
+                    var h = shape.Hull!;
+                    var sc = shape.HullScale;
+                    return (new Vector3((sc * h.BoundsMin.X) - 0.0625f, (h.BoundsMin.Y * sc) - 0.0625f, (sc * h.BoundsMin.Z) - 0.0625f),
+                            new Vector3((h.BoundsMax.X * sc) + 0.0625f, (h.BoundsMax.Y * sc) + 0.0625f, (h.BoundsMax.Z * sc) + 0.0625f));
+                }
+            case 0:
+                {
+                    var (c, r) = shape.ScaledSphere;
+                    return (new Vector3(c.X - r, c.Y - r, c.Z - r), new Vector3(r + c.X, r + c.Y, r + c.Z));
+                }
+            case 1:
+                {
+                    var (a, b, r) = shape.ScaledCapsule;
+                    float Lo(float p, float q) => (q - r) <= (p - r) ? q - r : p - r;
+                    float Hi(float p, float q) => (r + p) <= (r + q) ? r + q : r + p;
+                    return (new Vector3(Lo(a.X, b.X), Lo(a.Y, b.Y), Lo(a.Z, b.Z)), new Vector3(Hi(a.X, b.X), Hi(a.Y, b.Y), Hi(a.Z, b.Z)));
+                }
+            default:
+                throw new NotSupportedException($"drag over a shape of type {shape.Type}");
+        }
+    }
+
+    /// <summary>
+    /// Shape vfunc 0x90, the projected area fractions: a hull's orthographic
+    /// areas; a sphere's pi/4 on each axis (FUN_18024c8b0); a capsule's
+    /// swept circle over its box's face on each axis (FUN_18024f610).
+    /// </summary>
+    private static Vector3 Areas(in Shape shape)
+    {
+        switch (shape.Type)
+        {
+            case BroadphaseShape.HullType:
+                return shape.Hull!.OrthographicAreas;
+            case 0:
+                return new Vector3(BitConverter.Int32BitsToSingle(0x3f490fdb));
+            case 1:
+                {
+                    var (a, b, r) = shape.ScaledCapsule;
+                    float dz = a.Z - b.Z, dx = a.X - b.X, dy = a.Y - b.Y;
+                    var d = r + r;
+                    var circle = (r * 3.1415927f) * r;
+                    var sx = MathF.Sqrt((dx * dx) + (dy * dy));
+                    var sy = MathF.Sqrt((dz * dz) + (dy * dy));
+                    var sz = MathF.Sqrt((dz * dz) + (dx * dx));
+                    return new Vector3((((sx + sx) * r) + circle) / ((MathF.Abs(dy) + d) * (MathF.Abs(dx) + d)),
+                                       (((sy + sy) * r) + circle) / ((MathF.Abs(dz) + d) * (MathF.Abs(dy) + d)),
+                                       (((sz + sz) * r) + circle) / ((MathF.Abs(dz) + d) * (MathF.Abs(dx) + d)));
+                }
+            default:
+                throw new NotSupportedException($"drag over a shape of type {shape.Type}");
+        }
+    }
+
     /// <summary>Shape vfunc 200: a hull's least centroid radius times its scale; a capsule's radius; a mesh's 1/16.</summary>
     private static float InnerRadius(in Shape shape)
         => shape.Type switch
         {
             BroadphaseShape.HullType => shape.Hull!.MinCentroidRadius * shape.HullScale,
             1 => shape.ScaledCapsule.Radius,
+            0 => shape.ScaledSphere.Radius,
             _ => 0.0625f,
         };
 
@@ -434,6 +525,13 @@ public static class RnMassUpdate
     /// </summary>
     private static float OuterRadius(in Shape shape, Vec3 v)
     {
+        if (shape.Type == 0)
+        {
+            // FUN_18024c820: the distance to the centre, plus the radius.
+            var (c, radius) = shape.ScaledSphere;
+            float dx = v.X - c.X, dz = v.Z - c.Z, dy = v.Y - c.Y;
+            return MathF.Sqrt(((dx * dx) + (dy * dy)) + (dz * dz)) + radius;
+        }
         if (shape.Type == 1)
         {
             // FUN_18024f530: the farther centre, plus the radius.

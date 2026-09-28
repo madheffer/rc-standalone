@@ -176,7 +176,7 @@ public static partial class HullCollision
     }
 
     /// <summary>Normalisation in double (FUN_18008d4e0), for lengths out of float's comfort.</summary>
-    private static Vec3 NormalizeDouble(float x, float y, float z)
+    internal static Vec3 NormalizeDouble(float x, float y, float z)
     {
         double dx = x, dy = y, dz = z;
         var inv = 1.0 / Math.Sqrt((dy * dy + dx * dx) + dz * dz);

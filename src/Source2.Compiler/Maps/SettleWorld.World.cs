@@ -49,11 +49,9 @@ public static partial class SettleWorld
             var joined = new List<RnMassUpdate.Shape>();
             foreach (var shape in body.Shapes)
             {
-                if (shape.Type == CapsuleType)
-                    AddCapsule(w, broadphase, b, shape);
-                else
-                    w.AddShape(b, shape.Type, shape.Hull is { } hull ? new HullRef(hull, shape.HullScale) : default, shape.Mesh,
-                               new Vec3(shape.MeshScale.X, shape.MeshScale.Y, shape.MeshScale.Z), shape.Attributes, shape.Material);
+                w.AddShape(b, shape.Type, shape.Hull is { } hull ? new HullRef(hull, shape.HullScale) : default, shape.Mesh,
+                           new Vec3(shape.MeshScale.X, shape.MeshScale.Y, shape.MeshScale.Z), shape.Attributes, shape.Material,
+                           round: Round(shape));
                 joined.Add(MassShape(shape));
             }
             // The shapes join with the update flag clear (FUN_1801b9650 skips
@@ -84,7 +82,22 @@ public static partial class SettleWorld
     private static RnMassUpdate.Shape MassShape(ShapeBuild s)
         => new(s.Type, s.Hull, s.HullScale, s.Mesh, s.MeshScale, s.Material,
                ((s.Attributes.MaskIsDirect == 1 ? s.Attributes.FunctionMask : ~s.Attributes.FunctionMask) & 1) != 0)
-        { Capsule = s.Capsule };
+        { Capsule = s.Capsule, Sphere = s.Sphere };
+
+    /// <summary>
+    /// A sphere's or capsule's geometry at its scale, as the shape keeps it
+    /// at +0xb8: each coordinate and the radius times the scale (sphere
+    /// FUN_18024cbd0, capsule FUN_18024fed0).
+    /// </summary>
+    private static (Vec3 A, Vec3 B, float Radius)? Round(ShapeBuild s)
+    {
+        var k = s.HullScale;
+        if (s.Sphere is { } sphere)
+            return (new Vec3(k * sphere.Center.X, k * sphere.Center.Y, k * sphere.Center.Z), default, k * sphere.Radius);
+        if (s.Capsule is { } c)
+            return (new Vec3(k * c.A.X, k * c.A.Y, k * c.A.Z), new Vec3(k * c.B.X, k * c.B.Y, k * c.B.Z), k * c.Radius);
+        return null;
+    }
 
     /// <summary>
     /// A body as the world's default description leaves it (world vfn 0x1e8,
