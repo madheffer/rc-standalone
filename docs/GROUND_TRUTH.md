@@ -121,7 +121,9 @@ game can answer is raised with the user first, and runs with -insecure.
   180153d40): collision_override names an entry of
   scripts/collision_properties.txt whose group and three lists (","-joined as
   authored) replace the body attribute's; surface_property_override replaces
-  the surface by name. Open: whether the property lookup folds case.
+  the surface by name. Measured on the probe map s2c_propover
+  (tools/physics/prop_override_map.py, compiled by resourcecompiler): whole
+  file exact, and "CSGO_Railing" finds csgo_railing, so the lookup folds case.
 
 - **Map compile switches** (2026-09-28, decompile of hammer.dll and
   resourcecompiler). Hammer's assembler writes the fixed switches, then each
