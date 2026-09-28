@@ -31,6 +31,7 @@ try
         "vis-diff" => Commands.VisDiff(args[1..]),
         "map-diff" => Commands.MapDiff(args[1..]),
         "map-physics" => Commands.MapPhysics(args[1..]),
+        "compile-map" => Commands.CompileMap(args[1..]),
         "map-validate" => Commands.MapValidate(args[1..]),
         "entitylump" => Commands.Entitylump(args[1..]),
         "reauthor" => Commands.Reauthor(args[1..]),
@@ -89,6 +90,15 @@ static void Usage()
                     The map's world collision from its .vmap: world_physics.vmdl_c
                     and its manifest, into a folder or a copy of a compiled map
                     package. --gpu samples new-blending materials on the GPU.
+
+      s2c compile-map -i <content/csgo_addons/<addon>/maps/<map>.vmap> [-outroot <dir>]
+                    [resourcecompiler switches...] [--gpu] [--accept-gaps]
+                    Hammer's build command line, on the parts ported: -entities
+                    rebuilds the entity lumps (settled unless -nosettle), -phys
+                    world_physics. They replace their files in the compiled map
+                    package already at <outroot or game>/csgo_addons/<addon>/maps,
+                    as a -fshallow build does. Anything else (the full world
+                    step, lighting, nav, Steam Audio) is refused by name.
 
       s2c id        <resource/path.vtex>
                     Print the 64-bit RERL id the engine looks that path up by.

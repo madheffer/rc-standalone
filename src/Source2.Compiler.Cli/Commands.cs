@@ -475,6 +475,36 @@ internal static class Commands
         }
     }
 
+    /// <summary>
+    /// A map compile from the command line Hammer gives resourcecompiler
+    /// (<c>-i &lt;map.vmap&gt; -entities ...</c>), on the parts the port builds;
+    /// see <see cref="Maps.MapCompile.Run"/>. Two switches are ours:
+    /// <c>--gpu</c> samples new-blending materials on the GPU, and
+    /// <c>--accept-gaps</c> writes a lump whose lights lose their bake keys.
+    /// </summary>
+    public static int CompileMap(string[] a)
+    {
+        var gpuWanted = a.Contains("--gpu");
+        var acceptGaps = a.Contains("--accept-gaps");
+        var args = Maps.MapCompileArgs.Parse([.. a.Where(x => x is not ("--gpu" or "--accept-gaps"))]);
+        Gpu.GpuMaterialSampler? gpu = null;
+        try
+        {
+            return Maps.MapCompile.Run(args, Console.Out, acceptGaps, gpuWanted
+                ? content =>
+                {
+                    var root = Path.GetDirectoryName(Path.GetDirectoryName(content.PakPath)!)!;
+                    gpu = new Gpu.GpuMaterialSampler(Path.Combine(root, "csgo", "shaders_vulkan_dir.vpk"), content.Read);
+                    return gpu.For;
+                }
+                : null);
+        }
+        finally
+        {
+            gpu?.Dispose();
+        }
+    }
+
     public static int MapDiff(string[] a)
     {
         var referencePath = Positional(a, "reference .vpk");

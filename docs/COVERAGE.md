@@ -29,10 +29,30 @@ How the lists were made (re-run after a CS2 update, with `tools/re/patch_check.p
 
 ## Compile options
 
-The port has no single map compile command yet. Each part runs on its own
-(`s2c map-physics`, the entity lump set, the vis pipeline) and always behaves as
-Hammer's default build does. The first thing the options need is a `compile-map`
-command that takes Hammer's switches and routes each to the part it changes.
+`s2c compile-map` takes the command line Hammer gives resourcecompiler and
+reads it as resourcecompiler does:
+- A `-name value` switch becomes a compile argument, typed float, then int, then
+  string. A bare `-name` is the int 1.
+- The builders come from a fixed table: world, phys, vis, lod, gridnav, nav,
+  bakedlighting, sareverb, sapaths, sacustomdata.
+  - `-all`, or naming none, selects every builder the game allows (CS2 has no
+    lod or gridnav).
+  - `-entities` without `-world` is an entities-only build.
+- Like a `-fshallow` build, it keeps the package already at
+  `<outroot or game>/csgo_addons/<addon>/maps/<map>.vpk` and replaces only what
+  its steps write. With `-f` or `-fshallow2` it refuses, as the compile refuses
+  a partial build.
+
+What runs today:
+- The world step in entities-only mode: the entity lumps, settled unless
+  `-nosettle`.
+- The physics step: world_physics.
+
+The full world step (render geometry, with vis and the lighting bake inside it),
+nav and Steam Audio are refused by name. A lump whose lights or probe volumes
+would lose their bake keys is refused unless `--accept-gaps` is passed.
+Hammer's Only Entities preset (`-entities -skipauxfiles -nolightmaps`) runs as
+is.
 
 Status words:
 - **ported**: the part this option drives matches Valve's output.
@@ -59,9 +79,9 @@ says so.
 
 | switch | dialog label | state |
 |---|---|---|
-| `-world` | Build world | partial: world_physics whole-file exact on 9 maps; render geometry and world nodes not started |
-| `-entities` | Entities Only | partial: every lump exact on the pinned maps except lights, probe volumes, cubemaps and one cable key |
-| `-nosettle` | Pre-Settle physics objects (unticked) | default only: the port always settles (exact on 2 maps) |
+| `-world` | Build world | refused by compile-map: render geometry and world nodes not started |
+| `-entities` | Entities Only | compile-map: the lumps; exact on every pinned map except the lights' and probe volumes' bake keys |
+| `-nosettle` | Pre-Settle physics objects (unticked) | compile-map: skips the settle (the settle does not port props with sphere or capsule shapes yet) |
 | `-tileMeshBaseGeometry` | Only base tile mesh geometry | not read |
 | `-deformables forced`, `-deformables none` | pairing not read | not read |
 | `-rebake_surfacegraph` | Build World Dynamic Surface Effects; Rebake All Surface Effects From Scratch ( recommended ) | not read |
@@ -76,9 +96,9 @@ says so.
 | `-lightmapDeterministicCharts` | Deterministic Charting Computations (slow) | not started |
 | `-vrad3LargeBlockSize` | no label found | not started |
 | `-gpuraytracing` | GPU Lightmap Baking | not started |
-| `-nolightmaps` | no label found | not started |
+| `-nolightmaps` | no label found | no output: resourcecompiler has no such argument |
 | `-vis` | Build vis | partial: every stage exact against captured inputs, Mako included; not yet end to end on our own geometry |
-| `-phys` | Build physics | partial: as the physics half of `-world` |
+| `-phys` | Build physics | compile-map: world_physics, exact against Valve's decoded trees on 9 maps |
 | `-nav` | Nav | not started |
 | `-navdbg` | Save debug stages to file | not started |
 | `-gridnav` | Grid Nav, Build grid nav | not started |
@@ -106,9 +126,9 @@ these; a few are only reachable from resourcecompiler's command line.
 
 | argument | state |
 |---|---|
-| `world`, `entities`, `all` | as `-world` / `-entities` above |
+| `world`, `entities`, `all` | read as the compile reads them (see above) |
 | `skipmapload` | not read |
-| `nosettle` | default only |
+| `nosettle` | compile-map skips the settle |
 | `tileMeshBaseGeometry`, `deformables` | not read |
 | `bakelighting`, `nobakedlighting`, `lightmapMaxResolution` | not started |
 | `steamaudio`, `sareverb_*`, `sapaths_*`, `sacustomdata_*`, `sacustombake_*` | not started |
@@ -122,9 +142,11 @@ these; a few are only reachable from resourcecompiler's command line.
 
 | option | state |
 |---|---|
-| `-i`, `-filelist`, `-r`, `-game`, `-outroot` | input and output paths; the port takes its own |
-| `-f`, `-fshallow`, `-fshallow2` | force recompile; no output? |
-| `-novpk`, `-vpkincr` | not read (loose files against a map package; the port writes both) |
+| `-i`, `-outroot` | compile-map takes both |
+| `-filelist`, `-r`, `-game` | not taken: compile-map compiles the one map `-i` names |
+| `-f`, `-fshallow`, `-fshallow2` | `-fshallow` keeps the package (compile-map's only mode); `-f` and `-fshallow2` start empty and are refused for a partial build |
+| `-novpk` | not read beyond one filesystem call |
+| `-vpkincr` | no output: the parser skips it and nothing reads it |
 | `-skiptype` | not read |
 | `-nop4`, `-changelist`, `-norevert` | source control; no output? |
 | `-v`, `-pause`, `-pauseiferror`, `-html`, `-logwarnings`, `-breakpad`, `-telemetry_level` | no output? |

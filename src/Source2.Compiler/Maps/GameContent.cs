@@ -27,6 +27,7 @@ public class GameContent : SettleWorld.IModels, IDisposable
     /// <summary>The game's pak01 (<c>game/csgo/pak01_dir.vpk</c>), core's beside it, and loose game folders searched first.</summary>
     public GameContent(string pak, params string[] loose)
     {
+        PakPath = pak;
         _pak.Read(pak);
         var core = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, "..", "core", "pak01_dir.vpk"));
         if (File.Exists(core))
@@ -36,6 +37,9 @@ public class GameContent : SettleWorld.IModels, IDisposable
         }
         _loose = loose;
     }
+
+    /// <summary>The pak01 this reads, as given.</summary>
+    public string PakPath { get; }
 
     /// <summary>A file's bytes by its game path, or null.</summary>
     public byte[]? Read(string path)
