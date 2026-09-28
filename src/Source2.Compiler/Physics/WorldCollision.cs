@@ -804,7 +804,10 @@ public static class WorldCollision
         // A world mesh moves by its node's own matrix, as the plain pieces do.
         var toWorld = Maps.MapMeshes.Local(mesh);
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
-        (var cut, covered) = Maps.MeshTessellation.TriangulateBuilder(data);
+        // The builder's own bake on a half-edge mesh (Maps.SubdivisionBake): faces
+        // stitched to finer neighbours come out as the bake leaves them.
+        var cut = Maps.SubdivisionBake.Bake(data);
+        covered = true;
         // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
         var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of, List<Vector4> Paint, List<int> Source)>();
         for (var t = 0; t < cut.Faces.Count; t++)
