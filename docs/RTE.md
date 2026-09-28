@@ -395,6 +395,25 @@ outermost first. Unrotated instances are exact.
 - 71 triangles on plain atixref faces (meshes 1109, 861 and others) are not
   found. Coverage by coplanar faces of other meshes does not predict it.
 
+## Where the flag word comes from (read 2026-09-28, not ported)
+
+The collector gives every mesh entry of the world renderer's list one flag
+word before it emits the entry's triangles, and the triangle emitter ORs in
+the material's own bits:
+- 0x800 (excluded from the trace) unless the entry's "traced" byte is set;
+  0x800 again when a second entry byte is set.
+- 0x80 from the entry's own flags.
+- 0x2000, or 0xa000, from two bits of the entry's 64-bit flags.
+- Then the material's int attributes (the same lookup the light precompute's
+  scene uses) add their bits, nodraw's 0x10 among them.
+- An entry whose flags carry bit 0 without 0x10, 0x20 or 0x100 is skipped
+  outright, as is one with a high "skip" bit.
+
+Porting this is what a trace scene built from the .vmap still needs before
+visibility can run on it: the geometry of probe01 and cardtest is already
+exact, and the vis root cube now comes from the scene rather than from the
+shipped file.
+
 ## What is NOT established
 
 **The 8-byte per-triangle array is an id, and it groups by surface.** It takes

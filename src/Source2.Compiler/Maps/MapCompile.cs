@@ -118,7 +118,7 @@ public static class MapCompile
         {
             return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package);
         }
-        catch (NotSupportedException ex)
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
         {
             // A part of the map one of these steps does not port yet.
             return Fail(log, "not ported: " + ex.Message);
@@ -139,10 +139,16 @@ public static class MapCompile
 
         if (steps.Contains("world"))
         {
-            var gaps = MapEntities.From(document).Where(e => HasLumpGap(e.ClassName)).Select(e => e.ClassName).Distinct().ToList();
+            // Every entity node in the document, instance groups included.
+            var gaps = document.Elements
+                .Select(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname"))
+                .OfType<string>().Where(HasLumpGap).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (gaps.Count > 0 && !acceptGaps)
                 return Fail(log, $"the lump would lose the bake keys of {string.Join(", ", gaps)} (not ported); pass --accept-gaps to write it anyway");
             // The world step clears the map's entity lumps before writing its own.
+            // Whether it also clears the entities' models (.vmdl_c) and the
+            // flammables folder in an entities-only build is not settled; both
+            // are kept, since an entities-only build does not make them again.
             var prefix = $"maps/{map}/entities/".ToLowerInvariant();
             foreach (var old in entries.Keys.Where(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
                                                         && k.EndsWith(".vents_c", StringComparison.OrdinalIgnoreCase)).ToList())
