@@ -15,6 +15,7 @@ namespace Source2.Compiler.Maps;
 /// (<see cref="MaterialVisFlags.LeftOutOfTrace"/>) is dropped.</item>
 /// <item>Faces are triangulated as the compile does
 /// (<see cref="PolygonTriangulator"/>); a triangle passes through as is.</item>
+/// <item>A sliver triangle the emitter drops is dropped (<see cref="Emitted"/>).</item>
 /// </list>
 ///
 /// <para>Not yet covered: a face with subdivision levels, which the compile
@@ -40,9 +41,35 @@ public static class MapGeometry
                     continue;
                 int[] corners = face.Corners.Length == 3 ? [0, 1, 2] : PolygonTriangulator.Triangulate(face.Corners);
                 for (var t = 0; t < corners.Length; t += 3)
-                    found.Add(new Triangle(face.Corners[corners[t]], face.Corners[corners[t + 1]], face.Corners[corners[t + 2]], face.Material));
+                    if (Emitted(face.Corners[corners[t]], face.Corners[corners[t + 1]], face.Corners[corners[t + 2]]))
+                        found.Add(new Triangle(face.Corners[corners[t]], face.Corners[corners[t + 1]], face.Corners[corners[t + 2]], face.Material));
             }
         }
         return found;
+    }
+
+    /// <summary>
+    /// Whether the emitter (WRB_EmitRteTriangles, resourcecompiler 1802821f0)
+    /// keeps a triangle: its three edge lengths, each summed
+    /// <c>(d.z^2 + d.y^2) + d.x^2</c> for edge 0-1 and <c>(d.y^2 + d.z^2) + d.x^2</c>
+    /// for 1-2 and 2-0 and square rooted in float, sorted; the longest must
+    /// be at least 0.0001 and, times 1.0001, no longer than the other two
+    /// together. A sliver whose corners are all but in line is dropped
+    /// (116 of atixref's triangles, all of them absent from its .rte).
+    /// </summary>
+    public static bool Emitted(Vector3 a, Vector3 b, Vector3 c)
+    {
+        static float Z(float d) => d * d;
+        var e01 = MathF.Sqrt((Z(b.Z - a.Z) + Z(b.Y - a.Y)) + Z(b.X - a.X));
+        var e12 = MathF.Sqrt((Z(c.Y - b.Y) + Z(c.Z - b.Z)) + Z(c.X - b.X));
+        var e20 = MathF.Sqrt((Z(a.Y - c.Y) + Z(a.Z - c.Z)) + Z(a.X - c.X));
+        // The binary's three compare-and-swaps, in its order.
+        if (e01 > e12)
+            (e01, e12) = (e12, e01);
+        if (e12 > e20)
+            (e12, e20) = (e20, e12);
+        if (e01 > e12)
+            (e01, e12) = (e12, e01);
+        return !(0.0001f > e20) && !(e20 * 1.0001f > e12 + e01);
     }
 }

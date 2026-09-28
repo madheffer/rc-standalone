@@ -17,7 +17,18 @@ namespace Source2.Compiler.Maps;
 /// matrix (<c>FUN_180ffdf20</c>) is the instance path's matrix times the
 /// node's own <c>AngleMatrix(angles, origin)</c> (its vtable slot 0xa0), and
 /// each instance on the path adds the instance's matrix times the inverse of
-/// its target's (<c>FUN_180ffddd0</c>), outermost first.</para>
+/// its target's (<c>FUN_180ffddd0</c>), outermost first. That is
+/// <see cref="Mesh.Path"/>. The faces themselves are placed as the bake's
+/// collapse leaves the copy: its node moved through the instances
+/// (<see cref="SettleWorld.Baked"/>), then that node's own matrix. Measured
+/// against the .rte: atixref's 240 triangles under instances rotated 90, 180
+/// and 270 degrees, one ulp off through the path, are all bit exact this
+/// way, as is every instanced triangle of Mako.</para>
+///
+/// <para>A mesh the visibility manager hides, or one under a hidden node or
+/// reached through a hidden instance, is marked <see cref="Mesh.Hidden"/>:
+/// the compile leaves it out (Mako's 7,626 hidden skybox, pipe and train
+/// triangles are in no .rte).</para>
 /// </summary>
 public static class MapMeshes
 {
@@ -41,6 +52,12 @@ public static class MapMeshes
 
         /// <summary>The node's place in the depth-first walk, shared with <see cref="EntityNode"/>.</summary>
         public int Sequence { get; init; }
+
+        /// <summary>
+        /// Whether the map's visibility manager hides the mesh, or a node it
+        /// hangs under or was reached through (<see cref="MapEntities.HiddenNodes"/>).
+        /// </summary>
+        public bool Hidden { get; init; }
 
         /// <summary>Whether the mesh is rotated or scaled, which the plain local + origin path does not cover.</summary>
         public bool Transformed => Angles != Vector3.Zero || Scales != Vector3.One;
@@ -70,33 +87,38 @@ public static class MapMeshes
         var meshes = new List<Mesh>();
         var entities = new List<EntityNode>();
         var sequence = 0;
+        var hidden = MapEntities.HiddenNodes(doc);
         foreach (var world in doc.OfType("CMapWorld"))
-            Walk(world, world, Identity, [], [], targets, meshes, entities, ref sequence);
+            Walk(world, world, Identity, [], [], targets, hidden, false, meshes, entities, ref sequence);
         return (meshes, entities);
     }
 
     private static void Walk(DmxBinary.Element node, DmxBinary.Element parent, float[] path, int[] instances, DmxBinary.Element[] through,
-                             HashSet<DmxBinary.Element> targets, List<Mesh> meshes, List<EntityNode> entities, ref int sequence)
+                             HashSet<DmxBinary.Element> targets, HashSet<int> hiddenIds, bool hidden, List<Mesh> meshes, List<EntityNode> entities,
+                             ref int sequence)
     {
         // A collapsed instance's copy is appended to its parent's children
         // (CMapInstance_Collapse), so instances come after their siblings.
         var children = node.GetElements("children").ToList();
         foreach (var child in children.Where(c => c.Type != "CMapInstance").Concat(children.Where(c => c.Type == "CMapInstance")))
         {
+            var hides = hidden || hiddenIds.Contains(child.GetValue<int>("nodeID") ?? int.MinValue);
             switch (child.Type)
             {
                 case "CMapMesh":
                     var className = parent.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname");
+                    var placed = through.Length == 0 ? Concat(path, Local(child)) : SettleWorld.Baked(child, through);
                     meshes.Add(new Mesh(child.GetValue<int>("nodeID") ?? -1, parent.Type, className,
                                         child.GetValue<Vector3>("origin") ?? Vector3.Zero, child.GetValue<Vector3>("angles") ?? Vector3.Zero,
-                                        child.GetValue<Vector3>("scales") ?? Vector3.One, Faces(child, path))
-                               { Element = child, Instances = instances, World = Concat(path, Local(child)), Path = path, Sequence = sequence++ });
+                                        child.GetValue<Vector3>("scales") ?? Vector3.One, Faces(child, placed))
+                               { Element = child, Instances = instances, World = placed, Path = path, Sequence = sequence++, Hidden = hides });
                     break;
                 case "CMapInstance":
                     if (child.Get<DmxBinary.Element>("target") is not { } target)
                         break;
                     var step = Concat(Local(child), Invert(Local(target)));
-                    Walk(target, target, Concat(path, step), [.. instances, child.GetValue<int>("nodeID") ?? -1], [.. through, child], targets, meshes, entities, ref sequence);
+                    Walk(target, target, Concat(path, step), [.. instances, child.GetValue<int>("nodeID") ?? -1], [.. through, child], targets, hiddenIds, hides,
+                         meshes, entities, ref sequence);
                     break;
                 default:
                     if (targets.Contains(child))
@@ -104,13 +126,13 @@ public static class MapMeshes
                     // An entity's own shapes come before its children's.
                     if (child.Type is "CMapEntity" or "CMapSmartProp")
                         entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through });
-                    Walk(child, child, path, instances, through, targets, meshes, entities, ref sequence);
+                    Walk(child, child, path, instances, through, targets, hiddenIds, hides, meshes, entities, ref sequence);
                     break;
             }
         }
     }
 
-    private static Face[] Faces(DmxBinary.Element mesh, float[] path)
+    private static Face[] Faces(DmxBinary.Element mesh, float[] world)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
         var positions = Stream(data, "vertexData", "position");
@@ -121,7 +143,6 @@ public static class MapMeshes
         var first = IntArray(data, "faceEdgeIndices");
 
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
-        var world = Concat(path, Local(mesh));
         var faces = new Face[first.Length];
         for (var f = 0; f < first.Length; f++)
         {

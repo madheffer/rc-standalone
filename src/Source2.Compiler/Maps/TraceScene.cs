@@ -71,6 +71,8 @@ public static class TraceScene
         var found = new List<Triangle>();
         foreach (var mesh in meshes)
         {
+            if (mesh.Hidden)
+                continue;
             var entry = EntryFlags(mesh.Element);
             if (Subdivided(mesh) is { } baked)
             {
@@ -113,9 +115,9 @@ public static class TraceScene
             var f = cut.Faces[t];
             var m = materials.Length == 0 ? 0 : materials[faceData[f]];
             var name = m >= 0 && m < names.Length ? names[m] : "";
-            triangles.Add(new MapGeometry.Triangle(Place(cut.Positions[cut.Indices[t * 3]]),
-                                                   Place(cut.Positions[cut.Indices[(t * 3) + 1]]),
-                                                   Place(cut.Positions[cut.Indices[(t * 3) + 2]]), name));
+            var (a, b, c) = (Place(cut.Positions[cut.Indices[t * 3]]), Place(cut.Positions[cut.Indices[(t * 3) + 1]]), Place(cut.Positions[cut.Indices[(t * 3) + 2]]));
+            if (MapGeometry.Emitted(a, b, c))
+                triangles.Add(new MapGeometry.Triangle(a, b, c, name));
         }
         return triangles;
     }
