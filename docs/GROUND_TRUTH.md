@@ -64,10 +64,16 @@ game can answer is raised with the user first, and runs with -insecure.
     Open there: the light and probe bake keys, particle snapshot files, the
     vmap upgrade table, the landmark/camera/cull-triangle world lists, and
     every switch the port does not yet take.
+23. **The settle for sphere and capsule shapes**: a prop whose model has them
+    (s2c_rounds) is refused by the settle port.
+24. **What an entities-only build clears**: the world step clears the
+    entities folder and flammables; whether the entity models survive an
+    entities-only build is not settled (compile-map keeps them).
+25. **The .rte flag word** from the mesh entry and material attributes: read
+    in outline (RTE.md), not ported.
 
 ### Map resources
 13. The angles of instance copies inside a world layer (a round trip off).
-14. Mako's cable_dynamic rendercolor written as text.
 15. What picks Zstd or LZ4 for map output.
 
 ### Other modules
@@ -81,6 +87,20 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ## Resolved
 
+- **Map compile switches** (2026-09-28, decompile of hammer.dll and
+  resourcecompiler). Hammer's assembler writes the fixed switches, then each
+  builder widget's; resourcecompiler's parser keeps its own switches and types
+  every other "-name value" float, int, then string (a bare one is 1).
+  CompileMap reads ten builder names; -all or none selects every builder the
+  game allows; -entities without -world is entities-only; nosettle skips the
+  settle; a -fshallow build keeps the package and replaces the builders'
+  outputs. -nolightmaps and -vpkincr change nothing.
+- **Visibility root cube** (2026-09-28, decompile). The voxel sampler snaps
+  the traced scene box to the grid, rounds the widest extent up to a voxel,
+  takes the next power of two and pads each axis by half its shortfall; the
+  shipped bounds of four maps follow.
+- **cable_dynamic rendercolor** (2026-09-28, decompile and a probe map): the
+  cable node writes its tint's red, green and blue as the string "%i %i %i".
 - **Entity key defaults, masks and name fixup** (2026-09-28, decompile and
   the probe map). A flags key's default is the OR of its default-on choices
   ("%i"); tag_list and tag_list_dynamic default to their default-on tags

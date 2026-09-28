@@ -5,7 +5,7 @@
 > `python tools/sigscan.py <visbuilder.dll>` prints them for whatever build is
 > installed. `REVERSING.md` is also the procedure for the next update.
 >
-> **Starting cold?** [`HANDOFF.md`](HANDOFF.md) is the short version: the goal,
+> **Starting cold?** [`HANDOFF_VIS.md`](HANDOFF_VIS.md) is the short version: the goal,
 > the score per stage as it stands, how to run the oracle, and what is open.
 
 # Visibility: the structure, the tool, and where a replacement starts
@@ -2636,7 +2636,7 @@ Everything from voxelize to assignment now lands on the compile's own numbers on
 all three specimens, 0.00%, and `VisClusterSetTests` asserts it at 0.01% on our
 own target. None of it came from reading harder. Every defect below was found by
 capturing the compile's intermediate state from the live process with Frida and
-replaying the SAME input through the port (HANDOFF.md section 4 has the tools).
+replaying the SAME input through the port (HANDOFF_VIS.md section 4 has the tools).
 Stated once and plainly: end-of-stage counts could not have found these, and
 several were hidden by errors that cancelled.
 

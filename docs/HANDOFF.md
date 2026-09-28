@@ -1,324 +1,156 @@
-# Handoff: the vis compiler, as it stands on 2026-09-23 (end of day)
+# Handoff: the map compile port, as it stands on 2026-09-28
 
-For an agent picking this up cold. It says what the goal is, where the numbers
-are right now so you have a reference position to move from, what the CS2 update
-of 2026-09-23 did, how addresses are found now that they move, and which
-questions are actually open.
+For whoever picks this up next, cold. It gives:
+- the goal and the rules the work runs under;
+- where each module stands, with measured numbers;
+- how to run and score things;
+- what is open, in the order worth taking it.
 
-Read this, then [`VIS.md`](VIS.md). Nothing here replaces that file; this is the
-map to it.
+The older vis-only handoff is [`HANDOFF_VIS.md`](HANDOFF_VIS.md); its section 4
+(capture and replay tools) still applies.
 
----
+## 1. The goal and the rules
 
-## 1. The goal, stated exactly
+The goal is Valve's CS2 map compile (resourcecompiler with its builders) ported
+to C#, output matching Valve's bit for bit. Zombie escape maps are the target.
+Branch `research/map-authoring`, remote `box`.
 
-Produce a self authored map compiler whose output matches what Valve's would
-produce for the same input. The active front is **visibility**: a byte faithful
-reimplementation of `visbuilder.dll`, read out of the binary rather than guessed
-at, targeting **0.01% divergence from a Valve compile** (the operator's bar, which on
-these counts means exact) on every stage the compile prints a number for.
+The rules the user set, all still in force:
+- **Authoritative is law.** Only decompiled or measured facts. Anything
+  inferred, assumed or fitted to output is written down in
+  [`GROUND_TRUTH.md`](GROUND_TRUTH.md) and settled from the DLLs: a decompile, an
+  in-process oracle test calling Valve's DLL, or a Frida capture of
+  resourcecompiler. CS2 itself may be debugged, but ask first, and always run it
+  with `-insecure`.
+- **Full coverage.** Every entity class Hammer offers and every compile option
+  Hammer or resourcecompiler offers is in scope, not only what the test maps
+  use. [`COVERAGE.md`](COVERAGE.md) is the list.
+- **VAC safety.** Never attach to or read cs2.exe's memory.
+- **Compiles and captures only while CS2 is closed.**
+  - Check `tasklist` first, and run the watchdog (a flag-file loop that kills
+    resourcecompiler the moment cs2.exe appears).
+  - Back up any package a compile overwrites, restore it after and `cmp` it.
+  - Delete crash dumps after reading them.
+  - Keep 10 GB free on D:.
+- **One subagent at a time**, at most.
+- **Pushing:** push to `box` only when asked. Commits end with the co-author
+  line.
+- **Writing style:** no em dashes, comment blocks of at most 20 lines, and no
+  addresses in prose docs (they go in code comments and memory).
+- **After big tasks**, re-read each ported function beside Valve's decompile.
+- **After a CS2 patch**, run `tools/re/patch_check.py`.
 
-Everything lives in this repo, on branch `research/map-authoring`, remote `box`.
-The head of the work is the latest `vis:` commit on the branch.
+## 2. Where each module stands
 
----
+Measured; the tracker (artifact 4whctxfaTdHEiE4d3oAVHA, collections `items`,
+`modules`, `next`, `meta`) carries the same with per-item notes.
 
-## 2. Where to read
-
-| doc | what it is |
+| module | state |
 |---|---|
-| [`VIS.md`](VIS.md) | 2,628 lines. The real notes: every stage, what was read out of the binary, what was measured, what was ruled out and how. Newest work is at the BOTTOM. |
-| [`REVERSING.md`](REVERSING.md) | How to re-read `visbuilder.dll` after a game update. Three commands, about fifteen minutes. Read this BEFORE touching Ghidra. |
-| [`VISBUILDER_FUNCTIONS.md`](VISBUILDER_FUNCTIONS.md) | The function inventory. |
-| [`VISBUILDER_ANALYSIS.md`](VISBUILDER_ANALYSIS.md) | Structure of the module. |
-| [`RTE.md`](RTE.md) | The ray trace environment file the compile leaves behind, which is the geometry input. |
-| [`VALVE_BINARIES.md`](VALVE_BINARIES.md) | Which binary does what. |
-| [`PLAN.md`](PLAN.md) | The longer arc beyond vis. |
+| Entity lump | Every lump of the 8 pinned maps and of both probe maps matches Valve's outside the lights' shape and bake keys and the probe volumes' bake keys; the settle is exact in the lump build. All 354 classes Hammer offers are measured through the probe map: 343 exact. |
+| Physics | world_physics exact on all 9 maps with a current compile (decoded trees and container facts): atixref, cardtest, s2c_rounds, four ze_hold_em builds, c2m2's prefab, Mako. Physics-only entity models exact. |
+| Visibility | Every stage exact against captured inputs, Mako included; the VXVS assembled from Valve's .rte is byte identical on three maps. The root cube now comes from the scene. Not yet run on a trace scene built from the .vmap. |
+| Containers | Every container type authored; VPK writer byte for byte; `s2c compile-map` updates a compiled package from Hammer's command line. |
+| Geometry (render) | Barely started: world nodes, render meshes, aggregation, overlays, detail. |
+| Baked halves | Lighting, probes, cubemaps, shadows, nav, audio, bomb damage: vrad3 is driven as a stopgap; the port is not started. |
 
-`visbuilder.signatures.json` is data, not prose. Section 5 below.
+## 3. This session (2026-09-28)
 
----
+- **Coverage list** ([`COVERAGE.md`](COVERAGE.md), `tools/coverage/`):
+  - every FGD class, split into what csgo.fgd offers (354) and what it
+    declares but excludes or never loads (82);
+  - what the compile does with each of the classes it names;
+  - every Hammer build switch with its dialog label, every map compile
+    argument and every resourcecompiler option, each with its state.
+- **Probe map** (`tools/coverage/probe_map.py`):
+  - every offered class twice (bare, and with every key set), built on a copy
+    of cardtest, round-tripped through Valve's dmxconvert and pinned against
+    resourcecompiler;
+  - it found six rules, each read from the DLL and ported: flags and tag_list
+    defaults, the flags choice merge on redeclaration, the spawnflags mask,
+    name fixup by key type, the `name` key, and the particle snapshot path;
+  - a second probe, `probe_cable`, settled cable_dynamic's rendercolor (the
+    node's tint).
+- **Visibility root cube** ported from visbuilder: exact on four maps.
+- **`s2c compile-map`:**
+  - reads Hammer's line as resourcecompiler does and selects builders as
+    CompileMap does;
+  - runs the entities-only world step (settled lumps) and the physics step,
+    replacing their files in the existing package as a `-fshallow` build does;
+  - refuses what is not ported, naming it.
+- **Found and recorded, not yet fixed:**
+  - the settle does not port props with sphere or capsule shapes (s2c_rounds);
+  - the .rte flag word's derivation (RTE.md, "Where the flag word comes from").
 
-## 3. The reference position
+## 4. How to run and score things
 
-These are the numbers to beat, and the ones to check you have not broken. Three
-specimen maps: **ze_hold_em_p** (a real Zombie Escape map, long and enclosed),
-**cardtest** and **probe01** (small constructed probes).
+- **Whole suite:** `dotnet test tests/Source2.Compiler.Tests` (516 tests; a
+  few minutes).
+- **Entity lumps against Valve:** `EntityLumpAgainstValveTests` prints
+  `differs: <class> <n>` per map. `EntityClassCoverageTests` is the per-class
+  ratchet. `ENTCOV_DUMP=<tsv>` dumps every difference with its FGD type.
+- **Valve's compile of a map:** `MapFixtures.RcCompiledLump(s)` compiles into
+  the scratch addon `s2c_rc_probe`, caches by compiler stamp, and refuses
+  while cs2 or another resourcecompiler runs.
+  - Run the watchdog beside it anyway: `scratchpad/watchdog.sh <flag>`
+    (copy it from an earlier session's scratchpad if it is missing).
+  - That addon lacks other addons' materials: a map whose world needs them
+    (cardtest's doom meshes) compiles without its world physics there.
+- **Probe maps:**
+  - `python tools/coverage/probe_map.py <base.vmap> <fgd_keys.json> <fgd_classes.json> <out.vmap>`;
+  - `fgd_keys.json` comes from `COVERAGE_KEYS=<json>` on `CoverageKeysProbe`,
+    `fgd_classes.json` from `tools/coverage/fgd_classes.py`;
+  - the probes live in `content/csgo_addons/s2probe/maps/` (not in the repo).
+- **Coverage doc:**
+  `python tools/coverage/coverage_doc.py <fgd_classes> <class_refs> <map_classes> <fgd_keys> docs/COVERAGE.md`
+  regenerates the class half. Per-class notes are in
+  `tools/coverage/class_notes.json`.
+- **World physics:** `WPBUILD=<addon>|<map>|<compiled vpk>` on
+  `WorldPhysicsAuthorTests` diffs decoded trees. Compressed bytes are not
+  expected to match; trees and container facts are.
+- **compile-map:**
+  `s2c compile-map -i <content/csgo_addons/<addon>/maps/<map>.vmap> -outroot <dir> -entities [-phys] [-nosettle] [--accept-gaps] [--gpu]`.
+  It needs a package already at `<outroot>/csgo_addons/<addon>/maps/<map>.vpk`.
+- **Visibility inputs:** `VISOWN=1` on `VisOwnProbe` checks the root cube.
+  `VisConfigDump` prints a map's .viscfg.
+- **Decompiles:** `python tools/re/dec.py <dll> <addr>` through ReVa (see the
+  reva-headless memory note to start it). Hammer is not in the Ghidra project;
+  read it from the PE with capstone (`tools/re/disx.py`, `leascan.py`).
 
-Per stage, ours against the compile's own printed count, as of 2026-09-23:
+## 5. Open, in the order worth taking it
 
-| stage | ze_hold_em_p | cardtest | probe01 |
-|---|---|---|---|
-| voxelize (nodes) | **exact** | **exact** | **exact** |
-| enclosed regions | **exact** | **exact** | **exact** |
-| clusters generated | **exact** | **exact** | **exact** |
-| pre-merged | **exact** | **exact** | **exact** |
-| target (pass budget base) | **exact** | **exact** | **exact** |
-| first pass cost | **exact** | -- | **exact** |
-| merge first / second / final | **exact** | **exact** | **exact** |
-| assignment | **exact** | **exact** | **exact** |
-| PVS scan (matrix) | **exact** | **exact** | **exact** |
-| vis-cluster merge (every merge, map, matrix) | **exact** | **exact** | **exact** |
-| border sampling and rewrite | **exact** | **exact** | **exact** |
-| AssignClusters2, sky, sun, collapse | **exact** | **exact** | **exact** |
-| shipped VXVS, from our pipeline alone | **byte identical** | **byte identical** | **byte identical** |
+1. **Visibility on our own geometry** (the module's last item):
+   - The .rte flag word from the mesh entry and the material attributes
+     (RTE.md). With it, probe01 and cardtest can run end to end: their
+     triangles are exact already.
+   - The sun direction for the .viscfg: `-forward` of the directional light's
+     world matrix, from the light description, for a light that passes the
+     export's three checks (read in FUN_180244d30).
+   - pvstype from worldspawn, and the visibility hints (every
+     visibility_hint entity as the lump writes it) for maps that have them.
+   - Subdivided faces in the trace scene through `SubdivisionBake` (exact for
+     physics), then the rotated-instance ulps (a capture).
+2. **Entity lump:**
+   - The light export: shape keys, the angles rewrite and `directlight`.
+     The precomputed keys are ported and exact against an empty scene; they
+     need the editor's ray-trace scene (see the light-precompute memory note)
+     and wiring into the lump.
+   - The settle for sphere and capsule shapes.
+   - World-layer instance angles, 1 or 2 ulps (parked; a capture of the
+     reparent settles it).
+3. **compile-map:**
+   - What an entities-only build clears (the entities' models, flammables).
+   - `-entities` with no package in place.
+   - The world step once geometry exists.
+4. **Containers:** the addon content a map references, compiled beside it
+   (c-deps). A whole package from our own outputs waits on geometry and the
+   baked halves.
+5. **Physics leftovers:** prop bone overrides, props in CMapPrefab, the lattice
+   deformer, the prop override keys, the bake's vertex merge and edge
+   smoothing, and ze_hold_em_p's six doors.
+6. **Geometry (render)** and the **baked halves**: the two large remaining
+   parts, both unstarted beyond what visibility and physics needed.
 
-Big-map paths, on ze_ffvii_mako_reactor_v6_p replayed from Valve's captured
-state (`VisBigReplay`, `BIGPVS=<map>`): the neighbour list (25,471 clusters),
-the 8,000,000 pair limit, and the vis-cluster merge's four 8,192 steps with a
-9-partition first step (21,377 merges) are exact.
-
-`VisClusterSetTests` (`MERGE=1`) asserts all of it at 0.01%, on our own target.
-The previous handoff had the merge at -7.36% / +3.75% / +3.15%.
-
-It is not just the counts. On Valve's own captured inputs every intermediate is
-bit-identical: 528,630 merge prices, every merge in order (79,955 on probe01),
-every sampled visibility bit, every one of 512 rays from a wall-hugging cluster,
-the rebuilt kd tree node for node, all 13 pre-merge rounds, and each pass's set
-list in order. See section 4 for how that is measured; it is how every one of
-these was fixed.
-
-The post-assignment rows are measured by `VisPvsReplay` (`PVS=<map>`) against
-`tools/vis/capture_pvs.py`'s capture; `TheWholeBuild` runs the whole chain on our
-own scan and compares the VXVS with the one the compile shipped.
-
-## 4. How to run and score anything
-
-**Tests.** Everything is scored by xunit, in `tests/Source2.Compiler.Tests/`.
-
-```bash
-dotnet test tests/Source2.Compiler.Tests -c Release
-```
-
-Current state of that command: **173 passed, 4 failed**. The four are section 9;
-they are not yours.
-
-**Diagnostics are environment gated**, so they do not run in the ordinary suite
-and do not need deleting when they stop being interesting. Set the variable to
-anything non empty:
-
-| var | file | what it prints |
-|---|---|---|
-| `GEOM` | `VisOutsideGeometry.cs` | what a march actually hits |
-| `DIFF` | `VisMarchDiff.cs` | our march against the compile's, leaf by leaf |
-| `WALK` | `VisMarchWalk.cs` | one march, step by step |
-| `VALVE` | `VisAgainstValve.cs` | our whole stage chain against the compiled file |
-| `SHAPE` | `VisShippedShape.cs` | what the shipped `vvis_c` is shaped like |
-| `MARGIN` | `VisSeedMargins.cs` | seed placement and its margins |
-| `COMPACT` | `VisCompactionShape.cs` | the compaction's output records |
-| `HALT` | `VisMergeHalt.cs` | where each bucket's merge stops and why |
-| `OPEN` | `VisBucketOpenness.cs` | per bucket visibility saturation |
-| `SCALE` | `VisCostScale.cs` | the cost curve, taken apart |
-| `MERGE` | `VisClusterSetTests.cs` | the five pass chain |
-| `MAKO` | `VisCorpusTests.cs` | the wide corpus sweep |
-
-**The oracle.** Valve's builder can be re-run per change rather than per compile,
-which is what makes any of this scoreable:
-
-```bash
-python tools/vis/rebuild_vis.py <addon> <map> --runs N
-```
-
-Four traps, each of which cost a wrong run to find, are written up in VIS.md
-"Running vis on its own, as an oracle". The one that bites first: **visibility is
-built by the `-world` phase, not `-vis`**, and a skipped phase silently leaves
-yesterday's output in place.
-
-Valve against Valve is a **byte identical** `vvis_c`, so any deviation you
-measure is entirely ours and none of it is oracle noise.
-
----
-
-### Capture and replay, which is how parity was actually reached
-
-Counts at the end of a stage cannot localise a defect in a greedy merge: one
-wrong tie-break early shows up as a soft percent later. What works is taking the
-compile's intermediate state out of the running process and feeding the port the
-SAME input. Frida is installed; the tools:
-
-| tool | what it records |
-|---|---|
-| `tools/vis/capture_merge.py <addon> <map> [--vis] [--gen]` | every merge loop call: input set, leaf boxes, sampled visibility, candidate prices, every merge and cost, output; and the whole set list at every pass entry |
-| `tools/vis/capture_rays.py <addon> <map> x,y,z ...` | one cluster's per-ray tracer results |
-
-and the replays that consume them, all env gated:
-
-| var | test | what it compares |
-|---|---|---|
-| `REPLAY=<map>` | `VisMergeReplay` | sampler, cost, merge order per bucket; bucketing per pass; our generation + pre-merge against the pass 0 entry (`REPLAY_CHAIN=1` runs the whole chain and compares every pass entry) |
-| `RAYS=<map>` | `VisRayReplay` | our segment trace against Valve's raw tracer output, ray by ray |
-| `KD=<map>` | `TracerKdReplay` | our rebuilt kd tree against the one dumped from memory |
-
-Dumps of the tracer (kd nodes, triangles) and of pre-merge rounds were taken
-with one-off Frida scripts; the pattern is in `capture_merge.py`. Addresses
-come from the signature manifest, so all of it survives a game update.
-
-**Ghidra/ReVa.** The `ReVa` MCP server is a Ghidra plugin and refuses
-connections unless something serves it. `tools/re/reva_serve.py` serves it
-headless on the `cs2` project (it locks the project while running);
-`tools/re/reva_call.py` calls any ReVa tool over HTTP if the MCP client did not
-connect. Ghidra's decompile has twice been wrong in ways that mattered here: it
-DROPPED the whole tail of `BoxGap` after its square root, and it reordered a load
-past a store in the triangle conversion. Disassemble anything surprising.
-
-## 5. The CS2 update of 2026-09-23, and signatures
-
-**What happened.** CS2 rebuilt `visbuilder.dll` and every address in VIS.md moved
-at once. `0x18017f128`, the coarse merge weight, went from holding `0.25` to
-holding the ASCII of `idates()`. Four tests failed, and the one that failed most
-usefully said "visbuilder.dll has 2.03e-110, we use 0.25", which reads as though
-OUR number were wrong when what was wrong was the build it was looking at.
-
-**The fix is not to re-read the addresses.** `docs/visbuilder.signatures.json`
-holds, per symbol, the bytes AROUND it with the ones the linker moves blanked
-out. 97 symbols, 64 code and 33 data, across 144 read sites. `tools/sigscan.py`
-resolves them against whatever DLL you point it at:
-
-```bash
-python tools/sigscan.py "/d/Steam/.../game/bin/win64/visbuilder.dll"
-```
-
-The blanks are not guessed. Ghidra knows which BITS of an instruction encode
-each operand, so `getOperandValueMask` says exactly which bytes carry a
-reference; every other byte is verbatim. A constant has no bytes worth matching,
-so it is signed by the instructions that READ it, up to four of them, and the
-target is `match + next + int32_at(match + disp)`. A pattern matching zero times
-is `gone`, more than once is `ambiguous`, sites disagreeing is `split`, and none
-of those produce an address. **A wrong address is worse than a missing one.**
-
-Where it stands right now, verified this session:
-
-| | resolves |
-|---|---|
-| 2026-09-23 build (installed, md5 `13f3752…`) | **97 of 97** |
-| 2026-07-09 build (`D:\cs2shadow\...`) | **94 of 97** |
-| known constants read back and matched | **18 of 18** |
-
-The manifest is signed against the NEW build and still reaches 94 of 97 symbols
-BACKWARDS into the old one, which is the evidence that the method is build
-agnostic rather than tuned to one image.
-
-**What the update actually changed: nothing that matters.** Three symbols needed
-recovering by hand, and two of them looked like behaviour changes and were not:
-
-- **`Normalise` was inlined.** The old whole function was an inline fast path
-  with a double precision fallback; the new build hoisted the fast path into all
-  17 callers and left the fallback alone (201 bytes against 391).
-- **`SampleCluster` grew 284 bytes and is otherwise identical.** An earlier note
-  claimed Valve had changed the visibility sampler, which would have mattered a
-  great deal for the merge. That was wrong: decompiling both builds side by side
-  shows the same reach from the set box diagonal, the same `(flags & 1) == 0`
-  branch and the same walk. The extra bytes are that inlined normalise.
-- **`AbsMask`** had all four read sites inside changed functions. Found again by
-  reading which `DAT_` the new `CheapestPair` takes as a mask and confirming the
-  bytes are `7fffffff` four times over.
-
-**Every constant the port depends on came back with the same value.** The lesson
-worth carrying: **a signature breaking is evidence about BYTES, not behaviour.**
-
-If a signature does break, [`REVERSING.md`](REVERSING.md) §4 has those three
-recoveries written out as the three shapes this takes, plus a 94 row table
-translating every address VIS.md used to quote into the new build.
-
----
-
-## 6. The rules this work runs under
-
-These are the operator's, and they are not negotiable.
-
-- **Always decompile. Never guess.** Every conclusion comes from the actual
-  bytes, the running system or a primary reference. Do not theorise a cause and
-  act on it. If something cannot be confirmed, say so.
-- **No assuming variable types, values, or anything else.** Read them.
-- **Never invent a mechanism to explain a number.** A previous agent invented a
-  "Touches" relation to make a count work; it did not exist. Find the truth.
-- **A Ghidra `void` return type is not evidence.** `180034220`, `18002fec0` and
-  `CVoxelSampler3::MergeClusterSet` all return values in XMM registers and
-  Ghidra types them `void`.
-- **Measure before believing a hypothesis is the lever.** Several very plausible
-  ones were killed this way: the march (matches brute force), the visibility
-  saturation (hold_em's fullest cell is a genuinely open box, 39,800 of 39,800
-  lines clear), the cost limit (ours is lower, wrong direction), the bucketing,
-  all seven cost constants, and the cluster birth values.
-- **Do not quote addresses in prose any more.** Name the symbol; let the
-  manifest resolve it.
-- No em dashes in prose or comments. Comment blocks cap at 20 lines.
-
----
-
-## 7. What is built
-
-| piece | state |
-|---|---|
-| VXVS decode and encode | byte exact on 112 maps, 481 MB |
-| DATA index derivation | equals Valve's numbers on 112 maps |
-| point and visibility queries | agree with an independent reader on 84,673 points |
-| `VisVoxelizer` | exact (the whole-build replays match node for node on all three maps) |
-| `VisOutside` | outside detection, the seed and the propagation |
-| `VisRegions` | region generation and compaction, three unions per leaf |
-| `VisClusters`, `VisClusterSet` | the birth rule and the five pass chain |
-| `VisPreMerge` | `18002f5c0`, the distance pre merge |
-| `VisAssign` | assignment, carrying the compaction's outside union |
-| `VisMerge`, `VisMergeCost` | the greedy merge and its cost function |
-| `VisBoxTree` | the dynamic AABB tree, now WITH its rotation |
-| `VisSampler`, `VisClusterSample` | the visibility sampler |
-| `RayTraceEnvironment` | the file's kd trace, plus `Segment`: the compile's batch tracer on the loader's converted triangles |
-| `TracerKd` | the kd tree the loader rebuilds (`RefineNode`), identical to Valve's on Mako and probe01; the voxelizer's box query through it, and the batch tracer's packet walk (`Packet`) |
-| `MsvcSort` | MSVC's `std::sort`, where the compile's unstable sort order is observable |
-| `VisPvs` | the PVS scan: scan state, neighbour list, the cluster-centre, boundary-points and large-regions generators |
-| `VisConfig` | the `.viscfg`: `pvstype`, `vDirToSun` |
-| `VisClusterList` | the volume gate, target and vis-cluster merge |
-| `VisBorders` | border sampling, the entry rewrite, `AssignClusters2` |
-| `VisSky`, `VisSun` | sky and sun visibility |
-| `VisCollapse` | the resolution collapse |
-| `VisOutput` | the VXVS assembled from the final state, and the two blocks the world renderer reads |
-
-Two fixes from this session are worth knowing about because both were invisible
-to the tests that existed:
-
-- **The kd trace was clamping each triangle to the leaf holding it.** The `.rte`
-  stores 4,548 triangles in 5,983 index slots, about 1.3 leaves per triangle, so
-  standard kd t-range clamping is simply invalid here. Removing it is what took
-  the enclosed regions to exact.
-- **The AABB tree was never balanced.** `18010a5d0` opens every refit iteration
-  with `18010a6e0`, which is a rotation returning the subtree's new root. A query
-  tests BOXES, so an unbalanced tree answers every query correctly and all five
-  existing tree tests passed either way. What balance changes is the ORDER
-  candidates come back in, and the merge takes a rival no dearer than a
-  tolerance over the one it holds. It is pinned now by the one thing it is
-  observable through: 4,096 boxes inserted along a line come out 12 deep.
-
----
-
-## 8. What is not built
-
-| piece | what is known |
-|---|---|
-| wiring into the compiler | the stages exist as functions and a test chain, not yet as a `vvis_c` the compiler writes. |
-| the world renderer's mesh merger | reads the two blocks vis hands over (`FlatVisClusterVector`, `MutualVisibilityMatrix`) to cut and merge world meshes; reversed in VIS.md, "What the world renderer does with them", and part of the world renderer port, not vis. |
-| `-updateloshints` and the legacy sampler | non-deterministic paths a stock compile does not take (`DeterministicBuild 1`); not ported. |
-
-CLOS is ported and measured: in the deterministic build it can contribute
-nothing whatever `los_errors` holds (VIS.md, "CLOS, and the big-map paths").
-
----
-
-## 9. Open, in the order worth taking them
-
-1. **Wire it in.** Every stage from voxelize to the VXVS is ported and
-   measured; the compiler should now write the `vvis_c` from them, with
-   `TheWholeBuild`'s chain as the reference order.
-2. **More specimens.** Three maps are exact; a map with nodraw, hint entities
-   or `vis_voxel_size` override volumes (the list at sampler+0x88 in
-   `Voxelize`) exercises code paths none of these do. Mako now replays exact
-   in every stage (VIS.md, "Tracing as the batch tracer traces").
-3. **One fidelity item recorded and not fixed.** `NormaliseSlowPath` (lengths
-   under 1e-17 or over 1e17) is approximated with a double normalise in three
-   places; no specimen reaches it.
-
-**Four failing tests that are NOT this work.** `EntityLumpAuthorTests`,
-`EntityLumpKnownGapsTests` (x2) and `EntityClassCoverageTests` are the asset half
-of the same 2026-09-23 CS2 update: new entity classes and changed key types in
-maps that shipped with it. They were failing before this session's work and were
-deliberately left alone. Do not let them mask a vis regression, and do not fold
-them into vis work without saying so.
+The ground-truth ledger's open list ([`GROUND_TRUTH.md`](GROUND_TRUTH.md))
+runs alongside all of these: every rule still fitted to output rather than
+read.
