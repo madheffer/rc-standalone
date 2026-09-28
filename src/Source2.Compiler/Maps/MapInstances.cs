@@ -238,11 +238,12 @@ public static class MapInstances
                      && byNode.TryGetValue((int)(child.GetValue<int>("nodeID") ?? -1), out var template))
             {
                 templates.Add(template);
-                copies.Add(new Copy(
-                    emitAt, template, start + index,
-                    at.Origin + Vector3.Transform(
-                        child.GetValue<Vector3>("origin") ?? Vector3.Zero, Rotation(at.Angles)),
-                    Wrap((child.GetValue<Vector3>("angles") ?? Vector3.Zero) + at.Angles), layer));
+                // The copy's placement is the collapse's own (TransformBy through
+                // each instance's baked matrix, SettleWorld.BakedPlacement): on
+                // atixref it rebuilds all 199 instanced lights bit for bit, where
+                // adding Euler angles and rotating by quaternion did not.
+                var (origin, angles) = Maps.SettleWorld.BakedPlacement(child, through);
+                copies.Add(new Copy(emitAt, template, start + index, origin, angles, layer));
             }
             Emit(child, at, through, byNode, copies, templates, placed, emitAt, start, ref slot, nested, layer);
         }
