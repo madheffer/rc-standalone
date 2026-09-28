@@ -1,3 +1,4 @@
+using System.Numerics;
 using Source2.Compiler.Maps;
 
 namespace Source2.Compiler.Physics;
@@ -39,21 +40,33 @@ public static class EntityPhysicsModels
         foreach (var instance in doc.OfType("CMapInstance"))
             if (instance.Get<DmxBinary.Element>("target") is { } target)
                 targets.Add(target);
-        var hidden = MapEntities.HiddenNodes(doc);
-        var entities = new List<(DmxBinary.Element Element, int NodeId, IReadOnlyList<DmxBinary.Element> Through)>();
-        void Walk(DmxBinary.Element node)
+        var mapHidden = MapEntities.HiddenNodes(doc);
+        var entities = new List<(DmxBinary.Element Element, int NodeId, IReadOnlyList<DmxBinary.Element> Through, string IdPath,
+                                 DmxBinary.Element[] Prefabs, HashSet<int> Hidden)>();
+        // A prefab's map is walked where the prefab stands, with its own hidden
+        // nodes and instance targets; its entities are named by id path
+        // (s2c_prefabprobe2: unnamed_108_3.vmdl).
+        void Walk(DmxBinary.Element node, string prefix, DmxBinary.Element[] prefabs, HashSet<int> hidden, HashSet<DmxBinary.Element> skip)
         {
             foreach (var child in node.GetElements("children"))
             {
-                if (targets.Contains(child) || hidden.Contains(child.GetValue<int>("nodeID") ?? -1))
+                var id = child.GetValue<int>("nodeID") ?? -1;
+                if (skip.Contains(child) || hidden.Contains(id))
                     continue;
                 if (child.Type == "CMapEntity")
-                    entities.Add((child, child.GetValue<int>("nodeID") ?? -1, []));
-                Walk(child);
+                    entities.Add((child, id, [], prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture), prefabs, hidden));
+                if (child.Type == "CMapPrefab" && child.Get<DmxBinary.Element>(MapPrefabs.WorldKey) is { } prefabWorld)
+                {
+                    Walk(prefabWorld, prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_", [.. prefabs, child],
+                         child.Get<HashSet<int>>(MapPrefabs.HiddenKey) ?? [],
+                         new HashSet<DmxBinary.Element>(child.Get<List<DmxBinary.Element>>(MapPrefabs.TargetsKey) ?? [], ReferenceEqualityComparer.Instance));
+                    continue;
+                }
+                Walk(child, prefix, prefabs, hidden, skip);
             }
         }
         foreach (var world in doc.OfType("CMapWorld"))
-            Walk(world);
+            Walk(world, "", [], mapHidden, targets);
         // Each copy an instance places is the template entity under the copy's
         // own id (MapInstances.Expand), named after the template.
         var createdOnLoad = smartProp == null ? 0
@@ -61,24 +74,33 @@ public static class EntityPhysicsModels
         MapInstances.Expand(doc, MapEntities.From(doc), createdOnLoad, (node, id, through) =>
         {
             if (node.Type == "CMapEntity")
-                entities.Add((node, id, through));
+                entities.Add((node, id, through, id.ToString(System.Globalization.CultureInfo.InvariantCulture), [], mapHidden));
         });
-        foreach (var (entity, nodeId, through) in entities)
+        foreach (var (entity, nodeId, through, idPath, prefabs, hidden) in entities)
         {
-            if (One(entity, nodeId, through) is { } model)
+            if (One(entity, nodeId, through, idPath, prefabs, hidden) is { } model)
                 models.Add(model);
         }
         return models;
 
-        Model? One(DmxBinary.Element entity, int nodeId, IReadOnlyList<DmxBinary.Element> through)
+        Model? One(DmxBinary.Element entity, int nodeId, IReadOnlyList<DmxBinary.Element> through, string idPath,
+                   DmxBinary.Element[] prefabs, HashSet<int> hidden)
         {
             // An instance copy's entity and meshes are where the collapse moved
-            // them (Mako's spawn train doors and rotated func_doors).
-            Func<DmxBinary.Element, CTransform>? transformOf = through.Count == 0 ? null : node =>
+            // them (Mako's spawn train doors and rotated func_doors); a prefab's
+            // where the prefab moves them.
+            Func<DmxBinary.Element, CTransform>? transformOf = through.Count > 0 ? node =>
             {
                 var (origin, angles) = SettleWorld.BakedPlacement(node, through);
                 return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
-            };
+            }
+            : prefabs.Length > 0 ? node =>
+            {
+                var (origin, angles) = SettleWorld.PrefabPlacement(node.GetValue<Vector3>("origin") ?? Vector3.Zero,
+                                                                   node.GetValue<Vector3>("angles") ?? Vector3.Zero, prefabs);
+                return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
+            }
+            : null;
             // The lump points every brush entity at a model, but a hidden mesh is
             // not compiled, and an entity left with none gets no file.
             var meshes = Meshes(entity).Where(m => !hidden.Contains(m.GetValue<int>("nodeID") ?? -1)).ToList();
@@ -87,7 +109,7 @@ public static class EntityPhysicsModels
             var props = entity.Get<DmxBinary.Element>("entity_properties");
             var className = props?.Get<string>("classname") ?? "";
             var targetName = props?.Get<string>("targetname") ?? "";
-            var path = $"maps/{mapName}/entities/{(string.IsNullOrWhiteSpace(targetName) ? "unnamed" : targetName.ToLowerInvariant())}_{nodeId}.vmdl";
+            var path = $"maps/{mapName}/entities/{(string.IsNullOrWhiteSpace(targetName) ? "unnamed" : targetName.ToLowerInvariant())}_{idPath}.vmdl";
             var pieces = new List<WorldCollision.Piece>();
             var physicsOnly = true;
             var applied = schema?.MetadataOf(className, "auto_apply_material") is { Length: > 0 } a ? a : null;

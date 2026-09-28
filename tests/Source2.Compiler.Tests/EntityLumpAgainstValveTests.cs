@@ -63,10 +63,12 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     /// (108:3) where the prefab stands. The reference is a full compile kept at
     /// %TEMP%/gt/s2c_prefabprobe.vpk (tools' gt_compile.sh).
     /// </summary>
-    [Fact]
-    public void PrefabProbe_DiffersOnlyInTheDocumentedGaps()
+    [Theory]
+    [InlineData("s2c_prefabprobe")]
+    // A prefab of c2m2's gameplay map: brush entities in a prefab.
+    [InlineData("s2c_prefabprobe2")]
+    public void PrefabProbe_DiffersOnlyInTheDocumentedGaps(string map)
     {
-        const string map = "s2c_prefabprobe";
         var source = MapFixtures.VmapSource("s2c_rc_probe", map);
         var package = Path.Combine(Path.GetTempPath(), "gt", map + ".vpk");
         if (source is null || !File.Exists(package)) { MapFixtures.Skip($"the {map} source and its compile"); return; }

@@ -538,7 +538,7 @@ public static partial class EntityLumpAuthor
     {
         var named = entity.Keys.FirstOrDefault(k => k.Key.Equals("targetname", StringComparison.OrdinalIgnoreCase)).Value;
         var name = string.IsNullOrWhiteSpace(named) ? "unnamed" : named.ToLowerInvariant();
-        return $"maps/{worldName}/entities/{name}_{entity.NodeId.ToString(CultureInfo.InvariantCulture)}.vmdl";
+        return $"maps/{worldName}/entities/{name}_{entity.IdPath.Replace(':', '_')}.vmdl";
     }
 
     private static bool IsPlacement(string key)
