@@ -52,6 +52,12 @@ game can answer is raised with the user first, and runs with -insecure.
     Identical on ASCII text; audit each against the Valve call it mirrors.
     The string token hash already uses the ASCII rule.
 
+22. **Coverage.** Every entity class the FGD offers (point_servercommand
+    and the other server, logic and point entities included) and every
+    compile option Hammer's build dialog and resourcecompiler's command line
+    offer must be handled, not only what the test maps use. Enumerate both
+    lists from the binaries and the FGD and check each against the port.
+
 ### Map resources
 13. The angles of instance copies inside a world layer (a round trip off).
 14. Mako's cable_dynamic rendercolor written as text.
