@@ -312,4 +312,136 @@ public unsafe class RoundCollisionOracleTests(ITestOutputHelper output)
         Assert.Equal(0, bad);
         Assert.Equal(0, flagsDiffer);
     }
+
+    /// <summary>A triangle as the mesh contact hands it over: v0 at the origin, or anywhere.</summary>
+    private static (Vec3, Vec3, Vec3) RandomTriangle(Random r)
+    {
+        var v0 = r.Next(2) == 0 ? default : V(r, 10);
+        return (v0, Add(v0, V(r, 40)), Add(v0, V(r, 40)));
+    }
+
+    /// <summary>A point about the triangle in B's frame: on it, over it, or off an edge or corner.</summary>
+    private static Vec3 Near(Random r, Vec3 v0, Vec3 v1, Vec3 v2, double reach)
+    {
+        var u = F(r, -0.3, 1.2);
+        var v = F(r, -0.3, 1.2);
+        var p = Add(Add(v0, Mul(Sub(v1, v0), u)), Mul(Sub(v2, v0), v));
+        return r.Next(8) == 0 ? p : Add(p, V(r, reach));
+    }
+
+    private static Vec3 Add(Vec3 a, Vec3 b) => new(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+
+    private static Vec3 Sub(Vec3 a, Vec3 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+
+    private static Vec3 Mul(Vec3 a, float k) => new(a.X * k, a.Y * k, a.Z * k);
+
+    private static Vec3 Through(in RnTransform xf, Vec3 p)
+        => new(((p.X * xf.R.M0) + (p.Y * xf.R.M3)) + (p.Z * xf.R.M6) + xf.T.X,
+               ((p.X * xf.R.M1) + (p.Y * xf.R.M4)) + (p.Z * xf.R.M7) + xf.T.Y,
+               ((p.X * xf.R.M2) + (p.Y * xf.R.M5)) + (p.Z * xf.R.M8) + xf.T.Z);
+
+    private delegate bool TrianglePort<T>(ref CachedManifold result, in RnTransform xfA, in T a, in RnTransform xfB,
+                                          Vec3 v0, Vec3 v1, Vec3 v2, ref MeshTriangleCache cache, int triangle);
+
+    /// <summary>
+    /// A triangle core against Valve's: the answer, the whole manifold, the
+    /// 0x3c-byte triangle cache. Shape A sits about the triangle, sometimes
+    /// right on it, sometimes with the cache left from the previous case.
+    /// </summary>
+    private void RunTriangle<T>(ulong va, int seed, Func<Random, Vec3, T> make, TrianglePort<T> port, bool maskEdgeCopy) where T : unmanaged
+    {
+        if (Vphysics2Oracle.Load() is not { } module)
+            return;
+        var fn = (delegate* unmanaged<CachedManifold*, RnTransform*, T*, RnTransform*, Vec3*, MeshTriangleCache*, int, byte>)
+            Vphysics2Oracle.At(module, va);
+        var random = new Random(seed);
+        int hits = 0, bad = 0, flagsDiffer = 0;
+        var mem = (byte*)NativeMemory.AlignedAlloc(0x400, 16);
+        var cache = default(MeshTriangleCache);
+        var valveCache = default(MeshTriangleCache);
+        try
+        {
+            for (var i = 0; i < Cases; i++)
+            {
+                var (v0, v1, v2) = RandomTriangle(random);
+                var xfB = Frame(random, V(random, 20));
+                var world = Through(xfB, Near(random, v0, v1, v2, random.Next(3) == 0 ? 2.0 : 12.0));
+                var local = V(random, 3);
+                var a = make(random, local);
+                var xfA = Frame(random, default);
+                xfA.T = Sub(world, Through(xfA, local));
+                if (random.Next(3) != 0)
+                {
+                    cache = default;
+                    valveCache = default;
+                }
+                var triangle = random.Next(1000);
+                var fill = (byte)random.Next(256);
+                var pOut = (CachedManifold*)mem;
+                var pXa = (RnTransform*)(mem + 0x100);
+                var pXb = (RnTransform*)(mem + 0x140);
+                var pA = (T*)(mem + 0x180);
+                var pV = (Vec3*)(mem + 0x1c0);
+                var pCache = (MeshTriangleCache*)(mem + 0x200);
+                NativeMemory.Fill(pOut, 0xe0, fill);
+                *pXa = xfA;
+                *pXb = xfB;
+                *pA = a;
+                pV[0] = v0;
+                pV[1] = v1;
+                pV[2] = v2;
+                *pCache = valveCache;
+                var valveHit = fn(pOut, pXa, pA, pXb, pV, pCache, triangle) != 0;
+                valveCache = *pCache;
+                var mine = default(CachedManifold);
+                NativeMemory.Fill(&mine, 0xe0, fill);
+                var mineHit = port(ref mine, xfA, a, xfB, v0, v1, v2, ref cache, triangle);
+                if (mineHit)
+                    hits++;
+                if (maskEdgeCopy)
+                {
+                    for (var k = 0; k < 4; k++)
+                    {
+                        ((byte*)pOut)[0x66 + (0x28 * k)] = ((byte*)&mine)[0x66 + (0x28 * k)];
+                        ((byte*)pOut)[0x67 + (0x28 * k)] = ((byte*)&mine)[0x67 + (0x28 * k)];
+                        if (k >= mine.PointCount && pOut->PointCount == mine.PointCount)
+                            new ReadOnlySpan<byte>((byte*)&mine + 0x40 + (0x28 * k), 0x28).CopyTo(new Span<byte>((byte*)pOut + 0x40 + (0x28 * k), 0x28));
+                    }
+                }
+                var same = new ReadOnlySpan<byte>(pOut, 0xe0).SequenceEqual(new ReadOnlySpan<byte>(&mine, 0xe0))
+                           && new ReadOnlySpan<byte>(pCache, 0x3c).SequenceEqual(new ReadOnlySpan<byte>(&cache, 0x3c));
+                if (valveHit != mineHit)
+                    flagsDiffer++;
+                if (!same && bad++ < 8)
+                {
+                    var v = new ReadOnlySpan<byte>(pOut, 0xe0);
+                    var m = new ReadOnlySpan<byte>(&mine, 0xe0);
+                    var at = 0;
+                    while (at < 0xe0 && v[at] == m[at])
+                        at++;
+                    output.WriteLine($"case {i}: hit {valveHit}/{mineHit}, points {pOut->PointCount}/{mine.PointCount}, manifold first difference 0x{at:x}");
+                }
+                cache = valveCache;
+            }
+        }
+        finally
+        {
+            NativeMemory.AlignedFree(mem);
+        }
+        output.WriteLine($"{Cases} cases, {hits} touching, {bad} different, {flagsDiffer} answers different");
+        Assert.Equal(0, bad);
+        Assert.Equal(0, flagsDiffer);
+    }
+
+    [Fact]
+    public void SphereTriangleIsValves()
+        => RunTriangle(0x1802f49d0, 86, (r, p) => new RoundCollision.Sphere(p, F(r, 0.5, 12)), RoundCollision.SphereTriangle, false);
+
+    [Fact]
+    public void CapsuleTriangleIsValves()
+        => RunTriangle(0x1802efd30, 87, (r, p) =>
+        {
+            var d = V(r, 20);
+            return new RoundCollision.Capsule(Sub(p, Mul(d, 0.5f)), Add(p, Mul(d, 0.5f)), F(r, 0.5, 12));
+        }, RoundCollision.CapsuleTriangle, true);
 }

@@ -51,7 +51,7 @@ public static partial class RoundCollision
     /// </summary>
     private static bool CapsuleHullManifold(ReadOnlySpan<CachedManifold> old, ref CachedManifold result,
                                             in RnTransform xfA, in Capsule a, in RnTransform xfB, HullRef b,
-                                            in GjkOutput g, ref GjkCache cache, float margin)
+                                            in GjkOutput g, ref GjkCache cache, float margin, int subShape = -1)
     {
         var distance = g.Distance;
         if (distance < 0.003125f)
@@ -94,7 +94,7 @@ public static partial class RoundCollision
             {
                 var shift = Clamp8(distance, least);
                 var n = new Vec3(-wx, -wy, -wz);
-                return TwoPoints(old, ref result, xfA, xfB, seg, n, r, s0 - shift, s1 - shift, s0 <= limit, s1 <= limit, -1,
+                return TwoPoints(old, ref result, xfA, xfB, seg, n, r, s0 - shift, s1 - shift, s0 <= limit, s1 <= limit, subShape,
                                  pointOrder: false);
             }
         }
@@ -115,7 +115,7 @@ public static partial class RoundCollision
         result.P0.LocalB = new Vec3(((by * rb.M1) + (bx * rb.M0)) + (bz * rb.M2),
                                     ((by * rb.M4) + (bx * rb.M3)) + (bz * rb.M5),
                                     ((by * rb.M7) + (bx * rb.M6)) + (bz * rb.M8));
-        SetPoint(ref result.P0, impulse, 0, -1);
+        SetPoint(ref result.P0, impulse, 0, subShape);
         return true;
     }
 

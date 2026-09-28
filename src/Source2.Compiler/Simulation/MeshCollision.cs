@@ -11,6 +11,7 @@ namespace Source2.Compiler.Simulation;
 [StructLayout(LayoutKind.Explicit, Size = 0x3c)]
 public struct MeshTriangleCache
 {
+    [FieldOffset(0)] public GjkCache Gjk;
     [FieldOffset(0x2c)] public SatCache Sat;
 }
 
