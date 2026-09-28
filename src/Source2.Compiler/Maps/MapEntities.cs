@@ -50,7 +50,8 @@ public static class MapEntities
         bool ClosedLoop = false,
         int InterpolationType = 0,
         string? Layer = null,
-        bool Instanced = false);
+        bool Instanced = false,
+        byte[]? Tint = null);
 
     /// <summary>
     /// One node of a path, as the source states it.
@@ -253,7 +254,10 @@ public static class MapEntities
             Hidden: false,
             PathNodes: ReadPathNodes(element),
             ClosedLoop: element.GetValue<bool>("closedLoop") ?? false,
-            InterpolationType: element.GetValue<int>("interpolationType") ?? 0);
+            InterpolationType: element.GetValue<int>("interpolationType") ?? 0,
+            // A cable's tint, which a cable_dynamic ships as its rendercolor. The
+            // node starts white (0xffffffff, CMapCable's factory).
+            Tint: element.Type is "CMapCable" ? element.Get<byte[]>("tintColor") ?? [255, 255, 255, 255] : null);
     }
 
     /// <summary>

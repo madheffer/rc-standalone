@@ -174,6 +174,16 @@ public static class EntityLumpAuthor
             // places four classes the fgd never declares (func_physbox_multiplayer,
             // player_speedmod, prop_door_rotating_checkpoint, ambient_music) and
             // Valve prefixes every one of their names.
+            // A cable_dynamic node writes its rendercolor itself, after its path
+            // keys (CMapCable::vf217): the tint's red, green and blue as the plain
+            // string "%i %i %i", whatever the key held. Measured on probe_cable:
+            // tintColor 1 2 3 against a rendercolor key of 12 34 56 ships "1 2 3".
+            if (entity.Tint is { } tint && key.Equals("rendercolor", StringComparison.OrdinalIgnoreCase)
+                && entity.ClassName.Equals("cable_dynamic", StringComparison.OrdinalIgnoreCase))
+            {
+                values.Add(key, new KVObject($"{tint[0]} {tint[1]} {tint[2]}"));
+                continue;
+            }
             values.Add(key, declared is not null
                 ? Typed(declared, text, fixupEntityNames, schema)
                 : key.Equals("targetname", StringComparison.OrdinalIgnoreCase)

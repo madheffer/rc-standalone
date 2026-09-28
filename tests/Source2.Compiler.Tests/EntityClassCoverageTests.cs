@@ -43,6 +43,7 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
         // Every class csgo.fgd offers, bare and with every key set
         // (tools/coverage/probe_map.py).
         ("s2probe", "probe_classes"),
+        ("s2probe", "probe_cable"),
     ];
 
     /// <summary>

@@ -29,6 +29,9 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     // Every class csgo.fgd offers, twice: bare and with every key set
     // (tools/coverage/probe_map.py over cardtest).
     [InlineData("s2probe", "probe_classes")]
+    // Mako's cable_dynamic on cardtest, its tintColor (1 2 3) apart from its
+    // rendercolor key (12 34 56).
+    [InlineData("s2probe", "probe_cable")]
     public void EveryLump_DiffersOnlyInTheDocumentedGaps(string addon, string map)
     {
         var source = MapFixtures.VmapSource(addon, map);
@@ -103,13 +106,7 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         => LightClass().IsMatch(line)
         // The bake writes its results back into the lump: a light's shadow index
         // and unique ids, a probe volume's atlas textures, handshake and size.
-        || BakedKeys().IsMatch(line)
-        // A cable's rendercolor ships as the plain string its node's tintColor
-        // spells ("255 255 255") where every other colour255 key is typed. The
-        // node binds tintColor to rendercolor through hammer_embedded_properties
-        // (registered in FUN_181089940), but the write that bypasses the typing
-        // is not read yet. One sample, Mako's cable_dynamic.
-        || line.StartsWith("[cable_dynamic#", StringComparison.Ordinal) && line.Contains("] rendercolor: ", StringComparison.Ordinal);
+        || BakedKeys().IsMatch(line);
 
     [GeneratedRegex(@"^\[(light_\w+|env_combined_light_probe_volume|env_light_probe_volume|env_cubemap\w*)#")]
     private static partial Regex LightClass();
