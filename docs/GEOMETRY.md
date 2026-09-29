@@ -160,22 +160,32 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   `SupportsAggregateInstancing`), +0xbc object flags (0x80, 0x200, 0x400
   render to cubemaps, 0x100000), +0xa0 cubemap, +0xa4 light probe volume,
   +0xac overlay order, +0xb4 fade max, +0x1c8 a 3x4 matrix.
+- **Settings** come from csgo_core/gameinfo.gi (csgo/gameinfo.gi holds
+  none of them): WorldRendererBuilder sets FixTJunctionEdgeCracks,
+  VisibilityGuidedMeshClustering, UseAggregateInstances,
+  AggregateInstancingMeshlets, UseStaticEnvMapForObjectsWithLightingOrigin
+  and BakePropsWithNonUniformScale to 1, clustered meshes at minimum 2048
+  triangles, 2048 vertices and volume 1800, MaxPrecomputedVisClusterMembership
+  16; MeshCompiler sets PerDrawCullingData, UseMikkTSpace and
+  SplitDepthStream to 1, the vertex codec at version 1 level 3, and
+  MeshletConeWeight 0.15.
 - **BuildNode:** bounds, static props, entries with +0x1a5 or attribute
-  0x400000000 dropped, removal of triangles inside, T-junction cracks,
-  optional baking, the merge (`WRBNode_MergeMeshes`, run because CS2's
-  gameinfo sets neither `Hammer/CreateRenderClusters` nor
-  `VisibilityGuidedMeshClustering`), then `CMesh_Weld` at 1/32.
+  0x400000000 dropped, removal of triangles inside, T-junction cracks
+  (on), optional baking, the merge (`WRBNode_MergeMeshes`, only without
+  render clusters; CS2 clusters by visibility, so it does not run), then
+  `CMesh_Weld` at 1/32.
 - **The merge:** for each entry without attribute bit 0x2, later entries
   that `WRBMeshEntry_CanMerge` accepts join it while the sum stays under
   0x200000 vertices and 0x400000 indices; a group becomes one entry with
   the first's fields. `WRBMeshEntry_CanMerge` asks for equal attribute
   flags, material, overlay order, object flags, lighting mode, stream
   layout, cubemap, light probe, fade, the +0x1c8 matrix within 1e-5, and
-  more. On probe01 meshes 101, 100, 102 and 107 merge into the c2 model;
-  the other nine dev meshes went to `agg_merge` before any merge. Why
-  those four were not aggregated is open: their material flags are the
-  same, so the answer is in `WRBMeshList_GroupAggregates` (18026f590,
-  not fully read) or the per-cluster lists.
+  more. With visibility-guided clustering the merging is
+  `CVisibilityMeshMerger::MergeMeshes` instead, per mesh list, by the vis
+  clusters that see each mesh. On probe01 meshes 101, 100, 102 and 107
+  end up in one c2 model while the other nine dev meshes are aggregated;
+  the vis merger joining those four (so the merged entry no longer
+  aggregates) is the likely reason, not read yet.
 - **CompileNode:** each entry goes to the first mesh list whose flag test
   accepts it, in this order: CSkyboxBlockLightMeshList (0x48),
   CSkyboxMeshList (0x40), CBlockLightMeshList (8),
@@ -184,8 +194,12 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   `agg_prop`), CNoSplitMeshList (4, `agg_inst`), an instanced list,
   CAggregateMeshList (0x40000000, `agg_merge`, also needs
   `WRBMeshEntry_CanAggregate`), CBaseMeshList (the rest). Then render
-  clusters (`Step_BuildingRenderClusters`, 2048 triangles by default), and
-  each list compiles once or per cluster.
+  clusters: with visibility-guided clustering, meshes grouped by vis
+  cluster membership, and "meshes with no vis membership" split by
+  `Step_BuildingRenderClusters` (`RenderClusters`: the centroid split and
+  the triangle assignment, ported from FUN_180282bf0 and FUN_181366f30 but
+  not yet checked, since the vis-guided half comes first). Each list
+  compiles once or per cluster.
 - **Names:** `<node>_lr<layer>[_c<cluster>]{_s|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name>`
   from the object flags (0x200 `_d`, 0x400 `_cb`, 0x80 `_dl`, 0x20000 `_b`,
   0x10000 `_nv`, 0x10 `_bl`, 0x100000 `_rtem`); a list's groups are runs of
@@ -193,7 +207,7 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
 - **Aggregates** are re-split into fragments, one draw call each, sorted
   by triangle count; each has a meshlet (packed AABB, culling cone) and
   draw bounds. probe01's reflectivity aggregate holds 100 triangles from 72
-  source triangles (T-junction fixes, not read yet).
+  source triangles (FixTJunctionEdgeCracks is on; the pass is not read).
 
 - **Draw buffers** (`CResourceCompilerMesh::AddDrawDescriptors`): each
   draw's vertices are renumbered by first use in its incoming index
@@ -225,7 +239,8 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   `generate_meshlets`, and only aggregates carry draw bounds and meshlets.
 - **Meshlets** (`CMeshletBuilder_*`): after the vertex cache and overdraw
   passes, meshopt 1.x `buildMeshlets` at 255 vertices, 48 triangles, cone
-  weight 0.05 per draw; each meshlet through `optimizeMeshletLevel` at level
+  weight 0.15 (csgo_core's MeshletConeWeight; the code's default is 0.05)
+  per draw; each meshlet through `optimizeMeshletLevel` at level
   4, its triangles appended to a new index buffer (an odd count padded with
   a degenerate triangle unless SceneSystem/RenderMeshlets), then the
   vertices refetched by first use. A meshlet's vertex offset is the draw's

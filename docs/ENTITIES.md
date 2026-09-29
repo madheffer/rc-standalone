@@ -31,8 +31,6 @@ Open:
     grazing prop geometry: the one that reaches Valve's bound lands on a
     box's corner edge (local 6.00, -6.00). No single prop or material
     explains it (GROUND_TRUTH 31).
-- **World-layer copies (parked):** instance copies inside a world layer ship
-  angles 1-2 ulps off.
 - **Prefabs:** instances inside prefabs, and prefabs with
   `fixupEntityNames`, are refused.
 

@@ -70,7 +70,6 @@ game can answer is raised with the user first, and runs with -insecure.
     loader (Hammer's map document, +0x6b8 docs) is not read.
 
 ### Map resources
-13. The angles of instance copies inside a world layer (a round trip off).
 15. What picks Zstd or LZ4 for map output.
 
 ### Other modules
@@ -125,6 +124,10 @@ game can answer is raised with the user first, and runs with -insecure.
     measured; the loader's reason is not read.
 
 ## Resolved
+
+- **World-layer instance copies' angles** (ledger 13): placed by the
+  collapse's own matrix path (SettleWorld.BakedPlacement) since 09-28; the
+  Mako lump test allows no angle difference and passes.
 
 - **The .rte flag word and per-triangle id** (ledger 25 and 17): the id is
   the face material's resource id; the word's shadow bits come from the

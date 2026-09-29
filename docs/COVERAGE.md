@@ -182,11 +182,11 @@ exact 22, partial 10, unpinned 0, no sample 0
 | env_cubemap_box | Point | resourcecompiler, physicsbuilder, vrad3 | as env_cubemap with box bounds; upgrade of older vmaps only renames boxproject_* keys | baked keys not ported; vmap upgrader not ported | partial (baked keys (cubemaptexture, handshake) not ported) |
 | env_light_probe_volume | Point | resourcecompiler | probe record for the bake; lightprobetexture* keys added; kept | kept; baked keys not ported (probes) | partial (baked keys (atlas textures, handshake, size) not ported) |
 | env_sky | Point | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: skyname gets .vmat | lump pass-through ported; vmap upgrader not ported | exact |
-| func_movelinear | Solid | resourcecompiler | nav: movable nav mesh when CreateMovableNavMesh is set | lump ported; nav not started | partial (Mako world-layer instance copies: angles 1 or 2 ulps off (parked)) |
+| func_movelinear | Solid | resourcecompiler | nav: movable nav mesh when CreateMovableNavMesh is set | lump ported; nav not started | partial (movable nav mesh not started) |
 | func_nav_markup | Solid | resourcecompiler | nav: markup volumes | lump ported; nav not started | exact |
 | func_physbox | Solid | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: spawnflags to gravity-grab keys | lump ported; vmap upgrader not ported | exact |
 | info_cull_triangles | Point | resourcecompiler | dropped from the lump; a record for render-mesh triangle culling | dropped as Valve does; culling not ported (render geometry) | exact |
-| info_particle_system | Point | resourcecompiler, physicsbuilder, vrad3 | snapshot_mesh naming a map node: snapshot_file set to maps/<map>/particle_snapshots/node_<id>.vsnap and the snapshot generated from the node; upgrade of older vmaps: snapshot_file gets .vsnap | snapshot_file key ported (not inside instances); .vsnap not generated; vmap upgrader not ported | partial (Mako world-layer instance copies: angles 1 or 2 ulps off (parked)) |
+| info_particle_system | Point | resourcecompiler, physicsbuilder, vrad3 | snapshot_mesh naming a map node: snapshot_file set to maps/<map>/particle_snapshots/node_<id>.vsnap and the snapshot generated from the node; upgrade of older vmaps: snapshot_file gets .vsnap | snapshot_file key ported (not inside instances); .vsnap not generated; vmap upgrader not ported | partial (.vsnap not generated) |
 | info_player_start | Point | resourcecompiler | Hammer's map check only | nothing to port for the compile | exact |
 | light_barn | Point | resourcecompiler, physicsbuilder, vrad3 | light description for precompute, bake and vis membership; precomputed* keys, directlight, lightcookie resource; upgrade of older vmaps only converts light_spot/omni/ortho | precompute exact against an empty scene; lump keys, bake and vis membership not ported; vmap upgrader not ported | partial (light export (shape keys, matrix angles) and baked keys not ported) |
 | light_environment | Point | resourcecompiler, physicsbuilder, vrad3 | legacy directional light for bake and shadows; lump through the light path; upgrade of older vmaps only | lump partial; bake not ported; vmap upgrader not ported | partial (light export (shape keys, matrix angles) and baked keys not ported) |
@@ -419,7 +419,7 @@ exact 321, partial 1, unpinned 0, no sample 0
 | point_proximity_sensor | Point | base.fgd | probe_classes | exact |
 | point_script | Point | csgo.fgd | probe_classes | exact |
 | point_servercommand | Point | base.fgd | atixref, ze_doom_p2_c_gameplay +7 | exact |
-| point_soundevent | Point | base.fgd | atixref, ze_ffvii_mako_reactor_v6_p +6 | partial (Mako world-layer instance copies: angles 1 or 2 ulps off (parked)) |
+| point_soundevent | Point | base.fgd | atixref, ze_ffvii_mako_reactor_v6_p +6 | exact |
 | point_teleport | Point | base.fgd | atixref, ze_doom_p2_c_gameplay +4 | exact |
 | point_value_remapper | Point | base.fgd | probe_classes | exact |
 | point_velocitysensor | Point | base.fgd | probe_classes | exact |
