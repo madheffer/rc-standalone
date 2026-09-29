@@ -35,14 +35,22 @@ Layer0
 """
 
 
+# Resource types an entity key can name. Materials abort the compile; the rest
+# compile silently and fail at runtime instead: a post_processing_volume whose
+# .vpost is missing tints the whole screen with the magenta error texture once
+# the volume is active (ze_hold_em_p, 2026-09-30: fine through freeze time,
+# magenta after, even under mat_fullbright; disabling the volume cleared it).
+RESOURCE_TYPES = (".vmat", ".vmdl", ".vpost", ".vpcf", ".vsnd", ".vtex", ".vsmart", ".vdata")
+
+
 def references(vmap):
-    """Every material and model path the map source names, as lowercase paths."""
+    """Every resource path the map source names, as lowercase paths."""
     document = dmx.read_file(vmap)
     found = set()
     for element in document["elements"]:
         for value in element.attrs.values():
             for item in (value if isinstance(value, list) else [value]):
-                if isinstance(item, str) and item.lower().endswith((".vmat", ".vmdl")):
+                if isinstance(item, str) and item.lower().endswith(RESOURCE_TYPES):
                     found.add(item.lower().replace("\\", "/"))
     return found
 
@@ -94,8 +102,12 @@ def main():
 
     materials = [p for p in missing if p.endswith(".vmat")]
     models = [p for p in missing if p.endswith(".vmdl")]
+    others = [p for p in missing if not p.endswith((".vmat", ".vmdl"))]
     print(f"{len(wanted)} referenced, {len(missing)} unresolvable "
-          f"({len(materials)} materials, {len(models)} models)")
+          f"({len(materials)} materials, {len(models)} models, {len(others)} other)")
+    for path in others:
+        note = " <- post-processing: the map renders magenta when this volume is active" if path.endswith(".vpost") else ""
+        print(f"   runtime only: {path}{note}")
     for path in missing[:15]:
         print("   " + path)
     if len(missing) > 15:

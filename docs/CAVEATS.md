@@ -155,7 +155,7 @@ the addon is mounted, and engine2 carries
 Dropping the map VPK into `game/csgo/maps` loads it with no addon at all, which is
 enough to test the map itself, but the addon's own materials are then not
 mounted. (The magenta look seen in our tests is not this: it stays with the
-addon mounted; see "Purple surfaces" below.) Compare against Valve's own build
+addon mounted; see "Magenta screen" below.) Compare against Valve's own build
 of the same map before concluding anything about your own output. With the
 addon mounted, `map <name> nomapvalidation=true` loads it.
 
@@ -175,15 +175,24 @@ producing no output and no files, on a map that compiles in 45 seconds. The same
 command without `-novpk` is fine. Write the VPK yourself instead;
 `tools/pipeline/splice_map.py` does, and ValvePak reads the result.
 
-### Purple surfaces in our CS2 tests (open)
+### Magenta screen: a missing post-processing resource
 
-ze_hold_em_p renders magenta where lit and black elsewhere, and ze_dreamin's
-last-level water does too, while both maps look right for players elsewhere.
-Tested 2026-09-30 and ruled out: missing cubemaps (built them, still purple),
-`-tools` (a normal launch is the same), the lighting (the spawn corridor's
-barn lights are white), our splice (Valve's own fresh full compile does it),
-materials (stock CS2, no load errors). The shader packages match the game
-updates' dates. Suspect: this machine's shader/pipeline path; not settled.
+Settled 2026-09-30 on ze_hold_em_p. The map's `post_processing_volume` (master,
+targetname `postprocess`) names `lighting/postprocessing/ze_hold_em/base.vpost`,
+which our copy of the content does not have, so no compile packages it. Once the
+volume is active (after freeze time) the colour grading samples the magenta
+error texture over the whole frame: it survives `mat_fullbright 1`, and
+`ent_fire postprocess Disable` clears it. The workshop package players get
+ships the resource, which is why the map is fine on servers. The compile does
+not fail on it (only materials are fatal), and the load log says
+`Failed loading resource ".../base.vpost_c"`.
+
+`tools/vrad3/check_references.py <addon> <map>` now reports every missing
+resource an entity names (post-processing, particles, sounds, textures, smart
+props), not only materials and models: run it before judging a map's looks.
+probe01, probe_cable and probe_classes lack `postprocess/basic_linear_post.vpost`
+the same way. Ruled out on the way: cubemaps, `-tools`, lighting, our splice,
+materials, the client (workshop maps and de_dust2 render normally).
 
 ### Building cubemaps for a test map
 

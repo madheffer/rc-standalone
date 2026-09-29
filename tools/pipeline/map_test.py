@@ -14,8 +14,8 @@ its position and reports where they end up next to the destination expected.
 --cubemaps runs `buildcubemaps` after the load, as Hammer's "Build cubemaps on
 load" post-build action does. It only writes for an addon map (CS2 launched
 with -addon, map loaded with nomapvalidation=true; see docs/CAVEATS.md); from
-a copy in game/csgo/maps the write is blocked. Cubemaps do not fix the purple
-look seen in our tests (CAVEATS: open).
+a copy in game/csgo/maps the write is blocked. The magenta look in our tests was
+a missing .vpost, not cubemaps (docs/CAVEATS.md, "Magenta screen").
 """
 import os
 import re

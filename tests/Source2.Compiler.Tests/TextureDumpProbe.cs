@@ -14,6 +14,31 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class TextureDumpProbe(ITestOutputHelper output)
 {
+    /// <summary><c>TEXFILE=&lt;file.vtex_c&gt;[;...]</c>: loose texture files, format, size, average and corner colour.</summary>
+    [Fact]
+    public void Files()
+    {
+        if (Environment.GetEnvironmentVariable("TEXFILE") is not { Length: > 0 } spec)
+            return;
+        foreach (var file in spec.Split(';'))
+        {
+            using var resource = new Resource();
+            resource.Read(new MemoryStream(File.ReadAllBytes(file)));
+            var texture = (Texture)resource.DataBlock!;
+            using var bitmap = texture.GenerateBitmap();
+            double r = 0, g = 0, b = 0, a = 0;
+            var n = 0;
+            for (var y = 0; y < bitmap.Height; y++)
+                for (var x = 0; x < bitmap.Width; x++)
+                {
+                    var c = bitmap.GetPixel(x, y);
+                    (r, g, b, a) = (r + c.Red, g + c.Green, b + c.Blue, a + c.Alpha);
+                    n++;
+                }
+            output.WriteLine($"{Path.GetFileName(file)}: {texture.Format} {texture.Width}x{texture.Height} mips {texture.NumMipLevels} flags {texture.Flags}, average rgba {r / n:F1} {g / n:F1} {b / n:F1} {a / n:F1}, pixel0 {bitmap.GetPixel(0, 0)}");
+        }
+    }
+
     [Fact]
     public void Dump()
     {
