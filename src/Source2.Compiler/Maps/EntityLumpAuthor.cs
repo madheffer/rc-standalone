@@ -169,6 +169,9 @@ public static partial class EntityLumpAuthor
         // order. An empty value is typed like any other and ships as "" or a zero.
         var table = KeyTable(entity, schema);
         Preprocess(entity, table, schema, context.LightingKeys);
+        if (context.LightingKeys?.LightWrites is { } lightWrites && lightWrites.TryGetValue(entity, out var written))
+            foreach (var (key, value) in written)
+                Set(table, key, value);
         foreach (var (key, text) in table.AsEnumerable().Reverse())
         {
             var declared = schema?.KeyOf(entity.ClassName, key);
@@ -608,7 +611,12 @@ public static partial class EntityLumpAuthor
                 else
                     present.Remove(name);
             }
-            foreach (var pair in entity.Keys)
+            // The template's keys the class does not declare come last, in the
+            // reverse of the template's order: a node's keys are a list that
+            // grows at its head (FUN_180ce08f0), so walking one from the head
+            // and adding each key to another reverses them. atixref's 186
+            // copied lights ship fog, fogstrength and fogshadows so.
+            foreach (var pair in entity.Keys.Reverse())
                 if (!IsPlacement(pair.Key) && present.Add(pair.Key))
                     table.Add(Masked(pair, entity.ClassName, schema));
             return table;

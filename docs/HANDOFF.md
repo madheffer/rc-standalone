@@ -91,9 +91,10 @@ carries the same state per item.
    - re-read `EditorTraceScene` and the `LightTrace` second pass beside the
      decompile; they were written by an agent and are checked only by their
      tests;
-   - static props in the editor trace scene;
-   - wire the baked shadow slots and precomputed keys into the lump;
-   - the light export's angles rewrite and `directlight`.
+   - static props in the editor trace scene (atixref's 104 lights);
+   - ze_hold_em_p's lights 133 and 136 (one float step; ledger 31);
+   - `precomputed_vis_clusters` (needs visibility from the .vmap);
+   - then drop the light classes from the lump test's gap.
 2. **The trace-scene flag word** (GROUND_TRUTH 25). Then run atixref and Mako
    end to end from the .vmap (`VISBUILD_BIG=1`), and wire visibility into
    `compile-map`.

@@ -11,10 +11,11 @@ namespace Source2.Compiler.Maps;
 /// as it moves. Float operations are in the binary's order.
 /// </summary>
 /// <remarks>
-/// The binary shuffles the points first (mt19937 seeded 0x1571) and stops
-/// scoring an orientation once 32-point chunks already exceed the best volume.
-/// Neither changes the result: bounds only grow, so an orientation cut short
-/// could not have won.
+/// Like the binary, scoring an orientation stops once the points so far, in
+/// 32-point chunks, already give a volume that is not below the best: the
+/// extents only grow and rounding is monotone, so such an orientation could
+/// not have won. The binary also shuffles the points first (mt19937 seeded
+/// 0x1571), which only changes how soon that happens.
 /// </remarks>
 public static class LightObb
 {
@@ -28,8 +29,9 @@ public static class LightObb
         public Box Best;
     }
 
-    public static Box Fit(IReadOnlyList<Vector3> points)
+    public static Box Fit(IReadOnlyList<Vector3> list)
     {
+        var points = list as Vector3[] ?? [.. list];
         var s = new Search { BestVolume = float.MaxValue };
         // The coarse pass: roll outermost, then pitch, yaw innermost.
         for (var roll = -45f; roll <= 45f; roll += 5f)
@@ -45,7 +47,7 @@ public static class LightObb
         return s.Best;
     }
 
-    private static void Try(IReadOnlyList<Vector3> points, ref Search s, float pitch, float yaw, float roll)
+    private static void Try(Vector3[] points, ref Search s, float pitch, float yaw, float roll)
     {
         var q = CTransform.AngleQuaternion(new Vector3(pitch, yaw, roll));
         var r0 = Rotate(q, 1f, 0f, 0f);
@@ -54,8 +56,9 @@ public static class LightObb
         var penalty = MaxAbs(r0) > 0.99f || MaxAbs(r1) > 0.99f || MaxAbs(r2) > 0.99f ? 0.95f : 1f;
         float min0 = float.MaxValue, min1 = float.MaxValue, min2 = float.MaxValue;
         float max0 = -float.MaxValue, max1 = -float.MaxValue, max2 = -float.MaxValue;
-        foreach (var p in points)
+        for (var i = 0; i < points.Length; i++)
         {
+            var p = points[i];
             var d0 = ((p.Y * r0.Y) + (p.Z * r0.Z)) + (p.X * r0.X);
             var d1 = ((p.Y * r1.Y) + (p.Z * r1.Z)) + (p.X * r1.X);
             var d2 = ((p.Y * r2.Y) + (p.Z * r2.Z)) + (p.X * r2.X);
@@ -65,6 +68,8 @@ public static class LightObb
             max0 = MaxPs(max0, d0);
             max1 = MaxPs(max1, d1);
             max2 = MaxPs(max2, d2);
+            if ((i & 31) == 31 && !(((max2 - min2) * ((max1 - min1) * (max0 - min0))) * penalty < s.BestVolume))
+                return;
         }
         float e0 = max0 - min0, e1 = max1 - min1, e2 = max2 - min2;
         var volume = (e2 * (e1 * e0)) * penalty;

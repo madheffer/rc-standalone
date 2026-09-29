@@ -85,6 +85,18 @@ public sealed partial class SettleLumpTests(ITestOutputHelper output)
         return SettleWorld.Run(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators));
     }
 
+    /// <summary>The editor trace scene of a map's meshes, materials from the game and the map's addon.</summary>
+    internal static EditorTraceScene? LightScene(DmxBinary.Document document, string source)
+    {
+        if (CS2Fixtures.StockPak() is not { } pak)
+            return null;
+        var parts = Path.GetFullPath(source).Split(Path.DirectorySeparatorChar);
+        var at = Array.FindIndex(parts, p => p.Equals("csgo_addons", StringComparison.OrdinalIgnoreCase));
+        var addon = at >= 0 && at + 1 < parts.Length ? Path.Combine(Root, "game", "csgo_addons", parts[at + 1]) : "";
+        using var models = new SettleBuildTests.PakModels(pak, addon);
+        return new EditorTraceScene(EditorTraceScene.MapMeshInstances(document, m => TraceScene.MaterialFlags(models.Material(m))));
+    }
+
     [GeneratedRegex(@"^\[prop_physics(_override|_multiplayer)?#\d+\] (origin|angles|spawnflags|phys_start_asleep)[: ]")]
     private static partial Regex SettledKey();
 }

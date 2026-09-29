@@ -19,10 +19,13 @@ public static partial class EntityLumpAuthor
     /// <param name="Handshake">Each probe or cubemap entity's handshake, in export order.</param>
     /// <param name="CubeIndex">Each cubemap-carrying entity's cube array index, in export order.</param>
     /// <param name="Atlas">Each probe volume's place in the probe atlas, when the atlas is packed.</param>
+    /// <param name="LightWrites">Each light's keys the preprocess sets on its node, in write
+    /// order: the precomputed shape keys, then the baked shadow slot's.</param>
     public sealed record Lighting(string MapPath, bool Baked,
                                   IReadOnlyDictionary<MapEntities.Entity, int> Handshake,
                                   IReadOnlyDictionary<MapEntities.Entity, int> CubeIndex,
-                                  IReadOnlyDictionary<MapEntities.Entity, Maps.ProbeAtlas.Place>? Atlas = null)
+                                  IReadOnlyDictionary<MapEntities.Entity, Maps.ProbeAtlas.Place>? Atlas = null,
+                                  IReadOnlyDictionary<MapEntities.Entity, List<KeyValuePair<string, string>>>? LightWrites = null)
     {
         /// <summary>
         /// The counters over the entities in export order. The handshake starts
@@ -35,9 +38,12 @@ public static partial class EntityLumpAuthor
         /// LPVAtlas 1, and the builder packs it in an entities-only build
         /// (CWorldRendererBuilder_Build) and when it bakes lighting.</param>
         /// <param name="schema">The FGD, for each probe volume's grid.</param>
+        /// <param name="scene">The editor's ray trace scene the lights' precomputed keys trace
+        /// (<see cref="Maps.EditorTraceScene"/>); without it lights get none.</param>
         public static Lighting For(string mapPath, bool baked, IEnumerable<MapEntities.Entity> exportOrder,
-                                   bool packAtlas = false, FgdSchema? schema = null)
+                                   bool packAtlas = false, FgdSchema? schema = null, Maps.ILightTracer? scene = null)
         {
+            var order = exportOrder as IReadOnlyList<MapEntities.Entity> ?? [.. exportOrder];
             var bytes = Encoding.UTF8.GetBytes(mapPath.Replace('/', '\\'));
             var seed = Io.ResourceNames.Hash(bytes, bytes.Length, 0x3501a674) & 0x7fffffff;
             if (seed + 0xff > 0x7fffffff)
@@ -45,7 +51,7 @@ public static partial class EntityLumpAuthor
             var handshake = new Dictionary<MapEntities.Entity, int>(ReferenceEqualityComparer.Instance);
             var cube = new Dictionary<MapEntities.Entity, int>(ReferenceEqualityComparer.Instance);
             var volumes = new List<MapEntities.Entity>();
-            foreach (var e in exportOrder)
+            foreach (var e in order)
             {
                 if (HandshakeClasses.Contains(e.ClassName))
                     handshake[e] = (int)seed + handshake.Count;
@@ -65,8 +71,64 @@ public static partial class EntityLumpAuthor
                 for (var i = 0; i < volumes.Count; i++)
                     atlas[volumes[i]] = places[i];
             }
-            return new Lighting(mapPath, baked, handshake, cube, atlas);
+            return new Lighting(mapPath, baked, handshake, cube, atlas,
+                                scene is null ? null : LightKeys(mapPath, baked, order, schema, scene));
         }
+    }
+
+    /// <summary>
+    /// The keys the map preprocess sets on the lights. First each barn and
+    /// omni2 light's precomputed shape keys (LightPrecompute_SampleVolume,
+    /// traced against the editor scene); then, with baked lighting, the shadow
+    /// slot step (1800fe7b0) over every light, the world's own in walk order
+    /// before the instance copies, reading the keys just written. A light the
+    /// port cannot shape (light_rect, capsule luminaires) gets none.
+    /// </summary>
+    private static Dictionary<MapEntities.Entity, List<KeyValuePair<string, string>>> LightKeys(
+        string mapPath, bool baked, IReadOnlyList<MapEntities.Entity> order, FgdSchema? schema, Maps.ILightTracer scene)
+    {
+        var writes = new Dictionary<MapEntities.Entity, List<KeyValuePair<string, string>>>(ReferenceEqualityComparer.Instance);
+        var lights = order.Where(e => e.ClassName.StartsWith("light_", StringComparison.OrdinalIgnoreCase)).ToList();
+        // Each light traces on its own (the compile runs them as jobs too); half
+        // the cores, so the machine stays usable.
+        var shaped = new List<KeyValuePair<string, string>>[lights.Count];
+        var parallel = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+        Parallel.For(0, lights.Count, parallel, i =>
+        {
+            var e = lights[i];
+            var table = KeyTable(e, schema);
+            string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+            List<KeyValuePair<string, string>> keys;
+            try
+            {
+                keys = Maps.LightPrecompute.Keys(e.ClassName, Key, Maps.LightPrecompute.World(e.Origin, e.Angles), scene);
+            }
+            catch (NotSupportedException)
+            {
+                keys = [];
+            }
+            // Keys lists them as the lump does; the node was given them in reverse.
+            keys.Reverse();
+            shaped[i] = keys;
+        });
+        for (var i = 0; i < lights.Count; i++)
+            writes[lights[i]] = shaped[i];
+        if (baked)
+        {
+            var gather = lights.Where(e => !e.Instanced).Concat(lights.Where(e => e.Instanced)).ToList();
+            var assigned = Maps.BakedShadowAssignment.Assign([.. gather.Select(e =>
+            {
+                var table = KeyTable(e, schema);
+                foreach (var (k, v) in writes[e])
+                    Set(table, k, v);
+                string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+                return new Maps.BakedShadowAssignment.Light(e.ClassName, Key, Maps.LightPrecompute.World(e.Origin, e.Angles),
+                                                            [.. e.Prefabs, e.NodeId]);
+            })], mapPath + ".vmap");
+            for (var i = 0; i < gather.Count; i++)
+                writes[gather[i]].AddRange(assigned[i].Keys);
+        }
+        return writes;
     }
 
     private static readonly HashSet<string> HandshakeClasses = new(StringComparer.OrdinalIgnoreCase)

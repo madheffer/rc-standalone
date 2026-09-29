@@ -26,9 +26,11 @@ public static class MapCompile
         var settled = settle
             ? SettleWorld.Run(document, content, schema, SmartProps.NodesCreatedOnLoad(document, locators))
             : null;
+        // The lights' precomputed keys trace the editor's scene of the map's meshes.
+        var scene = new EditorTraceScene(EditorTraceScene.MapMeshInstances(document, m => TraceScene.MaterialFlags(content.Material(m))));
         return [.. EntityLumpSet.Author(MapEntities.From(document), schema, worldName,
                                         MapEntities.FixupEntityNames(document), document, locators, settled,
-                                        bakedLighting, entitiesOnly)
+                                        bakedLighting, entitiesOnly, scene)
             .Select(l => new Output(l.Path, l.Bytes))];
     }
 

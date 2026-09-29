@@ -90,7 +90,8 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         Maps.MapPrefabs.Attach(document, Maps.MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(source))!));
         var ours = EntityLumpSet.Author(MapEntities.From(document), MapFixtures.GameSchema(), map,
                                         MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators,
-                                        SettleLumpTests.Settle(document, source), BakedIn(valve));
+                                        SettleLumpTests.Settle(document, source), BakedIn(valve),
+                                        lightScene: SettleLumpTests.LightScene(document, source));
 
         Assert.Equal(valve.Keys.Order(StringComparer.OrdinalIgnoreCase),
                      ours.Select(l => l.Path).Order(StringComparer.OrdinalIgnoreCase),

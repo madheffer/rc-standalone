@@ -90,6 +90,14 @@ game can answer is raised with the user first, and runs with -insecure.
     1802597d0, 180259130); no specimen has one.
 28. Visibility split hints (types 4, 5, 6): ported from the decompile, no
     specimen map has one.
+31. **The editor trace scene's traversal**: EditorTraceScene finds the
+    nearest hit through a padded bounding-volume tree of its own, ties by
+    triangle index; Valve's instance scenes use their own kd trees and walk
+    order, which decide ties and cracks (as they did for visibility on
+    Mako). Suspected for ze_hold_em_p's lights 133 and 136 (one float step).
+32. **Instance copies' undeclared keys** ship in reverse template order:
+    measured on atixref's 186 copied lights; the key list's head insertion
+    (FUN_180ce08f0) is read, the copy loop that walks the template is not.
 30. The outside seed traces the .rte's own kd tree as the file wrote it
     (RayTraceEnvironment.Trace, leaves' filed triangles over the whole ray):
     measured, every specimen exact that way, while the loader's rebuilt

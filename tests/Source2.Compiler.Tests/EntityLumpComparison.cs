@@ -103,6 +103,9 @@ internal static class EntityLumpComparison
                 else if (got.Type != type || !SameValue(got.Value, value))
                     report.Add($"[{Label(theirs)}] {key}: value valve {value}, ours {got.Value}");
             }
+            // LUMPDIFF_KEYS=<class#id>: both key orders of that entity, whatever else differs.
+            if (Environment.GetEnvironmentVariable("LUMPDIFF_KEYS") is { Length: > 0 } one && Label(theirs).StartsWith(one, StringComparison.Ordinal))
+                report.Add($"[{Label(theirs)}] keys: valve {string.Join(",", theirs.KeyOrder)} ours {string.Join(",", ours.KeyOrder)}");
             foreach (var key in ours.Values.Keys.Where(k => !theirs.Values.ContainsKey(k)))
                 report.Add($"[{Label(theirs)}] {key}: ours only ({ours.Values[key].Value})");
             if (theirs.KeyOrder.Count == ours.KeyOrder.Count && theirs.Values.Keys.All(ours.Values.ContainsKey)

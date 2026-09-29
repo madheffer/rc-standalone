@@ -19,11 +19,14 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
 - **The settle** runs in the lump build, and its output is exact.
 
 Open:
-- **Light keys:** the precomputed keys need Hammer's editor trace scene
-  (below): ze_hold_em_p is 35 of 37 lights exact, atixref 136 of 239.
-  Baked shadow slots and unique ids are ported and not yet wired into the
-  lump. So are `precomputed_vis_clusters` (no CS2 light carries it) and the
-  light export's angles rewrite and `directlight`.
+- **Light keys:** the precomputed shape keys and, when baked, the shadow
+  slot keys are in the lump (the lights are still a documented gap in the
+  lump test while these close):
+  - **ze_hold_em_p (baked):** 35 of 37 lights exact. Lights 133 and 136 are
+    one float step off in one x value. `precomputed_vis_clusters` is still
+    missing on all 37; a baked compile writes it, and it needs visibility.
+  - **atixref:** 104 lights differ in value, because the editor scene lacks
+    static props (below). Their key order is exact.
 - **World-layer copies (parked):** instance copies inside a world layer ship
   angles 1-2 ulps off.
 - **Prefabs:** instances inside prefabs, and prefabs with
@@ -49,6 +52,11 @@ What goes in:
     the group's entities; the template itself never ships.
   - A copy carries the template's `compile_source_id`.
   - Copies are written where the instance's PARENT subtree ends.
+  - A copy's keys: classname and targetname, the class's keys in finalised
+    order with the template's values, then the template's undeclared keys in
+    REVERSE template order. A node's keys are a list that grows at its head
+    (`FUN_180ce08f0`), so walking one from the head and adding each reverses
+    them (atixref's 186 copied lights, ledger 32).
   - A copy's node ids are allocated past the map's highest node id and past
     the smart-prop locator nodes the loader made. Each collapse takes a
     block the width of its group plus one.
@@ -181,8 +189,18 @@ Keys:
     face flag 4.
   - Mode 2 is the masked front-face trace; flag-8 triangles get a second
     pass.
-  - Static props are in the scene too (`CModelHelper_RaytraceFlags`) and
-    not yet added; that is atixref's gap.
+  - Static props are in the scene too (`CModelHelper_RaytraceFlags`), their
+    models' LOD 0 render meshes, and not yet added. That is atixref's gap.
+    Other model owners carry 0x4000 and are skipped by the mask.
+  - Our scene's acceleration structure is our own (a padded bounding-volume
+    tree), not Valve's kd tree. Ties between triangles hit at the same
+    distance are broken by triangle index, which Valve's walk may not do
+    (ledger 31).
+- **Speed:** each light traces on its own, in parallel on half the cores.
+  The oriented-box fit stops scoring an orientation once 32-point chunks
+  exceed the best volume, as the binary does, which is what makes it fast
+  (the result is unchanged; `TheBoxFitMatches` checks it against the DLL).
+  atixref's lump now takes about 2.5 minutes and Mako's about 6.
 
 ## Tests and tools
 
