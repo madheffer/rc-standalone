@@ -12,10 +12,10 @@ point and reports where they stop, then for each trigger stands the player at
 its position and reports where they end up next to the destination expected.
 
 --cubemaps runs `buildcubemaps` after the load, as Hammer's "Build cubemaps on
-load" post-build action does. A package without maps/<map>/cubemaps/
-env_cubemap_array.vtex_c renders its reflections from the magenta error
-texture (every compile we test skips that step; ze_hold_em_p, lit very dimly,
-shows it as purple everywhere), so take screenshots with it when judging looks.
+load" post-build action does. It only writes for an addon map (CS2 launched
+with -addon, map loaded with nomapvalidation=true; see docs/CAVEATS.md); from
+a copy in game/csgo/maps the write is blocked. Cubemaps do not fix the purple
+look seen in our tests (CAVEATS: open).
 """
 import os
 import re

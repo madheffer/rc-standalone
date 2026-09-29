@@ -173,17 +173,34 @@ producing no output and no files, on a map that compiles in 45 seconds. The same
 command without `-novpk` is fine. Write the VPK yourself instead;
 `tools/pipeline/splice_map.py` does, and ValvePak reads the result.
 
-### A map without cubemaps renders purple
+### Purple surfaces in our CS2 tests (open)
 
-Our test packages have no `maps/<map>/cubemaps/env_cubemap_array.vtex_c`: the
-compile never makes it. Hammer's post-build action "Build cubemaps on load"
-does, in the game (`buildcubemaps`: the engine renders each env_cubemap, and
-resourcecompiler compiles the faces through `GenerateMips_GGXCubeMapBlur`).
-Without it reflections sample the magenta error texture. On ze_hold_em_p, whose
-lightmap is near black (Valve's own build too), everything looks purple; on
-atixref, lit brightly, it only tints the surfaces. The log shows it as
-`Failed loading resource ".../cubemaps/env_cubemap_array.vtex_c"`. For
-screenshots, run `tools/pipeline/map_test.py ... --cubemaps` (unverified).
+ze_hold_em_p renders magenta where lit and black elsewhere, and ze_dreamin's
+last-level water does too, while both maps look right for players elsewhere.
+Tested 2026-09-30 and ruled out: missing cubemaps (built them, still purple),
+`-tools` (a normal launch is the same), the lighting (the spawn corridor's
+barn lights are white), our splice (Valve's own fresh full compile does it),
+materials (stock CS2, no load errors). The shader packages match the game
+updates' dates. Suspect: this machine's shader/pipeline path; not settled.
+
+### Building cubemaps for a test map
+
+Hammer's "Build cubemaps on load" is `buildcubemaps` in game. It writes only
+inside an addon: launch `cs2.exe -addon <addon> -tools -insecure ...` with the
+package at `game/csgo_addons/<addon>/maps/<map>.vpk`, load it with
+`map <map> nomapvalidation=true` (plain `map` answers "invalid map name" in
+addon mode, `map_workshop` is a fatal error in tools mode), then
+`buildcubemaps` renders every env_cubemap and writes
+`maps/<map>/cubemaps/env_cubemap_array.vtex_c` into that package. From a copy
+in `game/csgo/maps` it fails: `content/csgo` is a blocked read-only path.
+Keep large non-game files (our `_vrad3` EXRs) out of the addon's game folder:
+tools mode scans them and ran out of memory.
+
+### A stale package ships ERROR models
+
+The ze_hold_em_p package we had tested with lacked the six door models,
+boss_87 and breakable_win_234 (Valve's build too, so it was stale); a fresh
+full compile has them. Recompile the fixture before judging missing models.
 
 ### Materials are fatal, models are not
 
