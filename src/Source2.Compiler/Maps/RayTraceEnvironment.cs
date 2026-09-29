@@ -178,9 +178,12 @@ public sealed class RayTraceEnvironment
     /// <summary>
     /// The same triangles with the kd tree and box the vis loader's rebuilt
     /// tracer holds (<see cref="TracerKd"/> over <see cref="TracedBounds"/>),
-    /// in place of the ones the file was written with. That tracer is what
-    /// the compile's visibility traces against; the file's own tree only ever
-    /// differs from it in the order it meets equal hits.
+    /// in place of the ones the file was written with, for probes. It is NOT
+    /// an equivalent scene: <see cref="Trace"/> tests only the triangles filed
+    /// in the leaves a ray visits, and the file files a triangle in about 1.3
+    /// leaves, so the outside seed's verdicts depend on the file's own tree
+    /// (probe01 and ze_hold_em_p give other regions under this one; the
+    /// file's tree gives Valve's output on every specimen).
     /// </summary>
     public RayTraceEnvironment WithTracerTree()
     {

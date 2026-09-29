@@ -69,7 +69,7 @@ three files from `%TEMP%\csgo_addons\<addon>\maps\`: `<map>.rte`,
 |---|---|---|
 | load the .rte | `RayTraceEnvironment`, `TracerKd` | the loader rebuilds each triangle's corners and its own kd tree (`RefineNode`); GEOMETRY.md has the format |
 | voxelize | `VisVoxelizer` | top-down from the root cube; mask `0x811` above 256 units, `0x1811` at or below (a `0x1000` triangle stops counting); a node splits on size alone once its parent found geometry; voxel hints stop or force splits |
-| outside detection | `VisOutside` | a per-region ray vote; outside is the default, inside is earned; propagates along rays, so an unsealed scene works |
+| outside detection | `VisOutside`, `VisSeed` | a per-region ray vote; outside is the default, inside is earned; propagates along rays, so an unsealed scene works; the seed traces the .rte's OWN kd tree (the rebuilt tracer tree gives other verdicts, GROUND_TRUTH 30) |
 | regions | `VisRegions` | a region is a greedy box, not a connected component; the coarse-only retry runs at every depth; the printed count is after compaction |
 | cluster generation | `VisClusters` | one cluster per open voxel, then a greedy merge by `VisMergeCost` down to 32 or a cost threshold; 56 shell boxes pad the tree and never merge |
 | distance pre-merge | `VisPreMerge` | swap-with-last compaction, the binary's volume tie-break, MSVC `std::sort` (`MsvcSort`) |

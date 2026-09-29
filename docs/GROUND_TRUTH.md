@@ -94,6 +94,11 @@ game can answer is raised with the user first, and runs with -insecure.
     1802597d0, 180259130); no specimen has one.
 28. Visibility split hints (types 4, 5, 6): ported from the decompile, no
     specimen map has one.
+30. The outside seed traces the .rte's own kd tree as the file wrote it
+    (RayTraceEnvironment.Trace, leaves' filed triangles over the whole ray):
+    measured, every specimen exact that way, while the loader's rebuilt
+    tracer tree changes the verdicts (RebuiltTreeProbe, RTREE=<map>). Which
+    structure visbuilder's seed trace reads is not read in the 09-23 build.
 18. vrad3 trace cost law (performance only; not output).
 19. Legacy-GUID particles in game (needs the user's go-ahead for a game run).
 20. The vmat_c field order note ("likely NTRO positional"): the order is

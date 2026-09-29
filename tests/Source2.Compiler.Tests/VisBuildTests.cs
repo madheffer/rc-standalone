@@ -6,8 +6,9 @@ namespace Source2.Compiler.Tests;
 
 /// <summary>
 /// <see cref="VisBuild.Run"/> against the VXVS the compile shipped, byte for
-/// byte: on Valve's own trace scene, on the same triangles under the vis
-/// loader's rebuilt tree, and on a scene built from the .vmap.
+/// byte: on Valve's own trace scene and on a scene built from the .vmap. The
+/// scene's own kd tree is part of the input: the outside seed traces it, and
+/// the loader's rebuilt tree gives other verdicts (RebuiltTreeProbe).
 /// </summary>
 public class VisBuildTests(ITestOutputHelper output)
 {
@@ -21,10 +22,6 @@ public class VisBuildTests(ITestOutputHelper output)
     [Theory]
     [MemberData(nameof(Specimens))]
     public void FromValvesScene(string addon, string map) => Check(addon, map, rte => rte);
-
-    [Theory]
-    [MemberData(nameof(Specimens))]
-    public void UnderTheRebuiltTree(string addon, string map) => Check(addon, map, rte => rte.WithTracerTree());
 
     /// <summary>The .viscfg built from the map: pvstype, the sun and the visibility hints, bit for bit.</summary>
     [Theory]
