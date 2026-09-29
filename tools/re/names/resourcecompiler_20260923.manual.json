@@ -835,6 +835,30 @@
    "note": ""
   },
   {
+   "addr": "1810557d0",
+   "name": "PhysPart_AddSphere",
+   "module": "s2c:entities/settle",
+   "note": "centre through the part matrix (identity when the scale is uniform), radius times the largest scale, shape scale 1; a lattice makes a mesh"
+  },
+  {
+   "addr": "181054970",
+   "name": "PhysPart_AddCapsule",
+   "module": "s2c:entities/settle",
+   "note": "centres times the scale, or through the matrix; radius times the largest scale; shape scale 1"
+  },
+  {
+   "addr": "181054e80",
+   "name": "PhysPart_AddHull",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1810554d0",
+   "name": "PhysPart_AddMesh",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
    "addr": "1810dcca0",
    "name": "CMapMesh_NameSlotsAfterOverride",
    "module": "s2c:entities/settle",

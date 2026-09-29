@@ -433,41 +433,7 @@ public static class ContinuousSolve
     }
 
     /// <summary>The contact's update (vtable slot 2), as the collide pass runs it.</summary>
-    private static void Update(RnContact c, in RnTransform xfA, in RnTransform xfB)
-    {
-        if (c.Mesh is { } mesh)
-        {
-            MeshCollision.Update(mesh, xfA, c.A.Hull, xfB, c.B.Mesh!, c.B.MeshScale);
-            c.Manifolds = [.. mesh.Manifolds];
-            c.Size98 = mesh.SizeEstimate;
-            return;
-        }
-        if (c.A.Type != 2 || c.B.Type != 2)
-            throw new NotSupportedException($"shape pair {c.A.Type}/{c.B.Type} is not ported");
-        if (!Finite(xfA) || !Finite(xfB))
-            return;
-        CachedManifold result = default;
-        var previous = c.Manifolds.Count > 0 ? c.Manifolds[0] : default;
-        var old = c.Manifolds.Count > 0 ? new ReadOnlySpan<CachedManifold>(ref previous) : default;
-        if (c.Manifolds.Count > 0)
-            result = previous;
-        var hit = HullCollision.Collide(old, ref result, xfA, c.A.Hull, xfB, c.B.Hull, ref c.Sat);
-        c.Manifolds = hit ? [result] : [];
-        c.Size98 = MeshCollision.SizeEstimate(c.Manifolds);
-    }
-
-    private static bool Finite(in RnTransform xf)
-    {
-        ReadOnlySpan<float> f =
-        [
-            xf.R.M0, xf.R.M1, xf.R.M2, xf.R.M3, xf.R.M4, xf.R.M5, xf.R.M6, xf.R.M7, xf.R.M8,
-            xf.T.X, xf.T.Y, xf.T.Z,
-        ];
-        foreach (var v in f)
-            if ((BitConverter.SingleToUInt32Bits(v) & 0x7f800000) == 0x7f800000)
-                return false;
-        return true;
-    }
+    private static void Update(RnContact c, in RnTransform xfA, in RnTransform xfB) => ContactLifecycle.Update(c, xfA, xfB);
 
     /// <summary>
     /// FUN_1801dc6a0 (and FUN_1801dcb80 for one contact): the collide
@@ -627,16 +593,16 @@ public static class ContinuousSolve
     {
         if (c.Mesh != null)
             return MeshToi(c, a, b, tMax);
-        if (c.A.Type != 2 || c.B.Type != 2)
+        if (c.A.Type > 2 || c.B.Type > 2)
             throw new NotSupportedException($"TOI of shape pair {c.A.Type}/{c.B.Type} is not ported");
         return ConvexToi(c, a, b, tMax);
     }
 
-    /// <summary>FUN_1803074d0: the proxies' time of impact, adjusted; a soft side gives 1.</summary>
+    /// <summary>FUN_1803074d0: the proxies' time of impact (shape vfn 0xb0 each), adjusted; a soft side gives 1.</summary>
     public static float ConvexToi(RnContact c, in Sweep a, in Sweep b, float tMax)
     {
-        var proxyB = ProxyOf(c.B.Hull);
-        var proxyA = ProxyOf(c.A.Hull);
+        var proxyB = ConvexShape.Of(c.B).Proxy();
+        var proxyA = ConvexShape.Of(c.A).Proxy();
         var r = TimeOfImpact.Compute(a, proxyA, b, proxyB, tMax, 0x20);
         var t = Adjust(c, a, b, r);
         if (t < 1f && (Soft(c.A.Material) || Soft(c.B.Material)))
@@ -670,11 +636,9 @@ public static class ContinuousSolve
     {
         if (shape.Type >= 3 || Soft(shape.Material))
             return 1f;
-        if (shape.Type != 2)
-            throw new NotSupportedException("the fallback of a sphere or capsule is not ported");
         var identity = new RnTransform { R = new Mat3 { M0 = 1f, M4 = 1f, M8 = 1f } };
-        var hull = shape.Hull;
-        var point = SeparationFunction.Mul(identity, ScaledCentroid(hull));
+        var convex = ConvexShape.Of(shape);
+        var point = convex.Centre(identity);
         var dx = point.X - sweep.LocalCenter.X;
         var dy = point.Y - sweep.LocalCenter.Y;
         var dz = point.Z - sweep.LocalCenter.Z;
@@ -692,7 +656,7 @@ public static class ContinuousSolve
         var tz = sweep.C.Z - sweep.C0.Z;
         var travel = MathF.Sqrt((tx * tx + ty * ty) + tz * tz);
         var motion = travel + (degrees * 0.0174532924f) * r;
-        var inner = hull.Hull.MinCentroidRadius * hull.Scale;
+        var inner = convex.InnerRadius;
         inner = inner > 0.03125f ? inner : 0.03125f;
         return inner > motion ? 1f : inner / motion;
     }
@@ -747,20 +711,14 @@ public static class ContinuousSolve
         return ((s + s) * u + (f + f)) + c * 2f;
     }
 
-    private static Vec3 ScaledCentroid(HullRef hull)
-    {
-        var s = hull.Scale;
-        var c = hull.Hull.Centroid;
-        return new(s * c.X, s * c.Y, s * c.Z);
-    }
-
     /// <summary>
-    /// FUN_180302250: a hull swept over a mesh. The hull's box in mesh space
-    /// at the start and at <paramref name="tMax"/> (against the mesh's end)
-    /// gives a swept box; the triangles it meets (<see cref="MeshSweep.Query"/>)
-    /// are each swept against the hull, with both sweeps moved to start at the
-    /// origin and the triangles expressed there. A time counts when the hull
-    /// is then on the triangle's front and the triangle is not soft. From 150
+    /// FUN_180302250: a convex shape swept over a mesh. The shape's box in
+    /// mesh space (vfn 0x80) at the start and at <paramref name="tMax"/>
+    /// (against the mesh's end) gives a swept box; the triangles it meets
+    /// (<see cref="MeshSweep.Query"/>) are each swept against the shape's
+    /// proxy (vfn 0xb0), with both sweeps moved to start at the origin and the
+    /// triangles expressed there. A time counts when the shape's centre (vfn
+    /// 0xb8) is then on the triangle's front and the triangle is not soft. From 150
     /// triangles on Valve searches them in parallel, each up to
     /// <paramref name="tMax"/>; below, one by one, each up to the best so far.
     /// </summary>
@@ -772,12 +730,12 @@ public static class ContinuousSolve
         var scale = c.B.MeshScale;
         var a = sweepA;
         var b = sweepB;
-        var hull = c.A.Hull;
-        var proxyA = ProxyOf(hull);
+        var shapeA = ConvexShape.Of(c.A);
+        var proxyA = shapeA.Proxy();
         var rel0 = MeshCollision.Relative(Continuous.Frame(a.Q0, a.LocalCenter, a.C0), Continuous.Frame(b.Q0, b.LocalCenter, b.C0));
         var rel1 = MeshCollision.Relative(Continuous.At(a, tMax), Continuous.Frame(b.Q, b.LocalCenter, b.C));
-        var (min0, max0) = MeshCollision.HullBounds(hull, rel0);
-        var (min1, max1) = MeshCollision.HullBounds(hull, rel1);
+        var (min0, max0) = shapeA.Bounds(rel0);
+        var (min1, max1) = shapeA.Bounds(rel1);
         var c0 = new Vec3((max0.X + min0.X) * 0.5f, (max0.Y + min0.Y) * 0.5f, (max0.Z + min0.Z) * 0.5f);
         var hx = (max0.X - min0.X) * 0.5f;
         var hy = (max0.Y - min0.Y) * 0.5f;
@@ -819,7 +777,7 @@ public static class ContinuousSolve
             var t = Adjust(c, a, b, r);
             if (!(t < current))
                 continue;
-            var point = SeparationFunction.Mul(Continuous.At(a, t), ScaledCentroid(hull));
+            var point = shapeA.Centre(Continuous.At(a, t));
             var xfB = Continuous.At(b, t);
             var v0 = corners[0];
             var v1 = corners[1];

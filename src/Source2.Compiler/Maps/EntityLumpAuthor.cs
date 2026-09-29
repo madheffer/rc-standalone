@@ -604,7 +604,7 @@ public static partial class EntityLumpAuthor
                 if (source.TryGetValue(name, out var pair))
                     table.Add(pair);
                 else if (schema.KeyOf(entity.ClassName, name) is { } declared && !IsElementName(declared.Name))
-                    table.Add(new(declared.Name, declared.Default ?? ""));
+                    table.Add(new(declared.Name, DefaultOf(entity, declared)));
                 else
                     present.Remove(name);
             }
@@ -619,9 +619,13 @@ public static partial class EntityLumpAuthor
                 table.Add(Masked(pair, entity.ClassName, schema));
         foreach (var key in schema?.KeysOf(entity.ClassName) ?? [])
             if (!IsPlacement(key.Name) && !IsElementName(key.Name) && present.Add(key.Name))
-                table.Add(new(key.Name, key.Default ?? ""));
+                table.Add(new(key.Name, DefaultOf(entity, key)));
         return table;
     }
+
+    /// <summary>A key the source lacks: its class default, or what a later pass set in its place.</summary>
+    private static string DefaultOf(MapEntities.Entity entity, FgdSchema.Key key)
+        => entity.Defaults is { } set && set.TryGetValue(key.Name, out var value) ? value : key.Default ?? "";
 
     /// <summary>
     /// Whether a declared key is spelled like the DMX element's own name. The

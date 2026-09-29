@@ -53,6 +53,13 @@ public static class MapEntities
         bool Instanced = false,
         byte[]? Tint = null)
     {
+        /// <summary>
+        /// Values that replace class defaults in place, for keys the source
+        /// does not carry: a later pass set them on the node's table after
+        /// SetClass filled it (the settle's CMapEntity_SetStartAsleep).
+        /// </summary>
+        public IReadOnlyDictionary<string, string>? Defaults { get; init; }
+
         /// <summary>The <c>CMapPrefab</c> node ids the node was reached through, outermost first
         /// (<see cref="Maps.MapPrefabs"/>); empty for a node of the map's own.</summary>
         public int[] Prefabs { get; init; } = [];

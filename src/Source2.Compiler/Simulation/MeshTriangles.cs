@@ -67,19 +67,20 @@ public static partial class MeshCollision
     }
 
     /// <summary>
-    /// The hull against each candidate triangle (FUN_1802ff110). A triangle
-    /// is tried only if the hull's bounding sphere centre is on its front
-    /// side and the sphere, grown by 3/32, reaches its plane. The triangle
-    /// becomes a hull {0, e1, e2} at v0 in the mesh's rotation
-    /// (FUN_1802f23f0) and goes through the hull-hull narrowphase with no old
-    /// manifold and its own SAT cache; a hit's mesh-side points are moved
-    /// back by v0.
+    /// Shape A against each candidate triangle (FUN_1802ff110). A triangle
+    /// is tried only if A's bounding sphere centre is on its front side and
+    /// the sphere, grown by 3/32, reaches its plane. The triangle is
+    /// {0, e1, e2} at v0 in the mesh's rotation; a hull meets it as a
+    /// two-faced hull through the hull-hull narrowphase (FUN_1802f23f0), a
+    /// sphere or capsule through its triangle core, each with no old manifold
+    /// and the triangle's own cache; a hit's mesh-side points are moved back
+    /// by v0.
     /// </summary>
-    internal static List<CachedManifold> CollideTriangles(MeshContactState state, in RnTransform xfHull, HullRef hull,
+    internal static List<CachedManifold> CollideTriangles(MeshContactState state, in RnTransform xfA, ConvexShape a,
                                                           in RnTransform xfMesh, RnMesh mesh, Vec3 scale)
     {
         var result = new List<CachedManifold>();
-        var (centre, radius) = BoundingSphere(hull, xfHull);
+        var (centre, radius) = a.BoundingSphere(xfA);
         var c = HullCollision.ToLocal(xfMesh, centre.X, centre.Y, centre.Z);
         var reach = (radius + PlaneSlack) * (radius + PlaneSlack);
         var q = RnMath.Matrix(Quat.Identity);
@@ -118,11 +119,20 @@ public static partial class MeshCollision
                 continue;
 
             var xfTriangle = new RnTransform { R = rotation, T = HullCollision.ToWorld(xfMesh, v0x, v0y, v0z) };
-            var triangleHull = TriangleHull(default, new Vec3(e1x, e1y, e1z), new Vec3(e2x, e2y, e2z));
+            var e1 = new Vec3(e1x, e1y, e1z);
+            var e2 = new Vec3(e2x, e2y, e2z);
             var manifold = default(CachedManifold);
             var cache = state.Caches[k];
-            var hit = HullCollision.Collide(default, ref manifold, xfHull, hull, xfTriangle,
-                                            new HullRef(triangleHull, 1f), ref cache.Sat, triangle);
+            // FUN_1802fbce0: the triangle as {0, e1, e2} in its own frame, by shape A's type.
+            var hit = a.Type switch
+            {
+                BroadphaseShape.SphereType => RoundCollision.SphereTriangle(ref manifold, xfA, a.Sphere, xfTriangle, default, e1, e2,
+                                                                           ref cache, triangle),
+                BroadphaseShape.CapsuleType => RoundCollision.CapsuleTriangle(ref manifold, xfA, a.Capsule, xfTriangle, default, e1, e2,
+                                                                             ref cache, triangle),
+                _ => HullCollision.Collide(default, ref manifold, xfA, a.Hull, xfTriangle,
+                                           new HullRef(TriangleHull(default, e1, e2), 1f), ref cache.Sat, triangle),
+            };
             state.Caches[k] = cache;
             if (!hit)
                 continue;

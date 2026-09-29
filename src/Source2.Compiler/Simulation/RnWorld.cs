@@ -249,6 +249,9 @@ public sealed class RnContact(RnShape a, RnShape b)
     /// <summary>A convex contact's SAT cache (+0xd4).</summary>
     public SatCache Sat;
 
+    /// <summary>A sphere or capsule against a hull: the GJK cache (+0xa8).</summary>
+    public GjkCache Gjk;
+
     /// <summary>A mesh contact's state.</summary>
     public MeshContactState? Mesh;
 

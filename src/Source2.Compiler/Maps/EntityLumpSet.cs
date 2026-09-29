@@ -334,12 +334,11 @@ public static class EntityLumpSet
         // (SettleWorld.Run), with the keys CMapEntity_SetStartAsleep changed.
         MapEntities.Entity Settle(MapEntities.Entity e)
             => settled is not null && schema is not null && e.Prefabs.Length == 0 && settled.TryGetValue(e.NodeId, out var s)
-                ? e with
+                ? Maps.SettleWorld.SettledKeys(e with
                 {
                     Origin = s.Moved ? s.Origin : e.Origin,
                     Angles = s.Moved ? s.Angles : e.Angles,
-                    Keys = Maps.SettleWorld.SettledKeys(e.ClassName, e.Keys, schema, s.Asleep),
-                }
+                }, schema, s.Asleep)
                 : e;
 
         var (copies, templates) = document is null

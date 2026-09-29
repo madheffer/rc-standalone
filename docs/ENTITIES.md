@@ -24,8 +24,6 @@ Open:
   Baked shadow slots and unique ids are ported and not yet wired into the
   lump. So are `precomputed_vis_clusters` (no CS2 light carries it) and the
   light export's angles rewrite and `directlight`.
-- **Round-shape settle:** the settle for sphere and capsule shapes
-  (SETTLE.md).
 - **World-layer copies (parked):** instance copies inside a world layer ship
   angles 1-2 ulps off.
 - **Prefabs:** instances inside prefabs, and prefabs with

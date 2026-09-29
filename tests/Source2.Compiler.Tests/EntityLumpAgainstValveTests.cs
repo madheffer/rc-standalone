@@ -69,7 +69,7 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     [InlineData("s2c_prefabprobe2")]
     // prop_physics soccer balls and round-shapes models dropped onto s2c_rounds:
     // the settle of sphere and capsule shapes (tools/physics/settle_round_map.py).
-    [InlineData("s2c_settleround", Skip = "GROUND_TRUTH.md 23: the settle for sphere and capsule shapes is not wired")]
+    [InlineData("s2c_settleround")]
     public void PrefabProbe_DiffersOnlyInTheDocumentedGaps(string map)
     {
         var source = MapFixtures.VmapSource("s2c_rc_probe", map);

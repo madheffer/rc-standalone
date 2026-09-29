@@ -13,7 +13,10 @@ inside the lump build (`SettleWorld.Run` then `EntityLumpSet.Author`) in about
   spawnflags:
   - atixref (81 props);
   - c2m2's prefab (63);
-  - Mako (28, plus 2 pallets that start asleep).
+  - Mako (28, plus 2 pallets that start asleep);
+  - s2c_settleround (7 sphere and capsule props dropped onto each other,
+    onto hull props and onto the world, among uniformly and non-uniformly
+    scaled static round props).
 - **Exact against vphysics2**: the whole `CRnWorld_Step`, covering:
   - integration and sleep;
   - broadphase, and hull-hull and hull-mesh contacts;
@@ -22,21 +25,19 @@ inside the lump build (`SettleWorld.Run` then `EntityLumpSet.Author`) in about
   - continuous collision (GJK and TOI).
 - **Round shapes:** all seven sphere and capsule narrowphase cores are
   exact (`RoundCollisionOracleTests`, 8,000 to 20,000 random cases each).
+  They are wired in:
+  - the convex dispatch (table 0x1803e4200, `A.Type * 5 + B.Type` with
+    `A.Type <= B.Type`, the GJK cache at contact +0xa8);
+  - the mesh contact for a sphere or capsule A, through the shape virtuals
+    (`ConvexShape`);
+  - the time of impact through each shape's proxy (vfn 0xb0).
 
-Open (GROUND_TRUTH.md 23):
-- **The mesh contact for a sphere or capsule shape A:**
-  - the per-type box (vfn 0x80, unpadded);
-  - the bounding sphere (vfn 0xc0: a sphere's radius is unpadded; a capsule
-    is its midpoint plus half its length plus the radius);
-  - the per-triangle dispatch (`CRnMeshContact_CollideTriangleByType`).
-- **The convex dispatch for round pairs** (table 0x1803e4200, indexed
-  `A.Type * 5 + B.Type` with `A.Type <= B.Type`):
-  - the GJK cache sits at contact +0xa8, the same slot as the hull pair's
-    SAT cache;
-  - `ContactToi` for round pairs;
-  - a sphere at a non-uniform scale (s2c_settleround refuses on it).
-- **Not ported:** joints (and their colouring), compound shapes, and the
-  out-of-world-bounds fix-up (`CRnWorld_ClampToWorldBounds`).
+Open:
+- **Not ported:** joints (and their colouring), compound shapes, a lattice
+  deformer on a round prop (Valve tessellates the shape into a mesh), and
+  the out-of-world-bounds fix-up (`CRnWorld_ClampToWorldBounds`).
+- **Not exercised by a specimen:** the round-shape time of impact and its
+  fallback.
 
 ## How it is built
 
@@ -75,6 +76,12 @@ Facts that are not obvious from the code:
   `std::sort`, so equal keys can come out either way. None of the three
   settled maps has such a tie.
 - **Round shapes:**
+  - resourcecompiler adds them at shape scale 1, already placed
+    (`PhysPart_AddSphere`, `PhysPart_AddCapsule`). Their radius is multiplied
+    by the largest scale. A sphere's centre always goes through the part
+    matrix, which is the identity for a uniform scale, so a uniform scale
+    does not move it. A capsule's centres are multiplied by the scale, or go
+    through the matrix when the scale is non-uniform.
   - Shape data sits at +0xb8, already scaled.
   - Capsule-hull goes to its deep path below 0.003125 and uses margin 1/16.
   - Its tangents are built inline with a 0.57735 threshold.

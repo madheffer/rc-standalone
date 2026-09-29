@@ -61,7 +61,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | geometry | [GEOMETRY.md](GEOMETRY.md) | the trace scene from the .vmap matches every `.rte` triangle on five maps; world nodes and render meshes not started |
 | visibility | [VISIBILITY.md](VISIBILITY.md) | every stage exact; byte-identical VXVS from the .vmap on three maps |
 | physics | [PHYSICS.md](PHYSICS.md) | world_physics and entity models whole-file exact on every map with a compile |
-| entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | every lump exact outside the light keys; the settle exact; round-shape settle cores exact, not wired |
+| entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | every lump exact outside the light keys; the settle exact, sphere and capsule props included |
 | baked halves | [BAKED.md](BAKED.md) | vrad3 driven; port not started |
 
 The tracker artifact (https://claude.ai/artifact/4whctxfaTdHEiE4d3oAVHA)
@@ -87,30 +87,25 @@ carries the same state per item.
 
 ## Open, in the order worth taking it
 
-1. **The round-shape settle** ([SETTLE.md](SETTLE.md)):
-   - the mesh contact for sphere and capsule A;
-   - the contact dispatch;
-   - `ContactToi`;
-   - the s2c_settleround lump test.
-2. **Light keys** ([ENTITIES.md](ENTITIES.md)):
+1. **Light keys** ([ENTITIES.md](ENTITIES.md)):
    - re-read `EditorTraceScene` and the `LightTrace` second pass beside the
      decompile; they were written by an agent and are checked only by their
      tests;
    - static props in the editor trace scene;
    - wire the baked shadow slots and precomputed keys into the lump;
    - the light export's angles rewrite and `directlight`.
-3. **The trace-scene flag word** (GROUND_TRUTH 25). Then run atixref and Mako
+2. **The trace-scene flag word** (GROUND_TRUTH 25). Then run atixref and Mako
    end to end from the .vmap (`VISBUILD_BIG=1`), and wire visibility into
    `compile-map`.
-4. **Physics leftovers:** prop bone overrides, the lattice deformer,
+3. **Physics leftovers:** prop bone overrides, the lattice deformer,
    instances in prefabs, the bake's vertex merge and smoothing.
-5. **compile-map:**
+4. **compile-map:**
    - what an entities-only build clears;
    - `-entities` without a package;
    - compiling a map's addon content.
-6. **Geometry:** world nodes and render meshes, the largest remaining
+5. **Geometry:** world nodes and render meshes, the largest remaining
    module.
-7. **Baked halves:** the scene vrad3 gets, then a tracer scored per luxel.
+6. **Baked halves:** the scene vrad3 gets, then a tracer scored per luxel.
 
 Pre-cleanup notes (the old VIS.md lab notebook, RE_NOTES, MAP_RESOURCES and
 the rest) are in git history at `c2dc317`.

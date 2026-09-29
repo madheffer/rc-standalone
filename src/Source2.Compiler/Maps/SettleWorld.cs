@@ -397,30 +397,29 @@ public static partial class SettleWorld
         ContactSolver.Material Material(int index)
             => index >= 0 && index < surfaces.Length && models.Surface(surfaces[index]) is { } m ? m
              : models.Surface(DefaultSurface) ?? DefaultMaterial;
-        // The shape desc's order: spheres, capsules, hulls, meshes. A
-        // non-uniform scale would need the matrix path, which neither round
-        // shape has.
+        // The shape desc's order: spheres, capsules, hulls, meshes. The round
+        // shapes are placed here and added at shape scale 1, the radius times
+        // the largest scale. A sphere's centre always goes through the matrix,
+        // the identity when the scale is uniform, so a uniform scale leaves it
+        // where the model has it (FUN_1810557d0). A capsule's centres go
+        // through the matrix, or times the scale when uniform (FUN_181054970).
+        // With a lattice both become meshes, which is not ported.
+        var place = matrix ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
         foreach (var s in shape.Spheres)
         {
-            if (matrix != null)
-            {
-                bodies.Add(body with { Unsupported = "a sphere at a non-uniform scale" });
-                return;
-            }
-            body.Shapes.Add(new ShapeBuild(SphereType, null, u, null, Vector3.One, Attributes(s.CollisionAttributeIndex),
+            body.Shapes.Add(new ShapeBuild(SphereType, null, 1f, null, Vector3.One, Attributes(s.CollisionAttributeIndex),
                                            Material(s.SurfacePropertyIndex), s.UserFriendlyName ?? "")
-                            { Sphere = (s.Shape.Center, s.Shape.Radius) });
+                            { Sphere = (LightMath.Transform34(place, s.Shape.Center), u * s.Shape.Radius) });
         }
         foreach (var c in shape.Capsules)
         {
-            if (matrix != null)
-            {
-                bodies.Add(body with { Unsupported = "a capsule at a non-uniform scale" });
-                return;
-            }
-            body.Shapes.Add(new ShapeBuild(CapsuleType, null, u, null, Vector3.One, Attributes(c.CollisionAttributeIndex),
+            Vector3 a = c.Shape.Center[0], b = c.Shape.Center[1];
+            var ends = matrix != null
+                ? (LightMath.Transform34(matrix, a), LightMath.Transform34(matrix, b))
+                : (new Vector3(a.X * u, a.Y * u, a.Z * u), new Vector3(b.X * u, b.Y * u, b.Z * u));
+            body.Shapes.Add(new ShapeBuild(CapsuleType, null, 1f, null, Vector3.One, Attributes(c.CollisionAttributeIndex),
                                            Material(c.SurfacePropertyIndex), c.UserFriendlyName ?? "")
-                            { Capsule = (c.Shape.Center[0], c.Shape.Center[1], c.Shape.Radius) });
+                            { Capsule = (ends.Item1, ends.Item2, u * c.Shape.Radius) });
         }
         foreach (var h in shape.Hulls)
         {

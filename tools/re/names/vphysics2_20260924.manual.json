@@ -1510,7 +1510,7 @@
    "addr": "1803074d0",
    "name": "CRnConvexContact::vf3",
    "module": "s2c:entities/settle",
-   "note": "time of impact of two hulls"
+   "note": "time of impact of any convex pair, through the shapes' proxies (vfn 0xb0)"
   },
   {
    "addr": "180307750",
@@ -2417,6 +2417,66 @@
    "name": "CRnMeshContact_ShapeBoundingSphere",
    "module": "s2c:entities/settle",
    "note": "shape vfn 0xc0 (compound children inline)"
+  },
+  {
+   "addr": "18012e650",
+   "name": "RnGjkProxy_Sphere",
+   "module": "s2c:entities/settle",
+   "note": "one point, radius (+0x38, +0x3c) the scaled radius, at least 1/16"
+  },
+  {
+   "addr": "18012e600",
+   "name": "RnGjkProxy_Capsule",
+   "module": "s2c:entities/settle",
+   "note": "two points, radius the scaled radius, at least 1/16"
+  },
+  {
+   "addr": "18024c650",
+   "name": "CRnSphereShape::GjkProxy",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xb0"
+  },
+  {
+   "addr": "18024f270",
+   "name": "CRnCapsuleShape::GjkProxy",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xb0"
+  },
+  {
+   "addr": "18024c680",
+   "name": "CRnSphereShape::Centre",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xb8"
+  },
+  {
+   "addr": "18024f2a0",
+   "name": "CRnCapsuleShape::Centre",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xb8; the midpoint"
+  },
+  {
+   "addr": "18024c8a0",
+   "name": "CRnSphereShape::InnerRadius",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xc8"
+  },
+  {
+   "addr": "18024f600",
+   "name": "CRnCapsuleShape::InnerRadius",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xc8"
+  },
+  {
+   "addr": "1802b73d0",
+   "name": "RnShape_GjkProxy",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xb0 for a standalone shape, else the compound child"
+  },
+  {
+   "addr": "180303880",
+   "name": "CRnMeshContact_ShapeCentre",
+   "module": "s2c:entities/settle",
+   "note": "vfn 0xb8 for a standalone shape, else the compound child"
   },
   {
    "addr": "1803fbf50",

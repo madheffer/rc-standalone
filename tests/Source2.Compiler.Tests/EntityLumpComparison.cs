@@ -107,7 +107,8 @@ internal static class EntityLumpComparison
                 report.Add($"[{Label(theirs)}] {key}: ours only ({ours.Values[key].Value})");
             if (theirs.KeyOrder.Count == ours.KeyOrder.Count && theirs.Values.Keys.All(ours.Values.ContainsKey)
                 && !theirs.KeyOrder.SequenceEqual(ours.KeyOrder, StringComparer.Ordinal))
-                report.Add($"[{Label(theirs)}] key order differs");
+                report.Add($"[{Label(theirs)}] key order differs" + (Environment.GetEnvironmentVariable("LUMPDIFF_ORDER") is null ? ""
+                           : $": valve {string.Join(",", theirs.KeyOrder)} ours {string.Join(",", ours.KeyOrder)}"));
 
             if (!theirs.Connections.SequenceEqual(ours.Connections))
                 for (var c = 0; c < Math.Max(theirs.Connections.Count, ours.Connections.Count); c++)

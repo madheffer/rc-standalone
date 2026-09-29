@@ -78,24 +78,38 @@ public static partial class SettleWorld
     private const int SettleSteps = 2700;
 
     /// <summary>
-    /// An entity's keys after the settle: a prop whose bodies all fell
-    /// asleep goes through CMapEntity_SetStartAsleep(node, 1), which sets
-    /// its class's "Start asleep" spawnflag, written back as "%d"
-    /// (FUN_180f38bf0; nothing changes when the bit is already set or the
-    /// class has no such flag), and "phys_start_asleep" "1" when the class
-    /// declares that key. An awake prop keeps its keys.
+    /// An entity after the settle: a prop whose bodies all fell asleep goes
+    /// through CMapEntity_SetStartAsleep(node, 1), which sets its class's
+    /// "Start asleep" spawnflag, written back as "%d" (FUN_180f38bf0; nothing
+    /// changes when the bit is already set or the class has no such flag),
+    /// and "phys_start_asleep" "1" when the class declares that key. The
+    /// node's table already holds every class key (SetClass), so a key the
+    /// source lacks changes in its default's place, from the default's
+    /// value. An awake prop keeps its keys.
     /// </summary>
-    public static IReadOnlyList<KeyValuePair<string, string>> SettledKeys(
-        string className, IReadOnlyList<KeyValuePair<string, string>> keys, FgdSchema schema, bool asleep)
+    public static MapEntities.Entity SettledKeys(MapEntities.Entity entity, FgdSchema schema, bool asleep)
     {
         if (!asleep)
-            return keys;
-        var list = keys.ToList();
+            return entity;
+        var className = entity.ClassName;
+        var list = entity.Keys.ToList();
+        var defaults = entity.Defaults is { } had
+            ? new Dictionary<string, string>(had, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string? Get(string key)
+        {
+            var at = list.FindIndex(k => k.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+            return at >= 0 ? list[at].Value
+                 : defaults.TryGetValue(key, out var set) ? set
+                 : schema.KeyOf(className, key)?.Default;
+        }
         void Set(string key, string value)
         {
             var at = list.FindIndex(k => k.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
             if (at >= 0)
                 list[at] = new(list[at].Key, value);
+            else if (schema.KeyOf(className, key) is { } declared)
+                defaults[declared.Name] = value;
             else
                 list.Add(new(key, value));
         }
@@ -103,7 +117,7 @@ public static partial class SettleWorld
             .FirstOrDefault(f => f.Name.Equals("Start asleep", StringComparison.OrdinalIgnoreCase)).Bit;
         if (bit != 0)
         {
-            var old = list.FirstOrDefault(k => k.Key.Equals("spawnflags", StringComparison.OrdinalIgnoreCase)).Value;
+            var old = Get("spawnflags");
             var flags = old is { Length: > 0 } && int.TryParse(old, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
             var now = flags | (int)bit;
             if (now != flags)
@@ -111,6 +125,6 @@ public static partial class SettleWorld
         }
         if (schema.KeyOf(className, "phys_start_asleep") != null)
             Set("phys_start_asleep", "1");
-        return list;
+        return entity with { Keys = list, Defaults = defaults.Count > 0 ? defaults : entity.Defaults };
     }
 }

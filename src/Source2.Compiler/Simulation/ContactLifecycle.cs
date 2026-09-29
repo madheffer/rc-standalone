@@ -370,17 +370,22 @@ public static class ContactLifecycle
         return (node.Min, node.Max);
     }
 
-    /// <summary>The contact's update (vtable slot 2): hull pairs through FUN_180307750, hull on mesh through FUN_180305460.</summary>
-    private static void Update(RnContact c, in RnTransform xfA, in RnTransform xfB)
+    /// <summary>
+    /// The contact's update (vtable slot 2): a convex pair through
+    /// FUN_180307750, which picks the core from the table at 0x1803e4200 by
+    /// A.Type * 5 + B.Type (the broadphase orders a pair so A's type is the
+    /// lower); a convex shape on a mesh through FUN_180305460.
+    /// </summary>
+    internal static void Update(RnContact c, in RnTransform xfA, in RnTransform xfB)
     {
         if (c.Mesh is { } mesh)
         {
-            MeshCollision.Update(mesh, xfA, c.A.Hull, xfB, c.B.Mesh!, c.B.MeshScale);
+            MeshCollision.Update(mesh, xfA, ConvexShape.Of(c.A), xfB, c.B.Mesh!, c.B.MeshScale);
             c.Manifolds = [.. mesh.Manifolds];
             c.Size98 = mesh.SizeEstimate;
             return;
         }
-        if (c.A.Type != 2 || c.B.Type != 2)
+        if (c.A.Type > 2 || c.B.Type > 2 || c.A.Type > c.B.Type)
             throw new NotSupportedException($"shape pair {c.A.Type}/{c.B.Type} is not ported");
         if ((c.Flags78 & 1) == 0)
             throw new NotSupportedException("sensor pairs (the overlap path of FUN_1802f2560) are not ported");
@@ -393,7 +398,17 @@ public static class ContactLifecycle
         var old = c.Manifolds.Count > 0 ? new ReadOnlySpan<CachedManifold>(ref previous) : default;
         if (c.Manifolds.Count > 0)
             result = previous;
-        var hit = HullCollision.Collide(old, ref result, xfA, c.A.Hull, xfB, c.B.Hull, ref c.Sat);
+        var a = ConvexShape.Of(c.A);
+        var b = ConvexShape.Of(c.B);
+        var hit = (c.A.Type, c.B.Type) switch
+        {
+            (0, 0) => RoundCollision.SphereSphere(old, ref result, xfA, a.Sphere, xfB, b.Sphere),
+            (0, 1) => RoundCollision.SphereCapsule(old, ref result, xfA, a.Sphere, xfB, b.Capsule),
+            (0, 2) => RoundCollision.SphereHull(old, ref result, xfA, a.Sphere, xfB, b.Hull, ref c.Gjk),
+            (1, 1) => RoundCollision.CapsuleCapsule(old, ref result, xfA, a.Capsule, xfB, b.Capsule),
+            (1, 2) => RoundCollision.CapsuleHull(old, ref result, xfA, a.Capsule, xfB, b.Hull, ref c.Gjk),
+            _ => HullCollision.Collide(old, ref result, xfA, c.A.Hull, xfB, c.B.Hull, ref c.Sat),
+        };
         c.Manifolds = hit ? [result] : [];
         c.Size98 = MeshCollision.SizeEstimate(c.Manifolds);
     }

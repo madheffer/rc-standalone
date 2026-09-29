@@ -59,10 +59,6 @@ game can answer is raised with the user first, and runs with -insecure.
     Open there: the light and probe bake keys, particle snapshot files, the
     vmap upgrade table, the landmark/camera/cull-triangle world lists, and
     every switch the port does not yet take.
-23. **The settle for sphere and capsule shapes**: all seven round narrowphase
-    cores are oracle-exact (RoundCollisionOracleTests); the mesh contact,
-    contact dispatch and time of impact for round pairs are not wired, and a
-    sphere at a non-uniform scale (s2c_settleround node 102) is refused.
 24. **What an entities-only build clears**: the world step clears the
     entities folder and flammables; whether the entity models survive an
     entities-only build is not settled (compile-map keeps them).
@@ -105,6 +101,16 @@ game can answer is raised with the user first, and runs with -insecure.
     measured; the loader's reason is not read.
 
 ## Resolved
+
+- **The settle for sphere and capsule shapes** (was 23), settled 2026-09-29.
+  - The narrowphase cores are oracle-exact.
+  - The mesh contact, dispatch and time of impact were read from vphysics2.
+  - The round shapes' placement was read from resourcecompiler
+    (`PhysPart_AddSphere`, whose sphere centre skips the uniform scale, was
+    confirmed in the disassembly).
+  - `CMapEntity_SetStartAsleep` sets a key the source lacks in its class
+    default's place.
+  - s2c_settleround's lump is exact.
 
 - **The .rte's geometry from the .vmap** (2026-09-28, decompile of
   resourcecompiler 0923 and measurement on five maps). An instanced mesh is

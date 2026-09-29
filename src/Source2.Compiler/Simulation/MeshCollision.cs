@@ -73,11 +73,16 @@ public static partial class MeshCollision
     /// </summary>
     public static void Update(MeshContactState state, in RnTransform xfHull, HullRef hull,
                               in RnTransform xfMesh, RnMesh mesh, Vec3 meshScale)
+        => Update(state, xfHull, ConvexShape.Of(hull), xfMesh, mesh, meshScale);
+
+    /// <summary>The same for any convex shape A: a sphere, a capsule or a hull.</summary>
+    public static void Update(MeshContactState state, in RnTransform xfA, ConvexShape a,
+                              in RnTransform xfMesh, RnMesh mesh, Vec3 meshScale)
     {
-        UpdateCandidates(state, xfHull, hull, xfMesh, mesh, meshScale);
-        var perTriangle = CollideTriangles(state, xfHull, hull, xfMesh, mesh, meshScale);
+        UpdateCandidates(state, xfA, a, xfMesh, mesh, meshScale);
+        var perTriangle = CollideTriangles(state, xfA, a, xfMesh, mesh, meshScale);
         var clusters = Cluster(perTriangle);
-        var merged = Merge(xfHull, xfMesh, clusters, perTriangle);
+        var merged = Merge(xfA, xfMesh, clusters, perTriangle);
         WarmStart(merged, state.Manifolds);
         state.Manifolds = merged;
         state.SizeEstimate = SizeEstimate(merged);
@@ -144,16 +149,16 @@ public static partial class MeshCollision
     }
 
     /// <summary>
-    /// Refreshes the candidate triangles (FUN_1803049b0). While the hull's
-    /// box, grown by 1/16, stays inside the cached box nothing changes;
+    /// Refreshes the candidate triangles (FUN_1803049b0). While shape A's
+    /// box (vfn 0x80) stays inside the cached box, less 1/16, nothing changes;
     /// otherwise the cached box becomes it grown by 4 more, the BVH is queried
     /// with it, and each new candidate keeps its old cache if it was a
     /// candidate before. The carry-over walks both lists as if ascending.
     /// </summary>
-    internal static void UpdateCandidates(MeshContactState state, in RnTransform xfHull, HullRef hull,
+    internal static void UpdateCandidates(MeshContactState state, in RnTransform xfA, ConvexShape a,
                                           in RnTransform xfMesh, RnMesh mesh, Vec3 scale)
     {
-        var (min, max) = HullBounds(hull, Relative(xfHull, xfMesh));
+        var (min, max) = a.Bounds(Relative(xfA, xfMesh));
         float loX = min.X - BoxSlack, loY = min.Y - BoxSlack, loZ = min.Z - BoxSlack;
         float hiX = max.X + BoxSlack, hiY = max.Y + BoxSlack, hiZ = max.Z + BoxSlack;
         var box = (state.BoxMin, state.BoxMax);
