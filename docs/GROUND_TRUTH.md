@@ -98,6 +98,11 @@ game can answer is raised with the user first, and runs with -insecure.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.
+33. **Static props' ray triangles**: the light scene takes a prop mesh's
+    trace data (meshsystem CMeshRayTrace, mesh +0x200); we build it from
+    the render vertex and index buffers, draw calls then indices, which
+    makes every atixref barn light exact. The code that fills the trace
+    data (TraceDataForDraw_t, TraceVertex_t) is not read.
 30. The outside seed traces the .rte's own kd tree as the file wrote it
     (RayTraceEnvironment.Trace, leaves' filed triangles over the whole ray):
     measured, every specimen exact that way, while the loader's rebuilt

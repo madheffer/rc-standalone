@@ -36,9 +36,16 @@ public sealed class EditorTraceScene : ILightTracer
         /// <summary>Where it came from, for diagnostics.</summary>
         public string Source = "";
 
+        /// <summary>
+        /// A scene of scenes instead of triangles: a model's scene holds one
+        /// instance of each mesh's own scene at the identity (Model_RayScene),
+        /// and a ray is taken into each level in turn.
+        /// </summary>
+        internal List<Instance>? Children;
+
         internal Vector3 Mins, Maxs;
         internal Bvh? Tree;
-        internal int Count => Flags.Length;
+        internal int Count => Children is { } c ? c.Count : Flags.Length;
     }
 
     /// <summary>A hit: world distance along the ray and the triangle's flag word.</summary>
@@ -53,10 +60,7 @@ public sealed class EditorTraceScene : ILightTracer
     {
         _instances = [.. instances.Where(i => i.Count > 0)];
         foreach (var inst in _instances)
-        {
-            inst.Tree = Bvh.Build(inst.Count, t => Box(inst, t));
-            (inst.Mins, inst.Maxs) = WorldBox(inst);
-        }
+            Prepare(inst);
         _top = Bvh.Build(_instances.Count, i => (_instances[i].Mins, _instances[i].Maxs));
     }
 
@@ -92,16 +96,77 @@ public sealed class EditorTraceScene : ILightTracer
                 flags |= 0xa000;
             else if (shadows == 2)
                 flags |= 0x2000;
-            var local = MapMeshes.Local(node);
-            var s = node.GetValue<Vector3>("scales") ?? Vector3.One;
-            local[0] *= s.X; local[1] *= s.Y; local[2] *= s.Z;
-            local[4] *= s.X; local[5] *= s.Y; local[6] *= s.Z;
-            local[8] *= s.X; local[9] *= s.Y; local[10] *= s.Z;
-            var toWorld = MapMeshes.Concat(mesh.Path, local);
+            // An instance's copy is where the collapse left it (the document is
+            // collapsed before the preprocess), else the path times its matrix.
+            var toWorld = (float[])mesh.World.Clone();
+            Scale(toWorld, node.GetValue<Vector3>("scales") ?? Vector3.One);
             var triangles = LocalTriangles(node, materialFlags);
             list.Add(MakeInstance(triangles, toWorld, flags, $"mesh {mesh.NodeId}"));
         }
         return list;
+    }
+
+    /// <summary>
+    /// The scene the light precompute traces for a map: its meshes, then its
+    /// static props, materials read from <paramref name="content"/>.
+    /// </summary>
+    public static EditorTraceScene ForMap(DmxBinary.Document document, GameContent content)
+    {
+        ushort Flags(string m) => TraceScene.MaterialFlags(content.Material(m));
+        var (_, entities) = MapMeshes.ReadWithEntities(document);
+        return new EditorTraceScene([.. MapMeshInstances(document, Flags), .. StaticPropInstances(entities, content, Flags)]);
+    }
+
+    /// <summary>
+    /// The static props' owners (CModelHelper, 180f0d670): each prop_static
+    /// the walk reaches, once per placement, placed as a mesh owner is (where
+    /// the instance collapse left it, else the path times its own AngleMatrix,
+    /// the scales on its columns); its model's render triangles in its own space
+    /// (GameContent.RenderTriangles), each with its material's flag word. A
+    /// static prop's owner flags are 0x80b0000, which the light mask lets
+    /// through; disableshadows 1 adds 0xa000 and 2 adds 0x2000, a hidden node
+    /// 0x20, and those are left out.
+    /// </summary>
+    public static List<Instance> StaticPropInstances(IEnumerable<MapMeshes.EntityNode> nodes, GameContent content,
+                                                     Func<string, ushort> materialFlags)
+    {
+        var list = new List<Instance>();
+        foreach (var n in nodes)
+        {
+            var props = n.Element.Get<DmxBinary.Element>("entity_properties");
+            if (n.Hidden || props?.Get<string>("classname") is not { } cls || !cls.Equals("prop_static", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (CNumbers.Atoi(props.Get<string>("disableshadows") ?? "0") is 1 or 2)
+                continue;
+            if (props.Get<string>("model") is not { Length: > 0 } model)
+                continue;
+            var meshes = content.RenderMeshes(model);
+            if (meshes.Sum(m => m.Count) == 0)
+                continue;
+            var world = n.Through.Count == 0
+                ? MapMeshes.Concat(n.Path, MapMeshes.Local(n.Element))
+                : SettleWorld.Baked(n.Element, [.. n.Through]);
+            Scale(world, n.Element.GetValue<Vector3>("scales") ?? Vector3.One);
+            // The model's scene: each mesh's own scene at the identity.
+            float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+            var children = meshes.Where(m => m.Count > 0)
+                .Select(m => MakeInstance([.. m.Select(t => (t.A, t.B, t.C, materialFlags(t.Material)))], identity, 0, "mesh"))
+                .ToList();
+            list.Add(new Instance
+            {
+                ToWorld = world, ToLocal = Invert(world), ObjectFlags = 0x80b0000, Children = children,
+                Source = $"prop {n.Element.GetValue<int>("nodeID")}",
+            });
+        }
+        return list;
+    }
+
+    /// <summary>The node's scales on its matrix's columns.</summary>
+    private static void Scale(float[] m, Vector3 s)
+    {
+        m[0] *= s.X; m[1] *= s.Y; m[2] *= s.Z;
+        m[4] *= s.X; m[5] *= s.Y; m[6] *= s.Z;
+        m[8] *= s.X; m[9] *= s.Y; m[10] *= s.Z;
     }
 
     private static List<(Vector3, Vector3, Vector3, ushort)> LocalTriangles(DmxBinary.Element node, Func<string, ushort> materialFlags)
@@ -274,6 +339,31 @@ public sealed class EditorTraceScene : ILightTracer
         return best is { } b && length < b.Distance ? null : best;
     }
 
+    /// <summary>An instance's tree over its triangles or its children, and its box in its parent's space.</summary>
+    private static void Prepare(Instance inst)
+    {
+        if (inst.Children is { } children)
+        {
+            foreach (var child in children)
+                Prepare(child);
+            inst.Tree = Bvh.Build(children.Count, i => (children[i].Mins, children[i].Maxs));
+            Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
+            foreach (var child in children)
+                for (var k = 0; k < 8; k++)
+                {
+                    var corner = new Vector3((k & 1) == 0 ? child.Mins.X : child.Maxs.X, (k & 2) == 0 ? child.Mins.Y : child.Maxs.Y,
+                                             (k & 4) == 0 ? child.Mins.Z : child.Maxs.Z);
+                    var w = Xf(inst.ToWorld, corner);
+                    lo = Vector3.Min(lo, w);
+                    hi = Vector3.Max(hi, w);
+                }
+            (inst.Mins, inst.Maxs) = (lo, hi);
+            return;
+        }
+        inst.Tree = Bvh.Build(inst.Count, t => Box(inst, t));
+        (inst.Mins, inst.Maxs) = WorldBox(inst);
+    }
+
     private static SceneHit? TraceInstance(Instance inst, Vector3 origin, Vector3 dir, float tmax, uint mask)
     {
         var m = inst.ToLocal;
@@ -291,8 +381,45 @@ public sealed class EditorTraceScene : ILightTracer
 
         var best = float.NaN;
         var bestTriangle = -1;
+        ushort bestFlags = 0;
         var inverse = new Vector3(1f / ld.X, 1f / ld.Y, 1f / ld.Z);
         var tree = inst.Tree!;
+        if (inst.Children is { } children)
+        {
+            // The next level down: each child's scene traced from the ray as
+            // this level sees it; the nearest hit, in this level's units.
+            Span<int> nodes = stackalloc int[256];
+            var depth = 0;
+            nodes[depth++] = 0;
+            while (depth > 0)
+            {
+                var node = nodes[--depth];
+                if (!tree.Enters(node, lo, inverse, localMax))
+                    continue;
+                var (first, count, left) = tree.Node(node);
+                if (count == 0)
+                {
+                    nodes[depth++] = left;
+                    nodes[depth++] = left + 1;
+                    continue;
+                }
+                for (var k = first; k < first + count; k++)
+                {
+                    var child = children[tree.Items[k]];
+                    if ((child.ObjectFlags & mask) != 0 || TraceInstance(child, lo, ld, localMax, mask) is not { } h
+                        || localMax < h.Distance)
+                        continue;
+                    if (float.IsNaN(best) || h.Distance < best)
+                        (best, bestFlags, bestTriangle) = (h.Distance, h.Flags, h.Triangle);
+                }
+            }
+            if (float.IsNaN(best))
+                return null;
+            var inner = new Vector3(best * ld.X + lo.X, best * ld.Y + lo.Y, best * ld.Z + lo.Z);
+            var up = Xf(inst.ToWorld, inner);
+            float ux = up.X - origin.X, uy = up.Y - origin.Y, uz = up.Z - origin.Z;
+            return new SceneHit(MathF.Sqrt((uz * uz + uy * uy) + ux * ux), bestFlags, -1, bestTriangle);
+        }
         Span<int> stack = stackalloc int[256];
         var top = 0;
         stack[top++] = 0;

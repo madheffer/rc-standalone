@@ -33,7 +33,8 @@ public class MapCompileTests(ITestOutputHelper output)
         using var content = new GameContent(pak, Path.Combine(Root, "game", "csgo_addons", addon));
         var ours = MapCompile.EntityLumps(document, map, schema, content, settle: true);
         var tested = EntityLumpSet.Author(MapEntities.From(document), schema, map, MapEntities.FixupEntityNames(document),
-                                          document, MapFixtures.SmartPropLocators, SettleLumpTests.Settle(document, source));
+                                          document, MapFixtures.SmartPropLocators, SettleLumpTests.Settle(document, source),
+                                          lightScene: SettleLumpTests.LightScene(document, source));
         Assert.Equal(tested.Select(l => l.Path), ours.Select(o => o.Path));
         for (var i = 0; i < tested.Count; i++)
             Assert.True(tested[i].Bytes.AsSpan().SequenceEqual(ours[i].Bytes), $"{map}: {tested[i].Path} differs");

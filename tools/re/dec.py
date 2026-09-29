@@ -21,6 +21,7 @@ PROGRAMS = {
     "physicsbuilder": "/physicsbuilder_20260924.dll",
     "tier0": "/tier0_20260923.dll",
     "visbuilder": "/visbuilder_20260923.dll",
+    "meshsystem": "/meshsystem_20260923.dll",
 }
 
 

@@ -1,0 +1,1465 @@
+{
+ "dll": "meshsystem_20260923.dll",
+ "imageBase": "0x180000000",
+ "counts": {
+  "assert": 2,
+  "qualified": 8,
+  "inlined": 2,
+  "export": 6,
+  "rtti": 224
+ },
+ "functions": [
+  {
+   "addr": "180007700",
+   "name": "CMeshInstance::vf16",
+   "source": "rtti",
+   "evidence": "vtable 180154840 slot 16; held by 1 classes"
+  },
+  {
+   "addr": "1800077f0",
+   "name": "CMeshInstance_Imp::vf16",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 16; held by 1 classes"
+  },
+  {
+   "addr": "180007ab0",
+   "name": "CMeshInstance_Imp::vf13",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 13; held by 1 classes"
+  },
+  {
+   "addr": "180007bd0",
+   "name": "CMeshInstance_Imp::vf15",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 15; held by 1 classes"
+  },
+  {
+   "addr": "180007d40",
+   "name": "CMeshInstance_Imp::vf14",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 14; held by 1 classes"
+  },
+  {
+   "addr": "180007e00",
+   "name": "CMeshInstance_Imp::vf5",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "180007fb0",
+   "name": "CMeshInstance_Imp::vf6",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 6; held by 1 classes"
+  },
+  {
+   "addr": "180008530",
+   "name": "CMeshInstance_Imp::vf1",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "180008580",
+   "name": "CMeshInstance_Imp::vf0",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180008870",
+   "name": "CMeshInstance_Imp::vf2",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "180008a70",
+   "name": "CMeshInstance_Imp::vf4",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "180008ac0",
+   "name": "CMeshInstance_Imp::vf3",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 3; held by 1 classes"
+  },
+  {
+   "addr": "180008d00",
+   "name": "CMeshInstance_Imp::vf7",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "180008e50",
+   "name": "CMeshInstance_Imp::AppendDrawCallMeshHelper",
+   "source": "assert",
+   "evidence": "CMeshInstance_Imp::AppendDrawCallMeshHelper in C:\\buildworker\\csgo_rel_win64\\build\\src\\meshsystem\\meshinstance_imp.cpp; confirmed by vtable"
+  },
+  {
+   "addr": "180009140",
+   "name": "CMeshInstance_Imp::vf12",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 12; held by 1 classes"
+  },
+  {
+   "addr": "180009310",
+   "name": "CMeshInstance_Imp::vf9",
+   "source": "rtti",
+   "evidence": "vtable 1801547a0 slot 9; held by 1 classes"
+  },
+  {
+   "addr": "180009e20",
+   "name": "CKV3Transfer_ResourceLoadInterface::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180144cf0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "18000a1c0",
+   "name": "CKV3ResourceBlockHelper::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180144d00 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "18000a9e0",
+   "name": "CMorphSetData::vf1",
+   "source": "rtti",
+   "evidence": "vtable 18013a568 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "18000abf0",
+   "name": "CModelTypeManager::vf3",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 3; held by 1 classes"
+  },
+  {
+   "addr": "18000ae50",
+   "name": "CModelTypeManager::AsyncProcessDataResults::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180154a38 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "18000c360",
+   "name": "CModelTypeManager::vf19",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 19; held by 1 classes"
+  },
+  {
+   "addr": "18000d1a0",
+   "name": "CModelTypeManager::vf13",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 13; held by 1 classes"
+  },
+  {
+   "addr": "18000d4d0",
+   "name": "CModelTypeManager::vf26",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 26; held by 1 classes"
+  },
+  {
+   "addr": "18000d7d0",
+   "name": "CModelTypeManager::vf27",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 27; held by 1 classes"
+  },
+  {
+   "addr": "18000d810",
+   "name": "CModelTypeManager::vf28",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 28; held by 1 classes"
+  },
+  {
+   "addr": "18000d8a0",
+   "name": "CModelTypeManager::FinalizeResource",
+   "source": "qualified",
+   "evidence": "CModelTypeManager::FinalizeResource; confirmed by vtable"
+  },
+  {
+   "addr": "18000ed10",
+   "name": "CModelTypeManager::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180154bc0 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "18000f110",
+   "name": "CModelTypeManager::vf5",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "18000f550",
+   "name": "CMeshSystem::vf2",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "18000f580",
+   "name": "CMeshSystem::vf3",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 3; held by 1 classes"
+  },
+  {
+   "addr": "18000f6d0",
+   "name": "CMeshSystem::vf5",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "18000f7e0",
+   "name": "CMeshSystem::vf4",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "18000f8d0",
+   "name": "CMeshSystem::vf11",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 11; held by 1 classes"
+  },
+  {
+   "addr": "18000f940",
+   "name": "CMeshSystem::vf12",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 12; held by 1 classes"
+  },
+  {
+   "addr": "18000fb20",
+   "name": "CMeshSystem::vf35",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 35; held by 1 classes"
+  },
+  {
+   "addr": "18000fbb0",
+   "name": "CMeshSystem::vf14",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 14; held by 1 classes"
+  },
+  {
+   "addr": "18000fd00",
+   "name": "CMeshSystem::CreateMeshInstance",
+   "source": "assert",
+   "evidence": "CMeshSystem::CreateMeshInstance in C:\\buildworker\\csgo_rel_win64\\build\\src\\meshsystem\\meshsystem.cpp; confirmed by vtable"
+  },
+  {
+   "addr": "180010e50",
+   "name": "CMeshSystem::vf42",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 42; held by 1 classes"
+  },
+  {
+   "addr": "180010ef0",
+   "name": "CMeshSystem::vf41",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 41; held by 1 classes"
+  },
+  {
+   "addr": "180010f60",
+   "name": "CMeshSystem::vf40",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 40; held by 1 classes"
+  },
+  {
+   "addr": "180011050",
+   "name": "CMeshSystem::vf39",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 39; held by 1 classes"
+  },
+  {
+   "addr": "180011140",
+   "name": "CMeshSystem::vf16",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 16; held by 1 classes"
+  },
+  {
+   "addr": "180011900",
+   "name": "CMeshSystem::vf17",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 17; held by 1 classes"
+  },
+  {
+   "addr": "1800119e0",
+   "name": "CMeshSystem::vf32",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 32; held by 1 classes"
+  },
+  {
+   "addr": "180011aa0",
+   "name": "CMeshSystem::vf33",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 33; held by 1 classes"
+  },
+  {
+   "addr": "180011ba0",
+   "name": "CMeshSystem::vf29",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 29; held by 1 classes"
+  },
+  {
+   "addr": "180011f50",
+   "name": "CMeshSystem::vf43",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 43; held by 1 classes"
+  },
+  {
+   "addr": "180012470",
+   "name": "CMeshSystem::vf38",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 38; held by 1 classes"
+  },
+  {
+   "addr": "180012d00",
+   "name": "Folded_CMeshSystem::vf1",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 1; shared by 2 unrelated classes at slots [1]"
+  },
+  {
+   "addr": "180012d40",
+   "name": "Folded_CMeshSystem::vf8",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 8; shared by 2 unrelated classes at slots [8]"
+  },
+  {
+   "addr": "180012d80",
+   "name": "Folded_CMeshSystem::vf0",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 0; shared by 2 unrelated classes at slots [0]"
+  },
+  {
+   "addr": "180012ea0",
+   "name": "CModelTypeManager::vf25",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 25; held by 1 classes"
+  },
+  {
+   "addr": "180012ee0",
+   "name": "CModelTypeManager::vf24",
+   "source": "rtti",
+   "evidence": "vtable 180154ab8 slot 24; held by 1 classes"
+  },
+  {
+   "addr": "1800131e0",
+   "name": "CMorphSetData::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013a568 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800168c0",
+   "name": "CSceneSkeletonObjectDesc::vf4",
+   "source": "rtti",
+   "evidence": "vtable 1801558e0 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "180016a20",
+   "name": "CSceneObject::vf0",
+   "source": "rtti",
+   "evidence": "vtable 1801558a0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180016a80",
+   "name": "CSceneObject::vf1",
+   "source": "rtti",
+   "evidence": "vtable 1801558a0 slot 1; held by 2 classes"
+  },
+  {
+   "addr": "180016d80",
+   "name": "CSceneSkeletonObject::vf0",
+   "source": "rtti",
+   "evidence": "vtable 1801558c0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180016dd0",
+   "name": "CInputLayoutRegistration_g_hSkeletonMeshLayout::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180155aa0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180017e90",
+   "name": "CSceneSkeletonObjectDesc::vf1",
+   "source": "rtti",
+   "evidence": "vtable 1801558e0 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "180018240",
+   "name": "CSceneSkeletonObjectDesc::vf23",
+   "source": "rtti",
+   "evidence": "vtable 1801558e0 slot 23; held by 1 classes"
+  },
+  {
+   "addr": "1800186b0",
+   "name": "CMeshUtils::vf11",
+   "source": "rtti",
+   "evidence": "vtable 180155ac0 slot 11; held by 1 classes"
+  },
+  {
+   "addr": "180019c60",
+   "name": "CModel_Imp::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180155b40 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800209c0",
+   "name": "CMorphSetManagerV0::vf29",
+   "source": "rtti",
+   "evidence": "vtable 180155cb8 slot 29; held by 1 classes"
+  },
+  {
+   "addr": "180020a40",
+   "name": "CMorphSetManagerV0::vf25",
+   "source": "rtti",
+   "evidence": "vtable 180155cb8 slot 25; held by 1 classes"
+  },
+  {
+   "addr": "180020a70",
+   "name": "CMorphSetManagerV0::vf24",
+   "source": "rtti",
+   "evidence": "vtable 180155cb8 slot 24; held by 1 classes"
+  },
+  {
+   "addr": "1800215d0",
+   "name": "CMeshRayTrace::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180155e90 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180021a70",
+   "name": "CMeshRayTrace::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180155e90 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "180021b20",
+   "name": "CRenderMeshManager::vf24",
+   "source": "rtti",
+   "evidence": "vtable 180155db0 slot 24; held by 1 classes"
+  },
+  {
+   "addr": "180021b60",
+   "name": "CRenderMeshManager::vf3",
+   "source": "rtti",
+   "evidence": "vtable 180155db0 slot 3; held by 1 classes"
+  },
+  {
+   "addr": "180021c10",
+   "name": "CRenderMeshManager::vf14",
+   "source": "rtti",
+   "evidence": "vtable 180155db0 slot 14; held by 1 classes"
+  },
+  {
+   "addr": "180021c50",
+   "name": "CRenderMeshManager::vf7",
+   "source": "rtti",
+   "evidence": "vtable 180155db0 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "180022970",
+   "name": "CRenderMeshManager::vf19",
+   "source": "rtti",
+   "evidence": "vtable 180155db0 slot 19; held by 1 classes"
+  },
+  {
+   "addr": "180022c00",
+   "name": "CRenderMeshManager::vf13",
+   "source": "rtti",
+   "evidence": "vtable 180155db0 slot 13; held by 1 classes"
+  },
+  {
+   "addr": "180022fe0",
+   "name": "CMeshRayTrace::vf2",
+   "source": "rtti",
+   "evidence": "vtable 180155e90 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "180023450",
+   "name": "CRenderMeshManager::AsyncProcessDataResult::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180155e80 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180026fb0",
+   "name": "CMeshSystem::vf37",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 37; held by 1 classes"
+  },
+  {
+   "addr": "1800279d0",
+   "name": "CMeshSystem::vf27",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 27; held by 1 classes"
+  },
+  {
+   "addr": "180027b10",
+   "name": "CMeshSystem::vf28",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 28; held by 1 classes"
+  },
+  {
+   "addr": "1800284d0",
+   "name": "CMeshSystem::vf19",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 19; held by 1 classes"
+  },
+  {
+   "addr": "180028730",
+   "name": "CMeshSystem::vf20",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 20; held by 1 classes"
+  },
+  {
+   "addr": "180028850",
+   "name": "CMeshSystem::vf22",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 22; held by 1 classes"
+  },
+  {
+   "addr": "180028af0",
+   "name": "CMeshSystem::vf21",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 21; held by 1 classes"
+  },
+  {
+   "addr": "180028e70",
+   "name": "CMeshSystem::vf23",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 23; held by 1 classes"
+  },
+  {
+   "addr": "180029570",
+   "name": "CSyncModelResourceUtils::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180156a08 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180029820",
+   "name": "CMeshSystem::vf34",
+   "source": "rtti",
+   "evidence": "vtable 1801548d0 slot 34; held by 1 classes"
+  },
+  {
+   "addr": "1800300d0",
+   "name": "BinaryProperties_GetValue",
+   "source": "export",
+   "evidence": ""
+  },
+  {
+   "addr": "180030520",
+   "name": "ExtractModuleMetadata",
+   "source": "export",
+   "evidence": ""
+  },
+  {
+   "addr": "180037480",
+   "name": "CEmptySequence::vf51",
+   "source": "rtti",
+   "evidence": "vtable 180138870 slot 51; held by 1 classes"
+  },
+  {
+   "addr": "180037510",
+   "name": "CEmptySequence::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180138870 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180038d60",
+   "name": "CModel::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180138a70 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "180040190",
+   "name": "CRenderMesh::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180138c80 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180048e30",
+   "name": "CRenderMesh::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180138c80 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "18004d150",
+   "name": "CSchemaRegistration_modellib::vf0",
+   "source": "rtti",
+   "evidence": "vtable 1801399d0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "18006d930",
+   "name": "SchemaBind_CBoneConstraintPoseSpaceMorph::Input_t",
+   "source": "qualified",
+   "evidence": "CBoneConstraintPoseSpaceMorph::Input_t"
+  },
+  {
+   "addr": "18006de20",
+   "name": "SchemaBind_CBoneConstraintPoseSpaceBone::Input_t",
+   "source": "qualified",
+   "evidence": "CBoneConstraintPoseSpaceBone::Input_t"
+  },
+  {
+   "addr": "180071620",
+   "name": "CAimConstraint::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013c1e8 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "180071660",
+   "name": "CBoneConstraintBase::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013c058 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800716f0",
+   "name": "CBoneConstraintDotToMorph::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013c380 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800717b0",
+   "name": "CBaseConstraint::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180142c38 slot 4; held by 4 classes"
+  },
+  {
+   "addr": "1800717f0",
+   "name": "Folded_CTwistConstraint::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013c270 slot 4; shared by 2 unrelated classes at slots [4]"
+  },
+  {
+   "addr": "1800724b0",
+   "name": "CTwistConstraint::vf2",
+   "source": "rtti",
+   "evidence": "vtable 18013c270 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "180074d90",
+   "name": "CAimConstraint::vf1",
+   "source": "rtti",
+   "evidence": "vtable 18013c1e8 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "180074ed0",
+   "name": "CBoneConstraintPoseSpaceBone::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180142e50 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "180074f60",
+   "name": "CBoneConstraintRbf::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180142ed8 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "180075040",
+   "name": "CMorphConstraint::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180142d48 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "180075180",
+   "name": "CTiltTwistConstraint::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180142cc0 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "180076740",
+   "name": "CAimConstraint::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013c1e8 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180076770",
+   "name": "CBoneConstraintBase::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013c058 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800767a0",
+   "name": "CBoneConstraintDotToMorph::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013c380 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800767d0",
+   "name": "COrientConstraint::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013c160 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180076800",
+   "name": "CParentConstraint::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013c2f8 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180076830",
+   "name": "CPointConstraint::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013c0d8 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180076860",
+   "name": "CTwistConstraint::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013c270 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180077050",
+   "name": "CBreakLegacyParser::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013c5a0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180078d80",
+   "name": "SchemaBind_CMaterialDrawDescriptor::RigidMeshPart_t",
+   "source": "qualified",
+   "evidence": "CMaterialDrawDescriptor::RigidMeshPart_t"
+  },
+  {
+   "addr": "180079340",
+   "name": "SchemaBind_CSceneObjectData::RTProxyDrawDescriptor_t",
+   "source": "qualified",
+   "evidence": "CSceneObjectData::RTProxyDrawDescriptor_t"
+  },
+  {
+   "addr": "1800a9830",
+   "name": "CModelConfigElement::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013fde0 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800a9870",
+   "name": "CModelConfigElement_AttachedModel::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013fe30 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800a9970",
+   "name": "CModelConfigElement_Command::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180140100 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800a99d0",
+   "name": "CModelConfigElement_RandomColor::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180140010 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800a9a70",
+   "name": "CModelConfigElement_RandomPick::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013fed0 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800a9ab0",
+   "name": "CModelConfigElement_SetBodygroup::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180140060 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800a9af0",
+   "name": "CModelConfigElement_SetBodygroupOnAttachedModels::vf4",
+   "source": "rtti",
+   "evidence": "vtable 1801400b0 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800a9b40",
+   "name": "Folded_CModelConfigElement_SetMaterialGroup::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013ff20 slot 4; shared by 2 unrelated classes at slots [4]"
+  },
+  {
+   "addr": "1800a9b90",
+   "name": "CModelConfigElement_SetRenderColor::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013ffc0 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800a9bd0",
+   "name": "CModelConfigElement_UserPick::vf4",
+   "source": "rtti",
+   "evidence": "vtable 18013fe80 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800aa0f0",
+   "name": "CModelConfigElement::vf2",
+   "source": "rtti",
+   "evidence": "vtable 18013fde0 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "1800aa210",
+   "name": "CModelConfigElement_SetBodygroupOnAttachedModels::vf2",
+   "source": "rtti",
+   "evidence": "vtable 1801400b0 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "1800aa390",
+   "name": "CModelConfigElement_SetMaterialGroup::vf2",
+   "source": "rtti",
+   "evidence": "vtable 18013ff20 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "1800aa4c0",
+   "name": "CModelConfigElement_SetMaterialGroupOnAttachedModels::vf2",
+   "source": "rtti",
+   "evidence": "vtable 18013ff70 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "1800aa600",
+   "name": "CModelConfigElement_UserPick::vf2",
+   "source": "rtti",
+   "evidence": "vtable 18013fe80 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "1800ac230",
+   "name": "CModelConfigElement_Command::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180140100 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800ac380",
+   "name": "CModelConfigElement_RandomColor::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180140010 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800ac540",
+   "name": "CModelConfigElement_RandomPick::vf1",
+   "source": "rtti",
+   "evidence": "vtable 18013fed0 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800ac6a0",
+   "name": "CModelConfigElement_SetBodygroup::vf1",
+   "source": "rtti",
+   "evidence": "vtable 180140060 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800ac7f0",
+   "name": "CModelConfigElement_SetBodygroupOnAttachedModels::vf1",
+   "source": "rtti",
+   "evidence": "vtable 1801400b0 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800ac8c0",
+   "name": "Folded_CModelConfigElement_SetMaterialGroup::vf1",
+   "source": "rtti",
+   "evidence": "vtable 18013ff20 slot 1; shared by 2 unrelated classes at slots [1]"
+  },
+  {
+   "addr": "1800ac940",
+   "name": "CModelConfigElement_SetRenderColor::vf1",
+   "source": "rtti",
+   "evidence": "vtable 18013ffc0 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800aca50",
+   "name": "CModelConfigElement_UserPick::vf1",
+   "source": "rtti",
+   "evidence": "vtable 18013fe80 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800ae290",
+   "name": "CModelConfigElement::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013fde0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae2c0",
+   "name": "CModelConfigElement_AttachedModel::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013fe30 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae2f0",
+   "name": "CModelConfigElement_Command::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180140100 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae320",
+   "name": "CModelConfigElement_RandomColor::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180140010 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae350",
+   "name": "CModelConfigElement_RandomPick::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013fed0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae380",
+   "name": "CModelConfigElement_SetBodygroup::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180140060 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae3b0",
+   "name": "CModelConfigElement_SetBodygroupOnAttachedModels::vf0",
+   "source": "rtti",
+   "evidence": "vtable 1801400b0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae3e0",
+   "name": "CModelConfigElement_SetMaterialGroup::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013ff20 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae410",
+   "name": "CModelConfigElement_SetMaterialGroupOnAttachedModels::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013ff70 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae440",
+   "name": "CModelConfigElement_SetRenderColor::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013ffc0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ae470",
+   "name": "CModelConfigElement_UserPick::vf0",
+   "source": "rtti",
+   "evidence": "vtable 18013fe80 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800b7240",
+   "name": "CAnimSkeleton::vf0",
+   "source": "rtti",
+   "evidence": "vtable 1801426a8 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800b8770",
+   "name": "CAnimSkeleton::vf1",
+   "source": "rtti",
+   "evidence": "vtable 1801426a8 slot 1; held by 1 classes"
+  },
+  {
+   "addr": "1800c3ec0",
+   "name": "CBoneConstraintPoseSpaceBone::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180142e50 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800c3f00",
+   "name": "CBoneConstraintPoseSpaceMorph::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180142dd0 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800c3f40",
+   "name": "CBoneConstraintRbf::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180142ed8 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800c3f80",
+   "name": "CMorphConstraint::vf4",
+   "source": "rtti",
+   "evidence": "vtable 180142d48 slot 4; held by 1 classes"
+  },
+  {
+   "addr": "1800c3fd0",
+   "name": "IPoseAccessor::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180142f58 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800c41c0",
+   "name": "CBoneConstraintBase::vf14",
+   "source": "rtti",
+   "evidence": "vtable 18013c058 slot 14; held by 13 classes"
+  },
+  {
+   "addr": "1800c45d0",
+   "name": "CAimConstraint::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013c1e8 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c4af0",
+   "name": "CBoneConstraintDotToMorph::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013c380 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c4da0",
+   "name": "CBoneConstraintPoseSpaceBone::vf7",
+   "source": "rtti",
+   "evidence": "vtable 180142e50 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c5400",
+   "name": "CBoneConstraintPoseSpaceMorph::vf7",
+   "source": "rtti",
+   "evidence": "vtable 180142dd0 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c5b00",
+   "name": "CBoneConstraintRbf::vf8",
+   "source": "rtti",
+   "evidence": "vtable 180142ed8 slot 8; held by 1 classes"
+  },
+  {
+   "addr": "1800c5bf0",
+   "name": "CBoneConstraintRbf::vf7",
+   "source": "rtti",
+   "evidence": "vtable 180142ed8 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c5f50",
+   "name": "CMorphConstraint::vf7",
+   "source": "rtti",
+   "evidence": "vtable 180142d48 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c6190",
+   "name": "COrientConstraint::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013c160 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c6460",
+   "name": "CParentConstraint::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013c2f8 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c6620",
+   "name": "CPointConstraint::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013c0d8 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c6bb0",
+   "name": "CTwistConstraint::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013c270 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800c8710",
+   "name": "CBaseConstraint::vf9",
+   "source": "rtti",
+   "evidence": "vtable 180142c38 slot 9; held by 6 classes"
+  },
+  {
+   "addr": "1800c88d0",
+   "name": "CBoneConstraintDotToMorph::vf9",
+   "source": "rtti",
+   "evidence": "vtable 18013c380 slot 9; held by 1 classes"
+  },
+  {
+   "addr": "1800c8c70",
+   "name": "CBoneConstraintPoseSpaceBone::vf9",
+   "source": "rtti",
+   "evidence": "vtable 180142e50 slot 9; held by 1 classes"
+  },
+  {
+   "addr": "1800c8ef0",
+   "name": "CBoneConstraintPoseSpaceMorph::vf9",
+   "source": "rtti",
+   "evidence": "vtable 180142dd0 slot 9; held by 1 classes"
+  },
+  {
+   "addr": "1800c91f0",
+   "name": "CBoneConstraintRbf::vf9",
+   "source": "rtti",
+   "evidence": "vtable 180142ed8 slot 9; held by 1 classes"
+  },
+  {
+   "addr": "1800c9b10",
+   "name": "CMorphConstraint::vf9",
+   "source": "rtti",
+   "evidence": "vtable 180142d48 slot 9; held by 1 classes"
+  },
+  {
+   "addr": "1800c9be0",
+   "name": "CTiltTwistConstraint::vf9",
+   "source": "rtti",
+   "evidence": "vtable 180142cc0 slot 9; held by 1 classes"
+  },
+  {
+   "addr": "1800c9cf0",
+   "name": "CBoneConstraintBase::vf6",
+   "source": "rtti",
+   "evidence": "vtable 18013c058 slot 6; held by 13 classes"
+  },
+  {
+   "addr": "1800ca720",
+   "name": "CBaseConstraint::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180142c38 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ca750",
+   "name": "CBoneConstraintPoseSpaceBone::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180142e50 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ca780",
+   "name": "CBoneConstraintPoseSpaceMorph::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180142dd0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ca7b0",
+   "name": "CBoneConstraintRbf::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180142ed8 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ca7e0",
+   "name": "CMorphConstraint::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180142d48 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800ca810",
+   "name": "CTiltTwistConstraint::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180142cc0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800cbd60",
+   "name": "CBaseConstraint::vf15",
+   "source": "rtti",
+   "evidence": "vtable 180142c38 slot 15; held by 9 classes"
+  },
+  {
+   "addr": "1800ccae0",
+   "name": "CModelConfigElement_AttachedModel::vf5",
+   "source": "rtti",
+   "evidence": "vtable 18013fe30 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "1800cd020",
+   "name": "CModelConfigElement_Command::vf5",
+   "source": "rtti",
+   "evidence": "vtable 180140100 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "1800cd150",
+   "name": "CModelConfigElement_RandomColor::vf5",
+   "source": "rtti",
+   "evidence": "vtable 180140010 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "1800cd1b0",
+   "name": "CModelConfigElement_RandomPick::vf5",
+   "source": "rtti",
+   "evidence": "vtable 18013fed0 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "1800cd3a0",
+   "name": "CModelConfigElement_SetBodygroup::vf5",
+   "source": "rtti",
+   "evidence": "vtable 180140060 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "1800cd3f0",
+   "name": "CModelConfigElement_SetMaterialGroup::vf5",
+   "source": "rtti",
+   "evidence": "vtable 18013ff20 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "1800cd470",
+   "name": "CModelConfigElement_SetMaterialGroupOnAttachedModels::vf5",
+   "source": "rtti",
+   "evidence": "vtable 18013ff70 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "1800cd4c0",
+   "name": "CModelConfigElement_UserPick::vf5",
+   "source": "rtti",
+   "evidence": "vtable 18013fe80 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "1800cd650",
+   "name": "CModelConfigElement::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013fde0 slot 7; held by 4 classes"
+  },
+  {
+   "addr": "1800cd6a0",
+   "name": "CModelConfigElement_AttachedModel::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013fe30 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800cd730",
+   "name": "CModelConfigElement_RandomPick::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013fed0 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800cda40",
+   "name": "CModelConfigElement_UserPick::vf7",
+   "source": "rtti",
+   "evidence": "vtable 18013fe80 slot 7; held by 1 classes"
+  },
+  {
+   "addr": "1800cdab0",
+   "name": "CModelConfigElement::vf6",
+   "source": "rtti",
+   "evidence": "vtable 18013fde0 slot 6; held by 8 classes"
+  },
+  {
+   "addr": "1800cdb00",
+   "name": "CModelConfigElement_AttachedModel::vf6",
+   "source": "rtti",
+   "evidence": "vtable 18013fe30 slot 6; held by 1 classes"
+  },
+  {
+   "addr": "1800cde40",
+   "name": "CModelConfigElement_UserPick::vf6",
+   "source": "rtti",
+   "evidence": "vtable 18013fe80 slot 6; held by 1 classes"
+  },
+  {
+   "addr": "1800ce220",
+   "name": "CModelConfigElement::vf8",
+   "source": "rtti",
+   "evidence": "vtable 18013fde0 slot 8; held by 10 classes"
+  },
+  {
+   "addr": "1800ce3d0",
+   "name": "CModelConfigElement_AttachedModel::vf8",
+   "source": "rtti",
+   "evidence": "vtable 18013fe30 slot 8; held by 1 classes"
+  },
+  {
+   "addr": "1800ce9b0",
+   "name": "CModelGamedataModuleMetadataProvider::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180143298 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800e7880",
+   "name": "std::exception::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180144908 slot 0; held by 10 classes"
+  },
+  {
+   "addr": "1800eb2f0",
+   "name": "?$_Func_impl_no_alloc_V<lambda_1>_?M_??RefineNode_RayTracingEnvironment__AEAAXHPEBHHPEBUTriangleBounds_t__V?$Vec3D_M__2HPEAVCUtlMultiJobProcessor___Z_X$$V_std::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180144bf8 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800eb340",
+   "name": "?$_Func_impl_no_alloc_V<lambda_2>_?BJ_??RefineNode_RayTracingEnvironment__AEAAXHPEBHHPEBUTriangleBounds_t__V?$Vec3D_M__2HPEAVCUtlMultiJobProcessor___Z_X$$V_std::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180144c30 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800eb3c0",
+   "name": "?$_Func_impl_no_alloc_V<lambda_1>_?1??SetupAccelerationStructure_RayTracingEnvironment__QEAAXXZ_X$$V_std::vf2",
+   "source": "rtti",
+   "evidence": "vtable 180144c68 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "1800eb470",
+   "name": "?$_Func_impl_no_alloc_V<lambda_1>_?M_??RefineNode_RayTracingEnvironment__AEAAXHPEBHHPEBUTriangleBounds_t__V?$Vec3D_M__2HPEAVCUtlMultiJobProcessor___Z_X$$V_std::vf2",
+   "source": "rtti",
+   "evidence": "vtable 180144bf8 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "1800eb4e0",
+   "name": "?$_Func_impl_no_alloc_V<lambda_2>_?BJ_??RefineNode_RayTracingEnvironment__AEAAXHPEBHHPEBUTriangleBounds_t__V?$Vec3D_M__2HPEAVCUtlMultiJobProcessor___Z_X$$V_std::vf2",
+   "source": "rtti",
+   "evidence": "vtable 180144c30 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "1800eb630",
+   "name": "CBaseIntrospectedToKV3TypeManager::AsyncProcessResult::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180144d30 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1800eb6a0",
+   "name": "CBaseIntrospectedToKV3TypeManager::vf13",
+   "source": "rtti",
+   "evidence": "vtable 180144d40 slot 13; held by 2 classes"
+  },
+  {
+   "addr": "1800eb990",
+   "name": "CBaseIntrospectedToKV3TypeManager::vf19",
+   "source": "rtti",
+   "evidence": "vtable 180144d40 slot 19; held by 2 classes"
+  },
+  {
+   "addr": "1800ebc30",
+   "name": "CBaseIntrospectedToKV3TypeManager::vf14",
+   "source": "rtti",
+   "evidence": "vtable 180144d40 slot 14; held by 3 classes"
+  },
+  {
+   "addr": "1800edce0",
+   "name": "CKV3TransferLoadContext::vf3",
+   "source": "rtti",
+   "evidence": "vtable 180146450 slot 3; held by 1 classes"
+  },
+  {
+   "addr": "1800ede30",
+   "name": "CKV3TransferContextBase::vf1",
+   "source": "rtti",
+   "evidence": "vtable 1801463e0 slot 1; held by 3 classes"
+  },
+  {
+   "addr": "1800edfa0",
+   "name": "CKV3TransferContextBase::vf0",
+   "source": "rtti",
+   "evidence": "vtable 1801463e0 slot 0; held by 3 classes"
+  },
+  {
+   "addr": "1800f8ac0",
+   "name": "Inl_CKeyValues3Array::EnsureElementCapacity",
+   "source": "inlined",
+   "evidence": "CKeyValues3Array::EnsureElementCapacity (referenced by 2)"
+  },
+  {
+   "addr": "1800f8bb0",
+   "name": "CKeyValues3Table::EnsureMemberCapacity",
+   "source": "qualified",
+   "evidence": "CKeyValues3Table::EnsureMemberCapacity"
+  },
+  {
+   "addr": "1800fcff0",
+   "name": "CKeyValues3Array::InsertMultipleBefore",
+   "source": "qualified",
+   "evidence": "CKeyValues3Array::InsertMultipleBefore"
+  },
+  {
+   "addr": "1801003b0",
+   "name": "Inl_CKeyValues3Array::EnsureElementCapacity",
+   "source": "inlined",
+   "evidence": "CKeyValues3Array::EnsureElementCapacity (referenced by 2)"
+  },
+  {
+   "addr": "180100740",
+   "name": "CKV3Arena::Root",
+   "source": "qualified",
+   "evidence": "CKV3Arena::Root"
+  },
+  {
+   "addr": "180101e80",
+   "name": "CreateInterface",
+   "source": "export",
+   "evidence": ""
+  },
+  {
+   "addr": "1801035a0",
+   "name": "CSchemaInstallCallback::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180146ce0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180103680",
+   "name": "CModuleMetadataProvider_ResourceManifests::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180146cf0 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "180103a70",
+   "name": "GetResourceManifestCount",
+   "source": "export",
+   "evidence": ""
+  },
+  {
+   "addr": "180103a80",
+   "name": "GetResourceManifests",
+   "source": "export",
+   "evidence": ""
+  },
+  {
+   "addr": "180103cd0",
+   "name": "InstallSchemaBindings",
+   "source": "export",
+   "evidence": ""
+  },
+  {
+   "addr": "180106984",
+   "name": "type_info::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180147e18 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "18010750c",
+   "name": "Folded_CModel::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180138a70 slot 0; shared by 10 unrelated classes at slots [0, 1, 2, 3, 4, 5]"
+  },
+  {
+   "addr": "18010cf14",
+   "name": "pDNameNode::vf2",
+   "source": "rtti",
+   "evidence": "vtable 180149210 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "18010cf40",
+   "name": "pairNode::vf2",
+   "source": "rtti",
+   "evidence": "vtable 180149260 slot 2; held by 1 classes"
+  },
+  {
+   "addr": "18010ebc4",
+   "name": "pDNameNode::vf3",
+   "source": "rtti",
+   "evidence": "vtable 180149210 slot 3; held by 1 classes"
+  },
+  {
+   "addr": "18010ebf4",
+   "name": "pairNode::vf3",
+   "source": "rtti",
+   "evidence": "vtable 180149260 slot 3; held by 1 classes"
+  },
+  {
+   "addr": "1801107a4",
+   "name": "pDNameNode::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180149210 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1801107cc",
+   "name": "pairNode::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180149260 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1801243a0",
+   "name": "CSpaceAgnosticBoneAccessor::vf0",
+   "source": "rtti",
+   "evidence": "vtable 180150828 slot 0; held by 1 classes"
+  },
+  {
+   "addr": "1801244a0",
+   "name": "CSpaceAgnosticBoneAccessor::vf6",
+   "source": "rtti",
+   "evidence": "vtable 180150828 slot 6; held by 1 classes"
+  },
+  {
+   "addr": "180124550",
+   "name": "CSpaceAgnosticBoneAccessor::vf8",
+   "source": "rtti",
+   "evidence": "vtable 180150828 slot 8; held by 1 classes"
+  },
+  {
+   "addr": "1801247c0",
+   "name": "CSpaceAgnosticBoneAccessor::vf5",
+   "source": "rtti",
+   "evidence": "vtable 180150828 slot 5; held by 1 classes"
+  },
+  {
+   "addr": "180124820",
+   "name": "CSpaceAgnosticBoneAccessor::vf3",
+   "source": "rtti",
+   "evidence": "vtable 180150828 slot 3; held by 1 classes"
+  },
+  {
+   "addr": "180124890",
+   "name": "CSpaceAgnosticBoneAccessor::vf7",
+   "source": "rtti",
+   "evidence": "vtable 180150828 slot 7; held by 1 classes"
+  }
+ ]
+}

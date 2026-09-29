@@ -1,0 +1,28 @@
+{
+ "functions": [
+  {
+   "addr": "180011ba0",
+   "name": "CMeshSystem::GetMeshRayTrace",
+   "module": "s2c:baked/light-keys",
+   "note": "vfn 0xe8: a render mesh's cached CMeshRayTrace, built on first use"
+  },
+  {
+   "addr": "1800119a0",
+   "name": "CMeshSystem::GetTraceData",
+   "module": "s2c:baked/light-keys",
+   "note": "vfn 0xf0: mesh +0x200, the per draw call trace data (TraceDataForDraw_t, 0x70 each)"
+  },
+  {
+   "addr": "180021010",
+   "name": "CMeshRayTrace_ctor",
+   "module": "s2c:baked/light-keys",
+   "note": "per draw call: flags from the material's ten int attributes, TraceVertex_t (0x48) triangles by index, a RayTracingEnvironment"
+  },
+  {
+   "addr": "18000b6c4",
+   "name": "RenderMesh_LoadBlocks",
+   "module": "s2c:baked/light-keys",
+   "note": "loads MRPH and the tools vb block (m_nToolsVBBlock); stock models carry none"
+  }
+ ]
+}

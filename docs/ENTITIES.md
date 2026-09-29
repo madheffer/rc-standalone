@@ -25,8 +25,11 @@ Open:
   - **ze_hold_em_p (baked):** 35 of 37 lights exact. Lights 133 and 136 are
     one float step off in one x value. `precomputed_vis_clusters` is still
     missing on all 37; a baked compile writes it, and it needs visibility.
-  - **atixref:** 104 lights differ in value, because the editor scene lacks
-    static props (below). Their key order is exact.
+  - **atixref:** 22 of 239 lights differ, all omni2; every barn light is
+    exact, and so is every light's key order. One omni2 light (6844) gets no
+    keys because our port refuses its shape. The others differ by whole
+    geometry on some cube faces, most likely the subdivided meshes the scene
+    still traces as raw faces.
 - **World-layer copies (parked):** instance copies inside a world layer ship
   angles 1-2 ulps off.
 - **Prefabs:** instances inside prefabs, and prefabs with
@@ -189,14 +192,32 @@ Keys:
     face flag 4.
   - Mode 2 is the masked front-face trace; flag-8 triangles get a second
     pass.
-  - Static props are in the scene too (`CModelHelper_RaytraceFlags`), their
-    models' LOD 0 render meshes, and not yet added. That is atixref's gap.
-    Other model owners carry 0x4000 and are skipped by the mask.
-    `Model_RayScene` builds a static prop's scene from `MeshSystem001`
-    virtual 0xe8 per selected mesh (`ModelRayScene_Build`): a cached per-mesh
-    ray scene built inside meshsystem.dll, which is not in the Ghidra project
-    yet. The other branch (`FUN_181f10ce0`) is taken only when the model's
-    virtual 0x68 returns data.
+  - **Static props** are in the scene (`EditorTraceScene.StaticPropInstances`),
+    two levels deep as Valve builds them:
+    - The prop's model scene is instanced at the prop's placement, with owner
+      flags 0x80b0000, which the light mask passes. Other model owners carry
+      0x4000 and are skipped.
+    - Inside it, each selected mesh's own scene is instanced at the identity
+      (`ModelRayScene_Build`: `MeshSystem001` virtual 0xe8, meshsystem
+      20260923).
+    - Each level takes the ray into its own space and renormalises it, which
+      moves last bits. That is why nesting mattered: atixref went from 38
+      lights differing to 22.
+  - **A mesh's ray scene** (`CMeshRayTrace`, meshsystem):
+    - It is built from the mesh's trace data (`CMeshSystem` slot 30, mesh
+      +0x200: per draw call a triangle count, 0x48-byte `TraceVertex_t`
+      vertices, index triples and the material).
+    - Each triangle's flags are the material's int attributes. It is the same
+      ten-hash table as resourcecompiler's material vis flags
+      (`TraceScene.MaterialFlags`).
+    - Its acceleration structure is a `RayTracingEnvironment` (the kd tree
+      visibility uses, `TracerKd`).
+    - We read the triangles from the render vertex and index buffers (VRF),
+      draw calls in order and triangles in index order, for the selected
+      meshes: LOD mask 0 or holding LOD 0, and the mesh group mask meeting
+      the model's default (`Model_MeshSelected`). Stock models carry no tools
+      vertex buffer. Where the trace data is filled from is not read yet
+      (ledger 33).
   - Our scene's acceleration structure is our own (a padded bounding-volume
     tree), not Valve's kd tree. Ties between triangles hit at the same
     distance are broken by triangle index, which Valve's walk may not do

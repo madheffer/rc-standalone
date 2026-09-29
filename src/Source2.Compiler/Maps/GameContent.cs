@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using ValvePak;
 using ValveResourceFormat;
 using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.Serialization.KeyValues;
 
 namespace Source2.Compiler.Maps;
 
@@ -139,6 +140,59 @@ public class GameContent : SettleWorld.IModels, IDisposable
             phys = (res.DataBlock as Model)?.GetEmbeddedPhys();
         }
         return _physics[model] = phys;
+    }
+
+    private readonly Dictionary<string, List<List<(System.Numerics.Vector3 A, System.Numerics.Vector3 B, System.Numerics.Vector3 C, string Material)>>> _renderMeshes
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A model's render meshes as the light scene takes them (Model_RayScene,
+    /// Model_MeshSelected), one triangle list per mesh: each embedded mesh
+    /// whose LOD mask is 0 or holds LOD 0 and whose mesh group mask meets the
+    /// model's default, its draw calls in order, each draw call's triangles in
+    /// index order, positions from its first vertex buffer, with the draw
+    /// call's material.
+    /// </summary>
+    public IReadOnlyList<List<(System.Numerics.Vector3 A, System.Numerics.Vector3 B, System.Numerics.Vector3 C, string Material)>> RenderMeshes(string model)
+    {
+        if (_renderMeshes.TryGetValue(model, out var cached))
+            return cached;
+        var meshes = new List<List<(System.Numerics.Vector3, System.Numerics.Vector3, System.Numerics.Vector3, string)>>();
+        Physics(model);
+        if (_models.GetValueOrDefault(model) is { } m)
+        {
+            var groupMasks = m.Data.ContainsKey("m_refMeshGroupMasks")
+                ? m.Data.GetIntegerArray("m_refMeshGroupMasks").Select(v => unchecked((ulong)v)).ToArray() : [];
+            var defaultMask = m.Data.ContainsKey("m_nDefaultMeshGroupMask") ? m.Data.GetUnsignedIntegerProperty("m_nDefaultMeshGroupMask") : ulong.MaxValue;
+            foreach (var (mesh, index, _, lod) in m.GetEmbeddedMeshesAndLoD())
+            {
+                if (lod != 0 && (lod & 1) == 0)
+                    continue;
+                if (index < groupMasks.Length && (groupMasks[index] & defaultMask) == 0)
+                    continue;
+                var vbib = mesh.VBIB;
+                var found = new List<(System.Numerics.Vector3, System.Numerics.Vector3, System.Numerics.Vector3, string)>();
+                meshes.Add(found);
+                foreach (var sceneObject in mesh.Data.GetArray("m_sceneObjects"))
+                    foreach (var call in sceneObject.GetArray("m_drawCalls"))
+                    {
+                        var vb = vbib.VertexBuffers[call.GetArray("m_vertexBuffers")[0].GetInt32Property("m_hBuffer")];
+                        var field = vb.InputLayoutFields.First(f => f.SemanticName == "POSITION");
+                        var positions = ValveResourceFormat.Blocks.VBIB.GetVector3AttributeArray(vb, field);
+                        var ib = vbib.IndexBuffers[call.GetSubCollection("m_indexBuffer").GetInt32Property("m_hBuffer")];
+                        int Index(int i) => ib.ElementSizeInBytes == 2
+                            ? BitConverter.ToUInt16(ib.Data, i * 2) : BitConverter.ToInt32(ib.Data, i * 4);
+                        var start = call.GetInt32Property("m_nStartIndex");
+                        var count = call.GetInt32Property("m_nIndexCount");
+                        var baseVertex = call.GetInt32Property("m_nBaseVertex");
+                        var material = call.GetStringProperty("m_material") ?? "";
+                        for (var i = start; i + 2 < start + count; i += 3)
+                            found.Add((positions[baseVertex + Index(i)], positions[baseVertex + Index(i + 1)],
+                                       positions[baseVertex + Index(i + 2)], material));
+                    }
+            }
+        }
+        return _renderMeshes[model] = meshes;
     }
 
     /// <summary>A smart prop definition's compiled data (.vsmart_c), from loose files or the paks.</summary>

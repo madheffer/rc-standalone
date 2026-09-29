@@ -1413,6 +1413,14 @@ TIER0 = [
 
 # tools/hammer.dll as installed (PE time 2026-09-23 22:00 UTC, file 2026-09-24).
 # Not in Ghidra: read from the PE with capstone; apply_names.py skips it.
+# meshsystem 20260923: the light scene's per-mesh ray scenes (EditorTraceScene static props).
+MESHSYSTEM = [
+    ("180011ba0", "CMeshSystem::GetMeshRayTrace", LIGHTS, "vfn 0xe8: a render mesh's cached CMeshRayTrace, built on first use"),
+    ("1800119a0", "CMeshSystem::GetTraceData", LIGHTS, "vfn 0xf0: mesh +0x200, the per draw call trace data (TraceDataForDraw_t, 0x70 each)"),
+    ("180021010", "CMeshRayTrace_ctor", LIGHTS, "per draw call: flags from the material's ten int attributes, TraceVertex_t (0x48) triangles by index, a RayTracingEnvironment"),
+    ("18000b6c4", "RenderMesh_LoadBlocks", LIGHTS, "loads MRPH and the tools vb block (m_nToolsVBBlock); stock models carry none"),
+]
+
 HAMMER = [
     # compile-map: command line, builder flags, steps.
     ("1800d54d0", "HammerBuild_ApplyPreset", CM, ""),
@@ -1442,4 +1450,5 @@ if __name__ == "__main__":
     write("smartprops_20260923.manual.json", SMARTPROPS)
     write("tier0_20260923.manual.json", TIER0)
     write("hammer_20260924.manual.json", HAMMER)
+    write("meshsystem_20260923.manual.json", MESHSYSTEM)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

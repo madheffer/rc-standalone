@@ -94,7 +94,7 @@ public sealed partial class SettleLumpTests(ITestOutputHelper output)
         var at = Array.FindIndex(parts, p => p.Equals("csgo_addons", StringComparison.OrdinalIgnoreCase));
         var addon = at >= 0 && at + 1 < parts.Length ? Path.Combine(Root, "game", "csgo_addons", parts[at + 1]) : "";
         using var models = new SettleBuildTests.PakModels(pak, addon);
-        return new EditorTraceScene(EditorTraceScene.MapMeshInstances(document, m => TraceScene.MaterialFlags(models.Material(m))));
+        return EditorTraceScene.ForMap(document, models);
     }
 
     [GeneratedRegex(@"^\[prop_physics(_override|_multiplayer)?#\d+\] (origin|angles|spawnflags|phys_start_asleep)[: ]")]
