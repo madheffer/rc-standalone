@@ -111,10 +111,13 @@ game can answer is raised with the user first, and runs with -insecure.
     The incoming order is measured only: on probe01's c2 model each
     mesh's face pairs go in reversed, and mesh 100 swaps faces 4 and 5.
     The builder's input DMX keeps vmap order, so a step between the DMX
-    and the draw sets it (c2 60/64 triangles with the reversed pairs).
+    and the draw sets it (c2 60/64 triangles with the reversed pairs). The
+    likely step is CVisibilityMeshMerger (csgo_core turns on
+    VisibilityGuidedMeshClustering): it re-buckets triangles by the vis
+    clusters that see them, in hash map order (GEOMETRY.md).
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
-    the other nine's material flags but miss `agg_merge`; read
-    `WRBMeshList_GroupAggregates` (18026f590) and the per-cluster lists.
+    the other nine's material flags but miss `agg_merge`; the likely cause
+    is the visibility mesh merger joining them first (GEOMETRY.md).
 36. **Static prop aggregates' meshlet cones**: 44 meshlets in 10 atixref
     agg_prop models have cones that do not follow their index range; the
     prop's own compiled meshlets are the suspect (not read).

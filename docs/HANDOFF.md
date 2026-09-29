@@ -58,7 +58,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | module | doc | state |
 |---|---|---|
 | containers and packaging | [CONTAINERS.md](CONTAINERS.md), [RESOURCES.md](RESOURCES.md) | every container authored; VPK byte for byte; `s2c compile-map` updates a package |
-| geometry | [GEOMETRY.md](GEOMETRY.md) | the trace scene from the .vmap matches every `.rte` triangle on five maps; world nodes: container, codecs, tangent frame and UV density exact, lists and merge rules read, trees from content not started |
+| geometry | [GEOMETRY.md](GEOMETRY.md) | the trace scene from the .vmap matches every `.rte` triangle on five maps (flags and ids too); world nodes: node model trees and container exact on 401 models from a description, codecs, tangent frame, UV density and meshlet descriptors exact; the vis-driven merge that feeds them not ported |
 | visibility | [VISIBILITY.md](VISIBILITY.md) | every stage exact; byte-identical VXVS from the .vmap on three maps |
 | physics | [PHYSICS.md](PHYSICS.md) | world_physics and entity models whole-file exact on every map with a compile |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | every lump exact outside the light keys; the settle exact, sphere and capsule props included |
@@ -105,8 +105,11 @@ carries the same state per item.
    - `-entities` without a package;
    - compiling a map's addon content.
 5. **Geometry:** world nodes and render meshes, the largest remaining
-   module. Start from GEOMETRY.md's open list: the incoming triangle
-   order (GROUND_TRUTH 34), then aggregation on probe01 (35).
+   module. Node model trees are exact from a description
+   (WorldNodeModelTrees); what feeds them is next: port
+   CVisibilityMeshMerger (GEOMETRY.md; csgo_core's gameinfo turns on
+   visibility-guided clustering), which should settle the triangle order
+   (GROUND_TRUTH 34), probe01's aggregation (35) and the cluster indices.
 6. **Baked halves:** the scene vrad3 gets, then a tracer scored per luxel.
 
 Pre-cleanup notes (the old VIS.md lab notebook, RE_NOTES, MAP_RESOURCES and

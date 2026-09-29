@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20260928_1.41.8.5.md): 426 tracked addresses: identical 426
-- 626 addresses
+- 628 addresses
 
 ### s2c:baked/light-keys
 
@@ -904,7 +904,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `18020d860` | `Material_VisFlags` | material int attributes by murmur hash as triangle flags |  |
-| `180234180` | `CVisibilityMeshMerger::MergeMeshes` |  |  |
+| `180230df0` | `CVisibilityMeshMerger_AddToBucket` | a whole member appended to a bucket |  |
+| `180231200` | `CVisibilityMeshMerger_SplitByTriangleMembership` | a member seen from several vis clusters: each triangle to the bucket of its own cluster set |  |
+| `180234180` | `CVisibilityMeshMerger::MergeMeshes` | visdrivenclustering.cpp: groups (seed = last entry, then CanMerge from the front, up to 300000 indices), each member bucketed by its vis cluster set (whole, or per triangle via 180231200), buckets merged in a thread pool job |  |
 | `180252ae0` | `WRB_MeshEntryFlags` | material flags into a mesh entry | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:10` |
 | `180259130` | `WRB_TriangleInSkipBox` | whether a triangle lies in one of those boxes; the emitter then skips it |  |
 | `1802597d0` | `WRB_RteSkipBoxes` | oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified |  |

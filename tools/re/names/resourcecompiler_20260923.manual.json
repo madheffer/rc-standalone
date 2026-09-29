@@ -838,7 +838,19 @@
    "addr": "180234180",
    "name": "CVisibilityMeshMerger::MergeMeshes",
    "module": "s2c:visibility",
-   "note": ""
+   "note": "visdrivenclustering.cpp: groups (seed = last entry, then CanMerge from the front, up to 300000 indices), each member bucketed by its vis cluster set (whole, or per triangle via 180231200), buckets merged in a thread pool job"
+  },
+  {
+   "addr": "180231200",
+   "name": "CVisibilityMeshMerger_SplitByTriangleMembership",
+   "module": "s2c:visibility",
+   "note": "a member seen from several vis clusters: each triangle to the bucket of its own cluster set"
+  },
+  {
+   "addr": "180230df0",
+   "name": "CVisibilityMeshMerger_AddToBucket",
+   "module": "s2c:visibility",
+   "note": "a whole member appended to a bucket"
   },
   {
    "addr": "18024d710",

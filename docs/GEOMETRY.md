@@ -181,8 +181,15 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   flags, material, overlay order, object flags, lighting mode, stream
   layout, cubemap, light probe, fade, the +0x1c8 matrix within 1e-5, and
   more. With visibility-guided clustering the merging is
-  `CVisibilityMeshMerger::MergeMeshes` instead, per mesh list, by the vis
-  clusters that see each mesh. On probe01 meshes 101, 100, 102 and 107
+  `CVisibilityMeshMerger::MergeMeshes` instead (visdrivenclustering.cpp),
+  per mesh list: groups are formed by taking the last remaining entry as
+  seed and sweeping the list from the front for entries `CanMerge` accepts
+  (up to 300,000 indices); an "init bounds" pass gives each member the vis
+  clusters it touches; a member in one cluster goes whole into the bucket
+  keyed by that cluster set, a member in several is split triangle by
+  triangle into the buckets of each triangle's set; the buckets (a hash map
+  keyed by the set) are merged into entries by a thread pool job. This is
+  where triangle order, merges and clusters come from (not ported). On probe01 meshes 101, 100, 102 and 107
   end up in one c2 model while the other nine dev meshes are aggregated;
   the vis merger joining those four (so the merged entry no longer
   aggregates) is the likely reason, not read yet.
