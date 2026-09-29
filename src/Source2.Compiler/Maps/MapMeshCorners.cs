@@ -46,6 +46,13 @@ internal static class MapMeshCorners
     /// their world positions.
     /// </remarks>
     public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords = true, Func<Vector3, Vector3>? cutSpace = null)
+        => Build(mesh, shiftTexcoords, cutSpace, withTangent: false);
+
+    /// <summary>
+    /// As above; <paramref name="withTangent"/> keeps the tangent stream after
+    /// the normal (the render path's mesh, not the physics weld's).
+    /// </summary>
+    public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords, Func<Vector3, Vector3>? cutSpace, bool withTangent)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
@@ -64,7 +71,7 @@ internal static class MapMeshCorners
         foreach (var s in data.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams") ?? [])
         {
             var name = s.Name.Split(':')[0];
-            if (name == "tangent")
+            if (name == "tangent" && !withTangent)
                 continue;
             var values = s.Get<object?[]>("data") ?? [];
             streams.Add((name, values, Width(values)));
@@ -76,7 +83,7 @@ internal static class MapMeshCorners
         for (var t = 0; t < texcoords.Count; t++)
             streams[texcoords[t].i] = (streams[texcoords[t].i].Name, uvData[t], streams[texcoords[t].i].Count);
         // The short layout: first texcoord, normal, per-vertex lighting.
-        streams = [.. new[] { "texcoord", "normal", "PerVertexLighting" }
+        streams = [.. (withTangent ? new[] { "texcoord", "normal", "tangent", "PerVertexLighting" } : new[] { "texcoord", "normal", "PerVertexLighting" })
             .Select(n => streams.FirstOrDefault(x => x.Name == n)).Where(x => x.Name != null)];
         var layout = new List<Physics.MeshWeld.Stream> { new("position", 0, 3, false, 42) };
         var stride = 3;
