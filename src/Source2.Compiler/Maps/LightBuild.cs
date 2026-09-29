@@ -283,6 +283,41 @@ public static class LightBuild
     }
 
     /// <summary>
+    /// FUN_181296730: a capsule luminaire, type 4, or 5 with caps. Its ends are
+    /// the position -+ halfLength along the orientation's y (Matrix3x4_Rotate,
+    /// then the position added); its axes are the orientation's forward and
+    /// up. Area and the cap share are grouped as the binary groups them.
+    /// </summary>
+    public static void CapsuleLuminaire(LightShape l, float radius, float halfLength, bool capped)
+    {
+        l.Type = 4;
+        var q = l.Orientation;
+        var m = LightMath.QuatMatrix34(q, Vector3.Zero);
+        var position = l.V3(0x90);
+        var a = LightMath.Rotate34(m, new Vector3(0f, -halfLength, 0f));
+        l.SetV3(0xf0, new Vector3(a.X + position.X, a.Y + position.Y, a.Z + position.Z));
+        var b = LightMath.Rotate34(m, new Vector3(0f, halfLength, 0f));
+        l.SetV3(0xfc, new Vector3(b.X + position.X, b.Y + position.Y, b.Z + position.Z));
+        l.SetV3(0x108, LightMath.Forward(q));
+        l.SetV3(0x114, LightMath.Up(q));
+        var squared = radius * radius;
+        var area = radius * halfLength;
+        l[0x120] = radius;
+        l[0x124] = 0f;
+        if (capped)
+        {
+            l.Type = 5;
+            var caps = squared * 6.2831855f;
+            area = squared * 0.5f + area;
+            l[0x124] = caps / ((halfLength + halfLength) * (radius * 6.2831855f) + caps);
+        }
+        var k = 1f / area;
+        l[0xc0] = k;
+        if (l[0x9c] != 0f)
+            l[0xc0] = l[0x9c] * k;
+    }
+
+    /// <summary>
     /// The barn half of FUN_180eea510, in the light's own space: soft edges,
     /// shape, skirt, position, the flat falloffs, frustum and its inverse and
     /// opening plane, then the luminaire (1 disc, 2 rectangle).

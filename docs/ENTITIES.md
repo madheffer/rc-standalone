@@ -22,14 +22,15 @@ Open:
 - **Light keys:** the precomputed shape keys and, when baked, the shadow
   slot keys are in the lump (the lights are still a documented gap in the
   lump test while these close):
-  - **ze_hold_em_p (baked):** 35 of 37 lights exact. Lights 133 and 136 are
-    one float step off in one x value. `precomputed_vis_clusters` is still
-    missing on all 37; a baked compile writes it, and it needs visibility.
-  - **atixref:** 22 of 239 lights differ, all omni2; every barn light is
-    exact, and so is every light's key order. One omni2 light (6844) gets no
-    keys because our port refuses its shape. The others differ by whole
-    geometry on some cube faces, most likely the subdivided meshes the scene
-    still traces as raw faces.
+  - **ze_hold_em_p (baked):** every light's shape keys are exact.
+    `precomputed_vis_clusters` is still missing on all 37; a baked compile
+    writes it, and it needs visibility.
+  - **atixref:** 236 of 239 lights exact, key order included. Omni2 lights
+    7306, 7318 and 7348 are each off by 0.01 to 0.03 on one cube face.
+    Traced with `LightRayProbe`, 7306's face 4 comes down to single rays
+    grazing prop geometry: the one that reaches Valve's bound lands on a
+    box's corner edge (local 6.00, -6.00). No single prop or material
+    explains it (GROUND_TRUTH 31).
 - **World-layer copies (parked):** instance copies inside a world layer ship
   angles 1-2 ulps off.
 - **Prefabs:** instances inside prefabs, and prefabs with
@@ -203,6 +204,20 @@ Keys:
     - Each level takes the ray into its own space and renormalises it, which
       moves last bits. That is why nesting mattered: atixref went from 38
       lights differing to 22.
+  - **A map mesh's faces** go in as `RayScene_AddFace` adds them
+    (`MeshTessellation.RayScene`):
+    - A face whose first corner has no subdivision level is the polygon the
+      physics cut takes: its corners from the first half-edge, with 2^level
+      lerped points on each edge a subdivided neighbour splits, cut by the
+      polygon triangulator.
+    - A subdivided face is one displaced patch grid per corner at that
+      corner's own level, each cell as [a, (r, c+1), b] then [a, b, (r+1, c)]
+      (`MeshTessellation_PatchIndices`). Nothing is stitched, and a level
+      above 5 adds nothing.
+    - Unwelded, faces in order, winding (0, 1, 2). A mesh under a
+      `CMapDeformer` is moved through the lattice and wound (2, 1, 0) when
+      the deformer says so; that path is not ported (no specimen has one).
+    - Tracing subdivided faces this way took atixref from 22 lights off to 4.
   - **A mesh's ray scene** (`CMeshRayTrace`, meshsystem):
     - It is built from the mesh's trace data (`CMeshSystem` slot 30, mesh
       +0x200: per draw call a triangle count, 0x48-byte `TraceVertex_t`

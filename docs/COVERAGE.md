@@ -81,7 +81,7 @@ says so.
 |---|---|---|
 | `-world` | Build world | refused by compile-map: render geometry and world nodes not started |
 | `-entities` | Entities Only | compile-map: the lumps; exact on every pinned map except the lights' and probe volumes' bake keys |
-| `-nosettle` | Pre-Settle physics objects (unticked) | compile-map: skips the settle (the settle does not port props with sphere or capsule shapes yet) |
+| `-nosettle` | Pre-Settle physics objects (unticked) | compile-map: skips the settle |
 | `-tileMeshBaseGeometry` | Only base tile mesh geometry | not read |
 | `-deformables forced`, `-deformables none` | pairing not read | not read |
 | `-rebake_surfacegraph` | Build World Dynamic Surface Effects; Rebake All Surface Effects From Scratch ( recommended ) | not read |

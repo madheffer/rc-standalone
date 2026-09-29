@@ -169,6 +169,13 @@ public sealed class EditorTraceScene : ILightTracer
         m[8] *= s.X; m[9] *= s.Y; m[10] *= s.Z;
     }
 
+    /// <summary>
+    /// A mesh node's triangles in its own space, as RayScene_AddFace adds them
+    /// (<see cref="MeshTessellation.RayScene"/>): faces with a negative
+    /// material or flags 1 or 2 are left out; each triangle carries its
+    /// material's flag word (0 past the material list), with 0x20 for face
+    /// flag 4.
+    /// </summary>
     private static List<(Vector3, Vector3, Vector3, ushort)> LocalTriangles(DmxBinary.Element node, Func<string, ushort> materialFlags)
     {
         var found = new List<(Vector3, Vector3, Vector3, ushort)>();
@@ -177,36 +184,24 @@ public sealed class EditorTraceScene : ILightTracer
             return found;
         object?[] Stream(string group, string name) => data.Get<DmxBinary.Element>(group)?.GetElements("streams")
             .FirstOrDefault(st => st.Name.StartsWith(name + ":", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [];
-        int[] Ints(string name) => (data.Get<object?[]>(name) ?? []).Select(x => x is int i ? i : -1).ToArray();
-        var positions = Stream("vertexData", "position");
         var materials = Stream("faceData", "materialindex").Select(x => x is int i ? i : -1).ToArray();
         var faceFlags = Stream("faceData", "flags").Select(x => x is int i ? i : 0).ToArray();
         var names = (data.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").ToArray();
-        var next = Ints("edgeNextIndices");
-        var to = Ints("edgeVertexIndices");
-        var first = Ints("faceEdgeIndices");
         var flagsOf = new Dictionary<int, ushort>();
-        for (var f = 0; f < first.Length; f++)
+        ushort? Flags(int f)
         {
             var m = f < materials.Length ? materials[f] : -1;
             var ff = f < faceFlags.Length ? faceFlags[f] : 0;
-            if (m < 0 || m >= names.Length || (ff & 3) != 0)
-                continue;
+            if (m < 0 || (ff & 3) != 0)
+                return null;
             if (!flagsOf.TryGetValue(m, out var mf))
-                flagsOf[m] = mf = materialFlags(names[m]);
-            var tf = (ushort)((ff & 4) != 0 ? mf | 0x20 : mf);
-            var corners = new List<Vector3>();
-            var e = first[f];
-            do
-            {
-                corners.Add((Vector3)positions[to[e]]!);
-                e = next[e];
-            }
-            while (e != first[f] && corners.Count <= next.Length);
-            var tri = PolygonTriangulator.Triangulate([.. corners]);
-            for (var k = 0; k + 2 < tri.Length; k += 3)
-                found.Add((corners[tri[k]], corners[tri[k + 1]], corners[tri[k + 2]], tf));
+                flagsOf[m] = mf = m < names.Length ? materialFlags(names[m]) : (ushort)0;
+            return (ushort)((ff & 4) != 0 ? mf | 0x20 : mf);
         }
+        var (corners, faces) = MeshTessellation.RayScene(data);
+        for (var t = 0; t < faces.Count; t++)
+            if (Flags(faces[t]) is { } tf)
+                found.Add((corners[3 * t], corners[(3 * t) + 1], corners[(3 * t) + 2], tf));
         return found;
     }
 

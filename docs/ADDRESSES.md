@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20260928_1.41.8.5.md): 426 tracked addresses: identical 426
-- 577 addresses
+- 580 addresses
 
 ### s2c:baked/light-keys
 
@@ -177,7 +177,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180251040` | `Matrix4x4_Project` | a point through the 4x4, divided by w | `src/Source2.Compiler/Maps/LightTrace.cs:41` |
 | `180dd2630` | `EntityClass_HasStaticProp` | class metadata key static_prop |  |
 | `180ee9e30` | `LightBuild_TransformVolume` |  | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
-| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Maps/LightBuild.cs:6`, `src/Source2.Compiler/Maps/LightBuild.cs:286`, `src/Source2.Compiler/Maps/LightPrecompute.cs:68` +1 |
+| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Maps/LightBuild.cs:6`, `src/Source2.Compiler/Maps/LightBuild.cs:321`, `src/Source2.Compiler/Maps/LightPrecompute.cs:68` +1 |
 | `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:107` |
 | `180eed3c0` | `Light_BrightnessFromUnits` | intensity from brightness_units 0..4, else 0 |  |
 | `180eedfe0` | `Light_LegacyDescriptionAt` | step matrix, then Light_LegacyDescription |  |
@@ -243,6 +243,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181270250` | `Obb_NearestPoint` | clamps the local coordinates to the extents | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:339` |
 | `181270590` | `Obb_OverlapsObb` | 15-axis separating axis test, thresholds zero | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:294`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:355` |
 | `181271420` | `Obb_ReachesSphere` | nearest box point within the radius | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:294`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:339` |
+| `18128ca90` | `RayScene_Winding` | (0,1,2), or (2,1,0) when the deformer's +0x70 is set |  |
 | `181292560` | `Light_AtInfinityTestInner` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:40` |
 | `181292ce0` | `LightBuild_OpeningPlane` |  | `src/Source2.Compiler/Maps/LightBuild.cs:63` |
 | `1812933b0` | `LightRecord_ConeRatio` | 0xe0 / 0xe4, or -1.1 / 1.1 when 0xe4 is 0 |  |
@@ -250,11 +251,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812938f0` | `LightUnits_LuminaireArea` | by luminaire type at +0xec |  |
 | `181293b30` | `LightRecord_FalloffRange` | -a/b of the distance falloff when w and b are nonzero, else FLT_MAX |  |
 | `181293b70` | `LightTrace_BarnShape` | the barn's cross-section at a clip point | `src/Source2.Compiler/Maps/LightTrace.cs:124` |
-| `181294fc0` | `LightSampler_Ray` | one ray for four Halton numbers; the reach | `src/Source2.Compiler/Maps/LightSampler.cs:7`, `src/Source2.Compiler/Maps/LightSampler.cs:116`, `src/Source2.Compiler/Maps/LightSampler.cs:214` |
+| `181294fc0` | `LightSampler_Ray` | one ray for four Halton numbers; the reach | `src/Source2.Compiler/Maps/LightSampler.cs:7`, `src/Source2.Compiler/Maps/LightSampler.cs:173`, `src/Source2.Compiler/Maps/LightSampler.cs:271` |
 | `181296170` | `LightBuild_DiscLuminaire` | type 2 | `src/Source2.Compiler/Maps/LightBuild.cs:207` |
 | `181296340` | `LightBuild_RectLuminaire` | type 1 | `src/Source2.Compiler/Maps/LightBuild.cs:177` |
 | `1812966c0` | `LightBuild_SphereLuminaire` | type 3 | `src/Source2.Compiler/Maps/LightBuild.cs:273` |
-| `181296730` | `LightBuild_CapsuleLuminaire` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:108` |
+| `181296730` | `LightBuild_CapsuleLuminaire` | type 4, or 5 capped; LightBuild.CapsuleLuminaire | `src/Source2.Compiler/Maps/LightBuild.cs:286` |
 | `181296a50` | `Light_AtInfinityTest` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:40` |
 | `181297ed0` | `LightBuild_BarnPosition` | homogeneous | `src/Source2.Compiler/Maps/LightBuild.cs:39` |
 | `181298050` | `LightBuild_LuminaireSize` | half extents from degrees | `src/Source2.Compiler/Maps/LightBuild.cs:136` |
@@ -262,7 +263,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181298a90` | `LightOmni_FaceJumpTable` | data: jump table in LightOmni_Records, face rotations | `src/Source2.Compiler/Maps/LightOmni.cs:26` |
 | `181298aa8` | `LightOmni_FaceJumpTable2` | data: jump table, second pass rows | `src/Source2.Compiler/Maps/LightOmni.cs:26` |
 | `181298c00` | `LightUnits_SolidAngle` | pi for 1/2; 2 pi (1 - mean cos) for 3/4/5; else 0 |  |
-| `181299bc0` | `LightSampler_CapsulePoint` | capsule luminaires; not ported | `src/Source2.Compiler/Maps/LightSampler.cs:75` |
+| `181299bc0` | `LightSampler_CapsulePoint` | caps then side; never scaled by the radius | `src/Source2.Compiler/Maps/LightSampler.cs:85` |
 | `18129a0e0` | `LightSampler_LuminairePoint` | a point on the luminaire and its normal | `src/Source2.Compiler/Maps/LightSampler.cs:24` |
 | `18129a5b0` | `LightBuild_ShapeCurve` | shape key into [0.125, 1] | `src/Source2.Compiler/Maps/LightBuild.cs:93` |
 | `18129a5f0` | `LightBuild_Skirt` | reciprocal fade lengths | `src/Source2.Compiler/Maps/LightBuild.cs:106` |
@@ -270,13 +271,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18129a6e0` | `LightUnits_BarnScale` | 1 / (r / (sqrt(r) + d)^2) from record +0xc |  |
 | `18129a760` | `LightBuild_BarnMatrix` | the barn's frustum down x | `src/Source2.Compiler/Maps/LightBuild.cs:15` |
 | `18129a8d0` | `LightBuild_TransformRecord` | the record moved by a 3x4 | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
-| `1813ccd20` | `RayScene_AddFace` | skips faces with flag & 3 or no material | `src/Source2.Compiler/Maps/EditorTraceScene.cs:73` |
+| `1813c3b60` | `MeshTessellation_PatchIndices` | a patch grid's cells as [a, right, b], [a, b, below] | `src/Source2.Compiler/Maps/MeshTessellation.cs:51` |
+| `1813c7970` | `MeshTessellation_FaceLevel` | the level of the face's first corner |  |
+| `1813ccd20` | `RayScene_AddFace` | MeshTessellation.RayScene: polygons with neighbour edge points, patches unstitched | `src/Source2.Compiler/Maps/EditorTraceScene.cs:73`, `src/Source2.Compiler/Maps/MeshTessellation.cs:42` |
 | `1813ce820` | `MapMeshGeometry_BuildRayScene` | rebuilds the mesh scene when its geometry sums change |  |
 | `181c02a20` | `RayScene_TracePacket` | per-scene dispatch on mode; regroups lanes of mixed signs |  |
 | `181c065f0` | `RayScene_TraceMode1` | keeps hits with denom > 0 unless flag 2 |  |
-| `181c0a000` | `RayScene_TraceMode2` | keeps hits with denom < 0 unless flag 2; \|denom\| > 1e-10; triangle skipped on mask & flags | `src/Source2.Compiler/Maps/EditorTraceScene.cs:288`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:460` |
-| `181c10ea0` | `RayScene_TraceInstances` | ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance | `src/Source2.Compiler/Maps/EditorTraceScene.cs:274`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:288` |
-| `181c12720` | `Matrix3x4_TransformPoints4` | t + ((x m0 + y m1) + z m2) per row, four lanes | `src/Source2.Compiler/Maps/EditorTraceScene.cs:274` |
+| `181c0a000` | `RayScene_TraceMode2` | keeps hits with denom < 0 unless flag 2; \|denom\| > 1e-10; triangle skipped on mask & flags | `src/Source2.Compiler/Maps/EditorTraceScene.cs:283`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:455` |
+| `181c10ea0` | `RayScene_TraceInstances` | ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance | `src/Source2.Compiler/Maps/EditorTraceScene.cs:269`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:283` |
+| `181c12720` | `Matrix3x4_TransformPoints4` | t + ((x m0 + y m1) + z m2) per row, four lanes | `src/Source2.Compiler/Maps/EditorTraceScene.cs:269` |
 | `181c13ac0` | `RayScene_AddInstance` | 0xd0-byte instance of a child scene | `src/Source2.Compiler/Maps/EditorTraceScene.cs:13` |
 | `181c14020` | `RayScene_AddTriangles` |  |  |
 | `181c14800` | `CacheOptimizedTriangle_FromCorners` | same record as visbuilder 180118e90 |  |
@@ -288,7 +291,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181c1bf10` | `RayBatch_Add` | files a segment by delta sign octant; traces a full packet |  |
 | `181c1c3c0` | `RayBatch_FlushSecond` |  |  |
 | `181c1c530` | `RayBatch_Flush` | pads short packets with the first ray |  |
-| `181c1d010` | `RayBatch_TracePacket` | dir = delta * refined rcpps(len); mode 1/2/else then the instance pass; hit beyond len dropped | `src/Source2.Compiler/Maps/EditorTraceScene.cs:287` |
+| `181c1d010` | `RayBatch_TracePacket` | dir = delta * refined rcpps(len); mode 1/2/else then the instance pass; hit beyond len dropped | `src/Source2.Compiler/Maps/EditorTraceScene.cs:282` |
 | `181f045c0` | `Model_RayScene` | a model's scene: its LOD 0 meshes' MeshSystem ray data, instanced |  |
 | `181f06ff0` | `Model_MeshSelected` | LOD 0 (or no LOD) and the mesh group mask |  |
 | `181f110c0` | `ModelRayScene_Build` | per mesh MeshSystem001 vf 0xe8, instanced at identity |  |
@@ -537,7 +540,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18137a900` | `HalfEdge_NewTwinPair` | first allocated first | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:168` |
 | `181382170` | `HalfEdge_CollapseEdge` | generic half-edge lib: edge collapse | `src/Source2.Compiler/Maps/SubdivisionBake.cs:250` |
 | `181384470` | `HalfEdge_CollapseInnerFace` | inner face collapsed to its centre | `src/Source2.Compiler/Maps/SubdivisionBake.cs:248` |
-| `1813858d0` | `MeshTessellation_WeldExact` | equal positions bit for bit are one vertex, first met | `src/Source2.Compiler/Maps/MeshTessellation.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:449` |
+| `1813858d0` | `MeshTessellation_WeldExact` | equal positions bit for bit are one vertex, first met | `src/Source2.Compiler/Maps/MeshTessellation.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:488` |
 | `18138be80` | `HalfEdge_Corner` | the half-edge of a face ending at a vertex | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:152` |
 | `18138e6e0` | `HalfEdge_Lib_18138e6e0` | called by the bake |  |
 | `18138f230` | `HalfEdge_EdgeInFace` | edge between two vertices in a face |  |
@@ -556,21 +559,21 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1813a7d00` | `HalfEdge_MergeFaces` | generic half-edge lib |  |
 | `1813a8ae0` | `HalfEdge_MergeVertices` | post-bake weld, tol 0x358637bd; not ported |  |
 | `1813b7750` | `SubdivisionBake_PatchPositions` | per-face patch grid of positions |  |
-| `1813b82f0` | `SubdivisionBake_PatchPaint` | per-face patch grid of paint | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:61`, `src/Source2.Compiler/Maps/MeshTessellation.cs:357` +1 |
+| `1813b82f0` | `SubdivisionBake_PatchPaint` | per-face patch grid of paint | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:83`, `src/Source2.Compiler/Maps/MeshTessellation.cs:393` +1 |
 | `1813ba570` | `HalfEdge_SplitBetween` | point at t by arc length along the edge chain; reuses ends within 0.01 | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:265`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:13` |
-| `1813baa40` | `SubdivisionBake_Bake` | splits faces level by level, lower first | `src/Source2.Compiler/Maps/MeshTessellation.cs:42`, `src/Source2.Compiler/Maps/MeshTessellation.cs:61`, `src/Source2.Compiler/Maps/MeshTessellation.cs:149` +2 |
-| `1813bc230` | `MeshTessellation_PatchFrame` | patch frame: columns B, T, N | `src/Source2.Compiler/Maps/MeshTessellation.cs:323` |
-| `1813bcc40` | `MeshTessellation_PatchGrid` | the patch's grid of cells | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:19`, `src/Source2.Compiler/Maps/MeshTessellation.cs:398` |
-| `1813bda20` | `MeshTessellation_CornerPatch` | one quad patch per corner | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:17`, `src/Source2.Compiler/Maps/MeshTessellation.cs:398` |
-| `1813be320` | `MeshTessellation_CornerPaint` | each corner times 1/m in loop order | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:66`, `src/Source2.Compiler/Maps/MeshTessellation.cs:357` +1 |
-| `1813c1cc0` | `MeshTessellation_PaintValues` |  | `src/Source2.Compiler/Maps/MeshTessellation.cs:364` |
-| `1813c26a0` | `MeshTessellation_Stitch` | patch to a finer neighbour (the ray-trace scene's path) | `src/Source2.Compiler/Maps/MeshTessellation.cs:20`, `src/Source2.Compiler/Maps/MeshTessellation.cs:518` |
+| `1813baa40` | `SubdivisionBake_Bake` | splits faces level by level, lower first | `src/Source2.Compiler/Maps/MeshTessellation.cs:64`, `src/Source2.Compiler/Maps/MeshTessellation.cs:83`, `src/Source2.Compiler/Maps/MeshTessellation.cs:171` +2 |
+| `1813bc230` | `MeshTessellation_PatchFrame` | patch frame: columns B, T, N | `src/Source2.Compiler/Maps/MeshTessellation.cs:359` |
+| `1813bcc40` | `MeshTessellation_PatchGrid` | the patch's grid of cells | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:19`, `src/Source2.Compiler/Maps/MeshTessellation.cs:434` |
+| `1813bda20` | `MeshTessellation_CornerPatch` | one quad patch per corner | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:17`, `src/Source2.Compiler/Maps/MeshTessellation.cs:434` |
+| `1813be320` | `MeshTessellation_CornerPaint` | each corner times 1/m in loop order | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:88`, `src/Source2.Compiler/Maps/MeshTessellation.cs:393` +1 |
+| `1813c1cc0` | `MeshTessellation_PaintValues` |  | `src/Source2.Compiler/Maps/MeshTessellation.cs:400` |
+| `1813c26a0` | `MeshTessellation_Stitch` | patch to a finer neighbour (the ray-trace scene's path) | `src/Source2.Compiler/Maps/MeshTessellation.cs:20`, `src/Source2.Compiler/Maps/MeshTessellation.cs:557` |
 | `1813c64d0` | `SubdivisionBake_Step_1813c64d0` | called by the bake after the split |  |
 | `1813c7a40` | `SubdivisionBake_FaceLevel` |  |  |
-| `1813c7ae0` | `MeshTessellation_LevelAcross` | level across a half-edge, 0 where no face | `src/Source2.Compiler/Maps/MeshTessellation.cs:123` |
-| `1813c7b90` | `MeshTessellation_Displace` | patch points moved by their displacement | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:322` |
+| `1813c7ae0` | `MeshTessellation_LevelAcross` | level across a half-edge, 0 where no face | `src/Source2.Compiler/Maps/MeshTessellation.cs:145` |
+| `1813c7b90` | `MeshTessellation_Displace` | patch points moved by their displacement | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:49`, `src/Source2.Compiler/Maps/MeshTessellation.cs:358` |
 | `1813c94f0` | `SubdivisionBake_WriteBack` | grid write-back to +0xd0 positions / +0xb20 paint | `src/Source2.Compiler/Maps/SubdivisionBake.cs:78` |
-| `1813ca560` | `SubdivisionBake_SplitFace` | quad branch recurses corners 0,1,3,2 | `src/Source2.Compiler/Maps/MeshTessellation.cs:46`, `src/Source2.Compiler/Maps/MeshTessellation.cs:292`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:12` +1 |
+| `1813ca560` | `SubdivisionBake_SplitFace` | quad branch recurses corners 0,1,3,2 | `src/Source2.Compiler/Maps/MeshTessellation.cs:68`, `src/Source2.Compiler/Maps/MeshTessellation.cs:328`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:12` +1 |
 
 ### s2c:geometry/world-nodes
 
@@ -624,9 +627,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184` |
-| `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:192` |
+| `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:249` |
 | `1802b1ff0` | `CMesh_TransformByMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:13` |
-| `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:65`, `src/Source2.Compiler/Maps/MeshTessellation.cs:475` |
+| `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:87`, `src/Source2.Compiler/Maps/MeshTessellation.cs:514` |
 | `1811145c0` | `AngleMatrixDouble` | sines and cosines in double | `src/Source2.Compiler/Maps/SettleWorld.cs:234`, `src/Source2.Compiler/Maps/SettleWorld.cs:335` |
 | `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.cs:482`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:44` |
 | `181253780` | `CTransform_Invert` | scale 1 path | `src/Source2.Compiler/Maps/CTransform.cs:38`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:57` |
@@ -635,9 +638,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181256bf0` | `PointLineDistanceSquared` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:199`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:207` |
 | `181256f30` | `PointSegmentDistance` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
 | `181258890` | `ConcatTransforms` | SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0) | `src/Source2.Compiler/Maps/LightMath.cs:90`, `src/Source2.Compiler/Maps/MapMeshes.cs:230` |
-| `18125a6c0` | `Vector_Basis` | Frisvad's basis with the sign of z | `src/Source2.Compiler/Maps/LightSampler.cs:204` |
+| `18125a6c0` | `Vector_Basis` | Frisvad's basis with the sign of z | `src/Source2.Compiler/Maps/LightSampler.cs:261` |
 | `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/MapMeshes.cs:243` |
-| `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:26`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:247` |
+| `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:26`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:242` |
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
 | `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:382`, `src/Source2.Compiler/Maps/SettleWorld.cs:498`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:616` |
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
@@ -645,7 +648,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:70` |
 | `18125c200` | `Matrix3x4_Scale` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:389` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:320`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:270`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
-| `18125d000` | `VectorNormalize_Slow` | out-of-range lengths; not ported | `src/Source2.Compiler/Maps/LightMath.cs:201`, `src/Source2.Compiler/Maps/LightSampler.cs:199`, `src/Source2.Compiler/Maps/LightTrace.cs:113` +5 |
+| `18125d000` | `VectorNormalize_Slow` | out-of-range lengths; not ported | `src/Source2.Compiler/Maps/LightMath.cs:201`, `src/Source2.Compiler/Maps/LightSampler.cs:256`, `src/Source2.Compiler/Maps/LightTrace.cs:113` +5 |
 | `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:566` |
 | `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Maps/LightMath.cs:130`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:560` |
 | `18125d940` | `AngleQuaternion` | half angles times 0.00872664619 | `src/Source2.Compiler/Maps/CTransform.cs:22` |
@@ -662,8 +665,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181264350` | `MatrixAngles_Template` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/TemplateTransform.cs:70` |
 | `1812644b0` | `Matrix4x4_Transpose` |  | `src/Source2.Compiler/Maps/LightMath.cs:22` |
 | `181264c60` | `AngleMatrix_Translation` | a 3x4 with a translation | `src/Source2.Compiler/Maps/TemplateTransform.cs:27` |
-| `1812651f0` | `Ray_SphereIntersect` | false when it misses | `src/Source2.Compiler/Maps/LightSampler.cs:269` |
-| `18129b520` | `Ray_PlaneIntersect` | 0 when parallel | `src/Source2.Compiler/Maps/LightSampler.cs:260` |
+| `1812651f0` | `Ray_SphereIntersect` | false when it misses | `src/Source2.Compiler/Maps/LightSampler.cs:326` |
+| `18129b520` | `Ray_PlaneIntersect` | 0 when parallel | `src/Source2.Compiler/Maps/LightSampler.cs:317` |
 | `182035f5c` | `nexttowardf` | CRT | `src/Source2.Compiler/Maps/LightOmni.cs:16` |
 
 ### s2c:physics/hull

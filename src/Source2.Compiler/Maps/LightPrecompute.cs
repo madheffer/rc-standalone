@@ -105,7 +105,7 @@ public static class LightPrecompute
                 if (shape == 0)
                     LightBuild.SphereLuminaire(l, size.X);
                 else if (shape is 1 or 2)
-                    throw new NotSupportedException("an omni2 capsule luminaire (FUN_181296730) is not ported");
+                    LightBuild.CapsuleLuminaire(l, size.X, size.Y, shape == 2);
             }
         }
         else

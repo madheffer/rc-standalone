@@ -38,6 +38,28 @@ public static class MeshTessellation
     public static Result Triangulate(DmxBinary.Element data) => Build(data, false).ToResult();
 
     /// <summary>
+    /// The mesh as the editor's ray scene takes it (RayScene_AddFace,
+    /// resourcecompiler 0923: 1813ccd20): face by face, unwelded, three
+    /// corners a triangle, with each triangle's face.
+    /// <list type="bullet">
+    /// <item>A face whose first corner has no level is the polygon
+    /// <see cref="Triangulate"/> cuts, with the points subdivided neighbours
+    /// put on its edges.</item>
+    /// <item>A subdivided face is one patch per corner from its first: the
+    /// displaced grid of the corner's own level (FUN_1813c7b90), each cell,
+    /// row by row, as [a, (r, c+1), b] then [a, b, (r+1, c)], a being (r, c)
+    /// and b (r+1, c+1) (FUN_1813c3b60). Nothing is stitched to a finer
+    /// neighbour, and a level above 5 gives no triangles (the 17 x 17 grid
+    /// buffer).</item>
+    /// </list>
+    /// </summary>
+    public static (List<Vector3> Corners, List<int> Faces) RayScene(DmxBinary.Element data)
+    {
+        var built = Build(data, false, rayScene: true);
+        return (built.Positions, built.Faces);
+    }
+
+    /// <summary>
     /// The mesh as the map builder bakes it for export (BakeSubdivisionForFaces,
     /// resourcecompiler 0923: 1813baa40), in the order its faces end up: the
     /// same triangles as <see cref="Triangulate"/>, ordered by the builder's
@@ -84,7 +106,7 @@ public static class MeshTessellation
         public Result ToResult() => new(Positions, Indices, Faces) { Paint = Paint, Written = Written };
     }
 
-    private static BuiltResult Build(DmxBinary.Element data, bool builderOrder)
+    private static BuiltResult Build(DmxBinary.Element data, bool builderOrder, bool rayScene = false)
     {
         var next = Ints(data, "edgeNextIndices");
         var to = Ints(data, "edgeVertexIndices");
@@ -220,12 +242,26 @@ public static class MeshTessellation
                 for (var i = 0; i < m; i++)
                 {
                     var own = Level(hs[i]);
-                    if (own == 0)
+                    if (own == 0 || (rayScene && own > 5))
                         continue;
                     var grid = Grid(hs, i, own);
                     if (displacement.Length > 0)
                         Displace(grid, hs, i, f);
                     Write(grid);
+                    if (rayScene)
+                    {
+                        var cells = 1 << (own - 1);
+                        var side = cells + 1;
+                        for (var r = 0; r < cells; r++)
+                            for (var c = 0; c < cells; c++)
+                            {
+                                int a = (r * side) + c, b = a + side + 1;
+                                corners.AddRange([grid[a], grid[a + 1], grid[b], grid[a], grid[b], grid[b - 1]]);
+                                faces.Add(f);
+                                faces.Add(f);
+                            }
+                        continue;
+                    }
                     var p = ratio[i];
                     var q = ratio[(i + m - 1) % m];
                     var stitched = Stitch(1 << (own - 1), p, q).ToList();
@@ -445,6 +481,9 @@ public static class MeshTessellation
             cornerPaint = [.. slotPaint.SelectMany(x => x), .. appended.SelectMany(x => x.Paint)];
             faces = [.. slotFaces.SelectMany(x => x), .. appended.Select(x => x.Face)];
         }
+
+        if (rayScene)
+            return new BuiltResult(corners, [], faces, stitched);
 
         // FUN_1813858d0: equal positions (bit for bit) are one vertex, numbered as first met.
         var weld = new Dictionary<(uint, uint, uint), int>();

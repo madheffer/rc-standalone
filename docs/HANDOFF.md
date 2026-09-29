@@ -91,9 +91,8 @@ carries the same state per item.
    - re-read `EditorTraceScene` and the `LightTrace` second pass beside the
      decompile; they were written by an agent and are checked only by their
      tests;
-   - atixref's 22 omni2 lights: subdivided meshes in the editor scene (traced
-     as raw faces today), and light 6844's shape (our port refuses it);
-   - ze_hold_em_p's lights 133 and 136 (one float step; ledger 31);
+   - atixref's omni2 lights 7306, 7318 and 7348, one cube face each, single
+     rays at prop edges (ledger 31; `LightRayProbe`);
    - `precomputed_vis_clusters` (needs visibility from the .vmap);
    - then drop the light classes from the lump test's gap.
 2. **The trace-scene flag word** (GROUND_TRUTH 25). Then run atixref and Mako

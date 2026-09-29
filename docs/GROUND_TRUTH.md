@@ -94,7 +94,10 @@ game can answer is raised with the user first, and runs with -insecure.
     nearest hit through a padded bounding-volume tree of its own, ties by
     triangle index; Valve's instance scenes use their own kd trees and walk
     order, which decide ties and cracks (as they did for visibility on
-    Mako). Suspected for ze_hold_em_p's lights 133 and 136 (one float step).
+    Mako). Suspected for atixref's omni2 lights 7306, 7318 and 7348 (one
+    cube face each, 0.01 to 0.03): on 7306 the ray that decides lands on a
+    prop box's corner edge, and hiding any one prop does not give Valve's
+    box (LightRayProbe, LIGHTRAY_SWEEP).
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.
@@ -114,6 +117,18 @@ game can answer is raised with the user first, and runs with -insecure.
     measured; the loader's reason is not read.
 
 ## Resolved
+
+- **Subdivided meshes in the light scene**, settled 2026-09-30 from the
+  decompile (`RayScene_AddFace` 1813ccd20, `MeshTessellation_PatchIndices`
+  1813c3b60, `LightBuild_CapsuleLuminaire` 181296730,
+  `LightSampler_CapsulePoint` 181299bc0).
+  - A face is a polygon with its neighbours' edge points, or one unstitched
+    displaced patch grid per corner (ENTITIES.md).
+  - The capsule luminaire (omni2 shape 1, or 2 with caps) is ported; its
+    sampler never scales by the radius, as the binary does not. Its area term
+    groups (h + h) * (r * 2 pi), which the decompile's parentheses hide.
+  - Measured: atixref from 22 lights off to 3 (6844, the capsule, exact);
+    ze_hold_em_p's lights 133 and 136 exact.
 
 - **The settle for sphere and capsule shapes** (was 23), settled 2026-09-29.
   - The narrowphase cores are oracle-exact.

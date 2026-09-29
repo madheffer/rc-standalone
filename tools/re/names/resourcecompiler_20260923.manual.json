@@ -2620,7 +2620,7 @@
    "addr": "181296730",
    "name": "LightBuild_CapsuleLuminaire",
    "module": "s2c:baked/light-keys",
-   "note": "not ported"
+   "note": "type 4, or 5 capped; LightBuild.CapsuleLuminaire"
   },
   {
    "addr": "181296a50",
@@ -2662,7 +2662,7 @@
    "addr": "181299bc0",
    "name": "LightSampler_CapsulePoint",
    "module": "s2c:baked/light-keys",
-   "note": "capsule luminaires; not ported"
+   "note": "caps then side; never scaled by the radius"
   },
   {
    "addr": "18129a0e0",
@@ -2698,7 +2698,25 @@
    "addr": "1813ccd20",
    "name": "RayScene_AddFace",
    "module": "s2c:baked/light-keys",
-   "note": "skips faces with flag & 3 or no material"
+   "note": "MeshTessellation.RayScene: polygons with neighbour edge points, patches unstitched"
+  },
+  {
+   "addr": "1813c3b60",
+   "name": "MeshTessellation_PatchIndices",
+   "module": "s2c:baked/light-keys",
+   "note": "a patch grid's cells as [a, right, b], [a, b, below]"
+  },
+  {
+   "addr": "1813c7970",
+   "name": "MeshTessellation_FaceLevel",
+   "module": "s2c:baked/light-keys",
+   "note": "the level of the face's first corner"
+  },
+  {
+   "addr": "18128ca90",
+   "name": "RayScene_Winding",
+   "module": "s2c:baked/light-keys",
+   "note": "(0,1,2), or (2,1,0) when the deformer's +0x70 is set"
   },
   {
    "addr": "181c14020",

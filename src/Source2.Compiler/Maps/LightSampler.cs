@@ -22,7 +22,7 @@ public static class LightSampler
 
     /// <summary>
     /// FUN_18129a0e0: a point on the luminaire for (u, v) and its normal;
-    /// false for a light without one (type 0). Capsules are not ported.
+    /// false for a light without one (type 0).
     /// </summary>
     public static bool Luminaire(LightShape l, float u, float v, out Vector3 point, out Vector3 normal)
     {
@@ -72,12 +72,69 @@ public static class LightSampler
             }
             case 4:
             case 5:
-                throw new NotSupportedException("capsule luminaires (FUN_181299bc0) are not ported");
+                (point, normal) = Capsule(l, u, v);
+                return true;
             default:
                 point = default;
                 normal = default;
                 return false;
         }
+    }
+
+    /// <summary>
+    /// FUN_181299bc0: a capsule luminaire's point. Below the cap share (0x124)
+    /// u picks a cap, the first half the start end and the second the other
+    /// with the normal turned; the point is the end plus the forward and up
+    /// axes on a circle of radius sqrt(s), the normal the axis between the
+    /// ends. Above it the point is on the side: the ends lerped by v, plus
+    /// the axes turned by 2 pi of u's share, which is also the normal. The
+    /// binary never scales either by the radius (0x120).
+    /// </summary>
+    private static (Vector3 Point, Vector3 Normal) Capsule(LightShape l, float u, float v)
+    {
+        Vector3 p0 = l.V3(0xf0), p1 = l.V3(0xfc), fwd = l.V3(0x108), up = l.V3(0x114);
+        var cap = l[0x124];
+        if (u < cap)
+        {
+            var t = u / cap;
+            if (t <= 0f)
+                t = 0f;
+            if (0.9999999f <= t)
+                t = 0.9999999f;
+            var normal = new Vector3(p0.X - p1.X, p0.Y - p1.Y, p0.Z - p1.Z);
+            LightMath.Normalize(ref normal);
+            var end = p0;
+            var s = t + t;
+            if (0.5f <= t)
+            {
+                end = p1;
+                s -= 1f;
+                normal = -normal;
+            }
+            if (s <= 0f)
+                s = 0f;
+            if (0.9999999f <= s)
+                s = 0.9999999f;
+            var r = MathF.Sqrt(s);
+            var a = v * 6.2831855f;
+            var sr = Sin(a) * r;
+            var cr = Cos(a) * r;
+            return (new Vector3((sr * up.X + fwd.X * cr) + end.X, (up.Y * sr + fwd.Y * cr) + end.Y,
+                                (up.Z * sr + fwd.Z * cr) + end.Z), normal);
+        }
+        var w = (u - cap) / (1f - cap);
+        if (w <= 0f)
+            w = 0f;
+        if (0.9999999f <= w)
+            w = 0.9999999f;
+        var angle = (w + w) * 3.1415927f;
+        var c = Cos(angle);
+        var sn = Sin(angle);
+        var d = new Vector3(fwd.X * c + up.X * sn, fwd.Y * c + up.Y * sn, fwd.Z * c + up.Z * sn);
+        var point = new Vector3(((p1.X - p0.X) * v + p0.X) + d.X, ((p1.Y - p0.Y) * v + p0.Y) + d.Y,
+                                ((p1.Z - p0.Z) * v + p0.Z) + d.Z);
+        LightMath.Normalize(ref d);
+        return (point, d);
     }
 
     /// <summary>A clip-space point (x, y, z) through the inverse matrix, divided by w.</summary>
