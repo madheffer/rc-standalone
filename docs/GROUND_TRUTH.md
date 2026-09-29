@@ -62,9 +62,6 @@ game can answer is raised with the user first, and runs with -insecure.
 24. **What an entities-only build clears**: the world step clears the
     entities folder and flammables; whether the entity models survive an
     entities-only build is not settled (compile-map keeps them).
-25. **The .rte flag word** from the mesh entry and material attributes: read
-    in outline (GEOMETRY.md), not ported.
-
 26. **Prefab placement**: a node in a prefab's map is placed as instance
     collapse moves a node (SettleWorld.PrefabPlacement: the prefab's own
     placement as the move, the node's origin through it and its angles
@@ -79,7 +76,6 @@ game can answer is raised with the user first, and runs with -insecure.
 ### Other modules
 16. Visibility: the compile's normalise guard (NormaliseSlowPath) against our
     double normalise in three places; no specimen reaches it.
-17. RTE: what the per-triangle id hashes.
 29. RTE triangle order: within a mesh the file groups triangles by material,
     in the order of the mesh's materials array on 66 of atixref's 68
     multi-material meshes; the rest are the world renderer's own mesh split
@@ -120,12 +116,23 @@ game can answer is raised with the user first, and runs with -insecure.
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
     the other nine's material flags but miss `agg_merge`; read
     `WRBMeshList_GroupAggregates` (18026f590) and the per-cluster lists.
+36. **Static prop aggregates' meshlet cones**: 44 meshlets in 10 atixref
+    agg_prop models have cones that do not follow their index range; the
+    prop's own compiled meshlets are the suspect (not read).
 18. vrad3 trace cost law (performance only; not output).
 19. Legacy-GUID particles in game (needs the user's go-ahead for a game run).
 20. The vmat_c field order note ("likely NTRO positional"): the order is
     measured; the loader's reason is not read.
 
 ## Resolved
+
+- **The .rte flag word and per-triangle id** (ledger 25 and 17): the id is
+  the face material's resource id; the word's shadow bits come from the
+  mesh's disableShadows or the material's DoNotCastShadows, 0x2 from
+  F_RENDER_BACKFACES (GEOMETRY.md). All 316,054 triangles of probe01,
+  cardtest, ze_hold_em_p, atixref and Mako match (TraceSceneTests).
+- **Node model trees and meshlet descriptors**: WorldNodeModelTreesTests, all
+  401 node models (GEOMETRY.md); static prop aggregates' cones are open (36).
 
 - **Subdivided meshes in the light scene**, settled 2026-09-30 from the
   decompile (`RayScene_AddFace` 1813ccd20, `MeshTessellation_PatchIndices`

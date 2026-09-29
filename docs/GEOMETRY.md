@@ -48,7 +48,7 @@ offset          size     section
 60              A * 8    kd nodes: float split, u32 packed child + axis
 60 + A*8        B * 48   triangles
                 C * 4    leaf triangle indices
-                B * 8    per-triangle id (groups by surface; nothing reads it)
+                B * 8    per-triangle id: the face material's resource id (nothing reads it)
                 B * 12   per-triangle reflectivity, all (1,1,1)
 ```
 
@@ -113,14 +113,15 @@ The rules:
   0.0001 and `longest * 1.0001 <= sum of the other two`.
 - **Subdivided meshes** go through `SubdivisionBake` (PHYSICS.md).
 
-Open (GROUND_TRUTH.md 25):
-- **The flag word:** atixref and Mako still differ in bits 0x2, 0x2000 and
-  0x8000. Visibility reads none of them. The collector's rules as read:
-  - 0x800 unless the entry is traced, and 0x800 again for a second entry
-    byte;
-  - 0x80 from the entry's flags;
-  - 0x2000 or 0xa000 from two bits of its 64-bit flags;
-  - then the material's int attributes.
+- **The flag word** (`WRB_CollectRteMeshes`, then the material's bits in
+  `WRB_EmitRteTriangles`): 0x800 for a visexclude mesh; 0xa000 for shadow
+  mode 1 and 0x2000 for mode 2, the mode being the mesh's `disableShadows`,
+  forced to 1 by the material's DoNotCastShadows (its own attribute,
+  `F_DO_NOT_CAST_SHADOWS`, or csgo_water_fancy, which declares it on every
+  combo); 0x2 for `F_RENDER_BACKFACES`. Every triangle's word and id match
+  on all five maps. Modes 2 and 3 are read, not measured.
+
+Open:
 - **Skip boxes:** the emitter also skips triangles inside the builder's
   oriented boxes (`WRB_RteSkipBoxes`). What places them is unknown, and no
   specimen has any.
@@ -128,6 +129,7 @@ Open (GROUND_TRUTH.md 25):
   material, and the rest follows the world renderer's mesh split.
 - **Bad meshes:** a mesh whose bounds exceed `2 sqrt(3) g_flConfigMaxCoord`
   is skipped whole; no specimen has one.
+- The entry's 0x80 (object flag 0x80): no specimen's world meshes carry it.
 
 ## World nodes and render meshes
 
@@ -209,6 +211,36 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   So the order is data dependent and set between the DMX and the draw
   (map mesh to CMesh, split, triangles inside, weld). Not found yet.
 
-Open, in order: the triangle order above, why four probe01 meshes were
-not aggregated, the fragment split, the T-junction pass, meshlets, then
-the node and world files.
+- **Node model trees** (`WorldNodeModelTrees` from a `WorldNodeModel`):
+  MDAT, CTRL, RED2 and DATA match field for field, value types included, on
+  all 401 node models of probe01, cardtest and atixref, and the container
+  facts too (WorldNodeModelTreesTests). The description's bounds, draw
+  bounds, vertex ends, counts and compile arguments are measured from
+  content; material, tint, layout and the meshlet partition are inputs.
+  Rules: buffer blocks per draw set (its vertex buffers, then its index
+  buffer); `m_nVertexCount` is one past the highest vertex the draw reads;
+  the searchable vertex count sums each draw set's first vertex buffer;
+  every model sets `embedded_map_mesh` and `preserve_tangents`, an
+  aggregate also `embedded_aggregate_mesh`, `generate_draw_bounds` and
+  `generate_meshlets`, and only aggregates carry draw bounds and meshlets.
+- **Meshlets** (`CMeshletBuilder_*`): after the vertex cache and overdraw
+  passes, meshopt 1.x `buildMeshlets` at 255 vertices, 48 triangles, cone
+  weight 0.05 per draw; each meshlet through `optimizeMeshletLevel` at level
+  4, its triangles appended to a new index buffer (an odd count padded with
+  a degenerate triangle unless SceneSystem/RenderMeshlets), then the
+  vertices refetched by first use. A meshlet's vertex offset is the draw's
+  applied offset, its triangle offset absolute, its box packed 10 bits an
+  axis in the draw bounds (`MeshletBounds.Pack`), its cone meshopt's
+  `computeMeshletBounds` with the binary's float order
+  (`MeshletBounds.Cone`), zero unless the material has AllowBackfaceCulling
+  and is not DoubleSided. All exact on every meshlet from its index range,
+  except 44 meshlets in 10 static prop aggregates (their cones follow the
+  prop's own meshlets; not read).
+- **Vertex layouts** differ by material and data: texcoords are float32,
+  float16 or 16-bit snorm, and float32 appears where every value would fit
+  snorm, so the choice is not a value range alone (not settled).
+
+Open, in order: the triangle order above (it also decides the meshlet
+partition), why four probe01 meshes were not aggregated, the texcoord
+format rule, static prop aggregates' cones, the fragment split, the
+T-junction pass, then the node and world files.

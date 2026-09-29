@@ -709,6 +709,120 @@
    "note": "Added aggregate with %i meshes, %i fragments; %s_lr%i_%s"
   },
   {
+   "addr": "180301650",
+   "name": "CMeshletBuilder_Init",
+   "module": "s2c:geometry/world-nodes",
+   "note": "max vertices/triangles from 1802f9cc0, SceneSystem/RenderMeshlets, MeshCompiler/MeshletConeWeight 0.05, optimize level 4"
+  },
+  {
+   "addr": "1803018a0",
+   "name": "CMeshletBuilder_DrawBounds",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the draw's bounds, material OcclusionCullingBoundsScale/Expand/NormalDisplacement; cones on when AllowBackfaceCulling and not DoubleSided"
+  },
+  {
+   "addr": "180306280",
+   "name": "CMeshletBuilder_BuildDraw",
+   "module": "s2c:geometry/world-nodes",
+   "note": "meshlets per triangle range (bone 0xfffe), the new index buffer, then vertex fetch remap"
+  },
+  {
+   "addr": "180303b60",
+   "name": "CMeshletBuilder_BuildRange",
+   "module": "s2c:geometry/world-nodes",
+   "note": "meshopt_buildMeshlets over a range, each meshlet to CMeshletBuilder_AddMeshlet"
+  },
+  {
+   "addr": "180304180",
+   "name": "CMeshletBuilder_AddMeshlet",
+   "module": "s2c:geometry/world-nodes",
+   "note": "optimizeMeshletLevel, triangles appended (odd counts padded unless RenderMeshlets), box packed, cone s8"
+  },
+  {
+   "addr": "1802f9cc0",
+   "name": "WRB_MeshletSettings",
+   "module": "s2c:geometry/world-nodes",
+   "note": "SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48"
+  },
+  {
+   "addr": "18126a830",
+   "name": "PackedAABB_Pack",
+   "module": "s2c:geometry/world-nodes",
+   "note": "10 bits an axis inside the bounds, min floored, max ceiled"
+  },
+  {
+   "addr": "1812bfdf0",
+   "name": "meshopt_buildMeshlets",
+   "module": "s2c:geometry/world-nodes",
+   "note": "calls buildMeshletsFlex with min = max triangles, split factor 0"
+  },
+  {
+   "addr": "1812bfeb0",
+   "name": "meshopt_buildMeshletsFlex",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bfe70",
+   "name": "meshopt_buildMeshletsBound",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bd240",
+   "name": "meshopt_optimizeMeshletLevel",
+   "module": "s2c:geometry/world-nodes",
+   "note": "meshopt 1.x API"
+  },
+  {
+   "addr": "1812bd110",
+   "name": "meshopt_computeMeshletBounds",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bc740",
+   "name": "meshopt_computeClusterBounds_Core",
+   "module": "s2c:geometry/world-nodes",
+   "note": "sums y first in the area and axis length, dot products four at a time (see Meshopt/MeshletBounds.cs)"
+  },
+  {
+   "addr": "1812bbd20",
+   "name": "meshopt_computeBoundingSphere",
+   "module": "s2c:geometry/world-nodes",
+   "note": "same float order as meshopt 1.3"
+  },
+  {
+   "addr": "1812b97a0",
+   "name": "meshopt_optimizeVertexFetchRemap",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812b9590",
+   "name": "meshopt_remapVertexBuffer",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812b9540",
+   "name": "meshopt_remapIndexBuffer",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812e1ce0",
+   "name": "CMesh_DuplicateReversed",
+   "module": "s2c:geometry/world-nodes",
+   "note": "double-sided draws: every triangle again with the winding reversed"
+  },
+  {
+   "addr": "1802ebc20",
+   "name": "CResourceCompilerMesh_RigidParts",
+   "module": "s2c:geometry/world-nodes",
+   "note": "rigid mesh parts by bone"
+  },
+  {
    "addr": "182067e80",
    "name": "CompressTangentFrame",
    "module": "s2c:geometry/world-nodes",
@@ -2614,7 +2728,7 @@
    "addr": "1802839d0",
    "name": "WRB_CollectRteMeshes",
    "module": "s2c:visibility",
-   "note": "builds each mesh entry's flags for the .rte"
+   "note": "each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80"
   },
   {
    "addr": "1802597d0",

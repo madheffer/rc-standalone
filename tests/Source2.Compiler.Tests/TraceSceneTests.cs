@@ -8,18 +8,18 @@ namespace Source2.Compiler.Tests;
 
 /// <summary>
 /// <see cref="TraceScene"/> against the .rte of the same compile: every one of
-/// our triangles is found by its geometry, and its flag word must be the
-/// file's. Mismatches are listed by material, ours against the file's.
+/// our triangles is found by its geometry, and its flag word and id (its
+/// material's resource id) must be the file's. Mismatches are listed by material, ours against the file's.
 /// </summary>
 public class TraceSceneTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("s2probe", "probe01", "s2c_rc_probe")]
-    [InlineData("ze_doom_p2", "cardtest", "s2c_rc_probe")]
-    [InlineData("s2c_lighting", "ze_hold_em_p", "s2c_lighting")]
-    [InlineData("s2probe", "atixref", "s2probe", Skip = "GROUND_TRUTH.md 25: the flag word bits 0x2, 0x2000 and 0x8000 are not ported")]
-    [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p", "s2c_big", Skip = "GROUND_TRUTH.md 25: the flag word bits 0x2, 0x2000 and 0x8000 are not ported")]
-    public void FlagsAreTheFiles(string addon, string map, string compiledIn)
+    [InlineData("s2probe", "probe01", "s2c_rc_probe", true)]
+    [InlineData("ze_doom_p2", "cardtest", "s2c_rc_probe", true)]
+    [InlineData("s2c_lighting", "ze_hold_em_p", "s2c_lighting", true)]
+    [InlineData("s2probe", "atixref", "s2probe", true)]
+    [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p", "s2c_big", true)]
+    public void FlagsAreTheFiles(string addon, string map, string compiledIn, bool flags)
     {
         var source = MapFixtures.VmapSource(addon, map);
         var rtePath = Path.Combine(Path.GetTempPath(), "csgo_addons", compiledIn, "maps", map + ".rte");
@@ -33,7 +33,8 @@ public class TraceSceneTests(ITestOutputHelper output)
         var packages = new[] { "csgo", "core" }.Select(d => { var p = new Package(); p.Read(Path.Combine(game, d, "pak01_dir.vpk")); return p; }).ToList();
         var visFlags = new MaterialVisFlags.Source([Path.Combine(game, "csgo_addons", addon)], packages);
         bool RendersAsWorld(string c) => schema.IsSolidClass(c) && schema.HasFlag(c, "render_as_world_but_physics_as_entity");
-        var ours = TraceScene.Triangles(MapMeshes.Read(DmxBinary.ReadFile(source)), content.Material, m => visFlags[m], RendersAsWorld);
+        var meshes = MapMeshes.Read(DmxBinary.ReadFile(source));
+        var ours = TraceScene.Triangles(meshes, content.Material, m => visFlags[m], RendersAsWorld);
 
         var rte = RayTraceEnvironment.ReadFile(rtePath);
         var file = new Dictionary<string, Queue<int>>();
@@ -45,7 +46,8 @@ public class TraceSceneTests(ITestOutputHelper output)
             q.Enqueue(i);
         }
         var record = new byte[48];
-        int found = 0, same = 0;
+        int found = 0, same = 0, sameId = 0;
+        var wrongIds = new SortedDictionary<string, int>(StringComparer.Ordinal);
         var wrong = new SortedDictionary<string, int>(StringComparer.Ordinal);
         foreach (var t in ours)
         {
@@ -54,18 +56,32 @@ public class TraceSceneTests(ITestOutputHelper output)
             var at = q.Dequeue();
             found++;
             var theirs = rte.RawFlags(at);
+            if (rte.TriangleId(at) == Source2ResourceId.ForPath(t.Material))
+                sameId++;
+            else
+            {
+                var k = $"id 0x{rte.TriangleId(at):x16} for {t.Material}";
+                wrongIds[k] = wrongIds.GetValueOrDefault(k) + 1;
+            }
             if (theirs == t.Flags)
                 same++;
             else
             {
                 var k = $"ours 0x{t.Flags:x4} file 0x{theirs:x4} {Path.GetFileNameWithoutExtension(t.Material)}";
+                if (Environment.GetEnvironmentVariable("TRACE_WHY") == "1" && content.Material(t.Material) is { } info)
+                    k += $" [{info.Shader}; {string.Join(" ", info.Ints.Select(p => $"{p.Key}={p.Value}"))}; {string.Join(" ", info.Params.Where(p => p.Key.StartsWith("F_", StringComparison.Ordinal)).Select(p => $"{p.Key}={p.Value}"))}]"
+                         + $" node {t.Node} disableShadows={meshes.First(m => m.NodeId == t.Node).Element?.GetValue<int>("disableShadows")}";
                 wrong[k] = wrong.GetValueOrDefault(k) + 1;
             }
         }
         foreach (var (k, n) in wrong)
             output.WriteLine($"  {k} x{n}");
-        output.WriteLine($"{map}: ours {ours.Count}, found {found}, flags same {same}; file {rte.TriangleCount}");
-        Assert.Equal(found, same);
+        foreach (var (k, n) in wrongIds.Take(10))
+            output.WriteLine($"  {k} x{n}");
+        output.WriteLine($"{map}: ours {ours.Count}, found {found}, flags same {same}, ids same {sameId}; file {rte.TriangleCount}");
+        Assert.Equal(found, sameId);
+        if (flags)
+            Assert.Equal(found, same);
     }
 
     private static string Key(ReadOnlySpan<byte> r)

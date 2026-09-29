@@ -43,7 +43,9 @@ public static class TraceScene
             || Physics.ShaderAttributes.AlphaTest(info.Shader, info.Params)
             || Physics.ShaderAttributes.Translucent(info.Shader, info.Params))
             flags |= 1;
-        if (On("renderbackfaces"))
+        // The material system answers F_RENDER_BACKFACES as renderbackfaces
+        // (atixref's hr_metal_grating_002: every triangle carries 0x2).
+        if (On("renderbackfaces") || (info.Params.TryGetValue("F_RENDER_BACKFACES", out var backfaces) && backfaces != 0))
             flags |= 2;
         if (On("NeedsDynamicShadows"))
             flags |= 8;
@@ -65,13 +67,35 @@ public static class TraceScene
     }
 
     /// <summary>
-    /// The mesh entry's bits the collector puts under the material's. A mesh
-    /// marked visexclude is not traced (0x800), measured on every excluded
-    /// triangle of cardtest and probe01; the entry's other bits (0x80, 0x2000,
-    /// 0xa000) are not ported and no specimen map's world meshes carry them.
+    /// The mesh entry's bits the collector puts under the material's
+    /// (WRB_CollectRteMeshes). A mesh marked visexclude is not traced (0x800),
+    /// measured on every excluded triangle of cardtest and probe01. The shadow
+    /// bits come from the entry's shadow mode (WRB_MeshEntryFlags: the mesh's
+    /// <c>disableShadows</c>, forced to 1 by the material's DoNotCastShadows):
+    /// mode 1 sets entry bits 0x30000 and the word 0xa000, mode 2 bit 0x10000
+    /// and 0x2000, mode 3 bit 0x20000 alone and nothing. Measured for mode 1
+    /// (atixref and Mako: disableShadows 1, F_DO_NOT_CAST_SHADOWS, water);
+    /// modes 2 and 3 are read, no specimen has them. The entry's 0x80 (object
+    /// flag 0x80) is not ported; no specimen's world meshes carry it.
     /// </summary>
-    public static ushort EntryFlags(DmxBinary.Element? mesh)
-        => mesh?.GetValue<bool>("visexclude") == true ? (ushort)0x800 : (ushort)0;
+    public static ushort EntryFlags(DmxBinary.Element? mesh, SettleWorld.MaterialInfo? material)
+    {
+        ushort flags = mesh?.GetValue<bool>("visexclude") == true ? (ushort)0x800 : (ushort)0;
+        var mode = mesh?.GetValue<int>("disableShadows") ?? 0;
+        if (material is not null && DoNotCastShadows(material))
+            mode = 1;
+        return (ushort)(flags | mode switch { 1 => 0xa000, 2 => 0x2000, _ => 0 });
+    }
+
+    /// <summary>
+    /// The material's DoNotCastShadows: its own int attribute, its
+    /// F_DO_NOT_CAST_SHADOWS, or a shader that declares it (of the csgo
+    /// shaders only csgo_water_fancy does, on every combo).
+    /// </summary>
+    public static bool DoNotCastShadows(SettleWorld.MaterialInfo material)
+        => (material.Ints.TryGetValue("DoNotCastShadows", out var v) && v != 0)
+           || (material.Params.TryGetValue("F_DO_NOT_CAST_SHADOWS", out var f) && f != 0)
+           || Path.GetFileNameWithoutExtension(material.Shader).Equals("csgo_water_fancy", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The scene's triangles, in the collector's order.</summary>
     public static List<Triangle> Triangles(IReadOnlyList<MapMeshes.Mesh> meshes,
@@ -83,18 +107,22 @@ public static class TraceScene
         {
             if (mesh.Hidden)
                 continue;
-            var entry = EntryFlags(mesh.Element);
+            ushort Flags(string m)
+            {
+                var info = material(m);
+                return (ushort)(EntryFlags(mesh.Element, info) | MaterialFlags(info));
+            }
             if (Subdivided(mesh) is { } baked)
             {
                 if (mesh.ParentType == "CMapEntity" && !(mesh.ParentClass is { } c && rendersAsWorld(c)))
                     continue;
                 foreach (var t in baked)
                     if (!visFlags(t.Material).LeftOutOfTrace)
-                        found.Add(new Triangle(t.A, t.B, t.C, (ushort)(entry | MaterialFlags(material(t.Material)))) { Material = t.Material, Node = mesh.NodeId });
+                        found.Add(new Triangle(t.A, t.B, t.C, Flags(t.Material)) { Material = t.Material, Node = mesh.NodeId });
                 continue;
             }
             foreach (var t in MapGeometry.RteTriangles([mesh], visFlags, rendersAsWorld))
-                found.Add(new Triangle(t.A, t.B, t.C, (ushort)(entry | MaterialFlags(material(t.Material)))) { Material = t.Material, Node = mesh.NodeId });
+                found.Add(new Triangle(t.A, t.B, t.C, Flags(t.Material)) { Material = t.Material, Node = mesh.NodeId });
         }
         return found;
     }
@@ -132,7 +160,7 @@ public static class TraceScene
         return triangles;
     }
 
-    /// <summary>The scene as visibility reads it.</summary>
+    /// <summary>The scene as visibility reads it, each triangle's id its material's resource id.</summary>
     public static RayTraceEnvironment Environment(IReadOnlyList<Triangle> triangles)
-        => RayTraceEnvironment.FromTriangles([.. triangles.Select(t => (t.A, t.B, t.C, t.Flags))]);
+        => RayTraceEnvironment.FromTriangles([.. triangles.Select(t => (t.A, t.B, t.C, t.Flags, Source2ResourceId.ForPath(t.Material)))]);
 }

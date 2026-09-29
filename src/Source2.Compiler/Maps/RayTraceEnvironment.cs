@@ -107,28 +107,35 @@ public sealed class RayTraceEnvironment
     /// triangle's index as a float, as in every file measured), the box of
     /// every corner, and the kd tree built over every triangle from its own
     /// corners in that box (<see cref="TracerKd"/>'s builder). The per-triangle
-    /// ids are 0 and the reflectivities (1, 1, 1), as in every compile
-    /// measured; visibility reads neither. Degenerate triangles are left out.
+    /// id is the face material's resource id (<see cref="Source2ResourceId"/>,
+    /// on every triangle of the five maps measured) and the reflectivities are
+    /// (1, 1, 1); visibility reads neither. Degenerate triangles are left out.
     /// </summary>
     public static RayTraceEnvironment FromTriangles(IReadOnlyList<(Vector3 A, Vector3 B, Vector3 C, ushort Flags)> triangles)
+        => FromTriangles([.. triangles.Select(t => (t.A, t.B, t.C, t.Flags, 0UL))]);
+
+    /// <summary>As above, each triangle with its id.</summary>
+    public static RayTraceEnvironment FromTriangles(IReadOnlyList<(Vector3 A, Vector3 B, Vector3 C, ushort Flags, ulong Id)> triangles)
     {
         ArgumentNullException.ThrowIfNull(triangles);
         var records = new List<byte[]>();
+        var ids = new List<ulong>();
         var corners = new List<float[]>();
         Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
-        foreach (var (a, b, c, flags) in triangles)
+        foreach (var (a, b, c, flags, id) in triangles)
         {
             var record = new byte[48];
             if (!RecordFor(a, b, c, flags, record))
                 continue;
             records.Add(record);
+            ids.Add(id);
             corners.Add([a.X, a.Y, a.Z, b.X, b.Y, b.Z, c.X, c.Y, c.Z]);
             lo = Vector3.Min(lo, Vector3.Min(a, Vector3.Min(b, c)));
             hi = Vector3.Max(hi, Vector3.Max(a, Vector3.Max(b, c)));
         }
         var n = records.Count;
         // A first pass lays the triangles out under one leaf so the builder can read them.
-        var flat = Layout(records, [(3u, (uint)n)], [.. Enumerable.Range(0, n)], lo, hi);
+        var flat = Layout(records, ids, [(3u, (uint)n)], [.. Enumerable.Range(0, n)], lo, hi);
         var kd = new TracerKd(flat, [.. Enumerable.Range(0, n)], i => corners[i], lo, hi);
         var indices = new List<int>();
         var words = new List<(uint, uint)>();
@@ -142,10 +149,10 @@ public sealed class RayTraceEnvironment
             else
                 words.Add((((uint)node.Lower << 2) | (uint)node.Axis, BitConverter.SingleToUInt32Bits(node.Split)));
         }
-        return Layout(records, words, indices, lo, hi);
+        return Layout(records, ids, words, indices, lo, hi);
     }
 
-    private static RayTraceEnvironment Layout(List<byte[]> records, List<(uint Word, uint Second)> nodes, List<int> indices,
+    private static RayTraceEnvironment Layout(List<byte[]> records, List<ulong> ids, List<(uint Word, uint Second)> nodes, List<int> indices,
                                               Vector3 mins, Vector3 maxs)
     {
         var b = records.Count;
@@ -169,7 +176,11 @@ public sealed class RayTraceEnvironment
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(at), (uint)index);
             at += 4;
         }
-        at += b * 8;
+        foreach (var id in ids)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(data.AsSpan(at), id);
+            at += 8;
+        }
         for (var i = 0; i < b * 3; i++, at += 4)
             BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(at), 1f);
         return Read(data);
@@ -300,6 +311,9 @@ public sealed class RayTraceEnvironment
 
     /// <summary>Box side at or below which <see cref="CoarseOccupancyOnly"/> applies.</summary>
     public const float FineBoxSize = 256f;
+
+    /// <summary>The triangle's id: its face material's resource id.</summary>
+    public ulong TriangleId(int index) => BinaryPrimitives.ReadUInt64LittleEndian(_data.AsSpan(_indexAt + (IndexCount * 4) + (index * 8)));
 
     /// <summary>The surface index the record carries in slot 4.</summary>
     public float SurfaceIndex(int index) => Float(_triangleAt + index * 48 + 16);

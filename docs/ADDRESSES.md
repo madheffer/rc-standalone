@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20260928_1.41.8.5.md): 426 tracked addresses: identical 426
-- 607 addresses
+- 626 addresses
 
 ### s2c:baked/light-keys
 
@@ -610,12 +610,31 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering |  |
 | `180287320` | `CWorldRendererBuilderNode::LoadMaterialsInMeshList` |  |  |
 | `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... |  |
+| `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
 | `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density |  |
+| `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 |  |
+| `180301650` | `CMeshletBuilder_Init` | max vertices/triangles from 1802f9cc0, SceneSystem/RenderMeshlets, MeshCompiler/MeshletConeWeight 0.05, optimize level 4 |  |
+| `1803018a0` | `CMeshletBuilder_DrawBounds` | the draw's bounds, material OcclusionCullingBoundsScale/Expand/NormalDisplacement; cones on when AllowBackfaceCulling and not DoubleSided |  |
+| `180303b60` | `CMeshletBuilder_BuildRange` | meshopt_buildMeshlets over a range, each meshlet to CMeshletBuilder_AddMeshlet |  |
+| `180304180` | `CMeshletBuilder_AddMeshlet` | optimizeMeshletLevel, triangles appended (odd counts padded unless RenderMeshlets), box packed, cone s8 | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:29` |
+| `180306280` | `CMeshletBuilder_BuildDraw` | meshlets per triangle range (bone 0xfffe), the new index buffer, then vertex fetch remap |  |
+| `18126a830` | `PackedAABB_Pack` | 10 bits an axis inside the bounds, min floored, max ceiled | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:31` |
 | `1812b8c10` | `meshopt_optimizeVertexCacheTable` |  |  |
 | `1812b9370` | `meshopt_optimizeVertexCache` | stock meshopt, kVertexScoreTable at 18243aab0 (same values) |  |
+| `1812b9540` | `meshopt_remapIndexBuffer` |  |  |
+| `1812b9590` | `meshopt_remapVertexBuffer` |  |  |
+| `1812b97a0` | `meshopt_optimizeVertexFetchRemap` |  |  |
+| `1812bbd20` | `meshopt_computeBoundingSphere` | same float order as meshopt 1.3 |  |
+| `1812bc740` | `meshopt_computeClusterBounds_Core` | sums y first in the area and axis length, dot products four at a time (see Meshopt/MeshletBounds.cs) | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:52` |
+| `1812bd110` | `meshopt_computeMeshletBounds` |  | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:30` |
+| `1812bd240` | `meshopt_optimizeMeshletLevel` | meshopt 1.x API |  |
+| `1812bfdf0` | `meshopt_buildMeshlets` | calls buildMeshletsFlex with min = max triangles, split factor 0 |  |
+| `1812bfe70` | `meshopt_buildMeshletsBound` |  |  |
+| `1812bfeb0` | `meshopt_buildMeshletsFlex` |  |  |
 | `1812c4810` | `meshopt_calculateSortOrderRadix` | 11-bit keys, 1e-3 floor: the radix version |  |
 | `1812c4f30` | `meshopt_optimizeOverdraw` | stock meshopt; threshold 1.03 from AddDrawDescriptors |  |
 | `1812d9920` | `Mesh_UvDensity` | sqrt(world area / uv area), sorted, index ((n-1)*pct)/100; pct 20 or 95 | `src/Source2.Compiler/Maps/UvDensity.cs:6` |
+| `1812e1ce0` | `CMesh_DuplicateReversed` | double-sided draws: every triangle again with the winding reversed |  |
 | `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 | `src/Source2.Compiler/Maps/TangentFrame.cs:9` |
 
 ### s2c:infra
@@ -890,7 +909,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180259130` | `WRB_TriangleInSkipBox` | whether a triangle lies in one of those boxes; the emitter then skips it |  |
 | `1802597d0` | `WRB_RteSkipBoxes` | oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified |  |
 | `1802821f0` | `WRB_EmitRteTriangles` | ORs in the material's flag bits; drops a sliver (longest edge under 0.0001, or times 1.0001 over the other two) | `src/Source2.Compiler/Maps/MapGeometry.cs:52` |
-| `1802839d0` | `WRB_CollectRteMeshes` | builds each mesh entry's flags for the .rte | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:13` |
+| `1802839d0` | `WRB_CollectRteMeshes` | each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80 | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:13` |
 | `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:109` |
 | `1810045b0` | `CMapEntity::vf219` | 2 when the entity's class renders as world | `src/Source2.Compiler/Maps/MapGeometry.cs:10` |
 
@@ -1027,7 +1046,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180021190` | `LargeRegionRays` | at most 8,000,000 pairs a pass | `src/Source2.Compiler/Maps/VisPvs.cs:1171` |
 | `1800216b0` | `LargeRegionFilter` | the boxes at least 256 apart | `src/Source2.Compiler/Maps/VisPvs.cs:1196` |
 | `180021940` | `VectorOr` |  |  |
-| `1800233f0` | `Rte_TriangleCorners` | a triangle's three corners from its record: normal, plane, edges | `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:748`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:827` |
+| `1800233f0` | `Rte_TriangleCorners` | a triangle's three corners from its record: normal, plane, edges | `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:762`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:841` |
 | `180023f70` | `SunJob` |  |  |
 | `180024d30` | `SunVisibility` |  |  |
 | `1800259f0` | `SkyTriangles` |  |  |
@@ -1158,7 +1177,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180110cb0` | `Tracer_PacketNormalise` | one packet: up to four segments of one octant normalised | `src/Source2.Compiler/Maps/TracerKd.cs:286` |
 | `180115760` | `Tracer_PacketWalk` | the packet's kd walk (mode 0) | `src/Source2.Compiler/Maps/TracerKd.cs:287`, `src/Source2.Compiler/Maps/TracerKd.cs:357` |
 | `180118a90` | `TracerKd_PlaneCost` | surface area cost of a split plane | `src/Source2.Compiler/Maps/TracerKd.cs:178` |
-| `180118e90` | `Rte_TriangleFromCorners` | normal, plane, axes and the two edge equations from the corners | `src/Source2.Compiler/Maps/EditorTraceScene.cs:32`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:683`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:751` +1 |
+| `180118e90` | `Rte_TriangleFromCorners` | normal, plane, axes and the two edge equations from the corners | `src/Source2.Compiler/Maps/EditorTraceScene.cs:32`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:697`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:765` +1 |
 | `180119600` | `TracerKd_PlaneCandidates` | one candidate kind on one axis; -1 is the box middle | `src/Source2.Compiler/Maps/TracerKd.cs:148` |
 | `18011bd20` | `SkyKdLeaf` |  |  |
 | `18011c120` | `SkyKdQuery` |  |  |
