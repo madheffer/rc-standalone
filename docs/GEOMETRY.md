@@ -275,7 +275,14 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   prop's own meshlets; not read).
 - **Vertex layouts** differ by material and data: texcoords are float32,
   float16 or 16-bit snorm, and float32 appears where every value would fit
-  snorm, so the choice is not a value range alone (not settled).
+  snorm, so the choice is not a value range alone (not settled). Measured
+  (WorldNodeLayoutProbe, WNLAYOUT=1): of 210 float32 texcoord buffers, 162
+  hold a value half precision cannot represent, but 24 are half-exact and
+  still float32 (and TEXCOORD1 is often snorm-exact yet float32), so it is
+  not "lossless only" either; the material (RepresentativeTextureWidth and
+  Height as a texel error bound?) is the next suspect. The code that picks
+  it is not found yet (the lowprecisionuv scan, 1810d5f40, is the material
+  side).
 
 Open, in order: the triangle order above (it also decides the meshlet
 partition), why four probe01 meshes were not aggregated, the texcoord

@@ -526,7 +526,19 @@
    "addr": "180259d30",
    "name": "CWorldRendererBuilderNode::FixTJunctionEdgeCracks",
    "module": "s2c:geometry/world-nodes",
-   "note": ""
+   "note": "on in CS2 (csgo_core); two thread pool jobs: collect edges, then fix"
+  },
+  {
+   "addr": "18025a280",
+   "name": "WRBNode_CollectMeshEdges",
+   "module": "s2c:geometry/world-nodes",
+   "note": "\"Collecting Mesh Edges\": each mesh's edges with normalised directions (job 18028c200)"
+  },
+  {
+   "addr": "18025b410",
+   "name": "WRBNode_FixMeshTJunctions",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vertices lying on an edge inserted, faces re-triangulated by PolygonTriangulator_Face (job 18028c1f0)"
   },
   {
    "addr": "1802636b0",

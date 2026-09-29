@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20260928_1.41.8.5.md): 426 tracked addresses: identical 426
-- 643 addresses
+- 645 addresses
 
 ### s2c:baked/light-keys
 
@@ -593,7 +593,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180257ff0` | `WRBNode_MergeEntries` | one new entry from the group, fields from the first |  |
 | `180258570` | `WRBNode_MergeMeshes` | greedy: later compatible entries while verts < 0x200000 and indices < 0x400000 |  |
 | `180259b00` | `Step_RemovingTrianglesInside` | culling boxes |  |
-| `180259d30` | `CWorldRendererBuilderNode::FixTJunctionEdgeCracks` |  |  |
+| `180259d30` | `CWorldRendererBuilderNode::FixTJunctionEdgeCracks` | on in CS2 (csgo_core); two thread pool jobs: collect edges, then fix |  |
+| `18025a280` | `WRBNode_CollectMeshEdges` | "Collecting Mesh Edges": each mesh's edges with normalised directions (job 18028c200) |  |
+| `18025b410` | `WRBNode_FixMeshTJunctions` | vertices lying on an edge inserted, faces re-triangulated by PolygonTriangulator_Face (job 18028c1f0) |  |
 | `18025f9d0` | `WRB_UseAggregateInstances` | gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge |  |
 | `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris |  |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |

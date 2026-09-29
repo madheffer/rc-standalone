@@ -305,6 +305,14 @@ public class WorldNodeLayoutProbe(ITestOutputHelper output)
                         var hi = uv.Aggregate(new Vector2(float.MinValue), Vector2.Max);
                         var span = MathF.Max(MathF.Max(MathF.Abs(lo.X), MathF.Abs(hi.X)), MathF.Max(MathF.Abs(lo.Y), MathF.Abs(hi.Y)));
                         var bucket = span <= 1f ? "<=1" : span <= 2f ? "<=2" : span <= 16f ? "<=16" : span <= 256f ? "<=256" : ">256";
+                        if (f.Format == DXGI_FORMAT.R32G32_FLOAT)
+                        {
+                            var halfExact = uv.All(v => (float)(Half)v.X == v.X && (float)(Half)v.Y == v.Y);
+                            var snormExact = uv.All(v => MathF.Abs(v.X) <= 1 && MathF.Abs(v.Y) <= 1
+                                                         && MathF.Round(v.X * 32767f) / 32767f == v.X && MathF.Round(v.Y * 32767f) / 32767f == v.Y);
+                            var key = $"{kind} {f.SemanticName}{f.SemanticIndex} float32: half-exact {halfExact}, snorm-exact {snormExact}";
+                            tally[key] = tally.GetValueOrDefault(key) + 1;
+                        }
                         tally[$"{kind} {f.SemanticName}{f.SemanticIndex} {f.Format} max|uv| {bucket}"] = tally.GetValueOrDefault($"{kind} {f.SemanticName}{f.SemanticIndex} {f.Format} max|uv| {bucket}") + 1;
                     }
                     tally[$"{kind} layout {layout}"] = tally.GetValueOrDefault($"{kind} layout {layout}") + 1;
