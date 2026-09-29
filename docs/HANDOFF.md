@@ -91,7 +91,9 @@ carries the same state per item.
    - re-read `EditorTraceScene` and the `LightTrace` second pass beside the
      decompile; they were written by an agent and are checked only by their
      tests;
-   - static props in the editor trace scene (atixref's 104 lights);
+   - static props in the editor trace scene (atixref's 104 lights): import
+     meshsystem.dll into Ghidra (heavy; with CS2 closed) and read how
+     `MeshSystem001` virtual 0xe8 builds a mesh's ray scene;
    - ze_hold_em_p's lights 133 and 136 (one float step; ledger 31);
    - `precomputed_vis_clusters` (needs visibility from the .vmap);
    - then drop the light classes from the lump test's gap.

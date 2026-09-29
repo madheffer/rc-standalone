@@ -192,6 +192,11 @@ Keys:
   - Static props are in the scene too (`CModelHelper_RaytraceFlags`), their
     models' LOD 0 render meshes, and not yet added. That is atixref's gap.
     Other model owners carry 0x4000 and are skipped by the mask.
+    `Model_RayScene` builds a static prop's scene from `MeshSystem001`
+    virtual 0xe8 per selected mesh (`ModelRayScene_Build`): a cached per-mesh
+    ray scene built inside meshsystem.dll, which is not in the Ghidra project
+    yet. The other branch (`FUN_181f10ce0`) is taken only when the model's
+    virtual 0x68 returns data.
   - Our scene's acceleration structure is our own (a padded bounding-volume
     tree), not Valve's kd tree. Ties between triangles hit at the same
     distance are broken by triangle index, which Valve's walk may not do
