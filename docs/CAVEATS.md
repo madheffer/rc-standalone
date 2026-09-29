@@ -153,9 +153,11 @@ command. Without them the game parses from the third byte and answers
 the addon is mounted, and engine2 carries
 `AddonConfig/RestrictFlatFileAddonsToTools`, so flat file addons are tools only.
 Dropping the map VPK into `game/csgo/maps` loads it with no addon at all, which is
-enough to test the map itself, but the addon's materials are then not mounted and
-the map renders magenta. Valve's own build of the same map does this too, so
-compare against it before concluding anything about your own output.
+enough to test the map itself, but the addon's own materials are then not
+mounted. (The magenta look seen in our tests is not this: it stays with the
+addon mounted; see "Purple surfaces" below.) Compare against Valve's own build
+of the same map before concluding anything about your own output. With the
+addon mounted, `map <name> nomapvalidation=true` loads it.
 
 ### Driving a running CS2 needs `-netconport`
 
