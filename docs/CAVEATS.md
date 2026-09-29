@@ -173,6 +173,18 @@ producing no output and no files, on a map that compiles in 45 seconds. The same
 command without `-novpk` is fine. Write the VPK yourself instead;
 `tools/pipeline/splice_map.py` does, and ValvePak reads the result.
 
+### A map without cubemaps renders purple
+
+Our test packages have no `maps/<map>/cubemaps/env_cubemap_array.vtex_c`: the
+compile never makes it. Hammer's post-build action "Build cubemaps on load"
+does, in the game (`buildcubemaps`: the engine renders each env_cubemap, and
+resourcecompiler compiles the faces through `GenerateMips_GGXCubeMapBlur`).
+Without it reflections sample the magenta error texture. On ze_hold_em_p, whose
+lightmap is near black (Valve's own build too), everything looks purple; on
+atixref, lit brightly, it only tints the surfaces. The log shows it as
+`Failed loading resource ".../cubemaps/env_cubemap_array.vtex_c"`. For
+screenshots, run `tools/pipeline/map_test.py ... --cubemaps` (unverified).
+
 ### Materials are fatal, models are not
 
 A missing material aborts the compile, LATE: on Mako it spent 22 minutes on

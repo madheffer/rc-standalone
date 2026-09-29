@@ -189,7 +189,22 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   keyed by that cluster set, a member in several is split triangle by
   triangle into the buckets of each triangle's set; the buckets (a hash map
   keyed by the set) are merged into entries by a thread pool job. This is
-  where triangle order, merges and clusters come from (not ported). On probe01 meshes 101, 100, 102 and 107
+  where triangle order, merges and clusters come from (not ported).
+- **The merger, as read** (addresses in ADDRESSES.md, "CVisibilityMeshMerger"):
+  - inputs: vis's FlatVisClusterVector (per-cluster box lists,
+    `VisOutput.FlatClusterBoxes`, set into the builder context at +0x5c0) and
+    MutualVisibilityMatrix (`VisOutput.MutualVisibility`, +0x5c8); each
+    cluster's bound is the union of its boxes;
+  - a mesh's clusters: those whose bound and one of whose boxes overlap its
+    bounds; a triangle's: of the mesh's clusters, those whose bound and then
+    one box pass TriBoxOverlap at 0.001; more than 16 gives no membership;
+  - a bucket holds entries; a mesh joins the first entry CanMerge accepts
+    (appended, triangles in order) or starts a new one;
+  - merge passes per group, minimums times 4/1/2/16 with factors 1.1, 1000,
+    1.25: buckets in hash slot order, entries last first; an entry under
+    the minimum volume, triangles or vertices moves to the bucket
+    `ChooseTarget` picks (bounds grown by 240, sets joined under the cap,
+    CanMerge and under 0xffff vertices, scored by mutual visibility). On probe01 meshes 101, 100, 102 and 107
   end up in one c2 model while the other nine dev meshes are aggregated;
   the vis merger joining those four (so the merged entry no longer
   aggregates) is the likely reason, not read yet.

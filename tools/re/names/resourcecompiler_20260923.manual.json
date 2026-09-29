@@ -841,6 +841,72 @@
    "note": "visdrivenclustering.cpp: groups (seed = last entry, then CanMerge from the front, up to 300000 indices), each member bucketed by its vis cluster set (whole, or per triangle via 180231200), buckets merged in a thread pool job"
   },
   {
+   "addr": "180230480",
+   "name": "CVisibilityMeshMerger::Init",
+   "module": "s2c:visibility",
+   "note": "MinimumTriangles/Vertices/VolumePerClusteredMesh (defaults 64/32/216, csgo_core 2048/2048/1800), MaxPrecomputedVisClusterMembership 16; each vis cluster's box list unioned into a bound"
+  },
+  {
+   "addr": "180237360",
+   "name": "CVisibilityMeshMerger_InitBoundsJob",
+   "module": "s2c:visibility",
+   "note": "\"init bounds\": each member's CMesh bounds, then its cluster list"
+  },
+  {
+   "addr": "1802307f0",
+   "name": "CVisibilityMeshMerger_MeshMembership",
+   "module": "s2c:visibility",
+   "note": "clusters whose bound and one of whose boxes overlap the mesh bounds (edges count)"
+  },
+  {
+   "addr": "180230aa0",
+   "name": "CVisibilityMeshMerger_TriangleMembership",
+   "module": "s2c:visibility",
+   "note": "per cluster of the member: bound then boxes by TriBoxOverlap (eps 0.001); more than the cap gives no membership"
+  },
+  {
+   "addr": "1802381c0",
+   "name": "CVisibilityMeshMerger_BucketFind",
+   "module": "s2c:visibility",
+   "note": "hash map keyed by the cluster set (hash_combine from 0x3501a674)"
+  },
+  {
+   "addr": "180236a90",
+   "name": "CVisibilityMeshMerger_MergeJob",
+   "module": "s2c:visibility",
+   "note": "thread pool job (vtable 182a8d468) over the groups"
+  },
+  {
+   "addr": "180235b50",
+   "name": "CVisibilityMeshMerger_MergeGroup",
+   "module": "s2c:visibility",
+   "note": "passes of 1802334e0 at the minimums times 4/1/2/16 with factors 1.1, 1000, 1.25"
+  },
+  {
+   "addr": "1802334e0",
+   "name": "CVisibilityMeshMerger_MergeSmallBuckets",
+   "module": "s2c:visibility",
+   "note": "one pass: buckets under the minimums merged into neighbours (CanMerge)"
+  },
+  {
+   "addr": "1802321b0",
+   "name": "CVisibilityMeshMerger_ChooseTarget",
+   "module": "s2c:visibility",
+   "note": "a small entry's bounds grown by 240 give nearby clusters; buckets whose set joined with its own stays under the cap and touches them, with an entry CanMerge accepts under 0xffff vertices, scored by the mutual visibility matrix"
+  },
+  {
+   "addr": "1800476a0",
+   "name": "CVisBuilder::Build_vis",
+   "module": "s2c:visibility",
+   "note": "world_visibility.vvis compile params: rte, viscfg, los, FlatVisClusterVector (context +0x5c0), MutualVisibilityMatrix (+0x5c8)"
+  },
+  {
+   "addr": "181265950",
+   "name": "TriBoxOverlap",
+   "module": "s2c:visibility",
+   "note": "box centre, half extents, three corners, epsilon"
+  },
+  {
    "addr": "180231200",
    "name": "CVisibilityMeshMerger_SplitByTriangleMembership",
    "module": "s2c:visibility",
@@ -857,6 +923,30 @@
    "name": "WRB_CreateEntityTemplateLumps",
    "module": "s2c:entities",
    "note": "create_entity_template_lumps; the template pass driver (TemplatePass_Run)"
+  },
+  {
+   "addr": "180150130",
+   "name": "CTextureFrame::GenerateMips_GGXCubeMapBlur",
+   "module": "s2c:baked/lighting",
+   "note": "GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array"
+  },
+  {
+   "addr": "180133da0",
+   "name": "Texture_CheckCubemapFaces",
+   "module": "s2c:baked/lighting",
+   "note": "Cubemap %i, face %i has Inf/NaN/extremely bright pixel"
+  },
+  {
+   "addr": "180fb0680",
+   "name": "Hammer_LoadGameSettings",
+   "module": "s2c:baked/lighting",
+   "note": "gameinfo's Hammer section (BakeOnlyCubemaps among the map builder switches)"
+  },
+  {
+   "addr": "180f4eae0",
+   "name": "Hammer_LoadOptions",
+   "module": "s2c:baked/lighting",
+   "note": "Hammer's options table (BuildMapEnvMaps is a Hammer setting)"
   },
   {
    "addr": "18024adc0",

@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20260928_1.41.8.5.md): 426 tracked addresses: identical 426
-- 628 addresses
+- 643 addresses
 
 ### s2c:baked/light-keys
 
@@ -300,11 +300,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `180133da0` | `Texture_CheckCubemapFaces` | Cubemap %i, face %i has Inf/NaN/extremely bright pixel |  |
+| `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array |  |
 | `180217740` | `CStaticLightingProcessor::BakeLighting` |  |  |
 | `18023af80` | `Vrad3_Init` | VRAD3_PATH, Vrad3_Init_SearchPath |  |
 | `180248800` | `WRB_BakePrecomputedShadows` | direct_light_shadows |  |
 | `18025db60` | `CWorldRendererBuilderNode::BakeLightMaps` |  |  |
 | `180285eb0` | `WRB_BuildPathTraceSceneInfo` | lights, cameras, instances, mesh_file |  |
+| `180f4eae0` | `Hammer_LoadOptions` | Hammer's options table (BuildMapEnvMaps is a Hammer setting) |  |
+| `180fb0680` | `Hammer_LoadGameSettings` | gameinfo's Hammer section (BakeOnlyCubemaps among the map builder switches) |  |
 
 ### s2c:baked/nav
 
@@ -903,10 +907,20 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `1800476a0` | `CVisBuilder::Build_vis` | world_visibility.vvis compile params: rte, viscfg, los, FlatVisClusterVector (context +0x5c0), MutualVisibilityMatrix (+0x5c8) |  |
 | `18020d860` | `Material_VisFlags` | material int attributes by murmur hash as triangle flags |  |
+| `180230480` | `CVisibilityMeshMerger::Init` | MinimumTriangles/Vertices/VolumePerClusteredMesh (defaults 64/32/216, csgo_core 2048/2048/1800), MaxPrecomputedVisClusterMembership 16; each vis cluster's box list unioned into a bound |  |
+| `1802307f0` | `CVisibilityMeshMerger_MeshMembership` | clusters whose bound and one of whose boxes overlap the mesh bounds (edges count) |  |
+| `180230aa0` | `CVisibilityMeshMerger_TriangleMembership` | per cluster of the member: bound then boxes by TriBoxOverlap (eps 0.001); more than the cap gives no membership |  |
 | `180230df0` | `CVisibilityMeshMerger_AddToBucket` | a whole member appended to a bucket |  |
 | `180231200` | `CVisibilityMeshMerger_SplitByTriangleMembership` | a member seen from several vis clusters: each triangle to the bucket of its own cluster set |  |
+| `1802321b0` | `CVisibilityMeshMerger_ChooseTarget` | a small entry's bounds grown by 240 give nearby clusters; buckets whose set joined with its own stays under the cap and touches them, with an entry CanMerge accepts under 0xffff vertices, scored by the mutual visibility matrix |  |
+| `1802334e0` | `CVisibilityMeshMerger_MergeSmallBuckets` | one pass: buckets under the minimums merged into neighbours (CanMerge) |  |
 | `180234180` | `CVisibilityMeshMerger::MergeMeshes` | visdrivenclustering.cpp: groups (seed = last entry, then CanMerge from the front, up to 300000 indices), each member bucketed by its vis cluster set (whole, or per triangle via 180231200), buckets merged in a thread pool job |  |
+| `180235b50` | `CVisibilityMeshMerger_MergeGroup` | passes of 1802334e0 at the minimums times 4/1/2/16 with factors 1.1, 1000, 1.25 |  |
+| `180236a90` | `CVisibilityMeshMerger_MergeJob` | thread pool job (vtable 182a8d468) over the groups |  |
+| `180237360` | `CVisibilityMeshMerger_InitBoundsJob` | "init bounds": each member's CMesh bounds, then its cluster list |  |
+| `1802381c0` | `CVisibilityMeshMerger_BucketFind` | hash map keyed by the cluster set (hash_combine from 0x3501a674) |  |
 | `180252ae0` | `WRB_MeshEntryFlags` | material flags into a mesh entry | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:10` |
 | `180259130` | `WRB_TriangleInSkipBox` | whether a triangle lies in one of those boxes; the emitter then skips it |  |
 | `1802597d0` | `WRB_RteSkipBoxes` | oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified |  |
@@ -914,6 +928,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802839d0` | `WRB_CollectRteMeshes` | each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80 | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:13` |
 | `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:109` |
 | `1810045b0` | `CMapEntity::vf219` | 2 when the entity's class renders as world | `src/Source2.Compiler/Maps/MapGeometry.cs:10` |
+| `181265950` | `TriBoxOverlap` | box centre, half extents, three corners, epsilon |  |
 
 ## smartprops.dll, build 20260923
 

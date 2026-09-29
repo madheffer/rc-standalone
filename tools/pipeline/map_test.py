@@ -5,11 +5,17 @@ Launch CS2 as `cs2.exe -tools -insecure -netconport 29000 -novid` (never without
 the list of loadable maps is read at launch, and -addon does not mount an
 addon here. Logs and screenshots go to the working directory.
 
-    python map_test.py <label> <map> <x,y,z drop> [<x,y,z trigger>=<x,y,z destination> ...]
+    python map_test.py <label> <map> <x,y,z drop> [<x,y,z trigger>=<x,y,z destination> ...] [--cubemaps]
 
 Loads the map, logs the console to <label>.log, drops the player at the given
 point and reports where they stop, then for each trigger stands the player at
 its position and reports where they end up next to the destination expected.
+
+--cubemaps runs `buildcubemaps` after the load, as Hammer's "Build cubemaps on
+load" post-build action does. A package without maps/<map>/cubemaps/
+env_cubemap_array.vtex_c renders its reflections from the magenta error
+texture (every compile we test skips that step; ze_hold_em_p, lit very dimly,
+shows it as purple everywhere), so take screenshots with it when judging looks.
 """
 import os
 import re
@@ -20,8 +26,10 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cs2_console import Console
 
-label, mapname, drop = sys.argv[1], sys.argv[2], sys.argv[3]
-triggers = [a.split("=") for a in sys.argv[4:]]
+cubemaps = "--cubemaps" in sys.argv
+args = [a for a in sys.argv[1:] if a != "--cubemaps"]
+label, mapname, drop = args[0], args[1], args[2]
+triggers = [a.split("=") for a in args[3:]]
 here = os.getcwd()
 FG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cs2_front.ps1")
 log = open(os.path.join(here, f"{label}.log"), "w", encoding="utf-8")
@@ -64,6 +72,11 @@ problems = [l for l in lines if re.search(r"error|fail|missing|could not|invalid
 print(f"{label}: {len(lines)} lines while loading, {len(problems)} flagged")
 for l in problems[:60]:
     print("   ", l[:180])
+
+if cubemaps:
+    front()
+    built = run(c, ["sv_cheats 1", "buildcubemaps"], 120)
+    print(f"{label}: buildcubemaps, {len(built)} lines; " + "; ".join(l[:120] for l in built if re.search(r"cubemap|envmap", l, re.I))[:600])
 
 front()
 run(c, ["sv_cheats 1", "mp_warmup_start", "mp_warmuptime 9999", "mp_autoteambalance 0", "mp_limitteams 0", "jointeam 3 1"], 8)
