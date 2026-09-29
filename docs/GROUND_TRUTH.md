@@ -111,6 +111,15 @@ game can answer is raised with the user first, and runs with -insecure.
     measured, every specimen exact that way, while the loader's rebuilt
     tracer tree changes the verdicts (RebuiltTreeProbe, RTREE=<map>). Which
     structure visbuilder's seed trace reads is not read in the 09-23 build.
+34. **World node triangle order**: the draw's steps after the incoming
+    index buffer are read and stock meshopt (GEOMETRY.md, draw buffers).
+    The incoming order is measured only: on probe01's c2 model each
+    mesh's face pairs go in reversed, and mesh 100 swaps faces 4 and 5.
+    The builder's input DMX keeps vmap order, so a step between the DMX
+    and the draw sets it (c2 60/64 triangles with the reversed pairs).
+35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
+    the other nine's material flags but miss `agg_merge`; read
+    `WRBMeshList_GroupAggregates` (18026f590) and the per-cluster lists.
 18. vrad3 trace cost law (performance only; not output).
 19. Legacy-GUID particles in game (needs the user's go-ahead for a game run).
 20. The vmat_c field order note ("likely NTRO positional"): the order is

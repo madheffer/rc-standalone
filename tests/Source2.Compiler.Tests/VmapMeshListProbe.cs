@@ -97,6 +97,24 @@ public class VmapMeshListProbe(ITestOutputHelper output)
             output.WriteLine(text.ToString());
     }
 
+    /// <summary><c>VMAPENT=addon|map|classname</c>: each entity of the class, its origin, angles and keys.</summary>
+    [Fact]
+    public void Entities()
+    {
+        if (Environment.GetEnvironmentVariable("VMAPENT") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        if (MapFixtures.VmapSource(p[0], p[1]) is not { } source)
+            return;
+        var document = DmxBinary.ReadFile(source);
+        foreach (var e in MapEntities.From(document).Where(x => x.ClassName.Equals(p[2], StringComparison.OrdinalIgnoreCase)))
+        {
+            output.WriteLine($"{e.ClassName}#{e.NodeId} origin {e.Origin} angles {e.Angles}");
+            foreach (var kv in e.Keys)
+                output.WriteLine($"   {kv.Key} = {kv.Value}");
+        }
+    }
+
     private static string Show(object? v) => v switch
     {
         null => "null",

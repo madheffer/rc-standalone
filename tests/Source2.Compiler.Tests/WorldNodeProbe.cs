@@ -57,6 +57,85 @@ public class WorldNodeProbe(ITestOutputHelper output)
         output.WriteLine($"{items.Count} models");
     }
 
+    /// <summary><c>WNTYPED=&lt;resource path&gt;|&lt;out file&gt;</c>: every block's tree with its value types.</summary>
+    [Fact]
+    public void Typed()
+    {
+        if (Environment.GetEnvironmentVariable("WNTYPED") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var trees = WorldPhysicsAuthorTests.Trees(File.ReadAllBytes(p[0]));
+        var text = new StringBuilder();
+        foreach (var (name, tree) in trees)
+        {
+            text.AppendLine($"== {name}");
+            foreach (var line in KvTreeDiff.Typed(tree, "", 0, 3))
+                text.AppendLine(line);
+        }
+        File.WriteAllText(p[1], text.ToString());
+    }
+
+    /// <summary>
+    /// <c>WNFIELDS=&lt;vpk&gt;[;&lt;vpk&gt;...]|&lt;out file&gt;</c>: over every worldnodes model, each
+    /// tree field path (array indices dropped) with its distinct types and up to
+    /// eight distinct values, to tell constant fields from computed ones.
+    /// </summary>
+    [Fact]
+    public void Fields()
+    {
+        if (Environment.GetEnvironmentVariable("WNFIELDS") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var seen = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+        var counts = new Dictionary<string, int>();
+        void Walk(ValveKeyValue.KVObject v, string path)
+        {
+            switch (v.ValueType)
+            {
+                case ValveKeyValue.KVValueType.Collection:
+                    foreach (var c in v.Children)
+                        Walk(c.Value, path + "." + c.Key);
+                    return;
+                case ValveKeyValue.KVValueType.Array:
+                    foreach (var item in v.Values)
+                        Walk(item, path + "[]");
+                    if (!v.Values.Any())
+                        Add(path + "[]", "(empty)");
+                    return;
+                default:
+                    Add(path, $"{v.ValueType}{(v.Flag != 0 ? "/" + v.Flag : "")} {v}");
+                    return;
+            }
+        }
+        void Add(string path, string value)
+        {
+            if (!seen.TryGetValue(path, out var set))
+                seen[path] = set = new SortedSet<string>(StringComparer.Ordinal);
+            if (set.Count < 9)
+                set.Add(value.Length > 80 ? value[..80] : value);
+            counts[path] = counts.GetValueOrDefault(path) + 1;
+        }
+        var models = 0;
+        foreach (var vpk in p[0].Split(';'))
+        {
+            using var package = new ValvePak.Package();
+            package.Read(vpk);
+            foreach (var entry in package.Entries.GetValueOrDefault("vmdl_c") ?? [])
+            {
+                if (!entry.GetFullPath().Contains("/worldnodes/", StringComparison.Ordinal))
+                    continue;
+                package.ReadEntry(entry, out var bytes);
+                models++;
+                foreach (var (name, tree) in WorldPhysicsAuthorTests.Trees(bytes))
+                    Walk(tree, name);
+            }
+        }
+        var text = new StringBuilder($"{models} models{Environment.NewLine}");
+        foreach (var (path, values) in seen)
+            text.AppendLine($"{path} ({counts[path]}): {string.Join(" | ", values)}");
+        File.WriteAllText(p[1], text.ToString());
+    }
+
     [Fact]
     public void DumpModel()
     {

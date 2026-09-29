@@ -12,7 +12,9 @@ namespace Source2.Compiler.Tests;
 /// against the <c>.vmap</c> mesh it came from, face by face. Meshes pair up by
 /// their world positions, faces by their corner positions, corners by
 /// position. <c>MESHBUF=&lt;dir&gt;</c>, <c>MESHBUF_VMAP=&lt;vmap&gt;</c>,
-/// <c>MESHBUF_SHOW</c> caps the listed differences.
+/// <c>MESHBUF_SHOW</c> caps the listed differences. <c>MESHBUF_ORDER=1</c>
+/// tallies whether each dump lists its faces in the vmap's order (it does,
+/// within each face set).
 /// </summary>
 public class MeshBufferVsVmap(ITestOutputHelper output)
 {
@@ -81,6 +83,7 @@ public class MeshBufferVsVmap(ITestOutputHelper output)
                     index[fk] = l = [];
                 l.Add(f);
             }
+            var order = new List<int>();
             foreach (var f in faces)
             {
                 if (!index.TryGetValue(Key(f.Select(c => c.Position)), out var l) || l.Count == 0)
@@ -90,6 +93,7 @@ public class MeshBufferVsVmap(ITestOutputHelper output)
                 }
                 var g = l[0];
                 l.RemoveAt(0);
+                order.Add(ours.IndexOf(g));
                 if (Environment.GetEnvironmentVariable("MESHBUF_NODE") == source.NodeId.ToString(CultureInfo.InvariantCulture))
                 {
                     output.WriteLine($"FACE dmx  {string.Join(" ", f.Select(c => $"{c.Position}:{c.Streams.GetValueOrDefault("texcoord$0")}"))}");
@@ -118,6 +122,13 @@ public class MeshBufferVsVmap(ITestOutputHelper output)
                             output.WriteLine($"{Path.GetFileName(file)} node {source.NodeId} {name} dmx {value} vmap {theirs}");
                     }
                 }
+            }
+            if (Environment.GetEnvironmentVariable("MESHBUF_ORDER") == "1" && order.Count > 1)
+            {
+                var kind = order.SequenceEqual(order.Order()) ? "ascending" : order.SequenceEqual(order.OrderDescending()) ? "descending" : "other";
+                Count($"face order {kind}");
+                if (kind == "other" && shown++ < show)
+                    output.WriteLine($"ORDER node {source.NodeId} sets {doc.Elements.First(e => e.Type == "DmeMesh").GetElements("faceSets").Count()}: {string.Join(" ", order)}");
             }
         }
         foreach (var (k, v) in tally.OrderBy(kv => kv.Key, StringComparer.Ordinal))

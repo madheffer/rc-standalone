@@ -166,8 +166,14 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
 - **The merge:** for each entry without attribute bit 0x2, later entries
   that `WRBMeshEntry_CanMerge` accepts join it while the sum stays under
   0x200000 vertices and 0x400000 indices; a group becomes one entry with
-  the first's fields. On probe01 meshes 101, 100, 102 and 107 merge; why
-  the other nine do not is open.
+  the first's fields. `WRBMeshEntry_CanMerge` asks for equal attribute
+  flags, material, overlay order, object flags, lighting mode, stream
+  layout, cubemap, light probe, fade, the +0x1c8 matrix within 1e-5, and
+  more. On probe01 meshes 101, 100, 102 and 107 merge into the c2 model;
+  the other nine dev meshes went to `agg_merge` before any merge. Why
+  those four were not aggregated is open: their material flags are the
+  same, so the answer is in `WRBMeshList_GroupAggregates` (18026f590,
+  not fully read) or the per-cluster lists.
 - **CompileNode:** each entry goes to the first mesh list whose flag test
   accepts it, in this order: CSkyboxBlockLightMeshList (0x48),
   CSkyboxMeshList (0x40), CBlockLightMeshList (8),
@@ -187,6 +193,22 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   draw bounds. probe01's reflectivity aggregate holds 100 triangles from 72
   source triangles (T-junction fixes, not read yet).
 
-Open, in order: the merge rule on probe01, the fragment split, the
-T-junction pass, the vertex cache and fetch order, UV density, the
-tangent frame, meshlets, then the node and world files.
+- **Draw buffers** (`CResourceCompilerMesh::AddDrawDescriptors`): each
+  draw's vertices are renumbered by first use in its incoming index
+  buffer. Then comes stock meshopt `optimizeVertexCache` (Valve's score
+  table at 18243aab0 has meshopt's values), then stock `optimizeOverdraw`
+  at 1.03 (the 11-bit radix version). The vertex and index codecs, the
+  tangent frame and UV density are exact (MeshoptEncoderTests,
+  TangentFrameTests, UvDensityTests).
+- **Triangle order** into those steps is not ours yet. The builder's input
+  DMX lists faces in vmap order within each face set (MeshBufferVsVmap,
+  MESHBUF_ORDER=1: atixref 456 meshes ascending, the rest grouped by
+  set). But on probe01's c2 model, 60 of 64 triangles come out right only
+  when each mesh's ridges (face pairs) go in reversed, faces in order
+  within a pair. Mesh 100's third ridge also needs face 5 before face 4.
+  So the order is data dependent and set between the DMX and the draw
+  (map mesh to CMesh, split, triangles inside, weld). Not found yet.
+
+Open, in order: the triangle order above, why four probe01 meshes were
+not aggregated, the fragment split, the T-junction pass, meshlets, then
+the node and world files.

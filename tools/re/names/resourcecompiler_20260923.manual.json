@@ -655,6 +655,60 @@
    "note": "name <node>_lr%i[_c%i]{_s|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name>"
   },
   {
+   "addr": "1802ed7f0",
+   "name": "CResourceCompilerMesh::AddDrawDescriptors",
+   "module": "s2c:geometry/world-nodes",
+   "note": "per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density"
+  },
+  {
+   "addr": "1812b9370",
+   "name": "meshopt_optimizeVertexCache",
+   "module": "s2c:geometry/world-nodes",
+   "note": "stock meshopt, kVertexScoreTable at 18243aab0 (same values)"
+  },
+  {
+   "addr": "1812b8c10",
+   "name": "meshopt_optimizeVertexCacheTable",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812c4f30",
+   "name": "meshopt_optimizeOverdraw",
+   "module": "s2c:geometry/world-nodes",
+   "note": "stock meshopt; threshold 1.03 from AddDrawDescriptors"
+  },
+  {
+   "addr": "1812c4810",
+   "name": "meshopt_calculateSortOrderRadix",
+   "module": "s2c:geometry/world-nodes",
+   "note": "11-bit keys, 1e-3 floor: the radix version"
+  },
+  {
+   "addr": "1812d9920",
+   "name": "Mesh_UvDensity",
+   "module": "s2c:geometry/world-nodes",
+   "note": "sqrt(world area / uv area), sorted, index ((n-1)*pct)/100; pct 20 or 95"
+  },
+  {
+   "addr": "18025f9d0",
+   "name": "WRB_UseAggregateInstances",
+   "module": "s2c:geometry/world-nodes",
+   "note": "gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge"
+  },
+  {
+   "addr": "18026f590",
+   "name": "WRBMeshList_GroupAggregates",
+   "module": "s2c:geometry/world-nodes",
+   "note": "runs of equal material name and attribute bits 0x6000000000 / 0x100000, up to 0x7ffb meshes, into the aggregate builder"
+  },
+  {
+   "addr": "180268e80",
+   "name": "WRB_BuildAggregate",
+   "module": "s2c:geometry/world-nodes",
+   "note": "Added aggregate with %i meshes, %i fragments; %s_lr%i_%s"
+  },
+  {
    "addr": "182067e80",
    "name": "CompressTangentFrame",
    "module": "s2c:geometry/world-nodes",

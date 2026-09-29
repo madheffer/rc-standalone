@@ -15,6 +15,56 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class WorldNodeGroupProbe(ITestOutputHelper output)
 {
+    /// <summary>
+    /// <c>WNFACES=addon|map|id,id|out.json</c>: each mesh's faces as world
+    /// positions in loop order (from faceEdgeIndices), and for each start
+    /// rotation k the triangulator's cut of the loop started k corners later.
+    /// </summary>
+    [Fact]
+    public void Faces()
+    {
+        if (Environment.GetEnvironmentVariable("WNFACES") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        if (MapFixtures.VmapSource(p[0], p[1]) is not { } source)
+            return;
+        var document = DmxBinary.ReadFile(source);
+        var meshes = MapMeshes.Read(document);
+        var result = new List<object>();
+        foreach (var id in p[2].Split(',').Select(int.Parse))
+        {
+            var mesh = meshes.First(m => m.NodeId == id);
+            var w = mesh.World;
+            Vector3 Place(Vector3 v) => new(w[0] * v.X + w[1] * v.Y + w[2] * v.Z + w[3], w[4] * v.X + w[5] * v.Y + w[6] * v.Z + w[7],
+                                            w[8] * v.X + w[9] * v.Y + w[10] * v.Z + w[11]);
+            var data = mesh.Element!.Get<DmxBinary.Element>("meshData")!;
+            int[] Ints(string n) => (data.Get<object?[]>(n) ?? []).Select(x => x is int i ? i : -1).ToArray();
+            var next = Ints("edgeNextIndices");
+            var to = Ints("edgeVertexIndices");
+            var first = Ints("faceEdgeIndices");
+            var vertexData = Ints("vertexDataIndices");
+            var positions = data.Get<DmxBinary.Element>("vertexData")!.GetElements("streams").First(st => st.Name.StartsWith("position", StringComparison.Ordinal)).Get<object?[]>("data")!;
+            for (var f = 0; f < first.Length; f++)
+            {
+                var loop = new List<Vector3>();
+                var e = first[f];
+                do
+                {
+                    loop.Add(Place((Vector3)positions[vertexData[to[e]]]!));
+                    e = next[e];
+                } while (e != first[f]);
+                var cuts = new List<int[]>();
+                for (var k = 0; k < loop.Count; k++)
+                {
+                    var rotated = loop.Skip(k).Concat(loop.Take(k)).ToArray();
+                    cuts.Add(PolygonTriangulator.Triangulate(rotated).Select(i => (i + k) % loop.Count).ToArray());
+                }
+                result.Add(new { id, face = f, loop = loop.Select(v => new[] { v.X, v.Y, v.Z }), cuts });
+            }
+        }
+        File.WriteAllText(p[3], JsonSerializer.Serialize(result));
+    }
+
     [Fact]
     public void Export()
     {
