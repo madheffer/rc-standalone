@@ -518,9 +518,9 @@
   },
   {
    "addr": "180277ab0",
-   "name": "Step_BuildingVertexOverrideStreams",
+   "name": "CWorldRendererBuilderNode::CompileNode",
    "module": "s2c:geometry/world-nodes",
-   "note": ""
+   "note": "worldnodes\n%d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams"
   },
   {
    "addr": "180259d30",
@@ -551,6 +551,114 @@
    "name": "WRB_RemoveZeroExtraAttributeStreams",
    "module": "s2c:geometry/world-nodes",
    "note": "Removed %i all-zero extra attribute streams"
+  },
+  {
+   "addr": "18024b400",
+   "name": "CWorldRendererBuilderNode::BuildNode",
+   "module": "s2c:geometry/world-nodes",
+   "note": "bounds, props, drop flagged entries, triangles inside, T-junctions, (bake), merge unless render clusters, weld 1/32"
+  },
+  {
+   "addr": "1802547d0",
+   "name": "WRBNode_ComputeBounds",
+   "module": "s2c:geometry/world-nodes",
+   "note": "meshes whose entry flags miss the mask, then static props"
+  },
+  {
+   "addr": "180255b90",
+   "name": "WRBNode_AddStaticProps",
+   "module": "s2c:geometry/world-nodes",
+   "note": "BakePropsWithNonUniformScale / ExtraVertexStreams"
+  },
+  {
+   "addr": "18023f6d0",
+   "name": "WRB_CollectMeshEntries",
+   "module": "s2c:geometry/world-nodes",
+   "note": "a map mesh's pieces into node mesh entries (0x238 bytes each)"
+  },
+  {
+   "addr": "180258570",
+   "name": "WRBNode_MergeMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "greedy: later compatible entries while verts < 0x200000 and indices < 0x400000"
+  },
+  {
+   "addr": "1802b63b0",
+   "name": "WRBMeshEntry_CanMerge",
+   "module": "s2c:geometry/world-nodes",
+   "note": "same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ..."
+  },
+  {
+   "addr": "180257ff0",
+   "name": "WRBNode_MergeEntries",
+   "module": "s2c:geometry/world-nodes",
+   "note": "one new entry from the group, fields from the first"
+  },
+  {
+   "addr": "180257d20",
+   "name": "WRB_MergeMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "CMesh merge of the group (FUN_1812dd570)"
+  },
+  {
+   "addr": "180251da0",
+   "name": "WRBMeshEntry_LightingMode",
+   "module": "s2c:geometry/world-nodes",
+   "note": "from attribute bits 16/17"
+  },
+  {
+   "addr": "18026d4a0",
+   "name": "WRBMeshEntry_CanAggregate",
+   "module": "s2c:geometry/world-nodes",
+   "note": "attribute 0x40000000 and none of 0x800e01, object flags without 0x200, no instance stream, lighting origin, overlay order or fade"
+  },
+  {
+   "addr": "180270720",
+   "name": "CMeshList::Accepts",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x50: (attribute & want) == want and (attribute & exclude) == 0"
+  },
+  {
+   "addr": "180272aa0",
+   "name": "CAggregateMeshList::Accepts",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x50: enabled, the flag test, then WRBMeshEntry_CanAggregate"
+  },
+  {
+   "addr": "18026e840",
+   "name": "CClassifiedMeshList::MoveAggregates",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x28: aggregatable entries moved to the aggregate member list"
+  },
+  {
+   "addr": "1802709f0",
+   "name": "CBaseMeshList::Compile",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x20: groups as \"mesh_base\""
+  },
+  {
+   "addr": "180272ae0",
+   "name": "CAggregateMeshList::Compile",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x20: sorts the entries, then groups"
+  },
+  {
+   "addr": "18026c150",
+   "name": "WRBMeshList_GroupRenderObjects",
+   "module": "s2c:geometry/world-nodes",
+   "note": "runs of equal cubemap, probe, flags & 0x10420000, +0x1a6, object flags; named %s_cm%02d_lp%02d"
+  },
+  {
+   "addr": "18026bab0",
+   "name": "WRBNode_CreateRenderObject",
+   "module": "s2c:geometry/world-nodes",
+   "note": "name <node>_lr%i[_c%i]{_s|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name>"
+  },
+  {
+   "addr": "182067e80",
+   "name": "CompressTangentFrame",
+   "module": "s2c:geometry/world-nodes",
+   "note": "octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00"
   },
   {
    "addr": "18026d9e0",

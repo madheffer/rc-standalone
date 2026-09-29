@@ -131,12 +131,62 @@ Open (GROUND_TRUTH.md 25):
 
 ## World nodes and render meshes
 
-Not started. Valve's entry points:
-- `CompileAndSaveNodes` and `Step_BuildingRenderClusters`;
-- `CVisibilityMeshMerger`, which splits meshes by vis cluster (VISIBILITY.md);
-- `Step_SplittingMeshWith` and `Step_RemovingTrianglesInside`;
-- `FixTJunctionEdgeCracks` and `BuildAggregateRTProxies`;
-- `PostCompileNode` and `Step_BuildingVertexOverrideStreams`.
+In progress. What is settled:
+- **Buffers** (`Meshopt/MeshoptEncoder.cs`): meshoptimizer's vertex codec
+  version 1 at level 3 and index codec version 1. Every meshopt MVTX and
+  MIDX block of probe01, cardtest and atixref's node models re-encodes
+  byte for byte from its decoded data (`MeshoptEncoderTests`).
+- **The model container** (`Containers/WorldNodeModelAuthor.cs`): the
+  buffer blocks in block index order, then MDAT, CTRL, RERL, RED2, DATA.
+  All 401 node models of those three maps re-author with the same
+  container facts, decoded trees, buffers and references
+  (`WorldNodeModelAuthorTests`). Resource layout (`ValveLayout`): blocks
+  zero-padded to 16 bytes, RERL to 4 with its entries 8-aligned.
+- **The index layer** (`.vwrld`, `.vwnod`) already round-trips through
+  `AuthorKv3Tree` (`MapResourceAuthoringTests`).
 
-These need visibility's two blocks, the mesh export, the shader vertex
-layouts and the static props.
+A node model's vertex (probe01): float3 position, float2 texcoord
+(`LowPrecisionUv`, R32G32 float), and a packed u32 tangent frame
+(`CompressTangentFrame`: octahedral normal 10 + 10 bits, the tangent's
+angle about a basis from the normal in 11 bits, the bitangent sign).
+Aggregate models add a `color` stream at index 1 and meshlets.
+
+The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
+- **Entries:** `WRB_CollectMeshEntries` turns each map mesh piece into a
+  0x238-byte node mesh entry: +0x1b0 attribute flags (64-bit, from the
+  material's attributes in `WRB_MeshEntryFlags`; 0x40000000 is
+  `SupportsAggregateInstancing`), +0xbc object flags (0x80, 0x200, 0x400
+  render to cubemaps, 0x100000), +0xa0 cubemap, +0xa4 light probe volume,
+  +0xac overlay order, +0xb4 fade max, +0x1c8 a 3x4 matrix.
+- **BuildNode:** bounds, static props, entries with +0x1a5 or attribute
+  0x400000000 dropped, removal of triangles inside, T-junction cracks,
+  optional baking, the merge (`WRBNode_MergeMeshes`, run because CS2's
+  gameinfo sets neither `Hammer/CreateRenderClusters` nor
+  `VisibilityGuidedMeshClustering`), then `CMesh_Weld` at 1/32.
+- **The merge:** for each entry without attribute bit 0x2, later entries
+  that `WRBMeshEntry_CanMerge` accepts join it while the sum stays under
+  0x200000 vertices and 0x400000 indices; a group becomes one entry with
+  the first's fields. On probe01 meshes 101, 100, 102 and 107 merge; why
+  the other nine do not is open.
+- **CompileNode:** each entry goes to the first mesh list whose flag test
+  accepts it, in this order: CSkyboxBlockLightMeshList (0x48),
+  CSkyboxMeshList (0x40), CBlockLightMeshList (8),
+  CNoSplitOverlayMeshList, an overlay list, CWorldSpaceTextureMeshList
+  (0x8000), CSkyboxMaterialMeshList (0x80), CBakedPropLODMeshList (0x2000,
+  `agg_prop`), CNoSplitMeshList (4, `agg_inst`), an instanced list,
+  CAggregateMeshList (0x40000000, `agg_merge`, also needs
+  `WRBMeshEntry_CanAggregate`), CBaseMeshList (the rest). Then render
+  clusters (`Step_BuildingRenderClusters`, 2048 triangles by default), and
+  each list compiles once or per cluster.
+- **Names:** `<node>_lr<layer>[_c<cluster>]{_s|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name>`
+  from the object flags (0x200 `_d`, 0x400 `_cb`, 0x80 `_dl`, 0x20000 `_b`,
+  0x10000 `_nv`, 0x10 `_bl`, 0x100000 `_rtem`); a list's groups are runs of
+  equal cubemap, probe and flags, named `%s_cm%02d_lp%02d`.
+- **Aggregates** are re-split into fragments, one draw call each, sorted
+  by triangle count; each has a meshlet (packed AABB, culling cone) and
+  draw bounds. probe01's reflectivity aggregate holds 100 triangles from 72
+  source triangles (T-junction fixes, not read yet).
+
+Open, in order: the merge rule on probe01, the fragment split, the
+T-junction pass, the vertex cache and fetch order, UV density, the
+tangent frame, meshlets, then the node and world files.

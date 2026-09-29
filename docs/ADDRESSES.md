@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20260928_1.41.8.5.md): 426 tracked addresses: identical 426
-- 580 addresses
+- 598 addresses
 
 ### s2c:baked/light-keys
 
@@ -579,16 +579,35 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `18023f6d0` | `WRB_CollectMeshEntries` | a map mesh's pieces into node mesh entries (0x238 bytes each) |  |
+| `18024b400` | `CWorldRendererBuilderNode::BuildNode` | bounds, props, drop flagged entries, triangles inside, T-junctions, (bake), merge unless render clusters, weld 1/32 |  |
 | `18024b890` | `CWorldRendererBuilder::CompileAndSaveNodes` |  |  |
+| `180251da0` | `WRBMeshEntry_LightingMode` | from attribute bits 16/17 |  |
+| `1802547d0` | `WRBNode_ComputeBounds` | meshes whose entry flags miss the mask, then static props |  |
+| `180255b90` | `WRBNode_AddStaticProps` | BakePropsWithNonUniformScale / ExtraVertexStreams |  |
+| `180257d20` | `WRB_MergeMeshes` | CMesh merge of the group (FUN_1812dd570) |  |
+| `180257ff0` | `WRBNode_MergeEntries` | one new entry from the group, fields from the first |  |
+| `180258570` | `WRBNode_MergeMeshes` | greedy: later compatible entries while verts < 0x200000 and indices < 0x400000 |  |
 | `180259b00` | `Step_RemovingTrianglesInside` | culling boxes |  |
 | `180259d30` | `CWorldRendererBuilderNode::FixTJunctionEdgeCracks` |  |  |
 | `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris |  |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |
+| `18026bab0` | `WRBNode_CreateRenderObject` | name <node>_lr%i[_c%i]{_s\|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name> |  |
+| `18026c150` | `WRBMeshList_GroupRenderObjects` | runs of equal cubemap, probe, flags & 0x10420000, +0x1a6, object flags; named %s_cm%02d_lp%02d |  |
+| `18026d4a0` | `WRBMeshEntry_CanAggregate` | attribute 0x40000000 and none of 0x800e01, object flags without 0x200, no instance stream, lighting origin, overlay order or fade |  |
 | `18026e490` | `WRB_RemoveZeroExtraAttributeStreams` | Removed %i all-zero extra attribute streams |  |
-| `180277ab0` | `Step_BuildingVertexOverrideStreams` |  |  |
+| `18026e840` | `CClassifiedMeshList::MoveAggregates` | vf 0x28: aggregatable entries moved to the aggregate member list |  |
+| `180270720` | `CMeshList::Accepts` | vf 0x50: (attribute & want) == want and (attribute & exclude) == 0 |  |
+| `1802709f0` | `CBaseMeshList::Compile` | vf 0x20: groups as "mesh_base" |  |
+| `180272aa0` | `CAggregateMeshList::Accepts` | vf 0x50: enabled, the flag test, then WRBMeshEntry_CanAggregate |  |
+| `180272ae0` | `CAggregateMeshList::Compile` | vf 0x20: sorts the entries, then groups |  |
+| `180277ab0` | `CWorldRendererBuilderNode::CompileNode` | worldnodes
+%d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams |  |
 | `180281100` | `CWorldRendererBuilderNode::PostCompileNode` |  |  |
 | `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering |  |
 | `180287320` | `CWorldRendererBuilderNode::LoadMaterialsInMeshList` |  |  |
+| `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... |  |
+| `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 |  |
 
 ### s2c:infra
 
