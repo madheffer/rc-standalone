@@ -194,6 +194,12 @@ probe01, probe_cable and probe_classes lack `postprocess/basic_linear_post.vpost
 the same way. Ruled out on the way: cubemaps, `-tools`, lighting, our splice,
 materials, the client (workshop maps and de_dust2 render normally).
 
+Fix verified the same day: `base.vpost_c` taken from the workshop package
+(3090538169) and placed at `csgo_addons/<addon>/lighting/postprocessing/ze_hold_em/`
+loads without the failure line, and the frame after freeze time is normal
+concrete, identical with the volume disabled. For a real build the source
+`.vpost` has to be in the content tree so the compile packages it.
+
 ### Building cubemaps for a test map
 
 Hammer's "Build cubemaps on load" is `buildcubemaps` in game. It writes only
