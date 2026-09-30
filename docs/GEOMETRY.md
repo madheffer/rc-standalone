@@ -201,9 +201,15 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   where triangle order, merges and clusters come from. Ported as
   `VisibilityMeshMerger` (the CUtlHashTable whose slot order is the output
   order, the membership tests, TriBoxOverlap, the merge passes,
-  ChooseTarget with MSVC's std::sort); checked by replaying captured calls
-  (`tools/vis/capture_meshmerge.py`, `VisibilityMeshMergerReplay`) with
-  Valve's CanMerge answers standing in for the entry comparison.
+  ChooseTarget with MSVC's std::sort). Exact on every captured call of
+  probe01, cardtest and atixref (9 calls, 466 entries, 364 buckets; the
+  capture is `tools/vis/capture_meshmerge.py`, the replay
+  `VisibilityMeshMergerReplay`), and the ported `CanMerge` agrees with
+  Valve's on all 132,419 pairs. Two facts only the capture showed: every
+  table the merger makes has a minimum size of 32 (+0x18 = 0x20), and the
+  output entries keep their incoming +0x218: the bucket key is written into
+  the bucket's own entries after they are copied out. Not exercised yet:
+  triangles no cluster sees or more than 16 see (the unclustered output).
 - **The merger, as read** (addresses in ADDRESSES.md, "CVisibilityMeshMerger"):
   - inputs: vis's FlatVisClusterVector (per-cluster box lists,
     `VisOutput.FlatClusterBoxes`, set into the builder context at +0x5c0) and
