@@ -67,11 +67,37 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
                     foreach (var st in piece.Streams.Where(x => x.Name is "normal" or "tangent"))
                     {
                         var d = Rotate(world, new Vector3(v[c * s + st.First], v[c * s + st.First + 1], v[c * s + st.First + 2]));
+                        if (Environment.GetEnvironmentVariable("NODEENTRIES_NORMALISE") == "1")
+                        {
+                            var len = MathF.Sqrt(d.X * d.X + d.Y * d.Y + d.Z * d.Z);
+                            if (len != 0f)
+                            {
+                                var inv = 1f / len;
+                                d = new Vector3(d.X * inv, d.Y * inv, d.Z * inv);
+                            }
+                        }
                         (v[c * s + st.First], v[c * s + st.First + 1], v[c * s + st.First + 2]) = (d.X, d.Y, d.Z);
                     }
                 }
+                if (Environment.GetEnvironmentVariable("NODEENTRIES_NODE") == mesh.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                {
+                    output.WriteLine($"  node {mesh.NodeId} angles {mesh.Angles} matrix {string.Join(" ", world.Select(x => x.ToString("R")))}");
+                    for (var c = 0; c < 3; c++)
+                        output.WriteLine($"    corner {c} normal before {piece.Vertices[c * s + 5]:R},{piece.Vertices[c * s + 6]:R},{piece.Vertices[c * s + 7]:R} after {v[c * s + 5]:R},{v[c * s + 6]:R},{v[c * s + 7]:R}");
+                }
                 var name = piece.Material < names.Length ? names[piece.Material] : "?";
                 ours.Add((name, v, s, mesh.NodeId));
+                if (Environment.GetEnvironmentVariable("NODEENTRIES_RAW") is { } rawPath)
+                {
+                    var raw = (float[])piece.Vertices.Clone();
+                    for (var c = 0; c < raw.Length / s; c++)
+                        foreach (var st in piece.Streams.Where(x => x.Name is "normal" or "tangent"))
+                        {
+                            var d = Rotate(world, new Vector3(raw[c * s + st.First], raw[c * s + st.First + 1], raw[c * s + st.First + 2]));
+                            (raw[c * s + st.First], raw[c * s + st.First + 1], raw[c * s + st.First + 2]) = (d.X, d.Y, d.Z);
+                        }
+                    Raw.Add(raw);
+                }
             }
         }
         output.WriteLine($"valve {valve.Count} entries, ours {ours.Count} pieces");
@@ -107,6 +133,15 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
                         break;
                     }
             output.WriteLine($"entry {e.Index} {Path.GetFileName(e.Material)} node {o.NodeId} (piece {j}): {diff}");
+            if (Environment.GetEnvironmentVariable("NODEENTRIES_RAW") is { } rp && o.V.Length == e.Vertices.Length)
+                using (var w = File.AppendText(rp))
+                    for (var c = 0; c < e.Vertices.Length / e.Stride; c++)
+                        foreach (var f in new[] { 5, 8 })
+                            w.WriteLine(string.Join(" ", Enumerable.Range(0, 3).Select(k => BitConverter.SingleToInt32Bits(Raw[j][c * e.Stride + f + k]).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                                .Concat(Enumerable.Range(0, 3).Select(k => BitConverter.SingleToInt32Bits(e.Vertices[c * e.Stride + f + k]).ToString(System.Globalization.CultureInfo.InvariantCulture)))));
+            if (Environment.GetEnvironmentVariable("NODEENTRIES_NODE") == o.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                for (var c = 0; c < 3; c++)
+                    output.WriteLine($"    valve corner {c} normal {e.Vertices[c * e.Stride + 5]:R},{e.Vertices[c * e.Stride + 6]:R},{e.Vertices[c * e.Stride + 7]:R}");
             if (o.Stride == e.Stride && o.V.Length == e.Vertices.Length && Environment.GetEnvironmentVariable("NODEENTRIES_DETAIL") == "1")
             {
                 var byFloat = Enumerable.Range(0, e.Stride).Select(f => Enumerable.Range(0, e.Vertices.Length / e.Stride)
@@ -122,6 +157,8 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             }
         }
     }
+
+    static readonly List<float[]> Raw = [];
 
     static IEnumerable<(float, float, float)> Positions(float[] v, int stride)
         => Enumerable.Range(0, v.Length / stride).Select(c => (v[c * stride], v[c * stride + 1], v[c * stride + 2])).Order();
