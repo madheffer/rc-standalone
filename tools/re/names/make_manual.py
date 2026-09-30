@@ -455,7 +455,7 @@ RESOURCECOMPILER = [
     ("181370790", "PolygonTriangulator_EarScore", B, "-1 for a reflex corner"),
     # Mesh export.
     ("1810c4000", "HammerMesh_ApplyDeformer", G, ""),
-    ("1810db6a0", "HammerMesh_Smoothing", G, ""),
+    ("1810db6a0", "HammerMesh_SnapVertices", G, "positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g)"),
     # Math.
     ("18013e340", "VectorNormalize", X, "length sqrt((y y + z z) + x x)"),
     ("1801fea30", "Vector_SafeNormal", X, "zero when it has no length"),

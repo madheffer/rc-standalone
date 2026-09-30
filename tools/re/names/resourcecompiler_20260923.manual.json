@@ -2414,9 +2414,9 @@
   },
   {
    "addr": "1810db6a0",
-   "name": "HammerMesh_Smoothing",
+   "name": "HammerMesh_SnapVertices",
    "module": "s2c:geometry/mesh-export",
-   "note": ""
+   "note": "positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g)"
   },
   {
    "addr": "18013e340",

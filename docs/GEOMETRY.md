@@ -178,6 +178,26 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   16; MeshCompiler sets PerDrawCullingData, UseMikkTSpace and
   SplitDepthStream to 1, the vertex codec at version 1 level 3, and
   MeshletConeWeight 0.15.
+- **The entries BuildNode starts from** (`NodeMeshEntries`, checked by
+  `tools/vis/capture_nodeentries.py` and `NodeEntriesFromVmap`, which
+  snapshot a node's entries before and after every BuildNode step): each
+  visible world mesh's face sets in walk order, one vertex per corner, with
+  position, texcoord, normal, tangent and, when the mesh has it,
+  PerVertexLighting. Positions go to the world by the node's matrix, normals
+  and tangents rotated by it and renormalised (squares summed z, y, x, times
+  the reciprocal of the root; measured, the function not read). Exact on all
+  18 of probe01's entries, bar PerVertexLighting: that stream is baked
+  lighting Hammer applies from a previous bake (180f0ea90), an input from
+  the baked halves. What BuildNode then does on probe01: Step257b50 takes
+  out the entries with attribute bit 10 (toolslightmapres; their positions
+  go to a list at node +0x160) and drops those with bit 36; the T-junction
+  fix adds 14 vertices and 14 triangles; the closing 1/32 weld takes 878
+  corners to 444 vertices. The T-junction fix: per triangle edge without a
+  neighbour in its mesh (adjacency from 1812d91c0), two 32-byte records
+  (a point, the unit direction along the edge, the entry's +0x40, the
+  vertex), sorted and deduplicated, then a CVertexKDTree over them, and a
+  job that inserts other meshes' points lying on each open edge and cuts
+  the face again (18025b410; not ported yet).
 - **BuildNode:** bounds, static props, entries with +0x1a5 or attribute
   0x400000000 dropped, removal of triangles inside, T-junction cracks
   (on), optional baking, the merge (`WRBNode_MergeMeshes`, only without
