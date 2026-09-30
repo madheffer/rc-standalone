@@ -159,7 +159,16 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   material's attributes in `WRB_MeshEntryFlags`; 0x40000000 is
   `SupportsAggregateInstancing`), +0xbc object flags (0x80, 0x200, 0x400
   render to cubemaps, 0x100000), +0xa0 cubemap, +0xa4 light probe volume,
-  +0xac overlay order, +0xb4 fade max, +0x1c8 a 3x4 matrix.
+  +0xac overlay order, +0xb4 fade max, +0x1c8 a 3x4 matrix. The entry is
+  filled from the 0xf0-byte mesh record Hammer's `ConvertMeshForBuilder`
+  writes (the one `tools/hulls/dump_meshbuf.py` dumps): its bytes +0x24 to
+  +0x27 over 255 are the tint (entry +0x28, compared by `CanMerge`), +0x37
+  sets attribute bit 2 (never merge), +0x34, +0x38 and +0x39 set object
+  flags 0x80, 0x200 and 0x400, +0x3a with +0x40 == 1 sets 0x100000, +0x44
+  of 1 or 2 sets attribute bit 37 or 38, and +0x28, +0x2c, +0x30, +0x35,
+  +0x36, +0x3c, +0x48 to +0x54 land in the entry's other fields (read in
+  18023f6d0, not mapped one by one yet). `CanMerge` is ported
+  (`WrbMeshEntry`) and checked by the merger replay.
 - **Settings** come from csgo_core/gameinfo.gi (csgo/gameinfo.gi holds
   none of them): WorldRendererBuilder sets FixTJunctionEdgeCracks,
   VisibilityGuidedMeshClustering, UseAggregateInstances,
