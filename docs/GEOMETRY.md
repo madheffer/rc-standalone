@@ -297,9 +297,15 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   axis in the draw bounds (`MeshletBounds.Pack`), its cone meshopt's
   `computeMeshletBounds` with the binary's float order
   (`MeshletBounds.Cone`), zero unless the material has AllowBackfaceCulling
-  and is not DoubleSided. All exact on every meshlet from its index range,
-  except 44 meshlets in 10 static prop aggregates (their cones follow the
-  prop's own meshlets; not read).
+  and is not DoubleSided. The cone is taken before the index buffer is
+  encoded, and meshopt's index codec keeps triangle order but may rotate a
+  triangle's corners (`rotateTriangle`, the edge FIFO); the float sums
+  follow corner order, so a cone recomputed from the decoded buffer can
+  differ. In atixref 18 static prop aggregate meshlets do, and each is
+  exactly the cone of the captured call's un-rotated triangles
+  (`tools/vis/capture_cones.py`, `WorldNodePropConeProbe`). Our own compile
+  computes the cone before encoding, as Valve's does; every other meshlet
+  matches from its decoded index range.
 - **Vertex layouts** differ by material and data: texcoords are float32,
   float16 or 16-bit snorm, and float32 appears where every value would fit
   snorm, so the choice is not a value range alone (not settled). Measured

@@ -54,8 +54,9 @@ public class WorldNodeModelTreesTests(ITestOutputHelper output)
             var lines = new List<string>();
             foreach (var (name, tree) in mine)
                 lines.AddRange(KvTreeDiff.Diff(trees[name], tree).Select(l => name + l));
-            // Static prop aggregates' meshlet cones are not the index buffer's
-            // (they follow the prop's own meshlets; open, GEOMETRY.md).
+            // A cone is taken before the index codec, which may rotate a
+            // triangle's corners, so from the decoded buffer a few static
+            // prop aggregate cones differ (settled by capture, GEOMETRY.md).
             if (lines.Count > 0 && path.Contains("_agg_prop_", StringComparison.Ordinal)
                 && lines.All(l => l.Contains(".m_CullingData.", StringComparison.Ordinal)))
             {
@@ -330,13 +331,20 @@ public class WorldNodeLayoutProbe(ITestOutputHelper output)
 /// </summary>
 public class WorldNodePropConeProbe(ITestOutputHelper output)
 {
+    sealed record Call(int N, int[] Tris, Vector3[] Positions, (int, int, int, int) Cone);
+
     [Fact]
     public void Cones()
     {
         if (Environment.GetEnvironmentVariable("WNCONES") != "1")
             return;
+        // WNCONES_CAPTURE=<tools/vis/capture_cones.py output>: that compile's
+        // package, and each computeMeshletBounds call's inputs and cone.
+        var capture = Environment.GetEnvironmentVariable("WNCONES_CAPTURE");
+        var calls = capture is null ? [] : ReadCones(capture);
+        int differing = 0, explained = 0;
         using var package = new Package();
-        package.Read(@"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe\maps\atixref.vpk");
+        package.Read(capture is null ? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe\maps\atixref.vpk" : capture + ".vpk");
         foreach (var entry in package.Entries.GetValueOrDefault("vmdl_c") ?? [])
         {
             var path = entry.GetFullPath();
@@ -359,7 +367,91 @@ public class WorldNodePropConeProbe(ITestOutputHelper output)
                     continue;
                 var draw = draws.FindIndex(d => (int)d["m_nFirstMeshlet"]! <= i && i < (int)d["m_nFirstMeshlet"]! + (int)d["m_nNumMeshlets"]!);
                 output.WriteLine($"{Path.GetFileName(path)} meshlet {i} (draw {draw} of {draws.Count}, {o.TriangleCount} tris, {o.VertexCount} verts, {(string)draws[draw]["m_material"]!}): valve ({axis[0]},{axis[1]},{axis[2]}) {cut}, ours ({o.ConeX},{o.ConeY},{o.ConeZ}) {o.ConeCutoff}");
+                var mine = MeshletPositions(valve, trees, i);
+                differing++;
+                // Explained: a call whose triangles are the buffer's in the same
+                // order, each at most rotated, and whose cone our Cone reproduces.
+                if (calls.Any(c => c.Tris.Length == mine.Length && c.Cone == (axis[0], axis[1], axis[2], cut)
+                                   && Meshopt.MeshletBounds.Cone(c.Positions, c.Tris) == c.Cone
+                                   && Enumerable.Range(0, mine.Length / 3).All(t => Enumerable.Range(0, 3).Any(r =>
+                                          c.Positions[c.Tris[t * 3]] == mine[t * 3 + r] && c.Positions[c.Tris[t * 3 + 1]] == mine[t * 3 + (r + 1) % 3]
+                                          && c.Positions[c.Tris[t * 3 + 2]] == mine[t * 3 + (r + 2) % 3]))))
+                    explained++;
+                foreach (var c in calls.Where(c => c.Tris.Length == o.TriangleCount * 3 && c.Cone == (axis[0], axis[1], axis[2], cut)).Take(3))
+                {
+                    var again = Meshopt.MeshletBounds.Cone(c.Positions, c.Tris);
+                    var theirs = c.Tris.Select(t => c.Positions[t]).ToArray();
+                    static IEnumerable<Vector3> Sorted(IEnumerable<Vector3> v) => v.OrderBy(p => p.X).ThenBy(p => p.Y).ThenBy(p => p.Z);
+                    var sameSet = Sorted(mine).SequenceEqual(Sorted(theirs));
+                    output.WriteLine($"    call {c.N}: our Cone on its inputs {again}; corners vs the buffer's: same order {mine.SequenceEqual(theirs)}, same set {sameSet}"
+                                     + (sameSet ? "" : $"; first corner {theirs[0]} buffer {mine[0]}"));
+                    if (sameSet)
+                    {
+                        // Where each call triangle sits in the buffer, and how its corners are rotated.
+                        var map = new List<string>();
+                        for (var t = 0; t < theirs.Length / 3; t++)
+                        {
+                            var found = "?";
+                            for (var u = 0; u < mine.Length / 3 && found == "?"; u++)
+                                for (var r = 0; r < 3; r++)
+                                    if (theirs[t * 3] == mine[u * 3 + r] && theirs[t * 3 + 1] == mine[u * 3 + (r + 1) % 3] && theirs[t * 3 + 2] == mine[u * 3 + (r + 2) % 3])
+                                    {
+                                        found = r == 0 ? $"{u}" : $"{u}r{r}";
+                                        break;
+                                    }
+                            map.Add(found);
+                        }
+                        output.WriteLine("      call triangle -> buffer triangle: " + string.Join(" ", map));
+                    }
+                }
             }
         }
+        if (capture is not null)
+            output.WriteLine($"{differing} meshlets differ from their decoded index range; {explained} are the captured call's triangles, corners rotated by the index codec, with our cone equal to Valve's");
+    }
+
+    static List<Call> ReadCones(string path)
+    {
+        var data = File.ReadAllBytes(path);
+        var calls = new List<Call>();
+        for (var at = 0; at < data.Length;)
+        {
+            var n = BitConverter.ToInt32(data, at);
+            var head = System.Text.Json.JsonDocument.Parse(data.AsMemory(at + 4, n)).RootElement;
+            at += 4 + n;
+            var m = BitConverter.ToInt32(data, at);
+            var blob = data.AsSpan(at + 4, m).ToArray();
+            at += 4 + m;
+            if (head.GetProperty("ev").GetString() != "cone")
+                continue;
+            var tris = head.GetProperty("tris").GetInt32();
+            var local = head.GetProperty("local").GetInt32();
+            var idx = blob.Take(tris * 3).Select(b => (int)b).ToArray();
+            var pos = new Vector3[local];
+            for (var v = 0; v < local; v++)
+                pos[v] = new Vector3(BitConverter.ToSingle(blob, tris * 3 + v * 12), BitConverter.ToSingle(blob, tris * 3 + v * 12 + 4),
+                                     BitConverter.ToSingle(blob, tris * 3 + v * 12 + 8));
+            var b0 = tris * 3 + local * 12 + 44;
+            calls.Add(new Call(head.GetProperty("n").GetInt32(), idx, pos,
+                               ((sbyte)blob[b0], (sbyte)blob[b0 + 1], (sbyte)blob[b0 + 2], (sbyte)blob[b0 + 3])));
+        }
+        return calls;
+    }
+
+    /// <summary>Meshlet <paramref name="index"/>'s triangle corners, from its draw's own buffers.</summary>
+    static Vector3[] MeshletPositions(byte[] file, Dictionary<string, KVObject> trees, int index)
+    {
+        using var resource = new Resource();
+        resource.Read(new MemoryStream(file));
+        var mesh = ((Model)resource.DataBlock!).GetEmbeddedMeshesAndLoD().First().Mesh;
+        var so = trees["MDAT"]["m_sceneObjects"]!.Values.First();
+        var meshlet = so["m_meshlets"]!.Values.ElementAt(index);
+        var d = so["m_drawCalls"]!.Values.First(d => (int)d["m_nFirstMeshlet"]! <= index && index < (int)d["m_nFirstMeshlet"]! + (int)d["m_nNumMeshlets"]!);
+        var vb = mesh.VBIB.VertexBuffers[(int)d["m_vertexBuffers"]!.Values.First()["m_hBuffer"]!];
+        var positions = VBIB.GetVector3AttributeArray(vb, vb.InputLayoutFields.First(f => f.SemanticName is "POSITION" or "position"));
+        var ib = mesh.VBIB.IndexBuffers[(int)d["m_indexBuffer"]!["m_hBuffer"]!];
+        var first = (int)meshlet["m_nTriangleOffset"]! * 3;
+        var count = (int)meshlet["m_nTriangleCount"]! * 3;
+        return [.. Enumerable.Range(first, count).Select(at => positions[ib.ElementSizeInBytes == 2 ? BitConverter.ToUInt16(ib.Data, at * 2) : BitConverter.ToInt32(ib.Data, at * 4)])];
     }
 }

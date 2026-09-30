@@ -118,21 +118,19 @@ game can answer is raised with the user first, and runs with -insecure.
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
     the other nine's material flags but miss `agg_merge`; the likely cause
     is the visibility mesh merger joining them first (GEOMETRY.md).
-36. **Static prop aggregates' meshlet cones**: 44 meshlets in 10 atixref
-    agg_prop models have cones that do not follow their index range. Read
-    since: the cone is meshopt's computeMeshletBounds (1812bd110) in
-    CMeshletBuilder_AddMeshlet, after optimizeMeshletLevel, over the
-    builder's CMesh positions (param_1[0x4a]), the same as ours. The
-    differing meshlets (WorldNodePropConeProbe, WNCONES=1) are all full
-    48-triangle ones; two are degenerate on one side only, one has y and z
-    swapped. So the positions at cone time are not the final buffer's for
-    these props; the next step is a capture of that call's inputs.
 18. vrad3 trace cost law (performance only; not output).
 19. Legacy-GUID particles in game (needs the user's go-ahead for a game run).
 20. The vmat_c field order note ("likely NTRO positional"): the order is
     measured; the loader's reason is not read.
 
 ## Resolved
+
+- **Static prop aggregates' meshlet cones** (ledger 36): the cone is
+  computed before meshopt encodes the index buffer, and the codec may rotate
+  a triangle's corners, which changes the cone's float sums. A capture of
+  computeMeshletBounds (tools/vis/capture_cones.py) shows all 18 differing
+  atixref meshlets are the buffer's triangles in order with some corners
+  rotated, and MeshletBounds.Cone on the captured order gives Valve's cone.
 
 - **World-layer instance copies' angles** (ledger 13): placed by the
   collapse's own matrix path (SettleWorld.BakedPlacement) since 09-28; the
