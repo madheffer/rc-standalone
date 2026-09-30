@@ -158,6 +158,42 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// <see cref="NodeMeshEntries.FromWorld"/> against the captured BuildNode
+    /// input: same entries in the same order, every float of every corner the
+    /// same bar PerVertexLighting (baked lighting, an input).
+    /// </summary>
+    [Fact]
+    public void LibraryMatchesBuildNodeInput()
+    {
+        if (Environment.GetEnvironmentVariable("NODEENTRIES") is not { } path || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap)
+            return;
+        var valve = Read(path).Where(c => c.Stage == "BuildNode:in").ToList();
+        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap));
+        var problems = new List<string>();
+        if (ours.Count != valve.Count)
+            problems.Add($"{ours.Count} entries, valve {valve.Count}");
+        for (var i = 0; i < Math.Min(ours.Count, valve.Count); i++)
+        {
+            var (o, e) = (ours[i], valve[i]);
+            if (!string.Equals(o.Material, e.Material, StringComparison.OrdinalIgnoreCase) || o.Stride != e.Stride || o.Vertices.Length != e.Vertices.Length
+                || !o.Indices.SequenceEqual(e.Indices))
+            {
+                problems.Add($"entry {i}: {o.Material} {o.Vertices.Length / o.Stride}v stride {o.Stride}, valve {e.Material} {e.Vertices.Length / e.Stride}v stride {e.Stride}");
+                continue;
+            }
+            var pvl = o.Streams.Where(x => x.Name == "PerVertexLighting").Select(x => (First: x.First, Count: x.Count)).FirstOrDefault((First: -1, Count: 0));
+            var diff = Enumerable.Range(0, o.Vertices.Length).Where(k => k % o.Stride < pvl.First || k % o.Stride >= pvl.First + pvl.Count)
+                .Count(k => BitConverter.SingleToInt32Bits(o.Vertices[k]) != BitConverter.SingleToInt32Bits(e.Vertices[k]));
+            if (diff > 0)
+                problems.Add($"entry {i} {Path.GetFileName(o.Material)} node {o.NodeId}: {diff} floats differ");
+        }
+        output.WriteLine($"{ours.Count} entries, {problems.Count} problems");
+        foreach (var p in problems.Take(20))
+            output.WriteLine("  " + p);
+        Assert.Empty(problems);
+    }
+
     static readonly List<float[]> Raw = [];
 
     static IEnumerable<(float, float, float)> Positions(float[] v, int stride)
