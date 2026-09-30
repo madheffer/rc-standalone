@@ -236,6 +236,31 @@ public sealed class EditorTraceSceneTests(ITestOutputHelper output)
         // compiles with baked lighting only; atixref's did not run it).
         if (map != "ze_hold_em_p")
             return;
+        if (Environment.GetEnvironmentVariable("ETS_VIS") == "1" && VisFixtures.RayTraceScene(addon, map) is var (rte, _))
+        {
+            var config = VisConfig.Read(Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".viscfg"));
+            var (_, flat) = VisBuild.RunWithBlocks(rte, config);
+            int visSame = 0, visAll = 0;
+            foreach (var e in lights)
+            {
+                var id = e.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (!valve.TryGetValue(id, out var theirs))
+                    continue;
+                string? Key(string name) => e.Keys.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value
+                                            ?? schema?.KeyOf(e.ClassName, name)?.Default;
+                var ours = LightPrecompute.VisClusters(e.ClassName, Key, LightPrecompute.World(e.Origin, e.Angles), scene, flat);
+                var t = theirs.Values.TryGetValue("precomputed_vis_clusters", out var tv) ? tv.Value : null;
+                var o = ours is null ? null : string.Join(" ", ours);
+                visAll++;
+                if (t != null && o != null && System.Text.RegularExpressions.Regex.Matches(t, @"Int32:(-?\d+)").Select(m => m.Groups[1].Value).SequenceEqual(ours!.Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture))))
+                    visSame++;
+                else if (visAll - visSame <= 12)
+                    output.WriteLine($"{e.ClassName}#{id} precomputed_vis_clusters: valve {t ?? "(none)"} ours {o ?? "(none)"}");
+            }
+            output.WriteLine($"precomputed_vis_clusters: {visSame}/{visAll} lights exact ({flat.Length} clusters)");
+            var sample = valve.Values.First(v => v.Values.ContainsKey("precomputed_vis_clusters"));
+            output.WriteLine($"{sample.ClassName}#{sample.HammerId} key order: {string.Join(" ", sample.KeyOrder.TakeLast(12))}");
+        }
         var all = walked.Where((_, i) => !templates.Contains(i))
             .Concat(copies.Select(c => walked[c.Template] with { NodeId = c.NodeId, Origin = c.Origin, Angles = c.Angles, Instanced = true }))
             .Where(e => !e.Hidden && e.ClassName.StartsWith("light_", StringComparison.Ordinal))

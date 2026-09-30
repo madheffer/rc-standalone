@@ -65,6 +65,22 @@ public static class LightPrecompute
     }
 
     /// <summary>
+    /// The light's <c>precomputed_vis_clusters</c> (<see cref="LightVisClusters"/>):
+    /// the whole record (FUN_180eea510 with flags 4) traced as for the keys,
+    /// its bounds and rays against the vis cluster boxes. Null when the light
+    /// gets no record.
+    /// </summary>
+    public static int[]? VisClusters(string className, KeyReader key, float[] world, ILightTracer scene,
+                                     List<(Vector3 Min, Vector3 Max)>[] flatClusterBoxes)
+    {
+        var whole = Records(className, key, world, split: false);
+        if (whole.Length == 0)
+            return null;
+        var r = LightTrace.Run(whole[0], Rays, scene);
+        return LightVisClusters.Compute(r.Mins, r.Maxs, r.Starts, r.Ends, flatClusterBoxes);
+    }
+
+    /// <summary>
     /// The light records of FUN_180eea510 with flags 4 (whole) or 5 (split),
     /// in world space: a barn's one frustum, or an omni's whole record or
     /// its cube faces. Empty for any other class.

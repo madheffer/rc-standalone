@@ -172,8 +172,9 @@ settings, under `WorldRendererBuilder`, are:
 
 The merger belongs to the world-renderer port; its rules as read are in git
 history (the old `VIS.md`, section "What the world renderer does with them").
-Nodes ship an empty `m_visClusterMembership`, and no CS2 light carries
-`precomputed_vis_clusters`.
+Nodes ship an empty `m_visClusterMembership`. Lights of a baked compile
+carry `precomputed_vis_clusters` from the same boxes (ENTITIES.md,
+`LightVisClusters`); `VisBuild.RunWithBlocks` returns them.
 
 ## Running and scoring
 

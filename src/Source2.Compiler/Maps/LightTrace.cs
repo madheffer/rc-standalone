@@ -36,7 +36,12 @@ public sealed class EmptyLightScene : ILightTracer
 public static class LightTrace
 {
     /// <summary>What a light reaches: its bounds (grown by 1/16) and oriented box (half extents grown by 1/16).</summary>
-    public readonly record struct Result(Vector3 Mins, Vector3 Maxs, LightObb.Box Box, int Failed);
+    public readonly record struct Result(Vector3 Mins, Vector3 Maxs, LightObb.Box Box, int Failed)
+    {
+        /// <summary>The rays as they stand when the compile's callback sees them: starts and cut ends.</summary>
+        public Vector3[] Starts { get; init; } = [];
+        public Vector3[] Ends { get; init; } = [];
+    }
 
     /// <summary>FUN_180251040: a point through the 4x4 at 0, divided by w.</summary>
     public static Vector3 Project(LightShape l, Vector3 p)
@@ -298,6 +303,7 @@ public static class LightTrace
         var box = LightObb.Fit(points);
         box = box with { Extent = new Vector3(box.Extent.X + 0.0625f, box.Extent.Y + 0.0625f, box.Extent.Z + 0.0625f) };
         return new Result(new Vector3(minX - 0.0625f, minY - 0.0625f, minZ - 0.0625f),
-                          new Vector3(maxX + 0.0625f, maxY + 0.0625f, maxZ + 0.0625f), box, failed);
+                          new Vector3(maxX + 0.0625f, maxY + 0.0625f, maxZ + 0.0625f), box, failed)
+        { Starts = starts, Ends = ends };
     }
 }

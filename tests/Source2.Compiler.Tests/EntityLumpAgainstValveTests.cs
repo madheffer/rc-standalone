@@ -88,10 +88,34 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         var document = DmxBinary.ReadFile(source);
         // content/csgo_addons/<addon>/maps/<map>.vmap: prefabs load from the addon's content.
         Maps.MapPrefabs.Attach(document, Maps.MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(source))!));
+        // LUMP_VIS=1 runs vis on the map's trace scene for the lights'
+        // precomputed_vis_clusters (minutes), then checks them value and place.
+        List<(System.Numerics.Vector3, System.Numerics.Vector3)>[]? boxes = null;
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(source)))!;
+        if (Environment.GetEnvironmentVariable("LUMP_VIS") == "1" && VisFixtures.RayTraceScene(addon, map) is var (rte, _))
+            boxes = Maps.VisBuild.RunWithBlocks(rte, Maps.VisConfig.Read(
+                Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".viscfg"))).FlatClusterBoxes;
         var ours = EntityLumpSet.Author(MapEntities.From(document), MapFixtures.GameSchema(), map,
                                         MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators,
                                         SettleLumpTests.Settle(document, source), BakedIn(valve),
-                                        lightScene: SettleLumpTests.LightScene(document, source));
+                                        lightScene: SettleLumpTests.LightScene(document, source), visClusterBoxes: boxes);
+        if (boxes is not null)
+        {
+            int withKey = 0, same = 0;
+            foreach (var lump in ours)
+            {
+                var mine = EntityLumpComparison.Read(lump.Bytes, lump.Path).ToDictionary(e => e.HammerId);
+                foreach (var t in EntityLumpComparison.Read(valve[lump.Path], lump.Path).Where(e => e.Values.ContainsKey("precomputed_vis_clusters")))
+                {
+                    withKey++;
+                    if (mine.TryGetValue(t.HammerId, out var m) && m.Values.TryGetValue("precomputed_vis_clusters", out var v)
+                        && v.Value == t.Values["precomputed_vis_clusters"].Value && m.KeyOrder[^1] == "precomputed_vis_clusters")
+                        same++;
+                }
+            }
+            output.WriteLine($"{map}: precomputed_vis_clusters {same}/{withKey} exact and last");
+            Assert.Equal(withKey, same);
+        }
 
         Assert.Equal(valve.Keys.Order(StringComparer.OrdinalIgnoreCase),
                      ours.Select(l => l.Path).Order(StringComparer.OrdinalIgnoreCase),

@@ -22,9 +22,15 @@ Open:
 - **Light keys:** the precomputed shape keys and, when baked, the shadow
   slot keys are in the lump (the lights are still a documented gap in the
   lump test while these close):
-  - **ze_hold_em_p (baked):** every light's shape keys are exact.
-    `precomputed_vis_clusters` is still missing on all 37; a baked compile
-    writes it, and it needs visibility.
+  - **ze_hold_em_p (baked):** every light's shape keys are exact, and so
+    is `precomputed_vis_clusters` on all 37 (value and place, last of the
+    values; `LUMP_VIS=1` runs vis for it): the whole lump has no
+    difference. A baked compile writes it (WRB_PrecomputeLightVisMembership)
+    for barn, rect and omni2 lights of direct light mode 3: the light is
+    sampled as for its shape keys, and every vis cluster with a box
+    overlapping the light's bounds and reached by one of its rays
+    (`LightVisClusters`) is listed, ascending. light_rect gets none from
+    the port (no record), and omni2 is not measured.
   - **atixref:** 236 of 239 lights exact, key order included. Omni2 lights
     7306, 7318 and 7348 are each off by 0.01 to 0.03 on one cube face.
     Traced with `LightRayProbe`, 7306's face 4 comes down to single rays

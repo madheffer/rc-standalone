@@ -17,6 +17,14 @@ public static class VisBuild
     /// <param name="baseVoxelSize">ResourceCompiler/VisBuilder/BaseVoxelSize, 8 unless the game overrides it.</param>
     /// <param name="stage">Told the name of each stage as it finishes, for progress.</param>
     public static VoxelVisibility Run(RayTraceEnvironment rte, VisConfig config, float baseVoxelSize = 8f, Action<string>? stage = null)
+        => RunWithBlocks(rte, config, baseVoxelSize, stage).Vxvs;
+
+    /// <summary>
+    /// <see cref="Run"/>, with the <c>FlatVisClusterVector</c> the world
+    /// renderer and the light vis membership read (<see cref="VisOutput.FlatClusterBoxes"/>).
+    /// </summary>
+    public static (VoxelVisibility Vxvs, List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[] FlatClusterBoxes) RunWithBlocks(
+        RayTraceEnvironment rte, VisConfig config, float baseVoxelSize = 8f, Action<string>? stage = null)
     {
         ArgumentNullException.ThrowIfNull(rte);
         ArgumentNullException.ThrowIfNull(config);
@@ -48,11 +56,12 @@ public static class VisBuild
         stage?.Invoke("vis-cluster merge");
         var open = VisSun.OpenCells(merged.State);
         var (borders, claims) = VisBorders.Sample(merged.State, rte);
+        var flat = VisOutput.FlatClusterBoxes(merged.State, claims);
         var state = VisBorders.Consolidate(VisBorders.Rewrite(merged.State, borders, claims));
         stage?.Invoke("borders");
         var sky = VisSky.Visible(state, rte, matrix);
         var sun = config.DirToSun is { } dir ? VisSun.Visible(state, rte, dir, open) : null;
         var (collapsed, _) = VisCollapse.Run(state, Enumerable.Repeat((ushort)0xffff, state.NodeWords.Length).ToArray());
-        return VisOutput.Build(collapsed, matrix, sky, sun, min, max);
+        return (VisOutput.Build(collapsed, matrix, sky, sun, min, max), flat);
     }
 }

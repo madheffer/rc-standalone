@@ -28,6 +28,14 @@ public static partial class EntityLumpAuthor
                                   IReadOnlyDictionary<MapEntities.Entity, List<KeyValuePair<string, string>>>? LightWrites = null)
     {
         /// <summary>
+        /// Each light's <c>precomputed_vis_clusters</c> (<see cref="Maps.LightVisClusters"/>),
+        /// written last among its values: baked compiles only (csgo_core sets
+        /// LightmapChannels/direct_light_shadows 1), and only with the vis
+        /// cluster boxes at hand.
+        /// </summary>
+        public IReadOnlyDictionary<MapEntities.Entity, int[]>? VisClusters { get; init; }
+
+        /// <summary>
         /// The counters over the entities in export order. The handshake starts
         /// at the map path's MurmurHash2 (seed 0x3501a674, lower case, back
         /// slashes, 31 bits, backed off by 0xff near the top) and takes one per
@@ -40,8 +48,11 @@ public static partial class EntityLumpAuthor
         /// <param name="schema">The FGD, for each probe volume's grid.</param>
         /// <param name="scene">The editor's ray trace scene the lights' precomputed keys trace
         /// (<see cref="Maps.EditorTraceScene"/>); without it lights get none.</param>
+        /// <param name="visClusterBoxes">Vis's FlatVisClusterVector (<see cref="Maps.VisBuild.RunWithBlocks"/>),
+        /// for the lights' precomputed_vis_clusters; without it they get none.</param>
         public static Lighting For(string mapPath, bool baked, IEnumerable<MapEntities.Entity> exportOrder,
-                                   bool packAtlas = false, FgdSchema? schema = null, Maps.ILightTracer? scene = null)
+                                   bool packAtlas = false, FgdSchema? schema = null, Maps.ILightTracer? scene = null,
+                                   List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[]? visClusterBoxes = null)
         {
             var order = exportOrder as IReadOnlyList<MapEntities.Entity> ?? [.. exportOrder];
             var bytes = Encoding.UTF8.GetBytes(mapPath.Replace('/', '\\'));
@@ -72,7 +83,11 @@ public static partial class EntityLumpAuthor
                     atlas[volumes[i]] = places[i];
             }
             return new Lighting(mapPath, baked, handshake, cube, atlas,
-                                scene is null ? null : LightKeys(mapPath, baked, order, schema, scene));
+                                scene is null ? null : LightKeys(mapPath, baked, order, schema, scene))
+            {
+                VisClusters = baked && scene is not null && visClusterBoxes is not null
+                    ? LightVisMembership(order, schema, scene, visClusterBoxes) : null,
+            };
         }
     }
 
@@ -129,6 +144,52 @@ public static partial class EntityLumpAuthor
                 writes[gather[i]].AddRange(assigned[i].Keys);
         }
         return writes;
+    }
+
+    /// <summary>
+    /// WRB_PrecomputeLightVisMembership (180247d40): each light_barn,
+    /// light_rect and light_omni2 whose direct light mode is 3 and that gets a
+    /// record, traced again and measured against the vis cluster boxes. A
+    /// light the port cannot shape (light_rect) gets none.
+    /// </summary>
+    private static Dictionary<MapEntities.Entity, int[]> LightVisMembership(IReadOnlyList<MapEntities.Entity> order,
+        FgdSchema? schema, Maps.ILightTracer scene, List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[] boxes)
+    {
+        var lights = order.Where(e => e.ClassName is "light_barn" or "light_rect" or "light_omni2").ToList();
+        var found = new int[]?[lights.Count];
+        var parallel = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+        Parallel.For(0, lights.Count, parallel, i =>
+        {
+            var e = lights[i];
+            var table = KeyTable(e, schema);
+            string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+            var world = Maps.LightPrecompute.World(e.Origin, e.Angles);
+            if (Maps.BakedShadowAssignment.Mode(new Maps.BakedShadowAssignment.Light(e.ClassName, Key, world, [e.NodeId])).Mode != 3)
+                return;
+            try
+            {
+                found[i] = Maps.LightPrecompute.VisClusters(e.ClassName, Key, world, scene, boxes);
+            }
+            catch (NotSupportedException)
+            {
+            }
+        });
+        var result = new Dictionary<MapEntities.Entity, int[]>(ReferenceEqualityComparer.Instance);
+        for (var i = 0; i < lights.Count; i++)
+            if (found[i] is { } clusters)
+                result[lights[i]] = clusters;
+        return result;
+    }
+
+    /// <summary>The light's precomputed_vis_clusters, set on the finished entity: its last value.</summary>
+    private static void VisClusterKey(MapEntities.Entity entity, KVObject values, Lighting? lighting)
+    {
+        if (lighting?.VisClusters is not { } all || !all.TryGetValue(entity, out var clusters))
+            return;
+        var array = KVObject.Array();
+        foreach (var c in clusters)
+            array.Add(new KVObject(c));
+        values.Add("precomputed_vis_clusters", array);
     }
 
     private static readonly HashSet<string> HandshakeClasses = new(StringComparer.OrdinalIgnoreCase)

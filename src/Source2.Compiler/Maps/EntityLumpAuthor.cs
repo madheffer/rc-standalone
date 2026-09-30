@@ -261,6 +261,7 @@ public static partial class EntityLumpAuthor
         }
 
         AtlasKeys(entity, values, context.LightingKeys);
+        VisClusterKey(entity, values, context.LightingKeys);
 
         // version is written through the 0/1 path like any other 1: Int64.
         var keyValues = KVObject.Collection();

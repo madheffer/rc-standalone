@@ -94,7 +94,8 @@ public static class EntityLumpSet
         IReadOnlyDictionary<int, Maps.SettleWorld.Settlement>? settled = null,
         bool bakedLighting = false,
         bool entitiesOnly = false,
-        Maps.ILightTracer? lightScene = null)
+        Maps.ILightTracer? lightScene = null,
+        List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[]? visClusterBoxes = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
@@ -120,7 +121,7 @@ public static class EntityLumpSet
         {
             LightingKeys = EntityLumpAuthor.Lighting.For($"maps/{worldName}", bakedLighting,
                 placed.SelectMany(w => w.Select(e => e.Entity)).Where(e => !e.Hidden),
-                packAtlas: bakedLighting || entitiesOnly, schema, lightScene),
+                packAtlas: bakedLighting || entitiesOnly, schema, lightScene, visClusterBoxes),
         };
         var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
         worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));

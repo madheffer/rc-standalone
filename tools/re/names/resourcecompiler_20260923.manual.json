@@ -1102,7 +1102,25 @@
    "addr": "180247d40",
    "name": "WRB_PrecomputeLightVisMembership",
    "module": "s2c:baked/light-keys",
-   "note": "precomputed_vis_clusters, light_barn"
+   "note": "baked (direct_light_shadows): barn, rect and omni2 lights of direct light mode 3 sampled again; the sorted clusters their rays reach, written last as precomputed_vis_clusters; ported (LightVisClusters), ze_hold_em_p 37/37"
+  },
+  {
+   "addr": "180248440",
+   "name": "LightVisMembership_Callback",
+   "module": "s2c:baked/light-keys",
+   "note": "the trace's callback: clusters with a box overlapping the light bounds become candidates for TestClusters"
+  },
+  {
+   "addr": "18024ee30",
+   "name": "LightVisMembership_TestClusters",
+   "module": "s2c:baked/light-keys",
+   "note": "thread pool job: a candidate goes in when a ray segment reaches one of its boxes (eps 0.001)"
+  },
+  {
+   "addr": "18129b7b0",
+   "name": "SegmentIntersectsBox",
+   "module": "s2c:baked/light-keys",
+   "note": "SSE slab test: refined rcpps of the delta, exit capped at 1, entry floored at 0"
   },
   {
    "addr": "180248800",

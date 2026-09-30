@@ -93,7 +93,8 @@ carries the same state per item.
      tests;
    - atixref's omni2 lights 7306, 7318 and 7348, one cube face each, single
      rays at prop edges (ledger 31; `LightRayProbe`);
-   - `precomputed_vis_clusters` (needs visibility from the .vmap);
+   - `precomputed_vis_clusters`: done on ze_hold_em_p (37/37); the
+     compile pipeline must run vis to pass the boxes;
    - then drop the light classes from the lump test's gap.
 2. **The trace-scene flag word** (GROUND_TRUTH 25). Then run atixref and Mako
    end to end from the .vmap (`VISBUILD_BIG=1`), and wire visibility into
