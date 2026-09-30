@@ -56,8 +56,22 @@ function mesh(entry, ev, extra) {
     const np = s.readPointer(), sem = s.add(8).readPointer();
     streams.push({name: np.isNull() ? '' : np.readUtf8String(),
                   semantic: sem.isNull() ? '' : sem.readUtf8String(),
-                  first: s.add(0x14).readS32(), count: s.add(0x18).readS32()});
+                  index: s.add(0x10).readS32(), first: s.add(0x14).readS32(), count: s.add(0x18).readS32(),
+                  flag: s.add(0x1c).readU8(), precise: s.add(0x1d).readU8(), type: s.add(0x20).readS32()});
   }
+  // What WRBMeshEntry_CanMerge reads behind pointers: the mesh's material
+  // (a CBufferString at +0x60: length, flags with bit 30 for inline, data),
+  // its float list (+0x40 count, +0x48 data) and the entry's string at +0x38.
+  const mlen = m.add(0x60).readU32() & 0x3fffffff, mflags = m.add(0x64).readU32();
+  const material = mlen === 0 ? '' : ((mflags >> 30) & 1)
+      ? m.add(0x68).readUtf8String(mlen) : m.add(0x68).readPointer().readUtf8String(mlen);
+  const nf = m.add(0x40).readS32();
+  const floats = [];
+  for (let k = 0; k < nf; k++)
+    floats.push(m.add(0x48).readPointer().add(k * 4).readFloat());
+  const ep = entry.add(0x38).readPointer();
+  const entryName = ep.isNull() ? '' : ep.readUtf8String();
+  const meshRaw = Array.from(new Uint8Array(m.readByteArray(0x198))).map(b => b.toString(16).padStart(2, '0')).join('');
   const raw = entry.readByteArray(0x238);
   const vb = nv > 0 ? m.readPointer().readByteArray(nv * stride * 4) : new ArrayBuffer(0);
   const ib = ni > 0 ? m.add(0x10).readPointer().readByteArray(ni * 4) : new ArrayBuffer(0);
@@ -71,7 +85,8 @@ function mesh(entry, ev, extra) {
   for (let k = 0; k < nk; k++)
     key.push(entry.add(0x220).readPointer().add(k * 2).readU16());
   const head = {ev: ev, nv: nv, stride: stride, ni: ni, streams: streams, mesh: m.toString(),
-                key: key, flags: entry.add(0xbc).readU32()};
+                key: key, flags: entry.add(0xbc).readU32(), material: material, floats: floats,
+                entryName: entryName, meshRaw: meshRaw};
   for (const k in extra) head[k] = extra[k];
   send(head, out.buffer);
 }

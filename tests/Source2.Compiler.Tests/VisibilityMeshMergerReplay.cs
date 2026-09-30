@@ -23,6 +23,7 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
         public int N;
         public int[] Settings = [];
         public List<VisibilityMeshMerger.Entry> Inputs = [];
+        public List<WrbMeshEntry?> Facts = [];
         public byte[] Pairs = [];
         public List<(ushort[] Key, List<(float[] V, int[] I, uint Flags, ushort[] Key)> Entries)> Buckets = [];
         public List<(float[] V, int[] I, uint Flags, ushort[] Key)> Unclustered = [];
@@ -64,6 +65,7 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
                 {
                     var (mesh, flags, _) = Mesh(head, blob);
                     calls[call].Inputs.Add(new VisibilityMeshMerger.Entry { Mesh = mesh, Origin = head.GetProperty("i").GetInt32(), ObjectFlags = flags });
+                    calls[call].Facts.Add(Facts(head, blob));
                     break;
                 }
                 case "canmerge":
@@ -96,7 +98,10 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
         }
         output.WriteLine($"{exact} of {total} merges exact");
         Assert.Equal(total, exact);
+        Assert.Equal(0, canMergeWrong);
     }
+
+    int canMergeWrong;
 
     bool Replay(int call, Captured cap, List<(Vector3, Vector3)>[] flat, float[][] mutual)
     {
@@ -106,6 +111,20 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
             for (var j = 0; j < n; j++)
                 if (cap.Pairs[i * n + j] != cap.Pairs[j * n + i])
                     asym++;
+        // Our WRBMeshEntry_CanMerge on the captured entry facts against Valve's answers.
+        if (cap.Facts.All(f => f is not null))
+        {
+            var wrong = 0;
+            for (var i = 0; i < n; i++)
+                for (var j = 0; j < n; j++)
+                {
+                    var ours = WrbMeshEntry.CanMerge(cap.Facts[i]!, cap.Inputs[i].Mesh.VertexCount, cap.Facts[j]!, cap.Inputs[j].Mesh.VertexCount);
+                    if (ours != (cap.Pairs[i * n + j] != 0) && wrong++ < 3)
+                        output.WriteLine($"   CanMerge({i}, {j}): valve {cap.Pairs[i * n + j]}, ours {ours}");
+                }
+            output.WriteLine($"call {call}: CanMerge {n * n - wrong}/{n * n} pairs as Valve's");
+            canMergeWrong += wrong;
+        }
         var merger = new VisibilityMeshMerger(flat, mutual,
             (a, b) => a.Mesh.VertexCount + b.Mesh.VertexCount <= 0x200000 && cap.Pairs[a.Origin * n + b.Origin] != 0)
         {
@@ -193,6 +212,20 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
                 mutual[r][k] = F();
         }
         return (flat, mutual);
+    }
+
+    /// <summary>The entry facts CanMerge reads, when the capture has them.</summary>
+    static WrbMeshEntry? Facts(JsonElement head, byte[] blob)
+    {
+        if (!head.TryGetProperty("meshRaw", out var raw))
+            return null;
+        var mesh = Convert.FromHexString(raw.GetString()!);
+        var streams = head.GetProperty("streams").EnumerateArray().Select(x => new WrbMeshEntry.Stream(
+            x.GetProperty("name").GetString() ?? "", x.GetProperty("index").GetInt32(), x.GetProperty("count").GetInt32(),
+            (byte)x.GetProperty("precise").GetInt32(), x.GetProperty("type").GetInt32())).ToList();
+        var floats = head.GetProperty("floats").EnumerateArray().Select(x => x.GetSingle()).ToList();
+        return WrbMeshEntry.FromBytes(blob.AsSpan(0, 0x238), mesh, head.GetProperty("material").GetString() ?? "", floats,
+                                      head.GetProperty("entryName").GetString() ?? "", streams);
     }
 
     static (VisibilityMeshMerger.Mesh, uint Flags, ushort[] Key) Mesh(JsonElement head, byte[] blob)
