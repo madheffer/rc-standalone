@@ -63,8 +63,8 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
                     break;
                 case "in":
                 {
-                    var (mesh, flags, _) = Mesh(head, blob);
-                    calls[call].Inputs.Add(new VisibilityMeshMerger.Entry { Mesh = mesh, Origin = head.GetProperty("i").GetInt32(), ObjectFlags = flags });
+                    var (mesh, flags, key) = Mesh(head, blob);
+                    calls[call].Inputs.Add(new VisibilityMeshMerger.Entry { Mesh = mesh, Origin = head.GetProperty("i").GetInt32(), ObjectFlags = flags, Clusters = key });
                     calls[call].Facts.Add(Facts(head, blob));
                     break;
                 }
