@@ -142,7 +142,7 @@ game can answer is raised with the user first, and runs with -insecure.
   F_RENDER_BACKFACES (GEOMETRY.md). All 316,054 triangles of probe01,
   cardtest, ze_hold_em_p, atixref and Mako match (TraceSceneTests).
 - **Node model trees and meshlet descriptors**: WorldNodeModelTreesTests, all
-  401 node models (GEOMETRY.md); static prop aggregates' cones are open (36).
+  401 node models (GEOMETRY.md); static prop aggregates' cones settled since (above).
 
 - **Subdivided meshes in the light scene**, settled 2026-09-30 from the
   decompile (`RayScene_AddFace` 1813ccd20, `MeshTessellation_PatchIndices`
