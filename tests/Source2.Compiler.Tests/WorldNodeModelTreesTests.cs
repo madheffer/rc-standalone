@@ -323,3 +323,43 @@ public class WorldNodeLayoutProbe(ITestOutputHelper output)
             output.WriteLine($"{v,5} {k}");
     }
 }
+
+/// <summary>
+/// Exploration (<c>WNCONES=1</c>): atixref's static prop aggregate meshlets
+/// whose cone is not the one their index range gives, ours beside Valve's.
+/// </summary>
+public class WorldNodePropConeProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Cones()
+    {
+        if (Environment.GetEnvironmentVariable("WNCONES") != "1")
+            return;
+        using var package = new Package();
+        package.Read(@"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe\maps\atixref.vpk");
+        foreach (var entry in package.Entries.GetValueOrDefault("vmdl_c") ?? [])
+        {
+            var path = entry.GetFullPath();
+            if (!path.Contains("_agg_prop_", StringComparison.Ordinal))
+                continue;
+            package.ReadEntry(entry, out var valve);
+            var trees = WorldPhysicsAuthorTests.Trees(valve);
+            var model = WorldNodeModelTreesTests.Describe(valve, trees);
+            var so = trees["MDAT"]["m_sceneObjects"]!.Values.First();
+            var vm = so["m_meshlets"]!.Values.ToList();
+            var ours = model.SceneObjects[0].Meshlets;
+            var draws = so["m_drawCalls"]!.Values.ToList();
+            for (var i = 0; i < vm.Count; i++)
+            {
+                var cd = vm[i]["m_CullingData"]!;
+                var axis = cd["m_ConeAxis"]!.Values.Select(v => (int)v).ToArray();
+                var cut = (int)cd["m_ConeCutoff"]!;
+                var o = ours[i];
+                if (o.ConeX == axis[0] && o.ConeY == axis[1] && o.ConeZ == axis[2] && o.ConeCutoff == cut)
+                    continue;
+                var draw = draws.FindIndex(d => (int)d["m_nFirstMeshlet"]! <= i && i < (int)d["m_nFirstMeshlet"]! + (int)d["m_nNumMeshlets"]!);
+                output.WriteLine($"{Path.GetFileName(path)} meshlet {i} (draw {draw} of {draws.Count}, {o.TriangleCount} tris, {o.VertexCount} verts, {(string)draws[draw]["m_material"]!}): valve ({axis[0]},{axis[1]},{axis[2]}) {cut}, ours ({o.ConeX},{o.ConeY},{o.ConeZ}) {o.ConeCutoff}");
+            }
+        }
+    }
+}

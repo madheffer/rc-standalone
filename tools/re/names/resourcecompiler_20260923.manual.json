@@ -520,7 +520,7 @@
    "addr": "180277ab0",
    "name": "CWorldRendererBuilderNode::CompileNode",
    "module": "s2c:geometry/world-nodes",
-   "note": "worldnodes\n%d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams"
+   "note": "worldnodes\n%d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams; with vis clustering three lists each go through CVisibilityMeshMerger::MergeMeshes (call at 180278812): the unclustered entries replace the list for Step_BuildingRenderClusters, each non-empty bucket is compiled as a cluster (list vf 0x28/0x30)"
   },
   {
    "addr": "180259d30",
@@ -880,7 +880,7 @@
    "addr": "1802381c0",
    "name": "CVisibilityMeshMerger_BucketFind",
    "module": "s2c:visibility",
-   "note": "hash map keyed by the cluster set (hash_combine from 0x3501a674)"
+   "note": "CUtlHashTable find-or-insert keyed by the cluster set (hash_combine from 0x3501a674); grows to (used*4+4)/3 before passing 3/4"
   },
   {
    "addr": "180236a90",
@@ -928,7 +928,139 @@
    "addr": "180230df0",
    "name": "CVisibilityMeshMerger_AddToBucket",
    "module": "s2c:visibility",
-   "note": "a whole member appended to a bucket"
+   "note": "appended (mesh concatenated) to the first entry CanMerge accepts, else a new entry with a copy of the mesh; ported (VisibilityMeshMerger)"
+  },
+  {
+   "addr": "180d473d0",
+   "name": "DmeMeshToCMesh_StreamLayout",
+   "module": "s2c:geometry/mesh-export",
+   "note": "per stream: a texcoord is high precision (+0x1d) when the mesh has forceHighPrecisionTexcoords or any |u|,|v| > 16"
+  },
+  {
+   "addr": "181365a40",
+   "name": "CMesh_CreatePackedVB",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vertex buffer written field by field through the packed input layout (181365ce0 per format)"
+  },
+  {
+   "addr": "181365ce0",
+   "name": "CMesh_PackField",
+   "module": "s2c:geometry/world-nodes",
+   "note": "one layout field of one vertex, a switch on the DXGI format"
+  },
+  {
+   "addr": "1802ec6e0",
+   "name": "CResourceCompilerMesh_PackDrawVB",
+   "module": "s2c:geometry/world-nodes",
+   "note": "allocates stride * vertices and calls CMesh_CreatePackedVB; warns when the sizes disagree"
+  },
+  {
+   "addr": "1810d5f40",
+   "name": "MaterialEditor_LowPrecisionUvInputs",
+   "module": "s2c:geometry/mesh-export",
+   "note": "shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile"
+  },
+  {
+   "addr": "180233190",
+   "name": "CVisibilityMeshMerger_CandidateLess",
+   "module": "s2c:visibility",
+   "note": "ChooseTarget's std::sort predicate: score, clusters added, union/own surface ratio (0.0001), 0xffff overflow, vertices"
+  },
+  {
+   "addr": "180237240",
+   "name": "CVisibilityMeshMerger_SortCandidates",
+   "module": "s2c:visibility",
+   "note": "MSVC std::sort over the 0x50-byte candidates (insertion sort under 33)"
+  },
+  {
+   "addr": "180238620",
+   "name": "CVisibilityMeshMerger_InsertionSortCandidates",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180237ab0",
+   "name": "SortU16",
+   "module": "s2c:visibility",
+   "note": "std::sort of a cluster set, ascending"
+  },
+  {
+   "addr": "1812dfd10",
+   "name": "CMesh_Bounds",
+   "module": "s2c:visibility",
+   "note": "min/max of the first 'position' stream of three floats, every vertex"
+  },
+  {
+   "addr": "1812d9eb0",
+   "name": "CMesh_BoundsRange",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "1812d6c70",
+   "name": "CMesh_Append",
+   "module": "s2c:visibility",
+   "note": "streams matched by name; vertices appended, indices offset by the old vertex count"
+  },
+  {
+   "addr": "1812de310",
+   "name": "CMesh_SubsetByIndices",
+   "module": "s2c:visibility",
+   "note": "the listed triangles, vertices renumbered by first use"
+  },
+  {
+   "addr": "1812ddd80",
+   "name": "CMesh_CopyFrom",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180230200",
+   "name": "WRBMeshEntry_Copy",
+   "module": "s2c:visibility",
+   "note": "shares the ref-counted CMesh"
+  },
+  {
+   "addr": "180236070",
+   "name": "WRBMeshEntryList_FastRemove",
+   "module": "s2c:visibility",
+   "note": "the last entry moved into the gap"
+  },
+  {
+   "addr": "1802383f0",
+   "name": "ClusterSetTable_FindOrInsert",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180236330",
+   "name": "ClusterSetTable_Realloc",
+   "module": "s2c:visibility",
+   "note": "size rounded up to a power of two; entries reinserted from the last slot down"
+  },
+  {
+   "addr": "1802365f0",
+   "name": "ClusterSetTable_Realloc_Local",
+   "module": "s2c:visibility",
+   "note": ""
+  },
+  {
+   "addr": "180236d90",
+   "name": "ClusterSetTable_InsertUnconstructed",
+   "module": "s2c:visibility",
+   "note": "the new key takes its home slot; the occupant is bumped"
+  },
+  {
+   "addr": "180237840",
+   "name": "ClusterSetTable_BumpEntry_Local",
+   "module": "s2c:visibility",
+   "note": "moves a slot's entry to the next free slot, carrying the chain's last flag"
+  },
+  {
+   "addr": "180237680",
+   "name": "ClusterSetTable_BumpEntry",
+   "module": "s2c:visibility",
+   "note": ""
   },
   {
    "addr": "18024d710",
@@ -2380,7 +2512,7 @@
    "addr": "18125d000",
    "name": "VectorNormalize_Slow",
    "module": "s2c:math",
-   "note": "out-of-range lengths; not ported"
+   "note": "out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap"
   },
   {
    "addr": "18125dcc0",

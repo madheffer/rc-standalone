@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20260928_1.41.8.5.md): 426 tracked addresses: identical 426
-- 645 addresses
+- 667 addresses
 
 ### s2c:baked/light-keys
 
@@ -503,6 +503,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `18023bd00` | `MapBuilder_ReadMeshBuffers` | asks the node for its mesh DMX list |  |
+| `180d473d0` | `DmeMeshToCMesh_StreamLayout` | per stream: a texcoord is high precision (+0x1d) when the mesh has forceHighPrecisionTexcoords or any \|u\|,\|v\| > 16 |  |
 | `180d47810` | `DmeMeshToCMeshes` |  |  |
 | `180d47b90` | `DmeMeshToCMesh` | stream layout from the DMX |  |
 | `180d5c570` | `CMesh_WriteDmeMesh` |  |  |
@@ -511,6 +512,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810c1eb0` | `HammerMesh_CopyFrom` |  |  |
 | `1810c4000` | `HammerMesh_ApplyDeformer` |  |  |
 | `1810c4e50` | `HammerMesh_TransformToWorld` | normals and tangents rotated, not renormalised |  |
+| `1810d5f40` | `MaterialEditor_LowPrecisionUvInputs` | shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile |  |
 | `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:174` |
 | `1810db6a0` | `HammerMesh_Smoothing` |  |  |
 | `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:138` |
@@ -611,12 +613,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180272aa0` | `CAggregateMeshList::Accepts` | vf 0x50: enabled, the flag test, then WRBMeshEntry_CanAggregate |  |
 | `180272ae0` | `CAggregateMeshList::Compile` | vf 0x20: sorts the entries, then groups |  |
 | `180277ab0` | `CWorldRendererBuilderNode::CompileNode` | worldnodes
-%d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams |  |
+%d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams; with vis clustering three lists each go through CVisibilityMeshMerger::MergeMeshes (call at 180278812): the unclustered entries replace the list for Step_BuildingRenderClusters, each non-empty bucket is compiled as a cluster (list vf 0x28/0x30) |  |
 | `180281100` | `CWorldRendererBuilderNode::PostCompileNode` |  |  |
 | `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering |  |
 | `180287320` | `CWorldRendererBuilderNode::LoadMaterialsInMeshList` |  |  |
 | `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... |  |
 | `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
+| `1802ec6e0` | `CResourceCompilerMesh_PackDrawVB` | allocates stride * vertices and calls CMesh_CreatePackedVB; warns when the sizes disagree |  |
 | `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density |  |
 | `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 |  |
 | `180301650` | `CMeshletBuilder_Init` | max vertices/triangles from 1802f9cc0, SceneSystem/RenderMeshlets, MeshCompiler/MeshletConeWeight 0.05, optimize level 4 |  |
@@ -641,6 +644,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812c4f30` | `meshopt_optimizeOverdraw` | stock meshopt; threshold 1.03 from AddDrawDescriptors |  |
 | `1812d9920` | `Mesh_UvDensity` | sqrt(world area / uv area), sorted, index ((n-1)*pct)/100; pct 20 or 95 | `src/Source2.Compiler/Maps/UvDensity.cs:6` |
 | `1812e1ce0` | `CMesh_DuplicateReversed` | double-sided draws: every triangle again with the winding reversed |  |
+| `181365a40` | `CMesh_CreatePackedVB` | vertex buffer written field by field through the packed input layout (181365ce0 per format) |  |
+| `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8` |
 | `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 | `src/Source2.Compiler/Maps/TangentFrame.cs:9` |
 
 ### s2c:infra
@@ -701,7 +706,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:70` |
 | `18125c200` | `Matrix3x4_Scale` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:389` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:320`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:270`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
-| `18125d000` | `VectorNormalize_Slow` | out-of-range lengths; not ported | `src/Source2.Compiler/Maps/LightMath.cs:201`, `src/Source2.Compiler/Maps/LightSampler.cs:256`, `src/Source2.Compiler/Maps/LightTrace.cs:113` +6 |
+| `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/LightMath.cs:201`, `src/Source2.Compiler/Maps/LightSampler.cs:256`, `src/Source2.Compiler/Maps/LightTrace.cs:113` +7 |
 | `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:566` |
 | `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Maps/LightMath.cs:130`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:560` |
 | `18125d940` | `AngleQuaternion` | half angles times 0.00872664619 | `src/Source2.Compiler/Maps/CTransform.cs:22` |
@@ -911,18 +916,30 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800476a0` | `CVisBuilder::Build_vis` | world_visibility.vvis compile params: rte, viscfg, los, FlatVisClusterVector (context +0x5c0), MutualVisibilityMatrix (+0x5c8) |  |
 | `18020d860` | `Material_VisFlags` | material int attributes by murmur hash as triangle flags |  |
-| `180230480` | `CVisibilityMeshMerger::Init` | MinimumTriangles/Vertices/VolumePerClusteredMesh (defaults 64/32/216, csgo_core 2048/2048/1800), MaxPrecomputedVisClusterMembership 16; each vis cluster's box list unioned into a bound |  |
-| `1802307f0` | `CVisibilityMeshMerger_MeshMembership` | clusters whose bound and one of whose boxes overlap the mesh bounds (edges count) |  |
-| `180230aa0` | `CVisibilityMeshMerger_TriangleMembership` | per cluster of the member: bound then boxes by TriBoxOverlap (eps 0.001); more than the cap gives no membership |  |
-| `180230df0` | `CVisibilityMeshMerger_AddToBucket` | a whole member appended to a bucket |  |
-| `180231200` | `CVisibilityMeshMerger_SplitByTriangleMembership` | a member seen from several vis clusters: each triangle to the bucket of its own cluster set |  |
-| `1802321b0` | `CVisibilityMeshMerger_ChooseTarget` | a small entry's bounds grown by 240 give nearby clusters; buckets whose set joined with its own stays under the cap and touches them, with an entry CanMerge accepts under 0xffff vertices, scored by the mutual visibility matrix |  |
-| `1802334e0` | `CVisibilityMeshMerger_MergeSmallBuckets` | one pass: buckets under the minimums merged into neighbours (CanMerge) |  |
-| `180234180` | `CVisibilityMeshMerger::MergeMeshes` | visdrivenclustering.cpp: groups (seed = last entry, then CanMerge from the front, up to 300000 indices), each member bucketed by its vis cluster set (whole, or per triangle via 180231200), buckets merged in a thread pool job |  |
-| `180235b50` | `CVisibilityMeshMerger_MergeGroup` | passes of 1802334e0 at the minimums times 4/1/2/16 with factors 1.1, 1000, 1.25 |  |
+| `180230200` | `WRBMeshEntry_Copy` | shares the ref-counted CMesh |  |
+| `180230480` | `CVisibilityMeshMerger::Init` | MinimumTriangles/Vertices/VolumePerClusteredMesh (defaults 64/32/216, csgo_core 2048/2048/1800), MaxPrecomputedVisClusterMembership 16; each vis cluster's box list unioned into a bound | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:113` |
+| `1802307f0` | `CVisibilityMeshMerger_MeshMembership` | clusters whose bound and one of whose boxes overlap the mesh bounds (edges count) | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:215` |
+| `180230aa0` | `CVisibilityMeshMerger_TriangleMembership` | per cluster of the member: bound then boxes by TriBoxOverlap (eps 0.001); more than the cap gives no membership | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:241` |
+| `180230df0` | `CVisibilityMeshMerger_AddToBucket` | appended (mesh concatenated) to the first entry CanMerge accepts, else a new entry with a copy of the mesh; ported (VisibilityMeshMerger) | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:316` |
+| `180231200` | `CVisibilityMeshMerger_SplitByTriangleMembership` | a member seen from several vis clusters: each triangle to the bucket of its own cluster set | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:271` |
+| `1802321b0` | `CVisibilityMeshMerger_ChooseTarget` | a small entry's bounds grown by 240 give nearby clusters; buckets whose set joined with its own stays under the cap and touches them, with an entry CanMerge accepts under 0xffff vertices, scored by the mutual visibility matrix | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:421` |
+| `180233190` | `CVisibilityMeshMerger_CandidateLess` | ChooseTarget's std::sort predicate: score, clusters added, union/own surface ratio (0.0001), 0xffff overflow, vertices | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:501` |
+| `1802334e0` | `CVisibilityMeshMerger_MergeSmallBuckets` | one pass: buckets under the minimums merged into neighbours (CanMerge) | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:361` |
+| `180234180` | `CVisibilityMeshMerger::MergeMeshes` | visdrivenclustering.cpp: groups (seed = last entry, then CanMerge from the front, up to 300000 indices), each member bucketed by its vis cluster set (whole, or per triangle via 180231200), buckets merged in a thread pool job | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:6` |
+| `180235b50` | `CVisibilityMeshMerger_MergeGroup` | passes of 1802334e0 at the minimums times 4/1/2/16 with factors 1.1, 1000, 1.25 | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:333` |
+| `180236070` | `WRBMeshEntryList_FastRemove` | the last entry moved into the gap |  |
+| `180236330` | `ClusterSetTable_Realloc` | size rounded up to a power of two; entries reinserted from the last slot down |  |
+| `1802365f0` | `ClusterSetTable_Realloc_Local` |  |  |
 | `180236a90` | `CVisibilityMeshMerger_MergeJob` | thread pool job (vtable 182a8d468) over the groups |  |
+| `180236d90` | `ClusterSetTable_InsertUnconstructed` | the new key takes its home slot; the occupant is bumped |  |
+| `180237240` | `CVisibilityMeshMerger_SortCandidates` | MSVC std::sort over the 0x50-byte candidates (insertion sort under 33) |  |
 | `180237360` | `CVisibilityMeshMerger_InitBoundsJob` | "init bounds": each member's CMesh bounds, then its cluster list |  |
-| `1802381c0` | `CVisibilityMeshMerger_BucketFind` | hash map keyed by the cluster set (hash_combine from 0x3501a674) |  |
+| `180237680` | `ClusterSetTable_BumpEntry` |  |  |
+| `180237840` | `ClusterSetTable_BumpEntry_Local` | moves a slot's entry to the next free slot, carrying the chain's last flag | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:637` |
+| `180237ab0` | `SortU16` | std::sort of a cluster set, ascending |  |
+| `1802381c0` | `CVisibilityMeshMerger_BucketFind` | CUtlHashTable find-or-insert keyed by the cluster set (hash_combine from 0x3501a674); grows to (used*4+4)/3 before passing 3/4 |  |
+| `1802383f0` | `ClusterSetTable_FindOrInsert` |  |  |
+| `180238620` | `CVisibilityMeshMerger_InsertionSortCandidates` |  |  |
 | `180252ae0` | `WRB_MeshEntryFlags` | material flags into a mesh entry | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:10` |
 | `180259130` | `WRB_TriangleInSkipBox` | whether a triangle lies in one of those boxes; the emitter then skips it |  |
 | `1802597d0` | `WRB_RteSkipBoxes` | oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified |  |
@@ -930,7 +947,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802839d0` | `WRB_CollectRteMeshes` | each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80 | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:13` |
 | `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:109` |
 | `1810045b0` | `CMapEntity::vf219` | 2 when the entity's class renders as world | `src/Source2.Compiler/Maps/MapGeometry.cs:10` |
-| `181265950` | `TriBoxOverlap` | box centre, half extents, three corners, epsilon |  |
+| `181265950` | `TriBoxOverlap` | box centre, half extents, three corners, epsilon | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:540` |
+| `1812d6c70` | `CMesh_Append` | streams matched by name; vertices appended, indices offset by the old vertex count | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:47` |
+| `1812d9eb0` | `CMesh_BoundsRange` |  |  |
+| `1812ddd80` | `CMesh_CopyFrom` |  |  |
+| `1812de310` | `CMesh_SubsetByIndices` | the listed triangles, vertices renumbered by first use | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:56` |
+| `1812dfd10` | `CMesh_Bounds` | min/max of the first 'position' stream of three floats, every vertex | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:32` |
 
 ## smartprops.dll, build 20260923
 

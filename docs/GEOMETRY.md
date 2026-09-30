@@ -189,7 +189,12 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   keyed by that cluster set, a member in several is split triangle by
   triangle into the buckets of each triangle's set; the buckets (a hash map
   keyed by the set) are merged into entries by a thread pool job. This is
-  where triangle order, merges and clusters come from (not ported).
+  where triangle order, merges and clusters come from. Ported as
+  `VisibilityMeshMerger` (the CUtlHashTable whose slot order is the output
+  order, the membership tests, TriBoxOverlap, the merge passes,
+  ChooseTarget with MSVC's std::sort); checked by replaying captured calls
+  (`tools/vis/capture_meshmerge.py`, `VisibilityMeshMergerReplay`) with
+  Valve's CanMerge answers standing in for the entry comparison.
 - **The merger, as read** (addresses in ADDRESSES.md, "CVisibilityMeshMerger"):
   - inputs: vis's FlatVisClusterVector (per-cluster box lists,
     `VisOutput.FlatClusterBoxes`, set into the builder context at +0x5c0) and
@@ -279,10 +284,21 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   (WorldNodeLayoutProbe, WNLAYOUT=1): of 210 float32 texcoord buffers, 162
   hold a value half precision cannot represent, but 24 are half-exact and
   still float32 (and TEXCOORD1 is often snorm-exact yet float32), so it is
-  not "lossless only" either; the material (RepresentativeTextureWidth and
-  Height as a texel error bound?) is the next suspect. The code that picks
-  it is not found yet (the lowprecisionuv scan, 1810d5f40, is the material
-  side).
+  not "lossless only" either. Read since: the precision is a per mesh
+  flag. Hammer's `ConvertMeshForBuilder` writes `forceHighPrecisionTexcoords`
+  on the mesh DMX when `Hammer/ForceHighPrecisionTexcoords` is set or any
+  texcoord is still outside +-1.03125 after the island shift
+  (`HammerMesh_TexcoordsOutOfRange`); `DmeMeshToCMesh`'s stream layout
+  (180d473d0) marks each texcoord stream high precision (stream byte +0x1d)
+  when the mesh has that flag or any |u| or |v| exceeds 16. `CanMerge`
+  compares that byte, so a draw never mixes the two. High precision is
+  float32. Low precision is snorm16 or float16: every snorm buffer measured
+  lies within +-1 and every float16 buffer within +-16, but 6 float16
+  buffers lie within +-1, so the snorm test is not per buffer (per source
+  mesh, before the split, is the likely reading). The code that turns the
+  flag into a format (the layout builder behind `CMesh::CreatePackedVB`,
+  181365a40) is not found yet. The lowprecisionuv scan (1810d5f40) is
+  editor UI.
 
 Open, in order: the triangle order above (it also decides the meshlet
 partition), why four probe01 meshes were not aggregated, the texcoord
