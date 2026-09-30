@@ -202,10 +202,11 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   `VisibilityMeshMerger` (the CUtlHashTable whose slot order is the output
   order, the membership tests, TriBoxOverlap, the merge passes,
   ChooseTarget with MSVC's std::sort). Exact on every captured call of
-  probe01, cardtest and atixref (9 calls, 466 entries, 364 buckets; the
+  probe01, cardtest, atixref and ze_hold_em_p (12 calls, 559 entries, 553
+  buckets; the
   capture is `tools/vis/capture_meshmerge.py`, the replay
   `VisibilityMeshMergerReplay`), and the ported `CanMerge` agrees with
-  Valve's on all 132,419 pairs. Two facts only the capture showed: every
+  Valve's on all 141,068 pairs. Two facts only the capture showed: every
   table the merger makes has a minimum size of 32 (+0x18 = 0x20), and the
   output entries keep their incoming +0x218: the bucket key is written into
   the bucket's own entries after they are copied out. Not exercised yet:
