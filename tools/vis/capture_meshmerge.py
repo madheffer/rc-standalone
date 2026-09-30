@@ -14,7 +14,7 @@ Output is a stream of records: u32 json length, json, u32 blob length, blob.
 
 CS2 must be closed (a watchdog kills the compile if it starts), 10 GB must
 be free, and the map's package is backed up first and restored, cmp-checked,
-afterwards.
+afterwards; the compile's own package is kept as <out>.vpk.
 """
 import argparse
 import filecmp
@@ -213,6 +213,10 @@ def main():
     out.close()
     print(out_path, stats, "(killed: cs2 started)" if killed else "")
 
+    # The compile's own package goes beside the capture: its node models are
+    # what the captured buckets become.
+    if os.path.exists(vpk):
+        shutil.copyfile(vpk, out_path + ".vpk")
     if os.path.exists(backup):
         shutil.copyfile(backup, vpk)
         ok = filecmp.cmp(backup, vpk, shallow=False)

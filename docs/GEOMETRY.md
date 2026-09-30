@@ -231,6 +231,12 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   from the object flags (0x200 `_d`, 0x400 `_cb`, 0x80 `_dl`, 0x20000 `_b`,
   0x10000 `_nv`, 0x10 `_bl`, 0x100000 `_rtem`); a list's groups are runs of
   equal cubemap, probe and flags, named `%s_cm%02d_lp%02d`.
+- **Overlays:** Hammer's static overlays are `CMapStaticOverlay` nodes
+  carrying a polygon mesh of their own (`meshData`); nothing is projected
+  at compile. Their entries are compiled one model each by list vf 0x30
+  (18026e9c0), named `vism%i_mt_<material base>` from the entry's +0x230
+  (atixref: eight, `n0_lr0_c0_s_vism0_mt_muesli_logo` through c7, from
+  five overlays). The .vmap reader (`MapMeshes`) skips them today.
 - **Aggregates** are re-split into fragments, one draw call each, sorted
   by triangle count; each has a meshlet (packed AABB, culling cone) and
   draw bounds. probe01's reflectivity aggregate holds 100 triangles from 72
