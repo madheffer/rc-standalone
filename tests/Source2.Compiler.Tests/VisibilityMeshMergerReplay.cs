@@ -132,6 +132,7 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
             MinVertices = cap.Settings[1],
             MinVolume = cap.Settings[2],
             MaxMembership = cap.Settings[3],
+            Trace = Environment.GetEnvironmentVariable("MESHMERGE_SHOW") == "1" ? l => output.WriteLine("   . " + l) : null,
         };
         var result = merger.MergeMeshes(cap.Inputs);
         var problems = new List<string>();
@@ -161,6 +162,11 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
             if (diff != null)
                 problems.Add($"unclustered {j}: {diff}");
         }
+        if (Environment.GetEnvironmentVariable("MESHMERGE_SHOW") == "1")
+            for (var k = 0; k < Math.Max(result.Buckets.Count, cap.Buckets.Count); k++)
+                output.WriteLine($"   bucket {k}: ours [{(k < result.Buckets.Count ? string.Join(",", result.Buckets[k].Key) : "-")}] "
+                    + $"{(k < result.Buckets.Count ? string.Join(" ", result.Buckets[k].Entries.Select(e => $"{e.Mesh.VertexCount}v{e.Mesh.Indices.Count / 3}t")) : "")}"
+                    + $" | valve {(k < cap.Buckets.Count ? string.Join(" ", cap.Buckets[k].Entries.Select(e => $"{e.V.Length / Math.Max(1, cap.Inputs[0].Mesh.Stride)}v{e.I.Length / 3}t")) : "")}");
         output.WriteLine($"call {call}: {n} entries -> {cap.Buckets.Count} buckets, {cap.Unclustered.Count} unclustered"
             + (asym != 0 ? $", {asym} asymmetric CanMerge pairs" : "") + (problems.Count == 0 ? ", exact" : ""));
         foreach (var p in problems)

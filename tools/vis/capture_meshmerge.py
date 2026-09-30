@@ -106,6 +106,22 @@ function hook() {
       this.nov0 = this.nov.readS32();
       const flat = merger.add(8).readPointer(), mutual = merger.add(0x10).readPointer();
       const key = flat.toString() + '/' + mutual.toString();
+      if (flatSent === null) {
+        // The hash table sizes itself from the block the allocator really
+        // gives (g_pMemAlloc vf 0x88): measure it for n entries of 0x38.
+        const alloc = Process.getModuleByName('tier0.dll').getExportByName('g_pMemAlloc').readPointer();
+        const vt = alloc.readPointer();
+        const allocFn = new NativeFunction(vt.add(8).readPointer(), 'pointer', ['pointer', 'uint64']);
+        const sizeFn = new NativeFunction(vt.add(0x88).readPointer(), 'uint64', ['pointer', 'pointer']);
+        const freeFn = new NativeFunction(vt.add(0x18).readPointer(), 'void', ['pointer', 'pointer']);
+        const sizes = [];
+        for (let n = 1; n <= 64; n++) {
+          const p = allocFn(alloc, n * 0x38);
+          sizes.push([n * 0x38, sizeFn(alloc, p).toNumber()]);
+          freeFn(alloc, p);
+        }
+        send({ev: 'allocsizes', sizes: sizes});
+      }
       if (flatSent !== key) {
         flatSent = key;
         const nc = flat.readS32(), fp = flat.add(8).readPointer();

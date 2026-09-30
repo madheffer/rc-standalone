@@ -85,7 +85,7 @@ public sealed class VisibilityMeshMerger
         public int Origin;
         /// <summary>Object flags (+0xbc); a triangle no vis cluster sees comes out with 0x10000.</summary>
         public uint ObjectFlags;
-        /// <summary>The precomputed vis cluster set (+0x218), the bucket's key on output.</summary>
+        /// <summary>+0x218, a cluster set the merger passes through (it writes the bucket key only into entries it then discards).</summary>
         public ushort[] Clusters = [];
 
         public Entry Share() => new() { Mesh = Mesh, Origin = Origin, ObjectFlags = ObjectFlags, Clusters = Clusters };
@@ -108,6 +108,8 @@ public sealed class VisibilityMeshMerger
     public int MinVertices { get; init; } = 32;
     public int MinVolume { get; init; } = 216;
     public int MaxMembership { get; init; } = 16;
+    /// <summary>Told each grouping, bucketing and merge step, for replays.</summary>
+    public Action<string>? Trace { get; init; }
 
     /// <summary>
     /// <c>CVisibilityMeshMerger::Init</c> (180230480): each cluster's bound is
@@ -172,7 +174,7 @@ public sealed class VisibilityMeshMerger
                 if (taken > 299999)
                     break;
             }
-            var map = new HashTable();
+            var map = new HashTable { Trace = Trace };
             map.Reserve(members.Count);
             groups.Add((members, map));
         }
@@ -188,6 +190,7 @@ public sealed class VisibilityMeshMerger
         {
             foreach (var m in members)
             {
+                Trace?.Invoke($"member origin {m.Entry.Origin} {m.Entry.Mesh.VertexCount}v{m.Entry.Mesh.Indices.Count / 3}t clusters [{string.Join(",", m.Clusters)}]");
                 if (m.Clusters.Length == 1)
                     AddToBucket(m.Entry, map.FindOrInsert(m.Clusters).Entries);
                 else
@@ -201,12 +204,10 @@ public sealed class VisibilityMeshMerger
         var buckets = new List<Bucket>();
         foreach (var (_, map) in groups)
         {
+            // The key is written into the bucket's own entries after they are
+            // copied out, so the output keeps each entry's incoming set.
             foreach (var b in map.Slots())
-            {
-                foreach (var e in b.Entries)
-                    e.Clusters = b.Key;
                 buckets.Add(b);
-            }
         }
         return new Output(buckets, unclustered);
     }
@@ -293,6 +294,7 @@ public sealed class VisibilityMeshMerger
             target.Add(i2);
         }
         local.Reserve(_flat.Length);
+        Trace?.Invoke($"  local after reserve({_flat.Length}): {string.Join(" ", local.Slots().Select(b => $"[{string.Join(",", b.Key)}]"))}");
         foreach (var b in local.Slots())
         {
             if (b.Indices.Count == 0)
@@ -383,6 +385,7 @@ public sealed class VisibilityMeshMerger
                 if (choice == null)
                     continue;
                 merged++;
+                Trace?.Invoke($"pass t{minTriangles} f{factor}: [{string.Join(",", key)}] #{i} {e.Mesh.VertexCount}v{e.Mesh.Indices.Count / 3}t -> target [{string.Join(",", choice.Value.Key)}] joined [{string.Join(",", choice.Value.Joined)}]");
                 var copy = e.Share();
                 var joined = map.FindOrInsert(choice.Value.Joined);
                 var target = map.Find(choice.Value.Key);
@@ -636,10 +639,11 @@ public sealed class VisibilityMeshMerger
     /// insert takes the home slot, bumping its occupant to the next free slot
     /// (<c>FUN_180237840</c>); the table grows to (used * 4 + 4) / 3 rounded
     /// to a power of two before it would pass three quarters, and a rehash
-    /// reinserts from the last slot down.
+    /// reinserts from the last slot down; no table is made smaller than 32.
     /// </summary>
     sealed class HashTable
     {
+        public Action<string>? Trace;
         const uint Free = 0x80000000, Last = 0x40000000, HashMask = 0x3fffffff;
         uint[] _flags = [];
         Bucket?[] _data = [];
@@ -708,7 +712,9 @@ public sealed class VisibilityMeshMerger
             if ((uint)(_flags.Length * 3) < need)
                 Realloc((int)need / 3);
             var slot = new Slot { Key = [.. key] };
-            _data[Insert(h)] = slot;
+            var at = Insert(h);
+            _data[at] = slot;
+            Trace?.Invoke($"  insert [{string.Join(",", key)}] hash {h:x8} size {_flags.Length} at {at}: {string.Join(" ", Enumerable.Range(0, _flags.Length).Select(i => (_flags[i] & Free) != 0 ? "." : $"{i}:[{string.Join(",", _data[i]!.Key)}]"))}");
             return slot;
         }
 
@@ -781,9 +787,15 @@ public sealed class VisibilityMeshMerger
             _flags[idx] = Free;
         }
 
+        /// <summary>
+        /// The smallest size a realloc takes (+0x18), 32 for every table the
+        /// merger makes (FUN_180236f40, and the split's local table).
+        /// </summary>
+        const int MinimumSize = 32;
+
         void Realloc(int min)
         {
-            var n = (uint)Math.Max(min, 1) - 1;
+            var n = (uint)Math.Max(min, MinimumSize) - 1;
             n |= n >> 1;
             n |= n >> 2;
             n |= n >> 4;
