@@ -346,7 +346,7 @@
    "addr": "1802b1ff0",
    "name": "CMesh_TransformByMatrix",
    "module": "s2c:math",
-   "note": ""
+   "note": "flag 1: positions by the matrix, normals by its inverse transposed (181263c30), tangents by it, both renormalised; flag 2: texcoords (u about 0, 1 - v about 1) scaled by column lengths named by TexCoord(2)ScaleByModelU/V; PropTransform"
   },
   {
    "addr": "18125d1f0",
@@ -541,6 +541,300 @@
    "note": "vertices lying on an edge inserted, faces re-triangulated by PolygonTriangulator_Face (job 18028c1f0)"
   },
   {
+   "addr": "18025cf80",
+   "name": "WRBNode_TJunctionVisit",
+   "module": "s2c:geometry/world-nodes",
+   "note": "KD-tree visit: a record from another node within 1/1024 of the open edge, direction dot under -0.99, inserted with its t (TJunctionFix.cs)"
+  },
+  {
+   "addr": "181371320",
+   "name": "CMesh_LerpVertex",
+   "module": "s2c:geometry/mesh-export",
+   "note": "every float of the vertex (b - a) * t + a"
+  },
+  {
+   "addr": "180294bb0",
+   "name": "WRBNode_SortEdgeInserts",
+   "module": "s2c:geometry/world-nodes",
+   "note": "std::sort of the inserts by edge, then t"
+  },
+  {
+   "addr": "1812d91c0",
+   "name": "CMesh_FindTwinEdges",
+   "module": "s2c:geometry/mesh-export",
+   "note": "per directed edge the opposite half-edge by vertex pair, -1 when open"
+  },
+  {
+   "addr": "1812db3c0",
+   "name": "CMesh_VertexTriangles",
+   "module": "s2c:geometry/mesh-export",
+   "note": "triangles touching each vertex"
+  },
+  {
+   "addr": "180256690",
+   "name": "WRBNode_Step256690",
+   "module": "s2c:geometry/world-nodes",
+   "note": "after the drop of +0x1a5 / bit 34 entries, before Step257b50; identity on probe01, cardtest and atixref"
+  },
+  {
+   "addr": "180257b50",
+   "name": "WRBNode_TakeLightmapResEntries",
+   "module": "s2c:geometry/world-nodes",
+   "note": "entries with attribute bit 10 (toolslightmapres) taken out, their positions to node +0x160; bit 36 dropped"
+  },
+  {
+   "addr": "18025ece0",
+   "name": "WRBNode_GenerateOverlayMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "\"Generate Overlay Meshes...\": per overlay of node +0x1f8/+0x200, targets gathered, projected, one entry per target with a non-empty result (356 on atixref from 297 CMapStaticOverlay)"
+  },
+  {
+   "addr": "18025e630",
+   "name": "WRBNode_CollectOverlayTargets",
+   "module": "s2c:geometry/world-nodes",
+   "note": "0x90 records from the node entries with attribute & 0x1209 == 0 and vertices: mesh, material, the +0x1c8 matrix, kind (+0x1a0 ? 2 : 1), node id +0x40, world bounds, name"
+  },
+  {
+   "addr": "18025dfa0",
+   "name": "WRBNode_CollectOverlayPropTargets",
+   "module": "s2c:geometry/world-nodes",
+   "note": "more targets from node +0x190 (props); not read"
+  },
+  {
+   "addr": "18025e990",
+   "name": "WRBNode_GatherOverlayTargets",
+   "module": "s2c:geometry/world-nodes",
+   "note": "targets with > 2 vertices and indices whose box meets the overlay's; mode 1/2 want kind == mode, mode 3 the overlay's target ids, else a name lookup in node +0x218 may exclude"
+  },
+  {
+   "addr": "180254480",
+   "name": "WRBNode_AddOverlay",
+   "module": "s2c:geometry/world-nodes",
+   "note": "a 0xc0 copy of the map node's overlay descriptor (+0x78 name, +0x80, +0x88) appended to node +0x1f8"
+  },
+  {
+   "addr": "181360220",
+   "name": "COverlayProjector::COverlayProjector",
+   "module": "s2c:geometry/overlays",
+   "note": "N faces of 0x4a0, back-face angle 90, box empty"
+  },
+  {
+   "addr": "181361d40",
+   "name": "COverlayProjector_SetOverlay",
+   "module": "s2c:geometry/overlays",
+   "note": "Init from a descriptor: faces +0x48/+0x50, far +4, back faces +0xc, angle +0x10, +0x14, tint +0x18, material +0x20, +0x60"
+  },
+  {
+   "addr": "181360c40",
+   "name": "COverlayProjector_Init",
+   "module": "s2c:geometry/overlays",
+   "note": "faces set, box = face points and the points pushed by far along each face normal, grown by 1"
+  },
+  {
+   "addr": "181362050",
+   "name": "COverlayProjector_ProjectOntoTarget",
+   "module": "s2c:geometry/overlays",
+   "note": "target triangles to world, culled against the box, ProjectPolygonsOntoTriangles, mesh built (181361000), tint, material"
+  },
+  {
+   "addr": "181363100",
+   "name": "COverlayProjector_ProjectTargets",
+   "module": "s2c:geometry/overlays",
+   "note": "one mesh per target record (0x50) with a result"
+  },
+  {
+   "addr": "181361db0",
+   "name": "OverlayDesc_HasTarget",
+   "module": "s2c:geometry/overlays",
+   "note": "mode 3: node id in the descriptor's hash set (+0x28)"
+  },
+  {
+   "addr": "18136d230",
+   "name": "OverlayFace_Set",
+   "module": "s2c:geometry/overlays",
+   "note": "positions, texcoords, two vec4 streams (defaults 1 and 0 in the job), then precompute"
+  },
+  {
+   "addr": "18136d8d0",
+   "name": "OverlayFace_Precompute",
+   "module": "s2c:geometry/overlays",
+   "note": "bounds, normal (18125b510), triangulation (18136f810) into +0x3c8"
+  },
+  {
+   "addr": "18136e370",
+   "name": "OverlayFace_IsConvex",
+   "module": "s2c:geometry/overlays",
+   "note": "cross of consecutive edges against the normal, 1e-7 slack, cached at +0"
+  },
+  {
+   "addr": "18136e6b0",
+   "name": "ProjectPolygonsOntoTriangles",
+   "module": "s2c:geometry/overlays",
+   "note": "meshutils/triangulatepolygon.cpp: direction = normalised sum of face normals, plane through the mean centroid; a thread pool job per face"
+  },
+  {
+   "addr": "181367ed0",
+   "name": "ProjectPolygonsOntoTriangles_Job",
+   "module": "s2c:geometry/overlays",
+   "note": "per face (atomic counter) the target triangles in batches of 0xfff, results appended under a mutex in completion order; texcoords (18136cd60) and the vec4 streams (181367460) from the point dropped onto the plane"
+  },
+  {
+   "addr": "18136bfd0",
+   "name": "OverlayFace_ProjectOntoTriangles",
+   "module": "s2c:geometry/overlays",
+   "note": "convex faces whole, others per triangle of +0x3c8"
+  },
+  {
+   "addr": "18136a930",
+   "name": "ProjectPolygonOntoTriangles",
+   "module": "s2c:geometry/overlays",
+   "note": "back-face test cos(angle) + 1e-5 clamped to [-1, 0.99999], overlay and far planes, a plane per side, clip (181369250), cut (18136fe00); OverlayProjector.cs"
+  },
+  {
+   "addr": "181361000",
+   "name": "COverlayProjector_BuildMesh",
+   "module": "s2c:geometry/overlays",
+   "note": "target streams weighted per point, position, overlay texcoord, normal turned, VertexGenericIntegerData, OverlayProjectionDirection"
+  },
+  {
+   "addr": "181369250",
+   "name": "Polygon_ClipByPlane",
+   "module": "s2c:geometry/overlays",
+   "note": "keeps distance <= 0; a distance whose square is under max side^2 * 9.999999e-09 (clamped [1.4210855e-14, 1]) is zero; tags lerped"
+  },
+  {
+   "addr": "18136fe00",
+   "name": "Polygons_Triangulate",
+   "module": "s2c:geometry/overlays",
+   "note": "each polygon of three or more points by NewellNormal and 18136f810"
+  },
+  {
+   "addr": "18136cd60",
+   "name": "OverlayFace_Texcoord",
+   "module": "s2c:geometry/overlays",
+   "note": "convex quad: 18129ba60 then 18129c490; else the face triangle (181259470); else the best corner's affine map (181368ee0)"
+  },
+  {
+   "addr": "18129ba60",
+   "name": "Quad_InverseBilinear",
+   "module": "s2c:geometry/overlays",
+   "note": "near parallelogram: 18129c2e0; else a quadratic in double on the two widest axes"
+  },
+  {
+   "addr": "18129c2e0",
+   "name": "Quad_ParallelogramCoords",
+   "module": "s2c:geometry/overlays",
+   "note": "each coordinate a line meeting (1812a5bf0) over the side length"
+  },
+  {
+   "addr": "18129c490",
+   "name": "Quad_Bilinear",
+   "module": "s2c:geometry/overlays",
+   "note": "(lerp(c1, c2, t) - lerp(c0, c3, t)) * s + lerp(c0, c3, t)"
+  },
+  {
+   "addr": "1812a5bf0",
+   "name": "Line_ClosestApproach",
+   "module": "s2c:geometry/overlays",
+   "note": "distances along two lines to their closest approach"
+  },
+  {
+   "addr": "181259470",
+   "name": "Triangle_AreaWeights",
+   "module": "s2c:geometry/overlays",
+   "note": "sub-triangle areas over the triangle's; inside when they sum to 1 within 0.001"
+  },
+  {
+   "addr": "1812db920",
+   "name": "CMesh_ComputeTangents",
+   "module": "s2c:geometry/mesh-export",
+   "note": "MikkTSpace-style (182080a60) when UseMikkTSpace; corners whose tangents differ by 1e-4 or in w split their vertex"
+  },
+  {
+   "addr": "182080a60",
+   "name": "TangentSpace_Generate",
+   "module": "s2c:geometry/mesh-export",
+   "note": "weld on equal position, normal, texcoord; triangle tangents; corner groups; angle-weighted sums; MeshTangents.cs"
+  },
+  {
+   "addr": "18207fc00",
+   "name": "TangentSpace_WeldLookup",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "182080440",
+   "name": "TangentSpace_TriangleTangents",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "1820807b0",
+   "name": "TangentSpace_GroupCorners",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "18207fe20",
+   "name": "TangentSpace_Accumulate",
+   "module": "s2c:geometry/mesh-export",
+   "note": "polynomial acos: sqrt(1 - x) ((0.05147786 x - 0.2053972) x + 1.570337)"
+  },
+  {
+   "addr": "18125cd10",
+   "name": "Matrix3x4_TransformAABB",
+   "module": "s2c:math",
+   "note": "centre and extents"
+  },
+  {
+   "addr": "181360310",
+   "name": "OverlayDesc::OverlayDesc",
+   "module": "s2c:geometry/overlays",
+   "note": ""
+  },
+  {
+   "addr": "181360610",
+   "name": "OverlayDesc_Assign",
+   "module": "s2c:geometry/overlays",
+   "note": "mode +0, far +4, render order +8, back faces +0xc, angle +0x10, +0x14, +0x15, tint +0x18, material +0x20, target ids +0x28, faces +0x48 (0x78 each), material adjust nibbles +0x60, +0x64 x3, +0x70 string"
+  },
+  {
+   "addr": "181194f40",
+   "name": "CMapStaticOverlay_GetOverlayDescs",
+   "module": "s2c:geometry/overlays",
+   "note": "one descriptor per material group of the overlay's polygon group: tint = group colour times the overlay's (x * y + 127) / 255, alpha from 18108c0c0; mode 3 collects the target node ids"
+  },
+  {
+   "addr": "181191460",
+   "name": "CMapStaticOverlay_GetOverlays",
+   "module": "s2c:geometry/overlays",
+   "note": "only with exactly one polygon group (+0x3cb8)"
+  },
+  {
+   "addr": "18119e000",
+   "name": "CMapStaticOverlay_UpdatePolygonGroups",
+   "module": "s2c:geometry/overlays",
+   "note": "groups from 180f88460 (variable sets), one 0xa8 group object each"
+  },
+  {
+   "addr": "18124bcc0",
+   "name": "CMapStaticOverlayGroup::CMapStaticOverlayGroup",
+   "module": "s2c:geometry/overlays",
+   "note": ""
+  },
+  {
+   "addr": "18124c750",
+   "name": "CMapStaticOverlayGroup_BuildRenderData",
+   "module": "s2c:geometry/overlays",
+   "note": "Hammer's viewport mesh (OverlaySurfaceVertices); not the compile"
+  },
+  {
+   "addr": "18025d500",
+   "name": "WRBNode_Step25d500",
+   "module": "s2c:geometry/world-nodes",
+   "note": "before the closing weld; identity on probe01, cardtest and atixref"
+  },
+  {
    "addr": "1802636b0",
    "name": "CWorldRendererBuilderNode::BuildAggregateRTProxies",
    "module": "s2c:geometry/world-nodes",
@@ -568,7 +862,7 @@
    "addr": "18024b400",
    "name": "CWorldRendererBuilderNode::BuildNode",
    "module": "s2c:geometry/world-nodes",
-   "note": "bounds, props, drop flagged entries, triangles inside, T-junctions, (bake), merge unless render clusters, weld 1/32"
+   "note": "bounds, props, drop flagged entries, 256690, 257b50, triangles inside, T-junctions, (bake), 25ece0, 25d500, weld 1/32 renumbering by use unless +0x1a0 && +0x98 && +0xc0 & 0x10"
   },
   {
    "addr": "1802547d0",
@@ -580,7 +874,67 @@
    "addr": "180255b90",
    "name": "WRBNode_AddStaticProps",
    "module": "s2c:geometry/world-nodes",
-   "note": "BakePropsWithNonUniformScale / ExtraVertexStreams"
+   "note": "props of node +0x198 baked into entries unless clutterinstance: baketoworld, materialoverride (+0x40), a deformer (+0x80), +0x17c with the node's flag, non-uniform scale (max |s| - min |s| > 0.0001, BakePropsWithNonUniformScale) or extra vertex streams (BakePropsWithExtraVertexStreams); instances walked last to first"
+  },
+  {
+   "addr": "1802b4ab0",
+   "name": "WRBNode_GroupPropsByLod",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the baked props of one model grouped by lodlevel (+0x1e4)"
+  },
+  {
+   "addr": "1802b3060",
+   "name": "WRBNode_BakePropMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "one model LOD's meshes (1801d30d0) per prop: material overrides, the deformer (1812d7510), then an entry per draw call (180255470)"
+  },
+  {
+   "addr": "1802b6db0",
+   "name": "WRBNode_PropMaterials",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7)"
+  },
+  {
+   "addr": "180255470",
+   "name": "WRBNode_PropEntry",
+   "module": "s2c:geometry/world-nodes",
+   "note": "a node entry from a prop's mesh: fade +0x160/+0x164, bakelightdoublesided, lightmapscalebias, flags from disableinlowquality, rendertocubemaps, renderwithdynamic, emissive mode 1, lighting origin"
+  },
+  {
+   "addr": "1801d30d0",
+   "name": "WRB_LoadPropMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "a model's draw calls as CMeshes of 18 floats a vertex (position, normal, tangent, texcoord, color, texcoord); vertices from the resource system's geometry info (vf 0xf0), unpacked there"
+  },
+  {
+   "addr": "1812d7510",
+   "name": "CMesh_ApplyPropDeformer",
+   "module": "s2c:geometry/mesh-export",
+   "note": "positions, normals and tangents through the prop's lattice deformer; mirrored deformers flip winding and tangent w"
+  },
+  {
+   "addr": "181287fd0",
+   "name": "PropDeformer_ApplyArrays",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
+  },
+  {
+   "addr": "181288080",
+   "name": "PropDeformer_Transform",
+   "module": "s2c:geometry/mesh-export",
+   "note": "points deformed; tangents as the normalised difference of deform(p + t) and deform(p); normals by 181289460"
+  },
+  {
+   "addr": "18128d980",
+   "name": "PropDeformer_Init",
+   "module": "s2c:geometry/mesh-export",
+   "note": "lattice dims +0x2c..+0x34, scale +0x20, mirror +0x70"
+  },
+  {
+   "addr": "18128ea90",
+   "name": "PropDeformer_IsSet",
+   "module": "s2c:geometry/mesh-export",
+   "note": ""
   },
   {
    "addr": "18023f6d0",
@@ -1882,7 +2236,67 @@
    "addr": "1810c65c0",
    "name": "BakeSubdivisionForFaces",
    "module": "s2c:geometry/subdivision",
-   "note": "scope name; calls the bake"
+   "note": "the bake (1813baa40), MergeVerticesWithinDistance 1e-6, new edges soft, then 1810cddd0 on the baked faces' vertices"
+  },
+  {
+   "addr": "1810c6520",
+   "name": "HammerMesh_BakeAllSubdivision",
+   "module": "s2c:geometry/subdivision",
+   "note": "ConvertMeshForBuilder's bake of every subdivided face"
+  },
+  {
+   "addr": "1810c59a0",
+   "name": "AssignSmoothingModeToEdges",
+   "module": "s2c:geometry/subdivision",
+   "note": "mode 2: flags & ~1 | 2 (soft); 1: flags & ~2 | 1 (hard); else both cleared; faces marked dirty (8)"
+  },
+  {
+   "addr": "1810cddd0",
+   "name": "HammerMesh_RecomputeVertexNormals",
+   "module": "s2c:geometry/subdivision",
+   "note": "every corner at the listed vertices gets 1813850e0's normal"
+  },
+  {
+   "addr": "1813850e0",
+   "name": "HalfEdge_CornerNormal",
+   "module": "s2c:geometry/subdivision",
+   "note": "normalised sum of the Newell face normals over the corner's smooth fan (turn: twin of next; fan between hard edges)"
+  },
+  {
+   "addr": "1813a5ce0",
+   "name": "HalfEdge_IsEdgeSmooth",
+   "module": "s2c:geometry/subdivision",
+   "note": "open edge hard; flag bit 0 hard, bit 1 soft; else cos(angle) + 1e-5 < dot of the faces' normals; cos above 0.99999 hard, under 1e-5 soft"
+  },
+  {
+   "addr": "1813a5be0",
+   "name": "HalfEdge_IsOpenEdge",
+   "module": "s2c:geometry/subdivision",
+   "note": "a side without a face"
+  },
+  {
+   "addr": "181384e40",
+   "name": "HalfEdge_FaceNormal",
+   "module": "s2c:geometry/subdivision",
+   "note": "NewellNormal over the face's loop from its first half-edge"
+  },
+  {
+   "addr": "1813b1b80",
+   "name": "HalfEdge_SetSmoothingAngle",
+   "module": "s2c:geometry/subdivision",
+   "note": "stores cos(angle * 0.017453292) at +0x3470, faces dirty"
+  },
+  {
+   "addr": "1813c2090",
+   "name": "SubdivPatch_TangentGrid",
+   "module": "s2c:geometry/subdivision",
+   "note": "patch corner tangents lerped (rows normalised), then (n x t) x n normalised; viewport and sampling only"
+  },
+  {
+   "addr": "1813c3cf0",
+   "name": "SubdivPatch_NormalGrid",
+   "module": "s2c:geometry/subdivision",
+   "note": "patch grid normals, averaged across patch seams; viewport and sampling only"
   },
   {
    "addr": "181375e20",
@@ -2092,7 +2506,7 @@
    "addr": "1813c1cc0",
    "name": "MeshTessellation_PaintValues",
    "module": "s2c:geometry/subdivision",
-   "note": ""
+   "note": "patch grids as asked: positions (1813c7b90), normals (1813c3cf0), tangents (1813c2090); from 18102f230 and 1810c0d60"
   },
   {
    "addr": "1813c26a0",
@@ -2128,7 +2542,7 @@
    "addr": "1813c94f0",
    "name": "SubdivisionBake_WriteBack",
    "module": "s2c:geometry/subdivision",
-   "note": "grid write-back to +0xd0 positions / +0xb20 paint"
+   "note": "grid write-back to +0xd0 positions / +0xb20 paint; a cell corner's write sets every face-vertex stream from the packed record"
   },
   {
    "addr": "1813ca560",
@@ -2518,7 +2932,25 @@
    "addr": "18125c200",
    "name": "Matrix3x4_Scale",
    "module": "s2c:math",
+   "note": "diag(x, y, z), zero translation"
+  },
+  {
+   "addr": "18125c070",
+   "name": "Matrix3x4_Identity",
+   "module": "s2c:math",
    "note": ""
+  },
+  {
+   "addr": "181263c30",
+   "name": "Matrix3x4_InverseTranspose",
+   "module": "s2c:math",
+   "note": "the 3x4 as 4x4 with (0, 0, 0, 1), inverted (1812636e0), transposed"
+  },
+  {
+   "addr": "1812586a0",
+   "name": "Matrix3x4_ColumnLengths",
+   "module": "s2c:math",
+   "note": "sqrt((c0 c0 + c1 c1) + c2 c2) per column"
   },
   {
    "addr": "18125cba0",
@@ -3490,7 +3922,7 @@
    "addr": "180245770",
    "name": "EntityLump_StaticModelRecord",
    "module": "s2c:entities",
-   "note": ""
+   "note": "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin"
   },
   {
    "addr": "1800fd550",

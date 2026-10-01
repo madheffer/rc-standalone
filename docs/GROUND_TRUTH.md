@@ -147,14 +147,15 @@ game can answer is raised with the user first, and runs with -insecure.
     tangents alone. Next: a capture of the half-edge mesh's tangent
     stream after BakeSubdivisionForFaces and after ConvertMeshForBuilder.
 
-39. **The vertex unpack of baked props** (WRB_LoadPropMeshes): the model's
-    vertices arrive as 18 floats each from the resource system's geometry
-    info (an interface call, vf 0xf0), so the unpack of the packed NORMAL0
-    frame (R8G8B8A8_UNORM) and of SNORM16 texcoords is not in the builder.
-    VRF's decode plus a transform matches only some normals and 415 of 718
-    texcoords on atixref's curtains. Next: find the unpack (likely
-    meshsystem.dll) or capture the 18-float vertices WRB_LoadPropMeshes
-    gets, then settle the normal and tangent transform for non-uniform scale.
+39. **The vertex unpack and transform of baked props** (settled
+    2026-10-01): WRB_LoadPropMeshes' floats come from meshsystem's unpack
+    (180032730 for R32_UINT frames; R8G8B8A8 frames decoded and re-encoded
+    to it at load), captured exact on all 819 atixref loader meshes
+    (capture_propmeshes.py). CMesh_TransformByMatrix (1802b1ff0) then
+    places them (PropTransform): all 102 atixref prop entries exact in every
+    stream. The texcoord axes are shader attributes
+    (TexCoordScaleByModelU/V = g_nScaleTexCoord*ByModelScaleAxis - 1).
+    Open: the foliage static combo rule for NeedsLocalSpaceVertices.
 
 ## Resolved
 

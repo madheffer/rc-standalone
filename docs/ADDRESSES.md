@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261001_1.41.8.8.md): 687 tracked addresses: ambiguous 44, changed 24, identical 9, moved 601, relocated 9
-- 738 addresses
+- 742 addresses
 
 ### s2c:baked/light-keys
 
@@ -364,7 +364,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun |  |
-| `180245770` | `EntityLump_StaticModelRecord` |  |  |
+| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin | `src/Source2.Compiler/Maps/PropTransform.cs:9`, `src/Source2.Compiler/Maps/PropTransform.cs:30` |
 | `18024adc0` | `WRB_WriteEntityLump` | entity_lump_params, entities\ |  |
 | `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:12`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:161` |
 
@@ -693,6 +693,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802b3060` | `WRBNode_BakePropMeshes` | one model LOD's meshes (1801d30d0) per prop: material overrides, the deformer (1812d7510), then an entry per draw call (180255470) |  |
 | `1802b4ab0` | `WRBNode_GroupPropsByLod` | the baked props of one model grouped by lodlevel (+0x1e4) |  |
 | `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:6` |
+| `1802b6db0` | `WRBNode_PropMaterials` | the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7) |  |
 | `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
 | `1802ec6e0` | `CResourceCompilerMesh_PackDrawVB` | allocates stride * vertices and calls CMesh_CreatePackedVB; warns when the sizes disagree |  |
 | `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density |  |
@@ -759,9 +760,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/OverlayProjector.cs:447`, `src/Source2.Compiler/Maps/TJunctionFix.cs:83` |
+| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/OverlayProjector.cs:447`, `src/Source2.Compiler/Maps/PropTransform.cs:14` +1 |
 | `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:249` |
-| `1802b1ff0` | `CMesh_TransformByMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:13` |
+| `1802b1ff0` | `CMesh_TransformByMatrix` | flag 1: positions by the matrix, normals by its inverse transposed (181263c30), tangents by it, both renormalised; flag 2: texcoords (u about 0, 1 - v about 1) scaled by column lengths named by TexCoord(2)ScaleByModelU/V; PropTransform | `src/Source2.Compiler/Maps/CTransform.cs:13`, `src/Source2.Compiler/Maps/PropTransform.cs:7` |
 | `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:90`, `src/Source2.Compiler/Maps/MeshTessellation.cs:517` |
 | `1811145c0` | `AngleMatrixDouble` | sines and cosines in double | `src/Source2.Compiler/Maps/SettleWorld.cs:234`, `src/Source2.Compiler/Maps/SettleWorld.cs:335` |
 | `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.cs:482`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:44` |
@@ -770,6 +771,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181256960` | `PointSegmentClosest` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
 | `181256bf0` | `PointLineDistanceSquared` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:199`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:207` |
 | `181256f30` | `PointSegmentDistance` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
+| `1812586a0` | `Matrix3x4_ColumnLengths` | sqrt((c0 c0 + c1 c1) + c2 c2) per column | `src/Source2.Compiler/Maps/PropTransform.cs:58` |
 | `181258890` | `ConcatTransforms` | SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0) | `src/Source2.Compiler/Maps/LightMath.cs:90`, `src/Source2.Compiler/Maps/MapMeshes.cs:253` |
 | `18125a6c0` | `Vector_Basis` | Frisvad's basis with the sign of z | `src/Source2.Compiler/Maps/LightSampler.cs:261`, `src/Source2.Compiler/Maps/TangentFrame.cs:90` |
 | `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/MapMeshes.cs:266` |
@@ -779,7 +781,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
 | `18125bad0` | `Matrix3x4_Column0` |  |  |
 | `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:70` |
-| `18125c200` | `Matrix3x4_Scale` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:389` |
+| `18125c070` | `Matrix3x4_Identity` |  |  |
+| `18125c200` | `Matrix3x4_Scale` | diag(x, y, z), zero translation | `src/Source2.Compiler/Maps/SettleWorld.cs:389` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:320`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:270`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
 | `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/NodeOverlays.cs:194` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/LightMath.cs:201`, `src/Source2.Compiler/Maps/LightSampler.cs:256`, `src/Source2.Compiler/Maps/LightTrace.cs:118` +7 |
@@ -793,8 +796,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125f4e0` | `QuaternionMatrix_Translation` | a quaternion's 3x4 with a translation | `src/Source2.Compiler/Maps/LightMath.cs:136` |
 | `181260150` | `QuaternionMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:95` |
 | `181260200` | `QuaternionAngles` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/LightPrecompute.cs:155`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:636`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
-| `1812636e0` | `Matrix4x4_Invert` | Gauss-Jordan with partial pivoting | `src/Source2.Compiler/Maps/LightMath.cs:35` |
+| `1812636e0` | `Matrix4x4_Invert` | Gauss-Jordan with partial pivoting | `src/Source2.Compiler/Maps/LightMath.cs:35`, `src/Source2.Compiler/Maps/PropTransform.cs:13` |
 | `181263af0` | `MatrixInvert_Translation` | inverse of a rotation and translation | `src/Source2.Compiler/Maps/TemplateTransform.cs:43` |
+| `181263c30` | `Matrix3x4_InverseTranspose` | the 3x4 as 4x4 with (0, 0, 0, 1), inverted (1812636e0), transposed | `src/Source2.Compiler/Maps/PropTransform.cs:13` |
 | `181263eb0` | `ConcatTransforms4x4` | each entry ((a0 b0 + a1 b1) + a2 b2) + a3 b3 | `src/Source2.Compiler/Maps/LightMath.cs:12`, `src/Source2.Compiler/Maps/TemplateTransform.cs:56` |
 | `181264350` | `MatrixAngles_Template` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/TemplateTransform.cs:70` |
 | `1812644b0` | `Matrix4x4_Transpose` |  | `src/Source2.Compiler/Maps/LightMath.cs:22` |

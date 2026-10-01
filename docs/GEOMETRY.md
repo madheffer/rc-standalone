@@ -227,12 +227,23 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   non-uniformly scaled props give 102 entries, after the world's, ids past
   the map's node ids for copies inside instances. Each entry is one draw
   call of the model's LOD: its vertices in buffer order from the call's
-  lowest index, placed by origin + R (S p) (exact on every probed entry,
-  instance copies included), the call's indices rebased; streams position,
-  normal, tangent, texcoord, then VertexPaintTintColor (COLOR0 / 255) or a
-  zero "color", then a zero texcoord. Texcoords stored as half floats are
-  exact; SNORM16 texcoords and the packed NORMAL0 frame are not yet
-  (GROUND_TRUTH 39).
+  lowest index, the call's indices rebased; streams position, normal,
+  tangent, texcoord, then VertexPaintTintColor (COLOR0 / 255) or a zero
+  "color", then a zero texcoord. The loader's floats come from meshsystem's
+  unpack (`PackedNormals`; SNORM16 texcoords max(v / 32767, -1), half
+  floats as they are). `CMesh_TransformByMatrix` (`PropTransform`) then
+  places them: the prop matrix is Concat(AngleMatrix(angles),
+  diag(scales)) with the origin (the collapsed placement inside an
+  instance); positions by it, normals by its 4x4 inverse transposed,
+  tangents by it, both renormalised; u (not negative) scaled about 0 and
+  1 - v about 1 by the column length the material's
+  TexCoordScaleByModelU/V name (g_nScaleTexCoord*ByModelScaleAxis - 1), so
+  even unscaled texcoords pass through 1 - (0 + ((1 - v) - 1) * 1 + 1).
+  atixref: all 102 entries (50037 vertices) exact in every stream and in
+  their indices. Not ported yet: which props and draw calls make entries,
+  their order, and the per-entry fields (`WRBNode_PropEntry`); a material
+  with NeedsLocalSpaceVertices (csgo_simple_liquid; csgo_foliage with
+  foliage animation and no vertex animation) leaves its prop untransformed.
 - **BuildNode:** bounds, static props, entries with +0x1a5 or attribute
   0x400000000 dropped, removal of triangles inside, T-junction cracks
   (on), optional baking, the merge (`WRBNode_MergeMeshes`, only without

@@ -33,6 +33,8 @@ public class PropEntriesProbe(ITestOutputHelper output)
         string F(float x) => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
         output.WriteLine($"{props.Count} prop entries, {candidates.Count} prop_static");
         var shown = 0;
+        var total = new SortedDictionary<string, int>();
+        var vertices = 0;
         foreach (var entry in props)
         {
             var first = new Vector3(entry.Vertices[0], entry.Vertices[1], entry.Vertices[2]);
@@ -49,7 +51,9 @@ public class PropEntriesProbe(ITestOutputHelper output)
                 if (model is null)
                     continue;
                 var scale = el.GetValue<Vector3>("scales") ?? Vector3.One;
-                Vector3 Place(Vector3 p) => MapMeshes.Transform(place, scale * p);
+                var placed = Source2.Compiler.Physics.WorldCollision.PropOf(ent);
+                var pm = PropTransform.Matrix(placed.Origin, placed.Angles, scale);
+                Vector3 Place(Vector3 p) => LightMath.Transform34(pm, p);
                 foreach (var (mesh, index, _, lod) in model.GetEmbeddedMeshesAndLoD())
                 {
                     var vbib = mesh.VBIB;
@@ -73,45 +77,62 @@ public class PropEntriesProbe(ITestOutputHelper output)
                             var indicesSame = entry.Indices.SequenceEqual(Enumerable.Range(start, count).Select(i => Index(i) + bas - lo));
                             // Stream candidates, counted over the whole entry.
                             var nf = vb.InputLayoutFields.First(f => f.SemanticName == "NORMAL");
-                            var (normals, tangents) = ValveResourceFormat.Blocks.VBIB.GetNormalTangentArray(vb, nf);
-                if (Environment.GetEnvironmentVariable("PROPMESHES_OURS") == "1")
-                    for (var k = 0; k < nv; k++)
-                    {
-                        var raw = BitConverter.ToUInt32(vb.Data, ((lo + k) * (int)vb.ElementSizeInBytes) + (int)nf.Offset);
-                        var (pn, pt) = nf.Format.ToString() == "R32_UINT" ? PackedNormals.DecodeR32(raw) : PackedNormals.DecodeR8G8B8A8(raw);
-                        normals[lo + k] = pn;
-                        tangents[lo + k] = pt;
-                    }
-                            Vector3 Rot(Vector3 d) => new((place[0] * d.X) + (place[1] * d.Y) + (place[2] * d.Z), (place[4] * d.X) + (place[5] * d.Y) + (place[6] * d.Z), (place[8] * d.X) + (place[9] * d.Y) + (place[10] * d.Z));
+                            // meshsystem's unpack (PackedNormals), as the loader capture showed.
+                            var normals = new Vector3[lo + nv];
+                            var tangents = new Vector4[lo + nv];
+                            for (var k = 0; k < nv; k++)
+                            {
+                                var raw = BitConverter.ToUInt32(vb.Data, ((lo + k) * (int)vb.ElementSizeInBytes) + (int)nf.Offset);
+                                (normals[lo + k], tangents[lo + k]) = nf.Format.ToString() == "R32_UINT" ? PackedNormals.DecodeR32(raw) : PackedNormals.DecodeR8G8B8A8(raw);
+                            }
                             Vector3 Ent(int k, int at) => new(entry.Vertices[(k * entry.Stride) + at], entry.Vertices[(k * entry.Stride) + at + 1], entry.Vertices[(k * entry.Stride) + at + 2]);
                             var tally = new SortedDictionary<string, int>();
                             void Count(string name, bool ok) { if (ok) tally[name] = tally.GetValueOrDefault(name) + 1; }
+                            // The port: the loader's 18 floats, then PropTransform with the material's axes, bit for bit.
+                            var prop = Source2.Compiler.Physics.WorldCollision.PropOf(ent);
+                            var m = PropTransform.Matrix(prop.Origin, prop.Angles, scale);
+                            var mat = content.Material(call.GetStringProperty("m_material"));
+                            var axes = PropTransform.AxesOf(mat?.Shader, mat?.Params);
+                            var tf0 = vb.InputLayoutFields.First(f => f.SemanticName == "TEXCOORD");
+                            var buffer = new float[nv * 18];
                             for (var k = 0; k < nv; k++)
                             {
-                                var n = normals[lo + k];
-                                var t = tangents[lo + k];
-                                var en = Ent(k, 3);
-                                var et = Ent(k, 6);
-                                Count("normal inv-transpose", NodeMeshEntries.Normalise(Rot(n / scale)) == en);
-                                Count("normal scaled", NodeMeshEntries.Normalise(Rot(n * scale)) == en);
-                                Count("normal plain", NodeMeshEntries.Normalise(Rot(n)) == en);
-                                Count("tangent scaled", NodeMeshEntries.Normalise(Rot(new Vector3(t.X, t.Y, t.Z) * scale)) == et);
-                                Count("tangent inv-transpose", NodeMeshEntries.Normalise(Rot(new Vector3(t.X, t.Y, t.Z) / scale)) == et);
-                                Count("tangent w", t.W == entry.Vertices[(k * entry.Stride) + 9]);
-                                var tf = vb.InputLayoutFields.First(f => f.SemanticName == "TEXCOORD");
-                                var rawUv = vb.Data.AsSpan(((lo + k) * (int)vb.ElementSizeInBytes) + (int)tf.Offset, 4);
-                                float eu = entry.Vertices[(k * entry.Stride) + 10], ev2 = entry.Vertices[(k * entry.Stride) + 11];
-                                var su = BitConverter.ToInt16(rawUv[..2]);
-                                var sv = BitConverter.ToInt16(rawUv[2..4]);
-                                Count("uv snorm /32767", MathF.Max(su / 32767f, -1f) == eu && MathF.Max(sv / 32767f, -1f) == ev2);
-                                Count("uv snorm *1/32767", MathF.Max(su * (1f / 32767f), -1f) == eu && MathF.Max(sv * (1f / 32767f), -1f) == ev2);
-                                Count("uv half", (float)BitConverter.ToHalf(rawUv[..2]) == eu && (float)BitConverter.ToHalf(rawUv[2..4]) == ev2);
+                                var (p0, n0, t0) = (positions[lo + k], normals[lo + k], tangents[lo + k]);
+                                var uv = TexcoordOf(vb, tf0, lo + k);
+                                float[] one = [p0.X, p0.Y, p0.Z, n0.X, n0.Y, n0.Z, t0.X, t0.Y, t0.Z, t0.W, uv.X, uv.Y];
+                                one.CopyTo(buffer, k * 18);
+                            }
+                            PropTransform.Apply(buffer, 18, 0, 3, 6, 10, 16, m, axes, PropTransform.Place | PropTransform.Texcoords);
+                            bool Bits(int k, int at, int width) => Enumerable.Range(at, width).All(i => BitConverter.SingleToInt32Bits(buffer[(k * 18) + i]) == BitConverter.SingleToInt32Bits(entry.Vertices[(k * entry.Stride) + i]));
+                            for (var k = 0; k < nv; k++)
+                            {
+                                Count("position", Bits(k, 0, 3));
+                                Count("normal", Bits(k, 3, 3));
+                                Count("tangent", Bits(k, 6, 4));
+                                Count("texcoord", Bits(k, 10, 2));
+                                Count("second texcoord", Bits(k, 16, 2));
                                 if (vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "COLOR") is { SemanticName: not null } cf)
                                 {
                                     var rc = vb.Data.AsSpan(((lo + k) * (int)vb.ElementSizeInBytes) + (int)cf.Offset, 4).ToArray();
                                     Count("color /255", Enumerable.Range(0, 4).All(i => rc[i] / 255f == entry.Vertices[(k * entry.Stride) + 12 + i]));
-                                    Count("color *0.003921569", Enumerable.Range(0, 4).All(i => rc[i] * 0.003921569f == entry.Vertices[(k * entry.Stride) + 12 + i]));
                                 }
+                                else
+                                    Count("color zero", Enumerable.Range(0, 4).All(i => BitConverter.SingleToInt32Bits(entry.Vertices[(k * entry.Stride) + 12 + i]) == 0));
+                            }
+                            vertices += nv;
+                            total["entries matched"] = total.GetValueOrDefault("entries matched") + 1;
+                            if (indicesSame)
+                                total["entries with equal indices"] = total.GetValueOrDefault("entries with equal indices") + 1;
+                            foreach (var (key, value) in tally)
+                                total[key] = total.GetValueOrDefault(key) + value;
+                            if (new[] { "position", "normal", "tangent", "texcoord", "second texcoord" }.Any(x => tally.GetValueOrDefault(x) != nv))
+                            {
+                                for (var k = 0; k < 2; k++)
+                                {
+                                    output.WriteLine($"    v{k} ours  {string.Join(" ", buffer.Skip(k * 18).Take(18).Select(F))}");
+                                    output.WriteLine($"       entry {string.Join(" ", entry.Vertices.Skip(k * entry.Stride).Take(entry.Stride).Select(F))}");
+                                }
+                                output.WriteLine($"  MISS {modelName} node {el.GetValue<int>("nodeID")} instances [{string.Join(",", ent.Instances)}] scale {scale} {nv}: {string.Join(", ", tally.Select(kv => $"{kv.Key} {kv.Value}"))} shader {mat?.Shader} axes {axes}");
                             }
                             if (shown < 12)
                                 output.WriteLine($"  streams of {nv}: {string.Join(", ", tally.Select(kv => $"{kv.Key} {kv.Value}"))}");
@@ -130,9 +151,10 @@ public class PropEntriesProbe(ITestOutputHelper output)
                         }
                 }
             }
-            if (!found && shown++ < 8)
+            if (!found)
                 output.WriteLine($"entry {Path.GetFileName(entry.Material)} id {BitConverter.ToInt32(entry.Raw, 0x40)}: no draw call found for {first}");
         }
+        output.WriteLine($"TOTAL {vertices} vertices: {string.Join(", ", total.Select(kv => $"{kv.Key} {kv.Value}"))}");
     }
 
     private static Vector2 TexcoordOf(ValveResourceFormat.Blocks.VBIB.OnDiskBufferData vb, ValveResourceFormat.Blocks.VBIB.RenderInputLayoutField f, int vertex)
