@@ -176,7 +176,10 @@ public class OverlayCaptureProbe(ITestOutputHelper output)
         var (overlays, projected, nodes) = Read(path);
         var entries = NodeEntriesFromVmap.Read(entriesPath).Where(c => c.Stage == "Step25ece0:in").ToList();
         var meshIndex = nodes[0].Select((m, i) => (m, i)).ToDictionary(x => x.m, x => x.i);
-        int exact = 0, sameCount = 0, none = 0, shown = 0;
+        int exact = 0, sameCount = 0, none = 0, shown = 0, shownStream = 0;
+        var tally = new SortedDictionary<string, int>();
+        void Tally(string k) => tally[k] = tally.GetValueOrDefault(k) + 1;
+        string F(float x) => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
         foreach (var pr in projected.Where(p => !p.Empty))
         {
             var e = entries[meshIndex[pr.Target]];
@@ -185,6 +188,8 @@ public class OverlayCaptureProbe(ITestOutputHelper output)
             var want = Enumerable.Range(0, pr.Vertices.Length / pr.Stride).Select(k => new Vector3(pr.Vertices[k * pr.Stride], pr.Vertices[(k * pr.Stride) + 1], pr.Vertices[(k * pr.Stride) + 2])).ToList();
             var bestCount = -1;
             List<Vector3>? best = null;
+            OverlayProjector.Result? bestResult = null;
+            Overlay? bestOverlay = null;
             foreach (var o in overlays)
             {
                 var face = o.Faces[0].Positions;
@@ -199,7 +204,40 @@ public class OverlayCaptureProbe(ITestOutputHelper output)
                 {
                     bestCount = same;
                     best = r.Points;
+                    bestResult = r;
+                    bestOverlay = o;
                 }
+            }
+            if (best != null && bestCount == want.Count)
+            {
+                // The other streams, with Valve's texcoords fed in.
+                var uvAt = pr.Streams.First(x => x.Name == "texcoord").First;
+                var valveUvs = Enumerable.Range(0, want.Count).Select(k => new Vector2(pr.Vertices[(k * pr.Stride) + uvAt], pr.Vertices[(k * pr.Stride) + uvAt + 1])).ToList();
+                var (dir, w) = OverlayProjector.Plane([.. bestOverlay!.Faces.Select(f => f.Positions)]);
+                var ourUvs = new List<Vector2>();
+                foreach (var pt in bestResult!.Points)
+                {
+                    ourUvs.Add(OverlayProjector.Texcoord(bestOverlay.Faces[0].Positions, bestOverlay.Faces[0].Texcoords, OverlayProjector.Drop(pt, dir, w)));
+                    Tally("path " + OverlayProjector.LastPath + (ourUvs[^1] == valveUvs[ourUvs.Count - 1] ? " exact" : " differs"));
+                }
+                var uvs = Environment.GetEnvironmentVariable("OVERLAYS_VALVE_UVS") == "1" ? valveUvs : ourUvs;
+                var mesh = OverlayProjector.Build(bestResult!, uvs, e.Vertices, e.Stride, [.. e.Layout.Select(x => new Physics.MeshWeld.Stream(x.Name, x.First, x.Count, false, x.Type))],
+                                                  e.Indices, m, BitConverter.ToInt32(bestOverlay.Raw, 0x60), dir);
+                var layoutSame = mesh.Stride == pr.Stride && mesh.Streams.Select(x => (x.Name, x.First, x.Count, x.Type)).SequenceEqual(pr.Streams);
+                Tally(layoutSame ? "layout same" : "layout differs");
+                if (layoutSame)
+                    foreach (var st in pr.Streams)
+                    {
+                        var ok = Enumerable.Range(0, want.Count).All(k => Enumerable.Range(st.First, st.Count).All(j => BitConverter.SingleToInt32Bits(mesh.Vertices[(k * pr.Stride) + j]) == BitConverter.SingleToInt32Bits(pr.Vertices[(k * pr.Stride) + j])));
+                        Tally(st.Name + (ok ? " exact" : " differs"));
+                        if (!ok && shownStream++ < 6)
+                        {
+                            var k = Enumerable.Range(0, want.Count).First(k => Enumerable.Range(st.First, st.Count).Any(j => BitConverter.SingleToInt32Bits(mesh.Vertices[(k * pr.Stride) + j]) != BitConverter.SingleToInt32Bits(pr.Vertices[(k * pr.Stride) + j])));
+                            output.WriteLine($"  {st.Name} vertex {k}: ours {string.Join(",", mesh.Vertices.Skip((k * pr.Stride) + st.First).Take(st.Count).Select(F))} valve {string.Join(",", pr.Vertices.Skip((k * pr.Stride) + st.First).Take(st.Count).Select(F))}");
+                        }
+                    }
+                else if (shownStream++ < 6)
+                    output.WriteLine($"  layout ours {string.Join(" ", mesh.Streams.Select(x => $"{x.Name}@{x.First}x{x.Count}:{x.Type}"))} valve {string.Join(" ", pr.Streams.Select(x => $"{x.Name}@{x.First}x{x.Count}:{x.Type}"))}");
             }
             if (best == null)
                 none++;
@@ -218,5 +256,6 @@ public class OverlayCaptureProbe(ITestOutputHelper output)
                 output.WriteLine($"  {Path.GetFileName(e.Material)}: ours {best.Count} points, valve {want.Count}");
         }
         output.WriteLine($"{projected.Count(p => !p.Empty)} projections: {exact} exact, {sameCount} with the same point count, {none} without an overlay");
+        output.WriteLine(string.Join(", ", tally.Select(kv => $"{kv.Key} {kv.Value}")));
     }
 }
