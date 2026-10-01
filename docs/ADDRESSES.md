@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261001_1.41.8.8.md): 687 tracked addresses: ambiguous 44, changed 24, identical 9, moved 601, relocated 9
-- 723 addresses
+- 738 addresses
 
 ### s2c:baked/light-keys
 
@@ -517,7 +517,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810c4e50` | `HammerMesh_TransformToWorld` | normals and tangents rotated, not renormalised | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:13` |
 | `1810d5f40` | `MaterialEditor_LowPrecisionUvInputs` | shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile |  |
 | `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:244` |
-| `1810db6a0` | `HammerMesh_SnapVertices` | positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g) |  |
+| `1810db6a0` | `HammerMesh_SnapVertices` | positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g) | `src/Source2.Compiler/Maps/NodeOverlays.cs:215` |
 | `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:208` |
 | `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:245` |
 | `181287fd0` | `PropDeformer_ApplyArrays` |  |  |
@@ -527,36 +527,50 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812d7510` | `CMesh_ApplyPropDeformer` | positions, normals and tangents through the prop's lattice deformer; mirrored deformers flip winding and tangent w |  |
 | `1812d91c0` | `CMesh_FindTwinEdges` | per directed edge the opposite half-edge by vertex pair, -1 when open | `src/Source2.Compiler/Maps/TJunctionFix.cs:13`, `src/Source2.Compiler/Maps/TJunctionFix.cs:99` |
 | `1812db3c0` | `CMesh_VertexTriangles` | triangles touching each vertex | `src/Source2.Compiler/Maps/TJunctionFix.cs:175` |
+| `1812db920` | `CMesh_ComputeTangents` | MikkTSpace-style (182080a60) when UseMikkTSpace; corners whose tangents differ by 1e-4 or in w split their vertex | `src/Source2.Compiler/Maps/MeshTangents.cs:6` |
 | `181371320` | `CMesh_LerpVertex` | every float of the vertex (b - a) * t + a |  |
 | `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:249` |
 | `1813b6550` | `PolyMesh_FindTexcoordIslands` |  |  |
 | `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:247` |
+| `18207fc00` | `TangentSpace_WeldLookup` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:11` |
+| `18207fe20` | `TangentSpace_Accumulate` | polynomial acos: sqrt(1 - x) ((0.05147786 x - 0.2053972) x + 1.570337) | `src/Source2.Compiler/Maps/MeshTangents.cs:19` |
+| `182080440` | `TangentSpace_TriangleTangents` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:13` |
+| `1820807b0` | `TangentSpace_GroupCorners` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:16` |
+| `182080a60` | `TangentSpace_Generate` | weld on equal position, normal, texcoord; triangle tangents; corner groups; angle-weighted sums; MeshTangents.cs | `src/Source2.Compiler/Maps/MeshTangents.cs:8` |
 
 ### s2c:geometry/overlays
 
 | address | name | what | cited in |
 |---|---|---|---|
 | `181191460` | `CMapStaticOverlay_GetOverlays` | only with exactly one polygon group (+0x3cb8) |  |
-| `181194f40` | `CMapStaticOverlay_GetOverlayDescs` | one descriptor per material group of the overlay's polygon group: tint = group colour times the overlay's (x * y + 127) / 255, alpha from 18108c0c0; mode 3 collects the target node ids |  |
+| `181194f40` | `CMapStaticOverlay_GetOverlayDescs` | one descriptor per material group of the overlay's polygon group: tint = group colour times the overlay's (x * y + 127) / 255, alpha from 18108c0c0; mode 3 collects the target node ids | `src/Source2.Compiler/Maps/NodeOverlays.cs:9` |
 | `18119e000` | `CMapStaticOverlay_UpdatePolygonGroups` | groups from 180f88460 (variable sets), one 0xa8 group object each |  |
 | `18124bcc0` | `CMapStaticOverlayGroup::CMapStaticOverlayGroup` |  |  |
 | `18124c750` | `CMapStaticOverlayGroup_BuildRenderData` | Hammer's viewport mesh (OverlaySurfaceVertices); not the compile |  |
+| `181259470` | `Triangle_AreaWeights` | sub-triangle areas over the triangle's; inside when they sum to 1 within 0.001 | `src/Source2.Compiler/Maps/OverlayProjector.cs:259` |
+| `18129ba60` | `Quad_InverseBilinear` | near parallelogram: 18129c2e0; else a quadratic in double on the two widest axes | `src/Source2.Compiler/Maps/OverlayProjector.cs:227`, `src/Source2.Compiler/Maps/OverlayProjector.cs:334` |
+| `18129c2e0` | `Quad_ParallelogramCoords` | each coordinate a line meeting (1812a5bf0) over the side length | `src/Source2.Compiler/Maps/OverlayProjector.cs:337` |
+| `18129c490` | `Quad_Bilinear` | (lerp(c1, c2, t) - lerp(c0, c3, t)) * s + lerp(c0, c3, t) | `src/Source2.Compiler/Maps/OverlayProjector.cs:228` |
+| `1812a5bf0` | `Line_ClosestApproach` | distances along two lines to their closest approach | `src/Source2.Compiler/Maps/OverlayProjector.cs:461` |
 | `181360220` | `COverlayProjector::COverlayProjector` | N faces of 0x4a0, back-face angle 90, box empty |  |
 | `181360310` | `OverlayDesc::OverlayDesc` |  |  |
 | `181360610` | `OverlayDesc_Assign` | mode +0, far +4, render order +8, back faces +0xc, angle +0x10, +0x14, +0x15, tint +0x18, material +0x20, target ids +0x28, faces +0x48 (0x78 each), material adjust nibbles +0x60, +0x64 x3, +0x70 string |  |
 | `181360c40` | `COverlayProjector_Init` | faces set, box = face points and the points pushed by far along each face normal, grown by 1 |  |
-| `181361000` | `COverlayProjector_BuildMesh` | the projected triangles into a CMesh with OverlayProjectionDirection |  |
+| `181361000` | `COverlayProjector_BuildMesh` | target streams weighted per point, position, overlay texcoord, normal turned, VertexGenericIntegerData, OverlayProjectionDirection | `src/Source2.Compiler/Maps/OverlayProjector.cs:141` |
 | `181361d40` | `COverlayProjector_SetOverlay` | Init from a descriptor: faces +0x48/+0x50, far +4, back faces +0xc, angle +0x10, +0x14, tint +0x18, material +0x20, +0x60 |  |
 | `181361db0` | `OverlayDesc_HasTarget` | mode 3: node id in the descriptor's hash set (+0x28) |  |
 | `181362050` | `COverlayProjector_ProjectOntoTarget` | target triangles to world, culled against the box, ProjectPolygonsOntoTriangles, mesh built (181361000), tint, material |  |
 | `181363100` | `COverlayProjector_ProjectTargets` | one mesh per target record (0x50) with a result |  |
-| `181367ed0` | `ProjectPolygonsOntoTriangles_Job` | per face (atomic counter) the target triangles in batches of 0xfff, results appended under a mutex in completion order; texcoords (18136cd60) and the vec4 streams (181367460) from the point dropped onto the plane |  |
-| `18136a930` | `ProjectPolygonOntoTriangles` | back-face test cos(angle) + 1e-5 clamped to [-1, 0.99999], near/far planes, clip (181369250); not ported |  |
+| `181367ed0` | `ProjectPolygonsOntoTriangles_Job` | per face (atomic counter) the target triangles in batches of 0xfff, results appended under a mutex in completion order; texcoords (18136cd60) and the vec4 streams (181367460) from the point dropped onto the plane | `src/Source2.Compiler/Maps/OverlayProjector.cs:7` |
+| `181369250` | `Polygon_ClipByPlane` | keeps distance <= 0; a distance whose square is under max side^2 * 9.999999e-09 (clamped [1.4210855e-14, 1]) is zero; tags lerped | `src/Source2.Compiler/Maps/OverlayProjector.cs:503` |
+| `18136a930` | `ProjectPolygonOntoTriangles` | back-face test cos(angle) + 1e-5 clamped to [-1, 0.99999], overlay and far planes, a plane per side, clip (181369250), cut (18136fe00); OverlayProjector.cs | `src/Source2.Compiler/Maps/OverlayProjector.cs:9`, `src/Source2.Compiler/Maps/OverlayProjector.cs:67` |
 | `18136bfd0` | `OverlayFace_ProjectOntoTriangles` | convex faces whole, others per triangle of +0x3c8 |  |
+| `18136cd60` | `OverlayFace_Texcoord` | convex quad: 18129ba60 then 18129c490; else the face triangle (181259470); else the best corner's affine map (181368ee0) | `src/Source2.Compiler/Maps/OverlayProjector.cs:226` |
 | `18136d230` | `OverlayFace_Set` | positions, texcoords, two vec4 streams (defaults 1 and 0 in the job), then precompute |  |
 | `18136d8d0` | `OverlayFace_Precompute` | bounds, normal (18125b510), triangulation (18136f810) into +0x3c8 |  |
-| `18136e370` | `OverlayFace_IsConvex` | cross of consecutive edges against the normal, 1e-7 slack, cached at +0 |  |
-| `18136e6b0` | `ProjectPolygonsOntoTriangles` | meshutils/triangulatepolygon.cpp: direction = normalised sum of face normals, plane through the mean centroid; a thread pool job per face |  |
+| `18136e370` | `OverlayFace_IsConvex` | cross of consecutive edges against the normal, 1e-7 slack, cached at +0 | `src/Source2.Compiler/Maps/OverlayProjector.cs:297` |
+| `18136e6b0` | `ProjectPolygonsOntoTriangles` | meshutils/triangulatepolygon.cpp: direction = normalised sum of face normals, plane through the mean centroid; a thread pool job per face | `src/Source2.Compiler/Maps/OverlayProjector.cs:6`, `src/Source2.Compiler/Maps/OverlayProjector.cs:19` |
+| `18136fe00` | `Polygons_Triangulate` | each polygon of three or more points by NewellNormal and 18136f810 | `src/Source2.Compiler/Maps/OverlayProjector.cs:557` |
 
 ### s2c:geometry/props
 
@@ -655,7 +669,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18025dfa0` | `WRBNode_CollectOverlayPropTargets` | more targets from node +0x190 (props); not read |  |
 | `18025e630` | `WRBNode_CollectOverlayTargets` | 0x90 records from the node entries with attribute & 0x1209 == 0 and vertices: mesh, material, the +0x1c8 matrix, kind (+0x1a0 ? 2 : 1), node id +0x40, world bounds, name |  |
 | `18025e990` | `WRBNode_GatherOverlayTargets` | targets with > 2 vertices and indices whose box meets the overlay's; mode 1/2 want kind == mode, mode 3 the overlay's target ids, else a name lookup in node +0x218 may exclude |  |
-| `18025ece0` | `WRBNode_GenerateOverlayMeshes` | "Generate Overlay Meshes...": per overlay of node +0x1f8/+0x200, targets gathered, projected, one entry per target with a non-empty result (356 on atixref from 297 CMapStaticOverlay) |  |
+| `18025ece0` | `WRBNode_GenerateOverlayMeshes` | "Generate Overlay Meshes...": per overlay of node +0x1f8/+0x200, targets gathered, projected, one entry per target with a non-empty result (356 on atixref from 297 CMapStaticOverlay) | `src/Source2.Compiler/Maps/NodeOverlays.cs:124` |
 | `18025f9d0` | `WRB_UseAggregateInstances` | gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge |  |
 | `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris |  |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |
@@ -728,7 +742,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181083540` | `MapBuilder_ResolvePhysicsType` | default is convex_multi in an entity, mesh outside | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:82`, `src/Source2.Compiler/Physics/BrushHulls.cs:37` |
 | `181102e10` | `HandleSet_Shift` |  | `src/Source2.Compiler/Physics/ValveHashSet.cs:6`, `src/Source2.Compiler/Physics/ValveHashSet.cs:95` |
 | `181103020` | `HandleSet_Realloc` | open-addressed hash set of mesh handles | `src/Source2.Compiler/Physics/ValveHashSet.cs:6` |
-| `181255fb0` | `MapNode_LocalMatrix` | vtable slot 0xa0: AngleMatrix of the node's angles | `src/Source2.Compiler/Maps/MapMeshes.cs:204` |
+| `181255fb0` | `MapNode_LocalMatrix` | vtable slot 0xa0: AngleMatrix of the node's angles | `src/Source2.Compiler/Maps/MapMeshes.cs:227` |
 | `1812e6810` | `HandleSet_InsertIfAbsent` |  | `src/Source2.Compiler/Physics/ValveHashSet.cs:7` |
 | `1812f90d0` | `HandleSet_Remove` |  | `src/Source2.Compiler/Physics/ValveHashSet.cs:8`, `src/Source2.Compiler/Physics/ValveHashSet.cs:198` |
 | `181308060` | `MapBuilder_TriangleMesh` | positions joined, vertices in corner order | `src/Source2.Compiler/Physics/BrushHulls.cs:11`, `src/Source2.Compiler/Physics/BrushHulls.cs:155` |
@@ -745,20 +759,20 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/TJunctionFix.cs:83` |
+| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/OverlayProjector.cs:447`, `src/Source2.Compiler/Maps/TJunctionFix.cs:83` |
 | `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:249` |
 | `1802b1ff0` | `CMesh_TransformByMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:13` |
 | `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:90`, `src/Source2.Compiler/Maps/MeshTessellation.cs:517` |
 | `1811145c0` | `AngleMatrixDouble` | sines and cosines in double | `src/Source2.Compiler/Maps/SettleWorld.cs:234`, `src/Source2.Compiler/Maps/SettleWorld.cs:335` |
 | `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.cs:482`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:44` |
 | `181253780` | `CTransform_Invert` | scale 1 path | `src/Source2.Compiler/Maps/CTransform.cs:38`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:57` |
-| `181255d60` | `AngleMatrix` | degrees times 0.017453292f | `src/Source2.Compiler/Maps/MapMeshes.cs:216` |
+| `181255d60` | `AngleMatrix` | degrees times 0.017453292f | `src/Source2.Compiler/Maps/MapMeshes.cs:239` |
 | `181256960` | `PointSegmentClosest` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
 | `181256bf0` | `PointLineDistanceSquared` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:199`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:207` |
 | `181256f30` | `PointSegmentDistance` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
-| `181258890` | `ConcatTransforms` | SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0) | `src/Source2.Compiler/Maps/LightMath.cs:90`, `src/Source2.Compiler/Maps/MapMeshes.cs:230` |
+| `181258890` | `ConcatTransforms` | SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0) | `src/Source2.Compiler/Maps/LightMath.cs:90`, `src/Source2.Compiler/Maps/MapMeshes.cs:253` |
 | `18125a6c0` | `Vector_Basis` | Frisvad's basis with the sign of z | `src/Source2.Compiler/Maps/LightSampler.cs:261`, `src/Source2.Compiler/Maps/TangentFrame.cs:90` |
-| `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/MapMeshes.cs:243` |
+| `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/MapMeshes.cs:266` |
 | `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:26`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:242` |
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
 | `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:382`, `src/Source2.Compiler/Maps/SettleWorld.cs:498`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:616` |
@@ -767,6 +781,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:70` |
 | `18125c200` | `Matrix3x4_Scale` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:389` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:320`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:270`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
+| `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/NodeOverlays.cs:194` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/LightMath.cs:201`, `src/Source2.Compiler/Maps/LightSampler.cs:256`, `src/Source2.Compiler/Maps/LightTrace.cs:118` +7 |
 | `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:131`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:566` |
 | `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Maps/LightMath.cs:130`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:560` |

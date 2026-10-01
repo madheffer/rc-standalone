@@ -302,28 +302,45 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   from the object flags (0x200 `_d`, 0x400 `_cb`, 0x80 `_dl`, 0x20000 `_b`,
   0x10000 `_nv`, 0x10 `_bl`, 0x100000 `_rtem`); a list's groups are runs of
   equal cubemap, probe and flags, named `%s_cm%02d_lp%02d`.
-- **Overlays:** Hammer's static overlays are `CMapStaticOverlay` nodes
-  (a polygon mesh in `meshData`, projectionMode, projectionFar,
-  projectionTargets, projectOnBackFaces, backFacingAngle, renderOrder,
-  tintColor, MaterialAdjustmentParamsStruct). They are projected at
-  compile, in BuildNode after the bake (`WRBNode_GenerateOverlayMeshes`,
-  "Generate Overlay Meshes..."): the map node hands one descriptor per
-  material group of the overlay's polygon group
-  (`CMapStaticOverlay_GetOverlayDescs`), each with its faces as 0x4a0
-  polygons (positions, texcoords, two vec4 streams). Targets are the node
-  entries with attribute & 0x1209 == 0 (and props from node +0x190);
-  mode 1 and 2 take entries whose kind (+0x1a0 ? 2 : 1) equals the mode,
-  mode 3 the listed node ids. `ProjectPolygonsOntoTriangles`
-  (meshutils/triangulatepolygon.cpp) clips each face onto the target
-  triangles on the thread pool, appending results under a mutex, so the
-  triangle order of a multi-face overlay follows thread completion. Each
-  target with a result becomes one entry with OverlayProjectionDirection.
-  atixref: 297 overlays (277 mode 1, 20 mode 3, one face and one material
-  each) give 356 entries. Not ported: the descriptor faces come from Hammer's polygon
-  groups (to be captured) and the clipper `ProjectPolygonOntoTriangles`
-  (18136a930) is unread past its back-face test. The entries are compiled
-  one model each by list vf 0x30 (18026e9c0), named `vism%i_mt_<material
-  base>` from the entry's +0x230.
+- **Overlays** (`NodeOverlays`, `OverlayProjector`, `MeshTangents`;
+  checked by tools/vis/capture_overlays.py and `OverlayCaptureProbe`):
+  Hammer's static overlays are `CMapStaticOverlay` nodes, projected at
+  compile in BuildNode after the bake (`WRBNode_GenerateOverlayMeshes`).
+  - **Descriptors**, one per material of each visible overlay in walk
+    order: the face polygon in world space from its first half-edge,
+    snapped to 1/8 (HammerMesh_SnapVertices), texcoords whose box leaves
+    [0, 1] less the box centre truncated toward zero; projectionMode,
+    projectionFar, renderOrder, projectOnBackFaces, backFacingAngle, the
+    target node ids, and MaterialAdjustmentParamsStruct packed into one
+    int (nibbles of (int)(x * 15) plus two flag bits). Exact on all 297
+    atixref overlays.
+  - **Targets**: the node's entries in order whose attributes miss 0x1209,
+    with more than two vertices and indices, whose centre-extents world box
+    meets the projector box (the corners and the corners pushed back by far,
+    grown by 1), and that the mode accepts (1 and 2: kind, entry +0x1a0 ? 2
+    : 1; 3: listed node ids).
+  - **Projection** (`ProjectPolygonOntoTriangles`): direction the
+    normalised sum of face normals, target triangles facing it within the
+    back-face angle, clipped by the overlay plane, the far plane and a plane
+    per side (Sutherland-Hodgman, a distance whose square is under the
+    longest side's square times 1e-8 counts as zero), re-cut by the polygon
+    triangulator; every point carries its target triangle and weights.
+  - **Mesh** (181361000): the target's streams weighted per point; position,
+    the overlay texcoord (point dropped onto the plane; bilinear solve for
+    a convex quad, near-parallelogram and general quadratic cases, else the
+    face triangle whose area weights sum to 1), the normal normalised and
+    turned, VertexGenericIntegerData (the packed int) and
+    OverlayProjectionDirection (dir * 0.5 + 0.5, w from the normal's dot).
+    Tangents then come from CMesh_ComputeTangents with UseMikkTSpace: the
+    binary's own MikkTSpace-style generator (`MeshTangents`), not the
+    reference mikktspace.c.
+  - atixref: 297 overlays, 1,777 projections, 356 meshes; the pass from
+    the .vmap gives all 356 bit for bit in order. Not yet: the entries'
+    fields (180252ae0), tint (applied when the descriptor tint is not
+    white), multi-face overlays (faces project in thread order), the
+    node's name table filter, prop targets (node +0x190).
+  The entries are compiled one model each by list vf 0x30 (18026e9c0),
+  named `vism%i_mt_<material base>` from the entry's +0x230.
 - **Aggregates** are re-split into fragments, one draw call each, sorted
   by triangle count; each has a meshlet (packed AABB, culling cone) and
   draw bounds. probe01's reflectivity aggregate holds 100 triangles from 72

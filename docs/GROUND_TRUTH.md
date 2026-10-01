@@ -141,8 +141,10 @@ game can answer is raised with the user first, and runs with -insecure.
     tangent of the baked triangles; on walls the plain carried tangent is
     right on one mesh (6778) and Gram-Schmidt helps another (1367). The
     patch tangent grid 1813c2090 is only reached from Hammer's viewport and
-    sampling paths (18102f230, 1810c0d60). 24 of 538 atixref entries differ
-    by tangents alone. Next: a capture of the half-edge mesh's tangent
+    sampling paths (18102f230, 1810c0d60). Nor is it CMesh_ComputeTangents
+    (`MeshTangents`, exact on overlays): on Valve's own entry data it gives
+    0 to 1,305 of each mesh's corners. 24 of 538 atixref entries differ by
+    tangents alone. Next: a capture of the half-edge mesh's tangent
     stream after BakeSubdivisionForFaces and after ConvertMeshForBuilder.
 
 39. **The vertex unpack of baked props** (WRB_LoadPropMeshes): the model's
