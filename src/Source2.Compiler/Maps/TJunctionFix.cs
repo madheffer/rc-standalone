@@ -81,7 +81,7 @@ internal static class TJunctionFix
     static bool Same(Vector3 a, Vector3 b) => a.X == b.X && a.Y == b.Y && a.Z == b.Z;
 
     /// <summary>FUN_18013e340: squares summed y, z, x; outside 1e-17 to 1e17 the double path, zero stays zero.</summary>
-    static Vector3 Normalise(Vector3 d)
+    internal static Vector3 Normalise(Vector3 d)
     {
         var len = MathF.Sqrt(d.Y * d.Y + d.Z * d.Z + d.X * d.X);
         if (1e-17f <= len && len <= 1e17f)

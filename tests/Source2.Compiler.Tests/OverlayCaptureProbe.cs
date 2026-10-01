@@ -161,4 +161,62 @@ public class OverlayCaptureProbe(ITestOutputHelper output)
         }
         output.WriteLine($"differences: {string.Join(", ", tally.Select(kv => $"{kv.Key} {kv.Value}"))}");
     }
+
+    /// <summary>
+    /// <see cref="OverlayProjector"/> against every captured projection with a
+    /// mesh (<c>OVERLAYS</c>, and <c>NODEENTRIES</c> for the target meshes at
+    /// Step25ece0's input): the overlay is found by its face box, the target
+    /// by its mesh pointer and the record's matrix.
+    /// </summary>
+    [Fact]
+    public void ProjectionPositions()
+    {
+        if (Environment.GetEnvironmentVariable("OVERLAYS") is not { } path || Environment.GetEnvironmentVariable("NODEENTRIES") is not { } entriesPath)
+            return;
+        var (overlays, projected, nodes) = Read(path);
+        var entries = NodeEntriesFromVmap.Read(entriesPath).Where(c => c.Stage == "Step25ece0:in").ToList();
+        var meshIndex = nodes[0].Select((m, i) => (m, i)).ToDictionary(x => x.m, x => x.i);
+        int exact = 0, sameCount = 0, none = 0, shown = 0;
+        foreach (var pr in projected.Where(p => !p.Empty))
+        {
+            var e = entries[meshIndex[pr.Target]];
+            var m = Enumerable.Range(0, 12).Select(k => BitConverter.ToSingle(pr.TargetRecord, 0x20 + (k * 4))).ToArray();
+            var tris = e.Indices.Select(i => MapMeshes.Transform(m, new Vector3(e.Vertices[i * e.Stride], e.Vertices[(i * e.Stride) + 1], e.Vertices[(i * e.Stride) + 2]))).ToList();
+            var want = Enumerable.Range(0, pr.Vertices.Length / pr.Stride).Select(k => new Vector3(pr.Vertices[k * pr.Stride], pr.Vertices[(k * pr.Stride) + 1], pr.Vertices[(k * pr.Stride) + 2])).ToList();
+            var bestCount = -1;
+            List<Vector3>? best = null;
+            foreach (var o in overlays)
+            {
+                var face = o.Faces[0].Positions;
+                var (n, _) = OverlayProjector.Plane([.. o.Faces.Select(f => f.Positions)]);
+                var lo = Vector3.Min(face.Aggregate(Vector3.Min), face.Select(p => p - (o.Far * n)).Aggregate(Vector3.Min)) - Vector3.One;
+                var hi = Vector3.Max(face.Aggregate(Vector3.Max), face.Select(p => p - (o.Far * n)).Aggregate(Vector3.Max)) + Vector3.One;
+                if (want[0].X < lo.X || want[0].Y < lo.Y || want[0].Z < lo.Z || want[0].X > hi.X || want[0].Y > hi.Y || want[0].Z > hi.Z)
+                    continue;
+                var r = OverlayProjector.Project(face, -n, o.Far, !o.BackFaces, o.Angle, tris, 0);
+                var same = r.Points.Count == want.Count ? r.Points.Zip(want).Count(z => z.First == z.Second) : -1;
+                if (same > bestCount)
+                {
+                    bestCount = same;
+                    best = r.Points;
+                }
+            }
+            if (best == null)
+                none++;
+            else if (best.Count == want.Count)
+            {
+                sameCount++;
+                if (bestCount == want.Count)
+                    exact++;
+                else if (shown++ < 4)
+                {
+                    var k = Enumerable.Range(0, want.Count).First(k => best[k] != want[k]);
+                    output.WriteLine($"  {Path.GetFileName(e.Material)}: {bestCount} of {want.Count} points; first differing {k}: ours {best[k]} valve {want[k]}");
+                }
+            }
+            else if (shown++ < 4)
+                output.WriteLine($"  {Path.GetFileName(e.Material)}: ours {best.Count} points, valve {want.Count}");
+        }
+        output.WriteLine($"{projected.Count(p => !p.Empty)} projections: {exact} exact, {sameCount} with the same point count, {none} without an overlay");
+    }
 }
