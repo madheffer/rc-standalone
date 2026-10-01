@@ -15,7 +15,11 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class NodeEntriesFromVmap(ITestOutputHelper output)
 {
-    internal sealed record Captured(string Stage, int Index, string Material, int Stride, float[] Vertices, int[] Indices, string[] Streams, byte[] Raw);
+    internal sealed record Captured(string Stage, int Index, string Material, int Stride, float[] Vertices, int[] Indices, string[] Streams, byte[] Raw)
+    {
+        /// <summary>Each stream's first float, float count and type, in order.</summary>
+        public IReadOnlyList<(string Name, int First, int Count, int Type)> Layout { get; init; } = [];
+    }
 
     internal static List<Captured> Read(string path)
     {
@@ -38,7 +42,11 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             Buffer.BlockCopy(blob, 0x238 + v.Length * 4, idx, 0, ni * 4);
             list.Add(new Captured(head.GetProperty("stage").GetString()!, head.GetProperty("i").GetInt32(), head.GetProperty("material").GetString()!,
                                   stride, v, idx, [.. head.GetProperty("streams").EnumerateArray().Select(s => s.GetProperty("name").GetString()!)],
-                                  blob.AsSpan(0, 0x238).ToArray()));
+                                  blob.AsSpan(0, 0x238).ToArray())
+            {
+                Layout = [.. head.GetProperty("streams").EnumerateArray().Select(x => (x.GetProperty("name").GetString()!, x.GetProperty("first").GetInt32(),
+                                                                                      x.GetProperty("count").GetInt32(), x.GetProperty("type").GetInt32()))],
+            });
         }
         return list;
     }
