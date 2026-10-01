@@ -436,4 +436,42 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
 
     static Vector3 Rotate(float[] m, Vector3 d)
         => new(m[0] * d.X + m[1] * d.Y + m[2] * d.Z, m[4] * d.X + m[5] * d.Y + m[6] * d.Z, m[8] * d.X + m[9] * d.Y + m[10] * d.Z);
+
+    /// <summary>
+    /// Exploration (<c>NODEENTRIES_SUBDIV=1</c> with <c>NODEENTRIES</c>):
+    /// Valve's BuildNode input for each subdivided world mesh beside the bake
+    /// (<see cref="SubdivisionBake"/>): corner counts, positions, and the
+    /// first corners' streams.
+    /// </summary>
+    [Fact]
+    public void SubdividedEntries()
+    {
+        if (Environment.GetEnvironmentVariable("NODEENTRIES_SUBDIV") != "1" || Environment.GetEnvironmentVariable("NODEENTRIES") is not { } path
+            || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap)
+            return;
+        var valve = Read(path).Where(c => c.Stage == "BuildNode:in").ToList();
+        string F(float x) => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        var shown = 0;
+        foreach (var mesh in MapMeshes.Read(DmxBinary.ReadFile(vmap)).Where(m => m.Element != null && !m.Hidden && m.ParentType == "CMapWorld"))
+        {
+            var data = mesh.Element!.Get<DmxBinary.Element>("meshData")!;
+            var a = new FaceArrays(data);
+            if (!a.First.Any(h => a.Level(h) > 0))
+                continue;
+            var world = mesh.World;
+            var bake = SubdivisionBake.Bake(data, p => MapMeshes.Transform(world, p));
+            var mine = valve.Where(e => BitConverter.ToInt32(e.Raw, 0x40) == mesh.NodeId).ToList();
+            var levels = string.Join(",", a.First.Select(h => a.Level(h)).Distinct());
+            output.WriteLine($"node {mesh.NodeId}: {a.First.Length} faces, levels {levels}; bake {bake.Indices.Count} corners; valve {mine.Count} entries {string.Join(" ", mine.Select(e => $"{Path.GetFileName(e.Material)}:{e.Vertices.Length / e.Stride}c[{string.Join(",", e.Streams)}]"))}");
+            if (shown++ >= 4 || mine.Count == 0)
+                continue;
+            var e0 = mine[0];
+            var bakePos = bake.Indices.Select(k => MapMeshes.Transform(world, bake.Positions[k])).ToList();
+            var valvePos = Enumerable.Range(0, e0.Vertices.Length / e0.Stride).Select(c => new System.Numerics.Vector3(e0.Vertices[c * e0.Stride], e0.Vertices[c * e0.Stride + 1], e0.Vertices[c * e0.Stride + 2])).ToList();
+            var same = valvePos.Count(v => bakePos.Contains(v));
+            output.WriteLine($"  {same} of {valvePos.Count} valve corner positions are bake positions");
+            for (var c = 0; c < Math.Min(6, valvePos.Count); c++)
+                output.WriteLine($"  corner {c}: {string.Join(" ", e0.Vertices.Skip(c * e0.Stride).Take(e0.Stride).Select(F))}");
+        }
+    }
 }
