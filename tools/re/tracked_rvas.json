@@ -266,6 +266,13 @@
    "rva": "0x13623c0",
    "script": "tools/vis/capture_overlays.py",
    "use": "HOOKS project: COverlayProjector_ProjectOntoTarget"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x1d3100",
+   "script": "tools/vis/capture_propmeshes.py",
+   "use": "HOOKS load: WRB_LoadPropMeshes"
   }
  ]
 }
