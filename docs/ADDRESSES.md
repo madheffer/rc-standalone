@@ -154,7 +154,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261001_1.41.8.8.md): 687 tracked addresses: ambiguous 44, changed 24, identical 9, moved 601, relocated 9
-- 704 addresses
+- 714 addresses
 
 ### s2c:baked/light-keys
 
@@ -274,9 +274,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18129a760` | `LightBuild_BarnMatrix` | the barn's frustum down x | `src/Source2.Compiler/Maps/LightBuild.cs:15` |
 | `18129a8d0` | `LightBuild_TransformRecord` | the record moved by a 3x4 | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
 | `18129b7b0` | `SegmentIntersectsBox` | SSE slab test: refined rcpps of the delta, exit capped at 1, entry floored at 0 | `src/Source2.Compiler/Maps/LightVisClusters.cs:54` |
-| `1813c3b60` | `MeshTessellation_PatchIndices` | a patch grid's cells as [a, right, b], [a, b, below] | `src/Source2.Compiler/Maps/MeshTessellation.cs:51` |
+| `1813c3b60` | `MeshTessellation_PatchIndices` | a patch grid's cells as [a, right, b], [a, b, below] | `src/Source2.Compiler/Maps/MeshTessellation.cs:54` |
 | `1813c7970` | `MeshTessellation_FaceLevel` | the level of the face's first corner |  |
-| `1813ccd20` | `RayScene_AddFace` | MeshTessellation.RayScene: polygons with neighbour edge points, patches unstitched | `src/Source2.Compiler/Maps/EditorTraceScene.cs:73`, `src/Source2.Compiler/Maps/MeshTessellation.cs:42` |
+| `1813ccd20` | `RayScene_AddFace` | MeshTessellation.RayScene: polygons with neighbour edge points, patches unstitched | `src/Source2.Compiler/Maps/EditorTraceScene.cs:73`, `src/Source2.Compiler/Maps/MeshTessellation.cs:45` |
 | `1813ce820` | `MapMeshGeometry_BuildRayScene` | rebuilds the mesh scene when its geometry sums change |  |
 | `181c02a20` | `RayScene_TracePacket` | per-scene dispatch on mode; regroups lanes of mixed signs |  |
 | `181c065f0` | `RayScene_TraceMode1` | keeps hits with denom > 0 unless flag 2 |  |
@@ -516,16 +516,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810c4000` | `HammerMesh_ApplyDeformer` |  |  |
 | `1810c4e50` | `HammerMesh_TransformToWorld` | normals and tangents rotated, not renormalised | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:13` |
 | `1810d5f40` | `MaterialEditor_LowPrecisionUvInputs` | shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile |  |
-| `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:183` |
+| `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:244` |
 | `1810db6a0` | `HammerMesh_SnapVertices` | positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g) |  |
-| `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:147` |
-| `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:184` |
+| `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:208` |
+| `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:245` |
 | `1812d91c0` | `CMesh_FindTwinEdges` | per directed edge the opposite half-edge by vertex pair, -1 when open | `src/Source2.Compiler/Maps/TJunctionFix.cs:13`, `src/Source2.Compiler/Maps/TJunctionFix.cs:99` |
 | `1812db3c0` | `CMesh_VertexTriangles` | triangles touching each vertex | `src/Source2.Compiler/Maps/TJunctionFix.cs:175` |
 | `181371320` | `CMesh_LerpVertex` | every float of the vertex (b - a) * t + a |  |
-| `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:188` |
+| `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:249` |
 | `1813b6550` | `PolyMesh_FindTexcoordIslands` |  |  |
-| `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:186` |
+| `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:247` |
 
 ### s2c:geometry/overlays
 
@@ -569,49 +569,59 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1810c65c0` | `BakeSubdivisionForFaces` | scope name; calls the bake | `src/Source2.Compiler/Maps/SubdivisionBake.cs:6` |
+| `1810c59a0` | `AssignSmoothingModeToEdges` | mode 2: flags & ~1 \| 2 (soft); 1: flags & ~2 \| 1 (hard); else both cleared; faces marked dirty (8) |  |
+| `1810c6520` | `HammerMesh_BakeAllSubdivision` | ConvertMeshForBuilder's bake of every subdivided face |  |
+| `1810c65c0` | `BakeSubdivisionForFaces` | the bake (1813baa40), MergeVerticesWithinDistance 1e-6, new edges soft, then 1810cddd0 on the baked faces' vertices | `src/Source2.Compiler/Maps/SubdivisionBake.cs:6`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:147` |
+| `1810cddd0` | `HammerMesh_RecomputeVertexNormals` | every corner at the listed vertices gets 1813850e0's normal | `src/Source2.Compiler/Maps/SubdivisionBake.cs:147` |
 | `181375e20` | `HalfEdge_ContainerAdd` | handle containers: add | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:10` |
-| `181376810` | `HalfEdge_AddEdge` | an edge between the ends of two corners | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:212`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:236` |
-| `181376f80` | `HalfEdge_AddEdgeToFace` | an edge from a to b across a face unless one is there | `src/Source2.Compiler/Maps/SubdivisionBake.cs:236` |
-| `181379a40` | `HalfEdge_SplitEdge` | h (A to B) ends at a new vertex M; a new half-edge M to B | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:179` |
-| `18137a050` | `HalfEdge_AddVertexToEdge` | a vertex on edge a-b at t | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:249` |
-| `18137a900` | `HalfEdge_NewTwinPair` | first allocated first | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:168` |
-| `181382170` | `HalfEdge_CollapseEdge` | generic half-edge lib: edge collapse | `src/Source2.Compiler/Maps/SubdivisionBake.cs:250` |
-| `181384470` | `HalfEdge_CollapseInnerFace` | inner face collapsed to its centre | `src/Source2.Compiler/Maps/SubdivisionBake.cs:248` |
-| `1813858d0` | `MeshTessellation_WeldExact` | equal positions bit for bit are one vertex, first met | `src/Source2.Compiler/Maps/MeshTessellation.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:488` |
-| `18138be80` | `HalfEdge_Corner` | the half-edge of a face ending at a vertex | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:152` |
+| `181376810` | `HalfEdge_AddEdge` | an edge between the ends of two corners | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:221`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:461` |
+| `181376f80` | `HalfEdge_AddEdgeToFace` | an edge from a to b across a face unless one is there | `src/Source2.Compiler/Maps/SubdivisionBake.cs:461` |
+| `181379a40` | `HalfEdge_SplitEdge` | h (A to B) ends at a new vertex M; a new half-edge M to B | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:185` |
+| `18137a050` | `HalfEdge_AddVertexToEdge` | a vertex on edge a-b at t | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:264` |
+| `18137a900` | `HalfEdge_NewTwinPair` | first allocated first | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:174` |
+| `181382170` | `HalfEdge_CollapseEdge` | generic half-edge lib: edge collapse | `src/Source2.Compiler/Maps/SubdivisionBake.cs:475` |
+| `181384470` | `HalfEdge_CollapseInnerFace` | inner face collapsed to its centre | `src/Source2.Compiler/Maps/SubdivisionBake.cs:473` |
+| `181384e40` | `HalfEdge_FaceNormal` | NewellNormal over the face's loop from its first half-edge | `src/Source2.Compiler/Maps/SubdivisionBake.cs:264` |
+| `1813850e0` | `HalfEdge_CornerNormal` | normalised sum of the Newell face normals over the corner's smooth fan (turn: twin of next; fan between hard edges) | `src/Source2.Compiler/Maps/SubdivisionBake.cs:293` |
+| `1813858d0` | `MeshTessellation_WeldExact` | equal positions bit for bit are one vertex, first met | `src/Source2.Compiler/Maps/MeshTessellation.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:491` |
+| `18138be80` | `HalfEdge_Corner` | the half-edge of a face ending at a vertex | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:158` |
 | `18138e6e0` | `HalfEdge_Lib_18138e6e0` | called by the bake |  |
 | `18138f230` | `HalfEdge_EdgeInFace` | edge between two vertices in a face |  |
-| `18138f9f0` | `HalfEdge_FaceWith` | the face holding both vertices | `src/Source2.Compiler/Maps/SubdivisionBake.cs:218` |
+| `18138f9f0` | `HalfEdge_FaceWith` | the face holding both vertices | `src/Source2.Compiler/Maps/SubdivisionBake.cs:443` |
 | `18138fa30` | `SubdivisionBake_GridSlot` | grid-slot lookup, 2^(level-1) grid |  |
 | `1813922e0` | `HalfEdge_Lib_1813922e0` | generic half-edge lib, called by the bake |  |
-| `1813937a0` | `HalfEdge_Between` | half-edge from a to b, circling a | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:135` |
+| `1813937a0` | `HalfEdge_Between` | half-edge from a to b, circling a | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:141` |
 | `1813995a0` | `HalfEdge_ContainerRemove` | swap-last, handle to a FIFO free list | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:11` |
 | `181399f40` | `HalfEdge_FaceIndex` | face handle to dense index (level byte array +0x1b38) |  |
 | `18139bd10` | `SubdivisionBake_FaceData` |  |  |
 | `18139c100` | `MeshTessellation_ForPhysics` | triangles for physics | `src/Source2.Compiler/Maps/MeshTessellation.cs:7` |
 | `18139c1f0` | `MeshTessellation_Corners` | every triangle corner | `src/Source2.Compiler/Maps/MeshTessellation.cs:7` |
-| `1813a4a00` | `HalfEdge_LerpAttribute` | (b - a) * t + a per axis | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:242` |
-| `1813a54d0` | `HalfEdge_LerpCorner` | the corner at M lerps the face's corners at a and b | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:257` |
-| `1813a5740` | `HalfEdge_LerpVertex` |  | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:242` |
+| `1813a4a00` | `HalfEdge_LerpAttribute` | (b - a) * t + a per axis | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:254` |
+| `1813a54d0` | `HalfEdge_LerpCorner` | the corner at M lerps the face's corners at a and b | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:272` |
+| `1813a5740` | `HalfEdge_LerpVertex` |  | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:254` |
+| `1813a5be0` | `HalfEdge_IsOpenEdge` | a side without a face |  |
+| `1813a5ce0` | `HalfEdge_IsEdgeSmooth` | open edge hard; flag bit 0 hard, bit 1 soft; else cos(angle) + 1e-5 < dot of the faces' normals; cos above 0.99999 hard, under 1e-5 soft | `src/Source2.Compiler/Maps/SubdivisionBake.cs:269` |
 | `1813a7d00` | `HalfEdge_MergeFaces` | generic half-edge lib |  |
 | `1813a8ae0` | `HalfEdge_MergeVertices` | post-bake weld, tol 0x358637bd; not ported |  |
+| `1813b1b80` | `HalfEdge_SetSmoothingAngle` | stores cos(angle * 0.017453292) at +0x3470, faces dirty |  |
 | `1813b7750` | `SubdivisionBake_PatchPositions` | per-face patch grid of positions |  |
-| `1813b82f0` | `SubdivisionBake_PatchPaint` | per-face patch grid of paint | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:83`, `src/Source2.Compiler/Maps/MeshTessellation.cs:393` +1 |
-| `1813ba570` | `HalfEdge_SplitBetween` | point at t by arc length along the edge chain; reuses ends within 0.01 | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:265`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:13` |
-| `1813baa40` | `SubdivisionBake_Bake` | splits faces level by level, lower first | `src/Source2.Compiler/Maps/MeshTessellation.cs:64`, `src/Source2.Compiler/Maps/MeshTessellation.cs:83`, `src/Source2.Compiler/Maps/MeshTessellation.cs:171` +2 |
-| `1813bc230` | `MeshTessellation_PatchFrame` | patch frame: columns B, T, N | `src/Source2.Compiler/Maps/MeshTessellation.cs:359` |
-| `1813bcc40` | `MeshTessellation_PatchGrid` | the patch's grid of cells | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:19`, `src/Source2.Compiler/Maps/MeshTessellation.cs:434` |
-| `1813bda20` | `MeshTessellation_CornerPatch` | one quad patch per corner | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:17`, `src/Source2.Compiler/Maps/MeshTessellation.cs:434` |
-| `1813be320` | `MeshTessellation_CornerPaint` | each corner times 1/m in loop order | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:88`, `src/Source2.Compiler/Maps/MeshTessellation.cs:393` +1 |
-| `1813c1cc0` | `MeshTessellation_PaintValues` |  | `src/Source2.Compiler/Maps/MeshTessellation.cs:400` |
-| `1813c26a0` | `MeshTessellation_Stitch` | patch to a finer neighbour (the ray-trace scene's path) | `src/Source2.Compiler/Maps/MeshTessellation.cs:20`, `src/Source2.Compiler/Maps/MeshTessellation.cs:557` |
+| `1813b82f0` | `SubdivisionBake_PatchPaint` | per-face patch grid of paint | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:86`, `src/Source2.Compiler/Maps/MeshTessellation.cs:396` +1 |
+| `1813ba570` | `HalfEdge_SplitBetween` | point at t by arc length along the edge chain; reuses ends within 0.01 | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:282`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:13` |
+| `1813baa40` | `SubdivisionBake_Bake` | splits faces level by level, lower first | `src/Source2.Compiler/Maps/MeshTessellation.cs:67`, `src/Source2.Compiler/Maps/MeshTessellation.cs:86`, `src/Source2.Compiler/Maps/MeshTessellation.cs:174` +2 |
+| `1813bc230` | `MeshTessellation_PatchFrame` | patch frame: columns B, T, N | `src/Source2.Compiler/Maps/MeshTessellation.cs:362` |
+| `1813bcc40` | `MeshTessellation_PatchGrid` | the patch's grid of cells | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:19`, `src/Source2.Compiler/Maps/MeshTessellation.cs:437` |
+| `1813bda20` | `MeshTessellation_CornerPatch` | one quad patch per corner | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:17`, `src/Source2.Compiler/Maps/MeshTessellation.cs:437` |
+| `1813be320` | `MeshTessellation_CornerPaint` | each corner times 1/m in loop order | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:91`, `src/Source2.Compiler/Maps/MeshTessellation.cs:396` +1 |
+| `1813c1cc0` | `MeshTessellation_PaintValues` | patch grids as asked: positions (1813c7b90), normals (1813c3cf0), tangents (1813c2090); from 18102f230 and 1810c0d60 | `src/Source2.Compiler/Maps/MeshTessellation.cs:403` |
+| `1813c2090` | `SubdivPatch_TangentGrid` | patch corner tangents lerped (rows normalised), then (n x t) x n normalised; viewport and sampling only |  |
+| `1813c26a0` | `MeshTessellation_Stitch` | patch to a finer neighbour (the ray-trace scene's path) | `src/Source2.Compiler/Maps/MeshTessellation.cs:20`, `src/Source2.Compiler/Maps/MeshTessellation.cs:560` |
+| `1813c3cf0` | `SubdivPatch_NormalGrid` | patch grid normals, averaged across patch seams; viewport and sampling only |  |
 | `1813c64d0` | `SubdivisionBake_Step_1813c64d0` | called by the bake after the split |  |
 | `1813c7a40` | `SubdivisionBake_FaceLevel` |  |  |
-| `1813c7ae0` | `MeshTessellation_LevelAcross` | level across a half-edge, 0 where no face | `src/Source2.Compiler/Maps/MeshTessellation.cs:145` |
-| `1813c7b90` | `MeshTessellation_Displace` | patch points moved by their displacement | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:49`, `src/Source2.Compiler/Maps/MeshTessellation.cs:358` |
-| `1813c94f0` | `SubdivisionBake_WriteBack` | grid write-back to +0xd0 positions / +0xb20 paint | `src/Source2.Compiler/Maps/SubdivisionBake.cs:78` |
-| `1813ca560` | `SubdivisionBake_SplitFace` | quad branch recurses corners 0,1,3,2 | `src/Source2.Compiler/Maps/MeshTessellation.cs:68`, `src/Source2.Compiler/Maps/MeshTessellation.cs:328`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:12` +1 |
+| `1813c7ae0` | `MeshTessellation_LevelAcross` | level across a half-edge, 0 where no face | `src/Source2.Compiler/Maps/MeshTessellation.cs:148` |
+| `1813c7b90` | `MeshTessellation_Displace` | patch points moved by their displacement | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:52`, `src/Source2.Compiler/Maps/MeshTessellation.cs:361` |
+| `1813c94f0` | `SubdivisionBake_WriteBack` | grid write-back to +0xd0 positions / +0xb20 paint; a cell corner's write sets every face-vertex stream from the packed record | `src/Source2.Compiler/Maps/SubdivisionBake.cs:93` |
+| `1813ca560` | `SubdivisionBake_SplitFace` | quad branch recurses corners 0,1,3,2 | `src/Source2.Compiler/Maps/MeshTessellation.cs:71`, `src/Source2.Compiler/Maps/MeshTessellation.cs:331`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:12` +1 |
 
 ### s2c:geometry/world-nodes
 
@@ -729,7 +739,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/TJunctionFix.cs:83` |
 | `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:249` |
 | `1802b1ff0` | `CMesh_TransformByMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:13` |
-| `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:87`, `src/Source2.Compiler/Maps/MeshTessellation.cs:514` |
+| `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:90`, `src/Source2.Compiler/Maps/MeshTessellation.cs:517` |
 | `1811145c0` | `AngleMatrixDouble` | sines and cosines in double | `src/Source2.Compiler/Maps/SettleWorld.cs:234`, `src/Source2.Compiler/Maps/SettleWorld.cs:335` |
 | `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.cs:482`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:44` |
 | `181253780` | `CTransform_Invert` | scale 1 path | `src/Source2.Compiler/Maps/CTransform.cs:38`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:57` |
@@ -749,7 +759,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125c200` | `Matrix3x4_Scale` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:389` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:320`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:270`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/LightMath.cs:201`, `src/Source2.Compiler/Maps/LightSampler.cs:256`, `src/Source2.Compiler/Maps/LightTrace.cs:118` +7 |
-| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:125`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:566` |
+| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:126`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:566` |
 | `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Maps/LightMath.cs:130`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:560` |
 | `18125d940` | `AngleQuaternion` | half angles times 0.00872664619 | `src/Source2.Compiler/Maps/CTransform.cs:22` |
 | `18125dcc0` | `Quaternion_Forward` | x axis | `src/Source2.Compiler/Maps/LightMath.cs:205`, `src/Source2.Compiler/Maps/LightMath.cs:224` |
