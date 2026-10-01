@@ -80,16 +80,17 @@ internal static class NodeMeshEntries
 
     /// <summary>
     /// The streams a mesh's corners carry: its own faceVertexData streams in
-    /// the .vmap's order and, when it stores VertexPaintBlendParams or any of
-    /// its materials consumes LowPrecisionUv1 or VertexPaintBlendParams, a
-    /// second texcoord after the first and VertexPaintBlendParams at the end
-    /// where missing, zero filled. Measured on all 516 atixref entries matched
-    /// to a mesh; the code doing it is not read.
+    /// the .vmap's order and, when any of its materials consumes
+    /// LowPrecisionUv1, a second texcoord after the first and
+    /// VertexPaintBlendParams at the end where missing, zero filled. Measured
+    /// on all 538 atixref entries matched to a mesh, subdivided ones included
+    /// (a mesh storing VertexPaintBlendParams with no such material keeps its
+    /// own streams); the code doing it is not read.
     /// </summary>
     internal static MapMeshCorners.Piece WithPaintStreams(MapMeshCorners.Piece piece, IReadOnlySet<string> needs)
     {
         var names = piece.Streams.Select(x => x.Name).ToList();
-        var blend = names.Contains("VertexPaintBlendParams") || needs.Contains("LowPrecisionUv1") || needs.Contains("VertexPaintBlendParams");
+        var blend = needs.Contains("LowPrecisionUv1");
         if (!blend)
             return piece;
         var layout = piece.Streams.Select(x => (x.Name, x.Count, Source: (int?)x.First)).ToList();

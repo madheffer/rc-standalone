@@ -73,6 +73,8 @@ internal static class MapMeshCorners
         var positions = StreamData(data, "vertexData", "position");
         var materials = (StreamData(data, "faceData", "materialindex") ?? []).Select(x => x is int i ? i : 0).ToArray();
         var biases = (StreamData(data, "faceData", "lightmapScaleBias") ?? []).Select(x => x is int i ? i : 0).ToArray();
+        if (allStreams && new FaceArrays(data) is var arrays && arrays.First.Any(h => arrays.Level(h) > 0))
+            return Baked(mesh, data, shiftTexcoords, cutSpace, withTangent, scales, faceData, materials, biases);
 
         // The streams each corner carries, in the .vmap's order.
         var streams = new List<(string Name, object?[] Data, int Count)>();
@@ -141,6 +143,65 @@ internal static class MapMeshCorners
             }
         }
         return [.. byMaterial.Select(kv => new Piece(kv.Key.Material, stride, [.. kv.Value.V], [.. kv.Value.I], layout) { VertexIds = [.. kv.Value.Ids], CornerData = [.. kv.Value.Data], Bias = kv.Key.Bias })];
+    }
+
+    /// <summary>
+    /// A mesh with subdivided faces, as ConvertMeshForBuilder exports it after
+    /// BakeSubdivisionForFaces (<see cref="SubdivisionBake"/>): every
+    /// faceVertexData stream carried through the bake (subdivisionData's grids
+    /// where it has them), the baked faces' normals recomputed, texcoords
+    /// shifted on the baked mesh; then one piece per (lightmap scale bias,
+    /// material) as for an unbaked mesh. Measured on atixref's 44 subdivided
+    /// entries.
+    /// </summary>
+    private static List<Piece> Baked(DmxBinary.Element mesh, DmxBinary.Element data, bool shiftTexcoords, Func<Vector3, Vector3>? cutSpace, bool withTangent,
+                                     Vector3 scales, int[] faceData, int[] materials, int[] biases)
+    {
+        var raw = new List<(string Full, string Name, object?[] Data, int Count)>();
+        foreach (var s in data.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams") ?? [])
+        {
+            var name = s.Name.Split(':')[0];
+            if (name == "tangent" && !withTangent)
+                continue;
+            var values = s.Get<object?[]>("data") ?? [];
+            raw.Add((s.Name, name, values, Width(values)));
+        }
+        float[] Corner(int d)
+        {
+            var v = new List<float>();
+            foreach (var (_, _, values, count) in raw)
+                Append(v, d >= 0 && d < values.Length ? values[d] : null, count);
+            return [.. v];
+        }
+        var bake = SubdivisionBake.Bake(data, cutSpace == null ? null : p => cutSpace(p * scales), Corner, layout: [.. raw.Select(x => (x.Full, x.Count))],
+                                        smoothingAngle: mesh.GetValue<float>("smoothingAngle") ?? 40f, shiftTexcoords: shiftTexcoords);
+        var layout = new List<Physics.MeshWeld.Stream> { new("position", 0, 3, false, 42) };
+        var stride = 3;
+        foreach (var (_, name, _, count) in raw)
+        {
+            layout.Add(new(name, stride, count, false, 0));
+            stride += count;
+        }
+        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<float> V, List<int> I, List<int> Ids)>();
+        for (var t = 0; t < bake.Faces.Count; t++)
+        {
+            var f = bake.Faces[t];
+            var material = materials.Length == 0 ? 0 : materials[faceData[f]];
+            var bias = biases.Length == 0 ? 0 : biases[faceData[f]];
+            if (!byMaterial.TryGetValue((bias, material), out var piece))
+                byMaterial[(bias, material)] = piece = ([], [], []);
+            for (var c = t * 3; c < (t * 3) + 3; c++)
+            {
+                piece.I.Add(piece.I.Count);
+                piece.Ids.Add(bake.Indices[c]);
+                var p = bake.Positions[bake.Indices[c]] * scales;
+                piece.V.Add(p.X);
+                piece.V.Add(p.Y);
+                piece.V.Add(p.Z);
+                piece.V.AddRange(bake.CornerData![c]);
+            }
+        }
+        return [.. byMaterial.Select(kv => new Piece(kv.Key.Material, stride, [.. kv.Value.V], [.. kv.Value.I], layout) { VertexIds = [.. kv.Value.Ids], Bias = kv.Key.Bias })];
     }
 
     /// <summary>

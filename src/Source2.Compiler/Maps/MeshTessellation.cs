@@ -33,6 +33,9 @@ public static class MeshTessellation
 
         /// <summary>Builder order only: when each position was last written by a patch grid (-1 for none).</summary>
         public List<long>? Written { get; init; }
+
+        /// <summary>The half-edge bake only, when asked: each triangle corner's face-vertex streams, index for index with <c>Indices</c>.</summary>
+        public List<float[]>? CornerData { get; init; }
     }
 
     public static Result Triangulate(DmxBinary.Element data) => Build(data, false).ToResult();

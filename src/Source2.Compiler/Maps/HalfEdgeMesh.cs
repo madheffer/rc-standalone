@@ -95,6 +95,12 @@ internal sealed class HalfEdgeMesh
         public int Face = Null;
         /// <summary>The paint of the corner this half-edge ends at, in its face.</summary>
         public Vector4 Paint;
+        /// <summary>The corner's other face-vertex streams, carried as Paint is (null when not asked for).</summary>
+        public float[]? Data;
+        /// <summary>The edge's flags (edgeData "flags": bit 0 hard, bit 1 soft), the same on both halves.</summary>
+        public int Flags;
+        /// <summary>Made by AddEdge (the bake's new edges, which it marks soft).</summary>
+        public bool Added;
     }
 
     public sealed class Face
@@ -202,6 +208,9 @@ internal sealed class HalfEdgeMesh
         // Corners: n1 takes h's old corner at B; n2 sits beside the twin's
         // corner at A. SplitCorners lerps the two corners at M.
         He(n1).Paint = He(h).Paint;
+        He(n1).Data = He(h).Data;
+        He(n1).Flags = He(n2).Flags = He(h).Flags;
+        He(n1).Added = He(n2).Added = He(h).Added;
         splitSides = (prevH, h, n1, t, n2, prevT);
         return m;
     }
@@ -224,6 +233,9 @@ internal sealed class HalfEdgeMesh
         He(n2).Next = He(ca).Next;
         He(n1).Paint = He(cb).Paint;
         He(n2).Paint = He(ca).Paint;
+        He(n1).Data = He(cb).Data;
+        He(n2).Data = He(ca).Data;
+        He(n1).Added = He(n2).Added = true;
         He(ca).Next = n1;
         He(cb).Next = n2;
         He(n1).Face = face;
@@ -246,6 +258,9 @@ internal sealed class HalfEdgeMesh
     public static Vector4 Lerp(Vector4 a, Vector4 b, float t)
         => new(((b.X - a.X) * t) + a.X, ((b.Y - a.Y) * t) + a.Y, ((b.Z - a.Z) * t) + a.Z, ((b.W - a.W) * t) + a.W);
 
+    public static float[]? Lerp(float[]? a, float[]? b, float t)
+        => a == null || b == null ? a ?? b : [.. a.Select((x, i) => ((b[i] - x) * t) + x)];
+
     /// <summary>18137a050: a vertex on edge a-b at t from a.</summary>
     public int AddVertexToEdge(int a, int b, float t)
     {
@@ -258,6 +273,8 @@ internal sealed class HalfEdgeMesh
         var (prevH, hh, n1, tt, n2, prevT) = splitSides;
         He(hh).Paint = Lerp(He(prevH).Paint, He(n1).Paint, t);
         He(n2).Paint = Lerp(He(tt).Paint, He(prevT).Paint, t);
+        He(hh).Data = Lerp(He(prevH).Data, He(n1).Data, t);
+        He(n2).Data = Lerp(He(tt).Data, He(prevT).Data, t);
         return m;
     }
 

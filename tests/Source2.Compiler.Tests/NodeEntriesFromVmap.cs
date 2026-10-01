@@ -459,7 +459,11 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             if (!a.First.Any(h => a.Level(h) > 0))
                 continue;
             var world = mesh.World;
-            var bake = SubdivisionBake.Bake(data, p => MapMeshes.Transform(world, p));
+            var fvdFull = data.Get<DmxBinary.Element>("faceVertexData")!.GetElements("streams").Select(x => (Full: x.Name, Name: x.Name.Split(':')[0], Data: x.Get<object?[]>("data") ?? [])).ToList();
+            var fvd = fvdFull.Select(x => (x.Name, x.Data)).ToList();
+            static float[] Floats(object? x) => FaceArrays.Floats(x);
+            var layout = fvdFull.Select(x => (x.Full, x.Data.Length > 0 ? Floats(x.Data[0]).Length : 0)).ToList();
+            var bake = SubdivisionBake.Bake(data, p => MapMeshes.Transform(world, p), d => [.. fvd.SelectMany(x => d >= 0 && d < x.Data.Length ? Floats(x.Data[d]) : [])], layout: layout, smoothingAngle: mesh.Element.GetValue<float>("smoothingAngle") ?? 40f);
             var mine = valve.Where(e => BitConverter.ToInt32(e.Raw, 0x40) == mesh.NodeId).ToList();
             var levels = string.Join(",", a.First.Select(h => a.Level(h)).Distinct());
             output.WriteLine($"node {mesh.NodeId}: {a.First.Length} faces, levels {levels}; bake {bake.Indices.Count} corners; valve {mine.Count} entries {string.Join(" ", mine.Select(e => $"{Path.GetFileName(e.Material)}:{e.Vertices.Length / e.Stride}c[{string.Join(",", e.Streams)}]"))}");
@@ -469,7 +473,39 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             var bakePos = bake.Indices.Select(k => MapMeshes.Transform(world, bake.Positions[k])).ToList();
             var valvePos = Enumerable.Range(0, e0.Vertices.Length / e0.Stride).Select(c => new System.Numerics.Vector3(e0.Vertices[c * e0.Stride], e0.Vertices[c * e0.Stride + 1], e0.Vertices[c * e0.Stride + 2])).ToList();
             var same = valvePos.Count(v => bakePos.Contains(v));
-            output.WriteLine($"  {same} of {valvePos.Count} valve corner positions are bake positions");
+            output.WriteLine($"  {same} of {valvePos.Count} valve corner positions are bake positions, {Enumerable.Range(0, Math.Min(valvePos.Count, bakePos.Count)).Count(c => valvePos[c] == bakePos[c])} in order");
+            var flatBake = SubdivisionBake.Bake(data, p => MapMeshes.Transform(world, p), displace: false);
+            var flat = flatBake.Indices.Select(k => MapMeshes.Transform(world, flatBake.Positions[k])).ToList();
+            if (Environment.GetEnvironmentVariable("NODEENTRIES_SUBDIV_DUMP") is { } dump)
+                File.WriteAllLines(Path.Combine(dump, $"node{mesh.NodeId}.csv"), Enumerable.Range(0, valvePos.Count).Select(c =>
+                    $"{bake.Faces[c / 3]},{string.Join(",", e0.Vertices.Skip(c * e0.Stride).Take(e0.Stride).Select(F))},{F(flat[c].X)},{F(flat[c].Y)},{F(flat[c].Z)}"));
+            // Each carried stream against Valve's stream of that name (first occurrence).
+            var at = 0;
+            foreach (var (name, values) in fvd)
+            {
+                var width = values.Length > 0 ? Floats(values[0]).Length : 0;
+                var vi = Array.IndexOf(e0.Streams, name);
+                if (vi >= 0 && e0.Layout.Count > vi)
+                {
+                    var vf = e0.Layout[vi].First;
+                    int eq = 0, shifted = 0, n = Math.Min(valvePos.Count, bake.CornerData!.Count);
+                    string first = "";
+                    for (var c = 0; c < n; c++)
+                    {
+                        var ours = bake.CornerData[c].Skip(at).Take(width).ToArray();
+                        var theirs = e0.Vertices.Skip(c * e0.Stride + vf).Take(width).ToArray();
+                        if (ours.SequenceEqual(theirs))
+                            eq++;
+                        else if (ours.Length == theirs.Length && ours.Zip(theirs).All(z => (z.First - z.Second) == MathF.Round(z.First - z.Second)))
+                            shifted++;
+                        else if (first.Length == 0)
+                            first = $" first corner {c}: ours {string.Join(",", ours.Select(F))} valve {string.Join(",", theirs.Select(F))}";
+                    }
+                    var maxDiff = Enumerable.Range(0, n).Max(c => bake.CornerData[c].Skip(at).Take(width).Zip(e0.Vertices.Skip(c * e0.Stride + vf).Take(width)).Select(z => MathF.Abs(z.First - z.Second)).DefaultIfEmpty(0f).Max());
+                    output.WriteLine($"  {name}: {eq} of {n} equal, {shifted} by whole numbers, max diff {maxDiff}{first}");
+                }
+                at += width;
+            }
             for (var c = 0; c < Math.Min(6, valvePos.Count); c++)
                 output.WriteLine($"  corner {c}: {string.Join(" ", e0.Vertices.Skip(c * e0.Stride).Take(e0.Stride).Select(F))}");
         }

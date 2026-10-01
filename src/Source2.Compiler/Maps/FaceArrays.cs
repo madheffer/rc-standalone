@@ -19,6 +19,7 @@ internal sealed class FaceArrays
     private readonly Dictionary<int, int> blockOf = [];
     private readonly object?[] gridPaint;
     private readonly object?[] paintStream;
+    private readonly Dictionary<string, object?[]> gridStreams = [];
 
     public FaceArrays(DmxBinary.Element data)
     {
@@ -47,6 +48,8 @@ internal sealed class FaceArrays
                 }
         }
         paintStream = Stream(data.Get<DmxBinary.Element>("faceVertexData"), "VertexPaintBlendParams");
+        foreach (var st in subdivision?.GetElements("streams") ?? [])
+            gridStreams[st.Name] = st.Get<object?[]>("data") ?? [];
     }
 
     public int VertexCount => VertexData.Length;
@@ -180,6 +183,68 @@ internal sealed class FaceArrays
         }
         return points;
     }
+
+    /// <summary>
+    /// Corner i's patch of every face-vertex stream, <paramref name="layout"/>
+    /// naming them (with their DMX names, "texcoord:0") and their widths, as
+    /// <see cref="PaintGrid"/> does for paint: a subdivisionData stream of the
+    /// same name where there is one, else the corner, side midpoints and mean
+    /// lerped.
+    /// </summary>
+    public float[][] DataGrid(List<int> hs, int i, int own, Func<int, float[]> cornerData, IReadOnlyList<(string Name, int Width)> layout)
+    {
+        var side = (1 << (own - 1)) + 1;
+        var points = new float[side * side][];
+        var width = layout.Sum(x => x.Width);
+        for (var k = 0; k < points.Length; k++)
+            points[k] = new float[width];
+        var m = hs.Count;
+        var inv = 1f / m;
+        var at = 0;
+        foreach (var (name, w) in layout)
+        {
+            if (gridStreams.TryGetValue(name, out var stored) && stored.Length > 0)
+            {
+                var start = blockOf[CornerData[hs[i]]];
+                for (var k = 0; k < points.Length; k++)
+                    Array.Copy(Floats(stored[start + k]), 0, points[k], at, w);
+            }
+            else
+            {
+                float[] Of(int h) => cornerData(CornerData[h])[at..(at + w)];
+                var mean = new float[w];
+                for (var k = 0; k < m; k++)
+                {
+                    var c = Of(hs[(i + k) % m]);
+                    for (var j = 0; j < w; j++)
+                        mean[j] = (c[j] * inv) + mean[j];
+                }
+                var s0 = Of(hs[i]);
+                var s1 = HalfEdgeMesh.Lerp(s0, Of(hs[(i + 1) % m]), 0.5f)!;
+                var s2 = HalfEdgeMesh.Lerp(s0, Of(hs[(i + m - 1) % m]), 0.5f)!;
+                var n = side - 1;
+                var step = 1f / n;
+                for (var r = 0; r <= n; r++)
+                {
+                    var left = HalfEdgeMesh.Lerp(s0, s2, r * step)!;
+                    var right = HalfEdgeMesh.Lerp(s1, mean, r * step)!;
+                    for (var c = 0; c <= n; c++)
+                        Array.Copy(HalfEdgeMesh.Lerp(left, right, c * step)!, 0, points[(r * side) + c], at, w);
+                }
+            }
+            at += w;
+        }
+        return points;
+    }
+
+    public static float[] Floats(object? x) => x switch
+    {
+        Vector2 v => [v.X, v.Y],
+        Vector3 v => [v.X, v.Y, v.Z],
+        Vector4 v => [v.X, v.Y, v.Z, v.W],
+        float f => [f],
+        _ => [],
+    };
 
     private static Vector4 MulAdd(Vector4 value, float w, Vector4 sum)
         => new((value.X * w) + sum.X, (value.Y * w) + sum.Y, (value.Z * w) + sum.Z, (value.W * w) + sum.W);

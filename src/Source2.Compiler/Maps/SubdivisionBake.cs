@@ -27,15 +27,28 @@ internal static class SubdivisionBake
 {
     /// <param name="cutSpace">Where the export's polygon cutter scores corners: a world
     /// mesh's faces are cut on their world positions (as <see cref="MapMeshCorners"/>).</param>
-    public static MeshTessellation.Result Bake(DmxBinary.Element data, Func<Vector3, Vector3>? cutSpace = null)
+    /// <param name="cornerData">Each corner's face-vertex streams (by its
+    /// edgeVertexDataIndices entry), carried through the splits as paint is and
+    /// returned per triangle corner; null to leave them out.</param>
+    /// <param name="layout">The face-vertex streams' DMX names and widths in
+    /// <paramref name="cornerData"/>'s order; with a normal among them the baked
+    /// faces' corner normals are recomputed.</param>
+    /// <param name="smoothingAngle">The mesh's smoothingAngle.</param>
+    public static MeshTessellation.Result Bake(DmxBinary.Element data, Func<Vector3, Vector3>? cutSpace = null, Func<int, float[]>? cornerData = null,
+                                               bool displace = true, IReadOnlyList<(string Name, int Width)>? layout = null, float smoothingAngle = 40f,
+                                               bool shiftTexcoords = false)
     {
         var a = new FaceArrays(data);
         var mesh = new HalfEdgeMesh();
+        var edgeData = (data.Get<object?[]>("edgeDataIndices") ?? []).Select(x => x is int i ? i : -1).ToArray();
+        var edgeFlags = (data.Get<DmxBinary.Element>("edgeData")?.GetElements("streams").FirstOrDefault(x => x.Name.StartsWith("flags", StringComparison.Ordinal))
+                         ?.Get<object?[]>("data") ?? []).Select(x => x is int i ? i : 0).ToArray();
+        int Flags(int h) => h < edgeData.Length && edgeData[h] >= 0 && edgeData[h] < edgeFlags.Length ? edgeFlags[edgeData[h]] : 0;
         // The .vmap's arrays in order: element i gets handle i.
         for (var v = 0; v < a.VertexCount; v++)
             mesh.Vertices.Add(new HalfEdgeMesh.Vertex { Position = a.Pos(v) });
         for (var h = 0; h < a.To.Length; h++)
-            mesh.HalfEdges.Add(new HalfEdgeMesh.HalfEdge { Vertex = a.To[h], Twin = a.Opposite[h], Next = a.Next[h], Face = a.EdgeFace[h] < 0 ? HalfEdgeMesh.Null : a.EdgeFace[h], Paint = a.Paint(h) });
+            mesh.HalfEdges.Add(new HalfEdgeMesh.HalfEdge { Vertex = a.To[h], Twin = a.Opposite[h], Next = a.Next[h], Face = a.EdgeFace[h] < 0 ? HalfEdgeMesh.Null : a.EdgeFace[h], Paint = a.Paint(h), Data = cornerData?.Invoke(a.CornerData[h]), Flags = Flags(h) });
         for (var f = 0; f < a.First.Length; f++)
             mesh.Faces.Add(new HalfEdgeMesh.Face { First = a.First[f], Source = f });
         for (var h = 0; h < a.To.Length; h++)
@@ -60,11 +73,12 @@ internal static class SubdivisionBake
             for (var i = 0; i < hs.Count; i++)
             {
                 grids[i] = a.Grid(hs, i, level);
-                if (a.Displacement.Length > 0)
+                if (displace && a.Displacement.Length > 0)
                     a.Displace(grids[i], hs, i, f);
                 paints[i] = a.PaintGrid(hs, i, level);
             }
-            return (Face: f, Corners: hs.Select(h => a.To[h]).ToArray(), Level: level, Grids: grids, Paints: paints, Points: new int[hs.Count][]);
+            var data = cornerData != null && layout != null ? Enumerable.Range(0, hs.Count).Select(i => a.DataGrid(hs, i, level, cornerData, layout)).ToArray() : null;
+            return (Face: f, Corners: hs.Select(h => a.To[h]).ToArray(), Level: level, Grids: grids, Paints: paints, Data: data, Points: new int[hs.Count][]);
         }).ToList();
 
         // 2. and 3. Split each face, then cut its cells.
@@ -91,7 +105,11 @@ internal static class SubdivisionBake
                         {
                             var corner = mesh.Corner(cell, grid[i]);
                             if (corner != HalfEdgeMesh.Null)
+                            {
                                 mesh.He(corner).Paint = job.Paints[k][i];
+                                if (job.Data != null)
+                                    mesh.He(corner).Data = job.Data[k][i];
+                            }
                         }
                     }
             }
@@ -122,7 +140,211 @@ internal static class SubdivisionBake
                     mesh.Vertices[v].Written = writes++;
                 }
 
-        return Export(mesh, a.WithPaint, cutSpace);
+        // 5. The baked faces' corner normals, as BakeSubdivisionForFaces
+        // (1810c65c0) leaves them: its new edges soft, then 1810cddd0 on the
+        // vertices of the baked faces.
+        var normalAt = layout == null ? -1 : NormalOffset(layout);
+        if (cornerData != null && normalAt >= 0)
+        {
+            foreach (var h in mesh.HalfEdges.Handles)
+                if (mesh.He(h).Added)
+                    mesh.He(h).Flags = (mesh.He(h).Flags & ~1) | 2;
+            var baked = new SortedSet<int>();
+            foreach (var f in mesh.Faces.Handles)
+                if (a.Level(a.First[mesh.Faces[f].Source]) > 0)
+                    foreach (var h in mesh.Loop(f))
+                        baked.Add(mesh.He(h).Vertex);
+            var cos = MathF.Cos(MathF.Min(smoothingAngle, 180f) * 0.017453292f);
+            foreach (var v in baked)
+                RecomputeNormals(mesh, v, cos, normalAt);
+        }
+
+        if (cornerData != null && layout != null && shiftTexcoords)
+            ShiftTexcoords(mesh, layout);
+
+        return Export(mesh, a.WithPaint, cutSpace, cornerData != null);
+    }
+
+    /// <summary>
+    /// <see cref="MapMeshCorners.ShiftTexcoords"/> on the baked mesh, which is
+    /// what ConvertMeshForBuilder exports: faces in dense order, each corner
+    /// its own texcoord, islands across edges whose ends' texcoords agree.
+    /// </summary>
+    private static void ShiftTexcoords(HalfEdgeMesh mesh, IReadOnlyList<(string Name, int Width)> layout)
+    {
+        var sets = new List<int>();
+        var at = 0;
+        foreach (var (name, width) in layout)
+        {
+            if (name.Split(':')[0] == "texcoord" && width == 2)
+                sets.Add(at);
+            at += width;
+        }
+        if (sets.Count == 0)
+            return;
+        var faces = mesh.Faces.Handles.ToList();
+        var faceIndex = new Dictionary<int, int>();
+        for (var i = 0; i < faces.Count; i++)
+            faceIndex[faces[i]] = i;
+        var edges = mesh.HalfEdges.Handles.ToList();
+        var prev = new Dictionary<int, int>();
+        foreach (var h in edges)
+            if (mesh.He(h).Face != HalfEdgeMesh.Null)
+                prev[mesh.He(h).Next] = h;
+        foreach (var h in edges)
+            if (mesh.He(h).Data != null)
+                mesh.He(h).Data = (float[])mesh.He(h).Data!.Clone();
+        Vector2 Uv(int h, int set) => new(mesh.He(h).Data![set], mesh.He(h).Data![set + 1]);
+        if (!edges.Any(h => mesh.He(h).Face != HalfEdgeMesh.Null && sets.Any(s => Uv(h, s) is var uv
+                && (uv.X < -1.03125f || 1.03125f < uv.X || uv.Y < -1.03125f || 1.03125f < uv.Y))))
+            return;
+        foreach (var set in sets)
+        {
+            bool Close(int a, int b)
+            {
+                var x = Uv(a, set);
+                var y = Uv(b, set);
+                return !((((x.Y - y.Y) * (x.Y - y.Y)) + ((x.X - y.X) * (x.X - y.X))) > 1e-6f);
+            }
+            var parent = Enumerable.Range(0, faces.Count).ToArray();
+            int Find(int x) => parent[x] == x ? x : parent[x] = Find(parent[x]);
+            foreach (var e in edges)
+            {
+                var o = mesh.He(e).Twin;
+                if (mesh.He(e).Face == HalfEdgeMesh.Null || mesh.He(o).Face == HalfEdgeMesh.Null)
+                    continue;
+                if (Close(e, prev[o]) && Close(prev[e], o))
+                    parent[Find(faceIndex[mesh.He(o).Face])] = Find(faceIndex[mesh.He(e).Face]);
+            }
+            foreach (var island in Enumerable.Range(0, faces.Count).GroupBy(Find))
+            {
+                var members = island.SelectMany(i => mesh.Loop(faces[i])).ToList();
+                float minU = float.MaxValue, minV = float.MaxValue, maxU = -float.MaxValue, maxV = -float.MaxValue;
+                foreach (var h in members)
+                {
+                    var uv = Uv(h, set);
+                    if (uv.X <= minU) minU = uv.X;
+                    if (maxU <= uv.X) maxU = uv.X;
+                    if (uv.Y <= minV) minV = uv.Y;
+                    if (maxV <= uv.Y) maxV = uv.Y;
+                }
+                if (!(minU < 0f || minV < 0f || 1f < maxU || 1f < maxV))
+                    continue;
+                var cu = (maxU + minU) * 0.5f;
+                var cv = (maxV + minV) * 0.5f;
+                var su = (float)(int)(cu < 0f ? cu - 0.5f : cu + 0.5f);
+                var sv = (float)(int)(cv < 0f ? cv - 0.5f : cv + 0.5f);
+                if (su == 0f && sv == 0f)
+                    continue;
+                foreach (var h in members)
+                {
+                    var d = mesh.He(h).Data!;
+                    d[set] -= su;
+                    d[set + 1] -= sv;
+                }
+            }
+        }
+    }
+
+    private static int NormalOffset(IReadOnlyList<(string Name, int Width)> layout)
+    {
+        var at = 0;
+        foreach (var (name, width) in layout)
+        {
+            if (name.Split(':')[0] == "normal")
+                return at;
+            at += width;
+        }
+        return -1;
+    }
+
+    /// <summary>181384e40: a face's Newell normal over its loop from its first half-edge.</summary>
+    private static Vector3 FaceNormal(HalfEdgeMesh mesh, int face)
+        => PolygonTriangulator.Newell([.. mesh.Loop(face).Select(h => mesh.Vertices[mesh.He(h).Vertex].Position)]);
+
+    /// <summary>
+    /// 1813a5ce0 on the edge of half-edge <paramref name="h"/>: an open edge is
+    /// hard, then the flags (bit 0 hard, bit 1 soft), then the smoothing angle:
+    /// its cosine + 1e-5 under the dot of the two faces' normals.
+    /// </summary>
+    private static bool Smooth(HalfEdgeMesh mesh, int h, float cos)
+    {
+        var t = mesh.He(h).Twin;
+        if (mesh.He(h).Face == HalfEdgeMesh.Null || mesh.He(t).Face == HalfEdgeMesh.Null)
+            return false;
+        var flags = mesh.He(h).Flags;
+        if ((flags & 1) != 0)
+            return false;
+        if ((flags & 2) != 0)
+            return true;
+        if (!(cos <= 0.99999f))
+            return false;
+        if (cos < 1e-5f)
+            return true;
+        var e = Math.Min(h, t);
+        var (n1, n2) = (FaceNormal(mesh, mesh.He(e).Face), FaceNormal(mesh, mesh.He(mesh.He(e).Twin).Face));
+        return cos + 1e-5f < (n1.Y * n2.Y) + (n1.Z * n2.Z) + (n1.X * n2.X);
+    }
+
+    /// <summary>
+    /// 1813850e0 for each corner at <paramref name="v"/>: corners turn about
+    /// the vertex (a corner to the twin of its next); the fan holding the
+    /// corner runs from the turn after the last hard edge up to the first,
+    /// and the corner's normal is the normalised sum of its faces' normals.
+    /// </summary>
+    private static void RecomputeNormals(HalfEdgeMesh mesh, int v, float cos, int at)
+    {
+        int Turn(int c) => mesh.He(mesh.He(c).Next).Twin;
+        var corners = new List<int>();
+        var start = mesh.Vertices[v].Out;
+        var o = start;
+        do
+        {
+            var t = mesh.He(o).Twin;
+            if (mesh.He(t).Face != HalfEdgeMesh.Null)
+                corners.Add(t);
+            o = mesh.He(t).Next;
+        }
+        while (o != start);
+        var normals = new List<(int Corner, Vector3 Normal)>();
+        foreach (var c0 in corners)
+        {
+            int s = c0, end = c0, c = c0;
+            var hard = false;
+            do
+            {
+                c = Turn(c);
+                if (!hard)
+                    end = c;
+                if (!Smooth(mesh, c, cos))
+                {
+                    hard = true;
+                    s = c;
+                }
+            }
+            while (c != c0);
+            float x = 0f, y = 0f, z = 0f;
+            var k = s;
+            do
+            {
+                if (mesh.He(k).Face != HalfEdgeMesh.Null)
+                {
+                    var n = FaceNormal(mesh, mesh.He(k).Face);
+                    x += n.X;
+                    y += n.Y;
+                    z += n.Z;
+                }
+                k = Turn(k);
+            }
+            while (k != end);
+            normals.Add((c0, NodeMeshEntries.Normalise(new Vector3(x, y, z))));
+        }
+        foreach (var (c0, n) in normals)
+        {
+            var d = (float[])mesh.He(c0).Data!.Clone();
+            (d[at], d[at + 1], d[at + 2]) = (n.X, n.Y, n.Z);
+            mesh.He(c0).Data = d;
+        }
     }
 
     // The patch-local grid coordinates of a quad's corners during the recursion.
@@ -334,18 +556,20 @@ internal static class SubdivisionBake
     /// of more than three corners is cut by <see cref="PolygonTriangulator"/>,
     /// its triangles together.
     /// </summary>
-    private static MeshTessellation.Result Export(HalfEdgeMesh mesh, bool withPaint, Func<Vector3, Vector3>? cutSpace)
+    private static MeshTessellation.Result Export(HalfEdgeMesh mesh, bool withPaint, Func<Vector3, Vector3>? cutSpace, bool withData)
     {
         var positions = new List<Vector3>();
         var indices = new List<int>();
         var faces = new List<int>();
         var paint = withPaint ? new List<Vector4>() : null;
         var written = new List<long>();
+        var data = withData ? new List<float[]>() : null;
         // Each baked vertex is its own, numbered as first met: two vertices at
         // one position stay two (the world mesh weld keeps vertices apart).
         var numbered = new Dictionary<int, int>();
-        void Corner(int v, Vector4 cornerPaint)
+        void Corner(int v, Vector4 cornerPaint, float[]? cornerData)
         {
+            data?.Add(cornerData ?? []);
             if (!numbered.TryGetValue(v, out var index))
             {
                 index = numbered[v] = positions.Count;
@@ -363,17 +587,17 @@ internal static class SubdivisionBake
             if (loop.Length == 3)
             {
                 foreach (var h in hs)
-                    Corner(mesh.He(h).Vertex, mesh.He(h).Paint);
+                    Corner(mesh.He(h).Vertex, mesh.He(h).Paint, mesh.He(h).Data);
                 faces.Add(source);
                 continue;
             }
             var corners = loop.Select(v => mesh.Vertices[v].Position);
             var cut = PolygonTriangulator.Triangulate([.. cutSpace == null ? corners : corners.Select(cutSpace)]);
             foreach (var j in cut)
-                Corner(loop[j], mesh.He(hs[j]).Paint);
+                Corner(loop[j], mesh.He(hs[j]).Paint, mesh.He(hs[j]).Data);
             for (var t = 0; t < cut.Length / 3; t++)
                 faces.Add(source);
         }
-        return new MeshTessellation.Result(positions, indices, faces) { Paint = paint, Written = written };
+        return new MeshTessellation.Result(positions, indices, faces) { Paint = paint, Written = written, CornerData = data };
     }
 }
