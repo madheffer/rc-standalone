@@ -198,6 +198,27 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   vertex), sorted and deduplicated, then a CVertexKDTree over them, and a
   job that inserts other meshes' points lying on each open edge and cuts
   the face again (18025b410; not ported yet).
+- **Subdivided meshes in the entries** (`MapMeshCorners`, baked path):
+  ConvertMeshForBuilder bakes subdivision first (1810c6520 ->
+  BakeSubdivisionForFaces), so a mesh with subdivided faces is exported
+  from the baked half-edge mesh. Every face-vertex stream rides the bake:
+  split edges lerp their corners (1813a54d0), each cell corner takes the
+  patch grid of every stream (1813c94f0), from subdivisionData's own grid
+  where it stores one (texcoord, VertexPaintBlendParams,
+  VertexPaintTintColor) and from the corner, side midpoints and mean
+  otherwise. The bake marks its new edges soft (AssignSmoothingModeToEdges
+  mode 2: flags & ~1 | 2; pieces split from them stay new) and 1810cddd0
+  recomputes every corner normal at the baked faces' vertices
+  (1813850e0): corners turn about the vertex to the twin of their next,
+  the fan runs between hard edges (open edges, flag bit 0, or face
+  normals whose dot is not above cos(smoothingAngle) + 1e-5; flag bit 1
+  soft), and the normal is the normalised sum of the fan's Newell face
+  normals. The texcoord island shift then runs on the baked mesh. On
+  atixref all 44 subdivided entries match in corner order, positions,
+  texcoords, paint, tint and normals (after the export's renormalisation);
+  tangents are open (GROUND_TRUTH 38). The second texcoord and
+  VertexPaintBlendParams are added only when some material of the mesh
+  reads LowPrecisionUv1 (538 of 560 atixref entries built, 512 exact).
 - **BuildNode:** bounds, static props, entries with +0x1a5 or attribute
   0x400000000 dropped, removal of triangles inside, T-junction cracks
   (on), optional baking, the merge (`WRBNode_MergeMeshes`, only without

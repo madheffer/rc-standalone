@@ -89,8 +89,9 @@ internal static class SubdivisionBake
             for (var k = 0; k < job.Corners.Length; k++)
                 job.Points[k] = Enumerable.Repeat(HalfEdgeMesh.Null, g * g).ToArray();
             Split(mesh, job.Face, job.Corners, job.Level, 0, job.Points, null, n);
-            // Each cell's corners take the patch's paint grid (1813c94f0 on the
-            // face-vertex stream), before the cells are cut.
+            // Each cell's corners take the patch's grids of paint and of every
+            // face-vertex stream (1813c94f0 writes them all), before the cells
+            // are cut.
             for (var k = 0; k < job.Corners.Length; k++)
             {
                 var grid = job.Points[k];
@@ -108,7 +109,9 @@ internal static class SubdivisionBake
                             {
                                 mesh.He(corner).Paint = job.Paints[k][i];
                                 if (job.Data != null)
+                                {
                                     mesh.He(corner).Data = job.Data[k][i];
+                                }
                             }
                         }
                     }

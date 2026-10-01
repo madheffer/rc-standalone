@@ -237,6 +237,9 @@ internal sealed class FaceArrays
         return points;
     }
 
+    /// <summary>Whether subdivisionData stores a grid for the face-vertex stream of this DMX name.</summary>
+    public bool HasGrid(string name) => gridStreams.TryGetValue(name, out var g) && g.Length > 0;
+
     public static float[] Floats(object? x) => x switch
     {
         Vector2 v => [v.X, v.Y],

@@ -479,6 +479,41 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             if (Environment.GetEnvironmentVariable("NODEENTRIES_SUBDIV_DUMP") is { } dump)
                 File.WriteAllLines(Path.Combine(dump, $"node{mesh.NodeId}.csv"), Enumerable.Range(0, valvePos.Count).Select(c =>
                     $"{bake.Faces[c / 3]},{string.Join(",", e0.Vertices.Skip(c * e0.Stride).Take(e0.Stride).Select(F))},{F(flat[c].X)},{F(flat[c].Y)},{F(flat[c].Z)}"));
+            // Tangents: the carried tangent orthogonalised against the
+            // renormalised normal, two ways, against Valve's.
+            {
+                int nAt = 0, tAt = 0, off = 0;
+                foreach (var (name, values) in fvd)
+                {
+                    var w = values.Length > 0 ? Floats(values[0]).Length : 0;
+                    if (name == "normal") nAt = off;
+                    if (name == "tangent") tAt = off;
+                    off += w;
+                }
+                var vt = Array.IndexOf(e0.Streams, "tangent");
+                if (vt >= 0)
+                {
+                    int gs = 0, cr = 0, raw = 0, cnt = Math.Min(valvePos.Count, bake.CornerData!.Count);
+                    string firstBad = "";
+                    for (var c = 0; c < cnt; c++)
+                    {
+                        var d = bake.CornerData[c];
+                        var n = NodeMeshEntries.Normalise(new System.Numerics.Vector3(d[nAt], d[nAt + 1], d[nAt + 2]));
+                        var t = new System.Numerics.Vector3(d[tAt], d[tAt + 1], d[tAt + 2]);
+                        var dot = (n.X * t.X) + (n.Y * t.Y) + (n.Z * t.Z);
+                        var g1 = NodeMeshEntries.Normalise(new System.Numerics.Vector3(t.X - (n.X * dot), t.Y - (n.Y * dot), t.Z - (n.Z * dot)));
+                        var v = new System.Numerics.Vector3((n.Y * t.Z) - (n.Z * t.Y), (n.Z * t.X) - (n.X * t.Z), (n.X * t.Y) - (n.Y * t.X));
+                        var g2 = NodeMeshEntries.Normalise(new System.Numerics.Vector3((v.Y * n.Z) - (v.Z * n.Y), (v.Z * n.X) - (v.X * n.Z), (v.X * n.Y) - (v.Y * n.X)));
+                        var want = new System.Numerics.Vector3(e0.Vertices[c * e0.Stride + e0.Layout[vt].First], e0.Vertices[c * e0.Stride + e0.Layout[vt].First + 1], e0.Vertices[c * e0.Stride + e0.Layout[vt].First + 2]);
+                        if (g1 == want) gs++;
+                        if (g2 == want) cr++;
+                        if (NodeMeshEntries.Normalise(t) == want) raw++;
+                        else if (firstBad.Length == 0 && g1 != want && g2 != want)
+                            firstBad = $" first corner {c}: carried {t} gs {g1} cross {g2} valve {want}";
+                    }
+                    output.WriteLine($"  tangent candidates: carried {raw}, gram-schmidt {gs}, cross {cr} of {cnt}{firstBad}");
+                }
+            }
             // Each carried stream against Valve's stream of that name (first occurrence).
             var at = 0;
             foreach (var (name, values) in fvd)

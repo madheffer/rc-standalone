@@ -132,6 +132,19 @@ game can answer is raised with the user first, and runs with -insecure.
     Next: dump_meshbuf's DMX against the captured entries, and a capture of
     HammerMesh_TransformToWorld's matrix and vectors.
 
+38. **Tangents of subdivided node entries** (MapMeshCorners' baked path):
+    positions, texcoords, paint, tint and normals of atixref's subdivided
+    entries are exact, tangents only where the faces are flat. On displaced
+    node 1370 even an original control corner's tangent is neither its
+    stored tangent, nor that orthogonalised against the recomputed normal,
+    nor rotated with it, nor a texcoord-gradient or MikkTSpace-style
+    tangent of the baked triangles; on walls the plain carried tangent is
+    right on one mesh (6778) and Gram-Schmidt helps another (1367). The
+    patch tangent grid 1813c2090 is only reached from Hammer's viewport and
+    sampling paths (18102f230, 1810c0d60). 24 of 538 atixref entries differ
+    by tangents alone. Next: a capture of the half-edge mesh's tangent
+    stream after BakeSubdivisionForFaces and after ConvertMeshForBuilder.
+
 ## Resolved
 
 - **Static prop aggregates' meshlet cones** (ledger 36): the cone is
