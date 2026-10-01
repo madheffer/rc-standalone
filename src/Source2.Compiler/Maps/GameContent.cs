@@ -195,6 +195,13 @@ public class GameContent : SettleWorld.IModels, IDisposable
         return _renderMeshes[model] = meshes;
     }
 
+    /// <summary>The loaded model resource (null when missing), for its render meshes.</summary>
+    public ValveResourceFormat.ResourceTypes.Model? LoadedModel(string model)
+    {
+        Physics(model);
+        return _models.GetValueOrDefault(model);
+    }
+
     /// <summary>A smart prop definition's compiled data (.vsmart_c), from loose files or the paks.</summary>
     public ValveKeyValue.KVObject? SmartProp(string file)
     {
