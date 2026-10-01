@@ -486,6 +486,21 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             if (Environment.GetEnvironmentVariable("NODEENTRIES_SUBDIV_DUMP") is { } dump)
                 File.WriteAllLines(Path.Combine(dump, $"node{mesh.NodeId}.csv"), Enumerable.Range(0, valvePos.Count).Select(c =>
                     $"{bake.Faces[c / 3]},{string.Join(",", e0.Vertices.Skip(c * e0.Stride).Take(e0.Stride).Select(F))},{F(flat[c].X)},{F(flat[c].Y)},{F(flat[c].Z)}"));
+            // Tangents from MeshTangents over Valve's own positions, normals and first texcoord.
+            {
+                int ti = Array.IndexOf(e0.Streams, "tangent"), ni = Array.IndexOf(e0.Streams, "normal"), ui = Array.IndexOf(e0.Streams, "texcoord");
+                if (ti >= 0 && ni >= 0 && ui >= 0)
+                {
+                    var cnt = e0.Vertices.Length / e0.Stride;
+                    System.Numerics.Vector3 V3(int k, int at) => new(e0.Vertices[(k * e0.Stride) + at], e0.Vertices[(k * e0.Stride) + at + 1], e0.Vertices[(k * e0.Stride) + at + 2]);
+                    var tg = MeshTangents.Corners([.. Enumerable.Range(0, cnt).Select(k => V3(k, 0))], [.. Enumerable.Range(0, cnt).Select(k => V3(k, e0.Layout[ni].First))],
+                        [.. Enumerable.Range(0, cnt).Select(k => new System.Numerics.Vector2(e0.Vertices[(k * e0.Stride) + e0.Layout[ui].First], e0.Vertices[(k * e0.Stride) + e0.Layout[ui].First + 1]))],
+                        e0.Indices);
+                    var tf = e0.Layout[ti].First;
+                    var sameT = Enumerable.Range(0, e0.Indices.Length).Count(c => tg[c] == new System.Numerics.Vector4(e0.Vertices[(e0.Indices[c] * e0.Stride) + tf], e0.Vertices[(e0.Indices[c] * e0.Stride) + tf + 1], e0.Vertices[(e0.Indices[c] * e0.Stride) + tf + 2], e0.Vertices[(e0.Indices[c] * e0.Stride) + tf + 3]));
+                    output.WriteLine($"  MeshTangents on valve's data: {sameT} of {e0.Indices.Length} corners");
+                }
+            }
             // Tangents: the carried tangent orthogonalised against the
             // renormalised normal, two ways, against Valve's.
             {

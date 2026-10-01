@@ -258,4 +258,41 @@ public class OverlayCaptureProbe(ITestOutputHelper output)
         output.WriteLine($"{projected.Count(p => !p.Empty)} projections: {exact} exact, {sameCount} with the same point count, {none} without an overlay");
         output.WriteLine(string.Join(", ", tally.Select(kv => $"{kv.Key} {kv.Value}")));
     }
+
+    /// <summary>
+    /// The whole pass from the .vmap (<see cref="NodeOverlays.FromWorld"/>
+    /// and <see cref="NodeOverlays.Project"/>) over the captured entries at
+    /// Step25ece0's input, against Valve's projections with a mesh, in order
+    /// (<c>OVERLAYS</c>, <c>OVERLAYS_VMAP</c>, <c>NODEENTRIES</c>).
+    /// </summary>
+    [Fact]
+    public void WholePass()
+    {
+        if (Environment.GetEnvironmentVariable("OVERLAYS") is not { } path || Environment.GetEnvironmentVariable("OVERLAYS_VMAP") is not { } vmap
+            || Environment.GetEnvironmentVariable("NODEENTRIES") is not { } entriesPath)
+            return;
+        var (valveOverlays, projected, nodes) = Read(path);
+        var entries = NodeEntriesFromVmap.Read(entriesPath).Where(c => c.Stage == "Step25ece0:in").ToList();
+        var targets = entries.Select(e => new NodeOverlays.Target(e.Vertices, e.Stride, [.. e.Layout.Select(x => new Physics.MeshWeld.Stream(x.Name, x.First, x.Count, false, x.Type))],
+            e.Indices, [.. Enumerable.Range(0, 12).Select(k => BitConverter.ToSingle(e.Raw, 0x1c8 + (k * 4)))], e.Raw[0x1a0] != 0 ? 2 : 1,
+            BitConverter.ToInt32(e.Raw, 0x40), BitConverter.ToUInt64(e.Raw, 0x1b0))).ToList();
+        var descriptors = NodeOverlays.FromWorld(DmxBinary.ReadFile(vmap));
+        var intOk = descriptors.Zip(valveOverlays).Count(z => z.First.IntegerData == BitConverter.ToInt32(z.Second.Raw, 0x60));
+        var ours = NodeOverlays.Project(descriptors, targets);
+        var valve = projected.Where(p => !p.Empty).ToList();
+        var meshIndex = nodes[0].Select((m, i) => (m, i)).ToDictionary(x => x.m, x => x.i);
+        output.WriteLine($"integer data {intOk} of {descriptors.Count}; ours {ours.Count} meshes, valve {valve.Count}");
+        int same = 0, shown = 0;
+        for (var k = 0; k < Math.Min(ours.Count, valve.Count); k++)
+        {
+            var (o, v) = (ours[k], valve[k]);
+            var ok = o.Target == meshIndex[v.Target] && o.Mesh.Stride == v.Stride
+                     && o.Mesh.Vertices.Select(BitConverter.SingleToInt32Bits).SequenceEqual(v.Vertices.Select(BitConverter.SingleToInt32Bits));
+            if (ok)
+                same++;
+            else if (shown++ < 5)
+                output.WriteLine($"  {k}: ours overlay {o.Overlay} target {o.Target} ({o.Mesh.Vertices.Length / o.Mesh.Stride} v), valve target {meshIndex[v.Target]} ({v.Vertices.Length / v.Stride} v)");
+        }
+        output.WriteLine($"{same} meshes exact in order");
+    }
 }
