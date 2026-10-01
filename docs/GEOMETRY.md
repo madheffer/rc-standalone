@@ -239,11 +239,19 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   1 - v about 1 by the column length the material's
   TexCoordScaleByModelU/V name (g_nScaleTexCoord*ByModelScaleAxis - 1), so
   even unscaled texcoords pass through 1 - (0 + ((1 - v) - 1) * 1 + 1).
-  atixref: all 102 entries (50037 vertices) exact in every stream and in
-  their indices. Not ported yet: which props and draw calls make entries,
-  their order, and the per-entry fields (`WRBNode_PropEntry`); a material
-  with NeedsLocalSpaceVertices (csgo_simple_liquid; csgo_foliage with
-  foliage animation and no vertex animation) leaves its prop untransformed.
+  `NodePropEntries` builds them from the .vmap: props with baketoworld or
+  a non-uniform scale; ordered by model path, a model's props last to first
+  in the walk, a prop's draw calls in order; the id the prop's node id or,
+  for an instance copy, the copy's; the skin key remapping materials
+  through the model's material groups. atixref: all 102 entries (50037
+  vertices) exact from the .vmap in order, id, material, every stream and
+  the indices (`PropEntriesProbe.BuiltFromVmap`). The materialoverride key
+  does not bake a prop (14 atixref props carry one, none baked), so the
+  record's +0x40 list is something else. Not ported: the per-entry fields
+  (`WRBNode_PropEntry`), the clutter, +0x40, deformer, extra-stream and
+  +0x17c triggers, and csgo_foliage's NeedsLocalSpaceVertices rule (only
+  with foliage animation and no vertex animation; such a prop stays in
+  model space, as csgo_simple_liquid's always does).
 - **BuildNode:** bounds, static props, entries with +0x1a5 or attribute
   0x400000000 dropped, removal of triangles inside, T-junction cracks
   (on), optional baking, the merge (`WRBNode_MergeMeshes`, only without

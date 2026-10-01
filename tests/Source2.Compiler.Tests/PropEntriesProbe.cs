@@ -73,6 +73,19 @@ public class PropEntriesProbe(ITestOutputHelper output)
                             if (lo + nv > positions.Length || Place(positions[lo]) != first)
                                 continue;
                             found = true;
+                            {
+                                var callOrdinal = 0;
+                                foreach (var so2 in mesh.Data.GetArray("m_sceneObjects"))
+                                    foreach (var c2 in so2.GetArray("m_drawCalls"))
+                                    {
+                                        if (ReferenceEquals(c2, call))
+                                            goto counted;
+                                        callOrdinal++;
+                                    }
+                                counted:
+                                var raw = entry.Raw;
+                                output.WriteLine($"ORDER ent {candidates.IndexOf(ent)} node {el.GetValue<int>("nodeID")} inst [{string.Join(",", ent.Instances)}] {Path.GetFileNameWithoutExtension(modelName)} mesh {index} call {callOrdinal} | id {BitConverter.ToInt32(raw, 0x40)} 98:{raw[0x98]} c0:{raw[0xc0]:x} 1a0:{raw[0x1a0]} 1a4:{raw[0x1a4]} 1a5:{raw[0x1a5]} attr {BitConverter.ToUInt64(raw, 0x1b0):x}");
+                            }
                             var exact = Enumerable.Range(0, nv).Count(k => Place(positions[lo + k]) == new Vector3(entry.Vertices[k * entry.Stride], entry.Vertices[(k * entry.Stride) + 1], entry.Vertices[(k * entry.Stride) + 2]));
                             var indicesSame = entry.Indices.SequenceEqual(Enumerable.Range(start, count).Select(i => Index(i) + bas - lo));
                             // Stream candidates, counted over the whole entry.
@@ -154,7 +167,65 @@ public class PropEntriesProbe(ITestOutputHelper output)
             if (!found)
                 output.WriteLine($"entry {Path.GetFileName(entry.Material)} id {BitConverter.ToInt32(entry.Raw, 0x40)}: no draw call found for {first}");
         }
+        {
+            var models = candidates.Select(c => c.Element.Get<DmxBinary.Element>("entity_properties")!.Get<string>("model") ?? "").ToList();
+            foreach (var name in new[] { "interior_curtain_2", "italy_wood_door_2", "italy_windowkit01_window02_a", "italy_door_shutter_02", "italy_window_shutter_02", "inferno_doorframe_02_56_a", "inferno_stone_trim_block_01", "inferno_stone_trim_block_02", "inferno_stone_trim_block_03", "inferno_stone_trim_block_04", "tile_set_a", "metal_pipe_001b_straight_32", "web_joist_support_001_horizontal_64" })
+            {
+                var hits = Enumerable.Range(0, models.Count).Where(i => Path.GetFileNameWithoutExtension(models[i]) == name).ToList();
+                output.WriteLine($"FIRST {name}: first {hits.FirstOrDefault()} last {hits.LastOrDefault()} count {hits.Count} path {models[hits[0]]}");
+            }
+            var distinct = models.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            output.WriteLine($"DISTINCT ascending: {string.Join(" ", distinct.Select((m, i) => (m, i)).Where(x => x.m.Contains("curtain_2") || x.m.Contains("wood_door_2") || x.m.Contains("window02_a") || x.m.Contains("door_shutter_02") || x.m.Contains("window_shutter_02") || x.m.Contains("doorframe_02_56") || x.m.Contains("trim_block") || x.m.Contains("tile_set_a") || x.m.Contains("pipe_001b_straight_32") || x.m.Contains("joist_support_001_horizontal_64")).Select(x => $"{x.i}:{Path.GetFileNameWithoutExtension(x.m)}"))}");
+        }
         output.WriteLine($"TOTAL {vertices} vertices: {string.Join(", ", total.Select(kv => $"{kv.Key} {kv.Value}"))}");
+    }
+
+    /// <summary>
+    /// <see cref="NodePropEntries"/> from the .vmap against the prop entries
+    /// captured at Step256690's input after the world's (<c>NODEENTRIES</c>,
+    /// <c>NODEENTRIES_VMAP</c>): count, order, id, material, streams, every
+    /// vertex float bit for bit, and the indices.
+    /// </summary>
+    [Fact]
+    public void BuiltFromVmap()
+    {
+        if (Environment.GetEnvironmentVariable("NODEENTRIES") is not { } path || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap
+            || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var all = NodeEntriesFromVmap.Read(path);
+        var world = all.Count(c => c.Stage == "BuildNode:in");
+        var valve = all.Where(c => c.Stage == "Step256690:in").Skip(world).ToList();
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
+        var notes = new List<string>();
+        var ours = NodePropEntries.FromWorld(DmxBinary.ReadFile(vmap), content, notes);
+        foreach (var note in notes.Distinct())
+            output.WriteLine($"note: {note}");
+        output.WriteLine($"{ours.Count} ours, {valve.Count} Valve's");
+        var exact = 0;
+        for (var i = 0; i < Math.Min(ours.Count, valve.Count); i++)
+        {
+            var (o, v) = (ours[i], valve[i]);
+            var problems = new List<string>();
+            if (o.NodeId != BitConverter.ToInt32(v.Raw, 0x40))
+                problems.Add($"id {o.NodeId} vs {BitConverter.ToInt32(v.Raw, 0x40)}");
+            if (!string.Equals(o.Material, v.Material, StringComparison.OrdinalIgnoreCase))
+                problems.Add($"material {o.Material} vs {v.Material}");
+            if (!o.Streams.Select(x => (x.Name, x.First, x.Count, x.Type)).SequenceEqual(v.Layout.Select(x => (x.Name, x.First, x.Count, x.Type))))
+                problems.Add("streams");
+            if (!o.Vertices.Select(BitConverter.SingleToInt32Bits).SequenceEqual(v.Vertices.Select(BitConverter.SingleToInt32Bits)))
+                problems.Add("vertices");
+            if (!o.Indices.SequenceEqual(v.Indices))
+                problems.Add("indices");
+            if (problems.Count == 0)
+                exact++;
+            else
+                output.WriteLine($"entry {i} {Path.GetFileName(v.Material)}: {string.Join(", ", problems)}");
+        }
+        output.WriteLine($"{exact} exact");
+        Assert.Equal(valve.Count, ours.Count);
+        Assert.Equal(valve.Count, exact);
     }
 
     private static Vector2 TexcoordOf(ValveResourceFormat.Blocks.VBIB.OnDiskBufferData vb, ValveResourceFormat.Blocks.VBIB.RenderInputLayoutField f, int vertex)
