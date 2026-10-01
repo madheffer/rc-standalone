@@ -31,9 +31,9 @@ CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
 # resourcecompiler.dll 2026-09-23 (unchanged through the 09-25 patch).
-STEPS = [(0x24b400, "BuildNode", 1), (0x256690, "Step256690", 0), (0x257b50, "Step257b50", 0),
-         (0x259b00, "RemoveInside", 0), (0x259d30, "FixTJunctions", 0), (0x25ece0, "Step25ece0", 0),
-         (0x25d500, "Step25d500", 0)]
+STEPS = [(0x24b430, "BuildNode", 1), (0x2566c0, "Step256690", 0), (0x257b80, "Step257b50", 0),
+         (0x259b30, "RemoveInside", 0), (0x259d60, "FixTJunctions", 0), (0x25ed10, "Step25ece0", 0),
+         (0x25d530, "Step25d500", 0)]
 
 AGENT = r"""
 'use strict';
@@ -75,6 +75,7 @@ function hook() {
   if (mod === null) { setTimeout(hook, 5); return; }
   send({ev: 'hooked'});
   for (const [rva, name, arg] of STEPS) {
+    try {
     Interceptor.attach(mod.base.add(rva), {
       onEnter(args) {
         this.node = args[arg];
@@ -85,6 +86,9 @@ function hook() {
         dumpEntries(this.node, name + ':out', this.call);
       }
     });
+    } catch (e) {
+      send({ev: 'hookfailed', name: name, error: e.toString()});
+    }
   }
 }
 hook();
@@ -139,6 +143,8 @@ def main():
     if not a.full:
         argv += ["-world", "-fshallow"]
     dev = frida.get_local_device()
+    rc_log = open(out_path + ".rc.log", "wb")
+    dev.on("output", lambda _pid, _fd, data: rc_log.write(data or b""))
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
     sc = ses.create_script(AGENT % {"steps": json.dumps(STEPS)})
@@ -152,7 +158,11 @@ def main():
         if running("cs2.exe"):
             subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
             killed = True
+    # Restore only once no compile can still write the package.
+    while running("resourcecompiler.exe"):
+        threading.Event().wait(2)
     out.close()
+    rc_log.close()
     print(out_path, stats, "(killed: cs2 started)" if killed else "")
 
     # The compile's own package goes beside the capture: its node models are

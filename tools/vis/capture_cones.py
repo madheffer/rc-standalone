@@ -28,8 +28,8 @@ import frida
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
-# resourcecompiler.dll 2026-09-23 (unchanged through the 09-25 patch).
-BOUNDS_RVA = 0x12bd110
+# resourcecompiler.dll 2026-10-01 (the 09-23 build +0x370; tools/re/tracked_rvas.json).
+BOUNDS_RVA = 0x12bd480
 
 AGENT = r"""
 'use strict';

@@ -169,7 +169,20 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("NODEENTRIES") is not { } path || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap)
             return;
         var valve = Read(path).Where(c => c.Stage == "BuildNode:in").ToList();
-        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap));
+        if (CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
+        var signatures = new Dictionary<string, IReadOnlyCollection<string>>(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyCollection<string> Signature(string material)
+        {
+            if (!signatures.TryGetValue(material, out var sig))
+                signatures[material] = sig = content.Read(material + "_c") is { } b
+                    ? [.. Source2.Compiler.MaterialAuthor.ExtractInputSignature(b).Select(x => x.Semantic)] : [];
+            return sig;
+        }
+        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap), signature: Signature);
         var problems = new List<string>();
         if (ours.Count != valve.Count)
             problems.Add($"{ours.Count} entries, valve {valve.Count}");
@@ -188,10 +201,224 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             if (diff > 0)
                 problems.Add($"entry {i} {Path.GetFileName(o.Material)} node {o.NodeId}: {diff} floats differ");
         }
+        // Aligned by material and corner positions, for maps where some entries are missing.
+        var byKey = ours.Select((o, i) => (o, i)).GroupBy(x => (x.o.Material.ToLowerInvariant(), string.Join(";", Positions(x.o.Vertices, x.o.Stride))))
+            .ToDictionary(g => g.Key, g => g.Select(x => x.i).ToList());
+        int aligned = 0, alignedExact = 0, unmatched = 0;
+        var floatDiffs = new SortedDictionary<string, int>();
+        foreach (var e in valve)
+        {
+            if (!byKey.TryGetValue((e.Material.ToLowerInvariant(), string.Join(";", Positions(e.Vertices, e.Stride))), out var idx) || idx.Count == 0)
+            {
+                unmatched++;
+                continue;
+            }
+            var o = ours[idx[0]];
+            idx.RemoveAt(0);
+            aligned++;
+            if (o.Stride != e.Stride)
+            {
+                floatDiffs["stride"] = floatDiffs.GetValueOrDefault("stride") + 1;
+                continue;
+            }
+            var pvl2 = o.Streams.Where(x => x.Name == "PerVertexLighting").Select(x => (First: x.First, Count: x.Count)).FirstOrDefault((First: -1, Count: 0));
+            var bad = Enumerable.Range(0, o.Vertices.Length).Where(k => (k % o.Stride < pvl2.First || k % o.Stride >= pvl2.First + pvl2.Count)
+                && BitConverter.SingleToInt32Bits(o.Vertices[k]) != BitConverter.SingleToInt32Bits(e.Vertices[k])).ToList();
+            if (bad.Count == 0 && o.Indices.SequenceEqual(e.Indices))
+                alignedExact++;
+            else
+            {
+                var stream = bad.Count == 0 ? "indices" : o.Streams.Last(x => x.First <= bad[0] % o.Stride).Name;
+                if (bad.Count > 0 && Environment.GetEnvironmentVariable("NODEENTRIES_ALLDIFFS") == "1")
+                    foreach (var k in bad)
+                    {
+                        var st = o.Streams.Last(x => x.First <= k % o.Stride);
+                        var c = k / o.Stride;
+                        string Z(float x) => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                        output.WriteLine($"  diff {Path.GetFileName(e.Material)} node {o.NodeId} float {k % o.Stride}: ours {Z(o.Vertices[k])} valve {Z(e.Vertices[k])}; stored {st.Name} {string.Join(",", o.Stored.Skip(c * o.Stride + st.First).Take(3).Select(Z))}; turn {string.Join(" ", o.Turn.Select(Z))}");
+                    }
+                if (bad.Count > 0 && floatDiffs.GetValueOrDefault(stream) < 2)
+                {
+                    var c = bad[0] / o.Stride;
+                    var st = o.Streams.Last(x => x.First <= bad[0] % o.Stride);
+                    output.WriteLine($"  {Path.GetFileName(e.Material)} node {o.NodeId} corner {c} {st.Name}: ours {string.Join(",", o.Vertices.Skip(c * o.Stride + st.First).Take(st.Count).Select(x => x.ToString("R")))} valve {string.Join(",", e.Vertices.Skip(c * e.Stride + st.First).Take(st.Count).Select(x => x.ToString("R")))}");
+                }
+                floatDiffs[stream] = floatDiffs.GetValueOrDefault(stream) + 1;
+            }
+        }
+        output.WriteLine($"aligned {aligned} of {valve.Count} valve entries ({unmatched} without a piece with the same corners), {alignedExact} exact; first differing stream: {string.Join(", ", floatDiffs.Select(kv => $"{kv.Key} {kv.Value}"))}");
         output.WriteLine($"{ours.Count} entries, {problems.Count} problems");
         foreach (var p in problems.Take(20))
             output.WriteLine("  " + p);
         Assert.Empty(problems);
+    }
+
+    /// <summary>Exploration (<c>NODEENTRIES_STREAMS=1</c>): each world mesh's faceVertexData stream list, tallied.</summary>
+    [Fact]
+    public void VmapStreamLists()
+    {
+        if (Environment.GetEnvironmentVariable("NODEENTRIES_STREAMS") != "1" || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap)
+            return;
+        var tally = new SortedDictionary<string, int>();
+        foreach (var mesh in MapMeshes.Read(DmxBinary.ReadFile(vmap)).Where(m => m.Element != null && !m.Hidden && m.ParentType == "CMapWorld"))
+        {
+            var key = string.Join(" ", mesh.Element!.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("faceVertexData")!.GetElements("streams").Select(s => s.Name));
+            var sub = mesh.Element.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("subdivisionData") is { } sd && (sd.GetElements("streams").Any()) ? " +subdiv" : "";
+            tally[key + sub] = tally.GetValueOrDefault(key + sub) + 1;
+        }
+        foreach (var (k, v) in tally)
+            output.WriteLine($"{v,5} {k}");
+    }
+
+    /// <summary>
+    /// Exploration (<c>NODEENTRIES_INSG=1</c> with <c>NODEENTRIES</c>): each
+    /// captured entry's stream layout beside its material's INSG and the
+    /// .vmap mesh's own streams, tallied.
+    /// </summary>
+    [Fact]
+    public void LayoutAgainstInputSignature()
+    {
+        if (Environment.GetEnvironmentVariable("NODEENTRIES_INSG") != "1" || Environment.GetEnvironmentVariable("NODEENTRIES") is not { } path
+            || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
+        var valve = Read(path).Where(c => c.Stage == "BuildNode:in").ToList();
+        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap));
+        var tally = new SortedDictionary<string, int>();
+        for (var i = 0; i < valve.Count; i++)
+        {
+            var e = valve[i];
+            var bytes = content.Read(e.Material + "_c");
+            var insg = bytes == null ? "(no vmat_c)" : string.Join(",", Source2.Compiler.MaterialAuthor.ExtractInputSignature(bytes)
+                .Select(x => x.Semantic).Where(x => x is not ("PosXyz" or "Normal" or "Tangent" or "LowPrecisionUv")).Distinct());
+            var match = ours.FirstOrDefault(o => string.Equals(o.Material, e.Material, StringComparison.OrdinalIgnoreCase)
+                                                 && o.Vertices.Length / o.Stride == e.Vertices.Length / e.Stride);
+            var vmapStreams = match is null ? "?" : string.Join(" ", match.Streams.Skip(1).Select(x => x.Name));
+            var key = $"valve [{string.Join(" ", e.Streams.Skip(1))}] | vmap [{vmapStreams}] | insg [{insg}]";
+            tally[key] = tally.GetValueOrDefault(key) + 1;
+        }
+        foreach (var (k, v) in tally)
+            output.WriteLine($"{v,4} {k}");
+
+        // Per mesh: the union of its materials' signatures against the layout
+        // Valve gave its pieces.
+        string[] Insg(string material) => content.Read(material + "_c") is { } b
+            ? [.. Source2.Compiler.MaterialAuthor.ExtractInputSignature(b).Select(x => x.Semantic)] : [];
+        var byNode = ours.GroupBy(o => o.NodeId).ToList();
+        int agree = 0, disagree = 0;
+        foreach (var g in byNode)
+        {
+            var union = g.SelectMany(o => Insg(o.Material)).ToHashSet();
+            var predicted = new List<string> { "texcoord" };
+            if (union.Contains("LowPrecisionUv1")) predicted.Add("texcoord");
+            var layouts = g.Select(o => valve.FirstOrDefault(e => string.Equals(e.Material, o.Material, StringComparison.OrdinalIgnoreCase)
+                                                              && e.Vertices.Length / e.Stride == o.Vertices.Length / o.Stride))
+                          .Where(e => e != null).Select(e => string.Join(" ", e!.Streams.Skip(1))).Distinct().ToList();
+            if (layouts.Count == 0)
+                continue;
+            var v = layouts[0];
+            var ok = v.Contains("texcoord texcoord") == union.Contains("LowPrecisionUv1")
+                     && v.Contains("VertexPaintTintColor") == union.Contains("VertexPaintTintColor")
+                     && v.Contains("VertexPaintBlendParams") == union.Contains("VertexPaintBlendParams");
+            if (ok) agree++;
+            else
+            {
+                disagree++;
+                if (disagree <= 8)
+                    output.WriteLine($"node {g.Key}: valve [{string.Join(" | ", layouts)}], union has uv1 {union.Contains("LowPrecisionUv1")} tint {union.Contains("VertexPaintTintColor")} blend {union.Contains("VertexPaintBlendParams")}; materials {string.Join(",", g.Select(o => Path.GetFileNameWithoutExtension(o.Material)).Distinct())}");
+            }
+            if (layouts.Count > 1)
+                output.WriteLine($"node {g.Key}: pieces with different layouts {string.Join(" | ", layouts)}");
+        }
+        output.WriteLine($"per mesh: {agree} agree with the union rule, {disagree} do not");
+        var byShader = new SortedDictionary<string, int>();
+        foreach (var e in valve)
+        {
+            var shader = content.Material(e.Material)?.Shader ?? "?";
+            var k = $"{Path.GetFileName(shader)}: {string.Join(" ", e.Streams.Skip(4))}";
+            byShader[k] = byShader.GetValueOrDefault(k) + 1;
+        }
+        foreach (var (k, v) in byShader)
+            output.WriteLine($"  shader {v,4} {k}");
+
+        // Matched by exact corner positions: the mesh's own .vmap streams.
+        var doc = DmxBinary.ReadFile(vmap);
+        var meshes = MapMeshes.Read(doc).Where(m => m.Element != null && !m.Hidden && m.ParentType == "CMapWorld").ToDictionary(m => m.NodeId);
+        var byPos = ours.GroupBy(o => (o.Material.ToLowerInvariant(), string.Join(";", Positions(o.Vertices, o.Stride)))).ToDictionary(g => g.Key, g => g.First());
+        var rule = new SortedDictionary<string, int>();
+        foreach (var e in valve)
+        {
+            var key = (e.Material.ToLowerInvariant(), string.Join(";", Positions(e.Vertices, e.Stride)));
+            if (!byPos.TryGetValue(key, out var o))
+            {
+                rule["(no positional match)"] = rule.GetValueOrDefault("(no positional match)") + 1;
+                continue;
+            }
+            var own = string.Join(" ", meshes[o.NodeId].Element!.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("faceVertexData")!.GetElements("streams").Select(x => x.Name.Split(':')[0] + x.Name.Split(':')[1]));
+            var sig = Insg(e.Material);
+            var info = content.Material(e.Material);
+            var k = $"valve [{string.Join(" ", e.Streams.Skip(1))}] <- vmap [{own}] | {Path.GetFileName(info?.Shader ?? "?")} uv1 {sig.Contains("LowPrecisionUv1")} blend {sig.Contains("VertexPaintBlendParams")} tint {sig.Contains("VertexPaintTintColor")}";
+            rule[k] = rule.GetValueOrDefault(k) + 1;
+        }
+        foreach (var (k, v) in rule)
+            output.WriteLine($"  pos {v,4} {k}");
+
+        // The candidate rule, per mesh.
+        int ruleOk = 0, ruleBad = 0;
+        foreach (var e in valve)
+        {
+            var key = (e.Material.ToLowerInvariant(), string.Join(";", Positions(e.Vertices, e.Stride)));
+            if (!byPos.TryGetValue(key, out var o))
+                continue;
+            var own = meshes[o.NodeId].Element!.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("faceVertexData")!.GetElements("streams")
+                .Select(x => x.Name.Split(':')[0]).ToList();
+            var mats = ours.Where(x => x.NodeId == o.NodeId).Select(x => x.Material).Distinct().ToList();
+            var needs = mats.SelectMany(Insg).ToHashSet();
+            var blend = own.Contains("VertexPaintBlendParams") || needs.Contains("LowPrecisionUv1") || needs.Contains("VertexPaintBlendParams");
+            var predicted = new List<string>(own);
+            if (blend && own.Count(x => x == "texcoord") < 2)
+                predicted.Insert(predicted.IndexOf("texcoord") + 1, "texcoord");
+            if (blend && !predicted.Contains("VertexPaintBlendParams"))
+                predicted.Add("VertexPaintBlendParams");
+            if (string.Join(" ", predicted) == string.Join(" ", e.Streams.Skip(1)))
+                ruleOk++;
+            else if (ruleBad++ < 6)
+                output.WriteLine($"  rule miss node {o.NodeId} {Path.GetFileName(e.Material)}: predicted [{string.Join(" ", predicted)}] valve [{string.Join(" ", e.Streams.Skip(1))}]; mesh materials {string.Join(",", mats.Select(Path.GetFileNameWithoutExtension))}");
+        }
+        output.WriteLine($"  rule: {ruleOk} entries right, {ruleBad} wrong");
+    }
+
+    /// <summary>Exploration (<c>NODEENTRIES_ZERO=node:corner,...</c>): a corner's stored tangent and normal, the node's angles and matrices.</summary>
+    [Fact]
+    public void SignedZeros()
+    {
+        if (Environment.GetEnvironmentVariable("NODEENTRIES_ZERO") is not { } spec || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap)
+            return;
+        var meshes = MapMeshes.Read(DmxBinary.ReadFile(vmap)).Where(m => m.Element != null).GroupBy(m => m.NodeId).ToDictionary(g => g.Key, g => g.First());
+        string F(IEnumerable<float> a) => string.Join(" ", a.Select(x => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("G4", System.Globalization.CultureInfo.InvariantCulture)));
+        foreach (var item in spec.Split(','))
+        {
+            var parts = item.Split(':');
+            var node = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+            var corner = int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+            if (!meshes.TryGetValue(node, out var m))
+            {
+                output.WriteLine($"node {node}: not a mesh");
+                continue;
+            }
+            output.WriteLine($"node {node} angles {m.Angles} origin {m.Origin} instances {m.Instances.Length} parent {m.ParentType}");
+            output.WriteLine($"  local {F(MapMeshes.Local(m.Element!))}");
+            output.WriteLine($"  world {F(m.World)}");
+            foreach (var piece in MapMeshCorners.Build(m.Element!, true, null, withTangent: true))
+            {
+                if (corner * piece.Stride >= piece.Vertices.Length)
+                    continue;
+                var stored = piece.Vertices.Skip(corner * piece.Stride).Take(piece.Stride).ToArray();
+                output.WriteLine($"  piece material {piece.Material} corner {corner}: normal {F(stored.Skip(5).Take(3))} tangent {F(stored.Skip(8).Take(4))}");
+            }
+        }
     }
 
     static readonly List<float[]> Raw = [];

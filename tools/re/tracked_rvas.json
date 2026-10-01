@@ -182,6 +182,76 @@
    "rva": "0xd3f40",
    "script": "tools/physics/capture_convex.py",
    "use": "QuickHull build: a convex piece's hull input"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x2341b0",
+   "script": "tools/vis/capture_meshmerge.py",
+   "use": "MERGE_RVA: CVisibilityMeshMerger::MergeMeshes"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x2b63e0",
+   "script": "tools/vis/capture_meshmerge.py",
+   "use": "CANMERGE_RVA: WRBMeshEntry_CanMerge"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x12bd480",
+   "script": "tools/vis/capture_cones.py",
+   "use": "BOUNDS_RVA: meshopt computeMeshletBounds"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x24b430",
+   "script": "tools/vis/capture_nodeentries.py",
+   "use": "STEPS: BuildNode"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x2566c0",
+   "script": "tools/vis/capture_nodeentries.py",
+   "use": "STEPS: Step256690"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x257b80",
+   "script": "tools/vis/capture_nodeentries.py",
+   "use": "STEPS: Step257b50"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x259b30",
+   "script": "tools/vis/capture_nodeentries.py",
+   "use": "STEPS: Step_RemovingTrianglesInside"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x259d60",
+   "script": "tools/vis/capture_nodeentries.py",
+   "use": "STEPS: FixTJunctionEdgeCracks"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x25ed10",
+   "script": "tools/vis/capture_nodeentries.py",
+   "use": "STEPS: Step25ece0"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x25d530",
+   "script": "tools/vis/capture_nodeentries.py",
+   "use": "STEPS: Step25d500"
   }
  ]
 }

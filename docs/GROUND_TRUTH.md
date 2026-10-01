@@ -123,6 +123,15 @@ game can answer is raised with the user first, and runs with -insecure.
 20. The vmat_c field order note ("likely NTRO positional"): the order is
     measured; the loader's reason is not read.
 
+37. **Signed zeros in node entry normals** (NodeMeshEntries): turning by
+    the node's own matrix plus zero times the translation gives probe01's 18
+    and cardtest's 20 BuildNode entries exactly, but 16 atixref corners hold
+    a -0 where ours is +0 (or the reverse) in a normal or tangent component.
+    Valve's rotation call site and Matrix3x4_Rotate are read and plain; the
+    sign comes from the DMX round trip or the renormalisation (not read).
+    Next: dump_meshbuf's DMX against the captured entries, and a capture of
+    HammerMesh_TransformToWorld's matrix and vectors.
+
 ## Resolved
 
 - **Static prop aggregates' meshlet cones** (ledger 36): the cone is

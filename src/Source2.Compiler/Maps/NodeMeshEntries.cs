@@ -19,11 +19,22 @@ namespace Source2.Compiler.Maps;
 /// </summary>
 internal static class NodeMeshEntries
 {
-    public sealed record Entry(int NodeId, string Material, int Stride, IReadOnlyList<Physics.MeshWeld.Stream> Streams, float[] Vertices, int[] Indices);
+    public sealed record Entry(int NodeId, string Material, int Stride, IReadOnlyList<Physics.MeshWeld.Stream> Streams, float[] Vertices, int[] Indices)
+    {
+        /// <summary>The corners before the world move, for diagnosis.</summary>
+        public float[] Stored { get; init; } = [];
+
+        /// <summary>The matrix normals and tangents turned by.</summary>
+        public float[] Turn { get; init; } = [];
+    }
 
     /// <param name="keepsTexcoords">Whether a material stops the texcoord shift
     /// (<see cref="MapMeshCorners.KeepsTexcoords"/>); none does when absent.</param>
-    public static List<Entry> FromWorld(DmxBinary.Document doc, Func<string, bool>? keepsTexcoords = null)
+    /// <param name="signature">A material's vertex input semantics (its INSG); with it
+    /// the corners carry the mesh's streams as <see cref="WithPaintStreams"/> sets them,
+    /// without it the short layout (texcoord, normal, tangent, PerVertexLighting).</param>
+    public static List<Entry> FromWorld(DmxBinary.Document doc, Func<string, bool>? keepsTexcoords = null,
+                                        Func<string, IReadOnlyCollection<string>>? signature = null)
     {
         var entries = new List<Entry>();
         foreach (var mesh in MapMeshes.Read(doc))
@@ -33,7 +44,18 @@ internal static class NodeMeshEntries
             var names = mesh.Element.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials")?.OfType<string>().ToArray() ?? [];
             var shift = keepsTexcoords is null || !names.Any(keepsTexcoords);
             var world = mesh.World;
-            foreach (var piece in MapMeshCorners.Build(mesh.Element, shift, p => MapMeshes.Transform(world, p), withTangent: true))
+            // Normals and tangents turn by the node's own matrix (vtable 0xa0,
+            // AngleMatrix with the origin), whose zeros keep their signs:
+            // mesh.World went through Concat, which adds +0 and so loses a -0
+            // that decides the sign of a zero component.
+            var turn = mesh.Instances.Length == 0 ? MapMeshes.Local(mesh.Element) : world;
+            var pieces = MapMeshCorners.Build(mesh.Element, shift, p => MapMeshes.Transform(world, p), withTangent: true, allStreams: signature != null);
+            if (signature != null)
+            {
+                var needs = names.SelectMany(signature).ToHashSet();
+                pieces = [.. pieces.Select(p => WithPaintStreams(p, needs))];
+            }
+            foreach (var piece in pieces)
             {
                 var v = (float[])piece.Vertices.Clone();
                 var s = piece.Stride;
@@ -45,20 +67,70 @@ internal static class NodeMeshEntries
                     (v[at], v[at + 1], v[at + 2]) = (p.X, p.Y, p.Z);
                     foreach (var first in directions)
                     {
-                        var d = Normalise(Rotate(world, new Vector3(v[at + first], v[at + first + 1], v[at + first + 2])));
+                        var d = Normalise(Rotate(turn, new Vector3(v[at + first], v[at + first + 1], v[at + first + 2])));
                         (v[at + first], v[at + first + 1], v[at + first + 2]) = (d.X, d.Y, d.Z);
                     }
                 }
                 var name = piece.Material < names.Length ? names[piece.Material] : "";
-                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices));
+                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn });
             }
         }
         return entries;
     }
 
-    /// <summary>Matrix3x4_Rotate (18125d1b0): (x r0 + y r1) + z r2 per row.</summary>
+    /// <summary>
+    /// The streams a mesh's corners carry: its own faceVertexData streams in
+    /// the .vmap's order and, when it stores VertexPaintBlendParams or any of
+    /// its materials consumes LowPrecisionUv1 or VertexPaintBlendParams, a
+    /// second texcoord after the first and VertexPaintBlendParams at the end
+    /// where missing, zero filled. Measured on all 516 atixref entries matched
+    /// to a mesh; the code doing it is not read.
+    /// </summary>
+    internal static MapMeshCorners.Piece WithPaintStreams(MapMeshCorners.Piece piece, IReadOnlySet<string> needs)
+    {
+        var names = piece.Streams.Select(x => x.Name).ToList();
+        var blend = names.Contains("VertexPaintBlendParams") || needs.Contains("LowPrecisionUv1") || needs.Contains("VertexPaintBlendParams");
+        if (!blend)
+            return piece;
+        var layout = piece.Streams.Select(x => (x.Name, x.Count, Source: (int?)x.First)).ToList();
+        if (names.Count(x => x == "texcoord") < 2)
+            layout.Insert(names.IndexOf("texcoord") + 1, ("texcoord", 2, null));
+        if (!names.Contains("VertexPaintBlendParams"))
+            layout.Add(("VertexPaintBlendParams", 4, null));
+        var stride = layout.Sum(x => x.Count);
+        var corners = piece.Vertices.Length / piece.Stride;
+        var v = new float[corners * stride];
+        for (var c = 0; c < corners; c++)
+        {
+            var at = c * stride;
+            foreach (var (_, count, source) in layout)
+            {
+                if (source is { } from)
+                    Array.Copy(piece.Vertices, c * piece.Stride + from, v, at, count);
+                at += count;
+            }
+        }
+        var streams = new List<Physics.MeshWeld.Stream>();
+        var first = 0;
+        foreach (var (name, count, _) in layout)
+        {
+            var old = piece.Streams.FirstOrDefault(x => x.Name == name);
+            streams.Add(new Physics.MeshWeld.Stream(name, first, count, false, old.Name == name ? old.Type : 0));
+            first += count;
+        }
+        return piece with { Stride = stride, Vertices = v, Streams = streams };
+    }
+
+    /// <summary>
+    /// Matrix3x4_Rotate (18125d1b0): (x r0 + y r1) + z r2 per row, plus zero
+    /// times the row's translation. That last term only decides the sign of a
+    /// zero result; it makes probe01's and cardtest's entries exact, but 16
+    /// atixref corners still differ in a zero's sign, so where Valve's signs
+    /// come from (the DMX round trip or the renormalisation) is open:
+    /// GROUND_TRUTH, "signed zeros in node entry normals".
+    /// </summary>
     internal static Vector3 Rotate(float[] m, Vector3 d)
-        => new(m[0] * d.X + m[1] * d.Y + m[2] * d.Z, m[4] * d.X + m[5] * d.Y + m[6] * d.Z, m[8] * d.X + m[9] * d.Y + m[10] * d.Z);
+        => new(m[0] * d.X + m[1] * d.Y + m[2] * d.Z + 0f * m[3], m[4] * d.X + m[5] * d.Y + m[6] * d.Z + 0f * m[7], m[8] * d.X + m[9] * d.Y + m[10] * d.Z + 0f * m[11]);
 
     /// <summary>Squares summed z, y, x; each component times the reciprocal of the root; zero stays zero.</summary>
     internal static Vector3 Normalise(Vector3 d)
