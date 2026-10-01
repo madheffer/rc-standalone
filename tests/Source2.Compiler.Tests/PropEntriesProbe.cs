@@ -10,8 +10,9 @@ namespace Source2.Compiler.Tests;
 /// Exploration (<c>PROPENTRIES=1</c> with <c>NODEENTRIES</c> and
 /// <c>NODEENTRIES_VMAP</c>): the entries WRBNode_AddStaticProps appends
 /// (captured at Step256690's input after the world's) beside the prop's
-/// model decoded with VRF: draw calls, vertex counts, and the first vertices
-/// moved by the entity's matrix.
+/// model decoded with VRF. A prop's vertex is placed by origin + R (S p);
+/// each entry is matched to a draw call by its first vertex, then its
+/// streams are compared with the buffer's.
 /// </summary>
 public class PropEntriesProbe(ITestOutputHelper output)
 {
@@ -27,15 +28,10 @@ public class PropEntriesProbe(ITestOutputHelper output)
         var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
         var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
         using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
-        var doc = DmxBinary.ReadFile(vmap);
-        var byId = new Dictionary<int, DmxBinary.Element>();
-        foreach (var e in doc.OfType("CMapEntity"))
-            if (e.GetValue<int>("nodeID") is { } id)
-                byId[id] = e;
-        string F(float x) => x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
-        var candidates = byId.Values.Where(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "prop_static"
-            && e.GetValue<Vector3>("scales") is { } sc && MathF.Max(MathF.Abs(sc.X), MathF.Max(MathF.Abs(sc.Y), MathF.Abs(sc.Z))) - MathF.Min(MathF.Abs(sc.X), MathF.Min(MathF.Abs(sc.Y), MathF.Abs(sc.Z))) > 1e-4f).ToList();
-        output.WriteLine($"{props.Count} prop entries, {candidates.Count} non-uniformly scaled prop_static");
+        var (_, entities) = MapMeshes.ReadWithEntities(DmxBinary.ReadFile(vmap));
+        var candidates = entities.Where(e => e.Element.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "prop_static").ToList();
+        string F(float x) => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        output.WriteLine($"{props.Count} prop entries, {candidates.Count} prop_static");
         var shown = 0;
         foreach (var entry in props)
         {
@@ -43,70 +39,91 @@ public class PropEntriesProbe(ITestOutputHelper output)
             var found = false;
             foreach (var ent in candidates)
             {
-                var modelName = ent.Get<DmxBinary.Element>("entity_properties")!.Get<string>("model")!;
+                var el = ent.Element;
+                var modelName = el.Get<DmxBinary.Element>("entity_properties")!.Get<string>("model")!;
+                var local = MapMeshes.Local(el);
+                var place = ent.Instances.Length == 0 ? local : MapMeshes.Concat(ent.Path, local);
+                if (Vector3.Distance(new Vector3(place[3], place[7], place[11]), first) > 500f)
+                    continue;
                 var model = content.LoadedModel(modelName + "_c");
                 if (model is null)
                     continue;
-                var m = MapMeshes.Local(ent);
+                var scale = el.GetValue<Vector3>("scales") ?? Vector3.One;
+                Vector3 Place(Vector3 p) => MapMeshes.Transform(place, scale * p);
                 foreach (var (mesh, index, _, lod) in model.GetEmbeddedMeshesAndLoD())
                 {
                     var vbib = mesh.VBIB;
                     foreach (var so in mesh.Data.GetArray("m_sceneObjects"))
                         foreach (var call in so.GetArray("m_drawCalls"))
                         {
-                            if (!string.Equals(call.GetStringProperty("m_material"), entry.Material, StringComparison.OrdinalIgnoreCase) && ent.GetValue<int>("nodeID") != 2072)
-                                continue;
                             var vb = vbib.VertexBuffers[call.GetArray("m_vertexBuffers")[0].GetInt32Property("m_hBuffer")];
                             var positions = ValveResourceFormat.Blocks.VBIB.GetVector3AttributeArray(vb, vb.InputLayoutFields.First(f => f.SemanticName == "POSITION"));
                             var bas = call.GetInt32Property("m_nBaseVertex");
-                            var w = MapMeshes.Transform(m, positions[bas]);
-                            if (ent.GetValue<int>("nodeID") == 2072 && BitConverter.ToInt32(entry.Raw, 0x40) == 2072)
-                            {
-                                var nv = call.GetInt32Property("m_nVertexCount");
-                                var best = Enumerable.Range(0, nv).Select(k => (k, d: Vector3.Distance(MapMeshes.Transform(m, positions[bas + k]), first))).MinBy(x => x.d);
-                                output.WriteLine($"  2072 {call.GetStringProperty("m_material")} mesh {index} lod {lod}: base {bas} verts {nv}, nearest vertex {best.k} at {best.d}; first transformed {w}");
-                                var mp = Enumerable.Range(0, positions.Length).Select(k => positions[k]).ToList();
-                                output.WriteLine($"    model local box {new Vector3(mp.Min(v => v.X), mp.Min(v => v.Y), mp.Min(v => v.Z))} {new Vector3(mp.Max(v => v.X), mp.Max(v => v.Y), mp.Max(v => v.Z))}");
-                                var ev = Enumerable.Range(0, entry.Vertices.Length / entry.Stride).Select(k => new Vector3(entry.Vertices[k * entry.Stride], entry.Vertices[k * entry.Stride + 1], entry.Vertices[k * entry.Stride + 2])).ToList();
-                                var tm = mp.Select(v => MapMeshes.Transform(m, v)).ToList();
-                                var ds = ev.Select(v => tm.Min(t => Vector3.Distance(t, v))).OrderBy(x => x).ToList();
-                                output.WriteLine($"    entry vertices to nearest model vertex: median {ds[ds.Count / 2]}, max {ds[^1]}, zero {ds.Count(x => x < 1e-3f)} of {ds.Count}");
-                                var o = ent.GetValue<Vector3>("origin")!.Value;
-                                var sc2 = ent.GetValue<Vector3>("scales")!.Value;
-                                for (var sg = 0; sg < 8; sg++)
-                                {
-                                    var sgn = new Vector3((sg & 1) != 0 ? -1 : 1, (sg & 2) != 0 ? -1 : 1, (sg & 4) != 0 ? -1 : 1);
-                                    var tt = mp.Select(v => o + (sgn * sc2 * v)).ToList();
-                                    var zz = ev.Count(v => tt.Any(t => Vector3.Distance(t, v) < 1e-2f));
-                                    output.WriteLine($"    signs {sgn}: {zz} of {ev.Count} entry vertices hit");
-                                }
-                                {
-                                    var sgn = new Vector3(-1, -1, 1);
-                                    var tt = mp.Select(v => o + (sgn * sc2 * v)).ToList();
-                                    var map = ev.Take(12).Select(v => tt.FindIndex(t => Vector3.Distance(t, v) < 1e-2f)).ToList();
-                                    output.WriteLine($"    vb index of entry vertices 0..11: {string.Join(" ", map)}; exact {ev.Count(v => tt.Contains(v))} of {ev.Count}");
-                                    output.WriteLine($"    local matrix {string.Join(" ", m.Select(F))}");
-                                }
-                                output.WriteLine($"    entry box {new Vector3(ev.Min(v => v.X), ev.Min(v => v.Y), ev.Min(v => v.Z))} {new Vector3(ev.Max(v => v.X), ev.Max(v => v.Y), ev.Max(v => v.Z))} origin {ent.GetValue<Vector3>("origin")}");
-                            }
-                            if (Vector3.Distance(w, first) > 0.01f)
+                            var nv = entry.Vertices.Length / entry.Stride;
+                            var ib = vbib.IndexBuffers[call.GetSubCollection("m_indexBuffer").GetInt32Property("m_hBuffer")];
+                            int Index(int i) => ib.ElementSizeInBytes == 2 ? BitConverter.ToUInt16(ib.Data, i * 2) : BitConverter.ToInt32(ib.Data, i * 4);
+                            var start = call.GetInt32Property("m_nStartIndex");
+                            var count = call.GetInt32Property("m_nIndexCount");
+                            // The draw call's vertex range: from its lowest referenced vertex.
+                            var lo = Enumerable.Range(start, count).Min(Index) + bas;
+                            if (lo + nv > positions.Length || Place(positions[lo]) != first)
                                 continue;
                             found = true;
-                            if (shown++ >= 4)
+                            var exact = Enumerable.Range(0, nv).Count(k => Place(positions[lo + k]) == new Vector3(entry.Vertices[k * entry.Stride], entry.Vertices[(k * entry.Stride) + 1], entry.Vertices[(k * entry.Stride) + 2]));
+                            var indicesSame = entry.Indices.SequenceEqual(Enumerable.Range(start, count).Select(i => Index(i) + bas - lo));
+                            // Stream candidates, counted over the whole entry.
+                            var nf = vb.InputLayoutFields.First(f => f.SemanticName == "NORMAL");
+                            var (normals, tangents) = ValveResourceFormat.Blocks.VBIB.GetNormalTangentArray(vb, nf);
+                            Vector3 Rot(Vector3 d) => new((place[0] * d.X) + (place[1] * d.Y) + (place[2] * d.Z), (place[4] * d.X) + (place[5] * d.Y) + (place[6] * d.Z), (place[8] * d.X) + (place[9] * d.Y) + (place[10] * d.Z));
+                            Vector3 Ent(int k, int at) => new(entry.Vertices[(k * entry.Stride) + at], entry.Vertices[(k * entry.Stride) + at + 1], entry.Vertices[(k * entry.Stride) + at + 2]);
+                            var tally = new SortedDictionary<string, int>();
+                            void Count(string name, bool ok) { if (ok) tally[name] = tally.GetValueOrDefault(name) + 1; }
+                            for (var k = 0; k < nv; k++)
+                            {
+                                var n = normals[lo + k];
+                                var t = tangents[lo + k];
+                                var en = Ent(k, 3);
+                                var et = Ent(k, 6);
+                                Count("normal inv-transpose", NodeMeshEntries.Normalise(Rot(n / scale)) == en);
+                                Count("normal scaled", NodeMeshEntries.Normalise(Rot(n * scale)) == en);
+                                Count("normal plain", NodeMeshEntries.Normalise(Rot(n)) == en);
+                                Count("tangent scaled", NodeMeshEntries.Normalise(Rot(new Vector3(t.X, t.Y, t.Z) * scale)) == et);
+                                Count("tangent inv-transpose", NodeMeshEntries.Normalise(Rot(new Vector3(t.X, t.Y, t.Z) / scale)) == et);
+                                Count("tangent w", t.W == entry.Vertices[(k * entry.Stride) + 9]);
+                                var tf = vb.InputLayoutFields.First(f => f.SemanticName == "TEXCOORD");
+                                var rawUv = vb.Data.AsSpan(((lo + k) * (int)vb.ElementSizeInBytes) + (int)tf.Offset, 4);
+                                float eu = entry.Vertices[(k * entry.Stride) + 10], ev2 = entry.Vertices[(k * entry.Stride) + 11];
+                                var su = BitConverter.ToInt16(rawUv[..2]);
+                                var sv = BitConverter.ToInt16(rawUv[2..4]);
+                                Count("uv snorm /32767", MathF.Max(su / 32767f, -1f) == eu && MathF.Max(sv / 32767f, -1f) == ev2);
+                                Count("uv snorm *1/32767", MathF.Max(su * (1f / 32767f), -1f) == eu && MathF.Max(sv * (1f / 32767f), -1f) == ev2);
+                                Count("uv half", (float)BitConverter.ToHalf(rawUv[..2]) == eu && (float)BitConverter.ToHalf(rawUv[2..4]) == ev2);
+                                if (vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "COLOR") is { SemanticName: not null } cf)
+                                {
+                                    var rc = vb.Data.AsSpan(((lo + k) * (int)vb.ElementSizeInBytes) + (int)cf.Offset, 4).ToArray();
+                                    Count("color /255", Enumerable.Range(0, 4).All(i => rc[i] / 255f == entry.Vertices[(k * entry.Stride) + 12 + i]));
+                                    Count("color *0.003921569", Enumerable.Range(0, 4).All(i => rc[i] * 0.003921569f == entry.Vertices[(k * entry.Stride) + 12 + i]));
+                                }
+                            }
+                            if (shown < 12)
+                                output.WriteLine($"  streams of {nv}: {string.Join(", ", tally.Select(kv => $"{kv.Key} {kv.Value}"))}");
+                            if (shown++ >= 6)
                                 continue;
-                            output.WriteLine($"entry id {BitConverter.ToInt32(entry.Raw, 0x40)} {Path.GetFileName(entry.Material)}: {entry.Vertices.Length / entry.Stride} vertices, {entry.Indices.Length} indices <- node {ent.GetValue<int>("nodeID")} {modelName} mesh {index} lod {lod}: verts {call.GetInt32Property("m_nVertexCount")} indices {call.GetInt32Property("m_nIndexCount")}; layout {string.Join(" ", vb.InputLayoutFields.Select(f => $"{f.SemanticName}{f.SemanticIndex}:{f.Format}"))}");
-                            output.WriteLine($"  matrix {string.Join(" ", m.Select(F))}");
+                            output.WriteLine($"entry {Path.GetFileName(entry.Material)} id {BitConverter.ToInt32(entry.Raw, 0x40)}: {nv} vertices, positions exact {exact}, indices same {indicesSame} <- node {el.GetValue<int>("nodeID")} instances [{string.Join(",", ent.Instances)}] {modelName} mesh {index} lod {lod} call {call.GetStringProperty("m_material")} range {lo}+{nv}");
+                            output.WriteLine($"  layout {string.Join(" ", vb.InputLayoutFields.Select(f => $"{f.SemanticName}{f.SemanticIndex}:{f.Format}@{f.Offset}"))} stride {vb.ElementSizeInBytes}");
+                            output.WriteLine($"  entry streams {string.Join(" ", entry.Layout.Select(x => $"{x.Name}@{x.First}x{x.Count}:{x.Type}"))}");
+                            output.WriteLine($"  scale {scale} place {string.Join(" ", place.Select(F))}");
                             for (var k = 0; k < 2; k++)
                             {
-                                var p = positions[bas + k];
-                                var q = MapMeshes.Transform(m, p);
-                                output.WriteLine($"    vertex {k}: model {F(p.X)},{F(p.Y)},{F(p.Z)} -> {F(q.X)},{F(q.Y)},{F(q.Z)}; entry {string.Join(",", entry.Vertices.Skip(k * entry.Stride).Take(entry.Stride).Select(F))}");
+                                var raw = vb.Data.AsSpan((lo + k) * (int)vb.ElementSizeInBytes, (int)vb.ElementSizeInBytes).ToArray();
+                                output.WriteLine($"  vertex {k}: raw {Convert.ToHexString(raw)}");
+                                output.WriteLine($"            entry {string.Join(" ", entry.Vertices.Skip(k * entry.Stride).Take(entry.Stride).Select(F))}");
                             }
                         }
                 }
             }
             if (!found && shown++ < 8)
-                output.WriteLine($"entry id {BitConverter.ToInt32(entry.Raw, 0x40)} {Path.GetFileName(entry.Material)}: no prop found for {first}");
+                output.WriteLine($"entry {Path.GetFileName(entry.Material)} id {BitConverter.ToInt32(entry.Raw, 0x40)}: no draw call found for {first}");
         }
     }
 }

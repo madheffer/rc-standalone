@@ -219,6 +219,20 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   tangents are open (GROUND_TRUTH 38). The second texcoord and
   VertexPaintBlendParams are added only when some material of the mesh
   reads LowPrecisionUv1 (538 of 560 atixref entries built, 512 exact).
+- **Static props in the entries** (`WRBNode_AddStaticProps`, read; not
+  ported): a prop_static is baked into the node's entries, unless it is a
+  clutter instance, when it sets baketoworld, has a material override or a
+  deformer, or (with csgo_core's BakePropsWithNonUniformScale) its |scales|
+  spread by more than 0.0001, or carries extra vertex streams. atixref: 82
+  non-uniformly scaled props give 102 entries, after the world's, ids past
+  the map's node ids for copies inside instances. Each entry is one draw
+  call of the model's LOD: its vertices in buffer order from the call's
+  lowest index, placed by origin + R (S p) (exact on every probed entry,
+  instance copies included), the call's indices rebased; streams position,
+  normal, tangent, texcoord, then VertexPaintTintColor (COLOR0 / 255) or a
+  zero "color", then a zero texcoord. Texcoords stored as half floats are
+  exact; SNORM16 texcoords and the packed NORMAL0 frame are not yet
+  (GROUND_TRUTH 39).
 - **BuildNode:** bounds, static props, entries with +0x1a5 or attribute
   0x400000000 dropped, removal of triangles inside, T-junction cracks
   (on), optional baking, the merge (`WRBNode_MergeMeshes`, only without
