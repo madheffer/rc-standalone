@@ -21,8 +21,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
-- installed: this build
-- against the installed build (20260928_1.41.8.5.md): 11 tracked addresses: identical 11
+- installed: a different build
+- against the installed build (20261001_1.41.8.8.md): 11 tracked addresses: relocated 11
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -45,7 +45,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
 - SHA-256 `11203f370437e5d55dbec46f530812b6a6f92c894e8f1c85f3c3b6e8773dc1d6`
-- installed: this build
+- installed: a different build
 - 4 addresses
 
 ### s2c:baked/light-keys
@@ -61,8 +61,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
-- installed: this build
-- against the installed build (20260928_1.41.8.5.md): 60 tracked addresses: identical 60
+- installed: a different build
+- against the installed build (20261001_1.41.8.8.md): 63 tracked addresses: changed 4, identical 29, moved 10, relocated 20
 - 58 addresses
 
 ### s2c:geometry/props
@@ -153,8 +153,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- against the installed build (20260928_1.41.8.5.md): 426 tracked addresses: identical 426
-- 670 addresses
+- against the installed build (20261001_1.41.8.8.md): 687 tracked addresses: ambiguous 44, changed 24, identical 9, moved 601, relocated 9
+- 704 addresses
 
 ### s2c:baked/light-keys
 
@@ -516,13 +516,42 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810c4000` | `HammerMesh_ApplyDeformer` |  |  |
 | `1810c4e50` | `HammerMesh_TransformToWorld` | normals and tangents rotated, not renormalised | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:13` |
 | `1810d5f40` | `MaterialEditor_LowPrecisionUvInputs` | shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile |  |
-| `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:174` |
+| `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:183` |
 | `1810db6a0` | `HammerMesh_SnapVertices` | positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g) |  |
-| `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:138` |
-| `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:175` |
-| `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:179` |
+| `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:147` |
+| `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:184` |
+| `1812d91c0` | `CMesh_FindTwinEdges` | per directed edge the opposite half-edge by vertex pair, -1 when open | `src/Source2.Compiler/Maps/TJunctionFix.cs:13`, `src/Source2.Compiler/Maps/TJunctionFix.cs:99` |
+| `1812db3c0` | `CMesh_VertexTriangles` | triangles touching each vertex | `src/Source2.Compiler/Maps/TJunctionFix.cs:175` |
+| `181371320` | `CMesh_LerpVertex` | every float of the vertex (b - a) * t + a |  |
+| `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:188` |
 | `1813b6550` | `PolyMesh_FindTexcoordIslands` |  |  |
-| `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:177` |
+| `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:186` |
+
+### s2c:geometry/overlays
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `181191460` | `CMapStaticOverlay_GetOverlays` | only with exactly one polygon group (+0x3cb8) |  |
+| `181194f40` | `CMapStaticOverlay_GetOverlayDescs` | one descriptor per material group of the overlay's polygon group: tint = group colour times the overlay's (x * y + 127) / 255, alpha from 18108c0c0; mode 3 collects the target node ids |  |
+| `18119e000` | `CMapStaticOverlay_UpdatePolygonGroups` | groups from 180f88460 (variable sets), one 0xa8 group object each |  |
+| `18124bcc0` | `CMapStaticOverlayGroup::CMapStaticOverlayGroup` |  |  |
+| `18124c750` | `CMapStaticOverlayGroup_BuildRenderData` | Hammer's viewport mesh (OverlaySurfaceVertices); not the compile |  |
+| `181360220` | `COverlayProjector::COverlayProjector` | N faces of 0x4a0, back-face angle 90, box empty |  |
+| `181360310` | `OverlayDesc::OverlayDesc` |  |  |
+| `181360610` | `OverlayDesc_Assign` | mode +0, far +4, render order +8, back faces +0xc, angle +0x10, +0x14, +0x15, tint +0x18, material +0x20, target ids +0x28, faces +0x48 (0x78 each), material adjust nibbles +0x60, +0x64 x3, +0x70 string |  |
+| `181360c40` | `COverlayProjector_Init` | faces set, box = face points and the points pushed by far along each face normal, grown by 1 |  |
+| `181361000` | `COverlayProjector_BuildMesh` | the projected triangles into a CMesh with OverlayProjectionDirection |  |
+| `181361d40` | `COverlayProjector_SetOverlay` | Init from a descriptor: faces +0x48/+0x50, far +4, back faces +0xc, angle +0x10, +0x14, tint +0x18, material +0x20, +0x60 |  |
+| `181361db0` | `OverlayDesc_HasTarget` | mode 3: node id in the descriptor's hash set (+0x28) |  |
+| `181362050` | `COverlayProjector_ProjectOntoTarget` | target triangles to world, culled against the box, ProjectPolygonsOntoTriangles, mesh built (181361000), tint, material |  |
+| `181363100` | `COverlayProjector_ProjectTargets` | one mesh per target record (0x50) with a result |  |
+| `181367ed0` | `ProjectPolygonsOntoTriangles_Job` | per face (atomic counter) the target triangles in batches of 0xfff, results appended under a mutex in completion order; texcoords (18136cd60) and the vec4 streams (181367460) from the point dropped onto the plane |  |
+| `18136a930` | `ProjectPolygonOntoTriangles` | back-face test cos(angle) + 1e-5 clamped to [-1, 0.99999], near/far planes, clip (181369250); not ported |  |
+| `18136bfd0` | `OverlayFace_ProjectOntoTriangles` | convex faces whole, others per triangle of +0x3c8 |  |
+| `18136d230` | `OverlayFace_Set` | positions, texcoords, two vec4 streams (defaults 1 and 0 in the job), then precompute |  |
+| `18136d8d0` | `OverlayFace_Precompute` | bounds, normal (18125b510), triangulation (18136f810) into +0x3c8 |  |
+| `18136e370` | `OverlayFace_IsConvex` | cross of consecutive edges against the normal, 1e-7 slack, cached at +0 |  |
+| `18136e6b0` | `ProjectPolygonsOntoTriangles` | meshutils/triangulatepolygon.cpp: direction = normalised sum of face normals, plane through the mean centroid; a thread pool job per face |  |
 
 ### s2c:geometry/props
 
@@ -589,18 +618,27 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `18023f6d0` | `WRB_CollectMeshEntries` | a map mesh's pieces into node mesh entries (0x238 bytes each) |  |
-| `18024b400` | `CWorldRendererBuilderNode::BuildNode` | bounds, props, drop flagged entries, triangles inside, T-junctions, (bake), merge unless render clusters, weld 1/32 | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:7` |
+| `18024b400` | `CWorldRendererBuilderNode::BuildNode` | bounds, props, drop flagged entries, 256690, 257b50, triangles inside, T-junctions, (bake), 25ece0, 25d500, weld 1/32 renumbering by use unless +0x1a0 && +0x98 && +0xc0 & 0x10 | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:7` |
 | `18024b890` | `CWorldRendererBuilder::CompileAndSaveNodes` |  |  |
 | `180251da0` | `WRBMeshEntry_LightingMode` | from attribute bits 16/17 | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:58` |
+| `180254480` | `WRBNode_AddOverlay` | a 0xc0 copy of the map node's overlay descriptor (+0x78 name, +0x80, +0x88) appended to node +0x1f8 |  |
 | `1802547d0` | `WRBNode_ComputeBounds` | meshes whose entry flags miss the mask, then static props |  |
 | `180255b90` | `WRBNode_AddStaticProps` | BakePropsWithNonUniformScale / ExtraVertexStreams |  |
+| `180256690` | `WRBNode_Step256690` | after the drop of +0x1a5 / bit 34 entries, before Step257b50; identity on probe01, cardtest and atixref |  |
+| `180257b50` | `WRBNode_TakeLightmapResEntries` | entries with attribute bit 10 (toolslightmapres) taken out, their positions to node +0x160; bit 36 dropped |  |
 | `180257d20` | `WRB_MergeMeshes` | CMesh merge of the group (FUN_1812dd570) |  |
 | `180257ff0` | `WRBNode_MergeEntries` | one new entry from the group, fields from the first |  |
 | `180258570` | `WRBNode_MergeMeshes` | greedy: later compatible entries while verts < 0x200000 and indices < 0x400000 |  |
 | `180259b00` | `Step_RemovingTrianglesInside` | culling boxes |  |
-| `180259d30` | `CWorldRendererBuilderNode::FixTJunctionEdgeCracks` | on in CS2 (csgo_core); two thread pool jobs: collect edges, then fix |  |
-| `18025a280` | `WRBNode_CollectMeshEdges` | "Collecting Mesh Edges": each mesh's edges with normalised directions (job 18028c200) |  |
-| `18025b410` | `WRBNode_FixMeshTJunctions` | vertices lying on an edge inserted, faces re-triangulated by PolygonTriangulator_Face (job 18028c1f0) |  |
+| `180259d30` | `CWorldRendererBuilderNode::FixTJunctionEdgeCracks` | on in CS2 (csgo_core); two thread pool jobs: collect edges, then fix | `src/Source2.Compiler/Maps/TJunctionFix.cs:7` |
+| `18025a280` | `WRBNode_CollectMeshEdges` | "Collecting Mesh Edges": each mesh's edges with normalised directions (job 18028c200) | `src/Source2.Compiler/Maps/TJunctionFix.cs:11` |
+| `18025b410` | `WRBNode_FixMeshTJunctions` | vertices lying on an edge inserted, faces re-triangulated by PolygonTriangulator_Face (job 18028c1f0) | `src/Source2.Compiler/Maps/TJunctionFix.cs:18` |
+| `18025cf80` | `WRBNode_TJunctionVisit` | KD-tree visit: a record from another node within 1/1024 of the open edge, direction dot under -0.99, inserted with its t (TJunctionFix.cs) | `src/Source2.Compiler/Maps/TJunctionFix.cs:20`, `src/Source2.Compiler/Maps/TJunctionFix.cs:293` |
+| `18025d500` | `WRBNode_Step25d500` | before the closing weld; identity on probe01, cardtest and atixref |  |
+| `18025dfa0` | `WRBNode_CollectOverlayPropTargets` | more targets from node +0x190 (props); not read |  |
+| `18025e630` | `WRBNode_CollectOverlayTargets` | 0x90 records from the node entries with attribute & 0x1209 == 0 and vertices: mesh, material, the +0x1c8 matrix, kind (+0x1a0 ? 2 : 1), node id +0x40, world bounds, name |  |
+| `18025e990` | `WRBNode_GatherOverlayTargets` | targets with > 2 vertices and indices whose box meets the overlay's; mode 1/2 want kind == mode, mode 3 the overlay's target ids, else a name lookup in node +0x218 may exclude |  |
+| `18025ece0` | `WRBNode_GenerateOverlayMeshes` | "Generate Overlay Meshes...": per overlay of node +0x1f8/+0x200, targets gathered, projected, one entry per target with a non-empty result (356 on atixref from 297 CMapStaticOverlay) |  |
 | `18025f9d0` | `WRB_UseAggregateInstances` | gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge |  |
 | `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris |  |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |
@@ -620,6 +658,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180281100` | `CWorldRendererBuilderNode::PostCompileNode` |  |  |
 | `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering |  |
 | `180287320` | `CWorldRendererBuilderNode::LoadMaterialsInMeshList` |  |  |
+| `180294bb0` | `WRBNode_SortEdgeInserts` | std::sort of the inserts by edge, then t |  |
 | `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:6` |
 | `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
 | `1802ec6e0` | `CResourceCompilerMesh_PackDrawVB` | allocates stride * vertices and calls CMesh_CreatePackedVB; warns when the sizes disagree |  |
@@ -687,7 +726,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184` |
+| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/TJunctionFix.cs:83` |
 | `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:249` |
 | `1802b1ff0` | `CMesh_TransformByMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:13` |
 | `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:87`, `src/Source2.Compiler/Maps/MeshTessellation.cs:514` |
@@ -710,7 +749,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125c200` | `Matrix3x4_Scale` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:389` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:320`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:270`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/LightMath.cs:201`, `src/Source2.Compiler/Maps/LightSampler.cs:256`, `src/Source2.Compiler/Maps/LightTrace.cs:118` +7 |
-| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:59`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:566` |
+| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:125`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:566` |
 | `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Maps/LightMath.cs:130`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:560` |
 | `18125d940` | `AngleQuaternion` | half angles times 0.00872664619 | `src/Source2.Compiler/Maps/CTransform.cs:22` |
 | `18125dcc0` | `Quaternion_Forward` | x axis | `src/Source2.Compiler/Maps/LightMath.cs:205`, `src/Source2.Compiler/Maps/LightMath.cs:224` |
@@ -961,8 +1000,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
-- installed: this build
-- against the installed build (20260928_1.41.8.5.md): 30 tracked addresses: identical 30
+- installed: a different build
+- against the installed build (20261001_1.41.8.8.md): 30 tracked addresses: identical 17, relocated 13
 - 30 addresses
 
 ### s2c:smartprops
@@ -1005,7 +1044,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: this build
-- against the installed build (20260928_1.41.8.5.md): 30 tracked addresses: identical 30
+- against the installed build (20261001_1.41.8.8.md): 31 tracked addresses: identical 31
 - 30 addresses
 
 ### s2c:containers
@@ -1057,8 +1096,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
-- installed: this build
-- against the installed build (20260928_1.41.8.5.md): 199 tracked addresses: identical 199
+- installed: a different build
+- against the installed build (20261001_1.41.8.8.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -1270,8 +1309,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
-- installed: this build
-- against the installed build (20260928_1.41.8.5.md): 373 tracked addresses: identical 373
+- installed: a different build
+- against the installed build (20261001_1.41.8.8.md): 415 tracked addresses: changed 2, identical 308, moved 1, relocated 104
 - 414 addresses
 
 ### s2c:entities/settle

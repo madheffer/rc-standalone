@@ -252,6 +252,20 @@
    "rva": "0x25d530",
    "script": "tools/vis/capture_nodeentries.py",
    "use": "STEPS: Step25d500"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x25ed10",
+   "script": "tools/vis/capture_overlays.py",
+   "use": "HOOKS overlays: WRBNode_GenerateOverlayMeshes"
+  },
+  {
+   "dll": "resourcecompiler",
+   "build": "20261001",
+   "rva": "0x13623c0",
+   "script": "tools/vis/capture_overlays.py",
+   "use": "HOOKS project: COverlayProjector_ProjectOntoTarget"
   }
  ]
 }

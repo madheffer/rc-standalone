@@ -268,11 +268,27 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   0x10000 `_nv`, 0x10 `_bl`, 0x100000 `_rtem`); a list's groups are runs of
   equal cubemap, probe and flags, named `%s_cm%02d_lp%02d`.
 - **Overlays:** Hammer's static overlays are `CMapStaticOverlay` nodes
-  carrying a polygon mesh of their own (`meshData`); nothing is projected
-  at compile. Their entries are compiled one model each by list vf 0x30
-  (18026e9c0), named `vism%i_mt_<material base>` from the entry's +0x230
-  (atixref: eight, `n0_lr0_c0_s_vism0_mt_muesli_logo` through c7, from
-  five overlays). The .vmap reader (`MapMeshes`) skips them today.
+  (a polygon mesh in `meshData`, projectionMode, projectionFar,
+  projectionTargets, projectOnBackFaces, backFacingAngle, renderOrder,
+  tintColor, MaterialAdjustmentParamsStruct). They are projected at
+  compile, in BuildNode after the bake (`WRBNode_GenerateOverlayMeshes`,
+  "Generate Overlay Meshes..."): the map node hands one descriptor per
+  material group of the overlay's polygon group
+  (`CMapStaticOverlay_GetOverlayDescs`), each with its faces as 0x4a0
+  polygons (positions, texcoords, two vec4 streams). Targets are the node
+  entries with attribute & 0x1209 == 0 (and props from node +0x190);
+  mode 1 and 2 take entries whose kind (+0x1a0 ? 2 : 1) equals the mode,
+  mode 3 the listed node ids. `ProjectPolygonsOntoTriangles`
+  (meshutils/triangulatepolygon.cpp) clips each face onto the target
+  triangles on the thread pool, appending results under a mutex, so the
+  triangle order of a multi-face overlay follows thread completion. Each
+  target with a result becomes one entry with OverlayProjectionDirection.
+  atixref: 297 overlays (277 mode 1, 20 mode 3, one face and one material
+  each) give 356 entries. Not ported: the descriptor faces come from Hammer's polygon
+  groups (to be captured) and the clipper `ProjectPolygonOntoTriangles`
+  (18136a930) is unread past its back-face test. The entries are compiled
+  one model each by list vf 0x30 (18026e9c0), named `vism%i_mt_<material
+  base>` from the entry's +0x230.
 - **Aggregates** are re-split into fragments, one draw call each, sorted
   by triangle count; each has a meshlet (packed AABB, culling cone) and
   draw bounds. probe01's reflectivity aggregate holds 100 triangles from 72
