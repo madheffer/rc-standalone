@@ -21,6 +21,13 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         public IReadOnlyList<(string Name, int First, int Count, int Type)> Layout { get; init; } = [];
     }
 
+    /// <summary>The FGD's render_as_world_but_physics_as_entity, for <c>game</c> (the CS2 game folder).</summary>
+    internal static Func<string, bool> RendersAsWorld(string game)
+    {
+        var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
+        return c => schema.IsSolidClass(c) && schema.HasFlag(c, "render_as_world_but_physics_as_entity");
+    }
+
     internal static List<Captured> Read(string path)
     {
         var data = File.ReadAllBytes(path);
@@ -190,7 +197,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
                     ? [.. Source2.Compiler.MaterialAuthor.ExtractInputSignature(b).Select(x => x.Semantic)] : [];
             return sig;
         }
-        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap), signature: Signature);
+        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap), signature: Signature, rendersAsWorld: NodeEntriesFromVmap.RendersAsWorld(game));
         var problems = new List<string>();
         if (ours.Count != valve.Count)
             problems.Add($"{ours.Count} entries, valve {valve.Count}");
@@ -256,7 +263,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         }
         output.WriteLine($"aligned {aligned} of {valve.Count} valve entries ({unmatched} without a piece with the same corners), {alignedExact} exact; first differing stream: {string.Join(", ", floatDiffs.Select(kv => $"{kv.Key} {kv.Value}"))}");
         output.WriteLine($"{ours.Count} entries, {problems.Count} problems");
-        foreach (var p in problems.Take(20))
+        foreach (var p in problems.Take(int.Parse(Environment.GetEnvironmentVariable("NODEENTRIES_PROBLEMS") ?? "20")))
             output.WriteLine("  " + p);
         Assert.Empty(problems);
     }

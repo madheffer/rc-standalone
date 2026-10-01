@@ -33,13 +33,18 @@ internal static class NodeMeshEntries
     /// <param name="signature">A material's vertex input semantics (its INSG); with it
     /// the corners carry the mesh's streams as <see cref="WithPaintStreams"/> sets them,
     /// without it the short layout (texcoord, normal, tangent, PerVertexLighting).</param>
+    /// <param name="rendersAsWorld">Whether an entity class renders as world (its FGD metadata
+    /// sets render_as_world_but_physics_as_entity: func_water); its meshes join the world's,
+    /// as the trace scene's do (<see cref="MapGeometry"/>). None does when absent.</param>
     public static List<Entry> FromWorld(DmxBinary.Document doc, Func<string, bool>? keepsTexcoords = null,
-                                        Func<string, IReadOnlyCollection<string>>? signature = null)
+                                        Func<string, IReadOnlyCollection<string>>? signature = null, Func<string, bool>? rendersAsWorld = null)
     {
         var entries = new List<Entry>();
         foreach (var mesh in MapMeshes.Read(doc))
         {
-            if (mesh.Element is null || mesh.Hidden || mesh.ParentType != "CMapWorld")
+            // A mesh under the world or a group, or under an entity whose class renders as world.
+            if (mesh.Element is null || mesh.Hidden
+                || (mesh.ParentType == "CMapEntity" && !(mesh.ParentClass is { } cls && rendersAsWorld?.Invoke(cls) == true)))
                 continue;
             var names = mesh.Element.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials")?.OfType<string>().ToArray() ?? [];
             var shift = keepsTexcoords is null || !names.Any(keepsTexcoords);
