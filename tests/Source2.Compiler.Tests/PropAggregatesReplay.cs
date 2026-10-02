@@ -172,23 +172,6 @@ public class PropAggregatesReplay(ITestOutputHelper output)
                         var ourFrags2 = agg.Fragments.Where(f => f.Draw == grp.Key).ToList();
                         shippedCentres.Add([.. a.Select(m => ourFrags2.First(x => string.Join(",", x.Matrix.Select(BitConverter.SingleToInt32Bits)) == m).Centre)]);
                     }
-                    if (a.Count > 1)
-                    {
-                        var ourFrags2 = agg.Fragments.Where(f => f.Draw == grp.Key).ToList();
-                        shippedCentres.Add([.. a.Select(m => ourFrags2.First(x => string.Join(",", x.Matrix.Select(BitConverter.SingleToInt32Bits)) == m).Centre)]);
-                    }
-                    if (a.Count > 1 && !a.SequenceEqual(b) && orderShown++ < 4)
-                    {
-                        var ourFrags = agg.Fragments.Where(f => f.Draw == grp.Key).ToList();
-                        output.WriteLine($"ORDER {Path.GetFileName(name)} draw {grp.Key} ({agg.Draws[grp.Key].Model}):");
-                        foreach (var m in a)
-                        {
-                            var f = ourFrags.First(x => string.Join(",", x.Matrix.Select(BitConverter.SingleToInt32Bits)) == m);
-                            var ent = entities.FirstOrDefault(e => (e.Element.GetValue<int>("nodeID") ?? -2) == f.NodeId && e.Through.Count == 0);
-                            var k = ent?.Element.Get<DmxBinary.Element>("entity_properties");
-                            output.WriteLine($"   ours #{ourFrags.IndexOf(f)} key {NodePropAggregates.MortonKey(f.Centre, nodeMin):x} node {f.NodeId} walk {(ent == null ? -1 : entities.IndexOf(ent))} through {ent?.Through.Count} skin {k?.Get<string>("skin")} color {k?.Get<string>("rendercolor")} model {k?.Get<string>("model")}");
-                        }
-                    }
                 }
             }
         }
