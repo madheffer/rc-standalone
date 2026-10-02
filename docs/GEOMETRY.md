@@ -322,12 +322,15 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
 - **Mesh lists** (ported: `MeshLists`): the twelve lists' want/exclude
   masks read from CompileNode's constructors, CMeshList::Accepts and
   CAggregateMeshList::Accepts with `WRBMeshEntry_CanAggregate`; the merger
-  runs on the aggregate, overlay and base lists in that order. From the
-  .vmap with the ported entry flags (`VisibilityMeshMergerReplay.ListsFromVmap`
-  against the merger capture): probe01's three lists and atixref's 105-entry
-  aggregate list are exact in order; open are entries that reach the base
-  list with flags 0 (GROUND_TRUTH 42) and the overlay entries, not yet
-  fed to the test.
+  runs on the aggregate, overlay and base lists in that order. Overlay
+  entries get WRB_MeshEntryFlags with GenerateOverlayMeshes' record (flags
+  0, mode 0, +0x98 set, so a lightmapped overlay drops NeedsLightProbe;
+  overlay order the descriptor's render order). From the .vmap with the
+  ported entry flags (overlays projected onto the captured entries), the
+  merged lists match the merger capture in order on probe01 (15),
+  atixref (105, 348, 8) and ze_hold_em_p (93)
+  (`VisibilityMeshMergerReplay.ListsFromVmap`); cardtest's one teleport02
+  entry is open (GROUND_TRUTH 42).
 - **CompileNode:** each entry goes to the first mesh list whose flag test
   accepts it, in this order: CSkyboxBlockLightMeshList (0x48),
   CSkyboxMeshList (0x40), CBlockLightMeshList (8),

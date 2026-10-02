@@ -155,6 +155,26 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
             if (kind is { } k && lists.TryGetValue(k, out var list))
                 list.Add((e.Material, flags));
         }
+        // The overlay pass appends its projections (onto the captured entries
+        // it ran on) after the node's entries, with a zero record but +0x98 set.
+        if (Environment.GetEnvironmentVariable("NODEENTRIES") is { } entriesPath)
+        {
+            var captured = NodeEntriesFromVmap.Read(entriesPath).Where(c => c.Stage == "Step25ece0:in").ToList();
+            var targets = captured.Select(e => new NodeOverlays.Target(e.Vertices, e.Stride, [.. e.Layout.Select(x => new Physics.MeshWeld.Stream(x.Name, x.First, x.Count, false, x.Type))],
+                e.Indices, [.. Enumerable.Range(0, 12).Select(k => BitConverter.ToSingle(e.Raw, 0x1c8 + (k * 4)))], e.Raw[0x1a0] != 0 ? 2 : 1,
+                BitConverter.ToInt32(e.Raw, 0x40), BitConverter.ToUInt64(e.Raw, 0x1b0))).ToList();
+            var descriptors = NodeOverlays.FromWorld(doc);
+            foreach (var projection in NodeOverlays.Project(descriptors, targets))
+            {
+                var d = descriptors[projection.Overlay];
+                var attributes = content.Material(d.Material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
+                // GenerateOverlayMeshes' record: +0x98 is 1 (local_450), so a lightmapped overlay drops NeedsLightProbe.
+                var flags = MeshEntryFlags.Compute(attributes, new MeshEntryFlags.Record(0, 0, 0, true, null, false)).Flags;
+                var kind = MeshLists.Assign(new MeshLists.Input(flags, 0, d.RenderOrder, 0, false, false));
+                if (kind is { } k && lists.TryGetValue(k, out var list))
+                    list.Add((d.Material, flags));
+            }
+        }
         var wrong = 0;
         var callList = calls.Values.ToList();
         for (var i = 0; i < MeshLists.Merged.Count; i++)
@@ -169,6 +189,11 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
                 for (var j = 0; j < Math.Max(ours.Count, valve.Count) && j < 8; j++)
                     output.WriteLine($"   {j}: ours {(j < ours.Count ? $"{Path.GetFileName(ours[j].Item1)} {ours[j].Item2:x}" : "-")} | valve {(j < valve.Count ? $"{Path.GetFileName(valve[j].Material)} {valve[j].Attributes:x}" : "-")}");
             }
+        }
+        foreach (var (material, attributes) in callList.SelectMany(x => x).Where(x => x.Attributes == 0).DistinctBy(x => x.Material))
+        {
+            var info = content.Material(material);
+            output.WriteLine($"zero-flag {material}: {(info == null ? "not found" : $"shader {info.Shader}, ints {string.Join(" ", info.Ints.Select(kv => $"{kv.Key}={kv.Value}"))}")}");
         }
         Assert.Equal(0, wrong);
     }
