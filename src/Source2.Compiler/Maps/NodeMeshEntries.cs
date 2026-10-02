@@ -98,7 +98,7 @@ internal static class NodeMeshEntries
                     (v[at], v[at + 1], v[at + 2]) = (p.X, p.Y, p.Z);
                     foreach (var first in directions)
                     {
-                        var d = Normalise(Rotate(turn, new Vector3(v[at + first], v[at + first + 1], v[at + first + 2])));
+                        var d = Turn(turn, new Vector3(v[at + first], v[at + first + 1], v[at + first + 2]));
                         (v[at + first], v[at + first + 1], v[at + first + 2]) = (d.X, d.Y, d.Z);
                     }
                 }
@@ -176,15 +176,33 @@ internal static class NodeMeshEntries
     /// come from (the DMX round trip or the renormalisation) is open:
     /// GROUND_TRUTH, "signed zeros in node entry normals".
     /// </summary>
+    /// <summary>Matrix3x4_Rotate (18125d1b0): (x r0 + y r1) + z r2, the translation left out.</summary>
     internal static Vector3 Rotate(float[] m, Vector3 d)
-        => new(m[0] * d.X + m[1] * d.Y + m[2] * d.Z + 0f * m[3], m[4] * d.X + m[5] * d.Y + m[6] * d.Z + 0f * m[7], m[8] * d.X + m[9] * d.Y + m[10] * d.Z + 0f * m[11]);
+        => new(m[0] * d.X + m[1] * d.Y + m[2] * d.Z, m[4] * d.X + m[5] * d.Y + m[6] * d.Z, m[8] * d.X + m[9] * d.Y + m[10] * d.Z);
 
-    /// <summary>Squares summed z, y, x; each component times the reciprocal of the root; zero stays zero.</summary>
+    private static readonly float[] Identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+
+    /// <summary>
+    /// A normal or tangent into the world (ledger 37): HammerMesh_TransformToWorld
+    /// turns it by the node's matrix (Matrix3x4_Rotate, not renormalised), then
+    /// DmeMeshToCMesh's copy (180d46590) turns it by the identity it is handed
+    /// (every zero +0, so a -0 component meets the other components' signs)
+    /// and renormalises. Captured on cardtest and atixref: the node matrices
+    /// and the turned vectors (178,068) bit for bit.
+    /// </summary>
+    internal static Vector3 Turn(float[] node, Vector3 d) => Normalise(Rotate(Identity, Rotate(node, d)));
+
+    /// <summary>
+    /// 180d46590's renormalisation: squares summed z, y, x; between 1e-17 and
+    /// 1e17 each component times the reciprocal of the root; a zero length
+    /// gives +0 components (smaller or larger lengths go through
+    /// VectorNormalize_Slow, not ported).
+    /// </summary>
     internal static Vector3 Normalise(Vector3 d)
     {
         var len = MathF.Sqrt(d.Z * d.Z + d.Y * d.Y + d.X * d.X);
         if (len == 0f)
-            return d;
+            return Vector3.Zero;
         var inv = 1f / len;
         return new Vector3(d.X * inv, d.Y * inv, d.Z * inv);
     }

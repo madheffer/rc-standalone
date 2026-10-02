@@ -149,14 +149,16 @@ game can answer is raised with the user first, and runs with -insecure.
 20. The vmat_c field order note ("likely NTRO positional"): the order is
     measured; the loader's reason is not read.
 
-37. **Signed zeros in node entry normals** (NodeMeshEntries): turning by
-    the node's own matrix plus zero times the translation gives probe01's 18
-    and cardtest's 20 BuildNode entries exactly, but 16 atixref corners hold
-    a -0 where ours is +0 (or the reverse) in a normal or tangent component.
-    Valve's rotation call site and Matrix3x4_Rotate are read and plain; the
-    sign comes from the DMX round trip or the renormalisation (not read).
-    Next: dump_meshbuf's DMX against the captured entries, and a capture of
-    HammerMesh_TransformToWorld's matrix and vectors.
+37. **Signed zeros in node entry normals** (settled 2026-10-03): a normal
+    or tangent goes through two turns. HammerMesh_TransformToWorld rotates
+    it by the node's matrix (Matrix3x4_Rotate, not renormalised: captured,
+    178,068 vectors bit for bit, capture_meshturn.py); the builder DMX keeps
+    the result; DmeMeshToCMesh's copy (180d46590) then rotates it by the
+    identity it is handed, every zero +0 (captured, capture_vertexcopy.py),
+    which gives a -0 component the sign of the other products, and
+    renormalises (a zero length gives +0s). NodeMeshEntries.Turn: probe01 18,
+    cardtest 20 and atixref 550 of 560 entries exact, the rest subdivided
+    tangents (38). The old "zero times the translation" term was a stand-in.
 
 38. **Tangents of subdivided node entries** (MapMeshCorners' baked path):
     positions, texcoords, paint, tint and normals of atixref's subdivided

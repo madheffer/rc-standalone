@@ -37,7 +37,7 @@ function hook() {
   if (m === null) { setTimeout(hook, 5); return; }
   let n = 0;
   let producer = null;
-  Interceptor.attach(m.base.add(0x23bd00), {
+  Interceptor.attach(m.base.add(0x23bd30), {
     onEnter(args) {
       const vt = args[0].readPointer();
       const inner = args[0].add(8).readPointer();
@@ -46,7 +46,7 @@ function hook() {
             inner: producer, caller: where(this.returnAddress)});
     }
   });
-  Interceptor.attach(m.base.add(0xffd010), {
+  Interceptor.attach(m.base.add(0xffd380), {
     onEnter(args) {
       const e = args[1];
       const raw = Array.from(new Uint8Array(e.readByteArray(0xf0))).map(b => b.toString(16).padStart(2, '0')).join('');

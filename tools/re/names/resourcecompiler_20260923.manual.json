@@ -1069,6 +1069,12 @@
    "note": "per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990)"
   },
   {
+   "addr": "180d46590",
+   "name": "DmeMeshToCMesh_CopyAttribute",
+   "module": "s2c:geometry/world-nodes",
+   "note": "one vertex attribute by type (+0x1c & 0x3f): float3 points through the matrix, directions turned by it and renormalised (zero length: +0s), float4 directions the same with w kept; the map path hands an identity whose zeros are all +0"
+  },
+  {
    "addr": "1802f69f0",
    "name": "ModelCompile_BuildDrawSets",
    "module": "s2c:geometry/world-nodes",
