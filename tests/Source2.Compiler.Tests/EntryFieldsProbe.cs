@@ -169,6 +169,16 @@ public class EntryFieldsProbe(ITestOutputHelper output)
         }
     }
 
+    /// <summary><c>ENTRYTRACE=&lt;material substring&gt;</c> with <c>NODEENTRIES</c>: the entry's id, attributes and object flags at every captured stage.</summary>
+    [Fact]
+    public void Trace()
+    {
+        if (Environment.GetEnvironmentVariable("ENTRYTRACE") is not { } word || Environment.GetEnvironmentVariable("NODEENTRIES") is not { } path)
+            return;
+        foreach (var c in NodeEntriesFromVmap.Read(path).Where(c => c.Material.Contains(word, StringComparison.OrdinalIgnoreCase)))
+            output.WriteLine($"{c.Stage} {c.Index}: id {BitConverter.ToInt32(c.Raw, 0x40)} attr {BitConverter.ToUInt64(c.Raw, 0x1b0):x} obj {BitConverter.ToUInt32(c.Raw, 0xbc):x} nv {c.Vertices.Length / c.Stride}");
+    }
+
     [Fact]
     public void Variance()
     {

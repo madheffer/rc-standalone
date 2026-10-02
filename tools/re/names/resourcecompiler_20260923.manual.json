@@ -985,6 +985,42 @@
    "note": "vf 0x50: (attribute & want) == want and (attribute & exclude) == 0"
   },
   {
+   "addr": "180271090",
+   "name": "COverlayMeshList::COverlayMeshList",
+   "module": "s2c:geometry/world-nodes",
+   "note": "want 0x1000; the no-split overlay list adds 4"
+  },
+  {
+   "addr": "180272b70",
+   "name": "CInstancedMeshList::CInstancedMeshList",
+   "module": "s2c:geometry/world-nodes",
+   "note": "want 2 (never merge), exclude 1; reads UseAggregateInstances"
+  },
+  {
+   "addr": "180271150",
+   "name": "COverlayMeshList::OnAdd",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x58: object flag 0x2000"
+  },
+  {
+   "addr": "180272c90",
+   "name": "CBakedPropLODMeshList::OnAdd",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x58: clears attribute bit 2, mesh +0x14c = 0"
+  },
+  {
+   "addr": "180272c80",
+   "name": "CInstancedMeshList::OnAdd",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x58: mesh +0x14c = 1"
+  },
+  {
+   "addr": "1802b52d0",
+   "name": "WRBMeshList_PrepareForMerge",
+   "module": "s2c:geometry/world-nodes",
+   "note": "per list before MergeMeshes: meshes deduplicated by pointer, cleaned (1812e03a0)"
+  },
+  {
    "addr": "180272aa0",
    "name": "CAggregateMeshList::Accepts",
    "module": "s2c:geometry/world-nodes",

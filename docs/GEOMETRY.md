@@ -319,6 +319,15 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   end up in one c2 model while the other nine dev meshes are aggregated;
   the vis merger joining those four (so the merged entry no longer
   aggregates) is the likely reason, not read yet.
+- **Mesh lists** (ported: `MeshLists`): the twelve lists' want/exclude
+  masks read from CompileNode's constructors, CMeshList::Accepts and
+  CAggregateMeshList::Accepts with `WRBMeshEntry_CanAggregate`; the merger
+  runs on the aggregate, overlay and base lists in that order. From the
+  .vmap with the ported entry flags (`VisibilityMeshMergerReplay.ListsFromVmap`
+  against the merger capture): probe01's three lists and atixref's 105-entry
+  aggregate list are exact in order; open are entries that reach the base
+  list with flags 0 (GROUND_TRUTH 42) and the overlay entries, not yet
+  fed to the test.
 - **CompileNode:** each entry goes to the first mesh list whose flag test
   accepts it, in this order: CSkyboxBlockLightMeshList (0x48),
   CSkyboxMeshList (0x40), CBlockLightMeshList (8),

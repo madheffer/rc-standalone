@@ -169,6 +169,15 @@ game can answer is raised with the user first, and runs with -insecure.
     property has a setter (1810e9960) and the originals carry it.
     Measured (NodeEntryHeader.World's copy argument), not read; next: the
     collapse's node copy (FUN_180f60740) and which properties it carries.
+42. **Entries reaching the base mesh list with attribute flags 0**: the
+    merger's base-list inputs are cardtest's teleport02 entry (0x160100000
+    at BuildNode:out, aggregatable) and atixref's eight decal-material
+    entries (sg_logo, posters, helipad), all with +0x1b0 = 0. CompileNode's
+    list tests are ported (MeshLists) and give probe01's and atixref's
+    aggregate lists exactly; what zeroes these entries between BuildNode
+    and the assignment is not read. Next: CompileNode's code before the
+    list loop (FUN_18026cac0, FUN_18027add0) and the step that adds these
+    decals.
 
 ## Resolved
 

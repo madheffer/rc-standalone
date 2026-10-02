@@ -101,6 +101,78 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
         Assert.Equal(0, canMergeWrong);
     }
 
+    /// <summary>
+    /// <see cref="MeshLists"/> on entries built from the .vmap
+    /// (<c>MESHMERGE</c> with <c>NODEENTRIES_VMAP</c>): each merged list, in
+    /// call order, against the captured call's inputs by material and
+    /// attribute flags, in order.
+    /// </summary>
+    [Fact]
+    public void ListsFromVmap()
+    {
+        if (Environment.GetEnvironmentVariable("MESHMERGE") is not { } path || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap
+            || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var data = File.ReadAllBytes(path);
+        var calls = new SortedDictionary<int, List<(string Material, ulong Attributes)>>();
+        for (var at = 0; at < data.Length;)
+        {
+            var n = BitConverter.ToInt32(data, at);
+            var head = JsonDocument.Parse(data.AsMemory(at + 4, n)).RootElement;
+            at += 4 + n;
+            var m = BitConverter.ToInt32(data, at);
+            var blob = data.AsSpan(at + 4, m).ToArray();
+            at += 4 + m;
+            var ev = head.GetProperty("ev").GetString();
+            if (ev == "call")
+                calls.TryAdd(head.GetProperty("call").GetInt32(), []);
+            if (ev != "in")
+                continue;
+            var call = head.GetProperty("call").GetInt32();
+            if (!calls.TryGetValue(call, out var list))
+                calls[call] = list = [];
+            list.Add((head.GetProperty("material").GetString() ?? "", BitConverter.ToUInt64(blob, 0x1b0)));
+        }
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
+        using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+        IReadOnlyCollection<string> Signature(string material) => content.Read(material + "_c") is { } b
+            ? [.. MaterialAuthor.ExtractInputSignature(b).Select(x => x.Semantic)] : [];
+        var doc = DmxBinary.ReadFile(vmap);
+        var entries = NodeMeshEntries.FromWorld(doc, signature: Signature, rendersAsWorld: NodeEntriesFromVmap.RendersAsWorld(game));
+        entries.AddRange(NodePropEntries.FromWorld(doc, content));
+        var lists = MeshLists.Merged.ToDictionary(k => k, _ => new List<(string, ulong)>());
+        foreach (var e in entries)
+        {
+            var attributes = content.Material(e.Material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
+            var flags = MeshEntryFlags.Compute(attributes, e.Record).Flags;
+            // BuildNode drops +0x1a5 and attribute 0x400000000 (lighting dummies).
+            if ((flags & 0x400000000) != 0)
+                continue;
+            var objectFlags = (e.Source?.Attributes.GetValueOrDefault("renderwithdynamic") is true && e.Instances.Length == 0) ? 0x200u : 0u;
+            var kind = MeshLists.Assign(new MeshLists.Input(flags, objectFlags, 0, e.Record.FadeMax, false, false));
+            if (kind is { } k && lists.TryGetValue(k, out var list))
+                list.Add((e.Material, flags));
+        }
+        var wrong = 0;
+        var callList = calls.Values.ToList();
+        for (var i = 0; i < MeshLists.Merged.Count; i++)
+        {
+            var ours = lists[MeshLists.Merged[i]];
+            var valve = i < callList.Count ? callList[i] : [];
+            var same = ours.Count == valve.Count && ours.Zip(valve).All(p => string.Equals(p.First.Item1, p.Second.Material, StringComparison.OrdinalIgnoreCase) && p.First.Item2 == p.Second.Attributes);
+            output.WriteLine($"{MeshLists.Merged[i]}: ours {ours.Count}, valve {valve.Count}, {(same ? "same" : "DIFFERENT")}");
+            if (!same)
+            {
+                wrong++;
+                for (var j = 0; j < Math.Max(ours.Count, valve.Count) && j < 8; j++)
+                    output.WriteLine($"   {j}: ours {(j < ours.Count ? $"{Path.GetFileName(ours[j].Item1)} {ours[j].Item2:x}" : "-")} | valve {(j < valve.Count ? $"{Path.GetFileName(valve[j].Material)} {valve[j].Attributes:x}" : "-")}");
+            }
+        }
+        Assert.Equal(0, wrong);
+    }
+
     int canMergeWrong;
 
     bool Replay(int call, Captured cap, List<(Vector3, Vector3)>[] flat, float[][] mutual)
