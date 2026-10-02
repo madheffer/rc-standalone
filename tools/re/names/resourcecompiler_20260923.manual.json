@@ -502,7 +502,13 @@
    "addr": "180282ef0",
    "name": "Step_BuildingRenderClusters",
    "module": "s2c:geometry/world-nodes",
-   "note": "VisibilityGuidedMeshClustering"
+   "note": "VisibilityGuidedMeshClustering; centroids of the entries whose attributes & 0x131 is not 1, boxes by 180282bf0, each grown by 1/32"
+  },
+  {
+   "addr": "180282bf0",
+   "name": "RenderClusters_SplitBoxes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "recursive centroid split along the longest axis (minimum triangles, size, size-split flag, depth below 64); a box appended per leaf"
   },
   {
    "addr": "180260710",

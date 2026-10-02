@@ -18,8 +18,18 @@ public static class RenderClusters
         => new((b.X + a.X + c.X) * 0.33333334f, (b.Y + a.Y + c.Y) * 0.33333334f, (b.Z + a.Z + c.Z) * 0.33333334f);
 
     /// <summary>
+    /// Whether an entry's triangles join the centroids the boxes are built from
+    /// (Step_BuildingRenderClusters, 180282ef0): unless its attribute word's
+    /// low half masked by 0x131 is exactly 1 (bit 0 without bits 4, 5 and 8).
+    /// atixref: Valve's 88,857 centroids are those of exactly these entries,
+    /// in entry order (capture_rclusters.py).
+    /// </summary>
+    public static bool Contributes(ulong attributes) => ((uint)attributes & 0x131) != 1;
+
+    /// <summary>
     /// The cluster boxes over <paramref name="centroids"/> (FUN_180282bf0),
-    /// each grown by 1/32 a side. A run is split along its box's longest axis
+    /// each then grown by 1/32 a side (Step_BuildingRenderClusters); exact
+    /// against Valve's 20 atixref boxes from its own centroids. A run is split along its box's longest axis
     /// while it holds at least twice <paramref name="minTriangles"/> and, with
     /// <paramref name="sizeSplit"/> off, that axis is at least
     /// <paramref name="size"/>; with it on, a smaller run still splits while

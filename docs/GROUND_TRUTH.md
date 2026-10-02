@@ -139,8 +139,9 @@ game can answer is raised with the user first, and runs with -insecure.
     VertexOrderProbe); NodeDraw builds a draw that way. Open: two
     BuildNode aggregates (agg_nomerge inferno_trim_wood01_painted_blend_02,
     hr_concrete_wall_painted_001) whose first meshlets agree and later ones
-    do not, on Valve's own entries; the render-cluster triangle assignment
-    itself (RenderClusters, 90%).
+    do not, on Valve's own entries. The render clusters themselves are
+    settled (RenderClusters.Contributes, boxes and assignment exact on
+    atixref's 2,031 block-light triangles).
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
     the other nine's material flags but miss `agg_merge`; the likely cause
     is the visibility mesh merger joining them first (GEOMETRY.md).

@@ -341,10 +341,14 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   `WRBMeshEntry_CanAggregate`), CBaseMeshList (the rest). Then render
   clusters: with visibility-guided clustering, meshes grouped by vis
   cluster membership, and "meshes with no vis membership" split by
-  `Step_BuildingRenderClusters` (`RenderClusters`: the centroid split and
-  the triangle assignment, ported from FUN_180282bf0 and FUN_181366f30 but
-  not yet checked, since the vis-guided half comes first). Each list
-  compiles once or per cluster.
+  `Step_BuildingRenderClusters` (`RenderClusters`: the centroids of every
+  BuildNode entry whose attribute word masked by 0x131 is not 1, the
+  split of FUN_180282bf0, boxes grown by 1/32, the assignment of
+  FUN_181366f30). Captured on atixref (capture_rclusters.py): Valve's
+  88,857 centroids are those entries' in order, our 20 boxes from them are
+  Valve's bit for bit, and all 2,031 block-light triangles land in their
+  shipped cluster (RenderClustersProbe). Each list compiles once or per
+  cluster.
 - **Names:** `<node>_lr<layer>[_c<cluster>]{_s|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name>`
   from the object flags (0x200 `_d`, 0x400 `_cb`, 0x80 `_dl`, 0x20000 `_b`,
   0x10000 `_nv`, 0x10 `_bl`, 0x100000 `_rtem`); a list's groups are runs of

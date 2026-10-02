@@ -259,7 +259,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
                         var st = o.Streams.Last(x => x.First <= k % o.Stride);
                         var c = k / o.Stride;
                         string Z(float x) => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
-                        output.WriteLine($"  diff {Path.GetFileName(e.Material)} node {o.NodeId} float {k % o.Stride}: ours {Z(o.Vertices[k])} valve {Z(e.Vertices[k])}; stored {st.Name} {string.Join(",", o.Stored.Skip(c * o.Stride + st.First).Take(3).Select(Z))}; turn {string.Join(" ", o.Turn.Select(Z))}");
+                        output.WriteLine($"  diff {Path.GetFileName(e.Material)} node {o.NodeId} float {k % o.Stride} ({st.Name} from {st.First}): ours {string.Join(",", o.Vertices.Skip(c * o.Stride + st.First).Take(st.Count).Select(Z))} valve {string.Join(",", e.Vertices.Skip(c * o.Stride + st.First).Take(st.Count).Select(Z))}; stored {string.Join(",", o.Stored.Skip(c * o.Stride + st.First).Take(st.Count).Select(Z))}; normal stored {string.Join(",", o.Stored.Skip(c * o.Stride + o.Streams.First(x => x.Name == "normal").First).Take(3).Select(Z))} valve {string.Join(",", e.Vertices.Skip(c * o.Stride + o.Streams.First(x => x.Name == "normal").First).Take(3).Select(Z))}; turn {string.Join(" ", o.Turn.Select(Z))}");
                     }
                 if (bad.Count > 0 && floatDiffs.GetValueOrDefault(stream) < 2)
                 {
@@ -270,6 +270,31 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
                 floatDiffs[stream] = floatDiffs.GetValueOrDefault(stream) + 1;
             }
         }
+        // Tangent differences by kind: ours negated (xyz and w), or other.
+        if (Environment.GetEnvironmentVariable("NODEENTRIES_TANGENTS") == "1")
+            for (var i = 0; i < Math.Min(ours.Count, valve.Count); i++)
+            {
+                var (o, e) = (ours[i], valve[i]);
+                if (o.Stride != e.Stride || o.Vertices.Length != e.Vertices.Length || o.Streams.FirstOrDefault(x => x.Name == "tangent") is not { Name: not null } ts)
+                    continue;
+                int negated = 0, other = 0, close = 0;
+                for (var c = 0; c < o.Vertices.Length / o.Stride; c++)
+                {
+                    var at = c * o.Stride + ts.First;
+                    var a = new System.Numerics.Vector4(o.Vertices[at], o.Vertices[at + 1], o.Vertices[at + 2], o.Vertices[at + 3]);
+                    var b = new System.Numerics.Vector4(e.Vertices[at], e.Vertices[at + 1], e.Vertices[at + 2], e.Vertices[at + 3]);
+                    if (a == b)
+                        continue;
+                    if (a == -b)
+                        negated++;
+                    else if (System.Numerics.Vector4.Distance(a, -b) < 1e-3f)
+                        close++;
+                    else
+                        other++;
+                }
+                if (negated + other + close > 0)
+                    output.WriteLine($"TANGENTS entry {i} node {o.NodeId} {Path.GetFileName(o.Material)}: {o.Vertices.Length / o.Stride} corners, negated {negated}, nearly negated {close}, other {other}");
+            }
         // The texcoord precision flag (GROUND_TRUTH 44), when the capture has it.
         if (valve.Any(e => e.PrecisionRecorded))
         {

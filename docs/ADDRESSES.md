@@ -167,7 +167,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261003_1.41.8.8.md): 801 tracked addresses: ambiguous 46, changed 28, identical 21, moved 697, relocated 9
-- 777 addresses
+- 778 addresses
 
 ### s2c:baked/light-keys
 
@@ -710,7 +710,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180277ab0` | `CWorldRendererBuilderNode::CompileNode` | worldnodes
 %d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams; with vis clustering three lists each go through CVisibilityMeshMerger::MergeMeshes (call at 180278812): the unclustered entries replace the list for Step_BuildingRenderClusters, each non-empty bucket is compiled as a cluster (list vf 0x28/0x30) | `src/Source2.Compiler/Maps/MeshLists.cs:4` |
 | `180281100` | `CWorldRendererBuilderNode::PostCompileNode` |  |  |
-| `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering |  |
+| `180282bf0` | `RenderClusters_SplitBoxes` | recursive centroid split along the longest axis (minimum triangles, size, size-split flag, depth below 64); a box appended per leaf | `src/Source2.Compiler/Maps/RenderClusters.cs:30` |
+| `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering; centroids of the entries whose attributes & 0x131 is not 1, boxes by 180282bf0, each grown by 1/32 | `src/Source2.Compiler/Maps/RenderClusters.cs:22` |
 | `180287320` | `CWorldRendererBuilderNode::LoadMaterialsInMeshList` |  |  |
 | `1802902e0` | `std_insertion_sort_MeshEntries` | the stable sort's insertion pass (33 or fewer) |  |
 | `180290b20` | `std_stable_sort_MeshEntries` | buffered merge sort of 0x238 entries (buffer 18028ef30), comparator as 180290090 |  |
