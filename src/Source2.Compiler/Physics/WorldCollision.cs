@@ -670,17 +670,9 @@ public static class WorldCollision
             return physics;
         }
         // The sink (18001b420) takes each body's spheres, capsules, hulls, then meshes.
-        List<StaticPropHulls.RoundNode> spheres, capsules;
-        try
-        {
-            (spheres, capsules) = StaticPropHulls.Rounds(prop, phys);
-        }
-        catch (NotSupportedException ex)
-        {
-            notes?.Add(ex.Message);
-            yield break;
-        }
+        var (spheres, capsules) = StaticPropHulls.Rounds(prop, phys);
         var hulls = StaticPropHulls.Nodes(prop, phys, out var descs);
+        var (deformedSpheres, deformedCapsules) = StaticPropHulls.DeformedRounds(prop, phys);
         var deformedHulls = StaticPropHulls.DeformedHulls(prop, phys);
         var meshes = StaticPropHulls.Meshes(prop, phys);
         // A mesh node's half-edge mesh (180106be0) comes back as a triangle
@@ -703,6 +695,11 @@ public static class WorldCollision
             {
                 var round = StaticPropHulls.Round(node);
                 yield return new Piece(nodeId, node.Part, model, Physics(node.Attribute, node.Surface), round.Centers, []) { Round = round };
+            }
+            foreach (var node in deformedSpheres.Concat(deformedCapsules).Where(n => n.Part == part))
+            {
+                var (points, indices) = TriangleMesh(node.Points, node.Indices);
+                yield return new Piece(nodeId, node.Part, model, Physics(node.Attribute, node.Surface), points, indices);
             }
             foreach (var node in hulls.Where(n => n.Part == part))
             {
@@ -862,7 +859,7 @@ public static class WorldCollision
         return sets;
     }
 
-    private static bool Subdivided(DmxBinary.Element mesh)
+    internal static bool Subdivided(DmxBinary.Element mesh)
         => mesh.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("subdivisionData")?.Get<object?[]>("subdivisionLevels") is { } levels
            && levels.Any(x => x is int i && i > 0);
 

@@ -88,6 +88,7 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         var document = DmxBinary.ReadFile(source);
         // content/csgo_addons/<addon>/maps/<map>.vmap: prefabs load from the addon's content.
         Maps.MapPrefabs.Attach(document, Maps.MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(source))!));
+        Maps.MapDeformers.Apply(document);
         // LUMP_VIS=1 runs vis on the map's trace scene for the lights'
         // precomputed_vis_clusters (minutes), then checks them value and place.
         List<(System.Numerics.Vector3, System.Numerics.Vector3)>[]? boxes = null;

@@ -26,6 +26,7 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
         using var content = new Maps.GameContent(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", p[0]));
         var doc = DmxBinary.ReadFile(Path.Combine(cs2, "content", "csgo_addons", p[0], "maps", p[1] + ".vmap"));
         Maps.MapPrefabs.Attach(doc, Maps.MapPrefabs.FromContent(Path.Combine(cs2, "content", "csgo_addons", p[0])));
+        Maps.MapDeformers.Apply(doc);
         var notes = new List<string>();
         var models = Physics.EntityPhysicsModels.Build(doc, p[1], content.Material, content.CollisionProperty, MapFixtures.GameSchema(), notes, content.SmartProp);
         if (Environment.GetEnvironmentVariable("ENTBUILD_NODE") is { Length: > 0 } nodeText)

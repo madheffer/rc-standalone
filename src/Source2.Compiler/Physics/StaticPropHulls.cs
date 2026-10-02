@@ -136,10 +136,9 @@ public static class StaticPropHulls
         var spheres = new List<RoundNode>();
         var capsules = new List<RoundNode>();
         var m = PropMatrix(prop);
-        // Under a deformer a sphere (1819d5810) or capsule (1819d61d0) is
-        // tessellated into a mesh node first; that is not ported.
-        if (prop.Deformer != null && phys.Parts.Any(p => p.Shape.Spheres.Length > 0 || p.Shape.Capsules.Length > 0))
-            throw new NotSupportedException($"prop {prop.NodeId} ({prop.Model}): a deformed sphere or capsule is not ported");
+        // Under a deformer they are tessellated meshes instead (DeformedRounds).
+        if (prop.Deformer != null)
+            return (spheres, capsules);
         for (var part = 0; part < phys.Parts.Length; part++)
         {
             var local = MapMeshes.Concat(m, BindPose(phys, part));
@@ -240,6 +239,151 @@ public static class StaticPropHulls
             }
         }
         return nodes;
+    }
+
+    /// <summary>A deformed prop's sphere or capsule as the triangle mesh node it becomes, with the shape's collision attribute and surface.</summary>
+    public sealed record DeformedRound(int Part, Vector3[] Points, int[] Indices, int Attribute, int Surface);
+
+    /// <summary>
+    /// A deformed prop's spheres (1814c8600) and capsules (1814c70f0), body by
+    /// body, each tessellated (<see cref="SphereMesh"/>, <see cref="CapsuleMesh"/>),
+    /// its points moved by the prop matrix times the bind pose, deformed and
+    /// made a triangle mesh node (1814c8a60).
+    /// </summary>
+    public static (List<DeformedRound> Spheres, List<DeformedRound> Capsules) DeformedRounds(Prop prop, PhysAggregateData phys)
+    {
+        var spheres = new List<DeformedRound>();
+        var capsules = new List<DeformedRound>();
+        if (prop.Deformer == null)
+            return (spheres, capsules);
+        var m = PropMatrix(prop);
+        for (var part = 0; part < phys.Parts.Length; part++)
+        {
+            var local = MapMeshes.Concat(m, BindPose(phys, part));
+            var body = part;
+            DeformedRound Node((Vector3[] Points, int[] Indices) mesh, int attribute, int surface)
+            {
+                var node = Deformed(new MeshNode(body, [.. mesh.Points.Select(p => MapMeshes.Transform(local, p))], mesh.Indices, null!, -1), prop.Deformer);
+                return new DeformedRound(body, node.Points, node.Indices, attribute, surface);
+            }
+            foreach (var desc in phys.Parts[part].Shape.Spheres)
+                spheres.Add(Node(SphereMesh(desc.Shape.Center, desc.Shape.Radius), desc.CollisionAttributeIndex, desc.SurfacePropertyIndex));
+            foreach (var desc in phys.Parts[part].Shape.Capsules)
+                capsules.Add(Node(CapsuleMesh(desc.Shape.Center[0], desc.Shape.Center[1], desc.Shape.Radius), desc.CollisionAttributeIndex, desc.SurfacePropertyIndex));
+        }
+        return (spheres, capsules);
+    }
+
+    /// <summary>
+    /// A sphere's triangle mesh (1819d5810 with 5 and 12, through 1819d51e0):
+    /// five meridians at -2 pi i / 5, each twelve points at latitudes
+    /// j pi / 13 - pi / 2 (x the sine, the meridian's cosine and sine in y and
+    /// z), then the two poles on x (-r, then r); quads between neighbouring
+    /// meridians and a cap of two triangles per meridian, every point then
+    /// offset by the centre.
+    /// </summary>
+    public static (Vector3[] Points, int[] Indices) SphereMesh(Vector3 center, float radius)
+    {
+        const int Rings = 5, Segments = 12;
+        const float Pi = 3.1415927f, HalfPi = 1.5707964f;
+        var points = new Vector3[(Rings * Segments) + 2];
+        points[Rings * Segments] = new Vector3(-radius, 0f, 0f);
+        points[(Rings * Segments) + 1] = new Vector3(radius, 0f, 0f);
+        var indices = new List<int>(Rings * Segments * 6);
+        var first = (Pi / (Segments + 1)) - HalfPi;
+        var start = 0;
+        for (var i = 0; i < Rings; i++)
+        {
+            var a = ((float)i * -6.2831855f) / Rings;
+            float sa = MathF.Sin(a), ca = MathF.Cos(a);
+            var next = Segments * ((i + 1) % Rings);
+            Vector3 At(float b)
+            {
+                float sb = MathF.Sin(b), cb = MathF.Cos(b);
+                return new Vector3(radius * sb, (cb * ca) * radius, (cb * sa) * radius);
+            }
+            points[start] = At(first);
+            for (var j = 2; j <= Segments; j++)
+            {
+                var k = j - 2;
+                indices.AddRange([next + k, start + k, next + k + 1, next + k + 1, start + k, start + k + 1]);
+                points[start + j - 1] = At((((float)j * Pi) / (Segments + 1)) - HalfPi);
+            }
+            indices.AddRange([Rings * Segments, start, next, (Rings * Segments) + 1, next + Segments - 1, start + Segments - 1]);
+            start += Segments;
+        }
+        for (var v = 0; v < points.Length; v++)
+            points[v] = new Vector3(center.X + points[v].X, center.Y + points[v].Y, center.Z + points[v].Z);
+        return (points, [.. indices]);
+    }
+
+    /// <summary>
+    /// A capsule's triangle mesh (1819d61d0, through 1819d5950 with 12 and 2),
+    /// built along x from 0 to its length: twelve meridians at -2 pi i / 12,
+    /// each with a point pair per latitude j pi / 6, j from 0 to 2 (-r sin + 0
+    /// on the first end, r sin + length on the second), then the two poles;
+    /// two quads per latitude step and a cap per meridian. The points are then
+    /// moved by the frame of its axis (the axis normalised when longer than
+    /// 1e-5, else x; a perpendicular from 18125d0d0; their cross product) at
+    /// the first centre.
+    /// </summary>
+    public static (Vector3[] Points, int[] Indices) CapsuleMesh(Vector3 c0, Vector3 c1, float radius)
+    {
+        const int Rings = 12, Segments = 2, Per = (Segments * 2) + 2;
+        const float Pi = 3.1415927f;
+        var diff = new Vector3(c1.X - c0.X, c1.Y - c0.Y, c1.Z - c0.Z);
+        var length = MathF.Sqrt(((diff.Z * diff.Z) + (diff.Y * diff.Y)) + (diff.X * diff.X));
+        var points = new Vector3[(Rings * Per) + 2];
+        var zero = radius * 0f;
+        points[Rings * Per] = new Vector3(0f - radius, zero, zero);
+        points[(Rings * Per) + 1] = new Vector3(radius + length, zero, zero);
+        var indices = new List<int>((Segments + 1) * Rings * 12);
+        var b0 = 0f / (Segments + 1);
+        var start = 0;
+        for (var i = 0; i < Rings; i++)
+        {
+            var a = ((float)i * -6.2831855f) / Rings;
+            float sa = MathF.Sin(a), ca = MathF.Cos(a);
+            var next = ((i + 1) % Rings) * Per;
+            void Pair(int at, float b)
+            {
+                float sb = MathF.Sin(b), cb = MathF.Cos(b);
+                float y = radius * (cb * ca), z = radius * (cb * sa);
+                points[at] = new Vector3((radius * -sb) + 0f, y, z);
+                points[at + 1] = new Vector3((radius * sb) + length, y, z);
+            }
+            indices.AddRange([next, start, next + 1, next + 1, start, start + 1]);
+            Pair(start, b0);
+            for (var j = 1; j <= Segments; j++)
+            {
+                var k = 2 * (j - 1);
+                indices.AddRange([next + k + 1, start + k + 1, next + k + 3, next + k + 3, start + k + 1, start + k + 3,
+                                  next + k, next + k + 2, start + k, next + k + 2, start + k + 2, start + k]);
+                Pair(start + (2 * j), (((float)j * Pi) * 0.5f) / (Segments + 1));
+            }
+            indices.AddRange([Rings * Per, start + (2 * Segments), next + (2 * Segments), (Rings * Per) + 1, next + (2 * Segments) + 1, start + (2 * Segments) + 1]);
+            start += Per;
+        }
+        Vector3 d;
+        if (length > 1e-5f)
+        {
+            var inverse = 1f / length;
+            d = new Vector3(diff.X * inverse, diff.Y * inverse, diff.Z * inverse);
+        }
+        else
+            d = new Vector3(1f, 0f, 0f);
+        // 18125d0d0: ((1 - z) (y y - 0) + z, 0, -x) normalised, d's part taken off, normalised again.
+        var r = new Vector3(((1f - d.Z) * ((d.Y * d.Y) - 0f)) + d.Z, 0f, -d.X);
+        LightMath.Normalize(ref r);
+        var dot = ((r.Z * d.Z) + (d.Y * r.Y)) + (r.X * d.X);
+        r = new Vector3(r.X - (dot * d.X), r.Y - (d.Y * dot), r.Z - (d.Z * dot));
+        LightMath.Normalize(ref r);
+        float[] frame = [d.X, r.X, (r.Z * d.Y) - (d.Z * r.Y), c0.X,
+                         d.Y, r.Y, (d.Z * r.X) - (r.Z * d.X), c0.Y,
+                         d.Z, r.Z, (r.Y * d.X) - (d.Y * r.X), c0.Z];
+        for (var v = 0; v < points.Length; v++)
+            points[v] = MapMeshes.Transform(frame, points[v]);
+        return (points, [.. indices]);
     }
 
     /// <summary>A deformed prop's hull as the triangle mesh node it becomes, with the hull's description.</summary>
