@@ -227,20 +227,19 @@ game can answer is raised with the user first, and runs with -insecure.
     unit (CMesh +0x24), extra vertex streams, the texcoord stream test
     after the runs (180273xxx, V_stricmp "texcoord").
 
-44. **Texcoord formats of node models** (read: 180d4a120, 180258310,
-    1802f6840, 1802fc990; WRB_LoadPropMeshes flags a prop's texcoords when
-    its geometry info says so, +0x66). A stream with +0x1d stays float32;
-    a run or list with one flagged stream or one value past 16 flags them
-    all; an unflagged two-component texcoord becomes R16G16_SNORM when every
-    mesh lies in [-1, 1]. agg_prop: flagged when a source draw was float32
-    or a value passes 16, else SNORM within 1, else half: all 472 of
-    atixref's streams (PropAggregatesReplay). World draws from map meshes
-    (stride 12 entries): 88 SNORM and 6 half beside 101 and 194 float32
-    with the same ranges. 1802f6840 runs per draw-set group (400 bytes:
-    four layouts and the group's meshes) in the model compile (1802f69f0),
-    so those float ones arrive flagged; where map meshes get +0x1d is not
-    read (not in 18020e6a0, 180210730, 180203280; 1802625c0 and 1803067f0
-    copy it). Next: capture the stream table's +0x1d with the entries.
+44. **Texcoord formats of node models** (settled 2026-10-03; read:
+    1810dff20, 1810e7020, 180d473d0, 180d4a120, 180258310, 1802f6840,
+    1802fc990). A map mesh is high precision (forceHighPrecisionTexcoords)
+    when any texcoord of the mesh, after the island shift, lies outside
+    +-1.03125, or Hammer/ForceHighPrecisionTexcoords is on; its streams then
+    carry +0x1d (NodeMeshEntries.PreciseTexcoords: atixref 560 of 560
+    entries against a capture of the flag). A prop's come from its model's
+    geometry flag (float32 texcoords). An aggregate run (all of its render
+    cluster models) with one flagged stream or one value past 16 is all
+    flagged. A flagged stream is R32G32_FLOAT; the unflagged ones of a draw
+    set (one vertex buffer) are R16G16_SNORM when all lie in [-1, 1], else
+    R16G16_FLOAT (NodeDraw.TexcoordFormat). atixref: all 824 world draws
+    (DrawOrderProbe, DRAWORDER_RUNS=1) and 472 agg_prop streams.
 
 ## Resolved
 

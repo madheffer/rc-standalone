@@ -39,6 +39,15 @@ internal static class NodeMeshEntries
 
         /// <summary>The ids of the instances the node was reached through, outermost first (none outside instances).</summary>
         public int[] Instances { get; init; } = [];
+
+        /// <summary>
+        /// Its texcoord streams are high precision (stream +0x1d, kept float32):
+        /// the mesh's forceHighPrecisionTexcoords, which ConvertMeshForBuilder
+        /// sets when any texcoord of the whole mesh, after the island shift, lies
+        /// outside +-1.03125 (1810e7020) or Hammer/ForceHighPrecisionTexcoords is
+        /// on; DmeMeshToCMesh_StreamLayout then flags the streams (GROUND_TRUTH 44).
+        /// </summary>
+        public bool PreciseTexcoords { get; init; }
     }
 
     /// <param name="keepsTexcoords">Whether a material stops the texcoord shift
@@ -49,8 +58,10 @@ internal static class NodeMeshEntries
     /// <param name="rendersAsWorld">Whether an entity class renders as world (its FGD metadata
     /// sets render_as_world_but_physics_as_entity: func_water); its meshes join the world's,
     /// as the trace scene's do (<see cref="MapGeometry"/>). None does when absent.</param>
+    /// <param name="forceHighPrecisionTexcoords">gameinfo Hammer/ForceHighPrecisionTexcoords (off in CS2).</param>
     public static List<Entry> FromWorld(DmxBinary.Document doc, Func<string, bool>? keepsTexcoords = null,
-                                        Func<string, IReadOnlyCollection<string>>? signature = null, Func<string, bool>? rendersAsWorld = null)
+                                        Func<string, IReadOnlyCollection<string>>? signature = null, Func<string, bool>? rendersAsWorld = null,
+                                        bool forceHighPrecisionTexcoords = false)
     {
         var entries = new List<Entry>();
         foreach (var mesh in MapMeshes.Read(doc))
@@ -73,6 +84,8 @@ internal static class NodeMeshEntries
                 var needs = names.SelectMany(signature).ToHashSet();
                 pieces = [.. pieces.Select(p => WithPaintStreams(p, needs))];
             }
+            var precise = forceHighPrecisionTexcoords || pieces.Any(p => p.Streams.Where(x => x.Name == "texcoord").Any(x =>
+                Enumerable.Range(0, p.Vertices.Length / p.Stride).Any(c => MathF.Abs(p.Vertices[(c * p.Stride) + x.First]) > 1.03125f || MathF.Abs(p.Vertices[(c * p.Stride) + x.First + 1]) > 1.03125f)));
             foreach (var piece in pieces)
             {
                 var v = (float[])piece.Vertices.Clone();
@@ -90,7 +103,7 @@ internal static class NodeMeshEntries
                     }
                 }
                 var name = piece.Material < names.Length ? names[piece.Material] : "";
-                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn, Record = RecordOf(mesh.Element), Source = mesh.Element, Instances = mesh.Instances });
+                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn, Record = RecordOf(mesh.Element), Source = mesh.Element, Instances = mesh.Instances, PreciseTexcoords = precise });
             }
         }
         return entries;

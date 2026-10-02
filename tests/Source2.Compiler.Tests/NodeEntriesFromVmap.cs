@@ -19,6 +19,12 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
     {
         /// <summary>Each stream's first float, float count and type, in order.</summary>
         public IReadOnlyList<(string Name, int First, int Count, int Type)> Layout { get; init; } = [];
+
+        /// <summary>A texcoord stream carries +0x1d (kept float), when the capture recorded it.</summary>
+        public bool PreciseTexcoords { get; init; }
+
+        /// <summary>Whether the capture recorded the stream flags (b1d).</summary>
+        public bool PrecisionRecorded { get; init; }
     }
 
     /// <summary>The FGD's render_as_world_but_physics_as_entity, for <c>game</c> (the CS2 game folder).</summary>
@@ -53,6 +59,9 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             {
                 Layout = [.. head.GetProperty("streams").EnumerateArray().Select(x => (x.GetProperty("name").GetString()!, x.GetProperty("first").GetInt32(),
                                                                                       x.GetProperty("count").GetInt32(), x.GetProperty("type").GetInt32()))],
+                PrecisionRecorded = head.GetProperty("streams").EnumerateArray().Any(x => x.TryGetProperty("b1d", out _)),
+                PreciseTexcoords = head.GetProperty("streams").EnumerateArray().Any(x => x.GetProperty("name").GetString()!.Equals("texcoord", StringComparison.OrdinalIgnoreCase)
+                                                                                    && x.TryGetProperty("b1d", out var b) && b.GetInt32() != 0),
             });
         }
         return list;
@@ -260,6 +269,15 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
                 }
                 floatDiffs[stream] = floatDiffs.GetValueOrDefault(stream) + 1;
             }
+        }
+        // The texcoord precision flag (GROUND_TRUTH 44), when the capture has it.
+        if (valve.Any(e => e.PrecisionRecorded))
+        {
+            var flagDiffs = Enumerable.Range(0, Math.Min(ours.Count, valve.Count)).Where(i => ours[i].Streams.Any(x => x.Name == "texcoord")
+                && ours[i].PreciseTexcoords != valve[i].PreciseTexcoords).ToList();
+            output.WriteLine($"texcoord precision: {flagDiffs.Count} of {ours.Count} entries differ");
+            foreach (var i in flagDiffs.Take(5))
+                problems.Add($"entry {i} {Path.GetFileName(ours[i].Material)} node {ours[i].NodeId}: precise ours {ours[i].PreciseTexcoords} valve {valve[i].PreciseTexcoords}");
         }
         output.WriteLine($"aligned {aligned} of {valve.Count} valve entries ({unmatched} without a piece with the same corners), {alignedExact} exact; first differing stream: {string.Join(", ", floatDiffs.Select(kv => $"{kv.Key} {kv.Value}"))}");
         output.WriteLine($"{ours.Count} entries, {problems.Count} problems");

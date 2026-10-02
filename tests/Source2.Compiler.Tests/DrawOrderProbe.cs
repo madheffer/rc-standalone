@@ -30,6 +30,8 @@ public class DrawOrderProbe(ITestOutputHelper output)
         var outs = new List<VisibilityMeshMerger.Mesh>();
         var outStreams = new List<List<Physics.MeshWeld.Stream>>();
         var outMaterials = new List<string>();
+        var outPrecise = new List<bool>();
+        var formatInputs = new List<(string Model, bool Precise, float Max, string Shipped, int Buffer)>();
         for (var at = 0; at < data.Length;)
         {
             var n = BitConverter.ToInt32(data, at);
@@ -43,6 +45,8 @@ public class DrawOrderProbe(ITestOutputHelper output)
             {
                 outs.Add(VisibilityMeshMergerReplay.Mesh(head, blob).Item1);
                 outMaterials.Add(head.TryGetProperty("material", out var mat) ? mat.GetString() ?? "" : "");
+                outPrecise.Add(head.GetProperty("streams").EnumerateArray().Any(x => x.GetProperty("name").GetString()!.Equals("texcoord", StringComparison.OrdinalIgnoreCase)
+                                                                                     && x.TryGetProperty("precise", out var pr) && pr.GetInt32() != 0));
                 outStreams.Add([.. head.GetProperty("streams").EnumerateArray().Select(x => new Physics.MeshWeld.Stream(x.GetProperty("name").GetString() ?? "",
                     x.GetProperty("first").GetInt32(), x.GetProperty("count").GetInt32(), false, x.GetProperty("type").GetInt32()))]);
             }
@@ -80,6 +84,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
                 var position = c.Layout.First(x => x.Name.Equals("position", StringComparison.OrdinalIgnoreCase)).First;
                 outs.Add(new VisibilityMeshMerger.Mesh { Vertices = [.. c.Vertices], Stride = c.Stride, PositionOffset = position, Indices = [.. c.Indices] });
                 outMaterials.Add(c.Material);
+                outPrecise.Add(c.PreciseTexcoords);
                 outStreams.Add([.. c.Layout.Select(x => new Physics.MeshWeld.Stream(x.Name, x.First, x.Count, false, x.Type))]);
                 var e = outs.Count - 1;
                 for (var t = 0; t < outs[e].Indices.Count / 3; t++)
@@ -106,6 +111,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
                 outs.Add(moved);
                 outStreams.Add(outStreams[e]);
                 outMaterials.Add(outMaterials[e]);
+                outPrecise.Add(outPrecise[e]);
                 for (var t = 0; t < moved.Indices.Count / 3; t++)
                     owner.TryAdd(Key(Pos(moved, moved.Indices[t * 3]), Pos(moved, moved.Indices[(t * 3) + 1]), Pos(moved, moved.Indices[(t * 3) + 2])), outs.Count - 1);
             }
@@ -169,6 +175,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
                                 outs.Add(joined);
                                 outStreams.Add(outStreams[sources[0]]);
                                 outMaterials.Add(outMaterials[sources[0]]);
+                                outPrecise.Add(sources.Any(e => outPrecise[e]));
                                 sources = [outs.Count - 1];
                             }
                         }
@@ -208,8 +215,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
                             var emax = tc.Name == null ? 0f : Enumerable.Range(0, e0.VertexCount).Max(v => MathF.Max(MathF.Abs(e0.Vertices[(v * e0.Stride) + tc.First]), MathF.Abs(e0.Vertices[(v * e0.Stride) + tc.First + 1])));
                             var shippedTc = string.Join("+", dc.GetArray("m_vertexBuffers").Select(b => vbib.VertexBuffers[b.GetInt32Property("m_hBuffer")])
                                 .SelectMany(b => b.InputLayoutFields).Where(f => f.SemanticName == "TEXCOORD" && f.SemanticIndex == 0).Select(f => f.Format.ToString()));
-                            var tk = $"TCSRC {(propLike ? "stride18" : $"stride{e0.Stride}"),-9} max {(emax <= 1f ? "<=1" : emax <= 16f ? "<=16" : ">16"),-5} type {tc.Type:x} shipped {shippedTc}";
-                            tally[tk] = tally.GetValueOrDefault(tk) + 1;
+                            formatInputs.Add((entry.FileName, outPrecise[sources[0]], emax, shippedTc, dc.GetArray("m_vertexBuffers").Select(b => b.GetInt32Property("m_hBuffer")).Max()));
                         }
                         var src = outs[sources[0]];
                         // A per-cluster draw holds a subset of its source entry: keep the source's triangles the draw has, in order.
@@ -323,6 +329,26 @@ public class DrawOrderProbe(ITestOutputHelper output)
                         else if (draws - exact - unmatched <= 12)
                             output.WriteLine($"{entry.FileName} draw {Path.GetFileName(dc.GetStringProperty("m_material"))}: {same}/{shipped.Count} triangles in place (entry {sources[0]}, {src.Indices.Count / 3} triangles)");
                     }
+            }
+        }
+        // Texcoord formats per model (GROUND_TRUTH 44): an aggregate run with one precise stream or a value past 16 is all
+        // float; otherwise a stream stays float when precise, and the model's unflagged streams become SNORM when all lie in
+        // [-1, 1], else half.
+        var runs = formatInputs.Where(f => f.Model.Contains("agg_", StringComparison.Ordinal))
+            .GroupBy(f => System.Text.RegularExpressions.Regex.Replace(f.Model, @"_\d+$", ""))
+            .ToDictionary(g => g.Key, g => g.Any(f => f.Precise || f.Max > 16f));
+        foreach (var model in formatInputs.GroupBy(f => f.Model))
+        {
+            var aggregate = model.Key.Contains("agg_", StringComparison.Ordinal);
+            var runFlagged = aggregate && (Environment.GetEnvironmentVariable("DRAWORDER_RUNS") == "1"
+                ? runs[System.Text.RegularExpressions.Regex.Replace(model.Key, @"_\d+$", "")] : model.Any(f => f.Precise || f.Max > 16f));
+            foreach (var f in model)
+            {
+                // The SNORM test covers a draw set: the draws sharing the vertex buffer.
+                var unflaggedInRange = model.Where(g => g.Buffer == f.Buffer && !g.Precise && !runFlagged).All(g => g.Max <= 1f);
+                var predicted = f.Precise || runFlagged ? "R32G32_FLOAT" : unflaggedInRange ? "R16G16_SNORM" : "R16G16_FLOAT";
+                var tk = $"TCSRC {(predicted == f.Shipped ? "predicted" : $"differs: {(aggregate ? "aggregate" : "plain")} precise {f.Precise} max {(f.Max <= 1f ? "<=1" : f.Max <= 1.03125f ? "<=1.03125" : f.Max <= 16f ? "<=16" : ">16")} predicted {predicted} shipped {f.Shipped}")}";
+                tally[tk] = tally.GetValueOrDefault(tk) + 1;
             }
         }
         output.WriteLine($"{draws} draws, {exact} exact, {unmatched} not from one entry");

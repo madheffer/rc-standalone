@@ -268,8 +268,8 @@ internal static class NodePropAggregates
         // The run's texcoord precision (inlined 180258310, then 1802f6840).
         float Max(int slot) => draws.SelectMany(d => Enumerable.Range(0, d.Geometry.VertexCount).Select(v =>
             MathF.Max(MathF.Abs(d.Geometry.Vertices[(v * NodePropEntries.Stride) + slot]), MathF.Abs(d.Geometry.Vertices[(v * NodePropEntries.Stride) + slot + 1])))).DefaultIfEmpty(0f).Max();
-        var flagged = run.Any(e => meshes[e.Mesh].FloatTexcoords) || Max(10) > 16f || Max(16) > 16f;
-        string Format(int slot) => flagged ? "R32G32_FLOAT" : Max(slot) <= 1f ? "R16G16_SNORM" : "R16G16_FLOAT";
+        var flagged = NodeDraw.RunPrecise([.. run.Select(e => (meshes[e.Mesh].FloatTexcoords, 0f)), (false, Max(10)), (false, Max(16))]);
+        string Format(int slot) => NodeDraw.TexcoordFormat(flagged, [Max(slot)]);
         return new Aggregate(material, bits, draws, fragments, [Format(10), Format(16)]);
     }
 

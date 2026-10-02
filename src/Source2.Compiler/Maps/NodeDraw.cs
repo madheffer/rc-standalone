@@ -32,6 +32,25 @@ internal static class NodeDraw
     public static float ConeWeight(bool backfaceCulled) => backfaceCulled ? 0.15f : 0f;
 
     /// <summary>
+    /// A texcoord stream's vertex format (GROUND_TRUTH 44): R32G32_FLOAT when
+    /// the stream is high precision (+0x1d, or its aggregate run promoted by
+    /// <see cref="RunPrecise"/>), else R16G16_SNORM when every unflagged draw
+    /// of its draw set (the draws sharing its vertex buffer) lies in [-1, 1]
+    /// (1802f6840, 1802fc990), else R16G16_FLOAT. atixref: all 824 world
+    /// draws and 472 agg_prop streams.
+    /// </summary>
+    public static string TexcoordFormat(bool precise, IEnumerable<float> drawSetMaxima)
+        => precise ? "R32G32_FLOAT" : drawSetMaxima.All(m => m <= 1f) ? "R16G16_SNORM" : "R16G16_FLOAT";
+
+    /// <summary>
+    /// An aggregate run's promotion (180258310, inlined in
+    /// WRBNode_BuildPropAggregates): one high precision stream or one value
+    /// past 16 (180d4a120) makes every texcoord stream of the run high
+    /// precision. A run spans all of its render cluster models.
+    /// </summary>
+    public static bool RunPrecise(IEnumerable<(bool Precise, float Max)> run) => run.Any(r => r.Precise || r.Max > 16f);
+
+    /// <summary>
     /// A built draw: <see cref="Vertices"/> in fetch order (the source stride),
     /// <see cref="Indices"/> into them, padding triangles included, and for
     /// an aggregate its meshlets (vertex and triangle ranges, triangles

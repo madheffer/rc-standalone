@@ -51,7 +51,8 @@ function dumpEntries(node, stage, call) {
       const s = sp.add(k * 0x28);
       const np = s.readPointer();
       streams.push({name: np.isNull() ? '' : np.readUtf8String(), index: s.add(0x10).readS32(),
-                    first: s.add(0x14).readS32(), count: s.add(0x18).readS32(), type: s.add(0x20).readS32()});
+                    first: s.add(0x14).readS32(), count: s.add(0x18).readS32(), type: s.add(0x20).readS32(),
+                    b1c: s.add(0x1c).readU8(), b1d: s.add(0x1d).readU8(), b1e: s.add(0x1e).readU8(), b1f: s.add(0x1f).readU8()});
     }
     const mlen = m.add(0x60).readU32() & 0x3fffffff, mflags = m.add(0x64).readU32();
     const material = mlen === 0 ? '' : ((mflags >> 30) & 1)
