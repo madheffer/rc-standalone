@@ -91,7 +91,7 @@ public static class EntityLumpSet
         bool fixupEntityNames = false,
         DmxBinary.Document? document = null,
         Func<string, int>? smartPropLocators = null,
-        IReadOnlyDictionary<int, Maps.SettleWorld.Settlement>? settled = null,
+        IReadOnlyDictionary<string, Maps.SettleWorld.Settlement>? settled = null,
         bool bakedLighting = false,
         bool entitiesOnly = false,
         Maps.ILightTracer? lightScene = null,
@@ -330,12 +330,12 @@ public static class EntityLumpSet
     /// </summary>
     private static List<EntityLumpAuthor.Emission> MainLump(
         IReadOnlyList<MapEntities.Entity> entities, DmxBinary.Document? document, Func<string, int>? smartPropLocators,
-        IReadOnlyDictionary<int, Maps.SettleWorld.Settlement>? settled, FgdSchema? schema)
+        IReadOnlyDictionary<string, Maps.SettleWorld.Settlement>? settled, FgdSchema? schema)
     {
         // A settled prop, placed or copied, stands where the settle left it
         // (SettleWorld.Run), with the keys CMapEntity_SetStartAsleep changed.
         MapEntities.Entity Settle(MapEntities.Entity e)
-            => settled is not null && schema is not null && e.Prefabs.Length == 0 && settled.TryGetValue(e.NodeId, out var s)
+            => settled is not null && schema is not null && settled.TryGetValue(e.IdPath, out var s)
                 ? Maps.SettleWorld.SettledKeys(e with
                 {
                     Origin = s.Moved ? s.Origin : e.Origin,

@@ -21,20 +21,21 @@ public static partial class SettleWorld
     /// <see cref="CreateWorld"/>), 30 s at 1/90 s (PhysDoc_Simulate: 2700
     /// steps), then each simulated prop's pose written back
     /// (PhysObj_WriteBackTransform, <see cref="SettleWriteBack.EntityPose"/>).
-    /// Keyed by the node id the body came from, instance copies at their
-    /// baked ids.
+    /// Keyed by the node id the body came from (as text), instance copies at
+    /// their baked ids, a prefab map's nodes by id path ("108:3").
     /// </summary>
     /// <remarks>
     /// The bodies are made dynamic in build order; Valve's order is a hash
     /// map's over node pointers. Only the awake indices at the start differ
     /// with it, and every settled pose on atixref, c2m2 and Mako is the same.
     /// </remarks>
-    public static Dictionary<int, Settlement> Run(DmxBinary.Document document, IModels models, FgdSchema schema, int createdOnLoad = 0)
+    public static Dictionary<string, Settlement> Run(DmxBinary.Document document, IModels models, FgdSchema schema, int createdOnLoad = 0)
     {
         // A body the port cannot build refuses the settle only when there is
         // something to settle; it is judged eligible like any other body.
         var bodies = Build(document, models, schema, createdOnLoad);
-        var result = new Dictionary<int, Settlement>();
+        var result = new Dictionary<string, Settlement>();
+        static string Key(BodyBuild b) => b.IdPath ?? b.NodeId.ToString(CultureInfo.InvariantCulture);
         if (Eligible(document, bodies, models, schema).Count == 0)
             return result;
         if (bodies.FirstOrDefault(b => b.Unsupported != null) is { } refused)
@@ -50,7 +51,7 @@ public static partial class SettleWorld
         // ship with it, so a static body answers asleep.
         foreach (var i in eligible.Except(settled))
         {
-            var id = bodies[i].NodeId;
+            var id = Key(bodies[i]);
             result[id] = new Settlement(false, default, default, result.GetValueOrDefault(id)?.Asleep ?? true);
         }
         foreach (var i in settled)
@@ -64,10 +65,10 @@ public static partial class SettleWorld
             // PhysObj_IsAsleep asks each body (vfn 0x408); the solver marks a
             // body it puts to sleep in Flags249 bit 4 (IslandSolver.PutToSleep).
             var asleep = (state.Flags249 & 4) != 0;
-            var others = result.GetValueOrDefault(bodies[i].NodeId)?.Asleep ?? true;
+            var others = result.GetValueOrDefault(Key(bodies[i]))?.Asleep ?? true;
             if (bodies.Count(b => b.NodeId == bodies[i].NodeId) > 1)
                 throw new NotSupportedException($"settling node {bodies[i].NodeId}, which has several bodies");
-            result[bodies[i].NodeId] = new Settlement(true,
+            result[Key(bodies[i])] = new Settlement(true,
                 new Vector3(pose.Origin.X, pose.Origin.Y, pose.Origin.Z),
                 new Vector3(pose.Angles.X, pose.Angles.Y, pose.Angles.Z), asleep && others);
         }

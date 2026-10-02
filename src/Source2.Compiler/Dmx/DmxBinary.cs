@@ -131,13 +131,25 @@ public static class DmxBinary
             elements[i] = new Element(type, name, new Guid(r.Bytes(16)));
         }
 
+        string? last = null;
         foreach (var element in elements)
         {
             var attrCount = r.Count();
             for (var a = 0; a < attrCount; a++)
             {
-                var name = strings[r.Index(strings.Length)];
-                element.Attributes[name] = ReadValue(ref r, r.Byte(), strings, inlineStrings: false, elements);
+                int index;
+                try
+                {
+                    index = r.Index(strings.Length);
+                }
+                catch (InvalidDataException ex)
+                {
+                    throw new InvalidDataException($"{ex.Message} (element {element.Type} '{element.Name}', after attribute {last})", ex);
+                }
+                var name = strings[index];
+                var type = r.Byte();
+                last = $"{name} of type {type}";
+                element.Attributes[name] = ReadValue(ref r, type, strings, inlineStrings: false, elements);
             }
         }
 
@@ -185,7 +197,7 @@ public static class DmxBinary
     private static object? ReadScalar(ref Reader r, byte type, string[] strings, bool inlineStrings, Element[]? elements)
         => type switch
         {
-            1 => Reference(r.Int(), elements),
+            1 => Reference(ref r, elements),
             2 => r.Int(),
             3 => r.Float(),
             4 => r.Byte() != 0,
@@ -203,9 +215,19 @@ public static class DmxBinary
             _ => throw new InvalidDataException($"Unknown DMX attribute type {type}."),
         };
 
-    private static object? Reference(int index, Element[]? elements)
-        // -1 is null and -2 is an external GUID reference; neither resolves here.
-        => elements is not null && index >= 0 && index < elements.Length ? elements[index] : null;
+    // -1 is null and -2 an element outside the file, its GUID following as an
+    // inline string (the binary serializer's ELEMENT_INDEX_EXTERNAL); neither
+    // resolves here.
+    private static object? Reference(ref Reader r, Element[]? elements)
+    {
+        var index = r.Int();
+        if (index == -2)
+        {
+            r.InlineString();
+            return null;
+        }
+        return elements is not null && index >= 0 && index < elements.Length ? elements[index] : null;
+    }
 
     private static Matrix4x4 ReadMatrix(ref Reader r)
         => new(r.Float(), r.Float(), r.Float(), r.Float(),

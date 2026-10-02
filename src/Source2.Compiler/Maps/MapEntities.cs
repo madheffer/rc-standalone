@@ -212,7 +212,12 @@ public static class MapEntities
                 if (prefab.Chain.Length > 0)
                 {
                     var (origin, angles) = Maps.SettleWorld.PrefabPlacement(entity.Origin, entity.Angles, prefab.Chain);
-                    entity = entity with { Origin = origin, Angles = angles };
+                    // A path's nodes are nodes of the map too; the collapse moves them as it moves the path.
+                    var nodes = entity.PathNodes?.Select(n => n with
+                    {
+                        Origin = Maps.SettleWorld.PrefabPlacement(n.Origin, Vector3.Zero, prefab.Chain).Origin,
+                    }).ToList();
+                    entity = entity with { Origin = origin, Angles = angles, PathNodes = nodes ?? entity.PathNodes };
                 }
                 entities.Add(entity);
             }

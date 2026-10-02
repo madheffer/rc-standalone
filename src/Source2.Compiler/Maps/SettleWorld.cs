@@ -43,6 +43,13 @@ public static partial class SettleWorld
         public DmxBinary.Element? Node { get; init; }
 
         /// <summary>
+        /// The node's id path when it lies in a prefab's map (the prefab ids,
+        /// then its own; <see cref="NodeId"/> is then an id of the port's own
+        /// past every map's); null for the map's own nodes and copies.
+        /// </summary>
+        public string? IdPath { get; init; }
+
+        /// <summary>
         /// What of the body is not ported (sphere shapes, a capsule at a
         /// non-uniform scale, an aggregate), or null. Such a body is left out;
         /// the settle refuses to simulate while one exists, since it could meet a
@@ -163,6 +170,12 @@ public static partial class SettleWorld
         var hidden = MapEntities.HiddenNodes(document);
         foreach (var world in document.OfType("CMapWorld"))
             Walk(world, null, context, targets, hidden);
+        // A prefab's map is collapsed into the document as an instance is
+        // (MapDoc_CollapseInstance, captured), its nodes allocated after the
+        // map's own: built here, each placed as the prefab moves it.
+        var synthetic = AllDocuments(document).SelectMany(d => d.Elements).Max(e => e.GetValue<int>("nodeID") ?? 0) + 1;
+        foreach (var world in document.OfType("CMapWorld"))
+            Prefabs(world, [], [], hidden, context, ref synthetic);
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var e in document.Elements)
             foreach (var child in e.GetElements("children"))
@@ -192,6 +205,70 @@ public static partial class SettleWorld
         return [.. context.Bodies.Select((b, i) => (b, i))
             .OrderBy(t => t.b.Node is { } n && t.b.NodeId == (n.GetValue<int>("nodeID") ?? -1) ? index[n] : int.MaxValue)
             .ThenBy(t => t.i).Select(t => t.b)];
+    }
+
+    /// <summary>The document and every prefab map loaded under it (<see cref="MapPrefabs"/>), at any depth.</summary>
+    internal static IEnumerable<DmxBinary.Document> AllDocuments(DmxBinary.Document document)
+    {
+        yield return document;
+        foreach (var prefab in document.OfType("CMapPrefab"))
+            if (prefab.Get<DmxBinary.Document>(MapPrefabs.DocumentKey) is { } loaded)
+                foreach (var d in AllDocuments(loaded))
+                    yield return d;
+    }
+
+    // The prefabs under a node, in tree order, each prefab map walked where
+    // its prefab stands; a prefab inside one recurses with the longer chain.
+    private static void Prefabs(DmxBinary.Element node, DmxBinary.Element[] chain, int[] ids, HashSet<int> hidden, Context context, ref int synthetic)
+    {
+        foreach (var child in node.GetElements("children"))
+        {
+            if (hidden.Contains(child.GetValue<int>("nodeID") ?? -1))
+                continue;
+            if (child.Type == "CMapPrefab" && child.Get<DmxBinary.Element>(MapPrefabs.WorldKey) is { } world)
+            {
+                DmxBinary.Element[] inner = [.. chain, child];
+                int[] innerIds = [.. ids, child.GetValue<int>("nodeID") ?? -1];
+                var targets = new HashSet<DmxBinary.Element>(child.Get<List<DmxBinary.Element>>(MapPrefabs.TargetsKey) ?? [], ReferenceEqualityComparer.Instance);
+                var innerHidden = child.Get<HashSet<int>>(MapPrefabs.HiddenKey) ?? [];
+                PrefabWalk(world, null, inner, innerIds, [], targets, innerHidden, context, ref synthetic);
+                Prefabs(world, inner, innerIds, innerHidden, context, ref synthetic);
+            }
+            else if (child.Type != "CMapInstance")
+                Prefabs(child, chain, ids, hidden, context, ref synthetic);
+        }
+    }
+
+    // A prefab map's nodes as Walk builds the map's own, each placed through
+    // the prefab chain (and, inside an instance there, NestedPlacement), with
+    // an id of its own past every map's and its id path.
+    private static void PrefabWalk(DmxBinary.Element node, DmxBinary.Element? owner, DmxBinary.Element[] chain, int[] ids,
+                                   DmxBinary.Element[] through, HashSet<DmxBinary.Element> targets, HashSet<int> hidden,
+                                   Context context, ref int synthetic)
+    {
+        foreach (var child in node.GetElements("children"))
+        {
+            if (hidden.Contains(child.GetValue<int>("nodeID") ?? -1))
+                continue;
+            var origin = child.GetValue<Vector3>("origin") ?? Vector3.Zero;
+            var angles = child.GetValue<Vector3>("angles") ?? Vector3.Zero;
+            var (at, turn) = through.Length > 0 ? NestedPlacement(origin, angles, through, chain) : PrefabPlacement(origin, angles, chain);
+            var placed = MapMeshes.AngleMatrix(turn);
+            (placed[3], placed[7], placed[11]) = (at.X, at.Y, at.Z);
+            var before = context.Bodies.Count;
+            var id = synthetic++;
+            if (ModelOf(child, context.Models) is { } phys)
+                FromModel(child, NodeWorld(placed), id, phys, context);
+            else if (child.Type == "CMapMesh")
+                FromMesh(child, NodeWorld(placed), id, owner, context);
+            var path = string.Join(":", ids.Append(child.GetValue<int>("nodeID") ?? -1));
+            for (var b = before; b < context.Bodies.Count; b++)
+                context.Bodies[b] = context.Bodies[b] with { IdPath = through.Length > 0 ? null : path };
+            if (child.Type == "CMapInstance" && child.Get<DmxBinary.Element>("target") is { } target)
+                PrefabWalk(target, owner, chain, ids, [.. through, child], targets, hidden, context, ref synthetic);
+            else if (child.Type is not "CMapInstance" and not "CMapPrefab" && !targets.Contains(child))
+                PrefabWalk(child, child.Type == "CMapEntity" ? child : owner, chain, ids, through, targets, hidden, context, ref synthetic);
+        }
     }
 
     /// <summary>
@@ -254,7 +331,9 @@ public static partial class SettleWorld
     /// </summary>
     internal static float[] NestedPlacement(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
     {
-        var (origin, angles) = NestedPlacement(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
+        var origin = node.GetValue<Vector3>("origin") ?? Vector3.Zero;
+        var angles = node.GetValue<Vector3>("angles") ?? Vector3.Zero;
+        (origin, angles) = through.Count > 0 ? NestedPlacement(origin, angles, through, prefabs) : PrefabPlacement(origin, angles, prefabs);
         var m = MapMeshes.AngleMatrix(angles);
         (m[3], m[7], m[11]) = (origin.X, origin.Y, origin.Z);
         return m;

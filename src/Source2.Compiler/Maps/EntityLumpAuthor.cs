@@ -402,11 +402,40 @@ public static partial class EntityLumpAuthor
         var previous = i > 0 ? nodes[i - 1].Origin : here;
         var next = i < nodes.Count - 1 ? nodes[i + 1].Origin : here;
         int TypeOf(int own) => path.InterpolationType is 0 or 1 ? path.InterpolationType : own;
-        var toLocal = TemplateTransform.Invert(TemplateTransform.AngleMatrix(path.Origin, path.Angles));
+        // FUN_1810b7ca0: the path's vtable 0xa8, the inverse (18125aba0) of its
+        // node matrix (FUN_181255fb0), each node's stored origin through it
+        // (Matrix3x4_TransformPoint, 18125d1f0) and its tangents rotated
+        // (18125d1b0).
+        var frame = Maps.MapMeshes.AngleMatrix(path.Angles);
+        (frame[3], frame[7], frame[11]) = (path.Origin.X, path.Origin.Y, path.Origin.Z);
+        var toLocal = InvertNodeMatrix(frame);
         var inward = Rotate(toLocal, Tangent(TypeOf(nodes[i].InTangentType), next, here, previous, nodes[i].InTangent));
         var outward = Rotate(toLocal, Tangent(TypeOf(nodes[i].OutTangentType), previous, here, next, nodes[i].OutTangent));
-        var local = Rotate(toLocal, here) + new Vector3(toLocal[3], toLocal[7], toLocal[11]);
+        var local = Maps.MapMeshes.Transform(toLocal, here);
         return [local.X, local.Y, local.Z, inward.X, inward.Y, inward.Z, outward.X, outward.Y, outward.Z];
+    }
+
+    /// <summary>
+    /// FUN_18125aba0: the rotation transposed, the translation
+    /// -((o.z r2 + o.y r1) + o.x r0) per row r of the transpose, and every
+    /// entry divided by the first column's squared length when that is 0.001
+    /// or more off 1.
+    /// </summary>
+    private static float[] InvertNodeMatrix(float[] m)
+    {
+        float[] r = [m[0], m[4], m[8], 0, m[1], m[5], m[9], 0, m[2], m[6], m[10], 0];
+        float x = m[3], y = m[7], z = m[11];
+        r[3] = -(((z * r[2]) + (y * r[1])) + (x * r[0]));
+        r[7] = -(((r[6] * z) + (r[5] * y)) + (x * r[4]));
+        r[11] = -(((r[10] * z) + (r[9] * y)) + (x * r[8]));
+        var lengthSq = ((m[4] * m[4]) + (m[0] * m[0])) + (m[8] * m[8]);
+        if (MathF.Abs(lengthSq - 1f) >= 0.001f)
+        {
+            var scale = lengthSq != 0f ? 1f / lengthSq : 1f;
+            for (var k = 0; k < 12; k++)
+                r[k] *= scale;
+        }
+        return r;
     }
 
     /// <summary>

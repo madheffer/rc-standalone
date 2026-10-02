@@ -74,6 +74,10 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     // (instances collapsed after the prefab's move).
     [InlineData("s2c_prefabprobe3")]
     [InlineData("s2c_prefabprobe4")]
+    // One instance in a small map (tools/physics/instance_prefab_map.py), alone and as a prefab, with 0 and 7 extra nodes.
+    [InlineData("s2c_pinst")]
+    [InlineData("s2c_prefabprobe5")]
+    [InlineData("s2c_prefabprobe6")]
     // Hammer's lattice and bend deformers (tools/physics/deformer_probe_map.py, deformer_probe2.py).
     [InlineData("deformerprobe")]
     [InlineData("deformerprobe2")]
@@ -138,6 +142,11 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
                 EntityLumpComparison.Read(valve[lump.Path], lump.Path),
                 EntityLumpComparison.Read(lump.Bytes, lump.Path));
             total += report.Count;
+            // LUMPLIST=<class>: both sides' entities of a class in lump order, id, origin and source id.
+            if (Environment.GetEnvironmentVariable("LUMPLIST") is { Length: > 0 } listed)
+                foreach (var (side, bytes) in new[] { ("valve", valve[lump.Path]), ("ours", lump.Bytes) })
+                    foreach (var e in EntityLumpComparison.Read(bytes, lump.Path).Where(e => e.Values.TryGetValue("classname", out var c) && c.Value.Contains(listed, StringComparison.Ordinal)))
+                        output.WriteLine($"    list {side}: {e.HammerId} {(e.Values.TryGetValue("hammeruniqueid", out var h) ? h.Value : "")} {(e.Values.TryGetValue("origin", out var o) ? o.Value : "")} src {(e.Values.TryGetValue("compile_source_id", out var sid) ? sid.Value : "")}");
             // LUMPMISSING=1: the entities only one side has, by id and class.
             if (Environment.GetEnvironmentVariable("LUMPMISSING") == "1")
             {

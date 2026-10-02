@@ -19,6 +19,9 @@ public static class MapPrefabs
     /// <summary>The attribute that carries the loaded map's instance targets.</summary>
     public const string TargetsKey = "s2c:prefabTargets";
 
+    /// <summary>The attribute that carries the loaded map's document.</summary>
+    public const string DocumentKey = "s2c:prefabDocument";
+
     /// <summary>
     /// Load every prefab's map under <paramref name="doc"/> and hang its world
     /// on the prefab element, then do the same inside it for prefabs set to
@@ -48,6 +51,7 @@ public static class MapPrefabs
                 continue;
             Attach(loaded, load, nested: true, depth + 1);
             prefab.Attributes[WorldKey] = world;
+            prefab.Attributes[DocumentKey] = loaded;
             prefab.Attributes[HiddenKey] = MapEntities.HiddenNodes(loaded);
             prefab.Attributes[TargetsKey] = loaded.OfType("CMapInstance")
                 .Select(i => i.Get<DmxBinary.Element>("target")).OfType<DmxBinary.Element>().ToList();

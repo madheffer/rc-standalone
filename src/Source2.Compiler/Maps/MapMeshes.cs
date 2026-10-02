@@ -165,7 +165,9 @@ public static class MapMeshes
             {
                 case "CMapMesh":
                     var className = parent.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname");
-                    var placed = through.Length == 0 ? Concat(path, Local(child))
+                    // A prefab's map is collapsed into the document as an instance
+                    // is (captured), its nodes moved as the collapse moves them.
+                    var placed = through.Length == 0 && prefabs.Length == 0 ? Concat(path, Local(child))
                                : prefabs.Length == 0 ? SettleWorld.Baked(child, through)
                                : SettleWorld.NestedPlacement(child, through, prefabChain);
                     meshes.Add(new Mesh(child.GetValue<int>("nodeID") ?? -1, parent.Type, className,

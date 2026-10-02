@@ -69,6 +69,25 @@ game can answer is raised with the user first, and runs with -insecure.
     ulps off. Measured whole-file exact on s2c_prefabprobe; the prefab
     loader (Hammer's map document, +0x6b8 docs) is not read.
 
+45. **Prop bone overrides** (a prop_static's pose, entity +0x268 from
+    CMapEntity +0x438, applied per body by name in 180200af0 through
+    181749d20): read on the physics side, but the .vmap storage of the pose
+    is not found (the DMX attribute list of CMapEntity names no pose; the
+    lump's boneTransforms key is written from it by ExportToLump). No map in
+    the installed content uses it.
+46. **Instances inside a prefab's map: entity ids.** Captured
+    (tools/entities/capture_collapse.py on s2c_prefabprobe3 and 4): the
+    bake collapses the CMapPrefab like an instance first (its root takes
+    the next id, its block is its map's node count plus one), and the
+    copied nodes take ids by preorder slot. The instances inside then
+    collapse in the merged tree's order WITHOUT the deferral of instances
+    inside target groups that a map of its own has (atixref as a prefab:
+    6207's copies interleave), and their copies ship with plain ids, no
+    prefab prefix. Open: c2m2's environment prefab has two slots more than
+    its tree right after instance 4928 (s2c_pinst and atixref fit the tree,
+    atixref plus its smart prop locator), and the round order. Physics
+    placement of such nodes is settled (NestedPlacement).
+
 ### Map resources
 15. What picks Zstd or LZ4 for map output.
 

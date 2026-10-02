@@ -143,8 +143,8 @@ public sealed class EditorTraceScene : ILightTracer
             var meshes = content.RenderMeshes(model);
             if (meshes.Sum(m => m.Count) == 0)
                 continue;
-            var world = n.Through.Count == 0
-                ? MapMeshes.Concat(n.Path, MapMeshes.Local(n.Element))
+            var world = n.PrefabChain.Count > 0 ? SettleWorld.NestedPlacement(n.Element, n.Through, n.PrefabChain)
+                : n.Through.Count == 0 ? MapMeshes.Concat(n.Path, MapMeshes.Local(n.Element))
                 : SettleWorld.Baked(n.Element, [.. n.Through]);
             Scale(world, n.Element.GetValue<Vector3>("scales") ?? Vector3.One);
             // The model's scene: each mesh's own scene at the identity.

@@ -35,7 +35,8 @@ public static partial class SettleWorld
     /// </summary>
     public static List<int> Eligible(DmxBinary.Document document, IReadOnlyList<BodyBuild> bodies, IModels models, FgdSchema schema)
     {
-        var excluded = Excluded(document, schema);
+        // Each map names its own entities: a prefab map's parents and templates are its own.
+        var excluded = new HashSet<DmxBinary.Element>(AllDocuments(document).SelectMany(d => Excluded(d, schema)), ReferenceEqualityComparer.Instance);
         var result = new List<int>();
         for (var i = 0; i < bodies.Count; i++)
             if (bodies[i].Node is { } node && IsEligible(node, excluded, models, schema))

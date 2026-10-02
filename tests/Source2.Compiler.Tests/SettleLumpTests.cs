@@ -74,7 +74,7 @@ public sealed partial class SettleLumpTests(ITestOutputHelper output)
     /// game folder beside content/csgo_addons/&lt;addon&gt;) over the stock
     /// paks; null without the game or the FGD.
     /// </summary>
-    internal static Dictionary<int, SettleWorld.Settlement>? Settle(DmxBinary.Document document, string source)
+    internal static Dictionary<string, SettleWorld.Settlement>? Settle(DmxBinary.Document document, string source)
     {
         if (CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)
             return null;
