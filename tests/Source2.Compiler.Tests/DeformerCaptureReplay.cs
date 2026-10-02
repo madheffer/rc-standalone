@@ -14,7 +14,14 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class DeformerCaptureReplay(ITestOutputHelper output)
 {
-    internal sealed record Call(LatticeDeformer Deformer, float[] Matrix, Vector3[] In, Vector3[] Out, JsonElement Meta);
+    internal sealed record Call(LatticeDeformer Deformer, float[] Matrix, Vector3[] In, Vector3[] Out, JsonElement Meta)
+    {
+        /// <summary>Normals and tangents in and out, empty when the call had none (or the capture predates them).</summary>
+        public Vector3[] NormalsIn { get; init; } = [];
+        public Vector3[] TangentsIn { get; init; } = [];
+        public Vector3[] NormalsOut { get; init; } = [];
+        public Vector3[] TangentsOut { get; init; } = [];
+    }
 
     internal static List<Call> Read(string path)
     {
@@ -47,7 +54,13 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
                 Handles = V(2),
             };
             var matrix = Enumerable.Range(0, 12).Select(i => F(offsets[3] + i * 4)).ToArray();
-            calls.Add(new Call(d, matrix, V(4), V(5), head));
+            calls.Add(new Call(d, matrix, V(4), V(5), head)
+            {
+                NormalsIn = sizes.Length > 6 ? V(6) : [],
+                TangentsIn = sizes.Length > 7 ? V(7) : [],
+                NormalsOut = sizes.Length > 8 ? V(8) : [],
+                TangentsOut = sizes.Length > 9 ? V(9) : [],
+            });
         }
         return calls;
     }
@@ -80,7 +93,30 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
                 exact++;
         }
         output.WriteLine($"{calls.Count} calls, {exact} exact; {pointsExact}/{points} points");
+        // Normals and tangents, where the call carried them.
+        int normals = 0, normalsExact = 0, tangents = 0, tangentsExact = 0;
+        static bool Same(Vector3 a, Vector3 b)
+            => BitConverter.SingleToInt32Bits(a.X) == BitConverter.SingleToInt32Bits(b.X)
+               && BitConverter.SingleToInt32Bits(a.Y) == BitConverter.SingleToInt32Bits(b.Y)
+               && BitConverter.SingleToInt32Bits(a.Z) == BitConverter.SingleToInt32Bits(b.Z);
+        foreach (var c in calls)
+        {
+            var e = c.Deformer.For(c.Matrix);
+            for (var i = 0; i < c.NormalsIn.Length; i++, normals++)
+                if (Same(e.DeformNormal(c.In[i], c.NormalsIn[i]), c.NormalsOut[i]))
+                    normalsExact++;
+                else if (shown++ < 12)
+                    output.WriteLine($"normal at {c.In[i]}: in {c.NormalsIn[i]:R} ours {e.DeformNormal(c.In[i], c.NormalsIn[i]):R} valve {c.NormalsOut[i]:R}");
+            for (var i = 0; i < c.TangentsIn.Length; i++, tangents++)
+                if (Same(e.DeformTangent(c.In[i], c.TangentsIn[i]), c.TangentsOut[i]))
+                    tangentsExact++;
+                else if (shown++ < 12)
+                    output.WriteLine($"tangent at {c.In[i]}: in {c.TangentsIn[i]:R} ours {e.DeformTangent(c.In[i], c.TangentsIn[i]):R} valve {c.TangentsOut[i]:R}");
+        }
+        output.WriteLine($"normals {normalsExact}/{normals}, tangents {tangentsExact}/{tangents}");
         Assert.Equal(calls.Count, exact);
+        Assert.Equal(normals, normalsExact);
+        Assert.Equal(tangents, tangentsExact);
     }
 
     /// <summary>

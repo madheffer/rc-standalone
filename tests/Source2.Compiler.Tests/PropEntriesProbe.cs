@@ -28,7 +28,7 @@ public class PropEntriesProbe(ITestOutputHelper output)
         var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
         var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
         using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
-        var (_, entities) = MapMeshes.ReadWithEntities(DmxBinary.ReadFile(vmap));
+        var (_, entities) = MapMeshes.ReadWithEntities(Maps.MapSource.Read(vmap));
         var candidates = entities.Where(e => e.Element.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "prop_static").ToList();
         string F(float x) => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
         output.WriteLine($"{props.Count} prop entries, {candidates.Count} prop_static");
@@ -199,10 +199,27 @@ public class PropEntriesProbe(ITestOutputHelper output)
         var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
         using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
         var notes = new List<string>();
-        var ours = NodePropEntries.FromWorld(DmxBinary.ReadFile(vmap), content, notes);
+        var ours = NodePropEntries.FromWorld(Maps.MapSource.Read(vmap), content, notes);
         foreach (var note in notes.Distinct())
             output.WriteLine($"note: {note}");
         output.WriteLine($"{ours.Count} ours, {valve.Count} Valve's");
+        // PROPENTRIES_BYID=1: ours reordered to Valve's by (id, material, occurrence), to check content apart from order.
+        if (Environment.GetEnvironmentVariable("PROPENTRIES_BYID") == "1")
+        {
+            var pool = ours.Select((e, i) => (e, i)).ToList();
+            var reordered = new List<NodeMeshEntries.Entry>();
+            foreach (var v in valve)
+            {
+                var id = BitConverter.ToInt32(v.Raw, 0x40);
+                var hit = pool.FindIndex(x => x.e.NodeId == id && string.Equals(x.e.Material, v.Material, StringComparison.OrdinalIgnoreCase));
+                if (hit < 0)
+                    break;
+                reordered.Add(pool[hit].e);
+                pool.RemoveAt(hit);
+            }
+            if (reordered.Count == valve.Count)
+                ours = reordered;
+        }
         var exact = 0;
         for (var i = 0; i < Math.Min(ours.Count, valve.Count); i++)
         {
@@ -254,7 +271,7 @@ public class PropEntriesProbe(ITestOutputHelper output)
         var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
         var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
         using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
-        var (_, entities) = MapMeshes.ReadWithEntities(DmxBinary.ReadFile(vmap));
+        var (_, entities) = MapMeshes.ReadWithEntities(Maps.MapSource.Read(vmap));
         var models = entities.Select(e => e.Element.Get<DmxBinary.Element>("entity_properties"))
             .Where(p => p?.Get<string>("classname") == "prop_static").Select(p => p!.Get<string>("model")!).Distinct().ToList();
         // Draw calls by (material, vertex count).

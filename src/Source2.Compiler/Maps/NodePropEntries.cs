@@ -14,7 +14,7 @@ namespace Source2.Compiler.Maps;
 /// magnitude differ by more than 0.0001. The materialoverride key is not
 /// the record's +0x40 override list: atixref's 14 props with one are not
 /// baked. The clutter, +0x40, deformer, extra-stream and +0x17c triggers
-/// are not ported.</item>
+/// are not ported; a deformed prop is (CMesh_ApplyPropDeformer).</item>
 /// <item>Order: by model path, then the props of a model last to first in
 /// the walk, then each prop's draw calls in mesh, scene object and draw
 /// call order.</item>
@@ -40,7 +40,8 @@ internal static class NodePropEntries
             var keys = ent.Element.Get<DmxBinary.Element>("entity_properties");
             if (ent.Hidden || keys?.Get<string>("classname") != "prop_static")
                 continue;
-            if (!Baked(ent.Element, keys))
+            // A deformed prop is baked too (AddStaticProps' +0x80 trigger, PropDeformer_IsSet).
+            if (!Baked(ent.Element, keys) && Physics.WorldCollision.PropOf(ent).Deformer == null)
                 continue;
             var id = ent.Through.Count == 0 ? ent.Element.GetValue<int>("nodeID") ?? -1 : copyIds.GetValueOrDefault(Key(ent.Element, ent.Through), -1);
             baked.Add((ent, id, keys.Get<string>("model") ?? "", walk));
@@ -76,6 +77,12 @@ internal static class NodePropEntries
         var prop = Physics.WorldCollision.PropOf(node);
         var scales = node.Element.GetValue<Vector3>("scales") ?? Vector3.One;
         var matrix = PropTransform.Matrix(prop.Origin, prop.Angles, scales);
+        // CMesh_ApplyPropDeformer (1812d7510, from WRBNode_BakePropMeshes): the
+        // model-space meshes' positions, normals and tangents through the
+        // prop's lattice with the prop's matrix (+0x10), before the bake places them.
+        var deform = prop.Deformer?.For(matrix);
+        if (prop.Deformer is { Mirror: true })
+            throw new NotSupportedException($"prop {id}: a mirrored deformer (winding and tangent w flipped) is not ported");
         foreach (var (mesh, _, _, lod) in model.GetEmbeddedMeshesAndLoD())
         {
             if ((lod & lodMask) == 0)
@@ -102,6 +109,18 @@ internal static class NodePropEntries
                     else if (Path.GetFileNameWithoutExtension(info?.Shader ?? "").Equals("csgo_foliage", StringComparison.OrdinalIgnoreCase))
                         notes?.Add($"prop {id}: csgo_foliage's NeedsLocalSpaceVertices combo rule is not ported");
                     var (vertices, hasColor) = Vertices(vb, lo, vertexCount);
+                    if (deform != null)
+                        for (var v = 0; v < vertexCount; v++)
+                        {
+                            var o = v * Stride;
+                            var p = new Vector3(vertices[o], vertices[o + 1], vertices[o + 2]);
+                            var n = deform.DeformNormal(p, new Vector3(vertices[o + 3], vertices[o + 4], vertices[o + 5]));
+                            var t = deform.DeformTangent(p, new Vector3(vertices[o + 6], vertices[o + 7], vertices[o + 8]));
+                            var q = deform.Deform(p);
+                            (vertices[o], vertices[o + 1], vertices[o + 2]) = (q.X, q.Y, q.Z);
+                            (vertices[o + 3], vertices[o + 4], vertices[o + 5]) = (n.X, n.Y, n.Z);
+                            (vertices[o + 6], vertices[o + 7], vertices[o + 8]) = (t.X, t.Y, t.Z);
+                        }
                     PropTransform.Apply(vertices, Stride, 0, 3, 6, 10, 16, matrix, PropTransform.AxesOf(info?.Shader, info?.Params), flags);
                     var indices = Enumerable.Range(start, count).Select(i => Index(i) + bas - lo).ToArray();
                     yield return new NodeMeshEntries.Entry(id, material, Stride, Streams(hasColor), vertices, indices) { Record = RecordOf(keys), Source = keys };

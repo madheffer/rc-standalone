@@ -74,7 +74,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             return;
         var valve = Read(path).Where(c => c.Stage == "BuildNode:in").ToList();
         var ours = new List<(string Material, float[] V, int Stride, int NodeId)>();
-        foreach (var mesh in MapMeshes.Read(DmxBinary.ReadFile(vmap)))
+        foreach (var mesh in MapMeshes.Read(MapSource.Read(vmap)))
         {
             if (mesh.Element is null || mesh.Hidden || mesh.ParentType != "CMapWorld")
                 continue;
@@ -127,7 +127,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         output.WriteLine($"valve {valve.Count} entries, ours {ours.Count} pieces");
         if (Environment.GetEnvironmentVariable("NODEENTRIES_DETAIL") == "1")
         {
-            var first = MapMeshes.Read(DmxBinary.ReadFile(vmap)).First(m => m.NodeId == 57).Element!;
+            var first = MapMeshes.Read(MapSource.Read(vmap)).First(m => m.NodeId == 57).Element!;
             foreach (var st in first.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("faceVertexData")!.GetElements("streams"))
                 output.WriteLine($"  node 57 faceVertexData stream {st.Name}: {st.Get<object?[]>("data")?.Length} values, first {string.Join(" ", (st.Get<object?[]>("data") ?? []).Take(3).Select(x => x?.ToString()))}");
         }
@@ -206,7 +206,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
                     ? [.. Source2.Compiler.MaterialAuthor.ExtractInputSignature(b).Select(x => x.Semantic)] : [];
             return sig;
         }
-        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap), signature: Signature, rendersAsWorld: NodeEntriesFromVmap.RendersAsWorld(game));
+        var ours = NodeMeshEntries.FromWorld(MapSource.Read(vmap), signature: Signature, rendersAsWorld: NodeEntriesFromVmap.RendersAsWorld(game));
         var problems = new List<string>();
         if (ours.Count != valve.Count)
             problems.Add($"{ours.Count} entries, valve {valve.Count}");
@@ -318,7 +318,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("NODEENTRIES_STREAMS") != "1" || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap)
             return;
         var tally = new SortedDictionary<string, int>();
-        foreach (var mesh in MapMeshes.Read(DmxBinary.ReadFile(vmap)).Where(m => m.Element != null && !m.Hidden && m.ParentType == "CMapWorld"))
+        foreach (var mesh in MapMeshes.Read(MapSource.Read(vmap)).Where(m => m.Element != null && !m.Hidden && m.ParentType == "CMapWorld"))
         {
             var key = string.Join(" ", mesh.Element!.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("faceVertexData")!.GetElements("streams").Select(s => s.Name));
             var sub = mesh.Element.Get<DmxBinary.Element>("meshData")!.Get<DmxBinary.Element>("subdivisionData") is { } sd && (sd.GetElements("streams").Any()) ? " +subdiv" : "";
@@ -343,7 +343,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
         using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
         var valve = Read(path).Where(c => c.Stage == "BuildNode:in").ToList();
-        var ours = NodeMeshEntries.FromWorld(DmxBinary.ReadFile(vmap));
+        var ours = NodeMeshEntries.FromWorld(MapSource.Read(vmap));
         var tally = new SortedDictionary<string, int>();
         for (var i = 0; i < valve.Count; i++)
         {
@@ -402,7 +402,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
             output.WriteLine($"  shader {v,4} {k}");
 
         // Matched by exact corner positions: the mesh's own .vmap streams.
-        var doc = DmxBinary.ReadFile(vmap);
+        var doc = MapSource.Read(vmap);
         var meshes = MapMeshes.Read(doc).Where(m => m.Element != null && !m.Hidden && m.ParentType == "CMapWorld").ToDictionary(m => m.NodeId);
         var byPos = ours.GroupBy(o => (o.Material.ToLowerInvariant(), string.Join(";", Positions(o.Vertices, o.Stride)))).ToDictionary(g => g.Key, g => g.First());
         var rule = new SortedDictionary<string, int>();
@@ -454,7 +454,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
     {
         if (Environment.GetEnvironmentVariable("NODEENTRIES_ZERO") is not { } spec || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap)
             return;
-        var meshes = MapMeshes.Read(DmxBinary.ReadFile(vmap)).Where(m => m.Element != null).GroupBy(m => m.NodeId).ToDictionary(g => g.Key, g => g.First());
+        var meshes = MapMeshes.Read(MapSource.Read(vmap)).Where(m => m.Element != null).GroupBy(m => m.NodeId).ToDictionary(g => g.Key, g => g.First());
         string F(IEnumerable<float> a) => string.Join(" ", a.Select(x => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("G4", System.Globalization.CultureInfo.InvariantCulture)));
         foreach (var item in spec.Split(','))
         {
@@ -502,7 +502,7 @@ public class NodeEntriesFromVmap(ITestOutputHelper output)
         var valve = Read(path).Where(c => c.Stage == "BuildNode:in").ToList();
         string F(float x) => BitConverter.SingleToInt32Bits(x) == int.MinValue ? "-0" : x.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
         var shown = 0;
-        foreach (var mesh in MapMeshes.Read(DmxBinary.ReadFile(vmap)).Where(m => m.Element != null && !m.Hidden && m.ParentType == "CMapWorld"))
+        foreach (var mesh in MapMeshes.Read(MapSource.Read(vmap)).Where(m => m.Element != null && !m.Hidden && m.ParentType == "CMapWorld"))
         {
             var data = mesh.Element!.Get<DmxBinary.Element>("meshData")!;
             var a = new FaceArrays(data);

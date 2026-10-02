@@ -8,7 +8,8 @@ first 0x80 bytes, its control points (+0x48, (segments + 1) * (divisionsY +
 interpolation mode is 3), the 3x4 matrix it is handed, the point stride and
 count, and the points before and after. Records: u32 json length, json, u32
 blob length, blob (struct, control points, tangents, matrix, points in,
-points out).
+points out, then normals in, tangents in, normals out, tangents out, each
+empty when the call has none).
 
 CS2 must be closed; the map's package is backed up and restored.
 """
@@ -50,6 +51,20 @@ function hook() {
         pin.set(new Uint8Array(this.points.add(i * this.stride).readByteArray(12)), i * 12);
       parts.push(pin.buffer);
       this.parts = parts;
+      // Normals (args[5]) and tangents (args[6]) at the same stride, 3 floats each.
+      const self = this;
+      function grab(p) {
+        if (p.isNull()) return new ArrayBuffer(0);
+        const out = new Uint8Array(self.count * 12);
+        for (let i = 0; i < self.count; i++)
+          out.set(new Uint8Array(p.add(i * self.stride).readByteArray(12)), i * 12);
+        return out.buffer;
+      }
+      this.grab = grab;
+      this.nptr = args[5];
+      this.tptr = args[6];
+      this.nin = grab(args[5]);
+      this.tin = grab(args[6]);
       this.sizes = parts.map(p => p.byteLength);
       this.meta = {segs: segs, dy: dy, dz: dz, mode: mode, stride: this.stride, count: this.count,
                    normals: !args[5].isNull(), tangents: !args[6].isNull()};
@@ -61,6 +76,10 @@ function hook() {
         pout.set(new Uint8Array(this.points.add(i * this.stride).readByteArray(12)), i * 12);
       this.parts.push(pout.buffer);
       this.sizes.push(pout.byteLength);
+      for (const b of [this.nin, this.tin, this.grab(this.nptr), this.grab(this.tptr)]) {
+        this.parts.push(b);
+        this.sizes.push(b.byteLength);
+      }
       const total = this.sizes.reduce((a, b) => a + b, 0);
       const all = new Uint8Array(total);
       let at = 0;

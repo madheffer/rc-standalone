@@ -228,6 +228,63 @@ internal sealed class LatticeDeformer
             var local = MapMeshes.Transform(_toLattice, p);
             return MapMeshes.Transform(_fromLattice, Evaluate(local));
         }
+
+        /// <summary>
+        /// A tangent deformed at its point (PropDeformer_Transform's second
+        /// pass): the deformed point and the deformed point plus the tangent,
+        /// their difference normalised.
+        /// </summary>
+        public Vector3 DeformTangent(Vector3 p, Vector3 t)
+        {
+            var at = Deform(p);
+            var ahead = Deform(new Vector3(t.X + p.X, t.Y + p.Y, t.Z + p.Z));
+            return Normalise(new Vector3(ahead.X - at.X, ahead.Y - at.Y, ahead.Z - at.Z));
+        }
+
+        /// <summary>
+        /// A normal deformed at its point (181289460): two directions across
+        /// it from VectorVectors (18125d240), each deformed as a tangent is,
+        /// and their cross product normalised.
+        /// </summary>
+        public Vector3 DeformNormal(Vector3 p, Vector3 n)
+        {
+            var (u, v) = VectorVectors(n);
+            var at = Deform(p);
+            var b = Deform(new Vector3(u.X + p.X, u.Y + p.Y, u.Z + p.Z));
+            var c = Deform(new Vector3(v.X + p.X, v.Y + p.Y, v.Z + p.Z));
+            var e1 = Normalise(new Vector3(b.X - at.X, b.Y - at.Y, b.Z - at.Z));
+            var e2 = Normalise(new Vector3(c.X - at.X, c.Y - at.Y, c.Z - at.Z));
+            return Normalise(new Vector3((e2.Z * e1.Y) - (e2.Y * e1.Z), (e1.Z * e2.X) - (e2.Z * e1.X), (e2.Y * e1.X) - (e1.Y * e2.X)));
+        }
+
+        private static Vector3 Normalise(Vector3 d)
+        {
+            var v = d;
+            LightMath.Normalize(ref v);
+            return v;
+        }
+
+        // 18125d240: forward normalised when longer than 1e-5; near the z axis
+        // (|x| and |y| under 0.001) right is (0, 1, 0) and up (-z, 0, 0);
+        // otherwise right is forward x (0, 0, 1) and up forward x right, each
+        // normalised.
+        private static (Vector3 Right, Vector3 Up) VectorVectors(Vector3 f)
+        {
+            var length = MathF.Sqrt(((f.Z * f.Z) + (f.Y * f.Y)) + (f.X * f.X));
+            if (length > 1e-5f)
+            {
+                var inverse = 1f / length;
+                f = new Vector3(inverse * f.X, inverse * f.Y, inverse * f.Z);
+            }
+            if (MathF.Abs(f.X) < 0.001f && MathF.Abs(f.Y) < 0.001f)
+                return (new Vector3(0f, 1f, 0f), new Vector3(-f.Z, 0f, 0f));
+            var zero = f.Z * 0f;
+            var right = new Vector3(zero - f.Y, f.X - zero, (f.Y * 0f) - (f.X * 0f));
+            LightMath.Normalize(ref right);
+            var up = new Vector3((f.Y * right.Z) - (f.Z * right.Y), (f.Z * right.X) - (f.X * right.Z), (f.X * right.Y) - (f.Y * right.X));
+            LightMath.Normalize(ref up);
+            return (right, up);
+        }
     }
 
     /// <summary>The evaluator for points handed over with <paramref name="matrix"/> (identity: points already in the world).</summary>

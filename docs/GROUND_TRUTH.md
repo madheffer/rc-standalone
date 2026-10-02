@@ -88,6 +88,15 @@ game can answer is raised with the user first, and runs with -insecure.
     atixref plus its smart prop locator), and the round order. Physics
     placement of such nodes is settled (NestedPlacement).
 
+47. **Order of baked props within a model.** NodePropEntries orders a
+    model's baked props last to first in the walk (measured on atixref's
+    102 entries). WRBNode_AddStaticProps (180255b90) takes them from the
+    node's per-model lists (+0x198) last to first, but what fills those
+    lists is not read: on deformerprobe2 the 32 bend-deformed props come
+    in another order (2144, 2153 to 2163, 2145, 2164 to 2173, ...), while
+    all 65 entries are exact in content (PropEntriesProbe with
+    PROPENTRIES_BYID=1).
+
 ### Map resources
 15. What picks Zstd or LZ4 for map output.
 

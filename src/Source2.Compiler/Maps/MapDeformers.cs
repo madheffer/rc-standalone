@@ -45,9 +45,46 @@ public static class MapDeformers
             if (stream?.Get<object?[]>("data") is not { } positions)
                 continue;
             var evaluator = deformer.For(MapMeshes.Local(mesh));
+            // Normals and tangents first, at the undeformed positions, as
+            // PropDeformer_Transform takes them; each corner at its vertex.
+            var meshData = mesh.Get<DmxBinary.Element>("meshData")!;
+            var corners = meshData.Get<DmxBinary.Element>("faceVertexData");
+            var cornerVertex = CornerVertices(meshData);
+            foreach (var corner in corners?.GetElements("streams") ?? [])
+            {
+                var isNormal = corner.Name.StartsWith("normal:", StringComparison.Ordinal);
+                var isTangent = corner.Name.StartsWith("tangent:", StringComparison.Ordinal);
+                if ((!isNormal && !isTangent) || corner.Get<object?[]>("data") is not { } values)
+                    continue;
+                corner.Attributes["data"] = values.Select((v, c) =>
+                {
+                    var at = c < cornerVertex.Length && cornerVertex[c] >= 0 ? (Vector3)positions[cornerVertex[c]]! : Vector3.Zero;
+                    return v switch
+                    {
+                        Vector3 n when isNormal => (object?)evaluator.DeformNormal(at, n),
+                        Vector4 t when isTangent => evaluator.DeformTangent(at, new Vector3(t.X, t.Y, t.Z)) is var d ? new Vector4(d, t.W) : t,
+                        _ => v,
+                    };
+                }).ToArray();
+            }
             stream.Attributes["data"] = positions.Select(p => (object?)evaluator.Deform((Vector3)p!)).ToArray();
             mesh.Attributes[AppliedKey] = true;
         }
+    }
+
+    // Each corner's position index: half-edge e's corner (edgeVertexDataIndices)
+    // stands at its vertex (edgeVertexIndices) through vertexDataIndices.
+    private static int[] CornerVertices(DmxBinary.Element meshData)
+    {
+        int[] Ints(string name) => (meshData.Get<object?[]>(name) ?? []).Select(x => x is int i ? i : -1).ToArray();
+        var to = Ints("edgeVertexIndices");
+        var vertexData = Ints("vertexDataIndices");
+        var cornerData = Ints("edgeVertexDataIndices");
+        var result = Enumerable.Repeat(-1, cornerData.Length == 0 ? 0 : cornerData.Max() + 1).ToArray();
+        for (var e = 0; e < cornerData.Length && e < to.Length; e++)
+            if (cornerData[e] >= 0 && to[e] >= 0 && to[e] < vertexData.Length)
+                result[cornerData[e]] = vertexData[to[e]];
+        return result;
     }
 
     // 181022480: from the mesh's parent upwards, the first CMapDeformer, when
