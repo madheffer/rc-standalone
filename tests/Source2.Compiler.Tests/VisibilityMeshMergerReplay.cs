@@ -331,7 +331,7 @@ public class VisibilityMeshMergerReplay(ITestOutputHelper output)
                                       head.GetProperty("entryName").GetString() ?? "", streams);
     }
 
-    static (VisibilityMeshMerger.Mesh, uint Flags, ushort[] Key) Mesh(JsonElement head, byte[] blob)
+    internal static (VisibilityMeshMerger.Mesh, uint Flags, ushort[] Key) Mesh(JsonElement head, byte[] blob)
     {
         var nv = head.GetProperty("nv").GetInt32();
         var stride = head.GetProperty("stride").GetInt32();

@@ -106,15 +106,16 @@ game can answer is raised with the user first, and runs with -insecure.
     measured, every specimen exact that way, while the loader's rebuilt
     tracer tree changes the verdicts (RebuiltTreeProbe, RTREE=<map>). Which
     structure visbuilder's seed trace reads is not read in the 09-23 build.
-34. **World node triangle order**: the draw's steps after the incoming
-    index buffer are read and stock meshopt (GEOMETRY.md, draw buffers).
-    The incoming order is measured only: on probe01's c2 model each
-    mesh's face pairs go in reversed, and mesh 100 swaps faces 4 and 5.
-    The builder's input DMX keeps vmap order, so a step between the DMX
-    and the draw sets it (c2 60/64 triangles with the reversed pairs). The
-    likely step is CVisibilityMeshMerger (csgo_core turns on
-    VisibilityGuidedMeshClustering): it re-buckets triangles by the vis
-    clusters that see them, in hash map order (GEOMETRY.md).
+34. **World node triangle order** (settled 2026-10-03 for plain draws):
+    the merger's output entry goes through the model compiler's
+    CMesh_Weld at 1e-7 (FUN_18033f200 into 1803447d0; the node model is
+    compiled as an in-memory ModelDoc), then AddDrawDescriptors' first-use
+    renumbering, meshopt optimizeVertexCacheTable and optimizeOverdraw at
+    1.03 (MeshoptOptimizers, ported from 1812b8c10 and 1812c4f30): every
+    plain draw whose triangles come from one merger entry is exact in
+    triangle order on probe01 (2), cardtest (3) and atixref (53)
+    (DrawOrderProbe). Open: aggregate draws (meshlets) and draws from lists
+    the merger does not see.
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
     the other nine's material flags but miss `agg_merge`; the likely cause
     is the visibility mesh merger joining them first (GEOMETRY.md).

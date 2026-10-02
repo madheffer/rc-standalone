@@ -22,7 +22,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
 - installed: a different build
-- against the installed build (20261001_1.41.8.8.md): 11 tracked addresses: relocated 11
+- against the installed build (20261003_1.41.8.8.md): 11 tracked addresses: relocated 11
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -75,7 +75,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
-- against the installed build (20261001_1.41.8.8.md): 63 tracked addresses: changed 4, identical 29, moved 10, relocated 20
+- against the installed build (20261003_1.41.8.8.md): 63 tracked addresses: changed 4, identical 29, moved 10, relocated 20
 - 58 addresses
 
 ### s2c:geometry/props
@@ -166,8 +166,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- against the installed build (20261001_1.41.8.8.md): 687 tracked addresses: ambiguous 44, changed 24, identical 9, moved 601, relocated 9
-- 753 addresses
+- against the installed build (20261003_1.41.8.8.md): 778 tracked addresses: ambiguous 45, changed 27, identical 21, moved 676, relocated 9
+- 758 addresses
 
 ### s2c:baked/light-keys
 
@@ -723,8 +723,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180303b60` | `CMeshletBuilder_BuildRange` | meshopt_buildMeshlets over a range, each meshlet to CMeshletBuilder_AddMeshlet |  |
 | `180304180` | `CMeshletBuilder_AddMeshlet` | optimizeMeshletLevel, triangles appended (odd counts padded unless RenderMeshlets), box packed, cone s8 | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:29` |
 | `180306280` | `CMeshletBuilder_BuildDraw` | meshlets per triangle range (bone 0xfffe), the new index buffer, then vertex fetch remap |  |
+| `18033f200` | `ModelCompile_WeldMeshes` | CMesh_Weld at 1e-7 over the model's meshes (via 1803447d0) |  |
+| `1803447d0` | `ModelCompile_WeldMesh` | tangents (CMesh_ComputeTangents) unless preserved, UseMikkTSpace, then CMesh_Weld at the given tolerance |  |
 | `18126a830` | `PackedAABB_Pack` | 10 bits an axis inside the bounds, min floored, max ceiled | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:31` |
-| `1812b8c10` | `meshopt_optimizeVertexCacheTable` |  |  |
+| `1812b88e0` | `meshopt_buildTriangleAdjacency` |  | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:28` |
+| `1812b8c10` | `meshopt_optimizeVertexCacheTable` |  | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:6` |
 | `1812b9370` | `meshopt_optimizeVertexCache` | stock meshopt, kVertexScoreTable at 18243aab0 (same values) |  |
 | `1812b9540` | `meshopt_remapIndexBuffer` |  |  |
 | `1812b9590` | `meshopt_remapVertexBuffer` |  |  |
@@ -736,8 +739,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812bfdf0` | `meshopt_buildMeshlets` | calls buildMeshletsFlex with min = max triangles, split factor 0 |  |
 | `1812bfe70` | `meshopt_buildMeshletsBound` |  |  |
 | `1812bfeb0` | `meshopt_buildMeshletsFlex` |  |  |
-| `1812c4810` | `meshopt_calculateSortOrderRadix` | 11-bit keys, 1e-3 floor: the radix version |  |
-| `1812c4f30` | `meshopt_optimizeOverdraw` | stock meshopt; threshold 1.03 from AddDrawDescriptors |  |
+| `1812c4230` | `meshopt_calculateSortData` | mesh centroid over the vertices; area-weighted cluster centroid dotted with the cluster normal | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:9`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:224` |
+| `1812c4810` | `meshopt_calculateSortOrderRadix` | 11-bit keys, 1e-3 floor: the radix version | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:10`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:270` |
+| `1812c4c40` | `meshopt_generateSoftBoundaries` | cluster ACMR times the threshold | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:8`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:180` |
+| `1812c4f30` | `meshopt_optimizeOverdraw` | stock meshopt; threshold 1.03 from AddDrawDescriptors | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:7` |
 | `1812d9920` | `Mesh_UvDensity` | sqrt(world area / uv area), sorted, index ((n-1)*pct)/100; pct 20 or 95 | `src/Source2.Compiler/Maps/UvDensity.cs:6` |
 | `1812e1ce0` | `CMesh_DuplicateReversed` | double-sided draws: every triangle again with the winding reversed |  |
 | `181365a40` | `CMesh_CreatePackedVB` | vertex buffer written field by field through the packed input layout (181365ce0 per format) |  |
@@ -1063,7 +1068,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
 - installed: a different build
-- against the installed build (20261001_1.41.8.8.md): 30 tracked addresses: identical 17, relocated 13
+- against the installed build (20261003_1.41.8.8.md): 30 tracked addresses: identical 17, relocated 13
 - 30 addresses
 
 ### s2c:smartprops
@@ -1106,7 +1111,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: this build
-- against the installed build (20261001_1.41.8.8.md): 31 tracked addresses: identical 31
+- against the installed build (20261003_1.41.8.8.md): 31 tracked addresses: identical 31
 - 30 addresses
 
 ### s2c:containers
@@ -1159,7 +1164,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
 - installed: a different build
-- against the installed build (20261001_1.41.8.8.md): 201 tracked addresses: changed 36, identical 123, relocated 42
+- against the installed build (20261003_1.41.8.8.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -1372,7 +1377,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- against the installed build (20261001_1.41.8.8.md): 415 tracked addresses: changed 2, identical 308, moved 1, relocated 104
+- against the installed build (20261003_1.41.8.8.md): 415 tracked addresses: changed 2, identical 308, moved 1, relocated 104
 - 414 addresses
 
 ### s2c:entities/settle

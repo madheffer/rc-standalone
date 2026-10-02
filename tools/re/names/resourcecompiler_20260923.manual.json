@@ -1087,6 +1087,36 @@
    "note": "11-bit keys, 1e-3 floor: the radix version"
   },
   {
+   "addr": "1812c4c40",
+   "name": "meshopt_generateSoftBoundaries",
+   "module": "s2c:geometry/world-nodes",
+   "note": "cluster ACMR times the threshold"
+  },
+  {
+   "addr": "1812c4230",
+   "name": "meshopt_calculateSortData",
+   "module": "s2c:geometry/world-nodes",
+   "note": "mesh centroid over the vertices; area-weighted cluster centroid dotted with the cluster normal"
+  },
+  {
+   "addr": "1812b88e0",
+   "name": "meshopt_buildTriangleAdjacency",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "18033f200",
+   "name": "ModelCompile_WeldMeshes",
+   "module": "s2c:geometry/world-nodes",
+   "note": "CMesh_Weld at 1e-7 over the model's meshes (via 1803447d0)"
+  },
+  {
+   "addr": "1803447d0",
+   "name": "ModelCompile_WeldMesh",
+   "module": "s2c:geometry/world-nodes",
+   "note": "tangents (CMesh_ComputeTangents) unless preserved, UseMikkTSpace, then CMesh_Weld at the given tolerance"
+  },
+  {
    "addr": "1812d9920",
    "name": "Mesh_UvDensity",
    "module": "s2c:geometry/world-nodes",
