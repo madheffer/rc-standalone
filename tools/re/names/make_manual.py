@@ -220,6 +220,7 @@ RESOURCECOMPILER = [
     ("180d4a120", "Texcoords_AnyAbove16", WN, "true when any of a two-float stream's components passes 16 in magnitude"),
     ("180258310", "WRBMeshList_KeepTexcoordPrecision", WN, "a mesh list: when one texcoord stream is flagged (+0x1d) or passes 16 (180d4a120), every texcoord stream of every mesh gets +0x1d (kept float32); from WRBMeshList_GroupAggregates; BuildPropAggregates inlines it per run"),
     ("1802f6840", "WRB_CompressTexcoordsToSnorm", WN, "per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990)"),
+    ("1802f69f0", "ModelCompile_BuildDrawSets", WN, "draw-set groups (400 bytes: four layouts, then the meshes) from the mesh list (+0x14c instanced, +0x14d), each through 1802f6840"),
     ("1802fc990", "CMesh_StreamWithinUnitRange", WN, "min >= -1 and max <= 1 over a two-float stream"),
     ("18026d7a0", "WRBNode_PropCanAggregate", WN, "false with a lighting origin (UseStaticEnvMapForObjectsWithLightingOrigin, prop +0x208), no model, not a prop_static (+0x17e), lodlevel (+0x1e4) not -1, renderwithdynamic (+0x171), fademindist or fademaxdist (+0x160/+0x164) above 0, or extra vertex streams (+0x100) without node +5; else every material's SupportsAggregateInstancing (0x67d9d859)"),
     ("180274be0", "WRBMeshList_SortMorton", WN, "entries by a 32-bit Morton key of ((long)(centre.x - node.min.x) >> 4, (long)(centre.y - node.min.y) >> 4), 16 bits each, y in the odd bits; std::sort (180299b60) on the key alone"),

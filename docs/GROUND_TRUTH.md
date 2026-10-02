@@ -233,9 +233,11 @@ game can answer is raised with the user first, and runs with -insecure.
     or a value passes 16, else SNORM within 1, else half: all 472 of
     atixref's streams (PropAggregatesReplay). World draws from map meshes
     (stride 12 entries): 88 SNORM and 6 half beside 101 and 194 float32
-    with the same ranges, so their initial flag, or the list 1802f6840
-    walks (4 layouts), is not known. Next: capture +0x1d with the entries,
-    or read 1802f6840's caller.
+    with the same ranges. 1802f6840 runs per draw-set group (400 bytes:
+    four layouts and the group's meshes) in the model compile (1802f69f0),
+    so those float ones arrive flagged; where map meshes get +0x1d is not
+    read (not in 18020e6a0, 180210730, 180203280; 1802625c0 and 1803067f0
+    copy it). Next: capture the stream table's +0x1d with the entries.
 
 ## Resolved
 

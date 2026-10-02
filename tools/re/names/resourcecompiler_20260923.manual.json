@@ -1069,6 +1069,12 @@
    "note": "per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990)"
   },
   {
+   "addr": "1802f69f0",
+   "name": "ModelCompile_BuildDrawSets",
+   "module": "s2c:geometry/world-nodes",
+   "note": "draw-set groups (400 bytes: four layouts, then the meshes) from the mesh list (+0x14c instanced, +0x14d), each through 1802f6840"
+  },
+  {
    "addr": "1802fc990",
    "name": "CMesh_StreamWithinUnitRange",
    "module": "s2c:geometry/world-nodes",
