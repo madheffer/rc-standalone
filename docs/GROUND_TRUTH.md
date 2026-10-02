@@ -119,8 +119,15 @@ game can answer is raised with the user first, and runs with -insecure.
     AllowBackfaceCulling and is not DoubleSided, else 0) and
     optimizeMeshletLevel at 4, an odd meshlet padded with (last, last,
     last) (MeshoptMeshlets): all 44 aggregate draws from the merger exact
-    on probe01, cardtest, atixref and ze_hold_em_p. Open: draws from lists
-    the merger does not see.
+    on probe01, cardtest, atixref and ze_hold_em_p. Draws from lists the
+    merger does not see take BuildNode's output entries, a per-cluster
+    draw the subset of the entry's triangles in that cluster, in entry
+    order (several entries appended in entry order): atixref 99 of 99
+    plain and 383 of 384 aggregate such draws exact, 30 of 32 multi-entry
+    plain draws, with the subset read from the shipped draw. In all, 583 of
+    atixref's 612 draws not built from prop models are exact. Open: the
+    render-cluster triangle assignment itself (RenderClusters, ported but
+    unchecked) and prop-model aggregates (658 atixref draws).
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
     the other nine's material flags but miss `agg_merge`; the likely cause
     is the visibility mesh merger joining them first (GEOMETRY.md).

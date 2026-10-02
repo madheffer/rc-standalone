@@ -400,7 +400,15 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   at 1.03 (the 11-bit radix version). The vertex and index codecs, the
   tangent frame and UV density are exact (MeshoptEncoderTests,
   TangentFrameTests, UvDensityTests).
-- **Triangle order** into those steps is not ours yet. The builder's input
+- **Triangle order** (settled, GROUND_TRUTH 34): a draw's input is its
+  merger output entry (or BuildNode's entry, cut to the draw's render
+  cluster), welded by the model compiler's CMesh_Weld at 1e-7; then the
+  first-use renumbering, `MeshoptOptimizers` (vertex cache, overdraw at
+  1.03) and, for aggregates, `MeshoptMeshlets` (meshopt 1.0
+  buildMeshletsFlex and optimizeMeshletLevel 4, cones at 0.15 when the
+  material culls back faces) give the shipped order on probe01, cardtest,
+  atixref and ze_hold_em_p (DrawOrderProbe). Earlier notes, kept: the
+  incoming order was not ours. The builder's input
   DMX lists faces in vmap order within each face set (MeshBufferVsVmap,
   MESHBUF_ORDER=1: atixref 456 meshes ascending, the rest grouped by
   set). But on probe01's c2 model, 60 of 64 triangles come out right only

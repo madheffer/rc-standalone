@@ -56,9 +56,21 @@ public class DrawOrderProbe(ITestOutputHelper output)
         for (var e = 0; e < outs.Count; e++)
             for (var t = 0; t < outs[e].Indices.Count / 3; t++)
                 owner.TryAdd(Key(Pos(outs[e], outs[e].Indices[t * 3]), Pos(outs[e], outs[e].Indices[(t * 3) + 1]), Pos(outs[e], outs[e].Indices[(t * 3) + 2])), e);
+        // Draws from lists the merger does not see take BuildNode's output entries as they are.
+        var mergerCount = outs.Count;
+        if (p.Length > 2)
+            foreach (var c in NodeEntriesFromVmap.Read(p[2]).Where(c => c.Stage == "BuildNode:out"))
+            {
+                var position = c.Layout.First(x => x.Name.Equals("position", StringComparison.OrdinalIgnoreCase)).First;
+                outs.Add(new VisibilityMeshMerger.Mesh { Vertices = [.. c.Vertices], Stride = c.Stride, PositionOffset = position, Indices = [.. c.Indices] });
+                outStreams.Add([.. c.Layout.Select(x => new Physics.MeshWeld.Stream(x.Name, x.First, x.Count, false, x.Type))]);
+                var e = outs.Count - 1;
+                for (var t = 0; t < outs[e].Indices.Count / 3; t++)
+                    owner.TryAdd(Key(Pos(outs[e], outs[e].Indices[t * 3]), Pos(outs[e], outs[e].Indices[(t * 3) + 1]), Pos(outs[e], outs[e].Indices[(t * 3) + 2])), e);
+            }
         using var package = new ValvePak.Package();
         package.Read(p[1]);
-        int draws = 0, exact = 0, unmatched = 0, shownPlain = 0;
+        int draws = 0, exact = 0, unmatched = 0, shownPlain = 0, shownBn = 0;
         var tally = new SortedDictionary<string, int>();
         foreach (var entry in package.Entries!.GetValueOrDefault("vmdl_c") ?? [])
         {
@@ -88,6 +100,32 @@ public class DrawOrderProbe(ITestOutputHelper output)
                         var count = dc.GetInt32Property("m_nIndexCount");
                         var shipped = Enumerable.Range(0, count / 3).Select(t => Key(V(Index(start + (t * 3))), V(Index(start + (t * 3) + 1)), V(Index(start + (t * 3) + 2)))).ToList();
                         var sources = shipped.Select(k => owner.GetValueOrDefault(k, -1)).Distinct().ToList();
+                        VisibilityMeshMerger.Mesh? combined = null;
+                        if (Environment.GetEnvironmentVariable("DRAWORDER_SUBSET") == "1" && sources.Count > 1 && !sources.Contains(-1))
+                        {
+                            // Several source entries: their kept triangles appended in entry order, vertices offset.
+                            var want = shipped.ToHashSet();
+                            var joined = new VisibilityMeshMerger.Mesh { Stride = outs[sources[0]].Stride, PositionOffset = outs[sources[0]].PositionOffset };
+                            var ok = true;
+                            foreach (var e in sources.Order())
+                            {
+                                var m2 = outs[e];
+                                if (m2.Stride != joined.Stride || m2.PositionOffset != joined.PositionOffset)
+                                    ok = false;
+                                var baseV = joined.VertexCount;
+                                joined.Vertices.AddRange(m2.Vertices);
+                                for (var t = 0; t < m2.Indices.Count / 3; t++)
+                                    if (want.Contains(Key(Pos(m2, m2.Indices[t * 3]), Pos(m2, m2.Indices[(t * 3) + 1]), Pos(m2, m2.Indices[(t * 3) + 2]))))
+                                        joined.Indices.AddRange([m2.Indices[t * 3] + baseV, m2.Indices[(t * 3) + 1] + baseV, m2.Indices[(t * 3) + 2] + baseV]);
+                            }
+                            if (ok)
+                            {
+                                combined = joined;
+                                outs.Add(joined);
+                                outStreams.Add(outStreams[sources[0]]);
+                                sources = [outs.Count - 1];
+                            }
+                        }
                         if (sources.Count != 1 || sources[0] < 0)
                         {
                             var kindU = entry.FileName.Contains("agg_", StringComparison.Ordinal) ? "aggregate" : "plain";
@@ -98,6 +136,16 @@ public class DrawOrderProbe(ITestOutputHelper output)
                             continue;
                         }
                         var src = outs[sources[0]];
+                        // A per-cluster draw holds a subset of its source entry: keep the source's triangles the draw has, in order.
+                        if (Environment.GetEnvironmentVariable("DRAWORDER_SUBSET") == "1" && src.Indices.Count / 3 != shipped.Count)
+                        {
+                            var want = shipped.ToHashSet();
+                            var keep = new List<int>();
+                            for (var t = 0; t < src.Indices.Count / 3; t++)
+                                if (want.Contains(Key(Pos(src, src.Indices[t * 3]), Pos(src, src.Indices[(t * 3) + 1]), Pos(src, src.Indices[(t * 3) + 2]))))
+                                    keep.AddRange([src.Indices[t * 3], src.Indices[(t * 3) + 1], src.Indices[(t * 3) + 2]]);
+                            src = new VisibilityMeshMerger.Mesh { Vertices = src.Vertices, Stride = src.Stride, PositionOffset = src.PositionOffset, Indices = keep };
+                        }
                         var (renumbered, remap) = MeshoptOptimizers.RenumberByFirstUse(src.Indices);
                         var positions = remap.SelectMany(v => { var q = Pos(src, v); return new[] { q.X, q.Y, q.Z }; }).ToList();
                         var cached = MeshoptOptimizers.OptimizeVertexCache(renumbered, remap.Length);
@@ -163,6 +211,8 @@ public class DrawOrderProbe(ITestOutputHelper output)
                                         output.WriteLine($"   MESHLETS w {w}: {built.Meshlets.Count} meshlets, {outIdx.Count / 3} triangles, {inPlace}/{shipped.Count} in place");
                                         if (w == 0.15f)
                                             weldedSame = inPlace == shipped.Count && outIdx.Count / 3 == shipped.Count ? shipped.Count : -1;
+                                        else if (weldedSame != shipped.Count && inPlace == shipped.Count && outIdx.Count / 3 == shipped.Count)
+                                            weldedSame = shipped.Count;
                                     }
                                 }
                             }
@@ -182,8 +232,10 @@ public class DrawOrderProbe(ITestOutputHelper output)
                                 }
                                 output.WriteLine($"   OVERLAY {entry.FileName}: none {InPlace2(rn)}, vcache {InPlace2(vc2)}, overdraw only {InPlace2(MeshoptOptimizers.OptimizeOverdraw(rn, pos2, rm.Length, 3, 1.03f))}, both {weldedSame} of {shipped.Count}");
                             }
-                            var kind = entry.FileName.Contains("agg_", StringComparison.Ordinal) ? "aggregate" : "plain";
+                            var kind = (entry.FileName.Contains("agg_", StringComparison.Ordinal) ? "aggregate" : "plain") + (combined != null ? " (several)" : sources[0] >= mergerCount ? " (BuildNode)" : "");
                             tally[$"{kind} {(weldedSame == shipped.Count ? "exact" : "differs")}"] = tally.GetValueOrDefault($"{kind} {(weldedSame == shipped.Count ? "exact" : "differs")}") + 1;
+                            if (kind.Contains("BuildNode") && weldedSame != shipped.Count && shownBn++ < 14)
+                                output.WriteLine($"   BN {kind} {entry.FileName} {Path.GetFileName(dc.GetStringProperty("m_material"))}: {weldedSame}/{shipped.Count}, source {src.VertexCount} vertices {src.Indices.Count / 3} triangles; none {InPlace(renumbered)}");
                             if (kind == "plain" && weldedSame != shipped.Count && shownPlain++ < 6)
                                 output.WriteLine($"   PLAIN {entry.FileName} {Path.GetFileName(dc.GetStringProperty("m_material"))}: {weldedSame}/{shipped.Count}");
                             output.WriteLine($"   welded exact duplicates ({src.VertexCount} -> {firstOf.Count} vertices): {weldedSame}/{shipped.Count} in place");
