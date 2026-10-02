@@ -132,7 +132,10 @@ game can answer is raised with the user first, and runs with -insecure.
     included (the weld keeps vertices that differ only there): all 446 of
     atixref's exact (PropAggregateOrderProbe), skins, materialoverride and
     smart prop material variables included. In all, 1,217 of atixref's
-    1,270 draws are exact. Open: 12 BuildNode aggregates and 7 multi-entry
+    1,270 draws are exact. The vertices of every one of those 1,270 draws
+    sit in first-use order of its final index list (optimizeVertexFetch,
+    VertexOrderProbe); NodeDraw builds a draw that way. Open: 12 BuildNode
+    aggregates and 7 multi-entry
     draws differ, 34 draws span entries the subset rule does not join; the
     render-cluster triangle assignment itself (RenderClusters, 90%).
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
@@ -210,8 +213,16 @@ game can answer is raised with the user first, and runs with -insecure.
     order is the copies' heap addresses, as is the draw order itself and
     the bucket order (a hashed pointer; two compiles swap metal_door_001's
     _0 and _1). Not reproducible from data; ours must pick an order.
-    Open: confirm the +0x100 props, 18026d7a0's test, the 863 threshold's
-    unit (+0x24).
+    The candidate test is WRBNode_PropCanAggregate (18026d7a0, read); a
+    model with several LODs puts every LOD's meshes in, a fragment per prop
+    and LOD with a LOD setup per prop; a smart prop's models come in with
+    the element's material group as skin. NodePropAggregates builds all 171
+    of atixref's aggregates from the .vmap: 446 draws exact in triangle and
+    vertex order, every fragment set (PropAggregatesReplay); draw order
+    138 of 171, fragment order 218 of 361. The origin search puts the best
+    Morton origin at BuildNode's bounds minimum. Open: the 863 threshold's
+    unit (CMesh +0x24), extra vertex streams, the texcoord stream test
+    after the runs (180273xxx, V_stricmp "texcoord").
 
 ## Resolved
 

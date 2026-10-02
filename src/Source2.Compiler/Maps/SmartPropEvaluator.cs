@@ -22,7 +22,11 @@ namespace Source2.Compiler.Maps;
 internal static class SmartPropEvaluator
 {
     /// <summary>One emitted model: its path, element path and transform in the world.</summary>
-    public sealed record Placement(string Model, int[] Path, CTransform Transform, Vector3 ModelScale);
+    public sealed record Placement(string Model, int[] Path, CTransform Transform, Vector3 ModelScale)
+    {
+        /// <summary>The model element's material group (m_MaterialGroupName, a variable's value), or null.</summary>
+        public string? MaterialGroup { get; init; }
+    }
 
     /// <summary>A node's stored configuration entry: the element's random seed and its locators' deltas.</summary>
     public sealed record Entry(int Seed, List<(string Name, Vector3 DeltaMin, Vector3 DeltaMax, CTransform? Delta)> Locators)
@@ -216,7 +220,10 @@ internal static class SmartPropEvaluator
                     || (element.ContainsKey("m_SurfacePropertyOverride") && Value(element["m_SurfacePropertyOverride"], context) is string { Length: > 0 }))
                     throw new NotSupportedException("smart prop detail objects and surface overrides are not ported");
                 context.Output.Add(new Placement(element.GetStringProperty("m_sModelName"), [.. context.Path], context.Transform,
-                    element.ContainsKey("m_vModelScale") ? Vector(element["m_vModelScale"], context) : Vector3.One));
+                    element.ContainsKey("m_vModelScale") ? Vector(element["m_vModelScale"], context) : Vector3.One)
+                {
+                    MaterialGroup = element.ContainsKey("m_MaterialGroupName") ? Value(element["m_MaterialGroupName"], context) as string : null,
+                });
                 break;
             case "CSmartPropElement_FitOnLine":
                 FitOnLine(element, context);

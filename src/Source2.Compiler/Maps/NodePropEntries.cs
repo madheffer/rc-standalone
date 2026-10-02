@@ -40,10 +40,7 @@ internal static class NodePropEntries
             var keys = ent.Element.Get<DmxBinary.Element>("entity_properties");
             if (ent.Hidden || keys?.Get<string>("classname") != "prop_static")
                 continue;
-            var scales = ent.Element.GetValue<Vector3>("scales") ?? Vector3.One;
-            var magnitudes = new[] { MathF.Abs(scales.X), MathF.Abs(scales.Y), MathF.Abs(scales.Z) };
-            var bake = Flag(keys.Get<string>("baketoworld")) || magnitudes.Max() - magnitudes.Min() > 0.0001f;
-            if (!bake)
+            if (!Baked(ent.Element, keys))
                 continue;
             var id = ent.Through.Count == 0 ? ent.Element.GetValue<int>("nodeID") ?? -1 : copyIds.GetValueOrDefault(Key(ent.Element, ent.Through), -1);
             baked.Add((ent, id, keys.Get<string>("model") ?? "", walk));
@@ -53,6 +50,14 @@ internal static class NodePropEntries
             foreach (var (node, id, model, _) in group.OrderByDescending(b => b.Walk))
                 entries.AddRange(Entries(node, id, model, content, notes));
         return entries;
+    }
+
+    /// <summary>AddStaticProps' bake test: baketoworld, or a non-uniform scale (max |s| - min |s| above 0.0001).</summary>
+    internal static bool Baked(DmxBinary.Element node, DmxBinary.Element keys)
+    {
+        var scales = node.GetValue<Vector3>("scales") ?? Vector3.One;
+        var magnitudes = new[] { MathF.Abs(scales.X), MathF.Abs(scales.Y), MathF.Abs(scales.Z) };
+        return Flag(keys.Get<string>("baketoworld")) || magnitudes.Max() - magnitudes.Min() > 0.0001f;
     }
 
     private static IEnumerable<NodeMeshEntries.Entry> Entries(MapMeshes.EntityNode node, int id, string modelName, GameContent content, List<string>? notes)
@@ -107,7 +112,7 @@ internal static class NodePropEntries
     // The skin key (a group's name, or its index): each material of the first
     // group becomes the same slot of the chosen one (WRBNode_PropMaterials
     // through the prop's +0x188).
-    private static Dictionary<string, string> MaterialGroup(ValveResourceFormat.ResourceTypes.Model model, string? skin)
+    internal static Dictionary<string, string> MaterialGroup(ValveResourceFormat.ResourceTypes.Model model, string? skin)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var groups = model.Data.GetArray("m_materialGroups");
@@ -184,7 +189,7 @@ internal static class NodePropEntries
         };
     }
 
-    private static bool Flag(string? value) => value is "1" or "true" or "True";
+    internal static bool Flag(string? value) => value is "1" or "true" or "True";
 
     private static string Key(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through)
         => Key(node, through.Select(e => e.GetValue<int>("nodeID") ?? -1));

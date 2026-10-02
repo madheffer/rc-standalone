@@ -167,7 +167,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261003_1.41.8.8.md): 778 tracked addresses: ambiguous 45, changed 27, identical 21, moved 676, relocated 9
-- 770 addresses
+- 771 addresses
 
 ### s2c:baked/light-keys
 
@@ -377,7 +377,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun |  |
-| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:81`, `src/Source2.Compiler/Maps/NodePropEntries.cs:127`, `src/Source2.Compiler/Maps/PropTransform.cs:9` +1 |
+| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:81`, `src/Source2.Compiler/Maps/NodePropEntries.cs:132`, `src/Source2.Compiler/Maps/PropTransform.cs:9` +1 |
 | `18024adc0` | `WRB_WriteEntityLump` | entity_lump_params, entities\ |  |
 | `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:12`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:161` |
 
@@ -666,7 +666,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180251da0` | `WRBMeshEntry_LightingMode` | from attribute bits 16/17 | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:58` |
 | `180254480` | `WRBNode_AddOverlay` | a 0xc0 copy of the map node's overlay descriptor (+0x78 name, +0x80, +0x88) appended to node +0x1f8 |  |
 | `1802547d0` | `WRBNode_ComputeBounds` | meshes whose entry flags miss the mask, then static props |  |
-| `180255470` | `WRBNode_PropEntry` | a node entry from a prop's mesh: fade +0x160/+0x164, bakelightdoublesided, lightmapscalebias, flags from disableinlowquality, rendertocubemaps, renderwithdynamic, emissive mode 1, lighting origin |  |
+| `180255470` | `WRBNode_PropEntry` | a node entry from a prop's mesh: fade +0x160/+0x164, bakelightdoublesided, lightmapscalebias, flags from disableinlowquality, rendertocubemaps, renderwithdynamic, emissive mode 1, lighting origin | `src/Source2.Compiler/Maps/NodePropAggregates.cs:20` |
 | `180255b90` | `WRBNode_AddStaticProps` | props of node +0x198 baked into entries unless clutterinstance: baketoworld, materialoverride (+0x40), a deformer (+0x80), +0x17c with the node's flag, non-uniform scale (max \|s\| - min \|s\| > 0.0001, BakePropsWithNonUniformScale) or extra vertex streams (BakePropsWithExtraVertexStreams); instances walked last to first |  |
 | `180256690` | `WRBNode_Step256690` | after the drop of +0x1a5 / bit 34 entries, before Step257b50; identity on probe01, cardtest and atixref |  |
 | `180257b50` | `WRBNode_TakeLightmapResEntries` | entries with attribute bit 10 (toolslightmapres) taken out, their positions to node +0x160; bit 36 dropped |  |
@@ -691,6 +691,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18026bab0` | `WRBNode_CreateRenderObject` | name <node>_lr%i[_c%i]{_s\|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name> |  |
 | `18026c150` | `WRBMeshList_GroupRenderObjects` | runs of equal cubemap, probe, flags & 0x10420000, +0x1a6, object flags; named %s_cm%02d_lp%02d |  |
 | `18026d4a0` | `WRBMeshEntry_CanAggregate` | attribute 0x40000000 and none of 0x800e01, object flags without 0x200, no instance stream, lighting origin, overlay order or fade | `src/Source2.Compiler/Maps/MeshLists.cs:56` |
+| `18026d7a0` | `WRBNode_PropCanAggregate` | false with a lighting origin (UseStaticEnvMapForObjectsWithLightingOrigin, prop +0x208), no model, not a prop_static (+0x17e), lodlevel (+0x1e4) not -1, renderwithdynamic (+0x171), fademindist or fademaxdist (+0x160/+0x164) above 0, or extra vertex streams (+0x100) without node +5; else every material's SupportsAggregateInstancing (0x67d9d859) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:14`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:204` |
 | `18026e490` | `WRB_RemoveZeroExtraAttributeStreams` | Removed %i all-zero extra attribute streams |  |
 | `18026e840` | `CClassifiedMeshList::MoveAggregates` | vf 0x28: aggregatable entries moved to the aggregate member list |  |
 | `18026f590` | `WRBMeshList_GroupAggregates` | runs of equal material name and attribute bits 0x6000000000 / 0x100000, up to 0x7ffb meshes, into the aggregate builder |  |
@@ -703,8 +704,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180272b70` | `CInstancedMeshList::CInstancedMeshList` | want 2 (never merge), exclude 1; reads UseAggregateInstances |  |
 | `180272c80` | `CInstancedMeshList::OnAdd` | vf 0x58: mesh +0x14c = 1 |  |
 | `180272c90` | `CBakedPropLODMeshList::OnAdd` | vf 0x58: clears attribute bit 2, mesh +0x14c = 0 |  |
-| `180272ce0` | `WRBNode_BuildPropAggregates` | with UseAggregateInstances: models of node +0x190 (CUtlOrderedMap, CDefStringLess) in order; a model's props without materialoverride, deformer or +0x1e8 that pass 18026d7a0, by LOD (1802b4ab0): one entry per prop and mesh (180255470, 180252ae0), +0x204 the centre of the LOD's mesh bounds placed by the prop matrix; a model joins only if every entry CanAggregate; buckets by entry +0x20; if any and the summed +0x24 > 863: per bucket PrepareForMerge, Morton order (180274be0), stable sort, runs into aggregates; agg_prop |  |
-| `180274be0` | `WRBMeshList_SortMorton` | entries by a 32-bit Morton key of ((long)(centre.x - node.min.x) >> 4, (long)(centre.y - node.min.y) >> 4), 16 bits each, y in the odd bits; std::sort (180299b60) on the key alone |  |
+| `180272ce0` | `WRBNode_BuildPropAggregates` | with UseAggregateInstances: models of node +0x190 (CUtlOrderedMap, CDefStringLess) in order; a model's props without materialoverride, deformer or +0x1e8 that pass 18026d7a0, by LOD (1802b4ab0): one entry per prop and mesh (180255470, 180252ae0), +0x204 the centre of the LOD's mesh bounds placed by the prop matrix; a model joins only if every entry CanAggregate; buckets by entry +0x20; if any and the summed +0x24 > 863: per bucket PrepareForMerge, Morton order (180274be0), stable sort, runs into aggregates; agg_prop | `src/Source2.Compiler/Maps/NodePropAggregates.cs:8` |
+| `180274be0` | `WRBMeshList_SortMorton` | entries by a 32-bit Morton key of ((long)(centre.x - node.min.x) >> 4, (long)(centre.y - node.min.y) >> 4), 16 bits each, y in the odd bits; std::sort (180299b60) on the key alone | `src/Source2.Compiler/Maps/NodePropAggregates.cs:214` |
 | `180277ab0` | `CWorldRendererBuilderNode::CompileNode` | worldnodes
 %d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams; with vis clustering three lists each go through CVisibilityMeshMerger::MergeMeshes (call at 180278812): the unclustered entries replace the list for Step_BuildingRenderClusters, each non-empty bucket is compiled as a cluster (list vf 0x28/0x30) | `src/Source2.Compiler/Maps/MeshLists.cs:4` |
 | `180281100` | `CWorldRendererBuilderNode::PostCompileNode` |  |  |
@@ -818,7 +819,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/MapMeshes.cs:266` |
 | `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:26`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:242` |
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
-| `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:385`, `src/Source2.Compiler/Maps/SettleWorld.cs:501`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:616` |
+| `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:385`, `src/Source2.Compiler/Maps/SettleWorld.cs:501`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:623` |
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
 | `18125bad0` | `Matrix3x4_Column0` |  |  |
 | `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:70` |
@@ -833,10 +834,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125dcc0` | `Quaternion_Forward` | x axis | `src/Source2.Compiler/Maps/LightMath.cs:205`, `src/Source2.Compiler/Maps/LightMath.cs:224` |
 | `18125dd50` | `Quaternion_Left` | y axis | `src/Source2.Compiler/Maps/LightMath.cs:227` |
 | `18125dde0` | `Quaternion_Up` | z axis | `src/Source2.Compiler/Maps/LightMath.cs:230` |
-| `18125de90` | `MatrixQuaternion` | a 3x4's rotation as a quaternion from its largest diagonal | `src/Source2.Compiler/Maps/LightMath.cs:150`, `src/Source2.Compiler/Maps/SettleWorld.cs:519`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:616` +1 |
+| `18125de90` | `MatrixQuaternion` | a 3x4's rotation as a quaternion from its largest diagonal | `src/Source2.Compiler/Maps/LightMath.cs:150`, `src/Source2.Compiler/Maps/SettleWorld.cs:519`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:623` +1 |
 | `18125f4e0` | `QuaternionMatrix_Translation` | a quaternion's 3x4 with a translation | `src/Source2.Compiler/Maps/LightMath.cs:136` |
 | `181260150` | `QuaternionMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:95` |
-| `181260200` | `QuaternionAngles` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/LightPrecompute.cs:155`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:636`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
+| `181260200` | `QuaternionAngles` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/LightPrecompute.cs:155`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:643`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
 | `1812636e0` | `Matrix4x4_Invert` | Gauss-Jordan with partial pivoting | `src/Source2.Compiler/Maps/LightMath.cs:35`, `src/Source2.Compiler/Maps/PropTransform.cs:13` |
 | `181263af0` | `MatrixInvert_Translation` | inverse of a rotation and translation | `src/Source2.Compiler/Maps/TemplateTransform.cs:43` |
 | `181263c30` | `Matrix3x4_InverseTranspose` | the 3x4 as 4x4 with (0, 0, 0, 1), inverted (1812636e0), transposed | `src/Source2.Compiler/Maps/PropTransform.cs:13` |
@@ -1025,10 +1026,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18122d020` | `SmartProp_NodeTransform` | world matrix split into column scales and a rotation | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:15`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:615` |
-| `181230360` | `SmartProp_EvaluateNode` | calls SmartPropsSystem_001 +0x88 with the node's world CTransform | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:13`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:614` |
-| `181c51040` | `SmartProp_RebaseRecords` | Compose(CTransform_Invert(W), record) | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:634` |
-| `181c51410` | `SmartProp_ComposeRecords` | Compose(W, record) again | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:635` |
+| `18122d020` | `SmartProp_NodeTransform` | world matrix split into column scales and a rotation | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:15`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:622` |
+| `181230360` | `SmartProp_EvaluateNode` | calls SmartPropsSystem_001 +0x88 with the node's world CTransform | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:13`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:621` |
+| `181c51040` | `SmartProp_RebaseRecords` | Compose(CTransform_Invert(W), record) | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:641` |
+| `181c51410` | `SmartProp_ComposeRecords` | Compose(W, record) again | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:642` |
 | `183b5b4c0` | `g_pSmartPropsSystem` | data: global, SmartPropsSystem_001 |  |
 
 ### s2c:visibility
@@ -1087,36 +1088,36 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18000b8c0` | `SmartProp_EvaluateGroup` | nothing of its own: its modifiers have run | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:225` |
+| `18000b8c0` | `SmartProp_EvaluateGroup` | nothing of its own: its modifiers have run | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:232` |
 | `18000d4b0` | `SmartPropContext_ctor` |  |  |
-| `18000eb00` | `SmartPropContext_Setup` | object +0x170 = element +0x100 = the given transform | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:166` |
-| `18000f250` | `SmartProp_ApplyModifiers` | each enabled modifier; false when a filter stops the element | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:235` |
-| `18000f320` | `SmartProp_EvaluateChild` | skips a disabled element; pushes its id | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:185` |
-| `18000f8e0` | `SmartProp_StoredChoiceIndex` | -1 picks none | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:344` |
-| `18000fab0` | `SmartProp_StoredChoice` | stored choiceValue | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:344` |
-| `1800118a0` | `SmartProp_RandomStream` | the stream for the current path, made on first use | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:143` |
-| `180011a50` | `SmartProp_Normalise` | scaled by 1 / length when it is sane | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:550` |
-| `180017910` | `CreateLocator_Evaluate` | m_bConfigurable (true) composes the locator's delta | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:326` |
-| `180018460` | `CreateSizer_Evaluate` | the sizer's box | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:282` |
-| `180018c00` | `Translate_Evaluate` | context composed with the offset | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:259` |
-| `180019410` | `Scale_Evaluate` | context composed with m_flScale (1 by default) | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:265` |
-| `1800249a0` | `FitOnLine_LinearLength` | the first enabled LinearLength's; zero without one | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:505` |
-| `180024ad0` | `FitOnLine_Filter` | enabled children whose first enabled EndCap matches | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:502` |
-| `180024dd0` | `FitOnLine_LargestFirst` | the greatest length that fits the room | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:447` |
+| `18000eb00` | `SmartPropContext_Setup` | object +0x170 = element +0x100 = the given transform | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:170` |
+| `18000f250` | `SmartProp_ApplyModifiers` | each enabled modifier; false when a filter stops the element | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:242` |
+| `18000f320` | `SmartProp_EvaluateChild` | skips a disabled element; pushes its id | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:189` |
+| `18000f8e0` | `SmartProp_StoredChoiceIndex` | -1 picks none | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:351` |
+| `18000fab0` | `SmartProp_StoredChoice` | stored choiceValue | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:351` |
+| `1800118a0` | `SmartProp_RandomStream` | the stream for the current path, made on first use | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:147` |
+| `180011a50` | `SmartProp_Normalise` | scaled by 1 / length when it is sane | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:557` |
+| `180017910` | `CreateLocator_Evaluate` | m_bConfigurable (true) composes the locator's delta | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:333` |
+| `180018460` | `CreateSizer_Evaluate` | the sizer's box | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:289` |
+| `180018c00` | `Translate_Evaluate` | context composed with the offset | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:266` |
+| `180019410` | `Scale_Evaluate` | context composed with m_flScale (1 by default) | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:272` |
+| `1800249a0` | `FitOnLine_LinearLength` | the first enabled LinearLength's; zero without one | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:512` |
+| `180024ad0` | `FitOnLine_Filter` | enabled children whose first enabled EndCap matches | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:509` |
+| `180024dd0` | `FitOnLine_LargestFirst` | the greatest length that fits the room | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:454` |
 | `180024f20` | `FitOnLine_Caps` |  |  |
-| `1800250b0` | `FitOnLine_Select` | start cap, end cap, then fill | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:386`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:434` |
+| `1800250b0` | `FitOnLine_Select` | start cap, end cap, then fill | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:393`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:441` |
 | `180025b20` | `FitOnLine_ScalePass` | scale pass |  |
 | `180025c00` | `FitOnLine_ScalePass2` | scale pass |  |
 | `180025e60` | `FitOnLine_ScalePass3` | scale pass |  |
-| `180026030` | `FitOnLine_Place` | placed one after another | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:387` |
-| `180026230` | `FitOnLine_Evaluate` | children fitted along start-end | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:386` |
-| `180026af0` | `LinearLength_ctor` | defaults: length, min, max 1; no stretch | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:530` |
+| `180026030` | `FitOnLine_Place` | placed one after another | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:394` |
+| `180026230` | `FitOnLine_Evaluate` | children fitted along start-end | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:393` |
+| `180026af0` | `LinearLength_ctor` | defaults: length, min, max 1; no stretch | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:537` |
 | `1800273e0` | `EndCap_ctor` | defaults: enabled, start and end true |  |
-| `180027c00` | `FitOnLine_ctor` | defaults: LARGEST_FIRST, scale NONE, ELEMENT space, no orient | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:396` |
-| `180030ad0` | `PickOne_Evaluate` | one child by m_SelectionMode | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:341` |
+| `180027c00` | `FitOnLine_ctor` | defaults: LARGEST_FIRST, scale NONE, ELEMENT space, no orient | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:403` |
+| `180030ad0` | `PickOne_Evaluate` | one child by m_SelectionMode | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:348` |
 | `180051a70` | `CreateSizer_ctor` | defaults: every initial value and constraint 0 |  |
-| `180094470` | `SmartProp_LocatorConfig` | stored locator configuration | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:328` |
-| `180094890` | `SmartProp_LocatorDeltas` | stored locator deltas for a path | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:283` |
+| `180094470` | `SmartProp_LocatorConfig` | stored locator configuration | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:335` |
+| `180094890` | `SmartProp_LocatorDeltas` | stored locator deltas for a path | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:290` |
 
 ## tier0.dll, build 20260923
 

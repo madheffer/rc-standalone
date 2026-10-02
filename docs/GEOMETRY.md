@@ -414,7 +414,11 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   all. Which props share an agg_prop model and in what order is
   WRBNode_BuildPropAggregates (GROUND_TRUTH 43): a bucket per material,
   instances in Morton order of their bounds centre, draws in mesh pointer
-  (heap) order. Earlier notes, kept: the
+  (heap) order. Built from the .vmap by `NodePropAggregates` (every LOD of
+  a multi-LOD model, smart prop models included), each draw by `NodeDraw`
+  (weld, vertex cache, overdraw, meshlets, vertices in first-use order):
+  atixref's 171 aggregates and 446 draws exact (PropAggregatesReplay).
+  Earlier notes, kept: the
   incoming order was not ours. The builder's input
   DMX lists faces in vmap order within each face set (MeshBufferVsVmap,
   MESHBUF_ORDER=1: atixref 456 meshes ascending, the rest grouped by
