@@ -53,9 +53,23 @@ public class DrawOrderProbe(ITestOutputHelper output)
         }
         static Vector3 Pos(VisibilityMeshMerger.Mesh mesh, int v) => new(mesh.Vertices[(v * mesh.Stride) + mesh.PositionOffset], mesh.Vertices[(v * mesh.Stride) + mesh.PositionOffset + 1], mesh.Vertices[(v * mesh.Stride) + mesh.PositionOffset + 2]);
         var owner = new Dictionary<string, int>();
+        var owners = new Dictionary<string, List<int>>();
+        void Own(int e)
+        {
+            for (var t = 0; t < outs[e].Indices.Count / 3; t++)
+            {
+                var k = Key(Pos(outs[e], outs[e].Indices[t * 3]), Pos(outs[e], outs[e].Indices[(t * 3) + 1]), Pos(outs[e], outs[e].Indices[(t * 3) + 2]));
+                if (!owners.TryGetValue(k, out var l))
+                    owners[k] = l = [];
+                if (l.Count == 0 || l[^1] != e)
+                    l.Add(e);
+            }
+        }
         for (var e = 0; e < outs.Count; e++)
             for (var t = 0; t < outs[e].Indices.Count / 3; t++)
                 owner.TryAdd(Key(Pos(outs[e], outs[e].Indices[t * 3]), Pos(outs[e], outs[e].Indices[(t * 3) + 1]), Pos(outs[e], outs[e].Indices[(t * 3) + 2])), e);
+        for (var e = 0; e < outs.Count; e++)
+            Own(e);
         // Draws from lists the merger does not see take BuildNode's output entries as they are.
         var mergerCount = outs.Count;
         if (p.Length > 2)
@@ -67,6 +81,29 @@ public class DrawOrderProbe(ITestOutputHelper output)
                 var e = outs.Count - 1;
                 for (var t = 0; t < outs[e].Indices.Count / 3; t++)
                     owner.TryAdd(Key(Pos(outs[e], outs[e].Indices[t * 3]), Pos(outs[e], outs[e].Indices[(t * 3) + 1]), Pos(outs[e], outs[e].Indices[(t * 3) + 2])), e);
+                Own(e);
+            }
+        // Local-space aggregate draws: each entry again with its positions less its bounds centre.
+        if (Environment.GetEnvironmentVariable("DRAWORDER_CENTRED") == "1")
+            for (int e = 0, n = outs.Count; e < n; e++)
+            {
+                var m = outs[e];
+                var lo = new Vector3(float.MaxValue);
+                var hi = new Vector3(float.MinValue);
+                for (var v = 0; v < m.VertexCount; v++)
+                {
+                    lo = Vector3.Min(lo, Pos(m, v));
+                    hi = Vector3.Max(hi, Pos(m, v));
+                }
+                var c = (lo + hi) * 0.5f;
+                var moved = new VisibilityMeshMerger.Mesh { Vertices = [.. m.Vertices], Stride = m.Stride, PositionOffset = m.PositionOffset, Indices = m.Indices };
+                for (var v = 0; v < m.VertexCount; v++)
+                    for (var k = 0; k < 3; k++)
+                        moved.Vertices[(v * m.Stride) + m.PositionOffset + k] -= c[k];
+                outs.Add(moved);
+                outStreams.Add(outStreams[e]);
+                for (var t = 0; t < moved.Indices.Count / 3; t++)
+                    owner.TryAdd(Key(Pos(moved, moved.Indices[t * 3]), Pos(moved, moved.Indices[(t * 3) + 1]), Pos(moved, moved.Indices[(t * 3) + 2])), outs.Count - 1);
             }
         using var package = new ValvePak.Package();
         package.Read(p[1]);
@@ -99,7 +136,8 @@ public class DrawOrderProbe(ITestOutputHelper output)
                         var start = dc.GetInt32Property("m_nStartIndex");
                         var count = dc.GetInt32Property("m_nIndexCount");
                         var shipped = Enumerable.Range(0, count / 3).Select(t => Key(V(Index(start + (t * 3))), V(Index(start + (t * 3) + 1)), V(Index(start + (t * 3) + 2)))).ToList();
-                        var sources = shipped.Select(k => owner.GetValueOrDefault(k, -1)).Distinct().ToList();
+                        // Meshlet padding (the last vertex three times) belongs to no entry.
+                        var sources = shipped.Where(k => k.Split('|').Distinct().Count() > 1).Select(k => owner.GetValueOrDefault(k, -1)).Distinct().ToList();
                         VisibilityMeshMerger.Mesh? combined = null;
                         if (Environment.GetEnvironmentVariable("DRAWORDER_SUBSET") == "1" && sources.Count > 1 && !sources.Contains(-1))
                         {
@@ -129,11 +167,29 @@ public class DrawOrderProbe(ITestOutputHelper output)
                         if (sources.Count != 1 || sources[0] < 0)
                         {
                             var kindU = entry.FileName.Contains("agg_", StringComparison.Ordinal) ? "aggregate" : "plain";
+                            if (sources.Contains(-1))
+                            {
+                                var prefix = System.Text.RegularExpressions.Regex.Replace(entry.FileName, @"_\d+$", "");
+                                prefix = System.Text.RegularExpressions.Regex.Match(prefix, @"^n\d+_lr\d+_(c\d+_)?[a-z_]*?(agg_[a-z]+|mesh|[a-z]+)").Value;
+                                tally[$"unknown model kind {prefix}"] = tally.GetValueOrDefault($"unknown model kind {prefix}") + 1;
+                            }
                             tally[$"{kindU} from {(sources.Contains(-1) ? "unknown" : "several")} entries"] = tally.GetValueOrDefault($"{kindU} from {(sources.Contains(-1) ? "unknown" : "several")} entries") + 1;
                             unmatched++;
                             if (unmatched <= 5)
                                 output.WriteLine($"{entry.FileName} draw {dc.GetStringProperty("m_material")}: {count / 3} triangles from entries [{string.Join(",", sources)}]");
                             continue;
+                        }
+                        if (combined == null && int.TryParse(Environment.GetEnvironmentVariable("DRAWORDER_ALT"), out var alt))
+                        {
+                            // Entries holding every one of the draw's triangles (identical copies), the alt-th of them.
+                            HashSet<int>? held = null;
+                            foreach (var k in shipped.Where(k => k.Split('|').Distinct().Count() > 1))
+                                if (held == null)
+                                    held = [.. owners[k]];
+                                else
+                                    held.IntersectWith(owners[k]);
+                            var holders = held!.Order().ToList();
+                            sources = [holders[Math.Min(alt, holders.Count - 1)]];
                         }
                         var src = outs[sources[0]];
                         // A per-cluster draw holds a subset of its source entry: keep the source's triangles the draw has, in order.
@@ -233,6 +289,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
                                 output.WriteLine($"   OVERLAY {entry.FileName}: none {InPlace2(rn)}, vcache {InPlace2(vc2)}, overdraw only {InPlace2(MeshoptOptimizers.OptimizeOverdraw(rn, pos2, rm.Length, 3, 1.03f))}, both {weldedSame} of {shipped.Count}");
                             }
                             var kind = (entry.FileName.Contains("agg_", StringComparison.Ordinal) ? "aggregate" : "plain") + (combined != null ? " (several)" : sources[0] >= mergerCount ? " (BuildNode)" : "");
+                            output.WriteLine($"RESULT {entry.FileName}#{start} {kind} {(weldedSame == shipped.Count ? "exact" : "differs")}");
                             tally[$"{kind} {(weldedSame == shipped.Count ? "exact" : "differs")}"] = tally.GetValueOrDefault($"{kind} {(weldedSame == shipped.Count ? "exact" : "differs")}") + 1;
                             if (kind.Contains("BuildNode") && weldedSame != shipped.Count && shownBn++ < 14)
                                 output.WriteLine($"   BN {kind} {entry.FileName} {Path.GetFileName(dc.GetStringProperty("m_material"))}: {weldedSame}/{shipped.Count}, source {src.VertexCount} vertices {src.Indices.Count / 3} triangles; none {InPlace(renumbered)}");

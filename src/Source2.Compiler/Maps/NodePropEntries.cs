@@ -24,7 +24,7 @@ namespace Source2.Compiler.Maps;
 /// meshsystem unpacks them (<see cref="PackedNormals"/>), placed by
 /// <see cref="PropTransform"/>; the indices rebased. Streams: position,
 /// normal, tangent, texcoord, VertexPaintTintColor (COLOR0 / 255) or a
-/// zero color, a zero second texcoord.</item>
+/// zero color, the second texcoord (TEXCOORD1) or zero; the aggregate draws weld on it.</item>
 /// </list>
 /// </summary>
 internal static class NodePropEntries
@@ -135,21 +135,22 @@ internal static class NodePropEntries
         return new MeshEntryFlags.Record(mode, merge ? 2UL : 0UL, fade, false, null, false);
     }
 
-    private const int Stride = 18;
+    internal const int Stride = 18;
 
-    private static IReadOnlyList<Physics.MeshWeld.Stream> Streams(bool color) =>
+    internal static IReadOnlyList<Physics.MeshWeld.Stream> Streams(bool color) =>
     [
         new("position", 0, 3, false, 0x2a), new("normal", 3, 3, false, 0x2a), new("tangent", 6, 4, false, 0x2b),
         new("texcoord", 10, 2, false, 0x29), new(color ? "VertexPaintTintColor" : "color", 12, 4, false, 0x2b), new("texcoord", 16, 2, false, 0x29),
     ];
 
     // WRB_LoadPropMeshes' 18 floats a vertex from meshsystem's geometry.
-    private static (float[] Vertices, bool Color) Vertices(VBIB.OnDiskBufferData vb, int lo, int count)
+    internal static (float[] Vertices, bool Color) Vertices(VBIB.OnDiskBufferData vb, int lo, int count)
     {
         var positions = VBIB.GetVector3AttributeArray(vb, vb.InputLayoutFields.First(f => f.SemanticName == "POSITION"));
         var nf = vb.InputLayoutFields.First(f => f.SemanticName == "NORMAL");
         var tf = vb.InputLayoutFields.First(f => f.SemanticName == "TEXCOORD");
         var cf = vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "COLOR");
+        var t1 = vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "TEXCOORD" && f.SemanticIndex == 1);
         var hasColor = cf.SemanticName != null;
         var v = new float[count * Stride];
         for (var k = 0; k < count; k++)
@@ -165,6 +166,8 @@ internal static class NodePropEntries
             if (hasColor)
                 for (var i = 0; i < 4; i++)
                     v[at + 12 + i] = vb.Data[element + (int)cf.Offset + i] / 255f;
+            if (t1.SemanticName != null)
+                (v[at + 16], v[at + 17]) = Texcoord(vb, t1, element) is var uv1 ? (uv1.X, uv1.Y) : default;
         }
         return (v, hasColor);
     }

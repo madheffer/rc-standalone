@@ -124,10 +124,17 @@ game can answer is raised with the user first, and runs with -insecure.
     draw the subset of the entry's triangles in that cluster, in entry
     order (several entries appended in entry order): atixref 99 of 99
     plain and 383 of 384 aggregate such draws exact, 30 of 32 multi-entry
-    plain draws, with the subset read from the shipped draw. In all, 583 of
-    atixref's 612 draws not built from prop models are exact. Open: the
-    render-cluster triangle assignment itself (RenderClusters, ported but
-    unchecked) and prop-model aggregates (658 atixref draws).
+    plain draws, with the subset read from the shipped draw. Meshlet padding
+    triangles are no entry's, so agg_nomerge draws (world space, no fragment
+    transform) are BuildNode-sourced like the rest: 571 of 583 such
+    aggregate draws exact. Prop aggregates (agg_prop, model space) run the
+    same steps on the prop model's draw as meshsystem unpacks it, TEXCOORD1
+    included (the weld keeps vertices that differ only there): all 446 of
+    atixref's exact (PropAggregateOrderProbe), skins, materialoverride and
+    smart prop material variables included. In all, 1,217 of atixref's
+    1,270 draws are exact. Open: 12 BuildNode aggregates and 7 multi-entry
+    draws differ, 34 draws span entries the subset rule does not join; the
+    render-cluster triangle assignment itself (RenderClusters, 90%).
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
     the other nine's material flags but miss `agg_merge`; the likely cause
     is the visibility mesh merger joining them first (GEOMETRY.md).
@@ -166,7 +173,8 @@ game can answer is raised with the user first, and runs with -insecure.
     to it at load), captured exact on all 819 atixref loader meshes
     (capture_propmeshes.py). CMesh_TransformByMatrix (1802b1ff0) then
     places them (PropTransform): all 102 atixref prop entries exact in every
-    stream. The texcoord axes are shader attributes
+    stream; the second texcoord is TEXCOORD1 where the model has one. The
+    texcoord axes are shader attributes
     (TexCoordScaleByModelU/V = g_nScaleTexCoord*ByModelScaleAxis - 1).
     Open: the foliage static combo rule for NeedsLocalSpaceVertices.
 40. **AllowBackfaceCulling with no declaration** (entry attribute bit 32):

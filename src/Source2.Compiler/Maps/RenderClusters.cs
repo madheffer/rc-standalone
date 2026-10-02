@@ -62,7 +62,11 @@ public static class RenderClusters
             }
             else if (count < minTriangles * 2 && extent < size)
                 break;
-            Array.Sort(points, start, count, Comparer<Vector3>.Create((p, q) => Axis(p, axis).CompareTo(Axis(q, axis))));
+            // std::sort on the axis (FUN_180290c20, 180291040, 180291480): MSVC's,
+            // so equal coordinates keep the binary's order.
+            var slice = points[start..(start + count)];
+            MsvcSort.Sort(slice, (p, q) => Axis(p, axis) < Axis(q, axis));
+            Array.Copy(slice, 0, points, start, count);
             var half = count >> 1;
             var threshold = ((Axis(max, axis) + Axis(min, axis)) * 0.5f + Axis(points[start + half], axis)) * 0.5f;
             var at = -1;

@@ -407,7 +407,11 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   1.03) and, for aggregates, `MeshoptMeshlets` (meshopt 1.0
   buildMeshletsFlex and optimizeMeshletLevel 4, cones at 0.15 when the
   material culls back faces) give the shipped order on probe01, cardtest,
-  atixref and ze_hold_em_p (DrawOrderProbe). Earlier notes, kept: the
+  atixref and ze_hold_em_p (DrawOrderProbe). A prop aggregate draw
+  (`agg_prop`, model space) runs the same steps on the prop model's draw
+  as meshsystem unpacks it, second texcoord from TEXCOORD1: all 446 of
+  atixref's exact (PropAggregateOrderProbe); 1,217 of its 1,270 draws in
+  all. Earlier notes, kept: the
   incoming order was not ours. The builder's input
   DMX lists faces in vmap order within each face set (MeshBufferVsVmap,
   MESHBUF_ORDER=1: atixref 456 meshes ascending, the rest grouped by
