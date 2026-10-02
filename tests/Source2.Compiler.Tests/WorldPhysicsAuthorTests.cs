@@ -129,13 +129,24 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                 output.WriteLine($"parents: {g.Count(),6} {g.Key}");
             return;
         }
+        // WPBUILD_NESTED=1: entity nodes reached through an instance inside a prefab, with their class and solid key.
+        if (Environment.GetEnvironmentVariable("WPBUILD_NESTED") == "1")
+        {
+            var (_, nested) = Maps.MapMeshes.ReadWithEntities(doc);
+            foreach (var en in nested.Where(n => n.Through.Count > 0 && n.PrefabChain.Count > 0))
+            {
+                var keys = en.Element.Get<DmxBinary.Element>("entity_properties");
+                output.WriteLine($"nested {en.Element.GetValue<int>("nodeID")}: {keys?.Get<string>("classname")} solid {keys?.Get<string>("solid")} model {keys?.Get<string>("model")}");
+            }
+            return;
+        }
         // WPBUILD_MESHINFO=<node,...>: each mesh node's parent, instances and physics type.
         if (Environment.GetEnvironmentVariable("WPBUILD_MESHINFO") is { Length: > 0 } infoText)
         {
             var wanted = infoText.Split(',').Select(int.Parse).ToHashSet();
             var (meshes, _) = Maps.MapMeshes.ReadWithEntities(doc);
             foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId)))
-                output.WriteLine($"meshinfo {m.NodeId}: {m.ParentType}/{m.ParentClass} instances [{string.Join(",", m.Instances)}] physics {m.Element?.Get<string>("physicsType")} origin {m.Origin} angles {m.Angles} scales {m.Scales}");
+                output.WriteLine($"meshinfo {m.NodeId}: {m.ParentType}/{m.ParentClass} prefabs [{string.Join(",", m.Prefabs)}] world [{string.Join(" ", m.World.Select(x => x.ToString("R")))}] instances [{string.Join(",", m.Instances)}] physics {m.Element?.Get<string>("physicsType")} origin {m.Origin} angles {m.Angles} scales {m.Scales}");
             foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId) && m.Instances.Length == 0).DistinctBy(m => m.NodeId))
                 foreach (var piece in Physics.BrushHulls.PiecesWithCorners(m.Element!, doc.OfType("CMapWorld").First()))
                 {

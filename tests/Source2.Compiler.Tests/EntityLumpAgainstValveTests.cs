@@ -70,6 +70,13 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     // prop_physics soccer balls and round-shapes models dropped onto s2c_rounds:
     // the settle of sphere and capsule shapes (tools/physics/settle_round_map.py).
     [InlineData("s2c_settleround")]
+    // Prefabs whose maps hold instances: c2m2's environment prefab and atixref
+    // (instances collapsed after the prefab's move).
+    [InlineData("s2c_prefabprobe3")]
+    [InlineData("s2c_prefabprobe4")]
+    // Hammer's lattice and bend deformers (tools/physics/deformer_probe_map.py, deformer_probe2.py).
+    [InlineData("deformerprobe")]
+    [InlineData("deformerprobe2")]
     public void PrefabProbe_DiffersOnlyInTheDocumentedGaps(string map)
     {
         var source = MapFixtures.VmapSource("s2c_rc_probe", map);
@@ -131,6 +138,18 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
                 EntityLumpComparison.Read(valve[lump.Path], lump.Path),
                 EntityLumpComparison.Read(lump.Bytes, lump.Path));
             total += report.Count;
+            // LUMPMISSING=1: the entities only one side has, by id and class.
+            if (Environment.GetEnvironmentVariable("LUMPMISSING") == "1")
+            {
+                var theirs = EntityLumpComparison.Read(valve[lump.Path], lump.Path).ToList();
+                var mine = EntityLumpComparison.Read(lump.Bytes, lump.Path).ToList();
+                var mineIds = mine.Select(e => e.HammerId).ToHashSet();
+                var theirIds = theirs.Select(e => e.HammerId).ToHashSet();
+                foreach (var e in theirs.Where(e => !mineIds.Contains(e.HammerId)))
+                    output.WriteLine($"    only valve: {e.HammerId} {(e.Values.TryGetValue("classname", out var cn) ? cn.Value : "")}");
+                foreach (var e in mine.Where(e => !theirIds.Contains(e.HammerId)))
+                    output.WriteLine($"    only ours: {e.HammerId} {(e.Values.TryGetValue("classname", out var cn) ? cn.Value : "")}");
+            }
             if (Environment.GetEnvironmentVariable("LUMPDIFF") is { Length: > 0 } shown)
                 foreach (var line in report.Where(l => l.Contains(shown, StringComparison.Ordinal)).Take(Environment.GetEnvironmentVariable("LUMPDIFF_ALL") is null ? 60 : int.MaxValue))
                     output.WriteLine($"    {Path.GetFileName(lump.Path)} {line}");

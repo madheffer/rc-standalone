@@ -50,6 +50,9 @@ public static class MapMeshes
         /// <summary>The <c>CMapInstance</c> node ids this copy was reached through, outermost first.</summary>
         public int[] Instances { get; init; } = [];
 
+        /// <summary>The <c>CMapInstance</c> elements this copy was reached through, outermost first.</summary>
+        public IReadOnlyList<DmxBinary.Element> Through { get; init; } = [];
+
         /// <summary>The node's place in the depth-first walk, shared with <see cref="EntityNode"/>.</summary>
         public int Sequence { get; init; }
 
@@ -162,13 +165,13 @@ public static class MapMeshes
             {
                 case "CMapMesh":
                     var className = parent.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname");
-                    var placed = through.Length == 0 ? Concat(path, Local(child)) : SettleWorld.Baked(child, through);
-                    if (through.Length > 0 && prefabs.Length > 0)
-                        throw new NotSupportedException($"mesh {child.GetValue<int>("nodeID")}: an instance inside a prefab is not ported");
+                    var placed = through.Length == 0 ? Concat(path, Local(child))
+                               : prefabs.Length == 0 ? SettleWorld.Baked(child, through)
+                               : SettleWorld.NestedPlacement(child, through, prefabChain);
                     meshes.Add(new Mesh(child.GetValue<int>("nodeID") ?? -1, parent.Type, className,
                                         child.GetValue<Vector3>("origin") ?? Vector3.Zero, child.GetValue<Vector3>("angles") ?? Vector3.Zero,
                                         child.GetValue<Vector3>("scales") ?? Vector3.One, Faces(child, placed))
-                               { Element = child, Instances = instances, World = placed, Path = path, Sequence = sequence++, Hidden = hides, Prefabs = prefabs, PrefabChain = prefabChain });
+                               { Element = child, Instances = instances, Through = through, World = placed, Path = path, Sequence = sequence++, Hidden = hides, Prefabs = prefabs, PrefabChain = prefabChain });
                     break;
                 case "CMapStaticOverlay" when overlays != null:
                 {

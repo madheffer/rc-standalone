@@ -943,6 +943,144 @@
    "note": ""
   },
   {
+   "addr": "181288710",
+   "name": "PropDeformer_SegmentBezier",
+   "module": "s2c:geometry/mesh-export",
+   "note": "the four Bezier points of a segment at a cell, modes 0 to 3 (LatticeDeformer.Bezier)"
+  },
+  {
+   "addr": "18128c030",
+   "name": "PropDeformer_ControlPoint",
+   "module": "s2c:geometry/mesh-export",
+   "note": "a control point, segments outside 0..segments extended along the end direction"
+  },
+  {
+   "addr": "181288fd0",
+   "name": "PropDeformer_Evaluate",
+   "module": "s2c:geometry/mesh-export",
+   "note": "x picks the segment, y and z the cells; z layers of y blends (181289250)"
+  },
+  {
+   "addr": "18128b3e0",
+   "name": "PropDeformer_Blend",
+   "module": "s2c:geometry/mesh-export",
+   "note": "linear, or quadratic / cubic Bezier over 3 / 4 cells when not linear and strictly inside"
+  },
+  {
+   "addr": "181290410",
+   "name": "LatticeDeformer_ResetToGrid",
+   "module": "s2c:geometry/mesh-export",
+   "note": "every control point on the grid over the size, then 18128cab0"
+  },
+  {
+   "addr": "18128cab0",
+   "name": "LatticeDeformer_DefaultHandles",
+   "module": "s2c:geometry/mesh-export",
+   "note": "mode 3: two handles per point and segment at the grid thirds (0.6666666/0.33333334, 0.3333333/0.6666667)"
+  },
+  {
+   "addr": "18128cdf0",
+   "name": "LatticeDeformer_SetupBend",
+   "module": "s2c:geometry/mesh-export",
+   "note": "CMapDeformerSimple: mode 3, ceil(|angle| / 90) segments, axis tables DAT_183013dc0 (Y) / DAT_183013df0 (Z), circle of the bend radius"
+  },
+  {
+   "addr": "1811763c0",
+   "name": "CMapDeformerSimple_CopyFrom",
+   "module": "s2c:geometry/mesh-export",
+   "note": "bend axis +0x540, angle +0x544, point +0x548, radius +0x54c; lattice +0x4c0, scales +0xb8"
+  },
+  {
+   "addr": "1811781b0",
+   "name": "CMapDeformerSimple_SetBendAngle",
+   "module": "s2c:geometry/mesh-export",
+   "note": "clamped to [-360, 360]"
+  },
+  {
+   "addr": "181022540",
+   "name": "CMapEntity_FindDeformer",
+   "module": "s2c:geometry/mesh-export",
+   "note": "type 3 entity (static_prop or deformable class): climb to the first CMapDeformer, stop at type 0/2; +0x4b1 and IsSet"
+  },
+  {
+   "addr": "181022480",
+   "name": "CMapMesh_FindDeformer",
+   "module": "s2c:geometry/mesh-export",
+   "note": "the same climb for a mesh"
+  },
+  {
+   "addr": "1810c4000",
+   "name": "HammerMesh_ApplyDeformer",
+   "module": "s2c:geometry/mesh-export",
+   "note": "positions (and normal / tangent streams) through PropDeformer_Transform with the node matrix; mirror flips faces"
+  },
+  {
+   "addr": "1814c7e90",
+   "name": "PhysConv_AddHull",
+   "module": "s2c:physics/model",
+   "note": "deformer: hull fanned (1819589f0) into a mesh node via 1814c8a60; else the quickhull check and a hull node"
+  },
+  {
+   "addr": "1814c8600",
+   "name": "PhysConv_AddSphere",
+   "module": "s2c:physics/model",
+   "note": "deformer: 1819d5810 (5, 12) into a mesh node"
+  },
+  {
+   "addr": "1814c70f0",
+   "name": "PhysConv_AddCapsule",
+   "module": "s2c:physics/model",
+   "note": "deformer: 1819d61d0 into a mesh node"
+  },
+  {
+   "addr": "1814c8250",
+   "name": "PhysConv_AddMesh",
+   "module": "s2c:physics/model",
+   "note": "one node, or one per surface index with triangles (1819cdce0)"
+  },
+  {
+   "addr": "1814c88f0",
+   "name": "PhysConv_MeshNode",
+   "module": "s2c:physics/model",
+   "note": "every vertex and triangle (1819cea20) through 1814c8a60"
+  },
+  {
+   "addr": "1814c8a60",
+   "name": "PhysConv_InitMeshNode",
+   "module": "s2c:physics/model",
+   "note": "points through the matrix, deformed with identity, mirror reverses the indices; MapBuilder_TriangleMesh"
+  },
+  {
+   "addr": "1819589f0",
+   "name": "RnHull_Triangulate",
+   "module": "s2c:physics/model",
+   "note": "vertices times a scale, each face fanned from its first half-edge's origin"
+  },
+  {
+   "addr": "1819d51e0",
+   "name": "SphereMesh_Build",
+   "module": "s2c:physics/model",
+   "note": "rings x segments points, latitudes j pi / (segs + 1) - pi / 2, poles on x"
+  },
+  {
+   "addr": "1819d5950",
+   "name": "CapsuleMesh_Build",
+   "module": "s2c:physics/model",
+   "note": "built along x, moved by the axis frame (18125d0d0) at the first centre"
+  },
+  {
+   "addr": "18125d0d0",
+   "name": "VectorPerpendicular",
+   "module": "s2c:math",
+   "note": "((1 - z)(y y - 0) + z, 0, -x) normalised, orthogonalised, normalised"
+  },
+  {
+   "addr": "180200af0",
+   "name": "MapBuilder_StaticPropPhysics",
+   "module": "s2c:physics/world",
+   "note": "per body: bone override by name (+0x268, 181749d20), then spheres, capsules, hulls, meshes"
+  },
+  {
    "addr": "18023f6d0",
    "name": "WRB_CollectMeshEntries",
    "module": "s2c:geometry/world-nodes",

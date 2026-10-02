@@ -327,6 +327,8 @@ public static class WorldCollision
                 (pm[3], pm[7], pm[11]) = (at.X, at.Y, at.Z);
                 return pm;
             }
+            if (mesh.PrefabChain.Count > 0)
+                return Maps.SettleWorld.NestedPlacement(mesh.Element, mesh.Through, mesh.PrefabChain);
             var (origin, angles) = Maps.SettleWorld.BakedPlacement(mesh.Element, [.. mesh.Instances.Select(i => instanceById[i])]);
             var m = Maps.MapMeshes.AngleMatrix(angles);
             (m[3], m[7], m[11]) = (origin.X, origin.Y, origin.Z);
@@ -411,7 +413,7 @@ public static class WorldCollision
                 // pipe against 126 .vmap vertices, captured).
                 if (Subdivided(mesh.Element!))
                 {
-                    var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var convexCovered);
+                    var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var convexCovered, Placed(mesh));
                     if (!convexCovered)
                         notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
                     foreach (var (material, points, indices, piecePaint) in tessellated)
@@ -464,7 +466,7 @@ public static class WorldCollision
                 // The baked mesh's paint comes from the tessellation, which
                 // lerps it over each patch as the bake does; a mesh with faces
                 // stitched to finer neighbours has no ported paint there.
-                var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var covered);
+                var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var covered, Placed(mesh));
                 if (!covered)
                     notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
                 foreach (var (material, points, indices, piecePaint) in tessellated)
@@ -606,9 +608,20 @@ public static class WorldCollision
         // instance path (Mako's industrial lamps: all 16 pieces; the node's
         // baked placement leaves six a thousandth off).
         var nodeWorld = Maps.MapMeshes.Local(e);
-        if (entity.Through.Count > 0)
+        if (entity.Through.Count > 0 && entity.PrefabChain.Count == 0)
             nodeWorld = Maps.MapMeshes.Concat(entity.Path, nodeWorld);
+        if (entity.Through.Count > 0 && entity.PrefabChain.Count > 0)
+        {
+            notes?.Add($"smart prop {nodeId} ({file}): inside an instance in a prefab, not ported");
+            yield break;
+        }
         var node = Maps.SmartPropEvaluator.NodeTransform(nodeWorld);
+        // One in a prefab's map: its node's transform composed under each
+        // prefab's CTransform, innermost first (atixref as a prefab: the
+        // radiator's 13 pieces exact; the prefab's matrix or the node moved
+        // as a collapse moves it leave them an ulp off).
+        foreach (var prefab in entity.PrefabChain.Reverse())
+            node = Maps.CTransform.Compose(Maps.CTransform.FromNode(prefab), node);
         // A definition using something not ported gives no pieces, listed,
         // rather than stopping the whole build (Mako's scale operations).
         List<Maps.SmartPropEvaluator.Placement> placements;
@@ -737,7 +750,9 @@ public static class WorldCollision
         var model = e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("model") ?? "";
         var origin = e.GetValue<Vector3>("origin") ?? Vector3.Zero;
         var angles = e.GetValue<Vector3>("angles") ?? Vector3.Zero;
-        if (entity.Through.Count > 0)
+        if (entity.Through.Count > 0 && entity.PrefabChain.Count > 0)
+            (origin, angles) = Maps.SettleWorld.NestedPlacement(origin, angles, entity.Through, entity.PrefabChain);
+        else if (entity.Through.Count > 0)
             (origin, angles) = Maps.SettleWorld.BakedPlacement(e, entity.Through);
         else if (entity.PrefabChain.Count > 0)
             (origin, angles) = Maps.SettleWorld.PrefabPlacement(origin, angles, entity.PrefabChain);
@@ -871,7 +886,7 @@ public static class WorldCollision
     /// material first meets it; positions are scaled and moved like the
     /// other pieces'.
     /// </summary>
-    internal static List<(int Material, Vector3[] Points, int[] Indices, Vector4[]? Paint)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered)
+    internal static List<(int Material, Vector3[] Points, int[] Indices, Vector4[]? Paint)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered, float[]? placed = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         var faceData = (data.Get<object?[]>("faceDataIndices") ?? []).Select(x => x is int i ? i : 0).ToArray();
@@ -883,7 +898,11 @@ public static class WorldCollision
             .Select(x => x is int i ? i : 0).ToArray();
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
         // A world mesh moves by its node's own matrix, as the plain pieces do.
-        var toWorld = Maps.MapMeshes.Local(mesh);
+        // A placed mesh (in an instance or a prefab) moves by the matrix the
+        // collapse left it, as the plain pieces do (BrushHulls.PiecesWithCorners).
+        var toWorld = placed ?? Maps.MapMeshes.Local(mesh);
+        if (placed != null)
+            path = null;
         var toEntity = Maps.CTransform.FromNode(world).Inverse().Matrix();
         // The builder's own bake on a half-edge mesh (Maps.SubdivisionBake): faces
         // stitched to finer neighbours come out as the bake leaves them.

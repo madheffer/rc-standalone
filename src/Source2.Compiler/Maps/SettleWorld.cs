@@ -247,6 +247,53 @@ public static partial class SettleWorld
         return m;
     }
 
+    /// <summary>
+    /// A node reached through instances inside a prefab's map: collapsed in
+    /// that map first (<see cref="BakedPlacement(DmxBinary.Element, IReadOnlyList{DmxBinary.Element})"/>),
+    /// then moved through the prefabs (<see cref="PrefabPlacement"/>), as a matrix.
+    /// </summary>
+    internal static float[] NestedPlacement(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        var (origin, angles) = NestedPlacement(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
+        var m = MapMeshes.AngleMatrix(angles);
+        (m[3], m[7], m[11]) = (origin.X, origin.Y, origin.Z);
+        return m;
+    }
+
+    /// <summary>
+    /// <see cref="NestedPlacement(DmxBinary.Element, IReadOnlyList{DmxBinary.Element}, IReadOnlyList{DmxBinary.Element})"/>
+    /// as an origin and angles: the prefabs move first, as outer instances
+    /// with no target to undo, then each instance (itself moved by what is
+    /// outside it) collapses.
+    /// </summary>
+    internal static (Vector3 Origin, Vector3 Angles) NestedPlacement(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        float[]? delta = null;
+        foreach (var prefab in prefabs)
+        {
+            var at = prefab.GetValue<Vector3>("origin") ?? Vector3.Zero;
+            var turn = prefab.GetValue<Vector3>("angles") ?? Vector3.Zero;
+            if (delta != null)
+                (at, turn) = Moved(delta, at, turn);
+            delta = at == Vector3.Zero && turn == Vector3.Zero ? null : AngleMatrixDouble(turn, at);
+        }
+        foreach (var instance in through)
+        {
+            var at = instance.GetValue<Vector3>("origin") ?? Vector3.Zero;
+            var turn = instance.GetValue<Vector3>("angles") ?? Vector3.Zero;
+            if (delta != null)
+                (at, turn) = Moved(delta, at, turn);
+            var target = instance.Get<DmxBinary.Element>("target")!;
+            var from = target.GetValue<Vector3>("origin") ?? Vector3.Zero;
+            var fromAngles = target.GetValue<Vector3>("angles") ?? Vector3.Zero;
+            delta = at == from && turn == fromAngles ? null
+                  : MapMeshes.Concat(AngleMatrixDouble(turn, at), MapMeshes.Invert(AngleMatrixDouble(fromAngles, from)));
+        }
+        if (delta != null)
+            (origin, angles) = Moved(delta, origin, angles);
+        return (origin, angles);
+    }
+
     /// <summary>The origin and angles a node's copy carries once the bake has moved it (<see cref="Baked"/>).</summary>
     internal static (Vector3 Origin, Vector3 Angles) BakedPlacement(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through)
         => BakedPlacement(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through);
