@@ -411,7 +411,10 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   (`agg_prop`, model space) runs the same steps on the prop model's draw
   as meshsystem unpacks it, second texcoord from TEXCOORD1: all 446 of
   atixref's exact (PropAggregateOrderProbe); 1,217 of its 1,270 draws in
-  all. Earlier notes, kept: the
+  all. Which props share an agg_prop model and in what order is
+  WRBNode_BuildPropAggregates (GROUND_TRUTH 43): a bucket per material,
+  instances in Morton order of their bounds centre, draws in mesh pointer
+  (heap) order. Earlier notes, kept: the
   incoming order was not ours. The builder's input
   DMX lists faces in vmap order within each face set (MeshBufferVsVmap,
   MESHBUF_ORDER=1: atixref 456 meshes ascending, the rest grouped by

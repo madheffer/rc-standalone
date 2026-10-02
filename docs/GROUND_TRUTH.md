@@ -197,6 +197,21 @@ game can answer is raised with the user first, and runs with -insecure.
     empty attribute set over the overlay record's zero flags); this one
     is not. Next: CompileNode's code before the list loop (FUN_18026cac0,
     FUN_18027add0).
+43. **Prop aggregate grouping and order** (WRBNode_BuildPropAggregates,
+    180272ce0, read): models in CDefStringLess order, one entry per prop
+    and mesh, buckets by entry +0x20 (one agg_prop model per material),
+    Morton order of the prop's placed LOD bounds centre against BuildNode's
+    closing bounds minimum, then a stable sort by mesh pointer. Measured
+    on atixref (PropAggregateOrderProbe.Grouping): every fragment transform
+    is our PropTransform matrix (4,446 of 4,450 bitwise), and 216 of 358
+    multi-instance draws hold their instances in that Morton order. The
+    rest (web joists, signs, wires, fences) come in several ascending runs:
+    likely props with their own mesh copy (prop +0x100, 1802b1e30), whose
+    order is the copies' heap addresses, as is the draw order itself and
+    the bucket order (a hashed pointer; two compiles swap metal_door_001's
+    _0 and _1). Not reproducible from data; ours must pick an order.
+    Open: confirm the +0x100 props, 18026d7a0's test, the 863 threshold's
+    unit (+0x24).
 
 ## Resolved
 
