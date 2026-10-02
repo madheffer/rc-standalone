@@ -1192,6 +1192,48 @@
    "addr": "1812bfeb0",
    "name": "meshopt_buildMeshletsFlex",
    "module": "s2c:geometry/world-nodes",
+   "note": "meshopt 1.0: neighbour scoring against the meshlet cone, k-d tree nearest when none, seeds (256, add 4); MeshoptMeshlets"
+  },
+  {
+   "addr": "1812becb0",
+   "name": "meshopt_computeTriangleCones",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bf290",
+   "name": "meshopt_kdtreeBuild",
+   "module": "s2c:geometry/world-nodes",
+   "note": "Welford variance, leaves of 8 holding their count, depth limit 49"
+  },
+  {
+   "addr": "1812bf850",
+   "name": "meshopt_kdtreePartition",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bf620",
+   "name": "meshopt_kdtreeNearest",
+   "module": "s2c:geometry/world-nodes",
+   "note": "deactivates spent subtrees"
+  },
+  {
+   "addr": "1812bef70",
+   "name": "meshopt_getNeighborTriangle",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bd780",
+   "name": "meshopt_appendSeedTriangles",
+   "module": "s2c:geometry/world-nodes",
+   "note": ""
+  },
+  {
+   "addr": "1812bf9b0",
+   "name": "meshopt_selectSeedTriangle",
+   "module": "s2c:geometry/world-nodes",
    "note": ""
   },
   {

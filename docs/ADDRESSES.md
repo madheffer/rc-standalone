@@ -167,7 +167,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261003_1.41.8.8.md): 778 tracked addresses: ambiguous 45, changed 27, identical 21, moved 676, relocated 9
-- 758 addresses
+- 765 addresses
 
 ### s2c:baked/light-keys
 
@@ -735,10 +735,17 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812bbd20` | `meshopt_computeBoundingSphere` | same float order as meshopt 1.3 |  |
 | `1812bc740` | `meshopt_computeClusterBounds_Core` | sums y first in the area and axis length, dot products four at a time (see Meshopt/MeshletBounds.cs) | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:52` |
 | `1812bd110` | `meshopt_computeMeshletBounds` |  | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:30` |
-| `1812bd240` | `meshopt_optimizeMeshletLevel` | meshopt 1.x API |  |
-| `1812bfdf0` | `meshopt_buildMeshlets` | calls buildMeshletsFlex with min = max triangles, split factor 0 |  |
+| `1812bd240` | `meshopt_optimizeMeshletLevel` | meshopt 1.x API | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:10`, `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:450` |
+| `1812bd780` | `meshopt_appendSeedTriangles` |  | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:9` |
+| `1812becb0` | `meshopt_computeTriangleCones` |  | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:7` |
+| `1812bef70` | `meshopt_getNeighborTriangle` |  | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:8` |
+| `1812bf290` | `meshopt_kdtreeBuild` | Welford variance, leaves of 8 holding their count, depth limit 49 | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:7` |
+| `1812bf620` | `meshopt_kdtreeNearest` | deactivates spent subtrees | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:8` |
+| `1812bf850` | `meshopt_kdtreePartition` |  | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:7`, `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:382` |
+| `1812bf9b0` | `meshopt_selectSeedTriangle` |  | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:9` |
+| `1812bfdf0` | `meshopt_buildMeshlets` | calls buildMeshletsFlex with min = max triangles, split factor 0 | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:5` |
 | `1812bfe70` | `meshopt_buildMeshletsBound` |  |  |
-| `1812bfeb0` | `meshopt_buildMeshletsFlex` |  |  |
+| `1812bfeb0` | `meshopt_buildMeshletsFlex` | meshopt 1.0: neighbour scoring against the meshlet cone, k-d tree nearest when none, seeds (256, add 4); MeshoptMeshlets | `src/Source2.Compiler/Meshopt/MeshoptMeshlets.cs:5` |
 | `1812c4230` | `meshopt_calculateSortData` | mesh centroid over the vertices; area-weighted cluster centroid dotted with the cluster normal | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:9`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:224` |
 | `1812c4810` | `meshopt_calculateSortOrderRadix` | 11-bit keys, 1e-3 floor: the radix version | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:10`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:270` |
 | `1812c4c40` | `meshopt_generateSoftBoundaries` | cluster ACMR times the threshold | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:8`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:180` |

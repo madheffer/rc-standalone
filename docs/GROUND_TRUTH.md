@@ -114,7 +114,12 @@ game can answer is raised with the user first, and runs with -insecure.
     1.03 (MeshoptOptimizers, ported from 1812b8c10 and 1812c4f30): every
     plain draw whose triangles come from one merger entry is exact in
     triangle order on probe01 (2), cardtest (3) and atixref (53)
-    (DrawOrderProbe). Open: aggregate draws (meshlets) and draws from lists
+    (DrawOrderProbe). Aggregate draws add meshopt 1.0's buildMeshletsFlex
+    (255 vertices, 48 triangles, cone weight 0.15 when the material has
+    AllowBackfaceCulling and is not DoubleSided, else 0) and
+    optimizeMeshletLevel at 4, an odd meshlet padded with (last, last,
+    last) (MeshoptMeshlets): all 44 aggregate draws from the merger exact
+    on probe01, cardtest, atixref and ze_hold_em_p. Open: draws from lists
     the merger does not see.
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
     the other nine's material flags but miss `agg_merge`; the likely cause

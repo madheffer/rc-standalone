@@ -140,6 +140,31 @@ public class DrawOrderProbe(ITestOutputHelper output)
                                 var wo = MeshoptOptimizers.OptimizeOverdraw(MeshoptOptimizers.OptimizeVertexCache(wi, nvw), wpos, nvw, 3, 1.03f);
                                 Vector3 P4(int v) => new(wpos[v * 3], wpos[(v * 3) + 1], wpos[(v * 3) + 2]);
                                 weldedSame = Enumerable.Range(0, wo.Length / 3).Count(t => t < shipped.Count && Key(P4(wo[t * 3]), P4(wo[(t * 3) + 1]), P4(wo[(t * 3) + 2])) == shipped[t]);
+                                if (entry.FileName.Contains("agg_", StringComparison.Ordinal))
+                                {
+                                    foreach (var w in new[] { 0.15f, 0f })
+                                    {
+                                        var built = MeshoptMeshlets.Build(wo, wpos, nvw, 3, 255, 48, 48, w);
+                                        var mv = built.Vertices;
+                                        var mt = built.Triangles;
+                                        var outIdx = new List<int>();
+                                        foreach (var ml in built.Meshlets)
+                                        {
+                                            MeshoptMeshlets.OptimizeLevel(mv, ml.VertexOffset, ml.VertexCount, mt, ml.TriangleOffset, ml.TriangleCount, 4);
+                                            for (var k = 0; k < ml.TriangleCount * 3; k++)
+                                                outIdx.Add(mv[ml.VertexOffset + mt[ml.TriangleOffset + k]]);
+                                            if ((ml.TriangleCount & 1) != 0)
+                                            {
+                                                var last = outIdx[^1];
+                                                outIdx.AddRange([last, last, last]);
+                                            }
+                                        }
+                                        var inPlace = Enumerable.Range(0, outIdx.Count / 3).Count(t => t < shipped.Count && Key(P4(outIdx[t * 3]), P4(outIdx[(t * 3) + 1]), P4(outIdx[(t * 3) + 2])) == shipped[t]);
+                                        output.WriteLine($"   MESHLETS w {w}: {built.Meshlets.Count} meshlets, {outIdx.Count / 3} triangles, {inPlace}/{shipped.Count} in place");
+                                        if (w == 0.15f)
+                                            weldedSame = inPlace == shipped.Count && outIdx.Count / 3 == shipped.Count ? shipped.Count : -1;
+                                    }
+                                }
                             }
                             if (entry.FileName.Contains("overlay", StringComparison.Ordinal) && weldedSame != shipped.Count)
                             {
