@@ -224,6 +224,19 @@ game can answer is raised with the user first, and runs with -insecure.
     unit (CMesh +0x24), extra vertex streams, the texcoord stream test
     after the runs (180273xxx, V_stricmp "texcoord").
 
+44. **Texcoord formats of node models** (read: 180d4a120, 180258310,
+    1802f6840, 1802fc990; WRB_LoadPropMeshes flags a prop's texcoords when
+    its geometry info says so, +0x66). A stream with +0x1d stays float32;
+    a run or list with one flagged stream or one value past 16 flags them
+    all; an unflagged two-component texcoord becomes R16G16_SNORM when every
+    mesh lies in [-1, 1]. agg_prop: flagged when a source draw was float32
+    or a value passes 16, else SNORM within 1, else half: all 472 of
+    atixref's streams (PropAggregatesReplay). World draws from map meshes
+    (stride 12 entries): 88 SNORM and 6 half beside 101 and 194 float32
+    with the same ranges, so their initial flag, or the list 1802f6840
+    walks (4 layouts), is not known. Next: capture +0x1d with the entries,
+    or read 1802f6840's caller.
+
 ## Resolved
 
 - **Static prop aggregates' meshlet cones** (ledger 36): the cone is

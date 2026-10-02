@@ -1051,6 +1051,30 @@
    "note": "with UseAggregateInstances: models of node +0x190 (CUtlOrderedMap, CDefStringLess) in order; a model's props without materialoverride, deformer or +0x1e8 that pass 18026d7a0, by LOD (1802b4ab0): one entry per prop and mesh (180255470, 180252ae0), +0x204 the centre of the LOD's mesh bounds placed by the prop matrix; a model joins only if every entry CanAggregate; buckets by entry +0x20; if any and the summed +0x24 > 863: per bucket PrepareForMerge, Morton order (180274be0), stable sort, runs into aggregates; agg_prop"
   },
   {
+   "addr": "180d4a120",
+   "name": "Texcoords_AnyAbove16",
+   "module": "s2c:geometry/world-nodes",
+   "note": "true when any of a two-float stream's components passes 16 in magnitude"
+  },
+  {
+   "addr": "180258310",
+   "name": "WRBMeshList_KeepTexcoordPrecision",
+   "module": "s2c:geometry/world-nodes",
+   "note": "a mesh list: when one texcoord stream is flagged (+0x1d) or passes 16 (180d4a120), every texcoord stream of every mesh gets +0x1d (kept float32); from WRBMeshList_GroupAggregates; BuildPropAggregates inlines it per run"
+  },
+  {
+   "addr": "1802f6840",
+   "name": "WRB_CompressTexcoordsToSnorm",
+   "module": "s2c:geometry/world-nodes",
+   "note": "per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990)"
+  },
+  {
+   "addr": "1802fc990",
+   "name": "CMesh_StreamWithinUnitRange",
+   "module": "s2c:geometry/world-nodes",
+   "note": "min >= -1 and max <= 1 over a two-float stream"
+  },
+  {
    "addr": "18026d7a0",
    "name": "WRBNode_PropCanAggregate",
    "module": "s2c:geometry/world-nodes",

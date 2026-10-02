@@ -191,6 +191,18 @@ public class DrawOrderProbe(ITestOutputHelper output)
                             var holders = held!.Order().ToList();
                             sources = [holders[Math.Min(alt, holders.Count - 1)]];
                         }
+                        {
+                            // The source entry's kind (a prop's 18-float layout or not) beside the shipped texcoord format.
+                            var st = outStreams[sources[0]];
+                            var propLike = st.Count(x => x.Name.Equals("texcoord", StringComparison.OrdinalIgnoreCase)) >= 1 && outs[sources[0]].Stride == 18;
+                            var tc = st.FirstOrDefault(x => x.Name.Equals("texcoord", StringComparison.OrdinalIgnoreCase));
+                            var e0 = outs[sources[0]];
+                            var emax = tc.Name == null ? 0f : Enumerable.Range(0, e0.VertexCount).Max(v => MathF.Max(MathF.Abs(e0.Vertices[(v * e0.Stride) + tc.First]), MathF.Abs(e0.Vertices[(v * e0.Stride) + tc.First + 1])));
+                            var shippedTc = string.Join("+", dc.GetArray("m_vertexBuffers").Select(b => vbib.VertexBuffers[b.GetInt32Property("m_hBuffer")])
+                                .SelectMany(b => b.InputLayoutFields).Where(f => f.SemanticName == "TEXCOORD" && f.SemanticIndex == 0).Select(f => f.Format.ToString()));
+                            var tk = $"TCSRC {(propLike ? "stride18" : $"stride{e0.Stride}"),-9} max {(emax <= 1f ? "<=1" : emax <= 16f ? "<=16" : ">16"),-5} type {tc.Type:x} shipped {shippedTc}";
+                            tally[tk] = tally.GetValueOrDefault(tk) + 1;
+                        }
                         var src = outs[sources[0]];
                         // A per-cluster draw holds a subset of its source entry: keep the source's triangles the draw has, in order.
                         if (Environment.GetEnvironmentVariable("DRAWORDER_SUBSET") == "1" && src.Indices.Count / 3 != shipped.Count)

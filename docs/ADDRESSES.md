@@ -167,7 +167,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261003_1.41.8.8.md): 778 tracked addresses: ambiguous 45, changed 27, identical 21, moved 676, relocated 9
-- 771 addresses
+- 775 addresses
 
 ### s2c:baked/light-keys
 
@@ -672,6 +672,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180257b50` | `WRBNode_TakeLightmapResEntries` | entries with attribute bit 10 (toolslightmapres) taken out, their positions to node +0x160; bit 36 dropped |  |
 | `180257d20` | `WRB_MergeMeshes` | CMesh merge of the group (FUN_1812dd570) |  |
 | `180257ff0` | `WRBNode_MergeEntries` | one new entry from the group, fields from the first |  |
+| `180258310` | `WRBMeshList_KeepTexcoordPrecision` | a mesh list: when one texcoord stream is flagged (+0x1d) or passes 16 (180d4a120), every texcoord stream of every mesh gets +0x1d (kept float32); from WRBMeshList_GroupAggregates; BuildPropAggregates inlines it per run |  |
 | `180258570` | `WRBNode_MergeMeshes` | greedy: later compatible entries while verts < 0x200000 and indices < 0x400000 |  |
 | `180259b00` | `Step_RemovingTrianglesInside` | culling boxes |  |
 | `180259d30` | `CWorldRendererBuilderNode::FixTJunctionEdgeCracks` | on in CS2 (csgo_core); two thread pool jobs: collect edges, then fix | `src/Source2.Compiler/Maps/TJunctionFix.cs:7` |
@@ -723,7 +724,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
 | `1802ec6e0` | `CResourceCompilerMesh_PackDrawVB` | allocates stride * vertices and calls CMesh_CreatePackedVB; warns when the sizes disagree |  |
 | `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density |  |
+| `1802f6840` | `WRB_CompressTexcoordsToSnorm` | per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990) |  |
 | `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 |  |
+| `1802fc990` | `CMesh_StreamWithinUnitRange` | min >= -1 and max <= 1 over a two-float stream |  |
 | `180301650` | `CMeshletBuilder_Init` | max vertices/triangles from 1802f9cc0, SceneSystem/RenderMeshlets, MeshCompiler/MeshletConeWeight 0.05, optimize level 4 |  |
 | `1803018a0` | `CMeshletBuilder_DrawBounds` | the draw's bounds, material OcclusionCullingBoundsScale/Expand/NormalDisplacement; cones on when AllowBackfaceCulling and not DoubleSided |  |
 | `180303b60` | `CMeshletBuilder_BuildRange` | meshopt_buildMeshlets over a range, each meshlet to CMeshletBuilder_AddMeshlet |  |
@@ -731,6 +734,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180306280` | `CMeshletBuilder_BuildDraw` | meshlets per triangle range (bone 0xfffe), the new index buffer, then vertex fetch remap |  |
 | `18033f200` | `ModelCompile_WeldMeshes` | CMesh_Weld at 1e-7 over the model's meshes (via 1803447d0) |  |
 | `1803447d0` | `ModelCompile_WeldMesh` | tangents (CMesh_ComputeTangents) unless preserved, UseMikkTSpace, then CMesh_Weld at the given tolerance |  |
+| `180d4a120` | `Texcoords_AnyAbove16` | true when any of a two-float stream's components passes 16 in magnitude |  |
 | `18126a830` | `PackedAABB_Pack` | 10 bits an axis inside the bounds, min floored, max ceiled | `src/Source2.Compiler/Meshopt/MeshletBounds.cs:31` |
 | `1812b88e0` | `meshopt_buildTriangleAdjacency` |  | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:28` |
 | `1812b8c10` | `meshopt_optimizeVertexCacheTable` |  | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:6` |

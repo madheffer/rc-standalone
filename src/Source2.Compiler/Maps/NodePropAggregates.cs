@@ -44,15 +44,22 @@ internal static class NodePropAggregates
     /// <summary>One placed instance of a draw: the prop's matrix (3x4 row-major), tint and entry flags.</summary>
     public sealed record Fragment(int Draw, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int LodMask, int LodSetup);
 
-    /// <summary>An aggregate model: its material, the run's attribute bits, draws and fragments in order.</summary>
-    public sealed record Aggregate(string Material, ulong AttributeBits, IReadOnlyList<Draw> Draws, IReadOnlyList<Fragment> Fragments);
+    /// <summary>
+    /// An aggregate model: its material, the run's attribute bits, draws and
+    /// fragments in order, and its first and second texcoord's vertex format
+    /// (GROUND_TRUTH 44): R32G32_FLOAT when the run is flagged (a source draw
+    /// with float texcoords, or a value past 16), else R16G16_SNORM when
+    /// every value lies in [-1, 1], else R16G16_FLOAT.
+    /// </summary>
+    public sealed record Aggregate(string Material, ulong AttributeBits, IReadOnlyList<Draw> Draws, IReadOnlyList<Fragment> Fragments,
+                                   IReadOnlyList<string> TexcoordFormats);
 
     // An entry before bucketing: its mesh (index into the mesh list) and fields.
     private sealed record Entry(int Mesh, string Material, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int Vertices,
                                 int Prop, int LodMask, bool Lods);
 
     // A mesh: a model's draw call under its final material, unpacked in model space.
-    private sealed record Mesh(string Model, int Call, string Material, float[] Vertices, int[] Indices, bool Color, ulong Attributes);
+    private sealed record Mesh(string Model, int Call, string Material, float[] Vertices, int[] Indices, bool Color, ulong Attributes, bool FloatTexcoords);
 
     /// <summary>
     /// The aggregates of a .vmap. <paramref name="attributes"/> answers a
@@ -128,7 +135,7 @@ internal static class NodePropAggregates
                     if (!meshIndex.TryGetValue(key, out var mi))
                     {
                         meshIndex[key] = mi = meshes.Count;
-                        meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Indices, c.Color, flags.Flags));
+                        meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Indices, c.Color, flags.Flags, c.FloatTexcoords));
                     }
                     entries.Add(new Entry(mi, material, matrix, header.Tint, header.ObjectFlags, flags.Flags, id, centre, c.Vertices.Length / NodePropEntries.Stride,
                         propIndex, c.Lod, lods));
@@ -258,11 +265,16 @@ internal static class NodePropAggregates
         }
         // The aggregate's meshes list each draw's fragments together, by draw.
         fragments = [.. fragments.Select((f, i) => (f, i)).OrderBy(x => x.f.Draw).ThenBy(x => x.i).Select(x => x.f)];
-        return new Aggregate(material, bits, draws, fragments);
+        // The run's texcoord precision (inlined 180258310, then 1802f6840).
+        float Max(int slot) => draws.SelectMany(d => Enumerable.Range(0, d.Geometry.VertexCount).Select(v =>
+            MathF.Max(MathF.Abs(d.Geometry.Vertices[(v * NodePropEntries.Stride) + slot]), MathF.Abs(d.Geometry.Vertices[(v * NodePropEntries.Stride) + slot + 1])))).DefaultIfEmpty(0f).Max();
+        var flagged = run.Any(e => meshes[e.Mesh].FloatTexcoords) || Max(10) > 16f || Max(16) > 16f;
+        string Format(int slot) => flagged ? "R32G32_FLOAT" : Max(slot) <= 1f ? "R16G16_SNORM" : "R16G16_FLOAT";
+        return new Aggregate(material, bits, draws, fragments, [Format(10), Format(16)]);
     }
 
     // A model's draw calls, every LOD: material, unpacked vertices (model space) from the lowest referenced vertex, rebased indices, bounds, LOD mask.
-    private static IEnumerable<(string Material, float[] Vertices, int[] Indices, bool Color, Vector3 Lo, Vector3 Hi, int Lod)> Calls(ValveResourceFormat.ResourceTypes.Model model)
+    private static IEnumerable<(string Material, float[] Vertices, int[] Indices, bool Color, Vector3 Lo, Vector3 Hi, int Lod, bool FloatTexcoords)> Calls(ValveResourceFormat.ResourceTypes.Model model)
     {
         foreach (var (mesh, _, _, lod) in model.GetEmbeddedMeshesAndLoD())
         {
@@ -286,7 +298,9 @@ internal static class NodePropAggregates
                         min = Vector3.Min(min, p);
                         max = Vector3.Max(max, p);
                     }
-                    yield return (call.GetStringProperty("m_material") ?? "", vertices, [.. Enumerable.Range(start, count).Select(i => Index(i) + bas - lo)], color, min, max, (int)lod);
+                    // A float texcoord in the model is what WRB_LoadPropMeshes' geometry flag (+0x66) marks: kept float.
+                    var floatTexcoords = vb.InputLayoutFields.Any(f => f.SemanticName == "TEXCOORD" && f.Format.ToString() == "R32G32_FLOAT");
+                    yield return (call.GetStringProperty("m_material") ?? "", vertices, [.. Enumerable.Range(start, count).Select(i => Index(i) + bas - lo)], color, min, max, (int)lod, floatTexcoords);
                 }
         }
     }

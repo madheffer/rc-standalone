@@ -23,7 +23,26 @@ public class PropAggregatesReplay(ITestOutputHelper output)
     static string Key(Vector3 a, Vector3 b, Vector3 c)
         => string.Join("|", new[] { a, b, c }.Select(v => $"{BitConverter.SingleToInt32Bits(v.X):x8}{BitConverter.SingleToInt32Bits(v.Y):x8}{BitConverter.SingleToInt32Bits(v.Z):x8}").Order());
 
-    sealed record ShippedDraw(string Material, List<string> Triangles, List<Vector3> Vertices);
+    sealed record ShippedDraw(string Material, List<string> Triangles, List<Vector3> Vertices)
+    {
+        public string Layout { get; init; } = "";
+    }
+
+    // The texcoord fields of a draw's vertex buffers.
+    static string LayoutOf(IEnumerable<ValveResourceFormat.Blocks.VBIB.OnDiskBufferData> vbs)
+        => string.Join(" ", vbs.SelectMany(vb => vb.InputLayoutFields).Where(f => f.SemanticName == "TEXCOORD").Select(f => $"{f.SemanticName}{f.SemanticIndex}:{f.Format}"));
+
+    // The vertex layout of a model's draw call, counting calls as NodePropAggregates does (every LOD, in mesh order).
+    static string SourceLayout(GameContent content, string model, int call)
+    {
+        var n = 0;
+        foreach (var (mesh, _, _, _) in content.LoadedModel(model + "_c")!.GetEmbeddedMeshesAndLoD())
+            foreach (var so in mesh.Data.GetArray("m_sceneObjects"))
+                foreach (var dc in so.GetArray("m_drawCalls"))
+                    if (n++ == call)
+                        return LayoutOf(dc.GetArray("m_vertexBuffers").Select(b => mesh.VBIB.VertexBuffers[b.GetInt32Property("m_hBuffer")]));
+        return "?";
+    }
 
     [Fact]
     public void AgainstCompiledMap()
@@ -67,6 +86,7 @@ public class PropAggregatesReplay(ITestOutputHelper output)
         var tally = new SortedDictionary<string, int>();
         void Count(string k) => tally[k] = tally.GetValueOrDefault(k) + 1;
         var shown = 0;
+        var layoutShown = 0;
         var shippedCentres = new List<Vector3[]>();
         foreach (var entry in package.Entries!.SelectMany(kv => kv.Value).Where(e => e.GetFullPath().EndsWith(".vwnod_c", StringComparison.Ordinal)))
         {
@@ -101,7 +121,7 @@ public class PropAggregatesReplay(ITestOutputHelper output)
                             var lo = idx.Min();
                             shipped.Add(new ShippedDraw(dc.GetStringProperty("m_material") ?? "",
                                 [.. Enumerable.Range(0, count / 3).Select(t => Key(V(idx[t * 3]), V(idx[(t * 3) + 1]), V(idx[(t * 3) + 2])))],
-                                [.. Enumerable.Range(lo, idx.Max() - lo + 1).Select(V)]));
+                                [.. Enumerable.Range(lo, idx.Max() - lo + 1).Select(V)]) { Layout = LayoutOf(dc.GetArray("m_vertexBuffers").Select(b => mesh.VBIB.VertexBuffers[b.GetInt32Property("m_hBuffer")])) });
                         }
                 // Our aggregate holding the first draw; then every draw and fragment beside it.
                 if (!ourByDrawSet.TryGetValue(shipped[0].Material.ToLowerInvariant() + "#" + SetKey(shipped[0].Triangles), out var hit))
@@ -155,6 +175,22 @@ public class PropAggregatesReplay(ITestOutputHelper output)
                     var g = agg.Draws[map[d]].Geometry;
                     Count(Triangles(g).SequenceEqual(shipped[d].Triangles) ? "draw triangles exact" : "draw triangles differ");
                     Count(Enumerable.Range(0, g.VertexCount).Select(v => P(g, v)).SequenceEqual(shipped[d].Vertices) ? "draw vertices exact" : "draw vertices differ");
+
+                }
+                // Texcoord formats: ours (NodePropEntries' rule, GROUND_TRUTH 44) beside the shipped draws'.
+                {
+                    foreach (var sd in shipped)
+                        foreach (var field in sd.Layout.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            var index = field[8] - '0';
+                            if (index > 1)
+                                continue;
+                            var want = agg.TexcoordFormats[index];
+                            var ok = field.EndsWith(want);
+                            Count(ok ? "texcoord format predicted" : "texcoord format differs");
+                            if (!ok && layoutShown++ < 10)
+                                output.WriteLine($"TEXCOORD {Path.GetFileName(name)} {field}: ours {want}");
+                        }
                 }
                 // Fragments: matrices per draw, as sets and in order.
                 var theirs = theirFragments.Select(t => (Draw: map[t.Draw], t.M)).ToList();
@@ -204,5 +240,6 @@ public class PropAggregatesReplay(ITestOutputHelper output)
         // Valve's draw and fragment order follow heap addresses (GROUND_TRUTH 43): not asserted.
         Assert.Equal(0, tally.GetValueOrDefault("aggregate without ours") + tally.GetValueOrDefault("aggregate draws differ"));
         Assert.Equal(0, tally.GetValueOrDefault("draw triangles differ") + tally.GetValueOrDefault("draw vertices differ") + tally.GetValueOrDefault("fragment set differs"));
+        Assert.Equal(0, tally.GetValueOrDefault("texcoord format differs"));
     }
 }
