@@ -34,7 +34,7 @@ public class ShaderAttributeProbe(ITestOutputHelper output)
         var names = parts[0] == "*"
             ? package.Entries!["vcs"].Select(e => e.FileName).Where(n => n.EndsWith("_pc_50_vs")).Select(n => n[..^"_pc_50_vs".Length])
             : parts[0].Split(',');
-        foreach (var shader in names.SelectMany(x => parts[0] == "*" ? new[] { x + "_pc_50_vs", x + "_pc_50_ps" } : new[] { x + "_pc_50_features", x + "_pc_50_vs", x + "_pc_50_ps" }))
+        foreach (var shader in names.SelectMany(x => parts[0] == "*" ? new[] { x + "_pc_50_vs", x + "_pc_50_ps" } : new[] { x + "_pc_50_features", x + "_pc_50_vs", x + "_pc_50_ps", x + "_pc_50_psrs" }))
         {
             var entry = package.FindEntry($"shaders/vfx/{shader}.vcs");
             if (entry == null)

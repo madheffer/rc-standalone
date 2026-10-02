@@ -99,7 +99,7 @@ internal static class NodePropEntries
                     var (vertices, hasColor) = Vertices(vb, lo, vertexCount);
                     PropTransform.Apply(vertices, Stride, 0, 3, 6, 10, 16, matrix, PropTransform.AxesOf(info?.Shader, info?.Params), flags);
                     var indices = Enumerable.Range(start, count).Select(i => Index(i) + bas - lo).ToArray();
-                    yield return new NodeMeshEntries.Entry(id, material, Stride, Streams(hasColor), vertices, indices);
+                    yield return new NodeMeshEntries.Entry(id, material, Stride, Streams(hasColor), vertices, indices) { Record = RecordOf(keys), Source = keys };
                 }
         }
     }
@@ -122,6 +122,17 @@ internal static class NodePropEntries
         for (var k = 0; k < Math.Min(from.Length, to.Length); k++)
             map.TryAdd(from[k], to[k]);
         return map;
+    }
+
+    // WRBNode_PropEntry's record from the prop record (180245770): the lighting
+    // mode is disableshadows (+0x16f), bit 2 donotcollapse or disablemerging
+    // (+0x1f0), the fade fademaxdist (+0x164).
+    internal static MeshEntryFlags.Record RecordOf(DmxBinary.Element keys)
+    {
+        var mode = byte.TryParse(keys.Get<string>("disableshadows"), out var d) ? d : (byte)0;
+        var merge = Flag(keys.Get<string>("donotcollapse")) || Flag(keys.Get<string>("disablemerging"));
+        var fade = float.TryParse(keys.Get<string>("fademaxdist"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f) ? f : 0f;
+        return new MeshEntryFlags.Record(mode, merge ? 2UL : 0UL, fade, false, null, false);
     }
 
     private const int Stride = 18;
@@ -173,10 +184,13 @@ internal static class NodePropEntries
     private static bool Flag(string? value) => value is "1" or "true" or "True";
 
     private static string Key(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through)
-        => string.Join("/", through.Select(e => e.GetValue<int>("nodeID") ?? -1)) + ":" + System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(node);
+        => Key(node, through.Select(e => e.GetValue<int>("nodeID") ?? -1));
+
+    internal static string Key(DmxBinary.Element node, IEnumerable<int> instances)
+        => string.Join("/", instances) + ":" + System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(node);
 
     // The ids MapInstances.Expand gives each copy, by template node and instance path.
-    private static Dictionary<string, int> CopyIds(DmxBinary.Document doc, GameContent content)
+    internal static Dictionary<string, int> CopyIds(DmxBinary.Document doc, GameContent content)
     {
         var ids = new Dictionary<string, int>();
         var createdOnLoad = SmartProps.NodesCreatedOnLoad(doc, path => content.SmartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0);

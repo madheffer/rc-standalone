@@ -75,6 +75,7 @@ public class GameContent : SettleWorld.IModels, IDisposable
             Params = mat.IntParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
             Floats = mat.FloatParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
             Vectors = mat.VectorParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
+            Textures = mat.TextureParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
         };
     }
 
@@ -193,6 +194,16 @@ public class GameContent : SettleWorld.IModels, IDisposable
             }
         }
         return _renderMeshes[model] = meshes;
+    }
+
+    /// <summary>A compiled texture's width and height (its vtex_c header), or null.</summary>
+    public (int Width, int Height)? TextureSize(string texture)
+    {
+        if (Read(texture.EndsWith("_c", StringComparison.Ordinal) ? texture : texture + "_c") is not { } bytes)
+            return null;
+        using var res = new Resource();
+        res.Read(new MemoryStream(bytes));
+        return res.DataBlock is ValveResourceFormat.ResourceTypes.Texture t ? (t.Width, t.Height) : null;
     }
 
     /// <summary>The loaded model resource (null when missing), for its render meshes.</summary>

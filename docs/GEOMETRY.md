@@ -154,6 +154,22 @@ angle about a basis from the normal in 11 bits, the bitangent sign).
 Aggregate models add a `color` stream at index 1 and meshlets.
 
 The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
+- **Entry headers** (ported: `MeshEntryFlags`, `MaterialAttributes`,
+  `NodeEntryHeader`). `WRB_MeshEntryFlags` reads 35 material attributes
+  (each "found and true"), resolved by murmur from shader and material
+  attribute names (`tools/re/emu_material_queries.py` lists the keys), and
+  the builder record; the port matches the binary run under unicorn on 400
+  random cases (`MeshEntryFlagsEmulated`). A material's attributes are its
+  vmat_c's own, then those its shader declares for the static combo its
+  F_ parameters select (vs, ps, psrs; dynamic expressions over FEAT[i]
+  evaluated); the size is the RepresentativeTexture binding's own vtex_c
+  size (-1 without one). The world record: lighting mode disableShadows,
+  bit 2 disablemerging; a prop's: disableshadows, donotcollapse or
+  disablemerging. Every compared field (tint, id, bounds centre, fades,
+  boost, object flags, +0x1a0 bytes, flags, size) is exact on all world
+  entries of probe01, cardtest and atixref (598) and all 102 atixref prop
+  entries (`NodeEntryHeaderReplay`), with two measured rules open
+  (GROUND_TRUTH 40, 41).
 - **Entries:** `WRB_CollectMeshEntries` turns each map mesh piece into a
   0x238-byte node mesh entry: +0x1b0 attribute flags (64-bit, from the
   material's attributes in `WRB_MeshEntryFlags`; 0x40000000 is

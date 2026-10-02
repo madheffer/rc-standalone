@@ -156,6 +156,19 @@ game can answer is raised with the user first, and runs with -insecure.
     stream. The texcoord axes are shader attributes
     (TexCoordScaleByModelU/V = g_nScaleTexCoord*ByModelScaleAxis - 1).
     Open: the foliage static combo rule for NeedsLocalSpaceVertices.
+40. **AllowBackfaceCulling with no declaration** (entry attribute bit 32):
+    CMaterial2::GetBoolAttribute (materialsystem2 18000ba80) searches the
+    material's attribute blocks and then a parent set (+0x60) not yet
+    identified. generic, csgo_lightmappedgeneric, csgo_vertexlitgeneric
+    and csgo_black_unlit declare no AllowBackfaceCulling in any vs, ps or
+    psrs combo, yet answer true; csgo_water_fancy answers false. Measured
+    on atixref, probe01 and cardtest (MaterialAttributes' NoCullDefault).
+    Next: find what fills the parent set (materialsystem2's material load).
+41. **renderwithdynamic on instance copies** (object flag 0x200): the 15
+    atixref copies of renderwithdynamic meshes carry no 0x200, though the
+    property has a setter (1810e9960) and the originals carry it.
+    Measured (NodeEntryHeader.World's copy argument), not read; next: the
+    collapse's node copy (FUN_180f60740) and which properties it carries.
 
 ## Resolved
 

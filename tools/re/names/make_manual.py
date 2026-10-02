@@ -106,7 +106,7 @@ RESOURCECOMPILER = [
     ("18023bd00", "MapBuilder_ReadMeshBuffers", G, "asks the node for its mesh DMX list"),
     ("180f74350", "MapNode_GetMeshBuffersForwarder", G, ""),
     ("1810dff20", "CMapMesh_ConvertMeshForBuilder", G, "the DMX of the mesh the builder reads"),
-    ("180ffd010", "MapMeshBuffer_Unserialize", G, "hammerMeshDataBuffer"),
+    ("180ffd010", "MapMeshBuffer_Unserialize", G, "hammerMeshDataBuffer; then the 0xf0 record's fields from ConvertMeshForBuilder's (+0x24 tint, +0x28/+0x2c fades, +0x35 lighting mode, +0x36 visexclude, +0x37 disablemerging, +0x38 renderwithdynamic, +0x39 renderToCubemaps, +0x3a emissive, +0x3c boost, +0x48 bakelighting)"),
     ("180d47810", "DmeMeshToCMeshes", G, ""),
     ("180d47b90", "DmeMeshToCMesh", G, "stream layout from the DMX"),
     ("180d5c570", "CMesh_WriteDmeMesh", G, ""),
@@ -198,7 +198,7 @@ RESOURCECOMPILER = [
     ("181288080", "PropDeformer_Transform", G, "points deformed; tangents as the normalised difference of deform(p + t) and deform(p); normals by 181289460"),
     ("18128d980", "PropDeformer_Init", G, "lattice dims +0x2c..+0x34, scale +0x20, mirror +0x70"),
     ("18128ea90", "PropDeformer_IsSet", G, ""),
-    ("18023f6d0", "WRB_CollectMeshEntries", WN, "a map mesh's pieces into node mesh entries (0x238 bytes each)"),
+    ("18023f6d0", "WRB_CollectMeshEntries", WN, "a map mesh's pieces into node mesh entries (0x238 bytes each): +0x28 tint, +0x38 name, +0x40 id, +0x80 the node's bounds centre, +0x98 bakelighting with a baking build, +0xb0/+0xb4 fades, +0xb8 boost, +0xbc 0x400/0x200/0x80/0x100000, +0x1a1 not visexclude, +0x1a2 1, +0x1a3 emissive; NodeEntryHeader.World"),
     ("180258570", "WRBNode_MergeMeshes", WN, "greedy: later compatible entries while verts < 0x200000 and indices < 0x400000"),
     ("1802b63b0", "WRBMeshEntry_CanMerge", WN, "same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ..."),
     ("180257ff0", "WRBNode_MergeEntries", WN, "one new entry from the group, fields from the first"),
@@ -626,7 +626,12 @@ RESOURCECOMPILER = [
     ("180311fd0", "ModelDoc_CompilePhysicsWithInstance", PM, "builds a CModelDocCompileInstance on the stack (symbol tables +0x458/+0x4b8/+0x518 case-sensitive), calls CompilePhysics"),
     # Visibility.
     ("18020d860", "Material_VisFlags", VIS, "material int attributes by murmur hash as triangle flags"),
-    ("180252ae0", "WRB_MeshEntryFlags", VIS, "material flags into a mesh entry"),
+    ("180252ae0", "WRB_MeshEntryFlags", VIS, "a node entry's attribute flags (+0x1b0) from 35 material attributes (found and true) and the builder record (+0x1b0 lighting mode, +0x1b8 base flags, +0xb4 fade, +0x98, +0x90); +0x1b8 the representative texture's size (vf 0xa8), +0x1c0 skyboxslot; MeshEntryFlags, checked under unicorn (tools/re/emu_entry_flags.py)"),
+    ("18025fa40", "WRB_UseStaticEnvMapForObjectsWithLightingOrigin", WN, "gameinfo ResourceCompiler/WorldRendererBuilder/UseStaticEnvMapForObjectsWithLightingOrigin, default false"),
+    ("1810e3f50", "CMapMesh_RegisterProperties", B, "CMapMeshBase's embedded properties with getters and setters: bakelighting +0x3b58, renderToCubemaps +0x3b59, emissiveLightingEnabled +0x3b5a, fademindist +0x3b50, fademaxdist +0x3b54, emissiveLightingBoost +0x3b64, visexclude +0x3b6a, disablemerging +0x3b6b (vf 0x7e8), disableShadows +0x3b6c, renderwithdynamic +0x3b74"),
+    ("1810dd840", "CMapMesh_GetDisableMerging", B, "vf 0x7e8: +0x3b6b"),
+    ("1810dd830", "CMapMesh_SetDisableMerging", B, "vf 0x7e0"),
+    ("1810e9790", "CMapMesh_SetDisableShadows", B, "+0x3b6c, then vf 0x758"),
     ("1802821f0", "WRB_EmitRteTriangles", VIS, "ORs in the material's flag bits; drops a sliver (longest edge under 0.0001, or times 1.0001 over the other two)"),
     ("1802839d0", "WRB_CollectRteMeshes", VIS, "each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80"),
     ("1802597d0", "WRB_RteSkipBoxes", VIS, "oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified"),
@@ -714,7 +719,7 @@ RESOURCECOMPILER = [
     ("180f7b6a0", "CMapNode_RaytraceFlags", LIGHTS, "0x20 when node +0x278 is 0; 0x1000000, 0x2000000, 0x4000000 by parent and +0x2d0"),
     # Entities.
     ("180244d30", "EntityLump_ExportDriver", ENT, "per-entity export driver; writes vDirToSun"),
-    ("180245770", "EntityLump_StaticModelRecord", ENT, "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin"),
+    ("180245770", "EntityLump_StaticModelRecord", ENT, "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging"),
     # Per-entity lump export: probe, cubemap and light keys (2026-09-28).
     ("1800fd550", "ResourceCompilerMap_CompileMap", LIGHTS, "sets ctx +0x605/+0x606 (bake now / baked lighting available)"),
     ("1801f7960", "CMapBuilderContext_Ctor", LUMP, "+0x10c = content-relative map path, no extension"),
@@ -1579,6 +1584,11 @@ TIER0 = [
 
 # tools/hammer.dll as installed (PE time 2026-09-23 22:00 UTC, file 2026-09-24).
 # Not in Ghidra: read from the PE with capstone; apply_names.py skips it.
+# materialsystem2 20261001.
+MATERIALSYSTEM = [
+    ("18000ba80", "CMaterial2::GetBoolAttribute", MS, "vf 0x48: the key in the material's attribute blocks (+0x180, chained +0x68), then its parent set (+0x60); not found returns false with the default"),
+]
+
 # meshsystem 20260923: the light scene's per-mesh ray scenes (EditorTraceScene static props).
 MESHSYSTEM = [
     ("180011ba0", "CMeshSystem::GetMeshRayTrace", LIGHTS, "vfn 0xe8: a render mesh's cached CMeshRayTrace, built on first use"),
@@ -1617,4 +1627,5 @@ if __name__ == "__main__":
     write("tier0_20260923.manual.json", TIER0)
     write("hammer_20260924.manual.json", HAMMER)
     write("meshsystem_20260923.manual.json", MESHSYSTEM)
+    write("materialsystem2_20261001.manual.json", MATERIALSYSTEM)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

@@ -86,6 +86,9 @@ public static partial class SettleWorld
 
         /// <summary>The material's vector parameters.</summary>
         public IReadOnlyDictionary<string, System.Numerics.Vector4> Vectors { get; init; } = new Dictionary<string, System.Numerics.Vector4>();
+
+        /// <summary>The material's texture parameters: name to texture path.</summary>
+        public IReadOnlyDictionary<string, string> Textures { get; init; } = new Dictionary<string, string>();
     }
 
     /// <summary>One named collision property: its group and its layer lists, comma separated.</summary>

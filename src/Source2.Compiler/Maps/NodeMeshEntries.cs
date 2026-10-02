@@ -26,6 +26,19 @@ internal static class NodeMeshEntries
 
         /// <summary>The matrix normals and tangents turned by.</summary>
         public float[] Turn { get; init; } = [];
+
+        /// <summary>
+        /// The builder record's fields from the source node (<see cref="MeshEntryFlags.Record"/>):
+        /// a mesh's disableShadows and disablemerging, a prop's disableshadows and
+        /// donotcollapse or disablemerging, and either's fademaxdist.
+        /// </summary>
+        public MeshEntryFlags.Record Record { get; init; } = new(0, 0, 0, false, null, false);
+
+        /// <summary>The node it came from: the CMapMesh element, or a prop's entity_properties.</summary>
+        public DmxBinary.Element? Source { get; init; }
+
+        /// <summary>The ids of the instances the node was reached through, outermost first (none outside instances).</summary>
+        public int[] Instances { get; init; } = [];
     }
 
     /// <param name="keepsTexcoords">Whether a material stops the texcoord shift
@@ -77,10 +90,25 @@ internal static class NodeMeshEntries
                     }
                 }
                 var name = piece.Material < names.Length ? names[piece.Material] : "";
-                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn });
+                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn, Record = RecordOf(mesh.Element), Source = mesh.Element, Instances = mesh.Instances });
             }
         }
         return entries;
+    }
+
+    /// <summary>
+    /// WRB_CollectMeshEntries' record from CMapMesh_ConvertMeshForBuilder's
+    /// buffer: the lighting mode is disableShadows (+0x3b6c, the buffer's
+    /// +0x35), attribute bit 2 is disablemerging (vf 0x7e8, +0x3b6b, the
+    /// buffer's +0x37); bits 37 and 38 (the buffer's +0x44 of 1 or 2) are
+    /// not mapped to a key yet.
+    /// </summary>
+    internal static MeshEntryFlags.Record RecordOf(DmxBinary.Element mesh)
+    {
+        var mode = mesh.Attributes.GetValueOrDefault("disableShadows") is { } d ? Convert.ToByte(d, System.Globalization.CultureInfo.InvariantCulture) : (byte)0;
+        var merge = mesh.Attributes.GetValueOrDefault("disablemerging") is true;
+        var fade = mesh.Attributes.GetValueOrDefault("fademaxdist") is { } f ? Convert.ToSingle(f, System.Globalization.CultureInfo.InvariantCulture) : 0f;
+        return new MeshEntryFlags.Record(mode, merge ? 2UL : 0UL, fade, false, null, false);
     }
 
     /// <summary>

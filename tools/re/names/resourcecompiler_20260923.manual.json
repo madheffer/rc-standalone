@@ -394,7 +394,7 @@
    "addr": "180ffd010",
    "name": "MapMeshBuffer_Unserialize",
    "module": "s2c:geometry/mesh-export",
-   "note": "hammerMeshDataBuffer"
+   "note": "hammerMeshDataBuffer; then the 0xf0 record's fields from ConvertMeshForBuilder's (+0x24 tint, +0x28/+0x2c fades, +0x35 lighting mode, +0x36 visexclude, +0x37 disablemerging, +0x38 renderwithdynamic, +0x39 renderToCubemaps, +0x3a emissive, +0x3c boost, +0x48 bakelighting)"
   },
   {
    "addr": "180d47810",
@@ -940,7 +940,7 @@
    "addr": "18023f6d0",
    "name": "WRB_CollectMeshEntries",
    "module": "s2c:geometry/world-nodes",
-   "note": "a map mesh's pieces into node mesh entries (0x238 bytes each)"
+   "note": "a map mesh's pieces into node mesh entries (0x238 bytes each): +0x28 tint, +0x38 name, +0x40 id, +0x80 the node's bounds centre, +0x98 bakelighting with a baking build, +0xb0/+0xb4 fades, +0xb8 boost, +0xbc 0x400/0x200/0x80/0x100000, +0x1a1 not visexclude, +0x1a2 1, +0x1a3 emissive; NodeEntryHeader.World"
   },
   {
    "addr": "180258570",
@@ -3412,7 +3412,37 @@
    "addr": "180252ae0",
    "name": "WRB_MeshEntryFlags",
    "module": "s2c:visibility",
-   "note": "material flags into a mesh entry"
+   "note": "a node entry's attribute flags (+0x1b0) from 35 material attributes (found and true) and the builder record (+0x1b0 lighting mode, +0x1b8 base flags, +0xb4 fade, +0x98, +0x90); +0x1b8 the representative texture's size (vf 0xa8), +0x1c0 skyboxslot; MeshEntryFlags, checked under unicorn (tools/re/emu_entry_flags.py)"
+  },
+  {
+   "addr": "18025fa40",
+   "name": "WRB_UseStaticEnvMapForObjectsWithLightingOrigin",
+   "module": "s2c:geometry/world-nodes",
+   "note": "gameinfo ResourceCompiler/WorldRendererBuilder/UseStaticEnvMapForObjectsWithLightingOrigin, default false"
+  },
+  {
+   "addr": "1810e3f50",
+   "name": "CMapMesh_RegisterProperties",
+   "module": "s2c:mapbuilder",
+   "note": "CMapMeshBase's embedded properties with getters and setters: bakelighting +0x3b58, renderToCubemaps +0x3b59, emissiveLightingEnabled +0x3b5a, fademindist +0x3b50, fademaxdist +0x3b54, emissiveLightingBoost +0x3b64, visexclude +0x3b6a, disablemerging +0x3b6b (vf 0x7e8), disableShadows +0x3b6c, renderwithdynamic +0x3b74"
+  },
+  {
+   "addr": "1810dd840",
+   "name": "CMapMesh_GetDisableMerging",
+   "module": "s2c:mapbuilder",
+   "note": "vf 0x7e8: +0x3b6b"
+  },
+  {
+   "addr": "1810dd830",
+   "name": "CMapMesh_SetDisableMerging",
+   "module": "s2c:mapbuilder",
+   "note": "vf 0x7e0"
+  },
+  {
+   "addr": "1810e9790",
+   "name": "CMapMesh_SetDisableShadows",
+   "module": "s2c:mapbuilder",
+   "note": "+0x3b6c, then vf 0x758"
   },
   {
    "addr": "1802821f0",
@@ -3922,7 +3952,7 @@
    "addr": "180245770",
    "name": "EntityLump_StaticModelRecord",
    "module": "s2c:entities",
-   "note": "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin"
+   "note": "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging"
   },
   {
    "addr": "1800fd550",

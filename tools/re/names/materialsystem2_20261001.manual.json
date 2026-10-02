@@ -1,0 +1,10 @@
+{
+ "functions": [
+  {
+   "addr": "18000ba80",
+   "name": "CMaterial2::GetBoolAttribute",
+   "module": "s2c:physics/material-sampler",
+   "note": "vf 0x48: the key in the material's attribute blocks (+0x180, chained +0x68), then its parent set (+0x60); not found returns false with the default"
+  }
+ ]
+}
