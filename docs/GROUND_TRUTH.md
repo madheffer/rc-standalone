@@ -131,13 +131,16 @@ game can answer is raised with the user first, and runs with -insecure.
     same steps on the prop model's draw as meshsystem unpacks it, TEXCOORD1
     included (the weld keeps vertices that differ only there): all 446 of
     atixref's exact (PropAggregateOrderProbe), skins, materialoverride and
-    smart prop material variables included. In all, 1,217 of atixref's
-    1,270 draws are exact. The vertices of every one of those 1,270 draws
+    smart prop material variables included. A per-cluster draw's subset is
+    read from its real triangles (padding aside), and an overlay's triangles,
+    which share their target's positions, belong to the entry with the
+    draw's material. In all, 1,268 of atixref's 1,270 draws are exact. The vertices of every one of those 1,270 draws
     sit in first-use order of its final index list (optimizeVertexFetch,
-    VertexOrderProbe); NodeDraw builds a draw that way. Open: 12 BuildNode
-    aggregates and 7 multi-entry
-    draws differ, 34 draws span entries the subset rule does not join; the
-    render-cluster triangle assignment itself (RenderClusters, 90%).
+    VertexOrderProbe); NodeDraw builds a draw that way. Open: two
+    BuildNode aggregates (agg_nomerge inferno_trim_wood01_painted_blend_02,
+    hr_concrete_wall_painted_001) whose first meshlets agree and later ones
+    do not, on Valve's own entries; the render-cluster triangle assignment
+    itself (RenderClusters, 90%).
 35. **Aggregation on probe01**: four dev meshes (100, 101, 102, 107) share
     the other nine's material flags but miss `agg_merge`; the likely cause
     is the visibility mesh merger joining them first (GEOMETRY.md).

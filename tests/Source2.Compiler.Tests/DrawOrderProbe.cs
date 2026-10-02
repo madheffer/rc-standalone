@@ -29,6 +29,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
         var data = File.ReadAllBytes(p[0]);
         var outs = new List<VisibilityMeshMerger.Mesh>();
         var outStreams = new List<List<Physics.MeshWeld.Stream>>();
+        var outMaterials = new List<string>();
         for (var at = 0; at < data.Length;)
         {
             var n = BitConverter.ToInt32(data, at);
@@ -41,6 +42,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
             if (ev is "out" or "nov")
             {
                 outs.Add(VisibilityMeshMergerReplay.Mesh(head, blob).Item1);
+                outMaterials.Add(head.TryGetProperty("material", out var mat) ? mat.GetString() ?? "" : "");
                 outStreams.Add([.. head.GetProperty("streams").EnumerateArray().Select(x => new Physics.MeshWeld.Stream(x.GetProperty("name").GetString() ?? "",
                     x.GetProperty("first").GetInt32(), x.GetProperty("count").GetInt32(), false, x.GetProperty("type").GetInt32()))]);
             }
@@ -77,6 +79,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
             {
                 var position = c.Layout.First(x => x.Name.Equals("position", StringComparison.OrdinalIgnoreCase)).First;
                 outs.Add(new VisibilityMeshMerger.Mesh { Vertices = [.. c.Vertices], Stride = c.Stride, PositionOffset = position, Indices = [.. c.Indices] });
+                outMaterials.Add(c.Material);
                 outStreams.Add([.. c.Layout.Select(x => new Physics.MeshWeld.Stream(x.Name, x.First, x.Count, false, x.Type))]);
                 var e = outs.Count - 1;
                 for (var t = 0; t < outs[e].Indices.Count / 3; t++)
@@ -102,12 +105,13 @@ public class DrawOrderProbe(ITestOutputHelper output)
                         moved.Vertices[(v * m.Stride) + m.PositionOffset + k] -= c[k];
                 outs.Add(moved);
                 outStreams.Add(outStreams[e]);
+                outMaterials.Add(outMaterials[e]);
                 for (var t = 0; t < moved.Indices.Count / 3; t++)
                     owner.TryAdd(Key(Pos(moved, moved.Indices[t * 3]), Pos(moved, moved.Indices[(t * 3) + 1]), Pos(moved, moved.Indices[(t * 3) + 2])), outs.Count - 1);
             }
         using var package = new ValvePak.Package();
         package.Read(p[1]);
-        int draws = 0, exact = 0, unmatched = 0, shownPlain = 0, shownBn = 0;
+        int draws = 0, exact = 0, unmatched = 0, shownPlain = 0, shownBn = 0, severalShown = 0;
         var tally = new SortedDictionary<string, int>();
         foreach (var entry in package.Entries!.GetValueOrDefault("vmdl_c") ?? [])
         {
@@ -137,7 +141,10 @@ public class DrawOrderProbe(ITestOutputHelper output)
                         var count = dc.GetInt32Property("m_nIndexCount");
                         var shipped = Enumerable.Range(0, count / 3).Select(t => Key(V(Index(start + (t * 3))), V(Index(start + (t * 3) + 1)), V(Index(start + (t * 3) + 2)))).ToList();
                         // Meshlet padding (the last vertex three times) belongs to no entry.
-                        var sources = shipped.Where(k => k.Split('|').Distinct().Count() > 1).Select(k => owner.GetValueOrDefault(k, -1)).Distinct().ToList();
+                        // An overlay's triangles share their target's positions: an owner with the draw's material first.
+                        var drawMaterial = dc.GetStringProperty("m_material") ?? "";
+                        int Owner(string k) => owners.TryGetValue(k, out var l) ? l.FirstOrDefault(e => e < outMaterials.Count && outMaterials[e].Equals(drawMaterial, StringComparison.OrdinalIgnoreCase), owner.GetValueOrDefault(k, -1)) : -1;
+                        var sources = shipped.Where(k => k.Split('|').Distinct().Count() > 1).Select(Owner).Distinct().ToList();
                         VisibilityMeshMerger.Mesh? combined = null;
                         if (Environment.GetEnvironmentVariable("DRAWORDER_SUBSET") == "1" && sources.Count > 1 && !sources.Contains(-1))
                         {
@@ -161,6 +168,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
                                 combined = joined;
                                 outs.Add(joined);
                                 outStreams.Add(outStreams[sources[0]]);
+                                outMaterials.Add(outMaterials[sources[0]]);
                                 sources = [outs.Count - 1];
                             }
                         }
@@ -175,8 +183,8 @@ public class DrawOrderProbe(ITestOutputHelper output)
                             }
                             tally[$"{kindU} from {(sources.Contains(-1) ? "unknown" : "several")} entries"] = tally.GetValueOrDefault($"{kindU} from {(sources.Contains(-1) ? "unknown" : "several")} entries") + 1;
                             unmatched++;
-                            if (unmatched <= 5)
-                                output.WriteLine($"{entry.FileName} draw {dc.GetStringProperty("m_material")}: {count / 3} triangles from entries [{string.Join(",", sources)}]");
+                            if (!sources.Contains(-1) && severalShown++ < 6)
+                                output.WriteLine($"SEVERAL {entry.FileName} {Path.GetFileName(dc.GetStringProperty("m_material"))}: {count / 3} triangles from [{string.Join(", ", sources.Select(e => $"{e}{(e >= mergerCount ? "bn" : "")} stride {outs[e].Stride} pos {outs[e].PositionOffset} [{string.Join(" ", outStreams[e].Select(x => $"{x.Name}{x.Count}"))}]"))}]");
                             continue;
                         }
                         if (combined == null && int.TryParse(Environment.GetEnvironmentVariable("DRAWORDER_ALT"), out var alt))
@@ -205,7 +213,7 @@ public class DrawOrderProbe(ITestOutputHelper output)
                         }
                         var src = outs[sources[0]];
                         // A per-cluster draw holds a subset of its source entry: keep the source's triangles the draw has, in order.
-                        if (Environment.GetEnvironmentVariable("DRAWORDER_SUBSET") == "1" && src.Indices.Count / 3 != shipped.Count)
+                        if (Environment.GetEnvironmentVariable("DRAWORDER_SUBSET") == "1" && src.Indices.Count / 3 != shipped.Count(k => k.Split('|').Distinct().Count() > 1))
                         {
                             var want = shipped.ToHashSet();
                             var keep = new List<int>();
