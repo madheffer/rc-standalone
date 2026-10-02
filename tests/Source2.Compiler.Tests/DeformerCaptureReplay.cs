@@ -82,4 +82,51 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
         output.WriteLine($"{calls.Count} calls, {exact} exact; {pointsExact}/{points} points");
         Assert.Equal(calls.Count, exact);
     }
+
+    /// <summary>
+    /// <see cref="LatticeDeformer.FromNode"/> for every deformer node of the
+    /// captured map (<c>DEFORMVMAP</c>) against the struct the compile handed
+    /// over for it (matched by the transform's position): transform, size,
+    /// counts, mode, mirror, control points and handles bit for bit.
+    /// </summary>
+    [Fact]
+    public void NodesAgainstCapture()
+    {
+        if (Environment.GetEnvironmentVariable("DEFORMCAP") is not { } path || Environment.GetEnvironmentVariable("DEFORMVMAP") is not { } vmap)
+            return;
+        var captured = Read(path).Select(c => c.Deformer).ToList();
+        var doc = DmxBinary.ReadFile(vmap);
+        static bool Same(float a, float b) => BitConverter.SingleToInt32Bits(a) == BitConverter.SingleToInt32Bits(b);
+        static bool SameV(Vector3 a, Vector3 b) => Same(a.X, b.X) && Same(a.Y, b.Y) && Same(a.Z, b.Z);
+        var bad = 0;
+        foreach (var node in doc.Elements.Where(e => e.Type.StartsWith("CMapDeformer", StringComparison.Ordinal)))
+        {
+            var ours = LatticeDeformer.FromNode(node);
+            var want = captured.FirstOrDefault(c => SameV(c.Transform.Position, ours.Transform.Position));
+            if (want == null)
+            {
+                output.WriteLine($"{node.Type} {node.GetValue<int>("nodeID")}: no captured call");
+                bad++;
+                continue;
+            }
+            var diffs = new List<string>();
+            if (!SameV(ours.Size, want.Size))
+                diffs.Add($"size {ours.Size:R} vs {want.Size:R}");
+            var (q, w) = (ours.Transform.Rotation, want.Transform.Rotation);
+            if (!Same(q.X, w.X) || !Same(q.Y, w.Y) || !Same(q.Z, w.Z) || !Same(q.W, w.W) || !Same(ours.Transform.Scale, want.Transform.Scale))
+                diffs.Add($"rotation {q} vs {w}");
+            if ((ours.Segments, ours.DivisionsY, ours.DivisionsZ, ours.Mode, ours.Mirror) != (want.Segments, want.DivisionsY, want.DivisionsZ, want.Mode, want.Mirror))
+                diffs.Add($"counts {(ours.Segments, ours.DivisionsY, ours.DivisionsZ, ours.Mode, ours.Mirror)} vs {(want.Segments, want.DivisionsY, want.DivisionsZ, want.Mode, want.Mirror)}");
+            for (var i = 0; i < ours.Points.Length; i++)
+                if (i >= want.Points.Length || !SameV(ours.Points[i], want.Points[i]))
+                    diffs.Add($"point {i}: {ours.Points[i]:R} vs {(i < want.Points.Length ? want.Points[i].ToString("R", null) : "-")}");
+            for (var i = 0; i < ours.Handles.Length; i++)
+                if (i >= want.Handles.Length || !SameV(ours.Handles[i], want.Handles[i]))
+                    diffs.Add($"handle {i}: {ours.Handles[i]:R} vs {(i < want.Handles.Length ? want.Handles[i].ToString("R", null) : "-")}");
+            output.WriteLine($"{node.Type} {node.GetValue<int>("nodeID")}: {(diffs.Count == 0 ? "exact" : string.Join("; ", diffs.Take(8)))}");
+            if (diffs.Count > 0)
+                bad++;
+        }
+        Assert.Equal(0, bad);
+    }
 }

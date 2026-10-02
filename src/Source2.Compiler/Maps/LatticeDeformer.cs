@@ -232,4 +232,187 @@ internal sealed class LatticeDeformer
 
     /// <summary>The evaluator for points handed over with <paramref name="matrix"/> (identity: points already in the world).</summary>
     public Evaluator For(float[] matrix) => new(this, matrix);
+
+    /// <summary>
+    /// The deformer a CMapDeformerLattice or CMapDeformerSimple node keeps at
+    /// +0x4c0, as a map load leaves it. The transform is the node's origin and
+    /// angles (the map's nodes keep world placements). A lattice takes its
+    /// size, segments, divisions, interpolation mode (LINEAR, B_SPLINE,
+    /// CATMUL_ROM, BEZIER: 0 to 3) and nodeData's control points; a simple
+    /// deformer its size and the bend (<see cref="Bend"/>). The mirror flag is
+    /// only ever set by a KV3 load or a copy (18128eaf0, 180246d70); a map's
+    /// node leaves it clear. Not ported, and thrown: a scaled node, a lattice
+    /// in BEZIER mode (its handles' source is not read), CMapDeformerPath.
+    /// Checked against the structs PropDeformer_Transform was handed
+    /// (capture_deformer.py on deformerprobe): all three bit for bit.
+    /// </summary>
+    public static LatticeDeformer FromNode(DmxBinary.Element node)
+    {
+        if ((node.GetValue<Vector3>("scales") ?? Vector3.One) != Vector3.One)
+            throw new NotSupportedException($"{node.Type} {node.GetValue<int>("nodeID")}: a scaled deformer is not ported");
+        var d = new LatticeDeformer
+        {
+            Transform = CTransform.FromNode(node),
+            Size = node.GetValue<Vector3>("size") ?? Vector3.Zero,
+        };
+        switch (node.Type)
+        {
+            case "CMapDeformerLattice":
+                d.Segments = node.GetValue<int>("numSegments") ?? 0;
+                d.DivisionsY = node.GetValue<int>("numDivisionsY") ?? 0;
+                d.DivisionsZ = node.GetValue<int>("numDivisionsZ") ?? 0;
+                d.Mode = (node.Get<string>("interpolationMode") ?? "B_SPLINE") switch
+                {
+                    "LINEAR" => 0,
+                    "B_SPLINE" => 1,
+                    "CATMUL_ROM" => 2,
+                    var m => throw new NotSupportedException($"lattice deformer {node.GetValue<int>("nodeID")}: interpolation {m} is not ported"),
+                };
+                var count = (d.Segments + 1) * (d.DivisionsY + 1) * (d.DivisionsZ + 1);
+                var points = node.Get<DmxBinary.Element>("nodeData")?.Get<object?[]>("controlPoints") ?? [];
+                if (points.Length != count)
+                    throw new NotSupportedException($"lattice deformer {node.GetValue<int>("nodeID")}: {points.Length} control points for {count}");
+                d.Points = [.. points.Select(p => (Vector3)p!)];
+                break;
+            case "CMapDeformerSimple":
+                var axis = (node.Get<string>("bendAxis") ?? "Y") switch
+                {
+                    "Y" => 0,
+                    "Z" => 1,
+                    var a => throw new NotSupportedException($"simple deformer {node.GetValue<int>("nodeID")}: bend axis {a}"),
+                };
+                // The angle setter (1811781b0) clamps to [-360, 360].
+                var angle = Math.Clamp(node.GetValue<float>("bendAngle") ?? 0f, -360f, 360f);
+                d.Bend(axis, angle, node.GetValue<float>("bendPoint") ?? 0f, node.GetValue<float>("bendRadius") ?? 0f, Vector3.One);
+                break;
+            default:
+                throw new NotSupportedException($"{node.Type} {node.GetValue<int>("nodeID")}: not ported");
+        }
+        return d;
+    }
+
+    // 181290410: every control point back on the regular grid over the size,
+    // then the handles reset (18128cab0).
+    private void Grid()
+    {
+        var cells = CellsY * CellsZ;
+        Points = new Vector3[(Segments + 1) * cells];
+        for (var i = 0; i < Points.Length; i++)
+            Points[i] = GridPoint(i);
+        DefaultHandles();
+    }
+
+    private Vector3 GridPoint(int i)
+    {
+        var cells = CellsY * CellsZ;
+        var rem = i % cells;
+        return new Vector3(((float)(i / cells) / Segments) * Size.X,
+                           ((float)(rem % CellsY) / DivisionsY) * Size.Y,
+                           ((float)(rem / CellsY) / DivisionsZ) * Size.Z);
+    }
+
+    // 18128cab0: in mode 3, two handles per point and segment at the thirds
+    // between grid points (not the control points); otherwise none.
+    private void DefaultHandles()
+    {
+        if (Mode != 3)
+        {
+            Handles = [];
+            return;
+        }
+        var cells = CellsY * CellsZ;
+        Handles = new Vector3[Segments * cells * 2];
+        for (var i = 0; i < Segments * cells; i++)
+        {
+            Vector3 a = GridPoint(i), b = GridPoint(i + cells);
+            Handles[i * 2] = new Vector3((a.X * 0.6666666f) + (b.X * 0.33333334f), (a.Y * 0.6666666f) + (b.Y * 0.33333334f), (a.Z * 0.6666666f) + (b.Z * 0.33333334f));
+            Handles[(i * 2) + 1] = new Vector3((a.X * 0.3333333f) + (b.X * 0.6666667f), (a.Y * 0.3333333f) + (b.Y * 0.6666667f), (a.Z * 0.3333333f) + (b.Z * 0.6666667f));
+        }
+    }
+
+    // 18128cdf0's axis frames (DAT_183013dc0 for axis 0, Y; DAT_183013df0
+    // for Z), three rows of four.
+    private static readonly float[] BendY = [0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0];
+    private static readonly float[] BendZ = [0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
+
+    /// <summary>
+    /// CMapDeformerSimple's lattice (18128cdf0): mode 3, one segment per
+    /// started 90 degrees, one division in y and z, reset to the grid; then,
+    /// from an angle of 0.1 on, each segment's four corner columns turned
+    /// around the bend centre on a circle of the bend radius (by default the
+    /// one that keeps the size along x), the handles a cubic Bezier's for the
+    /// segment's arc. Each written point times <paramref name="scales"/> (the
+    /// node's, +0xb8). Grouped as the binary computes it.
+    /// </summary>
+    internal void Bend(int axis, float angle, float point, float radius, Vector3 scales)
+    {
+        Mode = 3;
+        var a = MathF.Abs(angle);
+        var sign = angle >= 0f ? 1f : -1f;
+        var segs = (int)MathF.Ceiling(a / 90f);
+        if (segs < 2)
+            segs = 1;
+        (Segments, DivisionsY, DivisionsZ) = (segs, 1, 1);
+        Grid();
+        if (!(a >= 0.1f))
+            return;
+        var t = axis == 0 ? BendY : BendZ;
+        float a0 = t[0], a1 = t[4], a2 = t[8];
+        if (radius <= 0f)
+            radius = Size.X / (a * 0.017453292f);
+        if (angle < 0f)
+        {
+            var f = ((Size.Z * a2) + (Size.Y * a1) + (a0 * Size.X)) / ((a1 * a1) + (a0 * a0) + (a2 * a2));
+            radius += MathF.Sqrt((f * a2 * f * a2) + (f * a1 * f * a1) + (f * a0 * f * a0));
+        }
+        var step = angle / segs;
+        var cx = (Size.X * point) - (a0 * radius * sign);
+        var cy = 0f - (a1 * radius * sign);
+        var cz = 0f - (a2 * radius * sign);
+        var start = (90f - (sign * 90f)) - (angle * point);
+        var lengthSq = (a0 * a0) + (a1 * a1) + (a2 * a2);
+        var cells = CellsY * CellsZ;
+        for (var s = 0; s < segs; s++)
+        {
+            var b = (s * step) + start;
+            var span = (b + step) - b;
+            if (!(span >= -180f && span <= 180f))
+                continue;
+            var h = span * 0.017453292f * 0.5f;
+            LightCrt.SinCos(h, out var sh, out var ch);
+            var neg = -sh;
+            var k = (4f - ch) / 3f;
+            var mid = ((span * 0.5f) + b) * 0.017453292f;
+            var m = ((ch - k) * (1f / LightCrt.Tan(h))) + sh;
+            LightCrt.SinCos(mid, out var sm, out var cm);
+            var r0x = (cm * ch) - (neg * sm);
+            var r0y = (ch * sm) + (neg * cm);
+            var r1x = (cm * k) - (-m * sm);
+            var r1y = (sm * k) + (-m * cm);
+            var r2y = (cm * m) + (sm * k);
+            var r2x = (cm * k) - (sm * m);
+            var r3y = (sh * cm) + (ch * sm);
+            var r3x = (ch * cm) - (sh * sm);
+            for (var c = 0; c < 4; c++)
+            {
+                var g = GridPoint(c + (s * 4));
+                var f = ((g.Y * a1) + (g.Z * a2) + (g.X * a0)) / lengthSq;
+                var r = (MathF.Sqrt((f * a2 * f * a2) + (f * a1 * f * a1) + (f * a0 * f * a0)) * sign) + radius;
+                float b0 = t[2], b1 = t[6], b2 = t[10];
+                var proj = (((g.Z - cz) * b2) + ((g.Y - cy) * b1) + ((g.X - cx) * b0)) / ((b1 * b1) + (b0 * b0) + (b2 * b2));
+                var q = new Vector3((b0 * proj) + cx, (b1 * proj) + cy, (b2 * proj) + cz);
+                Vector3 At(float u, float v) => new(
+                    ((t[0] * u * r) + q.X + (t[1] * v * r)) * scales.X,
+                    ((t[4] * u * r) + q.Y + (t[5] * v * r)) * scales.Y,
+                    ((t[8] * u * r) + q.Z + (t[9] * v * r)) * scales.Z);
+                if (c >= cells)
+                    continue;
+                var i = (s * cells) + c;
+                Points[i] = At(r0x, r0y);
+                Handles[i * 2] = At(r1x, r1y);
+                Handles[(i * 2) + 1] = At(r2x, r2y);
+                Points[((s + 1) * cells) + c] = At(r3x, r3y);
+            }
+        }
+    }
 }

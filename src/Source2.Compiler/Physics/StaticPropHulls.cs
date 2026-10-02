@@ -28,6 +28,13 @@ public static class StaticPropHulls
 
         /// <summary>The prop's surface_property_override key: a surface property's name, or empty.</summary>
         public string SurfaceOverride { get; init; } = "";
+
+        /// <summary>
+        /// The lattice the prop takes from a CMapDeformer above it (entity
+        /// +0x2b0), only when set (PropDeformer_IsSet); its shapes then become
+        /// deformed triangle meshes (<see cref="DeformedHulls"/>, <see cref="Meshes"/>).
+        /// </summary>
+        internal Maps.LatticeDeformer? Deformer { get; init; }
     }
 
     /// <summary>One hull node: the points it carries and its transform (origin, angles).</summary>
@@ -78,6 +85,8 @@ public static class StaticPropHulls
     {
         var nodes = new List<HullNode>();
         descs = new(ReferenceEqualityComparer.Instance);
+        if (prop.Deformer != null)
+            return nodes;
         var m = PropMatrix(prop);
         for (var part = 0; part < phys.Parts.Length; part++)
         {
@@ -127,6 +136,10 @@ public static class StaticPropHulls
         var spheres = new List<RoundNode>();
         var capsules = new List<RoundNode>();
         var m = PropMatrix(prop);
+        // Under a deformer a sphere (1819d5810) or capsule (1819d61d0) is
+        // tessellated into a mesh node first; that is not ported.
+        if (prop.Deformer != null && phys.Parts.Any(p => p.Shape.Spheres.Length > 0 || p.Shape.Capsules.Length > 0))
+            throw new NotSupportedException($"prop {prop.NodeId} ({prop.Model}): a deformed sphere or capsule is not ported");
         for (var part = 0; part < phys.Parts.Length; part++)
         {
             var local = MapMeshes.Concat(m, BindPose(phys, part));
@@ -197,7 +210,7 @@ public static class StaticPropHulls
                     var indices = new int[triangles.Length * 3];
                     for (var t = 0; t < triangles.Length; t++)
                         (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = (triangles[t].X, triangles[t].Y, triangles[t].Z);
-                    nodes.Add(new MeshNode(part, [.. vertices.Select(Move)], indices, desc, -1));
+                    nodes.Add(Deformed(new MeshNode(part, [.. vertices.Select(Move)], indices, desc, -1), prop.Deformer));
                     continue;
                 }
                 for (var surface = 0; surface < surfaces; surface++)
@@ -222,12 +235,77 @@ public static class StaticPropHulls
                             indices.Add(remap[v]);
                         }
                     }
-                    nodes.Add(new MeshNode(part, [.. points], [.. indices], desc, surface));
+                    nodes.Add(Deformed(new MeshNode(part, [.. points], [.. indices], desc, surface), prop.Deformer));
                 }
             }
         }
         return nodes;
     }
+
+    /// <summary>A deformed prop's hull as the triangle mesh node it becomes, with the hull's description.</summary>
+    public sealed record DeformedHull(int Part, Vector3[] Points, int[] Indices, ValveResourceFormat.ResourceTypes.RubikonPhysics.HullDescriptor Desc);
+
+    /// <summary>
+    /// A deformed prop's hulls (1814c7e90 with a deformer), body by body and
+    /// hull by hull: the hull triangulated (1819589f0: its vertices times 1,
+    /// then each face fanned from its first half-edge's origin), the points
+    /// moved by the prop matrix times the bind pose, deformed, and made a
+    /// triangle mesh node (1814c8a60). No quickhull check here.
+    /// </summary>
+    public static List<DeformedHull> DeformedHulls(Prop prop, PhysAggregateData phys)
+    {
+        var nodes = new List<DeformedHull>();
+        if (prop.Deformer == null)
+            return nodes;
+        var m = PropMatrix(prop);
+        for (var part = 0; part < phys.Parts.Length; part++)
+        {
+            var local = MapMeshes.Concat(m, BindPose(phys, part));
+            foreach (var desc in phys.Parts[part].Shape.Hulls)
+            {
+                var hull = desc.Shape;
+                var edges = hull.GetEdges().ToArray();
+                var points = hull.GetVertexPositions().ToArray().Select(v => new Vector3(v.X * 1f, v.Y * 1f, v.Z * 1f)).ToArray();
+                var indices = new List<int>();
+                foreach (var face in hull.GetFaces().ToArray())
+                {
+                    var first = edges[face.Edge];
+                    var e1 = edges[first.Next];
+                    var e2 = edges[e1.Next];
+                    while (true)
+                    {
+                        indices.Add(first.Origin);
+                        indices.Add(e1.Origin);
+                        indices.Add(e2.Origin);
+                        var next = e2.Next;
+                        if (next == face.Edge)
+                            break;
+                        (e1, e2) = (e2, edges[next]);
+                    }
+                }
+                var node = Deformed(new MeshNode(part, [.. points.Select(p => MapMeshes.Transform(local, p))], [.. indices], null!, -1), prop.Deformer);
+                nodes.Add(new DeformedHull(part, node.Points, node.Indices, desc));
+            }
+        }
+        return nodes;
+    }
+
+    // 1814c8a60 past the move: the points deformed in the world (identity
+    // matrix, PropDeformer_ApplyArrays), and with the mirror flag the whole
+    // index list reversed. Without a deformer the node is as it was.
+    private static MeshNode Deformed(MeshNode node, Maps.LatticeDeformer? deformer)
+    {
+        if (deformer == null)
+            return node;
+        var evaluator = deformer.For(Identity);
+        var points = node.Points.Select(evaluator.Deform).ToArray();
+        var indices = node.Indices;
+        if (deformer.Mirror)
+            indices = [.. indices.Reverse()];
+        return node with { Points = points, Indices = indices };
+    }
+
+    private static readonly float[] Identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
 
     /// <summary>
     /// resourcecompiler's hull shape for a node (1802c0e70, 180c261c0,

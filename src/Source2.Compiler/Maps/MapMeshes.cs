@@ -87,6 +87,31 @@ public static class MapMeshes
 
         /// <summary>Whether the node, or one it hangs under or was reached through, is hidden.</summary>
         public bool Hidden { get; init; }
+
+        /// <summary>
+        /// The CMapDeformer node whose lattice the entity takes (181022540),
+        /// when the climb from its parent reaches one; see <see cref="DeformerBelow"/>.
+        /// </summary>
+        public DmxBinary.Element? Deformer { get; init; }
+    }
+
+    /// <summary>
+    /// The deformer in effect under <paramref name="node"/> (181022540, which
+    /// climbs from an entity's parent): a CMapDeformer node itself; else the
+    /// one above when the node's type (vtable 0x4a0) lets the climb through,
+    /// which is 1 or 3: a group, or an entity whose class has the static_prop
+    /// or deformable metadata flag (in CS2's FGDs only prop_static has
+    /// either); the world, instances and other entities (type 0) stop it.
+    /// </summary>
+    internal static DmxBinary.Element? DeformerBelow(DmxBinary.Element node, DmxBinary.Element? deformer)
+    {
+        if (node.Type.StartsWith("CMapDeformer", StringComparison.Ordinal))
+            return node;
+        if (node.Type == "CMapGroup")
+            return deformer;
+        if (node.Type == "CMapEntity" && node.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "prop_static")
+            return deformer;
+        return null;
     }
 
     public static List<Mesh> Read(DmxBinary.Document doc) => ReadWithEntities(doc).Meshes;
@@ -119,13 +144,13 @@ public static class MapMeshes
         var sequence = 0;
         var hidden = MapEntities.HiddenNodes(doc);
         foreach (var world in doc.OfType("CMapWorld"))
-            Walk(world, world, Identity, [], [], [], [], targets, hidden, false, meshes, entities, overlays, ref sequence);
+            Walk(world, world, Identity, [], [], [], [], targets, hidden, false, meshes, entities, overlays, ref sequence, null);
         return (meshes, entities, overlays);
     }
 
     private static void Walk(DmxBinary.Element node, DmxBinary.Element parent, float[] path, int[] instances, DmxBinary.Element[] through,
                              int[] prefabs, DmxBinary.Element[] prefabChain, HashSet<DmxBinary.Element> targets, HashSet<int> hiddenIds, bool hidden, List<Mesh> meshes,
-                             List<EntityNode> entities, List<Mesh>? overlays, ref int sequence)
+                             List<EntityNode> entities, List<Mesh>? overlays, ref int sequence, DmxBinary.Element? deformer = null)
     {
         // A collapsed instance's copy is appended to its parent's children
         // (CMapInstance_Collapse), so instances come after their siblings.
@@ -169,15 +194,15 @@ public static class MapMeshes
                         break;
                     var step = Concat(Local(child), Invert(Local(target)));
                     Walk(target, target, Concat(path, step), [.. instances, child.GetValue<int>("nodeID") ?? -1], [.. through, child], prefabs, prefabChain, targets, hiddenIds, hides,
-                         meshes, entities, overlays, ref sequence);
+                         meshes, entities, overlays, ref sequence, deformer);
                     break;
                 default:
                     if (targets.Contains(child))
                         break;
                     // An entity's own shapes come before its children's.
                     if (child.Type is "CMapEntity" or "CMapSmartProp")
-                        entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through, Prefabs = prefabs, PrefabChain = prefabChain, Hidden = hides });
-                    Walk(child, child, path, instances, through, prefabs, prefabChain, targets, hiddenIds, hides, meshes, entities, overlays, ref sequence);
+                        entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through, Prefabs = prefabs, PrefabChain = prefabChain, Hidden = hides, Deformer = deformer });
+                    Walk(child, child, path, instances, through, prefabs, prefabChain, targets, hiddenIds, hides, meshes, entities, overlays, ref sequence, DeformerBelow(child, deformer));
                     break;
             }
         }

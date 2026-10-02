@@ -562,7 +562,17 @@ public static class WorldCollision
             return [];
         if (int.TryParse(kv.Get<string>("solid") ?? "6", System.Globalization.CultureInfo.InvariantCulture, out var solid) && solid != 6)
             return [];
-        return PropPieces(PropOf(entity), propPhysics, collisionProperty, notes);
+        StaticPropHulls.Prop prop;
+        try
+        {
+            prop = PropOf(entity);
+        }
+        catch (NotSupportedException ex)
+        {
+            notes?.Add($"prop {nodeId}: {ex.Message}");
+            return [];
+        }
+        return PropPieces(prop, propPhysics, collisionProperty, notes);
     }
 
     /// <summary>
@@ -660,9 +670,33 @@ public static class WorldCollision
             return physics;
         }
         // The sink (18001b420) takes each body's spheres, capsules, hulls, then meshes.
-        var (spheres, capsules) = StaticPropHulls.Rounds(prop, phys);
+        List<StaticPropHulls.RoundNode> spheres, capsules;
+        try
+        {
+            (spheres, capsules) = StaticPropHulls.Rounds(prop, phys);
+        }
+        catch (NotSupportedException ex)
+        {
+            notes?.Add(ex.Message);
+            yield break;
+        }
         var hulls = StaticPropHulls.Nodes(prop, phys, out var descs);
+        var deformedHulls = StaticPropHulls.DeformedHulls(prop, phys);
         var meshes = StaticPropHulls.Meshes(prop, phys);
+        // A mesh node's half-edge mesh (180106be0) comes back as a triangle
+        // mesh numbered in the order the triangles meet its vertices, each
+        // vertex kept apart (atixref's radiator smart prop, 13 of 13).
+        static (Vector3[] Points, int[] Indices) TriangleMesh(Vector3[] nodePoints, int[] nodeIndices)
+        {
+            var faces = new int[nodeIndices.Length / 3][];
+            for (var t = 0; t < faces.Length; t++)
+                faces[t] = [nodeIndices[t * 3], nodeIndices[(t * 3) + 1], nodeIndices[(t * 3) + 2]];
+            var (points, triangles) = BrushHulls.TriangleMesh(nodePoints, faces, cornerIds: faces);
+            var indices = new int[triangles.Count * 3];
+            for (var t = 0; t < triangles.Count; t++)
+                (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
+            return ([.. points], indices);
+        }
         for (var part = 0; part < phys.Parts.Length; part++)
         {
             foreach (var node in spheres.Concat(capsules).Where(n => n.Part == part))
@@ -677,19 +711,15 @@ public static class WorldCollision
                 var desc = descs[node];
                 yield return new Piece(nodeId, node.Part, model, Physics(desc.CollisionAttributeIndex, desc.SurfacePropertyIndex), hull.VertexPositions, []) { Hull = hull };
             }
+            foreach (var node in deformedHulls.Where(n => n.Part == part))
+            {
+                var (points, indices) = TriangleMesh(node.Points, node.Indices);
+                yield return new Piece(nodeId, node.Part, model, Physics(node.Desc.CollisionAttributeIndex, node.Desc.SurfacePropertyIndex), points, indices);
+            }
             foreach (var node in meshes.Where(n => n.Part == part))
             {
-                // The node's half-edge mesh (180106be0) comes back as a triangle
-                // mesh numbered in the order the triangles meet its vertices, each
-                // vertex kept apart (atixref's radiator smart prop, 13 of 13).
-                var faces = new int[node.Indices.Length / 3][];
-                for (var t = 0; t < faces.Length; t++)
-                    faces[t] = [node.Indices[t * 3], node.Indices[(t * 3) + 1], node.Indices[(t * 3) + 2]];
-                var (points, triangles) = BrushHulls.TriangleMesh(node.Points, faces, cornerIds: faces);
-                var indices = new int[triangles.Count * 3];
-                for (var t = 0; t < triangles.Count; t++)
-                    (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
-                yield return new Piece(nodeId, node.Part, model, Physics(node.Desc.CollisionAttributeIndex, node.Surface >= 0 ? node.Surface : node.Desc.SurfacePropertyIndex), [.. points], indices);
+                var (points, indices) = TriangleMesh(node.Points, node.Indices);
+                yield return new Piece(nodeId, node.Part, model, Physics(node.Desc.CollisionAttributeIndex, node.Surface >= 0 ? node.Surface : node.Desc.SurfacePropertyIndex), points, indices);
             }
         }
     }
@@ -715,10 +745,21 @@ public static class WorldCollision
         else if (entity.PrefabChain.Count > 0)
             (origin, angles) = Maps.SettleWorld.PrefabPlacement(origin, angles, entity.PrefabChain);
         var keys = e.Get<DmxBinary.Element>("entity_properties");
+        // The deformer above it (181022540), kept only when set (PropDeformer_IsSet).
+        Maps.LatticeDeformer? deformer = null;
+        if (entity.Deformer != null && keys?.Get<string>("classname") == "prop_static")
+        {
+            if (entity.Through.Count > 0 || entity.PrefabChain.Count > 0)
+                throw new NotSupportedException("a deformed prop inside an instance or prefab is not ported");
+            deformer = Maps.LatticeDeformer.FromNode(entity.Deformer);
+            if (!deformer.Enabled)
+                deformer = null;
+        }
         return new StaticPropHulls.Prop(e.GetValue<int>("nodeID") ?? -1, model, origin, angles, e.GetValue<Vector3>("scales") ?? Vector3.One)
         {
             CollisionOverride = keys?.Get<string>("collision_override") ?? "",
             SurfaceOverride = keys?.Get<string>("surface_property_override") ?? "",
+            Deformer = deformer,
         };
     }
 
