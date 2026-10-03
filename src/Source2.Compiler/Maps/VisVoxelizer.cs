@@ -366,7 +366,7 @@ public static class VisVoxelizer
         => other <= held ? r < other || held < -r : r < held || other < -r;
 
     // The inline normalise: length summed z first, a reciprocal multiply, zero
-    // below 1e-17, and the double precision path for anything extreme.
+    // for a zero vector, NormaliseSlowPath (VectorNormalizeSlow) for anything extreme.
     private static (float, float, float) Unit(float x, float y, float z)
     {
         var length = MathF.Sqrt((z * z) + (y * y) + (x * x));
@@ -374,8 +374,8 @@ public static class VisVoxelizer
         {
             if (length == 0f)
                 return (0f, 0f, 0f);
-            var l = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
-            return ((float)(x / l), (float)(y / l), (float)(z / l));
+            var u = VectorNormalizeSlow.Normalise(new System.Numerics.Vector3(x, y, z));
+            return (u.X, u.Y, u.Z);
         }
         var inverse = 1f / length;
         return (x * inverse, y * inverse, z * inverse);

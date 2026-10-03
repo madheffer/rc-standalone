@@ -422,8 +422,7 @@ public static class VisPvs
         {
             if (length == 0f)
                 return new Ray(from, Vector3.Zero);
-            var l = Math.Sqrt(((double)dx * dx) + ((double)dy * dy) + ((double)dz * dz));
-            return new Ray(from, new Vector3((float)(dx / l), (float)(dy / l), (float)(dz / l)));
+            return new Ray(from, VectorNormalizeSlow.Normalise(new Vector3(dx, dy, dz)));
         }
         var inverse = 1f / length;
         return new Ray(from, new Vector3(inverse * dx, inverse * dy, inverse * dz));

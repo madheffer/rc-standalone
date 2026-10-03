@@ -101,14 +101,26 @@ game can answer is raised with the user first, and runs with -insecure.
 15. What picks Zstd or LZ4 for map output.
 
 ### Other modules
-16. Visibility: the compile's normalise guard (NormaliseSlowPath) against our
-    double normalise in three places; no specimen reaches it.
-29. RTE triangle order: within a mesh the file groups triangles by material,
-    in the order of the mesh's materials array on 66 of atixref's 68
-    multi-material meshes; the rest are the world renderer's own mesh split
-    (measured, not ported: the order follows the render meshes). Whether
-    visibility sees the order is measured only on probe01 (three compiles,
-    three orders, one output).
+16. **Settled 2026-10-03.** The slow normalise (lengths outside 1e-17 to
+    1e17): visbuilder's NormaliseSlowPath is resourcecompiler's
+    VectorNormalize_Slow (18125d000), read in both: (y y + x x) + z z in
+    double, components times the reciprocal. Ported once
+    (VectorNormalizeSlow) and used by every normalise that reaches it
+    (visibility, trace scene, lights, tangent frames, deformers,
+    triangulator, node entries), where three approximations and six throws
+    stood before.
+
+29. **Settled 2026-10-04 (RTE triangle order).** The emitter writes a
+    mesh's triangles as the exported mesh holds them: one face set per
+    (lightmap scale bias, material), biases ascending, materials in the
+    mesh's materials array order, face order kept within a set (as
+    MapMeshCorners cuts the pieces). Our trace scene now puts every triangle
+    at the .rte's own index on probe01, cardtest, ze_hold_em_p (all) and
+    atixref (32,854 of 32,854). The order matters: the loader rebuilds the
+    tracer kd tree from the file order and the voxelizer walks it; with
+    triangles in walk order, atixref's octree differed in 45 leaf masks and
+    its VXVS from the .vmap was off (VisStageDiffProbe, VISDIFF=...).
+
 27. RTE: what places the emitter's oriented skip boxes (builder +0x238,
     1802597d0, 180259130); no specimen has one.
 28. Visibility split hints (types 4, 5, 6): ported from the decompile, no

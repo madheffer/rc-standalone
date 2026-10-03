@@ -233,8 +233,7 @@ public static class PolygonTriangulator
     }
 
     // The ear score's normalisations: summed z, y, x or y, z, x as the binary
-    // sums each; the slow path (under 1e-17 or over 1e17) is approximated in
-    // double, as elsewhere in this port.
+    // sums each; the slow path (under 1e-17 or over 1e17) is VectorNormalize_Slow.
     private static Vector3 Normalise(float x, float y, float z, bool zyx)
     {
         var length = zyx ? MathF.Sqrt((z * z) + (y * y) + (x * x)) : MathF.Sqrt((y * y) + (z * z) + (x * x));
@@ -242,8 +241,7 @@ public static class PolygonTriangulator
         {
             if (length == 0f)
                 return Vector3.Zero;
-            var d = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
-            return new Vector3((float)(x / d), (float)(y / d), (float)(z / d));
+            return VectorNormalizeSlow.Normalise(new Vector3(x, y, z));
         }
         var r = 1f / length;
         return new Vector3(x * r, y * r, z * r);

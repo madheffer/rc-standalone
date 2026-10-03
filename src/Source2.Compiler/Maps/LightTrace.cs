@@ -115,7 +115,7 @@ public static class LightTrace
             else if (length == 0f)
                 p = Vector3.Zero;
             else
-                throw new NotSupportedException("normalising a vector longer than 1e17 or shorter than 1e-17 (FUN_18125d000) is not ported");
+                p = VectorNormalizeSlow.Normalise(p);
             var fwd = LightMath.Forward(l.Orientation);
             var c = ((p.Z * fwd.Z + p.Y * fwd.Y) + p.X * fwd.X) * l[0xe4] + l[0xe0];
             c = c > 0f ? c : 0f;
@@ -250,7 +250,7 @@ public static class LightTrace
             else if (length == 0f)
                 unit = Vector3.Zero;
             else
-                throw new NotSupportedException("normalising a vector longer than 1e17 or shorter than 1e-17 (FUN_18125d000) is not ported");
+                unit = VectorNormalizeSlow.Normalise(new Vector3(dx, dy, dz));
             if (scene.Hit(s, e, 0xc00060b1) is { } hit)
             {
                 // A triangle with flag 8 queues a second ray, from the
@@ -282,7 +282,7 @@ public static class LightTrace
             else if (length == 0f)
                 (dx, dy, dz) = (0f, 0f, 0f);
             else
-                throw new NotSupportedException("normalising a vector longer than 1e17 or shorter than 1e-17 (FUN_18125d000) is not ported");
+                (dx, dy, dz) = VectorNormalizeSlow.Normalise(new Vector3(dx, dy, dz)) is var u ? (u.X, u.Y, u.Z) : default;
             var d = back.Distance;
             var p = new Vector3(dx * d + from.X, dy * d + from.Y, dz * d + from.Z);
             ends[ray] = p;

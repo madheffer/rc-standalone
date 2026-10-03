@@ -198,7 +198,8 @@ public static class LightMath
             v = Vector3.Zero;
             return 0f;
         }
-        throw new NotSupportedException("normalising a vector longer than 1e17 or shorter than 1e-17 (FUN_18125d000) is not ported");
+        v = VectorNormalizeSlow.Normalise(v, out var slow);
+        return slow;
     }
 
     /// <summary>

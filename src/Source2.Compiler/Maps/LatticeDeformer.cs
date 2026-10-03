@@ -77,16 +77,14 @@ internal sealed class LatticeDeformer
         return new Vector3(n.X * length, n.Y * length, n.Z * length);
     }
 
-    // The engine's VectorNormalize: z, y, x squares; 1 / length when it lies in [1e-17, 1e17]; zero stays zero.
-    // (Lengths outside go through VectorNormalize_Slow, not ported: unit-scale data never reaches it.)
+    // The engine's VectorNormalize: z, y, x squares; 1 / length when it lies in [1e-17, 1e17]; zero stays zero;
+    // other lengths through VectorNormalize_Slow.
     private static Vector3 NormaliseSlowZero(Vector3 d)
     {
         var len = MathF.Sqrt(d.Z * d.Z + d.Y * d.Y + d.X * d.X);
         if (len < 1e-17f || 1e17f < len)
         {
-            if (len != 0f)
-                throw new NotSupportedException("VectorNormalize_Slow is not ported");
-            return Vector3.Zero;
+            return len != 0f ? VectorNormalizeSlow.Normalise(d) : Vector3.Zero;
         }
         var inv = 1f / len;
         return new Vector3(d.X * inv, d.Y * inv, d.Z * inv);

@@ -24,8 +24,8 @@ namespace Source2.Compiler.Maps;
 /// </summary>
 public static class MapGeometry
 {
-    /// <summary>One traced triangle: its corners in the compile's order, and its material.</summary>
-    public readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, string Material);
+    /// <summary>One traced triangle: its corners in the compile's order, its material, and the mesh face it comes from.</summary>
+    public readonly record struct Triangle(Vector3 A, Vector3 B, Vector3 C, string Material, int Face = -1);
 
     public static List<Triangle> RteTriangles(IEnumerable<MapMeshes.Mesh> meshes, Func<string, MaterialVisFlags> materials,
                                               Func<string, bool> rendersAsWorld)
@@ -35,14 +35,15 @@ public static class MapGeometry
         {
             if (mesh.ParentType == "CMapEntity" && !(mesh.ParentClass is { } c && rendersAsWorld(c)))
                 continue;
-            foreach (var face in mesh.Faces)
+            for (var f = 0; f < mesh.Faces.Length; f++)
             {
+                var face = mesh.Faces[f];
                 if (materials(face.Material).LeftOutOfTrace)
                     continue;
                 int[] corners = face.Corners.Length == 3 ? [0, 1, 2] : PolygonTriangulator.Triangulate(face.Corners);
                 for (var t = 0; t < corners.Length; t += 3)
                     if (Emitted(face.Corners[corners[t]], face.Corners[corners[t + 1]], face.Corners[corners[t + 2]]))
-                        found.Add(new Triangle(face.Corners[corners[t]], face.Corners[corners[t + 1]], face.Corners[corners[t + 2]], face.Material));
+                        found.Add(new Triangle(face.Corners[corners[t]], face.Corners[corners[t + 1]], face.Corners[corners[t + 2]], face.Material, f));
             }
         }
         return found;

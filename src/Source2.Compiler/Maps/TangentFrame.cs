@@ -64,7 +64,7 @@ public static class TangentFrame
         else if (length == 0f)
             n = Vector3.Zero;
         else
-            throw new NotSupportedException("normalising a vector longer than 1e17 or shorter than 1e-17 (FUN_18125d000) is not ported");
+            n = VectorNormalizeSlow.Normalise(n);
 
         var (b1, b2) = Basis(n);
         var d1 = (b1.Z * tangent.Z + b1.Y * tangent.Y) + b1.X * tangent.X;

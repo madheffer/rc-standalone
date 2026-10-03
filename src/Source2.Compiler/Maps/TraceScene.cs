@@ -18,6 +18,9 @@ public static class TraceScene
 
         /// <summary>The mesh node, for diagnostics.</summary>
         public int Node { get; init; }
+
+        /// <summary>The mesh face it comes from, -1 when not known.</summary>
+        public int Face { get; init; } = -1;
     }
 
     /// <summary>
@@ -107,6 +110,25 @@ public static class TraceScene
         {
             if (mesh.Hidden)
                 continue;
+            var start = found.Count;
+            // The emitter writes a mesh's triangles as the exported mesh holds
+            // them: one face set per (lightmap scale bias, material), biases
+            // ascending, materials in the mesh's materials array order (as
+            // MapMeshCorners cuts pieces), face order kept within a set.
+            var meshData = mesh.Element?.Get<DmxBinary.Element>("meshData");
+            var faceData = (meshData?.Get<object?[]>("faceDataIndices") ?? []).Select(x => x is int i ? i : 0).ToArray();
+            var biases = (meshData?.Get<DmxBinary.Element>("faceData")?.GetElements("streams")
+                .FirstOrDefault(st => st.Name.StartsWith("lightmapScaleBias", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [])
+                .Select(x => x is int i ? i : 0).ToArray();
+            int Bias(int face) => face >= 0 && face < faceData.Length && faceData[face] < biases.Length ? biases[faceData[face]] : 0;
+            void GroupByMaterial()
+            {
+                var names = (meshData?.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").ToList();
+                int Rank(string m) => names.FindIndex(n => n.Equals(m, StringComparison.OrdinalIgnoreCase)) is var r and >= 0 ? r : names.Count;
+                var grouped = found.Skip(start).Select((t, i) => (t, i)).OrderBy(x => Bias(x.t.Face)).ThenBy(x => Rank(x.t.Material ?? "")).ThenBy(x => x.i).Select(x => x.t).ToList();
+                found.RemoveRange(start, found.Count - start);
+                found.AddRange(grouped);
+            }
             ushort Flags(string m)
             {
                 var info = material(m);
@@ -118,11 +140,13 @@ public static class TraceScene
                     continue;
                 foreach (var t in baked)
                     if (!visFlags(t.Material).LeftOutOfTrace)
-                        found.Add(new Triangle(t.A, t.B, t.C, Flags(t.Material)) { Material = t.Material, Node = mesh.NodeId });
+                        found.Add(new Triangle(t.A, t.B, t.C, Flags(t.Material)) { Material = t.Material, Node = mesh.NodeId, Face = t.Face });
+                GroupByMaterial();
                 continue;
             }
             foreach (var t in MapGeometry.RteTriangles([mesh], visFlags, rendersAsWorld))
-                found.Add(new Triangle(t.A, t.B, t.C, Flags(t.Material)) { Material = t.Material, Node = mesh.NodeId });
+                found.Add(new Triangle(t.A, t.B, t.C, Flags(t.Material)) { Material = t.Material, Node = mesh.NodeId, Face = t.Face });
+            GroupByMaterial();
         }
         return found;
     }
@@ -155,7 +179,7 @@ public static class TraceScene
             var name = m >= 0 && m < names.Length ? names[m] : "";
             var (a, b, c) = (Place(cut.Positions[cut.Indices[t * 3]]), Place(cut.Positions[cut.Indices[(t * 3) + 1]]), Place(cut.Positions[cut.Indices[(t * 3) + 2]]));
             if (MapGeometry.Emitted(a, b, c))
-                triangles.Add(new MapGeometry.Triangle(a, b, c, name));
+                triangles.Add(new MapGeometry.Triangle(a, b, c, name, f));
         }
         return triangles;
     }

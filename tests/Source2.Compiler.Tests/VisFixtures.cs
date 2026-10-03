@@ -69,15 +69,20 @@ internal static class VisFixtures
 
         var vpk = Path.Combine(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(cs2)!, "..")),
                                "csgo_addons", addon, "maps", map + ".vpk");
-        if (!File.Exists(vpk))
-            return null;
-
-        using var package = new ValvePak.Package();
-        package.Read(vpk);
-        var entry = package.Entries.GetValueOrDefault("vvis_c")?.FirstOrDefault();
-        if (entry is null)
-            return null;
-        package.ReadEntry(entry, out var bytes);
-        return (RayTraceEnvironment.ReadFile(rte), VoxelVisibilityReader.Read(bytes));
+        // A partial build in place (compile-map, -fshallow) may lack the vvis; the
+        // full compile kept at %TEMP%/gt/<map>.vpk has it.
+        foreach (var candidate in new[] { vpk, Path.Combine(Path.GetTempPath(), "gt", map + ".vpk") })
+        {
+            if (!File.Exists(candidate))
+                continue;
+            using var package = new ValvePak.Package();
+            package.Read(candidate);
+            var entry = package.Entries.GetValueOrDefault("vvis_c")?.FirstOrDefault();
+            if (entry is null)
+                continue;
+            package.ReadEntry(entry, out var bytes);
+            return (RayTraceEnvironment.ReadFile(rte), VoxelVisibilityReader.Read(bytes));
+        }
+        return null;
     }
 }

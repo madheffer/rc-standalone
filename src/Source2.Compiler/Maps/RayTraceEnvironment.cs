@@ -877,8 +877,8 @@ public sealed class RayTraceEnvironment
         {
             if (length == 0f)
                 return false;
-            var l = Math.Sqrt(((double)nx * nx) + ((double)ny * ny) + ((double)nz * nz));
-            (nx, ny, nz) = ((float)(nx / l), (float)(ny / l), (float)(nz / l));
+            var unit = VectorNormalizeSlow.Normalise(new System.Numerics.Vector3(nx, ny, nz));
+            (nx, ny, nz) = (unit.X, unit.Y, unit.Z);
         }
         else
         {

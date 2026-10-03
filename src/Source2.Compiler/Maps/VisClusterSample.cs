@@ -191,8 +191,8 @@ public static class VisClusterSample
 
     /// <summary>
     /// A direction as 180032fa0 normalises one: the length summed z first, a
-    /// reciprocal multiply rather than a divide, and a zero vector for anything
-    /// shorter than 1e-17. The slow path above 1e17 is unreachable inside a map.
+    /// reciprocal multiply rather than a divide, a zero vector for a zero one,
+    /// and NormaliseSlowPath (VectorNormalizeSlow) outside [1e-17, 1e17].
     /// </summary>
     public static Vector3 Direction(Vector3 v)
     {
@@ -201,8 +201,7 @@ public static class VisClusterSample
         {
             if (length == 0f)
                 return Vector3.Zero;
-            var l = Math.Sqrt(((double)v.X * v.X) + ((double)v.Y * v.Y) + ((double)v.Z * v.Z));
-            return new Vector3((float)(v.X / l), (float)(v.Y / l), (float)(v.Z / l));
+            return VectorNormalizeSlow.Normalise(v);
         }
         var inverse = 1f / length;
         return new Vector3(v.X * inverse, v.Y * inverse, v.Z * inverse);

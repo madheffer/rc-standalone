@@ -77,3 +77,23 @@ public class InstanceExpandProbe(ITestOutputHelper output)
             output.WriteLine($"copy {c.NodeId} of {walked[c.Template].NodeId} {walked[c.Template].ClassName} at {c.Origin}");
     }
 }
+
+/// <summary>Exploration (<c>ELEMORDER=&lt;vmap&gt;|&lt;model substring&gt;</c>): prop_static node ids of a model in element order.</summary>
+public class ElementOrderProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Order()
+    {
+        if (Environment.GetEnvironmentVariable("ELEMORDER") is not { } spec)
+            return;
+        var p = spec.Split('|');
+        var doc = DmxBinary.ReadFile(p[0]);
+        var ids = doc.Elements.Where(e => e.Type == "CMapEntity"
+                && e.Get<DmxBinary.Element>("entity_properties") is { } k && k.Get<string>("classname") == "prop_static"
+                && (k.Get<string>("model") ?? "").Contains(p[1], StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.GetValue<int>("nodeID") ?? -1).ToList();
+        output.WriteLine("element order: " + string.Join(" ", ids));
+        var (_, walked) = Maps.MapMeshes.ReadWithEntities(doc);
+        output.WriteLine("walk order: " + string.Join(" ", walked.Select(w => w.Element).Where(e => ids.Contains(e.GetValue<int>("nodeID") ?? -2)).Select(e => e.GetValue<int>("nodeID"))));
+    }
+}

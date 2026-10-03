@@ -253,7 +253,7 @@ public static class LightSampler
         if (length == 0f)
             return Vector3.Zero;
         if (length < 1e-17f || 1e17f < length)
-            throw new NotSupportedException("normalising a vector longer than 1e17 or shorter than 1e-17 (FUN_18125d000) is not ported");
+            return VectorNormalizeSlow.Normalise(v);
         var inverse = 1f / length;
         return new Vector3(v.X * inverse, v.Y * inverse, v.Z * inverse);
     }

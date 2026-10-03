@@ -195,14 +195,16 @@ internal static class NodeMeshEntries
     /// <summary>
     /// 180d46590's renormalisation: squares summed z, y, x; between 1e-17 and
     /// 1e17 each component times the reciprocal of the root; a zero length
-    /// gives +0 components (smaller or larger lengths go through
-    /// VectorNormalize_Slow, not ported).
+    /// gives +0 components, smaller or larger lengths go through
+    /// VectorNormalize_Slow.
     /// </summary>
     internal static Vector3 Normalise(Vector3 d)
     {
         var len = MathF.Sqrt(d.Z * d.Z + d.Y * d.Y + d.X * d.X);
         if (len == 0f)
             return Vector3.Zero;
+        if (len < 1e-17f || 1e17f < len)
+            return VectorNormalizeSlow.Normalise(d);
         var inv = 1f / len;
         return new Vector3(d.X * inv, d.Y * inv, d.Z * inv);
     }
