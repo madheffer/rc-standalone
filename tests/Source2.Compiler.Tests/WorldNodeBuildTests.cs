@@ -89,6 +89,51 @@ public class WorldNodeBuildTests(ITestOutputHelper output)
     }
 }
 
+/// <summary>
+/// <see cref="WorldNodeBuild.EnvMaps"/> against the captured BuildNode output
+/// (<c>NODEENTRIES</c>, <c>NODEENTRIES_VMAP</c>, <c>ENVMAPS=1</c>): each world
+/// and prop entry's cubemap (+0xa0) and light probe (+0xa4) handshakes, from
+/// the volume records our own entity export makes.
+/// </summary>
+public class EnvMapsTests(ITestOutputHelper output)
+{
+    [Fact]
+    public void AgainstCapture()
+    {
+        if (Environment.GetEnvironmentVariable("ENVMAPS") != "1" || Environment.GetEnvironmentVariable("NODEENTRIES") is not { } path
+            || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var valveOut = NodeEntriesFromVmap.Read(path).Where(c => c.Stage == "BuildNode:out").ToList();
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
+        using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+        var doc = MapSource.Read(vmap);
+        EntityLumpAuthor.Lighting? lighting = null;
+        EntityLumpSet.Author(MapEntities.From(doc), MapFixtures.GameSchema(), Path.GetFileNameWithoutExtension(vmap),
+                             MapEntities.FixupEntityNames(doc), doc, MapFixtures.SmartPropLocators, lighting: l => lighting = l);
+        foreach (var v in lighting!.Volumes.Probes)
+            output.WriteLine("probe " + EnvVolumes.Format(v));
+        foreach (var v in lighting.Volumes.Cubemaps)
+            output.WriteLine("cubemap " + EnvVolumes.Format(v));
+        var world = WorldNodeBuild.WorldEntries(doc, content, shaders, NodeEntriesFromVmap.RendersAsWorld(game));
+        var props = WorldNodeBuild.PropEntries(doc, content, shaders);
+        var (built, _) = WorldNodeBuild.BuildNode(world, props, []);
+        var ours = WorldNodeBuild.EnvMaps(built, lighting.Volumes);
+        int same = 0, shown = 0;
+        for (var i = 0; i < built.Count; i++)
+        {
+            var (cubemap, probe) = (BitConverter.ToInt32(valveOut[i].Raw, 0xa0), BitConverter.ToInt32(valveOut[i].Raw, 0xa4));
+            if (ours[i] == (cubemap, probe))
+                same++;
+            else if (shown++ < 20)
+                output.WriteLine($"entry {i} {Path.GetFileName(valveOut[i].Material)} id {built[i].Source.Header.NodeId}: ours {ours[i]}, valve ({cubemap}, {probe})");
+        }
+        output.WriteLine($"cubemap and probe: {same} of {built.Count} as Valve's");
+        Assert.Equal(built.Count, same);
+    }
+}
+
 /// <summary>Exploration (<c>NODEENTRIES=&lt;capture&gt;</c>, <c>NODESTAGES=1</c>): each stage's entry count, and the materials and ids of one stage's range.</summary>
 public class NodeStagesProbe(ITestOutputHelper output)
 {
@@ -103,6 +148,6 @@ public class NodeStagesProbe(ITestOutputHelper output)
         var range = Environment.GetEnvironmentVariable("NODESTAGES_RANGE")?.Split(',');
         if (range is { Length: 3 })
             foreach (var c in all.Where(c => c.Stage == range[0]).Skip(int.Parse(range[1])).Take(int.Parse(range[2])))
-                output.WriteLine($"  {c.Index} {Path.GetFileName(c.Material)} id {BitConverter.ToInt32(c.Raw, 0x40)} attr {BitConverter.ToUInt64(c.Raw, 0x1b0):x} 1a0 {Convert.ToHexString(c.Raw, 0x1a0, 6)} v{c.Vertices.Length / c.Stride} m1c8 {string.Join(" ", Enumerable.Range(0, 12).Select(k => BitConverter.ToSingle(c.Raw, 0x1c8 + k * 4).ToString("R")))}");
+                output.WriteLine($"  {c.Index} {Path.GetFileName(c.Material)} id {BitConverter.ToInt32(c.Raw, 0x40)} attr {BitConverter.ToUInt64(c.Raw, 0x1b0):x} a0 {BitConverter.ToInt32(c.Raw, 0xa0)} a4 {BitConverter.ToInt32(c.Raw, 0xa4)} tex {BitConverter.ToInt32(c.Raw, 0x1b8)}x{BitConverter.ToInt32(c.Raw, 0x1bc)} 1a0 {Convert.ToHexString(c.Raw, 0x1a0, 6)} v{c.Vertices.Length / c.Stride} m1c8 {string.Join(" ", Enumerable.Range(0, 12).Select(k => BitConverter.ToSingle(c.Raw, 0x1c8 + k * 4).ToString("R")))}");
     }
 }

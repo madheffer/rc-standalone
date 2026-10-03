@@ -273,6 +273,18 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   (on), optional baking, the merge (`WRBNode_MergeMeshes`, only without
   render clusters; CS2 clusters by visibility, so it does not run), then
   `CMesh_Weld` at 1/32.
+- **Cubemap and light probe** (`EnvVolumes`, WRBNode_AssignEnvMaps
+  180255040, run by BuildNode before and after the overlays): the late
+  entity export keeps a record per env_cubemap, env_cubemap_box and light
+  probe volume (the AngleMatrix of its angles at its origin,
+  influenceradius, box_mins/maxs, indoor_outdoor_level, moveable,
+  targetname, handshake). An entry with attribute bit 20 picks a probe and
+  with bit 21 a cubemap, at its origin or, for a prop (FLT_MAX), its mesh's
+  bounds centre: a containing volume beats the rest, the higher
+  indoor_outdoor_level among containing ones, then the lower score (later
+  on ties); the entry takes the handshake (+0xa4, +0xa0). Exact on every
+  entry of probe01 (16), atixref (662) and deformerprobe2 (85); cardtest's
+  teleport02 differs by its flags (GROUND_TRUTH 42).
 - **The merge:** for each entry without attribute bit 0x2, later entries
   that `WRBMeshEntry_CanMerge` accepts join it while the sum stays under
   0x200000 vertices and 0x400000 indices; a group becomes one entry with

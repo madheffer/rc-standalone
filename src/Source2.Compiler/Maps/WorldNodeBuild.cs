@@ -76,6 +76,38 @@ internal static class WorldNodeBuild
 
     public static List<Built> BuildNode(IReadOnlyList<Node> world) => [.. FixTJunctions(world).Select(Weld)];
 
+    /// <summary>
+    /// Each built entry's cubemap (+0xa0) and light probe (+0xa4) handshakes
+    /// (<see cref="EnvVolumes.ForEntry"/>, FUN_180255040 in BuildNode): the
+    /// point is the header's origin, or for a prop (FLT_MAX) its mesh's bounds
+    /// centre; the name the record's lighting origin.
+    /// </summary>
+    public static List<(int Cubemap, int Probe)> EnvMaps(IReadOnlyList<Built> built, EnvVolumes.Set volumes)
+        => [.. built.Select(b => EnvVolumes.ForEntry(b.Source.Header.Origin, b.Source.Entry.Record.LightingOrigin ?? "", b.Source.Header.Attributes,
+                                                     () => Bounds(b.Vertices, b.Source.Entry.Stride, b.Source.Entry.Streams), volumes))];
+
+    /// <summary>
+    /// An overlay entry's pair: 0 and 0 unless its attributes ask (bits 20,
+    /// 21), which throws: the overlay entry's +0x80 is not read yet.
+    /// </summary>
+    public static (int Cubemap, int Probe) OverlayEnvMaps(ulong attributes)
+        => (attributes & 0x300000) == 0 ? (0, 0)
+            : throw new NotSupportedException("an overlay entry that needs a cubemap or light probe: its +0x80 is not read");
+
+    // CMesh_Bounds: the positions' per-axis minimum and maximum.
+    private static (Vector3 Min, Vector3 Max) Bounds(float[] vertices, int stride, IReadOnlyList<Physics.MeshWeld.Stream> streams)
+    {
+        var at = streams.First(s => s.Name == "position").First;
+        var min = new Vector3(float.MaxValue);
+        var max = new Vector3(-float.MaxValue);
+        for (var k = 0; k + stride <= vertices.Length; k += stride)
+        {
+            var p = new Vector3(vertices[k + at], vertices[k + at + 1], vertices[k + at + 2]);
+            (min, max) = (Vector3.Min(min, p), Vector3.Max(max, p));
+        }
+        return (min, max);
+    }
+
     // The closing CMesh_Weld at 1/32, unless the entry is +0x1a0, baked (+0x98) and +0xc0 bit 4.
     private static Built Weld(Built b)
     {

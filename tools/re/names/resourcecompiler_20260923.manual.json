@@ -901,6 +901,24 @@
    "note": "the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7)"
   },
   {
+   "addr": "180255040",
+   "name": "WRBNode_AssignEnvMaps",
+   "module": "s2c:geometry/world-nodes",
+   "note": "with UseStaticLightProbes: each prop record (+0x16e) and node entry picks its cubemap (+0xa0, attribute bit 21) and light probe (+0xa4, bit 20) by 180254d10 at its origin, or its bounds centre when the origin is FLT_MAX; called twice by BuildNode (before and after the overlays)"
+  },
+  {
+   "addr": "180254d10",
+   "name": "EnvVolume_Pick",
+   "module": "s2c:geometry/world-nodes",
+   "note": "a named entry takes the first non-moveable record of that targetname; else the containing volume (sphere: r^2 > d^2; box: 181257020 == 0) beats the rest, higher indoor_outdoor_level among containing, then lower score (later on ties); returns the record's handshake (+0x50) or 0"
+  },
+  {
+   "addr": "181257020",
+   "name": "Box_DistanceSquared",
+   "module": "s2c:math",
+   "note": "per axis (mins - p)+ + (p - maxs)+, squared, summed z, y, x"
+  },
+  {
    "addr": "180255470",
    "name": "WRBNode_PropEntry",
    "module": "s2c:geometry/world-nodes",
@@ -2116,7 +2134,7 @@
    "addr": "180240a60",
    "name": "EntityLump_ExportNodeLate",
    "module": "s2c:entities/lump",
-   "note": ""
+   "note": "cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes)"
   },
   {
    "addr": "18024a970",

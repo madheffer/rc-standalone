@@ -37,8 +37,9 @@ Open:
     grazing prop geometry: the one that reaches Valve's bound lands on a
     box's corner edge (local 6.00, -6.00). No single prop or material
     explains it (GROUND_TRUTH 31).
-- **Prefabs:** instances inside prefabs, and prefabs with
-  `fixupEntityNames`, are refused.
+- **Prefabs:** prefabs with `fixupEntityNames`, a prefab inside a prefab,
+  and a prefab beside instances of the map's own are refused (not
+  captured).
 
 ## Rules
 
@@ -78,6 +79,12 @@ What goes in:
     are named `<name>_108_3.vmdl`.
   - One extra `compile_source_id` is numbered before the prefab's contents.
   - A prefab with `loadAtRuntime` is skipped.
+  - The instances inside a prefab's map (GROUND_TRUTH 46, captured): the
+    prefab collapses first, its block its map's copy count (every node,
+    plus a target group's subtree again for an instance that precedes its
+    target) plus its loader's nodes plus one; then those instances in tree
+    order, one inside a target group after every first-round block. Their
+    copies ship with plain ids.
 - **World layers:** each `CMapWorldLayer` is its own lump,
   `world_layer_<name>.vents_c`. Numbering stays global.
   `info_world_layer` gets `world_layer_` prefixed and `worldname` last.

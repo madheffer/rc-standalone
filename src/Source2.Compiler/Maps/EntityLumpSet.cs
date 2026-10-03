@@ -95,7 +95,8 @@ public static class EntityLumpSet
         bool bakedLighting = false,
         bool entitiesOnly = false,
         Maps.ILightTracer? lightScene = null,
-        List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[]? visClusterBoxes = null)
+        List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[]? visClusterBoxes = null,
+        Action<EntityLumpAuthor.Lighting>? lighting = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
@@ -123,6 +124,7 @@ public static class EntityLumpSet
                 placed.SelectMany(w => w.Select(e => e.Entity)).Where(e => !e.Hidden),
                 packAtlas: bakedLighting || entitiesOnly, schema, lightScene, visClusterBoxes),
         };
+        lighting?.Invoke(context.LightingKeys!);
         var worlds = new List<(string Name, List<Item> Items)> { ("default_ents", []) };
         worlds.AddRange(layers.Select(l => ("world_layer_" + l, new List<Item>())));
         for (var w = 0; w < placed.Count; w++)
@@ -346,7 +348,8 @@ public static class EntityLumpSet
         var (copies, templates) = document is null
             ? ((IReadOnlyList<MapInstances.Copy>)[], (IReadOnlySet<int>)new HashSet<int>())
             : MapInstances.Expand(document, entities,
-                smartPropLocators is null ? 0 : SmartProps.NodesCreatedOnLoad(document, smartPropLocators));
+                smartPropLocators is null ? 0 : SmartProps.NodesCreatedOnLoad(document, smartPropLocators), prefabs: true,
+                createdOnLoadIn: smartPropLocators is null ? null : d => SmartProps.NodesCreatedOnLoad(d, smartPropLocators));
 
         var pending = new Dictionary<int, List<EntityLumpAuthor.Emission>>();
         foreach (var copy in copies)
@@ -361,6 +364,8 @@ public static class EntityLumpSet
                     Angles = copy.Angles,
                     Layer = copy.Layer,
                     Instanced = true,
+                    // A copy made inside a prefab's map ships with a plain id (GROUND_TRUTH 46).
+                    Prefabs = [],
                 }),
                 copy.Template));
         }

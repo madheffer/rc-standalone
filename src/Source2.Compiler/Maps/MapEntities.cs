@@ -268,6 +268,9 @@ public static class MapEntities
         return layers;
     }
 
+    /// <summary>Whether the walk reads the node as an entity (as it does a prefab map's world, never shipped).</summary>
+    internal static bool ReadsAsEntity(DmxBinary.Element element) => Read(element, isWorld: false) is not null;
+
     private static Entity? Read(DmxBinary.Element element, bool isWorld)
     {
         if (element.Get<DmxBinary.Element>("entity_properties") is not { } props)

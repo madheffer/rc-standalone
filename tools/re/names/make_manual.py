@@ -192,6 +192,9 @@ RESOURCECOMPILER = [
     ("1802b4ab0", "WRBNode_GroupPropsByLod", WN, "the baked props of one model grouped by lodlevel (+0x1e4)"),
     ("1802b3060", "WRBNode_BakePropMeshes", WN, "one model LOD's meshes (1801d30d0) per prop: material overrides, the deformer (1812d7510), then an entry per draw call (180255470)"),
     ("1802b6db0", "WRBNode_PropMaterials", WN, "the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7)"),
+    ("180255040", "WRBNode_AssignEnvMaps", WN, "with UseStaticLightProbes: each prop record (+0x16e) and node entry picks its cubemap (+0xa0, attribute bit 21) and light probe (+0xa4, bit 20) by 180254d10 at its origin, or its bounds centre when the origin is FLT_MAX; called twice by BuildNode (before and after the overlays)"),
+    ("180254d10", "EnvVolume_Pick", WN, "a named entry takes the first non-moveable record of that targetname; else the containing volume (sphere: r^2 > d^2; box: 181257020 == 0) beats the rest, higher indoor_outdoor_level among containing, then lower score (later on ties); returns the record's handshake (+0x50) or 0"),
+    ("181257020", "Box_DistanceSquared", X, "per axis (mins - p)+ + (p - maxs)+, squared, summed z, y, x"),
     ("180255470", "WRBNode_PropEntry", WN, "a node entry from a prop's mesh: fade +0x160/+0x164, bakelightdoublesided, lightmapscalebias, flags from disableinlowquality, rendertocubemaps, renderwithdynamic, emissive mode 1, lighting origin"),
     ("1801d30d0", "WRB_LoadPropMeshes", WN, "a model's draw calls as CMeshes of 18 floats a vertex (position, normal, tangent, texcoord, color, texcoord); vertices from the resource system's geometry info (vf 0xf0), unpacked there"),
     ("1812d7510", "CMesh_ApplyPropDeformer", G, "positions, normals and tangents through the prop's lattice deformer; mirrored deformers flip winding and tangent w"),
@@ -397,7 +400,7 @@ RESOURCECOMPILER = [
     # The entity lump: FGD, key typing, template pass, paths, vmap upgrade.
     ("18009fe10", "Fgd_TypeAliases", LUMP, "the aliases and extension each type stands for"),
     ("1801fdae0", "TemplatePass_RewriteReferences", LUMP, ""),
-    ("180240a60", "EntityLump_ExportNodeLate", LUMP, ""),
+    ("180240a60", "EntityLump_ExportNodeLate", LUMP, "cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes)"),
     ("18024a970", "TemplatePass_RemoveOriginals", LUMP, ""),
     ("18024c6d0", "TemplatePass_Step_18024c6d0", LUMP, "a template pass piece"),
     ("18024c910", "TemplatePass_RenameCopies", LUMP, ""),

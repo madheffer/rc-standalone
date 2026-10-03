@@ -35,6 +35,9 @@ public static partial class EntityLumpAuthor
         /// </summary>
         public IReadOnlyDictionary<MapEntities.Entity, int[]>? VisClusters { get; init; }
 
+        /// <summary>The cubemap and light probe volume records the export hands the world renderer builder (<see cref="Maps.EnvVolumes"/>).</summary>
+        public Maps.EnvVolumes.Set Volumes { get; init; } = Maps.EnvVolumes.Set.Empty;
+
         /// <summary>
         /// The counters over the entities in export order. The handshake starts
         /// at the map path's MurmurHash2 (seed 0x3501a674, lower case, back
@@ -82,9 +85,28 @@ public static partial class EntityLumpAuthor
                 for (var i = 0; i < volumes.Count; i++)
                     atlas[volumes[i]] = places[i];
             }
+            // The records, as the export reads them from the entity's keys (the
+            // targetname before any instance name fixup: GROUND_TRUTH 48).
+            var cubemaps = new List<Maps.EnvVolumes.Volume>();
+            var probes = new List<Maps.EnvVolumes.Volume>();
+            foreach (var e in order)
+            {
+                if (!handshake.TryGetValue(e, out var h))
+                    continue;
+                var table = KeyTable(e, schema);
+                if (Maps.EnvVolumes.Of(e.ClassName, e.Origin, e.Angles, h,
+                        name => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value) is { } r)
+                {
+                    if (r.Cubemap)
+                        cubemaps.Add(r.Volume);
+                    if (r.Probe)
+                        probes.Add(r.Volume);
+                }
+            }
             return new Lighting(mapPath, baked, handshake, cube, atlas,
                                 scene is null ? null : LightKeys(mapPath, baked, order, schema, scene))
             {
+                Volumes = new(cubemaps, probes),
                 VisClusters = baked && scene is not null && visClusterBoxes is not null
                     ? LightVisMembership(order, schema, scene, visClusterBoxes) : null,
             };

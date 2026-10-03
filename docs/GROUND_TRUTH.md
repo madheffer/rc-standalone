@@ -75,18 +75,23 @@ game can answer is raised with the user first, and runs with -insecure.
     is not found (the DMX attribute list of CMapEntity names no pose; the
     lump's boneTransforms key is written from it by ExportToLump). No map in
     the installed content uses it.
-46. **Instances inside a prefab's map: entity ids.** Captured
-    (tools/entities/capture_collapse.py on s2c_prefabprobe3 and 4): the
-    bake collapses the CMapPrefab like an instance first (its root takes
-    the next id, its block is its map's node count plus one), and the
-    copied nodes take ids by preorder slot. The instances inside then
-    collapse in the merged tree's order WITHOUT the deferral of instances
-    inside target groups that a map of its own has (atixref as a prefab:
-    6207's copies interleave), and their copies ship with plain ids, no
-    prefab prefix. Open: c2m2's environment prefab has two slots more than
-    its tree right after instance 4928 (s2c_pinst and atixref fit the tree,
-    atixref plus its smart prop locator), and the round order. Physics
-    placement of such nodes is settled (NestedPlacement).
+46. **Instances inside a prefab's map: entity ids** (settled for the
+    lump 2026-10-04 by capture, tools/entities/capture_collapse.py on
+    s2c_prefabprobe3 and 4; MapInstances.Expand with prefabs). The bake
+    collapses the CMapPrefab like an instance first: its root takes the
+    next id and its block is its map's copy count plus the nodes its map's
+    loader made (smart prop locators) plus one. The copy count is every
+    node in preorder, and for an instance whose target group comes later
+    in the walk, that group's subtree once more (copied for the instance
+    before the walk reaches it): c2m2's environment prefab's instance 4928
+    precedes its target 4888, a group of one entity, which is the "two
+    slots more" seen before. The instances inside then collapse in tree
+    order from the end of the prefab's block; one inside a target group
+    waits for its group's copies, past every first-round block, as in a
+    map of its own. Their copies ship with plain ids. All eleven prefab
+    probes' lumps are within their documented gaps. Not captured: a prefab
+    beside instances of the map's own, and a prefab inside a prefab (both
+    throw).
 
 47. **Order of baked props within a model.** NodePropEntries orders a
     model's baked props last to first in the walk (measured on atixref's
@@ -96,6 +101,12 @@ game can answer is raised with the user first, and runs with -insecure.
     in another order (2144, 2153 to 2163, 2145, 2164 to 2173, ...), while
     all 65 entries are exact in content (PropEntriesProbe with
     PROPENTRIES_BYID=1).
+
+48. **The targetname of a cubemap or probe volume record** (EnvVolumes):
+    the late export (180240a60) reads targetname from the exported keys;
+    we take it from the entity's key table before any instance name fixup.
+    It only matters to an entry with a lighting origin name, which no
+    specimen has.
 
 ### Map resources
 15. What picks Zstd or LZ4 for map output.
@@ -245,7 +256,11 @@ game can answer is raised with the user first, and runs with -insecure.
     entries are explained (overlays whose materials the content lacks: an
     empty attribute set over the overlay record's zero flags); this one
     is not. Next: CompileNode's code before the list loop (FUN_18026cac0,
-    FUN_18027add0).
+    FUN_18027add0). The material is missing from the content: at collect
+    time Valve gives it 0x160100000 and a 256x256 representative texture
+    (so a light probe, 2026-10-04), which is none of core's error.vmat,
+    editor/error_indicator.vmat or models/dev/materialforerrormodel.vmat;
+    ours gives it the empty attribute set.
 43. **Prop aggregate grouping and order** (WRBNode_BuildPropAggregates,
     180272ce0, read): models in CDefStringLess order, one entry per prop
     and mesh, buckets by entry +0x20 (one agg_prop model per material),
