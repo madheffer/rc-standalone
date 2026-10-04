@@ -179,6 +179,29 @@ public class VisChainTests(ITestOutputHelper output)
         return found;
     }
 
+    // Valve numbers a voxel's leaf by octree node slot (branches included),
+    // ours by place among the leaves in slot order: one consistent mapping,
+    // kept across the passes, stands for equality.
+    private static readonly Dictionary<int, int> LeafToValve = [];
+    private static readonly Dictionary<int, int> LeafFromValve = [];
+
+    private static bool SameVoxels(List<(ulong Mask, int Leaf)> ours, List<(ulong Mask, int Leaf)> theirs)
+    {
+        if (ours.Count != theirs.Count)
+            return false;
+        for (var i = 0; i < ours.Count; i++)
+        {
+            if (ours[i].Mask != theirs[i].Mask)
+                return false;
+            if (LeafToValve.TryGetValue(ours[i].Leaf, out var v) ? v != theirs[i].Leaf
+                : LeafFromValve.TryGetValue(theirs[i].Leaf, out var o) && o != ours[i].Leaf)
+                return false;
+            LeafToValve[ours[i].Leaf] = theirs[i].Leaf;
+            LeafFromValve[theirs[i].Leaf] = ours[i].Leaf;
+        }
+        return true;
+    }
+
     private static string? FirstDifference(IReadOnlyList<VisClusterSet.Set> ours, List<List<VisMerge.Cluster>> theirs)
     {
         if (ours.Count != theirs.Count)
@@ -203,8 +226,17 @@ public class VisChainTests(ITestOutputHelper output)
             for (var k = 0; k < a.Count; k++)
             {
                 var (x, y) = (a[k], b[k]);
-                if (!x.Voxels.SequenceEqual(y.Voxels))
-                    return $"set {i} cluster {k}: voxels ({x.Voxels.Count} vs {y.Voxels.Count}, first leaf {x.Voxels.FirstOrDefault().Leaf} vs {y.Voxels.FirstOrDefault().Leaf})";
+                if (!SameVoxels(x.Voxels, y.Voxels))
+                {
+                    var n = Math.Min(x.Voxels.Count, y.Voxels.Count);
+                    var at = Enumerable.Range(0, n).FirstOrDefault(j => x.Voxels[j].Mask != y.Voxels[j].Mask
+                        || (LeafToValve.TryGetValue(x.Voxels[j].Leaf, out var mv) ? mv != y.Voxels[j].Leaf
+                            : LeafFromValve.ContainsKey(y.Voxels[j].Leaf)), n);
+                    var from = Math.Max(0, at - 3);
+                    return $"set {i} cluster {k}: voxels differ at {at} of {x.Voxels.Count}/{y.Voxels.Count} (set box {ours[i].Mins}-{ours[i].Maxs}, {a.Count} clusters)"
+                        + "\n    ours  " + string.Join(" ", x.Voxels.Skip(from).Take(8).Select(v => $"{v.Leaf}->{(LeafToValve.TryGetValue(v.Leaf, out var m) ? m : -1)}:{v.Mask:x}"))
+                        + "\n    valve " + string.Join(" ", y.Voxels.Skip(from).Take(8).Select(v => $"{v.Leaf}<-{(LeafFromValve.TryGetValue(v.Leaf, out var m) ? m : -1)}:{v.Mask:x}"));
+                }
                 if (x.Mins != y.Mins || x.Maxs != y.Maxs)
                     return $"set {i} cluster {k}: box {x.Mins}-{x.Maxs} vs {y.Mins}-{y.Maxs}";
                 if (x.VoxelCount != y.VoxelCount || x.VoxelSize != y.VoxelSize || x.Tag != y.Tag || x.OpenSpace != y.OpenSpace)

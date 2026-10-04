@@ -63,6 +63,13 @@ public class GameContent : SettleWorld.IModels, IDisposable
     {
         if (_materials.TryGetValue(path, out var found))
             return found;
+        // The builders load a material through 1806208d0: the name plus "_c"
+        // looked up on the GAME search path, "illegal resource name" when it
+        // is not found. A name with no folder is never found there, even with
+        // the compiled file at the addon's root (161 such names across the
+        // corpus, every one logged missing), so it is a missing material.
+        if (path.IndexOfAny(['/', '\\']) < 0)
+            return _materials[path] = null;
         if (Read(path + "_c") is not { } bytes)
             return _materials[path] = null;
         using var res = new Resource();

@@ -297,6 +297,17 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                     rows.Add($"{(name.Length > 60 ? name[..60] + "..." : name)} | surface {m["m_nSurfacePropertyIndex"]} | attr {m["m_nCollisionAttributeIndex"]} | {tris} tris");
                 }
                 output.WriteLine($"soups {label}: {meshes.Count}");
+                if (Environment.GetEnvironmentVariable("WPBUILD_FINDPT") is { Length: > 0 } pt)
+                {
+                    var c = pt.Split(',').Select(float.Parse).ToArray();
+                    var want = new Vector3(c[0], c[1], c[2]);
+                    for (var i = 0; i < meshes.Count; i++)
+                    {
+                        var verts = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector3>(meshes[i]!["m_Mesh"]!["m_Vertices"]!.AsBlob()).ToArray();
+                        var best = verts.Select((v, k) => (D: Vector3.Distance(v, want), K: k)).MinBy(x => x.D);
+                        output.WriteLine($"  {label} findpt soup {i}: nearest {verts[best.K]:R} at {best.D}");
+                    }
+                }
                 foreach (var g in rows.GroupBy(r => r).OrderByDescending(g => g.Count()).Take(25))
                     output.WriteLine($"  {label} {g.Count()}x {g.Key}");
             }
@@ -367,7 +378,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             output.WriteLine("listed: " + string.Join(",", model.ListedSurfaces.Select(i => $"{i}:{model.Surfaces[i].Name}")));
             foreach (var piece in Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
                          null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty).Where(x => x.NodeId.ToString() == Environment.GetEnvironmentVariable("WPBUILD_NODE")))
-                output.WriteLine($"piece node {piece.NodeId} {piece.MaterialName} surface '{piece.Physics.SurfaceProperty}' tris {piece.Indices.Length / 3} name '{piece.Name}'");
+                output.WriteLine($"piece node {piece.NodeId} type {piece.Type} {piece.MaterialName} solid {piece.Physics.Solid} points {piece.Points.Length} surface '{piece.Physics.SurfaceProperty}' tris {piece.Indices.Length / 3} name '{piece.Name}'");
             var hashes = ta["PHYS"]["m_surfacePropertyHashes"];
             output.WriteLine("valve surfaces: " + string.Join(",", hashes!.Select(h => h.ToString())));
         }

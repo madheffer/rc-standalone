@@ -33,6 +33,16 @@ game can answer is raised with the user first, and runs with -insecure.
    wrapper's vertex merge is ported (see Resolved) for the two paths a
    specimen takes; an edge between two coincident vertices (the edge
    collapse, 181382170) stops the build.
+49. **Faces of instanced meshes in world physics** (c2m2_fairgrounds_csgo_multi,
+    _prenodraw, _preskybox, c2m3_coaster_d_d): Valve drops 3-corner faces
+    that are degenerate in the mesh's own space (error-model props placed
+    through an instance with a rotation and a large translation), where we
+    keep them (about 2,660 slivers). Cutting instanced meshes in their own
+    space and triangulating 3-corner faces too brings the difference from
+    2,664 + 28 triangles to 72 + 38 but breaks a few quads, so it is not
+    the rule. Needs a capture of physicsbuilder's input pieces on one of
+    these maps (capture_physshapes.py, whose addresses must first be moved
+    to the 1.41.8.8 build).
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index
