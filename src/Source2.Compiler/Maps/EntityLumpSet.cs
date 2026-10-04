@@ -99,6 +99,7 @@ public static class EntityLumpSet
         List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[]? visClusterBoxes = null,
         Action<EntityLumpAuthor.Lighting>? lighting = null)
     {
+        worldName = Io.Tier0Strings.LowerAscii(worldName);
         ArgumentNullException.ThrowIfNull(entities);
 
         var nodeIds = document is null ? null : MapNodeIds(document);

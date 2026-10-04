@@ -1,0 +1,6 @@
+            // The header's 16-bit counts saturate; the full counts follow as ints
+            // (Valve's dkr_onelevel world_physics: 132,490 objects, 65535 here).
+            var objectCount = checked((int)(context.ObjectLengths.Length / sizeof(int)));
+            var arrayCount = context.CountArrays;
+            var countObjects = (ushort)Math.Min(objectCount, ushort.MaxValue);
+            var countArrays = (ushort)Math.Min(arrayCount, ushort.MaxValue);

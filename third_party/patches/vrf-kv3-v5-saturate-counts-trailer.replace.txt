@@ -1,0 +1,5 @@
+            writer.Write(objectCount);
+            writer.Write(arrayCount);
+            writer.Write(0); // unknown, the reader ignores it
+
+            writer.Write(compressedBuffer1.AsSpan());

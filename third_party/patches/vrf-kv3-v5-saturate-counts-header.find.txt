@@ -1,0 +1,2 @@
+            var countObjects = checked((ushort)(context.ObjectLengths.Length / sizeof(int)));
+            var countArrays = checked((ushort)context.CountArrays);

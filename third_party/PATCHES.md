@@ -35,6 +35,13 @@ is now `AuthoredKv3`, not a fork.
 
 | id | file |
 |---|---|
+| `vrf-kv3-v5-saturate-counts-header`, `-trailer` | `Resource/ResourceTypes/BinaryKV3.Serialization.cs` |
+
+The v5 writer cast the object and array counts to `ushort` under `checked`,
+so a block with more than 65,535 objects threw (dkr_onelevel's world physics
+has 132,490). Valve's file stores 65535 in both 16-bit header fields and the
+full counts as ints in the trailer; the patch does the same.
+
 | `vrf-kv3-integer-array-unchecked-uint64` | `Serialization/IKeyValueCollection.cs` |
 
 `GetIntegerArray` converts each element to `long` under a checked conversion, so

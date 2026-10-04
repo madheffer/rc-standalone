@@ -37,6 +37,8 @@ public static class VrfRequirements
     /// </summary>
     public static readonly string[] RequiredPatchIds =
     [
+        "vrf-kv3-v5-saturate-counts-header",
+        "vrf-kv3-v5-saturate-counts-trailer",
         // Authoring a .vsvg_c means replacing the Panorama payload and its CRC.
         "vrf-panorama-writable-data",
         // Authoring a container at all: Version is the one header field only Read() could set.

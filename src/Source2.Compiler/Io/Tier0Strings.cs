@@ -44,6 +44,20 @@ public static class Tier0Strings
     /// <summary>A-Z folded equality.</summary>
     public static bool EqualsAscii(this string a, string? b) => EqualsIgnoreCase(a, b);
 
+    /// <summary>
+    /// tier0's V_strlower: A-Z to a-z, nothing else. The map builder writes a
+    /// map's resources under its lowercased name (maps/dkr_m2_carnival_ollld/
+    /// for dkr_m2_carnival_OLLLD.vmap, paths and contents alike).
+    /// </summary>
+    public static string LowerAscii(string s)
+    {
+        var chars = s.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+            if (chars[i] is >= 'A' and <= 'Z')
+                chars[i] = (char)(chars[i] + 32);
+        return new string(chars);
+    }
+
     /// <summary>A-Z folded prefix test (V_strnicmp over the prefix).</summary>
     public static bool StartsWithAscii(this string a, string prefix)
         => prefix.Length <= a.Length && EqualsIgnoreCase(a[..prefix.Length], prefix);

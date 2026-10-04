@@ -166,6 +166,9 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         var files = Physics.WorldPhysicsFiles.Build(doc, p[0], p[1], models, gpu == null ? null : gpu.For, notes);
         var mine = files.Model;
         var valve = Read(p[2], files.ModelPath);
+        // WPBUILD_SAVE=<path>: our world_physics.vmdl_c, for inspection.
+        if (Environment.GetEnvironmentVariable("WPBUILD_SAVE") is { Length: > 0 } savePath)
+            File.WriteAllBytes(savePath, mine);
         // WPBUILD_CONVEXCAP=<capture_convex.py json>: each convex_single mesh's
         // captured hull input (the CMesh vertex buffer, in order) against ours.
         if (Environment.GetEnvironmentVariable("WPBUILD_CONVEXCAP") is { Length: > 0 } capPath)

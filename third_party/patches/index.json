@@ -80,6 +80,22 @@
       "find": "vrf-resource-version-settable.find.txt",
       "replace": "vrf-resource-version-settable.replace.txt",
       "description": "Open the Resource.Version setter. It is the one header field Serialize() writes that only Read() could previously supply, so a private setter is what forced every from-scratch author to start from a donor file of the right type. With it open, .vtex_c / .vsvg_c / .vmat_c containers can be authored outright."
+    },
+    {
+      "id": "vrf-kv3-v5-saturate-counts-header",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Serialization.cs",
+      "find": "vrf-kv3-v5-saturate-counts-header.find.txt",
+      "replace": "vrf-kv3-v5-saturate-counts-header.replace.txt",
+      "description": "KV3 v5 writer: the header's 16-bit object and array counts saturate at 65535 and the full counts are written as ints in the v5 trailer, as Valve's files do; the checked ushort casts threw on blocks past 65,535 objects (dkr_onelevel's world_physics, 132,490)."
+    },
+    {
+      "id": "vrf-kv3-v5-saturate-counts-trailer",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Serialization.cs",
+      "find": "vrf-kv3-v5-saturate-counts-trailer.find.txt",
+      "replace": "vrf-kv3-v5-saturate-counts-trailer.replace.txt",
+      "description": "KV3 v5 writer: the header's 16-bit object and array counts saturate at 65535 and the full counts are written as ints in the v5 trailer, as Valve's files do; the checked ushort casts threw on blocks past 65,535 objects (dkr_onelevel's world_physics, 132,490)."
     }
   ]
 }

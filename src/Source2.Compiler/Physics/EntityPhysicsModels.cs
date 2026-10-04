@@ -33,6 +33,7 @@ public static class EntityPhysicsModels
         Func<string, SettleWorld.CollisionProperty?> collisionProperty, FgdSchema? schema, List<string>? notes = null,
         Func<string, ValveKeyValue.KVObject?>? smartProp = null)
     {
+        mapName = Io.Tier0Strings.LowerAscii(mapName);
         var models = new List<Model>();
         // An instance's group is a template, and a node the visibility manager
         // hides is not compiled (MapEntities.HiddenNodes); neither has a model.

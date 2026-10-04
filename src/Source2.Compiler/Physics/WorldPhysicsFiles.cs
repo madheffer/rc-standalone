@@ -20,6 +20,7 @@ public static class WorldPhysicsFiles
     public static Files Build(DmxBinary.Document document, string addon, string mapName, GameContent content,
         Func<string, MaterialSampler.Renderer?>? sample, List<string> notes)
     {
+        mapName = Io.Tier0Strings.LowerAscii(mapName);
         var pieces = WorldCollision.Pieces(document,
             name => WorldCollision.ReadMaterial(content.Material(name), content.CollisionProperty),
             notes, sample, content.Physics, content.SmartProp, content.CollisionProperty);
