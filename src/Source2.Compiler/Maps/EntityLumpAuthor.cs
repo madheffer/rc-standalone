@@ -569,10 +569,22 @@ public static partial class EntityLumpAuthor
     /// and <c>unnamed</c> when the entity has none.
     /// </summary>
     private static string BrushModelPath(MapEntities.Entity entity, string worldName)
+        => BrushModelPath(entity.Keys.FirstOrDefault(k => k.Key.EqualsAscii("targetname")).Value, entity.IdPath.Replace(':', '_'), worldName);
+
+    /// <summary>
+    /// The model path rc's late entity export (180240a60) gives a brush entity:
+    /// "entities/%s_%s" from the targetname ("unnamed" when it is empty, a
+    /// leading "[PR#]" stripped, found by V_stristr_fast) and the id path, then
+    /// V_FixupPathCharToUnderscore turns '.' and '+' into '_' (cs_script_demo:
+    /// chess.q is chess_q_95.vmdl).
+    /// </summary>
+    public static string BrushModelPath(string? targetName, string idPath, string worldName)
     {
-        var named = entity.Keys.FirstOrDefault(k => k.Key.EqualsAscii("targetname")).Value;
-        var name = string.IsNullOrWhiteSpace(named) ? "unnamed" : named.ToLowerInvariant();
-        return $"maps/{worldName}/entities/{name}_{entity.IdPath.Replace(':', '_')}.vmdl";
+        var name = string.IsNullOrEmpty(targetName) ? "unnamed" : targetName;
+        if (name.StartsWith("[PR#]", StringComparison.OrdinalIgnoreCase))
+            name = name[5..];
+        var file = $"entities/{name.ToLowerInvariant()}_{idPath}".Replace('.', '_').Replace('+', '_');
+        return $"maps/{worldName}/{file}.vmdl";
     }
 
     private static bool IsPlacement(string key)

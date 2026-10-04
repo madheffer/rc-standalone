@@ -43,14 +43,6 @@ game can answer is raised with the user first, and runs with -insecure.
     the rule. Needs a capture of physicsbuilder's input pieces on one of
     these maps (capture_physshapes.py, whose addresses must first be moved
     to the 1.41.8.8 build).
-50. **RED2's surface_prop list when a material is missing** (dkr_m2_carnival_d,
-    _OLLLD, the dkr_m1_motel_d variants): Valve lists "default" where we do
-    not (PHYS identical), and at a place that is neither our piece order nor
-    the surface table's (carnival_d: after tile, before concrete; the
-    folder-less concrete_ext_09.vmat registers it earlier). Listing a
-    missing material's "default" at its piece breaks fairgrounds, so it is
-    not the rule; the list's source and order are to be read (RED2 writer
-    181c24a70 and the shape builder's surface push 180c2ec50).
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index
@@ -338,6 +330,27 @@ game can answer is raised with the user first, and runs with -insecure.
     (DrawOrderProbe, DRAWORDER_RUNS=1) and 472 agg_prop streams.
 
 ## Resolved
+
+- **RED2's surface_prop list** (ledger 50, settled 2026-10-05 by capture,
+  tools/physics/capture_surfaceprops.py on dkr_m2_carnival_d). The list is
+  CompilePhysics' symbol table at +0x458, filled at 18032ebd0 from each
+  part's shapes' surface string (+0xf0) in part order, which is our piece
+  order. "default" is named outright by every piece of a vertex-painted
+  mesh with no surface of its own (toolsnodraw, unblended and missing
+  materials alike): physicsbuilder's BlendSurfaces (180015080) seeds
+  "default" for them. Unpainted meshes name nothing for such pieces, which
+  is why listing missing materials broke fairgrounds. World physics exact on
+  carnival_d, carnival_OLLLD and the three motel variants. Two side
+  findings: the folder-less material rule belongs to physicsbuilder's world
+  read only (ModelDoc finds addon-root files for entity models: c2m2's
+  prefab func_breakables), and an entity model's file name goes through
+  V_FixupPathCharToUnderscore for '.' and '+' after a leading "[PR#]" is
+  stripped (180240a60; cs_script_demo's chess.q is chess_q_95).
+- **Voxel word order in merged clusters** (settled 2026-10-05,
+  VisPreMergeProbe on atixref.p2): FoldVoxelPairs (1800307d0) sorts both
+  lists by leaf, ORs matching leaves and APPENDS the rest of the second
+  list unsorted; the pre-merge's and AbsorbPair's results keep that order.
+  Merge pass 0's entry is now identical on atixref (155,350 sets).
 
 - **Outside detection on atixref** (settled 2026-10-04 by capture,
   tools/vis/capture_outside.py and OutsideCaptureTests, all 301,499 regions

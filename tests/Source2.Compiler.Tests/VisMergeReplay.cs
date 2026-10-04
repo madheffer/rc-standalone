@@ -152,6 +152,107 @@ public class VisMergeReplay(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Every captured bucket of one pass, sampled and merged entirely our way on
+    /// Valve's input set (no captured visibility needed), against the merges and
+    /// survivors Valve's loop produced: <c>REPLAY_OURS=&lt;stem&gt;</c> reads
+    /// &lt;stem&gt;.bin and its scene &lt;stem&gt;.merge.rte, <c>REPLAY_OURS_PASS</c>
+    /// picks the pass (0 by default).
+    /// </summary>
+    [Fact]
+    public void OurSamplerOnEveryBucket()
+    {
+        if (Environment.GetEnvironmentVariable("REPLAY_OURS") is not { Length: > 0 } stem)
+            return;
+        var pass = int.TryParse(Environment.GetEnvironmentVariable("REPLAY_OURS_PASS"), out var p) ? p : 0;
+        var dir = Path.Combine(Path.GetTempPath(), "vis_capture");
+        var rte = RayTraceEnvironment.ReadFile(Path.Combine(dir, stem + ".merge.rte"));
+        var (buckets, leaves) = Read(Path.Combine(dir, stem + ".bin"));
+        (Vector3, float) Cube(int leaf)
+        {
+            var (lo, hi) = leaves[leaf];
+            return (lo, hi.X - lo.X);
+        }
+        int sets = 0, exact = 0, shown = 0;
+        foreach (var b in buckets.Where(b => b.Pass == pass))
+        {
+            var ours = Clone(b.In);
+            var seq = new List<(int, int, float)>();
+            // REPLAY_OURS_AT=<bucket>:<merge>: both pairs as our lists hold them before that merge.
+            var at = Environment.GetEnvironmentVariable("REPLAY_OURS_AT") is { Length: > 0 } atText
+                && atText.Split(':') is [var bt, var stepText] && int.Parse(bt) == b.Id ? int.Parse(stepText) : -1;
+            if (Environment.GetEnvironmentVariable("REPLAY_OURS_AT") is { Length: > 0 } && at < 0)
+                continue;
+            if (b.Vis is { } vis)
+            {
+                // With Valve's visibility captured: our sampler against it, our
+                // prices on it, and our merge order on it.
+                var sampled = Clone(b.In);
+                VisClusterSample.SampleInto(rte, sampled, b.Mins, b.Maxs, padded: false, Cube);
+                var bitsDiffer = Enumerable.Range(0, sampled.Count).Where(i => !sampled[i].Visibility.SequenceEqual(vis[i])).ToList();
+                output.WriteLine($"bucket {b.Id}: sampler differs on {bitsDiffer.Count} of {sampled.Count} clusters"
+                               + (bitsDiffer.Count > 0 ? $" (first {bitsDiffer[0]} box {b.In[bitsDiffer[0]].Mins}-{b.In[bitsDiffer[0]].Maxs})" : ""));
+                bool Bit(ulong[] v, int j) => (j >> 6) < v.Length && ((v[j >> 6] >> (j & 63)) & 1) != 0;
+                foreach (var i in bitsDiffer.Take(6))
+                {
+                    var which = Enumerable.Range(0, sampled.Count).Where(j => Bit(sampled[i].Visibility, j) != Bit(vis[i], j)).ToList();
+                    output.WriteLine($"  cluster {i} {b.In[i].Mins}-{b.In[i].Maxs}: " + string.Join(", ", which.Take(5).Select(j =>
+                        $"{j} {(Bit(vis[i], j) ? "valve" : "ours")} {b.In[j].Mins}-{b.In[j].Maxs} leaf {b.In[j].Voxels[0].Leaf} {leaves[b.In[j].Voxels[0].Leaf].Item1}")));
+                }
+                var onValve = Clone(b.In);
+                for (var i = 0; i < onValve.Count; i++)
+                    onValve[i].Visibility = vis[i];
+                int priced = 0, pricedExact = 0;
+                foreach (var i in Enumerable.Range(0, onValve.Count))
+                    foreach (var (other, cost) in b.Candidates![i])
+                    {
+                        priced++;
+                        var mine = VisMergeCost.Of(Read(onValve[i]), Read(onValve[other]));
+                        if (BitConverter.SingleToInt32Bits(mine) == BitConverter.SingleToInt32Bits(cost))
+                            pricedExact++;
+                        else if (priced - pricedExact <= 3)
+                            output.WriteLine($"  price {i}->{other}: ours {mine:R} valve {cost:R}");
+                    }
+                var onValveSeq = new List<(int, int, float)>();
+                VisMerge.Run(rte, onValve, b.Mins, b.Maxs, b.Limit, b.Budget, padded: false, Cube, sampled: true,
+                             merged: (o, t, c) => onValveSeq.Add((o, t, c)));
+                var firstOnValve = FirstDifference(onValveSeq, b.Merges);
+                output.WriteLine($"  prices {pricedExact}/{priced} exact; merge on Valve's bits first differs at {firstOnValve}"
+                               + (firstOnValve >= 0 && firstOnValve < Math.Min(onValveSeq.Count, b.Merges.Count) ? $": ours {onValveSeq[firstOnValve]} valve {b.Merges[firstOnValve]}" : ""));
+            }
+            var ret = VisMerge.Run(rte, ours, b.Mins, b.Maxs, b.Limit, b.Budget, padded: false, Cube,
+                                   merged: (o, t, c) => seq.Add((o, t, c)));
+            if (at >= 0 && at < seq.Count && at < b.Merges.Count)
+            {
+                var (po, pt, _) = seq[at];
+                var (qo, qt, qc) = b.Merges[at];
+                VisMerge.Run(rte, Clone(b.In), b.Mins, b.Maxs, b.Limit, b.Budget, padded: false, Cube,
+                             probe: (step, cost, count) =>
+                             {
+                                 if (step != at)
+                                     return;
+                                 output.WriteLine($"before merge {at}: ours ({po},{pt}) held {cost(po, pt)?.ToString("R") ?? "none"} counts {count(po)}+{count(pt)};"
+                                                + $" valve ({qo},{qt}) at {qc:R} held {cost(qo, qt)?.ToString("R") ?? "none"} counts {count(qo)}+{count(qt)}");
+                             });
+            }
+            sets++;
+            var first = FirstDifference(seq, b.Merges);
+            if (first < 0 && ours.Count == b.Out && BitConverter.SingleToInt32Bits(ret) == BitConverter.SingleToInt32Bits(b.Returned))
+            {
+                exact++;
+                continue;
+            }
+            if (shown++ >= 8)
+                continue;
+            var (vo, vt, vc) = first >= 0 && first < b.Merges.Count ? b.Merges[first] : (-1, -1, float.NaN);
+            var (mo, mt, mc) = first >= 0 && first < seq.Count ? seq[first] : (-1, -1, float.NaN);
+            output.WriteLine($"bucket {b.Id} n={b.In.Count} budget={b.Budget} limit={b.Limit:R}: merges {seq.Count}/{b.Merges.Count},"
+                           + $" first difference at {first}: ours ({mo},{mt},{mc:R}) valve ({vo},{vt},{vc:R});"
+                           + $" survivors {ours.Count}/{b.Out}, returned {ret:R}/{b.Returned:R}");
+        }
+        output.WriteLine($"pass {pass}: {exact}/{sets} buckets exact");
+    }
+
     [Fact]
     public void TheBucketingAgainstTheCapture()
     {

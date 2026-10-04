@@ -241,10 +241,17 @@ public static class WorldCollision
     /// shaders that only matters with a <c>PhysicsSurfaceProperties1</c> or
     /// <c>PhysicsSurfacePropertiesWet</c> set, which is left out.
     /// </summary>
-    /// <summary>A material by name, through <paramref name="material"/>.</summary>
+    /// <summary>A world piece's material by name, as physicsbuilder loads it (see below).</summary>
+    // physicsbuilder 1806208d0 looks the name plus "_c" up on the GAME search
+    // path ("illegal resource name" when not found). A name with no folder is
+    // never found there, even with the compiled file at the addon's root (161
+    // such names across the corpus, every one logged missing), so it reads as
+    // a missing material. Entity models load through ModelDoc, which does find
+    // those files (c2m2's prefab func_breakables with plywood_ext_01.vmat are
+    // compiled), so they read the material directly.
     public static MaterialPhysics ReadMaterial(string name, Func<string, Maps.SettleWorld.MaterialInfo?> material,
         Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty, bool shaderTranslucency = true)
-        => ReadMaterial(material(name), collisionProperty, shaderTranslucency);
+        => ReadMaterial(name.IndexOfAny(['/', '\\']) < 0 ? null : material(name), collisionProperty, shaderTranslucency);
 
     public static MaterialPhysics ReadMaterial(Maps.SettleWorld.MaterialInfo? info, Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty,
         bool shaderTranslucency = true)
@@ -490,7 +497,7 @@ public static class WorldCollision
                 foreach (var (material, points, indices, piecePaint) in tessellated)
                 {
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
-                    var physics = materials(name);
+                    var physics = Painted(materials(name), paint);
                     if (!physics.Solid)
                         continue;
                     if (physics.Blend != null && paint != null && !covered && Splits(physics.Blend))
@@ -511,7 +518,7 @@ public static class WorldCollision
                          !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh)))
             {
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
-                var physics = materials(name);
+                var physics = Painted(materials(name), paint);
                 if (!physics.Solid)
                     continue;
                 var made = new List<(int Face, int Corner)>();
@@ -990,6 +997,19 @@ public static class WorldCollision
         }
         return result;
     }
+
+    /// <summary>
+    /// A piece of a vertex-painted mesh takes its surface from BlendSurfaces
+    /// (physicsbuilder 0924: 180015080), which seeds "default" before reading
+    /// the material's PhysicsSurfaceProperties, so a material with none (or a
+    /// missing one) names "default" outright, and RED2 lists it. Captured on
+    /// dkr_m2_carnival_d (tools/physics/capture_surfaceprops.py): 278 shapes of
+    /// painted meshes carry "default" (toolsnodraw, unblended and missing
+    /// materials), the unpainted meshes' shapes carry none.
+    /// </summary>
+    private static MaterialPhysics Painted(MaterialPhysics physics, Vector4[]? paint)
+        => paint != null && physics.SurfaceHash == null && physics.SurfaceProperty.Length == 0
+            ? physics with { SurfaceProperty = "default" } : physics;
 
     /// <summary>
     /// The order shapes end up in the part (resourcecompiler 0923:

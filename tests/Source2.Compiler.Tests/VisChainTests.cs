@@ -218,11 +218,17 @@ public class VisChainTests(ITestOutputHelper output)
             lines.AddRange(onlyValve.Take(12).Select(k => $"  Valve's only, lowest leaf {k}: {Box(theirs[valve[k].First()])}"));
             return string.Join(Environment.NewLine, lines);
         }
+        // Sets the distance pre-merge emptied on one side only: where its runs part.
+        var emptied = Enumerable.Range(0, ours.Count).Where(i => (ours[i].Clusters.Count == 0) != (theirs[i].Count == 0)).ToList();
+        string Describe(List<VisMerge.Cluster> set) => set.Count == 0 ? "empty"
+            : $"{set.Count} clusters, open {set.Count(c => c.OpenSpace)}, words {set.Sum(c => c.Voxels.Count)}, box {set[0].Mins}-{set[0].Maxs}";
+        var emptiedNote = emptied.Count == 0 ? "" : $"\n    {emptied.Count} sets emptied on one side only: "
+            + string.Join("; ", emptied.Take(6).Select(i => $"set {i} ours {Describe(ours[i].Clusters)} / Valve {Describe(theirs[i])}"));
         for (var i = 0; i < ours.Count; i++)
         {
             var (a, b) = (ours[i].Clusters, theirs[i]);
             if (a.Count != b.Count)
-                return $"set {i}: {a.Count} clusters vs {b.Count}";
+                return $"set {i}: {a.Count} clusters vs {b.Count}" + emptiedNote;
             for (var k = 0; k < a.Count; k++)
             {
                 var (x, y) = (a[k], b[k]);
@@ -235,7 +241,7 @@ public class VisChainTests(ITestOutputHelper output)
                     var from = Math.Max(0, at - 3);
                     return $"set {i} cluster {k}: voxels differ at {at} of {x.Voxels.Count}/{y.Voxels.Count} (set box {ours[i].Mins}-{ours[i].Maxs}, {a.Count} clusters)"
                         + "\n    ours  " + string.Join(" ", x.Voxels.Skip(from).Take(8).Select(v => $"{v.Leaf}->{(LeafToValve.TryGetValue(v.Leaf, out var m) ? m : -1)}:{v.Mask:x}"))
-                        + "\n    valve " + string.Join(" ", y.Voxels.Skip(from).Take(8).Select(v => $"{v.Leaf}<-{(LeafFromValve.TryGetValue(v.Leaf, out var m) ? m : -1)}:{v.Mask:x}"));
+                        + "\n    valve " + string.Join(" ", y.Voxels.Skip(from).Take(8).Select(v => $"{v.Leaf}<-{(LeafFromValve.TryGetValue(v.Leaf, out var m) ? m : -1)}:{v.Mask:x}")) + emptiedNote;
                 }
                 if (x.Mins != y.Mins || x.Maxs != y.Maxs)
                     return $"set {i} cluster {k}: box {x.Mins}-{x.Maxs} vs {y.Mins}-{y.Maxs}";

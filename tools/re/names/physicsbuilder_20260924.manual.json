@@ -46,7 +46,7 @@
    "addr": "180015080",
    "name": "PhysicsBuilder_BlendSurfaces",
    "module": "s2c:physics/material-sampler",
-   "note": ""
+   "note": "seeds 'default', then PhysicsSurfaceProperties%d; every piece of a painted mesh goes through it (carnival_d capture: 278 shapes name 'default')"
   },
   {
    "addr": "1800156a0",

@@ -18,10 +18,31 @@ public class VisRayReplay(ITestOutputHelper output)
     {
         if (Environment.GetEnvironmentVariable("RAYS") is not { Length: > 0 } map)
             return;
-        var addon = map == "ze_hold_em_p" ? "s2c_lighting" : "s2c_rc_probe";
-        var rte = RayTraceEnvironment.ReadFile(
-            Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".rte"));
-        var lines = File.ReadAllLines(Path.Combine(Path.GetTempPath(), "vis_capture", map + ".rays.jsonl"));
+        RayTraceEnvironment rte;
+        string[] lines;
+        // RAYS_MERGE=1: the rays capture_merge.py --rays recorded in <map>.bin
+        // (pass 0 only), on that compile's scene <map>.merge.rte.
+        if (Environment.GetEnvironmentVariable("RAYS_MERGE") == "1")
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "vis_capture");
+            rte = RayTraceEnvironment.ReadFile(Path.Combine(dir, map + ".merge.rte"));
+            var found = new List<string>();
+            using var reader = new BinaryReader(File.OpenRead(Path.Combine(dir, map + ".bin")));
+            while (reader.BaseStream.Position < reader.BaseStream.Length)
+            {
+                var head = JsonDocument.Parse(reader.ReadBytes(reader.ReadInt32())).RootElement;
+                var blob = reader.ReadBytes(reader.ReadInt32());
+                if (head.GetProperty("ev").GetString() is "rays" or "rayhits" && head.GetProperty("pass").GetInt32() == 0)
+                    found.Add(JsonSerializer.Serialize(new { hex = Convert.ToHexString(blob) }));
+            }
+            lines = [.. found];
+        }
+        else
+        {
+            var addon = map == "ze_hold_em_p" ? "s2c_lighting" : "s2c_rc_probe";
+            rte = RayTraceEnvironment.ReadFile(Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".rte"));
+            lines = File.ReadAllLines(Path.Combine(Path.GetTempPath(), "vis_capture", map + ".rays.jsonl"));
+        }
 
         for (var l = 0; l + 1 < lines.Length; l += 2)
         {

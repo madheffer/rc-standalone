@@ -14,6 +14,14 @@ defect, rather than a number several thousand merges downstream of it.
   --passes  only the sets entering and leaving each of the five passes ("pass"
           and "passout" records), no per-merge hooks, and the compile is
           stopped after the fifth pass (minutes rather than hours)
+  --vis-n N  with --vis, only buckets handed N clusters (a 30k bucket's bits run to gigabytes)
+  --stop-after P  stop the compile when pass P returns
+  --rays=x,y,z;x,y,z  also the sampler's rays for clusters centred there
+  --premerge  only the distance pre-merge (DistancePreMerge, 180030b40): the
+          sets it is handed ("gen"), the runs at the start of every round of
+          MergeBestCandidates ("round": box, owner set, index per run), the
+          pairs each round sorts ("pairs": union box, run, partner) and the
+          sets it leaves ("premerged"); the compile is stopped after it
 
 Addresses come from docs/visbuilder.signatures.json through sigscan, so this
 survives a game update the same way the tests do.
@@ -41,13 +49,14 @@ CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
 IMAGE_BASE = 0x180000000
-HOOKED = ["MergeLoop", "CheapestPair", "AbsorbPair", "BuildCandidates",
+HOOKED = ["MergeLoop", "CheapestPair", "AbsorbPair", "BuildCandidates", "TallyRays",
           "Regrid", "MergeClusterSet"]
 
 AGENT = r"""
 'use strict';
 const RVA = %(rvas)s;
 const GEN = %(gen)s, VIS = %(vis)s, PASSES = %(passes)s, OUTSIDE = %(outside)d;
+const PREMERGE = %(premerge)s, PM = %(pm)s, VISN = %(visn)d, STOP = %(stop)d, RAYS = %(rays)s;
 let pass = -1, seq = 0;
 const live = {};   // thread id -> current MergeLoop record
 const known = new Set();   // leaves whose box has been sent
@@ -127,12 +136,58 @@ function hook(m) {
       send({ev: 'pass', pass, sets: n, scene: box}, buf);
     },
     onLeave(ret) {
+      if (STOP >= 0 && pass === STOP) { send({ev: 'done'}); return; }
       if (!PASSES) return;
       const [n, buf] = dumpSets(this.sets);
       send({ev: 'passout', pass, sets: n, ret: ret.toInt32()}, buf);
       if (pass === 4) send({ev: 'done'});
     }
   });
+  if (PREMERGE) {
+    // The pre-merge's input and output sets, and every round of its box merge.
+    // A run record (0x40 bytes) holds its box at 0, the set that made it at
+    // +0x18 and its index in the live list at +0x20; the tree keeps that list
+    // as a count at +0x20 and an array of run pointers at +0x28.
+    let inside = false;
+    Interceptor.attach(m.base.add(PM.pre), {
+      onEnter(a) {
+        this.sets = a[1];
+        inside = true;
+        const [n, buf] = dumpSets(a[1]);
+        send({ev: 'gen', sets: n}, buf);
+      },
+      onLeave() {
+        inside = false;
+        const [n, buf] = dumpSets(this.sets);
+        send({ev: 'premerged', sets: n}, buf);
+        send({ev: 'done'});
+      }
+    });
+    let round = 0;
+    Interceptor.attach(m.base.add(PM.merge), {
+      onEnter(a) {
+        if (!inside) return;
+        const tree = a[0], n = tree.add(0x20).readS32(), list = tree.add(0x28).readPointer();
+        const out = new Uint8Array(n * 32), dv = new DataView(out.buffer);
+        for (let i = 0; i < n; i++) {
+          const r = list.add(i * 8).readPointer();
+          out.set(new Uint8Array(r.readByteArray(24)), i * 32);
+          dv.setInt32(i * 32 + 24, r.add(0x18).readS32(), true);
+          dv.setInt32(i * 32 + 28, r.add(0x20).readS32(), true);
+        }
+        send({ev: 'round', round: round++, runs: n}, out.buffer);
+      }
+    });
+    Interceptor.attach(m.base.add(PM.sort), {
+      onEnter(a) {
+        if (!inside) return;
+        const n = a[1].sub(a[0]).toInt32() / 32;
+        send({ev: 'pairs', round: round - 1, pairs: n}, n > 0 ? a[0].readByteArray(n * 32) : null);
+      }
+    });
+    send({ev: 'hooked', base: m.base.toString()});
+    return;
+  }
   if (PASSES) {
     // The regions and their verdicts as OutsideDetection (180033890) leaves
     // them, in the same compile as the passes (capture_outside.py's records).
@@ -189,11 +244,24 @@ function hook(m) {
     }
   });
 
+  // --rays: TallyRays' records (0x20 each) and the tracer's raw hits (0x38
+  // each) for clusters centred at the given points, tagged with the pass
+  // (-1 is cluster generation), as capture_rays.py records them.
+  if (RAYS.length) Interceptor.attach(at('TallyRays'), {
+    onEnter(a) { this.recs = a[1]; this.hits = a[2]; this.c = a[3]; },
+    onLeave() {
+      const c = [0, 4, 8].map(k => this.c.add(k).readFloat());
+      if (!RAYS.some(w => w[0] === c[0] && w[1] === c[1] && w[2] === c[2])) return;
+      const n = this.recs.readS32(), p = this.recs.add(8).readPointer();
+      send({ev: 'rays', pass, centre: c, n}, p.readByteArray(n * 0x20));
+      send({ev: 'rayhits', pass, centre: c, n}, this.hits.readByteArray(n * 0x38));
+    }
+  });
   if (VIS) Interceptor.attach(at('BuildCandidates'), {
     onEnter(a) { this.s = a[0]; },
     onLeave() {
       const rec = live[Process.getCurrentThreadId()];
-      if (!rec) return;
+      if (!rec || (VISN > 0 && rec.n !== VISN)) return;
       const s = this.s, n = s.add(8).readS32(), slots = s.add(0x10).readPointer();
       const parts = [];
       let total = 0;
@@ -235,6 +303,10 @@ def main():
     parser.add_argument("--gen", action="store_true")
     parser.add_argument("--vis", action="store_true")
     parser.add_argument("--passes", action="store_true")
+    parser.add_argument("--premerge", action="store_true")
+    parser.add_argument("--vis-n", type=int, default=0, help="with --vis: only buckets handed this many clusters")
+    parser.add_argument("--rays", default="", help="cluster centres 'x,y,z;x,y,z' whose rays to record (pass as --rays=...)")
+    parser.add_argument("--stop-after", type=int, default=-1, help="stop the compile when this pass returns")
     args = parser.parse_args()
 
     with open(os.path.join(ROOT, "docs", "visbuilder.signatures.json"), encoding="utf-8") as h:
@@ -249,6 +321,9 @@ def main():
     sys.path.insert(0, os.path.join(ROOT, "tools", "re"))
     from rva_map import installed
     outside = installed("visbuilder", 0x33890)
+    # DistancePreMerge, MergeBestCandidates and SortPairs in the analysis build.
+    pm = {"pre": installed("visbuilder", 0x30b40), "merge": installed("visbuilder", 0x293c0),
+          "sort": installed("visbuilder", 0x2a960)}
 
     out_path = args.out or os.path.join(
         os.environ.get("TEMP", "."), "vis_capture", "%s.bin" % args.map)
@@ -272,7 +347,7 @@ def main():
         if ev == "out":
             stats["merges"] += sum(1 for m in payload["merges"] if m[0] == "a")
         if ev == "done" and "pid" in running:
-            # --passes: the five passes are in; the rest of the build is not needed.
+            # --passes / --premerge: what was asked for is in; the rest of the build is not needed.
             subprocess.run(["taskkill", "/F", "/PID", str(running["pid"])], capture_output=True)
         head = json.dumps(payload).encode()
         blob = data or b""
@@ -294,7 +369,10 @@ def main():
     session = device.attach(pid)
     script = session.create_script(AGENT % {
         "rvas": json.dumps(rvas), "gen": str(args.gen).lower(), "vis": str(args.vis).lower(),
-        "passes": str(args.passes).lower(), "outside": outside})
+        "passes": str(args.passes).lower(), "outside": outside,
+        "premerge": str(args.premerge).lower(), "pm": json.dumps(pm),
+        "visn": args.vis_n, "stop": args.stop_after,
+        "rays": json.dumps([[float(v) for v in c.split(",")] for c in args.rays.split(";") if c])})
     script.on("message", on_message)
     script.load()
 

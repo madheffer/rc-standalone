@@ -110,7 +110,7 @@ public static class EntityPhysicsModels
             var props = entity.Get<DmxBinary.Element>("entity_properties");
             var className = props?.Get<string>("classname") ?? "";
             var targetName = props?.Get<string>("targetname") ?? "";
-            var path = $"maps/{mapName}/entities/{(string.IsNullOrWhiteSpace(targetName) ? "unnamed" : targetName.ToLowerInvariant())}_{idPath}.vmdl";
+            var path = EntityLumpAuthor.BrushModelPath(targetName, idPath, mapName);
             var pieces = new List<WorldCollision.Piece>();
             var physicsOnly = true;
             var applied = schema?.MetadataOf(className, "auto_apply_material") is { Length: > 0 } a ? a : null;

@@ -370,7 +370,7 @@
    "addr": "1800307d0",
    "name": "FoldVoxelPairs",
    "module": "s2c:visibility",
-   "note": "merge two (mask, leaf) lists sorted by leaf"
+   "note": "sorts both lists by leaf, ORs matching leaves, APPENDS the rest of the second list unsorted"
   },
   {
    "addr": "1800302e0",

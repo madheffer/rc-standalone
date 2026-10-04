@@ -359,7 +359,7 @@ RESOURCECOMPILER = [
     ("180285eb0", "WRB_BuildPathTraceSceneInfo", BAKE, "lights, cameras, instances, mesh_file"),
     ("180217740", "CStaticLightingProcessor::BakeLighting", BAKE, ""),
     ("18025db60", "CWorldRendererBuilderNode::BakeLightMaps", BAKE, ""),
-    ("18032e3e0", "CModelDocCompileInstance::CompilePhysics", PM, "a model's physics, world_physics.vmdl included"),
+    ("18032e3e0", "CModelDocCompileInstance::CompilePhysics", PM, "a model's physics, world_physics.vmdl included; RED2 surface_prop = symbol table +0x458, filled at 18032ebd0 from each part's shapes' +0xf0 in order (capture_surfaceprops.py)"),
     ("1818d77e0", "CNavMesh::CreateArea", NAV, ""),
     ("1818dcb00", "CNavMesh::Update", NAV, ""),
     # From the memory notes, src/ comments and docs (2026-09-28).
@@ -637,7 +637,7 @@ RESOURCECOMPILER = [
     # World physics.
     ("1802c0820", "ModelDocPhysics_MeshShape", PW, ""),
     ("1802c0e70", "ModelDocPhysics_HullShape", PW, "hull node to shape: quickhull tol 0, at most 256 faces/half-edges/verts"),
-    ("1802c3030", "ModelDocPhysics_NodeLoop", PW, ""),
+    ("1802c3030", "ModelDocPhysics_NodeLoop", PW, "inserts each shape into its part (180c28150) and sets shape +0xf0 from the node's surface property (1801ae550)"),
     ("1802e3120", "ModelDoc_ReadMaterialPhysics", PW, "rc's copy of physicsbuilder's material physics reader"),
     ("180c25230", "ShapeBuilder_CapsuleNode", PW, ""),
     ("180c25810", "ShapeBuilder_SphereNode", PW, "centre: t = 2 q x v, then scale and position"),
@@ -1307,7 +1307,7 @@ PHYSICSBUILDER = [
     ("1800142d0", "CPhysicsBuilder::Build", PW, "writes world_physics.vmdl; Physics/EnableWorldCompounds"),
     # From the memory notes, src/ comments and docs (2026-09-28).
     # Blend split and CMaterialSampler.
-    ("180015080", "PhysicsBuilder_BlendSurfaces", MS, ""),
+    ("180015080", "PhysicsBuilder_BlendSurfaces", MS, "seeds 'default', then PhysicsSurfaceProperties%d; every piece of a painted mesh goes through it (carnival_d capture: 278 shapes name 'default')"),
     ("1800156a0", "PhysicsBuilder_BlendLayers", MS, "a material's painted layers"),
     ("180015930", "PhysicsBuilder_SplitBlendLayers", MS, "a piece cut into positions-only meshes per layer, welded at 1/32"),
     ("18064bcb0", "CMaterialSampler_TargetSide", MS, "next power of two of ceil(sqrt(count)), at least 16"),
@@ -1432,7 +1432,7 @@ VISBUILDER = [
     ("180031710", "CandidateAlive", VIS, "merge controller slot 5: both flag bytes clear"),
     ("180032c00", "CheapestPair", VIS, "the cheapest merge over every live entry; ties by summed voxels"),
     ("180031440", "BoxGap", VIS, "axis-aligned gap between two boxes, zero when they touch"),
-    ("1800307d0", "FoldVoxelPairs", VIS, "merge two (mask, leaf) lists sorted by leaf"),
+    ("1800307d0", "FoldVoxelPairs", VIS, "sorts both lists by leaf, ORs matching leaves, APPENDS the rest of the second list unsorted"),
     ("1800302e0", "AssignClusters", VIS, "per-cluster bounding boxes"),
     ("180038ed0", "AssignClusters2", VIS, ""),
     ("18003ed60", "SamplerWalk", VIS, "a segment through the box tree, a bit per box it crosses"),

@@ -85,13 +85,39 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         }
         if (Environment.GetEnvironmentVariable("WPBUILD_NODEATTRS") is { Length: > 0 } attrNode)
         {
-            var el = doc.Elements.First(e => e.GetValue<int>("nodeID")?.ToString() == attrNode);
+            IEnumerable<DmxBinary.Element> All(DmxBinary.Document d) => d.Elements.Concat(d.Elements
+                .Select(e => e.Attributes.GetValueOrDefault(Maps.MapPrefabs.DocumentKey)).OfType<DmxBinary.Document>().SelectMany(All));
+            var el = All(doc).First(e => e.GetValue<int>("nodeID")?.ToString() == attrNode);
             foreach (var (k, v) in el.Attributes)
                 output.WriteLine($"nodeattr {k} = {(v is DmxBinary.Element ce ? ce.Type : v is object?[] arr ? $"[{arr.Length}]" : v)}");
             var md = el.Get<DmxBinary.Element>("meshData");
             output.WriteLine("nodeattr materials: " + string.Join(", ", md?.Get<object?[]>("materials") ?? []));
+            foreach (var part in new[] { "vertexData", "faceVertexData", "edgeData", "faceData" })
+                output.WriteLine($"nodeattr {part} streams: " + string.Join(", ", md?.Get<DmxBinary.Element>(part)?.GetElements("streams").Select(x => x.Name) ?? []));
             var fm = md?.Get<DmxBinary.Element>("faceData")?.GetElements("streams").FirstOrDefault(x => x.Name.StartsWith("materialindex", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [];
             output.WriteLine("nodeattr face materials: " + string.Join(",", fm.GroupBy(x => x).Select(g => $"{g.Key}x{g.Count()}")));
+            return;
+        }
+        // WPBUILD_LISTED=1: every piece in the part's order (rc 180c28150) with its
+        // material and surface property, beside RED2's surface_prop list, which
+        // CompilePhysics (18032e3e0) fills from each part's shapes' +0xf0 in order.
+        if (Environment.GetEnvironmentVariable("WPBUILD_LISTED") == "1")
+        {
+            var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(name, models.Material, models.CollisionProperty),
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty);
+            var ordered = Physics.WorldCollision.PartOrder(pieces, x => x.Type);
+            string? last = null;
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var x = ordered[i];
+                var line = $"type {x.Type} {x.MaterialName} missing {x.MaterialName.EndsWith(".vmat", StringComparison.OrdinalIgnoreCase) && models.Material(x.MaterialName) == null} surface '{x.Physics.SurfaceProperty}' hash {x.Physics.SurfaceHash}";
+                if (line != last)
+                    output.WriteLine($"piece {i} node {x.NodeId} {line}");
+                last = line;
+            }
+            using var red = new ValveResourceFormat.Resource();
+            red.Read(new MemoryStream(Read(p[2], $"maps/{p[1]}/world_physics.vmdl_c")));
+            output.WriteLine("valve RED2: " + (red.EditInfo?.ToString() ?? "none"));
             return;
         }
         if (Environment.GetEnvironmentVariable("WPBUILD_HULLSURF") is { Length: > 0 } nodesText)

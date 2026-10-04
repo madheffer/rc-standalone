@@ -36,7 +36,7 @@ public static class VisRegions
     {
         ArgumentNullException.ThrowIfNull(tree);
 
-        var (leaves, pushed) = Enumerate(tree);
+        var (leaves, pushed, _) = Enumerate(tree);
         // Regions in the order LeafEntries (18002ebf0) pushes them during the
         // build's depth-first walk, which is not slot order: a branch is
         // recursed into the moment the walk reaches its octant, before the
@@ -50,11 +50,22 @@ public static class VisRegions
     }
 
     /// <summary>
+    /// Each leaf's node slot, which is how the compile's own records number a
+    /// leaf (branches take slots too), in the order <see cref="Build"/> lists
+    /// the leaves.
+    /// </summary>
+    public static int[] Slots(VisVoxelizer.Octree tree)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        return Enumerate(tree).Slots;
+    }
+
+    /// <summary>
     /// Every leaf of the tree. A node is a branch exactly where geometry reaches
     /// it, so a leaf is either a child of a branch that geometry misses, at
     /// whatever size that is, or a smallest cell that geometry does reach.
     /// </summary>
-    private static (List<Leaf> Leaves, List<int> Pushed) Enumerate(VisVoxelizer.Octree tree)
+    private static (List<Leaf> Leaves, List<int> Pushed, int[] Slots) Enumerate(VisVoxelizer.Octree tree)
     {
         var depth = tree.BranchesPerLevel.Count;
         var branches = tree.BranchCells;
@@ -108,7 +119,7 @@ public static class VisRegions
         var index = new Dictionary<int, int>();
         for (var i = 0; i < bySlot.Count; i++)
             index[bySlot[i].Slot] = i;
-        return ([.. bySlot.Select(l => l.Leaf)], [.. walk.Select(slot => index[slot])]);
+        return ([.. bySlot.Select(l => l.Leaf)], [.. walk.Select(slot => index[slot])], [.. bySlot.Select(l => l.Slot)]);
     }
 
     /// <summary>

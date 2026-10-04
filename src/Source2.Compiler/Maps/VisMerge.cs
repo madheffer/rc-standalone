@@ -50,22 +50,36 @@ public static class VisMerge
 
         /// <summary>
         /// Fold another cluster's (mask, leaf) pairs in, which is
-        /// <c>18002f250</c>: both lists are sorted by leaf and merged, and two
-        /// entries for the SAME leaf become one with their masks ORed. That is
-        /// what makes the final region count a real number rather than a running
-        /// total of every voxel ever merged.
+        /// <c>FoldVoxelPairs</c> (<c>1800307d0</c>, called by AbsorbPair and the
+        /// distance pre-merge): both lists are sorted by leaf, a word whose leaf
+        /// this list already holds is ORed into it and zeroed, and the other
+        /// list's remaining non-zero words are APPENDED in their sorted order.
+        /// So the list is sorted only up to the last fold's new leaves, which sit
+        /// at the end until the next fold sorts them in (captured on atixref:
+        /// pass 0 entry sets 131, 156, 200, 431).
         /// </summary>
         public void Take(IReadOnlyList<(ulong Mask, int Leaf)> other)
         {
             ArgumentNullException.ThrowIfNull(other);
-            var byLeaf = new Dictionary<int, ulong>(Voxels.Count + other.Count);
-            foreach (var (mask, leaf) in Voxels)
-                byLeaf[leaf] = byLeaf.GetValueOrDefault(leaf) | mask;
-            foreach (var (mask, leaf) in other)
-                byLeaf[leaf] = byLeaf.GetValueOrDefault(leaf) | mask;
-            Voxels.Clear();
-            foreach (var leaf in byLeaf.Keys.Order())
-                Voxels.Add((byLeaf[leaf], leaf));
+            static int ByLeaf((ulong Mask, int Leaf) a, (ulong Mask, int Leaf) b) => ((uint)a.Leaf).CompareTo((uint)b.Leaf);
+            Voxels.Sort(ByLeaf);
+            var theirs = other.ToList();
+            theirs.Sort(ByLeaf);
+            var mine = Voxels.Count;
+            var at = 0;
+            for (var i = 0; i < theirs.Count; i++)
+            {
+                while (at < mine && (uint)theirs[i].Leaf > (uint)Voxels[at].Leaf)
+                    at++;
+                if (at < mine && Voxels[at].Leaf == theirs[i].Leaf)
+                {
+                    Voxels[at] = (Voxels[at].Mask | theirs[i].Mask, Voxels[at].Leaf);
+                    theirs[i] = (0, theirs[i].Leaf);
+                }
+            }
+            foreach (var word in theirs)
+                if (word.Mask != 0)
+                    Voxels.Add(word);
         }
 
         /// <summary>Take another cluster into this one, which is <c>180030a50</c>.</summary>
@@ -121,7 +135,8 @@ public static class VisMerge
     public static float Run(
         RayTraceEnvironment scene, List<Cluster> clusters, Vector3 mins, Vector3 maxs,
         float costLimit, int budget, bool padded, VisClusterSample.LeafCube cube,
-        Action<Halt>? halted = null, bool sampled = false, Action<int, int, float>? merged = null)
+        Action<Halt>? halted = null, bool sampled = false, Action<int, int, float>? merged = null,
+        Action<int, Func<int, int, float?>, Func<int, int>>? probe = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(clusters);
@@ -162,8 +177,11 @@ public static class VisMerge
         // and testing only the new one keeps merging there. The seed is
         // DAT_18017f1e8, which is -1.
         var best = -1f;
+        var step = 0;
         while (live > budget || best < costLimit)
         {
+            // For replays: the candidate lists and voxel counts before each merge.
+            probe?.Invoke(step++, state.CandidateCost, i => clusters[i].VoxelCount);
             var (owner, other, cost) = state.Cheapest();
             if (!(live > budget || cost < costLimit))
                 break;
@@ -296,6 +314,16 @@ public static class VisMerge
                     best = (owner, mine.Other, mine.Cost);
             }
             return best;
+        }
+
+        /// <summary>The price a pair is held at in the candidate lists, or null.</summary>
+        public float? CandidateCost(int a, int b)
+        {
+            var (holder, id) = a < b ? (b, a) : (a, b);
+            if (!_alive[a] || !_alive[b])
+                return null;
+            var at = _candidates[holder].FindIndex(c => c.Other == id);
+            return at < 0 ? null : _candidates[holder][at].Cost;
         }
 
         private int Bulk(int a, int b) => _clusters[a].VoxelCount + _clusters[b].VoxelCount;

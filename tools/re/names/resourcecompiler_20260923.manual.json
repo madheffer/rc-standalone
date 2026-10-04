@@ -1906,7 +1906,7 @@
    "addr": "18032e3e0",
    "name": "CModelDocCompileInstance::CompilePhysics",
    "module": "s2c:physics/model",
-   "note": "a model's physics, world_physics.vmdl included"
+   "note": "a model's physics, world_physics.vmdl included; RED2 surface_prop = symbol table +0x458, filled at 18032ebd0 from each part's shapes' +0xf0 in order (capture_surfaceprops.py)"
   },
   {
    "addr": "1818d77e0",
@@ -3490,7 +3490,7 @@
    "addr": "1802c3030",
    "name": "ModelDocPhysics_NodeLoop",
    "module": "s2c:physics/world",
-   "note": ""
+   "note": "inserts each shape into its part (180c28150) and sets shape +0xf0 from the node's surface property (1801ae550)"
   },
   {
    "addr": "1802e3120",
