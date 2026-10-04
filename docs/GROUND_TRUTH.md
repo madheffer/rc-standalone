@@ -46,8 +46,11 @@ game can answer is raised with the user first, and runs with -insecure.
     edge. The export's face walk (1812e8890) and TriangulateFace (181310a90)
     filter nothing, and capture_facecounts.py shows every one of the 873
     exports handed 2,210 faces: the copy's half-edge mesh already lacks the
-    7 (the source's face and edge flags are all 0). Where they go (load,
-    instance collapse, transform) is the next capture.
+    7 (the source's face and edge flags are all 0). No area threshold
+    separates them either (Valve keeps faces of area 0 and 5.8e-6 in the
+    same mesh and drops one of 4.8e-4), so the rule is topological; each
+    dropped face takes one vertex with it. Where they go (load, instance
+    collapse, transform) is the next capture.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index

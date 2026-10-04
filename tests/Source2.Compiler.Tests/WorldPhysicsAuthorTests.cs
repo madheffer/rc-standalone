@@ -151,6 +151,11 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                         }
                     }
                     output.WriteLine($"    triangles repeating a directed edge: {string.Join(",", Enumerable.Range(0, ourTris.Count).Where(t => repeats[t]))}");
+                    // Twice the area of each triangle (|cross|), the dropped ones against the rest.
+                    float Area(int t) => Vector3.Cross(p2.Points[p2.Indices[t * 3 + 1]] - p2.Points[p2.Indices[t * 3]], p2.Points[p2.Indices[t * 3 + 2]] - p2.Points[p2.Indices[t * 3]]).Length();
+                    var dropped = Enumerable.Range(0, ourTris.Count).Where(t => !valveSet.Contains(ourTris[t])).ToList();
+                    var kept = Enumerable.Range(0, ourTris.Count).Where(t => valveSet.Contains(ourTris[t])).OrderBy(Area).Take(5).ToList();
+                    output.WriteLine($"    dropped areas {string.Join(", ", dropped.Select(t => Area(t).ToString("R")))}; smallest kept {string.Join(", ", kept.Select(t => $"{t}:{Area(t):R}"))}");
                     for (var t = 0; t < ourTris.Count; t++)
                         if (!valveSet.Contains(ourTris[t]))
                             output.WriteLine($"    ours only tri {t}: {ourTris[t]} indices {p2.Indices[t * 3]},{p2.Indices[t * 3 + 1]},{p2.Indices[t * 3 + 2]}");
