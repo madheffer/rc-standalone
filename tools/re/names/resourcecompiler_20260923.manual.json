@@ -373,6 +373,18 @@
    "note": ""
   },
   {
+   "addr": "1810d9ca0",
+   "name": "RemoveBadFaces",
+   "module": "s2c:geometry/mesh-export",
+   "note": "CMapMesh_ConvertMeshForBuilder: removes every face 1813a5ec0 rejects (the polygon triangulator cannot cut it whole on its own positions), triangles included"
+  },
+  {
+   "addr": "1813a5ec0",
+   "name": "HalfEdge_FaceTriangulates",
+   "module": "s2c:geometry/mesh-export",
+   "note": "face positions, Newell normal (18125b510), PolygonTriangulator_Triangulate (18136f810); true when it gives (n - 2) * 3 indices"
+  },
+  {
    "addr": "18023bd00",
    "name": "MapBuilder_ReadMeshBuffers",
    "module": "s2c:geometry/mesh-export",

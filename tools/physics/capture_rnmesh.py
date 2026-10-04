@@ -9,12 +9,13 @@ vertices (12 bytes, +0x30/+0x38), triangles (12 bytes, +0x48/+0x50) and
 materials (1 byte, +0x90/+0x98).
 
 Records go to <out.bin> as [u32 json length][json][u32 blob length][blob].
-The compile overwrites the map's .vpk: back it up. CS2 must be closed, and
+The map's .vpk is moved aside for the compile and put back after. CS2 must be closed, and
 the script refuses to start if it is running or another compile is.
 """
 import argparse
 import json
 import os
+import shutil
 import struct
 import subprocess
 import threading
@@ -99,7 +100,11 @@ def main():
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
     if not a.full:
-        argv += ["-world", "-fshallow"]
+        argv += ["-world", "-phys", "-fshallow"]
+    # RC skips a map whose .vpk is current: move it aside, put it back after.
+    vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
+    if os.path.exists(vpk):
+        shutil.move(vpk, vpk + ".capture_backup")
     out = open(a.out, "wb")
     lock = threading.Lock()
 
@@ -128,6 +133,8 @@ def main():
     dev.resume(pid)
     done.wait()
     out.close()
+    if os.path.exists(vpk + ".capture_backup"):
+        shutil.move(vpk + ".capture_backup", vpk)
 
 
 if __name__ == "__main__":

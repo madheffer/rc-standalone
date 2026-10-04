@@ -34,23 +34,18 @@ game can answer is raised with the user first, and runs with -insecure.
    specimen takes; an edge between two coincident vertices (the edge
    collapse, 181382170) stops the build.
 49. **Faces of instanced meshes in world physics** (c2m2_fairgrounds_csgo_multi,
-    _prenodraw, _preskybox, c2m3_coaster_d_d). Captured 2026-10-05
-    (capture_physshapes.py --dump on multi, WPBUILD_SHAPECAP): the part's
-    4,436 shapes line up with our pieces in order; 873 differ, every one an
-    instance copy of the same error-model mesh (models/dev/materialforerrormodel,
-    2,217 triangle faces), where Valve's shape has 7 triangles and 7 vertices
-    fewer (2,611 / 6,630 against 2,618 / 6,651). The 7 are collinear slivers
-    whose vertices no other face uses; Valve has no triangle we lack. Not the
-    rule: an exact zero cross product in own space (drops 3 of the 7 and a
-    zero-area face Valve keeps on plain node 235), nor a repeated directed
-    edge. The export's face walk (1812e8890) and TriangulateFace (181310a90)
-    filter nothing, and capture_facecounts.py shows every one of the 873
-    exports handed 2,210 faces: the copy's half-edge mesh already lacks the
-    7 (the source's face and edge flags are all 0). No area threshold
-    separates them either (Valve keeps faces of area 0 and 5.8e-6 in the
-    same mesh and drops one of 4.8e-4), so the rule is topological; each
-    dropped face takes one vertex with it. Where they go (load, instance
-    collapse, transform) is the next capture.
+    _prenodraw, _preskybox, c2m3_coaster_d_d). Settled 2026-10-05 by capture:
+    CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces (rc 1810d9ca0), which
+    drops every face the polygon triangulator cannot cut whole on the mesh's
+    own positions (1813a5ec0), triangles included; tools/physics/
+    capture_heremovals.py counted 6,111 removals = 873 error-model copies x 7
+    slivers, and with the rule (MapMeshCorners) every one of the multi's
+    4,436 part shapes matches Valve's (capture_physshapes.py, WPBUILD_SHAPECAP)
+    and our RnMesh builder reproduces all 12,322 RnMeshCreate calls
+    (capture_rnmesh.py, RnMeshReplay). Left: 34 triangles sit in soup 0 for us
+    and in the attribute-9 soup for Valve (wrongway/toolsnodraw meshes 576-580,
+    755, 756 against fire_extinguisher props), on all four maps; the
+    attribute choice there is still to read.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index

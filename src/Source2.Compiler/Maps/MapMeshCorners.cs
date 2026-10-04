@@ -120,6 +120,14 @@ internal static class MapMeshCorners
             if (loop.Count < 3)
                 continue;
             var local = loop.Select(x => (Vector3)positions![vertexData[to[x]]]! * scales).ToArray();
+            // CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces (1810d9ca0) first:
+            // a face the polygon triangulator cannot cut whole on the mesh's own
+            // positions (1813a5ec0: fewer than (n - 2) * 3 indices) is removed,
+            // triangles included. c2m2_fairgrounds_csgo_multi's error-model
+            // copies lose 7 collinear slivers each this way (capture_heremovals.py:
+            // 6,111 removals = 873 x 7; every shape of the part then matches).
+            if (PolygonTriangulator.Triangulate([.. loop.Select(x => (Vector3)positions![vertexData[to[x]]]!)]).Length != (loop.Count - 2) * 3)
+                continue;
             int[] cut = loop.Count == 3 ? [0, 1, 2] : PolygonTriangulator.Triangulate(cutSpace == null ? local : [.. local.Select(cutSpace)]);
             if (cut.Length < 3)
                 continue;

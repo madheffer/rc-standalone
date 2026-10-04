@@ -103,6 +103,8 @@ RESOURCECOMPILER = [
     ("18125d1b0", "Matrix3x4_Rotate", X, "(x r0 + y r1) + z r2"),
     ("180ffdf20", "MapNode_WorldMatrix", B, "instance path times AngleMatrix"),
     ("180ffddd0", "MapInstance_StepMatrix", B, ""),
+    ("1810d9ca0", "RemoveBadFaces", G, "CMapMesh_ConvertMeshForBuilder: removes every face 1813a5ec0 rejects (the polygon triangulator cannot cut it whole on its own positions), triangles included"),
+    ("1813a5ec0", "HalfEdge_FaceTriangulates", G, "face positions, Newell normal (18125b510), PolygonTriangulator_Triangulate (18136f810); true when it gives (n - 2) * 3 indices"),
     ("18023bd00", "MapBuilder_ReadMeshBuffers", G, "asks the node for its mesh DMX list"),
     ("180f74350", "MapNode_GetMeshBuffersForwarder", G, ""),
     ("1810dff20", "CMapMesh_ConvertMeshForBuilder", G, "the DMX of the mesh the builder reads"),
