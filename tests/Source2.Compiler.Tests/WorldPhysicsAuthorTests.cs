@@ -261,6 +261,34 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                 output.WriteLine($"meshcmp  theirs-only {v:R} near ours {ours.MinBy(o => Vector3.DistanceSquared(o, v)):R} ({owner.GetValueOrDefault(ours.MinBy(o => Vector3.DistanceSquared(o, v)), "?")})");
             return;
         }
+        // WPBUILD_TRICMP=<soup>: triangles (as sorted corner triples) only one
+        // side has, with the piece (node/material) owning their corners on ours.
+        if (Environment.GetEnvironmentVariable("WPBUILD_TRICMP") is { Length: > 0 } triText)
+        {
+            var soup = int.Parse(triText, System.Globalization.CultureInfo.InvariantCulture);
+            List<string> Keys(byte[] bytes)
+            {
+                var mesh = Trees(bytes)["PHYS"]["m_parts"]![0]!["m_rnShape"]!["m_meshes"]![soup]!["m_Mesh"]!;
+                var v = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector3>(mesh["m_Vertices"]!.AsBlob()).ToArray();
+                var t = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(mesh["m_Triangles"]!.AsBlob()).ToArray();
+                return [.. Enumerable.Range(0, t.Length / 3).Select(i => string.Join(";", new[] { v[t[i * 3]], v[t[(i * 3) + 1]], v[t[(i * 3) + 2]] }.Select(x => x.ToString("R", null)).Order(StringComparer.Ordinal)))];
+            }
+            var theirs = Keys(valve).GroupBy(k => k).ToDictionary(g => g.Key, g => g.Count());
+            var ours = Keys(mine).GroupBy(k => k).ToDictionary(g => g.Key, g => g.Count());
+            var owner = new Dictionary<string, string>();
+            foreach (var piece in Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(models.Material(name), models.CollisionProperty),
+                         null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty))
+                foreach (var pt in piece.Points)
+                    owner.TryAdd(pt.ToString("R", null), $"{piece.NodeId}/{Path.GetFileNameWithoutExtension(piece.MaterialName)}");
+            var onlyTheirs = theirs.Where(kv => kv.Value > ours.GetValueOrDefault(kv.Key)).Select(kv => (kv.Key, N: kv.Value - ours.GetValueOrDefault(kv.Key))).ToList();
+            var onlyOurs = ours.Where(kv => kv.Value > theirs.GetValueOrDefault(kv.Key)).Select(kv => (kv.Key, N: kv.Value - theirs.GetValueOrDefault(kv.Key))).ToList();
+            output.WriteLine($"tricmp: triangles only theirs {onlyTheirs.Sum(x => x.N)}, only ours {onlyOurs.Sum(x => x.N)}");
+            foreach (var g in onlyTheirs.GroupBy(x => string.Join(" ", x.Key.Split(';').Select(c => owner.GetValueOrDefault(c, "?")).Distinct())).OrderByDescending(g => g.Sum(x => x.N)).Take(15))
+                output.WriteLine($"tricmp  theirs-only {g.Sum(x => x.N)} with corners owned by {g.Key}; e.g. {g.First().Key}");
+            foreach (var g in onlyOurs.GroupBy(x => string.Join(" ", x.Key.Split(';').Select(c => owner.GetValueOrDefault(c, "?")).Distinct())).OrderByDescending(g => g.Sum(x => x.N)).Take(8))
+                output.WriteLine($"tricmp  ours-only {g.Sum(x => x.N)} with corners owned by {g.Key}; e.g. {g.First().Key}");
+            return;
+        }
         // WPBUILD_HULLVERTS=<index,...>: the hull's vertices, Valve's and ours.
         if (Environment.GetEnvironmentVariable("WPBUILD_HULLVERTS") is { Length: > 0 } vertsText)
         {

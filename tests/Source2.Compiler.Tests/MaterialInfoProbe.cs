@@ -15,9 +15,16 @@ public class MaterialInfoProbe(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("MATINFO") is not { Length: > 0 } name)
             return;
         var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game", "csgo");
+        // csgo's pak, then core's (materials/error.vmat lives there).
         using var package = new Package();
         package.Read(Path.Combine(game, "pak01_dir.vpk"));
-        package.ReadEntry(package.FindEntry(name + "_c")!, out var bytes);
+        using var core = new Package();
+        core.Read(Path.Combine(game, "..", "core", "pak01_dir.vpk"));
+        byte[] bytes;
+        if (package.FindEntry(name + "_c") is { } entry)
+            package.ReadEntry(entry, out bytes);
+        else
+            core.ReadEntry(core.FindEntry(name + "_c")!, out bytes);
         using var resource = new Resource();
         resource.Read(new MemoryStream(bytes));
         var mat = (Material)resource.DataBlock!;
