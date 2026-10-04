@@ -23,6 +23,14 @@ public class VisBuildTests(ITestOutputHelper output)
     [MemberData(nameof(Specimens))]
     public void FromValvesScene(string addon, string map) => Check(addon, map, rte => rte);
 
+    /// <summary>Any one map the same way: <c>VISBUILD_ONE=&lt;addon&gt;|&lt;map&gt;</c> (atixref: over an hour).</summary>
+    [Fact]
+    public void OneMapFromValvesScene()
+    {
+        if (Environment.GetEnvironmentVariable("VISBUILD_ONE") is { Length: > 0 } spec && spec.Split('|') is [var addon, var map])
+            Check(addon, map, rte => rte);
+    }
+
     /// <summary>The .viscfg built from the map: pvstype, the sun and the visibility hints, bit for bit.</summary>
     [Theory]
     [MemberData(nameof(Sources))]

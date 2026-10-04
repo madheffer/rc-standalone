@@ -156,6 +156,18 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                     var dropped = Enumerable.Range(0, ourTris.Count).Where(t => !valveSet.Contains(ourTris[t])).ToList();
                     var kept = Enumerable.Range(0, ourTris.Count).Where(t => valveSet.Contains(ourTris[t])).OrderBy(Area).Take(5).ToList();
                     output.WriteLine($"    dropped areas {string.Join(", ", dropped.Select(t => Area(t).ToString("R")))}; smallest kept {string.Join(", ", kept.Select(t => $"{t}:{Area(t):R}"))}");
+                    // Vertices within 1e-6 of another (HalfEdge_MergeVertices' tolerance), and
+                    // whether the dropped triangles hold one.
+                    var near = new HashSet<int>();
+                    for (var u = 0; u < p2.Points.Length; u++)
+                        for (var w = u + 1; w < p2.Points.Length; w++)
+                            if (Vector3.DistanceSquared(p2.Points[u], p2.Points[w]) <= 1e-12f)
+                            {
+                                near.Add(u);
+                                near.Add(w);
+                                output.WriteLine($"    coincident {u} {w} at {p2.Points[u]}");
+                            }
+                    output.WriteLine($"    dropped triangles holding a coincident vertex: {dropped.Count(t => near.Contains(p2.Indices[t * 3]) || near.Contains(p2.Indices[t * 3 + 1]) || near.Contains(p2.Indices[t * 3 + 2]))} of {dropped.Count}");
                     for (var t = 0; t < ourTris.Count; t++)
                         if (!valveSet.Contains(ourTris[t]))
                             output.WriteLine($"    ours only tri {t}: {ourTris[t]} indices {p2.Indices[t * 3]},{p2.Indices[t * 3 + 1]},{p2.Indices[t * 3 + 2]}");
