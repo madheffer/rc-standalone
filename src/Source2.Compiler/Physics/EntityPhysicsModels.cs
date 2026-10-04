@@ -15,7 +15,7 @@ namespace Source2.Compiler.Physics;
 /// <para>A class with <c>auto_apply_material</c> metadata (the triggers'
 /// toolstrigger) names that material in every slot, as the settle reads it. A
 /// model is physics only when its class says <c>physics_only_model</c> or every
-/// face's material is <c>mapbuilder.nodraw</c> (atixref: 84 of 144); the others
+/// face's material draws nothing (DrawsNothing; atixref: 84 of 144); the others
 /// carry render meshes, which are not ported. A model with a material the game
 /// cannot find fails to compile and has no file (atixref 26, ze_hold_em_p 8,
 /// every one of them). Mesh-type pieces and the PhysicsTypeOverride base
@@ -133,9 +133,11 @@ public static class EntityPhysicsModels
                 foreach (var (slot, positions, faces, local) in BrushHulls.Pieces(mesh, entity, transformOf: transformOf))
                 {
                     var own = slot < names.Length ? (names[slot] as string ?? "") : "";
-                    if (material(own)?.Ints.GetValueOrDefault("mapbuilder.nodraw") != 1)
-                        physicsOnly = false;
                     var name = applied ?? own;
+                    // The class's applied material is the one that draws or not
+                    // (probe_classes: func_nav_blocker's toolsnavattribute).
+                    if (!DrawsNothing(material(name)))
+                        physicsOnly = false;
                     if (type == BrushHulls.PhysicsType.None)
                         continue;
                     if (type == BrushHulls.PhysicsType.Mesh)
@@ -186,6 +188,25 @@ public static class EntityPhysicsModels
             WorldPhysicsTrees.Red2(model.Physics, surfaceName, model.ClassName), WorldPhysicsTrees.ModelData(model.Path));
 
     // Meshes under a node, depth first in children order.
+
+    /// <summary>
+    /// Whether a material draws nothing, as rc 1812e03a0 decides it: the int
+    /// attributes in order, mapbuilder.nodraw setting the answer to its value
+    /// being non-zero and mapbuilder.occluder OR-ing into it (s2port_tooltags:
+    /// a toolsoccluder func_brush is physics only). A missing material draws.
+    /// </summary>
+    private static bool DrawsNothing(SettleWorld.MaterialInfo? info)
+    {
+        var none = false;
+        foreach (var (key, value) in info?.Ints ?? new Dictionary<string, long>())
+        {
+            if (key == "mapbuilder.nodraw")
+                none = value != 0;
+            if (key == "mapbuilder.occluder")
+                none |= value != 0;
+        }
+        return none;
+    }
     private static IEnumerable<DmxBinary.Element> Meshes(DmxBinary.Element node)
     {
         foreach (var c in node.GetElements("children"))

@@ -73,6 +73,14 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
         {
             var src = doc.Elements.First(e => e.Type == "CMapEntity" && e.GetValue<int>("nodeID")?.ToString() == nodeText);
             foreach (var m in src.GetElements("children").Where(c => c.Type == "CMapMesh"))
+            {
+                var md = m.Get<DmxBinary.Element>("meshData");
+                output.WriteLine($"node mesh {m.GetValue<int>("nodeID")}: physicsType {m.Attributes.GetValueOrDefault("physicsType")}, simplification {m.Attributes.GetValueOrDefault("physicsSimplificationOverride")}/{m.Attributes.GetValueOrDefault("physicsSimplificationError")}"
+                               + $", attributes {string.Join(",", md?.Attributes.Keys.AsEnumerable() ?? [])}");
+                foreach (var piece in Physics.BrushHulls.PiecesWithCorners(m, src))
+                    output.WriteLine($"node mesh {m.GetValue<int>("nodeID")} material {piece.Material}: faces {piece.Faces.Length} sizes {string.Join(",", piece.Faces.GroupBy(f => f.Length).OrderBy(g => g.Key).Select(g => $"{g.Key}x{g.Count()}"))} positions {piece.Positions.Length}");
+            }
+            foreach (var m in src.GetElements("children").Where(c => c.Type == "CMapMesh"))
                 foreach (var mat in (m.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => x as string ?? ""))
                 {
                     var info = content.Material(mat);

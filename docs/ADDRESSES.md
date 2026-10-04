@@ -433,7 +433,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f34460` | `Fgd_HasSpawnflag` | case blind | `src/Source2.Compiler/Maps/FgdSchema.cs:165` |
 | `180f385c0` | `MapNode_SetKeyValue` | (node, key, string); from call sites |  |
 | `180f5ff40` | `MapDoc_CollapseInstance` |  |  |
-| `180f60740` | `MapDoc_BakeInstances` |  | `src/Source2.Compiler/Maps/MapInstances.cs:77` |
+| `180f60740` | `MapDoc_BakeInstances` |  | `src/Source2.Compiler/Maps/MapInstances.cs:75` |
 | `180f741a0` | `CMapNodeDataProvider::vf35` | legacy light description at identity; false for barn/rect/omni2 |  |
 | `180f7aa30` | `CMapNode::vf205` | snapshot path generator |  |
 | `180f8ee20` | `CMapEntity_SnapshotFile` | snapshot_file from snapshot_mesh | `src/Source2.Compiler/Maps/EntityLumpSet.cs:47` |
@@ -784,7 +784,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812c4c40` | `meshopt_generateSoftBoundaries` | cluster ACMR times the threshold | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:8`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:180` |
 | `1812c4f30` | `meshopt_optimizeOverdraw` | stock meshopt; threshold 1.03 from AddDrawDescriptors | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:7` |
 | `1812d9920` | `Mesh_UvDensity` | sqrt(world area / uv area), sorted, index ((n-1)*pct)/100; pct 20 or 95 | `src/Source2.Compiler/Maps/UvDensity.cs:6` |
-| `1812e03a0` | `Material_InputLayout` | the material's input layout lists (0xc4 entries) and its mapbuilder.nodraw/occluder flag; materials/error.vmat when it does not load |  |
+| `1812e03a0` | `Material_InputLayout` | the material's input layout lists (0xc4 entries) and its mapbuilder.nodraw/occluder flag; materials/error.vmat when it does not load | `src/Source2.Compiler/Physics/EntityPhysicsModels.cs:193` |
 | `1812e1ce0` | `CMesh_DuplicateReversed` | double-sided draws: every triangle again with the winding reversed |  |
 | `181365a40` | `CMesh_CreatePackedVB` | vertex buffer written field by field through the packed input layout (181365ce0 per format) |  |
 | `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8` |
