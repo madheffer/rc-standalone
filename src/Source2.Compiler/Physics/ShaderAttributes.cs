@@ -31,8 +31,9 @@ public static class ShaderAttributes
             "refract" => true,
             // csgo_unlitgeneric on S_BLEND_MODE 1 and 3 to 6, all 16 combos of
             // the rest each (2 is alpha test, 0 opaque); measured 1.41.8.8.
-            "csgo_unlitgeneric" => Value("F_BLEND_MODE") is 1 or 3 or 4 or 5 or 6,
-            "csgo_water_fancy" or "csgo_static_overlay" or "csgo_effects" or "grasstile" or "grasstile_preview" or "luminaire"
+            // csgo_static_overlay the same way (measured 1.41.8.8): blend mode 0 is opaque.
+            "csgo_unlitgeneric" or "csgo_static_overlay" => Value("F_BLEND_MODE") is 1 or 3 or 4 or 5 or 6,
+            "csgo_water_fancy" or "csgo_effects" or "grasstile" or "grasstile_preview" or "luminaire"
                 or "csgo_decalmodulate" or "csgo_refract" or "csgo_water" => true,
             _ => false,
         };

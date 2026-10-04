@@ -59,7 +59,9 @@ public sealed class WorldPhysics
 
     /// <param name="surfaceName">A surface's name by hash (the game's surfaceproperties), for a prop's.</param>
     /// <param name="entityModel">A brush entity's model rather than the world's (see AttributeOf).</param>
-    public static WorldPhysics Build(IReadOnlyList<WorldCollision.Piece> pieces, Func<uint, string?>? surfaceName = null, bool entityModel = false)
+    /// <param name="soupInput">Told each soup's RnMeshCreate input (indices, vertices, per-triangle materials), for replays.</param>
+    public static WorldPhysics Build(IReadOnlyList<WorldCollision.Piece> pieces, Func<uint, string?>? surfaceName = null, bool entityModel = false,
+        Action<int[], Vector3[], byte[]?>? soupInput = null)
     {
         var model = new WorldPhysics();
         var ordered = WorldCollision.PartOrder(pieces, p => p.Type);
@@ -126,6 +128,7 @@ public sealed class WorldPhysics
         model.MeshPieces = meshes.Count;
         foreach (var soup in WorldCollision.Group(meshes))
         {
+            soupInput?.Invoke([.. soup.Indices], [.. soup.Vertices], soup.Materials?.ToArray());
             var mesh = RnMeshBuilder.Create([.. soup.Indices], [.. soup.Vertices], soup.Materials?.ToArray());
             if (mesh == null)
                 continue;

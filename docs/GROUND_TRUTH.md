@@ -48,11 +48,15 @@ game can answer is raised with the user first, and runs with -insecure.
     those quads the attribute a translucent material registers. wrongway is
     csgo_unlitgeneric, whose "translucent" is S_BLEND_MODE 1 or 3 to 6
     (ShaderAttributeProbe, all 16 combos of the rest each): ported, 26 of the
-    34 placed. The 8 left are folder-less sign01 quads: the addon-root
-    sign01.vmat_c is csgo_static_overlay (translucent), so Valve's attribute
-    reads that file although physicsbuilder logs the name missing. Reading
-    every folder-less root material overshoots (24 the other way), so which
-    folder-less names the attribute side finds is still to read.
+    34 placed. The other 8 were folder-less sign01 quads: the addon-root
+    sign01.vmat_c is csgo_static_overlay, which is translucent on the same
+    blend modes (our table had it always translucent; tol_hearts01 and
+    rubbledecal001, blend mode 0, are not). With the map builder reading root
+    materials for the collision side (physicsbuilder still logs them missing,
+    so surface and layers stay default) every triangle sits in Valve's soup.
+    Left on the four maps: per-triangle material order inside soup 0 (84,
+    536, 127 values), from the order faces leave RemoveBadFaces in: removal is
+    swap-last (HalfEdge_ContainerRemove 1813995a0), which reorders the export.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index

@@ -98,6 +98,50 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             output.WriteLine("nodeattr face materials: " + string.Join(",", fm.GroupBy(x => x).Select(g => $"{g.Key}x{g.Count()}")));
             return;
         }
+        // WPBUILD_SOUPIN=<capture_rnmesh.py bin>: our first soup's RnMeshCreate input
+        // against Valve's call with as many triangles, triangle by triangle.
+        if (Environment.GetEnvironmentVariable("WPBUILD_SOUPIN") is { Length: > 0 } soupCap)
+        {
+            var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(name, models.Material, models.CollisionProperty),
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty);
+            (int[] I, Vector3[] V, byte[]? M)? first = null;
+            Physics.WorldPhysics.Build(pieces, models.SurfaceName, soupInput: (i, v, m) => first ??= (i, v, m));
+            var (oi, ov, om) = first!.Value;
+            var tris = oi.Length / 3;
+            var data = File.ReadAllBytes(soupCap);
+            for (var at = 0; at < data.Length;)
+            {
+                var headLen = BitConverter.ToInt32(data, at);
+                var head = System.Text.Json.JsonDocument.Parse(data.AsMemory(at + 4, headLen)).RootElement;
+                at += 4 + headLen;
+                var blobLen = BitConverter.ToInt32(data, at);
+                var blob = data.AsSpan(at + 4, blobLen).ToArray();
+                at += 4 + blobLen;
+                if (head.GetProperty("ev").GetString() != "in" || head.GetProperty("tris").GetInt32() != tris)
+                    continue;
+                var vi = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(blob.AsSpan(0, tris * 12)).ToArray();
+                var off = tris * 12;
+                byte[]? vm = null;
+                if (head.GetProperty("hasMaterials").GetBoolean())
+                {
+                    vm = blob.AsSpan(off, tris).ToArray();
+                    off += tris;
+                }
+                var vv = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector3>(blob.AsSpan(off, head.GetProperty("vcount").GetInt32() * 12)).ToArray();
+                output.WriteLine($"soupin: ours {tris} tris {ov.Length} verts, Valve call {head.GetProperty("id")} {vv.Length} verts; vertices same {ov.SequenceEqual(vv)}, indices same {oi.SequenceEqual(vi)}, materials same {(om ?? []).SequenceEqual(vm ?? [])}");
+                var shown3 = 0;
+                for (var t = 0; t < tris && shown3 < 8; t++)
+                {
+                    var same = oi[t * 3] == vi[t * 3] && oi[t * 3 + 1] == vi[t * 3 + 1] && oi[t * 3 + 2] == vi[t * 3 + 2] && (om == null || vm == null || om[t] == vm[t]);
+                    if (same)
+                        continue;
+                    shown3++;
+                    output.WriteLine($"  tri {t}: ours {ov[oi[t * 3]]} {ov[oi[t * 3 + 1]]} {ov[oi[t * 3 + 2]]} mat {om?[t]} | valve {vv[vi[t * 3]]} {vv[vi[t * 3 + 1]]} {vv[vi[t * 3 + 2]]} mat {vm?[t]}");
+                }
+                break;
+            }
+            return;
+        }
         // WPBUILD_SHAPECAP=<capture_physshapes.py json>: the world part's shapes as
         // Valve's gatherer saw them, against our pieces in part order: type,
         // vertex and index counts and the first vertex, the first differences.

@@ -242,16 +242,18 @@ public static class WorldCollision
     /// <c>PhysicsSurfacePropertiesWet</c> set, which is left out.
     /// </summary>
     /// <summary>A world piece's material by name, as physicsbuilder loads it (see below).</summary>
-    // physicsbuilder 1806208d0 looks the name plus "_c" up on the GAME search
-    // path ("illegal resource name" when not found). A name with no folder is
-    // never found there, even with the compiled file at the addon's root (161
-    // such names across the corpus, every one logged missing), so it reads as
-    // a missing material. Entity models load through ModelDoc, which does find
-    // those files (c2m2's prefab func_breakables with plywood_ext_01.vmat are
-    // compiled), so they read the material directly.
+    // A name with no folder is found at the addon's root by the map builder,
+    // which sets the piece's collision side (c2m2_fairgrounds_csgo_multi's
+    // sign01 quads take the translucent csgo_static_overlay's attribute, as
+    // Valve's do), but physicsbuilder's own read (1806208d0, the name plus "_c"
+    // on the GAME search path) logs it missing (161 such names across the
+    // corpus), so its surface and painted layers stay the default's.
     public static MaterialPhysics ReadMaterial(string name, Func<string, Maps.SettleWorld.MaterialInfo?> material,
         Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty, bool shaderTranslucency = true)
-        => ReadMaterial(name.IndexOfAny(['/', '\\']) < 0 ? null : material(name), collisionProperty, shaderTranslucency);
+        => name.IndexOfAny(['/', '\\']) >= 0 ? ReadMaterial(material(name), collisionProperty, shaderTranslucency)
+            : material(name) is { } root
+                ? ReadMaterial(root, collisionProperty, shaderTranslucency) with { SurfaceProperty = "", Blend = null }
+                : MaterialPhysics.Default;
 
     public static MaterialPhysics ReadMaterial(Maps.SettleWorld.MaterialInfo? info, Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty,
         bool shaderTranslucency = true)
