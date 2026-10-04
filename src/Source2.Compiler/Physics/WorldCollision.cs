@@ -241,6 +241,11 @@ public static class WorldCollision
     /// shaders that only matters with a <c>PhysicsSurfaceProperties1</c> or
     /// <c>PhysicsSurfacePropertiesWet</c> set, which is left out.
     /// </summary>
+    /// <summary>A material by name, through <paramref name="material"/>.</summary>
+    public static MaterialPhysics ReadMaterial(string name, Func<string, Maps.SettleWorld.MaterialInfo?> material,
+        Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty, bool shaderTranslucency = true)
+        => ReadMaterial(material(name), collisionProperty, shaderTranslucency);
+
     public static MaterialPhysics ReadMaterial(Maps.SettleWorld.MaterialInfo? info, Func<string, Maps.SettleWorld.CollisionProperty?> collisionProperty,
         bool shaderTranslucency = true)
     {

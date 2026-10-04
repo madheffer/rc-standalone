@@ -43,6 +43,14 @@ game can answer is raised with the user first, and runs with -insecure.
     the rule. Needs a capture of physicsbuilder's input pieces on one of
     these maps (capture_physshapes.py, whose addresses must first be moved
     to the 1.41.8.8 build).
+50. **RED2's surface_prop list when a material is missing** (dkr_m2_carnival_d,
+    _OLLLD, the dkr_m1_motel_d variants): Valve lists "default" where we do
+    not (PHYS identical), and at a place that is neither our piece order nor
+    the surface table's (carnival_d: after tile, before concrete; the
+    folder-less concrete_ext_09.vmat registers it earlier). Listing a
+    missing material's "default" at its piece breaks fairgrounds, so it is
+    not the rule; the list's source and order are to be read (RED2 writer
+    181c24a70 and the shape builder's surface push 180c2ec50).
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index

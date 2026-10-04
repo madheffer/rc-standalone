@@ -21,7 +21,15 @@ public class OutsideCaptureTests(ITestOutputHelper output)
             return;
         var stem = Path.Combine(Path.GetTempPath(), "vis_capture", map + (Environment.GetEnvironmentVariable("OUTSIDECAP_SEED") == "1" ? ".seed.outside" : ".outside"));
         var records = Read(stem + ".bin");
-        var entry = records.First(r => r.Head.GetProperty("ev").GetString() == "regions" && r.Head.GetProperty("when").GetString() == "enter").Blob;
+        // OUTSIDECAP_PASSES=<stem>: capture_merge.py --passes's records (<stem>.bin,
+        // <stem>.merge.rte); its regions are taken as OutsideDetection left them.
+        if (Environment.GetEnvironmentVariable("OUTSIDECAP_PASSES") is { Length: > 0 } passesStem)
+        {
+            var at = Path.Combine(Path.GetTempPath(), "vis_capture", passesStem);
+            records = Read(at + ".bin");
+            stem = at + ".merge";
+        }
+        var entry = records.First(r => r.Head.GetProperty("ev").GetString() == "regions").Blob;
         var status = records.First(r => r.Head.GetProperty("ev").GetString() == "status").Blob;
         // Records with flag bit 1 are skipped by the detection (their status
         // byte is never written); the rest are the regions VisRegions builds.

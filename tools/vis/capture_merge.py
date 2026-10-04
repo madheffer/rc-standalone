@@ -11,6 +11,9 @@ defect, rather than a number several thousand merges downstream of it.
 
   --gen   also record cluster generation's per region merges (padded, many)
   --vis   also dump each set's sampled visibility and initial candidate lists
+  --passes  only the sets entering and leaving each of the five passes ("pass"
+          and "passout" records), no per-merge hooks, and the compile is
+          stopped after the fifth pass (minutes rather than hours)
 
 Addresses come from docs/visbuilder.signatures.json through sigscan, so this
 survives a game update the same way the tests do.
@@ -22,6 +25,7 @@ import json
 import os
 import shutil
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -43,7 +47,7 @@ HOOKED = ["MergeLoop", "CheapestPair", "AbsorbPair", "BuildCandidates",
 AGENT = r"""
 'use strict';
 const RVA = %(rvas)s;
-const GEN = %(gen)s, VIS = %(vis)s;
+const GEN = %(gen)s, VIS = %(vis)s, PASSES = %(passes)s, OUTSIDE = %(outside)d;
 let pass = -1, seq = 0;
 const live = {};   // thread id -> current MergeLoop record
 const known = new Set();   // leaves whose box has been sent
@@ -100,11 +104,8 @@ function hook(m) {
   // Every set the pass is handed, in order: pass 0's is generation and the
   // pre-merge's output, and each later one is the pass before it, so the
   // bucketing can be replayed against the next pass's inputs.
-  Interceptor.attach(at('Regrid'), { onEnter(a) {
-    pass++;
-    const sets = a[1], n = sets.readS32(), base = sets.add(8).readPointer();
-    const scene = a[0].add(0xe8).readPointer();
-    const box = []; for (let k = 0; k < 6; k++) box.push(scene.add(4 + k * 4).readFloat());
+  function dumpSets(sets) {
+    const n = sets.readS32(), base = sets.add(8).readPointer();
     const parts = [];
     let total = 0;
     for (let i = 0; i < n; i++) { const [c, blob] = dumpSet(base.add(i * 0x18)); parts.push([c, blob]); total += 8 + blob.byteLength; }
@@ -114,8 +115,38 @@ function hook(m) {
       dv.setInt32(at2, c, true); dv.setInt32(at2 + 4, blob.byteLength, true); at2 += 8;
       out.set(new Uint8Array(blob), at2); at2 += blob.byteLength;
     }
-    send({ev: 'pass', pass, sets: n, scene: box}, out.buffer);
-  } });
+    return [n, out.buffer];
+  }
+  Interceptor.attach(at('Regrid'), {
+    onEnter(a) {
+      pass++;
+      this.sets = a[1];
+      const scene = a[0].add(0xe8).readPointer();
+      const box = []; for (let k = 0; k < 6; k++) box.push(scene.add(4 + k * 4).readFloat());
+      const [n, buf] = dumpSets(a[1]);
+      send({ev: 'pass', pass, sets: n, scene: box}, buf);
+    },
+    onLeave(ret) {
+      if (!PASSES) return;
+      const [n, buf] = dumpSets(this.sets);
+      send({ev: 'passout', pass, sets: n, ret: ret.toInt32()}, buf);
+      if (pass === 4) send({ev: 'done'});
+    }
+  });
+  if (PASSES) {
+    // The regions and their verdicts as OutsideDetection (180033890) leaves
+    // them, in the same compile as the passes (capture_outside.py's records).
+    Interceptor.attach(m.base.add(OUTSIDE), {
+      onEnter(a) { this.p = a[0]; },
+      onLeave() {
+        const p = this.p, n = p.add(0x40).readS32();
+        send({ev: 'regions', when: 'leave', count: n}, n > 0 ? p.add(0x48).readPointer().readByteArray(n * 16) : null);
+        send({ev: 'status', count: n}, n > 0 ? p.add(0x120).readPointer().readByteArray(n) : null);
+      }
+    });
+    send({ev: 'hooked', base: m.base.toString()});
+    return;
+  }
 
   const origLoop = new NativeFunction(at('MergeLoop'), 'float',
       ['pointer', 'pointer', 'pointer', 'float', 'int', 'int']);
@@ -203,6 +234,7 @@ def main():
     parser.add_argument("--out")
     parser.add_argument("--gen", action="store_true")
     parser.add_argument("--vis", action="store_true")
+    parser.add_argument("--passes", action="store_true")
     args = parser.parse_args()
 
     with open(os.path.join(ROOT, "docs", "visbuilder.signatures.json"), encoding="utf-8") as h:
@@ -214,6 +246,9 @@ def main():
     if missing:
         sys.exit("unresolved: %s -- re-sign before capturing" % ", ".join(missing))
     rvas = {n: int(rows[n]["now"], 16) - IMAGE_BASE for n in HOOKED}
+    sys.path.insert(0, os.path.join(ROOT, "tools", "re"))
+    from rva_map import installed
+    outside = installed("visbuilder", 0x33890)
 
     out_path = args.out or os.path.join(
         os.environ.get("TEMP", "."), "vis_capture", "%s.bin" % args.map)
@@ -221,6 +256,7 @@ def main():
     out = open(out_path, "wb")
     lock = threading.Lock()
     stats = {"in": 0, "out": 0, "vis": 0, "merges": 0}
+    running = {}
 
     def on_message(message, data):
         if message["type"] != "send":
@@ -235,6 +271,9 @@ def main():
         stats[ev] = stats.get(ev, 0) + 1
         if ev == "out":
             stats["merges"] += sum(1 for m in payload["merges"] if m[0] == "a")
+        if ev == "done" and "pid" in running:
+            # --passes: the five passes are in; the rest of the build is not needed.
+            subprocess.run(["taskkill", "/F", "/PID", str(running["pid"])], capture_output=True)
         head = json.dumps(payload).encode()
         blob = data or b""
         with lock:
@@ -251,9 +290,11 @@ def main():
 
     device = frida.get_local_device()
     pid = device.spawn(argv, cwd=BIN, stdio="pipe")
+    running["pid"] = pid
     session = device.attach(pid)
     script = session.create_script(AGENT % {
-        "rvas": json.dumps(rvas), "gen": str(args.gen).lower(), "vis": str(args.vis).lower()})
+        "rvas": json.dumps(rvas), "gen": str(args.gen).lower(), "vis": str(args.vis).lower(),
+        "passes": str(args.passes).lower(), "outside": outside})
     script.on("message", on_message)
     script.load()
 
