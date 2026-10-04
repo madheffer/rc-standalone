@@ -156,6 +156,9 @@ public static partial class EntityLumpAuthor
     {
         var (schema, worldName, fixupEntityNames, entityNames) = context;
         var values = KVObject.Collection();
+        // The prefix names take: [PR#] when the map asks for fixup, and [PR#]
+        // with the prefab's own "<id>_" inside a prefab that asks for it.
+        var fixup = entity.NamePrefix is { } own ? NameFixup + own : fixupEntityNames ? NameFixup : null;
 
         // worldspawn's exporter writes the compile's id before any key
         // (FUN_180fc1560); every other entity writes it after them (FUN_181004020).
@@ -200,9 +203,9 @@ public static partial class EntityLumpAuthor
                 continue;
             }
             values.Add(key, declared is not null
-                ? Typed(declared, text, fixupEntityNames, schema)
+                ? Typed(declared, text, fixup, schema)
                 : key.EqualsAscii("targetname")
-                    ? new KVObject(Fixup(text, fixupEntityNames, schema))
+                    ? new KVObject(Fixup(text, fixup, schema))
                     : new KVObject(text));
         }
 
@@ -237,7 +240,7 @@ public static partial class EntityLumpAuthor
         // "ImpModel" maps/cardtest/entities/impmodel_2138.vmdl.
         if (entity.HasGeometry && worldName is { Length: > 0 })
         {
-            var model = new KVObject(BrushModelPath(entity, worldName));
+            var model = new KVObject(BrushModelPath(entity, worldName, fixup, schema));
             model.Flag = KVFlag.ResourceName;
             values.Add("model", model);
         }
@@ -271,7 +274,7 @@ public static partial class EntityLumpAuthor
         keyValues.Add("attributes", KVObject.Collection());
 
         var result = KVObject.Collection();
-        result.Add("m_connections", Connections(entity, fixupEntityNames, entityNames, schema));
+        result.Add("m_connections", Connections(entity, fixup, entityNames, schema));
         result.Add("m_keyValuesData", KVObject.Blob([]));
         result.Add("keyValues3Data", keyValues);
         return result;
@@ -286,10 +289,13 @@ public static partial class EntityLumpAuthor
     /// or when it is the name of an FGD class, looked up case-blind: a key that
     /// names a class names no entity.</para>
     /// </summary>
-    private static string Fixup(string name, bool enabled, FgdSchema? schema)
-        => enabled && name.Length > 0 && name[0] is not ('!' or '*' or '?' or '@')
+    /// <summary>A name as the fixup leaves it with the given prefix (null: none).</summary>
+    public static string FixedName(string name, string? prefix, FgdSchema? schema) => Fixup(name, prefix, schema);
+
+    private static string Fixup(string name, string? prefix, FgdSchema? schema)
+        => prefix != null && name.Length > 0 && name[0] is not ('!' or '*' or '?' or '@')
            && schema?.HasClass(name) != true
-            ? NameFixup + name
+            ? prefix + name
             : name;
 
     /// <summary>
@@ -317,7 +323,7 @@ public static partial class EntityLumpAuthor
     /// float widened to double, the fire count as an int32 (so -1 is Int32 and 1
     /// the KV3 one), and an empty parameter map written as null.
     /// </summary>
-    private static KVObject Connections(MapEntities.Entity entity, bool fixupEntityNames,
+    private static KVObject Connections(MapEntities.Entity entity, string? fixup,
                                         IReadOnlySet<string> entityNames, FgdSchema? schema)
     {
         var array = KVObject.Array();
@@ -326,10 +332,10 @@ public static partial class EntityLumpAuthor
             var o = KVObject.Collection();
             o.Add("m_outputName", new KVObject(c.OutputName));
             o.Add("m_targetType", new KVObject(TargetByName));
-            o.Add("m_targetName", new KVObject(Fixup(c.TargetName, fixupEntityNames, schema)));
+            o.Add("m_targetName", new KVObject(Fixup(c.TargetName, fixup, schema)));
             o.Add("m_inputName", new KVObject(c.InputName));
             o.Add("m_overrideParam", new KVObject(
-                entityNames.Contains(c.OverrideParam) ? Fixup(c.OverrideParam, fixupEntityNames, schema) : c.OverrideParam));
+                entityNames.Contains(c.OverrideParam) ? Fixup(c.OverrideParam, fixup, schema) : c.OverrideParam));
             o.Add("m_flDelay", new KVObject((double)c.Delay));
             o.Add("m_nTimesToFire", Integer(c.TimesToFire));
             o.Add("m_paramMap", KVObject.Null());
@@ -568,8 +574,9 @@ public static partial class EntityLumpAuthor
     /// <c>maps/&lt;map&gt;/entities/&lt;name&gt;_&lt;node&gt;.vmdl</c>, the name lowercased,
     /// and <c>unnamed</c> when the entity has none.
     /// </summary>
-    private static string BrushModelPath(MapEntities.Entity entity, string worldName)
-        => BrushModelPath(entity.Keys.FirstOrDefault(k => k.Key.EqualsAscii("targetname")).Value, entity.IdPath.Replace(':', '_'), worldName);
+    private static string BrushModelPath(MapEntities.Entity entity, string worldName, string? fixup, FgdSchema? schema)
+        => BrushModelPath(Fixup(entity.Keys.FirstOrDefault(k => k.Key.EqualsAscii("targetname")).Value ?? "", fixup, schema),
+                          entity.IdPath.Replace(':', '_'), worldName);
 
     /// <summary>
     /// The model path rc's late entity export (180240a60) gives a brush entity:
@@ -713,14 +720,14 @@ public static partial class EntityLumpAuthor
     /// writer converts it (FUN_180fa84e0). Every case turns an empty or bad value
     /// into its zero rather than keeping the text.
     /// </summary>
-    private static KVObject Typed(FgdSchema.Key key, string text, bool fixupEntityNames, FgdSchema? schema)
+    private static KVObject Typed(FgdSchema.Key key, string text, string? fixup, FgdSchema? schema)
         => key.Type switch
         {
             // A map with entity-name fixup on has every NAME and every reference to
             // one rewritten by the compile. RC does it by TYPE, not by meaning: a
             // light_environment's ambient_occlusion_proxy_position_0 is declared
             // target_destination and holds "0 0 0", and ships as "[PR#]0 0 0".
-            FgdSchema.FieldType.EntityName => new KVObject(TakesFixup(key) ? Fixup(text, fixupEntityNames, schema) : text),
+            FgdSchema.FieldType.EntityName => new KVObject(TakesFixup(key) ? Fixup(text, fixup, schema) : text),
             FgdSchema.FieldType.Boolean
                 => new KVObject(text.EqualsAscii("true") || CNumbers.Atoi(text) != 0),
             // V_atoi, so a decimal is truncated: one of atixref's fifteen func_door

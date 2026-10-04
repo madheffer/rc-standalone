@@ -80,6 +80,34 @@ public class VisRayReplay(ITestOutputHelper output)
                                    + (rte.SegmentBruteForce(o, end, VisSeed.Ignored) is { } bf ? $" | brute tri {bf.Triangle} dist {bf.Distance:R}" : " | brute miss"));
             }
             output.WriteLine($"centre {V(recs, 0)}: {same}/{n} rays agree");
+            // The record TallyRays leaves (distance, flags) against our sampler's
+            // own segment (VisClusterSample.Ray; NaN reach marks our miss).
+            int tallySame = 0, tallyShown = 0;
+            for (var i = 0; i < n; i++)
+            {
+                var o = V(recs, i * 0x20);
+                var d = V(recs, i * 0x20 + 12);
+                var dist = BitConverter.ToSingle(recs, i * 0x20 + 0x18);
+                var flags = recs[i * 0x20 + 0x1e];
+                var segment = VisClusterSample.Ray(rte, o, d, float.NaN);
+                var oursHit = !float.IsNaN(segment.X);
+                var oursT = oursHit ? segment.Length() : float.NaN;
+                var valveHit = (flags & 1) != 0;
+                if (oursHit == valveHit && (!oursHit || MathF.Abs(oursT - dist) < 1e-3f * MathF.Max(1f, dist)))
+                {
+                    tallySame++;
+                    continue;
+                }
+                if (tallyShown++ < 8)
+                {
+                    var far = new Vector3((RayTraceEnvironment.MaxCoord * d.X) + o.X, (RayTraceEnvironment.MaxCoord * d.Y) + o.Y, (RayTraceEnvironment.MaxCoord * d.Z) + o.Z);
+                    var raw = rte.Segment(o, far, VisSeed.Ignored);
+                    var rawHit = BitConverter.ToUInt32(hits, i * 0x38 + 0xc);
+                    output.WriteLine($"  tally ray {i} dir {d:R}: valve flags {flags:x} dist {dist:R} raw tri {rawHit:x} | ours {(oursHit ? $"hit {oursT:R}" : "miss")}"
+                                   + (raw is { } r ? $" tri {r.Triangle} rawflags {rte.RawFlags(r.Triangle):x} flags {rte.Flags(r.Triangle):x} n {r.Normal} n.d {Vector3.Dot(r.Normal, d):R}" : ""));
+                }
+            }
+            output.WriteLine($"  tally records agree {tallySame}/{n}");
             if (n == VisClusterSample.SphereDirections)
             {
                 var exact = Enumerable.Range(0, n).Count(i => V(recs, i * 0x20 + 12) == VisClusterSample.Sphere[i]);

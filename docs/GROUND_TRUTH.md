@@ -331,6 +331,21 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ## Resolved
 
+- **The merge sampler's rays** (settled 2026-10-05 by capture,
+  capture_merge.py --vis-n --rays on atixref, VisMergeReplay and
+  VisRayReplay RAYS_MERGE): CastRayGrid (18004a690) files a cluster's rays
+  into the batch tracer together, so coplanar back-to-back faces tie as the
+  packets decide; the scalar trace picked the other face, and TallyRays'
+  facing test (18004bae0) then kept a hit Valve drops. With the batch
+  (VisClusterSample.Rays, sharing the seed's NoDrawSecondLook) all five merge
+  passes on atixref are exact (pass 5: 30,185 clusters).
+- **Prefab name fixup** (2026-10-05, dkr_m2_carnival_d against Valve's
+  lump): a prefab with fixupEntityNames gives its contents' names and name
+  references "[PR#]<prefab node id>_" where the map-level fixup gives
+  "[PR#]" (the prefab has no targetName and useTargetNameAsPrefix off; the
+  targetName prefix and nested fixup prefabs are not measured and throw).
+  Carnival's lump: 0 unexplained (light keys only); its 44 entity models exact.
+
 - **RED2's surface_prop list** (ledger 50, settled 2026-10-05 by capture,
   tools/physics/capture_surfaceprops.py on dkr_m2_carnival_d). The list is
   CompilePhysics' symbol table at +0x458, filled at 18032ebd0 from each

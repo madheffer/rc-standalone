@@ -1393,7 +1393,7 @@ VISBUILDER = [
     ("18004b9b0", "SeedDecide", VIS, "the seed: inside, outside or undecided for one region box"),
     ("18004c9d0", "GatherRays", VIS, "both directions per grid cell, half = max - centre, normalise (yy + zz) + xx times 1/len, segments to MaxCoord * d + centre through BatchRay (mask 0x811), FlushBatch, NoDrawSecondLook, then tallies; ported (VisSeed.Gather)"),
     ("18004bd50", "CastRayGrid", VIS, "the ray hits for one origin and direction set; 0x20-byte hit records"),
-    ("18004bae0", "TallyRays", VIS, ""),
+    ("18004bae0", "TallyRays", VIS, "per ray: a hit the centre sees from behind is cleared (FLT_MAX), else recorded; the hits come from the batch tracer (VisClusterSample.Rays)"),
     ("18004d1a0", "NoDrawSecondLook", VIS, "rays whose hit has flags & 0x1030 == 0x20 cast again through the batch tracer (0x831); replaced when facing and ordinary"),
     ("18002f5d0", "ClassifyRegion", VIS, "second pass: centre outside the tracer's bounds (sampler +0xe8) is outside; else GatherRays again and MarchRay each facing record to max(t - 8, 0.1); inside when votes > 2n or (> n and outside < 5)"),
     ("18010a460", "DistanceToBox", VIS, "per axis the sum of both overhangs, sqrt((dz dz + dy dy) + dx dx)"),

@@ -185,8 +185,8 @@ public static class VisSeed
     /// tracer with nodraw ignored (0x831), and the new hit replaces the first
     /// when the centre faces it and it is an ordinary surface.
     /// </summary>
-    private static void SecondLook(RayTraceEnvironment scene, Vector3 centre, List<Vector3> directions,
-                                   List<(Vector3, Vector3)> segments, RayTraceEnvironment.Hit?[] hits)
+    internal static void SecondLook(RayTraceEnvironment scene, Vector3 centre, IReadOnlyList<Vector3> directions,
+                                    IReadOnlyList<(Vector3, Vector3)> segments, RayTraceEnvironment.Hit?[] hits)
     {
         var again = new List<int>();
         for (var i = 0; i < hits.Length; i++)

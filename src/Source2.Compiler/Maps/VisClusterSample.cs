@@ -170,13 +170,16 @@ public static class VisClusterSample
             var reached = new List<int>();
             var from = centres[i];
             var aimed = sphere ? Sphere.Length : centres.Length;
+            // Below the sphere switch 180032fa0 aims at EVERY entry, itself
+            // included: the self ray has no direction, meets nothing, and
+            // walks a segment of zero length from the centre.
+            var directions = new Vector3[aimed];
+            for (var j = 0; j < aimed; j++)
+                directions[j] = sphere ? Sphere[j] : Direction(centres[j] - from);
+            var segments = Rays(scene, from, directions, reach);
             for (var j = 0; j < aimed; j++)
             {
-                // Below the sphere switch 180032fa0 aims at EVERY entry, itself
-                // included: the self ray has no direction, meets nothing, and
-                // walks a segment of zero length from the centre.
-                var direction = sphere ? Sphere[j] : Direction(centres[j] - from);
-                var segment = Ray(scene, from, direction, reach);
+                var segment = segments[j];
                 var to = new Vector3(segment.X + from.X, segment.Y + from.Y, segment.Z + from.Z);
                 reached.Clear();
                 index.Crossed(from, to, reached);
@@ -230,6 +233,39 @@ public static class VisClusterSample
             hit = null;
         var t = hit?.Distance ?? reach;
         return new Vector3(((t * d.X) + o.X) - o.X, ((t * d.Y) + o.Y) - o.Y, ((t * d.Z) + o.Z) - o.Z);
+    }
+
+    /// <summary>
+    /// One cluster's rays as the walk is handed them. CastRayGrid (18004a690)
+    /// files all of them into the batch tracer at once, so packets and ties
+    /// fall as Valve's do (coplanar back-to-back faces: atixref's pass 0, 19
+    /// clusters saw less through the scalar trace); NoDrawSecondLook
+    /// (18004b970) and TallyRays (18004bae0) then work on the batch.
+    /// </summary>
+    public static Vector3[] Rays(RayTraceEnvironment scene, Vector3 o, IReadOnlyList<Vector3> directions, float reach)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(directions);
+        var far = RayTraceEnvironment.MaxCoord;
+        var segments = new (Vector3 From, Vector3 To)[directions.Count];
+        for (var j = 0; j < directions.Count; j++)
+        {
+            var d = directions[j];
+            segments[j] = (o, new Vector3((far * d.X) + o.X, (far * d.Y) + o.Y, (far * d.Z) + o.Z));
+        }
+        var hits = scene.Segments(segments, VisSeed.Ignored);
+        VisSeed.SecondLook(scene, o, directions, segments, hits);
+        var found = new Vector3[directions.Count];
+        for (var j = 0; j < directions.Count; j++)
+        {
+            var d = directions[j];
+            var hit = hits[j];
+            if (hit is { } h && Facing(h, o, d) < 0f)
+                hit = null;
+            var t = hit?.Distance ?? reach;
+            found[j] = new Vector3(((t * d.X) + o.X) - o.X, ((t * d.Y) + o.Y) - o.Y, ((t * d.Z) + o.Z) - o.Z);
+        }
+        return found;
     }
 
     // dot(n, centre) - dot(n, landed), each summed z, y, x as TallyRays does.

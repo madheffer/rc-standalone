@@ -136,7 +136,7 @@
    "addr": "18004bae0",
    "name": "TallyRays",
    "module": "s2c:visibility",
-   "note": ""
+   "note": "per ray: a hit the centre sees from behind is cleared (FLT_MAX), else recorded; the hits come from the batch tracer (VisClusterSample.Rays)"
   },
   {
    "addr": "18004d1a0",

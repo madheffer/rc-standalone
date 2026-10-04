@@ -94,6 +94,23 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         Check(map, source, valve);
     }
 
+    /// <summary>Any map against a compiled package: <c>LUMPMAP=&lt;addon&gt;|&lt;map&gt;|&lt;vpk&gt;</c>.</summary>
+    [Fact]
+    public void AnyMap_DiffersOnlyInTheDocumentedGaps()
+    {
+        if (Environment.GetEnvironmentVariable("LUMPMAP") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var source = MapFixtures.VmapSource(p[0], p[1]);
+        Assert.True(source is not null && File.Exists(p[2]), $"no source or package for {spec}");
+        using var pkg = new ValvePak.Package();
+        pkg.Read(p[2]);
+        var valve = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+            valve[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
+        Check(p[1], source!, valve);
+    }
+
     private void Check(string map, string source, IReadOnlyDictionary<string, byte[]> valve)
     {
         var document = DmxBinary.ReadFile(source);

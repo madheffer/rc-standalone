@@ -110,7 +110,11 @@ public static class EntityPhysicsModels
             var props = entity.Get<DmxBinary.Element>("entity_properties");
             var className = props?.Get<string>("classname") ?? "";
             var targetName = props?.Get<string>("targetname") ?? "";
-            var path = EntityLumpAuthor.BrushModelPath(targetName, idPath, mapName);
+            // Inside a prefab with fixupEntityNames the name the path is built from
+            // is the fixed-up one, "[PR#]<prefab id>_<name>" (MapEntities.Walk).
+            var fixup = prefabs.FirstOrDefault(p => p.GetValue<bool>("fixupEntityNames") == true) is { } fixing
+                ? "[PR#]" + (fixing.GetValue<int>("nodeID") ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" : null;
+            var path = EntityLumpAuthor.BrushModelPath(EntityLumpAuthor.FixedName(targetName, fixup, schema), idPath, mapName);
             var pieces = new List<WorldCollision.Piece>();
             var physicsOnly = true;
             var applied = schema?.MetadataOf(className, "auto_apply_material") is { Length: > 0 } a ? a : null;

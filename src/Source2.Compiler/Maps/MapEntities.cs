@@ -65,6 +65,14 @@ public static class MapEntities
         /// (<see cref="Maps.MapPrefabs"/>); empty for a node of the map's own.</summary>
         public int[] Prefabs { get; init; } = [];
 
+        /// <summary>
+        /// The name prefix a prefab with fixupEntityNames gives its contents,
+        /// "&lt;prefab node id&gt;_" (dkr_m2_carnival_d's prefab 10665: Valve's lump
+        /// names [PR#]10665_carousel_gate_door), written after the [PR#] marker;
+        /// null outside such a prefab.
+        /// </summary>
+        public string? NamePrefix { get; init; }
+
         /// <summary>The node's id path as the compile formats it (NodeIdPath_Format):
         /// the prefab ids, then the node's own, joined by ':'.</summary>
         public string IdPath => Prefabs.Length == 0
@@ -116,13 +124,13 @@ public static class MapEntities
         var entities = new List<Entity>();
         if (Read(world, isWorld: true) is { } worldspawn)
             entities.Add(Upgrade(worldspawn, document.FormatVersion));
-        Walk(world, entities, new HashSet<DmxBinary.Element>(), null, new Prefab([], [], HiddenNodes(document), false));
+        Walk(world, entities, new HashSet<DmxBinary.Element>(), null, new Prefab([], [], HiddenNodes(document), false, null));
         return entities;
     }
 
     /// <summary>Where a walk stands in prefabs: the prefab ids and elements outside it,
     /// the hidden node ids of the map being walked, and whether a hidden node encloses it.</summary>
-    private sealed record Prefab(int[] Ids, DmxBinary.Element[] Chain, HashSet<int> Hidden, bool Enclosed);
+    private sealed record Prefab(int[] Ids, DmxBinary.Element[] Chain, HashSet<int> Hidden, bool Enclosed, string? NamePrefix);
 
     /// <summary>
     /// The map loader's upgrade for files saved before vmap 38 (FUN_180d7c3f0,
@@ -208,7 +216,7 @@ public static class MapEntities
             var id = child.GetValue<int>("nodeID") ?? int.MinValue;
             if (GameKeyBearer.Contains(child.Type) && Read(child, isWorld: false) is { } entity)
             {
-                entity = entity with { Layer = layer, Hidden = prefab.Enclosed || prefab.Hidden.Contains(id), Prefabs = prefab.Ids };
+                entity = entity with { Layer = layer, Hidden = prefab.Enclosed || prefab.Hidden.Contains(id), Prefabs = prefab.Ids, NamePrefix = prefab.NamePrefix };
                 // A node of a prefab's map is placed as the prefab moves it.
                 if (prefab.Chain.Length > 0)
                 {
@@ -225,8 +233,19 @@ public static class MapEntities
             // A prefab's map is walked where the prefab stands (MapPrefabs).
             if (child.Type is "CMapPrefab" && child.Get<DmxBinary.Element>(Maps.MapPrefabs.WorldKey) is { } prefabWorld)
             {
+                // fixupEntityNames prefixes the contents' names with the prefab's
+                // node id (captured on carnival_d, where the prefab has no
+                // targetName and useTargetNameAsPrefix off). A targetName prefix
+                // and a fixup prefab inside another are not measured.
+                var namePrefix = prefab.NamePrefix;
                 if (child.GetValue<bool>("fixupEntityNames") == true)
-                    throw new NotSupportedException($"prefab {id}: fixupEntityNames (the prefab's name prefix) is not ported");
+                {
+                    if (child.GetValue<bool>("useTargetNameAsPrefix") == true && !string.IsNullOrEmpty(child.Get<string>("targetName")))
+                        throw new NotSupportedException($"prefab {id}: useTargetNameAsPrefix is not measured");
+                    if (namePrefix != null)
+                        throw new NotSupportedException($"prefab {id}: a fixup prefab inside another is not measured");
+                    namePrefix = id.ToString(CultureInfo.InvariantCulture) + "_";
+                }
                 // The compile numbers one node ahead of the prefab's contents
                 // (s2c_prefabprobe: 108:3 is compile_source_id 14 after the map's
                 // own 13); taken here as the prefab map's world, walked and never
@@ -235,7 +254,7 @@ public static class MapEntities
                     entities.Add(nested with { Layer = layer, Hidden = true, Prefabs = [.. prefab.Ids, id] });
                 Walk(prefabWorld, entities, seen, layer,
                      new Prefab([.. prefab.Ids, id], [.. prefab.Chain, child],
-                                child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed || prefab.Hidden.Contains(id)));
+                                child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed || prefab.Hidden.Contains(id), namePrefix));
                 continue;
             }
             Walk(child, entities, seen,
