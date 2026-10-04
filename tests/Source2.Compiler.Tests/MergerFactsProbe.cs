@@ -81,7 +81,9 @@ public class MaterialFlagsProbe(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("MATFLAGS") is not { } material || CS2Fixtures.StockPak() is not { } pak)
             return;
         var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
-        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", "s2c_rc_probe"));
+        var addon = material.Contains('|') ? material.Split('|')[0] : "s2c_rc_probe";
+        material = material.Contains('|') ? material.Split('|')[1] : material;
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
         using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
         var info = content.Material(material);
         output.WriteLine(info is null ? "not found" : $"shader {info.Shader}");
@@ -147,14 +149,17 @@ public class PrefabLightProbe(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("PREFABLIGHT") is not { } spec || CS2Fixtures.StockPak() is not { } pak)
             return;
         var p = spec.Split('|');
-        var source = MapFixtures.VmapSource("s2c_rc_probe", p[0])!;
+        if (p.Length == 2)
+            p = ["s2c_rc_probe", p[0], p[1]];
+        var source = MapFixtures.VmapSource(p[0], p[1])!;
         var document = MapSource.Read(source);
+        p = [p[1], p[2]];
         var schema = MapFixtures.GameSchema();
         var light = MapEntities.From(document).First(e => e.IdPath == p[1]);
         var table = EntityLumpAuthor.KeyTable(light, schema);
         string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
         var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
-        using var models = new SettleBuildTests.PakModels(pak, Path.Combine(game, "csgo_addons", "s2c_rc_probe"));
+        using var models = new SettleBuildTests.PakModels(pak, Path.Combine(game, "csgo_addons", Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(source)))!));
         ushort Flags(string m) => TraceScene.MaterialFlags(models.Material(m));
         var (meshes, entities) = MapMeshes.ReadWithEntities(document);
         var variants = new (string Name, Func<MapMeshes.Mesh, bool> Mesh, Func<MapMeshes.EntityNode, bool> Prop)[]
@@ -166,14 +171,29 @@ public class PrefabLightProbe(ITestOutputHelper output)
             ("no prefab instance meshes or props", m => !(m.PrefabChain.Count > 0 && m.Through.Count > 0), n => !(n.PrefabChain.Count > 0 && n.Through.Count > 0)),
             ("no hidden-free prefab meshes", m => m.PrefabChain.Count == 0, _ => true),
             ("prefab only", m => m.PrefabChain.Count > 0, n => n.PrefabChain.Count > 0),
+            ("no layer-child meshes", m => m.ParentType != "CMapWorldLayer", _ => true),
             ("prefab meshes only, all props", m => m.PrefabChain.Count > 0, _ => true),
         };
+        // Each prefab's own map world, unmoved (prefab-local), as a second copy.
+        var extraMeshes = new List<MapMeshes.Mesh>();
+        var extraProps = new List<MapMeshes.EntityNode>();
+        foreach (var prefab in document.OfType("CMapPrefab"))
+            if (prefab.Attributes.GetValueOrDefault(MapPrefabs.DocumentKey) is DmxBinary.Document loaded)
+            {
+                var (m2, e2) = MapMeshes.ReadWithEntities(loaded);
+                extraMeshes.AddRange(m2);
+                extraProps.AddRange(e2);
+            }
+        output.WriteLine($"prefab-local copy: {extraMeshes.Count} meshes, {extraProps.Count} entity nodes");
+        variants = [.. variants, ("plus prefab-local copy", _ => true, _ => true)];
         foreach (var (name, meshOk, propOk) in variants)
         {
-            var scene = new EditorTraceScene([.. EditorTraceScene.MapMeshInstances(meshes.Where(meshOk), Flags),
-                                              .. EditorTraceScene.StaticPropInstances(entities.Where(propOk), models, Flags)]);
+            var plus = name == "plus prefab-local copy";
+            var scene = new EditorTraceScene([.. EditorTraceScene.MapMeshInstances(meshes.Where(meshOk).Concat(plus ? extraMeshes : []), Flags),
+                                              .. EditorTraceScene.StaticPropInstances(entities.Where(propOk).Concat(plus ? extraProps : []), models, Flags)]);
             var keys = LightPrecompute.Keys(light.ClassName, Key, LightPrecompute.World(light.Origin, light.Angles), scene);
-            output.WriteLine($"{name}: " + string.Join("; ", keys.Where(k => k.Key.EndsWith('3')).Select(k => $"{k.Key}={k.Value}")));
+            var face = Environment.GetEnvironmentVariable("PREFABLIGHT_FACE") ?? "3";
+            output.WriteLine($"{name}: " + string.Join("; ", keys.Where(k => k.Key.EndsWith(face)).Select(k => $"{k.Key}={k.Value}")));
         }
     }
 }
@@ -187,8 +207,10 @@ public class MeshFacesProbe(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("MESHFACES") is not { } spec)
             return;
         var p = spec.Split('|');
-        var document = MapSource.Read(MapFixtures.VmapSource("s2c_rc_probe", p[0])!);
-        foreach (var mesh in MapMeshes.Read(document).Where(m => m.NodeId == int.Parse(p[1])))
+        if (p.Length == 2)
+            p = ["s2c_rc_probe", p[0], p[1]];
+        var document = MapSource.Read(MapFixtures.VmapSource(p[0], p[1])!);
+        foreach (var mesh in MapMeshes.Read(document).Where(m => m.NodeId == int.Parse(p[2])))
         {
             var node = mesh.Element!;
             output.WriteLine($"mesh {mesh.NodeId}: parent {mesh.ParentType}, through {mesh.Through.Count}, prefabs {mesh.PrefabChain.Count}, hidden {mesh.Hidden}, disableShadows {node.GetValue<int>("disableShadows")}");
@@ -198,6 +220,41 @@ public class MeshFacesProbe(ITestOutputHelper output)
                 output.WriteLine($"  {kv.Key} = {kv.Value}");
             var materials = data?.Get<object?[]>("materials") ?? [];
             output.WriteLine($"  materials: {string.Join(", ", materials)}");
+            object?[] Stream(string group, string name) => data?.Get<DmxBinary.Element>(group)?.GetElements("streams")
+                .FirstOrDefault(st => st.Name.StartsWith(name + ":", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [];
+            var mi = Stream("faceData", "materialindex");
+            var ff = Stream("faceData", "flags");
+            output.WriteLine($"  faces {mi.Length}: by material {string.Join(", ", mi.GroupBy(x => x).Select(g => $"{g.Key}x{g.Count()}"))}; flags {string.Join(", ", ff.GroupBy(x => x).Select(g => $"{g.Key}x{g.Count()}"))}");
+            output.WriteLine($"  subdivision {data?.Get<DmxBinary.Element>("subdivisionData") is not null}, streams: {string.Join(" ", data?.Attributes.Keys.ToArray() ?? [])}");
+            if (data?.Get<DmxBinary.Element>("subdivisionData") is { } sd)
+            {
+                output.WriteLine($"  subdivision attributes: {string.Join(" ", sd.Attributes.Keys)}");
+                output.WriteLine($"  levels: {string.Join(" ", sd.Get<object?[]>("subdivisionLevels") ?? [])}");
+            }
+            var (corners, faces) = MeshTessellation.RayScene(data!);
+            output.WriteLine($"  ray scene triangles {faces.Count}");
+            for (var t = 0; t < faces.Count; t++)
+                output.WriteLine($"    tri {t} face {faces[t]}: {corners[3 * t]} {corners[3 * t + 1]} {corners[3 * t + 2]}");
+            var edgeVertex = data!.Get<object?[]>("edgeVertexIndices") ?? [];
+            var edgeNext = data.Get<object?[]>("edgeNextIndices") ?? [];
+            var faceEdge = data.Get<object?[]>("faceEdgeIndices") ?? [];
+            object?[] VStream(string name) => data.Get<DmxBinary.Element>("vertexData")?.GetElements("streams")
+                .FirstOrDefault(st => st.Name.StartsWith(name + ":", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [];
+            var pos = VStream("position");
+            var vdi = data.Get<object?[]>("vertexDataIndices") ?? [];
+            for (var f = 0; f < faceEdge.Length; f++)
+            {
+                var e0 = (int)faceEdge[f]!;
+                var e = e0;
+                var loop = new List<string>();
+                do
+                {
+                    var v = (int)edgeVertex[e]!;
+                    loop.Add($"{pos[(int)vdi[v]!]}");
+                    e = (int)edgeNext[e]!;
+                } while (e != e0 && loop.Count < 100);
+                output.WriteLine($"  face {f} loop ({loop.Count}): {string.Join(" ", loop)}");
+            }
         }
     }
 }
@@ -241,5 +298,60 @@ public class ShaderDefaultsProbe(ITestOutputHelper output)
             foreach (var v in program.VariableDescriptions.Where(v => parts[1].Split(',').Any(w => v.Name.Contains(w, StringComparison.OrdinalIgnoreCase))))
                 output.WriteLine($"{shader} {v.Name} {v.VfxType} i[{string.Join(",", v.IntDefs)}] f[{string.Join(",", v.FloatDefs)}] src {v.VariableSource}");
         }
+    }
+}
+
+/// <summary>Exploration (<c>MATFLAGS_CAPTURE=&lt;capture_matflags jsonl&gt;|&lt;addon&gt;</c>): every captured material's flag word against TraceScene.MaterialFlags.</summary>
+public class MaterialFlagsCaptureProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void AgainstCapture()
+    {
+        if (Environment.GetEnvironmentVariable("MATFLAGS_CAPTURE") is not { } spec || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var p = spec.Split('|');
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", p[1]));
+        var valve = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
+        foreach (var line in File.ReadLines(p[0]))
+        {
+            using var d = System.Text.Json.JsonDocument.Parse(line);
+            if (!d.RootElement.TryGetProperty("name", out var n) || n.GetString() is not { } name)
+                continue;
+            if (!valve.TryGetValue(name, out var set))
+                valve[name] = set = [];
+            set.Add(d.RootElement.GetProperty("flags").GetInt32());
+        }
+        int same = 0, differ = 0;
+        foreach (var (name, flags) in valve.OrderBy(kv => kv.Key))
+        {
+            var ours = TraceScene.MaterialFlags(content.Material(name));
+            // The array is stored once before the material loads (0) and once after.
+            var loaded = flags.Where(f => f != 0).DefaultIfEmpty(0).Max();
+            if (flags.Contains(ours) && (ours == loaded || flags.Count == 1))
+                same++;
+            else
+            {
+                differ++;
+                output.WriteLine($"{name}: valve {string.Join(",", flags.Select(f => $"0x{f:x}"))}, ours 0x{ours:x}");
+            }
+        }
+        output.WriteLine($"materials {valve.Count}: {same} same, {differ} differ");
+    }
+}
+
+/// <summary>Exploration (<c>NODETYPE=&lt;addon&gt;|&lt;map&gt;|&lt;element type&gt;</c>): every element of a type with its scalar attributes.</summary>
+public class NodeTypeProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Attributes()
+    {
+        if (Environment.GetEnvironmentVariable("NODETYPE") is not { } spec)
+            return;
+        var p = spec.Split('|');
+        var document = DmxBinary.ReadFile(MapFixtures.VmapSource(p[0], p[1])!);
+        foreach (var e in document.OfType(p[2]))
+            output.WriteLine($"{p[2]} {e.GetValue<int>("nodeID")}: " + string.Join(", ", e.Attributes.Where(a => a.Value is string or int or bool or float).Select(a => $"{a.Key}={a.Value}"))
+                             + $"; children {e.GetElements("children").Count()}");
     }
 }

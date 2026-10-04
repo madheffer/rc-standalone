@@ -37,7 +37,12 @@ game can answer is raised with the user first, and runs with -insecure.
    not ported. tools/physics/capture_bake.py logs every operation to settle
    both when a map needs them.
 7. **Collision names registered by the game** (csgo_*) keep the model's
-   spelling: assumed, no counter-example.
+   spelling. Read (2026-10-04): physicsbuilder's attribute strings
+   (180153d40) come from vphysics2's CNameIndex by index, and the index
+   finds names by token hash (vf5 180299ea0), so a name the pool does not
+   hold takes the spelling it was first registered with in the process.
+   Open: the order models register their names in, which decides only when
+   two models spell one game name differently (no specimen does).
 10. **Hammer's re-projected texcoords and normals** (about 1e-5 off on some
     faces). They do not change a hull, but the source is not read.
 12. **VPK v2 layout** (tree order, chunk hashes, signature section): byte
@@ -149,8 +154,20 @@ game can answer is raised with the user first, and runs with -insecure.
     flag words captured from Valve's map meshes (capture_matflags.py) are
     ours, a missing material's 0 included; the outer map plays no part;
     no single prop, triangle or triangle pair of mesh 5503 hidden gives
-    Valve's box (LIGHTRAY_TRISWEEP). Next: capture Valve's rays for one
-    face (RayScene_TracePacket 181c02a20) and diff them ray by ray.
+    Valve's box (LIGHTRAY_TRISWEEP). Mako is the large case: 125 omni2,
+    rect and barn lights differ, by a median of 75 units on some face.
+    The scene itself, captured (tools/entities/capture_rayscene.py, with
+    scene generations; EditorSceneCaptureTests, RAYSCENE=): on
+    s2c_prefabprobe3 all 817 map-mesh scenes of Valve's world scene are
+    ours triangle for triangle (32,881). Valve's world scene also holds
+    901 single-child scenes (models; we place 585 static props, the rest
+    are presumably dynamic and masked by the owner flags) and one scene
+    at identity with 581 mesh scenes and 1,108 model instances whose
+    meshes match neither our collapsed nor our prefab-local meshes (many
+    small boxes near (0, 0, 24): template groups in their own
+    coordinates?). Model triangles are not captured (meshsystem builds
+    them, not RayScene_AddTriangles). Next: name that scene (its owner and
+    flags), capture the model path, then diff Mako the same way.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.
