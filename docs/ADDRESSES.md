@@ -167,7 +167,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261004_1.41.8.8.md): 825 tracked addresses: ambiguous 46, changed 28, identical 21, moved 721, relocated 9
-- 805 addresses
+- 808 addresses
 
 ### s2c:baked/light-keys
 
@@ -533,10 +533,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810c4000` | `HammerMesh_ApplyDeformer` |  | `src/Source2.Compiler/Maps/MapDeformers.cs:7` |
 | `1810c4e50` | `HammerMesh_TransformToWorld` | normals and tangents rotated, not renormalised | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:13` |
 | `1810d5f40` | `MaterialEditor_LowPrecisionUvInputs` | shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile |  |
-| `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:244` |
-| `1810db6a0` | `HammerMesh_SnapVertices` | positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g) | `src/Source2.Compiler/Maps/NodeOverlays.cs:215` |
+| `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:247` |
+| `1810db6a0` | `HammerMesh_SnapVertices` | positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g) | `src/Source2.Compiler/Maps/NodeOverlays.cs:221` |
 | `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapDeformers.cs:7`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:208` |
-| `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:245`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:47` |
+| `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:248`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:47` |
 | `1811763c0` | `CMapDeformerSimple_CopyFrom` | bend axis +0x540, angle +0x544, point +0x548, radius +0x54c; lattice +0x4c0, scales +0xb8 |  |
 | `1811781b0` | `CMapDeformerSimple_SetBendAngle` | clamped to [-360, 360] | `src/Source2.Compiler/Maps/LatticeDeformer.cs:339` |
 | `181287fd0` | `PropDeformer_ApplyArrays` |  |  |
@@ -555,9 +555,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812db3c0` | `CMesh_VertexTriangles` | triangles touching each vertex | `src/Source2.Compiler/Maps/TJunctionFix.cs:175` |
 | `1812db920` | `CMesh_ComputeTangents` | MikkTSpace-style (182080a60) when UseMikkTSpace; corners whose tangents differ by 1e-4 or in w split their vertex | `src/Source2.Compiler/Maps/MeshTangents.cs:6` |
 | `181371320` | `CMesh_LerpVertex` | every float of the vertex (b - a) * t + a |  |
-| `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:249` |
+| `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:252` |
 | `1813b6550` | `PolyMesh_FindTexcoordIslands` |  |  |
-| `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:247` |
+| `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:250` |
 | `18207fc00` | `TangentSpace_WeldLookup` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:11` |
 | `18207fe20` | `TangentSpace_Accumulate` | polynomial acos: sqrt(1 - x) ((0.05147786 x - 0.2053972) x + 1.570337) | `src/Source2.Compiler/Maps/MeshTangents.cs:19` |
 | `182080440` | `TangentSpace_TriangleTangents` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:13` |
@@ -698,7 +698,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18025dfa0` | `WRBNode_CollectOverlayPropTargets` | more targets from node +0x190 (props); not read |  |
 | `18025e630` | `WRBNode_CollectOverlayTargets` | 0x90 records from the node entries with attribute & 0x1209 == 0 and vertices: mesh, material, the +0x1c8 matrix, kind (+0x1a0 ? 2 : 1), node id +0x40, world bounds, name |  |
 | `18025e990` | `WRBNode_GatherOverlayTargets` | targets with > 2 vertices and indices whose box meets the overlay's; mode 1/2 want kind == mode, mode 3 the overlay's target ids, else a name lookup in node +0x218 may exclude |  |
-| `18025ece0` | `WRBNode_GenerateOverlayMeshes` | "Generate Overlay Meshes...": per overlay of node +0x1f8/+0x200, targets gathered, projected, one entry per target with a non-empty result (356 on atixref from 297 CMapStaticOverlay) | `src/Source2.Compiler/Maps/NodeOverlays.cs:124` |
+| `18025ece0` | `WRBNode_GenerateOverlayMeshes` | "Generate Overlay Meshes...": per overlay of node +0x1f8/+0x200, targets gathered, projected, one entry per target with a non-empty result (356 on atixref from 297 CMapStaticOverlay) | `src/Source2.Compiler/Maps/NodeOverlays.cs:130` |
 | `18025f9d0` | `WRB_UseAggregateInstances` | gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge |  |
 | `18025fa40` | `WRB_UseStaticEnvMapForObjectsWithLightingOrigin` | gameinfo ResourceCompiler/WorldRendererBuilder/UseStaticEnvMapForObjectsWithLightingOrigin, default false |  |
 | `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris |  |
@@ -734,7 +734,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180299b60` | `std_sort_MortonKeys` | MSVC introsort of (uint key, int index) pairs by key; insertion sort at 32 or fewer |  |
 | `1802b3060` | `WRBNode_BakePropMeshes` | one model LOD's meshes (1801d30d0) per prop: material overrides, the deformer (1812d7510), then an entry per draw call (180255470) |  |
 | `1802b4ab0` | `WRBNode_GroupPropsByLod` | the baked props of one model grouped by lodlevel (+0x1e4) |  |
-| `1802b52d0` | `WRBMeshList_PrepareForMerge` | per list before MergeMeshes: meshes deduplicated by pointer, cleaned (1812e03a0) |  |
+| `1802b4d50` | `WRBMeshList_MaterialStreams` | a material's 0xc4-byte inputs (semantic at +0x40) to (stream, index) pairs through 181366d90; unknown semantics as their own name at 0 | `src/Source2.Compiler/Maps/MaterialStreams.cs:11` |
+| `1802b52d0` | `WRBMeshList_PrepareForMerge` | per list before MergeMeshes: meshes deduplicated by pointer, cleaned (1812e03a0) | `src/Source2.Compiler/Maps/MaterialStreams.cs:5` |
 | `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:6` |
 | `1802b6db0` | `WRBNode_PropMaterials` | the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7) |  |
 | `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
@@ -779,9 +780,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812c4c40` | `meshopt_generateSoftBoundaries` | cluster ACMR times the threshold | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:8`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:180` |
 | `1812c4f30` | `meshopt_optimizeOverdraw` | stock meshopt; threshold 1.03 from AddDrawDescriptors | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:7` |
 | `1812d9920` | `Mesh_UvDensity` | sqrt(world area / uv area), sorted, index ((n-1)*pct)/100; pct 20 or 95 | `src/Source2.Compiler/Maps/UvDensity.cs:6` |
+| `1812e03a0` | `Material_InputLayout` | the material's input layout lists (0xc4 entries) and its mapbuilder.nodraw/occluder flag; materials/error.vmat when it does not load |  |
 | `1812e1ce0` | `CMesh_DuplicateReversed` | double-sided draws: every triangle again with the winding reversed |  |
 | `181365a40` | `CMesh_CreatePackedVB` | vertex buffer written field by field through the packed input layout (181365ce0 per format) |  |
 | `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8` |
+| `181366d90` | `MeshSemantic_Lookup` | shader semantic or stream name in the table at 183014ae0 (0x20 rows: semantic, stream, stream index, shader index) | `src/Source2.Compiler/Maps/MaterialStreams.cs:8`, `src/Source2.Compiler/Maps/MaterialStreams.cs:21` |
 | `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 | `src/Source2.Compiler/Maps/TangentFrame.cs:9` |
 
 ### s2c:infra
@@ -849,7 +852,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125c070` | `Matrix3x4_Identity` |  |  |
 | `18125c200` | `Matrix3x4_Scale` | diag(x, y, z), zero translation | `src/Source2.Compiler/Maps/SettleWorld.cs:518` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:449`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:492`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
-| `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/NodeOverlays.cs:194` |
+| `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/NodeOverlays.cs:200` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/VectorNormalizeSlow.cs:6`, `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:547`, `src/Source2.Compiler/Physics/HullSimplifier.cs:146` +2 |
 | `18125d0d0` | `VectorPerpendicular` | ((1 - z)(y y - 0) + z, 0, -x) normalised, orthogonalised, normalised | `src/Source2.Compiler/Physics/StaticPropHulls.cs:327`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:375` |
 | `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:408`, `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:172` +2 |

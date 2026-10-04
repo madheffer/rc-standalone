@@ -285,6 +285,19 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   on ties); the entry takes the handshake (+0xa4, +0xa0). Exact on every
   entry of probe01 (16), atixref (662) and deformerprobe2 (85); cardtest's
   teleport02 differs by its flags (GROUND_TRUTH 42).
+- **Merger inputs' streams and tint** (WRBMeshList_PrepareForMerge
+  1802b52d0, `MaterialStreams`): each entry of a merged list keeps only
+  the streams its material reads: the material's vertex input signature
+  (INSG m_pSemantic) through FUN_181366d90's semantic table (PosXyz is
+  position 0, LowPrecisionUv1 texcoord 1, a semantic the table lacks is a
+  stream of its own name), matched by name (case-blind) and semantic
+  index; PerVertexLighting stays unless the list keeps baked lighting
+  (then LightmapUV streams stay instead); a material that does not load
+  leaves the streams alone. The overlay list adds object flag 0x2000
+  (COverlayMeshList::OnAdd), and an overlay's CMesh carries its own
+  tintColor / 255 as its tint when not white (CMesh +0x14f, +0x154).
+  Every merger input of probe01 (15), atixref (461) and ze_hold_em_p (93)
+  has Valve's stream layout and tint (MergerInputStreamsTests).
 - **The merge:** for each entry without attribute bit 0x2, later entries
   that `WRBMeshEntry_CanMerge` accepts join it while the sum stays under
   0x200000 vertices and 0x400000 indices; a group becomes one entry with

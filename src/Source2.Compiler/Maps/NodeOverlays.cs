@@ -27,6 +27,9 @@ internal static class NodeOverlays
         /// unmasked). Matches every atixref descriptor.
         /// </summary>
         public int IntegerData { get; init; }
+
+        /// <summary>The overlay's tintColor (r, g, b, a bytes; white when it has none).</summary>
+        public byte[] TintColor { get; init; } = [255, 255, 255, 255];
     }
 
     public static List<Descriptor> FromWorld(DmxBinary.Document doc)
@@ -64,13 +67,16 @@ internal static class NodeOverlays
                     byMaterial[m] = faces = [];
                 faces.Add(new Face([.. pts], Recentre(uvs)));
             }
-            var tint = e.GetValue<Vector4>("tintColor");
             var targets = (e.Get<object?[]>("projectionTargets") ?? []).OfType<int>().ToArray();
             var integer = Pack(e.Get<DmxBinary.Element>("MaterialAdjustmentParamsStruct"));
             foreach (var (m, faces) in byMaterial)
                 found.Add(new Descriptor(overlay.NodeId, m < materials.Length ? materials[m] : "", e.GetValue<int>("projectionMode") ?? 0,
                                          e.GetValue<float>("projectionFar") ?? 0f, e.GetValue<int>("renderOrder") ?? 0, e.GetValue<bool>("projectOnBackFaces") ?? false,
-                                         e.GetValue<float>("backFacingAngle") ?? 90f, 0, targets, [.. faces]) { IntegerData = integer });
+                                         e.GetValue<float>("backFacingAngle") ?? 90f, 0, targets, [.. faces])
+                {
+                    IntegerData = integer,
+                    TintColor = e.Attributes.GetValueOrDefault("tintColor") is byte[] { Length: 4 } c ? c : [255, 255, 255, 255],
+                });
         }
         return found;
     }

@@ -151,3 +151,96 @@ public class NodeStagesProbe(ITestOutputHelper output)
                 output.WriteLine($"  {c.Index} {Path.GetFileName(c.Material)} id {BitConverter.ToInt32(c.Raw, 0x40)} attr {BitConverter.ToUInt64(c.Raw, 0x1b0):x} a0 {BitConverter.ToInt32(c.Raw, 0xa0)} a4 {BitConverter.ToInt32(c.Raw, 0xa4)} tex {BitConverter.ToInt32(c.Raw, 0x1b8)}x{BitConverter.ToInt32(c.Raw, 0x1bc)} 1a0 {Convert.ToHexString(c.Raw, 0x1a0, 6)} v{c.Vertices.Length / c.Stride} m1c8 {string.Join(" ", Enumerable.Range(0, 12).Select(k => BitConverter.ToSingle(c.Raw, 0x1c8 + k * 4).ToString("R")))}");
     }
 }
+
+/// <summary>
+/// <see cref="MaterialStreams"/> on entries built from the .vmap against the
+/// merger capture (<c>MESHMERGE</c>, <c>NODEENTRIES_VMAP</c>, <c>MERGESTREAMS=1</c>):
+/// each merged list's entries, in order, by material and the (name, index)
+/// of every stream PrepareForMerge leaves.
+/// </summary>
+public class MergerInputStreamsTests(ITestOutputHelper output)
+{
+    [Fact]
+    public void AgainstCapture()
+    {
+        if (Environment.GetEnvironmentVariable("MERGESTREAMS") != "1" || Environment.GetEnvironmentVariable("MESHMERGE") is not { } path
+            || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var data = File.ReadAllBytes(path);
+        var calls = new SortedDictionary<int, List<(string Material, string Streams)>>();
+        for (var at = 0; at < data.Length;)
+        {
+            var n = BitConverter.ToInt32(data, at);
+            var head = System.Text.Json.JsonDocument.Parse(data.AsMemory(at + 4, n)).RootElement;
+            at += 4 + n;
+            at += 4 + BitConverter.ToInt32(data, at);
+            var ev = head.GetProperty("ev").GetString();
+            if (ev == "call")
+                calls.TryAdd(head.GetProperty("call").GetInt32(), []);
+            if (ev != "in")
+                continue;
+            var call = head.GetProperty("call").GetInt32();
+            if (!calls.TryGetValue(call, out var list))
+                calls[call] = list = [];
+            var raw = head.TryGetProperty("meshRaw", out var mr) ? Convert.FromHexString(mr.GetString()!) : new byte[0x198];
+            var tint = raw[0x14f] != 0 ? $" tint {BitConverter.ToSingle(raw, 0x154):R},{BitConverter.ToSingle(raw, 0x158):R},{BitConverter.ToSingle(raw, 0x15c):R},{BitConverter.ToSingle(raw, 0x160):R}" : "";
+            list.Add((head.GetProperty("material").GetString() ?? "",
+                      string.Join(" ", head.GetProperty("streams").EnumerateArray().Select(x => $"{x.GetProperty("name").GetString()}/{x.GetProperty("index").GetInt32()}")) + tint));
+        }
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
+        using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+        var doc = MapSource.Read(vmap);
+        var world = WorldNodeBuild.WorldEntries(doc, content, shaders, NodeEntriesFromVmap.RendersAsWorld(game));
+        var props = WorldNodeBuild.PropEntries(doc, content, shaders);
+        var descriptors = NodeOverlays.FromWorld(doc);
+        var (built, overlays) = WorldNodeBuild.BuildNode(world, props, descriptors);
+
+        string Filtered(string material, IReadOnlyList<Physics.MeshWeld.Stream> streams)
+        {
+            var kept = Enumerable.Range(0, streams.Count).ToList();
+            if (content.Read(material + "_c") is { } bytes)
+                kept = MaterialStreams.Kept(streams, MaterialStreams.Inputs(Source2.Compiler.MaterialAuthor.ExtractInputSignature(bytes).Select(x => x.Semantic)), false);
+            return string.Join(" ", kept.Select(i => $"{streams[i].Name}/{streams.Take(i).Count(s => s.Name == streams[i].Name)}"));
+        }
+        var lists = MeshLists.Merged.ToDictionary(k => k, _ => new List<(string, string)>());
+        foreach (var b in built)
+        {
+            var e = b.Source.Entry;
+            var objectFlags = (e.Source?.Attributes.GetValueOrDefault("renderwithdynamic") is true && e.Instances.Length == 0) ? 0x200u : 0u;
+            if (MeshLists.Assign(new MeshLists.Input(b.Source.Header.Attributes, objectFlags, 0, e.Record.FadeMax, false, false)) is { } k && lists.TryGetValue(k, out var l))
+                l.Add((e.Material, Filtered(e.Material, e.Streams)));
+        }
+        foreach (var projection in overlays)
+        {
+            var d = descriptors[projection.Overlay];
+            var attributes = content.Material(d.Material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
+            var flags = MeshEntryFlags.Compute(attributes, new MeshEntryFlags.Record(0, 0, 0, true, null, false)).Flags;
+            // The overlay's own tintColor, when not white, as the CMesh's tint switch and colour (+0x14f, +0x154).
+            var c = d.TintColor;
+            static float F(byte x) => x / 255f;
+            var tint = c.Any(x => x != 255) ? $" tint {F(c[0]):R},{F(c[1]):R},{F(c[2]):R},{F(c[3]):R}" : "";
+            if (MeshLists.Assign(new MeshLists.Input(flags, 0, d.RenderOrder, 0, false, false)) is { } k && lists.TryGetValue(k, out var l))
+                l.Add((d.Material, Filtered(d.Material, projection.Mesh.Streams) + tint));
+        }
+        var callList = calls.Values.ToList();
+        int same = 0, total = 0, shown = 0;
+        for (var i = 0; i < MeshLists.Merged.Count && i < callList.Count; i++)
+        {
+            var ours = lists[MeshLists.Merged[i]];
+            var valve = callList[i];
+            output.WriteLine($"{MeshLists.Merged[i]}: ours {ours.Count}, valve {valve.Count}");
+            for (var j = 0; j < Math.Min(ours.Count, valve.Count); j++)
+            {
+                total++;
+                if (ours[j].Item2 == valve[j].Streams)
+                    same++;
+                else if (shown++ < 12)
+                    output.WriteLine($"   {j} {Path.GetFileName(valve[j].Material)}: ours [{ours[j].Item2}] valve [{valve[j].Streams}]");
+            }
+        }
+        output.WriteLine($"stream layouts as Valve's: {same} of {total}");
+        Assert.Equal(total, same);
+    }
+}
