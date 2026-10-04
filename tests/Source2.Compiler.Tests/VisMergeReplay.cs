@@ -570,7 +570,7 @@ public class VisMergeReplay(ITestOutputHelper output)
     private static Vector3 V(byte[] b, int at)
         => new(BitConverter.ToSingle(b, at), BitConverter.ToSingle(b, at + 4), BitConverter.ToSingle(b, at + 8));
 
-    private static List<VisMerge.Cluster> Clusters(byte[] blob)
+    internal static List<VisMerge.Cluster> Clusters(byte[] blob)
     {
         var found = new List<VisMerge.Cluster>();
         var at = 0;

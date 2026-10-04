@@ -7,9 +7,12 @@ stack as resourcecompiler.dll RVAs.
 """
 import argparse
 import os
+import sys
 import threading
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import require  # noqa: E402
 
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
@@ -56,6 +59,8 @@ def main():
     p.add_argument("map")
     p.add_argument("--limit", type=int, default=6)
     a = p.parse_args()
+    # Literal 0923 addresses below: refuse a build that moved them.
+    require("resourcecompiler", [0x12d6a90, 0x12d66f0])
     vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
     if os.path.exists(vpk):
         os.remove(vpk)

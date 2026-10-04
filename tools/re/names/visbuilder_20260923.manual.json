@@ -64,7 +64,7 @@
    "addr": "18002ebf0",
    "name": "LeafEntries",
    "module": "s2c:visibility",
-   "note": "a leaf's 4x4x4 mask; pushes its regions"
+   "note": "a leaf's 4x4x4 mask; pushes its regions (and solid records, flag bit 1) as the depth-first build meets the leaf: a branch is recursed into at its octant, so region order is not slot order"
   },
   {
    "addr": "18010dde0",
@@ -88,13 +88,13 @@
    "addr": "18010e500",
    "name": "OctantMask",
    "module": "s2c:visibility",
-   "note": "8-bit octant crossing mask"
+   "note": "8-bit octant crossing mask: a = (A - o) inv, b = (B - o) inv, m = (a + b) 0.5, halves [a, m] [m, b] per axis, set when max(lowers, 0) <= min(uppers, 1); bit x + 2y + 4z"
   },
   {
    "addr": "18010e0d0",
    "name": "CellMask",
    "module": "s2c:visibility",
-   "note": "64-bit sub-cell crossing mask"
+   "note": "64-bit sub-cell crossing mask; MarchRay tests leaves with it; not ported (only an exact corner pass reaches a leaf)"
   },
   {
    "addr": "18010dfc0",
@@ -106,7 +106,7 @@
    "addr": "180033890",
    "name": "OutsideDetection",
    "module": "s2c:visibility",
-   "note": "classify every region inside or outside"
+   "note": "status bytes at +0x120 (1 inside, 2 outside; never written for flag-bit-1 records); regions at +0x48, count +0x40; flags bit 0 set on outside at the end"
   },
   {
    "addr": "180040940",
@@ -124,7 +124,7 @@
    "addr": "18004c9d0",
    "name": "GatherRays",
    "module": "s2c:visibility",
-   "note": "a 5x5 grid of rays through each face of a box, tallied four ways"
+   "note": "both directions per grid cell, half = max - centre, normalise (yy + zz) + xx times 1/len, segments to MaxCoord * d + centre through BatchRay (mask 0x811), FlushBatch, NoDrawSecondLook, then tallies; ported (VisSeed.Gather)"
   },
   {
    "addr": "18004bd50",
@@ -142,25 +142,25 @@
    "addr": "18004d1a0",
    "name": "NoDrawSecondLook",
    "module": "s2c:visibility",
-   "note": "a ray stopped on a nodraw surface looks again"
+   "note": "rays whose hit has flags & 0x1030 == 0x20 cast again through the batch tracer (0x831); replaced when facing and ordinary"
   },
   {
    "addr": "18002f5d0",
    "name": "ClassifyRegion",
    "module": "s2c:visibility",
-   "note": "second pass, in region order: cast the seed's grid and march"
-  },
-  {
-   "addr": "18002f430",
-   "name": "MarchRay",
-   "module": "s2c:visibility",
-   "note": "one ray through the voxel octree, breadth first by octant mask"
+   "note": "second pass: centre outside the tracer's bounds (sampler +0xe8) is outside; else GatherRays again and MarchRay each facing record to max(t - 8, 0.1); inside when votes > 2n or (> n and outside < 5)"
   },
   {
    "addr": "18010a460",
    "name": "DistanceToBox",
    "module": "s2c:visibility",
-   "note": "distance from a box to a point"
+   "note": "per axis the sum of both overhangs, sqrt((dz dz + dy dy) + dx dx)"
+  },
+  {
+   "addr": "18002f430",
+   "name": "MarchRay",
+   "module": "s2c:visibility",
+   "note": "breadth-first ring of 4096; a branch takes OctantMask(o, inv, min, MIN): both box arguments the node's minimum, so an octant opens only on an exact corner pass; in practice it returns 0 and the second pass answers outside (atixref: all 1,029)"
   },
   {
    "addr": "180033d10",

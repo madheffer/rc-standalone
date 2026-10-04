@@ -172,7 +172,19 @@
    "addr": "180016230",
    "name": "PhysicsBuilder_MeshPieces",
    "module": "s2c:physics/world",
-   "note": "splits by surface; AppendFormat(' [%s]') for blend layers"
+   "note": "splits by surface; AppendFormat(' [%s]') for blend layers; each layer mesh and an unsplit piece go to the same node callback (param_6 vf1); physicsSimplificationError > 0 welds at 1/32 and simplifies first"
+  },
+  {
+   "addr": "1800c5b90",
+   "name": "CMesh_Simplify",
+   "module": "s2c:physics/world",
+   "note": "QEM simplify in double (18060xxxx) to an error; needs 4 vertices and 6 indices, else a copy; not ported (BrushHulls.RefuseSimplification)"
+  },
+  {
+   "addr": "1800a6b80",
+   "name": "CMapMesh_UpgradeSimplification",
+   "module": "s2c:physics/world",
+   "note": "DMX upgrade: physicsSimplificationError becomes its square root and physicsSimplificationOverride is set"
   },
   {
    "addr": "180016e90",

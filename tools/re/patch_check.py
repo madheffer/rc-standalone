@@ -136,6 +136,15 @@ def compare(old, new, rva):
         hits = [lo + m.start() for m in re.finditer(re.escape(bytes(old.img[rva:rva + 32])), bytes(new.img[lo:hi]))][:5]
         if len(hits) == 1:
             return "moved", hits[0], "64-byte window found elsewhere by its first 32 bytes"
+        # A moved leaf's RIP-relative operands change with it: search the
+        # window again with those operands masked.
+        _, mask = old.masked(rva, 64)
+        pat = b"".join(re.escape(bytes([b])) if m else b"." for b, m in zip(body, mask))
+        masked_hits = [lo + m.start() for m in re.finditer(pat, bytes(new.img[lo:hi]), re.S)][:5]
+        if len(masked_hits) == 1:
+            return "moved", masked_hits[0], "64-byte window found elsewhere with relocated operands masked"
+        if len(masked_hits) > 1:
+            return "ambiguous", None, "64-byte window (operands masked) at " + ", ".join(hex(new.base + h) for h in masked_hits)
         return "changed", None, "the 64 bytes at the address differ" + (f"; first 32 bytes at {', '.join(hex(new.base + h) for h in hits)}" if hits else "")
     length = old.bounds[rva] - rva
     body, mask = old.masked(rva)

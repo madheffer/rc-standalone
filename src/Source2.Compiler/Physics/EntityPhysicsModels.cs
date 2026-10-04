@@ -123,6 +123,7 @@ public static class EntityPhysicsModels
             {
                 var names = mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
                 var type = BrushHulls.Resolve(PhysicsTypeOf(mesh), true, className == "func_shatterglass", false, false);
+                BrushHulls.RefuseSimplification(mesh);
                 foreach (var (slot, positions, faces, local) in BrushHulls.Pieces(mesh, entity, transformOf: transformOf))
                 {
                     var own = slot < names.Length ? (names[slot] as string ?? "") : "";

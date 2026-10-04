@@ -23,11 +23,14 @@ the script refuses to start if it is running or another compile is.
 import argparse
 import json
 import os
+import sys
 import struct
 import subprocess
 import threading
 
 import frida
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import require  # noqa: E402
 
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
@@ -212,6 +215,8 @@ def main():
     p.add_argument("--blend", action="store_true", help="also record physicsbuilder's blend splits (mesh in, meshes out) and its material sampler")
     p.add_argument("--vulkan", action="store_true", help="compile with -vulkan (resourcecompiler otherwise renders the material sampler through rendersystemdx11)")
     a = p.parse_args()
+    # Literal 0924 addresses below: refuse a build that moved them.
+    require("physicsbuilder", [0x15930, 0x64c460, 0x64d790, 0x64e530])
     if busy():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
     if low_disk():

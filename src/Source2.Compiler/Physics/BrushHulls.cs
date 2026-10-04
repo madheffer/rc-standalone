@@ -34,6 +34,23 @@ public static class BrushHulls
     }
 
     /// <summary>
+    /// Stops a build that physicsbuilder would simplify. ConvertMeshForBuilder
+    /// (1810e0290) hands the builder physicsSimplificationError from CMapMesh
+    /// vf216 (181083ae0): with physicsSimplificationOverride set, the error
+    /// squared; otherwise 0 when one of the mesh's materials carries attribute
+    /// 0x184fc5, else gameinfo's PhysicsBuilder/DefaultHammerMeshSimplification
+    /// squared (read at 180fb12c2; CS2 ships 0.0). Above 0, physicsbuilder
+    /// welds each piece at 1/32 and simplifies it (180016230 through
+    /// 1800c5b90), which is not ported. No installed map sets the override.
+    /// </summary>
+    public static void RefuseSimplification(DmxBinary.Element mesh)
+    {
+        if (mesh.Attributes.TryGetValue("physicsSimplificationOverride", out var o) && o is true
+            && mesh.Attributes.TryGetValue("physicsSimplificationError", out var e) && e is float error && error * error > 0)
+            throw new NotSupportedException($"mesh {mesh.GetValue<int>("nodeID")}: physicsSimplificationOverride with error {error}; physicsbuilder's mesh simplification (1800c5b90) is not ported");
+    }
+
+    /// <summary>
     /// FUN_181083540: "default" inside an entity is convex_multi unless the
     /// class inherits one of the PhysicsTypeOverride base classes; outside one
     /// it is a mesh.
@@ -149,6 +166,47 @@ public static class BrushHulls
         foreach (var group in Groups(points.Count, triangles))
             result.Add([.. GroupVertices(group, triangles).Select(v => points[(int)v])]);
         return result;
+    }
+
+    /// <summary>
+    /// physicsbuilder's convex_multi groups (PhysicsBuilder_ConvexMulti
+    /// 18001ac20 through 1800d33e0 and 1800d39a0), on a per-material CMesh as
+    /// it stands: a union-find over the vertex buffer joined by each
+    /// triangle's three corners; groups numbered by their lowest vertex, each
+    /// group's vertices in buffer order. A vertex no triangle uses is a group
+    /// of its own. The map builder's brush entity grouping (<see cref="Inputs"/>)
+    /// is another function.
+    /// </summary>
+    public static List<Vector3[]> BufferGroups(Vector3[] points, int[] indices)
+    {
+        var parent = new int[points.Length];
+        for (var i = 0; i < parent.Length; i++)
+            parent[i] = i;
+        int Find(int x)
+        {
+            while (parent[x] != x)
+                x = parent[x] = parent[parent[x]];
+            return x;
+        }
+        for (var t = 0; t + 2 < indices.Length; t += 3)
+        {
+            int a = Find(indices[t]), b = Find(indices[t + 1]), c = Find(indices[t + 2]);
+            parent[b] = a;
+            parent[Find(c)] = Find(a);
+        }
+        var groupOf = new Dictionary<int, int>();
+        var groups = new List<List<Vector3>>();
+        for (var v = 0; v < points.Length; v++)
+        {
+            var root = Find(v);
+            if (!groupOf.TryGetValue(root, out var g))
+            {
+                g = groupOf[root] = groups.Count;
+                groups.Add([]);
+            }
+            groups[g].Add(points[v]);
+        }
+        return [.. groups.Select(g => g.ToArray())];
     }
 
     /// <summary>

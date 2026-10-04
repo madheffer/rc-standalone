@@ -143,6 +143,11 @@ internal static class SubdivisionBake
                     mesh.Vertices[v].Written = writes++;
                 }
 
+        // The wrapper then merges the baked faces' vertices that lie within
+        // 1e-6 of each other (HalfEdge_MergeVertices 1813a8ae0).
+        MergeVertices(mesh, a);
+        AfterMerge?.Invoke(mesh);
+
         // 5. The baked faces' corner normals, as BakeSubdivisionForFaces
         // (1810c65c0) leaves them: its new edges soft, then 1810cddd0 on the
         // vertices of the baked faces.
@@ -559,6 +564,254 @@ internal static class SubdivisionBake
     /// of more than three corners is cut by <see cref="PolygonTriangulator"/>,
     /// its triangles together.
     /// </summary>
+    /// <summary>For tests: the mesh as the vertex merge leaves it.</summary>
+    internal static Action<HalfEdgeMesh>? AfterMerge;
+
+    /// <summary>
+    /// <c>HalfEdge_MergeVertices</c> (1813a8ae0) as the bake wrapper calls it
+    /// (tolerance 1e-6, averaging on). The baked faces' vertices are listed
+    /// (faces in dense order, each loop from its first, each vertex once) and
+    /// up to ten passes run: each clusters the list (a vertex seeds a cluster
+    /// in list order and takes every unclaimed one within the tolerance,
+    /// (dx dx + dy dy) + dz dz &lt;= tol tol, in list order), merges each
+    /// cluster's others into its first (<see cref="MergePair"/>, retried while a
+    /// round both merged and failed), sets each cluster's vertex to its sum
+    /// times 1/count, and lists the survivors for the next pass: members that
+    /// failed, not the merged vertex (Valve's is a new vertex the list does
+    /// not hold). Captured on c2m2_fairgrounds_csgo (capture_bake.py).
+    /// </summary>
+    private static void MergeVertices(HalfEdgeMesh mesh, FaceArrays a)
+    {
+        const float Tolerance = 1e-6f;
+        var limit = Tolerance * Tolerance;
+        var list = new List<int>();
+        var seen = new HashSet<int>();
+        foreach (var f in mesh.Faces.Handles)
+            if (a.Level(a.First[mesh.Faces[f].Source]) > 0)
+                foreach (var h in mesh.Loop(f))
+                    if (seen.Add(mesh.He(h).Vertex))
+                        list.Add(mesh.He(h).Vertex);
+
+        for (var pass = 0; pass < 10 && list.Count >= 2; pass++)
+        {
+            var at = list.Select(v => mesh.Vertices[v].Position).ToArray();
+            var byX = Enumerable.Range(0, list.Count).OrderBy(i => at[i].X).ThenBy(i => i).ToArray();
+            var xs = byX.Select(i => at[i].X).ToArray();
+            var claimed = new bool[list.Count];
+            var clusters = new List<List<int>>();
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (claimed[i])
+                    continue;
+                claimed[i] = true;
+                var p = at[i];
+                Vector3 lo = new(p.X - Tolerance, p.Y - Tolerance, p.Z - Tolerance), hi = new(p.X + Tolerance, p.Y + Tolerance, p.Z + Tolerance);
+                var found = new List<int>();
+                var k = Array.BinarySearch(xs, lo.X);
+                for (k = k < 0 ? ~k : k; k > 0 && xs[k - 1] >= lo.X; k--)
+                {
+                }
+                for (; k < xs.Length && xs[k] <= hi.X; k++)
+                {
+                    var j = byX[k];
+                    var q = at[j];
+                    if (claimed[j] || q.Y < lo.Y || q.Y > hi.Y || q.Z < lo.Z || q.Z > hi.Z)
+                        continue;
+                    float dx = q.X - p.X, dy = q.Y - p.Y, dz = q.Z - p.Z;
+                    if ((dx * dx) + (dy * dy) + (dz * dz) <= limit)
+                        found.Add(j);
+                }
+                found.Sort();
+                foreach (var j in found)
+                    claimed[j] = true;
+                clusters.Add([i, .. found]);
+            }
+
+            var count = new int[clusters.Count];
+            var sum = new Vector3[clusters.Count];
+            var open = new bool[clusters.Count];
+            var merged = new bool[list.Count];
+            for (var c = 0; c < clusters.Count; c++)
+            {
+                count[c] = 1;
+                sum[c] = at[clusters[c][0]];
+                open[c] = clusters[c].Count > 1;
+            }
+            for (var round = 0; round < list.Count; round++)
+            {
+                int done = 0, failed = 0;
+                for (var c = 0; c < clusters.Count; c++)
+                {
+                    if (!open[c])
+                        continue;
+                    var fails = 0;
+                    var first = list[clusters[c][0]];
+                    foreach (var j in clusters[c].Skip(1))
+                    {
+                        if (merged[j])
+                            continue;
+                        var other = at[j];
+                        if (MergePair(mesh, first, list[j]))
+                        {
+                            sum[c] = new Vector3(other.X + sum[c].X, other.Y + sum[c].Y, other.Z + sum[c].Z);
+                            count[c]++;
+                            merged[j] = true;
+                            done++;
+                        }
+                        else
+                        {
+                            fails++;
+                            failed++;
+                        }
+                    }
+                    if (fails == 0)
+                        open[c] = false;
+                }
+                if (failed == 0 || done == 0)
+                    break;
+            }
+            var next = new List<int>();
+            for (var c = 0; c < clusters.Count; c++)
+            {
+                var first = list[clusters[c][0]];
+                var inv = 1f / count[c];
+                mesh.Vertices[first].Position = new Vector3(inv * sum[c].X, inv * sum[c].Y, inv * sum[c].Z);
+                // Valve's merged vertex is new and its old first is gone, so
+                // only a cluster that merged nothing keeps its first listed.
+                if (count[c] == 1)
+                    next.Add(first);
+                foreach (var j in clusters[c].Skip(1))
+                    if (!merged[j])
+                        next.Add(list[j]);
+            }
+            list = next;
+        }
+    }
+
+    /// <summary>
+    /// <c>MergeVertices</c> (1813a8840) through <c>HalfEdge_MergeFaces</c>
+    /// (1813a7d00) for two vertices of the bake. Each must have exactly one
+    /// boundary half-edge leaving it (1813861f0), and the faces inside those
+    /// two must differ. When the far end of one's boundary half-edge reaches
+    /// the other along a boundary edge, the two boundary edges are zipped into
+    /// one; otherwise, unless the two share a neighbour (18137e2d0), the two
+    /// boundary loops are spliced at the merged vertex. The merged vertex keeps
+    /// <paramref name="keep"/>'s handle (Valve's is new; the export numbers
+    /// vertices by first use, so the handle does not show). An edge between
+    /// the two takes the edge collapse (181382170), which is not ported.
+    /// </summary>
+    private static bool MergePair(HalfEdgeMesh mesh, int keep, int gone)
+    {
+        if (keep == gone)
+            return true;
+        if (mesh.Between(keep, gone) != HalfEdgeMesh.Null || mesh.Between(gone, keep) != HalfEdgeMesh.Null)
+            throw new NotSupportedException($"subdivision bake: vertices {keep} and {gone} within 1e-6 share an edge; Valve collapses it (181382170), which is not ported");
+        var outKeep = BoundaryOut(mesh, keep);
+        var outGone = BoundaryOut(mesh, gone);
+        if (outKeep == HalfEdgeMesh.Null || outGone == HalfEdgeMesh.Null)
+            return false;
+        if (mesh.He(mesh.He(outKeep).Twin).Face == mesh.He(mesh.He(outGone).Twin).Face)
+            return false;
+
+        // The far end of one boundary half-edge joined to the other by a
+        // boundary edge: zip the two edges.
+        var reach = mesh.Between(mesh.He(outKeep).Vertex, gone);
+        if (reach != HalfEdgeMesh.Null)
+        {
+            if (mesh.He(reach).Face != HalfEdgeMesh.Null)
+                return false;
+            Zip(mesh, keep, gone, outKeep, reach);
+            return true;
+        }
+        reach = mesh.Between(mesh.He(outGone).Vertex, keep);
+        if (reach != HalfEdgeMesh.Null)
+        {
+            if (mesh.He(reach).Face != HalfEdgeMesh.Null)
+                return false;
+            Zip(mesh, keep, gone, outGone, reach);
+            return true;
+        }
+        if (ShareNeighbour(mesh, keep, gone))
+            return false;
+
+        // Splice the boundary loops at the merged vertex.
+        var intoKeep = mesh.Previous(outKeep);
+        var intoGone = mesh.Previous(outGone);
+        mesh.He(intoKeep).Next = outGone;
+        mesh.He(intoGone).Next = outKeep;
+        Repoint(mesh, gone, keep);
+        return true;
+    }
+
+    // Two boundary half-edges, first (u to x) then second (x to w), with u
+    // and w the vertices being merged: after the merge they run there and
+    // back, so they go and their face half-edges become twins.
+    private static void Zip(HalfEdgeMesh mesh, int keep, int gone, int first, int second)
+    {
+        var x = mesh.He(first).Vertex;
+        Repoint(mesh, gone, keep);
+        int faceA = mesh.He(first).Twin, faceB = mesh.He(second).Twin;
+        var before = mesh.Previous(first);
+        var after = mesh.He(second).Next;
+        mesh.He(before).Next = after;
+        mesh.He(faceA).Twin = faceB;
+        mesh.He(faceB).Twin = faceA;
+        foreach (var v in new[] { keep, x })
+        {
+            var o = mesh.Vertices[v].Out;
+            if (o == first || o == second)
+                mesh.Vertices[v].Out = mesh.He(faceA).Vertex == v ? faceB : faceA;
+        }
+        mesh.HalfEdges.Remove(first);
+        mesh.HalfEdges.Remove(second);
+    }
+
+    // Every half-edge ending at gone ends at keep instead, and gone goes.
+    private static void Repoint(HalfEdgeMesh mesh, int gone, int keep)
+    {
+        foreach (var h in mesh.HalfEdges.Handles)
+            if (mesh.He(h).Vertex == gone)
+                mesh.He(h).Vertex = keep;
+        mesh.Vertices.Remove(gone);
+    }
+
+    // 1813861f0 and 1813920e0: the one boundary half-edge leaving v, or Null
+    // when there is none or more than one.
+    private static int BoundaryOut(HalfEdgeMesh mesh, int v)
+    {
+        var start = mesh.Vertices[v].Out;
+        if (start == HalfEdgeMesh.Null)
+            return HalfEdgeMesh.Null;
+        int found = HalfEdgeMesh.Null, n = 0;
+        var h = start;
+        do
+        {
+            if (mesh.He(h).Face == HalfEdgeMesh.Null)
+            {
+                found = h;
+                n++;
+            }
+            h = mesh.He(mesh.He(h).Twin).Next;
+        }
+        while (h != start);
+        return n == 1 ? found : HalfEdgeMesh.Null;
+    }
+
+    // 18137e2d0: whether some neighbour of a has an edge to b.
+    private static bool ShareNeighbour(HalfEdgeMesh mesh, int a, int b)
+    {
+        var start = mesh.Vertices[a].Out;
+        var h = start;
+        do
+        {
+            if (mesh.Between(mesh.He(h).Vertex, b) != HalfEdgeMesh.Null)
+                return true;
+            h = mesh.He(mesh.He(h).Twin).Next;
+        }
+        while (h != start);
+        return false;
+    }
+
     private static MeshTessellation.Result Export(HalfEdgeMesh mesh, bool withPaint, Func<Vector3, Vector3>? cutSpace, bool withData)
     {
         var positions = new List<Vector3>();

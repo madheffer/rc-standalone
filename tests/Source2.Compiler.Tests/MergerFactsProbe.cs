@@ -383,3 +383,78 @@ public class MapTreeProbe(ITestOutputHelper output)
         Walk(document.OfType("CMapWorld").First(), 0);
     }
 }
+
+/// <summary>Survey (<c>SIMPLIFY=1</c>): every installed .vmap's CMapMesh nodes with physicsSimplificationOverride or a non-zero physicsSimplificationError.</summary>
+public class PhysicsSimplificationSurvey(ITestOutputHelper output)
+{
+    [Fact]
+    public void Survey()
+    {
+        if (Environment.GetEnvironmentVariable("SIMPLIFY") != "1")
+            return;
+        var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CS2Fixtures.StockPak()!)!, "..", "..", "content", "csgo_addons"));
+        foreach (var path in MapFixtures.VmapSources(long.MaxValue, int.MaxValue))
+        {
+            int meshes = 0, flagged = 0;
+            try
+            {
+                var document = DmxBinary.ReadFile(path);
+                foreach (var e in document.OfType("CMapMesh"))
+                {
+                    meshes++;
+                    var over = e.Attributes.TryGetValue("physicsSimplificationOverride", out var o) ? o : null;
+                    var err = e.Attributes.TryGetValue("physicsSimplificationError", out var r) ? r : null;
+                    if (over is true || err is float f && f != 0)
+                    {
+                        flagged++;
+                        output.WriteLine($"  {Path.GetFileName(path)} node {e.GetValue<int>("nodeID")}: override={over} error={err}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                output.WriteLine($"{path}: {ex.Message}");
+            }
+            var multi = 0;
+            try
+            {
+                foreach (var e in DmxBinary.ReadFile(path).OfType("CMapMesh"))
+                    if (e.Get<string>("physicsType") == "convex_multi")
+                        multi++;
+            }
+            catch (Exception)
+            {
+            }
+            output.WriteLine($"{Path.GetRelativePath(root, path)}: {meshes} meshes, {flagged} flagged, {multi} convex_multi");
+        }
+    }
+}
+
+/// <summary>Exploration (<c>SUBDIVMESH=&lt;addon&gt;|&lt;map&gt;</c>): every CMapMesh with a subdivision level above 0, its parent chain and physics keys.</summary>
+public class SubdividedMeshProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void List()
+    {
+        if (Environment.GetEnvironmentVariable("SUBDIVMESH") is not { } spec)
+            return;
+        var p = spec.Split('|');
+        var document = DmxBinary.ReadFile(MapFixtures.VmapSource(p[0], p[1])!);
+        void Walk(DmxBinary.Element node, string chain)
+        {
+            foreach (var c in node.GetElements("children"))
+            {
+                var here = $"{chain}/{c.Type}:{c.GetValue<int>("nodeID")}";
+                if (c.Type == "CMapMesh" && c.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("subdivisionData")?.Get<object?[]>("subdivisionLevels") is { } levels
+                    && levels.Any(x => x is int i && i > 0))
+                    output.WriteLine($"{here}: levels {string.Join(",", levels.Where(x => x is int i && i > 0).GroupBy(x => x).Select(g => $"{g.Key}x{g.Count()}"))}; "
+                                     + string.Join(", ", c.Attributes.Where(a => a.Value is string or int or bool or float).Select(a => $"{a.Key}={a.Value}")));
+                Walk(c, here);
+            }
+        }
+        Walk(document.OfType("CMapWorld").First(), "");
+        output.WriteLine(string.Join(", ", document.Elements.GroupBy(e => e.Type).OrderByDescending(g => g.Count()).Take(15).Select(g => $"{g.Key} {g.Count()}")));
+        var all = document.OfType("CMapMesh").ToList();
+        output.WriteLine($"{all.Count} meshes; with levels > 0: " + string.Join(" ", all.Where(c => c.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("subdivisionData")?.Get<object?[]>("subdivisionLevels") is { } l && l.Any(x => x is int i && i > 0)).Select(c => c.GetValue<int>("nodeID"))));
+    }
+}

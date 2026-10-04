@@ -2848,7 +2848,31 @@
    "addr": "1813a8ae0",
    "name": "HalfEdge_MergeVertices",
    "module": "s2c:geometry/subdivision",
-   "note": "post-bake weld, tol 0x358637bd; not ported"
+   "note": "post-bake weld (MergeVerticesWithinDistance), tol 0x358637bd: clusters by CVertexKDTree box query, (dx dx + dy dy) + dz dz <= tol tol, found points sorted by address; up to 10 passes; not ported, SubdivisionBake refuses a mesh it would touch"
+  },
+  {
+   "addr": "1813a8840",
+   "name": "HalfEdge_MergeVertexPair",
+   "module": "s2c:geometry/subdivision",
+   "note": "MergeVertices: an edge between them is collapsed (181383600), else the fans are welded (HalfEdge_MergeFaces 1813a7d00); weight 0.5 from the bake wrapper"
+  },
+  {
+   "addr": "1802954d0",
+   "name": "Sort_U64",
+   "module": "s2c:geometry/subdivision",
+   "note": "introsort of u64 (pointers); insertion sort under 32 elements"
+  },
+  {
+   "addr": "181083ae0",
+   "name": "CMapMesh_PhysicsSimplificationError",
+   "module": "s2c:physics/world",
+   "note": "CMapMesh vf216: override (+0x3c18) ? error (+0x3c1c) squared : 0 if a material has attribute 0x184fc5, else the gameinfo default squared"
+  },
+  {
+   "addr": "180fb09f0",
+   "name": "MapBuilderSettings_Read",
+   "module": "s2c:physics/world",
+   "note": "gameinfo ResourceCompiler/...; PhysicsBuilder/DefaultHammerMeshSimplification -> +0x9c8 (CS2: 0.0)"
   },
   {
    "addr": "1813b7750",

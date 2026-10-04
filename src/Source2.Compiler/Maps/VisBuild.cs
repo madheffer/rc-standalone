@@ -24,7 +24,7 @@ public static class VisBuild
     /// renderer and the light vis membership read (<see cref="VisOutput.FlatClusterBoxes"/>).
     /// </summary>
     public static (VoxelVisibility Vxvs, List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[] FlatClusterBoxes) RunWithBlocks(
-        RayTraceEnvironment rte, VisConfig config, float baseVoxelSize = 8f, Action<string>? stage = null)
+        RayTraceEnvironment rte, VisConfig config, float baseVoxelSize = 8f, Action<string>? stage = null, Action<string, object>? inspect = null)
     {
         ArgumentNullException.ThrowIfNull(rte);
         ArgumentNullException.ThrowIfNull(config);
@@ -42,25 +42,31 @@ public static class VisBuild
         var sets = VisClusters.Generate(rte, tree, compact, VisClusters.SplitHints.From(config.Hints));
         stage?.Invoke("clusters");
         var pre = VisPreMerge.Run(sets);
-        VisClusterSet.MergeAll(rte, sets, VisClusters.PassTarget(tree, compact), VisClusters.Cubes(tree, compact));
+        VisClusterSet.MergeAll(rte, sets, VisClusters.PassTarget(tree, compact), VisClusters.Cubes(tree, compact),
+                               entering: inspect == null ? null : (pass, at) => inspect("merge-pass", (pass, at)));
         stage?.Invoke("merge");
         var collapsedRegions = VisRegions.Collapse(regions, inside.Regions);
         var assigned = VisAssign.Run(sets, compact.Leaves.Count, collapsedRegions, _ => true);
         var sizes = sets.SelectMany(set => set.Clusters).Select(c => c.VoxelSize).ToArray();
         var s = VisPvs.Build(tree, max, compact, assigned, sets, baseVoxelSize);
         stage?.Invoke("assign");
+        inspect?.Invoke("assign", s);
 
         var matrix = VisPvs.Scan(s, rte, config);
         stage?.Invoke("scan");
+        inspect?.Invoke("scan", matrix);
         var merged = VisClusterList.Run(s, matrix, sizes, VisClusterList.Volume(s, pre.Volume, pre.After), baseVoxelSize);
         stage?.Invoke("vis-cluster merge");
+        inspect?.Invoke("vis-cluster merge", merged);
         var open = VisSun.OpenCells(merged.State);
         var (borders, claims) = VisBorders.Sample(merged.State, rte);
         var flat = VisOutput.FlatClusterBoxes(merged.State, claims);
         var state = VisBorders.Consolidate(VisBorders.Rewrite(merged.State, borders, claims));
         stage?.Invoke("borders");
+        inspect?.Invoke("borders", (borders, claims, flat, state));
         var sky = VisSky.Visible(state, rte, matrix);
         var sun = config.DirToSun is { } dir ? VisSun.Visible(state, rte, dir, open) : null;
+        inspect?.Invoke("sky", (sky, sun));
         var (collapsed, _) = VisCollapse.Run(state, Enumerable.Repeat((ushort)0xffff, state.NodeWords.Length).ToArray());
         return (VisOutput.Build(collapsed, matrix, sky, sun, min, max), flat);
     }

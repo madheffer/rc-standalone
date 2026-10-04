@@ -14,11 +14,14 @@ and the script refuses to start if it is running or another compile is.
 import argparse
 import json
 import os
+import sys
 import threading
 
 import frida
 
 from capture_physshapes import BIN, CS2, busy, low_disk
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import require  # noqa: E402
 
 AGENT = r"""
 'use strict';
@@ -81,6 +84,8 @@ def main():
     p.add_argument("out")
     p.add_argument("--full", action="store_true", help="a full compile rather than -world -fshallow")
     a = p.parse_args()
+    # Literal 0924 addresses below: refuse a build that moved them.
+    require("physicsbuilder", [0x1a950, 0x1ac20, 0xd3f40])
     if busy():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
     if low_disk():

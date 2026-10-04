@@ -92,7 +92,7 @@ public class VisBigReplay(ITestOutputHelper output)
         return new VisPvs.State(entries, words, counts, nodeMins, nodeMaxs, clusterMins, clusterMaxs, 8f);
     }
 
-    private static (Vector3[] Mins, Vector3[] Maxs) Boxes(byte[] b)
+    internal static (Vector3[] Mins, Vector3[] Maxs) Boxes(byte[] b)
     {
         var mins = new Vector3[b.Length / 24];
         var maxs = new Vector3[mins.Length];
@@ -104,7 +104,7 @@ public class VisBigReplay(ITestOutputHelper output)
         return (mins, maxs);
     }
 
-    private static VisPvs.Matrix Matrix(CaptureFile cap, string ev)
+    internal static VisPvs.Matrix Matrix(CaptureFile cap, string ev)
     {
         var head = cap.Head(ev);
         var blob = cap.Blob(ev);
@@ -778,7 +778,7 @@ public class VisBigReplay(ITestOutputHelper output)
         output.WriteLine($"Valve's 608,325,057 rays at this rate on 16 threads: {608325057.0 / (1 / (trace / rays.Count + walk / rays.Count)) / 16 / 60:0} minutes");
     }
 
-    private static VisVisibility.Entry[] EntriesOf(byte[] e)
+    internal static VisVisibility.Entry[] EntriesOf(byte[] e)
     {
         var entries = new VisVisibility.Entry[e.Length / 16];
         for (var i = 0; i < entries.Length; i++)

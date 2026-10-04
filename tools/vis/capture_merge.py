@@ -20,6 +20,7 @@ Output is a stream of records: u32 json length, json, u32 blob length, blob.
 import argparse
 import json
 import os
+import shutil
 import struct
 import sys
 import threading
@@ -267,6 +268,15 @@ def main():
     with open(out_path + ".log", "w", encoding="utf-8") as h:
         h.write("".join(log))
     print("%.1fs  %s  -> %s" % (time.time() - started, stats, out_path))
+    # The scene this compile traced, kept beside the capture as <stem>.merge.rte
+    # and .viscfg: the next compile of the map overwrites the one under
+    # %TEMP%/csgo_addons, and the .rte is not byte-stable between compiles.
+    stem = (out_path[:-len(".bin")] if out_path.endswith(".bin") else out_path) + ".merge"
+    scene = os.path.join(os.environ.get("TEMP", "."), "csgo_addons", args.addon, "maps", args.map)
+    for ext in (".rte", ".viscfg"):
+        if os.path.exists(scene + ext):
+            shutil.copyfile(scene + ext, stem + ext)
+            print("->", stem + ext)
 
 
 if __name__ == "__main__":

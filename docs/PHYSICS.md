@@ -112,7 +112,14 @@ Only a full compile (no `-fshallow`) ships world_physics.
 4. **Convex world meshes** (`convex_single`, `convex_multi`) are hulled in
    world space. The input is the per-material CMesh vertex buffer, joined by
    .vmap vertex. A blend material takes `PhysicsSurfaceProperties1`, and a
-   subdivided mesh is hulled from its tessellation.
+   subdivided mesh is hulled from its tessellation. convex_multi hulls
+   physicsbuilder's groups (`BrushHulls.BufferGroups`, 18001ac20): connected
+   by triangle corners over the vertex buffer, in order of each group's
+   lowest vertex, vertices in buffer order. A painted layer is grouped the
+   same way.
+   - A mesh whose physicsSimplificationOverride is set with a non-zero
+     error would be simplified by physicsbuilder (not ported); the build
+     stops on it (`BrushHulls.RefuseSimplification`).
 5. **Painted blend layers** (`BlendSplit`). The layer count comes from the
    compiled shader's attributes (`ShaderAttributeProbe`). Each triangle
    averages its corners' paint:

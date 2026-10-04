@@ -131,37 +131,39 @@ public static class VisOutside
         int Region, int Answer, int Marched, int Inside, int Outside,
         float Stop, float Leaves, float Regions);
 
+    /// <summary>Each region's box as the seed casts from it (18010be50), for comparisons.</summary>
+    internal static Func<int, (Vector3 Mins, Vector3 Maxs)> RegionBoxes(VisVoxelizer.Octree tree, VisRegions.Result regions, float baseVoxelSize)
+        => new Space(tree, regions, baseVoxelSize).Box;
+
     private static Status Classify(
         Space space, RayTraceEnvironment scene, Status[] status, bool[] flagged, int region,
         int quality, Action<Judged>? watch = null, Action<int, string>? trace = null)
     {
+        // ClassifyRegion (18002f5d0): a centre outside the TRACER's bounds
+        // (sampler +0xe8, not the file header's) is outside outright.
         var (mins, maxs) = space.Box(region);
         var centre = (mins + maxs) * 0.5f;
-        if (centre.X < scene.Mins.X || centre.Y < scene.Mins.Y || centre.Z < scene.Mins.Z
-            || centre.X > scene.Maxs.X || centre.Y > scene.Maxs.Y || centre.Z > scene.Maxs.Z)
+        var (low, high) = scene.TracedBounds;
+        if (!(low.X <= centre.X && low.Y <= centre.Y && low.Z <= centre.Z
+              && centre.X <= high.X && centre.Y <= high.Y && centre.Z <= high.Z))
             return Status.Outside;
 
         var grid = Math.Clamp(quality, 2, 10);
-        var reach = (scene.Maxs - scene.Mins).Length();
         int inside = 0, outside = 0, marched = 0, leaves = 0, regions = 0;
         var stops = 0f;
-        foreach (var direction in VisSeed.Directions(mins, maxs, quality))
+        // It gathers again and marches the gather's own records: every ray
+        // whose hit faced the centre, to max(t - 8, 0.1) along it.
+        var casts = new List<VisSeed.Cast>();
+        VisSeed.Gather(scene, mins, maxs, quality, casts);
+        foreach (var cast in casts)
         {
-            // The compile walks the gather's own ray records here rather than
-            // tracing afresh, so the second look through nodraw applies to these
-            // distances too.
-            if (scene.Trace(centre, direction, reach, VisSeed.Ignored) is not { } first)
+            if (!cast.Facing)
                 continue;
-            var hit = VisSeed.Behind(scene, centre, direction, reach, first);
-            if (Vector3.Dot(hit.Normal, centre)
-                < Vector3.Dot(hit.Normal, centre + (direction * hit.Distance)))
-                continue;
-
-            var stop = MathF.Max(hit.Distance - MarchBackOff, MarchShortest);
-            var reached = space.March(centre, centre + (direction * stop), status, flagged,
-                                      out var walked, out var tested,
-                                      trace is null ? null : line => trace(region, line));
-            trace?.Invoke(region, $"  ray {marched}: dir {direction} hit {hit.Distance:F1}"
+            var direction = cast.Direction;
+            var stop = MathF.Max(cast.Distance - MarchBackOff, MarchShortest);
+            var end = new Vector3((stop * direction.X) + cast.Origin.X, (stop * direction.Y) + cast.Origin.Y, (stop * direction.Z) + cast.Origin.Z);
+            var reached = space.MarchRay(cast.Origin, end, status, flagged, out var walked, out var tested);
+            trace?.Invoke(region, $"  ray {marched}: dir {direction} hit {cast.Distance:F1}"
                                 + $" stop {stop:F1} -> {reached} ({walked} leaves, {tested} regions)");
             marched++;
             stops += stop;
@@ -259,6 +261,82 @@ public static class VisOutside
         /// is currently marked inside. Reaching nothing is Unknown and counts for
         /// neither side.</para>
         /// </summary>
+        /// <summary>
+        /// <c>MarchRay</c> (18002f430) as ClassifyRegion calls it: a breadth
+        /// first walk from the root, a branch's children taken by
+        /// <c>OctantMask</c> (18010e500) on the node's MINIMUM corner passed as
+        /// both of its box arguments, so every slab is one value and an octant
+        /// is entered only when the segment passes exactly through that corner
+        /// (all three t equal, within [0, 1]). A leaf would be tested with
+        /// <c>CellMask</c> (18010e0d0, not ported) against all its region
+        /// records, solid ones included, whose status bytes are never written;
+        /// reaching one stops the build. Inside when an inside region was met,
+        /// outside on a flagged one, else unknown.
+        /// </summary>
+        public Status MarchRay(Vector3 from, Vector3 to, Status[] status, bool[] flagged, out int leaves, out int seen)
+        {
+            leaves = 0;
+            seen = 0;
+            // ClassifyRegion's divps: a component under FLT_MIN in magnitude has
+            // 1.1920929e-07's bits ORed in (a zero becomes 2^-23).
+            static float Guarded(float d)
+                => 1f / (MathF.Abs(d) < 1.17549435e-38f ? BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(d) | 0x34000000) : d);
+            var inverse = new Vector3(Guarded(to.X - from.X), Guarded(to.Y - from.Y), Guarded(to.Z - from.Z));
+            var queue = new Queue<(int Level, (int X, int Y, int Z) Cell)>();
+            queue.Enqueue((_depth, (0, 0, 0)));
+            while (queue.Count > 0)
+            {
+                var (level, cell) = queue.Dequeue();
+                var size = _tree.LeafSize * (1 << level);
+                var corner = _tree.Origin + new Vector3(cell.X, cell.Y, cell.Z) * size;
+                if (level > 0 && _tree.BranchCells.Contains((level, cell)))
+                {
+                    var octants = OctantMask(from, inverse, corner, corner);
+                    for (var octant = 0; octant < 8; octant++)
+                        if ((octants & (1 << octant)) != 0)
+                            queue.Enqueue((level - 1, (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1), cell.Z * 2 + ((octant >> 2) & 1))));
+                    continue;
+                }
+                leaves++;
+                throw new NotSupportedException($"MarchRay reached a leaf (level {level}, cell {cell}): CellMask (18010e0d0) and the solid records' unwritten status bytes are not ported");
+            }
+            return Status.Unknown;
+        }
+
+        // OctantMask (18010e500) lane by lane: a = (A - o) inv, b = (B - o) inv,
+        // m = (b + a) 0.5; per axis the halves [a, m] and [m, b] as min/max
+        // pairs (minps/maxps keep the second operand on a tie or NaN); an octant
+        // is set when max(lowers, 0) <= min(uppers, 1); bit x + 2y + 4z.
+        private static int OctantMask(Vector3 o, Vector3 inv, Vector3 a3, Vector3 b3)
+        {
+            static float MinPs(float x, float y) => x < y ? x : y;
+            static float MaxPs(float x, float y) => x > y ? x : y;
+            float[] a = [(a3.X - o.X) * inv.X, (a3.Y - o.Y) * inv.Y, (a3.Z - o.Z) * inv.Z];
+            float[] b = [(b3.X - o.X) * inv.X, (b3.Y - o.Y) * inv.Y, (b3.Z - o.Z) * inv.Z];
+            float[] m = [(b[0] + a[0]) * 0.5f, (b[1] + a[1]) * 0.5f, (b[2] + a[2]) * 0.5f];
+            var lo = new float[3, 2];
+            var hi = new float[3, 2];
+            for (var axis = 0; axis < 3; axis++)
+            {
+                lo[axis, 0] = MinPs(a[axis], m[axis]);
+                hi[axis, 0] = MaxPs(a[axis], m[axis]);
+                lo[axis, 1] = MinPs(m[axis], b[axis]);
+                hi[axis, 1] = MaxPs(m[axis], b[axis]);
+            }
+            var mask = 0;
+            for (var z = 0; z < 2; z++)
+                for (var y = 0; y < 2; y++)
+                    for (var x = 0; x < 2; x++)
+                    {
+                        // As the asm folds them: x then y, then z, then the [0, 1] clamp.
+                        var enter = MaxPs(MaxPs(lo[2, z], MaxPs(lo[0, x], lo[1, y])), 0f);
+                        var leave = MinPs(MinPs(hi[2, z], MinPs(hi[0, x], hi[1, y])), 1f);
+                        if (enter <= leave)
+                            mask |= 1 << (x + (2 * y) + (4 * z));
+                    }
+            return mask;
+        }
+
         public Status March(Vector3 from, Vector3 to, Status[] status, bool[] flagged)
             => March(from, to, status, flagged, out _, out _);
 

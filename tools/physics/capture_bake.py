@@ -21,14 +21,23 @@ A compile overwrites the map's .vpk: back it up. CS2 must be closed.
 import argparse
 import json
 import os
+import sys
 import threading
 
 import frida
 
 from capture_physshapes import BIN, CS2, busy, low_disk
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed  # noqa: E402
+
+# 0923 RVAs: the wrapper, the bake, AddVertexToEdge, AddEdgeToFace,
+# CollapseFace, MergeVertexPair, MergeVerticesWithinDistance.
+HOOKED = ["0x10c65c0", "0x13baa40", "0x137a050", "0x1376f80", "0x1384470", "0x13a8840", "0x13a8ae0"]
+
 AGENT = r"""
 'use strict';
+const RVA = RVAS;
 function rec(mesh, base, stride, h) {
   const idx = h & 0x3fffff;
   if (idx === 0x3fffff) return null;
@@ -108,19 +117,31 @@ function opHook(m, rva, name, argIdx) {
 function hook() {
   const m = Process.findModuleByName('resourcecompiler.dll');
   if (m === null) { setTimeout(hook, 5); return; }
-  Interceptor.attach(m.base.add(0x10c65c0), {
+  Interceptor.attach(m.base.add(RVA['0x10c65c0']), {
     onEnter(args) { this.mesh = args[0]; snapshot(this.mesh, 'before'); },
     onLeave() { snapshot(this.mesh, 'after'); }
   });
-  Interceptor.attach(m.base.add(0x13baa40), {
+  Interceptor.attach(m.base.add(RVA['0x13baa40']), {
     onEnter(args) { this.mesh = args[0]; inBake++; },
     onLeave() { inBake--; snapshot(this.mesh, 'baked'); }
   });
   // AddVertexToEdge(mesh, a, b, t, out), AddEdgeToFace(mesh, face, a, b, out),
   // CollapseFace(mesh, face, out): handle arguments by index.
-  opHook(m, 0x137a050, 'AddVertexToEdge', [1, 2]);
-  opHook(m, 0x1376f80, 'AddEdgeToFace', [1, 2, 3]);
-  opHook(m, 0x1384470, 'CollapseFace', [1]);
+  opHook(m, RVA['0x137a050'], 'AddVertexToEdge', [1, 2]);
+  opHook(m, RVA['0x1376f80'], 'AddEdgeToFace', [1, 2, 3]);
+  opHook(m, RVA['0x1384470'], 'CollapseFace', [1]);
+  // The wrapper's vertex merge (1813a8ae0) and each pair it merges
+  // (1813a8840: mesh, &a, &b, weight, &out), whether or not --ops is set.
+  Interceptor.attach(m.base.add(RVA['0x13a8840']), {
+    onEnter(args) { this.a = [args[1].readU32() & 0x3fffff, args[2].readU32() & 0x3fffff]; this.out = args[4]; },
+    onLeave(ret) {
+      send({op: 'MergeVertexPair', args: this.a, ret: ret.toInt32() & 0xff,
+            result: this.out.isNull() ? -1 : (this.out.readU32() & 0x3fffff)});
+    }
+  });
+  Interceptor.attach(m.base.add(RVA['0x13a8ae0']), {
+    onLeave(ret) { send({op: 'MergeVerticesWithinDistance', ret: ret.toInt32()}); }
+  });
   send({hooked: m.base.toString()});
 }
 hook();
@@ -161,10 +182,15 @@ def main():
             out.write(json.dumps(pay) + "\n")
         print(pay["tag"], pay["mesh"], len(pay["faces"]), "faces", flush=True)
 
+    # The hooks were read on the 0923 build; each is found again in the
+    # installed one (tools/re/rva_map.py refuses code that changed).
+    rvas = {r: hex(installed("resourcecompiler", int(r, 16))) for r in HOOKED}
+    print("hooks", rvas, flush=True)
+    rvas = {k: int(v, 16) for k, v in rvas.items()}
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT.replace("OPS", "true" if a.ops else "false"))
+    sc = ses.create_script(AGENT.replace("OPS", "true" if a.ops else "false").replace("RVAS", json.dumps(rvas)))
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

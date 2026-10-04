@@ -21,9 +21,6 @@ game can answer is raised with the user first, and runs with -insecure.
 ## Open
 
 ### World physics
-2. **Painted convex_multi pieces**: each layer's mesh is grouped by
-   connectivity as an unsplit piece is; physicsbuilder's multi path is not
-   read yet. (convex_single is settled below.)
 3. **KV3 encodings per resource type.** Most block writers save with
    binary_auto (settled below), but some call sites pass plain "binary" or
    "binary_bc". Map each writer to the resource types it serves.
@@ -32,10 +29,10 @@ game can answer is raised with the user first, and runs with -insecure.
 5. **Instance path for brush entity meshes**: applied after the node's own
    move, or composed first. Both place atixref the same; not read.
 6. **Subdivision bake remainder**: the face collapse is modelled from the
-   edge collapses (confirmed by exact output, not read line by line), and
-   the wrapper's vertex merge (tolerance about 1e-6) and edge smoothing are
-   not ported. tools/physics/capture_bake.py logs every operation to settle
-   both when a map needs them.
+   edge collapses (confirmed by exact output, not read line by line). The
+   wrapper's vertex merge is ported (see Resolved) for the two paths a
+   specimen takes; an edge between two coincident vertices (the edge
+   collapse, 181382170) stops the build.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index
@@ -180,11 +177,6 @@ game can answer is raised with the user first, and runs with -insecure.
     the render vertex and index buffers, draw calls then indices, which
     makes every atixref barn light exact. The code that fills the trace
     data (TraceDataForDraw_t, TraceVertex_t) is not read.
-30. The outside seed traces the .rte's own kd tree as the file wrote it
-    (RayTraceEnvironment.Trace, leaves' filed triangles over the whole ray):
-    measured, every specimen exact that way, while the loader's rebuilt
-    tracer tree changes the verdicts (RebuiltTreeProbe, RTREE=<map>). Which
-    structure visbuilder's seed trace reads is not read in the 09-23 build.
 34. **World node triangle order** (settled 2026-10-03 for plain draws):
     the merger's output entry goes through the model compiler's
     CMesh_Weld at 1e-7 (FUN_18033f200 into 1803447d0; the node model is
@@ -328,6 +320,49 @@ game can answer is raised with the user first, and runs with -insecure.
     (DrawOrderProbe, DRAWORDER_RUNS=1) and 472 agg_prop streams.
 
 ## Resolved
+
+- **Outside detection on atixref** (settled 2026-10-04 by capture,
+  tools/vis/capture_outside.py and OutsideCaptureTests, all 301,499 regions
+  and verdicts exact). Three defects: regions are pushed in the build's
+  depth-first order (a branch recursed into at its octant, before the
+  octants after it), not slot order; the seed is GatherRays on the batch
+  tracer (RayTraceEnvironment.Segments: packets per octant through the
+  rebuilt kd tree), with Valve's direction and facing arithmetic, which
+  settles ledger 30 (the scalar trace on the file's tree only agreed on
+  maps without coplanar back-to-back triangles); and ClassifyRegion marches
+  with MarchRay, whose OctantMask is called with the node's minimum as both
+  box arguments, so the march meets nothing and every region the seed
+  leaves undecided ends outside.
+- **Subdivision vertex merge** (ledger 6, ported 2026-10-04,
+  BakeMergeCaptureTests on c2m2_fairgrounds_csgo: all 71 baked meshes
+  exact after the merge, positions bit for bit, vertex identities and
+  half-edge counts). HalfEdge_MergeVertices: baked faces' vertices listed
+  once in face order, clusters within 1e-6 ((dx dx + dy dy) + dz dz),
+  pairs merged into the first (one boundary half-edge leaving each, inner
+  faces different; boundary loops spliced, or two boundary edges zipped
+  when one's far end reaches the other), sum times 1/count, up to ten
+  passes. It matters to physics: the world mesh weld keeps vertices apart
+  by id, so an unmerged pair is an extra vertex (fairgrounds' world physics
+  is now whole-file exact).
+
+- **Painted convex_multi pieces and world convex_multi groups** (ledger 2,
+  settled 2026-10-04 by decompile). physicsbuilder's PhysicsBuilder_MeshPieces
+  (180016230) hands each layer's mesh and an unsplit piece to the same
+  node callback, so a layer is grouped as a piece is. A world mesh's groups
+  are physicsbuilder's own (PhysicsBuilder_ConvexMulti 18001ac20 through
+  1800d33e0 and 1800d39a0), not the map builder's brush entity grouping:
+  a union-find over the CMesh vertex buffer joined by each triangle's
+  corners, groups in order of their lowest vertex, each group's vertices
+  in buffer order, a vertex no triangle uses a group of its own
+  (BrushHulls.BufferGroups). Hull options equal convex_single's.
+- **Physics simplification** (settled 2026-10-04 by decompile).
+  ConvertMeshForBuilder hands physicsbuilder physicsSimplificationError
+  from CMapMesh vf216: with physicsSimplificationOverride set, the error
+  squared; else 0 when a material carries attribute 0x184fc5; else
+  gameinfo's PhysicsBuilder/DefaultHammerMeshSimplification squared (CS2:
+  0.0). Above 0 the piece is welded at 1/32 and simplified (1800c5b90,
+  not ported; BrushHulls.RefuseSimplification stops such a build). None of
+  the 227 installed maps sets the override.
 
 - **Texcoord transform defaults** (ledger 9, settled 2026-10-04 from the
   compiled shaders' variable defaults, ShaderDefaultsProbe): a parameter a

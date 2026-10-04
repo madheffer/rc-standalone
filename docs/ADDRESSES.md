@@ -75,24 +75,24 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
-- against the installed build (20261004_1.41.8.8.md): 63 tracked addresses: changed 4, identical 29, moved 10, relocated 20
-- 58 addresses
+- against the installed build (20261004_1.41.8.8.md): 65 tracked addresses: changed 4, identical 30, moved 10, relocated 21
+- 60 addresses
 
 ### s2c:geometry/props
 
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800174e0` | `CreateStaticPropShapesForPropInstance` | per body of the prop's PHYS, transformed, to the sink | `src/Source2.Compiler/Physics/StaticPropHulls.cs:10` |
-| `18001b420` | `CPhysicsBuilderWorld_ModelDoc::vf2` | sink: spheres, capsules, hulls, meshes, 0x178 entries | `src/Source2.Compiler/Physics/WorldCollision.cs:685` |
+| `18001b420` | `CPhysicsBuilderWorld_ModelDoc::vf2` | sink: spheres, capsules, hulls, meshes, 0x178 entries | `src/Source2.Compiler/Physics/WorldCollision.cs:694` |
 | `1800b5a50` | `PropMatrix_Angles` | AngleMatrix of the prop's angles | `src/Source2.Compiler/Physics/StaticPropHulls.cs:44` |
 | `1800b8fc0` | `PropMatrix_Scale` |  | `src/Source2.Compiler/Physics/StaticPropHulls.cs:44` |
-| `180106be0` | `PhysicsBuilder_PropHalfEdgeMesh` | a prop mesh as a half-edge mesh (renumbered by first use) | `src/Source2.Compiler/Physics/WorldCollision.cs:691` |
+| `180106be0` | `PhysicsBuilder_PropHalfEdgeMesh` | a prop mesh as a half-edge mesh (renumbered by first use) | `src/Source2.Compiler/Physics/WorldCollision.cs:700` |
 | `180152230` | `PhysicsBuilder_CapsuleNodes` | 0x38 entries | `src/Source2.Compiler/Physics/StaticPropHulls.cs:129` |
 | `1801525d0` | `PhysicsBuilder_Nodes178` | 0x178-byte entries, unknown kind |  |
 | `180152fd0` | `PhysicsBuilder_HullNode` | PhysicsShapeHull: points, origin, MatrixAngles | `src/Source2.Compiler/Physics/StaticPropHulls.cs:13` |
 | `180153390` | `PhysicsBuilder_MeshNodes` |  | `src/Source2.Compiler/Physics/StaticPropHulls.cs:183` |
 | `180153740` | `PhysicsBuilder_SphereNodes` | 0x28 entries | `src/Source2.Compiler/Physics/StaticPropHulls.cs:128` |
-| `180153d40` | `PhysicsBuilder_AttributeStrings` | strings from the cooked attribute via vphysics2's dictionary | `src/Source2.Compiler/Physics/CollisionNames.cs:9`, `src/Source2.Compiler/Physics/WorldCollision.cs:550`, `src/Source2.Compiler/Physics/WorldCollision.cs:658` +1 |
+| `180153d40` | `PhysicsBuilder_AttributeStrings` | strings from the cooked attribute via vphysics2's dictionary | `src/Source2.Compiler/Physics/CollisionNames.cs:10`, `src/Source2.Compiler/Physics/WorldCollision.cs:559`, `src/Source2.Compiler/Physics/WorldCollision.cs:667` +1 |
 | `18015fb60` | `PhysicsBuilder_CheckHull` | quickhull check; rejects invalid hulls | `src/Source2.Compiler/Physics/StaticPropHulls.cs:76` |
 | `1805f1740` | `PhysicsBuilder_MeshNodeBySurface` | one node per surface index with triangles | `src/Source2.Compiler/Physics/StaticPropHulls.cs:186` |
 | `1805f1c50` | `PhysicsBuilder_MeshNodeAll` | every vertex, then every triangle | `src/Source2.Compiler/Physics/StaticPropHulls.cs:185` |
@@ -121,14 +121,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `180015080` | `PhysicsBuilder_BlendSurfaces` |  | `src/Source2.Compiler/Physics/WorldCollision.cs:64` |
-| `1800156a0` | `PhysicsBuilder_BlendLayers` | a material's painted layers | `src/Source2.Compiler/Physics/WorldCollision.cs:64`, `src/Source2.Compiler/Physics/WorldCollision.cs:102` |
-| `180015930` | `PhysicsBuilder_SplitBlendLayers` | a piece cut into positions-only meshes per layer, welded at 1/32 | `src/Source2.Compiler/Physics/WorldCollision.cs:154`, `src/Source2.Compiler/Physics/WorldCollision.cs:402`, `src/Source2.Compiler/Physics/WorldCollision.cs:793` |
+| `180015080` | `PhysicsBuilder_BlendSurfaces` |  | `src/Source2.Compiler/Physics/WorldCollision.cs:65` |
+| `1800156a0` | `PhysicsBuilder_BlendLayers` | a material's painted layers | `src/Source2.Compiler/Physics/WorldCollision.cs:65`, `src/Source2.Compiler/Physics/WorldCollision.cs:103` |
+| `180015930` | `PhysicsBuilder_SplitBlendLayers` | a piece cut into positions-only meshes per layer, welded at 1/32 | `src/Source2.Compiler/Physics/WorldCollision.cs:155`, `src/Source2.Compiler/Physics/WorldCollision.cs:404`, `src/Source2.Compiler/Physics/WorldCollision.cs:802` |
 | `18064bcb0` | `CMaterialSampler_TargetSide` | next power of two of ceil(sqrt(count)), at least 16 | `src/Source2.Compiler/Physics/MaterialSampler.cs:195` |
 | `18064c2c0` | `CMaterialSampler_Vote` | a triangle's layer from its points' weights | `src/Source2.Compiler/Physics/MaterialSampler.cs:216` |
-| `18064c460` | `CMaterialSampler_Run` | renders the ToolsVis programs for two-surface blend pieces | `src/Source2.Compiler/Physics/MaterialSampler.cs:7`, `src/Source2.Compiler/Physics/MaterialSampler.cs:26`, `src/Source2.Compiler/Physics/WorldCollision.cs:70` +1 |
+| `18064c460` | `CMaterialSampler_Run` | renders the ToolsVis programs for two-surface blend pieces | `src/Source2.Compiler/Physics/MaterialSampler.cs:7`, `src/Source2.Compiler/Physics/MaterialSampler.cs:26`, `src/Source2.Compiler/Physics/WorldCollision.cs:71` +1 |
 | `18064c7e0` | `CMaterialSampler_Draw` | draws the sample points in batches | `src/Source2.Compiler/Physics/MaterialSampler.cs:22`, `src/Source2.Compiler/Physics/MaterialSampler.cs:27` |
-| `18064cd80` | `CMaterialSampler_TrianglePoints` | each triangle's sample points; needs texcoord 0 | `src/Source2.Compiler/Physics/MaterialSampler.cs:95`, `src/Source2.Compiler/Physics/WorldCollision.cs:518` |
+| `18064cd80` | `CMaterialSampler_TrianglePoints` | each triangle's sample points; needs texcoord 0 | `src/Source2.Compiler/Physics/MaterialSampler.cs:95`, `src/Source2.Compiler/Physics/WorldCollision.cs:527` |
 | `18064d790` | `CMaterialSampler_Weights` | (R - m, G - m, B - m, m) / 255, m the smallest | `src/Source2.Compiler/Physics/MaterialSampler.cs:208` |
 | `18064dfb0` | `CMaterialSampler_PixelTriangles` | point i on pixel i of a side x side target | `src/Source2.Compiler.Gpu/GpuMaterialSampler.cs:155` |
 | `18064e530` | `CMaterialSampler_PackVertex` | a point's 40-byte vertex record | `src/Source2.Compiler/Physics/MaterialSampler.cs:153` |
@@ -142,22 +142,24 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800132f0` | `PhysicsBuilder_ReadMaterialPhysics` | V_SplitString(','), water rule removes ', window' | `src/Source2.Compiler/Physics/MaterialCollision.cs:5` |
 | `1800142d0` | `CPhysicsBuilder::Build` | writes world_physics.vmdl; Physics/EnableWorldCompounds |  |
-| `180014aa0` | `PhysicsBuilder_WalkTree` | depth first: a node's own meshes, then children | `src/Source2.Compiler/Physics/WorldCollision.cs:299` |
+| `180014aa0` | `PhysicsBuilder_WalkTree` | depth first: a node's own meshes, then children | `src/Source2.Compiler/Physics/WorldCollision.cs:300` |
 | `180014b40` | `PhysicsBuilder_WalkNode` | meshes, then entities (prop_static with solid 6) |  |
-| `180016230` | `PhysicsBuilder_MeshPieces` | splits by surface; AppendFormat(' [%s]') for blend layers | `src/Source2.Compiler/Physics/WorldCollision.cs:147`, `src/Source2.Compiler/Physics/WorldCollision.cs:265`, `src/Source2.Compiler/Physics/WorldCollision.cs:400` +1 |
+| `180016230` | `PhysicsBuilder_MeshPieces` | splits by surface; AppendFormat(' [%s]') for blend layers; each layer mesh and an unsplit piece go to the same node callback (param_6 vf1); physicsSimplificationError > 0 welds at 1/32 and simplifies first | `src/Source2.Compiler/Physics/BrushHulls.cs:43`, `src/Source2.Compiler/Physics/WorldCollision.cs:148`, `src/Source2.Compiler/Physics/WorldCollision.cs:266` +2 |
 | `180016e90` | `PhysicsBuilder_NodeMeshes` |  |  |
 | `180017d90` | `PhysicsBuilder_MaterialRecord_ctor` |  |  |
 | `180018450` | `PhysicsBuilder_MaterialRecord` | material physics record |  |
-| `18001a950` | `PhysicsBuilder_ConvexSingle` | hulls all vertices of the per-material CMesh buffer | `src/Source2.Compiler/Physics/WorldCollision.cs:396` |
-| `18001ac20` | `PhysicsBuilder_ConvexMulti` |  |  |
-| `18001b0a0` | `PhysicsBuilder_CreateNode` | node creator: type 1/4 mesh, 2 convex single, 3 convex multi | `src/Source2.Compiler/Physics/WorldCollision.cs:795` |
+| `18001a950` | `PhysicsBuilder_ConvexSingle` | hulls all vertices of the per-material CMesh buffer | `src/Source2.Compiler/Physics/WorldCollision.cs:398` |
+| `18001ac20` | `PhysicsBuilder_ConvexMulti` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:173`, `src/Source2.Compiler/Physics/WorldCollision.cs:399`, `src/Source2.Compiler/Physics/WorldCollision.cs:462` |
+| `18001b0a0` | `PhysicsBuilder_CreateNode` | node creator: type 1/4 mesh, 2 convex single, 3 convex multi | `src/Source2.Compiler/Physics/WorldCollision.cs:804` |
 | `18001b280` | `CPhysicsBuilderWorld_ModelDoc::vf1` | world callback |  |
+| `1800a6b80` | `CMapMesh_UpgradeSimplification` | DMX upgrade: physicsSimplificationError becomes its square root and physicsSimplificationOverride is set |  |
 | `1800c1050` | `CMesh_InitPositions` |  |  |
 | `1800c1ad0` | `CMesh_WeldPositions` | weld at 1/32 |  |
 | `1800c3430` | `CMesh_CopyVertexBuffer` | copies the buffer in order |  |
+| `1800c5b90` | `CMesh_Simplify` | QEM simplify in double (18060xxxx) to an error; needs 4 vertices and 6 indices, else a copy; not ported (BrushHulls.RefuseSimplification) | `src/Source2.Compiler/Physics/BrushHulls.cs:44`, `src/Source2.Compiler/Physics/BrushHulls.cs:50` |
 | `18016ea10` | `ModelDocPhysicsShape_SetSurfaceProperty` | node +0xc0 from the material record's surface string (folded body) |  |
 | `180174820` | `ModelDocPhysicsShape_SetCollision` | group +0x118, interact as/with/exclude +0x120/+0x128/+0x130 verbatim; clears +0xc8 |  |
-| `1801749f0` | `PhysicsBuilder_ToolMaterial` | node tool material: the mesh +0x68 name (+0x108) | `src/Source2.Compiler/Physics/WorldCollision.cs:795` |
+| `1801749f0` | `PhysicsBuilder_ToolMaterial` | node tool material: the mesh +0x68 name (+0x108) | `src/Source2.Compiler/Physics/WorldCollision.cs:804` |
 | `180174a20` | `ModelDocPhysicsShape_SetString110` | node +0x110 from the callback's last argument |  |
 | `180ba72b0` | `PhysicsBuilder_AttributeTable` | data: 13 x 0x20 {attribute, collision group, ...} | `src/Source2.Compiler/Physics/MaterialCollision.cs:25` |
 
@@ -166,25 +168,25 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- against the installed build (20261004_1.41.8.8.md): 825 tracked addresses: ambiguous 46, changed 28, identical 21, moved 721, relocated 9
-- 808 addresses
+- against the installed build (20261004_1.41.8.8.md): 836 tracked addresses: ambiguous 48, changed 10, identical 21, moved 748, relocated 9
+- 812 addresses
 
 ### s2c:baked/light-keys
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available) | `src/Source2.Compiler/Maps/MapCompile.cs:186` |
-| `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:59`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:120` |
-| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:580` |
+| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available) | `src/Source2.Compiler/Maps/MapCompile.cs:187` |
+| `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:121` |
+| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:581` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
 | `1801f5a40` | `LightProbe_AtlasCompare` | qsort key: size z, then y, then x, all descending |  |
-| `1801f5a80` | `LightProbe_PackAtlas` | CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:78`, `src/Source2.Compiler/Maps/ProbeAtlas.cs:5` |
+| `1801f5a80` | `LightProbe_PackAtlas` | CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:79`, `src/Source2.Compiler/Maps/ProbeAtlas.cs:5` |
 | `1801f6f40` | `CMapWorld_RayTraceScene` | the editor ray-trace scene at world +0x2bd0 |  |
 | `1801f9010` | `CMapBuilderContext::vf31` | +0x604: -entities without -world/-all |  |
 | `1801f9030` | `CMapBuilderContext::vf30` | +0x607: a stage switch was given (partial compile) |  |
 | `1801f9040` | `CMapBuilderContext::vf32` | +0x605: lighting is baked in this compile |  |
 | `1801f9050` | `CMapBuilderContext::vf33` | +0x606: baked lighting available (baking now or lightmaps on disk) |  |
-| `180247d40` | `WRB_PrecomputeLightVisMembership` | baked (direct_light_shadows): barn, rect and omni2 lights of direct light mode 3 sampled again; the sorted clusters their rays reach, written last as precomputed_vis_clusters; ported (LightVisClusters), ze_hold_em_p 37/37 | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:172`, `src/Source2.Compiler/Maps/LightVisClusters.cs:9` |
+| `180247d40` | `WRB_PrecomputeLightVisMembership` | baked (direct_light_shadows): barn, rect and omni2 lights of direct light mode 3 sampled again; the sorted clusters their rays reach, written last as precomputed_vis_clusters; ported (LightVisClusters), ze_hold_em_p 37/37 | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:173`, `src/Source2.Compiler/Maps/LightVisClusters.cs:9` |
 | `180248440` | `LightVisMembership_Callback` | the trace's callback: clusters with a box overlapping the light bounds become candidates for TestClusters | `src/Source2.Compiler/Maps/LightVisClusters.cs:11` |
 | `180248440` | `LightVis_CollectClusters` | clusters whose boxes overlap the light bounds, then TestClusters | `src/Source2.Compiler/Maps/LightVisClusters.cs:11` |
 | `18024ee30` | `LightVisMembership_TestClusters` | thread pool job: a candidate goes in when a ray segment reaches one of its boxes (eps 0.001) | `src/Source2.Compiler/Maps/LightVisClusters.cs:15` |
@@ -192,42 +194,42 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180251040` | `Matrix4x4_Project` | a point through the 4x4, divided by w | `src/Source2.Compiler/Maps/LightTrace.cs:46` |
 | `180dd2630` | `EntityClass_HasStaticProp` | class metadata key static_prop |  |
 | `180ee9e30` | `LightBuild_TransformVolume` |  | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
-| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Maps/LightBuild.cs:6`, `src/Source2.Compiler/Maps/LightBuild.cs:321`, `src/Source2.Compiler/Maps/LightPrecompute.cs:69` +2 |
-| `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:107` |
-| `180eed3c0` | `Light_BrightnessFromUnits` | 0 exp2(brightness)*scale, 1 lumens/factor, 2 nits*area*pi*0.00064516/factor, 3 legacy*scale, 4 candelas*solid/factor | `src/Source2.Compiler/Maps/LightUnits.cs:10`, `src/Source2.Compiler/Maps/LightUnits.cs:73` |
+| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Maps/LightBuild.cs:6`, `src/Source2.Compiler/Maps/LightBuild.cs:321`, `src/Source2.Compiler/Maps/LightPrecompute.cs:70` +2 |
+| `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:108` |
+| `180eed3c0` | `Light_BrightnessFromUnits` | 0 exp2(brightness)*scale, 1 lumens/factor, 2 nits*area*pi*0.00064516/factor, 3 legacy*scale, 4 candelas*solid/factor | `src/Source2.Compiler/Maps/LightUnits.cs:11`, `src/Source2.Compiler/Maps/LightUnits.cs:74` |
 | `180eedfe0` | `Light_LegacyDescriptionAt` | step matrix, then Light_LegacyDescription |  |
 | `180eee040` | `Light_LegacyType` | 1 omni/capsule, 3 spot, 2 directional/environment, 4 ortho, else 0 |  |
-| `180eee150` | `Light_SyncBrightnessUnits` | flags-2 record; scale/factor/area/solid angle per class; writes brightness, lumens, nits, candelas, legacy by brightness_units (LightUnits.Sync) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:246`, `src/Source2.Compiler/Maps/LightUnits.cs:7`, `src/Source2.Compiler/Maps/LightUnits.cs:57` |
+| `180eee150` | `Light_SyncBrightnessUnits` | flags-2 record; scale/factor/area/solid angle per class; writes brightness, lumens, nits, candelas, legacy by brightness_units (LightUnits.Sync) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:247`, `src/Source2.Compiler/Maps/LightUnits.cs:8`, `src/Source2.Compiler/Maps/LightUnits.cs:58` |
 | `180f06c20` | `CModelHelper_Init` | +0xb2 when the class metadata has static_prop |  |
-| `180f0d670` | `CModelHelper_RaytraceFlags` | 0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided | `src/Source2.Compiler/Maps/EditorTraceScene.cs:124` |
+| `180f0d670` | `CModelHelper_RaytraceFlags` | 0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided | `src/Source2.Compiler/Maps/EditorTraceScene.cs:125` |
 | `180f18820` | `LightPrecompute_TraceRay` |  | `src/Source2.Compiler/Maps/LightTrace.cs:32` |
 | `180f19840` | `LightPrecompute_TraceSamples` |  | `src/Source2.Compiler/Maps/LightTrace.cs:32` |
-| `180f19f20` | `LightPrecompute_SampleVolume` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:8` |
+| `180f19f20` | `LightPrecompute_SampleVolume` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:9` |
 | `180f1aa70` | `LightPrecompute_FitObb` | every orientation on a 5 degree grid | `src/Source2.Compiler/Maps/LightObb.cs:7` |
 | `180f1c660` | `MapDoc_GatherLights` | lights of the world and of +0x6b8 docs |  |
 | `180f1c8b0` | `MapWorld_GatherLights` | light_* legacy classes plus barn/rect/omni2, one entry per world transform |  |
 | `180f1d100` | `MapDoc_PreprocessLights` | Preprocessing Lights: brightness units, lightcookie, precompute keys |  |
-| `180f1def0` | `LightPrecompute_WriteKeys` | precomputed* key writer: one box per face | `src/Source2.Compiler/Maps/LightPrecompute.cs:11` |
-| `180f1e0e0` | `LightPrecompute_WriteBoxes` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:11` |
-| `180f32050` | `V_atofloat32` | key reader | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:494`, `src/Source2.Compiler/Maps/LightPrecompute.cs:18`, `src/Source2.Compiler/Maps/LightPrecompute.cs:186` |
-| `180f32130` | `V_atoi` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:616`, `src/Source2.Compiler/Maps/LightPrecompute.cs:186` |
-| `180f32390` | `KeyReader_Vector` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:630`, `src/Source2.Compiler/Maps/LightPrecompute.cs:186` |
+| `180f1def0` | `LightPrecompute_WriteKeys` | precomputed* key writer: one box per face | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
+| `180f1e0e0` | `LightPrecompute_WriteBoxes` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
+| `180f32050` | `V_atofloat32` | key reader | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:495`, `src/Source2.Compiler/Maps/LightPrecompute.cs:19`, `src/Source2.Compiler/Maps/LightPrecompute.cs:187` |
+| `180f32130` | `V_atoi` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:617`, `src/Source2.Compiler/Maps/LightPrecompute.cs:187` |
+| `180f32390` | `KeyReader_Vector` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:631`, `src/Source2.Compiler/Maps/LightPrecompute.cs:187` |
 | `180f38940` | `MapNode_SetKeyFloat` | %g then MapNode_SetKeyValue |  |
 | `180f38990` | `MapNode_SetKeyInt` | %d then MapNode_SetKeyValue |  |
 | `180f3d040` | `CComputeBakedShadowAssignment_SortMedian` | std::sort guess median for SortWaiting |  |
-| `180f3f2c0` | `CComputeBakedShadowAssignment_SortWaiting` | std::sort, assigned neighbours then neighbours, descending | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:533` |
+| `180f3f2c0` | `CComputeBakedShadowAssignment_SortWaiting` | std::sort, assigned neighbours then neighbours, descending | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:534` |
 | `180f3fbf0` | `CComputeBakedShadowAssignment_ctor` | icosphere (one split, scaled to its first face), cone hulls every 3 degrees to 180 |  |
 | `180f417f0` | `BakedShadow_ConeHull` | cone hull of a half angle; threshold cos(angle); not ported |  |
-| `180f43360` | `BakedShadow_SuperellipseTangent` | central difference at +-0.01 rad, times 50 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:191`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:254` |
-| `180f43680` | `BakedShadow_BoundingSphere` | mean of the moved points and the largest distance | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:264` |
-| `180f44db0` | `CComputeBakedShadowAssignment_Overlaps` | pairs i<j: directional always; spheres, precomputed boxes, GJK distance <= 1 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:291` |
-| `180f45210` | `CComputeBakedShadowAssignment_AssignSlots` | Assigned %d Light Shadow Slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:529` |
-| `180f45900` | `CComputeBakedShadowAssignment_BuildRecord` | 0x350 record for directlight 3 with castshadows; shape by kind; precomputed box if +8 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:69`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:155` |
+| `180f43360` | `BakedShadow_SuperellipseTangent` | central difference at +-0.01 rad, times 50 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:192`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:255` |
+| `180f43680` | `BakedShadow_BoundingSphere` | mean of the moved points and the largest distance | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:265` |
+| `180f44db0` | `CComputeBakedShadowAssignment_Overlaps` | pairs i<j: directional always; spheres, precomputed boxes, GJK distance <= 1 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:292` |
+| `180f45210` | `CComputeBakedShadowAssignment_AssignSlots` | Assigned %d Light Shadow Slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:530` |
+| `180f45900` | `CComputeBakedShadowAssignment_BuildRecord` | 0x350 record for directlight 3 with castshadows; shape by kind; precomputed box if +8 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:70`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:156` |
 | `180f46050` | `CComputeBakedShadowAssignment_IncrementalUpdate` | rebuild list, overlaps, AssignSlots; +9 threadpool job off here |  |
-| `180f461c0` | `BakedShadow_BarnHull` | 12 superellipse tangent corners at depth 0 and 1 through the record inverse | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:157`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:188` |
-| `180f47430` | `BakedShadow_ConeShape` | legacy light_spot shape; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:170` |
-| `180f48520` | `BakedShadow_HullShape` | shape from a point hull (ortho, infinite range); not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:170`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:174` |
-| `180f48c50` | `BakedShadow_SphereShape` | centre the translation, radius the range; icosphere or cone hull by cosine | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:170`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:174` |
+| `180f461c0` | `BakedShadow_BarnHull` | 12 superellipse tangent corners at depth 0 and 1 through the record inverse | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:158`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:189` |
+| `180f47430` | `BakedShadow_ConeShape` | legacy light_spot shape; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:171` |
+| `180f48520` | `BakedShadow_HullShape` | shape from a point hull (ortho, infinite range); not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:171`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:175` |
+| `180f48c50` | `BakedShadow_SphereShape` | centre the translation, radius the range; icosphere or cone hull by cosine | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:171`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:175` |
 | `180f48f20` | `CComputeBakedShadowAssignment_MatchLight` | stationary with castshadows, equal to the stored record |  |
 | `180f492b0` | `CComputeBakedShadowAssignment_ForEachLight` | rebuilds the list, calls the callback with slot +0x328 and done +0x320 |  |
 | `180f496b0` | `CComputeBakedShadowAssignment_SetWorld` | drops the records when the world changes |  |
@@ -243,28 +245,28 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fcd780` | `MapWorld_UpdateRayTraceScene` | updates dirty owners, children, then finalises the scene |  |
 | `180fff060` | `CBaseHelper_RaytraceFlags` | the helper's entity node flags (its raytrace owner vf 0x30) |  |
 | `18100edc0` | `RaytraceOwnerJob_ctor` | {owner, scene, instances} |  |
-| `18100fd50` | `RaytraceOwnerJob_Update` | one instance per placement: step matrix times owner vf 0x10; env flags from owner vf 0x30 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:13` |
+| `18100fd50` | `RaytraceOwnerJob_Update` | one instance per placement: step matrix times owner vf 0x10; env flags from owner vf 0x30 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:14` |
 | `1810d5830` | `MapMeshGeometry_RayFlags` | +0x3508, part of the mesh owner flags; writer not found |  |
 | `1810d5840` | `MapMeshGeometry_RayScene` | the mesh's own scene (+0x34f0) |  |
-| `1810e11a0` | `CMapMeshBase::vf6` | object flags: 0x4000 under a CMapEntity, 0x20, 0xa000/0x2000 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:71` |
+| `1810e11a0` | `CMapMeshBase::vf6` | object flags: 0x4000 under a CMapEntity, 0x20, 0xa000/0x2000 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:72` |
 | `1810e6d10` | `CMapMesh_GetDisableShadows` | node +0x3b6c |  |
 | `18125d8e0` | `Halton_RadicalInverse` | in float | `src/Source2.Compiler/Maps/LightTrace.cs:166` |
 | `1812651a0` | `Matrix3x4_TransformPointXmm` | point in xmm0-2 through the 3x4 at rcx |  |
-| `181266fc0` | `ConvexDistance_Gjk` | GJK distance of two transformed point hulls, 0x20 iterations; modelled, not ported | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:295`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:402` |
+| `181266fc0` | `ConvexDistance_Gjk` | GJK distance of two transformed point hulls, 0x20 iterations; modelled, not ported | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:296`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:403` |
 | `181267a70` | `ConvexDistance_Thunk` | forwards to ConvexDistance_Gjk |  |
 | `181267d20` | `ConvexDistance_Support` | point with the largest dot product |  |
-| `181268550` | `ConvexDistance_SolveTriangle` | GJK triangle simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:403` |
-| `181268c20` | `ConvexDistance_SolveTetrahedron` | GJK tetrahedron simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:403` |
-| `181270250` | `Obb_NearestPoint` | clamps the local coordinates to the extents | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:339` |
-| `181270590` | `Obb_OverlapsObb` | 15-axis separating axis test, thresholds zero | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:294`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:355` |
-| `181271420` | `Obb_ReachesSphere` | nearest box point within the radius | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:294`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:339` |
+| `181268550` | `ConvexDistance_SolveTriangle` | GJK triangle simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:404` |
+| `181268c20` | `ConvexDistance_SolveTetrahedron` | GJK tetrahedron simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:404` |
+| `181270250` | `Obb_NearestPoint` | clamps the local coordinates to the extents | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:340` |
+| `181270590` | `Obb_OverlapsObb` | 15-axis separating axis test, thresholds zero | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:295`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:356` |
+| `181271420` | `Obb_ReachesSphere` | nearest box point within the radius | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:295`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:340` |
 | `18128ca90` | `RayScene_Winding` | (0,1,2), or (2,1,0) when the deformer's +0x70 is set |  |
-| `1812918f0` | `LightUnits_FrustumSolidAngle` | barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal | `src/Source2.Compiler/Maps/LightUnits.cs:180` |
-| `181292560` | `Light_AtInfinityTestInner` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:40` |
+| `1812918f0` | `LightUnits_FrustumSolidAngle` | barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal | `src/Source2.Compiler/Maps/LightUnits.cs:181` |
+| `181292560` | `Light_AtInfinityTestInner` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:41` |
 | `181292ce0` | `LightBuild_OpeningPlane` |  | `src/Source2.Compiler/Maps/LightBuild.cs:63` |
 | `1812933b0` | `LightRecord_ConeRatio` | 0xe0 / 0xe4, or -1.1 / 1.1 when 0xe4 is 0 |  |
 | `1812933f0` | `LightTrace_Falloff` | how much of the light reaches a point | `src/Source2.Compiler/Maps/LightTrace.cs:67` |
-| `1812938f0` | `LightUnits_LuminaireArea` | by luminaire type (+0xec): triangles, ellipse, sphere, capsule | `src/Source2.Compiler/Maps/LightUnits.cs:134` |
+| `1812938f0` | `LightUnits_LuminaireArea` | by luminaire type (+0xec): triangles, ellipse, sphere, capsule | `src/Source2.Compiler/Maps/LightUnits.cs:135` |
 | `181293b30` | `LightRecord_FalloffRange` | -a/b of the distance falloff when w and b are nonzero, else FLT_MAX |  |
 | `181293b70` | `LightTrace_BarnShape` | the barn's cross-section at a clip point | `src/Source2.Compiler/Maps/LightTrace.cs:129` |
 | `181294fc0` | `LightSampler_Ray` | one ray for four Halton numbers; the reach | `src/Source2.Compiler/Maps/LightSampler.cs:7`, `src/Source2.Compiler/Maps/LightSampler.cs:173`, `src/Source2.Compiler/Maps/LightSampler.cs:271` |
@@ -272,43 +274,43 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181296340` | `LightBuild_RectLuminaire` | type 1 | `src/Source2.Compiler/Maps/LightBuild.cs:177` |
 | `1812966c0` | `LightBuild_SphereLuminaire` | type 3 | `src/Source2.Compiler/Maps/LightBuild.cs:273` |
 | `181296730` | `LightBuild_CapsuleLuminaire` | type 4, or 5 capped; LightBuild.CapsuleLuminaire | `src/Source2.Compiler/Maps/LightBuild.cs:286` |
-| `181296a50` | `Light_AtInfinityTest` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:40` |
+| `181296a50` | `Light_AtInfinityTest` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:41` |
 | `181297ed0` | `LightBuild_BarnPosition` | homogeneous | `src/Source2.Compiler/Maps/LightBuild.cs:39` |
 | `181298050` | `LightBuild_LuminaireSize` | half extents from degrees | `src/Source2.Compiler/Maps/LightBuild.cs:136` |
 | `181298170` | `LightOmni_Records` | an omni light's records in its own space | `src/Source2.Compiler/Maps/LightOmni.cs:6` |
 | `181298a90` | `LightOmni_FaceJumpTable` | data: jump table in LightOmni_Records, face rotations | `src/Source2.Compiler/Maps/LightOmni.cs:26` |
 | `181298aa8` | `LightOmni_FaceJumpTable2` | data: jump table, second pass rows | `src/Source2.Compiler/Maps/LightOmni.cs:26` |
-| `181298c00` | `LightUnits_SolidAngle` | pi for luminaire types 1, 2; the cone between two angles for 3 to 5 | `src/Source2.Compiler/Maps/LightUnits.cs:92` |
+| `181298c00` | `LightUnits_SolidAngle` | pi for luminaire types 1, 2; the cone between two angles for 3 to 5 | `src/Source2.Compiler/Maps/LightUnits.cs:93` |
 | `181299bc0` | `LightSampler_CapsulePoint` | caps then side; never scaled by the radius | `src/Source2.Compiler/Maps/LightSampler.cs:85` |
 | `18129a0e0` | `LightSampler_LuminairePoint` | a point on the luminaire and its normal | `src/Source2.Compiler/Maps/LightSampler.cs:24` |
 | `18129a5b0` | `LightBuild_ShapeCurve` | shape key into [0.125, 1] | `src/Source2.Compiler/Maps/LightBuild.cs:93` |
 | `18129a5f0` | `LightBuild_Skirt` | reciprocal fade lengths | `src/Source2.Compiler/Maps/LightBuild.cs:106` |
 | `18129a6d0` | `LightUnits_Square` | x * x |  |
-| `18129a6e0` | `LightUnits_BarnScale` | 1 / (w / (sqrt(w) + d)^2) with w = +0x9c | `src/Source2.Compiler/Maps/LightUnits.cs:121` |
+| `18129a6e0` | `LightUnits_BarnScale` | 1 / (w / (sqrt(w) + d)^2) with w = +0x9c | `src/Source2.Compiler/Maps/LightUnits.cs:122` |
 | `18129a760` | `LightBuild_BarnMatrix` | the barn's frustum down x | `src/Source2.Compiler/Maps/LightBuild.cs:15` |
 | `18129a8d0` | `LightBuild_TransformRecord` | the record moved by a 3x4 | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
 | `18129b7b0` | `SegmentIntersectsBox` | SSE slab test: refined rcpps of the delta, exit capped at 1, entry floored at 0 | `src/Source2.Compiler/Maps/LightVisClusters.cs:54` |
 | `1813c3b60` | `MeshTessellation_PatchIndices` | a patch grid's cells as [a, right, b], [a, b, below] | `src/Source2.Compiler/Maps/MeshTessellation.cs:54` |
 | `1813c7970` | `MeshTessellation_FaceLevel` | the level of the face's first corner |  |
-| `1813ccd20` | `RayScene_AddFace` | MeshTessellation.RayScene: polygons with neighbour edge points, patches unstitched | `src/Source2.Compiler/Maps/EditorTraceScene.cs:73`, `src/Source2.Compiler/Maps/MeshTessellation.cs:45` |
+| `1813ccd20` | `RayScene_AddFace` | MeshTessellation.RayScene: polygons with neighbour edge points, patches unstitched | `src/Source2.Compiler/Maps/EditorTraceScene.cs:74`, `src/Source2.Compiler/Maps/MeshTessellation.cs:45` |
 | `1813ce820` | `MapMeshGeometry_BuildRayScene` | rebuilds the mesh scene when its geometry sums change |  |
 | `181c02a20` | `RayScene_TracePacket` | per-scene dispatch on mode; regroups lanes of mixed signs |  |
 | `181c065f0` | `RayScene_TraceMode1` | keeps hits with denom > 0 unless flag 2 |  |
-| `181c0a000` | `RayScene_TraceMode2` | keeps hits with denom < 0 unless flag 2; \|denom\| > 1e-10; triangle skipped on mask & flags | `src/Source2.Compiler/Maps/EditorTraceScene.cs:286`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:458` |
-| `181c10ea0` | `RayScene_TraceInstances` | ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance | `src/Source2.Compiler/Maps/EditorTraceScene.cs:272`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:286` |
-| `181c12720` | `Matrix3x4_TransformPoints4` | t + ((x m0 + y m1) + z m2) per row, four lanes | `src/Source2.Compiler/Maps/EditorTraceScene.cs:272` |
-| `181c13ac0` | `RayScene_AddInstance` | 0xd0-byte instance of a child scene | `src/Source2.Compiler/Maps/EditorTraceScene.cs:13` |
+| `181c0a000` | `RayScene_TraceMode2` | keeps hits with denom < 0 unless flag 2; \|denom\| > 1e-10; triangle skipped on mask & flags | `src/Source2.Compiler/Maps/EditorTraceScene.cs:287`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:459` |
+| `181c10ea0` | `RayScene_TraceInstances` | ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance | `src/Source2.Compiler/Maps/EditorTraceScene.cs:273`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:287` |
+| `181c12720` | `Matrix3x4_TransformPoints4` | t + ((x m0 + y m1) + z m2) per row, four lanes | `src/Source2.Compiler/Maps/EditorTraceScene.cs:273` |
+| `181c13ac0` | `RayScene_AddInstance` | 0xd0-byte instance of a child scene | `src/Source2.Compiler/Maps/EditorTraceScene.cs:14` |
 | `181c14020` | `RayScene_AddTriangles` |  |  |
 | `181c14800` | `CacheOptimizedTriangle_FromCorners` | same record as visbuilder 180118e90 |  |
 | `181c15640` | `RayScene_Finalise` | children first, then SetupAccelerationStructure |  |
 | `181c15d00` | `RayScene_InstanceNodeHit` | instance tree node box test |  |
-| `181c19970` | `RayScene_SetInstanceTransform` | +0x10 local to world, +0x40 its inverse (FUN_18125ade0), +0x70 box | `src/Source2.Compiler/Maps/EditorTraceScene.cs:14` |
+| `181c19970` | `RayScene_SetInstanceTransform` | +0x10 local to world, +0x40 its inverse (FUN_18125ade0), +0x70 box | `src/Source2.Compiler/Maps/EditorTraceScene.cs:15` |
 | `181c19be0` | `RayScene_SetupAccelerationStructure` | corners to CacheOptimizedTriangle, kd build |  |
 | `181c1bd70` | `RayBatch_AddSecond` | the same, for the flag 8 second rays |  |
 | `181c1bf10` | `RayBatch_Add` | files a segment by delta sign octant; traces a full packet |  |
 | `181c1c3c0` | `RayBatch_FlushSecond` |  |  |
 | `181c1c530` | `RayBatch_Flush` | pads short packets with the first ray |  |
-| `181c1d010` | `RayBatch_TracePacket` | dir = delta * refined rcpps(len); mode 1/2/else then the instance pass; hit beyond len dropped | `src/Source2.Compiler/Maps/EditorTraceScene.cs:285` |
+| `181c1d010` | `RayBatch_TracePacket` | dir = delta * refined rcpps(len); mode 1/2/else then the instance pass; hit beyond len dropped | `src/Source2.Compiler/Maps/EditorTraceScene.cs:286` |
 | `181f045c0` | `Model_RayScene` | a model's scene: its LOD 0 meshes' MeshSystem ray data, instanced |  |
 | `181f06ff0` | `Model_MeshSelected` | LOD 0 (or no LOD) and the mesh group mask |  |
 | `181f110c0` | `ModelRayScene_Build` | per mesh MeshSystem001 vf 0xe8, instanced at identity |  |
@@ -357,8 +359,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801742f0` | `CResourceCompilerContext::vf10` | GetBool: GetInt != 0 |  |
 | `180174310` | `CResourceCompilerContext::vf11` | GetInt: falls back to (int)GetFloat |  |
 | `180188960` | `CResourceCompilerSystem::GenerateResourceFile` |  |  |
-| `18018b630` | `ResourceCompiler_ParseCommandLine` | its own switch list, else generic: %f, then %i, then string | `src/Source2.Compiler/Maps/MapCompileArgs.cs:26` |
-| `1801f7840` | `CMapBuilderContext_CompileMap` | the builder flags and steps (CompileMap) | `src/Source2.Compiler/Maps/MapCompile.cs:76`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:12`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:101` |
+| `18018b630` | `ResourceCompiler_ParseCommandLine` | its own switch list, else generic: %f, then %i, then string | `src/Source2.Compiler/Maps/MapCompileArgs.cs:27` |
+| `1801f7840` | `CMapBuilderContext_CompileMap` | the builder flags and steps (CompileMap) | `src/Source2.Compiler/Maps/MapCompile.cs:77`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:13`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:102` |
 | `1801f9a50` | `CMapBuilderContext::vf28` | IsBuilderEnabled |  |
 | `1801fcc50` | `CMapBuilderContext_CleanupIntermediateCruft` | lambda body (CleanupIntermediateCruft) |  |
 | `182771980` | `MapBuilder_StepTable` | data: the compile step table |  |
@@ -378,63 +380,63 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun |  |
-| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:81`, `src/Source2.Compiler/Maps/NodePropEntries.cs:151`, `src/Source2.Compiler/Maps/PropTransform.cs:9` +1 |
+| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:82`, `src/Source2.Compiler/Maps/NodePropEntries.cs:152`, `src/Source2.Compiler/Maps/PropTransform.cs:10` +1 |
 | `18024adc0` | `WRB_WriteEntityLump` | entity_lump_params, entities\ |  |
-| `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:12`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:163` |
+| `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:13`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:164` |
 
 ### s2c:entities/lump
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18009fe10` | `Fgd_TypeAliases` | the aliases and extension each type stands for | `src/Source2.Compiler/Maps/FgdSchema.cs:806` |
+| `18009fe10` | `Fgd_TypeAliases` | the aliases and extension each type stands for | `src/Source2.Compiler/Maps/FgdSchema.cs:807` |
 | `180106ee0` | `NodeIdPath_Format` | node +0x310 ids: 6 inline then heap, %d joined by a separator |  |
 | `1801df980` | `CBufferString_SetFormat` | clears, then AppendFormatV |  |
 | `1801f7960` | `CMapBuilderContext_Ctor` | +0x10c = content-relative map path, no extension |  |
 | `1801f8c80` | `CMapBuilderContext::vf11` | map usage type of the world (0 standard .. 4 sharedenvironment) |  |
 | `1801f8cf0` | `CMapBuilderContext::vf14` | +0x10c, e.g. maps\cardtest; seeds handshake and texture paths |  |
-| `1801fdae0` | `TemplatePass_RewriteReferences` |  | `src/Source2.Compiler/Maps/EntityLumpSet.cs:256` |
-| `18023ae00` | `LightProbe_GridSize` | ceil(extent / max(voxel,1)), 128 cap, x and y aligned | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:330` |
-| `180240a60` | `EntityLump_ExportNodeLate` | cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes) | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:140`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:251`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:77` +1 |
+| `1801fdae0` | `TemplatePass_RewriteReferences` |  | `src/Source2.Compiler/Maps/EntityLumpSet.cs:257` |
+| `18023ae00` | `LightProbe_GridSize` | ceil(extent / max(voxel,1)), 128 cap, x and y aligned | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:331` |
+| `180240a60` | `EntityLump_ExportNodeLate` | cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes) | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:141`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:252`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:78` +1 |
 | `180244420` | `EntityLump_CopyBakeTexture` | no-bake branch: if <old>_c loads, key := new path and <new>_c is written |  |
 | `1802470f0` | `EntityLump_FindByIdPath` | lump entities whose id path hashes and compares equal |  |
 | `18024a970` | `TemplatePass_RemoveOriginals` |  |  |
 | `18024c6d0` | `TemplatePass_Step_18024c6d0` | a template pass piece |  |
-| `18024c910` | `TemplatePass_RenameCopies` |  | `src/Source2.Compiler/Maps/EntityLumpSet.cs:255` |
-| `18024ccd0` | `TemplatePass_Collect` | copies of the matching entities in template space | `src/Source2.Compiler/Maps/EntityLumpSet.cs:223`, `src/Source2.Compiler/Maps/TemplateTransform.cs:7` |
-| `18024d9c0` | `TemplatePass_BuildLumps` | a lump for every template entity | `src/Source2.Compiler/Maps/EntityLumpSet.cs:163` |
+| `18024c910` | `TemplatePass_RenameCopies` |  | `src/Source2.Compiler/Maps/EntityLumpSet.cs:256` |
+| `18024ccd0` | `TemplatePass_Collect` | copies of the matching entities in template space | `src/Source2.Compiler/Maps/EntityLumpSet.cs:224`, `src/Source2.Compiler/Maps/TemplateTransform.cs:7` |
+| `18024d9c0` | `TemplatePass_BuildLumps` | a lump for every template entity | `src/Source2.Compiler/Maps/EntityLumpSet.cs:164` |
 | `18024e890` | `WRB_PushProbeRecord` | appends a 0x8c0-byte cubemap/probe record |  |
-| `1803670b0` | `EntityIOConnection_SchemaBind` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:315` |
-| `180d7c3f0` | `MapDoc_UpgradeTo38` |  | `src/Source2.Compiler/Maps/MapEntities.cs:127` |
-| `180dcab50` | `Fgd_IsClassName` | case-blind class name test | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:281` |
-| `180dcc5e0` | `Fgd_FinalizeClasses` | every class in declaration order | `src/Source2.Compiler/Maps/FgdSchema.cs:417` |
-| `180dcd6b0` | `Fgd_LoadBody` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:527` |
-| `180dd08c0` | `FgdClass_AddVariable` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:380` |
-| `180dd1110` | `FgdClass_Finalize` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:417` |
-| `180dd1680` | `FgdClass_MergeOverride` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:542` |
-| `180dd2500` | `FgdClass_Inherits` | any chain of bases | `src/Source2.Compiler/Maps/FgdSchema.cs:292` |
-| `180dd37a0` | `FgdClass_MergeChoices` | redeclared choice lists: new first, then old | `src/Source2.Compiler/Maps/FgdSchema.cs:387` |
-| `180dd5550` | `FgdClass_Key` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:365` |
-| `180dd65e0` | `FgdVariable_TagListDedupe` | empty tags and later case-blind duplicates dropped | `src/Source2.Compiler/Maps/FgdSchema.cs:191` |
-| `180dd6db0` | `FgdVariable_TagListDefault` | tag_list default joined with ',' | `src/Source2.Compiler/Maps/FgdSchema.cs:188` |
-| `180dd70d0` | `FgdVariable_FlagsDefault` | flags default: OR of the on-bits | `src/Source2.Compiler/Maps/FgdSchema.cs:188` |
-| `180dd7810` | `FgdVariable_ReadDefault` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:176`, `src/Source2.Compiler/Maps/FgdSchema.cs:188`, `src/Source2.Compiler/Maps/FgdSchema.cs:527` |
-| `180dda5c0` | `Fgd_ResolveType` | aliases before the type table | `src/Source2.Compiler/Maps/FgdSchema.cs:756`, `src/Source2.Compiler/Maps/FgdSchema.cs:805` |
-| `180ef48e0` | `BakeResource_FillEmptyKeys` | empty bakeresource keys get the cache path; set ones get custom<key> 1 | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:243` |
+| `1803670b0` | `EntityIOConnection_SchemaBind` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:316` |
+| `180d7c3f0` | `MapDoc_UpgradeTo38` |  | `src/Source2.Compiler/Maps/MapEntities.cs:128` |
+| `180dcab50` | `Fgd_IsClassName` | case-blind class name test | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:282` |
+| `180dcc5e0` | `Fgd_FinalizeClasses` | every class in declaration order | `src/Source2.Compiler/Maps/FgdSchema.cs:418` |
+| `180dcd6b0` | `Fgd_LoadBody` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:528` |
+| `180dd08c0` | `FgdClass_AddVariable` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:381` |
+| `180dd1110` | `FgdClass_Finalize` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:418` |
+| `180dd1680` | `FgdClass_MergeOverride` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:543` |
+| `180dd2500` | `FgdClass_Inherits` | any chain of bases | `src/Source2.Compiler/Maps/FgdSchema.cs:293` |
+| `180dd37a0` | `FgdClass_MergeChoices` | redeclared choice lists: new first, then old | `src/Source2.Compiler/Maps/FgdSchema.cs:388` |
+| `180dd5550` | `FgdClass_Key` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:366` |
+| `180dd65e0` | `FgdVariable_TagListDedupe` | empty tags and later case-blind duplicates dropped | `src/Source2.Compiler/Maps/FgdSchema.cs:192` |
+| `180dd6db0` | `FgdVariable_TagListDefault` | tag_list default joined with ',' | `src/Source2.Compiler/Maps/FgdSchema.cs:189` |
+| `180dd70d0` | `FgdVariable_FlagsDefault` | flags default: OR of the on-bits | `src/Source2.Compiler/Maps/FgdSchema.cs:189` |
+| `180dd7810` | `FgdVariable_ReadDefault` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:177`, `src/Source2.Compiler/Maps/FgdSchema.cs:189`, `src/Source2.Compiler/Maps/FgdSchema.cs:528` |
+| `180dda5c0` | `Fgd_ResolveType` | aliases before the type table | `src/Source2.Compiler/Maps/FgdSchema.cs:757`, `src/Source2.Compiler/Maps/FgdSchema.cs:806` |
+| `180ef48e0` | `BakeResource_FillEmptyKeys` | empty bakeresource keys get the cache path; set ones get custom<key> 1 | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:244` |
 | `180ef4c80` | `BakeResource_CacheDir` | _bakeresourcecache/<map path without extension>_baked |  |
 | `180ef4ef0` | `BakeResource_FilePath` | %s.%s, or %s_%s.%s with the node id path joined by _ |  |
 | `180ef5870` | `CBakeResourceHelper::vf2` | Hammer preview scene keys, not the lump |  |
 | `180ef61e0` | `BakeResource_IdPathString` | vf 0x508 id path joined by a separator |  |
-| `180f1d770` | `CMapParticle_Snapshot` | the snapshot the compile generates for a node | `src/Source2.Compiler/Maps/EntityLumpSet.cs:45` |
+| `180f1d770` | `CMapParticle_Snapshot` | the snapshot the compile generates for a node | `src/Source2.Compiler/Maps/EntityLumpSet.cs:46` |
 | `180f24170` | `CMapGameDataNode::vf157` | fixup types by mask 0x830006, skipping '!*?@' and class names |  |
-| `180f2d290` | `DmElement_IsNameAttribute` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:671` |
-| `180f2e4d0` | `CMapGameDataNode_SetClass` | masks spawnflags | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:679` |
-| `180f34460` | `Fgd_HasSpawnflag` | case blind | `src/Source2.Compiler/Maps/FgdSchema.cs:164` |
+| `180f2d290` | `DmElement_IsNameAttribute` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:672` |
+| `180f2e4d0` | `CMapGameDataNode_SetClass` | masks spawnflags | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:680` |
+| `180f34460` | `Fgd_HasSpawnflag` | case blind | `src/Source2.Compiler/Maps/FgdSchema.cs:165` |
 | `180f385c0` | `MapNode_SetKeyValue` | (node, key, string); from call sites |  |
 | `180f5ff40` | `MapDoc_CollapseInstance` |  |  |
 | `180f60740` | `MapDoc_BakeInstances` |  | `src/Source2.Compiler/Maps/MapInstances.cs:77` |
 | `180f741a0` | `CMapNodeDataProvider::vf35` | legacy light description at identity; false for barn/rect/omni2 |  |
 | `180f7aa30` | `CMapNode::vf205` | snapshot path generator |  |
-| `180f8ee20` | `CMapEntity_SnapshotFile` | snapshot_file from snapshot_mesh | `src/Source2.Compiler/Maps/EntityLumpSet.cs:46` |
+| `180f8ee20` | `CMapEntity_SnapshotFile` | snapshot_file from snapshot_mesh | `src/Source2.Compiler/Maps/EntityLumpSet.cs:47` |
 | `180fa7630` | `EntityKv_NodeTransformKeys` | origin/angles/scales from node +0xa0/+0xac/+0xb8; hammerUniqueId from +0x310 |  |
 | `180fa80d0` | `EntityKv_GetBool` | (kv, key, default); from call sites |  |
 | `180fa8100` | `EntityKv_GetFloat` | (kv, key, default in xmm2); from call sites |  |
@@ -442,27 +444,27 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fa8220` | `EntityKv_GetVector` | (kv, out, key, default); from call sites |  |
 | `180fa8260` | `EntityKv_GetString` | (kv, key, default); from call sites |  |
 | `180fa8380` | `EntityKv_SetInt` | type 3, subtype 0x14 |  |
-| `180fa84e0` | `EntityKey_TypeValue` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:700`, `src/Source2.Compiler/Maps/FgdSchema.cs:22`, `src/Source2.Compiler/Maps/FgdSchema.cs:780` |
+| `180fa84e0` | `EntityKey_TypeValue` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:701`, `src/Source2.Compiler/Maps/FgdSchema.cs:23`, `src/Source2.Compiler/Maps/FgdSchema.cs:781` |
 | `180fa8b30` | `EntityKv_SetResource` | resource-name value after the path fix-up |  |
 | `180fa8bf0` | `EntityKv_SetString` | skips an empty value; keeps the key's existing string flag |  |
 | `180fa8cc0` | `EntityKv_SetVector3` | subtype 0x1d |  |
-| `180fc1560` | `CMapWorld_ExportToLump` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:160` |
+| `180fc1560` | `CMapWorld_ExportToLump` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:161` |
 | `180fc9490` | `CMapWorld_MapUsageType` | index of world +0x2bb8 in standard, background, skybox, minigame, sharedenvironment |  |
-| `180fefb60` | `EntityLump_FixupValue` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:281` |
-| `181004020` | `CMapEntity_ExportToLump` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:160` |
+| `180fefb60` | `EntityLump_FixupValue` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:282` |
+| `181004020` | `CMapEntity_ExportToLump` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:161` |
 | `181013ec0` | `CMapInstance::vf268` | calls CMapInstance_Collapse |  |
 | `181017820` | `CMapInstance_Collapse` |  |  |
 | `181089940` | `CMapCable_RegisterProperties` | registers the embedded property binding (rendercolor as text) |  |
-| `1810b5480` | `CMapPath_ExportKeys` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:229`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:341` |
-| `1810b7ca0` | `CMapPath_IsLoop` | loops with more than one node | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:357`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:395`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:405` |
-| `1810bfd50` | `CMapPath_Value` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:508` |
-| `181110ba0` | `CMapPath_Tangents` | in and out tangents | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:395` |
-| `181111cc0` | `CMapPathNode_Scale` | radius and height scale, 1 and 1 unless the class | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:491` |
+| `1810b5480` | `CMapPath_ExportKeys` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:230`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:342` |
+| `1810b7ca0` | `CMapPath_IsLoop` | loops with more than one node | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:358`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:396`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:406` |
+| `1810bfd50` | `CMapPath_Value` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:509` |
+| `181110ba0` | `CMapPath_Tangents` | in and out tangents | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:396` |
+| `181111cc0` | `CMapPathNode_Scale` | radius and height scale, 1 and 1 unless the class | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:492` |
 | `18114cb20` | `CMapCable::vf217` | rendercolor = tint as '%i %i %i' |  |
-| `1812806d0` | `Path_ComputeTangents` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:454` |
+| `1812806d0` | `Path_ComputeTangents` |  | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:455` |
 | `181c1e340` | `EntityKv_FixupResourceValue` | resource path fix-up run by EntityKv_SetResource |  |
-| `181c1ee80` | `EntityLump_FixupResource` | a resource reference as the lump writer fixes it | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:745`, `src/Source2.Compiler/Maps/ResourcePath.cs:4` |
-| `181eb82c0` | `Kv3_SetColor` | the KV3 colour setter | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:737` |
+| `181c1ee80` | `EntityLump_FixupResource` | a resource reference as the lump writer fixes it | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:746`, `src/Source2.Compiler/Maps/ResourcePath.cs:4` |
+| `181eb82c0` | `Kv3_SetColor` | the KV3 colour setter | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:738` |
 | `181eb8970` | `KV3_SetMemberInt` | find or append member, type 3 with the given subtype |  |
 | `182349b48` | `CMapInstance_Vtable` | data: vtable; slot 0x860 (vf268) calls the collapse |  |
 | `182fe7b08` | `MapDoc_UpgradeTable` | data: vmap upgrade steps; slot 36 is the vmap<38 worldspawn step |  |
@@ -472,9 +474,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `180f1c060` | `MapSettle_BuildExcludedSet` |  | `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:66` |
-| `180f1e490` | `MapSettle_Run` |  | `src/Source2.Compiler/Maps/SettleWorld.Run.cs:19`, `src/Source2.Compiler/Maps/SettleWorld.Run.cs:48`, `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:8` +1 |
-| `180f38bf0` | `CMapEntity_SetSpawnflagBit` |  | `src/Source2.Compiler/Maps/SettleWorld.Run.cs:84` |
+| `180f1c060` | `MapSettle_BuildExcludedSet` |  | `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:67` |
+| `180f1e490` | `MapSettle_Run` |  | `src/Source2.Compiler/Maps/SettleWorld.Run.cs:20`, `src/Source2.Compiler/Maps/SettleWorld.Run.cs:49`, `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:9` +1 |
+| `180f38bf0` | `CMapEntity_SetSpawnflagBit` |  | `src/Source2.Compiler/Maps/SettleWorld.Run.cs:85` |
 | `180f3af80` | `CMapEntity_SetWholeMeshOverrideMaterial` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:138` |
 | `180f4a620` | `PhysDoc_ctor` |  |  |
 | `180f4b360` | `PhysDoc_CollectNodes` |  |  |
@@ -482,26 +484,26 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f4bce0` | `PhysDoc_SetSimulating` |  |  |
 | `180f4c360` | `PhysDoc_GetNodes` |  |  |
 | `180f4c560` | `PhysDoc_GetObjectsOfNode` |  |  |
-| `180f4c9e0` | `PhysDoc_BuildObjects` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:13` |
+| `180f4c9e0` | `PhysDoc_BuildObjects` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:14` |
 | `180f4d380` | `PhysDoc_Simulate` |  |  |
-| `180f834d0` | `MapInstance_BakedMatrix` | the instance's matrix against the target's inverse, in double | `src/Source2.Compiler/Maps/SettleWorld.cs:313` |
-| `180f8b770` | `MapNode_OwnerEntity` | the nearest entity above | `src/Source2.Compiler/Maps/SettleWorld.cs:291` |
-| `180fdeda0` | `CMapPoint::vf18` | SetAngles: under 0.001 becomes 0, yaw made non-negative | `src/Source2.Compiler/Maps/SettleWorld.cs:427`, `src/Source2.Compiler/Maps/SettleWorld.cs:438`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:108` |
-| `180fdef60` | `CMapPoint::vf25` | TransformBy: angles rebuilt from the matrix | `src/Source2.Compiler/Maps/SettleWorld.cs:426` |
-| `180fdf210` | `CMapPoint_Angles` | the node's angles | `src/Source2.Compiler/Maps/SettleWorld.cs:427` |
-| `181001820` | `CMapEntity::vf25` | TransformBy (flags 0x41) | `src/Source2.Compiler/Maps/SettleWorld.cs:424` |
-| `181003930` | `CMapEntity::vf223` | the scale: longest column of the rotation | `src/Source2.Compiler/Maps/SettleWorld.cs:510` |
+| `180f834d0` | `MapInstance_BakedMatrix` | the instance's matrix against the target's inverse, in double | `src/Source2.Compiler/Maps/SettleWorld.cs:314` |
+| `180f8b770` | `MapNode_OwnerEntity` | the nearest entity above | `src/Source2.Compiler/Maps/SettleWorld.cs:292` |
+| `180fdeda0` | `CMapPoint::vf18` | SetAngles: under 0.001 becomes 0, yaw made non-negative | `src/Source2.Compiler/Maps/SettleWorld.cs:428`, `src/Source2.Compiler/Maps/SettleWorld.cs:439`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:108` |
+| `180fdef60` | `CMapPoint::vf25` | TransformBy: angles rebuilt from the matrix | `src/Source2.Compiler/Maps/SettleWorld.cs:427` |
+| `180fdf210` | `CMapPoint_Angles` | the node's angles | `src/Source2.Compiler/Maps/SettleWorld.cs:428` |
+| `181001820` | `CMapEntity::vf25` | TransformBy (flags 0x41) | `src/Source2.Compiler/Maps/SettleWorld.cs:425` |
+| `181003930` | `CMapEntity::vf223` | the scale: longest column of the rotation | `src/Source2.Compiler/Maps/SettleWorld.cs:511` |
 | `181006ee0` | `CMapEntity_SetStartAsleep` |  |  |
 | `1810543f0` | `PhysObj_ctor` |  |  |
-| `181054970` | `PhysPart_AddCapsule` | centres times the scale, or through the matrix; radius times the largest scale; shape scale 1 | `src/Source2.Compiler/Maps/SettleWorld.cs:534` |
+| `181054970` | `PhysPart_AddCapsule` | centres times the scale, or through the matrix; radius times the largest scale; shape scale 1 | `src/Source2.Compiler/Maps/SettleWorld.cs:535` |
 | `181054e80` | `PhysPart_AddHull` |  |  |
 | `1810554d0` | `PhysPart_AddMesh` |  |  |
-| `1810557d0` | `PhysPart_AddSphere` | centre through the part matrix (identity when the scale is uniform), radius times the largest scale, shape scale 1; a lattice makes a mesh | `src/Source2.Compiler/Maps/SettleWorld.cs:533` |
+| `1810557d0` | `PhysPart_AddSphere` | centre through the part matrix (identity when the scale is uniform), radius times the largest scale, shape scale 1; a lattice makes a mesh | `src/Source2.Compiler/Maps/SettleWorld.cs:534` |
 | `1810562e0` | `PhysMesh_MaterialRecords` | one record per material | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:120` |
 | `1810564a0` | `PhysMesh_MaterialRecord` | a mesh material's physics, 0x60-byte record | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:22`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:189` |
 | `181057020` | `PhysMesh_Shapes` | by physics type: 2 hulls the soup, 3 per group | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:36` |
 | `1810578b0` | `PhysMesh_MaterialsEqual` | compares the names | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:121`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:206` |
-| `1810593e0` | `MapSettle_Candidates` |  | `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:9` |
+| `1810593e0` | `MapSettle_Candidates` |  | `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:10` |
 | `181059770` | `PhysMesh_Soups` | a map mesh's triangle soups, 0x90-byte entries | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:10`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:118` |
 | `18105a410` | `PhysPart_GetEntityTransform` |  | `src/Source2.Compiler/Simulation/SettleWriteBack.cs:6` |
 | `18105b2d0` | `PhysObj_IsAsleep` |  |  |
@@ -509,11 +511,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18105c330` | `PhysObj_Build` |  |  |
 | `18105ce70` | `PhysMesh_OwnerRules` | the owner entity's physics rules | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:195`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:251` |
 | `18105d760` | `PhysMesh_Build` | a map mesh's static body and shapes | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:33`, `src/Source2.Compiler/Maps/SettleWorld.World.cs:37` |
-| `18105dbd0` | `PhysPart_BuildFromModel` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:19`, `src/Source2.Compiler/Maps/SettleWorld.cs:489`, `src/Source2.Compiler/Maps/SettleWorld.cs:580` +2 |
+| `18105dbd0` | `PhysPart_BuildFromModel` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:20`, `src/Source2.Compiler/Maps/SettleWorld.cs:490`, `src/Source2.Compiler/Maps/SettleWorld.cs:581` +2 |
 | `1810dcca0` | `CMapMesh_NameSlotsAfterOverride` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:139` |
 | `1812d87e0` | `CMesh_JoinVertices` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:288` |
 | `1819c9db0` | `PhysMesh_ConnectedComponents` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:77`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:288` |
-| `1819d5190` | `PhysModel_HasJoints` | joint test on the model's physics; not ported | `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:18` |
+| `1819d5190` | `PhysModel_HasJoints` | joint test on the model's physics; not ported | `src/Source2.Compiler/Maps/SettleWorld.Settle.cs:19` |
 
 ### s2c:geometry/mesh-export
 
@@ -550,7 +552,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18128d980` | `PropDeformer_Init` | lattice dims +0x2c..+0x34, scale +0x20, mirror +0x70 | `src/Source2.Compiler/Maps/LatticeDeformer.cs:17` |
 | `18128ea90` | `PropDeformer_IsSet` |  | `src/Source2.Compiler/Maps/LatticeDeformer.cs:42` |
 | `181290410` | `LatticeDeformer_ResetToGrid` | every control point on the grid over the size, then 18128cab0 | `src/Source2.Compiler/Maps/LatticeDeformer.cs:349` |
-| `1812d7510` | `CMesh_ApplyPropDeformer` | positions, normals and tangents through the prop's lattice deformer; mirrored deformers flip winding and tangent w | `src/Source2.Compiler/Maps/NodePropEntries.cs:80` |
+| `1812d7510` | `CMesh_ApplyPropDeformer` | positions, normals and tangents through the prop's lattice deformer; mirrored deformers flip winding and tangent w | `src/Source2.Compiler/Maps/NodePropEntries.cs:81` |
 | `1812d91c0` | `CMesh_FindTwinEdges` | per directed edge the opposite half-edge by vertex pair, -1 when open | `src/Source2.Compiler/Maps/TJunctionFix.cs:13`, `src/Source2.Compiler/Maps/TJunctionFix.cs:99` |
 | `1812db3c0` | `CMesh_VertexTriangles` | triangles touching each vertex | `src/Source2.Compiler/Maps/TJunctionFix.cs:175` |
 | `1812db920` | `CMesh_ComputeTangents` | MikkTSpace-style (182080a60) when UseMikkTSpace; corners whose tangents differ by 1e-4 or in w split their vertex | `src/Source2.Compiler/Maps/MeshTangents.cs:6` |
@@ -573,30 +575,30 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18119e000` | `CMapStaticOverlay_UpdatePolygonGroups` | groups from 180f88460 (variable sets), one 0xa8 group object each |  |
 | `18124bcc0` | `CMapStaticOverlayGroup::CMapStaticOverlayGroup` |  |  |
 | `18124c750` | `CMapStaticOverlayGroup_BuildRenderData` | Hammer's viewport mesh (OverlaySurfaceVertices); not the compile |  |
-| `181259470` | `Triangle_AreaWeights` | sub-triangle areas over the triangle's; inside when they sum to 1 within 0.001 | `src/Source2.Compiler/Maps/OverlayProjector.cs:259` |
-| `18129ba60` | `Quad_InverseBilinear` | near parallelogram: 18129c2e0; else a quadratic in double on the two widest axes | `src/Source2.Compiler/Maps/OverlayProjector.cs:227`, `src/Source2.Compiler/Maps/OverlayProjector.cs:334` |
-| `18129c2e0` | `Quad_ParallelogramCoords` | each coordinate a line meeting (1812a5bf0) over the side length | `src/Source2.Compiler/Maps/OverlayProjector.cs:337` |
-| `18129c490` | `Quad_Bilinear` | (lerp(c1, c2, t) - lerp(c0, c3, t)) * s + lerp(c0, c3, t) | `src/Source2.Compiler/Maps/OverlayProjector.cs:228` |
-| `1812a5bf0` | `Line_ClosestApproach` | distances along two lines to their closest approach | `src/Source2.Compiler/Maps/OverlayProjector.cs:461` |
+| `181259470` | `Triangle_AreaWeights` | sub-triangle areas over the triangle's; inside when they sum to 1 within 0.001 | `src/Source2.Compiler/Maps/OverlayProjector.cs:260` |
+| `18129ba60` | `Quad_InverseBilinear` | near parallelogram: 18129c2e0; else a quadratic in double on the two widest axes | `src/Source2.Compiler/Maps/OverlayProjector.cs:228`, `src/Source2.Compiler/Maps/OverlayProjector.cs:335` |
+| `18129c2e0` | `Quad_ParallelogramCoords` | each coordinate a line meeting (1812a5bf0) over the side length | `src/Source2.Compiler/Maps/OverlayProjector.cs:338` |
+| `18129c490` | `Quad_Bilinear` | (lerp(c1, c2, t) - lerp(c0, c3, t)) * s + lerp(c0, c3, t) | `src/Source2.Compiler/Maps/OverlayProjector.cs:229` |
+| `1812a5bf0` | `Line_ClosestApproach` | distances along two lines to their closest approach | `src/Source2.Compiler/Maps/OverlayProjector.cs:462` |
 | `181360220` | `COverlayProjector::COverlayProjector` | N faces of 0x4a0, back-face angle 90, box empty |  |
 | `181360310` | `OverlayDesc::OverlayDesc` |  |  |
 | `181360610` | `OverlayDesc_Assign` | mode +0, far +4, render order +8, back faces +0xc, angle +0x10, +0x14, +0x15, tint +0x18, material +0x20, target ids +0x28, faces +0x48 (0x78 each), material adjust nibbles +0x60, +0x64 x3, +0x70 string |  |
 | `181360c40` | `COverlayProjector_Init` | faces set, box = face points and the points pushed by far along each face normal, grown by 1 |  |
-| `181361000` | `COverlayProjector_BuildMesh` | target streams weighted per point, position, overlay texcoord, normal turned, VertexGenericIntegerData, OverlayProjectionDirection | `src/Source2.Compiler/Maps/OverlayProjector.cs:141` |
+| `181361000` | `COverlayProjector_BuildMesh` | target streams weighted per point, position, overlay texcoord, normal turned, VertexGenericIntegerData, OverlayProjectionDirection | `src/Source2.Compiler/Maps/OverlayProjector.cs:142` |
 | `181361d40` | `COverlayProjector_SetOverlay` | Init from a descriptor: faces +0x48/+0x50, far +4, back faces +0xc, angle +0x10, +0x14, tint +0x18, material +0x20, +0x60 |  |
 | `181361db0` | `OverlayDesc_HasTarget` | mode 3: node id in the descriptor's hash set (+0x28) |  |
 | `181362050` | `COverlayProjector_ProjectOntoTarget` | target triangles to world, culled against the box, ProjectPolygonsOntoTriangles, mesh built (181361000), tint, material |  |
 | `181363100` | `COverlayProjector_ProjectTargets` | one mesh per target record (0x50) with a result |  |
-| `181367ed0` | `ProjectPolygonsOntoTriangles_Job` | per face (atomic counter) the target triangles in batches of 0xfff, results appended under a mutex in completion order; texcoords (18136cd60) and the vec4 streams (181367460) from the point dropped onto the plane | `src/Source2.Compiler/Maps/OverlayProjector.cs:7` |
-| `181369250` | `Polygon_ClipByPlane` | keeps distance <= 0; a distance whose square is under max side^2 * 9.999999e-09 (clamped [1.4210855e-14, 1]) is zero; tags lerped | `src/Source2.Compiler/Maps/OverlayProjector.cs:503` |
-| `18136a930` | `ProjectPolygonOntoTriangles` | back-face test cos(angle) + 1e-5 clamped to [-1, 0.99999], overlay and far planes, a plane per side, clip (181369250), cut (18136fe00); OverlayProjector.cs | `src/Source2.Compiler/Maps/OverlayProjector.cs:9`, `src/Source2.Compiler/Maps/OverlayProjector.cs:67` |
+| `181367ed0` | `ProjectPolygonsOntoTriangles_Job` | per face (atomic counter) the target triangles in batches of 0xfff, results appended under a mutex in completion order; texcoords (18136cd60) and the vec4 streams (181367460) from the point dropped onto the plane | `src/Source2.Compiler/Maps/OverlayProjector.cs:8` |
+| `181369250` | `Polygon_ClipByPlane` | keeps distance <= 0; a distance whose square is under max side^2 * 9.999999e-09 (clamped [1.4210855e-14, 1]) is zero; tags lerped | `src/Source2.Compiler/Maps/OverlayProjector.cs:504` |
+| `18136a930` | `ProjectPolygonOntoTriangles` | back-face test cos(angle) + 1e-5 clamped to [-1, 0.99999], overlay and far planes, a plane per side, clip (181369250), cut (18136fe00); OverlayProjector.cs | `src/Source2.Compiler/Maps/OverlayProjector.cs:10`, `src/Source2.Compiler/Maps/OverlayProjector.cs:68` |
 | `18136bfd0` | `OverlayFace_ProjectOntoTriangles` | convex faces whole, others per triangle of +0x3c8 |  |
-| `18136cd60` | `OverlayFace_Texcoord` | convex quad: 18129ba60 then 18129c490; else the face triangle (181259470); else the best corner's affine map (181368ee0) | `src/Source2.Compiler/Maps/OverlayProjector.cs:226` |
+| `18136cd60` | `OverlayFace_Texcoord` | convex quad: 18129ba60 then 18129c490; else the face triangle (181259470); else the best corner's affine map (181368ee0) | `src/Source2.Compiler/Maps/OverlayProjector.cs:227` |
 | `18136d230` | `OverlayFace_Set` | positions, texcoords, two vec4 streams (defaults 1 and 0 in the job), then precompute |  |
 | `18136d8d0` | `OverlayFace_Precompute` | bounds, normal (18125b510), triangulation (18136f810) into +0x3c8 |  |
-| `18136e370` | `OverlayFace_IsConvex` | cross of consecutive edges against the normal, 1e-7 slack, cached at +0 | `src/Source2.Compiler/Maps/OverlayProjector.cs:297` |
-| `18136e6b0` | `ProjectPolygonsOntoTriangles` | meshutils/triangulatepolygon.cpp: direction = normalised sum of face normals, plane through the mean centroid; a thread pool job per face | `src/Source2.Compiler/Maps/OverlayProjector.cs:6`, `src/Source2.Compiler/Maps/OverlayProjector.cs:19` |
-| `18136fe00` | `Polygons_Triangulate` | each polygon of three or more points by NewellNormal and 18136f810 | `src/Source2.Compiler/Maps/OverlayProjector.cs:557` |
+| `18136e370` | `OverlayFace_IsConvex` | cross of consecutive edges against the normal, 1e-7 slack, cached at +0 | `src/Source2.Compiler/Maps/OverlayProjector.cs:298` |
+| `18136e6b0` | `ProjectPolygonsOntoTriangles` | meshutils/triangulatepolygon.cpp: direction = normalised sum of face normals, plane through the mean centroid; a thread pool job per face | `src/Source2.Compiler/Maps/OverlayProjector.cs:7`, `src/Source2.Compiler/Maps/OverlayProjector.cs:20` |
+| `18136fe00` | `Polygons_Triangulate` | each polygon of three or more points by NewellNormal and 18136f810 | `src/Source2.Compiler/Maps/OverlayProjector.cs:558` |
 
 ### s2c:geometry/props
 
@@ -614,25 +616,26 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `1802954d0` | `Sort_U64` | introsort of u64 (pointers); insertion sort under 32 elements |  |
 | `1810c59a0` | `AssignSmoothingModeToEdges` | mode 2: flags & ~1 \| 2 (soft); 1: flags & ~2 \| 1 (hard); else both cleared; faces marked dirty (8) |  |
 | `1810c6520` | `HammerMesh_BakeAllSubdivision` | ConvertMeshForBuilder's bake of every subdivided face |  |
-| `1810c65c0` | `BakeSubdivisionForFaces` | the bake (1813baa40), MergeVerticesWithinDistance 1e-6, new edges soft, then 1810cddd0 on the baked faces' vertices | `src/Source2.Compiler/Maps/SubdivisionBake.cs:6`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:147` |
-| `1810cddd0` | `HammerMesh_RecomputeVertexNormals` | every corner at the listed vertices gets 1813850e0's normal | `src/Source2.Compiler/Maps/SubdivisionBake.cs:147` |
+| `1810c65c0` | `BakeSubdivisionForFaces` | the bake (1813baa40), MergeVerticesWithinDistance 1e-6, new edges soft, then 1810cddd0 on the baked faces' vertices | `src/Source2.Compiler/Maps/SubdivisionBake.cs:6`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:152` |
+| `1810cddd0` | `HammerMesh_RecomputeVertexNormals` | every corner at the listed vertices gets 1813850e0's normal | `src/Source2.Compiler/Maps/SubdivisionBake.cs:152` |
 | `181375e20` | `HalfEdge_ContainerAdd` | handle containers: add | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:10` |
-| `181376810` | `HalfEdge_AddEdge` | an edge between the ends of two corners | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:221`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:461` |
-| `181376f80` | `HalfEdge_AddEdgeToFace` | an edge from a to b across a face unless one is there | `src/Source2.Compiler/Maps/SubdivisionBake.cs:461` |
+| `181376810` | `HalfEdge_AddEdge` | an edge between the ends of two corners | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:221`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:466` |
+| `181376f80` | `HalfEdge_AddEdgeToFace` | an edge from a to b across a face unless one is there | `src/Source2.Compiler/Maps/SubdivisionBake.cs:466` |
 | `181379a40` | `HalfEdge_SplitEdge` | h (A to B) ends at a new vertex M; a new half-edge M to B | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:185` |
 | `18137a050` | `HalfEdge_AddVertexToEdge` | a vertex on edge a-b at t | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:264` |
 | `18137a900` | `HalfEdge_NewTwinPair` | first allocated first | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:174` |
-| `181382170` | `HalfEdge_CollapseEdge` | generic half-edge lib: edge collapse | `src/Source2.Compiler/Maps/SubdivisionBake.cs:475` |
-| `181384470` | `HalfEdge_CollapseInnerFace` | inner face collapsed to its centre | `src/Source2.Compiler/Maps/SubdivisionBake.cs:473` |
-| `181384e40` | `HalfEdge_FaceNormal` | NewellNormal over the face's loop from its first half-edge | `src/Source2.Compiler/Maps/SubdivisionBake.cs:264` |
-| `1813850e0` | `HalfEdge_CornerNormal` | normalised sum of the Newell face normals over the corner's smooth fan (turn: twin of next; fan between hard edges) | `src/Source2.Compiler/Maps/SubdivisionBake.cs:293` |
+| `181382170` | `HalfEdge_CollapseEdge` | generic half-edge lib: edge collapse | `src/Source2.Compiler/Maps/SubdivisionBake.cs:480`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:701`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:708` |
+| `181384470` | `HalfEdge_CollapseInnerFace` | inner face collapsed to its centre | `src/Source2.Compiler/Maps/SubdivisionBake.cs:478` |
+| `181384e40` | `HalfEdge_FaceNormal` | NewellNormal over the face's loop from its first half-edge | `src/Source2.Compiler/Maps/SubdivisionBake.cs:269` |
+| `1813850e0` | `HalfEdge_CornerNormal` | normalised sum of the Newell face normals over the corner's smooth fan (turn: twin of next; fan between hard edges) | `src/Source2.Compiler/Maps/SubdivisionBake.cs:298` |
 | `1813858d0` | `MeshTessellation_WeldExact` | equal positions bit for bit are one vertex, first met | `src/Source2.Compiler/Maps/MeshTessellation.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:491` |
 | `18138be80` | `HalfEdge_Corner` | the half-edge of a face ending at a vertex | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:158` |
 | `18138e6e0` | `HalfEdge_Lib_18138e6e0` | called by the bake |  |
 | `18138f230` | `HalfEdge_EdgeInFace` | edge between two vertices in a face |  |
-| `18138f9f0` | `HalfEdge_FaceWith` | the face holding both vertices | `src/Source2.Compiler/Maps/SubdivisionBake.cs:443` |
+| `18138f9f0` | `HalfEdge_FaceWith` | the face holding both vertices | `src/Source2.Compiler/Maps/SubdivisionBake.cs:448` |
 | `18138fa30` | `SubdivisionBake_GridSlot` | grid-slot lookup, 2^(level-1) grid |  |
 | `1813922e0` | `HalfEdge_Lib_1813922e0` | generic half-edge lib, called by the bake |  |
 | `1813937a0` | `HalfEdge_Between` | half-edge from a to b, circling a | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:141` |
@@ -645,9 +648,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1813a54d0` | `HalfEdge_LerpCorner` | the corner at M lerps the face's corners at a and b | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:272` |
 | `1813a5740` | `HalfEdge_LerpVertex` |  | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:254` |
 | `1813a5be0` | `HalfEdge_IsOpenEdge` | a side without a face |  |
-| `1813a5ce0` | `HalfEdge_IsEdgeSmooth` | open edge hard; flag bit 0 hard, bit 1 soft; else cos(angle) + 1e-5 < dot of the faces' normals; cos above 0.99999 hard, under 1e-5 soft | `src/Source2.Compiler/Maps/SubdivisionBake.cs:269` |
-| `1813a7d00` | `HalfEdge_MergeFaces` | generic half-edge lib |  |
-| `1813a8ae0` | `HalfEdge_MergeVertices` | post-bake weld, tol 0x358637bd; not ported |  |
+| `1813a5ce0` | `HalfEdge_IsEdgeSmooth` | open edge hard; flag bit 0 hard, bit 1 soft; else cos(angle) + 1e-5 < dot of the faces' normals; cos above 0.99999 hard, under 1e-5 soft | `src/Source2.Compiler/Maps/SubdivisionBake.cs:274` |
+| `1813a7d00` | `HalfEdge_MergeFaces` | generic half-edge lib | `src/Source2.Compiler/Maps/SubdivisionBake.cs:693` |
+| `1813a8840` | `HalfEdge_MergeVertexPair` | MergeVertices: an edge between them is collapsed (181383600), else the fans are welded (HalfEdge_MergeFaces 1813a7d00); weight 0.5 from the bake wrapper | `src/Source2.Compiler/Maps/SubdivisionBake.cs:692` |
+| `1813a8ae0` | `HalfEdge_MergeVertices` | post-bake weld (MergeVerticesWithinDistance), tol 0x358637bd: clusters by CVertexKDTree box query, (dx dx + dy dy) + dz dz <= tol tol, found points sorted by address; up to 10 passes; not ported, SubdivisionBake refuses a mesh it would touch | `src/Source2.Compiler/Maps/SubdivisionBake.cs:147`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:571` |
 | `1813b1b80` | `HalfEdge_SetSmoothingAngle` | stores cos(angle * 0.017453292) at +0x3470, faces dirty |  |
 | `1813b7750` | `SubdivisionBake_PatchPositions` | per-face patch grid of positions |  |
 | `1813b82f0` | `SubdivisionBake_PatchPaint` | per-face patch grid of paint | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:86`, `src/Source2.Compiler/Maps/MeshTessellation.cs:396` +1 |
@@ -673,21 +677,21 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1801d30d0` | `WRB_LoadPropMeshes` | a model's draw calls as CMeshes of 18 floats a vertex (position, normal, tangent, texcoord, color, texcoord); vertices from the resource system's geometry info (vf 0xf0), unpacked there |  |
-| `18023f6d0` | `WRB_CollectMeshEntries` | a map mesh's pieces into node mesh entries (0x238 bytes each): +0x28 tint, +0x38 name, +0x40 id, +0x80 the node's bounds centre, +0x98 bakelighting with a baking build, +0xb0/+0xb4 fades, +0xb8 boost, +0xbc 0x400/0x200/0x80/0x100000, +0x1a1 not visexclude, +0x1a2 1, +0x1a3 emissive; NodeEntryHeader.World | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:8` |
+| `18023f6d0` | `WRB_CollectMeshEntries` | a map mesh's pieces into node mesh entries (0x238 bytes each): +0x28 tint, +0x38 name, +0x40 id, +0x80 the node's bounds centre, +0x98 bakelighting with a baking build, +0xb0/+0xb4 fades, +0xb8 boost, +0xbc 0x400/0x200/0x80/0x100000, +0x1a1 not visexclude, +0x1a2 1, +0x1a3 emissive; NodeEntryHeader.World | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:9` |
 | `18024b400` | `CWorldRendererBuilderNode::BuildNode` | bounds, props, drop flagged entries, 256690, 257b50, triangles inside, T-junctions, (bake), 25ece0, 25d500, weld 1/32 renumbering by use unless +0x1a0 && +0x98 && +0xc0 & 0x10 | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:7` |
 | `18024b890` | `CWorldRendererBuilder::CompileAndSaveNodes` |  |  |
-| `180251da0` | `WRBMeshEntry_LightingMode` | from attribute bits 16/17 | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:58` |
+| `180251da0` | `WRBMeshEntry_LightingMode` | from attribute bits 16/17 | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:59` |
 | `180254480` | `WRBNode_AddOverlay` | a 0xc0 copy of the map node's overlay descriptor (+0x78 name, +0x80, +0x88) appended to node +0x1f8 |  |
 | `1802547d0` | `WRBNode_ComputeBounds` | meshes whose entry flags miss the mask, then static props |  |
-| `180254d10` | `EnvVolume_Pick` | a named entry takes the first non-moveable record of that targetname; else the containing volume (sphere: r^2 > d^2; box: 181257020 == 0) beats the rest, higher indoor_outdoor_level among containing, then lower score (later on ties); returns the record's handshake (+0x50) or 0 | `src/Source2.Compiler/Maps/EnvVolumes.cs:68` |
-| `180255040` | `WRBNode_AssignEnvMaps` | with UseStaticLightProbes: each prop record (+0x16e) and node entry picks its cubemap (+0xa0, attribute bit 21) and light probe (+0xa4, bit 20) by 180254d10 at its origin, or its bounds centre when the origin is FLT_MAX; called twice by BuildNode (before and after the overlays) | `src/Source2.Compiler/Maps/EnvVolumes.cs:143`, `src/Source2.Compiler/Maps/WorldNodeBuild.cs:81` |
-| `180255470` | `WRBNode_PropEntry` | a node entry from a prop's mesh: fade +0x160/+0x164, bakelightdoublesided, lightmapscalebias, flags from disableinlowquality, rendertocubemaps, renderwithdynamic, emissive mode 1, lighting origin | `src/Source2.Compiler/Maps/NodePropAggregates.cs:20` |
+| `180254d10` | `EnvVolume_Pick` | a named entry takes the first non-moveable record of that targetname; else the containing volume (sphere: r^2 > d^2; box: 181257020 == 0) beats the rest, higher indoor_outdoor_level among containing, then lower score (later on ties); returns the record's handshake (+0x50) or 0 | `src/Source2.Compiler/Maps/EnvVolumes.cs:69` |
+| `180255040` | `WRBNode_AssignEnvMaps` | with UseStaticLightProbes: each prop record (+0x16e) and node entry picks its cubemap (+0xa0, attribute bit 21) and light probe (+0xa4, bit 20) by 180254d10 at its origin, or its bounds centre when the origin is FLT_MAX; called twice by BuildNode (before and after the overlays) | `src/Source2.Compiler/Maps/EnvVolumes.cs:144`, `src/Source2.Compiler/Maps/WorldNodeBuild.cs:81` |
+| `180255470` | `WRBNode_PropEntry` | a node entry from a prop's mesh: fade +0x160/+0x164, bakelightdoublesided, lightmapscalebias, flags from disableinlowquality, rendertocubemaps, renderwithdynamic, emissive mode 1, lighting origin | `src/Source2.Compiler/Maps/NodePropAggregates.cs:21` |
 | `180255b90` | `WRBNode_AddStaticProps` | props of node +0x198 baked into entries unless clutterinstance: baketoworld, materialoverride (+0x40), a deformer (+0x80), +0x17c with the node's flag, non-uniform scale (max \|s\| - min \|s\| > 0.0001, BakePropsWithNonUniformScale) or extra vertex streams (BakePropsWithExtraVertexStreams); instances walked last to first |  |
 | `180256690` | `WRBNode_Step256690` | after the drop of +0x1a5 / bit 34 entries, before Step257b50; identity on probe01, cardtest and atixref |  |
 | `180257b50` | `WRBNode_TakeLightmapResEntries` | entries with attribute bit 10 (toolslightmapres) taken out, their positions to node +0x160; bit 36 dropped |  |
 | `180257d20` | `WRB_MergeMeshes` | CMesh merge of the group (FUN_1812dd570) |  |
 | `180257ff0` | `WRBNode_MergeEntries` | one new entry from the group, fields from the first |  |
-| `180258310` | `WRBMeshList_KeepTexcoordPrecision` | a mesh list: when one texcoord stream is flagged (+0x1d) or passes 16 (180d4a120), every texcoord stream of every mesh gets +0x1d (kept float32); from WRBMeshList_GroupAggregates; BuildPropAggregates inlines it per run | `src/Source2.Compiler/Maps/NodeDraw.cs:46`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:268` |
+| `180258310` | `WRBMeshList_KeepTexcoordPrecision` | a mesh list: when one texcoord stream is flagged (+0x1d) or passes 16 (180d4a120), every texcoord stream of every mesh gets +0x1d (kept float32); from WRBMeshList_GroupAggregates; BuildPropAggregates inlines it per run | `src/Source2.Compiler/Maps/NodeDraw.cs:46`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:269` |
 | `180258570` | `WRBNode_MergeMeshes` | greedy: later compatible entries while verts < 0x200000 and indices < 0x400000 |  |
 | `180259b00` | `Step_RemovingTrianglesInside` | culling boxes |  |
 | `180259d30` | `CWorldRendererBuilderNode::FixTJunctionEdgeCracks` | on in CS2 (csgo_core); two thread pool jobs: collect edges, then fix | `src/Source2.Compiler/Maps/TJunctionFix.cs:7` |
@@ -707,7 +711,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18026bab0` | `WRBNode_CreateRenderObject` | name <node>_lr%i[_c%i]{_s\|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name> |  |
 | `18026c150` | `WRBMeshList_GroupRenderObjects` | runs of equal cubemap, probe, flags & 0x10420000, +0x1a6, object flags; named %s_cm%02d_lp%02d |  |
 | `18026d4a0` | `WRBMeshEntry_CanAggregate` | attribute 0x40000000 and none of 0x800e01, object flags without 0x200, no instance stream, lighting origin, overlay order or fade | `src/Source2.Compiler/Maps/MeshLists.cs:56` |
-| `18026d7a0` | `WRBNode_PropCanAggregate` | false with a lighting origin (UseStaticEnvMapForObjectsWithLightingOrigin, prop +0x208), no model, not a prop_static (+0x17e), lodlevel (+0x1e4) not -1, renderwithdynamic (+0x171), fademindist or fademaxdist (+0x160/+0x164) above 0, or extra vertex streams (+0x100) without node +5; else every material's SupportsAggregateInstancing (0x67d9d859) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:14`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:211` |
+| `18026d7a0` | `WRBNode_PropCanAggregate` | false with a lighting origin (UseStaticEnvMapForObjectsWithLightingOrigin, prop +0x208), no model, not a prop_static (+0x17e), lodlevel (+0x1e4) not -1, renderwithdynamic (+0x171), fademindist or fademaxdist (+0x160/+0x164) above 0, or extra vertex streams (+0x100) without node +5; else every material's SupportsAggregateInstancing (0x67d9d859) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:15`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:212` |
 | `18026e490` | `WRB_RemoveZeroExtraAttributeStreams` | Removed %i all-zero extra attribute streams |  |
 | `18026e840` | `CClassifiedMeshList::MoveAggregates` | vf 0x28: aggregatable entries moved to the aggregate member list |  |
 | `18026f590` | `WRBMeshList_GroupAggregates` | runs of equal material name and attribute bits 0x6000000000 / 0x100000, up to 0x7ffb meshes, into the aggregate builder |  |
@@ -720,8 +724,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180272b70` | `CInstancedMeshList::CInstancedMeshList` | want 2 (never merge), exclude 1; reads UseAggregateInstances |  |
 | `180272c80` | `CInstancedMeshList::OnAdd` | vf 0x58: mesh +0x14c = 1 |  |
 | `180272c90` | `CBakedPropLODMeshList::OnAdd` | vf 0x58: clears attribute bit 2, mesh +0x14c = 0 |  |
-| `180272ce0` | `WRBNode_BuildPropAggregates` | with UseAggregateInstances: models of node +0x190 (CUtlOrderedMap, CDefStringLess) in order; a model's props without materialoverride, deformer or +0x1e8 that pass 18026d7a0, by LOD (1802b4ab0): one entry per prop and mesh (180255470, 180252ae0), +0x204 the centre of the LOD's mesh bounds placed by the prop matrix; a model joins only if every entry CanAggregate; buckets by entry +0x20; if any and the summed +0x24 > 863: per bucket PrepareForMerge, Morton order (180274be0), stable sort, runs into aggregates; agg_prop | `src/Source2.Compiler/Maps/NodePropAggregates.cs:8` |
-| `180274be0` | `WRBMeshList_SortMorton` | entries by a 32-bit Morton key of ((long)(centre.x - node.min.x) >> 4, (long)(centre.y - node.min.y) >> 4), 16 bits each, y in the odd bits; std::sort (180299b60) on the key alone | `src/Source2.Compiler/Maps/NodePropAggregates.cs:221` |
+| `180272ce0` | `WRBNode_BuildPropAggregates` | with UseAggregateInstances: models of node +0x190 (CUtlOrderedMap, CDefStringLess) in order; a model's props without materialoverride, deformer or +0x1e8 that pass 18026d7a0, by LOD (1802b4ab0): one entry per prop and mesh (180255470, 180252ae0), +0x204 the centre of the LOD's mesh bounds placed by the prop matrix; a model joins only if every entry CanAggregate; buckets by entry +0x20; if any and the summed +0x24 > 863: per bucket PrepareForMerge, Morton order (180274be0), stable sort, runs into aggregates; agg_prop | `src/Source2.Compiler/Maps/NodePropAggregates.cs:9` |
+| `180274be0` | `WRBMeshList_SortMorton` | entries by a 32-bit Morton key of ((long)(centre.x - node.min.x) >> 4, (long)(centre.y - node.min.y) >> 4), 16 bits each, y in the odd bits; std::sort (180299b60) on the key alone | `src/Source2.Compiler/Maps/NodePropAggregates.cs:222` |
 | `180277ab0` | `CWorldRendererBuilderNode::CompileNode` | worldnodes
 %d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams; with vis clustering three lists each go through CVisibilityMeshMerger::MergeMeshes (call at 180278812): the unclustered entries replace the list for Step_BuildingRenderClusters, each non-empty bucket is compiled as a cluster (list vf 0x28/0x30) | `src/Source2.Compiler/Maps/MeshLists.cs:4` |
 | `180281100` | `CWorldRendererBuilderNode::PostCompileNode` |  |  |
@@ -734,14 +738,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180299b60` | `std_sort_MortonKeys` | MSVC introsort of (uint key, int index) pairs by key; insertion sort at 32 or fewer |  |
 | `1802b3060` | `WRBNode_BakePropMeshes` | one model LOD's meshes (1801d30d0) per prop: material overrides, the deformer (1812d7510), then an entry per draw call (180255470) |  |
 | `1802b4ab0` | `WRBNode_GroupPropsByLod` | the baked props of one model grouped by lodlevel (+0x1e4) |  |
-| `1802b4d50` | `WRBMeshList_MaterialStreams` | a material's 0xc4-byte inputs (semantic at +0x40) to (stream, index) pairs through 181366d90; unknown semantics as their own name at 0 | `src/Source2.Compiler/Maps/MaterialStreams.cs:11` |
-| `1802b52d0` | `WRBMeshList_PrepareForMerge` | per list before MergeMeshes: meshes deduplicated by pointer, cleaned (1812e03a0) | `src/Source2.Compiler/Maps/MaterialStreams.cs:5` |
-| `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:6` |
+| `1802b4d50` | `WRBMeshList_MaterialStreams` | a material's 0xc4-byte inputs (semantic at +0x40) to (stream, index) pairs through 181366d90; unknown semantics as their own name at 0 | `src/Source2.Compiler/Maps/MaterialStreams.cs:13` |
+| `1802b52d0` | `WRBMeshList_PrepareForMerge` | per list before MergeMeshes: meshes deduplicated by pointer, cleaned (1812e03a0) | `src/Source2.Compiler/Maps/MaterialStreams.cs:7` |
+| `1802b63b0` | `WRBMeshEntry_CanMerge` | same attribute flags, material, overlay order, object flags, probe/cubemap, matrix +0x1c8 within 1e-5, ... | `src/Source2.Compiler/Maps/WrbMeshEntry.cs:7` |
 | `1802b6db0` | `WRBNode_PropMaterials` | the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7) |  |
 | `1802ebc20` | `CResourceCompilerMesh_RigidParts` | rigid mesh parts by bone |  |
 | `1802ec6e0` | `CResourceCompilerMesh_PackDrawVB` | allocates stride * vertices and calls CMesh_CreatePackedVB; warns when the sizes disagree |  |
 | `1802ed7f0` | `CResourceCompilerMesh::AddDrawDescriptors` | per draw: vertices renumbered by first use in the incoming index buffer, then vcache, overdraw at 1.03, UV density |  |
-| `1802f6840` | `WRB_CompressTexcoordsToSnorm` | per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990) | `src/Source2.Compiler/Maps/NodeDraw.cs:39`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:268` |
+| `1802f6840` | `WRB_CompressTexcoordsToSnorm` | per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990) | `src/Source2.Compiler/Maps/NodeDraw.cs:39`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:269` |
 | `1802f69f0` | `ModelCompile_BuildDrawSets` | draw-set groups (400 bytes: four layouts, then the meshes) from the mesh list (+0x14c instanced, +0x14d), each through 1802f6840 |  |
 | `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 |  |
 | `1802fc990` | `CMesh_StreamWithinUnitRange` | min >= -1 and max <= 1 over a two-float stream | `src/Source2.Compiler/Maps/NodeDraw.cs:39` |
@@ -784,7 +788,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812e1ce0` | `CMesh_DuplicateReversed` | double-sided draws: every triangle again with the winding reversed |  |
 | `181365a40` | `CMesh_CreatePackedVB` | vertex buffer written field by field through the packed input layout (181365ce0 per format) |  |
 | `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8` |
-| `181366d90` | `MeshSemantic_Lookup` | shader semantic or stream name in the table at 183014ae0 (0x20 rows: semantic, stream, stream index, shader index) | `src/Source2.Compiler/Maps/MaterialStreams.cs:8`, `src/Source2.Compiler/Maps/MaterialStreams.cs:21` |
+| `181366d90` | `MeshSemantic_Lookup` | shader semantic or stream name in the table at 183014ae0 (0x20 rows: semantic, stream, stream index, shader index) | `src/Source2.Compiler/Maps/MaterialStreams.cs:10`, `src/Source2.Compiler/Maps/MaterialStreams.cs:23` |
 | `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 | `src/Source2.Compiler/Maps/TangentFrame.cs:9` |
 
 ### s2c:infra
@@ -800,22 +804,22 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18012a510` | `HandleSet_Realloc2` | another instance of the realloc | `src/Source2.Compiler/Physics/ValveHashSet.cs:6` |
 | `18012b8b0` | `HandleSet_Shift2` | another instance of the shift | `src/Source2.Compiler/Physics/ValveHashSet.cs:7` |
 | `1801ff720` | `MapBuilder_BuildPhysicsPiece` | per piece: hulls for types 2 and 3, else a modeldoc mesh node | `src/Source2.Compiler/Physics/BrushHulls.cs:7`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:65` |
-| `18020b230` | `MapBuilder_BuildPhysicsPieces` | copy piece CMesh, weld 1/32, two CTransforms, half-edge build | `src/Source2.Compiler/Maps/CTransform.cs:8`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:7`, `src/Source2.Compiler/Physics/BrushHulls.cs:53` |
-| `180ffddd0` | `MapInstance_StepMatrix` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:26`, `src/Source2.Compiler/Maps/MapMeshes.cs:20` |
+| `18020b230` | `MapBuilder_BuildPhysicsPieces` | copy piece CMesh, weld 1/32, two CTransforms, half-edge build | `src/Source2.Compiler/Maps/CTransform.cs:8`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:7`, `src/Source2.Compiler/Physics/BrushHulls.cs:70` |
+| `180ffddd0` | `MapInstance_StepMatrix` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:27`, `src/Source2.Compiler/Maps/MapMeshes.cs:20` |
 | `180ffdf20` | `MapNode_WorldMatrix` | instance path times AngleMatrix | `src/Source2.Compiler/Maps/MapMeshes.cs:17` |
-| `181083540` | `MapBuilder_ResolvePhysicsType` | default is convex_multi in an entity, mesh outside | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:82`, `src/Source2.Compiler/Physics/BrushHulls.cs:37` |
+| `181083540` | `MapBuilder_ResolvePhysicsType` | default is convex_multi in an entity, mesh outside | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:82`, `src/Source2.Compiler/Physics/BrushHulls.cs:54` |
 | `1810dd830` | `CMapMesh_SetDisableMerging` | vf 0x7e0 |  |
 | `1810dd840` | `CMapMesh_GetDisableMerging` | vf 0x7e8: +0x3b6b |  |
 | `1810e3f50` | `CMapMesh_RegisterProperties` | CMapMeshBase's embedded properties with getters and setters: bakelighting +0x3b58, renderToCubemaps +0x3b59, emissiveLightingEnabled +0x3b5a, fademindist +0x3b50, fademaxdist +0x3b54, emissiveLightingBoost +0x3b64, visexclude +0x3b6a, disablemerging +0x3b6b (vf 0x7e8), disableShadows +0x3b6c, renderwithdynamic +0x3b74 |  |
 | `1810e9790` | `CMapMesh_SetDisableShadows` | +0x3b6c, then vf 0x758 |  |
 | `181102e10` | `HandleSet_Shift` |  | `src/Source2.Compiler/Physics/ValveHashSet.cs:6`, `src/Source2.Compiler/Physics/ValveHashSet.cs:95` |
 | `181103020` | `HandleSet_Realloc` | open-addressed hash set of mesh handles | `src/Source2.Compiler/Physics/ValveHashSet.cs:6` |
-| `181255fb0` | `MapNode_LocalMatrix` | vtable slot 0xa0: AngleMatrix of the node's angles | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:406`, `src/Source2.Compiler/Maps/MapMeshes.cs:257` |
+| `181255fb0` | `MapNode_LocalMatrix` | vtable slot 0xa0: AngleMatrix of the node's angles | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:407`, `src/Source2.Compiler/Maps/MapMeshes.cs:257` |
 | `1812e6810` | `HandleSet_InsertIfAbsent` |  | `src/Source2.Compiler/Physics/ValveHashSet.cs:7` |
 | `1812f90d0` | `HandleSet_Remove` |  | `src/Source2.Compiler/Physics/ValveHashSet.cs:8`, `src/Source2.Compiler/Physics/ValveHashSet.cs:198` |
-| `181308060` | `MapBuilder_TriangleMesh` | positions joined, vertices in corner order | `src/Source2.Compiler/Physics/BrushHulls.cs:11`, `src/Source2.Compiler/Physics/BrushHulls.cs:155` |
+| `181308060` | `MapBuilder_TriangleMesh` | positions joined, vertices in corner order | `src/Source2.Compiler/Physics/BrushHulls.cs:11`, `src/Source2.Compiler/Physics/BrushHulls.cs:213` |
 | `1813089b0` | `MapBuilder_MeshFromMapMesh` |  |  |
-| `181310a90` | `MapBuilder_TriangulateFace` | quad diagonal rule, then an ear clipper | `src/Source2.Compiler/Physics/BrushHulls.cs:11`, `src/Source2.Compiler/Physics/BrushHulls.cs:180` |
+| `181310a90` | `MapBuilder_TriangulateFace` | quad diagonal rule, then an ear clipper | `src/Source2.Compiler/Physics/BrushHulls.cs:11`, `src/Source2.Compiler/Physics/BrushHulls.cs:238` |
 | `18136c790` | `PolygonTriangulator_QuadSplitScore` | squared diagonal, 3 when both triangles degenerate | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:9`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:111` |
 | `18136dcb0` | `PolygonTriangulator_Inside` | inner side of all three edges | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:183` |
 | `18136f7a0` | `PolygonTriangulator_Face` | a map mesh face to triangles | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:7` |
@@ -827,47 +831,47 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/OverlayProjector.cs:447`, `src/Source2.Compiler/Maps/PropTransform.cs:14` +2 |
+| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/OverlayProjector.cs:448`, `src/Source2.Compiler/Maps/PropTransform.cs:15` +2 |
 | `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:249` |
-| `1802b1ff0` | `CMesh_TransformByMatrix` | flag 1: positions by the matrix, normals by its inverse transposed (181263c30), tangents by it, both renormalised; flag 2: texcoords (u about 0, 1 - v about 1) scaled by column lengths named by TexCoord(2)ScaleByModelU/V; PropTransform | `src/Source2.Compiler/Maps/CTransform.cs:13`, `src/Source2.Compiler/Maps/PropTransform.cs:7` |
+| `1802b1ff0` | `CMesh_TransformByMatrix` | flag 1: positions by the matrix, normals by its inverse transposed (181263c30), tangents by it, both renormalised; flag 2: texcoords (u about 0, 1 - v about 1) scaled by column lengths named by TexCoord(2)ScaleByModelU/V; PropTransform | `src/Source2.Compiler/Maps/CTransform.cs:13`, `src/Source2.Compiler/Maps/PropTransform.cs:8` |
 | `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:90`, `src/Source2.Compiler/Maps/MeshTessellation.cs:517` |
-| `1811145c0` | `AngleMatrixDouble` | sines and cosines in double | `src/Source2.Compiler/Maps/SettleWorld.cs:314`, `src/Source2.Compiler/Maps/SettleWorld.cs:464` |
-| `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.cs:611`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:44` |
+| `1811145c0` | `AngleMatrixDouble` | sines and cosines in double | `src/Source2.Compiler/Maps/SettleWorld.cs:315`, `src/Source2.Compiler/Maps/SettleWorld.cs:465` |
+| `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.cs:612`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:44` |
 | `181253780` | `CTransform_Invert` | scale 1 path | `src/Source2.Compiler/Maps/CTransform.cs:38`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:57` |
 | `181255d60` | `AngleMatrix` | degrees times 0.017453292f | `src/Source2.Compiler/Maps/MapMeshes.cs:269` |
 | `181256960` | `PointSegmentClosest` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
 | `181256bf0` | `PointLineDistanceSquared` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:199`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:207` |
 | `181256f30` | `PointSegmentDistance` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
-| `181257020` | `Box_DistanceSquared` | per axis (mins - p)+ + (p - maxs)+, squared, summed z, y, x | `src/Source2.Compiler/Maps/EnvVolumes.cs:132` |
-| `1812586a0` | `Matrix3x4_ColumnLengths` | sqrt((c0 c0 + c1 c1) + c2 c2) per column | `src/Source2.Compiler/Maps/PropTransform.cs:58` |
+| `181257020` | `Box_DistanceSquared` | per axis (mins - p)+ + (p - maxs)+, squared, summed z, y, x | `src/Source2.Compiler/Maps/EnvVolumes.cs:133` |
+| `1812586a0` | `Matrix3x4_ColumnLengths` | sqrt((c0 c0 + c1 c1) + c2 c2) per column | `src/Source2.Compiler/Maps/PropTransform.cs:59` |
 | `181258890` | `ConcatTransforms` | SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0) | `src/Source2.Compiler/Maps/LightMath.cs:90`, `src/Source2.Compiler/Maps/MapMeshes.cs:283` |
 | `18125a6c0` | `Vector_Basis` | Frisvad's basis with the sign of z | `src/Source2.Compiler/Maps/LightSampler.cs:261`, `src/Source2.Compiler/Maps/TangentFrame.cs:90` |
-| `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:405`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:419`, `src/Source2.Compiler/Maps/MapMeshes.cs:296` |
-| `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:26`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:245` |
+| `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:406`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:420`, `src/Source2.Compiler/Maps/MapMeshes.cs:296` |
+| `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:27`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:246` |
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
-| `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:511`, `src/Source2.Compiler/Maps/SettleWorld.cs:627`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:623` |
+| `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:512`, `src/Source2.Compiler/Maps/SettleWorld.cs:628`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:624` |
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
 | `18125bad0` | `Matrix3x4_Column0` |  |  |
-| `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:70` |
+| `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:71` |
 | `18125c070` | `Matrix3x4_Identity` |  |  |
-| `18125c200` | `Matrix3x4_Scale` | diag(x, y, z), zero translation | `src/Source2.Compiler/Maps/SettleWorld.cs:518` |
-| `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:449`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:492`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
+| `18125c200` | `Matrix3x4_Scale` | diag(x, y, z), zero translation | `src/Source2.Compiler/Maps/SettleWorld.cs:519` |
+| `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:450`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:492`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
 | `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/NodeOverlays.cs:200` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/VectorNormalizeSlow.cs:6`, `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:547`, `src/Source2.Compiler/Physics/HullSimplifier.cs:146` +2 |
 | `18125d0d0` | `VectorPerpendicular` | ((1 - z)(y y - 0) + z, 0, -x) normalised, orthogonalised, normalised | `src/Source2.Compiler/Physics/StaticPropHulls.cs:327`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:375` |
-| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:408`, `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:172` +2 |
-| `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:407`, `src/Source2.Compiler/Maps/LightMath.cs:130`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:560` |
+| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:409`, `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:172` +2 |
+| `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:408`, `src/Source2.Compiler/Maps/LightMath.cs:130`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:560` |
 | `18125d940` | `AngleQuaternion` | half angles times 0.00872664619 | `src/Source2.Compiler/Maps/CTransform.cs:22` |
 | `18125dcc0` | `Quaternion_Forward` | x axis | `src/Source2.Compiler/Maps/LightMath.cs:206`, `src/Source2.Compiler/Maps/LightMath.cs:225` |
 | `18125dd50` | `Quaternion_Left` | y axis | `src/Source2.Compiler/Maps/LightMath.cs:228` |
 | `18125dde0` | `Quaternion_Up` | z axis | `src/Source2.Compiler/Maps/LightMath.cs:231` |
-| `18125de90` | `MatrixQuaternion` | a 3x4's rotation as a quaternion from its largest diagonal | `src/Source2.Compiler/Maps/LightMath.cs:150`, `src/Source2.Compiler/Maps/SettleWorld.cs:645`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:623` +1 |
+| `18125de90` | `MatrixQuaternion` | a 3x4's rotation as a quaternion from its largest diagonal | `src/Source2.Compiler/Maps/LightMath.cs:150`, `src/Source2.Compiler/Maps/SettleWorld.cs:646`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:624` +1 |
 | `18125f4e0` | `QuaternionMatrix_Translation` | a quaternion's 3x4 with a translation | `src/Source2.Compiler/Maps/LightMath.cs:136` |
 | `181260150` | `QuaternionMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:95` |
-| `181260200` | `QuaternionAngles` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/LightPrecompute.cs:177`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:643`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
-| `1812636e0` | `Matrix4x4_Invert` | Gauss-Jordan with partial pivoting | `src/Source2.Compiler/Maps/LightMath.cs:35`, `src/Source2.Compiler/Maps/PropTransform.cs:13` |
+| `181260200` | `QuaternionAngles` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/LightPrecompute.cs:178`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:644`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
+| `1812636e0` | `Matrix4x4_Invert` | Gauss-Jordan with partial pivoting | `src/Source2.Compiler/Maps/LightMath.cs:35`, `src/Source2.Compiler/Maps/PropTransform.cs:14` |
 | `181263af0` | `MatrixInvert_Translation` | inverse of a rotation and translation | `src/Source2.Compiler/Maps/TemplateTransform.cs:43` |
-| `181263c30` | `Matrix3x4_InverseTranspose` | the 3x4 as 4x4 with (0, 0, 0, 1), inverted (1812636e0), transposed | `src/Source2.Compiler/Maps/PropTransform.cs:13` |
+| `181263c30` | `Matrix3x4_InverseTranspose` | the 3x4 as 4x4 with (0, 0, 0, 1), inverted (1812636e0), transposed | `src/Source2.Compiler/Maps/PropTransform.cs:14` |
 | `181263eb0` | `ConcatTransforms4x4` | each entry ((a0 b0 + a1 b1) + a2 b2) + a3 b3 | `src/Source2.Compiler/Maps/LightMath.cs:12`, `src/Source2.Compiler/Maps/TemplateTransform.cs:56` |
 | `181264350` | `MatrixAngles_Template` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/TemplateTransform.cs:70` |
 | `1812644b0` | `Matrix4x4_Transpose` |  | `src/Source2.Compiler/Maps/LightMath.cs:22` |
@@ -882,13 +886,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1802c4a20` | `ShapeBuilder_LoopShapes` | shape loop over a physics model |  |
 | `180c253c0` | `ShapeBuilder_BuildHullShape` | RnHullCreate through the interface, the region SVM, then the move | `src/Source2.Compiler/Physics/RegionSvm.cs:21` |
-| `18130c0d0` | `MapBuilder_GroupTriangles` | breadth-first groups sharing a vertex | `src/Source2.Compiler/Physics/BrushHulls.cs:13`, `src/Source2.Compiler/Physics/BrushHulls.cs:212` |
+| `18130c0d0` | `MapBuilder_GroupTriangles` | breadth-first groups sharing a vertex | `src/Source2.Compiler/Physics/BrushHulls.cs:13`, `src/Source2.Compiler/Physics/BrushHulls.cs:270` |
 | `18130cb80` | `MapBuilder_SplitElements` |  |  |
-| `18130d0b0` | `MapBuilder_FaceNeighbours` | every face around the corners, through a set | `src/Source2.Compiler/Physics/BrushHulls.cs:250` |
-| `18130f460` | `MapBuilder_ElementVertexSet` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:14`, `src/Source2.Compiler/Physics/BrushHulls.cs:263` |
-| `18131efc0` | `MapBuilder_HullBuild` | same code as vphysics2's RnHull_BuildFromPoints | `src/Source2.Compiler/Physics/BrushHulls.cs:308`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:123` |
-| `18131f680` | `MapBuilder_HullsFromMesh` | modes 0 single, 1 per mesh, 2 per element | `src/Source2.Compiler/Physics/BrushHulls.cs:309` |
-| `1814e81b0` | `MapBuilder_CreateHullNodes` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:309` |
+| `18130d0b0` | `MapBuilder_FaceNeighbours` | every face around the corners, through a set | `src/Source2.Compiler/Physics/BrushHulls.cs:308` |
+| `18130f460` | `MapBuilder_ElementVertexSet` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:14`, `src/Source2.Compiler/Physics/BrushHulls.cs:321` |
+| `18131efc0` | `MapBuilder_HullBuild` | same code as vphysics2's RnHull_BuildFromPoints | `src/Source2.Compiler/Physics/BrushHulls.cs:366`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:123` |
+| `18131f680` | `MapBuilder_HullsFromMesh` | modes 0 single, 1 per mesh, 2 per element | `src/Source2.Compiler/Physics/BrushHulls.cs:367` |
+| `1814e81b0` | `MapBuilder_CreateHullNodes` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:367` |
 | `1819595d0` | `RnHull_Transform` | moves a cooked hull by a 3x4: planes, mass, ortho areas, SVM planes | `src/Source2.Compiler/Physics/RnHullBuilder.cs:493` |
 | `1819f2a70` | `SchemaBind_RnHull_t` |  |  |
 | `181a09ad0` | `RnHull_RotateInertia` | R I R^T on the 3x4 mass block | `src/Source2.Compiler/Physics/RnHullBuilder.cs:572` |
@@ -987,10 +991,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1812d66f0` | `CMesh_Copy` |  |  |
 | `1812d6a90` | `CMesh_Alloc` |  |  |
-| `1812d80c0` | `CMesh_Weld` | per-float tolerances, KD tree clusters | `src/Source2.Compiler/Physics/MeshWeld.cs:5`, `src/Source2.Compiler/Physics/MeshWeld.cs:115` |
-| `1812dd2f0` | `CMesh_RemoveDegenerateAndRenumber` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:15`, `src/Source2.Compiler/Physics/MeshWeld.cs:86` |
-| `1812e2530` | `CMesh_WeldCluster` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:13`, `src/Source2.Compiler/Physics/MeshWeld.cs:151` |
-| `1812e5880` | `CMesh_WeldZeroSubset` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:13`, `src/Source2.Compiler/Physics/MeshWeld.cs:53` |
+| `1812d80c0` | `CMesh_Weld` | per-float tolerances, KD tree clusters | `src/Source2.Compiler/Physics/MeshWeld.cs:6`, `src/Source2.Compiler/Physics/MeshWeld.cs:116` |
+| `1812dd2f0` | `CMesh_RemoveDegenerateAndRenumber` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:16`, `src/Source2.Compiler/Physics/MeshWeld.cs:87` |
+| `1812e2530` | `CMesh_WeldCluster` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:14`, `src/Source2.Compiler/Physics/MeshWeld.cs:152` |
+| `1812e5880` | `CMesh_WeldZeroSubset` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:14`, `src/Source2.Compiler/Physics/MeshWeld.cs:54` |
 
 ### s2c:physics/world
 
@@ -1003,33 +1007,33 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180200af0` | `MapBuilder_StaticPropPhysics` | per body: bone override by name (+0x268, 181749d20), then spheres, capsules, hulls, meshes |  |
 | `1802c05a0` | `CollisionAttribute_Copy` | name and five lists |  |
 | `1802c0820` | `ModelDocPhysics_MeshShape` |  |  |
-| `1802c0e70` | `ModelDocPhysics_HullShape` | hull node to shape: quickhull tol 0, at most 256 faces/half-edges/verts | `src/Source2.Compiler/Physics/BrushHulls.cs:284`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:16`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:455` |
+| `1802c0e70` | `ModelDocPhysics_HullShape` | hull node to shape: quickhull tol 0, at most 256 faces/half-edges/verts | `src/Source2.Compiler/Physics/BrushHulls.cs:342`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:16`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:455` |
 | `1802c3030` | `ModelDocPhysics_NodeLoop` |  | `src/Source2.Compiler/Physics/WorldPhysics.cs:177` |
 | `1802e3120` | `ModelDoc_ReadMaterialPhysics` | rc's copy of physicsbuilder's material physics reader | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:140`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:274`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:278` +1 |
 | `1802e3af0` | `CUtlStringVector_Assign` |  |  |
-| `1802e3c10` | `CollisionTagSet_AddUnique` | CUtlSortVector<CUtlString> Find by V_stricmp_fast; first spelling kept | `src/Source2.Compiler/Io/Tier0Strings.cs:94` |
-| `1802e3e00` | `CollisionTagList_Parse` | splits on whitespace, ',' and '\|' into a sorted set | `src/Source2.Compiler/Io/Tier0Strings.cs:93` |
-| `1802e4340` | `CollisionTagSet_Insert` | sorted insert, V_stricmp_fast order | `src/Source2.Compiler/Io/Tier0Strings.cs:94` |
+| `1802e3c10` | `CollisionTagSet_AddUnique` | CUtlSortVector<CUtlString> Find by V_stricmp_fast; first spelling kept | `src/Source2.Compiler/Io/Tier0Strings.cs:144` |
+| `1802e3e00` | `CollisionTagList_Parse` | splits on whitespace, ',' and '\|' into a sorted set | `src/Source2.Compiler/Io/Tier0Strings.cs:143` |
+| `1802e4340` | `CollisionTagSet_Insert` | sorted insert, V_stricmp_fast order | `src/Source2.Compiler/Io/Tier0Strings.cs:144` |
 | `180c22250` | `ShapeBuilder_Registry_ctor` | registry: attribute 'default', surface +0xb0 'default', empty tables |  |
 | `180c22c40` | `ShapeBuilder_BuildAggregate` | builds each part, then writes the attribute and surface tables |  |
 | `180c24aa0` | `ShapeBuilder_Shape_ctor` | shape attribute override +8 name 'default', mode +0x88 0 |  |
 | `180c25230` | `ShapeBuilder_CapsuleNode` |  | `src/Source2.Compiler/Maps/CTransform.cs:109`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:162`, `src/Source2.Compiler/Physics/WorldPhysics.cs:108` |
 | `180c25810` | `ShapeBuilder_SphereNode` | centre: t = 2 q x v, then scale and position | `src/Source2.Compiler/Maps/CTransform.cs:109`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:162`, `src/Source2.Compiler/Physics/WorldPhysics.cs:107` |
 | `180c25900` | `ShapeBuilder_ToolMaterialHash` | hashes the shape's material name (+0xf8); 0 for none | `src/Source2.Compiler/Io/ResourceNames.cs:43`, `src/Source2.Compiler/Physics/WorldPhysics.cs:69`, `src/Source2.Compiler/Physics/WorldPhysics.cs:127` |
-| `180c25a80` | `ShapeBuilder_TransformVertices` | moves each vertex during the soup join | `src/Source2.Compiler/Physics/WorldCollision.cs:1113` |
+| `180c25a80` | `ShapeBuilder_TransformVertices` | moves each vertex during the soup join | `src/Source2.Compiler/Physics/WorldCollision.cs:1122` |
 | `180c25ce0` | `ShapeBuilder_Init` |  |  |
-| `180c261c0` | `ShapeBuilder_SetTransform` | stores the CTransform | `src/Source2.Compiler/Physics/BrushHulls.cs:286`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:455` |
+| `180c261c0` | `ShapeBuilder_SetTransform` | stores the CTransform | `src/Source2.Compiler/Physics/BrushHulls.cs:344`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:455` |
 | `180c26aa0` | `ShapeBuilder_SetMaterial` | shape +0xf8 from the modeldoc node +0x108 |  |
 | `180c26ac0` | `ShapeBuilder_Capsules` | drops radius <= 0 |  |
 | `180c26ce0` | `ShapeBuilder_Hulls` |  |  |
 | `180c26e50` | `ShapeBuilder_Spheres` |  |  |
 | `180c27440` | `ShapeBuilder_Part_ctor` | part surface +0x68 'default', attribute +0xf8 'default', mode +0x178 0 |  |
-| `180c27e30` | `ShapeBuilder_JoinSoupNames` | '; ' join of non-empty names, sealed past 50 chars; skips 0-triangle members | `src/Source2.Compiler/Physics/WorldCollision.cs:1017`, `src/Source2.Compiler/Physics/WorldCollision.cs:1113`, `src/Source2.Compiler/Physics/WorldPhysics.cs:126` +1 |
-| `180c28150` | `ShapeBuilder_InsertPart` | append, V_qsort by type, renumber | `src/Source2.Compiler/Physics/WorldCollision.cs:978` |
+| `180c27e30` | `ShapeBuilder_JoinSoupNames` | '; ' join of non-empty names, sealed past 50 chars; skips 0-triangle members | `src/Source2.Compiler/Physics/WorldCollision.cs:1026`, `src/Source2.Compiler/Physics/WorldCollision.cs:1122`, `src/Source2.Compiler/Physics/WorldPhysics.cs:126` +1 |
+| `180c28150` | `ShapeBuilder_InsertPart` | append, V_qsort by type, renumber | `src/Source2.Compiler/Physics/WorldCollision.cs:987` |
 | `180c28210` | `ShapeBuilder_ComparePartType` | V_qsort comparator: a.type - b.type (+0x90) |  |
 | `180c28230` | `ShapeBuilder_BuildPart` | spheres, capsules, hulls, then meshes | `src/Source2.Compiler/Physics/WorldPhysics.cs:104` |
 | `180c28690` | `ShapeBuilder_FinishSoup` | RnMeshCreate; tool hash = the one hash with triangles, else 0 | `src/Source2.Compiler/Physics/WorldPhysics.cs:127` |
-| `180c29500` | `ShapeBuilder_GatherMeshes` |  | `src/Source2.Compiler/Physics/WorldCollision.cs:1016` |
+| `180c29500` | `ShapeBuilder_GatherMeshes` |  | `src/Source2.Compiler/Physics/WorldCollision.cs:1025` |
 | `180c2ad10` | `ShapeBuilder_WriteRecords16` | copies registry +0xb8 16-byte records (HITGROUP_INVALID default) to aggregate +0x98 |  |
 | `180c2ae80` | `ShapeBuilder_WriteTables` | m_collisionAttributes, then m_surfacePropertyHashes (lowercase Murmur of each name, 0 if empty) |  |
 | `180c2b200` | `ShapeBuilder_NextPart` | bumps the part counter |  |
@@ -1038,7 +1042,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180c2b5d0` | `CUtlStringVector_AppendAll` |  |  |
 | `180c2d4c0` | `ShapeBuilder_PartSurfaceIndex` |  | `src/Source2.Compiler/Physics/WorldPhysics.cs:70` |
 | `180c2d570` | `ShapeBuilder_PopAttribute` | restores the registry's attribute state |  |
-| `180c2d5a0` | `CollisionAttribute_Equal` | group V_stricmp_fast, then five tag lists as sets | `src/Source2.Compiler/Physics/WorldCollision.cs:57` |
+| `180c2d5a0` | `CollisionAttribute_Equal` | group V_stricmp_fast, then five tag lists as sets | `src/Source2.Compiler/Physics/WorldCollision.cs:58` |
 | `180c2d650` | `CollisionAttribute_WriteList` | strings as stored, hashes lowercase Murmur (0 if empty) |  |
 | `180c2d880` | `CollisionAttribute_MergeList` | mode 2: appends names not already present (case-sensitive) |  |
 | `180c2da10` | `CollisionAttribute_ApplyOverride` | mode 1: name if non-empty, all five lists replaced; mode 2: merge |  |
@@ -1046,7 +1050,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180c2e030` | `CollisionTagList_SetEqual` | set equality, A-Z folded; hash sets once n*m >= 50 |  |
 | `180c2ec50` | `ShapeBuilder_PushSurface` | saves registry +0xb0, sets it to the shape's surface if non-empty |  |
 | `180c2ece0` | `ShapeBuilder_PopSurface` | restores registry +0xb0 |  |
-| `181003b60` | `CMapEntity::vf221` | copies the node's origin, angles and scales | `src/Source2.Compiler/Physics/WorldCollision.cs:743` |
+| `180fb09f0` | `MapBuilderSettings_Read` | gameinfo ResourceCompiler/...; PhysicsBuilder/DefaultHammerMeshSimplification -> +0x9c8 (CS2: 0.0) |  |
+| `181003b60` | `CMapEntity::vf221` | copies the node's origin, angles and scales | `src/Source2.Compiler/Physics/WorldCollision.cs:752` |
+| `181083ae0` | `CMapMesh_PhysicsSimplificationError` | CMapMesh vf216: override (+0x3c18) ? error (+0x3c1c) squared : 0 if a material has attribute 0x184fc5, else the gameinfo default squared | `src/Source2.Compiler/Physics/BrushHulls.cs:39` |
 | `18141b370` | `CModelDocPhysicsShapeList_Create` | +0xba flag 0, body order +0xbc 2 |  |
 | `1814f34e0` | `ModelDocNode_Transform` | Compose(node, parent inverse) | `src/Source2.Compiler/Physics/StaticPropHulls.cs:477` |
 | `1814f4fd0` | `ModelDocNode_GetMaterial` | getter for node +0x108 |  |
@@ -1063,10 +1069,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18122d020` | `SmartProp_NodeTransform` | world matrix split into column scales and a rotation | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:15`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:622` |
-| `181230360` | `SmartProp_EvaluateNode` | calls SmartPropsSystem_001 +0x88 with the node's world CTransform | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:13`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:621` |
-| `181c51040` | `SmartProp_RebaseRecords` | Compose(CTransform_Invert(W), record) | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:641` |
-| `181c51410` | `SmartProp_ComposeRecords` | Compose(W, record) again | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:642` |
+| `18122d020` | `SmartProp_NodeTransform` | world matrix split into column scales and a rotation | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:16`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:623` |
+| `181230360` | `SmartProp_EvaluateNode` | calls SmartPropsSystem_001 +0x88 with the node's world CTransform | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:14`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:622` |
+| `181c51040` | `SmartProp_RebaseRecords` | Compose(CTransform_Invert(W), record) | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:642` |
+| `181c51410` | `SmartProp_ComposeRecords` | Compose(W, record) again | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:643` |
 | `183b5b4c0` | `g_pSmartPropsSystem` | data: global, SmartPropsSystem_001 |  |
 
 ### s2c:visibility
@@ -1099,12 +1105,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802381c0` | `CVisibilityMeshMerger_BucketFind` | CUtlHashTable find-or-insert keyed by the cluster set (hash_combine from 0x3501a674); grows to (used*4+4)/3 before passing 3/4 |  |
 | `1802383f0` | `ClusterSetTable_FindOrInsert` |  |  |
 | `180238620` | `CVisibilityMeshMerger_InsertionSortCandidates` |  |  |
-| `180252ae0` | `WRB_MeshEntryFlags` | a node entry's attribute flags (+0x1b0) from 35 material attributes (found and true) and the builder record (+0x1b0 lighting mode, +0x1b8 base flags, +0xb4 fade, +0x98, +0x90); +0x1b8 the representative texture's size (vf 0xa8), +0x1c0 skyboxslot; MeshEntryFlags, checked under unicorn (tools/re/emu_entry_flags.py) | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:10`, `src/Source2.Compiler/Maps/MeshEntryFlags.cs:6` |
+| `180252ae0` | `WRB_MeshEntryFlags` | a node entry's attribute flags (+0x1b0) from 35 material attributes (found and true) and the builder record (+0x1b0 lighting mode, +0x1b8 base flags, +0xb4 fade, +0x98, +0x90); +0x1b8 the representative texture's size (vf 0xa8), +0x1c0 skyboxslot; MeshEntryFlags, checked under unicorn (tools/re/emu_entry_flags.py) | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:11`, `src/Source2.Compiler/Maps/MeshEntryFlags.cs:6` |
 | `180259130` | `WRB_TriangleInSkipBox` | whether a triangle lies in one of those boxes; the emitter then skips it |  |
 | `1802597d0` | `WRB_RteSkipBoxes` | oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified |  |
 | `1802821f0` | `WRB_EmitRteTriangles` | ORs in the material's flag bits; drops a sliver (longest edge under 0.0001, or times 1.0001 over the other two) | `src/Source2.Compiler/Maps/MapGeometry.cs:53` |
-| `1802839d0` | `WRB_CollectRteMeshes` | each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80 | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:13` |
-| `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:109` |
+| `1802839d0` | `WRB_CollectRteMeshes` | each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80 | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:14` |
+| `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:110` |
 | `1810045b0` | `CMapEntity::vf219` | 2 when the entity's class renders as world | `src/Source2.Compiler/Maps/MapGeometry.cs:10` |
 | `181265950` | `TriBoxOverlap` | box centre, half extents, three corners, epsilon | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:543` |
 | `1812d6c70` | `CMesh_Append` | streams matched by name; vertices appended, indices offset by the old vertex count | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:47` |
@@ -1125,36 +1131,36 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18000b8c0` | `SmartProp_EvaluateGroup` | nothing of its own: its modifiers have run | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:232` |
+| `18000b8c0` | `SmartProp_EvaluateGroup` | nothing of its own: its modifiers have run | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:233` |
 | `18000d4b0` | `SmartPropContext_ctor` |  |  |
-| `18000eb00` | `SmartPropContext_Setup` | object +0x170 = element +0x100 = the given transform | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:170` |
-| `18000f250` | `SmartProp_ApplyModifiers` | each enabled modifier; false when a filter stops the element | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:242` |
-| `18000f320` | `SmartProp_EvaluateChild` | skips a disabled element; pushes its id | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:189` |
-| `18000f8e0` | `SmartProp_StoredChoiceIndex` | -1 picks none | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:351` |
-| `18000fab0` | `SmartProp_StoredChoice` | stored choiceValue | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:351` |
-| `1800118a0` | `SmartProp_RandomStream` | the stream for the current path, made on first use | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:147` |
-| `180011a50` | `SmartProp_Normalise` | scaled by 1 / length when it is sane | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:557` |
-| `180017910` | `CreateLocator_Evaluate` | m_bConfigurable (true) composes the locator's delta | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:333` |
-| `180018460` | `CreateSizer_Evaluate` | the sizer's box | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:289` |
-| `180018c00` | `Translate_Evaluate` | context composed with the offset | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:266` |
-| `180019410` | `Scale_Evaluate` | context composed with m_flScale (1 by default) | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:272` |
-| `1800249a0` | `FitOnLine_LinearLength` | the first enabled LinearLength's; zero without one | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:512` |
-| `180024ad0` | `FitOnLine_Filter` | enabled children whose first enabled EndCap matches | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:509` |
-| `180024dd0` | `FitOnLine_LargestFirst` | the greatest length that fits the room | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:454` |
+| `18000eb00` | `SmartPropContext_Setup` | object +0x170 = element +0x100 = the given transform | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:171` |
+| `18000f250` | `SmartProp_ApplyModifiers` | each enabled modifier; false when a filter stops the element | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:243` |
+| `18000f320` | `SmartProp_EvaluateChild` | skips a disabled element; pushes its id | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:190` |
+| `18000f8e0` | `SmartProp_StoredChoiceIndex` | -1 picks none | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:352` |
+| `18000fab0` | `SmartProp_StoredChoice` | stored choiceValue | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:352` |
+| `1800118a0` | `SmartProp_RandomStream` | the stream for the current path, made on first use | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:148` |
+| `180011a50` | `SmartProp_Normalise` | scaled by 1 / length when it is sane | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:558` |
+| `180017910` | `CreateLocator_Evaluate` | m_bConfigurable (true) composes the locator's delta | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:334` |
+| `180018460` | `CreateSizer_Evaluate` | the sizer's box | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:290` |
+| `180018c00` | `Translate_Evaluate` | context composed with the offset | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:267` |
+| `180019410` | `Scale_Evaluate` | context composed with m_flScale (1 by default) | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:273` |
+| `1800249a0` | `FitOnLine_LinearLength` | the first enabled LinearLength's; zero without one | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:513` |
+| `180024ad0` | `FitOnLine_Filter` | enabled children whose first enabled EndCap matches | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:510` |
+| `180024dd0` | `FitOnLine_LargestFirst` | the greatest length that fits the room | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:455` |
 | `180024f20` | `FitOnLine_Caps` |  |  |
-| `1800250b0` | `FitOnLine_Select` | start cap, end cap, then fill | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:393`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:441` |
+| `1800250b0` | `FitOnLine_Select` | start cap, end cap, then fill | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:394`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:442` |
 | `180025b20` | `FitOnLine_ScalePass` | scale pass |  |
 | `180025c00` | `FitOnLine_ScalePass2` | scale pass |  |
 | `180025e60` | `FitOnLine_ScalePass3` | scale pass |  |
-| `180026030` | `FitOnLine_Place` | placed one after another | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:394` |
-| `180026230` | `FitOnLine_Evaluate` | children fitted along start-end | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:393` |
-| `180026af0` | `LinearLength_ctor` | defaults: length, min, max 1; no stretch | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:537` |
+| `180026030` | `FitOnLine_Place` | placed one after another | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:395` |
+| `180026230` | `FitOnLine_Evaluate` | children fitted along start-end | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:394` |
+| `180026af0` | `LinearLength_ctor` | defaults: length, min, max 1; no stretch | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:538` |
 | `1800273e0` | `EndCap_ctor` | defaults: enabled, start and end true |  |
-| `180027c00` | `FitOnLine_ctor` | defaults: LARGEST_FIRST, scale NONE, ELEMENT space, no orient | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:403` |
-| `180030ad0` | `PickOne_Evaluate` | one child by m_SelectionMode | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:348` |
+| `180027c00` | `FitOnLine_ctor` | defaults: LARGEST_FIRST, scale NONE, ELEMENT space, no orient | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:404` |
+| `180030ad0` | `PickOne_Evaluate` | one child by m_SelectionMode | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:349` |
 | `180051a70` | `CreateSizer_ctor` | defaults: every initial value and constraint 0 |  |
-| `180094470` | `SmartProp_LocatorConfig` | stored locator configuration | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:335` |
-| `180094890` | `SmartProp_LocatorDeltas` | stored locator deltas for a path | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:290` |
+| `180094470` | `SmartProp_LocatorConfig` | stored locator configuration | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:336` |
+| `180094890` | `SmartProp_LocatorDeltas` | stored locator deltas for a path | `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:291` |
 
 ## tier0.dll, build 20260923
 
@@ -1187,7 +1193,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180054b40` | `CBufferString::FixSlashes` | export |  |
 | `180054c60` | `CBufferString::FixupPathName` | export |  |
 | `1800560c0` | `CBufferString::SetExtension` | export |  |
-| `18017ebf0` | `CVertexKDTree_Partition` | from the middle up, below the split swapped down | `src/Source2.Compiler/Physics/MeshWeld.cs:256` |
+| `18017ebf0` | `CVertexKDTree_Partition` | from the middle up, below the split swapped down | `src/Source2.Compiler/Physics/MeshWeld.cs:257` |
 | `180306700` | `V_IsAbsolutePath_PrefixVpk` | data: string 'vpk:' |  |
 | `180306708` | `V_IsAbsolutePath_PrefixUgc` | data: string 'ugc:' |  |
 
@@ -1221,7 +1227,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `180015930` | `VectorAndNot` | dst = x & ~y over a dword run | `src/Source2.Compiler/Physics/WorldCollision.cs:154`, `src/Source2.Compiler/Physics/WorldCollision.cs:402`, `src/Source2.Compiler/Physics/WorldCollision.cs:793` |
+| `180015930` | `VectorAndNot` | dst = x & ~y over a dword run | `src/Source2.Compiler/Physics/WorldCollision.cs:155`, `src/Source2.Compiler/Physics/WorldCollision.cs:404`, `src/Source2.Compiler/Physics/WorldCollision.cs:802` |
 | `180016d40` | `BatchTracer` | trace one batch and sort the hits into segments |  |
 | `180017990` | `LosRecord` | debug only |  |
 | `180017d50` | `Sampler_UpdateLosHints` | -updateloshints: rewrites the .los hint cache |  |
@@ -1261,7 +1267,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002a960` | `SortPairs` | std::sort with BoxOrder over the union box |  |
 | `18002b730` | `VoxelSampler_Ctor` | sampler constructor: the traced bounds snapped out to the voxel grid (root cube) | `src/Source2.Compiler/Maps/VisVoxelizer.cs:23` |
 | `18002c420` | `Entry_Touches` | two entries touch when any cell of one is at distance 0 | `src/Source2.Compiler/Maps/VisPvs.cs:303` |
-| `18002c970` | `Hints_Load` | the visibility_hints entities: types 4, 5, 6 to the x, y, z split lists, any other to the voxel hint list | `src/Source2.Compiler/Maps/VisClusters.cs:264`, `src/Source2.Compiler/Maps/VisConfig.cs:16`, `src/Source2.Compiler/Maps/VisConfig.cs:156` +1 |
+| `18002c970` | `Hints_Load` | the visibility_hints entities: types 4, 5, 6 to the x, y, z split lists, any other to the voxel hint list | `src/Source2.Compiler/Maps/VisClusters.cs:264`, `src/Source2.Compiler/Maps/VisConfig.cs:17`, `src/Source2.Compiler/Maps/VisConfig.cs:157` +1 |
 | `18002ced0` | `Hints_AddVoxelHint` | box sides past the scene's bounds moved to the root's; voxel size in [4, 256]; region size | `src/Source2.Compiler/Maps/VisVoxelizer.cs:239` |
 | `18002d140` | `CandidateBoxes_SplitOne` | one split in x, y or z, recursing into CandidateBoxes | `src/Source2.Compiler/Maps/VisClusters.cs:285` |
 | `18002d320` | `CandidateBoxes` | a leaf box split by the hint lists, each piece tagged | `src/Source2.Compiler/Maps/VisClusters.cs:284` |
@@ -1272,11 +1278,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002e390` | `EntryQuery` | octree walk for a box: open entries in walk order | `src/Source2.Compiler/Maps/VisPvs.cs:204`, `src/Source2.Compiler/Maps/VisPvs.cs:212` |
 | `18002e8b0` | `EntryNeighbours` | open records within the base voxel size | `src/Source2.Compiler/Maps/VisBorders.cs:140` |
 | `18002ea10` | `Region_OfPoint` | a point to its region |  |
-| `18002ebf0` | `LeafEntries` | a leaf's 4x4x4 mask; pushes its regions |  |
+| `18002ebf0` | `LeafEntries` | a leaf's 4x4x4 mask; pushes its regions (and solid records, flag bit 1) as the depth-first build meets the leaf: a branch is recursed into at its octant, so region order is not slot order | `src/Source2.Compiler/Maps/VisRegions.cs:40` |
 | `18002ef60` | `SegmentWalk` | a segment through the octree, breadth first | `src/Source2.Compiler/Maps/VisPvs.cs:684` |
 | `18002f1c0` | `SunWalk` | cells cut to the leaf's open cells | `src/Source2.Compiler/Maps/VisPvs.cs:688` |
-| `18002f430` | `MarchRay` | one ray through the voxel octree, breadth first by octant mask |  |
-| `18002f5d0` | `ClassifyRegion` | second pass, in region order: cast the seed's grid and march |  |
+| `18002f430` | `MarchRay` | breadth-first ring of 4096; a branch takes OctantMask(o, inv, min, MIN): both box arguments the node's minimum, so an octant opens only on an exact corner pass; in practice it returns 0 and the second pass answers outside (atixref: all 1,029) | `src/Source2.Compiler/Maps/VisOutside.cs:265` |
+| `18002f5d0` | `ClassifyRegion` | second pass: centre outside the tracer's bounds (sampler +0xe8) is outside; else GatherRays again and MarchRay each facing record to max(t - 8, 0.1); inside when votes > 2n or (> n and outside < 5) | `src/Source2.Compiler/Maps/VisOutside.cs:142` |
 | `18002f890` | `Voxelize` | the call the Voxelize timer brackets; takes the voxel size; the first touching voxel hint stops or forces the split | `src/Source2.Compiler/Maps/VisVoxelizer.cs:182` |
 | `1800302e0` | `AssignClusters` | per-cluster bounding boxes |  |
 | `1800307d0` | `FoldVoxelPairs` | merge two (mask, leaf) lists sorted by leaf |  |
@@ -1292,7 +1298,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180032c00` | `CheapestPair` | the cheapest merge over every live entry; ties by summed voxels |  |
 | `180032fa0` | `SampleCluster` | one cluster's visibility from its box centre; grew in the 09-23 build | `src/Source2.Compiler/Maps/VisClusterSample.cs:175`, `src/Source2.Compiler/Maps/VisClusterSample.cs:193`, `src/Source2.Compiler/Maps/VisClusterSample.cs:215` |
 | `1800335a0` | `VoxelStageDriver` | voxelize, outside, compaction, cluster target, then MergeInsideRegions |  |
-| `180033890` | `OutsideDetection` | classify every region inside or outside |  |
+| `180033890` | `OutsideDetection` | status bytes at +0x120 (1 inside, 2 outside; never written for flag-bit-1 records); regions at +0x48, count +0x40; flags bit 0 set on outside at the end |  |
 | `180033d10` | `Compaction` | region compaction before the printed region count |  |
 | `180034220` | `PrintedRegionCount` | the open entries' indices; the re-bucketing before each merge | `src/Source2.Compiler/Maps/VisClusterSet.cs:7` |
 | `180034420` | `GenerateRegionClusters` | one region's (leaf's) clusters | `src/Source2.Compiler/Maps/VisClusters.cs:159` |
@@ -1318,7 +1324,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18003c070` | `Cluster_VoxelBoxes` | a cluster's voxel boxes: one for a full leaf, else one per cell | `src/Source2.Compiler/Maps/VisPvs.cs:518` |
 | `18003c3d0` | `SampleBorders` | CVoxelSampler3::AdaptivelySampleBorders (assert) |  |
 | `18003cbc0` | `BorderJob` | job body for one border record | `src/Source2.Compiler/Maps/VisBorders.cs:73` |
-| `18003d770` | `VisBuild` | the visibility driver: reads the ResourceCompiler/VisBuilder keys, voxel stage, then the PVS | `src/Source2.Compiler/Maps/VisConfig.cs:16` |
+| `18003d770` | `VisBuild` | the visibility driver: reads the ResourceCompiler/VisBuilder keys, voxel stage, then the PVS | `src/Source2.Compiler/Maps/VisConfig.cs:17` |
 | `18003ed60` | `SamplerWalk` | a segment through the box tree, a bit per box it crosses | `src/Source2.Compiler/Maps/VisClusterSample.cs:275` |
 | `18003f510` | `Job_GenerateClusters` | the cluster generation job body |  |
 | `18003f580` | `Job_MergeBucket` | merge job body: MergeLoop |  |
@@ -1349,12 +1355,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004bae0` | `TallyRays` |  |  |
 | `18004bd50` | `CastRayGrid` | the ray hits for one origin and direction set; 0x20-byte hit records |  |
 | `18004c0e0` | `BorderTrace` | a segment from the origin to each point | `src/Source2.Compiler/Maps/VisBorders.cs:175` |
-| `18004c9d0` | `GatherRays` | a 5x5 grid of rays through each face of a box, tallied four ways |  |
-| `18004d1a0` | `NoDrawSecondLook` | a ray stopped on a nodraw surface looks again |  |
+| `18004c9d0` | `GatherRays` | both directions per grid cell, half = max - centre, normalise (yy + zz) + xx times 1/len, segments to MaxCoord * d + centre through BatchRay (mask 0x811), FlushBatch, NoDrawSecondLook, then tallies; ported (VisSeed.Gather) | `src/Source2.Compiler/Maps/VisSeed.cs:100` |
+| `18004d1a0` | `NoDrawSecondLook` | rays whose hit has flags & 0x1030 == 0x20 cast again through the batch tracer (0x831); replaced when facing and ordinary | `src/Source2.Compiler/Maps/VisSeed.cs:183` |
 | `18004d750` | `BoxOverlap` |  |  |
 | `18004dc30` | `BoxTraversal` |  |  |
 | `18004dea0` | `VectorGrow` |  |  |
-| `18010a460` | `DistanceToBox` | distance from a box to a point |  |
+| `18010a460` | `DistanceToBox` | per axis the sum of both overhangs, sqrt((dz dz + dy dy) + dx dx) | `src/Source2.Compiler/Maps/VisSeed.cs:229` |
 | `18010ac60` | `NormaliseSlowPath` | the split-off half of the inlined normalise |  |
 | `18010b310` | `Voxelize_TriangleBoxSat` | whether a triangle reaches into a box: SAT on normalised edges | `src/Source2.Compiler/Maps/VisVoxelizer.cs:305` |
 | `18010bf10` | `TreeInit` | construct the tree |  |
@@ -1369,15 +1375,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18010d840` | `RegionBox` | a region's box from its leaf box and mask |  |
 | `18010dde0` | `SplitOpenSpace` | a leaf's open voxels cut into regions: greedy boxes, not components |  |
 | `18010dfc0` | `Leaf_CellsOverlapped` | which of a leaf's 4x4x4 cells a box overlaps, open on both sides | `src/Source2.Compiler/Maps/VisPvs.cs:279` |
-| `18010e0d0` | `CellMask` | 64-bit sub-cell crossing mask |  |
-| `18010e500` | `OctantMask` | 8-bit octant crossing mask |  |
+| `18010e0d0` | `CellMask` | 64-bit sub-cell crossing mask; MarchRay tests leaves with it; not ported (only an exact corner pass reaches a leaf) | `src/Source2.Compiler/Maps/VisOutside.cs:271`, `src/Source2.Compiler/Maps/VisOutside.cs:301` |
+| `18010e500` | `OctantMask` | 8-bit octant crossing mask: a = (A - o) inv, b = (B - o) inv, m = (a + b) 0.5, halves [a, m] [m, b] per axis, set when max(lowers, 0) <= min(uppers, 1); bit x + 2y + 4z | `src/Source2.Compiler/Maps/VisOutside.cs:267`, `src/Source2.Compiler/Maps/VisOutside.cs:306` |
 | `18010e610` | `SubBox` | one sub-cell's box: (i & 3, i >> 2 & 3, i >> 4 & 3) quarters, no epsilon | `src/Source2.Compiler/Maps/VisClusters.cs:234` |
 | `180110430` | `BatchRay` | one ray against the kd tree; 56-byte hit record |  |
 | `180110740` | `FlushBatch` |  |  |
 | `180110cb0` | `Tracer_PacketNormalise` | one packet: up to four segments of one octant normalised | `src/Source2.Compiler/Maps/TracerKd.cs:286` |
 | `180115760` | `Tracer_PacketWalk` | the packet's kd walk (mode 0) | `src/Source2.Compiler/Maps/TracerKd.cs:287`, `src/Source2.Compiler/Maps/TracerKd.cs:357` |
 | `180118a90` | `TracerKd_PlaneCost` | surface area cost of a split plane | `src/Source2.Compiler/Maps/TracerKd.cs:178` |
-| `180118e90` | `Rte_TriangleFromCorners` | normal, plane, axes and the two edge equations from the corners | `src/Source2.Compiler/Maps/EditorTraceScene.cs:32`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:697`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:765` +1 |
+| `180118e90` | `Rte_TriangleFromCorners` | normal, plane, axes and the two edge equations from the corners | `src/Source2.Compiler/Maps/EditorTraceScene.cs:33`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:697`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:765` +1 |
 | `180119600` | `TracerKd_PlaneCandidates` | one candidate kind on one axis; -1 is the box middle | `src/Source2.Compiler/Maps/TracerKd.cs:148` |
 | `18011bd20` | `SkyKdLeaf` |  |  |
 | `18011c120` | `SkyKdQuery` |  |  |
@@ -1441,7 +1447,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18006b980` | `RnPairSet_Displace` |  | `src/Source2.Compiler/Simulation/PairSet.cs:128` |
 | `18006dd90` | `CVPhysics2Interface_CreateWorld` |  |  |
 | `18006e1d0` | `VPhysics2_InitCollisionGroups` | startup: clears the group table with group 0 meeting everything | `src/Source2.Compiler/Simulation/CollisionGroupTable.cs:6` |
-| `180072c70` | `CVPhysics2SurfacePropertyManager::vf7` | a surface as a Rubikon material; density times 1.6387063e-5 | `src/Source2.Compiler/Maps/SettleWorld.cs:66`, `src/Source2.Compiler/Simulation/ContactSolver.cs:22` |
+| `180072c70` | `CVPhysics2SurfacePropertyManager::vf7` | a surface as a Rubikon material; density times 1.6387063e-5 | `src/Source2.Compiler/Maps/SettleWorld.cs:67`, `src/Source2.Compiler/Simulation/ContactSolver.cs:22` |
 | `180075b60` | `CVPhysics2Interface_SimulateWorlds` |  |  |
 | `1800899b0` | `Quat_Mul` |  | `src/Source2.Compiler/Simulation/RnMath.cs:11` |
 | `180089a30` | `Quaternion_Between` | the rotation taking unit vector a to b | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:289`, `src/Source2.Compiler/Simulation/RnMassUpdate.cs:339` |
@@ -1449,7 +1455,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18012e550` | `RnGjkProxy_ctor` | 0x40-byte convex proxy | `src/Source2.Compiler/Simulation/Gjk.cs:8`, `src/Source2.Compiler/Simulation/Gjk.cs:25` |
 | `18012e600` | `RnGjkProxy_Capsule` | two points, radius the scaled radius, at least 1/16 | `src/Source2.Compiler/Simulation/MeshConvex.cs:93` |
 | `18012e650` | `RnGjkProxy_Sphere` | one point, radius (+0x38, +0x3c) the scaled radius, at least 1/16 | `src/Source2.Compiler/Simulation/MeshConvex.cs:93` |
-| `1801314f0` | `RnHull_LoadPostPass` | post pass on a loaded hull | `src/Source2.Compiler/Maps/SettleWorld.cs:698` |
+| `1801314f0` | `RnHull_LoadPostPass` | post pass on a loaded hull | `src/Source2.Compiler/Maps/SettleWorld.cs:699` |
 | `180138e70` | `RnBodyDesc_t_LoadKV3` |  |  |
 | `1801a4a40` | `RnPairSet_Place` | claims the home bucket | `src/Source2.Compiler/Simulation/PairSet.cs:108` |
 | `1801a4e90` | `RnPairSet_Grow` | the next power of two | `src/Source2.Compiler/Simulation/PairSet.cs:177` |
@@ -1591,7 +1597,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180292590` | `RnSphere_MassProperties` |  | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:265` |
 | `180292de0` | `Mat3_RotateInertia` |  | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:289`, `src/Source2.Compiler/Simulation/RnMath.cs:76`, `src/Source2.Compiler/Simulation/RnMath.cs:100` |
 | `1802930d0` | `RnMass_ParallelAxis` | inertia of a point mass about the origin | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:189`, `src/Source2.Compiler/Simulation/RnMassUpdate.cs:357` |
-| `180296fa0` | `RnCollision_RegisterDefaultRules` | vphysics2's default collision rules, groups 0 to 30 | `src/Source2.Compiler/Maps/SettleWorld.cs:734`, `src/Source2.Compiler/Maps/SettleWorld.cs:759` |
+| `180296fa0` | `RnCollision_RegisterDefaultRules` | vphysics2's default collision rules, groups 0 to 30 | `src/Source2.Compiler/Maps/SettleWorld.cs:735`, `src/Source2.Compiler/Maps/SettleWorld.cs:760` |
 | `1802b73d0` | `RnShape_GjkProxy` | vfn 0xb0 for a standalone shape, else the compound child |  |
 | `1802c4bb0` | `RnKinematicTarget_Settle` | at writeback, snaps a body that has all but arrived | `src/Source2.Compiler/Simulation/KinematicTarget.cs:7`, `src/Source2.Compiler/Simulation/KinematicTarget.cs:66` |
 | `1802c4cd0` | `RnKinematicTarget_Drive` | velocities to cover the rest of the way | `src/Source2.Compiler/Simulation/KinematicTarget.cs:6`, `src/Source2.Compiler/Simulation/KinematicTarget.cs:28` |

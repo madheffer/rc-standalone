@@ -368,6 +368,7 @@ public static class WorldCollision
             // atixref's railing kit and fluorescent lights are such meshes.
             if (Tier0Strings.EqualsIgnoreCase(mesh.Element!.Get<string>("physicsType"), "none"))
                 continue;
+            BrushHulls.RefuseSimplification(mesh.Element!);
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
             var paint = PaintStream(mesh.Element!);
             NameSurfaces(result.Count);
@@ -394,10 +395,10 @@ public static class WorldCollision
                     }
                 }
                 // Every vertex of a per-material mesh, as physicsbuilder hulls it
-                // (18001a950 copies the CMesh vertex buffer), or its groups.
+                // (18001a950 copies the CMesh vertex buffer), or its connected
+                // groups (18001ac20).
                 IEnumerable<Vector3[]> Inputs(Vector3[] points, int[] indices)
-                    => type == BrushHulls.PhysicsType.ConvexSingle ? [points]
-                        : BrushHulls.Inputs(points, [.. Enumerable.Range(0, indices.Length / 3).Select(t => indices[(t * 3)..((t * 3) + 3)])], type);
+                    => type == BrushHulls.PhysicsType.ConvexSingle ? [points] : BrushHulls.BufferGroups(points, indices);
                 // A painted piece is split by layer first (physicsbuilder 180016230):
                 // each layer's triangles become a mesh of their own, positions only
                 // and welded at 1/32 (180015930), hulled on its own, named
@@ -458,7 +459,14 @@ public static class WorldCollision
                     // The hull's input joins corners by .vmap vertex, as a world mesh
                     // piece's triangle mesh does: 106 of Mako's convex_single inputs
                     // match the captured CMesh vertex buffers point for point.
-                    AddHulls(material, name, BrushHulls.Inputs(positions, faces, type, local, corners), physics, "", name);
+                    // convex_multi groups that CMesh by connectivity (18001ac20).
+                    if (type == BrushHulls.PhysicsType.ConvexMulti)
+                    {
+                        var (meshPoints, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners);
+                        AddHulls(material, name, BrushHulls.BufferGroups([.. meshPoints], [.. triangles.SelectMany(t => new[] { t.A, t.B, t.C })]), physics, "", name);
+                    }
+                    else
+                        AddHulls(material, name, BrushHulls.Inputs(positions, faces, type, local, corners), physics, "", name);
                 }
                 continue;
             }

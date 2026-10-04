@@ -36,9 +36,14 @@ public static class VisRegions
     {
         ArgumentNullException.ThrowIfNull(tree);
 
-        var leaves = Enumerate(tree);
+        var (leaves, pushed) = Enumerate(tree);
+        // Regions in the order LeafEntries (18002ebf0) pushes them during the
+        // build's depth-first walk, which is not slot order: a branch is
+        // recursed into the moment the walk reaches its octant, before the
+        // leaves after it (captured on atixref, capture_outside.py). Outside
+        // detection's second pass runs in this order.
         var regions = new List<Region>();
-        for (var i = 0; i < leaves.Count; i++)
+        foreach (var i in pushed)
             foreach (var part in Split(leaves[i].Solid))
                 regions.Add(new Region(i, part));
         return new Result(leaves, regions);
@@ -49,7 +54,7 @@ public static class VisRegions
     /// it, so a leaf is either a child of a branch that geometry misses, at
     /// whatever size that is, or a smallest cell that geometry does reach.
     /// </summary>
-    private static List<Leaf> Enumerate(VisVoxelizer.Octree tree)
+    private static (List<Leaf> Leaves, List<int> Pushed) Enumerate(VisVoxelizer.Octree tree)
     {
         var depth = tree.BranchesPerLevel.Count;
         var branches = tree.BranchCells;
@@ -62,31 +67,48 @@ public static class VisRegions
         // same leaves. Checked against the slot numbers the compile's own
         // clusters carry: equal wherever our branches are its branches.
         var leaves = new List<(int Slot, Leaf Leaf)>();
+        var walk = new List<int>();
         var next = 1;
         void Split(int at, (int X, int Y, int Z) cell)
         {
             var first = next;
             next += 8;
+            var branchAt = new bool[8];
             for (var octant = 0; octant < 8; octant++)
             {
                 var child = (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
                              cell.Z * 2 + ((octant >> 2) & 1));
-                if (at - 1 == 0 || !branches.Contains((at - 1, child)))
+                branchAt[octant] = at - 1 > 0 && branches.Contains((at - 1, child));
+                if (!branchAt[octant])
                     leaves.Add((first + octant, new Leaf(at - 1, child, tree.LeafMasks.GetValueOrDefault((at - 1, child)))));
             }
+            // The walk meets the children in octant order: a leaf is pushed
+            // where it stands, a branch is split (taking the next eight slots)
+            // and walked before the octants after it.
             for (var octant = 0; octant < 8; octant++)
             {
+                if (!branchAt[octant])
+                {
+                    walk.Add(first + octant);
+                    continue;
+                }
                 var child = (cell.X * 2 + (octant & 1), cell.Y * 2 + ((octant >> 1) & 1),
                              cell.Z * 2 + ((octant >> 2) & 1));
-                if (at - 1 > 0 && branches.Contains((at - 1, child)))
-                    Split(at - 1, child);
+                Split(at - 1, child);
             }
         }
         if (depth > 0 && branches.Contains((depth, (0, 0, 0))))
             Split(depth, (0, 0, 0));
         else
+        {
             leaves.Add((0, new Leaf(depth, (0, 0, 0), tree.LeafMasks.GetValueOrDefault((depth, (0, 0, 0))))));
-        return [.. leaves.OrderBy(l => l.Slot).Select(l => l.Leaf)];
+            walk.Add(0);
+        }
+        var bySlot = leaves.OrderBy(l => l.Slot).ToList();
+        var index = new Dictionary<int, int>();
+        for (var i = 0; i < bySlot.Count; i++)
+            index[bySlot[i].Slot] = i;
+        return ([.. bySlot.Select(l => l.Leaf)], [.. walk.Select(slot => index[slot])]);
     }
 
     /// <summary>
