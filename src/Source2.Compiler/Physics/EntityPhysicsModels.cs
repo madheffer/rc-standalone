@@ -171,7 +171,7 @@ public static class EntityPhysicsModels
             // (func_water, whose render goes to the world).
             physicsOnly |= schema?.HasFlag(className, "physics_only_model") == true
                          || schema?.HasFlag(className, "render_as_world_but_physics_as_entity") == true;
-            return new Model(nodeId, className, path, physicsOnly, WorldPhysics.Build(pieces));
+            return new Model(nodeId, className, path, physicsOnly, WorldPhysics.Build(pieces, entityModel: true));
         }
     }
 

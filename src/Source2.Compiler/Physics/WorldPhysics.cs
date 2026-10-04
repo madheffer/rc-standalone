@@ -58,7 +58,8 @@ public sealed class WorldPhysics
     public int MeshPieces { get; private set; }
 
     /// <param name="surfaceName">A surface's name by hash (the game's surfaceproperties), for a prop's.</param>
-    public static WorldPhysics Build(IReadOnlyList<WorldCollision.Piece> pieces, Func<uint, string?>? surfaceName = null)
+    /// <param name="entityModel">A brush entity's model rather than the world's (see AttributeOf).</param>
+    public static WorldPhysics Build(IReadOnlyList<WorldCollision.Piece> pieces, Func<uint, string?>? surfaceName = null, bool entityModel = false)
     {
         var model = new WorldPhysics();
         var ordered = WorldCollision.PartOrder(pieces, p => p.Type);
@@ -70,7 +71,12 @@ public sealed class WorldPhysics
             // over the part's (180c2d4c0) before taking the index, so it keeps
             // attribute 0, whichever registered it (atixref's glass breakables:
             // toolsnodraw after glass is window; Mako's func_water: water).
-            if (Unset(physics) && attributeKeys.Count > 0)
+            // In the world's model the part's attribute is "default" with no
+            // tags (180c2d4c0 seeds it so; 180c2da10 overrides it only for a
+            // shape that sets one), so an unset shape takes that attribute,
+            // registered in its turn (cs_script_demo: index 1, after the hulls'
+            // "Default" excluding player).
+            if (entityModel && Unset(physics) && attributeKeys.Count > 0)
                 return 0;
             var at = attributeKeys.IndexOf(physics.AttributeKey);
             if (at >= 0)

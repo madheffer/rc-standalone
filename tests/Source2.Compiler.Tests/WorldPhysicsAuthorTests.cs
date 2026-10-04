@@ -264,6 +264,23 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                 output.WriteLine($"meshcmp  theirs-only {v:R} near ours {ours.MinBy(o => Vector3.DistanceSquared(o, v)):R} ({owner.GetValueOrDefault(ours.MinBy(o => Vector3.DistanceSquared(o, v)), "?")})");
             return;
         }
+        // WPBUILD_PRINT=<key>[,<key>...]: those PHYS keys (and the part's shape lists) printed for both.
+        if (Environment.GetEnvironmentVariable("WPBUILD_PRINT") is { Length: > 0 } printKeys)
+        {
+            foreach (var (label, bytes) in new[] { ("valve", valve), ("ours", mine) })
+            {
+                var phys = Trees(bytes)["PHYS"];
+                foreach (var key in printKeys.Split(','))
+                {
+                    KVObject? node = phys;
+                    foreach (var part in key.Split('.'))
+                        node = node == null ? null : int.TryParse(part, out var ix) ? node[ix] : node[part];
+                    var text = node == null ? "(absent)" : Kv3Text(node);
+                    output.WriteLine($"print {label} {key}: {(text.Length > 3000 ? text[..3000] + "..." : text)}");
+                }
+            }
+            return;
+        }
         // WPBUILD_SOUPS=1: each mesh soup's name, surface index and triangle count, Valve's and ours.
         if (Environment.GetEnvironmentVariable("WPBUILD_SOUPS") == "1")
         {
@@ -448,5 +465,42 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             parts.Add($"{System.Text.Encoding.ASCII.GetString(bytes, at, 4)}:{Convert.ToHexString(bytes, offset, 4)}:m{BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset + 20))}:{Convert.ToHexString(bytes, offset + 4, 16)}");
         }
         return string.Join(" ", parts);
+    }
+
+    private static string Kv3Text(KVObject node)
+    {
+        var sb = new System.Text.StringBuilder();
+        void Walk(KVObject v, int depth)
+        {
+            switch (v.ValueType)
+            {
+                case KVValueType.Collection:
+                    sb.Append('{');
+                    foreach (var c in v.Children)
+                    {
+                        sb.Append(' ').Append(c.Key).Append('=');
+                        Walk(c.Value, depth + 1);
+                    }
+                    sb.Append(" }");
+                    break;
+                case KVValueType.Array:
+                    sb.Append('[');
+                    foreach (var x in v.Values)
+                    {
+                        Walk(x, depth + 1);
+                        sb.Append(',');
+                    }
+                    sb.Append(']');
+                    break;
+                case KVValueType.BinaryBlob:
+                    sb.Append($"blob({v.AsBlob().Length})");
+                    break;
+                default:
+                    sb.Append(v.ToString());
+                    break;
+            }
+        }
+        Walk(node, 0);
+        return sb.ToString();
     }
 }
