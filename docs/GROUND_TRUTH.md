@@ -44,8 +44,10 @@ game can answer is raised with the user first, and runs with -insecure.
     rule: an exact zero cross product in own space (drops 3 of the 7 and a
     zero-area face Valve keeps on plain node 235), nor a repeated directed
     edge. The export's face walk (1812e8890) and TriangulateFace (181310a90)
-    filter nothing, so the copy's half-edge mesh already lacks them: the
-    instance collapse is the next thing to capture (the copy's face count).
+    filter nothing, and capture_facecounts.py shows every one of the 873
+    exports handed 2,210 faces: the copy's half-edge mesh already lacks the
+    7 (the source's face and edge flags are all 0). Where they go (load,
+    instance collapse, transform) is the next capture.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index

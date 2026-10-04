@@ -237,6 +237,13 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId)))
                 output.WriteLine($"meshinfo {m.NodeId}: {m.ParentType}/{m.ParentClass} prefabs [{string.Join(",", m.Prefabs)}] world [{string.Join(" ", m.World.Select(x => x.ToString("R")))}] instances [{string.Join(",", m.Instances)}] physics {m.Element?.Get<string>("physicsType")} origin {m.Origin} angles {m.Angles} scales {m.Scales}");
             foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId)).DistinctBy(m => m.Element))
+            {
+                var md = m.Element!.Get<DmxBinary.Element>("meshData");
+                foreach (var part in new[] { "faceData", "edgeData", "vertexData" })
+                    foreach (var st in md?.Get<DmxBinary.Element>(part)?.GetElements("streams").Where(x => x.Name.StartsWith("flags", StringComparison.Ordinal)) ?? [])
+                        output.WriteLine($"meshinfo {m.NodeId} {part} {st.Name}: " + string.Join(", ", (st.Get<object?[]>("data") ?? []).GroupBy(x => x?.ToString()).Select(g => $"{g.Key}x{g.Count()}")));
+            }
+            foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId)).DistinctBy(m => m.Element))
                 foreach (var piece in Physics.BrushHulls.PiecesWithCorners(m.Element!, doc.OfType("CMapWorld").First()))
                 {
                     var (pts, tris) = Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local, piece.CornerIds);
