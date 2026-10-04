@@ -44,8 +44,11 @@ game can answer is raised with the user first, and runs with -insecure.
     and our RnMesh builder reproduces all 12,322 RnMeshCreate calls
     (capture_rnmesh.py, RnMeshReplay). Left: 34 triangles sit in soup 0 for us
     and in the attribute-9 soup for Valve (wrongway/toolsnodraw meshes 576-580,
-    755, 756 against fire_extinguisher props), on all four maps; the
-    attribute choice there is still to read.
+    755, 756 against fire_extinguisher props), on all four maps. Valve gives
+    those quads (wrongway, the missing folder-less sign01, toolsnodraw beside
+    wrongway) the attribute a decal material registers (debris_exterior_01,
+    conditionallysolid); we give them the default. A per-piece attribute
+    capture (shape +0x8 override, part attribute) is the next step.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index
