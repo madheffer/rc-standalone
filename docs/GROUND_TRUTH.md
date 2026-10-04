@@ -45,10 +45,14 @@ game can answer is raised with the user first, and runs with -insecure.
     (capture_rnmesh.py, RnMeshReplay). Left: 34 triangles sit in soup 0 for us
     and in the attribute-9 soup for Valve (wrongway/toolsnodraw meshes 576-580,
     755, 756 against fire_extinguisher props), on all four maps. Valve gives
-    those quads (wrongway, the missing folder-less sign01, toolsnodraw beside
-    wrongway) the attribute a decal material registers (debris_exterior_01,
-    conditionallysolid); we give them the default. A per-piece attribute
-    capture (shape +0x8 override, part attribute) is the next step.
+    those quads the attribute a translucent material registers. wrongway is
+    csgo_unlitgeneric, whose "translucent" is S_BLEND_MODE 1 or 3 to 6
+    (ShaderAttributeProbe, all 16 combos of the rest each): ported, 26 of the
+    34 placed. The 8 left are folder-less sign01 quads: the addon-root
+    sign01.vmat_c is csgo_static_overlay (translucent), so Valve's attribute
+    reads that file although physicsbuilder logs the name missing. Reading
+    every folder-less root material overshoots (24 the other way), so which
+    folder-less names the attribute side finds is still to read.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index

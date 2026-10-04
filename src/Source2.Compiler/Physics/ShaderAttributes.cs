@@ -6,8 +6,7 @@ namespace Source2.Compiler.Physics;
 /// shaders_pc_dir.vpk, 1.41.8.5, read with ShaderAttributeProbe; core's
 /// added on 1.41.8.8 with SHADERATTR_DIR=core), with each
 /// S_ combo taken from the material's F_ parameter of the same name. A shader
-/// not listed declares neither. csgo_unlitgeneric declares "translucent" on 80
-/// combos whose condition is not read; it is left out.
+/// not listed declares neither.
 /// </summary>
 public static class ShaderAttributes
 {
@@ -30,6 +29,9 @@ public static class ShaderAttributes
             "tools_generic" => On("F_TRANSLUCENT"),
             "generic" or "depth_only" or "depth_only_foliage" => !On("F_ALPHA_TEST") && On("F_TRANSLUCENT"),
             "refract" => true,
+            // csgo_unlitgeneric on S_BLEND_MODE 1 and 3 to 6, all 16 combos of
+            // the rest each (2 is alpha test, 0 opaque); measured 1.41.8.8.
+            "csgo_unlitgeneric" => Value("F_BLEND_MODE") is 1 or 3 or 4 or 5 or 6,
             "csgo_water_fancy" or "csgo_static_overlay" or "csgo_effects" or "grasstile" or "grasstile_preview" or "luminaire"
                 or "csgo_decalmodulate" or "csgo_refract" or "csgo_water" => true,
             _ => false,
