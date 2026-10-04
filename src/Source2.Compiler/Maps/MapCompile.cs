@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using Source2.Compiler.Physics;
 
 namespace Source2.Compiler.Maps;
@@ -69,7 +70,7 @@ public static class MapCompile
     /// accepts the gap, because shipping it would lose what Valve's lump has.
     /// </summary>
     public static bool HasLumpGap(string className)
-        => className.StartsWith("light_", StringComparison.OrdinalIgnoreCase);
+        => className.StartsWithAscii("light_");
 
     /// <summary>
     /// A map compile from resourcecompiler's own command line, on the parts
@@ -90,9 +91,9 @@ public static class MapCompile
             return Fail(log, "-i must name an existing .vmap");
         var full = Path.GetFullPath(input);
         var parts = full.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var content = Array.FindIndex(parts, p => p.Equals("content", StringComparison.OrdinalIgnoreCase));
-        if (content < 1 || content + 3 >= parts.Length || !parts[content + 1].Equals("csgo_addons", StringComparison.OrdinalIgnoreCase)
-            || !parts[content + 3].Equals("maps", StringComparison.OrdinalIgnoreCase))
+        var content = Array.FindIndex(parts, p => p.EqualsAscii("content"));
+        if (content < 1 || content + 3 >= parts.Length || !parts[content + 1].EqualsAscii("csgo_addons")
+            || !parts[content + 3].EqualsAscii("maps"))
             return Fail(log, "the .vmap must sit under content/csgo_addons/<addon>/maps/");
         var root = string.Join(Path.DirectorySeparatorChar, parts[..content]);
         var addon = parts[content + 2];
@@ -145,7 +146,7 @@ public static class MapCompile
             // Every entity node in the document, instance groups included.
             var gaps = document.Elements
                 .Select(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname"))
-                .OfType<string>().Where(HasLumpGap).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                .OfType<string>().Where(HasLumpGap).Distinct(Tier0Strings.IgnoreCase).ToList();
             if (gaps.Count > 0 && !acceptGaps)
                 return Fail(log, $"the lump would lose the bake keys of {string.Join(", ", gaps)} (not ported); pass --accept-gaps to write it anyway");
             // The world step clears the map's entity lumps before writing its own.
@@ -153,8 +154,8 @@ public static class MapCompile
             // flammables folder in an entities-only build is not settled; both
             // are kept, since an entities-only build does not make them again.
             var prefix = $"maps/{map}/entities/".ToLowerInvariant();
-            foreach (var old in entries.Keys.Where(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                                                        && k.EndsWith(".vents_c", StringComparison.OrdinalIgnoreCase)).ToList())
+            foreach (var old in entries.Keys.Where(k => k.StartsWithAscii(prefix)
+                                                        && k.EndsWithAscii(".vents_c")).ToList())
                 entries.Remove(old);
             var lumps = EntityLumps(document, map, schema, assets, args.Settle, BakedLightingIn(entries, map, game, addon),
                                     entitiesOnly: true);
@@ -189,7 +190,7 @@ public static class MapCompile
     /// </summary>
     private static bool BakedLightingIn(Dictionary<string, byte[]> entries, string map, string game, string addon)
         => new[] { "irradiance", "direct_light_shadows" }.Any(channel =>
-               entries.Keys.Any(k => k.Equals($"maps/{map}/lightmaps/{channel}.vtex_c", StringComparison.OrdinalIgnoreCase))
+               entries.Keys.Any(k => k.EqualsAscii($"maps/{map}/lightmaps/{channel}.vtex_c"))
                || File.Exists(Path.Combine(game, "csgo_addons", addon, "maps", map, "lightmaps", channel + ".vtex_c")));
 
     private static int Fail(TextWriter log, string reason)

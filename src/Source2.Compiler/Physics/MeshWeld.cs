@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 namespace Source2.Compiler.Physics;
 
 /// <summary>
@@ -119,17 +120,17 @@ internal static class MeshWeld
         Array.Fill(tol, tolerance);
         foreach (var s in streams)
         {
-            if (s.Name.StartsWith("texcoord", StringComparison.OrdinalIgnoreCase))
+            if (s.Name.StartsWithAscii("texcoord"))
                 Array.Fill(tol, 1f / 2048f, s.First, s.Count);
         }
         foreach (var s in streams)
         {
-            if (s.Name.StartsWith("lightmap", StringComparison.OrdinalIgnoreCase))
+            if (s.Name.StartsWithAscii("lightmap"))
                 Array.Fill(tol, 0f, s.First, s.Count);
         }
         foreach (var s in streams)
         {
-            if (!s.Name.StartsWith("tangent", StringComparison.OrdinalIgnoreCase))
+            if (!s.Name.StartsWithAscii("tangent"))
                 continue;
             tol[s.First] = tol[s.First + 1] = tol[s.First + 2] = 0.001f;
             if (s.Count == 4)

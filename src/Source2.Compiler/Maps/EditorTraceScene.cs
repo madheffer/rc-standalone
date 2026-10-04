@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
@@ -137,7 +138,7 @@ public sealed class EditorTraceScene : ILightTracer
         foreach (var n in nodes)
         {
             var props = n.Element.Get<DmxBinary.Element>("entity_properties");
-            if (n.Hidden || props?.Get<string>("classname") is not { } cls || !cls.Equals("prop_static", StringComparison.OrdinalIgnoreCase))
+            if (n.Hidden || props?.Get<string>("classname") is not { } cls || !cls.EqualsAscii("prop_static"))
                 continue;
             if (CNumbers.Atoi(props.Get<string>("disableshadows") ?? "0") is 1 or 2)
                 continue;

@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Numerics;
 
@@ -132,8 +133,8 @@ public static class MapEntities
     /// source already carries it.
     /// </summary>
     private static Entity Upgrade(Entity world, int formatVersion)
-        => formatVersion >= 38 || world.Keys.Any(k => k.Key.Equals(
-               "prefab_has_runtime_entity_by_default", StringComparison.OrdinalIgnoreCase))
+        => formatVersion >= 38 || world.Keys.Any(k => k.Key.EqualsAscii(
+               "prefab_has_runtime_entity_by_default"))
             ? world
             : world with { Keys = [.. world.Keys, new("prefab_has_runtime_entity_by_default", "0")] };
 
@@ -282,7 +283,7 @@ public static class MapEntities
         {
             if (value is not string text)
                 continue;
-            if (string.Equals(key, "classname", StringComparison.OrdinalIgnoreCase))
+            if (Tier0Strings.EqualsIgnoreCase(key, "classname"))
                 className = text;
             keys.Add(new(key, text));
         }

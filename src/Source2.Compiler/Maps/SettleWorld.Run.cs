@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Numerics;
 using Source2.Compiler.Simulation;
@@ -95,18 +96,18 @@ public static partial class SettleWorld
         var className = entity.ClassName;
         var list = entity.Keys.ToList();
         var defaults = entity.Defaults is { } had
-            ? new Dictionary<string, string>(had, StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            ? new Dictionary<string, string>(had, Tier0Strings.IgnoreCase)
+            : new Dictionary<string, string>(Tier0Strings.IgnoreCase);
         string? Get(string key)
         {
-            var at = list.FindIndex(k => k.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+            var at = list.FindIndex(k => k.Key.EqualsAscii(key));
             return at >= 0 ? list[at].Value
                  : defaults.TryGetValue(key, out var set) ? set
                  : schema.KeyOf(className, key)?.Default;
         }
         void Set(string key, string value)
         {
-            var at = list.FindIndex(k => k.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+            var at = list.FindIndex(k => k.Key.EqualsAscii(key));
             if (at >= 0)
                 list[at] = new(list[at].Key, value);
             else if (schema.KeyOf(className, key) is { } declared)
@@ -115,7 +116,7 @@ public static partial class SettleWorld
                 list.Add(new(key, value));
         }
         var bit = (schema.KeyOf(className, "spawnflags")?.Flags ?? [])
-            .FirstOrDefault(f => f.Name.Equals("Start asleep", StringComparison.OrdinalIgnoreCase)).Bit;
+            .FirstOrDefault(f => f.Name.EqualsAscii("Start asleep")).Bit;
         if (bit != 0)
         {
             var old = Get("spawnflags");

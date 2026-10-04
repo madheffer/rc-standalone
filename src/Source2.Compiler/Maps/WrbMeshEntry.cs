@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 
 namespace Source2.Compiler.Maps;
@@ -97,7 +98,7 @@ public sealed record WrbMeshEntry
             return false;
         foreach (var s in a.Streams)
         {
-            var t = b.Streams.FirstOrDefault(x => x.Index == s.Index && x.Name.Equals(s.Name, StringComparison.OrdinalIgnoreCase));
+            var t = b.Streams.FirstOrDefault(x => x.Index == s.Index && x.Name.EqualsAscii(s.Name));
             if (t is null || t.Precise != s.Precise || t.Count != s.Count || t.Type != s.Type)
                 return false;
         }

@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Text;
 using ValveKeyValue;
@@ -95,7 +96,7 @@ public static partial class EntityLumpAuthor
                     continue;
                 var table = KeyTable(e, schema);
                 if (Maps.EnvVolumes.Of(e.ClassName, e.Origin, e.Angles, h,
-                        name => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value) is { } r)
+                        name => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value) is { } r)
                 {
                     if (r.Cubemap)
                         cubemaps.Add(r.Volume);
@@ -125,7 +126,7 @@ public static partial class EntityLumpAuthor
         string mapPath, bool baked, IReadOnlyList<MapEntities.Entity> order, FgdSchema? schema, Maps.ILightTracer scene)
     {
         var writes = new Dictionary<MapEntities.Entity, List<KeyValuePair<string, string>>>(ReferenceEqualityComparer.Instance);
-        var lights = order.Where(e => e.ClassName.StartsWith("light_", StringComparison.OrdinalIgnoreCase)).ToList();
+        var lights = order.Where(e => e.ClassName.StartsWithAscii("light_")).ToList();
         // Each light traces on its own (the compile runs them as jobs too); half
         // the cores, so the machine stays usable.
         var shaped = new List<KeyValuePair<string, string>>[lights.Count];
@@ -134,7 +135,7 @@ public static partial class EntityLumpAuthor
         {
             var e = lights[i];
             var table = KeyTable(e, schema);
-            string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+            string? Key(string name) => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
             List<KeyValuePair<string, string>> keys;
             try
             {
@@ -158,7 +159,7 @@ public static partial class EntityLumpAuthor
                 var table = KeyTable(e, schema);
                 foreach (var (k, v) in writes[e])
                     Set(table, k, v);
-                string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+                string? Key(string name) => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
                 return new Maps.BakedShadowAssignment.Light(e.ClassName, Key, Maps.LightPrecompute.World(e.Origin, e.Angles),
                                                             [.. e.Prefabs, e.NodeId]);
             })], mapPath + ".vmap");
@@ -184,7 +185,7 @@ public static partial class EntityLumpAuthor
         {
             var e = lights[i];
             var table = KeyTable(e, schema);
-            string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+            string? Key(string name) => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
             var world = Maps.LightPrecompute.World(e.Origin, e.Angles);
             if (Maps.BakedShadowAssignment.Mode(new Maps.BakedShadowAssignment.Light(e.ClassName, Key, world, [e.NodeId])).Mode != 3)
                 return;
@@ -214,24 +215,24 @@ public static partial class EntityLumpAuthor
         values.Add("precomputed_vis_clusters", array);
     }
 
-    private static readonly HashSet<string> HandshakeClasses = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> HandshakeClasses = new(Tier0Strings.IgnoreCase)
     {
         "env_cubemap", "env_cubemap_box", "env_light_probe_volume", "env_combined_light_probe_volume",
         "func_combined_light_probe_volume",
     };
 
-    private static readonly HashSet<string> CubemapClasses = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> CubemapClasses = new(Tier0Strings.IgnoreCase)
     {
         "env_cubemap", "env_cubemap_box", "env_combined_light_probe_volume", "func_combined_light_probe_volume",
     };
 
-    private static readonly HashSet<string> ProbeVolumeClasses = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> ProbeVolumeClasses = new(Tier0Strings.IgnoreCase)
     {
         "env_light_probe_volume", "env_combined_light_probe_volume", "func_combined_light_probe_volume",
     };
 
     /// <summary>The classes whose light description is the legacy one (Light_LegacyDescription).</summary>
-    private static readonly HashSet<string> LegacyLights = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> LegacyLights = new(Tier0Strings.IgnoreCase)
     {
         "light_environment", "light_directional", "light_omni", "light_spot", "light_ortho", "light_capsule",
     };
@@ -256,7 +257,7 @@ public static partial class EntityLumpAuthor
             return;
         foreach (var r in schema?.BakeResourcesOf(entity.ClassName) ?? [])
         {
-            var at = table.FindIndex(k => k.Key.Equals(r.Key, StringComparison.OrdinalIgnoreCase));
+            var at = table.FindIndex(k => k.Key.EqualsAscii(r.Key));
             if (at >= 0 && table[at].Value.Length > 0)
             {
                 Set(table, "custom" + r.Key, "1");
@@ -274,7 +275,7 @@ public static partial class EntityLumpAuthor
         else
         {
             // Light_SyncBrightnessUnits for barn, rect and omni2 (Maps.LightUnits).
-            string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+            string? Key(string name) => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
             foreach (var (key, value) in Maps.LightUnits.Sync(entity.ClassName, Key))
                 Set(table, key, value);
         }
@@ -282,7 +283,7 @@ public static partial class EntityLumpAuthor
 
     private static void Set(List<KeyValuePair<string, string>> table, string key, string value)
     {
-        var at = table.FindIndex(k => k.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+        var at = table.FindIndex(k => k.Key.EqualsAscii(key));
         if (at >= 0)
             table[at] = new(table[at].Key, value);
         else
@@ -335,7 +336,7 @@ public static partial class EntityLumpAuthor
     private static (int X, int Y, int Z) ProbeGrid(List<KeyValuePair<string, string>> table)
     {
         string Key(string name, string fallback)
-            => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value ?? fallback;
+            => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value ?? fallback;
         var mins = CNumbers.FloatArray(Key("box_mins", "-72 -72 -72"), 3);
         var maxs = CNumbers.FloatArray(Key("box_maxs", "72 72 72"), 3);
         var voxel = MathF.Max(CNumbers.ToFloat32(Key("voxel_size", "12.0")), 1f);
@@ -364,7 +365,7 @@ public static partial class EntityLumpAuthor
     /// <summary>A key set where it stands, or added at the end.</summary>
     private static void Put(KVObject values, string key, KVObject value)
     {
-        var existing = values.Keys.FirstOrDefault(k => k.Equals(key, StringComparison.OrdinalIgnoreCase));
+        var existing = values.Keys.FirstOrDefault(k => k.EqualsAscii(key));
         if (existing is not null)
             values[existing] = value;
         else

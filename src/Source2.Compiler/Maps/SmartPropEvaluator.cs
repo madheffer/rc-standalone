@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 using ValveKeyValue;
 using ValveResourceFormat.Serialization.KeyValues;
@@ -98,7 +99,7 @@ internal static class SmartPropEvaluator
     public static (Dictionary<string, Entry> Configuration, Dictionary<string, object> Parameters) NodeData(DmxBinary.Element node)
     {
         var configuration = new Dictionary<string, Entry>();
-        var parameters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        var parameters = new Dictionary<string, object>(Tier0Strings.IgnoreCase);
         var data = node.Get<DmxBinary.Element>("nodeData");
         if (data == null)
             return (configuration, parameters);
@@ -139,7 +140,7 @@ internal static class SmartPropEvaluator
     {
         public CTransform Transform;
         public readonly List<int> Path = [];
-        public readonly Dictionary<string, object> Variables = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, object> Variables = new(Tier0Strings.IgnoreCase);
         public required IReadOnlyDictionary<string, Entry> Configuration { get; init; }
         public readonly List<Placement> Output = [];
 
@@ -340,7 +341,7 @@ internal static class SmartPropEvaluator
         var name = m.GetStringProperty("m_LocatorName", "");
         var delta = new CTransform(Vector3.Zero, 1f, Quaternion.Identity);
         if (context.Configuration.TryGetValue(context.PathKey, out var entry)
-            && entry.Locators.FirstOrDefault(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase)) is { Name: not null } stored)
+            && entry.Locators.FirstOrDefault(l => Tier0Strings.EqualsIgnoreCase(l.Name, name)) is { Name: not null } stored)
             delta = stored.Delta ?? delta;
         context.Transform = CTransform.Compose(context.Transform, delta);
     }

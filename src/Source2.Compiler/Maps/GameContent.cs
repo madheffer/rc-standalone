@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Text.RegularExpressions;
 using ValvePak;
 using ValveResourceFormat;
@@ -17,9 +18,9 @@ public class GameContent : SettleWorld.IModels, IDisposable
     private readonly Package _pak = new();
     private readonly Package? _core;
     private readonly string[] _loose;
-    private readonly Dictionary<string, PhysAggregateData?> _physics = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Model?> _models = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, SettleWorld.MaterialInfo?> _materials = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, PhysAggregateData?> _physics = new(Tier0Strings.IgnoreCase);
+    private readonly Dictionary<string, Model?> _models = new(Tier0Strings.IgnoreCase);
+    private readonly Dictionary<string, SettleWorld.MaterialInfo?> _materials = new(Tier0Strings.IgnoreCase);
     private readonly List<Resource> _keep = [];
     private Dictionary<string, SettleWorld.CollisionProperty>? _collision;
     private Dictionary<uint, Simulation.ContactSolver.Material>? _surfaces;
@@ -68,14 +69,14 @@ public class GameContent : SettleWorld.IModels, IDisposable
         res.Read(new MemoryStream(bytes));
         var mat = (Material)res.DataBlock!;
         return _materials[path] = new SettleWorld.MaterialInfo(
-            mat.IntAttributes.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
-            mat.StringAttributes.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase))
+            mat.IntAttributes.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
+            mat.StringAttributes.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase))
         {
             Shader = mat.ShaderName,
-            Params = mat.IntParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
-            Floats = mat.FloatParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
-            Vectors = mat.VectorParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
-            Textures = mat.TextureParams.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
+            Params = mat.IntParams.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
+            Floats = mat.FloatParams.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
+            Vectors = mat.VectorParams.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
+            Textures = mat.TextureParams.ToDictionary(x => x.Key, x => x.Value, Tier0Strings.IgnoreCase),
         };
     }
 
@@ -84,7 +85,7 @@ public class GameContent : SettleWorld.IModels, IDisposable
         if (_collision == null)
         {
             var text = System.Text.Encoding.UTF8.GetString(Read("scripts/collision_properties.txt") ?? []);
-            _collision = new(StringComparer.OrdinalIgnoreCase);
+            _collision = new(Tier0Strings.IgnoreCase);
             foreach (Match m in Regex.Matches(text, @"\{([^{}]*)\}"))
             {
                 var body = m.Groups[1].Value;
@@ -144,7 +145,7 @@ public class GameContent : SettleWorld.IModels, IDisposable
     }
 
     private readonly Dictionary<string, List<List<(System.Numerics.Vector3 A, System.Numerics.Vector3 B, System.Numerics.Vector3 C, string Material)>>> _renderMeshes
-        = new(StringComparer.OrdinalIgnoreCase);
+        = new(Tier0Strings.IgnoreCase);
 
     /// <summary>
     /// A model's render meshes as the light scene takes them (Model_RayScene,

@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 using ValveResourceFormat.Serialization.KeyValues;
 
@@ -147,7 +148,7 @@ internal static class NodePropAggregates
         var result = new List<Aggregate>();
         if (joined.Count == 0 || joined.Sum(e => e.Vertices) <= MinimumVertices)
             return result;
-        foreach (var bucket in joined.GroupBy(e => e.Material, StringComparer.OrdinalIgnoreCase))
+        foreach (var bucket in joined.GroupBy(e => e.Material, Tier0Strings.IgnoreCase))
         {
             var sorted = Morton(bucket.ToList(), nodeMin);
             // std::stable_sort by (attribute bits 0x6000000000, mesh).

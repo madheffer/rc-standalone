@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Numerics;
 
@@ -98,7 +99,7 @@ public sealed record NodeEntryHeader
                 tint = new Vector4(parts[0] * 0.003921569f, parts[1] * 0.003921569f, parts[2] * 0.003921569f, parts.Length > 3 ? parts[3] * 0.003921569f : 1f);
         }
         var flags = MeshEntryFlags.Compute(material, record);
-        var objectFlags = (model.Contains(".vmdl", StringComparison.OrdinalIgnoreCase) ? 8u : 0u) | (On("disableinlowquality") ? 0x80u : 0u)
+        var objectFlags = (model.ContainsAscii(".vmdl") ? 8u : 0u) | (On("disableinlowquality") ? 0x80u : 0u)
             | (On("rendertocubemaps") ? 0x400u : 0u) | ((placementFlags & 2) != 0 ? 0x20000u : 0u);
         return new NodeEntryHeader
         {

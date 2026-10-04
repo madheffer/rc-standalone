@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 namespace Source2.Compiler.Physics;
 
 /// <summary>
@@ -28,7 +29,7 @@ public static class CollisionNames
     ];
 
     private static readonly Dictionary<string, string> ByName =
-        Registered.ToDictionary(n => n, n => n, StringComparer.OrdinalIgnoreCase);
+        Registered.ToDictionary(n => n, n => n, Tier0Strings.IgnoreCase);
 
     /// <summary>A name as the dictionary spells it, or as given when vphysics2 does not register it.</summary>
     public static string Canonical(string name) => ByName.TryGetValue(name, out var c) ? c : name;

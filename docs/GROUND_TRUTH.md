@@ -48,10 +48,11 @@ game can answer is raised with the user first, and runs with -insecure.
 12. **VPK v2 layout** (tree order, chunk hashes, signature section): byte
     exact on four packages, the packer not read.
 
-21. **Case folding.** tier0 folds A-Z only (ToLowerFast, stristr,
-    stricmp_fast); the port uses .NET's wider folding in about 160 places.
-    Identical on ASCII text; audit each against the Valve call it mirrors.
-    The string token hash already uses the ASCII rule.
+21. **Case folding** outside the compile's own code: Maps/ and Physics/
+    now fold A-Z only (Tier0Strings: IgnoreCase, EqualsAscii and friends,
+    2026-10-04). The resource authoring, KV3/DMX text and file-path code
+    (Containers/, Kv3/, Dmx/, Io/, Texture/, Building/) keep .NET's
+    folding; each is to be audited against the Valve call it mirrors.
 
 22. **Coverage.** Every entity class the FGD offers (point_servercommand
     and the other server, logic and point entities included) and every

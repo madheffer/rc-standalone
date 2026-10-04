@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 using Source2.Compiler.Physics;
 using Source2.Compiler.Simulation;
@@ -754,7 +755,7 @@ public static partial class SettleWorld
             "pushaway", "serverentityonclient", "CarriedWeapon", "StaticLevel",
         ];
 
-        private readonly Dictionary<string, ulong> _layers = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ulong> _layers = new(Tier0Strings.IgnoreCase);
         // A name the rules do not know takes the lowest free bit, and 31 is
         // the first (FUN_180296fa0 registers 0 to 30): atixref's csgo_grenadeclip
         // takes 31 and csgo_thrown_grenade 32, c2m2's first new layer 31.
@@ -773,7 +774,7 @@ public static partial class SettleWorld
 
         public int Group(string name)
         {
-            var i = Array.FindIndex(Groups, g => g.Equals(name, StringComparison.OrdinalIgnoreCase));
+            var i = Array.FindIndex(Groups, g => g.EqualsAscii(name));
             return i;
         }
 

@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using ValvePak;
 using ValveResourceFormat;
 using ValveResourceFormat.ResourceTypes;
@@ -39,7 +40,7 @@ public sealed record MaterialVisFlags(bool NoDraw, bool Occluder, bool VisBlocke
     /// </summary>
     public sealed class Source(IReadOnlyList<string> directories, IReadOnlyList<Package> packages)
     {
-        private readonly Dictionary<string, MaterialVisFlags> _cache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, MaterialVisFlags> _cache = new(Tier0Strings.IgnoreCase);
 
         public MaterialVisFlags this[string material]
         {

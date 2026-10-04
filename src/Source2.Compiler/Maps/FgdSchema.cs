@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Text.RegularExpressions;
 
 namespace Source2.Compiler;
@@ -90,8 +91,8 @@ public sealed partial class FgdSchema
         public IReadOnlyList<(uint Bit, string Name, bool On)> Flags { get; init; } = [];
     }
 
-    private readonly Dictionary<string, Class> _classes = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _solid = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Class> _classes = new(Tier0Strings.IgnoreCase);
+    private readonly HashSet<string> _solid = new(Tier0Strings.IgnoreCase);
 
     /// <summary>Classes in declaration order, which is the order they are finalized in.</summary>
     private readonly List<Class> _order = [];
@@ -109,11 +110,11 @@ public sealed partial class FgdSchema
         public List<Key> Flat { get; set; } = [];
 
         /// <summary>The metadata flags with the bases' merged in.</summary>
-        public HashSet<string> FlatFlags { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> FlatFlags { get; set; } = new(Tier0Strings.IgnoreCase);
 
         /// <summary>The metadata values with the bases' merged in, the class's own
         /// winning.</summary>
-        public Dictionary<string, string> FlatMetadata { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> FlatMetadata { get; set; } = new(Tier0Strings.IgnoreCase);
 
         /// <summary>The class header's own bakeresource(...) entries.</summary>
         public List<BakeResource> BakeResources { get; init; } = [];
@@ -167,7 +168,7 @@ public sealed partial class FgdSchema
     public bool HasSpawnflag(string className, long spawnflags, string description)
     {
         foreach (var (bit, name, _) in KeyOf(className, "spawnflags")?.Flags ?? [])
-            if (name.Equals(description, StringComparison.OrdinalIgnoreCase))
+            if (name.EqualsAscii(description))
                 return bit != 0 && ((uint)spawnflags & bit) == bit;
         return false;
     }
@@ -176,7 +177,7 @@ public sealed partial class FgdSchema
     /// the default read as FUN_180dd7810 stores it (third field non-zero).</summary>
     private static IReadOnlyList<(uint Bit, string Name, bool On)> FlagsOf(string declaration, string body, int at)
     {
-        if (!declaration.Trim().Equals("flags", StringComparison.OrdinalIgnoreCase) || ChoicesAfter(body, at) is not { } list)
+        if (!declaration.Trim().EqualsAscii("flags") || ChoicesAfter(body, at) is not { } list)
             return [];
         return [.. Regex.Matches(list, @"(\d+)\s*:\s*""([^""]*)""(?:\s*:\s*(-?\d+))?")
             .Select(m => (uint.Parse(m.Groups[1].Value), m.Groups[2].Value,
@@ -211,7 +212,7 @@ public sealed partial class FgdSchema
             foreach (Match m in Regex.Matches(list, @"""([^""]*)""\s*:\s*""[^""]*""(?:\s*:\s*(-?\d+))?"))
             {
                 var tag = m.Groups[1].Value;
-                if (tag.Length == 0 || tags.Any(x => x.Tag.Equals(tag, StringComparison.OrdinalIgnoreCase)))
+                if (tag.Length == 0 || tags.Any(x => x.Tag.EqualsAscii(tag)))
                     continue;
                 tags.Add((tag, m.Groups[2].Success && int.Parse(m.Groups[2].Value) != 0));
             }
@@ -252,7 +253,7 @@ public sealed partial class FgdSchema
     /// <summary>Whether the class is a <c>@PathNodeClass</c>.</summary>
     public bool IsPathNodeClass(string className) => _pathNodes.Contains(className);
 
-    private readonly HashSet<string> _pathNodes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _pathNodes = new(Tier0Strings.IgnoreCase);
 
     /// <summary>
     /// One entry of a class's <c>create_entity_template_lumps</c> metadata: the
@@ -293,12 +294,12 @@ public sealed partial class FgdSchema
     /// </summary>
     public bool Inherits(string className, string baseName)
     {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(Tier0Strings.IgnoreCase);
         var stack = new Stack<string>([className]);
         while (stack.Count > 0)
         {
             var at = stack.Pop();
-            if (at.Equals(baseName, StringComparison.OrdinalIgnoreCase))
+            if (at.EqualsAscii(baseName))
                 return true;
             if (seen.Add(at) && _classes.TryGetValue(at, out var cls))
                 foreach (var b in cls.Bases)
@@ -347,7 +348,7 @@ public sealed partial class FgdSchema
         var schema = new FgdSchema();
         var roots = new List<string> { Path.GetDirectoryName(Path.GetFullPath(path))! };
         roots.AddRange(searchPaths ?? []);
-        var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var loaded = new HashSet<string>(Tier0Strings.IgnoreCase);
         schema.LoadInto(Path.GetFullPath(path), roots, loaded);
         schema.FinalizeClasses();
         return schema;
@@ -365,7 +366,7 @@ public sealed partial class FgdSchema
     /// (FUN_180dd5550).</summary>
     public Key? KeyOf(string className, string key)
         => _classes.TryGetValue(className, out var cls)
-            ? cls.Flat.FirstOrDefault(k => k.Name.Equals(key, StringComparison.OrdinalIgnoreCase))
+            ? cls.Flat.FirstOrDefault(k => k.Name.EqualsAscii(key))
             : null;
 
     /// <summary>
@@ -392,7 +393,7 @@ public sealed partial class FgdSchema
     /// </summary>
     private static void AddVariable(List<Key> list, Key key)
     {
-        var at = list.FindIndex(k => k.Name.Equals(key.Name, StringComparison.OrdinalIgnoreCase));
+        var at = list.FindIndex(k => k.Name.EqualsAscii(key.Name));
         if (at < 0)
             list.Add(key);
         else if (key.TypeId == RemoveKey)
@@ -546,14 +547,14 @@ public sealed partial class FgdSchema
         // restated env_sky is legal only because an @exclude removed the first.
         var gameKeys = GameKeysIn(head);
         var flags = MetadataFlagsIn(head);
-        if (kind.Value.Equals("@OverrideClass", StringComparison.OrdinalIgnoreCase))
+        if (kind.Value.EqualsAscii("@OverrideClass"))
         {
             if (!_classes.TryGetValue(name, out var existing))
                 return;
             foreach (var key in own)
                 AddVariable(existing.Own, key);
             existing.GameKeys.AddRange(gameKeys.Where(g => !existing.GameKeys.Any(
-                e => e.Key.Equals(g.Key, StringComparison.OrdinalIgnoreCase))));
+                e => e.Key.EqualsAscii(g.Key))));
             existing.Flags.UnionWith(flags);
             foreach (var (k, v) in MetadataValuesIn(head))
                 existing.Metadata[k] = v;
@@ -561,9 +562,9 @@ public sealed partial class FgdSchema
         }
         if (_classes.ContainsKey(name))
             return;
-        if (kind.Value.Equals("@SolidClass", StringComparison.OrdinalIgnoreCase))
+        if (kind.Value.EqualsAscii("@SolidClass"))
             _solid.Add(name);
-        if (kind.Value.Equals("@PathNodeClass", StringComparison.OrdinalIgnoreCase))
+        if (kind.Value.EqualsAscii("@PathNodeClass"))
             _pathNodes.Add(name);
         var cls = new Class(name, bases, own, gameKeys, flags, TemplateLumpsIn(head), MetadataValuesIn(head))
         {
@@ -587,7 +588,7 @@ public sealed partial class FgdSchema
         foreach (Match entry in BraceRegex().Matches(block.Groups[1].Value))
         {
             var fields = MetadataStringRegex().Matches(entry.Groups[1].Value)
-                .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value, Tier0Strings.IgnoreCase);
             lumps.Add(new TemplateLump(
                 fields.GetValueOrDefault("lumpMode", ""), fields.GetValueOrDefault("sourceKey", ""),
                 fields.GetValueOrDefault("targetWorldKey", ""), fields.GetValueOrDefault("targetLumpKey", "")));
@@ -599,7 +600,7 @@ public sealed partial class FgdSchema
     /// as <c>path_node_class = "path_node_cable"</c>.</summary>
     private static Dictionary<string, string> MetadataValuesIn(string head)
     {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var values = new Dictionary<string, string>(Tier0Strings.IgnoreCase);
         var block = MetadataBlockRegex().Match(head);
         if (!block.Success)
             return values;
@@ -645,7 +646,7 @@ public sealed partial class FgdSchema
     /// </summary>
     private static HashSet<string> MetadataFlagsIn(string head)
     {
-        var flags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var flags = new HashSet<string>(Tier0Strings.IgnoreCase);
         var block = MetadataBlockRegex().Match(head);
         if (!block.Success)
             return flags;
@@ -805,7 +806,7 @@ public sealed partial class FgdSchema
     /// <summary>The aliases FUN_180dda5c0 tries before the table, with the type
     /// and extension each stands for (FUN_18009fe10).</summary>
     private static readonly Dictionary<string, (int Id, string Extension)> Aliases =
-        new(StringComparer.OrdinalIgnoreCase)
+        new(Tier0Strings.IgnoreCase)
         {
             ["decal"] = (0x20, "vmat"),
             ["sprite"] = (0x20, "vmat"),
@@ -817,7 +818,7 @@ public sealed partial class FgdSchema
 
     /// <summary>The resource kinds a <c>resource:</c> qualifier may name, and
     /// their extensions. Anything else is taken as the extension itself.</summary>
-    private static readonly Dictionary<string, string> ResourceKinds = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> ResourceKinds = new(Tier0Strings.IgnoreCase)
     {
         ["texture"] = "vtex", ["material"] = "vmat", ["mesh"] = "vmesh", ["particle"] = "vpcf",
         ["model"] = "vmdl", ["collisionmesh"] = "vphzc", ["sky"] = "vsky", ["map"] = "vmap",
@@ -826,7 +827,7 @@ public sealed partial class FgdSchema
 
     /// <summary>resourcecompiler's type table, name to id, read out of the
     /// 2026-09-23 build.</summary>
-    private static readonly Dictionary<string, int> TypeIds = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, int> TypeIds = new(Tier0Strings.IgnoreCase)
     {
         ["angle"] = 0x0, ["choices"] = 0x7, ["intchoices"] = 0x8, ["floatchoices"] = 0x9,
         ["suggestions"] = 0x48, ["flagchoices"] = 0x49, ["color255"] = 0xb, ["color255alpha"] = 0xc,

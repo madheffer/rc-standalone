@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 
 namespace Source2.Compiler.Maps;
@@ -27,19 +28,19 @@ public static class LightUnits
             return written;
         var r = records[0];
         float scale = 0f, factor = 0f, area = 0f, solid = 0f;
-        if (className.Equals("light_barn", StringComparison.OrdinalIgnoreCase))
+        if (className.EqualsAscii("light_barn"))
         {
             scale = BarnScale(r, 100f);
             factor = FrustumSolidAngle(r, BitConverter.Int32BitsToSingle(0x3c026136));
         }
-        else if (className.Equals("light_rect", StringComparison.OrdinalIgnoreCase))
+        else if (className.EqualsAscii("light_rect"))
         {
             scale = 100f * 100f;
             factor = 0.025f;
             area = LuminaireArea(r);
             solid = SolidAngle(r.Type, 180f, 180f);
         }
-        else if (className.Equals("light_omni2", StringComparison.OrdinalIgnoreCase))
+        else if (className.EqualsAscii("light_omni2"))
         {
             var outer = ConeAngle(r);
             var inner = InnerConeAngle(r);

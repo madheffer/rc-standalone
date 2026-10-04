@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -115,7 +116,7 @@ public static class BakedShadowAssignment
     {
         var mode = (int)(sbyte)Atoi(light.Key, "directlight", 2);
         var cast = (int)(sbyte)Atoi(light.Key, "castshadows", 0);
-        var legacy = LegacyClasses.Any(c => c.Equals(light.ClassName, StringComparison.OrdinalIgnoreCase));
+        var legacy = LegacyClasses.Any(c => c.EqualsAscii(light.ClassName));
         if (legacy)
         {
             if (Atoi(light.Key, "directlight", -1) != 3)
@@ -129,7 +130,7 @@ public static class BakedShadowAssignment
                         mode = 1;
                 }
             }
-            if (light.ClassName.Equals("light_capsule", StringComparison.OrdinalIgnoreCase))
+            if (light.ClassName.EqualsAscii("light_capsule"))
                 cast = 0;
             return (mode, cast);
         }

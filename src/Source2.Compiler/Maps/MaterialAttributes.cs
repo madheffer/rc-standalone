@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using ValvePak;
 using ValveResourceFormat.CompiledShader;
@@ -63,7 +64,7 @@ public sealed class MaterialAttributes : MeshEntryFlags.IAttributes
         return result;
     }
 
-    private static readonly HashSet<string> NoCullDefault = new(StringComparer.OrdinalIgnoreCase) { "csgo_water_fancy" };
+    private static readonly HashSet<string> NoCullDefault = new(Tier0Strings.IgnoreCase) { "csgo_water_fancy" };
 
     private void AddShader(ShaderLibrary.ShaderSet set, SettleWorld.MaterialInfo material)
     {
@@ -291,7 +292,7 @@ public sealed class ShaderLibrary(params string[] packages) : IDisposable
         package.Read(p);
         return package;
     }).ToList();
-    private readonly Dictionary<string, ShaderSet?> sets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ShaderSet?> sets = new(Tier0Strings.IgnoreCase);
 
     public ShaderSet? Collection(string? shader)
     {

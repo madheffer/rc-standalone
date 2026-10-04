@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.Serialization.KeyValues;
@@ -47,7 +48,7 @@ internal static class NodePropEntries
             baked.Add((ent, id, keys.Get<string>("model") ?? "", walk));
         }
         var entries = new List<NodeMeshEntries.Entry>();
-        foreach (var group in baked.GroupBy(b => b.Model, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        foreach (var group in baked.GroupBy(b => b.Model, Tier0Strings.IgnoreCase).OrderBy(g => g.Key, Tier0Strings.IgnoreCase))
             foreach (var (node, id, model, _) in group.OrderByDescending(b => b.Walk))
                 entries.AddRange(Entries(node, id, model, content, notes));
         return entries;
@@ -104,9 +105,9 @@ internal static class NodePropEntries
                     material = remap.GetValueOrDefault(material, material);
                     var info = content.Material(material);
                     var flags = PropTransform.Place | PropTransform.Texcoords;
-                    if (Path.GetFileNameWithoutExtension(info?.Shader ?? "").Equals("csgo_simple_liquid", StringComparison.OrdinalIgnoreCase))
+                    if (Path.GetFileNameWithoutExtension(info?.Shader ?? "").EqualsAscii("csgo_simple_liquid"))
                         flags = PropTransform.LocalSpace;
-                    else if (Path.GetFileNameWithoutExtension(info?.Shader ?? "").Equals("csgo_foliage", StringComparison.OrdinalIgnoreCase))
+                    else if (Path.GetFileNameWithoutExtension(info?.Shader ?? "").EqualsAscii("csgo_foliage"))
                         notes?.Add($"prop {id}: csgo_foliage's NeedsLocalSpaceVertices combo rule is not ported");
                     var (vertices, hasColor) = Vertices(vb, lo, vertexCount);
                     if (deform != null)
@@ -133,11 +134,11 @@ internal static class NodePropEntries
     // through the prop's +0x188).
     internal static Dictionary<string, string> MaterialGroup(ValveResourceFormat.ResourceTypes.Model model, string? skin)
     {
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var map = new Dictionary<string, string>(Tier0Strings.IgnoreCase);
         var groups = model.Data.GetArray("m_materialGroups");
         if (string.IsNullOrEmpty(skin) || groups == null || groups.Count == 0)
             return map;
-        var chosen = groups.FirstOrDefault(g => string.Equals(g.GetStringProperty("m_name"), skin, StringComparison.OrdinalIgnoreCase))
+        var chosen = groups.FirstOrDefault(g => Tier0Strings.EqualsIgnoreCase(g.GetStringProperty("m_name"), skin))
             ?? (int.TryParse(skin, out var i) && i >= 0 && i < groups.Count ? groups[i] : null);
         if (chosen == null)
             return map;

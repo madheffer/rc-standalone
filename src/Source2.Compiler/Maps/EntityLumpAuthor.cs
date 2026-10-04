@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -82,7 +83,7 @@ public static partial class EntityLumpAuthor
                                   string? worldName, bool fixupEntityNames)
             => new(schema, worldName, fixupEntityNames,
                    new HashSet<string>(entities.Select(NameOf).Where(n => n.Length > 0),
-                                       StringComparer.OrdinalIgnoreCase));
+                                       Tier0Strings.IgnoreCase));
     }
 
     /// <summary>A lump's DATA tree around entities already built.</summary>
@@ -143,7 +144,7 @@ public static partial class EntityLumpAuthor
     /// Mako places seven visibility_hint and a point_scale_reference_human, and
     /// Valve's lumps carry none of them.
     /// </summary>
-    private static readonly HashSet<string> Consumed = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> Consumed = new(Tier0Strings.IgnoreCase)
     {
         "point_scale_reference_human", "visibility_hint", "info_cull_triangles",
         "prop_static", "env_world_lighting", "light_irradvolume", "func_deformable_density",
@@ -186,21 +187,21 @@ public static partial class EntityLumpAuthor
             // keys (CMapCable::vf217): the tint's red, green and blue as the plain
             // string "%i %i %i", whatever the key held. Measured on probe_cable:
             // tintColor 1 2 3 against a rendercolor key of 12 34 56 ships "1 2 3".
-            if (RewritesDirectLight(entity, context.LightingKeys) && key.Equals("directlight", StringComparison.OrdinalIgnoreCase)
+            if (RewritesDirectLight(entity, context.LightingKeys) && key.EqualsAscii("directlight")
                 && CNumbers.Atoi(text) != 0)
             {
                 values.Add(key, new KVObject(2));
                 continue;
             }
-            if (entity.Tint is { } tint && key.Equals("rendercolor", StringComparison.OrdinalIgnoreCase)
-                && entity.ClassName.Equals("cable_dynamic", StringComparison.OrdinalIgnoreCase))
+            if (entity.Tint is { } tint && key.EqualsAscii("rendercolor")
+                && entity.ClassName.EqualsAscii("cable_dynamic"))
             {
                 values.Add(key, new KVObject($"{tint[0]} {tint[1]} {tint[2]}"));
                 continue;
             }
             values.Add(key, declared is not null
                 ? Typed(declared, text, fixupEntityNames, schema)
-                : key.Equals("targetname", StringComparison.OrdinalIgnoreCase)
+                : key.EqualsAscii("targetname")
                     ? new KVObject(Fixup(text, fixupEntityNames, schema))
                     : new KVObject(text));
         }
@@ -251,9 +252,9 @@ public static partial class EntityLumpAuthor
         // An info_world_layer names its layer's lump (FUN_180240a60): its
         // layerName gains the lump's "world_layer_" prefix where it stands, and the
         // map's name follows every other key.
-        if (entity.ClassName.Equals("info_world_layer", StringComparison.OrdinalIgnoreCase))
+        if (entity.ClassName.EqualsAscii("info_world_layer"))
         {
-            var layerKey = values.Keys.FirstOrDefault(k => k.Equals("layername", StringComparison.OrdinalIgnoreCase));
+            var layerKey = values.Keys.FirstOrDefault(k => k.EqualsAscii("layername"));
             if (layerKey is not null)
                 values[layerKey] = new KVObject("world_layer_" + values[layerKey]);
             if (worldName is { Length: > 0 })
@@ -300,7 +301,7 @@ public static partial class EntityLumpAuthor
     /// </summary>
     private static bool TakesFixup(FgdSchema.Key key)
         => key.TypeId is 0x1 or 0x2 or 0x10 or 0x11 or 0x17
-           || key.Name.Equals("targetname", StringComparison.OrdinalIgnoreCase);
+           || key.Name.EqualsAscii("targetname");
 
     /// <summary>
     /// ENTITY_CONNECTION_TARGET_NAME, the target type every connection carries.
@@ -515,7 +516,7 @@ public static partial class EntityLumpAuthor
     };
 
     private static string? NodeKey(MapEntities.PathNode node, string name)
-        => node.Keys.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+        => node.Keys.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
 
     /// <summary>
     /// A KV3 array as the compile prints it: on one line up to four entries, and
@@ -558,7 +559,7 @@ public static partial class EntityLumpAuthor
 
     /// <summary>An entity's targetname, or empty when it has none.</summary>
     private static string NameOf(MapEntities.Entity entity)
-        => entity.Keys.FirstOrDefault(k => k.Key.Equals("targetname", StringComparison.OrdinalIgnoreCase)).Value ?? "";
+        => entity.Keys.FirstOrDefault(k => k.Key.EqualsAscii("targetname")).Value ?? "";
 
     /// <summary>Placement keys live on the map node, not in the game keys, and the
     /// compile writes its own; a stale copy in the props would fight it.</summary>
@@ -569,7 +570,7 @@ public static partial class EntityLumpAuthor
     /// </summary>
     private static string BrushModelPath(MapEntities.Entity entity, string worldName)
     {
-        var named = entity.Keys.FirstOrDefault(k => k.Key.Equals("targetname", StringComparison.OrdinalIgnoreCase)).Value;
+        var named = entity.Keys.FirstOrDefault(k => k.Key.EqualsAscii("targetname")).Value;
         var name = string.IsNullOrWhiteSpace(named) ? "unnamed" : named.ToLowerInvariant();
         return $"maps/{worldName}/entities/{name}_{entity.IdPath.Replace(':', '_')}.vmdl";
     }
@@ -578,7 +579,7 @@ public static partial class EntityLumpAuthor
         => Placement.Contains(key);
 
     private static readonly HashSet<string> Placement =
-        new(["origin", "angles", "scales"], StringComparer.OrdinalIgnoreCase);
+        new(["origin", "angles", "scales"], Tier0Strings.IgnoreCase);
 
     /// <summary>
     /// A placement as the lump writes it: an array of three numbers, each the
@@ -616,7 +617,7 @@ public static partial class EntityLumpAuthor
     internal static List<KeyValuePair<string, string>> KeyTable(MapEntities.Entity entity, FgdSchema? schema)
     {
         var table = new List<KeyValuePair<string, string>>();
-        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var present = new HashSet<string>(Tier0Strings.IgnoreCase);
 
         // An instance's copy is a NEW entity of its class: its table starts with
         // classname and targetname, then every other key of the class in the
@@ -625,7 +626,7 @@ public static partial class EntityLumpAuthor
         // source's; the template's keys the class does not declare follow.
         if (entity.Instanced && schema is not null && schema.KeysOf(entity.ClassName).Count > 0)
         {
-            var source = new Dictionary<string, KeyValuePair<string, string>>(StringComparer.OrdinalIgnoreCase);
+            var source = new Dictionary<string, KeyValuePair<string, string>>(Tier0Strings.IgnoreCase);
             foreach (var pair in entity.Keys)
                 if (!IsPlacement(pair.Key))
                     source.TryAdd(pair.Key, Masked(pair, entity.ClassName, schema));
@@ -672,7 +673,7 @@ public static partial class EntityLumpAuthor
     /// key always counts as present and never gets a default. Set in the map, it
     /// ships as the map spells it: point_gamestats_counter's Name.
     /// </summary>
-    private static bool IsElementName(string key) => key.Equals("name", StringComparison.OrdinalIgnoreCase);
+    private static bool IsElementName(string key) => key.EqualsAscii("name");
 
     /// <summary>
     /// A source key as the entity holds it once its class is set at load
@@ -685,7 +686,7 @@ public static partial class EntityLumpAuthor
     private static KeyValuePair<string, string> Masked(KeyValuePair<string, string> pair, string className,
                                                        FgdSchema? schema)
     {
-        if (!pair.Key.Equals("spawnflags", StringComparison.OrdinalIgnoreCase)
+        if (!pair.Key.EqualsAscii("spawnflags")
             || schema?.KeyOf(className, "spawnflags") is not { Flags.Count: > 0 } declared)
             return pair;
         var declaredBits = 0u;
@@ -709,7 +710,7 @@ public static partial class EntityLumpAuthor
             // target_destination and holds "0 0 0", and ships as "[PR#]0 0 0".
             FgdSchema.FieldType.EntityName => new KVObject(TakesFixup(key) ? Fixup(text, fixupEntityNames, schema) : text),
             FgdSchema.FieldType.Boolean
-                => new KVObject(text.Equals("true", StringComparison.OrdinalIgnoreCase) || CNumbers.Atoi(text) != 0),
+                => new KVObject(text.EqualsAscii("true") || CNumbers.Atoi(text) != 0),
             // V_atoi, so a decimal is truncated: one of atixref's fifteen func_door
             // carries wait "0.600000" against wait(integer) and ships Int64 0.
             FgdSchema.FieldType.Integer => Integer((int)CNumbers.Atoi(text)),

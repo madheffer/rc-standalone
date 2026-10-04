@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 
 namespace Source2.Compiler.Maps;
@@ -25,7 +26,7 @@ public sealed class MapCompileArgs
 
     /// <summary>The switches the parser handles itself (FUN_18018b630), with
     /// whether each takes a value. Everything else is a compile argument.</summary>
-    private static readonly Dictionary<string, bool> Special = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, bool> Special = new(Tier0Strings.IgnoreCase)
     {
         ["?"] = false, ["h"] = false, ["help"] = false, ["telemetry_level"] = true, ["allowdebug"] = false,
         ["novpk"] = false, ["norevert"] = false, ["vpkincr"] = false, ["f"] = false, ["fshallow"] = false,
@@ -42,14 +43,14 @@ public sealed class MapCompileArgs
     public string? OutRoot { get; private set; }
 
     /// <summary>The parser's own switches that were given, lower case.</summary>
-    public HashSet<string> Switches { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> Switches { get; } = new(Tier0Strings.IgnoreCase);
 
     /// <summary>
     /// The compile arguments, as the parser types them: a value that reads as
     /// a float is a float, else as an int an int, else a string; a switch
     /// with no value is the int 1.
     /// </summary>
-    public Dictionary<string, object> Arguments { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, object> Arguments { get; } = new(Tier0Strings.IgnoreCase);
 
     public static MapCompileArgs Parse(IReadOnlyList<string> args)
     {
@@ -69,9 +70,9 @@ public sealed class MapCompileArgs
                 if (next is null)
                     throw new ArgumentException($"-{name} needs a value");
                 k++;
-                if (name.Equals("i", StringComparison.OrdinalIgnoreCase))
+                if (name.EqualsAscii("i"))
                     parsed.Input = next;
-                else if (name.Equals("outroot", StringComparison.OrdinalIgnoreCase))
+                else if (name.EqualsAscii("outroot"))
                     parsed.OutRoot = next;
                 continue;
             }
@@ -104,7 +105,7 @@ public sealed class MapCompileArgs
     /// </summary>
     public HashSet<string> SelectedBuilders(out bool partial)
     {
-        var chosen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var chosen = new HashSet<string>(Tier0Strings.IgnoreCase);
         if (!GetBool("all"))
         {
             foreach (var name in Builders)

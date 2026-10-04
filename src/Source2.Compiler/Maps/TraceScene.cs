@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 
 namespace Source2.Compiler.Maps;
@@ -98,7 +99,7 @@ public static class TraceScene
     public static bool DoNotCastShadows(SettleWorld.MaterialInfo material)
         => (material.Ints.TryGetValue("DoNotCastShadows", out var v) && v != 0)
            || (material.Params.TryGetValue("F_DO_NOT_CAST_SHADOWS", out var f) && f != 0)
-           || Path.GetFileNameWithoutExtension(material.Shader).Equals("csgo_water_fancy", StringComparison.OrdinalIgnoreCase);
+           || Path.GetFileNameWithoutExtension(material.Shader).EqualsAscii("csgo_water_fancy");
 
     /// <summary>The scene's triangles, in the collector's order.</summary>
     public static List<Triangle> Triangles(IReadOnlyList<MapMeshes.Mesh> meshes,
@@ -124,7 +125,7 @@ public static class TraceScene
             void GroupByMaterial()
             {
                 var names = (meshData?.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").ToList();
-                int Rank(string m) => names.FindIndex(n => n.Equals(m, StringComparison.OrdinalIgnoreCase)) is var r and >= 0 ? r : names.Count;
+                int Rank(string m) => names.FindIndex(n => n.EqualsAscii(m)) is var r and >= 0 ? r : names.Count;
                 var grouped = found.Skip(start).Select((t, i) => (t, i)).OrderBy(x => Bias(x.t.Face)).ThenBy(x => Rank(x.t.Material ?? "")).ThenBy(x => x.i).Select(x => x.t).ToList();
                 found.RemoveRange(start, found.Count - start);
                 found.AddRange(grouped);

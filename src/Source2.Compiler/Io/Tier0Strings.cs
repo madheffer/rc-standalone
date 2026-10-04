@@ -8,6 +8,56 @@ public static class Tier0Strings
 {
     private static char Fold(char c) => c is >= 'A' and <= 'Z' ? (char)(c + 0x20) : c;
 
+    /// <summary>A-Z folded equality and hashing (V_stricmp_fast == 0, the
+    /// lowercase string token), for dictionaries and sets of names.</summary>
+    public static StringComparer IgnoreCase { get; } = new AsciiComparer();
+
+    private sealed class AsciiComparer : StringComparer
+    {
+        public override int Compare(string? x, string? y)
+            => x is null || y is null ? string.CompareOrdinal(x, y) : string.CompareOrdinal(FoldAscii(x), FoldAscii(y));
+
+        public override bool Equals(string? x, string? y) => EqualsIgnoreCase(x, y);
+
+        public override int GetHashCode(string obj)
+        {
+            var hash = new HashCode();
+            foreach (var c in obj)
+                hash.Add(Fold(c));
+            return hash.ToHashCode();
+        }
+    }
+
+    /// <summary>V_stricmp_fast(a, b) == 0: equal with A-Z folded (null only equals null).</summary>
+    public static bool EqualsIgnoreCase(string? a, string? b)
+    {
+        if (a is null || b is null)
+            return a is null && b is null;
+        if (a.Length != b.Length)
+            return false;
+        for (var i = 0; i < a.Length; i++)
+            if (Fold(a[i]) != Fold(b[i]))
+                return false;
+        return true;
+    }
+
+    /// <summary>A-Z folded equality.</summary>
+    public static bool EqualsAscii(this string a, string? b) => EqualsIgnoreCase(a, b);
+
+    /// <summary>A-Z folded prefix test (V_strnicmp over the prefix).</summary>
+    public static bool StartsWithAscii(this string a, string prefix)
+        => prefix.Length <= a.Length && EqualsIgnoreCase(a[..prefix.Length], prefix);
+
+    /// <summary>A-Z folded suffix test.</summary>
+    public static bool EndsWithAscii(this string a, string suffix)
+        => suffix.Length <= a.Length && EqualsIgnoreCase(a[^suffix.Length..], suffix);
+
+    /// <summary>A-Z folded containment (V_stristr_fast != null).</summary>
+    public static bool ContainsAscii(this string a, string part) => part.Length == 0 || StriStr(a, part) >= 0;
+
+    /// <summary>A-Z folded first index of a part, or -1.</summary>
+    public static int IndexOfAscii(this string a, string part) => part.Length == 0 ? 0 : StriStr(a, part);
+
     /// <summary>V_stristr_fast: the first index of <paramref name="find"/>, A-Z folded, or -1.</summary>
     public static int StriStr(string text, string find)
     {

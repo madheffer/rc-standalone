@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 using ValveResourceFormat.Serialization.KeyValues;
 
@@ -107,7 +108,7 @@ public static class WorldCollision
     /// </summary>
     public static BlendLayers ReadBlend(string shader, IReadOnlyDictionary<string, long> features, IReadOnlyDictionary<string, float> floats, IReadOnlyDictionary<string, string> strings)
     {
-        string? Text(string key) => strings.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase)).Value;
+        string? Text(string key) => strings.FirstOrDefault(kv => Tier0Strings.EqualsIgnoreCase(kv.Key, key)).Value;
         var (layers, puddles, sampling) = ShaderLayers(shader, features);
         var baseSurface = Text("PhysicsSurfaceProperties") ?? "default";
         var surfaces = new List<string>();
@@ -123,7 +124,7 @@ public static class WorldCollision
                 at = surfaces.Count - 1;
             }
             if (i == 1)
-                firstScale = floats.FirstOrDefault(kv => string.Equals(kv.Key, "g_flHeightMapScale1", StringComparison.OrdinalIgnoreCase)) is { Key: not null } kv ? kv.Value : 1f;
+                firstScale = floats.FirstOrDefault(kv => Tier0Strings.EqualsIgnoreCase(kv.Key, "g_flHeightMapScale1")) is { Key: not null } kv ? kv.Value : 1f;
             remap[i - 1] = at;
         }
         var puddleLayer = -1;
@@ -365,7 +366,7 @@ public static class WorldCollision
             last = mesh.Sequence;
             // A mesh set to no physics (physicsType "none") gives no pieces;
             // atixref's railing kit and fluorescent lights are such meshes.
-            if (string.Equals(mesh.Element!.Get<string>("physicsType"), "none", StringComparison.OrdinalIgnoreCase))
+            if (Tier0Strings.EqualsIgnoreCase(mesh.Element!.Get<string>("physicsType"), "none"))
                 continue;
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
             var paint = PaintStream(mesh.Element!);

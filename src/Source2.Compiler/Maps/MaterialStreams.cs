@@ -1,3 +1,5 @@
+using Source2.Compiler.Io;
+
 namespace Source2.Compiler.Maps;
 
 /// <summary>
@@ -40,7 +42,7 @@ internal static class MaterialStreams
         var inputs = new List<(string, int)>();
         foreach (var semantic in semantics)
         {
-            var row = Array.FindIndex(Table, t => Ascii.EqualsIgnoreCase(t.Semantic, semantic));
+            var row = Array.FindIndex(Table, t => Io.Tier0Strings.EqualsIgnoreCase(t.Semantic, semantic));
             inputs.Add(row >= 0 ? (Table[row].Stream, Table[row].Index) : (semantic, 0));
         }
         return inputs;
@@ -61,44 +63,15 @@ internal static class MaterialStreams
                 if (streams[j].Name == name)
                     index++;
             bool stays;
-            if (keepLighting && Ascii.ContainsIgnoreCase(name, "LightmapUV"))
+            if (keepLighting && name.ContainsAscii("LightmapUV"))
                 stays = true;
-            else if (Ascii.EqualsIgnoreCase(name, "PerVertexLighting"))
+            else if (Io.Tier0Strings.EqualsIgnoreCase(name, "PerVertexLighting"))
                 stays = !keepLighting;
             else
-                stays = inputs.Any(x => Ascii.EqualsIgnoreCase(x.Name, name) && x.Index == index);
+                stays = inputs.Any(x => Io.Tier0Strings.EqualsIgnoreCase(x.Name, name) && x.Index == index);
             if (stays)
                 kept.Add(i);
         }
         return kept;
-    }
-}
-
-/// <summary>tier0's case folding: A to Z only (V_stricmp_fast, V_stristr_fast).</summary>
-internal static class Ascii
-{
-    public static bool EqualsIgnoreCase(string a, string b)
-    {
-        if (a.Length != b.Length)
-            return false;
-        for (var i = 0; i < a.Length; i++)
-            if (Fold(a[i]) != Fold(b[i]))
-                return false;
-        return true;
-    }
-
-    public static char Fold(char c) => c is >= 'A' and <= 'Z' ? (char)(c + 32) : c;
-
-    public static bool ContainsIgnoreCase(string text, string part)
-    {
-        for (var i = 0; i + part.Length <= text.Length; i++)
-        {
-            var j = 0;
-            while (j < part.Length && Fold(text[i + j]) == Fold(part[j]))
-                j++;
-            if (j == part.Length)
-                return true;
-        }
-        return false;
     }
 }

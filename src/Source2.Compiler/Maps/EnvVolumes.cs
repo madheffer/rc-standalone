@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Numerics;
 
@@ -26,12 +27,12 @@ public static class EnvVolumes
         public static readonly Set Empty = new([], []);
     }
 
-    private static readonly HashSet<string> Cubemap = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> Cubemap = new(Tier0Strings.IgnoreCase)
     {
         "env_cubemap", "env_cubemap_box", "env_combined_light_probe_volume", "func_combined_light_probe_volume",
     };
 
-    private static readonly HashSet<string> Probe = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> Probe = new(Tier0Strings.IgnoreCase)
     {
         "env_light_probe_volume", "env_combined_light_probe_volume", "func_combined_light_probe_volume",
     };
@@ -48,7 +49,7 @@ public static class EnvVolumes
         var probe = Probe.Contains(className);
         if (!cubemap && !probe)
             return null;
-        var sphere = className.Equals("env_cubemap", StringComparison.OrdinalIgnoreCase);
+        var sphere = className.EqualsAscii("env_cubemap");
         var matrix = MapMeshes.AngleMatrix(angles);
         (matrix[3], matrix[7], matrix[11]) = (origin.X, origin.Y, origin.Z);
         Vector3 Vec(string name) => key(name) is { } v && CNumbers.FloatArray(v, 3) is var f ? new Vector3(f[0], f[1], f[2]) : Vector3.Zero;
@@ -59,7 +60,7 @@ public static class EnvVolumes
             sphere ? Vector3.Zero : Vec("box_maxs"),
             handshake,
             key("indoor_outdoor_level") is { } level ? (int)CNumbers.ToFloat32(level) : 0,
-            key("moveable") is { } m && (m == "1" || m.Equals("true", StringComparison.OrdinalIgnoreCase)),
+            key("moveable") is { } m && (m == "1" || m.EqualsAscii("true")),
             key("targetname") ?? "");
         return (volume, cubemap, probe);
     }

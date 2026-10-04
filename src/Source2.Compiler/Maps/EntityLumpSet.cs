@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Numerics;
 using ValveKeyValue;
@@ -56,7 +57,7 @@ public static class EntityLumpSet
     private static MapEntities.Entity WithParticleSnapshot(MapEntities.Entity entity, IReadOnlySet<int>? nodeIds,
                                                            string worldName)
     {
-        var mesh = entity.Keys.FirstOrDefault(k => k.Key.Equals("snapshot_mesh", StringComparison.OrdinalIgnoreCase));
+        var mesh = entity.Keys.FirstOrDefault(k => k.Key.EqualsAscii("snapshot_mesh"));
         if (nodeIds is null || mesh.Key is null)
             return entity;
         var id = (int)CNumbers.Atoi(mesh.Value);
@@ -67,7 +68,7 @@ public static class EntityLumpSet
             return entity;
         var path = $"maps/{worldName}/particle_snapshots/node_{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}.vsnap";
         var keys = entity.Keys.ToList();
-        var at = keys.FindIndex(k => k.Key.Equals("snapshot_file", StringComparison.OrdinalIgnoreCase));
+        var at = keys.FindIndex(k => k.Key.EqualsAscii("snapshot_file"));
         if (at >= 0)
             keys[at] = new(keys[at].Key, path);
         else
@@ -174,8 +175,8 @@ public static class EntityLumpSet
             var values = ValuesOf(item.Tree);
             foreach (var template in schema?.TemplateLumpsOf(Text(values, "classname")) ?? [])
             {
-                var single = template.Mode.Equals("SingleTemplate", StringComparison.OrdinalIgnoreCase);
-                if ((!single && !template.Mode.Equals("PointTemplate", StringComparison.OrdinalIgnoreCase))
+                var single = template.Mode.EqualsAscii("SingleTemplate");
+                if ((!single && !template.Mode.EqualsAscii("PointTemplate"))
                     || template.WorldKey.Length == 0 || template.LumpKey.Length == 0
                     || (single && template.SourceKey.Length == 0))
                     continue;
@@ -260,7 +261,7 @@ public static class EntityLumpSet
     /// </summary>
     private static bool Rename(List<KVObject> members)
     {
-        var renamed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var renamed = new Dictionary<string, string>(Tier0Strings.IgnoreCase);
         foreach (var member in members)
         {
             var values = ValuesOf(member);
@@ -278,7 +279,7 @@ public static class EntityLumpSet
         {
             var values = ValuesOf(member);
             foreach (var key in values.Keys.ToList())
-                if (!key.Equals("targetname", StringComparison.OrdinalIgnoreCase))
+                if (!key.EqualsAscii("targetname"))
                     Replace(values, key, renamed);
             foreach (var connection in member["m_connections"].Values)
             {

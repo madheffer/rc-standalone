@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 
 namespace Source2.Compiler.Maps;
@@ -194,11 +195,11 @@ internal static class OverlayProjector
         }
         // CMesh_ComputeTangents on the unindexed mesh: one vertex per corner.
         var count = projected.Points.Count;
-        var tangent = streams.FindIndex(s => s.Name.Contains("tangent", StringComparison.OrdinalIgnoreCase) && s.Count == 4);
+        var tangent = streams.FindIndex(s => s.Name.ContainsAscii("tangent") && s.Count == 4);
         if (tangent < 0)
             throw new NotSupportedException("an overlay target without a tangent stream");
         var tangentAt = streams[tangent].First;
-        var tex = streams.First(s => s.Name.Contains("tex", StringComparison.OrdinalIgnoreCase) && s.Count == 2).First;
+        var tex = streams.First(s => s.Name.ContainsAscii("tex") && s.Count == 2).First;
         var tangents = MeshTangents.Corners(
             [.. Enumerable.Range(0, count).Select(k => new Vector3(v[(k * stride) + position], v[(k * stride) + position + 1], v[(k * stride) + position + 2]))],
             [.. Enumerable.Range(0, count).Select(k => new Vector3(v[(k * stride) + normal], v[(k * stride) + normal + 1], v[(k * stride) + normal + 2]))],

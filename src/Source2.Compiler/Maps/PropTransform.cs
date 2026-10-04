@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 
 namespace Source2.Compiler.Maps;
@@ -118,7 +119,7 @@ internal static class PropTransform
     }
 
     // The shaders whose vs declares TexCoordScaleByModelU/V (shaders_pc_dir.vpk, 1.41.8.4).
-    private static readonly HashSet<string> ScaleByModelShaders = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> ScaleByModelShaders = new(Tier0Strings.IgnoreCase)
     {
         "csgo_beachfoam", "csgo_character", "csgo_complex", "csgo_decalmodulate", "csgo_depth_only", "csgo_environment_blend",
         "csgo_environment", "csgo_flashbang_overlay", "csgo_legs_prepass", "csgo_moondome", "csgo_simple_2way_blend",

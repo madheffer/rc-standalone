@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Serialization.KeyValues;
 
@@ -51,7 +52,7 @@ public sealed record VisConfig(int PvsType, System.Numerics.Vector3? DirToSun = 
         var hints = new List<VisHint>();
         foreach (var e in entities)
         {
-            if (!e.ClassName.Equals("visibility_hint", StringComparison.OrdinalIgnoreCase) || e.Hidden)
+            if (!e.ClassName.EqualsAscii("visibility_hint") || e.Hidden)
                 continue;
             if (e.Instanced)
                 throw new NotSupportedException($"visibility_hint {e.NodeId}: a hint inside an instance is not ported");
@@ -85,8 +86,8 @@ public sealed record VisConfig(int PvsType, System.Numerics.Vector3? DirToSun = 
         System.Numerics.Vector3? sun = null;
         foreach (var e in entities)
         {
-            if (!e.ClassName.Equals("light_environment", StringComparison.OrdinalIgnoreCase)
-                && !e.ClassName.Equals("light_directional", StringComparison.OrdinalIgnoreCase))
+            if (!e.ClassName.EqualsAscii("light_environment")
+                && !e.ClassName.EqualsAscii("light_directional"))
                 continue;
             int Int(string key, int fallback) => Key(e, key, schema) is { } text ? (int)CNumbers.Atoi(text) : fallback;
             var mode = (sbyte)Int("directlight", 2);
@@ -118,7 +119,7 @@ public sealed record VisConfig(int PvsType, System.Numerics.Vector3? DirToSun = 
     /// <summary>An entity's key as the compile reads it: the map's value, else
     /// the FGD default the class fills in, else null.</summary>
     private static string? Key(MapEntities.Entity e, string key, FgdSchema schema)
-        => e.Keys.FirstOrDefault(k => k.Key.Equals(key, StringComparison.OrdinalIgnoreCase)).Value
+        => e.Keys.FirstOrDefault(k => k.Key.EqualsAscii(key)).Value
            ?? schema.KeyOf(e.ClassName, key)?.Default;
 
     public static VisConfig Read(string path)

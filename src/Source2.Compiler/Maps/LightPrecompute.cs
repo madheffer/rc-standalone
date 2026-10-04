@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Globalization;
 using System.Numerics;
 using Source2.Compiler.Simulation;
@@ -89,9 +90,9 @@ public static class LightPrecompute
     /// </summary>
     public static LightShape[] Records(string className, KeyReader key, float[]? world, bool split, bool units = false)
     {
-        var barn = className.Equals("light_barn", StringComparison.OrdinalIgnoreCase);
-        var omni = className.Equals("light_omni2", StringComparison.OrdinalIgnoreCase);
-        var rect = className.Equals("light_rect", StringComparison.OrdinalIgnoreCase);
+        var barn = className.EqualsAscii("light_barn");
+        var omni = className.EqualsAscii("light_omni2");
+        var rect = className.EqualsAscii("light_rect");
         if (!barn && !omni && !rect)
             return [];
         var size = Vector3Key(key, "size_params", new Vector3(16f, 16f, 0.0625f));

@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using ValveResourceFormat.Serialization.KeyValues;
 
 namespace Source2.Compiler.Maps;
@@ -72,8 +73,8 @@ public static partial class SettleWorld
     private static HashSet<DmxBinary.Element> Excluded(DmxBinary.Document document, FgdSchema schema)
     {
         var entities = document.Elements.Where(e => e.Type == "CMapEntity" && e.Get<DmxBinary.Element>("entity_properties") != null).ToList();
-        var byName = entities.GroupBy(e => e.Get<DmxBinary.Element>("entity_properties")!.Get<string>("targetname") ?? "", StringComparer.OrdinalIgnoreCase)
-                             .Where(g => g.Key.Length > 0).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+        var byName = entities.GroupBy(e => e.Get<DmxBinary.Element>("entity_properties")!.Get<string>("targetname") ?? "", Tier0Strings.IgnoreCase)
+                             .Where(g => g.Key.Length > 0).ToDictionary(g => g.Key, g => g.ToList(), Tier0Strings.IgnoreCase);
         var excluded = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         void Named(string? name)
         {
@@ -89,9 +90,9 @@ public static partial class SettleWorld
                 excluded.Add(e);
                 Named(parent);
             }
-            if (className.Equals("point_template", StringComparison.OrdinalIgnoreCase))
+            if (className.EqualsAscii("point_template"))
                 foreach (var (key, value) in props.Attributes)
-                    if (key.Contains("template", StringComparison.OrdinalIgnoreCase) && value is string name)
+                    if (key.ContainsAscii("template") && value is string name)
                         Named(name);
             if (schema.Inherits(className, "BasePhysicsNoSettleAttached"))
                 foreach (var key in schema.KeysOf(className))
