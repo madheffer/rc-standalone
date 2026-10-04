@@ -298,6 +298,17 @@ The compile, as read from resourcecompiler 0923 (ADDRESSES.md, WN):
   tintColor / 255 as its tint when not white (CMesh +0x14f, +0x154).
   Every merger input of probe01 (15), atixref (461) and ze_hold_em_p (93)
   has Valve's stream layout and tint (MergerInputStreamsTests).
+- **Merger inputs from the .vmap, whole** (MergerFromVmapTests, MERGEVMAP=1):
+  in a -world compile every input of probe01 (15), atixref (461) and
+  ze_hold_em_p (93) is Valve's: the vertices bit for bit after the stream
+  filter (PerVertexLighting aside, a previous bake's), the indices, every
+  fact CanMerge reads (stream types 39 + float count, an overlay's
+  texcoord precision its target entry's, the cubemap and probe), and
+  CanMerge on all 141,067 pairs. Not yet end to end: a -world compile's
+  merger runs on six grid boxes, not vis clusters (the world bounds grown
+  by 0.01 cut into floor(extent / 1024) equal cells per axis; the code is
+  not found), and a full compile's inputs carry the bake's lightmap UVs
+  (not ported), so the merge of either is not built from the .vmap yet.
 - **The merge:** for each entry without attribute bit 0x2, later entries
   that `WRBMeshEntry_CanMerge` accepts join it while the sum stays under
   0x200000 vertices and 0x400000 indices; a group becomes one entry with
