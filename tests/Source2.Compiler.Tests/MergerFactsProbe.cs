@@ -355,3 +355,31 @@ public class NodeTypeProbe(ITestOutputHelper output)
                              + $"; children {e.GetElements("children").Count()}");
     }
 }
+
+/// <summary>Exploration (<c>TREE=&lt;addon&gt;|&lt;map&gt;|&lt;from id&gt;|&lt;to id&gt;</c>): the map's node tree in walk order, nodes in an id range with their depth and type.</summary>
+public class MapTreeProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Tree()
+    {
+        if (Environment.GetEnvironmentVariable("TREE") is not { } spec)
+            return;
+        var p = spec.Split('|');
+        var document = DmxBinary.ReadFile(MapFixtures.VmapSource(p[0], p[1])!);
+        int lo = int.Parse(p[2]), hi = int.Parse(p[3]);
+        var at = 0;
+        void Walk(DmxBinary.Element node, int depth)
+        {
+            foreach (var c in node.GetElements("children"))
+            {
+                var id = c.GetValue<int>("nodeID") ?? -1;
+                var cls = c.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") ?? "";
+                if (id >= lo && id <= hi || c.GetElements("children").Any(k => (k.GetValue<int>("nodeID") ?? -1) is var kid && kid >= lo && kid <= hi))
+                    output.WriteLine($"{at} {new string(' ', depth * 2)}{c.Type} {id} {cls} {c.Get<DmxBinary.Element>("entity_properties")?.Get<string>("model")}");
+                at++;
+                Walk(c, depth + 1);
+            }
+        }
+        Walk(document.OfType("CMapWorld").First(), 0);
+    }
+}

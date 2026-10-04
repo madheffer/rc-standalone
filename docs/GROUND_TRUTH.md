@@ -101,7 +101,10 @@ game can answer is raised with the user first, and runs with -insecure.
     model's baked props last to first in the walk (measured on atixref's
     102 entries). WRBNode_AddStaticProps (180255b90) takes them from the
     node's per-model lists (+0x198) last to first, but what fills those
-    lists is not read: on deformerprobe2 the 32 bend-deformed props come
+    lists is not read (the full order on deformerprobe2, two bend groups
+    2144-2159 and 2162-2177 of one model: 2144, 2153-2159, 2162, 2163,
+    2145, 2164-2173, 2146, 2174-2177, 2147-2152, which interleaves the
+    groups like a spatial query's traversal): on deformerprobe2 the 32 bend-deformed props come
     in another order (2144, 2153 to 2163, 2145, 2164 to 2173, ...), while
     all 65 entries are exact in content (PropEntriesProbe with
     PROPENTRIES_BYID=1).
