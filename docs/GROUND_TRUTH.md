@@ -331,6 +331,15 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ## Resolved
 
+- **A prefab the visibility manager hides** (2026-10-05, c2m3_coaster_d_d
+  against Valve's compile): its contents still compile. Valve's lump carries
+  hidden prefab 2's entities (hammerUniqueId 2:123 and on) and their 16
+  brush models; the earlier rule that a hidden prefab encloses its contents
+  was never measured. The entity walk, the mesh walk, the settle, the
+  instance expansion and the entity models now all compile them: coaster's
+  97 entity models exact (was 81). A hidden INSTANCE still places nothing
+  (measured on Mako).
+
 - **The merge sampler's rays** (settled 2026-10-05 by capture,
   capture_merge.py --vis-n --rays on atixref, VisMergeReplay and
   VisRayReplay RAYS_MERGE): CastRayGrid (18004a690) files a cluster's rays

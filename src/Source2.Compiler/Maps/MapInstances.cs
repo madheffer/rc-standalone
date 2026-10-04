@@ -63,13 +63,11 @@ public static class MapInstances
         // Mako hides four, and its later blocks start exactly that much lower.
         // Its group is still a template and still does not ship in its own right.
         var hidden = MapEntities.HiddenNodes(document);
-        bool Hidden(Instance i) => i.Prefabs.Length == 0 ? hidden.Contains(i.Node.GetValue<int>("nodeID") ?? -1) : i.Hidden;
+        // A prefab the visibility manager hides still compiles its contents (c2m3_coaster_d_d's hidden prefab 2: Valve's lump and models carry 2:123 and the rest).
+        bool Hidden(Instance i) => !i.Prefab && (i.Prefabs.Length == 0 ? hidden.Contains(i.Node.GetValue<int>("nodeID") ?? -1) : i.Hidden);
         var hiddenTemplates = new HashSet<int>();
         foreach (var instance in tree.Instances.Where(Hidden))
-            if (instance.Prefab)
-                throw new NotSupportedException("a hidden prefab: whether it takes a block of ids is not captured");
-            else
-                MarkTemplates(instance.Target, instance.Prefabs, byNode, hiddenTemplates);
+            MarkTemplates(instance.Target, instance.Prefabs, byNode, hiddenTemplates);
         tree.Instances.RemoveAll(Hidden);
         if (tree.Instances.Count == 0)
             return ([], hiddenTemplates);
@@ -211,7 +209,7 @@ public static class MapInstances
                     produced++;
                 tree.Parents[prefabWorld] = child;
                 Descend(prefabWorld, tree, seen, ref produced,
-                        new Within([.. within.Prefabs, child], child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], hidden));
+                        new Within([.. within.Prefabs, child], child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], within.Enclosed));
                 tree.SubtreeEnd[prefabWorld] = produced;
                 tree.SubtreeEnd[child] = produced;
                 continue;

@@ -254,7 +254,7 @@ public static class MapEntities
                     entities.Add(nested with { Layer = layer, Hidden = true, Prefabs = [.. prefab.Ids, id] });
                 Walk(prefabWorld, entities, seen, layer,
                      new Prefab([.. prefab.Ids, id], [.. prefab.Chain, child],
-                                child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed || prefab.Hidden.Contains(id), namePrefix));
+                                child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed, namePrefix));
                 continue;
             }
             Walk(child, entities, seen,

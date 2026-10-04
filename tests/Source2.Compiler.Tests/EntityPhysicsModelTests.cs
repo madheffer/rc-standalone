@@ -29,6 +29,46 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
         Maps.MapDeformers.Apply(doc);
         var notes = new List<string>();
         var models = Physics.EntityPhysicsModels.Build(doc, p[1], content.Material, content.CollisionProperty, MapFixtures.GameSchema(), notes, content.SmartProp);
+        // ENTBUILD_PREFABNODE=<prefab id>:<node id>: that node of the prefab's map, its
+        // parents, children and whether the prefab's hidden set holds it.
+        if (Environment.GetEnvironmentVariable("ENTBUILD_PREFABNODE") is { Length: > 0 } pn && pn.Split(':') is [var pid, var nid])
+        {
+            var prefab = doc.Elements.First(e => e.Type == "CMapPrefab" && e.GetValue<int>("nodeID")?.ToString() == pid);
+            var world = prefab.Get<DmxBinary.Element>(Maps.MapPrefabs.WorldKey)!;
+            var hiddenSet = prefab.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [];
+            var targetsSet = prefab.Get<List<DmxBinary.Element>>(Maps.MapPrefabs.TargetsKey) ?? [];
+            void Find(DmxBinary.Element node, List<DmxBinary.Element> path)
+            {
+                foreach (var child in node.GetElements("children"))
+                {
+                    if (child.GetValue<int>("nodeID")?.ToString() == nid)
+                    {
+                        output.WriteLine($"found {child.Type} {nid}: path {string.Join(" > ", path.Select(x => $"{x.Type}:{x.GetValue<int>("nodeID")}{(hiddenSet.Contains(x.GetValue<int>("nodeID") ?? -1) ? "(hidden)" : "")}{(targetsSet.Contains(x) ? "(target)" : "")}"))}"
+                                       + $" hidden {hiddenSet.Contains(child.GetValue<int>("nodeID") ?? -1)} children {string.Join(",", child.GetElements("children").Select(c => $"{c.Type}:{c.GetValue<int>("nodeID")}{(hiddenSet.Contains(c.GetValue<int>("nodeID") ?? -1) ? "(hidden)" : "")}"))}");
+                        return;
+                    }
+                    Find(child, [.. path, child]);
+                }
+            }
+            Find(world, [world]);
+            var mapHiddenSet = MapEntities.HiddenNodes(doc);
+            void Where(DmxBinary.Element node, List<DmxBinary.Element> path)
+            {
+                foreach (var child in node.GetElements("children"))
+                {
+                    if (child == prefab)
+                    {
+                        output.WriteLine($"prefab {pid}: path {string.Join(" > ", path.Select(x => $"{x.Type}:{x.GetValue<int>("nodeID")}"))} hidden {mapHiddenSet.Contains(int.Parse(pid))}"
+                                       + $" target of an instance {doc.OfType("CMapInstance").Any(i => i.Get<DmxBinary.Element>("target") == child || path.Contains(i.Get<DmxBinary.Element>("target")!))}");
+                        return;
+                    }
+                    Where(child, [.. path, child]);
+                }
+            }
+            foreach (var w in doc.OfType("CMapWorld"))
+                Where(w, [w]);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("ENTBUILD_NODE") is { Length: > 0 } nodeText)
         {
             var src = doc.Elements.First(e => e.Type == "CMapEntity" && e.GetValue<int>("nodeID")?.ToString() == nodeText);
@@ -44,6 +84,10 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
         package.Read(p[2]);
         int exact = 0, differ = 0, missing = 0, kindWrong = 0, shown = 0, renderPhysExact = 0, renderPhysDiffer = 0;
         var tally = new Dictionary<string, int>();
+        // ENTBUILD_LIST=<substring>: our model paths containing it.
+        if (Environment.GetEnvironmentVariable("ENTBUILD_LIST") is { Length: > 0 } listed)
+            foreach (var m in models.Where(m => m.Path.Contains(listed, StringComparison.Ordinal)))
+                output.WriteLine($"ours: {m.Path} ({m.ClassName})");
         foreach (var model in models)
         {
             var entry = package.FindEntry(model.Path + "_c");

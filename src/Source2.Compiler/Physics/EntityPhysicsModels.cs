@@ -52,7 +52,8 @@ public static class EntityPhysicsModels
             foreach (var child in node.GetElements("children"))
             {
                 var id = child.GetValue<int>("nodeID") ?? -1;
-                if (skip.Contains(child) || hidden.Contains(id))
+                // A prefab the visibility manager hides still compiles its contents (c2m3_coaster_d_d's hidden prefab 2: Valve's lump and models carry 2:123 and the rest).
+                if (skip.Contains(child) || (hidden.Contains(id) && child.Type != "CMapPrefab"))
                     continue;
                 if (child.Type == "CMapEntity")
                     entities.Add((child, id, [], prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture), prefabs, hidden));

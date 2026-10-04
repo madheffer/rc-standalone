@@ -224,7 +224,7 @@ public static partial class SettleWorld
     {
         foreach (var child in node.GetElements("children"))
         {
-            if (hidden.Contains(child.GetValue<int>("nodeID") ?? -1))
+            if (hidden.Contains(child.GetValue<int>("nodeID") ?? -1) && child.Type != "CMapPrefab")
                 continue;
             if (child.Type == "CMapPrefab" && child.Get<DmxBinary.Element>(MapPrefabs.WorldKey) is { } world)
             {
