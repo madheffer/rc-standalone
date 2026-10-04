@@ -86,70 +86,8 @@ public class MergerFromVmapTests(ITestOutputHelper output)
         var (built, overlays) = WorldNodeBuild.BuildNode(world, props, descriptors);
         var envMaps = WorldNodeBuild.EnvMaps(built, lighting!.Volumes);
 
-        // An entry's vertices with only the streams PrepareForMerge keeps.
-        (int Stride, float[] Vertices, List<WrbMeshEntry.Stream> Streams) Filtered(string material, float[] vertices, int stride,
-                                                                                    IReadOnlyList<Physics.MeshWeld.Stream> streams, bool precise)
-        {
-            var kept = Enumerable.Range(0, streams.Count).ToList();
-            if (content.Read(material + "_c") is { } bytes)
-                kept = MaterialStreams.Kept(streams, MaterialStreams.Inputs(Source2.Compiler.MaterialAuthor.ExtractInputSignature(bytes).Select(x => x.Semantic)), false);
-            var newStride = kept.Sum(i => streams[i].Count);
-            var count = vertices.Length / stride;
-            var v = new float[count * newStride];
-            for (var k = 0; k < count; k++)
-            {
-                var to = k * newStride;
-                foreach (var i in kept)
-                {
-                    Array.Copy(vertices, (k * stride) + streams[i].First, v, to, streams[i].Count);
-                    to += streams[i].Count;
-                }
-            }
-            var described = kept.Select(i => new WrbMeshEntry.Stream(streams[i].Name, streams.Take(i).Count(s => s.Name == streams[i].Name),
-                streams[i].Count, (byte)(precise && streams[i].Name == "texcoord" ? 1 : 0),
-                // The CMesh stream type: float2, 3, 4 are 41, 42, 43 (an integer stream carries its own, 34).
-                streams[i].Type != 0 ? streams[i].Type : 39 + streams[i].Count)).ToList();
-            return (newStride, v, described);
-        }
-
-        var lists = MeshLists.Merged.ToDictionary(k => k, _ => new List<Ours>());
-        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
-        for (var i = 0; i < built.Count; i++)
-        {
-            var b = built[i];
-            var (e, h) = (b.Source.Entry, b.Source.Header);
-            var objectFlags = h.ObjectFlags;
-            if (MeshLists.Assign(new MeshLists.Input(h.Attributes, objectFlags, 0, e.Record.FadeMax, false, false)) is not { } kind || !lists.TryGetValue(kind, out var list))
-                continue;
-            var (stride, v, streams) = Filtered(e.Material, b.Vertices, e.Stride, e.Streams, e.PreciseTexcoords);
-            list.Add(new Ours(e.Material, stride, v, b.Indices, new WrbMeshEntry
-            {
-                Attributes = h.Attributes, Material = e.Material, ObjectFlags = objectFlags, Field28 = h.Tint, Stride = stride, Streams = streams,
-                Field1a3 = h.Byte1a3, Field_b8 = h.EmissiveBoost, Field1a8 = 1f, Cubemap = envMaps[i].Cubemap, LightProbe = envMaps[i].Probe,
-                Mesh184 = 1f, Field9c = h.Field9c, Field1a1 = h.Byte1a1, Field1a0 = h.Byte1a0, Field_b0 = h.FadeMin, FadeMax = h.FadeMax,
-                Matrix = identity,
-            }));
-        }
-        foreach (var projection in overlays)
-        {
-            var d = descriptors[projection.Overlay];
-            var attributes = content.Material(d.Material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
-            var flags = MeshEntryFlags.Compute(attributes, new MeshEntryFlags.Record(0, 0, 0, true, null, false)).Flags;
-            if (MeshLists.Assign(new MeshLists.Input(flags, 0, d.RenderOrder, 0, false, false)) is not { } kind || !lists.TryGetValue(kind, out var list))
-                continue;
-            var mesh = projection.Mesh;
-            var (wv, wi) = Physics.MeshWeld.Weld(mesh.Vertices, mesh.Stride, [.. Enumerable.Range(0, mesh.Vertices.Length / mesh.Stride)], mesh.Streams, 1f / 32f, true);
-            // The overlay's CMesh streams copy its target's, high precision texcoords included.
-            var (stride, v, streams) = Filtered(d.Material, wv, mesh.Stride, mesh.Streams, built[projection.Target].Source.Entry.PreciseTexcoords);
-            var tinted = d.TintColor.Any(x => x != 255);
-            list.Add(new Ours(d.Material, stride, v, wi, new WrbMeshEntry
-            {
-                Attributes = flags, Material = d.Material, OverlayOrder = d.RenderOrder, ObjectFlags = kind == MeshLists.Kind.Overlay ? 0x2000u : 0u,
-                DebugColor = tinted, DebugColorValue = tinted ? new Vector4(d.TintColor[0] / 255f, d.TintColor[1] / 255f, d.TintColor[2] / 255f, d.TintColor[3] / 255f) : default,
-                Field28 = Vector4.One, Stride = stride, Streams = streams, Field1a3 = 1, Field_b8 = 1f, Field1a8 = 1f, Mesh184 = 1f, Field9c = 1f,
-                Field1a1 = 1, Field_b0 = -1f, Matrix = identity,
-            }));
-        }
+        var lists = WorldNodeBuild.MergerInputs(built, overlays, descriptors, envMaps, content, shaders)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.Select(m => new Ours(m.Material, m.Stride, m.Vertices, m.Indices, m.Facts)).ToList());
 
         var callList = calls.Values.ToList();
         int entries = 0, sameMesh = 0, sameFacts = 0, pairs = 0, pairsSame = 0, shown = 0;
