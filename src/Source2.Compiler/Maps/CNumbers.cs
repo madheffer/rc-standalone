@@ -213,4 +213,31 @@ internal static class CNumbers
         end = i;
         return double.Parse(text.AsSpan(at, i - at), NumberStyles.Float, CultureInfo.InvariantCulture);
     }
+    /// <summary>
+    /// MSVC's printf "%g" (precision 6): the value rounded to six significant
+    /// digits, in exponent form ("1.23457e+07") when the decimal exponent is
+    /// under -4 or at least 6, else fixed; trailing zeros and a bare point
+    /// dropped. inf and nan as the UCRT writes them.
+    /// </summary>
+    public static string FormatG(double value)
+    {
+        if (double.IsNaN(value))
+            return double.IsNegative(value) ? "-nan(ind)" : "nan";
+        if (double.IsInfinity(value))
+            return value < 0 ? "-inf" : "inf";
+        if (value == 0)
+            return double.IsNegative(value) ? "-0" : "0";
+        // E5 rounds to six significant digits; its exponent decides the form.
+        var e = value.ToString("E5", CultureInfo.InvariantCulture);
+        var exponent = int.Parse(e[(e.IndexOf('E') + 1)..], CultureInfo.InvariantCulture);
+        if (exponent < -4 || exponent >= 6)
+        {
+            var mantissa = e[..e.IndexOf('E')];
+            if (mantissa.Contains('.'))
+                mantissa = mantissa.TrimEnd('0').TrimEnd('.');
+            return $"{mantissa}e{(exponent < 0 ? '-' : '+')}{Math.Abs(exponent):00}";
+        }
+        var text = value.ToString("F" + (5 - exponent).ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        return text.Contains('.') ? text.TrimEnd('0').TrimEnd('.') : text;
+    }
 }

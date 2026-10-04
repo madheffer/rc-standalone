@@ -613,7 +613,7 @@ public static partial class EntityLumpAuthor
     /// every key of the class the source lacks, at its FGD default, in the class's
     /// finalized order.
     /// </summary>
-    private static List<KeyValuePair<string, string>> KeyTable(MapEntities.Entity entity, FgdSchema? schema)
+    internal static List<KeyValuePair<string, string>> KeyTable(MapEntities.Entity entity, FgdSchema? schema)
     {
         var table = new List<KeyValuePair<string, string>>();
         var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

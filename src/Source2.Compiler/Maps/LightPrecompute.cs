@@ -82,20 +82,26 @@ public static class LightPrecompute
 
     /// <summary>
     /// The light records of FUN_180eea510 with flags 4 (whole) or 5 (split),
-    /// in world space: a barn's one frustum, or an omni's whole record or
-    /// its cube faces. Empty for any other class.
+    /// in world space: a barn's one frustum, or an omni's or a rect's whole
+    /// record or its cube faces (a rect is an omni of outer angle 90 and
+    /// inner 0 with a rect or disc luminaire). Empty for any other class.
+    /// The range is clamped to [1, 2 * MaxCoord * sqrt(3)] for all three.
     /// </summary>
-    public static LightShape[] Records(string className, KeyReader key, float[] world, bool split)
+    public static LightShape[] Records(string className, KeyReader key, float[]? world, bool split, bool units = false)
     {
         var barn = className.Equals("light_barn", StringComparison.OrdinalIgnoreCase);
         var omni = className.Equals("light_omni2", StringComparison.OrdinalIgnoreCase);
-        if (className.Equals("light_rect", StringComparison.OrdinalIgnoreCase))
-            throw new NotSupportedException("light_rect's branch of FUN_180eea510 is not ported");
-        if (!barn && !omni)
+        var rect = className.Equals("light_rect", StringComparison.OrdinalIgnoreCase);
+        if (!barn && !omni && !rect)
             return [];
         var size = Vector3Key(key, "size_params", new Vector3(16f, 16f, 0.0625f));
         size = new Vector3(size.X <= 1f ? 1f : size.X, size.Y <= 1f ? 1f : size.Y, 0f <= size.Z ? size.Z : 0f);
         var range = Float(key, "range", 256f);
+        if (range <= 1f)
+            range = 1f;
+        var maxRange = (LightSampler.MaxCoord + LightSampler.MaxCoord) * 1.7320508f;
+        if (maxRange <= range)
+            range = maxRange;
         var shear = Vector3Key(key, "shear", Vector3.Zero);
         var skirtNear = Float(key, "skirt_near", 0f);
         var skirt = Float(key, "skirt", 0f);
@@ -103,17 +109,15 @@ public static class LightPrecompute
         if (omni)
         {
             var shape = Int(key, "shape", 0);
+            // Flags bit 1 (the brightness unit pass) takes shape 3 as a sphere.
+            if (units && shape == 3)
+                shape = 0;
             var outer = Float(key, "outer_angle", 180f);
             outer = outer <= 1f ? 1f : outer;
             outer = 180f <= outer ? 180f : outer;
             var inner = Float(key, "inner_angle", 180f);
             inner = inner <= 0f ? 0f : inner;
             inner = outer <= inner ? outer : inner;
-            if (range <= 1f)
-                range = 1f;
-            var max = (LightSampler.MaxCoord + LightSampler.MaxCoord) * 1.7320508f;
-            if (max <= range)
-                range = max;
             var length = shape is 3 or 0 ? 0f : size.Y;
             records = LightOmni.Frusta(split, range, outer, inner, length, skirt, 1f);
             foreach (var l in records)
@@ -124,18 +128,36 @@ public static class LightPrecompute
                     LightBuild.CapsuleLuminaire(l, size.X, size.Y, shape == 2);
             }
         }
+        else if (rect)
+        {
+            // FUN_180eea510's rect branch: LightOmni_Records at outer 90,
+            // inner 0, no length; shape 0 a rect luminaire, 1 a disc, of
+            // size_params' x and y.
+            var shape = Int(key, "shape", 0);
+            records = LightOmni.Frusta(split, range, 90f, 0f, 0f, skirt, 1f);
+            foreach (var l in records)
+            {
+                if (shape == 0)
+                    LightBuild.RectLuminaire(l, size.X, size.Y);
+                else if (shape == 1)
+                    LightBuild.DiscLuminaire(l, size.X, size.Y);
+            }
+        }
         else
         {
             records =
             [
                 LightBuild.Barn(size, range, new Vector2(shear.X, shear.Y), skirtNear, skirt,
                                 Float(key, "soft_x", 0.25f), Float(key, "soft_y", 0.25f), Float(key, "shape", 1f),
-                                Int(key, "luminaire_shape", 0), Float(key, "luminaire_size", 0f),
+                                // Flags bit 1 takes no luminaire as a disc.
+                                Int(key, "luminaire_shape", 0) is var ls && units && ls == 0 ? 1 : ls, Float(key, "luminaire_size", 0f),
                                 Float(key, "luminaire_anisotropy", 0f)),
             ];
         }
-        foreach (var l in records)
-            LightBuild.Transform(l, world);
+        // Flags bit 2 moves the records to the world; the unit pass leaves them local.
+        if (world is not null)
+            foreach (var l in records)
+                LightBuild.Transform(l, world);
         return records;
     }
 

@@ -42,13 +42,13 @@ public class LightRayProbe(ITestOutputHelper output)
         var p = spec.Split('|');
         if (MapFixtures.VmapSource(p[0], p[1]) is not { } source || MapFixtures.GameSchema() is not { } schema)
             return;
-        var document = DmxBinary.ReadFile(source);
+        var document = MapSource.Read(source);
         var scene = (EditorTraceScene)SettleLumpTests.LightScene(document, source)!;
         var walked = MapEntities.From(document);
         var (copies, _) = MapInstances.Expand(document, walked,
             SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators));
         var e = walked.Concat(copies.Select(c => walked[c.Template] with { NodeId = c.NodeId, Origin = c.Origin, Angles = c.Angles, Instanced = true }))
-            .First(x => x.NodeId == int.Parse(p[2]));
+            .First(x => p[2].Contains(':') ? x.IdPath == p[2] : x.NodeId == int.Parse(p[2]));
         string? Key(string name) => e.Keys.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value
                                     ?? schema.KeyOf(e.ClassName, name)?.Default;
         var record = int.Parse(p[3]);
@@ -75,6 +75,35 @@ public class LightRayProbe(ITestOutputHelper output)
                 inst.ObjectFlags = saved;
                 var text = $"{LightPrecompute.Vector(again.Box.Origin)} {LightPrecompute.Vector(again.Box.Extent)}";
                 output.WriteLine($"hide {inst.Source}: {text}{(text == target ? "  <== MATCH" : "")}");
+            }
+        }
+        // LIGHTRAY_TRISWEEP=<instance source>|<target box>: mask each triangle of that instance the rays hit, in turn.
+        if (Environment.GetEnvironmentVariable("LIGHTRAY_TRISWEEP") is { } triSpec)
+        {
+            var q = triSpec.Split('|');
+            var index = scene.Instances.ToList().FindIndex(x => x.Source == q[0]);
+            var inst = scene.Instances[index];
+            var hitTris = recorder.Rays.Where(r => r.Hit is { } h && h.Instance == index).Select(r => r.Hit!.Value.Triangle).Distinct().Order().ToList();
+            if (q.Length > 2 && q[2] == "pairs")
+                for (var i = 0; i < hitTris.Count; i++)
+                    for (var j = i + 1; j < hitTris.Count; j++)
+                    {
+                        var (a, b) = (inst.Flags[hitTris[i]], inst.Flags[hitTris[j]]);
+                        inst.Flags[hitTris[i]] |= 0x20;
+                        inst.Flags[hitTris[j]] |= 0x20;
+                        var again = LightTrace.Run(light, LightPrecompute.Rays, scene);
+                        (inst.Flags[hitTris[i]], inst.Flags[hitTris[j]]) = (a, b);
+                        var text = $"{LightPrecompute.Vector(again.Box.Origin)} {LightPrecompute.Vector(again.Box.Extent)}";
+                        output.WriteLine($"mask tris {hitTris[i]},{hitTris[j]}: {text}{(text == q[1] ? "  <== MATCH" : "")}");
+                    }
+            foreach (var tri in hitTris)
+            {
+                var saved = inst.Flags[tri];
+                inst.Flags[tri] = (ushort)(saved | 0x20);
+                var again = LightTrace.Run(light, LightPrecompute.Rays, scene);
+                inst.Flags[tri] = saved;
+                var text = $"{LightPrecompute.Vector(again.Box.Origin)} {LightPrecompute.Vector(again.Box.Extent)}";
+                output.WriteLine($"mask tri {tri}: {text}{(text == q[1] ? "  <== MATCH" : "")}");
             }
         }
         var sign = p[4].StartsWith('-') ? -1f : 1f;

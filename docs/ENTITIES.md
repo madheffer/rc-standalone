@@ -29,8 +29,20 @@ Open:
     for barn, rect and omni2 lights of direct light mode 3: the light is
     sampled as for its shape keys, and every vis cluster with a box
     overlapping the light's bounds and reached by one of its rays
-    (`LightVisClusters`) is listed, ascending. light_rect gets none from
-    the port (no record), and omni2 is not measured.
+    (`LightVisClusters`) is listed, ascending. omni2's is not measured.
+  - **light_rect** (2026-10-04): FUN_180eea510's rect branch is an omni
+    record at outer angle 90 and inner 0 with a rect (shape 0) or disc
+    (shape 1) luminaire of size_params' x and y; probe_classes' rect is
+    exact in every precomputed key.
+  - **Brightness units** (Light_SyncBrightnessUnits 180eee150, every
+    barn, rect and omni2): the record built with flags 2 (local, an omni's
+    shape 3 a sphere, a barn's luminaire 0 a disc) gives a scale, a
+    factor, a luminaire area and a solid angle (`LightUnits`); the
+    intensity comes from the unit brightness_units names and the other
+    units are written back through "%g": brightness (not for units 0),
+    lumens rounded (not 1), nits with an area (not 2), candelas with a
+    solid angle (not 4), legacy (not 3). An invalid unit gives intensity
+    0. Every barn, rect and omni2 of the lump specimens is exact.
   - **atixref:** 236 of 239 lights exact, key order included. Omni2 lights
     7306, 7318 and 7348 are each off by 0.01 to 0.03 on one cube face.
     Traced with `LightRayProbe`, 7306's face 4 comes down to single rays

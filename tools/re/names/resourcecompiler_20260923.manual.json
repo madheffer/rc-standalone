@@ -901,6 +901,42 @@
    "note": "the model's materials for the prop's LOD (+0x1e4) through its material group (+0x188); AddStaticProps sets prop +0x168 = 3, or 8 when one has NeedsLocalSpaceVertices (0x3b7ef4e7)"
   },
   {
+   "addr": "180eee150",
+   "name": "Light_SyncBrightnessUnits",
+   "module": "s2c:baked/light-keys",
+   "note": "flags-2 record; scale/factor/area/solid angle per class; writes brightness, lumens, nits, candelas, legacy by brightness_units (LightUnits.Sync)"
+  },
+  {
+   "addr": "180eed3c0",
+   "name": "Light_BrightnessFromUnits",
+   "module": "s2c:baked/light-keys",
+   "note": "0 exp2(brightness)*scale, 1 lumens/factor, 2 nits*area*pi*0.00064516/factor, 3 legacy*scale, 4 candelas*solid/factor"
+  },
+  {
+   "addr": "181298c00",
+   "name": "LightUnits_SolidAngle",
+   "module": "s2c:baked/light-keys",
+   "note": "pi for luminaire types 1, 2; the cone between two angles for 3 to 5"
+  },
+  {
+   "addr": "1812938f0",
+   "name": "LightUnits_LuminaireArea",
+   "module": "s2c:baked/light-keys",
+   "note": "by luminaire type (+0xec): triangles, ellipse, sphere, capsule"
+  },
+  {
+   "addr": "18129a6e0",
+   "name": "LightUnits_BarnScale",
+   "module": "s2c:baked/light-keys",
+   "note": "1 / (w / (sqrt(w) + d)^2) with w = +0x9c"
+  },
+  {
+   "addr": "1812918f0",
+   "name": "LightUnits_FrustumSolidAngle",
+   "module": "s2c:baked/light-keys",
+   "note": "barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal"
+  },
+  {
    "addr": "180255040",
    "name": "WRBNode_AssignEnvMaps",
    "module": "s2c:geometry/world-nodes",
@@ -4561,40 +4597,10 @@
    "note": "step matrix, then Light_LegacyDescription"
   },
   {
-   "addr": "180eee150",
-   "name": "Light_SyncBrightnessUnits",
-   "module": "s2c:baked/light-keys",
-   "note": "writes brightness and the other unit keys"
-  },
-  {
-   "addr": "180eed3c0",
-   "name": "Light_BrightnessFromUnits",
-   "module": "s2c:baked/light-keys",
-   "note": "intensity from brightness_units 0..4, else 0"
-  },
-  {
    "addr": "18129a6d0",
    "name": "LightUnits_Square",
    "module": "s2c:baked/light-keys",
    "note": "x * x"
-  },
-  {
-   "addr": "18129a6e0",
-   "name": "LightUnits_BarnScale",
-   "module": "s2c:baked/light-keys",
-   "note": "1 / (r / (sqrt(r) + d)^2) from record +0xc"
-  },
-  {
-   "addr": "1812938f0",
-   "name": "LightUnits_LuminaireArea",
-   "module": "s2c:baked/light-keys",
-   "note": "by luminaire type at +0xec"
-  },
-  {
-   "addr": "181298c00",
-   "name": "LightUnits_SolidAngle",
-   "module": "s2c:baked/light-keys",
-   "note": "pi for 1/2; 2 pi (1 - mean cos) for 3/4/5; else 0"
   },
   {
    "addr": "1800fe7b0",

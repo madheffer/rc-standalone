@@ -87,7 +87,9 @@ public class MaterialFlagsProbe(ITestOutputHelper output)
         output.WriteLine(info is null ? "not found" : $"shader {info.Shader}");
         var attributes = info is null ? MaterialAttributes.Empty : MaterialAttributes.Of(info, shaders, content.TextureSize);
         var flags = MeshEntryFlags.Compute(attributes, new MeshEntryFlags.Record(0, 0, 0, false, null, false));
-        output.WriteLine($"flags {flags.Flags:x} size {flags.Width}x{flags.Height}");
+        output.WriteLine($"flags {flags.Flags:x} size {flags.Width}x{flags.Height}, trace flags {TraceScene.MaterialFlags(info):x}");
+        if (info is not null)
+            output.WriteLine($"ints {string.Join(" ", info.Ints.Select(kv => $"{kv.Key}={kv.Value}"))}");
     }
 }
 
@@ -128,6 +130,116 @@ public class PrefabCountProbe(ITestOutputHelper output)
                 foreach (var g in d.Elements.Where(e => e.GetValue<int>("nodeID") is not null).GroupBy(e => e.Type))
                     output.WriteLine($"  {g.Key} {g.Count()}");
             }
+        }
+    }
+}
+
+/// <summary>
+/// Exploration (<c>PREFABLIGHT=&lt;map&gt;|&lt;light id path&gt;</c>): one light's
+/// precomputed keys traced against the editor scene with parts of the prefabs'
+/// contents left out, to find what Valve's scene holds there.
+/// </summary>
+public class PrefabLightProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Variants()
+    {
+        if (Environment.GetEnvironmentVariable("PREFABLIGHT") is not { } spec || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var p = spec.Split('|');
+        var source = MapFixtures.VmapSource("s2c_rc_probe", p[0])!;
+        var document = MapSource.Read(source);
+        var schema = MapFixtures.GameSchema();
+        var light = MapEntities.From(document).First(e => e.IdPath == p[1]);
+        var table = EntityLumpAuthor.KeyTable(light, schema);
+        string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        using var models = new SettleBuildTests.PakModels(pak, Path.Combine(game, "csgo_addons", "s2c_rc_probe"));
+        ushort Flags(string m) => TraceScene.MaterialFlags(models.Material(m));
+        var (meshes, entities) = MapMeshes.ReadWithEntities(document);
+        var variants = new (string Name, Func<MapMeshes.Mesh, bool> Mesh, Func<MapMeshes.EntityNode, bool> Prop)[]
+        {
+            ("all", _ => true, _ => true),
+            ("no prefab props", _ => true, n => n.PrefabChain.Count == 0),
+            ("no prefab instance meshes", m => !(m.PrefabChain.Count > 0 && m.Through.Count > 0), _ => true),
+            ("no prefab instance props", _ => true, n => !(n.PrefabChain.Count > 0 && n.Through.Count > 0)),
+            ("no prefab instance meshes or props", m => !(m.PrefabChain.Count > 0 && m.Through.Count > 0), n => !(n.PrefabChain.Count > 0 && n.Through.Count > 0)),
+            ("no hidden-free prefab meshes", m => m.PrefabChain.Count == 0, _ => true),
+            ("prefab only", m => m.PrefabChain.Count > 0, n => n.PrefabChain.Count > 0),
+            ("prefab meshes only, all props", m => m.PrefabChain.Count > 0, _ => true),
+        };
+        foreach (var (name, meshOk, propOk) in variants)
+        {
+            var scene = new EditorTraceScene([.. EditorTraceScene.MapMeshInstances(meshes.Where(meshOk), Flags),
+                                              .. EditorTraceScene.StaticPropInstances(entities.Where(propOk), models, Flags)]);
+            var keys = LightPrecompute.Keys(light.ClassName, Key, LightPrecompute.World(light.Origin, light.Angles), scene);
+            output.WriteLine($"{name}: " + string.Join("; ", keys.Where(k => k.Key.EndsWith('3')).Select(k => $"{k.Key}={k.Value}")));
+        }
+    }
+}
+
+/// <summary>Exploration (<c>MESHFACES=&lt;map&gt;|&lt;node id&gt;</c>): a map mesh's placement and its faces' materials and flags.</summary>
+public class MeshFacesProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Faces()
+    {
+        if (Environment.GetEnvironmentVariable("MESHFACES") is not { } spec)
+            return;
+        var p = spec.Split('|');
+        var document = MapSource.Read(MapFixtures.VmapSource("s2c_rc_probe", p[0])!);
+        foreach (var mesh in MapMeshes.Read(document).Where(m => m.NodeId == int.Parse(p[1])))
+        {
+            var node = mesh.Element!;
+            output.WriteLine($"mesh {mesh.NodeId}: parent {mesh.ParentType}, through {mesh.Through.Count}, prefabs {mesh.PrefabChain.Count}, hidden {mesh.Hidden}, disableShadows {node.GetValue<int>("disableShadows")}");
+            output.WriteLine($"  world {string.Join(" ", mesh.World.Select(v => v.ToString("F3")))}");
+            var data = node.Get<DmxBinary.Element>("meshData");
+            foreach (var kv in node.Attributes.Where(a => a.Value is string or int or bool or float))
+                output.WriteLine($"  {kv.Key} = {kv.Value}");
+            var materials = data?.Get<object?[]>("materials") ?? [];
+            output.WriteLine($"  materials: {string.Join(", ", materials)}");
+        }
+    }
+}
+
+/// <summary>Exploration (<c>ENTKEYS=&lt;addon&gt;|&lt;map&gt;|&lt;id path&gt;|&lt;filter&gt;</c>): an entity's key table (source keys, then class defaults).</summary>
+public class EntityKeysProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Keys()
+    {
+        if (Environment.GetEnvironmentVariable("ENTKEYS") is not { } spec)
+            return;
+        var p = spec.Split('|');
+        var document = MapSource.Read(MapFixtures.VmapSource(p[0], p[1])!);
+        var e = MapEntities.From(document).First(x => x.IdPath == p[2]);
+        foreach (var kv in EntityLumpAuthor.KeyTable(e, MapFixtures.GameSchema()).Where(k => k.Key.Contains(p.Length > 3 ? p[3] : "", StringComparison.OrdinalIgnoreCase)))
+            output.WriteLine($"key {kv.Key} = {kv.Value}{(e.Keys.Any(s => s.Key.Equals(kv.Key, StringComparison.OrdinalIgnoreCase)) ? "" : "  (default)")}");
+    }
+}
+
+/// <summary>Exploration (<c>SHADERDEFS=&lt;shader&gt;[,...]|&lt;name part&gt;[,...]</c>): the defaults a shader's programs declare for its variables.</summary>
+public class ShaderDefaultsProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Defaults()
+    {
+        if (Environment.GetEnvironmentVariable("SHADERDEFS") is not { Length: > 0 } spec)
+            return;
+        var parts = spec.Split('|');
+        var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game", "csgo");
+        using var package = new ValvePak.Package();
+        package.Read(Path.Combine(game, "shaders_pc_dir.vpk"));
+        foreach (var shader in parts[0].Split(',').SelectMany(x => new[] { x + "_pc_50_features", x + "_pc_50_vs", x + "_pc_50_ps" }))
+        {
+            var entry = package.FindEntry($"shaders/vfx/{shader}.vcs");
+            if (entry == null)
+                continue;
+            package.ReadEntry(entry, out var bytes);
+            using var program = new ValveResourceFormat.CompiledShader.VfxProgramData();
+            program.Read($"{shader}.vcs", new MemoryStream(bytes));
+            foreach (var v in program.VariableDescriptions.Where(v => parts[1].Split(',').Any(w => v.Name.Contains(w, StringComparison.OrdinalIgnoreCase))))
+                output.WriteLine($"{shader} {v.Name} {v.VfxType} i[{string.Join(",", v.IntDefs)}] f[{string.Join(",", v.FloatDefs)}] src {v.VariableSource}");
         }
     }
 }

@@ -62,6 +62,9 @@ public static class LightCrt
     /// <summary>cosf (tier0 V_cosf).</summary>
     public static float Cos(float x) => MathF.Cos(x);
 
+    /// <summary>sinf (tier0 V_sinf).</summary>
+    public static float Sin(float x) => MathF.Sin(x);
+
     /// <summary>sinf and cosf (tier0 V_sincosf).</summary>
     public static void SinCos(float x, out float sin, out float cos)
     {

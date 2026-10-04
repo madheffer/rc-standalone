@@ -119,7 +119,7 @@ public static partial class EntityLumpAuthor
     /// traced against the editor scene); then, with baked lighting, the shadow
     /// slot step (1800fe7b0) over every light, the world's own in walk order
     /// before the instance copies, reading the keys just written. A light the
-    /// port cannot shape (light_rect, capsule luminaires) gets none.
+    /// port cannot shape gets none.
     /// </summary>
     private static Dictionary<MapEntities.Entity, List<KeyValuePair<string, string>>> LightKeys(
         string mapPath, bool baked, IReadOnlyList<MapEntities.Entity> order, FgdSchema? schema, Maps.ILightTracer scene)
@@ -172,7 +172,7 @@ public static partial class EntityLumpAuthor
     /// WRB_PrecomputeLightVisMembership (180247d40): each light_barn,
     /// light_rect and light_omni2 whose direct light mode is 3 and that gets a
     /// record, traced again and measured against the vis cluster boxes. A
-    /// light the port cannot shape (light_rect) gets none.
+    /// light the port cannot shape gets none.
     /// </summary>
     private static Dictionary<MapEntities.Entity, int[]> LightVisMembership(IReadOnlyList<MapEntities.Entity> order,
         FgdSchema? schema, Maps.ILightTracer scene, List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[] boxes)
@@ -245,8 +245,8 @@ public static partial class EntityLumpAuthor
     /// one with a value gets <c>custom&lt;key&gt;</c> "1";</item>
     /// <item>brightness (FUN_180eee150): a legacy light, whose description has no
     /// unit factors, gets brightness_lumens "0" and brightness_legacy
-    /// "-nan(ind)"; a light whose brightness_units is outside 0 to 4 has no
-    /// intensity, so brightness is -inf and the other unit keys 0.</item>
+    /// "-nan(ind)"; a barn, rect or omni2 has its other units recomputed from
+    /// the one brightness_units names (<see cref="Maps.LightUnits.Sync"/>).</item>
     /// </list>
     /// </summary>
     private static void Preprocess(MapEntities.Entity entity, List<KeyValuePair<string, string>> table, FgdSchema? schema,
@@ -271,14 +271,12 @@ public static partial class EntityLumpAuthor
             Set(table, "brightness_lumens", "0");
             Set(table, "brightness_legacy", "-nan(ind)");
         }
-        else if (table.FirstOrDefault(k => k.Key.Equals("brightness_units", StringComparison.OrdinalIgnoreCase)).Value is { } units
-                 && CNumbers.Atoi(units) is < 0 or > 4)
+        else
         {
-            // No intensity: every unit key the class declares is 0 and brightness log2(0).
-            Set(table, "brightness", "-inf");
-            foreach (var key in new[] { "brightness_lumens", "brightness_nits", "brightness_candelas", "brightness_legacy" })
-                if (table.Any(k => k.Key.Equals(key, StringComparison.OrdinalIgnoreCase)))
-                    Set(table, key, "0");
+            // Light_SyncBrightnessUnits for barn, rect and omni2 (Maps.LightUnits).
+            string? Key(string name) => table.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+            foreach (var (key, value) in Maps.LightUnits.Sync(entity.ClassName, Key))
+                Set(table, key, value);
         }
     }
 

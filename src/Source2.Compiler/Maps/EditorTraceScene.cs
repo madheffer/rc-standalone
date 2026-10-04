@@ -81,9 +81,12 @@ public sealed class EditorTraceScene : ILightTracer
     /// meshes are placed here with the composed path in one step.
     /// </summary>
     public static List<Instance> MapMeshInstances(DmxBinary.Document doc, Func<string, ushort> materialFlags)
+        => MapMeshInstances(MapMeshes.Read(doc), materialFlags);
+
+    internal static List<Instance> MapMeshInstances(IEnumerable<MapMeshes.Mesh> meshes, Func<string, ushort> materialFlags)
     {
         var list = new List<Instance>();
-        foreach (var mesh in MapMeshes.Read(doc))
+        foreach (var mesh in meshes)
         {
             var node = mesh.Element!;
             uint flags = 0;

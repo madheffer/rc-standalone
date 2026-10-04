@@ -38,8 +38,6 @@ game can answer is raised with the user first, and runs with -insecure.
    both when a map needs them.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling: assumed, no counter-example.
-9. **Texcoord transform defaults** for parameters a material leaves out
-   (UV set 0, scale 1, rotation 0).
 10. **Hammer's re-projected texcoords and normals** (about 1e-5 off on some
     faces). They do not change a hull, but the source is not read.
 12. **VPK v2 layout** (tree order, chunk hashes, signature section): byte
@@ -143,7 +141,16 @@ game can answer is raised with the user first, and runs with -insecure.
     Mako). Suspected for atixref's omni2 lights 7306, 7318 and 7348 (one
     cube face each, 0.01 to 0.03): on 7306 the ray that decides lands on a
     prop box's corner edge, and hiding any one prop does not give Valve's
-    box (LightRayProbe, LIGHTRAY_SWEEP).
+    box (LightRayProbe, LIGHTRAY_SWEEP). The same kind on the prefab
+    probes: s2c_prefabprobe4's 7849, 7861, 7891 (atixref's three as
+    copies) and 8106; s2c_prefabprobe3's 1581 (small) and 2385, whose face
+    3 is far off (extent 545 against 702; ours blocks more). Settled for
+    2385 (2026-10-04): the scene's materials are not it, the per-material
+    flag words captured from Valve's map meshes (capture_matflags.py) are
+    ours, a missing material's 0 included; the outer map plays no part;
+    no single prop, triangle or triangle pair of mesh 5503 hidden gives
+    Valve's box (LIGHTRAY_TRISWEEP). Next: capture Valve's rays for one
+    face (RayScene_TracePacket 181c02a20) and diff them ray by ray.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.
@@ -301,6 +308,12 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ## Resolved
 
+- **Texcoord transform defaults** (ledger 9, settled 2026-10-04 from the
+  compiled shaders' variable defaults, ShaderDefaultsProbe): a parameter a
+  material leaves out takes the default its shader declares,
+  g_nUVSet1 to 3 = 1 (not 0 as assumed), g_nColorOverlayUVSet = 2,
+  g_vTexCoordScale* and g_vOverlayTexCoordScale = (1, 1), rotations 0, in
+  csgo_environment and csgo_environment_blend (MapMeshCorners.KeepsTexcoords).
 - **Static prop aggregates' meshlet cones** (ledger 36): the cone is
   computed before meshopt encodes the index buffer, and the codec may rotate
   a triangle's corners, which changes the cone's float sums. A capture of
