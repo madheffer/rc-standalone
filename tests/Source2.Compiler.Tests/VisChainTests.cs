@@ -27,13 +27,18 @@ public class VisChainTests(ITestOutputHelper output)
         // tools/vis/capture_merge.py's capture (<map>.bin), run on that
         // compile's scene (<map>.merge.rte); the post-assignment stages are
         // then compared only when both compiles traced the same .rte.
-        var merge = Environment.GetEnvironmentVariable("VISCHAIN_MERGE") == "1";
-        var passes = merge ? MergePasses(Path.Combine(Path.GetTempPath(), "vis_capture", map + ".bin")) : null;
+        // VISCHAIN_MERGE=1 reads <map>.bin; any other value names the capture's
+        // stem (capture_merge.py --passes --out <stem>.bin: entries and exits).
+        var mergeSpec = Environment.GetEnvironmentVariable("VISCHAIN_MERGE");
+        var merge = mergeSpec is { Length: > 0 };
+        var mergeStem = mergeSpec == "1" ? map : mergeSpec;
+        var passes = merge ? MergePasses(Path.Combine(Path.GetTempPath(), "vis_capture", mergeStem + ".bin")) : null;
         var pvsComparable = true;
         if (merge)
         {
-            pvsComparable = File.ReadAllBytes(scene + ".rte").AsSpan().SequenceEqual(File.ReadAllBytes(scene + ".merge.rte"));
-            scene += ".merge";
+            var mergeScene = Path.Combine(Path.GetTempPath(), "vis_capture", mergeStem + ".merge");
+            pvsComparable = File.ReadAllBytes(scene + ".rte").AsSpan().SequenceEqual(File.ReadAllBytes(mergeScene + ".rte"));
+            scene = mergeScene;
         }
         var rte = RayTraceEnvironment.ReadFile(scene + ".rte");
         var config = VisConfig.Read(scene + ".viscfg");
@@ -72,7 +77,7 @@ public class VisChainTests(ITestOutputHelper output)
                     var why = FirstDifference(sets, theirs);
                     Say($"merge pass {pass}: {sets.Count:n0}/{theirs.Count:n0} sets, {sets.Sum(x => x.Clusters.Count):n0}/{theirs.Sum(x => x.Count):n0} clusters, {why ?? "same"}");
                     if (why != null)
-                        throw new Parted(pass == 0 ? "cluster generation (merge pass 0's entry)" : $"merge pass {pass - 1}");
+                        throw new Parted(pass == 0 ? "cluster generation (merge pass 0's entry)" : $"merge pass {pass - 1} (its exit)");
                     break;
                 }
                 case "assign":
@@ -157,7 +162,8 @@ public class VisChainTests(ITestOutputHelper output)
                 break;
             var blob = reader.ReadBytes(blobLength);
             var head = System.Text.Json.JsonDocument.Parse(headBytes).RootElement;
-            if (head.GetProperty("ev").GetString() != "pass" || !head.TryGetProperty("scene", out _))
+            var ev = head.GetProperty("ev").GetString();
+            if (ev is not ("pass" or "passout"))
                 continue;
             var sets = new List<List<VisMerge.Cluster>>();
             for (var at = 0; at < blob.Length;)
@@ -166,7 +172,9 @@ public class VisChainTests(ITestOutputHelper output)
                 sets.Add(VisMergeReplay.Clusters(blob[(at + 8)..(at + 8 + length)]));
                 at += 8 + length;
             }
-            found[head.GetProperty("pass").GetInt32()] = sets;
+            // A pass's exit is the next one's entry; the fifth's is index 5.
+            var index = head.GetProperty("pass").GetInt32() + (ev == "passout" ? 1 : 0);
+            found.TryAdd(index, sets);
         }
         return found;
     }

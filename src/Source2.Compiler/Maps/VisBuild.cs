@@ -44,6 +44,7 @@ public static class VisBuild
         var pre = VisPreMerge.Run(sets);
         VisClusterSet.MergeAll(rte, sets, VisClusters.PassTarget(tree, compact), VisClusters.Cubes(tree, compact),
                                entering: inspect == null ? null : (pass, at) => inspect("merge-pass", (pass, at)));
+        inspect?.Invoke("merge-pass", (VisClusterSet.Passes.Length, (IReadOnlyList<VisClusterSet.Set>)sets));
         stage?.Invoke("merge");
         var collapsedRegions = VisRegions.Collapse(regions, inside.Regions);
         var assigned = VisAssign.Run(sets, compact.Leaves.Count, collapsedRegions, _ => true);

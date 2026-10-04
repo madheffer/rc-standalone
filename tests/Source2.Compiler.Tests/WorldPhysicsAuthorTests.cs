@@ -264,6 +264,27 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                 output.WriteLine($"meshcmp  theirs-only {v:R} near ours {ours.MinBy(o => Vector3.DistanceSquared(o, v)):R} ({owner.GetValueOrDefault(ours.MinBy(o => Vector3.DistanceSquared(o, v)), "?")})");
             return;
         }
+        // WPBUILD_SOUPS=1: each mesh soup's name, surface index and triangle count, Valve's and ours.
+        if (Environment.GetEnvironmentVariable("WPBUILD_SOUPS") == "1")
+        {
+            foreach (var (label, bytes) in new[] { ("valve", valve), ("ours", mine) })
+            {
+                var meshes = Trees(bytes)["PHYS"]["m_parts"]![0]!["m_rnShape"]!["m_meshes"]!;
+                var surfaces = Trees(bytes)["PHYS"]["m_surfacePropertyHashes"]!;
+                var rows = new List<string>();
+                for (var i = 0; i < meshes.Count; i++)
+                {
+                    var m = meshes[i]!;
+                    var tris = m["m_Mesh"]!["m_Triangles"]!.AsBlob().Length / 12;
+                    var name = m["m_UserFriendlyName"]?.ToString() ?? "";
+                    rows.Add($"{(name.Length > 60 ? name[..60] + "..." : name)} | surface {m["m_nSurfacePropertyIndex"]} | attr {m["m_nCollisionAttributeIndex"]} | {tris} tris");
+                }
+                output.WriteLine($"soups {label}: {meshes.Count}");
+                foreach (var g in rows.GroupBy(r => r).OrderByDescending(g => g.Count()).Take(25))
+                    output.WriteLine($"  {label} {g.Count()}x {g.Key}");
+            }
+            return;
+        }
         // WPBUILD_TRICMP=<soup>: triangles (as sorted corner triples) only one
         // side has, with the piece (node/material) owning their corners on ours.
         if (Environment.GetEnvironmentVariable("WPBUILD_TRICMP") is { Length: > 0 } triText)

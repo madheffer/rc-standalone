@@ -458,3 +458,36 @@ public class SubdividedMeshProbe(ITestOutputHelper output)
         output.WriteLine($"{all.Count} meshes; with levels > 0: " + string.Join(" ", all.Where(c => c.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("subdivisionData")?.Get<object?[]>("subdivisionLevels") is { } l && l.Any(x => x is int i && i > 0)).Select(c => c.GetValue<int>("nodeID"))));
     }
 }
+
+/// <summary>Exploration (<c>BLENDS=&lt;addon&gt;|&lt;map&gt;</c>): every material the map's meshes use, with its shader, layer keys and the blend layers the physics reader takes.</summary>
+public class BlendMaterialsProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Materials()
+    {
+        if (Environment.GetEnvironmentVariable("BLENDS") is not { } spec)
+            return;
+        var p = spec.Split('|');
+        var game = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game";
+        using var models = new SettleBuildTests.PakModels(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", p[0]));
+        var doc = MapSource.Read(MapFixtures.VmapSource(p[0], p[1])!);
+        // Meshes with a paint stream, in the map and its prefabs' maps.
+        var docs = new List<DmxBinary.Document> { doc };
+        docs.AddRange(doc.OfType("CMapPrefab").Select(e => e.Get<DmxBinary.Document>(MapPrefabs.DocumentKey)).OfType<DmxBinary.Document>());
+        bool Painted(DmxBinary.Element m) => m.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams").Any(st => st.Name.StartsWith("VertexPaintBlendParams", StringComparison.Ordinal)) == true;
+        var names = docs.SelectMany(d => d.OfType("CMapMesh")).Where(Painted).SelectMany(m => m.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).OfType<string>().Distinct(Source2.Compiler.Io.Tier0Strings.IgnoreCase).OrderBy(x => x, StringComparer.Ordinal);
+        foreach (var name in names)
+        {
+            var info = models.Material(name);
+            if (info == null)
+            {
+                output.WriteLine($"{name}: missing");
+                continue;
+            }
+            var physics = Physics.WorldCollision.ReadMaterial(info, models.CollisionProperty);
+            output.WriteLine($"{name}: shader {info.Shader}; " + string.Join(", ", info.Strings.Where(kv => kv.Key.StartsWith("PhysicsSurface", StringComparison.OrdinalIgnoreCase)).Select(kv => $"{kv.Key}={kv.Value}"))
+                + $"; F: {string.Join(" ", info.Params.Where(kv => kv.Key.StartsWith("F_", StringComparison.Ordinal) && kv.Value != 0).Select(kv => $"{kv.Key}={kv.Value}"))}"
+                + $"; layers -> {(physics.Blend == null ? "none" : string.Join("/", physics.Blend.Surfaces) + $" (count {physics.Blend.LayerCount})")}");
+        }
+    }
+}

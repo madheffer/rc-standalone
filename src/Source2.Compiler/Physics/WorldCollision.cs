@@ -82,7 +82,7 @@ public static class WorldCollision
     /// <summary>
     /// The vertex paint flags a shader declares, as attributes of its
     /// programs, for a material's feature settings. Read from CS2's compiled
-    /// shaders (1.41.8.4): only these four declare any of them, and none
+    /// shaders (1.41.8.4, rescanned on 1.41.8.8): only these six declare any of them, and none
     /// declares <c>VertexPaintHeightBlend</c>, <c>VertexPaintLayerCount</c>
     /// or the flag that swaps the first and third channels (key 0xad12291a).
     /// </summary>
@@ -92,6 +92,10 @@ public static class WorldCollision
         return Path.GetFileNameWithoutExtension(shader).ToLowerInvariant() switch
         {
             "csgo_simple_2way_blend" => (2, false, false),
+            // Rescanned on 1.41.8.8 (SHADERATTR=*): both declare their layer
+            // flag in every static combo (VertexPaintUI2Layer, VertexPaintUI4Layer).
+            "csgo_lightmappedgeneric" => (2, false, false),
+            "csgo_lightmapped_4wayblend" => (4, false, false),
             "csgo_environment_blend" => (On("F_ENABLE_LAYER_3") ? 3 : 2, On("F_WETNESS"), true),
             "csgo_environment" => (1, On("F_WETNESS"), false),
             "csgo_water_fancy" => (4, false, false),
