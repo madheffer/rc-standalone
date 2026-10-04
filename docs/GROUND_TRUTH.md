@@ -34,15 +34,18 @@ game can answer is raised with the user first, and runs with -insecure.
    specimen takes; an edge between two coincident vertices (the edge
    collapse, 181382170) stops the build.
 49. **Faces of instanced meshes in world physics** (c2m2_fairgrounds_csgo_multi,
-    _prenodraw, _preskybox, c2m3_coaster_d_d): Valve drops 3-corner faces
-    that are degenerate in the mesh's own space (error-model props placed
-    through an instance with a rotation and a large translation), where we
-    keep them (about 2,660 slivers). Cutting instanced meshes in their own
-    space and triangulating 3-corner faces too brings the difference from
-    2,664 + 28 triangles to 72 + 38 but breaks a few quads, so it is not
-    the rule. Needs a capture of physicsbuilder's input pieces on one of
-    these maps (capture_physshapes.py, whose addresses must first be moved
-    to the 1.41.8.8 build).
+    _prenodraw, _preskybox, c2m3_coaster_d_d). Captured 2026-10-05
+    (capture_physshapes.py --dump on multi, WPBUILD_SHAPECAP): the part's
+    4,436 shapes line up with our pieces in order; 873 differ, every one an
+    instance copy of the same error-model mesh (models/dev/materialforerrormodel,
+    2,217 triangle faces), where Valve's shape has 7 triangles and 7 vertices
+    fewer (2,611 / 6,630 against 2,618 / 6,651). The 7 are collinear slivers
+    whose vertices no other face uses; Valve has no triangle we lack. Not the
+    rule: an exact zero cross product in own space (drops 3 of the 7 and a
+    zero-area face Valve keeps on plain node 235), nor a repeated directed
+    edge. The export's face walk (1812e8890) and TriangulateFace (181310a90)
+    filter nothing, so the copy's half-edge mesh already lacks them: the
+    instance collapse is the next thing to capture (the copy's face count).
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index

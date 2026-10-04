@@ -1,3 +1,4 @@
+using System.Numerics;
 using ValvePak;
 using ValveResourceFormat;
 using Xunit;
@@ -127,6 +128,25 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
                     output.WriteLine($"{model.Path} ({model.ClassName}): ours {(model.PhysicsOnly ? "physics only" : "with render")} {model.Physics.Hulls.Count} hulls, Valve's {string.Join(" ", res.Blocks.Select(b => b.Type))}; meshes {string.Join("; ", meshes)}");
                 }
                 continue;
+            }
+            // ENTBUILD_HULLMATCH=<path part>: that model's hulls matched to Valve's by
+            // vertex set; the ones only one side has, with their size and box.
+            if (Environment.GetEnvironmentVariable("ENTBUILD_HULLMATCH") is { Length: > 0 } hm && model.Path.Contains(hm, StringComparison.Ordinal))
+            {
+                var theirHulls = ((ValveResourceFormat.ResourceTypes.Model)res.DataBlock!).GetEmbeddedPhys()!.Parts[0].Shape.Hulls
+                    .Select(h => h.Shape.GetVertexPositions().ToArray()).ToList();
+                var ourHulls = model.Physics.Hulls.Select(h => h.Hull!.VertexPositions.ToArray()).ToList();
+                static string Key(IEnumerable<Vector3> v) => string.Join(";", v.Select(p => $"{p.X:R},{p.Y:R},{p.Z:R}").Order(StringComparer.Ordinal));
+                var theirKeys = theirHulls.Select(Key).ToList();
+                var ourKeys = ourHulls.Select(Key).ToList();
+                static string Box(Vector3[] v) => $"{v.Length} verts {v.Aggregate(Vector3.Min)}-{v.Aggregate(Vector3.Max)}";
+                output.WriteLine($"hullmatch {model.Path}: ours {ourHulls.Count}, Valve {theirHulls.Count}, matched {ourKeys.Count(theirKeys.Contains)}");
+                for (var i = 0; i < ourHulls.Count; i++)
+                    if (!theirKeys.Contains(ourKeys[i]))
+                        output.WriteLine($"  ours only {i}: {Box(ourHulls[i])}");
+                for (var i = 0; i < theirHulls.Count; i++)
+                    if (!ourKeys.Contains(theirKeys[i]))
+                        output.WriteLine($"  Valve only {i}: {Box(theirHulls[i])}");
             }
             if (!model.PhysicsOnly)
             {

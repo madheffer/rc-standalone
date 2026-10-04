@@ -24,13 +24,14 @@ import argparse
 import json
 import os
 import sys
+import shutil
 import struct
 import subprocess
 import threading
 
 import frida
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
-from rva_map import require  # noqa: E402
+from rva_map import installed  # noqa: E402
 
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
@@ -117,7 +118,7 @@ function cmesh(p) {
 function hookBlend() {
   const pb = Process.findModuleByName('physicsbuilder.dll');
   if (pb === null) { setTimeout(hookBlend, 5); return; }
-  Interceptor.attach(pb.base.add(0x15930), {
+  Interceptor.attach(pb.base.add(PB_15930), {
     onEnter(args) {
       const t = args[0];
       this.out = args[1];
@@ -138,7 +139,7 @@ function hookBlend() {
       send({blend: 'out', meshes: meshes});
     }
   });
-  Interceptor.attach(pb.base.add(0x64c460), {
+  Interceptor.attach(pb.base.add(PB_64C460), {
     onEnter(args) {
       this.samples = args[4];
       const g = [0xe2a200, 0xe2a188, 0xe2a250, 0xe2a350].map(o => pb.base.add(o).readPointer().toString());
@@ -156,13 +157,13 @@ function hookBlend() {
   // The sampler's read-back (18064d790: count, RGB8 bytes, weights out) and
   // its vertex records (18064e530: count, 0x58-byte samples, 40-byte records
   // out, three per sample): the render's ground truth.
-  Interceptor.attach(pb.base.add(0x64d790), {
+  Interceptor.attach(pb.base.add(PB_64D790), {
     onEnter(args) {
       const n = args[0].toInt32();
       send({sampler: 'pixels', count: n, rgb: hex(args[1].readByteArray(n * 3))});
     }
   });
-  Interceptor.attach(pb.base.add(0x64e530), {
+  Interceptor.attach(pb.base.add(PB_64E530), {
     onEnter(args) { this.n = args[0].toInt32(); this.out = args[2]; },
     onLeave() { send({sampler: 'records', count: this.n, data: hex(this.out.readByteArray(this.n * 3 * 40))}); }
   });
@@ -215,16 +216,24 @@ def main():
     p.add_argument("--blend", action="store_true", help="also record physicsbuilder's blend splits (mesh in, meshes out) and its material sampler")
     p.add_argument("--vulkan", action="store_true", help="compile with -vulkan (resourcecompiler otherwise renders the material sampler through rendersystemdx11)")
     a = p.parse_args()
-    # Literal 0924 addresses below: refuse a build that moved them.
-    require("physicsbuilder", [0x15930, 0x64c460, 0x64d790, 0x64e530])
+    # The analysis builds' addresses (rc 0923, physicsbuilder 0924), mapped to
+    # the installed build; installed() refuses a function that changed.
+    pb = {a: installed("physicsbuilder", a) for a in (0x15930, 0x64c460, 0x64d790, 0x64e530)}
+    rc = {a: installed("resourcecompiler", a) for a in (GATHER_RVA, INSERT_RVA, *MESHBUILD_RVA)}
     if busy():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
     if low_disk():
         raise SystemExit("under 10 GB free on the game drive; not starting")
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
-    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
+    # A partial build under -f fails ("partial map compile in a full
+    # force-build"), and RC skips a map whose .vpk is current, so the .vpk is
+    # moved aside for the compile and put back after.
+    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
     if not a.full:
-        argv += ["-world", "-fshallow"]
+        argv += ["-world", "-phys", "-fshallow"]
+    vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
+    if os.path.exists(vpk):
+        shutil.move(vpk, vpk + ".capture_backup")
     if a.vulkan:
         argv.append("-vulkan")
     calls = []
@@ -262,8 +271,11 @@ def main():
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    agent = (AGENT.replace("INSERT", hex(INSERT_RVA)).replace("RVA", hex(GATHER_RVA)).replace("RNMESH", "true" if rn else "false").replace("DUMP", "true" if a.dump else "false").replace("BLEND", "true" if a.blend else "false")
-             .replace("MB0", hex(MESHBUILD_RVA[0])).replace("MB1", hex(MESHBUILD_RVA[1])))
+    agent = AGENT
+    for addr, at in pb.items():
+        agent = agent.replace("PB_%X" % addr, hex(at))
+    agent = (agent.replace("INSERT", hex(rc[INSERT_RVA])).replace("RVA", hex(rc[GATHER_RVA])).replace("RNMESH", "true" if rn else "false").replace("DUMP", "true" if a.dump else "false").replace("BLEND", "true" if a.blend else "false")
+             .replace("MB0", hex(rc[MESHBUILD_RVA[0]])).replace("MB1", hex(rc[MESHBUILD_RVA[1]])))
     sc = ses.create_script(agent)
     sc.on("message", on_message)
     sc.load()
@@ -271,6 +283,8 @@ def main():
     ses.on("detached", lambda *x: done.set())
     dev.resume(pid)
     done.wait()
+    if os.path.exists(vpk + ".capture_backup"):
+        shutil.move(vpk + ".capture_backup", vpk)
     if rn:
         rn.close()
     with open(a.out, "w", encoding="utf-8") as fh:

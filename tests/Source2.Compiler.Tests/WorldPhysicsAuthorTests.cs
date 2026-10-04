@@ -98,6 +98,69 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             output.WriteLine("nodeattr face materials: " + string.Join(",", fm.GroupBy(x => x).Select(g => $"{g.Key}x{g.Count()}")));
             return;
         }
+        // WPBUILD_SHAPECAP=<capture_physshapes.py json>: the world part's shapes as
+        // Valve's gatherer saw them, against our pieces in part order: type,
+        // vertex and index counts and the first vertex, the first differences.
+        if (Environment.GetEnvironmentVariable("WPBUILD_SHAPECAP") is { Length: > 0 } capPath2)
+        {
+            var pieces = Physics.WorldCollision.Pieces(doc, name => Physics.WorldCollision.ReadMaterial(name, models.Material, models.CollisionProperty),
+                null, gpu == null ? null : gpu.For, models.Physics, models.SmartProp, models.CollisionProperty);
+            var ordered = Physics.WorldCollision.PartOrder(pieces, x => x.Type);
+            var calls = System.Text.Json.JsonDocument.Parse(File.ReadAllText(capPath2)).RootElement.EnumerateArray()
+                .Where(c => c.TryGetProperty("shapes", out _)).ToList();
+            var world = calls.MaxBy(c => c.GetProperty("count").GetInt32());
+            var shapes = world.GetProperty("shapes").EnumerateArray().ToList();
+            output.WriteLine($"shapecap: Valve {shapes.Count} shapes ({shapes.Count(s => s.GetProperty("type").GetInt32() == 3)} meshes), ours {ordered.Count} ({ordered.Count(p => p.Type == Physics.WorldCollision.MeshType)} meshes)");
+            int shown2 = 0, differing = 0;
+            for (var i = 0; i < Math.Min(shapes.Count, ordered.Count); i++)
+            {
+                var s = shapes[i];
+                var p2 = ordered[i];
+                var type = s.GetProperty("type").GetInt32();
+                string ourShape = p2.Type == Physics.WorldCollision.MeshType ? $"type {p2.Type} v {p2.Points.Length} i {p2.Indices.Length} v0 {p2.Points.FirstOrDefault()}" : $"type {p2.Type}";
+                string theirs = type == 3 ? $"type 3 v {s.GetProperty("vertices").GetInt32()} i {s.GetProperty("indices").GetInt32()} v0 "
+                    + (s.TryGetProperty("v0", out var v0) ? $"<{string.Join(", ", v0.EnumerateArray().Select(x => x.GetSingle()))}>" : $"? ({(s.TryGetProperty("err", out var err) ? err.GetString() : "")})") : $"type {type}";
+                if (ourShape == theirs)
+                    continue;
+                differing++;
+                if (shown2++ < 25)
+                    output.WriteLine($"  shape {i}: valve {theirs} | ours {ourShape} node {p2.NodeId} {p2.MaterialName}");
+                // With --dump: the first such mesh's triangles only one side has.
+                if (shown2 == 2 && type == 3 && s.TryGetProperty("vdata", out var vd) && s.TryGetProperty("idata", out var id))
+                {
+                    var vb = Convert.FromHexString(vd.GetString()!);
+                    var ib = Convert.FromHexString(id.GetString()!);
+                    Vector3 VP(int k) => new(BitConverter.ToSingle(vb, k * 12), BitConverter.ToSingle(vb, k * 12 + 4), BitConverter.ToSingle(vb, k * 12 + 8));
+                    static string Tri(Vector3 a, Vector3 b, Vector3 c) => string.Join(" | ", new[] { a, b, c }.Select(v => $"{v.X:R},{v.Y:R},{v.Z:R}").Order(StringComparer.Ordinal));
+                    var valveTris = Enumerable.Range(0, ib.Length / 12).Select(t => Tri(VP(BitConverter.ToInt32(ib, t * 12)), VP(BitConverter.ToInt32(ib, t * 12 + 4)), VP(BitConverter.ToInt32(ib, t * 12 + 8)))).ToList();
+                    var ourTris = Enumerable.Range(0, p2.Indices.Length / 3).Select(t => Tri(p2.Points[p2.Indices[t * 3]], p2.Points[p2.Indices[t * 3 + 1]], p2.Points[p2.Indices[t * 3 + 2]])).ToList();
+                    var valveSet = valveTris.ToHashSet();
+                    var ourSet = ourTris.ToHashSet();
+                    // Whether a triangle repeats a directed edge an earlier one used, or
+                    // whether an earlier one used its edge reversed twice already.
+                    var directed = new Dictionary<(int, int), int>();
+                    var repeats = new bool[ourTris.Count];
+                    for (var t = 0; t < ourTris.Count; t++)
+                    {
+                        int a0 = p2.Indices[t * 3], b0 = p2.Indices[t * 3 + 1], c0 = p2.Indices[t * 3 + 2];
+                        foreach (var e in new[] { (a0, b0), (b0, c0), (c0, a0) })
+                        {
+                            if (directed.ContainsKey(e))
+                                repeats[t] = true;
+                            directed[e] = t;
+                        }
+                    }
+                    output.WriteLine($"    triangles repeating a directed edge: {string.Join(",", Enumerable.Range(0, ourTris.Count).Where(t => repeats[t]))}");
+                    for (var t = 0; t < ourTris.Count; t++)
+                        if (!valveSet.Contains(ourTris[t]))
+                            output.WriteLine($"    ours only tri {t}: {ourTris[t]} indices {p2.Indices[t * 3]},{p2.Indices[t * 3 + 1]},{p2.Indices[t * 3 + 2]}");
+                    foreach (var t in valveTris.Where(x => !ourSet.Contains(x)).Take(10))
+                        output.WriteLine($"    valve only tri: {t}");
+                }
+            }
+            output.WriteLine($"shapecap: {differing} shapes differ");
+            return;
+        }
         // WPBUILD_LISTED=1: every piece in the part's order (rc 180c28150) with its
         // material and surface property, beside RED2's surface_prop list, which
         // CompilePhysics (18032e3e0) fills from each part's shapes' +0xf0 in order.
@@ -173,7 +236,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             var (meshes, _) = Maps.MapMeshes.ReadWithEntities(doc);
             foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId)))
                 output.WriteLine($"meshinfo {m.NodeId}: {m.ParentType}/{m.ParentClass} prefabs [{string.Join(",", m.Prefabs)}] world [{string.Join(" ", m.World.Select(x => x.ToString("R")))}] instances [{string.Join(",", m.Instances)}] physics {m.Element?.Get<string>("physicsType")} origin {m.Origin} angles {m.Angles} scales {m.Scales}");
-            foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId) && m.Instances.Length == 0).DistinctBy(m => m.NodeId))
+            foreach (var m in meshes.Where(m => wanted.Contains(m.NodeId)).DistinctBy(m => m.Element))
                 foreach (var piece in Physics.BrushHulls.PiecesWithCorners(m.Element!, doc.OfType("CMapWorld").First()))
                 {
                     var (pts, tris) = Physics.BrushHulls.TriangleMesh(piece.Positions, piece.Faces, piece.Local, piece.CornerIds);
