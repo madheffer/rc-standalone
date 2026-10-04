@@ -33,30 +33,6 @@ game can answer is raised with the user first, and runs with -insecure.
    wrapper's vertex merge is ported (see Resolved) for the two paths a
    specimen takes; an edge between two coincident vertices (the edge
    collapse, 181382170) stops the build.
-49. **Faces of instanced meshes in world physics** (c2m2_fairgrounds_csgo_multi,
-    _prenodraw, _preskybox, c2m3_coaster_d_d). Settled 2026-10-05 by capture:
-    CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces (rc 1810d9ca0), which
-    drops every face the polygon triangulator cannot cut whole on the mesh's
-    own positions (1813a5ec0), triangles included; tools/physics/
-    capture_heremovals.py counted 6,111 removals = 873 error-model copies x 7
-    slivers, and with the rule (MapMeshCorners) every one of the multi's
-    4,436 part shapes matches Valve's (capture_physshapes.py, WPBUILD_SHAPECAP)
-    and our RnMesh builder reproduces all 12,322 RnMeshCreate calls
-    (capture_rnmesh.py, RnMeshReplay). Left: 34 triangles sit in soup 0 for us
-    and in the attribute-9 soup for Valve (wrongway/toolsnodraw meshes 576-580,
-    755, 756 against fire_extinguisher props), on all four maps. Valve gives
-    those quads the attribute a translucent material registers. wrongway is
-    csgo_unlitgeneric, whose "translucent" is S_BLEND_MODE 1 or 3 to 6
-    (ShaderAttributeProbe, all 16 combos of the rest each): ported, 26 of the
-    34 placed. The other 8 were folder-less sign01 quads: the addon-root
-    sign01.vmat_c is csgo_static_overlay, which is translucent on the same
-    blend modes (our table had it always translucent; tol_hearts01 and
-    rubbledecal001, blend mode 0, are not). With the map builder reading root
-    materials for the collision side (physicsbuilder still logs them missing,
-    so surface and layers stay default) every triangle sits in Valve's soup.
-    Left on the four maps: per-triangle material order inside soup 0 (84,
-    536, 127 values), from the order faces leave RemoveBadFaces in: removal is
-    swap-last (HalfEdge_ContainerRemove 1813995a0), which reorders the export.
 7. **Collision names registered by the game** (csgo_*) keep the model's
    spelling. Read (2026-10-04): physicsbuilder's attribute strings
    (180153d40) come from vphysics2's CNameIndex by index, and the index
@@ -345,6 +321,18 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ## Resolved
 
+- **Faces of instanced meshes in world physics** (ledger 49, settled
+  2026-10-05 by capture). CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces
+  (rc 1810d9ca0): a face the polygon triangulator cannot cut whole on the
+  mesh's own positions (1813a5ec0) is removed, triangles included
+  (capture_heremovals.py: 6,111 = 873 error-model copies x 7 slivers on
+  c2m2_fairgrounds_csgo_multi), and removal is swap-last (1813995a0), so the
+  export walks the faces in that changed order. With csgo_unlitgeneric and
+  csgo_static_overlay translucent only on blend modes 1 and 3 to 6, and
+  folder-less materials read from the addon root for the collision side
+  (physicsbuilder's surface read still logs them missing), world physics is
+  whole-file exact on all 17 corpus maps, multi, prenodraw, preskybox and
+  c2m3_coaster_d_d included.
 - **A prefab the visibility manager hides** (2026-10-05, c2m3_coaster_d_d
   against Valve's compile): its contents still compile. Valve's lump carries
   hidden prefab 2's entities (hammerUniqueId 2:123 and on) and their 16

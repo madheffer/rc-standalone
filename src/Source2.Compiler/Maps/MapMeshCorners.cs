@@ -108,7 +108,7 @@ internal static class MapMeshCorners
         // material), in that order (atixref node 1109: biases -3 to 0, each
         // run in material index order), so one material can make several pieces.
         var byMaterial = new SortedDictionary<(int Bias, int Material), (List<float> V, List<int> I, List<int> Ids, List<int> Data)>();
-        for (var f = 0; f < first.Length; f++)
+        List<int> Loop(int f)
         {
             var loop = new List<int>();
             var e = first[f];
@@ -117,6 +117,31 @@ internal static class MapMeshCorners
                 loop.Add(e);
                 e = next[e];
             } while (e != first[f] && loop.Count <= next.Length);
+            return loop;
+        }
+        // The face order the export walks. RemoveBadFaces (1810d9ca0) visits the
+        // faces by handle and removes each bad one through HalfEdge_ContainerRemove
+        // (1813995a0), which moves the last face into the freed slot; the export
+        // then walks the slots (c2m2_fairgrounds_csgo_multi: with this, world
+        // physics whole-file exact).
+        var order = Enumerable.Range(0, first.Length).ToList();
+        {
+            var slot = Enumerable.Range(0, first.Length).ToArray();
+            for (var f = 0; f < first.Length; f++)
+            {
+                var l = Loop(f);
+                if (l.Count >= 3 && PolygonTriangulator.Triangulate([.. l.Select(x => (Vector3)positions![vertexData[to[x]]]!)]).Length == (l.Count - 2) * 3)
+                    continue;
+                var at = slot[f];
+                var last = order[^1];
+                order[at] = last;
+                slot[last] = at;
+                order.RemoveAt(order.Count - 1);
+            }
+        }
+        foreach (var f in order)
+        {
+            var loop = Loop(f);
             if (loop.Count < 3)
                 continue;
             var local = loop.Select(x => (Vector3)positions![vertexData[to[x]]]! * scales).ToArray();
