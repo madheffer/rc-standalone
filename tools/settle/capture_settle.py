@@ -64,6 +64,7 @@ def rebase_tables(js):
 AGENT = r"""
 'use strict';
 let step = 0;
+const SETTLE_ONLY = %(settle_only)s;   // --settle-only: probes skip what holds the compile past the settle
 let inSettle = false;
 var onStep = null, onSettleEnd = null, onSettleStart = null;
 function blob(name, ptr, size) {
@@ -139,6 +140,7 @@ def main():
     parser.add_argument("map")
     parser.add_argument("--out")
     parser.add_argument("--agent", help="extra JS appended to the agent")
+    parser.add_argument("--settle-only", action="store_true", help="stop when the settle returns; probes skip their later hooks")
     args = parser.parse_args()
     if cs2_running():
         sys.exit("cs2.exe is running; captures never run beside the game.")
@@ -185,7 +187,8 @@ def main():
         if payload.get("ev") == "done":
             done.set()
 
-    source_js = AGENT % {"settle": installed("resourcecompiler", SETTLE_RVA), "step": installed("vphysics2", STEP_RVA)}
+    source_js = AGENT % {"settle": installed("resourcecompiler", SETTLE_RVA), "step": installed("vphysics2", STEP_RVA),
+                         "settle_only": "true" if args.settle_only else "false"}
     if args.agent:
         with open(args.agent, encoding="utf-8") as f:
             source_js += "\n" + rebase_tables(f.read())

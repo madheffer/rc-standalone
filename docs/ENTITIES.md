@@ -20,14 +20,14 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
   where Valve's own output varies between compiles: a stack of props whose
   result depends on the order bodies turn dynamic, which follows heap
   addresses (GROUND_TRUTH 52). Those props are a documented gap, listed by
-  map in the lump test (`UnstableSettle`): coaster 3:950 to 3:952 and
-  dkr_m4_ferris 3:2251, each measured against two captures or Valve's
-  captured order.
+  map in the lump test (`UnstableSettle`): coaster, dkr_m4_ferris,
+  dkr_m2_carnival and dkr_m5_stadium, each measured against two compiles
+  or Valve's captured order.
 - **Corpus sweep (2026-10-05):** of the 80 compiled corpus maps, all but
   the following are within the documented gaps: three refuse on the
   out-of-world-bounds settle fix-up (not ported), two ze_hold_em variants
-  fail reading a displacement stream, and three dkr_remix maps have small
-  settle drifts not yet checked against a capture.
+  fail reading a displacement stream, and dkr_m3_tunneloflove's settle
+  drifts on three props (GROUND_TRUTH 53).
 
 Open:
 - **Light keys:** the precomputed shape keys and, when baked, the shadow

@@ -99,11 +99,11 @@ public sealed class SettleFromMapTests(ITestOutputHelper output)
                 exact++;
         }
         output.WriteLine($"step 0: {exact}/{ours.Count} bodies exact");
-        // Outside Valve's order only the awake indices the SetType order sets differ.
-        Assert.True(exact >= ours.Count - (valveOrder ? 0 : settled.Count), $"{exact}/{ours.Count} bodies exact at step 0");
         foreach (var (off, n) in differs.OrderBy(x => x.Key))
             output.WriteLine($"  +0x{off:x}: {n} bodies differ, e.g. {examples[off]}");
         output.WriteLine($"  first: {first}");
+        // Outside Valve's order only the awake indices the SetType order sets differ.
+        Assert.True(exact >= ours.Count - (valveOrder ? 0 : settled.Count), $"{exact}/{ours.Count} bodies exact at step 0");
 
         var steps = 0;
         try

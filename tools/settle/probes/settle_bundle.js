@@ -163,8 +163,8 @@ function hookWriteBack(rc) {
   });
 }
 
-// ---- 4. light precompute ---------------------------------------------------------
-hold();
+// ---- 4. light precompute (skipped with --settle-only) ------------------------------
+if (!SETTLE_ONLY) hold();
 function hookLights(rc) {
   Interceptor.attach(rc.base.add(RC.sampleVolume), {
     onEnter(a) {
@@ -186,4 +186,4 @@ function hookLights(rc) {
 }
 
 watch('vphysics2.dll', vp => { vpBase = vp.base; hookBuild(vp); hookCollide(vp); });
-watch('resourcecompiler.dll', rc => { hookObjects(rc); hookWriteBack(rc); hookLights(rc); });
+watch('resourcecompiler.dll', rc => { hookObjects(rc); hookWriteBack(rc); if (!SETTLE_ONLY) hookLights(rc); });

@@ -347,8 +347,19 @@ game can answer is raised with the user first, and runs with -insecure.
     for body and Valve's captured order settles exact, those props are a
     documented gap (EntityLumpAgainstValveTests.UnstableSettle): coaster
     3:950 to 3:952 (3,041 bodies exact), dkr_m4_ferris 3:2251 (7,887 bodies
-    exact, 260 of 260 in Valve's order). The other dkr_remix drifts are not
-    checked yet.
+    exact, 260 of 260 in Valve's order), dkr_m2_carnival's 12 (7,655 bodies
+    exact, 195 of 195 in Valve's order) and dkr_m5_stadium 3:1704 (our order
+    settles all 110 as a fresh compile did; the corpus compile differs).
+    capture_settle.py --settle-only stops at the settle (25 s a capture).
+
+53. **dkr_m3_tunneloflove's settle** (2026-10-05, capture). The world is
+    exact body for body (8,005) but four static hull bodies at a yaw of 90
+    differ at step 0 in their local inverse inertia's off-diagonal words
+    (+0xa8, +0xac, +0xb0, +0xbc: 6.1248903e-7 against Valve's 6.124885e-7)
+    after the mass update matched, so their settle (3:2151 to 3:2153) drifts
+    even in Valve's order. Suspect: SetScale (vphysics2 1801bca60), which
+    rescales each shape (vfn 0x98) and redoes the mass when the scale moves
+    by 0.001 or more.
 
 ## Resolved
 
