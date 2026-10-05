@@ -322,7 +322,8 @@ game can answer is raised with the user first, and runs with -insecure.
     (DrawOrderProbe, DRAWORDER_RUNS=1) and 472 agg_prop streams.
 
 51. **Mako's vis clusters at assignment** (VisChainTests on mako3,
-    2026-10-05): octree nodes and node boxes exact; clusters 24,960
+    2026-10-05): the octree's 2,643,577 nodes and their boxes exact (each
+    node's cluster words differ with the clusters); clusters 24,960
     against Valve's 25,471, 23,083 boxes shared. About 1,450 of the 1,861
     boxes only ours have their centre in x -2048 to 6144, y -10240 to
     -4096, z -2048 to 0, mostly outside the voxel hints (which act through
@@ -330,8 +331,8 @@ game can answer is raised with the user first, and runs with -insecure.
     thick in y. Of Valve's 2,374 boxes not ours, 1,587 lie inside a bigger
     box of ours (331 of them differing on one face only, a merge step
     more) and 787 inside none, so we mostly merge further and sometimes
-    cut otherwise. The merge's choices part, not a missing stage (nodes
-    and node boxes are exact going in). Next: a merge-pass capture
+    cut otherwise. The merge's choices part, not a missing stage (the
+    octree and its node boxes are exact going in). Next: a merge-pass capture
     on Mako (capture_merge.py --passes), then VISCHAIN_MERGE.
 
 ## Resolved
