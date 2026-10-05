@@ -531,6 +531,17 @@ public static partial class SettleWorld
         // through the scale matrix (FUN_18125c200) and are cooked again at
         // scale 1 (RnHullCreate, RnMeshCreate).
         float[]? matrix = NonUniform(scale) ? [scale.X, 0, 0, 0, 0, scale.Y, 0, 0, 0, 0, scale.Z, 0] : null;
+        // A model with a bind pose for each part (the counts at +0x58 and +0x78
+        // equal) always takes the matrix path, with Invert(B[0]) Concat (S
+        // Concat B[part]) (rc 18105e476 to 18105e4d0): near the identity for a
+        // single part, but rounded, so the hull is cooked again
+        // (dkr_m3_tunneloflove's coaster_car: its bounds' max z one ulp up).
+        if (phys.BindPose.Length == parts.Length)
+        {
+            float[] s = [scale.X, 0, 0, 0, 0, scale.Y, 0, 0, 0, 0, scale.Z, 0];
+            matrix = MapMeshes.Concat(MapMeshes.Invert(Physics.StaticPropHulls.BindPose(phys, 0)),
+                                      MapMeshes.Concat(s, Physics.StaticPropHulls.BindPose(phys, 0)));
+        }
         var shape = parts[0].Shape;
         var props = node.Get<DmxBinary.Element>("entity_properties")!;
         var table = phys.CollisionAttributes.Select(rules.Convert).ToArray();

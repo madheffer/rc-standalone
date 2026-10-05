@@ -230,7 +230,7 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
                 else
                 {
                     Count($"geometry differs: {geometry.Split(':')[0]}");
-                    Example($"geometry {geometry.Split(':')[0]}", $"node {body.NodeId} shape {i}: {geometry}");
+                    Example($"geometry {geometry.Split(':')[0]}", $"node {body.NodeId} ({body.IdPath} {body.Node?.Type} {body.Node?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("model")}) shape {i}: {geometry}");
                 }
                 var scale = ours.Type == 2 ? BitConverter.GetBytes(ours.HullScale) : Bytes(ours.MeshScale);
                 if (scale.AsSpan().SequenceEqual(theirs.Head.AsSpan(0xb8, scale.Length)))

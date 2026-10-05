@@ -232,6 +232,9 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         // Exact body for body (7,315); our order settles every prop as a fresh
         // compile does, and the corpus compile differs from that one on 3:1704.
         ["dkr_m5_stadium"] = ["3:1704"],
+        // Exact body for body (8,005, coaster_car's bind pose included) and in
+        // Valve's captured order (95 of 95).
+        ["dkr_m3_tunneloflove"] = ["3:2151", "3:2152", "3:2153"],
     };
 
     [GeneratedRegex(@"^\[prop_physics#([0-9:]+)\] (origin|angles): ")]

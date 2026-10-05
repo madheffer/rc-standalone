@@ -352,14 +352,15 @@ game can answer is raised with the user first, and runs with -insecure.
     settles all 110 as a fresh compile did; the corpus compile differs).
     capture_settle.py --settle-only stops at the settle (25 s a capture).
 
-53. **dkr_m3_tunneloflove's settle** (2026-10-05, capture). The world is
-    exact body for body (8,005) but four static hull bodies at a yaw of 90
-    differ at step 0 in their local inverse inertia's off-diagonal words
-    (+0xa8, +0xac, +0xb0, +0xbc: 6.1248903e-7 against Valve's 6.124885e-7)
-    after the mass update matched, so their settle (3:2151 to 3:2153) drifts
-    even in Valve's order. Suspect: SetScale (vphysics2 1801bca60), which
-    rescales each shape (vfn 0x98) and redoes the mass when the scale moves
-    by 0.001 or more.
+53. **dkr_m3_tunneloflove's settle** (settled 2026-10-06 by decompile and
+    capture). A model with a bind pose for each part (counts at +0x58 and
+    +0x78 equal) takes the settle's matrix path whatever its scale (rc
+    FUN_18105dbd0, 18105e476 to 18105e4d0): Invert(B[0]) Concat (Scale(s)
+    Concat B[part]), the shapes' points through it and cooked again. For
+    coaster_car's single part that is the identity rounded, which moved its
+    bounds' max z one ulp and its inertia off-diagonals. The world is now
+    exact body for body (8,005), and Valve's captured order settles all 95
+    exact; 3:2151 to 3:2153 are order-sensitive (ledger 52).
 
 ## Resolved
 
