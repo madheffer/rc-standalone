@@ -222,7 +222,7 @@ internal static class NodePropEntries
     {
         var ids = new Dictionary<string, int>();
         var createdOnLoad = SmartProps.NodesCreatedOnLoad(doc, path => content.SmartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0);
-        MapInstances.Expand(doc, MapEntities.From(doc), createdOnLoad, (node, id, through) => ids.TryAdd(Key(node, through), id));
+        MapInstances.Expand(doc, MapEntities.From(doc), createdOnLoad, (node, id, through, _) => ids.TryAdd(Key(node, through), id));
         return ids;
     }
 }

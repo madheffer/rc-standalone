@@ -154,9 +154,11 @@ public static partial class SettleWorld
     /// Every body the covered node kinds produce: the nodes the map holds, in
     /// element order, then the nodes its instances place, at the ids the
     /// instance bake gives them (see <see cref="MapInstances"/>). createdOnLoad
-    /// counts the nodes the loader makes before the bake (smart prop locators).
+    /// counts the nodes the loader makes before the bake (smart prop locators),
+    /// createdOnLoadIn those of a prefab's map, which widen its block.
     /// </summary>
-    public static List<BodyBuild> Build(DmxBinary.Document document, IModels models, FgdSchema? schema = null, int createdOnLoad = 0)
+    public static List<BodyBuild> Build(DmxBinary.Document document, IModels models, FgdSchema? schema = null, int createdOnLoad = 0,
+                                        Func<DmxBinary.Document, int>? createdOnLoadIn = null)
     {
         var context = new Context(models, new CollisionRules(), schema, []);
         // A group an instance places is built where the instances put it,
@@ -178,24 +180,27 @@ public static partial class SettleWorld
         foreach (var world in document.OfType("CMapWorld"))
             Prefabs(world, [], [], hidden, context, ref synthetic);
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
-        foreach (var e in document.Elements)
+        foreach (var e in AllDocuments(document).SelectMany(d => d.Elements))
             foreach (var child in e.GetElements("children"))
                 parents.TryAdd(child, e);
-        // A placed node stands where the bake moved its copy (see Baked).
-        MapInstances.Expand(document, MapEntities.From(document), createdOnLoad, (node, id, through) =>
+        // A placed node stands where the bake moved its copy (see Baked), one
+        // in a prefab's map where the prefabs then move it (NestedPlacement).
+        // The ids are the lump's: each prefab takes its block first.
+        MapInstances.Expand(document, MapEntities.From(document), createdOnLoad, (node, id, through, prefabs) =>
         {
             if (targets.Contains(node))
                 return;
+            var world = NodeWorld(prefabs.Length == 0 ? Baked(node, through) : NestedPlacement(node, through, prefabs));
             if (ModelOf(node, models) is { } phys)
-                FromModel(node, NodeWorld(Baked(node, through)), id, phys, context);
+                FromModel(node, world, id, phys, context);
             else if (node.Type == "CMapMesh")
             {
                 var owner = parents.GetValueOrDefault(node);
                 while (owner != null && owner.Type != "CMapEntity")
                     owner = parents.GetValueOrDefault(owner);
-                FromMesh(node, NodeWorld(Baked(node, through)), id, owner, context);
+                FromMesh(node, world, id, owner, context);
             }
-        });
+        }, prefabs: true, createdOnLoadIn: createdOnLoadIn);
         // PhysDoc_BuildObjects std::sorts the collected nodes by pointer. The
         // loader allocates them in element order, so element order is that
         // sort but for where entity and mesh allocations interleave by page
@@ -204,7 +209,7 @@ public static partial class SettleWorld
         for (var i = 0; i < document.Elements.Count; i++)
             index[document.Elements[i]] = i;
         return [.. context.Bodies.Select((b, i) => (b, i))
-            .OrderBy(t => t.b.Node is { } n && t.b.NodeId == (n.GetValue<int>("nodeID") ?? -1) ? index[n] : int.MaxValue)
+            .OrderBy(t => t.b.Node is { } n && t.b.NodeId == (n.GetValue<int>("nodeID") ?? -1) && index.TryGetValue(n, out var at) ? at : int.MaxValue)
             .ThenBy(t => t.i).Select(t => t.b)];
     }
 
@@ -232,7 +237,7 @@ public static partial class SettleWorld
                 int[] innerIds = [.. ids, child.GetValue<int>("nodeID") ?? -1];
                 var targets = new HashSet<DmxBinary.Element>(child.Get<List<DmxBinary.Element>>(MapPrefabs.TargetsKey) ?? [], ReferenceEqualityComparer.Instance);
                 var innerHidden = child.Get<HashSet<int>>(MapPrefabs.HiddenKey) ?? [];
-                PrefabWalk(world, null, inner, innerIds, [], targets, innerHidden, context, ref synthetic);
+                PrefabWalk(world, null, inner, innerIds, targets, innerHidden, context, ref synthetic);
                 Prefabs(world, inner, innerIds, innerHidden, context, ref synthetic);
             }
             else if (child.Type != "CMapInstance")
@@ -241,11 +246,10 @@ public static partial class SettleWorld
     }
 
     // A prefab map's nodes as Walk builds the map's own, each placed through
-    // the prefab chain (and, inside an instance there, NestedPlacement), with
-    // an id of its own past every map's and its id path.
+    // the prefab chain, with an id of its own past every map's and its id
+    // path. What its instances place is MapInstances.Expand's, at copy ids.
     private static void PrefabWalk(DmxBinary.Element node, DmxBinary.Element? owner, DmxBinary.Element[] chain, int[] ids,
-                                   DmxBinary.Element[] through, HashSet<DmxBinary.Element> targets, HashSet<int> hidden,
-                                   Context context, ref int synthetic)
+                                   HashSet<DmxBinary.Element> targets, HashSet<int> hidden, Context context, ref int synthetic)
     {
         foreach (var child in node.GetElements("children"))
         {
@@ -253,7 +257,7 @@ public static partial class SettleWorld
                 continue;
             var origin = child.GetValue<Vector3>("origin") ?? Vector3.Zero;
             var angles = child.GetValue<Vector3>("angles") ?? Vector3.Zero;
-            var (at, turn) = through.Length > 0 ? NestedPlacement(origin, angles, through, chain) : PrefabPlacement(origin, angles, chain);
+            var (at, turn) = PrefabPlacement(origin, angles, chain);
             var placed = MapMeshes.AngleMatrix(turn);
             (placed[3], placed[7], placed[11]) = (at.X, at.Y, at.Z);
             var before = context.Bodies.Count;
@@ -264,11 +268,9 @@ public static partial class SettleWorld
                 FromMesh(child, NodeWorld(placed), id, owner, context);
             var path = string.Join(":", ids.Append(child.GetValue<int>("nodeID") ?? -1));
             for (var b = before; b < context.Bodies.Count; b++)
-                context.Bodies[b] = context.Bodies[b] with { IdPath = through.Length > 0 ? null : path };
-            if (child.Type == "CMapInstance" && child.Get<DmxBinary.Element>("target") is { } target)
-                PrefabWalk(target, owner, chain, ids, [.. through, child], targets, hidden, context, ref synthetic);
-            else if (child.Type is not "CMapInstance" and not "CMapPrefab" && !targets.Contains(child))
-                PrefabWalk(child, child.Type == "CMapEntity" ? child : owner, chain, ids, through, targets, hidden, context, ref synthetic);
+                context.Bodies[b] = context.Bodies[b] with { IdPath = path };
+            if (child.Type is not "CMapInstance" and not "CMapPrefab" && !targets.Contains(child))
+                PrefabWalk(child, child.Type == "CMapEntity" ? child : owner, chain, ids, targets, hidden, context, ref synthetic);
         }
     }
 

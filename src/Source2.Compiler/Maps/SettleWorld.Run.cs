@@ -30,11 +30,12 @@ public static partial class SettleWorld
     /// map's over node pointers. Only the awake indices at the start differ
     /// with it, and every settled pose on atixref, c2m2 and Mako is the same.
     /// </remarks>
-    public static Dictionary<string, Settlement> Run(DmxBinary.Document document, IModels models, FgdSchema schema, int createdOnLoad = 0)
+    public static Dictionary<string, Settlement> Run(DmxBinary.Document document, IModels models, FgdSchema schema, int createdOnLoad = 0,
+                                                     Func<DmxBinary.Document, int>? createdOnLoadIn = null)
     {
         // A body the port cannot build refuses the settle only when there is
         // something to settle; it is judged eligible like any other body.
-        var bodies = Build(document, models, schema, createdOnLoad);
+        var bodies = Build(document, models, schema, createdOnLoad, createdOnLoadIn);
         var result = new Dictionary<string, Settlement>();
         static string Key(BodyBuild b) => b.IdPath ?? b.NodeId.ToString(CultureInfo.InvariantCulture);
         if (Eligible(document, bodies, models, schema).Count == 0)
@@ -67,8 +68,8 @@ public static partial class SettleWorld
             // body it puts to sleep in Flags249 bit 4 (IslandSolver.PutToSleep).
             var asleep = (state.Flags249 & 4) != 0;
             var others = result.GetValueOrDefault(Key(bodies[i]))?.Asleep ?? true;
-            if (bodies.Count(b => b.NodeId == bodies[i].NodeId) > 1)
-                throw new NotSupportedException($"settling node {bodies[i].NodeId}, which has several bodies");
+            if (bodies.Count(b => Key(b) == Key(bodies[i])) > 1)
+                throw new NotSupportedException($"settling node {Key(bodies[i])} ({model}), which has several bodies");
             result[Key(bodies[i])] = new Settlement(true,
                 new Vector3(pose.Origin.X, pose.Origin.Y, pose.Origin.Z),
                 new Vector3(pose.Angles.X, pose.Angles.Y, pose.Angles.Z), asleep && others);

@@ -52,7 +52,7 @@ public class InstanceExpandProbe(ITestOutputHelper output)
         var walked = MapEntities.From(doc);
         var roots = new List<(int Instance, int Root)>();
         var (copies, templates) = MapInstances.Expand(doc, walked, SmartProps.NodesCreatedOnLoad(doc, MapFixtures.SmartPropLocators),
-            (node, id, through) =>
+            (node, id, through, _) =>
             {
                 var inst = through[^1].GetValue<int>("nodeID") ?? -1;
                 if (roots.Count == 0 || roots[^1].Instance != inst)

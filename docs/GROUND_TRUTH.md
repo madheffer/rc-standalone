@@ -92,7 +92,9 @@ game can answer is raised with the user first, and runs with -insecure.
     map of its own. Their copies ship with plain ids. All eleven prefab
     probes' lumps are within their documented gaps. Not captured: a prefab
     beside instances of the map's own, and a prefab inside a prefab (both
-    throw).
+    throw). c2m3_coaster_d_d is the first: its prefab 3 sits beside
+    instances of its own, so its lump and settle wait on that capture. The
+    settle takes its copy ids from this same expansion (prefabs on).
 
 47. **Order of baked props within a model.** NodePropEntries orders a
     model's baked props last to first in the walk (measured on atixref's

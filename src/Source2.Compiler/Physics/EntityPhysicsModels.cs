@@ -73,7 +73,7 @@ public static class EntityPhysicsModels
         // own id (MapInstances.Expand), named after the template.
         var createdOnLoad = smartProp == null ? 0
             : SmartProps.NodesCreatedOnLoad(doc, path => smartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0);
-        MapInstances.Expand(doc, MapEntities.From(doc), createdOnLoad, (node, id, through) =>
+        MapInstances.Expand(doc, MapEntities.From(doc), createdOnLoad, (node, id, through, _) =>
         {
             if (node.Type == "CMapEntity")
                 entities.Add((node, id, through, id.ToString(System.Globalization.CultureInfo.InvariantCulture), [], mapHidden));

@@ -35,7 +35,8 @@ public static class MapInstances
     /// take ids first: one per locator a smart prop's definition creates (see
     /// <see cref="SmartProps"/>).</param>
     /// <param name="placed">Told of every node a placement writes, entity or
-    /// not, with its id and the instances it came through, outermost first.</param>
+    /// not, with its id, the instances it came through, outermost first, and
+    /// the prefabs whose map holds them, outermost first.</param>
     /// <param name="prefabs">Walk prefabs' maps too (GROUND_TRUTH 46): each
     /// CMapPrefab collapses like an instance in the first round (a block of its
     /// map's node count plus one, writing nothing: its nodes ship by id path),
@@ -43,7 +44,7 @@ public static class MapInstances
     /// copies with plain ids. Off, a prefab's map is not looked into.</param>
     public static (IReadOnlyList<Copy> Copies, IReadOnlySet<int> Templates) Expand(
         DmxBinary.Document document, IReadOnlyList<MapEntities.Entity> walked, int createdOnLoad = 0,
-        Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>>? placed = null, bool prefabs = false,
+        Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>, DmxBinary.Element[]>? placed = null, bool prefabs = false,
         Func<DmxBinary.Document, int>? createdOnLoadIn = null)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -292,7 +293,7 @@ public static class MapInstances
     private static void Place(
         Instance instance, Transform outer, IReadOnlyList<DmxBinary.Element> path, Tree tree, Dictionary<string, int> byNode,
         Dictionary<DmxBinary.Element, int> block, ref int next,
-        List<Copy> copies, HashSet<int> templates, Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>>? placed,
+        List<Copy> copies, HashSet<int> templates, Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>, DmxBinary.Element[]>? placed,
         int emitAt, string? layer)
     {
         var at = outer.Then(
@@ -319,7 +320,7 @@ public static class MapInstances
 
     private static void Emit(
         DmxBinary.Element group, DmxBinary.Element[] prefabs, IReadOnlyList<DmxBinary.Element> through, Dictionary<string, int> byNode,
-        List<Copy> copies, HashSet<int> templates, Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>>? placed,
+        List<Copy> copies, HashSet<int> templates, Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>, DmxBinary.Element[]>? placed,
         int emitAt, int start, ref int slot,
         List<DmxBinary.Element> nested, string? layer)
     {
@@ -327,7 +328,7 @@ public static class MapInstances
         {
             var index = slot++;
             if (child.Type is not "CMapInstance")
-                placed?.Invoke(child, start + index, through);
+                placed?.Invoke(child, start + index, through, prefabs);
             if (child.Type is "CMapInstance")
             {
                 nested.Add(child);

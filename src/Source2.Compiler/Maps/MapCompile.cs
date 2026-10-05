@@ -25,7 +25,8 @@ public static class MapCompile
     {
         var locators = Locators(content);
         var settled = settle
-            ? SettleWorld.Run(document, content, schema, SmartProps.NodesCreatedOnLoad(document, locators))
+            ? SettleWorld.Run(document, content, schema, SmartProps.NodesCreatedOnLoad(document, locators),
+                d => SmartProps.NodesCreatedOnLoad(d, locators))
             : null;
         // The lights' precomputed keys trace the editor's scene of the map's meshes.
         var scene = EditorTraceScene.ForMap(document, content);

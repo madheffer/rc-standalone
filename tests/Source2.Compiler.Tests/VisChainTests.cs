@@ -90,6 +90,16 @@ public class VisChainTests(ITestOutputHelper output)
                     var clusterBoxes = SameBoxes(s.ClusterMins, s.ClusterMaxs, (theirs.ClusterMins, theirs.ClusterMaxs));
                     Say($"assign: entries {s.Entries.Length:n0}/{theirs.Entries.Length:n0} same {entries} (first differing {FirstEntry(s.Entries, cap.Blob("entries"))}), "
                         + $"nodes {s.NodeWords.Length:n0}/{theirs.NodeWords.Length:n0} same {nodes}, node boxes {nodeBoxes}, clusters {s.Clusters:n0}/{theirs.Clusters:n0} boxes {clusterBoxes}");
+                    // VISCHAIN_DUMP=<prefix>: both sides' cluster boxes (mins then maxs,
+                    // six floats a cluster) to <prefix>.ours.bin and <prefix>.valve.bin.
+                    if (Environment.GetEnvironmentVariable("VISCHAIN_DUMP") is { Length: > 0 } dump)
+                    {
+                        static byte[] Boxes(Vector3[] mins, Vector3[] maxs)
+                            => [.. Enumerable.Range(0, mins.Length).SelectMany(i => new[] { mins[i], maxs[i] })
+                                .SelectMany(v => BitConverter.GetBytes(v.X).Concat(BitConverter.GetBytes(v.Y)).Concat(BitConverter.GetBytes(v.Z)))];
+                        File.WriteAllBytes(dump + ".ours.bin", Boxes(s.ClusterMins, s.ClusterMaxs));
+                        File.WriteAllBytes(dump + ".valve.bin", Boxes(theirs.ClusterMins, theirs.ClusterMaxs));
+                    }
                     if (!(entries && nodes && nodeBoxes && clusterBoxes))
                         throw new Parted("assignment");
                     break;
