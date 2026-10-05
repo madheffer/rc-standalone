@@ -26,8 +26,7 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
 - **Corpus sweep (2026-10-05):** of the 80 compiled corpus maps, all but
   the following are within the documented gaps: dkr_onelevel (its
   carnival and ferris prefabs' settled props, 6:2418 to 6:2426 and 14:2311,
-  likely the same run-to-run variance, not yet captured), two ze_hold_em variants
-  fail reading a displacement stream, and dkr_m3_tunneloflove's settle
+  likely the same run-to-run variance, not yet captured) and dkr_m3_tunneloflove's settle
   drifts on three props (GROUND_TRUTH 53).
 
 Open:

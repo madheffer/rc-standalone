@@ -137,9 +137,12 @@ public static class MeshTessellation
                     var side = (1 << (levels[d] - 1)) + 1;
                     at += side * side;
                 }
-            if (displacement.Length > 0 && at != displacement.Length)
+            // With every level 0 nothing is subdivided and nothing reads the
+            // streams: ze_hold_em_nb keeps a 3500-entry displacement stream
+            // from a subdivision since removed.
+            if (at > 0 && displacement.Length > 0 && at != displacement.Length)
                 throw new InvalidDataException($"displacement stream of {displacement.Length}, levels ask {at}");
-            if (gridPaint.Length > 0 && at != gridPaint.Length)
+            if (at > 0 && gridPaint.Length > 0 && at != gridPaint.Length)
                 throw new InvalidDataException($"subdivision paint stream of {gridPaint.Length}, levels ask {at}");
         }
 
