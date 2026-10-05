@@ -180,7 +180,7 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
                 foreach (var line in report.Where(l => l.Contains(shown, StringComparison.Ordinal)).Take(Environment.GetEnvironmentVariable("LUMPDIFF_ALL") is null ? 60 : int.MaxValue))
                     output.WriteLine($"    {Path.GetFileName(lump.Path)} {line}");
             classes.AddRange(report.Select(line => ClassOf().Match(line)).Where(m => m.Success).Select(m => m.Groups[1].Value));
-            unexplained.AddRange(report.Where(line => !IsKnownGap(line))
+            unexplained.AddRange(report.Where(line => !IsKnownGap(line) && !UnstableSettle(map, line))
                                        .Select(line => $"{Path.GetFileName(lump.Path)}: {line}"));
         }
         output.WriteLine($"{map}: {ours.Count} lumps, {total} difference(s), {unexplained.Count} unexplained");
@@ -211,6 +211,26 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         // The bake writes its results back into the lump: a light's shadow index
         // and unique ids, a probe volume's atlas textures, handshake and size.
         || BakedKeys().IsMatch(line);
+
+    /// <summary>
+    /// A settled pose Valve's own compiles disagree on (ledger 52): the order
+    /// bodies turn dynamic follows heap addresses, so a stack of props that
+    /// depends on it settles differently run to run. Two captures of coaster
+    /// differ on 3:950 to 3:952 and the corpus lump matches one of them. Listed
+    /// only where the settle world is exact body for body and Valve's captured
+    /// order settles exact (SettleBuildTests, SettleFromMapTests).
+    /// </summary>
+    private static bool UnstableSettle(string map, string line)
+        => UnstableProps.TryGetValue(map, out var ids) && SettledPose().Match(line) is { Success: true } m && ids.Contains(m.Groups[1].Value);
+
+    private static readonly Dictionary<string, string[]> UnstableProps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["c2m3_coaster_d_d"] = ["3:950", "3:951", "3:952"],
+        ["dkr_m4_ferris"] = ["3:2251"],
+    };
+
+    [GeneratedRegex(@"^\[prop_physics#([0-9:]+)\] (origin|angles): ")]
+    private static partial Regex SettledPose();
 
     [GeneratedRegex(@"^\[(light_\w+|env_combined_light_probe_volume|env_light_probe_volume|env_cubemap\w*)#")]
     private static partial Regex LightClass();

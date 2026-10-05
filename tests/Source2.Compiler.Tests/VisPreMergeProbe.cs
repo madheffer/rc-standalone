@@ -105,6 +105,69 @@ public class VisPreMergeProbe(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Generation against a --premerge capture's "gen" sets, region by region
+    /// (leaves as slots), then the distance pre-merge against its "premerged"
+    /// sets. <c>PREMERGE_GEN=&lt;stem&gt;</c>, the capture's own scene.
+    /// </summary>
+    [Fact]
+    public void GenerationThenPreMerge()
+    {
+        if (Environment.GetEnvironmentVariable("PREMERGE_GEN") is not { Length: > 0 } stem)
+            return;
+        var dir = Path.Combine(Path.GetTempPath(), "vis_capture");
+        var rte = RayTraceEnvironment.ReadFile(Path.Combine(dir, stem + ".merge.rte"));
+        var config = VisConfig.Read(Path.Combine(dir, stem + ".merge.viscfg"));
+        var (mins, maxs) = rte.TracedBounds;
+        var (min, max) = VisVoxelizer.RootCube(mins, maxs, 8f);
+        var hints = VisVoxelizer.VoxelHints(config.Hints, mins, maxs, min, max, 8f);
+        var tree = VisVoxelizer.Build(rte, min, max, 8f, hints);
+        var side = VisVoxelizer.VoxelsPerRoot(min, max, 8f) / VisVoxelizer.VoxelsPerLeaf;
+        var regions = VisRegions.Build(tree, side);
+        var inside = VisOutside.Detect(tree, regions, rte, 8f);
+        var compact = VisRegions.Compact(regions, inside.Regions);
+        var slots = VisRegions.Slots(tree);
+        var cache = Path.Combine(dir, stem + ".ours.gen");
+        if (!File.Exists(cache))
+            File.WriteAllBytes(cache, WriteSets(VisClusters.Generate(rte, tree, compact, VisClusters.SplitHints.From(config.Hints)).Select(s => s.Clusters)));
+        var generated = ReadSets(File.ReadAllBytes(cache));
+        foreach (var set in generated)
+            foreach (var c in set)
+                for (var k = 0; k < c.Voxels.Count; k++)
+                    c.Voxels[k] = (c.Voxels[k].Mask, slots[c.Voxels[k].Leaf]);
+
+        var theirsGen = Event(Path.Combine(dir, stem + ".bin"), "gen");
+        output.WriteLine($"generation: sets ours {generated.Count}, Valve {theirsGen.Count}; clusters ours {generated.Sum(s => s.Count)}, Valve {theirsGen.Sum(s => s.Count)}");
+        static string Sig(List<VisMerge.Cluster> set) => string.Join("|", set.Select(c => $"{c.Mins}{c.Maxs}{c.OpenSpace}:" + string.Join(",", c.Voxels.Select(v => $"{v.Leaf}/{v.Mask:x}"))));
+        var differ = Enumerable.Range(0, Math.Min(generated.Count, theirsGen.Count)).Where(i => Sig(generated[i]) != Sig(theirsGen[i])).ToList();
+        output.WriteLine($"  sets that differ at the same index: {differ.Count}");
+        foreach (var i in differ.Take(8))
+            output.WriteLine($"  set {i}: ours {Describe(generated[i])}; Valve {Describe(theirsGen[i])}");
+
+        var pre = generated.Select(s => new VisClusterSet.Set { Clusters = s }).ToList();
+        var result = VisPreMerge.Run(pre);
+        var theirsPre = Event(Path.Combine(dir, stem + ".bin"), "premerged");
+        output.WriteLine($"pre-merge: {result.Before} -> {result.After}; sets ours {pre.Count}, Valve {theirsPre.Count}; non-empty ours {pre.Count(s => s.Clusters.Count > 0)}, Valve {theirsPre.Count(s => s.Count > 0)}");
+        var differPre = Enumerable.Range(0, Math.Min(pre.Count, theirsPre.Count)).Where(i => Sig(pre[i].Clusters) != Sig(theirsPre[i])).ToList();
+        output.WriteLine($"  sets that differ after the pre-merge: {differPre.Count}");
+        foreach (var i in differPre.Take(8))
+            output.WriteLine($"  set {i}: ours {Describe(pre[i].Clusters)}; Valve {Describe(theirsPre[i])}");
+    }
+
+    private static List<List<VisMerge.Cluster>> Event(string path, string ev)
+    {
+        using var reader = new BinaryReader(File.OpenRead(path));
+        while (reader.BaseStream.Position < reader.BaseStream.Length)
+        {
+            var head = System.Text.Json.JsonDocument.Parse(reader.ReadBytes(reader.ReadInt32())).RootElement;
+            var length = reader.ReadInt32();
+            if (head.GetProperty("ev").GetString() == ev)
+                return ReadSets(reader.ReadBytes(length));
+            reader.BaseStream.Seek(length, SeekOrigin.Current);
+        }
+        throw new InvalidDataException($"no {ev} in {path}");
+    }
+
     private static string Describe(List<VisMerge.Cluster> set) => set.Count == 0 ? "empty"
         : $"{set.Count} clusters, open {set.Count(c => c.OpenSpace)}, words {set.Sum(c => c.Voxels.Count)}, box {set.Select(c => c.Mins).Aggregate(Vector3.Min)}-{set.Select(c => c.Maxs).Aggregate(Vector3.Max)}";
 

@@ -335,19 +335,20 @@ game can answer is raised with the user first, and runs with -insecure.
     octree and its node boxes are exact going in). Next: a merge-pass capture
     on Mako (capture_merge.py --passes), then VISCHAIN_MERGE.
 
-52. **The settle's dynamic order** (read 2026-10-05, MapSettle_Run rc
-    180f1e490 and PhysDoc_GetNodes 180f4c360). The settle takes its nodes
-    from PhysDoc's open-addressing hash table in bucket order (0x28-byte
-    entries, hash bits at +0, the node pointer at +8), the hash a 64-bit
-    mix of the node's pointer as MapSettle_Run's excluded set uses it. The
-    order bodies turn dynamic in is that walk, so it follows the nodes'
-    runtime addresses, which the map does not give. Coaster's settle world
-    is exact body for body (3041 of 3041, SettleBuildTests on a capture),
-    and settles exact in Valve's captured order (10 of 10) but 7 of 10 in
-    ours: its stacked props 3:950 to 3:952 depend on the order. Three
-    compiles of coaster on this machine gave the same poses. Open: whether
-    the addresses are reproducible (the same allocation sequence), and if
-    so how to derive the order offline.
+52. **The settle's dynamic order** (settled 2026-10-05: Valve's own output
+    varies). MapSettle_Run (rc 180f1e490) takes its nodes from PhysDoc_GetNodes
+    (180f4c360), an open-addressing hash table walked in bucket order (0x28-byte
+    entries, hash +0, node +8; a 64-bit mix of the node pointer), and bodies
+    turn dynamic in that order. Heap addresses differ run to run: two settle
+    captures of c2m3_coaster_d_d share no pointer and settle 3:950 to 3:952
+    differently (the corpus lump matches the second). So a stack of props
+    that depends on the order has no single right answer and no compiler
+    can match a given run from the map. Where our settle world is exact body
+    for body and Valve's captured order settles exact, those props are a
+    documented gap (EntityLumpAgainstValveTests.UnstableSettle): coaster
+    3:950 to 3:952 (3,041 bodies exact), dkr_m4_ferris 3:2251 (7,887 bodies
+    exact, 260 of 260 in Valve's order). The other dkr_remix drifts are not
+    checked yet.
 
 ## Resolved
 
