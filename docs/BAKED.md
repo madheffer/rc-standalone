@@ -82,3 +82,32 @@ unconfirmed.
 2. A tracer behind the same I/O contract, scored per luxel against Valve's
    EXRs: direct light, then bounce, then the AHD encode.
 3. Light probe volumes, cubemaps, then nav (`CNavMesh`) and Steam Audio.
+
+## AMD GPUs (future plan)
+
+**Report (2026-10-05, from a user, not yet reproduced):** on AMD GPUs,
+compiling lighting, or previewing it in Hammer, is not possible or is
+bugged. Which of the two fails, and how (vrad3 refusing to start, a crash,
+or wrong lightmaps), is not known yet.
+
+**Goal:** our own bake compiles and previews lighting on AMD as it does on
+NVIDIA. This is a requirement for the lighting port, not an extra.
+
+**What we know that bears on it:**
+- Valve's run is `-vulkan -gpuraytracing` (Vulkan ray tracing); a DX11
+  path exists. Every measurement here is from an RTX 4070.
+- Embree 3 sits in resourcecompiler, so a CPU trace path exists somewhere
+  in Valve's tools; whether vrad3 can use it is not read.
+
+**Plan:**
+1. Reproduce on AMD hardware: the vrad3 command line above, once with
+   `-vulkan -gpuraytracing` and once with the DX11 path. Capture the log and
+   the failing command. Then do the same for Hammer's lighting preview.
+2. Read why it fails in vrad3 (a device or extension check, a
+   vendor-specific shader path, or a driver bug).
+3. Keep our tracer vendor-neutral: standard Vulkan ray tracing extensions
+   only (AMD RDNA2 and later support them), a compute-shader fallback for
+   GPUs without ray tracing hardware, and a CPU path that produces the
+   same result. Score each path per luxel against Valve's EXRs, as in
+   "Where the port starts".
+4. Get an AMD GPU into the test matrix before calling the bake done.
