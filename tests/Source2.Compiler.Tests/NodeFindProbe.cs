@@ -63,9 +63,28 @@ public class NodeFindProbe(ITestOutputHelper output)
                 {
                     count++;
                     output.WriteLine($"{Path.GetFileName(file)} {entry.GetFullPath()}: {cls} {e.HammerId} origin {(e.Values.TryGetValue("origin", out var o) ? o.Value : "")} angles {(e.Values.TryGetValue("angles", out var an) ? an.Value : "")}");
+                    if (Environment.GetEnvironmentVariable("LUMPCLASS_KEYS") == "1")
+                        output.WriteLine($"  keys {string.Join(",", e.KeyOrder)}");
                 }
             output.WriteLine($"{Path.GetFileName(file)}: {count}");
         }
+    }
+
+    /// <summary><c>KEYFIND=&lt;addon&gt;|&lt;map&gt;|&lt;key&gt;</c>: the nodes whose entity properties hold the key, with its value and place among their keys.</summary>
+    [Fact]
+    public void FindKey()
+    {
+        if (Environment.GetEnvironmentVariable("KEYFIND") is not { Length: > 0 } spec || spec.Split('|') is not [var addon, var map, var key])
+            return;
+        var doc = DmxBinary.ReadFile(MapFixtures.VmapSource(addon, map)!);
+        foreach (var e in doc.Elements)
+            if (e.Get<DmxBinary.Element>("entity_properties") is { } props)
+            {
+                var keys = props.Attributes.Keys.ToList();
+                var at = keys.FindIndex(k => k.Equals(key, StringComparison.OrdinalIgnoreCase));
+                if (at >= 0)
+                    output.WriteLine($"node {e.GetValue<int>("nodeID")} {props.Get<string>("classname")}: {keys[at]} = {props.Attributes[keys[at]]} (key {at} of {keys.Count}: {string.Join(",", keys)})");
+            }
     }
 
     /// <summary><c>EDITORONLY=&lt;folder of addon__map.vpk&gt;</c>: each map's (and its prefabs') nodes marked editorOnly.</summary>

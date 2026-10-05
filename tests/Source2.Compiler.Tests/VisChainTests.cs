@@ -216,16 +216,18 @@ public class VisChainTests(ITestOutputHelper output)
     {
         if (ours.Count != theirs.Count)
         {
-            // Sets keyed by their lowest leaf: which regions only one side has.
-            static int Key(IEnumerable<VisMerge.Cluster> set) => set.SelectMany(c => c.Voxels).Select(v => v.Leaf).DefaultIfEmpty(-1).Min();
+            // Sets keyed by their box (leaf numbers are each side's own): which
+            // regions only one side has.
+            static string Key(IEnumerable<VisMerge.Cluster> set) => set.Any()
+                ? $"{set.Select(c => c.Mins).Aggregate(Vector3.Min)}-{set.Select(c => c.Maxs).Aggregate(Vector3.Max)}/{set.Count()}" : "empty";
             var mine = ours.Select((x, i) => (Key(x.Clusters), i)).ToLookup(t => t.Item1, t => t.i);
             var valve = theirs.Select((x, i) => (Key(x), i)).ToLookup(t => t.Item1, t => t.i);
             var onlyMine = mine.Where(g => !valve.Contains(g.Key)).Select(g => g.Key).OrderBy(k => k).ToList();
             var onlyValve = valve.Where(g => !mine.Contains(g.Key)).Select(g => g.Key).OrderBy(k => k).ToList();
             string Box(List<VisMerge.Cluster> set) => set.Count == 0 ? "empty" : $"{set.Select(c => c.Mins).Aggregate(Vector3.Min)}-{set.Select(c => c.Maxs).Aggregate(Vector3.Max)} ({set.Count} clusters, {set.Sum(c => c.Voxels.Count)} voxel words)";
             var lines = new List<string> { $"set count {ours.Count} vs {theirs.Count}; sets only ours {onlyMine.Count}, only Valve's {onlyValve.Count}" };
-            lines.AddRange(onlyMine.Take(12).Select(k => $"  ours only, lowest leaf {k}: {Box(ours[mine[k].First()].Clusters)}"));
-            lines.AddRange(onlyValve.Take(12).Select(k => $"  Valve's only, lowest leaf {k}: {Box(theirs[valve[k].First()])}"));
+            lines.AddRange(onlyMine.Take(20).Select(k => $"  ours only, box {k}: {Box(ours[mine[k].First()].Clusters)}"));
+            lines.AddRange(onlyValve.Take(20).Select(k => $"  Valve's only, box {k}: {Box(theirs[valve[k].First()])}"));
             return string.Join(Environment.NewLine, lines);
         }
         // Sets the distance pre-merge emptied on one side only: where its runs part.

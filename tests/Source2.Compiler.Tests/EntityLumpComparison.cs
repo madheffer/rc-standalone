@@ -55,8 +55,8 @@ internal static class EntityLumpComparison
 
             var connections = entity.GetArray("m_connections").Select(Render).ToList();
             entities.Add(new Entity(
-                values.TryGetValue("classname", out var cls) ? cls.Item2.Split(':')[^1] : "<no classname>",
-                values.TryGetValue("hammerUniqueId", out var id) ? id.Item2.Split(':')[^1] : "",
+                values.TryGetValue("classname", out var cls) ? cls.Item2[(cls.Item2.IndexOf(':') + 1)..] : "<no classname>",
+                values.TryGetValue("hammerUniqueId", out var id) ? id.Item2[(id.Item2.IndexOf(':') + 1)..] : "",
                 values, order, connections));
         }
         return entities;

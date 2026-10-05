@@ -202,6 +202,15 @@ public static partial class EntityLumpAuthor
                 values.Add(key, new KVObject($"{tint[0]} {tint[1]} {tint[2]}"));
                 continue;
             }
+            // A source key named hammerUniqueId (Source 1 ports carry their old
+            // ids) takes the compile's id path in its own place, and no second
+            // one follows: ze_doom_p2's logic_relay 675489073 ships that id
+            // between vscripts and targetname.
+            if (key.EqualsAscii("hammerUniqueId"))
+            {
+                values.Add(key, new KVObject(entity.IdPath));
+                continue;
+            }
             values.Add(key, declared is not null
                 ? Typed(declared, text, fixup, schema)
                 : key.EqualsAscii("targetname")
@@ -226,7 +235,8 @@ public static partial class EntityLumpAuthor
         values.Add("origin", Vector(entity.Origin));
         values.Add("angles", Vector(entity.Angles));
         values.Add("scales", Vector(entity.Scales));
-        values.Add("hammerUniqueId", new KVObject(entity.IdPath));
+        if (!values.ContainsKey("hammerUniqueId"))
+            values.Add("hammerUniqueId", new KVObject(entity.IdPath));
         ExportLighting(entity, values, table, context.LightingKeys);
 
         // A path's nodes are folded into keys of its own, written after the

@@ -208,6 +208,12 @@ public static class MapEntities
     private static void Walk(DmxBinary.Element node, List<Entity> entities, HashSet<DmxBinary.Element> seen,
                              string? layer, Prefab prefab)
     {
+        // A prefab's map is walked where its parent's children end, after its
+        // siblings, as an instance's copies are written: the collapse
+        // (MapDoc_CollapseInstance) puts the copy there. c2m2_fairgrounds_csgo_multi
+        // numbers its own entities 2119 to 2123, last in the tree, 1 to 4 and
+        // its environment prefab (first in the tree) from 5.
+        var prefabs = new List<(DmxBinary.Element Child, int Id, DmxBinary.Element World)>();
         foreach (var child in node.GetElements("children"))
         {
             // A map can nest groups inside groups, and a cycle would hang the walk.
@@ -236,35 +242,38 @@ public static class MapEntities
                 }
                 entities.Add(entity);
             }
-            // A prefab's map is walked where the prefab stands (MapPrefabs).
             if (child.Type is "CMapPrefab" && child.Get<DmxBinary.Element>(Maps.MapPrefabs.WorldKey) is { } prefabWorld)
             {
-                // fixupEntityNames prefixes the contents' names with the prefab's
-                // node id (captured on carnival_d, where the prefab has no
-                // targetName and useTargetNameAsPrefix off). A targetName prefix
-                // and a fixup prefab inside another are not measured.
-                var namePrefix = prefab.NamePrefix;
-                if (child.GetValue<bool>("fixupEntityNames") == true)
-                {
-                    if (child.GetValue<bool>("useTargetNameAsPrefix") == true && !string.IsNullOrEmpty(child.Get<string>("targetName")))
-                        throw new NotSupportedException($"prefab {id}: useTargetNameAsPrefix is not measured");
-                    if (namePrefix != null)
-                        throw new NotSupportedException($"prefab {id}: a fixup prefab inside another is not measured");
-                    namePrefix = id.ToString(CultureInfo.InvariantCulture) + "_";
-                }
-                // The compile numbers one node ahead of the prefab's contents
-                // (s2c_prefabprobe: 108:3 is compile_source_id 14 after the map's
-                // own 13); taken here as the prefab map's world, walked and never
-                // shipped. Whether it is that world or the prefab node is not read.
-                if (Read(prefabWorld, isWorld: false) is { } nested)
-                    entities.Add(nested with { Layer = layer, Hidden = true, Prefabs = [.. prefab.Ids, id] });
-                Walk(prefabWorld, entities, seen, layer,
-                     new Prefab([.. prefab.Ids, id], [.. prefab.Chain, child],
-                                child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed, namePrefix));
+                prefabs.Add((child, id, prefabWorld));
                 continue;
             }
             Walk(child, entities, seen,
                  child.Type is "CMapWorldLayer" ? child.Get<string>("worldLayerName") ?? layer : layer, prefab);
+        }
+        foreach (var (child, id, prefabWorld) in prefabs)
+        {
+            // fixupEntityNames prefixes the contents' names with the prefab's
+            // node id (captured on carnival_d, where the prefab has no
+            // targetName and useTargetNameAsPrefix off). A targetName prefix
+            // and a fixup prefab inside another are not measured.
+            var namePrefix = prefab.NamePrefix;
+            if (child.GetValue<bool>("fixupEntityNames") == true)
+            {
+                if (child.GetValue<bool>("useTargetNameAsPrefix") == true && !string.IsNullOrEmpty(child.Get<string>("targetName")))
+                    throw new NotSupportedException($"prefab {id}: useTargetNameAsPrefix is not measured");
+                if (namePrefix != null)
+                    throw new NotSupportedException($"prefab {id}: a fixup prefab inside another is not measured");
+                namePrefix = id.ToString(CultureInfo.InvariantCulture) + "_";
+            }
+            // The compile numbers one node ahead of the prefab's contents
+            // (s2c_prefabprobe: 108:3 is compile_source_id 14 after the map's
+            // own 13); taken here as the prefab map's world, walked and never
+            // shipped. Whether it is that world or the prefab node is not read.
+            if (Read(prefabWorld, isWorld: false) is { } nested)
+                entities.Add(nested with { Layer = layer, Hidden = true, Prefabs = [.. prefab.Ids, id] });
+            Walk(prefabWorld, entities, seen, layer,
+                 new Prefab([.. prefab.Ids, id], [.. prefab.Chain, child],
+                            child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed, namePrefix));
         }
     }
 

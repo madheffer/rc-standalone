@@ -368,6 +368,25 @@ game can answer is raised with the user first, and runs with -insecure.
   measured).
 - **An empty path's pathNodes** is "[  ]", as any empty KV3 array prints
   (dkr_m4_ferris's path_particle_rope 1849).
+- **Where a prefab's entities are walked** (settled 2026-10-05 by
+  comparison). A prefab's map is walked where its parent's children end,
+  after its siblings, as an instance's copies are written:
+  c2m2_fairgrounds_csgo_multi numbers its own entities 2119 to 2123 (last
+  in the tree) 1 to 4 and its environment prefab (first) from 5. The
+  collapse order is still tree order. 1,153 differences to 0; every other
+  prefab map unchanged.
+- **A source key named hammerUniqueId** (settled 2026-10-05 by
+  comparison, ze_doom_p2). Source 1 ports carry old ids in that key; the
+  compile writes its own id path into that slot and adds none after scales.
+- **Brush entity hull input** (partly settled 2026-10-05,
+  capture_hullbuild.py on cs_script_demo, HullBuildCaptureProbe). From
+  Valve's own input the port rebuilds every one of Valve's chess hulls, so
+  the hull build is exact and the input differs: Valve's half-edge mesh
+  (MapBuilder_TriangleMesh 181308060, FUN_1812eb5e0) takes the piece's
+  vertices as given and joins nothing by position, and its vertex list
+  (FUN_181310620) has a few coincident vertices ours joins (the queen: 89
+  inputs against our 85, 62 equal). Open: which vertices the piece mesh
+  keeps apart (not .vmap ids, not the 1/32 weld on any stream subset tried).
 
 - **Faces of instanced meshes in world physics** (ledger 49, settled
   2026-10-05 by capture). CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces

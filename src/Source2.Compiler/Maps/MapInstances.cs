@@ -196,6 +196,9 @@ public static class MapInstances
     private static void Descend(
         DmxBinary.Element node, Tree tree, HashSet<DmxBinary.Element> seen, ref int produced, Within? within)
     {
+        // A prefab's map is walked where its parent's children end, as
+        // MapEntities walks it (the collapse writes the copy there).
+        var prefabs = new List<(DmxBinary.Element Child, DmxBinary.Element World, bool Hidden)>();
         foreach (var child in node.GetElements("children"))
         {
             if (!seen.Add(child))
@@ -209,17 +212,23 @@ public static class MapInstances
                 produced++;
             if (within is not null && child.Type is "CMapPrefab" && child.Get<DmxBinary.Element>(Maps.MapPrefabs.WorldKey) is { } prefabWorld)
             {
+                // The prefab collapses in tree order (its place among the
+                // instances), though its entities are walked later.
                 tree.Instances.Add(new Instance(child, node, prefabWorld) { Prefab = true, Prefabs = within.Prefabs, Hidden = hidden });
-                if (MapEntities.ReadsAsEntity(prefabWorld))
-                    produced++;
-                tree.Parents[prefabWorld] = child;
-                Descend(prefabWorld, tree, seen, ref produced,
-                        new Within([.. within.Prefabs, child], child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], within.Enclosed));
-                tree.SubtreeEnd[prefabWorld] = produced;
-                tree.SubtreeEnd[child] = produced;
+                prefabs.Add((child, prefabWorld, hidden));
                 continue;
             }
             Descend(child, tree, seen, ref produced, within);
+            tree.SubtreeEnd[child] = produced;
+        }
+        foreach (var (child, prefabWorld, _) in prefabs)
+        {
+            if (MapEntities.ReadsAsEntity(prefabWorld))
+                produced++;
+            tree.Parents[prefabWorld] = child;
+            Descend(prefabWorld, tree, seen, ref produced,
+                    new Within([.. within!.Prefabs, child], child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], within.Enclosed));
+            tree.SubtreeEnd[prefabWorld] = produced;
             tree.SubtreeEnd[child] = produced;
         }
     }
