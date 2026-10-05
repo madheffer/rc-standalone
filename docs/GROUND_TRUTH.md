@@ -483,6 +483,12 @@ game can answer is raised with the user first, and runs with -insecure.
   any other a voxel hint whose box, voxel and region sizes stop or force the
   octree's split (Voxelize 18002f890). Mako's octree with its seven hints has
   Valve's node count, 2,643,577. VISIBILITY.md, "Visibility hints".
+  The voxel hint list (sampler +0x88 count, +0x90 entries of 0x20) is
+  read only by Hints_AddVoxelHint, Voxelize and the sampler's reset
+  (18003e040) among the functions from 180016000 to 18005b000 that take
+  the sampler as their first argument (capstone scan, 2026-10-05). A
+  reader reaching the sampler through another pointer is not ruled out,
+  but nothing points to a hint acting past the octree.
 - **World physics surface and attribute tables** (2026-09-28, decompile of
   resourcecompiler 0923 and physicsbuilder 0924). Surfaces register by name,
   case-sensitive, spheres, capsules, hulls, then meshes; a shape with no
