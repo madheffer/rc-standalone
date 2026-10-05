@@ -335,7 +335,39 @@ game can answer is raised with the user first, and runs with -insecure.
     octree and its node boxes are exact going in). Next: a merge-pass capture
     on Mako (capture_merge.py --passes), then VISCHAIN_MERGE.
 
+52. **The settle's dynamic order** (read 2026-10-05, MapSettle_Run rc
+    180f1e490 and PhysDoc_GetNodes 180f4c360). The settle takes its nodes
+    from PhysDoc's open-addressing hash table in bucket order (0x28-byte
+    entries, hash bits at +0, the node pointer at +8), the hash a 64-bit
+    mix of the node's pointer as MapSettle_Run's excluded set uses it. The
+    order bodies turn dynamic in is that walk, so it follows the nodes'
+    runtime addresses, which the map does not give. Coaster's settle world
+    is exact body for body (3041 of 3041, SettleBuildTests on a capture),
+    and settles exact in Valve's captured order (10 of 10) but 7 of 10 in
+    ours: its stacked props 3:950 to 3:952 depend on the order. Three
+    compiles of coaster on this machine gave the same poses. Open: whether
+    the addresses are reproducible (the same allocation sequence), and if
+    so how to derive the order offline.
+
 ## Resolved
+
+- **Prefab and instance collapse order** (settled 2026-10-05 by capture,
+  capture_collapse.py on c2m3_coaster_d_d). Prefabs and the map's own
+  instances share the first round in tree order: coaster's prefabs 2, 3,
+  5, 6 and 7 (hidden ones too) then instance 2118, roots 2119, 2259, 4629,
+  4698, 4754 and 4755. A prefab's map nodes take its block's start plus
+  their preorder slot (MapInstances.PrefabSlots); the settle builds them at
+  those ids, and coaster's settle world matches Valve's body for body.
+- **editorOnly nodes** (settled 2026-10-05). CMapNode +0x365 is the
+  "Editor Only" property (serialized editorOnly; getter rc 180f8e990 also
+  true when vfn 0x440 says so). The compile's node filter (180f77240)
+  rejects such a node, and none ships: the corpus has ten, all sky_cameras
+  in prefabs (coaster, the five dkr_remix maps, dkr_onelevel's five), and
+  no Valve lump carries one, while probe_classes' two plain sky_cameras
+  ship. MapEntities marks them hidden; one with children throws (not
+  measured).
+- **An empty path's pathNodes** is "[  ]", as any empty KV3 array prints
+  (dkr_m4_ferris's path_particle_rope 1849).
 
 - **Faces of instanced meshes in world physics** (ledger 49, settled
   2026-10-05 by capture). CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces

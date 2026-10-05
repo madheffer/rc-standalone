@@ -1942,7 +1942,7 @@
    "addr": "180f1e490",
    "name": "MapSettle_Run",
    "module": "s2c:entities/settle",
-   "note": ""
+   "note": "nodes from PhysDoc_GetNodes in its order; BasePhysicsSimulated, skipPreSettle, Start asleep, Motion Disabled, prop_data spawn_motion_disabled filter them"
   },
   {
    "addr": "180f38bf0",
@@ -1984,7 +1984,25 @@
    "addr": "180f4c360",
    "name": "PhysDoc_GetNodes",
    "module": "s2c:entities/settle",
-   "note": ""
+   "note": "open-addressing table walked in bucket order (0x28-byte entries, hash +0, node +8): the settle's dynamic order follows node pointers (ledger 52)"
+  },
+  {
+   "addr": "180f77240",
+   "name": "CMapNode_PassesFilter",
+   "module": "s2c:entities",
+   "note": "node filter by flags: +0x366, vfn 0x408, editorOnly (vfn 0x440 or +0x365) under flag bits 1, 2 or 4 without 0, vfn 0x410, 0x150, 0x438"
+  },
+  {
+   "addr": "180f8e990",
+   "name": "CMapNode_GetEditorOnly",
+   "module": "s2c:entities",
+   "note": "vfn 0x440, else byte +0x365"
+  },
+  {
+   "addr": "180f94820",
+   "name": "CMapNode_SetEditorOnly",
+   "module": "s2c:entities",
+   "note": "+0x365"
   },
   {
    "addr": "180f4c560",

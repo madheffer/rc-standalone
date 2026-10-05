@@ -42,10 +42,12 @@ public static class MapInstances
     /// map's node count plus one, writing nothing: its nodes ship by id path),
     /// then the instances inside its map, in the merged tree's order, write
     /// copies with plain ids. Off, a prefab's map is not looked into.</param>
+    /// <param name="prefabBlock">Told of each prefab's block: its map's nodes take
+    /// the block's start plus their slot (<see cref="PrefabSlots"/>).</param>
     public static (IReadOnlyList<Copy> Copies, IReadOnlySet<int> Templates) Expand(
         DmxBinary.Document document, IReadOnlyList<MapEntities.Entity> walked, int createdOnLoad = 0,
         Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>, DmxBinary.Element[]>? placed = null, bool prefabs = false,
-        Func<DmxBinary.Document, int>? createdOnLoadIn = null)
+        Func<DmxBinary.Document, int>? createdOnLoadIn = null, Action<DmxBinary.Element, int>? prefabBlock = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(walked);
@@ -91,10 +93,10 @@ public static class MapInstances
         // (s2c_prefabprobe3: 69); an instance inside a target group of the
         // prefab's map waits for its group's copies, past every block of the
         // first round, as in a map of its own (s2c_prefabprobe4: atixref's four
-        // nested copies). Not captured: a prefab beside instances of the map's
-        // own, and a prefab inside a prefab.
-        if (first.Any(i => i.Prefab) && first.Any(i => !i.Prefab))
-            throw new NotSupportedException("a map with both prefabs and instances of its own: the collapse order is not captured");
+        // nested copies). Prefabs and the map's own instances share the first
+        // round in tree order (c2m3_coaster_d_d: prefabs 2, 3, 5, 6 and 7,
+        // hidden ones too, then instance 2118; roots 2119 to 4755). Not
+        // captured: a prefab inside a prefab.
         if (tree.Instances.Any(i => i.Prefab && i.Prefabs.Length > 0))
             throw new NotSupportedException("a prefab inside a prefab: the collapse order is not captured");
         // A prefab's block also holds the nodes its map's loader made (its smart
@@ -103,6 +105,8 @@ public static class MapInstances
         foreach (var instance in first)
         {
             block[instance.Node] = next + 1;
+            if (instance.Prefab)
+                prefabBlock?.Invoke(instance.Node, next + 1);
             next += tree.Nodes.GetValueOrDefault(instance.Target) + 1
                     + (instance.Prefab && createdOnLoadIn is not null && instance.Node.Get<DmxBinary.Document>(Maps.MapPrefabs.DocumentKey) is { } loaded
                         ? createdOnLoadIn(loaded) : 0);
@@ -260,21 +264,36 @@ public static class MapInstances
     /// </summary>
     private static int PrefabCopyCount(DmxBinary.Element world)
     {
+        PrefabSlots(world, out var total);
+        return total;
+    }
+
+    /// <summary>
+    /// Each node's slot in its prefab's block, in the copy's preorder (see
+    /// <see cref="PrefabCopyCount"/>): a node's id is the block's start plus its
+    /// slot. A target group copied early for an instance takes the slots after
+    /// the instance, and its nodes keep the later ones the walk gives them.
+    /// </summary>
+    internal static Dictionary<DmxBinary.Element, int> PrefabSlots(DmxBinary.Element world, out int total)
+    {
         var copied = new HashSet<DmxBinary.Element>();
-        var total = 0;
+        var slots = new Dictionary<DmxBinary.Element, int>(ReferenceEqualityComparer.Instance);
+        var next = 0;
         void Walk(DmxBinary.Element node)
         {
             foreach (var child in node.GetElements("children"))
             {
-                total++;
+                slots.TryAdd(child, next);
+                next++;
                 copied.Add(child);
                 if (child.Type is "CMapInstance" && child.Get<DmxBinary.Element>("target") is { } target && copied.Add(target))
-                    total += 1 + Count(target);
+                    next += 1 + Count(target);
                 Walk(child);
             }
         }
         Walk(world);
-        return total;
+        total = next;
+        return slots;
     }
 
     private static int Count(DmxBinary.Element group)

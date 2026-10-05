@@ -25,12 +25,107 @@ public class NodeFindProbe(ITestOutputHelper output)
                 if (e.GetValue<int>("nodeID")?.ToString() == id)
                 {
                     var props = e.Get<DmxBinary.Element>("entity_properties");
-                    output.WriteLine($"{where}: {e.Type} class {props?.Get<string>("classname")} model {props?.Get<string>("model")} origin {e.GetValue<System.Numerics.Vector3>("origin")}");
+                    output.WriteLine($"{where}: {e.Type} class {props?.Get<string>("classname")} model {props?.Get<string>("model")} origin {e.GetValue<System.Numerics.Vector3>("origin")}"
+                        + $" angles {e.GetValue<System.Numerics.Vector3>("angles")} scales {e.GetValue<System.Numerics.Vector3>("scales")}");
+                    // NODEFIND_ALL=1: every attribute of the node and its entity keys.
+                    if (Environment.GetEnvironmentVariable("NODEFIND_ALL") == "1")
+                    {
+                        foreach (var (k, v) in e.Attributes)
+                            output.WriteLine($"  attr {k} = {(v is System.Collections.IEnumerable list and not string ? $"[{string.Join(", ", list.Cast<object?>().Take(8))}]" : v)}");
+                        foreach (var (k, v) in props?.Attributes ?? [])
+                            output.WriteLine($"  key {k} = {v}");
+                    }
+                    foreach (var c in e.GetElements("children"))
+                        output.WriteLine($"  child {c.Type} {c.GetValue<int>("nodeID")} origin {c.GetValue<System.Numerics.Vector3>("origin")} angles {c.GetValue<System.Numerics.Vector3>("angles")}"
+                            + $" scales {c.GetValue<System.Numerics.Vector3>("scales")} physicsType {c.Attributes.GetValueOrDefault("physicsType")}");
                 }
                 if (e.Attributes.GetValueOrDefault(Maps.MapPrefabs.DocumentKey) is DmxBinary.Document inner)
                     Search(inner, where + $" > prefab {e.GetValue<int>("nodeID")} ({e.Get<string>("targetMapPath")})");
             }
         }
         Search(doc, map);
+    }
+
+    /// <summary><c>LUMPCLASS=&lt;class&gt;|&lt;folder&gt;</c>: every entity of a class in the lumps of each .vpk in the folder.</summary>
+    [Fact]
+    public void ClassInLumps()
+    {
+        if (Environment.GetEnvironmentVariable("LUMPCLASS") is not { Length: > 0 } spec || spec.Split('|') is not [var cls, var folder])
+            return;
+        foreach (var file in Directory.GetFiles(folder, "*.vpk").Order(StringComparer.Ordinal))
+        {
+            using var pkg = new ValvePak.Package();
+            pkg.Read(file);
+            var count = 0;
+            foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+                foreach (var e in EntityLumpComparison.Read(Io.VpkEntries.Read(pkg, entry), entry.GetFullPath())
+                             .Where(e => e.ClassName.Equals(cls, StringComparison.OrdinalIgnoreCase)))
+                {
+                    count++;
+                    output.WriteLine($"{Path.GetFileName(file)} {entry.GetFullPath()}: {cls} {e.HammerId} origin {(e.Values.TryGetValue("origin", out var o) ? o.Value : "")} angles {(e.Values.TryGetValue("angles", out var an) ? an.Value : "")}");
+                }
+            output.WriteLine($"{Path.GetFileName(file)}: {count}");
+        }
+    }
+
+    /// <summary><c>EDITORONLY=&lt;folder of addon__map.vpk&gt;</c>: each map's (and its prefabs') nodes marked editorOnly.</summary>
+    [Fact]
+    public void EditorOnlyNodes()
+    {
+        if (Environment.GetEnvironmentVariable("EDITORONLY") is not { Length: > 0 } folder)
+            return;
+        foreach (var file in Directory.GetFiles(folder, "*.vpk").Order(StringComparer.Ordinal))
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (name.Split("__") is not [var addon, var map] || MapFixtures.VmapSource(addon, map) is not { } source)
+                continue;
+            var doc = DmxBinary.ReadFile(source);
+            Maps.MapPrefabs.Attach(doc, Maps.MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(source))!));
+            var found = 0;
+            void Scan(DmxBinary.Document d, string where)
+            {
+                foreach (var e in d.Elements)
+                {
+                    if (e.GetValue<bool>("editorOnly") == true)
+                    {
+                        found++;
+                        var props = e.Get<DmxBinary.Element>("entity_properties");
+                        output.WriteLine($"{name}{where}: {e.Type} {e.GetValue<int>("nodeID")} class {props?.Get<string>("classname")} children {e.GetElements("children").Count()}");
+                    }
+                    if (e.Attributes.GetValueOrDefault(Maps.MapPrefabs.DocumentKey) is DmxBinary.Document inner)
+                        Scan(inner, $"{where} > prefab {e.GetValue<int>("nodeID")}");
+                }
+            }
+            Scan(doc, "");
+            output.WriteLine($"{name}: {found} editorOnly");
+        }
+    }
+
+    /// <summary><c>INSTLIST=&lt;addon&gt;|&lt;map&gt;</c>: the map's instances and prefabs in walk order, with depth and parent.</summary>
+    [Fact]
+    public void ListInstances()
+    {
+        if (Environment.GetEnvironmentVariable("INSTLIST") is not { Length: > 0 } spec || spec.Split('|') is not [var addon, var map])
+            return;
+        var source = MapFixtures.VmapSource(addon, map)!;
+        var doc = DmxBinary.ReadFile(source);
+        Maps.MapPrefabs.Attach(doc, Maps.MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(source))!));
+        var hidden = MapEntities.HiddenNodes(doc);
+        var order = 0;
+        void Walk(DmxBinary.Element node, int depth)
+        {
+            foreach (var c in node.GetElements("children"))
+            {
+                order++;
+                if (c.Type is "CMapInstance" or "CMapPrefab")
+                    output.WriteLine($"#{order} depth {depth} {c.Type} {c.GetValue<int>("nodeID")} parent {node.Type} {node.GetValue<int>("nodeID")}"
+                        + $" target {c.Get<DmxBinary.Element>("target")?.GetValue<int>("nodeID")} map {c.Get<string>("targetMapPath")}"
+                        + $" hidden {hidden.Contains(c.GetValue<int>("nodeID") ?? -1)} loaded {c.Attributes.ContainsKey(Maps.MapPrefabs.WorldKey)}");
+                Walk(c, depth + 1);
+            }
+        }
+        foreach (var world in doc.OfType("CMapWorld"))
+            Walk(world, 0);
+        output.WriteLine($"max nodeID {doc.Elements.Max(e => e.GetValue<int>("nodeID") ?? 0)}, nodes walked {order}");
     }
 }

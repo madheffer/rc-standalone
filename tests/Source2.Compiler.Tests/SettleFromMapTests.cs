@@ -39,8 +39,11 @@ public sealed class SettleFromMapTests(ITestOutputHelper output)
             || CS2Fixtures.StockPak() is not { } pak || !File.Exists(Vmap) || MapFixtures.GameSchema() is not { } schema)
             return;
         var document = DmxBinary.ReadFile(Vmap);
+        // As the compile loads it: prefab maps attached, so their blocks are reserved.
+        MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(Vmap))!));
         using var models = new SettleBuildTests.PakModels(pak, AddonGame);
-        var bodies = SettleWorld.Build(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators));
+        var bodies = SettleWorld.Build(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
+            d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators));
         var settled = SettleWorld.Settled(document, bodies, models, schema);
         var captured = SettleBuildTests.ReadBuild(path);
         if (valveOrder)

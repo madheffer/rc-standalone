@@ -140,13 +140,21 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
                 var theirKeys = theirHulls.Select(Key).ToList();
                 var ourKeys = ourHulls.Select(Key).ToList();
                 static string Box(Vector3[] v) => $"{v.Length} verts {v.Aggregate(Vector3.Min)}-{v.Aggregate(Vector3.Max)}";
-                output.WriteLine($"hullmatch {model.Path}: ours {ourHulls.Count}, Valve {theirHulls.Count}, matched {ourKeys.Count(theirKeys.Contains)}");
+                output.WriteLine($"hullmatch {model.Path} (node {model.NodeId}): ours {ourHulls.Count}, Valve {theirHulls.Count}, matched {ourKeys.Count(theirKeys.Contains)}");
                 for (var i = 0; i < ourHulls.Count; i++)
                     if (!theirKeys.Contains(ourKeys[i]))
                         output.WriteLine($"  ours only {i}: {Box(ourHulls[i])}");
                 for (var i = 0; i < theirHulls.Count; i++)
                     if (!ourKeys.Contains(theirKeys[i]))
                         output.WriteLine($"  Valve only {i}: {Box(theirHulls[i])}");
+                // Same index, same vertex count: how far each of ours is from Valve's nearest.
+                for (var i = 0; i < Math.Min(ourHulls.Count, theirHulls.Count); i++)
+                    if (ourKeys[i] != theirKeys[i] && ourHulls[i].Length == theirHulls[i].Length)
+                    {
+                        var far = ourHulls[i].Max(v => theirHulls[i].Min(w => Vector3.Distance(v, w)));
+                        var exactly = ourHulls[i].Count(v => theirHulls[i].Contains(v));
+                        output.WriteLine($"  pair {i}: {exactly}/{ourHulls[i].Length} vertices identical, farthest {far:G4}");
+                    }
             }
             if (!model.PhysicsOnly)
             {

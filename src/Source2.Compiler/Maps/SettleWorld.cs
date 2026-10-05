@@ -45,8 +45,9 @@ public static partial class SettleWorld
 
         /// <summary>
         /// The node's id path when it lies in a prefab's map (the prefab ids,
-        /// then its own; <see cref="NodeId"/> is then an id of the port's own
-        /// past every map's); null for the map's own nodes and copies.
+        /// then its own; <see cref="NodeId"/> is then the collapse's id, the
+        /// prefab's block start plus the node's slot); null for the map's own
+        /// nodes and copies.
         /// </summary>
         public string? IdPath { get; init; }
 
@@ -174,11 +175,15 @@ public static partial class SettleWorld
         foreach (var world in document.OfType("CMapWorld"))
             Walk(world, null, context, targets, hidden);
         // A prefab's map is collapsed into the document as an instance is
-        // (MapDoc_CollapseInstance, captured), its nodes allocated after the
-        // map's own: built here, each placed as the prefab moves it.
-        var synthetic = AllDocuments(document).SelectMany(d => d.Elements).Max(e => e.GetValue<int>("nodeID") ?? 0) + 1;
+        // (MapDoc_CollapseInstance, captured), its nodes taking ids in the
+        // prefab's block of the expansion: built here, each placed as the
+        // prefab moves it. What the instances place is built after them.
+        var blocks = new Dictionary<DmxBinary.Element, int>(ReferenceEqualityComparer.Instance);
+        var placements = new List<(DmxBinary.Element Node, int Id, IReadOnlyList<DmxBinary.Element> Through, DmxBinary.Element[] Prefabs)>();
+        MapInstances.Expand(document, MapEntities.From(document), createdOnLoad, (node, id, through, prefabs) => placements.Add((node, id, through, prefabs)),
+                            prefabs: true, createdOnLoadIn: createdOnLoadIn, prefabBlock: (prefab, start) => blocks[prefab] = start);
         foreach (var world in document.OfType("CMapWorld"))
-            Prefabs(world, [], [], hidden, context, ref synthetic);
+            Prefabs(world, [], [], hidden, context, blocks);
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var e in AllDocuments(document).SelectMany(d => d.Elements))
             foreach (var child in e.GetElements("children"))
@@ -186,10 +191,10 @@ public static partial class SettleWorld
         // A placed node stands where the bake moved its copy (see Baked), one
         // in a prefab's map where the prefabs then move it (NestedPlacement).
         // The ids are the lump's: each prefab takes its block first.
-        MapInstances.Expand(document, MapEntities.From(document), createdOnLoad, (node, id, through, prefabs) =>
+        foreach (var (node, id, through, prefabs) in placements)
         {
             if (targets.Contains(node))
-                return;
+                continue;
             var world = NodeWorld(prefabs.Length == 0 ? Baked(node, through) : NestedPlacement(node, through, prefabs));
             if (ModelOf(node, models) is { } phys)
                 FromModel(node, world, id, phys, context);
@@ -200,7 +205,7 @@ public static partial class SettleWorld
                     owner = parents.GetValueOrDefault(owner);
                 FromMesh(node, world, id, owner, context);
             }
-        }, prefabs: true, createdOnLoadIn: createdOnLoadIn);
+        }
         // PhysDoc_BuildObjects std::sorts the collected nodes by pointer. The
         // loader allocates them in element order, so element order is that
         // sort but for where entity and mesh allocations interleave by page
@@ -225,7 +230,8 @@ public static partial class SettleWorld
 
     // The prefabs under a node, in tree order, each prefab map walked where
     // its prefab stands; a prefab inside one recurses with the longer chain.
-    private static void Prefabs(DmxBinary.Element node, DmxBinary.Element[] chain, int[] ids, HashSet<int> hidden, Context context, ref int synthetic)
+    private static void Prefabs(DmxBinary.Element node, DmxBinary.Element[] chain, int[] ids, HashSet<int> hidden, Context context,
+                                Dictionary<DmxBinary.Element, int> blocks)
     {
         foreach (var child in node.GetElements("children"))
         {
@@ -237,19 +243,23 @@ public static partial class SettleWorld
                 int[] innerIds = [.. ids, child.GetValue<int>("nodeID") ?? -1];
                 var targets = new HashSet<DmxBinary.Element>(child.Get<List<DmxBinary.Element>>(MapPrefabs.TargetsKey) ?? [], ReferenceEqualityComparer.Instance);
                 var innerHidden = child.Get<HashSet<int>>(MapPrefabs.HiddenKey) ?? [];
-                PrefabWalk(world, null, inner, innerIds, targets, innerHidden, context, ref synthetic);
-                Prefabs(world, inner, innerIds, innerHidden, context, ref synthetic);
+                if (!blocks.TryGetValue(child, out var start))
+                    throw new NotSupportedException($"prefab {child.GetValue<int>("nodeID")}: no block in the expansion (a prefab inside a prefab?)");
+                var slots = MapInstances.PrefabSlots(world, out _);
+                PrefabWalk(world, null, inner, innerIds, targets, innerHidden, context, start, slots);
+                Prefabs(world, inner, innerIds, innerHidden, context, blocks);
             }
             else if (child.Type != "CMapInstance")
-                Prefabs(child, chain, ids, hidden, context, ref synthetic);
+                Prefabs(child, chain, ids, hidden, context, blocks);
         }
     }
 
     // A prefab map's nodes as Walk builds the map's own, each placed through
-    // the prefab chain, with an id of its own past every map's and its id
-    // path. What its instances place is MapInstances.Expand's, at copy ids.
+    // the prefab chain, with the collapse's id (the block's start plus its
+    // slot) and its id path. What its instances place is MapInstances.Expand's.
     private static void PrefabWalk(DmxBinary.Element node, DmxBinary.Element? owner, DmxBinary.Element[] chain, int[] ids,
-                                   HashSet<DmxBinary.Element> targets, HashSet<int> hidden, Context context, ref int synthetic)
+                                   HashSet<DmxBinary.Element> targets, HashSet<int> hidden, Context context,
+                                   int start, Dictionary<DmxBinary.Element, int> slots)
     {
         foreach (var child in node.GetElements("children"))
         {
@@ -261,7 +271,7 @@ public static partial class SettleWorld
             var placed = MapMeshes.AngleMatrix(turn);
             (placed[3], placed[7], placed[11]) = (at.X, at.Y, at.Z);
             var before = context.Bodies.Count;
-            var id = synthetic++;
+            var id = start + slots[child];
             if (ModelOf(child, context.Models) is { } phys)
                 FromModel(child, NodeWorld(placed), id, phys, context);
             else if (child.Type == "CMapMesh")
@@ -270,7 +280,7 @@ public static partial class SettleWorld
             for (var b = before; b < context.Bodies.Count; b++)
                 context.Bodies[b] = context.Bodies[b] with { IdPath = path };
             if (child.Type is not "CMapInstance" and not "CMapPrefab" && !targets.Contains(child))
-                PrefabWalk(child, child.Type == "CMapEntity" ? child : owner, chain, ids, targets, hidden, context, ref synthetic);
+                PrefabWalk(child, child.Type == "CMapEntity" ? child : owner, chain, ids, targets, hidden, context, start, slots);
         }
     }
 

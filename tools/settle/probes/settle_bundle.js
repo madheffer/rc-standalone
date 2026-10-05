@@ -111,7 +111,7 @@ function dumpWorld(world) {
     });
     bodies.push({ptr: b.toString(), body: hexOf(b, 0x280), shapes: shapes});
   }
-  send({ev: 'world', bodies: bodies, head: hexOf(world, 0xc00),
+  sendJson({ev: 'world', bodies: bodies, head: hexOf(world, 0xc00),
         groups: vpBase ? hexOf(vpBase.add(VP.groupTable), 4096 * 2) : '',
         groupDefault: vpBase ? vpBase.add(VP.groupDefault).readU16() : -1});
 }

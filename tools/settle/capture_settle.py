@@ -37,9 +37,29 @@ import frida
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
-# resourcecompiler.dll and vphysics2.dll as of 2026-09-24.
+# resourcecompiler.dll (2026-09-23) and vphysics2.dll (2026-09-24) RVAs,
+# moved to the installed build at run time (tools/re/rva_map.py).
 SETTLE_RVA = 0xf1e490
 STEP_RVA = 0x200840
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed, installed_data  # noqa: E402
+
+
+def rebase_tables(js):
+    """The probe's RC and VP tables moved to the installed build: functions
+    by their code, globals (names starting with 'group') through the code
+    that addresses them."""
+    import re
+
+    def entry(dll, e):
+        find = installed_data if e.group(1).startswith("group") else installed
+        return "%s: 0x%x" % (e.group(1), find(dll, int(e.group(2), 16)))
+
+    def table(m):
+        dll = "resourcecompiler" if m.group(1) == "RC" else "vphysics2"
+        body = re.sub(r"(\w+): (0x[0-9a-fA-F]+)", lambda e: entry(dll, e), m.group(2))
+        return "const %s = {%s};" % (m.group(1), body)
+    return re.sub(r"const (RC|VP) = \{(.*?)\};", table, js, flags=re.S)
 
 AGENT = r"""
 'use strict';
@@ -48,6 +68,18 @@ let inSettle = false;
 var onStep = null, onSettleEnd = null, onSettleStart = null;
 function blob(name, ptr, size) {
   send({ev: 'blob', name: name, size: size}, ptr.readByteArray(size));
+}
+// Frida drops a message over 128 MiB, and the session with it: a record whose
+// JSON is long goes as its text in parts the host joins back into one event.
+function sendJson(obj) {
+  const s = JSON.stringify(obj), PART = 32 * 1024 * 1024;
+  if (s.length < PART) { send(obj); return; }
+  for (let at = 0; at < s.length; at += PART) {
+    const piece = s.substring(at, Math.min(at + PART, s.length)), buf = new Uint8Array(piece.length);
+    for (let i = 0; i < piece.length; i++) buf[i] = piece.charCodeAt(i) & 0xff;
+    send({ev: 'jsonpart'}, buf.buffer);
+  }
+  send({ev: 'jsonend'});
 }
 function hookRc(m) {
   Interceptor.attach(m.base.add(%(settle)d), {
@@ -131,6 +163,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     events = open(os.path.join(out_dir, "events.jsonl"), "w")
     done = threading.Event()
+    parts = []
 
     def on_message(message, data):
         if message["type"] != "send":
@@ -139,6 +172,12 @@ def main():
                 print(message["stack"], file=sys.stderr)
             return
         payload = message["payload"]
+        if payload.get("ev") == "jsonpart":
+            parts.append(data or b"")
+            return
+        if payload.get("ev") == "jsonend":
+            payload = json.loads(b"".join(parts).decode("ascii"))
+            parts.clear()
         if payload.get("ev") == "blob" and data is not None:
             with open(os.path.join(out_dir, payload["name"] + ".bin"), "wb") as f:
                 f.write(data)
@@ -146,10 +185,10 @@ def main():
         if payload.get("ev") == "done":
             done.set()
 
-    source_js = AGENT % {"settle": SETTLE_RVA, "step": STEP_RVA}
+    source_js = AGENT % {"settle": installed("resourcecompiler", SETTLE_RVA), "step": installed("vphysics2", STEP_RVA)}
     if args.agent:
         with open(args.agent, encoding="utf-8") as f:
-            source_js += "\n" + f.read()
+            source_js += "\n" + rebase_tables(f.read())
 
     argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f",
             "-game", os.path.join(CS2, "game", "csgo"), "-i", source]

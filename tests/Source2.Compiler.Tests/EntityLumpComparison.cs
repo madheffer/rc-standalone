@@ -122,6 +122,13 @@ internal static class EntityLumpComparison
                         report.Add($"[{Label(theirs)}] connection {c}: valve {a}, ours {b}");
                 }
         }
+        // What ours has that Valve's lacks: ids left unmatched, and entities with no id.
+        foreach (var left in byId.Values.SelectMany(q => q))
+            report.Add($"[{Label(left)}] ours only");
+        var theirsWithoutId = valve.Count(e => e.HammerId.Length == 0);
+        var oursWithoutId = mine.Where(e => e.HammerId.Length == 0).ToList();
+        if (oursWithoutId.Count != theirsWithoutId)
+            report.Add($"entities without an id: valve {theirsWithoutId}, ours {oursWithoutId.Count} ({string.Join(", ", oursWithoutId.Select(e => e.ClassName).Take(5))})");
         return report;
     }
 

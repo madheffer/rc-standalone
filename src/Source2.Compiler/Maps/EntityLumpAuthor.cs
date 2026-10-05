@@ -546,9 +546,12 @@ public static partial class EntityLumpAuthor
         => Kv3Words([.. values.Select(Number)], depth);
 
     /// <summary>The rows of pathNodes, which is an array of arrays and so always
-    /// breaks a line.</summary>
+    /// breaks a line; with no rows it is the empty array, "[  ]", as
+    /// <see cref="Kv3Words"/> prints one (dkr_m4_ferris's path_particle_rope 1849).</summary>
     private static string Kv3Rows(IReadOnlyList<string> rows)
     {
+        if (rows.Count == 0)
+            return "[  ]";
         var text = new StringBuilder("[\n");
         foreach (var row in rows)
             text.Append('\t').Append(row).Append(",\n");

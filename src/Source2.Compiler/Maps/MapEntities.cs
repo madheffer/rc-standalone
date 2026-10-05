@@ -216,7 +216,13 @@ public static class MapEntities
             var id = child.GetValue<int>("nodeID") ?? int.MinValue;
             if (GameKeyBearer.Contains(child.Type) && Read(child, isWorld: false) is { } entity)
             {
-                entity = entity with { Layer = layer, Hidden = prefab.Enclosed || prefab.Hidden.Contains(id), Prefabs = prefab.Ids, NamePrefix = prefab.NamePrefix };
+                // An editorOnly node (CMapNode +0x365) fails the compile's node
+                // filter (rc 180f77240) and ships nothing, as a hidden one: the
+                // ten editorOnly sky_cameras of the corpus are in no Valve lump.
+                var editorOnly = child.GetValue<bool>("editorOnly") == true;
+                if (editorOnly && child.GetElements("children").Any())
+                    throw new NotSupportedException($"node {id}: an editorOnly node with children is not measured");
+                entity = entity with { Layer = layer, Hidden = prefab.Enclosed || prefab.Hidden.Contains(id) || editorOnly, Prefabs = prefab.Ids, NamePrefix = prefab.NamePrefix };
                 // A node of a prefab's map is placed as the prefab moves it.
                 if (prefab.Chain.Length > 0)
                 {

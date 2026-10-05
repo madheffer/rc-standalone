@@ -42,6 +42,45 @@ def installed(dll, rva, build=None):
     return at
 
 
+def installed_data(dll, rva, build=None, tries=8):
+    """The installed RVA of the global at <rva> in <dll>_<build>.dll.
+
+    A global has no code to match, so this finds functions of the analysis
+    build that address it RIP-relatively, maps each one (installed), and reads
+    the global's new place from the same instruction there. Every function
+    tried must agree, or it raises."""
+    build = build or BUILDS.get(dll, ANALYSIS)
+    found = pc.baselines(dll)
+    old = _image(found[build])
+    new = _image(os.path.join(pc.BIN, pc.SUBDIR.get(dll, ""), dll + ".dll"))
+    answers = set()
+    for start, end in sorted(old.bounds.items()):
+        if len(answers) and tries <= 0:
+            break
+        raw = bytes(old.img[start:end])
+        if rva - start > 0x7fffffff or start - rva > 0x7fffffff:
+            continue
+        hits = []
+        for ins in old.md.disasm(raw, start):
+            if ins.disp_offset and "rip" in ins.op_str:
+                disp = int.from_bytes(raw[ins.address - start + ins.disp_offset:][:4], "little", signed=True)
+                if ins.address + ins.size + disp == rva:
+                    hits.append((ins.address - start, ins.size, ins.disp_offset))
+        if not hits:
+            continue
+        status, at, _ = pc.compare(old, new, start)
+        if status not in ("identical", "relocated", "moved") or at is None:
+            continue
+        for off, size, doff in hits:
+            here = at + off
+            disp = int.from_bytes(bytes(new.img[here + doff:here + doff + 4]), "little", signed=True)
+            answers.add(here + size + disp)
+        tries -= 1
+    if len(answers) != 1:
+        raise SystemExit(f"{dll} global 0x{rva:x}: {len(answers)} installed places {sorted(hex(a) for a in answers)}")
+    return answers.pop()
+
+
 def require(dll, rvas, build=None):
     """Exit unless every address in <rvas> is where the analysis build had it.
 

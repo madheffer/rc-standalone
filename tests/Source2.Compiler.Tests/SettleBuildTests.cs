@@ -154,7 +154,10 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             byNode.TryAdd(o.Node, o);
         using var models = new PakModels(pak, AddonGame);
         var document = DmxBinary.ReadFile(Vmap);
-        var bodies = SettleWorld.Build(document, models, MapFixtures.GameSchema(), SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators));
+        // As the compile loads it: prefab maps attached, so their blocks are reserved.
+        MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(Vmap))!));
+        var bodies = SettleWorld.Build(document, models, MapFixtures.GameSchema(), SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
+            d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators));
 
         var counts = new Dictionary<string, int>();
         void Count(string what) => counts[what] = counts.GetValueOrDefault(what) + 1;
@@ -171,7 +174,7 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
             seen[body.NodeId]++;
             if (!byNode.TryGetValue(body.NodeId, out var obj) || k >= obj.Bodies.Count)
             {
-                var node = document.Elements.First(e => e.GetValue<int>("nodeID") == body.NodeId && e.Type.StartsWith("CMap"));
+                var node = body.Node ?? document.Elements.First(e => e.GetValue<int>("nodeID") == body.NodeId && e.Type.StartsWith("CMap"));
                 var hidden = MapEntities.HiddenNodes(document).Contains(body.NodeId);
                 if (Environment.GetEnvironmentVariable("SETTLE_LIST") == "1")
                     output.WriteLine($"  not in the capture: node {body.NodeId} {node.Type} {node.Get<string>("name")} hidden {hidden} parent {(parentOf.GetValueOrDefault(node) is { } np ? $"{np.Type} {np.GetValue<int>("nodeID")} {np.Get<string>("name")}" : "")}");

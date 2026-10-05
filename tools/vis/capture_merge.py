@@ -58,6 +58,18 @@ const RVA = %(rvas)s;
 const GEN = %(gen)s, VIS = %(vis)s, PASSES = %(passes)s, OUTSIDE = %(outside)d;
 const PREMERGE = %(premerge)s, PM = %(pm)s, VISN = %(visn)d, STOP = %(stop)d, RAYS = %(rays)s;
 let pass = -1, seq = 0;
+
+// Frida drops a message over 128 MiB (and the session with it): a bigger blob
+// goes ahead in 'part' messages the host joins onto the record that follows.
+const PART = 64 * 1024 * 1024;
+function sendBig(head, buf) {
+  if (buf === null || buf.byteLength <= PART) { send(head, buf); return; }
+  let parts = 0;
+  for (let at = 0; at < buf.byteLength; at += PART, parts++)
+    send({ev: 'part'}, buf.slice(at, Math.min(at + PART, buf.byteLength)));
+  head.parts = parts;
+  send(head, null);
+}
 const live = {};   // thread id -> current MergeLoop record
 const known = new Set();   // leaves whose box has been sent
 
@@ -133,13 +145,13 @@ function hook(m) {
       const scene = a[0].add(0xe8).readPointer();
       const box = []; for (let k = 0; k < 6; k++) box.push(scene.add(4 + k * 4).readFloat());
       const [n, buf] = dumpSets(a[1]);
-      send({ev: 'pass', pass, sets: n, scene: box}, buf);
+      sendBig({ev: 'pass', pass, sets: n, scene: box}, buf);
     },
     onLeave(ret) {
       if (STOP >= 0 && pass === STOP) { send({ev: 'done'}); return; }
       if (!PASSES) return;
       const [n, buf] = dumpSets(this.sets);
-      send({ev: 'passout', pass, sets: n, ret: ret.toInt32()}, buf);
+      sendBig({ev: 'passout', pass, sets: n, ret: ret.toInt32()}, buf);
       if (pass === 4) send({ev: 'done'});
     }
   });
@@ -154,12 +166,12 @@ function hook(m) {
         this.sets = a[1];
         inside = true;
         const [n, buf] = dumpSets(a[1]);
-        send({ev: 'gen', sets: n}, buf);
+        sendBig({ev: 'gen', sets: n}, buf);
       },
       onLeave() {
         inside = false;
         const [n, buf] = dumpSets(this.sets);
-        send({ev: 'premerged', sets: n}, buf);
+        sendBig({ev: 'premerged', sets: n}, buf);
         send({ev: 'done'});
       }
     });
@@ -195,7 +207,7 @@ function hook(m) {
       onEnter(a) { this.p = a[0]; },
       onLeave() {
         const p = this.p, n = p.add(0x40).readS32();
-        send({ev: 'regions', when: 'leave', count: n}, n > 0 ? p.add(0x48).readPointer().readByteArray(n * 16) : null);
+        sendBig({ev: 'regions', when: 'leave', count: n}, n > 0 ? p.add(0x48).readPointer().readByteArray(n * 16) : null);
         send({ev: 'status', count: n}, n > 0 ? p.add(0x120).readPointer().readByteArray(n) : null);
       }
     });
@@ -332,6 +344,7 @@ def main():
     lock = threading.Lock()
     stats = {"in": 0, "out": 0, "vis": 0, "merges": 0}
     running = {}
+    pending = []
 
     def on_message(message, data):
         if message["type"] != "send":
@@ -339,6 +352,13 @@ def main():
             return
         payload = message["payload"]
         ev = payload["ev"]
+        if ev == "part":
+            pending.append(data or b"")
+            return
+        if payload.get("parts"):
+            data = b"".join(pending)
+            pending.clear()
+            del payload["parts"]
         if ev == "hooked":
             print("hooked visbuilder at", payload["base"])
         elif ev == "pass":
