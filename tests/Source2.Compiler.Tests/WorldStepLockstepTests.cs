@@ -209,6 +209,55 @@ public sealed unsafe class WorldStepLockstepTests(ITestOutputHelper output)
         return b;
     }
 
+    /// <summary>
+    /// CRnWorld::ClampToWorldBounds (FUN_1801faf80): three bodies thrown out of
+    /// the world on different steps (one per step, so the hash set's pointer
+    /// order cannot matter), moved back, stopped and put to sleep, then the
+    /// pairs queried again; every step equal to Valve's.
+    /// </summary>
+    [Fact]
+    public void BodiesLeavingTheWorldAreClampedMatch()
+    {
+        if (Floor() is not { } w)
+            return;
+        var half = *(float*)(w.Rn + 0x1b4);
+        output.WriteLine($"world half size {half}");
+        var box = Box(w, 8, 8, 8);
+        var slab = Box(w, 10, 9, 7);
+        var a = Drop(w, box, new Vec3(half - 60, 0, 40), Quat.Identity);
+        a.State.LinearVelocity = new(2000, 0, 0);
+        var b = Drop(w, box, new Vec3(0, -(half - 300), 40), Axis(0, 0, 1, 0.3f));
+        b.State.LinearVelocity = new(0, -2000, 0);
+        var c = Drop(w, slab, new Vec3(100, 100, half - 700), Axis(1, 1, 0, 0.5f));
+        c.State.LinearVelocity = new(0, 0, 2500);
+        Drop(w, box, new Vec3(0, 0, 12), Quat.Identity);
+        output.WriteLine($"{Run(w, 150, inspect: (port, s) =>
+        {
+            foreach (var body in port.Bodies.Where(x => (x.State.Flags249 & 4) != 0 && x.State.BodyType == 2 && MathF.Abs(x.State.Position.X) + MathF.Abs(x.State.Position.Y) + MathF.Abs(x.State.Position.Z) > half / 2))
+                output.WriteLine($"step {s}: b{body.Index} asleep at {body.State.Position}");
+        })} steps exact");
+    }
+
+    /// <summary>
+    /// The clamp on bodies in contact: a train of touching boxes slides out
+    /// along x, so each is clamped and put to sleep while still touching the
+    /// next (one leaves per step).
+    /// </summary>
+    [Fact]
+    public void TouchingBodiesLeavingTheWorldMatch()
+    {
+        if (Floor() is not { } w)
+            return;
+        var half = *(float*)(w.Rn + 0x1b4);
+        var box = Box(w, 8, 8, 8);
+        for (var k = 0; k < 4; k++)
+        {
+            var b = Drop(w, box, new Vec3(half - 120 - 16.5f * k, 3f * k, 40 + 0.5f * k), Axis(0, 0, 1, 0.05f * k));
+            b.State.LinearVelocity = new(900 + 10 * k, 0, 0);
+        }
+        output.WriteLine($"{Run(w, 200)} steps exact");
+    }
+
     [Fact]
     public void StacksAndPilesMatch()
     {

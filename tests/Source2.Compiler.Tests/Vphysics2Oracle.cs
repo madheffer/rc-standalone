@@ -32,11 +32,11 @@ internal static unsafe class Vphysics2Oracle
             if (_tried)
                 return _module == 0 ? null : _module;
             _tried = true;
-            if (Path() is not { } dll)
+            // The installed DLL when it is the build read, else the archived
+            // copy of that build staged beside the tier0 it imports.
+            var dll = new[] { Path(), Staged() }.FirstOrDefault(d => d != null && IsBuild(d));
+            if (dll == null)
                 return null;
-            using (var stream = File.OpenRead(dll))
-                if (Convert.ToHexStringLower(SHA256.HashData(stream)) != Build)
-                    return null;
             // tier0.dll and the rest are beside it.
             if (NativeLibrary.TryLoad(dll, typeof(Vphysics2Oracle).Assembly,
                     DllImportSearchPath.UseDllDirectoryForDependencies | DllImportSearchPath.System32,
@@ -52,6 +52,33 @@ internal static unsafe class Vphysics2Oracle
     /// <summary>A tier0 export, from the tier0.dll vphysics2 loaded.</summary>
     public static nint Tier0(string name)
         => NativeLibrary.GetExport(NativeLibrary.Load("tier0.dll"), name);
+
+    private static bool IsBuild(string dll)
+    {
+        using var stream = File.OpenRead(dll);
+        return Convert.ToHexStringLower(SHA256.HashData(stream)) == Build;
+    }
+
+    /// <summary>
+    /// D:/tools/binaries' vphysics2_20260924.dll and tier0_20260923.dll (the
+    /// installed tier0 still) copied to a folder of their own under the
+    /// names vphysics2 loads them by, or null when the archive lacks them.
+    /// </summary>
+    private static string? Staged()
+    {
+        var archive = Environment.GetEnvironmentVariable("S2C_BINARIES") ?? @"D:\tools\binaries";
+        var (vp, t0) = (System.IO.Path.Combine(archive, "vphysics2_20260924.dll"), System.IO.Path.Combine(archive, "tier0_20260923.dll"));
+        if (!File.Exists(vp) || !File.Exists(t0))
+            return null;
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "s2c_vphysics2_20260924");
+        Directory.CreateDirectory(dir);
+        var dll = System.IO.Path.Combine(dir, "vphysics2.dll");
+        if (!File.Exists(dll))
+            File.Copy(vp, dll);
+        if (!File.Exists(System.IO.Path.Combine(dir, "tier0.dll")))
+            File.Copy(t0, System.IO.Path.Combine(dir, "tier0.dll"));
+        return dll;
+    }
 
     private static string? Path()
     {

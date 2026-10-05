@@ -433,7 +433,7 @@ public sealed class RnWorld
     /// <summary>The TOI solve of FUN_1801ffe80 (FUN_1802001b0 over +0xa78, then +0xab0), after <see cref="WorldSolver.GatherContinuous"/>.</summary>
     public Action<RnWorld, float>? SolveContinuous;
 
-    /// <summary>FUN_1801faf80, the world bounds check; unset, <see cref="StepGlue.ShapesOutsideBounds"/>.</summary>
+    /// <summary>FUN_1801faf80, the world bounds clamp; unset, <see cref="StepGlue.ClampToWorldBounds"/>.</summary>
     public Action<RnWorld>? ClampToWorldBounds;
 
     /// <summary>
@@ -551,7 +551,7 @@ public sealed class RnWorld
         if (ClampToWorldBounds != null)
             ClampToWorldBounds(this);
         else
-            StepGlue.ShapesOutsideBounds(broadphase, MaxCoordinate);
+            StepGlue.ClampToWorldBounds(this);
         StepFlags |= 1;
     }
 

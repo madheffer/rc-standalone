@@ -385,6 +385,30 @@
    "note": "the proxies' boxes for an enabled body, moved immediately"
   },
   {
+   "addr": "1801b1a30",
+   "name": "CRnBody_ComputeAabb",
+   "module": "s2c:entities/settle",
+   "note": "its shapes' boxes (vfn 0x80) at its frame, unioned into a box that starts at zero (not FLT_MAX)"
+  },
+  {
+   "addr": "1801b9c20",
+   "name": "CRnBody_Translate",
+   "module": "s2c:entities/settle",
+   "note": "position and previous position moved, proxies moved at once, then CRnBody_Sleep"
+  },
+  {
+   "addr": "1801be010",
+   "name": "CRnBody_Sleep",
+   "module": "s2c:entities/settle",
+   "note": "sleeping forces kept, velocities zeroed unless static, timers cleared, +0x1f8 FLT_MAX, off the awake list, fast flag cleared with its proxies reselected; StepGlue.SleepBody"
+  },
+  {
+   "addr": "1802552d0",
+   "name": "CRnShape_ReselectTree",
+   "module": "s2c:entities/settle",
+   "note": "CBroadphase_ChangeTree when the shape has a proxy"
+  },
+  {
    "addr": "1801b9270",
    "name": "CRnBody_UpdateProxies",
    "module": "s2c:entities/settle",
@@ -802,7 +826,7 @@
    "addr": "1801faf80",
    "name": "CRnWorld_ClampToWorldBounds",
    "module": "s2c:entities/settle",
-   "note": ""
+   "note": "out-of-bounds dynamic bodies moved back inside +-(h - 6), stopped and put to sleep, then the pairs queried again; StepGlue.ClampToWorldBounds"
   },
   {
    "addr": "1801fc050",

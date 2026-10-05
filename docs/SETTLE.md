@@ -33,9 +33,15 @@ inside the lump build (`SettleWorld.Run` then `EntityLumpSet.Author`) in about
   - the time of impact through each shape's proxy (vfn 0xb0).
 
 Open:
-- **Not ported:** joints (and their colouring), compound shapes, a lattice
-  deformer on a round prop (Valve tessellates the shape into a mesh), and
-  the out-of-world-bounds fix-up (`CRnWorld_ClampToWorldBounds`).
+- **Not ported:** joints (and their colouring), compound shapes, and a
+  lattice deformer on a round prop (Valve tessellates the shape into a
+  mesh).
+- **The out-of-world-bounds fix-up** (`CRnWorld_ClampToWorldBounds`,
+  ported 2026-10-06): exact in lockstep with Valve's world for bodies
+  leaving one per step, alone and touching others
+  (`WorldStepLockstepTests.BodiesLeavingTheWorldAreClampedMatch`,
+  `TouchingBodiesLeavingTheWorldMatch`). Valve visits several bodies
+  leaving at once in a hash set's pointer order; the port uses tree order.
 - **Not exercised by a specimen:** the round-shape time of impact and its
   fallback.
 

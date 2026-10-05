@@ -363,6 +363,18 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ## Resolved
 
+- **Bodies leaving the world** (ported 2026-10-06 from the decompile of
+  vphysics2 0924; exact in lockstep with Valve's world). After the
+  continuous solve, CRnWorld_ClampToWorldBounds (1801faf80) takes each
+  dynamic body with a proxy outside +-(h - 1): velocities zeroed unless
+  static, its box (1801b1a30, shapes' boxes unioned into a box that starts
+  at zero) grown by its origin, moved by the least that brings the box
+  inside +-(h - 6) per axis (1801b9c20), and put to sleep (1801be010); then
+  the pair query and new contacts. dc_port's two dkr_m1_motel maps now
+  build and are within the documented gaps. The oracle tests load the
+  archived 0924 vphysics2 beside its tier0 when the installed build has
+  moved on (they had returned early since the 10-01 update).
+
 - **Prefab and instance collapse order** (settled 2026-10-05 by capture,
   capture_collapse.py on c2m3_coaster_d_d). Prefabs and the map's own
   instances share the first round in tree order: coaster's prefabs 2, 3,
