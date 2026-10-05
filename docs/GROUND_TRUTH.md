@@ -411,7 +411,13 @@ game can answer is raised with the user first, and runs with -insecure.
   vertices as given and joins nothing by position, and its vertex list
   (FUN_181310620) has a few coincident vertices ours joins (the queen: 89
   inputs against our 85, 62 equal). Open: which vertices the piece mesh
-  keeps apart (not .vmap ids, not the 1/32 weld on any stream subset tried).
+  keeps apart. Not .vmap ids (929 groups), not joined by mesh-space
+  position (107) nor by entity-space position (85, ours), not the 1/32
+  weld on any stream subset tried, and not HalfEdge_MergeVertices (only the
+  subdivision bake and the editor's MergeMesh call it). A point Valve
+  lists twice belongs to two .vmap vertices (the queen's 23166 and 26523).
+  Next, with CS2 closed: capture MapBuilder_TriangleMesh's input
+  (181308060: positions, count, indices, triangle count) per piece.
 
 - **Faces of instanced meshes in world physics** (ledger 49, settled
   2026-10-05 by capture). CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces

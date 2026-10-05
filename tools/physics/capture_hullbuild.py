@@ -8,6 +8,11 @@ by the port from Valve's own input (RnHullBuilder.BuildHull) and compared
 with the shipped hulls: equal means the port's input differs, unequal means
 the hull build does.
 
+With --trimesh it also records each MapBuilder_TriangleMesh call (0923:
+181308060; half-edge mesh, Vector3 *positions, int count, int *indices, int
+triangles): the vertex buffer and triangles the half-edge mesh is built
+from, whose vertices the hull groups are made of.
+
 The compile is forced (-f) and overwrites the map's .vpk, so the .vpk is
 backed up beside the output and restored. CS2 must be closed; the script
 refuses to start if it is running or another compile is.
@@ -50,6 +55,17 @@ function hook() {
       send(e);
     }
   });
+  if (%(trimesh)d) Interceptor.attach(rc.base.add(%(trimesh)d), {
+    onEnter(args) {
+      const count = args[2].toInt32(), tris = args[4].toInt32();
+      const e = {trimesh: n++, count: count, triangles: tris, stack: trace(this.context)};
+      try {
+        e.points = hex(args[1].readByteArray(count * 12));
+        e.indices = hex(args[3].readByteArray(tris * 12));
+      } catch (err) { e.err = String(err); }
+      send(e);
+    }
+  });
   send({hooked: rc.base.toString()});
 }
 hook();
@@ -62,8 +78,10 @@ def main():
     p.add_argument("map")
     p.add_argument("out")
     p.add_argument("--full", action="store_true", help="a full compile rather than -world -fshallow")
+    p.add_argument("--trimesh", action="store_true", help="also record MapBuilder_TriangleMesh's input")
     a = p.parse_args()
     rva = installed("resourcecompiler", 0x131efc0, build="20260923")
+    trimesh = installed("resourcecompiler", 0x1308060, build="20260923") if a.trimesh else 0
     if busy():
         raise SystemExit("CS2 or another resourcecompiler is running; not starting")
     if low_disk():
@@ -84,7 +102,7 @@ def main():
             print(msg, flush=True)
             return
         pay = msg["payload"]
-        if "call" not in pay:
+        if "call" not in pay and "trimesh" not in pay:
             print(pay, flush=True)
             return
         with lock:
@@ -93,7 +111,7 @@ def main():
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT % {"rva": rva})
+    sc = ses.create_script(AGENT % {"rva": rva, "trimesh": trimesh})
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()
