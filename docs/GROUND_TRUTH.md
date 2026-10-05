@@ -327,9 +327,11 @@ game can answer is raised with the user first, and runs with -insecure.
     boxes only ours have their centre in x -2048 to 6144, y -10240 to
     -4096, z -2048 to 0, mostly outside the voxel hints (which act through
     the octree only, see Resolved). Valve's extra boxes are often strips 24
-    thick in y; where ours differs it is usually one merge step more (a
-    strip of Valve's lies inside a box of ours a few voxels longer). So the
-    merge's choices part, not a missing stage. Next: a merge-pass capture
+    thick in y. Of Valve's 2,374 boxes not ours, 1,587 lie inside a bigger
+    box of ours (331 of them differing on one face only, a merge step
+    more) and 787 inside none, so we mostly merge further and sometimes
+    cut otherwise. The merge's choices part, not a missing stage (nodes
+    and node boxes are exact going in). Next: a merge-pass capture
     on Mako (capture_merge.py --passes), then VISCHAIN_MERGE.
 
 ## Resolved
