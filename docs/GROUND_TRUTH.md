@@ -321,6 +321,17 @@ game can answer is raised with the user first, and runs with -insecure.
     R16G16_FLOAT (NodeDraw.TexcoordFormat). atixref: all 824 world draws
     (DrawOrderProbe, DRAWORDER_RUNS=1) and 472 agg_prop streams.
 
+51. **Mako's vis clusters at assignment** (VisChainTests on mako3,
+    2026-10-05): octree nodes and node boxes exact; clusters 24,960
+    against Valve's 25,471, 23,083 boxes shared. About 1,450 of the 1,861
+    boxes only ours have their centre in x -2048 to 6144, y -10240 to
+    -4096, z -2048 to 0, mostly outside the voxel hints (which act through
+    the octree only, see Resolved). Valve's extra boxes are often strips 24
+    thick in y; where ours differs it is usually one merge step more (a
+    strip of Valve's lies inside a box of ours a few voxels longer). So the
+    merge's choices part, not a missing stage. Next: a merge-pass capture
+    on Mako (capture_merge.py --passes), then VISCHAIN_MERGE.
+
 ## Resolved
 
 - **Faces of instanced meshes in world physics** (ledger 49, settled
