@@ -17,6 +17,8 @@ defect, rather than a number several thousand merges downstream of it.
   --vis-n N  with --vis, only buckets handed N clusters (a 30k bucket's bits run to gigabytes)
   --stop-after P  stop the compile when pass P returns
   --rays=x,y,z;x,y,z  also the sampler's rays for clusters centred there
+  --gen-box=x,y,z;...  only cluster generation's merges of the leaves with
+          those minimums (with --vis, their visibility); stops once all are in
   --premerge  only the distance pre-merge (DistancePreMerge, 180030b40): the
           sets it is handed ("gen"), the runs at the start of every round of
           MergeBestCandidates ("round": box, owner set, index per run), the
@@ -57,6 +59,8 @@ AGENT = r"""
 const RVA = %(rvas)s;
 const GEN = %(gen)s, VIS = %(vis)s, PASSES = %(passes)s, OUTSIDE = %(outside)d;
 const PREMERGE = %(premerge)s, PM = %(pm)s, VISN = %(visn)d, STOP = %(stop)d, RAYS = %(rays)s;
+const GENBOX = %(genbox)s;
+let genboxSeen = 0;
 let pass = -1, seq = 0;
 
 // Frida drops a message over 128 MiB (and the session with it): a bigger blob
@@ -221,11 +225,13 @@ function hook(m) {
     function (sampler, set, box, limit, budget, padded) {
       padded &= 0xff;
       const tid = Process.getCurrentThreadId();
-      const want = GEN || !padded;
+      // --gen-box: only generation's merges of leaves with those minimums.
+      const b = [];
+      for (let k = 0; k < 6; k++) b.push(box.add(k * 4).readFloat());
+      const boxed = GENBOX.length > 0 && padded && GENBOX.some(w => w[0] === b[0] && w[1] === b[1] && w[2] === b[2]);
+      const want = GENBOX.length ? boxed : (GEN || !padded);
       let rec = null;
       if (want) {
-        const b = [];
-        for (let k = 0; k < 6; k++) b.push(box.add(k * 4).readFloat());
         sendLeaves(sampler, set);
         const [n, blob] = dumpSet(set);
         rec = {id: seq++, pass, padded, limit, budget, box: b, n, merges: []};
@@ -237,6 +243,7 @@ function hook(m) {
         const [n, blob] = dumpSet(set);
         send({ev: 'out', id: rec.id, ret, n, merges: rec.merges}, blob);
         delete live[tid];
+        if (boxed && ++genboxSeen >= GENBOX.length) send({ev: 'done'});
       }
       return ret;
     }, 'float', ['pointer', 'pointer', 'pointer', 'float', 'int', 'int']));
@@ -318,6 +325,7 @@ def main():
     parser.add_argument("--premerge", action="store_true")
     parser.add_argument("--vis-n", type=int, default=0, help="with --vis: only buckets handed this many clusters")
     parser.add_argument("--rays", default="", help="cluster centres 'x,y,z;x,y,z' whose rays to record (pass as --rays=...)")
+    parser.add_argument("--gen-box", default="", help="leaf minimums 'x,y,z;x,y,z': only generation's merges there (pass as --gen-box=...); stops once all are in")
     parser.add_argument("--stop-after", type=int, default=-1, help="stop the compile when this pass returns")
     args = parser.parse_args()
 
@@ -392,7 +400,8 @@ def main():
         "passes": str(args.passes).lower(), "outside": outside,
         "premerge": str(args.premerge).lower(), "pm": json.dumps(pm),
         "visn": args.vis_n, "stop": args.stop_after,
-        "rays": json.dumps([[float(v) for v in c.split(",")] for c in args.rays.split(";") if c])})
+        "rays": json.dumps([[float(v) for v in c.split(",")] for c in args.rays.split(";") if c]),
+        "genbox": json.dumps([[float(v) for v in c.split(",")] for c in args.gen_box.split(";") if c])})
     script.on("message", on_message)
     script.load()
 

@@ -188,7 +188,7 @@ public class VisMergeReplay(ITestOutputHelper output)
                 // With Valve's visibility captured: our sampler against it, our
                 // prices on it, and our merge order on it.
                 var sampled = Clone(b.In);
-                VisClusterSample.SampleInto(rte, sampled, b.Mins, b.Maxs, padded: false, Cube);
+                VisClusterSample.SampleInto(rte, sampled, b.Mins, b.Maxs, padded: b.Pass < 0, Cube);
                 var bitsDiffer = Enumerable.Range(0, sampled.Count).Where(i => !sampled[i].Visibility.SequenceEqual(vis[i])).ToList();
                 output.WriteLine($"bucket {b.Id}: sampler differs on {bitsDiffer.Count} of {sampled.Count} clusters"
                                + (bitsDiffer.Count > 0 ? $" (first {bitsDiffer[0]} box {b.In[bitsDiffer[0]].Mins}-{b.In[bitsDiffer[0]].Maxs})" : ""));
@@ -214,19 +214,19 @@ public class VisMergeReplay(ITestOutputHelper output)
                             output.WriteLine($"  price {i}->{other}: ours {mine:R} valve {cost:R}");
                     }
                 var onValveSeq = new List<(int, int, float)>();
-                VisMerge.Run(rte, onValve, b.Mins, b.Maxs, b.Limit, b.Budget, padded: false, Cube, sampled: true,
+                VisMerge.Run(rte, onValve, b.Mins, b.Maxs, b.Limit, b.Budget, padded: b.Pass < 0, Cube, sampled: true,
                              merged: (o, t, c) => onValveSeq.Add((o, t, c)));
                 var firstOnValve = FirstDifference(onValveSeq, b.Merges);
                 output.WriteLine($"  prices {pricedExact}/{priced} exact; merge on Valve's bits first differs at {firstOnValve}"
                                + (firstOnValve >= 0 && firstOnValve < Math.Min(onValveSeq.Count, b.Merges.Count) ? $": ours {onValveSeq[firstOnValve]} valve {b.Merges[firstOnValve]}" : ""));
             }
-            var ret = VisMerge.Run(rte, ours, b.Mins, b.Maxs, b.Limit, b.Budget, padded: false, Cube,
+            var ret = VisMerge.Run(rte, ours, b.Mins, b.Maxs, b.Limit, b.Budget, padded: b.Pass < 0, Cube,
                                    merged: (o, t, c) => seq.Add((o, t, c)));
             if (at >= 0 && at < seq.Count && at < b.Merges.Count)
             {
                 var (po, pt, _) = seq[at];
                 var (qo, qt, qc) = b.Merges[at];
-                VisMerge.Run(rte, Clone(b.In), b.Mins, b.Maxs, b.Limit, b.Budget, padded: false, Cube,
+                VisMerge.Run(rte, Clone(b.In), b.Mins, b.Maxs, b.Limit, b.Budget, padded: b.Pass < 0, Cube,
                              probe: (step, cost, count) =>
                              {
                                  if (step != at)

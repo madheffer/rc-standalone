@@ -81,6 +81,24 @@ public static class VisClusterSample
         return found;
     }
 
+    /// <summary>
+    /// The 56 shell boxes around a leaf's box (<paramref name="mins"/> to
+    /// <paramref name="maxs"/>): half-leaf cells over the padded box, in
+    /// <see cref="Shell"/> order. The sampler and the merge's tree both hold them.
+    /// </summary>
+    public static List<(Vector3 Mins, Vector3 Maxs)> ShellBoxes(Vector3 mins, Vector3 maxs)
+    {
+        var (boxMins, _) = Padded(mins, maxs.X - mins.X);
+        var half = (maxs.X - mins.X) * 0.5f;
+        var found = new List<(Vector3, Vector3)>(Shell.Length);
+        foreach (var cell in Shell)
+        {
+            var at = boxMins + new Vector3(cell & 3, (cell >> 2) & 3, (cell >> 4) & 3) * half;
+            found.Add((at, at + new Vector3(half)));
+        }
+        return found;
+    }
+
     /// <summary>Directions a set of 512 or more clusters samples with.</summary>
     public const int SphereDirections = 512;
 
@@ -143,14 +161,7 @@ public static class VisClusterSample
         foreach (var cluster in clusters)
             boxes.Add((cluster.Mins, cluster.Maxs));
         if (padded)
-        {
-            var half = (maxs.X - mins.X) * 0.5f;
-            foreach (var cell in Shell)
-            {
-                var at = boxMins + new Vector3(cell & 3, (cell >> 2) & 3, (cell >> 4) & 3) * half;
-                boxes.Add((at, at + new Vector3(half)));
-            }
-        }
+            boxes.AddRange(ShellBoxes(mins, maxs));
 
         var centres = boxes.Select(b => (b.Mins + b.Maxs) * 0.5f).ToArray();
         var words = (boxes.Count + 63) / 64;

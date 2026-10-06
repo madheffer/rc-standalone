@@ -167,7 +167,7 @@ public static class VisMerge
             : clusters.Count(c => c.Maxs.Z - c.Mins.Z <= VisMergeCost.ZLimit);
 
         var live = clusters.Count + shell;
-        var state = new Selection(clusters);
+        var state = new Selection(clusters, padded ? VisClusterSample.ShellBoxes(mins, maxs) : []);
 
         // 1800337a0's loop tests the limit TWICE, and the first test is on the
         // cost of the pair it merged LAST rather than on the one it is about to
@@ -255,17 +255,23 @@ public static class VisMerge
         private readonly int[] _proxy;
         private readonly List<int> _found = [];
 
-        public Selection(List<Cluster> clusters)
+        public Selection(List<Cluster> clusters, List<(Vector3 Mins, Vector3 Maxs)> shell)
         {
             _clusters = clusters;
             _alive = [.. Enumerable.Repeat(true, clusters.Count)];
             _candidates = [.. Enumerable.Range(0, clusters.Count).Select(_ => new List<(int, float)>())];
 
-            // 1800337a0 puts every cluster in the tree with its OWN box, payload
-            // its index, before any list is built.
+            // MergeLoop (180034e40) puts every cluster in the tree with its OWN
+            // box, payload its index, then each shell box with payload count + i
+            // and no cluster, before any list is built. A shell box is skipped
+            // when priced but counts as found, so a cluster against the shell
+            // never widens its query (Mako: 25 leaves a solid voxel row splits
+            // stay two clusters).
             _proxy = new int[clusters.Count];
             for (var i = 0; i < clusters.Count; i++)
                 _proxy[i] = _tree.Create(clusters[i].Mins, clusters[i].Maxs, i);
+            for (var i = 0; i < shell.Count; i++)
+                _tree.Create(shell[i].Mins, shell[i].Maxs, clusters.Count + i);
             for (var i = 0; i < clusters.Count; i++)
                 Rebuild(i);
             Live = clusters.Count;

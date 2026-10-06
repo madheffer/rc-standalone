@@ -158,7 +158,13 @@ public class VisPreMergeProbe(ITestOutputHelper output)
                      : a.Count != b.Count ? "cluster count" : "cluster content";
             kinds[kind] = kinds.GetValueOrDefault(kind) + 1;
             if (shown++ < 6)
+            {
                 output.WriteLine($"  slot {key} ({kind}): ours {Describe(a)}; Valve {Describe(b)}");
+                // Each cluster's own box and voxel words (leaf slot / mask).
+                foreach (var (who, set) in new[] { ("ours", a), ("Valve", b) })
+                    foreach (var c in set)
+                        output.WriteLine($"    {who}: {c.Mins}-{c.Maxs} open {c.OpenSpace} {string.Join(",", c.Voxels.Select(v => $"{v.Leaf}/{v.Mask:x}"))}");
+            }
         }
         output.WriteLine($"  by region: {string.Join(", ", kinds.Select(kv => $"{kv.Key} {kv.Value}"))}");
         var differ = Enumerable.Range(0, Math.Min(generated.Count, theirsGen.Count)).Where(i => Sig(generated[i]) != Sig(theirsGen[i])).ToList();

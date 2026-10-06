@@ -348,6 +348,14 @@ game can answer is raised with the user first, and runs with -insecure.
     cut otherwise. The merge's choices part, not a missing stage (the
     octree and its node boxes are exact going in). Next: a merge-pass capture
     on Mako (capture_merge.py --passes), then VISCHAIN_MERGE.
+    2026-10-06: with the seed reading folded flags, generation's 751,270
+    sets match but 25 (VisPreMergeProbe on mako.pm), one strip where a solid
+    voxel row splits a leaf. capture_merge.py --gen-box --vis on two of them:
+    sampler and all 226 prices exact; Valve stops at two clusters because
+    MergeLoop (180034e40) also puts the 56 shell boxes in the candidate tree
+    (payload n + i, no cluster), so a cluster beside the shell finds
+    something and never widens its query. Ported (VisMerge.Selection);
+    both leaves exact.
 
 52. **The settle's dynamic order** (settled 2026-10-05: Valve's own output
     varies). MapSettle_Run (rc 180f1e490) takes its nodes from PhysDoc_GetNodes
