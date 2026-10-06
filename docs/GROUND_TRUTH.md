@@ -452,8 +452,15 @@ game can answer is raised with the user first, and runs with -insecure.
     lacks has compile_warnings 1. Prop aggregate fragments' flags come
     from BuildAggregate: +0x20 with attribute bit 17, +0x40000 with bit 19
     or with 16 or 18 while 17 is clear, +0x800 for a LOD'd mesh; the
-    depth split needs a depth signature without Dummy. The Linux build's
-    vis differs from Windows (trig), so parity is measured on Windows.
+    depth split needs a depth signature without Dummy. Settled after: the
+    Linux build parted from Windows for two reasons. Float sin/cos went
+    to the host libm (now Simulation.CrtMath, tier0's FMA3 sinf/cosf,
+    exact against the Windows CRT on 3.68M arguments). And rcpps/rsqrtps
+    estimates differ by CPU vendor, so Valve's own vis is the compiling
+    CPU's: the references come from a Zen 4, and S2C_ESTIMATE=zen4
+    (CpuEstimate, tables exact over every float) lets an Intel box
+    reproduce them. With both, probe01 -world on the Intel dev box is
+    byte-equal to the Ryzen's.
 
 ## Resolved
 
