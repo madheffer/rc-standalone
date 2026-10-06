@@ -162,7 +162,7 @@ internal static class SubdivisionBake
                 if (a.Level(a.First[mesh.Faces[f].Source]) > 0)
                     foreach (var h in mesh.Loop(f))
                         baked.Add(mesh.He(h).Vertex);
-            var cos = MathF.Cos(MathF.Min(smoothingAngle, 180f) * 0.017453292f);
+            var cos = Simulation.CrtMath.Cos(MathF.Min(smoothingAngle, 180f) * 0.017453292f);
             foreach (var v in baked)
                 RecomputeNormals(mesh, v, cos, normalAt);
         }

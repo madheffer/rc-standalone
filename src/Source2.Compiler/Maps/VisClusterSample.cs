@@ -132,7 +132,7 @@ public static class VisClusterSample
             var y = (i * step) - 1f + (step * 0.5f);
             var radius = MathF.Sqrt(MathF.Max(1f - (y * y), 0f));
             var angle = i * turn;
-            found[i] = new Vector3(MathF.Cos(angle) * radius, y, MathF.Sin(angle) * radius);
+            found[i] = new Vector3(Simulation.CrtMath.Cos(angle) * radius, y, Simulation.CrtMath.Sin(angle) * radius);
         }
         return found;
     }

@@ -24,9 +24,9 @@ public readonly record struct CTransform(Vector3 Position, float Scale, Quaterni
     public static Quaternion AngleQuaternion(Vector3 angles)
     {
         const float Half = 0.00872664619f;
-        float sp = MathF.Sin(angles.X * Half), cp = MathF.Cos(angles.X * Half);
-        float sy = MathF.Sin(angles.Y * Half), cy = MathF.Cos(angles.Y * Half);
-        float sr = MathF.Sin(angles.Z * Half), cr = MathF.Cos(angles.Z * Half);
+        float sp = Simulation.CrtMath.Sin(angles.X * Half), cp = Simulation.CrtMath.Cos(angles.X * Half);
+        float sy = Simulation.CrtMath.Sin(angles.Y * Half), cy = Simulation.CrtMath.Cos(angles.Y * Half);
+        float sr = Simulation.CrtMath.Sin(angles.Z * Half), cr = Simulation.CrtMath.Cos(angles.Z * Half);
         return new Quaternion(
             (cy * (sr * cp)) - (sy * (cr * sp)),
             (cy * (cr * sp)) + (sy * (sr * cp)),

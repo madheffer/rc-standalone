@@ -295,11 +295,11 @@ public static class StaticPropHulls
         for (var i = 0; i < Rings; i++)
         {
             var a = ((float)i * -6.2831855f) / Rings;
-            float sa = MathF.Sin(a), ca = MathF.Cos(a);
+            float sa = Source2.Compiler.Simulation.CrtMath.Sin(a), ca = Source2.Compiler.Simulation.CrtMath.Cos(a);
             var next = Segments * ((i + 1) % Rings);
             Vector3 At(float b)
             {
-                float sb = MathF.Sin(b), cb = MathF.Cos(b);
+                float sb = Source2.Compiler.Simulation.CrtMath.Sin(b), cb = Source2.Compiler.Simulation.CrtMath.Cos(b);
                 return new Vector3(radius * sb, (cb * ca) * radius, (cb * sa) * radius);
             }
             points[start] = At(first);
@@ -343,11 +343,11 @@ public static class StaticPropHulls
         for (var i = 0; i < Rings; i++)
         {
             var a = ((float)i * -6.2831855f) / Rings;
-            float sa = MathF.Sin(a), ca = MathF.Cos(a);
+            float sa = Source2.Compiler.Simulation.CrtMath.Sin(a), ca = Source2.Compiler.Simulation.CrtMath.Cos(a);
             var next = ((i + 1) % Rings) * Per;
             void Pair(int at, float b)
             {
-                float sb = MathF.Sin(b), cb = MathF.Cos(b);
+                float sb = Source2.Compiler.Simulation.CrtMath.Sin(b), cb = Source2.Compiler.Simulation.CrtMath.Cos(b);
                 float y = radius * (cb * ca), z = radius * (cb * sa);
                 points[at] = new Vector3((radius * -sb) + 0f, y, z);
                 points[at + 1] = new Vector3((radius * sb) + length, y, z);

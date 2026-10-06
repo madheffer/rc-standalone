@@ -60,16 +60,16 @@ public static class LightCrt
     }
 
     /// <summary>cosf (tier0 V_cosf).</summary>
-    public static float Cos(float x) => MathF.Cos(x);
+    public static float Cos(float x) => Simulation.CrtMath.Cos(x);
 
     /// <summary>sinf (tier0 V_sinf).</summary>
-    public static float Sin(float x) => MathF.Sin(x);
+    public static float Sin(float x) => Simulation.CrtMath.Sin(x);
 
     /// <summary>sinf and cosf (tier0 V_sincosf).</summary>
     public static void SinCos(float x, out float sin, out float cos)
     {
-        sin = MathF.Sin(x);
-        cos = MathF.Cos(x);
+        sin = Simulation.CrtMath.Sin(x);
+        cos = Simulation.CrtMath.Cos(x);
     }
 
     /// <summary>atan2f (tier0 V_atan2f).</summary>

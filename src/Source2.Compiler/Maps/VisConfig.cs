@@ -109,8 +109,8 @@ public sealed record VisConfig(int PvsType, System.Numerics.Vector3? DirToSun = 
             float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
             var angles = SettleWorld.MatrixAngles(MapMeshes.Concat(identity, local));
             const float Radians = 0.017453292f;
-            float sp = MathF.Sin(angles.X * Radians), cp = MathF.Cos(angles.X * Radians);
-            float sy = MathF.Sin(angles.Y * Radians), cy = MathF.Cos(angles.Y * Radians);
+            float sp = Simulation.CrtMath.Sin(angles.X * Radians), cp = Simulation.CrtMath.Cos(angles.X * Radians);
+            float sy = Simulation.CrtMath.Sin(angles.Y * Radians), cy = Simulation.CrtMath.Cos(angles.Y * Radians);
             sun = new System.Numerics.Vector3(-(cy * cp), -(sy * cp), -(-sp));
         }
         return sun;

@@ -91,7 +91,7 @@ internal static class OverlayProjector
             angle = MathF.Max(angle, 0f);
             if (180f <= angle)
                 angle = 180f;
-            var cos = MathF.Cos(angle * 0.017453292f) + 1e-5f;
+            var cos = Simulation.CrtMath.Cos(angle * 0.017453292f) + 1e-5f;
             if (cos <= -1f)
                 cos = -1f;
             if (0.99999f <= cos)

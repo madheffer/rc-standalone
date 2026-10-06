@@ -272,9 +272,9 @@ public static class MapMeshes
     internal static float[] AngleMatrix(Vector3 angles)
     {
         const float Radians = 0.017453292f;
-        float sp = MathF.Sin(angles.X * Radians), cp = MathF.Cos(angles.X * Radians);
-        float sy = MathF.Sin(angles.Y * Radians), cy = MathF.Cos(angles.Y * Radians);
-        float sr = MathF.Sin(angles.Z * Radians), cr = MathF.Cos(angles.Z * Radians);
+        float sp = Simulation.CrtMath.Sin(angles.X * Radians), cp = Simulation.CrtMath.Cos(angles.X * Radians);
+        float sy = Simulation.CrtMath.Sin(angles.Y * Radians), cy = Simulation.CrtMath.Cos(angles.Y * Radians);
+        float sr = Simulation.CrtMath.Sin(angles.Z * Radians), cr = Simulation.CrtMath.Cos(angles.Z * Radians);
         return [cy * cp, (sr * sp * cy) - (cr * sy), (cr * sp * cy) - (-sy * sr), 0,
                 sy * cp, (sr * sp * sy) + (cr * cy), (cr * sp * sy) - (sr * cy), 0,
                 -sp, sr * cp, cr * cp, 0];

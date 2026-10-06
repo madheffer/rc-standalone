@@ -22,8 +22,8 @@ internal static class PackedNormals
         var n = Octahedron((bits >> 12) & 0x3ff, bits >> 22);
         var (t, _) = Basis(n);
         var angle = (float)((bits >> 1) & 0x7ff) / 2047f * 6.2831855f;
-        var s = MathF.Sin(angle);
-        var c = MathF.Cos(angle);
+        var s = Simulation.CrtMath.Sin(angle);
+        var c = Simulation.CrtMath.Cos(angle);
         var tangent = new Vector4(
             ((((n.Y * t.Z) - (t.Y * n.Z)) * s) + (t.X * c)),
             ((((n.Z * t.X) - (t.Z * n.X)) * s) + (t.Y * c)),
