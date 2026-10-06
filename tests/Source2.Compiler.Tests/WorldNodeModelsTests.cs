@@ -204,6 +204,10 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
             return a;
         }
         var ours = NodePropAggregates.FromWorld(doc, content, Attributes, nodeMin);
+        EntityLumpAuthor.Lighting? lighting = null;
+        EntityLumpSet.Author(MapEntities.From(doc), MapFixtures.GameSchema()!, Path.GetFileNameWithoutExtension(vmap),
+                             MapEntities.FixupEntityNames(doc), doc, MapFixtures.SmartPropLocators, lighting: l => lighting = l);
+        var volumes = lighting!.Volumes;
         var facts = new Dictionary<string, WorldNodeModels.MaterialFacts>(StringComparer.OrdinalIgnoreCase);
         WorldNodeModels.MaterialFacts Material(string path)
         {
@@ -226,8 +230,13 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
         }
         using var package = new Package();
         package.Read(vpk);
-        int models = 0, matched = 0, treesExact = 0, buffersExact = 0;
+        int models = 0, matched = 0, treesExact = 0, buffersExact = 0, sceneExact = 0;
         var tally = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        // Valve's aggregate objects by model.
+        var vwnod = package.Entries!["vwnod_c"].First();
+        package.ReadEntry(vwnod, out var vwnodBytes);
+        var valveScene = WorldPhysicsAuthorTests.Trees(vwnodBytes)["DATA"];
+        var valveObjects = valveScene["m_aggregateSceneObjects"]!.Values.ToDictionary(o => (string)o["m_renderableModel"]!, StringComparer.OrdinalIgnoreCase);
         var examples = new Dictionary<string, string>();
         foreach (var entry in package.Entries!.GetValueOrDefault("vmdl_c") ?? [])
         {
@@ -267,11 +276,34 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
                 tally[k] = tally.GetValueOrDefault(k) + 1;
                 examples.TryAdd(k, $"{entry.FileName}: {l}");
             }
+            // The aggregate object: one mesh per fragment, by draw.
+            var sceneObject = new WorldNodeSceneTrees.Aggregate(name, 0, [.. agg.Fragments.Select(f => new WorldNodeSceneTrees.AggregateMesh(f.Draw,
+                    (f.ObjectFlags & ~0x20000u) | ((f.Attributes & 0x20000) != 0 ? 0x20u : 0u) | ((f.Attributes & 0x200000) != 0 ? 0x8000u : 0u),
+                    EnvVolumes.ForEntry(new System.Numerics.Vector3(float.MaxValue), "", f.Attributes, () => f.MeshBounds, volumes).Probe,
+                    new System.Numerics.Vector3(f.Tint.X, f.Tint.Y, f.Tint.Z) * 255f) { Transform = f.Matrix, LodMask = f.LodMask, LodSetup = f.LodSetup })])
+            {
+                LodSetups = [.. agg.LodSetups.Select(l => new WorldNodeSceneTrees.LodSetup(l.Origin, l.MaxScale, l.SwitchDistances))],
+            };
+            var ourScene = WorldNodeSceneTrees.Data([], [sceneObject])["m_aggregateSceneObjects"]!.Values.First();
+            if (models == 1 && Environment.GetEnvironmentVariable("WNPROPS_DEBUG") == "1")
+                output.WriteLine($"KEY sample {valveObjects.Keys.First()} ours {name}");
+            if (valveObjects.TryGetValue(name, out var valveObject))
+            {
+                var sceneLines = KvTreeDiff.Diff(valveObject, ourScene).ToList();
+                if (sceneLines.Count == 0)
+                    sceneExact++;
+                foreach (var l in sceneLines)
+                {
+                    var k = "VWNOD" + System.Text.RegularExpressions.Regex.Replace(l.Split(':')[0], @"\[\d+\]", "[]");
+                    tally[k] = tally.GetValueOrDefault(k) + 1;
+                    examples.TryAdd(k, $"{entry.FileName}: {l}");
+                }
+            }
             var vbs = WorldNodeModelAuthorTests.BufferBlocks(valve);
             if (vbs.Count == mine.Buffers.Count && vbs.Zip(mine.Buffers).All(p => p.First.Bytes.AsSpan().SequenceEqual(p.Second.Bytes)))
                 buffersExact++;
         }
-        output.WriteLine($"agg_prop models: {models}, matched {matched}, trees exact {treesExact}, buffers exact {buffersExact}");
+        output.WriteLine($"agg_prop models: {models}, matched {matched}, trees exact {treesExact}, buffers exact {buffersExact}, aggregate objects exact {sceneExact}");
         foreach (var (k, v) in tally)
             output.WriteLine($"{v,5} {examples[k]}");
     }

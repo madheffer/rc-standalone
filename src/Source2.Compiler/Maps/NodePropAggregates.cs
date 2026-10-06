@@ -51,7 +51,11 @@ internal static class NodePropAggregates
     public sealed record LodSetup(Vector3 Origin, float MaxScale, IReadOnlyList<float> SwitchDistances);
 
     /// <summary>One placed instance of a draw: the prop's matrix (3x4 row-major), tint and entry flags.</summary>
-    public sealed record Fragment(int Draw, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int LodMask, int LodSetup);
+    public sealed record Fragment(int Draw, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int LodMask, int LodSetup)
+    {
+        /// <summary>The fragment's own mesh bounds placed by the prop matrix (its env map point).</summary>
+        public (Vector3 Min, Vector3 Max) MeshBounds { get; init; }
+    }
 
     /// <summary>
     /// An aggregate model: its material, the run's attribute bits, draws and
@@ -73,6 +77,7 @@ internal static class NodePropAggregates
     {
         public IReadOnlyList<float> Switch { get; init; } = [];
         public float MaxScale { get; init; } = 1f;
+        public (Vector3 Min, Vector3 Max) MeshBounds { get; init; }
     }
 
     // A mesh: a model's draw call under its final material, unpacked in model space.
@@ -156,7 +161,7 @@ internal static class NodePropAggregates
                         meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Indices, c.Color, flags.Flags, c.FloatTexcoords));
                     }
                     entries.Add(new Entry(mi, material, matrix, header.Tint, header.ObjectFlags, flags.Flags, id, centre, c.Vertices.Length / NodePropEntries.Stride,
-                        propIndex, c.Lod, lods) { Switch = switchDistances, MaxScale = MaxScale(matrix) });
+                        propIndex, c.Lod, lods) { Switch = switchDistances, MaxScale = MaxScale(matrix), MeshBounds = Place(matrix, c.Lo, c.Hi, new Vector3(float.MaxValue), new Vector3(float.MinValue)) });
                 }
             }
             if (all)
@@ -283,8 +288,8 @@ internal static class NodePropAggregates
                 setups[e.Prop] = setup = setups.Count;
                 lodSetups.Add(new LodSetup(e.Centre, e.MaxScale, e.Switch));
             }
-            // m_nLODGroupMask: the LOD's bit.
-            fragments.Add(new Fragment(d, e.Matrix, e.Tint, e.ObjectFlags, e.Attributes, e.NodeId, e.Centre, e.Lods ? 1 << e.LodMask : 0, setup));
+            // LodMask is the LOD group mask meshsystem gives the mesh.
+            fragments.Add(new Fragment(d, e.Matrix, e.Tint, e.ObjectFlags, e.Attributes, e.NodeId, e.Centre, e.Lods ? e.LodMask : 0, setup) { MeshBounds = e.MeshBounds });
         }
         // The aggregate's meshes list each draw's fragments together, by draw.
         fragments = [.. fragments.Select((f, i) => (f, i)).OrderBy(x => x.f.Draw).ThenBy(x => x.i).Select(x => x.f)];

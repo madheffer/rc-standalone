@@ -19,10 +19,22 @@ public static class WorldNodeSceneTrees
                                      float FadeStart = 0f, float FadeEnd = 0f, int Layer = 0);
 
     /// <summary>One fragment of an aggregate: its draw call, object flags, light probe handshake and tint (0-255).</summary>
-    public sealed record AggregateMesh(int DrawCall, uint ObjectFlags, int LightProbe, Vector3 Tint);
+    public sealed record AggregateMesh(int DrawCall, uint ObjectFlags, int LightProbe, Vector3 Tint)
+    {
+        /// <summary>A prop fragment's placement (3x4, row major), its LOD bit and LOD setup.</summary>
+        public float[]? Transform { get; init; }
+        public int LodMask { get; init; }
+        public int LodSetup { get; init; } = -1;
+    }
+
+    /// <summary>A prop's LOD setup: origin, largest scale and switch distances.</summary>
+    public sealed record LodSetup(Vector3 Origin, float MaxScale, IReadOnlyList<float> SwitchDistances);
 
     /// <summary>An aggregate object: its model, layer and fragments.</summary>
-    public sealed record Aggregate(string Model, int Layer, IReadOnlyList<AggregateMesh> Meshes);
+    public sealed record Aggregate(string Model, int Layer, IReadOnlyList<AggregateMesh> Meshes)
+    {
+        public IReadOnlyList<LodSetup> LodSetups { get; init; } = [];
+    }
 
     // ObjectTypeFlags_t, from worldrenderer.dll's schema enumerators.
     private static readonly (uint Value, string Name)[] ObjectTypes =
@@ -78,17 +90,18 @@ public static class WorldNodeSceneTrees
                 var mo = KVObject.Collection();
                 mo.Add("m_nVisClusterMemberOffset", Int(0));
                 mo.Add("m_nVisClusterMemberCount", Int(0));
-                mo.Add("m_bHasTransform", new KVObject(false));
-                mo.Add("m_nLODGroupMask", Int(0));
+                mo.Add("m_bHasTransform", new KVObject(m.Transform != null));
+                // Written Int32 when set (atixref's power_outlet_campground: 1).
+                mo.Add("m_nLODGroupMask", m.LodMask == 0 ? Int(0) : new KVObject(m.LodMask));
                 mo.Add("m_nDrawCallIndex", Int(m.DrawCall));
-                mo.Add("m_nLODSetupIndex", Int(-1));
+                mo.Add("m_nLODSetupIndex", Int(m.LodSetup));
                 var tint = KVObject.Array();
                 tint.Add(new KVObject((uint)m.Tint.X));
                 tint.Add(new KVObject((uint)m.Tint.Y));
                 tint.Add(new KVObject((uint)m.Tint.Z));
                 mo.Add("m_vTintColor", tint);
                 mo.Add("m_objectFlags", Flags(m.ObjectFlags));
-                mo.Add("m_nLightProbeVolumePrecomputedHandshake", Int(m.LightProbe));
+                mo.Add("m_nLightProbeVolumePrecomputedHandshake", m.LightProbe == 0 ? Int(0) : new KVObject(m.LightProbe));
                 mo.Add("m_nInstanceStreamOffset", Int(0));
                 mo.Add("m_nVertexAlbedoStreamOffset", Int(0));
                 mo.Add("m_nVertexEmissiveStreamOffset", Int(0));
@@ -97,9 +110,21 @@ public static class WorldNodeSceneTrees
                 meshes.Add(mo);
             }
             ao.Add("m_aggregateMeshes", meshes);
-            ao.Add("m_lodSetups", KVObject.Array());
+            var setups = KVObject.Array();
+            foreach (var l in a.LodSetups)
+            {
+                var lo = KVObject.Collection();
+                lo.Add("m_vLODOrigin", Doubles(l.Origin.X, l.Origin.Y, l.Origin.Z));
+                lo.Add("m_fMaxObjectScale", new KVObject((double)l.MaxScale));
+                lo.Add("m_fSwitchDistances", Doubles([.. l.SwitchDistances.Select(x => (double)x)]));
+                setups.Add(lo);
+            }
+            ao.Add("m_lodSetups", setups);
             ao.Add("m_visClusterMembership", KVObject.Array());
-            ao.Add("m_fragmentTransforms", KVObject.Array());
+            var transforms = KVObject.Array();
+            foreach (var m in a.Meshes.Where(m => m.Transform != null))
+                transforms.Add(Doubles([.. m.Transform!.Select(x => (double)x)]));
+            ao.Add("m_fragmentTransforms", transforms);
             ao.Add("m_renderableModel", new KVObject(a.Model) { Flag = KVFlag.Resource });
             aggs.Add(ao);
         }
