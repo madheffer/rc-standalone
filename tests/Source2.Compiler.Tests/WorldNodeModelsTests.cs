@@ -158,14 +158,17 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
         output.WriteLine($"vwrld: {worldLines.Count} lines");
         foreach (var l in worldLines.Take(10))
             output.WriteLine("  " + l);
-        var vrman = package.Entries!["vrman_c"].First(e => e.FileName == "n0");
+        foreach (var vr in package.Entries!["vrman_c"])
+        {
+        var vrman = vr;
         package.ReadEntry(vrman, out var vrmanBytes);
         using (var r = new ValveResourceFormat.Resource())
         {
             r.Read(new MemoryStream(vrmanBytes));
             var data = r.GetBlockByType(ValveResourceFormat.BlockType.DATA)!;
             var groups = ResourceManifestAuthor.ReadData(vrmanBytes.AsSpan((int)data.Offset, (int)data.Size));
-            output.WriteLine($"n0.vrman: {string.Join(" / ", groups.Select(g => string.Join(", ", g)))}");
+            output.WriteLine($"{vr.GetFullPath()}: {string.Join(" / ", groups.Select(g => string.Join(", ", g)))}");
+        }
         }
         output.WriteLine($"{map}: {count} node models, trees exact {treesExact}, buffers exact {buffersExact} (+{barLighting} bar previous-bake lighting), container facts {factsExact}");
         foreach (var (k, v) in tally)
