@@ -62,6 +62,8 @@ public class PackageDiffProbe(ITestOutputHelper output)
             var lines = tv.Count != to.Count ? [$"blocks {string.Join(",", tv.Select(x => x.Item1))} vs {string.Join(",", to.Select(x => x.Item1))}"]
                 : tv.Zip(to).SelectMany(z => KvTreeDiff.Diff(z.First.Item2, z.Second.Item2).Select(l => z.First.Item1 + l)).ToList();
             var facts = WorldPhysicsAuthorTests.Facts(vb) == WorldPhysicsAuthorTests.Facts(ob);
+            if (!facts && Environment.GetEnvironmentVariable("PKGDIFF_FACTS") == "1")
+                output.WriteLine($"FACTS {path}: valve {WorldPhysicsAuthorTests.Facts(vb)} / ours {WorldPhysicsAuthorTests.Facts(ob)}");
             if (lines.Count == 0 && facts)
                 t[1]++;
             else

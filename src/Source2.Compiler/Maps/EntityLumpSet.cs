@@ -142,8 +142,9 @@ public static class EntityLumpSet
             children.AddRange(TemplatePass(items, schema, worldName));
 
         var lumps = new List<Lump>();
+        Func<KVObject, byte[]> compile = entitiesOnly || document is null ? EntityLumpAuthor.Compile : EntityLumpAuthor.CompileFull;
         foreach (var (name, items) in worlds)
-            lumps.Add(new Lump(PathOf(worldName, name), name, EntityLumpAuthor.Compile(
+            lumps.Add(new Lump(PathOf(worldName, name), name, compile(
                 EntityLumpAuthor.Lump(name,
                     name == "default_ents"
                         ? [.. worlds.Skip(1).Select(w => w.Name).Concat(children.Select(c => c.Name))
@@ -152,7 +153,7 @@ public static class EntityLumpSet
                     items.Where(i => !i.Hidden).Select(i => i.Tree)))));
         foreach (var (name, members) in children)
             lumps.Add(new Lump(PathOf(worldName, name), name,
-                               EntityLumpAuthor.Compile(EntityLumpAuthor.Lump(name, [], members))));
+                               compile(EntityLumpAuthor.Lump(name, [], members))));
         return lumps;
     }
 

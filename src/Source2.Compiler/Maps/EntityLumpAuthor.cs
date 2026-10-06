@@ -107,6 +107,51 @@ public static partial class EntityLumpAuthor
     /// <summary>Compile a lump's DATA tree into a <c>.vents_c</c>.</summary>
     public static byte[] Compile(KVObject lump) => Source2ContainerAuthor.AuthorKv3Tree(lump, Format, ".vents");
 
+    /// <summary>
+    /// A full world build's lump: RED2 lists every distinct resource_name value
+    /// of the lump, sorted, as weak references, and says UsesBuilderEntityKeys
+    /// (probe01's default_ents: the cubemap array, the brush models, the sky
+    /// material, the post process). An entities-only build writes neither.
+    /// </summary>
+    public static byte[] CompileFull(KVObject lump) => Source2ContainerAuthor.AuthorKv3Tree(lump, Format, ".vents", red2 =>
+    {
+        var names = new SortedSet<string>(StringComparer.Ordinal);
+        void Walk(KVObject node)
+        {
+            if (node.IsCollection || node.IsArray)
+            {
+                foreach (var child in node.Children)
+                    Walk(child.Value);
+                return;
+            }
+            if (node.Flag == KVFlag.ResourceName && node.ValueType == KVValueType.String && (string)node is { Length: > 0 } path)
+                names.Add(path);
+        }
+        Walk(lump);
+        var result = KVObject.Collection();
+        foreach (var (key, value) in red2.Children)
+        {
+            if (key == "m_WeakReferenceList")
+            {
+                var list = KVObject.Array();
+                foreach (var n in names)
+                    list.Add(new KVObject(n) { Flag = KVFlag.ResourceName });
+                result.Add(key, list);
+            }
+            else if (key == "m_SearchableUserData")
+            {
+                var user = KVObject.Collection();
+                foreach (var (k, v) in value.Children)
+                    user.Add(k, v);
+                user.Add("UsesBuilderEntityKeys", new KVObject(1L));
+                result.Add(key, user);
+            }
+            else
+                result.Add(key, value);
+        }
+        return result;
+    });
+
     /// <summary>Build and compile the lump.</summary>
     public static byte[] Author(
         IReadOnlyList<MapEntities.Entity> entities,

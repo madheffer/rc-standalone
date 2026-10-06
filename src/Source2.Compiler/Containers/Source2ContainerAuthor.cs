@@ -146,6 +146,10 @@ public static partial class Source2ContainerAuthor
     /// <param name="format">The KV3 format GUID to stamp on DATA.</param>
     /// <param name="sourceExtension">Source extension incl. dot, e.g. ".vwrld".</param>
     public static byte[] AuthorKv3Tree(KVObject dataRoot, KV3ID format, string sourceExtension)
+        => AuthorKv3Tree(dataRoot, format, sourceExtension, null);
+
+    /// <summary>As above, <paramref name="editRed2"/> changing the RED2 tree before it is written.</summary>
+    public static byte[] AuthorKv3Tree(KVObject dataRoot, KV3ID format, string sourceExtension, Func<KVObject, KVObject>? editRed2)
     {
         ArgumentNullException.ThrowIfNull(dataRoot);
 
@@ -157,12 +161,12 @@ public static partial class Source2ContainerAuthor
               + "follow the value rule. Use AuthorKv3Resource.");
 
         return Assemble(dataRoot, format, spec, sourceExtension,
-                        sourceFileName: "", sourceTextBytes: [], userDoc: null, narrowIntegers: false);
+                        sourceFileName: "", sourceTextBytes: [], userDoc: null, narrowIntegers: false, editRed2);
     }
 
     private static byte[] Assemble(
         KVObject dataRoot, KV3ID format, ContainerSpec spec, string sourceExtension,
-        string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc, bool narrowIntegers)
+        string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc, bool narrowIntegers, Func<KVObject, KVObject>? editRed2 = null)
     {
         using var resource = new Resource();
         ResourceVersionProp.SetValue(resource, spec.ResourceVersion);
@@ -174,6 +178,10 @@ public static partial class Source2ContainerAuthor
         // own path-hash id (MurmurHash64B - reproduces stock RERL ids exactly).
         var refs = new List<string>();
         CollectResourceRefs(dataRoot, new HashSet<string>(StringComparer.OrdinalIgnoreCase), refs);
+        // A map's child resource lists them by path (probe01's n0.vwnod: the
+        // aggregate models before the cluster model).
+        if (spec.ChildResource)
+            refs = [.. refs.OrderBy(r => r, StringComparer.Ordinal)];
         if (refs.Count > 0)
         {
             var rerl = new ResourceExtRefList { Resource = resource };
@@ -192,6 +200,8 @@ public static partial class Source2ContainerAuthor
         // binary VERSION is whatever VRF's serializer emits - the engine
         // accepts every KV3 binary generation, current RC emits v5).
         var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc);
+        if (editRed2 != null)
+            red2Doc = editRed2(red2Doc);
         resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
 
         // DATA - the caller's tree, under its own format GUID.
@@ -201,7 +211,9 @@ public static partial class Source2ContainerAuthor
         // FLCI (source-file line map) is deliberately not authored: it is
         // editor-only metadata and pre-FLCI stock resources load fine without it.
 
-        return ResourceBuilder.Serialize(resource);
+        // A map's child resources take the compiler's own layout (RERL's entry
+        // array on an 8-byte boundary, blocks padded with zeros).
+        return spec.ChildResource ? ValveLayout.Serialize(resource) : ResourceBuilder.Serialize(resource);
     }
 
     /// <summary>
@@ -246,7 +258,7 @@ public static partial class Source2ContainerAuthor
         resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
         resource.Blocks.Add(ResourceBuilder.RawBlock(BlockType.DATA, dataBytes, resource));
 
-        return ResourceBuilder.Serialize(resource);
+        return ValveLayout.Serialize(resource);
     }
 
     /// <summary>Build the RED2 CResourceEditInfo document resourcecompiler would
@@ -308,7 +320,8 @@ public static partial class Source2ContainerAuthor
             var d = KVObject.Collection();
             d.Add("m_String", new KVObject(dep.Name));
             d.Add("m_CompilerIdentifier", new KVObject(dep.CompilerIdentifier));
-            d.Add("m_nFingerprint", child ? new KVObject((uint)dep.Fingerprint) : new KVObject(dep.Fingerprint));
+            // 0 and 1 take the no-payload codes (world.vwrld_c, n0.vwnod_c: 1), the rest UInt32.
+            d.Add("m_nFingerprint", child ? (dep.Fingerprint is 0 or 1 ? new KVObject((long)dep.Fingerprint) : new KVObject((uint)dep.Fingerprint)) : new KVObject(dep.Fingerprint));
             d.Add("m_nUserData", child ? new KVObject((long)dep.UserData) : new KVObject(dep.UserData));
             specialDeps.Add(d);
         }
