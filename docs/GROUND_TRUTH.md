@@ -197,9 +197,11 @@ game can answer is raised with the user first, and runs with -insecure.
     moved into the node's space at the identity): 490,812 smart prop
     triangles now match, a few hundred a 1/64 key apart. Mako's lights
     differing went from 125 to 105, none worse; the rest are not the scene
-    (only one cable and rounding remain there). Next: the light pass itself
-    on one of them (light_omni2 385: Valve's box reaches x -5779, ours
-    -5248).
+    (only one cable and rounding remain there): shared triangles carry the
+    same flag words, and only 15 back-to-back ones differ in winding. So the
+    105 come from the trace or the sampling, not the scene. Next: capture
+    one light's rays and hits in Valve's pass (light_omni2 385: Valve's box
+    reaches x -5779, ours -5248, ours blocks more).
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.

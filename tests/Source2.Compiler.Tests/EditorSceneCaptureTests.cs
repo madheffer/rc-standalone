@@ -93,6 +93,8 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
 
         // Valve's world triangles under one top scene, by the child scene they came from.
         var valveTris = new Dictionary<(int, int, int), string>();
+        var valveFlags = new Dictionary<(int, int, int), ushort>();
+        var valveNormal = new Dictionary<(int, int, int), Vector3>();
         // RAYSCENE_MASK=<hex>: only what a ray with that mask can hit, on both
         // sides: an object whose flag word meets it is skipped whole, and so
         // is a triangle whose own flags do (the light pass: c00060b1).
@@ -102,7 +104,12 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
             if (triangles.TryGetValue(scene, out var list))
                 foreach (var (a, b, c, fl) in list)
                     if ((fl & mask) == 0)
-                        valveTris.TryAdd(Key(Apply(m, a), Apply(m, b), Apply(m, c)), owner);
+                    {
+                        var key = Key(Apply(m, a), Apply(m, b), Apply(m, c));
+                        valveTris.TryAdd(key, owner);
+                        valveFlags.TryAdd(key, fl);
+                        valveNormal.TryAdd(key, Vector3.Cross(Apply(m, b) - Apply(m, a), Apply(m, c) - Apply(m, a)));
+                    }
             if (depth < 4 && byParent.TryGetValue(scene, out var kids))
                 foreach (var k in kids)
                     if ((k.Flags & mask) == 0)
@@ -116,6 +123,8 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
         var document = MapSource.Read(source);
         var scene = (EditorTraceScene)SettleLumpTests.LightScene(document, source)!;
         var ourTris = new Dictionary<(int, int, int), string>();
+        var ourFlags = new Dictionary<(int, int, int), ushort>();
+        var ourNormal = new Dictionary<(int, int, int), Vector3>();
         var prefabLocal = new List<EditorTraceScene.Instance>();
         if (Environment.GetEnvironmentVariable("RAYSCENE_PREFABLOCAL") == "1" && CS2Fixtures.StockPak() is { } pak)
         {
@@ -141,7 +150,11 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
                 if ((inst.Flags[i] & mask) != 0)
                     continue;
                 var r = inst.Records.AsSpan(i * 22 + 13, 9);
-                ourTris.TryAdd(Key(Apply(m, new Vector3(r[0], r[1], r[2])), Apply(m, new Vector3(r[3], r[4], r[5])), Apply(m, new Vector3(r[6], r[7], r[8]))), owner);
+                var key = Key(Apply(m, new Vector3(r[0], r[1], r[2])), Apply(m, new Vector3(r[3], r[4], r[5])), Apply(m, new Vector3(r[6], r[7], r[8])));
+                ourTris.TryAdd(key, owner);
+                ourFlags.TryAdd(key, inst.Flags[i]);
+                Vector3 pa = Apply(m, new Vector3(r[0], r[1], r[2])), pb = Apply(m, new Vector3(r[3], r[4], r[5])), pc = Apply(m, new Vector3(r[6], r[7], r[8]));
+                ourNormal.TryAdd(key, Vector3.Cross(pb - pa, pc - pa));
             }
         }
         foreach (var inst in scene.Instances)
@@ -176,6 +189,17 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
                 output.WriteLine($"  child mesh 0x{k.Child:x} tris {list.Count} centre {centre}; nearest ours {near.Source} {near.Centre} delta {near.Centre - centre}");
             }
         }
+        // Triangles both sides hold whose flag words differ, by (Valve's, ours) and owner.
+        var flagPairs = valveFlags.Where(kv => ourFlags.TryGetValue(kv.Key, out var f) && f != kv.Value)
+            .GroupBy(kv => $"valve 0x{kv.Value:x} ours 0x{ourFlags[kv.Key]:x}").OrderByDescending(g => g.Count()).ToList();
+        output.WriteLine($"shared triangles with other flags: {flagPairs.Sum(g => g.Count())}");
+        foreach (var g in flagPairs.Take(10))
+            output.WriteLine($"  {g.Key}: {g.Count()} e.g. {ourTris[g.First().Key]} at {g.First().Key}");
+        // And those wound the other way (normals opposed), by owner kind.
+        var flipped = valveNormal.Where(kv => ourNormal.TryGetValue(kv.Key, out var n) && Vector3.Dot(n, kv.Value) < 0).ToList();
+        output.WriteLine($"shared triangles wound the other way: {flipped.Count}");
+        foreach (var g in flipped.GroupBy(kv => ourTris[kv.Key]).OrderByDescending(g => g.Count()).Take(10))
+            output.WriteLine($"  flipped {g.Key}: {g.Count()} e.g. at {g.First().Key}");
         var valveOnly = valveTris.Where(kv => !ourTris.ContainsKey(kv.Key)).ToList();
         var oursOnly = ourTris.Where(kv => !valveTris.ContainsKey(kv.Key)).ToList();
         output.WriteLine($"valve only {valveOnly.Count}, ours only {oursOnly.Count}");
