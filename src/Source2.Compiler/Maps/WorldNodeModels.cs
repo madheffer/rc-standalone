@@ -357,7 +357,7 @@ internal static class WorldNodeModels
                     break;
                 case R16G16Float:
                     for (var k = 0; k < 2; k++)
-                        BitConverter.TryWriteBytes(o[(k * 2)..], (Half)v[at + k]);
+                        BitConverter.TryWriteBytes(o[(k * 2)..], ToHalf(v[at + k]));
                     break;
                 case R16G16Snorm:
                     for (var k = 0; k < 2; k++)
@@ -365,7 +365,7 @@ internal static class WorldNodeModels
                     break;
                 case R16G16B16A16Float:
                     for (var k = 0; k < 4; k++)
-                        BitConverter.TryWriteBytes(o[(k * 2)..], (Half)(k < slot.Count ? v[at + k] : 1f));
+                        BitConverter.TryWriteBytes(o[(k * 2)..], ToHalf(k < slot.Count ? v[at + k] : 1f));
                     break;
                 case R32Uint when slot.Stream.StartsWith("normal:", StringComparison.OrdinalIgnoreCase):
                     var n = new Vector3(v[at], v[at + 1], v[at + 2]);
@@ -377,7 +377,8 @@ internal static class WorldNodeModels
                     break;
                 default:
                     for (var k = 0; k < 4; k++)
-                        o[k] = k < slot.Count ? Unorm8(v[at + k]) : (byte)255;
+                        // A colour short of four components reads (0, 0, 0, 1) for the rest (181365ce0).
+                        o[k] = k < slot.Count ? Unorm8(v[at + k]) : k == 3 ? (byte)255 : (byte)0;
                     break;
             }
         }
@@ -390,9 +391,47 @@ internal static class WorldNodeModels
         return (short)(v * 32767f);
     }
 
+    // ConvertFloatToChannel (181363b90): clamped, scaled and truncated.
     private static byte Unorm8(float v)
     {
-        v = v < 0f ? 0f : v > 1f ? 1f : v;
-        return (byte)(v * 255f + 0.5f);
+        v = 0f <= v ? (v <= 1f ? v : 1f) : 0f;
+        return (byte)(int)(v * 255f);
+    }
+
+    /// <summary>
+    /// FUN_1802ea750, the packer's float to half: clamped to +-65504, the
+    /// mantissa truncated, too small values flushed to signed zero below
+    /// 2^-24, an infinity or NaN's sign kept with a zero or the largest value.
+    /// </summary>
+    internal static ushort ToHalf(float value)
+    {
+        var bits = BitConverter.SingleToUInt32Bits(value);
+        var sign = (ushort)((bits >> 16) & 0x8000);
+        var low = (ushort)bits;
+        if ((byte)(bits >> 23) == 0)
+            return sign;
+        if (((bits >> 23) & 0xff) == 0xff)
+            return (bits & 0x7fffff) == 0 ? (ushort)(sign | (low & 0x7bff) | 0x7bff) : sign;
+        var f = value > 65504f ? 65504f : value < -65504f ? -65504f : value;
+        var fb = BitConverter.SingleToUInt32Bits(f);
+        var biased = (int)((fb >> 23) & 0xff);
+        var e = biased - 0x7f;
+        var h = sign;
+        if (-0x19 < e)
+            h = (ushort)(sign | (low & 0x7fff));
+        if (e < -14)
+        {
+            var shift = -biased;
+            h = (ushort)(h & 0x83ff);
+            if ((uint)(shift + 0x70) < 10)
+            {
+                var m = (fb & 0x7fffff) >> ((shift + 0x7e) & 0x1f);
+                return (ushort)((((ushort)m + (1 << ((10 - (shift + 0x71)) & 0x1f))) ^ h) & 0x3ff ^ h);
+            }
+            return h;
+        }
+        if (e > 15)
+            return (ushort)((h & 0xfbff) | 0x7bff);
+        return (ushort)(((fb >> 13) & 0x3ff) | ((uint)((e + 15) * 0x400) & 0x7c00) | (uint)(h & 0x8000));
     }
 }
