@@ -438,7 +438,22 @@ game can answer is raised with the user first, and runs with -insecure.
     not smaller. Open: valdina_button and block_roof_waterm name the
     normal OptionallyCompressedTangentFrame where their materials' INSG
     lists CompressedTangentFrame first; neither class nor material order
-    explains it.
+    explains it (atixref's agg_prop: wood_pole_a and acvent03 share shader,
+    INSG and VS signatures yet differ; their static combos differ by
+    F_DETAIL_TEXTURE).
+    The whole -world package (compile-map, WorldNodeFiles; 2026-10-07):
+    probe01 and cardtest match Valve's in every tree and container fact
+    but three hashes (the vrman's and vvis's ___OverrideInputData___
+    fingerprints, n0.vrman's saved-source CRC: not a CRC of the obvious
+    source texts) and the previous bake's per-vertex lighting. Settled on
+    the way: a full build's lump lists its resource_name values, sorted,
+    as RED2 weak references with UsesBuilderEntityKeys 1; a map's child
+    resources list RERL by path; a node model whose material the game
+    lacks has compile_warnings 1. Prop aggregate fragments' flags come
+    from BuildAggregate: +0x20 with attribute bit 17, +0x40000 with bit 19
+    or with 16 or 18 while 17 is clear, +0x800 for a LOD'd mesh; the
+    depth split needs a depth signature without Dummy. The Linux build's
+    vis differs from Windows (trig), so parity is measured on Windows.
 
 ## Resolved
 
