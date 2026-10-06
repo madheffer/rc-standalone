@@ -51,8 +51,8 @@ public static class WorldTrees
         o.Add("m_nLightmapVersionNumber", new KVObject(0L));
         o.Add("m_nLightmapGameVersionNumber", new KVObject(0L));
         var scale = KVObject.Array();
-        scale.Add(new KVObject(1f));
-        scale.Add(new KVObject(1f));
+        scale.Add(new KVObject(1.0));
+        scale.Add(new KVObject(1.0));
         o.Add("m_vLightmapUvScale", scale);
         o.Add("m_bHasLightmaps", new KVObject(false));
         o.Add("m_bBakedShadowsGamma20", new KVObject(false));
@@ -66,12 +66,13 @@ public static class WorldTrees
         return o;
     }
 
+    // Vectors here are double arrays.
     private static KVObject Floats(Vector3 v)
     {
         var a = KVObject.Array();
-        a.Add(new KVObject(v.X));
-        a.Add(new KVObject(v.Y));
-        a.Add(new KVObject(v.Z));
+        a.Add(new KVObject((double)v.X));
+        a.Add(new KVObject((double)v.Y));
+        a.Add(new KVObject((double)v.Z));
         return a;
     }
 }

@@ -112,13 +112,13 @@ public static class WorldNodeSceneTrees
         root.Add("m_layerNames", layers);
         var indices = KVObject.Array();
         foreach (var o in objects)
-            indices.Add(Int(o.Layer));
+            indices.Add(new KVObject((uint)o.Layer));
         root.Add("m_sceneObjectLayerIndices", indices);
         root.Add("m_grassFileName", new KVObject(""));
         var lighting = KVObject.Collection();
         lighting.Add("m_nLightmapVersionNumber", Int(0));
         lighting.Add("m_nLightmapGameVersionNumber", Int(0));
-        lighting.Add("m_vLightmapUvScale", Floats(1f, 1f));
+        lighting.Add("m_vLightmapUvScale", Doubles(1, 1));
         lighting.Add("m_bHasLightmaps", new KVObject(false));
         lighting.Add("m_bBakedShadowsGamma20", new KVObject(false));
         lighting.Add("m_bCompressionEnabled", new KVObject(false));

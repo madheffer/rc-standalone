@@ -92,6 +92,18 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
             {
                 var detail = string.Join(" ", valveBuffers.Zip(built.Buffers).Select((p, i) => $"{p.First.Type}{i} {p.First.Bytes.Length}/{p.Second.Bytes.Length}{(p.First.Bytes.AsSpan().SequenceEqual(p.Second.Bytes) ? " same" : "")}"));
                 tally["buffers"] = tally.GetValueOrDefault("buffers") + 1;
+                // The first decoded difference per vertex buffer: vertex, byte, layout field.
+                using var vr = new ValveResourceFormat.Resource();
+                vr.Read(new MemoryStream(valve));
+                var vbib = ((ValveResourceFormat.ResourceTypes.Model)vr.DataBlock!).GetEmbeddedMeshesAndLoD().First().Mesh.VBIB;
+                for (var b = 0; b < Math.Min(vbib.VertexBuffers.Count, built.RawVertexBuffers.Count); b++)
+                {
+                    var (vd, od, st) = (vbib.VertexBuffers[b].Data, built.RawVertexBuffers[b], (int)vbib.VertexBuffers[b].ElementSizeInBytes);
+                    var at = Enumerable.Range(0, Math.Min(vd.Length, od.Length)).FirstOrDefault(i => vd[i] != od[i], -1);
+                    var diffs = Enumerable.Range(0, Math.Min(vd.Length, od.Length)).Where(i => vd[i] != od[i]).GroupBy(i => vbib.VertexBuffers[b].InputLayoutFields.Last(f => f.Offset <= i % st).SemanticName + vbib.VertexBuffers[b].InputLayoutFields.Last(f => f.Offset <= i % st).SemanticIndex).Select(g => $"{g.Key}:{g.Count()}");
+                    if (at >= 0)
+                        output.WriteLine($"    vb{b} len {vd.Length}/{od.Length}, first diff vertex {at / st} byte {at % st}: valve {Convert.ToHexString(vd, at / st * st, st)} ours {Convert.ToHexString(od, at / st * st, st)}; by field {string.Join(" ", diffs)}");
+                }
                 output.WriteLine($"  {name}: buffers {valveBuffers.Count}/{built.Buffers.Count}: {detail}");
             }
             var file = WorldNodeModelAuthor.Container(built.Buffers, mine["MDAT"], mine["CTRL"], built.References, mine["RED2"], mine["DATA"]);

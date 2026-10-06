@@ -41,7 +41,11 @@ internal static class WorldNodeModels
 
     /// <summary>A built model: its description, buffer blocks in block order, referenced materials, and each draw's first mesh.</summary>
     public sealed record Built(WorldNodeModel Model, List<(BlockType Type, byte[] Bytes)> Buffers, List<string> References,
-                               IReadOnlyList<WorldNodeCompile.Entry> DrawSources);
+                               IReadOnlyList<WorldNodeCompile.Entry> DrawSources)
+    {
+        /// <summary>The vertex buffers before encoding, for comparison.</summary>
+        public IReadOnlyList<byte[]> RawVertexBuffers { get; init; } = [];
+    }
 
     // DXGI formats the node models use.
     private const uint R32G32B32Float = 6, R16G16B16A16Float = 10, R32G32Float = 16, R8G8B8A8Unorm = 28, R16G16Float = 34, R16G16Snorm = 37, R32Uint = 42;
@@ -124,7 +128,7 @@ internal static class WorldNodeModels
         var ibBytes = MeshoptEncoder.EncodeIndexBuffer(ib.ToArray());
         var buffers = Enumerable.Range(0, bufferCount).Select(b => (BlockType.MVTX, MeshoptEncoder.EncodeVertexBuffer(vbs[b], totalVertices, strides[b]))).ToList();
         buffers.Add((BlockType.MIDX, ibBytes));
-        return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], [.. groups.Select(g => g[0])]);
+        return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], [.. groups.Select(g => g[0])]) { RawVertexBuffers = vbs };
     }
 
     // Step_SplittingMeshWith (180260710) welds each fragment's CMesh (CMesh_Weld with 0), then

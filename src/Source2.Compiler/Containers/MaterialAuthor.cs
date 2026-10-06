@@ -43,7 +43,7 @@ public static class MaterialAuthor
         using var res = new Resource();
         res.Read(new MemoryStream(vmatC, writable: false));
         if (res.GetBlockByType(BlockType.INSG) is not BinaryKV3 insg || insg.Data?.Root is not { } root
-            || root["m_depth_elems"] is not { IsArray: true } elems)
+            || root.Children.FirstOrDefault(c => c.Key == "m_depth_elems").Value is not { IsArray: true } elems)
             return [];
         return elems.Values.Select(e => new InputSignatureElement(
             e.GetStringProperty("m_pName") ?? "",
