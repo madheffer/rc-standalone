@@ -34,6 +34,10 @@ public class NodeFindProbe(ITestOutputHelper output)
                             output.WriteLine($"  attr {k} = {(v is System.Collections.IEnumerable list and not string ? $"[{string.Join(", ", list.Cast<object?>().Take(8))}]" : v)}");
                         foreach (var (k, v) in props?.Attributes ?? [])
                             output.WriteLine($"  key {k} = {v}");
+                        if (e.Get<DmxBinary.Element>("meshData") is { } md)
+                            foreach (var holder in new[] { "vertexData", "faceVertexData", "edgeData", "faceData" })
+                                foreach (var st in md.Get<DmxBinary.Element>(holder)?.GetElements("streams") ?? [])
+                                    output.WriteLine($"  {holder} stream {st.Name} ({(st.Get<object?[]>("data") ?? []).Length} values)");
                     }
                     foreach (var c in e.GetElements("children"))
                         output.WriteLine($"  child {c.Type} {c.GetValue<int>("nodeID")} origin {c.GetValue<System.Numerics.Vector3>("origin")} angles {c.GetValue<System.Numerics.Vector3>("angles")}"

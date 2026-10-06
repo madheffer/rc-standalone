@@ -424,8 +424,14 @@ game can answer is raised with the user first, and runs with -insecure.
   never uses one vertex twice (the identity-first rule matches Valve's
   indices to triangle 4,127 of 34,662). Open: which existing vertex a new
   welded vertex joins when a position holds two (neither the oldest nor the
-  newest every time); read the piece mesh's construction
-  (MapBuilder_HullsFromMesh 18131f680's caller) next.
+  newest every time). Read so far: BuildPhysicsPieces (18020b230) copies
+  the piece CMesh, drops its tangent, welds it at 1/32 (CMesh_Weld; the
+  capture's queen weld, 119,292 corners to 56,900, equals ours), moves it
+  twice and converts it (1813319d0: one half-edge vertex per welded vertex,
+  triangles repeating an index skipped, no join). So the join from 56,900
+  to 20,341 lies after the conversion and before MapBuilder_TriangleMesh
+  (MeshFromMapMesh, FUN_181310620, MapBuilder_TriangulateFace), not yet
+  located. capture_hullbuild.py --weld records every CMesh_Weld.
 
 - **Faces of instanced meshes in world physics** (ledger 49, settled
   2026-10-05 by capture). CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces
