@@ -60,7 +60,10 @@ internal static class MapMeshCorners
     /// in the .vmap's order (the world renderer's entries), a second texcoord
     /// and the vertex paint included.
     /// </summary>
-    public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords, Func<Vector3, Vector3>? cutSpace, bool withTangent, bool allStreams)
+    /// <remarks><paramref name="wholeMeshMaterial"/>, when given, is the material every
+    /// face takes: BakeWholeMeshOverrideMaterial (1810c68f0) assigns a class's
+    /// auto_apply_material to all faces, so the mesh is one piece.</remarks>
+    public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords, Func<Vector3, Vector3>? cutSpace, bool withTangent, bool allStreams, int? wholeMeshMaterial = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
@@ -72,6 +75,8 @@ internal static class MapMeshCorners
         var faceData = Ints(data, "faceDataIndices");
         var positions = StreamData(data, "vertexData", "position");
         var materials = (StreamData(data, "faceData", "materialindex") ?? []).Select(x => x is int i ? i : 0).ToArray();
+        if (wholeMeshMaterial is int whole)
+            materials = [.. materials.Select(_ => whole)];
         var biases = (StreamData(data, "faceData", "lightmapScaleBias") ?? []).Select(x => x is int i ? i : 0).ToArray();
         if (allStreams && new FaceArrays(data) is var arrays && arrays.First.Any(h => arrays.Level(h) > 0))
             return Baked(mesh, data, shiftTexcoords, cutSpace, withTangent, scales, faceData, materials, biases);

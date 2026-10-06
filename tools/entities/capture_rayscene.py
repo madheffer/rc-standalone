@@ -1,12 +1,11 @@
 """capture_rayscene.py <addon> <map> [--out file]: the editor ray scene the light precompute traces.
 
-Hooks, in the installed 10-01 resourcecompiler (09-23 analysis addresses in
-brackets): RayScene_AddTriangles 0x181c14660 [181c14020] (scene, id, a, b,
-c, ?, flags), RayScene_AddInstance 0x181c14100 [181c13ac0] (parent, child,
-3x4, owner flags; returns the instance) and RayScene_SetInstanceTransform
-0x181c19fb0 [181c19970] (scene, instance, 3x4), the scene constructor
-0x1801f6f70 [1801f6f40] and its triangle clear 0x181c15300 [181c14cc0]
-(addresses are reused, so these start a new generation of one). Every call
+Hooks (09-23 analysis addresses, found in the installed resourcecompiler by
+tools/re/rva_map.py): RayScene_AddTriangles 181c14020 (scene, id, a, b, c,
+?, flags), RayScene_AddInstance 181c13ac0 (parent, child, 3x4, owner flags;
+returns the instance) and RayScene_SetInstanceTransform 181c19970 (scene,
+instance, 3x4), the scene constructor 1801f6f40 and its triangle clear
+181c14cc0 (addresses are reused, so these start a new generation of one). Every call
 is one 96-byte record: u32 kind (1 instance, 2 triangle, 3 transform, 4
 made, 5 cleared), u32 0, four u64 (kind 1: parent, child, instance, owner
 flags; 2: scene, id, flags, 0; 3: scene, instance, 0, 0; 4 and 5: scene),
@@ -17,12 +16,18 @@ CS2 must be closed; the map's package is backed up and restored.
 """
 import argparse
 import filecmp
+import json
 import os
 import shutil
 import subprocess
 import threading
 
+import sys
+
 import frida
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed  # noqa: E402
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
@@ -56,22 +61,36 @@ function vec(p) { return [p.readFloat(), p.add(4).readFloat(), p.add(8).readFloa
 function hook() {
   const mod = Process.findModuleByName('resourcecompiler.dll');
   if (mod === null) { setTimeout(hook, 5); return; }
-  Interceptor.attach(mod.base.add(0x1c14660), {
+  Interceptor.attach(mod.base.add(ADD), {
     onEnter(args) {
       put(2, args[0], args[1].and(0xffffffff), args[6].and(0xffff), ptr(0),
           vec(args[2]).concat(vec(args[3])).concat(vec(args[4])));
     }
   });
-  Interceptor.attach(mod.base.add(0x1c14100), {
-    onEnter(args) { this.a = [args[0], args[1], args[3], matrix(args[2])]; },
+  const parents = {};
+  function where(ctx) {
+    return Thread.backtrace(ctx, Backtracer.ACCURATE).slice(0, 8).map(a => {
+      const m = Process.findModuleByAddress(a);
+      return m ? m.name.replace('.dll', '') + '+0x' + a.sub(m.base).toString(16) : a.toString();
+    });
+  }
+  Interceptor.attach(mod.base.add(INST), {
+    onEnter(args) {
+      this.a = [args[0], args[1], args[3], matrix(args[2])];
+      const key = args[0].toString();
+      if (!(key in parents)) { parents[key] = 1; send({parent: key, trace: where(this.context)}); }
+    },
     onLeave(ret) { put(1, this.a[0], this.a[1], ret, this.a[2], this.a[3]); }
   });
-  Interceptor.attach(mod.base.add(0x1c19fb0), {
+  Interceptor.attach(mod.base.add(XFORM), {
     onEnter(args) { put(3, args[0], args[1], ptr(0), ptr(0), matrix(args[2])); }
   });
   // A scene made (the constructor) or emptied of triangles: a new generation of that address.
-  Interceptor.attach(mod.base.add(0x1f6f70), { onEnter(args) { put(4, args[0], ptr(0), ptr(0), ptr(0), []); } });
-  Interceptor.attach(mod.base.add(0x1c15300), { onEnter(args) { put(5, args[0], ptr(0), ptr(0), ptr(0), []); } });
+  Interceptor.attach(mod.base.add(MADE), { onEnter(args) {
+    put(4, args[0], ptr(0), ptr(0), ptr(0), []);
+    send({made: args[0].toString(), trace: where(this.context)});
+  } });
+  Interceptor.attach(mod.base.add(CLEAR), { onEnter(args) { put(5, args[0], ptr(0), ptr(0), ptr(0), []); } });
   send({hooked: mod.base.toString()});
 }
 rpc.exports = { flush: flush };
@@ -103,13 +122,20 @@ def main():
     out = open(out_path, "wb")
     lock = threading.Lock()
     count = [0]
+    # Who made each scene and who first parented an instance to it, as
+    # module+rva backtraces (<out>.traces.json).
+    traces = []
 
     def on_message(msg, data):
         if msg.get("type") != "send":
             print("agent:", msg)
             return
         if data is None:
-            print("agent:", msg["payload"])
+            pay = msg["payload"]
+            if "trace" in pay:
+                traces.append(pay)
+            else:
+                print("agent:", pay)
             return
         with lock:
             out.write(data)
@@ -120,7 +146,9 @@ def main():
     pid = dev.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
                      "-i", source, "-world", "-phys", "-fshallow"], cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT)
+    hooks = {"ADD": 0x1c14020, "INST": 0x1c13ac0, "XFORM": 0x1c19970, "MADE": 0x1f6f40, "CLEAR": 0x1c14cc0}
+    head = "".join(f"const {k} = {installed('resourcecompiler', v)};\n" for k, v in hooks.items())
+    sc = ses.create_script(AGENT.replace("'use strict';\n", "'use strict';\n" + head, 1))
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()
@@ -138,6 +166,9 @@ def main():
         threading.Event().wait(2)
     out.close()
     print(out_path, count[0], "records")
+    with open(out_path + ".traces.json", "w", encoding="utf-8") as f:
+        json.dump(traces, f)
+    print(out_path + ".traces.json", len(traces), "traces")
     if os.path.exists(vpk):
         shutil.copyfile(vpk, out_path + ".vpk")
     if os.path.exists(backup):

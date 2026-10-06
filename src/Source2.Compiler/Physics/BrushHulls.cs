@@ -78,8 +78,8 @@ public static class BrushHulls
     /// <param name="transformOf">A brush entity node's CTransform, its own by default; an
     /// instance copy's is its baked placement (<see cref="Maps.SettleWorld.BakedPlacement"/>).</param>
     public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local)> Pieces(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null,
-        Func<DmxBinary.Element, Maps.CTransform>? transformOf = null)
-        => [.. PiecesWithCorners(mesh, entity, path, transformOf: transformOf).Select(p => (p.Material, p.Positions, p.Faces, p.Local))];
+        Func<DmxBinary.Element, Maps.CTransform>? transformOf = null, int? wholeMeshMaterial = null)
+        => [.. PiecesWithCorners(mesh, entity, path, transformOf: transformOf, wholeMeshMaterial: wholeMeshMaterial).Select(p => (p.Material, p.Positions, p.Faces, p.Local))];
 
     /// <summary>
     /// <see cref="Pieces"/>, with the .vmap vertex behind each face corner
@@ -90,7 +90,7 @@ public static class BrushHulls
     /// moved through the instances, then its own AngleMatrix), used instead of the node's
     /// matrix and <paramref name="path"/>.</param>
     public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData, int Bias)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true,
-        Func<DmxBinary.Element, Maps.CTransform>? transformOf = null, float[]? placed = null)
+        Func<DmxBinary.Element, Maps.CTransform>? transformOf = null, float[]? placed = null, int? wholeMeshMaterial = null)
     {
         transformOf ??= Maps.CTransform.FromNode;
         if (placed != null)
@@ -112,7 +112,7 @@ public static class BrushHulls
         // corners, a rotated cylinder's caps) break near ties the other way.
         // A brush entity's stay in its own space.
         var result = new List<(int, Vector3[], int[][], Vector3[], int[][], int[][], int)>();
-        foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords, entity.Type == "CMapWorld" ? Place : null))
+        foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords, entity.Type == "CMapWorld" ? Place : null, withTangent: false, allStreams: false, wholeMeshMaterial))
         {
             var kept = new List<int>();
             var (vertices, stride, streams) = (piece.Vertices, piece.Stride, piece.Streams);

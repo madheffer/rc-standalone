@@ -119,7 +119,11 @@ public static class EntityPhysicsModels
             var pieces = new List<WorldCollision.Piece>();
             var physicsOnly = true;
             var applied = schema?.MetadataOf(className, "auto_apply_material") is { Length: > 0 } a ? a : null;
-            var used = meshes.SelectMany(m => m.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").Distinct().ToList();
+            // A class that applies its own material replaces the mesh's, so a
+            // missing mesh material does not stop it (ze_doom_p2_c's 38 triggers
+            // on Source 1 textures with no .vmat).
+            var used = applied != null ? [applied]
+                : meshes.SelectMany(m => m.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").Distinct().ToList();
             if (used.FirstOrDefault(m => material(m) == null) is { } absent)
             {
                 notes?.Add($"entity {nodeId} ({className}): {absent} not found, so its model fails to compile and has no file");
@@ -129,8 +133,10 @@ public static class EntityPhysicsModels
             {
                 var names = mesh.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
                 var type = BrushHulls.Resolve(PhysicsTypeOf(mesh), true, className == "func_shatterglass", false, false);
+                // The applied material is found or added in the mesh's list (181378b30).
+                int? whole = applied == null ? null : Array.FindIndex(names, x => x as string == applied) is var at and >= 0 ? at : names.Length;
                 BrushHulls.RefuseSimplification(mesh);
-                foreach (var (slot, positions, faces, local) in BrushHulls.Pieces(mesh, entity, transformOf: transformOf))
+                foreach (var (slot, positions, faces, local) in BrushHulls.Pieces(mesh, entity, transformOf: transformOf, wholeMeshMaterial: whole))
                 {
                     var own = slot < names.Length ? (names[slot] as string ?? "") : "";
                     var name = applied ?? own;
@@ -160,7 +166,7 @@ public static class EntityPhysicsModels
                 // as the world's are, in the entity's space (Mako's ladders and pushes).
                 if (type == BrushHulls.PhysicsType.Mesh)
                 {
-                    foreach (var (slot, positions, faces, local, corners, _, _) in BrushHulls.PiecesWithCorners(mesh, entity, transformOf: transformOf))
+                    foreach (var (slot, positions, faces, local, corners, _, _) in BrushHulls.PiecesWithCorners(mesh, entity, transformOf: transformOf, wholeMeshMaterial: whole))
                     {
                         var own = slot < names.Length ? (names[slot] as string ?? "") : "";
                         var name = applied ?? own;

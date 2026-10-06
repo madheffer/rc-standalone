@@ -167,7 +167,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 827 addresses
+- 830 addresses
 
 ### s2c:baked/light-keys
 
@@ -536,11 +536,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810c4000` | `HammerMesh_ApplyDeformer` |  | `src/Source2.Compiler/Maps/MapDeformers.cs:7` |
 | `1810c4e50` | `HammerMesh_TransformToWorld` | normals and tangents rotated, not renormalised | `src/Source2.Compiler/Maps/NodeMeshEntries.cs:13` |
 | `1810d5f40` | `MaterialEditor_LowPrecisionUvInputs` | shader inputs named LowPrecisionUv*/uv* by texcoord index; editor UI, not the compile |  |
-| `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:280` |
-| `1810d9ca0` | `RemoveBadFaces` | CMapMesh_ConvertMeshForBuilder: removes every face 1813a5ec0 rejects (the polygon triangulator cannot cut it whole on its own positions), triangles included | `src/Source2.Compiler/Maps/MapMeshCorners.cs:122`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:148` |
+| `1810d93c0` | `HammerMesh_ShiftTexcoordIslands` |  | `src/Source2.Compiler/Maps/MapMeshCorners.cs:285` |
+| `1810d9ca0` | `RemoveBadFaces` | CMapMesh_ConvertMeshForBuilder: removes every face 1813a5ec0 rejects (the polygon triangulator cannot cut it whole on its own positions), triangles included | `src/Source2.Compiler/Maps/MapMeshCorners.cs:127`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:153` |
 | `1810db6a0` | `HammerMesh_SnapVertices` | positions rounded to a grid of the mesh's +0x39e8 when above 0 (floor(p / g + 0.5) * g) | `src/Source2.Compiler/Maps/NodeOverlays.cs:221` |
-| `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapDeformers.cs:7`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:241` |
-| `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:281`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:47` |
+| `1810dff20` | `CMapMesh_ConvertMeshForBuilder` | the DMX of the mesh the builder reads | `src/Source2.Compiler/Maps/MapDeformers.cs:7`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:17`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:246` |
+| `1810e7020` | `HammerMesh_TexcoordsOutOfRange` | outside +-1.03125 | `src/Source2.Compiler/Maps/MapMeshCorners.cs:286`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:47` |
 | `1811763c0` | `CMapDeformerSimple_CopyFrom` | bend axis +0x540, angle +0x544, point +0x548, radius +0x54c; lattice +0x4c0, scales +0xb8 |  |
 | `1811781b0` | `CMapDeformerSimple_SetBendAngle` | clamped to [-360, 360] | `src/Source2.Compiler/Maps/LatticeDeformer.cs:339` |
 | `181287fd0` | `PropDeformer_ApplyArrays` |  |  |
@@ -559,10 +559,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812db3c0` | `CMesh_VertexTriangles` | triangles touching each vertex | `src/Source2.Compiler/Maps/TJunctionFix.cs:175` |
 | `1812db920` | `CMesh_ComputeTangents` | MikkTSpace-style (182080a60) when UseMikkTSpace; corners whose tangents differ by 1e-4 or in w split their vertex | `src/Source2.Compiler/Maps/MeshTangents.cs:6` |
 | `181371320` | `CMesh_LerpVertex` | every float of the vertex (b - a) * t + a |  |
-| `1813a5ec0` | `HalfEdge_FaceTriangulates` | face positions, Newell normal (18125b510), PolygonTriangulator_Triangulate (18136f810); true when it gives (n - 2) * 3 indices | `src/Source2.Compiler/Maps/MapMeshCorners.cs:150` |
-| `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:285` |
+| `1813a5ec0` | `HalfEdge_FaceTriangulates` | face positions, Newell normal (18125b510), PolygonTriangulator_Triangulate (18136f810); true when it gives (n - 2) * 3 indices | `src/Source2.Compiler/Maps/MapMeshCorners.cs:155` |
+| `1813b6190` | `PolyMesh_EdgeTexcoordsContinuous` | squared distance at most 1e-6 at both ends | `src/Source2.Compiler/Maps/MapMeshCorners.cs:290` |
 | `1813b6550` | `PolyMesh_FindTexcoordIslands` |  |  |
-| `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:283` |
+| `1813cc880` | `TexcoordIsland_Recentre` | box centre rounded half away from zero | `src/Source2.Compiler/Maps/MapMeshCorners.cs:288` |
 | `18207fc00` | `TangentSpace_WeldLookup` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:11` |
 | `18207fe20` | `TangentSpace_Accumulate` | polynomial acos: sqrt(1 - x) ((0.05147786 x - 0.2053972) x + 1.570337) | `src/Source2.Compiler/Maps/MeshTangents.cs:19` |
 | `182080440` | `TangentSpace_TriangleTangents` |  | `src/Source2.Compiler/Maps/MeshTangents.cs:13` |
@@ -642,7 +642,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18138fa30` | `SubdivisionBake_GridSlot` | grid-slot lookup, 2^(level-1) grid |  |
 | `1813922e0` | `HalfEdge_Lib_1813922e0` | generic half-edge lib, called by the bake |  |
 | `1813937a0` | `HalfEdge_Between` | half-edge from a to b, circling a | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:141` |
-| `1813995a0` | `HalfEdge_ContainerRemove` | swap-last, handle to a FIFO free list | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:11`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:124` |
+| `1813995a0` | `HalfEdge_ContainerRemove` | swap-last, handle to a FIFO free list | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:11`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:129` |
 | `181399f40` | `HalfEdge_FaceIndex` | face handle to dense index (level byte array +0x1b38) |  |
 | `18139bd10` | `SubdivisionBake_FaceData` |  |  |
 | `18139c100` | `MeshTessellation_ForPhysics` | triangles for physics | `src/Source2.Compiler/Maps/MeshTessellation.cs:7` |
@@ -787,7 +787,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812c4c40` | `meshopt_generateSoftBoundaries` | cluster ACMR times the threshold | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:8`, `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:180` |
 | `1812c4f30` | `meshopt_optimizeOverdraw` | stock meshopt; threshold 1.03 from AddDrawDescriptors | `src/Source2.Compiler/Meshopt/MeshoptOptimizers.cs:7` |
 | `1812d9920` | `Mesh_UvDensity` | sqrt(world area / uv area), sorted, index ((n-1)*pct)/100; pct 20 or 95 | `src/Source2.Compiler/Maps/UvDensity.cs:6` |
-| `1812e03a0` | `Material_InputLayout` | the material's input layout lists (0xc4 entries) and its mapbuilder.nodraw/occluder flag; materials/error.vmat when it does not load | `src/Source2.Compiler/Physics/EntityPhysicsModels.cs:193` |
+| `1812e03a0` | `Material_InputLayout` | the material's input layout lists (0xc4 entries) and its mapbuilder.nodraw/occluder flag; materials/error.vmat when it does not load | `src/Source2.Compiler/Physics/EntityPhysicsModels.cs:199` |
 | `1812e1ce0` | `CMesh_DuplicateReversed` | double-sided draws: every triangle again with the winding reversed |  |
 | `181365a40` | `CMesh_CreatePackedVB` | vertex buffer written field by field through the packed input layout (181365ce0 per format) |  |
 | `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8` |
@@ -808,9 +808,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18012b8b0` | `HandleSet_Shift2` | another instance of the shift | `src/Source2.Compiler/Physics/ValveHashSet.cs:7` |
 | `1801ff720` | `MapBuilder_BuildPhysicsPiece` | per piece: hulls for types 2 and 3, else a modeldoc mesh node | `src/Source2.Compiler/Physics/BrushHulls.cs:7`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:65` |
 | `18020b230` | `MapBuilder_BuildPhysicsPieces` | copy piece CMesh, weld 1/32, two CTransforms, half-edge build | `src/Source2.Compiler/Maps/CTransform.cs:8`, `src/Source2.Compiler/Maps/MapMeshCorners.cs:7`, `src/Source2.Compiler/Physics/BrushHulls.cs:70` |
+| `180f99af0` | `MapPrefab_LoadTargetWorld` | reads prefab_has_runtime_entity_by_default; the prefab world's ray scene is made here and instanced into the main one at identity |  |
 | `180ffddd0` | `MapInstance_StepMatrix` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:27`, `src/Source2.Compiler/Maps/MapMeshes.cs:20` |
 | `180ffdf20` | `MapNode_WorldMatrix` | instance path times AngleMatrix | `src/Source2.Compiler/Maps/MapMeshes.cs:17` |
 | `181083540` | `MapBuilder_ResolvePhysicsType` | default is convex_multi in an entity, mesh outside | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:82`, `src/Source2.Compiler/Physics/BrushHulls.cs:54` |
+| `18108d780` | `CMapMesh_ApplyAutoMaterial` | SetWholeMeshOverrideMaterial then vf 0x768(2); called per child mesh with the class's auto_apply_material |  |
+| `1810c68f0` | `BakeWholeMeshOverrideMaterial` | AssignMaterialToFaces: every face gets the override's index (181378b30 finds or adds it) | `src/Source2.Compiler/Maps/MapMeshCorners.cs:64` |
 | `1810dd830` | `CMapMesh_SetDisableMerging` | vf 0x7e0 |  |
 | `1810dd840` | `CMapMesh_GetDisableMerging` | vf 0x7e8: +0x3b6b |  |
 | `1810e3f50` | `CMapMesh_RegisterProperties` | CMapMeshBase's embedded properties with getters and setters: bakelighting +0x3b58, renderToCubemaps +0x3b59, emissiveLightingEnabled +0x3b5a, fademindist +0x3b50, fademaxdist +0x3b54, emissiveLightingBoost +0x3b64, visexclude +0x3b6a, disablemerging +0x3b6b (vf 0x7e8), disableShadows +0x3b6c, renderwithdynamic +0x3b74 |  |
@@ -1268,7 +1271,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180021190` | `LargeRegionRays` | at most 8,000,000 pairs a pass | `src/Source2.Compiler/Maps/VisPvs.cs:1170` |
 | `1800216b0` | `LargeRegionFilter` | the boxes at least 256 apart | `src/Source2.Compiler/Maps/VisPvs.cs:1195` |
 | `180021940` | `VectorOr` |  |  |
-| `1800233f0` | `Rte_TriangleCorners` | a triangle's three corners from its record: normal, plane, edges | `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:762`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:841` |
+| `1800233f0` | `Rte_TriangleCorners` | a triangle's three corners from its record: normal, plane, edges | `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:764`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:843` |
 | `180023f70` | `SunJob` |  |  |
 | `180024d30` | `SunVisibility` |  |  |
 | `1800259f0` | `SkyTriangles` |  |  |
@@ -1371,12 +1374,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004bae0` | `TallyRays` | per ray: a hit the centre sees from behind is cleared (FLT_MAX), else recorded; the hits come from the batch tracer (VisClusterSample.Rays) | `src/Source2.Compiler/Maps/VisClusterSample.cs:243` |
 | `18004bd50` | `CastRayGrid` | the ray hits for one origin and direction set; 0x20-byte hit records |  |
 | `18004c0e0` | `BorderTrace` | a segment from the origin to each point | `src/Source2.Compiler/Maps/VisBorders.cs:175` |
-| `18004c9d0` | `GatherRays` | both directions per grid cell, half = max - centre, normalise (yy + zz) + xx times 1/len, segments to MaxCoord * d + centre through BatchRay (mask 0x811), FlushBatch, NoDrawSecondLook, then tallies; ported (VisSeed.Gather) | `src/Source2.Compiler/Maps/VisSeed.cs:100` |
-| `18004d1a0` | `NoDrawSecondLook` | rays whose hit has flags & 0x1030 == 0x20 cast again through the batch tracer (0x831); replaced when facing and ordinary | `src/Source2.Compiler/Maps/VisSeed.cs:183` |
+| `18004c9d0` | `GatherRays` | both directions per grid cell, half = max - centre, normalise (yy + zz) + xx times 1/len, segments to MaxCoord * d + centre through BatchRay (mask 0x811), FlushBatch, NoDrawSecondLook, then tallies; ported (VisSeed.Gather) | `src/Source2.Compiler/Maps/VisSeed.cs:103` |
+| `18004d1a0` | `NoDrawSecondLook` | rays whose hit has flags & 0x1030 == 0x20 cast again through the batch tracer (0x831); replaced when facing and ordinary | `src/Source2.Compiler/Maps/VisSeed.cs:186` |
 | `18004d750` | `BoxOverlap` |  |  |
 | `18004dc30` | `BoxTraversal` |  |  |
 | `18004dea0` | `VectorGrow` |  |  |
-| `18010a460` | `DistanceToBox` | per axis the sum of both overhangs, sqrt((dz dz + dy dy) + dx dx) | `src/Source2.Compiler/Maps/VisSeed.cs:229` |
+| `18010a460` | `DistanceToBox` | per axis the sum of both overhangs, sqrt((dz dz + dy dy) + dx dx) | `src/Source2.Compiler/Maps/VisSeed.cs:232` |
 | `18010ac60` | `NormaliseSlowPath` | the split-off half of the inlined normalise |  |
 | `18010b310` | `Voxelize_TriangleBoxSat` | whether a triangle reaches into a box: SAT on normalised edges | `src/Source2.Compiler/Maps/VisVoxelizer.cs:305` |
 | `18010bf10` | `TreeInit` | construct the tree |  |
@@ -1399,7 +1402,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180110cb0` | `Tracer_PacketNormalise` | one packet: up to four segments of one octant normalised | `src/Source2.Compiler/Maps/TracerKd.cs:286` |
 | `180115760` | `Tracer_PacketWalk` | the packet's kd walk (mode 0) | `src/Source2.Compiler/Maps/TracerKd.cs:287`, `src/Source2.Compiler/Maps/TracerKd.cs:357` |
 | `180118a90` | `TracerKd_PlaneCost` | surface area cost of a split plane | `src/Source2.Compiler/Maps/TracerKd.cs:178` |
-| `180118e90` | `Rte_TriangleFromCorners` | normal, plane, axes and the two edge equations from the corners | `src/Source2.Compiler/Maps/EditorTraceScene.cs:33`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:697`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:765` +1 |
+| `180118e90` | `Rte_TriangleFromCorners` | normal, plane, axes and the two edge equations from the corners | `src/Source2.Compiler/Maps/EditorTraceScene.cs:33`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:699`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:767` +1 |
 | `180119600` | `TracerKd_PlaneCandidates` | one candidate kind on one axis; -1 is the box middle | `src/Source2.Compiler/Maps/TracerKd.cs:148` |
 | `18011bd20` | `SkyKdLeaf` |  |  |
 | `18011c120` | `SkyKdQuery` |  |  |

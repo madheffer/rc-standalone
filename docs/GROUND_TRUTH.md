@@ -169,8 +169,14 @@ game can answer is raised with the user first, and runs with -insecure.
     meshes match neither our collapsed nor our prefab-local meshes (many
     small boxes near (0, 0, 24): template groups in their own
     coordinates?). Model triangles are not captured (meshsystem builds
-    them, not RayScene_AddTriangles). Next: name that scene (its owner and
-    flags), capture the model path, then diff Mako the same way.
+    them, not RayScene_AddTriangles). Named 2026-10-06 (capture_rayscene.py
+    now records backtraces): it is the prefab map's own world scene, built
+    while its target world loads (rc 180f99af0, where
+    prefab_has_runtime_entity_by_default is read) and instanced into the
+    main scene at identity with owner flags 0, so a moved prefab's contents
+    also sit at their prefab-local place. Whether the light trace sees it
+    is open; Mako has no prefabs, so its 125 lights are something else.
+    Next: test that scene against the prefab probes, then diff Mako's scene.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.
@@ -418,6 +424,14 @@ game can answer is raised with the user first, and runs with -insecure.
   BrushHulls.HalfEdgeJoin and Maps.VertexKdTree: the queen's main mesh
   gives Valve's 20,341 vertices and every index, its 89 hull inputs are
   Valve's, and cs_script_demo's 37 brush entity models are exact.
+
+- **A class's applied material** (settled 2026-10-06 by decompile and
+  comparison, ze_doom_p2_c). auto_apply_material is set as the mesh's
+  whole-mesh override (rc 18108d780, SetWholeMeshOverrideMaterial) and
+  BakeWholeMeshOverrideMaterial (1810c68f0, "AssignMaterialToFaces") gives
+  every face that material, so the mesh is one physics piece and its own
+  materials need not exist: doom's 38 triggers on Source 1 textures with
+  no .vmat ship models, now all 309 exact.
 
 - **Faces of instanced meshes in world physics** (ledger 49, settled
   2026-10-05 by capture). CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces

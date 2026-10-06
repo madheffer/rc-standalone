@@ -133,6 +133,24 @@
    "note": "copy piece CMesh, weld 1/32, two CTransforms, half-edge build"
   },
   {
+   "addr": "18108d780",
+   "name": "CMapMesh_ApplyAutoMaterial",
+   "module": "s2c:mapbuilder",
+   "note": "SetWholeMeshOverrideMaterial then vf 0x768(2); called per child mesh with the class's auto_apply_material"
+  },
+  {
+   "addr": "1810c68f0",
+   "name": "BakeWholeMeshOverrideMaterial",
+   "module": "s2c:mapbuilder",
+   "note": "AssignMaterialToFaces: every face gets the override's index (181378b30 finds or adds it)"
+  },
+  {
+   "addr": "180f99af0",
+   "name": "MapPrefab_LoadTargetWorld",
+   "module": "s2c:mapbuilder",
+   "note": "reads prefab_has_runtime_entity_by_default; the prefab world's ray scene is made here and instanced into the main one at identity"
+  },
+  {
    "addr": "1813319d0",
    "name": "MapBuilder_CMeshToHalfEdge",
    "module": "s2c:mapbuilder",
