@@ -132,6 +132,29 @@ public class NodeFindProbe(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// <c>DUMPRES=&lt;vpk&gt;|&lt;entry substring&gt;[|&lt;out dir&gt;]</c>: each matching entry's
+    /// decoded blocks as KV3 text, to the output or to &lt;out dir&gt;/&lt;file&gt;.&lt;block&gt;.kv3.
+    /// </summary>
+    [Fact]
+    public void DumpResource()
+    {
+        if (Environment.GetEnvironmentVariable("DUMPRES") is not { Length: > 0 } spec || spec.Split('|') is not [var vpk, var part, .. var rest])
+            return;
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        foreach (var (_, entries) in pkg.Entries)
+            foreach (var e in entries.Where(e => e.GetFullPath().Contains(part, StringComparison.OrdinalIgnoreCase)))
+                foreach (var (block, tree) in WorldPhysicsAuthorTests.Trees(Io.VpkEntries.Read(pkg, e)))
+                {
+                    var text = ValveResourceFormat.Serialization.KeyValues.KVDocumentExtensions.ToKV3String(tree);
+                    if (rest is [var dir])
+                        File.WriteAllText(Path.Combine(dir, $"{Path.GetFileName(e.GetFullPath())}.{block}.kv3"), text);
+                    else
+                        output.WriteLine($"=== {e.GetFullPath()} {block}\n{text}");
+                }
+    }
+
     /// <summary><c>KEYFIND=&lt;addon&gt;|&lt;map&gt;|&lt;key&gt;</c>: the nodes whose entity properties hold the key, with its value and place among their keys.</summary>
     [Fact]
     public void FindKey()

@@ -33,6 +33,8 @@ public sealed record WrbMeshEntry
     public byte Field1a3 { get; init; }
     public float Field_b8 { get; init; }
     public byte Field1a5 { get; init; }
+    /// <summary>+0x1a6: GroupRenderObjects runs on it and CreateRenderObject's name takes _kv from it.</summary>
+    public byte Field1a6 { get; init; }
     public float Field1a8 { get; init; }
     /// <summary>+0xa0: cubemap; +0xa4: light probe volume.</summary>
     public int Cubemap { get; init; }
@@ -151,6 +153,7 @@ public sealed record WrbMeshEntry
             Field1a3 = entry[0x1a3],
             Field_b8 = F(entry, 0xb8),
             Field1a5 = entry[0x1a5],
+            Field1a6 = entry[0x1a6],
             Field1a8 = F(entry, 0x1a8),
             Cubemap = BitConverter.ToInt32(entry[0xa0..]),
             LightProbe = BitConverter.ToInt32(entry[0xa4..]),

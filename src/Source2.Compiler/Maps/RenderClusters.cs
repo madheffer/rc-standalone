@@ -41,11 +41,17 @@ public static class RenderClusters
     /// </summary>
     public static List<(Vector3 Min, Vector3 Max)> Build(Vector3[] centroids, int minTriangles, float size, bool sizeSplit)
     {
+        const float grow = 0.03125f;
+        return [.. Split(centroids, minTriangles, size, sizeSplit).Select(b => (b.Min - new Vector3(grow), b.Max + new Vector3(grow)))];
+    }
+
+    /// <summary>The boxes of FUN_180282bf0 alone, not grown (Step_BuildingRenderClusters grows every box it holds after each call).</summary>
+    public static List<(Vector3 Min, Vector3 Max)> Split(Vector3[] centroids, int minTriangles, float size, bool sizeSplit)
+    {
         var boxes = new List<(Vector3, Vector3)>();
         if (centroids.Length > 0)
             Split(boxes, minTriangles, size, sizeSplit, centroids, 0, centroids.Length, 0);
-        const float grow = 0.03125f;
-        return [.. boxes.Select(b => (b.Item1 - new Vector3(grow), b.Item2 + new Vector3(grow)))];
+        return boxes;
     }
 
     private static void Split(List<(Vector3, Vector3)> boxes, int minTriangles, float size, bool sizeSplit,

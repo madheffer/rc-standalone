@@ -115,11 +115,13 @@ internal static class WorldNodeBuild
     /// plus its float count unless it carries one.</item>
     /// </list>
     /// <paramref name="keepLighting"/> is the lists' baked-lighting switch
-    /// (setting byte +4), off in a -world build.
+    /// (setting byte +4), off in a -world build. <paramref name="kinds"/>
+    /// widens it to other lists (CompileNode fills all twelve).
     /// </summary>
     public static Dictionary<MeshLists.Kind, List<MergerInput>> MergerInputs(IReadOnlyList<Built> built, IReadOnlyList<NodeOverlays.Projection> overlays,
                                                                              IReadOnlyList<NodeOverlays.Descriptor> descriptors, IReadOnlyList<(int Cubemap, int Probe)> envMaps,
-                                                                             GameContent content, ShaderLibrary shaders, bool keepLighting = false)
+                                                                             GameContent content, ShaderLibrary shaders, bool keepLighting = false,
+                                                                             IReadOnlyCollection<MeshLists.Kind>? kinds = null)
     {
         (int Stride, float[] Vertices, List<WrbMeshEntry.Stream> Streams) Filtered(string material, float[] vertices, int stride,
                                                                                     IReadOnlyList<Physics.MeshWeld.Stream> streams, bool precise, ulong attributes)
@@ -147,7 +149,7 @@ internal static class WorldNodeBuild
             return (newStride, v, described);
         }
 
-        var lists = MeshLists.Merged.ToDictionary(k => k, _ => new List<MergerInput>());
+        var lists = (kinds ?? MeshLists.Merged).ToDictionary(k => k, _ => new List<MergerInput>());
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
         for (var i = 0; i < built.Count; i++)
         {
