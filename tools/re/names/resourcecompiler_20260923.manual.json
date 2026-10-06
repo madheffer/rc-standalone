@@ -1579,6 +1579,30 @@
    "note": "vf 0x20: mesh_worldspace_texture_blend, object flag 0x40"
   },
   {
+   "addr": "1802f9cc0",
+   "name": "ModelCompile_ReadMeshArgs",
+   "module": "s2c:geometry/world-nodes",
+   "note": "globals from the compile arguments: create_pooled_vb (18307e22c), embedded_map_mesh (18307e218), embedded_aggregate_mesh, meshlets; SceneSystem/RenderMeshlets, RayTraceProxyEnabled"
+  },
+  {
+   "addr": "18028f100",
+   "name": "UtlHashtable_Insert_NodeKey",
+   "module": "s2c:geometry/world-nodes",
+   "note": "tier1 CUtlHashtable insert for the (+0x40, +0xa8) key of 18026ed20: bit 31 empty, bit 30 last of chain"
+  },
+  {
+   "addr": "18022c170",
+   "name": "UtlHashtable_Bump",
+   "module": "s2c:geometry/world-nodes",
+   "note": "moves an entry to the first free slot past its chain"
+  },
+  {
+   "addr": "18022bec0",
+   "name": "UtlHashtable_Rehash",
+   "module": "s2c:geometry/world-nodes",
+   "note": "power of two at least 32, old slots re-placed last to first through 18022b530"
+  },
+  {
    "addr": "180301650",
    "name": "CMeshletBuilder_Init",
    "module": "s2c:geometry/world-nodes",

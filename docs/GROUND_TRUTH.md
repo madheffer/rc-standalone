@@ -427,6 +427,18 @@ game can answer is raised with the user first, and runs with -insecure.
     vf 0x38 (18026ed20) groups by entry +0x40 (node id) and +0xa8 (not
     modelled) through a hash map whose slot order numbers the nomerge%d
     objects; .vwrld m_nCompileFingerprint changes per compile.
+    Brush entity models (2026-10-07, atixref 56 of 58 render models and
+    86 of 86 physics-only exact, ze_hold_em_p 8 and 24): one embedded mesh
+    per drawn material piece (hammer_mesh_<piece>, numbered on when taken),
+    in entity space, tangents recomputed (preserve_tangents 0), Hammer's
+    texcoord precision flag over every face of the mesh, nodraw included.
+    FUN_1802f9cc0 reads embedded_map_mesh and create_pooled_vb: the depth
+    split needs a map mesh that is not pooled. SNORM texcoords truncate
+    (6863, not 6864); an index buffer stays raw when the codec output is
+    not smaller. Open: valdina_button and block_roof_waterm name the
+    normal OptionallyCompressedTangentFrame where their materials' INSG
+    lists CompressedTangentFrame first; neither class nor material order
+    explains it.
 
 ## Resolved
 
