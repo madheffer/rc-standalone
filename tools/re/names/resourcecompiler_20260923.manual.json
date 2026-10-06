@@ -1393,6 +1393,60 @@
    "note": "min >= -1 and max <= 1 over a two-float stream"
   },
   {
+   "addr": "1802fcb30",
+   "name": "CMesh_Stream4WithinUnitRange",
+   "module": "s2c:geometry/world-nodes",
+   "note": "as 1802fc990 for a four-float stream"
+  },
+  {
+   "addr": "1802f5680",
+   "name": "ModelCompile_MeshInputLayouts",
+   "module": "s2c:geometry/world-nodes",
+   "note": "per mesh (0x148 bytes): the full layout, and with a material depth list (INSG m_depth_elems) the depth (flags | 8) and remainder (flags | 0x10) layouts; a fourth for non-map meshes"
+  },
+  {
+   "addr": "181365710",
+   "name": "CMesh_BuildInputLayout",
+   "module": "s2c:geometry/world-nodes",
+   "note": "thunk to 181364720 with the mesh's field list"
+  },
+  {
+   "addr": "181364720",
+   "name": "CMesh_BuildPackedInputLayout",
+   "module": "s2c:geometry/world-nodes",
+   "note": "one field per mesh stream in mesh order (formats, normal 0x2a), then signature matching (181363de0): depth list, or main minus depth; unmatched fields dropped unless flags bit 2; offsets by format size"
+  },
+  {
+   "addr": "181363de0",
+   "name": "InputLayout_MatchSignature",
+   "module": "s2c:geometry/world-nodes",
+   "note": "walks the signature, maps each semantic through the posxyz table (183014ae0) to a stream name and index, takes the mesh field; skips ones already matched"
+  },
+  {
+   "addr": "1812e18e0",
+   "name": "Material_LoadResourceData",
+   "module": "s2c:geometry/world-nodes",
+   "note": "MaterialResourceData_t from the vmat_c DATA block; INSG through 1812e0fe0"
+  },
+  {
+   "addr": "1812e0fe0",
+   "name": "Material_ReadInputSignature",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the INSG block's KV3 into m_elems and m_depth_elems (180dfadd0)"
+  },
+  {
+   "addr": "180dfadd0",
+   "name": "InputSignature_Unserialize",
+   "module": "s2c:geometry/world-nodes",
+   "note": "m_elems, then m_depth_elems at +0x18"
+  },
+  {
+   "addr": "1812dd570",
+   "name": "CMesh_Concatenate",
+   "module": "s2c:geometry/world-nodes",
+   "note": "meshes appended under the first mesh's attribute list (or a given one); warns on differing attribute counts or sets"
+  },
+  {
    "addr": "18026d7a0",
    "name": "WRBNode_PropCanAggregate",
    "module": "s2c:geometry/world-nodes",
