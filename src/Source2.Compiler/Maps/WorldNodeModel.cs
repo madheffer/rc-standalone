@@ -67,10 +67,17 @@ public sealed record WorldNodeModel(
         ("preserve_tangents", "IntArg", 0),
     ];
 
+    /// <summary>
+    /// A brush entity's model (its class): not an embedded map mesh, tangents
+    /// recomputed, and the class's string token as mapbuilder_entity_classname.
+    /// </summary>
+    public string? EntityClass { get; init; }
+
     /// <summary>This model's fingerprint for one argument.</summary>
     public long Argument(string name, long fallback) => name switch
     {
-        "embedded_map_mesh" or "preserve_tangents" => 1,
+        "embedded_map_mesh" or "preserve_tangents" => EntityClass == null ? 1 : 0,
+        "mapbuilder_entity_classname" when EntityClass != null => SettleWorld.NameHash(EntityClass),
         "embedded_aggregate_mesh" or "generate_draw_bounds" or "generate_meshlets" => Aggregate ? 1 : 0,
         _ => fallback,
     };

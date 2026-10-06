@@ -38,7 +38,7 @@ public static class MapCompile
 
     /// <summary>
     /// The world's collision (world_physics.vmdl_c and its manifest) and the
-    /// models of brush entities that hold only physics. A world the build does
+    /// models of brush entities (render meshes and physics). A world the build does
     /// not port yet is left out with a note; the entity models still come.
     /// </summary>
     public static List<Output> Physics(DmxBinary.Document document, string addon, string mapName, FgdSchema schema,
@@ -56,11 +56,10 @@ public static class MapCompile
         {
             notes.Add($"world_physics not built: {ex.Message}");
         }
-        // The other brush entity models carry render meshes, which are not ported.
+        // The others carry render meshes beside their physics (EntityRenderModels).
         outputs.AddRange(EntityPhysicsModels.Build(document, mapName, content.Material, content.CollisionProperty, schema,
                                                    notes, content.SmartProp)
-            .Where(m => m.PhysicsOnly)
-            .Select(m => new Output(m.Path + "_c", EntityPhysicsModels.Author(m, content.SurfaceName))));
+            .Select(m => new Output(m.Path + "_c", m.PhysicsOnly ? EntityPhysicsModels.Author(m, content.SurfaceName) : EntityRenderModels.Author(m, content))));
         return outputs;
     }
 

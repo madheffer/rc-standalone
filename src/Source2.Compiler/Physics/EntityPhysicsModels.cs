@@ -25,7 +25,14 @@ namespace Source2.Compiler.Physics;
 public static class EntityPhysicsModels
 {
     /// <summary>One entity's model: its path, class, whether it holds only physics, and the part.</summary>
-    public sealed record Model(int NodeId, string ClassName, string Path, bool PhysicsOnly, WorldPhysics Physics);
+    public sealed record Model(int NodeId, string ClassName, string Path, bool PhysicsOnly, WorldPhysics Physics)
+    {
+        /// <summary>The entity, its meshes (depth first, hidden ones out), how nodes are placed and the class's applied material, for the render half.</summary>
+        public DmxBinary.Element? Entity { get; init; }
+        public IReadOnlyList<DmxBinary.Element> Meshes { get; init; } = [];
+        public Func<DmxBinary.Element, Maps.CTransform>? TransformOf { get; init; }
+        public string? Applied { get; init; }
+    }
 
     /// <param name="smartProp">A smart prop definition by path, whose locators take
     /// node ids before the instance copies do (<see cref="SmartProps.NodesCreatedOnLoad"/>).</param>
@@ -184,7 +191,10 @@ public static class EntityPhysicsModels
             // (func_water, whose render goes to the world).
             physicsOnly |= schema?.HasFlag(className, "physics_only_model") == true
                          || schema?.HasFlag(className, "render_as_world_but_physics_as_entity") == true;
-            return new Model(nodeId, className, path, physicsOnly, WorldPhysics.Build(pieces, entityModel: true));
+            return new Model(nodeId, className, path, physicsOnly, WorldPhysics.Build(pieces, entityModel: true))
+            {
+                Entity = entity, Meshes = meshes, TransformOf = transformOf, Applied = applied,
+            };
         }
     }
 
@@ -201,7 +211,7 @@ public static class EntityPhysicsModels
     /// being non-zero and mapbuilder.occluder OR-ing into it (s2port_tooltags:
     /// a toolsoccluder func_brush is physics only). A missing material draws.
     /// </summary>
-    private static bool DrawsNothing(SettleWorld.MaterialInfo? info)
+    internal static bool DrawsNothing(SettleWorld.MaterialInfo? info)
     {
         var none = false;
         foreach (var (key, value) in info?.Ints ?? new Dictionary<string, long>())

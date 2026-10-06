@@ -53,7 +53,10 @@ internal static class WorldNodeModels
     // A draw before packing: material, built geometry, stream layout and its source facts.
     private sealed record DrawInput(string Material, NodeDraw.Result Geometry, int Stride, IReadOnlyList<WrbMeshEntry.Stream> Streams, WrbMeshEntry Facts);
 
-    public static Built Build(string name, IReadOnlyList<WorldNodeCompile.Entry> meshes, bool aggregate, Func<string, MaterialFacts> material)
+    /// <param name="mapMesh">embedded_map_mesh: the model compiler splits the depth stream (FUN_1802f9cc0: with SplitDepthStream, not pooled) and compresses texcoords (ModelCompile_BuildDrawSets) only for a map mesh; a brush entity's model keeps one buffer and float texcoords.</param>
+    /// <param name="layout">The signature the layout follows, when not the first draw's material's.</param>
+    public static Built Build(string name, IReadOnlyList<WorldNodeCompile.Entry> meshes, bool aggregate, Func<string, MaterialFacts> material, bool mapMesh = true,
+                              MaterialFacts? layout = null)
     {
         var groups = aggregate ? FragmentOrder(meshes).Select(e => new List<WorldNodeCompile.Entry> { e }).ToList() : ByMaterial(meshes);
         var draws = new List<DrawInput>();
@@ -69,10 +72,10 @@ internal static class WorldNodeModels
         }
 
         // One draw set: every draw in the same vertex buffers and one index buffer.
-        var facts = material(draws[0].Material);
-        var layout = Layout(draws, facts, aggregate);
-        var bufferCount = layout.Max(l => l.Buffer) + 1;
-        var strides = Enumerable.Range(0, bufferCount).Select(b => layout.Where(l => l.Buffer == b).Sum(f => FormatSize(f.Field.Format))).ToArray();
+        var facts = layout ?? material(draws[0].Material);
+        var slots = Layout(draws, mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh);
+        var bufferCount = slots.Max(l => l.Buffer) + 1;
+        var strides = Enumerable.Range(0, bufferCount).Select(b => slots.Where(l => l.Buffer == b).Sum(f => FormatSize(f.Field.Format))).ToArray();
         var totalVertices = draws.Sum(d => d.Geometry.VertexCount);
         var vbs = strides.Select(st => new byte[totalVertices * st]).ToArray();
         var ib = new List<uint>();
@@ -87,7 +90,7 @@ internal static class WorldNodeModels
             var offsets = StreamOffsets(d.Streams);
             for (var b = 0; b < bufferCount; b++)
                 for (var v = 0; v < g.VertexCount; v++)
-                    Pack(vbs[b].AsSpan((vertexBase + v) * strides[b], strides[b]), g.Vertices.AsSpan(v * d.Stride, d.Stride), offsets, layout.Where(l => l.Buffer == b));
+                    Pack(vbs[b].AsSpan((vertexBase + v) * strides[b], strides[b]), g.Vertices.AsSpan(v * d.Stride, d.Stride), offsets, slots.Where(l => l.Buffer == b));
             var positions = Positions(g, d.Stride, offsets["position:0"]);
             var (dmin, dmax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
             foreach (var i in g.Indices)
@@ -120,12 +123,16 @@ internal static class WorldNodeModels
             vertexBase += g.VertexCount;
         }
         var elementSize = totalVertices > 0xffff ? 4 : 2;
+        // The index codec's output is kept only when smaller than the raw indices.
+        var ibBytes = MeshoptEncoder.EncodeIndexBuffer(ib.ToArray());
+        var ibMeshopt = ibBytes.Length < ib.Count * elementSize;
+        if (!ibMeshopt)
+            ibBytes = elementSize == 2 ? [.. ib.SelectMany(i => BitConverter.GetBytes((ushort)i))] : [.. ib.SelectMany(i => BitConverter.GetBytes(i))];
         var model = new WorldNodeModel(name,
-            [.. Enumerable.Range(0, bufferCount).Select(b => new WorldNodeModel.VertexBuffer(totalVertices, strides[b], true, [.. layout.Where(l => l.Buffer == b).Select(l => l.Field)]))],
-            [new WorldNodeModel.IndexBuffer(ib.Count, elementSize, true, aggregate)],
+            [.. Enumerable.Range(0, bufferCount).Select(b => new WorldNodeModel.VertexBuffer(totalVertices, strides[b], true, [.. slots.Where(l => l.Buffer == b).Select(l => l.Field)]))],
+            [new WorldNodeModel.IndexBuffer(ib.Count, elementSize, ibMeshopt, aggregate)],
             [new WorldNodeModel.SceneObject(min, max, described, aggregate ? drawBounds : [], meshlets)],
             aggregate, 0);
-        var ibBytes = MeshoptEncoder.EncodeIndexBuffer(ib.ToArray());
         var buffers = Enumerable.Range(0, bufferCount).Select(b => (BlockType.MVTX, MeshoptEncoder.EncodeVertexBuffer(vbs[b], totalVertices, strides[b]))).ToList();
         buffers.Add((BlockType.MIDX, ibBytes));
         return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], [.. groups.Select(g => g[0])]) { RawVertexBuffers = vbs };
@@ -228,7 +235,7 @@ internal static class WorldNodeModels
     private static bool Reads(IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement> elements, WrbMeshEntry.Stream s)
         => elements.Any(x => MaterialStreams.Inputs([x.Semantic]) is [var m] && Io.Tier0Strings.EqualsIgnoreCase(m.Name, s.Name) && m.Index == s.Index);
 
-    private static List<Slot> Layout(List<DrawInput> draws, MaterialFacts facts, bool aggregate)
+    private static List<Slot> Layout(List<DrawInput> draws, MaterialFacts facts, bool aggregate, bool mapMesh)
     {
         var signature = facts.Signature;
         var slots = new List<Slot>();
@@ -339,7 +346,8 @@ internal static class WorldNodeModels
     private static short Snorm16(float v)
     {
         v = v < -1f ? -1f : v > 1f ? 1f : v;
-        return (short)MathF.Round(v * 32767f);
+        // CMesh_PackField truncates toward zero (atixref entity models: 6863, not 6864).
+        return (short)(v * 32767f);
     }
 
     private static byte Unorm8(float v)

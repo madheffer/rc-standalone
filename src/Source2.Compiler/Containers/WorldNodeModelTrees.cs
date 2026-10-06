@@ -55,7 +55,7 @@ public static class WorldNodeModelTrees
         skeleton.Add("m_nBoneWeightCount", I32(4));
         root.Add("m_skeleton", skeleton);
         root.Add("m_bUseUV2ForCharting", new KVObject(false));
-        root.Add("m_bEmbeddedMapMesh", new KVObject(true));
+        root.Add("m_bEmbeddedMapMesh", new KVObject(model.EntityClass == null));
         var deform = KVObject.Collection();
         deform.Add("m_flTensionCompressScale", new KVObject(0.0));
         deform.Add("m_flTensionStretchScale", new KVObject(0.0));
@@ -141,11 +141,26 @@ public static class WorldNodeModelTrees
     /// </summary>
     public static KVObject Ctrl(WorldNodeModel model)
     {
+        var meshes = KVObject.Array();
+        meshes.Add(CtrlMesh(model, "meshset_0", 0, 0));
+        var root = KVObject.Collection();
+        root.Add("embedded_meshes", meshes);
+        return root;
+    }
+
+    /// <summary>
+    /// One embedded mesh of CTRL: its name and index, its buffers' blocks from
+    /// <paramref name="blockBase"/> on, then its MDAT.
+    /// </summary>
+    public static KVObject CtrlMesh(WorldNodeModel model, string name, int index, int blockBase)
+    {
         var (vbBlocks, ibBlocks) = BufferBlocks(model);
+        vbBlocks = [.. vbBlocks.Select(b => b + blockBase)];
+        ibBlocks = [.. ibBlocks.Select(b => b + blockBase)];
         var mesh = KVObject.Collection();
-        mesh.Add("m_Name", new KVObject("meshset_0"));
-        mesh.Add("m_nMeshIndex", I32(0));
-        mesh.Add("m_nDataBlock", I32(model.VertexBuffers.Count + model.IndexBuffers.Count));
+        mesh.Add("m_Name", new KVObject(name));
+        mesh.Add("m_nMeshIndex", I32(index));
+        mesh.Add("m_nDataBlock", I32(blockBase + model.VertexBuffers.Count + model.IndexBuffers.Count));
         mesh.Add("m_nMorphBlock", I32(-1));
         var vbs = KVObject.Array();
         var vbAt = 0;
@@ -175,11 +190,7 @@ public static class WorldNodeModelTrees
         mesh.Add("m_toolsBuffers", KVObject.Array());
         mesh.Add("m_nVBIBBlock", I32(-1));
         mesh.Add("m_nToolsVBBlock", I32(-1));
-        var meshes = KVObject.Array();
-        meshes.Add(mesh);
-        var root = KVObject.Collection();
-        root.Add("embedded_meshes", meshes);
-        return root;
+        return mesh;
     }
 
     /// <summary>

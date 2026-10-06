@@ -254,7 +254,7 @@ internal static class WorldNodeCompile
             case MeshLists.Kind.Aggregate:
                 // 180272ae0: std::sort by material name, then grouped as "mesh".
                 var sorted = entries.ToArray();
-                MsvcSort.Sort(sorted, (a, b) => string.Compare(a.Material, b.Material, StringComparison.OrdinalIgnoreCase) < 0);
+                MsvcSort.Sort(sorted, (a, b) => Io.Tier0Strings.IgnoreCase.Compare(a.Material, b.Material) < 0);
                 GroupRenderObjects("mesh", [.. sorted], layer, cluster, settings, objects);
                 break;
             case MeshLists.Kind.Base:
@@ -521,7 +521,7 @@ internal static class WorldNodeCompile
             _ => throw new NotSupportedException($"aggregates of the {list.Kind} list"),
         };
         var sorted = list.Stash.OrderBy(e => e.Facts.Attributes & 0x6000000000).ThenBy(e => e.Facts.Attributes & 0x100000)
-                               .ThenBy(e => e.Material, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Vertices.Length / e.Stride).ToList();
+                               .ThenBy(e => e.Material, Io.Tier0Strings.IgnoreCase).ThenBy(e => e.Vertices.Length / e.Stride).ToList();
         var left = new List<Entry>();
         for (var i = 0; i < sorted.Count;)
         {
