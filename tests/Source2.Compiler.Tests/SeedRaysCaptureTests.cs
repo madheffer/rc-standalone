@@ -44,7 +44,14 @@ public class SeedRaysCaptureTests(ITestOutputHelper output)
                 var reach = (file.Maxs - file.Mins).Length();
                 var a = file.Trace(origin, direction, reach, VisSeed.Ignored);
                 var b = rebuilt.Trace(origin, direction, reach, VisSeed.Ignored);
-                string Show(RayTraceEnvironment.Hit? h) => h is { } x ? $"{x.Triangle} t {x.Distance:R} n {x.Normal}" : "none";
+                string Show(RayTraceEnvironment.Hit? h) => h is { } x ? $"{x.Triangle} flags {file.RawFlags(x.Triangle):x} t {x.Distance:R} n {x.Normal}" : "none";
+                // The second look's trace for a nodraw-only hit (mask 0x831).
+                if (a is { } first && (file.RawFlags(first.Triangle) & VisSeed.Insubstantial) == VisSeed.NoDrawOnly && lines.Count < 12)
+                {
+                    var end = origin + (direction * LightSampler.MaxCoord);
+                    var again = file.Segments([(origin, end)], VisSeed.SeeingThroughNoDraw)[0];
+                    lines.Add($"  ray {i} second look: {Show(again)}");
+                }
                 var valve = id == uint.MaxValue ? "none" : $"{id} t {t:R} n {normal}";
                 var fileSame = (a is null && id == uint.MaxValue) || (a is { } ha && ha.Triangle == id);
                 var rebuiltSame = (b is null && id == uint.MaxValue) || (b is { } hb && hb.Triangle == id);

@@ -220,12 +220,12 @@ public static class BrushHulls
         // The map builder cuts faces in the mesh's own space, before any
         // transform: <paramref name="local"/> when given.
         local ??= positions;
-        // The map builder's half-edge mesh joins corners at the same position,
-        // so two .vmap vertices that coincide are one vertex here.
-        var index = new Dictionary<Vector3, int>();
-        // A world mesh shape's CMesh keeps each .vmap vertex apart, so two at
-        // one position stay two (atixref, node 6617); with cornerIds the
-        // corners join by .vmap vertex rather than by position.
+        // A brush entity piece's half-edge mesh joins coincident vertices
+        // (HalfEdgeJoin) and drops a triangle repeating a vertex. A world mesh
+        // shape's CMesh keeps each .vmap vertex apart, so two at one position
+        // stay two (atixref, node 6617); with cornerIds the corners join by
+        // .vmap vertex instead.
+        var joined = cornerIds == null ? HalfEdgeJoin(positions, faces) : null;
         var byId = new Dictionary<int, int>();
         var f = -1;
         var points = new List<Vector3>();
@@ -234,6 +234,8 @@ public static class BrushHulls
         {
             f++;
             if (face.Length < 3)
+                continue;
+            if (joined != null && face.Distinct().Count() != face.Length)
                 continue;
             // FUN_181310a90: a triangle as it stands, anything larger through
             // the triangulator; a face it cannot cut adds no vertices either.
@@ -247,14 +249,12 @@ public static class BrushHulls
             {
                 var p = positions[face[j]];
                 int i;
-                if (cornerIds != null ? !byId.TryGetValue(cornerIds[f][j], out i) : !index.TryGetValue(p, out i))
+                var id = cornerIds != null ? cornerIds[f][j] : joined![face[j]];
+                if (!byId.TryGetValue(id, out i))
                 {
                     i = points.Count;
                     firstCorner?.Add((f, j));
-                    if (cornerIds != null)
-                        byId[cornerIds[f][j]] = i;
-                    else
-                        index[p] = i;
+                    byId[id] = i;
                     points.Add(p);
                 }
                 slot[j] = i;
@@ -263,6 +263,86 @@ public static class BrushHulls
                 triangles.Add((slot[cut[j]], slot[cut[j + 1]], slot[cut[j + 2]]));
         }
         return (points, triangles);
+    }
+
+    /// <summary>
+    /// FUN_18131e190(mesh, 3, 1e-7), run on a brush entity piece's half-edge
+    /// mesh after the conversion (1813319d0) made one vertex per welded vertex
+    /// and dropped triangles repeating one. Each vertex in order is queried in
+    /// a KD tree (<see cref="Maps.VertexKdTree"/>) over a box of +-1e-7, and
+    /// merges into the first candidate the tree returns that is earlier, not
+    /// merged away and closer than 1e-7, when FUN_1812f2390 mode 3 allows it:
+    /// both vertices open (an edge with one face side, FUN_1812f1c60 and
+    /// FUN_1812f1410) and no face shared (FUN_1812edc10). A vertex at a
+    /// triangle whose two corners coincide therefore stays apart, and a later
+    /// vertex there joins whichever the tree lists first (cs_script_demo's
+    /// queen: Valve's 20,341 vertices and every index). Returns, per vertex,
+    /// the vertex it ends up as.
+    /// </summary>
+    public static int[] HalfEdgeJoin(Vector3[] positions, int[][] faces)
+    {
+        ArgumentNullException.ThrowIfNull(positions);
+        ArgumentNullException.ThrowIfNull(faces);
+        var tol = BitConverter.Int32BitsToSingle(0x33d6bf95);
+        var n = positions.Length;
+        var kept = faces.Where(t => t.Length >= 3 && t.Distinct().Count() == t.Length).Select(t => t.ToArray()).ToList();
+        var facesOf = new List<int>[n];
+        for (var v = 0; v < n; v++)
+            facesOf[v] = [];
+        for (var t = 0; t < kept.Count; t++)
+            foreach (var v in kept[t])
+                facesOf[v].Add(t);
+        // An edge is open when one face side holds it; a vertex is open with no
+        // edges or one open edge.
+        bool Open(int v)
+        {
+            if (facesOf[v].Count == 0)
+                return true;
+            var sides = new Dictionary<int, int>();
+            foreach (var t in facesOf[v])
+            {
+                var face = kept[t];
+                var at = Array.IndexOf(face, v);
+                var next = face[(at + 1) % face.Length];
+                var prev = face[(at + face.Length - 1) % face.Length];
+                sides[next] = sides.GetValueOrDefault(next) + 1;
+                sides[prev] = sides.GetValueOrDefault(prev) + 1;
+            }
+            return sides.Values.Any(c => c == 1);
+        }
+        var tree = new Maps.VertexKdTree(positions);
+        var removed = new bool[n];
+        var into = Enumerable.Range(0, n).ToArray();
+        var found = new List<int>();
+        for (var v = 0; v < n; v++)
+        {
+            var p = positions[v];
+            found.Clear();
+            tree.FindInBox(new Vector3(p.X - tol, p.Y - tol, p.Z - tol), new Vector3(p.X + tol, p.Y + tol, p.Z + tol), found);
+            foreach (var j in found)
+            {
+                if (j >= v || removed[j])
+                    continue;
+                var q = positions[j];
+                float dx = p.X - q.X, dy = p.Y - q.Y, dz = p.Z - q.Z;
+                if (!((dy * dy) + (dx * dx) + (dz * dz) < tol * tol))
+                    continue;
+                if (!Open(v) || !Open(j) || facesOf[v].Intersect(facesOf[j]).Any())
+                    continue;
+                foreach (var t in facesOf[v])
+                    kept[t][Array.IndexOf(kept[t], v)] = j;
+                facesOf[j].AddRange(facesOf[v]);
+                facesOf[v].Clear();
+                removed[v] = true;
+                into[v] = j;
+                break;
+            }
+        }
+        // A vertex merged into one that later merged on follows it there.
+        for (var v = 0; v < n; v++)
+            while (into[into[v]] != into[v])
+                into[v] = into[into[v]];
+        return into;
     }
 
     private static int[] Corners((int A, int B, int C) t) => [t.A, t.B, t.C];

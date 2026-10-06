@@ -25,6 +25,36 @@
    "note": "export"
   },
   {
+   "addr": "180180730",
+   "name": "CVertexKDTree::BuildMidpoint",
+   "module": "s2c:math",
+   "note": "export; point pointers in index order, then BuildNode(0, n)"
+  },
+  {
+   "addr": "18017feb0",
+   "name": "CVertexKDTree::BuildNode",
+   "module": "s2c:math",
+   "note": "export; leaf at 8 or fewer, midpoint of the longest side, node numbered before its children"
+  },
+  {
+   "addr": "18017ebf0",
+   "name": "CVertexKDTree_Partition",
+   "module": "s2c:math",
+   "note": "below the split swaps down from the middle, then at or above swaps up"
+  },
+  {
+   "addr": "18017fc30",
+   "name": "CVertexKDTree_Bounds",
+   "module": "s2c:math",
+   "note": ""
+  },
+  {
+   "addr": "18017ef60",
+   "name": "CVertexKDTree::FindVertsInBox",
+   "module": "s2c:math",
+   "note": "export; leaf points in stored order, left child when lo <= split, right unless hi < split"
+  },
+  {
    "addr": "180007cf0",
    "name": "V_qsort",
    "module": "s2c:io",

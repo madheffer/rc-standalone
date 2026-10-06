@@ -133,6 +133,66 @@
    "note": "copy piece CMesh, weld 1/32, two CTransforms, half-edge build"
   },
   {
+   "addr": "1813319d0",
+   "name": "MapBuilder_CMeshToHalfEdge",
+   "module": "s2c:mapbuilder",
+   "note": "one vertex per CMesh vertex; triangles repeating an index skipped; streams then bone weights"
+  },
+  {
+   "addr": "18131e190",
+   "name": "HalfEdge_JoinCoincident",
+   "module": "s2c:mapbuilder",
+   "note": "BuildPhysicsPieces calls it (mesh, 3, 1e-7) after the conversion: BrushHulls.HalfEdgeJoin"
+  },
+  {
+   "addr": "18131e250",
+   "name": "HalfEdge_JoinCoincidentList",
+   "module": "s2c:mapbuilder",
+   "note": "CVertexKDTree over the positions; each vertex merges into the first earlier unmerged box hit within tol that MergeVertexInto accepts"
+  },
+  {
+   "addr": "1812f2390",
+   "name": "HalfEdge_MergeVertexInto",
+   "module": "s2c:mapbuilder",
+   "note": "mode bit 2: both vertices open (1812f1c60); bit 1: no shared face (1812edc10); then 1812f27a0"
+  },
+  {
+   "addr": "1812f1c60",
+   "name": "HalfEdge_VertexIsOpen",
+   "module": "s2c:mapbuilder",
+   "note": "no edges, or an edge with exactly one face side (1812f1410)"
+  },
+  {
+   "addr": "1812f1410",
+   "name": "HalfEdge_EdgeIsOpen",
+   "module": "s2c:mapbuilder",
+   "note": "counts the endpoints' half-edges referencing the edge; open when exactly 1"
+  },
+  {
+   "addr": "1812edc10",
+   "name": "HalfEdge_VerticesShareFace",
+   "module": "s2c:mapbuilder",
+   "note": "faces of one vertex hashed, the other's corners looked up"
+  },
+  {
+   "addr": "1812f27a0",
+   "name": "HalfEdge_MergeVertex",
+   "module": "s2c:mapbuilder",
+   "note": "lerp position (t 1 keeps the target's), move each face corner (1812f48f0), remove the vertex, delete its old edges (1812f2f40)"
+  },
+  {
+   "addr": "1812f48f0",
+   "name": "HalfEdge_MoveCorner",
+   "module": "s2c:mapbuilder",
+   "note": "relinks a corner to the new vertex, finding or creating the edge by vertex pair (1812ee0f0)"
+  },
+  {
+   "addr": "1812f2f40",
+   "name": "HalfEdge_RemoveEdge",
+   "module": "s2c:mapbuilder",
+   "note": "swap-last delete from the edge table"
+  },
+  {
    "addr": "18131f680",
    "name": "MapBuilder_HullsFromMesh",
    "module": "s2c:physics/hull",

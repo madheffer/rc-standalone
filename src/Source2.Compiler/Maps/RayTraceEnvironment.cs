@@ -290,7 +290,9 @@ public sealed class RayTraceEnvironment
     /// The flag word exactly as the file holds it, with no fold. The batch
     /// tracer reads bit 4 directly (<c>(*(ushort *)(tri + 0x2e) &gt;&gt; 4) &amp; 1</c>)
     /// and <see cref="Flags"/> rewrites that bit, so the sampler has to come
-    /// here instead.
+    /// here instead. visbuilder's own scene is loaded through
+    /// LoadRTEFromFile, which folds the bit before adding a triangle, so what
+    /// traces that scene (the seed) reads <see cref="Flags"/>.
     /// </summary>
     public ushort RawFlags(int index) =>
         BinaryPrimitives.ReadUInt16LittleEndian(Record(index)[0x2e..]);

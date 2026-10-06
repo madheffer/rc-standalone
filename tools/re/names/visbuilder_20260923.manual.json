@@ -22,7 +22,7 @@
    "addr": "18004b4c0",
    "name": "CVisibilityMesh::LoadRTEFromFile",
    "module": "s2c:visibility",
-   "note": "the .rte reader (voxel_utils.cpp)"
+   "note": "the .rte reader (voxel_utils.cpp); folds flag 0x10 into 0x20 before adding a triangle, so the scene's records never hold 0x10"
   },
   {
    "addr": "18011c2a0",

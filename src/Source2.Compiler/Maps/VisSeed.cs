@@ -29,7 +29,10 @@ public static class VisSeed
 
     /// <summary>
     /// A hit on one of these is counted apart from an ordinary surface: nodraw,
-    /// and the coarse-only geometry the voxelizer stops at 256 units.
+    /// and the coarse-only geometry the voxelizer stops at 256 units. Tested on
+    /// the scene's word (<see cref="RayTraceEnvironment.Flags"/>), which the
+    /// loader folded 0x10 into 0x20; a file word 0x130 is nodraw only here
+    /// (Mako's 41 seed verdicts).
     /// </summary>
     public const ushort Insubstantial = 0x1030;
 
@@ -163,7 +166,7 @@ public static class VisSeed
             }
             casts?.Add(new Cast(centre, d, t, true));
             var away = DistanceToBox(mins, maxs, at);
-            if ((scene.RawFlags(hit.Triangle) & Insubstantial) == 0)
+            if ((scene.Flags(hit.Triangle) & Insubstantial) == 0)
             {
                 facing++;
                 nearOrdinary = MathF.Min(nearOrdinary, away);
@@ -190,7 +193,7 @@ public static class VisSeed
     {
         var again = new List<int>();
         for (var i = 0; i < hits.Length; i++)
-            if (hits[i] is { } h && (scene.RawFlags(h.Triangle) & Insubstantial) == NoDrawOnly)
+            if (hits[i] is { } h && (scene.Flags(h.Triangle) & Insubstantial) == NoDrawOnly)
                 again.Add(i);
         if (again.Count == 0)
             return;
@@ -202,7 +205,7 @@ public static class VisSeed
             var d = directions[again[k]];
             var t = h.Distance;
             var at = new Vector3((t * d.X) + centre.X, (t * d.Y) + centre.Y, (t * d.Z) + centre.Z);
-            if (Faces(h.Normal, centre, at) && (scene.RawFlags(h.Triangle) & Insubstantial) == 0)
+            if (Faces(h.Normal, centre, at) && (scene.Flags(h.Triangle) & Insubstantial) == 0)
                 hits[again[k]] = h;
         }
     }
@@ -246,11 +249,11 @@ public static class VisSeed
         RayTraceEnvironment scene, Vector3 centre, Vector3 direction, float reach,
         RayTraceEnvironment.Hit hit)
     {
-        if ((scene.RawFlags(hit.Triangle) & Insubstantial) != NoDrawOnly)
+        if ((scene.Flags(hit.Triangle) & Insubstantial) != NoDrawOnly)
             return hit;
         if (scene.Trace(centre, direction, reach, SeeingThroughNoDraw) is not { } again)
             return hit;
-        if ((scene.RawFlags(again.Triangle) & Insubstantial) != 0)
+        if ((scene.Flags(again.Triangle) & Insubstantial) != 0)
             return hit;
 
         var landed = centre + (direction * again.Distance);

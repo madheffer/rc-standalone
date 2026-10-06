@@ -403,35 +403,21 @@ game can answer is raised with the user first, and runs with -insecure.
 - **A source key named hammerUniqueId** (settled 2026-10-05 by
   comparison, ze_doom_p2). Source 1 ports carry old ids in that key; the
   compile writes its own id path into that slot and adds none after scales.
-- **Brush entity hull input** (partly settled 2026-10-05,
-  capture_hullbuild.py on cs_script_demo, HullBuildCaptureProbe). From
-  Valve's own input the port rebuilds every one of Valve's chess hulls, so
-  the hull build is exact and the input differs: Valve's half-edge mesh
-  (MapBuilder_TriangleMesh 181308060, FUN_1812eb5e0) takes the piece's
-  vertices as given and joins nothing by position, and its vertex list
-  (FUN_181310620) has a few coincident vertices ours joins (the queen: 89
-  inputs against our 85, 62 equal). Open: which vertices the piece mesh
-  keeps apart. Not .vmap ids (929 groups), not joined by mesh-space
-  position (107) nor by entity-space position (85, ours), not the 1/32
-  weld on any stream subset tried, and not HalfEdge_MergeVertices (only the
-  subdivision bake and the editor's MergeMesh call it). A point Valve
-  lists twice belongs to two .vmap vertices (the queen's 23166 and 26523).
-  Captured 2026-10-06 (capture_hullbuild.py --full --trimesh, record 7 for
-  the queen's main mesh): Valve's triangles are ours, all 34,662, and its
-  buffer is ours joined by position except 92 positions held twice, each at
-  a degenerate triangle with two corners on one point. Settled so far: a
-  corner whose welded vertex was met before keeps its vertex, and a triangle
-  never uses one vertex twice (the identity-first rule matches Valve's
-  indices to triangle 4,127 of 34,662). Open: which existing vertex a new
-  welded vertex joins when a position holds two (neither the oldest nor the
-  newest every time). Read so far: BuildPhysicsPieces (18020b230) copies
-  the piece CMesh, drops its tangent, welds it at 1/32 (CMesh_Weld; the
-  capture's queen weld, 119,292 corners to 56,900, equals ours), moves it
-  twice and converts it (1813319d0: one half-edge vertex per welded vertex,
-  triangles repeating an index skipped, no join). So the join from 56,900
-  to 20,341 lies after the conversion and before MapBuilder_TriangleMesh
-  (MeshFromMapMesh, FUN_181310620, MapBuilder_TriangulateFace), not yet
-  located. capture_hullbuild.py --weld records every CMesh_Weld.
+- **Brush entity hull input** (settled 2026-10-06 by decompile and
+  capture, cs_script_demo, HullBuildCaptureProbe). BuildPhysicsPieces
+  (18020b230) welds the piece CMesh at 1/32, moves it twice and converts it
+  (1813319d0: one half-edge vertex per welded vertex, triangles repeating an
+  index skipped), then calls HalfEdge_JoinCoincident (18131e190) with mode 3
+  and 1e-7 (0x33d6bf95). That builds tier0's CVertexKDTree over the
+  positions and, vertex by vertex, merges each into the first box hit that
+  is earlier, not merged away and within 1e-7, when both are open (no edges
+  or an edge held by exactly one face side) and share no face. A vertex at
+  a triangle with two corners on one point therefore stays apart, and a
+  later vertex at that point joins whichever the tree lists first (neither
+  oldest nor newest, which is why simple rules failed). Ported as
+  BrushHulls.HalfEdgeJoin and Maps.VertexKdTree: the queen's main mesh
+  gives Valve's 20,341 vertices and every index, its 89 hull inputs are
+  Valve's, and cs_script_demo's 37 brush entity models are exact.
 
 - **Faces of instanced meshes in world physics** (ledger 49, settled
   2026-10-05 by capture). CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces
@@ -501,7 +487,12 @@ game can answer is raised with the user first, and runs with -insecure.
   maps without coplanar back-to-back triangles); and ClassifyRegion marches
   with MarchRay, whose OctantMask is called with the node's minimum as both
   box arguments, so the march meets nothing and every region the seed
-  leaves undecided ends outside.
+  leaves undecided ends outside. On Mako (2026-10-06, all 2,660,132
+  verdicts exact) one more: the seed reads the scene's flag word, which
+  LoadRTEFromFile folded (0x10 into 0x20) before adding the triangle, not
+  the file's. A file word 0x130 is 0x120 in the scene, nodraw only, so
+  GatherRays' NoDrawSecondLook looks past it (capture_outside.py --rays:
+  101 of 150 rays of one box turned to facing).
 - **Subdivision vertex merge** (ledger 6, ported 2026-10-04,
   BakeMergeCaptureTests on c2m2_fairgrounds_csgo: all 71 baked meshes
   exact after the merge, positions bit for bit, vertex identities and

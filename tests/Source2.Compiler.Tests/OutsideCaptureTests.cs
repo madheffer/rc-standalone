@@ -20,7 +20,7 @@ public class OutsideCaptureTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("OUTSIDECAP") is not { Length: > 0 } map)
             return;
         var stem = Path.Combine(Path.GetTempPath(), "vis_capture", map + (Environment.GetEnvironmentVariable("OUTSIDECAP_SEED") == "1" ? ".seed.outside" : ".outside"));
-        var records = Read(stem + ".bin");
+        var records = Environment.GetEnvironmentVariable("OUTSIDECAP_PASSES") is { Length: > 0 } ? [] : Read(stem + ".bin");
         // OUTSIDECAP_PASSES=<stem>: capture_merge.py --passes's records (<stem>.bin,
         // <stem>.merge.rte); its regions are taken as OutsideDetection left them.
         if (Environment.GetEnvironmentVariable("OUTSIDECAP_PASSES") is { Length: > 0 } passesStem)

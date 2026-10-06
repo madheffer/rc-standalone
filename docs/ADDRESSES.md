@@ -22,7 +22,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
 - installed: a different build
-- against the installed build (20261005_1.41.8.8.md): 11 tracked addresses: relocated 11
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -75,7 +74,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
-- against the installed build (20261005_1.41.8.8.md): 66 tracked addresses: changed 4, identical 30, moved 11, relocated 21
+- against the installed build (20261006_1.41.8.9.md): 66 tracked addresses: changed 4, identical 30, moved 11, relocated 21
 - 60 addresses
 
 ### s2c:geometry/props
@@ -168,8 +167,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- against the installed build (20261005_1.41.8.8.md): 838 tracked addresses: ambiguous 48, changed 10, identical 21, moved 750, relocated 9
-- 817 addresses
+- 827 addresses
 
 ### s2c:baked/light-keys
 
@@ -498,10 +496,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181003930` | `CMapEntity::vf223` | the scale: longest column of the rotation | `src/Source2.Compiler/Maps/SettleWorld.cs:523` |
 | `181006ee0` | `CMapEntity_SetStartAsleep` |  |  |
 | `1810543f0` | `PhysObj_ctor` |  |  |
-| `181054970` | `PhysPart_AddCapsule` | centres times the scale, or through the matrix; radius times the largest scale; shape scale 1 | `src/Source2.Compiler/Maps/SettleWorld.cs:547` |
+| `181054970` | `PhysPart_AddCapsule` | centres times the scale, or through the matrix; radius times the largest scale; shape scale 1 | `src/Source2.Compiler/Maps/SettleWorld.cs:558` |
 | `181054e80` | `PhysPart_AddHull` |  |  |
 | `1810554d0` | `PhysPart_AddMesh` |  |  |
-| `1810557d0` | `PhysPart_AddSphere` | centre through the part matrix (identity when the scale is uniform), radius times the largest scale, shape scale 1; a lattice makes a mesh | `src/Source2.Compiler/Maps/SettleWorld.cs:546` |
+| `1810557d0` | `PhysPart_AddSphere` | centre through the part matrix (identity when the scale is uniform), radius times the largest scale, shape scale 1; a lattice makes a mesh | `src/Source2.Compiler/Maps/SettleWorld.cs:557` |
 | `1810562e0` | `PhysMesh_MaterialRecords` | one record per material | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:120` |
 | `1810564a0` | `PhysMesh_MaterialRecord` | a mesh material's physics, 0x60-byte record | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:22`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:189` |
 | `181057020` | `PhysMesh_Shapes` | by physics type: 2 hulls the soup, 3 per group | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:36` |
@@ -514,7 +512,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18105c330` | `PhysObj_Build` |  |  |
 | `18105ce70` | `PhysMesh_OwnerRules` | the owner entity's physics rules | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:195`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:251` |
 | `18105d760` | `PhysMesh_Build` | a map mesh's static body and shapes | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:33`, `src/Source2.Compiler/Maps/SettleWorld.World.cs:37` |
-| `18105dbd0` | `PhysPart_BuildFromModel` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:20`, `src/Source2.Compiler/Maps/SettleWorld.cs:502`, `src/Source2.Compiler/Maps/SettleWorld.cs:593` +2 |
+| `18105dbd0` | `PhysPart_BuildFromModel` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:20`, `src/Source2.Compiler/Maps/SettleWorld.cs:502`, `src/Source2.Compiler/Maps/SettleWorld.cs:604` +2 |
 | `1810dcca0` | `CMapMesh_NameSlotsAfterOverride` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:139` |
 | `1812d87e0` | `CMesh_JoinVertices` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:288` |
 | `1819c9db0` | `PhysMesh_ConnectedComponents` |  | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:77`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:288` |
@@ -636,7 +634,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181384470` | `HalfEdge_CollapseInnerFace` | inner face collapsed to its centre | `src/Source2.Compiler/Maps/SubdivisionBake.cs:478` |
 | `181384e40` | `HalfEdge_FaceNormal` | NewellNormal over the face's loop from its first half-edge | `src/Source2.Compiler/Maps/SubdivisionBake.cs:269` |
 | `1813850e0` | `HalfEdge_CornerNormal` | normalised sum of the Newell face normals over the corner's smooth fan (turn: twin of next; fan between hard edges) | `src/Source2.Compiler/Maps/SubdivisionBake.cs:298` |
-| `1813858d0` | `MeshTessellation_WeldExact` | equal positions bit for bit are one vertex, first met | `src/Source2.Compiler/Maps/MeshTessellation.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:491` |
+| `1813858d0` | `MeshTessellation_WeldExact` | equal positions bit for bit are one vertex, first met | `src/Source2.Compiler/Maps/MeshTessellation.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:494` |
 | `18138be80` | `HalfEdge_Corner` | the half-edge of a face ending at a vertex | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:158` |
 | `18138e6e0` | `HalfEdge_Lib_18138e6e0` | called by the bake |  |
 | `18138f230` | `HalfEdge_EdgeInFace` | edge between two vertices in a face |  |
@@ -659,23 +657,23 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1813a8ae0` | `HalfEdge_MergeVertices` | post-bake weld (MergeVerticesWithinDistance), tol 0x358637bd: clusters by CVertexKDTree box query, (dx dx + dy dy) + dz dz <= tol tol, found points sorted by address; up to 10 passes; not ported, SubdivisionBake refuses a mesh it would touch | `src/Source2.Compiler/Maps/SubdivisionBake.cs:147`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:571` |
 | `1813b1b80` | `HalfEdge_SetSmoothingAngle` | stores cos(angle * 0.017453292) at +0x3470, faces dirty |  |
 | `1813b7750` | `SubdivisionBake_PatchPositions` | per-face patch grid of positions |  |
-| `1813b82f0` | `SubdivisionBake_PatchPaint` | per-face patch grid of paint | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:86`, `src/Source2.Compiler/Maps/MeshTessellation.cs:396` +1 |
+| `1813b82f0` | `SubdivisionBake_PatchPaint` | per-face patch grid of paint | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:86`, `src/Source2.Compiler/Maps/MeshTessellation.cs:399` +1 |
 | `1813ba570` | `HalfEdge_SplitBetween` | point at t by arc length along the edge chain; reuses ends within 0.01 | `src/Source2.Compiler/Maps/HalfEdgeMesh.cs:282`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:13` |
-| `1813baa40` | `SubdivisionBake_Bake` | splits faces level by level, lower first | `src/Source2.Compiler/Maps/MeshTessellation.cs:67`, `src/Source2.Compiler/Maps/MeshTessellation.cs:86`, `src/Source2.Compiler/Maps/MeshTessellation.cs:174` +2 |
-| `1813bc230` | `MeshTessellation_PatchFrame` | patch frame: columns B, T, N | `src/Source2.Compiler/Maps/MeshTessellation.cs:362` |
-| `1813bcc40` | `MeshTessellation_PatchGrid` | the patch's grid of cells | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:19`, `src/Source2.Compiler/Maps/MeshTessellation.cs:437` |
-| `1813bda20` | `MeshTessellation_CornerPatch` | one quad patch per corner | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:17`, `src/Source2.Compiler/Maps/MeshTessellation.cs:437` |
-| `1813be320` | `MeshTessellation_CornerPaint` | each corner times 1/m in loop order | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:91`, `src/Source2.Compiler/Maps/MeshTessellation.cs:396` +1 |
-| `1813c1cc0` | `MeshTessellation_PaintValues` | patch grids as asked: positions (1813c7b90), normals (1813c3cf0), tangents (1813c2090); from 18102f230 and 1810c0d60 | `src/Source2.Compiler/Maps/MeshTessellation.cs:403` |
+| `1813baa40` | `SubdivisionBake_Bake` | splits faces level by level, lower first | `src/Source2.Compiler/Maps/MeshTessellation.cs:67`, `src/Source2.Compiler/Maps/MeshTessellation.cs:86`, `src/Source2.Compiler/Maps/MeshTessellation.cs:177` +2 |
+| `1813bc230` | `MeshTessellation_PatchFrame` | patch frame: columns B, T, N | `src/Source2.Compiler/Maps/MeshTessellation.cs:365` |
+| `1813bcc40` | `MeshTessellation_PatchGrid` | the patch's grid of cells | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:19`, `src/Source2.Compiler/Maps/MeshTessellation.cs:440` |
+| `1813bda20` | `MeshTessellation_CornerPatch` | one quad patch per corner | `src/Source2.Compiler/Maps/FaceArrays.cs:8`, `src/Source2.Compiler/Maps/MeshTessellation.cs:17`, `src/Source2.Compiler/Maps/MeshTessellation.cs:440` |
+| `1813be320` | `MeshTessellation_CornerPaint` | each corner times 1/m in loop order | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:91`, `src/Source2.Compiler/Maps/MeshTessellation.cs:399` +1 |
+| `1813c1cc0` | `MeshTessellation_PaintValues` | patch grids as asked: positions (1813c7b90), normals (1813c3cf0), tangents (1813c2090); from 18102f230 and 1810c0d60 | `src/Source2.Compiler/Maps/MeshTessellation.cs:406` |
 | `1813c2090` | `SubdivPatch_TangentGrid` | patch corner tangents lerped (rows normalised), then (n x t) x n normalised; viewport and sampling only |  |
-| `1813c26a0` | `MeshTessellation_Stitch` | patch to a finer neighbour (the ray-trace scene's path) | `src/Source2.Compiler/Maps/MeshTessellation.cs:20`, `src/Source2.Compiler/Maps/MeshTessellation.cs:560` |
+| `1813c26a0` | `MeshTessellation_Stitch` | patch to a finer neighbour (the ray-trace scene's path) | `src/Source2.Compiler/Maps/MeshTessellation.cs:20`, `src/Source2.Compiler/Maps/MeshTessellation.cs:563` |
 | `1813c3cf0` | `SubdivPatch_NormalGrid` | patch grid normals, averaged across patch seams; viewport and sampling only |  |
 | `1813c64d0` | `SubdivisionBake_Step_1813c64d0` | called by the bake after the split |  |
 | `1813c7a40` | `SubdivisionBake_FaceLevel` |  |  |
-| `1813c7ae0` | `MeshTessellation_LevelAcross` | level across a half-edge, 0 where no face | `src/Source2.Compiler/Maps/MeshTessellation.cs:148` |
-| `1813c7b90` | `MeshTessellation_Displace` | patch points moved by their displacement | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:52`, `src/Source2.Compiler/Maps/MeshTessellation.cs:361` |
+| `1813c7ae0` | `MeshTessellation_LevelAcross` | level across a half-edge, 0 where no face | `src/Source2.Compiler/Maps/MeshTessellation.cs:151` |
+| `1813c7b90` | `MeshTessellation_Displace` | patch points moved by their displacement | `src/Source2.Compiler/Maps/FaceArrays.cs:9`, `src/Source2.Compiler/Maps/MeshTessellation.cs:52`, `src/Source2.Compiler/Maps/MeshTessellation.cs:364` |
 | `1813c94f0` | `SubdivisionBake_WriteBack` | grid write-back to +0xd0 positions / +0xb20 paint; a cell corner's write sets every face-vertex stream from the packed record | `src/Source2.Compiler/Maps/SubdivisionBake.cs:93` |
-| `1813ca560` | `SubdivisionBake_SplitFace` | quad branch recurses corners 0,1,3,2 | `src/Source2.Compiler/Maps/MeshTessellation.cs:71`, `src/Source2.Compiler/Maps/MeshTessellation.cs:331`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:12` +1 |
+| `1813ca560` | `SubdivisionBake_SplitFace` | quad branch recurses corners 0,1,3,2 | `src/Source2.Compiler/Maps/MeshTessellation.cs:71`, `src/Source2.Compiler/Maps/MeshTessellation.cs:334`, `src/Source2.Compiler/Maps/SubdivisionBake.cs:12` +1 |
 
 ### s2c:geometry/world-nodes
 
@@ -821,10 +819,20 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181103020` | `HandleSet_Realloc` | open-addressed hash set of mesh handles | `src/Source2.Compiler/Physics/ValveHashSet.cs:6` |
 | `181255fb0` | `MapNode_LocalMatrix` | vtable slot 0xa0: AngleMatrix of the node's angles | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:423`, `src/Source2.Compiler/Maps/MapMeshes.cs:257` |
 | `1812e6810` | `HandleSet_InsertIfAbsent` |  | `src/Source2.Compiler/Physics/ValveHashSet.cs:7` |
+| `1812edc10` | `HalfEdge_VerticesShareFace` | faces of one vertex hashed, the other's corners looked up | `src/Source2.Compiler/Physics/BrushHulls.cs:276` |
+| `1812f1410` | `HalfEdge_EdgeIsOpen` | counts the endpoints' half-edges referencing the edge; open when exactly 1 | `src/Source2.Compiler/Physics/BrushHulls.cs:276` |
+| `1812f1c60` | `HalfEdge_VertexIsOpen` | no edges, or an edge with exactly one face side (1812f1410) | `src/Source2.Compiler/Physics/BrushHulls.cs:275` |
+| `1812f2390` | `HalfEdge_MergeVertexInto` | mode bit 2: both vertices open (1812f1c60); bit 1: no shared face (1812edc10); then 1812f27a0 | `src/Source2.Compiler/Physics/BrushHulls.cs:274` |
+| `1812f27a0` | `HalfEdge_MergeVertex` | lerp position (t 1 keeps the target's), move each face corner (1812f48f0), remove the vertex, delete its old edges (1812f2f40) |  |
+| `1812f2f40` | `HalfEdge_RemoveEdge` | swap-last delete from the edge table |  |
+| `1812f48f0` | `HalfEdge_MoveCorner` | relinks a corner to the new vertex, finding or creating the edge by vertex pair (1812ee0f0) |  |
 | `1812f90d0` | `HandleSet_Remove` |  | `src/Source2.Compiler/Physics/ValveHashSet.cs:8`, `src/Source2.Compiler/Physics/ValveHashSet.cs:198` |
 | `181308060` | `MapBuilder_TriangleMesh` | positions joined, vertices in corner order | `src/Source2.Compiler/Physics/BrushHulls.cs:11`, `src/Source2.Compiler/Physics/BrushHulls.cs:213` |
 | `1813089b0` | `MapBuilder_MeshFromMapMesh` |  |  |
-| `181310a90` | `MapBuilder_TriangulateFace` | quad diagonal rule, then an ear clipper | `src/Source2.Compiler/Physics/BrushHulls.cs:11`, `src/Source2.Compiler/Physics/BrushHulls.cs:238` |
+| `181310a90` | `MapBuilder_TriangulateFace` | quad diagonal rule, then an ear clipper | `src/Source2.Compiler/Physics/BrushHulls.cs:11`, `src/Source2.Compiler/Physics/BrushHulls.cs:240` |
+| `18131e190` | `HalfEdge_JoinCoincident` | BuildPhysicsPieces calls it (mesh, 3, 1e-7) after the conversion: BrushHulls.HalfEdgeJoin | `src/Source2.Compiler/Physics/BrushHulls.cs:269` |
+| `18131e250` | `HalfEdge_JoinCoincidentList` | CVertexKDTree over the positions; each vertex merges into the first earlier unmerged box hit within tol that MergeVertexInto accepts |  |
+| `1813319d0` | `MapBuilder_CMeshToHalfEdge` | one vertex per CMesh vertex; triangles repeating an index skipped; streams then bone weights | `src/Source2.Compiler/Physics/BrushHulls.cs:270` |
 | `18136c790` | `PolygonTriangulator_QuadSplitScore` | squared diagonal, 3 when both triangles degenerate | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:9`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:111` |
 | `18136dcb0` | `PolygonTriangulator_Inside` | inner side of all three edges | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:183` |
 | `18136f7a0` | `PolygonTriangulator_Face` | a map mesh face to triangles | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:7` |
@@ -839,9 +847,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/OverlayProjector.cs:448`, `src/Source2.Compiler/Maps/PropTransform.cs:15` +2 |
 | `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:249` |
 | `1802b1ff0` | `CMesh_TransformByMatrix` | flag 1: positions by the matrix, normals by its inverse transposed (181263c30), tangents by it, both renormalised; flag 2: texcoords (u about 0, 1 - v about 1) scaled by column lengths named by TexCoord(2)ScaleByModelU/V; PropTransform | `src/Source2.Compiler/Maps/CTransform.cs:13`, `src/Source2.Compiler/Maps/PropTransform.cs:8` |
-| `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:90`, `src/Source2.Compiler/Maps/MeshTessellation.cs:517` |
+| `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:90`, `src/Source2.Compiler/Maps/MeshTessellation.cs:520` |
 | `1811145c0` | `AngleMatrixDouble` | sines and cosines in double | `src/Source2.Compiler/Maps/SettleWorld.cs:327`, `src/Source2.Compiler/Maps/SettleWorld.cs:477` |
-| `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.cs:624`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:44` |
+| `181253510` | `CTransform_Compose` | SIMD; a applied after b | `src/Source2.Compiler/Maps/CTransform.cs:65`, `src/Source2.Compiler/Maps/SettleWorld.cs:635`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:44` |
 | `181253780` | `CTransform_Invert` | scale 1 path | `src/Source2.Compiler/Maps/CTransform.cs:38`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:57` |
 | `181255d60` | `AngleMatrix` | degrees times 0.017453292f | `src/Source2.Compiler/Maps/MapMeshes.cs:269` |
 | `181256960` | `PointSegmentClosest` |  | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:220` |
@@ -854,7 +862,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:422`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:436`, `src/Source2.Compiler/Maps/MapMeshes.cs:296` |
 | `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:27`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:246` |
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
-| `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:524`, `src/Source2.Compiler/Maps/SettleWorld.cs:640`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:624` |
+| `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:524`, `src/Source2.Compiler/Maps/SettleWorld.cs:651`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:624` |
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
 | `18125bad0` | `Matrix3x4_Column0` |  |  |
 | `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:71` |
@@ -870,7 +878,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125dcc0` | `Quaternion_Forward` | x axis | `src/Source2.Compiler/Maps/LightMath.cs:206`, `src/Source2.Compiler/Maps/LightMath.cs:225` |
 | `18125dd50` | `Quaternion_Left` | y axis | `src/Source2.Compiler/Maps/LightMath.cs:228` |
 | `18125dde0` | `Quaternion_Up` | z axis | `src/Source2.Compiler/Maps/LightMath.cs:231` |
-| `18125de90` | `MatrixQuaternion` | a 3x4's rotation as a quaternion from its largest diagonal | `src/Source2.Compiler/Maps/LightMath.cs:150`, `src/Source2.Compiler/Maps/SettleWorld.cs:658`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:624` +1 |
+| `18125de90` | `MatrixQuaternion` | a 3x4's rotation as a quaternion from its largest diagonal | `src/Source2.Compiler/Maps/LightMath.cs:150`, `src/Source2.Compiler/Maps/SettleWorld.cs:669`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:624` +1 |
 | `18125f4e0` | `QuaternionMatrix_Translation` | a quaternion's 3x4 with a translation | `src/Source2.Compiler/Maps/LightMath.cs:136` |
 | `181260150` | `QuaternionMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:95` |
 | `181260200` | `QuaternionAngles` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/LightPrecompute.cs:178`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:644`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
@@ -891,13 +899,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1802c4a20` | `ShapeBuilder_LoopShapes` | shape loop over a physics model |  |
 | `180c253c0` | `ShapeBuilder_BuildHullShape` | RnHullCreate through the interface, the region SVM, then the move | `src/Source2.Compiler/Physics/RegionSvm.cs:21` |
-| `18130c0d0` | `MapBuilder_GroupTriangles` | breadth-first groups sharing a vertex | `src/Source2.Compiler/Physics/BrushHulls.cs:13`, `src/Source2.Compiler/Physics/BrushHulls.cs:270` |
+| `18130c0d0` | `MapBuilder_GroupTriangles` | breadth-first groups sharing a vertex | `src/Source2.Compiler/Physics/BrushHulls.cs:13`, `src/Source2.Compiler/Physics/BrushHulls.cs:350` |
 | `18130cb80` | `MapBuilder_SplitElements` |  |  |
-| `18130d0b0` | `MapBuilder_FaceNeighbours` | every face around the corners, through a set | `src/Source2.Compiler/Physics/BrushHulls.cs:308` |
-| `18130f460` | `MapBuilder_ElementVertexSet` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:14`, `src/Source2.Compiler/Physics/BrushHulls.cs:321` |
-| `18131efc0` | `MapBuilder_HullBuild` | same code as vphysics2's RnHull_BuildFromPoints | `src/Source2.Compiler/Physics/BrushHulls.cs:366`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:123` |
-| `18131f680` | `MapBuilder_HullsFromMesh` | modes 0 single, 1 per mesh, 2 per element | `src/Source2.Compiler/Physics/BrushHulls.cs:367` |
-| `1814e81b0` | `MapBuilder_CreateHullNodes` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:367` |
+| `18130d0b0` | `MapBuilder_FaceNeighbours` | every face around the corners, through a set | `src/Source2.Compiler/Physics/BrushHulls.cs:388` |
+| `18130f460` | `MapBuilder_ElementVertexSet` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:14`, `src/Source2.Compiler/Physics/BrushHulls.cs:401` |
+| `18131efc0` | `MapBuilder_HullBuild` | same code as vphysics2's RnHull_BuildFromPoints | `src/Source2.Compiler/Physics/BrushHulls.cs:446`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:123` |
+| `18131f680` | `MapBuilder_HullsFromMesh` | modes 0 single, 1 per mesh, 2 per element | `src/Source2.Compiler/Physics/BrushHulls.cs:447` |
+| `1814e81b0` | `MapBuilder_CreateHullNodes` |  | `src/Source2.Compiler/Physics/BrushHulls.cs:447` |
 | `1819595d0` | `RnHull_Transform` | moves a cooked hull by a 3x4: planes, mass, ortho areas, SVM planes | `src/Source2.Compiler/Physics/RnHullBuilder.cs:493` |
 | `1819f2a70` | `SchemaBind_RnHull_t` |  |  |
 | `181a09ad0` | `RnHull_RotateInertia` | R I R^T on the 3x4 mass block | `src/Source2.Compiler/Physics/RnHullBuilder.cs:572` |
@@ -1012,7 +1020,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180200af0` | `MapBuilder_StaticPropPhysics` | per body: bone override by name (+0x268, 181749d20), then spheres, capsules, hulls, meshes |  |
 | `1802c05a0` | `CollisionAttribute_Copy` | name and five lists |  |
 | `1802c0820` | `ModelDocPhysics_MeshShape` |  |  |
-| `1802c0e70` | `ModelDocPhysics_HullShape` | hull node to shape: quickhull tol 0, at most 256 faces/half-edges/verts | `src/Source2.Compiler/Physics/BrushHulls.cs:342`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:16`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:455` |
+| `1802c0e70` | `ModelDocPhysics_HullShape` | hull node to shape: quickhull tol 0, at most 256 faces/half-edges/verts | `src/Source2.Compiler/Physics/BrushHulls.cs:422`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:16`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:455` |
 | `1802c3030` | `ModelDocPhysics_NodeLoop` | inserts each shape into its part (180c28150) and sets shape +0xf0 from the node's surface property (1801ae550) | `src/Source2.Compiler/Physics/WorldPhysics.cs:186` |
 | `1802e3120` | `ModelDoc_ReadMaterialPhysics` | rc's copy of physicsbuilder's material physics reader | `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:140`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:274`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:278` +1 |
 | `1802e3af0` | `CUtlStringVector_Assign` |  |  |
@@ -1027,7 +1035,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180c25900` | `ShapeBuilder_ToolMaterialHash` | hashes the shape's material name (+0xf8); 0 for none | `src/Source2.Compiler/Io/ResourceNames.cs:43`, `src/Source2.Compiler/Physics/WorldPhysics.cs:72`, `src/Source2.Compiler/Physics/WorldPhysics.cs:136` |
 | `180c25a80` | `ShapeBuilder_TransformVertices` | moves each vertex during the soup join | `src/Source2.Compiler/Physics/WorldCollision.cs:1153` |
 | `180c25ce0` | `ShapeBuilder_Init` |  |  |
-| `180c261c0` | `ShapeBuilder_SetTransform` | stores the CTransform | `src/Source2.Compiler/Physics/BrushHulls.cs:344`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:455` |
+| `180c261c0` | `ShapeBuilder_SetTransform` | stores the CTransform | `src/Source2.Compiler/Physics/BrushHulls.cs:424`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:455` |
 | `180c26aa0` | `ShapeBuilder_SetMaterial` | shape +0xf8 from the modeldoc node +0x108 |  |
 | `180c26ac0` | `ShapeBuilder_Capsules` | drops radius <= 0 |  |
 | `180c26ce0` | `ShapeBuilder_Hulls` |  |  |
@@ -1129,7 +1137,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
 - installed: a different build
-- against the installed build (20261005_1.41.8.8.md): 30 tracked addresses: identical 17, relocated 13
+- against the installed build (20261006_1.41.8.9.md): 30 tracked addresses: identical 17, relocated 13
 - 30 addresses
 
 ### s2c:smartprops
@@ -1171,9 +1179,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
-- installed: this build
-- against the installed build (20261005_1.41.8.8.md): 31 tracked addresses: identical 31
-- 30 addresses
+- installed: a different build
+- 35 addresses
 
 ### s2c:containers
 
@@ -1198,7 +1205,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180054b40` | `CBufferString::FixSlashes` | export |  |
 | `180054c60` | `CBufferString::FixupPathName` | export |  |
 | `1800560c0` | `CBufferString::SetExtension` | export |  |
-| `18017ebf0` | `CVertexKDTree_Partition` | from the middle up, below the split swapped down | `src/Source2.Compiler/Physics/MeshWeld.cs:257` |
+| `18017ebf0` | `CVertexKDTree_Partition` | from the middle up, below the split swapped down | `src/Source2.Compiler/Maps/VertexKdTree.cs:69`, `src/Source2.Compiler/Physics/MeshWeld.cs:257` |
 | `180306700` | `V_IsAbsolutePath_PrefixVpk` | data: string 'vpk:' |  |
 | `180306708` | `V_IsAbsolutePath_PrefixUgc` | data: string 'ugc:' |  |
 
@@ -1206,6 +1213,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `18017ebf0` | `CVertexKDTree_Partition` | below the split swaps down from the middle, then at or above swaps up | `src/Source2.Compiler/Maps/VertexKdTree.cs:69`, `src/Source2.Compiler/Physics/MeshWeld.cs:257` |
+| `18017ef60` | `CVertexKDTree::FindVertsInBox` | export; leaf points in stored order, left child when lo <= split, right unless hi < split | `src/Source2.Compiler/Maps/VertexKdTree.cs:7` |
+| `18017fc30` | `CVertexKDTree_Bounds` |  | `src/Source2.Compiler/Maps/VertexKdTree.cs:55` |
+| `18017feb0` | `CVertexKDTree::BuildNode` | export; leaf at 8 or fewer, midpoint of the longest side, node numbered before its children | `src/Source2.Compiler/Maps/VertexKdTree.cs:27` |
+| `180180730` | `CVertexKDTree::BuildMidpoint` | export; point pointers in index order, then BuildNode(0, n) | `src/Source2.Compiler/Maps/VertexKdTree.cs:6` |
 | `1802df0a4` | `acosf` | CRT, rational approximation | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:666` |
 | `1802e0c30` | `cosf` | CRT dispatcher (AMD libm) |  |
 | `1802e0f10` | `cosf_fma3` | code label: the FMA3 path, entered by a jcc from cosf | `src/Source2.Compiler/Simulation/CrtMath.cs:11`, `src/Source2.Compiler/Simulation/CrtMath.cs:36` |
@@ -1225,7 +1237,6 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
 - installed: a different build
-- against the installed build (20261005_1.41.8.8.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -1355,7 +1366,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180049880` | `Output_WriteVisResource` | Wrote vis resource %s bytes |  |
 | `180049df0` | `VisEntry` |  |  |
 | `18004aad0` | `LosWrite` |  |  |
-| `18004b4c0` | `CVisibilityMesh::LoadRTEFromFile` | the .rte reader (voxel_utils.cpp) |  |
+| `18004b4c0` | `CVisibilityMesh::LoadRTEFromFile` | the .rte reader (voxel_utils.cpp); folds flag 0x10 into 0x20 before adding a triangle, so the scene's records never hold 0x10 |  |
 | `18004b9b0` | `SeedDecide` | the seed: inside, outside or undecided for one region box |  |
 | `18004bae0` | `TallyRays` | per ray: a hit the centre sees from behind is cleared (FLT_MAX), else recorded; the hits come from the batch tracer (VisClusterSample.Rays) | `src/Source2.Compiler/Maps/VisClusterSample.cs:243` |
 | `18004bd50` | `CastRayGrid` | the ray hits for one origin and direction set; 0x20-byte hit records |  |
@@ -1438,7 +1449,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- against the installed build (20261005_1.41.8.8.md): 415 tracked addresses: changed 2, identical 308, moved 1, relocated 104
+- against the installed build (20261006_1.41.8.9.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
 - 418 addresses
 
 ### s2c:entities/settle
@@ -1460,7 +1471,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18012e550` | `RnGjkProxy_ctor` | 0x40-byte convex proxy | `src/Source2.Compiler/Simulation/Gjk.cs:8`, `src/Source2.Compiler/Simulation/Gjk.cs:25` |
 | `18012e600` | `RnGjkProxy_Capsule` | two points, radius the scaled radius, at least 1/16 | `src/Source2.Compiler/Simulation/MeshConvex.cs:93` |
 | `18012e650` | `RnGjkProxy_Sphere` | one point, radius (+0x38, +0x3c) the scaled radius, at least 1/16 | `src/Source2.Compiler/Simulation/MeshConvex.cs:93` |
-| `1801314f0` | `RnHull_LoadPostPass` | post pass on a loaded hull | `src/Source2.Compiler/Maps/SettleWorld.cs:711` |
+| `1801314f0` | `RnHull_LoadPostPass` | post pass on a loaded hull | `src/Source2.Compiler/Maps/SettleWorld.cs:722` |
 | `180138e70` | `RnBodyDesc_t_LoadKV3` |  |  |
 | `1801a4a40` | `RnPairSet_Place` | claims the home bucket | `src/Source2.Compiler/Simulation/PairSet.cs:108` |
 | `1801a4e90` | `RnPairSet_Grow` | the next power of two | `src/Source2.Compiler/Simulation/PairSet.cs:177` |
@@ -1606,7 +1617,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180292590` | `RnSphere_MassProperties` |  | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:265` |
 | `180292de0` | `Mat3_RotateInertia` |  | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:289`, `src/Source2.Compiler/Simulation/RnMath.cs:76`, `src/Source2.Compiler/Simulation/RnMath.cs:100` |
 | `1802930d0` | `RnMass_ParallelAxis` | inertia of a point mass about the origin | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:189`, `src/Source2.Compiler/Simulation/RnMassUpdate.cs:357` |
-| `180296fa0` | `RnCollision_RegisterDefaultRules` | vphysics2's default collision rules, groups 0 to 30 | `src/Source2.Compiler/Maps/SettleWorld.cs:747`, `src/Source2.Compiler/Maps/SettleWorld.cs:772` |
+| `180296fa0` | `RnCollision_RegisterDefaultRules` | vphysics2's default collision rules, groups 0 to 30 | `src/Source2.Compiler/Maps/SettleWorld.cs:758`, `src/Source2.Compiler/Maps/SettleWorld.cs:783` |
 | `1802b73d0` | `RnShape_GjkProxy` | vfn 0xb0 for a standalone shape, else the compound child |  |
 | `1802c4bb0` | `RnKinematicTarget_Settle` | at writeback, snaps a body that has all but arrived | `src/Source2.Compiler/Simulation/KinematicTarget.cs:7`, `src/Source2.Compiler/Simulation/KinematicTarget.cs:66` |
 | `1802c4cd0` | `RnKinematicTarget_Drive` | velocities to cover the rest of the way | `src/Source2.Compiler/Simulation/KinematicTarget.cs:6`, `src/Source2.Compiler/Simulation/KinematicTarget.cs:28` |

@@ -226,6 +226,102 @@ public class HullBuildCaptureProbe(ITestOutputHelper output)
                         for (var t = Math.Max(0, fi / 3 - 3); t <= fi / 3 + 1; t++)
                             output.WriteLine($"    tri {t}: welded {string.Join(",", faces[t])} ours {idx[t * 3]},{idx[t * 3 + 1]},{idx[t * 3 + 2]} valve {vi[t * 3]},{vi[t * 3 + 1]},{vi[t * 3 + 2]}; at {string.Join(" ", faces[t].Select(w => positions[w].ToString("R", null)))}");
                 }
+            // "merge": FUN_18131e190(mesh, 3, 1e-7) after the conversion. Each
+            // vertex in order merges into the first earlier unmerged vertex at
+            // its position when both are open (an edge with one face side,
+            // FUN_1812f1c60) and they share no face (FUN_1812edc10); the
+            // buffer is then numbered by first use over the faces.
+            foreach (var mesh in entity.GetElements("children").Where(c => c.Type == "CMapMesh"))
+                foreach (var (_, positions, faces, local) in BrushHulls.Pieces(mesh, entity))
+                {
+                    var tris = faces.Where(t => t.Distinct().Count() == t.Length).Select(t => t.ToArray()).ToList();
+                    var n = positions.Length;
+                    var facesOf = new List<int>[n];
+                    for (var v = 0; v < n; v++)
+                        facesOf[v] = [];
+                    for (var t = 0; t < tris.Count; t++)
+                        foreach (var v in tris[t])
+                            facesOf[v].Add(t);
+                    bool Open(int v)
+                    {
+                        if (facesOf[v].Count == 0)
+                            return true;
+                        var sides = new Dictionary<int, int>();
+                        foreach (var t in facesOf[v])
+                            foreach (var x in tris[t])
+                                if (x != v)
+                                    sides[x] = sides.GetValueOrDefault(x) + 1;
+                        return sides.Values.Any(c => c == 1);
+                    }
+                    // FUN_18131e250: a KD tree over the positions, each vertex
+                    // queried in a box of +-1e-7 and its candidates tried in the
+                    // order the tree returns them.
+                    const float tol = 9.99999955e-8f;
+                    var tree = new Maps.VertexKdTree(positions);
+                    var removed = new bool[n];
+                    var roots = new Dictionary<Vector3, List<int>>();
+                    var failed = 0;
+                    var found = new List<int>();
+                    for (var v = 0; v < n; v++)
+                    {
+                        if (!roots.TryGetValue(positions[v], out var list))
+                            roots[positions[v]] = list = [];
+                        var p = positions[v];
+                        found.Clear();
+                        tree.FindInBox(new Vector3(p.X - tol, p.Y - tol, p.Z - tol), new Vector3(p.X + tol, p.Y + tol, p.Z + tol), found);
+                        var merged = false;
+                        IEnumerable<int> candidates = Environment.GetEnvironmentVariable("HULLCAP_MERGEORDER") switch
+                        {
+                            "desc" => Enumerable.Reverse(list),
+                            "asc" => list,
+                            _ => found,
+                        };
+                        foreach (var j in candidates)
+                        {
+                            if (j >= v || removed[j])
+                                continue;
+                            var q = positions[j];
+                            float ex = p.X - q.X, ey = p.Y - q.Y, ez = p.Z - q.Z;
+                            if (!((ey * ey) + (ex * ex) + (ez * ez) < tol * tol))
+                                continue;
+                            if (!Open(v) || !Open(j) || facesOf[v].Intersect(facesOf[j]).Any())
+                                continue;
+                            foreach (var t in facesOf[v])
+                                tris[t] = tris[t].Select(x => x == v ? j : x).ToArray();
+                            facesOf[j].AddRange(facesOf[v]);
+                            facesOf[v].Clear();
+                            removed[v] = merged = true;
+                            break;
+                        }
+                        if (!merged)
+                        {
+                            if (list.Count > 0)
+                                failed++;
+                            list.Add(v);
+                        }
+                    }
+                    var order = new Dictionary<int, int>();
+                    var idx = new List<int>();
+                    foreach (var t in tris)
+                        foreach (var x in t)
+                        {
+                            order.TryAdd(x, order.Count);
+                            idx.Add(order[x]);
+                        }
+                    var posOf = order.OrderBy(kv => kv.Value).Select(kv => positions[kv.Key]).ToArray();
+                    var firstOff = Enumerable.Range(0, Math.Min(posOf.Length, vp.Length)).FirstOrDefault(i => posOf[i] != vp[i], -1);
+                    var fi = Enumerable.Range(0, Math.Min(idx.Count, vi.Length)).FirstOrDefault(i => idx[i] != vi[i], -1);
+                    output.WriteLine($"  rule merge, mesh {mesh.GetValue<int>("nodeID")}: {posOf.Length} vertices against {vp.Length} ({failed} kept apart); buffer equal {posOf.SequenceEqual(vp)}, first differs at {firstOff}; indices equal {idx.SequenceEqual(vi)}, first index differing at {fi}");
+                    if (fi >= 0 && posOf.SequenceEqual(vp))
+                    {
+                        var t = fi / 3;
+                        var original = faces.Where(f => f.Distinct().Count() == f.Length).ElementAt(t);
+                        output.WriteLine($"    tri {t}: welded {string.Join(",", original)} merged to {string.Join(",", tris[t])}; ours {idx[t * 3]},{idx[t * 3 + 1]},{idx[t * 3 + 2]} Valve {vi[t * 3]},{vi[t * 3 + 1]},{vi[t * 3 + 2]}");
+                        var at = positions[original[fi % 3]];
+                        output.WriteLine($"    position {at:R}: welded vertices {string.Join(",", Enumerable.Range(0, n).Where(v => positions[v] == at))}; roots {string.Join(",", roots[at])}"
+                            + $"; buffer slots {string.Join(",", Enumerable.Range(0, vp.Length).Where(i => vp[i] == at))}");
+                    }
+                }
             foreach (var rule in new[] { "keep", "latest" })
                 foreach (var mesh in entity.GetElements("children").Where(c => c.Type == "CMapMesh"))
                     foreach (var (_, positions, faces, local) in BrushHulls.Pieces(mesh, entity))

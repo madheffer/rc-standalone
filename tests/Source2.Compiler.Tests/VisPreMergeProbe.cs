@@ -139,6 +139,28 @@ public class VisPreMergeProbe(ITestOutputHelper output)
         var theirsGen = Event(Path.Combine(dir, stem + ".bin"), "gen");
         output.WriteLine($"generation: sets ours {generated.Count}, Valve {theirsGen.Count}; clusters ours {generated.Sum(s => s.Count)}, Valve {theirsGen.Sum(s => s.Count)}");
         static string Sig(List<VisMerge.Cluster> set) => string.Join("|", set.Select(c => $"{c.Mins}{c.Maxs}{c.OpenSpace}:" + string.Join(",", c.Voxels.Select(v => $"{v.Leaf}/{v.Mask:x}"))));
+        // By box: each set keyed by its first cluster's leaf slot and box, so
+        // a missing region does not shift every comparison after it.
+        static string Region(List<VisMerge.Cluster> set) => set.Count == 0 ? "empty"
+            : $"{set.SelectMany(c => c.Voxels).Select(v => v.Leaf).DefaultIfEmpty(-1).Min()}";
+        var oursBy = generated.GroupBy(Region).ToDictionary(g => g.Key, g => g.First());
+        var theirsBy = theirsGen.GroupBy(Region).ToDictionary(g => g.Key, g => g.First());
+        var kinds = new Dictionary<string, int>();
+        var shown = 0;
+        foreach (var key in oursBy.Keys.Union(theirsBy.Keys))
+        {
+            if (!oursBy.TryGetValue(key, out var a)) { kinds["only Valve's"] = kinds.GetValueOrDefault("only Valve's") + 1; continue; }
+            if (!theirsBy.TryGetValue(key, out var b)) { kinds["only ours"] = kinds.GetValueOrDefault("only ours") + 1; continue; }
+            if (Sig(a) == Sig(b))
+                continue;
+            var kind = a.Count == 1 && b.Count == 1 && a[0].OpenSpace != b[0].OpenSpace ? $"open space ours {a[0].OpenSpace}"
+                     : a.Any(c => c.OpenSpace) != b.Any(c => c.OpenSpace) ? "open space with merges"
+                     : a.Count != b.Count ? "cluster count" : "cluster content";
+            kinds[kind] = kinds.GetValueOrDefault(kind) + 1;
+            if (shown++ < 6)
+                output.WriteLine($"  slot {key} ({kind}): ours {Describe(a)}; Valve {Describe(b)}");
+        }
+        output.WriteLine($"  by region: {string.Join(", ", kinds.Select(kv => $"{kv.Key} {kv.Value}"))}");
         var differ = Enumerable.Range(0, Math.Min(generated.Count, theirsGen.Count)).Where(i => Sig(generated[i]) != Sig(theirsGen[i])).ToList();
         output.WriteLine($"  sets that differ at the same index: {differ.Count}");
         foreach (var i in differ.Take(8))

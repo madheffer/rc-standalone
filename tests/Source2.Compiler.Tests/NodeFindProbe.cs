@@ -39,6 +39,8 @@ public class NodeFindProbe(ITestOutputHelper output)
                                 foreach (var st in md.Get<DmxBinary.Element>(holder)?.GetElements("streams") ?? [])
                                     output.WriteLine($"  {holder} stream {st.Name} ({(st.Get<object?[]>("data") ?? []).Length} values)");
                     }
+                    foreach (var p in d.Elements.Where(p => p.GetElements("children").Contains(e)))
+                        output.WriteLine($"  parent {p.Type} {p.GetValue<int>("nodeID")} class {p.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")}");
                     foreach (var c in e.GetElements("children"))
                         output.WriteLine($"  child {c.Type} {c.GetValue<int>("nodeID")} origin {c.GetValue<System.Numerics.Vector3>("origin")} angles {c.GetValue<System.Numerics.Vector3>("angles")}"
                             + $" scales {c.GetValue<System.Numerics.Vector3>("scales")} physicsType {c.Attributes.GetValueOrDefault("physicsType")}");
