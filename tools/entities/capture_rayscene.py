@@ -9,7 +9,10 @@ instance, 3x4), the scene constructor 1801f6f40 and its triangle clear
 is one 96-byte record: u32 kind (1 instance, 2 triangle, 3 transform, 4
 made, 5 cleared), u32 0, four u64 (kind 1: parent, child, instance, owner
 flags; 2: scene, id, flags, 0; 3: scene, instance, 0, 0; 4 and 5: scene),
-then 14 floats (1 and 3: the 3x4; 2: a, b, c).
+then 14 floats (1 and 3: the 3x4; 2: a, b, c). Kinds 6 and 7 mark
+MapDoc_PreprocessLights (180f1d100) starting and returning; kind 8 is a live
+instance (parent, child, instance, owner flags, 3x4) read at the first
+LightPrecompute_TraceRay (180f18820), the scene the lights see.
 EditorSceneCapture reads them back and diffs them against EditorTraceScene.
 
 CS2 must be closed; the map's package is backed up and restored.
@@ -18,6 +21,7 @@ import argparse
 import filecmp
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -82,8 +86,46 @@ function hook() {
     },
     onLeave(ret) { put(1, this.a[0], this.a[1], ret, this.a[2], this.a[3]); }
   });
+  const resets = {};
   Interceptor.attach(mod.base.add(XFORM), {
-    onEnter(args) { put(3, args[0], args[1], ptr(0), ptr(0), matrix(args[2])); }
+    onEnter(args) {
+      const m = matrix(args[2]);
+      // An identity placement: where it comes from, each distinct trace sent
+      // once with a number the record carries in its third word.
+      let id = 0;
+      if (m[3] === 0 && m[7] === 0 && m[11] === 0 && m[0] === 1 && m[5] === 1 && m[10] === 1) {
+        const t = where(this.context), key = t.join(',');
+        if (!(key in resets)) { resets[key] = Object.keys(resets).length + 1; send({reset: resets[key], trace: t}); }
+        id = resets[key];
+      }
+      put(3, args[0], args[1], ptr(id), ptr(0), m);
+    }
+  });
+  // Lights are preprocessed (the precomputed* keys traced): kind 6 on entry, 7 on leaving.
+  Interceptor.attach(mod.base.add(LIGHTS), {
+    onEnter(args) { put(6, ptr(0), ptr(0), ptr(0), ptr(0), []); },
+    onLeave(ret) { put(7, ptr(0), ptr(0), ptr(0), ptr(0), []); }
+  });
+  // At the first light ray, every parent scene's live instances as kind 8:
+  // the instance vector at scene +0x170 (count) and +0x178 (data), each
+  // instance's child at +0 and 3x4 at +0x10, its owner flags at +0x88.
+  let dumped = false;
+  Interceptor.attach(mod.base.add(TRACE), {
+    onEnter(args) {
+      if (dumped) return;
+      dumped = true;
+      for (const key of Object.keys(parents)) {
+        try {
+          const scene = ptr(key), count = scene.add(0x170).readS32(), data = scene.add(0x178).readPointer();
+          if (count < 0 || count > 1000000) continue;
+          for (let i = 0; i < count; i++) {
+            const inst = data.add(i * 8).readPointer();
+            put(8, scene, inst.readPointer(), inst, inst.add(0x88).readU64(), matrix(inst.add(0x10)));
+          }
+        } catch (e) { send({unreadable: key}); }
+      }
+      flush();
+    }
   });
   // A scene made (the constructor) or emptied of triangles: a new generation of that address.
   Interceptor.attach(mod.base.add(MADE), { onEnter(args) {
@@ -98,6 +140,19 @@ hook();
 """
 
 
+def resolve(rva):
+    """The hook's installed RVA; when its code occurs twice, the copy nearest
+    the analysis address (MapDoc_PreprocessLights has a twin in the 10-06
+    build)."""
+    try:
+        return installed("resourcecompiler", rva)
+    except SystemExit as e:
+        found = [int(x, 16) - 0x180000000 for x in re.findall(r"0x18[0-9a-f]+", str(e))]
+        if "ambiguous" not in str(e) or not found:
+            raise
+        return min(found, key=lambda x: abs(x - rva))
+
+
 def running(name):
     return name.lower() in subprocess.run(["tasklist"], capture_output=True, text=True).stdout.lower()
 
@@ -110,6 +165,10 @@ def main():
     a = p.parse_args()
     if running("cs2.exe") or running("resourcecompiler.exe"):
         raise SystemExit("CS2 or a compile is running; not starting")
+    # Resolved before anything is touched, so a failure leaves the package alone.
+    hooks = {"ADD": 0x1c14020, "INST": 0x1c13ac0, "XFORM": 0x1c19970, "MADE": 0x1f6f40, "CLEAR": 0x1c14cc0,
+             "LIGHTS": 0xf1d100, "TRACE": 0xf18820}
+    head = "".join(f"const {k} = {resolve(v)};\n" for k, v in hooks.items())
     if shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3:
         raise SystemExit("under 10 GB free on the game drive; not starting")
     out_path = a.out or os.path.join(os.environ.get("TEMP", "."), "rayscene_capture", a.map + ".bin")
@@ -146,8 +205,6 @@ def main():
     pid = dev.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
                      "-i", source, "-world", "-phys", "-fshallow"], cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    hooks = {"ADD": 0x1c14020, "INST": 0x1c13ac0, "XFORM": 0x1c19970, "MADE": 0x1f6f40, "CLEAR": 0x1c14cc0}
-    head = "".join(f"const {k} = {installed('resourcecompiler', v)};\n" for k, v in hooks.items())
     sc = ses.create_script(AGENT.replace("'use strict';\n", "'use strict';\n" + head, 1))
     sc.on("message", on_message)
     sc.load()

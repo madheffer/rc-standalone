@@ -26,6 +26,7 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
         var triangles = new Dictionary<ulong, List<(Vector3 A, Vector3 B, Vector3 C, ushort Flags)>>();
         var instances = new List<ValveInstance>();
         var byHandle = new Dictionary<ulong, ValveInstance>();
+        var live = new List<ValveInstance>();
         // Addresses are reused: a scene's key is its address and its generation
         // (bumped when one is made there), a triangle clear empties it.
         var generation = new Dictionary<ulong, ulong>();
@@ -67,7 +68,14 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
             }
             else if (kind == 3 && byHandle.TryGetValue(b, out var moved))
                 f[..12].CopyTo(moved.Matrix, 0);
+            else if (kind == 8)
+                live.Add(new ValveInstance(Scene(a), Scene(b), c, f[..12]));
         }
+        // The scene as the first light ray found it (capture_rayscene.py's kind
+        // 8), when the capture has it: instance handles are reused, so the
+        // add/move history alone can leave a freed instance in place.
+        if (live.Count > 0)
+            instances = live;
         var childScenes = instances.Select(i => i.Child).ToHashSet();
         var tops = instances.Select(i => i.Parent).Where(x => !childScenes.Contains(x)).Distinct().ToList();
         var byParent = instances.GroupBy(i => i.Parent).ToDictionary(g => g.Key, g => g.ToList());

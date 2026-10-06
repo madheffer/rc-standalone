@@ -34,13 +34,18 @@ public class NodeFindProbe(ITestOutputHelper output)
                             output.WriteLine($"  attr {k} = {(v is System.Collections.IEnumerable list and not string ? $"[{string.Join(", ", list.Cast<object?>().Take(8))}]" : v)}");
                         foreach (var (k, v) in props?.Attributes ?? [])
                             output.WriteLine($"  key {k} = {v}");
+                        if (e.Get<DmxBinary.Element>("meshData") is { } materialsOf)
+                            output.WriteLine($"  materials {string.Join(", ", materialsOf.Get<object?[]>("materials") ?? [])}");
                         if (e.Get<DmxBinary.Element>("meshData") is { } md)
                             foreach (var holder in new[] { "vertexData", "faceVertexData", "edgeData", "faceData" })
                                 foreach (var st in md.Get<DmxBinary.Element>(holder)?.GetElements("streams") ?? [])
                                     output.WriteLine($"  {holder} stream {st.Name} ({(st.Get<object?[]>("data") ?? []).Length} values)");
                     }
-                    foreach (var p in d.Elements.Where(p => p.GetElements("children").Contains(e)))
-                        output.WriteLine($"  parent {p.Type} {p.GetValue<int>("nodeID")} class {p.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")}");
+                    // The parent chain up to the world, each marked when an instance targets it.
+                    var targeted = d.OfType("CMapInstance").Select(i => i.Get<DmxBinary.Element>("target")).OfType<DmxBinary.Element>().ToHashSet();
+                    for (var up = d.Elements.FirstOrDefault(p => p.GetElements("children").Contains(e)); up != null;
+                         up = d.Elements.FirstOrDefault(p => p.GetElements("children").Contains(up)))
+                        output.WriteLine($"  parent {up.Type} {up.GetValue<int>("nodeID")} class {up.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")}{(targeted.Contains(up) ? " (instance target)" : "")}");
                     foreach (var c in e.GetElements("children"))
                         output.WriteLine($"  child {c.Type} {c.GetValue<int>("nodeID")} origin {c.GetValue<System.Numerics.Vector3>("origin")} angles {c.GetValue<System.Numerics.Vector3>("angles")}"
                             + $" scales {c.GetValue<System.Numerics.Vector3>("scales")} physicsType {c.Attributes.GetValueOrDefault("physicsType")}");
@@ -50,6 +55,7 @@ public class NodeFindProbe(ITestOutputHelper output)
             }
         }
         Search(doc, map);
+        output.WriteLine($"hidden by the visibility manager: {MapEntities.HiddenNodes(doc).Contains(int.Parse(id, System.Globalization.CultureInfo.InvariantCulture))}");
     }
 
     /// <summary><c>LUMPCLASS=&lt;class&gt;|&lt;folder&gt;</c>: every entity of a class in the lumps of each .vpk in the folder.</summary>

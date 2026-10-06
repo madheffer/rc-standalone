@@ -176,7 +176,15 @@ game can answer is raised with the user first, and runs with -insecure.
     main scene at identity with owner flags 0, so a moved prefab's contents
     also sit at their prefab-local place. Whether the light trace sees it
     is open; Mako has no prefabs, so its 125 lights are something else.
-    Next: test that scene against the prefab probes, then diff Mako's scene.
+    Mako's scene at the first light ray (capture_rayscene.py dumps every
+    live instance there, kind 8; the add/move history alone misleads, as
+    instance handles are reused): its map meshes are ours but for 16 meshes
+    the visibility manager hides (Valve's scene drops them, ours keeps them
+    under owner flag 0x20, which the light mask skips, so no effect), one
+    cable_dynamic (20788, 600 triangles; cables are not in ours) and 4
+    stray triangles. Prop triangles are not compared: meshsystem adds them
+    (ModelRayScene_Build), not RayScene_AddTriangles. Next: capture the
+    model scenes' triangles at the first light ray, and add cables.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.
