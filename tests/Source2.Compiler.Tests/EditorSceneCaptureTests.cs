@@ -14,7 +14,7 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class EditorSceneCaptureTests(ITestOutputHelper output)
 {
-    private sealed record ValveInstance(ulong Parent, ulong Child, ulong Handle, float[] Matrix);
+    private sealed record ValveInstance(ulong Parent, ulong Child, ulong Handle, float[] Matrix, uint Flags = 0);
 
     [Fact]
     public void AgainstCapture()
@@ -69,7 +69,7 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
             else if (kind == 3 && byHandle.TryGetValue(b, out var moved))
                 f[..12].CopyTo(moved.Matrix, 0);
             else if (kind == 8)
-                live.Add(new ValveInstance(Scene(a), Scene(b), c, f[..12]));
+                live.Add(new ValveInstance(Scene(a), Scene(b), c, f[..12], (uint)BitConverter.ToUInt64(data, at + 32)));
         }
         // The scene as the first light ray found it (capture_rayscene.py's kind
         // 8), when the capture has it: instance handles are reused, so the
@@ -93,14 +93,20 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
 
         // Valve's world triangles under one top scene, by the child scene they came from.
         var valveTris = new Dictionary<(int, int, int), string>();
+        // RAYSCENE_MASK=<hex>: only what a ray with that mask can hit, on both
+        // sides: an object whose flag word meets it is skipped whole, and so
+        // is a triangle whose own flags do (the light pass: c00060b1).
+        var mask = Environment.GetEnvironmentVariable("RAYSCENE_MASK") is { Length: > 0 } mt ? Convert.ToUInt32(mt, 16) : 0u;
         void Walk(ulong scene, float[] m, string owner, int depth)
         {
             if (triangles.TryGetValue(scene, out var list))
-                foreach (var (a, b, c, _) in list)
-                    valveTris.TryAdd(Key(Apply(m, a), Apply(m, b), Apply(m, c)), owner);
+                foreach (var (a, b, c, fl) in list)
+                    if ((fl & mask) == 0)
+                        valveTris.TryAdd(Key(Apply(m, a), Apply(m, b), Apply(m, c)), owner);
             if (depth < 4 && byParent.TryGetValue(scene, out var kids))
                 foreach (var k in kids)
-                    Walk(k.Child, Compose(m, k.Matrix), depth == 0 ? $"0x{k.Child:x}" : owner, depth + 1);
+                    if ((k.Flags & mask) == 0)
+                        Walk(k.Child, Compose(m, k.Matrix), depth == 0 ? $"0x{k.Child:x}" : owner, depth + 1);
         }
         var top = Environment.GetEnvironmentVariable("RAYSCENE_TOP") is { } t ? Convert.ToUInt64(t, 16) : tops.OrderByDescending(x => byParent[x].Count).First();
         Walk(top, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], "top", 0);
@@ -122,6 +128,8 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
         }
         void Ours(EditorTraceScene.Instance inst, float[] m, string owner)
         {
+            if ((inst.ObjectFlags & mask) != 0)
+                return;
             if (inst.Children is { } kids)
             {
                 foreach (var k in kids)
@@ -130,6 +138,8 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
             }
             for (var i = 0; i < inst.Flags.Length; i++)
             {
+                if ((inst.Flags[i] & mask) != 0)
+                    continue;
                 var r = inst.Records.AsSpan(i * 22 + 13, 9);
                 ourTris.TryAdd(Key(Apply(m, new Vector3(r[0], r[1], r[2])), Apply(m, new Vector3(r[3], r[4], r[5])), Apply(m, new Vector3(r[6], r[7], r[8]))), owner);
             }

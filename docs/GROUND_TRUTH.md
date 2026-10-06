@@ -183,8 +183,17 @@ game can answer is raised with the user first, and runs with -insecure.
     under owner flag 0x20, which the light mask skips, so no effect), one
     cable_dynamic (20788, 600 triangles; cables are not in ours) and 4
     stray triangles. Prop triangles are not compared: meshsystem adds them
-    (ModelRayScene_Build), not RayScene_AddTriangles. Next: capture the
-    model scenes' triangles at the first light ray, and add cables.
+    (ModelRayScene_Build), not RayScene_AddTriangles. With meshsystem's own
+    copy of RayScene_AddTriangles hooked too and the light mask (c00060b1)
+    applied to object and triangle flags on both sides (the object's word is
+    its scene's first dword, 181c10ea0): every triangle ours traces Valve
+    traces, and Valve traces 491,083 more. Their scenes are built under the
+    smart props' procedural update (rc 1810a0490 reads smartPropPartSet;
+    180f71020 "UpdateDirtyProceduralObjects"), three containers of 12 to 23
+    parts (82k to 178k triangles) and repeated models, plus a few through
+    MapDoc_BakeInstances. So Mako's light scene lacks its smart props'
+    geometry. Next: add the evaluated smart props (Maps/SmartProps) to
+    EditorTraceScene, then the cable.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.

@@ -62,6 +62,19 @@ function matrix(p) {
   return m;
 }
 function vec(p) { return [p.readFloat(), p.add(4).readFloat(), p.add(8).readFloat()]; }
+// meshsystem.dll builds a model mesh's scene with its own copy of
+// RayScene_AddTriangles (MESHADD): the same records, so prop triangles are in.
+function hookMeshSystem() {
+  const ms = Process.findModuleByName('meshsystem.dll');
+  if (ms === null) { setTimeout(hookMeshSystem, 5); return; }
+  Interceptor.attach(ms.base.add(MESHADD), {
+    onEnter(args) {
+      put(2, args[0], args[1].and(0xffffffff), args[6].and(0xffff), ptr(0),
+          vec(args[2]).concat(vec(args[3])).concat(vec(args[4])));
+    }
+  });
+  send({hooked: 'meshsystem ' + ms.base.toString()});
+}
 function hook() {
   const mod = Process.findModuleByName('resourcecompiler.dll');
   if (mod === null) { setTimeout(hook, 5); return; }
@@ -108,7 +121,8 @@ function hook() {
   });
   // At the first light ray, every parent scene's live instances as kind 8:
   // the instance vector at scene +0x170 (count) and +0x178 (data), each
-  // instance's child at +0 and 3x4 at +0x10, its owner flags at +0x88.
+  // instance's child at +0 and 3x4 at +0x10; the child scene's first word is
+  // the owner flag word a ray's mask is tested against (181c10ea0).
   let dumped = false;
   Interceptor.attach(mod.base.add(TRACE), {
     onEnter(args) {
@@ -120,7 +134,8 @@ function hook() {
           if (count < 0 || count > 1000000) continue;
           for (let i = 0; i < count; i++) {
             const inst = data.add(i * 8).readPointer();
-            put(8, scene, inst.readPointer(), inst, inst.add(0x88).readU64(), matrix(inst.add(0x10)));
+            const child = inst.readPointer();
+            put(8, scene, child, inst, child.isNull() ? 0 : child.readU32(), matrix(inst.add(0x10)));
           }
         } catch (e) { send({unreadable: key}); }
       }
@@ -137,6 +152,7 @@ function hook() {
 }
 rpc.exports = { flush: flush };
 hook();
+hookMeshSystem();
 """
 
 
@@ -151,6 +167,21 @@ def resolve(rva):
         if "ambiguous" not in str(e) or not found:
             raise
         return min(found, key=lambda x: abs(x - rva))
+
+
+def meshsystem_add(rc_add):
+    """meshsystem.dll's copy of RayScene_AddTriangles: the installed
+    resourcecompiler's first 40 bytes of it, found once in meshsystem.dll."""
+    import pefile
+
+    def image(name):
+        return pefile.PE(os.path.join(BIN, name)).get_memory_mapped_image()
+    pattern = image("resourcecompiler.dll")[rc_add:rc_add + 40]
+    img = image("meshsystem.dll")
+    first = img.find(pattern)
+    if first < 0 or img.find(pattern, first + 1) >= 0:
+        raise SystemExit("meshsystem.dll: RayScene_AddTriangles copy not found exactly once")
+    return first
 
 
 def running(name):
@@ -168,7 +199,9 @@ def main():
     # Resolved before anything is touched, so a failure leaves the package alone.
     hooks = {"ADD": 0x1c14020, "INST": 0x1c13ac0, "XFORM": 0x1c19970, "MADE": 0x1f6f40, "CLEAR": 0x1c14cc0,
              "LIGHTS": 0xf1d100, "TRACE": 0xf18820}
-    head = "".join(f"const {k} = {resolve(v)};\n" for k, v in hooks.items())
+    resolved = {k: resolve(v) for k, v in hooks.items()}
+    resolved["MESHADD"] = meshsystem_add(resolved["ADD"])
+    head = "".join(f"const {k} = {v};\n" for k, v in resolved.items())
     if shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3:
         raise SystemExit("under 10 GB free on the game drive; not starting")
     out_path = a.out or os.path.join(os.environ.get("TEMP", "."), "rayscene_capture", a.map + ".bin")

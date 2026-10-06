@@ -31,6 +31,7 @@ survives a game update the same way the tests do.
 Output is a stream of records: u32 json length, json, u32 blob length, blob.
 """
 import argparse
+import filecmp
 import json
 import os
 import shutil
@@ -382,9 +383,12 @@ def main():
         with lock:
             out.write(struct.pack("<I", len(head)) + head + struct.pack("<I", len(blob)) + blob)
 
-    # A current VPK makes RC skip the phase and leave yesterday's output.
+    # A current VPK makes RC skip the phase and leave yesterday's output, so it
+    # is moved aside and put back afterwards (other tools read it as Valve's).
     vpk = os.path.join(CS2, "game", "csgo_addons", args.addon, "maps", args.map + ".vpk")
+    backup = out_path + ".vpk.bak"
     if os.path.exists(vpk):
+        shutil.copyfile(vpk, backup)
         os.remove(vpk)
     source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
     argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4",
@@ -416,6 +420,15 @@ def main():
     with open(out_path + ".log", "w", encoding="utf-8") as h:
         h.write("".join(log))
     print("%.1fs  %s  -> %s" % (time.time() - started, stats, out_path))
+    while subprocess.run(["tasklist", "/FI", "PID eq %d" % pid], capture_output=True, text=True).stdout.count(str(pid)):
+        time.sleep(1)
+    if os.path.exists(backup):
+        shutil.copyfile(backup, vpk)
+        if filecmp.cmp(backup, vpk, shallow=False):
+            os.remove(backup)
+            print("restored", vpk)
+        else:
+            print("RESTORE CMP FAILED", vpk, "backup kept at", backup)
     # The scene this compile traced, kept beside the capture as <stem>.merge.rte
     # and .viscfg: the next compile of the map overwrites the one under
     # %TEMP%/csgo_addons, and the .rte is not byte-stable between compiles.
