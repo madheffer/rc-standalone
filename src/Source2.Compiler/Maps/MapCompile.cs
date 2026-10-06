@@ -21,7 +21,7 @@ public static class MapCompile
     /// </summary>
     public static List<Output> EntityLumps(DmxBinary.Document document, string worldName, FgdSchema schema,
                                            GameContent content, bool settle, bool bakedLighting = false,
-                                           bool entitiesOnly = false)
+                                           bool entitiesOnly = false, Action<EntityLumpAuthor.Lighting>? lighting = null)
     {
         var locators = Locators(content);
         var settled = settle
@@ -32,7 +32,7 @@ public static class MapCompile
         var scene = EditorTraceScene.ForMap(document, content);
         return [.. EntityLumpSet.Author(MapEntities.From(document), schema, worldName,
                                         MapEntities.FixupEntityNames(document), document, locators, settled,
-                                        bakedLighting, entitiesOnly, scene)
+                                        bakedLighting, entitiesOnly, scene, lighting: lighting)
             .Select(l => new Output(l.Path, l.Bytes))];
     }
 
@@ -103,11 +103,9 @@ public static class MapCompile
         var steps = args.SelectedBuilders(out _);
         var entitiesOnly = args.EntitiesOnly;
         var refused = new List<string>();
-        if (steps.Contains("world") && !entitiesOnly)
-            refused.Add("world (render geometry, and vis and the lighting bake inside it)");
-        refused.AddRange(steps.Where(s => s is "nav" or "sareverb" or "sapaths" or "sacustomdata"));
+        refused.AddRange(steps.Where(s => s is "bakedlighting" or "nav" or "sareverb" or "sapaths" or "sacustomdata"));
         if (refused.Count > 0)
-            return Fail(log, "not ported: " + string.Join(", ", refused) + ". Only -entities and -phys builds run.");
+            return Fail(log, "not ported: " + string.Join(", ", refused) + ". -world (without the bake), -entities and -phys builds run.");
         if (!args.KeepsPackage)
             return Fail(log, "-f and -fshallow2 start from an empty package, and this is a partial build (the compile refuses it too)");
 
@@ -141,7 +139,29 @@ public static class MapCompile
         var notes = new List<string>();
         log.WriteLine($"{map}.vmap -> {package}");
 
-        if (steps.Contains("world"))
+        if (steps.Contains("world") && !args.EntitiesOnly)
+        {
+            // The world step without the bake: the lumps, the brush entity models,
+            // visibility and the world node (WorldNodeFiles). What a previous build
+            // left under the map's worldnodes and entities is replaced.
+            foreach (var old in entries.Keys.Where(k => k.StartsWithAscii($"maps/{map}/worldnodes/".ToLowerInvariant())
+                                                        || k.StartsWithAscii($"maps/{map}/entities/".ToLowerInvariant())).ToList())
+                entries.Remove(old);
+            EntityLumpAuthor.Lighting? lighting = null;
+            var lumps = EntityLumps(document, map, schema, assets, args.Settle, false, entitiesOnly: false, lighting: l => lighting = l);
+            foreach (var lump in lumps)
+                entries[lump.Path] = lump.Bytes;
+            var models = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp);
+            foreach (var m in models)
+                entries[m.Path + "_c"] = m.PhysicsOnly ? EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
+            using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+            var node = WorldNodeFiles.Build(document, addon, map, assets, shaders, schema, game, lighting?.Volumes ?? EnvVolumes.Set.Empty,
+                                            (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), notes);
+            foreach (var f in node)
+                entries[f.Path] = f.Bytes;
+            log.WriteLine($"  world: {lumps.Count} lumps, {models.Count} entity models, {node.Count} node and visibility files");
+        }
+        else if (steps.Contains("world"))
         {
             // Every entity node in the document, instance groups included.
             var gaps = document.Elements
