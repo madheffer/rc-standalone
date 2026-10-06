@@ -133,13 +133,8 @@ public static partial class HullCollision
 
     private static void Swap(Span<ClipPoint> p, int i, int j) => (p[i], p[j]) = (p[j], p[i]);
 
-    /// <summary>rsqrtps on this CPU.</summary>
-    private static float ReciprocalSqrt(float x)
-    {
-        if (!Sse.IsSupported)
-            throw new PlatformNotSupportedException("the contact reduction needs SSE's rsqrtps");
-        return Sse.ReciprocalSqrt(Vector128.Create(x)).ToScalar();
-    }
+    /// <summary>rsqrtps.</summary>
+    private static float ReciprocalSqrt(float x) => CpuEstimate.Rsqrt(x);
 
     /// <summary>n · ((p0 - p) x (p1 - p)), summed z, y, x.</summary>
     private static float TripleArea(in ClipPoint p0, in ClipPoint p1, in ClipPoint p, float nx, float ny, float nz)

@@ -93,6 +93,5 @@ public static class LightVisClusters
         return !(tExit < tEnter);
     }
 
-    static float Rcp(float x) => Sse.IsSupported
-        ? Sse.ReciprocalScalar(Vector128.CreateScalarUnsafe(x)).ToScalar() : 1f / x;
+    static float Rcp(float x) => Simulation.CpuEstimate.Rcp(x);
 }

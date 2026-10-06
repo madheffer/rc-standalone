@@ -648,14 +648,11 @@ public sealed class RayTraceEnvironment
     /// <summary>
     /// <c>rcpps</c> and one Newton step, <c>(r + r) - (r * r) * x</c>, which is
     /// how the packet trace divides. The estimate is the hardware's, so this is
-    /// exact only on the machine the compile ran on, which is the one scored.
+    /// that of the compiling CPU unless <see cref="Simulation.CpuEstimate"/> replays another's.
     /// </summary>
     public static float Refined(float x)
     {
-        var r = Sse.IsSupported
-            ? Sse.ReciprocalScalar(
-                Vector128.CreateScalarUnsafe(x)).ToScalar()
-            : 1f / x;
+        var r = Simulation.CpuEstimate.Rcp(x);
         return (r + r) - (r * r * x);
     }
 

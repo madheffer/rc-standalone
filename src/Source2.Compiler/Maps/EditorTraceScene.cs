@@ -526,11 +526,9 @@ public sealed class EditorTraceScene : ILightTracer
 
     private static float Axis(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;
 
-    private static float Rsqrt(float x) => Sse.IsSupported
-        ? Sse.ReciprocalSqrtScalar(Vector128.CreateScalarUnsafe(x)).ToScalar() : 1f / MathF.Sqrt(x);
+    private static float Rsqrt(float x) => Simulation.CpuEstimate.Rsqrt(x);
 
-    private static float Rcp(float x) => Sse.IsSupported
-        ? Sse.ReciprocalScalar(Vector128.CreateScalarUnsafe(x)).ToScalar() : 1f / x;
+    private static float Rcp(float x) => Simulation.CpuEstimate.Rcp(x);
 
     private static (Vector3, Vector3) Box(Instance inst, int t)
     {

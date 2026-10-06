@@ -72,4 +72,9 @@
     <Content Include="Native\bc7enc\bin\libbc7enc_native.so" Condition="Exists('Native\bc7enc\bin\libbc7enc_native.so')" Link="libbc7enc_native.so" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Zen 4's rcpss/rsqrtss results by top mantissa bits, for CpuEstimate. -->
+    <EmbeddedResource Include="Resources\estimate_zen4_*.bin" LogicalName="%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

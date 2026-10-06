@@ -41,7 +41,7 @@ public static class MeshSweep
     public static void Query(RnMesh mesh, Vec3 scale, Vec3 start, Vec3 delta, Vec3 half, bool boxesOnly, List<int> output)
     {
         var s = L3(scale);
-        var r = Sse.Reciprocal(s);
+        var r = CpuEstimate.Rcp(s);
         var inverse = Sse.Subtract(Sse.Add(r, r), Sse.Multiply(Sse.Multiply(r, r), s));
         var d = Sse.Multiply(L3(delta), inverse);
         var p = Sse.Multiply(L3(start), inverse);
@@ -189,7 +189,7 @@ public static class MeshSweep
         var cy = Sse.Subtract(Sse.Multiply(dx, ez), Sse.Multiply(dz, ex));
         var cx = Sse.Subtract(Sse.Multiply(dz, ey), Sse.Multiply(dy, ez));
         var c2 = Sse.Add(Sse.Multiply(cz, cz), Sse.Add(Sse.Multiply(cy, cy), Sse.Multiply(cx, cx)));
-        var rs = Sse.ReciprocalSqrt(c2);
+        var rs = CpuEstimate.Rsqrt(c2);
         rs = Sse.Multiply(Sse.Multiply(rs, Sse.Subtract(Vector128.Create(3f), Sse.Multiply(Sse.Multiply(rs, rs), c2))), Vector128.Create(0.5f));
         var motion = Sse.Multiply(Splat(length, 0), direction);
         axes[12] = Sse.Multiply(cx, rs);
