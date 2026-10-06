@@ -23,10 +23,9 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
   map in the lump test (`UnstableSettle`): coaster, dkr_m4_ferris,
   dkr_m2_carnival, dkr_m5_stadium and dkr_m3_tunneloflove, each measured against two compiles
   or Valve's captured order.
-- **Corpus sweep (2026-10-06):** 79 of the 80 compiled corpus maps are
-  within the documented gaps. The one left, dkr_onelevel, differs on its
-  carnival and ferris prefabs' settled props (6:2418 to 6:2426, 14:2311),
-  likely the run-to-run variance, not yet captured.
+- **Corpus sweep (2026-10-06):** all 80 compiled corpus maps are within
+  the documented gaps (dkr_onelevel's 38,633 settle bodies exact, its 882
+  props exact in Valve's captured order).
 
 Open:
 - **Light keys:** the precomputed shape keys and, when baked, the shadow

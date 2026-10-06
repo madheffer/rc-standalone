@@ -235,6 +235,8 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         // Exact body for body (8,005, coaster_car's bind pose included) and in
         // Valve's captured order (95 of 95).
         ["dkr_m3_tunneloflove"] = ["3:2151", "3:2152", "3:2153"],
+        // Exact body for body (38,633) and in Valve's captured order (882 of 882).
+        ["dkr_onelevel"] = ["6:2418", "6:2419", "6:2420", "6:2424", "6:2425", "6:2426", "14:2311"],
     };
 
     [GeneratedRegex(@"^\[prop_physics#([0-9:]+)\] (origin|angles): ")]

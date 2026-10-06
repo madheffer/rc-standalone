@@ -70,6 +70,56 @@ public class NodeFindProbe(ITestOutputHelper output)
         }
     }
 
+    /// <summary><c>VPKDIFF=&lt;old folder&gt;|&lt;new folder&gt;</c>: for each .vpk in the new folder, the entries that differ from the same-named .vpk in the old one.</summary>
+    [Fact]
+    public void PackagesDiffer()
+    {
+        if (Environment.GetEnvironmentVariable("VPKDIFF") is not { Length: > 0 } spec || spec.Split('|') is not [var oldDir, var newDir])
+            return;
+        static Dictionary<string, byte[]> Read(string file)
+        {
+            using var pkg = new ValvePak.Package();
+            pkg.Read(file);
+            var found = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (_, entries) in pkg.Entries)
+                foreach (var e in entries)
+                    found[e.GetFullPath()] = Io.VpkEntries.Read(pkg, e);
+            return found;
+        }
+        foreach (var file in Directory.GetFiles(newDir, "*.vpk").Order(StringComparer.Ordinal))
+        {
+            var old = Path.Combine(oldDir, Path.GetFileName(file));
+            if (!File.Exists(old))
+                continue;
+            var (a, b) = (Read(old), Read(file));
+            var differ = b.Keys.Where(k => a.TryGetValue(k, out var x) && !x.AsSpan().SequenceEqual(b[k])).Order(StringComparer.Ordinal).ToList();
+            var added = b.Keys.Except(a.Keys).ToList();
+            var removed = a.Keys.Except(b.Keys).ToList();
+            output.WriteLine($"{Path.GetFileName(file)}: {b.Count} entries, {differ.Count} differ, {added.Count} new, {removed.Count} gone");
+            foreach (var k in differ.Concat(added.Select(x => "+" + x)).Concat(removed.Select(x => "-" + x)).Take(25))
+                output.WriteLine($"  {k}");
+            // VPKDIFF_TREES=1: each differing entry's blocks decoded and diffed.
+            if (Environment.GetEnvironmentVariable("VPKDIFF_TREES") == "1")
+                foreach (var k in differ.Take(6))
+                {
+                    try
+                    {
+                        var (ta, tb) = (WorldPhysicsAuthorTests.Trees(a[k]), WorldPhysicsAuthorTests.Trees(b[k]));
+                        foreach (var block in tb.Keys.Union(ta.Keys))
+                            if (ta.TryGetValue(block, out var x) && tb.TryGetValue(block, out var y))
+                                foreach (var line in KvTreeDiff.Diff(x, y, 8))
+                                    output.WriteLine($"    {k} {block}{line}");
+                            else
+                                output.WriteLine($"    {k} {block}: only on one side");
+                    }
+                    catch (Exception e)
+                    {
+                        output.WriteLine($"    {k}: not decoded ({e.Message}); sizes {a[k].Length} -> {b[k].Length}, first differing byte {a[k].AsSpan().CommonPrefixLength(b[k])}");
+                    }
+                }
+        }
+    }
+
     /// <summary><c>KEYFIND=&lt;addon&gt;|&lt;map&gt;|&lt;key&gt;</c>: the nodes whose entity properties hold the key, with its value and place among their keys.</summary>
     [Fact]
     public void FindKey()
