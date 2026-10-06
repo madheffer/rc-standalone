@@ -416,8 +416,16 @@ game can answer is raised with the user first, and runs with -insecure.
   weld on any stream subset tried, and not HalfEdge_MergeVertices (only the
   subdivision bake and the editor's MergeMesh call it). A point Valve
   lists twice belongs to two .vmap vertices (the queen's 23166 and 26523).
-  Next, with CS2 closed: capture MapBuilder_TriangleMesh's input
-  (181308060: positions, count, indices, triangle count) per piece.
+  Captured 2026-10-06 (capture_hullbuild.py --full --trimesh, record 7 for
+  the queen's main mesh): Valve's triangles are ours, all 34,662, and its
+  buffer is ours joined by position except 92 positions held twice, each at
+  a degenerate triangle with two corners on one point. Settled so far: a
+  corner whose welded vertex was met before keeps its vertex, and a triangle
+  never uses one vertex twice (the identity-first rule matches Valve's
+  indices to triangle 4,127 of 34,662). Open: which existing vertex a new
+  welded vertex joins when a position holds two (neither the oldest nor the
+  newest every time); read the piece mesh's construction
+  (MapBuilder_HullsFromMesh 18131f680's caller) next.
 
 - **Faces of instanced meshes in world physics** (ledger 49, settled
   2026-10-05 by capture). CMapMesh_ConvertMeshForBuilder runs RemoveBadFaces
