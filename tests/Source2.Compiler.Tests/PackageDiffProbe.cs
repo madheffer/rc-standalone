@@ -59,6 +59,13 @@ public class PackageDiffProbe(ITestOutputHelper output)
                 })).Where(x => x.Item2 != null).Select(x => (x.Item1, x.Item2!))];
             }
             var (tv, to) = (Trees(vb), Trees(ob));
+            if (Environment.GetEnvironmentVariable("PKGDIFF_LAYOUTS") == "1")
+                foreach (var (who, trees) in new[] { ("valve", tv), ("ours", to) })
+                    if (trees.FirstOrDefault(x => x.Item1 == "CTRL").Item2 is { } ctrl)
+                        foreach (var mesh in ctrl["embedded_meshes"]!.Values)
+                            output.WriteLine($"  {who} {path}: " + string.Join(" / ", mesh["m_vertexBuffers"]!.Values.Select(vbuf =>
+                                string.Join(",", vbuf["m_inputLayoutFields"]!.Values.Select(f =>
+                                    $"{f["m_pSemanticName"]}{f["m_nSemanticIndex"]}:{f["m_Format"]}:{f["m_szShaderSemantic"]}")))));
             var lines = tv.Count != to.Count ? [$"blocks {string.Join(",", tv.Select(x => x.Item1))} vs {string.Join(",", to.Select(x => x.Item1))}"]
                 : tv.Zip(to).SelectMany(z => KvTreeDiff.Diff(z.First.Item2, z.Second.Item2).Select(l => z.First.Item1 + l)).ToList();
             var facts = WorldPhysicsAuthorTests.Facts(vb) == WorldPhysicsAuthorTests.Facts(ob);

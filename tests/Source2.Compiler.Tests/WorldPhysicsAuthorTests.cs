@@ -632,6 +632,11 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         {
             var at = 16 + (i * 12);
             var offset = at + 4 + (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(at + 4));
+            if (offset + 24 > bytes.Length) // a block too short for a KV3 header (an empty or raw block at the end)
+            {
+                parts.Add($"{System.Text.Encoding.ASCII.GetString(bytes, at, 4)}:short");
+                continue;
+            }
             parts.Add($"{System.Text.Encoding.ASCII.GetString(bytes, at, 4)}:{Convert.ToHexString(bytes, offset, 4)}:m{BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset + 20))}:{Convert.ToHexString(bytes, offset + 4, 16)}");
         }
         return string.Join(" ", parts);

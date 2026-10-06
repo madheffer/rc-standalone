@@ -435,12 +435,12 @@ game can answer is raised with the user first, and runs with -insecure.
     FUN_1802f9cc0 reads embedded_map_mesh and create_pooled_vb: the depth
     split needs a map mesh that is not pooled. SNORM texcoords truncate
     (6863, not 6864); an index buffer stays raw when the codec output is
-    not smaller. Open: valdina_button and block_roof_waterm name the
-    normal OptionallyCompressedTangentFrame where their materials' INSG
-    lists CompressedTangentFrame first; neither class nor material order
-    explains it (atixref's agg_prop: wood_pole_a and acvent03 share shader,
-    INSG and VS signatures yet differ; their static combos differ by
-    F_DETAIL_TEXTURE).
+    not smaller. The OptionallyCompressedTangentFrame normals once
+    listed as open here are not a rule: atixref's reference was compiled
+    on 09-24, before the 10-01 to 10-06 updates recompiled materials, and
+    no current material, shader or DLL carries that semantic (only
+    assetpreview.dll, as a baked 32-byte name). atixref needs a fresh
+    reference before its node models can be scored.
     The whole -world package (compile-map, WorldNodeFiles; 2026-10-07):
     probe01 and cardtest match Valve's in every tree and container fact
     but three hashes (the vrman's and vvis's ___OverrideInputData___
@@ -451,8 +451,17 @@ game can answer is raised with the user first, and runs with -insecure.
     resources list RERL by path; a node model whose material the game
     lacks has compile_warnings 1. Prop aggregate fragments' flags come
     from BuildAggregate: +0x20 with attribute bit 17, +0x40000 with bit 19
-    or with 16 or 18 while 17 is clear, +0x800 for a LOD'd mesh; the
-    depth split needs a depth signature without Dummy. Settled after: the
+    or with 16 or 18 while 17 is clear, +0x800 for a LOD'd mesh. The
+    depth split (FUN_1802f5680, FUN_181364720, AddDrawDescriptors
+    1802ed7f0): with SplitDepthStream, an embedded map mesh that is not
+    pooled and a material whose INSG has m_depth_elems, the fields its
+    depth list reads (matched by semantic, per-vertex lighting as color 1)
+    go first and the rest of the main list's second, in mesh order; one
+    buffer when either side is empty. There is no Dummy condition (an
+    earlier reading fitted the stale atixref reference). The field order
+    puts texcoords before normal and tangent (baked props stream P N Tg T0
+    and lay out P T0 N on ze_hold_em_p; the code that orders them is not
+    read). Settled after: the
     Linux build parted from Windows for two reasons. Float sin/cos went
     to the host libm (now Simulation.CrtMath, tier0's FMA3 sinf/cosf,
     exact against the Windows CRT on 3.68M arguments). And rcpps/rsqrtps

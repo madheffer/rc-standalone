@@ -268,19 +268,31 @@ internal static class WorldNodeModels
     // A layout field, its vertex buffer and the mesh stream it packs ("name:index").
     private sealed record Slot(WorldNodeModel.LayoutField Field, int Buffer, string Stream, int Count);
 
+    // The per-vertex lighting stream is the semantic table's color 1.
+    private static (string Name, int Index) Key(WrbMeshEntry.Stream s)
+        => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase) ? ("color", 1) : (s.Name, s.Index);
+
     private static bool Reads(IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement> elements, WrbMeshEntry.Stream s)
-        => elements.Any(x => MaterialStreams.Inputs([x.Semantic]) is [var m] && Io.Tier0Strings.EqualsIgnoreCase(m.Name, s.Name) && m.Index == s.Index);
+        => elements.Any(x => MaterialStreams.Inputs([x.Semantic]) is [var m] && Io.Tier0Strings.EqualsIgnoreCase(m.Name, Key(s).Name) && m.Index == Key(s).Index);
+
+    // Field order: position, texcoords, normal, tangent, then the rest as the mesh has them
+    // (ze_hold_em_p's baked fluorescent props, streamed P N Tg T0, lay out P T0 N).
+    private static int Rank(WrbMeshEntry.Stream s) => s.Name.ToLowerInvariant() switch
+    {
+        "position" => 0, "texcoord" => 1, "normal" => 2, "tangent" => 3, _ => 4,
+    };
 
     private static List<Slot> Layout(List<DrawInput> draws, MaterialFacts facts, bool aggregate, bool mapMesh, Func<int, uint>? texcoordFormat = null)
     {
         var signature = facts.Signature;
-        // A depth signature with a Dummy element does not split (atixref's agg_prop: 66 such
-        // materials keep one buffer, the 6 without Dummy split), nor one that reads every stream.
-        var splits = facts.Depth.Count > 0 && !facts.Depth.Any(e => Io.Tier0Strings.EqualsIgnoreCase(e.Semantic, "Dummy"))
+        // FUN_1802f5680 builds the depth and remainder layouts when the material has a depth
+        // list; AddDrawDescriptors (1802ed7f0) splits when both have fields, so a depth list
+        // that reads every stream keeps one buffer.
+        var splits = facts.Depth.Count > 0
                      && draws[0].Streams.Any(x => !x.Name.Equals("tangent", StringComparison.OrdinalIgnoreCase) && !Reads(facts.Depth, x));
         var slots = new List<Slot>();
         var offsets = new int[2];
-        foreach (var s in draws[0].Streams)
+        foreach (var s in draws[0].Streams.OrderBy(Rank))
         {
             if (s.Name.Equals("tangent", StringComparison.OrdinalIgnoreCase))
                 continue;
