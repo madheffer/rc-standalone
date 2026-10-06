@@ -278,7 +278,7 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
             }
             // The aggregate object: one mesh per fragment, by draw.
             var sceneObject = new WorldNodeSceneTrees.Aggregate(name, 0, [.. agg.Fragments.Select(f => new WorldNodeSceneTrees.AggregateMesh(f.Draw,
-                    (f.ObjectFlags & ~0x20000u) | ((f.Attributes & 0x20000) != 0 ? 0x20u : 0u) | ((f.Attributes & 0x200000) != 0 ? 0x8000u : 0u),
+                    f.AggregateFlags,
                     EnvVolumes.ForEntry(new System.Numerics.Vector3(float.MaxValue), "", f.Attributes, () => f.MeshBounds, volumes).Probe,
                     new System.Numerics.Vector3(f.Tint.X, f.Tint.Y, f.Tint.Z) * 255f) { Transform = f.Matrix, LodMask = f.LodMask, LodSetup = f.LodSetup })])
             {
