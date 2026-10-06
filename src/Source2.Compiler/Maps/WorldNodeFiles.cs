@@ -32,18 +32,33 @@ public static class WorldNodeFiles
         var packages = new[] { "csgo", "core" }.Select(d => { var pk = new Package(); pk.Read(Path.Combine(game, d, "pak01_dir.vpk")); return pk; }).ToList();
         VoxelVisibility vxvs;
         List<(Vector3 Min, Vector3 Max)>[] flat;
+        byte[] vvis;
         try
         {
             var visFlags = new MaterialVisFlags.Source([Path.Combine(game, "csgo_addons", addon)], packages);
-            var rte = TraceScene.Environment(TraceScene.Triangles(MapMeshes.Read(document), content.Material, mat => visFlags[mat], RendersAsWorld));
-            (vxvs, flat) = VisBuild.RunWithBlocks(rte, VisConfig.FromMap(MapEntities.From(document), schema));
+            var triangles = TraceScene.Triangles(MapMeshes.Read(document), content.Material, mat => visFlags[mat], RendersAsWorld);
+            var config = VisConfig.FromMap(MapEntities.From(document), schema);
+            // S2C_VISCACHE=<folder>: the visibility kept by the trace scene's content and settings, for repeated builds.
+            var cache = Environment.GetEnvironmentVariable("S2C_VISCACHE") is { Length: > 0 } folder
+                ? Path.Combine(folder, $"{map.Replace('/', '_')}_{VisKey(triangles, config):x16}.bin") : null;
+            if (cache != null && File.Exists(cache))
+                (vvis, flat) = ReadVis(cache);
+            else
+            {
+                var rte = TraceScene.Environment(triangles);
+                (vxvs, flat) = VisBuild.RunWithBlocks(rte, config);
+                vvis = VisibilityAuthor.Container(vxvs);
+                if (cache != null)
+                    WriteVis(cache, vvis, flat);
+            }
+            vxvs = VoxelVisibilityReader.Read(vvis);
         }
         finally
         {
             foreach (var p in packages)
                 p.Dispose();
         }
-        outputs.Add(new($"maps/{map}/world_visibility.vvis_c", VisibilityAuthor.Container(vxvs)));
+        outputs.Add(new($"maps/{map}/world_visibility.vvis_c", vvis));
         var mutual = VisOutput.MutualVisibility(vxvs);
 
         // BuildNode, the mesh lists, CompileNode.
@@ -132,5 +147,57 @@ public static class WorldNodeFiles
         outputs.Add(new($"maps/{map}/world.vrman_c", ResourceManifestAuthor.Author(
             [$"maps/{map}/world.vwrld", $"maps/{map}/world_physics.vrman", $"maps/{map}/world_visibility.vvis"])));
         return outputs;
+    }
+
+    private static ulong VisKey(IReadOnlyList<TraceScene.Triangle> triangles, VisConfig config)
+    {
+        var hash = new System.IO.Hashing.XxHash64();
+        foreach (var t in triangles)
+        {
+            foreach (var v in new[] { t.A, t.B, t.C })
+            {
+                hash.Append(BitConverter.GetBytes(v.X));
+                hash.Append(BitConverter.GetBytes(v.Y));
+                hash.Append(BitConverter.GetBytes(v.Z));
+            }
+            hash.Append(BitConverter.GetBytes(t.Flags));
+        }
+        hash.Append(System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(config)));
+        return hash.GetCurrentHashAsUInt64();
+    }
+
+    private static (byte[] Vvis, List<(Vector3 Min, Vector3 Max)>[] Flat) ReadVis(string path)
+    {
+        using var r = new BinaryReader(File.OpenRead(path));
+        var vvis = r.ReadBytes(r.ReadInt32());
+        Vector3 V() => new(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+        var flat = new List<(Vector3, Vector3)>[r.ReadInt32()];
+        for (var i = 0; i < flat.Length; i++)
+        {
+            flat[i] = [];
+            for (var n = r.ReadInt32(); n > 0; n--)
+                flat[i].Add((V(), V()));
+        }
+        return (vvis, flat);
+    }
+
+    private static void WriteVis(string path, byte[] vvis, List<(Vector3 Min, Vector3 Max)>[] flat)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var w = new BinaryWriter(File.Create(path));
+        w.Write(vvis.Length);
+        w.Write(vvis);
+        w.Write(flat.Length);
+        foreach (var boxes in flat)
+        {
+            w.Write(boxes.Count);
+            foreach (var (lo, hi) in boxes)
+                foreach (var v in new[] { lo, hi })
+                {
+                    w.Write(v.X);
+                    w.Write(v.Y);
+                    w.Write(v.Z);
+                }
+        }
     }
 }
