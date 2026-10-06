@@ -405,6 +405,28 @@ game can answer is raised with the user first, and runs with -insecure.
     bounds' max z one ulp and its inertia off-diagonals. The world is now
     exact body for body (8,005), and Valve's captured order settles all 95
     exact; 3:2151 to 3:2153 are order-sensitive (ledger 52).
+54. **World node back end from the .vmap** (2026-10-07, read: CompileNode
+    180277ab0, BuildAggregate 180268e80, Step_SplittingMeshWith 180260710,
+    the overlay list 180271160 / 180271110 / 180271780). Settled and
+    exact on probe01 (all 3 node models' trees, both index buffers, the
+    .vwnod and .vwrld): an aggregate's fragments are its CMeshes welded
+    (CMesh_Weld with 0), sorted by CMesh +0x58 (0 for map meshes), vertex
+    count descending, then memcmp of the vertices; one draw each. A
+    meshlet's m_nTriangleCount leaves out its padding triangle. A material
+    whose INSG has m_depth_elems splits the draw set into a depth buffer
+    (the streams those name) and the rest; otherwise one buffer and depth
+    index 255. Streams lay out in mesh order: read by the material's
+    signature they take its D3D and shader semantics, else their own name.
+    The world node's bounds are BuildNode's output. Overlay lists group
+    entries per call by render order, flags & 0x80 and attribute bit 23
+    (bit 1 makes a closed group); aggregatable groups (UseAggregateInstances,
+    order 0, bit 23 clear, every entry CanAggregate) go through
+    GroupAggregates as agg_overlay; each group with entries left becomes
+    mesh_[ns]overlay<group index>. Open: the colour 1 stream is the
+    previous bake's per-vertex lighting (an input); the instanced list's
+    vf 0x38 (18026ed20) groups by entry +0x40 (node id) and +0xa8 (not
+    modelled) through a hash map whose slot order numbers the nomerge%d
+    objects; .vwrld m_nCompileFingerprint changes per compile.
 
 ## Resolved
 
