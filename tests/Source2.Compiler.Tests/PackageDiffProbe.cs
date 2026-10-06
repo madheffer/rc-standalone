@@ -67,7 +67,7 @@ public class PackageDiffProbe(ITestOutputHelper output)
             else
             {
                 t[2]++;
-                output.WriteLine($"differs {path}: {lines.Count} tree lines{(facts ? "" : ", facts")}{(lines.Count > 0 ? ", " + lines[0] : "")}");
+                output.WriteLine($"differs {path}: {lines.Count} tree lines{(facts ? "" : ", facts")}{(lines.Count > 0 ? ", " + string.Join(" | ", lines.Take(Environment.GetEnvironmentVariable("PKGDIFF_LINES") is { } n ? int.Parse(n) : 1)) : "")}");
             }
         }
         foreach (var (type, t) in tally)
