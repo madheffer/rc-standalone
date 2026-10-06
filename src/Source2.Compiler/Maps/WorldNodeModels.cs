@@ -75,7 +75,7 @@ internal static class WorldNodeModels
                                     first.Stride, first.Facts.Streams, first.Facts));
         }
 
-        return Assemble(name, draws, aggregate, layout ?? material(draws[0].Material), mapMesh, null) with { DrawSources = [.. groups.Select(g => g[0])] };
+        return Assemble(name, draws, aggregate, layout ?? material(draws[0].Material), mapMesh, null, Warnings(draws, material)) with { DrawSources = [.. groups.Select(g => g[0])] };
     }
 
     /// <summary>
@@ -98,10 +98,15 @@ internal static class WorldNodeModels
                                  new WrbMeshEntry { Material = d.Material, Attributes = d.Attributes, Field28 = Vector4.One, Streams = streams }) { Offsets = offsets };
         }).ToList();
         uint Format(string f) => f switch { "R32G32_FLOAT" => R32G32Float, "R16G16_SNORM" => R16G16Snorm, _ => R16G16Float };
-        return Assemble(name, draws, true, material(draws[0].Material), true, index => Format(aggregate.TexcoordFormats[index]));
+        return Assemble(name, draws, true, material(draws[0].Material), true, index => Format(aggregate.TexcoordFormats[index]), Warnings(draws, material));
     }
 
-    private static Built Assemble(string name, List<DrawInput> draws, bool aggregate, MaterialFacts facts, bool mapMesh, Func<int, uint>? texcoordFormat)
+    // A draw whose material the game lacks is a compile warning (cardtest's teleport02 models: 1).
+    private static int Warnings(List<DrawInput> draws, Func<string, MaterialFacts> material)
+        => draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase).Count(m => material(m).Signature.Count == 0);
+
+    private static Built Assemble(string name, List<DrawInput> draws, bool aggregate, MaterialFacts facts, bool mapMesh, Func<int, uint>? texcoordFormat,
+                                  int warnings = 0)
     {
         // One draw set: every draw in the same vertex buffers and one index buffer.
         var slots = Layout(draws, mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh, texcoordFormat);
@@ -163,7 +168,7 @@ internal static class WorldNodeModels
             [.. Enumerable.Range(0, bufferCount).Select(b => new WorldNodeModel.VertexBuffer(totalVertices, strides[b], true, [.. slots.Where(l => l.Buffer == b).Select(l => l.Field)]))],
             [new WorldNodeModel.IndexBuffer(ib.Count, elementSize, ibMeshopt, aggregate)],
             [new WorldNodeModel.SceneObject(min, max, described, aggregate ? drawBounds : [], meshlets)],
-            aggregate, 0);
+            aggregate, warnings);
         var buffers = Enumerable.Range(0, bufferCount).Select(b => (BlockType.MVTX, MeshoptEncoder.EncodeVertexBuffer(vbs[b], totalVertices, strides[b]))).ToList();
         buffers.Add((BlockType.MIDX, ibBytes));
         return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], []) { RawVertexBuffers = vbs };
