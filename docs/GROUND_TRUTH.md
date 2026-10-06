@@ -372,7 +372,12 @@ game can answer is raised with the user first, and runs with -insecure.
     MergeLoop (180034e40) also puts the 56 shell boxes in the candidate tree
     (payload n + i, no cluster), so a cluster beside the shell finds
     something and never widens its query. Ported (VisMerge.Selection);
-    both leaves exact.
+    both leaves exact. 2026-10-07 (VisChainTests, VISCHAIN_MERGE=mako.p on
+    that capture's own scene): generation, the pre-merge and all five merge
+    passes now equal Valve's set for set and cluster for cluster, pass 0
+    751,270 sets / 1,928,875 clusters to pass 5 13 sets / 25,471 clusters.
+    Open: assignment, the scan and the VXVS, which need a capture of one
+    compile end to end (capture_pvs.py).
 
 52. **The settle's dynamic order** (settled 2026-10-05: Valve's own output
     varies). MapSettle_Run (rc 180f1e490) takes its nodes from PhysDoc_GetNodes
