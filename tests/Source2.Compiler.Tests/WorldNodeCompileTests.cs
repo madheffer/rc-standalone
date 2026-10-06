@@ -20,7 +20,7 @@ namespace Source2.Compiler.Tests;
 public class WorldNodeCompileTests(ITestOutputHelper output)
 {
     /// <summary>The compile of a .vmap from scratch, and the content it read.</summary>
-    internal sealed record Compiled(WorldNodeCompile.Result Result, GameContent Content) : IDisposable
+    internal sealed record Compiled(WorldNodeCompile.Result Result, GameContent Content, Vector3 NodeMin, Vector3 NodeMax) : IDisposable
     {
         public void Dispose() => Content.Dispose();
     }
@@ -42,6 +42,20 @@ public class WorldNodeCompileTests(ITestOutputHelper output)
         var descriptors = NodeOverlays.FromWorld(doc);
         var (built, overlays) = WorldNodeBuild.BuildNode(world, props, descriptors);
         var envMaps = WorldNodeBuild.EnvMaps(built, lighting!.Volumes);
+        if (log != null)
+        {
+            static string Box(IEnumerable<(float[] V, int Stride)> meshes)
+            {
+                var (lo, hi) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+                foreach (var (v, stride) in meshes)
+                    for (var k = 0; k + 2 < v.Length; k += stride)
+                        (lo, hi) = (Vector3.Min(lo, new Vector3(v[k], v[k + 1], v[k + 2])), Vector3.Max(hi, new Vector3(v[k], v[k + 1], v[k + 2])));
+                return $"{lo.X:R},{lo.Y:R},{lo.Z:R} .. {hi.X:R},{hi.Y:R},{hi.Z:R}";
+            }
+            log($"bounds world+props {Box(world.Concat(props).Select(n => (n.Entry.Vertices, n.Entry.Stride)))}");
+            log($"bounds built {Box(built.Select(b => (b.Vertices, b.Source.Entry.Stride)))}");
+            log($"bounds overlays {Box(overlays.Select(o => (o.Mesh.Vertices, o.Mesh.Stride)))}");
+        }
         var lists = WorldNodeBuild.MergerInputs(built, overlays, descriptors, envMaps, content, shaders, kinds: [.. MeshLists.Order.Select(o => o.Kind)])
             .ToDictionary(kv => kv.Key, kv => kv.Value.Select(m => new WorldNodeCompile.Entry(m.Material, m.Stride, m.Vertices, m.Indices, m.Facts)).ToList());
         foreach (var (kind, l) in lists.Where(kv => kv.Value.Count > 0))
@@ -69,7 +83,15 @@ public class WorldNodeCompileTests(ITestOutputHelper output)
         log?.Invoke($"vis: {flat.Length} clusters");
         var result = WorldNodeCompile.Compile(lists, flat, mutual);
         log?.Invoke($"ours: {result.Objects.Count} objects, {result.Aggregates.Count} aggregates, {result.RenderBoxes.Count} render boxes");
-        return new Compiled(result, content);
+        // The node's bounds: BuildNode's output (probe01's -256.00006 is a T-junction point).
+        var (nodeMin, nodeMax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+        foreach (var b in built)
+            for (var k = 0; k + 2 < b.Vertices.Length; k += b.Source.Entry.Stride)
+            {
+                var p = new Vector3(b.Vertices[k], b.Vertices[k + 1], b.Vertices[k + 2]);
+                (nodeMin, nodeMax) = (Vector3.Min(nodeMin, p), Vector3.Max(nodeMax, p));
+            }
+        return new Compiled(result, content, nodeMin, nodeMax);
     }
 
     private static (List<(Vector3 Min, Vector3 Max)>[], float[][])? ReadVis(string path)

@@ -42,12 +42,20 @@ internal static class WorldNodeCompile
     }
 
     /// <summary>A render object: its name, layer, cluster, flags (CreateRenderObject's sixth argument) and meshes.</summary>
-    public sealed record RenderObject(string Name, int Layer, int Cluster, uint Flags, IReadOnlyList<Entry> Meshes);
+    public sealed record RenderObject(string Name, int Layer, int Cluster, uint Flags, IReadOnlyList<Entry> Meshes)
+    {
+        /// <summary>The overlay render order an overlay group gives it (+0x74).</summary>
+        public int OverlayOrder { get; init; }
+    }
 
     /// <summary>An aggregate scene object: its name, layer and meshes in draw order.</summary>
     public sealed record AggregateObject(string Name, int Layer, string List, IReadOnlyList<Entry> Meshes);
 
-    public sealed record Result(List<RenderObject> Objects, List<AggregateObject> Aggregates, List<(Vector3 Min, Vector3 Max)> RenderBoxes);
+    public sealed record Result(List<RenderObject> Objects, List<AggregateObject> Aggregates, List<(Vector3 Min, Vector3 Max)> RenderBoxes)
+    {
+        /// <summary>Lists whose compile is not ported, with the entries they held.</summary>
+        public List<string> Unported { get; init; } = [];
+    }
 
     /// <summary>Settings CompileNode reads: csgo_core's values by default.</summary>
     public sealed record Settings
@@ -70,6 +78,21 @@ internal static class WorldNodeCompile
         public bool Stashes { get; } = stashes;
         public List<Entry> Entries { get; set; } = [];
         public List<Entry> Stash { get; } = [];
+        public List<OverlayGroup> Groups { get; } = [];
+        public bool IsOverlay => Kind is MeshLists.Kind.Overlay or MeshLists.Kind.NoSplitOverlay;
+    }
+
+    // An overlay list's group (0x28 bytes): cluster, render order, object flags & 0x80,
+    // attribute bit 23, whether it takes more entries (+0xd) and whether it may aggregate (+0xe).
+    private sealed class OverlayGroup(int cluster, int order, uint flags, bool bit23, bool mergeable, bool aggregatable)
+    {
+        public int Cluster { get; } = cluster;
+        public int Order { get; } = order;
+        public uint Flags { get; } = flags;
+        public bool Bit23 { get; } = bit23;
+        public bool Mergeable { get; } = mergeable;
+        public bool Aggregatable { get; set; } = aggregatable;
+        public List<Entry> Entries { get; set; } = [];
     }
 
     // Base names' global counters (DAT_183bb3760 and friends), one per compile.
@@ -78,6 +101,7 @@ internal static class WorldNodeCompile
         public int BlockLight;
         public int BlockLightSkybox;
         public Dictionary<string, int> Aggregate { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<string> Unported { get; } = [];
     }
 
     public static Result Compile(Dictionary<MeshLists.Kind, List<Entry>> byKind, IReadOnlyList<List<(Vector3 Min, Vector3 Max)>>? visFlat,
@@ -105,6 +129,12 @@ internal static class WorldNodeCompile
                 var vism = 0;
                 foreach (var bucket in buckets.Where(b => b.Count > 0))
                 {
+                    // An overlay list's vf 0x30 (180271110) groups the bucket at the running index.
+                    if (list.IsOverlay)
+                    {
+                        vism += GroupOverlays(list, bucket, vism, settings);
+                        continue;
+                    }
                     var rest = StashAggregatable(list, bucket);
                     foreach (var e in rest)
                         objects.Add(CreateRenderObject(settings.NodePrefix, $"vism0_mt_{FileBase(e.Material, 0x18)}", 0, vism++,
@@ -142,8 +172,11 @@ internal static class WorldNodeCompile
                     }
                 }
             }
+            // An overlay list's vf 0x40 (180271780): its groups.
+            if (list.IsOverlay)
+                FlushOverlays(list, settings, counters, objects, aggregates);
             // vf 0x40 (180270430): the stash into aggregates, what is left per cluster after the list's last.
-            if (list.Stash.Count > 0)
+            else if (list.Stash.Count > 0)
             {
                 var left = GroupAggregates(list, settings, counters, aggregates);
                 if (left.Count > 0)
@@ -155,7 +188,7 @@ internal static class WorldNodeCompile
                 }
             }
         }
-        return new Result(objects, aggregates, boxes);
+        return new Result(objects, aggregates, boxes) { Unported = counters.Unported };
     }
 
     // CVisibilityMeshMerger::MergeMeshes with csgo_core's minimums; each output
@@ -225,8 +258,17 @@ internal static class WorldNodeCompile
             case MeshLists.Kind.Base:
                 GroupRenderObjects("mesh_base", entries, layer, cluster, settings, objects);
                 break;
+            case MeshLists.Kind.Overlay or MeshLists.Kind.NoSplitOverlay:
+                GroupOverlays(list, entries, cluster, settings);
+                break;
+            case MeshLists.Kind.WorldSpaceTexture:
+                // 1802723d0: grouped, each object gaining flag 0x40.
+                foreach (var o in GroupRenderObjects("mesh_worldspace_texture_blend", entries, layer, cluster, settings, objects))
+                    objects[objects.IndexOf(o)] = o with { Flags = o.Flags | 0x40 };
+                break;
             default:
-                throw new NotSupportedException($"the {list.Kind} mesh list's compile is not ported ({entries.Count} entries)");
+                counters.Unported.Add($"{list.Kind} cluster {cluster}: {entries.Count} entries");
+                break;
         }
     }
 
@@ -247,8 +289,9 @@ internal static class WorldNodeCompile
     /// then runs of equal ones (and an equal +0x1c8 matrix within 1e-5)
     /// each one object named <c>&lt;base&gt;[_cm%02d_lp%02d][_nz][_nsh][_fw][_eb%d]</c>.
     /// </summary>
-    private static void GroupRenderObjects(string baseName, List<Entry> entries, int layer, int cluster, Settings settings, List<RenderObject> objects)
+    private static List<RenderObject> GroupRenderObjects(string baseName, List<Entry> entries, int layer, int cluster, Settings settings, List<RenderObject> objects)
     {
+        var created = objects.Count;
         const ulong mask = 0x10420000;
         static float Boost(WrbMeshEntry f) => f.Field1a3 != 0 && (f.ObjectFlags & 0x100000) != 0 ? f.Field_b8 : 1f;
         var sorted = entries.OrderBy(e => e.Facts.Cubemap).ThenBy(e => e.Facts.LightProbe).ThenBy(e => (int)e.Facts.ObjectFlags)
@@ -286,6 +329,70 @@ internal static class WorldNodeCompile
             run.Add(e);
         }
         Flush();
+        return objects.GetRange(created, objects.Count - created);
+    }
+
+    /// <summary>
+    /// An overlay list's vf 0x20 (180271160): each entry joins the first
+    /// group of this call with its render order (+0xac), object flags &amp;
+    /// 0x80 and attribute bit 23 that takes more, or starts one; an entry
+    /// with attribute bit 1 starts its own, which takes no more. A group may
+    /// aggregate with UseAggregateInstances, bit 23 clear and order 0, while
+    /// every entry CanAggregate. Returns the number of groups added.
+    /// </summary>
+    private static int GroupOverlays(List list, List<Entry> entries, int cluster, Settings settings)
+    {
+        var added = new List<OverlayGroup>();
+        foreach (var e in entries)
+        {
+            var f = e.Facts;
+            var flags = f.ObjectFlags & 0x80;
+            var bit23 = (f.Attributes & 0x800000) != 0;
+            var mergeable = (f.Attributes & 2) == 0;
+            var g = mergeable ? added.FirstOrDefault(x => x.Order == f.OverlayOrder && x.Flags == flags && x.Bit23 == bit23 && x.Mergeable) : null;
+            if (g == null)
+                added.Add(g = new OverlayGroup(cluster, f.OverlayOrder, flags, bit23, mergeable,
+                                               settings.UseAggregateInstances && !bit23 && f.OverlayOrder == 0));
+            g.Aggregatable &= CanAggregate(f);
+            g.Entries.Add(e);
+        }
+        list.Groups.AddRange(added);
+        return added.Count;
+    }
+
+    /// <summary>
+    /// An overlay list's vf 0x40 (180271780): the aggregatable groups'
+    /// entries together through GroupAggregates as <c>agg_overlay</c>, what
+    /// is left back to its group; then each group with entries grouped as
+    /// render objects named <c>mesh_[ns]overlay&lt;group&gt;</c> ("ns" for
+    /// the no-split list) in its cluster, each object taking the group's
+    /// render order and object flags.
+    /// </summary>
+    private static void FlushOverlays(List list, Settings settings, Counters counters, List<RenderObject> objects, List<AggregateObject> aggregates)
+    {
+        var owner = new Dictionary<Entry, OverlayGroup>(ReferenceEqualityComparer.Instance);
+        foreach (var g in list.Groups.Where(g => g.Aggregatable))
+        {
+            foreach (var e in g.Entries)
+            {
+                owner[e] = g;
+                list.Stash.Add(e);
+            }
+            g.Entries = [];
+        }
+        if (list.Stash.Count > 0)
+            foreach (var e in GroupAggregates(list, settings, counters, aggregates, owner))
+                owner[e].Entries.Add(e);
+        var prefix = list.Kind == MeshLists.Kind.NoSplitOverlay ? "ns" : "";
+        for (var i = 0; i < list.Groups.Count; i++)
+        {
+            var g = list.Groups[i];
+            if (g.Entries.Count == 0)
+                continue;
+            foreach (var o in GroupRenderObjects($"mesh_{prefix}overlay{i}", g.Entries, 0, g.Cluster, settings, objects))
+                objects[objects.IndexOf(o)] = o with { Flags = o.Flags | g.Flags, OverlayOrder = g.Order };
+        }
+        list.Groups.Clear();
     }
 
     private static bool MatrixClose(float[] a, float[] b)
@@ -342,7 +449,8 @@ internal static class WorldNodeCompile
     /// 0x360 vertices without instance streams, which is left (attribute bit
     /// 30 cleared) for the list's compile. Returns what is left.
     /// </summary>
-    private static List<Entry> GroupAggregates(List list, Settings settings, Counters counters, List<AggregateObject> aggregates)
+    private static List<Entry> GroupAggregates(List list, Settings settings, Counters counters, List<AggregateObject> aggregates,
+                                               Dictionary<Entry, OverlayGroup>? owner = null)
     {
         var name = list.Kind switch
         {
@@ -350,6 +458,7 @@ internal static class WorldNodeCompile
             MeshLists.Kind.Instanced => "agg_nomerge",
             MeshLists.Kind.NoSplit => "agg_inst",
             MeshLists.Kind.BakedPropLod => "agg_prop",
+            MeshLists.Kind.Overlay or MeshLists.Kind.NoSplitOverlay => "agg_overlay",
             _ => throw new NotSupportedException($"aggregates of the {list.Kind} list"),
         };
         var sorted = list.Stash.OrderBy(e => e.Facts.Attributes & 0x6000000000).ThenBy(e => e.Facts.Attributes & 0x100000)
@@ -378,7 +487,13 @@ internal static class WorldNodeCompile
                 aggregates.Add(new AggregateObject($"{settings.NodePrefix}_lr0_{prefix}{n}", 0, name, run));
             }
             else
-                left.AddRange(run.Select(e => e with { Facts = e.Facts with { Attributes = e.Facts.Attributes & ~0x40000000UL } }));
+                foreach (var e in run)
+                {
+                    var cleared = e with { Facts = e.Facts with { Attributes = e.Facts.Attributes & ~0x40000000UL } };
+                    if (owner != null)
+                        owner[cleared] = owner[e];
+                    left.Add(cleared);
+                }
             i = j;
         }
         list.Stash.Clear();

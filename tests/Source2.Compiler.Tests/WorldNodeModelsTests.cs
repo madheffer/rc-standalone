@@ -23,6 +23,8 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
         if (compiled == null)
             return;
         var map = Path.GetFileNameWithoutExtension(vmap);
+        foreach (var u in compiled.Result.Unported)
+            output.WriteLine($"unported: {u}");
         var signatures = new Dictionary<string, WorldNodeModels.MaterialFacts>(StringComparer.OrdinalIgnoreCase);
         WorldNodeModels.MaterialFacts Material(string path)
         {
@@ -38,7 +40,7 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
 
         using var package = new Package();
         package.Read(vpk);
-        int count = 0, treesExact = 0, buffersExact = 0, factsExact = 0;
+        int count = 0, treesExact = 0, buffersExact = 0, factsExact = 0, barLighting = 0;
         var tally = new SortedDictionary<string, int>(StringComparer.Ordinal);
         var builtByName = new Dictionary<string, WorldNodeModels.Built>(StringComparer.OrdinalIgnoreCase);
         var examples = new Dictionary<string, string>();
@@ -96,6 +98,18 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
                 using var vr = new ValveResourceFormat.Resource();
                 vr.Read(new MemoryStream(valve));
                 var vbib = ((ValveResourceFormat.ResourceTypes.Model)vr.DataBlock!).GetEmbeddedMeshesAndLoD().First().Mesh.VBIB;
+                // Exact but for color 1, the previous bake's per-vertex lighting (an input).
+                var lightingOnly = vbib.VertexBuffers.Count == built.RawVertexBuffers.Count && valveBuffers[^1].Bytes.AsSpan().SequenceEqual(built.Buffers[^1].Bytes);
+                for (var b = 0; b < Math.Min(vbib.VertexBuffers.Count, built.RawVertexBuffers.Count); b++)
+                {
+                    var vb = vbib.VertexBuffers[b];
+                    var light = vb.InputLayoutFields.Where(f => f.SemanticName.Equals("color", StringComparison.OrdinalIgnoreCase) && f.SemanticIndex == 1).ToList();
+                    var stride = (int)vb.ElementSizeInBytes;
+                    lightingOnly &= vb.Data.Length == built.RawVertexBuffers[b].Length && Enumerable.Range(0, vb.Data.Length)
+                        .All(i => vb.Data[i] == built.RawVertexBuffers[b][i] || light.Any(f => i % stride >= f.Offset && i % stride < f.Offset + 8));
+                }
+                if (lightingOnly)
+                    barLighting++;
                 for (var b = 0; b < Math.Min(vbib.VertexBuffers.Count, built.RawVertexBuffers.Count); b++)
                 {
                     var (vd, od, st) = (vbib.VertexBuffers[b].Data, built.RawVertexBuffers[b], (int)vbib.VertexBuffers[b].ElementSizeInBytes);
@@ -119,7 +133,7 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
         // The node's scene file.
         string Model(string n) => $"maps/{map}/worldnodes/{n}.vmdl";
         static float Boost(WrbMeshEntry f) => f.Field1a3 != 0 && (f.ObjectFlags & 0x100000) != 0 ? f.Field_b8 : 1f;
-        var sceneObjects = compiled.Result.Objects.Select(o => new WorldNodeSceneTrees.SceneObject(Model(o.Name), o.Flags, o.Meshes[0].Facts.OverlayOrder,
+        var sceneObjects = compiled.Result.Objects.Select(o => new WorldNodeSceneTrees.SceneObject(Model(o.Name), o.Flags, o.OverlayOrder,
             o.Meshes[0].Facts.Cubemap, o.Meshes[0].Facts.LightProbe, Boost(o.Meshes[0].Facts))).ToList();
         var aggregateObjects = compiled.Result.Aggregates.Where(a => builtByName.ContainsKey(a.Name)).Select(a => new WorldNodeSceneTrees.Aggregate(Model(a.Name), a.Layer,
             builtByName[a.Name].DrawSources.Select((e, i) => new WorldNodeSceneTrees.AggregateMesh(i, e.Facts.ObjectFlags, e.Facts.LightProbe,
@@ -135,22 +149,7 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
         var vwrldEntry = package.Entries!["vwrld_c"].First();
         package.ReadEntry(vwrldEntry, out var vwrldBytes);
         var vwrldValve = WorldPhysicsAuthorTests.Trees(vwrldBytes)["DATA"];
-        var (lo, hi) = (new System.Numerics.Vector3(float.MaxValue), new System.Numerics.Vector3(float.MinValue));
-        foreach (var e in compiled.Result.Objects.SelectMany(o => o.Meshes).Concat(compiled.Result.Aggregates.SelectMany(a => a.Meshes)))
-        {
-            var at = 0;
-            foreach (var s in e.Facts.Streams)
-            {
-                if (s.Name == "position")
-                    break;
-                at += s.Count;
-            }
-            for (var k = at; k < e.Vertices.Length; k += e.Stride)
-            {
-                var p = new System.Numerics.Vector3(e.Vertices[k], e.Vertices[k + 1], e.Vertices[k + 2]);
-                (lo, hi) = (System.Numerics.Vector3.Min(lo, p), System.Numerics.Vector3.Max(hi, p));
-            }
-        }
+        var (lo, hi) = (compiled.NodeMin, compiled.NodeMax);
         var builder = vwrldValve["m_builderParams"]!;
         var world = WorldTrees.Data(1024f, [new WorldTrees.Node(lo, hi, $"maps\\{map}\\worldnodes\\n0")], [$"maps/{map}/entities/default_ents.vents"],
                                     (uint)builder["m_nCompileTimestamp"]!, (ulong)builder["m_nCompileFingerprint"]!);
@@ -167,7 +166,7 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
             var groups = ResourceManifestAuthor.ReadData(vrmanBytes.AsSpan((int)data.Offset, (int)data.Size));
             output.WriteLine($"n0.vrman: {string.Join(" / ", groups.Select(g => string.Join(", ", g)))}");
         }
-        output.WriteLine($"{map}: {count} node models, trees exact {treesExact}, buffers exact {buffersExact}, container facts {factsExact}");
+        output.WriteLine($"{map}: {count} node models, trees exact {treesExact}, buffers exact {buffersExact} (+{barLighting} bar previous-bake lighting), container facts {factsExact}");
         foreach (var (k, v) in tally)
             output.WriteLine($"{v,5} {examples.GetValueOrDefault(k, k)}");
     }
