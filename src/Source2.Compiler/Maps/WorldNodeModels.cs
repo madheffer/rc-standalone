@@ -51,7 +51,11 @@ internal static class WorldNodeModels
     private const uint R32G32B32Float = 6, R16G16B16A16Float = 10, R32G32Float = 16, R8G8B8A8Unorm = 28, R16G16Float = 34, R16G16Snorm = 37, R32Uint = 42;
 
     // A draw before packing: material, built geometry, stream layout and its source facts.
-    private sealed record DrawInput(string Material, NodeDraw.Result Geometry, int Stride, IReadOnlyList<WrbMeshEntry.Stream> Streams, WrbMeshEntry Facts);
+    private sealed record DrawInput(string Material, NodeDraw.Result Geometry, int Stride, IReadOnlyList<WrbMeshEntry.Stream> Streams, WrbMeshEntry Facts)
+    {
+        /// <summary>Each stream's first float ("name:index"), when the streams are not laid out in list order.</summary>
+        public Dictionary<string, int>? Offsets { get; init; }
+    }
 
     /// <param name="mapMesh">embedded_map_mesh: the model compiler splits the depth stream (FUN_1802f9cc0: with SplitDepthStream, not pooled) and compresses texcoords (ModelCompile_BuildDrawSets) only for a map mesh; a brush entity's model keeps one buffer and float texcoords.</param>
     /// <param name="layout">The signature the layout follows, when not the first draw's material's.</param>
@@ -71,9 +75,36 @@ internal static class WorldNodeModels
                                     first.Stride, first.Facts.Streams, first.Facts));
         }
 
+        return Assemble(name, draws, aggregate, layout ?? material(draws[0].Material), mapMesh, null) with { DrawSources = [.. groups.Select(g => g[0])] };
+    }
+
+    /// <summary>
+    /// A static prop aggregate (<c>agg_prop</c>, <see cref="NodePropAggregates"/>):
+    /// its draws as built, in model space, the streams laid out position,
+    /// texcoord, texcoord 1, normal, colour (atixref's 171 agg_prop layouts),
+    /// texcoords in the run's formats.
+    /// </summary>
+    public static Built BuildPropAggregate(string name, NodePropAggregates.Aggregate aggregate, Func<string, MaterialFacts> material)
+    {
+        var draws = aggregate.Draws.Select(d =>
+        {
+            var source = NodePropEntries.Streams(d.Color);
+            // PrepareForMerge's filter by the material's inputs, then the layout order.
+            var kept = MaterialStreams.Kept(source, MaterialStreams.Inputs(material(d.Material).Signature.Select(x => x.Semantic)), false).ToHashSet();
+            var order = new[] { 0, 3, 5, 1, 2, 4 }.Where(kept.Contains).Select(i => source[i]).ToList();
+            var streams = order.Select(x => new WrbMeshEntry.Stream(x.Name, x.Name == "texcoord" && x.First == 16 ? 1 : 0, x.Count, 0, x.Type)).ToList();
+            var offsets = order.Zip(streams).ToDictionary(z => $"{z.Second.Name}:{z.Second.Index}", z => z.First.First, StringComparer.OrdinalIgnoreCase);
+            return new DrawInput(d.Material, d.Geometry, NodePropEntries.Stride, streams,
+                                 new WrbMeshEntry { Material = d.Material, Attributes = d.Attributes, Field28 = Vector4.One, Streams = streams }) { Offsets = offsets };
+        }).ToList();
+        uint Format(string f) => f switch { "R32G32_FLOAT" => R32G32Float, "R16G16_SNORM" => R16G16Snorm, _ => R16G16Float };
+        return Assemble(name, draws, true, material(draws[0].Material), true, index => Format(aggregate.TexcoordFormats[index]));
+    }
+
+    private static Built Assemble(string name, List<DrawInput> draws, bool aggregate, MaterialFacts facts, bool mapMesh, Func<int, uint>? texcoordFormat)
+    {
         // One draw set: every draw in the same vertex buffers and one index buffer.
-        var facts = layout ?? material(draws[0].Material);
-        var slots = Layout(draws, mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh);
+        var slots = Layout(draws, mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh, texcoordFormat);
         var bufferCount = slots.Max(l => l.Buffer) + 1;
         var strides = Enumerable.Range(0, bufferCount).Select(b => slots.Where(l => l.Buffer == b).Sum(f => FormatSize(f.Field.Format))).ToArray();
         var totalVertices = draws.Sum(d => d.Geometry.VertexCount);
@@ -87,7 +118,7 @@ internal static class WorldNodeModels
         foreach (var d in draws)
         {
             var g = d.Geometry;
-            var offsets = StreamOffsets(d.Streams);
+            var offsets = d.Offsets ?? StreamOffsets(d.Streams);
             for (var b = 0; b < bufferCount; b++)
                 for (var v = 0; v < g.VertexCount; v++)
                     Pack(vbs[b].AsSpan((vertexBase + v) * strides[b], strides[b]), g.Vertices.AsSpan(v * d.Stride, d.Stride), offsets, slots.Where(l => l.Buffer == b));
@@ -135,7 +166,7 @@ internal static class WorldNodeModels
             aggregate, 0);
         var buffers = Enumerable.Range(0, bufferCount).Select(b => (BlockType.MVTX, MeshoptEncoder.EncodeVertexBuffer(vbs[b], totalVertices, strides[b]))).ToList();
         buffers.Add((BlockType.MIDX, ibBytes));
-        return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], [.. groups.Select(g => g[0])]) { RawVertexBuffers = vbs };
+        return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], []) { RawVertexBuffers = vbs };
     }
 
     // Step_SplittingMeshWith (180260710) welds each fragment's CMesh (CMesh_Weld with 0), then
@@ -235,9 +266,13 @@ internal static class WorldNodeModels
     private static bool Reads(IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement> elements, WrbMeshEntry.Stream s)
         => elements.Any(x => MaterialStreams.Inputs([x.Semantic]) is [var m] && Io.Tier0Strings.EqualsIgnoreCase(m.Name, s.Name) && m.Index == s.Index);
 
-    private static List<Slot> Layout(List<DrawInput> draws, MaterialFacts facts, bool aggregate, bool mapMesh)
+    private static List<Slot> Layout(List<DrawInput> draws, MaterialFacts facts, bool aggregate, bool mapMesh, Func<int, uint>? texcoordFormat = null)
     {
         var signature = facts.Signature;
+        // A depth signature with a Dummy element does not split (atixref's agg_prop: 66 such
+        // materials keep one buffer, the 6 without Dummy split), nor one that reads every stream.
+        var splits = facts.Depth.Count > 0 && !facts.Depth.Any(e => Io.Tier0Strings.EqualsIgnoreCase(e.Semantic, "Dummy"))
+                     && draws[0].Streams.Any(x => !x.Name.Equals("tangent", StringComparison.OrdinalIgnoreCase) && !Reads(facts.Depth, x));
         var slots = new List<Slot>();
         var offsets = new int[2];
         foreach (var s in draws[0].Streams)
@@ -249,12 +284,12 @@ internal static class WorldNodeModels
             uint format = s.Name.ToLowerInvariant() switch
             {
                 "position" => R32G32B32Float,
-                "texcoord" => TexcoordFormat(draws, s, aggregate),
+                "texcoord" => texcoordFormat?.Invoke(s.Index) ?? TexcoordFormat(draws, s, aggregate),
                 "normal" or "vertexgenericintegerdata" => R32Uint,
                 "pervertexlighting" => R16G16B16A16Float,
                 _ => R8G8B8A8Unorm,
             };
-            var buffer = facts.Depth.Count > 0 && !Reads(facts.Depth, s) ? 1 : 0;
+            var buffer = splits && !Reads(facts.Depth, s) ? 1 : 0;
             var offset = offsets[buffer];
             var field = input != null
                 ? new WorldNodeModel.LayoutField(input.D3DSemanticName, input.D3DSemanticIndex, format, offset, Truncate(input.Semantic))

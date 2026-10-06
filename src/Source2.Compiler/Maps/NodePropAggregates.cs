@@ -40,7 +40,15 @@ internal static class NodePropAggregates
     public const int MinimumVertices = 0x35f;
 
     /// <summary>A draw: one prop mesh (model, draw call, material) built as an aggregate draw in model space.</summary>
-    public sealed record Draw(string Model, int Call, string Material, NodeDraw.Result Geometry);
+    public sealed record Draw(string Model, int Call, string Material, NodeDraw.Result Geometry)
+    {
+        /// <summary>Whether the prop mesh has a vertex colour (its stream is VertexPaintTintColor), and its material's attribute bits.</summary>
+        public bool Color { get; init; }
+        public ulong Attributes { get; init; }
+    }
+
+    /// <summary>A prop's LOD setup: its LOD origin (the placed bounds centre), largest scale and the model's switch distances.</summary>
+    public sealed record LodSetup(Vector3 Origin, float MaxScale, IReadOnlyList<float> SwitchDistances);
 
     /// <summary>One placed instance of a draw: the prop's matrix (3x4 row-major), tint and entry flags.</summary>
     public sealed record Fragment(int Draw, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int LodMask, int LodSetup);
@@ -53,11 +61,19 @@ internal static class NodePropAggregates
     /// every value lies in [-1, 1], else R16G16_FLOAT.
     /// </summary>
     public sealed record Aggregate(string Material, ulong AttributeBits, IReadOnlyList<Draw> Draws, IReadOnlyList<Fragment> Fragments,
-                                   IReadOnlyList<string> TexcoordFormats);
+                                   IReadOnlyList<string> TexcoordFormats)
+    {
+        /// <summary>The LOD setups the fragments name, in order.</summary>
+        public IReadOnlyList<LodSetup> LodSetups { get; init; } = [];
+    }
 
     // An entry before bucketing: its mesh (index into the mesh list) and fields.
     private sealed record Entry(int Mesh, string Material, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int Vertices,
-                                int Prop, int LodMask, bool Lods);
+                                int Prop, int LodMask, bool Lods)
+    {
+        public IReadOnlyList<float> Switch { get; init; } = [];
+        public float MaxScale { get; init; } = 1f;
+    }
 
     // A mesh: a model's draw call under its final material, unpacked in model space.
     private sealed record Mesh(string Model, int Call, string Material, float[] Vertices, int[] Indices, bool Color, ulong Attributes, bool FloatTexcoords);
@@ -123,6 +139,7 @@ internal static class NodePropAggregates
                 foreach (var c in calls)
                     (lo, hi) = Place(matrix, c.Lo, c.Hi, lo, hi);
                 var centre = (lo + hi) * 0.5f;
+                var switchDistances = model.Data.GetArray<double>("m_lodGroupSwitchDistances")?.Select(x => (float)x).ToArray() ?? [];
                 for (var call = 0; call < calls.Count; call++)
                 {
                     var c = calls[call];
@@ -139,7 +156,7 @@ internal static class NodePropAggregates
                         meshes.Add(new Mesh(modelName, call, material, c.Vertices, c.Indices, c.Color, flags.Flags, c.FloatTexcoords));
                     }
                     entries.Add(new Entry(mi, material, matrix, header.Tint, header.ObjectFlags, flags.Flags, id, centre, c.Vertices.Length / NodePropEntries.Stride,
-                        propIndex, c.Lod, lods));
+                        propIndex, c.Lod, lods) { Switch = switchDistances, MaxScale = MaxScale(matrix) });
                 }
             }
             if (all)
@@ -249,6 +266,7 @@ internal static class NodePropAggregates
         var drawOf = new Dictionary<int, int>();
         var fragments = new List<Fragment>();
         var setups = new Dictionary<int, int>();
+        var lodSetups = new List<LodSetup>();
         foreach (var e in run)
         {
             if (!drawOf.TryGetValue(e.Mesh, out var d))
@@ -257,12 +275,16 @@ internal static class NodePropAggregates
                 drawOf[e.Mesh] = d = draws.Count;
                 var cone = NodeDraw.ConeWeight((m.Attributes & 0x100000000) != 0);
                 draws.Add(new Draw(m.Model, m.Call, m.Material,
-                    NodeDraw.Build(m.Vertices, NodePropEntries.Stride, 0, m.Indices, NodePropEntries.Streams(m.Color), true, cone)));
+                    NodeDraw.Build(m.Vertices, NodePropEntries.Stride, 0, m.Indices, NodePropEntries.Streams(m.Color), true, cone)) { Color = m.Color, Attributes = m.Attributes });
             }
             var setup = -1;
             if (e.Lods && !setups.TryGetValue(e.Prop, out setup))
+            {
                 setups[e.Prop] = setup = setups.Count;
-            fragments.Add(new Fragment(d, e.Matrix, e.Tint, e.ObjectFlags, e.Attributes, e.NodeId, e.Centre, e.Lods ? e.LodMask : 0, setup));
+                lodSetups.Add(new LodSetup(e.Centre, e.MaxScale, e.Switch));
+            }
+            // m_nLODGroupMask: the LOD's bit.
+            fragments.Add(new Fragment(d, e.Matrix, e.Tint, e.ObjectFlags, e.Attributes, e.NodeId, e.Centre, e.Lods ? 1 << e.LodMask : 0, setup));
         }
         // The aggregate's meshes list each draw's fragments together, by draw.
         fragments = [.. fragments.Select((f, i) => (f, i)).OrderBy(x => x.f.Draw).ThenBy(x => x.i).Select(x => x.f)];
@@ -271,7 +293,14 @@ internal static class NodePropAggregates
             MathF.Max(MathF.Abs(d.Geometry.Vertices[(v * NodePropEntries.Stride) + slot]), MathF.Abs(d.Geometry.Vertices[(v * NodePropEntries.Stride) + slot + 1])))).DefaultIfEmpty(0f).Max();
         var flagged = NodeDraw.RunPrecise([.. run.Select(e => (meshes[e.Mesh].FloatTexcoords, 0f)), (false, Max(10)), (false, Max(16))]);
         string Format(int slot) => NodeDraw.TexcoordFormat(flagged, [Max(slot)]);
-        return new Aggregate(material, bits, draws, fragments, [Format(10), Format(16)]);
+        return new Aggregate(material, bits, draws, fragments, [Format(10), Format(16)]) { LodSetups = lodSetups };
+    }
+
+    // The matrix's largest axis length (m_fMaxObjectScale).
+    private static float MaxScale(float[] m)
+    {
+        float Axis(int c) => MathF.Sqrt((m[c] * m[c]) + (m[4 + c] * m[4 + c]) + (m[8 + c] * m[8 + c]));
+        return MathF.Max(Axis(0), MathF.Max(Axis(1), Axis(2)));
     }
 
     // A model's draw calls, every LOD: material, unpacked vertices (model space) from the lowest referenced vertex, rebased indices, bounds, LOD mask.

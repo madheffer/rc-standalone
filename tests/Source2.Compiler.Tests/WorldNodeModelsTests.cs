@@ -1,6 +1,7 @@
 using Source2.Compiler.Maps;
 using ValvePak;
 using ValveKeyValue;
+using ValveResourceFormat.Serialization.KeyValues;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -169,5 +170,109 @@ public class WorldNodeModelsTests(ITestOutputHelper output)
         output.WriteLine($"{map}: {count} node models, trees exact {treesExact}, buffers exact {buffersExact} (+{barLighting} bar previous-bake lighting), container facts {factsExact}");
         foreach (var (k, v) in tally)
             output.WriteLine($"{v,5} {examples.GetValueOrDefault(k, k)}");
+    }
+
+    /// <summary>
+    /// <c>WNPROPS=&lt;vmap&gt;|&lt;compiled vpk&gt;</c>: each shipped agg_prop model beside
+    /// ours (<see cref="WorldNodeModels.BuildPropAggregate"/>), matched by the
+    /// first draw's material and triangle set: the trees and buffers where our
+    /// draw order is Valve's (heap-ordered elsewhere, ledger 43).
+    /// </summary>
+    [Fact]
+    public void PropAggregateModels()
+    {
+        if (Environment.GetEnvironmentVariable("WNPROPS") is not { Length: > 0 } spec || spec.Split('|') is not [var vmap, var vpk]
+            || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vmap)))!;
+        using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
+        using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+        var doc = MapSource.Read(vmap);
+        var world = WorldNodeBuild.WorldEntries(doc, content, shaders, NodeEntriesFromVmap.RendersAsWorld(game));
+        var props = WorldNodeBuild.PropEntries(doc, content, shaders);
+        var (built, _) = WorldNodeBuild.BuildNode(world, props, NodeOverlays.FromWorld(doc));
+        var nodeMin = new System.Numerics.Vector2(float.MaxValue);
+        foreach (var b in built)
+            for (var k = 0; k + 1 < b.Vertices.Length; k += b.Source.Entry.Stride)
+                nodeMin = System.Numerics.Vector2.Min(nodeMin, new System.Numerics.Vector2(b.Vertices[k], b.Vertices[k + 1]));
+        var cache = new Dictionary<string, MeshEntryFlags.IAttributes>(StringComparer.OrdinalIgnoreCase);
+        MeshEntryFlags.IAttributes Attributes(string material)
+        {
+            if (!cache.TryGetValue(material, out var a))
+                cache[material] = a = content.Material(material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
+            return a;
+        }
+        var ours = NodePropAggregates.FromWorld(doc, content, Attributes, nodeMin);
+        var facts = new Dictionary<string, WorldNodeModels.MaterialFacts>(StringComparer.OrdinalIgnoreCase);
+        WorldNodeModels.MaterialFacts Material(string path)
+        {
+            if (!facts.TryGetValue(path, out var f))
+                facts[path] = f = content.Read(path + "_c") is { } bytes
+                    ? new WorldNodeModels.MaterialFacts(MaterialAuthor.ExtractInputSignature(bytes), MaterialAuthor.ExtractDepthSignature(bytes))
+                    : new WorldNodeModels.MaterialFacts([], []);
+            return f;
+        }
+        static string Key3(System.Numerics.Vector3 a, System.Numerics.Vector3 b, System.Numerics.Vector3 c)
+            => string.Join("|", new[] { a, b, c }.Select(v => $"{v.X:R},{v.Y:R},{v.Z:R}").Order(StringComparer.Ordinal));
+        static List<string> Ordered(IReadOnlyList<System.Numerics.Vector3> p, IReadOnlyList<int> idx)
+            => [.. Enumerable.Range(0, idx.Count / 3).Select(t => Key3(p[idx[t * 3]], p[idx[(t * 3) + 1]], p[idx[(t * 3) + 2]]))];
+        var byFirst = new Dictionary<string, NodePropAggregates.Aggregate>();
+        foreach (var a in ours)
+        {
+            var g = a.Draws[0].Geometry;
+            var pos = Enumerable.Range(0, g.VertexCount).Select(v => new System.Numerics.Vector3(g.Vertices[v * NodePropEntries.Stride], g.Vertices[(v * NodePropEntries.Stride) + 1], g.Vertices[(v * NodePropEntries.Stride) + 2])).ToList();
+            byFirst.TryAdd(a.Material.ToLowerInvariant() + "#" + string.Join(";", Ordered(pos, g.Indices)), a);
+        }
+        using var package = new Package();
+        package.Read(vpk);
+        int models = 0, matched = 0, treesExact = 0, buffersExact = 0;
+        var tally = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        var examples = new Dictionary<string, string>();
+        foreach (var entry in package.Entries!.GetValueOrDefault("vmdl_c") ?? [])
+        {
+            if (!entry.FileName.Contains("_agg_prop_", StringComparison.Ordinal))
+                continue;
+            models++;
+            package.ReadEntry(entry, out var valve);
+            using var resource = new ValveResourceFormat.Resource();
+            resource.Read(new MemoryStream(valve));
+            var mesh = ((ValveResourceFormat.ResourceTypes.Model)resource.DataBlock!).GetEmbeddedMeshesAndLoD().First().Mesh;
+            var dc = mesh.Data.GetArray("m_sceneObjects")[0].GetArray("m_drawCalls")[0];
+            var vb = mesh.VBIB.VertexBuffers[dc.GetArray("m_vertexBuffers")[0].GetInt32Property("m_hBuffer")];
+            var pos = ValveResourceFormat.Blocks.VBIB.GetVector3AttributeArray(vb, vb.InputLayoutFields.First(f => f.SemanticName == "POSITION"));
+            var ib = mesh.VBIB.IndexBuffers[dc.GetSubCollection("m_indexBuffer").GetInt32Property("m_hBuffer")];
+            var start = dc.GetInt32Property("m_nStartIndex");
+            var off = dc.GetInt32Property("m_nAppliedIndexOffset");
+            var idx = Enumerable.Range(start, dc.GetInt32Property("m_nIndexCount")).Select(i => (ib.ElementSizeInBytes == 2 ? BitConverter.ToUInt16(ib.Data, i * 2) : BitConverter.ToInt32(ib.Data, i * 4)) - off).ToList();
+            var local = pos.Skip(off).ToList();
+            var key = (dc.GetStringProperty("m_material") ?? "").ToLowerInvariant() + "#" + string.Join(";", Ordered(local, idx));
+            if (!byFirst.TryGetValue(key, out var agg))
+                continue;
+            matched++;
+            if (Environment.GetEnvironmentVariable("WNPROPS_DEPTH") == "1")
+                output.WriteLine($"DEPTH {agg.Material}: valve vbs {mesh.VBIB.VertexBuffers.Count}, depth elems {string.Join(",", Material(agg.Material).Depth.Select(e => e.Semantic))}");
+            var name = $"maps/{Path.GetFileNameWithoutExtension(vmap)}/worldnodes/{Path.GetFileNameWithoutExtension(entry.FileName)}.vmdl";
+            var mine = WorldNodeModels.BuildPropAggregate(name, agg, Material);
+            var trees = WorldPhysicsAuthorTests.Trees(valve);
+            var lines = new List<string>();
+            foreach (var (block, tree) in new Dictionary<string, KVObject> { ["MDAT"] = WorldNodeModelTrees.Mdat(mine.Model), ["CTRL"] = WorldNodeModelTrees.Ctrl(mine.Model),
+                                                                            ["RED2"] = WorldNodeModelTrees.Red2(mine.Model), ["DATA"] = WorldNodeModelTrees.Data(mine.Model) })
+                lines.AddRange(KvTreeDiff.Diff(trees[block], tree).Select(l => block + l));
+            if (lines.Count == 0)
+                treesExact++;
+            foreach (var l in lines)
+            {
+                var k = System.Text.RegularExpressions.Regex.Replace(l.Split(':')[0], @"\[\d+\]", "[]");
+                tally[k] = tally.GetValueOrDefault(k) + 1;
+                examples.TryAdd(k, $"{entry.FileName}: {l}");
+            }
+            var vbs = WorldNodeModelAuthorTests.BufferBlocks(valve);
+            if (vbs.Count == mine.Buffers.Count && vbs.Zip(mine.Buffers).All(p => p.First.Bytes.AsSpan().SequenceEqual(p.Second.Bytes)))
+                buffersExact++;
+        }
+        output.WriteLine($"agg_prop models: {models}, matched {matched}, trees exact {treesExact}, buffers exact {buffersExact}");
+        foreach (var (k, v) in tally)
+            output.WriteLine($"{v,5} {examples[k]}");
     }
 }
