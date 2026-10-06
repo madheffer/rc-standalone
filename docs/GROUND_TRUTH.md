@@ -192,8 +192,14 @@ game can answer is raised with the user first, and runs with -insecure.
     180f71020 "UpdateDirtyProceduralObjects"), three containers of 12 to 23
     parts (82k to 178k triangles) and repeated models, plus a few through
     MapDoc_BakeInstances. So Mako's light scene lacks its smart props'
-    geometry. Next: add the evaluated smart props (Maps/SmartProps) to
-    EditorTraceScene, then the cable.
+    geometry. Added (EditorTraceScene.SmartPropInstances: one container per
+    smart prop at the node's transform, flags 0, its parts' model triangles
+    moved into the node's space at the identity): 490,812 smart prop
+    triangles now match, a few hundred a 1/64 key apart. Mako's lights
+    differing went from 125 to 105, none worse; the rest are not the scene
+    (only one cable and rounding remain there). Next: the light pass itself
+    on one of them (light_omni2 385: Valve's box reaches x -5779, ours
+    -5248).
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.

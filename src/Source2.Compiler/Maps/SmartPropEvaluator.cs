@@ -619,6 +619,59 @@ internal static class SmartPropEvaluator
     }
 
     /// <summary>
+    /// A smart prop node's transform and its evaluated placements, or null
+    /// (with a note) when something it needs is not ported: a scaled node, a
+    /// missing definition, a node inside an instance inside a prefab, or a
+    /// definition the evaluator refuses (Mako's scale operations).
+    /// </summary>
+    public static (CTransform Node, List<Placement> Placements)? ForNode(MapMeshes.EntityNode entity,
+        Func<string, KVObject?>? smartProps, List<string>? notes)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        var e = entity.Element;
+        var nodeId = e.GetValue<int>("nodeID") ?? -1;
+        var file = e.Get<string>("smartPropFilename") ?? "";
+        if ((e.GetValue<Vector3>("scales") ?? Vector3.One) != Vector3.One)
+        {
+            notes?.Add($"smart prop {nodeId} ({file}): scaled, not ported");
+            return null;
+        }
+        if (smartProps?.Invoke(file) is not { } definition)
+        {
+            notes?.Add($"smart prop {nodeId} ({file}): no definition");
+            return null;
+        }
+        var (configuration, parameters) = NodeData(e);
+        // One inside an instance starts from its node's matrix under the
+        // instance path (Mako's industrial lamps: all 16 pieces; the node's
+        // baked placement leaves six a thousandth off).
+        var nodeWorld = MapMeshes.Local(e);
+        if (entity.Through.Count > 0 && entity.PrefabChain.Count == 0)
+            nodeWorld = MapMeshes.Concat(entity.Path, nodeWorld);
+        if (entity.Through.Count > 0 && entity.PrefabChain.Count > 0)
+        {
+            notes?.Add($"smart prop {nodeId} ({file}): inside an instance in a prefab, not ported");
+            return null;
+        }
+        var node = NodeTransform(nodeWorld);
+        // One in a prefab's map: its node's transform composed under each
+        // prefab's CTransform, innermost first (atixref as a prefab: the
+        // radiator's 13 pieces exact; the prefab's matrix or the node moved
+        // as a collapse moves it leave them an ulp off).
+        foreach (var prefab in entity.PrefabChain.Reverse())
+            node = CTransform.Compose(CTransform.FromNode(prefab), node);
+        try
+        {
+            return (node, Evaluate(definition, configuration, parameters, node));
+        }
+        catch (NotSupportedException ex)
+        {
+            notes?.Add($"smart prop {nodeId} ({file}): {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// A smart prop node's transform as the compile takes it (181230360,
     /// 18122d020): the node's world matrix split into column scales and a
     /// rotation (18125b270), the rotation's MatrixQuaternion (18125de90), the

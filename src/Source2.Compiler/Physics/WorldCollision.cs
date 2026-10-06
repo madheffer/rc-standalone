@@ -620,47 +620,8 @@ public static class WorldCollision
         var file = e.Get<string>("smartPropFilename") ?? "";
         if ((e.GetValue<int>("collisionMode") ?? -1) is >= 0 and not 6)
             yield break;
-        if ((e.GetValue<Vector3>("scales") ?? Vector3.One) != Vector3.One)
-        {
-            notes?.Add($"smart prop {nodeId} ({file}): scaled, not ported");
+        if (Maps.SmartPropEvaluator.ForNode(entity, smartProps, notes) is not var (node, placements))
             yield break;
-        }
-        if (smartProps?.Invoke(file) is not { } definition)
-        {
-            notes?.Add($"smart prop {nodeId} ({file}): no definition");
-            yield break;
-        }
-        var (configuration, parameters) = Maps.SmartPropEvaluator.NodeData(e);
-        // One inside an instance starts from its node's matrix under the
-        // instance path (Mako's industrial lamps: all 16 pieces; the node's
-        // baked placement leaves six a thousandth off).
-        var nodeWorld = Maps.MapMeshes.Local(e);
-        if (entity.Through.Count > 0 && entity.PrefabChain.Count == 0)
-            nodeWorld = Maps.MapMeshes.Concat(entity.Path, nodeWorld);
-        if (entity.Through.Count > 0 && entity.PrefabChain.Count > 0)
-        {
-            notes?.Add($"smart prop {nodeId} ({file}): inside an instance in a prefab, not ported");
-            yield break;
-        }
-        var node = Maps.SmartPropEvaluator.NodeTransform(nodeWorld);
-        // One in a prefab's map: its node's transform composed under each
-        // prefab's CTransform, innermost first (atixref as a prefab: the
-        // radiator's 13 pieces exact; the prefab's matrix or the node moved
-        // as a collapse moves it leave them an ulp off).
-        foreach (var prefab in entity.PrefabChain.Reverse())
-            node = Maps.CTransform.Compose(Maps.CTransform.FromNode(prefab), node);
-        // A definition using something not ported gives no pieces, listed,
-        // rather than stopping the whole build (Mako's scale operations).
-        List<Maps.SmartPropEvaluator.Placement> placements;
-        try
-        {
-            placements = Maps.SmartPropEvaluator.Evaluate(definition, configuration, parameters, node);
-        }
-        catch (NotSupportedException ex)
-        {
-            notes?.Add($"smart prop {nodeId} ({file}): {ex.Message}");
-            yield break;
-        }
         foreach (var placement in placements)
         {
             var (origin, angles, scales) = Maps.SmartPropEvaluator.PropPlacement(node, placement);

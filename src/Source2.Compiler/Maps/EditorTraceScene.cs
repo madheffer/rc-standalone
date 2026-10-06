@@ -112,13 +112,14 @@ public sealed class EditorTraceScene : ILightTracer
 
     /// <summary>
     /// The scene the light precompute traces for a map: its meshes, then its
-    /// static props, materials read from <paramref name="content"/>.
+    /// static props, then its smart props, materials read from <paramref name="content"/>.
     /// </summary>
     public static EditorTraceScene ForMap(DmxBinary.Document document, GameContent content)
     {
         ushort Flags(string m) => TraceScene.MaterialFlags(content.Material(m));
         var (_, entities) = MapMeshes.ReadWithEntities(document);
-        return new EditorTraceScene([.. MapMeshInstances(document, Flags), .. StaticPropInstances(entities, content, Flags)]);
+        return new EditorTraceScene([.. MapMeshInstances(document, Flags), .. StaticPropInstances(entities, content, Flags),
+                                     .. SmartPropInstances(entities, content, content.SmartProp, Flags)]);
     }
 
     /// <summary>
@@ -160,6 +161,52 @@ public sealed class EditorTraceScene : ILightTracer
             {
                 ToWorld = world, ToLocal = Invert(world), ObjectFlags = 0x80b0000, Children = children,
                 Source = $"prop {n.Element.GetValue<int>("nodeID")}",
+            });
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// The smart props' owners (built by their procedural update, rc 1810a0490
+    /// under 180f71020): one container per smart prop the walk reaches, placed
+    /// at the node's transform with owner flags 0, holding each placed part's
+    /// model render triangles already moved into the node's space, at the
+    /// identity (Mako's light scene, capture_rayscene.py). A smart prop the
+    /// evaluator cannot do is listed in <paramref name="notes"/> and left out.
+    /// Not modelled: a part's material group.
+    /// </summary>
+    public static List<Instance> SmartPropInstances(IEnumerable<MapMeshes.EntityNode> nodes, GameContent content,
+        Func<string, ValveKeyValue.KVObject?> smartProps, Func<string, ushort> materialFlags, List<string>? notes = null)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        var list = new List<Instance>();
+        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+        foreach (var n in nodes)
+        {
+            if (n.Hidden || n.Element.Type != "CMapSmartProp")
+                continue;
+            if (SmartPropEvaluator.ForNode(n, smartProps, notes) is not var (node, placements))
+                continue;
+            var children = new List<Instance>();
+            foreach (var placement in placements)
+            {
+                // The part in the node's space, as PropPlacement takes it apart.
+                var local = CTransform.Compose(node.Inverse(), placement.Transform);
+                var part = new CTransform(local.Position, 1f, local.Rotation).Matrix();
+                var s = local.Scale * node.Scale;
+                Scale(part, new Vector3(s * placement.ModelScale.X, s * placement.ModelScale.Y, s * placement.ModelScale.Z));
+                foreach (var mesh in content.RenderMeshes(placement.Model).Where(m => m.Count > 0))
+                    children.Add(MakeInstance([.. mesh.Select(t => (MapMeshes.Transform(part, t.A), MapMeshes.Transform(part, t.B),
+                                                                    MapMeshes.Transform(part, t.C), materialFlags(t.Material)))],
+                                              identity, 0, "smart part"));
+            }
+            if (children.Count == 0)
+                continue;
+            var world = node.Matrix();
+            list.Add(new Instance
+            {
+                ToWorld = world, ToLocal = Invert(world), ObjectFlags = 0, Children = children,
+                Source = $"smartprop {n.Element.GetValue<int>("nodeID")}",
             });
         }
         return list;
