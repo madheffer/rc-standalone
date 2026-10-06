@@ -53,6 +53,10 @@ public sealed record WrbMeshEntry
     public float[] Matrix { get; init; } = new float[12];
     /// <summary>CMesh +0x152: set, the entry merges with nothing.</summary>
     public bool Mesh152 { get; init; }
+    /// <summary>+0x40: the source node id.</summary>
+    public int NodeId { get; init; }
+    /// <summary>+0xa8: -1 for a map mesh or overlay, 0 for a prop entry (atixref's 1,018 at BuildNode's end).</summary>
+    public int FieldA8 { get; init; } = -1;
 
     /// <summary>A CMesh stream (0x28 bytes): name, semantic index (+0x10), float count (+0x18), high precision (+0x1d), type (+0x20).</summary>
     public sealed record Stream(string Name, int Index, int Count, byte Precise, int Type);
@@ -166,6 +170,8 @@ public sealed record WrbMeshEntry
             Name = name,
             Matrix = matrix,
             Mesh152 = mesh[0x152] != 0,
+            NodeId = BitConverter.ToInt32(entry[0x40..]),
+            FieldA8 = BitConverter.ToInt32(entry[0xa8..]),
         };
     }
 }

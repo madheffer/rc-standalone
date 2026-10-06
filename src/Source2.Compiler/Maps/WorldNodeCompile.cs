@@ -102,6 +102,8 @@ internal static class WorldNodeCompile
         public int BlockLightSkybox;
         public Dictionary<string, int> Aggregate { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> Unported { get; } = [];
+        // DAT_183bb3764: the instanced objects' counter.
+        public int Instanced;
     }
 
     public static Result Compile(Dictionary<MeshLists.Kind, List<Entry>> byKind, IReadOnlyList<List<(Vector3 Min, Vector3 Max)>>? visFlat,
@@ -261,6 +263,15 @@ internal static class WorldNodeCompile
             case MeshLists.Kind.Overlay or MeshLists.Kind.NoSplitOverlay:
                 GroupOverlays(list, entries, cluster, settings);
                 break;
+            case MeshLists.Kind.Instanced:
+                CompileInstanced(list, "nomerge", entries, layer, settings, counters, objects);
+                break;
+            case MeshLists.Kind.NoSplit:
+                CompileInstanced(list, "nosplit", entries, layer, settings, counters, objects);
+                break;
+            case MeshLists.Kind.BakedPropLod:
+                CompileInstanced(list, "mesh_prop", entries, layer, settings, counters, objects);
+                break;
             case MeshLists.Kind.WorldSpaceTexture:
                 // 1802723d0: grouped, each object gaining flag 0x40.
                 foreach (var o in GroupRenderObjects("mesh_worldspace_texture_blend", entries, layer, cluster, settings, objects))
@@ -401,6 +412,54 @@ internal static class WorldNodeCompile
             if (MathF.Abs(a[i] - b[i]) > 1e-5f)
                 return false;
         return true;
+    }
+
+    /// <summary>
+    /// vf 0x38 (18026ed20) of the instanced, no-split and baked prop lists:
+    /// entries keyed by (+0x40 node id, +0xa8) in a CUtlHashtable, walked in
+    /// slot order. A key's entries go to the stash when the list stashes and
+    /// every one CanAggregate; otherwise they make one object
+    /// <c>&lt;prefix&gt;&lt;n&gt;_&lt;material&gt;</c> (n a counter over the
+    /// compile) in cluster 0, with the first entry's flags.
+    /// </summary>
+    private static void CompileInstanced(List list, string prefix, List<Entry> entries, int layer, Settings settings, Counters counters, List<RenderObject> objects)
+    {
+        var table = new UtlHashtable<(int, int)>();
+        var groups = new Dictionary<int, List<Entry>>();
+        foreach (var e in entries)
+        {
+            var slot = table.Insert((e.Facts.NodeId, e.Facts.FieldA8), KeyHash((uint)e.Facts.NodeId, (uint)e.Facts.FieldA8));
+            if (!groups.TryGetValue(slot, out var g))
+                groups[slot] = g = [];
+            g.Add(e);
+        }
+        foreach (var (slot, _) in table.Slots())
+        {
+            var g = groups[slot];
+            if (list.Stashes && g.All(e => CanAggregate(e.Facts)))
+            {
+                list.Stash.AddRange(g);
+                continue;
+            }
+            var f = g[0].Facts;
+            objects.Add(CreateRenderObject(settings.NodePrefix, $"{prefix}{counters.Instanced++}_{FileBase(g[0].Material, 0x18)}", layer, 0,
+                                           f.ObjectFlags, f.Attributes, f.Field1a6 != 0, g));
+        }
+    }
+
+    // The hash of the (+0x40, +0xa8) key (18026eda0..18026ee37).
+    private static uint KeyHash(uint a, uint b)
+    {
+        static uint Mix(uint k)
+        {
+            k = ((k >> 16) ^ k) * 0x85ebca6b;
+            return ((k >> 13) ^ k) * 0xc2b2ae35;
+        }
+        ulong h0 = Mix(a), h1 = Mix(b);
+        var x = (((h0 << 16) ^ (h0 & 0xffff0000)) << 16) | ((h1 >> 16) ^ h1);
+        x = ((x >> 33) ^ x) * 0xff51afd7ed558ccd;
+        x = ((x >> 33) ^ x) * 0xc4ceb9fe1a85ec53;
+        return (uint)(x >> 33) ^ (uint)x;
     }
 
     /// <summary>CreateRenderObject's name (18026bab0).</summary>
