@@ -1,6 +1,7 @@
 using ValvePak;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
+using ValveResourceFormat.ResourceTypes;
 using Xunit;
 using Xunit.Abstractions;
 
