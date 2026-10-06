@@ -19,6 +19,9 @@ import threading
 
 import frida
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from package_guard import PackageGuard  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
@@ -78,23 +81,25 @@ def main():
             out.write(json.dumps(p) + "\n")
 
     vpk = os.path.join(CS2, "game", "csgo_addons", args.addon, "maps", args.map + ".vpk")
-    if os.path.exists(vpk):
-        os.remove(vpk)
-    source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
-    device = frida.get_local_device()
-    pid = device.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game",
-                        os.path.join(CS2, "game", "csgo"), "-i", source,
-                        "-world", "-vis", "-fshallow"], cwd=BIN, stdio="pipe")
-    session = device.attach(pid)
-    script = session.create_script(AGENT % {"rva": rva, "want": json.dumps(want)})
-    script.on("message", on_message)
-    script.load()
-    done = threading.Event()
-    session.on("detached", lambda *a: done.set())
-    device.resume(pid)
-    done.wait()
-    out.close()
-    print("->", out_path)
+    # Moved aside (a current package makes RC skip the compile) and put back,
+    # byte checked, once the compile has exited (tools/package_guard.py).
+    with PackageGuard(vpk, out_path + ".vpk.bak") as guard:
+        source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
+        device = frida.get_local_device()
+        pid = device.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game",
+                            os.path.join(CS2, "game", "csgo"), "-i", source,
+                            "-world", "-vis", "-fshallow"], cwd=BIN, stdio="pipe")
+        guard.pid = pid
+        session = device.attach(pid)
+        script = session.create_script(AGENT % {"rva": rva, "want": json.dumps(want)})
+        script.on("message", on_message)
+        script.load()
+        done = threading.Event()
+        session.on("detached", lambda *a: done.set())
+        device.resume(pid)
+        done.wait()
+        out.close()
+        print("->", out_path)
 
 
 if __name__ == "__main__":

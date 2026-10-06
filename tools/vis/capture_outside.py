@@ -32,6 +32,7 @@ Records: u32 json length, json, u32 blob length, blob.
 CS2 must be closed.
 """
 import argparse
+import filecmp
 import json
 import os
 import shutil
@@ -270,8 +271,11 @@ def main():
             print("->", stem + ".outside" + ext)
     if os.path.exists(backup):
         shutil.copyfile(backup, vpk)
-        os.remove(backup)
-        print("restored", vpk)
+        if filecmp.cmp(backup, vpk, shallow=False):
+            os.remove(backup)
+            print("restored", vpk)
+        else:
+            print("RESTORE CMP FAILED", vpk, "backup kept at", backup)
     print("->", out_path)
 
 

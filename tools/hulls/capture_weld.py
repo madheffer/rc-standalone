@@ -26,6 +26,9 @@ import time
 
 import frida
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from package_guard import PackageGuard  # noqa: E402
+
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
@@ -183,37 +186,38 @@ def main():
         with lock:
             out.write(struct.pack("<I", len(head)) + head + struct.pack("<I", len(blob)) + blob)
 
-    # A current VPK makes RC skip the compile.
     vpk = os.path.join(CS2, "game", "csgo_addons", args.addon, "maps", args.map + ".vpk")
-    if os.path.exists(vpk):
-        os.remove(vpk)
-    source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
-    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4",
-            "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
-    if not args.full:
-        argv += ["-world", "-fshallow"]
+    # Moved aside (a current package makes RC skip the compile) and put back,
+    # byte checked, once the compile has exited (tools/package_guard.py).
+    with PackageGuard(vpk, out_path + ".vpk.bak") as guard:
+        source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
+        argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4",
+                "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
+        if not args.full:
+            argv += ["-world", "-fshallow"]
 
-    device = frida.get_local_device()
-    pid = device.spawn(argv, cwd=BIN, stdio="pipe")
-    session = device.attach(pid)
-    script = session.create_script(AGENT % {
-        "rva": WELD_RVA, "limit": args.limit, "phys": PHYS_RVA,
-        "dophys": str(args.phys).lower(), "xform": XFORM_RVA,
-        "doxform": str(args.xform).lower()})
-    script.on("message", on_message)
-    script.load()
+        device = frida.get_local_device()
+        pid = device.spawn(argv, cwd=BIN, stdio="pipe")
+        guard.pid = pid
+        session = device.attach(pid)
+        script = session.create_script(AGENT % {
+            "rva": WELD_RVA, "limit": args.limit, "phys": PHYS_RVA,
+            "dophys": str(args.phys).lower(), "xform": XFORM_RVA,
+            "doxform": str(args.xform).lower()})
+        script.on("message", on_message)
+        script.load()
 
-    done = threading.Event()
-    log = []
-    device.on("output", lambda p, fd, d: log.append(d.decode("utf-8", "replace")) if d else None)
-    session.on("detached", lambda *a: done.set())
-    started = time.time()
-    device.resume(pid)
-    done.wait()
-    out.close()
-    with open(out_path + ".log", "w", encoding="utf-8") as h:
-        h.write("".join(log))
-    print("%.1fs  %s  -> %s" % (time.time() - started, stats, out_path))
+        done = threading.Event()
+        log = []
+        device.on("output", lambda p, fd, d: log.append(d.decode("utf-8", "replace")) if d else None)
+        session.on("detached", lambda *a: done.set())
+        started = time.time()
+        device.resume(pid)
+        done.wait()
+        out.close()
+        with open(out_path + ".log", "w", encoding="utf-8") as h:
+            h.write("".join(log))
+        print("%.1fs  %s  -> %s" % (time.time() - started, stats, out_path))
 
 
 if __name__ == "__main__":

@@ -49,6 +49,9 @@ import threading
 
 import frida
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from package_guard import PackageGuard  # noqa: E402
+
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
@@ -390,32 +393,34 @@ def main():
             out.write(struct.pack("<I", len(head)) + head + struct.pack("<I", len(blob)) + blob)
 
     vpk = os.path.join(CS2, "game", "csgo_addons", args.addon, "maps", args.map + ".vpk")
-    if os.path.exists(vpk):
-        os.remove(vpk)
-    source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
-    device = frida.get_local_device()
-    pid = device.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game",
-                        os.path.join(CS2, "game", "csgo"), "-i", source,
-                        "-world", "-vis", "-fshallow"], cwd=BIN, stdio="pipe")
-    session = device.attach(pid)
-    script = session.create_script(AGENT % {"rva": json.dumps(rva), "passin": "true" if args.passin else "false"})
-    script.on("message", on_message)
-    script.load()
-    done = threading.Event()
-    session.on("detached", lambda *a: done.set())
-    device.resume(pid)
-    done.wait()
-    out.close()
-    print("->", out_path)
-    # The scene this compile traced. The .rte is not byte-stable between
-    # compiles and the next compile of the map overwrites it, so a replay must
-    # read this copy, not the one under %TEMP%/csgo_addons.
-    stem = out_path[:-len(".pvs.bin")] if out_path.endswith(".pvs.bin") else out_path
-    scene = os.path.join(os.environ.get("TEMP", "."), "csgo_addons", args.addon, "maps", args.map)
-    for ext in (".rte", ".viscfg"):
-        if os.path.exists(scene + ext):
-            shutil.copyfile(scene + ext, stem + ext)
-            print("->", stem + ext)
+    # Moved aside (a current package makes RC skip the compile) and put back,
+    # byte checked, once the compile has exited (tools/package_guard.py).
+    with PackageGuard(vpk, out_path + ".vpk.bak") as guard:
+        source = os.path.join(CS2, "content", "csgo_addons", args.addon, "maps", args.map + ".vmap")
+        device = frida.get_local_device()
+        pid = device.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game",
+                            os.path.join(CS2, "game", "csgo"), "-i", source,
+                            "-world", "-vis", "-fshallow"], cwd=BIN, stdio="pipe")
+        guard.pid = pid
+        session = device.attach(pid)
+        script = session.create_script(AGENT % {"rva": json.dumps(rva), "passin": "true" if args.passin else "false"})
+        script.on("message", on_message)
+        script.load()
+        done = threading.Event()
+        session.on("detached", lambda *a: done.set())
+        device.resume(pid)
+        done.wait()
+        out.close()
+        print("->", out_path)
+        # The scene this compile traced. The .rte is not byte-stable between
+        # compiles and the next compile of the map overwrites it, so a replay must
+        # read this copy, not the one under %TEMP%/csgo_addons.
+        stem = out_path[:-len(".pvs.bin")] if out_path.endswith(".pvs.bin") else out_path
+        scene = os.path.join(os.environ.get("TEMP", "."), "csgo_addons", args.addon, "maps", args.map)
+        for ext in (".rte", ".viscfg"):
+            if os.path.exists(scene + ext):
+                shutil.copyfile(scene + ext, stem + ext)
+                print("->", stem + ext)
 
 
 if __name__ == "__main__":

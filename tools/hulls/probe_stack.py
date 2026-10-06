@@ -7,9 +7,13 @@ that a call must meet to count.
 """
 import argparse
 import os
+import sys
 import threading
 
 import frida
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from package_guard import PackageGuard  # noqa: E402
 
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
@@ -51,21 +55,23 @@ def main():
     p.add_argument("--js", default="true")
     a = p.parse_args()
     vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
-    if os.path.exists(vpk):
-        os.remove(vpk)
-    source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
-    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4",
-            "-game", os.path.join(CS2, "game", "csgo"), "-i", source, "-world", "-fshallow"]
-    dev = frida.get_local_device()
-    pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
-    ses = dev.attach(pid)
-    sc = ses.create_script(AGENT % {"rva": int(a.rva, 16), "limit": a.limit, "cond": a.js})
-    sc.on("message", lambda m, d: print(m.get("payload", m)))
-    sc.load()
-    done = threading.Event()
-    ses.on("detached", lambda *x: done.set())
-    dev.resume(pid)
-    done.wait()
+    # Moved aside (a current package makes RC skip the compile) and put back,
+    # byte checked, once the compile has exited (tools/package_guard.py).
+    with PackageGuard(vpk, os.path.join(os.environ.get("TEMP", "."), "package_guard", "%s__%s.vpk.bak" % (a.addon, a.map))) as guard:
+        source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
+        argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4",
+                "-game", os.path.join(CS2, "game", "csgo"), "-i", source, "-world", "-fshallow"]
+        dev = frida.get_local_device()
+        pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
+        guard.pid = pid
+        ses = dev.attach(pid)
+        sc = ses.create_script(AGENT % {"rva": int(a.rva, 16), "limit": a.limit, "cond": a.js})
+        sc.on("message", lambda m, d: print(m.get("payload", m)))
+        sc.load()
+        done = threading.Event()
+        ses.on("detached", lambda *x: done.set())
+        dev.resume(pid)
+        done.wait()
 
 
 if __name__ == "__main__":
