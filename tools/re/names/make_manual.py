@@ -403,6 +403,13 @@ RESOURCECOMPILER = [
     ("180285eb0", "WRB_BuildPathTraceSceneInfo", BAKE, "lights, cameras, instances, mesh_file"),
     ("180217740", "CStaticLightingProcessor::BakeLighting", BAKE, ""),
     ("18025db60", "CWorldRendererBuilderNode::BakeLightMaps", BAKE, ""),
+    # NLightBaker (lightbaker.cpp): the vrad3 script and run (docs/VRAD3.md). The lightmap
+    # section's writer is 1801eda80 in the 10-06 build (its code changed since 0923).
+    ("1801ee0b0", "NLightBaker_WriteLpvScript", BAKE, "// Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume"),
+    ("1801ee9f0", "NLightBaker_WriteFarfieldScript", BAKE, "// Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0)"),
+    ("1801f01a0", "NLightBaker_WriteFogIrradianceScript", BAKE, "// Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu)"),
+    ("1801f0dd0", "NLightBaker_LoadFarfield", BAKE, "reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures"),
+    ("1801f2240", "NLightBaker::RunVrad3", BAKE, "writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"),
     ("18032e3e0", "CModelDocCompileInstance::CompilePhysics", PM, "a model's physics, world_physics.vmdl included; RED2 surface_prop = symbol table +0x458, filled at 18032ebd0 from each part's shapes' +0xf0 in order (capture_surfaceprops.py)"),
     ("1818d77e0", "CNavMesh::CreateArea", NAV, ""),
     ("1818dcb00", "CNavMesh::Update", NAV, ""),

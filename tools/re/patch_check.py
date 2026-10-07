@@ -5,7 +5,7 @@ D:/tools/patch_reports/<date>_<patch>.md, exiting 2 when something the port
 depends on needs attention:
 
 1. The toolchain DLLs (resourcecompiler, vphysics2, physicsbuilder, tier0,
-   visbuilder). Each installed DLL is hashed and compared with the builds in
+   visbuilder, vrad3, and the rest of DLLS). Each installed DLL is hashed and compared with the builds in
    D:/tools/binaries (and D:/tools/ghidra_staging); a new build is copied
    there as <dll>_<yyyymmdd>.dll so it can be analysed.
 
@@ -52,8 +52,9 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
 # rendersystemvulkan and rendersystemdx11: the material sampler's render (texture preload cap).
+# vrad3: the lighting baker resourcecompiler runs (docs/VRAD3.md), being reversed for our own bake.
 DLLS = ["resourcecompiler", "vphysics2", "physicsbuilder", "tier0", "visbuilder", "smartprops", "hammer",
-        "rendersystemvulkan", "rendersystemdx11"]
+        "rendersystemvulkan", "rendersystemdx11", "vrad3"]
 # DLLs not directly in bin/win64: Hammer's build dialog (compile-map follows its command line).
 SUBDIR = {"hammer": "tools"}
 BASELINE_DIRS = [r"D:\tools\binaries", r"D:\tools\ghidra_staging"]

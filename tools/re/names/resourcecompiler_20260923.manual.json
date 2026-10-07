@@ -2161,6 +2161,36 @@
    "note": ""
   },
   {
+   "addr": "1801ee0b0",
+   "name": "NLightBaker_WriteLpvScript",
+   "module": "s2c:baked/lighting",
+   "note": "// Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume"
+  },
+  {
+   "addr": "1801ee9f0",
+   "name": "NLightBaker_WriteFarfieldScript",
+   "module": "s2c:baked/lighting",
+   "note": "// Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0)"
+  },
+  {
+   "addr": "1801f01a0",
+   "name": "NLightBaker_WriteFogIrradianceScript",
+   "module": "s2c:baked/lighting",
+   "note": "// Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu)"
+  },
+  {
+   "addr": "1801f0dd0",
+   "name": "NLightBaker_LoadFarfield",
+   "module": "s2c:baked/lighting",
+   "note": "reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures"
+  },
+  {
+   "addr": "1801f2240",
+   "name": "NLightBaker::RunVrad3",
+   "module": "s2c:baked/lighting",
+   "note": "writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"
+  },
+  {
    "addr": "18032e3e0",
    "name": "CModelDocCompileInstance::CompilePhysics",
    "module": "s2c:physics/model",

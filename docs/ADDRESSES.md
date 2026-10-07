@@ -167,7 +167,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 861 addresses
+- 866 addresses
 
 ### s2c:baked/light-keys
 
@@ -319,6 +319,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `180133da0` | `Texture_CheckCubemapFaces` | Cubemap %i, face %i has Inf/NaN/extremely bright pixel |  |
 | `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array |  |
+| `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume |  |
+| `1801ee9f0` | `NLightBaker_WriteFarfieldScript` | // Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0) |  |
+| `1801f01a0` | `NLightBaker_WriteFogIrradianceScript` | // Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu) |  |
+| `1801f0dd0` | `NLightBaker_LoadFarfield` | reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures |  |
+| `1801f2240` | `NLightBaker::RunVrad3` | writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries |  |
 | `180217740` | `CStaticLightingProcessor::BakeLighting` |  |  |
 | `18023af80` | `Vrad3_Init` | VRAD3_PATH, Vrad3_Init_SearchPath |  |
 | `180248800` | `WRB_BakePrecomputedShadows` | direct_light_shadows |  |
