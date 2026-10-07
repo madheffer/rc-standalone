@@ -29,6 +29,13 @@ public class VwnodDumpProbe(ITestOutputHelper output)
             package.ReadEntry(entry, out var bytes);
             using var resource = new Resource();
             resource.Read(new MemoryStream(bytes));
+            if (p[2].EndsWith(".vwrld_c", StringComparison.Ordinal))
+            {
+                var world = ((World)resource.DataBlock!).Data;
+                foreach (var n in world.GetArray("m_worldNodes") ?? [])
+                    output.WriteLine($"{label} node {string.Join(" | ", n.Children.Select(c => $"{c.Key}={Show(c.Value)}"))}");
+                continue;
+            }
             var data = ((WorldNode)resource.DataBlock!).Data;
             output.WriteLine($"== {label}: keys {string.Join(",", data.Children.Select(c => c.Key))}");
             foreach (var so in data.GetArray("m_sceneObjects") ?? [])
