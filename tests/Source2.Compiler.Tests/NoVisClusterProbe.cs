@@ -66,7 +66,7 @@ public class NoVisClusterProbe(ITestOutputHelper output)
                 output.WriteLine($"  {Path.GetFileName(e.Material)} attr {e.Facts.Attributes:x} flags {e.Facts.ObjectFlags:x} stride {e.Stride} v {e.Vertices.Length / e.Stride} t {e.TriangleCount} node {e.Facts.NodeId} streams {string.Join(",", (e.Facts.MeshStreams ?? e.Facts.Streams).Select(s => $"{s.Name}/{s.Index}/{s.Count}/{s.Precise}/{s.Type}"))} hash {(int)WrbMeshEntry.LayoutHash(e.Facts.MeshStreams ?? e.Facts.Streams)} {lo}..{hi}");
             }
         }
-        var layer = WorldNodeBuild.LayerEntries(built);
+        var layer = WorldNodeBuild.LayerEntries(built, overlays, descriptors, content, shaders);
         var result = WorldNodeCompile.Compile(lists, null, null, nodeBounds: (min, max), layer: layer);
         foreach (var o in result.Objects)
             output.WriteLine($"object {o.Name}: " + string.Join(" ", o.Meshes.Select(m => $"{Path.GetFileName(m.Material)}/v{m.Vertices.Length / m.Stride}/t{m.TriangleCount}/s{m.Stride}")));

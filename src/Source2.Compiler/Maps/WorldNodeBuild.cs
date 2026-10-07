@@ -196,18 +196,34 @@ internal static class WorldNodeBuild
 
     /// <summary>
     /// The node's entries in BuildNode's order, as CompileNode collects a
-    /// layer's (node +0x148): every one, whichever list takes it or none
+    /// layer's (node +0x148): the world and prop entries, then the overlay
+    /// meshes (welded at 1/32), every one whichever list takes it or none
     /// (atixref's toolsskybox and toolsnodraw entries), with its attributes
     /// and unfiltered streams. The render cluster boxes come from these
     /// when nothing else makes them (a capture of atixref's -world build:
     /// all 88,857 centroids, from its 882 contributing entries in order).
     /// </summary>
-    public static List<WorldNodeCompile.Entry> LayerEntries(IReadOnlyList<Built> built)
-        => [.. built.Select(b => new WorldNodeCompile.Entry(b.Source.Entry.Material, b.Source.Entry.Stride, b.Vertices, b.Indices, new WrbMeshEntry
+    public static List<WorldNodeCompile.Entry> LayerEntries(IReadOnlyList<Built> built, IReadOnlyList<NodeOverlays.Projection> overlays,
+                                                            IReadOnlyList<NodeOverlays.Descriptor> descriptors, GameContent content, ShaderLibrary shaders)
+    {
+        static WorldNodeCompile.Entry Entry(string material, int stride, float[] vertices, int[] indices, ulong attributes, IReadOnlyList<Physics.MeshWeld.Stream> streams, int node)
+            => new(material, stride, vertices, indices, new WrbMeshEntry
+            {
+                Attributes = attributes, Material = material, Stride = stride, NodeId = node,
+                Streams = [.. streams.Select(s => new WrbMeshEntry.Stream(s.Name, 0, s.Count, 0, s.Type))],
+            });
+        var layer = built.Select(b => Entry(b.Source.Entry.Material, b.Source.Entry.Stride, b.Vertices, b.Indices, b.Source.Header.Attributes, b.Source.Entry.Streams, b.Source.Header.NodeId)).ToList();
+        foreach (var projection in overlays)
         {
-            Attributes = b.Source.Header.Attributes, Material = b.Source.Entry.Material, Stride = b.Source.Entry.Stride, NodeId = b.Source.Header.NodeId,
-            Streams = [.. b.Source.Entry.Streams.Select(s => new WrbMeshEntry.Stream(s.Name, 0, s.Count, 0, s.Type))],
-        }))];
+            var d = descriptors[projection.Overlay];
+            var attributes = content.Material(d.Material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
+            var flags = MeshEntryFlags.Compute(attributes, new MeshEntryFlags.Record(0, 0, 0, true, null, false)).Flags;
+            var mesh = projection.Mesh;
+            var (wv, wi) = Physics.MeshWeld.Weld(mesh.Vertices, mesh.Stride, [.. Enumerable.Range(0, mesh.Vertices.Length / mesh.Stride)], mesh.Streams, 1f / 32f, true);
+            layer.Add(Entry(d.Material, mesh.Stride, wv, wi, flags, mesh.Streams, 0));
+        }
+        return layer;
+    }
 
     // CMesh_Bounds: the positions' per-axis minimum and maximum.
     private static (Vector3 Min, Vector3 Max) Bounds(float[] vertices, int stride, IReadOnlyList<Physics.MeshWeld.Stream> streams)
