@@ -58,7 +58,7 @@ public static class WorldNodeFiles
                 var p = new Vector3(b.Vertices[k], b.Vertices[k + 1], b.Vertices[k + 2]);
                 (nodeMin, nodeMax) = (Vector3.Min(nodeMin, p), Vector3.Max(nodeMax, p));
             }
-        var result = WorldNodeCompile.Compile(lists, flat, mutual, nodeBounds: built.Count > 0 ? (nodeMin, nodeMax) : null);
+        var result = WorldNodeCompile.Compile(lists, flat, mutual, nodeBounds: built.Count > 0 ? (nodeMin, nodeMax) : null, layer: WorldNodeBuild.LayerEntries(built));
         notes.AddRange(result.Unported.Select(u => "world node list not ported: " + u));
 
         // The models.

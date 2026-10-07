@@ -66,19 +66,20 @@ public class NoVisClusterProbe(ITestOutputHelper output)
                 output.WriteLine($"  {Path.GetFileName(e.Material)} attr {e.Facts.Attributes:x} flags {e.Facts.ObjectFlags:x} stride {e.Stride} v {e.Vertices.Length / e.Stride} t {e.TriangleCount} node {e.Facts.NodeId} streams {string.Join(",", (e.Facts.MeshStreams ?? e.Facts.Streams).Select(s => $"{s.Name}/{s.Index}/{s.Count}/{s.Precise}/{s.Type}"))} hash {(int)WrbMeshEntry.LayoutHash(e.Facts.MeshStreams ?? e.Facts.Streams)} {lo}..{hi}");
             }
         }
-        var result = WorldNodeCompile.Compile(lists, null, null, nodeBounds: (min, max));
+        var layer = WorldNodeBuild.LayerEntries(built);
+        var result = WorldNodeCompile.Compile(lists, null, null, nodeBounds: (min, max), layer: layer);
         foreach (var o in result.Objects)
             output.WriteLine($"object {o.Name}: " + string.Join(" ", o.Meshes.Select(m => $"{Path.GetFileName(m.Material)}/v{m.Vertices.Length / m.Stride}/t{m.TriangleCount}/s{m.Stride}")));
         foreach (var a in result.Aggregates)
             output.WriteLine($"aggregate {a.Name}: " + string.Join(" ", a.Meshes.Select(m => $"v{m.Vertices.Length / m.Stride}/t{m.TriangleCount}")));
         if (Environment.GetEnvironmentVariable("NOVISPROBE_RCAPTURE") is { Length: > 0 } capture)
-            CompareBoxes(capture, lists, result);
+            CompareBoxes(capture, layer, result);
     }
 
     // NOVISPROBE_RCAPTURE=<capture_rclusters.py output>: Valve's one box-builder call
     // (centroids in, boxes out) against our render boxes and our layer's centroids
-    // in list order (CompileNode's fallback when nothing else made boxes).
-    private void CompareBoxes(string capture, Dictionary<MeshLists.Kind, List<WorldNodeCompile.Entry>> lists, WorldNodeCompile.Result result)
+    // in BuildNode order (CompileNode's fallback when nothing else made boxes).
+    private void CompareBoxes(string capture, List<WorldNodeCompile.Entry> layer, WorldNodeCompile.Result result)
     {
         var data = File.ReadAllBytes(capture);
         Vector3[] valveCentroids = [];
@@ -101,14 +102,13 @@ public class NoVisClusterProbe(ITestOutputHelper output)
         for (var i = 0; i < Math.Max(result.RenderBoxes.Count, valveBoxes.Count); i++)
             output.WriteLine($"  box {i}: ours {(i < result.RenderBoxes.Count ? $"{result.RenderBoxes[i].Min}..{result.RenderBoxes[i].Max}" : "-")} valve {(i < valveBoxes.Count ? $"{valveBoxes[i].Min}..{valveBoxes[i].Max}" : "-")}");
         var ours = new List<(Vector3 C, string From)>();
-        foreach (var o in MeshLists.Order)
-            foreach (var e in lists.GetValueOrDefault(o.Kind) ?? [])
+        foreach (var e in layer)
             {
                 if (!RenderClusters.Contributes(e.Facts.Attributes))
                     continue;
                 Vector3 P(int v) => new(e.Vertices[v * e.Stride], e.Vertices[(v * e.Stride) + 1], e.Vertices[(v * e.Stride) + 2]);
                 for (var t = 0; t < e.TriangleCount; t++)
-                    ours.Add((RenderClusters.Centroid(P(e.Indices[t * 3]), P(e.Indices[(t * 3) + 1]), P(e.Indices[(t * 3) + 2])), $"{o.Kind} node {e.Facts.NodeId} {Path.GetFileName(e.Material)}"));
+                    ours.Add((RenderClusters.Centroid(P(e.Indices[t * 3]), P(e.Indices[(t * 3) + 1]), P(e.Indices[(t * 3) + 2])), $"node {e.Facts.NodeId} {Path.GetFileName(e.Material)}"));
             }
         var valveSet = valveCentroids.GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
         var ourSet = ours.GroupBy(c => c.C).ToDictionary(g => g.Key, g => g.Count());

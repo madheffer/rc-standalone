@@ -194,6 +194,21 @@ internal static class WorldNodeBuild
         return lists;
     }
 
+    /// <summary>
+    /// The node's entries in BuildNode's order, as CompileNode collects a
+    /// layer's (node +0x148): every one, whichever list takes it or none
+    /// (atixref's toolsskybox and toolsnodraw entries), with its attributes
+    /// and unfiltered streams. The render cluster boxes come from these
+    /// when nothing else makes them (a capture of atixref's -world build:
+    /// all 88,857 centroids, from its 882 contributing entries in order).
+    /// </summary>
+    public static List<WorldNodeCompile.Entry> LayerEntries(IReadOnlyList<Built> built)
+        => [.. built.Select(b => new WorldNodeCompile.Entry(b.Source.Entry.Material, b.Source.Entry.Stride, b.Vertices, b.Indices, new WrbMeshEntry
+        {
+            Attributes = b.Source.Header.Attributes, Material = b.Source.Entry.Material, Stride = b.Source.Entry.Stride, NodeId = b.Source.Header.NodeId,
+            Streams = [.. b.Source.Entry.Streams.Select(s => new WrbMeshEntry.Stream(s.Name, 0, s.Count, 0, s.Type))],
+        }))];
+
     // CMesh_Bounds: the positions' per-axis minimum and maximum.
     private static (Vector3 Min, Vector3 Max) Bounds(float[] vertices, int stride, IReadOnlyList<Physics.MeshWeld.Stream> streams)
     {

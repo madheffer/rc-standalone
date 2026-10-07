@@ -110,8 +110,12 @@ internal static class WorldNodeCompile
 
     /// <param name="nodeBounds">The node's bounds (node +0), which the box grid of
     /// 180283520 covers when there is no vis to cluster by or nothing makes render boxes.</param>
+    /// <param name="layer">The layer's entries in BuildNode's order
+    /// (<see cref="WorldNodeBuild.LayerEntries"/>), which make the render boxes when
+    /// the merge leaves none; without it, the lists' entries in list order.</param>
     public static Result Compile(Dictionary<MeshLists.Kind, List<Entry>> byKind, IReadOnlyList<List<(Vector3 Min, Vector3 Max)>>? visFlat,
-                                 float[][]? mutual, Settings? settings = null, (Vector3 Min, Vector3 Max)? nodeBounds = null)
+                                 float[][]? mutual, Settings? settings = null, (Vector3 Min, Vector3 Max)? nodeBounds = null,
+                                 IReadOnlyList<Entry>? layer = null)
     {
         settings ??= new Settings();
         var counters = new Counters();
@@ -122,7 +126,7 @@ internal static class WorldNodeCompile
             clustered: o.Kind is not MeshLists.Kind.BakedPropLod,
             stashes: settings.UseAggregateInstances && o.Kind is MeshLists.Kind.BakedPropLod or MeshLists.Kind.NoSplit or MeshLists.Kind.Instanced or MeshLists.Kind.Aggregate)
         { Entries = [.. byKind.GetValueOrDefault(o.Kind) ?? []] }).ToList();
-        var layerEntries = lists.SelectMany(l => l.Entries).ToList();
+        var layerEntries = layer?.ToList() ?? lists.SelectMany(l => l.Entries).ToList();
 
         var boxes = new List<(Vector3 Min, Vector3 Max)>();
         // 180278555: the vis builder's clusters when there are more than two, else
