@@ -187,3 +187,88 @@ The data the ray generation shader works on:
   per hit material.
 - The push constants: the pass and dimension count, the block's offset and
   the lightmap size, and the cordon box.
+
+## The lightmap post-process
+
+The image (`CVrad3LightmapImage`, global at DAT_180399e70) is w x h with
+up to 20 channels (`Vrad3LightmapChannel_t`). Each channel is a float bitmap
+(0x9d8 bytes) with a component mask, and is live when its width is above
+zero. Beside the channels the image keeps:
+- per luxel, a 12-byte record: chart ID; sample count in the low 24 bits of
+  +4; flags at +8 (bit 0 valid, bits 1 and 2 the chart's flags bits 29 and
+  28);
+- per luxel, a 20-byte baked shadow record: four u8 light indices (0xFF for
+  none), then four floats.
+
+Charts whose flags have bit 28 or 29 set are small in x or y. Charts with
+both set are left alone by the fireflies and median passes.
+
+- `lightmap_image_consolidate_small_charts <mip>`: on each axis on which a
+  chart is small, the chart's rect is cut into cells of 2^(mip - 1) luxels.
+  Each cell takes two passes over the chart's own luxels:
+  1. A running weighted mean of every live channel component over the
+     luxels with samples. With n the luxel's sample count and N the running
+     total, t = n / N and mean = mean * (1 - t) + value * t. The shadow
+     record blends the same way per slot: the first light index met fixes
+     the slot, and only luxels with that index blend into it.
+  2. The mean, the shadow record and N are written to every luxel of the
+     chart in the cell, and each is marked valid.
+- `lightmap_image_remove_fireflies <threshold> [debug.exr]`: the threshold
+  goes through `V_atoi`, so "4.0" is 4 and fractions are lost. Two parallel
+  passes over the rows. For each valid luxel, the neighbours counted are the
+  3x3 luxels of the same chart that are valid, not yet flagged, and have
+  Rec.709 luminance (0.2126, 0.7152, 0.0722) of at least 0.0005. Their
+  irradiance is averaged, and their SH is evaluated at the luxel's normal
+  (L2 constants 0.282095, 0.325735, 0.273137, 0.078848, 0.136569).
+  - Pass 0 flags the luxel (a bitset, and the count in the log) unless,
+    per component, its RGB is at most threshold x the neighbour mean, its
+    SH at its normal is at most threshold x the neighbours', and its SH is
+    at most threshold x its own RGB.
+  - Pass 1 replaces each flagged luxel's irradiance with that mean.
+
+  The debug EXR marks invalid luxels (0, 0, 1) and fireflies (1, 1, 1).
+- `lightmap_image_filter_median <size>`: radius r = (size - 1) / 2, at
+  least 1. For each valid luxel, it gathers each component separately (RGB,
+  channel 8, the SH coefficients) from luxels that are in the window
+  clamped to the chart's rect and within the disc dx^2 + dy^2 <= r^2. They
+  must also be of the same chart, valid, and with normal dot >= cos 15
+  degrees. With more than 2 values it takes the median through
+  `std::nth_element` (18005cf40) at n/2. For even n it calls nth_element
+  again at n/2 + 1 and averages the first value with whatever then sits at
+  n/2 - 1. That is not a textbook even median: a port must reproduce MSVC's
+  nth_element exactly.
+- `lightmap_image_dilate_over_invalid_jfa`: a jump flood over the luxel
+  grid, with two index buffers (ping-pong, -1 for none). lambda_1 seeds
+  each valid luxel with its own index. A pass runs per step size s, from
+  next_pow2(max(w, h)) / 2 halving down to 1. In a pass, every luxel whose
+  entry is not itself looks at the 3x3 neighbours at offsets {-s, 0, s} of
+  the same chart. It takes the neighbour's entry from the other buffer when
+  this luxel has none or the new seed is closer (integer squared distance).
+  It writes into the current buffer, which flips each step, so the first
+  pass reads the still empty second buffer. The fill (lambda_4) copies, for
+  each luxel with a seed not itself, every live channel and the first 16
+  of the shadow record's 20 bytes from the seed, then marks it valid.
+  Dilation never crosses charts.
+- `lightmap_image_encode_ahd`: per valid luxel, the irradiance RGB and the
+  9 SH coefficients per colour are rotated into the luxel's tangent frame
+  (18005d2e0). A Rec.709 luminance SH is formed. The highlight direction d
+  is the normalised L1 direction (-c3, -c1, c2). If it points under the
+  surface and its xy is under 0.0001, it takes the left neighbour's
+  direction when that luxel is the same chart, else flips z and zeroes the
+  colour. It is then clamped to z >= 0.0872 (5 degrees), with xy rescaled to
+  cos 5 degrees. Over 256 fixed directions (the table at DAT_1802e99e4) a
+  one-unknown least-squares system is set up. Each row is
+  (1 - max(0, dir.d) / d.z) x luminance against
+  max(0, SH(dir)) - max(0, dir.d) / d.z x luminance. Its solution splits the
+  light into the ambient and the directional part along d (the solve and
+  the outputs are still to read). Afterwards Run frees the SH channels
+  (2 to 7) and splits channel 1 into a 1-component and a 3-component
+  channel.
+- `lightmap_image_fill_gutters <mip>`: cells of 2^(mip - 1) luxels, and a
+  gutter width from gameinfo `ResourceCompiler/BakedLighting/LightmapGutterSize`
+  (default 1). Pass 0 covers ordinary charts, repeated gutter-width times;
+  pass 1 covers charts small on one axis, once. Each luxel inside a chart's
+  rect that no chart covers is filled (180049830) from the first square
+  ring around it, by growing radius, that holds covered luxels of the same
+  chart. It takes the mean of every live channel there, and the shadow
+  record under the first-light-per-slot rule.

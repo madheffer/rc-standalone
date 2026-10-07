@@ -1941,7 +1941,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: this build
-- 289 addresses
+- 296 addresses
 
 ### s2c:baked/vrad3
 
@@ -2133,13 +2133,19 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800479d0` | `CVrad3Command_lightmap_export_packing_geometry_to_obj::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047f90` | `CVrad3Command_lightmap_image_consolidate_small_charts::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800488e0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180048d90` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_3_Body` | one jump flood pass: 3x3 at +-step, same chart, nearer seed (integer squared distance) from the other buffer |  |
+| `180048fe0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_4_Body` | copy every live channel and the first 16 bytes of the shadow record from the seed; mark valid |  |
 | `180049370` | `CVrad3Command_lightmap_image_fill_gutters::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180049830` | `Vrad3_FillGutterLuxel` | first square ring (growing radius) holding covered luxels of the same chart: mean of every live channel and the shadow record |  |
 | `18004a030` | `CVrad3Command_lightmap_image_filter_median::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004a3b0` | `CVrad3Command_lightmap_image_filter_median::Run::lambda_1_Body` | a row: per-component median over same-chart, valid, normal within 15 degrees, disc radius r in the chart rect; nth_element at n/2 (even n: again at n/2 + 1, averaged with [n/2 - 1]) |  |
 | `18004b530` | `CVrad3Command_lightmap_image_remove_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004ba20` | `CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1_Body` | a row: 3x3 same-chart neighbours (valid, unflagged, luminance >= 0.0005), mean RGB and SH at the normal; pass 0 flags against the threshold, pass 1 writes the mean |  |
 | `18004c9b0` | `CVrad3Command_lightmap_image_filter_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18004cb00` | `CVrad3Command_lightmap_image_filter_sh_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18004cc20` | `CVrad3Command_lightmap_image_write_debug_oidn_mask::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18004ce00` | `CVrad3Command_lightmap_image_encode_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004cfc0` | `CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3_Body` | a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over 256 directions (DAT_1802e99e4) for ambient vs directional |  |
 | `18004e750` | `CVrad3Command_lightmap_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180050360` | `CVrad3Command_uber_weld::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800527b0` | `CVrad3Command_lightmap_image_write_mean::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2168,6 +2174,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18005ccd0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_3` | lambda job body |  |
 | `18005cce0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_1` | lambda job body |  |
 | `18005cd90` | `CVrad3LightmapImage::InitMip::lambda_1` | lambda job body |  |
+| `18005cf40` | `std_nth_element_float` | MSVC nth_element on floats (the median's selection) |  |
 | `180061320` | `CVrad3Command_lightmap_image_show_valid_luxels::Run::lambda_1` | lambda job body |  |
 | `1800614c0` | `CVrad3Command_lightmap_image_write_samplecount::Run::lambda_1` | lambda job body |  |
 | `180061650` | `CVrad3Command_lightmap_image_write_chart_color::Run::lambda_1` | lambda job body |  |

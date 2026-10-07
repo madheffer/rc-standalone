@@ -121,6 +121,48 @@
    "note": "as SetPixelRGB with alpha"
   },
   {
+   "addr": "18004ba20",
+   "name": "CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1_Body",
+   "module": "s2c:baked/vrad3",
+   "note": "a row: 3x3 same-chart neighbours (valid, unflagged, luminance >= 0.0005), mean RGB and SH at the normal; pass 0 flags against the threshold, pass 1 writes the mean"
+  },
+  {
+   "addr": "18004a3b0",
+   "name": "CVrad3Command_lightmap_image_filter_median::Run::lambda_1_Body",
+   "module": "s2c:baked/vrad3",
+   "note": "a row: per-component median over same-chart, valid, normal within 15 degrees, disc radius r in the chart rect; nth_element at n/2 (even n: again at n/2 + 1, averaged with [n/2 - 1])"
+  },
+  {
+   "addr": "180048d90",
+   "name": "CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_3_Body",
+   "module": "s2c:baked/vrad3",
+   "note": "one jump flood pass: 3x3 at +-step, same chart, nearer seed (integer squared distance) from the other buffer"
+  },
+  {
+   "addr": "180048fe0",
+   "name": "CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_4_Body",
+   "module": "s2c:baked/vrad3",
+   "note": "copy every live channel and the first 16 bytes of the shadow record from the seed; mark valid"
+  },
+  {
+   "addr": "180049830",
+   "name": "Vrad3_FillGutterLuxel",
+   "module": "s2c:baked/vrad3",
+   "note": "first square ring (growing radius) holding covered luxels of the same chart: mean of every live channel and the shadow record"
+  },
+  {
+   "addr": "18004cfc0",
+   "name": "CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3_Body",
+   "module": "s2c:baked/vrad3",
+   "note": "a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over 256 directions (DAT_1802e99e4) for ambient vs directional"
+  },
+  {
+   "addr": "18005cf40",
+   "name": "std_nth_element_float",
+   "module": "s2c:baked/vrad3",
+   "note": "MSVC nth_element on floats (the median's selection)"
+  },
+  {
    "addr": "180042a90",
    "name": "PackingGeometry_t::Unserialize",
    "module": "s2c:baked/vrad3",
