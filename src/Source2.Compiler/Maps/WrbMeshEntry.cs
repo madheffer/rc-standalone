@@ -63,9 +63,10 @@ public sealed record WrbMeshEntry
     /// <summary>
     /// The CMesh's streams as BuildNode left them, when PrepareForMerge has
     /// not run on it yet (null: <see cref="Streams"/>). CompileNode runs that
-    /// filter only on the merged lists, and only before the vis merger; the
-    /// aggregate builder (180272ce0) runs it on each aggregate's meshes, after
-    /// GroupAggregates has grouped them by these.
+    /// filter only on the merged lists, and only before the vis merger, so
+    /// GroupAggregates groups the other lists' meshes by these; the written
+    /// aggregates carry only what the material reads (the filtered
+    /// <see cref="Streams"/>).
     /// </summary>
     public IReadOnlyList<Stream>? MeshStreams { get; init; }
     /// <summary>

@@ -572,8 +572,40 @@ game can answer is raised with the user first, and runs with -insecure.
       prop with bounds, once at the start of BuildNode) are Valve's too
       (.vwrld node bounds equal). What remains is the clustering after the
       grid: we make 148 cluster objects to Valve's 129 and split materials
-      into more aggregates (hr_metal_trim_002: 14 against 3); a capture of
-      CompileNode without vis on atixref is next.
+      into more aggregates (hr_metal_trim_002: 14 against 3).
+    - Settled 2026-10-08 (decompile, with the 10-03 BuildNode and render
+      cluster captures): atixref -world now has Valve's 553 files, every
+      name equal, 344 byte-identical (from 256); the other three corpus
+      maps unchanged.
+      - Render boxes: with the merge leaving none, CompileNode builds them
+        from the layer's entries in BuildNode's order: world and prop
+        entries, then the overlay meshes, every one whichever list takes
+        it (toolsskybox, toolsnodraw). Our 88,857 centroids equal the
+        captured call's in order and the 20 boxes are Valve's.
+      - PrepareForMerge (1802b52d0) runs only in the vis merger branch, on
+        the merged lists. Other lists reach GroupAggregates with the
+        CMesh's unfiltered streams (VertexPaintTintColor, a second
+        texcoord, VertexPaintBlendParams).
+      - GroupAggregates (18026f590): a stable sort (18028f2c0) by the
+        instance-stream kind, bits 0x6000000000 and 0x100000, the CMesh
+        name (the material path, V_stricmp), then the stream layout hash
+        (1802b6130) as a signed int. Then each same-name group is promoted
+        (texcoord 180258310: one flagged or past 16 flags all; tangent
+        180258450). Runs compare name, bits, kind and every stream field
+        (+0, +8, +0x10, +0x14, +0x18, +0x1c, +0x1d). A lone run aggregates
+        when its CMesh has more than 0x360 indices (+0x24), not vertices.
+      - The instanced, no-split and baked prop lists have an empty vf 0x28
+        (1800d3020): they stash only whole (node, +0xa8) groups (vf 0x38),
+        so a group with one mesh that cannot aggregate (atixref's node
+        6142, atix_har without bit 30) is one object.
+      - The node lists its aggregates in model name order (all 264 of
+        atixref's, ze_hold_em_p's 7). Measured; where Valve sorts them is
+        not found.
+      - Open: 95 agg_prop models differ in the NORMAL word's tangent angle
+        on a few vertices each: Valve encodes 180 degrees (the NaN path:
+        the dot product past 1) where ours gives 0. The encoder's order
+        matches (182067e80), so the source tangent differs in its last
+        bit. Also open: some agg_nomerge MDAT and cluster objects' buffers.
 
 ## Resolved
 

@@ -1573,6 +1573,48 @@
    "note": "gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge"
   },
   {
+   "addr": "180258450",
+   "name": "WRBMeshList_PromoteTangentPrecision",
+   "module": "s2c:geometry/world-nodes",
+   "note": "inlined in GroupAggregates: one tangent stream with +0x1d set sets it on every tangent stream of the name group"
+  },
+  {
+   "addr": "1800d3020",
+   "name": "NullSub_ret0",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x28 of the instanced, no-split and baked prop lists: they stash per (node, +0xa8) group in vf 0x38"
+  },
+  {
+   "addr": "180272c60",
+   "name": "WRBInstancedMeshList_Compile",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x20: calls vf 0x38 (18026ed20) on the list's entries"
+  },
+  {
+   "addr": "180272cb0",
+   "name": "WRBNoSplitMeshList_Compile",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x20 of the third keyed list"
+  },
+  {
+   "addr": "180270430",
+   "name": "WRBMeshList_FlushStash",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x40: GroupAggregates, then the leftovers through vf 0x20, per render box by their bounds centre"
+  },
+  {
+   "addr": "180275080",
+   "name": "WRBNode_FinishLists",
+   "module": "s2c:geometry/world-nodes",
+   "note": "UseAggregateInstances: WRBNode_BuildPropAggregates (180272ce0) first"
+  },
+  {
+   "addr": "182067b00",
+   "name": "CompressTangentFrame_SearchNormal",
+   "module": "s2c:geometry/world-nodes",
+   "note": "third argument set: the octahedral normal by floor and search; shares the tangent part"
+  },
+  {
    "addr": "18028f2c0",
    "name": "WRBMeshList_GroupAggregates_Less",
    "module": "s2c:geometry/world-nodes",
