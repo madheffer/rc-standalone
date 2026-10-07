@@ -126,6 +126,9 @@ game can answer is raised with the user first, and runs with -insecure.
     in another order (2144, 2153 to 2163, 2145, 2164 to 2173, ...), while
     all 65 entries are exact in content (PropEntriesProbe with
     PROPENTRIES_BYID=1).
+    The lists are a CUtlMap keyed by model at node +0x198 (walked in order
+    by 1800e00b0), one vector of props each. atixref's standalone props
+    (ledger 55) come out of the same lists in walk order.
 
 48. **The targetname of a cubemap or probe volume record** (EnvVolumes):
     the late export (180240a60) reads targetname from the exported keys;
@@ -553,6 +556,21 @@ game can answer is raised with the user first, and runs with -insecure.
       swapped), and blocklight objects come out with more buffer sets than
       Valve's. So either the grid merge or the per-layout set rule is not
       Valve's on a big map.
+    - Settled 2026-10-08 (atixref, dev box): the static props left out of
+      aggregates and not baked ship as scene objects of their own model
+      after the cluster objects, 65 on atixref, model by model in ordinal
+      path order and, within a model, in walk order: the prop's matrix,
+      render colour / 255 as tint, skin (default when unset), fades, LOD
+      override, flags 8 | 0x400 (no baked bit) and the light probe / cubemap
+      handshake of the volume holding its bounds' centre. A prop whose model
+      does not load still ships, with handshakes 0 (atixref's 14 curb
+      corners and nuke_machinery_05). All 65 records equal Valve's, in
+      order. The node bounds (WRBNode_ComputeBounds, map meshes then every
+      prop with bounds, once at the start of BuildNode) are Valve's too
+      (.vwrld node bounds equal). What remains is the clustering after the
+      grid: we make 148 cluster objects to Valve's 129 and split materials
+      into more aggregates (hr_metal_trim_002: 14 against 3); a capture of
+      CompileNode without vis on atixref is next.
 
 ## Resolved
 
