@@ -4,7 +4,9 @@
    -fshallow, as the current references were made) for each map, into
    %TEMP%/fresh_refs. The old %TEMP%/nobake_refs is kept once as
    nobake_refs_pre1007, then the fresh packages replace it.
-2. Captures: capture_subdivtangents.py on atixref (ledger 38).
+2. Captures: capture_subdivtangents.py on atixref (ledger 38);
+   capture_overrides.py on probe01 and ze_hold_em_p (the override buffers and
+   the saved n0.vrman behind RED2's hashes).
 3. Each fresh reference's write time is printed beside the game's
    pak01_dir.vpk time, so a missing or stale one shows at once.
 4. The fresh references are copied to the dev box (~/s2c/refs/nobake_refs).
@@ -72,6 +74,9 @@ def main():
         run([sys.executable, os.path.join(ROOT, "tools", "vis", "capture_subdivtangents.py"), ADDON, "atixref"])
         run([sys.executable, os.path.join(ROOT, "tools", "vis", "subdivtangent_stages.py"),
              os.path.join(TEMP, "subdivtangent_capture", "atixref.jsonl"), "--limit", "15"])
+        # The bytes behind RED2's ___OverrideInputData___ fingerprints and n0.vrman's file CRC.
+        for m in ("probe01", "ze_hold_em_p"):
+            run([sys.executable, os.path.join(ROOT, "tools", "vis", "capture_overrides.py"), ADDON, m])
 
     step("3. reference freshness")
     pak = os.path.join(CS2, "game", "csgo", "pak01_dir.vpk")
