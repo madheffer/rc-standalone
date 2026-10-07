@@ -558,11 +558,12 @@ internal static class WorldNodeCompile
             MeshLists.Kind.Overlay or MeshLists.Kind.NoSplitOverlay => "agg_overlay",
             _ => throw new NotSupportedException($"aggregates of the {list.Kind} list"),
         };
-        // The name compared (CMesh +0x68) orders as the material's file name, not its path:
-        // atixref's 93 merge and nomerge aggregates and ze_hold_em_p's 7 (whose paths would put
-        // materials/concrete/hr_c/hr_conc_i_tintdark before materials/de_overpass/...).
+        // The name compared (CMesh +0x68) is the material's path: leftover groups keep that
+        // order (atixref's node 1109 object leads with materials/concrete/... before
+        // materials/de_overpass/...). The file-name order of the node's aggregate list is the
+        // writer's (WorldNodeFiles), not this sort's.
         var sorted = list.Stash.OrderBy(e => e.Facts.Attributes & 0x6000000000).ThenBy(e => e.Facts.Attributes & 0x100000)
-                               .ThenBy(e => FileBase(e.Material, int.MaxValue), Io.Tier0Strings.IgnoreCase).ThenBy(e => (int)WrbMeshEntry.LayoutHash(MeshStreams(e))).ToList();
+                               .ThenBy(e => e.Material, Io.Tier0Strings.IgnoreCase).ThenBy(e => (int)WrbMeshEntry.LayoutHash(MeshStreams(e))).ToList();
         // Each group of consecutive meshes of one name (at most 0x7ffb) is promoted, sorted
         // already: every texcoord stream high precision when one is or one holds a value
         // past 16 (180258310), then every tangent stream when one is (180258450, inlined).

@@ -120,6 +120,10 @@ public static class WorldNodeFiles
             });
         }
 
+        // The node lists its aggregates in model name order (ordinal): all 264 of
+        // atixref's and ze_hold_em_p's 7. Where Valve sorts them is not found.
+        aggregates.Sort((a, b) => string.CompareOrdinal(a.Model, b.Model));
+
         // The props left in the node's lists: one scene object each, after the
         // clusters' objects, in model order (the order within a model is
         // GROUND_TRUTH 47's open question; walk order here).
