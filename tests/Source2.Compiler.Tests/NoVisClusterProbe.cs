@@ -63,7 +63,7 @@ public class NoVisClusterProbe(ITestOutputHelper output)
                     var p = new Vector3(e.Vertices[k], e.Vertices[k + 1], e.Vertices[k + 2]);
                     (lo, hi) = (Vector3.Min(lo, p), Vector3.Max(hi, p));
                 }
-                output.WriteLine($"  {Path.GetFileName(e.Material)} attr {e.Facts.Attributes:x} flags {e.Facts.ObjectFlags:x} stride {e.Stride} v {e.Vertices.Length / e.Stride} t {e.TriangleCount} node {e.Facts.NodeId} streams {string.Join(",", e.Facts.Streams.Select(s => $"{s.Name}/{s.Index}/{s.Count}/{s.Precise}/{s.Type}"))} hash {(int)WrbMeshEntry.LayoutHash(e.Facts.Streams)} {lo}..{hi}");
+                output.WriteLine($"  {Path.GetFileName(e.Material)} attr {e.Facts.Attributes:x} flags {e.Facts.ObjectFlags:x} stride {e.Stride} v {e.Vertices.Length / e.Stride} t {e.TriangleCount} node {e.Facts.NodeId} streams {string.Join(",", (e.Facts.MeshStreams ?? e.Facts.Streams).Select(s => $"{s.Name}/{s.Index}/{s.Count}/{s.Precise}/{s.Type}"))} hash {(int)WrbMeshEntry.LayoutHash(e.Facts.MeshStreams ?? e.Facts.Streams)} {lo}..{hi}");
             }
         }
         var result = WorldNodeCompile.Compile(lists, null, null, nodeBounds: (min, max));
