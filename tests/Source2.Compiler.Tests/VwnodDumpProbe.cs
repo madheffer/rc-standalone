@@ -38,7 +38,7 @@ public class VwnodDumpProbe(ITestOutputHelper output)
             }
             // VWNODDUMP_FULL=<substring>: the whole record of the first two scene objects whose model contains it.
             if (Environment.GetEnvironmentVariable("VWNODDUMP_FULL") is { } full)
-                foreach (var so in (data.GetArray("m_sceneObjects") ?? []).Where(o => (o.GetStringProperty("m_renderableModel") ?? "").Contains(full, StringComparison.Ordinal)).Take(2))
+                foreach (var so in (data.GetArray("m_sceneObjects") ?? []).Where(o => (o.GetStringProperty("m_renderableModel") ?? "").Contains(full, StringComparison.Ordinal)).Take(int.TryParse(Environment.GetEnvironmentVariable("VWNODDUMP_TAKE"), out var take) ? take : 2))
                     output.WriteLine($"{label} full {string.Join(" | ", so.Children.Select(c => $"{c.Key}={Show(c.Value)}"))}");
             foreach (var ag in data.GetArray("m_aggregateSceneObjects") ?? [])
             {
