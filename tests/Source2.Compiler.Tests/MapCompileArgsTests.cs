@@ -74,9 +74,9 @@ public class MapCompileArgsTests(ITestOutputHelper output)
         var before = Io.VpkWriter.ReadAll(package);
         var log = new StringWriter();
 
-        // Hammer's Full line is refused, and leaves the package alone.
-        Assert.Equal(1, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-world", "-phys", "-vis"]), log));
-        Assert.Contains("not ported: world", log.ToString());
+        // A builder that is not ported (the nav mesh) is refused, and leaves the package alone.
+        Assert.Equal(1, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-world", "-nav"]), log));
+        Assert.Contains("not ported: nav", log.ToString());
         // s2c_rounds has no light, so nothing stops the lump (a light would, without --accept-gaps).
         Assert.DoesNotContain(MapEntities.From(DmxBinary.ReadFile(source)), e => MapCompile.HasLumpGap(e.ClassName));
 
