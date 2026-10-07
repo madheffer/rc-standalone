@@ -163,7 +163,7 @@ internal static class WorldNodeBuild
                 Attributes = h.Attributes, Material = e.Material, ObjectFlags = h.ObjectFlags, Field28 = h.Tint, Stride = stride, Streams = streams,
                 Field1a3 = h.Byte1a3, Field_b8 = h.EmissiveBoost, Field1a8 = 1f, Cubemap = envMaps[i].Cubemap, LightProbe = envMaps[i].Probe,
                 Mesh184 = 1f, Field9c = h.Field9c, Field1a1 = h.Byte1a1, Field1a0 = h.Byte1a0, Field_b0 = h.FadeMin, FadeMax = h.FadeMax,
-                Matrix = identity, NodeId = h.NodeId, FieldA8 = (h.ObjectFlags & 8) != 0 ? 0 : -1,
+                Matrix = identity, NodeId = h.NodeId, FieldA8 = (h.ObjectFlags & 8) != 0 ? 0 : -1, SkyboxSlot = h.SkyboxSlot,
             }));
         }
         foreach (var projection in overlays)

@@ -1597,6 +1597,24 @@
    "note": "(CMesh, group) pairs into meshSet_%i nodes by (CMesh +0x58, group); ConvertFromCMesh each"
   },
   {
+   "addr": "180272620",
+   "name": "CSkyboxMaterialMeshList::Compile",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x20: entries grouped by +0x1c0 (skyboxslot, CUtlString ==, first seen), each group mesh_skyboxslot_%s, flags 0x400"
+  },
+  {
+   "addr": "180272480",
+   "name": "CSkyboxMeshList::Compile",
+   "module": "s2c:geometry/world-nodes",
+   "note": "vf 0x20: one mesh_skybox object, flags 0x400"
+  },
+  {
+   "addr": "180270740",
+   "name": "CMeshList_TaggedMembers",
+   "module": "s2c:geometry/world-nodes",
+   "note": "each entry with a tag: 1 with attribute bit 37, else 2 with bit 38, else 0"
+  },
+  {
    "addr": "18026ed20",
    "name": "CClassifiedMeshList::CompileInstanced",
    "module": "s2c:geometry/world-nodes",

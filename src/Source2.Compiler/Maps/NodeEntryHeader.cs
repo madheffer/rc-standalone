@@ -45,6 +45,8 @@ public sealed record NodeEntryHeader
     public ulong Attributes { get; init; }
     public int TextureWidth { get; init; }
     public int TextureHeight { get; init; }
+    /// <summary>+0x1c0: the material's skyboxslot attribute (attribute bit 0x80 when set).</summary>
+    public string SkyboxSlot { get; init; } = "";
 
     /// <summary>The header of a world entry made from <paramref name="mesh"/> (a CMapMesh) with <paramref name="material"/>'s attributes.</summary>
     public static NodeEntryHeader World(DmxBinary.Element mesh, int nodeId, Vector3 origin, MeshEntryFlags.Record record,
@@ -74,6 +76,7 @@ public sealed record NodeEntryHeader
             Attributes = flags.Flags,
             TextureWidth = flags.Width,
             TextureHeight = flags.Height,
+            SkyboxSlot = flags.SkyboxSlot,
         };
     }
 
@@ -117,6 +120,7 @@ public sealed record NodeEntryHeader
             Attributes = flags.Flags,
             TextureWidth = flags.Width,
             TextureHeight = flags.Height,
+            SkyboxSlot = flags.SkyboxSlot,
         };
     }
 

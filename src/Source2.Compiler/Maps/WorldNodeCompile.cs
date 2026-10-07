@@ -272,6 +272,12 @@ internal static class WorldNodeCompile
             case MeshLists.Kind.BakedPropLod:
                 CompileInstanced(list, "mesh_prop", entries, layer, settings, counters, objects);
                 break;
+            case MeshLists.Kind.SkyboxMaterial:
+                // 180272620: the entries grouped by their skyboxslot name (CUtlString ==, in
+                // first-seen order), each group one object "mesh_skyboxslot_<slot>", flags 0x400.
+                foreach (var slot in entries.GroupBy(e => e.Facts.SkyboxSlot, StringComparer.Ordinal))
+                    objects.Add(CreateRenderObject(settings.NodePrefix, $"mesh_skyboxslot_{slot.Key}", layer, cluster, 0x400, 0, false, [.. slot]));
+                break;
             case MeshLists.Kind.WorldSpaceTexture:
                 // 1802723d0: grouped, each object gaining flag 0x40.
                 foreach (var o in GroupRenderObjects("mesh_worldspace_texture_blend", entries, layer, cluster, settings, objects))

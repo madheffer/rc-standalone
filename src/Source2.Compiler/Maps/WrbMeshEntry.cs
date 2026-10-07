@@ -14,6 +14,9 @@ public sealed record WrbMeshEntry
     public ulong Attributes { get; init; }
     /// <summary>The mesh's material (CMesh +0x60, a CBufferString).</summary>
     public string Material { get; init; } = "";
+
+    /// <summary>+0x1c0: the material's skyboxslot attribute, which the skybox material list groups by.</summary>
+    public string SkyboxSlot { get; init; } = "";
     /// <summary>+0xac: overlay order.</summary>
     public int OverlayOrder { get; init; }
     /// <summary>+0xbc: object flags.</summary>
