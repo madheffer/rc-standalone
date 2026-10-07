@@ -719,14 +719,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris | `src/Source2.Compiler/Maps/WorldNodeModels.cs:201` |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |
 | `180268e80` | `WRB_BuildAggregate` | Added aggregate with %i meshes, %i fragments; %s_lr%i_%s | `src/Source2.Compiler/Maps/NodePropAggregates.cs:68`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:36`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
-| `18026bab0` | `WRBNode_CreateRenderObject` | name <node>_lr%i[_c%i]{_s\|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name> | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:34`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:485` |
+| `18026bab0` | `WRBNode_CreateRenderObject` | name <node>_lr%i[_c%i]{_s\|_d}[_cb][_dl][_b][_kv][_nv][_bl][_rtem]_<name> | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:34`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:488` |
 | `18026c150` | `WRBMeshList_GroupRenderObjects` | runs of equal cubemap, probe, flags & 0x10420000, +0x1a6, object flags; named %s_cm%02d_lp%02d | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:318` |
 | `18026d4a0` | `WRBMeshEntry_CanAggregate` | attribute 0x40000000 and none of 0x800e01, object flags without 0x200, no instance stream, lighting origin, overlay order or fade | `src/Source2.Compiler/Maps/MeshLists.cs:56` |
 | `18026d7a0` | `WRBNode_PropCanAggregate` | false with a lighting origin (UseStaticEnvMapForObjectsWithLightingOrigin, prop +0x208), no model, not a prop_static (+0x17e), lodlevel (+0x1e4) not -1, renderwithdynamic (+0x171), fademindist or fademaxdist (+0x160/+0x164) above 0, or extra vertex streams (+0x100) without node +5; else every material's SupportsAggregateInstancing (0x67d9d859) | `src/Source2.Compiler/Maps/NodePropAggregates.cs:15`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:257` |
 | `18026e490` | `WRB_RemoveZeroExtraAttributeStreams` | Removed %i all-zero extra attribute streams |  |
 | `18026e840` | `CClassifiedMeshList::MoveAggregates` | vf 0x28: aggregatable entries moved to the aggregate member list | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:17`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:233` |
 | `18026ed20` | `CClassifiedMeshList::CompileInstanced` | vf 0x38: entries hashed by (+0x40 node id, +0xa8); a group all CanAggregate with +0x21 goes to the stash, else one object %s%d_%s (global counter DAT_183bb3764), cluster 0 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:438` |
-| `18026f590` | `WRBMeshList_GroupAggregates` | runs of equal material name and attribute bits 0x6000000000 / 0x100000, up to 0x7ffb meshes, into the aggregate builder | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:30`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:524` |
+| `18026f590` | `WRBMeshList_GroupAggregates` | runs of equal material name and attribute bits 0x6000000000 / 0x100000, up to 0x7ffb meshes, into the aggregate builder | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:30`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:527` |
 | `180270720` | `CMeshList::Accepts` | vf 0x50: (attribute & want) == want and (attribute & exclude) == 0 | `src/Source2.Compiler/Maps/MeshLists.cs:44` |
 | `180270740` | `CMeshList_TaggedMembers` | each entry with a tag: 1 with attribute bit 37, else 2 with bit 38, else 0 |  |
 | `1802709f0` | `CBaseMeshList::Compile` | vf 0x20: groups as "mesh_base" |  |
@@ -750,7 +750,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 %d: mesh lists by entry flags, render clusters, each list compiled per cluster, then vertex override streams; with vis clustering three lists each go through CVisibilityMeshMerger::MergeMeshes (call at 180278812): the unclustered entries replace the list for Step_BuildingRenderClusters, each non-empty bucket is compiled as a cluster (list vf 0x28/0x30) | `src/Source2.Compiler/Maps/MeshLists.cs:4`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:6` |
 | `180281100` | `CWorldRendererBuilderNode::PostCompileNode` |  |  |
 | `180282bf0` | `RenderClusters_SplitBoxes` | recursive centroid split along the longest axis (minimum triangles, size, size-split flag, depth below 64); a box appended per leaf | `src/Source2.Compiler/Maps/RenderClusters.cs:30`, `src/Source2.Compiler/Maps/RenderClusters.cs:48` |
-| `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering; centroids of the entries whose attributes & 0x131 is not 1, boxes by 180282bf0, each grown by 1/32 | `src/Source2.Compiler/Maps/RenderClusters.cs:22`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:15`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:589` |
+| `180282ef0` | `Step_BuildingRenderClusters` | VisibilityGuidedMeshClustering; centroids of the entries whose attributes & 0x131 is not 1, boxes by 180282bf0, each grown by 1/32 | `src/Source2.Compiler/Maps/RenderClusters.cs:22`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:15`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:592` |
 | `180283520` | `CWorldRendererBuilderNode_BoxGrid` | the node's box grid: ceil(extent / m_flMinDrawVolumeSize) cells, far corner to whole cells; past 0x1000 cells cbrt(volume / 4096) cells clamped 1..64; grown by 0.01, x fastest; CompileNode's clusters without vis (180278555) and its render boxes of last resort (180278b57) | `src/Source2.Compiler/Maps/RenderClusters.cs:174`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:21`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:112` |
 | `180287320` | `CWorldRendererBuilderNode::LoadMaterialsInMeshList` |  |  |
 | `18028f100` | `UtlHashtable_Insert_NodeKey` | tier1 CUtlHashtable insert for the (+0x40, +0xa8) key of 18026ed20: bit 31 empty, bit 30 last of chain | `src/Source2.Compiler/Maps/UtlHashtable.cs:4` |
@@ -1163,7 +1163,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812d6c70` | `CMesh_Append` | streams matched by name; vertices appended, indices offset by the old vertex count | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:47` |
 | `1812d9eb0` | `CMesh_BoundsRange` |  |  |
 | `1812ddd80` | `CMesh_CopyFrom` |  |  |
-| `1812de310` | `CMesh_SubsetByIndices` | the listed triangles, vertices renumbered by first use | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:56`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:632` |
+| `1812de310` | `CMesh_SubsetByIndices` | the listed triangles, vertices renumbered by first use | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:56`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:635` |
 | `1812dfd10` | `CMesh_Bounds` | min/max of the first 'position' stream of three floats, every vertex | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:32` |
 
 ## smartprops.dll, build 20260923
@@ -1935,3 +1935,289 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801aab10` | `RnMesh_SahSplit` | 32 bins per axis | `src/Source2.Compiler/Physics/RnMeshBuilder.cs:35`, `src/Source2.Compiler/Physics/RnMeshBuilder.cs:212` |
 | `1801ad8a0` | `RnMeshCreate` |  |  |
 | `180383b00` | `CMesh_WeldPositions` | clusters kept in formation order |  |
+
+## vrad3.dll, build 20261001
+
+- file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
+- SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
+- installed: this build
+- 274 addresses
+
+### s2c:baked/vrad3
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `180001100` | `CVrad3Command_exit::Register` | dynamic initializer: CVrad3Command("exit") |  |
+| `180001130` | `CVrad3Command_shadow_cull_mode::Register` | dynamic initializer: CVrad3Command("shadow_cull_mode") |  |
+| `180001160` | `CVrad3Command_cordon::Register` | dynamic initializer: CVrad3Command("cordon") |  |
+| `180001190` | `CVrad3Command_print::Register` | dynamic initializer: CVrad3Command("print") |  |
+| `1800011c0` | `CVrad3Command_println::Register` | dynamic initializer: CVrad3Command("println") |  |
+| `1800011f0` | `CVrad3Command_timer_start::Register` | dynamic initializer: CVrad3Command("timer_start") |  |
+| `180001220` | `CVrad3Command_timer_stop::Register` | dynamic initializer: CVrad3Command("timer_stop") |  |
+| `180001250` | `CVrad3Command_timer_reset::Register` | dynamic initializer: CVrad3Command("timer_reset") |  |
+| `180001280` | `CVrad3Command_timer_poll::Register` | dynamic initializer: CVrad3Command("timer_poll") |  |
+| `1800012b0` | `CVrad3Command_create_dir_hierarchy::Register` | dynamic initializer: CVrad3Command("create_dir_hierarchy") |  |
+| `1800012e0` | `CVrad3Command_delete_directory_and_contents_r::Register` | dynamic initializer: CVrad3Command("delete_directory_and_contents_r") |  |
+| `180001310` | `CVrad3Command_determinism_check_record::Register` | dynamic initializer: CVrad3Command("determinism_check_record") |  |
+| `180001340` | `CVrad3Command_determinism_check_replay::Register` | dynamic initializer: CVrad3Command("determinism_check_replay") |  |
+| `180001370` | `CVrad3Command_determinism_check_done::Register` | dynamic initializer: CVrad3Command("determinism_check_done") |  |
+| `180001460` | `CVrad3Command_farfield_max_memory::Register` | dynamic initializer: CVrad3Command("farfield_max_memory") |  |
+| `180001490` | `CVrad3Command_farfield_box::Register` | dynamic initializer: CVrad3Command("farfield_box") |  |
+| `1800014c0` | `CVrad3Command_farfield_local_to_world::Register` | dynamic initializer: CVrad3Command("farfield_local_to_world") |  |
+| `1800014f0` | `CVrad3Command_farfield_cells::Register` | dynamic initializer: CVrad3Command("farfield_cells") |  |
+| `180001520` | `CVrad3Command_farfield_compute_bricks::Register` | dynamic initializer: CVrad3Command("farfield_compute_bricks") |  |
+| `1800015a0` | `CVrad3Command_farfield_compute_lighting::Register` | dynamic initializer: CVrad3Command("farfield_compute_lighting") |  |
+| `1800015d0` | `CVrad3Command_farfield_dilate::Register` | dynamic initializer: CVrad3Command("farfield_dilate") |  |
+| `180001600` | `CVrad3Command_farfield_median_filter::Register` | dynamic initializer: CVrad3Command("farfield_median_filter") |  |
+| `180001630` | `CVrad3Command_farfield_filter_fireflies::Register` | dynamic initializer: CVrad3Command("farfield_filter_fireflies") |  |
+| `180001660` | `CVrad3Command_farfield_resample_borders::Register` | dynamic initializer: CVrad3Command("farfield_resample_borders") |  |
+| `180001690` | `CVrad3Command_farfield_write_atlas::Register` | dynamic initializer: CVrad3Command("farfield_write_atlas") |  |
+| `1800016c0` | `CVrad3Command_farfield_voxelize_bricks::Register` | dynamic initializer: CVrad3Command("farfield_voxelize_bricks") |  |
+| `1800016f0` | `CVrad3Command_farfield_write_cell_voxelization::Register` | dynamic initializer: CVrad3Command("farfield_write_cell_voxelization") |  |
+| `180001720` | `CVrad3Command_farfield_write_brick_voxelization::Register` | dynamic initializer: CVrad3Command("farfield_write_brick_voxelization") |  |
+| `180001d80` | `CVrad3Command_lpv_image_gpu::Register` | dynamic initializer: CVrad3Command("lpv_image_gpu") |  |
+| `180001db0` | `CVrad3Command_lpv_image_fog_gpu::Register` | dynamic initializer: CVrad3Command("lpv_image_fog_gpu") |  |
+| `180001de0` | `CVrad3Command_gpu_init::Register` | dynamic initializer: CVrad3Command("gpu_init") |  |
+| `180001e10` | `CVrad3Command_lightmap_type::Register` | dynamic initializer: CVrad3Command("lightmap_type") |  |
+| `180001e40` | `CVrad3Command_lightmap_image_gpu::Register` | dynamic initializer: CVrad3Command("lightmap_image_gpu") |  |
+| `180001e70` | `CVrad3Command_sceneinfo_gpu::Register` | dynamic initializer: CVrad3Command("sceneinfo_gpu") |  |
+| `180001ea0` | `CVrad3Command_lightmap_load_packing_geometry_gpu::Register` | dynamic initializer: CVrad3Command("lightmap_load_packing_geometry_gpu") |  |
+| `180001ed0` | `CVrad3Command_lightmap_load_block_gpu::Register` | dynamic initializer: CVrad3Command("lightmap_load_block_gpu") |  |
+| `180001f00` | `CVrad3Command_lightmap_compute_block_gpu::Register` | dynamic initializer: CVrad3Command("lightmap_compute_block_gpu") |  |
+| `180001f30` | `CVrad3Command_lpv_flood_fill::Register` | dynamic initializer: CVrad3Command("lpv_flood_fill") |  |
+| `180001f60` | `CVrad3Command_lpv_mark_occupied_gpu::Register` | dynamic initializer: CVrad3Command("lpv_mark_occupied_gpu") |  |
+| `180001f90` | `CVrad3Command_lpv_voxelize_gpu::Register` | dynamic initializer: CVrad3Command("lpv_voxelize_gpu") |  |
+| `180001fc0` | `CVrad3Command_lpv_compute_block_gpu::Register` | dynamic initializer: CVrad3Command("lpv_compute_block_gpu") |  |
+| `180001ff0` | `CVrad3Command_lpv_compute_block_fog_gpu::Register` | dynamic initializer: CVrad3Command("lpv_compute_block_fog_gpu") |  |
+| `180002020` | `CVrad3Command_render_camera::Register` | dynamic initializer: CVrad3Command("render_camera") |  |
+| `180002050` | `CVrad3Command_render_combo::Register` | dynamic initializer: CVrad3Command("render_combo") |  |
+| `180002080` | `CVrad3Command_render_dimensions::Register` | dynamic initializer: CVrad3Command("render_dimensions") |  |
+| `1800020b0` | `CVrad3Command_render_sample_count::Register` | dynamic initializer: CVrad3Command("render_sample_count") |  |
+| `1800020e0` | `CVrad3Command_render_test_image_gpu::Register` | dynamic initializer: CVrad3Command("render_test_image_gpu") |  |
+| `180002110` | `CVrad3Command_run_furnace_test_gpu::Register` | dynamic initializer: CVrad3Command("run_furnace_test_gpu") |  |
+| `180002140` | `CVrad3Command_sort_test_gpu::Register` | dynamic initializer: CVrad3Command("sort_test_gpu") |  |
+| `180002170` | `CVrad3Command_path_trace_triangles_gpu_init::Register` | dynamic initializer: CVrad3Command("path_trace_triangles_gpu_init") |  |
+| `1800021a0` | `CVrad3Command_path_trace_triangles_gpu_shutdown::Register` | dynamic initializer: CVrad3Command("path_trace_triangles_gpu_shutdown") |  |
+| `1800021d0` | `CVrad3Command_path_trace_triangles_gpu::Register` | dynamic initializer: CVrad3Command("path_trace_triangles_gpu") |  |
+| `1800022a0` | `CVrad3Command_lightmap_free_memory::Register` | dynamic initializer: CVrad3Command("lightmap_free_memory") |  |
+| `1800022d0` | `CVrad3Command_lightmap_image_save::Register` | dynamic initializer: CVrad3Command("lightmap_image_save") |  |
+| `180002300` | `CVrad3Command_lightmap_image_load::Register` | dynamic initializer: CVrad3Command("lightmap_image_load") |  |
+| `180002330` | `CVrad3Command_lightmap_export_packing_geometry_to_obj::Register` | dynamic initializer: CVrad3Command("lightmap_export_packing_geometry_to_obj") |  |
+| `180002360` | `CVrad3Command_lightmap_image_consolidate_small_charts::Register` | dynamic initializer: CVrad3Command("lightmap_image_consolidate_small_charts") |  |
+| `180002390` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Register` | dynamic initializer: CVrad3Command("lightmap_image_dilate_over_invalid_jfa") |  |
+| `1800023c0` | `CVrad3Command_lightmap_image_fill_gutters::Register` | dynamic initializer: CVrad3Command("lightmap_image_fill_gutters") |  |
+| `1800023f0` | `CVrad3Command_lightmap_image_filter_median::Register` | dynamic initializer: CVrad3Command("lightmap_image_filter_median") |  |
+| `180002420` | `CVrad3Command_lightmap_image_remove_fireflies::Register` | dynamic initializer: CVrad3Command("lightmap_image_remove_fireflies") |  |
+| `180002450` | `CVrad3Command_lightmap_image_filter_oidn::Register` | dynamic initializer: CVrad3Command("lightmap_image_filter_oidn") |  |
+| `180002480` | `CVrad3Command_lightmap_image_filter_sh_oidn::Register` | dynamic initializer: CVrad3Command("lightmap_image_filter_sh_oidn") |  |
+| `1800024b0` | `CVrad3Command_lightmap_image_write_debug_oidn_mask::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_debug_oidn_mask") |  |
+| `1800024e0` | `CVrad3Command_lightmap_image_encode_ahd::Register` | dynamic initializer: CVrad3Command("lightmap_image_encode_ahd") |  |
+| `180002510` | `CVrad3Command_lightmap_image_encode_sh2::Register` | dynamic initializer: CVrad3Command("lightmap_image_encode_sh2") |  |
+| `180002540` | `CVrad3Command_uber_weld::Register` | dynamic initializer: CVrad3Command("uber_weld") |  |
+| `180002570` | `CVrad3Command_lightmap_image_write_mean::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_mean") |  |
+| `1800025a0` | `CVrad3Command_lightmap_image_write_ao::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_ao") |  |
+| `1800025d0` | `CVrad3Command_lightmap_image_write_sh_irradiance::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_sh_irradiance") |  |
+| `180002600` | `CVrad3Command_lightmap_image_write_sh2::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_sh2") |  |
+| `180002630` | `CVrad3Command_lightmap_image_write_ahd::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_ahd") |  |
+| `180002660` | `CVrad3Command_lightmap_image_write_normal::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_normal") |  |
+| `180002690` | `CVrad3Command_lightmap_image_write_tangent::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_tangent") |  |
+| `1800026c0` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_direct_light_shadows") |  |
+| `1800026f0` | `CVrad3Command_lightmap_image_write_chart_color::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_chart_color") |  |
+| `180002720` | `CVrad3Command_lightmap_image_write_samplecount::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_samplecount") |  |
+| `180002750` | `CVrad3Command_lightmap_image_write_convergence::Register` | dynamic initializer: CVrad3Command("lightmap_image_write_convergence") |  |
+| `180002780` | `CVrad3Command_lightmap_image_show_valid_luxels::Register` | dynamic initializer: CVrad3Command("lightmap_image_show_valid_luxels") |  |
+| `1800027b0` | `CVrad3Command_lightmap_analyze_image_error::Register` | dynamic initializer: CVrad3Command("lightmap_analyze_image_error") |  |
+| `1800027e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Register` | dynamic initializer: CVrad3Command("lightmap_ameliorate_block_compression_artefacts") |  |
+| `180002910` | `CVrad3Command_lpv_free_memory::Register` | dynamic initializer: CVrad3Command("lpv_free_memory") |  |
+| `180002940` | `CVrad3Command_lpv_local_to_world::Register` | dynamic initializer: CVrad3Command("lpv_local_to_world") |  |
+| `180002970` | `CVrad3Command_lpv_box::Register` | dynamic initializer: CVrad3Command("lpv_box") |  |
+| `1800029a0` | `CVrad3Command_lpv_cells::Register` | dynamic initializer: CVrad3Command("lpv_cells") |  |
+| `1800029d0` | `CVrad3Command_lpv_type::Register` | dynamic initializer: CVrad3Command("lpv_type") |  |
+| `180002a00` | `CVrad3Command_lpv_init::Register` | dynamic initializer: CVrad3Command("lpv_init") |  |
+| `180002a30` | `CVrad3Command_lpv_image_resolve::Register` | dynamic initializer: CVrad3Command("lpv_image_resolve") |  |
+| `180002a60` | `CVrad3Command_lpv_image_encode_sh2::Register` | dynamic initializer: CVrad3Command("lpv_image_encode_sh2") |  |
+| `180002a90` | `CVrad3Command_lpv_image_ambient_occlusion::Register` | dynamic initializer: CVrad3Command("lpv_image_ambient_occlusion") |  |
+| `180002ac0` | `CVrad3Command_lpv_image_remove_fireflies::Register` | dynamic initializer: CVrad3Command("lpv_image_remove_fireflies") |  |
+| `180002af0` | `CVrad3Command_lpv_image_median_filter::Register` | dynamic initializer: CVrad3Command("lpv_image_median_filter") |  |
+| `180002b20` | `CVrad3Command_lpv_image_median_filter_fog::Register` | dynamic initializer: CVrad3Command("lpv_image_median_filter_fog") |  |
+| `180002b50` | `CVrad3Command_lpv_image_write_fog::Register` | dynamic initializer: CVrad3Command("lpv_image_write_fog") |  |
+| `180002b80` | `CVrad3Command_lpv_image_write_ambientcube::Register` | dynamic initializer: CVrad3Command("lpv_image_write_ambientcube") |  |
+| `180002bb0` | `CVrad3Command_lpv_image_write_sh2::Register` | dynamic initializer: CVrad3Command("lpv_image_write_sh2") |  |
+| `180002be0` | `CVrad3Command_lpv_image_filter_sh2_oidn::Register` | dynamic initializer: CVrad3Command("lpv_image_filter_sh2_oidn") |  |
+| `180002c10` | `CVrad3Command_lpv_image_filter_ambient_cube_oidn::Register` | dynamic initializer: CVrad3Command("lpv_image_filter_ambient_cube_oidn") |  |
+| `180002c40` | `CVrad3Command_lpv_image_write_direct_light_shadows::Register` | dynamic initializer: CVrad3Command("lpv_image_write_direct_light_shadows") |  |
+| `180002c70` | `CVrad3Command_lpv_write_debug_voxelization::Register` | dynamic initializer: CVrad3Command("lpv_write_debug_voxelization") |  |
+| `180002cc0` | `CVrad3Command_write_test_image::Register` | dynamic initializer: CVrad3Command("write_test_image") |  |
+| `180002cf0` | `CVrad3Command_validate_test_image::Register` | dynamic initializer: CVrad3Command("validate_test_image") |  |
+| `180002d20` | `CVrad3Command_remove_file::Register` | dynamic initializer: CVrad3Command("remove_file") |  |
+| `180002d50` | `CVrad3Command_vrad3_test_tweaked_bc6h_compression::Register` | dynamic initializer: CVrad3Command("vrad3_test_tweaked_bc6h_compression") |  |
+| `180017280` | `Vrad3_RunCommand` | argv[0] looked up in the command table (DAT_180347d68, CUtlHashtable<CUtlString, CVrad3Command*>, 0x18-byte slots; hash FNV-1a 32 then h = (h << 17 ^ h) + (h >> 21)), then Run(argc, argv); unknown: Vrad3_ListCommands and exit 1 |  |
+| `180017440` | `Vrad3_ListCommands` | '%d Known commands' and each name |  |
+| `180017580` | `CVrad3Command::CVrad3Command` | stores the name (CUtlString) and links the command into the global list |  |
+| `1800179b0` | `CVrad3Command_exit::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800179f0` | `CVrad3Command_shadow_cull_mode::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180017a30` | `CVrad3Command_cordon::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180017ca0` | `CVrad3Command_print::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180017fb0` | `CVrad3Command_println::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800182c0` | `CVrad3Command_timer_start::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800184e0` | `CVrad3Command_timer_stop::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800189d0` | `CVrad3Command_timer_reset::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180018af0` | `CVrad3Command_timer_poll::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180019170` | `CVrad3Command_create_dir_hierarchy::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800191d0` | `CVrad3Command_delete_directory_and_contents_r::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180019260` | `CVrad3Command_determinism_check_record::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180019330` | `CVrad3Command_determinism_check_replay::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180019400` | `CVrad3Command_determinism_check_done::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180019a70` | `Vrad3_ExecuteScript` | the script file: routines (labels), $variables (unknown one: exit 1), run <label>; each line's tokens to Vrad3_RunCommand; second argument a start routine (Couldn't find routine) |  |
+| `18001afd0` | `Vrad3_LauncherMain` | CAppLaunchableDLL entry: command line, minidump options, -attach debugger switches, then Vrad3_Main |  |
+| `18001b0e0` | `Vrad3_Main` | banner, app systems (scenesystem SceneSystem_002/SceneUtils_001, vrad3 Vrad3_001), VRAD3_IN_PATH/VRAD3_OUT_PATH search paths, thread pool; each -name=value becomes script variable $name; -script runs through Vrad3_ExecuteScript; Total Time |  |
+| `18001c340` | `Vrad3_SetScriptVariable` | name ($name), value into the variable table |  |
+| `180020050` | `CVrad3Command_farfield_max_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800200b0` | `CVrad3Command_farfield_box::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800201f0` | `CVrad3Command_farfield_local_to_world::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180020430` | `CVrad3Command_farfield_cells::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800204d0` | `CVrad3Command_farfield_compute_bricks::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180021b60` | `CVrad3Command_farfield_compute_lighting::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180022330` | `CVrad3Command_farfield_dilate::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800231e0` | `CVrad3Command_farfield_median_filter::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180023b00` | `CVrad3Command_farfield_filter_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180024230` | `CVrad3Command_farfield_resample_borders::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800247b0` | `CVrad3Command_farfield_write_atlas::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180024bd0` | `CVrad3Command_farfield_voxelize_bricks::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180025590` | `CVrad3Command_farfield_write_cell_voxelization::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180025830` | `CVrad3Command_farfield_write_brick_voxelization::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180026730` | `CVrad3Command_farfield_resample_borders::Run::lambda_1` | lambda job body |  |
+| `1800267a0` | `CVrad3Command_farfield_filter_fireflies::Run::lambda_1` | lambda job body |  |
+| `180026810` | `CVrad3Command_farfield_median_filter::Run::lambda_1` | lambda job body |  |
+| `180026880` | `CVrad3Command_farfield_dilate::Run::lambda_1` | lambda job body |  |
+| `18002b5b0` | `CVrad3Command_lpv_image_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002b640` | `CVrad3Command_lpv_image_fog_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002b7b0` | `CVrad3Command_gpu_init::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002b940` | `CVrad3Command_lightmap_type::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002b9d0` | `CVrad3Command_lightmap_image_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002bc40` | `CVrad3Command_sceneinfo_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002d2b0` | `CVrad3Command_lightmap_load_packing_geometry_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002d530` | `CVrad3Command_lightmap_load_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180030100` | `CVrad3Command_lightmap_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180035ce0` | `CVrad3Command_lpv_mark_occupied_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180035df0` | `CVrad3Command_lpv_voxelize_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800371a0` | `CVrad3Command_lpv_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800371b0` | `CVrad3Command_lpv_compute_block_fog_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800371c0` | `CVrad3Command_render_camera::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800373a0` | `CVrad3Command_render_combo::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800375b0` | `CVrad3Command_render_dimensions::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180037670` | `CVrad3Command_render_sample_count::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180037870` | `CVrad3Command_render_test_image_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180037880` | `CVrad3Command_run_furnace_test_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180038d10` | `CVrad3Command_sort_test_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800393e0` | `CVrad3Command_path_trace_triangles_gpu_init::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18003a320` | `CVrad3Command_path_trace_triangles_gpu_shutdown::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18003a430` | `CVrad3Command_path_trace_triangles_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18003ddc0` | `CVrad3Command_path_trace_triangles_gpu::Run::lambda_3` | lambda job body |  |
+| `180045e30` | `CVrad3Command_lightmap_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180047920` | `CVrad3Command_lightmap_image_save::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180047960` | `CVrad3Command_lightmap_image_load::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800479d0` | `CVrad3Command_lightmap_export_packing_geometry_to_obj::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180047f90` | `CVrad3Command_lightmap_image_consolidate_small_charts::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800488e0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180049370` | `CVrad3Command_lightmap_image_fill_gutters::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004a030` | `CVrad3Command_lightmap_image_filter_median::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004b530` | `CVrad3Command_lightmap_image_remove_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004c9b0` | `CVrad3Command_lightmap_image_filter_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004cb00` | `CVrad3Command_lightmap_image_filter_sh_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004cc20` | `CVrad3Command_lightmap_image_write_debug_oidn_mask::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004ce00` | `CVrad3Command_lightmap_image_encode_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004e750` | `CVrad3Command_lightmap_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180050360` | `CVrad3Command_uber_weld::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800527b0` | `CVrad3Command_lightmap_image_write_mean::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180052910` | `CVrad3Command_lightmap_image_write_ao::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180052a70` | `CVrad3Command_lightmap_image_write_sh_irradiance::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180053440` | `CVrad3Command_lightmap_image_write_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180053560` | `CVrad3Command_lightmap_image_write_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180053750` | `CVrad3Command_lightmap_image_write_normal::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800538b0` | `CVrad3Command_lightmap_image_write_tangent::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180053a10` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180053c90` | `CVrad3Command_lightmap_image_write_chart_color::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180054040` | `CVrad3Command_lightmap_image_write_samplecount::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180054200` | `CVrad3Command_lightmap_image_write_convergence::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180054790` | `CVrad3Command_lightmap_image_show_valid_luxels::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18005c840` | `CVrad3Command_uber_weld::Run::lambda_10` | lambda job body |  |
+| `18005c9a0` | `CVrad3Command_uber_weld::Run::lambda_9` | lambda job body |  |
+| `18005ca10` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
+| `18005ca20` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
+| `18005ca30` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
+| `18005cbd0` | `CVrad3Command_lightmap_image_encode_sh2::Run::lambda_1` | lambda job body |  |
+| `18005cbe0` | `CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3` | lambda job body |  |
+| `18005cbf0` | `CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1` | lambda job body |  |
+| `18005cc00` | `CVrad3Command_lightmap_image_filter_median::Run::lambda_1` | lambda job body |  |
+| `18005cc10` | `CVrad3Command_lightmap_image_fill_gutters::Run::lambda_1` | lambda job body |  |
+| `18005ccc0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_4` | lambda job body |  |
+| `18005ccd0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_3` | lambda job body |  |
+| `18005cce0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_1` | lambda job body |  |
+| `18005cd90` | `CVrad3LightmapImage::InitMip::lambda_1` | lambda job body |  |
+| `180061320` | `CVrad3Command_lightmap_image_show_valid_luxels::Run::lambda_1` | lambda job body |  |
+| `1800614c0` | `CVrad3Command_lightmap_image_write_samplecount::Run::lambda_1` | lambda job body |  |
+| `180061650` | `CVrad3Command_lightmap_image_write_chart_color::Run::lambda_1` | lambda job body |  |
+| `180061660` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Run::lambda_1` | lambda job body |  |
+| `180061670` | `CVrad3Command_lightmap_image_write_tangent::Run::lambda_1` | lambda job body |  |
+| `180061680` | `CVrad3Command_lightmap_image_write_normal::Run::lambda_1` | lambda job body |  |
+| `180061690` | `CVrad3Command_lightmap_image_write_ahd::Run::lambda_1` | lambda job body |  |
+| `1800616a0` | `CVrad3Command_lightmap_image_write_sh_irradiance::Run::lambda_1` | lambda job body |  |
+| `1800617f0` | `CVrad3Command_lightmap_image_write_ao::Run::lambda_1` | lambda job body |  |
+| `180061940` | `CVrad3Command_lightmap_image_write_mean::Run::lambda_1` | lambda job body |  |
+| `180061950` | `CVrad3LightmapImage::Serialize::lambda_1` | lambda job body |  |
+| `180063cf0` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
+| `180067160` | `CVrad3Command_lightmap_analyze_image_error::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800672e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800741b0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_40` | lambda job body |  |
+| `1800742c0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_39` | lambda job body |  |
+| `1800742d0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_38` | lambda job body |  |
+| `1800742e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_37` | lambda job body |  |
+| `1800742f0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_36` | lambda job body |  |
+| `180074300` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_32` | lambda job body |  |
+| `180074310` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_30` | lambda job body |  |
+| `180074370` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_29` | lambda job body |  |
+| `180074380` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_1` | lambda job body |  |
+| `180074390` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_22` | lambda job body |  |
+| `1800743a0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_18` | lambda job body |  |
+| `1800744d0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_17` | lambda job body |  |
+| `1800744e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_16` | lambda job body |  |
+| `1800744f0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_15` | lambda job body |  |
+| `180074590` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_14` | lambda job body |  |
+| `1800745a0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_13` | lambda job body |  |
+| `180074660` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_7` | lambda job body |  |
+| `180074670` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_6` | lambda job body |  |
+| `18007dbe0` | `CVrad3Command_lpv_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18007dff0` | `CVrad3Command_lpv_local_to_world::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18007e230` | `CVrad3Command_lpv_box::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18007e370` | `CVrad3Command_lpv_cells::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180082290` | `CVrad3Command_lpv_type::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180082340` | `CVrad3Command_lpv_init::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800824e0` | `CVrad3Command_lpv_image_resolve::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180082f20` | `CVrad3Command_lpv_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180082fc0` | `CVrad3Command_lpv_image_ambient_occlusion::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180085af0` | `CVrad3Command_lpv_image_remove_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180085b60` | `CVrad3Command_lpv_image_median_filter::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180086c10` | `CVrad3Command_lpv_image_median_filter_fog::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180087c30` | `CVrad3Command_lpv_image_write_fog::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180087d00` | `CVrad3Command_lpv_image_write_ambientcube::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180087dd0` | `CVrad3Command_lpv_image_write_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800882e0` | `CVrad3Command_lpv_image_filter_sh2_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180088460` | `CVrad3Command_lpv_image_filter_ambient_cube_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800885e0` | `CVrad3Command_lpv_image_write_direct_light_shadows::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180088700` | `CVrad3Command_lpv_write_debug_voxelization::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180088810` | `CVrad3Command_lpv_image_median_filter_fog::Run::lambda_1` | lambda job body |  |
+| `180088820` | `CVrad3Command_lpv_image_median_filter::Run::lambda_1` | lambda job body |  |
+| `180088850` | `CVrad3Command_lpv_image_ambient_occlusion::Run::lambda_2` | lambda job body |  |
+| `1800889f0` | `CVrad3Command_write_test_image::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180088a70` | `CVrad3Command_validate_test_image::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180088ea0` | `CVrad3Command_remove_file::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180088f10` | `CVrad3Command_vrad3_test_tweaked_bc6h_compression::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18009b0a0` | `FloatBitMap_t::WriteToBufferBC7_bc7e::lambda_1` | lambda job body |  |
+| `18009b0b0` | `FloatBitMap_t::WriteToBufferBC7_ispctexcomp::lambda_1` | lambda job body |  |
+| `18009b0c0` | `FloatBitMap_t::WriteToBufferETC::lambda_1` | lambda job body |  |
+| `18009b0d0` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp_highest_quality_tweaked::lambda_1` | lambda job body |  |
+| `18009b140` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp::lambda_1` | lambda job body |  |
+| `1800b9540` | `FloatBitMap_t::WriteInMemoryEXRFast::lambda_1` | lambda job body |  |
+| `1801f91a0` | `CKMeansClustering::AssignVectorsToClusters::lambda_1` | lambda job body |  |

@@ -1,0 +1,1648 @@
+{
+ "functions": [
+  {
+   "addr": "18001afd0",
+   "name": "Vrad3_LauncherMain",
+   "module": "s2c:baked/vrad3",
+   "note": "CAppLaunchableDLL entry: command line, minidump options, -attach debugger switches, then Vrad3_Main"
+  },
+  {
+   "addr": "18001b0e0",
+   "name": "Vrad3_Main",
+   "module": "s2c:baked/vrad3",
+   "note": "banner, app systems (scenesystem SceneSystem_002/SceneUtils_001, vrad3 Vrad3_001), VRAD3_IN_PATH/VRAD3_OUT_PATH search paths, thread pool; each -name=value becomes script variable $name; -script runs through Vrad3_ExecuteScript; Total Time"
+  },
+  {
+   "addr": "180019a70",
+   "name": "Vrad3_ExecuteScript",
+   "module": "s2c:baked/vrad3",
+   "note": "the script file: routines (labels), $variables (unknown one: exit 1), run <label>; each line's tokens to Vrad3_RunCommand; second argument a start routine (Couldn't find routine)"
+  },
+  {
+   "addr": "18001c340",
+   "name": "Vrad3_SetScriptVariable",
+   "module": "s2c:baked/vrad3",
+   "note": "name ($name), value into the variable table"
+  },
+  {
+   "addr": "180017280",
+   "name": "Vrad3_RunCommand",
+   "module": "s2c:baked/vrad3",
+   "note": "argv[0] looked up in the command table (DAT_180347d68, CUtlHashtable<CUtlString, CVrad3Command*>, 0x18-byte slots; hash FNV-1a 32 then h = (h << 17 ^ h) + (h >> 21)), then Run(argc, argv); unknown: Vrad3_ListCommands and exit 1"
+  },
+  {
+   "addr": "180017440",
+   "name": "Vrad3_ListCommands",
+   "module": "s2c:baked/vrad3",
+   "note": "'%d Known commands' and each name"
+  },
+  {
+   "addr": "180001100",
+   "name": "CVrad3Command_exit::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"exit\")"
+  },
+  {
+   "addr": "180001130",
+   "name": "CVrad3Command_shadow_cull_mode::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"shadow_cull_mode\")"
+  },
+  {
+   "addr": "180001160",
+   "name": "CVrad3Command_cordon::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"cordon\")"
+  },
+  {
+   "addr": "180001190",
+   "name": "CVrad3Command_print::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"print\")"
+  },
+  {
+   "addr": "1800011c0",
+   "name": "CVrad3Command_println::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"println\")"
+  },
+  {
+   "addr": "1800011f0",
+   "name": "CVrad3Command_timer_start::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"timer_start\")"
+  },
+  {
+   "addr": "180001220",
+   "name": "CVrad3Command_timer_stop::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"timer_stop\")"
+  },
+  {
+   "addr": "180001250",
+   "name": "CVrad3Command_timer_reset::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"timer_reset\")"
+  },
+  {
+   "addr": "180001280",
+   "name": "CVrad3Command_timer_poll::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"timer_poll\")"
+  },
+  {
+   "addr": "1800012b0",
+   "name": "CVrad3Command_create_dir_hierarchy::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"create_dir_hierarchy\")"
+  },
+  {
+   "addr": "1800012e0",
+   "name": "CVrad3Command_delete_directory_and_contents_r::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"delete_directory_and_contents_r\")"
+  },
+  {
+   "addr": "180001310",
+   "name": "CVrad3Command_determinism_check_record::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"determinism_check_record\")"
+  },
+  {
+   "addr": "180001340",
+   "name": "CVrad3Command_determinism_check_replay::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"determinism_check_replay\")"
+  },
+  {
+   "addr": "180001370",
+   "name": "CVrad3Command_determinism_check_done::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"determinism_check_done\")"
+  },
+  {
+   "addr": "180001460",
+   "name": "CVrad3Command_farfield_max_memory::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_max_memory\")"
+  },
+  {
+   "addr": "180001490",
+   "name": "CVrad3Command_farfield_box::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_box\")"
+  },
+  {
+   "addr": "1800014c0",
+   "name": "CVrad3Command_farfield_local_to_world::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_local_to_world\")"
+  },
+  {
+   "addr": "1800014f0",
+   "name": "CVrad3Command_farfield_cells::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_cells\")"
+  },
+  {
+   "addr": "180001520",
+   "name": "CVrad3Command_farfield_compute_bricks::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_compute_bricks\")"
+  },
+  {
+   "addr": "1800015a0",
+   "name": "CVrad3Command_farfield_compute_lighting::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_compute_lighting\")"
+  },
+  {
+   "addr": "1800015d0",
+   "name": "CVrad3Command_farfield_dilate::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_dilate\")"
+  },
+  {
+   "addr": "180001600",
+   "name": "CVrad3Command_farfield_median_filter::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_median_filter\")"
+  },
+  {
+   "addr": "180001630",
+   "name": "CVrad3Command_farfield_filter_fireflies::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_filter_fireflies\")"
+  },
+  {
+   "addr": "180001660",
+   "name": "CVrad3Command_farfield_resample_borders::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_resample_borders\")"
+  },
+  {
+   "addr": "180001690",
+   "name": "CVrad3Command_farfield_write_atlas::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_write_atlas\")"
+  },
+  {
+   "addr": "1800016c0",
+   "name": "CVrad3Command_farfield_voxelize_bricks::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_voxelize_bricks\")"
+  },
+  {
+   "addr": "1800016f0",
+   "name": "CVrad3Command_farfield_write_cell_voxelization::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_write_cell_voxelization\")"
+  },
+  {
+   "addr": "180001720",
+   "name": "CVrad3Command_farfield_write_brick_voxelization::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"farfield_write_brick_voxelization\")"
+  },
+  {
+   "addr": "180001d80",
+   "name": "CVrad3Command_lpv_image_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_gpu\")"
+  },
+  {
+   "addr": "180001db0",
+   "name": "CVrad3Command_lpv_image_fog_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_fog_gpu\")"
+  },
+  {
+   "addr": "180001de0",
+   "name": "CVrad3Command_gpu_init::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"gpu_init\")"
+  },
+  {
+   "addr": "180001e10",
+   "name": "CVrad3Command_lightmap_type::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_type\")"
+  },
+  {
+   "addr": "180001e40",
+   "name": "CVrad3Command_lightmap_image_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_gpu\")"
+  },
+  {
+   "addr": "180001e70",
+   "name": "CVrad3Command_sceneinfo_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"sceneinfo_gpu\")"
+  },
+  {
+   "addr": "180001ea0",
+   "name": "CVrad3Command_lightmap_load_packing_geometry_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_load_packing_geometry_gpu\")"
+  },
+  {
+   "addr": "180001ed0",
+   "name": "CVrad3Command_lightmap_load_block_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_load_block_gpu\")"
+  },
+  {
+   "addr": "180001f00",
+   "name": "CVrad3Command_lightmap_compute_block_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_compute_block_gpu\")"
+  },
+  {
+   "addr": "180001f30",
+   "name": "CVrad3Command_lpv_flood_fill::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_flood_fill\")"
+  },
+  {
+   "addr": "180001f60",
+   "name": "CVrad3Command_lpv_mark_occupied_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_mark_occupied_gpu\")"
+  },
+  {
+   "addr": "180001f90",
+   "name": "CVrad3Command_lpv_voxelize_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_voxelize_gpu\")"
+  },
+  {
+   "addr": "180001fc0",
+   "name": "CVrad3Command_lpv_compute_block_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_compute_block_gpu\")"
+  },
+  {
+   "addr": "180001ff0",
+   "name": "CVrad3Command_lpv_compute_block_fog_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_compute_block_fog_gpu\")"
+  },
+  {
+   "addr": "180002020",
+   "name": "CVrad3Command_render_camera::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"render_camera\")"
+  },
+  {
+   "addr": "180002050",
+   "name": "CVrad3Command_render_combo::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"render_combo\")"
+  },
+  {
+   "addr": "180002080",
+   "name": "CVrad3Command_render_dimensions::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"render_dimensions\")"
+  },
+  {
+   "addr": "1800020b0",
+   "name": "CVrad3Command_render_sample_count::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"render_sample_count\")"
+  },
+  {
+   "addr": "1800020e0",
+   "name": "CVrad3Command_render_test_image_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"render_test_image_gpu\")"
+  },
+  {
+   "addr": "180002110",
+   "name": "CVrad3Command_run_furnace_test_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"run_furnace_test_gpu\")"
+  },
+  {
+   "addr": "180002140",
+   "name": "CVrad3Command_sort_test_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"sort_test_gpu\")"
+  },
+  {
+   "addr": "180002170",
+   "name": "CVrad3Command_path_trace_triangles_gpu_init::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"path_trace_triangles_gpu_init\")"
+  },
+  {
+   "addr": "1800021a0",
+   "name": "CVrad3Command_path_trace_triangles_gpu_shutdown::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"path_trace_triangles_gpu_shutdown\")"
+  },
+  {
+   "addr": "1800021d0",
+   "name": "CVrad3Command_path_trace_triangles_gpu::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"path_trace_triangles_gpu\")"
+  },
+  {
+   "addr": "1800022a0",
+   "name": "CVrad3Command_lightmap_free_memory::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_free_memory\")"
+  },
+  {
+   "addr": "1800022d0",
+   "name": "CVrad3Command_lightmap_image_save::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_save\")"
+  },
+  {
+   "addr": "180002300",
+   "name": "CVrad3Command_lightmap_image_load::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_load\")"
+  },
+  {
+   "addr": "180002330",
+   "name": "CVrad3Command_lightmap_export_packing_geometry_to_obj::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_export_packing_geometry_to_obj\")"
+  },
+  {
+   "addr": "180002360",
+   "name": "CVrad3Command_lightmap_image_consolidate_small_charts::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_consolidate_small_charts\")"
+  },
+  {
+   "addr": "180002390",
+   "name": "CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_dilate_over_invalid_jfa\")"
+  },
+  {
+   "addr": "1800023c0",
+   "name": "CVrad3Command_lightmap_image_fill_gutters::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_fill_gutters\")"
+  },
+  {
+   "addr": "1800023f0",
+   "name": "CVrad3Command_lightmap_image_filter_median::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_filter_median\")"
+  },
+  {
+   "addr": "180002420",
+   "name": "CVrad3Command_lightmap_image_remove_fireflies::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_remove_fireflies\")"
+  },
+  {
+   "addr": "180002450",
+   "name": "CVrad3Command_lightmap_image_filter_oidn::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_filter_oidn\")"
+  },
+  {
+   "addr": "180002480",
+   "name": "CVrad3Command_lightmap_image_filter_sh_oidn::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_filter_sh_oidn\")"
+  },
+  {
+   "addr": "1800024b0",
+   "name": "CVrad3Command_lightmap_image_write_debug_oidn_mask::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_debug_oidn_mask\")"
+  },
+  {
+   "addr": "1800024e0",
+   "name": "CVrad3Command_lightmap_image_encode_ahd::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_encode_ahd\")"
+  },
+  {
+   "addr": "180002510",
+   "name": "CVrad3Command_lightmap_image_encode_sh2::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_encode_sh2\")"
+  },
+  {
+   "addr": "180002540",
+   "name": "CVrad3Command_uber_weld::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"uber_weld\")"
+  },
+  {
+   "addr": "180002570",
+   "name": "CVrad3Command_lightmap_image_write_mean::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_mean\")"
+  },
+  {
+   "addr": "1800025a0",
+   "name": "CVrad3Command_lightmap_image_write_ao::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_ao\")"
+  },
+  {
+   "addr": "1800025d0",
+   "name": "CVrad3Command_lightmap_image_write_sh_irradiance::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_sh_irradiance\")"
+  },
+  {
+   "addr": "180002600",
+   "name": "CVrad3Command_lightmap_image_write_sh2::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_sh2\")"
+  },
+  {
+   "addr": "180002630",
+   "name": "CVrad3Command_lightmap_image_write_ahd::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_ahd\")"
+  },
+  {
+   "addr": "180002660",
+   "name": "CVrad3Command_lightmap_image_write_normal::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_normal\")"
+  },
+  {
+   "addr": "180002690",
+   "name": "CVrad3Command_lightmap_image_write_tangent::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_tangent\")"
+  },
+  {
+   "addr": "1800026c0",
+   "name": "CVrad3Command_lightmap_image_write_direct_light_shadows::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_direct_light_shadows\")"
+  },
+  {
+   "addr": "1800026f0",
+   "name": "CVrad3Command_lightmap_image_write_chart_color::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_chart_color\")"
+  },
+  {
+   "addr": "180002720",
+   "name": "CVrad3Command_lightmap_image_write_samplecount::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_samplecount\")"
+  },
+  {
+   "addr": "180002750",
+   "name": "CVrad3Command_lightmap_image_write_convergence::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_write_convergence\")"
+  },
+  {
+   "addr": "180002780",
+   "name": "CVrad3Command_lightmap_image_show_valid_luxels::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_image_show_valid_luxels\")"
+  },
+  {
+   "addr": "1800027b0",
+   "name": "CVrad3Command_lightmap_analyze_image_error::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_analyze_image_error\")"
+  },
+  {
+   "addr": "1800027e0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lightmap_ameliorate_block_compression_artefacts\")"
+  },
+  {
+   "addr": "180002910",
+   "name": "CVrad3Command_lpv_free_memory::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_free_memory\")"
+  },
+  {
+   "addr": "180002940",
+   "name": "CVrad3Command_lpv_local_to_world::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_local_to_world\")"
+  },
+  {
+   "addr": "180002970",
+   "name": "CVrad3Command_lpv_box::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_box\")"
+  },
+  {
+   "addr": "1800029a0",
+   "name": "CVrad3Command_lpv_cells::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_cells\")"
+  },
+  {
+   "addr": "1800029d0",
+   "name": "CVrad3Command_lpv_type::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_type\")"
+  },
+  {
+   "addr": "180002a00",
+   "name": "CVrad3Command_lpv_init::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_init\")"
+  },
+  {
+   "addr": "180002a30",
+   "name": "CVrad3Command_lpv_image_resolve::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_resolve\")"
+  },
+  {
+   "addr": "180002a60",
+   "name": "CVrad3Command_lpv_image_encode_sh2::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_encode_sh2\")"
+  },
+  {
+   "addr": "180002a90",
+   "name": "CVrad3Command_lpv_image_ambient_occlusion::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_ambient_occlusion\")"
+  },
+  {
+   "addr": "180002ac0",
+   "name": "CVrad3Command_lpv_image_remove_fireflies::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_remove_fireflies\")"
+  },
+  {
+   "addr": "180002af0",
+   "name": "CVrad3Command_lpv_image_median_filter::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_median_filter\")"
+  },
+  {
+   "addr": "180002b20",
+   "name": "CVrad3Command_lpv_image_median_filter_fog::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_median_filter_fog\")"
+  },
+  {
+   "addr": "180002b50",
+   "name": "CVrad3Command_lpv_image_write_fog::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_write_fog\")"
+  },
+  {
+   "addr": "180002b80",
+   "name": "CVrad3Command_lpv_image_write_ambientcube::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_write_ambientcube\")"
+  },
+  {
+   "addr": "180002bb0",
+   "name": "CVrad3Command_lpv_image_write_sh2::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_write_sh2\")"
+  },
+  {
+   "addr": "180002be0",
+   "name": "CVrad3Command_lpv_image_filter_sh2_oidn::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_filter_sh2_oidn\")"
+  },
+  {
+   "addr": "180002c10",
+   "name": "CVrad3Command_lpv_image_filter_ambient_cube_oidn::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_filter_ambient_cube_oidn\")"
+  },
+  {
+   "addr": "180002c40",
+   "name": "CVrad3Command_lpv_image_write_direct_light_shadows::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_image_write_direct_light_shadows\")"
+  },
+  {
+   "addr": "180002c70",
+   "name": "CVrad3Command_lpv_write_debug_voxelization::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"lpv_write_debug_voxelization\")"
+  },
+  {
+   "addr": "180002cc0",
+   "name": "CVrad3Command_write_test_image::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"write_test_image\")"
+  },
+  {
+   "addr": "180002cf0",
+   "name": "CVrad3Command_validate_test_image::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"validate_test_image\")"
+  },
+  {
+   "addr": "180002d20",
+   "name": "CVrad3Command_remove_file::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"remove_file\")"
+  },
+  {
+   "addr": "180002d50",
+   "name": "CVrad3Command_vrad3_test_tweaked_bc6h_compression::Register",
+   "module": "s2c:baked/vrad3",
+   "note": "dynamic initializer: CVrad3Command(\"vrad3_test_tweaked_bc6h_compression\")"
+  },
+  {
+   "addr": "180017580",
+   "name": "CVrad3Command::CVrad3Command",
+   "module": "s2c:baked/vrad3",
+   "note": "stores the name (CUtlString) and links the command into the global list"
+  },
+  {
+   "addr": "1800179b0",
+   "name": "CVrad3Command_exit::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800179f0",
+   "name": "CVrad3Command_shadow_cull_mode::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180017a30",
+   "name": "CVrad3Command_cordon::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180017ca0",
+   "name": "CVrad3Command_print::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180017fb0",
+   "name": "CVrad3Command_println::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800182c0",
+   "name": "CVrad3Command_timer_start::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800184e0",
+   "name": "CVrad3Command_timer_stop::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800189d0",
+   "name": "CVrad3Command_timer_reset::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180018af0",
+   "name": "CVrad3Command_timer_poll::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180019170",
+   "name": "CVrad3Command_create_dir_hierarchy::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800191d0",
+   "name": "CVrad3Command_delete_directory_and_contents_r::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180019260",
+   "name": "CVrad3Command_determinism_check_record::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180019330",
+   "name": "CVrad3Command_determinism_check_replay::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180019400",
+   "name": "CVrad3Command_determinism_check_done::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180020050",
+   "name": "CVrad3Command_farfield_max_memory::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800200b0",
+   "name": "CVrad3Command_farfield_box::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800201f0",
+   "name": "CVrad3Command_farfield_local_to_world::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180020430",
+   "name": "CVrad3Command_farfield_cells::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800204d0",
+   "name": "CVrad3Command_farfield_compute_bricks::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180021b60",
+   "name": "CVrad3Command_farfield_compute_lighting::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180022330",
+   "name": "CVrad3Command_farfield_dilate::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800231e0",
+   "name": "CVrad3Command_farfield_median_filter::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180023b00",
+   "name": "CVrad3Command_farfield_filter_fireflies::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180024230",
+   "name": "CVrad3Command_farfield_resample_borders::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800247b0",
+   "name": "CVrad3Command_farfield_write_atlas::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180024bd0",
+   "name": "CVrad3Command_farfield_voxelize_bricks::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180025590",
+   "name": "CVrad3Command_farfield_write_cell_voxelization::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180025830",
+   "name": "CVrad3Command_farfield_write_brick_voxelization::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180026730",
+   "name": "CVrad3Command_farfield_resample_borders::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800267a0",
+   "name": "CVrad3Command_farfield_filter_fireflies::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180026810",
+   "name": "CVrad3Command_farfield_median_filter::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180026880",
+   "name": "CVrad3Command_farfield_dilate::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18002b5b0",
+   "name": "CVrad3Command_lpv_image_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18002b640",
+   "name": "CVrad3Command_lpv_image_fog_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18002b7b0",
+   "name": "CVrad3Command_gpu_init::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18002b940",
+   "name": "CVrad3Command_lightmap_type::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18002b9d0",
+   "name": "CVrad3Command_lightmap_image_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18002bc40",
+   "name": "CVrad3Command_sceneinfo_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18002d2b0",
+   "name": "CVrad3Command_lightmap_load_packing_geometry_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18002d530",
+   "name": "CVrad3Command_lightmap_load_block_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180030100",
+   "name": "CVrad3Command_lightmap_compute_block_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800323f0",
+   "name": "CVrad3Command_lpv_flood_fill::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180035ce0",
+   "name": "CVrad3Command_lpv_mark_occupied_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180035df0",
+   "name": "CVrad3Command_lpv_voxelize_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800371a0",
+   "name": "CVrad3Command_lpv_compute_block_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800371b0",
+   "name": "CVrad3Command_lpv_compute_block_fog_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800371c0",
+   "name": "CVrad3Command_render_camera::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800373a0",
+   "name": "CVrad3Command_render_combo::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800375b0",
+   "name": "CVrad3Command_render_dimensions::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180037670",
+   "name": "CVrad3Command_render_sample_count::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180037870",
+   "name": "CVrad3Command_render_test_image_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180037880",
+   "name": "CVrad3Command_run_furnace_test_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180038d10",
+   "name": "CVrad3Command_sort_test_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800393e0",
+   "name": "CVrad3Command_path_trace_triangles_gpu_init::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18003a320",
+   "name": "CVrad3Command_path_trace_triangles_gpu_shutdown::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18003a430",
+   "name": "CVrad3Command_path_trace_triangles_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18003ddc0",
+   "name": "CVrad3Command_path_trace_triangles_gpu::Run::lambda_3",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180045e30",
+   "name": "CVrad3Command_lightmap_free_memory::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180047920",
+   "name": "CVrad3Command_lightmap_image_save::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180047960",
+   "name": "CVrad3Command_lightmap_image_load::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800479d0",
+   "name": "CVrad3Command_lightmap_export_packing_geometry_to_obj::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180047f90",
+   "name": "CVrad3Command_lightmap_image_consolidate_small_charts::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800488e0",
+   "name": "CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180049370",
+   "name": "CVrad3Command_lightmap_image_fill_gutters::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18004a030",
+   "name": "CVrad3Command_lightmap_image_filter_median::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18004b530",
+   "name": "CVrad3Command_lightmap_image_remove_fireflies::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18004c9b0",
+   "name": "CVrad3Command_lightmap_image_filter_oidn::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18004cb00",
+   "name": "CVrad3Command_lightmap_image_filter_sh_oidn::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18004cc20",
+   "name": "CVrad3Command_lightmap_image_write_debug_oidn_mask::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18004ce00",
+   "name": "CVrad3Command_lightmap_image_encode_ahd::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18004e750",
+   "name": "CVrad3Command_lightmap_image_encode_sh2::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180050360",
+   "name": "CVrad3Command_uber_weld::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800527b0",
+   "name": "CVrad3Command_lightmap_image_write_mean::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180052910",
+   "name": "CVrad3Command_lightmap_image_write_ao::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180052a70",
+   "name": "CVrad3Command_lightmap_image_write_sh_irradiance::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180053440",
+   "name": "CVrad3Command_lightmap_image_write_sh2::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180053560",
+   "name": "CVrad3Command_lightmap_image_write_ahd::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180053750",
+   "name": "CVrad3Command_lightmap_image_write_normal::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800538b0",
+   "name": "CVrad3Command_lightmap_image_write_tangent::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180053a10",
+   "name": "CVrad3Command_lightmap_image_write_direct_light_shadows::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180053c90",
+   "name": "CVrad3Command_lightmap_image_write_chart_color::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180054040",
+   "name": "CVrad3Command_lightmap_image_write_samplecount::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180054200",
+   "name": "CVrad3Command_lightmap_image_write_convergence::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180054790",
+   "name": "CVrad3Command_lightmap_image_show_valid_luxels::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18005c840",
+   "name": "CVrad3Command_uber_weld::Run::lambda_10",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005c9a0",
+   "name": "CVrad3Command_uber_weld::Run::lambda_9",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005ca10",
+   "name": "CVrad3Command_uber_weld::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005ca20",
+   "name": "CVrad3Command_uber_weld::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005ca30",
+   "name": "CVrad3Command_uber_weld::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005cbd0",
+   "name": "CVrad3Command_lightmap_image_encode_sh2::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005cbe0",
+   "name": "CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005cbf0",
+   "name": "CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005cc00",
+   "name": "CVrad3Command_lightmap_image_filter_median::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005cc10",
+   "name": "CVrad3Command_lightmap_image_fill_gutters::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005ccc0",
+   "name": "CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_4",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005ccd0",
+   "name": "CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_3",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005cce0",
+   "name": "CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18005cd90",
+   "name": "CVrad3LightmapImage::InitMip::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180061320",
+   "name": "CVrad3Command_lightmap_image_show_valid_luxels::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800614c0",
+   "name": "CVrad3Command_lightmap_image_write_samplecount::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180061650",
+   "name": "CVrad3Command_lightmap_image_write_chart_color::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180061660",
+   "name": "CVrad3Command_lightmap_image_write_direct_light_shadows::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180061670",
+   "name": "CVrad3Command_lightmap_image_write_tangent::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180061680",
+   "name": "CVrad3Command_lightmap_image_write_normal::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180061690",
+   "name": "CVrad3Command_lightmap_image_write_ahd::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800616a0",
+   "name": "CVrad3Command_lightmap_image_write_sh_irradiance::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800617f0",
+   "name": "CVrad3Command_lightmap_image_write_ao::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180061940",
+   "name": "CVrad3Command_lightmap_image_write_mean::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180061950",
+   "name": "CVrad3LightmapImage::Serialize::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180063cf0",
+   "name": "CVrad3Command_uber_weld::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180067160",
+   "name": "CVrad3Command_lightmap_analyze_image_error::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800672e0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800741b0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_40",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800742c0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_39",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800742d0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_38",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800742e0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_37",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800742f0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_36",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180074300",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_32",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180074310",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_30",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180074370",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_29",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180074380",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180074390",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_22",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800743a0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_18",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800744d0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_17",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800744e0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_16",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800744f0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_15",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180074590",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_14",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800745a0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_13",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180074660",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_7",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180074670",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_6",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18007dbe0",
+   "name": "CVrad3Command_lpv_free_memory::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18007dff0",
+   "name": "CVrad3Command_lpv_local_to_world::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18007e230",
+   "name": "CVrad3Command_lpv_box::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18007e370",
+   "name": "CVrad3Command_lpv_cells::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180082290",
+   "name": "CVrad3Command_lpv_type::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180082340",
+   "name": "CVrad3Command_lpv_init::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800824e0",
+   "name": "CVrad3Command_lpv_image_resolve::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180082f20",
+   "name": "CVrad3Command_lpv_image_encode_sh2::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180082fc0",
+   "name": "CVrad3Command_lpv_image_ambient_occlusion::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180085af0",
+   "name": "CVrad3Command_lpv_image_remove_fireflies::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180085b60",
+   "name": "CVrad3Command_lpv_image_median_filter::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180086c10",
+   "name": "CVrad3Command_lpv_image_median_filter_fog::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180087c30",
+   "name": "CVrad3Command_lpv_image_write_fog::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180087d00",
+   "name": "CVrad3Command_lpv_image_write_ambientcube::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180087dd0",
+   "name": "CVrad3Command_lpv_image_write_sh2::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800882e0",
+   "name": "CVrad3Command_lpv_image_filter_sh2_oidn::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180088460",
+   "name": "CVrad3Command_lpv_image_filter_ambient_cube_oidn::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "1800885e0",
+   "name": "CVrad3Command_lpv_image_write_direct_light_shadows::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180088700",
+   "name": "CVrad3Command_lpv_write_debug_voxelization::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180088810",
+   "name": "CVrad3Command_lpv_image_median_filter_fog::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180088820",
+   "name": "CVrad3Command_lpv_image_median_filter::Run::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "180088850",
+   "name": "CVrad3Command_lpv_image_ambient_occlusion::Run::lambda_2",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800889f0",
+   "name": "CVrad3Command_write_test_image::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180088a70",
+   "name": "CVrad3Command_validate_test_image::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180088ea0",
+   "name": "CVrad3Command_remove_file::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "180088f10",
+   "name": "CVrad3Command_vrad3_test_tweaked_bc6h_compression::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the command (virtual void Run(int argc, const char **argv))"
+  },
+  {
+   "addr": "18009b0a0",
+   "name": "FloatBitMap_t::WriteToBufferBC7_bc7e::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18009b0b0",
+   "name": "FloatBitMap_t::WriteToBufferBC7_ispctexcomp::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18009b0c0",
+   "name": "FloatBitMap_t::WriteToBufferETC::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18009b0d0",
+   "name": "FloatBitMap_t::WriteToBufferBC6H_ispctexcomp_highest_quality_tweaked::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "18009b140",
+   "name": "FloatBitMap_t::WriteToBufferBC6H_ispctexcomp::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1800b9540",
+   "name": "FloatBitMap_t::WriteInMemoryEXRFast::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  },
+  {
+   "addr": "1801f91a0",
+   "name": "CKMeansClustering::AssignVectorsToClusters::lambda_1",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda job body"
+  }
+ ]
+}
