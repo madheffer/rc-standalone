@@ -13,6 +13,55 @@ namespace Source2.Compiler.Tests;
 /// </summary>
 public class ModelLayoutProbe(ITestOutputHelper output)
 {
+    /// <summary>
+    /// MODELCMP=a.vpk|b.vpk|path.vmdl_c: both models' vertex buffers decoded,
+    /// per buffer and field the vertices that differ (first few shown), and
+    /// whether the index buffers are equal.
+    /// </summary>
+    [Fact]
+    public void Compare()
+    {
+        if (Environment.GetEnvironmentVariable("MODELCMP") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        Mesh Load(string vpk)
+        {
+            var package = new ValvePak.Package();
+            package.Read(vpk);
+            package.ReadEntry(package.FindEntry(p[2]) ?? throw new FileNotFoundException(p[2]), out var bytes);
+            var resource = new Resource();
+            resource.Read(new MemoryStream(bytes));
+            return ((Model)resource.DataBlock!).GetEmbeddedMeshesAndLoD().First().Mesh;
+        }
+        var (x, y) = (Load(p[0]), Load(p[1]));
+        for (var b = 0; b < Math.Min(x.VBIB.VertexBuffers.Count, y.VBIB.VertexBuffers.Count); b++)
+        {
+            var (u, v) = (x.VBIB.VertexBuffers[b], y.VBIB.VertexBuffers[b]);
+            output.WriteLine($"vb {b}: {u.ElementCount} x {u.ElementSizeInBytes} against {v.ElementCount} x {v.ElementSizeInBytes}");
+            if (u.ElementCount != v.ElementCount || u.ElementSizeInBytes != v.ElementSizeInBytes)
+                continue;
+            foreach (var f in u.InputLayoutFields)
+            {
+                var size = (int)(f == u.InputLayoutFields[^1] ? u.ElementSizeInBytes - f.Offset : u.InputLayoutFields.SkipWhile(g => g != f).Skip(1).First().Offset - f.Offset);
+                var diffs = new List<string>();
+                var count = 0;
+                for (var i = 0; i < u.ElementCount; i++)
+                {
+                    var at = (int)(i * u.ElementSizeInBytes + f.Offset);
+                    if (!u.Data.AsSpan(at, size).SequenceEqual(v.Data.AsSpan(at, size)))
+                    {
+                        count++;
+                        if (diffs.Count < 4)
+                            diffs.Add($"#{i} {Convert.ToHexString(u.Data, at, size)} / {Convert.ToHexString(v.Data, at, size)}");
+                    }
+                }
+                output.WriteLine($"  {f.SemanticName}{f.SemanticIndex}:{f.Format} differs at {count} vertices {string.Join("; ", diffs)}");
+            }
+        }
+        for (var b = 0; b < Math.Min(x.VBIB.IndexBuffers.Count, y.VBIB.IndexBuffers.Count); b++)
+            output.WriteLine($"ib {b}: equal {x.VBIB.IndexBuffers[b].Data.AsSpan().SequenceEqual(y.VBIB.IndexBuffers[b].Data)}");
+    }
+
     [Fact]
     public void Layouts()
     {
