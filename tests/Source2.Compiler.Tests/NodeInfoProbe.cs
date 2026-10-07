@@ -27,7 +27,8 @@ public class NodeInfoProbe(ITestOutputHelper output)
         foreach (var node in document.Elements.Where(e => e.GetValue<int>("nodeID") is { } id && ids.Contains(id) && e.Type != "CMapMesh"))
         {
             output.WriteLine($"node {node.GetValue<int>("nodeID")}: {node.Type} {node.Get<string>("name")} "
-                             + $"{node.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")}");
+                             + $"{node.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")} origin {node.GetValue<System.Numerics.Vector3>("origin")} "
+                             + $"angles {node.GetValue<System.Numerics.Vector3>("angles")} scales {node.GetValue<System.Numerics.Vector3>("scales")}");
             foreach (var n in Chain(document, node))
                 output.WriteLine($"  < {n.Type} {n.GetValue<int>("nodeID")} {n.Get<string>("name")}");
         }
@@ -36,7 +37,7 @@ public class NodeInfoProbe(ITestOutputHelper output)
             var zs = mesh.Faces.SelectMany(f => f.Corners).Select(c => c.Z).DefaultIfEmpty().ToArray();
             output.WriteLine($"mesh {mesh.NodeId}: parent {mesh.ParentType} {mesh.ParentClass}, instances [{string.Join(",", mesh.Instances)}], "
                              + $"prefabs [{string.Join(",", mesh.Prefabs)}], hidden {mesh.Hidden}, disableShadows {mesh.Element?.GetValue<int>("disableShadows")}, "
-                             + $"faces {mesh.Faces.Length}, z {zs.Min():F2}..{zs.Max():F2}");
+                             + $"faces {mesh.Faces.Length}, z {zs.Min():F2}..{zs.Max():F2}, origin {mesh.Origin} angles {mesh.Angles} scales {mesh.Scales}");
             output.WriteLine($"  materials {string.Join(", ", mesh.Faces.Select(f => f.Material).Distinct())}");
             if (models is not null)
                 foreach (var m in mesh.Faces.Select(f => f.Material).Distinct())
