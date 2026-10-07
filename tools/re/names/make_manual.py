@@ -1698,6 +1698,19 @@ TIER0 = [
     ("1802e80c0", "tanf_fma3", X, "code label: the FMA3 path, entered by a jcc from tanf"),
     ("18033e3e0", "Crt_TwoToJOver64", X, "data: 2^(j/64), j = 0..63"),
     ("1803ab28c", "Crt_Fma3Flag", X, "data: CPU flag selecting the FMA3 libm paths"),
+    # Binary KV3 v5 (Kv3V5Writer).
+    ("180124b00", "SaveKV3", IO, "export; text encodings here, binary through 1800c7220"),
+    ("1800c7220", "SaveKV3_Binary", IO, "binary_auto: raw under 0x100 bytes, LZ4 (1800c8790) under 0x80001, else zstd (1800c8d80); the 100-byte header (nodes, objects, arrays, main arrays and their elements); blob lengths and 0xFFEEDD00 after the types"),
+    ("1800c6eb0", "KV3Binary_WriteRoot", IO, "with flag 2 seeds the string table from the KV3 context's symbols first"),
+    ("1800c6c20", "KV3Binary_WriteNode", IO, "type byte (0x80 | type, then the flag byte, for flags 1-7): ints fitting 32 bits INT32/UINT32, 0/1 the zero/one types, doubles 0/1; arrays of one kind typed: < 0x100 byte length (0x18, or 0x19 auxiliary for int/uint/double), else 0x0a"),
+    ("1800c64b0", "KV3Binary_WriteValue", IO, "per encoded type into the given lanes; strings, lengths and member names to the main lanes; counts objects, arrays, main arrays and their elements"),
+    ("1800c6070", "KV3Binary_WriteTypedArray", IO, "element type: every element's encoded type if they agree, else the kind; flag from the first element"),
+    ("1800c5ea0", "KV3Binary_WriteNativeArray", IO, "natively typed arrays (float32, int32, ...) copied raw into the auxiliary lanes"),
+    ("1800c80c0", "KV3Binary_StringId", IO, "first-use ids; an empty string -1"),
+    ("1800c8790", "KV3Binary_CompressLz4", IO, "LZ4 HC level 12 over buffer 1 and the rest; blobs via 1800c7080; kept when raw / 20 <= raw - compressed"),
+    ("1800c7080", "KV3Binary_Lz4BlobFrames", IO, "blob frames <= 0x4000 through one HC stream (64 KB ring), each compressed size a u16 after buffer 2"),
+    ("1800c8d80", "KV3Binary_CompressZstd", IO, "level 7, checksums, nbWorkers over 1 MB; streamed through 64 KB: buffer 1, buffer 2 and the non-empty blobs as three frames"),
+    ("18012bec0", "V_LZ4_compress_HC", IO, "export; level 12 when none is given"),
 ]
 
 # tools/hammer.dll as installed (PE time 2026-09-23 22:00 UTC, file 2026-09-24).

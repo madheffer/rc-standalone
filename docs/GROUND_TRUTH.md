@@ -22,8 +22,20 @@ game can answer is raised with the user first, and runs with -insecure.
 
 ### World physics
 3. **KV3 encodings per resource type.** Most block writers save with
-   binary_auto (settled below), but some call sites pass plain "binary" or
-   "binary_bc". Map each writer to the resource types it serves.
+   binary_auto, but some call sites pass plain "binary" or "binary_bc".
+   Map each writer to the resource types it serves. The binary_auto
+   encoder itself is settled (2026-10-07, tier0 1800c7220 and its node,
+   typed array, string and LZ4/zstd helpers; Kv3V5Writer): every one of
+   the 2,598 v5 blocks of the four corpus maps, and every sampled game
+   model, material, particle and soundevent block, re-encodes from its
+   tree to Valve's bytes with the compression chosen automatically, so
+   no block measured so far uses another encoding. World physics
+   containers re-authored from Valve's trees: 79 of 80 corpus files byte
+   for byte (zero padding between blocks, not VRF's "S2V"; zstd workers
+   from 1 MB of buffers and blobs; blob frames through lz4hc's
+   LZ4_compress_HC_continue on tier0's 0x14000 ring). Open: s2port_doom's
+   fix3_geo_all, one byte longer in its 33 LZ4 blob frames (likely an
+   lz4hc version difference; which frame is not found yet).
 4. **Face order around a vertex** in the brush hull neighbour set: triangle
    order stands in (it only matters on a hash collision).
 5. **Instance path for brush entity meshes**: applied after the node's own

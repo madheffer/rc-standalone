@@ -209,6 +209,78 @@
    "name": "Crt_Fma3Flag",
    "module": "s2c:math",
    "note": "data: CPU flag selecting the FMA3 libm paths"
+  },
+  {
+   "addr": "180124b00",
+   "name": "SaveKV3",
+   "module": "s2c:io",
+   "note": "export; text encodings here, binary through 1800c7220"
+  },
+  {
+   "addr": "1800c7220",
+   "name": "SaveKV3_Binary",
+   "module": "s2c:io",
+   "note": "binary_auto: raw under 0x100 bytes, LZ4 (1800c8790) under 0x80001, else zstd (1800c8d80); the 100-byte header (nodes, objects, arrays, main arrays and their elements); blob lengths and 0xFFEEDD00 after the types"
+  },
+  {
+   "addr": "1800c6eb0",
+   "name": "KV3Binary_WriteRoot",
+   "module": "s2c:io",
+   "note": "with flag 2 seeds the string table from the KV3 context's symbols first"
+  },
+  {
+   "addr": "1800c6c20",
+   "name": "KV3Binary_WriteNode",
+   "module": "s2c:io",
+   "note": "type byte (0x80 | type, then the flag byte, for flags 1-7): ints fitting 32 bits INT32/UINT32, 0/1 the zero/one types, doubles 0/1; arrays of one kind typed: < 0x100 byte length (0x18, or 0x19 auxiliary for int/uint/double), else 0x0a"
+  },
+  {
+   "addr": "1800c64b0",
+   "name": "KV3Binary_WriteValue",
+   "module": "s2c:io",
+   "note": "per encoded type into the given lanes; strings, lengths and member names to the main lanes; counts objects, arrays, main arrays and their elements"
+  },
+  {
+   "addr": "1800c6070",
+   "name": "KV3Binary_WriteTypedArray",
+   "module": "s2c:io",
+   "note": "element type: every element's encoded type if they agree, else the kind; flag from the first element"
+  },
+  {
+   "addr": "1800c5ea0",
+   "name": "KV3Binary_WriteNativeArray",
+   "module": "s2c:io",
+   "note": "natively typed arrays (float32, int32, ...) copied raw into the auxiliary lanes"
+  },
+  {
+   "addr": "1800c80c0",
+   "name": "KV3Binary_StringId",
+   "module": "s2c:io",
+   "note": "first-use ids; an empty string -1"
+  },
+  {
+   "addr": "1800c8790",
+   "name": "KV3Binary_CompressLz4",
+   "module": "s2c:io",
+   "note": "LZ4 HC level 12 over buffer 1 and the rest; blobs via 1800c7080; kept when raw / 20 <= raw - compressed"
+  },
+  {
+   "addr": "1800c7080",
+   "name": "KV3Binary_Lz4BlobFrames",
+   "module": "s2c:io",
+   "note": "blob frames <= 0x4000 through one HC stream (64 KB ring), each compressed size a u16 after buffer 2"
+  },
+  {
+   "addr": "1800c8d80",
+   "name": "KV3Binary_CompressZstd",
+   "module": "s2c:io",
+   "note": "level 7, checksums, nbWorkers over 1 MB; streamed through 64 KB: buffer 1, buffer 2 and the non-empty blobs as three frames"
+  },
+  {
+   "addr": "18012bec0",
+   "name": "V_LZ4_compress_HC",
+   "module": "s2c:io",
+   "note": "export; level 12 when none is given"
   }
  ]
 }

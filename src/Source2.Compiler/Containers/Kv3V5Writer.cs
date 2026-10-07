@@ -1,6 +1,7 @@
 using System.Text;
 using K4os.Compression.LZ4;
-using K4os.Compression.LZ4.Encoders;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using ValveKeyValue;
 using ValveResourceFormat.ResourceTypes;
 
@@ -302,9 +303,9 @@ public static class Kv3V5Writer
         {
             ZstdSharp.Unsafe.Methods.ZSTD_CCtx_setParameter(cctx, ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_compressionLevel, 7);
             ZstdSharp.Unsafe.Methods.ZSTD_CCtx_setParameter(cctx, ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_checksumFlag, 1);
-            // Over 1 MB in all tier0 asks for worker threads; zstd's multithreaded frames
-            // do not depend on how many.
-            if (raw1.Length + raw2.Length > 0x100000)
+            // Over 1 MB of buffers and blobs tier0 asks for worker threads; zstd's
+            // multithreaded frames do not depend on how many.
+            if (raw1.Length + raw2.Length + blobs.Sum(x => x.Length) > 0x100000)
                 ZstdSharp.Unsafe.Methods.ZSTD_CCtx_setParameter(cctx, ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_nbWorkers, 1);
             var chunk = new byte[0x10000];
             void Stream(MemoryStream to, byte[] src, ZstdSharp.Unsafe.ZSTD_EndDirective end)
@@ -343,6 +344,63 @@ public static class Kv3V5Writer
         finally
         {
             ZstdSharp.Unsafe.Methods.ZSTD_freeCCtx(cctx);
+        }
+    }
+
+    /// <summary>
+    /// 1800c7080's blob stream: an LZ4 HC level 12 stream whose input is copied
+    /// into a 0x14000-byte ring at the running offset, which goes back to 0 once
+    /// past 0xffff, each frame compressed with LZ4_compress_HC_continue (so a
+    /// wrapped frame shortens the dictionary it overwrites). K4os carries lz4hc's
+    /// streaming functions only internally; they are bound by reflection.
+    /// </summary>
+    private sealed unsafe class Lz4BlobRing : IDisposable
+    {
+        private const int RingSize = 0x14000, StreamSize = 1 << 19;
+        private static readonly delegate*<void*, int, void*> Init;
+        private static readonly delegate*<void*, int, void> SetLevel;
+        private static readonly delegate*<void*, byte*, byte*, int, int, int> Continue;
+        private readonly byte* _ring = (byte*)NativeMemory.AllocZeroed(RingSize);
+        private readonly void* _stream = NativeMemory.AllocZeroed(StreamSize);
+        private int _offset;
+
+        static Lz4BlobRing()
+        {
+            var asm = typeof(LZ4Codec).Assembly;
+            var ll = asm.GetType("K4os.Compression.LZ4.Engine.LL", true)!;
+            var llxx = asm.GetType("K4os.Compression.LZ4.Engine.LLxx", true)!;
+            var flags = BindingFlags.Public | BindingFlags.Static;
+            Init = (delegate*<void*, int, void*>)ll.GetMethods(flags).First(m => m.Name == "LZ4_initStreamHC" && m.GetParameters().Length == 2).MethodHandle.GetFunctionPointer();
+            SetLevel = (delegate*<void*, int, void>)ll.GetMethod("LZ4_setCompressionLevel", flags)!.MethodHandle.GetFunctionPointer();
+            Continue = (delegate*<void*, byte*, byte*, int, int, int>)llxx.GetMethod("LZ4_compress_HC_continue", flags)!.MethodHandle.GetFunctionPointer();
+        }
+
+        public Lz4BlobRing()
+        {
+            if (Init(_stream, StreamSize) == null)
+                throw new InvalidOperationException("LZ4 HC stream init failed");
+            SetLevel(_stream, 12);
+        }
+
+        public byte[] Compress(ReadOnlySpan<byte> frame)
+        {
+            frame.CopyTo(new Span<byte>(_ring + _offset, frame.Length));
+            var output = new byte[0x4050];
+            int n;
+            fixed (byte* o = output)
+                n = Continue(_stream, _ring + _offset, o, frame.Length, output.Length);
+            if (n <= 0)
+                throw new InvalidOperationException("LZ4 blob frame failed");
+            _offset += frame.Length;
+            if (_offset > 0xffff)
+                _offset = 0;
+            return output.AsSpan(0, n).ToArray();
+        }
+
+        public void Dispose()
+        {
+            NativeMemory.Free(_ring);
+            NativeMemory.Free(_stream);
         }
     }
 
@@ -435,18 +493,14 @@ public static class Kv3V5Writer
             var packed = new MemoryStream();
             if (c.Blobs.Count > 0)
             {
-                using var encoder = new LZ4HighChainEncoder(LZ4Level.L12_MAX, FrameSize, 0);
-                var target = new byte[LZ4Codec.MaximumOutputSize(FrameSize)];
+                using var ring = new Lz4BlobRing();
                 foreach (var blob in c.Blobs)
                     for (var at = 0; at < blob.Length; at += FrameSize)
                     {
-                        var n = Math.Min(FrameSize, blob.Length - at);
-                        encoder.TopupAndEncode(blob.AsSpan(at, n), target, true, false, out var loaded, out var encoded);
-                        if (loaded != n || encoded <= 0)
-                            throw new InvalidOperationException("LZ4 blob frame failed");
-                        withSizes.Write(BitConverter.GetBytes((ushort)encoded));
+                        var frame = ring.Compress(blob.AsSpan(at, Math.Min(FrameSize, blob.Length - at)));
+                        withSizes.Write(BitConverter.GetBytes((ushort)frame.Length));
                         frameSizes += 2;
-                        packed.Write(target, 0, encoded);
+                        packed.Write(frame);
                     }
             }
             var lzRaw2 = withSizes.ToArray();

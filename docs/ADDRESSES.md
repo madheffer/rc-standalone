@@ -346,7 +346,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181c1ea80` | `ResourceName_FixupAndHash` | reaches FixupResourceName | `src/Source2.Compiler/Io/ResourceNames.cs:7` |
 | `181c1f980` | `ResourceManifest_Append` | appends to the flat resourceManifest array | `src/Source2.Compiler/Containers/ResourceManifestAuthor.cs:52` |
 | `181c1fae0` | `ResourceManifest_Save` | SaveKV3 text generic, CRLF, no final newline | `src/Source2.Compiler/Containers/ResourceManifestAuthor.cs:53` |
-| `181c24a70` | `Red2_WriteBlock` | RED2 writer; passes binary_auto | `src/Source2.Compiler/Containers/AuthoredKv3.cs:50` |
+| `181c24a70` | `Red2_WriteBlock` | RED2 writer; passes binary_auto | `src/Source2.Compiler/Containers/AuthoredKv3.cs:59` |
 
 ### s2c:containers/compile-map
 
@@ -1206,15 +1206,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
-- 35 addresses
+- 47 addresses
 
 ### s2c:containers
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800c7220` | `Kv3_SaveBinary` | binary_auto: LZ4 below 0x80001 bytes, else Zstd; raw below 0x100 | `src/Source2.Compiler/Containers/AuthoredKv3.cs:26`, `src/Source2.Compiler/Containers/AuthoredKv3.cs:47` |
-| `1800c8790` | `Kv3_CompressLz4` |  | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27` |
-| `1800c8d80` | `Kv3_CompressZstd` |  | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27` |
+| `1800c7220` | `Kv3_SaveBinary` | binary_auto: LZ4 below 0x80001 bytes, else Zstd; raw below 0x100 | `src/Source2.Compiler/Containers/AuthoredKv3.cs:26`, `src/Source2.Compiler/Containers/AuthoredKv3.cs:56`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:10` +1 |
+| `1800c8790` | `Kv3_CompressLz4` |  | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:349` |
+| `1800c8d80` | `Kv3_CompressZstd` |  | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:294`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:349` |
 | `180124b00` | `SaveKV3` | export |  |
 
 ### s2c:io
@@ -1231,6 +1231,18 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180054b40` | `CBufferString::FixSlashes` | export |  |
 | `180054c60` | `CBufferString::FixupPathName` | export |  |
 | `1800560c0` | `CBufferString::SetExtension` | export |  |
+| `1800c5ea0` | `KV3Binary_WriteNativeArray` | natively typed arrays (float32, int32, ...) copied raw into the auxiliary lanes | `src/Source2.Compiler/Containers/Kv3V5Writer.cs:11`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:274` |
+| `1800c6070` | `KV3Binary_WriteTypedArray` | element type: every element's encoded type if they agree, else the kind; flag from the first element | `src/Source2.Compiler/Containers/Kv3V5Writer.cs:11`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:152` |
+| `1800c64b0` | `KV3Binary_WriteValue` | per encoded type into the given lanes; strings, lengths and member names to the main lanes; counts objects, arrays, main arrays and their elements | `src/Source2.Compiler/Containers/Kv3V5Writer.cs:11`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:189` |
+| `1800c6c20` | `KV3Binary_WriteNode` | type byte (0x80 \| type, then the flag byte, for flags 1-7): ints fitting 32 bits INT32/UINT32, 0/1 the zero/one types, doubles 0/1; arrays of one kind typed: < 0x100 byte length (0x18, or 0x19 auxiliary for int/uint/double), else 0x0a | `src/Source2.Compiler/Containers/Kv3V5Writer.cs:11`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:123` |
+| `1800c6eb0` | `KV3Binary_WriteRoot` | with flag 2 seeds the string table from the KV3 context's symbols first |  |
+| `1800c7080` | `KV3Binary_Lz4BlobFrames` | blob frames <= 0x4000 through one HC stream (64 KB ring), each compressed size a u16 after buffer 2 | `src/Source2.Compiler/Containers/Kv3V5Writer.cs:430` |
+| `1800c7220` | `SaveKV3_Binary` | binary_auto: raw under 0x100 bytes, LZ4 (1800c8790) under 0x80001, else zstd (1800c8d80); the 100-byte header (nodes, objects, arrays, main arrays and their elements); blob lengths and 0xFFEEDD00 after the types | `src/Source2.Compiler/Containers/AuthoredKv3.cs:26`, `src/Source2.Compiler/Containers/AuthoredKv3.cs:56`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:10` +1 |
+| `1800c80c0` | `KV3Binary_StringId` | first-use ids; an empty string -1 |  |
+| `1800c8790` | `KV3Binary_CompressLz4` | LZ4 HC level 12 over buffer 1 and the rest; blobs via 1800c7080; kept when raw / 20 <= raw - compressed | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:349` |
+| `1800c8d80` | `KV3Binary_CompressZstd` | level 7, checksums, nbWorkers over 1 MB; streamed through 64 KB: buffer 1, buffer 2 and the non-empty blobs as three frames | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:294`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:349` |
+| `180124b00` | `SaveKV3` | export; text encodings here, binary through 1800c7220 |  |
+| `18012bec0` | `V_LZ4_compress_HC` | export; level 12 when none is given |  |
 | `18017ebf0` | `CVertexKDTree_Partition` | from the middle up, below the split swapped down | `src/Source2.Compiler/Maps/VertexKdTree.cs:69`, `src/Source2.Compiler/Physics/MeshWeld.cs:257` |
 | `180306700` | `V_IsAbsolutePath_PrefixVpk` | data: string 'vpk:' |  |
 | `180306708` | `V_IsAbsolutePath_PrefixUgc` | data: string 'ugc:' |  |

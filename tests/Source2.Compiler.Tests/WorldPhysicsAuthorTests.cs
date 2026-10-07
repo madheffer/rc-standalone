@@ -45,6 +45,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
         var report = Compare(valve, mine);
         output.WriteLine($"valve {Facts(valve)}");
         output.WriteLine($"mine  {Facts(mine)}");
+        output.WriteLine($"bytes {(valve.AsSpan().SequenceEqual(mine) ? "equal" : $"differ ({valve.Length} vs {mine.Length})")}");
         output.WriteLine($"trees: {string.Join(", ", trees.Select(t => $"{t.Key} {KvTreeDiff.Typed(t.Value, "", 0, int.MaxValue).Count()} lines"))}");
         foreach (var line in report.Take(60))
             output.WriteLine(line);

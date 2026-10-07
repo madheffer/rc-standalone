@@ -54,9 +54,7 @@ public static class WorldPhysicsAuthor
         }
         resource.Blocks.Add(AuthoredKv3.Block(red2, generic, BlockType.RED2, resource));
         resource.Blocks.Add(AuthoredKv3.Block(data, generic, BlockType.DATA, resource));
-        AuthoredKv3.ChooseCompression(resource);
-        using var ms = new MemoryStream();
-        resource.Serialize(ms);
-        return ms.ToArray();
+        // Zero padding between blocks, as Valve's files have it (VRF's writer pads with "S2V").
+        return ValveLayout.Serialize(resource);
     }
 }
