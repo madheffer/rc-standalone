@@ -21,6 +21,23 @@ public class NodeInfoProbe(ITestOutputHelper output)
         if (MapFixtures.VmapSource(p[0], p[1]) is not { } source)
             return;
         var document = MapSource.Read(source);
+        // NODEINFO=addon|map|meshattrs: every scalar CMapMesh attribute with a histogram of its values.
+        if (p[2] == "meshattrs")
+        {
+            var hist = new Dictionary<string, Dictionary<string, int>>();
+            foreach (var e in document.Elements.Where(e => e.Type == "CMapMesh"))
+                foreach (var (k, v) in e.Attributes)
+                {
+                    if (v is null || v is DmxBinary.Element || v is System.Collections.IList || v is byte[])
+                        continue;
+                    var h = hist.TryGetValue(k, out var x) ? x : hist[k] = [];
+                    var key = v.ToString() ?? "";
+                    h[key] = h.GetValueOrDefault(key) + 1;
+                }
+            foreach (var (k, h) in hist.OrderBy(x => x.Key))
+                output.WriteLine($"attr {k}: {string.Join(", ", h.OrderByDescending(x => x.Value).Take(6).Select(x => $"{x.Key} x{x.Value}"))}");
+            return;
+        }
         // NODEINFO=addon|map|class:<prefix>|key,key: those keys of every entity whose class starts so.
         if (p[2].StartsWith("class:", StringComparison.Ordinal))
         {
