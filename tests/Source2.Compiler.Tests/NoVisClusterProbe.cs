@@ -71,5 +71,55 @@ public class NoVisClusterProbe(ITestOutputHelper output)
             output.WriteLine($"object {o.Name}: " + string.Join(" ", o.Meshes.Select(m => $"{Path.GetFileName(m.Material)}/v{m.Vertices.Length / m.Stride}/t{m.TriangleCount}/s{m.Stride}")));
         foreach (var a in result.Aggregates)
             output.WriteLine($"aggregate {a.Name}: " + string.Join(" ", a.Meshes.Select(m => $"v{m.Vertices.Length / m.Stride}/t{m.TriangleCount}")));
+        if (Environment.GetEnvironmentVariable("NOVISPROBE_RCAPTURE") is { Length: > 0 } capture)
+            CompareBoxes(capture, lists, result);
+    }
+
+    // NOVISPROBE_RCAPTURE=<capture_rclusters.py output>: Valve's one box-builder call
+    // (centroids in, boxes out) against our render boxes and our layer's centroids
+    // in list order (CompileNode's fallback when nothing else made boxes).
+    private void CompareBoxes(string capture, Dictionary<MeshLists.Kind, List<WorldNodeCompile.Entry>> lists, WorldNodeCompile.Result result)
+    {
+        var data = File.ReadAllBytes(capture);
+        Vector3[] valveCentroids = [];
+        List<(Vector3 Min, Vector3 Max)> valveBoxes = [];
+        for (var at = 0; at < data.Length;)
+        {
+            var n = BitConverter.ToInt32(data, at);
+            var head = System.Text.Json.JsonDocument.Parse(data.AsMemory(at + 4, n)).RootElement;
+            at += 4 + n;
+            var m = BitConverter.ToInt32(data, at);
+            var f = new float[m / 4];
+            Buffer.BlockCopy(data, at + 4, f, 0, m);
+            at += 4 + m;
+            if (head.GetProperty("ev").GetString() == "in")
+                valveCentroids = [.. Enumerable.Range(0, f.Length / 3).Select(i => new Vector3(f[i * 3], f[i * 3 + 1], f[i * 3 + 2]))];
+            else
+                valveBoxes = [.. Enumerable.Range(0, f.Length / 6).Select(i => (new Vector3(f[i * 6], f[i * 6 + 1], f[i * 6 + 2]), new Vector3(f[i * 6 + 3], f[i * 6 + 4], f[i * 6 + 5])))];
+        }
+        output.WriteLine($"render boxes: ours {result.RenderBoxes.Count}, valve {valveBoxes.Count}");
+        for (var i = 0; i < Math.Max(result.RenderBoxes.Count, valveBoxes.Count); i++)
+            output.WriteLine($"  box {i}: ours {(i < result.RenderBoxes.Count ? $"{result.RenderBoxes[i].Min}..{result.RenderBoxes[i].Max}" : "-")} valve {(i < valveBoxes.Count ? $"{valveBoxes[i].Min}..{valveBoxes[i].Max}" : "-")}");
+        var ours = new List<(Vector3 C, string From)>();
+        foreach (var o in MeshLists.Order)
+            foreach (var e in lists.GetValueOrDefault(o.Kind) ?? [])
+            {
+                if (!RenderClusters.Contributes(e.Facts.Attributes))
+                    continue;
+                Vector3 P(int v) => new(e.Vertices[v * e.Stride], e.Vertices[(v * e.Stride) + 1], e.Vertices[(v * e.Stride) + 2]);
+                for (var t = 0; t < e.TriangleCount; t++)
+                    ours.Add((RenderClusters.Centroid(P(e.Indices[t * 3]), P(e.Indices[(t * 3) + 1]), P(e.Indices[(t * 3) + 2])), $"{o.Kind} node {e.Facts.NodeId} {Path.GetFileName(e.Material)}"));
+            }
+        var valveSet = valveCentroids.GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
+        var ourSet = ours.GroupBy(c => c.C).ToDictionary(g => g.Key, g => g.Count());
+        output.WriteLine($"centroids: ours {ours.Count}, valve {valveCentroids.Length}");
+        var missing = ours.Where(c => !valveSet.ContainsKey(c.C)).GroupBy(c => c.From).Select(g => $"{g.Key} x{g.Count()}").Take(30);
+        output.WriteLine("ours not in valve's: " + string.Join("; ", missing));
+        var extra = valveCentroids.Count(c => !ourSet.ContainsKey(c));
+        output.WriteLine($"valve's not in ours: {extra}");
+        var same = 0;
+        while (same < Math.Min(ours.Count, valveCentroids.Length) && ours[same].C == valveCentroids[same])
+            same++;
+        output.WriteLine($"same order for the first {same}" + (same < ours.Count ? $"; ours then {ours[same].From}" : ""));
     }
 }
