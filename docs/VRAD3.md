@@ -316,7 +316,10 @@ resourcecompiler's script runs one routine per volume: `lpv_type`,
 - `lpv_image_gpu W H D`: the grid gets a one-cell border on every side
   (cells + 2), and its box grows by one cell size each way. It frees the
   previous images and makes new ones:
-  - the ambient cube image, (X x Z) by (Y x 7);
+  - the ambient cube image, (X x Z) by (Y x 7); confirmed on probe01's
+    volumes (32x42x6 is 192 x 294, 26x10x6 is 156 x 70), as is the
+    shadow image's (X x Z) by Y. The readback fills the six face bands;
+    what fills the seventh is still to read;
   - the direct light shadow image, (X x Z) by (Y x 2);
   - three SH images, (X x Z) by (Y x 2) each;
   - for fog, one image.
