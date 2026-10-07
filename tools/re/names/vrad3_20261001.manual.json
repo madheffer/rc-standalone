@@ -229,6 +229,42 @@
    "note": ""
   },
   {
+   "addr": "180032b60",
+   "name": "Vrad3_MarkOccupiedCells",
+   "module": "s2c:baked/vrad3",
+   "note": "occupancy of a grid under a local-to-world matrix, dilated by n cells (lpv_mark_occupied_gpu, farfield_compute_bricks)"
+  },
+  {
+   "addr": "18001fa00",
+   "name": "FarField_BuildBricks",
+   "module": "s2c:baked/vrad3",
+   "note": "sparse bricks over the occupied cells"
+  },
+  {
+   "addr": "180023510",
+   "name": "FarField_MedianFilterBrick",
+   "module": "s2c:baked/vrad3",
+   "note": "one brick's median pass"
+  },
+  {
+   "addr": "180023dc0",
+   "name": "FarField_FilterFirefliesBrick",
+   "module": "s2c:baked/vrad3",
+   "note": "clamp a brick's samples above the ratio"
+  },
+  {
+   "addr": "180024400",
+   "name": "FarField_ResampleBrickBorders",
+   "module": "s2c:baked/vrad3",
+   "note": "fill a brick's border plane from its neighbours"
+  },
+  {
+   "addr": "1800358b0",
+   "name": "FarField_ComputeLightingGpu",
+   "module": "s2c:baked/vrad3",
+   "note": "rtx_vrad3_farfield over the bricks in batches"
+  },
+  {
    "addr": "18005cf40",
    "name": "std_nth_element_float",
    "module": "s2c:baked/vrad3",

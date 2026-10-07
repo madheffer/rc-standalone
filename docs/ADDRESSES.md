@@ -1941,7 +1941,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: this build
-- 308 addresses
+- 314 addresses
 
 ### s2c:baked/vrad3
 
@@ -2072,6 +2072,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18001afd0` | `Vrad3_LauncherMain` | CAppLaunchableDLL entry: command line, minidump options, -attach debugger switches, then Vrad3_Main |  |
 | `18001b0e0` | `Vrad3_Main` | banner, app systems (scenesystem SceneSystem_002/SceneUtils_001, vrad3 Vrad3_001), VRAD3_IN_PATH/VRAD3_OUT_PATH search paths, thread pool; each -name=value becomes script variable $name; -script runs through Vrad3_ExecuteScript; Total Time |  |
 | `18001c340` | `Vrad3_SetScriptVariable` | name ($name), value into the variable table |  |
+| `18001fa00` | `FarField_BuildBricks` | sparse bricks over the occupied cells |  |
 | `180020050` | `CVrad3Command_farfield_max_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800200b0` | `CVrad3Command_farfield_box::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800201f0` | `CVrad3Command_farfield_local_to_world::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2080,8 +2081,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180021b60` | `CVrad3Command_farfield_compute_lighting::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180022330` | `CVrad3Command_farfield_dilate::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800231e0` | `CVrad3Command_farfield_median_filter::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180023510` | `FarField_MedianFilterBrick` | one brick's median pass |  |
 | `180023b00` | `CVrad3Command_farfield_filter_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180023dc0` | `FarField_FilterFirefliesBrick` | clamp a brick's samples above the ratio |  |
 | `180024230` | `CVrad3Command_farfield_resample_borders::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180024400` | `FarField_ResampleBrickBorders` | fill a brick's border plane from its neighbours |  |
 | `1800247b0` | `CVrad3Command_farfield_write_atlas::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180024bd0` | `CVrad3Command_farfield_voxelize_bricks::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180025590` | `CVrad3Command_farfield_write_cell_voxelization::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2108,6 +2112,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180030100` | `CVrad3Command_lightmap_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180032850` | `LightProbeGrid_VoxelizeGpu` | 32 passes: pass, three random offsets, box and local-to-world; occupancy read back (18002a320) |  |
+| `180032b60` | `Vrad3_MarkOccupiedCells` | occupancy of a grid under a local-to-world matrix, dilated by n cells (lpv_mark_occupied_gpu, farfield_compute_bricks) |  |
+| `1800358b0` | `FarField_ComputeLightingGpu` | rtx_vrad3_farfield over the bricks in batches |  |
 | `180035ce0` | `CVrad3Command_lpv_mark_occupied_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180035df0` | `CVrad3Command_lpv_voxelize_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180035e80` | `LightProbeGrid_ComputeBlockGpu` | lpv_compute_block_gpu and _fog_gpu (fog flag): passes up to maxspp, convergence from minspp; reads back 192-byte LpvLuxel cells |  |

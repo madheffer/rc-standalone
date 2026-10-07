@@ -38,7 +38,8 @@ def main():
     base = pe.OPTIONAL_HEADER.ImageBase
     image = pe.get_memory_mapped_image()
     strings = {}
-    for m in re.finditer(rb"[\x20-\x7e]{4,300}\x00", image):
+    # Tabs and line breaks too: script templates and multi-line messages hold them.
+    for m in re.finditer(rb"[\x20-\x7e\t\r\n]{4,600}\x00", image):
         text = m.group()[:-1]
         if any(p.search(text) for p in patterns):
             strings[base + m.start()] = text.decode()

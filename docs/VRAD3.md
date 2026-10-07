@@ -373,3 +373,64 @@ resourcecompiler's script runs one routine per volume: `lpv_type`,
 The SH and fog paths (`lpv_image_encode_sh2`, `lpv_image_write_sh2`,
 `_fog`, the OIDN filters) and the two grid helpers (180217b50, 180217110,
 outside the decompiled range) are still to read.
+
+## Far field probe volumes
+
+Each `env_farfield_probe_volume` gets a routine in the script.
+resourcecompiler's writer (1801eea20 in the 10-06 build, lightbaker.cpp)
+emits:
+
+```
+run compute_farfield_<n>
+compute_farfield_<n>:
+    farfield_box <min> <max>
+    farfield_local_to_world <m00..m23>
+    farfield_cells X Y Z
+    farfield_compute_bricks farfield_<n>_bricks.kv3
+    farfield_voxelize_bricks
+    farfield_compute_lighting 1024
+    //farfield_write_atlas ff/farfield_<n> -suffix _raw
+    farfield_median_filter 1
+    farfield_dilate 3
+    //farfield_write_atlas ff/farfield_<n> -suffix _dilated
+    farfield_filter_fireflies 4.0
+    farfield_resample_borders
+    farfield_write_atlas ff/farfield_<n>
+    done
+```
+
+resourcecompiler then reads `farfield_<n>_bricks.kv3` and the atlas
+slices. It builds `lightmaps/env_farfield_<n>_indirection.vtex` and
+`env_farfield_<n>_sh2_dc` / `_sh2_l1r` / `_l1g` / `_l1b.vtex` (EntityLump
+export 180240a90).
+
+- `farfield_box`, `farfield_local_to_world`, `farfield_cells`: as the LPV
+  ones. `farfield_max_memory <MB>` sets a float budget (DAT_1802ecdc8).
+- `farfield_compute_bricks <file.kv3>`: marks the occupied cells with the
+  LPV's occupancy builder (180032b60), dilated by 2 cells. It builds sparse
+  bricks over them (18001fa00), sorts them, and puts brick 0 first, a
+  level-7 sentinel covering the whole box. It writes the KV3:
+  - `bricks[]`: `level` (a brick covers 2^level cells per axis), `origin`
+    (cell coordinates), `min` and `max` (world);
+  - `cell_count`, `cells_x`, `cells_y`, `cells_z`;
+  - `cell_descriptors`: the per-cell indirection words.
+- `farfield_voxelize_bricks`: the samples inside each brick are tested for
+  solid (180035580) and the share is logged.
+- `farfield_compute_lighting [spp] [bricks_per_batch]`: defaults 128 and
+  512. The atlas holds at most 32 x 62 = 1984 bricks; past that it exits.
+  It is four components (dc, sh1_r, sh1_g, sh1_b), each 33 z-slices of
+  1056 x (33 x rows) float images (ceil(bricks / 32) rows). A brick is
+  33^3 samples: 32^3 inside plus a border plane. The GPU trace is
+  180035580 / 1800358b0 (`rtx_vrad3_farfield`). It logs the luxels, the
+  black ones and the mean and max DC.
+- `farfield_median_filter <passes>` and `farfield_dilate <passes>`: the
+  argument counts passes, not a window size. They run per brick on the
+  thread pool (180023510 for the median).
+- `farfield_filter_fireflies <ratio>`: the ratio is parsed as a float
+  (`V_StringToFloat64`), unlike the lightmap's integer. It clamps the
+  samples above the ratio per brick (180023dc0) and logs how many.
+- `farfield_resample_borders`: per brick (180024400), the border plane is
+  filled from the neighbouring bricks, so the atlas filters across them.
+- `farfield_write_atlas <path> [-suffix s]`: writes
+  `<path>_{dc, sh1_r, sh1_g, sh1_b}_z00..z32<s>.exr`, 132 files in all,
+  making the folder first.
