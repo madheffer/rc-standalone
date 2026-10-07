@@ -31,6 +31,8 @@ public class NodeInfoProbe(ITestOutputHelper output)
                              + $"angles {node.GetValue<System.Numerics.Vector3>("angles")} scales {node.GetValue<System.Numerics.Vector3>("scales")}");
             foreach (var n in Chain(document, node))
                 output.WriteLine($"  < {n.Type} {n.GetValue<int>("nodeID")} {n.Get<string>("name")}");
+            if (node.Get<DmxBinary.Element>("entity_properties") is { } props)
+                output.WriteLine($"  keys {string.Join(" ", props.Attributes.Select(a => $"{a.Key}={a.Value}"))}");
         }
         foreach (var mesh in MapMeshes.Read(document).Where(m => ids.Contains(m.NodeId)))
         {
