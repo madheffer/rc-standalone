@@ -43,6 +43,8 @@ public class NodeInfoProbe(ITestOutputHelper output)
                 {
                     var info = models.Material(m);
                     output.WriteLine($"  flags {(info is null ? "unresolved" : TraceScene.MaterialFlags(info).ToString("x"))} shader {info?.Shader} {m}");
+                    if (info is not null && Environment.GetEnvironmentVariable("NODEINFO_PARAMS") is not null)
+                        output.WriteLine($"    ints {string.Join(" ", info.Ints.Select(kv => $"{kv.Key}={kv.Value}"))} | params {string.Join(" ", info.Params.Select(kv => $"{kv.Key}={kv.Value}"))}");
                 }
             foreach (var key in new[] { "name", "visexclude", "renderwithdynamic", "bakelighting", "disablemerging", "fademindist", "excludefromlightmap" })
                 if (mesh.Element?.Get<object>(key) is { } v)
