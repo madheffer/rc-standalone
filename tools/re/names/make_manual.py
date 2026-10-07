@@ -305,6 +305,9 @@ RESOURCECOMPILER = [
     ("1803447d0", "ModelCompile_WeldMesh", WN, "tangents (CMesh_ComputeTangents) unless preserved, UseMikkTSpace, then CMesh_Weld at the given tolerance"),
     ("1812d9920", "Mesh_UvDensity", WN, "sqrt(world area / uv area), sorted, index ((n-1)*pct)/100; pct 20 or 95"),
     ("18025f9d0", "WRB_UseAggregateInstances", WN, "gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge"),
+    ("18028f2c0", "WRBMeshList_GroupAggregates_Less", WN, "insertion step of the stable sort: instance stream kinds, bits 0x6000000000 / 0x100000, CMesh name (V_stricmp), stream layout hash as int"),
+    ("1802b6130", "CMesh_StreamLayoutHash", WN, "boost hash_combine from the stream count over murmur2(name), murmur2(+8), +0x10, +0x14, +0x18, +0x1c, +0x1d"),
+    ("1812e2a10", "CMesh_RemoveStream", WN, "drops one stream and its floats; later streams' offsets (+0x14) shift down by its count"),
     ("18026f590", "WRBMeshList_GroupAggregates", WN, "runs of equal material name and attribute bits 0x6000000000 / 0x100000, up to 0x7ffb meshes, into the aggregate builder"),
     ("180268e80", "WRB_BuildAggregate", WN, "Added aggregate with %i meshes, %i fragments; %s_lr%i_%s"),
     ("180296ed0", "std_sort_AggregateFragments", WN, "MSVC introsort of the (CMesh, ref) fragments: CMesh +0x58 ascending, vertex count +0x18 descending, then memcmp of the vertices"),
@@ -2115,6 +2118,21 @@ VRAD3 = [
 ]
 
 
+# resourcecompiler.dll as installed since the 10-06 update (PE time 2026-10-05 21:03 UTC).
+RESOURCECOMPILER_1006 = [
+    ("180f2ac50", "CMapEntity::CMapEntity", ENT, "zeroes the posable skeleton at +0x438"),
+    ("180f8606d", "CMapEntity::ClearPosableSkeleton", ENT, "chunk: frees +0x438"),
+    ("180f777c0", "CMapEntity::CopyFrom", ENT, "copies +0x438 through 181749ef0"),
+    ("180f93820", "CMapEntity::SetPosableSkeleton", ENT, "writes +0x438; only caller 18105ce30"),
+    ("180f93880", "CMapEntity::SetPosableSkeleton2", ENT, "second writer of +0x438; only caller 18105ce30"),
+    ("18105ce30", "MapPhysicsSim_WritePoseToEntity", ENT, "posed bones into CMapEntity +0x438"),
+    ("18105b6c0", "MapPhysicsSim_Finish", ENT, "from CMapDoc::FrameUpdate (editor) or 180f4d6f0 (compile)"),
+    ("180f1e800", "CompileMap_PreSettlePhysics", ENT, "BasePhysicsSimulated entities; keys skipPreSettle, spawn_motion_disabled"),
+    ("181004390", "CMapEntity_ExportBoneTransforms", LUMP, "boneTransforms \"name: px py pz qx qy qz qw;\" when the class has PosableSkeleton"),
+    ("18174aeb0", "PosableSkeleton_Serialize", LUMP, ""),
+]
+
+
 def write(name, rows):
     with open(os.path.join(HERE, name), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"functions": [{"addr": a, "name": n, "module": m, "note": note} for a, n, m, note in rows]}, f, indent=1)
@@ -2131,4 +2149,5 @@ if __name__ == "__main__":
     write("meshsystem_20260923.manual.json", MESHSYSTEM)
     write("materialsystem2_20261001.manual.json", MATERIALSYSTEM)
     write("vrad3_20261001.manual.json", VRAD3)
+    write("resourcecompiler_20261006.manual.json", RESOURCECOMPILER_1006)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

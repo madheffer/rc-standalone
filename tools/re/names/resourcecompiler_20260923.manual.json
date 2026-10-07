@@ -1573,6 +1573,24 @@
    "note": "gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge"
   },
   {
+   "addr": "18028f2c0",
+   "name": "WRBMeshList_GroupAggregates_Less",
+   "module": "s2c:geometry/world-nodes",
+   "note": "insertion step of the stable sort: instance stream kinds, bits 0x6000000000 / 0x100000, CMesh name (V_stricmp), stream layout hash as int"
+  },
+  {
+   "addr": "1802b6130",
+   "name": "CMesh_StreamLayoutHash",
+   "module": "s2c:geometry/world-nodes",
+   "note": "boost hash_combine from the stream count over murmur2(name), murmur2(+8), +0x10, +0x14, +0x18, +0x1c, +0x1d"
+  },
+  {
+   "addr": "1812e2a10",
+   "name": "CMesh_RemoveStream",
+   "module": "s2c:geometry/world-nodes",
+   "note": "drops one stream and its floats; later streams' offsets (+0x14) shift down by its count"
+  },
+  {
    "addr": "18026f590",
    "name": "WRBMeshList_GroupAggregates",
    "module": "s2c:geometry/world-nodes",

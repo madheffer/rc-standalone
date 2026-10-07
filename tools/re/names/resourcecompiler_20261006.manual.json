@@ -1,0 +1,64 @@
+{
+ "functions": [
+  {
+   "addr": "180f2ac50",
+   "name": "CMapEntity::CMapEntity",
+   "module": "s2c:entities",
+   "note": "zeroes the posable skeleton at +0x438"
+  },
+  {
+   "addr": "180f8606d",
+   "name": "CMapEntity::ClearPosableSkeleton",
+   "module": "s2c:entities",
+   "note": "chunk: frees +0x438"
+  },
+  {
+   "addr": "180f777c0",
+   "name": "CMapEntity::CopyFrom",
+   "module": "s2c:entities",
+   "note": "copies +0x438 through 181749ef0"
+  },
+  {
+   "addr": "180f93820",
+   "name": "CMapEntity::SetPosableSkeleton",
+   "module": "s2c:entities",
+   "note": "writes +0x438; only caller 18105ce30"
+  },
+  {
+   "addr": "180f93880",
+   "name": "CMapEntity::SetPosableSkeleton2",
+   "module": "s2c:entities",
+   "note": "second writer of +0x438; only caller 18105ce30"
+  },
+  {
+   "addr": "18105ce30",
+   "name": "MapPhysicsSim_WritePoseToEntity",
+   "module": "s2c:entities",
+   "note": "posed bones into CMapEntity +0x438"
+  },
+  {
+   "addr": "18105b6c0",
+   "name": "MapPhysicsSim_Finish",
+   "module": "s2c:entities",
+   "note": "from CMapDoc::FrameUpdate (editor) or 180f4d6f0 (compile)"
+  },
+  {
+   "addr": "180f1e800",
+   "name": "CompileMap_PreSettlePhysics",
+   "module": "s2c:entities",
+   "note": "BasePhysicsSimulated entities; keys skipPreSettle, spawn_motion_disabled"
+  },
+  {
+   "addr": "181004390",
+   "name": "CMapEntity_ExportBoneTransforms",
+   "module": "s2c:entities/lump",
+   "note": "boneTransforms \"name: px py pz qx qy qz qw;\" when the class has PosableSkeleton"
+  },
+  {
+   "addr": "18174aeb0",
+   "name": "PosableSkeleton_Serialize",
+   "module": "s2c:entities/lump",
+   "note": ""
+  }
+ ]
+}

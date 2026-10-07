@@ -9,6 +9,8 @@ namespace Source2.Compiler.Tests;
 /// Exploration (<c>NOVISPROBE=&lt;vmap&gt;</c>): a node compiled without vis, as a
 /// -world build does: the merged lists' entries (material, attributes, size,
 /// bounds), the node's box grid and what CompileNode makes of them.
+/// NOVISPROBE_MAT=&lt;material file name&gt; lists every entry of that material
+/// with its streams (name/index/count/precise/type) and layout hash.
 /// </summary>
 public class NoVisClusterProbe(ITestOutputHelper output)
 {
@@ -45,7 +47,8 @@ public class NoVisClusterProbe(ITestOutputHelper output)
         foreach (var (kind, entries) in lists.Where(kv => kv.Value.Count > 0))
         {
             output.WriteLine($"{kind}: {entries.Count}");
-            foreach (var e in entries.Take(30))
+            var only = Environment.GetEnvironmentVariable("NOVISPROBE_MAT");
+            foreach (var e in only is { Length: > 0 } ? entries.Where(e => Path.GetFileNameWithoutExtension(e.Material) == only) : entries.Take(30))
             {
                 var (lo, hi) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
                 for (var k = 0; k + 2 < e.Vertices.Length; k += e.Stride)
@@ -53,7 +56,7 @@ public class NoVisClusterProbe(ITestOutputHelper output)
                     var p = new Vector3(e.Vertices[k], e.Vertices[k + 1], e.Vertices[k + 2]);
                     (lo, hi) = (Vector3.Min(lo, p), Vector3.Max(hi, p));
                 }
-                output.WriteLine($"  {Path.GetFileName(e.Material)} attr {e.Facts.Attributes:x} flags {e.Facts.ObjectFlags:x} stride {e.Stride} v {e.Vertices.Length / e.Stride} t {e.TriangleCount} streams {string.Join(",", e.Facts.Streams.Select(s => s.Name + s.Count))} {lo}..{hi}");
+                output.WriteLine($"  {Path.GetFileName(e.Material)} attr {e.Facts.Attributes:x} flags {e.Facts.ObjectFlags:x} stride {e.Stride} v {e.Vertices.Length / e.Stride} t {e.TriangleCount} node {e.Facts.NodeId} streams {string.Join(",", e.Facts.Streams.Select(s => $"{s.Name}/{s.Index}/{s.Count}/{s.Precise}/{s.Type}"))} hash {(int)WrbMeshEntry.LayoutHash(e.Facts.Streams)} {lo}..{hi}");
             }
         }
         var result = WorldNodeCompile.Compile(lists, null, null, nodeBounds: (min, max));

@@ -89,12 +89,15 @@ game can answer is raised with the user first, and runs with -insecure.
     ulps off. Measured whole-file exact on s2c_prefabprobe; the prefab
     loader (Hammer's map document, +0x6b8 docs) is not read.
 
-45. **Prop bone overrides** (a prop_static's pose, entity +0x268 from
-    CMapEntity +0x438, applied per body by name in 180200af0 through
-    181749d20): read on the physics side, but the .vmap storage of the pose
-    is not found (the DMX attribute list of CMapEntity names no pose; the
-    lump's boneTransforms key is written from it by ExportToLump). No map in
-    the installed content uses it.
+56. **prop_ragdoll pre-settle pose** (from ledger 45). The compile's
+    pre-settle of BasePhysicsSimulated entities (180f1e800, keys
+    skipPreSettle and spawn_motion_disabled) poses ragdolls through
+    18105b6c0 into CMapEntity +0x438, and ExportToLump writes it as
+    boneTransforms ("name: px py pz qx qy qz qw;" per bone, 181004390,
+    serializer 18174aeb0, gated by class metadata PosableSkeleton). Not
+    ported; no map of ours has a prop_ragdoll. Valve specimen: ar_pool_day
+    (5 prop_ragdoll with boneTransforms, EntityKeySurvey).
+
 46. **Instances inside a prefab's map: entity ids** (settled for the
     lump 2026-10-04 by capture, tools/entities/capture_collapse.py on
     s2c_prefabprobe3 and 4; MapInstances.Expand with prefabs). The bake
@@ -573,6 +576,19 @@ game can answer is raised with the user first, and runs with -insecure.
       CompileNode without vis on atixref is next.
 
 ## Resolved
+
+- **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
+  The pose physics applies per body (entity +0x268, copied from CMapEntity
+  +0x438, applied by name in 180200af0 through 181749d20) has no .vmap
+  storage. Every writer of +0x438 in the installed resourcecompiler: the
+  constructor (180f2ac50), clear (180f8606d), CopyFrom (180f777c0, through
+  181749ef0) and SetSkeleton (180f93820/180f93880), the last called only
+  from 18105ce30. That runs from 18105b6c0, reached in the editor through
+  CMapDoc::FrameUpdate and in a compile only through CompileMap
+  (1800fd550) -> 180f1dae0 -> the ragdoll pre-settle (180f1e800) ->
+  180f4d6f0. So in a compile only ragdolls carry a pose, a prop_static's
+  world physics never gets a bone override, and our physics output needs
+  no change. The ragdoll side is ledger 56.
 
 - **Bodies leaving the world** (ported 2026-10-06 from the decompile of
   vphysics2 0924; exact in lockstep with Valve's world). After the
