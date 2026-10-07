@@ -295,3 +295,78 @@ both set are left alone by the fireflies and median passes.
 - `lightmap_image_write_chart_color <file> <minspp> <maxspp>`: each chart
   in its debug colour (1801f6400 converts the ARGB), with the sample counts
   scaled between minspp and maxspp.
+
+## Light probe volumes
+
+resourcecompiler's script runs one routine per volume: `lpv_type`,
+`lpv_cells`, `lpv_box`, `lpv_local_to_world`, `lpv_init`,
+`lpv_image_gpu 96 96 96`, `lpv_voxelize_gpu`, `lpv_flood_fill`,
+`lpv_compute_block_gpu 0 0 0 X Y Z 64 64 0.200`,
+`lpv_image_ambient_occlusion`, `lpv_image_write_ambientcube <noisy>`,
+`lpv_image_remove_fireflies 3 <debug>`, `lpv_image_resolve`,
+`lpv_image_median_filter 3`, then the writes.
+
+- `lpv_type sh2|cube|ambient_cube`: sh2 is 1, the cube forms 0
+  (DAT_1803ab5f0).
+- `lpv_cells X Y Z`, `lpv_box min max`, `lpv_local_to_world m00..m23`
+  store the volume's cells, local box and 3x4 matrix. Floats are parsed
+  through `V_StringToFloat64`, then narrowed.
+- `lpv_init` copies them into the global volume (DAT_1802ed208: box, cells)
+  and clears the occupancy bitset (one bit per cell).
+- `lpv_image_gpu W H D`: the grid gets a one-cell border on every side
+  (cells + 2), and its box grows by one cell size each way. It frees the
+  previous images and makes new ones:
+  - the ambient cube image, (X x Z) by (Y x 7);
+  - the direct light shadow image, (X x Z) by (Y x 2);
+  - three SH images, (X x Z) by (Y x 2) each;
+  - for fog, one image.
+
+  It also sizes the per-cell shadow records (20 bytes: four light indices,
+  four floats) and the GPU compute image, W x H x D.
+- `lpv_voxelize_gpu`: 32 GPU passes over the bordered grid. Each pass gets
+  its index, three random offsets (x 2^-32), the box and the local-to-world
+  matrix. The occupancy is read back into the bitset (18002a320).
+- `lpv_flood_fill`: starts from the cell holding the local origin. If that
+  cell is occupied, it takes the nearest empty cell within 8 (180217b50);
+  if there is none it warns and stops. It fills the empty cells reachable
+  from there (180217110), and the cells it cannot reach become occupied.
+  Each cell's 0 / 1 goes to the GPU buffer DAT_180347df0.
+- `lpv_compute_block_gpu sx sy sz ex ey ez [minspp] [maxspp] [err]`: both
+  it and `_fog_gpu` jump into 180035e80 with a fog flag. minspp defaults to
+  512, maxspp to 1024 and err to 0.02. Passes run in command lists of 16,
+  up to maxspp. The convergence test (`g_BlockConverged`, `g_LpvLuxels`)
+  runs on pass 0 and from minspp on. The push constants pack the region
+  start and grid size (16 bits each), the fog flag and the local-to-world
+  matrix (shader `rtx_vrad3_lpv`). Each cell reads back as a 192-byte
+  LpvLuxel:
+  - six float4 ambient cube faces, RGB clamped at 0, written to the ambient
+    cube image at column z x X + x, row face x Y + y;
+  - three float4s copied to the SH images as they are;
+  - baked shadows as four (sum, weight, light index) triples, stored as
+    sum / weight in the cell's shadow record.
+
+  With fog, the cell's first three floats go to the fog image instead.
+- `lpv_image_ambient_occlusion`: per cell and cube face, a stencil of
+  neighbour directions normalize((-1 | 0 | 1, i, j)), weights 0.7, 0.85 and
+  0.9. The face darkens by the occupancy around it; the formula is still to
+  read.
+- `lpv_image_remove_fireflies [ratio] [debug]`: the ratio is
+  (float)V_atoi(argv[1]), default 4.0; Ghidra's decompile drops this float
+  argument, the disassembly shows it. It runs the SH variant (180083e40) or
+  the ambient cube one (180084c50, logging "LPV Remove Fireflies AHD").
+- `lpv_image_resolve [-gamma20]`: first 180081560 dilates the shadow
+  records. Cells with an empty slot are queued, and each round fills a
+  slot from the 3x3x3 neighbours that have that slot set, until nothing
+  changes. Then it writes the direct light shadow image ((X x Z) by Y,
+  four slots per cell): an empty slot is 1, else 1 - clamp(v, 0, 1), or
+  1 - sqrt(v) with -gamma20.
+- `lpv_image_median_filter <size>`: radius (size - 1) / 2, at least 1. Size
+  0 skips it. For the cube type it is the indirect light's median over the
+  six face planes in a 3D disc of radius r ("LPV Median Filter Indirect").
+- `lpv_image_write_ambientcube <file>` writes the ambient cube image as it
+  stands. `lpv_image_write_direct_light_shadows <file>` writes the shadow
+  image, or an all-ones image when there are no baked shadows.
+
+The SH and fog paths (`lpv_image_encode_sh2`, `lpv_image_write_sh2`,
+`_fog`, the OIDN filters) and the two grid helpers (180217b50, 180217110,
+outside the decompiled range) are still to read.

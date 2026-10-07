@@ -187,6 +187,48 @@
    "note": "the bilinear taps of both sides of a seam sample"
   },
   {
+   "addr": "18002afc0",
+   "name": "LightProbeGrid_AllocateImages",
+   "module": "s2c:baked/vrad3",
+   "note": "border of one cell each side (cells + 2), box grown by a cell; occupancy bitset; GPU compute image W x H x D"
+  },
+  {
+   "addr": "18002b2e0",
+   "name": "LightProbeGrid_ResetImages",
+   "module": "s2c:baked/vrad3",
+   "note": "ambient cube (X*Z) x (Y*7), shadows and three SH images (X*Z) x (Y*2), or the fog image; shadow records cleared to (-1, 1.0 x4)"
+  },
+  {
+   "addr": "180032850",
+   "name": "LightProbeGrid_VoxelizeGpu",
+   "module": "s2c:baked/vrad3",
+   "note": "32 passes: pass, three random offsets, box and local-to-world; occupancy read back (18002a320)"
+  },
+  {
+   "addr": "180035e80",
+   "name": "LightProbeGrid_ComputeBlockGpu",
+   "module": "s2c:baked/vrad3",
+   "note": "lpv_compute_block_gpu and _fog_gpu (fog flag): passes up to maxspp, convergence from minspp; reads back 192-byte LpvLuxel cells"
+  },
+  {
+   "addr": "180081560",
+   "name": "LightProbeGrid_DilateShadowRecords",
+   "module": "s2c:baked/vrad3",
+   "note": "cells with an empty light slot take it from 3x3x3 neighbours that have it, repeated until none changes"
+  },
+  {
+   "addr": "180084c50",
+   "name": "LightProbeGrid_RemoveFirefliesAmbientCube",
+   "module": "s2c:baked/vrad3",
+   "note": "ratio (default 4.0, integer from the script)"
+  },
+  {
+   "addr": "180083e40",
+   "name": "LightProbeGrid_RemoveFirefliesSH",
+   "module": "s2c:baked/vrad3",
+   "note": ""
+  },
+  {
    "addr": "18005cf40",
    "name": "std_nth_element_float",
    "module": "s2c:baked/vrad3",

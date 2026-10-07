@@ -1941,7 +1941,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: this build
-- 301 addresses
+- 308 addresses
 
 ### s2c:baked/vrad3
 
@@ -2094,6 +2094,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180027fa0` | `RenderResourceHandle_Release` | decrement +0x20, release through the resource system at zero |  |
 | `1800281b0` | `CVrad3LightmapImage::SetPixelRGB` | the channel's bitmap (0x9d8-byte FloatBitMap_t per channel), components masked by its attribute mask |  |
 | `1800282c0` | `CVrad3LightmapImage::SetPixelRGBA` | as SetPixelRGB with alpha |  |
+| `18002afc0` | `LightProbeGrid_AllocateImages` | border of one cell each side (cells + 2), box grown by a cell; occupancy bitset; GPU compute image W x H x D |  |
+| `18002b2e0` | `LightProbeGrid_ResetImages` | ambient cube (X*Z) x (Y*7), shadows and three SH images (X*Z) x (Y*2), or the fog image; shadow records cleared to (-1, 1.0 x4) |  |
 | `18002b5b0` | `CVrad3Command_lpv_image_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002b640` | `CVrad3Command_lpv_image_fog_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002b7b0` | `CVrad3Command_gpu_init::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2105,8 +2107,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002ffc0` | `Vrad3_GpuTimestamp` | a timestamp query on the context, appended with its stage index (the five block compute stages) |  |
 | `180030100` | `CVrad3Command_lightmap_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180032850` | `LightProbeGrid_VoxelizeGpu` | 32 passes: pass, three random offsets, box and local-to-world; occupancy read back (18002a320) |  |
 | `180035ce0` | `CVrad3Command_lpv_mark_occupied_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180035df0` | `CVrad3Command_lpv_voxelize_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180035e80` | `LightProbeGrid_ComputeBlockGpu` | lpv_compute_block_gpu and _fog_gpu (fog flag): passes up to maxspp, convergence from minspp; reads back 192-byte LpvLuxel cells |  |
 | `1800371a0` | `CVrad3Command_lpv_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800371b0` | `CVrad3Command_lpv_compute_block_fog_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800371c0` | `CVrad3Command_render_camera::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2214,11 +2218,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18007dff0` | `CVrad3Command_lpv_local_to_world::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18007e230` | `CVrad3Command_lpv_box::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18007e370` | `CVrad3Command_lpv_cells::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180081560` | `LightProbeGrid_DilateShadowRecords` | cells with an empty light slot take it from 3x3x3 neighbours that have it, repeated until none changes |  |
 | `180082290` | `CVrad3Command_lpv_type::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180082340` | `CVrad3Command_lpv_init::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800824e0` | `CVrad3Command_lpv_image_resolve::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180082f20` | `CVrad3Command_lpv_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180082fc0` | `CVrad3Command_lpv_image_ambient_occlusion::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180083e40` | `LightProbeGrid_RemoveFirefliesSH` |  |  |
+| `180084c50` | `LightProbeGrid_RemoveFirefliesAmbientCube` | ratio (default 4.0, integer from the script) |  |
 | `180085af0` | `CVrad3Command_lpv_image_remove_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180085b60` | `CVrad3Command_lpv_image_median_filter::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180086c10` | `CVrad3Command_lpv_image_median_filter_fog::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
