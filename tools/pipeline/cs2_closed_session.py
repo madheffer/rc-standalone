@@ -10,7 +10,11 @@
 3. Each fresh reference's write time is printed beside the game's
    pak01_dir.vpk time, so a missing or stale one shows at once.
 4. The fresh references are copied to the dev box (~/s2c/refs/nobake_refs).
-5. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
+5. With --fixtures, the addon packages tests read but cannot rebuild on demand
+   (InstanceExpansionTests, SettleLumpTests; FIXTURES below) are rebuilt in
+   place with -world -fshallow, which refreshes the world and the entity lumps
+   and keeps the rest; each package is copied to %TEMP%/fixture_backups first.
+6. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
    session, and any atixref.vpk a capture left in the addon's maps folder
    beyond the user's own (its backup is restored by the tools themselves).
 
@@ -32,6 +36,8 @@ TEMP = os.environ.get("TEMP", ".")
 ADDON = "s2c_rc_probe"
 MAPS = ["atixref", "probe01", "cardtest", "ze_hold_em_p"]
 DEVBOX = "dev@192.168.20.32"
+# Addon packages older than the installed resourcecompiler that the suite reads (2026-10-07).
+FIXTURES = [("s2probe", "atixref"), ("doom_p2", "ze_doom_p2_c_gameplay"), ("s2c_big", "ze_ffvii_mako_reactor_v6_p")]
 KEY = os.path.expanduser("~/.ssh/vpkworker")
 
 
@@ -54,6 +60,7 @@ def main():
     p.add_argument("--maps", default=",".join(MAPS))
     p.add_argument("--skip-captures", action="store_true")
     p.add_argument("--no-devbox", action="store_true")
+    p.add_argument("--fixtures", action="store_true", help="also rebuild the stale addon fixture packages in place")
     a = p.parse_args()
     if running("cs2.exe"):
         raise SystemExit("CS2 is running; close it first")
@@ -104,7 +111,27 @@ def main():
         if files:
             run(["scp", "-q", "-i", KEY] + files + [f"{DEVBOX}:s2c/refs/nobake_refs/"])
 
-    step("5. cleanup")
+    step("5. fixtures")
+    if a.fixtures:
+        backups = os.path.join(TEMP, "fixture_backups")
+        os.makedirs(backups, exist_ok=True)
+        bin_dir = os.path.join(CS2, "game", "bin", "win64")
+        for addon, m in FIXTURES:
+            vpk = os.path.join(CS2, "game", "csgo_addons", addon, "maps", m + ".vpk")
+            source = os.path.join(CS2, "content", "csgo_addons", addon, "maps", m + ".vmap")
+            if not os.path.exists(source):
+                print(f"{addon}/{m}: no source, skipped")
+                continue
+            if os.path.exists(vpk):
+                shutil.copyfile(vpk, os.path.join(backups, f"{addon}__{m}.vpk"))
+            if running("cs2.exe"):
+                raise SystemExit("CS2 started; stopping")
+            with open(os.path.join(backups, f"{addon}__{m}.log"), "wb") as log:
+                code = subprocess.run([os.path.join(bin_dir, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
+                                       "-i", source, "-world", "-fshallow"], cwd=bin_dir, stdout=log, stderr=subprocess.STDOUT).returncode
+            print(f"{addon}/{m}: rc exit {code}")
+
+    step("6. cleanup")
     for dump in glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.dmp")) + glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.mdmp")):
         if os.path.getmtime(dump) >= started:
             os.remove(dump)
