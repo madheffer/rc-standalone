@@ -540,7 +540,7 @@ internal static class WorldNodeCompile
     /// merger's lists); then each name's texcoord and tangent precision
     /// promotion, which the runs compare but the sort has not seen; runs of one material, equal bits and equal streams (at
     /// most 0x7ffb) become aggregates unless a run is one entry of at most
-    /// 0x360 vertices without instance streams, which is left (attribute bit
+    /// 0x360 indices without instance streams, which is left (attribute bit
     /// 30 cleared) for the list's compile. Returns what is left.
     /// </summary>
     private static List<Entry> GroupAggregates(List list, Settings settings, Counters counters, List<AggregateObject> aggregates,
@@ -590,7 +590,6 @@ internal static class WorldNodeCompile
         for (var i = 0; i < sorted.Count;)
         {
             var run = new List<Entry> { sorted[i] };
-            var vertices = sorted[i].Vertices.Length / sorted[i].Stride;
             var j = i + 1;
             for (; j < sorted.Count && run.Count < 0x7ffb; j++)
             {
@@ -600,9 +599,9 @@ internal static class WorldNodeCompile
                     || !SameStreams(MeshStreams(a), MeshStreams(b)))
                     break;
                 run.Add(b);
-                vertices += b.Vertices.Length / b.Stride;
             }
-            if (settings.AggregateRayTraceProxy || run.Count > 1 || vertices > 0x360)
+            // A lone mesh aggregates past 0x360 indices (its CMesh +0x24, atixref's inferno_old_plaster_blend_01_red: 517 vertices, 2,658 indices).
+            if (settings.AggregateRayTraceProxy || run.Count > 1 || run[0].Indices.Length > 0x360)
             {
                 var prefix = $"{name}_{FileBase(run[0].Material, int.MaxValue)}_";
                 var n = counters.Aggregate.GetValueOrDefault(prefix);
