@@ -33,7 +33,23 @@ public class ModelLayoutProbe(ITestOutputHelper output)
                 foreach (var (mesh, _, _, _) in model.GetEmbeddedMeshesAndLoD())
                 {
                     foreach (var vb in mesh.VBIB.VertexBuffers)
-                        output.WriteLine($"  vb {vb.ElementCount} x {vb.ElementSizeInBytes}: {string.Join(" ", vb.InputLayoutFields.Select(f => $"{f.SemanticName}{f.SemanticIndex}:{f.Format}"))}");
+                    {
+                        var bounds = "";
+                        if (vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "POSITION") is { } pos && pos.Format.ToString() == "R32G32B32_FLOAT")
+                        {
+                            var lo = new System.Numerics.Vector3(float.MaxValue);
+                            var hi = new System.Numerics.Vector3(float.MinValue);
+                            for (var v = 0; v < vb.ElementCount; v++)
+                            {
+                                var at = (int)(v * vb.ElementSizeInBytes + pos.Offset);
+                                var q = new System.Numerics.Vector3(BitConverter.ToSingle(vb.Data, at), BitConverter.ToSingle(vb.Data, at + 4), BitConverter.ToSingle(vb.Data, at + 8));
+                                lo = System.Numerics.Vector3.Min(lo, q);
+                                hi = System.Numerics.Vector3.Max(hi, q);
+                            }
+                            bounds = $" bounds {lo:F0} {hi:F0}";
+                        }
+                        output.WriteLine($"  vb {vb.ElementCount} x {vb.ElementSizeInBytes}: {string.Join(" ", vb.InputLayoutFields.Select(f => $"{f.SemanticName}{f.SemanticIndex}:{f.Format}"))}{bounds}");
+                    }
                     foreach (var so in mesh.Data.GetArray("m_sceneObjects"))
                         foreach (var dc in so.GetArray("m_drawCalls"))
                             output.WriteLine($"  draw {dc.GetStringProperty("m_material")} indices {dc.GetInt32Property("m_nIndexCount")} vertices {dc.GetInt32Property("m_nVertexCount")}");
