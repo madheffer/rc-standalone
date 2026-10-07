@@ -62,6 +62,11 @@ public class LightRayProbe(ITestOutputHelper output)
                 scene.Instances.First(x => x.Source == $"prop {id}").ObjectFlags |= 0x4000;
         var recorder = new Recorder(scene);
         var result = LightTrace.Run(light, LightPrecompute.Rays, recorder);
+        if (Environment.GetEnvironmentVariable("LIGHTRAY_EMPTY") is not null)
+        {
+            var empty = LightTrace.Run(light, LightPrecompute.Rays, EmptyLightScene.Instance);
+            output.WriteLine($"empty scene: mins {empty.Mins:F6} maxs {empty.Maxs:F6} box origin {empty.Box.Origin:F6} extent {empty.Box.Extent:F6}");
+        }
         output.WriteLine($"rays {recorder.Rays.Count}; box origin {result.Box.Origin} extent {result.Box.Extent}; mins {result.Mins} maxs {result.Maxs}");
         if (Environment.GetEnvironmentVariable("LIGHTRAY_SWEEP") is { } target)
         {
