@@ -116,21 +116,26 @@ with entries replaced.
 command line and run the ported steps on an existing package, as a
 `-fshallow` build does:
 ```
-s2c compile-map -i <content/csgo_addons/<addon>/maps/<map>.vmap> -outroot <dir> -entities [-phys] [-nosettle] [--accept-gaps] [--gpu]
+s2c compile-map -i <content/csgo_addons/<addon>/maps/<map>.vmap> -outroot <dir> (-world [-vis] | -entities) [-phys] [-nosettle] [--accept-gaps] [--skip-unported] [--gpu]
 ```
 
 - **The package** must already be at
   `<outroot>/csgo_addons/<addon>/maps/<map>.vpk`.
-- **The steps:** the entities-only world step (settled lumps) and the
-  physics step, each replacing its files in the package.
-- **Refused, by name:** a full world build, nav, Steam Audio, `-f` and
-  `-fshallow2`, and lumps with light or probe gaps unless `--accept-gaps`.
+- **The steps:** the world step without a bake (vis only with `-vis`;
+  CompileNode clusters by the node's box grid otherwise), the entities-only
+  world step (settled lumps) and the physics step, each replacing its files
+  in the package (GROUND_TRUTH 55).
+- **Refused, by name:** the lighting bake (a build naming no builder, or
+  `-bakelighting`), nav, Steam Audio, `-f` and `-fshallow2`, and lumps with
+  light or probe gaps unless `--accept-gaps`. `--skip-unported` runs the
+  rest and leaves the bake, nav and Steam Audio as the package has them.
 - **Parsing:** the line is read as RC reads it: its own switches first, then
   generic ones typed `%f`, then `%i`, then string. Builders are selected as
   `CompileMap` does.
   - The default builders are world, phys, vis, bakedlighting, nav, sareverb,
     sapaths and sacustomdata.
-  - Hammer's `-bakelighting` is not the builder `bakedlighting`.
+  - Hammer's `-bakelighting` is not the builder `bakedlighting`: it turns
+    the world step's bake on in a partial build (context +0x605).
   - `-nolightmaps` and `-vpkincr` do nothing.
 - **Hammer's own switches:** hammer.dll is not in Ghidra; read it from the
   PE with capstone (`tools/re/disx.py`). It checks its switches as
@@ -146,8 +151,9 @@ Every option is listed in [COVERAGE.md](COVERAGE.md).
 
 ## Resourcecompiler recipes and traps
 
-- **Visibility** is built by `-world`, not `-vis`. `-vis` without `-world`
-  guts the vpk, and `-vis -f` fails.
+- **Visibility** is built inside the world step, and only when the `vis`
+  builder is on (GROUND_TRUTH 55): `-world` alone makes no vvis. `-vis`
+  without `-world` builds nothing of it, and `-vis -f` fails.
 - **The up-to-date check** uses the source CRC, so delete the output vpk to
   force a rebuild.
 - **Intermediates** (`.rte`, `.viscfg`) live in

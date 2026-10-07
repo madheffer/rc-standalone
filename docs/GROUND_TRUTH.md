@@ -441,8 +441,7 @@ game can answer is raised with the user first, and runs with -insecure.
     (bit 1 makes a closed group); aggregatable groups (UseAggregateInstances,
     order 0, bit 23 clear, every entry CanAggregate) go through
     GroupAggregates as agg_overlay; each group with entries left becomes
-    mesh_[ns]overlay<group index>. Open: the colour 1 stream is the
-    previous bake's per-vertex lighting (an input); the instanced list's
+    mesh_[ns]overlay<group index>. Open: the instanced list's
     vf 0x38 (18026ed20) groups by entry +0x40 (node id) and +0xa8 (not
     modelled) through a hash map whose slot order numbers the nomerge%d
     objects; .vwrld m_nCompileFingerprint changes per compile.
@@ -461,14 +460,9 @@ game can answer is raised with the user first, and runs with -insecure.
     assetpreview.dll, as a baked 32-byte name). atixref needs a fresh
     reference before its node models can be scored.
     The whole -world package (compile-map, WorldNodeFiles; 2026-10-07):
-    probe01 and cardtest match Valve's in every tree and container fact
-    but three hashes (the vrman's and vvis's ___OverrideInputData___
-    fingerprints, n0.vrman's saved-source CRC: not a CRC of the obvious
-    source texts) and the per-vertex lighting. The lighting is not a rule:
-    those references were built from Hammer after a lighting bake, which
-    puts baked values into the open document (180f0ea90); resourcecompiler
-    alone keeps the .vmap's (1, 1, 1, 0), as ze_hold_em_p's 10-07 reference
-    and our build agree on all 2,655 vertices of a merged model. Settled on
+    probe01 and cardtest matched Valve's in every tree and container fact
+    but the manifest hashes and the per-vertex lighting; both are settled
+    in ledger 55 (the vvis's fingerprint is still uncaptured). Settled on
     the way: a full build's lump lists its resource_name values, sorted,
     as RED2 weak references with UsesBuilderEntityKeys 1; a map's child
     resources list RERL by path; a node model whose material the game
@@ -493,6 +487,54 @@ game can answer is raised with the user first, and runs with -insecure.
     (CpuEstimate, tables exact over every float) lets an Intel box
     reproduce them. With both, probe01 -world on the Intel dev box is
     byte-equal to the Ryzen's.
+55. **Partial builds: the world step without vis or a bake** (settled
+    2026-10-07 from the 0923 decompile, checked on the fresh 10-07
+    references). Open: whether a no-vis -fshallow build drops a
+    world_visibility left by an earlier vis build (compile-map keeps it).
+    - Builders: CompileMap's flag table (1801f7840) lives at context +0x609;
+      its return, whether any builder was named, at +0x607.
+      CWorldRendererBuilder::Build reads vis through vf29 (1801f9ac0,
+      +0x609 + 2). Without it there is no RTE unless baking, no vis
+      builder, no world_visibility.vvis_c.
+    - The bake: context +0x605, set in 1800fd550 when gameinfo's
+      DefaultMapBuilders/bakedlighting is on (CS2: on). Its value is
+      (not partial, or bakelighting) and not nobakedlighting. Hammer
+      writes -bakelighting from its Baked Lighting box, so -world alone
+      (Fast Compile: -world -phys -nav) does not bake.
+    - Hammer's dialog (hammer.dll 1800d6760 and its siblings): Build world
+      writes -entities when Entities Only is ticked, else -world; then
+      -deformables, -nosettle (unticked), -tileMeshBaseGeometry,
+      -debugvisgeo, and -skipauxfiles or -rebake_surfacegraph. Physics,
+      vis and nav write -phys, -vis and -nav.
+    - CompileNode without vis (180278555): with
+      VisibilityGuidedMeshClustering it clusters by the vis builder's flat
+      clusters when there are more than two. Otherwise it uses the node's
+      box grid (180283520, RenderClusters.Grid), one box per cluster with
+      an empty mutual-visibility list, and merges when the grid has more
+      than two boxes. The same grid makes the render boxes when nothing
+      else does (180278b57).
+    - A render object's meshes are one draw per material and vertex
+      layout. Draws whose input layout matches share buffers: one vertex
+      and index buffer set each, blocks interleaved (probe01's cb_mesh:
+      without and with PerVertexLighting).
+    - Per-vertex lighting is not the stream's (1, 1, 1, 0). The .vmap keeps
+      the last bake's values in a CDmeNodeInstanceData per mesh instance,
+      named by the node path (instance ids then the mesh's, joined by
+      '.'). Its vertexLightingData holds one RGBA8 per face vertex. The
+      map load puts it into PerVertexLighting as byte / 255 (180f0ea90),
+      so every build ships the previous bake's values. This replaces
+      ledger 54's "applied by Hammer" reading.
+    - RED2 hashes (capture_overrides.py on probe01 and ze_hold_em_p):
+      n0.vrman's m_nFileCRC is the CRC32 of its saved text with
+      backslashed, escaped paths and CRLF. world.vrman's
+      ___OverrideInputData___ fingerprint is the CRC32 of the same text
+      with LF, listing world.vwrld, world_physics.vrman and
+      world_visibility.vvis (even when no vis is built), written as
+      uint32.
+    - Result: probe01's -world package is Valve's byte for byte bar
+      .vwrld's timestamp and fingerprint. cardtest differs only in ledger
+      42's teleport02. ze_hold_em_p differs in three light aggregates' MDAT
+      and the end_breakable models' texcoords (ledger 10).
 
 ## Resolved
 

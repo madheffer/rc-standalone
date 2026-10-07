@@ -14,7 +14,12 @@
    (InstanceExpansionTests, SettleLumpTests; FIXTURES below) are rebuilt in
    place with -world -fshallow, which refreshes the world and the entity lumps
    and keeps the rest; each package is copied to %TEMP%/fixture_backups first.
-6. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
+6. With --partial, the two partial-build facts still open (GROUND_TRUTH 55):
+   capture_overrides.py on probe01 with -world -vis -fshallow (the vvis's
+   ___OverrideInputData___ text), and a -world -fshallow build of probe01
+   over its pre-10-07 package, which holds a world_visibility.vvis_c: whether
+   a build without vis keeps it (listed after, from %TEMP%/partial_check).
+7. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
    session, and any atixref.vpk a capture left in the addon's maps folder
    beyond the user's own (its backup is restored by the tools themselves).
 
@@ -61,6 +66,7 @@ def main():
     p.add_argument("--skip-captures", action="store_true")
     p.add_argument("--no-devbox", action="store_true")
     p.add_argument("--fixtures", action="store_true", help="also rebuild the stale addon fixture packages in place")
+    p.add_argument("--partial", action="store_true", help="also settle the open partial-build facts (vvis fingerprint, a kept vvis)")
     a = p.parse_args()
     if running("cs2.exe"):
         raise SystemExit("CS2 is running; close it first")
@@ -131,7 +137,32 @@ def main():
                                        "-i", source, "-world", "-fshallow"], cwd=bin_dir, stdout=log, stderr=subprocess.STDOUT).returncode
             print(f"{addon}/{m}: rc exit {code}")
 
-    step("6. cleanup")
+    step("6. partial builds")
+    if a.partial:
+        run([sys.executable, os.path.join(ROOT, "tools", "vis", "capture_overrides.py"), ADDON, "probe01",
+             "--out", os.path.join(TEMP, "override_capture", "probe01_vis"), "--switches", "-world -vis -fshallow"])
+        old_pkg = os.path.join(TEMP, "nobake_refs_pre1007", "probe01.vpk")
+        vpk = os.path.join(CS2, "game", "csgo_addons", ADDON, "maps", "probe01.vpk")
+        check = os.path.join(TEMP, "partial_check")
+        os.makedirs(check, exist_ok=True)
+        if os.path.exists(old_pkg) and not running("cs2.exe"):
+            backup = os.path.join(check, "probe01.vpk.bak")
+            if os.path.exists(vpk):
+                shutil.copyfile(vpk, backup)
+            shutil.copyfile(old_pkg, vpk)
+            bin_dir = os.path.join(CS2, "game", "bin", "win64")
+            with open(os.path.join(check, "probe01.log"), "wb") as log:
+                subprocess.run([os.path.join(bin_dir, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
+                                "-i", os.path.join(CS2, "content", "csgo_addons", ADDON, "maps", "probe01.vmap"), "-world", "-fshallow"],
+                               cwd=bin_dir, stdout=log, stderr=subprocess.STDOUT)
+            shutil.copyfile(vpk, os.path.join(check, "probe01_after.vpk"))
+            if os.path.exists(backup):
+                shutil.copyfile(backup, vpk)
+            import vpk as vpklib
+            names = sorted(vpklib.open(os.path.join(check, "probe01_after.vpk")))
+            print("world_visibility kept" if any(n.endswith("world_visibility.vvis_c") for n in names) else "world_visibility DROPPED")
+
+    step("7. cleanup")
     for dump in glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.dmp")) + glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.mdmp")):
         if os.path.getmtime(dump) >= started:
             os.remove(dump)

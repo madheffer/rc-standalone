@@ -10,31 +10,31 @@
    "addr": "1800d6760",
    "name": "HammerBuild_WorldWidget",
    "module": "s2c:containers/compile-map",
-   "note": ""
+   "note": "Build world: -entities when Entities Only, else -world; -deformables forced/none, -nosettle (unticked), -tileMeshBaseGeometry, -debugvisgeo, then -skipauxfiles (aux unticked) or -rebake_surfacegraph"
   },
   {
    "addr": "1800d7240",
    "name": "HammerBuild_LightingWidget",
    "module": "s2c:containers/compile-map",
-   "note": ""
+   "note": "-bakelighting and its lightmap switches; -nolightmaps"
   },
   {
    "addr": "1800d7ad0",
    "name": "HammerBuild_PhysWidget",
    "module": "s2c:containers/compile-map",
-   "note": ""
+   "note": "-phys when enabled and ticked"
   },
   {
    "addr": "1800d7b50",
    "name": "HammerBuild_VisWidget",
    "module": "s2c:containers/compile-map",
-   "note": ""
+   "note": "-vis when ticked"
   },
   {
    "addr": "1800d7e80",
    "name": "HammerBuild_NavWidget",
    "module": "s2c:containers/compile-map",
-   "note": ""
+   "note": "-nav when ticked"
   },
   {
    "addr": "1800dc340",

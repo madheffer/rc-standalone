@@ -21,45 +21,27 @@ public static class WorldNodeFiles
 
     /// <param name="volumes">The cubemap and light probe volumes the entity lump author found.</param>
     /// <param name="timestamp">The compile's time, for .vwrld.</param>
+    /// <param name="vis">The vis builder is on (CWorldRendererBuilder::Build reads the
+    /// context's builder flag, vf29 index 2): without it there is no
+    /// world_visibility.vvis_c and CompileNode clusters nothing, as a -world build shows.</param>
     public static List<Output> Build(DmxBinary.Document document, string addon, string map, GameContent content, ShaderLibrary shaders,
-                                     FgdSchema schema, string game, EnvVolumes.Set volumes, uint timestamp, List<string> notes)
+                                     FgdSchema schema, string game, EnvVolumes.Set volumes, uint timestamp, List<string> notes,
+                                     bool vis = true)
     {
         map = Io.Tier0Strings.LowerAscii(map);
         var outputs = new List<Output>();
         bool RendersAsWorld(string cls) => schema.IsSolidClass(cls) && schema.HasFlag(cls, "render_as_world_but_physics_as_entity");
 
         // Visibility from the trace scene.
-        var packages = new[] { "csgo", "core" }.Select(d => { var pk = new Package(); pk.Read(Path.Combine(game, d, "pak01_dir.vpk")); return pk; }).ToList();
-        VoxelVisibility vxvs;
-        List<(Vector3 Min, Vector3 Max)>[] flat;
-        byte[] vvis;
-        try
+        List<(Vector3 Min, Vector3 Max)>[]? flat = null;
+        float[][]? mutual = null;
+        if (vis)
         {
-            var visFlags = new MaterialVisFlags.Source([Path.Combine(game, "csgo_addons", addon)], packages);
-            var triangles = TraceScene.Triangles(MapMeshes.Read(document), content.Material, mat => visFlags[mat], RendersAsWorld);
-            var config = VisConfig.FromMap(MapEntities.From(document), schema);
-            // S2C_VISCACHE=<folder>: the visibility kept by the trace scene's content and settings, for repeated builds.
-            var cache = Environment.GetEnvironmentVariable("S2C_VISCACHE") is { Length: > 0 } folder
-                ? Path.Combine(folder, $"{map.Replace('/', '_')}_{VisKey(triangles, config):x16}.bin") : null;
-            if (cache != null && File.Exists(cache))
-                (vvis, flat) = ReadVis(cache);
-            else
-            {
-                var rte = TraceScene.Environment(triangles);
-                (vxvs, flat) = VisBuild.RunWithBlocks(rte, config);
-                vvis = VisibilityAuthor.Container(vxvs);
-                if (cache != null)
-                    WriteVis(cache, vvis, flat);
-            }
-            vxvs = VoxelVisibilityReader.Read(vvis);
+            var (vvis, visFlat) = Visibility(document, addon, map, content, schema, game, RendersAsWorld);
+            outputs.Add(new($"maps/{map}/world_visibility.vvis_c", vvis));
+            flat = visFlat;
+            mutual = VisOutput.MutualVisibility(VoxelVisibilityReader.Read(vvis));
         }
-        finally
-        {
-            foreach (var p in packages)
-                p.Dispose();
-        }
-        outputs.Add(new($"maps/{map}/world_visibility.vvis_c", vvis));
-        var mutual = VisOutput.MutualVisibility(vxvs);
 
         // BuildNode, the mesh lists, CompileNode.
         var world = WorldNodeBuild.WorldEntries(document, content, shaders, RendersAsWorld);
@@ -69,8 +51,6 @@ public static class WorldNodeFiles
         var envMaps = WorldNodeBuild.EnvMaps(built, volumes);
         var lists = WorldNodeBuild.MergerInputs(built, overlays, descriptors, envMaps, content, shaders, kinds: [.. MeshLists.Order.Select(o => o.Kind)])
             .ToDictionary(kv => kv.Key, kv => kv.Value.Select(m => new WorldNodeCompile.Entry(m.Material, m.Stride, m.Vertices, m.Indices, m.Facts)).ToList());
-        var result = WorldNodeCompile.Compile(lists, flat, mutual);
-        notes.AddRange(result.Unported.Select(u => "world node list not ported: " + u));
         var (nodeMin, nodeMax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
         foreach (var b in built)
             for (var k = 0; k + 2 < b.Vertices.Length; k += b.Source.Entry.Stride)
@@ -78,6 +58,8 @@ public static class WorldNodeFiles
                 var p = new Vector3(b.Vertices[k], b.Vertices[k + 1], b.Vertices[k + 2]);
                 (nodeMin, nodeMax) = (Vector3.Min(nodeMin, p), Vector3.Max(nodeMax, p));
             }
+        var result = WorldNodeCompile.Compile(lists, flat, mutual, nodeBounds: built.Count > 0 ? (nodeMin, nodeMax) : null);
+        notes.AddRange(result.Unported.Select(u => "world node list not ported: " + u));
 
         // The models.
         var facts = new Dictionary<string, WorldNodeModels.MaterialFacts>(StringComparer.OrdinalIgnoreCase);
@@ -141,14 +123,46 @@ public static class WorldNodeFiles
         var vwnod = $"maps/{map}/worldnodes/n0.vwnod";
         outputs.Add(new(vwnod + "_c", Source2ContainerAuthor.AuthorKv3Tree(WorldNodeSceneTrees.Data(sceneObjects, aggregates),
                                                                          ValveResourceFormat.Serialization.KeyValues.KV3IDLookup.Get("generic"), ".vwnod")));
-        outputs.Add(new($"maps/{map}/worldnodes/n0.vrman_c", ResourceManifestAuthor.AuthorSaved([vwnod], $"maps/{map}/worldnodes/n0.vrman", addon)));
+        outputs.Add(new($"maps/{map}/worldnodes/n0.vrman_c", ResourceManifestAuthor.AuthorSaved([vwnod], $"maps/{map}/worldnodes/n0.vrman", addon, [Backslashed(vwnod)])));
         var vwrld = WorldTrees.Data(1024f, [new WorldTrees.Node(nodeMin, nodeMax, $"maps\\{map.Replace('/', '\\')}\\worldnodes\\n0")],
                                     [$"maps/{map}/entities/default_ents.vents"], timestamp, (ulong)Random.Shared.NextInt64());
         outputs.Add(new($"maps/{map}/world.vwrld_c", Source2ContainerAuthor.AuthorKv3Tree(vwrld, ValveResourceFormat.Serialization.KeyValues.KV3IDLookup.Get("generic"), ".vwrld")));
-        outputs.Add(new($"maps/{map}/world.vrman_c", ResourceManifestAuthor.Author(
-            [$"maps/{map}/world.vwrld", $"maps/{map}/world_physics.vrman", $"maps/{map}/world_visibility.vvis"])));
+        string[] worldManifest = [$"maps/{map}/world.vwrld", $"maps/{map}/world_physics.vrman", $"maps/{map}/world_visibility.vvis"];
+        outputs.Add(new($"maps/{map}/world.vrman_c", ResourceManifestAuthor.AuthorOverride(worldManifest, [.. worldManifest.Select(Backslashed)])));
         return outputs;
     }
+
+    // The vis builder's output: the trace scene's visibility and its flat clusters.
+    private static (byte[] Vvis, List<(Vector3 Min, Vector3 Max)>[] Flat) Visibility(DmxBinary.Document document, string addon, string map,
+        GameContent content, FgdSchema schema, string game, Func<string, bool> rendersAsWorld)
+    {
+        var packages = new[] { "csgo", "core" }.Select(d => { var pk = new Package(); pk.Read(Path.Combine(game, d, "pak01_dir.vpk")); return pk; }).ToList();
+        try
+        {
+            var visFlags = new MaterialVisFlags.Source([Path.Combine(game, "csgo_addons", addon)], packages);
+            var triangles = TraceScene.Triangles(MapMeshes.Read(document), content.Material, mat => visFlags[mat], rendersAsWorld);
+            var config = VisConfig.FromMap(MapEntities.From(document), schema);
+            // S2C_VISCACHE=<folder>: the visibility kept by the trace scene's content and settings, for repeated builds.
+            var cache = Environment.GetEnvironmentVariable("S2C_VISCACHE") is { Length: > 0 } folder
+                ? Path.Combine(folder, $"{map.Replace('/', '_')}_{VisKey(triangles, config):x16}.bin") : null;
+            if (cache != null && File.Exists(cache))
+                return ReadVis(cache);
+            var rte = TraceScene.Environment(triangles);
+            var (vxvs, flat) = VisBuild.RunWithBlocks(rte, config);
+            var vvis = VisibilityAuthor.Container(vxvs);
+            if (cache != null)
+                WriteVis(cache, vvis, flat);
+            return (vvis, flat);
+        }
+        finally
+        {
+            foreach (var p in packages)
+                p.Dispose();
+        }
+    }
+
+    // RC builds the node and world manifest paths with Windows separators.
+    private static string Backslashed(string path) => path.Replace('/', '\\');
 
     private static ulong VisKey(IReadOnlyList<TraceScene.Triangle> triangles, VisConfig config)
     {

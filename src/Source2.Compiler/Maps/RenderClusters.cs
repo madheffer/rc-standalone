@@ -170,5 +170,56 @@ public static class RenderClusters
         return (min, max);
     }
 
+    /// <summary>
+    /// The node's box grid (rc 180283520): cells of <paramref name="size"/>
+    /// (the builder's m_flMinDrawVolumeSize) over the node bounds, the far
+    /// corner moved to whole cells; past 0x1000 cells the bounds stay and each
+    /// axis takes floor(extent / cbrt(volume / 4096)) cells, 1 to 64. The
+    /// bounds grow by 0.01 and the boxes run x fastest, then y, then z.
+    /// CompileNode clusters a node without vis (or with two vis clusters or
+    /// fewer) by these, and makes them its render boxes when nothing else does.
+    /// </summary>
+    public static List<(Vector3 Min, Vector3 Max)> Grid(Vector3 min, Vector3 max, float size)
+    {
+        var (x0, y0, z0, x1, y1, z1) = (min.X, min.Y, min.Z, max.X, max.Y, max.Z);
+        var (ex, ey, ez) = (x1 - x0, y1 - y0, z1 - z0);
+        var inv = 1f / size;
+        static int AtLeastOne(float f) => (int)f < 1 ? 1 : (int)f;
+        long nx = AtLeastOne(MathF.Ceiling(inv * ex)), ny = AtLeastOne(MathF.Ceiling(inv * ey)), nz = AtLeastOne(MathF.Ceiling(inv * ez));
+        if (nx * ny * nz < 0x1001)
+        {
+            z1 = z0 + (nz * size);
+            x1 = (nx * size) + x0;
+            y1 = (ny * size) + y0;
+        }
+        else
+        {
+            var cell = LightPow.Pow(ex * ey * ez * 0.00024414062f, 0.33333334f);
+            var per = 1f / cell;
+            static int Cells(float f) => Math.Min(AtLeastOne(MathF.Floor(f)), 64);
+            (nx, ny, nz) = (Cells(per * ex), Cells(per * ey), Cells(per * ez));
+        }
+        var fz = z0 - 0.01f;
+        var dz = ((z1 + 0.01f) - fz) / nz;
+        var dy = ((y1 + 0.01f) - (y0 + -0.01f)) / ny;
+        var dx = ((x1 + 0.01f) - (x0 + -0.01f)) / nx;
+        var boxes = new List<(Vector3 Min, Vector3 Max)>((int)(nx * ny * nz));
+        for (var k = 0; k < nz; k++, fz += dz)
+        {
+            var fy = y0 + -0.01f;
+            for (var j = 0; j < ny; j++, fy += dy)
+            {
+                var fx = x0 + -0.01f;
+                for (var i = 0; i < nx; i++)
+                {
+                    var minX = fx;
+                    fx = dx + fx;
+                    boxes.Add((new Vector3(minX, fy, fz), new Vector3(fx, dy + fy, dz + fz)));
+                }
+            }
+        }
+        return boxes;
+    }
+
     private static float Axis(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;
 }

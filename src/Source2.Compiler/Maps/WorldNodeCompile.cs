@@ -17,8 +17,10 @@ namespace Source2.Compiler.Maps;
 /// list's stash (vf 0x28, 18026e840), the rest become one object each
 /// (vf 0x30, 18026e9c0: <c>vism%i_mt_&lt;material&gt;</c>, the cluster index a
 /// running count per list).</item>
-/// <item>Without boxes after that, the layer's entries make them; without
-/// any still, the grid of 180283520 (not ported: refused).</item>
+/// <item>Without vis (or with two vis clusters or fewer) the node's box grid
+/// (<see cref="RenderClusters.Grid"/>, 180283520) is the clusters, with no
+/// mutual visibility. Without boxes after the merge, the layer's entries make
+/// them; without any still, the grid again.</item>
 /// <item>Each list is compiled per render cluster (its entries cut per
 /// triangle by <see cref="RenderClusters.Assign"/>, 18026cfd0 and
 /// 181366f30), or whole with cluster -1 when the list is not clustered:
@@ -106,8 +108,10 @@ internal static class WorldNodeCompile
         public int Instanced;
     }
 
+    /// <param name="nodeBounds">The node's bounds (node +0), which the box grid of
+    /// 180283520 covers when there is no vis to cluster by or nothing makes render boxes.</param>
     public static Result Compile(Dictionary<MeshLists.Kind, List<Entry>> byKind, IReadOnlyList<List<(Vector3 Min, Vector3 Max)>>? visFlat,
-                                 float[][]? mutual, Settings? settings = null)
+                                 float[][]? mutual, Settings? settings = null, (Vector3 Min, Vector3 Max)? nodeBounds = null)
     {
         settings ??= new Settings();
         var counters = new Counters();
@@ -121,6 +125,13 @@ internal static class WorldNodeCompile
         var layerEntries = lists.SelectMany(l => l.Entries).ToList();
 
         var boxes = new List<(Vector3 Min, Vector3 Max)>();
+        // 180278555: the vis builder's clusters when there are more than two, else
+        // the node's box grid, each box a cluster, with no mutual visibility.
+        if (settings.VisibilityGuidedMeshClustering && !(visFlat is { Count: >= 3 } && mutual != null) && nodeBounds is { } grid)
+        {
+            visFlat = [.. RenderClusters.Grid(grid.Min, grid.Max, settings.ClusterSize).Select(b => new List<(Vector3 Min, Vector3 Max)> { b })];
+            mutual = [];
+        }
         if (settings.VisibilityGuidedMeshClustering && visFlat is { Count: >= 3 } && mutual != null)
         {
             foreach (var list in lists.Where(l => MeshLists.Merged.Contains(l.Kind)))
@@ -146,8 +157,11 @@ internal static class WorldNodeCompile
         }
         if (boxes.Count == 0)
             AppendRenderBoxes(boxes, layerEntries, settings);
+        // 180278b57: still none, the node's box grid.
+        if (boxes.Count == 0 && nodeBounds is { } bounds)
+            boxes.AddRange(RenderClusters.Grid(bounds.Min, bounds.Max, settings.ClusterSize));
         if (boxes.Count == 0 && layerEntries.Count > 0)
-            throw new NotSupportedException("a node with no render cluster boxes: the grid boxes of 180283520 are not ported");
+            throw new NotSupportedException("a node with no render cluster boxes and no bounds to grid");
 
         foreach (var list in lists)
         {

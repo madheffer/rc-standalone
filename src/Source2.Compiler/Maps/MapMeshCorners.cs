@@ -63,7 +63,10 @@ internal static class MapMeshCorners
     /// <remarks><paramref name="wholeMeshMaterial"/>, when given, is the material every
     /// face takes: BakeWholeMeshOverrideMaterial (1810c68f0) assigns a class's
     /// auto_apply_material to all faces, so the mesh is one piece.</remarks>
-    public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords, Func<Vector3, Vector3>? cutSpace, bool withTangent, bool allStreams, int? wholeMeshMaterial = null)
+    /// <param name="vertexLighting">The mesh instance's vertexLightingData (<see cref="NodeMeshEntries.VertexLighting"/>):
+    /// one RGBA8 per face vertex, replacing the PerVertexLighting stream as byte / 255 when the counts agree.</param>
+    public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords, Func<Vector3, Vector3>? cutSpace, bool withTangent, bool allStreams, int? wholeMeshMaterial = null,
+                                    object?[]? vertexLighting = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
@@ -89,6 +92,8 @@ internal static class MapMeshCorners
             if (name == "tangent" && !withTangent)
                 continue;
             var values = s.Get<object?[]>("data") ?? [];
+            if (name == "PerVertexLighting" && vertexLighting is { } baked && baked.Length == values.Length && baked.All(x => x is byte[] { Length: 4 }))
+                values = [.. baked.Select(x => (object?)(x is byte[] c ? new Vector4(c[0] / 255f, c[1] / 255f, c[2] / 255f, c[3] / 255f) : Vector4.Zero))];
             streams.Add((name, values, Width(values)));
         }
         var texcoords = streams.Select((x, i) => (x, i)).Where(x => x.x.Name == "texcoord").ToList();

@@ -92,13 +92,17 @@ static void Usage()
                     package. --gpu samples new-blending materials on the GPU.
 
       s2c compile-map -i <content/csgo_addons/<addon>/maps/<map>.vmap> [-outroot <dir>]
-                    [resourcecompiler switches...] [--gpu] [--accept-gaps]
-                    Hammer's build command line, on the parts ported: -entities
-                    rebuilds the entity lumps (settled unless -nosettle), -phys
-                    world_physics. They replace their files in the compiled map
-                    package already at <outroot or game>/csgo_addons/<addon>/maps,
-                    as a -fshallow build does. Anything else (the full world
-                    step, lighting, nav, Steam Audio) is refused by name.
+                    [resourcecompiler switches...] [--gpu] [--accept-gaps] [--skip-unported]
+                    Hammer's build command line, read as resourcecompiler reads it:
+                    -world builds the world step without a lighting bake (render
+                    nodes, entity lumps and models; visibility with -vis), as
+                    Hammer's Fast Compile does; -entities rebuilds only the
+                    entity lumps (settled unless -nosettle); -phys world_physics.
+                    They replace their files in the compiled map package already
+                    at <outroot or game>/csgo_addons/<addon>/maps, as -fshallow
+                    does. The lighting bake, nav and Steam Audio are refused by
+                    name; --skip-unported runs the rest and leaves those as the
+                    package has them.
 
       s2c id        <resource/path.vtex>
                     Print the 64-bit RERL id the engine looks that path up by.

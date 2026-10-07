@@ -227,7 +227,7 @@ public static partial class Source2ContainerAuthor
     /// <param name="savedSource">The source file RC wrote to disk and compiled this from, when it did
     /// (a physics or world node manifest); RC records it as an additional input.</param>
     public static byte[] AuthorChildResource(string sourceExtension, byte[] dataBytes, IEnumerable<string> references,
-        SavedSource? savedSource = null)
+        SavedSource? savedSource = null, uint overrideFingerprint = 0)
     {
         ArgumentNullException.ThrowIfNull(dataBytes);
         ArgumentNullException.ThrowIfNull(references);
@@ -254,7 +254,7 @@ public static partial class Source2ContainerAuthor
         if (rerl.ResourceRefInfoList.Count > 0)
             resource.Blocks.Add(rerl);
 
-        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName: "", sourceTextBytes: [], userDoc: null, savedSource);
+        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName: "", sourceTextBytes: [], userDoc: null, savedSource, overrideFingerprint);
         resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
         resource.Blocks.Add(ResourceBuilder.RawBlock(BlockType.DATA, dataBytes, resource));
 
@@ -265,7 +265,7 @@ public static partial class Source2ContainerAuthor
     /// have written for this compile (field set + shapes verified per type).</summary>
     private static KVObject BuildRed2Document(
         ContainerSpec spec, string sourceExtension, string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc,
-        SavedSource? savedSource = null)
+        SavedSource? savedSource = null, uint overrideFingerprint = 0)
     {
         var root = KVObject.Collection();
 
@@ -309,7 +309,7 @@ public static partial class Source2ContainerAuthor
         // their widths: 64-bit fingerprints and user data, a 32-bit unsigned
         // compiler fingerprint (world_physics.vrman_c, decoded).
         var child = spec.ChildResource;
-        arg.Add("m_nFingerprint", child ? new KVObject(0L) : new KVObject(0));
+        arg.Add("m_nFingerprint", child ? (overrideFingerprint == 0 ? new KVObject(0L) : new KVObject(overrideFingerprint)) : new KVObject(0));
         arg.Add("m_nFingerprintDefault", child ? new KVObject(0L) : new KVObject(0));
         argDeps.Add(arg);
         root.Add("m_ArgumentDependencies", argDeps);

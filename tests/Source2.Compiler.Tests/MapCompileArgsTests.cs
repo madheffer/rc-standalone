@@ -54,6 +54,18 @@ public class MapCompileArgsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void TheWorldStepBakesOnlyWhenAsked()
+    {
+        // 1800fd550: (no builder named, or bakelighting) and not nobakedlighting.
+        Assert.True(MapCompileArgs.Parse(["-i", "x.vmap"]).BakesLighting);
+        Assert.False(Line("-world -skipauxfiles -nolightmaps -phys -nav").BakesLighting);
+        Assert.True(Line("-world -bakelighting -phys -vis").BakesLighting);
+        Assert.False(Line("-world -bakelighting -nobakedlighting").BakesLighting);
+        Assert.False(MapCompileArgs.Parse(["-i", "x.vmap", "-nobakedlighting"]).BakesLighting);
+        Assert.False(Line("-entities -skipauxfiles -nolightmaps").BakesLighting);
+    }
+
+    [Fact]
     public void EndToEndOnS2cRounds()
     {
         // A current compile with the world's collision, of the copy it was

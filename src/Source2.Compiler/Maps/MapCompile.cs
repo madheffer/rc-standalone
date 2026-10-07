@@ -84,8 +84,12 @@ public static class MapCompile
     /// compile refuses a partial build then.
     /// </summary>
     /// <returns>0 on success; 1 when refused or failed, with the reason logged.</returns>
+    /// <param name="skipUnported">Run the ported steps and leave the rest (nav, Steam
+    /// Audio, the lighting bake) as the package has them, for a quick test build,
+    /// instead of refusing.</param>
     public static int Run(MapCompileArgs args, TextWriter log, bool acceptGaps = false,
-                          Func<GameContent, Func<string, MaterialSampler.Renderer?>?>? sampler = null)
+                          Func<GameContent, Func<string, MaterialSampler.Renderer?>?>? sampler = null,
+                          bool skipUnported = false)
     {
         if (args.Input is not { } input || !File.Exists(input))
             return Fail(log, "-i must name an existing .vmap");
@@ -104,8 +108,14 @@ public static class MapCompile
         var entitiesOnly = args.EntitiesOnly;
         var refused = new List<string>();
         refused.AddRange(steps.Where(s => s is "bakedlighting" or "nav" or "sareverb" or "sapaths" or "sacustomdata"));
-        if (refused.Count > 0)
-            return Fail(log, "not ported: " + string.Join(", ", refused) + ". -world (without the bake), -entities and -phys builds run.");
+        if (args.BakesLighting)
+            refused.Add("the lighting bake (a build naming no builder, or -bakelighting)");
+        if (refused.Count > 0 && !skipUnported)
+            return Fail(log, "not ported: " + string.Join(", ", refused)
+                + ". -world (without -bakelighting), -vis, -entities and -phys builds run; --skip-unported leaves the rest as the package has it.");
+        foreach (var skipped in refused)
+            log.WriteLine($"  skipped (not ported): {skipped}");
+        steps.ExceptWith(refused);
         if (!args.KeepsPackage)
             return Fail(log, "-f and -fshallow2 start from an empty package, and this is a partial build (the compile refuses it too)");
 
@@ -139,11 +149,16 @@ public static class MapCompile
         var notes = new List<string>();
         log.WriteLine($"{map}.vmap -> {package}");
 
+        if (steps.Contains("vis") && !steps.Contains("world"))
+            log.WriteLine("  note: vis is built inside the world step, so -vis without -world builds nothing");
         if (steps.Contains("world") && !args.EntitiesOnly)
         {
             // The world step without the bake: the lumps, the brush entity models,
-            // visibility and the world node (WorldNodeFiles). What a previous build
-            // left under the map's worldnodes and entities is replaced.
+            // visibility when the vis builder is on, and the world node
+            // (WorldNodeFiles). What a previous build left under the map's
+            // worldnodes and entities is replaced. A world_visibility left by an
+            // earlier vis build is kept, as -fshallow keeps what a step does not
+            // write; whether RC drops it is not captured yet (GROUND_TRUTH 24).
             foreach (var old in entries.Keys.Where(k => k.StartsWithAscii($"maps/{map}/worldnodes/".ToLowerInvariant())
                                                         || k.StartsWithAscii($"maps/{map}/entities/".ToLowerInvariant())).ToList())
                 entries.Remove(old);
@@ -156,10 +171,11 @@ public static class MapCompile
                 entries[m.Path + "_c"] = m.PhysicsOnly ? EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
             using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
             var node = WorldNodeFiles.Build(document, addon, map, assets, shaders, schema, game, lighting?.Volumes ?? EnvVolumes.Set.Empty,
-                                            (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), notes);
+                                            (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), notes, vis: steps.Contains("vis"));
             foreach (var f in node)
                 entries[f.Path] = f.Bytes;
-            log.WriteLine($"  world: {lumps.Count} lumps, {models.Count} entity models, {node.Count} node and visibility files");
+            log.WriteLine($"  world: {lumps.Count} lumps, {models.Count} entity models, {node.Count} node files"
+                          + (steps.Contains("vis") ? " with visibility" : ", no vis (not asked for)"));
         }
         else if (steps.Contains("world"))
         {

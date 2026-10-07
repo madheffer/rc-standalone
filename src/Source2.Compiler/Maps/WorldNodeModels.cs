@@ -108,70 +108,94 @@ internal static class WorldNodeModels
     private static Built Assemble(string name, List<DrawInput> draws, bool aggregate, MaterialFacts facts, bool mapMesh, Func<int, uint>? texcoordFormat,
                                   int warnings = 0)
     {
-        // One draw set: every draw in the same vertex buffers and one index buffer.
-        var slots = Layout(draws, mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh, texcoordFormat);
-        var bufferCount = slots.Max(l => l.Buffer) + 1;
-        var strides = Enumerable.Range(0, bufferCount).Select(b => slots.Where(l => l.Buffer == b).Sum(f => FormatSize(f.Field.Format))).ToArray();
-        var totalVertices = draws.Sum(d => d.Geometry.VertexCount);
-        var vbs = strides.Select(st => new byte[totalVertices * st]).ToArray();
-        var ib = new List<uint>();
-        var described = new List<WorldNodeModel.Draw>();
-        var drawBounds = new List<(Vector3, Vector3)>();
-        var meshlets = new List<WorldNodeModel.Meshlet>();
-        var (min, max) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
-        var vertexBase = 0;
+        // Draw sets: draws whose input layout matches share vertex buffers and an
+        // index buffer (InputLayout_MatchSignature, 181363de0), in first-draw order;
+        // probe01's no-vis cb_mesh holds two (with and without PerVertexLighting).
+        var sets = new List<(List<Slot> Slots, List<DrawInput> Draws)>();
         foreach (var d in draws)
         {
-            var g = d.Geometry;
-            var offsets = d.Offsets ?? StreamOffsets(d.Streams);
-            for (var b = 0; b < bufferCount; b++)
-                for (var v = 0; v < g.VertexCount; v++)
-                    Pack(vbs[b].AsSpan((vertexBase + v) * strides[b], strides[b]), g.Vertices.AsSpan(v * d.Stride, d.Stride), offsets, slots.Where(l => l.Buffer == b));
-            var positions = Positions(g, d.Stride, offsets["position:0"]);
-            var (dmin, dmax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
-            foreach (var i in g.Indices)
-                (dmin, dmax) = (Vector3.Min(dmin, positions[i]), Vector3.Max(dmax, positions[i]));
-            (min, max) = (Vector3.Min(min, dmin), Vector3.Max(max, dmax));
-            drawBounds.Add((dmin, dmax));
-            var startIndex = ib.Count;
-            var firstMeshlet = meshlets.Count;
-            if (aggregate)
-                foreach (var m in g.Meshlets)
-                {
-                    var idx = g.Indices.AsSpan(m.TriangleOffset * 3, m.TriangleCount * 3);
-                    var (mmin, mmax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
-                    foreach (var i in idx)
-                        (mmin, mmax) = (Vector3.Min(mmin, positions[i]), Vector3.Max(mmax, positions[i]));
-                    var (pmin, pmax) = MeshletBounds.Pack(dmin, dmax, mmin, mmax);
-                    var c = (d.Facts.Attributes & 0x100000000) != 0 ? MeshletBounds.Cone(positions, idx) : (0, 0, 0, 0);
-                    // The count leaves out the padding triangle (last, last, last).
-                    var padded = idx.Length >= 6 && idx[^1] == idx[^2] && idx[^2] == idx[^3];
-                    meshlets.Add(new WorldNodeModel.Meshlet(pmin, pmax, c.Item1, c.Item2, c.Item3, c.Item4, vertexBase,
-                                                            (startIndex / 3) + m.TriangleOffset, m.VertexCount, m.TriangleCount - (padded ? 1 : 0)));
-                }
-            ib.AddRange(g.Indices.Select(i => (uint)(i + vertexBase)));
-            var uv = TexcoordValues(g, d.Stride, offsets);
-            var density = uv == null ? 0f : UvDensity.Compute(positions, uv, g.Indices);
-            var tint = d.Facts.Field28;
-            described.Add(new WorldNodeModel.Draw(d.Material, new Vector3(tint.X, tint.Y, tint.Z), density, firstMeshlet, meshlets.Count - firstMeshlet,
-                vertexBase, bufferCount > 1 ? 0 : 255, vertexBase + g.VertexCount, startIndex, g.Indices.Length, 0, [.. Enumerable.Range(0, bufferCount)],
-                d.Streams.Any(s => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase)), false));
-            vertexBase += g.VertexCount;
+            var slots = Layout([d], mapMesh ? facts : facts with { Depth = [] }, aggregate, mapMesh, texcoordFormat);
+            var set = sets.FindIndex(x => x.Slots.Select(l => (l.Field, l.Buffer)).SequenceEqual(slots.Select(l => (l.Field, l.Buffer))));
+            if (set < 0)
+                sets.Add((slots, [d]));
+            else
+                sets[set].Draws.Add(d);
         }
-        var elementSize = totalVertices > 0xffff ? 4 : 2;
-        // The index codec's output is kept only when smaller than the raw indices.
-        var ibBytes = MeshoptEncoder.EncodeIndexBuffer(ib.ToArray());
-        var ibMeshopt = ibBytes.Length < ib.Count * elementSize;
-        if (!ibMeshopt)
-            ibBytes = elementSize == 2 ? [.. ib.SelectMany(i => BitConverter.GetBytes((ushort)i))] : [.. ib.SelectMany(i => BitConverter.GetBytes(i))];
-        var model = new WorldNodeModel(name,
-            [.. Enumerable.Range(0, bufferCount).Select(b => new WorldNodeModel.VertexBuffer(totalVertices, strides[b], true, [.. slots.Where(l => l.Buffer == b).Select(l => l.Field)]))],
-            [new WorldNodeModel.IndexBuffer(ib.Count, elementSize, ibMeshopt, aggregate)],
-            [new WorldNodeModel.SceneObject(min, max, described, aggregate ? drawBounds : [], meshlets)],
+        var vertexBuffers = new List<WorldNodeModel.VertexBuffer>();
+        var indexBuffers = new List<WorldNodeModel.IndexBuffer>();
+        var buffers = new List<(BlockType Type, byte[] Bytes)>();
+        var raw = new List<byte[]>();
+        var described = new Dictionary<DrawInput, WorldNodeModel.Draw>();
+        var drawBounds = new Dictionary<DrawInput, (Vector3, Vector3)>();
+        var meshlets = new List<WorldNodeModel.Meshlet>();
+        var (min, max) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+        foreach (var (slots, setDraws) in sets)
+        {
+            var bufferCount = slots.Max(l => l.Buffer) + 1;
+            var firstBuffer = vertexBuffers.Count;
+            int[] handles = [.. Enumerable.Range(firstBuffer, bufferCount)];
+            var strides = Enumerable.Range(0, bufferCount).Select(b => slots.Where(l => l.Buffer == b).Sum(f => FormatSize(f.Field.Format))).ToArray();
+            var totalVertices = setDraws.Sum(d => d.Geometry.VertexCount);
+            var vbs = strides.Select(st => new byte[totalVertices * st]).ToArray();
+            var ib = new List<uint>();
+            var vertexBase = 0;
+            foreach (var d in setDraws)
+            {
+                var g = d.Geometry;
+                var offsets = d.Offsets ?? StreamOffsets(d.Streams);
+                for (var b = 0; b < bufferCount; b++)
+                    for (var v = 0; v < g.VertexCount; v++)
+                        Pack(vbs[b].AsSpan((vertexBase + v) * strides[b], strides[b]), g.Vertices.AsSpan(v * d.Stride, d.Stride), offsets, slots.Where(l => l.Buffer == b));
+                var positions = Positions(g, d.Stride, offsets["position:0"]);
+                var (dmin, dmax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+                foreach (var i in g.Indices)
+                    (dmin, dmax) = (Vector3.Min(dmin, positions[i]), Vector3.Max(dmax, positions[i]));
+                (min, max) = (Vector3.Min(min, dmin), Vector3.Max(max, dmax));
+                drawBounds[d] = (dmin, dmax);
+                var startIndex = ib.Count;
+                var firstMeshlet = meshlets.Count;
+                if (aggregate)
+                    foreach (var m in g.Meshlets)
+                    {
+                        var idx = g.Indices.AsSpan(m.TriangleOffset * 3, m.TriangleCount * 3);
+                        var (mmin, mmax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+                        foreach (var i in idx)
+                            (mmin, mmax) = (Vector3.Min(mmin, positions[i]), Vector3.Max(mmax, positions[i]));
+                        var (pmin, pmax) = MeshletBounds.Pack(dmin, dmax, mmin, mmax);
+                        var c = (d.Facts.Attributes & 0x100000000) != 0 ? MeshletBounds.Cone(positions, idx) : (0, 0, 0, 0);
+                        // The count leaves out the padding triangle (last, last, last).
+                        var padded = idx.Length >= 6 && idx[^1] == idx[^2] && idx[^2] == idx[^3];
+                        meshlets.Add(new WorldNodeModel.Meshlet(pmin, pmax, c.Item1, c.Item2, c.Item3, c.Item4, vertexBase,
+                                                                (startIndex / 3) + m.TriangleOffset, m.VertexCount, m.TriangleCount - (padded ? 1 : 0)));
+                    }
+                ib.AddRange(g.Indices.Select(i => (uint)(i + vertexBase)));
+                var uv = TexcoordValues(g, d.Stride, offsets);
+                var density = uv == null ? 0f : UvDensity.Compute(positions, uv, g.Indices);
+                var tint = d.Facts.Field28;
+                described[d] = new WorldNodeModel.Draw(d.Material, new Vector3(tint.X, tint.Y, tint.Z), density, firstMeshlet, meshlets.Count - firstMeshlet,
+                    vertexBase, bufferCount > 1 ? 0 : 255, vertexBase + g.VertexCount, startIndex, g.Indices.Length, indexBuffers.Count, handles,
+                    d.Streams.Any(s => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase)), false);
+                vertexBase += g.VertexCount;
+            }
+            var elementSize = totalVertices > 0xffff ? 4 : 2;
+            // The index codec's output is kept only when smaller than the raw indices.
+            var ibBytes = MeshoptEncoder.EncodeIndexBuffer(ib.ToArray());
+            var ibMeshopt = ibBytes.Length < ib.Count * elementSize;
+            if (!ibMeshopt)
+                ibBytes = elementSize == 2 ? [.. ib.SelectMany(i => BitConverter.GetBytes((ushort)i))] : [.. ib.SelectMany(i => BitConverter.GetBytes(i))];
+            for (var b = 0; b < bufferCount; b++)
+            {
+                vertexBuffers.Add(new WorldNodeModel.VertexBuffer(totalVertices, strides[b], true, [.. slots.Where(l => l.Buffer == b).Select(l => l.Field)]));
+                buffers.Add((BlockType.MVTX, MeshoptEncoder.EncodeVertexBuffer(vbs[b], totalVertices, strides[b])));
+                raw.Add(vbs[b]);
+            }
+            indexBuffers.Add(new WorldNodeModel.IndexBuffer(ib.Count, elementSize, ibMeshopt, aggregate));
+            buffers.Add((BlockType.MIDX, ibBytes));
+        }
+        var model = new WorldNodeModel(name, vertexBuffers, indexBuffers,
+            [new WorldNodeModel.SceneObject(min, max, [.. draws.Select(d => described[d])], aggregate ? [.. draws.Select(d => drawBounds[d])] : [], meshlets)],
             aggregate, warnings);
-        var buffers = Enumerable.Range(0, bufferCount).Select(b => (BlockType.MVTX, MeshoptEncoder.EncodeVertexBuffer(vbs[b], totalVertices, strides[b]))).ToList();
-        buffers.Add((BlockType.MIDX, ibBytes));
-        return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], []) { RawVertexBuffers = vbs };
+        return new Built(model, buffers, [.. draws.Select(d => d.Material).Distinct(StringComparer.OrdinalIgnoreCase)], []) { RawVertexBuffers = [.. raw] };
     }
 
     // Step_SplittingMeshWith (180260710) welds each fragment's CMesh (CMesh_Weld with 0), then
@@ -200,13 +224,19 @@ internal static class WorldNodeModels
         var groups = new List<List<WorldNodeCompile.Entry>>();
         foreach (var e in meshes)
         {
-            var g = groups.FirstOrDefault(x => string.Equals(x[0].Material, e.Material, StringComparison.OrdinalIgnoreCase));
+            // One draw per material and vertex layout: entries with and without a stream
+            // (PerVertexLighting) are separate draws (probe01's no-vis cb_mesh).
+            var g = groups.FirstOrDefault(x => string.Equals(x[0].Material, e.Material, StringComparison.OrdinalIgnoreCase)
+                                               && x[0].Stride == e.Stride && SameLayout(x[0].Facts.Streams, e.Facts.Streams));
             if (g == null)
                 groups.Add(g = []);
             g.Add(e);
         }
         return groups;
     }
+
+    private static bool SameLayout(IReadOnlyList<WrbMeshEntry.Stream> a, IReadOnlyList<WrbMeshEntry.Stream> b)
+        => a.Count == b.Count && a.Zip(b).All(p => p.First == p.Second);
 
     private static (float[] Vertices, int[] Indices) Append(List<WorldNodeCompile.Entry> group)
     {

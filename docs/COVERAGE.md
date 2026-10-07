@@ -44,15 +44,24 @@ reads it as resourcecompiler does:
   a partial build.
 
 What runs today:
+- The world step without a bake: the world node and its models, the entity
+  lumps and brush entity models, and visibility only when `vis` is selected.
+  Without vis, CompileNode clusters by the node's box grid, as Valve does
+  (GROUND_TRUTH 55). The per-vertex lighting is the last bake's, from the
+  .vmap. probe01's `-world` package is Valve's byte for byte, bar .vwrld's
+  timestamp and fingerprint.
 - The world step in entities-only mode: the entity lumps, settled unless
   `-nosettle`.
 - The physics step: world_physics.
 
-The full world step (render geometry, with vis and the lighting bake inside it),
-nav and Steam Audio are refused by name. A lump whose lights or probe volumes
-would lose their bake keys is refused unless `--accept-gaps` is passed.
-Hammer's Only Entities preset (`-entities -skipauxfiles -nolightmaps`) runs as
-is.
+The world step bakes when no builder is named or `-bakelighting` is given,
+unless `-nobakedlighting` is given. The bake, nav and Steam Audio are refused
+by name. `--skip-unported` runs the rest and leaves those parts as the
+package has them, for quick test builds. A lump whose lights or probe
+volumes would lose their bake keys is refused unless `--accept-gaps` is
+passed. Hammer's Only Entities preset (`-entities -skipauxfiles
+-nolightmaps`) runs as is. Fast Compile (`-world -skipauxfiles -nolightmaps
+-phys -nav`) runs with `--skip-unported` (nav).
 
 Status words:
 - **ported**: the part this option drives matches Valve's output.
@@ -72,14 +81,17 @@ Presets, with the descriptions Hammer shows:
 - Only Entities: "Build Entities. Nothing else!".
 - Custom Settings.
 
-Which switches each preset sets is still to be read from `hammer.dll`. The
-labels below are the dialog's own strings. Where the dialog has no label beside
+Each section of the dialog appends its own switches (hammer.dll 1800d6760
+and its siblings, GROUND_TRUTH 55): Build world writes `-entities` when
+Entities Only is ticked, else `-world`; physics, vis and nav write `-phys`,
+`-vis` and `-nav`; Baked Lighting writes `-bakelighting`. The labels below are
+the dialog's own strings. Where the dialog has no label beside
 a switch, or which check box sets a switch is not read yet, the label column
 says so.
 
 | switch | dialog label | state |
 |---|---|---|
-| `-world` | Build world | refused by compile-map: render geometry and world nodes not started |
+| `-world` | Build world | compile-map: the world step without a bake; probe01 byte-exact, cardtest and ze_hold_em_p bar ledger 10/42 items |
 | `-entities` | Entities Only | compile-map: the lumps; exact on every pinned map except the lights' and probe volumes' bake keys |
 | `-nosettle` | Pre-Settle physics objects (unticked) | compile-map: skips the settle |
 | `-tileMeshBaseGeometry` | Only base tile mesh geometry | not read |
@@ -87,7 +99,7 @@ says so.
 | `-rebake_surfacegraph` | Build World Dynamic Surface Effects; Rebake All Surface Effects From Scratch ( recommended ) | not read |
 | `-debugvisgeo` | Debug Vis Geometry | not read |
 | `-skipauxfiles` | no label found | not read |
-| `-bakelighting` | Baked Lighting | not started (vrad3 is driven standalone as a stopgap) |
+| `-bakelighting` | Baked Lighting | read (turns the bake on in a partial build); the bake itself not started, refused or skipped |
 | `-lightmapMaxResolution N` | no label found | not started |
 | `-lightmapVRadQuality 0/1/2` | Quality | not started |
 | `-lightmapCompressionDisabled` | Compression (unticked) | not started |
@@ -97,7 +109,7 @@ says so.
 | `-vrad3LargeBlockSize` | no label found | not started |
 | `-gpuraytracing` | GPU Lightmap Baking | not started |
 | `-nolightmaps` | no label found | no output: resourcecompiler has no such argument |
-| `-vis` | Build vis | partial: every stage exact against captured inputs, Mako included; not yet end to end on our own geometry |
+| `-vis` | Build vis | compile-map: off without it (no vvis, grid clustering); every vis stage exact against captured inputs, Mako included; not yet end to end on our own geometry |
 | `-phys` | Build physics | compile-map: world_physics, exact against Valve's decoded trees on 9 maps |
 | `-nav` | Nav | not started |
 | `-navdbg` | Save debug stages to file | not started |
@@ -130,7 +142,8 @@ these; a few are only reachable from resourcecompiler's command line.
 | `skipmapload` | not read |
 | `nosettle` | compile-map skips the settle |
 | `tileMeshBaseGeometry`, `deformables` | not read |
-| `bakelighting`, `nobakedlighting`, `lightmapMaxResolution` | not started |
+| `bakelighting`, `nobakedlighting` | read: decide whether the world step bakes (GROUND_TRUTH 55) |
+| `lightmapMaxResolution` | not started |
 | `steamaudio`, `sareverb_*`, `sapaths_*`, `sacustomdata_*`, `sacustombake_*` | not started |
 | `meshletMaxTriangles`, `meshletMaxVertices` | not read (render geometry) |
 | `keep_vertices` | written into world_physics' compile arguments as Valve does; the option itself not read |

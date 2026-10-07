@@ -13,11 +13,10 @@ namespace Source2.Compiler.Maps;
 /// (HammerMesh_TransformToWorld, 1810c4e50); the builder's mesh then holds
 /// them renormalised: squares summed z, y, x, times the reciprocal of the
 /// root (measured exact on probe01; the function doing it is not read).
-/// PerVertexLighting is the .vmap's own stream: resourcecompiler's own build
-/// of a map keeps it (ze_hold_em_p's 10-07 reference, all (1, 1, 1, 0)); only
-/// a build from Hammer after a lighting bake carries the baked values Hammer
-/// applied to its open document (180f0ea90), as probe01's and cardtest's
-/// 09-23/24 references do.
+/// PerVertexLighting is the last bake's: the map load replaces the stream
+/// with the mesh instance's vertexLightingData (180f0ea90,
+/// <see cref="VertexLighting"/>), which is how probe01's, cardtest's and
+/// ze_hold_em_p's 10-07 builds without a bake carry baked values.
 /// </summary>
 internal static class NodeMeshEntries
 {
@@ -66,6 +65,7 @@ internal static class NodeMeshEntries
                                         bool forceHighPrecisionTexcoords = false)
     {
         var entries = new List<Entry>();
+        var lighting = VertexLighting(doc);
         foreach (var mesh in MapMeshes.Read(doc))
         {
             // A mesh under the world or a group, or under an entity whose class renders as world.
@@ -80,7 +80,8 @@ internal static class NodeMeshEntries
             // mesh.World went through Concat, which adds +0 and so loses a -0
             // that decides the sign of a zero component.
             var turn = mesh.Instances.Length == 0 ? MapMeshes.Local(mesh.Element) : world;
-            var pieces = MapMeshCorners.Build(mesh.Element, shift, p => MapMeshes.Transform(world, p), withTangent: true, allStreams: signature != null);
+            var pieces = MapMeshCorners.Build(mesh.Element, shift, p => MapMeshes.Transform(world, p), withTangent: true, allStreams: signature != null,
+                                              vertexLighting: lighting.GetValueOrDefault(string.Join('.', mesh.Instances.Append(mesh.NodeId))));
             if (signature != null)
             {
                 var needs = names.SelectMany(signature).ToHashSet();
@@ -209,5 +210,21 @@ internal static class NodeMeshEntries
             return VectorNormalizeSlow.Normalise(d);
         var inv = 1f / len;
         return new Vector3(d.X * inv, d.Y * inv, d.Z * inv);
+    }
+    /// <summary>
+    /// The last bake's per-vertex lighting the .vmap keeps beside its meshes:
+    /// a CDmeNodeInstanceData per mesh instance, named by its node path (the
+    /// instances' node ids, then the mesh's, joined by '.'), whose
+    /// vertexLightingData holds one RGBA8 per face vertex. The map load puts
+    /// it into the PerVertexLighting stream (180f0ea90), so a build without a
+    /// bake still ships the previous bake's values.
+    /// </summary>
+    public static Dictionary<string, object?[]> VertexLighting(DmxBinary.Document doc)
+    {
+        var found = new Dictionary<string, object?[]>(StringComparer.Ordinal);
+        foreach (var e in doc.Elements)
+            if (e.Type == "CDmeNodeInstanceData" && e.Get<object?[]>("vertexLightingData") is { Length: > 0 } data)
+                found.TryAdd(e.Name, data);
+        return found;
     }
 }

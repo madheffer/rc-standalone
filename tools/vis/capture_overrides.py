@@ -1,6 +1,6 @@
-"""capture_overrides.py <addon> <map> [--out dir]: the inputs behind the RED2 hashes we cannot yet produce.
+"""capture_overrides.py <addon> <map> [--out dir] [--switches "..."]: the inputs behind RED2's hashes.
 
-Runs a -world -fshallow compile under Frida and keeps:
+Runs a -world -fshallow compile (or --switches) under Frida and keeps:
 
   override_<n>.bin   every buffer handed to the argument-dependency recorder
                      (0923 180174ae0) with its parameter name: the bytes whose
@@ -75,6 +75,7 @@ def main():
     p.add_argument("addon")
     p.add_argument("map")
     p.add_argument("--out")
+    p.add_argument("--switches", default="-world -fshallow", help="the builder switches (default: -world -fshallow)")
     a = p.parse_args()
     if running("cs2.exe"):
         raise SystemExit("CS2 is running; not starting")
@@ -117,7 +118,7 @@ def main():
 
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
-            "-i", source, "-world", "-fshallow"]
+            "-i", source] + a.switches.split()
     dev = frida.get_local_device()
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)

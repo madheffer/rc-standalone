@@ -125,6 +125,25 @@ public sealed class MapCompileArgs
     /// for (CompileMap's ctx+0x604).</summary>
     public bool EntitiesOnly => !GetBool("world") && !GetBool("all") && GetBool("entities");
 
+    /// <summary>
+    /// Whether the world step bakes lighting (the context's +0x605, set in
+    /// rc 1800fd550 when gameinfo's DefaultMapBuilders/bakedlighting is on, as
+    /// in CS2): a build naming no builder bakes, a partial one (+0x607,
+    /// CompileMap's return) only with <c>bakelighting</c>, and
+    /// <c>nobakedlighting</c> turns it off. Hammer writes <c>-bakelighting</c>
+    /// from its Baked Lighting box, so -world alone is the unbaked quick build.
+    /// An entities-only build reads the lightmaps already there instead.
+    /// </summary>
+    public bool BakesLighting
+    {
+        get
+        {
+            var steps = SelectedBuilders(out var partial);
+            return steps.Contains("world") && !EntitiesOnly
+                && (!partial || GetBool("bakelighting")) && !GetBool("nobakedlighting");
+        }
+    }
+
     /// <summary>Whether the physics settle runs: nosettle clears it.</summary>
     public bool Settle => !GetBool("nosettle");
 

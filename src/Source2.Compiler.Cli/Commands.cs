@@ -486,7 +486,8 @@ internal static class Commands
     {
         var gpuWanted = a.Contains("--gpu");
         var acceptGaps = a.Contains("--accept-gaps");
-        var args = Maps.MapCompileArgs.Parse([.. a.Where(x => x is not ("--gpu" or "--accept-gaps"))]);
+        var skipUnported = a.Contains("--skip-unported");
+        var args = Maps.MapCompileArgs.Parse([.. a.Where(x => x is not ("--gpu" or "--accept-gaps" or "--skip-unported"))]);
         Gpu.GpuMaterialSampler? gpu = null;
         try
         {
@@ -497,7 +498,7 @@ internal static class Commands
                     gpu = new Gpu.GpuMaterialSampler(Path.Combine(root, "csgo", "shaders_vulkan_dir.vpk"), content.Read);
                     return gpu.For;
                 }
-                : null);
+                : null, skipUnported);
         }
         finally
         {
@@ -600,28 +601,33 @@ internal static class Commands
             using var b = new Resource();
             b.Read(new MemoryStream(two));
 
+            // Every block, paired with the same occurrence of its type in the other
+            // (a model with two draw sets has two MVTX and two MIDX).
             var names = a.Blocks.Select(x => x.Type).Union(b.Blocks.Select(x => x.Type)).ToList();
             var parts = new List<string>();
             foreach (var name in names)
             {
-                var first = Slice(one, a, name);
-                var second = Slice(two, b, name);
-                if (first is null || second is null)
-                    parts.Add($"{name}:only-in-{(first is null ? "candidate" : "reference")}");
-                else if (!first.Value.Span.SequenceEqual(second.Value.Span))
-                    parts.Add($"{name}:differs({first.Value.Length:n0}->{second.Value.Length:n0})");
+                var ofA = a.Blocks.Where(x => x.Type == name).ToList();
+                var ofB = b.Blocks.Where(x => x.Type == name).ToList();
+                for (var k = 0; k < Math.Max(ofA.Count, ofB.Count); k++)
+                {
+                    var label = Math.Max(ofA.Count, ofB.Count) > 1 ? $"{name}{k}" : $"{name}";
+                    if (k >= ofA.Count || k >= ofB.Count)
+                    {
+                        parts.Add($"{label}:only-in-{(k >= ofA.Count ? "candidate" : "reference")}");
+                        continue;
+                    }
+                    var first = one.AsMemory((int)ofA[k].Offset, (int)ofA[k].Size);
+                    var second = two.AsMemory((int)ofB[k].Offset, (int)ofB[k].Size);
+                    if (!first.Span.SequenceEqual(second.Span))
+                        parts.Add($"{label}:differs({first.Length:n0}->{second.Length:n0})");
+                }
             }
             return parts.Count == 0 ? "blocks identical, container framing differs" : string.Join(" ", parts);
         }
         catch (Exception ex)
         {
             return "unreadable: " + ex.Message[..Math.Min(60, ex.Message.Length)];
-        }
-
-        static ReadOnlyMemory<byte>? Slice(byte[] bytes, Resource resource, BlockType type)
-        {
-            var block = resource.Blocks.FirstOrDefault(x => x.Type == type);
-            return block is null ? null : bytes.AsMemory((int)block.Offset, (int)block.Size);
         }
     }
 

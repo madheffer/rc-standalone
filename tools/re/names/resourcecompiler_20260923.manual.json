@@ -562,7 +562,19 @@
    "addr": "1802472a0",
    "name": "CWorldRendererBuilder::Build",
    "module": "s2c:pipeline",
-   "note": "the -world phase: dirs, scene, RTE, world, entity lumps"
+   "note": "the -world phase: dirs, scene, RTE, world, entity lumps; the RTE only when baking or vis (vf29 2, unless norte), the vis builder only with vis"
+  },
+  {
+   "addr": "180283520",
+   "name": "CWorldRendererBuilderNode_BoxGrid",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the node's box grid: ceil(extent / m_flMinDrawVolumeSize) cells, far corner to whole cells; past 0x1000 cells cbrt(volume / 4096) cells clamped 1..64; grown by 0.01, x fastest; CompileNode's clusters without vis (180278555) and its render boxes of last resort (180278b57)"
+  },
+  {
+   "addr": "180f0ea90",
+   "name": "MapDoc_ApplyVertexLighting",
+   "module": "s2c:geometry/mesh-export",
+   "note": "per mesh instance, the CDmeNodeInstanceData by node path: vertexLightingData (RGBA8 per face vertex) into PerVertexLighting as byte / 255; 180f0dc80 when none matches"
   },
   {
    "addr": "1801f9ad0",
@@ -2851,6 +2863,24 @@
    "note": "IsBuilderEnabled"
   },
   {
+   "addr": "1801f9ac0",
+   "name": "CMapBuilderContext::vf29",
+   "module": "s2c:containers/compile-map",
+   "note": "IsBuilderSelected: context +0x609 + index (CompileMap's flags); the world step reads vis (2) here"
+  },
+  {
+   "addr": "1801f9040",
+   "name": "CMapBuilderContext::vf32",
+   "module": "s2c:containers/compile-map",
+   "note": "BakeLighting: context +0x605"
+  },
+  {
+   "addr": "1801f7960",
+   "name": "CMapBuilderContext_Construct",
+   "module": "s2c:containers/compile-map",
+   "note": "CompileMap's flags into +0x609, its return (a builder was named: partial) into +0x607"
+  },
+  {
    "addr": "1801fcc50",
    "name": "CMapBuilderContext_CleanupIntermediateCruft",
    "module": "s2c:containers/compile-map",
@@ -4642,7 +4672,7 @@
    "addr": "1800fd550",
    "name": "ResourceCompilerMap_CompileMap",
    "module": "s2c:baked/light-keys",
-   "note": "sets ctx +0x605/+0x606 (bake now / baked lighting available)"
+   "note": "sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting"
   },
   {
    "addr": "1801f7960",
