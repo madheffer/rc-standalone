@@ -225,6 +225,22 @@ public class LightRayProbe(ITestOutputHelper output)
                 output.WriteLine($"  local hit {X(hitWorld):F5}; local start {X(r.Start):F5} local end {X(r.End):F5}");
             }
         }
+        // LIGHTRAY_FREE=axis,value: rays whose unblocked end lies within 0.01 of value on that axis.
+        if (Environment.GetEnvironmentVariable("LIGHTRAY_FREE") is { } freeSpec)
+        {
+            var q = freeSpec.Split(',');
+            var axisIndex = q[0] switch { "x" => 0, "y" => 1, _ => 2 };
+            var want = float.Parse(q[1], System.Globalization.CultureInfo.InvariantCulture);
+            for (var i = 0; i < recorder.Rays.Count; i++)
+            {
+                var r = recorder.Rays[i];
+                var v = axisIndex == 0 ? r.End.X : axisIndex == 1 ? r.End.Y : r.End.Z;
+                if (MathF.Abs(v - want) > 0.01f)
+                    continue;
+                var what = r.Hit is { } h ? $"{scene.Instances[h.Instance].Source} tri {h.Triangle} flags {h.Flags:x} dist {h.Distance:F4}" : "no hit";
+                output.WriteLine($"free ray {i}: start {r.Start:F4} end {r.End:F4}: {what}");
+            }
+        }
         foreach (var (i, point, hit, free) in ends)
         {
             var what = hit is { } h ? $"{scene.Instances[h.Instance].Source} tri {h.Triangle} flags {h.Flags:x}" : "no hit";
