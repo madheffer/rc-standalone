@@ -57,9 +57,6 @@ public sealed class EditorTraceScene : ILightTracer
 
     public IReadOnlyList<Instance> Instances => _instances;
 
-    // Experiment switch: S2C_LIGHTSCENE_LAYERS=keep traces world-layer content too.
-    private static readonly bool KeepLayers = Environment.GetEnvironmentVariable("S2C_LIGHTSCENE_LAYERS") == "keep";
-
     public EditorTraceScene(List<Instance> instances)
     {
         _instances = [.. instances.Where(i => i.Count > 0)];
@@ -92,8 +89,6 @@ public sealed class EditorTraceScene : ILightTracer
         var list = new List<Instance>();
         foreach (var mesh in meshes)
         {
-            if (mesh.Layer is not null && !KeepLayers)
-                continue;
             var node = mesh.Element!;
             uint flags = 0;
             if (mesh.ParentType is "CMapEntity" or "CMapSmartProp")
@@ -144,7 +139,7 @@ public sealed class EditorTraceScene : ILightTracer
         foreach (var n in nodes)
         {
             var props = n.Element.Get<DmxBinary.Element>("entity_properties");
-            if (n.Hidden || (n.Layer is not null && !KeepLayers) || props?.Get<string>("classname") is not { } cls || !cls.EqualsAscii("prop_static"))
+            if (n.Hidden || props?.Get<string>("classname") is not { } cls || !cls.EqualsAscii("prop_static"))
                 continue;
             if (CNumbers.Atoi(props.Get<string>("disableshadows") ?? "0") is 1 or 2)
                 continue;
@@ -188,7 +183,7 @@ public sealed class EditorTraceScene : ILightTracer
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
         foreach (var n in nodes)
         {
-            if (n.Hidden || (n.Layer is not null && !KeepLayers) || n.Element.Type != "CMapSmartProp")
+            if (n.Hidden || n.Element.Type != "CMapSmartProp")
                 continue;
             if (SmartPropEvaluator.ForNode(n, smartProps, notes) is not var (node, placements))
                 continue;
