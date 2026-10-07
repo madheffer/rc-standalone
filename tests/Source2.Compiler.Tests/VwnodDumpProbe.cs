@@ -36,6 +36,10 @@ public class VwnodDumpProbe(ITestOutputHelper output)
                 string V(string key) => so.Children.FirstOrDefault(c => c.Key == key).Value is { } v ? Show(v) : "-";
                 output.WriteLine($"{label} so {V("m_renderableModel")} min {V("m_vMinBounds")} max {V("m_vMaxBounds")} flags {V("m_nObjectTypeFlags")} layer {V("m_nLayer")}");
             }
+            // VWNODDUMP_FULL=<substring>: the whole record of the first two scene objects whose model contains it.
+            if (Environment.GetEnvironmentVariable("VWNODDUMP_FULL") is { } full)
+                foreach (var so in (data.GetArray("m_sceneObjects") ?? []).Where(o => (o.GetStringProperty("m_renderableModel") ?? "").Contains(full, StringComparison.Ordinal)).Take(2))
+                    output.WriteLine($"{label} full {string.Join(" | ", so.Children.Select(c => $"{c.Key}={Show(c.Value)}"))}");
             foreach (var ag in data.GetArray("m_aggregateSceneObjects") ?? [])
             {
                 var fragments = ag.Children.FirstOrDefault(c => c.Key == "m_fragments").Value is { IsArray: true } f ? f.Values.Count() : -1;
