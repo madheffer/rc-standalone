@@ -31,16 +31,25 @@ internal static class AuthoredKv3
     /// <summary>binary_auto picks LZ4 while buffer plus blobs is below this, Zstd from it on.</summary>
     internal const int ZstdFrom = 0x80001;
 
-    /// <summary>A KV3 block carrying <paramref name="data"/>, wired to <paramref name="resource"/>.
-    /// Compression is chosen later by <see cref="ChooseCompression"/>, once the block can be
-    /// measured.</summary>
+    /// <summary>A KV3 block carrying <paramref name="data"/>, wired to <paramref name="resource"/>,
+    /// written as tier0 writes it (<see cref="ValveKv3Block"/>).</summary>
     internal static BinaryKV3 Block(KVObject data, KV3ID format, BlockType blockType, Resource resource) =>
-        new(data, format, blockType)
+        new ValveKv3Block(data, format, blockType)
         {
             Resource = resource,
             SerializationVersion = Version,
             SerializationCompressionMethod = KV3BinaryCompressionMethod.Lz4,
         };
+
+    /// <summary>
+    /// A version 5 KV3 block serialized by <see cref="Kv3V5Writer"/>: tier0's SaveKV3
+    /// with binary_auto, byte for byte (round trip exact on every v5 block of four
+    /// compiled maps and of sampled game models, materials, particles and soundevents).
+    /// </summary>
+    internal sealed class ValveKv3Block(KVObject data, KV3ID format, BlockType blockType) : BinaryKV3(data, format, blockType)
+    {
+        public override void Serialize(Stream stream) => stream.Write(Kv3V5Writer.Write(Data.Root, Data.Header!.Format.Id));
+    }
 
     /// <summary>
     /// Give each KV3 block the compression resourcecompiler's binary_auto
@@ -52,10 +61,16 @@ internal static class AuthoredKv3
     /// </summary>
     internal static void ChooseCompression(Resource resource)
     {
-        foreach (var block in resource.Blocks)
+        for (var i = 0; i < resource.Blocks.Count; i++)
         {
-            if (block is not BinaryKV3 kv3)
+            if (resource.Blocks[i] is not BinaryKV3 kv3 || kv3 is ValveKv3Block)
                 continue;
+            // A v5 block read from a template and edited goes out as tier0 writes it too.
+            if (kv3.SerializationVersion == Version && kv3.Data?.Header is { } header)
+            {
+                resource.Blocks[i] = new ValveKv3Block(kv3.Data.Root, header.Format, kv3.Type) { Resource = resource, SerializationVersion = Version };
+                continue;
+            }
             var total = TotalPayloadBytes(kv3);
             kv3.SerializationCompressionMethod = total < RawBelow ? KV3BinaryCompressionMethod.Uncompressed
                 : total < ZstdFrom ? KV3BinaryCompressionMethod.Lz4
