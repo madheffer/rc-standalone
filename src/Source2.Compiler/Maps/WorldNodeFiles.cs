@@ -125,8 +125,9 @@ public static class WorldNodeFiles
         // GROUND_TRUTH 47's open question; walk order here).
         foreach (var p in standalone)
         {
-            var header = NodeEntryHeader.Prop(p.Keys, p.NodeId, p.Model, NodePropEntries.RecordOf(p.Keys), MaterialAttributes.Empty);
-            var (cubemap, probe) = EnvVolumes.ForEntry(new Vector3(float.MaxValue), "", (1ul << 20) | (1ul << 21), () => p.Bounds, volumes);
+            var header = NodeEntryHeader.Prop(p.Keys, p.NodeId, p.Model, NodePropEntries.RecordOf(p.Keys), MaterialAttributes.Empty, placementFlags: 0);
+            var (cubemap, probe) = p.Bounds is { } bounds
+                ? EnvVolumes.ForEntry(new Vector3(float.MaxValue), "", (1ul << 20) | (1ul << 21), () => bounds, volumes) : (0, 0);
             var lod = int.TryParse(p.Keys.Get<string>("lodlevel"), out var l) ? l : -1;
             sceneObjects.Add(new(p.Model, header.ObjectFlags, 0, cubemap, probe, header.EmissiveBoost, header.FadeMin, header.FadeMax)
             {

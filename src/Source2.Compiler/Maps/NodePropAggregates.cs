@@ -100,7 +100,8 @@ internal static class NodePropAggregates
     /// prop when the joined entries stay under <see cref="MinimumVertices"/>).
     /// The node ships it as a scene object of its own model.
     /// </summary>
-    public sealed record StandaloneProp(string Model, DmxBinary.Element Keys, float[] Matrix, int NodeId, string? Skin, (Vector3 Min, Vector3 Max) Bounds);
+    /// <remarks>A prop whose model does not load still ships, with no bounds (Valve's handshakes are then 0).</remarks>
+    public sealed record StandaloneProp(string Model, DmxBinary.Element Keys, float[] Matrix, int NodeId, string? Skin, (Vector3 Min, Vector3 Max)? Bounds);
 
     // An entry before bucketing: its mesh (index into the mesh list) and fields.
     private sealed record Entry(int Mesh, string Material, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int Vertices,
@@ -159,6 +160,9 @@ internal static class NodePropAggregates
             if (content.LoadedModel(modelName + "_c") is not { } model)
             {
                 notes?.Add($"prop model {modelName} not found");
+                if (standalone != null)
+                    foreach (var p in props)
+                        leftOver.Add((new StandaloneProp(modelName, p.Keys, p.Matrix, p.NodeId, p.Skin, null), false));
                 continue;
             }
             StandaloneProp Standalone(Placed p)
