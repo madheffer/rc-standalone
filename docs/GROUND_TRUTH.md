@@ -54,6 +54,13 @@ game can answer is raised with the user first, and runs with -insecure.
    two models spell one game name differently (no specimen does).
 10. **Hammer's re-projected texcoords and normals** (about 1e-5 off on some
     faces). They do not change a hull, but the source is not read.
+    2026-10-07: they are what keeps ze_hold_em_p's 7 end_breakable entity
+    models from byte parity: corner texcoord 0.47777778 (3EF49F4A, nodes
+    244/245) comes out of Valve's island shift as BF05B05C, one ulp from
+    any shift of the stored value (BF05B05B), so Valve shifts a value it
+    recomputed. The faces carry textureScale, textureAxisU and textureAxisV
+    face streams (dataStateFlags 0); the code that reads them is reached
+    through the stream name tables at 183014f58/183015018/183015020.
 12. **VPK v2 layout** (tree order, chunk hashes, signature section): byte
     exact on four packages, the packer not read.
 

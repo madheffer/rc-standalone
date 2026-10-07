@@ -28,7 +28,7 @@ public class MeshStreamProbe(ITestOutputHelper output)
             output.WriteLine($"node {e.GetValue<int>("nodeID")}: {names}");
             if (Environment.GetEnvironmentVariable("MESHSTREAMS_PROPS") == "1")
                 output.WriteLine("  props " + string.Join(" ", e.Attributes.Where(a => a.Key is not ("meshData" or "children")).Select(a => $"{a.Key}={a.Value}")));
-            foreach (var (group, label) in new[] { ("vertexData", "v"), ("faceVertexData", "fv") })
+            foreach (var (group, label) in new[] { ("vertexData", "v"), ("faceVertexData", "fv"), ("faceData", "f"), ("edgeData", "e") })
                 foreach (var s in data.Get<DmxBinary.Element>(group)?.GetElements("streams") ?? [])
                 {
                     output.WriteLine($"  {label} {s.Name}: " + string.Join(" ", s.Attributes.Where(a => a.Key != "data").Select(a => $"{a.Key}={a.Value}")));
