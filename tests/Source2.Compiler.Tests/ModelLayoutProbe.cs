@@ -42,7 +42,8 @@ public class ModelLayoutProbe(ITestOutputHelper output)
                 continue;
             foreach (var f in u.InputLayoutFields)
             {
-                var size = (int)(f == u.InputLayoutFields[^1] ? u.ElementSizeInBytes - f.Offset : u.InputLayoutFields.SkipWhile(g => g != f).Skip(1).First().Offset - f.Offset);
+                var next = u.InputLayoutFields.Select(g => g.Offset).Where(o => o > f.Offset).DefaultIfEmpty(u.ElementSizeInBytes).Min();
+                var size = (int)(next - f.Offset);
                 var diffs = new List<string>();
                 var count = 0;
                 for (var i = 0; i < u.ElementCount; i++)
