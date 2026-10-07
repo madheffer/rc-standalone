@@ -57,25 +57,27 @@ internal static class NodePropAggregates
         public (Vector3 Min, Vector3 Max) MeshBounds { get; init; }
 
         /// <summary>
-        /// The aggregate mesh's object flags (BuildAggregate, 180268e80): the
-        /// entry's, without the baked prop's 0x20000; 0x20 with attribute bit
-        /// 17; 0x40000 (needs dynamic shadows) with bit 19, or with bit 16 or 18
-        /// while 17 is clear; 0x800 for a mesh of a model with LODs.
+        /// The aggregate mesh's object flags: the entry's without the baked
+        /// prop's 0x20000, through <see cref="FragmentFlags"/>, and 0x800 for a
+        /// mesh of a model with LODs.
         /// </summary>
-        public uint AggregateFlags
-        {
-            get
-            {
-                var flags = ObjectFlags & ~0x20000u;
-                if ((Attributes >> 17 & 1) != 0)
-                    flags |= 0x20;
-                if (((Attributes >> 17 & 1) == 0 && ((Attributes >> 16 & 1) != 0 || (Attributes >> 18 & 1) != 0)) || (Attributes >> 19 & 1) != 0)
-                    flags |= 0x40000;
-                if (LodSetup >= 0)
-                    flags |= 0x800;
-                return flags;
-            }
-        }
+        public uint AggregateFlags => FragmentFlags(ObjectFlags & ~0x20000u, Attributes) | (LodSetup >= 0 ? 0x800u : 0u);
+    }
+
+    /// <summary>
+    /// What BuildAggregate (180268e80) adds to every aggregate mesh's object
+    /// flags: 0x20 with attribute bit 17; 0x40000 (needs dynamic shadows) with
+    /// bit 19, or with bit 16 or 18 while 17 is clear (a merged mesh keeps its
+    /// 0x20000: ze_hold_em_p's lit fluorescent tubes, 0x20028).
+    /// </summary>
+    public static uint FragmentFlags(uint objectFlags, ulong attributes)
+    {
+        var flags = objectFlags;
+        if ((attributes >> 17 & 1) != 0)
+            flags |= 0x20;
+        if (((attributes >> 17 & 1) == 0 && ((attributes >> 16 & 1) != 0 || (attributes >> 18 & 1) != 0)) || (attributes >> 19 & 1) != 0)
+            flags |= 0x40000;
+        return flags;
     }
 
     /// <summary>

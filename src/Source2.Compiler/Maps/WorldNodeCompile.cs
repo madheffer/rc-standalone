@@ -520,8 +520,11 @@ internal static class WorldNodeCompile
             MeshLists.Kind.Overlay or MeshLists.Kind.NoSplitOverlay => "agg_overlay",
             _ => throw new NotSupportedException($"aggregates of the {list.Kind} list"),
         };
+        // The name compared (CMesh +0x68) orders as the material's file name, not its path:
+        // atixref's 93 merge and nomerge aggregates and ze_hold_em_p's 7 (whose paths would put
+        // materials/concrete/hr_c/hr_conc_i_tintdark before materials/de_overpass/...).
         var sorted = list.Stash.OrderBy(e => e.Facts.Attributes & 0x6000000000).ThenBy(e => e.Facts.Attributes & 0x100000)
-                               .ThenBy(e => e.Material, Io.Tier0Strings.IgnoreCase).ThenBy(e => e.Vertices.Length / e.Stride).ToList();
+                               .ThenBy(e => FileBase(e.Material, int.MaxValue), Io.Tier0Strings.IgnoreCase).ThenBy(e => e.Vertices.Length / e.Stride).ToList();
         var left = new List<Entry>();
         for (var i = 0; i < sorted.Count;)
         {

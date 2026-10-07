@@ -109,7 +109,8 @@ public static class WorldNodeFiles
         {
             var b = WorldNodeModels.Build(ModelPath(a.Name), a.Meshes, true, Material);
             Write(a.Name, b);
-            aggregates.Add(new(ModelPath(a.Name), a.Layer, [.. b.DrawSources.Select((e, i) => new WorldNodeSceneTrees.AggregateMesh(i, e.Facts.ObjectFlags, e.Facts.LightProbe,
+            aggregates.Add(new(ModelPath(a.Name), a.Layer, [.. b.DrawSources.Select((e, i) => new WorldNodeSceneTrees.AggregateMesh(i,
+                NodePropAggregates.FragmentFlags(e.Facts.ObjectFlags, e.Facts.Attributes), e.Facts.LightProbe,
                 new Vector3(e.Facts.Field28.X, e.Facts.Field28.Y, e.Facts.Field28.Z) * 255f))]));
         }
         // The static prop aggregates, named per material as BuildAggregate names them.

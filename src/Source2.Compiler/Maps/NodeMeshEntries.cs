@@ -13,9 +13,11 @@ namespace Source2.Compiler.Maps;
 /// (HammerMesh_TransformToWorld, 1810c4e50); the builder's mesh then holds
 /// them renormalised: squares summed z, y, x, times the reciprocal of the
 /// root (measured exact on probe01; the function doing it is not read).
-/// PerVertexLighting is baked lighting Hammer applies from a previous bake
-/// (180f0ea90), the .vmap's own stream otherwise; it belongs to the baked
-/// halves and is taken as given.
+/// PerVertexLighting is the .vmap's own stream: resourcecompiler's own build
+/// of a map keeps it (ze_hold_em_p's 10-07 reference, all (1, 1, 1, 0)); only
+/// a build from Hammer after a lighting bake carries the baked values Hammer
+/// applied to its open document (180f0ea90), as probe01's and cardtest's
+/// 09-23/24 references do.
 /// </summary>
 internal static class NodeMeshEntries
 {

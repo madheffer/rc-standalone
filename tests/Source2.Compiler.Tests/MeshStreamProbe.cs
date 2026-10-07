@@ -28,7 +28,11 @@ public class MeshStreamProbe(ITestOutputHelper output)
             output.WriteLine($"node {e.GetValue<int>("nodeID")}: {names}");
             foreach (var (group, label) in new[] { ("vertexData", "v"), ("faceVertexData", "fv") })
                 foreach (var s in data.Get<DmxBinary.Element>(group)?.GetElements("streams") ?? [])
+                {
                     output.WriteLine($"  {label} {s.Name}: " + string.Join(" ", s.Attributes.Where(a => a.Key != "data").Select(a => $"{a.Key}={a.Value}")));
+                    if (s.Name.StartsWith("PerVertexLighting", StringComparison.Ordinal) && s.Get<object?[]>("data") is { } d)
+                        output.WriteLine($"    {d.Length} values: " + string.Join(" ", d.Take(6)) + $"; distinct {d.Select(x => x?.ToString()).Distinct().Count()}");
+                }
         }
     }
 }

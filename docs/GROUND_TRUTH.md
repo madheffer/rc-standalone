@@ -457,7 +457,11 @@ game can answer is raised with the user first, and runs with -insecure.
     probe01 and cardtest match Valve's in every tree and container fact
     but three hashes (the vrman's and vvis's ___OverrideInputData___
     fingerprints, n0.vrman's saved-source CRC: not a CRC of the obvious
-    source texts) and the previous bake's per-vertex lighting. Settled on
+    source texts) and the per-vertex lighting. The lighting is not a rule:
+    those references were built from Hammer after a lighting bake, which
+    puts baked values into the open document (180f0ea90); resourcecompiler
+    alone keeps the .vmap's (1, 1, 1, 0), as ze_hold_em_p's 10-07 reference
+    and our build agree on all 2,655 vertices of a merged model. Settled on
     the way: a full build's lump lists its resource_name values, sorted,
     as RED2 weak references with UsesBuilderEntityKeys 1; a map's child
     resources list RERL by path; a node model whose material the game
