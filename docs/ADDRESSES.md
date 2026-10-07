@@ -22,6 +22,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
 - installed: a different build
+- against the installed build (20261008_1.41.8.9.md): 11 tracked addresses: relocated 11
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -74,7 +75,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
-- against the installed build (20261006_1.41.8.9.md): 66 tracked addresses: changed 4, identical 30, moved 11, relocated 21
+- against the installed build (20261008_1.41.8.9.md): 66 tracked addresses: changed 4, identical 30, moved 11, relocated 21
 - 60 addresses
 
 ### s2c:geometry/props
@@ -167,6 +168,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
+- against the installed build (20261008_1.41.8.9.md): 887 tracked addresses: ambiguous 52, changed 11, identical 16, moved 794, relocated 14
 - 866 addresses
 
 ### s2c:baked/light-keys
@@ -1176,7 +1178,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
 - installed: a different build
-- against the installed build (20261006_1.41.8.9.md): 30 tracked addresses: identical 17, relocated 13
+- against the installed build (20261008_1.41.8.9.md): 30 tracked addresses: identical 17, relocated 13
 - 30 addresses
 
 ### s2c:smartprops
@@ -1219,6 +1221,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
+- against the installed build (20261008_1.41.8.9.md): 43 tracked addresses: identical 43
 - 47 addresses
 
 ### s2c:containers
@@ -1288,6 +1291,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
 - installed: a different build
+- against the installed build (20261008_1.41.8.9.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -1500,7 +1504,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- against the installed build (20261006_1.41.8.9.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
+- against the installed build (20261008_1.41.8.9.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
 - 418 addresses
 
 ### s2c:entities/settle
@@ -1946,7 +1950,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: this build
-- 314 addresses
+- against the installed build (20261008_1.41.8.9.md): 314 tracked addresses: identical 314
+- 330 addresses
 
 ### s2c:baked/vrad3
 
@@ -2101,8 +2106,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180026880` | `CVrad3Command_farfield_dilate::Run::lambda_1` | lambda job body |  |
 | `180027ef0` | `CRenderContextPtr::CRenderContextPtr` | a render context from the device (vf 0x1e8) |  |
 | `180027fa0` | `RenderResourceHandle_Release` | decrement +0x20, release through the resource system at zero |  |
-| `1800281b0` | `CVrad3LightmapImage::SetPixelRGB` | the channel's bitmap (0x9d8-byte FloatBitMap_t per channel), components masked by its attribute mask |  |
-| `1800282c0` | `CVrad3LightmapImage::SetPixelRGBA` | as SetPixelRGB with alpha |  |
+| `1800281b0` | `CVrad3LightmapImage::SetPixelRGB` | the channel's bitmap (0x9d8-byte FloatBitMap_t per channel), components masked by its attribute mask | `src/Source2.Compiler/Lighting/LightmapAhd.cs:169` |
+| `1800282c0` | `CVrad3LightmapImage::SetPixelRGBA` | as SetPixelRGB with alpha | `src/Source2.Compiler/Lighting/LightmapAhd.cs:180` |
 | `18002afc0` | `LightProbeGrid_AllocateImages` | border of one cell each side (cells + 2), box grown by a cell; occupancy bitset; GPU compute image W x H x D |  |
 | `18002b2e0` | `LightProbeGrid_ResetImages` | ambient cube (X*Z) x (Y*7), shadows and three SH images (X*Z) x (Y*2), or the fog image; shadow records cleared to (-1, 1.0 x4) |  |
 | `18002b5b0` | `CVrad3Command_lpv_image_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2141,26 +2146,31 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18003d0c0` | `VectorNormalize` | returns the length; 1e-17 to 1e17 guard, zero vector to zero, else the slow path 1801f51e0 |  |
 | `18003ddc0` | `CVrad3Command_path_trace_triangles_gpu::Run::lambda_3` | lambda job body |  |
 | `18003eaa0` | `std_Sort_32ByteElements` | introsort (threshold 32 elements, insertion sort below 0x40 bytes) |  |
-| `180042a90` | `PackingGeometry_t::Unserialize` | g_PackingGeometry (DAT_1803ab940): u32 n + n u32; u32 stride (40), u32 count + vertices (position, normal, tangent+sign); count x float2 atlas uv; u32 C + C indices; u32 D + D 28-byte charts (ARGB debug colour, index, x, y, w, h, flags word); C/3 u32 triangle charts; 6 u32 trailing fields; exact on probe01's file |  |
+| `180042a90` | `PackingGeometry_t::Unserialize` | g_PackingGeometry (DAT_1803ab940): u32 n + n u32; u32 stride (40), u32 count + vertices (position, normal, tangent+sign); count x float2 atlas uv; u32 C + C indices; u32 D + D 28-byte charts (ARGB debug colour, index, x, y, w, h, flags word); C/3 u32 triangle charts; 6 u32 trailing fields; exact on probe01's file | `src/Source2.Compiler/Lighting/PackingGeometry.cs:5` |
+| `180043bf0` | `CVrad3LightmapImage::GetPixelRGB` | a channel's x, y, z, masked components else 0 |  |
+| `180043cf0` | `CVrad3LightmapImage::GetPixelRGBA` | as GetPixelRGB with w |  |
+| `180043e30` | `CVrad3LightmapImage::GetSH9` | 27 floats: per colour c, channel 1 + c (coefficients 0-3), channel 4 + c (4-7), channel 7 component c (8) | `src/Source2.Compiler/Lighting/LightmapPost.cs:511` |
+| `1800443d0` | `CVrad3LightmapImage::SetSH9` | the inverse of GetSH9 (unmasked) | `src/Source2.Compiler/Lighting/LightmapPost.cs:250`, `src/Source2.Compiler/Lighting/LightmapPost.cs:511` |
+| `180044bc0` | `CVrad3LightmapImage::GetTangentFrame` | columns: normalised channel 11 xyz, normalised cross(n, t) times channel 11 w, normalised channel 9 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:215` |
 | `180045e30` | `CVrad3Command_lightmap_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047920` | `CVrad3Command_lightmap_image_save::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047960` | `CVrad3Command_lightmap_image_load::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800479d0` | `CVrad3Command_lightmap_export_packing_geometry_to_obj::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180047f90` | `CVrad3Command_lightmap_image_consolidate_small_charts::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `1800488e0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180048d90` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_3_Body` | one jump flood pass: 3x3 at +-step, same chart, nearer seed (integer squared distance) from the other buffer |  |
-| `180048fe0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_4_Body` | copy every live channel and the first 16 bytes of the shadow record from the seed; mark valid |  |
-| `180049370` | `CVrad3Command_lightmap_image_fill_gutters::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180049830` | `Vrad3_FillGutterLuxel` | first square ring (growing radius) holding covered luxels of the same chart: mean of every live channel and the shadow record |  |
-| `18004a030` | `CVrad3Command_lightmap_image_filter_median::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `18004a3b0` | `CVrad3Command_lightmap_image_filter_median::Run::lambda_1_Body` | a row: per-component median over same-chart, valid, normal within 15 degrees, disc radius r in the chart rect; nth_element at n/2 (even n: again at n/2 + 1, averaged with [n/2 - 1]) |  |
-| `18004b530` | `CVrad3Command_lightmap_image_remove_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `18004ba20` | `CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1_Body` | a row: 3x3 same-chart neighbours (valid, unflagged, luminance >= 0.0005), mean RGB and SH at the normal; pass 0 flags against the threshold, pass 1 writes the mean |  |
+| `180047f90` | `CVrad3Command_lightmap_image_consolidate_small_charts::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapPost.cs:14` |
+| `1800488e0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapPost.cs:65` |
+| `180048d90` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_3_Body` | one jump flood pass: 3x3 at +-step, same chart, nearer seed (integer squared distance) from the other buffer | `src/Source2.Compiler/Lighting/LightmapPost.cs:69` |
+| `180048fe0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_4_Body` | copy every live channel and the first 16 bytes of the shadow record from the seed; mark valid | `src/Source2.Compiler/Lighting/LightmapPost.cs:74` |
+| `180049370` | `CVrad3Command_lightmap_image_fill_gutters::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapPost.cs:123` |
+| `180049830` | `Vrad3_FillGutterLuxel` | first square (radius 1 up to the cell size) holding marked luxels of the same chart: mean of every live channel, shadow slots first-index sums over the count; chart id, valid if any source was, chart flag bits | `src/Source2.Compiler/Lighting/LightmapPost.cs:130`, `src/Source2.Compiler/Lighting/LightmapPost.cs:164` |
+| `18004a030` | `CVrad3Command_lightmap_image_filter_median::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapPost.cs:240` |
+| `18004a3b0` | `CVrad3Command_lightmap_image_filter_median::Run::lambda_1_Body` | a row: median of irradiance, AO and SH coefficients 0-3 per colour over same-chart, valid, normal within 15 degrees, disc radius r in the chart rect; nth_element at n/2 (even n: again at n/2 + 1, averaged with [n/2 - 1]); into a zeroed record, so SH 4-8 become 0 | `src/Source2.Compiler/Lighting/LightmapPost.cs:240`, `src/Source2.Compiler/Lighting/LightmapPost.cs:544` |
+| `18004b530` | `CVrad3Command_lightmap_image_remove_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapPost.cs:332` |
+| `18004ba20` | `CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1_Body` | a row: the 8 same-chart neighbours (valid, luminance >= 0.0005, unflagged in pass 1), mean RGB and mean SH at each one's normal (clamped at 0), times 1/n; pass 0 flags against the threshold, pass 1 writes the mean | `src/Source2.Compiler/Lighting/LightmapPost.cs:333` |
 | `18004c9b0` | `CVrad3Command_lightmap_image_filter_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18004cb00` | `CVrad3Command_lightmap_image_filter_sh_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18004cc20` | `CVrad3Command_lightmap_image_write_debug_oidn_mask::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `18004ce00` | `CVrad3Command_lightmap_image_encode_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `18004cfc0` | `CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3_Body` | a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over 256 directions (DAT_1802e99e4) for ambient vs directional |  |
+| `18004ce00` | `CVrad3Command_lightmap_image_encode_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:4` |
+| `18004cfc0` | `CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3_Body` | a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over the 256 directions at DAT_1802e99e0 for ambient vs directional; channel 1 = (d, clamp(x, 0, 1)) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:4` |
 | `18004e750` | `CVrad3Command_lightmap_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18004ed10` | `Vrad3_UberWeld_AddSeamConstraint` | the bilinear taps of both sides of a seam sample |  |
 | `180050360` | `CVrad3Command_uber_weld::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2168,16 +2178,18 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180052910` | `CVrad3Command_lightmap_image_write_ao::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180052a70` | `CVrad3Command_lightmap_image_write_sh_irradiance::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180053440` | `CVrad3Command_lightmap_image_write_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180053560` | `CVrad3Command_lightmap_image_write_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180053560` | `CVrad3Command_lightmap_image_write_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapPost.cs:449` |
 | `180053750` | `CVrad3Command_lightmap_image_write_normal::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800538b0` | `CVrad3Command_lightmap_image_write_tangent::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180053a10` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180053a10` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapPost.cs:474` |
 | `180053c90` | `CVrad3Command_lightmap_image_write_chart_color::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180054040` | `CVrad3Command_lightmap_image_write_samplecount::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180054200` | `CVrad3Command_lightmap_image_write_convergence::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180054790` | `CVrad3Command_lightmap_image_show_valid_luxels::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `18005b9f0` | `CVrad3Command_lightmap_image_write_ahd::Run::WriteLightmapImage_lambda_1_Body` | direction EXR: R, G = channel 13 xy * 0.5 + 0.5, B = channel 15, A = channel 8 or 1 |  |
-| `18005c100` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Run::WriteLightmapImage_lambda_1_Body` | N slots: clamp(shadow, 0, 1), sqrt under -gamma20, 1 - v unless -noinvert; empty slot 1 (inverting) or 0 |  |
+| `180054c70` | `SH9_EvaluateRGB` | 27 coefficients at a direction: 0.282095, 0.325735 (-y, z, -x), 0.273137 (xy, -yz, -xz), 0.078848 (3z^2 - 1), 0.136569 (x^2 - y^2) | `src/Source2.Compiler/Lighting/LightmapPost.cs:337`, `src/Source2.Compiler/Lighting/LightmapPost.cs:432` |
+| `18005aed0` | `LeastSquaresSolve` | A^T (copied), A^T b, then the CG solver; tolerance argument 1e-20 from encode_ahd | `src/Source2.Compiler/Lighting/LightmapAhd.cs:130` |
+| `18005b9f0` | `CVrad3Command_lightmap_image_write_ahd::Run::WriteLightmapImage_lambda_1_Body` | direction EXR: R, G = channel 13 xy * 0.5 + 0.5, B = channel 15, A = channel 8 or 1 | `src/Source2.Compiler/Lighting/LightmapPost.cs:450` |
+| `18005c100` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Run::WriteLightmapImage_lambda_1_Body` | N slots: clamp(shadow, 0, 1), sqrt under -gamma20, 1 - v unless -noinvert; empty slot 1 (inverting) or 0 | `src/Source2.Compiler/Lighting/LightmapPost.cs:475` |
 | `18005c840` | `CVrad3Command_uber_weld::Run::lambda_10` | lambda job body |  |
 | `18005c9a0` | `CVrad3Command_uber_weld::Run::lambda_9` | lambda job body |  |
 | `18005ca10` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
@@ -2187,12 +2199,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18005cbe0` | `CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3` | lambda job body |  |
 | `18005cbf0` | `CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1` | lambda job body |  |
 | `18005cc00` | `CVrad3Command_lightmap_image_filter_median::Run::lambda_1` | lambda job body |  |
-| `18005cc10` | `CVrad3Command_lightmap_image_fill_gutters::Run::lambda_1` | lambda job body |  |
+| `18005cc10` | `CVrad3Command_lightmap_image_fill_gutters::Run::lambda_1` | lambda job body | `src/Source2.Compiler/Lighting/LightmapPost.cs:125` |
 | `18005ccc0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_4` | lambda job body |  |
 | `18005ccd0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_3` | lambda job body |  |
 | `18005cce0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_1` | lambda job body |  |
 | `18005cd90` | `CVrad3LightmapImage::InitMip::lambda_1` | lambda job body |  |
-| `18005cf40` | `std_nth_element_float` | MSVC nth_element on floats (the median's selection) |  |
+| `18005cf40` | `std_nth_element_float` | MSVC nth_element on floats (the median's selection) | `src/Source2.Compiler/Simulation/MsvcSort.cs:27` |
+| `18005d2e0` | `SH9_Rotate` | ZYZ through z, x +90, z, x -90, z (sqrt(3)/2 terms); coefficients 1, 4, 5 negated for a mirrored frame | `src/Source2.Compiler/Lighting/LightmapAhd.cs:247` |
+| `18005e580` | `Matrix_Multiply` | row x column sums in order from 0 (unrolled by 4) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:160` |
+| `18005e7f0` | `ConjugateGradient_NormalEquations` | x from the caller's guess (1), r = A^T b - A^T A x, at most 100 steps, stop at r.r under the tolerance | `src/Source2.Compiler/Lighting/LightmapAhd.cs:130` |
 | `180061320` | `CVrad3Command_lightmap_image_show_valid_luxels::Run::lambda_1` | lambda job body |  |
 | `1800614c0` | `CVrad3Command_lightmap_image_write_samplecount::Run::lambda_1` | lambda job body |  |
 | `180061650` | `CVrad3Command_lightmap_image_write_chart_color::Run::lambda_1` | lambda job body |  |
@@ -2204,6 +2219,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800617f0` | `CVrad3Command_lightmap_image_write_ao::Run::lambda_1` | lambda job body |  |
 | `180061940` | `CVrad3Command_lightmap_image_write_mean::Run::lambda_1` | lambda job body |  |
 | `180061950` | `CVrad3LightmapImage::Serialize::lambda_1` | lambda job body |  |
+| `180062a70` | `SH9_RotateZ` | band l: (l(l+1) - m, + m) by cos/sin of m angles, double angle (2c c - 1, 2s c) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:248`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:304` |
+| `1800639c0` | `std_Guess_median_unchecked_float` | MSVC: med3, Tukey's ninther above 40 elements |  |
 | `180063cf0` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
 | `180067160` | `CVrad3Command_lightmap_analyze_image_error::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800672e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2262,7 +2279,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18009b140` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp::lambda_1` | lambda job body |  |
 | `18009b280` | `FloatBitMap_t::WriteToFile` | by extension (EXR through tinyexr) |  |
 | `1800b9540` | `FloatBitMap_t::WriteInMemoryEXRFast::lambda_1` | lambda job body |  |
+| `1801f4250` | `MatrixInvert` | 3x4: transpose and -R^T t; rescaled by 1 / \|column 0\|^2 when that is off 1 by 0.001 or more | `src/Source2.Compiler/Lighting/LightmapAhd.cs:215` |
 | `1801f5110` | `TriangleArea` | 0.5 * \|(b - a) x (c - a)\| |  |
 | `1801f5680` | `UnpackTangentFrame` | the inverse of PackTangentFrame |  |
 | `1801f5970` | `PackTangentFrame` | u32: bit 0 tangent sign (w >= 0), bits 1-11 the tangent's angle about the normal / 360 * 2047 (basis from the quantised normal, 1801f4060), bits 12-21 and 22-31 the octahedral normal (x, y) * 1023; third argument: a searched (precise) octahedral encode (1801f5300) |  |
+| `1801f6660` | `Vector_Dot` |  |  |
+| `1801f6a00` | `Vector_Dot2` | the dot of two different vectors |  |
+| `1801f7110` | `Vector_DoubleAxpy` | x += a p; r += b q |  |
 | `1801f91a0` | `CKMeansClustering::AssignVectorsToClusters::lambda_1` | lambda job body |  |

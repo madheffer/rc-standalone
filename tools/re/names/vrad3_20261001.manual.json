@@ -124,13 +124,13 @@
    "addr": "18004ba20",
    "name": "CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1_Body",
    "module": "s2c:baked/vrad3",
-   "note": "a row: 3x3 same-chart neighbours (valid, unflagged, luminance >= 0.0005), mean RGB and SH at the normal; pass 0 flags against the threshold, pass 1 writes the mean"
+   "note": "a row: the 8 same-chart neighbours (valid, luminance >= 0.0005, unflagged in pass 1), mean RGB and mean SH at each one's normal (clamped at 0), times 1/n; pass 0 flags against the threshold, pass 1 writes the mean"
   },
   {
    "addr": "18004a3b0",
    "name": "CVrad3Command_lightmap_image_filter_median::Run::lambda_1_Body",
    "module": "s2c:baked/vrad3",
-   "note": "a row: per-component median over same-chart, valid, normal within 15 degrees, disc radius r in the chart rect; nth_element at n/2 (even n: again at n/2 + 1, averaged with [n/2 - 1])"
+   "note": "a row: median of irradiance, AO and SH coefficients 0-3 per colour over same-chart, valid, normal within 15 degrees, disc radius r in the chart rect; nth_element at n/2 (even n: again at n/2 + 1, averaged with [n/2 - 1]); into a zeroed record, so SH 4-8 become 0"
   },
   {
    "addr": "180048d90",
@@ -148,13 +148,109 @@
    "addr": "180049830",
    "name": "Vrad3_FillGutterLuxel",
    "module": "s2c:baked/vrad3",
-   "note": "first square ring (growing radius) holding covered luxels of the same chart: mean of every live channel and the shadow record"
+   "note": "first square (radius 1 up to the cell size) holding marked luxels of the same chart: mean of every live channel, shadow slots first-index sums over the count; chart id, valid if any source was, chart flag bits"
   },
   {
    "addr": "18004cfc0",
    "name": "CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3_Body",
    "module": "s2c:baked/vrad3",
-   "note": "a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over 256 directions (DAT_1802e99e4) for ambient vs directional"
+   "note": "a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over the 256 directions at DAT_1802e99e0 for ambient vs directional; channel 1 = (d, clamp(x, 0, 1))"
+  },
+  {
+   "addr": "180043e30",
+   "name": "CVrad3LightmapImage::GetSH9",
+   "module": "s2c:baked/vrad3",
+   "note": "27 floats: per colour c, channel 1 + c (coefficients 0-3), channel 4 + c (4-7), channel 7 component c (8)"
+  },
+  {
+   "addr": "1800443d0",
+   "name": "CVrad3LightmapImage::SetSH9",
+   "module": "s2c:baked/vrad3",
+   "note": "the inverse of GetSH9 (unmasked)"
+  },
+  {
+   "addr": "180043bf0",
+   "name": "CVrad3LightmapImage::GetPixelRGB",
+   "module": "s2c:baked/vrad3",
+   "note": "a channel's x, y, z, masked components else 0"
+  },
+  {
+   "addr": "180043cf0",
+   "name": "CVrad3LightmapImage::GetPixelRGBA",
+   "module": "s2c:baked/vrad3",
+   "note": "as GetPixelRGB with w"
+  },
+  {
+   "addr": "180054c70",
+   "name": "SH9_EvaluateRGB",
+   "module": "s2c:baked/vrad3",
+   "note": "27 coefficients at a direction: 0.282095, 0.325735 (-y, z, -x), 0.273137 (xy, -yz, -xz), 0.078848 (3z^2 - 1), 0.136569 (x^2 - y^2)"
+  },
+  {
+   "addr": "180044bc0",
+   "name": "CVrad3LightmapImage::GetTangentFrame",
+   "module": "s2c:baked/vrad3",
+   "note": "columns: normalised channel 11 xyz, normalised cross(n, t) times channel 11 w, normalised channel 9"
+  },
+  {
+   "addr": "1801f4250",
+   "name": "MatrixInvert",
+   "module": "s2c:baked/vrad3",
+   "note": "3x4: transpose and -R^T t; rescaled by 1 / |column 0|^2 when that is off 1 by 0.001 or more"
+  },
+  {
+   "addr": "18005d2e0",
+   "name": "SH9_Rotate",
+   "module": "s2c:baked/vrad3",
+   "note": "ZYZ through z, x +90, z, x -90, z (sqrt(3)/2 terms); coefficients 1, 4, 5 negated for a mirrored frame"
+  },
+  {
+   "addr": "180062a70",
+   "name": "SH9_RotateZ",
+   "module": "s2c:baked/vrad3",
+   "note": "band l: (l(l+1) - m, + m) by cos/sin of m angles, double angle (2c c - 1, 2s c)"
+  },
+  {
+   "addr": "18005aed0",
+   "name": "LeastSquaresSolve",
+   "module": "s2c:baked/vrad3",
+   "note": "A^T (copied), A^T b, then the CG solver; tolerance argument 1e-20 from encode_ahd"
+  },
+  {
+   "addr": "18005e580",
+   "name": "Matrix_Multiply",
+   "module": "s2c:baked/vrad3",
+   "note": "row x column sums in order from 0 (unrolled by 4)"
+  },
+  {
+   "addr": "18005e7f0",
+   "name": "ConjugateGradient_NormalEquations",
+   "module": "s2c:baked/vrad3",
+   "note": "x from the caller's guess (1), r = A^T b - A^T A x, at most 100 steps, stop at r.r under the tolerance"
+  },
+  {
+   "addr": "1801f7110",
+   "name": "Vector_DoubleAxpy",
+   "module": "s2c:baked/vrad3",
+   "note": "x += a p; r += b q"
+  },
+  {
+   "addr": "1801f6660",
+   "name": "Vector_Dot",
+   "module": "s2c:baked/vrad3",
+   "note": ""
+  },
+  {
+   "addr": "1801f6a00",
+   "name": "Vector_Dot2",
+   "module": "s2c:baked/vrad3",
+   "note": "the dot of two different vectors"
+  },
+  {
+   "addr": "1800639c0",
+   "name": "std_Guess_median_unchecked_float",
+   "module": "s2c:baked/vrad3",
+   "note": "MSVC: med3, Tukey's ninther above 40 elements"
   },
   {
    "addr": "18005b9f0",

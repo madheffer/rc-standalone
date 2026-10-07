@@ -213,42 +213,59 @@ both set are left alone by the fireflies and median passes.
      the slot, and only luxels with that index blend into it.
   2. The mean, the shadow record and N are written to every luxel of the
      chart in the cell, and each is marked valid.
-- `lightmap_image_remove_fireflies <threshold> [debug.exr]`: the threshold
-  goes through `V_atoi`, so "4.0" is 4 and fractions are lost. Two parallel
-  passes over the rows. For each valid luxel, the neighbours counted are the
-  3x3 luxels of the same chart that are valid, not yet flagged, and have
-  Rec.709 luminance (0.2126, 0.7152, 0.0722) of at least 0.0005. Their
-  irradiance is averaged, and their SH is evaluated at the luxel's normal
-  (L2 constants 0.282095, 0.325735, 0.273137, 0.078848, 0.136569).
-  - Pass 0 flags the luxel (a bitset, and the count in the log) unless,
-    per component, its RGB is at most threshold x the neighbour mean, its
-    SH at its normal is at most threshold x the neighbours', and its SH is
-    at most threshold x its own RGB.
-  - Pass 1 replaces each flagged luxel's irradiance with that mean.
 
-  The debug EXR marks invalid luxels (0, 0, 1) and fireflies (1, 1, 1).
+  Ported: LightmapPost.ConsolidateSmallCharts.
+- `lightmap_image_remove_fireflies <threshold> [debug.exr]` (Run 18004b530,
+  rows 18004ba20): the threshold goes through `V_atoi`, so "4.0" is 4 and
+  fractions are lost (default 4). Two passes over the rows. The luxels taken
+  are valid, of a chart not small on both axes. Neighbours are the 8 around
+  it of the same chart, valid, with Rec.709 luminance
+  (g 0.7152 + r 0.2126) + b 0.0722 of at least 0.0005; in pass 1 they must
+  also not be flagged. Their irradiance is averaged, and each one's SH
+  evaluated at its own normal (180054c70; L2 constants 0.282095, 0.325735,
+  0.273137, 0.078848, 0.136569; each colour clamped at 0) is averaged too.
+  The means multiply by 1/n; with no neighbours they stay 0.
+  - Pass 0 flags the luxel (a bitset, and the count in the log) unless,
+    per colour, its RGB is at most threshold x the neighbour mean, its
+    |SH at its own normal| is at most threshold x the neighbours' mean, and
+    at most threshold x its own RGB.
+  - Pass 1 replaces each flagged luxel's irradiance with the mean of its
+    unflagged neighbours when it has any.
+
+  The debug EXR is (0, 0, 0, 1), with (0, 0, 1) where no chart covers the
+  luxel and (1, 1, 1) on fireflies. Ported: LightmapPost.RemoveFireflies.
 - `lightmap_image_filter_median <size>`: radius r = (size - 1) / 2, at
   least 1. For each valid luxel, it gathers each component separately (RGB,
   channel 8, the SH coefficients) from luxels that are in the window
   clamped to the chart's rect and within the disc dx^2 + dy^2 <= r^2. They
   must also be of the same chart, valid, and with normal dot >= cos 15
-  degrees. With more than 2 values it takes the median through
+  degrees. Only luxels of charts not small on both axes are filtered. The
+  lists are the irradiance (masked), AO (channel 8 x) and SH coefficients 0
+  to 3 of each colour (180043e30 reads the SH: per colour, channel 1 + c holds
+  coefficients 0 to 3, channel 4 + c holds 4 to 7, channel 7's component c
+  holds 8). With more than 2 values it takes the median through
   `std::nth_element` (18005cf40) at n/2. For even n it calls nth_element
   again at n/2 + 1 and averages the first value with whatever then sits at
-  n/2 - 1. That is not a textbook even median: a port must reproduce MSVC's
-  nth_element exactly.
+  n/2 - 1. MSVC's nth_element is an insertion sort up to 32 values
+  (ISORT_MAX), so for sizes up to 7 (29 luxels at most) that is the textbook
+  median; past 32 it partitions (ninther above 40) and the quirk applies.
+  The results go to a zeroed 128-byte record per luxel, and Run writes all 27
+  SH floats back (1800443d0): a filtered luxel's SH coefficients 4 to 8
+  become 0. Ported: LightmapPost.FilterMedian, MsvcSort.NthElement.
 - `lightmap_image_dilate_over_invalid_jfa`: a jump flood over the luxel
-  grid, with two index buffers (ping-pong, -1 for none). lambda_1 seeds
-  each valid luxel with its own index. A pass runs per step size s, from
-  next_pow2(max(w, h)) / 2 halving down to 1. In a pass, every luxel whose
-  entry is not itself looks at the 3x3 neighbours at offsets {-s, 0, s} of
-  the same chart. It takes the neighbour's entry from the other buffer when
-  this luxel has none or the new seed is closer (integer squared distance).
-  It writes into the current buffer, which flips each step, so the first
-  pass reads the still empty second buffer. The fill (lambda_4) copies, for
-  each luxel with a seed not itself, every live channel and the first 16
-  of the shadow record's 20 bytes from the seed, then marks it valid.
-  Dilation never crosses charts.
+  grid with two index buffers. lambda_1 seeds both with each luxel's own
+  index where it is valid or no chart covers it (-1 elsewhere), so luxels
+  outside the charts are seeds and never get filled. A pass runs per step
+  size s, from next_pow2(max(w, h)) / 2 halving down to 1, and the current
+  buffer flips before every pass after the first. In a pass, each luxel
+  whose current entry is not itself looks at the 3x3 neighbours at offsets
+  {-s, 0, s} of the same chart. It takes the neighbour's entry from the
+  other buffer when it has none or the new seed is nearer (integer squared
+  distance), writing the current buffer in place; that buffer is not first
+  copied from the other. The fill (lambda_4) copies, for each luxel with a
+  seed not itself, every live channel and the first 16 of the shadow
+  record's 20 bytes from the seed, then marks it valid. Dilation never
+  crosses charts. Ported: LightmapPost.DilateOverInvalidJfa.
 - `lightmap_image_encode_ahd`: per valid luxel, the irradiance RGB and the
   9 SH coefficients per colour are rotated into the luxel's tangent frame
   (18005d2e0). A Rec.709 luminance SH is formed. The highlight direction d
@@ -260,18 +277,41 @@ both set are left alone by the fireflies and median passes.
   one-unknown least-squares system is set up. Each row is
   (1 - max(0, dir.d) / d.z) x luminance against
   max(0, SH(dir)) - max(0, dir.d) / d.z x luminance. Its solution splits the
-  light into the ambient and the directional part along d (the solve and
-  the outputs are still to read). Afterwards Run frees the SH channels
-  (2 to 7) and splits channel 1 into a 1-component and a 3-component
-  channel.
+  light into the ambient and the directional part along d.
+  - The tangent frame (180044bc0) has columns t = normalised channel 11 xyz,
+    cross(n, t) normalised times channel 11 w, and n = normalised channel 9;
+    its inverse (1801f4250) is the transpose, rescaled by 1 / |t|^2 when that
+    is off 1 by 0.001 or more. 18005d2e0 rotates each colour's 9
+    coefficients as z, x +90, z, x -90, z rotations (180062a70), negating
+    coefficients 1, 4 and 5 when the frame is mirrored.
+  - The luminance SH is g 0.7152 + (r 0.2126 + b 0.0722) per coefficient.
+    Below 1e-5 at L0 the irradiance becomes the colours' L0 and channel 1
+    (0, 0, 1, 1). The left neighbour's direction is its channel 1 xyz as
+    already written this pass; the clamp rescales xy to sqrt(0.992396176).
+  - The rows: c = max(w.d, 0) / d.z and L = (g 0.7152 + r 0.2126) + b 0.0722,
+    A = (1 - c) L, b = max(SH(w), 0) - c L. The solve (18005aed0 then
+    18005e7f0) is conjugate gradient on A^T A x = A^T b from x = 1, stopping
+    at a squared residual under 1e-20 or after 100 steps; sums run in row
+    order. x is clamped to 0..1 and channel 1 = (d, x); the irradiance is
+    written back (zeroed in the flipped case).
+  - Run then frees channels 2 to 7, moves channel 0 to 14, makes channel 15
+    (mask 1) from channel 1's w and channel 13 (mask 7) from its xyz, and
+    frees channel 1. Ported: LightmapAhd.Encode (directions embedded as
+    AhdDirections, read from DAT_1802e99e0).
 - `lightmap_image_fill_gutters <mip>`: cells of 2^(mip - 1) luxels, and a
   gutter width from gameinfo `ResourceCompiler/BakedLighting/LightmapGutterSize`
-  (default 1). Pass 0 covers ordinary charts, repeated gutter-width times;
-  pass 1 covers charts small on one axis, once. Each luxel inside a chart's
-  rect that no chart covers is filled (180049830) from the first square
-  ring around it, by growing radius, that holds covered luxels of the same
-  chart. It takes the mean of every live channel there, and the shadow
-  record under the first-light-per-slot rule.
+  (default 1). lambda_1 (18005cc10) marks the luxels any chart covers; the
+  mark is never updated, so filled luxels are not sources and the repeats
+  change nothing. Pass 0 covers ordinary charts, repeated gutter-width times;
+  pass 1 covers charts small on one axis, once (both: skipped). Each
+  unmarked luxel inside a chart's rect, walked in cells (not clipped), is
+  filled (180049830) from the first square of radius 1 up to the cell size
+  that holds marked luxels of the same chart. It takes the mean of every
+  live channel there, and per shadow slot the first light index met with
+  the sum of the floats of luxels with that index (an unset slot sums the
+  luxels with none) over the count. The luxel takes the chart id, valid
+  when any source was, and flag bits 1 and 2 from the chart; its sample
+  count stays. Ported: LightmapPost.FillGutters.
 - `uber_weld <lightmap_seams.dat>`: the file is 32-byte records, each two
   seam edges given as four atlas-uv endpoints (probe01: 30 records). Each
   endpoint goes to texel space as uv x size - 0.5. Each edge pair is sampled
@@ -286,12 +326,15 @@ both set are left alone by the fireflies and median passes.
   is channel 14 as it stands (FloatBitMap_t::WriteToFile, 18009b280). The
   direction file is built per luxel (18005b9f0): R = dir.x x 0.5 + 0.5,
   G = dir.y x 0.5 + 0.5 (channel 13), B = the 1-component AHD channel
-  (channel 15), A = channel 8 when it exists, else 1.
+  (channel 15), A = channel 8 when it exists (the bitmap is RGBA only then,
+  mask 7 + 8). Ported: LightmapPost.AhdDirectionExr.
 - `lightmap_image_write_direct_light_shadows <file> [-indexlights N]
   [-gamma20] [-noinvert]`: N defaults to 4, and inverting is on by default.
   Per luxel (18005c100), each of the N slots starts at 1 when inverting,
   else 0. A slot whose light index is set takes clamp(shadow, 0, 1), its
-  square root under -gamma20, then 1 - v unless -noinvert.
+  square root under -gamma20, then 1 - v unless -noinvert. The bitmap is
+  RGBA (mask 0xF) of the first four slots. Ported:
+  LightmapPost.DirectLightShadowsExr.
 - `lightmap_image_write_chart_color <file> <minspp> <maxspp>`: each chart
   in its debug colour (1801f6400 converts the ARGB), with the sample counts
   scaled between minspp and maxspp.

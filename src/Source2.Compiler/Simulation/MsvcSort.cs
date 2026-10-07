@@ -21,6 +21,35 @@ public static class MsvcSort
     public static void Sort<T, TLess>(Span<T> items, TLess less) where TLess : struct, ILess<T>
         => SortUnchecked(items, 0, items.Length, items.Length, less);
 
+    /// <summary>
+    /// std::nth_element: partition by the median guess while more than 32
+    /// elements remain, keeping the side holding nth (done when nth falls in
+    /// the pivot run), then insertion sort. vrad3's float instance is 18005cf40.
+    /// </summary>
+    public static void NthElement<T, TLess>(Span<T> items, int nth, TLess less) where TLess : struct, ILess<T>
+    {
+        int first = 0, last = items.Length;
+        if (nth == last)
+            return;
+        while (InsertionSortMax < last - first)
+        {
+            var (pfirst, plast) = PartitionByMedianGuess(items, first, last, less);
+            if (plast <= nth)
+                first = plast;
+            else if (pfirst <= nth)
+                return;
+            else
+                last = pfirst;
+        }
+        InsertionSort(items, first, last, less);
+    }
+
+    /// <summary>operator&lt; on floats.</summary>
+    public readonly struct FloatLess : ILess<float>
+    {
+        public bool Less(in float a, in float b) => a < b;
+    }
+
     private static void SortUnchecked<T, TLess>(Span<T> a, int first, int last, long ideal, TLess less)
         where TLess : struct, ILess<T>
     {
