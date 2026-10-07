@@ -26,7 +26,7 @@ public class NodeInfoProbe(ITestOutputHelper output)
         {
             foreach (var e in document.Elements)
                 if (e.Get<DmxBinary.Element>("entity_properties") is { } props && props.Get<string>("classname") is { } cls && cls.StartsWith(p[2][6..], StringComparison.Ordinal))
-                    output.WriteLine($"ent {e.GetValue<int>("nodeID")} {cls} {string.Join(" ", p[3].Split(',').Select(k => $"{k}={props.Get<object>(k)}"))}");
+                    output.WriteLine($"ent {e.GetValue<int>("nodeID")} {cls} at {e.GetValue<System.Numerics.Vector3>("origin")} {string.Join(" ", p[3].Split(',').Select(k => $"{k}={props.Get<object>(k)}"))}");
             return;
         }
         var ids = p[2].Split(',').Select(int.Parse).ToHashSet();
