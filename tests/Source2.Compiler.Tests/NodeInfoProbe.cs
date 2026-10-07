@@ -22,6 +22,13 @@ public class NodeInfoProbe(ITestOutputHelper output)
             return;
         var ids = p[2].Split(',').Select(int.Parse).ToHashSet();
         var document = MapSource.Read(source);
+        foreach (var node in document.Elements.Where(e => e.GetValue<int>("nodeID") is { } id && ids.Contains(id) && e.Type != "CMapMesh"))
+        {
+            output.WriteLine($"node {node.GetValue<int>("nodeID")}: {node.Type} {node.Get<string>("name")} "
+                             + $"{node.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")}");
+            foreach (var n in Chain(document, node))
+                output.WriteLine($"  < {n.Type} {n.GetValue<int>("nodeID")} {n.Get<string>("name")}");
+        }
         foreach (var mesh in MapMeshes.Read(document).Where(m => ids.Contains(m.NodeId)))
         {
             var zs = mesh.Faces.SelectMany(f => f.Corners).Select(c => c.Z).DefaultIfEmpty().ToArray();
