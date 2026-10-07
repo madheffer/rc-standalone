@@ -1763,6 +1763,7 @@ VRAD3 = [
     ("18001c340", "Vrad3_SetScriptVariable", V3, "name ($name), value into the variable table"),
     ("180017280", "Vrad3_RunCommand", V3, "argv[0] looked up in the command table (DAT_180347d68, CUtlHashtable<CUtlString, CVrad3Command*>, 0x18-byte slots; hash FNV-1a 32 then h = (h << 17 ^ h) + (h >> 21)), then Run(argc, argv); unknown: Vrad3_ListCommands and exit 1"),
     ("180017440", "Vrad3_ListCommands", V3, "'%d Known commands' and each name"),
+    ("180042a90", "PackingGeometry_t::Unserialize", V3, "g_PackingGeometry (DAT_1803ab940): u32 n + n u32; u32 stride (40), u32 count + vertices (position, normal, tangent+sign); count x float2 atlas uv; u32 C + C indices; u32 D + D 28-byte charts (ARGB debug colour, index, x, y, w, h, flags word); C/3 u32 triangle charts; 6 u32 trailing fields; exact on probe01's file"),
     ("180001100", "CVrad3Command_exit::Register", V3, "dynamic initializer: CVrad3Command(\"exit\")"),
     ("180001130", "CVrad3Command_shadow_cull_mode::Register", V3, "dynamic initializer: CVrad3Command(\"shadow_cull_mode\")"),
     ("180001160", "CVrad3Command_cordon::Register", V3, "dynamic initializer: CVrad3Command(\"cordon\")"),

@@ -1941,7 +1941,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: this build
-- 274 addresses
+- 275 addresses
 
 ### s2c:baked/vrad3
 
@@ -2115,6 +2115,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18003a320` | `CVrad3Command_path_trace_triangles_gpu_shutdown::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18003a430` | `CVrad3Command_path_trace_triangles_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18003ddc0` | `CVrad3Command_path_trace_triangles_gpu::Run::lambda_3` | lambda job body |  |
+| `180042a90` | `PackingGeometry_t::Unserialize` | g_PackingGeometry (DAT_1803ab940): u32 n + n u32; u32 stride (40), u32 count + vertices (position, normal, tangent+sign); count x float2 atlas uv; u32 C + C indices; u32 D + D 28-byte charts (ARGB debug colour, index, x, y, w, h, flags word); C/3 u32 triangle charts; 6 u32 trailing fields; exact on probe01's file |  |
 | `180045e30` | `CVrad3Command_lightmap_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047920` | `CVrad3Command_lightmap_image_save::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047960` | `CVrad3Command_lightmap_image_load::Run` | the command (virtual void Run(int argc, const char **argv)) |  |

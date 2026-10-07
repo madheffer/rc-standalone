@@ -37,6 +37,12 @@
    "note": "'%d Known commands' and each name"
   },
   {
+   "addr": "180042a90",
+   "name": "PackingGeometry_t::Unserialize",
+   "module": "s2c:baked/vrad3",
+   "note": "g_PackingGeometry (DAT_1803ab940): u32 n + n u32; u32 stride (40), u32 count + vertices (position, normal, tangent+sign); count x float2 atlas uv; u32 C + C indices; u32 D + D 28-byte charts (ARGB debug colour, index, x, y, w, h, flags word); C/3 u32 triangle charts; 6 u32 trailing fields; exact on probe01's file"
+  },
+  {
    "addr": "180001100",
    "name": "CVrad3Command_exit::Register",
    "module": "s2c:baked/vrad3",

@@ -92,3 +92,22 @@ There are 104 commands. resourcecompiler's script (an example is
   path_trace_light_flags, baked_shadow_index, baked_shadow_light_id); and
   `cameras` (angles). It then builds the scenesystem world
   `vrad3_raytrace_scene_world`.
+- `lightmap_load_packing_geometry_gpu <file>`: `PackingGeometry_t::Unserialize`
+  reads the file into the global packing geometry. Each array is a u32 count
+  followed by its data, read in chunks of at most 16 MB. The layout parses
+  probe01's file exactly to its end:
+
+  | field | content |
+  |---|---|
+  | u32 n, n x u32 | an array, empty on probe01 |
+  | u32 stride, u32 count, count x stride | vertices: position, normal, tangent and sign (10 floats, stride 40) |
+  | count x 8 | each vertex's atlas uv (float2, 0 to 1) |
+  | u32 C, C x u32 | triangle indices |
+  | u32 D, D x 28 | charts |
+  | C / 3 x u32 | each triangle's chart |
+  | 6 x u32 | trailing fields (probe01: 0, 0, 12, 24, 0, 0), not read |
+
+  A chart record is seven u32s: ARGB debug colour, index, x, y, w, h and a
+  flags word. The command uploads a ChartInfo buffer of (record +0,
+  flags & 0x0fffffff) per chart, and the vertex layout
+  `PackingGeometryVertexLayout`.
