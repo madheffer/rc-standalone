@@ -89,18 +89,21 @@ public static class EntityModelAuthor
         return root;
     }
 
-    /// <summary>The model data: a node model's, one mesh group mask and LOD mask per mesh.</summary>
+    /// <summary>
+    /// The model data: a node model's, with one mesh group mask, LOD mask and
+    /// remapping table start (0) per mesh (ze_hold_em_p's end_breakable models).
+    /// </summary>
     public static KVObject Data(WorldNodeModel first, int meshCount)
     {
         var data = WorldNodeModelTrees.Data(first);
         var root = KVObject.Collection();
         foreach (var (key, value) in data.Children)
         {
-            if (key is "m_refMeshGroupMasks" or "m_refLODGroupMasks")
+            if (key is "m_refMeshGroupMasks" or "m_refLODGroupMasks" or "m_remappingTableStarts")
             {
                 var a = KVObject.Array();
                 for (var i = 0; i < meshCount; i++)
-                    a.Add(key == "m_refMeshGroupMasks" ? new KVObject(ulong.MaxValue) : new KVObject(255u));
+                    a.Add(key == "m_refMeshGroupMasks" ? new KVObject(ulong.MaxValue) : key == "m_refLODGroupMasks" ? new KVObject(255u) : new KVObject(0u));
                 root.Add(key, a);
             }
             else

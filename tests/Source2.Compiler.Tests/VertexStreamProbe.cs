@@ -32,7 +32,13 @@ public class VertexStreamProbe(ITestOutputHelper output)
                 foreach (var f in vb.InputLayoutFields.Where(f => f.SemanticName.Equals(semantic, StringComparison.OrdinalIgnoreCase) && f.SemanticIndex == index))
                 {
                     output.WriteLine($"{Path.GetFileName(vpk)}: {vb.ElementCount} vertices, {f.Format} at {f.Offset}");
-                    return [.. VBIB.GetVector4AttributeArray(vb, f).Select(v => new[] { v.X, v.Y, v.Z, v.W })];
+                    var (_, count) = VBIB.GetFormatInfo(f);
+                    return count switch
+                    {
+                        2 => [.. VBIB.GetVector2AttributeArray(vb, f).Select(v => new[] { v.X, v.Y })],
+                        3 => [.. VBIB.GetVector3AttributeArray(vb, f).Select(v => new[] { v.X, v.Y, v.Z })],
+                        _ => [.. VBIB.GetVector4AttributeArray(vb, f).Select(v => new[] { v.X, v.Y, v.Z, v.W })],
+                    };
                 }
             return [];
         }
@@ -40,7 +46,12 @@ public class VertexStreamProbe(ITestOutputHelper output)
         var y = Read(b);
         var same = x.Zip(y).Count(p => p.First.SequenceEqual(p.Second));
         output.WriteLine($"{same} of {Math.Min(x.Length, y.Length)} equal");
-        for (var v = 0; v < Math.Min(8, Math.Min(x.Length, y.Length)); v++)
-            output.WriteLine($"  {v}: {string.Join(",", x[v].Select(z => z.ToString("R")))} | {string.Join(",", y[v].Select(z => z.ToString("R")))}");
+        var shown = 0;
+        for (var v = 0; v < Math.Min(x.Length, y.Length) && shown < 8; v++)
+            if (!x[v].SequenceEqual(y[v]))
+            {
+                shown++;
+                output.WriteLine($"  {v}: {string.Join(",", x[v].Select(z => z.ToString("R")))} | {string.Join(",", y[v].Select(z => z.ToString("R")))}");
+            }
     }
 }
