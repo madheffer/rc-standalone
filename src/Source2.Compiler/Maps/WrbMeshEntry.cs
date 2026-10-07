@@ -60,6 +60,14 @@ public sealed record WrbMeshEntry
     public int NodeId { get; init; }
     /// <summary>+0xa8: -1 for a map mesh or overlay, 0 for a prop entry (atixref's 1,018 at BuildNode's end).</summary>
     public int FieldA8 { get; init; } = -1;
+    /// <summary>
+    /// The CMesh's streams as BuildNode left them, when PrepareForMerge has
+    /// not run on it yet (null: <see cref="Streams"/>). CompileNode runs that
+    /// filter only on the merged lists, and only before the vis merger; the
+    /// aggregate builder (180272ce0) runs it on each aggregate's meshes, after
+    /// GroupAggregates has grouped them by these.
+    /// </summary>
+    public IReadOnlyList<Stream>? MeshStreams { get; init; }
 
     /// <summary>
     /// A CMesh stream (0x28 bytes): name, semantic index (+0x10), float count

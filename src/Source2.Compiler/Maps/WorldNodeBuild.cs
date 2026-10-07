@@ -123,6 +123,12 @@ internal static class WorldNodeBuild
                                                                              GameContent content, ShaderLibrary shaders, bool keepLighting = false,
                                                                              IReadOnlyCollection<MeshLists.Kind>? kinds = null)
     {
+        // A stream's semantic index is its place among the streams of its name.
+        List<WrbMeshEntry.Stream> Describe(IReadOnlyList<Physics.MeshWeld.Stream> streams, IEnumerable<int> kept, bool precise)
+            => [.. kept.Select(i => new WrbMeshEntry.Stream(streams[i].Name, streams.Take(i).Count(x => x.Name == streams[i].Name),
+                streams[i].Count, (byte)(precise && streams[i].Name == "texcoord" ? 1 : 0),
+                streams[i].Type != 0 ? streams[i].Type : 39 + streams[i].Count))];
+
         (int Stride, float[] Vertices, List<WrbMeshEntry.Stream> Streams) Filtered(string material, float[] vertices, int stride,
                                                                                     IReadOnlyList<Physics.MeshWeld.Stream> streams, bool precise, ulong attributes)
         {
@@ -143,10 +149,7 @@ internal static class WorldNodeBuild
                     to += streams[i].Count;
                 }
             }
-            var described = kept.Select(i => new WrbMeshEntry.Stream(streams[i].Name, streams.Take(i).Count(x => x.Name == streams[i].Name),
-                streams[i].Count, (byte)(precise && streams[i].Name == "texcoord" ? 1 : 0),
-                streams[i].Type != 0 ? streams[i].Type : 39 + streams[i].Count)).ToList();
-            return (newStride, v, described);
+            return (newStride, v, Describe(streams, kept, precise));
         }
 
         var lists = (kinds ?? MeshLists.Merged).ToDictionary(k => k, _ => new List<MergerInput>());
@@ -164,6 +167,7 @@ internal static class WorldNodeBuild
                 Field1a3 = h.Byte1a3, Field_b8 = h.EmissiveBoost, Field1a8 = 1f, Cubemap = envMaps[i].Cubemap, LightProbe = envMaps[i].Probe,
                 Mesh184 = 1f, Field9c = h.Field9c, Field1a1 = h.Byte1a1, Field1a0 = h.Byte1a0, Field_b0 = h.FadeMin, FadeMax = h.FadeMax,
                 Matrix = identity, NodeId = h.NodeId, FieldA8 = (h.ObjectFlags & 8) != 0 ? 0 : -1, SkyboxSlot = h.SkyboxSlot,
+                MeshStreams = Describe(e.Streams, Enumerable.Range(0, e.Streams.Count), e.PreciseTexcoords),
             }));
         }
         foreach (var projection in overlays)
@@ -184,6 +188,7 @@ internal static class WorldNodeBuild
                 DebugColorValue = tinted ? new Vector4(d.TintColor[0] / 255f, d.TintColor[1] / 255f, d.TintColor[2] / 255f, d.TintColor[3] / 255f) : default,
                 Field28 = Vector4.One, Stride = stride, Streams = streams, Field1a3 = 1, Field_b8 = 1f, Field1a8 = 1f, Mesh184 = 1f, Field9c = 1f,
                 Field1a1 = 1, Field_b0 = -1f, Matrix = identity,
+                MeshStreams = Describe(mesh.Streams, Enumerable.Range(0, mesh.Streams.Count), built[projection.Target].Source.Entry.PreciseTexcoords),
             }));
         }
         return lists;
