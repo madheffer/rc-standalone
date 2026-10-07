@@ -125,8 +125,8 @@ internal static class WorldNodeModels
         var indexBuffers = new List<WorldNodeModel.IndexBuffer>();
         var buffers = new List<(BlockType Type, byte[] Bytes)>();
         var raw = new List<byte[]>();
-        var described = new Dictionary<DrawInput, WorldNodeModel.Draw>();
-        var drawBounds = new Dictionary<DrawInput, (Vector3, Vector3)>();
+        var described = new Dictionary<DrawInput, WorldNodeModel.Draw>(ReferenceEqualityComparer.Instance);
+        var drawBounds = new Dictionary<DrawInput, (Vector3, Vector3)>(ReferenceEqualityComparer.Instance);
         var meshlets = new List<WorldNodeModel.Meshlet>();
         var (min, max) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
         foreach (var (slots, setDraws) in sets)

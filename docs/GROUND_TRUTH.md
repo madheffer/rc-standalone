@@ -535,6 +535,11 @@ game can answer is raised with the user first, and runs with -insecure.
       .vwrld's timestamp and fingerprint. cardtest differs only in ledger
       42's teleport02. ze_hold_em_p differs in three light aggregates' MDAT
       and the end_breakable models' texcoords (ledger 10).
+    - Open: atixref -world against its fresh 10-07 reference has 256 of 553
+      files identical. Aggregate membership and numbering differ (_0/_1
+      swapped), and blocklight objects come out with more buffer sets than
+      Valve's. So either the grid merge or the per-layout set rule is not
+      Valve's on a big map.
 
 ## Resolved
 

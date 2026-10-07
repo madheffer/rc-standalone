@@ -444,18 +444,21 @@ internal static class WorldNodeCompile
     /// </summary>
     private static void CompileInstanced(List list, string prefix, List<Entry> entries, int layer, Settings settings, Counters counters, List<RenderObject> objects)
     {
+        // Grouped by key: a slot moves when the table grows (atixref's whole instanced
+        // list in one call without vis), so the slot an insert returns is not kept.
         var table = new UtlHashtable<(int, int)>();
-        var groups = new Dictionary<int, List<Entry>>();
+        var groups = new Dictionary<(int, int), List<Entry>>();
         foreach (var e in entries)
         {
-            var slot = table.Insert((e.Facts.NodeId, e.Facts.FieldA8), KeyHash((uint)e.Facts.NodeId, (uint)e.Facts.FieldA8));
-            if (!groups.TryGetValue(slot, out var g))
-                groups[slot] = g = [];
+            var key = (e.Facts.NodeId, e.Facts.FieldA8);
+            table.Insert(key, KeyHash((uint)e.Facts.NodeId, (uint)e.Facts.FieldA8));
+            if (!groups.TryGetValue(key, out var g))
+                groups[key] = g = [];
             g.Add(e);
         }
-        foreach (var (slot, _) in table.Slots())
+        foreach (var (_, key) in table.Slots())
         {
-            var g = groups[slot];
+            var g = groups[key];
             if (list.Stashes && g.All(e => CanAggregate(e.Facts)))
             {
                 list.Stash.AddRange(g);

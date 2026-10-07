@@ -41,7 +41,8 @@ try
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine("error: " + ex.Message);
+    // S2C_DEBUG=1: the whole exception, stack included.
+    Console.Error.WriteLine("error: " + (Environment.GetEnvironmentVariable("S2C_DEBUG") == "1" ? ex.ToString() : ex.Message));
     return 1;
 }
 
