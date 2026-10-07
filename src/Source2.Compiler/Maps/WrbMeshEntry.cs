@@ -61,8 +61,65 @@ public sealed record WrbMeshEntry
     /// <summary>+0xa8: -1 for a map mesh or overlay, 0 for a prop entry (atixref's 1,018 at BuildNode's end).</summary>
     public int FieldA8 { get; init; } = -1;
 
-    /// <summary>A CMesh stream (0x28 bytes): name, semantic index (+0x10), float count (+0x18), high precision (+0x1d), type (+0x20).</summary>
+    /// <summary>
+    /// A CMesh stream (0x28 bytes): name, semantic index (+0x10), float count
+    /// (+0x18), high precision (+0x1d), type (+0x20). The rest is implied:
+    /// +0x14 is the float offset, the running sum of the counts before it
+    /// (DmeMeshToCMesh's stream layout, 180d473d0, and the stream removal of
+    /// PrepareForMerge, 1812e2a10, which shifts the later offsets down); +8
+    /// (a vertex data element's name) and the byte +0x1c are set only for
+    /// the extra vertex data sets DmeMeshToCMesh is handed, which map meshes
+    /// and props do not have, so they are empty and 0.
+    /// </summary>
     public sealed record Stream(string Name, int Index, int Count, byte Precise, int Type);
+
+    /// <summary>
+    /// FUN_1802b6130: boost hash_combine (uint32, h ^= v + 0x9e3779b9 +
+    /// (h &lt;&lt; 6) + (h &gt;&gt; 2)) starting from the stream count, over each
+    /// stream's MurmurHash2 of its name and of +8 (seed 0x3501a674), then
+    /// +0x10, +0x14, +0x18, +0x1c and +0x1d. GroupAggregates' last sort key.
+    /// </summary>
+    public static uint LayoutHash(IReadOnlyList<Stream> streams)
+    {
+        static uint Combine(uint h, uint v) => ((h >> 2) + v + (h << 6) + 0x9e3779b9) ^ h;
+        var h = (uint)streams.Count;
+        var offset = 0;
+        foreach (var s in streams)
+        {
+            h = Combine(h, Murmur2(System.Text.Encoding.UTF8.GetBytes(s.Name), 0x3501a674));
+            h = Combine(h, Murmur2([], 0x3501a674));
+            h = Combine(h, (uint)s.Index);
+            h = Combine(h, (uint)offset);
+            h = Combine(h, (uint)s.Count);
+            h = Combine(h, 0);
+            h = Combine(h, s.Precise);
+            offset += s.Count;
+        }
+        return h;
+    }
+
+    /// <summary>MurmurHash2 (m 0x5bd1e995, r 24), seeded with the length xor <paramref name="seed"/>.</summary>
+    public static uint Murmur2(ReadOnlySpan<byte> data, uint seed)
+    {
+        const uint M = 0x5bd1e995;
+        var h = (uint)data.Length ^ seed;
+        var i = 0;
+        for (; data.Length - i >= 4; i += 4)
+        {
+            var k = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data[i..]) * M;
+            k ^= k >> 24;
+            h = h * M ^ k * M;
+        }
+        var rest = data.Length - i;
+        if (rest == 3)
+            h ^= (uint)data[i + 2] << 16;
+        if (rest >= 2)
+            h ^= (uint)data[i + 1] << 8;
+        if (rest >= 1)
+            h = (h ^ data[i]) * M;
+        h = (h ^ (h >> 13)) * M;
+        return h ^ (h >> 15);
+    }
 
     /// <summary>
     /// FUN_180251da0: the lighting mode from attribute bits 16 to 18: bit 17

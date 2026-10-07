@@ -524,9 +524,11 @@ internal static class WorldNodeCompile
     }
 
     /// <summary>
-    /// GroupAggregates (18026f590) on a list's stash: a stable sort by the
-    /// instance streams' kinds, attribute bits 0x6000000000 and 0x100000,
-    /// material name and mesh size; runs of one material and equal bits (at
+    /// GroupAggregates (18026f590) on a list's stash: a stable sort
+    /// (comparator 18028f2c0) by the instance streams' kinds (none here),
+    /// attribute bits 0x6000000000 and 0x100000, the CMesh name case-blind,
+    /// then the stream layout hash (<see cref="WrbMeshEntry.LayoutHash"/>) as
+    /// a signed int; runs of one material, equal bits and equal streams (at
     /// most 0x7ffb) become aggregates unless a run is one entry of at most
     /// 0x360 vertices without instance streams, which is left (attribute bit
     /// 30 cleared) for the list's compile. Returns what is left.
@@ -547,7 +549,7 @@ internal static class WorldNodeCompile
         // atixref's 93 merge and nomerge aggregates and ze_hold_em_p's 7 (whose paths would put
         // materials/concrete/hr_c/hr_conc_i_tintdark before materials/de_overpass/...).
         var sorted = list.Stash.OrderBy(e => e.Facts.Attributes & 0x6000000000).ThenBy(e => e.Facts.Attributes & 0x100000)
-                               .ThenBy(e => FileBase(e.Material, int.MaxValue), Io.Tier0Strings.IgnoreCase).ThenBy(e => e.Vertices.Length / e.Stride).ToList();
+                               .ThenBy(e => FileBase(e.Material, int.MaxValue), Io.Tier0Strings.IgnoreCase).ThenBy(e => (int)WrbMeshEntry.LayoutHash(e.Facts.Streams)).ToList();
         var left = new List<Entry>();
         for (var i = 0; i < sorted.Count;)
         {

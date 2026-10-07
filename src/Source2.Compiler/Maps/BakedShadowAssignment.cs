@@ -590,29 +590,7 @@ public static class BakedShadowAssignment
         return Murmur2(inline, seed);
     }
 
-    private static uint Murmur2(int[] ids, uint seed)
-    {
-        const uint M = 0x5bd1e995;
-        var data = new byte[ids.Length * 4];
-        Buffer.BlockCopy(ids, 0, data, 0, data.Length);
-        var h = (uint)data.Length ^ seed;
-        var i = 0;
-        for (; data.Length - i >= 4; i += 4)
-        {
-            var k = BitConverter.ToUInt32(data, i) * M;
-            k ^= k >> 24;
-            h = h * M ^ k * M;
-        }
-        var rest = data.Length - i;
-        if (rest == 3)
-            h ^= (uint)data[i + 2] << 16;
-        if (rest >= 2)
-            h ^= (uint)data[i + 1] << 8;
-        if (rest >= 1)
-            h = (h ^ data[i]) * M;
-        h = (h ^ (h >> 13)) * M;
-        return h ^ (h >> 15);
-    }
+    private static uint Murmur2(int[] ids, uint seed) => WrbMeshEntry.Murmur2(System.Runtime.InteropServices.MemoryMarshal.AsBytes(ids.AsSpan()), seed);
 
     // FUN_180f32130 (V_atoi over the key, the default when absent).
     private static int Atoi(LightPrecompute.KeyReader key, string name, int fallback)
