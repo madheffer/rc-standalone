@@ -238,10 +238,13 @@ internal static class WorldNodeCompile
     }
 
     // vf 0x28 (18026e840): with the list's +0x21, entries that CanAggregate go
-    // to the stash (walked from the end); the rest stay in order.
+    // to the stash (walked from the end); the rest stay in order. The instanced,
+    // no-split and baked prop lists' vf 0x28 is empty (1800d3020): their vf 0x20
+    // stashes whole (node, +0xa8) groups instead (CompileInstanced), so a group
+    // with one mesh that cannot aggregate stays an object (atixref's node 6142).
     private static List<Entry> StashAggregatable(List list, List<Entry> entries)
     {
-        if (!list.Stashes)
+        if (!list.Stashes || list.Kind is MeshLists.Kind.Instanced or MeshLists.Kind.NoSplit or MeshLists.Kind.BakedPropLod)
             return entries;
         var rest = new List<Entry>(entries);
         for (var i = rest.Count - 1; i >= 0; i--)
