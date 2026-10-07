@@ -38,6 +38,8 @@ public class VwnodDumpProbe(ITestOutputHelper output)
             }
             var data = ((WorldNode)resource.DataBlock!).Data;
             output.WriteLine($"== {label}: keys {string.Join(",", data.Children.Select(c => c.Key))}");
+            foreach (var key in new[] { "m_aggregateInstanceStreams", "m_extraVertexStreams", "m_vertexAlbedoStreams" })
+                output.WriteLine($"{label} {key} count {(data.Children.FirstOrDefault(c => c.Key == key).Value is { IsArray: true } arr ? arr.Values.Count() : -1)}");
             foreach (var so in data.GetArray("m_sceneObjects") ?? [])
             {
                 string V(string key) => so.Children.FirstOrDefault(c => c.Key == key).Value is { } v ? Show(v) : "-";
@@ -50,7 +52,8 @@ public class VwnodDumpProbe(ITestOutputHelper output)
             foreach (var ag in data.GetArray("m_aggregateSceneObjects") ?? [])
             {
                 var fragments = ag.Children.FirstOrDefault(c => c.Key == "m_fragments").Value is { IsArray: true } f ? f.Values.Count() : -1;
-                output.WriteLine($"{label} agg {ag.GetStringProperty("m_renderableModel")} fragments {fragments}");
+                string A(string key) => ag.Children.FirstOrDefault(c => c.Key == key).Value is { } v ? Show(v) : "-";
+                output.WriteLine($"{label} agg {ag.GetStringProperty("m_renderableModel")} fragments {fragments} meshes {(ag.Children.FirstOrDefault(c => c.Key == "m_aggregateMeshes").Value is { IsArray: true } ms ? ms.Values.Count() : -1)} instanceStream {A("m_instanceStream")} albedo {A("m_vertexAlbedoStream")}");
             }
         }
     }
