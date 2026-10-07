@@ -41,6 +41,7 @@ public class NodeInfoProbe(ITestOutputHelper output)
                 output.WriteLine($"  < {n.Type} {n.GetValue<int>("nodeID")} {n.Get<string>("name")}");
             if (node.Get<DmxBinary.Element>("entity_properties") is { } props)
                 output.WriteLine($"  keys {string.Join(" ", props.Attributes.Select(a => $"{a.Key}={a.Value}"))}");
+            output.WriteLine($"  node attributes {string.Join(" ", node.Attributes.Select(a => $"{a.Key}={(a.Value is DmxBinary.Element el ? el.Type : a.Value is System.Collections.IList list ? $"[{list.Count}]" : a.Value)}"))}");
         }
         foreach (var mesh in MapMeshes.Read(document).Where(m => ids.Contains(m.NodeId)))
         {
