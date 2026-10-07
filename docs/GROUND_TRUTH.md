@@ -95,8 +95,13 @@ game can answer is raised with the user first, and runs with -insecure.
     18105b6c0 into CMapEntity +0x438, and ExportToLump writes it as
     boneTransforms ("name: px py pz qx qy qz qw;" per bone, 181004390,
     serializer 18174aeb0, gated by class metadata PosableSkeleton). Not
-    ported; no map of ours has a prop_ragdoll. Valve specimen: ar_pool_day
-    (5 prop_ragdoll with boneTransforms, EntityKeySurvey).
+    ported. probe_classes' two prop_ragdolls have no model, so no pose.
+    Valve specimen: ar_pool_day (5 lounge_chair_mattress ragdolls whose
+    bones settle through their joints). Our probe: s2c_ragdollprobe
+    (tools/physics/ragdoll_probe_map.py on s2c_rounds: chickens and a CT
+    agent dropped and turned, plus skipPreSettle, Motion Disabled and Start
+    asleep), waiting on a Valve compile with CS2 closed. Porting it needs
+    the settle's joints (ragdoll constraints), which are not ported.
 
 46. **Instances inside a prefab's map: entity ids** (settled for the
     lump 2026-10-04 by capture, tools/entities/capture_collapse.py on
