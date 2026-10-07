@@ -280,7 +280,115 @@
    "addr": "18004ed10",
    "name": "Vrad3_UberWeld_AddSeamConstraint",
    "module": "s2c:baked/vrad3",
-   "note": "the bilinear taps of both sides of a seam sample"
+   "note": "one side's four bilinear taps (clamped texels, weight +4 or -4), then same-texel taps merged and zero taps swap-removed"
+  },
+  {
+   "addr": "18004f6d0",
+   "name": "Vrad3_UberWeld_SolveChannel",
+   "module": "s2c:baked/vrad3",
+   "note": "one channel's masked components as one sparse system (row r n + c, column texel n + c), triplets sorted per row, right-hand side value x weight of each row's last entry, solved from the current values"
+  },
+  {
+   "addr": "18005b1c0",
+   "name": "CUtlBlockVector_TexelCoord_AddToTail",
+   "module": "s2c:baked/vrad3",
+   "note": ""
+  },
+  {
+   "addr": "1801f76c0",
+   "name": "CSparseMatrix::SetElement",
+   "module": "s2c:baked/vrad3",
+   "note": "appends (column, value) to the row, zeros skipped"
+  },
+  {
+   "addr": "1801f7800",
+   "name": "CSparseMatrix::FinishedAppending",
+   "module": "s2c:baked/vrad3",
+   "note": ""
+  },
+  {
+   "addr": "1801f7490",
+   "name": "CSparseMatrix::Transpose",
+   "module": "s2c:baked/vrad3",
+   "note": "counts, prefix, scatter in row order"
+  },
+  {
+   "addr": "18005b2b0",
+   "name": "SparseLeastSquares",
+   "module": "s2c:baked/vrad3",
+   "note": "A^T, A^T b, then conjugate gradient (serial under 16384 columns)"
+  },
+  {
+   "addr": "180060210",
+   "name": "SparseConjugateGradient_NormalEquations",
+   "module": "s2c:baked/vrad3",
+   "note": "as the dense one: x from the guess, r = A^T b - A^T A x, tolerance and step limit from the caller"
+  },
+  {
+   "addr": "18005f4d0",
+   "name": "SparseConjugateGradient_NormalEquations_Parallel",
+   "module": "s2c:baked/vrad3",
+   "note": "16384 columns or more"
+  },
+  {
+   "addr": "180060120",
+   "name": "CSparseMatrix::Multiply",
+   "module": "s2c:baked/vrad3",
+   "note": ""
+  },
+  {
+   "addr": "18005f2d0",
+   "name": "CSparseMatrix::Multiply_Rows",
+   "module": "s2c:baked/vrad3",
+   "note": "each row's sum in entry order from 0"
+  },
+  {
+   "addr": "180062ec0",
+   "name": "std_sort_SparseTriplet",
+   "module": "s2c:baked/vrad3",
+   "note": "MSVC introsort by (row, column)"
+  },
+  {
+   "addr": "180042730",
+   "name": "RGBToYCoCg",
+   "module": "s2c:baked/vrad3",
+   "note": "Y = (r/4 + g/2) + b/4, Co = r/2 - b/2, Cg = (g/2 - r/4) - b/4"
+  },
+  {
+   "addr": "1800427b0",
+   "name": "YCoCgToRGB",
+   "module": "s2c:baked/vrad3",
+   "note": "each colour clamped at 0"
+  },
+  {
+   "addr": "180060e20",
+   "name": "FloatBitMap_t::TransformRGB",
+   "module": "s2c:baked/vrad3",
+   "note": "every pixel; written back only when a component compares different"
+  },
+  {
+   "addr": "180052060",
+   "name": "CVrad3Command_uber_weld::Run::lambda_2_Body",
+   "module": "s2c:baked/vrad3",
+   "note": "channel 13 xyz through the tangent frame (to world) or its inverse (back)"
+  },
+  {
+   "addr": "1801f7ad0",
+   "name": "VectorTransform_SIMD",
+   "module": "s2c:baked/vrad3",
+   "note": "(x, y, z, 1) through a 3x4"
+  },
+  {
+   "addr": "1801f52b0",
+   "name": "Matrix3x4_TransformSIMD",
+   "module": "s2c:baked/vrad3",
+   "note": "per row (w m3 + y m1) + (z m2 + x m0)"
+  },
+  {
+   "addr": "1801f79a0",
+   "name": "InnerProduct_ChunkJob",
+   "module": "s2c:baked/vrad3",
+   "note": "four SSE lanes per chunk of 32768 groups, reduced (l2 + l3) + (l0 + l1)"
   },
   {
    "addr": "18002afc0",

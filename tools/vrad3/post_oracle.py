@@ -39,7 +39,10 @@ ORACLE = [
     ("encode_ahd", "lightmap_image_encode_ahd"),
     ("gutters_1", "lightmap_image_fill_gutters 1"),
     ("gutters_2", "lightmap_image_fill_gutters 2"),
+    ("weld", "uber_weld oracle_seams.dat"),
 ]
+# Run on vrad3's encode_ahd output, after the list above: the weld on AHD channels.
+ORACLE_ON_AHD = [("weld_ahd", "uber_weld oracle_seams.dat")]
 
 
 def folder(addon):
@@ -81,6 +84,11 @@ def oracle(addon):
     failed = 0
     for name, command in ORACLE:
         code = run(addon, "oracle_in", "oracle_out_" + name, command.split(),
+                   "oracle_packing_geometry.dat", (256, 256, 256))
+        print(name, "exit", code, flush=True)
+        failed += code != 0
+    for name, command in ORACLE_ON_AHD:
+        code = run(addon, "oracle_out_encode_ahd", "oracle_out_" + name, command.split(),
                    "oracle_packing_geometry.dat", (256, 256, 256))
         print(name, "exit", code, flush=True)
         failed += code != 0

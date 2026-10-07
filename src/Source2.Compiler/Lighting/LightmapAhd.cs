@@ -219,6 +219,14 @@ public static class LightmapAhd
     /// </summary>
     public static void InverseFrame(LightmapImage image, int p, Span<float> m)
     {
+        Span<float> frame = stackalloc float[12];
+        Frame(image, p, frame);
+        Invert(frame, m);
+    }
+
+    /// <summary>180044bc0: the tangent frame as a 3x4 row-major matrix (zero translation).</summary>
+    public static void Frame(LightmapImage image, int p, Span<float> m)
+    {
         var normal = image.Channels[LightmapImage.Ch.Normal]!.Data;
         var tangent = image.Channels[LightmapImage.Ch.Tangent]!;
         float nx = normal[p * 4], ny = normal[p * 4 + 1], nz = normal[p * 4 + 2];
@@ -230,17 +238,42 @@ public static class LightmapAhd
         Normalize(ref tx, ref ty, ref tz, tz * tz + ty * ty + tx * tx);
         float bx = tz * ny - nz * ty, by = nz * tx - tz * nx, bz = ty * nx - ny * tx;
         Normalize(ref bx, ref by, ref bz, by * by + bz * bz + bx * bx);
-        m[0] = tx; m[1] = ty; m[2] = tz;
-        m[4] = bx * sign; m[5] = by * sign; m[6] = bz * sign;
-        m[8] = nx; m[9] = ny; m[10] = nz;
-        m[3] = m[7] = m[11] = -0f;
-        var scale = ty * ty + tx * tx + tz * tz;
+        m[0] = tx; m[1] = bx * sign; m[2] = nx; m[3] = 0f;
+        m[4] = ty; m[5] = by * sign; m[6] = ny; m[7] = 0f;
+        m[8] = tz; m[9] = bz * sign; m[10] = nz; m[11] = 0f;
+    }
+
+    /// <summary>
+    /// 1801f4250 (MatrixInvert for a rotation): the transpose, translation
+    /// -(R^T t), all scaled by 1 / |column 0|^2 when that is off 1 by 0.001 or more.
+    /// </summary>
+    public static void Invert(ReadOnlySpan<float> a, Span<float> o)
+    {
+        o[0] = a[0]; o[1] = a[4]; o[2] = a[8];
+        o[4] = a[1]; o[5] = a[5]; o[6] = a[9];
+        o[8] = a[2]; o[9] = a[6]; o[10] = a[10];
+        float t0 = a[3], t1 = a[7], t2 = a[11];
+        o[3] = -(t2 * o[2] + t1 * o[1] + t0 * o[0]);
+        o[7] = -(o[6] * t2 + o[5] * t1 + t0 * o[4]);
+        o[11] = -(o[10] * t2 + o[9] * t1 + t0 * o[8]);
+        var scale = a[4] * a[4] + a[0] * a[0] + a[8] * a[8];
         if (0.001f <= MathF.Abs(scale - 1f))
         {
             var f = scale != 0f ? 1f / scale : 1f;
             for (var i = 0; i < 12; i++)
-                m[i] = f * m[i];
+                o[i] = f * o[i];
         }
+    }
+
+    /// <summary>
+    /// 1801f7ad0 / 1801f52b0: m times (x, y, z, 1) with SSE, each component
+    /// (w m3 + y m1) + (z m2 + x m0) of its row.
+    /// </summary>
+    public static (float X, float Y, float Z) Transform(ReadOnlySpan<float> m, float x, float y, float z)
+    {
+        return ((m[3] + y * m[1]) + (z * m[2] + x * m[0]),
+            (m[7] + y * m[5]) + (z * m[6] + x * m[4]),
+            (m[11] + y * m[9]) + (z * m[10] + x * m[8]));
     }
 
     /// <summary>

@@ -1951,7 +1951,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: this build
 - against the installed build (20261008_1.41.8.9.md): 314 tracked addresses: identical 314
-- 330 addresses
+- 348 addresses
 
 ### s2c:baked/vrad3
 
@@ -2146,12 +2146,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18003d0c0` | `VectorNormalize` | returns the length; 1e-17 to 1e17 guard, zero vector to zero, else the slow path 1801f51e0 |  |
 | `18003ddc0` | `CVrad3Command_path_trace_triangles_gpu::Run::lambda_3` | lambda job body |  |
 | `18003eaa0` | `std_Sort_32ByteElements` | introsort (threshold 32 elements, insertion sort below 0x40 bytes) |  |
+| `180042730` | `RGBToYCoCg` | Y = (r/4 + g/2) + b/4, Co = r/2 - b/2, Cg = (g/2 - r/4) - b/4 | `src/Source2.Compiler/Lighting/LightmapWeld.cs:327` |
+| `1800427b0` | `YCoCgToRGB` | each colour clamped at 0 | `src/Source2.Compiler/Lighting/LightmapWeld.cs:331` |
 | `180042a90` | `PackingGeometry_t::Unserialize` | g_PackingGeometry (DAT_1803ab940): u32 n + n u32; u32 stride (40), u32 count + vertices (position, normal, tangent+sign); count x float2 atlas uv; u32 C + C indices; u32 D + D 28-byte charts (ARGB debug colour, index, x, y, w, h, flags word); C/3 u32 triangle charts; 6 u32 trailing fields; exact on probe01's file | `src/Source2.Compiler/Lighting/PackingGeometry.cs:5` |
 | `180043bf0` | `CVrad3LightmapImage::GetPixelRGB` | a channel's x, y, z, masked components else 0 |  |
 | `180043cf0` | `CVrad3LightmapImage::GetPixelRGBA` | as GetPixelRGB with w |  |
 | `180043e30` | `CVrad3LightmapImage::GetSH9` | 27 floats: per colour c, channel 1 + c (coefficients 0-3), channel 4 + c (4-7), channel 7 component c (8) | `src/Source2.Compiler/Lighting/LightmapPost.cs:511` |
 | `1800443d0` | `CVrad3LightmapImage::SetSH9` | the inverse of GetSH9 (unmasked) | `src/Source2.Compiler/Lighting/LightmapPost.cs:250`, `src/Source2.Compiler/Lighting/LightmapPost.cs:511` |
-| `180044bc0` | `CVrad3LightmapImage::GetTangentFrame` | columns: normalised channel 11 xyz, normalised cross(n, t) times channel 11 w, normalised channel 9 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:215` |
+| `180044bc0` | `CVrad3LightmapImage::GetTangentFrame` | columns: normalised channel 11 xyz, normalised cross(n, t) times channel 11 w, normalised channel 9 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:215`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:227` |
 | `180045e30` | `CVrad3Command_lightmap_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047920` | `CVrad3Command_lightmap_image_save::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047960` | `CVrad3Command_lightmap_image_load::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2172,8 +2174,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004ce00` | `CVrad3Command_lightmap_image_encode_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:4` |
 | `18004cfc0` | `CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3_Body` | a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over the 256 directions at DAT_1802e99e0 for ambient vs directional; channel 1 = (d, clamp(x, 0, 1)) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:4` |
 | `18004e750` | `CVrad3Command_lightmap_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `18004ed10` | `Vrad3_UberWeld_AddSeamConstraint` | the bilinear taps of both sides of a seam sample |  |
-| `180050360` | `CVrad3Command_uber_weld::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004ed10` | `Vrad3_UberWeld_AddSeamConstraint` | one side's four bilinear taps (clamped texels, weight +4 or -4), then same-texel taps merged and zero taps swap-removed | `src/Source2.Compiler/Lighting/LightmapWeld.cs:63`, `src/Source2.Compiler/Lighting/LightmapWeld.cs:128` |
+| `18004f6d0` | `Vrad3_UberWeld_SolveChannel` | one channel's masked components as one sparse system (row r n + c, column texel n + c), triplets sorted per row, right-hand side value x weight of each row's last entry, solved from the current values | `src/Source2.Compiler/Lighting/LightmapWeld.cs:211` |
+| `180050360` | `CVrad3Command_uber_weld::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapWeld.cs:7` |
+| `180052060` | `CVrad3Command_uber_weld::Run::lambda_2_Body` | channel 13 xyz through the tangent frame (to world) or its inverse (back) | `src/Source2.Compiler/Lighting/LightmapWeld.cs:356` |
 | `1800527b0` | `CVrad3Command_lightmap_image_write_mean::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180052910` | `CVrad3Command_lightmap_image_write_ao::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180052a70` | `CVrad3Command_lightmap_image_write_sh_irradiance::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2188,6 +2192,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180054790` | `CVrad3Command_lightmap_image_show_valid_luxels::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180054c70` | `SH9_EvaluateRGB` | 27 coefficients at a direction: 0.282095, 0.325735 (-y, z, -x), 0.273137 (xy, -yz, -xz), 0.078848 (3z^2 - 1), 0.136569 (x^2 - y^2) | `src/Source2.Compiler/Lighting/LightmapPost.cs:337`, `src/Source2.Compiler/Lighting/LightmapPost.cs:432` |
 | `18005aed0` | `LeastSquaresSolve` | A^T (copied), A^T b, then the CG solver; tolerance argument 1e-20 from encode_ahd | `src/Source2.Compiler/Lighting/LightmapAhd.cs:130` |
+| `18005b1c0` | `CUtlBlockVector_TexelCoord_AddToTail` |  |  |
+| `18005b2b0` | `SparseLeastSquares` | A^T, A^T b, then conjugate gradient (serial under 16384 columns) | `src/Source2.Compiler/Lighting/LightmapWeld.cs:257` |
 | `18005b9f0` | `CVrad3Command_lightmap_image_write_ahd::Run::WriteLightmapImage_lambda_1_Body` | direction EXR: R, G = channel 13 xy * 0.5 + 0.5, B = channel 15, A = channel 8 or 1 | `src/Source2.Compiler/Lighting/LightmapPost.cs:450` |
 | `18005c100` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Run::WriteLightmapImage_lambda_1_Body` | N slots: clamp(shadow, 0, 1), sqrt under -gamma20, 1 - v unless -noinvert; empty slot 1 (inverting) or 0 | `src/Source2.Compiler/Lighting/LightmapPost.cs:475` |
 | `18005c840` | `CVrad3Command_uber_weld::Run::lambda_10` | lambda job body |  |
@@ -2205,9 +2211,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18005cce0` | `CVrad3Command_lightmap_image_dilate_over_invalid_jfa::Run::lambda_1` | lambda job body |  |
 | `18005cd90` | `CVrad3LightmapImage::InitMip::lambda_1` | lambda job body |  |
 | `18005cf40` | `std_nth_element_float` | MSVC nth_element on floats (the median's selection) | `src/Source2.Compiler/Simulation/MsvcSort.cs:27` |
-| `18005d2e0` | `SH9_Rotate` | ZYZ through z, x +90, z, x -90, z (sqrt(3)/2 terms); coefficients 1, 4, 5 negated for a mirrored frame | `src/Source2.Compiler/Lighting/LightmapAhd.cs:247` |
+| `18005d2e0` | `SH9_Rotate` | ZYZ through z, x +90, z, x -90, z (sqrt(3)/2 terms); coefficients 1, 4, 5 negated for a mirrored frame | `src/Source2.Compiler/Lighting/LightmapAhd.cs:280` |
 | `18005e580` | `Matrix_Multiply` | row x column sums in order from 0 (unrolled by 4) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:160` |
 | `18005e7f0` | `ConjugateGradient_NormalEquations` | x from the caller's guess (1), r = A^T b - A^T A x, at most 100 steps, stop at r.r under the tolerance | `src/Source2.Compiler/Lighting/LightmapAhd.cs:130` |
+| `18005f2d0` | `CSparseMatrix::Multiply_Rows` | each row's sum in entry order from 0 | `src/Source2.Compiler/Lighting/LightmapWeld.cs:188` |
+| `18005f4d0` | `SparseConjugateGradient_NormalEquations_Parallel` | 16384 columns or more |  |
+| `180060120` | `CSparseMatrix::Multiply` |  |  |
+| `180060210` | `SparseConjugateGradient_NormalEquations` | as the dense one: x from the guess, r = A^T b - A^T A x, tolerance and step limit from the caller | `src/Source2.Compiler/Lighting/LightmapWeld.cs:257` |
+| `180060e20` | `FloatBitMap_t::TransformRGB` | every pixel; written back only when a component compares different | `src/Source2.Compiler/Lighting/LightmapWeld.cs:338` |
 | `180061320` | `CVrad3Command_lightmap_image_show_valid_luxels::Run::lambda_1` | lambda job body |  |
 | `1800614c0` | `CVrad3Command_lightmap_image_write_samplecount::Run::lambda_1` | lambda job body |  |
 | `180061650` | `CVrad3Command_lightmap_image_write_chart_color::Run::lambda_1` | lambda job body |  |
@@ -2219,7 +2230,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800617f0` | `CVrad3Command_lightmap_image_write_ao::Run::lambda_1` | lambda job body |  |
 | `180061940` | `CVrad3Command_lightmap_image_write_mean::Run::lambda_1` | lambda job body |  |
 | `180061950` | `CVrad3LightmapImage::Serialize::lambda_1` | lambda job body |  |
-| `180062a70` | `SH9_RotateZ` | band l: (l(l+1) - m, + m) by cos/sin of m angles, double angle (2c c - 1, 2s c) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:248`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:304` |
+| `180062a70` | `SH9_RotateZ` | band l: (l(l+1) - m, + m) by cos/sin of m angles, double angle (2c c - 1, 2s c) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:281`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:337` |
+| `180062ec0` | `std_sort_SparseTriplet` | MSVC introsort by (row, column) |  |
 | `1800639c0` | `std_Guess_median_unchecked_float` | MSVC: med3, Tukey's ninther above 40 elements |  |
 | `180063cf0` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
 | `180067160` | `CVrad3Command_lightmap_analyze_image_error::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2279,11 +2291,17 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18009b140` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp::lambda_1` | lambda job body |  |
 | `18009b280` | `FloatBitMap_t::WriteToFile` | by extension (EXR through tinyexr) |  |
 | `1800b9540` | `FloatBitMap_t::WriteInMemoryEXRFast::lambda_1` | lambda job body |  |
-| `1801f4250` | `MatrixInvert` | 3x4: transpose and -R^T t; rescaled by 1 / \|column 0\|^2 when that is off 1 by 0.001 or more | `src/Source2.Compiler/Lighting/LightmapAhd.cs:215` |
+| `1801f4250` | `MatrixInvert` | 3x4: transpose and -R^T t; rescaled by 1 / \|column 0\|^2 when that is off 1 by 0.001 or more | `src/Source2.Compiler/Lighting/LightmapAhd.cs:215`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:247` |
 | `1801f5110` | `TriangleArea` | 0.5 * \|(b - a) x (c - a)\| |  |
+| `1801f52b0` | `Matrix3x4_TransformSIMD` | per row (w m3 + y m1) + (z m2 + x m0) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:269` |
 | `1801f5680` | `UnpackTangentFrame` | the inverse of PackTangentFrame |  |
 | `1801f5970` | `PackTangentFrame` | u32: bit 0 tangent sign (w >= 0), bits 1-11 the tangent's angle about the normal / 360 * 2047 (basis from the quantised normal, 1801f4060), bits 12-21 and 22-31 the octahedral normal (x, y) * 1023; third argument: a searched (precise) octahedral encode (1801f5300) |  |
-| `1801f6660` | `Vector_Dot` |  |  |
+| `1801f6660` | `Vector_Dot` |  | `src/Source2.Compiler/Lighting/LightmapWeld.cs:258`, `src/Source2.Compiler/Lighting/LightmapWeld.cs:297` |
 | `1801f6a00` | `Vector_Dot2` | the dot of two different vectors |  |
 | `1801f7110` | `Vector_DoubleAxpy` | x += a p; r += b q |  |
+| `1801f7490` | `CSparseMatrix::Transpose` | counts, prefix, scatter in row order | `src/Source2.Compiler/Lighting/LightmapWeld.cs:200` |
+| `1801f76c0` | `CSparseMatrix::SetElement` | appends (column, value) to the row, zeros skipped | `src/Source2.Compiler/Lighting/LightmapWeld.cs:182` |
+| `1801f7800` | `CSparseMatrix::FinishedAppending` |  |  |
+| `1801f79a0` | `InnerProduct_ChunkJob` | four SSE lanes per chunk of 32768 groups, reduced (l2 + l3) + (l0 + l1) |  |
+| `1801f7ad0` | `VectorTransform_SIMD` | (x, y, z, 1) through a 3x4 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:269` |
 | `1801f91a0` | `CKMeansClustering::AssignVectorsToClusters::lambda_1` | lambda job body |  |

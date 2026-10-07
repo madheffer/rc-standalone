@@ -21,7 +21,7 @@ public class LightmapPostOracleTests(ITestOutputHelper output)
         Environment.GetEnvironmentVariable("VRAD3ORACLE") is { Length: > 0 } f && Directory.Exists(f) ? f : null;
 
     public static TheoryData<string> Commands() =>
-        ["consolidate_2", "fireflies", "median_7", "jfa", "encode_ahd", "gutters_1", "gutters_2"];
+        ["consolidate_2", "fireflies", "median_7", "jfa", "encode_ahd", "gutters_1", "gutters_2", "weld", "weld_ahd"];
 
     [Theory]
     [MemberData(nameof(Commands))]
@@ -34,6 +34,8 @@ public class LightmapPostOracleTests(ITestOutputHelper output)
             return;
         }
         var input = Path.Combine(folder, "oracle_in");
+        if (!File.Exists(Path.Combine(folder, "oracle_seams.dat")))
+            WriteSeams(folder);
         if (!File.Exists(Path.Combine(input, "lightmap_data.dat")))
         {
             WriteInput(folder);
@@ -47,7 +49,14 @@ public class LightmapPostOracleTests(ITestOutputHelper output)
             return;
         }
         var charts = PackingGeometry.Read(File.ReadAllBytes(Path.Combine(folder, "oracle_packing_geometry.dat"))).Charts;
-        var image = LightmapImage.Load(input);
+        // weld_ahd welds vrad3's own encode_ahd output, so it scores the weld alone.
+        var source = name == "weld_ahd" ? Path.Combine(folder, "oracle_out_encode_ahd") : input;
+        if (!File.Exists(Path.Combine(source, "lightmap_data.dat")))
+        {
+            MapFixtures.Skip($"{source}: run tools/vrad3/post_oracle.py oracle <addon>");
+            return;
+        }
+        var image = LightmapImage.Load(source);
         switch (name)
         {
             case "consolidate_2": LightmapPost.ConsolidateSmallCharts(image, charts, 2); break;
@@ -57,6 +66,8 @@ public class LightmapPostOracleTests(ITestOutputHelper output)
             case "encode_ahd": LightmapAhd.Encode(image); break;
             case "gutters_1": LightmapPost.FillGutters(image, charts, 1); break;
             case "gutters_2": LightmapPost.FillGutters(image, charts, 2); break;
+            case "weld":
+            case "weld_ahd": LightmapWeld.Weld(image, File.ReadAllBytes(Path.Combine(folder, "oracle_seams.dat"))); break;
         }
         Compare(image, LightmapImage.Load(expected));
     }
@@ -187,6 +198,33 @@ public class LightmapPostOracleTests(ITestOutputHelper output)
                 }
         }
         image.Save(Path.Combine(folder, "oracle_in"));
+    }
+
+    /// <summary>
+    /// oracle_seams.dat: for each chart and its right-hand neighbour in the
+    /// grid, a seam from the chart's last covered column to the neighbour's
+    /// first, over the rows both cover, in atlas uv (texel centres).
+    /// </summary>
+    public static void WriteSeams(string folder)
+    {
+        var charts = PackingGeometry.Read(File.ReadAllBytes(Path.Combine(folder, "oracle_packing_geometry.dat"))).Charts;
+        var bytes = new MemoryStream();
+        var w = new BinaryWriter(bytes);
+        for (var i = 0; i + 1 < charts.Length; i++)
+        {
+            if (i % 5 == 4)
+                continue;
+            var a = charts[i];
+            var b = charts[i + 1];
+            var top = Math.Max(a.Y, b.Y) + 1;
+            var bottom = Math.Min(a.Y + a.Height, b.Y + b.Height) - 2;
+            if (bottom <= top)
+                continue;
+            float ax = a.X + a.Width - 2 + 0.5f, bx = b.X + 1 + 0.5f;
+            foreach (var v in new[] { ax, top + 0.5f, ax, bottom + 0.5f, bx, top + 0.5f, bx, bottom + 0.5f })
+                w.Write(v / Size);
+        }
+        File.WriteAllBytes(Path.Combine(folder, "oracle_seams.dat"), bytes.ToArray());
     }
 
     // One quad per chart over its rect; vertices are position, normal, tangent and sign.

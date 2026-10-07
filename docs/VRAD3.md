@@ -312,16 +312,37 @@ both set are left alone by the fireflies and median passes.
   luxels with none) over the count. The luxel takes the chart id, valid
   when any source was, and flag bits 1 and 2 from the chart; its sample
   count stays. Ported: LightmapPost.FillGutters.
-- `uber_weld <lightmap_seams.dat>`: the file is 32-byte records, each two
-  seam edges given as four atlas-uv endpoints (probe01: 30 records). Each
-  endpoint goes to texel space as uv x size - 0.5. Each edge pair is sampled
-  at n = max(3 x the longer edge's texel length, 1) points,
-  t = 0.5 / n + k / n. Where the two sides' texels differ, the bilinear
-  taps of both sides form a constraint (18004ed10), with texels
-  deduplicated through a TexelCoord_t hash map. The AHD channels go to
-  world space (lambda_2), each channel's seams are solved (lambda_5, a
-  least-squares weld; the solver is still to read), and they come back to
-  tangent space.
+- `uber_weld <lightmap_seams.dat>` (Run 180050360): a sparse least-squares
+  weld. The file is 32-byte records of four atlas-uv points (probe01: 30):
+  edge A from P0 to P1, edge B from P2 to P3, each to texels as
+  uv x size - 0.5.
+  - Seam rows: n = max(3 x the longer edge, 1), t from 0.5/n in steps of
+    1/n (accumulated) while t <= 1. A sample is skipped when both
+    |A.x - B.x| < 1/width and |A.y - B.y| < 1/height (texel units against
+    1/size, as written). Otherwise 18004ed10 adds A's four bilinear taps at
+    weight +4 and B's at -4: weights (1-fy)(1-fx)W, (fx W)(1-fy),
+    ((1-fx)W)fy, (fx W)fy on texels clamped to the image. Within one side a
+    nonzero tap absorbs later taps on its texel and zero taps go, each
+    removal moving the last entry into the hole. The row ends with
+    (-1, -1) at weight 0, its right-hand side.
+  - Data rows: the texels named, in first-seen order (TexelCoord_t hash),
+    each at weight n (times named) or 0.01 when its luxel has no samples,
+    right-hand side its value times that weight.
+  - Channels 0-3, 8 and 13-15 that exist are solved one at a time
+    (18004f6d0): the masked components as one system (row r n + c, column
+    texel n + c), each row's triplets sorted by (row, column) with MSVC's
+    sort, zeros dropped. CG on the normal equations (18005b2b0, 180060210)
+    from the current values, tolerance 1e-20, 100 steps: row sums in entry
+    order, the transpose in row order, dot products (1801f6660) in chunks of
+    32768 four-lane groups reduced (l2 + l3) + (l0 + l1), chunks summed in
+    order, the 0-3 leftover elements last.
+  - Before: channel 13 to world space by the tangent frame (lambda_2,
+    each component (w m3 + y m1) + (z m2 + x m0)), channels 0 and 14 (and
+    1) to YCoCg (180042730). After: back from YCoCg clamped at 0 (1800427b0)
+    in the reverse order, channel 13 by the inverse frame. TransformRGB
+    writes a pixel only when a component compares different.
+
+  Ported: LightmapWeld.
 - `lightmap_image_write_ahd <colour.exr> <direction.exr>`: the colour file
   is channel 14 as it stands (FloatBitMap_t::WriteToFile, 18009b280). The
   direction file is built per luxel (18005b9f0): R = dir.x x 0.5 + 0.5,

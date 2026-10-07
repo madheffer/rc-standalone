@@ -132,6 +132,62 @@ public class LightmapPostTests
         Assert.Equal((Half)0f, gamma.Plane("G")[0]);
     }
 
+    [Fact]
+    public void WeldPiecesAgreeWithTheirMath()
+    {
+        var random = new Random(5);
+        foreach (var n in new[] { 0, 1, 3, 4, 7, 64, 131077 })
+        {
+            var a = Enumerable.Range(0, n).Select(_ => (float)random.NextDouble()).ToArray();
+            var b = Enumerable.Range(0, n).Select(_ => (float)random.NextDouble()).ToArray();
+            var exact = Enumerable.Range(0, n).Sum(i => (double)a[i] * b[i]);
+            Assert.True(Math.Abs(LightmapWeld.Dot(a, b) - exact) <= 1e-5 * Math.Max(1, exact));
+        }
+        for (var trial = 0; trial < 100; trial++)
+        {
+            float r = (float)random.NextDouble() * 4, g = (float)random.NextDouble() * 4, bl = (float)random.NextDouble() * 4;
+            var (y, co, cg) = LightmapWeld.ToYCoCg(r, g, bl);
+            var (r2, g2, b2) = LightmapWeld.FromYCoCg(y, co, cg);
+            Assert.True(MathF.Abs(r - r2) < 1e-5f && MathF.Abs(g - g2) < 1e-5f && MathF.Abs(bl - b2) < 1e-5f);
+        }
+        // A frame and its inverse undo each other.
+        Span<float> m = [0.6f, 0, 0.8f, 0, 0, 1, 0, 0, -0.8f, 0, 0.6f, 0];
+        Span<float> inverse = stackalloc float[12];
+        LightmapAhd.Invert(m, inverse);
+        var (x1, y1, z1) = LightmapAhd.Transform(m, 0.3f, -0.2f, 0.9f);
+        var (x2, y2, z2) = LightmapAhd.Transform(inverse, x1, y1, z1);
+        Assert.True(MathF.Abs(x2 - 0.3f) < 1e-6f && MathF.Abs(y2 + 0.2f) < 1e-6f && MathF.Abs(z2 - 0.9f) < 1e-6f);
+    }
+
+    [Fact]
+    public void WeldPullsBothSidesOfASeamTogether()
+    {
+        // Two 8 x 8 charts side by side, a seam between chart 0's right column
+        // and chart 1's left column, values 1 on the left and 3 on the right.
+        var image = new LightmapImage(20, 8);
+        var colour = image.AddChannel(LightmapImage.Ch.Irradiance, 7);
+        for (var y = 0; y < 8; y++)
+            for (var x = 0; x < 20; x++)
+            {
+                var p = y * 20 + x;
+                BinaryPrimitives.WriteUInt32LittleEndian(image.LuxelRecords.AsSpan(p * 12 + 4), 10);
+                for (var k = 0; k < 3; k++)
+                    colour.Data[p * 4 + k] = x < 10 ? 1f : 3f;
+            }
+        var seams = new byte[32];
+        float[] uv = [7.5f / 20, 0.5f / 8, 7.5f / 20, 7.5f / 8, 12.5f / 20, 0.5f / 8, 12.5f / 20, 7.5f / 8];
+        for (var i = 0; i < 8; i++)
+            BinaryPrimitives.WriteSingleLittleEndian(seams.AsSpan(i * 4), uv[i]);
+        var rows = LightmapWeld.BuildRows(image, seams);
+        Assert.NotEmpty(rows.Unique);
+        var before = colour.Data[(3 * 20 + 12) * 4] - colour.Data[(3 * 20 + 7) * 4];
+        LightmapWeld.Weld(image, seams);
+        var after = colour.Data[(3 * 20 + 12) * 4] - colour.Data[(3 * 20 + 7) * 4];
+        Assert.True(MathF.Abs(after) < MathF.Abs(before) * 0.5f, $"seam step {before} -> {after}");
+        // Texels the seams do not name are untouched.
+        Assert.Equal(1f, colour.Data[(3 * 20 + 2) * 4]);
+    }
+
     private static float Evaluate(float[] sh, float x, float y, float z)
     {
         Span<float> three = stackalloc float[27];
