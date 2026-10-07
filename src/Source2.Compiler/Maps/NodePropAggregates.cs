@@ -94,6 +94,14 @@ internal static class NodePropAggregates
         public IReadOnlyList<LodSetup> LodSetups { get; init; } = [];
     }
 
+    /// <summary>
+    /// A static prop left in the node's prop lists: neither baked nor in an
+    /// aggregate (not a candidate, a model that cannot aggregate, or every
+    /// prop when the joined entries stay under <see cref="MinimumVertices"/>).
+    /// The node ships it as a scene object of its own model.
+    /// </summary>
+    public sealed record StandaloneProp(string Model, DmxBinary.Element Keys, float[] Matrix, int NodeId, string? Skin, (Vector3 Min, Vector3 Max) Bounds);
+
     // An entry before bucketing: its mesh (index into the mesh list) and fields.
     private sealed record Entry(int Mesh, string Material, float[] Matrix, Vector4 Tint, uint ObjectFlags, ulong Attributes, int NodeId, Vector3 Centre, int Vertices,
                                 int Prop, int LodMask, bool Lods)
@@ -112,7 +120,7 @@ internal static class NodePropAggregates
     /// closing bounds minimum (x, y), the Morton origin.
     /// </summary>
     public static List<Aggregate> FromWorld(DmxBinary.Document doc, GameContent content, Func<string, MeshEntryFlags.IAttributes> attributes,
-                                            Vector2 nodeMin, List<string>? notes = null)
+                                            Vector2 nodeMin, List<string>? notes = null, List<StandaloneProp>? standalone = null)
     {
         var (_, entities) = MapMeshes.ReadWithEntities(doc);
         var copyIds = NodePropEntries.CopyIds(doc, content);
@@ -144,12 +152,22 @@ internal static class NodePropAggregates
         var meshIndex = new Dictionary<(string, int, string), int>();
         var joined = new List<Entry>();
         var propCount = 0;
+        // Per model, in model order: the props left standalone, and the ones joined.
+        var leftOver = new List<(StandaloneProp Prop, bool Joined)>();
         foreach (var (modelName, props) in byModel)
         {
             if (content.LoadedModel(modelName + "_c") is not { } model)
             {
                 notes?.Add($"prop model {modelName} not found");
                 continue;
+            }
+            StandaloneProp Standalone(Placed p)
+            {
+                var lo = new Vector3(float.MaxValue);
+                var hi = new Vector3(float.MinValue);
+                foreach (var c in Calls(model))
+                    (lo, hi) = Place(p.Matrix, c.Lo, c.Hi, lo, hi);
+                return new StandaloneProp(modelName, p.Keys, p.Matrix, p.NodeId, p.Skin, (lo, hi));
             }
             var entries = new List<Entry>();
             var all = true;
@@ -189,9 +207,14 @@ internal static class NodePropAggregates
             }
             if (all)
                 joined.AddRange(entries);
+            if (standalone != null)
+                foreach (var p in props)
+                    leftOver.Add((Standalone(p), Candidate(p.Keys) && all));
         }
         var result = new List<Aggregate>();
-        if (joined.Count == 0 || joined.Sum(e => e.Vertices) <= MinimumVertices)
+        var aggregated = joined.Count > 0 && joined.Sum(e => e.Vertices) > MinimumVertices;
+        standalone?.AddRange(leftOver.Where(x => !x.Joined || !aggregated).Select(x => x.Prop));
+        if (!aggregated)
             return result;
         foreach (var bucket in joined.GroupBy(e => e.Material, Tier0Strings.IgnoreCase))
         {

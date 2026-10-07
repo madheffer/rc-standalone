@@ -104,7 +104,8 @@ public static class WorldNodeFiles
             return a;
         }
         var counters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var agg in NodePropAggregates.FromWorld(document, content, Attributes, new Vector2(nodeMin.X, nodeMin.Y), notes))
+        var standalone = new List<NodePropAggregates.StandaloneProp>();
+        foreach (var agg in NodePropAggregates.FromWorld(document, content, Attributes, new Vector2(nodeMin.X, nodeMin.Y), notes, standalone))
         {
             var prefix = $"agg_prop_{Path.GetFileNameWithoutExtension(agg.Material.Replace('\\', '/'))}_";
             var n = counters.GetValueOrDefault(prefix);
@@ -116,6 +117,20 @@ public static class WorldNodeFiles
                 new Vector3(f.Tint.X, f.Tint.Y, f.Tint.Z) * 255f) { Transform = f.Matrix, LodMask = f.LodMask, LodSetup = f.LodSetup })])
             {
                 LodSetups = [.. agg.LodSetups.Select(l => new WorldNodeSceneTrees.LodSetup(l.Origin, l.MaxScale, l.SwitchDistances))],
+            });
+        }
+
+        // The props left in the node's lists: one scene object each, after the
+        // clusters' objects, in model order (the order within a model is
+        // GROUND_TRUTH 47's open question; walk order here).
+        foreach (var p in standalone)
+        {
+            var header = NodeEntryHeader.Prop(p.Keys, p.NodeId, p.Model, NodePropEntries.RecordOf(p.Keys), MaterialAttributes.Empty);
+            var (cubemap, probe) = EnvVolumes.ForEntry(new Vector3(float.MaxValue), "", (1ul << 20) | (1ul << 21), () => p.Bounds, volumes);
+            var lod = int.TryParse(p.Keys.Get<string>("lodlevel"), out var l) ? l : -1;
+            sceneObjects.Add(new(p.Model, header.ObjectFlags, 0, cubemap, probe, header.EmissiveBoost, header.FadeMin, header.FadeMax)
+            {
+                Transform = p.Matrix, Tint = header.Tint, Skin = string.IsNullOrEmpty(p.Skin) ? "default" : p.Skin, LodOverride = lod,
             });
         }
 

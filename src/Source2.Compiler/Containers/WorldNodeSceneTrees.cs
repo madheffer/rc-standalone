@@ -16,7 +16,15 @@ public static class WorldNodeSceneTrees
 {
     /// <summary>A render object: its model, object flags, overlay order, env map handshakes, emissive boost and fades.</summary>
     public sealed record SceneObject(string Model, uint Flags, int OverlayRenderOrder, int CubeMap, int LightProbe, float EmissiveBoost,
-                                     float FadeStart = 0f, float FadeEnd = 0f, int Layer = 0);
+                                     float FadeStart = 0f, float FadeEnd = 0f, int Layer = 0)
+    {
+        /// <summary>A prop object's placement (3x4, row major), tint, skin, LOD override and lighting origin.</summary>
+        public float[]? Transform { get; init; }
+        public Vector4 Tint { get; init; } = Vector4.One;
+        public string Skin { get; init; } = "";
+        public int LodOverride { get; init; } = -1;
+        public Vector3 LightingOrigin { get; init; } = new(float.MaxValue);
+    }
 
     /// <summary>One fragment of an aggregate: its draw call, object flags, light probe handshake and tint (0-255).</summary>
     public sealed record AggregateMesh(int DrawCall, uint ObjectFlags, int LightProbe, Vector3 Tint)
@@ -55,15 +63,15 @@ public static class WorldNodeSceneTrees
         {
             var so = KVObject.Collection();
             so.Add("m_nObjectID", Int(0));
-            so.Add("m_vTransform", Identity());
+            so.Add("m_vTransform", o.Transform is { } t ? Matrix(t) : Identity());
             so.Add("m_flFadeStartDistance", new KVObject((double)o.FadeStart));
             so.Add("m_flFadeEndDistance", new KVObject((double)o.FadeEnd));
-            so.Add("m_vTintColor", Doubles(1, 1, 1, 1));
-            so.Add("m_skin", new KVObject(""));
+            so.Add("m_vTintColor", Doubles(o.Tint.X, o.Tint.Y, o.Tint.Z, o.Tint.W));
+            so.Add("m_skin", new KVObject(o.Skin));
             so.Add("m_nObjectTypeFlags", Flags(o.Flags));
-            so.Add("m_vLightingOrigin", Doubles(float.MaxValue, float.MaxValue, float.MaxValue));
+            so.Add("m_vLightingOrigin", Doubles(o.LightingOrigin.X, o.LightingOrigin.Y, o.LightingOrigin.Z));
             so.Add("m_nOverlayRenderOrder", Int(o.OverlayRenderOrder));
-            so.Add("m_nLODOverride", Int(-1));
+            so.Add("m_nLODOverride", Int(o.LodOverride));
             so.Add("m_nCubeMapPrecomputedHandshake", Int(o.CubeMap));
             so.Add("m_nLightProbeVolumePrecomputedHandshake", Int(o.LightProbe));
             so.Add("m_flEmissiveLightingBoost", new KVObject((double)o.EmissiveBoost));
@@ -167,6 +175,14 @@ public static class WorldNodeSceneTrees
     }
 
     private static KVObject Int(int v) => v is 0 or 1 ? new KVObject((long)v) : new KVObject(v);
+
+    private static KVObject Matrix(float[] t)
+    {
+        var m = KVObject.Array();
+        for (var r = 0; r < 3; r++)
+            m.Add(Doubles(t[r * 4], t[r * 4 + 1], t[r * 4 + 2], t[r * 4 + 3]));
+        return m;
+    }
 
     private static KVObject Identity()
     {
