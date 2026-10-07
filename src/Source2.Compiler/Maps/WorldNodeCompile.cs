@@ -1,3 +1,4 @@
+using Source2.Compiler.Io;
 using System.Numerics;
 
 namespace Source2.Compiler.Maps;
@@ -536,7 +537,8 @@ internal static class WorldNodeCompile
     /// then the stream layout hash (<see cref="WrbMeshEntry.LayoutHash"/>) as
     /// a signed int, both on the CMesh's streams as they are then
     /// (<see cref="WrbMeshEntry.MeshStreams"/>: unfiltered but in the vis
-    /// merger's lists); runs of one material, equal bits and equal streams (at
+    /// merger's lists); then each name's texcoord and tangent precision
+    /// promotion, which the runs compare but the sort has not seen; runs of one material, equal bits and equal streams (at
     /// most 0x7ffb) become aggregates unless a run is one entry of at most
     /// 0x360 vertices without instance streams, which is left (attribute bit
     /// 30 cleared) for the list's compile. Returns what is left.
@@ -558,6 +560,32 @@ internal static class WorldNodeCompile
         // materials/concrete/hr_c/hr_conc_i_tintdark before materials/de_overpass/...).
         var sorted = list.Stash.OrderBy(e => e.Facts.Attributes & 0x6000000000).ThenBy(e => e.Facts.Attributes & 0x100000)
                                .ThenBy(e => FileBase(e.Material, int.MaxValue), Io.Tier0Strings.IgnoreCase).ThenBy(e => (int)WrbMeshEntry.LayoutHash(MeshStreams(e))).ToList();
+        // Each group of consecutive meshes of one name (at most 0x7ffb) is promoted, sorted
+        // already: every texcoord stream high precision when one is or one holds a value
+        // past 16 (180258310), then every tangent stream when one is (180258450, inlined).
+        for (var i = 0; i < sorted.Count;)
+        {
+            var j = i + 1;
+            while (j < sorted.Count && j - i < 0x7ffb && string.Equals(sorted[j].Material, sorted[i].Material, StringComparison.Ordinal))
+                j++;
+            var texcoord = false;
+            var tangent = false;
+            for (var k = i; k < j; k++)
+            {
+                texcoord |= sorted[k].Facts.TexcoordsPast16 || MeshStreams(sorted[k]).Any(s => s.Precise != 0 && s.Name.EqualsAscii("texcoord"));
+                tangent |= MeshStreams(sorted[k]).Any(s => s.Precise != 0 && s.Name.EqualsAscii("tangent"));
+            }
+            for (var k = i; k < j && (texcoord || tangent); k++)
+            {
+                var e = sorted[k];
+                IReadOnlyList<WrbMeshEntry.Stream> Promote(IReadOnlyList<WrbMeshEntry.Stream> streams)
+                    => [.. streams.Select(s => s.Precise == 0 && ((texcoord && s.Name.EqualsAscii("texcoord")) || (tangent && s.Name.EqualsAscii("tangent"))) ? s with { Precise = 1 } : s)];
+                sorted[k] = e with { Facts = e.Facts with { Streams = Promote(e.Facts.Streams), MeshStreams = e.Facts.MeshStreams is { } m ? Promote(m) : null } };
+                if (owner != null)
+                    owner[sorted[k]] = owner[e];
+            }
+            i = j;
+        }
         var left = new List<Entry>();
         for (var i = 0; i < sorted.Count;)
         {

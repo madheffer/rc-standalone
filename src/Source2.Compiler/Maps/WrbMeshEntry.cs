@@ -68,6 +68,16 @@ public sealed record WrbMeshEntry
     /// GroupAggregates has grouped them by these.
     /// </summary>
     public IReadOnlyList<Stream>? MeshStreams { get; init; }
+    /// <summary>
+    /// Whether a texcoord stream of the unfiltered mesh holds a value past
+    /// +-16 (FUN_180d4a120), which GroupAggregates' texcoord promotion reads.
+    /// </summary>
+    public bool TexcoordsPast16 { get; init; }
+
+    /// <summary>FUN_180d4a120 on every texcoord stream of a vertex array: |u| or |v| past 16.</summary>
+    public static bool TexcoordsPastSixteen(float[] vertices, int stride, IEnumerable<Physics.MeshWeld.Stream> streams)
+        => streams.Where(s => s.Name.EqualsAscii("texcoord")).Any(s =>
+            Enumerable.Range(0, vertices.Length / stride).Any(v => MathF.Abs(vertices[(v * stride) + s.First]) > 16f || MathF.Abs(vertices[(v * stride) + s.First + 1]) > 16f));
 
     /// <summary>
     /// A CMesh stream (0x28 bytes): name, semantic index (+0x10), float count

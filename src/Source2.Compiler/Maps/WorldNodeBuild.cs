@@ -168,6 +168,7 @@ internal static class WorldNodeBuild
                 Mesh184 = 1f, Field9c = h.Field9c, Field1a1 = h.Byte1a1, Field1a0 = h.Byte1a0, Field_b0 = h.FadeMin, FadeMax = h.FadeMax,
                 Matrix = identity, NodeId = h.NodeId, FieldA8 = (h.ObjectFlags & 8) != 0 ? 0 : -1, SkyboxSlot = h.SkyboxSlot,
                 MeshStreams = Describe(e.Streams, Enumerable.Range(0, e.Streams.Count), e.PreciseTexcoords),
+                TexcoordsPast16 = WrbMeshEntry.TexcoordsPastSixteen(b.Vertices, e.Stride, e.Streams),
             }));
         }
         foreach (var projection in overlays)
@@ -189,6 +190,7 @@ internal static class WorldNodeBuild
                 Field28 = Vector4.One, Stride = stride, Streams = streams, Field1a3 = 1, Field_b8 = 1f, Field1a8 = 1f, Mesh184 = 1f, Field9c = 1f,
                 Field1a1 = 1, Field_b0 = -1f, Matrix = identity,
                 MeshStreams = Describe(mesh.Streams, Enumerable.Range(0, mesh.Streams.Count), built[projection.Target].Source.Entry.PreciseTexcoords),
+                TexcoordsPast16 = WrbMeshEntry.TexcoordsPastSixteen(wv, mesh.Stride, mesh.Streams),
             }));
         }
         return lists;
