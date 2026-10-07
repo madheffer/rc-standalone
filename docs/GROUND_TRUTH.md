@@ -221,6 +221,19 @@ game can answer is raised with the user first, and runs with -insecure.
     105 come from the trace or the sampling, not the scene. Next: capture
     one light's rays and hits in Valve's pass (light_omni2 385: Valve's box
     reaches x -5779, ours -5248, ours blocks more).
+    2026-10-08 (dev box, current build): 127 lights differ in 475 keys; 19
+    by under 0.001, the rest by a median of 48 units, and wherever a light
+    is lopsided ours blocks more (18 of 18). Two traced: light_omni2 1099's
+    top rays stop for us on mesh 8522 (an opaque hood, copies through
+    instances 8510-8513 in world layer 31739) at z -2240; Valve's box tops
+    out at -1280, a hit higher up, not an unblocked ray. light_rect 32719
+    (world layer 31647) stops for us on meshes 8880 and 18293 of its own
+    layer. All three are in Valve's live scene at our transforms with owner
+    flags 0xb0000, their materials opaque (csgo_simple, flags 0), their
+    triangles facing the rays as the face loops do; neither the lights'
+    shadow keys nor the instances' transform updates set them apart, and
+    leaving world-layer content out makes 14,116 keys differ. So Valve's
+    rays pass geometry ours hits: the capture of one light's rays is next.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.

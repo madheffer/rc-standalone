@@ -1,0 +1,133 @@
+"""capture_lightrays.py <addon> <map> --near x,y,z [--radius r] [--out file]: one light's rays and hits in Valve's pass.
+
+Hooks LightPrecompute_TraceRay (rc 180f18820, 0923 analysis addresses moved to
+the installed build by tools/re/rva_map.py). Its stack arguments 5 and 6 are
+the starts and ends (CUtlVector of Vector: count at +0, data at +8). A call
+whose first start lies within --radius of --near is the light's: every ray
+it pushes (181c1bf10: tracer, batch, start, end, 0x38-byte result) is noted,
+and when the batch flushes (181c1c530) the results are read back. Written
+per call: u32 count, count starts (3 floats), count ends, count raw results
+(0x38 bytes: +0xc the triangle id, 0xffffffff for none; +0x20 the object).
+Used to settle GROUND_TRUTH 31 (Mako's lights: Valve's rays pass geometry
+ours hits). CS2 must be closed; the map's package is backed up and restored.
+"""
+import argparse
+import filecmp
+import os
+import shutil
+import struct
+import subprocess
+import threading
+
+import frida
+
+from capture_rayscene import BIN, CS2, resolve, running
+
+AGENT = r"""
+'use strict';
+let active = null;  // the matching call: its rays and result pointers
+Interceptor.attach(base().add(TRACE), {
+  onEnter(args) {
+    const starts = args[4], ends = args[5];
+    const count = ends.readS32();
+    const sd = starts.add(8).readPointer(), ed = ends.add(8).readPointer();
+    const x = sd.readFloat(), y = sd.add(4).readFloat(), z = sd.add(8).readFloat();
+    const dx = x - NEAR[0], dy = y - NEAR[1], dz = z - NEAR[2];
+    if (count <= 0 || dx * dx + dy * dy + dz * dz > RADIUS * RADIUS) return;
+    active = {count: count, starts: sd.readByteArray(count * 12), ends: ed.readByteArray(count * 12), results: null};
+  },
+  onLeave(ret) {
+    if (active !== null && active.results !== null) {
+      const head = new ArrayBuffer(4);
+      new DataView(head).setUint32(0, active.count, true);
+      send({call: active.count}, concat([head, active.starts, active.ends, active.results]));
+    }
+    active = null;
+  }
+});
+Interceptor.attach(base().add(PUSH), {
+  onEnter(args) {
+    if (active !== null && active.first === undefined) active.first = args[4];
+  }
+});
+Interceptor.attach(base().add(FLUSH), {
+  onLeave(ret) {
+    if (active !== null && active.results === null && active.first !== undefined)
+      active.results = active.first.readByteArray(active.count * 0x38);
+  }
+});
+function base() { return Process.findModuleByName('resourcecompiler.dll').base; }
+function concat(parts) {
+  let n = 0;
+  for (const p of parts) n += p.byteLength;
+  const out = new Uint8Array(n);
+  let at = 0;
+  for (const p of parts) { out.set(new Uint8Array(p), at); at += p.byteLength; }
+  return out.buffer;
+}
+send({hooked: base().toString()});
+"""
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("addon")
+    p.add_argument("map")
+    p.add_argument("--near", required=True, help="x,y,z of the light")
+    p.add_argument("--radius", type=float, default=32.0)
+    p.add_argument("--out")
+    a = p.parse_args()
+    if running("cs2.exe") or running("resourcecompiler.exe"):
+        raise SystemExit("CS2 or a compile is running; not starting")
+    hooks = {"TRACE": 0xf18820, "PUSH": 0x1c1bf10, "FLUSH": 0x1c1c530}
+    resolved = {k: resolve(v) for k, v in hooks.items()}
+    near = [float(v) for v in a.near.split(",")]
+    head = "".join(f"const {k} = {v};\n" for k, v in resolved.items()) + f"const NEAR = {near};\nconst RADIUS = {a.radius};\n"
+    if shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3:
+        raise SystemExit("under 10 GB free on the game drive; not starting")
+    out_path = a.out or os.path.join(os.environ.get("TEMP", "."), "lightrays_capture", f"{a.map}_{'_'.join(a.near.split(','))}.bin")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
+    backup = out_path + ".vpk.bak"
+    if os.path.exists(vpk):
+        shutil.copyfile(vpk, backup)
+        os.remove(vpk)
+    out = open(out_path, "wb")
+    calls = [0]
+
+    def on_message(msg, data):
+        if msg.get("type") != "send" or data is None:
+            print("agent:", msg.get("payload", msg))
+            return
+        out.write(data)
+        calls[0] += 1
+        print("light call:", struct.unpack_from("<I", data)[0], "rays", flush=True)
+
+    source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
+    dev = frida.get_local_device()
+    pid = dev.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
+                     "-i", source, "-world", "-phys", "-fshallow"], cwd=BIN, stdio="pipe")
+    ses = dev.attach(pid)
+    sc = ses.create_script(AGENT.replace("'use strict';\n", "'use strict';\n" + head, 1))
+    sc.on("message", on_message)
+    sc.load()
+    done = threading.Event()
+    ses.on("detached", lambda *x: done.set())
+    dev.resume(pid)
+    while not done.wait(2):
+        if running("cs2.exe"):
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+    while running("resourcecompiler.exe"):
+        threading.Event().wait(2)
+    out.close()
+    print(out_path, calls[0], "calls")
+    if os.path.exists(backup):
+        shutil.copyfile(backup, vpk)
+        ok = filecmp.cmp(backup, vpk, shallow=False)
+        print("restored" if ok else "RESTORE CMP FAILED", vpk)
+        if ok:
+            os.remove(backup)
+
+
+if __name__ == "__main__":
+    main()
