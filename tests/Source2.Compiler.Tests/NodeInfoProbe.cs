@@ -47,6 +47,27 @@ public class NodeInfoProbe(ITestOutputHelper output)
                     if (info is not null && Environment.GetEnvironmentVariable("NODEINFO_PARAMS") is not null)
                         output.WriteLine($"    ints {string.Join(" ", info.Ints.Select(kv => $"{kv.Key}={kv.Value}"))} | params {string.Join(" ", info.Params.Select(kv => $"{kv.Key}={kv.Value}"))}");
                 }
+            if (Environment.GetEnvironmentVariable("NODEINFO_FACES") is not null && mesh.Element?.Get<DmxBinary.Element>("meshData") is { } data)
+            {
+                // Each face's loop normal (Newell, local space) beside its ray-scene triangles' normals.
+                var (corners, faces) = MeshTessellation.RayScene(data);
+                var local = MeshTessellation.RayScene(data);
+                var loops = mesh.Faces;
+                for (var t = 0; t < faces.Count; t++)
+                {
+                    var a = corners[3 * t]; var b = corners[3 * t + 1]; var c = corners[3 * t + 2];
+                    var n = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(b - a, c - a));
+                    var f = loops[faces[t]].Corners;
+                    var newell = System.Numerics.Vector3.Zero;
+                    for (var k = 0; k < f.Length; k++)
+                    {
+                        var u = f[k]; var v = f[(k + 1) % f.Length];
+                        newell += new System.Numerics.Vector3((u.Y - v.Y) * (u.Z + v.Z), (u.Z - v.Z) * (u.X + v.X), (u.X - v.X) * (u.Y + v.Y));
+                    }
+                    if (t < 40)
+                        output.WriteLine($"  tri {t} face {faces[t]}: tri normal {n:F3} loop normal {System.Numerics.Vector3.Normalize(newell):F3} {f.Length} corners z {f.Average(x => x.Z):F1}");
+                }
+            }
             foreach (var key in new[] { "name", "visexclude", "renderwithdynamic", "bakelighting", "disablemerging", "fademindist", "excludefromlightmap" })
                 if (mesh.Element?.Get<object>(key) is { } v)
                     output.WriteLine($"  {key} = {v}");
