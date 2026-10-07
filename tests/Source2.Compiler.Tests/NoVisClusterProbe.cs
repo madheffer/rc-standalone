@@ -35,6 +35,13 @@ public class NoVisClusterProbe(ITestOutputHelper output)
         var lists = WorldNodeBuild.MergerInputs(built, overlays, descriptors, envMaps, content, shaders, kinds: [.. MeshLists.Order.Select(o => o.Kind)])
             .ToDictionary(kv => kv.Key, kv => kv.Value.Select(m => new WorldNodeCompile.Entry(m.Material, m.Stride, m.Vertices, m.Indices, m.Facts)).ToList());
 
+        if (Environment.GetEnvironmentVariable("NOVISPROBE_MAT") is { Length: > 0 } m)
+        {
+            foreach (var b in built.Where(b => Path.GetFileNameWithoutExtension(b.Source.Entry.Material) == m))
+                output.WriteLine($"built node {b.Source.Header.NodeId} v {b.Vertices.Length / b.Source.Entry.Stride} streams {string.Join(",", b.Source.Entry.Streams.Select(x => $"{x.Name}/{x.First}/{x.Count}/{x.Type}"))}");
+            if (built.FirstOrDefault(b => Path.GetFileNameWithoutExtension(b.Source.Entry.Material) == m) is { } one && content.Read(one.Source.Entry.Material + "_c") is { } bytes)
+                output.WriteLine($"signature {string.Join(",", Source2.Compiler.MaterialAuthor.ExtractInputSignature(bytes).Select(x => x.Semantic))}");
+        }
         var (min, max) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
         foreach (var b in built)
             for (var k = 0; k + 2 < b.Vertices.Length; k += b.Source.Entry.Stride)
