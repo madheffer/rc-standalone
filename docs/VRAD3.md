@@ -105,9 +105,85 @@ There are 104 commands. resourcecompiler's script (an example is
   | u32 C, C x u32 | triangle indices |
   | u32 D, D x 28 | charts |
   | C / 3 x u32 | each triangle's chart |
-  | 6 x u32 | trailing fields (probe01: 0, 0, 12, 24, 0, 0), not read |
+  | 6 x u32 | vertex attribute offsets: position (0), unread, normal (12), tangent (24), two unread (0, 0) |
 
   A chart record is seven u32s: ARGB debug colour, index, x, y, w, h and a
   flags word. The command uploads a ChartInfo buffer of (record +0,
   flags & 0x0fffffff) per chart, and the vertex layout
   `PackingGeometryVertexLayout`.
+- `lightmap_load_block_gpu <lightmap_info.dat> <block>`: block b covers
+  luxels (b mod bx, b div bx) x blocksize. The block's chart IDs (one u32 per
+  luxel, 0xFFFFFFFF for none) sit in `lightmap_info.dat` at
+  ((bx_index * bs) + by_index * W) * bs * 4. They go into the image's 12-byte
+  luxel records: the ID, then a flags byte (bit 0 a chart covers the luxel,
+  bit 2 the chart's flags bit 28, bit 1 its bit 29), and into the GPU
+  texture `LuxelChartIDs.vtex`. The triangles whose atlas-uv bounds meet the
+  block are clipped to it on the CPU and uploaded as
+  `PackingGeometryVertices`: a 24-byte vertex of position, atlas uv and
+  `PackTangentFrame`'s u32. They are uploaded with `TriangleArea` per
+  triangle and `ChartIDs`.
+- `lightmap_compute_block_gpu <minPasses> <passes> [tolerance]`: `passes`
+  defaults to 256 and the tolerance to 0.02. resourcecompiler passes
+  `16 16 0.200`. Passes run in command lists of 16. In pass p:
+  - when p mod 4 is 0, the samples are made again. Small charts get a
+    compute pass that samples triangles by area. Large charts get a raster
+    pass whose `g_vWindow` is jittered by a random offset in [-0.5, 0.5)
+    luxels. A ray-traced validation pass fixes samples inside geometry.
+  - when p >= minPasses, the first pass of a command list runs the
+    convergence test against the tolerance;
+  - every pass path-traces once per luxel, accumulating into `g_Luxels`.
+
+  The five stages are timed and logged as Sampling Small Charts, Sampling
+  Large Charts, Sample Validation and Fixup, Convergence Testing, and Path
+  Tracing. Afterwards `g_Luxels` is read back into the image's channels
+  (`CVrad3LightmapImage::SetPixelRGB` / `RGBA`).
+
+## GPU programs
+
+The bake's GPU work runs through materials in core's pak01
+(`materials/dev/vrad3/*.vmat`). Their shaders are in
+`core/shaders_vulkan_dir.vpk`: compute and raster ones under their own
+names, the ray tracing ones as `rtx_vrad3_*_vulkan_60_rtx.vcs`. The SPIR-V
+decompiles back to GLSL with Valve's names intact (they were written in
+Slang). `ShaderDumpProbe` (`SHADERDUMP=<shader vpk>|<name part>|<out dir>`)
+writes each one's variables and every static combo's shader files.
+
+| stage | material | shader |
+|---|---|---|
+| Sampling Small Charts | lightmap_generate_small_chart_samples | compute |
+| Sampling Large Charts | lightmap_rasterize | vertex, geometry, pixel |
+| Sample Validation and Fixup | lightmap_sample_validation | rtx_vrad3_lightmap_sample_validation |
+| Convergence Testing | lightmap_test_converged | compute |
+| Path Tracing | lightmap_raytrace | rtx_vrad3_lightmap (ray generation, 4,500 lines) |
+
+The probes, far field and vertex lighting have their own:
+`rtx_vrad3_lpv`, `lpv_test_converged`, `rtx_vrad3_mark_occupied`,
+`rtx_vrad3_farfield` and `_metrics`, `rtx_vrad3_vertexlight`,
+`lightmap_vertexlight_reduce`. `rtx_pathtracer` is the editor path tracer.
+
+The host binds shader parameters by name hash, the same MurmurHash2 as the
+command line. Every hash in the block compute is cracked from the shaders'
+names: g_Vertices, g_nVertexStride (24), g_nLightmapUVOffsetInBytes (12),
+g_nPackedNormalTangentOffsetInBytes (20), g_TriangleListForThreadGroup,
+g_TriangleArea, g_nRNGOffsetX/Y, g_nLightmapBlockRectX/Y/Width/Height,
+g_nLightmapWidth/Height, g_LightmapSamples, g_LuxelChartIDs, g_ChartInfo,
+g_vWindow, g_ChartIDs, g_nSampleStride, D_PASS, g_nBlockWidth/Height,
+g_flErrorTolerance, g_BlockConverged and g_Luxels. Not cracked: 0x932bfc39,
+a raster combo set per pass; 0xdee533d5.
+
+The data the ray generation shader works on:
+- `Luxel_t`, the per-luxel accumulator (224 bytes): irradiance and sample
+  count; SH r, g, b; quadratic r, g, b and final rgb; baked shadow, baked
+  shadow unoccluded and its light IDs; tangent; normal; ambient occlusion.
+- `LightmapSample_t`: position, shading normal, interpolated normal, face
+  normal (with the transmissive colour in their w), tangent, lightmap uv,
+  instance flags and sample flags.
+- `SceneGlobalInfoGPU_t`: sky colour, sky ambient bounce, sun irradiance,
+  local light bounds, the light bin grid and light count, the IBL transform,
+  scale, texture, cubemap and format, sky light flags, the BRDF LUTs and the
+  scene flags.
+- `PathTraceBarnLightGPU_t`: one light, from scene_info.kv3's barn records.
+- `PackedRtxInstanceData_t` and `MaterialDataMinimal_t`: per instance and
+  per hit material.
+- The push constants: the pass and dimension count, the block's offset and
+  the lightmap size, and the cordon box.

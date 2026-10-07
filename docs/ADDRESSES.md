@@ -1941,7 +1941,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: this build
-- 275 addresses
+- 289 addresses
 
 ### s2c:baked/vrad3
 
@@ -2090,6 +2090,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800267a0` | `CVrad3Command_farfield_filter_fireflies::Run::lambda_1` | lambda job body |  |
 | `180026810` | `CVrad3Command_farfield_median_filter::Run::lambda_1` | lambda job body |  |
 | `180026880` | `CVrad3Command_farfield_dilate::Run::lambda_1` | lambda job body |  |
+| `180027ef0` | `CRenderContextPtr::CRenderContextPtr` | a render context from the device (vf 0x1e8) |  |
+| `180027fa0` | `RenderResourceHandle_Release` | decrement +0x20, release through the resource system at zero |  |
+| `1800281b0` | `CVrad3LightmapImage::SetPixelRGB` | the channel's bitmap (0x9d8-byte FloatBitMap_t per channel), components masked by its attribute mask |  |
+| `1800282c0` | `CVrad3LightmapImage::SetPixelRGBA` | as SetPixelRGB with alpha |  |
 | `18002b5b0` | `CVrad3Command_lpv_image_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002b640` | `CVrad3Command_lpv_image_fog_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002b7b0` | `CVrad3Command_gpu_init::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2098,6 +2102,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002bc40` | `CVrad3Command_sceneinfo_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002d2b0` | `CVrad3Command_lightmap_load_packing_geometry_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002d530` | `CVrad3Command_lightmap_load_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002ffc0` | `Vrad3_GpuTimestamp` | a timestamp query on the context, appended with its stage index (the five block compute stages) |  |
 | `180030100` | `CVrad3Command_lightmap_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180035ce0` | `CVrad3Command_lpv_mark_occupied_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2114,7 +2119,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800393e0` | `CVrad3Command_path_trace_triangles_gpu_init::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18003a320` | `CVrad3Command_path_trace_triangles_gpu_shutdown::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18003a430` | `CVrad3Command_path_trace_triangles_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18003c530` | `RenderAttributes_SetBuffer` | 4 buffer slots keyed by name hash |  |
+| `18003ca00` | `RenderAttributes_SetTexture` | 8 texture slots keyed by name hash |  |
+| `18003cc90` | `RenderAttributes_SetInt` | inline map: 12 int slots keyed by MurmurHash2(lowercase name, 0x31415926) |  |
+| `18003ceb0` | `RenderAttributes_SetVec4` | 8 vec4 slots keyed by name hash |  |
+| `18003d0c0` | `VectorNormalize` | returns the length; 1e-17 to 1e17 guard, zero vector to zero, else the slow path 1801f51e0 |  |
 | `18003ddc0` | `CVrad3Command_path_trace_triangles_gpu::Run::lambda_3` | lambda job body |  |
+| `18003eaa0` | `std_Sort_32ByteElements` | introsort (threshold 32 elements, insertion sort below 0x40 bytes) |  |
 | `180042a90` | `PackingGeometry_t::Unserialize` | g_PackingGeometry (DAT_1803ab940): u32 n + n u32; u32 stride (40), u32 count + vertices (position, normal, tangent+sign); count x float2 atlas uv; u32 C + C indices; u32 D + D 28-byte charts (ARGB debug colour, index, x, y, w, h, flags word); C/3 u32 triangle charts; 6 u32 trailing fields; exact on probe01's file |  |
 | `180045e30` | `CVrad3Command_lightmap_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047920` | `CVrad3Command_lightmap_image_save::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2221,4 +2232,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18009b0d0` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp_highest_quality_tweaked::lambda_1` | lambda job body |  |
 | `18009b140` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp::lambda_1` | lambda job body |  |
 | `1800b9540` | `FloatBitMap_t::WriteInMemoryEXRFast::lambda_1` | lambda job body |  |
+| `1801f5110` | `TriangleArea` | 0.5 * \|(b - a) x (c - a)\| |  |
+| `1801f5680` | `UnpackTangentFrame` | the inverse of PackTangentFrame |  |
+| `1801f5970` | `PackTangentFrame` | u32: bit 0 tangent sign (w >= 0), bits 1-11 the tangent's angle about the normal / 360 * 2047 (basis from the quantised normal, 1801f4060), bits 12-21 and 22-31 the octahedral normal (x, y) * 1023; third argument: a searched (precise) octahedral encode (1801f5300) |  |
 | `1801f91a0` | `CKMeansClustering::AssignVectorsToClusters::lambda_1` | lambda job body |  |

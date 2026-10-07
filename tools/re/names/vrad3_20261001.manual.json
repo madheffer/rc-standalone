@@ -37,6 +37,90 @@
    "note": "'%d Known commands' and each name"
   },
   {
+   "addr": "18003d0c0",
+   "name": "VectorNormalize",
+   "module": "s2c:baked/vrad3",
+   "note": "returns the length; 1e-17 to 1e17 guard, zero vector to zero, else the slow path 1801f51e0"
+  },
+  {
+   "addr": "1801f5110",
+   "name": "TriangleArea",
+   "module": "s2c:baked/vrad3",
+   "note": "0.5 * |(b - a) x (c - a)|"
+  },
+  {
+   "addr": "1801f5970",
+   "name": "PackTangentFrame",
+   "module": "s2c:baked/vrad3",
+   "note": "u32: bit 0 tangent sign (w >= 0), bits 1-11 the tangent's angle about the normal / 360 * 2047 (basis from the quantised normal, 1801f4060), bits 12-21 and 22-31 the octahedral normal (x, y) * 1023; third argument: a searched (precise) octahedral encode (1801f5300)"
+  },
+  {
+   "addr": "1801f5680",
+   "name": "UnpackTangentFrame",
+   "module": "s2c:baked/vrad3",
+   "note": "the inverse of PackTangentFrame"
+  },
+  {
+   "addr": "18003eaa0",
+   "name": "std_Sort_32ByteElements",
+   "module": "s2c:baked/vrad3",
+   "note": "introsort (threshold 32 elements, insertion sort below 0x40 bytes)"
+  },
+  {
+   "addr": "180027ef0",
+   "name": "CRenderContextPtr::CRenderContextPtr",
+   "module": "s2c:baked/vrad3",
+   "note": "a render context from the device (vf 0x1e8)"
+  },
+  {
+   "addr": "180027fa0",
+   "name": "RenderResourceHandle_Release",
+   "module": "s2c:baked/vrad3",
+   "note": "decrement +0x20, release through the resource system at zero"
+  },
+  {
+   "addr": "18003cc90",
+   "name": "RenderAttributes_SetInt",
+   "module": "s2c:baked/vrad3",
+   "note": "inline map: 12 int slots keyed by MurmurHash2(lowercase name, 0x31415926)"
+  },
+  {
+   "addr": "18003c530",
+   "name": "RenderAttributes_SetBuffer",
+   "module": "s2c:baked/vrad3",
+   "note": "4 buffer slots keyed by name hash"
+  },
+  {
+   "addr": "18003ca00",
+   "name": "RenderAttributes_SetTexture",
+   "module": "s2c:baked/vrad3",
+   "note": "8 texture slots keyed by name hash"
+  },
+  {
+   "addr": "18003ceb0",
+   "name": "RenderAttributes_SetVec4",
+   "module": "s2c:baked/vrad3",
+   "note": "8 vec4 slots keyed by name hash"
+  },
+  {
+   "addr": "18002ffc0",
+   "name": "Vrad3_GpuTimestamp",
+   "module": "s2c:baked/vrad3",
+   "note": "a timestamp query on the context, appended with its stage index (the five block compute stages)"
+  },
+  {
+   "addr": "1800281b0",
+   "name": "CVrad3LightmapImage::SetPixelRGB",
+   "module": "s2c:baked/vrad3",
+   "note": "the channel's bitmap (0x9d8-byte FloatBitMap_t per channel), components masked by its attribute mask"
+  },
+  {
+   "addr": "1800282c0",
+   "name": "CVrad3LightmapImage::SetPixelRGBA",
+   "module": "s2c:baked/vrad3",
+   "note": "as SetPixelRGB with alpha"
+  },
+  {
    "addr": "180042a90",
    "name": "PackingGeometry_t::Unserialize",
    "module": "s2c:baked/vrad3",

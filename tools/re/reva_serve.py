@@ -25,7 +25,9 @@ launcher_.start()
 from java.io import File
 from reva.headless import RevaHeadlessLauncher
 
-launcher = RevaHeadlessLauncher(None, False, False,
+# reva-headless.properties beside this script, when there: the decompiler timeout (default 10 s).
+config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reva-headless.properties")
+launcher = RevaHeadlessLauncher(File(config) if os.path.exists(config) else None, False, False,
                                 File(r"D:\tools\ghidra_projects"), "cs2")
 launcher.start()
 print(f"ReVa ready on port {launcher.getPort()}", flush=True)
