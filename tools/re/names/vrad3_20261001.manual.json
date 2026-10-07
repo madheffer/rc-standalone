@@ -157,6 +157,36 @@
    "note": "a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over 256 directions (DAT_1802e99e4) for ambient vs directional"
   },
   {
+   "addr": "18005b9f0",
+   "name": "CVrad3Command_lightmap_image_write_ahd::Run::WriteLightmapImage_lambda_1_Body",
+   "module": "s2c:baked/vrad3",
+   "note": "direction EXR: R, G = channel 13 xy * 0.5 + 0.5, B = channel 15, A = channel 8 or 1"
+  },
+  {
+   "addr": "18005c100",
+   "name": "CVrad3Command_lightmap_image_write_direct_light_shadows::Run::WriteLightmapImage_lambda_1_Body",
+   "module": "s2c:baked/vrad3",
+   "note": "N slots: clamp(shadow, 0, 1), sqrt under -gamma20, 1 - v unless -noinvert; empty slot 1 (inverting) or 0"
+  },
+  {
+   "addr": "18009b280",
+   "name": "FloatBitMap_t::WriteToFile",
+   "module": "s2c:baked/vrad3",
+   "note": "by extension (EXR through tinyexr)"
+  },
+  {
+   "addr": "1800951b0",
+   "name": "FloatBitMap_t::FloatBitMap_t",
+   "module": "s2c:baked/vrad3",
+   "note": "(w, h, depth, component mask)"
+  },
+  {
+   "addr": "18004ed10",
+   "name": "Vrad3_UberWeld_AddSeamConstraint",
+   "module": "s2c:baked/vrad3",
+   "note": "the bilinear taps of both sides of a seam sample"
+  },
+  {
    "addr": "18005cf40",
    "name": "std_nth_element_float",
    "module": "s2c:baked/vrad3",

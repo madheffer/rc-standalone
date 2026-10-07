@@ -1941,7 +1941,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: this build
-- 296 addresses
+- 301 addresses
 
 ### s2c:baked/vrad3
 
@@ -2147,6 +2147,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004ce00` | `CVrad3Command_lightmap_image_encode_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18004cfc0` | `CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3_Body` | a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over 256 directions (DAT_1802e99e4) for ambient vs directional |  |
 | `18004e750` | `CVrad3Command_lightmap_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004ed10` | `Vrad3_UberWeld_AddSeamConstraint` | the bilinear taps of both sides of a seam sample |  |
 | `180050360` | `CVrad3Command_uber_weld::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800527b0` | `CVrad3Command_lightmap_image_write_mean::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180052910` | `CVrad3Command_lightmap_image_write_ao::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2160,6 +2161,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180054040` | `CVrad3Command_lightmap_image_write_samplecount::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180054200` | `CVrad3Command_lightmap_image_write_convergence::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180054790` | `CVrad3Command_lightmap_image_show_valid_luxels::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18005b9f0` | `CVrad3Command_lightmap_image_write_ahd::Run::WriteLightmapImage_lambda_1_Body` | direction EXR: R, G = channel 13 xy * 0.5 + 0.5, B = channel 15, A = channel 8 or 1 |  |
+| `18005c100` | `CVrad3Command_lightmap_image_write_direct_light_shadows::Run::WriteLightmapImage_lambda_1_Body` | N slots: clamp(shadow, 0, 1), sqrt under -gamma20, 1 - v unless -noinvert; empty slot 1 (inverting) or 0 |  |
 | `18005c840` | `CVrad3Command_uber_weld::Run::lambda_10` | lambda job body |  |
 | `18005c9a0` | `CVrad3Command_uber_weld::Run::lambda_9` | lambda job body |  |
 | `18005ca10` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
@@ -2233,11 +2236,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180088a70` | `CVrad3Command_validate_test_image::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180088ea0` | `CVrad3Command_remove_file::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180088f10` | `CVrad3Command_vrad3_test_tweaked_bc6h_compression::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `1800951b0` | `FloatBitMap_t::FloatBitMap_t` | (w, h, depth, component mask) |  |
 | `18009b0a0` | `FloatBitMap_t::WriteToBufferBC7_bc7e::lambda_1` | lambda job body |  |
 | `18009b0b0` | `FloatBitMap_t::WriteToBufferBC7_ispctexcomp::lambda_1` | lambda job body |  |
 | `18009b0c0` | `FloatBitMap_t::WriteToBufferETC::lambda_1` | lambda job body |  |
 | `18009b0d0` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp_highest_quality_tweaked::lambda_1` | lambda job body |  |
 | `18009b140` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp::lambda_1` | lambda job body |  |
+| `18009b280` | `FloatBitMap_t::WriteToFile` | by extension (EXR through tinyexr) |  |
 | `1800b9540` | `FloatBitMap_t::WriteInMemoryEXRFast::lambda_1` | lambda job body |  |
 | `1801f5110` | `TriangleArea` | 0.5 * \|(b - a) x (c - a)\| |  |
 | `1801f5680` | `UnpackTangentFrame` | the inverse of PackTangentFrame |  |

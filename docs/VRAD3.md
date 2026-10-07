@@ -272,3 +272,26 @@ both set are left alone by the fireflies and median passes.
   ring around it, by growing radius, that holds covered luxels of the same
   chart. It takes the mean of every live channel there, and the shadow
   record under the first-light-per-slot rule.
+- `uber_weld <lightmap_seams.dat>`: the file is 32-byte records, each two
+  seam edges given as four atlas-uv endpoints (probe01: 30 records). Each
+  endpoint goes to texel space as uv x size - 0.5. Each edge pair is sampled
+  at n = max(3 x the longer edge's texel length, 1) points,
+  t = 0.5 / n + k / n. Where the two sides' texels differ, the bilinear
+  taps of both sides form a constraint (18004ed10), with texels
+  deduplicated through a TexelCoord_t hash map. The AHD channels go to
+  world space (lambda_2), each channel's seams are solved (lambda_5, a
+  least-squares weld; the solver is still to read), and they come back to
+  tangent space.
+- `lightmap_image_write_ahd <colour.exr> <direction.exr>`: the colour file
+  is channel 14 as it stands (FloatBitMap_t::WriteToFile, 18009b280). The
+  direction file is built per luxel (18005b9f0): R = dir.x x 0.5 + 0.5,
+  G = dir.y x 0.5 + 0.5 (channel 13), B = the 1-component AHD channel
+  (channel 15), A = channel 8 when it exists, else 1.
+- `lightmap_image_write_direct_light_shadows <file> [-indexlights N]
+  [-gamma20] [-noinvert]`: N defaults to 4, and inverting is on by default.
+  Per luxel (18005c100), each of the N slots starts at 1 when inverting,
+  else 0. A slot whose light index is set takes clamp(shadow, 0, 1), its
+  square root under -gamma20, then 1 - v unless -noinvert.
+- `lightmap_image_write_chart_color <file> <minspp> <maxspp>`: each chart
+  in its debug colour (1801f6400 converts the ARGB), with the sample counts
+  scaled between minspp and maxspp.
