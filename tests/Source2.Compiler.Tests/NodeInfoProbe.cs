@@ -20,8 +20,16 @@ public class NodeInfoProbe(ITestOutputHelper output)
         var p = spec.Split('|');
         if (MapFixtures.VmapSource(p[0], p[1]) is not { } source)
             return;
-        var ids = p[2].Split(',').Select(int.Parse).ToHashSet();
         var document = MapSource.Read(source);
+        // NODEINFO=addon|map|class:<prefix>|key,key: those keys of every entity whose class starts so.
+        if (p[2].StartsWith("class:", StringComparison.Ordinal))
+        {
+            foreach (var e in document.Elements)
+                if (e.Get<DmxBinary.Element>("entity_properties") is { } props && props.Get<string>("classname") is { } cls && cls.StartsWith(p[2][6..], StringComparison.Ordinal))
+                    output.WriteLine($"ent {e.GetValue<int>("nodeID")} {cls} {string.Join(" ", p[3].Split(',').Select(k => $"{k}={props.Get<object>(k)}"))}");
+            return;
+        }
+        var ids = p[2].Split(',').Select(int.Parse).ToHashSet();
         var addon = Path.Combine(Path.GetDirectoryName(CS2Fixtures.StockPak() ?? "")!, "..", "csgo_addons", p[0]);
         using var models = CS2Fixtures.StockPak() is { } pak ? new SettleBuildTests.PakModels(pak, addon) : null;
         foreach (var node in document.Elements.Where(e => e.GetValue<int>("nodeID") is { } id && ids.Contains(id) && e.Type != "CMapMesh"))
