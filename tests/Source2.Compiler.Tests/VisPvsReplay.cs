@@ -15,7 +15,7 @@ public class VisPvsReplay(ITestOutputHelper output)
 {
     private static readonly Dictionary<string, string> Addons = new()
     {
-        ["probe01"] = "s2c_rc_probe", ["cardtest"] = "s2c_rc_probe", ["ze_hold_em_p"] = "s2c_lighting",
+        ["probe01"] = "s2c_rc_probe", ["cardtest"] = "s2c_rc_probe", ["ze_hold_em_p"] = "s2c_lighting", ["ze_ffvii_mako_reactor_v6_p"] = "s2c_big",
     };
 
     internal static Dictionary<string, (JsonElement Head, byte[] Blob)> Capture(string map)
