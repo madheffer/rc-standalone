@@ -3,9 +3,11 @@
 Hooks LightPrecompute_TraceRay (rc 180f18820, 0923 analysis addresses moved to
 the installed build by tools/re/rva_map.py). Its stack arguments 5 and 6 are
 the starts and ends (CUtlVector of Vector: count at +0, data at +8). A call
-whose first start lies within --radius of --near is the light's: every ray
-it pushes (181c1bf10: tracer, batch, start, end, 0x38-byte result) is noted,
-and when the batch flushes (181c1c530) the results are read back. Written
+whose first start lies within --radius of --near is the light's: the first
+ray's result pointer is noted at the push (181c1bf10: tracer, batch, start,
+end, result; results are contiguous in ray order), and the results are read
+when the trace hands them on (180f17540), after the flush (181c1c530) and
+the wait on its jobs; at the flush itself they are not yet written. Written
 per call: u32 count, count starts (3 floats), count ends, count raw results
 (0x38 bytes: +0xc the triangle id, 0xffffffff for none; +0x20 the object).
 Used to settle GROUND_TRUTH 31 (Mako's lights: Valve's rays pass geometry
@@ -56,8 +58,10 @@ Interceptor.attach(base().add(PUSH), {
     if (active !== null && active.first === undefined) active.first = args[4];
   }
 });
-Interceptor.attach(base().add(FLUSH), {
-  onLeave(ret) {
+// The flush hands the batch to jobs and the trace waits on them before it reads
+// the results (USE, its fifth direct call): read them there, not at the flush.
+Interceptor.attach(base().add(USE), {
+  onEnter(args) {
     if (active !== null && active.results === null && active.first !== undefined)
       active.results = active.first.readByteArray(active.count * 0x38);
   }
@@ -106,7 +110,7 @@ def main():
     # direct calls, as 0923's 180f1892a and 180f1896a are).
     trace = resolve(0xf18820)
     calls = direct_calls(os.path.join(BIN, "resourcecompiler.dll"), trace, 0x400)
-    resolved = {"TRACE": trace, "PUSH": calls[2], "FLUSH": calls[3]}
+    resolved = {"TRACE": trace, "PUSH": calls[2], "FLUSH": calls[3], "USE": calls[4]}
     near = [float(v) for v in a.near.split(",")]
     head = "".join(f"const {k} = {v};\n" for k, v in resolved.items()) + f"const NEAR = {near};\nconst RADIUS = {a.radius};\n"
     if shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3:
