@@ -163,13 +163,15 @@ public static class WorldNodeFiles
             var triangles = TraceScene.Triangles(MapMeshes.Read(document), content.Material, mat => visFlags[mat], rendersAsWorld);
             var config = VisConfig.FromMap(MapEntities.From(document), schema);
             // S2C_VISCACHE=<folder>: the visibility kept by the trace scene's content and settings, for repeated builds.
+            // The fingerprint hashes RC's temp, game and content paths (VisibilityAuthor.InputBlob).
+            var fingerprint = VisibilityAuthor.InputFingerprint(Path.GetTempPath(), game, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(game))!, "content"), addon, map);
             var cache = Environment.GetEnvironmentVariable("S2C_VISCACHE") is { Length: > 0 } folder
-                ? Path.Combine(folder, $"{map.Replace('/', '_')}_{VisKey(triangles, config):x16}.bin") : null;
+                ? Path.Combine(folder, $"{map.Replace('/', '_')}_{VisKey(triangles, config):x16}_{fingerprint:x8}.bin") : null;
             if (cache != null && File.Exists(cache))
                 return ReadVis(cache);
             var rte = TraceScene.Environment(triangles);
             var (vxvs, flat) = VisBuild.RunWithBlocks(rte, config);
-            var vvis = VisibilityAuthor.Container(vxvs);
+            var vvis = VisibilityAuthor.Container(vxvs, fingerprint);
             if (cache != null)
                 WriteVis(cache, vvis, flat);
             return (vvis, flat);

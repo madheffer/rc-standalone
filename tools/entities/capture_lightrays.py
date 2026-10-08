@@ -26,12 +26,18 @@ from capture_rayscene import BIN, CS2, resolve, running
 AGENT = r"""
 'use strict';
 let active = null;  // the matching call: its rays and result pointers
+function hook() {
+if (Process.findModuleByName('resourcecompiler.dll') === null) { setTimeout(hook, 5); return; }
 Interceptor.attach(base().add(TRACE), {
   onEnter(args) {
     const starts = args[4], ends = args[5];
     const count = ends.readS32();
     const sd = starts.add(8).readPointer(), ed = ends.add(8).readPointer();
     const x = sd.readFloat(), y = sd.add(4).readFloat(), z = sd.add(8).readFloat();
+    if (RADIUS < 0) {  // survey: every call's first ray and count
+      send({survey: [count, x, y, z, ed.readFloat(), ed.add(4).readFloat(), ed.add(8).readFloat()]});
+      return;
+    }
     const dx = x - NEAR[0], dy = y - NEAR[1], dz = z - NEAR[2];
     if (count <= 0 || dx * dx + dy * dy + dz * dz > RADIUS * RADIUS) return;
     active = {count: count, starts: sd.readByteArray(count * 12), ends: ed.readByteArray(count * 12), results: null};
@@ -56,6 +62,9 @@ Interceptor.attach(base().add(FLUSH), {
       active.results = active.first.readByteArray(active.count * 0x38);
   }
 });
+send({hooked: base().toString()});
+}
+hook();
 function base() { return Process.findModuleByName('resourcecompiler.dll').base; }
 function concat(parts) {
   let n = 0;
@@ -65,8 +74,21 @@ function concat(parts) {
   for (const p of parts) { out.set(new Uint8Array(p), at); at += p.byteLength; }
   return out.buffer;
 }
-send({hooked: base().toString()});
 """
+
+
+def direct_calls(dll, rva, length):
+    """The targets (RVAs) of the direct calls in <length> bytes from <rva>."""
+    import capstone
+    import pefile
+    pe = pefile.PE(dll, fast_load=True)
+    image = pe.get_memory_mapped_image()
+    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
+    out = []
+    for ins in md.disasm(image[rva:rva + length], rva):
+        if ins.mnemonic == "call" and ins.op_str.startswith("0x"):
+            out.append(int(ins.op_str, 16))
+    return out
 
 
 def main():
@@ -79,8 +101,12 @@ def main():
     a = p.parse_args()
     if running("cs2.exe") or running("resourcecompiler.exe"):
         raise SystemExit("CS2 or a compile is running; not starting")
-    hooks = {"TRACE": 0xf18820, "PUSH": 0x1c1bf10, "FLUSH": 0x1c1c530}
-    resolved = {k: resolve(v) for k, v in hooks.items()}
+    # The push and flush have byte-identical twins in the 10-06 build, so they are
+    # taken from the installed trace function's own calls (the third and fourth
+    # direct calls, as 0923's 180f1892a and 180f1896a are).
+    trace = resolve(0xf18820)
+    calls = direct_calls(os.path.join(BIN, "resourcecompiler.dll"), trace, 0x400)
+    resolved = {"TRACE": trace, "PUSH": calls[2], "FLUSH": calls[3]}
     near = [float(v) for v in a.near.split(",")]
     head = "".join(f"const {k} = {v};\n" for k, v in resolved.items()) + f"const NEAR = {near};\nconst RADIUS = {a.radius};\n"
     if shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3:
