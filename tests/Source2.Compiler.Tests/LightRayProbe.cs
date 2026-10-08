@@ -64,6 +64,26 @@ public class LightRayProbe(ITestOutputHelper output)
             var results = ends + 12 * n;
             at = results + 0x38 * n;
             Vector3 V(int o) => new(BitConverter.ToSingle(data, o), BitConverter.ToSingle(data, o + 4), BitConverter.ToSingle(data, o + 8));
+            if (call == 0 && Environment.GetEnvironmentVariable("LIGHTRAYCMP_ALIGN") is not null)
+            {
+                // Our distance per ray, then how often Valve's record j matches ray j + k.
+                var ourDist = new float[n];
+                for (var i = 0; i < n; i++)
+                    ourDist[i] = scene.Trace(V(starts + 12 * i), V(ends + 12 * i), 0xc00060b1) is { } h ? h.Distance : -1f;
+                var valveDist = Enumerable.Range(0, n).Select(j => BitConverter.ToUInt32(data, results + 0x38 * j + 0xc) == 0xffffffff ? -1f : BitConverter.ToSingle(data, results + 0x38 * j + 0x10)).ToArray();
+                for (var k = -40; k <= 40; k++)
+                {
+                    var same = 0;
+                    for (var j = 0; j < n; j++)
+                        if (j + k >= 0 && j + k < n && valveDist[j] >= 0 && MathF.Abs(valveDist[j] - ourDist[j + k]) <= 1e-3f * MathF.Max(1f, valveDist[j]))
+                            same++;
+                    if (same > n / 50)
+                        output.WriteLine($"offset {k}: {same} of {n} agree");
+                }
+                // The distance multiset: how many of Valve's distances occur among ours at all.
+                var ourSet = ourDist.Where(x => x >= 0).Select(x => MathF.Round(x, 2)).ToHashSet();
+                output.WriteLine($"valve distances found among ours (2 dp): {valveDist.Count(x => x >= 0 && ourSet.Contains(MathF.Round(x, 2)))} of {valveDist.Count(x => x >= 0)}");
+            }
             for (var i = 0; i < n; i++)
             {
                 var (s, e) = (V(starts + 12 * i), V(ends + 12 * i));
