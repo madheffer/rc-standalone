@@ -375,16 +375,6 @@ internal static class NodePropAggregates
                     var lo = Enumerable.Range(start, count).Min(Index) + bas;
                     var vertexCount = Enumerable.Range(start, count).Max(Index) + bas - lo + 1;
                     var (vertices, color) = NodePropEntries.Vertices(vb, lo, vertexCount);
-                    // The aggregate's normals and tangents are the unpacked frame normalised once
-                    // more (CompressTangentFrame's inputs, capture_tangentframe.py on atixref): a
-                    // tangent along the basis then lands on the encoder's 180 degree path as Valve's.
-                    for (var v = 0; v < vertexCount; v++)
-                        foreach (var at in (ReadOnlySpan<int>)[3, 6])
-                        {
-                            var o = (v * NodePropEntries.Stride) + at;
-                            var d = TJunctionFix.Normalise(new Vector3(vertices[o], vertices[o + 1], vertices[o + 2]));
-                            (vertices[o], vertices[o + 1], vertices[o + 2]) = (d.X, d.Y, d.Z);
-                        }
                     var min = new Vector3(float.MaxValue);
                     var max = new Vector3(float.MinValue);
                     for (var v = 0; v < vertexCount; v++)

@@ -102,7 +102,7 @@ public class ModelLayoutProbe(ITestOutputHelper output)
                     }
                     foreach (var so in mesh.Data.GetArray("m_sceneObjects"))
                         foreach (var dc in so.GetArray("m_drawCalls"))
-                            output.WriteLine($"  draw {dc.GetStringProperty("m_material")} indices {dc.GetInt32Property("m_nIndexCount")} vertices {dc.GetInt32Property("m_nVertexCount")}");
+                            output.WriteLine($"  draw {dc.GetStringProperty("m_material")} indices {dc.GetInt32Property("m_nIndexCount")} vertices {dc.GetInt32Property("m_nVertexCount")} tint {string.Join(",", (dc.GetArray<double>("m_vTintColor") ?? []).Select(t => BitConverter.SingleToUInt32Bits((float)t).ToString("x8")))} depth {(dc.ContainsKey("m_nDepthVertexBufferIndex") ? dc.GetInt32Property("m_nDepthVertexBufferIndex") : -9)} vbs {dc.GetArray("m_vertexBuffers").Count}");
                 }
             }
         }

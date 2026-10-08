@@ -55,6 +55,12 @@ internal static class WorldNodeModels
     {
         /// <summary>Each stream's first float ("name:index"), when the streams are not laid out in list order.</summary>
         public Dictionary<string, int>? Offsets { get; init; }
+        /// <summary>
+        /// A prop aggregate's draw: the welded vertices' normal and tangent are
+        /// normalised once more as they are packed (CompressTangentFrame's inputs,
+        /// capture_tangentframe.py on atixref), after the weld, which sees them raw.
+        /// </summary>
+        public bool RenormaliseFrame { get; init; }
     }
 
     /// <param name="mapMesh">embedded_map_mesh: the model compiler splits the depth stream (FUN_1802f9cc0: with SplitDepthStream, not pooled) and compresses texcoords (ModelCompile_BuildDrawSets) only for a map mesh; a brush entity's model keeps one buffer and float texcoords.</param>
@@ -95,7 +101,7 @@ internal static class WorldNodeModels
             var streams = order.Select(x => new WrbMeshEntry.Stream(x.Name, x.Name == "texcoord" && x.First == 16 ? 1 : 0, x.Count, 0, x.Type)).ToList();
             var offsets = order.Zip(streams).ToDictionary(z => $"{z.Second.Name}:{z.Second.Index}", z => z.First.First, StringComparer.OrdinalIgnoreCase);
             return new DrawInput(d.Material, d.Geometry, NodePropEntries.Stride, streams,
-                                 new WrbMeshEntry { Material = d.Material, Attributes = d.Attributes, Field28 = Vector4.One, Streams = streams }) { Offsets = offsets };
+                                 new WrbMeshEntry { Material = d.Material, Attributes = d.Attributes, Field28 = Vector4.One, Streams = streams }) { Offsets = offsets, RenormaliseFrame = true };
         }).ToList();
         uint Format(string f) => f switch { "R32G32_FLOAT" => R32G32Float, "R16G16_SNORM" => R16G16Snorm, _ => R16G16Float };
         return Assemble(name, draws, true, material(draws[0].Material), true, index => Format(aggregate.TexcoordFormats[index]), Warnings(draws, material));
@@ -131,6 +137,8 @@ internal static class WorldNodeModels
         var (min, max) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
         foreach (var (slots, setDraws) in sets)
         {
+            // The depth pass reads buffer 0 whenever the material has a depth list, split
+            // or not (atixref's inferno_fountain: one buffer, index 0); without one, 255.
             var bufferCount = slots.Max(l => l.Buffer) + 1;
             var firstBuffer = vertexBuffers.Count;
             int[] handles = [.. Enumerable.Range(firstBuffer, bufferCount)];
@@ -145,7 +153,7 @@ internal static class WorldNodeModels
                 var offsets = d.Offsets ?? StreamOffsets(d.Streams);
                 for (var b = 0; b < bufferCount; b++)
                     for (var v = 0; v < g.VertexCount; v++)
-                        Pack(vbs[b].AsSpan((vertexBase + v) * strides[b], strides[b]), g.Vertices.AsSpan(v * d.Stride, d.Stride), offsets, slots.Where(l => l.Buffer == b));
+                        Pack(vbs[b].AsSpan((vertexBase + v) * strides[b], strides[b]), g.Vertices.AsSpan(v * d.Stride, d.Stride), offsets, slots.Where(l => l.Buffer == b), d.RenormaliseFrame);
                 var positions = Positions(g, d.Stride, offsets["position:0"]);
                 var (dmin, dmax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
                 foreach (var i in g.Indices)
@@ -171,10 +179,15 @@ internal static class WorldNodeModels
                 ib.AddRange(g.Indices.Select(i => (uint)(i + vertexBase)));
                 var uv = TexcoordValues(g, d.Stride, offsets);
                 var density = uv == null ? 0f : UvDensity.Compute(positions, uv, g.Indices);
-                var tint = d.Facts.Field28;
+                // An aggregate's draws are white (all 311 of atixref's list aggregate draws);
+                // the mesh's tint rides on its fragment in the .vwnod.
+                var tint = aggregate ? Vector4.One : d.Facts.Field28;
                 described[d] = new WorldNodeModel.Draw(d.Material, new Vector3(tint.X, tint.Y, tint.Z), density, firstMeshlet, meshlets.Count - firstMeshlet,
-                    vertexBase, bufferCount > 1 ? 0 : 255, vertexBase + g.VertexCount, startIndex, g.Indices.Length, indexBuffers.Count, handles,
-                    d.Streams.Any(s => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase)), false);
+                    vertexBase, bufferCount > 1 || (mapMesh && facts.Depth.Count > 0) ? 0 : 255, vertexBase + g.VertexCount, startIndex, g.Indices.Length, indexBuffers.Count, handles,
+                    d.Streams.Any(s => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase)),
+                    // A field the material has no input for (atixref's milwall001 object keeps
+                    // VertexPaintTintColor and VertexPaintBlendParams) marks the draw unmatched.
+                    slots.Any(l => l.Field.ShaderSemantic.Length == 0));
                 vertexBase += g.VertexCount;
             }
             var elementSize = totalVertices > 0xffff ? 4 : 2;
@@ -381,7 +394,7 @@ internal static class WorldNodeModels
         _ => 4,
     };
 
-    private static void Pack(Span<byte> to, ReadOnlySpan<float> v, Dictionary<string, int> offsets, IEnumerable<Slot> layout)
+    private static void Pack(Span<byte> to, ReadOnlySpan<float> v, Dictionary<string, int> offsets, IEnumerable<Slot> layout, bool renormalise = false)
     {
         foreach (var slot in layout)
         {
@@ -412,6 +425,12 @@ internal static class WorldNodeModels
                 case R32Uint when slot.Stream.StartsWith("normal:", StringComparison.OrdinalIgnoreCase):
                     var n = new Vector3(v[at], v[at + 1], v[at + 2]);
                     var t = offsets.TryGetValue("tangent:0", out var ta) ? new Vector4(v[ta], v[ta + 1], v[ta + 2], v[ta + 3]) : Vector4.Zero;
+                    if (renormalise)
+                    {
+                        n = TJunctionFix.Normalise(n);
+                        var tn = TJunctionFix.Normalise(new Vector3(t.X, t.Y, t.Z));
+                        t = new Vector4(tn, t.W);
+                    }
                     BitConverter.TryWriteBytes(o, TangentFrame.Compress(n, t));
                     break;
                 case R32Uint:

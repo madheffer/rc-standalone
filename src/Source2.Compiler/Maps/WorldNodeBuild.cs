@@ -187,7 +187,10 @@ internal static class WorldNodeBuild
                 Attributes = flags, Material = d.Material, OverlayOrder = d.RenderOrder, ObjectFlags = kind == MeshLists.Kind.Overlay ? 0x2000u : 0u,
                 DebugColor = tinted,
                 DebugColorValue = tinted ? new Vector4(d.TintColor[0] / 255f, d.TintColor[1] / 255f, d.TintColor[2] / 255f, d.TintColor[3] / 255f) : default,
-                Field28 = Vector4.One, Stride = stride, Streams = streams, Field1a3 = 1, Field_b8 = 1f, Field1a8 = 1f, Mesh184 = 1f, Field9c = 1f,
+                // +0x28: the tint gamma-expanded, powf(c / 255, 2.2) in float (atixref's
+                // parking stripes, 194 153 31, give Valve's draw tint bit for bit).
+                Field28 = new Vector4(Gamma(d.TintColor[0]), Gamma(d.TintColor[1]), Gamma(d.TintColor[2]), d.TintColor[3] / 255f),
+                Stride = stride, Streams = streams, Field1a3 = 1, Field_b8 = 1f, Field1a8 = 1f, Mesh184 = 1f, Field9c = 1f,
                 Field1a1 = 1, Field_b0 = -1f, Matrix = identity,
                 MeshStreams = Describe(mesh.Streams, Enumerable.Range(0, mesh.Streams.Count), built[projection.Target].Source.Entry.PreciseTexcoords),
                 TexcoordsPast16 = WrbMeshEntry.TexcoordsPastSixteen(wv, mesh.Stride, mesh.Streams),
@@ -226,6 +229,8 @@ internal static class WorldNodeBuild
         }
         return layer;
     }
+
+    private static float Gamma(byte c) => MathF.Pow(c / 255f, 2.2f);
 
     // CMesh_Bounds: the positions' per-axis minimum and maximum.
     private static (Vector3 Min, Vector3 Max) Bounds(float[] vertices, int stride, IReadOnlyList<Physics.MeshWeld.Stream> streams)
