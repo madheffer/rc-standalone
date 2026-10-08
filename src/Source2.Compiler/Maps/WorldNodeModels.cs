@@ -186,8 +186,9 @@ internal static class WorldNodeModels
                     vertexBase, bufferCount > 1 || (mapMesh && facts.Depth.Count > 0) ? 0 : 255, vertexBase + g.VertexCount, startIndex, g.Indices.Length, indexBuffers.Count, handles,
                     d.Streams.Any(s => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase)),
                     // A field the material has no input for (atixref's milwall001 object keeps
-                    // VertexPaintTintColor and VertexPaintBlendParams) marks the draw unmatched.
-                    slots.Any(l => l.Field.ShaderSemantic.Length == 0));
+                    // VertexPaintTintColor and VertexPaintBlendParams) marks the draw unmatched;
+                    // the per-vertex lighting stream (COLOR1) does not (probe01, ze_hold_em_p).
+                    slots.Any(l => l.Field.ShaderSemantic.Length == 0 && !l.Stream.StartsWith("PerVertexLighting:", StringComparison.OrdinalIgnoreCase)));
                 vertexBase += g.VertexCount;
             }
             var elementSize = totalVertices > 0xffff ? 4 : 2;
