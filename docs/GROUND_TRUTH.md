@@ -421,6 +421,13 @@ game can answer is raised with the user first, and runs with -insecure.
     751,270 sets / 1,928,875 clusters to pass 5 13 sets / 25,471 clusters.
     Open: assignment, the scan and the VXVS, which need a capture of one
     compile end to end (capture_pvs.py).
+    2026-10-09 (capture_pvs.py on the 10-06 build, VisChainTests on the dev
+    box from Valve's .rte, 5.4 hours): assignment (3,586,348 entries,
+    2,643,577 nodes and boxes, 25,471 cluster boxes), the scan (25,473
+    matrix rows), the vis-cluster merge (4,096 clusters, entries and boxes)
+    and the borders (1,176,083 entries, consolidated entries) all equal
+    Valve's. Only the final VXVS comparison is still to run (the test now
+    keeps ours as <map>.ours.vxvs first).
 
 52. **The settle's dynamic order** (settled 2026-10-05: Valve's own output
     varies). MapSettle_Run (rc 180f1e490) takes its nodes from PhysDoc_GetNodes
