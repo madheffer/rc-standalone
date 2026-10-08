@@ -34,6 +34,76 @@ public class LightRayProbe(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// LIGHTRAYCMP=addon|map|capture.bin (tools/entities/capture_lightrays.py):
+    /// Valve's own rays for one light traced through our light scene under the
+    /// light pass's mask, against Valve's hits (+0xc triangle, +0x10 distance):
+    /// counts per verdict, and the instances behind the disagreements.
+    /// </summary>
+    [Fact]
+    public void AgainstCapture()
+    {
+        if (Environment.GetEnvironmentVariable("LIGHTRAYCMP") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        if (MapFixtures.VmapSource(p[0], p[1]) is not { } source)
+            return;
+        var scene = (EditorTraceScene)SettleLumpTests.LightScene(MapSource.Read(source), source)!;
+        var data = File.ReadAllBytes(p[2]);
+        var verdicts = new SortedDictionary<string, int>();
+        var oursOnly = new Dictionary<string, int>();
+        var valveOnly = new Dictionary<string, int>();
+        var farther = new Dictionary<string, int>();
+        var call = 0;
+        for (var at = 0; at < data.Length; call++)
+        {
+            var n = BitConverter.ToInt32(data, at);
+            at += 4;
+            var starts = at;
+            var ends = at + 12 * n;
+            var results = ends + 12 * n;
+            at = results + 0x38 * n;
+            Vector3 V(int o) => new(BitConverter.ToSingle(data, o), BitConverter.ToSingle(data, o + 4), BitConverter.ToSingle(data, o + 8));
+            for (var i = 0; i < n; i++)
+            {
+                var (s, e) = (V(starts + 12 * i), V(ends + 12 * i));
+                var tri = BitConverter.ToUInt32(data, results + 0x38 * i + 0xc);
+                var dist = BitConverter.ToSingle(data, results + 0x38 * i + 0x10);
+                var ours = scene.Trace(s, e, 0xc00060b1);
+                string verdict;
+                if (tri == 0xffffffff && ours is null)
+                    verdict = "both pass";
+                else if (tri == 0xffffffff)
+                {
+                    verdict = "ours hit, valve passes";
+                    var k = scene.Instances[ours!.Value.Instance].Source;
+                    oursOnly[k] = oursOnly.GetValueOrDefault(k) + 1;
+                }
+                else if (ours is null)
+                {
+                    verdict = "valve hit, ours passes";
+                    valveOnly[$"tri {tri}"] = valveOnly.GetValueOrDefault($"tri {tri}") + 1;
+                }
+                else if (MathF.Abs(ours.Value.Distance - dist) <= 1e-3f * MathF.Max(1f, dist))
+                    verdict = "both hit, same distance";
+                else
+                {
+                    verdict = ours.Value.Distance < dist ? "both hit, ours nearer" : "both hit, ours farther";
+                    var k = $"{scene.Instances[ours.Value.Instance].Source} ({verdict})";
+                    farther[k] = farther.GetValueOrDefault(k) + 1;
+                }
+                verdicts[verdict] = verdicts.GetValueOrDefault(verdict) + 1;
+            }
+        }
+        output.WriteLine($"{call} calls: " + string.Join("; ", verdicts.Select(kv => $"{kv.Key} {kv.Value}")));
+        foreach (var (k, v) in oursOnly.OrderByDescending(kv => kv.Value).Take(25))
+            output.WriteLine($"  ours hits {k}: {v}");
+        foreach (var (k, v) in farther.OrderByDescending(kv => kv.Value).Take(25))
+            output.WriteLine($"  {k}: {v}");
+        foreach (var (k, v) in valveOnly.OrderByDescending(kv => kv.Value).Take(10))
+            output.WriteLine($"  valve hits {k}: {v}");
+    }
+
     [Fact]
     public void FurthestRays()
     {
