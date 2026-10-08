@@ -34,6 +34,36 @@ internal static class SubdivisionBake
     /// <paramref name="cornerData"/>'s order; with a normal among them the baked
     /// faces' corner normals are recomputed.</param>
     /// <param name="smoothingAngle">The mesh's smoothingAngle.</param>
+    // Experiment (S2C_SUBDIV_TANGENT): the grid tangent made orthogonal to the grid normal:
+    // "gs" t - n (n.t), "gsn" with n normalised first, "gsu" then t normalised.
+    private static void OrthogonaliseTangent(float[] point, IReadOnlyList<(string Name, int Width)> layout, string mode)
+    {
+        int Offset(string prefix)
+        {
+            var at = 0;
+            foreach (var (name, width) in layout)
+            {
+                if (name.StartsWith(prefix, StringComparison.Ordinal))
+                    return at;
+                at += width;
+            }
+            return -1;
+        }
+        var no = Offset("normal");
+        var to = Offset("tangent");
+        if (no < 0 || to < 0)
+            return;
+        var n = new Vector3(point[no], point[no + 1], point[no + 2]);
+        if (mode is "gsn" or "gsu")
+            n = TJunctionFix.Normalise(n);
+        var t = new Vector3(point[to], point[to + 1], point[to + 2]);
+        var d = (n.X * t.X + n.Y * t.Y) + n.Z * t.Z;
+        t = new Vector3(t.X - n.X * d, t.Y - n.Y * d, t.Z - n.Z * d);
+        if (mode == "gsu")
+            t = TJunctionFix.Normalise(t);
+        (point[to], point[to + 1], point[to + 2]) = (t.X, t.Y, t.Z);
+    }
+
     public static MeshTessellation.Result Bake(DmxBinary.Element data, Func<Vector3, Vector3>? cutSpace = null, Func<int, float[]>? cornerData = null,
                                                bool displace = true, IReadOnlyList<(string Name, int Width)>? layout = null, float smoothingAngle = 40f,
                                                bool shiftTexcoords = false)
@@ -78,6 +108,10 @@ internal static class SubdivisionBake
                 paints[i] = a.PaintGrid(hs, i, level);
             }
             var data = cornerData != null && layout != null ? Enumerable.Range(0, hs.Count).Select(i => a.DataGrid(hs, i, level, cornerData, layout)).ToArray() : null;
+            if (data != null && Environment.GetEnvironmentVariable("S2C_SUBDIV_TANGENT") is { Length: > 0 } mode)
+                foreach (var grid in data)
+                    foreach (var point in grid)
+                        OrthogonaliseTangent(point, layout!, mode);
             return (Face: f, Corners: hs.Select(h => a.To[h]).ToArray(), Level: level, Grids: grids, Paints: paints, Data: data, Points: new int[hs.Count][]);
         }).ToList();
 
