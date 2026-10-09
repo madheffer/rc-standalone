@@ -35,6 +35,37 @@ public class LightRayProbe(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// LIGHTKEYS=addon|map|nodeId: one light's keys as the map holds them (with
+    /// the FGD defaults it falls back on), how many records it makes, and the
+    /// precomputed keys we write for it.
+    /// </summary>
+    [Fact]
+    public void OneLightsKeys()
+    {
+        if (Environment.GetEnvironmentVariable("LIGHTKEYS") is not { Length: > 0 } spec || MapFixtures.GameSchema() is not { } schema)
+            return;
+        var p = spec.Split('|');
+        if (MapFixtures.VmapSource(p[0], p[1]) is not { } source)
+            return;
+        var document = MapSource.Read(source);
+        var walked = MapEntities.From(document);
+        var (copies, _) = MapInstances.Expand(document, walked, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators));
+        var e = walked.Concat(copies.Select(c => walked[c.Template] with { NodeId = c.NodeId, Origin = c.Origin, Angles = c.Angles, Instanced = true }))
+            .First(x => x.NodeId == int.Parse(p[2]));
+        output.WriteLine($"{e.ClassName} origin {e.Origin} angles {e.Angles} instanced {e.Instanced}");
+        foreach (var k in e.Keys)
+            output.WriteLine($"  {k.Key} = {k.Value}");
+        string? Key(string name) => e.Keys.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value ?? schema.KeyOf(e.ClassName, name)?.Default;
+        foreach (var name in new[] { "castshadows", "fog", "fogshadows", "enabled", "directlight", "bakelight" })
+            output.WriteLine($"  [{name}] -> {Key(name) ?? "(null)"}");
+        var world = LightPrecompute.World(e.Origin, e.Angles);
+        output.WriteLine($"records: whole {LightPrecompute.Records(e.ClassName, Key, world, false).Length}, faces {LightPrecompute.Records(e.ClassName, Key, world, true).Length}");
+        var scene = (EditorTraceScene)SettleLumpTests.LightScene(document, source)!;
+        foreach (var kv in LightPrecompute.Keys(e.ClassName, Key, world, scene))
+            output.WriteLine($"  ours {kv.Key} = {kv.Value}");
+    }
+
+    /// <summary>
     /// LIGHTRAYCMP=addon|map|capture.bin (tools/entities/capture_lightrays.py):
     /// Valve's own rays for one light traced through our light scene under the
     /// light pass's mask, against Valve's hits (+0xc triangle, +0x10 distance):

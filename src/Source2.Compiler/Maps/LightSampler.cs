@@ -154,7 +154,7 @@ public static class LightSampler
     }
 
     /// <summary>A frustum corner: the clip point (sx, sy, sz) with sx, sy = +-1, through the inverse.</summary>
-    private static Vector3 Corner(LightShape l, float sx, float sy, float sz)
+    internal static Vector3 Corner(LightShape l, float sx, float sy, float sz)
     {
         float m40 = l[0x40], m44 = l[0x44], m48 = l[0x48], m4c = l[0x4c];
         float m50 = l[0x50], m54 = l[0x54], m58 = l[0x58], m5c = l[0x5c];

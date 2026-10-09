@@ -37,8 +37,8 @@ public static class LightPrecompute
             shadows = shadows && Int(key, "fogshadows", 0) != 0;
         if (!shadows)
             return written;
-        if (whole[0][0x9c] == 0f)
-            throw new NotSupportedException("the light at infinity test (FUN_181296a50 through FUN_181292560) is not ported");
+        if (AtInfinity(whole[0]))
+            return written;
 
         var r = LightTrace.Run(whole[0], Rays, scene);
         written.Add(new("precomputedfieldsvalid", "1"));
@@ -63,6 +63,32 @@ public static class LightPrecompute
         }
         written.Reverse();
         return written;
+    }
+
+    /// <summary>
+    /// Light_AtInfinityTest (181296a50): a record whose position is at
+    /// infinity (+0x9c, w, is 0) and whose box (181292560: the clip cube's
+    /// eight corners through its matrix) reaches nexttowardf(-262144, 0) and
+    /// nexttowardf(262144, 0) on every axis covers the whole world, and
+    /// LightPrecompute_SampleVolume (180f19f20) traces nothing for it. An
+    /// orthographic barn (size z 0) has w 0 but a finite box, and is traced.
+    /// </summary>
+    internal static bool AtInfinity(LightShape l)
+    {
+        if (l[0x9c] != 0f)
+            return false;
+        Vector3 lo = new(float.MaxValue), hi = new(-float.MaxValue);
+        foreach (var z in new[] { 0f, 1f })
+            foreach (var (x, y) in new[] { (-1f, -1f), (1f, -1f), (1f, 1f), (-1f, 1f) })
+            {
+                var c = LightSampler.Corner(l, x, y, z);
+                lo = Vector3.Min(lo, c);
+                hi = Vector3.Max(hi, c);
+            }
+        var low = MathF.BitIncrement(-262144f);
+        var high = MathF.BitDecrement(262144f);
+        bool Spans(float v) => lo.X <= v && lo.Y <= v && lo.Z <= v && v <= hi.X && v <= hi.Y && v <= hi.Z;
+        return Spans(low) && Spans(high);
     }
 
     /// <summary>
