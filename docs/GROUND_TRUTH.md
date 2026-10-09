@@ -306,10 +306,15 @@ game can answer is raised with the user first, and runs with -insecure.
     Mako's lump exact (105 lights to 0), the seven captured lights equal
     Valve's on every ray bit for bit, atixref, prefabprobe3/4, doom and
     propover exact. Left: light 1099 has 130 of 172,032 hits off in the
-    last bits on map meshes 25406 and 25395 (no key changes); meshsystem's
-    model-space corners differ from our render triangles by an ulp in some
-    triangles (CacheOptimizedTriangle_FromCorners is instruction-identical
-    in both DLLs), which did not move any captured ray.
+    last bits on map meshes 25406 and 25395 (no key changes). Their world
+    matrices are Valve's bit for bit; the cause is corner order: in those
+    meshes (and 27237) every triangle of Valve's starts one corner later
+    than ours, (B, C, A) for our (A, B, C), and the record's rounding follows
+    the order (mesh 9437's start where ours do). Where RayScene_AddFace
+    (1813ccd20) picks a face's first corner is not yet read. meshsystem's
+    model-space corners also differ from our render triangles by an ulp in
+    some triangles (CacheOptimizedTriangle_FromCorners is
+    instruction-identical in both DLLs), which moved no captured ray.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.
