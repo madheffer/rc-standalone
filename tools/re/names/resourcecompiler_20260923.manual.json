@@ -4660,7 +4660,25 @@
    "addr": "181c15d00",
    "name": "RayScene_InstanceNodeHit",
    "module": "s2c:baked/light-keys",
-   "note": "instance tree node box test"
+   "note": "instance tree node box test: true when any lane meets it (exact 1/d)"
+  },
+  {
+   "addr": "181c1ae90",
+   "name": "RayScene_BuildInstanceTree",
+   "module": "s2c:baked/light-keys",
+   "note": "0x30-byte nodes, leaf = one instance; sorts by the longest axis, splits at (n+1)/2"
+  },
+  {
+   "addr": "181c15310",
+   "name": "RayScene_InstanceRangeBox",
+   "module": "s2c:baked/light-keys",
+   "note": "union of the instance boxes (+0x70/+0x7c) in a range"
+  },
+  {
+   "addr": "181c13950",
+   "name": "RayScene_SortInstancesByAxis",
+   "module": "s2c:baked/light-keys",
+   "note": "std::sort (introsort) of instance pointers on one axis"
   },
   {
    "addr": "1813ce820",
