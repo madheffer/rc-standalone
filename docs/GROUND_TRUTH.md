@@ -280,10 +280,15 @@ game can answer is raised with the user first, and runs with -insecure.
     172,032, 32719 on none; Mako's lump from 105 lights (349 keys) to 9 (25);
     atixref (6 to 0), s2c_prefabprobe3 (5 to 0) and 4 (8 to 0) exact. The kd
     walk alone (one ray at a time) fixed nothing (104 lights) and a per-ray
-    box test made it worse (110): the packets are the rule. Open: Mako's 9
-    (light_barn 9479 gets no precomputed keys from us; 8385/8386 differ
+    box test made it worse (110): the packets are the rule. Then
+    Light_AtInfinityTest (181296a50) ported: SampleVolume (180f19f20) skips
+    a light only when its w (+0x9c) is 0 and its clip box (181292560)
+    reaches nexttowardf(-262144, 0) and nexttowardf(262144, 0) on every
+    axis; an orthographic barn (size z 0, w 0, finite box) is traced
+    (light_barn 9479 exact). Open: Mako's 8 (light_rect 8385/8386 differ
     widely; the rest are OBB ties and 1-2 ray bounds), and ray 4:215 of
-    1099 (we hit smartprop 33582's model, Valve passes).
+    1099 (we hit smartprop 33582's model, Valve passes; 1099's keys are
+    exact regardless).
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.

@@ -1,4 +1,4 @@
-"""capture_lightrays.py <addon> <map> --near x,y,z [--radius r] [--out file]: one light's rays and hits in Valve's pass.
+"""capture_lightrays.py <addon> <map> --near x,y,z[;x,y,z...] [--radius r] [--out file]: lights' rays and hits in Valve's pass.
 
 Hooks LightPrecompute_TraceRay (rc 180f18820, 0923 analysis addresses moved to
 the installed build by tools/re/rva_map.py). Its stack arguments 5 and 6 are
@@ -40,16 +40,20 @@ Interceptor.attach(base().add(TRACE), {
       send({survey: [count, x, y, z, ed.readFloat(), ed.add(4).readFloat(), ed.add(8).readFloat()]});
       return;
     }
-    const dx = x - NEAR[0], dy = y - NEAR[1], dz = z - NEAR[2];
-    if (count <= 0 || dx * dx + dy * dy + dz * dz > RADIUS * RADIUS) return;
-    actives[this.threadId] = {count: count, starts: sd.readByteArray(count * 12), ends: ed.readByteArray(count * 12), results: null};
+    let idx = -1;
+    for (let i = 0; i < NEAR.length && idx < 0; i++) {
+      const dx = x - NEAR[i][0], dy = y - NEAR[i][1], dz = z - NEAR[i][2];
+      if (dx * dx + dy * dy + dz * dz <= RADIUS * RADIUS) idx = i;
+    }
+    if (count <= 0 || idx < 0) return;
+    actives[this.threadId] = {idx: idx, count: count, starts: sd.readByteArray(count * 12), ends: ed.readByteArray(count * 12), results: null};
   },
   onLeave(ret) {
     const active = actives[this.threadId];
     if (active !== undefined && active.results !== null) {
       const head = new ArrayBuffer(4);
       new DataView(head).setUint32(0, active.count, true);
-      send({call: active.count}, concat([head, active.starts, active.ends, active.results]));
+      send({call: active.count, idx: active.idx}, concat([head, active.starts, active.ends, active.results]));
     }
     delete actives[this.threadId];
   }
@@ -102,7 +106,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("addon")
     p.add_argument("map")
-    p.add_argument("--near", required=True, help="x,y,z of the light")
+    p.add_argument("--near", required=True, help="x,y,z of the light; several separated by ';' (one output file each)")
     p.add_argument("--radius", type=float, default=32.0)
     p.add_argument("--out")
     a = p.parse_args()
@@ -114,27 +118,31 @@ def main():
     trace = resolve(0xf18820)
     calls = direct_calls(os.path.join(BIN, "resourcecompiler.dll"), trace, 0x400)
     resolved = {"TRACE": trace, "PUSH": calls[2], "FLUSH": calls[3], "USE": calls[4]}
-    near = [float(v) for v in a.near.split(",")]
-    head = "".join(f"const {k} = {v};\n" for k, v in resolved.items()) + f"const NEAR = {near};\nconst RADIUS = {a.radius};\n"
+    nears = [[float(v) for v in n.split(",")] for n in a.near.split(";")]
+    head = "".join(f"const {k} = {v};\n" for k, v in resolved.items()) + f"const NEAR = {nears};\nconst RADIUS = {a.radius};\n"
     if shutil.disk_usage(os.path.splitdrive(CS2)[0] + "\\").free < 10 * 1024 ** 3:
         raise SystemExit("under 10 GB free on the game drive; not starting")
-    out_path = a.out or os.path.join(os.environ.get("TEMP", "."), "lightrays_capture", f"{a.map}_{'_'.join(a.near.split(','))}.bin")
+    out_paths = [os.path.join(os.environ.get("TEMP", "."), "lightrays_capture", f"{a.map}_{'_'.join(n.split(','))}.bin")
+                 for n in a.near.split(";")]
+    if a.out:
+        out_paths[0] = a.out
+    out_path = out_paths[0]
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
     backup = out_path + ".vpk.bak"
     if os.path.exists(vpk):
         shutil.copyfile(vpk, backup)
         os.remove(vpk)
-    out = open(out_path, "wb")
+    outs = [open(o, "wb") for o in out_paths]
     calls = [0]
 
     def on_message(msg, data):
         if msg.get("type") != "send" or data is None:
             print("agent:", msg.get("payload", msg))
             return
-        out.write(data)
+        outs[msg["payload"]["idx"]].write(data)
         calls[0] += 1
-        print("light call:", struct.unpack_from("<I", data)[0], "rays", flush=True)
+        print("light", msg["payload"]["idx"], "call:", struct.unpack_from("<I", data)[0], "rays", flush=True)
 
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     dev = frida.get_local_device()
@@ -152,8 +160,9 @@ def main():
             subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
     while running("resourcecompiler.exe"):
         threading.Event().wait(2)
-    out.close()
-    print(out_path, calls[0], "calls")
+    for o in outs:
+        o.close()
+    print(", ".join(out_paths), calls[0], "calls")
     if os.path.exists(backup):
         shutil.copyfile(backup, vpk)
         ok = filecmp.cmp(backup, vpk, shallow=False)
