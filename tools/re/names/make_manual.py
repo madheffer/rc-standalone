@@ -840,6 +840,7 @@ RESOURCECOMPILER = [
     ("181c10ea0", "RayScene_TraceInstances", LIGHTS, "ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance"),
     ("181c12720", "Matrix3x4_TransformPoints4", LIGHTS, "t + ((x m0 + y m1) + z m2) per row, four lanes"),
     ("181c15d00", "RayScene_InstanceNodeHit", LIGHTS, "instance tree node box test: true when any lane meets it (exact 1/d)"),
+    ("181c16b90", "RayScene_RefineNode", LIGHTS, "kd build: split past 10 triangles (32 when the scene word holds 0x10000), depth 22, cost 167; +0x1c4 stops it"),
     ("181c1ae90", "RayScene_BuildInstanceTree", LIGHTS, "0x30-byte nodes, leaf = one instance; sorts by the longest axis, splits at (n+1)/2"),
     ("181c15310", "RayScene_InstanceRangeBox", LIGHTS, "union of the instance boxes (+0x70/+0x7c) in a range"),
     ("181c13950", "RayScene_SortInstancesByAxis", LIGHTS, "std::sort (introsort) of instance pointers on one axis"),

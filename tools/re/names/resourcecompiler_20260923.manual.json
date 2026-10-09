@@ -4663,6 +4663,12 @@
    "note": "instance tree node box test: true when any lane meets it (exact 1/d)"
   },
   {
+   "addr": "181c16b90",
+   "name": "RayScene_RefineNode",
+   "module": "s2c:baked/light-keys",
+   "note": "kd build: split past 10 triangles (32 when the scene word holds 0x10000), depth 22, cost 167; +0x1c4 stops it"
+  },
+  {
    "addr": "181c1ae90",
    "name": "RayScene_BuildInstanceTree",
    "module": "s2c:baked/light-keys",

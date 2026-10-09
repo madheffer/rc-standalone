@@ -166,7 +166,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 879 addresses
+- 880 addresses
 
 ### s2c:baked/light-keys
 
@@ -198,7 +198,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180eee040` | `Light_LegacyType` | 1 omni/capsule, 3 spot, 2 directional/environment, 4 ortho, else 0 |  |
 | `180eee150` | `Light_SyncBrightnessUnits` | flags-2 record; scale/factor/area/solid angle per class; writes brightness, lumens, nits, candelas, legacy by brightness_units (LightUnits.Sync) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:247`, `src/Source2.Compiler/Maps/LightUnits.cs:8`, `src/Source2.Compiler/Maps/LightUnits.cs:58` |
 | `180f06c20` | `CModelHelper_Init` | +0xb2 when the class metadata has static_prop |  |
-| `180f0d670` | `CModelHelper_RaytraceFlags` | 0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided | `src/Source2.Compiler/Maps/EditorTraceScene.cs:134` |
+| `180f0d670` | `CModelHelper_RaytraceFlags` | 0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided | `src/Source2.Compiler/Maps/EditorTraceScene.cs:145` |
 | `180f18820` | `LightPrecompute_TraceRay` |  | `src/Source2.Compiler/Maps/LightTrace.cs:45` |
 | `180f19840` | `LightPrecompute_TraceSamples` |  | `src/Source2.Compiler/Maps/LightTrace.cs:45` |
 | `180f19f20` | `LightPrecompute_SampleVolume` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:9`, `src/Source2.Compiler/Maps/LightPrecompute.cs:73` |
@@ -245,7 +245,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18100fd50` | `RaytraceOwnerJob_Update` | one instance per placement: step matrix times owner vf 0x10; env flags from owner vf 0x30 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:14` |
 | `1810d5830` | `MapMeshGeometry_RayFlags` | +0x3508, part of the mesh owner flags; writer not found |  |
 | `1810d5840` | `MapMeshGeometry_RayScene` | the mesh's own scene (+0x34f0) |  |
-| `1810e11a0` | `CMapMeshBase::vf6` | object flags: 0x4000 under a CMapEntity, 0x20, 0xa000/0x2000 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:80` |
+| `1810e11a0` | `CMapMeshBase::vf6` | object flags: 0x4000 under a CMapEntity, 0x20, 0xa000/0x2000 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:86` |
 | `1810e6d10` | `CMapMesh_GetDisableShadows` | node +0x3b6c |  |
 | `18125d8e0` | `Halton_RadicalInverse` | in float | `src/Source2.Compiler/Maps/LightTrace.cs:179` |
 | `1812651a0` | `Matrix3x4_TransformPointXmm` | point in xmm0-2 through the 3x4 at rcx |  |
@@ -289,22 +289,23 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18129b7b0` | `SegmentIntersectsBox` | SSE slab test: refined rcpps of the delta, exit capped at 1, entry floored at 0 | `src/Source2.Compiler/Maps/LightVisClusters.cs:54` |
 | `1813c3b60` | `MeshTessellation_PatchIndices` | a patch grid's cells as [a, right, b], [a, b, below] | `src/Source2.Compiler/Maps/MeshTessellation.cs:54` |
 | `1813c7970` | `MeshTessellation_FaceLevel` | the level of the face's first corner |  |
-| `1813ccd20` | `RayScene_AddFace` | MeshTessellation.RayScene: polygons with neighbour edge points, patches unstitched | `src/Source2.Compiler/Maps/EditorTraceScene.cs:82`, `src/Source2.Compiler/Maps/MeshTessellation.cs:45` |
-| `1813ce820` | `MapMeshGeometry_BuildRayScene` | rebuilds the mesh scene when its geometry sums change |  |
-| `181c02a20` | `RayScene_TracePacket` | per-scene dispatch on mode; regroups lanes of mixed signs | `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:13`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:232` |
+| `1813ccd20` | `RayScene_AddFace` | MeshTessellation.RayScene: polygons with neighbour edge points, patches unstitched | `src/Source2.Compiler/Maps/EditorTraceScene.cs:88`, `src/Source2.Compiler/Maps/MeshTessellation.cs:45` |
+| `1813ce820` | `MapMeshGeometry_BuildRayScene` | rebuilds the mesh scene when its geometry sums change | `src/Source2.Compiler/Maps/EditorTraceScene.cs:123` |
+| `181c02a20` | `RayScene_TracePacket` | per-scene dispatch on mode; regroups lanes of mixed signs | `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:13`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:235` |
 | `181c065f0` | `RayScene_TraceMode1` | keeps hits with denom > 0 unless flag 2 |  |
-| `181c0a000` | `RayScene_TraceMode2` | keeps hits with denom < 0 unless flag 2; \|denom\| > 1e-10; triangle skipped on mask & flags | `src/Source2.Compiler/Maps/TracerKd.cs:51`, `src/Source2.Compiler/Maps/TracerKd.cs:358` |
-| `181c10ea0` | `RayScene_TraceInstances` | ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance | `src/Source2.Compiler/Maps/EditorTraceScene.cs:328`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:67` |
-| `181c12720` | `Matrix3x4_TransformPoints4` | t + ((x m0 + y m1) + z m2) per row, four lanes | `src/Source2.Compiler/Maps/EditorTraceScene.cs:328` |
+| `181c0a000` | `RayScene_TraceMode2` | keeps hits with denom < 0 unless flag 2; \|denom\| > 1e-10; triangle skipped on mask & flags | `src/Source2.Compiler/Maps/TracerKd.cs:56`, `src/Source2.Compiler/Maps/TracerKd.cs:369` |
+| `181c10ea0` | `RayScene_TraceInstances` | ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance | `src/Source2.Compiler/Maps/EditorTraceScene.cs:345`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:67` |
+| `181c12720` | `Matrix3x4_TransformPoints4` | t + ((x m0 + y m1) + z m2) per row, four lanes | `src/Source2.Compiler/Maps/EditorTraceScene.cs:345` |
 | `181c13950` | `RayScene_SortInstancesByAxis` | std::sort (introsort) of instance pointers on one axis |  |
 | `181c13ac0` | `RayScene_AddInstance` | 0xd0-byte instance of a child scene | `src/Source2.Compiler/Maps/EditorTraceScene.cs:14` |
 | `181c14020` | `RayScene_AddTriangles` |  |  |
 | `181c14800` | `CacheOptimizedTriangle_FromCorners` | same record as visbuilder 180118e90 |  |
 | `181c15310` | `RayScene_InstanceRangeBox` | union of the instance boxes (+0x70/+0x7c) in a range |  |
 | `181c15640` | `RayScene_Finalise` | children first, then SetupAccelerationStructure |  |
-| `181c15d00` | `RayScene_InstanceNodeHit` | instance tree node box test: true when any lane meets it (exact 1/d) | `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:10`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:287` |
+| `181c15d00` | `RayScene_InstanceNodeHit` | instance tree node box test: true when any lane meets it (exact 1/d) | `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:10`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:352` |
+| `181c16b90` | `RayScene_RefineNode` | kd build: split past 10 triangles (32 when the scene word holds 0x10000), depth 22, cost 167; +0x1c4 stops it | `src/Source2.Compiler/Maps/TracerKd.cs:41` |
 | `181c19970` | `RayScene_SetInstanceTransform` | +0x10 local to world, +0x40 its inverse (FUN_18125ade0), +0x70 box | `src/Source2.Compiler/Maps/EditorTraceScene.cs:15` |
-| `181c19be0` | `RayScene_SetupAccelerationStructure` | corners to CacheOptimizedTriangle, kd build | `src/Source2.Compiler/Maps/EditorTraceScene.cs:398`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:438` |
+| `181c19be0` | `RayScene_SetupAccelerationStructure` | corners to CacheOptimizedTriangle, kd build | `src/Source2.Compiler/Maps/EditorTraceScene.cs:457`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:497` |
 | `181c1ae90` | `RayScene_BuildInstanceTree` | 0x30-byte nodes, leaf = one instance; sorts by the longest axis, splits at (n+1)/2 |  |
 | `181c1bd70` | `RayBatch_AddSecond` | the same, for the flag 8 second rays |  |
 | `181c1bf10` | `RayBatch_Add` | files a segment by delta sign octant; traces a full packet | `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:6` |
@@ -911,16 +912,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181258890` | `ConcatTransforms` | SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0) | `src/Source2.Compiler/Maps/LightMath.cs:90`, `src/Source2.Compiler/Maps/MapMeshes.cs:283` |
 | `18125a6c0` | `Vector_Basis` | Frisvad's basis with the sign of z | `src/Source2.Compiler/Maps/LightSampler.cs:261`, `src/Source2.Compiler/Maps/TangentFrame.cs:90` |
 | `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:467`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:481`, `src/Source2.Compiler/Maps/MapMeshes.cs:296` |
-| `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:27`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:301` |
+| `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:27`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:318` |
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
 | `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:524`, `src/Source2.Compiler/Maps/SettleWorld.cs:651`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:677` |
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
 | `18125bad0` | `Matrix3x4_Column0` |  |  |
-| `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:79` |
+| `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:85` |
 | `18125c070` | `Matrix3x4_Identity` |  |  |
 | `18125c200` | `Matrix3x4_Scale` | diag(x, y, z), zero translation | `src/Source2.Compiler/Maps/SettleWorld.cs:531` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:462`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:492`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
-| `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/EditorTraceScene.cs:54`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:439`, `src/Source2.Compiler/Maps/NodeOverlays.cs:200` |
+| `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/EditorTraceScene.cs:60`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:498`, `src/Source2.Compiler/Maps/NodeOverlays.cs:200` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/VectorNormalizeSlow.cs:6`, `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:547`, `src/Source2.Compiler/Physics/HullSimplifier.cs:146` +2 |
 | `18125d0d0` | `VectorPerpendicular` | ((1 - z)(y y - 0) + z, 0, -x) normalised, orthogonalised, normalised | `src/Source2.Compiler/Physics/StaticPropHulls.cs:327`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:375` |
 | `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:470`, `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:175` +2 |
@@ -1487,11 +1488,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18010e610` | `SubBox` | one sub-cell's box: (i & 3, i >> 2 & 3, i >> 4 & 3) quarters, no epsilon | `src/Source2.Compiler/Maps/VisClusters.cs:234` |
 | `180110430` | `BatchRay` | one ray against the kd tree; 56-byte hit record |  |
 | `180110740` | `FlushBatch` |  |  |
-| `180110cb0` | `Tracer_PacketNormalise` | one packet: up to four segments of one octant normalised | `src/Source2.Compiler/Maps/TracerKd.cs:308` |
-| `180115760` | `Tracer_PacketWalk` | the packet's kd walk (mode 0) | `src/Source2.Compiler/Maps/TracerKd.cs:309`, `src/Source2.Compiler/Maps/TracerKd.cs:398` |
-| `180118a90` | `TracerKd_PlaneCost` | surface area cost of a split plane | `src/Source2.Compiler/Maps/TracerKd.cs:200` |
-| `180118e90` | `Rte_TriangleFromCorners` | normal, plane, axes and the two edge equations from the corners | `src/Source2.Compiler/Maps/EditorTraceScene.cs:33`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:698`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:766` +1 |
-| `180119600` | `TracerKd_PlaneCandidates` | one candidate kind on one axis; -1 is the box middle | `src/Source2.Compiler/Maps/TracerKd.cs:170` |
+| `180110cb0` | `Tracer_PacketNormalise` | one packet: up to four segments of one octant normalised | `src/Source2.Compiler/Maps/TracerKd.cs:319` |
+| `180115760` | `Tracer_PacketWalk` | the packet's kd walk (mode 0) | `src/Source2.Compiler/Maps/TracerKd.cs:320`, `src/Source2.Compiler/Maps/TracerKd.cs:409` |
+| `180118a90` | `TracerKd_PlaneCost` | surface area cost of a split plane | `src/Source2.Compiler/Maps/TracerKd.cs:211` |
+| `180118e90` | `Rte_TriangleFromCorners` | normal, plane, axes and the two edge equations from the corners | `src/Source2.Compiler/Maps/EditorTraceScene.cs:39`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:698`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:766` +1 |
+| `180119600` | `TracerKd_PlaneCandidates` | one candidate kind on one axis; -1 is the box middle | `src/Source2.Compiler/Maps/TracerKd.cs:181` |
 | `18011bd20` | `SkyKdLeaf` |  |  |
 | `18011c120` | `SkyKdQuery` |  |  |
 | `18011c2a0` | `Rte_Unserialize` | the .rte unserializer under LoadRTEFromFile |  |
