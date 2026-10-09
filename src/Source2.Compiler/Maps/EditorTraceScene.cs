@@ -503,6 +503,31 @@ public sealed class EditorTraceScene : ILightTracer
         return new SceneHit(distance, inst.Flags[bestTriangle], -1, bestTriangle);
     }
 
+    /// <summary>
+    /// Diagnostics: a ray against one triangle of a triangle-level instance,
+    /// as <see cref="Meets"/> sees it: the plane's denominator, the distance in
+    /// local units and the two barycentric tests (a hit wants both at least 0
+    /// and their sum at most 1). Null for a scene of scenes.
+    /// </summary>
+    internal (float Denominator, float T, float A, float B)? Probe(int instance, int triangle, Vector3 start, Vector3 end)
+    {
+        var inst = _instances[instance];
+        if (inst.Children != null)
+            return null;
+        var dir = Vector3.Normalize(end - start);
+        var m = inst.ToLocal;
+        var lo = Xf(m, start);
+        var lp = Xf(m, start + dir);
+        var ld = Vector3.Normalize(lp - lo);
+        var r = inst.Records.AsSpan(triangle * 22, 13);
+        var denom = (ld.Z * r[2] + ld.Y * r[1]) + ld.X * r[0];
+        var t = (r[3] - ((lo.Z * r[2] + lo.Y * r[1]) + r[0] * lo.X)) / denom;
+        int u = (int)r[11], v = (int)r[12];
+        var pu = t * Axis(ld, u) + Axis(lo, u);
+        var pv = t * Axis(ld, v) + Axis(lo, v);
+        return (denom, t, (r[5] * pu + r[6] * pv) + r[7], (r[8] * pu + r[9] * pv) + r[10]);
+    }
+
     // 181c0a000's triangle test (mode 2, back faces culled).
     private static float? Meets(ReadOnlySpan<float> r, bool twoSided, Vector3 o, Vector3 d, float best)
     {

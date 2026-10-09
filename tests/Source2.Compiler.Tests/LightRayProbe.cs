@@ -87,6 +87,8 @@ public class LightRayProbe(ITestOutputHelper output)
             for (var i = 0; i < n; i++)
             {
                 var (s, e) = (V(starts + 12 * i), V(ends + 12 * i));
+                if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_SWAP") is not null)
+                    (s, e) = (e, s);
                 var tri = BitConverter.ToUInt32(data, results + 0x38 * i + 0xc);
                 var dist = BitConverter.ToSingle(data, results + 0x38 * i + 0x10);
                 var ours = scene.Trace(s, e, 0xc00060b1);
@@ -109,6 +111,18 @@ public class LightRayProbe(ITestOutputHelper output)
                 else
                 {
                     verdict = ours.Value.Distance < dist ? "both hit, ours nearer" : "both hit, ours farther";
+                    if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null && ours.Value.Distance < dist)
+                    {
+                        // What lies behind our hit: trace on from just past it.
+                        var dir = Vector3.Normalize(e - s);
+                        var from = s + dir * (ours.Value.Distance + 0.01f);
+                        var next = scene.Trace(from, e, 0xc00060b1);
+                        var inst = scene.Instances[ours.Value.Instance];
+                        var pr = scene.Probe(ours.Value.Instance, ours.Value.Triangle, s, e);
+                        var bary = pr is { } q ? $" denom {q.Denominator:G6} a {q.A:G6} b {q.B:G6} a+b {q.A + q.B:G7}" : " (model)";
+                        output.WriteLine($"  ray {call}:{i} ours {inst.Source} tri {ours.Value.Triangle} at {ours.Value.Distance:F4}{bary}; valve tri {tri} at {dist:F4}; "
+                            + $"behind ours: {(next is { } nx ? $"{scene.Instances[nx.Instance].Source} tri {nx.Triangle} at {ours.Value.Distance + 0.01f + nx.Distance:F4}" : "nothing")}");
+                    }
                     var k = $"{scene.Instances[ours.Value.Instance].Source} ({verdict})";
                     farther[k] = farther.GetValueOrDefault(k) + 1;
                 }
@@ -116,6 +130,63 @@ public class LightRayProbe(ITestOutputHelper output)
             }
         }
         output.WriteLine($"{call} calls: " + string.Join("; ", verdicts.Select(kv => $"{kv.Key} {kv.Value}")));
+        // LIGHTRAYCMP_NODE=<node id>: our own rays for that light (the whole record and each
+        // face, as LightPrecompute traces them) against each of Valve's calls, bit for bit.
+        if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_NODE") is { Length: > 0 } nodeSpec && MapFixtures.GameSchema() is { } schema)
+        {
+            var document = MapSource.Read(source);
+            var walked = MapEntities.From(document);
+            var (copies, _) = MapInstances.Expand(document, walked, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators));
+            var e = walked.Concat(copies.Select(c => walked[c.Template] with { NodeId = c.NodeId, Origin = c.Origin, Angles = c.Angles, Instanced = true }))
+                .First(x => x.NodeId == int.Parse(nodeSpec));
+            string? Key(string name) => e.Keys.FirstOrDefault(k => k.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value ?? schema.KeyOf(e.ClassName, name)?.Default;
+            var world = LightPrecompute.World(e.Origin, e.Angles);
+            var ours = new List<(string Name, Vector3[] Starts, Vector3[] Ends)>();
+            var whole = LightPrecompute.Records(e.ClassName, Key, world, false)[0];
+            var wr = LightTrace.Run(whole, LightPrecompute.Rays, scene);
+            ours.Add(("whole", [.. wr.Starts], [.. wr.Ends]));
+            var faces = LightPrecompute.Records(e.ClassName, Key, world, true);
+            for (var i = 0; i < faces.Length && faces.Length >= 2; i++)
+            {
+                LightBuild.SphereLuminaire(faces[i], 1e-6f);
+                var fr = LightTrace.Run(faces[i], LightPrecompute.Rays, scene);
+                ours.Add(($"face {i}", [.. fr.Starts], [.. fr.Ends]));
+            }
+            static bool Same(Vector3 a, Vector3 b) => a.X.Equals(b.X) && a.Y.Equals(b.Y) && a.Z.Equals(b.Z) && BitConverter.SingleToInt32Bits(a.X) == BitConverter.SingleToInt32Bits(b.X)
+                && BitConverter.SingleToInt32Bits(a.Y) == BitConverter.SingleToInt32Bits(b.Y) && BitConverter.SingleToInt32Bits(a.Z) == BitConverter.SingleToInt32Bits(b.Z);
+            var c2 = 0;
+            for (var at = 0; at < data.Length; c2++)
+            {
+                var n = BitConverter.ToInt32(data, at);
+                var starts = at + 4;
+                var ends = starts + 12 * n;
+                at = ends + 12 * n + 0x38 * n;
+                Vector3 V(int o) => new(BitConverter.ToSingle(data, o), BitConverter.ToSingle(data, o + 4), BitConverter.ToSingle(data, o + 8));
+                var report = new List<string>();
+                foreach (var (name, os, oe) in ours)
+                {
+                    if (os.Length != n)
+                    {
+                        report.Add($"{name}: {os.Length} rays");
+                        continue;
+                    }
+                    int s = 0, en = 0, first = -1;
+                    for (var i = 0; i < n; i++)
+                    {
+                        var ss = Same(os[i], V(starts + 12 * i));
+                        // Ours keep the end clipped at the hit; Valve's is the full ray: compare directions.
+                        var (dOurs, dValve) = (Vector3.Normalize(oe[i] - os[i]), Vector3.Normalize(V(ends + 12 * i) - V(starts + 12 * i)));
+                        var ee = Same(oe[i], V(ends + 12 * i)) || Vector3.Dot(dOurs, dValve) > 0.9999999f;
+                        s += ss ? 1 : 0;
+                        en += ee ? 1 : 0;
+                        if ((!ss || !ee) && first < 0)
+                            first = i;
+                    }
+                    report.Add($"{name}: starts {s}/{n} ends {en}/{n}" + (first >= 0 ? $" (first {first}: ours {os[first]} {oe[first]} valve {V(starts + 12 * first)} {V(ends + 12 * first)})" : ""));
+                }
+                output.WriteLine($"valve call {c2}: " + string.Join(" | ", report));
+            }
+        }
         foreach (var (k, v) in oursOnly.OrderByDescending(kv => kv.Value).Take(25))
             output.WriteLine($"  ours hits {k}: {v}");
         foreach (var (k, v) in farther.OrderByDescending(kv => kv.Value).Take(25))

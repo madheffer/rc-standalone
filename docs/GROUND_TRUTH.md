@@ -245,6 +245,22 @@ game can answer is raised with the user first, and runs with -insecure.
     shadow keys nor the instances' transform updates set them apart, and
     leaving world-layer content out makes 14,116 keys differ. So Valve's
     rays pass geometry ours hits: the capture of one light's rays is next.
+    2026-10-09 (capture_lightrays.py on the 1009 build, per thread: the
+    light pass traces on several threads, and a shared hook state had paired
+    one thread's rays with another's results; LightRayProbe.AgainstCapture):
+    our rays are Valve's (every start bit for bit, every direction), and
+    Valve's hits are ours: light 1099, 166,103 of 172,032 rays hit at the
+    same distance and 5,888 pass on both; light 32719, 146,748 and 707.
+    What differs is 41 and 1 rays where ours hits nearer: a triangle Valve
+    holds (same flags, same place, EditorSceneCaptureTests RAYSCENE_OWNERS),
+    hit from the front, within about 1% of one of its edges (one grazing ray
+    aside), and behind it the very triangle Valve reports. Bounds come from
+    extreme rays, so these few are the lights' differences ("ours blocks
+    more"). The cause is the traversal: Valve's ray scenes walk their own kd
+    trees, which crack at node boundaries, where our padded BVH never
+    misses. Next: port RayScene's kd tree build and traversal (rc
+    RayScene_AddTriangles and the 181c0a000 caller), then capture one
+    mesh scene's tree to check the build.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.

@@ -193,6 +193,16 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
         var flagPairs = valveFlags.Where(kv => ourFlags.TryGetValue(kv.Key, out var f) && f != kv.Value)
             .GroupBy(kv => $"valve 0x{kv.Value:x} ours 0x{ourFlags[kv.Key]:x}").OrderByDescending(g => g.Count()).ToList();
         output.WriteLine($"shared triangles with other flags: {flagPairs.Sum(g => g.Count())}");
+        // RAYSCENE_OWNERS=mesh 11798,mesh 10304: for each of our owners, how many of its
+        // triangles Valve holds, and the (Valve, ours) flag words they carry.
+        if (Environment.GetEnvironmentVariable("RAYSCENE_OWNERS") is { Length: > 0 } owners)
+            foreach (var owner in owners.Split(','))
+            {
+                var keys = ourTris.Where(kv => kv.Value == owner).Select(kv => kv.Key).ToList();
+                var held = keys.Count(valveFlags.ContainsKey);
+                var flags = keys.Where(valveFlags.ContainsKey).GroupBy(k => $"valve 0x{valveFlags[k]:x} ours 0x{ourFlags[k]:x}").Select(g => $"{g.Key} x{g.Count()}");
+                output.WriteLine($"  owner {owner}: {keys.Count} triangles, valve holds {held}; {string.Join(", ", flags)}");
+            }
         foreach (var g in flagPairs.Take(10))
             output.WriteLine($"  {g.Key}: {g.Count()} e.g. {ourTris[g.First().Key]} at {g.First().Key}");
         // And those wound the other way (normals opposed), by owner kind.

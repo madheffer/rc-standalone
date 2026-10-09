@@ -6,8 +6,8 @@ the starts and ends (CUtlVector of Vector: count at +0, data at +8). A call
 whose first start lies within --radius of --near is the light's: the first
 ray's result pointer is noted at the push (181c1bf10: tracer, batch, start,
 end, result; results are contiguous in ray order), and the results are read
-when the trace hands them on (180f17540), after the flush (181c1c530) and
-the wait on its jobs; at the flush itself they are not yet written. Written
+when the function the trace hands them to (180f17540) returns: at the flush,
+and at that function's entry, they are not all written yet. Written
 per call: u32 count, count starts (3 floats), count ends, count raw results
 (0x38 bytes: +0xc the triangle id, 0xffffffff for none; +0x20 the object).
 Used to settle GROUND_TRUTH 31 (Mako's lights: Valve's rays pass geometry
@@ -27,7 +27,7 @@ from capture_rayscene import BIN, CS2, resolve, running
 
 AGENT = r"""
 'use strict';
-let active = null;  // the matching call: its rays and result pointers
+const actives = {};  // per thread: the matching call's rays and result pointer (traces run on several threads)
 function hook() {
 if (Process.findModuleByName('resourcecompiler.dll') === null) { setTimeout(hook, 5); return; }
 Interceptor.attach(base().add(TRACE), {
@@ -42,27 +42,30 @@ Interceptor.attach(base().add(TRACE), {
     }
     const dx = x - NEAR[0], dy = y - NEAR[1], dz = z - NEAR[2];
     if (count <= 0 || dx * dx + dy * dy + dz * dz > RADIUS * RADIUS) return;
-    active = {count: count, starts: sd.readByteArray(count * 12), ends: ed.readByteArray(count * 12), results: null};
+    actives[this.threadId] = {count: count, starts: sd.readByteArray(count * 12), ends: ed.readByteArray(count * 12), results: null};
   },
   onLeave(ret) {
-    if (active !== null && active.results !== null) {
+    const active = actives[this.threadId];
+    if (active !== undefined && active.results !== null) {
       const head = new ArrayBuffer(4);
       new DataView(head).setUint32(0, active.count, true);
       send({call: active.count}, concat([head, active.starts, active.ends, active.results]));
     }
-    active = null;
+    delete actives[this.threadId];
   }
 });
 Interceptor.attach(base().add(PUSH), {
   onEnter(args) {
-    if (active !== null && active.first === undefined) active.first = args[4];
+    const active = actives[this.threadId];
+    if (active !== undefined && active.first === undefined) active.first = args[4];
   }
 });
 // The flush hands the batch to jobs and the trace waits on them before it reads
 // the results (USE, its fifth direct call): read them there, not at the flush.
 Interceptor.attach(base().add(USE), {
-  onEnter(args) {
-    if (active !== null && active.results === null && active.first !== undefined)
+  onLeave(ret) {
+    const active = actives[this.threadId];
+    if (active !== undefined && active.results === null && active.first !== undefined)
       active.results = active.first.readByteArray(active.count * 0x38);
   }
 });
