@@ -36,8 +36,13 @@ internal interface IKdTriangles
 
 internal sealed class TracerKd
 {
-    /// <summary>A leaf holds at most this many triangles before a split is tried.</summary>
-    public const int LeafSize = 10;
+    /// <summary>
+    /// A leaf holds at most this many triangles before a split is tried: 10,
+    /// or 32 for a scene whose flag word holds 0x10000 (rc RefineNode 181c16b90).
+    /// </summary>
+    public const int LeafSize = 10, WideLeafSize = 32;
+
+    private readonly int _leafSize = LeafSize;
 
     /// <summary>Depth at which splitting stops.</summary>
     public const int MaxDepth = 22;
@@ -53,6 +58,11 @@ internal sealed class TracerKd
     /// 2. Off, the visibility tracer's mode 0 takes both sides.
     /// </summary>
     public bool CullBackFaces { get; init; }
+
+    /// <summary>Diagnostics: a triangle whose leaf visits and tests are written to <see cref="WatchLog"/>.</summary>
+    internal int Watch = -1;
+    internal List<string>? WatchLog;
+    internal (Vector3 Mins, Vector3 Maxs) Bounds => _rte.TracedBounds;
     private readonly float[] _bounds;   // per slot: minx maxx miny maxy minz maxz
     private readonly int[] _slots;      // slot -> file triangle
     private readonly Func<int, float[]> _corners;
@@ -77,8 +87,9 @@ internal sealed class TracerKd
     /// box: how resourcecompiler's writer builds the tree the .rte carries,
     /// over every triangle it collected, from their own corners.
     /// </summary>
-    internal TracerKd(IKdTriangles rte, int[] slots, Func<int, float[]> corners, Vector3 mins, Vector3 maxs)
+    internal TracerKd(IKdTriangles rte, int[] slots, Func<int, float[]> corners, Vector3 mins, Vector3 maxs, int leafSize = LeafSize)
     {
+        _leafSize = leafSize;
         _rte = rte;
         _slots = slots;
         _corners = corners;
@@ -112,7 +123,7 @@ internal sealed class TracerKd
     // RefineNode: the best of twelve candidate planes, split if it pays, else a leaf.
     private void Refine(int at, int[] list, Vector3 mins, Vector3 maxs, int depth)
     {
-        if (LeafSize < list.Length && depth < MaxDepth)
+        if (_leafSize < list.Length && depth < MaxDepth)
         {
             var best = (Cost: 1e23f, Split: 0f, Left: 0, Right: 0, Both: 0, Axis: 0);
             for (var axis = 0; axis < 3; axis++)
@@ -446,6 +457,8 @@ internal sealed class TracerKd
             {
                 foreach (var slot in node.Slots)
                 {
+                    if (_slots[slot] == Watch)
+                        WatchLog?.Add($"leaf {at}: {(mailbox[slot & 0xff] == slot ? "mailbox skip" : "test")}");
                     if (mailbox[slot & 0xff] == slot)
                         continue;
                     var triangle = _slots[slot];
@@ -493,6 +506,8 @@ internal sealed class TracerKd
             var pv = (t * d[(v * 4) + l]) + o[(v * 4) + l];
             var first = ((r[5] * pu) + (r[6] * pv)) + r[7];
             var second = ((r[8] * pu) + (r[9] * pv)) + r[10];
+            if (triangle == Watch)
+                WatchLog?.Add($"  lane {l}: o ({o[l]:R} {o[4 + l]:R} {o[8 + l]:R}) d ({d[l]:R} {d[4 + l]:R} {d[8 + l]:R}) t {t:R} a {first:R} b {second:R} sum {second + first:R} best {best[l]:R}");
             if (!(0f <= first && 0f <= second && (second + first) <= 1f))
                 continue;
             best[l] = t;

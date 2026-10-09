@@ -35,6 +35,74 @@ public class LightRayProbe(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// SCENEFLAGS=addon|map|survey.jsonl (capture_scenekd.py --bounds survey):
+    /// each of our triangle scenes' local box looked up among Valve's scenes,
+    /// counted by our scene kind and Valve's flag word.
+    /// </summary>
+    [Fact]
+    public void SceneFlagsAgainstSurvey()
+    {
+        if (Environment.GetEnvironmentVariable("SCENEFLAGS") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        if (MapFixtures.VmapSource(p[0], p[1]) is not { } source)
+            return;
+        var scene = (EditorTraceScene)SettleLumpTests.LightScene(MapSource.Read(source), source)!;
+        static string Key(IEnumerable<float> v) => string.Join(",", v.Select(x => MathF.Round(x, 2).ToString("R")));
+        var valve = new Dictionary<string, List<uint>>();
+        foreach (var line in File.ReadLines(p[2]))
+        {
+            var e = System.Text.Json.JsonDocument.Parse(line).RootElement;
+            if (!e.TryGetProperty("survey", out _))
+                continue;
+            var k = Key(e.GetProperty("box").EnumerateArray().Select(x => x.GetSingle()));
+            (valve.TryGetValue(k, out var l) ? l : valve[k] = []).Add(e.GetProperty("flags").GetUInt32());
+        }
+        var counts = new SortedDictionary<string, int>();
+        foreach (var (path, box, _) in scene.TriangleScenes())
+        {
+            var kind = string.Join("/", path.Split('/').Select(x => x.Split(' ')[0]));
+            var k = Key([box.Mins.X, box.Mins.Y, box.Mins.Z, box.Maxs.X, box.Maxs.Y, box.Maxs.Z]);
+            var found = valve.TryGetValue(k, out var fl) ? string.Join("|", fl.Distinct().Select(f => f.ToString("x"))) : "not found";
+            counts[$"{kind}: {found}"] = counts.GetValueOrDefault($"{kind}: {found}") + 1;
+            if (Environment.GetEnvironmentVariable("SCENEFLAGS_LIST") is { Length: > 0 } only && kind.StartsWith(only, StringComparison.Ordinal))
+                output.WriteLine($"  {path}: {found} box {k}");
+        }
+        foreach (var (k, n) in counts)
+            output.WriteLine($"{n,6} {k}");
+    }
+
+    /// <summary>
+    /// SCENEDUMP=addon|map|source|file: the triangles (local corners, flag word)
+    /// of every triangle scene under the top-level instance with that source
+    /// name ("smartprop 33513"), one JSON line per scene.
+    /// </summary>
+    [Fact]
+    public void DumpScene()
+    {
+        if (Environment.GetEnvironmentVariable("SCENEDUMP") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        if (MapFixtures.VmapSource(p[0], p[1]) is not { } source)
+            return;
+        var scene = (EditorTraceScene)SettleLumpTests.LightScene(MapSource.Read(source), source)!;
+        using var sink = new StreamWriter(p[3]);
+        void Walk(EditorTraceScene.Instance inst, string path)
+        {
+            if (inst.Children is { } kids)
+            {
+                foreach (var k in kids)
+                    Walk(k, path + "/" + k.Source);
+                return;
+            }
+            var tris = Enumerable.Range(0, inst.Flags.Length).Select(t => inst.Records.Skip(t * 22 + 13).Take(9).ToArray()).ToList();
+            sink.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { path, flags = inst.Flags, corners = tris }));
+        }
+        foreach (var inst in scene.Instances.Where(i => i.Source == p[2]))
+            Walk(inst, inst.Source);
+    }
+
+    /// <summary>
     /// LIGHTKEYS=addon|map|nodeId: one light's keys as the map holds them (with
     /// the FGD defaults it falls back on), how many records it makes, and the
     /// precomputed keys we write for it.
@@ -115,9 +183,20 @@ public class LightRayProbe(ITestOutputHelper output)
                 var ourSet = ourDist.Where(x => x >= 0).Select(x => MathF.Round(x, 2)).ToHashSet();
                 output.WriteLine($"valve distances found among ours (2 dp): {valveDist.Count(x => x >= 0 && ourSet.Contains(MathF.Round(x, 2)))} of {valveDist.Count(x => x >= 0)}");
             }
+            // LIGHTRAYCMP_WATCH=instance,triangle,call: the kd walk's visits and tests of that triangle during that call.
+            var watch = Environment.GetEnvironmentVariable("LIGHTRAYCMP_WATCH")?.Split(',').Select(int.Parse).ToArray();
+            var watchLog = new List<string>();
+            if (watch is not null && watch[2] == call)
+                scene.WatchTriangle(watch[0], watch[1], watchLog);
             // The call's rays go through as one batch, as Valve's do (packets by octant).
             var batch = Environment.GetEnvironmentVariable("LIGHTRAYCMP_SWAP") is not null ? null
                 : scene.TraceBatch([.. Enumerable.Range(0, n).Select(i => V(starts + 12 * i))], [.. Enumerable.Range(0, n).Select(i => V(ends + 12 * i))], 0xc00060b1);
+            if (watch is not null && watch[2] == call)
+            {
+                scene.WatchTriangle(watch[0], watch[1], null);
+                foreach (var line in watchLog)
+                    output.WriteLine("  watch " + line);
+            }
             for (var i = 0; i < n; i++)
             {
                 var (s, e) = (V(starts + 12 * i), V(ends + 12 * i));
@@ -140,15 +219,31 @@ public class LightRayProbe(ITestOutputHelper output)
                     verdict = "valve hit, ours passes";
                     if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null)
                         output.WriteLine($"  ray {call}:{i} ours passes; valve tri {tri} at {dist:F4}");
+                    if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null)
+                        foreach (var c in scene.FindTriangle(s, e, (int)tri, dist, 0.05f))
+                            output.WriteLine($"    candidate {c.Path} tri {tri} at {c.T:F4} denom {c.Denominator:G6} a {c.A:G6} b {c.B:G6} a+b {c.A + c.B:G7} flags {c.Flags:x}");
                     valveOnly[$"tri {tri}"] = valveOnly.GetValueOrDefault($"tri {tri}") + 1;
                 }
                 else if (MathF.Abs(ours.Value.Distance - dist) <= 1e-3f * MathF.Max(1f, dist))
+                {
                     verdict = "both hit, same distance";
+                    // LIGHTRAYCMP_BITS=1: also tell bit-equal distances from near ones.
+                    if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_BITS") is not null && ours.Value.Distance != dist)
+                    {
+                        verdict = "both hit, distance off by bits";
+                        if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null)
+                            output.WriteLine($"  ray {call}:{i} ours {scene.Instances[ours.Value.Instance].Source} tri {ours.Value.Triangle} at {ours.Value.Distance:R}; valve tri {tri} at {dist:R}");
+                    }
+                }
                 else
                 {
                     verdict = ours.Value.Distance < dist ? "both hit, ours nearer" : "both hit, ours farther";
                     if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null && ours.Value.Distance > dist)
+                    {
                         output.WriteLine($"  ray {call}:{i} ours {scene.Instances[ours.Value.Instance].Source} tri {ours.Value.Triangle} at {ours.Value.Distance:F4}; valve tri {tri} at {dist:F4} (ours FARTHER)");
+                        foreach (var c in scene.FindTriangle(s, e, (int)tri, dist, 0.05f))
+                            output.WriteLine($"    candidate {c.Path} tri {tri} at {c.T:F4} denom {c.Denominator:G6} a {c.A:G6} b {c.B:G6} a+b {c.A + c.B:G7} flags {c.Flags:x}");
+                    }
                     if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null && ours.Value.Distance < dist)
                     {
                         // What lies behind our hit: trace on from just past it.

@@ -288,7 +288,22 @@ game can answer is raised with the user first, and runs with -insecure.
     (light_barn 9479 exact). Open: Mako's 8 (light_rect 8385/8386 differ
     widely; the rest are OBB ties and 1-2 ray bounds), and ray 4:215 of
     1099 (we hit smartprop 33582's model, Valve passes; 1099's keys are
-    exact regardless).
+    exact regardless). Then the kd leaf size (capture_scenekd.py: Valve's
+    tree of mesh 9437's scene, 9 nodes against our 27): RefineNode
+    (181c16b90) splits a list past 10 triangles, or past 32 when the scene's
+    own flag word holds 0x10000. That word is not the owner flags we mask
+    with: a mesh's scene starts at 0x30000 (MapMeshGeometry_BuildRayScene
+    1813ce820) and reads 0xb0000 plus the owner bits in the light pass; a
+    static prop's mesh scenes carry the prop's 0x80b0000 word; smart prop
+    parts' scenes are 0 (survey of all 9,948 Mako scenes). With leaves of
+    32, the seven captured lights match every ray, mesh 9437's tree equals
+    Valve's node for node, and Mako's lump is down to one key (light_omni2
+    32488 face 5 extent, 8 ulps): smart prop part triangles differ from
+    Valve's by about 1e-5 (2,344 of that light's rays off by bits, all on
+    smart prop 33513), because Valve keeps the node's scale in the
+    container's instance (its part boxes are ours over 1.2, translations
+    differ too); being captured (capture_scenekd.py --bounds survey records
+    every AddInstance).
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.

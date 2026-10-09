@@ -30,6 +30,12 @@ public sealed partial class EditorTraceScene : ILightTracer
         /// <summary>The owner's flag word (the environment's first word).</summary>
         public uint ObjectFlags;
 
+        /// <summary>
+        /// The flag word of the instance's own scene (its first word), which
+        /// RefineNode reads: 0x10000 makes its kd leaves hold 32 triangles.
+        /// </summary>
+        internal uint SceneFlags;
+
         /// <summary>Per triangle: the 13 float record (FUN_180118e90), its flag word.</summary>
         internal float[] Records = [];
         internal ushort[] Flags = [];
@@ -113,7 +119,12 @@ public sealed partial class EditorTraceScene : ILightTracer
             var toWorld = (float[])mesh.World.Clone();
             Scale(toWorld, node.GetValue<Vector3>("scales") ?? Vector3.One);
             var triangles = LocalTriangles(node, materialFlags);
-            list.Add(MakeInstance(triangles, toWorld, flags, $"mesh {mesh.NodeId}"));
+            // The mesh's scene word starts at 0x30000 (MapMeshGeometry_BuildRayScene
+            // 1813ce820) and is 0xb0000 plus the owner bits by the light pass
+            // (capture_scenekd.py --bounds survey on Mako).
+            var instance = MakeInstance(triangles, toWorld, flags, $"mesh {mesh.NodeId}");
+            instance.SceneFlags = 0xb0000 | flags;
+            list.Add(instance);
         }
         return list;
     }
@@ -163,7 +174,13 @@ public sealed partial class EditorTraceScene : ILightTracer
             // The model's scene: each mesh's own scene at the identity.
             float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
             var children = meshes.Where(m => m.Count > 0)
-                .Select(m => MakeInstance([.. m.Select(t => (t.A, t.B, t.C, materialFlags(t.Material)))], identity, 0, "mesh"))
+                .Select(m =>
+                {
+                    // Each mesh scene carries the prop's owner word (0x80b0000 and up, survey).
+                    var mesh = MakeInstance([.. m.Select(t => (t.A, t.B, t.C, materialFlags(t.Material)))], identity, 0, "mesh");
+                    mesh.SceneFlags = 0x80b0000;
+                    return mesh;
+                })
                 .ToList();
             list.Add(new Instance
             {
@@ -373,6 +390,48 @@ public sealed partial class EditorTraceScene : ILightTracer
     /// </summary>
     /// <summary>Diagnostics: an instance's box in world space.</summary>
     internal (Vector3 Mins, Vector3 Maxs) BoxOf(int instance) => (_instances[instance].Mins, _instances[instance].Maxs);
+
+    /// <summary>
+    /// Diagnostics: every triangle numbered <paramref name="triangle"/> in any
+    /// scene, nested ones included, that the segment's line meets within
+    /// <paramref name="slack"/> of <paramref name="distance"/>, with the
+    /// plane's denominator, the two barycentric tests, its flag word and the
+    /// path of instances down to it.
+    /// </summary>
+    internal IEnumerable<(string Path, float Denominator, float T, float A, float B, ushort Flags)> FindTriangle(
+        Vector3 start, Vector3 end, int triangle, float distance, float slack)
+    {
+        var dir = Vector3.Normalize(end - start);
+        var found = new List<(string, float, float, float, float, ushort)>();
+        void Walk(Instance inst, string path, Vector3 o, Vector3 d, float scale)
+        {
+            var lo = Xf(inst.ToLocal, o);
+            var ld = Xf(inst.ToLocal, o + d) - lo;
+            var len = ld.Length();
+            ld /= len;
+            var s = scale / len;
+            if (inst.Children is { } kids)
+            {
+                for (var k = 0; k < kids.Count; k++)
+                    Walk(kids[k], $"{path}/{k} {kids[k].Source}", lo, ld, s);
+                return;
+            }
+            if (triangle >= inst.Flags.Length)
+                return;
+            var r = inst.Records.AsSpan(triangle * 22, 13);
+            var denom = (ld.Z * r[2] + ld.Y * r[1]) + ld.X * r[0];
+            var t = (r[3] - ((lo.Z * r[2] + lo.Y * r[1]) + r[0] * lo.X)) / denom;
+            if (!(MathF.Abs(t * s - distance) <= slack))
+                return;
+            int u = (int)r[11], v = (int)r[12];
+            var pu = t * Axis(ld, u) + Axis(lo, u);
+            var pv = t * Axis(ld, v) + Axis(lo, v);
+            found.Add(($"{path} local o {lo} d {ld}", denom, t * s, (r[5] * pu + r[6] * pv) + r[7], (r[8] * pu + r[9] * pv) + r[10], inst.Flags[triangle]));
+        }
+        for (var i = 0; i < _instances.Count; i++)
+            Walk(_instances[i], $"{i} {_instances[i].Source} flags {_instances[i].ObjectFlags:x}", start, dir, 1f);
+        return found;
+    }
 
     internal (float Denominator, float T, float A, float B)? Probe(int instance, int triangle, Vector3 start, Vector3 end)
     {

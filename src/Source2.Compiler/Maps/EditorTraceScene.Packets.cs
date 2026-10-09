@@ -162,6 +162,9 @@ public sealed partial class EditorTraceScene
             origins[l] = origin;
         }
 
+        if (inst.Kd?.WatchLog is { } watchLog)
+            for (var l = 0; l < 4; l++)
+                watchLog.Add($"enter lane {l}: o ({lo[l]:R} {lo[4 + l]:R} {lo[8 + l]:R}) d ({ld[l]:R} {ld[4 + l]:R} {ld[8 + l]:R}) range {lfrom[l]:R}..{lto[l]:R}");
         var t = new float[4];
         var tri = new int[4];
         var flags = new ushort[4];
@@ -274,13 +277,75 @@ public sealed partial class EditorTraceScene
         }
     }
 
+    /// <summary>Diagnostics: log the kd walk's visits and tests of one triangle of a top-level instance (null to stop).</summary>
+    internal void WatchTriangle(int instance, int triangle, List<string>? log)
+    {
+        var inst = _instances[instance];
+        EnsureKd(inst);
+        inst.Kd!.Watch = log is null ? -1 : triangle;
+        log?.Add($"bounds {inst.Kd.Bounds.Mins:R} .. {inst.Kd.Bounds.Maxs:R}, {inst.Kd.Nodes.Count} nodes, root axis {inst.Kd.Nodes[0].Axis} split {inst.Kd.Nodes[0].Split:R}");
+        if (log is not null)
+        {
+            void Paths(int node, string path)
+            {
+                var n = inst.Kd.Nodes[node];
+                if (n.Axis == 3)
+                {
+                    if (n.Slots.Contains(triangle))
+                        log.Add($"leaf {node} [{string.Join(",", n.Slots)}] via {path}");
+                    return;
+                }
+                Paths(n.Lower, $"{path} {"xyz"[n.Axis]}<{n.Split:R}");
+                Paths(n.Lower + 1, $"{path} {"xyz"[n.Axis]}>{n.Split:R}");
+            }
+            Paths(0, "");
+            void Dump(int node)
+            {
+                var n = inst.Kd.Nodes[node];
+                if (n.Axis == 3)
+                {
+                    log.Add("tree leaf " + string.Join(" ", n.Slots));
+                    return;
+                }
+                log.Add($"tree {n.Axis} {n.Split:R}");
+                Dump(n.Lower);
+                Dump(n.Lower + 1);
+            }
+            Dump(0);
+            var c = inst.Records.AsSpan(triangle * 22 + 13, 9);
+            log.Add($"corners ({c[0]:R} {c[1]:R} {c[2]:R}) ({c[3]:R} {c[4]:R} {c[5]:R}) ({c[6]:R} {c[7]:R} {c[8]:R})");
+        }
+        inst.Kd.WatchLog = log;
+    }
+
+    /// <summary>Diagnostics: every triangle-level scene, nested ones too, as (path, kind, local box, our scene flag word).</summary>
+    internal IEnumerable<(string Path, (Vector3 Mins, Vector3 Maxs) Box, uint Flags)> TriangleScenes()
+    {
+        var list = new List<(string, (Vector3, Vector3), uint)>();
+        void Walk(Instance inst, string path)
+        {
+            if (inst.Children is { } kids)
+            {
+                list.Add((path + " (container)", inst.ValveBox ?? default, inst.ObjectFlags));
+                foreach (var k in kids)
+                    Walk(k, path + "/" + k.Source);
+                return;
+            }
+            list.Add((path, new InstanceTriangles(inst).TracedBounds, inst.SceneFlags));
+        }
+        foreach (var inst in _instances)
+            Walk(inst, inst.Source);
+        return list;
+    }
+
     private static void EnsureKd(Instance inst)
     {
         if (inst.Kd is not null)
             return;
         var source = new InstanceTriangles(inst);
         var (mins, maxs) = source.TracedBounds;
-        inst.Kd = new TracerKd(source, [.. Enumerable.Range(0, inst.Flags.Length)], source.Corners, mins, maxs) { CullBackFaces = true };
+        inst.Kd = new TracerKd(source, [.. Enumerable.Range(0, inst.Flags.Length)], source.Corners, mins, maxs,
+                               (inst.SceneFlags & 0x10000) != 0 ? TracerKd.WideLeafSize : TracerKd.LeafSize) { CullBackFaces = true };
     }
 
     /// <summary>
