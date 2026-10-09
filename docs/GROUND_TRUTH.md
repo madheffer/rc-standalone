@@ -263,18 +263,18 @@ game can answer is raised with the user first, and runs with -insecure.
     mesh scene's tree to check the build.
     2026-10-09, ported (EditorTraceScene.Packets): the light pass traces in
     packets of four. RayBatch_Add (181c1bf10) files a segment by its delta's
-    sign octant (dx &lt; 0 bit 0, dy bit 1, dz bit 2) and traces four at once;
+    sign octant (dx < 0 bit 0, dy bit 1, dz bit 2) and traces four at once;
     RayBatch_Flush (181c1c530) pads a short packet with its first ray. The
     instance tree (built by 181c1ae90, one instance per leaf, boxes the
     TransformAABB of each scene's box) passes the whole packet when any lane
-    meets a node (181c15d00: exact 1/d, start &lt; far, near &lt;= far, near &lt;
+    meets a node (181c15d00: exact 1/d, start < far, near <= far, near <
     range). In an instance's space, lanes whose direction sign bits (so -0
     is negative) differ are traced octant group by group (181c02a20), each
     sub-packet keeping every lane's origin and range and filling the other
     lanes' directions with its first lane's; a scene of scenes then runs its
     own instance pass with the whole packet. Mode 2 (181c0a000) is the
     visbuilder's kd walk (TracerKd, now IKdTriangles): every lane tested
-    against each visited leaf (t &lt; best, best starting at 1e23, no range
+    against each visited leaf (t < best, best starting at 1e23, no range
     check), a 256-entry mailbox, back faces culled unless flag 2. A lone ray
     is a packet of four copies. Result: light 1099 differs on 1 ray of
     172,032, 32719 on none; Mako's lump from 105 lights (349 keys) to 9 (25);
