@@ -19,6 +19,21 @@ namespace Source2.Compiler.Maps;
 /// the splits and each leaf's triangles in order do not, and those are all a
 /// query can observe.</para>
 /// </summary>
+/// <summary>
+/// What <see cref="TracerKd"/> traces: the triangles' records (13 floats,
+/// CacheOptimizedTriangle), flag words and corners, and the scene's box.
+/// </summary>
+internal interface IKdTriangles
+{
+    (Vector3 Mins, Vector3 Maxs) TracedBounds { get; }
+
+    ReadOnlySpan<float> TracedRecord(int index);
+
+    ushort Flags(int index);
+
+    Vector3[]? TracedCorners(int index);
+}
+
 internal sealed class TracerKd
 {
     /// <summary>A leaf holds at most this many triangles before a split is tried.</summary>
@@ -30,7 +45,14 @@ internal sealed class TracerKd
     /// <summary>Cost of testing a triangle, and of stepping a node.</summary>
     public const float Intersect = 167f, Traverse = 75f;
 
-    private readonly RayTraceEnvironment _rte;
+    private readonly IKdTriangles _rte;
+
+    /// <summary>
+    /// The light pass's triangle test (RayScene_TraceMode2, 181c0a000): only
+    /// front faces (denominator below 0) unless the triangle's flag word holds
+    /// 2. Off, the visibility tracer's mode 0 takes both sides.
+    /// </summary>
+    public bool CullBackFaces { get; init; }
     private readonly float[] _bounds;   // per slot: minx maxx miny maxy minz maxz
     private readonly int[] _slots;      // slot -> file triangle
     private readonly Func<int, float[]> _corners;
@@ -55,7 +77,7 @@ internal sealed class TracerKd
     /// box: how resourcecompiler's writer builds the tree the .rte carries,
     /// over every triangle it collected, from their own corners.
     /// </summary>
-    internal TracerKd(RayTraceEnvironment rte, int[] slots, Func<int, float[]> corners, Vector3 mins, Vector3 maxs)
+    internal TracerKd(IKdTriangles rte, int[] slots, Func<int, float[]> corners, Vector3 mins, Vector3 maxs)
     {
         _rte = rte;
         _slots = slots;
@@ -294,10 +316,8 @@ internal sealed class TracerKd
     {
         Span<float> o = stackalloc float[12];     // axis * 4 + lane
         Span<float> d = stackalloc float[12];
-        Span<float> inv = stackalloc float[12];
         Span<float> length = stackalloc float[4];
         Span<float> tmin = stackalloc float[4];
-        Span<float> tmax = stackalloc float[4];
         Span<float> best = stackalloc float[4];
         Span<int> found = stackalloc int[4];
         for (var l = 0; l < 4; l++)
@@ -319,14 +339,43 @@ internal sealed class TracerKd
             d[4 + l] = dy * scale;
             d[8 + l] = dz * scale;
         }
+        tmin.Clear();
+        Cast(o, d, tmin, length, octant, mask, best, found);
+
+        for (var l = 0; l < lanes.Count; l++)
+        {
+            if (found[l] < 0 || length[l] < best[l])
+                continue;
+            var r = _rte.TracedRecord(found[l]);
+            hits[lanes[l]] = new RayTraceEnvironment.Hit(best[l], found[l], new Vector3(r[0], r[1], r[2]), r[3]);
+        }
+    }
+
+    /// <summary>
+    /// Four rays already normalised (axis * 4 + lane), each with its range:
+    /// the inverse directions refined from rcpps, the range clipped to the
+    /// tree's box, then the walk. Each lane's nearest hit (t and triangle, or
+    /// 1e23 and -1) with no cut at the range: RayScene_TraceMode2 (181c0a000)
+    /// as the instance pass calls it.
+    /// </summary>
+    internal void Cast(ReadOnlySpan<float> origin, ReadOnlySpan<float> direction, ReadOnlySpan<float> from, ReadOnlySpan<float> to,
+                       int octant, ushort mask, Span<float> best, Span<int> found)
+    {
+        Span<float> o = stackalloc float[12];
+        Span<float> d = stackalloc float[12];
+        Span<float> inv = stackalloc float[12];
+        Span<float> tmin = stackalloc float[4];
+        Span<float> tmax = stackalloc float[4];
+        origin.CopyTo(o);
+        direction.CopyTo(d);
         for (var k = 0; k < 12; k++)
             inv[k] = RayTraceEnvironment.Refined(Guard(d[k]));
 
         var (bmin, bmax) = _rte.TracedBounds;
         for (var l = 0; l < 4; l++)
         {
-            tmin[l] = 0f;
-            tmax[l] = length[l];
+            tmin[l] = from[l];
+            tmax[l] = to[l];
             best[l] = 1e23f;
             found[l] = -1;
             for (var a = 0; a < 3; a++)
@@ -344,14 +393,6 @@ internal sealed class TracerKd
             any |= tmin[l] <= tmax[l];
         if (_slots.Length > 0 && any)
             Walk(o, d, inv, tmin, tmax, best, found, octant, mask);
-
-        for (var l = 0; l < lanes.Count; l++)
-        {
-            if (found[l] < 0 || length[l] < best[l])
-                continue;
-            var r = _rte.TracedRecord(found[l]);
-            hits[lanes[l]] = new RayTraceEnvironment.Hit(best[l], found[l], new Vector3(r[0], r[1], r[2]), r[3]);
-        }
     }
 
     // FUN_180115760's walk. The packet's octant picks each axis' near child;
@@ -442,6 +483,8 @@ internal sealed class TracerKd
             float dx = d[l], dy = d[4 + l], dz = d[8 + l];
             var denom = ((dz * nz) + (dy * ny)) + (dx * nx);
             if (!(1e-10f < denom || denom < -1e-10f))
+                continue;
+            if (CullBackFaces && !(denom < 0f) && (_rte.Flags(triangle) & 2) == 0)
                 continue;
             var t = (plane - (((oz * nz) + (oy * ny)) + (nx * ox))) / denom;
             if (!(0f < t && t < best[l]))

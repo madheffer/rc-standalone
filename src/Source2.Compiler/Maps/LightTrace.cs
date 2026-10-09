@@ -14,6 +14,19 @@ public interface ILightTracer
     /// through <see cref="Trace"/>.
     /// </summary>
     LightTraceHit? Hit(Vector3 start, Vector3 end, uint mask) => Trace(start, end) is { } d ? new LightTraceHit(d, 0) : null;
+
+    /// <summary>
+    /// Every segment's first hit under one mask, as one batch (RayBatch_Add for
+    /// each, then RayBatch_Flush): a scene whose answers depend on which rays
+    /// share a packet groups them as Valve's batch does. One at a time here.
+    /// </summary>
+    LightTraceHit?[] HitAll(IReadOnlyList<Vector3> starts, IReadOnlyList<Vector3> ends, uint mask)
+    {
+        var hits = new LightTraceHit?[starts.Count];
+        for (var k = 0; k < hits.Length; k++)
+            hits[k] = Hit(starts[k], ends[k], mask);
+        return hits;
+    }
 }
 
 /// <summary>A hit: the distance along the segment and the triangle's flag word.</summary>
@@ -233,6 +246,7 @@ public static class LightTrace
 
         var points = new List<Vector3> { starts[0] };
         var second = new List<(int Ray, Vector3 From, Vector3 To)>();
+        var firstHits = scene.HitAll(starts, ends, 0xc00060b1);
         for (var k = 0; k < count; k++)
         {
             var s = starts[k];
@@ -251,7 +265,7 @@ public static class LightTrace
                 unit = Vector3.Zero;
             else
                 unit = VectorNormalizeSlow.Normalise(new Vector3(dx, dy, dz));
-            if (scene.Hit(s, e, 0xc00060b1) is { } hit)
+            if (firstHits[k] is { } hit)
             {
                 // A triangle with flag 8 queues a second ray, from the
                 // segment's end to start + unit * length (the segment's own
@@ -268,9 +282,11 @@ public static class LightTrace
         }
         // The second rays' hits (LightPrecompute_TraceRay after its flush):
         // the point along the second ray becomes the ray's end and a point.
-        foreach (var (ray, from, to) in second)
+        var secondHits = scene.HitAll([.. second.Select(x => x.From)], [.. second.Select(x => x.To)], 8);
+        for (var j = 0; j < second.Count; j++)
         {
-            if (scene.Hit(from, to, 8) is not { } back)
+            var (ray, from, to) = second[j];
+            if (secondHits[j] is not { } back)
                 continue;
             float dx = to.X - from.X, dy = to.Y - from.Y, dz = to.Z - from.Z;
             var length = MathF.Sqrt((dz * dz + dy * dy) + dx * dx);

@@ -261,6 +261,29 @@ game can answer is raised with the user first, and runs with -insecure.
     misses. Next: port RayScene's kd tree build and traversal (rc
     RayScene_AddTriangles and the 181c0a000 caller), then capture one
     mesh scene's tree to check the build.
+    2026-10-09, ported (EditorTraceScene.Packets): the light pass traces in
+    packets of four. RayBatch_Add (181c1bf10) files a segment by its delta's
+    sign octant (dx &lt; 0 bit 0, dy bit 1, dz bit 2) and traces four at once;
+    RayBatch_Flush (181c1c530) pads a short packet with its first ray. The
+    instance tree (built by 181c1ae90, one instance per leaf, boxes the
+    TransformAABB of each scene's box) passes the whole packet when any lane
+    meets a node (181c15d00: exact 1/d, start &lt; far, near &lt;= far, near &lt;
+    range). In an instance's space, lanes whose direction sign bits (so -0
+    is negative) differ are traced octant group by group (181c02a20), each
+    sub-packet keeping every lane's origin and range and filling the other
+    lanes' directions with its first lane's; a scene of scenes then runs its
+    own instance pass with the whole packet. Mode 2 (181c0a000) is the
+    visbuilder's kd walk (TracerKd, now IKdTriangles): every lane tested
+    against each visited leaf (t &lt; best, best starting at 1e23, no range
+    check), a 256-entry mailbox, back faces culled unless flag 2. A lone ray
+    is a packet of four copies. Result: light 1099 differs on 1 ray of
+    172,032, 32719 on none; Mako's lump from 105 lights (349 keys) to 9 (25);
+    atixref (6 to 0), s2c_prefabprobe3 (5 to 0) and 4 (8 to 0) exact. The kd
+    walk alone (one ray at a time) fixed nothing (104 lights) and a per-ray
+    box test made it worse (110): the packets are the rule. Open: Mako's 9
+    (light_barn 9479 gets no precomputed keys from us; 8385/8386 differ
+    widely; the rest are OBB ties and 1-2 ray bounds), and ray 4:215 of
+    1099 (we hit smartprop 33582's model, Valve passes).
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.
@@ -442,8 +465,9 @@ game can answer is raised with the user first, and runs with -insecure.
     2,643,577 nodes and boxes, 25,471 cluster boxes), the scan (25,473
     matrix rows), the vis-cluster merge (4,096 clusters, entries and boxes)
     and the borders (1,176,083 entries, consolidated entries) all equal
-    Valve's. Only the final VXVS comparison is still to run (the test now
-    keeps ours as <map>.ours.vxvs first).
+    Valve's. The VXVS too (VisChainTests.SavedAgainstShipped on that run's
+    <map>.ours.vxvs): 6,561,250 bytes, byte-equal to the shipped vvis_c of
+    both full compiles in %TEMP%/gt. Mako's vis is exact end to end.
 
 52. **The settle's dynamic order** (settled 2026-10-05: Valve's own output
     varies). MapSettle_Run (rc 180f1e490) takes its nodes from PhysDoc_GetNodes

@@ -15,6 +15,29 @@ public class VisChainTests(ITestOutputHelper output)
 {
     private sealed class Parted(string why) : Exception(why);
 
+    /// <summary>
+    /// VISCHAIN_SAVED=&lt;addon or .vpk path&gt;|&lt;map&gt;|&lt;file&gt;: a VXVS a run saved
+    /// (often on the dev box) against the package's shipped vvis_c, with the first byte
+    /// that differs.
+    /// </summary>
+    [Fact]
+    public void SavedAgainstShipped()
+    {
+        if (Environment.GetEnvironmentVariable("VISCHAIN_SAVED") is not { Length: > 0 } spec)
+            return;
+        var parts = spec.Split('|');
+        var vpk = parts[0].EndsWith(".vpk", StringComparison.OrdinalIgnoreCase) ? parts[0]
+            : Path.Combine(Path.GetDirectoryName(CS2Fixtures.StockPak()!)!, "..", "csgo_addons", parts[0], "maps", parts[1] + ".vpk");
+        using var package = new ValvePak.Package();
+        package.Read(vpk);
+        package.ReadEntry(package.Entries["vvis_c"].First(), out var bytes);
+        var theirs = Source2.Compiler.Maps.VoxelVisibilityReader.Read(bytes).WriteVxvs();
+        var ours = File.ReadAllBytes(parts[2]);
+        var first = ours.AsSpan().CommonPrefixLength(theirs);
+        output.WriteLine($"VXVS ours {ours.Length:n0} valve {theirs.Length:n0}, first differing byte {(first == Math.Min(ours.Length, theirs.Length) && ours.Length == theirs.Length ? "none" : first.ToString("n0"))}");
+        Assert.Equal(theirs, ours);
+    }
+
     [Fact]
     public void FirstStageThatParts()
     {

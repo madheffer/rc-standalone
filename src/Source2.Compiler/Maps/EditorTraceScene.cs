@@ -16,7 +16,7 @@ namespace Source2.Compiler.Maps;
 /// and a ray's mask skips the whole object; each triangle carries its own
 /// flag word. See <see cref="Trace(Vector3, Vector3, uint)"/> for the ray.
 /// </summary>
-public sealed class EditorTraceScene : ILightTracer
+public sealed partial class EditorTraceScene : ILightTracer
 {
     /// <summary>The light precompute's first pass mask (LightPrecompute_TraceRay).</summary>
     public const uint LightMask = 0xc00060b1;
@@ -46,6 +46,14 @@ public sealed class EditorTraceScene : ILightTracer
 
         internal Vector3 Mins, Maxs;
         internal Bvh? Tree;
+        internal TracerKd? Kd;
+
+        /// <summary>
+        /// The instance's box as Valve's scene holds it (RayScene_SetInstanceTransform
+        /// +0x70): its scene's box (every local corner) through Matrix3x4_TransformAABB
+        /// (18125cd10, centre and extents). Set by Prepare.
+        /// </summary>
+        internal (Vector3 Mins, Vector3 Maxs)? ValveBox;
         internal int Count => Children is { } c ? c.Count : Flags.Length;
     }
 
@@ -330,62 +338,21 @@ public sealed class EditorTraceScene : ILightTracer
         => Trace(start, end, mask) is { } h ? new LightTraceHit(h.Distance, h.Flags) : null;
 
     /// <summary>
-    /// One segment through the batch tracer in mode 2 (FUN_181c1d010 into
-    /// 181c0a000 and the instance pass 181c10ea0). The direction is the
-    /// segment times the refined rcpps of its length; every instance whose
-    /// owner flags miss the mask is traced in its own space: the origin and
-    /// origin + direction moved by the inverse, the local direction scaled by
-    /// a refined rsqrtps, the range by the refined rcpps of that. A triangle
-    /// counts when its flags miss the mask, its plane faces the ray (unless
-    /// flag 2, render back faces) by more than 1e-10, 0 &lt; t, and the point
-    /// is inside its edges. The local hit is moved back to the world and its
-    /// distance from the origin measured; the nearest wins (strictly), and a
-    /// hit beyond the segment's length is none.
+    /// One segment as Valve's batch traces a lone ray: RayBatch_Flush pads its
+    /// packet with three copies of it (see <see cref="TracePacket"/>). The
+    /// direction is the segment times the refined rcpps of its length; every
+    /// instance whose owner flags miss the mask and whose box the ray meets is
+    /// traced in its own space, the nearest hit wins (strictly), and a hit
+    /// beyond the segment's length is none.
     /// </summary>
-    public SceneHit? Trace(Vector3 start, Vector3 end, uint mask)
-    {
-        var delta = new Vector3(end.X - start.X, end.Y - start.Y, end.Z - start.Z);
-        var length = MathF.Sqrt((delta.Z * delta.Z + delta.Y * delta.Y) + delta.X * delta.X);
-        var guarded = MathF.Abs(length) < 1.17549435e-38f
-            ? BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(length) | BitConverter.SingleToInt32Bits(1.1920929e-07f))
-            : length;
-        var scale = RayTraceEnvironment.Refined(guarded);
-        var dir = new Vector3(delta.X * scale, delta.Y * scale, delta.Z * scale);
+    public SceneHit? Trace(Vector3 start, Vector3 end, uint mask) => TraceBatch([start], [end], mask)[0];
 
-        SceneHit? best = null;
-        var inverse = new Vector3(1f / dir.X, 1f / dir.Y, 1f / dir.Z);
-        Span<int> stack = stackalloc int[256];
-        var top = 0;
-        if (_instances.Count > 0)
-            stack[top++] = 0;
-        while (top > 0)
-        {
-            var node = stack[--top];
-            if (!_top.Enters(node, start, inverse, length))
-                continue;
-            var (first, count, left) = _top.Node(node);
-            if (count == 0)
-            {
-                stack[top++] = left;
-                stack[top++] = left + 1;
-                continue;
-            }
-            for (var k = first; k < first + count; k++)
-            {
-                var index = _top.Items[k];
-                var inst = _instances[index];
-                if ((inst.ObjectFlags & mask) != 0)
-                    continue;
-                if (TraceInstance(inst, start, dir, length, mask) is not { } h)
-                    continue;
-                if (best is null || h.Distance < best.Value.Distance)
-                    best = h with { Instance = index };
-            }
-        }
-        return best is { } b && length < b.Distance ? null : best;
-    }
-
-    /// <summary>An instance's tree over its triangles or its children, and its box in its parent's space.</summary>
+    /// <summary>
+    /// An instance's box in its parent's space as Valve's scene holds it (see
+    /// <see cref="ValveBoxOf"/>) and, for a scene of scenes, a tree over its
+    /// children's boxes (ours, padded; it only prunes what the box tests would
+    /// refuse anyway).
+    /// </summary>
     private static void Prepare(Instance inst)
     {
         if (inst.Children is { } children)
@@ -393,114 +360,9 @@ public sealed class EditorTraceScene : ILightTracer
             foreach (var child in children)
                 Prepare(child);
             inst.Tree = Bvh.Build(children.Count, i => (children[i].Mins, children[i].Maxs));
-            Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
-            foreach (var child in children)
-                for (var k = 0; k < 8; k++)
-                {
-                    var corner = new Vector3((k & 1) == 0 ? child.Mins.X : child.Maxs.X, (k & 2) == 0 ? child.Mins.Y : child.Maxs.Y,
-                                             (k & 4) == 0 ? child.Mins.Z : child.Maxs.Z);
-                    var w = Xf(inst.ToWorld, corner);
-                    lo = Vector3.Min(lo, w);
-                    hi = Vector3.Max(hi, w);
-                }
-            (inst.Mins, inst.Maxs) = (lo, hi);
-            return;
         }
-        inst.Tree = Bvh.Build(inst.Count, t => Box(inst, t));
-        (inst.Mins, inst.Maxs) = WorldBox(inst);
-    }
-
-    private static SceneHit? TraceInstance(Instance inst, Vector3 origin, Vector3 dir, float tmax, uint mask)
-    {
-        var m = inst.ToLocal;
-        var lo = Xf(m, origin);
-        var p2 = new Vector3(origin.X + dir.X, origin.Y + dir.Y, origin.Z + dir.Z);
-        var lp = Xf(m, p2);
-        var ld = new Vector3(lp.X - lo.X, lp.Y - lo.Y, lp.Z - lo.Z);
-        var l2 = (ld.Y * ld.Y + ld.X * ld.X) + ld.Z * ld.Z;
-        var r = Rsqrt(l2);
-        var invLen = (r * (3f - (r * r) * l2)) * 0.5f;
-        ld = new Vector3(ld.X * invLen, ld.Y * invLen, ld.Z * invLen);
-        var c = Rcp(invLen);
-        var len = (c + c) - (c * c) * invLen;
-        var localMax = len * tmax;
-
-        var best = float.NaN;
-        var bestTriangle = -1;
-        ushort bestFlags = 0;
-        var inverse = new Vector3(1f / ld.X, 1f / ld.Y, 1f / ld.Z);
-        var tree = inst.Tree!;
-        if (inst.Children is { } children)
-        {
-            // The next level down: each child's scene traced from the ray as
-            // this level sees it; the nearest hit, in this level's units.
-            Span<int> nodes = stackalloc int[256];
-            var depth = 0;
-            nodes[depth++] = 0;
-            while (depth > 0)
-            {
-                var node = nodes[--depth];
-                if (!tree.Enters(node, lo, inverse, localMax))
-                    continue;
-                var (first, count, left) = tree.Node(node);
-                if (count == 0)
-                {
-                    nodes[depth++] = left;
-                    nodes[depth++] = left + 1;
-                    continue;
-                }
-                for (var k = first; k < first + count; k++)
-                {
-                    var child = children[tree.Items[k]];
-                    if ((child.ObjectFlags & mask) != 0 || TraceInstance(child, lo, ld, localMax, mask) is not { } h
-                        || localMax < h.Distance)
-                        continue;
-                    if (float.IsNaN(best) || h.Distance < best)
-                        (best, bestFlags, bestTriangle) = (h.Distance, h.Flags, h.Triangle);
-                }
-            }
-            if (float.IsNaN(best))
-                return null;
-            var inner = new Vector3(best * ld.X + lo.X, best * ld.Y + lo.Y, best * ld.Z + lo.Z);
-            var up = Xf(inst.ToWorld, inner);
-            float ux = up.X - origin.X, uy = up.Y - origin.Y, uz = up.Z - origin.Z;
-            return new SceneHit(MathF.Sqrt((uz * uz + uy * uy) + ux * ux), bestFlags, -1, bestTriangle);
-        }
-        Span<int> stack = stackalloc int[256];
-        var top = 0;
-        stack[top++] = 0;
-        while (top > 0)
-        {
-            var node = stack[--top];
-            if (!tree.Enters(node, lo, inverse, localMax))
-                continue;
-            var (first, count, left) = tree.Node(node);
-            if (count == 0)
-            {
-                stack[top++] = left;
-                stack[top++] = left + 1;
-                continue;
-            }
-            for (var k = first; k < first + count; k++)
-            {
-                var t = tree.Items[k];
-                if ((inst.Flags[t] & mask) != 0)
-                    continue;
-                var limit = float.IsNaN(best) ? 1e23f : best;
-                if (Meets(inst.Records.AsSpan(t * 22, 13), (inst.Flags[t] & 2) != 0, lo, ld, limit) is { } hit
-                    && (float.IsNaN(best) || hit < best || (hit == best && t < bestTriangle)))
-                    (best, bestTriangle) = (hit, t);
-            }
-        }
-        if (float.IsNaN(best))
-            return null;
-        var local = new Vector3(best * ld.X + lo.X, best * ld.Y + lo.Y, best * ld.Z + lo.Z);
-        var w = Xf(inst.ToWorld, local);
-        var dx = w.X - origin.X;
-        var dy = w.Y - origin.Y;
-        var dz = w.Z - origin.Z;
-        var distance = MathF.Sqrt((dz * dz + dy * dy) + dx * dx);
-        return new SceneHit(distance, inst.Flags[bestTriangle], -1, bestTriangle);
+        inst.ValveBox = ValveBoxOf(inst);
+        (inst.Mins, inst.Maxs) = inst.ValveBox.Value;
     }
 
     /// <summary>
@@ -509,6 +371,9 @@ public sealed class EditorTraceScene : ILightTracer
     /// local units and the two barycentric tests (a hit wants both at least 0
     /// and their sum at most 1). Null for a scene of scenes.
     /// </summary>
+    /// <summary>Diagnostics: an instance's box in world space.</summary>
+    internal (Vector3 Mins, Vector3 Maxs) BoxOf(int instance) => (_instances[instance].Mins, _instances[instance].Maxs);
+
     internal (float Denominator, float T, float A, float B)? Probe(int instance, int triangle, Vector3 start, Vector3 end)
     {
         var inst = _instances[instance];
@@ -528,25 +393,83 @@ public sealed class EditorTraceScene : ILightTracer
         return (denom, t, (r[5] * pu + r[6] * pv) + r[7], (r[8] * pu + r[9] * pv) + r[10]);
     }
 
-    // 181c0a000's triangle test (mode 2, back faces culled).
-    private static float? Meets(ReadOnlySpan<float> r, bool twoSided, Vector3 o, Vector3 d, float best)
+    /// <summary>
+    /// A triangle-level instance's triangles as the light scene's kd tree sees
+    /// them (RayTracingEnvironment::SetupAccelerationStructure, rc 181c19be0):
+    /// each record's 13 floats, its flag word, its local corners, and the box of
+    /// every corner.
+    /// </summary>
+    private sealed class InstanceTriangles : IKdTriangles
     {
-        float nx = r[0], ny = r[1], nz = r[2], plane = r[3];
-        var denom = (d.Z * nz + d.Y * ny) + d.X * nx;
-        var ok = denom < -1.00000001e-10f || 1.00000001e-10f < denom;
-        if (!twoSided)
-            ok &= denom < 0f;
-        if (!ok)
-            return null;
-        var t = (plane - ((o.Z * nz + o.Y * ny) + nx * o.X)) / denom;
-        if (!(0f < t && t < best))
-            return null;
-        int u = (int)r[11], v = (int)r[12];
-        var pu = t * Axis(d, u) + Axis(o, u);
-        var pv = t * Axis(d, v) + Axis(o, v);
-        var a = (r[5] * pu + r[6] * pv) + r[7];
-        var b = (r[8] * pu + r[9] * pv) + r[10];
-        return 0f <= a && 0f <= b && b + a <= 1f ? t : null;
+        private readonly Instance _inst;
+
+        public InstanceTriangles(Instance inst)
+        {
+            _inst = inst;
+            Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
+            for (var t = 0; t < inst.Flags.Length; t++)
+                for (var k = 0; k < 3; k++)
+                {
+                    var c = inst.Records.AsSpan(t * 22 + 13 + k * 3, 3);
+                    var v = new Vector3(c[0], c[1], c[2]);
+                    lo = Vector3.Min(lo, v);
+                    hi = Vector3.Max(hi, v);
+                }
+            TracedBounds = (lo, hi);
+        }
+
+        public (Vector3 Mins, Vector3 Maxs) TracedBounds { get; }
+
+        public ReadOnlySpan<float> TracedRecord(int index) => _inst.Records.AsSpan(index * 22, 13);
+
+        public ushort Flags(int index) => _inst.Flags[index];
+
+        public Vector3[]? TracedCorners(int index)
+        {
+            var c = _inst.Records.AsSpan(index * 22 + 13, 9);
+            return [new(c[0], c[1], c[2]), new(c[3], c[4], c[5]), new(c[6], c[7], c[8])];
+        }
+
+        public float[] Corners(int index) => _inst.Records.AsSpan(index * 22 + 13, 9).ToArray();
+    }
+
+    /// <summary>
+    /// The instance's box (RayScene_SetInstanceTransform +0x70, set in
+    /// SetupAccelerationStructure 181c19be0): its scene's box through
+    /// Matrix3x4_TransformAABB (18125cd10, centre and extents). A scene of
+    /// triangles is boxed by its local corners; a scene of scenes by the union
+    /// of its instances' boxes (the root of its instance tree); an empty one
+    /// stays inverted.
+    /// </summary>
+    private static (Vector3, Vector3) ValveBoxOf(Instance inst)
+    {
+        Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
+        if (inst.Children is { } kids)
+            foreach (var k in kids)
+            {
+                k.ValveBox ??= ValveBoxOf(k);
+                lo = Vector3.Min(lo, k.ValveBox.Value.Mins);
+                hi = Vector3.Max(hi, k.ValveBox.Value.Maxs);
+            }
+        else
+            for (var t = 0; t < inst.Flags.Length; t++)
+                for (var k = 0; k < 3; k++)
+                {
+                    var c = inst.Records.AsSpan(t * 22 + 13 + k * 3, 3);
+                    lo = Vector3.Min(lo, new Vector3(c[0], c[1], c[2]));
+                    hi = Vector3.Max(hi, new Vector3(c[0], c[1], c[2]));
+                }
+        // An empty scene's box stays inverted (SetupAccelerationStructure skips the transform).
+        if (hi.X < lo.X || hi.Y < lo.Y || hi.Z < lo.Z)
+            return (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+        var m = inst.ToWorld;
+        var cen = new Vector3((hi.X + lo.X) * 0.5f, (hi.Y + lo.Y) * 0.5f, (hi.Z + lo.Z) * 0.5f);
+        float ex = hi.X - cen.X, ey = hi.Y - cen.Y, ez = hi.Z - cen.Z;
+        var cw = MapMeshes.Transform(m, cen);
+        var wx = MathF.Abs(ey * m[1]) + MathF.Abs(ex * m[0]) + MathF.Abs(ez * m[2]);
+        var wy = MathF.Abs(ey * m[5]) + MathF.Abs(ex * m[4]) + MathF.Abs(ez * m[6]);
+        var wz = MathF.Abs(ey * m[9]) + MathF.Abs(ex * m[8]) + MathF.Abs(ez * m[10]);
+        return (new Vector3(cw.X - wx, cw.Y - wy, cw.Z - wz), new Vector3(wx + cw.X, wy + cw.Y, wz + cw.Z));
     }
 
     private static float Axis(Vector3 v, int axis) => axis == 0 ? v.X : axis == 1 ? v.Y : v.Z;
@@ -554,29 +477,6 @@ public sealed class EditorTraceScene : ILightTracer
     private static float Rsqrt(float x) => Simulation.CpuEstimate.Rsqrt(x);
 
     private static float Rcp(float x) => Simulation.CpuEstimate.Rcp(x);
-
-    private static (Vector3, Vector3) Box(Instance inst, int t)
-    {
-        var c = inst.Records.AsSpan(t * 22 + 13, 9);
-        var a = new Vector3(c[0], c[1], c[2]);
-        var b = new Vector3(c[3], c[4], c[5]);
-        var e = new Vector3(c[6], c[7], c[8]);
-        return (Vector3.Min(a, Vector3.Min(b, e)), Vector3.Max(a, Vector3.Max(b, e)));
-    }
-
-    private static (Vector3, Vector3) WorldBox(Instance inst)
-    {
-        Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
-        for (var t = 0; t < inst.Count; t++)
-            for (var k = 0; k < 3; k++)
-            {
-                var c = inst.Records.AsSpan(t * 22 + 13 + k * 3, 3);
-                var w = Xf(inst.ToWorld, new Vector3(c[0], c[1], c[2]));
-                lo = Vector3.Min(lo, w);
-                hi = Vector3.Max(hi, w);
-            }
-        return (lo, hi);
-    }
 
     /// <summary>A bounding volume hierarchy over boxes, padded so a ray on a face is never cut.</summary>
     internal sealed class Bvh

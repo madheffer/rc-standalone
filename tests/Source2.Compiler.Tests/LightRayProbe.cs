@@ -84,6 +84,9 @@ public class LightRayProbe(ITestOutputHelper output)
                 var ourSet = ourDist.Where(x => x >= 0).Select(x => MathF.Round(x, 2)).ToHashSet();
                 output.WriteLine($"valve distances found among ours (2 dp): {valveDist.Count(x => x >= 0 && ourSet.Contains(MathF.Round(x, 2)))} of {valveDist.Count(x => x >= 0)}");
             }
+            // The call's rays go through as one batch, as Valve's do (packets by octant).
+            var batch = Environment.GetEnvironmentVariable("LIGHTRAYCMP_SWAP") is not null ? null
+                : scene.TraceBatch([.. Enumerable.Range(0, n).Select(i => V(starts + 12 * i))], [.. Enumerable.Range(0, n).Select(i => V(ends + 12 * i))], 0xc00060b1);
             for (var i = 0; i < n; i++)
             {
                 var (s, e) = (V(starts + 12 * i), V(ends + 12 * i));
@@ -91,7 +94,7 @@ public class LightRayProbe(ITestOutputHelper output)
                     (s, e) = (e, s);
                 var tri = BitConverter.ToUInt32(data, results + 0x38 * i + 0xc);
                 var dist = BitConverter.ToSingle(data, results + 0x38 * i + 0x10);
-                var ours = scene.Trace(s, e, 0xc00060b1);
+                var ours = batch is null ? scene.Trace(s, e, 0xc00060b1) : batch[i];
                 string verdict;
                 if (tri == 0xffffffff && ours is null)
                     verdict = "both pass";
@@ -104,6 +107,8 @@ public class LightRayProbe(ITestOutputHelper output)
                 else if (ours is null)
                 {
                     verdict = "valve hit, ours passes";
+                    if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null)
+                        output.WriteLine($"  ray {call}:{i} ours passes; valve tri {tri} at {dist:F4}");
                     valveOnly[$"tri {tri}"] = valveOnly.GetValueOrDefault($"tri {tri}") + 1;
                 }
                 else if (MathF.Abs(ours.Value.Distance - dist) <= 1e-3f * MathF.Max(1f, dist))
@@ -111,6 +116,8 @@ public class LightRayProbe(ITestOutputHelper output)
                 else
                 {
                     verdict = ours.Value.Distance < dist ? "both hit, ours nearer" : "both hit, ours farther";
+                    if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null && ours.Value.Distance > dist)
+                        output.WriteLine($"  ray {call}:{i} ours {scene.Instances[ours.Value.Instance].Source} tri {ours.Value.Triangle} at {ours.Value.Distance:F4}; valve tri {tri} at {dist:F4} (ours FARTHER)");
                     if (Environment.GetEnvironmentVariable("LIGHTRAYCMP_DETAIL") is not null && ours.Value.Distance < dist)
                     {
                         // What lies behind our hit: trace on from just past it.
@@ -120,6 +127,11 @@ public class LightRayProbe(ITestOutputHelper output)
                         var inst = scene.Instances[ours.Value.Instance];
                         var pr = scene.Probe(ours.Value.Instance, ours.Value.Triangle, s, e);
                         var bary = pr is { } q ? $" denom {q.Denominator:G6} a {q.A:G6} b {q.B:G6} a+b {q.A + q.B:G7}" : " (model)";
+                        var hp = s + dir * ours.Value.Distance;
+                        var (bmn, bmx) = scene.BoxOf(ours.Value.Instance);
+                        var gap = new[] { hp.X - bmn.X, bmx.X - hp.X, hp.Y - bmn.Y, bmx.Y - hp.Y, hp.Z - bmn.Z, bmx.Z - hp.Z }.Min();
+                        var thin = new[] { bmx.X - bmn.X, bmx.Y - bmn.Y, bmx.Z - bmn.Z }.Min();
+                        bary += $" box gap {gap:G4} (box thinnest {thin:G4})";
                         output.WriteLine($"  ray {call}:{i} ours {inst.Source} tri {ours.Value.Triangle} at {ours.Value.Distance:F4}{bary}; valve tri {tri} at {dist:F4}; "
                             + $"behind ours: {(next is { } nx ? $"{scene.Instances[nx.Instance].Source} tri {nx.Triangle} at {ours.Value.Distance + 0.01f + nx.Distance:F4}" : "nothing")}");
                     }

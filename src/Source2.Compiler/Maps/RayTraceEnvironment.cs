@@ -14,7 +14,7 @@ namespace Source2.Compiler.Maps;
 /// scored against a real map before a geometry pipeline exists. The layout is in
 /// docs/GEOMETRY.md and both known specimens tile it exactly.</para>
 /// </summary>
-public sealed class RayTraceEnvironment
+public sealed class RayTraceEnvironment : IKdTriangles
 {
     private readonly byte[] _data;
     private readonly int _triangleAt;
@@ -682,6 +682,8 @@ public sealed class RayTraceEnvironment
     /// slot 0 for one it does not hold.
     /// </summary>
     internal ReadOnlySpan<float> TracedRecord(int index) => Traced().AsSpan(index * 13, 13);
+
+    ReadOnlySpan<float> IKdTriangles.TracedRecord(int index) => TracedRecord(index);
 
     private TracerKd? _kd;
 
