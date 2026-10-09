@@ -4376,9 +4376,9 @@
   },
   {
    "addr": "181292560",
-   "name": "Light_AtInfinityTestInner",
+   "name": "Light_ClipBox",
    "module": "s2c:baked/light-keys",
-   "note": "not ported"
+   "note": "the clip cube's eight corners through the record matrix, min/max"
   },
   {
    "addr": "181292ce0",
@@ -4432,7 +4432,7 @@
    "addr": "181296a50",
    "name": "Light_AtInfinityTest",
    "module": "s2c:baked/light-keys",
-   "note": "not ported"
+   "note": "w 0 and the clip box past nexttowardf(+-262144, 0) on every axis (LightPrecompute.AtInfinity)"
   },
   {
    "addr": "181297ed0",

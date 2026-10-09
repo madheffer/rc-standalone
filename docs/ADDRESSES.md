@@ -191,7 +191,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180251040` | `Matrix4x4_Project` | a point through the 4x4, divided by w | `src/Source2.Compiler/Maps/LightTrace.cs:59` |
 | `180dd2630` | `EntityClass_HasStaticProp` | class metadata key static_prop |  |
 | `180ee9e30` | `LightBuild_TransformVolume` |  | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
-| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Maps/LightBuild.cs:6`, `src/Source2.Compiler/Maps/LightBuild.cs:321`, `src/Source2.Compiler/Maps/LightPrecompute.cs:70` +2 |
+| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Maps/LightBuild.cs:6`, `src/Source2.Compiler/Maps/LightBuild.cs:321`, `src/Source2.Compiler/Maps/LightPrecompute.cs:96` +2 |
 | `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:108` |
 | `180eed3c0` | `Light_BrightnessFromUnits` | 0 exp2(brightness)*scale, 1 lumens/factor, 2 nits*area*pi*0.00064516/factor, 3 legacy*scale, 4 candelas*solid/factor | `src/Source2.Compiler/Maps/LightUnits.cs:11`, `src/Source2.Compiler/Maps/LightUnits.cs:74` |
 | `180eedfe0` | `Light_LegacyDescriptionAt` | step matrix, then Light_LegacyDescription |  |
@@ -201,16 +201,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f0d670` | `CModelHelper_RaytraceFlags` | 0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided | `src/Source2.Compiler/Maps/EditorTraceScene.cs:134` |
 | `180f18820` | `LightPrecompute_TraceRay` |  | `src/Source2.Compiler/Maps/LightTrace.cs:45` |
 | `180f19840` | `LightPrecompute_TraceSamples` |  | `src/Source2.Compiler/Maps/LightTrace.cs:45` |
-| `180f19f20` | `LightPrecompute_SampleVolume` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:9` |
+| `180f19f20` | `LightPrecompute_SampleVolume` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:9`, `src/Source2.Compiler/Maps/LightPrecompute.cs:73` |
 | `180f1aa70` | `LightPrecompute_FitObb` | every orientation on a 5 degree grid | `src/Source2.Compiler/Maps/LightObb.cs:7` |
 | `180f1c660` | `MapDoc_GatherLights` | lights of the world and of +0x6b8 docs |  |
 | `180f1c8b0` | `MapWorld_GatherLights` | light_* legacy classes plus barn/rect/omni2, one entry per world transform |  |
 | `180f1d100` | `MapDoc_PreprocessLights` | Preprocessing Lights: brightness units, lightcookie, precompute keys |  |
 | `180f1def0` | `LightPrecompute_WriteKeys` | precomputed* key writer: one box per face | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
 | `180f1e0e0` | `LightPrecompute_WriteBoxes` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
-| `180f32050` | `V_atofloat32` | key reader | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:556`, `src/Source2.Compiler/Maps/LightPrecompute.cs:19`, `src/Source2.Compiler/Maps/LightPrecompute.cs:187` |
-| `180f32130` | `V_atoi` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:595`, `src/Source2.Compiler/Maps/LightPrecompute.cs:187` |
-| `180f32390` | `KeyReader_Vector` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:609`, `src/Source2.Compiler/Maps/LightPrecompute.cs:187` |
+| `180f32050` | `V_atofloat32` | key reader | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:556`, `src/Source2.Compiler/Maps/LightPrecompute.cs:19`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
+| `180f32130` | `V_atoi` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:595`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
+| `180f32390` | `KeyReader_Vector` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:609`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
 | `180f38940` | `MapNode_SetKeyFloat` | %g then MapNode_SetKeyValue |  |
 | `180f38990` | `MapNode_SetKeyInt` | %d then MapNode_SetKeyValue |  |
 | `180f3d040` | `CComputeBakedShadowAssignment_SortMedian` | std::sort guess median for SortWaiting |  |
@@ -259,7 +259,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181271420` | `Obb_ReachesSphere` | nearest box point within the radius | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:295`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:340` |
 | `18128ca90` | `RayScene_Winding` | (0,1,2), or (2,1,0) when the deformer's +0x70 is set |  |
 | `1812918f0` | `LightUnits_FrustumSolidAngle` | barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal | `src/Source2.Compiler/Maps/LightUnits.cs:181` |
-| `181292560` | `Light_AtInfinityTestInner` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:41` |
+| `181292560` | `Light_ClipBox` | the clip cube's eight corners through the record matrix, min/max | `src/Source2.Compiler/Maps/LightPrecompute.cs:70` |
 | `181292ce0` | `LightBuild_OpeningPlane` |  | `src/Source2.Compiler/Maps/LightBuild.cs:63` |
 | `1812933b0` | `LightRecord_ConeRatio` | 0xe0 / 0xe4, or -1.1 / 1.1 when 0xe4 is 0 |  |
 | `1812933f0` | `LightTrace_Falloff` | how much of the light reaches a point | `src/Source2.Compiler/Maps/LightTrace.cs:80` |
@@ -271,7 +271,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181296340` | `LightBuild_RectLuminaire` | type 1 | `src/Source2.Compiler/Maps/LightBuild.cs:177` |
 | `1812966c0` | `LightBuild_SphereLuminaire` | type 3 | `src/Source2.Compiler/Maps/LightBuild.cs:273` |
 | `181296730` | `LightBuild_CapsuleLuminaire` | type 4, or 5 capped; LightBuild.CapsuleLuminaire | `src/Source2.Compiler/Maps/LightBuild.cs:286` |
-| `181296a50` | `Light_AtInfinityTest` | not ported | `src/Source2.Compiler/Maps/LightPrecompute.cs:41` |
+| `181296a50` | `Light_AtInfinityTest` | w 0 and the clip box past nexttowardf(+-262144, 0) on every axis (LightPrecompute.AtInfinity) | `src/Source2.Compiler/Maps/LightPrecompute.cs:69` |
 | `181297ed0` | `LightBuild_BarnPosition` | homogeneous | `src/Source2.Compiler/Maps/LightBuild.cs:39` |
 | `181298050` | `LightBuild_LuminaireSize` | half extents from degrees | `src/Source2.Compiler/Maps/LightBuild.cs:136` |
 | `181298170` | `LightOmni_Records` | an omni light's records in its own space | `src/Source2.Compiler/Maps/LightOmni.cs:6` |
@@ -932,7 +932,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125de90` | `MatrixQuaternion` | a 3x4's rotation as a quaternion from its largest diagonal | `src/Source2.Compiler/Maps/LightMath.cs:150`, `src/Source2.Compiler/Maps/SettleWorld.cs:669`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:677` +1 |
 | `18125f4e0` | `QuaternionMatrix_Translation` | a quaternion's 3x4 with a translation | `src/Source2.Compiler/Maps/LightMath.cs:136` |
 | `181260150` | `QuaternionMatrix` |  | `src/Source2.Compiler/Maps/CTransform.cs:95` |
-| `181260200` | `QuaternionAngles` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/LightPrecompute.cs:178`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:697`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
+| `181260200` | `QuaternionAngles` | pitch, yaw, roll in degrees | `src/Source2.Compiler/Maps/LightPrecompute.cs:204`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:697`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
 | `1812636e0` | `Matrix4x4_Invert` | Gauss-Jordan with partial pivoting | `src/Source2.Compiler/Maps/LightMath.cs:35`, `src/Source2.Compiler/Maps/PropTransform.cs:14` |
 | `181263af0` | `MatrixInvert_Translation` | inverse of a rotation and translation | `src/Source2.Compiler/Maps/TemplateTransform.cs:43` |
 | `181263c30` | `Matrix3x4_InverseTranspose` | the 3x4 as 4x4 with (0, 0, 0, 1), inverted (1812636e0), transposed | `src/Source2.Compiler/Maps/PropTransform.cs:14` |
