@@ -294,16 +294,22 @@ game can answer is raised with the user first, and runs with -insecure.
     own flag word holds 0x10000. That word is not the owner flags we mask
     with: a mesh's scene starts at 0x30000 (MapMeshGeometry_BuildRayScene
     1813ce820) and reads 0xb0000 plus the owner bits in the light pass; a
-    static prop's mesh scenes carry the prop's 0x80b0000 word; smart prop
-    parts' scenes are 0 (survey of all 9,948 Mako scenes). With leaves of
-    32, the seven captured lights match every ray, mesh 9437's tree equals
-    Valve's node for node, and Mako's lump is down to one key (light_omni2
-    32488 face 5 extent, 8 ulps): smart prop part triangles differ from
-    Valve's by about 1e-5 (2,344 of that light's rays off by bits, all on
-    smart prop 33513), because Valve keeps the node's scale in the
-    container's instance (its part boxes are ours over 1.2, translations
-    differ too); being captured (capture_scenekd.py --bounds survey records
-    every AddInstance).
+    static prop's mesh scenes carry the prop's 0x80b0000 word (survey of
+    all 9,948 Mako scenes). Then the smart props (capture_scenekd.py --bounds
+    survey records every AddInstance and SetInstanceTransform, and hooks
+    meshsystem.dll's copy of the setup): the container sits at the node's
+    path times its AngleMatrix, no scale (sin/cos rounding: -4.37e-8, 1);
+    each placed part is an instance by the part's transform (scales
+    included) of a part scene (word 0, no triangles) that holds the model's
+    own scene at the identity, built by meshsystem.dll (word 0x90000, so
+    leaves of 32), its triangles in the model's space. Result (2026-10-09):
+    Mako's lump exact (105 lights to 0), the seven captured lights equal
+    Valve's on every ray bit for bit, atixref, prefabprobe3/4, doom and
+    propover exact. Left: light 1099 has 130 of 172,032 hits off in the
+    last bits on map meshes 25406 and 25395 (no key changes); meshsystem's
+    model-space corners differ from our render triangles by an ulp in some
+    triangles (CacheOptimizedTriangle_FromCorners is instruction-identical
+    in both DLLs), which did not move any captured ray.
 32. **Instance copies' undeclared keys** ship in reverse template order:
     measured on atixref's 186 copied lights; the key list's head insertion
     (FUN_180ce08f0) is read, the copy loop that walks the template is not.

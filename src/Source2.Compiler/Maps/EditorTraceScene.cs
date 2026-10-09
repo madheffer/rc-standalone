@@ -194,9 +194,11 @@ public sealed partial class EditorTraceScene : ILightTracer
     /// <summary>
     /// The smart props' owners (built by their procedural update, rc 1810a0490
     /// under 180f71020): one container per smart prop the walk reaches, placed
-    /// at the node's transform with owner flags 0, holding each placed part's
-    /// model render triangles already moved into the node's space, at the
-    /// identity (Mako's light scene, capture_rayscene.py). A smart prop the
+    /// at the node's transform with owner flags 0, holding one instance per
+    /// placed part's render mesh: the mesh's triangles in the model's space
+    /// (a scene whose word is 0), placed by the part's transform in the
+    /// node's space, scales included (Mako's light scene, capture_scenekd.py
+    /// --bounds survey: part instances of scale 1.2 under node 33513). A smart prop the
     /// evaluator cannot do is listed in <paramref name="notes"/> and left out.
     /// Not modelled: a part's material group.
     /// </summary>
@@ -205,7 +207,6 @@ public sealed partial class EditorTraceScene : ILightTracer
     {
         ArgumentNullException.ThrowIfNull(content);
         var list = new List<Instance>();
-        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
         foreach (var n in nodes)
         {
             if (n.Hidden || n.Element.Type != "CMapSmartProp")
@@ -220,14 +221,31 @@ public sealed partial class EditorTraceScene : ILightTracer
                 var part = new CTransform(local.Position, 1f, local.Rotation).Matrix();
                 var s = local.Scale * node.Scale;
                 Scale(part, new Vector3(s * placement.ModelScale.X, s * placement.ModelScale.Y, s * placement.ModelScale.Z));
+                // The part's scene (word 0, no triangles of its own) placed by the
+                // part's transform holds the model's scene at the identity: built
+                // by meshsystem.dll, word 0x90000, its triangles in the model's
+                // space (capture_scenekd.py).
+                float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+                var meshes = new List<Instance>();
                 foreach (var mesh in content.RenderMeshes(placement.Model).Where(m => m.Count > 0))
-                    children.Add(MakeInstance([.. mesh.Select(t => (MapMeshes.Transform(part, t.A), MapMeshes.Transform(part, t.B),
-                                                                    MapMeshes.Transform(part, t.C), materialFlags(t.Material)))],
-                                              identity, 0, "smart part"));
+                {
+                    var model = MakeInstance([.. mesh.Select(t => (t.A, t.B, t.C, materialFlags(t.Material)))], identity, 0, "model");
+                    model.SceneFlags = 0x90000;
+                    meshes.Add(model);
+                }
+                if (meshes.Count > 0)
+                    children.Add(new Instance
+                    {
+                        ToWorld = part, ToLocal = Invert(part), ObjectFlags = 0, Children = meshes, Source = "smart part",
+                    });
             }
             if (children.Count == 0)
                 continue;
-            var world = node.Matrix();
+            // The node's own placement as a static prop's (the path times its
+            // AngleMatrix), without its scales: those are in the parts' matrices.
+            var world = n.PrefabChain.Count > 0 ? SettleWorld.NestedPlacement(n.Element, n.Through, n.PrefabChain)
+                : n.Through.Count == 0 ? MapMeshes.Concat(n.Path, MapMeshes.Local(n.Element))
+                : SettleWorld.Baked(n.Element, [.. n.Through]);
             list.Add(new Instance
             {
                 ToWorld = world, ToLocal = Invert(world), ObjectFlags = 0, Children = children,

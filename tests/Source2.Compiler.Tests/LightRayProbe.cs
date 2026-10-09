@@ -91,12 +91,15 @@ public class LightRayProbe(ITestOutputHelper output)
         {
             if (inst.Children is { } kids)
             {
+                sink.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { instance = path, toWorld = inst.ToWorld }));
                 foreach (var k in kids)
                     Walk(k, path + "/" + k.Source);
                 return;
             }
+            sink.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { instance = path, toWorld = inst.ToWorld }));
             var tris = Enumerable.Range(0, inst.Flags.Length).Select(t => inst.Records.Skip(t * 22 + 13).Take(9).ToArray()).ToList();
-            sink.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { path, flags = inst.Flags, corners = tris }));
+            var records = Enumerable.Range(0, inst.Flags.Length).Select(t => inst.Records.Skip(t * 22).Take(13).ToArray()).ToList();
+            sink.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { path, flags = inst.Flags, corners = tris, records }));
         }
         foreach (var inst in scene.Instances.Where(i => i.Source == p[2]))
             Walk(inst, inst.Source);

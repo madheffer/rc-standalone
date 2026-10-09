@@ -12,7 +12,10 @@ RayScene_AddInstance 181c13ac0 and SetInstanceTransform 181c19970 call): the sce
 RayScene_TraceMode2 181c0a000 reads them: nodes at +0x68, 8 bytes each, a
 word whose low 2 bits are the axis (3 a leaf) and whose rest is the child
 pair or the reference offset, then the split or the count; references at
-+0xa8). Used to check TracerKd's build for the light scene (ledger 31).
++0xa8), and every triangle's 0x30-byte record (blocks at +0x90, count
++0x7c). meshsystem.dll's copy of the setup (models' own scenes) is hooked
+too; each line names its module. Used to check TracerKd's build for the
+light scene (ledger 31).
 
 CS2 must be closed; the map's package is backed up and restored.
 """
@@ -35,17 +38,14 @@ BIN = os.path.join(CS2, "game", "bin", "win64")
 
 AGENT = r"""
 'use strict';
-function hook() {
-  const mod = Process.findModuleByName('resourcecompiler.dll');
-  if (mod === null) { setTimeout(hook, 5); return; }
-  Interceptor.attach(mod.base.add(SETUP), {
+function setupHook(tag) { return {
     onEnter(args) { this.scene = args[0]; },
     onLeave(ret) {
       const s = this.scene;
       const box = [];
       for (let i = 0; i < 6; i++) box.push(s.add(4 + i * 4).readFloat());
       if (BOXES.length === 0) {  // survey: every scene's address, box, flag word and node count
-        send({survey: true, scene: s.toString(), box: box, flags: s.readU32(), norefine: s.add(0x1c4).readU8(),
+        send({survey: true, module: tag, scene: s.toString(), box: box, flags: s.readU32(), norefine: s.add(0x1c4).readU8(),
               nodes: s.add(0x60).readU32()});
         return;
       }
@@ -73,10 +73,30 @@ function hook() {
         walk((word >>> 2) + 1);
       }
       if (s.add(0x60).readU32() !== 0) walk(0);
-      send({which: which, box: box, flags: s.readU32(), norefine: s.add(0x1c4).readU8(),
-            shift: s.add(0x80).readU32(), mask: s.add(0x84).readU32(), nodes: lines});
+      // Triangle records (0x30 bytes, CacheOptimizedTriangle): +0x7c the count,
+      // +0x90 the blocks (0x10 each, +8 the block's records), id >> shift, id & mask.
+      const count = s.add(0x7c).readS32(), shift = s.add(0x80).readU32(), tmask = s.add(0x84).readU32();
+      const blocks = s.add(0x90).readPointer();
+      const records = [];
+      for (let id = 0; id < count; id++) {
+        const rec = blocks.add((id >>> shift) * 0x10 + 8).readPointer().add((id & tmask) * 0x30);
+        records.push(Array.from(new Uint8Array(rec.readByteArray(0x30))).map(b => ('0' + b.toString(16)).slice(-2)).join(''));
+      }
+      send({which: which, module: tag, scene: s.toString(), box: box, flags: s.readU32(), norefine: s.add(0x1c4).readU8(),
+            shift: shift, mask: tmask, nodes: lines, records: records});
     }
-  });
+  }; }
+// meshsystem.dll keeps its own copy of the ray scene code (models' scenes are built there).
+function hookMeshsystem() {
+  const ms = Process.findModuleByName('meshsystem.dll');
+  if (ms === null) { setTimeout(hookMeshsystem, 5); return; }
+  Interceptor.attach(ms.base.add(MS_SETUP), setupHook('meshsystem'));
+  send({hooked: 'meshsystem'});
+}
+function hook() {
+  const mod = Process.findModuleByName('resourcecompiler.dll');
+  if (mod === null) { setTimeout(hook, 5); return; }
+  Interceptor.attach(mod.base.add(SETUP), setupHook('rc'));
   if (BOXES.length === 0) {
     // RayScene_AddInstance (parent, child, 3x4, owner flags) and SetInstanceTransform (scene, instance, 3x4).
     function m34(p) { const m = []; for (let i = 0; i < 12; i++) m.push(p.add(i * 4).readFloat()); return m; }
@@ -91,7 +111,22 @@ function hook() {
   send({hooked: true});
 }
 hook();
+hookMeshsystem();
 """
+
+
+def meshsystem_copy(rc_rva, length):
+    """meshsystem.dll's copy of a resourcecompiler function: its first bytes found once there."""
+    import pefile
+
+    def image(name):
+        return pefile.PE(os.path.join(BIN, name)).get_memory_mapped_image()
+    pattern = image("resourcecompiler.dll")[rc_rva:rc_rva + length]
+    img = image("meshsystem.dll")
+    first = img.find(pattern)
+    if first < 0 or img.find(pattern, first + 1) >= 0:
+        raise SystemExit(f"meshsystem.dll: no single copy of rc {rc_rva:#x}")
+    return first
 
 
 def running(name):
@@ -112,7 +147,8 @@ def main():
         raise SystemExit("under 10 GB free on the game drive; not starting")
     boxes = [] if a.bounds == "survey" else [[float(v) for v in b.split(",")] for b in a.bounds.split(";")]
     head = (f"const SETUP = {installed('resourcecompiler', 0x1c19be0)};\nconst BOXES = {boxes};\n"
-            f"const ADDINST = {installed('resourcecompiler', 0x1c13ac0)};\nconst SETXF = {installed('resourcecompiler', 0x1c19970)};\n")
+            f"const ADDINST = {installed('resourcecompiler', 0x1c13ac0)};\nconst SETXF = {installed('resourcecompiler', 0x1c19970)};\n"
+            f"const MS_SETUP = {meshsystem_copy(installed('resourcecompiler', 0x1c19be0), 24)};\n")
     out_path = a.out or os.path.join(os.environ.get("TEMP", "."), "scenekd_capture", a.map + ".jsonl")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
@@ -128,7 +164,7 @@ def main():
         if msg.get("type") != "send":
             print("agent:", msg.get("description") or msg)
             return
-        if msg["payload"].get("hooked"):
+        if msg["payload"].get("hooked") is not None:
             print("hooked", flush=True)
             return
         with lock:
