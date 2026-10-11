@@ -49,6 +49,15 @@ internal static class WorldNodeCompile
     {
         /// <summary>The overlay render order an overlay group gives it (+0x74).</summary>
         public int OverlayOrder { get; init; }
+
+        /// <summary>
+        /// +0x38, +0x3c and +0x68: the fades and lighting origin. The vis merger's
+        /// object (18026e9c0) copies its entry's +0xb0, +0xb4 and +0x80 (the node's
+        /// fades and origin); the cluster compile leaves 0, 0 and FLT_MAX.
+        /// </summary>
+        public float FadeStart { get; init; }
+        public float FadeEnd { get; init; }
+        public Vector3 LightingOrigin { get; init; } = new(float.MaxValue);
     }
 
     /// <summary>An aggregate scene object: its name, layer and meshes in draw order.</summary>
@@ -158,7 +167,8 @@ internal static class WorldNodeCompile
                     var rest = StashAggregatable(list, bucket);
                     foreach (var e in rest)
                         objects.Add(CreateRenderObject(settings.NodePrefix, $"vism0_mt_{FileBase(e.Material, 0x18)}", 0, vism++,
-                                                       e.Facts.ObjectFlags, e.Facts.Attributes, e.Facts.Field1a6 != 0, [e]));
+                                                       e.Facts.ObjectFlags, e.Facts.Attributes, e.Facts.Field1a6 != 0, [e])
+                                    with { FadeStart = e.Facts.Field_b0, FadeEnd = e.Facts.FadeMax, LightingOrigin = e.Facts.Origin });
                 }
             }
         }
