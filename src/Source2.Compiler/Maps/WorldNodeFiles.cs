@@ -21,12 +21,14 @@ public static class WorldNodeFiles
 
     /// <param name="volumes">The cubemap and light probe volumes the entity lump author found.</param>
     /// <param name="timestamp">The compile's time, for .vwrld.</param>
+    /// <param name="fingerprint">The .vwrld's compile fingerprint, which RC draws anew for
+    /// every compile; random unless given (a reproducible build).</param>
     /// <param name="vis">The vis builder is on (CWorldRendererBuilder::Build reads the
     /// context's builder flag, vf29 index 2): without it there is no
     /// world_visibility.vvis_c and CompileNode clusters nothing, as a -world build shows.</param>
     public static List<Output> Build(DmxBinary.Document document, string addon, string map, GameContent content, ShaderLibrary shaders,
                                      FgdSchema schema, string game, EnvVolumes.Set volumes, uint timestamp, List<string> notes,
-                                     bool vis = true)
+                                     bool vis = true, ulong? fingerprint = null)
     {
         map = Io.Tier0Strings.LowerAscii(map);
         var outputs = new List<Output>();
@@ -145,7 +147,7 @@ public static class WorldNodeFiles
                                                                          ValveResourceFormat.Serialization.KeyValues.KV3IDLookup.Get("generic"), ".vwnod")));
         outputs.Add(new($"maps/{map}/worldnodes/n0.vrman_c", ResourceManifestAuthor.AuthorSaved([vwnod], $"maps/{map}/worldnodes/n0.vrman", addon, [Backslashed(vwnod)])));
         var vwrld = WorldTrees.Data(1024f, [new WorldTrees.Node(nodeMin, nodeMax, $"maps\\{map.Replace('/', '\\')}\\worldnodes\\n0")],
-                                    [$"maps/{map}/entities/default_ents.vents"], timestamp, (ulong)Random.Shared.NextInt64());
+                                    [$"maps/{map}/entities/default_ents.vents"], timestamp, fingerprint ?? (ulong)Random.Shared.NextInt64());
         outputs.Add(new($"maps/{map}/world.vwrld_c", Source2ContainerAuthor.AuthorKv3Tree(vwrld, ValveResourceFormat.Serialization.KeyValues.KV3IDLookup.Get("generic"), ".vwrld")));
         string[] worldManifest = [$"maps/{map}/world.vwrld", $"maps/{map}/world_physics.vrman", $"maps/{map}/world_visibility.vvis"];
         outputs.Add(new($"maps/{map}/world.vrman_c", ResourceManifestAuthor.AuthorOverride(worldManifest, [.. worldManifest.Select(Backslashed)])));

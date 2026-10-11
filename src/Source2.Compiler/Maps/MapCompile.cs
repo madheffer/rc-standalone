@@ -115,6 +115,9 @@ public static class MapCompile
                 + ". -world (without -bakelighting), -vis, -entities and -phys builds run; --skip-unported leaves the rest as the package has it.");
         foreach (var skipped in refused)
             log.WriteLine($"  skipped (not ported): {skipped}");
+        // The bake's own outputs are skipped, but the lumps a baking build writes
+        // carry its keys (shadow slots, probe atlas), which come from the map alone.
+        var bakes = steps.Contains("bakedlighting") || args.BakesLighting;
         steps.ExceptWith(refused);
         if (!args.KeepsPackage)
             return Fail(log, "-f and -fshallow2 start from an empty package, and this is a partial build (the compile refuses it too)");
@@ -125,7 +128,7 @@ public static class MapCompile
 
         try
         {
-            return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package);
+            return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package, bakes);
         }
         catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
         {
@@ -137,7 +140,7 @@ public static class MapCompile
     private static int Build(MapCompileArgs args, TextWriter log, bool acceptGaps,
                              Func<GameContent, Func<string, MaterialSampler.Renderer?>?>? sampler,
                              string full, string root, string addon, string map, string game,
-                             HashSet<string> steps, string package)
+                             HashSet<string> steps, string package, bool bakes = false)
     {
         var document = DmxBinary.ReadFile(full);
         // A prefab's map loads from the addon's content, as Hammer's does.
@@ -163,15 +166,20 @@ public static class MapCompile
                                                         || k.StartsWithAscii($"maps/{map}/entities/".ToLowerInvariant())).ToList())
                 entries.Remove(old);
             EntityLumpAuthor.Lighting? lighting = null;
-            var lumps = EntityLumps(document, map, schema, assets, args.Settle, false, entitiesOnly: false, lighting: l => lighting = l);
+            var lumps = EntityLumps(document, map, schema, assets, args.Settle, bakes, entitiesOnly: false, lighting: l => lighting = l);
             foreach (var lump in lumps)
                 entries[lump.Path] = lump.Bytes;
             var models = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp);
             foreach (var m in models)
                 entries[m.Path + "_c"] = m.PhysicsOnly ? EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
             using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+            // S2C_WORLD_STAMP=<timestamp>,<fingerprint>: the .vwrld's compile time and
+            // fingerprint given rather than now and random, for a reproducible build.
+            var (stamp, fingerprint) = Environment.GetEnvironmentVariable("S2C_WORLD_STAMP")?.Split(",") is [var stampText, var printText]
+                ? (uint.Parse(stampText, System.Globalization.CultureInfo.InvariantCulture), (ulong?)ulong.Parse(printText, System.Globalization.CultureInfo.InvariantCulture))
+                : ((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), null);
             var node = WorldNodeFiles.Build(document, addon, map, assets, shaders, schema, game, lighting?.Volumes ?? EnvVolumes.Set.Empty,
-                                            (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), notes, vis: steps.Contains("vis"));
+                                            stamp, notes, vis: steps.Contains("vis"), fingerprint: fingerprint);
             foreach (var f in node)
                 entries[f.Path] = f.Bytes;
             log.WriteLine($"  world: {lumps.Count} lumps, {models.Count} entity models, {node.Count} node files"
