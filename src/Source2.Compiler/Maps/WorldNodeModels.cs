@@ -178,7 +178,21 @@ internal static class WorldNodeModels
                     }
                 ib.AddRange(g.Indices.Select(i => (uint)(i + vertexBase)));
                 var uv = TexcoordValues(g, d.Stride, offsets);
-                var density = uv == null ? 0f : UvDensity.Compute(positions, uv, g.Indices);
+                var density = uv == null ? 0f : UvDensity.Compute(positions, uv, g.DensityIndices ?? g.Indices);
+                // S2C_DUMP_UVD=<file>|<model substring>: each draw's density inputs, per index as
+                // capture_uvdensity.py writes Valve's (diagnostics).
+                if (uv != null && Environment.GetEnvironmentVariable("S2C_DUMP_UVD")?.Split('|') is [var dumpFile, var dumpModel]
+                    && name.Contains(dumpModel, StringComparison.Ordinal))
+                    using (var dump = new FileStream(dumpFile, FileMode.Append))
+                    {
+                        dump.Write(BitConverter.GetBytes(g.Indices.Length));
+                        dump.Write(new byte[16]);
+                        foreach (var i in g.Indices)
+                        {
+                            foreach (var x in new[] { positions[i].X, positions[i].Y, positions[i].Z, uv[i].X, uv[i].Y })
+                                dump.Write(BitConverter.GetBytes(x));
+                        }
+                    }
                 // An aggregate's draws are white (all 311 of atixref's list aggregate draws);
                 // the mesh's tint rides on its fragment in the .vwnod.
                 var tint = aggregate ? Vector4.One : d.Facts.Field28;

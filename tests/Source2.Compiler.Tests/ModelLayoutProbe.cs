@@ -18,6 +18,79 @@ public class ModelLayoutProbe(ITestOutputHelper output)
     /// per buffer and field the vertices that differ (first few shown), and
     /// whether the index buffers are equal.
     /// </summary>
+    /// <summary>
+    /// UVDVB=vpk|model|capture.bin|call[|draw]: the captured UV density call (capture_uvdensity.py)
+    /// against the model's vertex buffer at the same draw (the n-th call is draw n): per
+    /// index, the captured position and texcoord beside the buffer's, and how many differ.
+    /// </summary>
+    [Fact]
+    public void UvDensityInputsAgainstBuffer()
+    {
+        if (Environment.GetEnvironmentVariable("UVDVB") is not { Length: > 0 } spec)
+            return;
+        var p = spec.Split('|');
+        var package = new ValvePak.Package();
+        package.Read(p[0]);
+        package.ReadEntry(package.FindEntry(p[1]) ?? throw new FileNotFoundException(p[1]), out var bytes);
+        var resource = new Resource();
+        resource.Read(new MemoryStream(bytes));
+        var mesh = ((Model)resource.DataBlock!).GetEmbeddedMeshesAndLoD().First().Mesh;
+        var vb = mesh.VBIB.VertexBuffers[0];
+        var ib = mesh.VBIB.IndexBuffers[0];
+        var draws = mesh.Data.GetArray("m_sceneObjects")[0].GetArray("m_drawCalls");
+        var data = File.ReadAllBytes(p[2]);
+        var call = int.Parse(p[3]);
+        var at = 0;
+        for (var c = 0; c < call; c++)
+            at += 20 + BitConverter.ToInt32(data, at) * 20;
+        var count = BitConverter.ToInt32(data, at);
+        var draw = draws[p.Length > 4 ? int.Parse(p[4]) : call];
+        var start = draw.GetInt32Property("m_nStartIndex");
+        var baseVertex = draw.GetInt32Property("m_nBaseVertex");
+        var pos = vb.InputLayoutFields.First(f => f.SemanticName == "POSITION");
+        var tex = vb.InputLayoutFields.First(f => f.SemanticName == "TEXCOORD" && f.SemanticIndex == 0);
+        // The draw's own vertices, as sets: the buffer's order is the cache optimiser's.
+        var bufferPositions = new HashSet<(int, int, int)>();
+        var bufferUvs = new HashSet<(short, short)>();
+        for (var k = 0; k < draw.GetInt32Property("m_nIndexCount"); k++)
+        {
+            var index = (int)(ib.ElementSizeInBytes == 2 ? BitConverter.ToUInt16(ib.Data, (start + k) * 2) : BitConverter.ToUInt32(ib.Data, (start + k) * 4)) + baseVertex;
+            var o = (int)(index * vb.ElementSizeInBytes);
+            bufferPositions.Add((BitConverter.ToInt32(vb.Data, o + (int)pos.Offset), BitConverter.ToInt32(vb.Data, o + (int)pos.Offset + 4), BitConverter.ToInt32(vb.Data, o + (int)pos.Offset + 8)));
+            bufferUvs.Add((BitConverter.ToInt16(vb.Data, o + (int)tex.Offset), BitConverter.ToInt16(vb.Data, o + (int)tex.Offset + 2)));
+        }
+        int found = 0, foundUv = 0;
+        for (var k = 0; k < count; k++)
+        {
+            var q = at + 20 + k * 20;
+            if (bufferPositions.Contains((BitConverter.ToInt32(data, q), BitConverter.ToInt32(data, q + 4), BitConverter.ToInt32(data, q + 8))))
+                found++;
+            static short Pack(float v) => (short)(Math.Clamp(v, -1f, 1f) * 32767f);
+            if (bufferUvs.Contains((Pack(BitConverter.ToSingle(data, q + 12)), Pack(BitConverter.ToSingle(data, q + 16)))))
+                foundUv++;
+        }
+        output.WriteLine($"call {call}: captured positions found bit for bit in the draw's buffer vertices: {found}/{count}; texcoords (packed): {foundUv}/{count}");
+        int posDiff = 0, texDiff = 0, shown = 0;
+        for (var k = 0; k < count; k++)
+        {
+            var index = (int)(ib.ElementSizeInBytes == 2 ? BitConverter.ToUInt16(ib.Data, (start + k) * 2) : BitConverter.ToUInt32(ib.Data, (start + k) * 4)) + baseVertex;
+            var o = (int)(index * vb.ElementSizeInBytes);
+            var bp = new System.Numerics.Vector3(BitConverter.ToSingle(vb.Data, o + (int)pos.Offset), BitConverter.ToSingle(vb.Data, o + (int)pos.Offset + 4), BitConverter.ToSingle(vb.Data, o + (int)pos.Offset + 8));
+            float Snorm(int off) => Math.Max(BitConverter.ToInt16(vb.Data, o + (int)tex.Offset + off) / 32767f, -1f);
+            var bt = new System.Numerics.Vector2(Snorm(0), Snorm(2));
+            var q = at + 20 + k * 20;
+            var cp = new System.Numerics.Vector3(BitConverter.ToSingle(data, q), BitConverter.ToSingle(data, q + 4), BitConverter.ToSingle(data, q + 8));
+            var ct = new System.Numerics.Vector2(BitConverter.ToSingle(data, q + 12), BitConverter.ToSingle(data, q + 16));
+            var pd = cp != bp;
+            var td = MathF.Abs(ct.X - bt.X) > 1.6e-5f || MathF.Abs(ct.Y - bt.Y) > 1.6e-5f;
+            posDiff += pd ? 1 : 0;
+            texDiff += td ? 1 : 0;
+            if ((pd || td) && shown++ < 6)
+                output.WriteLine($"  #{k} index {index}: captured ({cp.X:R} {cp.Y:R} {cp.Z:R}) uv ({ct.X:R} {ct.Y:R}); buffer ({bp.X:R} {bp.Y:R} {bp.Z:R}) uv ({bt.X:R} {bt.Y:R})");
+        }
+        output.WriteLine($"call {call}: {count} indices (draw {draw.GetInt32Property("m_nIndexCount")} from {start}, base {baseVertex}); positions differ at {posDiff}, texcoords beyond snorm rounding at {texDiff}");
+    }
+
     [Fact]
     public void Compare()
     {

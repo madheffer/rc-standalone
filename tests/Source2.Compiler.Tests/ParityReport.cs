@@ -118,6 +118,39 @@ public class ParityReport(ITestOutputHelper output)
             }
     }
 
+    /// <summary>
+    /// UVDCAP=capture.bin (tools/vis/capture_uvdensity.py): each captured call's
+    /// density recomputed by <see cref="UvDensity"/> from the inputs Valve's
+    /// function saw, with the first vertices' values as float bits.
+    /// </summary>
+    [Fact]
+    public void UvDensityCapture()
+    {
+        if (Environment.GetEnvironmentVariable("UVDCAP") is not { Length: > 0 } path)
+            return;
+        var data = File.ReadAllBytes(path);
+        for (var at = 0; at + 20 <= data.Length;)
+        {
+            var count = BitConverter.ToInt32(data, at);
+            var stride = BitConverter.ToInt32(data, at + 4);
+            var po = BitConverter.ToInt32(data, at + 8);
+            var to = BitConverter.ToInt32(data, at + 12);
+            var pct = BitConverter.ToInt32(data, at + 16);
+            var positions = new List<System.Numerics.Vector3>();
+            var uvs = new List<System.Numerics.Vector2>();
+            for (var k = 0; k < count; k++)
+            {
+                var o = at + 20 + k * 20;
+                positions.Add(new(BitConverter.ToSingle(data, o), BitConverter.ToSingle(data, o + 4), BitConverter.ToSingle(data, o + 8)));
+                uvs.Add(new(BitConverter.ToSingle(data, o + 12), BitConverter.ToSingle(data, o + 16)));
+            }
+            var density = UvDensity.Compute(positions, uvs, Enumerable.Range(0, count).ToArray(), pct);
+            output.WriteLine($"call: {count} indices, stride {stride}, position at {po}, tex at {to}, percentile {pct}: density {density:R}; "
+                             + $"first ({positions[0].X:R} {positions[0].Y:R} {positions[0].Z:R}) uv ({uvs[0].X:R} {uvs[0].Y:R})");
+            at += 20 + count * 20;
+        }
+    }
+
     /// <summary>What differs between two compiled resources: block lists, tree fields by name, raw blocks by type.</summary>
     public static string Why(byte[] valve, byte[] mine)
     {

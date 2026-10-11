@@ -56,7 +56,10 @@ internal static class NodeDraw
     /// an aggregate its meshlets (vertex and triangle ranges, triangles
     /// counted with their padding).
     /// </summary>
-    public sealed record Result(float[] Vertices, int VertexCount, int[] Indices, IReadOnlyList<MeshoptMeshlets.Meshlet> Meshlets);
+    /// <param name="DensityIndices">The triangles as AddDrawDescriptors' UV density sees them
+    /// (1812d9920): welded, before the meshlet build turns some triangles' corners
+    /// (capture_uvdensity.py on ze_hold_em_p), in the final vertex numbering.</param>
+    public sealed record Result(float[] Vertices, int VertexCount, int[] Indices, IReadOnlyList<MeshoptMeshlets.Meshlet> Meshlets, int[]? DensityIndices = null);
 
     /// <summary>
     /// Builds one draw. <paramref name="vertices"/> holds <paramref name="stride"/>
@@ -99,6 +102,9 @@ internal static class NodeDraw
         var fetched = new float[remap.Length * stride];
         for (var v = 0; v < remap.Length; v++)
             Array.Copy(welded, remap[v] * stride, fetched, v * stride, stride);
-        return new Result(fetched, remap.Length, renumbered, meshlets);
+        var finalNumber = new int[count];
+        for (var v = 0; v < remap.Length; v++)
+            finalNumber[remap[v]] = v;
+        return new Result(fetched, remap.Length, renumbered, meshlets, [.. weldedIndices.Select(w => finalNumber[w])]);
     }
 }
