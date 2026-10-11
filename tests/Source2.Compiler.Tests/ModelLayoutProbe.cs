@@ -130,6 +130,14 @@ public class ModelLayoutProbe(ITestOutputHelper output)
                     }
                 }
                 output.WriteLine($"  {f.SemanticName}{f.SemanticIndex}:{f.Format} differs at {count} vertices {string.Join("; ", diffs)}");
+                if (Environment.GetEnvironmentVariable("MODELCMP_ALL") == f.SemanticName + f.SemanticIndex)
+                    for (var i = 0; i < u.ElementCount; i++)
+                    {
+                        var at = (int)(i * u.ElementSizeInBytes + f.Offset);
+                        var fu = Enumerable.Range(0, size / 4).Select(k => BitConverter.ToSingle(u.Data, at + k * 4).ToString("R"));
+                        var fv = Enumerable.Range(0, size / 4).Select(k => BitConverter.ToSingle(v.Data, at + k * 4).ToString("R"));
+                        output.WriteLine($"    #{i} {Convert.ToHexString(u.Data, at, size)} / {Convert.ToHexString(v.Data, at, size)}  ({string.Join(" ", fu)}) / ({string.Join(" ", fv)})");
+                    }
             }
         }
         for (var b = 0; b < Math.Min(x.VBIB.IndexBuffers.Count, y.VBIB.IndexBuffers.Count); b++)

@@ -103,6 +103,38 @@ public class ParityReport(ITestOutputHelper output)
         foreach (var m in models.Where(m => m.Path.Contains(p[2], StringComparison.Ordinal)))
             foreach (var mesh in m.Meshes)
             {
+                var md = mesh.Get<DmxBinary.Element>("meshData");
+                if (Environment.GetEnvironmentVariable("ENTUV_FACES") == "1" && md != null)
+                {
+                    object?[] Stream(string g, string n) => md.Get<DmxBinary.Element>(g)?.GetElements("streams")
+                        .FirstOrDefault(st => st.Name.StartsWith(n + ":", StringComparison.Ordinal))?.Get<object?[]>("data") ?? [];
+                    int[] Ints(string n) => (md.Get<object?[]>(n) ?? []).Select(x => x is int i ? i : -1).ToArray();
+                    var first = Ints("faceEdgeIndices");
+                    var next = Ints("edgeNextIndices");
+                    var to = Ints("edgeVertexIndices");
+                    var data = Ints("edgeVertexDataIndices");
+                    var pos = Stream("vertexData", "position");
+                    var tex = Stream("faceVertexData", "texcoord");
+                    var (au, av, sc) = (Stream("faceData", "textureAxisU"), Stream("faceData", "textureAxisV"), Stream("faceData", "textureScale"));
+                    var scales = mesh.GetValue<System.Numerics.Vector3>("scales");
+                    var origin = mesh.GetValue<System.Numerics.Vector3>("origin");
+                    var angles = mesh.GetValue<System.Numerics.Vector3>("angles");
+                    output.WriteLine($"mesh origin {origin} angles {angles} scales {scales}");
+                    for (var f = 0; f < first.Length; f++)
+                    {
+                        output.WriteLine($"face {f}: axisU {au.ElementAtOrDefault(f)} axisV {av.ElementAtOrDefault(f)} scale {sc.ElementAtOrDefault(f)}");
+                        var e = first[f];
+                        do
+                        {
+                            var pv = (System.Numerics.Vector3)pos[to[e]]!;
+                            var t = (System.Numerics.Vector2)tex[data[e]]!;
+                            output.WriteLine($"   corner pos ({pv.X:R} {pv.Y:R} {pv.Z:R}) uv ({t.X:R} {t.Y:R}) {BitConverter.SingleToInt32Bits(t.X):X8} {BitConverter.SingleToInt32Bits(t.Y):X8}");
+                            e = next[e];
+                        } while (e != first[f]);
+                    }
+                }
+                foreach (var group in new[] { "vertexData", "faceVertexData", "edgeData", "faceData" })
+                    output.WriteLine($"{group}: " + string.Join(", ", md?.Get<DmxBinary.Element>(group)?.GetElements("streams").Select(st => st.Name) ?? []));
                 var raw = MapMeshCorners.Build(mesh, false, null, withTangent: false, allStreams: true);
                 var shifted = MapMeshCorners.Build(mesh, true, null, withTangent: false, allStreams: true);
                 for (var k = 0; k < raw.Count; k++)
