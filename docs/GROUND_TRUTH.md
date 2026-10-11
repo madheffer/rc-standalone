@@ -690,6 +690,54 @@ game can answer is raised with the user first, and runs with -insecure.
         matches (182067e80), so the source tangent differs in its last
         bit. Also open: some agg_nomerge MDAT and cluster objects' buffers.
 
+57. **Whole-package parity and Valve's own determinism** (2026-10-12,
+    ParityReport: compile-map into an empty package, scored file by file
+    against Valve's package; S2C_WORLD_STAMP gives the .vwrld Valve's
+    compile time and fingerprint). Two full compiles of probe01 on the 1009
+    build differ only in the world stamp and the .nav (9,580 against 9,590
+    bytes, from byte 5,421 on: the AI data), so the lightmaps are
+    deterministic on one machine and the nav is not; the scorer reports the
+    nav apart. In a full build lightmaps are about 95% of probe01's bytes;
+    the CS2 bomb damage file (sacustomdata, sampled from the nav mesh) is 55%
+    of a no-lighting build of a map with bombsites. Without lighting, on
+    the 1012 references: probe01 and cardtest exact but for the bomb damage,
+    the nav and the .vmap_c; ze_hold_em_p 86.9% (entity model texcoords and
+    the .vmap_c left).
+
+58. **Draw call UV density inputs** (settled 2026-10-12 by capture,
+    capture_uvdensity.py on ze_hold_em_p): 1812d9920 reads the first
+    "position" field of 3 floats and the first "tex" field of 2 from the
+    float vertices and indices AddDrawDescriptors hands it; those are ours
+    vertex for vertex, but the triangles are the welded list before the
+    meshlet build, which starts about 5% of an aggregate's triangles a corner
+    later. The density is taken there (NodeDraw.Result.DensityIndices): all
+    of ze_hold_em_p's world nodes exact, 16 more of atixref's.
+
+59. **Vis-merged render objects** (settled 2026-10-12 by decompile,
+    18026e9c0): the merger's object copies its entry's +0xb0, +0xb4 (fades)
+    and +0x80 (the node's origin) into the render object's +0x38, +0x3c and
+    +0x68, the scene object's m_flFadeStartDistance, m_flFadeEndDistance and
+    m_vLightingOrigin; the cluster compile leaves 0, 0 and FLT_MAX.
+    cardtest's no-lighting world nodes exact.
+
+60. **Open, 2026-10-12:**
+    - Brush entity model texcoords (ze_hold_em_p's end_breakable models,
+      12.5% of its bytes): some V values are 1 or 2 ulps from ours in both
+      directions. Valve's ConvertMeshForBuilder output is ours bit for bit
+      (capture_texshift.py, after HammerMesh_ShiftTexcoordIslands), so the
+      change is in the entity model compile; not a re-projection from the
+      face's texture axes nor an average of merged corners (tested).
+    - Overlay tangents (atixref, about 30 small models): the projection is
+      exact (OverlayCaptureProbe.WholePass, 356 of 356), but our packed
+      NORMAL word holds a default tangent (angle 512, sign set) where
+      Valve's varies; the computed tangent is lost between projection and
+      packing (skipping the stream filter for overlays makes it worse).
+    - The .vmap_c's m_SubassetReferences order: neither the lump order, the
+      walk, node ids, document order, FGD order nor a plain hash (Murmur2,
+      CRC32, FNV-1a by bucket) of the class name. The entity walker is
+      180f25de0 (vf 8 "entity", vf 0x20 "soundevent").
+    - Prop aggregate draw order (atixref, 1.75 MB): ledger 43.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
