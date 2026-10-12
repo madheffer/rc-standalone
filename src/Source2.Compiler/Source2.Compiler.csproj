@@ -36,10 +36,21 @@
     <Using Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <!--
+      ValveKeyValue is the one package a host is likely to pin lower, because its
+      own ValveResourceFormat references it (vpkstuff's VRF uses 0.70.0.499). Both
+      0.70.0.499 and 0.71.0.528 build this library and give the same output (tests
+      and recompile/kv3 parity sweeps, 2026-10-13). A host sets this to its version
+      rather than loading two.
+    -->
+    <Source2CompilerValveKeyValueVersion Condition="'$(Source2CompilerValveKeyValueVersion)' == ''">0.71.0.528</Source2CompilerValveKeyValueVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
     <!-- The KV tree (KVObject) and KV3 text; the VPK reader for template lookup. -->
-    <PackageReference Include="ValveKeyValue" Version="0.71.0.528" />
+    <PackageReference Include="ValveKeyValue" Version="$(Source2CompilerValveKeyValueVersion)" />
     <PackageReference Include="ValvePak" Version="6.0.0.182" />
     <!-- KV3 block compression, as tier0 uses it; RED2 CRCs. -->
     <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
