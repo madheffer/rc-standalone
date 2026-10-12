@@ -65,8 +65,8 @@ internal static class ReserializeParity
                         "particle-paths" => ResourceBuilder.RewriteParticlePaths(original, new Dictionary<string, string>()),
                         "swap-own-phys" => ResourceBuilder.ExtractPhysBlock(original) is { } phys
                             ? ResourceBuilder.SwapPhysBlockBinary(original, phys) : original,
-                        "model-raw" => ResourceBuilder.RebuildModelRaw(original,
-                            res.Blocks.Select(b => (b.Type.ToString(), original.AsSpan((int)b.Offset, (int)b.Size).ToArray())).ToList()),
+                        "model-raw" => VrfResourceBuilder.RebuildModelRaw(original,
+                            res.Blocks.Select(b => (b.Type, original.AsSpan((int)b.Offset, (int)b.Size).ToArray())).ToList()),
                         _ => throw new ArgumentException($"unknown mode {mode}"),
                     };
                 }

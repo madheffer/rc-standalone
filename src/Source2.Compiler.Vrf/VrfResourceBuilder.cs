@@ -179,6 +179,22 @@ public static class VrfResourceBuilder
     }
 
     /// <summary>
+    /// <see cref="ResourceBuilder.RebuildModelRaw"/> for blocks typed with VRF's <see cref="BlockType"/>,
+    /// whose value is the block's four-character tag read as a little-endian u32 (an unknown tag
+    /// cast to <see cref="BlockType"/> included).
+    /// </summary>
+    public static byte[] RebuildModelRaw(byte[] template, IReadOnlyList<(BlockType Type, byte[] Bytes)> blocks)
+        => ResourceBuilder.RebuildModelRaw(template, [.. blocks.Select(b => (Tag(b.Type), b.Bytes))]);
+
+    /// <summary>The four-character tag of <paramref name="type"/> (<c>BlockType.PHYS</c> is <c>"PHYS"</c>).</summary>
+    public static string Tag(BlockType type)
+    {
+        Span<byte> bytes = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, (uint)type);
+        return System.Text.Encoding.ASCII.GetString(bytes);
+    }
+
+    /// <summary>
     /// A block whose payload is already laid out. The types whose DATA is not KV3
     /// need this, because VRF writes no serializer for them: a texture's pixels, and
     /// a resource manifest's string table.

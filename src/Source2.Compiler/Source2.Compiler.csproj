@@ -40,8 +40,8 @@
     <!--
       ValveKeyValue is the one package a host is likely to pin lower, because its
       own ValveResourceFormat references it (vpkstuff's VRF uses 0.70.0.499). Both
-      0.70.0.499 and 0.71.0.528 build this library and give the same output (tests
-      and recompile/kv3 parity sweeps, 2026-10-13). A host sets this to its version
+      0.70.0.499 and 0.71.0.528 build this library and give the same output (75,457
+      builder, decompile and recompile results over pak01, 2026-10-13). A host sets this to its version
       rather than loading two.
     -->
     <Source2CompilerValveKeyValueVersion Condition="'$(Source2CompilerValveKeyValueVersion)' == ''">0.71.0.528</Source2CompilerValveKeyValueVersion>
