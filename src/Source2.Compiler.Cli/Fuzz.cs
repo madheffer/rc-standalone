@@ -38,8 +38,11 @@ internal static class Fuzz
         {
             new("compile vdata", kv3Texts, b => Kv3SourceCompiler.Compile(b, ".vdata", "scripts/f.vdata")),
             new("compile vsndevts", kv3Texts, b => Kv3SourceCompiler.Compile(b, ".vsndevts", "soundevents/f.vsndevts")),
-            new("decompile vpcf", Stock("vpcf_c", 12), b => Decompile(b, "f.vpcf_c")),
-            new("decompile vmat", Stock("vmat_c", 12), b => Decompile(b, "f.vmat_c")),
+            new("decompile vpcf", Stock("vpcf_c", 12), b => ResourceDecompiler.DataBlockToKv3(CompiledResource.Read(b), out _)),
+            new("decompile vmat", Stock("vmat_c", 12), b => ResourceDecompiler.DataBlockToKv3(CompiledResource.Read(b), out _)),
+            new("decompile vmdl", models, b => { var r = CompiledResource.Read(b); foreach (var t in new[] { "DATA", "CTRL", "PHYS", "MDAT", "RED2" }) ResourceDecompiler.BlockToKv3(r, t, out _); }),
+            new("vrf decompile vpcf", Stock("vpcf_c", 12), b => VrfDecompile(b, "f.vpcf_c")),
+            new("vrf decompile vmat", Stock("vmat_c", 12), b => VrfDecompile(b, "f.vmat_c")),
             new("serialize vmat", Stock("vmat_c", 12), b => Reserialize(b, "f.vmat_c", r => VrfResourceBuilder.Serialize(r))),
             new("serialize vpcf", Stock("vpcf_c", 12), b => Reserialize(b, "f.vpcf_c", r => VrfResourceBuilder.Serialize(r))),
             new("serialize vmdl", models, b => Reserialize(b, "f.vmdl_c", r => VrfResourceBuilder.Serialize(r))),
@@ -124,9 +127,8 @@ internal static class Fuzz
         return [.. b];
     }
 
-    private static void Decompile(byte[] bytes, string name)
+    private static void VrfDecompile(byte[] bytes, string name)
     {
-        ResourceDecompiler.DataBlockToKv3(CompiledResource.Read(bytes), out _);
         using var res = new Resource { FileName = name };
         res.Read(new MemoryStream(bytes));
         VrfResourceDecompiler.DataBlockToKv3(res, out _);

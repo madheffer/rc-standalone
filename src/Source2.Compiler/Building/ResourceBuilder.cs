@@ -1238,6 +1238,8 @@ public static class ResourceBuilder
     /// offsets, and the file-size header. Mirrors <c>data/_trans_preview/_kf/swap_phys.py</c>.</summary>
     public static byte[] SwapPhysBlockBinary(byte[] model, byte[] donorPhysBytes)
     {
+        if (model.Length < 16)
+            throw new InvalidDataException($"Model is {model.Length} bytes, shorter than a resource header");
         int bo = (int)BitConverter.ToUInt32(model, 8);
         int bc = (int)BitConverter.ToUInt32(model, 12);
         int arr = 8 + bo;
@@ -1249,9 +1251,11 @@ public static class ResourceBuilder
         {
             var o = arr + i * 12;
             var type = System.Text.Encoding.ASCII.GetString(model, o, 4);
-            var reloff = (int)BitConverter.ToUInt32(model, o + 4);
-            var size = (int)BitConverter.ToUInt32(model, o + 8);
-            blocks.Add((o, type, (o + 4) + reloff, size));
+            var abs = o + 4 + (long)BitConverter.ToUInt32(model, o + 4);
+            var size = (long)BitConverter.ToUInt32(model, o + 8);
+            if (abs + size > model.Length)
+                throw new InvalidDataException($"Block {i} ({type}) claims {size} bytes at {abs}, past the model's {model.Length}");
+            blocks.Add((o, type, (int)abs, (int)size));
         }
         if (!blocks.Exists(b => b.Type == "PHYS"))
             return model;                 // no PHYS - nothing to swap
