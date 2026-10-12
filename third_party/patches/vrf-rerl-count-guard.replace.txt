@@ -1,0 +1,9 @@
+            // vpkstuff patch: the entry count comes from the file. Each entry takes 16 bytes of the
+            // block after the entries offset, so a count past that is hostile (s2c fuzz: one
+            // reserved gigabytes here before a single entry was read).
+            if (size > Math.Max(0L, (long)Size - offset) / 16)
+            {
+                throw new InvalidDataException($"RERL claims {size} entries in a {Size}-byte block; refusing to parse (malformed or hostile resource).");
+            }
+
+            ResourceRefInfoList.EnsureCapacity((int)size);

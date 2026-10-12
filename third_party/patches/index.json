@@ -104,6 +104,14 @@
       "find": "vrf-resource-block-count-guard.find.txt",
       "replace": "vrf-resource-block-count-guard.replace.txt",
       "description": "Refuse a block count larger than the stream can hold before reserving the block list. SECURITY (s2c fuzz)."
+    },
+    {
+      "id": "vrf-rerl-count-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Blocks/ResourceExtRefList.cs",
+      "find": "vrf-rerl-count-guard.find.txt",
+      "replace": "vrf-rerl-count-guard.replace.txt",
+      "description": "Refuse a RERL entry count larger than its block can hold (16 bytes an entry) before ResourceRefInfoList.EnsureCapacity reserves space for it. SECURITY (s2c fuzz, 2026-10-13): a mutated vpcf_c reserved gigabytes from one hostile count. Raises InvalidDataException."
     }
   ]
 }

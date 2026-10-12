@@ -350,6 +350,10 @@ Two smaller layout differences fall out of the same v4/v5 split and are expected
 `countBytes1` differs (RC's v5 bins values differently) and we omit `FLCI`, the
 editor-only source line map, which pre-FLCI stock resources load fine without.
 
+*Superseded 2026-10-12:* text compiles are now byte-identical to today's RC
+(tier0's own encoder settings, `Kv3V5Writer`), and a `.vdata` carries `FLCI` as RC
+writes it (`Kv3LineColumns`). The RcReference tests compare whole files.
+
 ## Re-deriving after a CS2 update
 
 ```bash

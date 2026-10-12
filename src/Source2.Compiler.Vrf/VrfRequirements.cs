@@ -51,6 +51,7 @@ public static class VrfRequirements
         "vrf-vtex-dimension-guard",
         // Sizes and counts from the file are checked before anything is allocated (s2c fuzz).
         "vrf-resource-block-count-guard",
+        "vrf-rerl-count-guard",
         "vrf-kv3-size-guard",
         "vrf-kv3-string-count-guard",
         "vrf-kv3-capacity-array",

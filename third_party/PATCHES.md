@@ -90,6 +90,7 @@ before allocating:
 | id | file | checks |
 |---|---|---|
 | `vrf-resource-block-count-guard` | `Resource/Resource.cs` | block count against the 12-byte entries the stream can hold |
+| `vrf-rerl-count-guard` | `Blocks/ResourceExtRefList.cs` | RERL entry count against the 16-byte entries its block can hold (found 2026-10-13) |
 | `vrf-kv3-size-guard` | `ResourceTypes/BinaryKV3.cs` | stored sizes against the rest of the block; decompressed sizes at most 4096 times that plus 1 MB; nothing negative; sets the node budget |
 | `vrf-kv3-string-count-guard` | `ResourceTypes/BinaryKV3.cs` | string count against buffer 1's bytes |
 | `vrf-kv3-capacity-array`, `-typed-array`, `-object` | `ResourceTypes/BinaryKV3.cs` | a length from the file is clamped to 4096 where it is only a capacity hint |
