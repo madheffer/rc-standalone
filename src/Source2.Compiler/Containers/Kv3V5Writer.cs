@@ -1,6 +1,4 @@
 using System.Text;
-using K4os.Compression.LZ4;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using ValveKeyValue;
 
@@ -350,36 +348,15 @@ public static class Kv3V5Writer
     /// 1800c7080's blob stream: an LZ4 HC level 12 stream whose input is copied
     /// into a 0x14000-byte ring at the running offset, which goes back to 0 once
     /// past 0xffff, each frame compressed with LZ4_compress_HC_continue (so a
-    /// wrapped frame shortens the dictionary it overwrites). K4os carries lz4hc's
-    /// streaming functions only internally; they are bound by reflection.
+    /// wrapped frame shortens the dictionary it overwrites). tier0's lz4 is 1.9.3 or later
+    /// (<see cref="Compression.Lz4HcStream"/>): 1.9.2 gets the frames after a wrap wrong.
     /// </summary>
     private sealed unsafe class Lz4BlobRing : IDisposable
     {
-        private const int RingSize = 0x14000, StreamSize = 1 << 19;
-        private static readonly delegate*<void*, int, void*> Init;
-        private static readonly delegate*<void*, int, void> SetLevel;
-        private static readonly delegate*<void*, byte*, byte*, int, int, int> Continue;
+        private const int RingSize = 0x14000;
         private readonly byte* _ring = (byte*)NativeMemory.AllocZeroed(RingSize);
-        private readonly void* _stream = NativeMemory.AllocZeroed(StreamSize);
+        private readonly Compression.Lz4HcStream _stream = new(12);
         private int _offset;
-
-        static Lz4BlobRing()
-        {
-            var asm = typeof(LZ4Codec).Assembly;
-            var ll = asm.GetType("K4os.Compression.LZ4.Engine.LL", true)!;
-            var llxx = asm.GetType("K4os.Compression.LZ4.Engine.LLxx", true)!;
-            var flags = BindingFlags.Public | BindingFlags.Static;
-            Init = (delegate*<void*, int, void*>)ll.GetMethods(flags).First(m => m.Name == "LZ4_initStreamHC" && m.GetParameters().Length == 2).MethodHandle.GetFunctionPointer();
-            SetLevel = (delegate*<void*, int, void>)ll.GetMethod("LZ4_setCompressionLevel", flags)!.MethodHandle.GetFunctionPointer();
-            Continue = (delegate*<void*, byte*, byte*, int, int, int>)llxx.GetMethod("LZ4_compress_HC_continue", flags)!.MethodHandle.GetFunctionPointer();
-        }
-
-        public Lz4BlobRing()
-        {
-            if (Init(_stream, StreamSize) == null)
-                throw new InvalidOperationException("LZ4 HC stream init failed");
-            SetLevel(_stream, 12);
-        }
 
         public byte[] Compress(ReadOnlySpan<byte> frame)
         {
@@ -387,7 +364,7 @@ public static class Kv3V5Writer
             var output = new byte[0x4050];
             int n;
             fixed (byte* o = output)
-                n = Continue(_stream, _ring + _offset, o, frame.Length, output.Length);
+                n = _stream.CompressContinue(_ring + _offset, o, frame.Length, output.Length);
             if (n <= 0)
                 throw new InvalidOperationException("LZ4 blob frame failed");
             _offset += frame.Length;
@@ -399,19 +376,14 @@ public static class Kv3V5Writer
         public void Dispose()
         {
             NativeMemory.Free(_ring);
-            NativeMemory.Free(_stream);
+            _stream.Dispose();
         }
     }
 
     // 1800c8790 / 1800c8d80 keep the compressed block when raw / 20 <= raw - compressed.
     private static bool Saves(int raw, int compressed) => raw / 20 <= raw - compressed;
 
-    private static byte[] Lz4(byte[] input)
-    {
-        var output = new byte[LZ4Codec.MaximumOutputSize(input.Length)];
-        var n = LZ4Codec.Encode(input, output, LZ4Level.L12_MAX);
-        return output.AsSpan(0, n).ToArray();
-    }
+    private static byte[] Lz4(byte[] input) => Compression.Lz4.Compress(input);
 
     /// <summary>A block's three sections after binary_auto (or a forced method) has had its say.</summary>
     /// <param name="Method">The method the block is stored with.</param>

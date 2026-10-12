@@ -1,7 +1,5 @@
 using System.Buffers.Binary;
 using System.Text;
-using K4os.Compression.LZ4;
-using K4os.Compression.LZ4.Encoders;
 
 namespace Source2.Compiler.Kv3;
 
@@ -211,7 +209,7 @@ public sealed class Kv3Tree
         {
             var o = new byte[unc];
             if (t.Compression == 0) { block.AsSpan(pos, unc).CopyTo(o); pos += unc; return o; }
-            var n = zstd is null ? LZ4Codec.Decode(block.AsSpan(pos, cmp), o) : zstd.Unwrap(block.AsSpan(pos, cmp), o);
+            var n = zstd is null ? Source2.Compiler.Compression.Lz4.Decode(block.AsSpan(pos, cmp), o) : zstd.Unwrap(block.AsSpan(pos, cmp), o);
             if (n != unc) throw Bad("compressed buffer");
             pos += cmp;
             return o;
@@ -263,7 +261,7 @@ public sealed class Kv3Tree
                 // Decoded blob by blob, as tier0's reader does: it copies each whole frame into the
                 // current blob's allocation unchecked, so a frame that crosses into the next blob
                 // overruns the heap in game (the 2026-09-27 anim-builder crash).
-                var dec = new LZ4ChainDecoder(t.FrameSize, 0);
+                var dec = new Source2.Compiler.Compression.Lz4ChainDecoder(t.FrameSize);
                 var tmp = new byte[t.FrameSize];
                 var sizesEnd = off + h[17];
                 var done = 0;
@@ -273,7 +271,9 @@ public sealed class Kv3Tree
                     {
                         if (off + 2 > sizesEnd) throw Bad("lz4 blob frame sizes");
                         var clen = BinaryPrimitives.ReadUInt16LittleEndian(buf2.AsSpan(off)); off += 2;
-                        if (!dec.DecodeAndDrain(block.AsSpan(pos, clen), tmp, out var n) || n < 1) throw Bad("lz4 blob frame");
+                        if (pos + clen > block.Length) throw Bad("lz4 blob frame");
+                        var n = dec.Decode(block.AsSpan(pos, clen), tmp);
+                        if (n < 1) throw Bad("lz4 blob frame");
                         if (got + n > len) throw Bad("lz4 frame crosses a blob boundary");
                         tmp.AsSpan(0, n).CopyTo(s.Blobs.AsSpan(done + got));
                         pos += clen; got += n;
