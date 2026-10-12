@@ -315,6 +315,10 @@ public static class Kv3V5Writer
         {
             ZstdSharp.Unsafe.Methods.ZSTD_CCtx_setParameter(cctx, ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_compressionLevel, 7);
             ZstdSharp.Unsafe.Methods.ZSTD_CCtx_setParameter(cctx, ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_checksumFlag, 1);
+            // tier0's zstd is 1.5.5 or 1.5.6, before the pre-block splitter ZstdSharp's 1.5.7 turns
+            // on by default; level 1 ("no splitting", ZSTD_c_blockSplitterLevel) gives their bytes
+            // (stock PHYS blobs over 128 KB, measured against zstd 1.4.5 to 1.5.7 built from source).
+            ZstdSharp.Unsafe.Methods.ZSTD_CCtx_setParameter(cctx, ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_experimentalParam20, 1);
             // Over 1 MB of buffers and blobs tier0 asks for worker threads; zstd's
             // multithreaded frames do not depend on how many.
             if (raw1.Length + raw2.Length + blobs.Sum(x => x.Length) > 0x100000)
