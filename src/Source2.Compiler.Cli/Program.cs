@@ -33,6 +33,7 @@ try
         "recompile-parity" => RecompileParity.Run(args[1..]),
         "reserialize-parity" => ReserializeParity.Run(args[1..]),
         "container-parity" => ContainerParity.Run(args[1..]),
+        "reencode-parity" => ReencodeParity.Run(args[1..]),
         "kv3-types" => Kv3Types.Run(args[1..]),
         "red2-survey" => Red2Survey.Run(args[1..]),
         "fuzz" => Fuzz.Run(args[1..]),
