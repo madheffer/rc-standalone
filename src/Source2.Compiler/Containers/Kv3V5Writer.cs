@@ -3,7 +3,6 @@ using K4os.Compression.LZ4;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using ValveKeyValue;
-using ValveResourceFormat.ResourceTypes;
 
 namespace Source2.Compiler;
 
@@ -423,14 +422,14 @@ public static class Kv3V5Writer
     /// <param name="BlobsRaw">The blobs, concatenated, uncompressed.</param>
     /// <param name="BlobsOut">The blobs as stored.</param>
     /// <param name="FrameSizeBytes">Bytes of LZ4 blob frame sizes in <paramref name="Raw2"/>.</param>
-    internal readonly record struct Packed(KV3BinaryCompressionMethod Method, byte[] Raw2, byte[] Out1, byte[] Out2,
+    internal readonly record struct Packed(Kv3Compression Method, byte[] Raw2, byte[] Out1, byte[] Out2,
         byte[] BlobsRaw, byte[] BlobsOut, int FrameSizeBytes)
     {
         /// <summary>The header's stored-size field (offset 52): Zstd counts the blobs, LZ4 leaves them out.</summary>
         public int StoredSize => Method switch
         {
-            KV3BinaryCompressionMethod.Zstd => Out1.Length + Out2.Length + BlobsOut.Length,
-            KV3BinaryCompressionMethod.Lz4 => Out1.Length + Out2.Length,
+            Kv3Compression.Zstd => Out1.Length + Out2.Length + BlobsOut.Length,
+            Kv3Compression.Lz4 => Out1.Length + Out2.Length,
             _ => Out1.Length + Out2.Length,
         };
     }
@@ -441,15 +440,15 @@ public static class Kv3V5Writer
     /// LZ4 under 0x80001 and zstd from there, kept only if it saves a twentieth. Shared by this
     /// writer and <see cref="Kv3.Kv3Tree"/>, so an edited compiled block is stored as RC stores one.
     /// </summary>
-    internal static Packed Pack(byte[] raw1, byte[] raw2, IReadOnlyList<byte[]> blobs, KV3BinaryCompressionMethod? method)
+    internal static Packed Pack(byte[] raw1, byte[] raw2, IReadOnlyList<byte[]> blobs, Kv3Compression? method)
     {
         var blobsRaw = blobs.SelectMany(x => x).ToArray();
         var total = raw1.Length + raw2.Length + blobsRaw.Length;
-        var chosen = method ?? (total < 0x100 ? KV3BinaryCompressionMethod.Uncompressed
-            : total < 0x80001 ? KV3BinaryCompressionMethod.Lz4 : KV3BinaryCompressionMethod.Zstd);
+        var chosen = method ?? (total < 0x100 ? Kv3Compression.Uncompressed
+            : total < 0x80001 ? Kv3Compression.Lz4 : Kv3Compression.Zstd);
         byte[] out1 = raw1, out2 = raw2, blobsOut = blobsRaw;
         var frameSizes = 0;
-        if (chosen == KV3BinaryCompressionMethod.Lz4)
+        if (chosen == Kv3Compression.Lz4)
         {
             // Blobs (1800c7080): one LZ4 HC level 12 stream over every blob in frames of
             // at most 16384 bytes, a blob's last frame short; each frame's compressed size
@@ -477,17 +476,17 @@ public static class Kv3V5Writer
                 (raw2, out1, out2, blobsOut) = (lzRaw2, lz1, lz2, lzBlobs);
             else
             {
-                chosen = KV3BinaryCompressionMethod.Uncompressed;
+                chosen = Kv3Compression.Uncompressed;
                 frameSizes = 0;
             }
         }
-        else if (chosen == KV3BinaryCompressionMethod.Zstd)
+        else if (chosen == Kv3Compression.Zstd)
         {
             var (z1, z2, zBlobs) = Zstd(raw1, raw2, blobs);
             if (method != null || Saves(total, z1.Length + z2.Length + zBlobs.Length))
                 (out1, out2, blobsOut) = (z1, z2, zBlobs);
             else
-                chosen = KV3BinaryCompressionMethod.Uncompressed;
+                chosen = Kv3Compression.Uncompressed;
         }
         return new Packed(chosen, raw2, out1, out2, blobsRaw, blobsOut, frameSizes);
     }
@@ -498,7 +497,7 @@ public static class Kv3V5Writer
     /// chooses (1800c7220): raw under 256 bytes of buffers and blobs, else LZ4
     /// under 0x80001 and zstd from there, kept only if it saves a twentieth.
     /// </summary>
-    public static byte[] Write(KVObject root, Guid format, KV3BinaryCompressionMethod? method = null)
+    public static byte[] Write(KVObject root, Guid format, Kv3Compression? method = null)
     {
         var c = new Context();
         Node(c, root);
@@ -557,8 +556,8 @@ public static class Kv3V5Writer
         var p = Pack(raw1, b2.ToArray(), c.Blobs, method);
         var (chosen, raw2, out1, out2, blobsOut, frameSizes) = (p.Method, p.Raw2, p.Out1, p.Out2, p.BlobsOut, p.FrameSizeBytes);
         var blobsRaw = p.BlobsRaw;
-        var lz4 = chosen == KV3BinaryCompressionMethod.Lz4;
-        var zstd = chosen == KV3BinaryCompressionMethod.Zstd;
+        var lz4 = chosen == Kv3Compression.Lz4;
+        var zstd = chosen == Kv3Compression.Zstd;
         var compressed = lz4 || zstd;
 
         var o = new MemoryStream();

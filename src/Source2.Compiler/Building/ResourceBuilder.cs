@@ -1354,7 +1354,7 @@ public static class ResourceBuilder
 
     /// <summary>Deep equality of two KV3 trees: types, flags, key order and values (doubles and
     /// floats by their bits).</summary>
-    internal static bool SameTree(KVObject a, KVObject b)
+    public static bool SameTree(KVObject a, KVObject b)
     {
         if (a.ValueType != b.ValueType || a.Flag != b.Flag)
             return false;

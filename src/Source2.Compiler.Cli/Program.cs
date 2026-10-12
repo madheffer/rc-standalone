@@ -42,6 +42,7 @@ try
         "kv3-types" => Kv3Types.Run(args[1..]),
         "red2-survey" => Red2Survey.Run(args[1..]),
         "fuzz" => Fuzz.Run(args[1..]),
+        "kv3-read-parity" => Kv3ReadParity.Run(args[1..]),
         _ => Unknown(args[0]),
     };
 }

@@ -544,7 +544,7 @@ public sealed class Kv3Tree
         var blobList = new List<byte[]>(blobLens.Count);
         for (int i = 0, at = 0; i < blobLens.Count; at += blobLens[i], i++)
             blobList.Add(blobs.AsSpan(at, blobLens[i]).ToArray());
-        var p = Kv3V5Writer.Pack(b1, b2Body, blobList, (ValveResourceFormat.ResourceTypes.KV3BinaryCompressionMethod?)compression);
+        var p = Kv3V5Writer.Pack(b1, b2Body, blobList, (Kv3Compression?)compression);
         var method = (uint)p.Method;
         var compressed = method != 0;
 
