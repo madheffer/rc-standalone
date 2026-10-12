@@ -846,11 +846,20 @@ namespace Source2.Compiler.Kv3.Reading
                 case KV3BinaryNodeType.BOOLEAN:
                     return ReadLane<byte>(ref lane.Bytes1) != 0;
                 case KV3BinaryNodeType.INT8:
+                {
                     Debug.Assert(context.Version >= 4);
-                    return (int)ReadLane<sbyte>(ref lane.Bytes1);
+                    // KVValueType has no 8-bit types; the width is recorded so a write keeps it.
+                    var int8 = new KVObject((int)ReadLane<sbyte>(ref lane.Bytes1));
+                    Kv3WireTypes.Set(int8, Kv3WireTypes.Int8);
+                    return int8;
+                }
                 case KV3BinaryNodeType.UINT8:
+                {
                     Debug.Assert(context.Version >= 4);
-                    return (uint)ReadLane<byte>(ref lane.Bytes1);
+                    var uint8 = new KVObject((uint)ReadLane<byte>(ref lane.Bytes1));
+                    Kv3WireTypes.Set(uint8, Kv3WireTypes.UInt8);
+                    return uint8;
+                }
 
                 // 2 byte values
                 case KV3BinaryNodeType.INT16:

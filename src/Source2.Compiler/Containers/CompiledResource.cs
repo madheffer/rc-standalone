@@ -129,8 +129,14 @@ public sealed class CompiledResource
             var block = File.Blocks[i];
             if (!_decoded.TryGetValue(block, out var decoded))
                 continue;
-            if (decoded.Original is { } original && ResourceBuilder.SameTree(decoded.Document.Root, Kv3Binary.Read(original).Root))
-                continue;
+            if (decoded.Original is { } original)
+            {
+                var read = Kv3Binary.Read(original).Root;
+                if (ResourceBuilder.SameTree(decoded.Document.Root, read))
+                    continue;
+                // a field an edit replaced keeps the width Valve stored it with
+                Kv3WireTypes.Inherit(read, decoded.Document.Root);
+            }
             var written = new ResourceBlock(block.Type, Kv3Binary.Write(decoded.Document.Root, decoded.Document.Header!.Format));
             _decoded.Add(written, new Decoded(decoded.Document, written.Data));
             File.Blocks[i] = written;
