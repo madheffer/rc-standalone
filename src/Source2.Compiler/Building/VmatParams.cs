@@ -1,5 +1,4 @@
 using ValveKeyValue;
-using ValveResourceFormat.Serialization.KeyValues;
 
 namespace Source2.Compiler;
 
@@ -29,7 +28,8 @@ public static class VmatParams
             return null;
         foreach (var entry in arr.Values)
         {
-            if (!string.Equals(entry.GetStringProperty("m_name"), paramName, StringComparison.Ordinal))
+            if (!entry.TryGetValue("m_name", out var name) || name.ValueType != KVValueType.String
+                || !string.Equals((string)name, paramName, StringComparison.Ordinal))
                 continue;
             if (!entry.TryGetValue(valueKey, out var v) || v is null)
                 return null;

@@ -2,10 +2,6 @@ using System.IO.Hashing;
 using System.Reflection;
 using ValveKeyValue;
 using ValveKeyValue.KeyValues3;
-using ValveResourceFormat;
-using ValveResourceFormat.Blocks;
-using ValveResourceFormat.ResourceTypes;
-using ValveResourceFormat.Serialization.KeyValues;
 
 namespace Source2.Compiler;
 
@@ -95,16 +91,6 @@ public static partial class Source2ContainerAuthor
         return folder + "/" + safe.ToLowerInvariant() + sourceExtension.ToLowerInvariant();
     }
 
-    // Resource.Version has a private setter (VRF is a reader first); this is
-    // the single reflection point of the author. Cached; loudly fails if the
-    // upstream property ever moves.
-    private static readonly PropertyInfo ResourceVersionProp =
-        typeof(Resource).GetProperty(nameof(Resource.Version), BindingFlags.Public | BindingFlags.Instance)
-        ?? throw new InvalidOperationException("Resource.Version property missing - VRF API changed?");
-
-    /// <summary>Set a resource's container version (VRF keeps the setter private).</summary>
-    internal static void SetResourceVersion(Resource resource, ushort version) => ResourceVersionProp.SetValue(resource, version);
-
     /// <summary>
     /// Author a compiled container for the parsed KV3 source <paramref name="userDoc"/>.
     /// </summary>
@@ -179,8 +165,7 @@ public static partial class Source2ContainerAuthor
         string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc, bool narrowIntegers, Func<KVObject, KVObject>? editRed2 = null,
         string searchPath = "csgo")
     {
-        using var resource = new Resource();
-        ResourceVersionProp.SetValue(resource, spec.ResourceVersion);
+        var file = new ResourceFile { Version = spec.ResourceVersion };
 
         // RERL - resourcecompiler emits the block ONLY when the compiled data
         // actually references other resources (verified: a ref-free vpcf ships
@@ -194,16 +179,7 @@ public static partial class Source2ContainerAuthor
         if (spec.ChildResource)
             refs = [.. refs.OrderBy(r => r, StringComparer.Ordinal)];
         if (refs.Count > 0)
-        {
-            var rerl = new ResourceExtRefList { Resource = resource };
-            foreach (var path in refs)
-                rerl.ResourceRefInfoList.Add(new ResourceExtRefList.ResourceReferenceInfo
-                {
-                    Id = Source2ResourceId.ForPath(path),
-                    Name = path,
-                });
-            resource.Blocks.Add(rerl);
-        }
+            file.Blocks.Add(new ResourceBlock("RERL", ResourceRefs.Write([.. refs.Select(r => (Source2ResourceId.ForPath(r), r))], 0)));
 
         // RED2 - authored for THIS compile (real source name + CRC, correct
         // compiler identity, real subasset data), as a binary-KV3 blob with the
@@ -213,11 +189,10 @@ public static partial class Source2ContainerAuthor
         var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc, searchPath: searchPath);
         if (editRed2 != null)
             red2Doc = editRed2(red2Doc);
-        resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
+        file.Blocks.Add(new ResourceBlock("RED2", Kv3Binary.Write(NarrowIntegers(red2Doc), Kv3Formats.Get("generic"))));
 
         // DATA - the caller's tree, under its own format GUID.
-        resource.Blocks.Add(AuthoredKv3.Block(
-            narrowIntegers ? NarrowIntegers(dataRoot) : dataRoot, format, BlockType.DATA, resource));
+        file.Blocks.Add(new ResourceBlock("DATA", Kv3Binary.Write(narrowIntegers ? NarrowIntegers(dataRoot) : dataRoot, format)));
 
         // FLCI, the source line map, after DATA (Kv3LineColumns). Skipped when
         // the scanner cannot account for every value, rather than point at
@@ -225,12 +200,11 @@ public static partial class Source2ContainerAuthor
         if (userDoc is not null && spec.LineColumnInfo
             && Kv3LineColumns.Author(System.Text.Encoding.UTF8.GetString(sourceTextBytes),
                                      $"content/{searchPath}/{sourceFileName}", Kv3LineColumns.CountValues(dataRoot)) is { } flci)
-            resource.Blocks.Add(AuthoredKv3.Block(flci, KV3IDLookup.Get("generic"), BlockType.FLCI, resource));
+            file.Blocks.Add(new ResourceBlock("FLCI", Kv3Binary.Write(flci, Kv3Formats.Get("generic"))));
 
-        // A map's child resources, and every compile from KV3 text, take the
-        // compiler's own layout (RERL's entry array on an 8-byte boundary,
-        // blocks padded with zeros). A map's other trees keep VRF's.
-        return spec.ChildResource || userDoc is not null ? ValveLayout.Serialize(resource) : ResourceBuilder.Serialize(resource);
+        // resourcecompiler's layout: blocks padded with zeros, RERL's entry
+        // array on an 8-byte boundary of the file.
+        return file.Write();
     }
 
     /// <summary>
@@ -256,26 +230,19 @@ public static partial class Source2ContainerAuthor
                 $"'{sourceExtension}' is compiled from its own source, so it records that source. "
               + "Use AuthorKv3Resource.");
 
-        using var resource = new Resource();
-        ResourceVersionProp.SetValue(resource, spec.ResourceVersion);
+        var file = new ResourceFile { Version = spec.ResourceVersion };
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var rerl = new ResourceExtRefList { Resource = resource };
-        foreach (var path in references)
-            if (!string.IsNullOrWhiteSpace(path) && seen.Add(path))
-                rerl.ResourceRefInfoList.Add(new ResourceExtRefList.ResourceReferenceInfo
-                {
-                    Id = Source2ResourceId.ForPath(path),
-                    Name = path,
-                });
-        if (rerl.ResourceRefInfoList.Count > 0)
-            resource.Blocks.Add(rerl);
+        var refs = references.Where(path => !string.IsNullOrWhiteSpace(path) && seen.Add(path))
+            .Select(path => (Source2ResourceId.ForPath(path), path)).ToList();
+        if (refs.Count > 0)
+            file.Blocks.Add(new ResourceBlock("RERL", ResourceRefs.Write(refs, 0)));
 
         var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName: "", sourceTextBytes: [], userDoc: null, savedSource, overrideFingerprint);
-        resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
-        resource.Blocks.Add(ResourceBuilder.RawBlock(BlockType.DATA, dataBytes, resource));
+        file.Blocks.Add(new ResourceBlock("RED2", Kv3Binary.Write(NarrowIntegers(red2Doc), Kv3Formats.Get("generic"))));
+        file.Blocks.Add(new ResourceBlock("DATA", dataBytes));
 
-        return ValveLayout.Serialize(resource);
+        return file.Write();
     }
 
     /// <summary>Build the RED2 CResourceEditInfo document resourcecompiler would
@@ -543,6 +510,20 @@ public static partial class Source2ContainerAuthor
     [
         new("Vector Graphic Version", "CompileVectorGraphic", 2),
     ];
+
+    /// <summary>
+    /// The special dependencies a RED2 tree lists (<c>m_SpecialDependencies</c>), in order; none for null.
+    /// </summary>
+    public static IEnumerable<SpecialDep> ReadSpecialDeps(KVObject? red2)
+    {
+        if (red2 is null || !red2.TryGetValue("m_SpecialDependencies", out var list) || !list.IsArray)
+            yield break;
+        foreach (var d in list.Values)
+            yield return new SpecialDep(
+                (string)d["m_String"]!, (string)d["m_CompilerIdentifier"]!,
+                (int)Convert.ToInt64(d["m_nFingerprint"], System.Globalization.CultureInfo.InvariantCulture),
+                (int)Convert.ToInt64(d["m_nUserData"], System.Globalization.CultureInfo.InvariantCulture));
+    }
 
     /// <summary>
     /// A special dependency's fingerprint or user data as RC's struct writes it: 0 and 1 take the

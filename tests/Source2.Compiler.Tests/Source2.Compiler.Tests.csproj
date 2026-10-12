@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Source2.Compiler\Source2.Compiler.csproj" />
+    <ProjectReference Include="..\..\src\Source2.Compiler.Vrf\Source2.Compiler.Vrf.csproj" />
   </ItemGroup>
 
   <ItemGroup>

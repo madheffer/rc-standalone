@@ -3,11 +3,12 @@
   <!--
     Source2.Compiler - authors compiled Source 2 resources in pure managed code.
 
-    The only project reference is the vendored, patched ValveResourceFormat
-    (see third_party/README.md). VRF supplies the container framing, the KV3
-    binary reader/writer and the block model; everything in src/ is the
-    compiler layer on top: container identity, RED2 authoring, RERL ids,
-    texture/mip/BC encoding, and the KV3 text -> _c path.
+    No project references: the container, KV3 binary (every version, read and
+    written as tier0 writes it), RED2, RERL ids, texture/mip/BC encoding and the
+    KV3 text -> _c path are all this library. The KV tree type is ValveKeyValue's
+    KVObject and a VPK is read with ValvePak (both plain NuGet packages, no
+    patches). Hosts that hold ValveResourceFormat objects use the separate
+    Source2.Compiler.Vrf adapter.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -27,6 +28,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Source2.Compiler.Cli" />
     <InternalsVisibleTo Include="Source2.Compiler.Tests" />
+    <InternalsVisibleTo Include="Source2.Compiler.Vrf" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,30 +36,15 @@
     <Using Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <!--
-      Which ValveResourceFormat to build against. Defaults to the copy this
-      repository vendors and patches (tools/vendor.cs). A host that already
-      vendors its own patched VRF - and so must not end up with two assemblies
-      of the same name - overrides this to point at that one:
-
-        <PropertyGroup>
-          <Source2CompilerVrfProject>...\ValveResourceFormat.csproj</Source2CompilerVrfProject>
-        </PropertyGroup>
-        <ProjectReference Include="...\Source2.Compiler.csproj" />
-
-      The host's copy must be pinned to the sha in third_party/VENDORED.json and
-      carry at least the patches in third_party/patches. A superset is fine.
-    -->
-    <Source2CompilerVrfProject Condition="'$(Source2CompilerVrfProject)' == ''">$(MSBuildThisFileDirectory)..\..\third_party\ValveResourceFormat\ValveResourceFormat\ValveResourceFormat.csproj</Source2CompilerVrfProject>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="$(Source2CompilerVrfProject)" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <!-- The KV tree (KVObject) and KV3 text; the VPK reader for template lookup. -->
+    <PackageReference Include="ValveKeyValue" Version="0.71.0.528" />
+    <PackageReference Include="ValvePak" Version="6.0.0.182" />
+    <!-- KV3 block compression, as tier0 uses it; RED2 CRCs. -->
+    <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.12" />
     <!-- Image decode/encode + mip generation, and the managed BC1/BC3/BC7 fallback. -->
     <PackageReference Include="SkiaSharp" Version="4.153.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />

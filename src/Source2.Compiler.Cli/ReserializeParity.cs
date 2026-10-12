@@ -11,8 +11,8 @@ namespace Source2.Compiler.Cli;
 /// host edits resources with, then compares with Valve's file. An unchanged resource is the
 /// easy case: a write path that cannot give it back as it was cannot be trusted with an edit.
 /// Modes: <c>serialize</c> (<see cref="ResourceBuilder.Serialize"/>), <c>data-only</c>
-/// (<see cref="ResourceBuilder.SerializeModelDataOnly"/>), <c>keep-live-ctrl-mdat</c>
-/// (<see cref="ResourceBuilder.SerializeModelKeepBlocksLive"/> as a draw-call edit calls it),
+/// (<see cref="VrfResourceBuilder.SerializeModelDataOnly"/>), <c>keep-live-ctrl-mdat</c>
+/// (<see cref="VrfResourceBuilder.SerializeModelKeepBlocksLive"/> as a draw-call edit calls it),
 /// and identity edits: <c>particle-paths</c> (<see cref="ResourceBuilder.RewriteParticlePaths"/>
 /// with nothing to rewrite), <c>swap-own-phys</c> (<see cref="ResourceBuilder.SwapPhysBlockBinary"/>
 /// with the model's own PHYS), <c>model-raw</c> (<see cref="ResourceBuilder.RebuildModelRaw"/>
@@ -59,14 +59,14 @@ internal static class ReserializeParity
                     res.Read(new MemoryStream(original));
                     written = mode switch
                     {
-                        "serialize" => ResourceBuilder.Serialize(res),
-                        "data-only" => ResourceBuilder.SerializeModelDataOnly(res, original),
-                        "keep-live-ctrl-mdat" => ResourceBuilder.SerializeModelKeepBlocksLive(res, original, BlockType.CTRL, BlockType.MDAT),
+                        "serialize" => VrfResourceBuilder.Serialize(res),
+                        "data-only" => VrfResourceBuilder.SerializeModelDataOnly(res, original),
+                        "keep-live-ctrl-mdat" => VrfResourceBuilder.SerializeModelKeepBlocksLive(res, original, BlockType.CTRL, BlockType.MDAT),
                         "particle-paths" => ResourceBuilder.RewriteParticlePaths(original, new Dictionary<string, string>()),
-                        "swap-own-phys" => ResourceBuilder.ExtractPhysBlock(res, original) is { } phys
+                        "swap-own-phys" => ResourceBuilder.ExtractPhysBlock(original) is { } phys
                             ? ResourceBuilder.SwapPhysBlockBinary(original, phys) : original,
                         "model-raw" => ResourceBuilder.RebuildModelRaw(original,
-                            res.Blocks.Select(b => (b.Type, original.AsSpan((int)b.Offset, (int)b.Size).ToArray())).ToList()),
+                            res.Blocks.Select(b => (b.Type.ToString(), original.AsSpan((int)b.Offset, (int)b.Size).ToArray())).ToList()),
                         _ => throw new ArgumentException($"unknown mode {mode}"),
                     };
                 }

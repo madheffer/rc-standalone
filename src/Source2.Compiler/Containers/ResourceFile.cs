@@ -20,7 +20,7 @@ public sealed record ResourceBlock(string Type, byte[] Data);
 /// <para><see cref="Read"/> checks every count, offset and size against the file before it
 /// allocates anything, so a hostile file is an <see cref="InvalidDataException"/>, never a huge
 /// allocation (the failure <c>s2c fuzz</c> found in VRF's reader). <see cref="Write"/> lays the file
-/// out as resourcecompiler does (<see cref="ValveLayout"/>): blocks padded with zeros to 16 bytes,
+/// out as resourcecompiler does: blocks padded with zeros to 16 bytes,
 /// RERL to 4 with its entry array on an 8-byte boundary of the file, nothing between the last
 /// block and the tail.</para>
 /// </summary>

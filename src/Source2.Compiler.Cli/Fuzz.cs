@@ -40,10 +40,10 @@ internal static class Fuzz
             new("compile vsndevts", kv3Texts, b => Kv3SourceCompiler.Compile(b, ".vsndevts", "soundevents/f.vsndevts")),
             new("decompile vpcf", Stock("vpcf_c", 12), b => Decompile(b, "f.vpcf_c")),
             new("decompile vmat", Stock("vmat_c", 12), b => Decompile(b, "f.vmat_c")),
-            new("serialize vmat", Stock("vmat_c", 12), b => Reserialize(b, "f.vmat_c", r => ResourceBuilder.Serialize(r))),
-            new("serialize vpcf", Stock("vpcf_c", 12), b => Reserialize(b, "f.vpcf_c", r => ResourceBuilder.Serialize(r))),
-            new("serialize vmdl", models, b => Reserialize(b, "f.vmdl_c", r => ResourceBuilder.Serialize(r))),
-            new("data-only vmdl", models, b => Reserialize(b, "f.vmdl_c", r => ResourceBuilder.SerializeModelDataOnly(r, b))),
+            new("serialize vmat", Stock("vmat_c", 12), b => Reserialize(b, "f.vmat_c", r => VrfResourceBuilder.Serialize(r))),
+            new("serialize vpcf", Stock("vpcf_c", 12), b => Reserialize(b, "f.vpcf_c", r => VrfResourceBuilder.Serialize(r))),
+            new("serialize vmdl", models, b => Reserialize(b, "f.vmdl_c", r => VrfResourceBuilder.Serialize(r))),
+            new("data-only vmdl", models, b => Reserialize(b, "f.vmdl_c", r => VrfResourceBuilder.SerializeModelDataOnly(r, b))),
             new("swap phys vmdl", models, b => ResourceBuilder.SwapPhysBlockBinary(b, b.AsSpan(0, Math.Min(64, b.Length)).ToArray())),
             new("analyze physics", models, b => ResourceBuilder.AnalyzePhysics(b)),
             new("resourcefile vmdl", models, b => ResourceFile.Read(b).Write()),
@@ -126,9 +126,10 @@ internal static class Fuzz
 
     private static void Decompile(byte[] bytes, string name)
     {
+        ResourceDecompiler.DataBlockToKv3(CompiledResource.Read(bytes), out _);
         using var res = new Resource { FileName = name };
         res.Read(new MemoryStream(bytes));
-        ResourceDecompiler.DataBlockToKv3(res, out _);
+        VrfResourceDecompiler.DataBlockToKv3(res, out _);
     }
 
     private static void Reserialize(byte[] bytes, string name, Func<Resource, byte[]> write)

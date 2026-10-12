@@ -37,12 +37,10 @@ internal static class RecompileParity
                 var path = e.GetFullPath();
                 string? text;
                 byte[] valveData;
-                using (var res = new Resource { FileName = Path.GetFileName(path) })
                 {
-                    res.Read(new MemoryStream(bytes));
-                    text = ResourceDecompiler.BlockToKv3(res, BlockType.DATA, out _);
-                    var d = res.GetBlockByType(BlockType.DATA)!;
-                    valveData = bytes.AsSpan((int)d.Offset, (int)d.Size).ToArray();
+                    var res = CompiledResource.Read(bytes);
+                    text = ResourceDecompiler.BlockToKv3(res, "DATA", out _);
+                    valveData = res.Block("DATA")!.Data;
                 }
                 if (text is null) { noText++; continue; }
 

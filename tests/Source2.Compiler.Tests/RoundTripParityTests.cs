@@ -39,7 +39,7 @@ public class RoundTripParityTests
         var original = File.ReadAllBytes(RcReference(name));
         using var resource = new Resource { FileName = name };
         resource.Read(new MemoryStream(original));
-        Assert.True(ResourceBuilder.Serialize(resource).AsSpan().SequenceEqual(original), name);
+        Assert.True(VrfResourceBuilder.Serialize(resource).AsSpan().SequenceEqual(original), name);
     }
 
     /// <summary>An edited block is re-encoded; the blocks the edit did not touch stay Valve's bytes.</summary>
@@ -55,7 +55,7 @@ public class RoundTripParityTests
         var data = (ValveResourceFormat.ResourceTypes.KeyValuesOrNTRO)resource.DataBlock!;
         data.Data.Add("s2c_edit_marker", new KVObject(7));
 
-        var written = ResourceBuilder.Serialize(resource);
+        var written = VrfResourceBuilder.Serialize(resource);
         using var back = new Resource { FileName = name };
         back.Read(new MemoryStream(written));
         var red2Back = back.Blocks.Single(b => b.Type == BlockType.RED2);

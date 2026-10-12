@@ -1,8 +1,4 @@
 using ValveKeyValue;
-using ValveResourceFormat;
-using ValveResourceFormat.Blocks;
-using ValveResourceFormat.ResourceTypes;
-using ValveResourceFormat.Serialization.KeyValues;
 
 using InputSignatureElement = Source2.Compiler.Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement;
 
@@ -40,9 +36,7 @@ public static class MaterialAuthor
     public static IReadOnlyList<InputSignatureElement> ExtractDepthSignature(byte[] vmatC)
     {
         ArgumentNullException.ThrowIfNull(vmatC);
-        using var res = new Resource();
-        res.Read(new MemoryStream(vmatC, writable: false));
-        if (res.GetBlockByType(BlockType.INSG) is not BinaryKV3 insg || insg.Data?.Root is not { } root
+        if (CompiledResource.Read(vmatC).Kv3("INSG") is not { } root
             || root.Children.FirstOrDefault(c => c.Key == "m_depth_elems").Value is not { IsArray: true } elems)
             return [];
         return elems.Values.Select(e => new InputSignatureElement(
@@ -55,10 +49,7 @@ public static class MaterialAuthor
     private static IReadOnlyList<InputSignatureElement> ExtractInputSignature(byte[] vmatC, string key)
     {
         ArgumentNullException.ThrowIfNull(vmatC);
-        using var res = new Resource();
-        res.Read(new MemoryStream(vmatC, writable: false));
-
-        if (res.GetBlockByType(BlockType.INSG) is not BinaryKV3 insg || insg.Data?.Root is not { } root)
+        if (CompiledResource.Read(vmatC).Kv3("INSG") is not { } root)
             throw new InvalidOperationException(
                 "That material has no INSG block, so it carries no input signature to copy.");
 
@@ -89,7 +80,7 @@ public static class MaterialAuthor
     /// per texture-processing mode its textures used. Their fingerprints are per-shader
     /// values only a real compile knows, so they are stated rather than guessed.
     /// </param>
-    public static Resource NewContainer(
+    public static CompiledResource NewContainer(
         IReadOnlyList<InputSignatureElement> inputSignature,
         string? sourceName = null,
         ReadOnlySpan<byte> sourceBytes = default,
@@ -102,7 +93,7 @@ public static class MaterialAuthor
                 "shipping community pack has a non-empty one. Lift it from a material using the same " +
                 "shader and feature set with ExtractInputSignature.", nameof(inputSignature));
 
-        var res = new Resource { Version = Source2ContainerAuthor.MaterialResourceVersion };
+        var res = new CompiledResource(new ResourceFile { Version = Source2ContainerAuthor.MaterialResourceVersion });
 
         var deps = Source2ContainerAuthor.MaterialBaseDeps
             .Concat(extraSpecialDependencies ?? [])
@@ -113,10 +104,10 @@ public static class MaterialAuthor
             sourceBytes, deps, null);
 
         // Stock block order: RERL RED2 DATA INSG.
-        res.Blocks.Add(new ResourceExtRefList { Resource = res });
-        res.Blocks.Add(AuthoredKv3.Block(editInfo, KV3IDLookup.Get("generic"), BlockType.RED2, res));
-        res.Blocks.Add(AuthoredKv3.Block(KVObject.Collection(), KV3IDLookup.Get("generic"), BlockType.DATA, res));
-        res.Blocks.Add(AuthoredKv3.Block(BuildInsg(inputSignature), KV3IDLookup.Get("generic"), BlockType.INSG, res));
+        res.SetRaw("RERL", ResourceRefs.Write([], 0));
+        res.SetKv3("RED2", editInfo, Kv3Formats.Get("generic"));
+        res.SetKv3("DATA", KVObject.Collection(), Kv3Formats.Get("generic"));
+        res.SetKv3("INSG", BuildInsg(inputSignature), Kv3Formats.Get("generic"));
 
         return res;
     }

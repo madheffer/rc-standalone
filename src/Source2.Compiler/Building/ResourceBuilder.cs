@@ -5,11 +5,6 @@ using BCnEncoder.Shared;
 using SkiaSharp;
 using ValvePak;
 using ValveKeyValue;
-using ValveResourceFormat;
-using ValveResourceFormat.Blocks;
-using ValveResourceFormat.ResourceTypes;
-using ValveResourceFormat.Serialization.KeyValues;
-using ValveResourceFormat.Utils;
 
 namespace Source2.Compiler;
 
@@ -214,15 +209,6 @@ public static class ResourceBuilder
         public const ushort NO_LOD = 0x8;
     }
 
-    /// <summary>Parse compiled bytes into a <see cref="Resource"/> the caller owns.</summary>
-    private static Resource ReadResource(byte[] bytes)
-    {
-        var res = new Resource();
-        try { res.Read(new MemoryStream(bytes, writable: false)); }
-        catch { res.Dispose(); throw; }
-        return res;
-    }
-
     // Public build API
 
     /// <summary>
@@ -261,9 +247,9 @@ public static class ResourceBuilder
     /// </summary>
     public static byte[] BuildMaterial(byte[] templateBytes, MaterialDef def)
     {
-        using var template = ReadResource(templateBytes);
+        var template = CompiledResource.Read(templateBytes);
         ApplyMaterial(template, def);
-        return Serialize(template);
+        return template.Write();
     }
 
     /// <summary>
@@ -273,11 +259,11 @@ public static class ResourceBuilder
     /// of a material this compiler cannot derive - see
     /// <see cref="Source2ContainerAuthor.MaterialAuthoring"/>.
     /// </summary>
-    public static byte[] BuildMaterial(MaterialDef def, Resource container)
+    public static byte[] BuildMaterial(MaterialDef def, CompiledResource container)
     {
         ArgumentNullException.ThrowIfNull(container);
         ApplyMaterial(container, def);
-        return Serialize(container);
+        return container.Write();
     }
 
     /// <summary>
@@ -541,32 +527,26 @@ public static class ResourceBuilder
         // The container. With a template, its header version comes from that file;
         // without one it is authored outright (Version 1, measured invariant across
         // every .vtex_c in the game - see Source2ContainerAuthor.TextureResourceVersion).
-        using var template = templateBytes is { Length: > 0 }
-            ? ReadResource(templateBytes)
-            : new Resource { Version = Source2ContainerAuthor.TextureResourceVersion };
+        var template = templateBytes is { Length: > 0 }
+            ? CompiledResource.Read(templateBytes)
+            : new CompiledResource(new ResourceFile { Version = Source2ContainerAuthor.TextureResourceVersion });
+        // The template's own mips are not ours.
+        template.File.Tail = [];
 
         // Remove any RERL block the template carried - stock textures don't
         // have one (textures reference textures only as runtime samplers,
         // not as resource imports).
-        for (var i = template.Blocks.Count - 1; i >= 0; i--)
-        {
-            if (template.Blocks[i].Type == BlockType.RERL)
-                template.Blocks.RemoveAt(i);
-        }
+        template.Remove("RERL");
 
         // Author the RED2 rather than inheriting a template's, which would name
         // that file's source path and CRC. Its SPECIAL dependencies do ride along
         // untouched: they say how the pixels are encoded, not who wrote them.
         // See Source2ContainerAuthor.BuildTextureEditInfo.
-        var red2Idx = template.Blocks.FindIndex(b => b.Type == BlockType.RED2);
         // BuildTextureEditInfo treats this list as "the template's own set, used
         // instead of the generic fallback". So when there is no template it has to
         // be seeded with the two dependencies every stock texture carries, or
         // adding a single caller-stated one would silently displace them.
-        var templateDeps = (template.EditInfo?.SpecialDependencies ?? [])
-            .Select(d => new Source2ContainerAuthor.SpecialDep(
-                d.String, d.CompilerIdentifier, (int)d.Fingerprint, (int)d.UserData))
-            .ToList();
+        var templateDeps = Source2ContainerAuthor.ReadSpecialDeps(template.Kv3("RED2")).ToList();
         if (templateDeps.Count == 0)
             templateDeps.AddRange(Source2ContainerAuthor.TextureBaseDeps);
 
@@ -583,23 +563,12 @@ public static class ResourceBuilder
             def.SourceName,
             def.ImageBytes is { Length: > 0 } ? def.ImageBytes : def.RawRgba ?? [],
             templateDeps, def.SearchPath);
-        var red2Block = AuthoredKv3.Block(editInfo, KV3IDLookup.Get("generic"), BlockType.RED2, template);
-        if (red2Idx >= 0)
-            template.Blocks[red2Idx] = red2Block;
-        else
-            template.Blocks.Insert(0, red2Block);
+        template.SetKv3("RED2", editInfo, Kv3Formats.Get("generic"), insertAt: 0);
+        template.SetRaw("DATA", dataBlockBytes);
 
-        var dataIdx = template.Blocks.FindIndex(b => b.Type == BlockType.DATA);
-        var rawBlock = new RawDataBlock(dataBlockBytes) { Resource = template };
-        if (dataIdx >= 0)
-            template.Blocks[dataIdx] = rawBlock;
-        else
-            template.Blocks.Add(rawBlock);
-
-        // Serialize the resource container (header + blocks + DATA-with-just-
-        // vtex-header). file_size in the result is exactly the bytes up to
-        // here - Resource.Serialize patches it to `end - start`.
-        var resourceBytes = Serialize(template);
+        // The container (header + blocks + DATA-with-just-the-vtex-header).
+        // fileSize ends here; the mips follow it.
+        var resourceBytes = template.Write();
 
         // Now append mip pixel data. The engine reads mip count + dimensions
         // + format from the vtex header and computes the mip-chain length to
@@ -761,71 +730,29 @@ public static class ResourceBuilder
         w.Flush();
         var soundBlockBytes = ms.ToArray();
 
-        // Splice into template Resource container
-        using var template = templateBytes is { Length: > 0 }
-            ? ReadResource(templateBytes)
-            : new Resource { Version = Source2ContainerAuthor.SoundResourceVersion };
-
-        var dataIdx = template.Blocks.FindIndex(b => b.Type == BlockType.DATA);
-        var rawBlock = new RawDataBlock(soundBlockBytes) { Resource = template };
-        if (dataIdx >= 0)
-            template.Blocks[dataIdx] = rawBlock;
-        else
-            template.Blocks.Add(rawBlock);
+        // Splice into the template's container, or author one.
+        var template = templateBytes is { Length: > 0 }
+            ? CompiledResource.Read(templateBytes)
+            : new CompiledResource(new ResourceFile { Version = Source2ContainerAuthor.SoundResourceVersion });
+        template.SetRaw("DATA", soundBlockBytes);
 
         // No external resource refs in a freshly-compiled sound file. The RERL
-        // block must be DROPPED, not emptied: the serializer lays an (empty)
-        // RERL's data after the DATA payload, so the streaming-PCM trim below
-        // would cut it and leave a dangling block-index entry pointing into the
-        // PCM. VRF's re-read then interprets PCM bytes as the RERL header -
-        // silently fine when the clip starts silent (zeros → size 0), an
-        // EndOfStreamException when it starts loud. ModernizeVsnd also drops
-        // RERL for the CS2-side reason (an empty RERL makes CS2 reject the
-        // override); doing it here keeps the intermediate container readable.
-        var rerlIdx = template.Blocks.FindIndex(b => b.Type == BlockType.RERL);
-        if (rerlIdx >= 0)
-            template.Blocks.RemoveAt(rerlIdx);
+        // block is DROPPED, not emptied: ModernizeVsnd drops it too, because an
+        // empty RERL makes CS2 reject the override.
+        template.Remove("RERL");
 
         // Author the RED2, for the reason given on the texture path above: a
         // template's special dependencies ride along, its provenance does not.
-        var sndRed2Idx = template.Blocks.FindIndex(b => b.Type == BlockType.RED2);
-        var sndTemplateDeps = (template.EditInfo?.SpecialDependencies ?? [])
-            .Select(d => new Source2ContainerAuthor.SpecialDep(
-                d.String, d.CompilerIdentifier, (int)d.Fingerprint, (int)d.UserData))
-            .ToList();
+        var sndTemplateDeps = Source2ContainerAuthor.ReadSpecialDeps(template.Kv3("RED2")).ToList();
         if (sndTemplateDeps.Count == 0)
             sndTemplateDeps.AddRange(Source2ContainerAuthor.SoundDeps);
         var sndEditInfo = Source2ContainerAuthor.BuildSoundEditInfo(sourceName, wavBytes, sndTemplateDeps, searchPath);
-        var sndRed2 = AuthoredKv3.Block(sndEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2, template);
-        if (sndRed2Idx >= 0)
-            template.Blocks[sndRed2Idx] = sndRed2;
-        else
-            template.Blocks.Insert(0, sndRed2);
+        template.SetKv3("RED2", sndEditInfo, Kv3Formats.Get("generic"), insertAt: 0);
 
-        // Serialize the container, then append the PCM as the streaming-data
-        // section. Two subtleties:
-        //  • VRF's serializer pads the file a few bytes past the last block, but a
-        //    vsnd's streaming data must begin EXACTLY at the DATA block's end
-        //    (VRF GetSoundStream reads from Offset+Size; the engine reads from
-        //    FileSize) - any gap is read as leading audio garbage. So we trim to
-        //    the block-section end and append the PCM there.
-        //  • FileSize (header uint32 @0) must equal that block-section end so
-        //    FullFileSize = FileSize + StreamingDataSize matches the real length.
-        var serialized = Serialize(template);
-        int audioStart;
-        using (var rr = new Resource())
-        {
-            rr.Read(new MemoryStream(serialized, writable: false));
-            var snd = rr.DataBlock as ValveResourceFormat.ResourceTypes.Sound
-                ?? throw new InvalidDataException("Rebuilt sound has no Sound data block.");
-            audioStart = (int)(snd.Offset + snd.Size);
-        }
-        var result = new byte[audioStart + pcm.Length];
-        serialized.AsSpan(0, audioStart).CopyTo(result);
-        pcm.CopyTo(result.AsSpan(audioStart));
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
-            result.AsSpan(0, 4), (uint)audioStart);   // FileSize = block-section end
-        return result;
+        // The PCM is the streaming section: it starts exactly at fileSize, the
+        // end of the last block, which is where the engine reads it from.
+        template.File.Tail = pcm;
+        return template.Write();
     }
 
     /// <summary>
@@ -883,11 +810,9 @@ public static class ResourceBuilder
     /// </summary>
     public static byte[] BuildModel(byte[] templateBytes, ModelDef def)
     {
-        using var ms = new MemoryStream(templateBytes);
-        using var template = new Resource();
-        template.Read(ms);
+        var template = CompiledResource.Read(templateBytes);
         ApplyModel(template, def);
-        return Serialize(template);
+        return template.Write();
     }
 
     /// <summary>
@@ -911,11 +836,9 @@ public static class ResourceBuilder
     /// <returns>The re-serialized vmat_c, or the input unchanged when the key is absent.</returns>
     public static byte[] RenameStringAttribute(byte[] vmatC, string from, string to)
     {
-        using var ms = new MemoryStream(vmatC, writable: false);
-        using var resource = new Resource();
-        resource.Read(ms);
+        var resource = CompiledResource.Read(vmatC);
 
-        var attrs = GetDataRoot(resource)["m_stringAttributes"];
+        var attrs = DataRoot(resource)["m_stringAttributes"];
         if (attrs is null || !attrs.IsArray)
             return vmatC;
 
@@ -929,7 +852,7 @@ public static class ResourceBuilder
             sa["m_name"] = new KVObject(to) { Flag = nameObj.Flag };
             hit = true;
         }
-        return hit ? Serialize(resource) : vmatC;
+        return hit ? resource.Write() : vmatC;
     }
 
     /// <summary>
@@ -941,11 +864,9 @@ public static class ResourceBuilder
     public static IReadOnlyDictionary<string, string> ReadStringAttributes(byte[] vmatC)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        using var ms = new MemoryStream(vmatC, writable: false);
-        using var resource = new Resource();
-        resource.Read(ms);
+        var resource = CompiledResource.Read(vmatC);
 
-        var attrs = GetDataRoot(resource)["m_stringAttributes"];
+        var attrs = DataRoot(resource)["m_stringAttributes"];
         if (attrs is null || !attrs.IsArray)
             return map;
 
@@ -971,11 +892,9 @@ public static class ResourceBuilder
     public static IReadOnlyDictionary<string, string> ReadTextureParamPaths(byte[] vmatC)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        using var ms = new MemoryStream(vmatC, writable: false);
-        using var resource = new Resource();
-        resource.Read(ms);
+        var resource = CompiledResource.Read(vmatC);
 
-        var root = GetDataRoot(resource);
+        var root = DataRoot(resource);
         var texParams = root["m_textureParams"];
         if (texParams is null || !texParams.IsArray)
             return map;
@@ -1002,10 +921,8 @@ public static class ResourceBuilder
     /// </summary>
     public static int? ReadIntParam(byte[] vmatC, string name)
     {
-        using var ms = new MemoryStream(vmatC, writable: false);
-        using var resource = new Resource();
-        resource.Read(ms);
-        var root = GetDataRoot(resource);
+        var resource = CompiledResource.Read(vmatC);
+        var root = DataRoot(resource);
         return VmatParams.ReadParamValue(root, "m_intParams", "m_nValue", name) is { } v
             ? (int)Math.Round(v)
             : null;
@@ -1055,9 +972,9 @@ public static class ResourceBuilder
 
     // Material mutation
 
-    private static void ApplyMaterial(Resource template, MaterialDef def)
+    private static void ApplyMaterial(CompiledResource template, MaterialDef def)
     {
-        var root = GetDataRoot(template);
+        var root = DataRoot(template);
         root.Clear();
 
         // Field order matters!
@@ -1149,9 +1066,9 @@ public static class ResourceBuilder
 
     // Model mutation
 
-    private static void ApplyModel(Resource template, ModelDef def)
+    private static void ApplyModel(CompiledResource template, ModelDef def)
     {
-        var root = GetDataRoot(template);
+        var root = DataRoot(template);
         root.Clear();
 
         root.Add("m_name", new KVObject(def.Name));
@@ -1225,26 +1142,6 @@ public static class ResourceBuilder
 
     // Shared helpers
 
-    /// <summary>Get the KV3 root object from a resource's DATA block.
-    /// Internal so <c>another caller</c> shares the
-    /// same unwrap instead of growing another copy.</summary>
-    public static KVObject GetDataRoot(Resource resource)
-    {
-        var dataBlock = resource.GetBlockByType(BlockType.DATA)
-            ?? throw new InvalidOperationException("Template resource has no DATA block.");
-
-        // vmat_c DATA blocks are typed as Material (a KeyValuesOrNTRO subclass) which
-        // wraps an inner BinaryKV3 - AsKeyValueCollection() throws for these.
-        // vmdl_c DATA blocks may be raw BinaryKV3 or also KeyValuesOrNTRO.
-        // KeyValuesOrNTRO.Data IS the mutatable KVObject; Serialize() delegates to the
-        // inner BinaryKV3, so mutating Data is reflected in serialization.
-        if (dataBlock is KeyValuesOrNTRO kvn)
-            return kvn.Data;
-
-        return dataBlock.AsKeyValueCollection()
-            ?? throw new InvalidOperationException($"Template DATA block ({dataBlock.GetType().Name}) is not KV3-backed.");
-    }
-
     /// <summary>
     /// Replace the RERL block's entries with <paramref name="paths"/>, deriving
     /// each entry's 64-bit resource id via <see cref="Source2ResourceId"/>.
@@ -1255,102 +1152,13 @@ public static class ResourceBuilder
     /// so brand-new texture paths a fresh vmat introduces resolve correctly
     /// without Valve's resourcecompiler.exe.</para>
     /// </summary>
-    private static void ReplaceRerl(Resource resource, IEnumerable<string> paths)
-    {
-        var rerl = resource.ExternalReferences;
-        if (rerl is null)
-        {
-            rerl = new ResourceExtRefList { Resource = resource };
-            resource.Blocks.Add(rerl);
-        }
+    private static void ReplaceRerl(CompiledResource resource, IEnumerable<string> paths) =>
+        resource.SetReferences(paths);
 
-        rerl.ResourceRefInfoList.Clear();
-
-        foreach (var path in paths)
-        {
-            rerl.ResourceRefInfoList.Add(new ResourceExtRefList.ResourceReferenceInfo
-            {
-                Id = Source2ResourceId.ForPath(path),
-                Name = path,
-            });
-        }
-    }
-
-    /// <summary>
-    /// Serialize a mutated resource to a byte array. Public so callers
-    /// outside this class (e.g. <c>WeaponsVData.SaveCompiled</c>,
-    /// <c>HitmarkerService</c>) can route their writes through the same
-    /// canonical path the Build* helpers use.
-    /// </summary>
-    /// <remarks>
-    /// Written as resourcecompiler writes a resource: every v5 KV3 block, RED2 and typed DATA
-    /// included, by <see cref="Kv3V5Writer"/>, and the container by <see cref="ValveLayout"/>
-    /// (zero padding, RC's RERL). VRF's own container writer pads with an "S2V" marker, and its
-    /// KV3 writer turns Valve's typed arrays into generic ones, the encoding CS2 silently
-    /// misread in a re-serialized .vnmgraph_c (2026-09-26). Measured unchanged-round-trip with
-    /// <c>s2c reserialize-parity</c>.
-    /// </remarks>
-    public static byte[] Serialize(Resource resource)
-    {
-        KeepUnchangedKv3Blocks(resource);
-        AuthoredKv3.RouteTypedBlocks(resource);
-        return ValveLayout.Serialize(resource);
-    }
-
-    /// <summary>
-    /// A KV3 block whose tree is still exactly what was read goes out as Valve's own bytes. VRF's
-    /// reader does not keep every wire type (an 8-bit int comes back as a 32-bit one: stock
-    /// models' <c>m_cRenderColor</c> is UINT8 in MDAT), so even a perfect re-encode of its tree
-    /// can differ; an edit then changes only the blocks it touches. Needs the resource's source
-    /// stream still open and seekable; otherwise every block is re-encoded as before.
-    /// </summary>
-    private static void KeepUnchangedKv3Blocks(Resource resource)
-    {
-        Stream stream;
-        try
-        {
-            if (resource.Reader?.BaseStream is not { CanSeek: true } s)
-                return;
-            stream = s;
-            _ = stream.Length;
-        }
-        catch (ObjectDisposedException)
-        {
-            return;
-        }
-        for (var i = 0; i < resource.Blocks.Count; i++)
-        {
-            var block = resource.Blocks[i];
-            var current = block switch
-            {
-                ResourceEditInfo2 { Data: { } doc } => doc.Root,
-                KeyValuesOrNTRO { Format: not null } typed => typed.Data,
-                BinaryKV3 { Data: { } doc } when block is not AuthoredKv3.ValveKv3Block => doc.Root,
-                _ => null,
-            };
-            if (current is null || block.Size < 4 || block.Offset + block.Size > stream.Length)
-                continue;
-            var original = new byte[block.Size];
-            stream.Position = block.Offset;
-            stream.ReadExactly(original);
-            if ((BitConverter.ToUInt32(original) & 0xFFFFFF00) != 0x4B563300)
-                continue;
-            KVObject read;
-            try
-            {
-                var kv3 = new BinaryKV3(block.Type) { Resource = null!, Size = (uint)original.Length };
-                using var r = new BinaryReader(new MemoryStream(original));
-                kv3.Read(r);
-                read = kv3.Data.Root;
-            }
-            catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or EndOfStreamException or IndexOutOfRangeException or ArgumentException)
-            {
-                continue;
-            }
-            if (SameTree(current, read))
-                resource.Blocks[i] = new TypedRawBlock(block.Type, original) { Resource = resource };
-        }
-    }
+    /// <summary>The DATA block's KV3 tree, which an edit changes in place.</summary>
+    /// <exception cref="InvalidOperationException">There is no DATA block, or it is not KV3.</exception>
+    public static KVObject DataRoot(CompiledResource resource) =>
+        resource.Kv3("DATA") ?? throw new InvalidOperationException("The resource has no KV3 DATA block.");
 
     /// <summary>Deep equality of two KV3 trees: types, flags, key order and values (doubles and
     /// floats by their bits).</summary>
@@ -1397,52 +1205,6 @@ public static class ResourceBuilder
         }
     }
 
-    /// <summary>
-    /// Re-serialize a model resource re-encoding ONLY the DATA block; every other
-    /// block (PHYS, ANIM/ASEQ/AGRP, meshes, CTRL, RERL, RED2) is written
-    /// byte-identical to <paramref name="originalBytes"/> rather than letting VRF
-    /// re-encode it.
-    ///
-    /// <para><b>Why this exists.</b> VRF's <c>PhysAggregateData</c> (PHYS) and
-    /// animation writers do NOT round-trip CS2's data: a plain
-    /// <see cref="Serialize(Resource)"/> silently rewrites the physics aggregate
-    /// (observed: a character model's PHYS grew 11,907 → 13,689 B), producing a
-    /// ragdoll CS2 cannot build - at runtime the physics-body handle resolves to
-    /// null and the client crashes (access violation in vphysics2). A DATA-only
-    /// edit (mesh-group fold / mask patch) must therefore leave the physics and
-    /// animation blocks untouched. The DATA block still re-encodes from its KV3 so
-    /// the edit lands.</para>
-    /// </summary>
-    public static byte[] SerializeModelDataOnly(Resource resource, byte[] originalBytes) =>
-        SerializeModelSingleBlock(resource, originalBytes, BlockType.DATA);
-
-    /// <summary>Generalization of <see cref="SerializeModelDataOnly"/>: re-encode ONLY
-    /// <paramref name="keepLive"/> (carrying the caller's KV3 mutation); every other
-    /// block is written byte-identical from <paramref name="originalBytes"/>. Used with
-    /// <c>BlockType.CTRL</c> for controller edits (e.g. unbinding a mesh's morph block).</summary>
-    public static byte[] SerializeModelSingleBlock(Resource resource, byte[] originalBytes, BlockType keepLive) =>
-        SerializeModelKeepBlocksLive(resource, originalBytes, keepLive);
-
-    /// <summary>Like <see cref="SerializeModelSingleBlock"/> but keeps SEVERAL block types live
-    /// (re-encoded from their parsed state); every other block is written byte-identical from
-    /// <paramref name="originalBytes"/>. Used for edits that span e.g. CTRL (mesh name / buffer
-    /// descriptors) AND MDAT (draw calls) while leaving MVTX/MIDX/DATA/PHYS/anim untouched.</summary>
-    public static byte[] SerializeModelKeepBlocksLive(Resource resource, byte[] originalBytes, params BlockType[] liveTypes)
-    {
-        var live = new HashSet<BlockType>(liveTypes);
-        for (var i = 0; i < resource.Blocks.Count; i++)
-        {
-            var b = resource.Blocks[i];
-            if (live.Contains(b.Type))
-                continue;             // re-encodes (carries the edit)
-            long off = b.Offset, len = b.Size;
-            if (off < 0 || len < 0 || off + len > originalBytes.Length)
-                continue; // unexpected - let VRF handle it
-            resource.Blocks[i] = new TypedRawBlock(b.Type, originalBytes.AsSpan((int)off, (int)len).ToArray()) { Resource = resource };
-        }
-        return Serialize(resource);
-    }
-
     /// <summary>Rebuild a model resource from an EXACT, ordered set of blocks, each written
     /// BYTE-FOR-BYTE (no re-encode) via VRF's own container serializer - so the header,
     /// block table, 16-byte alignment and padding match what the CS2 engine accepts. Used to
@@ -1451,24 +1213,21 @@ public static class ResourceBuilder
     /// re-encode the typed blocks corrupts complex community models - this does neither (VRF
     /// lays out the container; every block stays raw). <paramref name="template"/> supplies the
     /// header version fields.</summary>
-    public static byte[] RebuildModelRaw(byte[] template, IReadOnlyList<(BlockType Type, byte[] Bytes)> blocks)
+    public static byte[] RebuildModelRaw(byte[] template, IReadOnlyList<(string Type, byte[] Bytes)> blocks)
     {
-        using var ms = new MemoryStream(template, writable: false);
-        using var resource = new Resource { FileName = "model.vmdl_c" };
-        resource.Read(ms);
-        resource.Blocks.Clear();
+        if (template.Length < 16)
+            throw new InvalidDataException("Template is shorter than a resource header.");
+        var file = new ResourceFile { Version = BitConverter.ToUInt16(template, 6) };
         foreach (var (type, bytes) in blocks)
-            resource.Blocks.Add(new TypedRawBlock(type, bytes) { Resource = resource });
-        return Serialize(resource);
+            file.Blocks.Add(new ResourceBlock(type, bytes));
+        return file.Write();
     }
 
-    /// <summary>Raw bytes of a resource's PHYS (PhysAggregateData) block, or null if absent.</summary>
-    public static byte[]? ExtractPhysBlock(Resource resource, byte[] originalBytes)
+    /// <summary>Raw bytes of a model's PHYS (PhysAggregateData) block, or null if absent or unreadable.</summary>
+    public static byte[]? ExtractPhysBlock(byte[] model)
     {
-        var b = resource.GetBlockByType(BlockType.PHYS);
-        if (b is null || b.Offset < 0 || b.Size < 0 || b.Offset + b.Size > originalBytes.Length)
-            return null;
-        return originalBytes.AsSpan((int)b.Offset, (int)b.Size).ToArray();
+        try { return ResourceFile.Read(model)["PHYS"]?.Data; }
+        catch (InvalidDataException) { return null; }
     }
 
     /// <summary>Binary-replace a model's PHYS block with <paramref name="donorPhysBytes"/>, keeping
@@ -1500,9 +1259,10 @@ public static class ResourceBuilder
         // Every block keeps its bytes; the file is laid out as resourcecompiler lays it out
         // (RERL padded to 4 with its entry array on an 8-byte boundary, the rest to 16), which a
         // plain 16-byte re-pad of everything after PHYS did not do once PHYS changed size.
-        return ValveLayout.SerializeRaw(BitConverter.ToUInt16(model, 6), [.. blocks.Select(b =>
-            ((BlockType)BitConverter.ToUInt32(model, b.TableOff),
-             b.Type == "PHYS" ? donorPhysBytes : model.AsSpan(b.Abs, b.Size).ToArray()))]);
+        var file = new ResourceFile { Version = BitConverter.ToUInt16(model, 6) };
+        foreach (var b in blocks)
+            file.Blocks.Add(new ResourceBlock(b.Type, b.Type == "PHYS" ? donorPhysBytes : model.AsSpan(b.Abs, b.Size).ToArray()));
+        return file.Write();
     }
 
     /// <summary>Binary-remove a model's PHYS block entirely (drop its block-table entry, shift the
@@ -1519,50 +1279,13 @@ public static class ResourceBuilder
     /// <c>m_refPhysicsData = [ ]</c>, so nothing is orphaned.</para></summary>
     public static byte[] RemovePhysBlockBinary(byte[] model)
     {
-        int bo = (int)BitConverter.ToUInt32(model, 8);
-        int bc = (int)BitConverter.ToUInt32(model, 12);
-        int arr = 8 + bo;
-        var blocks = new List<(string Type, int Abs, int Size)>(bc);
-        for (var i = 0; i < bc; i++)
-        {
-            var o = arr + i * 12;
-            blocks.Add((
-                System.Text.Encoding.ASCII.GetString(model, o, 4),
-                (o + 4) + (int)BitConverter.ToUInt32(model, o + 4),
-                (int)BitConverter.ToUInt32(model, o + 8)));
-        }
-        int physIdx = blocks.FindIndex(b => b.Type == "PHYS");
-        if (physIdx < 0)
+        // Every other block keeps its bytes; the file is laid out as resourcecompiler
+        // lays it out (ResourceFile), with the table's counts checked first.
+        var file = ResourceFile.Read(model);
+        if (file["PHYS"] is null)
             return model;                         // no PHYS - nothing to remove
-        var kept = blocks.Where((_, i) => i != physIdx).ToList();
-        int newBc = kept.Count;
-
-        using var ms = new MemoryStream();
-        ms.Write(model, 0, arr);                                // header verbatim (fix bc + size below)
-        var tableOffs = new int[newBc];
-        for (var i = 0; i < newBc; i++)                         // block table: type now, offsets after
-        {
-            tableOffs[i] = (int)ms.Length;
-            ms.Write(System.Text.Encoding.ASCII.GetBytes(kept[i].Type), 0, 4);
-            ms.Write(new byte[8], 0, 8);
-        }
-        var newAbs = new int[newBc];
-        foreach (var x in kept.Select((b, i) => (b, i)).OrderBy(x => x.b.Abs))
-        {
-            while (ms.Length % 16 != 0)
-                ms.WriteByte(0);        // 16-align, matching the compiler
-            newAbs[x.i] = (int)ms.Length;
-            ms.Write(model, x.b.Abs, x.b.Size);
-        }
-        var outBytes = ms.ToArray();
-        BitConverter.GetBytes((uint)newBc).CopyTo(outBytes, 12);
-        for (var i = 0; i < newBc; i++)
-        {
-            BitConverter.GetBytes((uint)(newAbs[i] - (tableOffs[i] + 4))).CopyTo(outBytes, tableOffs[i] + 4);
-            BitConverter.GetBytes((uint)kept[i].Size).CopyTo(outBytes, tableOffs[i] + 8);
-        }
-        BitConverter.GetBytes((uint)outBytes.Length).CopyTo(outBytes, 0);
-        return outBytes;
+        file.Blocks.RemoveAll(b => b.Type == "PHYS");
+        return file.Write();
     }
 
     /// <summary>The number of procedural jiggle bones at/above which a model reliably crashes CS2's
@@ -1588,20 +1311,33 @@ public static class ResourceBuilder
     {
         try
         {
-            using var res = new Resource();
-            res.Read(new MemoryStream(model, writable: false));
-            if (res.GetBlockByType(BlockType.PHYS) is not { } phys)
+            var res = CompiledResource.Read(model);
+            if (res.Block("PHYS") is not { } phys)
                 return (true, false, 0, false, 0);
-            var w = new ValveResourceFormat.Utils.IndentedTextWriter();
-            phys.WriteText(w);
-            var s = w.ToString();
-            // One "m_jiggleBone =" sub-object per jiggle bone. The plural array header
-            // "m_JiggleBones =" does NOT match (the char after "m_jigglebone" is 's', not ' ').
-            var jiggleBones = CountOccurrences(s, "m_jiggleBone =");
-            // A live soft-body / cloth solver has a non-zero rope count (it's "= 0" when absent).
-            var hasSoftBody = System.Text.RegularExpressions.Regex.IsMatch(
-                s, @"m_nRopeCount\s*=\s*[1-9]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            return (true, true, jiggleBones, hasSoftBody, (int)phys.Size);
+            // One "m_jiggleBone" sub-object per jiggle bone (the plural array is
+            // "m_JiggleBones"); a live soft-body / cloth solver has a rope count of 1
+            // or more ("0" when absent). A PHYS that is not KV3 (pre-KV3 NTRO) reads
+            // as neither.
+            var jiggleBones = 0;
+            var hasSoftBody = false;
+            void Walk(KVObject node)
+            {
+                if (!node.IsCollection && !node.IsArray)
+                    return;
+                foreach (var (key, value) in node.Children)
+                {
+                    if (key == "m_jiggleBone")
+                        jiggleBones++;
+                    if (string.Equals(key, "m_nRopeCount", StringComparison.OrdinalIgnoreCase)
+                        && !value.IsCollection && !value.IsArray && value.ValueType != KVValueType.String
+                        && Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture) >= 1)
+                        hasSoftBody = true;
+                    Walk(value);
+                }
+            }
+            if (res.Kv3("PHYS") is { } root)
+                Walk(root);
+            return (true, true, jiggleBones, hasSoftBody, phys.Data.Length);
         }
         catch { return (false, false, 0, false, 0); }
     }
@@ -1656,31 +1392,23 @@ public static class ResourceBuilder
     /// null records a neutral <c>vpkeditor/</c> name.</param>
     public static byte[] BuildPanoramaSvg(byte[]? templateVsvgC, byte[] svgBytes, string? sourceName = null, string searchPath = "csgo")
     {
-        Panorama panorama;
-        Resource resource;
-
+        // The DATA block: u32 CRC32 of the SVG; u16 image count; per image a
+        // NUL-terminated name, u16 width, u16 height (and u32 CRC from resource
+        // version 3); then the SVG. A template contributes its image table, which
+        // stock ships empty without exception; authored outright it is empty.
+        CompiledResource resource;
+        byte[] imageTable;
         if (templateVsvgC is { Length: > 0 })
         {
-            resource = new Resource();
-            resource.Read(new MemoryStream(templateVsvgC, writable: false));
-            if (resource.DataBlock is not Panorama fromTemplate)
-            {
-                resource.Dispose();
-                throw new InvalidDataException("Template is not a Panorama (.vsvg_c) resource.");
-            }
-            panorama = fromTemplate;
+            resource = CompiledResource.Read(templateVsvgC);
+            imageTable = resource.Block("DATA") is { } data ? PanoramaImageTable(data.Data, resource.Version)
+                : throw new InvalidDataException("Template is not a Panorama (.vsvg_c) resource.");
         }
         else
         {
-            // Authored outright. The name table is what a template was otherwise
-            // contributing, and stock ships it empty without exception, so there
-            // is nothing here a donor could add.
-            resource = new Resource { Version = Source2ContainerAuthor.PanoramaVectorGraphicResourceVersion };
-            panorama = new Panorama([], []) { Resource = resource };
-            resource.Blocks.Add(panorama);
+            resource = new CompiledResource(new ResourceFile { Version = Source2ContainerAuthor.PanoramaVectorGraphicResourceVersion });
+            imageTable = [0, 0];
         }
-
-        using var _ = resource;
 
         // An SVG is the whole content of a .vsvg_c, and the sanitizer below is a
         // best-effort normalizer that passes anything it does not recognize
@@ -1694,16 +1422,16 @@ public static class ResourceBuilder
                 "Input is not an SVG document (no <svg> element). A .vsvg_c holds vector art, " +
                 "so a raster image has to be converted to SVG first.");
 
-        // Replace the SVG payload; keep the template's name-entry header.
         // Sanitize first: CS2's Panorama SVG parser rejects the minified / arc /
         // relative path data most icon CDNs emit, so this normalizes ANY icon
         // (current, future, user-uploaded) to the clean subset the engine draws.
-        panorama.Data = SvgSanitizer.ForPanorama(svgBytes);
-
-        // Upstream VRF's Panorama.Serialize writes the STORED checksum verbatim
-        // (it does not recompute), and both VRF's reader and the engine validate
-        // it against the data - refresh it to match the new payload.
-        panorama.CRC32 = System.IO.Hashing.Crc32.HashToUInt32(panorama.Data);
+        // The CRC is of the payload, and both VRF's reader and the engine check it.
+        var svg = SvgSanitizer.ForPanorama(svgBytes);
+        var payload = new byte[4 + imageTable.Length + svg.Length];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(payload, System.IO.Hashing.Crc32.HashToUInt32(svg));
+        imageTable.CopyTo(payload, 4);
+        svg.CopyTo(payload, 4 + imageTable.Length);
+        resource.SetRaw("DATA", payload);
 
         // Author our OWN RED2: the embedded template.vsvg_c names its own source
         // svg and CRC, which every killfeed icon we build has been shipping.
@@ -1711,22 +1439,31 @@ public static class ResourceBuilder
         // the vtex lesson in Source2ContainerAuthor.BuildBinaryEditInfo). The CRC
         // recorded is of the SANITIZED bytes we actually compiled, not the raw
         // upload, because that is what the DATA block contains.
-        var svgRed2Idx = resource.Blocks.FindIndex(b => b.Type == BlockType.RED2);
-        var svgTemplateDeps = (resource.EditInfo?.SpecialDependencies ?? [])
-            .Select(d => new Source2ContainerAuthor.SpecialDep(
-                d.String, d.CompilerIdentifier, (int)d.Fingerprint, (int)d.UserData))
-            .ToList();
+        var svgTemplateDeps = Source2ContainerAuthor.ReadSpecialDeps(resource.Kv3("RED2")).ToList();
         if (svgTemplateDeps.Count == 0)
             svgTemplateDeps.AddRange(Source2ContainerAuthor.VectorGraphicDeps);
-        var svgEditInfo = Source2ContainerAuthor.BuildVectorGraphicEditInfo(
-            sourceName, panorama.Data, svgTemplateDeps, searchPath);
-        var svgRed2 = AuthoredKv3.Block(svgEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2, resource);
-        if (svgRed2Idx >= 0)
-            resource.Blocks[svgRed2Idx] = svgRed2;
-        else
-            resource.Blocks.Insert(0, svgRed2);
+        var svgEditInfo = Source2ContainerAuthor.BuildVectorGraphicEditInfo(sourceName, svg, svgTemplateDeps, searchPath);
+        resource.SetKv3("RED2", svgEditInfo, Kv3Formats.Get("generic"), insertAt: 0);
+        return resource.Write();
+    }
 
-        return Serialize(resource);
+    /// <summary>The image-table bytes of a Panorama DATA block (from the count to the SVG), checked against the block.</summary>
+    private static byte[] PanoramaImageTable(byte[] data, ushort resourceVersion)
+    {
+        if (data.Length < 6)
+            throw new InvalidDataException("Panorama DATA block shorter than its header.");
+        var count = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(4));
+        var at = 6;
+        for (var i = 0; i < count; i++)
+        {
+            var nul = Array.IndexOf(data, (byte)0, at);
+            if (nul < 0)
+                throw new InvalidDataException("Panorama image name runs past the block.");
+            at = nul + 1 + 4 + (resourceVersion >= 3 ? 4 : 0);
+            if (at > data.Length)
+                throw new InvalidDataException("Panorama image table runs past the block.");
+        }
+        return data[4..at];
     }
 
     /// <summary>
@@ -1745,20 +1482,10 @@ public static class ResourceBuilder
         double radiusScale = 1.0, (byte R, byte G, byte B)? constantColor = null, bool normalizeBaseRadius = false,
         double? alphaScale = null, double? textureScaleU = null)
     {
-        using var ms = new MemoryStream(vpcfBytes, writable: false);
-        using var resource = new Resource();
-        resource.Read(ms);
+        var resource = CompiledResource.Read(vpcfBytes);
 
-        // DATA block - particle systems extend KeyValuesOrNTRO whose Data
-        // property is the mutable KVObject root. AsKeyValueCollection() throws
-        // for KeyValuesOrNTRO subclasses, so unwrap manually.
-        var dataBlock = resource.GetBlockByType(BlockType.DATA);
-        KVObject? dataRoot = dataBlock switch
-        {
-            KeyValuesOrNTRO kvn => kvn.Data,
-            BinaryKV3 bkv when bkv.Data is { } doc => doc.Root,
-            _ => null,
-        };
+        // DATA block: the particle system's KV3 tree, edited in place.
+        var dataRoot = resource.Kv3("DATA");
         if (dataRoot is not null)
         {
             ReplaceStringsRecursive(dataRoot, pathMap);
@@ -1802,11 +1529,8 @@ public static class ResourceBuilder
 
         // RED2 - source-asset metadata. The legacy REDI is RawBinary (no KV3
         // to walk); only RED2 carries strings worth rewriting.
-        if (resource.GetBlockByType(BlockType.RED2) is ResourceEditInfo2 redi2 &&
-            redi2.Data is { } redoc)
-        {
-            ReplaceStringsRecursive(redoc.Root, pathMap);
-        }
+        if (resource.Kv3("RED2") is { } red2)
+            ReplaceStringsRecursive(red2, pathMap);
 
         // RERL - external reference list. The Name is only half of an entry: the
         // engine resolves a reference by its 64-bit path-hash Id, so a renamed
@@ -1818,25 +1542,16 @@ public static class ResourceBuilder
         // anim-include repoint, ModelSwapStage) already re-ids; this one did not.
         // The invariant holds in 3953 stock CS2 resources and both base packs
         // with zero exceptions - see ResourceRefIntegrityTests.
-        if (resource.ExternalReferences is { } rerl)
-        {
-            foreach (var entry in rerl.ResourceRefInfoList)
-            {
-                if (pathMap.TryGetValue(entry.Name, out var newName))
-                {
-                    entry.Name = newName;
-                    entry.Id = Source2ResourceId.ForPath(newName);
-                }
-            }
-        }
+        if (resource.Has("RERL"))
+            resource.SetReferences(resource.References.Select(n => pathMap.TryGetValue(n, out var renamed) ? renamed : n).ToList());
 
-        return Serialize(resource);
+        return resource.Write();
     }
 
     /// <summary>
     /// Recursively walk a KV3 tree replacing every <see cref="KVValueType.String"/>
     /// child whose value matches a key in <paramref name="pathMap"/>. Mutates
-    /// in place; callers re-serialize via <see cref="Serialize"/>. Internal so
+    /// in place; callers re-serialize via <see cref="CompiledResource.Write"/>. Internal so
     /// <c>another caller</c> reuses the walker.
     /// </summary>
     public static void ReplaceStringsRecursive(KVObject obj, IDictionary<string, string> pathMap)
@@ -2012,15 +1727,7 @@ public static class ResourceBuilder
     /// </summary>
     public static double? ReadRenderSpriteRadiusScale(byte[] vpcfBytes)
     {
-        using var ms = new MemoryStream(vpcfBytes, writable: false);
-        using var resource = new Resource();
-        resource.Read(ms);
-        KVObject? root = resource.GetBlockByType(BlockType.DATA) switch
-        {
-            KeyValuesOrNTRO kvn => kvn.Data,
-            BinaryKV3 bkv when bkv.Data is { } doc => doc.Root,
-            _ => null,
-        };
+        var root = CompiledResource.Read(vpcfBytes).Kv3("DATA");
         return root is null ? null : FindRenderSpriteRadiusScale(root);
     }
 
@@ -2229,17 +1936,15 @@ public static class ResourceBuilder
     /// <exception cref="InvalidOperationException">If the scaled WAV's PCM payload byte-length doesn't match the template - would mean the format changed.</exception>
     public static byte[] RebuildSound(byte[] vsndcTemplate, byte[] scaledWav)
     {
-        using var ms = new MemoryStream(vsndcTemplate, writable: false);
-        using var resource = new Resource { FileName = "audio.vsnd_c" };
-        resource.Read(ms);
+        var file = ResourceFile.Read(vsndcTemplate);
+        var data = file["DATA"] ?? throw new InvalidDataException("vsnd_c has no DATA block.");
+        var header = LegacySoundHeader.Read(data.Data, file.Version);
 
-        if (resource.DataBlock is not ValveResourceFormat.ResourceTypes.Sound sound)
-            throw new InvalidDataException("vsnd_c does not contain a Sound data block.");
-
-        // Everything up to this offset is the resource structure we keep intact.
-        var audioStart = (int)(sound.Offset + sound.Size);
+        // Everything up to fileSize is the resource structure we keep intact; the
+        // samples stream from there.
+        var audioStart = vsndcTemplate.Length - file.Tail.Length;
         var pcmBytes = ExtractWavData(scaledWav);
-        var expectedSize = (int)sound.StreamingDataSize;
+        var expectedSize = (int)header.StreamingDataSize;
 
         if (pcmBytes.Length != expectedSize)
             throw new InvalidOperationException(
@@ -2271,33 +1976,25 @@ public static class ResourceBuilder
     /// </summary>
     public static byte[] ModernizeVsnd(byte[] vsndc)
     {
-        using var resource = new Resource { FileName = "audio.vsnd_c" };
-        resource.Read(new MemoryStream(vsndc, writable: false));
+        var resource = CompiledResource.Read(vsndc);
 
         // Already modern (carries a CVoiceContainer CTRL block) - nothing to do.
-        if (resource.GetBlockByType(BlockType.CTRL) is not null)
+        if (resource.Has("CTRL") || resource.Block("DATA") is not { } data || resource.Version > 4)
             return vsndc;
-        if (resource.DataBlock is not ValveResourceFormat.ResourceTypes.Sound snd)
-            return vsndc;
+        LegacySoundHeader snd;
+        try { snd = LegacySoundHeader.Read(data.Data, resource.Version); }
+        catch (InvalidDataException) { return vsndc; }
 
         // We only synthesise a CTRL for uncompressed PCM (what the scaler ships); leave
         // anything else byte-identical. Modern MP3/ADPCM clips already carry a CTRL above.
-        if (snd.SoundType != ValveResourceFormat.ResourceTypes.Sound.AudioFileType.WAV ||
-            snd.AudioFormat != ValveResourceFormat.ResourceTypes.Sound.WaveAudioFormat.PCM)
+        if (!snd.IsPcm)
             return vsndc;
-
-        // Streaming PCM tail lives after the block section; preserve it verbatim.
-        var audioStart = (int)(snd.Offset + snd.Size);
-        if (audioStart < 0 || audioStart > vsndc.Length)
-            return vsndc;
-        var pcm = vsndc.AsSpan(audioStart).ToArray();
 
         // Build the CVoiceContainerDefault CTRL block from the legacy params, as today's
         // resourcecompiler writes it (1.41.9.0, a PCM .wav and an .mp3 compiled 2026-10-12):
         // m_Sentences first, the counts unsigned, m_nLoopEnd 0 for a sound that does not loop,
         // and no m_nSeekTable / m_encodedHeader. Older stock clips (sounds/ambient/cache/...)
-        // carry the earlier layout with those two fields; both load. VRF's
-        // Sound.ConstructFromCtrl reads either back.
+        // carry the earlier layout with those two fields; both load.
         var vsound = new KVObject();
         vsound.Add("m_Sentences", KVObject.Array());
         vsound.Add("m_nRate", new KVObject((int)snd.SampleRate));
@@ -2314,52 +2011,25 @@ public static class ResourceBuilder
         ctrlRoot.Add("m_vSound", vsound);
         ctrlRoot.Add("m_pEnvelopeAnalyzer", KVObject.Null());
 
-        var ctrl = AuthoredKv3.Block(ctrlRoot, KV3IDLookup.Get("generic"), BlockType.CTRL, resource);
+        // The layout CS2's modern compiler emits (verified against a stock modern clip):
+        // RED2 (and any others) as they were, then an EMPTY DATA block (the modern container
+        // carries all sound metadata in CTRL), then the CTRL. The legacy 48-byte DATA goes.
+        var dataAt = resource.File.Blocks.FindIndex(b => b.Type == "DATA");
+        resource.SetRaw("DATA", []);
+        resource.SetKv3("CTRL", ctrlRoot, Kv3Formats.Get("generic"), insertAt: dataAt + 1);
 
-        // Rebuild the block list to MATCH the layout CS2's modern compiler emits (verified against
-        // a stock modern clip): RED2(+any others), then an EMPTY DATA block (size 0 - the modern
-        // container carries ALL sound metadata in CTRL, not DATA), then the synthesised CTRL.
-        // Non-DATA blocks (RED2) are preserved byte-for-byte; the legacy 48-byte Sound metadata in
-        // the old DATA block is DROPPED (the CTRL replaces it).
-        var originals = resource.Blocks
-            .Select(b => (b.Type, Bytes: vsndc.AsSpan((int)b.Offset, (int)b.Size).ToArray()))
-            .ToList();
-        resource.Blocks.Clear();
-        foreach (var (type, bytes) in originals)
-        {
-            if (type == BlockType.DATA)
-            {
-                resource.Blocks.Add(new TypedRawBlock(BlockType.DATA, []) { Resource = resource }); // empty DATA
-                resource.Blocks.Add(ctrl);                                                          // CTRL after DATA
-            }
-            // Drop RERL. A standalone modern sound is RED2+DATA+CTRL with NO external-reference list
-            // (verified against pak01's own modern clips + the working community release). Our MP3→PCM
-            // rebuild path (BuildSound) leaves an empty RERL behind; left in, the file decodes in VRF
-            // but CS2 REJECTS the override and falls back to the stock (full-volume) clip - observed
-            // in-game as the loud "ka-chink" on a knife hit while the (RERL-free) PCM swings muted fine.
-            else if (type != BlockType.RERL)
-            {
-                resource.Blocks.Add(new TypedRawBlock(type, bytes) { Resource = resource });
-            }
-        }
+        // Drop RERL. A standalone modern sound is RED2+DATA+CTRL with NO external-reference list
+        // (verified against pak01's own modern clips + the working community release); an empty
+        // RERL left in makes CS2 REJECT the override and fall back to the stock (full-volume) clip,
+        // observed in game as the loud "ka-chink" on a knife hit.
+        resource.Remove("RERL");
 
-        // Serialize the block section, trim VRF's trailing pad, and re-append the PCM streaming
-        // tail exactly at the block-section end (= FileSize), same pattern as BuildSound.
-        var serialized = Serialize(resource);
-        var blockEnd = LastBlockEnd(serialized);
-        var modern = new byte[blockEnd + pcm.Length];
-        serialized.AsSpan(0, blockEnd).CopyTo(modern);
-        pcm.AsSpan().CopyTo(modern.AsSpan(blockEnd));
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(modern.AsSpan(0, 4), (uint)blockEnd);
-        // Stamp the resource VERSION to 5 (header uint16 @6). The modern CVoiceContainer container
-        // is vsnd version 5; the legacy source we converted from is v4. CS2's sound loader picks its
-        // parser by this version: left at v4 it runs the LEGACY vsound-header path, fails on the
+        // Resource version 5: the modern CVoiceContainer container. CS2's sound loader picks its
+        // parser by this version: left at 4 it runs the legacy vsound-header path, fails on the
         // now-empty DATA block, and spams "[SoundSystem] WARNING: KV3 failed to parse legacy vsound
-        // header" for every clip (it still falls through to the CTRL, so audio plays, but the console
-        // floods). v5 makes CS2 read the CTRL directly - matching pak01's own modern clips (resVer 5)
-        // and the working community release. VRF reads both via Sound.ConstructFromCtrl.
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(modern.AsSpan(6, 2), 5);
-        return modern;
+        // header" for every clip. The samples stay the tail, starting exactly at fileSize.
+        resource.Version = 5;
+        return resource.Write();
     }
 
     /// <summary>End offset of the last block in a serialized resource - i.e. where the vsnd
@@ -2468,52 +2138,5 @@ public static class ResourceBuilder
         n |= n >> 8;
         n |= n >> 16;
         return n + 1;
-    }
-
-    /// <summary>
-    /// A Block implementation that writes pre-built raw bytes as its serialized form.
-    /// Used to embed a custom vtex_c DATA payload into a Resource container without
-    /// going through Texture.Serialize() (which throws NotImplementedException).
-    /// </summary>
-    private sealed class RawDataBlock : Block
-    {
-        private readonly byte[] _data;
-
-        public RawDataBlock(byte[] data) => _data = data;
-
-        public override BlockType Type => BlockType.DATA;
-
-        public override void Read(BinaryReader reader) { }
-
-        public override void Serialize(Stream stream) => stream.Write(_data);
-
-        public override void WriteText(IndentedTextWriter writer) { }
-    }
-
-    /// <summary>
-    /// A block whose payload is already laid out. The types whose DATA is not KV3
-    /// need this, because VRF writes no serializer for them: a texture's pixels, and
-    /// a resource manifest's string table.
-    /// </summary>
-    public static Block RawBlock(BlockType type, byte[] bytes, Resource resource)
-        => new TypedRawBlock(type, bytes) { Resource = resource };
-
-    /// <summary>A block written verbatim from captured bytes under an arbitrary
-    /// <see cref="BlockType"/> - used by <see cref="SerializeModelDataOnly"/> to
-    /// pass PHYS/anim blocks through untouched.</summary>
-    private sealed class TypedRawBlock : Block
-    {
-        private readonly byte[] _data;
-        private readonly BlockType _type;
-
-        public TypedRawBlock(BlockType type, byte[] data) { _type = type; _data = data; }
-
-        public override BlockType Type => _type;
-
-        public override void Read(BinaryReader reader) { }
-
-        public override void Serialize(Stream stream) => stream.Write(_data);
-
-        public override void WriteText(IndentedTextWriter writer) { }
     }
 }

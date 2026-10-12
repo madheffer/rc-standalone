@@ -132,7 +132,7 @@ public class TemplateFreeAuthoringTests
         def.TextureParams["g_tNormal"] = "materials/mine/thing_normal.vtex";
         def.IntParams["F_TRANSLUCENT"] = 1;
 
-        using var container = MaterialAuthor.NewContainer(signature, "materials/mine/thing.vmat");
+        var container = MaterialAuthor.NewContainer(signature, "materials/mine/thing.vmat");
         var bytes = ResourceBuilder.BuildMaterial(def, container);
 
         using var res = new Resource { FileName = "thing.vmat_c" };
@@ -191,7 +191,7 @@ public class TemplateFreeAuthoringTests
             new Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement("vBlendWeight", "BlendWeight", "BLENDWEIGHT", 1),
         };
 
-        using var container = MaterialAuthor.NewContainer(signature);
+        var container = MaterialAuthor.NewContainer(signature);
         var bytes = ResourceBuilder.BuildMaterial(
             new ResourceBuilder.MaterialDef { Name = "materials/x.vmat", Shader = "csgo_simple.vfx" }, container);
 

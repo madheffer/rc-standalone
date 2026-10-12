@@ -80,9 +80,7 @@ internal static class SelfTest
         else
             Record("vdata round-trip", "vdata_c to text to vdata_c", () =>
         {
-            using var res = new Resource { FileName = "stock.vdata_c" };
-            res.Read(new MemoryStream(stockVdata));
-            var text = ResourceDecompiler.DataBlockToKv3(res, out var why)
+            var text = ResourceDecompiler.DataBlockToKv3(CompiledResource.Read(stockVdata), out var why)
                        ?? throw new InvalidOperationException("decompile refused: " + why);
             return VerifyContainer(Kv3SourceCompiler.Compile(Encoding.UTF8.GetBytes(text), ".vdata"),
                                    ResourceType.VData, "CompileVData");
@@ -96,9 +94,8 @@ internal static class SelfTest
         else
             Record("vpcf round-trip", "vpcf_c to text to vpcf_c, plus RERL", () =>
         {
-            using var stock = new Resource { FileName = "stock.vpcf_c" };
-            stock.Read(new MemoryStream(stockVpcf));
-            var stockRerl = stock.ExternalReferences?.ResourceRefInfoList.Count ?? 0;
+            var stock = CompiledResource.Read(stockVpcf);
+            var stockRerl = stock.References.Count;
             var text = ResourceDecompiler.DataBlockToKv3(stock, out var why)
                        ?? throw new InvalidOperationException("decompile refused: " + why);
             var built = VerifyContainer(Kv3SourceCompiler.Compile(Encoding.UTF8.GetBytes(text), ".vpcf"),

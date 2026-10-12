@@ -51,12 +51,11 @@ public class VrfRequirementsTests
                      pin.RootElement.GetProperty("vrf").GetProperty("sha").GetString());
     }
 
-    [Fact]
-    public void ImportedNamespaces_MatchTheUsingDirectives()
+    /// <summary>The ValveResourceFormat namespaces the sources under src/<paramref name="project"/> import.</summary>
+    private static SortedSet<string> VrfImports(string project)
     {
-        var src = Path.Combine(RepoRoot(), "src", "Source2.Compiler");
+        var src = Path.Combine(RepoRoot(), "src", project);
         var imported = new SortedSet<string>(StringComparer.Ordinal);
-
         foreach (var file in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
         {
             if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") ||
@@ -67,7 +66,26 @@ public class VrfRequirementsTests
                          @"^\s*using\s+(?:static\s+)?(ValveResourceFormat(?:\.[\w.]+)?)\s*;", RegexOptions.Multiline))
                 imported.Add(m.Groups[1].Value);
         }
+        return imported;
+    }
 
+    /// <summary>
+    /// The compiler itself stands alone: no source imports VRF and the project does not reference
+    /// it. Only the Source2.Compiler.Vrf adapter does.
+    /// </summary>
+    [Fact]
+    public void Core_DoesNotDependOnVrf()
+    {
+        Assert.Empty(VrfImports("Source2.Compiler"));
+        var csproj = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Source2.Compiler", "Source2.Compiler.csproj"));
+        Assert.DoesNotContain("ValveResourceFormat.csproj", csproj, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Source2CompilerVrfProject", csproj, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ImportedNamespaces_MatchTheUsingDirectives()
+    {
+        var imported = VrfImports("Source2.Compiler.Vrf");
         Assert.NotEmpty(imported);
 
         // The list is documentation, so it should stay true. Declaring a namespace

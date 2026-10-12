@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Source2.Compiler\Source2.Compiler.csproj" />
+    <ProjectReference Include="..\Source2.Compiler.Vrf\Source2.Compiler.Vrf.csproj" />
   </ItemGroup>
 
 </Project>
