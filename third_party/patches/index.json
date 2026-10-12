@@ -2,14 +2,6 @@
   "_comment": "Literal find->replace patches applied to the vendored ValveResourceFormat clone by tools/vendor.ps1 / tools/vendor.sh. Each find snippet must appear EXACTLY ONCE in the pristine upstream file; a miss or a duplicate aborts the apply so the drift is reviewed rather than silently dropped. Rationale for each patch is in third_party/PATCHES.md.",
   "patches": [
     {
-      "id": "vrf-model-lod-mask-fallback-lod",
-      "clone": "vrf",
-      "file": "ValveResourceFormat/Resource/ResourceTypes/Model.cs",
-      "find": "vrf-model-lod-mask-fallback-lod.find.txt",
-      "replace": "vrf-model-lod-mask-fallback-lod.replace.txt",
-      "description": "Default LoD mask to 1 (LoD 0 visible) when m_refLODGroupMasks is empty \u2014 CS2 CTRL-block MVTX models ship empty masks and the original Zip yields nothing."
-    },
-    {
       "id": "vrf-panorama-writable-data",
       "clone": "vrf",
       "file": "ValveResourceFormat/Resource/ResourceTypes/Panorama.cs",
@@ -34,14 +26,6 @@
       "description": "Bound KV3 binary-parser recursion depth (512) so a hostile deeply-nested resource raises a catchable InvalidDataException instead of an uncatchable StackOverflowException that crashes the process. ReadBinaryValue is the single chokepoint every nested value passes through. SECURITY: reachable anonymously via /rig/upload and on any bare VRF parse."
     },
     {
-      "id": "vrf-model-anim-include-cycle-guard",
-      "clone": "vrf",
-      "file": "ValveResourceFormat/Resource/ResourceTypes/Model.cs",
-      "find": "vrf-model-anim-include-cycle-guard.find.txt",
-      "replace": "vrf-model-anim-include-cycle-guard.replace.txt",
-      "description": "Cycle guard for m_refAnimIncludeModels: a self/loop reference recurses GetReferencedAnimations across FRESH Model instances with no cache to stop it, overflowing the stack (uncatchable process crash). A thread-static visited-set skips includes already on the load stack. SECURITY: makes ExportAnimations safe again."
-    },
-    {
       "id": "vrf-vbib-serialize-passthrough",
       "clone": "vrf",
       "file": "ValveResourceFormat/Resource/Blocks/VBIB.cs",
@@ -58,17 +42,9 @@
       "description": "Clamp attacker-declared vtex Width/Height/Depth before any buffer/SKBitmap allocation. A crafted vtex (UInt16 dims up to 65535 each) overflows CalculateBufferSizeForMipLevel's unchecked Int32 size math and/or demands tens of GB, OOMing the process. SECURITY (audit F7): reachable via /compile/gltf + /v1/compile/gltf material decode on an uploaded model."
     },
     {
-      "id": "vrf-resource-texture-trailing-padding",
-      "clone": "vrf",
-      "file": "ValveResourceFormat/Resource/Resource.cs",
-      "find": "vrf-resource-texture-trailing-padding.find.txt",
-      "replace": "vrf-resource-texture-trailing-padding.replace.txt",
-      "description": "Tolerate vtex_c with trailing padding after the texture data (file LARGER than the declared FullFileSize). VRF already ignores trailing bytes for raw PNG/JPEG; some community-packed compressed textures append ~16 trailing bytes, which made Resource.Read throw and fail the whole glb export for ~18 ingest models. A SMALLER (truncated) file still throws. Robustness only."
-    },
-    {
       "id": "vrf-kv3-integer-array-unchecked-uint64",
       "clone": "vrf",
-      "file": "ValveResourceFormat/Serialization/KeyValues/IKeyValueCollection.cs",
+      "file": "ValveResourceFormat/Serialization/KeyValues/KVObjectExtensions.cs",
       "find": "vrf-kv3-integer-array-unchecked-uint64.find.txt",
       "replace": "vrf-kv3-integer-array-unchecked-uint64.replace.txt",
       "description": "GetIntegerArray: unchecked UInt64 -> long element conversion (0xFFFFFFFFFFFFFFFF -> -1L). Community models store m_refMeshGroupMasks as UInt64 all-bits; the checked path threw OverflowException and cost 32 library models their mesh-group reads (variant schema/bake, glTF variant export). Mirrors upstream GetUnsignedIntegerArray unchecked handling."
@@ -80,6 +56,54 @@
       "find": "vrf-resource-version-settable.find.txt",
       "replace": "vrf-resource-version-settable.replace.txt",
       "description": "Open the Resource.Version setter. It is the one header field Serialize() writes that only Read() could previously supply, so a private setter is what forced every from-scratch author to start from a donor file of the right type. With it open, .vtex_c / .vsvg_c / .vmat_c containers can be authored outright."
+    },
+    {
+      "id": "vrf-kv3-size-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-size-guard.find.txt",
+      "replace": "vrf-kv3-size-guard.replace.txt",
+      "description": "Check a KV3 block's declared buffer, blob and compressed sizes against the block before renting buffers sized by them, and set the node budget from them. SECURITY: a few hundred hostile bytes otherwise asked for gigabytes (s2c fuzz, 2026-10-12)."
+    },
+    {
+      "id": "vrf-kv3-string-count-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-string-count-guard.find.txt",
+      "replace": "vrf-kv3-string-count-guard.replace.txt",
+      "description": "Refuse a string count larger than buffer 1 before allocating the string table. SECURITY (s2c fuzz)."
+    },
+    {
+      "id": "vrf-kv3-capacity-array",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-capacity-array.find.txt",
+      "replace": "vrf-kv3-capacity-array.replace.txt",
+      "description": "Clamp an array length from the file to 4096 where it is only a capacity hint. SECURITY (s2c fuzz): one hostile length otherwise reserved gigabytes before an element was read."
+    },
+    {
+      "id": "vrf-kv3-capacity-typed-array",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-capacity-typed-array.find.txt",
+      "replace": "vrf-kv3-capacity-typed-array.replace.txt",
+      "description": "As vrf-kv3-capacity-array, for typed arrays."
+    },
+    {
+      "id": "vrf-kv3-capacity-object",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-capacity-object.find.txt",
+      "replace": "vrf-kv3-capacity-object.replace.txt",
+      "description": "As vrf-kv3-capacity-array, for objects."
+    },
+    {
+      "id": "vrf-resource-block-count-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Resource.cs",
+      "find": "vrf-resource-block-count-guard.find.txt",
+      "replace": "vrf-resource-block-count-guard.replace.txt",
+      "description": "Refuse a block count larger than the stream can hold before reserving the block list. SECURITY (s2c fuzz)."
     }
   ]
 }

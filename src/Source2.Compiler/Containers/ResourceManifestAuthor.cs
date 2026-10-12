@@ -19,7 +19,7 @@ namespace Source2.Compiler;
 /// </code>
 ///
 /// <para>Layout recovered from shipped maps and checked against all 301 manifests
-/// in the survey corpus (docs/MAP_RESOURCES.md). Every one of them has exactly one
+/// in the survey corpus (docs/CONTAINERS.md). Every one of them has exactly one
 /// group holding one to three strings.</para>
 /// </summary>
 public static class ResourceManifestAuthor
@@ -27,11 +27,61 @@ public static class ResourceManifestAuthor
     /// <summary>Author the manifest for one group of resource paths.</summary>
     public static byte[] Author(IReadOnlyList<string> resources) => Author([resources]);
 
+    /// <summary>
+    /// The world manifest: RC hands its text to the compile as the
+    /// ___OverrideInputData___ buffer, so RED2's fingerprint is the CRC32 of
+    /// <see cref="SourceText"/> with LF newlines over <paramref name="textPaths"/>
+    /// (backslashed). Captured on probe01 and ze_hold_em_p (capture_overrides.py).
+    /// </summary>
+    public static byte[] AuthorOverride(IReadOnlyList<string> resources, IReadOnlyList<string> textPaths)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        var crc = System.IO.Hashing.Crc32.HashToUInt32(Encoding.UTF8.GetBytes(SourceText(textPaths, "\n")));
+        return Source2ContainerAuthor.AuthorChildResource(".vrman", BuildData([resources]), resources, overrideFingerprint: crc);
+    }
+
     /// <summary>Author a manifest of several groups.</summary>
     public static byte[] Author(IReadOnlyList<IReadOnlyList<string>> groups)
     {
         ArgumentNullException.ThrowIfNull(groups);
         return Source2ContainerAuthor.AuthorChildResource(".vrman", BuildData(groups), groups.SelectMany(g => g));
+    }
+
+    /// <summary>
+    /// A manifest RC compiles from a file it saved first (AddManifest,
+    /// rc 1801f9550): a physics or world node manifest. RED2 names that file,
+    /// <paramref name="relativeFilename"/> under <c>csgo_addons/&lt;addon&gt;</c>,
+    /// with the CRC32 of <see cref="SourceText"/>.
+    /// </summary>
+    /// <param name="textPaths">The paths as the saved text spells them, when not
+    /// <paramref name="resources"/>: the node manifest's are backslashed.</param>
+    public static byte[] AuthorSaved(IReadOnlyList<string> resources, string relativeFilename, string addon,
+        IReadOnlyList<string>? textPaths = null)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        var crc = System.IO.Hashing.Crc32.HashToUInt32(Encoding.UTF8.GetBytes(SourceText(textPaths ?? resources)));
+        return Source2ContainerAuthor.AuthorChildResource(".vrman", BuildData([resources]), resources,
+            new SavedSource(relativeFilename, "csgo_addons/" + addon, crc));
+    }
+
+    /// <summary>
+    /// The saved source: rc 181c1f980 appends each path to a flat
+    /// <c>resourceManifest</c> array, 181c1fae0 writes it with SaveKV3 (text,
+    /// generic), CRLF and no final newline, backslashes escaped. Its CRC matches
+    /// Valve's on four physics manifests and the probe01/ze_hold_em_p node ones.
+    /// The world manifest's override text is the same with LF (<paramref name="newline"/>).
+    /// </summary>
+    public static string SourceText(IReadOnlyList<string> resources, string newline = "\r\n")
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        var n = newline;
+        var text = new StringBuilder();
+        text.Append("<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->").Append(n);
+        text.Append('{').Append(n).Append("\tresourceManifest = ").Append(n).Append("\t[").Append(n);
+        foreach (var resource in resources)
+            text.Append("\t\t\"").Append(resource.Replace("\\", "\\\\")).Append("\",").Append(n);
+        text.Append("\t]").Append(n).Append('}');
+        return text.ToString();
     }
 
     /// <summary>

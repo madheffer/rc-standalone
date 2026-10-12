@@ -1,0 +1,1 @@
+                    var array = KVObject.Array(Math.Clamp(arrayLength, 0, 4096)); // vpkstuff patch: a length from the file is only a capacity hint here

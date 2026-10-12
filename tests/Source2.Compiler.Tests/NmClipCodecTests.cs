@@ -25,7 +25,7 @@ public class NmClipCodecTests
         {
             pak.ReadEntry(e, out var bytes);
             using var res = new Resource();
-            res.Read(new MemoryStream(bytes), verifyFileSize: false);
+            res.Read(new MemoryStream(bytes));
             var b = res.GetBlockByType(BlockType.DATA)!;
             yield return (e.GetFullPath(), bytes.AsSpan((int)b.Offset, (int)b.Size).ToArray());
         }

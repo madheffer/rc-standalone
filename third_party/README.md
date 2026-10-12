@@ -6,7 +6,7 @@ pin is committed.
 | | |
 |---|---|
 | `VENDORED.json` | the exact ValveResourceFormat commit this project is built and tested against |
-| `patches/` | the twelve literal find-and-replace patches applied to that commit |
+| `patches/` | the thirteen literal find-and-replace patches applied to that commit |
 | `PATCHES.md` | why each patch exists, and how to move the pin |
 | `ValveResourceFormat/` | **not committed.** Fetched by `dotnet run tools/vendor.cs` |
 

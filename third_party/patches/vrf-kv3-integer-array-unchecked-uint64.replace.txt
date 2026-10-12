@@ -12,7 +12,8 @@
         {
             if (!obj.TryGetValue(name, out var child) || !child.IsArray)
             {
-                return [];
+                // Missing key or a binary blob: upstream's path, unchanged.
+                return obj.GetArray<long>(name) ?? [];
             }
 
             var span = child.AsArraySpan();

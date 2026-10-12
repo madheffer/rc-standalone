@@ -6,7 +6,7 @@ namespace Source2.Compiler;
 /// RED2 special dependencies it always carries.
 ///
 /// <para>These are measurements, not guesses. Each was taken by surveying stock
-/// CS2 content with the probe described in <c>docs/AUTHORING.md</c>; the sample
+/// CS2 content with the probe described in <c>docs/RESOURCES.md</c>; the sample
 /// size and the invariance are recorded next to each value. Re-derive them with
 /// <c>tools/rc-oracle.ps1</c> after a game update rather than trusting the
 /// numbers to stay true.</para>

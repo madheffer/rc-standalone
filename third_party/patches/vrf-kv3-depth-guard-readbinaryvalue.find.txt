@@ -1,6 +1,6 @@
-        private static KVObject ReadBinaryValue(Context context, KV3BinaryNodeType datatype, KVFlag flagInfo)
+        private static KVObject ReadBinaryValue(Context context, KV3BinaryNodeType datatype, KVFlag flagInfo, Buffers lane)
         {
-            var result = ReadValue(context, datatype);
+            var result = ReadValue(context, datatype, lane);
 
             if (flagInfo != KVFlag.None)
             {

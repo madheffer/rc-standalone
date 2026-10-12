@@ -28,7 +28,7 @@ namespace Source2.Compiler.Tests;
 /// binary v5 and match its per-block compression choice, but the LZ4 payload would
 /// still have to come out of a bit-identical encoder, and it does not. The
 /// decoded tree is the thing the engine actually consumes, so that is what is
-/// pinned. See <c>docs/RC_PARITY.md</c> for the measured gap list.
+/// pinned. See <c>docs/RESOURCES.md</c> for the measured gap list.
 /// </summary>
 public class Source2ContainerAuthorTests
 {
@@ -99,6 +99,9 @@ public class Source2ContainerAuthorTests
         Assert.Contains("audio container", ex.Message);
     }
 
+    /// <summary>The addon tools/rc-oracle.ps1 compiles the probes in, which RC records in RED2 and FLCI.</summary>
+    private const string RcProbeSearchPath = "csgo_addons/vpkstuff_rc_probe";
+
     public static TheoryData<string, string, string> RcReferenceCases => new()
     {
         { "rc_probe.vsndevts", "rc_probe.vsndevts_c", "soundevents/rc_probe.vsndevts" },
@@ -122,7 +125,13 @@ public class Source2ContainerAuthorTests
 
         var sourceBytes = File.ReadAllBytes(srcPath);
         var ext = Path.GetExtension(sourceName);
-        var ours = Kv3SourceCompiler.Compile(sourceBytes, ext, relativePath);
+        var ours = Kv3SourceCompiler.Compile(sourceBytes, ext, relativePath, RcProbeSearchPath);
+
+        // Given the source path and content tree RC compiled from, the output is
+        // Valve's byte for byte: Kv3V5Writer, ValveLayout, FLCI, RED2 at RC's
+        // struct widths. .vpcf is the exception (G2, the schema migration below).
+        if (!sourceName.EndsWith(".vpcf", StringComparison.OrdinalIgnoreCase))
+            Assert.True(ours.AsSpan().SequenceEqual(File.ReadAllBytes(refPath)), $"{sourceName}: not byte-identical to resourcecompiler's");
 
         using var mine = ResourceTrees.Read(ours, compiledName);
         using var valve = ResourceTrees.Read(File.ReadAllBytes(refPath), compiledName);
@@ -130,9 +139,8 @@ public class Source2ContainerAuthorTests
         // Container identity.
         Assert.Equal(valve.Version, mine.Version);
 
-        // Block sequence - minus FLCI, the editor-only source-line map we
-        // deliberately don't author (pre-FLCI stock resources load without it).
-        var valveBlocks = valve.Blocks.Select(b => b.Type).Where(t => t != BlockType.FLCI).ToArray();
+        // Block sequence, FLCI (the .vdata source line map) included.
+        var valveBlocks = valve.Blocks.Select(b => b.Type).ToArray();
         var myBlocks = mine.Blocks.Select(b => b.Type).ToArray();
         Assert.Equal(valveBlocks, myBlocks);
 
@@ -141,10 +149,8 @@ public class Source2ContainerAuthorTests
         var valveSpecial = valve.EditInfo!.SpecialDependencies.Select(d => (d.String, d.CompilerIdentifier, d.Fingerprint)).ToArray();
         Assert.Equal(valveSpecial, mySpecial);
 
-        // RED2: same input-dependency file list (we brand m_SearchPath as the
-        // stock "csgo" content root rather than the addon RC compiled from, so
-        // paths - not search roots - are compared), and the SAME source CRC on
-        // the primary entry as resourcecompiler recorded.
+        // RED2: same input-dependency file list, and the SAME source CRC on the
+        // primary entry as resourcecompiler recorded.
         var myInputs = mine.EditInfo!.InputDependencies.Select(d => d.ContentRelativeFilename).ToArray();
         var valveInputs = valve.EditInfo!.InputDependencies.Select(d => d.ContentRelativeFilename).ToArray();
         Assert.Equal(valveInputs, myInputs);
@@ -195,7 +201,7 @@ public class Source2ContainerAuthorTests
         // migration, so a RAW legacy vpcf source compiles to the legacy schema
         // under its own declared GUID. The product path (decompile a compiled
         // vpcf, edit, recompile) starts from already-migrated text and is
-        // unaffected. Tracked in docs/RC_PARITY.md.
+        // unaffected. Tracked in docs/RESOURCES.md.
         if (!sourceName.EndsWith(".vpcf", StringComparison.OrdinalIgnoreCase))
         {
             Assert.Equal(ResourceTrees.Render(valve), ResourceTrees.Render(mine));

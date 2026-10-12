@@ -22,12 +22,36 @@ internal static class Commands
         // RED2 records where the source lived, content-relative. Use --ship-as
         // when you know the real path; otherwise put the file under its type's
         // canonical folder, which is what resourcecompiler would have seen.
-        var shipAs = Opt(a, "--ship-as") ?? Source2ContainerAuthor.SuggestSourcePath(ext, Path.GetFileName(input));
+        var (treeFromPath, relativeFromPath) = ContentLocation(input);
+        var shipAs = Opt(a, "--ship-as") ?? relativeFromPath ?? Source2ContainerAuthor.SuggestSourcePath(ext, Path.GetFileName(input));
+        var searchPath = Opt(a, "--search-path") ?? treeFromPath ?? "csgo";
 
-        var bytes = Kv3SourceCompiler.Compile(File.ReadAllBytes(input), ext, shipAs);
+        var bytes = Kv3SourceCompiler.Compile(File.ReadAllBytes(input), ext, shipAs, searchPath);
         File.WriteAllBytes(outPath, bytes);
         Console.WriteLine($"{outPath}  ({bytes.Length:n0} bytes)");
         return 0;
+    }
+
+    /// <summary>
+    /// The content tree and tree-relative path of a source under a game's <c>content</c>
+    /// folder: <c>.../content/csgo_addons/addon/scripts/x.vdata</c> is
+    /// (<c>csgo_addons/addon</c>, <c>scripts/x.vdata</c>), <c>.../content/csgo/...</c> is
+    /// (<c>csgo</c>, ...). Nulls when the file is not under one.
+    /// </summary>
+    internal static (string? Tree, string? Relative) ContentLocation(string path)
+    {
+        var parts = Path.GetFullPath(path).Replace('\\', '/').Split('/');
+        for (var i = parts.Length - 3; i >= 0; i--)
+        {
+            if (!parts[i].Equals("content", StringComparison.OrdinalIgnoreCase))
+                continue;
+            var treeLength = parts[i + 1].Equals("csgo_addons", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
+            if (i + 1 + treeLength >= parts.Length)
+                return (null, null);
+            return (string.Join('/', parts[(i + 1)..(i + 1 + treeLength)]),
+                    string.Join('/', parts[(i + 1 + treeLength)..]).ToLowerInvariant());
+        }
+        return (null, null);
     }
 
     public static int Decompile(string[] a)
@@ -134,7 +158,9 @@ internal static class Commands
         // --template is optional: without one the container is authored outright.
         var template = Opt(a, "--template") is { } t ? File.ReadAllBytes(t) : null;
 
-        var bytes = ResourceBuilder.BuildPanoramaSvg(template, File.ReadAllBytes(input), Opt(a, "--ship-as"));
+        var (svgTree, svgRelative) = ContentLocation(input);
+        var bytes = ResourceBuilder.BuildPanoramaSvg(template, File.ReadAllBytes(input),
+            Opt(a, "--ship-as") ?? svgRelative, Opt(a, "--search-path") ?? svgTree ?? "csgo");
         File.WriteAllBytes(outPath, bytes);
         Console.WriteLine($"{outPath}  ({bytes.Length:n0} bytes)");
         return 0;
@@ -147,7 +173,9 @@ internal static class Commands
         // --template is optional: without one the container is authored outright.
         var template = Opt(a, "--template") is { } t ? File.ReadAllBytes(t) : null;
 
-        var bytes = ResourceBuilder.BuildSound(template, File.ReadAllBytes(input), Opt(a, "--ship-as"));
+        var (soundTree, soundRelative) = ContentLocation(input);
+        var bytes = ResourceBuilder.BuildSound(template, File.ReadAllBytes(input),
+            Opt(a, "--ship-as") ?? soundRelative, Opt(a, "--search-path") ?? soundTree ?? "csgo");
         File.WriteAllBytes(outPath, bytes);
         Console.WriteLine($"{outPath}  ({bytes.Length:n0} bytes)");
         return 0;

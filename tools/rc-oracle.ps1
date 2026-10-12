@@ -4,8 +4,8 @@
 
 .DESCRIPTION
   Source2ContainerAuthor (src/Source2.Compiler/Containers) authors compiled
-  KV3-resource containers from scratch. Its per-type facts — resource version,
-  block set, RED2 compiler identities + version fingerprints — are dumped from
+  KV3-resource containers from scratch. Its per-type facts - resource version,
+  block set, RED2 compiler identities + version fingerprints - are dumped from
   the REAL resourcecompiler.exe output, not guessed. When a CS2 update lands
   (especially one that touches the tools), run this script: it compiles small
   probe sources through the local resourcecompiler and prints the facts to
@@ -21,7 +21,10 @@
 [CmdletBinding()]
 param(
   [string]$Cs2Root = "D:\Steam\steamapps\common\Counter-Strike Global Offensive",
-  [string]$Addon = "s2c_rc_probe"
+  # The addon the RcReference fixtures were compiled in: RC records it in RED2
+  # and FLCI, so the byte-identity test expects it. Not s2c_rc_probe, which the
+  # map compiles back up and restore.
+  [string]$Addon = "vpkstuff_rc_probe"
 )
 $ErrorActionPreference = 'Stop'
 
@@ -49,7 +52,7 @@ $probes = @(
 
 foreach ($p in $probes) {
   $fixture = Join-Path $reference $p.Src
-  if (-not (Test-Path $fixture)) { Write-Warning "fixture missing: $fixture — skipping"; continue }
+  if (-not (Test-Path $fixture)) { Write-Warning "fixture missing: $fixture - skipping"; continue }
   $dstDir = Join-Path $content $p.Folder
   New-Item -ItemType Directory -Force $dstDir | Out-Null
   Copy-Item $fixture $dstDir -Force

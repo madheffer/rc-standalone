@@ -1,0 +1,1 @@
+                    context.Strings = new string[countStrings];

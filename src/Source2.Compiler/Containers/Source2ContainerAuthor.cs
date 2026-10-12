@@ -42,7 +42,14 @@ public static partial class Source2ContainerAuthor
     /// records no input dependency and no special input dependency list at all, and
     /// says so in its searchable user data. Measured across 116 shipped maps.
     /// </param>
-    public sealed record ContainerSpec(ushort ResourceVersion, SpecialDep[] SpecialDeps, bool ChildResource = false);
+    /// <param name="LineColumnInfo">
+    /// A compile of this type from KV3 text also writes FLCI, the map from each value to its
+    /// line and column in the source (<see cref="Kv3LineColumns"/>). Today's resourcecompiler
+    /// does it for <c>.vdata</c>: both RcReference probes carry it. Older stock <c>.vdata_c</c>
+    /// files (propdata, nav_hulls...) predate it. The <c>.vsndevts</c> and <c>.vpcf</c> probes
+    /// have none.
+    /// </param>
+    public sealed record ContainerSpec(ushort ResourceVersion, SpecialDep[] SpecialDeps, bool ChildResource = false, bool LineColumnInfo = false);
 
     /// <summary>Per-source-extension container facts, dumped from resourcecompiler output.</summary>
     public static readonly IReadOnlyDictionary<string, ContainerSpec> SpecByExtension =
@@ -50,7 +57,7 @@ public static partial class Source2ContainerAuthor
         {
             [".vsndevts"] = new(1, [new("Sound Event Script Version", "CompileSoundEventScript", 10)]),
             [".vdata"] = new(0, [new("KV3 Compiler Version", "CompileVData", 2),
-                                    new("VData Compiler Version", "CompileVData", 1)]),
+                                    new("VData Compiler Version", "CompileVData", 1)], LineColumnInfo: true),
             [".vpcf"] = new(1, [new("KV3 Compiler Version", "CompileParticle", 2),
                                     new("Particle Compiler Version", "CompileParticle", 2)]),
             // .vagrp is extinct in CS2 content (0 in pak01 + every base pack,
@@ -59,7 +66,7 @@ public static partial class Source2ContainerAuthor
             [".vagrp"] = new(1, [new("Sound Event Script Version", "CompileSoundEventScript", 10)]),
             // The index layer of a map. Every one of these is a child of a .vmap
             // compile, never compiled from its own source, and all three carry the
-            // same identity in all 116 maps surveyed in docs/MAP_RESOURCES.md.
+            // same identity in all 116 maps surveyed in docs/CONTAINERS.md.
             [".vwrld"] = new(1, [new("World Compiler Version", "CompileWorld", 1)], ChildResource: true),
             [".vwnod"] = new(1, [new("World Node Compiler Version", "CompileWorldNode", 1)], ChildResource: true),
             [".vents"] = new(1, [new("Entity Lump Compiler Version", "CompileEntityLump", 3)], ChildResource: true),
@@ -95,6 +102,9 @@ public static partial class Source2ContainerAuthor
         typeof(Resource).GetProperty(nameof(Resource.Version), BindingFlags.Public | BindingFlags.Instance)
         ?? throw new InvalidOperationException("Resource.Version property missing - VRF API changed?");
 
+    /// <summary>Set a resource's container version (VRF keeps the setter private).</summary>
+    internal static void SetResourceVersion(Resource resource, ushort version) => ResourceVersionProp.SetValue(resource, version);
+
     /// <summary>
     /// Author a compiled container for the parsed KV3 source <paramref name="userDoc"/>.
     /// </summary>
@@ -102,11 +112,14 @@ public static partial class Source2ContainerAuthor
     /// <param name="sourceExtension">Source extension incl. dot (".vsndevts", ".vdata", ".vpcf", ".vagrp").</param>
     /// <param name="sourceTextBytes">The raw source text - its CRC32 is recorded in RED2's input dependency, exactly as resourcecompiler records the source file CRC.</param>
     /// <param name="sourceFileName">Relative source path for RED2's input dependency (e.g. "soundevents/my_sounds.vsndevts"); a neutral name is synthesized when the caller doesn't know it.</param>
+    /// <param name="searchPath">The content tree RC compiled from, recorded with each input dependency
+    /// and in FLCI: <c>csgo_addons/&lt;addon&gt;</c> for an addon, <c>csgo</c> for the game's own.</param>
     public static byte[] AuthorKv3Resource(
         KVDocument userDoc,
         string sourceExtension,
         byte[] sourceTextBytes,
-        string? sourceFileName = null)
+        string? sourceFileName = null,
+        string searchPath = "csgo")
     {
         ArgumentNullException.ThrowIfNull(userDoc);
         // The DATA block is stamped with the document's own format GUID, so a
@@ -124,7 +137,7 @@ public static partial class Source2ContainerAuthor
         sourceFileName ??= "vpkeditor/compiled" + sourceExtension.ToLowerInvariant();
 
         return Assemble(userDoc.Root, userDoc.Header.Format, spec, sourceExtension,
-                        sourceFileName, sourceTextBytes, userDoc, narrowIntegers: true);
+                        sourceFileName, sourceTextBytes, userDoc, narrowIntegers: true, searchPath: searchPath);
     }
 
     /// <summary>
@@ -143,6 +156,10 @@ public static partial class Source2ContainerAuthor
     /// <param name="format">The KV3 format GUID to stamp on DATA.</param>
     /// <param name="sourceExtension">Source extension incl. dot, e.g. ".vwrld".</param>
     public static byte[] AuthorKv3Tree(KVObject dataRoot, KV3ID format, string sourceExtension)
+        => AuthorKv3Tree(dataRoot, format, sourceExtension, null);
+
+    /// <summary>As above, <paramref name="editRed2"/> changing the RED2 tree before it is written.</summary>
+    public static byte[] AuthorKv3Tree(KVObject dataRoot, KV3ID format, string sourceExtension, Func<KVObject, KVObject>? editRed2)
     {
         ArgumentNullException.ThrowIfNull(dataRoot);
 
@@ -154,12 +171,13 @@ public static partial class Source2ContainerAuthor
               + "follow the value rule. Use AuthorKv3Resource.");
 
         return Assemble(dataRoot, format, spec, sourceExtension,
-                        sourceFileName: "", sourceTextBytes: [], userDoc: null, narrowIntegers: false);
+                        sourceFileName: "", sourceTextBytes: [], userDoc: null, narrowIntegers: false, editRed2);
     }
 
     private static byte[] Assemble(
         KVObject dataRoot, KV3ID format, ContainerSpec spec, string sourceExtension,
-        string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc, bool narrowIntegers)
+        string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc, bool narrowIntegers, Func<KVObject, KVObject>? editRed2 = null,
+        string searchPath = "csgo")
     {
         using var resource = new Resource();
         ResourceVersionProp.SetValue(resource, spec.ResourceVersion);
@@ -171,6 +189,10 @@ public static partial class Source2ContainerAuthor
         // own path-hash id (MurmurHash64B - reproduces stock RERL ids exactly).
         var refs = new List<string>();
         CollectResourceRefs(dataRoot, new HashSet<string>(StringComparer.OrdinalIgnoreCase), refs);
+        // A map's child resource lists them by path (probe01's n0.vwnod: the
+        // aggregate models before the cluster model).
+        if (spec.ChildResource)
+            refs = [.. refs.OrderBy(r => r, StringComparer.Ordinal)];
         if (refs.Count > 0)
         {
             var rerl = new ResourceExtRefList { Resource = resource };
@@ -188,17 +210,27 @@ public static partial class Source2ContainerAuthor
         // "generic" format GUID (the GUID resourcecompiler stamps; the KV3
         // binary VERSION is whatever VRF's serializer emits - the engine
         // accepts every KV3 binary generation, current RC emits v5).
-        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc);
+        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName, sourceTextBytes, userDoc, searchPath: searchPath);
+        if (editRed2 != null)
+            red2Doc = editRed2(red2Doc);
         resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
 
         // DATA - the caller's tree, under its own format GUID.
         resource.Blocks.Add(AuthoredKv3.Block(
             narrowIntegers ? NarrowIntegers(dataRoot) : dataRoot, format, BlockType.DATA, resource));
 
-        // FLCI (source-file line map) is deliberately not authored: it is
-        // editor-only metadata and pre-FLCI stock resources load fine without it.
+        // FLCI, the source line map, after DATA (Kv3LineColumns). Skipped when
+        // the scanner cannot account for every value, rather than point at
+        // the wrong lines.
+        if (userDoc is not null && spec.LineColumnInfo
+            && Kv3LineColumns.Author(System.Text.Encoding.UTF8.GetString(sourceTextBytes),
+                                     $"content/{searchPath}/{sourceFileName}", Kv3LineColumns.CountValues(dataRoot)) is { } flci)
+            resource.Blocks.Add(AuthoredKv3.Block(flci, KV3IDLookup.Get("generic"), BlockType.FLCI, resource));
 
-        return ResourceBuilder.Serialize(resource);
+        // A map's child resources, and every compile from KV3 text, take the
+        // compiler's own layout (RERL's entry array on an 8-byte boundary,
+        // blocks padded with zeros). A map's other trees keep VRF's.
+        return spec.ChildResource || userDoc is not null ? ValveLayout.Serialize(resource) : ResourceBuilder.Serialize(resource);
     }
 
     /// <summary>
@@ -209,7 +241,10 @@ public static partial class Source2ContainerAuthor
     /// <param name="sourceExtension">Source extension incl. dot, e.g. ".vrman".</param>
     /// <param name="dataBytes">The DATA payload, already laid out.</param>
     /// <param name="references">Paths the resource points at, in the order it states them.</param>
-    public static byte[] AuthorChildResource(string sourceExtension, byte[] dataBytes, IEnumerable<string> references)
+    /// <param name="savedSource">The source file RC wrote to disk and compiled this from, when it did
+    /// (a physics or world node manifest); RC records it as an additional input.</param>
+    public static byte[] AuthorChildResource(string sourceExtension, byte[] dataBytes, IEnumerable<string> references,
+        SavedSource? savedSource = null, uint overrideFingerprint = 0)
     {
         ArgumentNullException.ThrowIfNull(dataBytes);
         ArgumentNullException.ThrowIfNull(references);
@@ -236,17 +271,18 @@ public static partial class Source2ContainerAuthor
         if (rerl.ResourceRefInfoList.Count > 0)
             resource.Blocks.Add(rerl);
 
-        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName: "", sourceTextBytes: [], userDoc: null);
+        var red2Doc = BuildRed2Document(spec, sourceExtension, sourceFileName: "", sourceTextBytes: [], userDoc: null, savedSource, overrideFingerprint);
         resource.Blocks.Add(AuthoredKv3.Block(NarrowIntegers(red2Doc), KV3IDLookup.Get("generic"), BlockType.RED2, resource));
         resource.Blocks.Add(ResourceBuilder.RawBlock(BlockType.DATA, dataBytes, resource));
 
-        return ResourceBuilder.Serialize(resource);
+        return ValveLayout.Serialize(resource);
     }
 
     /// <summary>Build the RED2 CResourceEditInfo document resourcecompiler would
     /// have written for this compile (field set + shapes verified per type).</summary>
     private static KVObject BuildRed2Document(
-        ContainerSpec spec, string sourceExtension, string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc)
+        ContainerSpec spec, string sourceExtension, string sourceFileName, byte[] sourceTextBytes, KVDocument? userDoc,
+        SavedSource? savedSource = null, uint overrideFingerprint = 0, string searchPath = "csgo")
     {
         var root = KVObject.Collection();
 
@@ -255,7 +291,7 @@ public static partial class Source2ContainerAuthor
         // child resource has no source file of its own and records none.
         var inputDeps = KVObject.Array();
         if (!spec.ChildResource)
-            inputDeps.Add(InputDependency(sourceFileName, crc: Crc32.HashToUInt32(sourceTextBytes), optional: false, exists: true));
+            inputDeps.Add(InputDependency(sourceFileName, crc: Crc32.HashToUInt32(sourceTextBytes), optional: false, exists: true, searchPath));
 
         // vsndevts: RC also records optional source-audio probes (.mp3/.vsnd/.wav
         // per referenced sound) so its incremental rebuild triggers when a WAV
@@ -269,20 +305,29 @@ public static partial class Source2ContainerAuthor
             {
                 var baseName = vsnd[..^".vsnd".Length];
                 foreach (var probeExt in new[] { ".mp3", ".vsnd", ".wav" })
-                    inputDeps.Add(InputDependency(baseName + probeExt, crc: 0, optional: true, exists: false));
+                    inputDeps.Add(InputDependency(baseName + probeExt, crc: 0, optional: true, exists: false, searchPath));
             }
         }
 
         root.Add("m_InputDependencies", inputDeps);
-        root.Add("m_AdditionalInputDependencies", KVObject.Array());
+        var additional = KVObject.Array();
+        if (savedSource is { } saved)
+        {
+            additional.Add(InputDependency(saved.RelativeFilename, saved.Crc, optional: false, exists: true, saved.SearchPath));
+        }
+        root.Add("m_AdditionalInputDependencies", additional);
 
         // The one argument dependency every RC-compiled KV3 resource carries.
         var argDeps = KVObject.Array();
         var arg = KVObject.Collection();
         arg.Add("m_ParameterName", new KVObject("___OverrideInputData___"));
         arg.Add("m_ParameterType", new KVObject("BinaryBlobArg"));
-        arg.Add("m_nFingerprint", new KVObject(0));
-        arg.Add("m_nFingerprintDefault", new KVObject(0));
+        // A child resource's RED2 is RC's struct written out, so its fields keep
+        // their widths: 64-bit fingerprints and user data, a 32-bit unsigned
+        // compiler fingerprint (world_physics.vrman_c, decoded).
+        var child = spec.ChildResource;
+        arg.Add("m_nFingerprint", child ? (overrideFingerprint == 0 ? new KVObject(0L) : new KVObject(overrideFingerprint)) : new KVObject(0));
+        arg.Add("m_nFingerprintDefault", child ? new KVObject(0L) : new KVObject(0));
         argDeps.Add(arg);
         root.Add("m_ArgumentDependencies", argDeps);
 
@@ -292,16 +337,16 @@ public static partial class Source2ContainerAuthor
             var d = KVObject.Collection();
             d.Add("m_String", new KVObject(dep.Name));
             d.Add("m_CompilerIdentifier", new KVObject(dep.CompilerIdentifier));
-            d.Add("m_nFingerprint", new KVObject(dep.Fingerprint));
-            d.Add("m_nUserData", new KVObject(dep.UserData));
+            // RC's struct widths whatever the compile (UnsignedField).
+            d.Add("m_nFingerprint", UnsignedField(dep.Fingerprint));
+            d.Add("m_nUserData", UnsignedField(dep.UserData));
             specialDeps.Add(d);
         }
         root.Add("m_SpecialDependencies", specialDeps);
 
-        // A child resource omits the key outright rather than writing it empty,
-        // which is the one structural difference between the two identities.
-        if (!spec.ChildResource)
-            root.Add("m_SpecialInputDependencies", KVObject.Array());
+        // The 0923 compiler writes it empty on child resources too (atixref,
+        // ze_hold_em_p); workshop maps from older compilers omit it.
+        root.Add("m_SpecialInputDependencies", KVObject.Array());
 
         root.Add("m_AdditionalRelatedFiles", KVObject.Array());
         root.Add("m_ChildResourceList", KVObject.Array());
@@ -310,7 +355,7 @@ public static partial class Source2ContainerAuthor
         if (spec.ChildResource)
         {
             var userData = KVObject.Collection();
-            userData.Add("IsChildResource", new KVObject(1));
+            userData.Add("IsChildResource", new KVObject(1L));
             root.Add("m_SearchableUserData", userData);
             root.Add("m_SubassetReferences", KVObject.Null());
             root.Add("m_SubassetDefinitions", KVObject.Null());
@@ -354,7 +399,8 @@ public static partial class Source2ContainerAuthor
         ReadOnlySpan<byte> sourceBytes,
         IReadOnlyList<SpecialDep> fallbackSpecialDeps,
         IReadOnlyList<SpecialDep>? templateSpecialDeps = null,
-        IReadOnlyList<string>? optionalProbes = null)
+        IReadOnlyList<string>? optionalProbes = null,
+        string searchPath = "csgo")
     {
         var name = string.IsNullOrWhiteSpace(sourceName) ? "vpkeditor/compiled" : sourceName!;
 
@@ -373,7 +419,7 @@ public static partial class Source2ContainerAuthor
 
         var inputDeps = KVObject.Array();
         foreach (var (path, crc, optional, exists) in deps.OrderBy(d => d.Path, StringComparer.Ordinal))
-            inputDeps.Add(InputDependency(path, crc, optional, exists));
+            inputDeps.Add(InputDependency(path, crc, optional, exists, searchPath));
         root.Add("m_InputDependencies", inputDeps);
         root.Add("m_AdditionalInputDependencies", KVObject.Array());
 
@@ -386,14 +432,19 @@ public static partial class Source2ContainerAuthor
         argDeps.Add(arg);
         root.Add("m_ArgumentDependencies", argDeps);
 
+        // RC lists them sorted by name, case-insensitively (stock vmat_c:
+        // "csgo/csgo_character.vfx" before "Material Compiler Version"; vtex_c:
+        // "... GenerateSheetData", "... Image Inverse" and "... Mip Box" between
+        // "Texture Compiler Version" and "Texture Encode Quality").
         var specialDeps = KVObject.Array();
-        foreach (var dep in templateSpecialDeps is { Count: > 0 } ? templateSpecialDeps : fallbackSpecialDeps)
+        foreach (var dep in (templateSpecialDeps is { Count: > 0 } ? templateSpecialDeps : fallbackSpecialDeps)
+                     .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
         {
             var d = KVObject.Collection();
             d.Add("m_String", new KVObject(dep.Name));
             d.Add("m_CompilerIdentifier", new KVObject(dep.CompilerIdentifier));
-            d.Add("m_nFingerprint", new KVObject(dep.Fingerprint));
-            d.Add("m_nUserData", new KVObject(dep.UserData));
+            d.Add("m_nFingerprint", UnsignedField(dep.Fingerprint));
+            d.Add("m_nUserData", UnsignedField(dep.UserData));
             specialDeps.Add(d);
         }
         root.Add("m_SpecialDependencies", specialDeps);
@@ -415,36 +466,40 @@ public static partial class Source2ContainerAuthor
 
     /// <summary>Back-compat wrapper for the texture case.</summary>
     public static KVObject BuildTextureEditInfo(
-        string? sourceName, ReadOnlySpan<byte> sourceBytes, IReadOnlyList<SpecialDep>? templateSpecialDeps = null)
+        string? sourceName, ReadOnlySpan<byte> sourceBytes, IReadOnlyList<SpecialDep>? templateSpecialDeps = null,
+        string searchPath = "csgo")
         => BuildBinaryEditInfo(
             string.IsNullOrWhiteSpace(sourceName) ? "vpkeditor/texture.png" : sourceName,
-            sourceBytes, TextureSpecialDeps, templateSpecialDeps);
+            sourceBytes, TextureSpecialDeps, templateSpecialDeps, searchPath: searchPath);
 
     /// <summary>Author the RED2 for a compiled sound. RC probes for a fixed set of
     /// sibling files next to the source; mirrored because each entry is an honest
     /// "this file does not exist" (CRC 0, optional, not-exists).</summary>
     public static KVObject BuildSoundEditInfo(
-        string? sourceName, ReadOnlySpan<byte> sourceBytes, IReadOnlyList<SpecialDep>? templateSpecialDeps = null)
+        string? sourceName, ReadOnlySpan<byte> sourceBytes, IReadOnlyList<SpecialDep>? templateSpecialDeps = null,
+        string searchPath = "csgo")
     {
         var name = string.IsNullOrWhiteSpace(sourceName) ? "vpkeditor/audio.wav" : sourceName!;
         return BuildBinaryEditInfo(name, sourceBytes, SoundSpecialDeps, templateSpecialDeps,
-            SoundProbeSiblings(name));
+            SoundProbeSiblings(name), searchPath);
     }
 
     /// <summary>Author the RED2 for a compiled Panorama vector graphic. RC records
     /// the <c>.svg</c> source plus an optional same-named <c>.vsvg</c>.</summary>
     public static KVObject BuildVectorGraphicEditInfo(
-        string? sourceName, ReadOnlySpan<byte> sourceBytes, IReadOnlyList<SpecialDep>? templateSpecialDeps = null)
+        string? sourceName, ReadOnlySpan<byte> sourceBytes, IReadOnlyList<SpecialDep>? templateSpecialDeps = null,
+        string searchPath = "csgo")
     {
         var name = string.IsNullOrWhiteSpace(sourceName) ? "panorama/images/vpkeditor/icon.svg" : sourceName!;
         return BuildBinaryEditInfo(name, sourceBytes, VectorGraphicSpecialDeps, templateSpecialDeps,
-            [StripExt(name) + ".vsvg"]);
+            [StripExt(name) + ".vsvg"], searchPath);
     }
 
     /// <summary>The sibling probes resourcecompiler records for a sound compile
-    /// (dumped 2026-08-10 from a real <c>.wav</c> compile): a per-tree and
-    /// per-folder <c>encoding.txt</c>, plus same-named <c>.fbx / .mp3 / .rts /
-    /// .txt / .vsnd</c>.</summary>
+    /// (dumped 2026-08-10 from a real <c>.wav</c> compile, and again 2026-10-12 from
+    /// the 1.41.9.0 build, which added <c>.dmx</c>): a per-tree and per-folder
+    /// <c>encoding.txt</c>, plus same-named <c>.dmx / .fbx / .mp3 / .rts / .txt /
+    /// .vsnd</c>.</summary>
     private static string[] SoundProbeSiblings(string sourceName)
     {
         var noExt = StripExt(sourceName);
@@ -454,6 +509,7 @@ public static partial class Source2ContainerAuthor
         [
             top + "/encoding.txt",
             dir + "/encoding.txt",
+            noExt + ".dmx",
             noExt + ".fbx",
             noExt + ".mp3",
             noExt + ".rts",
@@ -488,14 +544,23 @@ public static partial class Source2ContainerAuthor
         new("Vector Graphic Version", "CompileVectorGraphic", 2),
     ];
 
-    private static KVObject InputDependency(string relativeFilename, uint crc, bool optional, bool exists)
+    /// <summary>
+    /// A special dependency's fingerprint or user data as RC's struct writes it: 0 and 1 take the
+    /// no-payload codes, anything else is UINT32. Stock: "Texture Encode Quality" user data 3 and
+    /// "Texture Compiler Version" fingerprint 11 are UINT32, "Vector Graphic Version" 2 too, every
+    /// 0 is INT64_ZERO and every 1 INT64_ONE (world.vwrld_c, n0.vwnod_c, rc_probe.vsndevts_c).
+    /// </summary>
+    private static KVObject UnsignedField(int value) =>
+        value is 0 or 1 ? new KVObject((long)value) : new KVObject((uint)value);
+
+    private static KVObject InputDependency(string relativeFilename, uint crc, bool optional, bool exists, string searchPath = "csgo")
     {
         var d = KVObject.Collection();
         d.Add("m_RelativeFilename", new KVObject(relativeFilename));
         // Stock CS2 resources record the game's own content root; we author
         // stock-style containers, so mirror it (RC records whatever mod tree
         // it compiled from - "csgo" for every shipped Valve resource).
-        d.Add("m_SearchPath", new KVObject("csgo"));
+        d.Add("m_SearchPath", new KVObject(searchPath));
         d.Add("m_nFileCRC", new KVObject(crc));
         d.Add("m_bOptional", new KVObject(optional));
         d.Add("m_bFileExists", new KVObject(exists));
@@ -742,3 +807,8 @@ public static partial class Source2ContainerAuthor
         }
     }
 }
+
+/// <summary>A source file RC saved to disk and compiled a child resource from:
+/// its content-relative name, the search path it was found under
+/// (<c>csgo_addons/&lt;addon&gt;</c>) and the CRC32 of its bytes.</summary>
+public readonly record struct SavedSource(string RelativeFilename, string SearchPath, uint Crc);

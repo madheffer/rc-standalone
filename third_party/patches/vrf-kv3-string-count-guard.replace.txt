@@ -1,0 +1,8 @@
+                    // vpkstuff patch: each string takes at least its terminator in buffer 1, so a
+                    // count past that is hostile; check it before allocating the table.
+                    if (countStrings < 0 || countStrings > buffer1Span.Count)
+                    {
+                        throw new InvalidDataException($"KV3 block claims {countStrings} strings in {buffer1Span.Count} bytes; refusing to parse (malformed or hostile resource).");
+                    }
+
+                    context.Strings = new string[countStrings];

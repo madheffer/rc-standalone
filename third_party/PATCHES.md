@@ -2,7 +2,7 @@
 
 `third_party/ValveResourceFormat/` is not committed. `dotnet run tools/vendor.cs`
 fetches the exact upstream commit pinned in [`VENDORED.json`](VENDORED.json) and
-then applies the ten patches in [`patches/`](patches/) to it.
+then applies the thirteen patches in [`patches/`](patches/) to it.
 
 Each patch is a literal find-and-replace against one file. The `find` snippet
 must occur **exactly once** in the pristine upstream file; zero matches or more
@@ -35,13 +35,16 @@ is now `AuthoredKv3`, not a fork.
 
 | id | file |
 |---|---|
-| `vrf-kv3-integer-array-unchecked-uint64` | `Serialization/IKeyValueCollection.cs` |
+| `vrf-kv3-integer-array-unchecked-uint64` | `Serialization/KeyValues/KVObjectExtensions.cs` |
 
 `GetIntegerArray` converts each element to `long` under a checked conversion, so
 an all-bits `UInt64` throws `OverflowException`. Community models store
 `m_refMeshGroupMasks` exactly that way, which cost 32 models their mesh-group
 reads. The unchecked conversion (`0xFFFFFFFFFFFFFFFF` becomes `-1L`) mirrors how
-upstream's own `GetUnsignedIntegerArray` already handles it.
+upstream's own `GetUnsignedIntegerArray` already handles it. Still needed at
+`d9926fcb`: `GetIntegerArray` became `GetArray<long>`, which goes through
+`Convert.ChangeType` on a ValveKeyValue `KVObject`, and that still throws on
+`UInt64.MaxValue` (checked with ValveKeyValue 0.71.0.528).
 
 ### Writing other block types
 
@@ -60,42 +63,58 @@ writes the original block bytes straight back.
 
 ### Guards for untrusted input
 
-This compiler is driven by files users upload. These three make a malformed one
-an exception rather than a process death.
+This compiler is driven by files users upload. These make a malformed one an
+exception rather than a process death.
 
 | id | file |
 |---|---|
 | `vrf-kv3-depth-guard-field` | `ResourceTypes/BinaryKV3.cs` |
 | `vrf-kv3-depth-guard-readbinaryvalue` | `ResourceTypes/BinaryKV3.cs` |
-| `vrf-model-anim-include-cycle-guard` | `ResourceTypes/Model.cs` |
 | `vrf-vtex-dimension-guard` | `ResourceTypes/Texture.cs` |
 
 A deeply nested KV3 document recurses through `ReadBinaryValue` until the stack
 overflows, which no `try`/`catch` can stop; the depth counter bounds it at 512
-and raises a catchable `InvalidDataException` instead. A model whose
-`m_refAnimIncludeModels` reference each other recurses across fresh `Model`
-instances with no cache to stop it; a thread-static visited set skips includes
-already on the load stack. A `.vtex_c` header can declare 65535 in each of three
+and raises a catchable `InvalidDataException` instead. A `.vtex_c` header can declare 65535 in each of three
 dimensions, which both overflows the unchecked `Int32` size math in
 `CalculateBufferSizeForMipLevel` and demands tens of gigabytes; the clamp lands
 before any allocation.
 
-### Robustness and correctness
+### Hostile sizes (2026-10-12)
 
-| id | file |
+`s2c fuzz` mutates stock files and drives every write path a host feeds uploads
+to. VRF's reader took sizes from the file on trust, so a few hundred bytes could
+make it reserve gigabytes, and a block of zero-width typed elements could build
+billions of nodes. Each of these refuses such a file with an `InvalidDataException`
+before allocating:
+
+| id | file | checks |
+|---|---|---|
+| `vrf-resource-block-count-guard` | `Resource/Resource.cs` | block count against the 12-byte entries the stream can hold |
+| `vrf-kv3-size-guard` | `ResourceTypes/BinaryKV3.cs` | stored sizes against the rest of the block; decompressed sizes at most 4096 times that plus 1 MB; nothing negative; sets the node budget |
+| `vrf-kv3-string-count-guard` | `ResourceTypes/BinaryKV3.cs` | string count against buffer 1's bytes |
+| `vrf-kv3-capacity-array`, `-typed-array`, `-object` | `ResourceTypes/BinaryKV3.cs` | a length from the file is clamped to 4096 where it is only a capacity hint |
+
+`vrf-kv3-depth-guard-field` and `-readbinaryvalue` also count values against the
+node budget (1M plus 16 per decompressed byte). Measured not to reject anything
+real: all 42,250 stock files of ten types round-trip byte-identical with them, and
+`kv3-parity` reads all 60,924 v5 blocks. The long-term plan is not to need VRF at
+all (docs/INDEPENDENCE.md).
+
+### Retired at the `d9926fcb` re-vendor (2026-10-12)
+
+Five patches retired because upstream now does the job itself:
+
+| id | why it is no longer needed |
 |---|---|
-| `vrf-model-lod-mask-fallback-lod` | `ResourceTypes/Model.cs` |
-| `vrf-resource-texture-trailing-padding` | `Resource.cs` |
+| `vrf-model-lod-mask-fallback-lod` | `GetEmbeddedMeshesAndLoD` is gone. LoD now lives in `ModelLodInfo`, whose `IsMeshInLevel` treats a mesh with no mask entry as present in every level. That is what the patch did for CS2's CTRL-block models with an empty `m_refLODGroupMasks`. |
+| `vrf-model-anim-include-cycle-guard` | `GetReferencedAnimations` no longer recurses. For each included model it takes that model's embedded and animation-group animations, and never follows the include's own `m_refAnimIncludeModels`, so a cycle cannot form. |
+| `vrf-kv3-v5-saturate-counts-header`, `-trailer` | The v5 writer used to cast the object and array counts to `ushort` under `checked`, so a block with more than 65,535 objects threw (dkr_onelevel's world physics has 132,490). Upstream now saturates both 16-bit header fields and writes the full counts as ints in the trailer, which is what Valve's file holds and what the patch did. |
+| `vrf-resource-texture-trailing-padding` | `Resource.Read` dropped its file-size check entirely (and the `verifyFileSize` parameter with it), so trailing padding after a texture no longer throws. |
 
-CS2's CTRL-block models ship an empty `m_refLODGroupMasks`, and the upstream zip
-over it yields nothing, so every mesh reads as invisible. Defaulting an empty
-mask to 1 (LoD 0 visible) matches what the engine does.
-
-Some community-packed `.vtex_c` carry around 16 bytes of trailing padding after
-the texture data, making the file larger than its declared `FullFileSize`, and
-`Resource.Read` threw on it. VRF already tolerates trailing bytes for raw
-PNG/JPEG payloads; this extends the same tolerance to compressed ones. A file
-that is *smaller* than declared still throws, because that is real truncation.
+`vrf-kv3-depth-guard-readbinaryvalue` was rewritten for the new
+`ReadBinaryValue(..., Buffers lane)` signature, and
+`vrf-kv3-integer-array-unchecked-uint64` moved with `GetIntegerArray` into
+`KVObjectExtensions.cs`. Both still do the same thing.
 
 ## Changing the pin
 

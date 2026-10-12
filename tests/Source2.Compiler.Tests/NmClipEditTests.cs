@@ -30,7 +30,7 @@ public class NmClipEditTests
     private static byte[] Data(byte[] vnmclipC)
     {
         using var res = new Resource();
-        res.Read(new MemoryStream(vnmclipC), verifyFileSize: false);
+        res.Read(new MemoryStream(vnmclipC));
         var b = res.GetBlockByType(BlockType.DATA)!;
         return vnmclipC.AsSpan((int)b.Offset, (int)b.Size).ToArray();
     }
@@ -115,7 +115,7 @@ public class NmClipEditTests
         Assert.Equal(0.75f, clip.Duration, 4);
         Assert.Equal(35, clip.NumFrames);
         using var orig = new Resource();
-        orig.Read(new MemoryStream(bytes), verifyFileSize: false);
+        orig.Read(new MemoryStream(bytes));
         var dataAt = (int)orig.GetBlockByType(BlockType.DATA)!.Offset;
         Assert.Equal(dataAt, (int)res.GetBlockByType(BlockType.DATA)!.Offset);
         // Only the DATA entry's size may differ before DATA; restore it and the rest must be Valve's bytes.

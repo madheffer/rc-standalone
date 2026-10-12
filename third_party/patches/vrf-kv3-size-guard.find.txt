@@ -1,0 +1,1 @@
+            // Before version 5, zstd stores the buffer and the binary blobs as two consecutive frames,

@@ -1,4 +1,4 @@
-        private static KVObject ReadBinaryValue(Context context, KV3BinaryNodeType datatype, KVFlag flagInfo)
+        private static KVObject ReadBinaryValue(Context context, KV3BinaryNodeType datatype, KVFlag flagInfo, Buffers lane)
         {
             // vpkstuff patch: bound recursion depth. ReadValue recurses into nested
             // objects/arrays exclusively through this method, so a single counter
@@ -12,9 +12,17 @@
                 context.Depth--;
                 throw new InvalidDataException("KV3 nesting exceeds 512 levels; refusing to parse (malformed or hostile resource).");
             }
+            // vpkstuff patch: bound the number of values. A typed array of a zero-width
+            // type (INT64_ZERO, BOOLEAN_TRUE, NULL...) declares any length in four bytes,
+            // so a tiny block could otherwise build billions of nodes.
+            if (++context.Nodes > context.NodeBudget)
+            {
+                context.Depth--;
+                throw new InvalidDataException($"KV3 block holds more than {context.NodeBudget} values for its size; refusing to parse (malformed or hostile resource).");
+            }
             try
             {
-                var result = ReadValue(context, datatype);
+                var result = ReadValue(context, datatype, lane);
 
                 if (flagInfo != KVFlag.None)
                 {

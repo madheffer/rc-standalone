@@ -1,4 +1,5 @@
 using ValveKeyValue;
+using ValveKeyValue.KeyValues3;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
 using ValveResourceFormat.ResourceTypes;
@@ -68,6 +69,102 @@ public static class ResourceDecompiler
             return null;
         }
 
-        return kv.ToKV3String();
+        // The header names the block's own format GUID, so compiling the text
+        // stamps the same one back (a particle's DATA is not "generic").
+        var format = data switch
+        {
+            KeyValuesOrNTRO typed => typed.Format,
+            ResourceEditInfo2 { Data: { } doc } => doc.Header?.Format,
+            BinaryKV3 binary => binary.Data?.Header?.Format,
+            _ => null,
+        };
+        return ToKv3Text(kv, format);
+    }
+
+    /// <summary>
+    /// KV3 text in ValveKeyValue's layout, with every double written so it reads back as the
+    /// same double. ValveKeyValue (0.71) prints six decimals: 0.19607843137254902 came out as
+    /// 0.196078 and 1e-30 as 0.0, so a decompile, edit and recompile changed every particle and
+    /// soundevent float it touched (<c>s2c recompile-parity</c> on stock vpcf_c / vsndevts_c).
+    /// Doubles are swapped for unique integer markers, which keep the numeric array layout, and
+    /// each marker's text is then replaced with <see cref="RoundTrip"/>.
+    /// </summary>
+    public static string ToKv3Text(KVObject root, KV3ID? format = null)
+    {
+        var used = new HashSet<long>();
+        CollectIntegers(root, used);
+        var next = long.MinValue + 1_000_003;
+        var doubles = new Dictionary<long, double>();
+        KVObject Mark(KVObject node)
+        {
+            if (node.IsCollection)
+            {
+                var copy = KVObject.Collection();
+                foreach (var child in node.Children)
+                    copy.Add(child.Key, Mark(child.Value));
+                copy.Flag = node.Flag;
+                return copy;
+            }
+            if (node.IsArray)
+            {
+                var copy = KVObject.Array();
+                foreach (var element in node.Values)
+                    copy.Add(Mark(element));
+                copy.Flag = node.Flag;
+                return copy;
+            }
+            if (node.ValueType != KVValueType.FloatingPoint64 || !double.IsFinite((double)node))
+                return node;
+            while (used.Contains(next))
+                next++;
+            doubles[next] = (double)node;
+            return new KVObject(next++) { Flag = node.Flag };
+        }
+        var marked = Mark(root);
+        var text = format is { } f ? marked.ToKV3String(format: f) : marked.ToKV3String();
+        if (doubles.Count == 0)
+            return text;
+        return System.Text.RegularExpressions.Regex.Replace(text, @"-9\d{18}",
+            m => long.TryParse(m.Value, out var key) && doubles.TryGetValue(key, out var d) ? RoundTrip(d) : m.Value);
+    }
+
+    private static void CollectIntegers(KVObject node, HashSet<long> into)
+    {
+        if (node.IsCollection || node.IsArray)
+        {
+            foreach (var child in node.IsCollection ? node.Children.Select(c => c.Value) : node.Values)
+                CollectIntegers(child, into);
+            return;
+        }
+        if (node.ValueType is KVValueType.Int64)
+            into.Add((long)node);
+    }
+
+    /// <summary>
+    /// The shortest decimal that parses back to <paramref name="value"/>, written out without an
+    /// exponent and always with a decimal point (so it is read as a double, not an integer):
+    /// 0.19607843137254902, 0.000000000000000000000000000001, 1.0, -0.0.
+    /// </summary>
+    public static string RoundTrip(double value)
+    {
+        var r = value.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        var e = r.IndexOfAny(['E', 'e']);
+        if (e >= 0)
+        {
+            var negative = r[0] == '-';
+            var mantissa = r[(negative ? 1 : 0)..e];
+            var exponent = int.Parse(r[(e + 1)..], System.Globalization.CultureInfo.InvariantCulture);
+            var point = mantissa.IndexOf('.');
+            var digits = point < 0 ? mantissa : mantissa.Remove(point, 1);
+            var intDigits = (point < 0 ? mantissa.Length : point) + exponent;
+            r = intDigits <= 0 ? "0." + new string('0', -intDigits) + digits
+                : intDigits >= digits.Length ? digits + new string('0', intDigits - digits.Length)
+                : digits[..intDigits] + "." + digits[intDigits..];
+            if (negative)
+                r = "-" + r;
+        }
+        if (!r.Contains('.'))
+            r += ".0";
+        return r;
     }
 }

@@ -22,15 +22,19 @@ internal static class AuthoredKv3
     /// <summary>Serialization version Valve emits. Stock vmat_c and vmdl_c are both v5.</summary>
     internal const int Version = 5;
 
-    /// <summary>Payload size above which RC compresses. Bracketed by measurement to
-    /// (252, 279]; 256 is the only round value in that window.</summary>
-    internal const int CompressionThreshold = 256;
+    /// <summary>
+    /// tier0's binary_auto save (1800c7220 via SaveKV3): below this many bytes
+    /// of buffer plus blobs the block is stored raw (1800c8790 / 1800c8d80).
+    /// </summary>
+    internal const int RawBelow = 0x100;
 
-    /// <summary>A KV3 block carrying <paramref name="data"/>, wired to <paramref name="resource"/>.
-    /// Compression is chosen later by <see cref="ChooseCompression"/>, once the block can be
-    /// measured.</summary>
+    /// <summary>binary_auto picks LZ4 while buffer plus blobs is below this, Zstd from it on.</summary>
+    internal const int ZstdFrom = 0x80001;
+
+    /// <summary>A KV3 block carrying <paramref name="data"/>, wired to <paramref name="resource"/>,
+    /// written as tier0 writes it (<see cref="ValveKv3Block"/>).</summary>
     internal static BinaryKV3 Block(KVObject data, KV3ID format, BlockType blockType, Resource resource) =>
-        new(data, format, blockType)
+        new ValveKv3Block(data, format, blockType)
         {
             Resource = resource,
             SerializationVersion = Version,
@@ -38,38 +42,74 @@ internal static class AuthoredKv3
         };
 
     /// <summary>
-    /// Give each KV3 block the compression RC would have chosen: LZ4 above
-    /// <see cref="CompressionThreshold"/> bytes of payload, stored raw below it.
-    ///
-    /// <para>RC does not compress uniformly, and it does not decide per resource type
-    /// either: of two <c>.vdata_c</c> references, one carries DATA uncompressed and the
-    /// other LZ4. It is a payload-size cut, and it is sharp. Measured over ~3,600
-    /// Valve-compiled v5 blocks (cs2-paint-assets, cs2stock, weaponviewer, and the
-    /// RcReference probes): the largest block RC left uncompressed is 252 bytes and the
-    /// smallest it compressed is 279, with nothing in between and no uncompressed block
-    /// anywhere above 252.</para>
-    ///
-    /// <para>"Whichever is smaller" is NOT the rule and was measured wrong: LZ4 does
-    /// shrink a 109-byte KV3 buffer, yet RC still stores it raw.</para>
+    /// A version 5 KV3 block serialized by <see cref="Kv3V5Writer"/>: tier0's SaveKV3
+    /// with binary_auto, byte for byte (round trip exact on every v5 block of four
+    /// compiled maps and of sampled game models, materials, particles and soundevents).
+    /// </summary>
+    internal sealed class ValveKv3Block(KVObject data, KV3ID format, BlockType blockType) : BinaryKV3(data, format, blockType)
+    {
+        public override void Serialize(Stream stream) => stream.Write(Kv3V5Writer.Write(Data.Root, Data.Header!.Format.Id));
+    }
+
+    /// <summary>
+    /// Give each KV3 block the compression resourcecompiler's binary_auto
+    /// encoding gives it (tier0 1800c7220): with the buffer (trailer included)
+    /// plus the blobs under 256 bytes the block is raw, under 0x80001 LZ4,
+    /// otherwise Zstd. Most resource block writers save with binary_auto (the
+    /// RED2 writer, 181c24a70, among them); a few use plain "binary" or
+    /// "binary_bc", not mapped to resource types yet (docs/GROUND_TRUTH.md).
     /// </summary>
     internal static void ChooseCompression(Resource resource)
     {
-        foreach (var block in resource.Blocks)
+        for (var i = 0; i < resource.Blocks.Count; i++)
         {
-            if (block is not BinaryKV3 kv3)
+            if (resource.Blocks[i] is not BinaryKV3 kv3 || kv3 is ValveKv3Block)
+                continue;
+            // A v5 block read from a template and edited goes out as tier0 writes it too.
+            if (kv3.SerializationVersion == Version && kv3.Data?.Header is { } header)
             {
+                resource.Blocks[i] = new ValveKv3Block(kv3.Data.Root, header.Format, kv3.Type) { Resource = resource, SerializationVersion = Version };
                 continue;
             }
-
-            kv3.SerializationCompressionMethod = PayloadBytes(kv3) > CompressionThreshold
-                ? KV3BinaryCompressionMethod.Lz4
-                : KV3BinaryCompressionMethod.Uncompressed;
+            var total = TotalPayloadBytes(kv3);
+            kv3.SerializationCompressionMethod = total < RawBelow ? KV3BinaryCompressionMethod.Uncompressed
+                : total < ZstdFrom ? KV3BinaryCompressionMethod.Lz4
+                : KV3BinaryCompressionMethod.Zstd;
         }
     }
 
-    /// <summary>Uncompressed payload size, read back from the block's own v5 header
-    /// (offset 48 is <c>buffer1 + buffer2</c>), which is the figure RC's cut is made on.</summary>
-    private static int PayloadBytes(BinaryKV3 kv3)
+    /// <summary>
+    /// Route the KV3 blocks VRF keeps as typed objects through <see cref="Kv3V5Writer"/> too, so a
+    /// resource read, edited and written goes out as resourcecompiler writes it. RED2 parses into
+    /// <see cref="ResourceEditInfo2"/> and a material's or particle's DATA into a
+    /// <see cref="KeyValuesOrNTRO"/> subclass, and neither is a <see cref="BinaryKV3"/>, so
+    /// <see cref="ChooseCompression"/> never saw them: VRF's own writer then wrote every array of
+    /// objects as a generic ARRAY where Valve writes ARRAY_TYPE_BYTE_LENGTH (measured with
+    /// <c>reserialize-parity</c> on stock vmat, vpcf, vsndevts and vsvg). Blocks VRF read from NTRO
+    /// or KV3 older than v5 carry no v5 header and are left to VRF.
+    /// </summary>
+    internal static void RouteTypedBlocks(Resource resource)
+    {
+        for (var i = 0; i < resource.Blocks.Count; i++)
+        {
+            var block = resource.Blocks[i];
+            (KVObject Root, KV3ID Format)? tree = block switch
+            {
+                ResourceEditInfo2 { Data: { Header.Format: { } f } doc } => (doc.Root, f),
+                KeyValuesOrNTRO { Format: { } f } typed => (typed.Data, f),
+                _ => null,
+            };
+            if (tree is { } t)
+                resource.Blocks[i] = new ValveKv3Block(t.Root, t.Format, block.Type) { Resource = resource, SerializationVersion = Version };
+        }
+    }
+
+    /// <summary>
+    /// The block's whole uncompressed payload, buffer plus blobs, read back from
+    /// its v5 header (offset 48 is the buffer with its trailer, offset 60 the
+    /// blobs): the sum binary_auto decides on.
+    /// </summary>
+    internal static int TotalPayloadBytes(BinaryKV3 kv3)
     {
         var restore = kv3.SerializationCompressionMethod;
         try
@@ -78,7 +118,7 @@ internal static class AuthoredKv3
             using var ms = new MemoryStream();
             kv3.Serialize(ms);
             var bytes = ms.GetBuffer();
-            return ms.Length >= 52 ? BitConverter.ToInt32(bytes, 48) : 0;
+            return ms.Length >= 64 ? BitConverter.ToInt32(bytes, 48) + BitConverter.ToInt32(bytes, 60) : 0;
         }
         finally
         {

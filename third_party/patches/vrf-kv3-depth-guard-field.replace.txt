@@ -2,4 +2,6 @@
         {
             public int Version;
             public int Depth; // vpkstuff patch: KV3 recursion-depth guard (see ReadBinaryValue)
+            public long Nodes; // vpkstuff patch: values read so far, against NodeBudget (see ReadBinaryValue)
+            public long NodeBudget = long.MaxValue; // vpkstuff patch: set from the block's real size (vrf-kv3-size-guard)
             public ArraySegment<byte> Types;

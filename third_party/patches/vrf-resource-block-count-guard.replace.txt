@@ -1,0 +1,8 @@
+            // vpkstuff patch: each block takes a 12-byte table entry, so a count past what the
+            // stream holds is hostile; check it before reserving the list.
+            if (blockCount > (Reader.BaseStream.Length - Reader.BaseStream.Position) / 12)
+            {
+                throw new InvalidDataException($"Resource claims {blockCount} blocks, more than its {Reader.BaseStream.Length} bytes can hold.");
+            }
+
+            Blocks.EnsureCapacity((int)blockCount);

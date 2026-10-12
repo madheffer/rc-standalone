@@ -11,8 +11,9 @@ namespace Source2.Compiler;
 /// GUID, so it never has to be hard-coded, and
 /// <see cref="Source2ContainerAuthor"/> authors the container around the parsed
 /// tree. Decompiling a KV3-backed <c>_c</c>, editing the text and recompiling
-/// here round-trips the data tree; the bytes are not promised to match, because
-/// the serializer rebuilds the string table.</para>
+/// here round-trips the data tree. Compiling Valve's own source gives Valve's
+/// bytes when the source path and search path are the ones RC saw (the
+/// RcReference probes, <c>Source2ContainerAuthorTests</c>).</para>
 ///
 /// <para>The tree is not validated against a per-type schema. The header is
 /// trusted to declare its own format, and the decompile direction's output is
@@ -32,13 +33,16 @@ public static class Kv3SourceCompiler
     /// container (matching the legacy behavior for unknown KV3 types).
     /// <paramref name="sourceFileName"/>, when the caller knows it, becomes
     /// the RED2 input-dependency path (otherwise a neutral name is used).
+    /// <paramref name="searchPath"/> is the content tree it was compiled from
+    /// (<c>csgo_addons/&lt;addon&gt;</c>, or <c>csgo</c>), which RC records with
+    /// every input dependency.
     /// </summary>
     /// <exception cref="InvalidOperationException">
     /// Thrown when the parsed text has no Format header (no
     /// <c>&lt;!-- kv3 encoding:... format:... --&gt;</c> comment), when the
     /// input isn't parseable KV3, or for a <c>.vsnd</c> source (see class doc).
     /// </exception>
-    public static byte[] Compile(byte[] textBytes, string? sourceExtension = null, string? sourceFileName = null)
+    public static byte[] Compile(byte[] textBytes, string? sourceExtension = null, string? sourceFileName = null, string searchPath = "csgo")
     {
         if (sourceExtension is { Length: > 0 } && sourceExtension[0] != '.')
             sourceExtension = "." + sourceExtension;
@@ -52,6 +56,17 @@ public static class Kv3SourceCompiler
                 "it cannot be authored from KV3 text alone. Upload the audio file instead (the sound " +
                 "route compiles PCM WAV into a proper vsnd_c).");
         }
+
+        // Refuse what the reader cannot survive: hostile nesting (everything after
+        // the parse recurses) and a stray control character (the reader then
+        // allocates without end). See Kv3LineColumns.PreParse.
+        var (depth, controlAt) = Kv3LineColumns.PreParse(System.Text.Encoding.UTF8.GetString(textBytes));
+        if (depth > Kv3LineColumns.MaxDepth)
+            throw new InvalidOperationException(
+                $"KV3 text nests {depth} levels deep; {Kv3LineColumns.MaxDepth} is the most this compiler accepts.");
+        if (controlAt >= 0)
+            throw new InvalidOperationException(
+                $"KV3 text has a stray character (a control character or ';') outside a string at offset {controlAt}; it is not valid KV3.");
 
         // 1. Parse user text → KVDocument. ValveKeyValue's KV3 reader handles
         //    the comment-style header, type/format flags, multiline strings,
@@ -72,6 +87,10 @@ public static class Kv3SourceCompiler
                 $"Underlying error: {ex.Message}", ex);
         }
 
+        // The reader types a quoted "false" or "12" by its spelling; RC keeps
+        // it a string.
+        Kv3LineColumns.RestoreQuotedStrings(System.Text.Encoding.UTF8.GetString(textBytes), userDoc.Root);
+
         if (userDoc?.Header?.Format == null)
         {
             throw new InvalidOperationException(
@@ -85,6 +104,6 @@ public static class Kv3SourceCompiler
         var ext = sourceExtension is { Length: > 0 } && Source2ContainerAuthor.SpecByExtension.ContainsKey(sourceExtension)
             ? sourceExtension
             : ".vsndevts";
-        return Source2ContainerAuthor.AuthorKv3Resource(userDoc, ext, textBytes, sourceFileName);
+        return Source2ContainerAuthor.AuthorKv3Resource(userDoc, ext, textBytes, sourceFileName, searchPath);
     }
 }

@@ -36,6 +36,12 @@ try
         "selftest" => SelfTest.Run(args[1..]),
         "kv3-parity" => Kv3Parity.Run(args[1..]),
         "nmclip-parity" => NmClipParity.Run(args[1..]),
+        "recompile-parity" => RecompileParity.Run(args[1..]),
+        "reserialize-parity" => ReserializeParity.Run(args[1..]),
+        "container-parity" => ContainerParity.Run(args[1..]),
+        "kv3-types" => Kv3Types.Run(args[1..]),
+        "red2-survey" => Red2Survey.Run(args[1..]),
+        "fuzz" => Fuzz.Run(args[1..]),
         _ => Unknown(args[0]),
     };
 }

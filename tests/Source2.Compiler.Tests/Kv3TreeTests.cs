@@ -11,6 +11,9 @@ namespace Source2.Compiler.Tests;
 /// <summary>
 /// <see cref="Kv3Tree"/> is lossless: a block read and re-encoded carries Valve's own uncompressed
 /// sections and header counters, and whatever it writes both readers decode to the same tree.
+/// Written with binary_auto, an unchanged block is Valve's byte for byte, compression included
+/// (<c>kv3-parity --bytes</c> for the stock sweep; the one known gap is LZ4 blob frames written
+/// after the 64 KB ring wraps, see docs/RESOURCES.md).
 /// The stock sweep behind the counter rules (46,265 blocks, 10 types) is <c>kv3-parity</c>;
 /// these pin it on committed RC outputs, a hand-built tree, and a stock sample when CS2 is present.
 /// </summary>
@@ -21,7 +24,7 @@ public class Kv3TreeTests
     private static IEnumerable<byte[]> Kv3Blocks(byte[] resource)
     {
         using var res = new Resource();
-        res.Read(new MemoryStream(resource), verifyFileSize: false);
+        res.Read(new MemoryStream(resource));
         foreach (var b in res.Blocks)
             if (b.Size >= 120 && BinaryPrimitives.ReadUInt32LittleEndian(resource.AsSpan((int)b.Offset)) == 0x4B563305)
                 yield return resource.AsSpan((int)b.Offset, (int)b.Size).ToArray();
@@ -35,7 +38,7 @@ public class Kv3TreeTests
         return kv3.ToString();
     }
 
-    private static void AssertLossless(byte[] block, string label)
+    private static void AssertLossless(byte[] block, string label, bool bytes = false)
     {
         var t = Kv3Tree.Read(block);
         var (b1, b2, blobs, h) = t.Encode();
@@ -49,6 +52,8 @@ public class Kv3TreeTests
         Assert.True(back.Encode().Buffer2.AsSpan().SequenceEqual(t.ReadSections.Buffer2), $"{label}: written buffer 2");
         if (t.Compression == 0) Assert.Equal(t.ReadHeader, back.ReadHeader);
         Assert.Equal(VrfText(block), VrfText(written));
+        if (bytes)
+            Assert.True(written.AsSpan().SequenceEqual(block), $"{label}: not Valve's bytes ({written.Length} vs {block.Length})");
     }
 
     [Fact]
@@ -62,7 +67,7 @@ public class Kv3TreeTests
         foreach (var f in refs)
             foreach (var block in Kv3Blocks(File.ReadAllBytes(f)))
             {
-                AssertLossless(block, Path.GetFileName(f));
+                AssertLossless(block, Path.GetFileName(f), bytes: true);
                 blocks++;
             }
         Assert.True(blocks > 0, "no KV3 v5 block in RcReference");
@@ -97,7 +102,7 @@ public class Kv3TreeTests
         Put("pose", new Kv3Node { Type = Kv3Type.BinaryBlob, Blob = Enumerable.Range(0, 40000).Select(i => (byte)(i * 31 % 251)).ToArray() });
         t.Root = obj;
 
-        var written = t.Write();
+        var written = t.Write(compression);
         var back = Kv3Tree.Read(written);
         Assert.True(back.Encode().Buffer1.AsSpan().SequenceEqual(t.Encode().Buffer1));
         Assert.True(back.Encode().Buffer2.AsSpan().SequenceEqual(t.Encode().Buffer2));
@@ -134,7 +139,7 @@ public class Kv3TreeTests
         }
         t.Root = obj;
 
-        var written = t.Write();
+        var written = t.Write(1);
         var header = new int[30];
         for (var i = 0; i < 30; i++) header[i] = BinaryPrimitives.ReadInt32LittleEndian(written.AsSpan(i * 4));
         Assert.Equal(framesPerBlob.Sum() * 2, header[17]);

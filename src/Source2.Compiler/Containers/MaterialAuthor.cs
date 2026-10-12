@@ -31,7 +31,28 @@ public static class MaterialAuthor
     /// Read the input signature out of a compiled material, to hand to
     /// <see cref="NewContainer"/>. Throws when the file carries no INSG block.
     /// </summary>
-    public static IReadOnlyList<InputSignatureElement> ExtractInputSignature(byte[] vmatC)
+    public static IReadOnlyList<InputSignatureElement> ExtractInputSignature(byte[] vmatC) => ExtractInputSignature(vmatC, "m_elems");
+
+    /// <summary>
+    /// The depth pass's input signature (INSG <c>m_depth_elems</c>), empty when
+    /// the shader does not split its streams for depth.
+    /// </summary>
+    public static IReadOnlyList<InputSignatureElement> ExtractDepthSignature(byte[] vmatC)
+    {
+        ArgumentNullException.ThrowIfNull(vmatC);
+        using var res = new Resource();
+        res.Read(new MemoryStream(vmatC, writable: false));
+        if (res.GetBlockByType(BlockType.INSG) is not BinaryKV3 insg || insg.Data?.Root is not { } root
+            || root.Children.FirstOrDefault(c => c.Key == "m_depth_elems").Value is not { IsArray: true } elems)
+            return [];
+        return elems.Values.Select(e => new InputSignatureElement(
+            e.GetStringProperty("m_pName") ?? "",
+            e.GetStringProperty("m_pSemantic") ?? "",
+            e.GetStringProperty("m_pD3DSemanticName") ?? "",
+            (int)(e.GetInt32Property("m_nD3DSemanticIndex")))).ToList();
+    }
+
+    private static IReadOnlyList<InputSignatureElement> ExtractInputSignature(byte[] vmatC, string key)
     {
         ArgumentNullException.ThrowIfNull(vmatC);
         using var res = new Resource();
@@ -41,7 +62,7 @@ public static class MaterialAuthor
             throw new InvalidOperationException(
                 "That material has no INSG block, so it carries no input signature to copy.");
 
-        var elems = root["m_elems"];
+        var elems = root[key];
         if (elems is null || !elems.IsArray)
             throw new InvalidOperationException("The INSG block has no m_elems array.");
 

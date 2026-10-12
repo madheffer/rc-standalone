@@ -25,7 +25,7 @@ public static class VrfRequirements
     /// against. A host on a different commit is not necessarily broken, but it is
     /// untested; the patches below are expressed as literal snippets of this one.
     /// </summary>
-    public const string UpstreamSha = "661a5f58961a3c88b1607de393a3198124ee622a";
+    public const string UpstreamSha = "d9926fcb7df821b8476f4750250d5dbf61a6bab7";
 
     /// <summary>
     /// The patches this library's behaviour depends on. A host's VRF must carry
@@ -43,17 +43,19 @@ public static class VrfRequirements
         "vrf-resource-version-settable",
         // Re-serializing a model must not drop its vertex buffers.
         "vrf-vbib-serialize-passthrough",
-        // Reading community content: an all-bits UInt64 mesh-group mask, and
-        // trailing padding after a texture's last mip.
+        // Reading community content: an all-bits UInt64 mesh-group mask.
         "vrf-kv3-integer-array-unchecked-uint64",
-        "vrf-resource-texture-trailing-padding",
-        // CS2's CTRL-block models ship empty LoD masks.
-        "vrf-model-lod-mask-fallback-lod",
         // Guards, because this compiler is driven by files strangers upload.
         "vrf-kv3-depth-guard-field",
         "vrf-kv3-depth-guard-readbinaryvalue",
-        "vrf-model-anim-include-cycle-guard",
         "vrf-vtex-dimension-guard",
+        // Sizes and counts from the file are checked before anything is allocated (s2c fuzz).
+        "vrf-resource-block-count-guard",
+        "vrf-kv3-size-guard",
+        "vrf-kv3-string-count-guard",
+        "vrf-kv3-capacity-array",
+        "vrf-kv3-capacity-typed-array",
+        "vrf-kv3-capacity-object",
     ];
 
     /// <summary>

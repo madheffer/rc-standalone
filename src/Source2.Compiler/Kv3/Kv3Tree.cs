@@ -532,79 +532,45 @@ public sealed class Kv3Tree
     }
 
     /// <summary>
-    /// The complete block. <paramref name="compression"/> defaults to what was read (LZ4 for a
-    /// new tree); Zstd reads are written as LZ4, which the engine loads just the same. LZ4 is
-    /// encoder-defined, so compressed bytes differ from Valve's while every decoded section and
-    /// counter matches (<see cref="Encode"/>).
+    /// The complete block, compressed as tier0's SaveKV3 compresses one (<see cref="Kv3V5Writer.Pack"/>):
+    /// with <paramref name="compression"/> null, binary_auto picks raw, LZ4 HC 12 or Zstd 7 by size,
+    /// which is what resourcecompiler writes, so an unchanged tree comes back as Valve's bytes.
+    /// 0, 1 and 2 force uncompressed, LZ4 and Zstd.
     /// </summary>
     public byte[] Write(uint? compression = null)
     {
-        var method = compression ?? (Compression == 0 ? 0u : 1u);
-        if (method > 1) throw new NotSupportedException("writes are uncompressed or LZ4");
+        if (compression > 2) throw new NotSupportedException($"KV3 compression {compression}");
         var (b1, b2Body, blobs, h, blobLens) = EncodeWithBlobLengths();
-        var frame = method == 1 ? (FrameSize == 0 ? (ushort)16384 : FrameSize) : (ushort)0;
+        var blobList = new List<byte[]>(blobLens.Count);
+        for (int i = 0, at = 0; i < blobLens.Count; at += blobLens[i], i++)
+            blobList.Add(blobs.AsSpan(at, blobLens[i]).ToArray());
+        var p = Kv3V5Writer.Pack(b1, b2Body, blobList, (ValveResourceFormat.ResourceTypes.KV3BinaryCompressionMethod?)compression);
+        var method = (uint)p.Method;
+        var compressed = method != 0;
 
-        // One chained stream, but every blob starts a fresh frame: tier0 decodes blob by blob and
-        // a frame spanning two blobs overruns the first one's allocation (see Read).
-        var b2 = new MemoryStream();
-        b2.Write(b2Body);
-        var blobOut = new MemoryStream();
-        var frameSizes = 0;
-        if (blobs.Length > 0 && method == 1)
-        {
-            using var enc = new LZ4FastChainEncoder(frame, 0);
-            var tmp = new byte[LZ4Codec.MaximumOutputSize(frame)];
-            var start = 0;
-            foreach (var len in blobLens)
-            {
-                for (var got = 0; got < len;)
-                {
-                    var n = Math.Min(frame, len - got);
-                    var action = enc.TopupAndEncode(blobs.AsSpan(start + got, n), tmp, forceEncode: true, allowCopy: false, out var loaded, out var encoded);
-                    if (loaded != n || encoded <= 0 || encoded > ushort.MaxValue) throw new InvalidDataException($"LZ4 blob frame failed ({action})");
-                    Put(b2, (uint)encoded, 2);
-                    blobOut.Write(tmp, 0, encoded);
-                    frameSizes++;
-                    got += n;
-                }
-                start += len;
-            }
-        }
-        else if (blobs.Length > 0) blobOut.Write(blobs);
-        var b2Bytes = b2.ToArray();
-
-        byte[] Pack(byte[] raw) => method == 0 ? raw : Lz4(raw);
-        var c1 = Pack(b1);
-        var c2 = Pack(b2Bytes);
         h[0] = unchecked((int)Magic5);
         h[5] = (int)method;
-        h[6] = frame << 16;
-        h[12] = b1.Length + b2Bytes.Length;
-        // Bytes stored; compressed blobs count, raw ones do not (vpost_c LUTs, and Zstd reads rely on it).
-        h[13] = c1.Length + c2.Length + (method == 0 ? 0 : (int)blobOut.Length);
-        h[17] = frameSizes * 2;
+        h[6] = method == 1 ? 16384 << 16 : 0;
+        h[12] = b1.Length + p.Raw2.Length;
+        h[13] = compressed ? p.StoredSize : b1.Length + p.Raw2.Length;
+        h[17] = p.FrameSizeBytes;
         h[18] = b1.Length;
-        h[19] = method == 0 ? 0 : c1.Length;
-        h[20] = b2Bytes.Length;
-        h[21] = method == 0 ? 0 : c2.Length;
+        h[19] = compressed ? p.Out1.Length : 0;
+        h[20] = p.Raw2.Length;
+        h[21] = compressed ? p.Out2.Length : 0;
 
         var o = new MemoryStream();
         var head = new byte[HeaderSize];
         for (var i = 0; i < 30; i++) BinaryPrimitives.WriteInt32LittleEndian(head.AsSpan(i * 4), h[i]);
         Format.TryWriteBytes(head.AsSpan(4, 16));
         o.Write(head);
-        o.Write(c1);
-        o.Write(c2);
-        blobOut.WriteTo(o);
-        if (blobs.Length > 0 || h[14] > 0) Put(o, Trailer, 4);
+        o.Write(p.Out1);
+        o.Write(p.Out2);
+        if (blobLens.Count > 0)
+        {
+            o.Write(p.BlobsOut);
+            Put(o, Trailer, 4);
+        }
         return o.ToArray();
-    }
-
-    private static byte[] Lz4(byte[] raw)
-    {
-        var dst = new byte[LZ4Codec.MaximumOutputSize(raw.Length)];
-        var n = LZ4Codec.Encode(raw, dst, LZ4Level.L00_FAST);
-        if (n <= 0) throw new InvalidDataException("LZ4 encode failed");
-        return dst[..n];
     }
 }

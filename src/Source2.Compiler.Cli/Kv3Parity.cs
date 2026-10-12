@@ -6,10 +6,12 @@ using Source2.Compiler.Kv3;
 namespace Source2.Compiler.Cli;
 
 /// <summary>
-/// <c>kv3-parity &lt;pak01_dir.vpk&gt; &lt;ext&gt;... [--limit N] [--write]</c>: re-encodes every KV3 v5
+/// <c>kv3-parity &lt;pak01_dir.vpk&gt; &lt;ext&gt;... [--limit N] [--write] [--bytes]</c>: re-encodes every KV3 v5
 /// block of the given compiled types through <see cref="Kv3Tree"/> and compares the uncompressed
 /// sections and every header field it computes with Valve's. <c>--write</c> also runs the full
 /// writer and requires that both our reader and VRF's decode the result to the original.
+/// <c>--bytes</c> requires the whole written block, compression included, to equal Valve's, and
+/// tallies the misses by extension and stored method.
 /// See docs/RC_PARITY.md, "KV3 v5 lossless".
 /// </summary>
 internal static class Kv3Parity
@@ -28,6 +30,8 @@ internal static class Kv3Parity
         var li = Array.IndexOf(args, "--limit");
         var limit = li >= 0 ? int.Parse(args[li + 1]) : int.MaxValue;
         var writeCheck = args.Contains("--write");
+        var bytesCheck = args.Contains("--bytes");
+        var byteMiss = new SortedDictionary<string, (int Same, int Total)>();
         var exts = args.Skip(1).Where((a, i) => !a.StartsWith("--") && i + 1 != li + 1).Select(e => e.TrimStart('.')).ToHashSet();
         using var pak = new Package();
         pak.Read(args[0]);
@@ -50,7 +54,7 @@ internal static class Kv3Parity
                 files++;
                 pak.ReadEntry(e, out var bytes);
                 using var res = new Resource();
-                try { res.Read(new MemoryStream(bytes), verifyFileSize: false); }
+                try { res.Read(new MemoryStream(bytes)); }
                 catch { failed++; continue; }
                 foreach (var b in res.Blocks)
                 {
@@ -82,6 +86,20 @@ internal static class Kv3Parity
                         if (t.Compression == 0 && !back.ReadHeader.AsSpan().SequenceEqual(t.ReadHeader)) Miss("write header", where);
                         if (VrfText(raw) != VrfText(written)) Miss("write VRF text", where);
                     }
+                    if (bytesCheck)
+                    {
+                        var key = $"{ext} {(t.Compression switch { 0 => "raw", 1 => "lz4", _ => "zstd" })}";
+                        var mine = t.Write();
+                        var same = mine.AsSpan().SequenceEqual(raw);
+                        var (sm, tot) = byteMiss.GetValueOrDefault(key);
+                        byteMiss[key] = (sm + (same ? 1 : 0), tot + 1);
+                        if (!same)
+                        {
+                            var at = mine.AsSpan().CommonPrefixLength(raw);
+                            var region = at < 120 ? $"header field {at / 4}" : at < 120 + t.ReadHeader[19] ? "buffer 1" : at < 120 + t.ReadHeader[19] + t.ReadHeader[21] ? "buffer 2" : "blobs";
+                            Miss($"bytes ({region})", $"{where} at {at}, sizes {mine.Length} vs {raw.Length}, blobs {t.ReadHeader[14]}, field13 {BitConverter.ToInt32(mine, 52)} vs {t.ReadHeader[13]}");
+                        }
+                    }
                     if (misses.Values.Sum() == before) identical++;
                 }
             }
@@ -89,6 +107,7 @@ internal static class Kv3Parity
         Console.WriteLine($"{files} file(s), {blocks} KV3 v5 block(s): {identical} identical, {failed} unreadable");
         foreach (var (k, v) in misses) Console.WriteLine($"  {k}: {v}");
         foreach (var ex in examples) Console.WriteLine("  e.g. " + ex);
+        foreach (var (k, (same, total)) in byteMiss) Console.WriteLine($"  bytes {k}: {same}/{total} identical");
         return identical == blocks && failed == 0 ? 0 : 1;
     }
 

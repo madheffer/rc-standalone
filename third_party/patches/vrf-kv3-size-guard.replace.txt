@@ -1,0 +1,23 @@
+            // vpkstuff patch: every size above comes from the file. Check them against the
+            // block before renting buffers sized by them: a few hundred hostile bytes could
+            // otherwise ask for gigabytes (found by s2c fuzz). What is stored must fit in what
+            // is left of the block; what it decompresses to may not exceed 4096 times that plus
+            // 1 MB (real CS2 blocks stay far below), and nothing may be negative. The same
+            // decompressed size sets the node budget ReadBinaryValue enforces.
+            {
+                var remaining = Size > 0 ? Offset + Size - reader.BaseStream.Position : long.MaxValue;
+                var declared = (long)sizeUncompressedBuffer1 + sizeUncompressedBuffer2 + sizeBinaryBlobsBytes;
+                var stored = compressionMethod == KV3BinaryCompressionMethod.Uncompressed
+                    ? declared
+                    : version >= 5 ? (long)sizeCompressedBuffer1 + sizeCompressedBuffer2 : sizeCompressedTotal;
+                if (sizeUncompressedBuffer1 < 0 || sizeUncompressedBuffer2 < 0 || sizeBinaryBlobsBytes < 0
+                    || sizeCompressedBuffer1 < 0 || sizeCompressedBuffer2 < 0 || sizeCompressedTotal < 0
+                    || stored > remaining
+                    || (compressionMethod != KV3BinaryCompressionMethod.Uncompressed && declared > Math.Max(remaining, 0) * 4096L + (1 << 20)))
+                {
+                    throw new InvalidDataException($"KV3 block declares {declared} bytes ({stored} stored) but holds {remaining}; refusing to parse (malformed or hostile resource).");
+                }
+                context.NodeBudget = (1 << 20) + 16L * declared;
+            }
+
+            // Before version 5, zstd stores the buffer and the binary blobs as two consecutive frames,

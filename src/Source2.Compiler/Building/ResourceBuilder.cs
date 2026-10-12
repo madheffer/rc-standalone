@@ -142,6 +142,10 @@ public static class ResourceBuilder
         /// <see cref="Source2ContainerAuthor.BuildTextureEditInfo"/>.</summary>
         public string? SourceName { get; set; }
 
+        /// <summary>The content tree RC would have compiled the source from, recorded with each
+        /// input dependency: <c>csgo_addons/&lt;addon&gt;</c>, or <c>csgo</c> (the default).</summary>
+        public string SearchPath { get; set; } = "csgo";
+
         /// <summary>
         /// When true (default) a full mip chain is generated via SkiaSharp bilinear
         /// downsampling down to 1×1.  Set false to emit a single mip level.
@@ -578,7 +582,7 @@ public static class ResourceBuilder
         var editInfo = Source2ContainerAuthor.BuildTextureEditInfo(
             def.SourceName,
             def.ImageBytes is { Length: > 0 } ? def.ImageBytes : def.RawRgba ?? [],
-            templateDeps);
+            templateDeps, def.SearchPath);
         var red2Block = AuthoredKv3.Block(editInfo, KV3IDLookup.Get("generic"), BlockType.RED2, template);
         if (red2Idx >= 0)
             template.Blocks[red2Idx] = red2Block;
@@ -681,7 +685,7 @@ public static class ResourceBuilder
     /// <param name="wavBytes">PCM WAV to compile.</param>
     /// <param name="sourceName">Content-relative source path recorded in the authored RED2;
     /// null records a neutral <c>vpkeditor/</c> name.</param>
-    public static byte[] BuildSound(byte[]? templateBytes, byte[] wavBytes, string? sourceName = null)
+    public static byte[] BuildSound(byte[]? templateBytes, byte[] wavBytes, string? sourceName = null, string searchPath = "csgo")
     {
         if (wavBytes is not { Length: > 12 })
             throw new InvalidOperationException("WAV file is empty or too small to be valid.");
@@ -791,7 +795,7 @@ public static class ResourceBuilder
             .ToList();
         if (sndTemplateDeps.Count == 0)
             sndTemplateDeps.AddRange(Source2ContainerAuthor.SoundDeps);
-        var sndEditInfo = Source2ContainerAuthor.BuildSoundEditInfo(sourceName, wavBytes, sndTemplateDeps);
+        var sndEditInfo = Source2ContainerAuthor.BuildSoundEditInfo(sourceName, wavBytes, sndTemplateDeps, searchPath);
         var sndRed2 = AuthoredKv3.Block(sndEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2, template);
         if (sndRed2Idx >= 0)
             template.Blocks[sndRed2Idx] = sndRed2;
@@ -811,7 +815,7 @@ public static class ResourceBuilder
         int audioStart;
         using (var rr = new Resource())
         {
-            rr.Read(new MemoryStream(serialized, writable: false), verifyFileSize: false);
+            rr.Read(new MemoryStream(serialized, writable: false));
             var snd = rr.DataBlock as ValveResourceFormat.ResourceTypes.Sound
                 ?? throw new InvalidDataException("Rebuilt sound has no Sound data block.");
             audioStart = (int)(snd.Offset + snd.Size);
@@ -1278,12 +1282,119 @@ public static class ResourceBuilder
     /// <c>HitmarkerService</c>) can route their writes through the same
     /// canonical path the Build* helpers use.
     /// </summary>
+    /// <remarks>
+    /// Written as resourcecompiler writes a resource: every v5 KV3 block, RED2 and typed DATA
+    /// included, by <see cref="Kv3V5Writer"/>, and the container by <see cref="ValveLayout"/>
+    /// (zero padding, RC's RERL). VRF's own container writer pads with an "S2V" marker, and its
+    /// KV3 writer turns Valve's typed arrays into generic ones, the encoding CS2 silently
+    /// misread in a re-serialized .vnmgraph_c (2026-09-26). Measured unchanged-round-trip with
+    /// <c>s2c reserialize-parity</c>.
+    /// </remarks>
     public static byte[] Serialize(Resource resource)
     {
-        AuthoredKv3.ChooseCompression(resource);
-        using var ms = new MemoryStream();
-        resource.Serialize(ms);
-        return ms.ToArray();
+        KeepUnchangedKv3Blocks(resource);
+        AuthoredKv3.RouteTypedBlocks(resource);
+        return ValveLayout.Serialize(resource);
+    }
+
+    /// <summary>
+    /// A KV3 block whose tree is still exactly what was read goes out as Valve's own bytes. VRF's
+    /// reader does not keep every wire type (an 8-bit int comes back as a 32-bit one: stock
+    /// models' <c>m_cRenderColor</c> is UINT8 in MDAT), so even a perfect re-encode of its tree
+    /// can differ; an edit then changes only the blocks it touches. Needs the resource's source
+    /// stream still open and seekable; otherwise every block is re-encoded as before.
+    /// </summary>
+    private static void KeepUnchangedKv3Blocks(Resource resource)
+    {
+        Stream stream;
+        try
+        {
+            if (resource.Reader?.BaseStream is not { CanSeek: true } s)
+                return;
+            stream = s;
+            _ = stream.Length;
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+        for (var i = 0; i < resource.Blocks.Count; i++)
+        {
+            var block = resource.Blocks[i];
+            var current = block switch
+            {
+                ResourceEditInfo2 { Data: { } doc } => doc.Root,
+                KeyValuesOrNTRO { Format: not null } typed => typed.Data,
+                BinaryKV3 { Data: { } doc } when block is not AuthoredKv3.ValveKv3Block => doc.Root,
+                _ => null,
+            };
+            if (current is null || block.Size < 4 || block.Offset + block.Size > stream.Length)
+                continue;
+            var original = new byte[block.Size];
+            stream.Position = block.Offset;
+            stream.ReadExactly(original);
+            if ((BitConverter.ToUInt32(original) & 0xFFFFFF00) != 0x4B563300)
+                continue;
+            KVObject read;
+            try
+            {
+                var kv3 = new BinaryKV3(block.Type) { Resource = null!, Size = (uint)original.Length };
+                using var r = new BinaryReader(new MemoryStream(original));
+                kv3.Read(r);
+                read = kv3.Data.Root;
+            }
+            catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or EndOfStreamException or IndexOutOfRangeException or ArgumentException)
+            {
+                continue;
+            }
+            if (SameTree(current, read))
+                resource.Blocks[i] = new TypedRawBlock(block.Type, original) { Resource = resource };
+        }
+    }
+
+    /// <summary>Deep equality of two KV3 trees: types, flags, key order and values (doubles and
+    /// floats by their bits).</summary>
+    internal static bool SameTree(KVObject a, KVObject b)
+    {
+        if (a.ValueType != b.ValueType || a.Flag != b.Flag)
+            return false;
+        switch (a.ValueType)
+        {
+            case KVValueType.Collection:
+                if (a.Count != b.Count)
+                    return false;
+                using (var ea = a.Children.GetEnumerator())
+                using (var eb = b.Children.GetEnumerator())
+                    while (ea.MoveNext() && eb.MoveNext())
+                        if (ea.Current.Key != eb.Current.Key || !SameTree(ea.Current.Value, eb.Current.Value))
+                            return false;
+                return true;
+            case KVValueType.Array:
+                if (a.Count != b.Count)
+                    return false;
+                for (var i = 0; i < a.Count; i++)
+                    if (!SameTree(a[i], b[i]))
+                        return false;
+                return true;
+            case KVValueType.Null:
+                return true;
+            case KVValueType.String:
+                return (string)a == (string)b;
+            case KVValueType.BinaryBlob:
+                return a.AsBlob().AsSpan().SequenceEqual(b.AsBlob());
+            case KVValueType.Boolean:
+                return (bool)a == (bool)b;
+            case KVValueType.FloatingPoint:
+                return BitConverter.SingleToUInt32Bits((float)a) == BitConverter.SingleToUInt32Bits((float)b);
+            case KVValueType.FloatingPoint64:
+                return BitConverter.DoubleToUInt64Bits((double)a) == BitConverter.DoubleToUInt64Bits((double)b);
+            case KVValueType.UInt64:
+                return (ulong)a == (ulong)b;
+            case KVValueType.Int16 or KVValueType.UInt16 or KVValueType.Int32 or KVValueType.UInt32 or KVValueType.Int64:
+                return (long)a == (long)b;
+            default:
+                return false;
+        }
     }
 
     /// <summary>
@@ -1371,6 +1482,9 @@ public static class ResourceBuilder
         int bo = (int)BitConverter.ToUInt32(model, 8);
         int bc = (int)BitConverter.ToUInt32(model, 12);
         int arr = 8 + bo;
+        // The table position and count come from the file: check them before sizing anything.
+        if (bo < 8 || bc < 0 || (long)arr + 12L * bc > model.Length)
+            throw new InvalidDataException($"Model claims {bc} blocks at {arr}, past its {model.Length} bytes");
         var blocks = new List<(int TableOff, string Type, int Abs, int Size)>(bc);
         for (var i = 0; i < bc; i++)
         {
@@ -1380,34 +1494,15 @@ public static class ResourceBuilder
             var size = (int)BitConverter.ToUInt32(model, o + 8);
             blocks.Add((o, type, (o + 4) + reloff, size));
         }
-        var physIdx = blocks.FindIndex(b => b.Type == "PHYS");
-        if (physIdx < 0)
+        if (!blocks.Exists(b => b.Type == "PHYS"))
             return model;                 // no PHYS - nothing to swap
-        var physAbs = blocks[physIdx].Abs;
 
-        using var ms = new MemoryStream();
-        ms.Write(model, 0, physAbs);                    // header + table + every block before PHYS, verbatim
-        var newAbs = new Dictionary<int, int>();
-        foreach (var b in blocks.OrderBy(b => b.Abs))
-        {
-            if (b.Abs < physAbs) { newAbs[b.TableOff] = b.Abs; continue; }
-            while (ms.Length % 16 != 0)
-                ms.WriteByte(0); // 16-align, matching the compiler's layout
-            newAbs[b.TableOff] = (int)ms.Length;
-            if (b.Type == "PHYS")
-                ms.Write(donorPhysBytes, 0, donorPhysBytes.Length);
-            else
-                ms.Write(model, b.Abs, b.Size);
-        }
-        var outBytes = ms.ToArray();
-        foreach (var b in blocks)
-        {
-            var na = newAbs[b.TableOff];
-            BitConverter.GetBytes((uint)(na - (b.TableOff + 4))).CopyTo(outBytes, b.TableOff + 4);
-            BitConverter.GetBytes((uint)(b.Type == "PHYS" ? donorPhysBytes.Length : b.Size)).CopyTo(outBytes, b.TableOff + 8);
-        }
-        BitConverter.GetBytes((uint)outBytes.Length).CopyTo(outBytes, 0);
-        return outBytes;
+        // Every block keeps its bytes; the file is laid out as resourcecompiler lays it out
+        // (RERL padded to 4 with its entry array on an 8-byte boundary, the rest to 16), which a
+        // plain 16-byte re-pad of everything after PHYS did not do once PHYS changed size.
+        return ValveLayout.SerializeRaw(BitConverter.ToUInt16(model, 6), [.. blocks.Select(b =>
+            ((BlockType)BitConverter.ToUInt32(model, b.TableOff),
+             b.Type == "PHYS" ? donorPhysBytes : model.AsSpan(b.Abs, b.Size).ToArray()))]);
     }
 
     /// <summary>Binary-remove a model's PHYS block entirely (drop its block-table entry, shift the
@@ -1486,15 +1581,15 @@ public static class ResourceBuilder
     /// <summary>Parse a model and report its physics in one pass: <c>Readable</c> (a valid Source 2
     /// resource), <c>HasPhys</c> (a PHYS block is present), <c>JiggleBones</c> (count of procedural
     /// jiggle bones), <c>HasSoftBody</c> (a non-empty rope/cloth solver) and <c>PhysBytes</c>.
-    /// Never throws. Reads with verifyFileSize:false so repacked VPKs that pad model entries to a
-    /// fixed slot still parse (we only need the block table + PHYS, which sit within the declared
-    /// size; a genuinely truncated/corrupt model still throws → caught).</summary>
+    /// Never throws. VRF does not check the declared file size, so repacked VPKs that pad model
+    /// entries to a fixed slot still parse (we only need the block table + PHYS, which sit within
+    /// the declared size; a genuinely truncated/corrupt model still throws → caught).</summary>
     public static (bool Readable, bool HasPhys, int JiggleBones, bool HasSoftBody, int PhysBytes) AnalyzePhysics(byte[] model)
     {
         try
         {
             using var res = new Resource();
-            res.Read(new MemoryStream(model, writable: false), verifyFileSize: false);
+            res.Read(new MemoryStream(model, writable: false));
             if (res.GetBlockByType(BlockType.PHYS) is not { } phys)
                 return (true, false, 0, false, 0);
             var w = new ValveResourceFormat.Utils.IndentedTextWriter();
@@ -1559,7 +1654,7 @@ public static class ResourceBuilder
     /// <param name="svgBytes">The SVG document, as UTF-8 bytes.</param>
     /// <param name="sourceName">Content-relative source path recorded in the authored RED2;
     /// null records a neutral <c>vpkeditor/</c> name.</param>
-    public static byte[] BuildPanoramaSvg(byte[]? templateVsvgC, byte[] svgBytes, string? sourceName = null)
+    public static byte[] BuildPanoramaSvg(byte[]? templateVsvgC, byte[] svgBytes, string? sourceName = null, string searchPath = "csgo")
     {
         Panorama panorama;
         Resource resource;
@@ -1624,7 +1719,7 @@ public static class ResourceBuilder
         if (svgTemplateDeps.Count == 0)
             svgTemplateDeps.AddRange(Source2ContainerAuthor.VectorGraphicDeps);
         var svgEditInfo = Source2ContainerAuthor.BuildVectorGraphicEditInfo(
-            sourceName, panorama.Data, svgTemplateDeps);
+            sourceName, panorama.Data, svgTemplateDeps, searchPath);
         var svgRed2 = AuthoredKv3.Block(svgEditInfo, KV3IDLookup.Get("generic"), BlockType.RED2, resource);
         if (svgRed2Idx >= 0)
             resource.Blocks[svgRed2Idx] = svgRed2;
@@ -2177,7 +2272,7 @@ public static class ResourceBuilder
     public static byte[] ModernizeVsnd(byte[] vsndc)
     {
         using var resource = new Resource { FileName = "audio.vsnd_c" };
-        resource.Read(new MemoryStream(vsndc, writable: false), verifyFileSize: false);
+        resource.Read(new MemoryStream(vsndc, writable: false));
 
         // Already modern (carries a CVoiceContainer CTRL block) - nothing to do.
         if (resource.GetBlockByType(BlockType.CTRL) is not null)
@@ -2197,21 +2292,22 @@ public static class ResourceBuilder
             return vsndc;
         var pcm = vsndc.AsSpan(audioStart).ToArray();
 
-        // Build the CVoiceContainerDefault CTRL block from the legacy params
-        // Field set + types mirror what the CS2 compiler emits (verified against a stock
-        // modern knife clip's CTRL via VRF). VRF's Sound.ConstructFromCtrl reads these back.
+        // Build the CVoiceContainerDefault CTRL block from the legacy params, as today's
+        // resourcecompiler writes it (1.41.9.0, a PCM .wav and an .mp3 compiled 2026-10-12):
+        // m_Sentences first, the counts unsigned, m_nLoopEnd 0 for a sound that does not loop,
+        // and no m_nSeekTable / m_encodedHeader. Older stock clips (sounds/ambient/cache/...)
+        // carry the earlier layout with those two fields; both load. VRF's
+        // Sound.ConstructFromCtrl reads either back.
         var vsound = new KVObject();
+        vsound.Add("m_Sentences", KVObject.Array());
         vsound.Add("m_nRate", new KVObject((int)snd.SampleRate));
         vsound.Add("m_nFormat", new KVObject(snd.Bits == 8 ? "PCM8" : "PCM16"));
-        vsound.Add("m_nChannels", new KVObject((int)snd.Channels));
+        vsound.Add("m_nChannels", new KVObject((uint)snd.Channels));
         vsound.Add("m_nLoopStart", new KVObject(snd.LoopStart));
-        vsound.Add("m_nSampleCount", new KVObject((int)snd.SampleCount));
+        vsound.Add("m_nSampleCount", new KVObject((uint)snd.SampleCount));
         vsound.Add("m_flDuration", new KVObject(snd.Duration));
-        vsound.Add("m_Sentences", KVObject.Array());
-        vsound.Add("m_nStreamingSize", new KVObject((int)snd.StreamingDataSize));
-        vsound.Add("m_nSeekTable", KVObject.Array());
-        vsound.Add("m_nLoopEnd", new KVObject(snd.LoopEnd));
-        vsound.Add("m_encodedHeader", KVObject.Blob([]));
+        vsound.Add("m_nStreamingSize", new KVObject((uint)snd.StreamingDataSize));
+        vsound.Add("m_nLoopEnd", new KVObject(snd.LoopStart < 0 ? 0 : snd.LoopEnd));
 
         var ctrlRoot = new KVObject();
         ctrlRoot.Add("_class", new KVObject("CVoiceContainerDefault"));
