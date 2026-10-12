@@ -54,6 +54,12 @@ bump, done by the same command. The vendored copy and its sync script then retir
 Standalone users get the same package (publishable to nuget.org whenever wanted), and
 nothing about vpkstuff leaks into it.
 
+**Update 2026-10-13.** `Source2.Compiler` no longer references VRF; only the
+`Source2.Compiler.Vrf` adapter does (docs/INDEPENDENCE.md). The sync now carries both
+projects. The core is packageable as it is. The adapter is the part that still has to build
+against vpkstuff's VRF, so it stays a source copy until vpkstuff's compiler call sites are on
+`CompiledResource` and the adapter can be dropped.
+
 Sources consulted: [Git submodules vs subtrees vs monorepos](https://slicker.me/git/submodules-vs-subtrees-vs-monorepos.html),
 [git submodule vs subtree technical overview](https://medium.com/@Spritan/git-submodule-vs-git-subtree-quick-technical-overview-92ae10119145),
 [Referencing a local private NuGet package](https://weblog.west-wind.com/posts/2022/Sep/11/Referencing-a-Local-Private-NuGet-Package-in-your-Solution),

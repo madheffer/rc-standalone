@@ -1936,15 +1936,23 @@ public static class ResourceBuilder
     /// <exception cref="InvalidOperationException">If the scaled WAV's PCM payload byte-length doesn't match the template - would mean the format changed.</exception>
     public static byte[] RebuildSound(byte[] vsndcTemplate, byte[] scaledWav)
     {
-        var file = ResourceFile.Read(vsndcTemplate);
-        var data = file["DATA"] ?? throw new InvalidDataException("vsnd_c has no DATA block.");
-        var header = LegacySoundHeader.Read(data.Data, file.Version);
+        var resource = CompiledResource.Read(vsndcTemplate);
+
+        // A version 5 sound keeps its parameters in CTRL (m_vSound) and has an empty
+        // DATA block; older ones keep them in the DATA block.
+        long streaming;
+        if (resource.Kv3("CTRL") is { } ctrl)
+            streaming = ctrl.GetSubCollection("m_vSound") is { } vsound && vsound.TryGetValue("m_nStreamingSize", out var size)
+                ? (long)size : throw new InvalidDataException("vsnd_c CTRL has no m_vSound.m_nStreamingSize.");
+        else
+            streaming = LegacySoundHeader.Read((resource.Block("DATA") ?? throw new InvalidDataException("vsnd_c has no DATA block.")).Data,
+                resource.Version).StreamingDataSize;
 
         // Everything up to fileSize is the resource structure we keep intact; the
         // samples stream from there.
-        var audioStart = vsndcTemplate.Length - file.Tail.Length;
+        var audioStart = vsndcTemplate.Length - resource.File.Tail.Length;
         var pcmBytes = ExtractWavData(scaledWav);
-        var expectedSize = (int)header.StreamingDataSize;
+        var expectedSize = streaming;
 
         if (pcmBytes.Length != expectedSize)
             throw new InvalidOperationException(
