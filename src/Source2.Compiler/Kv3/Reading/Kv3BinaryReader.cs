@@ -8,8 +8,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using K4os.Compression.LZ4;
-using K4os.Compression.LZ4.Encoders;
 using ValveKeyValue;
 using ValveKeyValue.KeyValues3;
 
@@ -146,7 +144,7 @@ namespace Source2.Compiler.Kv3.Reading
                 var input = inputBuf.AsSpan(0, compressedSize);
                 reader.BaseStream.ReadExactly(input);
 
-                var written = LZ4Codec.Decode(input, output);
+                var written = Compression.Lz4.Decode(input, output);
 
                 if (written != output.Length)
                 {
@@ -607,7 +605,7 @@ namespace Source2.Compiler.Kv3.Reading
 
                         // Each blob is split into frames of up to compressionFrameSize bytes, a frame never spans two blobs,
                         // and the frames are chained so that later frames can reference earlier blobs
-                        using var lz4decoder = new LZ4ChainDecoder(compressionFrameSize, 0);
+                        var lz4decoder = new Compression.Lz4ChainDecoder(compressionFrameSize);
                         var inputBuf = ArrayPool<byte>.Shared.Rent(ushort.MaxValue);
 
                         try
@@ -626,7 +624,8 @@ namespace Source2.Compiler.Kv3.Reading
                                     var input = inputBuf.AsSpan(0, compressedBlockLength);
                                     reader.Read(input);
 
-                                    if (!lz4decoder.DecodeAndDrain(input, context.BinaryBlobs.AsSpan(blobOffset, blobEnd - blobOffset), out var decoded) || decoded < 1)
+                                    var decoded = lz4decoder.Decode(input, context.BinaryBlobs.AsSpan(blobOffset, blobEnd - blobOffset));
+                                    if (decoded < 1)
                                     {
                                         throw new InvalidDataException("Failed to decompress LZ4 binary blob frame");
                                     }
