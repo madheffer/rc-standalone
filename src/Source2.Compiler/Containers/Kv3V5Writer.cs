@@ -10,7 +10,8 @@ namespace Source2.Compiler;
 /// comes out byte for byte as resourcecompiler's:
 /// <list type="bullet">
 /// <item>ints that fit 32 bits are INT32 / UINT32, 0 and 1 the zero and one
-/// types (an unsigned 0 or 1 too), doubles 0 and 1 likewise;</item>
+/// types (an unsigned 0 or 1 too), doubles 0 and 1 likewise; an int read as
+/// INT8 or UINT8 (<see cref="Kv3WireTypes"/>) stays one while it fits;</item>
 /// <item>a non-empty array whose elements share one kind is typed: under 256
 /// elements a byte length, ints, uints and doubles in the auxiliary buffer
 /// (25), others in the main one (24); from 256 on ARRAY_TYPED (10). The
@@ -128,12 +129,12 @@ public static class Kv3V5Writer
             case KInt:
             {
                 var x = Int(v);
-                return x == 0 ? 15 : x == 1 ? 16 : x == (int)x ? 11 : 3;
+                return x == 0 ? 15 : x == 1 ? 16 : Narrow(v) is var w and > 0 ? w : x == (int)x ? 11 : 3;
             }
             case KUInt:
             {
                 var x = UInt(v);
-                return x == 0 ? 15 : x == 1 ? 16 : x == (uint)x ? 12 : 4;
+                return x == 0 ? 15 : x == 1 ? 16 : Narrow(v) is var w and > 0 ? w : x == (uint)x ? 12 : 4;
             }
             case KDouble:
             {
@@ -155,15 +156,19 @@ public static class Kv3V5Writer
             case KBool:
                 return (bool)v ? 13 : 14;
             case KInt:
-                return Int(v) == (int)Int(v) ? 11 : 3;
+                return Narrow(v) is var w and > 0 ? w : Int(v) == (int)Int(v) ? 11 : 3;
             case KUInt:
-                return UInt(v) == (uint)UInt(v) ? 12 : 4;
+                return Narrow(v) is var u and > 0 ? u : UInt(v) == (uint)UInt(v) ? 12 : 4;
             case KArray:
                 return ArrayType(Items(v));
             default:
                 return Kind(v);
         }
     }
+
+    // INT8 / UINT8 for an integer read as one (Kv3WireTypes) that still fits, else 0.
+    private static int Narrow(KVObject v) =>
+        Kv3WireTypes.Get(v) is var t and > 0 && Kv3WireTypes.Fits(v, t) ? t : 0;
 
     private static void TypeByte(Context c, int type, KVFlag flag)
     {
@@ -249,6 +254,12 @@ public static class Kv3V5Writer
             case 21:
                 lanes.W2.Write((ushort)UInt(v));
                 return;
+            case Kv3WireTypes.Int8:
+                lanes.W1.Write(Kind(v) == KInt ? (sbyte)Int(v) : (sbyte)UInt(v));
+                return;
+            case Kv3WireTypes.UInt8:
+                lanes.W1.Write(Kind(v) == KInt ? (byte)Int(v) : (byte)UInt(v));
+                return;
             default:
                 throw new NotSupportedException($"KV3 node type {type}");
         }
@@ -277,7 +288,11 @@ public static class Kv3V5Writer
         }
         var lanes = type == 0x19 ? c.Aux : c.Main;
         var first = ElementType(items[0]);
-        var element = items.All(x => ElementType(x) == first) ? first : Kind(items[0]);
+        var element = items.All(x => ElementType(x) == first) ? first
+            // a narrowed element next to one that no longer fits: all at the width the widest needs
+            : first is Kv3WireTypes.Int8 or Kv3WireTypes.UInt8 or 11 or 12 && items.All(x => ElementType(x) is Kv3WireTypes.Int8 or Kv3WireTypes.UInt8 or 11 or 12)
+                ? (Kind(items[0]) == KInt ? 11 : 12)
+                : Kind(items[0]);
         TypeByte(c, element, items[0].Flag);
         foreach (var x in items)
             Value(c, lanes, x, element);

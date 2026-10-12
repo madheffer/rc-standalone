@@ -98,17 +98,16 @@ public static class VrfResourceBuilder
             KVObject read;
             try
             {
-                var kv3 = new BinaryKV3(block.Type) { Resource = null!, Size = (uint)original.Length };
-                using var r = new BinaryReader(new MemoryStream(original));
-                kv3.Read(r);
-                read = kv3.Data.Root;
+                read = Kv3Binary.Read(original).Root;
             }
-            catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or EndOfStreamException or IndexOutOfRangeException or ArgumentException)
+            catch (InvalidDataException)
             {
                 continue;
             }
             if (ResourceBuilder.SameTree(current, read))
                 resource.Blocks[i] = new TypedRawBlock(block.Type, original) { Resource = resource };
+            else
+                Kv3WireTypes.Inherit(read, current);   // VRF's reader dropped the 8-bit widths; an edit keeps Valve's
         }
     }
 

@@ -1644,6 +1644,8 @@ public static class ResourceBuilder
                 break;
         }
         dst.Flag = src.Flag;
+        if (Kv3WireTypes.Get(src) is var wire and > 0)
+            Kv3WireTypes.Set(dst, wire);
         return dst;
     }
 
