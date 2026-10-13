@@ -26,9 +26,13 @@ work does not need a live deploy of its own. Commit with the noreply identity th
   `powershell -ExecutionPolicy Bypass -File tools\publish-to-vpkstuff.ps1`. Once phase 1 is
   merged it also bumps the pins, refreshes the vendored adapter and runs the compiler gate, then
   commits on a new `chore/compiler-<version>` branch. It never pushes unless `-Push`.
-- **API stability.** Between the sha vpkstuff vendors today (`f93414f`) and the first package
-  no public member was removed or changed; everything is additive. The global aliases in
+- **API stability.** Between the sha vpkstuff vendored (`f93414f`) and the first package no
+  public member was removed or changed; everything is additive. The global aliases in
   `dotnet/shared/CompilerAliases.cs` keep working.
+- **The GPU BC7 hook.** vpkstuff now vendors `94055dc` from `feat/gpu-bc7-hook` (`f93414f` plus
+  one commit: `GpuBc7Encoder.Use(encoder, cacheTag)`, which vpkstuff calls at startup to install
+  its Vulkan encoder). The same change is `80e733e` on `main`, so every package from `0.1.100` on
+  carries it; do not switch to an older package, or the startup call will not compile.
 
 ## Phase 1: consume the package instead of the vendored library
 
@@ -91,7 +95,8 @@ reference to a package reference).
 9. **Native BC7.** vpkstuff gccs its own `Native/bc7enc` for the library's older
    `Bc7Native`/`BuildTexture` path; keep it while that path is used (phase 3 retires it). The
    exact `.vtex` path uses the package's `bc7e` libraries and needs an x64 CPU with AVX2 and FMA
-   (the worker's i5-8600 has both).
+   (the worker's i5-8600 has both). vpkstuff's GPU encoder stays in vpkstuff and is installed
+   through `GpuBc7Encoder.Use` as today; the package has no graphics dependency.
 10. **Dependencies tab.** `VendoredCompiler` reads `SOURCE2_COMPILER.json`; show the package
     version and source sha from the new manifest shape, and keep its check-first trial working
     (it builds against `dotnet/packages`).
