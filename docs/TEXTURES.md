@@ -98,14 +98,28 @@ then box, is verified). Box is the filter (mean decoded difference 0.55), but ne
 (662/1024 at mip 1), `v * (1/255)` (895), 8-bit integer averaging nor a float input path is
 exact. Next: compile a linear RGBA8888 probe with RC to read the chain directly.
 
+## In C#
+
+`src/Source2.Compiler/Texture/Rc`: `RcMipChain` (decode, `QuarterSize`, encode, the RGBA8888
+writer) and `AtiCompress` (the DXT/ATI port, scalar code that keeps the SSE2 order and rounding).
+`RcTextureParityTests` checks them against RC's files in `tests/.../RcReference/textures`: every
+mip of RGBA8888 (256x256, 300x200, 7x5), DXT1 (256x256, 300x200, opaque), DXT5 (256x256) and the
+opaque 7x5 written as DXT1, byte for byte; ATI1N/ATI2N mip 0. Against Valve's DLL directly
+(ctypes) the port is exact on every block of the probes and of six synthetic 256x256 images
+(noise, gradients, a six-colour palette, near-black with mixed alpha, one channel, flat blocks).
+
+The C++ harness in `tools/re/texture/ati` is not a reference for every block: 2.3's
+`RefineSSE2` reads uninitialised stack for the padding colours of the last SIMD group, and the
+harness's stack once differed from the DLL's on the first block of an image. The C# port zeroes
+them, which is what the DLL's output agrees with.
+
 ## What is left to ship texture parity
 
-1. Port the mip chain, writers, reflectivity, fallback and header rules to C# from
-   `tools/re/texture/mipmodel.py` (exact on every probe).
+1. The `.vtex_c` around the mips: header (reflectivity from the 1x1 level, flags), the fallback
+   (32x32 bilinear, DXT5), `COMPRESSED_MIP_SIZE`, the RED2 of a `.vtex` source, and DXT5 on an
+   opaque image written as DXT1. Wire it as a new build path beside `BuildTexture`.
 2. BC7: bc7e level 6, perceptual, as a native ISPC build (avx2-i32x4, fast-math); decide whether to
    match the AMD reference machine or emulate `rcpps` so the output does not depend on the CPU.
-3. DXT1/3/5, ATI1N/2N: port Compressonator 2.3's SSE2 codec with the three details above (exact
-   SSE semantics: `cvtps2dq` rounds to nearest even, no fused multiply-add); settle the linear
-   mip chain for ATI1N/2N.
-4. Validate every probe in `vpkstuff_rc_probe/materials/s2ctex` byte for byte, then the vpkstuff
-   texture goldens.
+3. ATI1N/ATI2N below mip 0: compile a linear RGBA8888 probe with RC and settle the linear chain.
+4. Then the vpkstuff texture goldens: every one moves, so re-bless win-x64 and linux-x64 with the
+   cause and check in game.
