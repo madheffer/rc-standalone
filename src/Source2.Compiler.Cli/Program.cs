@@ -59,8 +59,11 @@ static void Usage()
     Console.WriteLine("""
     s2c - a Source 2 resource compiler that does not use resourcecompiler.exe
 
-      s2c compile   <in.vdata|.vsndevts|.vpcf|.vagrp> [-o <out_c>] [--ship-as <path>]
-                    KV3 text source -> compiled container, authored from scratch.
+      s2c compile   <source> [-o <out_c>] [--ship-as <path>] [--search-path <tree>]
+                    Any source the compiler knows (.vdata .vsndevts .vpcf .vagrp
+                    .wav .svg, images) -> its compiled resource, through the
+                    same entry point a host uses (ResourceCompiler). Inside a
+                    content tree the path and search path are taken from it.
 
       s2c decompile <in.*_c> [-o <out.txt>] [--block DATA|RED2|CTRL|PHYS|MDAT]
                     Compiled resource -> KV3 text. Defaults to the DATA block;

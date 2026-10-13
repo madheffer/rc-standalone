@@ -18,7 +18,7 @@ namespace Source2.Compiler;
 /// <para>The fourth, INSG, is a required input: it follows the shader's feature
 /// combo and cannot be derived here. See
 /// <see cref="Source2ContainerAuthor.MaterialAuthoring"/> for the measurements,
-/// and <see cref="ExtractInputSignature"/> to lift one from a material that uses
+/// and <see cref="ExtractInputSignature(byte[])"/> to lift one from a material that uses
 /// the shader and features you want.</para>
 /// </summary>
 public static class MaterialAuthor

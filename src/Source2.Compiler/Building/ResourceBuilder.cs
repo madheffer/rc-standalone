@@ -654,6 +654,7 @@ public static class ResourceBuilder
     /// <param name="wavBytes">PCM WAV to compile.</param>
     /// <param name="sourceName">Content-relative source path recorded in the authored RED2;
     /// null records a neutral <c>vpkeditor/</c> name.</param>
+    /// <param name="searchPath">The content tree RC compiled from (<c>csgo</c>, or <c>csgo_addons/&lt;addon&gt;</c>), recorded with each input dependency.</param>
     public static byte[] BuildSound(byte[]? templateBytes, byte[] wavBytes, string? sourceName = null, string searchPath = "csgo")
     {
         if (wavBytes is not { Length: > 12 })
@@ -1394,6 +1395,7 @@ public static class ResourceBuilder
     /// <param name="svgBytes">The SVG document, as UTF-8 bytes.</param>
     /// <param name="sourceName">Content-relative source path recorded in the authored RED2;
     /// null records a neutral <c>vpkeditor/</c> name.</param>
+    /// <param name="searchPath">The content tree RC compiled from (<c>csgo</c>, or <c>csgo_addons/&lt;addon&gt;</c>), recorded with each input dependency.</param>
     public static byte[] BuildPanoramaSvg(byte[]? templateVsvgC, byte[] svgBytes, string? sourceName = null, string searchPath = "csgo")
     {
         // The DATA block: u32 CRC32 of the SVG; u16 image count; per image a

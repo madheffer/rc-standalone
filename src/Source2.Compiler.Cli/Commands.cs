@@ -1,3 +1,4 @@
+using Source2.Compiler.Compiling;
 using System.Text;
 using ValveResourceFormat;
 using ValveResourceFormat.Blocks;
@@ -17,7 +18,6 @@ internal static class Commands
     {
         var input = Positional(a, "input file");
         var ext = Path.GetExtension(input);
-        var outPath = Opt(a, "-o") ?? input + "_c";
 
         // RED2 records where the source lived, content-relative. Use --ship-as
         // when you know the real path; otherwise put the file under its type's
@@ -26,18 +26,31 @@ internal static class Commands
         var shipAs = Opt(a, "--ship-as") ?? relativeFromPath ?? Source2ContainerAuthor.SuggestSourcePath(ext, Path.GetFileName(input));
         var searchPath = Opt(a, "--search-path") ?? treeFromPath ?? "csgo";
 
-        var bytes = Kv3SourceCompiler.Compile(File.ReadAllBytes(input), ext, shipAs, searchPath);
-        File.WriteAllBytes(outPath, bytes);
-        Console.WriteLine($"{outPath}  ({bytes.Length:n0} bytes)");
+        // Files the source refers to come from its own content tree, as RC reads them.
+        var full = Path.GetFullPath(input).Replace('\\', '/');
+        IContentSource? content = relativeFromPath is not null && full.EndsWith(relativeFromPath, StringComparison.OrdinalIgnoreCase)
+            ? new DirectoryContentSource(full[..^relativeFromPath.Length])
+            : null;
+
+        var result = ResourceCompiler.CreateDefault().Compile(
+            new CompileRequest(shipAs, File.ReadAllBytes(input)) { SearchPath = searchPath, Content = content });
+        foreach (var d in result.Diagnostics)
+            Console.Error.WriteLine(d);
+        if (!result.Succeeded || result.Output is null)
+            return 1;
+
+        var outPath = Opt(a, "-o") ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(input))!, Path.GetFileName(result.OutputPath));
+        File.WriteAllBytes(outPath, result.Output);
+        Console.WriteLine($"{outPath}  ({result.Output.Length:n0} bytes)");
+        foreach (var child in result.Children)
+        {
+            var childPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath))!, Path.GetFileName(child.Path));
+            File.WriteAllBytes(childPath, child.Bytes);
+            Console.WriteLine($"{childPath}  ({child.Bytes.Length:n0} bytes)");
+        }
         return 0;
     }
 
-    /// <summary>
-    /// The content tree and tree-relative path of a source under a game's <c>content</c>
-    /// folder: <c>.../content/csgo_addons/addon/scripts/x.vdata</c> is
-    /// (<c>csgo_addons/addon</c>, <c>scripts/x.vdata</c>), <c>.../content/csgo/...</c> is
-    /// (<c>csgo</c>, ...). Nulls when the file is not under one.
-    /// </summary>
     internal static (string? Tree, string? Relative) ContentLocation(string path)
     {
         var parts = Path.GetFullPath(path).Replace('\\', '/').Split('/');

@@ -217,6 +217,7 @@ public static partial class Source2ContainerAuthor
     /// <param name="references">Paths the resource points at, in the order it states them.</param>
     /// <param name="savedSource">The source file RC wrote to disk and compiled this from, when it did
     /// (a physics or world node manifest); RC records it as an additional input.</param>
+    /// <param name="overrideFingerprint">RED2's ___OverrideInputData___ fingerprint, the CRC32 of the input RC recorded for it; 0 when it recorded none.</param>
     public static byte[] AuthorChildResource(string sourceExtension, byte[] dataBytes, IEnumerable<string> references,
         SavedSource? savedSource = null, uint overrideFingerprint = 0)
     {
@@ -361,6 +362,7 @@ public static partial class Source2ContainerAuthor
     /// <param name="templateSpecialDeps">Preserved verbatim.</param>
     /// <param name="optionalProbes">Sibling paths RC records as absent, so its incremental
     /// rebuild retriggers if one appears. Each is a statement that the file does not exist.</param>
+    /// <param name="searchPath">The content tree RC compiled from (<c>csgo</c>, or <c>csgo_addons/&lt;addon&gt;</c>), recorded with each input dependency.</param>
     public static KVObject BuildBinaryEditInfo(
         string? sourceName,
         ReadOnlySpan<byte> sourceBytes,
