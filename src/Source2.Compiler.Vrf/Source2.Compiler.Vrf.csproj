@@ -43,8 +43,16 @@
     <ProjectReference Include="$(Source2CompilerVrfProject)" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!--
+    The library: this repository's project by default. A host that takes Source2.Compiler as a
+    NuGet package (vpkstuff, docs/CONSUMING.md) sets Source2CompilerPackageVersion so the adapter
+    builds against that same package instead of a second copy of the source.
+  -->
+  <ItemGroup Condition="'$(Source2CompilerPackageVersion)' == ''">
     <ProjectReference Include="..\Source2.Compiler\Source2.Compiler.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Source2CompilerPackageVersion)' != ''">
+    <PackageReference Include="Source2.Compiler" Version="$(Source2CompilerPackageVersion)" />
   </ItemGroup>
 
 </Project>

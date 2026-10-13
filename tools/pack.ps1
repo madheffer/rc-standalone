@@ -14,7 +14,9 @@
 param(
   [switch]$Release,
   [switch]$SkipTests,
-  [string]$ValveKeyValueVersion = "0.70.0.499"
+  [string]$ValveKeyValueVersion = "0.70.0.499",
+  # An exact version (tools/publish-to-vpkstuff.ps1 passes 0.1.<commit count>); overrides -Release.
+  [string]$Version = ""
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -27,7 +29,9 @@ if (-not $SkipTests) {
 }
 
 $suffix = @()
-if (-not $Release) {
+if ($Version) {
+  $suffix = @("/p:Version=$Version")
+} elseif (-not $Release) {
   $sha = (git -C $root rev-parse --short HEAD).Trim()
   $suffix = @("/p:VersionSuffix=dev.$(Get-Date -Format yyyyMMdd).$sha")
 }

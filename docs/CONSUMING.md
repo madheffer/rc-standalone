@@ -73,6 +73,21 @@ library. Nothing is published anywhere yet: where the feed lives (a folder in vp
 which suits its worktrees and Docker builds, or a feed service on the box) is decided when
 vpkstuff's call sites move.
 
+**Update 2026-10-14 (published to a folder feed).** The feed is a folder in vpkstuff's tree,
+`dotnet/packages/`, with a `dotnet/nuget.config` mapping `Source2.Compiler` to it only. It
+travels with every worktree, the ship tarball and both Docker build contexts, needs no service
+and no credentials, and a version pin bump is an ordinary reviewable diff. The library moves
+to the package; the VRF adapter stays a vendored source copy and, when
+`Source2CompilerPackageVersion` is set (vpkstuff's `dotnet/vendor/Directory.Build.props`),
+builds against the package instead of the project. `tools/publish-to-vpkstuff.ps1` is the one
+command after a merge to `main`: it refuses a dirty tree, packs `0.1.<commit count>`, adds a
+vpkstuff worktree on `chore/compiler-<version>` off `box/master`, replaces the package in
+`dotnet/packages/`, and, once vpkstuff pins the package, bumps both pins, refreshes the adapter
+with `sync-source2-compiler.py --from` and runs vpkstuff's compiler gate; then commits. It
+pushes only with `-Push`; the branch follows vpkstuff's staging and in-game check. What
+vpkstuff changes on its side (the switch, then moving call sites off VRF, then exact texture
+and material compiles) is in docs/VPKSTUFF_PACKAGE_HANDOFF.md.
+
 Sources consulted: [Git submodules vs subtrees vs monorepos](https://slicker.me/git/submodules-vs-subtrees-vs-monorepos.html),
 [git submodule vs subtree technical overview](https://medium.com/@Spritan/git-submodule-vs-git-subtree-quick-technical-overview-92ae10119145),
 [Referencing a local private NuGet package](https://weblog.west-wind.com/posts/2022/Sep/11/Referencing-a-Local-Private-NuGet-Package-in-your-Solution),
