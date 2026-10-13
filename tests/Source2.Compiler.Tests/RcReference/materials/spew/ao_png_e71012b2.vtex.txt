@@ -1,0 +1,30 @@
+VTEX_LOGICAL_CRC_VERSION = 1
+m_inputTextureArray[1]:
+m_inputTextureArray[0] =
+{
+m_texture_index = 0
+m_fileName = "materials/s2cmat/ao.png"
+m_colorSpace = "linear"
+m_fileExt = "ao"
+m_nMinBitsPerChannel = 8
+m_typeString = "2d"
+m_imageProcessorArray[1]:
+m_imageProcessorArray[0] =
+{
+}
+}
+m_outputTypeString = "2d"
+m_outputFormat = "ati1n"
+m_textureOutputChannelArray[1]:
+m_textureOutputChannelArray[0] =
+{
+m_srcChannels = "r"
+m_dstChannels = "r"
+m_mipAlgorithm =
+{
+m_algorithm = "box3"
+}
+m_outputColorSpace = "linear"
+m_inputTextureArray[1]:
+m_inputTextureArray[0] = 0
+}

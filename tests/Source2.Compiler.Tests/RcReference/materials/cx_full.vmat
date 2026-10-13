@@ -1,0 +1,15 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "csgo_complex.vfx"
+
+	F_METALNESS_TEXTURE 1
+	TextureColor "materials/s2cmat/color.png"
+	TextureNormal "materials/s2cmat/normal.png"
+	TextureRoughness "materials/s2cmat/rough.png"
+	TextureMetalness "materials/s2cmat/metal.png"
+	TextureAmbientOcclusion "materials/s2cmat/ao.png"
+	g_vColorTint "[1.000000 0.500000 0.250000 0.000000]"
+	g_flModelTintAmount "0.750"
+}

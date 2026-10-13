@@ -1,0 +1,46 @@
+VTEX_LOGICAL_CRC_VERSION = 1
+m_inputTextureArray[2]:
+m_inputTextureArray[0] =
+{
+m_texture_index = 0
+m_fileName = "materials/s2cmat/normal.png"
+m_colorSpace = "linear"
+m_fileExt = "normal"
+m_nMinBitsPerChannel = 8
+m_typeString = "2d"
+m_imageProcessorArray[1]:
+m_imageProcessorArray[0] =
+{
+m_algorithm = "normalizenormals"
+}
+}
+m_inputTextureArray[1] =
+{
+m_texture_index = 1
+m_fileName = "materials/s2cmat/rough.png"
+m_colorSpace = "linear"
+m_fileExt = "rough"
+m_nMinBitsPerChannel = 8
+m_typeString = "2d"
+m_imageProcessorArray[1]:
+m_imageProcessorArray[0] =
+{
+m_algorithm = "inverse"
+}
+}
+m_outputTypeString = "2d"
+m_outputFormat = "bc7"
+m_textureOutputChannelArray[2]:
+m_textureOutputChannelArray[0] =
+{
+m_srcChannels = "rgba"
+m_dstChannels = "rgba"
+m_mipAlgorithm =
+{
+m_algorithm = "hemioctisoroughness_rg_b"
+}
+m_outputColorSpace = "linear"
+m_inputTextureArray[2]:
+m_inputTextureArray[0] = 0
+m_inputTextureArray[1] = 1
+}

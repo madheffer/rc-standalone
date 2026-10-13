@@ -1,0 +1,111 @@
+# Materials: `.vmat` to `.vmat_c`, as resourcecompiler does it
+
+Work in progress toward byte parity (API.md, order of work step 2). This file holds what is
+settled from the binaries; `RcReference/materials` holds the probes and RC's outputs.
+
+Build: `resourcecompiler.dll` 1.41.9.0 (sha256 `d1115f9f9b976db6...`, the 2026-10-09 build).
+
+## What one `.vmat` compile writes
+
+A `.vmat` (KV1 `Layer0 { shader ...; TextureColor "x.png"; F_...; g_... }`) compiles to the
+`.vmat_c` plus one child `.vtex_c` per texture the shader's static combo reads. RC writes the
+children beside their first input image (`materials/default/...` for shader defaults), named
+`<first input file, '.' as '_'>_<logical CRC as %x>.vtex` (`'%s_%x.%s'`, 18010bc8b).
+
+- DATA: `m_materialName`, `m_shaderName`, the params the `.vmat` sets (int/float/vector, not
+  the shader's defaults), `m_textureParams` = every output texture the combo reads, pointing at
+  the child, and `RepresentativeTextureWidth/Height` from the colour texture.
+- RED2: input dependencies of every image (and its optional `.txt`), every argument and special
+  dependency of the texture compiles, `Material Compiler Version` 25, and the shader as
+  `vpk:<absolute path of shaders_pc.vpk>/<shader>.vfx` with the shader's `m_nVersion` as its
+  fingerprint (csgo_complex 5), plus each mode's fallback shader (`csgo_depth_only.vfx` 1). The
+  absolute path is the machine's install, so a compile must be told it to match RC.
+- `m_SearchableUserData`: the shader's attributes, the F_ values set, the representative texture.
+- INSG: the vertex input signature of the shader's static combo.
+
+## Which textures: the shader's program files
+
+CS2's shaders are VCS v72: Source 2 resources (`resver 72`, blocks `DATA RED2`) whose DATA is
+KV3, so `CompiledResource` reads them; `shaders_pc_dir.vpk` holds
+`shaders/vfx/<shader>_pc_50_{features,vs,ps}.vcs`. csgo_complex's 28 MB PS parses in 0.5 s.
+
+- `features.vcs`: `m_nVersion` (RED2 fingerprint), modes and their fallback shaders, the
+  feature combos (`F_*`), `m_variableDescriptionArray`, `m_textureChannelProcessorArray`.
+- `ps.vcs`: its own variables and static combos (`S_*`, each with `m_iFeatureIndex` into the
+  features' combos and `m_nComboIndexValue` as its stride), `m_staticComboIDs`, and per static
+  combo `m_allVars.m_indexAndRegisterOffsetArray` (variable index in bits 16..27).
+
+An output texture such as `g_tColor` has several variable descriptions, one per packing. The
+material's F_ values give the static combo id (`sum value * m_nComboIndexValue`), and the
+`g_t*` variables in that combo's `m_allVars` are the ones compiled. csgo_complex, measured:
+
+| combo | id | g_tColor | packing |
+|---|---|---|---|
+| none | 0 | #79 | DXT1, colour rgb |
+| S_ALPHA_TEST | 40 | #81 | BC7, colour rgb + translucency a (PreserveCoverage) |
+| S_TRANSLUCENT | 80 | #82 | BC7, colour rgb (ArtistDefinedOrAlphaWeighted) + translucency a (Box) |
+| S_METALNESS_TEXTURE | 1280 | #80 | BC7, colour rgb + metalness a |
+
+### From a variable to a generated `.vtex`
+
+An output variable has `m_outputTextureFormat` (20 DXT1, 24 ATI1N, 25 ATI2N, 27 BC7) and up to
+four `m_nChannelInfoIndex` into the channel processors. A channel processor has
+`m_nChannelDesc` (one byte per channel: dst in the high nibble, src in the low, 0..3 = r..a,
+FF unused), up to four `m_nInputTextures` (input variable indices), `m_outputColorSpace`
+(1 srgb) and `m_mipProcessingCommand`. An input variable has `m_inputColorSpace`,
+`m_nMinPrecisionBits`, `m_szTextureFileEnding`, `m_inputProcessingCommand` and
+`m_defaultInputTexture`.
+
+The generated `.vtex` lists the channels' inputs in order, without merging repeats (a
+translucent colour lists the translucency image twice). An input the `.vmat` does not set is
+`m_defaultInputTexture`, else `materials/default/default_<ending>.<ext>`
+(`"materials/default/default_%s.%s"`).
+
+## The logical CRC (the child's name and its `___OverrideInputData___` fingerprint)
+
+`181e91070` prints the `.vtex` into a text `CUtlBuffer` and hashes it with MurmurHash2, seed
+`0x24871466`. The text starts `VTEX_LOGICAL_CRC_VERSION = 1`; the dumper is `181e8fcf0`, the
+input texture `181e8f660`, the output channel `181e8f9c0`, floats and ints `181e90870` and
+`181e909b0` (printed only when not their default). Strings are lowercased (`ToLowerFast`). Its
+`'m_textureOutputChannelArray[%d]:'` line prints the input count, not the channel count (RC's
+bug, kept). Example, the default AO:
+
+```
+VTEX_LOGICAL_CRC_VERSION = 1
+m_inputTextureArray[1]:
+m_inputTextureArray[0] =
+{
+m_texture_index = 0
+m_fileName = "materials/default/default_ao.tga"
+m_colorSpace = "linear"
+m_fileExt = "ao"
+m_nMinBitsPerChannel = 8
+m_typeString = "2d"
+m_imageProcessorArray[1]:
+m_imageProcessorArray[0] =
+{
+}
+}
+m_outputTypeString = "2d"
+m_outputFormat = "ati1n"
+m_textureOutputChannelArray[1]:
+...
+```
+
+`RcReference/materials/spew/*.txt` are RC's own texts for every probe child, hashing to the
+names. They were logged by RC itself: the naming function (`18010ae53`) logs the text under
+`logicalCRCDebugSpew` when a static flag (`183bb83a4`) is set, which nothing sets. A copy of
+`game/bin/win64` (hard links) with `resourcecompiler.dll` patched at file offsets `0x10afbc`
+(`cmove r9, rsi`, 4 bytes) and `0x10b0a8` (`je`, 6 bytes) to NOPs logs it on every compile and
+writes the same bytes as the stock DLL (checked on 5 outputs).
+
+## Open
+
+- The `.vmat` DATA, RED2 and INSG writers, SearchableUserData from the shader's attributes.
+- Child `.vtex` compiles beyond Box: `ArtistDefined`, `Box3`, `ArtistDefinedOrAlphaWeighted`,
+  `PreserveCoverage`, `HemiOctIsoRoughness_RG_B`, `AnisoRoughness_RG`, input processors
+  `NormalizeNormals`, `Inverse`, `Mod2XCenter`, several inputs per texture, channel packing.
+- Image `.txt` settings (core's `default_normal.txt` exists, CRC 1948310964).
+- Which search path an input resolves in (`core` for `default_ao.tga`, `csgo` for the others).
+- The value RC uses for system combos (`S_SHADER_QUALITY`, source type 2).
+- Where a compile reads the default images when no Workshop Tools content is installed.

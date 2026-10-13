@@ -1,0 +1,55 @@
+VTEX_LOGICAL_CRC_VERSION = 1
+m_inputTextureArray[2]:
+m_inputTextureArray[0] =
+{
+m_texture_index = 0
+m_fileName = "materials/s2cmat/color.png"
+m_colorSpace = "srgb"
+m_fileExt = "color"
+m_nMinBitsPerChannel = 8
+m_typeString = "2d"
+m_imageProcessorArray[1]:
+m_imageProcessorArray[0] =
+{
+}
+}
+m_inputTextureArray[1] =
+{
+m_texture_index = 1
+m_fileName = "materials/s2cmat/metal.png"
+m_colorSpace = "linear"
+m_fileExt = "metal"
+m_nMinBitsPerChannel = 8
+m_typeString = "2d"
+m_imageProcessorArray[1]:
+m_imageProcessorArray[0] =
+{
+}
+}
+m_outputTypeString = "2d"
+m_outputFormat = "bc7"
+m_textureOutputChannelArray[2]:
+m_textureOutputChannelArray[0] =
+{
+m_srcChannels = "rgb"
+m_dstChannels = "rgb"
+m_mipAlgorithm =
+{
+m_algorithm = "artistdefined"
+}
+m_outputColorSpace = "srgb"
+m_inputTextureArray[1]:
+m_inputTextureArray[0] = 0
+}
+m_textureOutputChannelArray[1] =
+{
+m_srcChannels = "r"
+m_dstChannels = "a"
+m_mipAlgorithm =
+{
+m_algorithm = "box"
+}
+m_outputColorSpace = "linear"
+m_inputTextureArray[1]:
+m_inputTextureArray[0] = 1
+}
