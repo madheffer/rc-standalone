@@ -57,9 +57,18 @@ FF unused), up to four `m_nInputTextures` (input variable indices), `m_outputCol
 `m_defaultInputTexture`.
 
 The generated `.vtex` lists the channels' inputs in order, without merging repeats (a
-translucent colour lists the translucency image twice). An input the `.vmat` does not set is
-`m_defaultInputTexture`, else `materials/default/default_<ending>.<ext>`
-(`"materials/default/default_%s.%s"`).
+translucent colour lists the translucency image twice), but a channel refers to an input by
+name and so reads the first one with that name (the translucent alpha reads input 1, not 2;
+whether the name is the input variable or the file is not separated by the probes). An input the `.vmat` does not set is
+`m_defaultInputTexture`, else `materials/default/default_<ending>.<ext>` for the first of
+`psd tga tif pfm exr` that exists in the CONTENT search path, else
+`materials/default/default.tga` (181f18f9f). An input naming a `.vtex` is the output texture
+itself (cx_vtex: `g_tColor` = `materials/s2ctex/dxt1.vtex`, no child).
+
+Code: `Shaders.ShaderProgram` reads the programs, `Materials.MaterialTextures` resolves the
+outputs, `Materials.GeneratedTexture` writes the logical text and the child path.
+`MaterialTextureTests` checks all seven probes: DATA texture params, RED2 child list and every
+child's logical text equal RC's.
 
 ## The logical CRC (the child's name and its `___OverrideInputData___` fingerprint)
 
@@ -106,6 +115,7 @@ writes the same bytes as the stock DLL (checked on 5 outputs).
   `PreserveCoverage`, `HemiOctIsoRoughness_RG_B`, `AnisoRoughness_RG`, input processors
   `NormalizeNormals`, `Inverse`, `Mod2XCenter`, several inputs per texture, channel packing.
 - Image `.txt` settings (core's `default_normal.txt` exists, CRC 1948310964).
+- Channel references by variable or by file name (above).
 - Which search path an input resolves in (`core` for `default_ao.tga`, `csgo` for the others).
 - The value RC uses for system combos (`S_SHADER_QUALITY`, source type 2).
 - Where a compile reads the default images when no Workshop Tools content is installed.
