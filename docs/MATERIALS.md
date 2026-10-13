@@ -142,12 +142,35 @@ writes the same bytes as the stock DLL (checked on 5 outputs).
   Depth mode's fallback shader, or from the shader's own VS with the Depth mode's settings.
 - RERL: every texture param's resource, sorted by path.
 
+## Child textures: `Materials.ChildTextureCompiler`
+
+A child is the shared texture build (`VtexCompiler.BuildTexture`) on one packed 8-bit image.
+Seven of the probe children are byte-identical (`ChildTextures_CompileToResourceCompilersBytes`),
+DXT1, ATI1N and BC7, one and two inputs.
+
+- Packing: unset channels are 0; each channel group copies its source channels of its input to
+  its destinations (colour.png rgb + metal.png r to a, BC7). sRGB covers RGB from sRGB inputs.
+- `ArtistDefined` with no `.txt` is the Box chain, float for float. `Box3` is the Box chain cut
+  to three levels: the float chain itself stops (ao256: 256, 128, 64), so the reflectivity is
+  the mean of its 64x64 level, summed in four SIMD lanes by pixel index and the lanes added
+  pairwise (`(l0 + l1) + (l2 + l3)`, then `/ n`); for a full chain that is the 1x1 pixel.
+- A side under 4 in a block format: the image is resized up to 4 with the wrap bilinear
+  resampler in gamma space (sRGB colour encoded first), one level, and the fallback is made
+  from that 4x4 image; the reflectivity still comes from the original chain. DATA then carries
+  extra data type 3 (FILL_TO_POWER_OF_TWO) after the fallback: 128 bytes, `u16 0`, the
+  original width and height, zeros (default_ao 1x1, cx_tiny 2x2).
+- Images are PNG/JPG (SkiaSharp) or TGA (`Imaging.TgaReader`: Valve's defaults are TGA).
+- Child RED2: no input dependencies; each image and its `.txt` as additional ones; the
+  arguments with `___OverrideInputData___` fingerprint = the logical CRC, default 0;
+  `maxmipsize` fingerprint and default 1048576f; `IsChildResource` 1.
+
 ## Open
 
 - Which mode wins when two modes give an attribute different values (first seen, here).
 - The order of params of one kind when a `.vmat` sets several (file order, here; one each in the probes).
-- Compiling the children (below), so a `.vmat` compile also writes them.
-- Child `.vtex` compiles beyond Box: `ArtistDefined`, `Box3`, `ArtistDefinedOrAlphaWeighted`,
+- Children whose inputs differ in size (character's default masks: 1x1 metal with 16x16 masks; a 128x64 colour with a 64x64 metalness): RC's resampling of the smaller one.
+- odd_png (24x40): one ulp in the reflectivity's green. Every 8-bit level matches; our float 3x5 -> 1x2 step (3-tap both ways, a 1-wide output) rounds differently. A Frida capture of QuarterSize on that chain settles it (CS2 closed).
+- Child mip algorithms beyond the Box family: `ArtistDefined`, `Box3`, `ArtistDefinedOrAlphaWeighted`,
   `PreserveCoverage`, `HemiOctIsoRoughness_RG_B`, `AnisoRoughness_RG`, input processors
   `NormalizeNormals`, `Inverse`, `Mod2XCenter`, several inputs per texture, channel packing.
 - Image `.txt` settings (core's `default_normal.txt` exists, CRC 1948310964).

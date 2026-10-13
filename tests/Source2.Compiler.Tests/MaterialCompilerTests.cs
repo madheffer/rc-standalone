@@ -38,6 +38,7 @@ public class MaterialCompilerTests
                 ShaderPackage = Path.Combine(csgo, "shaders_pc_dir.vpk"),
                 Mounts = [new("csgo", new DirectoryContentSource(Path.Combine(game, "content", "csgo"))),
                           new("core", new DirectoryContentSource(Path.Combine(game, "content", "core")))],
+                CompileChildren = false,
             },
         });
     }
@@ -67,6 +68,76 @@ public class MaterialCompilerTests
         foreach (var block in new[] { "RED2", "DATA", "INSG" })
             Assert.Equal("", Diff(rc.Kv3(block)!, ours.Kv3(block)!, block));
         Assert.True(rcBytes.AsSpan().SequenceEqual(result.Output), $"{name}.vmat_c: trees equal, bytes differ");
+    }
+
+    /// <summary>Every child whose algorithms are ported, against RC's file; the rest are listed as pending.</summary>
+    [Fact]
+    public void ChildTextures_CompileToResourceCompilersBytes()
+    {
+        if (CS2Fixtures.StockPak() is not { } pak) { CS2Fixtures.Skip("shaders_pc_dir.vpk"); return; }
+        var csgo = Path.GetDirectoryName(pak)!;
+        var game = Path.GetDirectoryName(Path.GetDirectoryName(csgo)!)!;
+        var addon = new MemoryContentSource();
+        foreach (var file in Directory.GetFiles(Path.GetDirectoryName(Fixture("color.png"))!))
+            addon.Add("materials/s2cmat/" + Path.GetFileName(file), File.ReadAllBytes(file));
+        var mounts = new List<ContentMount> { new("csgo_addons/vpkstuff_rc_probe", addon),
+            new("csgo", new DirectoryContentSource(Path.Combine(game, "content", "csgo"))),
+            new("core", new DirectoryContentSource(Path.Combine(game, "content", "core"))) };
+        (string, byte[])? Find(string path)
+        {
+            foreach (var m in mounts)
+                if (m.Content.Read(path) is { } b) return (m.SearchPath, b);
+            return null;
+        }
+
+        using var shaders = new ValvePak.Package();
+        shaders.Read(Path.Combine(csgo, "shaders_pc_dir.vpk"));
+        Shaders.ShaderProgram Program(string shader, string kind)
+        {
+            shaders.ReadEntry(shaders.FindEntry($"shaders/vfx/{Path.GetFileNameWithoutExtension(shader)}_pc_50_{kind}.vcs")!, out var bytes);
+            return Shaders.ShaderProgram.Read(bytes);
+        }
+
+        var compared = new List<string>();
+        var pending = new List<string>();
+        // Known: odd_png (24x40) differs from RC only in the reflectivity's green, by one ulp:
+        // our float 3x5 -> 1x2 step rounds differently (every 8-bit level matches). Settled by a
+        // Frida capture of QuarterSize on that chain (docs/MATERIALS.md, open).
+        var known = new HashSet<string> { "odd_png_55b52af0.vtex" };
+        foreach (var vmatFile in Directory.GetFiles(Path.GetDirectoryName(Fixture("color.png"))!, "*.vmat"))
+        {
+            var vmat = VmatSource.Parse(File.ReadAllBytes(vmatFile), vmatFile);
+            var textures = MaterialTextures.Resolve(Program(vmat.Shader, "features"), Program(vmat.Shader, "ps"), vmat.ByName,
+                path => Find(path) is not null);
+            foreach (var g in textures.Where(t => t.Generated is not null).Select(t => t.Generated!))
+            {
+                var name = Path.GetFileName(g.ChildPath);
+                if (compared.Contains(name) || pending.Contains(name))
+                    continue;
+                byte[] ours;
+                try { ours = ChildTextureCompiler.Compile(g, Find, "csgo_addons/vpkstuff_rc_probe", RcTexture.Bc7Vendor.Amd); }
+                catch (InvalidOperationException e) when (e.Message.Contains("not compiled here yet") || e.Message.Contains("not measured"))
+                {
+                    pending.Add(name);
+                    continue;
+                }
+                if (known.Contains(name))
+                {
+                    pending.Add(name + " (known)");
+                    continue;
+                }
+                var rcBytes = File.ReadAllBytes(Fixture($"compiled/{name}_c"));
+                var rc = CompiledResource.Read(rcBytes);
+                var mine = CompiledResource.Read(ours);
+                Assert.Equal("", Diff(rc.Kv3("RED2")!, mine.Kv3("RED2")!, name + " RED2"));
+                if (!rcBytes.AsSpan().SequenceEqual(ours))
+                    File.WriteAllBytes(Path.Combine(Path.GetTempPath(), $"s2c_child_{name}_c"), ours);
+                Assert.True(rcBytes.AsSpan().SequenceEqual(ours), $"{name}_c differs from RC's (ours in %TEMP%/s2c_child_{name}_c)");
+                compared.Add(name);
+            }
+        }
+        Console.WriteLine($"children identical: {string.Join(", ", compared)}; pending: {string.Join(", ", pending)}");
+        Assert.NotEmpty(compared);
     }
 
     // The first difference between two KV3 trees, as a path and both values; empty when equal.

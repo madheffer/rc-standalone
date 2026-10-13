@@ -27,12 +27,21 @@ public sealed record MaterialCompileSettings
     /// <summary>Content searched after the request's own, in order: RC's is the addon, then
     /// <c>csgo</c>, then <c>core</c>.</summary>
     public IReadOnlyList<ContentMount> Mounts { get; init; } = [];
+
+    /// <summary>
+    /// Compile the child textures too (the default). A child this compiler cannot write exactly
+    /// fails the compile, rather than leave a material without its texture; false writes the
+    /// material alone.
+    /// </summary>
+    public bool CompileChildren { get; init; } = true;
+
+    /// <summary>Whose BC7 the children reproduce.</summary>
+    public RcTexture.Bc7Vendor Bc7Vendor { get; init; } = RcTexture.Bc7Vendor.Amd;
 }
 
 /// <summary>
-/// <c>.vmat</c> to <c>.vmat_c</c>, as resourcecompiler writes it (docs/MATERIALS.md). The child
-/// textures are named and listed here; compiling them is not ported yet, so a compile returns the
-/// material alone. Anything not measured against RC is refused.
+/// <c>.vmat</c> to <c>.vmat_c</c> and its child textures, as resourcecompiler writes them
+/// (docs/MATERIALS.md). Anything not measured against RC is refused.
 /// </summary>
 public sealed class MaterialCompiler : IResourceCompiler
 {
@@ -89,7 +98,24 @@ public sealed class MaterialCompiler : IResourceCompiler
         container.SetKv3("DATA", data, Kv3Formats.Get("generic"));
         container.SetKv3("INSG", BuildInsg(shaders, values), Kv3Formats.Get("generic"));
         container.SetReferences(textures.Select(t => t.ResourcePath).Distinct().Order(StringComparer.Ordinal));
-        return new(container.Write());
+
+        var children = new List<CompiledFile>();
+        if (settings.CompileChildren)
+            foreach (var g in textures.Where(t => t.Generated is not null).Select(t => t.Generated!).DistinctBy(g => g.ChildPath))
+                children.Add(new(g.ChildPath + "_c", ChildTextureCompiler.Compile(g, path => Find(mounts, path), request.SearchPath, settings.Bc7Vendor)));
+        return new(container.Write(), children);
+    }
+
+    /// <summary>The special dependencies a generated texture's algorithms add, by full name.</summary>
+    internal static IEnumerable<(string Name, int Fingerprint)> TextureDeps(GeneratedTexture texture)
+    {
+        foreach (var algorithm in texture.Channels.Select(c => c.MipAlgorithm).Concat(texture.Inputs.Select(i => i.ImageProcessor)).Where(a => a.Length > 0))
+        {
+            if (!AlgorithmDeps.TryGetValue(algorithm, out var deps))
+                throw new InvalidOperationException($"Texture algorithm {algorithm} is not measured yet.");
+            foreach (var (name, fp) in deps)
+                yield return ("Texture Compiler Version " + name, fp);
+        }
     }
 
     private static int FeatureValue(ShaderProgram features, int index, IReadOnlyDictionary<string, string> values)
@@ -267,13 +293,8 @@ public sealed class MaterialCompiler : IResourceCompiler
             special["Texture Encode Quality"] = ("CompileTexture", 1, 3);
         }
         foreach (var g in generated)
-            foreach (var algorithm in g.Channels.Select(c => c.MipAlgorithm).Concat(g.Inputs.Select(i => i.ImageProcessor)).Where(a => a.Length > 0))
-            {
-                if (!AlgorithmDeps.TryGetValue(algorithm, out var deps))
-                    throw new InvalidOperationException($"Texture algorithm {algorithm} is not measured yet.");
-                foreach (var (name, fp) in deps)
-                    special["Texture Compiler Version " + name] = ("CompileTexture", fp, 0);
-            }
+            foreach (var (name, fp) in TextureDeps(g))
+                special[name] = ("CompileTexture", fp, 0);
         var recorded = settings.RecordedShaderPackage
             ?? settings.ShaderPackage.Replace("_dir.vpk", ".vpk", StringComparison.OrdinalIgnoreCase).Replace('/', '\\');
         special[$"vpk:{recorded}/{shaders.Name}"] = ("CompileMaterial", shaders.Features.Version, 0);
