@@ -104,9 +104,8 @@ public static class ResourceBuilder
         /// <summary>CPU only - native <c>bc7enc</c>, BCnEncoder.Net fallback.
         /// The production default; safe inside a Docker container with no GPU.</summary>
         Cpu,
-        /// <summary>Prefer <see cref="GpuBc7Encoder"/> when it is
-        /// available; transparently fall back to the CPU path when it is not.
-        /// For the branched-out compositor host that has a GPU.</summary>
+        /// <summary>Use the encoder a host installed in <see cref="GpuBc7Encoder"/>;
+        /// transparently fall back to the CPU path when none is installed.</summary>
         Gpu,
     }
 
@@ -158,7 +157,7 @@ public static class ResourceBuilder
         /// <see cref="Bc7EncoderMode.Cpu"/>; only consulted when
         /// <see cref="Compression"/> is <see cref="TextureCompression.BC7"/>.
         /// Hosts wire this from their own configuration. <see cref="Bc7EncoderMode.Gpu"/>
-        /// falls back to the CPU encoder until <see cref="GpuBc7Encoder"/> is built.
+        /// falls back to the CPU encoder while no <see cref="GpuBc7Encoder"/> is installed.
         /// </summary>
         public Bc7EncoderMode Bc7Mode { get; set; } = Bc7EncoderMode.Cpu;
 
@@ -227,7 +226,7 @@ public static class ResourceBuilder
     /// caches compiled textures. It names the encoder that actually produced the
     /// bytes, so an entry can never be served to a different encoder:
     /// <list type="bullet">
-    ///   <item><c>"bc7gpu"</c> - the GPU encoder.</item>
+    ///   <item>The installed GPU encoder's <see cref="GpuBc7Encoder.CacheTag"/> (<c>"bc7gpu"</c> by default).</item>
     ///   <item><c>"bc7cpunative"</c> - the native <c>bc7enc</c> lib (production default).</item>
     ///   <item><c>"bc7cpubcn"</c> - the managed <c>BCnEncoder.Net</c> fallback (no native lib).</item>
     /// </list>
@@ -237,7 +236,7 @@ public static class ResourceBuilder
     /// alphanumeric characters or fewer.
     /// </summary>
     public static string Bc7CacheTag(Bc7EncoderMode mode)
-        => EffectiveBc7Encoder(mode) == Bc7EncoderMode.Gpu ? "bc7gpu"
+        => mode == Bc7EncoderMode.Gpu && GpuBc7Encoder.CacheTag is { } gpu ? gpu
            : Bc7Native.Available ? "bc7cpunative" : "bc7cpubcn";
 
     /// <summary>
@@ -370,7 +369,7 @@ public static class ResourceBuilder
             formatByte = fmt;
 
             // BC7 is the slowest step here, so the fastest available encoder
-            // wins: GPU if one is built (none is), else native bc7enc, which is
+            // wins: GPU if a host installed one, else native bc7enc, which is
             // dozens of times faster than the managed BCnEncoder.Net at the same
             // quality, else BCnEncoder.Net.
             bool bc7 = def.Compression == TextureCompression.BC7;
