@@ -1,0 +1,30 @@
+VTEX_LOGICAL_CRC_VERSION = 1
+m_inputTextureArray[1]:
+m_inputTextureArray[0] =
+{
+m_texture_index = 0
+m_fileName = "materials/s2cmat/odd.png"
+m_colorSpace = "srgb"
+m_fileExt = "color"
+m_nMinBitsPerChannel = 8
+m_typeString = "2d"
+m_imageProcessorArray[1]:
+m_imageProcessorArray[0] =
+{
+}
+}
+m_outputTypeString = "2d"
+m_outputFormat = "dxt1"
+m_textureOutputChannelArray[1]:
+m_textureOutputChannelArray[0] =
+{
+m_srcChannels = "rgb"
+m_dstChannels = "rgb"
+m_mipAlgorithm =
+{
+m_algorithm = "artistdefined"
+}
+m_outputColorSpace = "srgb"
+m_inputTextureArray[1]:
+m_inputTextureArray[0] = 0
+}

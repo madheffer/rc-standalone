@@ -1,0 +1,15 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "csgo_complex.vfx"
+
+	g_vColorTint "[0.900000 0.800000 0.700000 0.000000]"
+	g_flModelTintAmount "0.250"
+	F_SPECULAR 0
+	g_nScaleTexCoordUByModelScaleAxis 2
+	g_flMetalness "0.100"
+	TextureColor "materials/s2cmat/color.png"
+	TextureMetalness "materials/s2cmat/metal.png"
+	g_flFadeExponent "1.000"
+}

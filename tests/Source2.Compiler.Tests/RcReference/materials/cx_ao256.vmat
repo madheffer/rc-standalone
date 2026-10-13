@@ -1,0 +1,9 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "csgo_complex.vfx"
+
+	TextureColor "materials/s2cmat/color.png"
+	TextureAmbientOcclusion "materials/s2cmat/ao256.png"
+}

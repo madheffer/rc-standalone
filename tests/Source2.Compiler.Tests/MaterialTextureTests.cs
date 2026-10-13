@@ -51,6 +51,11 @@ public class MaterialTextureTests
     [InlineData("cx_vtex")]
     [InlineData("char")]
     [InlineData("unlit")]
+    [InlineData("cx_ao256")]
+    [InlineData("cx_tiny")]
+    [InlineData("cx_odd")]
+    [InlineData("cx_metal_noise")]
+    [InlineData("cx_order")]
     public void ChildTextures_MatchResourceCompiler(string name)
     {
         if (Shaders.Value is null) { CS2Fixtures.Skip("shaders_pc_dir.vpk"); return; }

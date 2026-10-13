@@ -109,33 +109,29 @@ public sealed class MaterialCompiler : IResourceCompiler
     private static KVObject BuildData(string materialPath, VmatSource vmat, ShaderSet shaders,
         IReadOnlyList<MaterialTexture> textures, IReadOnlyDictionary<string, (string SearchPath, byte[] Bytes)> images)
     {
-        var ints = new List<(string, int)>();
-        var floats = new List<(string, float)>();
-        var vectors = new List<(string, float[])>();
-        var featureNames = shaders.Features.StaticCombos.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
+        // Params as the .vmat sets them, typed by their name's prefix (RC keeps names the shader
+        // does not declare: cx_order's F_SPECULAR, g_flFadeExponent), each kind sorted by name.
+        var ints = new List<(string Name, int Value)>();
+        var floats = new List<(string Name, float Value)>();
+        var vectors = new List<(string Name, float[] Value)>();
+        var textureInputs = shaders.Features.Variables.Where(v => v.IsMaterialTexture).Select(v => v.Name).ToHashSet(StringComparer.Ordinal);
         foreach (var (key, value) in vmat.Values)
         {
-            if (featureNames.Contains(key))
-            {
-                ints.Add((key, int.Parse(value, System.Globalization.CultureInfo.InvariantCulture)));
+            var c = System.Globalization.CultureInfo.InvariantCulture;
+            if (textureInputs.Contains(key))
                 continue;
-            }
-            var variable = shaders.Features.Variables.FirstOrDefault(v => v.Name == key)
-                ?? throw new InvalidOperationException($"{materialPath}: '{key}' is not a parameter of {vmat.Shader}.");
-            if (variable.Type == ShaderVariable.Texture2D)
-                continue;
-            switch (variable.Type)
-            {
-                case ShaderVariable.Float:
-                    floats.Add((key, float.Parse(value, System.Globalization.CultureInfo.InvariantCulture)));
-                    break;
-                case 3 or 4:
-                    vectors.Add((key, ParseVector(value, materialPath, key)));
-                    break;
-                default:
-                    throw new InvalidOperationException($"{materialPath}: '{key}' has variable type {variable.Type}, not measured yet.");
-            }
+            if (key.StartsWith("F_", StringComparison.Ordinal) || key.StartsWith("g_n", StringComparison.Ordinal))
+                ints.Add((key, int.Parse(value, c)));
+            else if (key.StartsWith("g_fl", StringComparison.Ordinal))
+                floats.Add((key, float.Parse(value, c)));
+            else if (key.StartsWith("g_v", StringComparison.Ordinal))
+                vectors.Add((key, ParseVector(value, materialPath, key)));
+            else
+                throw new InvalidOperationException($"{materialPath}: '{key}' has a name RC's typing is not measured on.");
         }
+        ints.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+        floats.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+        vectors.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
 
         var root = KVObject.Collection();
         root.Add("m_materialName", new KVObject(materialPath));

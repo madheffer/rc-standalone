@@ -50,6 +50,11 @@ public class MaterialCompilerTests
     [InlineData("cx_vtex")]
     [InlineData("char")]
     [InlineData("unlit")]
+    [InlineData("cx_ao256")]
+    [InlineData("cx_tiny")]
+    [InlineData("cx_odd")]
+    [InlineData("cx_metal_noise")]
+    [InlineData("cx_order")]
     public void Vmat_CompilesToResourceCompilersBytes(string name)
     {
         if (Compile(name) is not { } result) { CS2Fixtures.Skip("shaders_pc_dir.vpk"); return; }
