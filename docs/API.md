@@ -52,7 +52,13 @@ ones) is a separate API, `CompiledResource`; compiling and editing do not share 
 ## Order of work (2026-10-13)
 
 1. This facade. Done.
-2. `.vmat`, `.vmdl` and `.vtex` compiled from their sources, byte for byte.
-3. A NuGet package with public API tracking; the vendored copy retires.
+2. `.vmat`, `.vmdl` and `.vtex` byte for byte. `.vtex`: done on the measured settings
+   (TEXTURES.md). `.vmat`: the material on every probe, its children for the Box mip family;
+   normal maps (`HemiOctIsoRoughness_RG_B`) and alpha-weighted colour wait for RC's decompile
+   (MATERIALS.md). `.vmdl`: editing through `Meshes.CompiledModel` (MESHES.md); compiling from
+   ModelDoc sources is roadmap.
+3. A NuGet package. Packs and restores (CONSUMING.md); the vendored copy retires when step 4
+   switches vpkstuff to it. Public API tracking (PublicApiAnalyzers) is left out while the
+   surface is 0.x and several agents edit it.
 4. vpkstuff's call sites move onto the package, and VRF leaves vpkstuff.
 5. The map compiler, ported off VRF, registers its types.
