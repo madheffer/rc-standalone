@@ -201,7 +201,7 @@ public class Source2ContainerAuthorTests
         // migration, so a RAW legacy vpcf source compiles to the legacy schema
         // under its own declared GUID. The product path (decompile a compiled
         // vpcf, edit, recompile) starts from already-migrated text and is
-        // unaffected. Tracked in docs/RESOURCES.md.
+        // unaffected. Tracked in docs/PARTICLE_MIGRATION.md.
         if (!sourceName.EndsWith(".vpcf", StringComparison.OrdinalIgnoreCase))
         {
             Assert.Equal(ResourceTrees.Render(valve), ResourceTrees.Render(mine));

@@ -303,6 +303,7 @@ and recompiling round-trips it.
 
 The parity test exempts `.vpcf` from the tree comparison for exactly this reason
 and says so at the assertion.
+Roadmap for closing it: `PARTICLE_MIGRATION.md`.
 
 ### G3 — RERL superset on unresolvable refs (benign, understood)
 
