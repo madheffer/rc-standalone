@@ -37,11 +37,29 @@ against RC's bytes rather than taken from source:
 `MeshoptCodecTests` round-trips synthetic data and re-encodes RC's buffers from the first
 1,500 models of pak01 when CS2 is installed.
 
+## Which buffers RC compresses
+
+Current compiles (`m_nMeshoptMeshletEncodeVersion -1`): an index buffer is meshopt-encoded
+exactly when that is smaller than its raw bytes (1,535 of 1,535 compressed are smaller, 31 of
+31 raw would be larger). A vertex buffer the same, except on meshes with morphs and three or
+more vertex buffers, which stay raw (186) while morph meshes with one or two are compressed
+(37); that rule is observed, not settled.
+
+## Editing: `Meshes.CompiledModel`
+
+`CompiledModel.Read(bytes)` gives DATA and CTRL as trees, `Meshes` (each with its MDAT tree,
+`Resource.Kv3At(m_nDataBlock)`), and each buffer's `Read()` (decoded) and `Write(elements,
+count)`: a buffer RC compressed is encoded again when that is smaller, a raw one stays raw, and
+the descriptor's count and flag change only when they differ, so CTRL keeps its bytes when
+nothing about it changed. `CompiledModelTests`: an unedited model writes back byte for byte;
+every buffer of 1,490 current-compile models read and stored again (1,720 buffers) gives RC's
+file byte for byte; an edited vertex buffer reads back edited.
+
 ## Open
 
 - v0 vertex encoding (older compiles only; meshoptimizer 0.18.1 matches 6 of 40, so Valve's
   encoder for those was another version). Not needed for new output.
 - The zstd layer (`m_bCompressedZSTD`) and meshlet encodings (`m_nMeshoptMeshletEncodeVersion`
   other than -1), seen on a few buffers.
-- Wiring: typed model views that decode a buffer, let a caller edit it, and write it back
-  through these encoders with the CTRL descriptor kept consistent.
+- Typed accessors for the rest of what vpkstuff edits (draw-call materials, mesh group masks,
+  skeleton, attachments, anim includes), over the trees `CompiledModel` already exposes.

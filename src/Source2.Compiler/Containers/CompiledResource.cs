@@ -61,11 +61,20 @@ public sealed class CompiledResource
     /// <summary>The format (schema GUID) of the first <paramref name="type"/> block, when it is KV3.</summary>
     public KV3ID? Kv3Format(string type) => Document(type)?.Header?.Format;
 
-    private KVDocument? Document(string type)
+    /// <summary>
+    /// The tree of the block at <paramref name="index"/> in <see cref="ResourceFile.Blocks"/>, when it
+    /// is KV3: for types a resource repeats (a model's MDAT per embedded mesh). Edits are written
+    /// like those through <see cref="Kv3(string)"/>.
+    /// </summary>
+    public KVObject? Kv3At(int index) => Document(File.Blocks[index])?.Root;
+
+    /// <summary>Replace the bytes of the block at <paramref name="index"/>, keeping its type and place.</summary>
+    public void SetRawAt(int index, byte[] data) => File.Blocks[index] = new ResourceBlock(File.Blocks[index].Type, data);
+
+    private KVDocument? Document(string type) => File[type] is { } block ? Document(block) : null;
+
+    private KVDocument? Document(ResourceBlock block)
     {
-        var block = File[type];
-        if (block is null)
-            return null;
         if (_decoded.TryGetValue(block, out var cached))
             return cached.Document;
         if (!Kv3Binary.IsKv3(block.Data))

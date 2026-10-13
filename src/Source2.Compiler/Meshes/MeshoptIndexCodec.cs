@@ -156,7 +156,7 @@ public static class MeshoptIndexCodec
             uint v = (d << 1) ^ (uint)((int)d >> 31);
             do
             {
-                data.Add((byte)((v & 127) | (v > 127 ? 128 : 0)));
+                data.Add((byte)((v & 127) | (v > 127 ? 128u : 0u)));
                 v >>= 7;
             } while (v != 0);
             last = index;
