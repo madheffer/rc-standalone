@@ -38,8 +38,11 @@ def quarter(a):
     m = max(1, H // 2)
     if W % 2 == 0 and H % 2 == 0:
         p, q, r, s = a[0::2, 0::2], a[0::2, 1::2], a[1::2, 0::2], a[1::2, 1::2]
-        # column pairs first: only the float reflectivity shows the order
-        return (((p + r) + (q + s)) * f(0.25)).astype(f)
+        # column pairs first; the SSE path (output width a multiple of 4, at least 8) adds the two
+        # pairs, the scalar path adds left to right after the first pair (captured, 1812764c0)
+        if n % 4 == 0 and n >= 8:
+            return (((p + r) + (q + s)) * f(0.25)).astype(f)
+        return ((((p + r) + q) + s) * f(0.25)).astype(f)
     if not (n * 2 + 1 == W or n * 2 == W) or not (m * 2 + 1 == H or m * 2 == H):
         out = np.zeros((m, n) + a.shape[2:], f)
         for y in range(m):
@@ -56,10 +59,12 @@ def quarter(a):
             c0, c1, c2 = min(2 * x, W - 1), min(2 * x + 1, W - 1), min(2 * x + 2, W - 1)
             w0 = f(n - x) * iw; w1 = f(n) * iw; w2 = f(x + 1) * iw
             P = lambda r, c: a[r, c]
-            mid = ((w2 * P(r1, c2) + w0 * P(r1, c0)) + w1 * P(r1, c1)).astype(f)
-            top = ((w1 * P(r0, c1) + w0 * P(r0, c0)) + w2 * P(r0, c2)).astype(f)
-            bot = ((w2 * P(r2, c2) + w1 * P(r2, c1)) + w0 * P(r2, c0)).astype(f)
-            out[y, x] = ((mid * f(m) * ih + top * f(m - y) * ih) + bot * f(y + 1) * ih).astype(f)
+            # captured (180c42690): every row adds c0, c1 then c2; each row factor is one product
+            top = ((w0 * P(r0, c0) + w1 * P(r0, c1)) + w2 * P(r0, c2)).astype(f)
+            mid = ((w0 * P(r1, c0) + w1 * P(r1, c1)) + w2 * P(r1, c2)).astype(f)
+            bot = ((w0 * P(r2, c0) + w1 * P(r2, c1)) + w2 * P(r2, c2)).astype(f)
+            ft, fm, fb = f(m - y) * ih, f(m) * ih, f(y + 1) * ih
+            out[y, x] = ((top * ft + mid * fm) + bot * fb).astype(f)
     return out
 
 def write8(v):

@@ -76,16 +76,38 @@ public class RcTextureParityTests
     public void EveryMip_MatchesResourceCompiler(string png, string vtexC, string format, int mips)
         => AssertMips(png, vtexC, format, mips);
 
+    // ATI1N/ATI2N are linear: weights 1, and the linear loader (v * (1/255f) on a width that is
+    // a multiple of 4).
     [Theory]
     [InlineData("ati1n.vtex_c", AtiCompress.Format.Ati1n)]
     [InlineData("ati2n.vtex_c", AtiCompress.Format.Ati2n)]
-    public void AtiMip0_MatchesResourceCompiler(string vtexC, AtiCompress.Format format)
+    public void AtiEveryMip_MatchesResourceCompiler(string vtexC, AtiCompress.Format format)
     {
         var (rgba, w, h) = LoadPng("probe.png");
+        var levels = RcMipChain.Build(rgba, w, h, srgb: false);
         var file = File.ReadAllBytes(Fixture(vtexC));
-        var mine = AtiCompress.Compress(ToBgra(rgba), w, h, format, perceptual: false);
-        // mip 0 is the last thing in the file
-        Assert.True(file.AsSpan(file.Length - mine.Length).SequenceEqual(mine));
+        int bs = AtiCompress.BlockSize(format), mips = 7;
+        int Size(RcMipChain.Level l) => ((l.Width + 3) / 4) * ((l.Height + 3) / 4) * bs;
+        int at = file.Length;
+        for (int i = 0; i < mips; i++)
+        {
+            at -= Size(levels[i]);
+            var mine = AtiCompress.Compress(ToBgra(RcMipChain.WriteRgba8(levels[i], srgb: false)),
+                levels[i].Width, levels[i].Height, format, perceptual: false);
+            Assert.True(file.AsSpan(at, mine.Length).SequenceEqual(mine), $"{vtexC}: mip {i} differs");
+        }
+    }
+
+    [Theory]
+    [InlineData("ati1n.vtex_c")]
+    [InlineData("ati2n.vtex_c")]
+    public void LinearFallback_MatchesResourceCompiler(string vtexC)
+    {
+        var (rgba, w, h) = LoadPng("probe.png");
+        var levels = RcMipChain.Build(rgba, w, h, srgb: false);
+        var mine = AtiCompress.Compress(ToBgra(RcMipChain.FallbackRgba8(levels, srgb: false, clamp: false)), 32, 32,
+            AtiCompress.Format.Dxt5, perceptual: false);
+        Assert.Equal(Header(vtexC).Fallback, mine);
     }
 
     // FALLBACK_BITS is the first extra-data payload; each entry's offset counts from its own field.
@@ -123,16 +145,19 @@ public class RcTextureParityTests
         Assert.Equal(Header(vtexC).Fallback, mine);
     }
 
-    // Reflectivity is the 1x1 level, float for float. Open: on 300x200 one channel is a bit off
-    // (docs/TEXTURES.md), so that probe is not listed.
+    // Reflectivity is the 1x1 level, float for float.
     [Theory]
-    [InlineData("probe.png", "rgba.vtex_c")]
-    [InlineData("probe_7x5.png", "rgba_7x5.vtex_c")]
-    [InlineData("probe_opaque.png", "dxt1_opaque.vtex_c")]
-    public void Reflectivity_IsTheOneByOneLevel(string png, string vtexC)
+    [InlineData("probe.png", "rgba.vtex_c", true)]
+    [InlineData("probe_npot.png", "rgba_npot.vtex_c", true)]
+    [InlineData("probe_npot.png", "dxt1_npot.vtex_c", true)]
+    [InlineData("probe_7x5.png", "rgba_7x5.vtex_c", true)]
+    [InlineData("probe_opaque.png", "dxt1_opaque.vtex_c", true)]
+    [InlineData("probe.png", "ati1n.vtex_c", false)]
+    [InlineData("probe.png", "ati2n.vtex_c", false)]
+    public void Reflectivity_IsTheOneByOneLevel(string png, string vtexC, bool srgb)
     {
         var (rgba, w, h) = LoadPng(png);
-        var oneByOne = RcMipChain.Build(rgba, w, h, srgb: true)[^1].Rgba;
+        var oneByOne = RcMipChain.Build(rgba, w, h, srgb)[^1].Rgba;
         Assert.Equal(Header(vtexC).Reflectivity.Select(BitConverter.SingleToInt32Bits),
             oneByOne.Select(BitConverter.SingleToInt32Bits));
     }

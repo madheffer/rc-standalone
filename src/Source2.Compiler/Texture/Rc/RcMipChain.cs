@@ -54,21 +54,25 @@ public static class RcMipChain
     public sealed record Level(int Width, int Height, float[] Rgba);
 
     /// <summary>
-    /// The full chain down to 1x1. RGB goes through the gamma table when <paramref name="srgb"/>,
-    /// else <c>v / 255f</c>; alpha is always <c>v / 255f</c>. Linear RGB below mip 0 is not
-    /// settled yet (docs/TEXTURES.md).
+    /// The full chain down to 1x1. RGB goes through the gamma table when <paramref name="srgb"/>;
+    /// see the loader rules below for everything else.
     /// </summary>
     public static List<Level> Build(ReadOnlySpan<byte> rgba, int width, int height, bool srgb)
     {
+        // FloatBitMap_t::LoadFromBuffer, RGBA8888. sRGB (180c34560): the gamma table, alpha v / 255f.
+        // Linear (180c32920): a width that is a multiple of 4 goes through SSE as v * (1/255f),
+        // any other width is scalar v / 255f, all four channels.
+        bool simd = !srgb && width >= 4 && width % 4 == 0;
         var top = new float[width * height * 4];
         for (int i = 0; i < width * height; i++)
         {
-            for (int c = 0; c < 3; c++)
+            for (int c = 0; c < 4; c++)
             {
                 byte v = rgba[i * 4 + c];
-                top[i * 4 + c] = srgb ? GammaToLinear[v] : v / 255f;
+                top[i * 4 + c] = srgb && c < 3 ? GammaToLinear[v]
+                    : simd ? v * (1f / 255f)
+                    : v / 255f;
             }
-            top[i * 4 + 3] = rgba[i * 4 + 3] / 255f;
         }
         var levels = new List<Level> { new(width, height, top) };
         while (levels[^1].Width > 1 || levels[^1].Height > 1)
@@ -80,8 +84,8 @@ public static class RcMipChain
     /// <c>FloatBitMap_t::QuarterSize</c>: the new size is <c>w &gt; 3 ? w / 2 : 1</c> by
     /// <c>max(1, h / 2)</c>. Both sides even: a 2x2 box. A side that is odd and halves to
     /// <c>n</c> or rounds to it: a 3-tap filter per axis. Anything else (a side of 1): a clamped box.
-    /// The box adds each column pair first, <c>(TL + BL) + (TR + BR)</c>: it never moves a byte of
-    /// a mip, but the 1x1 level is the header's reflectivity, float for float.
+    /// Every level is float for float what RC holds (Frida captures of QuarterSize on 256x256,
+    /// 300x200, 7x5 and a linear ATI1N compile); the 1x1 level is the header's reflectivity.
     /// </summary>
     public static Level QuarterSize(Level src)
     {
@@ -93,10 +97,17 @@ public static class RcMipChain
 
         if (W % 2 == 0 && H % 2 == 0)
         {
+            // 1812764c0: the SSE loop (an output width that is a multiple of 4, at least 8) adds the
+            // two column pairs; the scalar loop adds the left pair, then TR, then BR.
+            bool sse = n % 4 == 0 && n >= 8;
             for (int y = 0; y < m; y++)
                 for (int x = 0; x < n; x++)
                     for (int c = 0; c < 4; c++)
-                        o[(y * n + x) * 4 + c] = ((P(2 * y, 2 * x, c) + P(2 * y + 1, 2 * x, c)) + (P(2 * y, 2 * x + 1, c) + P(2 * y + 1, 2 * x + 1, c))) * 0.25f;
+                    {
+                        float tl = P(2 * y, 2 * x, c), tr = P(2 * y, 2 * x + 1, c);
+                        float bl = P(2 * y + 1, 2 * x, c), br = P(2 * y + 1, 2 * x + 1, c);
+                        o[(y * n + x) * 4 + c] = (sse ? (tl + bl) + (tr + br) : ((tl + bl) + tr) + br) * 0.25f;
+                    }
             return new Level(n, m, o);
         }
 
@@ -124,12 +135,14 @@ public static class RcMipChain
             {
                 int c0 = Math.Min(2 * x, W - 1), c1 = Math.Min(2 * x + 1, W - 1), c2 = Math.Min(2 * x + 2, W - 1);
                 float w0 = (n - x) * iw, w1 = n * iw, w2 = (x + 1) * iw;
+                // 180c42690: each row adds c0, c1, then c2; each row factor is a single product.
+                float ft = (m - y) * ih, fm = m * ih, fb = (y + 1) * ih;
                 for (int c = 0; c < 4; c++)
                 {
-                    float mid = (w2 * P(r1, c2, c) + w0 * P(r1, c0, c)) + w1 * P(r1, c1, c);
-                    float top = (w1 * P(r0, c1, c) + w0 * P(r0, c0, c)) + w2 * P(r0, c2, c);
-                    float bot = (w2 * P(r2, c2, c) + w1 * P(r2, c1, c)) + w0 * P(r2, c0, c);
-                    o[(y * n + x) * 4 + c] = (mid * m * ih + top * (m - y) * ih) + bot * (y + 1) * ih;
+                    float top = (w0 * P(r0, c0, c) + w1 * P(r0, c1, c)) + w2 * P(r0, c2, c);
+                    float mid = (w0 * P(r1, c0, c) + w1 * P(r1, c1, c)) + w2 * P(r1, c2, c);
+                    float bot = (w0 * P(r2, c0, c) + w1 * P(r2, c1, c)) + w2 * P(r2, c2, c);
+                    o[(y * n + x) * 4 + c] = (top * ft + mid * fm) + bot * fb;
                 }
             }
         }
