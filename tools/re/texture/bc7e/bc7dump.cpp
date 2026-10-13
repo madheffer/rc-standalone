@@ -1,4 +1,5 @@
 // bc7dump <blocks> <out>: bc7e slowest + perceptual (RC's level 6) over 64-byte RGBA blocks.
+// Build: python src/Source2.Compiler/Native/bc7e/prepare.py --out tools/re/texture/bc7e, then ispc + cl as in Native/bc7e/build.ps1.
 #include <cstdio>
 #include <cstdint>
 #include <vector>

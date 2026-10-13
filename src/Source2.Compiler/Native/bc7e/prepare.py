@@ -26,7 +26,7 @@ def table(name):
 
 
 HELPERS = r'''
-// rcpps as a table (tools/re/texture/bc7e/prepare.py).
+// rcpps as a table (src/Source2.Compiler/Native/bc7e/prepare.py).
 #ifdef BC7E_RCP_INTEL
 static const uniform unsigned int32 RCP_TAB[4096] = {
 @INTEL@

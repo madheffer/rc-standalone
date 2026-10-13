@@ -41,7 +41,7 @@ foreach (var d in result.Diagnostics)
 | `.wav` | `SoundCompiler` | `.vsnd_c` | today's RC bytes |
 | `.svg` | `VectorGraphicCompiler` | `.vsvg_c` | today's RC bytes |
 | `.png` `.tga` `.jpg` `.bmp` `.webp` | `ImageTextureCompiler` | `.vtex_c` | no: the in-house path, until `.vtex` sources compile through the exact pipeline (TEXTURES.md) |
-| `.vtex` | planned | `.vtex_c` | the exact pipeline exists (mips, DXT/ATI, fallback); container and BC7 library left |
+| `.vtex` | `RcTexture.VtexCompiler` | `.vtex_c` | yes, on the measured settings (RGBA8888, DXT1/5, ATI1N/2N, BC7; one 2D input, Box mips); anything else is refused (TEXTURES.md) |
 | `.vmat` | planned | `.vmat_c` | |
 | `.vmdl` | planned | `.vmdl_c` | |
 | map sources | later, from the map branch | children of `.vpk` | |

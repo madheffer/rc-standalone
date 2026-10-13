@@ -49,9 +49,9 @@ public sealed class VtexCompiler : IResourceCompiler
         // "Found DXT5 texture with solid 255 alpha! Saving as a DXT1!"
         if (format == "DXT5" && AlphaIsSolid(rgba))
             format = "DXT1";
-        if (format == "BC7")
-            throw new InvalidOperationException(
-                "BC7 needs the native bc7e encoder (tools/re/texture/bc7e), which is not in this build yet.");
+        var options = request.Settings as VtexCompileSettings ?? new VtexCompileSettings();
+        if (format == "BC7" && Bc7e.Unavailable(options.Bc7Vendor) is { } why)
+            throw new InvalidOperationException(why);
 
         bool blockCompressed = format != "RGBA8888";
         var levels = RcMipChain.Build(rgba, width, height, settings.Srgb);
@@ -64,7 +64,7 @@ public sealed class VtexCompiler : IResourceCompiler
 
         var mipData = new byte[mips][];
         for (int i = 0; i < mips; i++)
-            mipData[i] = EncodeLevel(levels[i], format, settings.Srgb);
+            mipData[i] = EncodeLevel(levels[i], format, settings.Srgb, options.Bc7Vendor);
 
         ushort flags = 0;
         bool pow2 = (width & (width - 1)) == 0 && (height & (height - 1)) == 0;
@@ -118,8 +118,10 @@ public sealed class VtexCompiler : IResourceCompiler
         return new(ms.ToArray());
     }
 
-    private static byte[] EncodeLevel(RcMipChain.Level level, string format, bool srgb)
+    private static byte[] EncodeLevel(RcMipChain.Level level, string format, bool srgb, Bc7Vendor vendor)
     {
+        if (format == "BC7")
+            return Bc7e.EncodeBlocks(Bc7Blocks(level, srgb), perceptual: srgb, vendor);
         var rgba8 = RcMipChain.WriteRgba8(level, srgb);
         return format switch
         {
@@ -130,6 +132,30 @@ public sealed class VtexCompiler : IResourceCompiler
             "ATI2N" => AtiCompress.Compress(ToBgra(rgba8), level.Width, level.Height, AtiCompress.Format.Ati2n, false),
             _ => throw new InvalidOperationException($"Output format {format} is not compiled here yet."),
         };
+    }
+
+    // bc7e's input: 4x4 blocks in block order, each channel ROUND(clamp(x)*255) to nearest even
+    // (sRGB channels encoded first), a block past the edge repeating the last row and column.
+    private static byte[] Bc7Blocks(RcMipChain.Level level, bool srgb)
+    {
+        int bw = (level.Width + 3) / 4, bh = (level.Height + 3) / 4;
+        var o = new byte[bw * bh * 64];
+        int k = 0;
+        for (int by = 0; by < bh; by++)
+            for (int bx = 0; bx < bw; bx++)
+                for (int y = 0; y < 4; y++)
+                    for (int x = 0; x < 4; x++)
+                    {
+                        int px = Math.Min(bx * 4 + x, level.Width - 1), py = Math.Min(by * 4 + y, level.Height - 1);
+                        int src = (py * level.Width + px) * 4;
+                        for (int c = 0; c < 4; c++)
+                        {
+                            float v = level.Rgba[src + c];
+                            if (srgb && c < 3) v = RcMipChain.Encode(v);
+                            o[k++] = (byte)MathF.Round(MathF.Min(1f, MathF.Max(0f, v)) * 255f, MidpointRounding.ToEven);
+                        }
+                    }
+        return o;
     }
 
     // DATA: the 40-byte header, the extra-data table, the payloads, then the per-mip sizes that
@@ -216,6 +242,11 @@ public sealed class VtexCompiler : IResourceCompiler
         return (pixels, info.Width, info.Height);
     }
 }
+
+/// <summary>Options for <see cref="VtexCompiler"/> beyond the <c>.vtex</c> itself.</summary>
+/// <param name="Bc7Vendor">Whose <c>rcpps</c> BC7 reproduces: resourcecompiler's BC7 differs
+/// between AMD and Intel CPUs, and this picks which one the output matches on any machine.</param>
+public sealed record VtexCompileSettings(Bc7Vendor Bc7Vendor = Bc7Vendor.Amd);
 
 /// <summary>The part of a <c>.vtex</c> this compiler implements; anything else is refused.</summary>
 internal sealed record VtexSettings(string ImagePath, string Format, bool Srgb, bool NoLod)

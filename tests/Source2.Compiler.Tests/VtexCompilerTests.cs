@@ -41,6 +41,12 @@ public class VtexCompilerTests
     [InlineData("dxt5_7x5")]
     [InlineData("ati1n")]
     [InlineData("ati2n")]
+    [InlineData("bc7")]
+    [InlineData("bc7_4")]
+    [InlineData("bc7_7x5")]
+    [InlineData("bc7_nolod")]
+    [InlineData("bc7_npot")]
+    [InlineData("bc7_opaque")]
     public void VtexSource_CompilesToResourceCompilersBytes(string name)
     {
         var result = Compile(name, Images());
@@ -51,6 +57,20 @@ public class VtexCompilerTests
         Assert.Contains(result.InputDependencies, d => d.Path == $"materials/s2ctex/{name}.vtex" && d.Exists);
         Assert.Contains(result.InputDependencies, d => d.Path.EndsWith(".png") && d.Exists);
         Assert.Contains(result.InputDependencies, d => d.Path.EndsWith(".txt") && d.Optional && !d.Exists);
+    }
+
+    [Fact]
+    public void Bc7_IntelTable_CompilesTheSameLayout()
+    {
+        var amd = Compile("bc7", Images());
+        var intel = ResourceCompiler.CreateDefault().Compile(new CompileRequest("materials/s2ctex/bc7.vtex", File.ReadAllBytes(Fixture("bc7.vtex")))
+        {
+            SearchPath = "csgo_addons/vpkstuff_rc_probe",
+            Content = Images(),
+            Settings = new Source2.Compiler.RcTexture.VtexCompileSettings(Source2.Compiler.RcTexture.Bc7Vendor.Intel),
+        });
+        Assert.True(intel.Succeeded, string.Join("\n", intel.Diagnostics));
+        Assert.Equal(amd.Output!.Length, intel.Output!.Length);
     }
 
     [Fact]

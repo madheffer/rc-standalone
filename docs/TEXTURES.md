@@ -82,7 +82,7 @@ are exact IEEE). For `x = s * 2^e * 1.m` both vendors return `s * 2^-e * T[m]`, 
 checked (`tools/re/texture/bc7e/rcpedge.c`), and `T` depends only on the top 12 bits of `m` on
 AMD (Ryzen 7 7800X3D) and the top 11 on Intel (Core i5-8600); `rcpss` and 256-bit `vrcpps` agree
 with `rcpps`. The two tables differ on half of all mantissas. Under fast-math ISPC emits `a / b`
-as `iv = rcpps(b); a * (iv * (2 - b*iv))`, so `bc7e/prepare.py` rewrites each variable division
+as `iv = rcpps(b); a * (iv * (2 - b*iv))`, so `src/Source2.Compiler/Native/bc7e/prepare.py` rewrites each variable division
 as that expression with `iv` from `rcp_amd.txt` or `rcp_intel.txt` (`-DBC7E_RCP_INTEL`).
 `inv_n = 1.0f / ((float)N - 1)` stays a division: `N` is a constant at its call sites and ISPC
 folds it exactly. On 101,632 blocks (the 1024² probe, noise, gradients, flat and near-flat):
@@ -141,16 +141,31 @@ The C++ harness in `tools/re/texture/ati` is not a reference for every block: 2.
 harness's stack once differed from the DLL's on the first block of an image. The C# port zeroes
 them, which is what the DLL's output agrees with.
 
-## What is left to ship texture parity
+## `.vtex` sources: `RcTexture.VtexCompiler`
 
-1. The `.vtex_c` around the mips: header and flags, `COMPRESSED_MIP_SIZE` (present on 256x256 and
-   300x200, absent on both 7x5 files: its rule is not read yet), the RED2 of a `.vtex` source
-   (the image, a `.txt` sibling with CRC 0, the `.vtex`), and DXT5 on an opaque image written as
-   DXT1. Wire it as a new build path beside `BuildTexture`. The fallback (`FallbackRgba8`, then
-   DXT5) and reflectivity are in C# and tested.
-2. BC7 in the build: compile `bc7e_rcp.ispc` (both tables) as a native library for win-x64 and
-   linux-x64 beside `bc7enc_native` (ISPC in the worker image, or a committed prebuilt), with the
-   vendor as a build option, and replace `Bc7Native` on the parity path. The input is
-   `ROUND(clamp(x)*255)` and a partial block repeats its last pixel (above).
-3. Then the vpkstuff texture goldens: every one moves, so re-bless win-x64 and linux-x64 with the
+`ResourceCompiler` compiles a `.vtex` (KeyValues2 `CDmeVtex`) to resourcecompiler's bytes:
+every fixture in `tests/.../RcReference/textures` (RGBA8888, DXT1, DXT5, ATI1N, ATI2N and BC7 on
+256x256, 300x200, 7x5, 4x4, opaque and no-LOD probes) and the 1024x1024 BC7 probe are identical.
+
+- Mips stop before the shorter side drops under 4 when block compressed; RGBA8888 goes to 1x1.
+- `NO_LOD` (0x8) when `m_bNoLod`, or when block compressed and either side is not a power of two.
+- DXT5 with every alpha 255 is written as DXT1 (RC: "Found DXT5 texture with solid 255 alpha!").
+- `COMPRESSED_MIP_SIZE` only when the largest side is at least 33; each mip is LZ4 HC level 10
+  and kept compressed only when `c != 0 && raw*95 > c*100 && c < raw - 0x8000` (gameinfo
+  `CompressMinRatio 95`). No fixture compresses, so the method word of that case is unmeasured
+  and the compiler warns when it happens.
+- BC7 goes through `Native/bc7e` (`bc7e_s2c_{amd,intel}` in `prebuilt/`, built by `build.ps1` / `build.sh`
+  from `prepare.py` with ISPC 1.24, prebuilt for win-x64 and linux-x64 and shipped under
+  `runtimes/<rid>/native`). `VtexCompileSettings.Bc7Vendor` picks the table, AMD by default.
+  Block input: `ROUND(clamp(x)*255)` to nearest even, sRGB channels encoded first, a block past
+  the edge repeating the last row and column. It needs an x64 CPU with AVX2 and FMA.
+- Anything not measured is refused with an error naming the setting: other `.vtex` attributes,
+  several inputs or channels, channel remapping, mip algorithms other than Box, colour-space
+  conversion, cube/3D, and an image `.txt` sibling.
+
+## What is left
+
+1. The compressed-mip method word: a compressible probe (a mip at least 32 KB smaller after LZ4).
+2. The settings refused above, each measured against RC before it is accepted.
+3. The vpkstuff texture goldens: every one moves, so re-bless win-x64 and linux-x64 with the
    cause and check in game.
