@@ -152,8 +152,9 @@ every fixture in `tests/.../RcReference/textures` (RGBA8888, DXT1, DXT5, ATI1N, 
 - DXT5 with every alpha 255 is written as DXT1 (RC: "Found DXT5 texture with solid 255 alpha!").
 - `COMPRESSED_MIP_SIZE` only when the largest side is at least 33; each mip is LZ4 HC level 10
   and kept compressed only when `c != 0 && raw*95 > c*100 && c < raw - 0x8000` (gameinfo
-  `CompressMinRatio 95`). No fixture compresses, so the method word of that case is unmeasured
-  and the compiler warns when it happens.
+  `CompressMinRatio 95`); the method word is 1 when any mip is compressed, 0 otherwise
+  (rgba_flat512: mips 0-2 compressed, 128x128 and smaller raw; dxt1_flat512: mip 0
+  compressed, the 32 KB mip 1 raw since it cannot shrink by 32 KB; both byte-identical).
 - BC7 goes through `Native/bc7e` (`bc7e_s2c_{amd,intel}` in `prebuilt/`, built by `build.ps1` / `build.sh`
   from `prepare.py` with ISPC 1.24, prebuilt for win-x64 and linux-x64 and shipped under
   `runtimes/<rid>/native`). `VtexCompileSettings.Bc7Vendor` picks the table, AMD by default.
@@ -165,7 +166,6 @@ every fixture in `tests/.../RcReference/textures` (RGBA8888, DXT1, DXT5, ATI1N, 
 
 ## What is left
 
-1. The compressed-mip method word: a compressible probe (a mip at least 32 KB smaller after LZ4).
-2. The settings refused above, each measured against RC before it is accepted.
-3. The vpkstuff texture goldens: every one moves, so re-bless win-x64 and linux-x64 with the
+1. The settings refused above, each measured against RC before it is accepted.
+2. The vpkstuff texture goldens: every one moves, so re-bless win-x64 and linux-x64 with the
    cause and check in game.

@@ -47,6 +47,8 @@ public class VtexCompilerTests
     [InlineData("bc7_nolod")]
     [InlineData("bc7_npot")]
     [InlineData("bc7_opaque")]
+    [InlineData("rgba_flat512")]
+    [InlineData("dxt1_flat512")]
     public void VtexSource_CompilesToResourceCompilersBytes(string name)
     {
         var result = Compile(name, Images());

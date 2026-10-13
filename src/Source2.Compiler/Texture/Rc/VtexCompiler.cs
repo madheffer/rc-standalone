@@ -54,12 +54,7 @@ public sealed class VtexCompiler : IResourceCompiler
         if (format == "BC7" && Bc7e.Unavailable(options.Bc7Vendor) is { } why)
             throw new InvalidOperationException(why);
 
-        var (data, stored, anyCompressed) = BuildTexture(rgba, width, height, format, settings.Srgb, settings.NoLod, int.MaxValue, options.Bc7Vendor);
-        if (anyCompressed)
-            diagnostics.Add(new(DiagnosticSeverity.Warning,
-                "A mip compressed on disk; the COMPRESSED_MIP_SIZE method word for that case is not measured yet.",
-                request.SourcePath));
-
+        var (data, stored, _) = BuildTexture(rgba, width, height, format, settings.Srgb, settings.NoLod, int.MaxValue, options.Bc7Vendor);
         var specialDeps = Source2ContainerAuthor.TextureCompileDeps;
         var red2 = Source2ContainerAuthor.BuildTextureSourceEditInfo(request.SourcePath, request.Source,
             [(settings.ImagePath, imageBytes)], specialDeps, request.SearchPath);

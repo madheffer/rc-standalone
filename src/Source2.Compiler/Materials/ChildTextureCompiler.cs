@@ -93,10 +93,8 @@ internal static class ChildTextureCompiler
 
         var format = texture.OutputFormat;
         var first = decoded[texture.Inputs[0].FileName];
-        var (data, stored, anyCompressed) = VtexCompiler.BuildTexture(new RcMipChain.Level(width, height, packed), format, srgb,
+        var (data, stored, _) = VtexCompiler.BuildTexture(new RcMipChain.Level(width, height, packed), format, srgb,
             noLod: false, box3 ? 3 : int.MaxValue, vendor, (first.Width, first.Height));
-        if (anyCompressed)
-            throw new InvalidOperationException($"A mip of {texture.ChildPath} compresses on disk; that method word is not measured.");
         return VtexCompiler.WriteTexture(BuildRed2(texture, files, images, find, firstSearchPath), data, stored);
     }
 
