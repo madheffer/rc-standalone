@@ -108,9 +108,45 @@ names. They were logged by RC itself: the naming function (`18010ae53`) logs the
 (`cmove r9, rsi`, 4 bytes) and `0x10b0a8` (`je`, 6 bytes) to NOPs logs it on every compile and
 writes the same bytes as the stock DLL (checked on 5 outputs).
 
+## The `.vmat_c`: `Materials.MaterialCompiler`
+
+`ResourceCompiler` compiles a `.vmat` with `MaterialCompileSettings` (the game's
+`shaders_pc_dir.vpk`, and content mounts after the request's own: RC searches the addon, then
+`csgo`, then `core`). All seven probes are byte-identical to RC (`MaterialCompilerTests`).
+
+- DATA: the params the `.vmat` sets, in its order (F_ combos and int params as `m_intParams`,
+  type 1 as floats, types 3/4 as vectors), texture params by name, then
+  `RepresentativeTextureHeight/Width`: the colour texture's first image size, 1x1 when the
+  colour is a `.vtex` named directly.
+- RED2 input dependencies: the `.vmat`, every image (found in the first mount that has it) and
+  its optional `.txt` (recorded in the addon when absent, with its own mount and CRC when there:
+  core's `default_normal.txt`), sorted by path. Argument dependencies: RC's texture switches,
+  each image as `ImageArg` and `BinaryBlobArg`, a named `.vtex` as `ImageArg` only, sorted by
+  name. Special dependencies: `Material Compiler Version` 25, the texture compiler's (11, encode
+  quality user data 3, one entry per mip algorithm and image processor the children run:
+  `Box`/`Box3`/`ArtistDefined` add `Mip Box` 1, `ArtistDefinedOrAlphaWeighted` `Mip
+  AlphaWeighted` 1, `HemiOctIsoRoughness_RG_B` `Mip HemiOctAnisoRoughness` 3 and its own 1,
+  `NormalizeNormals` and `Inverse` `Image <name>` 1), the shader and the Depth mode's fallback
+  shader by their `m_nVersion`; sorted ignoring case.
+- `m_SearchableUserData`: the attributes of the VS, PS and PSRS programs for the material's
+  combo and for every mode the shader runs itself (a mode with no fallback, its static combo
+  settings applied: unlit's Depth mode, `S_MODE_DEPTH` 1, adds `DepthPassBatchID`), bools as
+  0/1, ints, floats, a texture attribute as the path of the texture its variable binds; vector
+  attributes (`LightSim_MaterialTint`) are not listed. Then the F_ values the `.vmat` sets,
+  `IsChildResource` 0, `shader`, and `RepresentativeTextureHeight/Width` beside
+  `RepresentativeTexture`. Sorted ignoring case. Expressions run in `Shaders.ShaderExpression`:
+  a material parameter is `1D` + MurmurHash2 of its lowercased name, seed `0x31415926`, its
+  value the `.vmat`'s or the shader default; branch targets are absolute offsets.
+- INSG `m_elems`: the union of the VS static combo's input signatures (every dynamic combo),
+  sorted by D3D semantic name, index, then element name. `m_depth_elems`: the same from the
+  Depth mode's fallback shader, or from the shader's own VS with the Depth mode's settings.
+- RERL: every texture param's resource, sorted by path.
+
 ## Open
 
-- The `.vmat` DATA, RED2 and INSG writers, SearchableUserData from the shader's attributes.
+- Which mode wins when two modes give an attribute different values (first seen, here).
+- The order of params of one kind when a `.vmat` sets several (file order, here; one each in the probes).
+- Compiling the children (below), so a `.vmat` compile also writes them.
 - Child `.vtex` compiles beyond Box: `ArtistDefined`, `Box3`, `ArtistDefinedOrAlphaWeighted`,
   `PreserveCoverage`, `HemiOctIsoRoughness_RG_B`, `AnisoRoughness_RG`, input processors
   `NormalizeNormals`, `Inverse`, `Mod2XCenter`, several inputs per texture, channel packing.

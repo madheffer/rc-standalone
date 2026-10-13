@@ -42,7 +42,7 @@ foreach (var d in result.Diagnostics)
 | `.svg` | `VectorGraphicCompiler` | `.vsvg_c` | today's RC bytes |
 | `.png` `.tga` `.jpg` `.bmp` `.webp` | `ImageTextureCompiler` | `.vtex_c` | no: the in-house path, until `.vtex` sources compile through the exact pipeline (TEXTURES.md) |
 | `.vtex` | `RcTexture.VtexCompiler` | `.vtex_c` | yes, on the measured settings (RGBA8888, DXT1/5, ATI1N/2N, BC7; one 2D input, Box mips); anything else is refused (TEXTURES.md) |
-| `.vmat` | planned | `.vmat_c` | in progress: how RC picks and names the child textures is settled (MATERIALS.md) |
+| `.vmat` | `Materials.MaterialCompiler` | `.vmat_c` | yes on the probes (7 of 7: complex, character, unlit); child textures named, not compiled yet (MATERIALS.md) |
 | `.vmdl` | planned | `.vmdl_c` | |
 | map sources | later, from the map branch | children of `.vpk` | |
 
