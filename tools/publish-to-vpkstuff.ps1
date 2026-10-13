@@ -33,7 +33,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-function Git([string]$dir) { & git -C $dir @args; if ($LASTEXITCODE -ne 0) { throw "git $args failed in $dir" } }
+function Invoke-Git([string]$dir) { & git -C $dir @args; if ($LASTEXITCODE -ne 0) { throw "git $args failed in $dir" } }
 $identity = @("-c", "user.email=madheffer@users.noreply.github.com", "-c", "user.name=embattled")
 
 # 1. a clean tree: the package is exactly this commit
@@ -55,8 +55,8 @@ if (-not (Test-Path $nupkg)) { throw "$nupkg was not produced" }
 # 3. a vpkstuff worktree on a new branch
 $branch = "chore/compiler-$version"
 if (-not $Worktree) { $Worktree = Join-Path (Split-Path $Vpkstuff -Parent) "vpkstuff-wt-compiler-$version" }
-Git $Vpkstuff fetch --quiet box
-Git $Vpkstuff worktree add --quiet -b $branch $Worktree $Base
+Invoke-Git $Vpkstuff fetch --quiet box
+Invoke-Git $Vpkstuff worktree add --quiet -b $branch $Worktree $Base
 Write-Host "worktree $Worktree on $branch (from $Base)"
 
 # 4. the folder feed
@@ -95,8 +95,8 @@ if ($switched) {
 }
 
 # 6. commit
-Git $Worktree add -A dotnet/packages docs/SOURCE2_COMPILER_PACKAGE.md
-if ($switched) { Git $Worktree add -A dotnet/Directory.Packages.props dotnet/vendor }
+Invoke-Git $Worktree add -A dotnet/packages docs/SOURCE2_COMPILER_PACKAGE.md
+if ($switched) { Invoke-Git $Worktree add -A dotnet/Directory.Packages.props dotnet/vendor }
 $message = @"
 chore(compiler): Source2.Compiler $version
 
@@ -110,5 +110,5 @@ Set-Content $tmp $message -Encoding utf8
 & git -C $Worktree @identity commit -q -F $tmp
 Remove-Item $tmp
 if ($LASTEXITCODE -ne 0) { throw "commit failed" }
-if ($Push) { Git $Worktree push --quiet box $branch }
+if ($Push) { Invoke-Git $Worktree push --quiet box $branch }
 Write-Host "done: $branch in $Worktree$(if ($Push) { ', pushed to box' } else { ' (not pushed)' })" -ForegroundColor Green
