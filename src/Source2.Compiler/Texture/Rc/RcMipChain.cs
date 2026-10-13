@@ -80,6 +80,8 @@ public static class RcMipChain
     /// <c>FloatBitMap_t::QuarterSize</c>: the new size is <c>w &gt; 3 ? w / 2 : 1</c> by
     /// <c>max(1, h / 2)</c>. Both sides even: a 2x2 box. A side that is odd and halves to
     /// <c>n</c> or rounds to it: a 3-tap filter per axis. Anything else (a side of 1): a clamped box.
+    /// The box adds each column pair first, <c>(TL + BL) + (TR + BR)</c>: it never moves a byte of
+    /// a mip, but the 1x1 level is the header's reflectivity, float for float.
     /// </summary>
     public static Level QuarterSize(Level src)
     {
@@ -94,7 +96,7 @@ public static class RcMipChain
             for (int y = 0; y < m; y++)
                 for (int x = 0; x < n; x++)
                     for (int c = 0; c < 4; c++)
-                        o[(y * n + x) * 4 + c] = ((P(2 * y, 2 * x, c) + P(2 * y, 2 * x + 1, c)) + (P(2 * y + 1, 2 * x, c) + P(2 * y + 1, 2 * x + 1, c))) * 0.25f;
+                        o[(y * n + x) * 4 + c] = ((P(2 * y, 2 * x, c) + P(2 * y + 1, 2 * x, c)) + (P(2 * y, 2 * x + 1, c) + P(2 * y + 1, 2 * x + 1, c))) * 0.25f;
             return new Level(n, m, o);
         }
 
@@ -132,6 +134,84 @@ public static class RcMipChain
             }
         }
         return new Level(n, m, o);
+    }
+
+    /// <summary>
+    /// <c>FloatBitMap_t</c> bilinear resample (181279940): sample centres at
+    /// <c>(i + 0.5) * src / dst</c>, accumulated in float; wrap unless <paramref name="clamp"/>.
+    /// </summary>
+    public static Level Resize(Level img, int nw, int nh, bool clamp)
+    {
+        if (nw == img.Width && nh == img.Height)
+            return img;
+        var o = new float[nw * nh * 4];
+        float sx = (float)img.Width / nw, sy = (float)img.Height / nh;
+        float fy = (float)img.Height / nh * 0.5f;
+        Span<float> px = stackalloc float[4];
+        for (int y = 0; y < nh; y++)
+        {
+            float fx = (float)img.Width / nw * 0.5f;
+            for (int x = 0; x < nw; x++)
+            {
+                Sample(img, fx, fy, clamp, px);
+                px.CopyTo(o.AsSpan((y * nw + x) * 4, 4));
+                fx += sx;
+            }
+            fy += sy;
+        }
+        return new Level(nw, nh, o);
+    }
+
+    private static void Sample(Level img, float fx, float fy, bool clamp, Span<float> px)
+    {
+        int W = img.Width, H = img.Height;
+        int x0, x1, y0, y1;
+        float tx, ty;
+        fx -= 0.5f;
+        if (!clamp)
+        {
+            if (fx < 0) fx += W;
+            fy -= 0.5f;
+            if (fy < 0) fy += H;
+            x0 = (int)MathF.Floor(fx); x1 = x0 + 1; tx = fx - x0;
+            if (x1 >= W) x1 -= W;
+            y0 = (int)MathF.Floor(fy); y1 = y0 + 1; ty = fy - y0;
+            if (y1 >= H) y1 -= H;
+        }
+        else
+        {
+            tx = MathF.Min(MathF.Max(0f, fx), W - 1);
+            ty = MathF.Min(MathF.Max(0f, fy - 0.5f), H - 1);
+            x0 = (int)MathF.Floor(tx); x1 = Math.Min(x0 + 1, W - 1); tx -= x0;
+            y0 = (int)MathF.Floor(ty); y1 = Math.Min(y0 + 1, H - 1); ty -= y0;
+        }
+        var a = img.Rgba;
+        for (int c = 0; c < 4; c++)
+        {
+            float p00 = a[(y0 * W + x0) * 4 + c], p01 = a[(y0 * W + x1) * 4 + c];
+            float p10 = a[(y1 * W + x0) * 4 + c], p11 = a[(y1 * W + x1) * 4 + c];
+            float top = (p01 - p00) * tx + p00;
+            float bot = (p11 - p10) * tx + p10;
+            px[c] = (bot - top) * ty + top;
+        }
+    }
+
+    /// <summary>
+    /// The 32x32 <c>FALLBACK_BITS</c> image, as 8-bit RGBA: the smallest mip whose shorter side
+    /// is still at least 32 (mip 0 when none is), gamma-encoded when sRGB, resampled to 32x32 and
+    /// written. RC then compresses it as DXT5 with perceptual weights.
+    /// </summary>
+    public static byte[] FallbackRgba8(IReadOnlyList<Level> levels, bool srgb, bool clamp)
+    {
+        var pick = levels[0];
+        foreach (var l in levels)
+            if (Math.Min(l.Width, l.Height) >= 32)
+                pick = l;
+        var encoded = new float[pick.Rgba.Length];
+        for (int i = 0; i < encoded.Length; i++)
+            encoded[i] = srgb && i % 4 < 3 ? Encode(pick.Rgba[i]) : pick.Rgba[i];
+        var small = Resize(new Level(pick.Width, pick.Height, encoded), 32, 32, clamp);
+        return WriteRgba8(small, srgb: false);
     }
 
     /// <summary>

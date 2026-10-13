@@ -87,4 +87,53 @@ public class RcTextureParityTests
         // mip 0 is the last thing in the file
         Assert.True(file.AsSpan(file.Length - mine.Length).SequenceEqual(mine));
     }
+
+    // FALLBACK_BITS is the first extra-data payload; each entry's offset counts from its own field.
+    private static (float[] Reflectivity, byte[] Fallback) Header(string vtexC)
+    {
+        var file = File.ReadAllBytes(Fixture(vtexC));
+        int blockOffset = BitConverter.ToInt32(file, 8), blockCount = BitConverter.ToInt32(file, 12);
+        int data = -1;
+        for (int i = 0; i < blockCount; i++)
+        {
+            int p = 8 + blockOffset + i * 12;
+            if (System.Text.Encoding.ASCII.GetString(file, p, 4) == "DATA")
+                data = p + 4 + BitConverter.ToInt32(file, p + 4);
+        }
+        var reflectivity = Enumerable.Range(0, 4).Select(i => BitConverter.ToSingle(file, data + 4 + i * 4)).ToArray();
+        int entry = data + 32 + BitConverter.ToInt32(file, data + 32);
+        int payload = entry + 4 + BitConverter.ToInt32(file, entry + 4);
+        return (reflectivity, file.AsSpan(payload, 1024).ToArray());
+    }
+
+    [Theory]
+    [InlineData("probe.png", "rgba.vtex_c")]
+    [InlineData("probe.png", "dxt1.vtex_c")]
+    [InlineData("probe.png", "dxt5.vtex_c")]
+    [InlineData("probe_npot.png", "dxt1_npot.vtex_c")]
+    [InlineData("probe_7x5.png", "rgba_7x5.vtex_c")]
+    [InlineData("probe_7x5.png", "dxt5_7x5.vtex_c")]
+    [InlineData("probe_opaque.png", "dxt1_opaque.vtex_c")]
+    public void Fallback_MatchesResourceCompiler(string png, string vtexC)
+    {
+        var (rgba, w, h) = LoadPng(png);
+        var levels = RcMipChain.Build(rgba, w, h, srgb: true);
+        var mine = AtiCompress.Compress(ToBgra(RcMipChain.FallbackRgba8(levels, srgb: true, clamp: false)), 32, 32,
+            AtiCompress.Format.Dxt5, perceptual: true);
+        Assert.Equal(Header(vtexC).Fallback, mine);
+    }
+
+    // Reflectivity is the 1x1 level, float for float. Open: on 300x200 one channel is a bit off
+    // (docs/TEXTURES.md), so that probe is not listed.
+    [Theory]
+    [InlineData("probe.png", "rgba.vtex_c")]
+    [InlineData("probe_7x5.png", "rgba_7x5.vtex_c")]
+    [InlineData("probe_opaque.png", "dxt1_opaque.vtex_c")]
+    public void Reflectivity_IsTheOneByOneLevel(string png, string vtexC)
+    {
+        var (rgba, w, h) = LoadPng(png);
+        var oneByOne = RcMipChain.Build(rgba, w, h, srgb: true)[^1].Rgba;
+        Assert.Equal(Header(vtexC).Reflectivity.Select(BitConverter.SingleToInt32Bits),
+            oneByOne.Select(BitConverter.SingleToInt32Bits));
+    }
 }

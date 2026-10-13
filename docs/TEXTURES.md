@@ -17,7 +17,8 @@ Every value of every mip of the RGBA8888 probes (256², 300x200, 7x5) matches.
    Alpha and linear channels are `v / 255.0f`.
 2. **Downsample** (`FloatBitMap_t::QuarterSize` 180c43450), each level from the previous one in
    float, never re-quantized. The new size is `w > 3 ? w / 2 : 1` by `max(1, h / 2)`.
-   - both sides even: 2x2 box, `((a + b) + (c + d)) * 0.25f` (a, b the top row).
+   - both sides even: 2x2 box, `((TL + BL) + (TR + BR)) * 0.25f`, column pairs first. The order
+     never moves a byte of a mip; the float reflectivity is what settled it.
    - a side is odd and the new size is `2n` or `2n + 1` of it (180c42690): a 3-tap filter per
      axis, taps `2x, 2x+1, 2x+2` (clamped) weighted `(n-x)/W, n/W, (x+1)/W` with `W` the source
      size. The weights sum to `(2n+1)/W`, so an even side next to an odd one is scaled by
@@ -35,7 +36,10 @@ under 4 (256² BC7: 7 mips, 300x200: 6, 7x5: 1).
 
 ## Header
 
-- Reflectivity is the 1x1 level in float, linear, alpha included (so 1.5 for the 7x5 probe).
+- Reflectivity is the 1x1 level in float, linear, alpha included (so 1.5 for the 7x5 probe):
+  exact on 256x256, opaque and 7x5. Open: on 300x200 the green channel is one bit off although
+  every byte of every mip matches; no box, 3-tap or tail order tried reproduces it, so the box
+  worker (1812764c0, strided, threaded per row range) needs reading properly.
 - Extra data: `FALLBACK_BITS` then `COMPRESSED_MIP_SIZE`; no `METADATA`.
 - Flag 0x8 (NO_LOD) comes from `m_bNoLod`, and is forced on a block-compressed texture whose
   sides are not powers of two.
@@ -115,9 +119,11 @@ them, which is what the DLL's output agrees with.
 
 ## What is left to ship texture parity
 
-1. The `.vtex_c` around the mips: header (reflectivity from the 1x1 level, flags), the fallback
-   (32x32 bilinear, DXT5), `COMPRESSED_MIP_SIZE`, the RED2 of a `.vtex` source, and DXT5 on an
-   opaque image written as DXT1. Wire it as a new build path beside `BuildTexture`.
+1. The `.vtex_c` around the mips: header and flags, `COMPRESSED_MIP_SIZE` (present on 256x256 and
+   300x200, absent on both 7x5 files: its rule is not read yet), the RED2 of a `.vtex` source
+   (the image, a `.txt` sibling with CRC 0, the `.vtex`), and DXT5 on an opaque image written as
+   DXT1. Wire it as a new build path beside `BuildTexture`. The fallback (`FallbackRgba8`, then
+   DXT5) and reflectivity are in C# and tested.
 2. BC7: bc7e level 6, perceptual, as a native ISPC build (avx2-i32x4, fast-math); decide whether to
    match the AMD reference machine or emulate `rcpps` so the output does not depend on the CPU.
 3. ATI1N/ATI2N below mip 0: compile a linear RGBA8888 probe with RC and settle the linear chain.

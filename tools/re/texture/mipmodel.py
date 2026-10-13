@@ -38,7 +38,8 @@ def quarter(a):
     m = max(1, H // 2)
     if W % 2 == 0 and H % 2 == 0:
         p, q, r, s = a[0::2, 0::2], a[0::2, 1::2], a[1::2, 0::2], a[1::2, 1::2]
-        return (((p + q) + (r + s)) * f(0.25)).astype(f)
+        # column pairs first: only the float reflectivity shows the order
+        return (((p + r) + (q + s)) * f(0.25)).astype(f)
     if not (n * 2 + 1 == W or n * 2 == W) or not (m * 2 + 1 == H or m * 2 == H):
         out = np.zeros((m, n) + a.shape[2:], f)
         for y in range(m):
