@@ -1,0 +1,8 @@
+# fetched by prepare.py (Compressonator 2.3, MIT) and build outputs
+xcodec23.cpp
+hs/CompressonatorXCodec.h
+*.exe
+*.obj
+*.bin
+*.bgra
+*.f32

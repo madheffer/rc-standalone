@@ -55,8 +55,8 @@ The smallest mip whose shorter side is still at least 32 (mip 0 when none is), r
 | format | encoder | settings | measured |
 |---|---|---|---|
 | BC7 | `bc7e.dll` (bc7enc_rdo `bc7e.ispc`, Apache 2.0) | level from encode quality (0→1, 1→2, 2→3, 3/4→6); RC as a console app uses quality 3, so level 6 = `init_slowest`; perceptual for sRGB | 4096/4096 with current `bc7e.ispc`, `--opt=fast-math`, target `avx2-i32x4` |
-| DXT1, DXT3, DXT5 | `ati_compress_wrapper.dll` (`ATI_TC_ConvertTexture`) | channel weighting on, weights 0.3086 / 0.6094 / 0.0820 when perceptual else 1, adaptive weighting on, speed normal; ATI formats 0xF / 0x10 / 0x11 | 4096/4096 |
-| ATI1N, ATI2N | same | ATI formats 0x1F, 0x20, weights 1 | 4096/4096 |
+| DXT1, DXT3, DXT5 | `ati_compress_wrapper.dll` (`ATI_TC_ConvertTexture`) = Compressonator 2.3's SSE2 codec | channel weighting and adaptive weighting on, weights 0.3086 / 0.6094 / 0.0820 when perceptual else 1, speed normal; ATI formats 0xF / 0x10 / 0x11 | every block of every mip, all probes |
+| ATI1N, ATI2N | same | ATI formats 0x1F, 0x20, weights 1 | mip 0 exact; lower mips open (below) |
 
 The BC7 blocks are input as `ROUND(clamp(x)*255)` (nearest even), a partial block repeating its
 last pixel. `bc7e.dll` dispatches on the CPU (sse2, sse4, avx, avx2 at 4 lanes): fast-math lets
@@ -64,15 +64,39 @@ ISPC use `rcpps`, whose estimate differs between AMD and Intel, and the avx2 pat
 multiply-adds. Valve's own output therefore depends on the machine: the same build gives
 4096/4096 on the Ryzen that compiled the references and 3984/4096 on an Intel i5-8600.
 
-The "measured" column for DXT and ATI is Valve's own DLL called through ctypes with those options.
-ATI_TC is closed source (ATI_Compress, the ETC/ATC era, statically linked into
-`ati_compress_wrapper.dll`). Compressonator's open legacy codec (`compressonatorxcodec.cpp`,
-`CompRGBBlock`, `CompBlock1X`, the adaptive weighting) built with the same options matches only
-1213 (DXT1), 1070 (DXT5), 1246 (ATI1N) and 376 (ATI2N) of 4096 blocks. ATI1N endpoints follow the
-red channel in both, so the input is right and the search differs: on a block spanning 0..12 ATI_TC
-picks the 6-point ramp (3, 12) where Compressonator picks the 8-point one (11, 0). Next step is to
-decompile the DLL's alpha and RGB block compressors (imported into the Ghidra project as
-`/ati_compress_wrapper.dll`) and port those instead.
+## DXT and ATI: ATI_Compress, reproduced
+
+`FloatBitMap_t::WriteToBufferDXT_atitc` (180c48210) writes each mip with the RGBA8888 writer
+(rule 4, format 2) and hands it to `ATI_TC_ConvertTexture` as ARGB8888, pitch `w*4`, with the
+options above (doubles `0x3fd3c01a36e2eb1c`, `0x3fe380346dc5d639`, `0x3fb4fdf3b645a1cb` when the
+perceptual flag, bit 1 of the format flags, is set). The DLL is ATI_Compress of the ETC/ATC era.
+Its block code is Compressonator 2.3 (GPUOpen-Tools/compressonator tag `V2.3.2953`, MIT,
+`CompressonatorXCodec.cpp`) built with `USE_SSE`, the last release that still has the SSE2 paths;
+current Compressonator stripped them and matches only a third of the blocks. Three details make
+it exact (`tools/re/texture/ati`: `prepare.py` fetches and patches 2.3, `compare_dll.py` checks
+against the DLL):
+
+1. **Weights are squared.** `SetParameter` stores `w * w`, so the perceptual base weights reach
+   the codec as 0.3086^2, 0.6094^2, 0.0820^2.
+2. **Adaptive weighting reads bytes as pixels.** `CalculateColourWeightings(CMP_BYTE block[])`
+   takes `block[k] & 0xff0000` of single bytes: red and green medians are 0 and the blue median
+   is the sum of the first 16 bytes (all four channels of the first four pixels) / 16. Valve's
+   DLL has the same code (1800318f0).
+3. **The alpha refine sums two lanes.** Where `Refine1` inlines `RmpSrch1SSE2`, the compiled
+   horizontal add reads a register it has just zeroed, so only lanes 0 and 1 of the error count
+   (18003be80). The global search sums all four, as `(a1+a3)+(a0+a2)`.
+
+A partial block repeats its own valid pixels (`x % validW`, `y % validH`). A DXT5 request on an
+image whose alpha is 255 everywhere is written as DXT1 ("Found DXT5 texture with solid 255 alpha!
+Saving as a DXT1!"). Checked against fresh RC output: DXT1 every mip of 256x256, 300x200
+(scalar-writer widths included), opaque and 7x5; DXT5 every mip of 256x256; the 1024x1024 and
+4x4 probes against the DLL.
+
+**Open: ATI1N/ATI2N below mip 0.** Mip 0 is exact. The lower mips come from a linear RGB float
+chain that no probe has settled yet (the RGBA8888 probe is sRGB; only linear alpha, `v / 255.0f`
+then box, is verified). Box is the filter (mean decoded difference 0.55), but neither `v / 255`
+(662/1024 at mip 1), `v * (1/255)` (895), 8-bit integer averaging nor a float input path is
+exact. Next: compile a linear RGBA8888 probe with RC to read the chain directly.
 
 ## What is left to ship texture parity
 
@@ -80,6 +104,8 @@ decompile the DLL's alpha and RGB block compressors (imported into the Ghidra pr
    `tools/re/texture/mipmodel.py` (exact on every probe).
 2. BC7: bc7e level 6, perceptual, as a native ISPC build (avx2-i32x4, fast-math); decide whether to
    match the AMD reference machine or emulate `rcpps` so the output does not depend on the CPU.
-3. DXT1/3/5, ATI1N/2N: an exact port of ATI_TC (see above).
+3. DXT1/3/5, ATI1N/2N: port Compressonator 2.3's SSE2 codec with the three details above (exact
+   SSE semantics: `cvtps2dq` rounds to nearest even, no fused multiply-add); settle the linear
+   mip chain for ATI1N/2N.
 4. Validate every probe in `vpkstuff_rc_probe/materials/s2ctex` byte for byte, then the vpkstuff
    texture goldens.
