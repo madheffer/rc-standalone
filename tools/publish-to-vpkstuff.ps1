@@ -35,6 +35,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 function Invoke-Git([string]$dir) { & git -C $dir @args; if ($LASTEXITCODE -ne 0) { throw "git $args failed in $dir" } }
 $identity = @("-c", "user.email=madheffer@users.noreply.github.com", "-c", "user.name=embattled")
+# PowerShell 5.1's Set-Content -Encoding utf8 writes a BOM; vpkstuff's files and git messages have none
+function Write-Utf8([string]$path, [string]$text) { [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false)) }
 
 # 1. a clean tree: the package is exactly this commit
 if ((git -C $root status --porcelain) -ne $null) { throw "the source2-compiler tree has uncommitted changes; commit them first" }
@@ -74,11 +76,9 @@ $cpm = Join-Path $Worktree "dotnet\Directory.Packages.props"
 $vendorProps = Join-Path $Worktree "dotnet\vendor\Directory.Build.props"
 $switched = (Select-String -Path $cpm -Pattern 'PackageVersion Include="Source2.Compiler"' -Quiet)
 if ($switched) {
-  (Get-Content $cpm -Raw) -replace '(PackageVersion Include="Source2\.Compiler" Version=")[^"]*(")', "`${1}$version`${2}" |
-    Set-Content $cpm -NoNewline -Encoding utf8
+  Write-Utf8 $cpm ((Get-Content $cpm -Raw) -replace '(PackageVersion Include="Source2\.Compiler" Version=")[^"]*(")', "`${1}$version`${2}")
   if (Test-Path $vendorProps) {
-    (Get-Content $vendorProps -Raw) -replace '(<Source2CompilerPackageVersion>)[^<]*(</Source2CompilerPackageVersion>)', "`${1}$version`${2}" |
-      Set-Content $vendorProps -NoNewline -Encoding utf8
+    Write-Utf8 $vendorProps ((Get-Content $vendorProps -Raw) -replace '(<Source2CompilerPackageVersion>)[^<]*(</Source2CompilerPackageVersion>)', "`${1}$version`${2}")
   }
   $sync = Join-Path $Worktree "deploy\sync-source2-compiler.py"
   if (Test-Path $sync) {
@@ -106,7 +106,7 @@ into the dotnet/packages folder feed.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 "@
 $tmp = New-TemporaryFile
-Set-Content $tmp $message -Encoding utf8
+Write-Utf8 $tmp $message
 & git -C $Worktree @identity commit -q -F $tmp
 Remove-Item $tmp
 if ($LASTEXITCODE -ne 0) { throw "commit failed" }
