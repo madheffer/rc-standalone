@@ -20,7 +20,7 @@ public class MaterialCompilerTests
         return Path.Combine(dir ?? AppContext.BaseDirectory, "RcReference", "materials", name);
     }
 
-    private static CompileResult? Compile(string name)
+    private static CompileResult? Compile(string name, bool children = false)
     {
         if (CS2Fixtures.StockPak() is not { } pak)
             return null;
@@ -38,7 +38,7 @@ public class MaterialCompilerTests
                 ShaderPackage = Path.Combine(csgo, "shaders_pc_dir.vpk"),
                 Mounts = [new("csgo", new DirectoryContentSource(Path.Combine(game, "content", "csgo"))),
                           new("core", new DirectoryContentSource(Path.Combine(game, "content", "core")))],
-                CompileChildren = false,
+                CompileChildren = children,
             },
         });
     }
@@ -68,6 +68,31 @@ public class MaterialCompilerTests
         foreach (var block in new[] { "RED2", "DATA", "INSG" })
             Assert.Equal("", Diff(rc.Kv3(block)!, ours.Kv3(block)!, block));
         Assert.True(rcBytes.AsSpan().SequenceEqual(result.Output), $"{name}.vmat_c: trees equal, bytes differ");
+    }
+
+    /// <summary>The whole compile, children included: the material and every child texture equal RC's files.</summary>
+    [Theory]
+    [InlineData("cx_color")]
+    [InlineData("cx_full")]
+    [InlineData("cx_translucent")]
+    [InlineData("cx_params")]
+    [InlineData("cx_vtex")]
+    [InlineData("char")]
+    [InlineData("unlit")]
+    [InlineData("cx_ao256")]
+    [InlineData("cx_tiny")]
+    [InlineData("cx_odd")]
+    [InlineData("cx_metal_noise")]
+    [InlineData("cx_order")]
+    public void Vmat_WithChildren_CompilesToResourceCompilersFiles(string name)
+    {
+        if (Compile(name, children: true) is not { } result) { CS2Fixtures.Skip("shaders_pc_dir.vpk"); return; }
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        Assert.True(File.ReadAllBytes(Fixture($"compiled/{name}.vmat_c")).AsSpan().SequenceEqual(result.Output), $"{name}.vmat_c");
+        var rcChildren = CompiledResource.Read(result.Output!).Kv3("RED2")!["m_ChildResourceList"]!.Values.Select(v => (string)v + "_c").ToList();
+        Assert.Equal(rcChildren, result.Children.Select(c => c.Path).Order(StringComparer.Ordinal).ToList());
+        foreach (var child in result.Children)
+            Assert.True(File.ReadAllBytes(Fixture("compiled/" + Path.GetFileName(child.Path))).AsSpan().SequenceEqual(child.Bytes), child.Path);
     }
 
     /// <summary>Every child whose algorithms are ported, against RC's file; the rest are listed as pending.</summary>
@@ -103,7 +128,7 @@ public class MaterialCompilerTests
         // Known: odd_png (24x40) differs from RC only in the reflectivity's green, by one ulp:
         // our float 3x5 -> 1x2 step rounds differently (every 8-bit level matches). Settled by a
         // Frida capture of QuarterSize on that chain (docs/MATERIALS.md, open).
-        var known = new HashSet<string> { "odd_png_55b52af0.vtex" };
+        var known = new HashSet<string> { };
         foreach (var vmatFile in Directory.GetFiles(Path.GetDirectoryName(Fixture("color.png"))!, "*.vmat"))
         {
             var vmat = VmatSource.Parse(File.ReadAllBytes(vmatFile), vmatFile);

@@ -33,7 +33,7 @@ refused with an error naming it rather than guessed.
 | `.wav` | `.vsnd_c` | `SoundSettings` | yes |
 | `.svg` | `.vsvg_c` | `VectorGraphicSettings` | yes |
 | `.vtex` | `.vtex_c` | `RcTexture.VtexCompileSettings` | yes, RGBA8888, DXT1/5, ATI1N/2N, BC7 |
-| `.vmat` | `.vmat_c` + child `.vtex_c` | `Materials.MaterialCompileSettings` | the material on every probe; children for the Box mip family (normal maps not yet) |
+| `.vmat` | `.vmat_c` + child `.vtex_c` | `Materials.MaterialCompileSettings` | yes, material and child textures (normal maps, alpha-weighted colour included) |
 | images | `.vtex_c` | `ImageTextureSettings` | no (the in-house path) |
 
 A `.vmat` compile reads the game's compiled shaders (`MaterialCompileSettings.ShaderPackage`,
@@ -50,8 +50,9 @@ the game's `shaders_pc_dir.vpk`) and resolves shader default images through cont
 ## Native code
 
 BC7 runs Valve's encoder (bc7e) as a native library shipped in this package for win-x64 and
-linux-x64 (`runtimes/<rid>/native`); it needs an x64 CPU with AVX2 and FMA. BC7 output follows
-one CPU vendor's reciprocal estimate on every machine (`Bc7Vendor`, AMD by default). Images are
+linux-x64 (`runtimes/<rid>/native`); it needs an x64 CPU with AVX2 and FMA. BC7 and normal maps
+follow one CPU vendor's reciprocal estimates on every machine (`Bc7Vendor`, AMD by default),
+so output is the same wherever it runs. Images are
 decoded with SkiaSharp.
 
 ## License

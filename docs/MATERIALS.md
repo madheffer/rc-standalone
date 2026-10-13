@@ -168,18 +168,56 @@ DXT1, ATI1N and BC7, one and two inputs.
   arguments with `___OverrideInputData___` fingerprint = the logical CRC, default 0;
   `maxmipsize` fingerprint and default 1048576f; `IsChildResource` 1.
 
+## Normal maps and alpha weighting
+
+Read from the decompile of the 2026-09-23 build (`resourcecompiler_20260923.dll`, the Ghidra
+project's; the texture code is the same in later builds) and checked on RGBA8888 compiles of
+the same inputs, where every level is exact (`RcReference/textures/algorithms`,
+`RcMipAlgorithmTests`): every level and the reflectivity float for float.
+
+- `NormalizeNormals` (180140120 → 181273ec0), on channels 0..2 four pixels at a time:
+  `c = v*2 - 1`, `l2 = (z*z + y*y) + x*x`, `r = rsqrtps(l2)` refined once as
+  `(r*(3 - (r*r)*l2))*0.5`, `n = r*c`, the default (0, 0, 1) where `l2 < 2^-23` or all three
+  inputs are 0, then `n*0.5 + 0.5`. `rsqrtps` differs by CPU vendor: on AMD it depends on the
+  exponent's parity and the top 12 mantissa bits, on Intel the top 10, and it scales exactly
+  with the exponent (`tools/re/texture/rsqrtdump.c`); both tables ship
+  (`Texture/Rc/rsqrt_{amd,intel}.txt`) and follow `Bc7Vendor`, AMD by default.
+- `Inverse` (180141590): `1 - v` per channel.
+- `HemiOctIsoRoughness_RG_B` = `GenerateMips_HemiOctAnisoRoughness` (180148350) then a shuffle.
+  Per level, power-of-two only: channels 10/11 the mean normal X/Y (0..1 space), 8/9 their
+  squares, 6/7 the roughness (`1 - ` the inverted input, 0 without one); each level halves
+  10, 11, 8, 9, 6, 7 with the box; 4/5 = `(sqrt(max(0, m2 - m1*m1)) * 2)^1.5` (0 on mip 0, the
+  power as `sqrt(v) * v`). The lambda (180149d20): `x = 2*m10 - 1`, `y = 2*m11 - 1`,
+  `z = sqrt(clamp(1 - (y*y + x*x)))`, `inv = 1/((|y| + |x|) + z)`, `ch3 = (x*inv + y*inv)*0.5 + 0.5`,
+  `ch1 = (x*inv - y*inv)*0.5 + 0.5`, roughness `ch6 + ch4` and `ch7 + ch5` (gameinfo
+  `MinRoughness` / `MaxRoughnessAnisotropy` clamps, unset in CS2). Shuffle: R = ch3, G = ch1,
+  B = `(ch2 + ch0)*0.5`, A = 1.
+- `ArtistDefinedOrAlphaWeighted`, with no `<name>_mipN` images: `AlphaWeighted` (18014e680) on
+  colour RGB with the weighting input's channel 0 as alpha. Each 2x2 step, taps (x0,y0) (x1,y0)
+  (x0,y1) (x1,y1): `sum = ((a00 + a10) + a01) + a11`; above 0 the colour is
+  `(((c00*a00 + c10*a10) + c01*a01) + c11*a11) * (1/sum)` and alpha `sum*0.25`, else the plain
+  average and alpha 0. Then every level (mip 0 included) fills pixels whose alpha is not
+  positive with the alpha-weighted mean colour of the positive pixels within 2 (180c3c6b0).
+
+### Channel groups of different sizes
+
+Each channel group makes its chain at its own input's size (an algorithm with two inputs
+resamples the smaller to the larger, clamped: 180c43790 with clamp). The texture is the largest
+group's size, and each of its levels takes, from every group's chain, the smallest level at
+least that size (the first when none is) resampled to it with wrapping (18013ce60): a 64x64
+metalness beside a 128x64 colour uses metalness level k-1 for texture level k.
+FILL_TO_POWER_OF_TWO records the first input's size when it differs from the texture's.
+
+All 13 probe children and all 12 probe materials compile identical to RC, children included
+(`Vmat_WithChildren_CompilesToResourceCompilersFiles`).
+
 ## Open
 
 - Which mode wins when two modes give an attribute different values (first seen, here).
-- The order of params of one kind when a `.vmat` sets several (file order, here; one each in the probes).
-- A varying input smaller than the others (cx_metal_noise: 128x64 colour, 64x64 metalness): the wrap resampler does not reproduce RC's.
-- The normal maps' `HemiOctIsoRoughness_RG_B`: mip 0 is per pixel (R,G the hemi-octahedral encoding of the normalised normal times 0.5 plus 0.5, B the roughness after `Inverse` is undone, A 1: the default normal child decodes to 128,128,128,255, reflectivity 0.50389, 0.5, 0.50196, 1); the lower mips need RC's decompile. `ArtistDefinedOrAlphaWeighted` likewise.
-- odd_png (24x40): one ulp in the reflectivity's green. Every 8-bit level matches; our float 3x5 -> 1x2 step (3-tap both ways, a 1-wide output) rounds differently. A Frida capture of QuarterSize on that chain settles it (CS2 closed).
-- Child mip algorithms beyond the Box family: `ArtistDefined`, `Box3`, `ArtistDefinedOrAlphaWeighted`,
-  `PreserveCoverage`, `HemiOctIsoRoughness_RG_B`, `AnisoRoughness_RG`, input processors
-  `NormalizeNormals`, `Inverse`, `Mod2XCenter`, several inputs per texture, channel packing.
-- Image `.txt` settings (core's `default_normal.txt` exists, CRC 1948310964).
+- Intel's `rsqrtps` table is dumped and wired but has no Intel-machine RC reference to check against.
+- Child mip algorithms not yet ported: `PreserveCoverage` (alpha test), `AnisoRoughness_RG`
+  and the other HemiOct variants, `Mod2XCenter` (detail textures), artist `<name>_mipN` images.
+- Image `.txt` settings other than an empty `settings {}` (core's `default_normal.txt` is empty and is recorded with its CRC).
 - Channel references by variable or by file name (above).
-- Which search path an input resolves in (`core` for `default_ao.tga`, `csgo` for the others).
 - The value RC uses for system combos (`S_SHADER_QUALITY`, source type 2).
 - Where a compile reads the default images when no Workshop Tools content is installed.

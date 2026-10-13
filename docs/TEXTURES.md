@@ -22,9 +22,11 @@ per-channel half under Frida during an RC compile, and the 256², 300x200, 7x5 (
    average lands on .5: that was all that kept ATI1N/ATI2N's lower mips apart.
 2. **Downsample** (`FloatBitMap_t::QuarterSize` 180c43450), each level from the previous one in
    float, never re-quantized. The new size is `w > 3 ? w / 2 : 1` by `max(1, h / 2)`.
-   - both sides even: 2x2 box (1812764c0). When the output width is a multiple of 4 and at least
-     8 the SSE loop adds the column pairs, `((TL + BL) + (TR + BR)) * 0.25f`; otherwise the scalar
-     loop adds `(((TL + BL) + TR) + BR) * 0.25f`.
+   - both sides even: 2x2 box (1812764c0, run per channel by 18127a9c0). When the output width
+     is a multiple of 8 (18127a9c0 tests `w > 7 && w % 8 == 0`) the SSE loop adds the column
+     pairs, `((TL + BL) + (TR + BR)) * 0.25f`; otherwise the scalar loop adds
+     `(((TL + BL) + TR) + BR) * 0.25f`. Multiple of 8, not 4: a 24x40 image's 12-wide level is
+     scalar (odd_png's reflectivity, one ulp, was the only fixture that tells them apart).
    - a side is odd and the new size is `2n` or `2n + 1` of it (180c42690): a 3-tap filter per
      axis, taps `2x, 2x+1, 2x+2` (clamped) weighted `w0 = (n-x)/W, w1 = n/W, w2 = (x+1)/W` with `W`
      the source size. The weights sum to `(2n+1)/W`, so an even side next to an odd one is scaled

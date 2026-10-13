@@ -90,11 +90,15 @@ public sealed class VtexCompiler : IResourceCompiler
     /// <paramref name="nominal"/> is the first input's size when the others made the image larger
     /// (character's 1x1 default metal beside 16x16 masks); DATA records it as FILL_TO_POWER_OF_TWO.</summary>
     internal static (byte[] Data, byte[][] Stored, bool AnyCompressed) BuildTexture(RcMipChain.Level top,
+        string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor, (int Width, int Height)? nominal = null) =>
+        BuildTexture(RcMipChain.Chain(top), format, srgb, noLod, maxMips, vendor, nominal);
+
+    /// <summary>The same from a whole float chain a mip algorithm made (normal maps, alpha weighting).</summary>
+    internal static (byte[] Data, byte[][] Stored, bool AnyCompressed) BuildTexture(List<RcMipChain.Level> levels,
         string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor, (int Width, int Height)? nominal = null)
     {
-        int width = top.Width, height = top.Height;
+        int width = levels[0].Width, height = levels[0].Height;
         bool blockCompressed = format != "RGBA8888";
-        var levels = RcMipChain.Chain(top);
         // A capped algorithm (Box3) makes only that many levels; reflectivity and the fallback
         // then come from the shorter chain (ao_png: 64, 32, 16).
         if (levels.Count > maxMips)

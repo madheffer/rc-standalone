@@ -47,6 +47,8 @@
 
   <ItemGroup>
     <None Include="PACKAGE.md" Pack="true" PackagePath="README.md" />
+    <!-- rsqrtps per CPU vendor, for normal maps (Texture/Rc/RcNormalMaps.cs). -->
+    <EmbeddedResource Include="Texture/Rc/rsqrt_amd.txt;Texture/Rc/rsqrt_intel.txt" LogicalName="Source2.Compiler.RcTexture.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

@@ -109,7 +109,7 @@ public static class RcMipChain
         {
             // 1812764c0: the SSE loop (an output width that is a multiple of 4, at least 8) adds the
             // two column pairs; the scalar loop adds the left pair, then TR, then BR.
-            bool sse = n % 4 == 0 && n >= 8;
+            bool sse = n % 8 == 0 && n >= 8;
             for (int y = 0; y < m; y++)
                 for (int x = 0; x < n; x++)
                     for (int c = 0; c < 4; c++)

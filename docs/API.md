@@ -42,7 +42,7 @@ foreach (var d in result.Diagnostics)
 | `.svg` | `VectorGraphicCompiler` | `.vsvg_c` | today's RC bytes |
 | `.png` `.tga` `.jpg` `.bmp` `.webp` | `ImageTextureCompiler` | `.vtex_c` | no: the in-house path, until `.vtex` sources compile through the exact pipeline (TEXTURES.md) |
 | `.vtex` | `RcTexture.VtexCompiler` | `.vtex_c` | yes, on the measured settings (RGBA8888, DXT1/5, ATI1N/2N, BC7; one 2D input, Box mips); anything else is refused (TEXTURES.md) |
-| `.vmat` | `Materials.MaterialCompiler` | `.vmat_c` | yes on the probes (7 of 7: complex, character, unlit); child textures named, not compiled yet (MATERIALS.md) |
+| `.vmat` | `Materials.MaterialCompiler` | `.vmat_c` + child `.vtex_c` | yes on all 12 probes, children included: Box family, normal maps, alpha-weighted colour (MATERIALS.md) |
 | `.vmdl` (editing) | `Meshes.CompiledModel` | `.vmdl_c` | yes: unedited models and re-stored buffers byte-identical on pak01 (meshopt v1 codecs); source compile is roadmap (MESHES.md) |
 | map sources | later, from the map branch | children of `.vpk` | |
 
@@ -53,9 +53,8 @@ ones) is a separate API, `CompiledResource`; compiling and editing do not share 
 
 1. This facade. Done.
 2. `.vmat`, `.vmdl` and `.vtex` byte for byte. `.vtex`: done on the measured settings
-   (TEXTURES.md). `.vmat`: the material on every probe, its children for the Box mip family;
-   normal maps (`HemiOctIsoRoughness_RG_B`) and alpha-weighted colour wait for RC's decompile
-   (MATERIALS.md). `.vmdl`: editing through `Meshes.CompiledModel` (MESHES.md); compiling from
+   (TEXTURES.md). `.vmat`: the material and its child textures on every probe, normal maps and
+   alpha-weighted colour included (MATERIALS.md). `.vmdl`: editing through `Meshes.CompiledModel` (MESHES.md); compiling from
    ModelDoc sources is roadmap.
 3. A NuGet package. Packs and restores (CONSUMING.md); the vendored copy retires when step 4
    switches vpkstuff to it. Public API tracking (PublicApiAnalyzers) is left out while the
