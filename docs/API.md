@@ -43,7 +43,7 @@ foreach (var d in result.Diagnostics)
 | `.png` `.tga` `.jpg` `.bmp` `.webp` | `ImageTextureCompiler` | `.vtex_c` | no: the in-house path, until `.vtex` sources compile through the exact pipeline (TEXTURES.md) |
 | `.vtex` | `RcTexture.VtexCompiler` | `.vtex_c` | yes, on the measured settings (RGBA8888, DXT1/5, ATI1N/2N, BC7; one 2D input, Box mips); anything else is refused (TEXTURES.md) |
 | `.vmat` | `Materials.MaterialCompiler` | `.vmat_c` | yes on the probes (7 of 7: complex, character, unlit); child textures named, not compiled yet (MATERIALS.md) |
-| `.vmdl` | planned | `.vmdl_c` | |
+| `.vmdl` (editing) | `Meshes.CompiledModel` | `.vmdl_c` | yes: unedited models and re-stored buffers byte-identical on pak01 (meshopt v1 codecs); source compile is roadmap (MESHES.md) |
 | map sources | later, from the map branch | children of `.vpk` | |
 
 Editing an already compiled resource (keep unchanged blocks byte for byte, re-encode the edited
