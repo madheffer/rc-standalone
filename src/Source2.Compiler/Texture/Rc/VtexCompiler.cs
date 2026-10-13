@@ -88,10 +88,18 @@ public sealed class VtexCompiler : IResourceCompiler
     /// image with a side under 4 is resized to 4 with the wrap resampler in gamma space, one level.
     /// </summary>
     internal static (byte[] Data, byte[][] Stored, bool AnyCompressed) BuildTexture(byte[] rgba, int width, int height,
-        string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor)
+        string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor) =>
+        BuildTexture(RcMipChain.Load(rgba, width, height, srgb), format, srgb, noLod, maxMips, vendor);
+
+    /// <summary>The same from an image already loaded to float (a material child's packed inputs).
+    /// <paramref name="nominal"/> is the first input's size when the others made the image larger
+    /// (character's 1x1 default metal beside 16x16 masks); DATA records it as FILL_TO_POWER_OF_TWO.</summary>
+    internal static (byte[] Data, byte[][] Stored, bool AnyCompressed) BuildTexture(RcMipChain.Level top,
+        string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor, (int Width, int Height)? nominal = null)
     {
+        int width = top.Width, height = top.Height;
         bool blockCompressed = format != "RGBA8888";
-        var levels = RcMipChain.Build(rgba, width, height, srgb);
+        var levels = RcMipChain.Chain(top);
         // A capped algorithm (Box3) makes only that many levels; reflectivity and the fallback
         // then come from the shorter chain (ao_png: 64, 32, 16).
         if (levels.Count > maxMips)
@@ -157,12 +165,13 @@ public sealed class VtexCompiler : IResourceCompiler
         var reflectivity = Average(levels[^1]);
         // FILL_TO_POWER_OF_TWO when the image was resized up: u16 0, the original width and
         // height, zeros to 128 bytes (default_ao 1x1, cx_tiny 2x2; width before height assumed).
+        var (fillWidth, fillHeight) = nominal ?? (width, height);
         byte[]? fill = null;
-        if (outWidth != width || outHeight != height)
+        if (outWidth != fillWidth || outHeight != fillHeight)
         {
             fill = new byte[128];
-            BinaryPrimitives.WriteUInt16LittleEndian(fill.AsSpan(2), (ushort)width);
-            BinaryPrimitives.WriteUInt16LittleEndian(fill.AsSpan(4), (ushort)height);
+            BinaryPrimitives.WriteUInt16LittleEndian(fill.AsSpan(2), (ushort)fillWidth);
+            BinaryPrimitives.WriteUInt16LittleEndian(fill.AsSpan(4), (ushort)fillHeight);
         }
         var data = BuildData(outWidth, outHeight, FormatCodes[format], mipData.Length, flags, reflectivity, fallback, fill,
             mipSizes ? stored.Select(x => x.Length).ToArray() : null, anyCompressed ? 1u : 0u);

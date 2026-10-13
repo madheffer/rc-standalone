@@ -57,11 +57,15 @@ public static class RcMipChain
     /// The full chain down to 1x1. RGB goes through the gamma table when <paramref name="srgb"/>;
     /// see the loader rules below for everything else.
     /// </summary>
-    public static List<Level> Build(ReadOnlySpan<byte> rgba, int width, int height, bool srgb)
+    public static List<Level> Build(ReadOnlySpan<byte> rgba, int width, int height, bool srgb) => Chain(Load(rgba, width, height, srgb));
+
+    /// <summary>
+    /// <c>FloatBitMap_t::LoadFromBuffer</c>, RGBA8888. sRGB (180c34560): the gamma table, alpha
+    /// v / 255f. Linear (180c32920): a width that is a multiple of 4 goes through SSE as
+    /// v * (1/255f), any other width is scalar v / 255f, all four channels.
+    /// </summary>
+    public static Level Load(ReadOnlySpan<byte> rgba, int width, int height, bool srgb)
     {
-        // FloatBitMap_t::LoadFromBuffer, RGBA8888. sRGB (180c34560): the gamma table, alpha v / 255f.
-        // Linear (180c32920): a width that is a multiple of 4 goes through SSE as v * (1/255f),
-        // any other width is scalar v / 255f, all four channels.
         bool simd = !srgb && width >= 4 && width % 4 == 0;
         var top = new float[width * height * 4];
         for (int i = 0; i < width * height; i++)
@@ -74,7 +78,13 @@ public static class RcMipChain
                     : v / 255f;
             }
         }
-        var levels = new List<Level> { new(width, height, top) };
+        return new Level(width, height, top);
+    }
+
+    /// <summary>The chain from a loaded level down to 1x1.</summary>
+    public static List<Level> Chain(Level top)
+    {
+        var levels = new List<Level> { top };
         while (levels[^1].Width > 1 || levels[^1].Height > 1)
             levels.Add(QuarterSize(levels[^1]));
         return levels;

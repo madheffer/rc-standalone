@@ -145,7 +145,7 @@ writes the same bytes as the stock DLL (checked on 5 outputs).
 ## Child textures: `Materials.ChildTextureCompiler`
 
 A child is the shared texture build (`VtexCompiler.BuildTexture`) on one packed 8-bit image.
-Seven of the probe children are byte-identical (`ChildTextures_CompileToResourceCompilersBytes`),
+Eight of the probe children are byte-identical (`ChildTextures_CompileToResourceCompilersBytes`),
 DXT1, ATI1N and BC7, one and two inputs.
 
 - Packing: unset channels are 0; each channel group copies its source channels of its input to
@@ -159,6 +159,10 @@ DXT1, ATI1N and BC7, one and two inputs.
   from that 4x4 image; the reflectivity still comes from the original chain. DATA then carries
   extra data type 3 (FILL_TO_POWER_OF_TWO) after the fallback: 128 bytes, `u16 0`, the
   original width and height, zeros (default_ao 1x1, cx_tiny 2x2).
+- Inputs of different sizes: each is loaded in its own colour space and brought to the largest
+  size with the wrap resampler, and FILL_TO_POWER_OF_TWO records the first input's size when
+  it differs from the output (character's default masks: 1x1 metal, 16x16 masks, output 16x16,
+  fill 1x1). Measured on constant images only; a varying smaller input is refused.
 - Images are PNG/JPG (SkiaSharp) or TGA (`Imaging.TgaReader`: Valve's defaults are TGA).
 - Child RED2: no input dependencies; each image and its `.txt` as additional ones; the
   arguments with `___OverrideInputData___` fingerprint = the logical CRC, default 0;
@@ -168,7 +172,8 @@ DXT1, ATI1N and BC7, one and two inputs.
 
 - Which mode wins when two modes give an attribute different values (first seen, here).
 - The order of params of one kind when a `.vmat` sets several (file order, here; one each in the probes).
-- Children whose inputs differ in size (character's default masks: 1x1 metal with 16x16 masks; a 128x64 colour with a 64x64 metalness): RC's resampling of the smaller one.
+- A varying input smaller than the others (cx_metal_noise: 128x64 colour, 64x64 metalness): the wrap resampler does not reproduce RC's.
+- The normal maps' `HemiOctIsoRoughness_RG_B`: mip 0 is per pixel (R,G the hemi-octahedral encoding of the normalised normal times 0.5 plus 0.5, B the roughness after `Inverse` is undone, A 1: the default normal child decodes to 128,128,128,255, reflectivity 0.50389, 0.5, 0.50196, 1); the lower mips need RC's decompile. `ArtistDefinedOrAlphaWeighted` likewise.
 - odd_png (24x40): one ulp in the reflectivity's green. Every 8-bit level matches; our float 3x5 -> 1x2 step (3-tap both ways, a 1-wide output) rounds differently. A Frida capture of QuarterSize on that chain settles it (CS2 closed).
 - Child mip algorithms beyond the Box family: `ArtistDefined`, `Box3`, `ArtistDefinedOrAlphaWeighted`,
   `PreserveCoverage`, `HemiOctIsoRoughness_RG_B`, `AnisoRoughness_RG`, input processors

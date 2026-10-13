@@ -48,18 +48,35 @@ internal static class ChildTextureCompiler
                 throw new InvalidOperationException($"{txt} sets image settings, which this compiler has not measured yet.");
             decoded[file] = VtexCompiler.DecodeRgba(images[file].Bytes, file);
         }
-        var (_, width, height) = decoded[files[0]];
-        if (decoded.Values.Any(d => d.Width != width || d.Height != height))
-            throw new InvalidOperationException($"The inputs of {texture.ChildPath} differ in size; RC's resampling of that is not measured.");
+        // Each input is loaded as RC loads it (its own colour space and width rule) and brought to
+        // the largest input size with the wrap resampler; then packed: unset channels are 0, each
+        // channel group copies its source channels to its destinations.
+        int width = decoded.Values.Max(d => d.Width), height = decoded.Values.Max(d => d.Height);
+        var loaded = new Dictionary<(string File, bool Srgb), RcMipChain.Level>();
+        RcMipChain.Level Loaded(GeneratedTextureInput input)
+        {
+            if (!loaded.TryGetValue((input.FileName, input.Srgb), out var level))
+            {
+                var d = decoded[input.FileName];
+                level = RcMipChain.Load(d.Rgba, d.Width, d.Height, input.Srgb);
+                if (d.Width != width || d.Height != height)
+                {
+                    // Measured on constant images only (character's 1x1 default metal beside its 16x16 masks).
+                    if (!IsConstant(d.Rgba))
+                        throw new InvalidOperationException($"{input.FileName} is smaller than the other inputs of {texture.ChildPath}; RC's resampling of a varying image is not measured.");
+                    level = RcMipChain.Resize(level, width, height, clamp: false);
+                }
+                loaded[(input.FileName, input.Srgb)] = level;
+            }
+            return level;
+        }
 
-        // Pack: unset channels keep the clear colour (0); each channel group copies its source
-        // channels to its destinations. sRGB applies to RGB from sRGB inputs only.
-        var rgba = new byte[width * height * 4];
+        var packed = new float[width * height * 4];
         bool srgb = false;
         foreach (var channel in texture.Channels)
         {
             var input = texture.Inputs[channel.Inputs[0]];
-            var src = decoded[input.FileName].Rgba;
+            var src = Loaded(input).Rgba;
             for (int k = 0; k < channel.DstChannels.Length; k++)
             {
                 int s = "rgba".IndexOf(channel.SrcChannels[k]), d = "rgba".IndexOf(channel.DstChannels[k]);
@@ -70,16 +87,25 @@ internal static class ChildTextureCompiler
                 else if (d < 3 && texture.Channels.Any(c => c.Srgb))
                     throw new InvalidOperationException($"{texture.ChildPath} mixes linear and sRGB colour channels; not measured.");
                 for (int p = 0; p < width * height; p++)
-                    rgba[p * 4 + d] = src[p * 4 + s];
+                    packed[p * 4 + d] = src[p * 4 + s];
             }
         }
 
         var format = texture.OutputFormat;
-        var (data, stored, anyCompressed) = VtexCompiler.BuildTexture(rgba, width, height, format, srgb, noLod: false,
-            box3 ? 3 : int.MaxValue, vendor);
+        var first = decoded[texture.Inputs[0].FileName];
+        var (data, stored, anyCompressed) = VtexCompiler.BuildTexture(new RcMipChain.Level(width, height, packed), format, srgb,
+            noLod: false, box3 ? 3 : int.MaxValue, vendor, (first.Width, first.Height));
         if (anyCompressed)
             throw new InvalidOperationException($"A mip of {texture.ChildPath} compresses on disk; that method word is not measured.");
         return VtexCompiler.WriteTexture(BuildRed2(texture, files, images, find, firstSearchPath), data, stored);
+    }
+
+    private static bool IsConstant(byte[] rgba)
+    {
+        for (int i = 4; i < rgba.Length; i++)
+            if (rgba[i] != rgba[i & 3])
+                return false;
+        return true;
     }
 
     private static string TxtPath(string image) => Path.ChangeExtension(image, ".txt").Replace('\\', '/');
