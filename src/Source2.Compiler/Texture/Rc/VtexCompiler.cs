@@ -180,9 +180,9 @@ public sealed class VtexCompiler : IResourceCompiler
     {
         int n = level.Width * level.Height;
         var result = new float[4];
+        Span<float> lanes = stackalloc float[4];
         for (int c = 0; c < 4; c++)
         {
-            Span<float> lanes = stackalloc float[4];
             lanes.Clear();
             for (int i = 0; i < n; i++)
                 lanes[i & 3] += level.Rgba[i * 4 + c];

@@ -21,3 +21,4 @@ __pycache__/
 *.pyc
 tools/map-survey/*.json
 tools/map-survey/*.txt
+artifacts/

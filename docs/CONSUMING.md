@@ -60,6 +60,19 @@ projects. The core is packageable as it is. The adapter is the part that still h
 against vpkstuff's VRF, so it stays a source copy until vpkstuff's compiler call sites are on
 `CompiledResource` and the adapter can be dropped.
 
+**Update 2026-10-13 (package).** `src/Source2.Compiler` packs as `Source2.Compiler`
+(`tools/pack.ps1`, `tools/pack.sh`): `lib/net10.0` with XML docs, a package README
+(`src/Source2.Compiler/PACKAGE.md`), the bc7e libraries under `runtimes/{win-x64,linux-x64}/native`,
+and a `.snupkg` with every source embedded (no source server needed). The scripts run the tests
+against ValveKeyValue 0.70.0.499 first and declare it as the dependency's lower bound, so a
+host on vpkstuff's VRF (0.70) and a host on 0.71 both restore one copy. A dev pack is
+`0.1.0-dev.<yyyymmdd>.<sha>`; `-Release` / `--release` packs the plain version. Checked by a
+scratch app restoring the package from a folder feed, on Windows and on the Linux box:
+`bc7`, `dxt1` and `rgba_flat512` compile identical to RC, BC7 through the packaged native
+library. Nothing is published anywhere yet: where the feed lives (a folder in vpkstuff's tree,
+which suits its worktrees and Docker builds, or a feed service on the box) is decided when
+vpkstuff's call sites move.
+
 Sources consulted: [Git submodules vs subtrees vs monorepos](https://slicker.me/git/submodules-vs-subtrees-vs-monorepos.html),
 [git submodule vs subtree technical overview](https://medium.com/@Spritan/git-submodule-vs-git-subtree-quick-technical-overview-92ae10119145),
 [Referencing a local private NuGet package](https://weblog.west-wind.com/posts/2022/Sep/11/Referencing-a-Local-Private-NuGet-Package-in-your-Solution),

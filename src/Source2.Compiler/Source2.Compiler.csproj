@@ -25,6 +25,30 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);Native\**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <!-- NuGet package (tools/pack.ps1, tools/pack.sh; docs/CONSUMING.md). -->
+  <PropertyGroup>
+    <PackageId>Source2.Compiler</PackageId>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Authors>vpkeditor.xyz</Authors>
+    <Company>vpkeditor.xyz</Company>
+    <Copyright>Copyright (c) 2026 vpkeditor.xyz</Copyright>
+    <Description>Compiles and edits Counter-Strike 2 (Source 2) resources byte for byte as Valve's resourcecompiler does, with no Valve tools and no VRF: KV3 resources, sounds, vector graphics, textures (.vtex: RGBA8888, DXT1/5, ATI1N/2N, BC7), materials (.vmat with their child textures) and model editing (meshopt buffers).</Description>
+    <PackageTags>source2;cs2;counter-strike;resourcecompiler;vtex;vmat;vmdl;kv3;valve</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <!-- Symbols with every source embedded, so a debugger needs no source server. -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedAllSources>true</EmbedAllSources>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="PACKAGE.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Source2.Compiler.Cli" />
     <InternalsVisibleTo Include="Source2.Compiler.Tests" />
