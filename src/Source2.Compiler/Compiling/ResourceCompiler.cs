@@ -39,7 +39,8 @@ public sealed class ResourceCompiler
         .Register(new Kv3DocumentCompiler())
         .Register(new SoundCompiler())
         .Register(new VectorGraphicCompiler())
-        .Register(new ImageTextureCompiler());
+        .Register(new ImageTextureCompiler())
+        .Register(new RcTexture.VtexCompiler());
 
     /// <summary>Register <paramref name="compiler"/> for its extensions, replacing any earlier one.</summary>
     public ResourceCompiler Register(IResourceCompiler compiler)

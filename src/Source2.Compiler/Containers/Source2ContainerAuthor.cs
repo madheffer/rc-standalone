@@ -533,6 +533,96 @@ public static partial class Source2ContainerAuthor
     /// "Texture Compiler Version" fingerprint 11 are UINT32, "Vector Graphic Version" 2 too, every
     /// 0 is INT64_ZERO and every 1 INT64_ONE (world.vwrld_c, n0.vwnod_c, rc_probe.vsndevts_c).
     /// </summary>
+    /// <summary>The special dependencies of a <c>.vtex</c> compile with the Box mip algorithm
+    /// (every RcReference texture, 2026-10-13).</summary>
+    public static readonly SpecialDep[] TextureCompileDeps =
+    [
+        new("Texture Compiler Version",           "CompileTexture", 11),
+        new("Texture Compiler Version Mip Box",   "CompileTexture", 1),
+        new("Texture Encode Quality",             "CompileTexture", 1, UserData: 3),
+    ];
+
+    /// <summary>
+    /// The RED2 of a <c>.vtex</c> compile, as resourcecompiler writes it (all ten RcReference
+    /// textures): input dependencies for the <c>.vtex</c>, each image and each image's absent
+    /// <c>.txt</c> sibling, sorted by path; the texture compiler's argument dependencies (the
+    /// four float switches, each image as an image and a blob, <c>maxmipsize</c> at its default
+    /// 1048576 and <c>minmipsize</c>), sorted by name.
+    /// </summary>
+    /// <param name="vtexPath">The <c>.vtex</c>, content-relative.</param>
+    /// <param name="vtexBytes">Its bytes; their CRC32 is recorded.</param>
+    /// <param name="images">Each input image, content-relative, with its bytes.</param>
+    /// <param name="specialDeps">The special dependencies, sorted here by name.</param>
+    /// <param name="searchPath">The content tree RC compiled from, recorded with each input dependency.</param>
+    public static KVObject BuildTextureSourceEditInfo(string vtexPath, ReadOnlySpan<byte> vtexBytes,
+        IReadOnlyList<(string Path, byte[] Bytes)> images, IReadOnlyList<SpecialDep> specialDeps, string searchPath = "csgo")
+    {
+        var root = KVObject.Collection();
+
+        var deps = new List<(string Path, uint Crc, bool Optional, bool Exists)> { (vtexPath, Crc32.HashToUInt32(vtexBytes), false, true) };
+        foreach (var (path, bytes) in images)
+        {
+            deps.Add((path, Crc32.HashToUInt32(bytes), false, true));
+            deps.Add((Path.ChangeExtension(path, ".txt").Replace('\\', '/'), 0u, true, false));
+        }
+        var inputDeps = KVObject.Array();
+        foreach (var (path, crc, optional, exists) in deps.OrderBy(d => d.Path, StringComparer.Ordinal))
+            inputDeps.Add(InputDependency(path, crc, optional, exists, searchPath));
+        root.Add("m_InputDependencies", inputDeps);
+        root.Add("m_AdditionalInputDependencies", KVObject.Array());
+
+        var args = new List<(string Name, string Type, int Fingerprint)>
+        {
+            ("___OverrideInputData___", "BinaryBlobArg", 0),
+            ("fast", "FloatArg", 0),
+            ("final", "FloatArg", 0),
+            ("hueShiftFixup", "FloatArg", 0),
+            ("lightmapMaxResolution", "FloatArg", 0),
+            ("maxmipsize", "FloatArg", BitConverter.SingleToInt32Bits(1048576f)),
+            ("minmipsize", "FloatArg", 0),
+        };
+        foreach (var (path, _) in images)
+        {
+            args.Add((path, "ImageArg", 0));
+            args.Add((path, "BinaryBlobArg", 0));
+        }
+        var argDeps = KVObject.Array();
+        foreach (var (name, type, fingerprint) in args.OrderBy(a => a.Name, StringComparer.Ordinal))
+        {
+            var arg = KVObject.Collection();
+            arg.Add("m_ParameterName", new KVObject(name));
+            arg.Add("m_ParameterType", new KVObject(type));
+            // a non-zero fingerprint is RC's uint32 (maxmipsize's 1048576f)
+            arg.Add("m_nFingerprint", fingerprint == 0 ? new KVObject(0) : new KVObject((uint)fingerprint));
+            arg.Add("m_nFingerprintDefault", fingerprint == 0 ? new KVObject(0) : new KVObject((uint)fingerprint));
+            argDeps.Add(arg);
+        }
+        root.Add("m_ArgumentDependencies", argDeps);
+
+        var special = KVObject.Array();
+        foreach (var dep in specialDeps.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var d = KVObject.Collection();
+            d.Add("m_String", new KVObject(dep.Name));
+            d.Add("m_CompilerIdentifier", new KVObject(dep.CompilerIdentifier));
+            d.Add("m_nFingerprint", UnsignedField(dep.Fingerprint));
+            d.Add("m_nUserData", UnsignedField(dep.UserData));
+            special.Add(d);
+        }
+        root.Add("m_SpecialDependencies", special);
+
+        root.Add("m_SpecialInputDependencies", KVObject.Array());
+        root.Add("m_AdditionalRelatedFiles", KVObject.Array());
+        root.Add("m_ChildResourceList", KVObject.Array());
+        root.Add("m_WeakReferenceList", KVObject.Array());
+        var searchable = KVObject.Collection();
+        searchable.Add("IsChildResource", new KVObject(0));
+        root.Add("m_SearchableUserData", searchable);
+        root.Add("m_SubassetReferences", KVObject.Null());
+        root.Add("m_SubassetDefinitions", KVObject.Null());
+        return NarrowIntegers(root);
+    }
+
     private static KVObject UnsignedField(int value) =>
         value is 0 or 1 ? new KVObject((long)value) : new KVObject((uint)value);
 
