@@ -66,6 +66,24 @@ public sealed class CompiledModel
         }
     }
 
+    /// <summary>
+    /// The model skeleton's bone for each of mesh <paramref name="meshIndex"/>'s local bones
+    /// (<c>m_remappingTable</c> from <c>m_remappingTableStarts</c>), or null when the table does not
+    /// cover the mesh.
+    /// </summary>
+    public int[]? RemapTable(int meshIndex)
+    {
+        var starts = Data.GetIntegerArray("m_remappingTableStarts");
+        if (meshIndex < 0 || starts.Length <= meshIndex)
+            return null;
+        var table = Data.GetIntegerArray("m_remappingTable");
+        var start = starts[meshIndex];
+        var next = meshIndex + 1 < starts.Length ? starts[meshIndex + 1] : table.Length;
+        if (start < 0 || next < start || next > table.Length)
+            throw new InvalidDataException($"Mesh {meshIndex}'s remapping table {start}..{next} is outside the {table.Length} entries.");
+        return [.. table[(int)start..(int)next].Select(b => (int)b)];
+    }
+
     /// <summary>The embedded meshes, in CTRL order.</summary>
     public IReadOnlyList<EmbeddedMesh> Meshes =>
         Control is { } ctrl && ctrl.ContainsKey("embedded_meshes")
@@ -108,13 +126,30 @@ public sealed class EmbeddedMesh
     /// <summary>The CTRL entry.</summary>
     public KVObject Descriptor { get; }
 
-    /// <summary><c>m_Name</c>.</summary>
-    public string Name => Descriptor.GetStringProperty("m_Name") ?? "";
+    // CS2 models describe a mesh with m_-prefixed keys and buffers in their own blocks (MVTX/MIDX);
+    // older ones name a VBIB block and use bare keys.
+    private bool HasVbibBlock => Descriptor.ContainsKey("vbib_block");
+
+    /// <summary>The mesh's name (<c>m_Name</c>, or <c>name</c> in the older layout).</summary>
+    public string Name => Descriptor.GetStringProperty(HasVbibBlock ? "name" : "m_Name") ?? "";
+
+    /// <summary>The mesh's index among the model's meshes (<c>m_nMeshIndex</c> / <c>mesh_index</c>).</summary>
+    public int MeshIndex => Field.Int(Descriptor, HasVbibBlock ? "mesh_index" : "m_nMeshIndex");
 
     /// <summary>The mesh's MDAT tree (scene objects and draw calls, skeleton, attachments, morph set).</summary>
     /// <exception cref="InvalidDataException">The descriptor names no KV3 block.</exception>
-    public KVObject Data => _model.Resource.Kv3At(Field.Block(_model, Descriptor, "m_nDataBlock"))
+    public KVObject Data => _model.Resource.Kv3At(Field.Block(_model, Descriptor, HasVbibBlock ? "data_block" : "m_nDataBlock"))
         ?? throw new InvalidDataException($"Mesh {Name}: its data block is not KV3.");
+
+    /// <summary>The mesh's morph block index, or -1 when it has none.</summary>
+    public int MorphBlock => Descriptor.ContainsKey(HasVbibBlock ? "morph_block" : "m_nMorphBlock")
+        ? Field.Int(Descriptor, HasVbibBlock ? "morph_block" : "m_nMorphBlock") : -1;
+
+    /// <summary>The vertex and index buffers decoded, with their layouts, from either layout.</summary>
+    /// <exception cref="InvalidDataException">A buffer is malformed.</exception>
+    public Vbib Vbib => HasVbibBlock
+        ? Vbib.Read(_model.Resource.File.Blocks[Field.Block(_model, Descriptor, "vbib_block")].Data)
+        : Vbib.FromDescriptor(_model.Resource, Descriptor);
 
     /// <summary>The vertex buffers.</summary>
     public IReadOnlyList<MeshBuffer> VertexBuffers => Buffers("m_vertexBuffers", vertex: true);

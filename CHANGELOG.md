@@ -21,6 +21,13 @@ version that changes something a host sees.
   groups, animation graph clips, included models), decoded per frame by `Animation.DecodeFrame`;
   `AnimationClip.Read` for a `.vnmclip_c`. Equal to VRF on every frame of every pak01 animation.
 
+- `Meshes.Vbib`: a mesh's vertex and index buffers decoded with their layouts (CTRL descriptors,
+  inline data, binary VBIB blocks; meshopt and zstd), and VRF's attribute readers
+  (`GetVector2/3/4AttributeArray`, `GetNormalTangentArray`, `GetBlendIndicesArray`,
+  `GetBlendWeightsArray`, `GetIndices`) with `DXGI_FORMAT` and `RenderInputLayoutField`.
+  `EmbeddedMesh.Vbib`, `.MeshIndex`, `.MorphBlock`; `CompiledModel.RemapTable`; `CompiledMesh` for
+  `.vmesh_c`. Equal to VRF on every pak01 mesh.
+
 ## 0.1.106 (production cleanup, 2026-10-14)
 
 ### Added

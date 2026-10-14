@@ -55,11 +55,36 @@ nothing about it changed. `CompiledModelTests`: an unedited model writes back by
 every buffer of 1,490 current-compile models read and stored again (1,720 buffers) gives RC's
 file byte for byte; an edited vertex buffer reads back edited.
 
+## Vertex data: `Meshes.Vbib`
+
+`EmbeddedMesh.Vbib` (and `CompiledMesh.Vbib` for a `.vmesh_c`) decodes a mesh's buffers with their
+layouts, from whichever form the file uses:
+- CS2's descriptors with buffers in their own blocks (`m_nBlockIndex`, meshopt and zstd as flagged);
+- inline `m_pData`;
+- the older binary VBIB block (`vbib_block`). There, bit 26 of a buffer's size word set means
+  stored raw, and bit 27 means zstd.
+
+The static readers turn a layout field into values, with VRF's rules and quirks:
+- `GetVector2/3/4AttributeArray` and `GetScalarAttributeArray` read the float, half, unorm and snorm
+  formats.
+- `GetNormalTangentArray` reads float normals, CS2's packed `R32_UINT` frame (octahedral normal,
+  11-bit tangent angle, bitangent sign) and the older two-byte normal and tangent.
+- `GetBlendIndicesArray` reads 4 or 8 joints; R16G16_SINT repeats its second joint. It maps through
+  `CompiledModel.RemapTable(meshIndex)` to the model skeleton.
+- `GetBlendWeightsArray`: R16G16B16A16_UNORM is read as eight bytes over 255, as VRF does.
+- `GetIndices` widens 16- or 32-bit indices.
+
+On 2026-10-14 all 14,192 meshes of the 13,105 pak01 models matched vpkstuff's VRF exactly: the
+decoded bytes, the layout fields, and every attribute decoded (50,250 streams). So did the meshes of
+the five community packs. The binary VBIB form, which neither corpus contains, is checked against
+VRF on a constructed block (`VertexDataTests`). Unlike VRF, a field that runs past its buffer, or a
+bone index outside the remap table, is an `InvalidDataException`.
+
 ## Open
 
 - v0 vertex encoding (older compiles only; meshoptimizer 0.18.1 matches 6 of 40, so Valve's
   encoder for those was another version). Not needed for new output.
-- The zstd layer (`m_bCompressedZSTD`) and meshlet encodings (`m_nMeshoptMeshletEncodeVersion`
-  other than -1), seen on a few buffers.
+- Writing the zstd layer (`m_bCompressedZSTD`; `Vbib` reads it, `MeshBuffer.Write` does not) and
+  meshlet encodings (`m_nMeshoptMeshletEncodeVersion` other than -1), seen on a few buffers.
 - Typed accessors for the rest of what vpkstuff edits (draw-call materials, mesh group masks,
   skeleton, attachments, anim includes), over the trees `CompiledModel` already exposes.
