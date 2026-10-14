@@ -3,7 +3,7 @@ using Source2.Compiler.Anim;
 using Source2.Compiler.Kv3;
 using ValvePak;
 using ValveResourceFormat;
-using ValveResourceFormat.ResourceTypes.ModelAnimation2;
+using VrfClip = ValveResourceFormat.ResourceTypes.ModelAnimation2.AnimationClip;
 using Xunit;
 
 namespace Source2.Compiler.Tests;
@@ -111,7 +111,7 @@ public class NmClipEditTests
         var edited = NmClipEdit.Rewrite(bytes, t => NmClipEdit.Retime(t, 0.75));
         using var res = new Resource { FileName = DrawM4a4 };
         res.Read(new MemoryStream(edited));
-        var clip = Assert.IsType<AnimationClip>(res.DataBlock);
+        var clip = Assert.IsType<VrfClip>(res.DataBlock);
         Assert.Equal(0.75f, clip.Duration, 4);
         Assert.Equal(35, clip.NumFrames);
         using var orig = new Resource();

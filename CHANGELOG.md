@@ -3,7 +3,25 @@
 The `Source2.Compiler` package. Versions are `0.1.<commit count of main>`; one entry per published
 version that changes something a host sees.
 
-## Unreleased (production cleanup, 2026-10-14)
+## Unreleased (VRF independence: models, textures, animations)
+
+### Added
+- `Meshes.Skeleton` (bones, parents, bind and inverse bind poses, world pose, lookup by name or
+  token) from a model, a `.vnmskel` or a render skeleton; `CompiledModel.Skeleton`, `MeshGroups`,
+  `DefaultMeshGroups` (the `m_nDefaultMeshGroupMask` rule), `MaterialGroups`, `ReferenceMeshes`.
+  Equal to VRF on every pak01 model.
+- `StringToken.Get`: the engine's name token (MurmurHash2 of the lowercased name).
+- `Textures.CompiledTexture`: a `.vtex_c` read without VRF; `GenerateBitmap` returns VRF's pixels on
+  every pak01 texture (BC1-BC7 and BC6H decoders of our own, the simple and HDR formats, embedded
+  PNG/JPEG/WebP, YCoCg / normal / hemi-octahedral codecs from the edit info). `ReadMip`,
+  `RawImageData`, the header and extra data as properties.
+- `SpriteSheet.Read`; `SpriteSheet.Frame.MoreImages` and `SpriteSheet.Image` for frames with several
+  rects, so stock multi-layer sheets write back to their own bytes.
+- `Anim`: a model's animations without VRF (`ModelAnimations.All`: embedded sequences, animation
+  groups, animation graph clips, included models), decoded per frame by `Animation.DecodeFrame`;
+  `AnimationClip.Read` for a `.vnmclip_c`. Equal to VRF on every frame of every pak01 animation.
+
+## 0.1.106 (production cleanup, 2026-10-14)
 
 ### Added
 - `TextureDef.MipChainBgra` and `VtexCompileSettings.MipChainBgra`: a caller-made mip chain

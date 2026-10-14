@@ -1,0 +1,363 @@
+// Ported from ValveResourceFormat (MIT, https://github.com/ValveResourceFormat/ValveResourceFormat),
+// AnimationClip.cs; checked frame for frame against it (docs/ANIMATION.md).
+
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using ValveKeyValue;
+using System.Numerics;
+
+namespace Source2.Compiler.Anim;
+
+/// <summary>
+/// Represents a quantization range with a start value and length.
+/// </summary>
+public record struct QuantizationRange(float Start, float Length);
+
+/// <summary>
+/// Represents compression settings for an animation track.
+/// </summary>
+public record struct TrackCompressionSetting
+(
+    QuantizationRange TranslationRangeX,
+    QuantizationRange TranslationRangeY,
+    QuantizationRange TranslationRangeZ,
+    QuantizationRange ScaleRange,
+    Quaternion ConstantRotation,
+    bool IsRotationStatic,
+    bool IsTranslationStatic,
+    bool IsScaleStatic
+);
+
+/// <summary>
+/// Represents an animation clip with compressed pose data.
+/// </summary>
+public class AnimationClip
+{
+    /// <summary>
+    /// Gets the name of the animation clip.
+    /// </summary>
+    public string Name { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the name of the skeleton this animation is for.
+    /// </summary>
+    public string SkeletonName { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the number of frames in the animation.
+    /// </summary>
+    public int NumFrames { get; private set; }
+
+    /// <summary>
+    /// Gets the duration of the animation in seconds.
+    /// </summary>
+    public float Duration { get; private set; } = 1;
+
+    /// <summary>
+    /// Gets the compressed pose data.
+    /// </summary>
+    public byte[] CompressedPoseData { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the compression settings for each animation track.
+    /// </summary>
+    public TrackCompressionSetting[] TrackCompressionSettings { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the offsets (in 16-bit / ushort units) into the compressed pose data for each frame.
+    /// </summary>
+    public long[] CompressedPoseOffsets { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the secondary animations associated with this clip.
+    /// </summary>
+    public AnimationClip[] SecondaryAnimations { get; private set; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether this clip contains transforms that are to be blended additively.
+    /// </summary>
+    public bool IsAdditive { get; private set; }
+
+    /// <summary>
+    /// Gets the events fired during playback of this clip, ordered by start time. Times are in seconds.
+    /// Consumers filter for the event types they are interested in (e.g. <see cref="NmSoundEvent"/>).
+    /// </summary>
+    public NmClipEvent[] Events { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the accumulated root motion per frame (position plus unwrapped yaw in degrees).
+    /// Empty when the clip stores no root motion; static clips store a single identity
+    /// placeholder, which is treated as no root motion.
+    /// </summary>
+    public AnimationMovement.MovementData[] RootMotion { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the clip's named scalar channels (float curves), decoded per frame.
+    /// </summary>
+    public AnimationFloatCurve[] FloatCurves { get; private set; } = [];
+
+    private AnimationClip()
+    {
+    }
+
+    /// <summary>
+    /// Read a clip from its DATA tree (a <c>.vnmclip_c</c>'s, or a secondary clip's).
+    /// </summary>
+    /// <param name="clipData">The clip's KV3 tree.</param>
+    /// <param name="name">The clip's path without the compiled suffix (<c>_c</c>), as VRF names it.</param>
+    public AnimationClip(KVObject clipData, string name)
+    {
+        ArgumentNullException.ThrowIfNull(clipData);
+        Name = name;
+        ReadClip(clipData);
+    }
+
+    /// <summary>Read a compiled clip (<c>.vnmclip_c</c>).</summary>
+    /// <param name="bytes">The file.</param>
+    /// <param name="path">Its path; a trailing <c>_c</c> is dropped from the name.</param>
+    /// <exception cref="InvalidDataException">The file is not a well-formed resource with a DATA tree.</exception>
+    public static AnimationClip Read(byte[] bytes, string path)
+    {
+        var name = path.EndsWith("_c", StringComparison.OrdinalIgnoreCase) ? path[..^2] : path;
+        var data = CompiledResource.Read(bytes).Kv3("DATA") ?? throw new InvalidDataException("The clip has no DATA tree.");
+        return new AnimationClip(data, name);
+    }
+
+    private void ReadClip(KVObject clipData)
+    {
+        SkeletonName = clipData.GetStringProperty("m_skeleton");
+        NumFrames = clipData.GetInt32Property("m_nNumFrames");
+        Duration = clipData.GetFloatProperty("m_flDuration");
+        IsAdditive = clipData.GetBooleanProperty("m_bIsAdditive");
+
+        var rootTransforms = clipData.GetSubCollection("m_rootMotion")?.GetArray("m_transforms");
+        if (rootTransforms is { Count: > 1 })
+        {
+            RootMotion = new AnimationMovement.MovementData[rootTransforms.Count];
+            var previousYaw = 0f;
+
+            for (var t = 0; t < rootTransforms.Count; t++)
+            {
+                var (position, _, rotation) = rootTransforms[t].ToTransform();
+
+                var yaw = AnimationMovement.Yaw(rotation);
+                yaw += 360f * MathF.Round((previousYaw - yaw) / 360f);
+                previousYaw = yaw;
+
+                RootMotion[t] = new AnimationMovement.MovementData(position, yaw);
+            }
+        }
+
+        var floatCurveIds = clipData.GetArray<string>("m_floatCurveIDs");
+        if (floatCurveIds is { Length: > 0 })
+        {
+            var curveDefs = clipData.GetArray("m_floatCurveDefs");
+            var curveData = clipData.GetIntegerArray("m_compressedFloatCurveData");
+            var curveOffsets = clipData.GetIntegerArray("m_compressedFloatCurveOffsets");
+
+            FloatCurves = new AnimationFloatCurve[floatCurveIds.Length];
+
+            // Dynamic curves are packed densely per frame in declaration order; static curves
+            // hold their range start and store no samples.
+            var dynamicRank = 0;
+            for (var c = 0; c < floatCurveIds.Length; c++)
+            {
+                var def = curveDefs[c];
+                var range = def.GetSubCollection("m_range");
+                var rangeStart = range.GetFloatProperty("m_flRangeStart");
+                var rangeLength = range.GetFloatProperty("m_flRangeLength");
+
+                var values = new float[NumFrames];
+                Array.Fill(values, rangeStart);
+
+                if (!def.GetBooleanProperty("m_bIsStatic"))
+                {
+                    var decodableFrames = Math.Min(NumFrames, curveOffsets.Length);
+                    for (var f = 0; f < decodableFrames; f++)
+                    {
+                        var sampleIndex = curveOffsets[f] + dynamicRank;
+                        if (sampleIndex < 0 || sampleIndex >= curveData.Length)
+                        {
+                            continue;
+                        }
+
+                        values[f] = DecodeFloat((ushort)curveData[sampleIndex], rangeStart, rangeLength);
+                    }
+
+                    dynamicRank++;
+                }
+
+                FloatCurves[c] = new AnimationFloatCurve(floatCurveIds[c], values);
+            }
+        }
+
+        CompressedPoseData = clipData.GetArray<byte>("m_compressedPoseData");
+
+        var settings = clipData.GetArray("m_trackCompressionSettings");
+        TrackCompressionSettings = new TrackCompressionSetting[settings.Count];
+
+        var i = 0;
+        foreach (var setting in settings)
+        {
+            var rangeX = setting.GetSubCollection("m_translationRangeX");
+            var rangeY = setting.GetSubCollection("m_translationRangeY");
+            var rangeZ = setting.GetSubCollection("m_translationRangeZ");
+            var scaleRange = setting.GetSubCollection("m_scaleRange");
+            var constantRotation = setting.GetFloatArray("m_constantRotation");
+
+            TrackCompressionSettings[i++] = new TrackCompressionSetting
+            {
+                TranslationRangeX = new QuantizationRange(rangeX.GetFloatProperty("m_flRangeStart"), rangeX.GetFloatProperty("m_flRangeLength")),
+                TranslationRangeY = new QuantizationRange(rangeY.GetFloatProperty("m_flRangeStart"), rangeY.GetFloatProperty("m_flRangeLength")),
+                TranslationRangeZ = new QuantizationRange(rangeZ.GetFloatProperty("m_flRangeStart"), rangeZ.GetFloatProperty("m_flRangeLength")),
+                ScaleRange = new QuantizationRange(scaleRange.GetFloatProperty("m_flRangeStart"), scaleRange.GetFloatProperty("m_flRangeLength")),
+                ConstantRotation = new Quaternion(constantRotation[0], constantRotation[1], constantRotation[2], constantRotation[3]),
+                IsRotationStatic = setting.GetBooleanProperty("m_bIsRotationStatic"),
+                IsTranslationStatic = setting.GetBooleanProperty("m_bIsTranslationStatic"),
+                IsScaleStatic = setting.GetBooleanProperty("m_bIsScaleStatic"),
+            };
+        }
+
+        var events = clipData.GetArray("m_events") ?? [];
+        Events = new NmClipEvent[events.Count];
+
+        for (var eventIndex = 0; eventIndex < events.Count; eventIndex++)
+        {
+            Events[eventIndex] = NmClipEvent.Build(events[eventIndex], Duration);
+        }
+
+        CompressedPoseOffsets = clipData.GetIntegerArray("m_compressedPoseOffsets");
+        Debug.Assert(CompressedPoseOffsets.Length == NumFrames);
+
+        var secondaryAnims = clipData.GetArray("m_secondaryAnimations") ?? [];
+        SecondaryAnimations = new AnimationClip[secondaryAnims.Count];
+        for (var j = 0; j < secondaryAnims.Count; j++)
+        {
+            // No longer making the name unique, glTF animations can apply to multiple skeletons
+            var secondaryAnim = new AnimationClip()
+            {
+                Name = Name,
+            };
+            secondaryAnim.ReadClip(secondaryAnims[j]);
+            SecondaryAnimations[j] = secondaryAnim;
+        }
+    }
+
+    /// <summary>
+    /// Reads and decompresses a specific frame of animation data into the provided bone array.
+    /// </summary>
+    /// <param name="frameIndex">The index of the frame to read.</param>
+    /// <param name="bones">The array of bones to populate with frame data.</param>
+    public void ReadFrame(int frameIndex, FrameBone[] bones)
+    {
+        var frameData = MemoryMarshal.Cast<byte, ushort>(CompressedPoseData);
+        frameData = frameData[(int)CompressedPoseOffsets[frameIndex]..];
+
+        for (var i = 0; i < TrackCompressionSettings.Length && i < bones.Length; i++)
+        {
+            var config = TrackCompressionSettings[i];
+
+            var translationRangeStart = new Vector3(
+                config.TranslationRangeX.Start,
+                config.TranslationRangeY.Start,
+                config.TranslationRangeZ.Start
+            );
+
+            bones[i].Angle = config.ConstantRotation;
+            bones[i].Position = translationRangeStart;
+            bones[i].Scale = config.ScaleRange.Start;
+
+            if (!config.IsRotationStatic)
+            {
+                bones[i].Angle = DecodeQuaternion(frameData);
+                frameData = frameData[CompressedQuaternionSize..];
+            }
+
+            if (!config.IsTranslationStatic)
+            {
+                var translationRangeLength = new Vector3(
+                    config.TranslationRangeX.Length,
+                    config.TranslationRangeY.Length,
+                    config.TranslationRangeZ.Length
+                );
+
+                bones[i].Position = DecodeTranslation(frameData, translationRangeStart, translationRangeLength);
+                frameData = frameData[CompressedTranslationSize..];
+            }
+
+            if (!config.IsScaleStatic)
+            {
+                bones[i].Scale = DecodeFloat(frameData[0], config.ScaleRange.Start, config.ScaleRange.Length);
+                frameData = frameData[1..];
+            }
+        }
+    }
+
+    const int CompressedQuaternionSize = 3;
+    private static readonly float s_valueRangeMin = -1.0f / MathF.Sqrt(2.0f);
+    private static readonly float s_valueRangeMax = 1.0f / MathF.Sqrt(2.0f);
+    private static readonly float s_valueRangeLength = s_valueRangeMax - s_valueRangeMin;
+
+    static Quaternion DecodeQuaternion(ReadOnlySpan<ushort> data)
+    {
+        Debug.Assert(data.Length >= CompressedQuaternionSize);
+
+        var vValueRangeMin = new Vector4(s_valueRangeMin);
+        var vRangeMultiplier15Bit = new Vector4(s_valueRangeLength / 0x7FFF);
+
+        var vData = new Vector4(
+            data[0] & 0x7FFF,
+            data[1] & 0x7FFF,
+            data[2],
+            0
+        );
+
+        vData = Vector4.FusedMultiplyAdd(vData, vRangeMultiplier15Bit, vValueRangeMin);
+
+        var sum = Vector3.Dot(vData.AsVector3(), vData.AsVector3());
+
+        // The omitted component is the largest, so valid data never goes negative here; truncated data can
+        vData.W = MathF.Sqrt(MathF.Max(0f, 1f - sum));
+
+        // Vector128.Shuffle(vData.AsVector128(), Vector128.Create([3, 0, 1, 2]));
+
+        var largestValueIndex = (ushort)((data[0] >> 14 & 0x0002) | data[1] >> 15);
+        return largestValueIndex switch
+        {
+            0 => new Quaternion(vData[3], vData[0], vData[1], vData[2]),
+            1 => new Quaternion(vData[0], vData[3], vData[1], vData[2]),
+            2 => new Quaternion(vData[0], vData[1], vData[3], vData[2]),
+            3 => new Quaternion(vData[0], vData[1], vData[2], vData[3]),
+            _ => throw new InvalidOperationException("Invalid largest value index")
+        };
+    }
+
+    const int CompressedTranslationSize = 3;
+    static Vector3 DecodeTranslation(ReadOnlySpan<ushort> data, Vector3 rangeStart, Vector3 rangeLength)
+    {
+        Debug.Assert(data.Length >= CompressedTranslationSize);
+
+        return new Vector3(
+            DecodeFloat(data[0], rangeStart.X, rangeLength.X),
+            DecodeFloat(data[1], rangeStart.Y, rangeLength.Y),
+            DecodeFloat(data[2], rangeStart.Z, rangeLength.Z)
+        );
+    }
+
+    static float DecodeFloat(ushort unorm, float rangeStart, float rangeLength)
+    {
+        Debug.Assert(rangeLength != 0);
+
+        var normalizedValue = DecodeUnsignedNormalizedFloat(unorm);
+        var decodedValue = normalizedValue * rangeLength + rangeStart;
+        return decodedValue;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static float DecodeUnsignedNormalizedFloat(ushort encodedValue)
+    {
+        return encodedValue / (float)ushort.MaxValue;
+    }
+}

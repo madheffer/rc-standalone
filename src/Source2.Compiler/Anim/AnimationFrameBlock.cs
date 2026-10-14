@@ -1,0 +1,38 @@
+// Ported from ValveResourceFormat (MIT, https://github.com/ValveResourceFormat/ValveResourceFormat),
+// AnimationFrameBlock.cs; checked frame for frame against it (docs/ANIMATION.md).
+
+using ValveKeyValue;
+
+namespace Source2.Compiler.Anim;
+
+/// <summary>
+/// Represents a block of frames in an animation with associated segment data.
+/// </summary>
+/// <seealso href="https://s2v.app/SchemaExplorer/cs2/animationsystem/CAnimFrameBlockAnim">CAnimFrameBlockAnim</seealso>
+public class AnimationFrameBlock
+{
+    /// <summary>
+    /// Gets the starting frame index of this block.
+    /// </summary>
+    public int StartFrame { get; }
+
+    /// <summary>
+    /// Gets the ending frame index of this block.
+    /// </summary>
+    public int EndFrame { get; }
+
+    /// <summary>
+    /// Gets the array of segment indices for this frame block.
+    /// </summary>
+    public long[] SegmentIndexArray { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AnimationFrameBlock"/> class.
+    /// </summary>
+    public AnimationFrameBlock(KVObject frameBlock)
+    {
+        StartFrame = frameBlock.GetInt32Property("m_nStartFrame");
+        EndFrame = frameBlock.GetInt32Property("m_nEndFrame");
+        SegmentIndexArray = frameBlock.GetIntegerArray("m_segmentIndexArray");
+    }
+}

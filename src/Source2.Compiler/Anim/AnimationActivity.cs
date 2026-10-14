@@ -1,0 +1,44 @@
+// Ported from ValveResourceFormat (MIT, https://github.com/ValveResourceFormat/ValveResourceFormat),
+// AnimationActivity.cs; checked frame for frame against it (docs/ANIMATION.md).
+
+using ValveKeyValue;
+
+namespace Source2.Compiler.Anim;
+
+/// <summary>
+/// Represents an activity associated with an animation.
+/// </summary>
+/// <seealso href="https://s2v.app/SchemaExplorer/cs2/animationsystem/CAnimActivity">CAnimActivity</seealso>
+public readonly struct AnimationActivity
+{
+    /// <summary>
+    /// Gets the name of the activity.
+    /// </summary>
+    public string Name { get; init; }
+
+    /// <summary>
+    /// Gets the activity identifier.
+    /// </summary>
+    public int Activity { get; init; }
+
+    /// <summary>
+    /// Gets the activity flags.
+    /// </summary>
+    public int Flags { get; init; }
+
+    /// <summary>
+    /// Gets the activity weight.
+    /// </summary>
+    public int Weight { get; init; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AnimationActivity"/> struct.
+    /// </summary>
+    public AnimationActivity(KVObject data)
+    {
+        Name = data.GetStringProperty("m_name");
+        Activity = data.GetInt32Property("m_nActivity");
+        Flags = data.GetInt32Property("m_nFlags");
+        Weight = data.GetInt32Property("m_nWeight");
+    }
+}
