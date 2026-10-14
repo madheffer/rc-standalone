@@ -12,6 +12,8 @@ public static class MeshoptVertexCodec
     private const int BlockSizeBytes = 8192, BlockMaxSize = 256, GroupSize = 16, GroupDecodeLimit = 24;
     private static readonly int[] BitsV0 = [0, 2, 4, 8];
     private static readonly int[] BitsV1 = [0, 1, 2, 4, 8];
+    // The bit table of each v1 control value: the widths from that one on.
+    private static readonly int[][] BitsV1Tables = [[0, 1, 2, 4, 8], [1, 2, 4, 8]];
 
     internal static int BlockSize(int vertexSize) => Math.Min((BlockSizeBytes / vertexSize) & ~(GroupSize - 1), BlockMaxSize);
 
@@ -30,10 +32,14 @@ public static class MeshoptVertexCodec
         var body = data[1..];
         if (body.Length < tailPadded)
             throw new InvalidDataException("Vertex buffer shorter than its tail.");
+        // Every block takes at least one header byte per lane group, so the count cannot exceed
+        // what the buffer could encode; a count from a hostile descriptor is not an allocation.
+        int blockSize = BlockSize(size);
+        if (count < 0 || (long)count > (long)(body.Length - tailPadded + 1) * blockSize)
+            throw new InvalidDataException($"{count} vertices cannot be in a {data.Length}-byte buffer.");
         var last = body.Slice(body.Length - tail, size).ToArray();
         var channels = version == 0 ? null : body.Slice(body.Length - tail + size, size / 4).ToArray();
         var output = new byte[(long)count * size];
-        int blockSize = BlockSize(size);
         var buffer = new byte[BlockMaxSize * 4];
         int pos = 0;
         for (int offset = 0; offset < count; offset += blockSize)
@@ -58,6 +64,7 @@ public static class MeshoptVertexCodec
         for (int k = 0; k < size; k += 4)
         {
             byte ctrlByte = version == 0 ? (byte)0 : data[control + k / 4];
+            var scratch = new byte[aligned];
             for (int j = 0; j < 4; j++)
             {
                 int ctrl = (ctrlByte >> (j * 2)) & 3;
@@ -72,8 +79,7 @@ public static class MeshoptVertexCodec
                     lane.Clear();
                 else
                 {
-                    var scratch = new byte[aligned];
-                    pos = DecodeBytes(data, pos, end, scratch, version == 0 ? BitsV0 : BitsV1.AsSpan(ctrl).ToArray());
+                    pos = DecodeBytes(data, pos, end, scratch, version == 0 ? BitsV0 : BitsV1Tables[ctrl]);
                     scratch.AsSpan(0, count).CopyTo(lane);
                 }
             }
@@ -309,7 +315,7 @@ public static class MeshoptVertexCodec
                 if (ctrl == 3)
                     output.AddRange(lanes[j].AsSpan(0, count).ToArray());
                 else if (ctrl != 2)
-                    EncodeBytes(output, lanes[j], BitsV1.AsSpan(ctrl).ToArray());
+                    EncodeBytes(output, lanes[j], BitsV1Tables[ctrl]);
             }
             output[controlAt + k / 4] = ctrlByte;
         }
@@ -328,7 +334,7 @@ public static class MeshoptVertexCodec
     {
         if (lane.AsSpan(0, count).IndexOfAnyExcept((byte)0) < 0)
             return 2;
-        int s0 = MeasureBytes(lane, BitsV1.AsSpan(0).ToArray()), s1 = MeasureBytes(lane, BitsV1.AsSpan(1).ToArray());
+        int s0 = MeasureBytes(lane, BitsV1Tables[0]), s1 = MeasureBytes(lane, BitsV1Tables[1]);
         int best = s1 <= s0 ? 1 : 0, size = Math.Min(s0, s1);
         return size < count ? best : 3;
     }

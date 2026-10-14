@@ -30,19 +30,16 @@ public static class SafeImageDecode
         if (bytes is null || bytes.Length == 0)
             throw new InvalidOperationException("Empty image.");
 
-        using (var data = SKData.CreateCopy(bytes))
-        using (var codec = SKCodec.Create(data))
-        {
-            if (codec is null)
-                throw new InvalidOperationException("Unrecognized or corrupt image.");
-            var info = codec.Info;
-            var pixels = (long)info.Width * info.Height;
-            if (info.Width <= 0 || info.Height <= 0 || pixels > maxPixels)
-                throw new InvalidOperationException(
-                    $"Image is {info.Width}x{info.Height}px, which exceeds the {maxPixels / (1024 * 1024)}MP decode limit.");
-        }
+        using var data = SKData.CreateCopy(bytes);
+        using var codec = SKCodec.Create(data)
+            ?? throw new InvalidOperationException("Unrecognized or corrupt image.");
+        var info = codec.Info;
+        var pixels = (long)info.Width * info.Height;
+        if (info.Width <= 0 || info.Height <= 0 || pixels > maxPixels)
+            throw new InvalidOperationException(
+                $"Image is {info.Width}x{info.Height}px, which exceeds the {maxPixels / (1024 * 1024)}MP decode limit.");
 
-        return SKBitmap.Decode(bytes)
+        return SKBitmap.Decode(codec)
             ?? throw new InvalidOperationException("SkiaSharp could not decode the image.");
     }
 }

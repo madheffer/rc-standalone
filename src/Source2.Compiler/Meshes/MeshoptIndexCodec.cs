@@ -17,7 +17,7 @@ public static class MeshoptIndexCodec
     /// <summary>Decode <paramref name="count"/> indices (a multiple of 3) of 2 or 4 bytes.</summary>
     public static byte[] Decode(ReadOnlySpan<byte> buffer, int count, int indexSize)
     {
-        if (count % 3 != 0 || indexSize is not (2 or 4))
+        if (count < 0 || count % 3 != 0 || indexSize is not (2 or 4))
             throw new InvalidDataException("An index buffer holds whole triangles of 2- or 4-byte indices.");
         int dataOffset = 1 + count / 3;
         if (buffer.Length < dataOffset + 16 || (buffer[0] & 0xF0) != 0xE0 || (buffer[0] & 0x0F) > 1)
@@ -38,10 +38,12 @@ public static class MeshoptIndexCodec
         void PushVertex(uint v, bool cond = true) { vertices[vertexOffset] = v; vertexOffset = (vertexOffset + (cond ? 1 : 0)) & 15; }
         uint ReadIndex(ReadOnlySpan<byte> d, ref int p)
         {
+            if (p >= safeEnd) throw new InvalidDataException("Index buffer data is truncated.");
             uint lead = d[p++], v = lead & 127;
             if (lead >= 128)
                 for (int i = 0, shift = 7; i < 4; i++, shift += 7)
                 {
+                    if (p >= safeEnd) throw new InvalidDataException("Index buffer data is truncated.");
                     uint g = d[p++];
                     v |= (g & 127) << shift;
                     if (g < 128) break;

@@ -77,8 +77,12 @@ public sealed class ResourceFile
     }
 
     /// <summary>The file, laid out as resourcecompiler lays it out.</summary>
+    /// <exception cref="InvalidOperationException">A block's type is not four ASCII characters.</exception>
     public byte[] Write()
     {
+        foreach (var block in Blocks)
+            if (block.Type is not { Length: 4 } || !block.Type.All(char.IsAscii))
+                throw new InvalidOperationException($"A block type is four ASCII characters, not '{block.Type}'.");
         var output = new MemoryStream();
         output.Write(new byte[16 + 12 * Blocks.Count]);
         var placed = new (long Offset, long Size)[Blocks.Count];
@@ -103,8 +107,7 @@ public sealed class ResourceFile
         for (var i = 0; i < Blocks.Count; i++)
         {
             var at = 16 + 12 * i;
-            var type = Encoding.ASCII.GetBytes(Blocks[i].Type.PadRight(4)[..4]);
-            type.CopyTo(bytes, at);
+            Encoding.ASCII.GetBytes(Blocks[i].Type).CopyTo(bytes, at);
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(at + 4), (uint)(placed[i].Offset - (at + 4)));
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(at + 8), (uint)placed[i].Size);
         }
@@ -136,12 +139,12 @@ public static class ResourceRefs
         for (var i = 0; i < count; i++)
         {
             var at = entries + 16 * i;
-            var nameAt = at + 8 + BinaryPrimitives.ReadInt32LittleEndian(block[(at + 8)..]);
+            var nameAt = at + 8L + BinaryPrimitives.ReadInt32LittleEndian(block[(at + 8)..]);
             if (nameAt < 0 || nameAt >= block.Length)
                 throw new InvalidDataException($"RERL entry {i} names a string outside the block");
-            var end = block[nameAt..].IndexOf((byte)0);
-            list.Add((BinaryPrimitives.ReadUInt64LittleEndian(block[at..]),
-                      Encoding.UTF8.GetString(block.Slice(nameAt, end < 0 ? block.Length - nameAt : end))));
+            var name = block[(int)nameAt..];
+            var end = name.IndexOf((byte)0);
+            list.Add((BinaryPrimitives.ReadUInt64LittleEndian(block[at..]), Encoding.UTF8.GetString(end < 0 ? name : name[..end])));
         }
         return list;
     }

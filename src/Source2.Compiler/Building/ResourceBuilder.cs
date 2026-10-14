@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Text.Json;
+using System.Numerics;
 using BCnEncoder.Encoder;
 using BCnEncoder.Shared;
 using SkiaSharp;
@@ -10,8 +10,9 @@ namespace Source2.Compiler;
 
 /// <summary>
 /// Builds compiled Source 2 resources - <c>.vtex_c</c>, <c>.vmat_c</c>,
-/// <c>.vsnd_c</c>, <c>.vsvg_c</c>, <c>.vmdl_c</c> - through
-/// ValveResourceFormat's serializer, with no game tooling involved.
+/// <c>.vsnd_c</c>, <c>.vsvg_c</c>, <c>.vmdl_c</c> - with no game tooling involved.
+/// These are vpkstuff's own builds; the resourcecompiler-identical compiles of
+/// sources go through <see cref="Compiling.ResourceCompiler"/>.
 ///
 /// <para>Every type here authors its own container. A template of the same type
 /// is accepted but never required, and supplies only the header frame; anything
@@ -122,8 +123,22 @@ public static class ResourceBuilder
         /// / <see cref="RawHeight"/>) instead of <see cref="ImageBytes"/> to skip
         /// the PNG encode/decode round-trip when the source is already raw.</summary>
         public byte[]? RawRgba { get; set; }
+
+        /// <summary>Width of <see cref="RawRgba"/>, in pixels.</summary>
         public int RawWidth { get; set; }
+
+        /// <summary>Height of <see cref="RawRgba"/>, in pixels.</summary>
         public int RawHeight { get; set; }
+
+        /// <summary>
+        /// A finished mip chain to use instead of the one <see cref="BuildTexture(TextureDef)"/>
+        /// would resample: 8-bit BGRA, level 0 first at the image's padded power-of-two size, each
+        /// level half the one before (a side never below 1). Used as given, with no resampling,
+        /// colour-space conversion or premultiplication. Block formats still stop at 4x4, and
+        /// <see cref="GenerateMipmaps"/> false keeps level 0 alone. A host that makes mips the way
+        /// CS2 makes a composite's (a linear-light box chain, each level from the one above) sets this.
+        /// </summary>
+        public IReadOnlyList<byte[]>? MipChainBgra { get; set; }
 
         /// <summary>BC7 encoder quality. <c>Fast</c> is ~10× quicker than
         /// <c>Balanced</c> with a small quality cost - good for previews/bulk.</summary>
@@ -192,7 +207,20 @@ public static class ResourceBuilder
         /// reader treat it as plain RGB. A template's own set rides along and this
         /// adds to it.
         /// </summary>
-        public List<Source2ContainerAuthor.SpecialDep> EncodingSemantics { get; } = [];
+        public List<Source2ContainerAuthor.SpecialDep> EncodingSemantics { get; private set; } = [];
+
+        /// <summary>A copy of these options for <paramref name="imageBytes"/>, recorded as
+        /// <paramref name="sourceName"/> under <paramref name="searchPath"/> (raw pixels cleared).</summary>
+        internal TextureDef CopyFor(byte[] imageBytes, string sourceName, string searchPath)
+        {
+            var copy = (TextureDef)MemberwiseClone();
+            copy.ImageBytes = imageBytes;
+            copy.RawRgba = null;
+            copy.SourceName = sourceName;
+            copy.SearchPath = searchPath;
+            copy.EncodingSemantics = [.. EncodingSemantics];
+            return copy;
+        }
     }
 
     // VTexExtraData entry types, as the DATA block's extra-data table stores them.
@@ -309,8 +337,11 @@ public static class ResourceBuilder
 
         int actualW = decoded.Width;
         int actualH = decoded.Height;
-        int pow2W = NextPow2(actualW);
-        int pow2H = NextPow2(actualH);
+        int pow2W = (int)BitOperations.RoundUpToPowerOf2((uint)actualW);
+        int pow2H = (int)BitOperations.RoundUpToPowerOf2((uint)actualH);
+        if (pow2W > MaxTextureSide || pow2H > MaxTextureSide)
+            throw new ArgumentException(
+                $"A {actualW}x{actualH} image pads to {pow2W}x{pow2H}; a Source 2 texture is at most {MaxTextureSide} on a side.", nameof(def));
 
         // Re-host as Bgra8888 with UNPREMULTIPLIED alpha. SKBitmap.Decode()
         // premultiplies, which scales RGB by A/255 - fine for a photo, wrong for a
@@ -342,16 +373,25 @@ public static class ResourceBuilder
             : fullChain;
         numMips = Math.Clamp(numMips, 1, 14);
 
-        var mipData = new byte[numMips][];
-        mipData[0] = baseBitmap.Bytes;
-        for (var i = 1; i < numMips; i++)
+        byte[][] mipData;
+        if (def.MipChainBgra is { } given)
         {
-            int mw = Math.Max(pow2W >> i, 1);
-            int mh = Math.Max(pow2H >> i, 1);
-            using var mip = baseBitmap.Resize(
-                new SKImageInfo(mw, mh, SKColorType.Bgra8888, SKAlphaType.Unpremul),
-                highQuality)!;
-            mipData[i] = mip.Bytes;
+            MipChainInput.Check(given, pow2W, pow2H, nameof(def));
+            numMips = Math.Min(numMips, given.Count);
+            mipData = [.. given.Take(numMips)];
+        }
+        else
+        {
+            mipData = new byte[numMips][];
+            mipData[0] = baseBitmap.Bytes;
+            for (var i = 1; i < numMips; i++)
+            {
+                var (mw, mh) = MipChainInput.LevelSize(pow2W, pow2H, i);
+                using var mip = baseBitmap.Resize(
+                    new SKImageInfo(mw, mh, SKColorType.Bgra8888, SKAlphaType.Unpremul),
+                    highQuality)!;
+                mipData[i] = mip.Bytes;
+            }
         }
 
         // Block-compress each mip. formatByte is the on-disk VTexFormat value.
@@ -373,40 +413,14 @@ public static class ResourceBuilder
             // dozens of times faster than the managed BCnEncoder.Net at the same
             // quality, else BCnEncoder.Net.
             bool bc7 = def.Compression == TextureCompression.BC7;
-            if (bc7 && EffectiveBc7Encoder(def.Bc7Mode) == Bc7EncoderMode.Gpu)
+            Func<byte[], int, int, byte[]> encode =
+                bc7 && EffectiveBc7Encoder(def.Bc7Mode) == Bc7EncoderMode.Gpu ? GpuBc7Encoder.EncodeBgra
+                : bc7 && Bc7Native.Available ? Bc7Native.EncodeBgra
+                : ManagedEncoder(bcFormat, def.Quality);
+            for (var i = 0; i < numMips; i++)
             {
-                for (var i = 0; i < numMips; i++)
-                {
-                    int mw = Math.Max(pow2W >> i, 1);
-                    int mh = Math.Max(pow2H >> i, 1);
-                    mipData[i] = GpuBc7Encoder.EncodeBgra(mipData[i], mw, mh);
-                }
-            }
-            else if (bc7 && Bc7Native.Available)
-            {
-                for (var i = 0; i < numMips; i++)
-                {
-                    int mw = Math.Max(pow2W >> i, 1);
-                    int mh = Math.Max(pow2H >> i, 1);
-                    mipData[i] = Bc7Native.EncodeBgra(mipData[i], mw, mh);
-                }
-            }
-            else
-            {
-                var encoder = new BcEncoder();
-                encoder.OutputOptions.Quality = def.Quality;
-                encoder.OutputOptions.Format = bcFormat;
-                encoder.OutputOptions.GenerateMipMaps = false;
-                // Encode each mip's blocks across all cores (mip 0 dominates).
-                encoder.Options.IsParallel = true;
-                encoder.Options.TaskCount = Environment.ProcessorCount;
-
-                for (var i = 0; i < numMips; i++)
-                {
-                    int mw = Math.Max(pow2W >> i, 1);
-                    int mh = Math.Max(pow2H >> i, 1);
-                    mipData[i] = encoder.EncodeToRawBytes(mipData[i], mw, mh, PixelFormat.Bgra32)[0];
-                }
+                var (mw, mh) = MipChainInput.LevelSize(pow2W, pow2H, i);
+                mipData[i] = encode(mipData[i], mw, mh);
             }
         }
         else
@@ -422,15 +436,9 @@ public static class ResourceBuilder
         // without it the streamer fails to bind the texture and the material
         // that references it FATAL-errors with "error material".
         byte[] fallbackBits;
-        {
-            using var thumb = baseBitmap.Resize(
-                new SKImageInfo(32, 32, SKColorType.Bgra8888, SKAlphaType.Unpremul), highQuality)!;
-            var fbEnc = new BcEncoder();
-            fbEnc.OutputOptions.Quality = CompressionQuality.Balanced;
-            fbEnc.OutputOptions.Format = CompressionFormat.Bc7;
-            fbEnc.OutputOptions.GenerateMipMaps = false;
-            fallbackBits = fbEnc.EncodeToRawBytes(thumb.Bytes, 32, 32, PixelFormat.Bgra32)[0];
-        }
+        using (var thumb = baseBitmap.Resize(
+            new SKImageInfo(32, 32, SKColorType.Bgra8888, SKAlphaType.Unpremul), highQuality)!)
+            fallbackBits = ManagedEncoder(CompressionFormat.Bc7, CompressionQuality.Balanced)(thumb.Bytes, 32, 32);
 
         // DATA block layout (matches resourcecompiler output)
         //   [0..40)     vtex header
@@ -587,6 +595,21 @@ public static class ResourceBuilder
         }
 
         return output;
+    }
+
+    /// <summary>The longest side a Source 2 texture may have.</summary>
+    private const int MaxTextureSide = 16384;
+
+    /// <summary>BCnEncoder.Net as a block encoder for one image of BGRA pixels, across all cores.</summary>
+    private static Func<byte[], int, int, byte[]> ManagedEncoder(CompressionFormat format, CompressionQuality quality)
+    {
+        var encoder = new BcEncoder();
+        encoder.OutputOptions.Quality = quality;
+        encoder.OutputOptions.Format = format;
+        encoder.OutputOptions.GenerateMipMaps = false;
+        encoder.Options.IsParallel = true;
+        encoder.Options.TaskCount = Environment.ProcessorCount;
+        return (bgra, width, height) => encoder.EncodeToRawBytes(bgra, width, height, PixelFormat.Bgra32)[0];
     }
 
     /// <summary>
@@ -772,36 +795,39 @@ public static class ResourceBuilder
     /// </summary>
     private static WavFormat ParseWavFormat(byte[] wav)
     {
-        const uint FmtTag = 0x20746d66; // "fmt " (little-endian)
+        var (body, size) = WavChunk(wav, 0x20746d66)   // "fmt "
+            ?? throw new InvalidDataException("WAV file has no 'fmt ' chunk.");
+        if (size < 16)
+            throw new InvalidDataException("WAV 'fmt ' chunk is truncated.");
+        var span = wav.AsSpan(body);
+        return new WavFormat(
+            AudioFormat: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[0..]),
+            NumChannels: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[2..]),
+            SampleRate: System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[4..]),
+            // skip ByteRate (4) + BlockAlign (2) - derivable
+            BitsPerSample: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[14..]));
+    }
 
-        if (wav.Length < 12)
-            throw new InvalidDataException("Not a valid WAV file - too short for RIFF header.");
-
-        // RIFF header at [0..4) = "RIFF", [8..12) = "WAVE". Skip those.
-        var pos = 12;
-        while (pos + 8 <= wav.Length)
+    /// <summary>
+    /// The first chunk tagged <paramref name="tag"/> in a RIFF WAVE file: where its body starts and
+    /// how much of it the file holds, or null. Sizes are unsigned and RIFF chunks word-aligned, so the
+    /// walk only ever moves forward.
+    /// </summary>
+    /// <exception cref="InvalidDataException">The bytes are not a RIFF WAVE file.</exception>
+    private static (int Body, int Size)? WavChunk(byte[] wav, uint tag)
+    {
+        if (wav.Length < 12 || !wav.AsSpan(0, 4).SequenceEqual("RIFF"u8) || !wav.AsSpan(8, 4).SequenceEqual("WAVE"u8))
+            throw new InvalidDataException("Not a WAV file: no RIFF WAVE header.");
+        for (long pos = 12; pos + 8 <= wav.Length;)
         {
-            var tag = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(wav.AsSpan(pos));
-            var size = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(wav.AsSpan(pos + 4));
-            var body = pos + 8;
-
-            if (tag == FmtTag)
-            {
-                if (size < 16 || body + 16 > wav.Length)
-                    throw new InvalidDataException("WAV 'fmt ' chunk is truncated.");
-                var span = wav.AsSpan(body);
-                return new WavFormat(
-                    AudioFormat: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[0..]),
-                    NumChannels: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[2..]),
-                    SampleRate: System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[4..]),
-                    // skip ByteRate (4) + BlockAlign (2) - derivable
-                    BitsPerSample: System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span[14..]));
-            }
-
-            pos = body + ((size + 1) & ~1); // RIFF chunks are word-aligned
+            var span = wav.AsSpan((int)pos);
+            uint size = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[4..]);
+            long body = pos + 8;
+            if (System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span) == tag)
+                return ((int)body, (int)Math.Min(size, wav.Length - body));
+            pos = body + size + (size & 1);
         }
-
-        throw new InvalidDataException("WAV file has no 'fmt ' chunk.");
+        return null;
     }
 
     /// <summary>
@@ -837,19 +863,12 @@ public static class ResourceBuilder
     public static byte[] RenameStringAttribute(byte[] vmatC, string from, string to)
     {
         var resource = CompiledResource.Read(vmatC);
-
-        var attrs = DataRoot(resource)["m_stringAttributes"];
-        if (attrs is null || !attrs.IsArray)
-            return vmatC;
-
         var hit = false;
-        foreach (var sa in attrs.AsArraySpan())
+        foreach (var (name, entry) in NamedEntries(DataRoot(resource), "m_stringAttributes"))
         {
-            if (sa["m_name"] is not { } nameObj)
+            if (!string.Equals(name, from, StringComparison.Ordinal))
                 continue;
-            if (!string.Equals((string)nameObj, from, StringComparison.Ordinal))
-                continue;
-            sa["m_name"] = new KVObject(to) { Flag = nameObj.Flag };
+            entry["m_name"] = new KVObject(to) { Flag = entry["m_name"]!.Flag };
             hit = true;
         }
         return hit ? resource.Write() : vmatC;
@@ -864,21 +883,8 @@ public static class ResourceBuilder
     public static IReadOnlyDictionary<string, string> ReadStringAttributes(byte[] vmatC)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        var resource = CompiledResource.Read(vmatC);
-
-        var attrs = DataRoot(resource)["m_stringAttributes"];
-        if (attrs is null || !attrs.IsArray)
-            return map;
-
-        foreach (var sa in attrs.AsArraySpan())
-        {
-            if (sa["m_name"] is not { } nameObj)
-                continue;
-            var name = (string)nameObj;
-            if (string.IsNullOrEmpty(name))
-                continue;
-            map[name] = sa["m_value"] is { } v ? (string)v ?? "" : "";
-        }
+        foreach (var (name, entry) in NamedEntries(DataRoot(CompiledResource.Read(vmatC)), "m_stringAttributes"))
+            map[name] = entry.GetStringProperty("m_value") ?? "";
         return map;
     }
 
@@ -892,24 +898,21 @@ public static class ResourceBuilder
     public static IReadOnlyDictionary<string, string> ReadTextureParamPaths(byte[] vmatC)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        var resource = CompiledResource.Read(vmatC);
-
-        var root = DataRoot(resource);
-        var texParams = root["m_textureParams"];
-        if (texParams is null || !texParams.IsArray)
-            return map;
-
-        foreach (var tp in texParams.AsArraySpan())
-        {
-            if (tp["m_name"] is not { } nameObj)
-                continue;
-            var name = (string)nameObj;
-            if (string.IsNullOrEmpty(name))
-                continue;
-            if (tp["m_pValue"] is { } valObj && (string)valObj is { } path && !string.IsNullOrEmpty(path))
+        foreach (var (name, entry) in NamedEntries(DataRoot(CompiledResource.Read(vmatC)), "m_textureParams"))
+            if (entry.GetStringProperty("m_pValue") is { Length: > 0 } path)
                 map[name] = path;
-        }
         return map;
+    }
+
+    /// <summary>The entries of a material array (<c>m_stringAttributes</c>, <c>m_textureParams</c>...)
+    /// with a non-empty string <c>m_name</c>, in order.</summary>
+    private static IEnumerable<(string Name, KVObject Entry)> NamedEntries(KVObject root, string arrayKey)
+    {
+        if (!root.TryGetValue(arrayKey, out var array) || !array.IsArray)
+            yield break;
+        foreach (var entry in array.Values)
+            if (entry.IsCollection && entry.GetStringProperty("m_name") is { Length: > 0 } name)
+                yield return (name, entry);
     }
 
     /// <summary>
@@ -950,25 +953,16 @@ public static class ResourceBuilder
     // Template discovery helpers
 
     /// <summary>
-    /// Read the raw bytes of the first .vmat_c entry found in <paramref name="pkg"/>.
-    /// Returns null if the VPK contains no materials.
+    /// The bytes of the first entry of a compiled type in <paramref name="pkg"/>, by path order, to
+    /// use as a template (any valid file of the type supplies a header frame), or null when the
+    /// VPK holds none.
     /// </summary>
-    public static byte[]? FindMaterialTemplateBytes(Package pkg)
-        => FindFirstEntryBytes(pkg, "vmat_c");
-
-    /// <summary>
-    /// Read the raw bytes of the first .vmdl_c entry found in <paramref name="pkg"/>.
-    /// Returns null if the VPK contains no models.
-    /// </summary>
-    public static byte[]? FindModelTemplateBytes(Package pkg)
-        => FindFirstEntryBytes(pkg, "vmdl_c");
-
-    /// <summary>
-    /// Read the raw bytes of the first .vtex_c entry found in <paramref name="pkg"/>.
-    /// Returns null if the VPK contains no textures.
-    /// </summary>
-    public static byte[]? FindTextureTemplateBytes(Package pkg)
-        => FindFirstEntryBytes(pkg, "vtex_c");
+    /// <param name="pkg">An opened VPK.</param>
+    /// <param name="compiledExtension">The compiled extension, without the dot (<c>vmat_c</c>).</param>
+    public static byte[]? FindTemplateBytes(Package pkg, string compiledExtension)
+        => Io.VpkEntries.FirstEndingWith(pkg, "." + compiledExtension.TrimStart('.')) is { } entry
+            ? Io.VpkEntries.Read(pkg, entry)
+            : null;
 
     // Material mutation
 
@@ -990,43 +984,18 @@ public static class ResourceBuilder
         root.Add("m_materialName", new KVObject(def.Name));
         root.Add("m_shaderName", new KVObject(def.Shader));
 
-        root.Add("m_intParams", BuildArray(def.IntParams, (k, v) =>
-        {
-            var e = new KVObject();
-            e.Add("m_name", new KVObject(k));
-            e.Add("m_nValue", new KVObject(v));
-            return e;
-        }));
-
-        root.Add("m_floatParams", BuildArray(def.FloatParams, (k, v) =>
-        {
-            var e = new KVObject();
-            e.Add("m_name", new KVObject(k));
-            e.Add("m_flValue", new KVObject((double)v));  // CS2 stores as FloatingPoint64
-            return e;
-        }));
-
-        root.Add("m_vectorParams", BuildArray(def.VectorParams, (k, v) =>
-        {
-            var e = new KVObject();
-            e.Add("m_name", new KVObject(k));
-            e.Add("m_value", Vec4Array(v));
-            return e;
-        }));
-
-        root.Add("m_textureParams", BuildArray(def.TextureParams, (k, v) =>
-        {
-            var e = new KVObject();
-            e.Add("m_name", new KVObject(k));
-            // FLAGLESS RESOURCE REFS ARE FATAL (2026-07-22, the L4D2 zoey crash):
-            // stock compiles store texture params as resource:"..."; without the
-            // Resource flag CS2 refuses to load the material and any model wearing
-            // it FATAL-errors with "attempting to render with error material"
-            // (crash dump lists every such vmat as failed-to-load). Same lesson as
-            // ModelSwapStage draw-call refs / VmatTranslucencyEditor.
-            e.Add("m_pValue", new KVObject(v) { Flag = ValveKeyValue.KVFlag.Resource });
-            return e;
-        }));
+        root.Add("m_intParams", VmatParams.NamedArray(Pairs(def.IntParams), "m_nValue", v => new KVObject(v)));
+        // CS2 stores floats and vector components as FloatingPoint64.
+        root.Add("m_floatParams", VmatParams.NamedArray(Pairs(def.FloatParams), "m_flValue", v => new KVObject((double)v)));
+        root.Add("m_vectorParams", VmatParams.NamedArray(Pairs(def.VectorParams), "m_value", Vec4Array));
+        // FLAGLESS RESOURCE REFS ARE FATAL (2026-07-22, the L4D2 zoey crash):
+        // stock compiles store texture params as resource:"..."; without the
+        // Resource flag CS2 refuses to load the material and any model wearing
+        // it FATAL-errors with "attempting to render with error material"
+        // (crash dump lists every such vmat as failed-to-load). Same lesson as
+        // ModelSwapStage draw-call refs / VmatTranslucencyEditor.
+        root.Add("m_textureParams", VmatParams.NamedArray(Pairs(def.TextureParams), "m_pValue",
+            v => new KVObject(v) { Flag = KVFlag.Resource }));
 
         // m_dynamicParams + m_dynamicTextureParams ALWAYS sit between
         // textureParams and the attribute arrays. Empty for our pipeline
@@ -1035,25 +1004,11 @@ public static class ResourceBuilder
         root.Add("m_dynamicParams", KVObject.Array());
         root.Add("m_dynamicTextureParams", KVObject.Array());
 
-        root.Add("m_intAttributes", BuildArray(def.IntAttributes, (k, v) =>
-        {
-            var e = new KVObject();
-            e.Add("m_name", new KVObject(k));
-            e.Add("m_nValue", new KVObject(v));
-            return e;
-        }));
-
+        root.Add("m_intAttributes", VmatParams.NamedArray(Pairs(def.IntAttributes), "m_nValue", v => new KVObject(v)));
         root.Add("m_floatAttributes", KVObject.Array());
         root.Add("m_vectorAttributes", KVObject.Array());
         root.Add("m_textureAttributes", KVObject.Array());
-
-        root.Add("m_stringAttributes", BuildArray(def.StringAttributes, (k, v) =>
-        {
-            var e = new KVObject();
-            e.Add("m_name", new KVObject(k));
-            e.Add("m_value", new KVObject(v));
-            return e;
-        }));
+        root.Add("m_stringAttributes", VmatParams.NamedArray(Pairs(def.StringAttributes), "m_value", v => new KVObject(v)));
 
         root.Add("m_renderAttributesUsed", KVObject.Array());
 
@@ -1206,13 +1161,11 @@ public static class ResourceBuilder
     }
 
     /// <summary>Rebuild a model resource from an EXACT, ordered set of blocks, each written
-    /// BYTE-FOR-BYTE (no re-encode) via VRF's own container serializer - so the header,
-    /// block table, 16-byte alignment and padding match what the CS2 engine accepts. Used to
-    /// graft a block (e.g. a missing <c>ASEQ</c>) into a community model: hand-rolling the
-    /// container produced a model s2v read but CS2 rejected as an ERROR MODEL, and letting VRF
-    /// re-encode the typed blocks corrupts complex community models - this does neither (VRF
-    /// lays out the container; every block stays raw). <paramref name="template"/> supplies the
-    /// header version fields.</summary>
+    /// byte for byte (no re-encode), laid out as resourcecompiler lays a file out
+    /// (<see cref="ResourceFile.Write"/>): header, block table, alignment and padding as the
+    /// engine accepts them. Used to graft a block (e.g. a missing <c>ASEQ</c>) into a community
+    /// model, where re-encoding the typed blocks would corrupt it. <paramref name="template"/>
+    /// supplies the resource version.</summary>
     public static byte[] RebuildModelRaw(byte[] template, IReadOnlyList<(string Type, byte[] Bytes)> blocks)
     {
         if (template.Length < 16)
@@ -1230,42 +1183,20 @@ public static class ResourceBuilder
         catch (InvalidDataException) { return null; }
     }
 
-    /// <summary>Binary-replace a model's PHYS block with <paramref name="donorPhysBytes"/>, keeping
-    /// EVERY other block (DATA, meshes, anim, RERL) byte-identical. Pure byte surgery on the
-    /// resource block table - VRF is deliberately NOT used to re-serialize, because its DATA/PHYS
-    /// re-encode is lossy for complex MMD models (corrupts materials + animgraph, observed in-game
-    /// as a nude/white/T-posed model). Rewrites only the PHYS bytes, the block-table relative
-    /// offsets, and the file-size header. Mirrors <c>data/_trans_preview/_kf/swap_phys.py</c>.</summary>
+    /// <summary>Replace a model's PHYS block with <paramref name="donorPhysBytes"/>, keeping every other
+    /// block (DATA, meshes, anim, RERL) byte-identical: no tree is decoded or re-encoded, because a
+    /// re-encode of complex community models' DATA/PHYS was lossy (VRF's, observed in game as a
+    /// nude/white/T-posed model). The file is laid out as resourcecompiler lays it out
+    /// (<see cref="ResourceFile.Write"/>). A model with no PHYS comes back unchanged.</summary>
+    /// <exception cref="InvalidDataException">The model is not a well-formed resource.</exception>
     public static byte[] SwapPhysBlockBinary(byte[] model, byte[] donorPhysBytes)
     {
-        if (model.Length < 16)
-            throw new InvalidDataException($"Model is {model.Length} bytes, shorter than a resource header");
-        int bo = (int)BitConverter.ToUInt32(model, 8);
-        int bc = (int)BitConverter.ToUInt32(model, 12);
-        int arr = 8 + bo;
-        // The table position and count come from the file: check them before sizing anything.
-        if (bo < 8 || bc < 0 || (long)arr + 12L * bc > model.Length)
-            throw new InvalidDataException($"Model claims {bc} blocks at {arr}, past its {model.Length} bytes");
-        var blocks = new List<(int TableOff, string Type, int Abs, int Size)>(bc);
-        for (var i = 0; i < bc; i++)
-        {
-            var o = arr + i * 12;
-            var type = System.Text.Encoding.ASCII.GetString(model, o, 4);
-            var abs = o + 4 + (long)BitConverter.ToUInt32(model, o + 4);
-            var size = (long)BitConverter.ToUInt32(model, o + 8);
-            if (abs + size > model.Length)
-                throw new InvalidDataException($"Block {i} ({type}) claims {size} bytes at {abs}, past the model's {model.Length}");
-            blocks.Add((o, type, (int)abs, (int)size));
-        }
-        if (!blocks.Exists(b => b.Type == "PHYS"))
-            return model;                 // no PHYS - nothing to swap
-
-        // Every block keeps its bytes; the file is laid out as resourcecompiler lays it out
-        // (RERL padded to 4 with its entry array on an 8-byte boundary, the rest to 16), which a
-        // plain 16-byte re-pad of everything after PHYS did not do once PHYS changed size.
-        var file = new ResourceFile { Version = BitConverter.ToUInt16(model, 6) };
-        foreach (var b in blocks)
-            file.Blocks.Add(new ResourceBlock(b.Type, b.Type == "PHYS" ? donorPhysBytes : model.AsSpan(b.Abs, b.Size).ToArray()));
+        var file = ResourceFile.Read(model);
+        if (file["PHYS"] is null)
+            return model;
+        for (var i = 0; i < file.Blocks.Count; i++)
+            if (file.Blocks[i].Type == "PHYS")
+                file.Blocks[i] = new ResourceBlock("PHYS", donorPhysBytes);
         return file.Write();
     }
 
@@ -1343,7 +1274,10 @@ public static class ResourceBuilder
                 Walk(root);
             return (true, true, jiggleBones, hasSoftBody, phys.Data.Length);
         }
-        catch { return (false, false, 0, false, 0); }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return (false, false, 0, false, 0);
+        }
     }
 
     /// <summary>True if a model carries a dynamic-physics setup heavy enough to crash CS2's
@@ -1355,14 +1289,6 @@ public static class ResourceBuilder
     {
         var a = AnalyzePhysics(model);
         return a.JiggleBones >= JiggleBoneCrashThreshold || a.HasSoftBody;
-    }
-
-    /// <summary>Count non-overlapping, case-insensitive occurrences of <paramref name="needle"/>.</summary>
-    private static int CountOccurrences(string haystack, string needle)
-    {
-        int count = 0, i = 0;
-        while ((i = haystack.IndexOf(needle, i, StringComparison.OrdinalIgnoreCase)) >= 0) { count++; i += needle.Length; }
-        return count;
     }
 
     /// <summary>
@@ -1476,7 +1402,7 @@ public static class ResourceBuilder
     /// a key in <paramref name="pathMap"/> swapped for the corresponding new
     /// value. Walks the DATA block KV3 tree, the RED2 metadata block, and the
     /// RERL external-reference list. The KV3 string table is rebuilt from
-    /// scratch by VRF's serializer, so length changes are handled correctly.
+    /// scratch when the tree is written, so length changes are handled correctly.
     ///
     /// Originally lived in <c>HitmarkerService</c>; lifted here so any future
     /// "rewrite paths inside a `.vpcf_c`" use case (presets, custom particle
@@ -1640,8 +1566,29 @@ public static class ResourceBuilder
             case KVValueType.BinaryBlob:
                 dst = KVObject.Blob((byte[])src);
                 break;
-            default: // numeric (Int16/32/64, UInt*, FloatingPoint(64), Pointer)
-                dst = BuildNumericTyped(src.ValueType, (double)src) ?? new KVObject((double)src);
+            case KVValueType.Int16:
+                dst = new KVObject((short)src);
+                break;
+            case KVValueType.UInt16:
+                dst = new KVObject((ushort)src);
+                break;
+            case KVValueType.Int32:
+                dst = new KVObject((int)src);
+                break;
+            case KVValueType.UInt32:
+                dst = new KVObject((uint)src);
+                break;
+            case KVValueType.Int64:
+                dst = new KVObject((long)src);
+                break;
+            case KVValueType.UInt64:
+                dst = new KVObject((ulong)src);
+                break;
+            case KVValueType.FloatingPoint:
+                dst = new KVObject((float)src);
+                break;
+            default:
+                dst = new KVObject((double)src);
                 break;
         }
         dst.Flag = src.Flag;
@@ -1670,59 +1617,48 @@ public static class ResourceBuilder
     /// <para>Mutates in place; the caller re-serializes. Returns how many texture inputs
     /// were touched, so a caller can tell a silent miss from a real edit.</para>
     /// </summary>
-    private static int SetRenderSpriteTextureScaleU(KVObject obj, double scaleU)
+    private static int SetRenderSpriteTextureScaleU(KVObject root, double scaleU)
     {
-        if (obj is null)
-            return 0;
         var touched = 0;
-
-        if (obj.ValueType == KVValueType.Collection)
+        foreach (var renderer in RenderSprites(root).ToList())
         {
-            var keys = obj.Keys.ToList();
-            if (keys.Contains("_class") && (string)obj["_class"] == "C_OP_RenderSprites")
+            // Shape donor: any full float-input node on this renderer. Both hitmarker
+            // templates carry m_flSelfIllumAmount; fall back to m_flRadiusScale.
+            var donor = renderer.GetSubCollection("m_flSelfIllumAmount") ?? renderer.GetSubCollection("m_flRadiusScale");
+            if (donor is null || !renderer.TryGetValue("m_vecTexturesInput", out var textures) || !textures.IsArray)
+                continue;
+            foreach (var texture in textures.Values)
             {
-                // Shape donor: any full float-input node on this renderer. Both hitmarker
-                // templates carry m_flSelfIllumAmount; fall back to m_flRadiusScale.
-                var donor = obj.GetSubCollection("m_flSelfIllumAmount")
-                         ?? obj.GetSubCollection("m_flRadiusScale");
-                var textures = keys.Contains("m_vecTexturesInput") ? obj["m_vecTexturesInput"] : null;
-                if (donor is not null && textures is not null && textures.IsArray)
-                {
-                    var span = textures.AsArraySpan();
-                    for (var i = 0; i < span.Length; i++)
-                    {
-                        if (span[i].ValueType != KVValueType.Collection)
-                            continue;
-                        var controls = span[i].GetSubCollection("m_TextureControls");
-                        if (controls is null)
-                            continue;
-
-                        var node = CloneKv(donor);
-                        var repl = BuildNumericTyped(node["m_flLiteralValue"].ValueType, scaleU);
-                        if (repl is null)
-                            continue;
-                        node["m_flLiteralValue"] = repl;
-                        controls["m_flFinalTextureScaleU"] = node;
-                        touched++;
-                    }
-                }
+                if (texture.ValueType != KVValueType.Collection || texture.GetSubCollection("m_TextureControls") is not { } controls)
+                    continue;
+                var node = CloneKv(donor);
+                if (BuildNumericTyped(node["m_flLiteralValue"]!.ValueType, scaleU) is not { } literal)
+                    continue;
+                node["m_flLiteralValue"] = literal;
+                controls["m_flFinalTextureScaleU"] = node;
+                touched++;
             }
-            foreach (var key in keys)
-            {
-                var child = obj[key];
-                if (child.IsCollection || child.IsArray)
-                    touched += SetRenderSpriteTextureScaleU(child, scaleU);
-            }
-        }
-        else if (obj.ValueType == KVValueType.Array)
-        {
-            var span = obj.AsArraySpan();
-            for (var i = 0; i < span.Length; i++)
-                if (span[i].IsCollection || span[i].IsArray)
-                    touched += SetRenderSpriteTextureScaleU(span[i], scaleU);
         }
         return touched;
     }
+
+    /// <summary>Every <c>C_OP_RenderSprites</c> renderer in a particle tree, depth first.</summary>
+    private static IEnumerable<KVObject> RenderSprites(KVObject node)
+    {
+        if (node.ValueType == KVValueType.Collection
+            && node.TryGetValue("_class", out var cls) && cls.ValueType == KVValueType.String && (string)cls == "C_OP_RenderSprites")
+            yield return node;
+        if (!node.IsCollection && !node.IsArray)
+            yield break;
+        foreach (var child in node.Children.Select(c => c.Value).ToList())
+            if (child.IsCollection || child.IsArray)
+                foreach (var renderer in RenderSprites(child))
+                    yield return renderer;
+    }
+
+    /// <summary>The <c>m_flLiteralValue</c> holder of a renderer's float input <paramref name="key"/>, or null.</summary>
+    private static KVObject? Literal(KVObject renderer, string key) =>
+        renderer.GetSubCollection(key) is { } input && input.ContainsKey("m_flLiteralValue") ? input : null;
 
     /// <summary>
     /// Read the first <c>C_OP_RenderSprites</c> renderer's <c>m_flRadiusScale</c>
@@ -1738,35 +1674,10 @@ public static class ResourceBuilder
         return root is null ? null : FindRenderSpriteRadiusScale(root);
     }
 
-    private static double? FindRenderSpriteRadiusScale(KVObject obj)
-    {
-        if (obj is null)
-            return null;
-        if (obj.ValueType == KVValueType.Collection)
-        {
-            var keys = obj.Keys.ToList();
-            if (keys.Contains("_class") && (string)obj["_class"] == "C_OP_RenderSprites")
-            {
-                var rs = obj.GetSubCollection("m_flRadiusScale");
-                if (rs is not null && rs.Keys.Contains("m_flLiteralValue"))
-                    return rs.GetFloatProperty("m_flLiteralValue");
-            }
-            foreach (var key in keys)
-            {
-                var child = obj[key];
-                if ((child.IsCollection || child.IsArray) && FindRenderSpriteRadiusScale(child) is { } v)
-                    return v;
-            }
-        }
-        else if (obj.ValueType == KVValueType.Array)
-        {
-            var span = obj.AsArraySpan();
-            for (var i = 0; i < span.Length; i++)
-                if ((span[i].IsCollection || span[i].IsArray) && FindRenderSpriteRadiusScale(span[i]) is { } v)
-                    return v;
-        }
-        return null;
-    }
+    private static double? FindRenderSpriteRadiusScale(KVObject root) =>
+        RenderSprites(root).Select(r => Literal(r, "m_flRadiusScale")).FirstOrDefault(rs => rs is not null) is { } found
+            ? found.GetFloatProperty("m_flLiteralValue")
+            : null;
 
     /// <summary>
     /// Recursively scale every <c>C_OP_RenderSprites</c> renderer's
@@ -1775,39 +1686,12 @@ public static class ResourceBuilder
     /// the marker's on-screen size - the source texture's resolution only affects
     /// sharpness, not size. Mutates in place; the caller re-serializes.
     /// </summary>
-    private static void ScaleRenderSpriteRadius(KVObject obj, double factor)
+    private static void ScaleRenderSpriteRadius(KVObject root, double factor)
     {
-        if (obj is null)
-            return;
-
-        if (obj.ValueType == KVValueType.Collection)
-        {
-            var keys = obj.Keys.ToList();
-            if (keys.Contains("_class") && (string)obj["_class"] == "C_OP_RenderSprites")
-            {
-                var rs = obj.GetSubCollection("m_flRadiusScale");
-                if (rs is not null && rs.Keys.Contains("m_flLiteralValue"))
-                {
-                    var lit = rs["m_flLiteralValue"];
-                    var scaled = BuildNumericTyped(lit.ValueType, rs.GetFloatProperty("m_flLiteralValue") * factor);
-                    if (scaled is not null)
-                        rs["m_flLiteralValue"] = scaled;
-                }
-            }
-            foreach (var key in keys)
-            {
-                var child = obj[key];
-                if (child.IsCollection || child.IsArray)
-                    ScaleRenderSpriteRadius(child, factor);
-            }
-        }
-        else if (obj.ValueType == KVValueType.Array)
-        {
-            var span = obj.AsArraySpan();
-            for (var i = 0; i < span.Length; i++)
-                if (span[i].IsCollection || span[i].IsArray)
-                    ScaleRenderSpriteRadius(span[i], factor);
-        }
+        foreach (var renderer in RenderSprites(root).ToList())
+            if (Literal(renderer, "m_flRadiusScale") is { } rs
+                && BuildNumericTyped(rs["m_flLiteralValue"]!.ValueType, rs.GetFloatProperty("m_flLiteralValue") * factor) is { } scaled)
+                rs["m_flLiteralValue"] = scaled;
     }
 
     /// <summary>
@@ -1817,38 +1701,13 @@ public static class ResourceBuilder
     /// hitmarker templates bake 0.75 (never fully opaque); SETTING lets the user
     /// pick a true 100%. Mutates in place; the caller re-serializes.
     /// </summary>
-    private static void SetRenderSpriteAlpha(KVObject obj, double alpha)
+    private static void SetRenderSpriteAlpha(KVObject root, double alpha)
     {
         alpha = Math.Clamp(alpha, 0.0, 1.0);
-        if (obj is null)
-            return;
-        if (obj.ValueType == KVValueType.Collection)
-        {
-            var keys = obj.Keys.ToList();
-            if (keys.Contains("_class") && (string)obj["_class"] == "C_OP_RenderSprites")
-            {
-                var asc = obj.GetSubCollection("m_flAlphaScale");
-                if (asc is not null && asc.Keys.Contains("m_flLiteralValue"))
-                {
-                    var repl = BuildNumericTyped(asc["m_flLiteralValue"].ValueType, alpha);
-                    if (repl is not null)
-                        asc["m_flLiteralValue"] = repl;
-                }
-            }
-            foreach (var key in keys)
-            {
-                var child = obj[key];
-                if (child.IsCollection || child.IsArray)
-                    SetRenderSpriteAlpha(child, alpha);
-            }
-        }
-        else if (obj.ValueType == KVValueType.Array)
-        {
-            var span = obj.AsArraySpan();
-            for (var i = 0; i < span.Length; i++)
-                if (span[i].IsCollection || span[i].IsArray)
-                    SetRenderSpriteAlpha(span[i], alpha);
-        }
+        foreach (var renderer in RenderSprites(root).ToList())
+            if (Literal(renderer, "m_flAlphaScale") is { } asc
+                && BuildNumericTyped(asc["m_flLiteralValue"]!.ValueType, alpha) is { } replacement)
+                asc["m_flLiteralValue"] = replacement;
     }
 
     /// <summary>
@@ -1891,7 +1750,10 @@ public static class ResourceBuilder
                     effective = v;
             }
         }
-        catch { /* not all definitions expose it as a readable float - treat as the engine default */ }
+        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+        {
+            // not all definitions expose it as a readable float - treat as the engine default
+        }
         return effective / Source2DefaultConstantRadius;
     }
 
@@ -2047,69 +1909,16 @@ public static class ResourceBuilder
         return resource.Write();
     }
 
-    /// <summary>End offset of the last block in a serialized resource - i.e. where the vsnd
-    /// streaming PCM must begin. Parses the block table directly: VRF's Sound block mutates its
-    /// own <c>Offset</c> when a CTRL is present, so <c>snd.Offset</c> can't be trusted here.</summary>
-    private static int LastBlockEnd(byte[] resource)
-    {
-        var span = resource.AsSpan();
-        int blockOffset = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[8..]);
-        int blockCount = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[12..]);
-        int tableStart = 8 + blockOffset;
-        int end = 0;
-        for (int i = 0; i < blockCount; i++)
-        {
-            int o = tableStart + i * 12;
-            int relOff = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[(o + 4)..]);
-            int size = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[(o + 8)..]);
-            end = Math.Max(end, (o + 4) + relOff + size);
-        }
-        return end;
-    }
-
-    /// <summary>
-    /// Parse a WAV byte array and return only the raw PCM bytes from the
-    /// 'data' chunk. Local copy of <c>SoundProcessor.ExtractWavData</c>; kept
-    /// here to keep <see cref="RebuildSound"/> self-contained inside the
-    /// resource-encode hub.
-    /// </summary>
+    /// <summary>The raw PCM bytes of a WAV file's 'data' chunk.</summary>
+    /// <exception cref="InvalidDataException">The bytes are not a WAV file with a data chunk.</exception>
     private static byte[] ExtractWavData(byte[] wav)
     {
-        const uint DataTag = 0x61746164; // "data"
-
-        var span = wav.AsSpan();
-        if (span.Length < 12)
-            throw new InvalidDataException("Not a valid WAV file.");
-
-        var pos = 12; // skip RIFF/file-size/WAVE
-        while (pos + 8 <= span.Length)
-        {
-            var tag = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[pos..]);
-            var size = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(span[(pos + 4)..]);
-            var body = pos + 8;
-
-            if (tag == DataTag)
-                return span.Slice(body, Math.Min(size, span.Length - body)).ToArray();
-
-            pos = body + ((size + 1) & ~1); // RIFF chunks are word-aligned
-        }
-
-        throw new InvalidDataException("WAV file has no data chunk.");
+        var (body, size) = WavChunk(wav, 0x61746164)   // "data"
+            ?? throw new InvalidDataException("WAV file has no data chunk.");
+        return wav.AsSpan(body, size).ToArray();
     }
 
-    /// <summary>
-    /// Build a KV3 Array of sub-objects from <paramref name="dict"/>,
-    /// using <paramref name="entryFactory"/> to construct each element.
-    /// </summary>
-    private static KVObject BuildArray<TValue>(
-        Dictionary<string, TValue> dict,
-        Func<string, TValue, KVObject> entryFactory)
-    {
-        var arr = KVObject.Array(dict.Count);
-        foreach (var (k, v) in dict)
-            arr.Add(entryFactory(k, v));
-        return arr;
-    }
+    private static IEnumerable<(string, T)> Pairs<T>(Dictionary<string, T> dict) => dict.Select(kv => (kv.Key, kv.Value));
 
     /// <summary>Build a KV3 Array of four double elements from a Vector4.</summary>
     /// <remarks>CS2 stores vector components as FloatingPoint64 (f64), not f32.</remarks>
@@ -2125,33 +1934,4 @@ public static class ResourceBuilder
 
     private static string EnsureCompiled(string path)
         => path.EndsWith("_c", StringComparison.OrdinalIgnoreCase) ? path : path + "_c";
-
-    private static byte[]? FindFirstEntryBytes(Package pkg, string typeExtension)
-    {
-        // VpkService.EntriesOf throws if the package's entry table is
-        // null, which would mean the Package was never Read(). Replaces
-        // the previous `pkg.Entries!` null-forgiving operator that
-        // silenced the warning without surfacing a useful error.
-        if (!Io.VpkEntries.ByExtension(pkg).TryGetValue(typeExtension, out var list))
-            return null;
-        if (list is not { Count: > 0 })
-            return null;
-
-        var entry = list[0];
-        pkg.ReadEntry(entry, out var bytes);
-        return bytes;
-    }
-
-    private static int NextPow2(int n)
-    {
-        if (n <= 1)
-            return 1;
-        n--;
-        n |= n >> 1;
-        n |= n >> 2;
-        n |= n >> 4;
-        n |= n >> 8;
-        n |= n >> 16;
-        return n + 1;
-    }
 }

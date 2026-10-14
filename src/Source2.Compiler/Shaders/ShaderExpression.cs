@@ -24,13 +24,31 @@ public static class ShaderExpression
     /// <param name="code">The bytecode.</param>
     /// <param name="feature">A feature combo's value by its index in the features program.</param>
     /// <param name="param">A material parameter's value by name hash.</param>
+    /// <exception cref="InvalidDataException">The bytecode is malformed, loops without end or uses an opcode not measured.</exception>
     public static Vector4 Evaluate(ReadOnlySpan<byte> code, Func<int, int> feature, Func<uint, Vector4> param)
+    {
+        try
+        {
+            return Run(code, feature, param);
+        }
+        catch (Exception ex) when (ex is ArgumentOutOfRangeException or IndexOutOfRangeException or InvalidOperationException)
+        {
+            throw new InvalidDataException("A shader expression is malformed: " + ex.Message, ex);
+        }
+    }
+
+    // Expressions are a few dozen opcodes; a jump that never lands is not one.
+    private const int MaxSteps = 1 << 16;
+
+    private static Vector4 Run(ReadOnlySpan<byte> code, Func<int, int> feature, Func<uint, Vector4> param)
     {
         var stack = new Stack<Vector4>();
         var locals = new Vector4[256];
         int pc = 0;
-        while (true)
+        for (var step = 0; ; step++)
         {
+            if (step == MaxSteps)
+                throw new InvalidDataException($"A shader expression ran {MaxSteps} steps without returning.");
             if (pc >= code.Length)
                 throw new InvalidDataException("A shader expression ran past its end.");
             byte op = code[pc++];

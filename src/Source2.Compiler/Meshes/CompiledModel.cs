@@ -35,6 +35,24 @@ public sealed class CompiledModel
     public byte[] Write() => Resource.Write();
 }
 
+/// <summary>Integer fields of a CTRL descriptor, read with the error a malformed model deserves.</summary>
+internal static class Field
+{
+    public static int Int(KVObject descriptor, string key) =>
+        descriptor.TryGetValue(key, out var v) && v.ValueType is not (KVValueType.String or KVValueType.Collection or KVValueType.Array or KVValueType.Null)
+            ? (int)v
+            : throw new InvalidDataException($"A mesh descriptor has no {key}.");
+
+    /// <summary>A block index, checked against the model's block table.</summary>
+    public static int Block(CompiledModel model, KVObject descriptor, string key)
+    {
+        var index = Int(descriptor, key);
+        return index >= 0 && index < model.Resource.File.Blocks.Count
+            ? index
+            : throw new InvalidDataException($"{key} {index} is outside the model's {model.Resource.File.Blocks.Count} blocks.");
+    }
+}
+
 /// <summary>One embedded mesh: its descriptor in CTRL, its MDAT tree and its buffers.</summary>
 public sealed class EmbeddedMesh
 {
@@ -50,10 +68,11 @@ public sealed class EmbeddedMesh
     public KVObject Descriptor { get; }
 
     /// <summary><c>m_Name</c>.</summary>
-    public string Name => (string)Descriptor["m_Name"]!;
+    public string Name => Descriptor.GetStringProperty("m_Name") ?? "";
 
     /// <summary>The mesh's MDAT tree (scene objects and draw calls, skeleton, attachments, morph set).</summary>
-    public KVObject Data => _model.Resource.Kv3At((int)Descriptor["m_nDataBlock"]!)
+    /// <exception cref="InvalidDataException">The descriptor names no KV3 block.</exception>
+    public KVObject Data => _model.Resource.Kv3At(Field.Block(_model, Descriptor, "m_nDataBlock"))
         ?? throw new InvalidDataException($"Mesh {Name}: its data block is not KV3.");
 
     /// <summary>The vertex buffers.</summary>
@@ -85,21 +104,21 @@ public sealed class MeshBuffer
     public bool IsVertexBuffer { get; }
 
     /// <summary><c>m_nElementCount</c>: vertices or indices.</summary>
-    public int ElementCount => (int)Descriptor["m_nElementCount"]!;
+    public int ElementCount => Field.Int(Descriptor, "m_nElementCount");
 
     /// <summary><c>m_nElementSizeInBytes</c>: the vertex stride, or 2 or 4 for indices.</summary>
-    public int ElementSize => (int)Descriptor["m_nElementSizeInBytes"]!;
+    public int ElementSize => Field.Int(Descriptor, "m_nElementSizeInBytes");
 
     /// <summary>Whether the stored bytes are meshopt-compressed.</summary>
-    public bool IsCompressed => (bool)Descriptor["m_bMeshoptCompressed"]!;
+    public bool IsCompressed => Descriptor.TryGetValue("m_bMeshoptCompressed", out var v) && (bool)v;
 
-    private int BlockIndex => (int)Descriptor["m_nBlockIndex"]!;
+    private int BlockIndex => Field.Block(_model, Descriptor, "m_nBlockIndex");
 
     /// <summary>The elements, decoded: <see cref="ElementCount"/> × <see cref="ElementSize"/> bytes.</summary>
     /// <exception cref="InvalidDataException">The buffer is zstd-compressed (not measured) or malformed.</exception>
     public byte[] Read()
     {
-        if (Descriptor.ContainsKey("m_bCompressedZSTD") && (bool)Descriptor["m_bCompressedZSTD"]!)
+        if (Descriptor.TryGetValue("m_bCompressedZSTD", out var zstd) && (bool)zstd)
             throw new InvalidDataException("A zstd-compressed mesh buffer is not read here yet.");
         var stored = _model.Resource.File.Blocks[BlockIndex].Data;
         if (!IsCompressed)
@@ -118,8 +137,9 @@ public sealed class MeshBuffer
     /// </summary>
     public void Write(byte[] elements, int elementCount)
     {
-        if (elements.Length != elementCount * ElementSize)
-            throw new ArgumentException($"{elementCount} elements of {ElementSize} bytes are {elementCount * ElementSize} bytes, not {elements.Length}.");
+        ArgumentNullException.ThrowIfNull(elements);
+        if (elementCount < 0 || elements.LongLength != (long)elementCount * ElementSize)
+            throw new ArgumentException($"{elementCount} elements of {ElementSize} bytes are {(long)elementCount * ElementSize} bytes, not {elements.Length}.");
         if (!IsVertexBuffer && elementCount % 3 != 0)
             throw new ArgumentException("An index buffer holds whole triangles.");
         byte[] stored = elements;

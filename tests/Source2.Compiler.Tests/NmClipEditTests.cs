@@ -42,7 +42,7 @@ public class NmClipEditTests
         using var pak = new Package();
         pak.Read(pakPath);
         var n = 0;
-        foreach (var e in pak.Entries["vnmclip_c"].Where(e => e.GetFullPath().StartsWith("animation/anims/viewmodel/", StringComparison.Ordinal)).Take(300))
+        foreach (var e in Source2.Compiler.Io.VpkEntries.ByExtension(pak)["vnmclip_c"].Where(e => e.GetFullPath().StartsWith("animation/anims/viewmodel/", StringComparison.Ordinal)).Take(300))
         {
             pak.ReadEntry(e, out var bytes);
             var data = Data(bytes);

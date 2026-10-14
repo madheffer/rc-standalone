@@ -25,7 +25,7 @@ internal static class RecompileParity
         var failures = 0;
         foreach (var ext in exts)
         {
-            if (!pak.Entries.TryGetValue(ext, out var list)) continue;
+            if (!Source2.Compiler.Io.VpkEntries.ByExtension(pak).TryGetValue(ext, out var list)) continue;
             int files = 0, same = 0, noText = 0, threw = 0;
             var examples = new List<string>();
             var causes = new Dictionary<string, int>();

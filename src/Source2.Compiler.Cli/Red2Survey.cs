@@ -19,7 +19,7 @@ internal static class Red2Survey
         pak.Read(args[0]);
         var tally = new Dictionary<string, int>();
         var files = 0;
-        foreach (var e in pak.Entries[args[1].TrimStart('.')])
+        foreach (var e in Source2.Compiler.Io.VpkEntries.ByExtension(pak)[args[1].TrimStart('.')])
         {
             if (files++ >= limit) break;
             pak.ReadEntry(e, out var bytes);

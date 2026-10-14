@@ -23,7 +23,7 @@ internal static class Kv3ReadParity
         long blocks = 0, same = 0;
         var byVersion = new SortedDictionary<int, (long Same, long All)>();
         var examples = new List<string>();
-        foreach (var (ext, list) in pak.Entries.OrderBy(x => x.Key))
+        foreach (var (ext, list) in Source2.Compiler.Io.VpkEntries.ByExtension(pak).OrderBy(x => x.Key))
         {
             if (!ext.EndsWith("_c") || (only.Count > 0 && !only.Contains(ext))) continue;
             var files = 0;

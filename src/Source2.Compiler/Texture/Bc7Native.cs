@@ -19,9 +19,11 @@ public static partial class Bc7Native
     private const string Lib = "bc7enc_native";
 
     [LibraryImport(Lib, EntryPoint = "bc7enc_image_init")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.AssemblyDirectory)]
     private static partial void NativeInit();
 
     [LibraryImport(Lib, EntryPoint = "bc7enc_encode_bgra")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.AssemblyDirectory)]
     private static partial void NativeEncodeBgra(
         nint src, int width, int height,
         int uberLevel, int maxPartitions, int perceptual, nint dst);

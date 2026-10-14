@@ -27,13 +27,12 @@ namespace Source2.Compiler;
 /// </summary>
 public static class SvgSanitizer
 {
+    /// <summary>The SVG normalized for Panorama, or the bytes unchanged when they are not an SVG.</summary>
     public static byte[] ForPanorama(byte[] svg)
     {
         if (svg is null || svg.Length == 0)
             return svg ?? [];
-        string text;
-        try { text = Encoding.UTF8.GetString(svg); }
-        catch { return svg; }
+        var text = Encoding.UTF8.GetString(svg);
         if (!text.Contains("<svg", StringComparison.OrdinalIgnoreCase))
             return svg;
 
@@ -56,8 +55,8 @@ public static class SvgSanitizer
 
     private static string RewritePathData(string svg) => DAttr.Replace(svg, m =>
     {
-        var quote = m.Value[m.Value.IndexOf('"') >= 0 ? m.Value.IndexOf('"') : m.Value.IndexOf('\'')];
         var raw = m.Groups[1].Value;
+        var quote = raw[0];
         var inner = raw.Substring(1, raw.Length - 2);
         var clean = NormalizePathData(inner);
         return clean is null ? m.Value : $"d={quote}{clean}{quote}";
@@ -70,51 +69,45 @@ public static class SvgSanitizer
     {
         if (string.IsNullOrWhiteSpace(d))
             return null;
-        SKPath? path = null;
-        try
-        {
-            path = SKPath.ParseSvgPathData(d);
-            if (path is null || path.IsEmpty)
-                return null;
+        using var path = SKPath.ParseSvgPathData(d);
+        if (path is null || path.IsEmpty)
+            return null;
 
-            var sb = new StringBuilder(d.Length + 16);
-            using var it = path.CreateRawIterator();
-            var pts = new SKPoint[4];
-            SKPathVerb verb;
-            while ((verb = it.Next(pts)) != SKPathVerb.Done)
+        var sb = new StringBuilder(d.Length + 16);
+        using var it = path.CreateRawIterator();
+        var pts = new SKPoint[4];
+        SKPathVerb verb;
+        while ((verb = it.Next(pts)) != SKPathVerb.Done)
+        {
+            switch (verb)
             {
-                switch (verb)
-                {
-                    case SKPathVerb.Move:
-                        sb.Append('M').Append(P(pts[0]));
-                        break;
-                    case SKPathVerb.Line:
-                        sb.Append('L').Append(P(pts[1]));
-                        break;
-                    case SKPathVerb.Cubic:
-                        sb.Append('C').Append(P(pts[1])).Append(' ').Append(P(pts[2])).Append(' ').Append(P(pts[3]));
-                        break;
-                    case SKPathVerb.Quad:
-                        AppendCubicFromQuad(sb, pts[0], pts[1], pts[2]);
-                        break;
-                    case SKPathVerb.Conic:
-                        // Arc / rational-quad → exact-ish cubics: lower to quads first.
-                        var quads = SKPath.ConvertConicToQuads(pts[0], pts[1], pts[2], it.ConicWeight(), 2);
-                        for (int i = 0; i + 2 < quads.Length; i += 2)
-                            AppendCubicFromQuad(sb, quads[i], quads[i + 1], quads[i + 2]);
-                        break;
-                    case SKPathVerb.Close:
-                        sb.Append('Z');
-                        break;
-                }
-                if (verb != SKPathVerb.Close && sb.Length > 0 && sb[^1] != ' ')
-                    sb.Append(' ');
+                case SKPathVerb.Move:
+                    sb.Append('M').Append(P(pts[0]));
+                    break;
+                case SKPathVerb.Line:
+                    sb.Append('L').Append(P(pts[1]));
+                    break;
+                case SKPathVerb.Cubic:
+                    sb.Append('C').Append(P(pts[1])).Append(' ').Append(P(pts[2])).Append(' ').Append(P(pts[3]));
+                    break;
+                case SKPathVerb.Quad:
+                    AppendCubicFromQuad(sb, pts[0], pts[1], pts[2]);
+                    break;
+                case SKPathVerb.Conic:
+                    // Arc / rational-quad -> exact-ish cubics: lower to quads first.
+                    var quads = SKPath.ConvertConicToQuads(pts[0], pts[1], pts[2], it.ConicWeight(), 2);
+                    for (int i = 0; i + 2 < quads.Length; i += 2)
+                        AppendCubicFromQuad(sb, quads[i], quads[i + 1], quads[i + 2]);
+                    break;
+                case SKPathVerb.Close:
+                    sb.Append('Z');
+                    break;
             }
-            var outStr = sb.ToString().Trim();
-            return outStr.Length == 0 ? null : outStr;
+            if (verb != SKPathVerb.Close && sb.Length > 0 && sb[^1] != ' ')
+                sb.Append(' ');
         }
-        catch { return null; }
-        finally { path?.Dispose(); }
+        var outStr = sb.ToString().Trim();
+        return outStr.Length == 0 ? null : outStr;
     }
 
     /// <summary>Quadratic (p0,c,p1) → cubic Bézier, control points at 2/3 toward c.</summary>
@@ -125,8 +118,7 @@ public static class SvgSanitizer
         sb.Append('C').Append(P(c1)).Append(' ').Append(P(c2)).Append(' ').Append(P(p1));
     }
 
-    private static string P(SKPoint p) => $"{N(p.X)} {N(p.Y)}";
-    private static string N(float v) => MathF.Round(v, 3).ToString("0.###", CultureInfo.InvariantCulture);
+    private static string P(SKPoint p) => $"{C(p.X)} {C(p.Y)}";
 
     // primitives → paths
     //
@@ -246,18 +238,17 @@ public static class SvgSanitizer
             sb.Append(" L").Append(C(nums[i])).Append(' ').Append(C(nums[i + 1]));
         if (closed)
             sb.Append(" Z");
-        var drop = closed ? PolygonGeom : PolylineGeom;
-        return $"<path{CarryAttrs(tag, drop)} d=\"{sb}\"/>";
+        return $"<path{CarryAttrs(tag, PolyGeom)} d=\"{sb}\"/>";
     }
 
+    // A coordinate as written: rounded to three decimals, no trailing zeros.
     private static string C(float v) => MathF.Round(v, 3).ToString("0.###", CultureInfo.InvariantCulture);
 
     private static readonly HashSet<string> RectGeom = new(StringComparer.OrdinalIgnoreCase) { "x", "y", "width", "height", "rx", "ry" };
     private static readonly HashSet<string> CircleGeom = new(StringComparer.OrdinalIgnoreCase) { "cx", "cy", "r" };
     private static readonly HashSet<string> EllipseGeom = new(StringComparer.OrdinalIgnoreCase) { "cx", "cy", "rx", "ry" };
     private static readonly HashSet<string> LineGeom = new(StringComparer.OrdinalIgnoreCase) { "x1", "y1", "x2", "y2" };
-    private static readonly HashSet<string> PolygonGeom = new(StringComparer.OrdinalIgnoreCase) { "points" };
-    private static readonly HashSet<string> PolylineGeom = new(StringComparer.OrdinalIgnoreCase) { "points" };
+    private static readonly HashSet<string> PolyGeom = new(StringComparer.OrdinalIgnoreCase) { "points" };
 
     // fill resolution
 

@@ -17,8 +17,12 @@ public static class NmClipEdit
     /// its size entry and the file size change. (A VRF re-serialize would shift every block by 16 bytes
     /// and add its own marker.) <paramref name="compression"/> overrides the KV3 compression.
     /// </summary>
+    /// <exception cref="InvalidDataException">The file is not a well-formed resource with DATA as its last block.</exception>
     public static byte[] Rewrite(byte[] vnmclipC, Action<Kv3Tree> edit, uint? compression = null)
     {
+        ArgumentNullException.ThrowIfNull(edit);
+        // Every count, offset and size is checked first; the bytes before DATA are then kept as they are.
+        ResourceFile.Read(vnmclipC);
         var blockTable = 8 + (int)BinaryPrimitives.ReadUInt32LittleEndian(vnmclipC.AsSpan(8));
         var count = (int)BinaryPrimitives.ReadUInt32LittleEndian(vnmclipC.AsSpan(12));
         for (var i = 0; i < count; i++)
@@ -45,6 +49,7 @@ public static class NmClipEdit
     /// <summary>The arms clip, then each secondary (weapon) clip.</summary>
     public static IReadOnlyList<Kv3Node> Clips(Kv3Tree t) => [t.Root, .. NmClipCodec.Secondaries(t, t.Root)];
 
+    /// <summary>The clip's length in seconds.</summary>
     public static double Duration(Kv3Tree t) => Kv3Tree.AsDouble(t.Need(t.Root, "m_flDuration"));
 
     /// <summary>Play the same frames over <paramref name="seconds"/> (every sub-clip stays in step).</summary>

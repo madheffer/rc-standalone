@@ -1,3 +1,4 @@
+using System.Numerics;
 using SkiaSharp;
 
 namespace Source2.Compiler;
@@ -46,6 +47,9 @@ public static class SheetAtlas
     {
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(loadImage);
+        // A texture side is at most 16384, and a larger limit would let the width doubling overflow.
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxAtlasSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxAtlasSize, 16384);
 
         // Load each distinct image once.
         var images = new Dictionary<string, SKBitmap>(StringComparer.OrdinalIgnoreCase);
@@ -62,34 +66,42 @@ public static class SheetAtlas
             var placements = ShelfPack(images, maxAtlasSize, out var atlasW, out var atlasH);
 
             var atlas = new SKBitmap(new SKImageInfo(atlasW, atlasH, SKColorType.Rgba8888, SKAlphaType.Unpremul));
-            using (var canvas = new SKCanvas(atlas))
+            try
             {
-                canvas.Clear(SKColors.Transparent);
-                // Every frame is drawn at 1:1, so the sampling mode never gets to
-                // resample anything; nearest is stated so it stays that way.
-                var sampling = new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None);
-                foreach (var (path, rect) in placements)
-                    canvas.DrawBitmap(images[path],
-                        SKRect.Create(rect.Left, rect.Top, rect.Width, rect.Height), sampling);
-            }
-
-            var sequences = script.Sequences.Select(seq => new SpriteSheet.Sequence(
-                Frames: seq.Frames.Select(f =>
+                using (var canvas = new SKCanvas(atlas))
                 {
-                    var r = placements[f.ImagePath];
-                    return new SpriteSheet.Frame(
-                        f.DisplayTime,
-                        Min: ((r.Left + 0.5f) / atlasW, (r.Top + 0.5f) / atlasH),
-                        Max: ((r.Right - 0.5f) / atlasW, (r.Bottom - 0.5f) / atlasH));
-                }).ToList(),
-                Clamp: seq.Clamp,
-                NoColor: seq.NoColor,
-                NoAlpha: seq.NoAlpha,
-                // The script's own sequence number, not its position: an .mks
-                // that declares only "sequence 3" is addressing sequence 3.
-                Id: seq.Index)).ToList();
+                    canvas.Clear(SKColors.Transparent);
+                    // Every frame is drawn at 1:1, so the sampling mode never gets to
+                    // resample anything; nearest is stated so it stays that way.
+                    var sampling = new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None);
+                    foreach (var (path, rect) in placements)
+                        canvas.DrawBitmap(images[path],
+                            SKRect.Create(rect.Left, rect.Top, rect.Width, rect.Height), sampling);
+                }
 
-            return new Packed(atlas, sequences);
+                var sequences = script.Sequences.Select(seq => new SpriteSheet.Sequence(
+                    Frames: seq.Frames.Select(f =>
+                    {
+                        var r = placements[f.ImagePath];
+                        return new SpriteSheet.Frame(
+                            f.DisplayTime,
+                            Min: ((r.Left + 0.5f) / atlasW, (r.Top + 0.5f) / atlasH),
+                            Max: ((r.Right - 0.5f) / atlasW, (r.Bottom - 0.5f) / atlasH));
+                    }).ToList(),
+                    Clamp: seq.Clamp,
+                    NoColor: seq.NoColor,
+                    NoAlpha: seq.NoAlpha,
+                    // The script's own sequence number, not its position: an .mks
+                    // that declares only "sequence 3" is addressing sequence 3.
+                    Id: seq.Index)).ToList();
+
+                return new Packed(atlas, sequences);
+            }
+            catch
+            {
+                atlas.Dispose();
+                throw;
+            }
         }
         finally
         {
@@ -119,7 +131,8 @@ public static class SheetAtlas
 
         // Start from a width that fits the widest frame and gives a roughly
         // square atlas for the total area, then widen until everything fits.
-        var width = Math.Max(NextPow2(widest), NextPow2((int)Math.Ceiling(Math.Sqrt(totalArea))));
+        var width = (int)Math.Max(BitOperations.RoundUpToPowerOf2((uint)widest),
+            BitOperations.RoundUpToPowerOf2((uint)Math.Ceiling(Math.Sqrt(totalArea))));
 
         while (true)
         {
@@ -131,7 +144,7 @@ public static class SheetAtlas
             var placed = TryPack(ordered, width, out var usedHeight);
             if (placed is not null)
             {
-                var height = NextPow2(usedHeight);
+                var height = (int)BitOperations.RoundUpToPowerOf2((uint)usedHeight);
                 if (height <= maxAtlasSize)
                 {
                     atlasW = width;
@@ -167,13 +180,5 @@ public static class SheetAtlas
 
         usedHeight = y + rowHeight;
         return result;
-    }
-
-    private static int NextPow2(int n)
-    {
-        var p = 1;
-        while (p < n)
-            p <<= 1;
-        return p;
     }
 }

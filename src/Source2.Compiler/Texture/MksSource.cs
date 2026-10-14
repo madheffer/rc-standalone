@@ -52,7 +52,7 @@ public static class MksSource
         // A text editor that saves UTF-8 with a BOM puts U+FEFF on the front,
         // and it is not whitespace, so it would otherwise glue itself to the
         // first directive and read as an unknown one.
-        text = text.TrimStart('﻿');
+        text = text.TrimStart('\uFEFF');
 
         var sequences = new List<Sequence>();
         var packModeRgbA = false;

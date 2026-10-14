@@ -154,20 +154,20 @@ public sealed class MaterialCompiler : IResourceCompiler
         var root = KVObject.Collection();
         root.Add("m_materialName", new KVObject(materialPath));
         root.Add("m_shaderName", new KVObject(vmat.Shader));
-        root.Add("m_intParams", Named(ints, "m_nValue", v => new KVObject(v)));
-        root.Add("m_floatParams", Named(floats, "m_flValue", v => new KVObject((double)v)));
-        root.Add("m_vectorParams", Named(vectors, "m_value", v =>
+        root.Add("m_intParams", VmatParams.NamedArray(ints, "m_nValue", v => new KVObject(v)));
+        root.Add("m_floatParams", VmatParams.NamedArray(floats, "m_flValue", v => new KVObject((double)v)));
+        root.Add("m_vectorParams", VmatParams.NamedArray(vectors, "m_value", v =>
         {
             var a = KVObject.Array();
             foreach (var f in v) a.Add(new KVObject((double)f));
             return a;
         }));
-        root.Add("m_textureParams", Named(textures.Select(t => (t.Name, t.ResourcePath)), "m_pValue",
+        root.Add("m_textureParams", VmatParams.NamedArray(textures.Select(t => (t.Name, t.ResourcePath)), "m_pValue",
             v => new KVObject(v) { Flag = KVFlag.Resource }));
         root.Add("m_dynamicParams", KVObject.Array());
         root.Add("m_dynamicTextureParams", KVObject.Array());
         var (w, h) = RepresentativeSize(textures, images);
-        root.Add("m_intAttributes", Named([("RepresentativeTextureHeight", h), ("RepresentativeTextureWidth", w)], "m_nValue", v => new KVObject(v)));
+        root.Add("m_intAttributes", VmatParams.NamedArray([("RepresentativeTextureHeight", h), ("RepresentativeTextureWidth", w)], "m_nValue", v => new KVObject(v)));
         foreach (var key in new[] { "m_floatAttributes", "m_vectorAttributes", "m_textureAttributes", "m_stringAttributes", "m_renderAttributesUsed" })
             root.Add(key, KVObject.Array());
         return Source2ContainerAuthor.NarrowIntegers(root);
@@ -195,19 +195,6 @@ public sealed class MaterialCompiler : IResourceCompiler
         for (int i = 0; i < parts.Length; i++)
             v[i] = float.Parse(parts[i], System.Globalization.CultureInfo.InvariantCulture);
         return v;
-    }
-
-    private static KVObject Named<T>(IEnumerable<(string Name, T Value)> items, string valueKey, Func<T, KVObject> make)
-    {
-        var a = KVObject.Array();
-        foreach (var (name, value) in items)
-        {
-            var e = KVObject.Collection();
-            e.Add("m_name", new KVObject(name));
-            e.Add(valueKey, make(value));
-            a.Add(e);
-        }
-        return a;
     }
 
     private static KVObject BuildRed2(CompileRequest request, MaterialCompileSettings settings, ShaderSet shaders,

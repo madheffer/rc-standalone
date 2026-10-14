@@ -54,7 +54,11 @@ public sealed class VtexCompiler : IResourceCompiler
         if (format == "BC7" && Bc7e.Unavailable(options.Bc7Vendor) is { } why)
             throw new InvalidOperationException(why);
 
-        var (data, stored, _) = BuildTexture(rgba, width, height, format, settings.Srgb, settings.NoLod, int.MaxValue, options.Bc7Vendor);
+        // A chain the caller made replaces the float chain RC would make from the image.
+        var levels = options.MipChainBgra is { } given
+            ? GivenChain(given, width, height, settings.Srgb)
+            : RcMipChain.Chain(RcMipChain.Load(rgba, width, height, settings.Srgb));
+        var (data, stored, _) = BuildTexture(levels, format, settings.Srgb, settings.NoLod, int.MaxValue, options.Bc7Vendor);
         var specialDeps = Source2ContainerAuthor.TextureDeps("Box");
         var red2 = Source2ContainerAuthor.BuildTextureSourceEditInfo(request.SourcePath, request.Source,
             [(settings.ImagePath, imageBytes)], specialDeps, request.SearchPath);
@@ -76,24 +80,31 @@ public sealed class VtexCompiler : IResourceCompiler
         return ms.ToArray();
     }
 
-    /// <summary>
-    /// A texture from one 8-bit RGBA image, as RC builds it: the float mip chain (at most
-    /// <paramref name="maxMips"/> levels; block formats stop before a side under 4), each level
-    /// encoded, the flags, fallback and reflectivity, and the mip compression rule. A block format
-    /// image with a side under 4 is resized to 4 with the wrap resampler in gamma space, one level.
-    /// </summary>
-    internal static (byte[] Data, byte[][] Stored, bool AnyCompressed) BuildTexture(byte[] rgba, int width, int height,
-        string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor) =>
-        BuildTexture(RcMipChain.Load(rgba, width, height, srgb), format, srgb, noLod, maxMips, vendor);
+    // A caller's 8-bit BGRA chain as float levels, each loaded as RC loads an image.
+    private static List<RcMipChain.Level> GivenChain(IReadOnlyList<byte[]> chain, int width, int height, bool srgb)
+    {
+        MipChainInput.Check(chain, width, height, nameof(VtexCompileSettings.MipChainBgra));
+        return [.. chain.Select((bgra, i) =>
+        {
+            var (w, h) = MipChainInput.LevelSize(width, height, i);
+            return RcMipChain.Load(SwapRedBlue(bgra), w, h, srgb);
+        })];
+    }
 
-    /// <summary>The same from an image already loaded to float (a material child's packed inputs).
+    /// <summary>A texture from an image already loaded to float (a material child's packed inputs).
     /// <paramref name="nominal"/> is the first input's size when the others made the image larger
     /// (character's 1x1 default metal beside 16x16 masks); DATA records it as FILL_TO_POWER_OF_TWO.</summary>
     internal static (byte[] Data, byte[][] Stored, bool AnyCompressed) BuildTexture(RcMipChain.Level top,
         string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor, (int Width, int Height)? nominal = null) =>
         BuildTexture(RcMipChain.Chain(top), format, srgb, noLod, maxMips, vendor, nominal);
 
-    /// <summary>The same from a whole float chain a mip algorithm made (normal maps, alpha weighting).</summary>
+    /// <summary>
+    /// A texture from a whole float chain (RC's box chain, or one a mip algorithm made: normal maps,
+    /// alpha weighting), as RC builds it: at most <paramref name="maxMips"/> levels, block formats
+    /// stopping before a side under 4, each level encoded, the flags, fallback and reflectivity, and
+    /// the mip compression rule. A block format image with a side under 4 is resized to 4 with the
+    /// wrap resampler in gamma space, one level.
+    /// </summary>
     internal static (byte[] Data, byte[][] Stored, bool AnyCompressed) BuildTexture(List<RcMipChain.Level> levels,
         string format, bool srgb, bool noLod, int maxMips, Bc7Vendor vendor, (int Width, int Height)? nominal = null)
     {
@@ -138,7 +149,7 @@ public sealed class VtexCompiler : IResourceCompiler
         var fallbackRgba = upsized is null
             ? RcMipChain.FallbackRgba8(levels, srgb, clamp: false)
             : RcMipChain.WriteRgba8(RcMipChain.Resize(upsized, 32, 32, clamp: false), srgb: false);
-        var fallback = AtiCompress.Compress(ToBgra(fallbackRgba), 32, 32, AtiCompress.Format.Dxt5, perceptual: srgb);
+        var fallback = AtiCompress.Compress(SwapRedBlue(fallbackRgba), 32, 32, AtiCompress.Format.Dxt5, perceptual: srgb);
 
         // COMPRESSED_MIP_SIZE when the largest side is at least 33. Each mip, smallest first, is
         // LZ4 HC'd and kept compressed only below 95% of its size and more than 32 KB smaller.
@@ -205,10 +216,10 @@ public sealed class VtexCompiler : IResourceCompiler
         return format switch
         {
             "RGBA8888" => rgba8,
-            "DXT1" => AtiCompress.Compress(ToBgra(rgba8), level.Width, level.Height, AtiCompress.Format.Dxt1, perceptual),
-            "DXT5" => AtiCompress.Compress(ToBgra(rgba8), level.Width, level.Height, AtiCompress.Format.Dxt5, perceptual),
-            "ATI1N" => AtiCompress.Compress(ToBgra(rgba8), level.Width, level.Height, AtiCompress.Format.Ati1n, false),
-            "ATI2N" => AtiCompress.Compress(ToBgra(rgba8), level.Width, level.Height, AtiCompress.Format.Ati2n, false),
+            "DXT1" => AtiCompress.Compress(SwapRedBlue(rgba8), level.Width, level.Height, AtiCompress.Format.Dxt1, perceptual),
+            "DXT5" => AtiCompress.Compress(SwapRedBlue(rgba8), level.Width, level.Height, AtiCompress.Format.Dxt5, perceptual),
+            "ATI1N" => AtiCompress.Compress(SwapRedBlue(rgba8), level.Width, level.Height, AtiCompress.Format.Ati1n, false),
+            "ATI2N" => AtiCompress.Compress(SwapRedBlue(rgba8), level.Width, level.Height, AtiCompress.Format.Ati2n, false),
             _ => throw new InvalidOperationException($"Output format {format} is not compiled here yet."),
         };
     }
@@ -297,17 +308,18 @@ public sealed class VtexCompiler : IResourceCompiler
         return true;
     }
 
-    internal static byte[] ToBgra(byte[] rgba)
+    /// <summary>RGBA to BGRA, or BGRA to RGBA: red and blue swapped.</summary>
+    internal static byte[] SwapRedBlue(byte[] pixels)
     {
-        var bgra = new byte[rgba.Length];
-        for (int i = 0; i < rgba.Length; i += 4)
+        var swapped = new byte[pixels.Length];
+        for (int i = 0; i < pixels.Length; i += 4)
         {
-            bgra[i] = rgba[i + 2];
-            bgra[i + 1] = rgba[i + 1];
-            bgra[i + 2] = rgba[i];
-            bgra[i + 3] = rgba[i + 3];
+            swapped[i] = pixels[i + 2];
+            swapped[i + 1] = pixels[i + 1];
+            swapped[i + 2] = pixels[i];
+            swapped[i + 3] = pixels[i + 3];
         }
-        return bgra;
+        return swapped;
     }
 
     internal static (byte[] Rgba, int Width, int Height) DecodeRgba(byte[] bytes, string path)
@@ -329,7 +341,17 @@ public sealed class VtexCompiler : IResourceCompiler
 /// <summary>Options for <see cref="VtexCompiler"/> beyond the <c>.vtex</c> itself.</summary>
 /// <param name="Bc7Vendor">Whose <c>rcpps</c> BC7 reproduces: resourcecompiler's BC7 differs
 /// between AMD and Intel CPUs, and this picks which one the output matches on any machine.</param>
-public sealed record VtexCompileSettings(Bc7Vendor Bc7Vendor = Bc7Vendor.Amd);
+public sealed record VtexCompileSettings(Bc7Vendor Bc7Vendor = Bc7Vendor.Amd)
+{
+    /// <summary>
+    /// A finished mip chain to encode instead of the box chain RC makes from the image: 8-bit BGRA,
+    /// level 0 at the image's own size, each level half the one before (a side never below 1), used
+    /// as given (no resampling). The output is then this chain's texture, not resourcecompiler's:
+    /// a host that makes mips the way CS2 makes a composite's sets it. The image still names the
+    /// texture's size and is recorded in RED2.
+    /// </summary>
+    public IReadOnlyList<byte[]>? MipChainBgra { get; init; }
+}
 
 /// <summary>The part of a <c>.vtex</c> this compiler implements; anything else is refused.</summary>
 internal sealed record VtexSettings(string ImagePath, string Format, bool Srgb, bool NoLod)

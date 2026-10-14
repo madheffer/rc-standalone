@@ -1,7 +1,7 @@
 namespace Source2.Compiler.Imaging;
 
 /// <summary>
-/// F19: minimal "are these bytes actually the image type the extension claims"
+/// Minimal "are these bytes actually the image type the extension claims"
 /// check for user-uploaded thumbnails. The quarantine scan only rejects
 /// executable/script magic; it does NOT catch a content-vs-extension mismatch
 /// (e.g. a .gif whose body is HTML or SVG), which would then be stored and
@@ -15,8 +15,8 @@ public static class ImageMagic
     {
         return (ext ?? "").ToLowerInvariant() switch
         {
-            ".png" => StartsWith(head, new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
-            ".jpg" or ".jpeg" => StartsWith(head, new byte[] { 0xFF, 0xD8, 0xFF }),
+            ".png" => StartsWith(head, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+            ".jpg" or ".jpeg" => StartsWith(head, [0xFF, 0xD8, 0xFF]),
             ".gif" => StartsWith(head, "GIF8"u8),
             ".bmp" => StartsWith(head, "BM"u8),
             // RIFF....WEBP

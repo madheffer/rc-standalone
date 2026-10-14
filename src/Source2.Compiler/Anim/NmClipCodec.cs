@@ -27,9 +27,11 @@ public static class NmClipCodec
     private static readonly float RotMin = -1f / MathF.Sqrt(2f);
     private static readonly float RotRange = 2f / MathF.Sqrt(2f);
 
+    /// <summary>A clip's secondary clips (the weapon's own skeleton), none when it has none.</summary>
     public static IEnumerable<Kv3Node> Secondaries(Kv3Tree t, Kv3Node clip) =>
         t.Get(clip, "m_secondaryAnimations")?.Items ?? [];
 
+    /// <summary>A clip's frame count (<c>m_nNumFrames</c>).</summary>
     public static int FrameCount(Kv3Tree t, Kv3Node clip) => (int)Kv3Tree.AsLong(t.Need(clip, "m_nNumFrames"));
 
     private readonly record struct Settings(
@@ -74,8 +76,11 @@ public static class NmClipCodec
         var words = new ushort[data.Length / 2];
         for (var i = 0; i < words.Length; i++) words[i] = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(i * 2));
         var frames = new TrackPose[offsets.Length][];
+        var stride = settings.Sum(s => (s.RotStatic ? 0 : 3) + (s.TransStatic ? 0 : 3) + (s.ScaleStatic ? 0 : 1));
         for (var f = 0; f < offsets.Length; f++)
         {
+            if (offsets[f] < 0 || offsets[f] + stride > words.Length)
+                throw new InvalidDataException($"Frame {f} of the pose stream runs past its {words.Length} words.");
             var p = (int)offsets[f];
             var pose = frames[f] = new TrackPose[settings.Length];
             for (var i = 0; i < settings.Length; i++)
@@ -194,6 +199,13 @@ public static class NmClipCodec
             oldWords[i] = (st.RotStatic ? 0 : 3) + (st.TransStatic ? 0 : 3) + (st.ScaleStatic ? 0 : 1);
         }
         if (sources.Any(f => f < 0 || f >= frameAt.Length)) throw new ArgumentException("source frame out of range");
+        var oldStride = oldWords.Sum();
+        for (var f = 0; f < frameAt.Length; f++)
+            if (frameAt[f] < 0 || frameAt[f] + oldStride > old.Length)
+                throw new InvalidDataException($"Frame {f} of the pose stream runs past its {old.Length} words.");
+        for (var i = 0; i < tracks; i++)
+            if (oldAt[i] < 0 || oldAt[i] + oldWords[i] > oldStride)
+                throw new InvalidDataException($"Track {i} reads past its frame.");
 
         var plans = new Dictionary<int, TrackPlan>();
         foreach (var (i, seq) in replaced) plans[i] = Plan(seq);
@@ -233,21 +245,26 @@ public static class NmClipCodec
     private static ushort ToUnorm(float v, float start, float len) =>
         len <= 0 ? (ushort)0 : (ushort)Math.Clamp(MathF.Floor((v - start) / len * 65535f + 0.5f), 0, 65535);   // half up, as RC
 
+    // The component of largest magnitude (the first on a tie), X Y Z W.
+    private static int Largest(float[] c)
+    {
+        var big = 0;
+        for (var i = 1; i < 4; i++) if (MathF.Abs(c[i]) > MathF.Abs(c[big])) big = i;
+        return big;
+    }
+
     /// <summary>q and -q are one rotation; the encoding keeps the largest component positive.</summary>
     private static Quaternion Canonical(Quaternion q)
     {
         float[] c = [q.X, q.Y, q.Z, q.W];
-        var big = 0;
-        for (var i = 1; i < 4; i++) if (MathF.Abs(c[i]) > MathF.Abs(c[big])) big = i;
-        return c[big] < 0 ? Quaternion.Negate(q) : q;
+        return c[Largest(c)] < 0 ? Quaternion.Negate(q) : q;
     }
 
     private static ushort[] EncodeQuat(Quaternion q)
     {
         q = Canonical(Quaternion.Normalize(q));
         float[] c = [q.X, q.Y, q.Z, q.W];
-        var big = 0;
-        for (var i = 1; i < 4; i++) if (MathF.Abs(c[i]) > MathF.Abs(c[big])) big = i;
+        var big = Largest(c);
         var rest = Enumerable.Range(0, 4).Where(i => i != big).Select(i => c[i]).ToArray();
         ushort Q(float v) => (ushort)Math.Clamp(MathF.Floor((v - RotMin) / RotRange * 0x7FFF + 0.5f), 0, 0x7FFF);
         var a = (ushort)(Q(rest[0]) | ((big & 2) << 14));

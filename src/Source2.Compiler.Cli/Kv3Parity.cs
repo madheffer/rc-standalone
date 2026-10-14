@@ -47,7 +47,7 @@ internal static class Kv3Parity
 
         foreach (var ext in exts)
         {
-            if (!pak.Entries.TryGetValue(ext, out var list)) continue;
+            if (!Source2.Compiler.Io.VpkEntries.ByExtension(pak).TryGetValue(ext, out var list)) continue;
             foreach (var e in list)
             {
                 if (files >= limit) break;

@@ -21,7 +21,7 @@ public class NmClipCodecTests
         if (CS2Fixtures.StockPak() is not { } path) yield break;
         using var pak = new Package();
         pak.Read(path);
-        foreach (var e in pak.Entries["vnmclip_c"].Where(e => e.GetFullPath().StartsWith("animation/anims/viewmodel/", StringComparison.Ordinal)).Take(take))
+        foreach (var e in Source2.Compiler.Io.VpkEntries.ByExtension(pak)["vnmclip_c"].Where(e => e.GetFullPath().StartsWith("animation/anims/viewmodel/", StringComparison.Ordinal)).Take(take))
         {
             pak.ReadEntry(e, out var bytes);
             using var res = new Resource();

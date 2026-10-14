@@ -37,7 +37,7 @@ internal static class ReserializeParity
         var bad = 0;
         foreach (var ext in exts)
         {
-            if (!pak.Entries.TryGetValue(ext, out var list)) continue;
+            if (!Source2.Compiler.Io.VpkEntries.ByExtension(pak).TryGetValue(ext, out var list)) continue;
             int files = 0, bytesSame = 0, treesSame = 0, unreadable = 0;
             var outcomes = new Dictionary<string, int>();
             var examples = new List<string>();

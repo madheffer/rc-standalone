@@ -26,7 +26,7 @@ internal static class NmClipParity
         var examples = new List<string>();
         void Miss(string what, string where) { miss[what] = miss.GetValueOrDefault(what) + 1; if (examples.Count < 14) examples.Add($"{what}: {where}"); }
 
-        foreach (var e in pak.Entries["vnmclip_c"])
+        foreach (var e in Source2.Compiler.Io.VpkEntries.ByExtension(pak)["vnmclip_c"])
         {
             if (clips >= limit) break;
             pak.ReadEntry(e, out var bytes);

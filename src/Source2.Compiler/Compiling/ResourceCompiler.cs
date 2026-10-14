@@ -1,4 +1,3 @@
-using Source2.Compiler.Kv3;
 using ValveKeyValue;
 
 namespace Source2.Compiler.Compiling;
@@ -22,6 +21,8 @@ public interface IResourceCompiler
 }
 
 /// <summary>A compiler's product: the resource and any children it wrote.</summary>
+/// <param name="Resource">The compiled resource.</param>
+/// <param name="Children">Further files the compile wrote, or null.</param>
 public sealed record CompileOutput(byte[] Resource, IReadOnlyList<CompiledFile>? Children = null);
 
 /// <summary>
@@ -54,8 +55,13 @@ public sealed class ResourceCompiler
     /// <summary>Every source extension a compiler is registered for.</summary>
     public IReadOnlyCollection<string> SourceExtensions => _byExtension.Keys;
 
+    /// <summary>Whether a compiler is registered for <paramref name="sourcePath"/>'s extension.</summary>
     public bool CanCompile(string sourcePath) => _byExtension.ContainsKey(Path.GetExtension(sourcePath));
 
+    /// <summary>
+    /// Compile <paramref name="request"/> with the compiler registered for its extension. A source
+    /// that cannot compile is an error diagnostic in the result, not an exception.
+    /// </summary>
     public CompileResult Compile(CompileRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

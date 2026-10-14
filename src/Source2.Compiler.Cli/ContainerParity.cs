@@ -17,7 +17,7 @@ internal static class ContainerParity
         using var pak = new Package();
         pak.Read(args[0]);
         var bad = 0;
-        foreach (var (ext, list) in pak.Entries.OrderBy(x => x.Key))
+        foreach (var (ext, list) in Source2.Compiler.Io.VpkEntries.ByExtension(pak).OrderBy(x => x.Key))
         {
             if (!ext.EndsWith("_c") || (only.Count > 0 && !only.Contains(ext))) continue;
             int files = 0, same = 0;

@@ -156,7 +156,7 @@ public class Kv3TreeTests
         pak.Read(path);
         var checkedBlocks = 0;
         foreach (var ext in new[] { "vnmclip_c", "vnmgraph_c", "vnmskel_c" })
-            foreach (var e in pak.Entries[ext].Take(150))
+            foreach (var e in Source2.Compiler.Io.VpkEntries.ByExtension(pak)[ext].Take(150))
             {
                 pak.ReadEntry(e, out var bytes);
                 foreach (var block in Kv3Blocks(bytes)) { AssertLossless(block, e.GetFullPath()); checkedBlocks++; }

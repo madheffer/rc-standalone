@@ -30,7 +30,7 @@ internal static class Fuzz
         pak.Read(args[0]);
 
         byte[][] Stock(string ext, int count) =>
-            [.. pak.Entries[ext].Where((_, i) => i % 97 == 0).Take(count).Select(e => { pak.ReadEntry(e, out var b); return b; })];
+            [.. Source2.Compiler.Io.VpkEntries.ByExtension(pak)[ext].Where((_, i) => i % 97 == 0).Take(count).Select(e => { pak.ReadEntry(e, out var b); return b; })];
         var kv3Texts = new[] { Kv3Sample(), "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n{\n\tm_a = \"x\"\n\tm_b = [ 1, 2.5, \"\"\"multi\nline\"\"\", #[ 00 01 ff ] ]\n\tm_c = resource:\"materials/x.vmat\"\n}\n" }
             .Select(Encoding.UTF8.GetBytes).ToArray();
         var models = Stock("vmdl_c", 12);
