@@ -6,7 +6,15 @@ namespace Source2.Compiler;
 /// <summary>One block of a <see cref="ResourceFile"/>: its four-character type and its bytes.</summary>
 /// <param name="Type">The type as written in the block table, e.g. <c>"DATA"</c>, <c>"RED2"</c>.</param>
 /// <param name="Data">The block's bytes, exactly as stored.</param>
-public sealed record ResourceBlock(string Type, byte[] Data);
+public sealed record ResourceBlock(string Type, byte[] Data)
+{
+    /// <summary>
+    /// Where the block's first byte sat in the file <see cref="ResourceFile.Read"/> read it from (its
+    /// size there is <see cref="Data"/>'s length), as VRF's <c>Block.Offset</c>; null for a block made
+    /// or replaced since.
+    /// </summary>
+    public long? SourceOffset { get; init; }
+}
 
 /// <summary>
 /// A compiled Source 2 resource read and written by this library alone, with no
@@ -70,7 +78,7 @@ public sealed class ResourceFile
             // A block of size 0 may point anywhere (a modern vsnd's empty DATA sits at the next block).
             if (size > 0 && offset + size > fileSize)
                 throw new InvalidDataException($"Block {i} ({type}) spans {offset}..{offset + size}, past the declared {fileSize} bytes.");
-            file.Blocks.Add(new ResourceBlock(type, size == 0 ? [] : bytes.Slice((int)offset, (int)size).ToArray()));
+            file.Blocks.Add(new ResourceBlock(type, size == 0 ? [] : bytes.Slice((int)offset, (int)size).ToArray()) { SourceOffset = offset });
         }
         file.Tail = bytes[(int)fileSize..].ToArray();
         return file;

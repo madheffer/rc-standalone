@@ -9,7 +9,11 @@ namespace Source2.Compiler.Shaders;
 /// <param name="FeatureIndex">For a PS/VS combo, the index of the feature combo it follows, or -1.</param>
 /// <param name="ComboIndexValue">The combo's stride in a static combo id.</param>
 /// <param name="SourceType">0 for a material feature, 2 for a system combo such as S_SHADER_QUALITY.</param>
-public sealed record ShaderCombo(string Name, int Min, int Max, int FeatureIndex, long ComboIndexValue, int SourceType);
+public sealed record ShaderCombo(string Name, int Min, int Max, int FeatureIndex, long ComboIndexValue, int SourceType)
+{
+    /// <summary>The feature value a combo set by feature equality compares against (<c>m_nCompareValue</c>).</summary>
+    public int CompareValue { get; init; }
+}
 
 /// <summary>One variable description (<c>m_variableDescriptionArray</c>): a material parameter,
 /// an input texture (<c>TextureColor</c>) or an output texture (<c>g_tColor</c>).</summary>
@@ -38,6 +42,9 @@ public sealed record ShaderVariable(
 
     /// <summary>A material texture: a 2D texture the material supplies (no engine source).</summary>
     public bool IsMaterialTexture => Type == Texture2D && SourceString.Length == 0;
+
+    /// <summary>How many of <see cref="ChannelInfoIndex"/> are used (<c>m_nChannelCount</c>).</summary>
+    public int ChannelCount { get; init; }
 }
 
 /// <summary>One texture channel processor (<c>m_textureChannelProcessorArray</c>): which input
@@ -55,6 +62,32 @@ public sealed record TextureChannelProcessor(byte[] ChannelDesc, int[] InputText
 /// <param name="Value">The constant, when there is no expression.</param>
 /// <param name="Expression">The compiled expression, when there is one.</param>
 public sealed record ShaderAttribute(string Name, int Type, int VariableBinding, KVObject? Value, byte[]? Expression);
+
+/// <summary>How a static combo rule constrains its arguments.</summary>
+public enum VfxRuleMethod
+{
+#pragma warning disable CS1591
+    Unknown = 0,
+    ChildOf,
+    Requires,
+    AllowNum,
+    Suppress,
+#pragma warning restore CS1591
+}
+
+/// <summary>What a static combo rule argument names.</summary>
+public enum VfxRuleType
+{
+#pragma warning disable CS1591
+    Unknown = 0,
+    Feature = 1,
+    Static = 2,
+    Dynamic = 3,
+#pragma warning restore CS1591
+}
+
+/// <summary>A static combo rule (<c>m_staticComboRuleArray</c>): which combos may be on together.</summary>
+public sealed record ShaderRule(VfxRuleMethod Method, VfxRuleType Type, VfxRuleType[] ArgTypes, int[] ArgIndices, int[] ArgValues, int[] ExtraRuleData);
 
 /// <summary>A shader mode (<c>m_modeArray</c>): a fallback shader, or static combos it fixes.</summary>
 public sealed record ShaderMode(string Name, string Fallback, IReadOnlyDictionary<string, int> StaticComboSettings);
@@ -77,6 +110,9 @@ public sealed class ShaderProgram
 
     /// <summary>The variable descriptions, in file order (indices are what everything else refers to).</summary>
     public IReadOnlyList<ShaderVariable> Variables { get; private init; } = [];
+
+    /// <summary>The static combo rules (<c>m_staticComboRuleArray</c>).</summary>
+    public IReadOnlyList<ShaderRule> StaticComboRules { get; private init; } = [];
 
     /// <summary>The texture channel processors.</summary>
     public IReadOnlyList<TextureChannelProcessor> ChannelProcessors { get; private init; } = [];
@@ -121,8 +157,9 @@ public sealed class ShaderProgram
                 Items(m, "m_staticComboSettings").ToDictionary(c => Str(c, "m_szStaticCombo"), c => Int(c, "m_nValue")))).ToList(),
             StaticCombos = Items(program, "m_staticComboArray").Select(c => new ShaderCombo(
                 Str(c, "m_szName"), Int(c, "m_nMin"), Int(c, "m_nMax"), Int(c, "m_iFeatureIndex"),
-                (long)Child(c, "m_nComboIndexValue")!, Int(c, "m_shaderComboSourceType"))).ToList(),
+                (long)Child(c, "m_nComboIndexValue")!, Int(c, "m_shaderComboSourceType")) { CompareValue = Int(c, "m_nCompareValue") }).ToList(),
             Variables = Items(program, "m_variableDescriptionArray").Select(ReadVariable).ToList(),
+            StaticComboRules = Items(program, "m_staticComboRuleArray").Select(ReadRule).ToList(),
             ChannelProcessors = Items(program, "m_textureChannelProcessorArray").Select(p => new TextureChannelProcessor(
                 Bytes(Child(p, "m_nChannelDesc")!), Longs(Child(p, "m_nInputTextures")!).Select(x => (int)x).ToArray(),
                 Int(p, "m_outputColorSpace"), Str(p, "m_mipProcessingCommand"))).ToList(),
@@ -171,7 +208,18 @@ public sealed class ShaderProgram
         Int(v, "m_inputColorSpace"), Child(v, "m_nMinPrecisionBits") is { } bits ? (int)(long)bits : -1, Str(v, "m_szTextureFileEnding"),
         Str(v, "m_inputProcessingCommand"), Str(v, "m_defaultInputTexture"),
         Child(v, "m_flDefault") is { } fd ? fd.Values.Select(x => (float)x).ToArray() : new float[4],
-        Child(v, "m_intDefault") is { } id ? Longs(id).Select(x => (int)x).ToArray() : new int[4]);
+        Child(v, "m_intDefault") is { } id ? Longs(id).Select(x => (int)x).ToArray() : new int[4])
+    {
+        ChannelCount = Int(v, "m_nChannelCount"),
+    };
+
+    private static ShaderRule ReadRule(KVObject r) => new(
+        r.GetEnumValue<VfxRuleMethod>("m_rule", normalize: true, stripExtension: "Method"),
+        r.GetEnumValue<VfxRuleType>("m_ruleType", normalize: true),
+        [.. Items(r, "m_argTypeArray").Select(t => Enum.Parse<VfxRuleType>(KvExtensions.NormalizeEnumName<VfxRuleType>((string)t!)))],
+        [.. Longs(Child(r, "m_argIndexArray")!).Select(x => (int)x)],
+        [.. Longs(Child(r, "m_argValueArray")!).Select(x => (int)x)],
+        [.. Longs(Child(r, "m_nExtraRuleData")!).Select(x => (int)x)]);
 
     private static KVObject? Child(KVObject o, string key) => o.Children.FirstOrDefault(c => c.Key == key).Value;
 
