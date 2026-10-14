@@ -25,6 +25,47 @@ public sealed class CompiledModel
     /// <summary>The CTRL tree (the embedded meshes' descriptors), or null for a model without embedded meshes.</summary>
     public KVObject? Control => Resource.Has("CTRL") ? Resource.Kv3("CTRL") : null;
 
+    /// <summary>The model's skeleton (<c>m_modelSkeleton</c>), empty for a model without bones.</summary>
+    public Skeleton Skeleton => Skeleton.FromModelData(Data);
+
+    /// <summary>The mesh group names (<c>m_meshGroups</c>), in order.</summary>
+    public IReadOnlyList<string> MeshGroups => Data.GetArray<string>("m_meshGroups") ?? [];
+
+    /// <summary>
+    /// The mesh groups a model shows by default: those whose bit is set in
+    /// <c>m_nDefaultMeshGroupMask</c> (group <c>i</c> is bit <c>i</c>; groups past the 64th never are).
+    /// </summary>
+    public IReadOnlyList<string> DefaultMeshGroups
+    {
+        get
+        {
+            var mask = Data.GetUnsignedIntegerProperty("m_nDefaultMeshGroupMask");
+            return [.. MeshGroups.Where((_, index) => index < 64 && ((1UL << index) & mask) != 0)];
+        }
+    }
+
+    /// <summary>The material groups (skins): each group's name and its materials.</summary>
+    public IReadOnlyList<(string Name, string[] Materials)> MaterialGroups =>
+        [.. (Data.GetArray("m_materialGroups") ?? []).Select(g => (g.GetStringProperty("m_name") ?? "", g.GetArray<string>("m_materials") ?? []))];
+
+    /// <summary>
+    /// The meshes the model references by path (<c>m_refMeshes</c>): each non-empty one with its index
+    /// and its LOD mask (<c>m_refLODGroupMasks</c>, 0 when the array is shorter).
+    /// </summary>
+    public IReadOnlyList<(int MeshIndex, string MeshName, long LodMask)> ReferenceMeshes
+    {
+        get
+        {
+            var masks = Data.GetIntegerArray("m_refLODGroupMasks");
+            var names = Data.GetArray<string>("m_refMeshes") ?? [];
+            var result = new List<(int, string, long)>(names.Length);
+            for (var i = 0; i < names.Length; i++)
+                if (!string.IsNullOrEmpty(names[i]))
+                    result.Add((i, names[i], i < masks.Length ? masks[i] : 0L));
+            return result;
+        }
+    }
+
     /// <summary>The embedded meshes, in CTRL order.</summary>
     public IReadOnlyList<EmbeddedMesh> Meshes =>
         Control is { } ctrl && ctrl.ContainsKey("embedded_meshes")

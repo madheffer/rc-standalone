@@ -13,12 +13,11 @@ namespace Source2.Compiler.Shaders;
 /// </summary>
 public static class ShaderExpression
 {
-    /// <summary>The seed of a material parameter's name hash.</summary>
-    public const uint ParamHashSeed = 0x31415926;
+    /// <summary>The seed of a material parameter's name hash (<see cref="StringToken.Seed"/>).</summary>
+    public const uint ParamHashSeed = StringToken.Seed;
 
-    /// <summary>The hash a <c>1D</c> opcode names a material parameter by.</summary>
-    public static uint ParamHash(string name) =>
-        MurmurHash2.Hash32(Encoding.UTF8.GetBytes(name.ToLowerInvariant()), ParamHashSeed);
+    /// <summary>The hash a <c>1D</c> opcode names a material parameter by: its <see cref="StringToken"/>.</summary>
+    public static uint ParamHash(string name) => StringToken.Get(name);
 
     /// <summary>Evaluate an expression.</summary>
     /// <param name="code">The bytecode.</param>
