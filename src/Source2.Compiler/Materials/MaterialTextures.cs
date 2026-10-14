@@ -34,13 +34,7 @@ public static class MaterialTextures
     public static IReadOnlyList<MaterialTexture> Resolve(ShaderProgram features, ShaderProgram pixel,
         IReadOnlyDictionary<string, string> parameters, Func<string, bool> contentExists)
     {
-        int Feature(int index)
-        {
-            var combo = features.StaticCombos[index];
-            return parameters.TryGetValue(combo.Name, out var v) && int.TryParse(v, out var n) ? n : combo.Min;
-        }
-
-        long id = pixel.StaticComboId(Feature);
+        long id = pixel.StaticComboId(index => FeatureValue(features, index, parameters));
         var used = pixel.VariablesOf(id)
             ?? throw new InvalidOperationException($"The pixel shader has no static combo {id} for these features.");
 
@@ -53,6 +47,15 @@ public static class MaterialTextures
             textures.Add(Build(pixel, variable, parameters, contentExists));
         }
         return textures.OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>The value a material gives feature combo <paramref name="index"/>, or the combo's minimum.</summary>
+    internal static int FeatureValue(ShaderProgram features, int index, IReadOnlyDictionary<string, string> parameters)
+    {
+        var combo = features.StaticCombos[index];
+        return parameters.TryGetValue(combo.Name, out var v)
+            && int.TryParse(v, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n)
+            ? n : combo.Min;
     }
 
     private static MaterialTexture Build(ShaderProgram pixel, ShaderVariable output,

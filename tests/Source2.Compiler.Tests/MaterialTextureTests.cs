@@ -80,7 +80,7 @@ public class MaterialTextureTests
         foreach (var file in Directory.GetFiles(Fixture("spew"), "*.txt"))
         {
             var text = File.ReadAllText(file).ReplaceLineEndings("\n");
-            var crc = GeneratedTexture.MurmurHash2(System.Text.Encoding.UTF8.GetBytes(text), GeneratedTexture.LogicalCrcSeed);
+            var crc = MurmurHash2.Hash32(System.Text.Encoding.UTF8.GetBytes(text), GeneratedTexture.LogicalCrcSeed);
             Assert.EndsWith($"_{crc:x}.vtex.txt", Path.GetFileName(file));
         }
     }

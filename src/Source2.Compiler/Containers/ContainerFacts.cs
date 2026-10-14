@@ -58,16 +58,31 @@ public static partial class Source2ContainerAuthor
     public static readonly SpecialDep GenerateSheetDataDep =
         new("Texture Compiler Version GenerateSheetData", "CompileTexture", 5);
 
+    // The tables below build on each other: keep them in this order (static fields initialize in
+    // the order they appear in a file, and across the files of a partial class in no stated order).
+
     /// <summary>
     /// The two texture dependencies every stock <c>.vtex_c</c> carries without
-    /// exception (200 of 200). <c>BuildTextureEditInfo</c> falls back to this set
-    /// plus a mip-algorithm entry when the caller states no encoding semantics.
+    /// exception (200 of 200), around the mip algorithm's entry (<see cref="TextureDeps"/>).
     /// </summary>
     public static readonly SpecialDep[] TextureBaseDeps =
     [
         new("Texture Compiler Version", "CompileTexture", 11),
         new("Texture Encode Quality", "CompileTexture", 1, 3),
     ];
+
+    /// <summary>
+    /// The special dependencies of a <c>.vtex</c> compile whose mip algorithm is
+    /// <paramref name="mipAlgorithm"/> (<c>"Box"</c> for every RcReference texture, <c>"None"</c>
+    /// for a texture with no chain): <see cref="TextureBaseDeps"/> and the algorithm's entry.
+    /// </summary>
+    public static SpecialDep[] TextureDeps(string mipAlgorithm) =>
+        [TextureBaseDeps[0], new("Texture Compiler Version Mip " + mipAlgorithm, "CompileTexture", 1), TextureBaseDeps[1]];
+
+    /// <summary>The three special dependencies resourcecompiler stamps on a <c>.vtex_c</c> with no
+    /// mip algorithm, byte-verified on two independent real compiles. The fallback of
+    /// <see cref="BuildTextureEditInfo"/>.</summary>
+    public static readonly SpecialDep[] TextureSpecialDeps = TextureDeps("None");
 
     /// <summary>
     /// The one dependency every stock <c>.vsvg_c</c> carries (200 of 200).
@@ -86,8 +101,7 @@ public static partial class Source2ContainerAuthor
     public static readonly SpecialDep[] MaterialBaseDeps =
     [
         new("Material Compiler Version", "CompileMaterial", 25),
-        new("Texture Compiler Version", "CompileTexture", 11),
-        new("Texture Encode Quality", "CompileTexture", 1, 3),
+        .. TextureBaseDeps,
     ];
 
     /// <summary>

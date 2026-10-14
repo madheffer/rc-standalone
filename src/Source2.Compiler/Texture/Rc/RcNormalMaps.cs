@@ -22,7 +22,7 @@ public static class RcNormalMaps
         foreach (var line in lines)
         {
             var parts = line.Split(' ');
-            table[int.Parse(parts[0]) * (lines.Length / 2) + int.Parse(parts[1])] = Convert.ToUInt32(parts[2].Trim(), 16);
+            table[int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture) * (lines.Length / 2) + int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture)] = Convert.ToUInt32(parts[2].Trim(), 16);
         }
         return (table, System.Numerics.BitOperations.Log2((uint)(lines.Length / 2)));
     }

@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Text;
-using Source2.Compiler.Materials;
 
 namespace Source2.Compiler.Shaders;
 
@@ -19,7 +18,7 @@ public static class ShaderExpression
 
     /// <summary>The hash a <c>1D</c> opcode names a material parameter by.</summary>
     public static uint ParamHash(string name) =>
-        GeneratedTexture.MurmurHash2(Encoding.UTF8.GetBytes(name.ToLowerInvariant()), ParamHashSeed);
+        MurmurHash2.Hash32(Encoding.UTF8.GetBytes(name.ToLowerInvariant()), ParamHashSeed);
 
     /// <summary>Evaluate an expression.</summary>
     /// <param name="code">The bytecode.</param>

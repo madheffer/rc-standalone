@@ -55,7 +55,7 @@ public sealed class VtexCompiler : IResourceCompiler
             throw new InvalidOperationException(why);
 
         var (data, stored, _) = BuildTexture(rgba, width, height, format, settings.Srgb, settings.NoLod, int.MaxValue, options.Bc7Vendor);
-        var specialDeps = Source2ContainerAuthor.TextureCompileDeps;
+        var specialDeps = Source2ContainerAuthor.TextureDeps("Box");
         var red2 = Source2ContainerAuthor.BuildTextureSourceEditInfo(request.SourcePath, request.Source,
             [(settings.ImagePath, imageBytes)], specialDeps, request.SearchPath);
         return new(WriteTexture(red2, data, stored));

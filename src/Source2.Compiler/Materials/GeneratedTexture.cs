@@ -79,7 +79,7 @@ public sealed record GeneratedTexture(IReadOnlyList<GeneratedTextureInput> Input
 
     /// <summary>MurmurHash2 of <see cref="LogicalText"/>: the child's name and its
     /// <c>___OverrideInputData___</c> fingerprint.</summary>
-    public uint LogicalCrc => MurmurHash2(Encoding.UTF8.GetBytes(LogicalText()), LogicalCrcSeed);
+    public uint LogicalCrc => MurmurHash2.Hash32(Encoding.UTF8.GetBytes(LogicalText()), LogicalCrcSeed);
 
     /// <summary>The child resource path: the first input with its <c>.</c> as <c>_</c>, the CRC
     /// in lowercase hex, then <c>.vtex</c> (<c>'%s_%x.%s'</c>).</summary>
@@ -111,32 +111,5 @@ public sealed record GeneratedTexture(IReadOnlyList<GeneratedTextureInput> Input
     {
         if (value != defaultValue)
             b.Append(name).Append(" = ").Append(value).Append('\n');
-    }
-
-    /// <summary>MurmurHash2 (32-bit), as tier0 and RC compute it.</summary>
-    public static uint MurmurHash2(ReadOnlySpan<byte> data, uint seed)
-    {
-        const uint m = 0x5bd1e995;
-        uint h = seed ^ (uint)data.Length;
-        int i = 0;
-        for (; i + 4 <= data.Length; i += 4)
-        {
-            uint k = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(data[i..]);
-            k *= m;
-            k ^= k >> 24;
-            k *= m;
-            h *= m;
-            h ^= k;
-        }
-        switch (data.Length - i)
-        {
-            case 3: h ^= (uint)data[i + 2] << 16; goto case 2;
-            case 2: h ^= (uint)data[i + 1] << 8; goto case 1;
-            case 1: h ^= data[i]; h *= m; break;
-        }
-        h ^= h >> 13;
-        h *= m;
-        h ^= h >> 15;
-        return h;
     }
 }

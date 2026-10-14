@@ -59,9 +59,6 @@ public sealed record ShaderAttribute(string Name, int Type, int VariableBinding,
 /// <summary>A shader mode (<c>m_modeArray</c>): a fallback shader, or static combos it fixes.</summary>
 public sealed record ShaderMode(string Name, string Fallback, IReadOnlyDictionary<string, int> StaticComboSettings);
 
-/// <summary>One element of a vertex input signature.</summary>
-public sealed record VsInputElement(string Name, string Semantic, string D3DSemanticName, int D3DSemanticIndex);
-
 /// <summary>
 /// A compiled shader program file (<c>&lt;shader&gt;_pc_50_{features,vs,ps}.vcs</c>, VCS v72): a
 /// Source 2 resource whose DATA block is KV3, read with <see cref="CompiledResource"/>
@@ -88,7 +85,7 @@ public sealed class ShaderProgram
     public IReadOnlyList<ShaderAttribute> Attributes { get; private init; } = [];
 
     /// <summary>The vertex input signatures static combos pick from (VS only).</summary>
-    public IReadOnlyList<IReadOnlyList<VsInputElement>> InputSignatures { get; private init; } = [];
+    public IReadOnlyList<IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement>> InputSignatures { get; private init; } = [];
 
     private readonly Dictionary<long, int[]> _variablesByCombo = [];
     private readonly Dictionary<long, int[]> _attributesByCombo = [];
@@ -132,9 +129,7 @@ public sealed class ShaderProgram
             Attributes = Items(root, "m_attributes").Select(a => new ShaderAttribute(
                 Str(a, "m_Name"), Int(a, "m_type"), Int(a, "m_nVariableBinding"), Child(a, "m_value"),
                 Child(a, "m_expr") is { } e ? e.AsBlob().ToArray() : null)).ToList(),
-            InputSignatures = Items(root, "m_vsInputSignatureArray").Select(sig => (IReadOnlyList<VsInputElement>)sig.Values
-                .Select(e => new VsInputElement(Str(e, "m_pName"), Str(e, "m_pSemantic"), Str(e, "m_pD3DSemanticName"), Int(e, "m_nD3DSemanticIndex")))
-                .ToList()).ToList(),
+            InputSignatures = Items(root, "m_vsInputSignatureArray").Select(MaterialAuthor.ReadSignature).ToList(),
         };
         if (ids.Count != data.Count)
             throw new InvalidDataException($"{ids.Count} static combo ids for {data.Count} static combo data entries.");

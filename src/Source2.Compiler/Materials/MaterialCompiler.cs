@@ -49,8 +49,6 @@ public sealed class MaterialCompiler : IResourceCompiler
 
     public string OutputPathFor(string sourcePath) => sourcePath + "_c";
 
-    private const int MaterialCompilerVersion = 25;
-
     // The special dependencies each mip algorithm and image processor adds to a texture compile
     // (RC's children in RcReference/materials).
     private static readonly Dictionary<string, (string Name, int Fingerprint)[]> AlgorithmDeps = new(StringComparer.OrdinalIgnoreCase)
@@ -78,7 +76,7 @@ public sealed class MaterialCompiler : IResourceCompiler
         var vmat = VmatSource.Parse(request.Source, request.SourcePath);
         var values = vmat.ByName;
         var shaders = new ShaderSet(settings.ShaderPackage, vmat.Shader);
-        int Feature(int index) => FeatureValue(shaders.Features, index, values);
+        int Feature(int index) => MaterialTextures.FeatureValue(shaders.Features, index, values);
 
         var textures = MaterialTextures.Resolve(shaders.Features, shaders.Pixel, values,
             path => mounts.Any(m => m.Content.Read(path) is not null));
@@ -106,25 +104,19 @@ public sealed class MaterialCompiler : IResourceCompiler
         return new(container.Write(), children);
     }
 
-    /// <summary>The special dependencies a generated texture's algorithms add, by full name.</summary>
-    internal static IEnumerable<(string Name, int Fingerprint)> TextureDeps(GeneratedTexture texture)
+    /// <summary>The special dependencies a generated texture's mip algorithms and image processors add.</summary>
+    internal static IEnumerable<Source2ContainerAuthor.SpecialDep> TextureDeps(GeneratedTexture texture)
     {
         foreach (var algorithm in texture.Channels.Select(c => c.MipAlgorithm).Concat(texture.Inputs.Select(i => i.ImageProcessor)).Where(a => a.Length > 0))
         {
             if (!AlgorithmDeps.TryGetValue(algorithm, out var deps))
                 throw new InvalidOperationException($"Texture algorithm {algorithm} is not measured yet.");
             foreach (var (name, fp) in deps)
-                yield return ("Texture Compiler Version " + name, fp);
+                yield return new("Texture Compiler Version " + name, "CompileTexture", fp);
         }
     }
 
-    private static int FeatureValue(ShaderProgram features, int index, IReadOnlyDictionary<string, string> values)
-    {
-        var combo = features.StaticCombos[index];
-        return values.TryGetValue(combo.Name, out var v) && int.TryParse(v, out var n) ? n : combo.Min;
-    }
-
-    private static (string SearchPath, byte[] Bytes)? Find(IEnumerable<ContentMount> mounts, string path)
+    internal static (string SearchPath, byte[] Bytes)? Find(IEnumerable<ContentMount> mounts, string path)
     {
         foreach (var m in mounts)
             if (m.Content.Read(path) is { } bytes)
@@ -226,103 +218,56 @@ public sealed class MaterialCompiler : IResourceCompiler
 
         // Input dependencies: the .vmat, each image and each image's optional .txt (recorded in
         // the first mount when absent), by path.
-        var inputs = new List<(string Path, string SearchPath, uint Crc, bool Optional, bool Exists)>
-        {
-            (request.SourcePath, request.SearchPath, Crc32.HashToUInt32(request.Source), false, true),
-        };
+        var inputs = new List<EditInfo.Input> { EditInfo.Input.Read(request.SourcePath, request.SearchPath, request.Source) };
         foreach (var (path, (searchPath, bytes)) in images)
         {
-            inputs.Add((path, searchPath, Crc32.HashToUInt32(bytes), false, true));
-            var txt = Path.ChangeExtension(path, ".txt").Replace('\\', '/');
-            inputs.Add(Find(mounts, txt) is { } found
-                ? (txt, found.SearchPath, Crc32.HashToUInt32(found.Bytes), true, true)
-                : (txt, request.SearchPath, 0u, true, false));
+            inputs.Add(EditInfo.Input.Read(path, searchPath, bytes));
+            inputs.Add(SettingsInput(mounts, path, request.SearchPath));
         }
-        var inputDeps = KVObject.Array();
-        foreach (var d in inputs.OrderBy(d => d.Path, StringComparer.Ordinal))
-        {
-            var o = KVObject.Collection();
-            o.Add("m_RelativeFilename", new KVObject(d.Path));
-            o.Add("m_SearchPath", new KVObject(d.SearchPath));
-            o.Add("m_nFileCRC", new KVObject(d.Crc));
-            o.Add("m_bOptional", new KVObject(d.Optional));
-            o.Add("m_bFileExists", new KVObject(d.Exists));
-            o.Add("m_bIsGameFile", new KVObject(false));
-            inputDeps.Add(o);
-        }
-        root.Add("m_InputDependencies", inputDeps);
+        root.Add("m_InputDependencies", EditInfo.Inputs(EditInfo.ByPath(inputs)));
         root.Add("m_AdditionalInputDependencies", KVObject.Array());
 
-        var args = new List<(string Name, string Type, uint Fingerprint)>();
+        var args = new List<EditInfo.Argument>();
         if (images.Count > 0 || textures.Any(t => t.Generated is null))
-        {
-            args.AddRange([
-                ("___OverrideInputData___", "BinaryBlobArg", 0), ("fast", "FloatArg", 0), ("final", "FloatArg", 0),
-                ("hueShiftFixup", "FloatArg", 0), ("lightmapMaxResolution", "FloatArg", 0),
-                ("maxmipsize", "FloatArg", BitConverter.SingleToUInt32Bits(1048576f)), ("minmipsize", "FloatArg", 0),
-            ]);
-            foreach (var path in images.Keys)
-            {
-                args.Add((path, "ImageArg", 0));
-                args.Add((path, "BinaryBlobArg", 0));
-            }
-        }
+            args.AddRange(EditInfo.TextureArguments(images.Keys));
         // A .vtex the material names directly is an image argument only (cx_vtex).
         foreach (var path in textures.Where(t => t.Generated is null).Select(t => t.ResourcePath).Distinct())
-            args.Add((path, "ImageArg", 0));
-        var argDeps = KVObject.Array();
-        foreach (var (name, type, fingerprint) in args.OrderBy(a => a.Name, StringComparer.Ordinal))
-        {
-            var o = KVObject.Collection();
-            o.Add("m_ParameterName", new KVObject(name));
-            o.Add("m_ParameterType", new KVObject(type));
-            o.Add("m_nFingerprint", fingerprint == 0 ? new KVObject(0) : new KVObject(fingerprint));
-            o.Add("m_nFingerprintDefault", fingerprint == 0 ? new KVObject(0) : new KVObject(fingerprint));
-            argDeps.Add(o);
-        }
-        root.Add("m_ArgumentDependencies", argDeps);
+            args.Add(new(path, "ImageArg"));
+        root.Add("m_ArgumentDependencies", EditInfo.Arguments(args));
 
-        var special = new Dictionary<string, (string Compiler, int Fingerprint, int UserData)>(StringComparer.Ordinal)
-        {
-            ["Material Compiler Version"] = ("CompileMaterial", MaterialCompilerVersion, 0),
-        };
+        var special = new Dictionary<string, Source2ContainerAuthor.SpecialDep>(StringComparer.Ordinal);
+        void Special(Source2ContainerAuthor.SpecialDep dep) => special[dep.Name] = dep;
+        Special(Source2ContainerAuthor.MaterialBaseDeps[0]);
         var generated = textures.Where(t => t.Generated is not null).Select(t => t.Generated!).ToList();
         if (generated.Count > 0)
-        {
-            special["Texture Compiler Version"] = ("CompileTexture", 11, 0);
-            special["Texture Encode Quality"] = ("CompileTexture", 1, 3);
-        }
+            foreach (var dep in Source2ContainerAuthor.TextureBaseDeps)
+                Special(dep);
         foreach (var g in generated)
-            foreach (var (name, fp) in TextureDeps(g))
-                special[name] = ("CompileTexture", fp, 0);
+            foreach (var dep in TextureDeps(g))
+                Special(dep);
         var recorded = settings.RecordedShaderPackage
             ?? settings.ShaderPackage.Replace("_dir.vpk", ".vpk", StringComparison.OrdinalIgnoreCase).Replace('/', '\\');
-        special[$"vpk:{recorded}/{shaders.Name}"] = ("CompileMaterial", shaders.Features.Version, 0);
+        Special(new($"vpk:{recorded}/{shaders.Name}", "CompileMaterial", shaders.Features.Version));
         foreach (var mode in shaders.Features.Modes)
             if (mode.Name == "Depth" && mode.Fallback.Length > 0)
-                special[$"vpk:{recorded}/{mode.Fallback}"] = ("CompileMaterial", shaders.Fallback(mode.Fallback).Features.Version, 0);
-        var specialDeps = KVObject.Array();
-        foreach (var (name, (compiler, fp, user)) in special.OrderBy(s => s.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            var o = KVObject.Collection();
-            o.Add("m_String", new KVObject(name));
-            o.Add("m_CompilerIdentifier", new KVObject(compiler));
-            o.Add("m_nFingerprint", fp is 0 or 1 ? new KVObject((long)fp) : new KVObject((uint)fp));
-            o.Add("m_nUserData", user is 0 or 1 ? new KVObject((long)user) : new KVObject((uint)user));
-            specialDeps.Add(o);
-        }
-        root.Add("m_SpecialDependencies", specialDeps);
-        root.Add("m_SpecialInputDependencies", KVObject.Array());
-        root.Add("m_AdditionalRelatedFiles", KVObject.Array());
+                Special(new($"vpk:{recorded}/{mode.Fallback}", "CompileMaterial", shaders.Fallback(mode.Fallback).Features.Version));
+        root.Add("m_SpecialDependencies", EditInfo.SpecialDependencies(special.Values));
+
         var children = KVObject.Array();
         foreach (var path in generated.Select(g => g.ChildPath).Distinct().Order(StringComparer.Ordinal))
             children.Add(new KVObject(path));
-        root.Add("m_ChildResourceList", children);
-        root.Add("m_WeakReferenceList", KVObject.Array());
-        root.Add("m_SearchableUserData", Searchable(shaders, textures, images, feature, values));
-        root.Add("m_SubassetReferences", KVObject.Null());
-        root.Add("m_SubassetDefinitions", KVObject.Null());
+        EditInfo.AddTail(root, Searchable(shaders, textures, images, feature, values), children);
         return Source2ContainerAuthor.NarrowIntegers(root);
+    }
+
+    /// <summary>An image's <c>.txt</c> settings file as RC records it: read from the first mount that
+    /// has it, else absent in <paramref name="absentSearchPath"/>.</summary>
+    internal static EditInfo.Input SettingsInput(IEnumerable<ContentMount> mounts, string image, string absentSearchPath)
+    {
+        var txt = EditInfo.SettingsFile(image);
+        return Find(mounts, txt) is { } found
+            ? new EditInfo.Input(txt, found.SearchPath, System.IO.Hashing.Crc32.HashToUInt32(found.Bytes), true, true)
+            : EditInfo.Input.Absent(txt, absentSearchPath);
     }
 
     // The shader's attributes for the material's combo in every program, evaluated, with the F_
@@ -428,21 +373,10 @@ public sealed class MaterialCompiler : IResourceCompiler
     private static KVObject Signature(ShaderProgram features, ShaderProgram vertex, IReadOnlyDictionary<string, string> values,
         IReadOnlyDictionary<string, int>? modeSettings)
     {
-        long id = vertex.StaticComboId(i => FeatureValue(features, i, values), modeSettings);
+        long id = vertex.StaticComboId(i => MaterialTextures.FeatureValue(features, i, values), modeSettings);
         var indices = vertex.InputSignaturesOf(id) ?? throw new InvalidOperationException($"The vertex shader has no static combo {id}.");
-        var elems = indices.Distinct().SelectMany(i => vertex.InputSignatures[i]).Distinct()
-            .OrderBy(e => e.D3DSemanticName, StringComparer.Ordinal).ThenBy(e => e.D3DSemanticIndex).ThenBy(e => e.Name, StringComparer.Ordinal);
-        var a = KVObject.Array();
-        foreach (var e in elems)
-        {
-            var o = KVObject.Collection();
-            o.Add("m_pName", new KVObject(e.Name));
-            o.Add("m_pSemantic", new KVObject(e.Semantic));
-            o.Add("m_pD3DSemanticName", new KVObject(e.D3DSemanticName));
-            o.Add("m_nD3DSemanticIndex", new KVObject(e.D3DSemanticIndex));
-            a.Add(o);
-        }
-        return a;
+        return MaterialAuthor.WriteSignature(indices.Distinct().SelectMany(i => vertex.InputSignatures[i]).Distinct()
+            .OrderBy(e => e.D3DSemanticName, StringComparer.Ordinal).ThenBy(e => e.D3DSemanticIndex).ThenBy(e => e.Name, StringComparer.Ordinal));
     }
 
     /// <summary>A shader's programs from the shader package, read once per compile.</summary>

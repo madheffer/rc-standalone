@@ -3,6 +3,7 @@ using ValveKeyValue;
 using InputSignatureElement = Source2.Compiler.Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement;
 
 namespace Source2.Compiler;
+
 /// <summary>
 /// Authors the container of a compiled material, so <c>BuildMaterial</c> can run
 /// with no donor file.
@@ -27,41 +28,47 @@ public static class MaterialAuthor
     /// Read the input signature out of a compiled material, to hand to
     /// <see cref="NewContainer"/>. Throws when the file carries no INSG block.
     /// </summary>
-    public static IReadOnlyList<InputSignatureElement> ExtractInputSignature(byte[] vmatC) => ExtractInputSignature(vmatC, "m_elems");
+    /// <exception cref="InvalidOperationException">The material has no INSG block or no <c>m_elems</c>.</exception>
+    public static IReadOnlyList<InputSignatureElement> ExtractInputSignature(byte[] vmatC) =>
+        Signature(vmatC, "m_elems") ?? throw new InvalidOperationException(
+            "That material has no INSG block with an m_elems array, so it carries no input signature to copy.");
 
     /// <summary>
     /// The depth pass's input signature (INSG <c>m_depth_elems</c>), empty when
     /// the shader does not split its streams for depth.
     /// </summary>
-    public static IReadOnlyList<InputSignatureElement> ExtractDepthSignature(byte[] vmatC)
+    public static IReadOnlyList<InputSignatureElement> ExtractDepthSignature(byte[] vmatC) => Signature(vmatC, "m_depth_elems") ?? [];
+
+    private static IReadOnlyList<InputSignatureElement>? Signature(byte[] vmatC, string key)
     {
         ArgumentNullException.ThrowIfNull(vmatC);
-        if (CompiledResource.Read(vmatC).Kv3("INSG") is not { } root
-            || root.Children.FirstOrDefault(c => c.Key == "m_depth_elems").Value is not { IsArray: true } elems)
-            return [];
-        return elems.Values.Select(e => new InputSignatureElement(
-            e.GetStringProperty("m_pName") ?? "",
-            e.GetStringProperty("m_pSemantic") ?? "",
-            e.GetStringProperty("m_pD3DSemanticName") ?? "",
-            (int)(e.GetInt32Property("m_nD3DSemanticIndex")))).ToList();
+        return CompiledResource.Read(vmatC).Kv3("INSG") is { } root && root.TryGetValue(key, out var elems) && elems.IsArray
+            ? ReadSignature(elems)
+            : null;
     }
 
-    private static IReadOnlyList<InputSignatureElement> ExtractInputSignature(byte[] vmatC, string key)
-    {
-        ArgumentNullException.ThrowIfNull(vmatC);
-        if (CompiledResource.Read(vmatC).Kv3("INSG") is not { } root)
-            throw new InvalidOperationException(
-                "That material has no INSG block, so it carries no input signature to copy.");
-
-        var elems = root[key];
-        if (elems is null || !elems.IsArray)
-            throw new InvalidOperationException("The INSG block has no m_elems array.");
-
-        return elems.Values.Select(e => new InputSignatureElement(
+    /// <summary>An INSG element array (<c>m_elems</c>, a VCS file's <c>m_vsInputSignatureArray</c> entry) as elements.</summary>
+    internal static IReadOnlyList<InputSignatureElement> ReadSignature(KVObject elems) =>
+        elems.Values.Select(e => new InputSignatureElement(
             e.GetStringProperty("m_pName") ?? "",
             e.GetStringProperty("m_pSemantic") ?? "",
             e.GetStringProperty("m_pD3DSemanticName") ?? "",
-            (int)(e.GetInt32Property("m_nD3DSemanticIndex")))).ToList();
+            e.GetInt32Property("m_nD3DSemanticIndex"))).ToList();
+
+    /// <summary><paramref name="elements"/> as an INSG element array.</summary>
+    internal static KVObject WriteSignature(IEnumerable<InputSignatureElement> elements)
+    {
+        var elems = KVObject.Array();
+        foreach (var e in elements)
+        {
+            var o = KVObject.Collection();
+            o.Add("m_pName", new KVObject(e.Name));
+            o.Add("m_pSemantic", new KVObject(e.Semantic));
+            o.Add("m_pD3DSemanticName", new KVObject(e.D3DSemanticName));
+            o.Add("m_nD3DSemanticIndex", new KVObject(e.D3DSemanticIndex));
+            elems.Add(o);
+        }
+        return elems;
     }
 
     /// <summary>
@@ -107,25 +114,10 @@ public static class MaterialAuthor
         res.SetRaw("RERL", ResourceRefs.Write([], 0));
         res.SetKv3("RED2", editInfo, Kv3Formats.Get("generic"));
         res.SetKv3("DATA", KVObject.Collection(), Kv3Formats.Get("generic"));
-        res.SetKv3("INSG", BuildInsg(inputSignature), Kv3Formats.Get("generic"));
+        var insg = KVObject.Collection();
+        insg.Add("m_elems", WriteSignature(inputSignature));
+        res.SetKv3("INSG", insg, Kv3Formats.Get("generic"));
 
         return res;
-    }
-
-    private static KVObject BuildInsg(IReadOnlyList<InputSignatureElement> elements)
-    {
-        var elems = KVObject.Array();
-        foreach (var e in elements)
-        {
-            var o = KVObject.Collection();
-            o.Add("m_pName", new KVObject(e.Name));
-            o.Add("m_pSemantic", new KVObject(e.Semantic));
-            o.Add("m_pD3DSemanticName", new KVObject(e.D3DSemanticName));
-            o.Add("m_nD3DSemanticIndex", new KVObject(e.D3DSemanticIndex));
-            elems.Add(o);
-        }
-        var root = KVObject.Collection();
-        root.Add("m_elems", elems);
-        return root;
     }
 }

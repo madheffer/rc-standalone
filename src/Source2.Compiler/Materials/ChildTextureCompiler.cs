@@ -44,7 +44,7 @@ internal static class ChildTextureCompiler
         foreach (var file in files)
         {
             images[file] = find(file) ?? throw new InvalidOperationException($"{file} (for {texture.ChildPath}) was not found.");
-            var txt = TxtPath(file);
+            var txt = EditInfo.SettingsFile(file);
             if (find(txt) is { } settings && !IsEmptySettings(settings.Bytes))
                 throw new InvalidOperationException($"{txt} sets image settings, which this compiler has not measured yet.");
             decoded[file] = VtexCompiler.DecodeRgba(images[file].Bytes, file);
@@ -166,8 +166,6 @@ internal static class ChildTextureCompiler
         return VtexCompiler.WriteTexture(BuildRed2(texture, files, images, find, firstSearchPath), data, stored);
     }
 
-    private static string TxtPath(string image) => Path.ChangeExtension(image, ".txt").Replace('\\', '/');
-
     // core's default_normal.txt: "settings" { }.
     private static bool IsEmptySettings(byte[] bytes)
     {
@@ -183,78 +181,24 @@ internal static class ChildTextureCompiler
     {
         var root = KVObject.Collection();
         root.Add("m_InputDependencies", KVObject.Array());
-        var deps = new List<(string Path, string SearchPath, uint Crc, bool Optional, bool Exists)>();
+        var deps = new List<EditInfo.Input>();
         foreach (var file in files)
         {
-            deps.Add((file, images[file].SearchPath, Crc32.HashToUInt32(images[file].Bytes), false, true));
-            var txt = TxtPath(file);
-            deps.Add(find(txt) is { } t ? (txt, t.SearchPath, Crc32.HashToUInt32(t.Bytes), true, true) : (txt, firstSearchPath, 0u, true, false));
+            deps.Add(EditInfo.Input.Read(file, images[file].SearchPath, images[file].Bytes));
+            var txt = EditInfo.SettingsFile(file);
+            deps.Add(find(txt) is { } t
+                ? new EditInfo.Input(txt, t.SearchPath, System.IO.Hashing.Crc32.HashToUInt32(t.Bytes), true, true)
+                : EditInfo.Input.Absent(txt, firstSearchPath));
         }
-        var additional = KVObject.Array();
-        foreach (var d in deps.OrderBy(d => d.Path, StringComparer.Ordinal))
-        {
-            var o = KVObject.Collection();
-            o.Add("m_RelativeFilename", new KVObject(d.Path));
-            o.Add("m_SearchPath", new KVObject(d.SearchPath));
-            o.Add("m_nFileCRC", new KVObject(d.Crc));
-            o.Add("m_bOptional", new KVObject(d.Optional));
-            o.Add("m_bFileExists", new KVObject(d.Exists));
-            o.Add("m_bIsGameFile", new KVObject(false));
-            additional.Add(o);
-        }
-        root.Add("m_AdditionalInputDependencies", additional);
+        root.Add("m_AdditionalInputDependencies", EditInfo.Inputs(EditInfo.ByPath(deps)));
+        root.Add("m_ArgumentDependencies", EditInfo.Arguments(EditInfo.TextureArguments(files, texture.LogicalCrc)));
 
-        uint maxMip = BitConverter.SingleToUInt32Bits(1048576f);
-        var args = new List<(string Name, string Type, uint Fingerprint, uint Default)>
-        {
-            ("___OverrideInputData___", "BinaryBlobArg", texture.LogicalCrc, 0), ("fast", "FloatArg", 0, 0),
-            ("final", "FloatArg", 0, 0), ("hueShiftFixup", "FloatArg", 0, 0), ("lightmapMaxResolution", "FloatArg", 0, 0),
-            ("maxmipsize", "FloatArg", maxMip, maxMip), ("minmipsize", "FloatArg", 0, 0),
-        };
-        foreach (var file in files)
-        {
-            args.Add((file, "ImageArg", 0, 0));
-            args.Add((file, "BinaryBlobArg", 0, 0));
-        }
-        var argDeps = KVObject.Array();
-        foreach (var (name, type, fingerprint, fingerprintDefault) in args.OrderBy(a => a.Name, StringComparer.Ordinal))
-        {
-            var o = KVObject.Collection();
-            o.Add("m_ParameterName", new KVObject(name));
-            o.Add("m_ParameterType", new KVObject(type));
-            o.Add("m_nFingerprint", fingerprint == 0 ? new KVObject(0) : new KVObject(fingerprint));
-            o.Add("m_nFingerprintDefault", fingerprintDefault == 0 ? new KVObject(0) : new KVObject(fingerprintDefault));
-            argDeps.Add(o);
-        }
-        root.Add("m_ArgumentDependencies", argDeps);
-
-        var special = new SortedDictionary<string, (int Fingerprint, int UserData)>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["Texture Compiler Version"] = (11, 0),
-            ["Texture Encode Quality"] = (1, 3),
-        };
-        foreach (var (name, fp) in MaterialCompiler.TextureDeps(texture))
-            special[name] = (fp, 0);
-        var specialDeps = KVObject.Array();
-        foreach (var (name, (fp, user)) in special)
-        {
-            var o = KVObject.Collection();
-            o.Add("m_String", new KVObject(name));
-            o.Add("m_CompilerIdentifier", new KVObject("CompileTexture"));
-            o.Add("m_nFingerprint", fp is 0 or 1 ? new KVObject((long)fp) : new KVObject((uint)fp));
-            o.Add("m_nUserData", user is 0 or 1 ? new KVObject((long)user) : new KVObject((uint)user));
-            specialDeps.Add(o);
-        }
-        root.Add("m_SpecialDependencies", specialDeps);
-        root.Add("m_SpecialInputDependencies", KVObject.Array());
-        root.Add("m_AdditionalRelatedFiles", KVObject.Array());
-        root.Add("m_ChildResourceList", KVObject.Array());
-        root.Add("m_WeakReferenceList", KVObject.Array());
-        var searchable = KVObject.Collection();
-        searchable.Add("IsChildResource", new KVObject(1));
-        root.Add("m_SearchableUserData", searchable);
-        root.Add("m_SubassetReferences", KVObject.Null());
-        root.Add("m_SubassetDefinitions", KVObject.Null());
+        var special = new Dictionary<string, Source2ContainerAuthor.SpecialDep>(StringComparer.OrdinalIgnoreCase);
+        foreach (var dep in Source2ContainerAuthor.TextureBaseDeps.Concat(MaterialCompiler.TextureDeps(texture)))
+            special[dep.Name] = dep;
+        root.Add("m_SpecialDependencies", EditInfo.SpecialDependencies(special.Values));
+        EditInfo.AddTail(root, EditInfo.Searchable(child: true));
         return Source2ContainerAuthor.NarrowIntegers(root);
     }
+
 }
