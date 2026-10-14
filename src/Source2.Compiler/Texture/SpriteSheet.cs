@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 
 namespace Source2.Compiler;
@@ -34,8 +35,26 @@ public static class SpriteSheet
     /// <param name="Max">Bottom-right UV.</param>
     /// <param name="CroppedMin">Tighter UV used for alpha-cropped frames; defaults to <paramref name="Min"/>.</param>
     /// <param name="CroppedMax">Tighter UV used for alpha-cropped frames; defaults to <paramref name="Max"/>.</param>
+    /// <param name="MoreImages">Further rects of the same frame, after this one (stock sheets of
+    /// multi-layer particles store up to four per frame); none for most sheets.</param>
     public sealed record Frame(
         float DisplayTime,
+        (float X, float Y) Min,
+        (float X, float Y) Max,
+        (float X, float Y)? CroppedMin = null,
+        (float X, float Y)? CroppedMax = null,
+        IReadOnlyList<Image>? MoreImages = null)
+    {
+        /// <summary>The frame's rects in stored order: its own, then <see cref="MoreImages"/>.</summary>
+        public IEnumerable<Image> Images => [new Image(Min, Max, CroppedMin, CroppedMax), .. MoreImages ?? []];
+    }
+
+    /// <summary>One rect of a frame, in UV space; a null cropped corner means the uncropped one.</summary>
+    /// <param name="Min">Top-left UV.</param>
+    /// <param name="Max">Bottom-right UV.</param>
+    /// <param name="CroppedMin">Tighter top-left for alpha-cropped frames.</param>
+    /// <param name="CroppedMax">Tighter bottom-right for alpha-cropped frames.</param>
+    public sealed record Image(
         (float X, float Y) Min,
         (float X, float Y) Max,
         (float X, float Y)? CroppedMin = null,
@@ -120,7 +139,7 @@ public static class SpriteSheet
             cursor += sequences[s].Frames.Count * frameSize;
 
             imagesPos[s] = cursor;
-            cursor += sequences[s].Frames.Count * imageSize;      // one image per frame
+            cursor += sequences[s].Frames.Sum(f => 1 + (f.MoreImages?.Count ?? 0)) * imageSize;
 
             paramsPos[s] = cursor;
             cursor += paramNames[s].Length * floatParamSize;
@@ -167,27 +186,30 @@ public static class SpriteSheet
             w.Write((byte)0);
 
             ms.Position = framesPos[s];
-            for (var f = 0; f < seq.Frames.Count; f++)
+            var image = imagesPos[s];
+            foreach (var frame in seq.Frames)
             {
                 var at = (int)ms.Position;
-                w.Write(seq.Frames[f].DisplayTime);
-                w.Write((uint)(imagesPos[s] + f * imageSize - (at + 4)));
-                w.Write(1u);                                        // one image per frame
+                var images = 1 + (frame.MoreImages?.Count ?? 0);
+                w.Write(frame.DisplayTime);
+                w.Write((uint)(image - (at + 4)));
+                w.Write((uint)images);
+                image += images * imageSize;
             }
 
             ms.Position = imagesPos[s];
-            foreach (var f in seq.Frames)
+            foreach (var i in seq.Frames.SelectMany(f => f.Images))
             {
-                var cMin = f.CroppedMin ?? f.Min;
-                var cMax = f.CroppedMax ?? f.Max;
+                var cMin = i.CroppedMin ?? i.Min;
+                var cMax = i.CroppedMax ?? i.Max;
                 w.Write(cMin.X);
                 w.Write(cMin.Y);
                 w.Write(cMax.X);
                 w.Write(cMax.Y);
-                w.Write(f.Min.X);
-                w.Write(f.Min.Y);
-                w.Write(f.Max.X);
-                w.Write(f.Max.Y);
+                w.Write(i.Min.X);
+                w.Write(i.Min.Y);
+                w.Write(i.Max.X);
+                w.Write(i.Max.Y);
             }
 
             ms.Position = paramsPos[s];
@@ -210,4 +232,86 @@ public static class SpriteSheet
     }
 
     private static int Align4(int n) => (n + 3) & ~3;
+
+    /// <summary>
+    /// Read a SHEET payload (a compiled texture's <see cref="Textures.VTexExtraData.SHEET"/> extra data).
+    /// A cropped rect equal to the uncropped one reads as none.
+    /// The stored total time is not kept: it is the sum of the display times, which <see cref="Write"/>
+    /// recomputes.
+    /// </summary>
+    /// <exception cref="InvalidDataException">The payload is not a version 8 sheet, or an offset or count runs past it.</exception>
+    public static IReadOnlyList<Sequence> Read(ReadOnlySpan<byte> sheet)
+    {
+        if (sheet.Length < 8 || BinaryPrimitives.ReadUInt32LittleEndian(sheet) != Version)
+            throw new InvalidDataException($"A sprite sheet is version {Version}.");
+        var count = BinaryPrimitives.ReadUInt32LittleEndian(sheet[4..]);
+        Check(sheet, 8, count, 32);
+        var sequences = new List<Sequence>((int)count);
+        for (var s = 0; s < count; s++)
+        {
+            var at = 8 + 32 * s;
+            var framesAt = Offset(sheet, at + 8);
+            var frameCount = BinaryPrimitives.ReadUInt32LittleEndian(sheet[(at + 12)..]);
+            var name = String(sheet, Offset(sheet, at + 20));
+            var paramsAt = Offset(sheet, at + 24);
+            var paramCount = BinaryPrimitives.ReadUInt32LittleEndian(sheet[(at + 28)..]);
+
+            Check(sheet, paramsAt, paramCount, 8);
+            var floatParams = new Dictionary<string, float>();
+            for (var p = 0; p < paramCount; p++)
+            {
+                var entry = (int)paramsAt + 8 * p;
+                floatParams[String(sheet, Offset(sheet, entry))] = BinaryPrimitives.ReadSingleLittleEndian(sheet[(entry + 4)..]);
+            }
+
+            Check(sheet, framesAt, frameCount, 12);
+            var frames = new Frame[frameCount];
+            for (var f = 0; f < frameCount; f++)
+            {
+                var entry = (int)framesAt + 12 * f;
+                var imageAt = Offset(sheet, entry + 4);
+                var imageCount = BinaryPrimitives.ReadUInt32LittleEndian(sheet[(entry + 8)..]);
+                if (imageCount == 0)
+                    throw new InvalidDataException("A sheet frame has no image.");
+                Check(sheet, imageAt, imageCount, 32);
+                var images = new Image[imageCount];
+                for (var i = 0; i < imageCount; i++)
+                {
+                    var image = sheet.Slice((int)imageAt + 32 * i, 32);
+                    var (croppedMin, croppedMax, min, max) = (Point(image, 0), Point(image, 1), Point(image, 2), Point(image, 3));
+                    var cropped = croppedMin != min || croppedMax != max;
+                    images[i] = new Image(min, max, cropped ? croppedMin : null, cropped ? croppedMax : null);
+                }
+                frames[f] = new Frame(BinaryPrimitives.ReadSingleLittleEndian(sheet[entry..]), images[0].Min, images[0].Max,
+                    images[0].CroppedMin, images[0].CroppedMax, imageCount > 1 ? images[1..] : null);
+            }
+            sequences.Add(new Sequence(frames, Clamp: sheet[at + 4] != 0, AlphaCrop: sheet[at + 5] != 0, NoColor: sheet[at + 6] != 0,
+                NoAlpha: sheet[at + 7] != 0, Name: name, FloatParams: paramCount == 0 ? null : floatParams,
+                Id: (int)BinaryPrimitives.ReadUInt32LittleEndian(sheet[at..])));
+        }
+        return sequences;
+
+        static (float X, float Y) Point(ReadOnlySpan<byte> image, int i) =>
+            (BinaryPrimitives.ReadSingleLittleEndian(image[(8 * i)..]), BinaryPrimitives.ReadSingleLittleEndian(image[(8 * i + 4)..]));
+
+        // An offset field holds the distance from itself.
+        static long Offset(ReadOnlySpan<byte> sheet, int field) => field + (long)BinaryPrimitives.ReadUInt32LittleEndian(sheet[field..]);
+
+        static void Check(ReadOnlySpan<byte> sheet, long at, uint count, int size)
+        {
+            if (at < 0 || at + (long)count * size > sheet.Length)
+                throw new InvalidDataException($"{count} sheet entries of {size} bytes at {at} run past the {sheet.Length}-byte sheet.");
+        }
+
+        static string String(ReadOnlySpan<byte> sheet, long at)
+        {
+            if (at >= sheet.Length)
+                throw new InvalidDataException($"A sheet string at {at} is past the {sheet.Length}-byte sheet.");
+            var rest = sheet[(int)at..];
+            var end = rest.IndexOf((byte)0);
+            if (end < 0)
+                throw new InvalidDataException("A sheet string is not terminated.");
+            return Encoding.UTF8.GetString(rest[..end]);
+        }
+    }
 }

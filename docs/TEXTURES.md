@@ -175,6 +175,50 @@ makes the output that chain's texture rather than resourcecompiler's. vpkstuff u
 mips CS2 builds for a composite at runtime (a linear-light box chain). An 8-bit level survives the
 float load and the sRGB write exactly, so an RGBA8888 texture stores the given bytes (MipChainTests).
 
+## Decoding: `Textures.CompiledTexture`
+
+`CompiledTexture.Read(bytes)` opens a `.vtex_c` without VRF. `GenerateBitmap(depth, face, mip, codec)`
+returns what VRF's `Texture.GenerateBitmap` returns, as an `SKBitmap`: BGRA8888, or RgbaF32 for a
+high dynamic range format unless `TextureCodec.ForceLDR` is passed. Every pak01 texture (71,966 of them,
+12 formats) decodes to VRF's pixels, byte for byte, at mip 0 with the codec read from the edit info,
+with no codec, and forced to 8 bits. A sample of 60 per format also matches at every mip, face and slice.
+The checks ran on 2026-10-14 against vpkstuff's VRF, through the scratch `vrfparity texture` harness.
+
+- **Layout.** The DATA block holds a 40-byte header and extra data entries; METADATA gives the display
+  rect, COMPRESSED_MIP_SIZE the per-mip stored size (LZ4 when its first field is 1), CUBEMAP_RADIANCE_SH
+  the coefficients. Mips follow the DATA block, smallest first. A mip's stored size is
+  `min(uncompressed, listed)`. A block format pads to 4x4, and a 2- or 3-slice block texture reads as
+  4 slices, which is VRF's rule. `ReadMip` returns one mip's decompressed bytes, `RawImageData` the
+  embedded PNG/JPEG/WebP.
+- **Block decoders** (`Textures.Decoding.BlockDecoders`), written from the D3D11 specification:
+  - BC1 interpolates on the stored 5- and 6-bit values and rounds once to 8 bits (`round(sum/n *
+    255/max)`), so a third of the way from 1 to 0 in 5 bits is 5, not 6. This is what TinyBCSharp
+    (VRF's decoder) does; it was found by probing it with synthetic blocks.
+  - BC1 inside BC3 always uses four colours.
+  - BC4 and BC5 interpolate the 8-bit endpoints with rounding (`+3)/7`, `+2)/5`).
+  - BC4 decodes to grey and BC5 to red/green with blue 0.
+  - BC7 and BC6H follow the specification's tables. The partition and anchor tables are generated
+    from `Native/bc7enc/bc7enc.c`.
+  - BC6H decodes to half floats and goes to 8 bits by clamping.
+- **Other formats** (`PixelDecoders`), per VRF:
+  - 16-bit unsigned channels are `/256` in LDR and `/65535` in HDR.
+  - RGBA16161616(F) to LDR is a log-average luminance tonemap with gamma 2.25.
+  - Float formats clamp.
+- **Codec** (`CodecFromEditInfo`) comes from the `CompileTexture` special dependencies:
+  - YCoCg, NormalizeNormals and HemiOct.
+  - YCoCg on a cube is sRGB.
+  - DXT5 with NormalizeNormals is DXT5nm (red and alpha swapped).
+  - HDR formats are linear.
+- **Not decoded:** the ETC2/EAC family, which throws `NotSupportedException`; no CS2 texture uses it. Format 33
+  (17 pak01 tint-ID masks, 1 byte a pixel, unknown to VRF too) has no name until the texture compiler
+  gives one. `ReadMip` returns its bytes. RGBM is flagged but not decoded, as in VRF.
+- **One deliberate difference.** Uncompressed rows are read at the stored width, so a display rect
+  narrower than the texture crops correctly. VRF reads them as if packed at the rect's width. No pak01
+  texture has such a rect on an uncompressed format.
+
+`SpriteSheet.Read` is the SHEET reader beside `Write`: a frame may carry several images (multi-layer
+particles store four), and stock particle sheets read and write back to their own bytes.
+
 ## What is left
 
 1. The settings refused above, each measured against RC before it is accepted.
