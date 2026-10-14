@@ -131,10 +131,17 @@ Move one area at a time, each with its goldens; VRF and the adapter leave when n
 | VBIB vertex/index buffers (decoded by VRF, written back uncompressed by `VmdlEditor`) | `CompiledModel.Meshes[i].VertexBuffers[j].Read()` / `.Write(bytes, count)`: re-encoded with meshopt exactly as RC does when RC had compressed it (smaller files; every pak01 buffer round-trips byte-identically) |
 | `DirFileLoader` (VRF `IFileLoader`) | `IContentSource` (`DirectoryContentSource`, `MemoryContentSource`) |
 | `VrfResourceDecompiler.DataBlockToKv3` | `ResourceDecompiler` (already in the library) |
-| `StringToken.Get(name)` | `Shaders.ShaderExpression.ParamHash(name)` (MurmurHash2 of the lowercased name, seed 0x31415926); `MurmurHash2.Hash32` for VmdlEditor's own copy |
+| `StringToken.Get(name)` | `StringToken.Get(name)` (MurmurHash2 of the lowercased name, seed 0x31415926); `StringToken.Lookup(token)` names a known key |
 | VRF's `KVObjectExtensions` (`GetIntegerProperty`, `GetArray<T>`, `ToVector3`...) | `Source2.Compiler.KeyValues.KvExtensions`, same names and conversions; swap the `using` per file |
 | `KVDocumentExtensions.ParseKV3` (KV3 text) | `Kv3Text.Parse(bytes)`, with the depth and control-character checks |
 | `CompiledShader` (VCS reading) | `Shaders.ShaderProgram.Read(vcs)` (features/VS/PS: variables, combos, attributes, signatures) |
+| `Block.Offset` / `Block.Size` | `ResourceFile.Read(bytes).Blocks[i].SourceOffset` and `.Data.Length` (null after a block is replaced) |
+| `model.Skeleton`, `GetMeshGroups`, `GetDefaultMeshGroups`, `GetMaterialGroups`, `GetReferenceMeshNamesAndLoD`, `GetRemapTable` | `CompiledModel.Skeleton`, `.MeshGroups`, `.DefaultMeshGroups`, `.MaterialGroups`, `.ReferenceMeshes`, `.RemapTable(i)`; `Meshes.Skeleton.FromSkeletonData` for a `.vnmskel` |
+| `mesh.VBIB`, `VBIB.Get*AttributeArray`, `DXGI_FORMAT` | `EmbeddedMesh.Vbib` / `CompiledMesh.Vbib`, `Meshes.Vbib.Get*AttributeArray`, `Meshes.DXGI_FORMAT` (same names) |
+| `Texture.GenerateBitmap(...)`, `TextureCodec`, `VTexFormat` | `Textures.CompiledTexture.Read(bytes).GenerateBitmap(...)` (same SKBitmap, same pixels), same enum names |
+| `Material` (`IntParams`, `TextureParams`, `DynamicExpressions`...) | `Materials.CompiledMaterial.Read(bytes)` |
+| `model.GetAllAnimations(loader)`, `Animation.DecodeFrame`, `AnimationClip` | `Anim.ModelAnimations.All(model, load)`, same `DecodeFrame`, `Anim.AnimationClip.Read(bytes, path)`; include cycles are cut |
+| `GltfModelExporter(loader) { ... }.Export(resource, path)` | `Gltf.GltfModelExporter(load) { ShaderLoader = ShaderPrograms.FromPackages(...), ExportSkeleton = ... }.Export(model, name)` returns the GLB (docs/GLTF.md; animations, morphs and physics not yet) |
 
 Not covered yet, so keep VRF there until asked upstream: decoding textures to pixels (previews,
 glTF export), animation decoding, glTF model export, typed physics (`PhysAggregateData`),

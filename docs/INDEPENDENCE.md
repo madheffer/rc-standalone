@@ -23,6 +23,7 @@ either.
 | RERL ids, RED2, FLCI, texture / sound / SVG / sheet payloads | `Containers/`, `Texture/`, `Building/` | RcReference, today's RC |
 | model skeleton (bones, bind poses, world pose), mesh groups, default mesh groups, material groups, reference meshes | `Meshes/Skeleton.cs`, `Meshes/CompiledModel.cs` | equal to VRF on all 13,105 pak01 models and three community packs |
 | texture decode to pixels (`GenerateBitmap`, every stored format CS2 uses), sprite sheet read | `Texture/CompiledTexture.cs`, `Texture/Decoding/`, `Texture/SpriteSheet.cs` | VRF's pixels, byte for byte, on all 71,966 pak01 textures (docs/TEXTURES.md, "Decoding") |
+| glTF / GLB export of models and meshes (meshes, skin, materials, textures, extras) on our own glTF writer; materials read with decompiled dynamic expressions (`VfxEval`); shader-driven texture inputs | `Gltf/`, `Materials/CompiledMaterial.cs`, `Shaders/VfxEval.cs` | VRF's export, node for node and byte for byte, on sampled pak01 models; materials and texture inputs exact on all of pak01 (docs/GLTF.md) |
 | vertex and index buffers as data (`Vbib`: every layout form, DXGI attribute decoders, packed normals/tangents, bone remap) | `Meshes/Vbib.cs`, `Meshes/CompiledMesh.cs` | VRF's values on all 14,192 pak01 meshes, 50,250 attribute streams (docs/MESHES.md) |
 | animations: sequences, groups, graph clips, included models; frame decode | `Anim/` (port of VRF's reader, MIT), `Anim/ModelAnimations.cs` | VRF's bones on all 169,076 animations (15,195,587 frames) of the 539 animated pak01 models (docs/ANIMATION.md) |
 
@@ -45,17 +46,10 @@ In order. The counts are uses in vpkstuff's own code (2026-10-14), so they show 
 unblocks. Each item is ported or written from the format, then checked against VRF over pak01
 before it ships, like the rows above.
 
-1. **glTF 2.0 / GLB export** (`GltfModelExporter`, 18 uses, about 4,100 lines in VRF on SharpGLTF).
-   It needs a writer of our own (JSON plus a binary chunk, accessors, buffer views; no SharpGLTF).
-   It comes in stages, in the order vpkstuff uses them:
-   - meshes with the mesh filter;
-   - the skeleton as a skin;
-   - materials, with textures adapted to glTF channels, embedded images and the preview size cap;
-   - animations, which reuse `Anim/`;
+1. **The rest of glTF export** (docs/GLTF.md):
+   - animations (VRF's `AnimationWriter`, over `Anim/`);
    - morph targets;
-   - physics and nav mesh export.
-
-   Each stage is checked by reading both GLBs back and comparing accessor data.
+   - physics, worlds, entity lumps, nav meshes.
 2. **Model internals**:
    - hitbox sets and attachments (from MDAT; 14 uses);
    - morph data (MRPH, and the `.vmorf` side file that holds some models' flex controllers);
@@ -63,9 +57,9 @@ before it ships, like the rows above.
 3. **Decompile to source**:
    - `ModelExtract` (vmdl_c back to a `.vmdl`);
    - animation graph extracts (`NmGraphExtract`, AG1 graphs; vpkstuff's AnimGraphs folder).
-4. **Shaders**:
-   - the whole `VfxProgramData` / `ShaderCollection` reader (5 and 3 uses);
-   - `VfxEval` beyond the dynamic expressions `ShaderExpression` already runs (8 uses).
+4. **Shaders**: the whole `VfxProgramData` / `ShaderCollection` reader (5 and 3 uses). `ShaderProgram`
+   reads what material compiles and texture inputs need. `VfxEval` (8 uses) is ported: it decompiles
+   expressions to text, and `ShaderExpression` runs them.
 5. **Other resource types vpkstuff opens**:
    - sound decode beyond the header (VRF `Sound`, 78 uses: sample format, streaming to WAV/MP3);
    - particle systems (7);
@@ -87,9 +81,10 @@ before it ships, like the rows above.
      `b1e8218e`. Frozen case: `vpkstuff/out/splice-case`, expected sha256 `d74cdc0f...4273`, replayed
      with `--splice` on vpkstuff branch `perf/gpu-bc7-quality`.
    - The map branch already writes VPKs.
-9. **Speed.**
-    - A faster LZ4 HC match finder (the block writer's hot spot).
-    - Encoding independent KV3 blocks of one file in parallel.
+9. **Speed.** Encoding a file's independent KV3 blocks in parallel cannot change a byte (each is its
+   own LZ4 stream), and it is where a cold model save spends its time. Our LZ4 HC was measured
+   byte-identical to lz4 1.9.4 at about C's speed (build pipeline session, 2026-10-14), so the
+   compressor itself needs no work.
 
 vpkstuff moves its compiler call sites to `CompiledResource` as it touches them; until
 then it references `Source2.Compiler.Vrf` with its own VRF (`Source2CompilerVrfProject`),

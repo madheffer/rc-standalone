@@ -28,6 +28,16 @@ version that changes something a host sees.
   `EmbeddedMesh.Vbib`, `.MeshIndex`, `.MorphBlock`; `CompiledModel.RemapTable`; `CompiledMesh` for
   `.vmesh_c`. Equal to VRF on every pak01 mesh.
 
+- `Gltf.GltfModelExporter`: models and meshes to GLB without VRF or SharpGLTF, as VRF's exporter
+  writes them (meshes, skin, materials, textures adapted to glTF channels and embedded, material
+  extras), on `Gltf.GltfModel`, a glTF 2.0 writer of our own. `Gltf.TextureInputs` and
+  `ShaderPrograms.FromPackages`: each material texture's inputs from the shader's programs.
+- `Materials.CompiledMaterial`: a `.vmat_c` read as VRF reads it, with dynamic expressions
+  decompiled by `Shaders.VfxEval` (VRF's decompiler, ported).
+- `StringToken.Lookup` and `Store`, over the 7,102 entity keys VRF knows.
+- `ResourceBlock.SourceOffset`: where a block sat in the file it was read from.
+- `ShaderProgram.StaticComboRules`, `ShaderCombo.CompareValue`, `ShaderVariable.ChannelCount`.
+
 ## 0.1.106 (production cleanup, 2026-10-14)
 
 ### Added
