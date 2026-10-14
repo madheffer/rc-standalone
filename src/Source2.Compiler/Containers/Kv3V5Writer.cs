@@ -30,9 +30,9 @@ public static class Kv3V5Writer
     // of the same name.
     private enum Kind { Null = 1, Bool, Int, UInt, Double, String, Blob, Array, Table }
 
-    private sealed class Context
+    private sealed class Context(int version)
     {
-        public readonly Kv3V5Block Block = new();
+        public readonly Kv3Block Block = new(version);
         private readonly Dictionary<string, int> _strings = new(StringComparer.Ordinal);
         private readonly List<string> _order = [];
 
@@ -153,16 +153,20 @@ public static class Kv3V5Writer
     private static Kv3Type? Narrow(KVObject v) =>
         Kv3WireTypes.Get(v) is var t and > 0 && Kv3WireTypes.Fits(v, t) ? (Kv3Type)t : null;
 
+    // Version 4 has one buffer, so an array version 5 keeps in the auxiliary buffer is a byte-length one.
+    private static Kv3Type InVersion(Context c, Kv3Type type) =>
+        c.Block.Version == 4 && type == Kv3Type.ArrayTypeAuxiliaryBuffer ? Kv3Type.ArrayTypeByteLength : type;
+
     private static void Node(Context c, KVObject v)
     {
-        var type = NodeType(v);
+        var type = InVersion(c, NodeType(v));
         c.Block.Type((int)type, (byte)v.Flag);
         c.Block.Nodes++;
         Value(c, c.Block.Main, v, type);
     }
 
     // 1800c64b0: one value of encoded type <type> into <lanes> (strings, lengths and names to the main lanes).
-    private static void Value(Context c, Kv3V5Block.Lanes lanes, KVObject v, Kv3Type type)
+    private static void Value(Context c, Kv3Block.Lanes lanes, KVObject v, Kv3Type type)
     {
         var b = c.Block;
         switch (type)
@@ -202,7 +206,7 @@ public static class Kv3V5Writer
             case Kv3Type.Object:
             {
                 b.Objects++;
-                b.ObjectLengths.Add(v.Count);
+                b.ObjectLength(v.Count);
                 foreach (var (key, member) in v)
                 {
                     b.Main.Put((uint)c.StringId(key), 4);
@@ -262,8 +266,8 @@ public static class Kv3V5Writer
             return;
         }
         var lanes = type == Kv3Type.ArrayTypeAuxiliaryBuffer ? b.Aux : b.Main;
-        var first = ElementType(items[0]);
-        var element = items.All(x => ElementType(x) == first) ? first
+        var first = InVersion(c, ElementType(items[0]));
+        var element = items.All(x => InVersion(c, ElementType(x)) == first) ? first
             // a narrowed element next to one that no longer fits: all at the width the widest needs
             : IsNarrowable(first) && items.All(x => IsNarrowable(ElementType(x)))
                 ? (KindOf(items[0]) == Kind.Int ? Kv3Type.Int32 : Kv3Type.UInt32)
@@ -281,10 +285,15 @@ public static class Kv3V5Writer
     /// chooses (1800c7220): raw under 256 bytes of buffers and blobs, else LZ4 HC
     /// level 12 under 0x80001 and zstd level 7 from there, kept only if it saves a twentieth.
     /// </summary>
-    public static byte[] Write(KVObject root, Guid format, Kv3Compression? method = null)
+    /// <param name="root">The tree.</param>
+    /// <param name="format">The format (schema) GUID.</param>
+    /// <param name="method">The compression, or null for binary_auto.</param>
+    /// <param name="version">The binary version: 5 (what resourcecompiler writes today) or 4 (what
+    /// most stock materials and models carry; an edited block keeps the version it was read in).</param>
+    public static byte[] Write(KVObject root, Guid format, Kv3Compression? method = null, int version = 5)
     {
         ArgumentNullException.ThrowIfNull(root);
-        var c = new Context();
+        var c = new Context(version);
         Node(c, root);
         c.Block.Strings = c.Strings;
         return c.Block.Write(format, method);

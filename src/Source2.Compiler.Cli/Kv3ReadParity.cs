@@ -44,7 +44,7 @@ internal static class Kv3ReadParity
                         var ours = Kv3Binary.Read(block.Data);
                         var vrf = new BinaryKV3(BlockType.DATA) { Resource = null!, Size = (uint)block.Data.Length };
                         using (var r = new BinaryReader(new MemoryStream(block.Data))) vrf.Read(r);
-                        if (ours.Header.Format.Id != vrf.Data.Header!.Format.Id) miss = "format";
+                        if (ours.Header!.Format.Id != vrf.Data.Header!.Format.Id) miss = "format";
                         else if (!ResourceBuilder.SameTree(ours.Root, vrf.Data.Root)) miss = "tree";
                     }
                     catch (Exception ex) { miss = "threw " + ex.GetType().Name + ": " + ex.Message; }

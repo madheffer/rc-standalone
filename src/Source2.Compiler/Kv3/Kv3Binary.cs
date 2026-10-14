@@ -47,7 +47,12 @@ public static class Kv3Binary
         return reader.Data;
     }
 
-    /// <summary><paramref name="root"/> under <paramref name="format"/>, as tier0's binary_auto save writes it.</summary>
-    public static byte[] Write(KVObject root, KV3ID format, Kv3Compression? compression = null) =>
-        Kv3V5Writer.Write(root, format.Id, compression);
+    /// <summary><paramref name="root"/> under <paramref name="format"/>, as tier0's binary_auto save writes it,
+    /// in binary <paramref name="version"/> 5 (today's) or 4.</summary>
+    public static byte[] Write(KVObject root, KV3ID format, Kv3Compression? compression = null, int version = 5) =>
+        Kv3V5Writer.Write(root, format.Id, compression, version);
+
+    /// <summary>The binary version of a KV3 block (1 to 5; 0 for the legacy VKV3 container).</summary>
+    public static int Version(ReadOnlySpan<byte> block) =>
+        block.Length >= 4 && BitConverter.ToUInt32(block) is var magic && (magic & 0xFFFFFF00) == 0x4B563300 ? (int)(magic & 0xFF) : 0;
 }

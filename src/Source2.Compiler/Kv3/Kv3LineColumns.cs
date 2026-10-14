@@ -130,8 +130,8 @@ public static class Kv3LineColumns
         return restored;
     }
 
-    /// <summary>Deepest nesting a KV3 text compile accepts, as the patched VRF binary reader does.</summary>
-    public const int MaxDepth = 512;
+    /// <summary>Deepest nesting a KV3 text compile accepts, as the binary readers do.</summary>
+    public const int MaxDepth = Kv3.Kv3Limits.MaxDepth;
 
     /// <summary>
     /// How deep <paramref name="text"/> nests its objects and arrays, counted without recursion and

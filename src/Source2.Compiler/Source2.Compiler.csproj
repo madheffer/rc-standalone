@@ -60,6 +60,8 @@
   <ItemGroup>
     <!-- The library takes ILogger by interface only; the host wires the impl. -->
     <Using Include="Microsoft.Extensions.Logging" />
+    <!-- The KVObject helpers every part of the library reads trees with. -->
+    <Using Include="Source2.Compiler.KeyValues" />
   </ItemGroup>
 
   <PropertyGroup>

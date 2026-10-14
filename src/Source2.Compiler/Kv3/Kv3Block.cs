@@ -5,16 +5,21 @@ using System.Text;
 namespace Source2.Compiler.Kv3;
 
 /// <summary>
-/// The sections of a binary KV3 version 5 block, filled by a writer and laid out, compressed and
-/// framed here as tier0's SaveKV3 does (1800c7220). Both writers share it:
-/// <see cref="Kv3V5Writer"/> (from a <c>KVObject</c> tree) and <see cref="Kv3Tree"/> (from the lossless
-/// nodes). Buffer 1 holds the strings and the auxiliary lanes, buffer 2 the object lengths, the main
-/// lanes, the type bytes, the blob lengths and the trailer.
+/// The sections of a binary KV3 block, filled by a writer and laid out, compressed and framed here
+/// as tier0's SaveKV3 does (1800c7220). Both writers share it: <see cref="Kv3V5Writer"/> (from a
+/// <c>KVObject</c> tree) and <see cref="Kv3Tree"/> (from the lossless nodes).
+/// <para>Version 5: buffer 1 holds the strings and the auxiliary lanes, buffer 2 the object lengths,
+/// the main lanes, the type bytes, the blob lengths and the trailer. Version 4 (what most stock
+/// materials and models still carry): one buffer, the lanes (object lengths among the 4-byte
+/// values, the auxiliary lanes the same as the main ones) and then the strings, the types, the
+/// blob lengths and the trailer.</para>
 /// </summary>
-internal sealed class Kv3V5Block
+internal sealed class Kv3Block
 {
     public const uint Magic = 0x4B563305;
+    public const uint MagicV4 = 0x4B563304;
     public const int HeaderSize = 120;
+    private const int HeaderSizeV4 = 72;
     public const uint Trailer = 0xFFEEDD00;
     private const int Lz4FrameSize = 16384;
 
@@ -32,8 +37,22 @@ internal sealed class Kv3V5Block
         }
     }
 
-    /// <summary>The lanes values go to; a writer swaps the two around an auxiliary-buffer array.</summary>
-    public Lanes Main = new(), Aux = new();
+    /// <summary>A block of binary version <paramref name="version"/> (4 or 5).</summary>
+    public Kv3Block(int version = 5)
+    {
+        if (version is not (4 or 5))
+            throw new NotSupportedException($"Binary KV3 version {version} is not written here (4 and 5 are).");
+        Version = version;
+        Main = new();
+        Aux = version == 4 ? Main : new();
+    }
+
+    /// <summary>The binary version written.</summary>
+    public int Version { get; }
+
+    /// <summary>The lanes values go to; a writer swaps the two around an auxiliary-buffer array
+    /// (one and the same in version 4).</summary>
+    public Lanes Main, Aux;
 
     public readonly MemoryStream Types = new();
     public readonly List<int> ObjectLengths = [];
@@ -45,6 +64,15 @@ internal sealed class Kv3V5Block
     /// <summary>Nodes with a type byte of their own; objects; arrays; the arrays (and their
     /// elements) counted in buffer 2's two extra header counters.</summary>
     public int Nodes, Objects, Arrays, ArraysMain, ElementsMain;
+
+    /// <summary>An object's member count: its own list in version 5, a 4-byte value in version 4.</summary>
+    public void ObjectLength(int count)
+    {
+        if (Version >= 5)
+            ObjectLengths.Add(count);
+        else
+            Main.Put((uint)count, 4);
+    }
 
     /// <summary>A node's type byte, and its flag byte when it has one.</summary>
     public void Type(int type, byte flag)
@@ -123,6 +151,8 @@ internal sealed class Kv3V5Block
     /// </summary>
     public byte[] Write(Guid format, Kv3Compression? method)
     {
+        if (Version == 4)
+            return WriteV4(format, method);
         var (raw1, raw2, h) = Layout();
         var p = Pack(raw1, raw2, Blobs, method);
         var compressed = p.Method != Kv3Compression.Uncompressed;
@@ -143,6 +173,59 @@ internal sealed class Kv3V5Block
         format.TryWriteBytes(head.AsSpan(4, 16));
         o.Write(head);
         o.Write(p.Out1);
+        o.Write(p.Out2);
+        if (Blobs.Count > 0)
+        {
+            o.Write(p.BlobsOut);
+            Write32(o, Trailer);
+        }
+        return o.ToArray();
+    }
+
+    // Version 4: one buffer, compressed whole (its LZ4 blob frame sizes after the trailer), behind a
+    // 72-byte header.
+    private byte[] WriteV4(Guid format, Kv3Compression? method)
+    {
+        var buffer = new MemoryStream();
+        Main.B1.WriteTo(buffer);
+        Append(buffer, Main.B2, 2);
+        Pad(buffer, 4);
+        Write32(buffer, (uint)Strings.Count);
+        Main.B4.WriteTo(buffer);
+        Pad(buffer, 8);   // aligned to 8 even with no 8-byte values
+        Main.B8.WriteTo(buffer);
+        var typesAt = buffer.Length;
+        foreach (var s in Strings)
+        {
+            buffer.Write(Encoding.UTF8.GetBytes(s));
+            buffer.WriteByte(0);
+        }
+        Types.WriteTo(buffer);
+        var countTypes = (int)(buffer.Length - typesAt);
+        foreach (var blob in Blobs)
+            Write32(buffer, (uint)blob.Length);
+        Write32(buffer, Trailer);
+
+        var p = Pack(null, buffer.ToArray(), Blobs, method);
+        var compressed = p.Method != Kv3Compression.Uncompressed;
+        var o = new MemoryStream(HeaderSizeV4 + p.Out2.Length + p.BlobsOut.Length + 4);
+        Write32(o, MagicV4);
+        Span<byte> guid = stackalloc byte[16];
+        format.TryWriteBytes(guid);
+        o.Write(guid);
+        Write32(o, (uint)p.Method);
+        Write32(o, p.Method == Kv3Compression.Lz4 ? (uint)Lz4FrameSize << 16 : 0);
+        Write32(o, (uint)Main.B1.Length);
+        Write32(o, (uint)(1 + Main.B4.Length / 4));
+        Write32(o, (uint)(Main.B8.Length / 8));
+        Write32(o, (uint)countTypes);
+        Write32(o, (uint)(Math.Min(Objects, 0xFFFF) | (Math.Min(Arrays, 0xFFFF) << 16)));
+        Write32(o, (uint)p.Raw2.Length);
+        Write32(o, (uint)(compressed ? p.StoredSize : p.Raw2.Length));
+        Write32(o, (uint)Blobs.Count);
+        Write32(o, (uint)Blobs.Sum(b => b.Length));
+        Write32(o, (uint)(Main.B2.Length / 2));
+        Write32(o, 0);   // the blob frame sizes' length: version 4 leaves it 0 though they follow the trailer
         o.Write(p.Out2);
         if (Blobs.Count > 0)
         {
@@ -197,10 +280,11 @@ internal sealed class Kv3V5Block
     /// bytes of buffers and blobs, LZ4 under 0x80001 and zstd from there, kept only if it saves a
     /// twentieth.
     /// </summary>
-    private static Packed Pack(byte[] raw1, byte[] raw2, IReadOnlyList<byte[]> blobs, Kv3Compression? method)
+    private static Packed Pack(byte[]? raw1, byte[] raw2, IReadOnlyList<byte[]> blobs, Kv3Compression? method)
     {
         var blobsRaw = blobs.SelectMany(x => x).ToArray();
-        var total = raw1.Length + raw2.Length + blobsRaw.Length;
+        var raw1Length = raw1?.Length ?? 0;
+        var total = raw1Length + raw2.Length + blobsRaw.Length;
         var chosen = method ?? (total < 0x100 ? Kv3Compression.Uncompressed
             : total < 0x80001 ? Kv3Compression.Lz4 : Kv3Compression.Zstd);
         if (chosen == Kv3Compression.Lz4)
@@ -227,10 +311,10 @@ internal sealed class Kv3V5Block
                     }
             }
             var lzRaw2 = withSizes.ToArray();
-            var lz1 = Compression.Lz4.Compress(raw1);
+            var lz1 = raw1 is null ? [] : Compression.Lz4.Compress(raw1);
             var lz2 = Compression.Lz4.Compress(lzRaw2);
             var lzBlobs = packed.ToArray();
-            if (method != null || Saves(raw1.Length + lzRaw2.Length + blobsRaw.Length, lz1.Length + lz2.Length + lzBlobs.Length))
+            if (method != null || Saves(raw1Length + lzRaw2.Length + blobsRaw.Length, lz1.Length + lz2.Length + lzBlobs.Length))
                 return new Packed(Kv3Compression.Lz4, lzRaw2, lz1, lz2, lzBlobs, frameSizes);
         }
         else if (chosen == Kv3Compression.Zstd)
@@ -239,14 +323,14 @@ internal sealed class Kv3V5Block
             if (method != null || Saves(total, z1.Length + z2.Length + zBlobs.Length))
                 return new Packed(Kv3Compression.Zstd, raw2, z1, z2, zBlobs, 0);
         }
-        return new Packed(Kv3Compression.Uncompressed, raw2, raw1, raw2, blobsRaw, 0);
+        return new Packed(Kv3Compression.Uncompressed, raw2, raw1 ?? [], raw2, blobsRaw, 0);
     }
 
     // 1800c8d80: one context at level 7 with checksums, streamed (ZSTD_compressStream2) through a
     // 64 KB output buffer: buffer 1 and buffer 2 each ended as a frame of their own, the blobs
     // continued one by one and ended as a third. The streaming path matters: a one-shot compress of
     // the same input gives other bytes.
-    private static unsafe (byte[], byte[], byte[]) Zstd(byte[] raw1, byte[] raw2, IReadOnlyList<byte[]> blobs)
+    private static unsafe (byte[], byte[], byte[]) Zstd(byte[]? raw1, byte[] raw2, IReadOnlyList<byte[]> blobs)
     {
         var cctx = ZstdSharp.Unsafe.Methods.ZSTD_createCCtx();
         try
@@ -258,7 +342,7 @@ internal sealed class Kv3V5Block
             // (no pre-block splitter) or 1.5.4 and before; a few large blocks in pak01 differ for that reason.
             // Over 1 MB of buffers and blobs tier0 asks for worker threads; zstd's multithreaded frames do
             // not depend on how many.
-            if (raw1.Length + raw2.Length + blobs.Sum(x => x.Length) > 0x100000)
+            if ((raw1?.Length ?? 0) + raw2.Length + blobs.Sum(x => x.Length) > 0x100000)
                 ZstdSharp.Unsafe.Methods.ZSTD_CCtx_setParameter(cctx, ZstdSharp.Unsafe.ZSTD_cParameter.ZSTD_c_nbWorkers, 1);
             var chunk = new byte[0x10000];
             void Stream(MemoryStream to, byte[] src, ZstdSharp.Unsafe.ZSTD_EndDirective end)
@@ -280,7 +364,8 @@ internal sealed class Kv3V5Block
                 }
             }
             var a = new MemoryStream();
-            Stream(a, raw1, ZstdSharp.Unsafe.ZSTD_EndDirective.ZSTD_e_end);
+            if (raw1 is not null)
+                Stream(a, raw1, ZstdSharp.Unsafe.ZSTD_EndDirective.ZSTD_e_end);
             var b = new MemoryStream();
             Stream(b, raw2, ZstdSharp.Unsafe.ZSTD_EndDirective.ZSTD_e_end);
             var c = new MemoryStream();

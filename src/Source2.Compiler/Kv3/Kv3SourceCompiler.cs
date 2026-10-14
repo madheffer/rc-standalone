@@ -46,9 +46,6 @@ public static class Kv3SourceCompiler
     {
         if (sourceExtension is { Length: > 0 } && sourceExtension[0] != '.')
             sourceExtension = "." + sourceExtension;
-        if (textBytes.Length == 0)
-            throw new InvalidOperationException("Empty input - KV3 text expected.");
-
         if (string.Equals(sourceExtension, ".vsnd", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
@@ -57,41 +54,17 @@ public static class Kv3SourceCompiler
                 "route compiles PCM WAV into a proper vsnd_c).");
         }
 
-        // Refuse what the reader cannot survive: hostile nesting (everything after
-        // the parse recurses) and a stray control character (the reader then
-        // allocates without end). See Kv3LineColumns.PreParse.
-        var (depth, controlAt) = Kv3LineColumns.PreParse(System.Text.Encoding.UTF8.GetString(textBytes));
-        if (depth > Kv3LineColumns.MaxDepth)
-            throw new InvalidOperationException(
-                $"KV3 text nests {depth} levels deep; {Kv3LineColumns.MaxDepth} is the most this compiler accepts.");
-        if (controlAt >= 0)
-            throw new InvalidOperationException(
-                $"KV3 text has a stray character (a control character or ';') outside a string at offset {controlAt}; it is not valid KV3.");
-
-        // 1. Parse user text → KVDocument. ValveKeyValue's KV3 reader handles
-        //    the comment-style header, type/format flags, multiline strings,
-        //    nested objects, arrays of mixed type, binary blobs, etc. - much
-        //    more than a hand-rolled parser would cover.
         KVDocument userDoc;
         try
         {
-            using var textStream = new MemoryStream(textBytes, writable: false);
-            var serializer = KVSerializer.Create(KVSerializationFormat.KeyValues3Text);
-            userDoc = serializer.Deserialize(textStream);
+            userDoc = Kv3Text.Parse(textBytes);
         }
-        catch (Exception ex)
+        catch (InvalidDataException ex)
         {
-            throw new InvalidOperationException(
-                "Could not parse input as KV3 text. Make sure the file starts with a " +
-                "<!-- kv3 encoding:... format:... --> header and that all braces / quotes balance. " +
-                $"Underlying error: {ex.Message}", ex);
+            throw new InvalidOperationException(ex.Message, ex);
         }
 
-        // The reader types a quoted "false" or "12" by its spelling; RC keeps
-        // it a string.
-        Kv3LineColumns.RestoreQuotedStrings(System.Text.Encoding.UTF8.GetString(textBytes), userDoc.Root);
-
-        if (userDoc?.Header?.Format == null)
+        if (userDoc.Header?.Format == null)
         {
             throw new InvalidOperationException(
                 "Parsed KV3 has no Format header. The first line must be a " +

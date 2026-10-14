@@ -284,7 +284,7 @@ public sealed class Kv3Tree
 
     private static Kv3Tree ReadBlock(byte[] block)
     {
-        if (block.Length < Kv3V5Block.HeaderSize || BinaryPrimitives.ReadUInt32LittleEndian(block) != Kv3V5Block.Magic)
+        if (block.Length < Kv3Block.HeaderSize || BinaryPrimitives.ReadUInt32LittleEndian(block) != Kv3Block.Magic)
             throw new InvalidDataException("not a KV3 v5 block");
         var h = new int[30];
         for (var i = 0; i < 30; i++) h[i] = BinaryPrimitives.ReadInt32LittleEndian(block.AsSpan(i * 4));
@@ -305,12 +305,12 @@ public sealed class Kv3Tree
         var compressed = t.Compression != 0;
         long declared = (long)unc1 + unc2 + sizeBlobs;
         long stored = compressed ? (long)cmp1 + cmp2 : declared;
-        Kv3Limits.CheckSizes(declared, stored, block.Length - Kv3V5Block.HeaderSize, compressed,
+        Kv3Limits.CheckSizes(declared, stored, block.Length - Kv3Block.HeaderSize, compressed,
             unc1, cmp1, unc2, cmp2, sizeBlobs, countBlocks, countTypes, countBytes1, countBytes2, countBytes4, countBytes8,
             b2Bytes1, b2Bytes2, b2Bytes4, b2Bytes8, b2Objects, h[17]);
 
         using var zstd = t.Compression == 2 ? new ZstdSharp.Decompressor() : null;
-        var pos = Kv3V5Block.HeaderSize;
+        var pos = Kv3Block.HeaderSize;
         byte[] Take(int unc, int cmp)
         {
             var o = new byte[unc];
@@ -481,7 +481,7 @@ public sealed class Kv3Tree
 
     private sealed class WriteState
     {
-        public readonly Kv3V5Block Block = new();
+        public readonly Kv3Block Block = new();
         public bool Swapped;
     }
 
@@ -543,7 +543,7 @@ public sealed class Kv3Tree
                 break;
             case Kv3Type.Object:
                 b.Objects++;
-                b.ObjectLengths.Add(n.Items!.Count);
+                b.ObjectLength(n.Items!.Count);
                 for (var i = 0; i < n.Items.Count; i++)
                 {
                     WriteType(s, n.Items[i].Type, n.Items[i].Flag);
@@ -556,7 +556,7 @@ public sealed class Kv3Tree
         }
     }
 
-    private Kv3V5Block Fill()
+    private Kv3Block Fill()
     {
         var s = new WriteState();
         WriteType(s, Root.Type, Root.Flag);

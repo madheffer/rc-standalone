@@ -14,8 +14,10 @@ internal static class ReencodeParity
     public static int Run(string[] args)
     {
         var li = Array.IndexOf(args, "--limit");
-        var limit = li >= 0 ? int.Parse(args[li + 1]) : int.MaxValue;
-        var exts = args.Skip(1).Where((a, i) => !a.StartsWith("--") && i + 1 != li + 1).Select(e => e.TrimStart('.')).ToList();
+        var limit = li >= 0 ? int.Parse(args[li + 1], System.Globalization.CultureInfo.InvariantCulture) : int.MaxValue;
+        var vi = Array.IndexOf(args, "--version");
+        int? only = vi >= 0 ? int.Parse(args[vi + 1], System.Globalization.CultureInfo.InvariantCulture) : null;
+        var exts = args.Skip(1).Where((a, i) => !a.StartsWith("--") && i + 1 != li + 1 && i + 1 != vi + 1).Select(e => e.TrimStart('.')).ToList();
         using var pak = new Package();
         pak.Read(args[0]);
         var bad = 0;
@@ -35,15 +37,16 @@ internal static class ReencodeParity
                 foreach (var b in file.Blocks)
                 {
                     var raw = b.Data;
-                    if (raw.Length < 120 || BitConverter.ToUInt32(raw, 0) != 0x4B563305) continue;
+                    var version = Kv3Binary.Version(raw);
+                    if (raw.Length < 72 || version is not (4 or 5) || (only is { } v && v != version)) continue;
                     blocks++;
                     string? miss;
                     try
                     {
                         var doc = Kv3Binary.Read(raw);
-                        var written = Kv3Binary.Write(doc.Root, doc.Header!.Format);
+                        var written = Kv3Binary.Write(doc.Root, doc.Header!.Format, version: version);
                         if (written.AsSpan().SequenceEqual(raw)) { same++; continue; }
-                        miss = Section(raw, written);
+                        miss = version == 5 ? Section(raw, written) : SectionV4(raw, written);
                     }
                     catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
                     {
@@ -53,12 +56,28 @@ internal static class ReencodeParity
                     if (examples.Count < 5) examples.Add($"{miss}: {e.GetFullPath()} {b.Type}");
                 }
             }
-            Console.WriteLine($"{ext}: {same}/{blocks} KV3 v5 blocks byte-identical after decode and encode");
+            Console.WriteLine($"{ext}: {same}/{blocks} KV3 v4/v5 blocks byte-identical after decode and encode");
             foreach (var (k, v) in why.OrderByDescending(x => x.Value).Take(8)) Console.WriteLine($"  {v,6} x {k}");
             foreach (var x in examples) Console.WriteLine("    e.g. " + x);
             bad += blocks - same;
         }
         return bad == 0 ? 0 : 1;
+    }
+
+    // A v4 block: which header field (u32 index) differs, else whether the decompressed buffer does.
+    private static string SectionV4(byte[] valve, byte[] ours)
+    {
+        for (var i = 0; i < 18; i++)
+            if (i * 4 + 4 > ours.Length || BitConverter.ToUInt32(valve, i * 4) != BitConverter.ToUInt32(ours, i * 4))
+                return $"v4 header field {i}";
+        if (BitConverter.ToUInt32(valve, 20) != 1) return "v4 bytes";
+        byte[] Buffer(byte[] b)
+        {
+            var o = new byte[BitConverter.ToInt32(b, 48)];
+            Compression.Lz4.Decode(b.AsSpan(72, BitConverter.ToInt32(b, 52)), o);
+            return o;
+        }
+        return Buffer(valve).AsSpan().SequenceEqual(Buffer(ours)) ? "v4 compressed bytes" : "v4 buffer";
     }
 
     // Which part differs, judged on the uncompressed sections so compression is told apart.

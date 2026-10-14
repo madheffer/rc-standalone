@@ -10,8 +10,9 @@ namespace Source2.Compiler;
 /// <para>KV3 blocks are decoded on first use (<see cref="Kv3"/>) into trees that an edit changes
 /// in place. <see cref="Write"/> then writes each block as resourcecompiler would: a block whose
 /// tree is unchanged goes out as its original bytes, an edited one is re-encoded by
-/// <see cref="Kv3V5Writer"/> (tier0's SaveKV3), and the file is laid out by
-/// <see cref="ResourceFile.Write"/>. An unedited file therefore comes back byte for byte, whatever
+/// <see cref="Kv3V5Writer"/> (tier0's SaveKV3) in the binary version it was read in (4 stays 4,
+/// as a stock model mixes v4 and v5 blocks; older versions are written as 5), and the file is
+/// laid out by <see cref="ResourceFile.Write"/>. An unedited file therefore comes back byte for byte, whatever
 /// KV3 version or encoder wrote it (measured on all of pak01 through the VRF-based path this
 /// replaces).</para>
 /// </summary>
@@ -146,7 +147,8 @@ public sealed class CompiledResource
                 // a field an edit replaced keeps the width Valve stored it with
                 Kv3WireTypes.Inherit(read, decoded.Document.Root);
             }
-            var written = new ResourceBlock(block.Type, Kv3Binary.Write(decoded.Document.Root, decoded.Document.Header!.Format));
+            var version = decoded.Original is { } bytes && Kv3Binary.Version(bytes) == 4 ? 4 : 5;
+            var written = new ResourceBlock(block.Type, Kv3Binary.Write(decoded.Document.Root, decoded.Document.Header!.Format, version: version));
             _decoded.Add(written, new Decoded(decoded.Document, written.Data));
             File.Blocks[i] = written;
         }
