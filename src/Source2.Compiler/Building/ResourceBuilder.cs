@@ -1239,9 +1239,9 @@ public static class ResourceBuilder
     /// <summary>Parse a model and report its physics in one pass: <c>Readable</c> (a valid Source 2
     /// resource), <c>HasPhys</c> (a PHYS block is present), <c>JiggleBones</c> (count of procedural
     /// jiggle bones), <c>HasSoftBody</c> (a non-empty rope/cloth solver) and <c>PhysBytes</c>.
-    /// Never throws. VRF does not check the declared file size, so repacked VPKs that pad model
-    /// entries to a fixed slot still parse (we only need the block table + PHYS, which sit within
-    /// the declared size; a genuinely truncated/corrupt model still throws → caught).</summary>
+    /// Never throws. Bytes past the declared file size (repacked VPKs pad model entries to a fixed
+    /// slot) are read as the file's tail, so such a model still parses; a truncated or corrupt one
+    /// reads as not <c>Readable</c>.</summary>
     public static (bool Readable, bool HasPhys, int JiggleBones, bool HasSoftBody, int PhysBytes) AnalyzePhysics(byte[] model)
     {
         try

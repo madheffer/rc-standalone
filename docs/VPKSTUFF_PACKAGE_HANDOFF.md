@@ -131,7 +131,9 @@ Move one area at a time, each with its goldens; VRF and the adapter leave when n
 | VBIB vertex/index buffers (decoded by VRF, written back uncompressed by `VmdlEditor`) | `CompiledModel.Meshes[i].VertexBuffers[j].Read()` / `.Write(bytes, count)`: re-encoded with meshopt exactly as RC does when RC had compressed it (smaller files; every pak01 buffer round-trips byte-identically) |
 | `DirFileLoader` (VRF `IFileLoader`) | `IContentSource` (`DirectoryContentSource`, `MemoryContentSource`) |
 | `VrfResourceDecompiler.DataBlockToKv3` | `ResourceDecompiler` (already in the library) |
-| `StringToken.Get(name)` | `Shaders.ShaderExpression.ParamHash(name)` (MurmurHash2 of the lowercased name, seed 0x31415926) |
+| `StringToken.Get(name)` | `Shaders.ShaderExpression.ParamHash(name)` (MurmurHash2 of the lowercased name, seed 0x31415926); `MurmurHash2.Hash32` for VmdlEditor's own copy |
+| VRF's `KVObjectExtensions` (`GetIntegerProperty`, `GetArray<T>`, `ToVector3`...) | `Source2.Compiler.KeyValues.KvExtensions`, same names and conversions; swap the `using` per file |
+| `KVDocumentExtensions.ParseKV3` (KV3 text) | `Kv3Text.Parse(bytes)`, with the depth and control-character checks |
 | `CompiledShader` (VCS reading) | `Shaders.ShaderProgram.Read(vcs)` (features/VS/PS: variables, combos, attributes, signatures) |
 
 Not covered yet, so keep VRF there until asked upstream: decoding textures to pixels (previews,

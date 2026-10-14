@@ -71,6 +71,32 @@ uncompressed section and every header field, and every block the writer produces
 back to the original in both our reader and VRF's. `Kv3TreeTests` pins it on the
 RcReference outputs, a hand-built tree with every array kind, and a stock sample.
 
+### C8 — KV3 v4 written as Valve writes it; an edit keeps the block's version (2026-10-14)
+
+Most stock materials and models still carry binary v4 blocks (pak01: 9,707 vmat DATA, about
+11,000 vmdl DATA and MDAT, every vcompmat, vpcf, vsmart, vpost), and a stock model can mix
+versions (jill_battlesuit.vmdl_c: MDAT, AGRP, CTRL, RED2 and DATA v4, ANIM, ASEQ and PHYS v5).
+`CompiledResource.Write` re-encodes an edited block in the version it was read in; before,
+every edited block came out v5.
+
+The v4 layout (`Kv3/Kv3Block.cs`): one buffer, the 1/2/4/8-byte lanes first (the 4-byte lane
+led by the string count and holding each object's member count before its members, the 8-byte
+lane aligned to 8 even when empty), then the strings, the type bytes, the blob lengths and the
+trailer, with LZ4 blob frame sizes after it; a 72-byte header. Two rules measured on stock
+blocks, both unlike VRF's v4 writer: an array that v5 keeps in the auxiliary buffer is a
+byte-length array (type 24, not 25), there being one buffer; and the header field for the blob
+frame sizes' length stays 0 although the sizes follow the trailer.
+
+The object and array counters at header offset 44/46 (in v4 and v5 alike) saturate at 65535: map
+models of 72,556 to 138,539 objects in de_boulder, de_fachwerk, cs_shelter, rush_001 and
+de_ancient_night store 65535, as their world_physics stores 65535 arrays. (Kv3Tree masked them to
+16 bits until then; no pak01 block has more than 65535.)
+
+Measured with `reencode-parity pak01_dir.vpk` over 15 types, every v4 and v5 block decoded to a
+tree and written again unedited: 207,559 of 207,580 byte-identical, compression included. The 21
+others are large zstd blocks (17 v4 ANIM/PHYS, 3 v5 PHYS, 1 vnmgraph) whose zstd was an older
+release than today's tier0's; their trees and uncompressed sections match. `Kv3VersionTests`
+pins 150 stock v4 blocks of four types.
 
 ### C6 — the container frame is authored, so no type needs a donor (fixed 2026-09-08)
 
@@ -271,7 +297,8 @@ change to how references are stated fails loudly instead of being papered over.
 ### G1 — KV3 binary v4 vs v5 — **CLOSED** at the 661a5f58 re-vendor
 
 Upstream VRF grew a v5 serializer, so this compiler now emits v5, which is what RC
-emits. `AuthoredKv3` sets it on every block it authors.
+emits. `AuthoredKv3` sets it on every block it authors. (Since C8, an edited stock v4 block is
+written back as v4, by this library's own writer.)
 
 Its per-block **compression** matches too, and that is not a uniform setting: RC
 compresses a block's payload above ~256 bytes and stores it raw below. Measured over

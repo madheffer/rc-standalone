@@ -166,6 +166,15 @@ every fixture in `tests/.../RcReference/textures` (RGBA8888, DXT1, DXT5, ATI1N, 
   several inputs or channels, channel remapping, mip algorithms other than Box, colour-space
   conversion, cube/3D, and an image `.txt` sibling.
 
+## A mip chain made elsewhere
+
+`VtexCompileSettings.MipChainBgra` (and `TextureDef.MipChainBgra` on the in-house path) takes a
+finished chain: 8-bit BGRA, level 0 at the image's size, each level half the one before. It is
+checked level by level and encoded as given (no resampling, no colour-space conversion), which
+makes the output that chain's texture rather than resourcecompiler's. vpkstuff uses it to ship the
+mips CS2 builds for a composite at runtime (a linear-light box chain). An 8-bit level survives the
+float load and the sRGB write exactly, so an RGBA8888 texture stores the given bytes (MipChainTests).
+
 ## What is left
 
 1. The settings refused above, each measured against RC before it is accepted.
