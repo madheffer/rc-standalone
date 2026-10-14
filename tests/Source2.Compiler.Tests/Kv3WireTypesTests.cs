@@ -40,7 +40,7 @@ public class Kv3WireTypesTests
     {
         var format = Kv3Formats.Get("generic");
         var block = Kv3Binary.Write(Tree(), format);
-        Assert.Equal((Kv3Type.ArrayTypeAuxiliaryBuffer, Kv3Type.Int32AsByte), ColorTypes(block));
+        Assert.Equal((Kv3Type.ArrayTypeAuxiliaryBuffer, Kv3Type.UInt8), ColorTypes(block));
 
         var again = Kv3Binary.Write(Kv3Binary.Read(block).Root, format);
         Assert.Equal(block, again);
@@ -62,7 +62,7 @@ public class Kv3WireTypesTests
         Assert.Equal(Kv3Type.UInt32, ColorTypes(Kv3Binary.Write(edited, format)).Element);
 
         Kv3WireTypes.Inherit(original, edited);
-        Assert.Equal((Kv3Type.ArrayTypeAuxiliaryBuffer, Kv3Type.Int32AsByte), ColorTypes(Kv3Binary.Write(edited, format)));
+        Assert.Equal((Kv3Type.ArrayTypeAuxiliaryBuffer, Kv3Type.UInt8), ColorTypes(Kv3Binary.Write(edited, format)));
     }
 
     [Fact]

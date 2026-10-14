@@ -15,10 +15,10 @@ namespace Source2.Compiler;
 public static class Kv3WireTypes
 {
     /// <summary>KV3 node type INT8.</summary>
-    public const byte Int8 = 22;
+    public const byte Int8 = (byte)Kv3.Kv3Type.Int8;
 
     /// <summary>KV3 node type UINT8.</summary>
-    public const byte UInt8 = 23;
+    public const byte UInt8 = (byte)Kv3.Kv3Type.UInt8;
 
     private static readonly ConditionalWeakTable<KVObject, StrongBox<byte>> Types = new();
 

@@ -209,13 +209,11 @@ dotnet_naming_rule.parameters_and_locals_are_camel.symbols = parameters_and_loca
 dotnet_naming_rule.parameters_and_locals_are_camel.style = camel_case
 dotnet_naming_rule.parameters_and_locals_are_camel.severity = suggestion
 
-# ---- Analyzer noise we deliberately do not want ----------------------------
-
+[tests/**.cs]
 # The tests read fixtures off disk and compare structures; a missing doc comment
 # on a [Fact] is not a defect.
 dotnet_diagnostic.CS1591.severity = none
 
-[tests/**.cs]
 # Test names read as sentences (Method_Condition_Expectation), which is the
 # one place an underscore in an identifier is the point.
 dotnet_diagnostic.CA1707.severity = none

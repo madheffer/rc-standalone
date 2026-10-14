@@ -5,90 +5,93 @@
 // the writing half dropped (Kv3V5Writer and Kv3Tree write).
 using System.IO;
 
-namespace Source2.Compiler.Kv3.Reading
+namespace Source2.Compiler.Kv3.Reading;
+
+/// <summary>
+/// Decompresses Valve's block compressed buffers.
+/// </summary>
+internal static class BlockCompress
 {
     /// <summary>
-    /// Decompresses Valve's block compressed buffers.
+    /// Contains information about compression state and size.
     /// </summary>
-    internal static class BlockCompress
+    public record struct CompressionInfo(bool IsCompressed, int Size);
+
+    /// <summary>
+    /// Gets the decompressed size from a binary reader.
+    /// </summary>
+    public static CompressionInfo GetDecompressedSize(BinaryReader reader)
     {
-        /// <summary>
-        /// Contains information about compression state and size.
-        /// </summary>
-        public record struct CompressionInfo(bool IsCompressed, int Size);
+        var decompressedSize = reader.ReadUInt32();
 
-        /// <summary>
-        /// Gets the decompressed size from a binary reader.
-        /// </summary>
-        public static CompressionInfo GetDecompressedSize(BinaryReader reader)
+        // Valve sets fourth byte in the compressed buffer to 0x80 to indicate that the data is uncompressed,
+        // 0x80000000 is 2147483648 which automatically makes any number higher than max signed 32-bit integer.
+        if (decompressedSize > int.MaxValue)
         {
-            var decompressedSize = reader.ReadUInt32();
-
-            // Valve sets fourth byte in the compressed buffer to 0x80 to indicate that the data is uncompressed,
-            // 0x80000000 is 2147483648 which automatically makes any number higher than max signed 32-bit integer.
-            if (decompressedSize > int.MaxValue)
-            {
-                return new(false, (int)(decompressedSize & 0x7FFFFFFF));
-            }
-
-            return new(true, (int)decompressedSize);
+            return new(false, (int)(decompressedSize & 0x7FFFFFFF));
         }
 
-        /// <summary>
-        /// Performs fast decompression of block-compressed data into the result buffer.
-        /// </summary>
-        public static void FastDecompress(CompressionInfo info, BinaryReader reader, Span<byte> result)
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(result.Length, info.Size);
+        return new(true, (int)decompressedSize);
+    }
 
-            if (!info.IsCompressed)
+    /// <summary>
+    /// Performs fast decompression of block-compressed data into the result buffer.
+    /// </summary>
+    public static void FastDecompress(CompressionInfo info, BinaryReader reader, Span<byte> result)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(result.Length, info.Size);
+
+        if (!info.IsCompressed)
+        {
+            reader.BaseStream.ReadExactly(result[0..info.Size]);
+            return;
+        }
+
+        var position = 0;
+        ushort blockMask = 0;
+        var i = 0;
+
+        while (position < info.Size)
+        {
+            if (i == 0)
             {
-                reader.Read(result[0..info.Size]);
-                return;
+                blockMask = reader.ReadUInt16();
+                i = 16;
             }
 
-            var position = 0;
-            ushort blockMask = 0;
-            var i = 0;
-
-            while (position < info.Size)
+            if ((blockMask & 1) > 0)
             {
-                if (i == 0)
+                var offsetSize = reader.ReadUInt16();
+                var offset = (offsetSize >> 4) + 1;
+                var size = (offsetSize & 0xF) + 3;
+                var positionSource = position - offset;
+                if (positionSource < 0 || position + size > info.Size)
                 {
-                    blockMask = reader.ReadUInt16();
-                    i = 16;
+                    throw new InvalidDataException("A block-compressed KV3 match reaches outside its output.");
                 }
 
-                if ((blockMask & 1) > 0)
+                if (offset == 1)
                 {
-                    var offsetSize = reader.ReadUInt16();
-                    var offset = (offsetSize >> 4) + 1;
-                    var size = (offsetSize & 0xF) + 3;
-                    var positionSource = position - offset;
-
-                    if (offset == 1)
+                    while (size-- > 0)
                     {
-                        while (size-- > 0)
-                        {
-                            result[position++] = result[positionSource];
-                        }
-                    }
-                    else
-                    {
-                        while (size-- > 0)
-                        {
-                            result[position++] = result[positionSource++];
-                        }
+                        result[position++] = result[positionSource];
                     }
                 }
                 else
                 {
-                    result[position++] = reader.ReadByte();
+                    while (size-- > 0)
+                    {
+                        result[position++] = result[positionSource++];
+                    }
                 }
-
-                blockMask >>= 1;
-                i--;
             }
+            else
+            {
+                result[position++] = reader.ReadByte();
+            }
+
+            blockMask >>= 1;
+            i--;
         }
     }
 }
