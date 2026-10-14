@@ -19,7 +19,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS8002;CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS8002</NoWarn>
     <!-- Native/ holds the vendored bc7enc C sources; keep them out of the
          default item globs (they are built by CMake, not msbuild). -->
     <DefaultItemExcludes>$(DefaultItemExcludes);Native\**</DefaultItemExcludes>
@@ -37,9 +37,9 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
-    <!-- Symbols with every source embedded, so a debugger needs no source server. -->
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- The PDB inside the DLL, every source inside the PDB: a host's stack traces carry file and
+         line, and a debugger needs no symbol or source server. -->
+    <DebugType>embedded</DebugType>
     <EmbedAllSources>true</EmbedAllSources>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>

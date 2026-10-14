@@ -6,14 +6,23 @@ namespace Source2.Compiler.Dmx;
 /// in source order.</summary>
 public sealed class DmxElement(string type)
 {
+    /// <summary>The element's class, e.g. <c>CDmeVtex</c>.</summary>
     public string Type { get; } = type;
+
+    /// <summary>The attributes, in source order.</summary>
     public List<(string Name, DmxAttribute Value)> Attributes { get; } = [];
 
+    /// <summary>The first attribute called <paramref name="name"/> (ignoring case), or null.</summary>
     public DmxAttribute? this[string name]
         => Attributes.FirstOrDefault(a => a.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
 
+    /// <summary>The scalar text of attribute <paramref name="name"/>, or null.</summary>
     public string? String(string name) => this[name]?.Text;
+
+    /// <summary>Attribute <paramref name="name"/> as a boolean (<c>"1"</c> or <c>"true"</c>), else <paramref name="fallback"/>.</summary>
     public bool Bool(string name, bool fallback = false) => this[name]?.Text is { } t ? t is "1" or "true" : fallback;
+
+    /// <summary>The elements of the element array <paramref name="name"/>, none when absent.</summary>
     public IReadOnlyList<DmxElement> Elements(string name) => this[name]?.ElementList ?? [];
 }
 
@@ -29,6 +38,7 @@ public sealed record DmxAttribute(string Type, string? Text = null, IReadOnlyLis
 /// </summary>
 public static class Keyvalues2Text
 {
+    /// <summary>The deepest nesting of elements accepted.</summary>
     public const int MaxDepth = 64;
 
     /// <summary>The root element, after the <c>&lt;!-- dmx encoding ... --&gt;</c> header.</summary>
@@ -42,6 +52,7 @@ public static class Keyvalues2Text
         return root;
     }
 
+    /// <summary>The root element of UTF-8 <paramref name="utf8"/> text.</summary>
     public static DmxElement Parse(byte[] utf8) => Parse(Encoding.UTF8.GetString(utf8));
 
     private static DmxElement ReadElement(Tokens t, string type, int depth)

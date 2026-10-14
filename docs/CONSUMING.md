@@ -63,7 +63,9 @@ against vpkstuff's VRF, so it stays a source copy until vpkstuff's compiler call
 **Update 2026-10-13 (package).** `src/Source2.Compiler` packs as `Source2.Compiler`
 (`tools/pack.ps1`, `tools/pack.sh`): `lib/net10.0` with XML docs, a package README
 (`src/Source2.Compiler/PACKAGE.md`), the bc7e libraries under `runtimes/{win-x64,linux-x64}/native`,
-and a `.snupkg` with every source embedded (no source server needed). The scripts run the tests
+and a `.snupkg` with every source embedded (no source server needed; since 2026-10-14 the PDB and
+its sources are embedded in the DLL instead, so stack traces carry file and line and there is no
+`.snupkg`). The scripts run the tests
 against ValveKeyValue 0.70.0.499 first and declare it as the dependency's lower bound, so a
 host on vpkstuff's VRF (0.70) and a host on 0.71 both restore one copy. A dev pack is
 `0.1.0-dev.<yyyymmdd>.<sha>`; `-Release` / `--release` packs the plain version. Checked by a

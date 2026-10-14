@@ -260,35 +260,68 @@ public static class MeshoptVertexCodec
             throw new ArgumentException("A vertex buffer needs at least one vertex.");
         if (size <= 0 || size > 256 || size % 4 != 0 || vertices.Length != count * size || channels.Length != size / 4)
             throw new ArgumentException("Vertex data, size or channel modes do not fit.");
-        var output = new List<byte>(vertices.Length) { 0xA1 };
+        var output = new Output(vertices.Length + 64);
+        output.Add(0xA1);
         var last = vertices[..size].ToArray();
         int blockSize = BlockSize(size);
+        var lanes = new byte[4][];
+        for (int j = 0; j < 4; j++) lanes[j] = new byte[(blockSize + GroupSize - 1) & ~(GroupSize - 1)];
         for (int offset = 0; offset < count; offset += blockSize)
         {
             int n = Math.Min(blockSize, count - offset);
-            EncodeBlock(output, vertices.Slice(offset * size, n * size), n, size, last, channels);
+            EncodeBlock(output, vertices.Slice(offset * size, n * size), n, size, last, channels, lanes);
             vertices.Slice((offset + n - 1) * size, size).CopyTo(last);
         }
         // Tail: the first vertex, the channel modes, padded to the minimum tail size.
         int tail = size + size / 4;
         for (int i = tail; i < 24; i++) output.Add(0);
-        output.AddRange(vertices[..size].ToArray());
-        output.AddRange(channels);
+        output.Write(vertices[..size]);
+        output.Write(channels);
         return output.ToArray();
     }
 
-    private static void EncodeBlock(List<byte> output, ReadOnlySpan<byte> vertices, int count, int size, byte[] last, byte[] channels)
+    /// <summary>A growable byte buffer an encoder appends to and patches header bytes in.</summary>
+    private sealed class Output(int capacity)
+    {
+        private byte[] _bytes = new byte[Math.Max(capacity, 16)];
+
+        public int Length { get; private set; }
+
+        public void Add(byte value)
+        {
+            Reserve(1);
+            _bytes[Length++] = value;
+        }
+
+        public void Write(ReadOnlySpan<byte> bytes)
+        {
+            Reserve(bytes.Length);
+            bytes.CopyTo(_bytes.AsSpan(Length));
+            Length += bytes.Length;
+        }
+
+        public void Or(int at, byte bits) => _bytes[at] |= bits;
+
+        public byte[] ToArray() => _bytes.AsSpan(0, Length).ToArray();
+
+        private void Reserve(int more)
+        {
+            if (Length + more > _bytes.Length)
+                Array.Resize(ref _bytes, Math.Max(_bytes.Length * 2, Length + more));
+        }
+    }
+
+    private static void EncodeBlock(Output output, ReadOnlySpan<byte> vertices, int count, int size, byte[] last, byte[] channels, byte[][] lanes)
     {
         int aligned = (count + GroupSize - 1) & ~(GroupSize - 1);
-        int controlAt = output.Count;
+        int controlAt = output.Length;
         for (int i = 0; i < size / 4; i++) output.Add(0);
-        var lanes = new byte[4][];
         for (int k = 0; k < size; k += 4)
         {
             int channel = channels[k / 4];
             int width = (channel & 3) switch { 0 => 1, 1 => 2, 2 => 4, _ => throw new ArgumentException("Invalid channel mode.") };
             int rot = channel >> 4;
-            for (int j = 0; j < 4; j++) lanes[j] = new byte[aligned];
+            for (int j = 0; j < 4; j++) Array.Clear(lanes[j], 0, aligned);
             for (int b = 0; b < 4; b += width)
             {
                 uint p = 0;
@@ -310,14 +343,15 @@ public static class MeshoptVertexCodec
             byte ctrlByte = 0;
             for (int j = 0; j < 4; j++)
             {
-                int ctrl = ChooseControl(lanes[j], count, aligned);
+                var lane = lanes[j].AsSpan(0, aligned);
+                int ctrl = ChooseControl(lane, count);
                 ctrlByte |= (byte)(ctrl << (j * 2));
                 if (ctrl == 3)
-                    output.AddRange(lanes[j].AsSpan(0, count).ToArray());
+                    output.Write(lane[..count]);
                 else if (ctrl != 2)
-                    EncodeBytes(output, lanes[j], BitsV1Tables[ctrl]);
+                    EncodeBytes(output, lane, BitsV1Tables[ctrl]);
             }
-            output[controlAt + k / 4] = ctrlByte;
+            output.Or(controlAt + k / 4, ctrlByte);
         }
     }
 
@@ -330,21 +364,21 @@ public static class MeshoptVertexCodec
 
     // 2 when every byte is zero; else the smaller of the two bit tables, literal when that is no
     // smaller than the raw bytes. Inferred from RC's buffers (docs/MESHES.md).
-    internal static int ChooseControl(byte[] lane, int count, int aligned)
+    internal static int ChooseControl(ReadOnlySpan<byte> lane, int count)
     {
-        if (lane.AsSpan(0, count).IndexOfAnyExcept((byte)0) < 0)
+        if (lane[..count].IndexOfAnyExcept((byte)0) < 0)
             return 2;
         int s0 = MeasureBytes(lane, BitsV1Tables[0]), s1 = MeasureBytes(lane, BitsV1Tables[1]);
         int best = s1 <= s0 ? 1 : 0, size = Math.Min(s0, s1);
         return size < count ? best : 3;
     }
 
-    internal static int MeasureBytes(byte[] lane, int[] bits)
+    internal static int MeasureBytes(ReadOnlySpan<byte> lane, int[] bits)
     {
         int groups = lane.Length / GroupSize, total = (groups + 3) / 4, last = -1;
         for (int g = 0; g < groups; g++)
         {
-            var (k, size) = BestGroup(lane.AsSpan(g * GroupSize, GroupSize), bits, last);
+            var (k, size) = BestGroup(lane.Slice(g * GroupSize, GroupSize), bits, last);
             total += size;
             last = bits[k];
         }
@@ -378,38 +412,40 @@ public static class MeshoptVertexCodec
         return size;
     }
 
-    private static void EncodeBytes(List<byte> output, byte[] lane, int[] bits)
+    private static void EncodeBytes(Output output, ReadOnlySpan<byte> lane, int[] bits)
     {
         int groups = lane.Length / GroupSize;
-        int headerAt = output.Count;
+        int headerAt = output.Length;
         for (int i = 0; i < (groups + 3) / 4; i++) output.Add(0);
         int last = -1;
         for (int g = 0; g < groups; g++)
         {
-            var group = lane.AsSpan(g * GroupSize, GroupSize);
+            var group = lane.Slice(g * GroupSize, GroupSize);
             var (bitk, _) = BestGroup(group, bits, last);
-            output[headerAt + g / 4] |= (byte)(bitk << ((g % 4) * 2));
+            output.Or(headerAt + g / 4, (byte)(bitk << ((g % 4) * 2)));
             EncodeGroup(output, group, bits[bitk]);
             last = bits[bitk];
         }
     }
 
-    private static void EncodeGroup(List<byte> output, ReadOnlySpan<byte> group, int bits)
+    private static void EncodeGroup(Output output, ReadOnlySpan<byte> group, int bits)
     {
         if (bits == 0) return;
-        if (bits == 8) { output.AddRange(group.ToArray()); return; }
+        if (bits == 8) { output.Write(group); return; }
         int perByte = 8 / bits, sentinel = (1 << bits) - 1;
-        var selectors = new byte[GroupSize / perByte];
-        var extra = new List<byte>();
+        Span<byte> selectors = stackalloc byte[GroupSize / perByte];
+        selectors.Clear();
+        Span<byte> extra = stackalloc byte[GroupSize];
+        int extras = 0;
         for (int i = 0; i < GroupSize; i++)
         {
             int v = group[i] >= sentinel ? sentinel : group[i];
-            if (group[i] >= sentinel) extra.Add(group[i]);
+            if (group[i] >= sentinel) extra[extras++] = group[i];
             int byteIndex = i / perByte, slot = i % perByte;
             int shift = bits == 1 ? slot : 8 - bits * (slot + 1);
             selectors[byteIndex] |= (byte)(v << shift);
         }
-        output.AddRange(selectors);
-        output.AddRange(extra);
+        output.Write(selectors);
+        output.Write(extra[..extras]);
     }
 }

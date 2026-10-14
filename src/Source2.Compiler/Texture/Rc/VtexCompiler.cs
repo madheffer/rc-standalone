@@ -15,8 +15,10 @@ namespace Source2.Compiler.RcTexture;
 /// </summary>
 public sealed class VtexCompiler : IResourceCompiler
 {
+    /// <inheritdoc/>
     public IReadOnlyCollection<string> SourceExtensions { get; } = [".vtex"];
 
+    /// <inheritdoc/>
     public string OutputPathFor(string sourcePath) => sourcePath + "_c";
 
     // The format byte of the vtex header, by m_outputFormat.
@@ -32,6 +34,7 @@ public sealed class VtexCompiler : IResourceCompiler
     // CompressMinRatio 95. RC as a console app compiles at encode quality 3, LZ4 HC level 10.
     private const int CompressMinRatio = 95, Lz4Level = 10;
 
+    /// <inheritdoc/>
     public CompileOutput Compile(CompileRequest request, ICollection<CompileDiagnostic> diagnostics)
     {
         var vtex = Keyvalues2Text.Parse(request.Source);

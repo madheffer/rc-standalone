@@ -8,7 +8,8 @@
     1. refuses a dirty tree: the package must be a commit;
     2. packs 0.1.<commit count> (tools/pack.ps1: tests first, against ValveKeyValue 0.70.0.499);
     3. adds a vpkstuff worktree on a new branch chore/compiler-<version> off box/master;
-    4. puts the .nupkg and .snupkg in dotnet/packages/ (vpkstuff's folder feed), removing the old ones;
+    4. puts the .nupkg in dotnet/packages/ (vpkstuff's folder feed), removing the old ones (the PDB and
+       the sources travel inside the DLL);
     5. when vpkstuff consumes the package (its dotnet/Directory.Packages.props pins Source2.Compiler),
        bumps that pin and Source2CompilerPackageVersion in dotnet/vendor/Directory.Build.props,
        refreshes the vendored VRF adapter with deploy/sync-source2-compiler.py, and runs vpkstuff's
@@ -51,7 +52,6 @@ if ($SkipTests) { $pack += "-SkipTests" }
 & powershell @pack
 if ($LASTEXITCODE -ne 0) { throw "pack failed" }
 $nupkg = Join-Path $root "artifacts\packages\Source2.Compiler.$version.nupkg"
-$snupkg = Join-Path $root "artifacts\packages\Source2.Compiler.$version.snupkg"
 if (-not (Test-Path $nupkg)) { throw "$nupkg was not produced" }
 
 # 3. a vpkstuff worktree on a new branch
@@ -65,7 +65,7 @@ Write-Host "worktree $Worktree on $branch (from $Base)"
 $feed = Join-Path $Worktree "dotnet\packages"
 New-Item -ItemType Directory -Force $feed | Out-Null
 Get-ChildItem $feed -Filter "Source2.Compiler.*" -ErrorAction SilentlyContinue | Remove-Item -Force -Confirm:$false
-Copy-Item $nupkg, $snupkg $feed
+Copy-Item $nupkg $feed
 # the hand-off document rides along, so vpkstuff's copy always matches the package
 $handoff = Join-Path $Worktree "docs\SOURCE2_COMPILER_PACKAGE.md"
 New-Item -ItemType Directory -Force (Split-Path $handoff) | Out-Null

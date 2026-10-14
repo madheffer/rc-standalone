@@ -45,8 +45,10 @@ public sealed record MaterialCompileSettings
 /// </summary>
 public sealed class MaterialCompiler : IResourceCompiler
 {
+    /// <inheritdoc/>
     public IReadOnlyCollection<string> SourceExtensions { get; } = [".vmat"];
 
+    /// <inheritdoc/>
     public string OutputPathFor(string sourcePath) => sourcePath + "_c";
 
     // The special dependencies each mip algorithm and image processor adds to a texture compile
@@ -65,6 +67,7 @@ public sealed class MaterialCompiler : IResourceCompiler
     // Attribute value types that land in m_SearchableUserData.
     private const int AttrFloat = 1, AttrInt = 5, AttrBool = 9, AttrTexture = 14;
 
+    /// <inheritdoc/>
     public CompileOutput Compile(CompileRequest request, ICollection<CompileDiagnostic> diagnostics)
     {
         var settings = request.Settings as MaterialCompileSettings ?? throw new InvalidOperationException(

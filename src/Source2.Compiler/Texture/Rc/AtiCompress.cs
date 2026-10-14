@@ -23,7 +23,21 @@ namespace Source2.Compiler.RcTexture;
 /// </summary>
 public static class AtiCompress
 {
-    public enum Format { Dxt1, Dxt5, Ati1n, Ati2n }
+    /// <summary>The block formats this encoder writes.</summary>
+    public enum Format
+    {
+        /// <summary>DXT1 (BC1): RGB, 8 bytes per block.</summary>
+        Dxt1,
+
+        /// <summary>DXT5 (BC3): RGB and interpolated alpha, 16 bytes per block.</summary>
+        Dxt5,
+
+        /// <summary>ATI1N (BC4): one channel, 8 bytes per block.</summary>
+        Ati1n,
+
+        /// <summary>ATI2N (BC5): two channels, 16 bytes per block.</summary>
+        Ati2n,
+    }
 
     /// <summary>Bytes per 4x4 block.</summary>
     public static int BlockSize(Format format) => format is Format.Dxt1 or Format.Ati1n ? 8 : 16;

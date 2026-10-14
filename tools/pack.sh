@@ -30,4 +30,4 @@ elif [ "$release" = 0 ]; then
 fi
 mkdir -p "$out"
 dotnet pack "$root/src/Source2.Compiler" -c Release -o "$out" "$kv" "${suffix[@]}" --nologo
-ls -t "$out"/Source2.Compiler.* | head -2
+ls -t "$out"/Source2.Compiler.*.nupkg | head -1

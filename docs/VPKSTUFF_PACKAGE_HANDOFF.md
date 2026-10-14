@@ -12,7 +12,8 @@ work does not need a live deploy of its own. Commit with the noreply identity th
 ## What you are given
 
 - **The package.** `Source2.Compiler` (`lib/net10.0` with XML docs, `runtimes/{win-x64,linux-x64}/native`
-  holding the BC7 encoder `bc7e_s2c_{amd,intel}`, a `.snupkg` with sources embedded). Version
+  holding the BC7 encoder `bc7e_s2c_{amd,intel}`; the PDB and every source embedded in the DLL, so
+  stack traces carry file and line). Version
   `0.1.<commit count of source2-compiler main>`, one version per publish, never reused.
   Dependencies: SkiaSharp 4.153.1 (+ Linux NoDependencies), ValveKeyValue >= 0.70.0.499,
   ValvePak 6.0.0.182, ZstdSharp.Port 0.8.8, System.IO.Hashing 10.0.12, BCnEncoder.Net 2.3.0,
@@ -20,7 +21,8 @@ work does not need a live deploy of its own. Commit with the noreply identity th
 - **A branch with the first package in the feed.** `chore/compiler-<version>` (worktree
   `D:\_cursor projects\vpkstuff-wt-compiler-<version>`), made by
   `source2-compiler/tools/publish-to-vpkstuff.ps1`: `dotnet/packages/Source2.Compiler.<version>.nupkg`
-  and `.snupkg`, plus this document as `docs/SOURCE2_COMPILER_PACKAGE.md`. Build the switch
+  plus this document as `docs/SOURCE2_COMPILER_PACKAGE.md` (packages up to 0.1.100 also came with a
+  `.snupkg`; later ones embed their symbols and have none). Build the switch
   (phase 1) on that branch.
 - **The publish command** for every later update, run from source2-compiler `main`:
   `powershell -ExecutionPolicy Bypass -File tools\publish-to-vpkstuff.ps1`. Once phase 1 is
@@ -81,7 +83,7 @@ reference to a package reference).
      `"package": {"id": "Source2.Compiler", "version": ..., "nupkgSha256": ...}` plus the source
      `sha`; keep `adapter`;
    - `--check` verifies the adapter tree, that `dotnet/packages` holds exactly the pinned
-     version's `.nupkg` (and `.snupkg`), that its SHA-256 matches the manifest, and that the pin,
+     version's `.nupkg`, that its SHA-256 matches the manifest, and that the pin,
      `Source2CompilerPackageVersion` and the manifest agree;
    - `--from <checkout>` should work as the publish command calls it (it runs it from the
      vpkstuff worktree root after placing the package; fill `nupkgSha256` from the file).
