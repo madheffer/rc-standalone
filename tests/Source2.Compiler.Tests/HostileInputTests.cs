@@ -107,7 +107,7 @@ public class HostileInputTests
     }
 
     [Fact]
-    public void Wav_ChunkSizeThatWouldWalkBackwards_EndsTheWalk()
+    public async Task Wav_ChunkSizeThatWouldWalkBackwards_EndsTheWalk()
     {
         var wav = new MemoryStream();
         wav.Write("RIFF"u8);
@@ -117,9 +117,9 @@ public class HostileInputTests
         wav.Write(BitConverter.GetBytes(0xFFFFFFF0u));
         wav.Write(new byte[16]);
         var bytes = wav.ToArray();
-        var done = Task.Run(() => Assert.Throws<InvalidDataException>(() => ResourceBuilder.BuildSound(bytes)));
-        Assert.True(done.Wait(TimeSpan.FromSeconds(10)), "the WAV chunk walk did not end");
-        done.GetAwaiter().GetResult();
+        // A walk that never ends would time out here rather than hang the run.
+        var walk = Task.Run(() => ResourceBuilder.BuildSound(bytes));
+        await Assert.ThrowsAsync<InvalidDataException>(() => walk.WaitAsync(TimeSpan.FromSeconds(10)));
     }
 
     [Fact]
