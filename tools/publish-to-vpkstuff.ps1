@@ -35,7 +35,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 function Invoke-Git([string]$dir) { & git -C $dir @args; if ($LASTEXITCODE -ne 0) { throw "git $args failed in $dir" } }
-$identity = @("-c", "user.email=madheffer@users.noreply.github.com", "-c", "user.name=embattled")
+$identity = @("-c", "user.email=6407692+madheffer@users.noreply.github.com", "-c", "user.name=embattled")
 # PowerShell 5.1's Set-Content -Encoding utf8 writes a BOM; vpkstuff's files and git messages have none
 function Write-Utf8([string]$path, [string]$text) { [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false)) }
 
