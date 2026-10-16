@@ -2,6 +2,7 @@ using Source2.Compiler.Lighting;
 using Source2.Compiler.Maps;
 using ValveKeyValue;
 using ValveResourceFormat.ResourceTypes;
+using ValveResourceFormat.Serialization.KeyValues;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -151,4 +152,75 @@ public class SceneInfoTests(ITestOutputHelper output)
         foreach (var e in MapEntities.From(MapSource.Read(vmap)).Where(e => wanted.Contains(e.ClassName)))
             output.WriteLine($"{e.ClassName}: {string.Join(" | ", e.Keys.Select(k => k.Key + "=" + k.Value))}");
     }
+
+    /// <summary>A compiled lump's entities as key readers (strings as the entity system holds them), with their class names.</summary>
+    internal static List<(string Class, LightPrecompute.KeyReader Key)> LumpEntities(byte[] lump, string name)
+    {
+        using var resource = ResourceTrees.Read(lump, name);
+        var data = (ValveResourceFormat.ResourceTypes.EntityLump)resource.DataBlock!;
+        var list = new List<(string, LightPrecompute.KeyReader)>();
+        foreach (var entity in data.Data.GetArray("m_entityKeyValues"))
+        {
+            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in entity.GetSubCollection("keyValues3Data")?.GetSubCollection("values")?.Children ?? [])
+                values[kv.Key] = Text(kv.Value);
+            list.Add((values.GetValueOrDefault("classname", ""), k => values.TryGetValue(k, out var v) ? v : null));
+        }
+        return list;
+    }
+
+    private static string Text(KVObject v)
+    {
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        if (v.IsArray)
+            return string.Join(" ", v.Values.Select(Text));
+        return v.ValueType switch
+        {
+            KVValueType.Boolean => v.ToBoolean(c) ? "1" : "0",
+            KVValueType.FloatingPoint or KVValueType.FloatingPoint64 => ((float)v.ToDouble(c)).ToString("R", c),
+            _ => v.ToString(c),
+        };
+    }
+
+    /// <summary>
+    /// The light_barn tables of scene_info.kv3 (<see cref="SceneLights"/>) from the map's
+    /// compiled lump keys (<c>SCENEINFO</c>, <c>NODEENTRIES_VMAP</c>), light by light.
+    /// </summary>
+    [Fact]
+    public void BarnTablesAreValves()
+    {
+        if (Environment.GetEnvironmentVariable("SCENEINFO") is not { } path || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap
+            || MapFixtures.RcCompiledLumps(vmap) is not { } lumps)
+            return;
+        using var stream = File.OpenRead(path);
+        var valve = Floats(KVSerializer.Create(KVSerializationFormat.KeyValues3Text).Deserialize(stream))["lights"].Values.ToList();
+        var lights = lumps.SelectMany(l => LumpEntities(l.Value, l.Key)).Where(e => e.Class == "light_barn").ToList();
+        output.WriteLine($"barns in the lumps {lights.Count}, scene lights {valve.Count}");
+        var misses = new List<string>();
+        for (var i = 0; i < Math.Min(lights.Count, valve.Count); i++)
+        {
+            var key = lights[i].Key;
+            var origin = Vec(key("origin"));
+            var angles = Vec(key("angles"));
+            var table = SceneLights.Table(SceneLights.Barn(key, LightPrecompute.World(origin, angles)));
+            foreach (var c in valve[i]["barn"].Children)
+            {
+                var o = table.Children.FirstOrDefault(x => x.Key == c.Key).Value;
+                if (o is null || Loose(Render(o, 1)) != Loose(Render(c.Value, 1)))
+                    misses.Add($"light {i} {c.Key}: ours {(o is null ? "-" : Render(o, 1))} valve {Render(c.Value, 1)}");
+            }
+        }
+        foreach (var m in misses.Take(24))
+            output.WriteLine(m);
+        Assert.Empty(misses);
+    }
+
+    private static System.Numerics.Vector3 Vec(string? s)
+    {
+        var p = (s ?? "0 0 0").Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        return new(p[0], p[1], p[2]);
+    }
+
+    // Text KV3 reads every int as Int64; the width is the writer's, not the value's.
+    internal static string Loose(string rendered) => rendered.Replace("Int32:", "Int:").Replace("Int64:", "Int:").Replace("UInt32:", "Int:").Replace("UInt64:", "Int:");
 }
