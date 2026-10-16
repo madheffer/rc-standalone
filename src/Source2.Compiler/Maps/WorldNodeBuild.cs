@@ -28,7 +28,9 @@ internal static class WorldNodeBuild
     /// <summary>An entry after BuildNode: its vertices and indices, the header carried.</summary>
     public sealed record Built(Node Source, float[] Vertices, int[] Indices);
 
-    public static List<Node> WorldEntries(DmxBinary.Document doc, GameContent content, ShaderLibrary shaders, Func<string, bool> rendersAsWorld)
+    /// <param name="buildBakes">Whether the build bakes lighting (a full build): the headers' +0x98 then follows bakelighting.</param>
+    public static List<Node> WorldEntries(DmxBinary.Document doc, GameContent content, ShaderLibrary shaders, Func<string, bool> rendersAsWorld,
+                                          bool buildBakes = false)
     {
         IReadOnlyCollection<string> Signature(string material) => content.Read(material + "_c") is { } b
             ? [.. Source2.Compiler.MaterialAuthor.ExtractInputSignature(b).Select(x => x.Semantic)] : [];
@@ -48,7 +50,7 @@ internal static class WorldNodeBuild
             var attributes = content.Material(o.Material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
             var (min, max) = bounds[NodeKey(o)];
             var id = o.Instances.Length == 0 ? o.NodeId : copyIds.GetValueOrDefault(NodeKey(o), -1);
-            result.Add(new Node(o, NodeEntryHeader.World(o.Source!, id, (min + max) * 0.5f, o.Record, attributes, copy: o.Instances.Length > 0)));
+            result.Add(new Node(o, NodeEntryHeader.World(o.Source!, id, (min + max) * 0.5f, o.Record, attributes, buildBakes, copy: o.Instances.Length > 0)));
         }
         return result;
     }
@@ -75,6 +77,32 @@ internal static class WorldNodeBuild
     }
 
     public static List<Built> BuildNode(IReadOnlyList<Node> world) => [.. FixTJunctions(world).Select(Weld)];
+
+    /// <summary>
+    /// The entries as BakeLightMaps (18025db60) finds them: after the
+    /// T-junction fix, before BuildNode's closing 1/32 weld.
+    /// </summary>
+    public static List<Built> BeforeWeld(IReadOnlyList<Node> world, IReadOnlyList<Node> props) => FixTJunctions([.. world, .. props]);
+
+    /// <summary>
+    /// The lightmap importance volumes Step257b50 (180257b50) hands the lighting
+    /// processor (vf 0x48): each entry with attribute bit 10 (toolslightmapres),
+    /// in node order, as its vertex positions, before it leaves the node.
+    /// </summary>
+    public static List<Vector3[]> ImportanceVolumes(IReadOnlyList<Node> world, IReadOnlyList<Node> props)
+    {
+        var volumes = new List<Vector3[]>();
+        foreach (var n in world.Concat(props))
+        {
+            // BuildNode's first pass already dropped bit 34 (+0x1a5 is never set here).
+            if ((n.Header.Attributes & 0x400) == 0 || (n.Header.Attributes & 0x400000000) != 0)
+                continue;
+            var e = n.Entry;
+            var p = e.Streams.First(s => s.Name == "position").First;
+            volumes.Add([.. Enumerable.Range(0, e.Vertices.Length / e.Stride).Select(i => new Vector3(e.Vertices[i * e.Stride + p], e.Vertices[i * e.Stride + p + 1], e.Vertices[i * e.Stride + p + 2]))]);
+        }
+        return volumes;
+    }
 
     /// <summary>
     /// Each built entry's cubemap (+0xa0) and light probe (+0xa4) handshakes

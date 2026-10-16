@@ -169,7 +169,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 914 addresses
+- 922 addresses
 
 ### s2c:baked/light-keys
 
@@ -252,8 +252,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810e6d10` | `CMapMesh_GetDisableShadows` | node +0x3b6c |  |
 | `18125d8e0` | `Halton_RadicalInverse` | in float | `src/Source2.Compiler/Maps/LightTrace.cs:179` |
 | `1812651a0` | `Matrix3x4_TransformPointXmm` | point in xmm0-2 through the 3x4 at rcx |  |
-| `181266fc0` | `ConvexDistance_Gjk` | GJK distance of two transformed point hulls, 0x20 iterations; modelled, not ported | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:296`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:403` |
-| `181267a70` | `ConvexDistance_Thunk` | forwards to ConvexDistance_Gjk |  |
+| `181266fc0` | `ConvexDistance_Gjk` | GJK distance of two transformed point hulls, 0x20 iterations; modelled, not ported | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:255`, `src/Source2.Compiler/Lighting/ConvexDistance.cs:10`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:296` +1 |
+| `181267a70` | `ConvexDistance_Thunk` | forwards to ConvexDistance_Gjk | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:255`, `src/Source2.Compiler/Lighting/ConvexDistance.cs:11` |
 | `181267d20` | `ConvexDistance_Support` | point with the largest dot product |  |
 | `181268550` | `ConvexDistance_SolveTriangle` | GJK triangle simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:404` |
 | `181268c20` | `ConvexDistance_SolveTetrahedron` | GJK tetrahedron simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:404` |
@@ -323,6 +323,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `18004c060` | `Init_ChartNormalDot` | 183baf5c4 = V_cosf(1 degree) = 0x3f7ff605 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:35` |
 | `180133da0` | `Texture_CheckCubemapFaces` | Cubemap %i, face %i has Inf/NaN/extremely bright pixel |  |
 | `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array |  |
 | `1801ec580` | `PackingGeometry_t::Serialize` | lightmap_packing_geometry.dat |  |
@@ -334,14 +335,21 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f2240` | `NLightBaker::RunVrad3` | writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries |  |
 | `1801f32f0` | `NLightBaker::RasterizeAndSetupTexels` | 'charts have no luxels assigned' |  |
 | `1801f3920` | `NLightBaker::SetupTexels` | ==== Baking %d x %d lightmap ====; RasterizeSliceAndProcessTexels |  |
+| `1801f86f0` | `CStaticLightingProcessor::SetImportanceVolumes` | vf 0x48: copies the hull list into +0x5e8 |  |
+| `1801f8770` | `CStaticLightingProcessor::GetImportanceVolumes` | vf 0x50: +0x5e8 |  |
 | `18020e230` | `StaticLighting_LoadChartRepacking` | chart_repacking.dat from VRAD3_PATH (optional) |  |
-| `180210730` | `StaticLighting_PrepareChartMesh` | drops LightmapUV, optional CMesh_Weld, copies streams (position, texcoord set, normal, tangent) and indices; winding flip for flagged materials; importance volume scales (18020f910); UnwrapUsingUvsFromMesh default true; then 18022d920 |  |
+| `18020e6a0` | `StaticLighting_ChartVertexIds` | vertex ids by a CUtlHashtable on the position's MurmurHash2 (0x3501a678): position bytes, normal dot >= cos 1 degree (flag 2), texcoord 0 / 1 within 2^-22 squared (flags 4 / 8); compare 18021a9c0 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:21`, `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:74`, `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:123` |
+| `18020efc0` | `StaticLighting_ChartCornerNeighbours` | corner across each edge from the reverse directed edge, first come first paired; degenerate id triangles -1 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:21`, `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:200` |
+| `18020f910` | `StaticLighting_ImportanceScales` | per-triangle scale: 1 without volumes or with a volume within the region of all 8 bounds corners; near volumes (d < region or region/d > 0.01, GJK 181267a70); per triangle the volumes with a hull point in front, min GJK distance (181266fc0) to the corners and centroid; region/d clamped to 0.01 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:20`, `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:248` |
+| `180210730` | `StaticLighting_PrepareChartMesh` | drops LightmapUV, optional CMesh_Weld, copies streams (position, texcoord set, normal, tangent) and indices; winding flip for flagged materials; importance volume scales (18020f910); UnwrapUsingUvsFromMesh default true; then 18022d920 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:8`, `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:104` |
 | `180210fa0` | `CStaticLightingProcessor::GenerateCharts` | ChartMeshes: one 0xb8 entry per mesh; shared meshes (1802191e0), instances and unique meshes (180212850 jobs); gameinfo ImportanceVolumeTransitionRegion (72) |  |
+| `180212850` | `GenerateCharts_ChartJob` | scale = mesh +0x184 * entry +0x9c * 182a8cc50[min(ctz(mesh +0x58), 4)]; unique: PrepareChartMesh(weld, uv set, arg 2, importance on); shared: 1802104c0 + 18020f690 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:9` |
 | `180213290` | `WriteLightmapEdgeSeamsForVrad3` | lightmap_seams.dat |  |
-| `180214960` | `CStaticLightingProcessor::PackCharts` | fills PackingGeometry_t (stride 0x28, attribute offsets 0/0xc/0x18; vertices, indices, triangle charts, 0x1c chart records whose flags take the mesh's bit 30 and its +0x14 low 28 bits), then NUVChartPacker::PackCharts; warns on charts over 1/16 of the atlas |  |
+| `180214960` | `CStaticLightingProcessor::PackCharts` | fills PackingGeometry_t (stride 0x28, attribute offsets 0/0xc/0x18; positions by 18125d1f0, normals and tangent directions by 18125d1b0 then normalised, luxel uvs scaled once per vertex by chart scale * entry +0x18; indices, triangle charts, 0x1c chart records whose flags take the holder's bit 30 and the entry's +0x14 low 28 bits), then NUVChartPacker::PackCharts; warns on charts over 1/16 of the atlas | `src/Source2.Compiler/Lighting/PackingAssembly.cs:8`, `src/Source2.Compiler/Lighting/PackingAssembly.cs:118` |
 | `1802163b0` | `StaticLighting_WriteLightmapQueryData` | lightmap_query_data.kv3 (simplified LightmapUV geometry) |  |
-| `180217740` | `CStaticLightingProcessor::BakeLighting` |  |  |
+| `180217740` | `CStaticLightingProcessor::BakeLighting` | lightmapMaxResolution (4096; >= 512, power of two), lightmapMipCount (1) and MinSpecLightmapSize, lightmapNoWeld, lightmapChartPackIterations (4/7/9 by lightmapVRadQuality, 182a8cc68), GenerateCharts arg 2 = directional_irradiance_sh2_dc output; std::sort of the entries (18021b530) then 180210fa0, 180214960 | `src/Source2.Compiler/Lighting/ChartMeshes.cs:17`, `src/Source2.Compiler/Lighting/LightmapSettings.cs:5` |
 | `1802191e0` | `StaticLighting_ChartSharedMeshes` | Prepare; LightmapUV |  |
+| `18021b530` | `BakeLighting_SortEntries` | MSVC std::sort of 0x238 entries; comparison 18021e610: more vertices first, then memcmp of the vertex floats | `src/Source2.Compiler/Lighting/ChartMeshes.cs:17`, `src/Source2.Compiler/Lighting/ChartMeshes.cs:58` |
 | `180222600` | `NUVChartPacker_BoundaryEdges` | each triangle's edges counted under their sorted vertex pair in a CUtlHashtable; boundary edges read in slot order | `src/Source2.Compiler/Lighting/LightmapPacker.cs:825` |
 | `180223460` | `NUVChartPacker::FindBestRotation` | with 180222aa0: the longest run of near collinear boundary edges (dot >= 0.99) picks -theta or pi - theta | `src/Source2.Compiler/Lighting/LightmapPacker.cs:11`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:718` |
 | `1802235d0` | `NUVChartPacker::InitializeChartUVs` | gameinfo LightmapGutterSize (1); a thread pool job per chart (180223970), then a parallel sort of the 0x70 chart records (180228480) | `src/Source2.Compiler/Lighting/LightmapPacker.cs:13`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:91` |
@@ -363,7 +371,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18022d920` | `StaticLighting_ChartMesh` | the charting core: a 200-byte record per triangle (18022c740), then grouping into charts | `src/Source2.Compiler/Lighting/LightmapCharts.cs:9` |
 | `18023af80` | `Vrad3_Init` | VRAD3_PATH, Vrad3_Init_SearchPath |  |
 | `180248800` | `WRB_BakePrecomputedShadows` | direct_light_shadows |  |
-| `18025db60` | `CWorldRendererBuilderNode::BakeLightMaps` |  |  |
+| `18025db60` | `CWorldRendererBuilderNode::BakeLightMaps` | strips PerVertexLighting from every entry (1812e2ec0 until gone), moves out entries with no 0x2000000909, bit 29 and +0x98, bakes, appends them back | `src/Source2.Compiler/Lighting/ChartMeshes.cs:11`, `src/Source2.Compiler/Lighting/ChartMeshes.cs:30`, `src/Source2.Compiler/Maps/WorldNodeBuild.cs:82` |
 | `180285eb0` | `WRB_BuildPathTraceSceneInfo` | lights, cameras, instances, mesh_file |  |
 | `180f4eae0` | `Hammer_LoadOptions` | Hammer's options table (BuildMapEnvMaps is a Hammer setting) |  |
 | `180fb0680` | `Hammer_LoadGameSettings` | gameinfo's Hammer section (BakeOnlyCubemaps among the map builder switches) |  |
@@ -426,7 +434,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun |  |
-| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:85`, `src/Source2.Compiler/Maps/NodePropEntries.cs:152`, `src/Source2.Compiler/Maps/PropTransform.cs:10` +1 |
+| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:89`, `src/Source2.Compiler/Maps/NodePropEntries.cs:152`, `src/Source2.Compiler/Maps/PropTransform.cs:10` +1 |
 | `18024adc0` | `WRB_WriteEntityLump` | entity_lump_params, entities\ |  |
 | `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:13`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:166` |
 | `180f77240` | `CMapNode_PassesFilter` | node filter by flags: +0x366, vfn 0x408, editorOnly (vfn 0x440 or +0x365) under flag bits 1, 2 or 4 without 0, vfn 0x410, 0x150, 0x438 | `src/Source2.Compiler/Maps/MapEntities.cs:226` |
@@ -740,11 +748,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180254480` | `WRBNode_AddOverlay` | a 0xc0 copy of the map node's overlay descriptor (+0x78 name, +0x80, +0x88) appended to node +0x1f8 |  |
 | `1802547d0` | `WRBNode_ComputeBounds` | meshes whose entry flags miss the mask, then static props |  |
 | `180254d10` | `EnvVolume_Pick` | a named entry takes the first non-moveable record of that targetname; else the containing volume (sphere: r^2 > d^2; box: 181257020 == 0) beats the rest, higher indoor_outdoor_level among containing, then lower score (later on ties); returns the record's handshake (+0x50) or 0 | `src/Source2.Compiler/Maps/EnvVolumes.cs:69` |
-| `180255040` | `WRBNode_AssignEnvMaps` | with UseStaticLightProbes: each prop record (+0x16e) and node entry picks its cubemap (+0xa0, attribute bit 21) and light probe (+0xa4, bit 20) by 180254d10 at its origin, or its bounds centre when the origin is FLT_MAX; called twice by BuildNode (before and after the overlays) | `src/Source2.Compiler/Maps/EnvVolumes.cs:144`, `src/Source2.Compiler/Maps/WorldNodeBuild.cs:81` |
+| `180255040` | `WRBNode_AssignEnvMaps` | with UseStaticLightProbes: each prop record (+0x16e) and node entry picks its cubemap (+0xa0, attribute bit 21) and light probe (+0xa4, bit 20) by 180254d10 at its origin, or its bounds centre when the origin is FLT_MAX; called twice by BuildNode (before and after the overlays) | `src/Source2.Compiler/Maps/EnvVolumes.cs:144`, `src/Source2.Compiler/Maps/WorldNodeBuild.cs:109` |
 | `180255470` | `WRBNode_PropEntry` | a node entry from a prop's mesh: fade +0x160/+0x164, bakelightdoublesided, lightmapscalebias, flags from disableinlowquality, rendertocubemaps, renderwithdynamic, emissive mode 1, lighting origin | `src/Source2.Compiler/Maps/NodePropAggregates.cs:21` |
 | `180255b90` | `WRBNode_AddStaticProps` | props of node +0x198 baked into entries unless clutterinstance: baketoworld, materialoverride (+0x40), a deformer (+0x80), +0x17c with the node's flag, non-uniform scale (max \|s\| - min \|s\| > 0.0001, BakePropsWithNonUniformScale) or extra vertex streams (BakePropsWithExtraVertexStreams); instances walked last to first |  |
 | `180256690` | `WRBNode_Step256690` | after the drop of +0x1a5 / bit 34 entries, before Step257b50; identity on probe01, cardtest and atixref |  |
-| `180257b50` | `WRBNode_TakeLightmapResEntries` | entries with attribute bit 10 (toolslightmapres) taken out, their positions to node +0x160; bit 36 dropped |  |
+| `180257b50` | `WRBNode_TakeLightmapResEntries` | entries with attribute bit 10 (toolslightmapres) taken out, their vertex positions as importance hulls {count, points, scale 1} to node +0x160; bit 36 dropped; then the processor's vf 0x48 (1801f86f0) takes the list | `src/Source2.Compiler/Maps/WorldNodeBuild.cs:88` |
 | `180257d20` | `WRB_MergeMeshes` | CMesh merge of the group (FUN_1812dd570) |  |
 | `180257ff0` | `WRBNode_MergeEntries` | one new entry from the group, fields from the first |  |
 | `180258310` | `WRBMeshList_KeepTexcoordPrecision` | a mesh list: when one texcoord stream is flagged (+0x1d) or passes 16 (180d4a120), every texcoord stream of every mesh gets +0x1d (kept float32); from WRBMeshList_GroupAggregates; BuildPropAggregates inlines it per run | `src/Source2.Compiler/Maps/NodeDraw.cs:46`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:346`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:579` |
@@ -961,8 +969,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/EditorTraceScene.cs:60`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:516`, `src/Source2.Compiler/Maps/NodeOverlays.cs:200` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/VectorNormalizeSlow.cs:6`, `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:547`, `src/Source2.Compiler/Physics/HullSimplifier.cs:146` +2 |
 | `18125d0d0` | `VectorPerpendicular` | ((1 - z)(y y - 0) + z, 0, -x) normalised, orthogonalised, normalised | `src/Source2.Compiler/Physics/StaticPropHulls.cs:327`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:375` |
-| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:470`, `src/Source2.Compiler/Maps/LightMath.cs:124`, `src/Source2.Compiler/Maps/NodeMeshEntries.cs:175` +2 |
-| `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:469`, `src/Source2.Compiler/Maps/LightMath.cs:130`, `src/Source2.Compiler/Physics/RnHullBuilder.cs:560` |
+| `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Lighting/PackingAssembly.cs:14`, `src/Source2.Compiler/Lighting/PackingAssembly.cs:112`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:470` +4 |
+| `18125d1f0` | `Matrix3x4_TransformPoint` | (t + y r1) + (x r0 + z r2) | `src/Source2.Compiler/Lighting/PackingAssembly.cs:13`, `src/Source2.Compiler/Lighting/PackingAssembly.cs:106`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:469` +2 |
 | `18125d940` | `AngleQuaternion` | half angles times 0.00872664619 | `src/Source2.Compiler/Maps/CTransform.cs:22` |
 | `18125dcc0` | `Quaternion_Forward` | x axis | `src/Source2.Compiler/Maps/LightMath.cs:206`, `src/Source2.Compiler/Maps/LightMath.cs:225` |
 | `18125dd50` | `Quaternion_Left` | y axis | `src/Source2.Compiler/Maps/LightMath.cs:228` |
@@ -1093,10 +1101,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1812d66f0` | `CMesh_Copy` |  |  |
 | `1812d6a90` | `CMesh_Alloc` |  |  |
-| `1812d80c0` | `CMesh_Weld` | per-float tolerances, KD tree clusters | `src/Source2.Compiler/Physics/MeshWeld.cs:6`, `src/Source2.Compiler/Physics/MeshWeld.cs:116` |
-| `1812dd2f0` | `CMesh_RemoveDegenerateAndRenumber` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:16`, `src/Source2.Compiler/Physics/MeshWeld.cs:87` |
-| `1812e2530` | `CMesh_WeldCluster` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:14`, `src/Source2.Compiler/Physics/MeshWeld.cs:152` |
-| `1812e5880` | `CMesh_WeldZeroSubset` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:14`, `src/Source2.Compiler/Physics/MeshWeld.cs:54` |
+| `1812d80c0` | `CMesh_Weld` | per-float tolerances, KD tree clusters | `src/Source2.Compiler/Physics/MeshWeld.cs:6`, `src/Source2.Compiler/Physics/MeshWeld.cs:129` |
+| `1812dd2f0` | `CMesh_RemoveDegenerateAndRenumber` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:16`, `src/Source2.Compiler/Physics/MeshWeld.cs:97` |
+| `1812e2530` | `CMesh_WeldCluster` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:14`, `src/Source2.Compiler/Physics/MeshWeld.cs:165` |
+| `1812e5880` | `CMesh_WeldZeroSubset` |  | `src/Source2.Compiler/Physics/MeshWeld.cs:14`, `src/Source2.Compiler/Physics/MeshWeld.cs:62` |
 
 ### s2c:physics/world
 
@@ -1182,7 +1190,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800476a0` | `CVisBuilder::Build_vis` | world_visibility.vvis compile params: rte, viscfg, los, FlatVisClusterVector (context +0x5c0), MutualVisibilityMatrix (+0x5c8) |  |
-| `18020d860` | `Material_VisFlags` | material int attributes by murmur hash as triangle flags |  |
+| `18020d860` | `Material_VisFlags` | material int attributes by murmur hash as triangle flags; bit 2 RenderBackfaces (0x9aaf2527), which PrepareChartMesh's winding flip reads | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:17` |
 | `180230200` | `WRBMeshEntry_Copy` | shares the ref-counted CMesh |  |
 | `180230480` | `CVisibilityMeshMerger::Init` | MinimumTriangles/Vertices/VolumePerClusteredMesh (defaults 64/32/216, csgo_core 2048/2048/1800), MaxPrecomputedVisClusterMembership 16; each vis cluster's box list unioned into a bound | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:115` |
 | `1802307f0` | `CVisibilityMeshMerger_MeshMembership` | clusters whose bound and one of whose boxes overlap the mesh bounds (edges count) | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:216` |
@@ -1335,7 +1343,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800c8d80` | `KV3Binary_CompressZstd` | level 7, checksums, nbWorkers over 1 MB; streamed through 64 KB: buffer 1, buffer 2 and the non-empty blobs as three frames | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:299`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:411` |
 | `180124b00` | `SaveKV3` | export; text encodings here, binary through 1800c7220 |  |
 | `18012bec0` | `V_LZ4_compress_HC` | export; level 12 when none is given |  |
-| `18017ebf0` | `CVertexKDTree_Partition` | from the middle up, below the split swapped down | `src/Source2.Compiler/Maps/VertexKdTree.cs:69`, `src/Source2.Compiler/Physics/MeshWeld.cs:257` |
+| `18017ebf0` | `CVertexKDTree_Partition` | from the middle up, below the split swapped down | `src/Source2.Compiler/Maps/VertexKdTree.cs:69`, `src/Source2.Compiler/Physics/MeshWeld.cs:270` |
 | `180306700` | `V_IsAbsolutePath_PrefixVpk` | data: string 'vpk:' |  |
 | `180306708` | `V_IsAbsolutePath_PrefixUgc` | data: string 'ugc:' |  |
 
@@ -1343,7 +1351,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18017ebf0` | `CVertexKDTree_Partition` | below the split swaps down from the middle, then at or above swaps up | `src/Source2.Compiler/Maps/VertexKdTree.cs:69`, `src/Source2.Compiler/Physics/MeshWeld.cs:257` |
+| `18017ebf0` | `CVertexKDTree_Partition` | below the split swaps down from the middle, then at or above swaps up | `src/Source2.Compiler/Maps/VertexKdTree.cs:69`, `src/Source2.Compiler/Physics/MeshWeld.cs:270` |
 | `18017ef60` | `CVertexKDTree::FindVertsInBox` | export; leaf points in stored order, left child when lo <= split, right unless hi < split | `src/Source2.Compiler/Maps/VertexKdTree.cs:7` |
 | `18017fc30` | `CVertexKDTree_Bounds` |  | `src/Source2.Compiler/Maps/VertexKdTree.cs:55` |
 | `18017feb0` | `CVertexKDTree::BuildNode` | export; leaf at 8 or fewer, midpoint of the longest side, node numbered before its children | `src/Source2.Compiler/Maps/VertexKdTree.cs:27` |

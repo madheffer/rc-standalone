@@ -793,6 +793,41 @@ game can answer is raised with the user first, and runs with -insecure.
     (71 charts) and ze_hold_em_p (2,083 charts, attempts 1 0 1 0).
     Not seen: TinyBVH's threaded build (50,000 primitives and up), its
     256-entry stack overflowing.
+64. **The lightmap's chart meshes from the .vmap** (settled 2026-10-17 by
+    decompile and capture; 0923 BakeLightMaps 18025db60, BakeLighting
+    180217740, GenerateCharts 180210fa0, the chart job 180212850,
+    PrepareChartMesh 180210730 with 18020f910, 18020e6a0, 18020efc0,
+    PackCharts 180214960; tools/vis/capture_nodeentries.py --full and
+    capture_importance.py, ChartMeshesTests). In a baking build every
+    world entry's +0x98 is set unless the mesh says bakelighting false, and
+    the record's +0x98 then clears NeedsLightProbe (attribute bit 20).
+    After the T-junction fix (BuildNode's 1/32 weld comes after the bake)
+    BakeLightMaps strips PerVertexLighting from every entry and takes those
+    with no 0x2000000909, bit 29 and +0x98; BakeLighting sorts them with
+    std::sort, more vertices first, then memcmp of the vertex floats. The
+    importance volumes are the toolslightmapres entries' vertex positions
+    (180257b50, before they leave the node). Each mesh loses LightmapUV, is
+    welded at 1/32 unless lightmapNoWeld (each welded vertex keeping the
+    last input vertex that became it), flips away-facing triangles of a
+    RenderBackfaces material, takes per-triangle importance scales
+    (transition region 120 in CS2), and gets its corner neighbours from
+    vertex ids keyed by position bytes, normal within cos 1 degree (V_cosf,
+    0x3f7ff605) and the texcoord within 2^-11, normals split since CS2's
+    LightmapChannels has no directional_irradiance_sh2_dc. PackCharts
+    rotates and renormalises normals and tangents (SSE Matrix3x4_Rotate),
+    scales each vertex's uvs once, and flags the chart records. The atlas
+    is lightmapMaxResolution (4096) at mip 1 (MinSpecLightmapSize 4096)
+    with 4 passes (lightmapVRadQuality 0). Lighting/ChartMeshes.cs,
+    ChartMeshPrep.cs, PackingAssembly.cs and LightmapSettings.cs write
+    lightmap_packing_geometry.dat byte for byte as Valve's on probe01 and
+    cardtest (15 chart meshes, 434 vertices, 71 charts); the vertex ids and
+    corners match all 80 captured meshes of the three maps.
+    Not ported: GenerateCharts' shared-mesh and instance path (1802191e0,
+    1802104c0, 18020f690), which ze_hold_em_p's props take (ours 19 of its
+    2,083 charts); GJK's bits for a scale strictly between 0.01 and 1
+    (ConvexDistance is exact geometry; none on these maps); where the
+    builder's requested size (+0x2f8) and the map's lightmap settings come
+    from (absent on these maps: the defaults).
 
 ## Resolved
 

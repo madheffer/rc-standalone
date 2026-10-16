@@ -45,6 +45,14 @@ internal static class MeshWeld
     /// with the greatest value there instead of its first.
     /// </summary>
     public static (float[] Vertices, int[] Indices) Weld(float[] vertices, int stride, int[] indices, IReadOnlyList<Stream> streams, float tolerance, bool renumberByUse, List<int>? keptTriangles, long[]? latest)
+        => Weld(vertices, stride, indices, streams, tolerance, renumberByUse, keptTriangles, latest, null);
+
+    /// <summary>
+    /// As above; <paramref name="oldToNew"/>, when given, receives each input
+    /// vertex's output vertex, or -1 when its cluster went unused (the list
+    /// CMesh_Weld's third argument remaps).
+    /// </summary>
+    public static (float[] Vertices, int[] Indices) Weld(float[] vertices, int stride, int[] indices, IReadOnlyList<Stream> streams, float tolerance, bool renumberByUse, List<int>? keptTriangles, long[]? latest, int[]? oldToNew)
     {
         var tol = Tolerances(stride, streams, tolerance);
         var count = vertices.Length / stride;
@@ -75,6 +83,8 @@ internal static class MeshWeld
         }
         if (!renumberByUse)
         {
+            if (oldToNew != null)
+                Array.Copy(remap, oldToNew, count);
             // Clusters in the order they formed, each at its first vertex.
             var clusters = new float[reps.Count * stride];
             for (var r = 0; r < reps.Count; r++)
@@ -104,6 +114,9 @@ internal static class MeshWeld
             kept.Add(renumber[b]);
             kept.Add(renumber[c]);
         }
+        if (oldToNew != null)
+            for (var i = 0; i < count; i++)
+                oldToNew[i] = renumber[remap[i]];
         var output = new float[used * stride];
         for (var r = 0; r < reps.Count; r++)
         {

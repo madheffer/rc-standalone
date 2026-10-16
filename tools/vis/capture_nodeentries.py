@@ -4,9 +4,11 @@ Runs a map compile under Frida and dumps every mesh entry of the node
 (CWorldRendererBuilderNode +0x148) before and after BuildNode
 (resourcecompiler 18024b400) and each of its steps: FUN_180256690,
 FUN_180257b50, Step_RemovingTrianglesInside, FixTJunctionEdgeCracks,
+BakeLightMaps (a --full build) with the sorted list it hands GenerateCharts,
 FUN_18025ece0 and FUN_18025d500. Each entry is its 0x238 bytes, then its
-CMesh's vertex floats and indices. NodeEntriesFromVmap compares ours with
-them stage by stage.
+CMesh's vertex floats and indices. NodeEntriesFromVmap and ChartMeshesTests
+compare ours with them stage by stage. Addresses are the 0923 build's,
+moved to the installed one by tools/re/rva_map.
 
 Output is a stream of records: u32 json length, json, u32 blob length, blob.
 
@@ -30,16 +32,21 @@ import frida
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
-# resourcecompiler.dll 2026-09-23 (unchanged through the 09-25 patch).
-STEPS = [(0x24b430, "BuildNode", 1), (0x2566c0, "Step256690", 0), (0x257b80, "Step257b50", 0),
-         (0x259b30, "RemoveInside", 0), (0x259d60, "FixTJunctions", 0), (0x25ed10, "Step25ece0", 0),
-         (0x25d530, "Step25d500", 0)]
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "re"))
+from rva_map import installed  # noqa: E402
+
+# resourcecompiler.dll 2026-09-23 addresses, mapped to the installed build.
+# GenerateCharts' list is the baked entries BakeLightMaps took out of the
+# node, sorted (18021b530): its argument 3, a CUtlVector of entries.
+STEPS = [(0x24b400, "BuildNode", 1), (0x256690, "Step256690", 0), (0x257b50, "Step257b50", 0),
+         (0x259b00, "RemoveInside", 0), (0x259d30, "FixTJunctions", 0), (0x25db60, "BakeLightMaps", 0),
+         (0x210fa0, "GenerateCharts", -3), (0x25ece0, "Step25ece0", 0), (0x25d500, "Step25d500", 0)]
 
 AGENT = r"""
 'use strict';
 // A node's mesh entries: CUtlVector at node +0x148 (count), +0x150 (data), 0x238 each.
-function dumpEntries(node, stage, call) {
-  const n = node.add(0x148).readS32(), ep = node.add(0x150).readPointer();
+function dumpEntries(node, stage, call) { dumpList(node.add(0x148).readS32(), node.add(0x150).readPointer(), stage, call); }
+function dumpList(n, ep, stage, call) {
   send({ev: 'stage', stage: stage, call: call, n: n});
   for (let i = 0; i < n; i++) {
     const e = ep.add(i * 0x238), m = e.readPointer();
@@ -79,12 +86,16 @@ function hook() {
     try {
     Interceptor.attach(mod.base.add(rva), {
       onEnter(args) {
-        this.node = args[arg];
         this.call = name === 'BuildNode' ? calls++ : calls - 1;
-        dumpEntries(this.node, name + ':in', this.call);
+        // A negative index: that argument is a CUtlVector of entries, not a node.
+        this.list = arg < 0 ? args[-arg - 1] : null;
+        this.node = arg < 0 ? null : args[arg];
+        if (this.list) dumpList(this.list.readS32(), this.list.add(8).readPointer(), name + ':in', this.call);
+        else dumpEntries(this.node, name + ':in', this.call);
       },
       onLeave(ret) {
-        dumpEntries(this.node, name + ':out', this.call);
+        if (this.list) dumpList(this.list.readS32(), this.list.add(8).readPointer(), name + ':out', this.call);
+        else dumpEntries(this.node, name + ':out', this.call);
       }
     });
     } catch (e) {
@@ -120,7 +131,7 @@ def main():
     vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
     backup = out_path + ".vpk.bak"
     if os.path.exists(vpk):
-        shutil.copyfile(vpk, backup)
+        shutil.copy2(vpk, backup)
         os.remove(vpk)  # a current package makes RC skip the compile
 
     out = open(out_path, "wb")
@@ -148,7 +159,8 @@ def main():
     dev.on("output", lambda _pid, _fd, data: rc_log.write(data or b""))
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT % {"steps": json.dumps(STEPS)})
+    steps = [(installed("resourcecompiler", rva), name, arg) for rva, name, arg in STEPS]
+    sc = ses.create_script(AGENT % {"steps": json.dumps(steps)})
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()
@@ -171,7 +183,7 @@ def main():
     if os.path.exists(vpk):
         shutil.copyfile(vpk, out_path + ".vpk")
     if os.path.exists(backup):
-        shutil.copyfile(backup, vpk)
+        shutil.copy2(backup, vpk)
         ok = filecmp.cmp(backup, vpk, shallow=False)
         print("restored", vpk, "(cmp ok)" if ok else "(CMP FAILED)")
         if ok:

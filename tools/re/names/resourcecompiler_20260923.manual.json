@@ -688,7 +688,7 @@
    "addr": "180257b50",
    "name": "WRBNode_TakeLightmapResEntries",
    "module": "s2c:geometry/world-nodes",
-   "note": "entries with attribute bit 10 (toolslightmapres) taken out, their positions to node +0x160; bit 36 dropped"
+   "note": "entries with attribute bit 10 (toolslightmapres) taken out, their vertex positions as importance hulls {count, points, scale 1} to node +0x160; bit 36 dropped; then the processor's vf 0x48 (1801f86f0) takes the list"
   },
   {
    "addr": "18025ece0",
@@ -2212,13 +2212,61 @@
    "addr": "180217740",
    "name": "CStaticLightingProcessor::BakeLighting",
    "module": "s2c:baked/lighting",
-   "note": ""
+   "note": "lightmapMaxResolution (4096; >= 512, power of two), lightmapMipCount (1) and MinSpecLightmapSize, lightmapNoWeld, lightmapChartPackIterations (4/7/9 by lightmapVRadQuality, 182a8cc68), GenerateCharts arg 2 = directional_irradiance_sh2_dc output; std::sort of the entries (18021b530) then 180210fa0, 180214960"
   },
   {
    "addr": "18025db60",
    "name": "CWorldRendererBuilderNode::BakeLightMaps",
    "module": "s2c:baked/lighting",
-   "note": ""
+   "note": "strips PerVertexLighting from every entry (1812e2ec0 until gone), moves out entries with no 0x2000000909, bit 29 and +0x98, bakes, appends them back"
+  },
+  {
+   "addr": "18021b530",
+   "name": "BakeLighting_SortEntries",
+   "module": "s2c:baked/lighting",
+   "note": "MSVC std::sort of 0x238 entries; comparison 18021e610: more vertices first, then memcmp of the vertex floats"
+  },
+  {
+   "addr": "180212850",
+   "name": "GenerateCharts_ChartJob",
+   "module": "s2c:baked/lighting",
+   "note": "scale = mesh +0x184 * entry +0x9c * 182a8cc50[min(ctz(mesh +0x58), 4)]; unique: PrepareChartMesh(weld, uv set, arg 2, importance on); shared: 1802104c0 + 18020f690"
+  },
+  {
+   "addr": "1801f86f0",
+   "name": "CStaticLightingProcessor::SetImportanceVolumes",
+   "module": "s2c:baked/lighting",
+   "note": "vf 0x48: copies the hull list into +0x5e8"
+  },
+  {
+   "addr": "1801f8770",
+   "name": "CStaticLightingProcessor::GetImportanceVolumes",
+   "module": "s2c:baked/lighting",
+   "note": "vf 0x50: +0x5e8"
+  },
+  {
+   "addr": "18020f910",
+   "name": "StaticLighting_ImportanceScales",
+   "module": "s2c:baked/lighting",
+   "note": "per-triangle scale: 1 without volumes or with a volume within the region of all 8 bounds corners; near volumes (d < region or region/d > 0.01, GJK 181267a70); per triangle the volumes with a hull point in front, min GJK distance (181266fc0) to the corners and centroid; region/d clamped to 0.01"
+  },
+  {
+   "addr": "18020e6a0",
+   "name": "StaticLighting_ChartVertexIds",
+   "module": "s2c:baked/lighting",
+   "note": "vertex ids by a CUtlHashtable on the position's MurmurHash2 (0x3501a678): position bytes, normal dot >= cos 1 degree (flag 2), texcoord 0 / 1 within 2^-22 squared (flags 4 / 8); compare 18021a9c0"
+  },
+  {
+   "addr": "18020efc0",
+   "name": "StaticLighting_ChartCornerNeighbours",
+   "module": "s2c:baked/lighting",
+   "note": "corner across each edge from the reverse directed edge, first come first paired; degenerate id triangles -1"
+  },
+  {
+   "addr": "18004c060",
+   "name": "Init_ChartNormalDot",
+   "module": "s2c:baked/lighting",
+   "note": "183baf5c4 = V_cosf(1 degree) = 0x3f7ff605"
   },
   {
    "addr": "1801ee0b0",
@@ -2284,7 +2332,7 @@
    "addr": "180214960",
    "name": "CStaticLightingProcessor::PackCharts",
    "module": "s2c:baked/lighting",
-   "note": "fills PackingGeometry_t (stride 0x28, attribute offsets 0/0xc/0x18; vertices, indices, triangle charts, 0x1c chart records whose flags take the mesh's bit 30 and its +0x14 low 28 bits), then NUVChartPacker::PackCharts; warns on charts over 1/16 of the atlas"
+   "note": "fills PackingGeometry_t (stride 0x28, attribute offsets 0/0xc/0x18; positions by 18125d1f0, normals and tangent directions by 18125d1b0 then normalised, luxel uvs scaled once per vertex by chart scale * entry +0x18; indices, triangle charts, 0x1c chart records whose flags take the holder's bit 30 and the entry's +0x14 low 28 bits), then NUVChartPacker::PackCharts; warns on charts over 1/16 of the atlas"
   },
   {
    "addr": "1802235d0",
@@ -4414,7 +4462,7 @@
    "addr": "18020d860",
    "name": "Material_VisFlags",
    "module": "s2c:visibility",
-   "note": "material int attributes by murmur hash as triangle flags"
+   "note": "material int attributes by murmur hash as triangle flags; bit 2 RenderBackfaces (0x9aaf2527), which PrepareChartMesh's winding flip reads"
   },
   {
    "addr": "180252ae0",

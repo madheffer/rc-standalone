@@ -88,29 +88,36 @@ unconfirmed.
 Step 1 of the port is the input side: what resourcecompiler writes into
 `_vrad3/` before vrad3 runs. Read from the 20260923 build (2026-10-16; names
 in make_manual's BAKE list, ADDRESSES.md):
-- `CStaticLightingProcessor::GenerateCharts` (staticlightingprocessor.cpp)
-  makes one 0xb8 "chart mesh" per mesh (shared meshes, instances, unique
-  meshes, each through a thread pool job), from the LightmapUV, texcoord and
-  position streams. Gameinfo `ResourceCompiler/BakedLighting/
-  ImportanceVolumeTransitionRegion` (72 by default, 120 in CS2's gameinfo)
-  takes part. The charting core (18022d920) builds a 200-byte record per
-  triangle (18022c740): its unit normal (VectorNormalize, slow path below
-  1e-17) and its chart uvs. `UnwrapUsingUvsFromMesh` is read with default
-  true (CS2's gameinfo leaves it unset), so the mesh's own uvs are used: the
-  texcoord set the mesh entry picks (uv2 with use_uv2_for_charts), v scaled
-  by the chart's aspect. Without it, a box projection: the normal's dominant
-  axis picks one of six bases (+-X, +-Y, +-Z; codes 0-5, tables at
-  182a8d3b0 / 182a8d400).
-- The chart mesh prep (180210730) drops the mesh's LightmapUV stream, welds
-  it (CMesh_Weld, ported) when asked, copies vertices and indices, flips the
-  winding of triangles whose material has bit 2 of 18020d860's flags and
-  that face away (normal sum test), and with importance volumes gives each
-  triangle a resolution scale (18020f910, ImportanceVolumeTransitionRegion).
+- Which meshes chart (ported, ledger 64; Lighting/ChartMeshes.cs):
+  `CWorldRendererBuilderNode::BakeLightMaps` runs after the T-junction fix
+  and before BuildNode's closing weld. It strips PerVertexLighting from
+  every entry and takes the baked ones (+0x98, attribute bit 29, none of
+  0x2000000909); `BakeLighting` sorts them (more vertices first, then the
+  vertex bytes). The toolslightmapres entries became the importance
+  volumes earlier (Step257b50).
+- `CStaticLightingProcessor::GenerateCharts` makes one 0xb8 "chart mesh"
+  per entry. A unique mesh goes through the chart job (180212850) and
+  `StaticLighting_PrepareChartMesh` (180210730, Lighting/ChartMeshPrep.cs):
+  - it drops LightmapUV and welds at 1/32 unless lightmapNoWeld;
+  - it flips away-facing triangles of RenderBackfaces materials;
+  - it takes per-triangle importance scales (18020f910, region 120 in CS2);
+  - it makes the corner adjacency from vertex ids (18020e6a0, 18020efc0).
+  Shared meshes and instances (1802191e0, 1802104c0) are not ported yet;
+  ze_hold_em_p's props take that path. The charting core (18022d920,
+  Lighting/LightmapCharts.cs) builds a record per triangle (18022c740)
+  from the mesh's own uvs (`UnwrapUsingUvsFromMesh`, default true; without
+  it a box projection by the normal's dominant axis, codes 0-5, tables at
+  182a8d3b0 / 182a8d400, not ported).
 - `CStaticLightingProcessor::PackCharts` concatenates them into
-  `PackingGeometry_t`, the layout `Lighting/PackingGeometry.cs` already
-  round-trips byte for byte: stride 0x28 vertices with attribute offsets 0,
-  0xc and 0x18; indices; a chart per triangle (-1 for none); 0x1c chart
-  records whose flags take the mesh's bit 30 and its low 28 bits.
+  `PackingGeometry_t` (Lighting/PackingAssembly.cs; the layout
+  `Lighting/PackingGeometry.cs` round-trips). Vertices are stride 0x28:
+  the position through the entry matrix, then the normal and tangent
+  rotated and renormalised. Each vertex's uvs are scaled once. Then come
+  indices, a chart per triangle (-1 for none) and 0x1c chart records. The
+  atlas settings (Lighting/LightmapSettings.cs) are lightmapMaxResolution,
+  the mips against MinSpecLightmapSize, and lightmapChartPackIterations.
+  On probe01 and cardtest the .dat is Valve's byte for byte from the .vmap
+  (ChartMeshesTests.PackingGeometryIsValves).
 - `NUVChartPacker` (uvchartpacker.cpp), ported in Lighting/LightmapPacker.cs
   (ledger 63): `PackCharts` seeds SFMT-19937 (0x777f17e) for the debug
   colours, runs `FindBestRotation` per chart, then for each scale pass
@@ -126,8 +133,10 @@ in make_manual's BAKE list, ADDRESSES.md):
 
 Ground truth per map: `compile_fresh.py --full` keeps the addon's `_vrad3`
 folder beside the package (`<out>.vrad3`), since the next bake overwrites it.
-The first milestone is our lightmap_packing_geometry.dat equal to Valve's on
-probe01; it also gives the world nodes their lightmap uvs (GEOMETRY.md).
+The first milestone, our lightmap_packing_geometry.dat equal to Valve's on
+probe01, is reached (2026-10-17). Next come the shared-mesh path
+(ze_hold_em_p), then lightmap_info.dat, the seams and the scene, and the
+lightmap uvs the world nodes take from the packing (GEOMETRY.md).
 
 ## AMD GPUs (future plan)
 

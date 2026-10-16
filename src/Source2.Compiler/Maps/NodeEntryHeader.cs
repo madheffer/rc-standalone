@@ -57,13 +57,17 @@ public sealed record NodeEntryHeader
         var tint = Vector4.One;
         if (mesh.Attributes.GetValueOrDefault("tintColor") is byte[] { Length: 4 } c && !(c[0] == 255 && c[1] == 255 && c[2] == 255 && c[3] == 255))
             tint = new Vector4(c[0] * 0.003921569f, c[1] * 0.003921569f, c[2] * 0.003921569f, c[3] * 0.003921569f);
-        var flags = MeshEntryFlags.Compute(material, record);
+        // CMapMesh's bakelighting defaults to true: a full build of probe01
+        // marks every world entry +0x98, set or not in the .vmap, and the
+        // record's +0x98 then drops NeedsLightProbe from a lightmapped mesh.
+        var baked = buildBakes && mesh.Attributes.GetValueOrDefault("bakelighting") is not false;
+        var flags = MeshEntryFlags.Compute(material, baked ? record with { Baked = true } : record);
         return new NodeEntryHeader
         {
             Tint = tint,
             NodeId = nodeId,
             Origin = origin,
-            Baked = buildBakes && Flag("bakelighting"),
+            Baked = baked,
             FadeMin = Number("fademindist", -1f),
             FadeMax = Number("fademaxdist", 0f),
             EmissiveBoost = Number("emissiveLightingBoost", 1f),
