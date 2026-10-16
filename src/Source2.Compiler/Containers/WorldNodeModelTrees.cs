@@ -8,9 +8,10 @@ namespace Source2.Compiler;
 /// The four trees of a world node model, from a <see cref="WorldNodeModel"/>.
 ///
 /// <para>Key order and value types are Valve's, as the 401 node models of
-/// probe01, cardtest and atixref store them. Integers 0 and 1 are written
-/// with KV3's no-payload codes (they read back as Int64); any other integer
-/// keeps its field's type, Int32 or UInt32. Scalar floats are doubles, vectors
+/// probe01, cardtest and atixref store them. A signed 0 or 1 is written with
+/// KV3's no-payload codes (it reads back as Int64); any other integer keeps
+/// its field's type, Int32 or UInt32 (an unsigned 0 or 1 too, since the
+/// 20261015 tier0). Scalar floats are doubles, vectors
 /// are float arrays, except the model info's vectors, which are doubles.</para>
 /// </summary>
 public static class WorldNodeModelTrees
@@ -132,7 +133,7 @@ public static class WorldNodeModelTrees
     {
         var o = KVObject.Collection();
         o.Add("m_hBuffer", U32(handle));
-        o.Add("m_nBindOffsetBytes", I32(0));
+        o.Add("m_nBindOffsetBytes", U32(0));
         return o;
     }
 
@@ -179,7 +180,7 @@ public static class WorldNodeModelTrees
                 o.Add("m_szShaderSemantic", new KVObject(f.ShaderSemantic));
                 layout.Add(o);
             }
-            vbs.Add(Buffer(vbBlocks[vbAt++], vb.Count, vb.Stride, vb.Meshopt, false, I32(1), layout));
+            vbs.Add(Buffer(vbBlocks[vbAt++], vb.Count, vb.Stride, vb.Meshopt, false, U32(1), layout));
         }
         mesh.Add("m_vertexBuffers", vbs);
         var ibs = KVObject.Array();
@@ -258,7 +259,7 @@ public static class WorldNodeModelTrees
         special.Add("m_String", new KVObject("ModelDoc Compiler Version"));
         special.Add("m_CompilerIdentifier", new KVObject("CompileModel"));
         special.Add("m_nFingerprint", U32(3));
-        special.Add("m_nUserData", I32(0));
+        special.Add("m_nUserData", U32(0));
         var specials = KVObject.Array();
         specials.Add(special);
         root.Add("m_SpecialDependencies", specials);
@@ -362,7 +363,7 @@ public static class WorldNodeModelTrees
 
     private static KVObject I32(long v) => v is 0 or 1 ? new KVObject(v) : new KVObject((int)v);
 
-    private static KVObject U32(long v) => v is 0 or 1 ? new KVObject(v) : new KVObject((uint)v);
+    private static KVObject U32(long v) => new((uint)v);
 
     private static KVObject Floats(Vector3 v) => Floats(v.X, v.Y, v.Z);
 

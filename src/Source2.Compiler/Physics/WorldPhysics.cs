@@ -205,8 +205,9 @@ public sealed class WorldPhysics
 
 /// <summary>
 /// The trees of a map's world_physics.vmdl_c (<see cref="WorldPhysicsAuthor"/>),
-/// typed as Valve's decode back: an unsigned field whose value is 0 or 1 comes
-/// back Int64 (KV3's zero and one encodings), floats are doubles.
+/// typed as Valve's decode back: unsigned fields UInt32 (0 and 1 included,
+/// since the 20261015 tier0 writes them UINT32_ZERO / UINT32_ONE), floats are
+/// doubles.
 /// </summary>
 public static class WorldPhysicsTrees
 {
@@ -250,12 +251,12 @@ public static class WorldPhysicsTrees
     {
         KVObject Argument(string name, string type, uint fingerprint = 0) => Collection(
             ("m_ParameterName", new KVObject(name)), ("m_ParameterType", new KVObject(type)),
-            ("m_nFingerprint", fingerprint == 0 ? new KVObject(0L) : new KVObject(fingerprint)), ("m_nFingerprintDefault", new KVObject(0L)));
+            ("m_nFingerprint", new KVObject(fingerprint)), ("m_nFingerprintDefault", new KVObject(0u)));
         var arguments = Array(Argument("___OverrideInputData___", "BinaryBlobArg"),
             Argument("keep_vertices", entityClass == null ? "FloatArg" : "IntArg"),
             Argument("mapbuilder_entity_classname", "StringArg", entityClass == null ? 0 : Maps.SettleWorld.NameHash(entityClass)));
         var special = Array(Collection(("m_String", new KVObject("ModelDoc Compiler Version")), ("m_CompilerIdentifier", new KVObject("CompileModel")),
-            ("m_nFingerprint", U(3)), ("m_nUserData", new KVObject(0L))));
+            ("m_nFingerprint", U(3)), ("m_nUserData", new KVObject(0u))));
         var shapes = model.Spheres.Count + model.Capsules.Count + model.Hulls.Count + model.MeshPieces;
         var user = Collection(("compile_warnings", new KVObject(0L)));
         // Only when a listed entry is "default" (atixref, c2m2's prefab; ze_hold_em_p has none, and no key).
@@ -321,12 +322,12 @@ public static class WorldPhysicsTrees
                 : Array([.. model.AllShapes.Select(s => new KVObject((uint)s.Attribute))])));
         var part = Collection(
             ("m_nFlags", U(partFlags)), ("m_flMass", new KVObject(0.0)), ("m_rnShape", shape),
-            ("m_nCollisionAttributeIndex", new KVObject(0L)), ("m_nReserved", new KVObject(0L)),
+            ("m_nCollisionAttributeIndex", new KVObject(0u)), ("m_nReserved", new KVObject(0u)),
             ("m_flInertiaScale", new KVObject(1.0)), ("m_flLinearDamping", new KVObject(0.0)), ("m_flAngularDamping", new KVObject(0.0)),
             ("m_flLinearDrag", new KVObject(1.0)), ("m_flAngularDrag", new KVObject(1.0)),
             ("m_bOverrideMassCenter", new KVObject(false)), ("m_vMassCenterOverride", Vec(Vector3.Zero)));
         return Collection(
-            ("m_nFlags", new KVObject(0L)), ("m_nRefCounter", new KVObject(0L)), ("m_bCompoundsPacked", new KVObject(false)),
+            ("m_nFlags", new KVObject(0u)), ("m_nRefCounter", new KVObject(0u)), ("m_bCompoundsPacked", new KVObject(false)),
             ("m_bonesHash", Empty()), ("m_boneNames", Empty()), ("m_indexNames", Empty()), ("m_indexHash", Empty()), ("m_bindPose", Empty()),
             ("m_parts", Array(part)),
             ("m_shapeMarkups", Empty()), ("m_constraints2", Empty()), ("m_joints", Empty()), ("m_pFeModel", KVObject.Null()),
@@ -407,7 +408,7 @@ public static class WorldPhysicsTrees
     }
 
     // An unsigned field as it decodes: 0 and 1 go through KV3's Int64 zero and one.
-    private static KVObject U(uint v) => v <= 1 ? new KVObject((long)v) : new KVObject(v);
+    private static KVObject U(uint v) => new(v);
 
     // A signed count as RED2 carries it.
     private static KVObject I(int v) => v <= 1 ? new KVObject((long)v) : new KVObject(v);

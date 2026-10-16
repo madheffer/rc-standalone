@@ -806,7 +806,7 @@ public static partial class EntityLumpAuthor
             _ => new KVObject(text),
         };
 
-    private static KVObject Unsigned(uint value) => value is 0 or 1 ? Integer(value) : new KVObject(value);
+    private static KVObject Unsigned(uint value) => new(value);
 
     private static KVObject Floats(float[] values)
         => Array(values.Select(f => new KVObject((double)f)));

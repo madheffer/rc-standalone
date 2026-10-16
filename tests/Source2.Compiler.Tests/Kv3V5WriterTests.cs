@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using ValveKeyValue;
 using ValvePak;
 using ValveResourceFormat;
 using ValveResourceFormat.ResourceTypes;
@@ -22,6 +23,36 @@ public class Kv3V5WriterTests(ITestOutputHelper output)
         "sizeU", "sizeC", "blobs", "blobBytes", "bytes2", "blockSizes", "u1", "c1", "u2", "c2", "m1", "m2", "m4", "m8",
         "nodes", "objects2", "arraysMain", "elementsMain",
     ];
+
+    /// <summary>
+    /// The 20261015 tier0's rule (ledger 61): an unsigned 0 or 1 goes out as
+    /// UINT32_ZERO / UINT32_ONE and reads back unsigned; a signed one keeps
+    /// INT64_ZERO / INT64_ONE, and other uints stay UINT32.
+    /// </summary>
+    [Fact]
+    public void UnsignedZeroAndOneKeepTheirSign()
+    {
+        var root = KVObject.Collection();
+        root.Add("u0", new KVObject(0u));
+        root.Add("u1", new KVObject(1u));
+        root.Add("u5", new KVObject(5u));
+        root.Add("i0", new KVObject(0L));
+        root.Add("i1", new KVObject(1));
+        var bytes = Kv3V5Writer.Write(root, Guid.Parse("1b860500-f7d8-40c1-ad82-75a48267e714"), KV3BinaryCompressionMethod.Uncompressed);
+        // The members' type bytes, uncompressed: 26, 27, UINT32, INT64_ZERO, INT64_ONE.
+        Assert.True(bytes.AsSpan().IndexOf((ReadOnlySpan<byte>)[26, 27, 12, 15, 16]) >= 0);
+        using var holder = new Resource();
+        var kv3 = new BinaryKV3 { Resource = holder, Offset = 0, Size = (uint)bytes.Length };
+        using (var reader = new BinaryReader(new MemoryStream(bytes)))
+            kv3.Read(reader);
+        var back = kv3.Data.Root;
+        Assert.Equal(KVValueType.UInt32, back["u0"]!.ValueType);
+        Assert.Equal(KVValueType.UInt32, back["u1"]!.ValueType);
+        Assert.Equal(KVValueType.UInt32, back["u5"]!.ValueType);
+        Assert.Equal(KVValueType.Int64, back["i0"]!.ValueType);
+        Assert.Equal(KVValueType.Int64, back["i1"]!.ValueType);
+        Assert.Equal([0u, 1u, 5u], new[] { "u0", "u1", "u5" }.Select(k => (uint)back[k]!));
+    }
 
     [Fact]
     public void RoundTrip()

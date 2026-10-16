@@ -110,16 +110,19 @@ public class NodeFindProbe(ITestOutputHelper output)
             output.WriteLine($"{Path.GetFileName(file)}: {b.Count} entries, {differ.Count} differ, {added.Count} new, {removed.Count} gone");
             foreach (var k in differ.Concat(added.Select(x => "+" + x)).Concat(removed.Select(x => "-" + x)).Take(25))
                 output.WriteLine($"  {k}");
-            // VPKDIFF_TREES=1: each differing entry's blocks decoded and diffed.
+            // VPKDIFF_TREES=1: each differing entry's blocks decoded and diffed
+            // (VPKDIFF_FILES / VPKDIFF_LINES: how many entries, lines per block; 6 and 8).
+            var (files, lines) = (int.TryParse(Environment.GetEnvironmentVariable("VPKDIFF_FILES"), out var f) ? f : 6,
+                                  int.TryParse(Environment.GetEnvironmentVariable("VPKDIFF_LINES"), out var l) ? l : 8);
             if (Environment.GetEnvironmentVariable("VPKDIFF_TREES") == "1")
-                foreach (var k in differ.Take(6))
+                foreach (var k in differ.Take(files))
                 {
                     try
                     {
                         var (ta, tb) = (WorldPhysicsAuthorTests.Trees(a[k]), WorldPhysicsAuthorTests.Trees(b[k]));
                         foreach (var block in tb.Keys.Union(ta.Keys))
                             if (ta.TryGetValue(block, out var x) && tb.TryGetValue(block, out var y))
-                                foreach (var line in KvTreeDiff.Diff(x, y, 8))
+                                foreach (var line in KvTreeDiff.Diff(x, y, lines))
                                     output.WriteLine($"    {k} {block}{line}");
                             else
                                 output.WriteLine($"    {k} {block}: only on one side");
@@ -147,12 +150,24 @@ public class NodeFindProbe(ITestOutputHelper output)
             foreach (var e in entries.Where(e => e.GetFullPath().Contains(part, StringComparison.OrdinalIgnoreCase)))
                 foreach (var (block, tree) in WorldPhysicsAuthorTests.Trees(Io.VpkEntries.Read(pkg, e)))
                 {
-                    var text = ValveResourceFormat.Serialization.KeyValues.KVDocumentExtensions.ToKV3String(tree);
+                    // DUMPRES_TYPES=1: every leaf as "path type value" (KV3 text loses int against uint).
+                    var text = Environment.GetEnvironmentVariable("DUMPRES_TYPES") == "1"
+                        ? string.Join('\n', Leaves("", tree))
+                        : ValveResourceFormat.Serialization.KeyValues.KVDocumentExtensions.ToKV3String(tree);
                     if (rest is [var dir])
                         File.WriteAllText(Path.Combine(dir, $"{Path.GetFileName(e.GetFullPath())}.{block}.kv3"), text);
                     else
                         output.WriteLine($"=== {e.GetFullPath()} {block}\n{text}");
                 }
+    }
+
+    private static IEnumerable<string> Leaves(string path, ValveKeyValue.KVObject node)
+    {
+        if (node.IsCollection)
+            return node.Children.SelectMany(c => Leaves($"{path}.{c.Key}", c.Value));
+        if (node.IsArray)
+            return node.Values.SelectMany((v, i) => Leaves($"{path}[{i}]", v));
+        return [$"{path} {node.ValueType} {(node.ValueType is ValveKeyValue.KVValueType.BinaryBlob ? "<blob>" : Convert.ToString(node, System.Globalization.CultureInfo.InvariantCulture))}"];
     }
 
     /// <summary><c>KEYFIND=&lt;addon&gt;|&lt;map&gt;|&lt;key&gt;</c>: the nodes whose entity properties hold the key, with its value and place among their keys.</summary>

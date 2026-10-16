@@ -96,6 +96,22 @@
       "find": "vrf-kv3-v5-saturate-counts-trailer.find.txt",
       "replace": "vrf-kv3-v5-saturate-counts-trailer.replace.txt",
       "description": "KV3 v5 writer: the header's 16-bit object and array counts saturate at 65535 and the full counts are written as ints in the v5 trailer, as Valve's files do; the checked ushort casts threw on blocks past 65,535 objects (dkr_onelevel's world_physics, 132,490)."
+    },
+    {
+      "id": "vrf-kv3-uint32-zero-one-enum",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.NodeType.cs",
+      "find": "vrf-kv3-uint32-zero-one-enum.find.txt",
+      "replace": "vrf-kv3-uint32-zero-one-enum.replace.txt",
+      "description": "KV3 binary node types 26 and 27, UINT32_ZERO and UINT32_ONE (no payload, format 5 on): tier0's reader 1800c4120 (20261015 build) makes an unsigned 0 or 1 of them, and its writer chooses them for every unsigned 0 and 1 (1800c5f60), where earlier builds wrote INT64_ZERO and INT64_ONE. Without them every resource Valve compiles from 2026-10-15 on fails to read."
+    },
+    {
+      "id": "vrf-kv3-uint32-zero-one-read",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-uint32-zero-one-read.find.txt",
+      "replace": "vrf-kv3-uint32-zero-one-read.replace.txt",
+      "description": "KV3 binary node types 26 and 27, UINT32_ZERO and UINT32_ONE (no payload, format 5 on): tier0's reader 1800c4120 (20261015 build) makes an unsigned 0 or 1 of them, and its writer chooses them for every unsigned 0 and 1 (1800c5f60), where earlier builds wrote INT64_ZERO and INT64_ONE. Without them every resource Valve compiles from 2026-10-15 on fails to read."
     }
   ]
 }

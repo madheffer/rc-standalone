@@ -9,11 +9,15 @@ namespace Source2.Compiler;
 
 /// <summary>
 /// Binary KV3 version 5 as tier0's SaveKV3 writes it (tier0 1800c7220 and the
-/// node writers 1800c6c20 / 1800c64b0 / 1800c6070 / 1800c5ea0), so a block
+/// node writers 1800c6c20 / 1800c64b0 / 1800c6070 / 1800c5ea0 of the 20260923
+/// build; the node type chooser is 1800c5f60 in the 20261015 one), so a block
 /// comes out byte for byte as resourcecompiler's:
 /// <list type="bullet">
 /// <item>ints that fit 32 bits are INT32 / UINT32, 0 and 1 the zero and one
-/// types (an unsigned 0 or 1 too), doubles 0 and 1 likewise;</item>
+/// types, doubles 0 and 1 likewise. An unsigned 0 or 1 is UINT32_ZERO /
+/// UINT32_ONE (26, 27) since the 20261015 tier0; earlier builds wrote it as
+/// INT64_ZERO / INT64_ONE, so a tree read from an older file holds those
+/// values as ints and keeps its bytes;</item>
 /// <item>a non-empty array whose elements share one kind is typed: under 256
 /// elements a byte length, ints, uints and doubles in the auxiliary buffer
 /// (25), others in the main one (24); from 256 on ARRAY_TYPED (10). The
@@ -121,7 +125,7 @@ public static class Kv3V5Writer
         return kind is KInt or KUInt or KDouble ? 0x19 : 0x18;
     }
 
-    // 1800c6c20's choice for a node written with its own type byte.
+    // 1800c5f60's choice (20261015) for a node written with its own type byte.
     private static int NodeType(KVObject v)
     {
         switch (Kind(v))
@@ -136,7 +140,7 @@ public static class Kv3V5Writer
             case KUInt:
             {
                 var x = UInt(v);
-                return x == 0 ? 15 : x == 1 ? 16 : x == (uint)x ? 12 : 4;
+                return x == 0 ? 26 : x == 1 ? 27 : x == (uint)x ? 12 : 4;
             }
             case KDouble:
             {
@@ -192,7 +196,7 @@ public static class Kv3V5Writer
     {
         switch (type)
         {
-            case 1 or 13 or 14 or 15 or 16 or 17 or 18:
+            case 1 or 13 or 14 or 15 or 16 or 17 or 18 or 26 or 27:
                 return;
             case 2:
                 lanes.W1.Write((byte)((bool)v ? 1 : 0));

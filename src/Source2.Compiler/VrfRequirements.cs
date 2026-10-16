@@ -49,6 +49,9 @@ public static class VrfRequirements
         // trailing padding after a texture's last mip.
         "vrf-kv3-integer-array-unchecked-uint64",
         "vrf-resource-texture-trailing-padding",
+        // Reading what the current tier0 writes: an unsigned 0 or 1 as KV3 types 26 / 27.
+        "vrf-kv3-uint32-zero-one-enum",
+        "vrf-kv3-uint32-zero-one-read",
         // CS2's CTRL-block models ship empty LoD masks.
         "vrf-model-lod-mask-fallback-lod",
         // Guards, because this compiler is driven by files strangers upload.

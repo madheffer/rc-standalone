@@ -1,0 +1,28 @@
+{
+ "functions": [
+  {
+   "addr": "1800c4120",
+   "name": "KV3Binary_ReadValue",
+   "module": "s2c:io",
+   "note": "switch on type - 1 up to 0x1a: 26 and 27 need format >= 5 and build an unsigned 0 / 1 (1800be890: basic type 4, subtype 0x17, as UINT32 = 12 does); 15 / 16 stay signed (1800be850, type 3, subtype 0x16)"
+  },
+  {
+   "addr": "1800be850",
+   "name": "KV3_SetInt64Subtyped",
+   "module": "s2c:io",
+   "note": "basic type 3, the value in +8"
+  },
+  {
+   "addr": "1800be890",
+   "name": "KV3_SetUInt64Subtyped",
+   "module": "s2c:io",
+   "note": "basic type 4, the value in +8"
+  },
+  {
+   "addr": "1800c5f60",
+   "name": "KV3Binary_ChooseNodeType",
+   "module": "s2c:io",
+   "note": "bool 13/14; int 11 when it fits 32 bits else 3, uint 12 else 4, double 5; with the compact flag (r8b; its one caller 1800c6ef3 passes 1) int 0/1 -> 15/16, uint 0/1 -> 26/27, double 0/1 -> 17/18; arrays 8, 0x18/0x19 under 0x100 elements, else 0x0a. The 20261006 build (inlined at 1800c6cb3) wrote a uint 0/1 as 15/16"
+  }
+ ]
+}

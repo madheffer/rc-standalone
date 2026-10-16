@@ -737,6 +737,27 @@ game can answer is raised with the user first, and runs with -insecure.
       CRC32, FNV-1a by bucket) of the class name. The entity walker is
       180f25de0 (vf 8 "entity", vf 0x20 "soundevent").
     - Prop aggregate draw order (atixref, 1.75 MB): ledger 43.
+61. **KV3 unsigned zero and one** (settled 2026-10-16 by decompile and
+    Valve's own output; tier0 20261015, CS2 1.41.9.1). The binary reader
+    1800c4120 now takes types up to 27: 26 and 27 need format 5 or later and
+    make an unsigned 0 and 1 (1800be890, basic type 4 with subtype 0x17, as
+    UINT32 = 12 does); 15 and 16 stay signed. The writer's node type chooser
+    1800c5f60 gives a uint 12 when it fits 32 bits, else 4, and with its
+    compact flag (its one caller, 1800c6ef3, passes 1) a uint 0 or 1 is 26 or
+    27; the 20261006 build wrote it as 15 or 16. Packages keep their sizes
+    and differ by a few type bytes in every file. Kv3V5Writer with the rule
+    re-encodes all 348 v5 blocks of Valve's 10-15 probe01, cardtest and
+    ze_hold_em_p compiles (103 with the old one); a tree read from an older
+    file holds those zeros as Int64 and keeps its bytes. Our authors had
+    written unsigned 0 and 1 as Int64 to get the old bytes; they now author
+    every unsigned field as UInt32 (RED2 fingerprints and user data at any
+    value, physics flags and indices, draw call buffers, meshlets, aggregate
+    offsets, node and world lighting info, entity spawnflags), which is what
+    every one of Valve's 10-15 trees decodes them as. Against the 10-15
+    references (%TEMP%/nolight_1016, no lighting): probe01 and cardtest exact
+    in every file we write, ze_hold_em_p 86.8% (ledger 60's texcoords).
+    Not seen: a typed array of unsigned zeros, whose element type could
+    follow the new rule (none of the 348 blocks needed it to differ).
 
 ## Resolved
 

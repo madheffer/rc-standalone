@@ -62,7 +62,7 @@ public static class WorldNodeSceneTrees
         foreach (var o in objects)
         {
             var so = KVObject.Collection();
-            so.Add("m_nObjectID", Int(0));
+            so.Add("m_nObjectID", new KVObject(0u));
             so.Add("m_vTransform", o.Transform is { } t ? Matrix(t) : Identity());
             so.Add("m_flFadeStartDistance", new KVObject((double)o.FadeStart));
             so.Add("m_flFadeEndDistance", new KVObject((double)o.FadeEnd));
@@ -96,11 +96,10 @@ public static class WorldNodeSceneTrees
             foreach (var m in a.Meshes)
             {
                 var mo = KVObject.Collection();
-                mo.Add("m_nVisClusterMemberOffset", Int(0));
-                mo.Add("m_nVisClusterMemberCount", Int(0));
+                mo.Add("m_nVisClusterMemberOffset", new KVObject(0u));
+                mo.Add("m_nVisClusterMemberCount", new KVObject(0u));
                 mo.Add("m_bHasTransform", new KVObject(m.Transform != null));
-                // Written Int32 when set (atixref's power_outlet_campground: 1).
-                mo.Add("m_nLODGroupMask", m.LodMask == 0 ? Int(0) : new KVObject(m.LodMask));
+                mo.Add("m_nLODGroupMask", new KVObject((uint)m.LodMask));
                 mo.Add("m_nDrawCallIndex", Int(m.DrawCall));
                 mo.Add("m_nLODSetupIndex", Int(m.LodSetup));
                 var tint = KVObject.Array();
@@ -110,9 +109,9 @@ public static class WorldNodeSceneTrees
                 mo.Add("m_vTintColor", tint);
                 mo.Add("m_objectFlags", Flags(m.ObjectFlags));
                 mo.Add("m_nLightProbeVolumePrecomputedHandshake", m.LightProbe == 0 ? Int(0) : new KVObject(m.LightProbe));
-                mo.Add("m_nInstanceStreamOffset", Int(0));
-                mo.Add("m_nVertexAlbedoStreamOffset", Int(0));
-                mo.Add("m_nVertexEmissiveStreamOffset", Int(0));
+                mo.Add("m_nInstanceStreamOffset", new KVObject(0u));
+                mo.Add("m_nVertexAlbedoStreamOffset", new KVObject(0u));
+                mo.Add("m_nVertexEmissiveStreamOffset", new KVObject(0u));
                 mo.Add("m_instanceStreams", new KVObject("AGGREGATE_INSTANCE_STREAM_NONE"));
                 mo.Add("m_fEmissiveFactor", new KVObject(0.0));
                 meshes.Add(mo);
@@ -149,16 +148,16 @@ public static class WorldNodeSceneTrees
         root.Add("m_sceneObjectLayerIndices", indices);
         root.Add("m_grassFileName", new KVObject(""));
         var lighting = KVObject.Collection();
-        lighting.Add("m_nLightmapVersionNumber", Int(0));
-        lighting.Add("m_nLightmapGameVersionNumber", Int(0));
+        lighting.Add("m_nLightmapVersionNumber", new KVObject(0u));
+        lighting.Add("m_nLightmapGameVersionNumber", new KVObject(0u));
         lighting.Add("m_vLightmapUvScale", Doubles(1, 1));
         lighting.Add("m_bHasLightmaps", new KVObject(false));
         lighting.Add("m_bBakedShadowsGamma20", new KVObject(false));
         lighting.Add("m_bCompressionEnabled", new KVObject(false));
         lighting.Add("m_nLPVEncoding", Int(-1));
         lighting.Add("m_nLightmapEncoding", Int(-1));
-        lighting.Add("m_nChartPackIterations", Int(0));
-        lighting.Add("m_nVradQuality", Int(0));
+        lighting.Add("m_nChartPackIterations", new KVObject(0u));
+        lighting.Add("m_nVradQuality", new KVObject(0u));
         lighting.Add("m_lightMaps", KVObject.Array());
         lighting.Add("m_bakedShadows", KVObject.Array());
         root.Add("m_nodeLightingInfo", lighting);

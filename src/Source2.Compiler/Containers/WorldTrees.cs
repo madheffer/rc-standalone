@@ -48,8 +48,8 @@ public static class WorldTrees
     private static KVObject LightingInfo()
     {
         var o = KVObject.Collection();
-        o.Add("m_nLightmapVersionNumber", new KVObject(0L));
-        o.Add("m_nLightmapGameVersionNumber", new KVObject(0L));
+        o.Add("m_nLightmapVersionNumber", new KVObject(0u));
+        o.Add("m_nLightmapGameVersionNumber", new KVObject(0u));
         var scale = KVObject.Array();
         scale.Add(new KVObject(1.0));
         scale.Add(new KVObject(1.0));
@@ -59,8 +59,8 @@ public static class WorldTrees
         o.Add("m_bCompressionEnabled", new KVObject(false));
         o.Add("m_nLPVEncoding", new KVObject(-1));
         o.Add("m_nLightmapEncoding", new KVObject(-1));
-        o.Add("m_nChartPackIterations", new KVObject(0L));
-        o.Add("m_nVradQuality", new KVObject(0L));
+        o.Add("m_nChartPackIterations", new KVObject(0u));
+        o.Add("m_nVradQuality", new KVObject(0u));
         o.Add("m_lightMaps", KVObject.Array());
         o.Add("m_bakedShadows", KVObject.Array());
         return o;

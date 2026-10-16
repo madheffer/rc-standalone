@@ -255,10 +255,12 @@ public sealed class EntityLumpRulesTests : IDisposable
     }
 
     [Fact]
-    public void Entity_WritesZeroAndOneFlagsAsTheKv3Singletons()
+    public void Entity_WritesFlagsUnsignedAtZeroAndOneToo()
     {
-        Assert.Equal(KVValueType.Int64, ValuesOf(Build(Entity("thing", 7, ("flags", "1"))))["flags"].ValueType);
-        Assert.Equal(KVValueType.Int64, ValuesOf(Build(Entity("thing", 7, ("flags", "0"))))["flags"].ValueType);
+        // The 20261015 tier0 writes an unsigned 0 or 1 as UINT32_ZERO / UINT32_ONE
+        // (ledger 61), so a flags key stays UInt32 where it was Int64 before.
+        Assert.Equal(KVValueType.UInt32, ValuesOf(Build(Entity("thing", 7, ("flags", "1"))))["flags"].ValueType);
+        Assert.Equal(KVValueType.UInt32, ValuesOf(Build(Entity("thing", 7, ("flags", "0"))))["flags"].ValueType);
     }
 
     [Fact]

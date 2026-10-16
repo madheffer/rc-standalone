@@ -2,7 +2,7 @@
 
 `third_party/ValveResourceFormat/` is not committed. `dotnet run tools/vendor.cs`
 fetches the exact upstream commit pinned in [`VENDORED.json`](VENDORED.json) and
-then applies the ten patches in [`patches/`](patches/) to it.
+then applies the fourteen patches in [`patches/`](patches/) to it.
 
 Each patch is a literal find-and-replace against one file. The `find` snippet
 must occur **exactly once** in the pristine upstream file; zero matches or more
@@ -49,6 +49,20 @@ an all-bits `UInt64` throws `OverflowException`. Community models store
 `m_refMeshGroupMasks` exactly that way, which cost 32 models their mesh-group
 reads. The unchecked conversion (`0xFFFFFFFFFFFFFFFF` becomes `-1L`) mirrors how
 upstream's own `GetUnsignedIntegerArray` already handles it.
+
+### Reading what the current tier0 writes
+
+| id | file |
+|---|---|
+| `vrf-kv3-uint32-zero-one-enum` | `ResourceTypes/BinaryKV3.NodeType.cs` |
+| `vrf-kv3-uint32-zero-one-read` | `ResourceTypes/BinaryKV3.cs` |
+
+CS2 1.41.9.1's tier0 (build 20261015) writes an unsigned 0 or 1 as two new
+binary KV3 node types, 26 and 27, which carry no payload and need format 5
+(its reader, 1800c4120, makes an unsigned 0 and 1 of them). Earlier builds
+wrote INT64_ZERO and INT64_ONE there. Upstream throws on type 26, so without
+these every resource Valve compiles from that build on fails to read. Ledger
+61 in docs/GROUND_TRUTH.md has the rule.
 
 ### Writing other block types
 

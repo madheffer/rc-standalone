@@ -97,8 +97,8 @@ public static class VisibilityAuthor
             var a = KVObject.Collection();
             a.Add("m_ParameterName", new KVObject(name));
             a.Add("m_ParameterType", new KVObject(type));
-            a.Add("m_nFingerprint", fingerprint is 0 or 1 ? new KVObject(fingerprint) : new KVObject((uint)fingerprint));
-            a.Add("m_nFingerprintDefault", new KVObject(0L));
+            a.Add("m_nFingerprint", new KVObject((uint)fingerprint));
+            a.Add("m_nFingerprintDefault", new KVObject(0u));
             return a;
         }
         var args = KVObject.Array();
@@ -131,8 +131,7 @@ public static class VisibilityAuthor
         return ValveLayout.Serialize(resource);
     }
 
-    // 0 and 1 take KV3's no-payload codes, the rest UInt32.
-    private static KVObject U32(uint v) => v is 0 or 1 ? new KVObject((long)v) : new KVObject(v);
+    private static KVObject U32(uint v) => new(v);
 
     private static KVObject Floats(System.Numerics.Vector3 v)
     {

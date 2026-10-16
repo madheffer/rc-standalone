@@ -305,12 +305,12 @@ public static partial class Source2ContainerAuthor
         var arg = KVObject.Collection();
         arg.Add("m_ParameterName", new KVObject("___OverrideInputData___"));
         arg.Add("m_ParameterType", new KVObject("BinaryBlobArg"));
-        // A child resource's RED2 is RC's struct written out, so its fields keep
-        // their widths: 64-bit fingerprints and user data, a 32-bit unsigned
-        // compiler fingerprint (world_physics.vrman_c, decoded).
+        // RED2's fingerprints and user data are unsigned 32-bit fields, child
+        // resource or not (every one of Valve's 10-15 map files decodes them
+        // UInt32, 0 and 1 included).
         var child = spec.ChildResource;
-        arg.Add("m_nFingerprint", child ? (overrideFingerprint == 0 ? new KVObject(0L) : new KVObject(overrideFingerprint)) : new KVObject(0));
-        arg.Add("m_nFingerprintDefault", child ? new KVObject(0L) : new KVObject(0));
+        arg.Add("m_nFingerprint", new KVObject(child ? overrideFingerprint : 0u));
+        arg.Add("m_nFingerprintDefault", new KVObject(0u));
         argDeps.Add(arg);
         root.Add("m_ArgumentDependencies", argDeps);
 
@@ -320,9 +320,8 @@ public static partial class Source2ContainerAuthor
             var d = KVObject.Collection();
             d.Add("m_String", new KVObject(dep.Name));
             d.Add("m_CompilerIdentifier", new KVObject(dep.CompilerIdentifier));
-            // 0 and 1 take the no-payload codes (world.vwrld_c, n0.vwnod_c: 1), the rest UInt32.
-            d.Add("m_nFingerprint", child ? (dep.Fingerprint is 0 or 1 ? new KVObject((long)dep.Fingerprint) : new KVObject((uint)dep.Fingerprint)) : new KVObject(dep.Fingerprint));
-            d.Add("m_nUserData", child ? new KVObject((long)dep.UserData) : new KVObject(dep.UserData));
+            d.Add("m_nFingerprint", new KVObject((uint)dep.Fingerprint));
+            d.Add("m_nUserData", new KVObject((uint)dep.UserData));
             specialDeps.Add(d);
         }
         root.Add("m_SpecialDependencies", specialDeps);
@@ -409,8 +408,8 @@ public static partial class Source2ContainerAuthor
         var arg = KVObject.Collection();
         arg.Add("m_ParameterName", new KVObject("___OverrideInputData___"));
         arg.Add("m_ParameterType", new KVObject("BinaryBlobArg"));
-        arg.Add("m_nFingerprint", new KVObject(0));
-        arg.Add("m_nFingerprintDefault", new KVObject(0));
+        arg.Add("m_nFingerprint", new KVObject(0u));
+        arg.Add("m_nFingerprintDefault", new KVObject(0u));
         argDeps.Add(arg);
         root.Add("m_ArgumentDependencies", argDeps);
 
@@ -420,8 +419,8 @@ public static partial class Source2ContainerAuthor
             var d = KVObject.Collection();
             d.Add("m_String", new KVObject(dep.Name));
             d.Add("m_CompilerIdentifier", new KVObject(dep.CompilerIdentifier));
-            d.Add("m_nFingerprint", new KVObject(dep.Fingerprint));
-            d.Add("m_nUserData", new KVObject(dep.UserData));
+            d.Add("m_nFingerprint", new KVObject((uint)dep.Fingerprint));
+            d.Add("m_nUserData", new KVObject((uint)dep.UserData));
             specialDeps.Add(d);
         }
         root.Add("m_SpecialDependencies", specialDeps);

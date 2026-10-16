@@ -2144,6 +2144,16 @@ RESOURCECOMPILER_1006 = [
 ]
 
 
+# tier0 20261015 (CS2 1.41.9.1): the KV3 binary reader and writer gained
+# UINT32_ZERO (26) and UINT32_ONE (27).
+TIER0_1015 = [
+    ("1800c4120", "KV3Binary_ReadValue", IO, "switch on type - 1 up to 0x1a: 26 and 27 need format >= 5 and build an unsigned 0 / 1 (1800be890: basic type 4, subtype 0x17, as UINT32 = 12 does); 15 / 16 stay signed (1800be850, type 3, subtype 0x16)"),
+    ("1800be850", "KV3_SetInt64Subtyped", IO, "basic type 3, the value in +8"),
+    ("1800be890", "KV3_SetUInt64Subtyped", IO, "basic type 4, the value in +8"),
+    ("1800c5f60", "KV3Binary_ChooseNodeType", IO, "bool 13/14; int 11 when it fits 32 bits else 3, uint 12 else 4, double 5; with the compact flag (r8b; its one caller 1800c6ef3 passes 1) int 0/1 -> 15/16, uint 0/1 -> 26/27, double 0/1 -> 17/18; arrays 8, 0x18/0x19 under 0x100 elements, else 0x0a. The 20261006 build (inlined at 1800c6cb3) wrote a uint 0/1 as 15/16"),
+]
+
+
 def write(name, rows):
     with open(os.path.join(HERE, name), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"functions": [{"addr": a, "name": n, "module": m, "note": note} for a, n, m, note in rows]}, f, indent=1)
@@ -2161,4 +2171,5 @@ if __name__ == "__main__":
     write("materialsystem2_20261001.manual.json", MATERIALSYSTEM)
     write("vrad3_20261001.manual.json", VRAD3)
     write("resourcecompiler_20261006.manual.json", RESOURCECOMPILER_1006)
+    write("tier0_20261015.manual.json", TIER0_1015)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))
