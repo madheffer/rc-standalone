@@ -773,6 +773,26 @@ game can answer is raised with the user first, and runs with -insecure.
     chart meshes of probe01, cardtest and ze_hold_em_p (48,368 triangles,
     2,225 charts). Not ported: the box projection path (no mesh uvs), the
     aspect away from 1 (no specimen).
+63. **Lightmap atlas packing** (settled 2026-10-17 by decompile and
+    capture; 0923 NUVChartPacker::PackCharts 1802272d0, InitializeChartUVs
+    1802235d0, TryPack 180226370, the group order 180225020 with TinyBVH
+    181ed77b0 / 181ed64a0; tools/vis/capture_packer.py, LightmapPackerTests
+    with PACKCAP). Debug colours come from SFMT-19937 seeded 0x777f17e, its
+    state words read untempered, hue to sRGB through tier0's powf. Each
+    chart's rotation is the longest run of near collinear boundary edges
+    (dot >= 0.99) in CUtlHashtable slot order, then -theta or pi - theta.
+    The charts are rotated, scaled, padded to 4 and sorted (unflagged first,
+    big first, by luxels, then index); TryPack rasterises each into
+    per-offset 8x8 block masks, dilates by the gutter and places first fit,
+    single luxel charts and lines last. A group of more than 16 single luxel
+    or 4 line charts takes the primitive order of a TinyBVH built over the
+    charts' 3D bounds: binned SAH with 16 bins, c_trav the group limit,
+    c_int 1, in-place partition. Lighting/LightmapPacker.cs and
+    Lighting/TinyBvh.cs give Valve's setup, every uv pass, every attempt's
+    placements, the chart records and the atlas uvs bit for bit on probe01
+    (71 charts) and ze_hold_em_p (2,083 charts, attempts 1 0 1 0).
+    Not seen: TinyBVH's threaded build (50,000 primitives and up), its
+    256-entry stack overflowing.
 
 ## Resolved
 

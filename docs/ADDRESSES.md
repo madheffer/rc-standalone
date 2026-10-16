@@ -169,7 +169,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 898 addresses
+- 914 addresses
 
 ### s2c:baked/light-keys
 
@@ -342,19 +342,35 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802163b0` | `StaticLighting_WriteLightmapQueryData` | lightmap_query_data.kv3 (simplified LightmapUV geometry) |  |
 | `180217740` | `CStaticLightingProcessor::BakeLighting` |  |  |
 | `1802191e0` | `StaticLighting_ChartSharedMeshes` | Prepare; LightmapUV |  |
-| `1802235d0` | `NUVChartPacker::InitializeChartUVs` | gameinfo LightmapGutterSize (1); a thread pool job per chart (180223970), then a parallel sort of the 0x70 chart records (180228480) |  |
-| `180223970` | `NUVChartPacker_InitializeChartJob` | per chart: rotates its uvs by the candidate angles (cos/sin of +0x64), scaled, and keeps the bounds |  |
-| `180226370` | `NUVChartPacker::TryPack` | lambda_3; gameinfo DeterministicBuild; logs the share of positions that needed a full test |  |
-| `1802272d0` | `NUVChartPacker::PackCharts` | FindBestRotation; 'Too many charts for the lightmap' |  |
+| `180222600` | `NUVChartPacker_BoundaryEdges` | each triangle's edges counted under their sorted vertex pair in a CUtlHashtable; boundary edges read in slot order | `src/Source2.Compiler/Lighting/LightmapPacker.cs:825` |
+| `180223460` | `NUVChartPacker::FindBestRotation` | with 180222aa0: the longest run of near collinear boundary edges (dot >= 0.99) picks -theta or pi - theta | `src/Source2.Compiler/Lighting/LightmapPacker.cs:11`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:718` |
+| `1802235d0` | `NUVChartPacker::InitializeChartUVs` | gameinfo LightmapGutterSize (1); a thread pool job per chart (180223970), then a parallel sort of the 0x70 chart records (180228480) | `src/Source2.Compiler/Lighting/LightmapPacker.cs:13`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:91` |
+| `180223970` | `NUVChartPacker_InitializeChartJob` | per chart: rotates its uvs by the candidate angles (cos/sin of +0x64), scaled, and keeps the bounds | `src/Source2.Compiler/Lighting/LightmapPacker.cs:91` |
+| `180224770` | `NUVChartPacker_DilateMasks` | each offset mask grown by the gutter | `src/Source2.Compiler/Lighting/LightmapPacker.cs:464` |
+| `180224a50` | `NUVChartPacker_PlaceLine` | a line chart into the first block column with room | `src/Source2.Compiler/Lighting/LightmapPacker.cs:601`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:619` |
+| `180225020` | `NUVChartPacker_GroupOrder` | a group over its limit is reordered by a TinyBVH over the charts' 3D bounds (callback 180225320, +0x28..+0x3c): c_trav = the limit, c_int = 1, the BVH's primIdx order | `src/Source2.Compiler/Lighting/LightmapPacker.cs:355`, `src/Source2.Compiler/Lighting/TinyBvh.cs:12` |
+| `180225350` | `NUVChartPacker_PlaceLines` | runs of one-luxel-high charts of one 4-aligned width; groups through 180225020 with limit 4; each line by 180224a50 | `src/Source2.Compiler/Lighting/LightmapPacker.cs:329`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:600` |
+| `180225a60` | `NUVChartPacker_PlaceChart` | first fit: row, then column, then offset mask | `src/Source2.Compiler/Lighting/LightmapPacker.cs:328`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:368`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:510` |
+| `180226100` | `NUVChartPacker_PlaceSingleLuxels` | single luxel charts from the bottom block row up; groups through 180225020 with limit 16 | `src/Source2.Compiler/Lighting/LightmapPacker.cs:328`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:551` |
+| `180226370` | `NUVChartPacker::TryPack` | lambda_3; gameinfo DeterministicBuild; logs the share of positions that needed a full test | `src/Source2.Compiler/Lighting/LightmapPacker.cs:13`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:325` |
+| `180226c30` | `NUVChartPacker_TryPackChart` | TryPack's per-chart step: rasterise (180228ea0), dilate by the gutter (180224770), place (180225a60, with a rectangle cache) | `src/Source2.Compiler/Lighting/LightmapPacker.cs:327`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:367` |
+| `1802272d0` | `NUVChartPacker::PackCharts` | FindBestRotation; 'Too many charts for the lightmap' | `src/Source2.Compiler/Lighting/LightmapPacker.cs:9`, `src/Source2.Compiler/Lighting/LightmapPacker.cs:252` |
 | `180228480` | `ParallelSort_Charts` | ParallelSort / ParallelInplaceMerge |  |
-| `18022c740` | `StaticLighting_ChartTriangle` | unit normal; chart uvs from the mesh (UnwrapUsingUvsFromMesh, default true), else a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400) |  |
-| `18022d920` | `StaticLighting_ChartMesh` | the charting core: a 200-byte record per triangle (18022c740), then grouping into charts |  |
+| `180228ea0` | `NUVChartPacker_RasterizeChart` | conservative triangle coverage into per-offset 8x8 block masks | `src/Source2.Compiler/Lighting/LightmapPacker.cs:405` |
+| `18022a700` | `NUVChartPacker_CompareCharts` | the packing order: unflagged charts first, big ones first, by luxels, then index | `src/Source2.Compiler/Lighting/LightmapPacker.cs:94` |
+| `18022abf0` | `CUtlHashtable_InsertEdge` | a new key takes its home slot; the entry there is bumped (18022a7f0); rehash 180228a30 walks the old slots last to first | `src/Source2.Compiler/Lighting/UtlHashtable.cs:5`, `src/Source2.Compiler/Lighting/UtlHashtable.cs:58` |
+| `18022c740` | `StaticLighting_ChartTriangle` | unit normal; chart uvs from the mesh (UnwrapUsingUvsFromMesh, default true), else a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400) | `src/Source2.Compiler/Lighting/LightmapCharts.cs:9`, `src/Source2.Compiler/Lighting/LightmapCharts.cs:103`, `src/Source2.Compiler/Lighting/LightmapCharts.cs:265` |
+| `18022d920` | `StaticLighting_ChartMesh` | the charting core: a 200-byte record per triangle (18022c740), then grouping into charts | `src/Source2.Compiler/Lighting/LightmapCharts.cs:9` |
 | `18023af80` | `Vrad3_Init` | VRAD3_PATH, Vrad3_Init_SearchPath |  |
 | `180248800` | `WRB_BakePrecomputedShadows` | direct_light_shadows |  |
 | `18025db60` | `CWorldRendererBuilderNode::BakeLightMaps` |  |  |
 | `180285eb0` | `WRB_BuildPathTraceSceneInfo` | lights, cameras, instances, mesh_file |  |
 | `180f4eae0` | `Hammer_LoadOptions` | Hammer's options table (BuildMapEnvMaps is a Hammer setting) |  |
 | `180fb0680` | `Hammer_LoadGameSettings` | gameinfo's Hammer section (BakeOnlyCubemaps among the map builder switches) |  |
+| `181c46e60` | `SFMT19937_Refill` | POS1 122, SL1 18, SR1 11, one-byte SL2/SR2 | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
+| `181c473c0` | `SFMT19937_Seed` | the packer's debug colours (seed 0x777f17e); state words read without tempering | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
+| `181ed64a0` | `tinybvh::BVH::Build` | binned SAH, 16 bins, axes past root extent * 1e-20, split if c_int / SA * (ANL + ANR) + c_trav < count * c_int, in-place partition, 256-entry task stack; threaded at 50000 primitives | `src/Source2.Compiler/Lighting/TinyBvh.cs:8` |
+| `181ed77b0` | `tinybvh::BVH::Build(customGetAABB, count)` | fragments and primIdx from the callback, the root bounds, then 181ed64a0 | `src/Source2.Compiler/Lighting/TinyBvh.cs:7` |
 
 ### s2c:baked/nav
 

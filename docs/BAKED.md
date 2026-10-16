@@ -111,12 +111,14 @@ in make_manual's BAKE list, ADDRESSES.md):
   round-trips byte for byte: stride 0x28 vertices with attribute offsets 0,
   0xc and 0x18; indices; a chart per triangle (-1 for none); 0x1c chart
   records whose flags take the mesh's bit 30 and its low 28 bits.
-- `NUVChartPacker` (uvchartpacker.cpp): `InitializeChartUVs` (gutter
-  `LightmapGutterSize`, 1) rotates each chart's uvs through candidate angles
-  and keeps the bounds, then sorts the charts in parallel; `PackCharts` seeds
-  an RNG (0x777f17e), runs `FindBestRotation` per chart and several passes of
-  `TryPack` (scored; `DeterministicBuild` in gameinfo), and writes x, y, w, h
-  into the chart records.
+- `NUVChartPacker` (uvchartpacker.cpp), ported in Lighting/LightmapPacker.cs
+  (ledger 63): `PackCharts` seeds SFMT-19937 (0x777f17e) for the debug
+  colours, runs `FindBestRotation` per chart, then for each scale pass
+  `InitializeChartUVs` (gutter `LightmapGutterSize`, 1: rotate, scale, pad
+  to 4, sort) and `TryPack` (block-mask raster, gutter dilation, first fit;
+  single luxel and line charts last, big groups of them in a TinyBVH's
+  order, Lighting/TinyBvh.cs), and writes x, y, w, h into the chart records
+  and the atlas uvs. Exact on probe01 and ze_hold_em_p.
 - `NLightBaker::RasterizeAndSetupTexels` / `SetupTexels` give each luxel its
   chart (lightmap_info.dat); `WriteLightmapEdgeSeamsForVrad3` writes
   lightmap_seams.dat; `WRB_BuildPathTraceSceneInfo` scene_info.kv3 and its

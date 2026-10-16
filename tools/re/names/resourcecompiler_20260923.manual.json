@@ -2317,6 +2317,102 @@
    "note": "ParallelSort / ParallelInplaceMerge"
   },
   {
+   "addr": "18022a700",
+   "name": "NUVChartPacker_CompareCharts",
+   "module": "s2c:baked/lighting",
+   "note": "the packing order: unflagged charts first, big ones first, by luxels, then index"
+  },
+  {
+   "addr": "180223460",
+   "name": "NUVChartPacker::FindBestRotation",
+   "module": "s2c:baked/lighting",
+   "note": "with 180222aa0: the longest run of near collinear boundary edges (dot >= 0.99) picks -theta or pi - theta"
+  },
+  {
+   "addr": "180222600",
+   "name": "NUVChartPacker_BoundaryEdges",
+   "module": "s2c:baked/lighting",
+   "note": "each triangle's edges counted under their sorted vertex pair in a CUtlHashtable; boundary edges read in slot order"
+  },
+  {
+   "addr": "18022abf0",
+   "name": "CUtlHashtable_InsertEdge",
+   "module": "s2c:baked/lighting",
+   "note": "a new key takes its home slot; the entry there is bumped (18022a7f0); rehash 180228a30 walks the old slots last to first"
+  },
+  {
+   "addr": "180226c30",
+   "name": "NUVChartPacker_TryPackChart",
+   "module": "s2c:baked/lighting",
+   "note": "TryPack's per-chart step: rasterise (180228ea0), dilate by the gutter (180224770), place (180225a60, with a rectangle cache)"
+  },
+  {
+   "addr": "180228ea0",
+   "name": "NUVChartPacker_RasterizeChart",
+   "module": "s2c:baked/lighting",
+   "note": "conservative triangle coverage into per-offset 8x8 block masks"
+  },
+  {
+   "addr": "180224770",
+   "name": "NUVChartPacker_DilateMasks",
+   "module": "s2c:baked/lighting",
+   "note": "each offset mask grown by the gutter"
+  },
+  {
+   "addr": "180225a60",
+   "name": "NUVChartPacker_PlaceChart",
+   "module": "s2c:baked/lighting",
+   "note": "first fit: row, then column, then offset mask"
+  },
+  {
+   "addr": "180226100",
+   "name": "NUVChartPacker_PlaceSingleLuxels",
+   "module": "s2c:baked/lighting",
+   "note": "single luxel charts from the bottom block row up; groups through 180225020 with limit 16"
+  },
+  {
+   "addr": "180225350",
+   "name": "NUVChartPacker_PlaceLines",
+   "module": "s2c:baked/lighting",
+   "note": "runs of one-luxel-high charts of one 4-aligned width; groups through 180225020 with limit 4; each line by 180224a50"
+  },
+  {
+   "addr": "180224a50",
+   "name": "NUVChartPacker_PlaceLine",
+   "module": "s2c:baked/lighting",
+   "note": "a line chart into the first block column with room"
+  },
+  {
+   "addr": "180225020",
+   "name": "NUVChartPacker_GroupOrder",
+   "module": "s2c:baked/lighting",
+   "note": "a group over its limit is reordered by a TinyBVH over the charts' 3D bounds (callback 180225320, +0x28..+0x3c): c_trav = the limit, c_int = 1, the BVH's primIdx order"
+  },
+  {
+   "addr": "181ed77b0",
+   "name": "tinybvh::BVH::Build(customGetAABB, count)",
+   "module": "s2c:baked/lighting",
+   "note": "fragments and primIdx from the callback, the root bounds, then 181ed64a0"
+  },
+  {
+   "addr": "181ed64a0",
+   "name": "tinybvh::BVH::Build",
+   "module": "s2c:baked/lighting",
+   "note": "binned SAH, 16 bins, axes past root extent * 1e-20, split if c_int / SA * (ANL + ANR) + c_trav < count * c_int, in-place partition, 256-entry task stack; threaded at 50000 primitives"
+  },
+  {
+   "addr": "181c473c0",
+   "name": "SFMT19937_Seed",
+   "module": "s2c:baked/lighting",
+   "note": "the packer's debug colours (seed 0x777f17e); state words read without tempering"
+  },
+  {
+   "addr": "181c46e60",
+   "name": "SFMT19937_Refill",
+   "module": "s2c:baked/lighting",
+   "note": "POS1 122, SL1 18, SR1 11, one-byte SL2/SR2"
+  },
+  {
    "addr": "1801f32f0",
    "name": "NLightBaker::RasterizeAndSetupTexels",
    "module": "s2c:baked/lighting",

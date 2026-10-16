@@ -352,12 +352,17 @@ public static class LightmapPacker
                && PlaceLines(order, lines, pixels, width, height, atlas, positions);
     }
 
-    // 180225020 with a group no larger than its limit keeps the packing order;
-    // a larger one is reordered spatially (181ed77b0), not ported.
+    // 180225020: a group no larger than its limit keeps the packing order; a
+    // larger one takes the primitive order of a TinyBVH built over the charts'
+    // 3D bounds (callback 180225320), c_trav the limit and c_int 1.
     private static List<Chart> Group(List<Chart> order, int from, int to, int limit)
-        => to - from > limit
-            ? throw new NotSupportedException($"more than {limit} single luxel or line charts in a group (180225020's spatial order) are not ported")
-            : order.GetRange(from, to - from);
+    {
+        var group = order.GetRange(from, to - from);
+        if (group.Count <= limit)
+            return group;
+        var bvh = TinyBvh.Order(group.ConvertAll(c => (c.Min, c.Max)), limit, 1f);
+        return Array.ConvertAll(bvh, i => group[i]).ToList();
+    }
 
     // 180226c30 for one chart: the coverage masks, one per sub-block offset,
     // dilated by the gutter, placed by 180225a60.
