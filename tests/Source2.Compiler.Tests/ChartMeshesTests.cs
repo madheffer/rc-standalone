@@ -266,6 +266,31 @@ public class ChartMeshesTests(ITestOutputHelper output)
         Assert.Fail("lightmap_info.dat differs");
     }
 
+    /// <summary>lightmap_seams.dat from our charted and packed meshes (<see cref="LightmapSeams"/>) against Valve's (<c>LMSEAMS=&lt;dat&gt;</c>).</summary>
+    [Fact]
+    public void LightmapSeamsAreValves()
+    {
+        if (Environment.GetEnvironmentVariable("LMSEAMS") is not { } dat
+            || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap || OurInputs(vmap) is not { } inputs)
+            return;
+        var settings = LightmapSettings.From(new Dictionary<string, string>(), 0x1000, 4096, sh2Dc: false);
+        var meshes = new List<PackingAssembly.Mesh>();
+        var (geometry, _) = ChartMeshes.Build(inputs.Entries, inputs.Volumes, m => inputs.RenderBackfaces.GetValueOrDefault(m), settings, 120f, null, meshes);
+        var size = settings.Width >> (settings.Mip - 1);
+        var ours = LightmapSeams.Write(meshes, LightmapSeams.Snap(geometry.AtlasUv, size));
+        var valve = File.ReadAllBytes(dat);
+        output.WriteLine($"records: ours {ours.Length / 32}, valve {valve.Length / 32}");
+        var n = Math.Min(ours.Length, valve.Length) / 32;
+        var first = Enumerable.Range(0, n).FirstOrDefault(i => !ours.AsSpan(i * 32, 32).SequenceEqual(valve.AsSpan(i * 32, 32)), -1);
+        if (first >= 0)
+        {
+            float F(byte[] b, int i) => BitConverter.ToSingle(b, i * 4);
+            output.WriteLine($"first differing record {first}: ours {string.Join(" ", Enumerable.Range(first * 8, 8).Select(i => F(ours, i)))}");
+            output.WriteLine($"  valve {string.Join(" ", Enumerable.Range(first * 8, 8).Select(i => F(valve, i)))}");
+        }
+        Assert.True(ours.AsSpan().SequenceEqual(valve), "lightmap_seams.dat differs");
+    }
+
     private static int[] Ints(System.Text.Json.JsonElement e, string name)
     {
         var b = Convert.FromHexString(e.GetProperty(name).GetString() ?? "");

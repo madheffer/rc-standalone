@@ -854,6 +854,23 @@ game can answer is raised with the user first, and runs with -insecure.
     writes it byte for byte as Valve's on probe01 and ze_hold_em_p (from the
     .vmap, through ChartMeshes.Build). Not seen: mips above 1, an atlas
     smaller than a block, the 2048 block.
+66. **lightmap_seams.dat** (settled 2026-10-17 by decompile; 0923
+    WriteLightmapEdgeSeamsForVrad3 180213290, the cross-mesh weld 1802129d0,
+    BakeLighting's uv snap in 180217740; ChartMeshesTests.
+    LightmapSeamsAreValves with LMSEAMS). After PackCharts every chart
+    entry's uvs are snapped to steps of 1 / (2 side floor(32767 / side)).
+    The vertices of all charted meshes are welded across meshes: position,
+    normal and tier byte records through CVertexKDTree, each vertex
+    joining the first earlier one the box query returns whose cluster's
+    first vertex has the same tier, lies within 1/32 and has a normal dot
+    of at least 0.99. Corner adjacency over all triangles then comes from
+    those ids (18020efc0). Each neighbouring pair, the lower triangle first,
+    where both triangles' two edges from the first corner are not within
+    0.999 of parallel, writes its shared edge's four snapped uvs (32 bytes),
+    unless it is the same edge of one mesh and chart or the uvs agree
+    exactly. Lighting/LightmapSeams.cs writes it byte for byte as Valve's
+    on probe01 (30 records) and ze_hold_em_p (7,786). Not seen: an entry
+    matrix other than identity, a non-zero tier byte.
 
 ## Resolved
 

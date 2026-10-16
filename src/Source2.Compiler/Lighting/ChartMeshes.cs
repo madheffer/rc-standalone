@@ -80,9 +80,10 @@ internal static class ChartMeshes
     /// </summary>
     /// <param name="renderBackfaces">Whether a material's RenderBackfaces is non-zero.</param>
     /// <param name="luxelUvs">Receives the luxel uvs the packer starts from, when given.</param>
+    /// <param name="charted">Receives the charted meshes, in order (for <see cref="LightmapSeams"/>), when given.</param>
     public static (PackingGeometry Geometry, bool Packed) Build(IEnumerable<Entry> entries, IReadOnlyList<System.Numerics.Vector3[]> volumes,
                                                                 Func<string, bool> renderBackfaces, LightmapSettings settings, float transitionRegion,
-                                                                List<float>? luxelUvs = null)
+                                                                List<float>? luxelUvs = null, List<PackingAssembly.Mesh>? charted = null)
     {
         var identity = new float[] { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0 };
         var options = new ChartMeshPrep.Options(settings.Weld, !settings.Sh2Dc, true, transitionRegion);
@@ -99,6 +100,7 @@ internal static class ChartMeshes
         }
         var (geometry, uvs) = PackingAssembly.Assemble(meshes);
         luxelUvs?.AddRange(uvs);
+        charted?.AddRange(meshes);
         var packed = LightmapPacker.Pack(geometry, uvs, settings.Width, settings.Height, settings.Mip, settings.Passes);
         return (new PackingGeometry
         {

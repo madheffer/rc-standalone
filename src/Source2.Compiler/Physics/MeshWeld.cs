@@ -208,7 +208,7 @@ internal static class MeshWeld
     /// midpoint (BuildNode). A box query walks left before right and returns
     /// a leaf's vertices in the order the partitions left them.
     /// </summary>
-    private sealed class KdTree
+    internal sealed class KdTree
     {
         private readonly float[] _v;
         private readonly int _stride, _axis;

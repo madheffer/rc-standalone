@@ -2506,7 +2506,13 @@
    "addr": "180213290",
    "name": "WriteLightmapEdgeSeamsForVrad3",
    "module": "s2c:baked/lighting",
-   "note": "lightmap_seams.dat"
+   "note": "lightmap_seams.dat: vertices welded across meshes (1802129d0), corner adjacency (18020efc0), per neighbouring pair of spread triangles (edge directions not within 0.999) a 32-byte record of the four snapped atlas uvs unless the same edge or equal uvs"
+  },
+  {
+   "addr": "1802129d0",
+   "name": "StaticLighting_WeldAcrossMeshes",
+   "module": "s2c:baked/lighting",
+   "note": "7-float records (position, normal through the entry matrices, tier byte) through CVertexKDTree::BuildMidpoint; join the first earlier cluster with the same tier, within 1/32 and normal dot >= 0.99"
   },
   {
    "addr": "1801eda50",
