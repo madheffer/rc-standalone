@@ -22,6 +22,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 11 tracked addresses: ambiguous 1, moved 10
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -74,6 +75,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 66 tracked addresses: ambiguous 1, changed 4, identical 4, moved 57
 - 60 addresses
 
 ### s2c:geometry/props
@@ -166,6 +168,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
 - 898 addresses
 
 ### s2c:baked/light-keys
@@ -332,7 +335,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f32f0` | `NLightBaker::RasterizeAndSetupTexels` | 'charts have no luxels assigned' |  |
 | `1801f3920` | `NLightBaker::SetupTexels` | ==== Baking %d x %d lightmap ====; RasterizeSliceAndProcessTexels |  |
 | `18020e230` | `StaticLighting_LoadChartRepacking` | chart_repacking.dat from VRAD3_PATH (optional) |  |
-| `180210730` | `StaticLighting_PrepareChartMesh` | a mesh's LightmapUV / texcoord / position streams; ImportanceVolumeTransitionRegion |  |
+| `180210730` | `StaticLighting_PrepareChartMesh` | drops LightmapUV, optional CMesh_Weld, copies streams (position, texcoord set, normal, tangent) and indices; winding flip for flagged materials; importance volume scales (18020f910); UnwrapUsingUvsFromMesh default true; then 18022d920 |  |
 | `180210fa0` | `CStaticLightingProcessor::GenerateCharts` | ChartMeshes: one 0xb8 entry per mesh; shared meshes (1802191e0), instances and unique meshes (180212850 jobs); gameinfo ImportanceVolumeTransitionRegion (72) |  |
 | `180213290` | `WriteLightmapEdgeSeamsForVrad3` | lightmap_seams.dat |  |
 | `180214960` | `CStaticLightingProcessor::PackCharts` | fills PackingGeometry_t (stride 0x28, attribute offsets 0/0xc/0x18; vertices, indices, triangle charts, 0x1c chart records whose flags take the mesh's bit 30 and its +0x14 low 28 bits), then NUVChartPacker::PackCharts; warns on charts over 1/16 of the atlas |  |
@@ -344,7 +347,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180226370` | `NUVChartPacker::TryPack` | lambda_3; gameinfo DeterministicBuild; logs the share of positions that needed a full test |  |
 | `1802272d0` | `NUVChartPacker::PackCharts` | FindBestRotation; 'Too many charts for the lightmap' |  |
 | `180228480` | `ParallelSort_Charts` | ParallelSort / ParallelInplaceMerge |  |
-| `18022c740` | `StaticLighting_ChartTriangle` | unit normal; without UnwrapUsingUvsFromMesh a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400) |  |
+| `18022c740` | `StaticLighting_ChartTriangle` | unit normal; chart uvs from the mesh (UnwrapUsingUvsFromMesh, default true), else a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400) |  |
 | `18022d920` | `StaticLighting_ChartMesh` | the charting core: a 200-byte record per triangle (18022c740), then grouping into charts |  |
 | `18023af80` | `Vrad3_Init` | VRAD3_PATH, Vrad3_Init_SearchPath |  |
 | `180248800` | `WRB_BakePrecomputedShadows` | direct_light_shadows |  |
@@ -1207,6 +1210,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261006.dll`, 56,323,736 bytes, PE time 2026-10-05 21:03 UTC
 - SHA-256 `e2cd4c06976ee54ab8d32a6b109e7adcb7b551c02766cd0c6954b492b0aedbe3`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
 - 10 addresses
 
 ### s2c:entities
@@ -1234,6 +1238,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 30 tracked addresses: identical 17, relocated 13
 - 30 addresses
 
 ### s2c:smartprops
@@ -1276,6 +1281,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
 - 47 addresses
 
 ### s2c:containers
@@ -1345,6 +1351,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20261015.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: this build
+- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
 - 4 addresses
 
 ### s2c:io
@@ -1361,6 +1368,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -1573,6 +1581,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
 - 418 addresses
 
 ### s2c:entities/settle
@@ -2018,6 +2027,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
 - 348 addresses
 
 ### s2c:baked/vrad3

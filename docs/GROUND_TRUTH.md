@@ -758,6 +758,21 @@ game can answer is raised with the user first, and runs with -insecure.
     in every file we write, ze_hold_em_p 86.8% (ledger 60's texcoords).
     Not seen: a typed array of unsigned zeros, whose element type could
     follow the new rule (none of the 348 blocks needed it to differ).
+62. **Lightmap charting of a mesh** (settled 2026-10-17 by decompile and
+    capture; 0923 18022d920 with 18022c740, 18022d6e0, 18022d1e0,
+    18022f610; tools/vis/capture_charts.py, LightmapChartsTests with
+    CHARTCAP). Charts grow from each unvisited triangle in order through a
+    max-heap of edges keyed by the two normals' dot product (equal keys
+    rise); a neighbour joins when its scale is within [2/3, 3/2] of the
+    chart's first, both uv areas are non-zero and it does not fold over a
+    chart neighbour across their edge (mesh uvs, UnwrapUsingUvsFromMesh
+    default true). Each chart splits its vertices by (vertex bytes, chart
+    uv), and its uvs become (uv - min) * scale * sqrt(world area / uv area)
+    * the chart's max scale; the triangles come out chart by chart.
+    Lighting/LightmapCharts.cs gives Valve's output bit for bit on all 80
+    chart meshes of probe01, cardtest and ze_hold_em_p (48,368 triangles,
+    2,225 charts). Not ported: the box projection path (no mesh uvs), the
+    aspect away from 1 (no specimen).
 
 ## Resolved
 

@@ -95,11 +95,17 @@ in make_manual's BAKE list, ADDRESSES.md):
   ImportanceVolumeTransitionRegion` (72 by default, 120 in CS2's gameinfo)
   takes part. The charting core (18022d920) builds a 200-byte record per
   triangle (18022c740): its unit normal (VectorNormalize, slow path below
-  1e-17), and, unless `UnwrapUsingUvsFromMesh` is set (CS2 leaves it unset),
-  a box projection: the normal's dominant axis picks one of six bases
-  (+-X, +-Y, +-Z; codes 0-5, tables at 182a8d3b0 / 182a8d400) that map the
-  three corners to chart uvs. With the flag, the mesh's own uvs are used,
-  their v scaled by the chart's aspect.
+  1e-17) and its chart uvs. `UnwrapUsingUvsFromMesh` is read with default
+  true (CS2's gameinfo leaves it unset), so the mesh's own uvs are used: the
+  texcoord set the mesh entry picks (uv2 with use_uv2_for_charts), v scaled
+  by the chart's aspect. Without it, a box projection: the normal's dominant
+  axis picks one of six bases (+-X, +-Y, +-Z; codes 0-5, tables at
+  182a8d3b0 / 182a8d400).
+- The chart mesh prep (180210730) drops the mesh's LightmapUV stream, welds
+  it (CMesh_Weld, ported) when asked, copies vertices and indices, flips the
+  winding of triangles whose material has bit 2 of 18020d860's flags and
+  that face away (normal sum test), and with importance volumes gives each
+  triangle a resolution scale (18020f910, ImportanceVolumeTransitionRegion).
 - `CStaticLightingProcessor::PackCharts` concatenates them into
   `PackingGeometry_t`, the layout `Lighting/PackingGeometry.cs` already
   round-trips byte for byte: stride 0x28 vertices with attribute offsets 0,

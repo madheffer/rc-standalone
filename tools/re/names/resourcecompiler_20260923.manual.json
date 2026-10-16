@@ -2260,7 +2260,7 @@
    "addr": "180210730",
    "name": "StaticLighting_PrepareChartMesh",
    "module": "s2c:baked/lighting",
-   "note": "a mesh's LightmapUV / texcoord / position streams; ImportanceVolumeTransitionRegion"
+   "note": "drops LightmapUV, optional CMesh_Weld, copies streams (position, texcoord set, normal, tangent) and indices; winding flip for flagged materials; importance volume scales (18020f910); UnwrapUsingUvsFromMesh default true; then 18022d920"
   },
   {
    "addr": "18022d920",
@@ -2272,7 +2272,7 @@
    "addr": "18022c740",
    "name": "StaticLighting_ChartTriangle",
    "module": "s2c:baked/lighting",
-   "note": "unit normal; without UnwrapUsingUvsFromMesh a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400)"
+   "note": "unit normal; chart uvs from the mesh (UnwrapUsingUvsFromMesh, default true), else a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400)"
   },
   {
    "addr": "1802191e0",

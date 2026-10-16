@@ -422,9 +422,9 @@ RESOURCECOMPILER = [
     ("1801f2240", "NLightBaker::RunVrad3", BAKE, "writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"),
     # The lightmap charts (staticlightingprocessor.cpp, uvchartpacker.cpp): docs/BAKED.md "Lightmap charts".
     ("180210fa0", "CStaticLightingProcessor::GenerateCharts", BAKE, "ChartMeshes: one 0xb8 entry per mesh; shared meshes (1802191e0), instances and unique meshes (180212850 jobs); gameinfo ImportanceVolumeTransitionRegion (72)"),
-    ("180210730", "StaticLighting_PrepareChartMesh", BAKE, "a mesh's LightmapUV / texcoord / position streams; ImportanceVolumeTransitionRegion"),
+    ("180210730", "StaticLighting_PrepareChartMesh", BAKE, "drops LightmapUV, optional CMesh_Weld, copies streams (position, texcoord set, normal, tangent) and indices; winding flip for flagged materials; importance volume scales (18020f910); UnwrapUsingUvsFromMesh default true; then 18022d920"),
     ("18022d920", "StaticLighting_ChartMesh", BAKE, "the charting core: a 200-byte record per triangle (18022c740), then grouping into charts"),
-    ("18022c740", "StaticLighting_ChartTriangle", BAKE, "unit normal; without UnwrapUsingUvsFromMesh a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400)"),
+    ("18022c740", "StaticLighting_ChartTriangle", BAKE, "unit normal; chart uvs from the mesh (UnwrapUsingUvsFromMesh, default true), else a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400)"),
     ("1802191e0", "StaticLighting_ChartSharedMeshes", BAKE, "Prepare; LightmapUV"),
     ("180214960", "CStaticLightingProcessor::PackCharts", BAKE, "fills PackingGeometry_t (stride 0x28, attribute offsets 0/0xc/0x18; vertices, indices, triangle charts, 0x1c chart records whose flags take the mesh's bit 30 and its +0x14 low 28 bits), then NUVChartPacker::PackCharts; warns on charts over 1/16 of the atlas"),
     ("1802235d0", "NUVChartPacker::InitializeChartUVs", BAKE, "gameinfo LightmapGutterSize (1); a thread pool job per chart (180223970), then a parallel sort of the 0x70 chart records (180228480)"),
