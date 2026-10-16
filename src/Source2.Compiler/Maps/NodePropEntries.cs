@@ -54,6 +54,45 @@ internal static class NodePropEntries
         return entries;
     }
 
+    /// <summary>
+    /// The prop record's +0x17c in a baking build (EntityLump_StaticModelRecord,
+    /// 180245770): bakelighting 1 or 0 decides; at -1 (the default) the model's
+    /// prop_data bakelighting (true when absent) and then whether any of the
+    /// prop's materials has SupportsLightmapping. <paramref name="materials"/>
+    /// are the prop's draw-call materials, for 1802b6db0's list.
+    /// </summary>
+    internal static bool Lightmapped(DmxBinary.Element keys, GameContent content, IReadOnlyList<string> materials, Func<string, bool> supportsLightmapping)
+    {
+        var mode = int.TryParse(keys.Get<string>("bakelighting"), out var m) ? m : -1;
+        if (mode != -1)
+            return mode != 0;
+        if (content.LoadedModel((keys.Get<string>("model") ?? "") + "_c") is { } model && !ModelBakesLighting(model))
+            return false;
+        return materials.Any(supportsLightmapping);
+    }
+
+    // The model's key values (m_modelInfo.m_keyValueText): prop_data's bakelighting, true when absent.
+    private static bool ModelBakesLighting(ValveResourceFormat.ResourceTypes.Model model)
+    {
+        var text = model.Data.GetSubCollection("m_modelInfo")?.GetStringProperty("m_keyValueText");
+        if (string.IsNullOrWhiteSpace(text))
+            return true;
+        try
+        {
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text));
+            var doc = ValveKeyValue.KVSerializer.Create(ValveKeyValue.KVSerializationFormat.KeyValues3Text).Deserialize(stream);
+            var value = doc["prop_data"]?["bakelighting"];
+            if (value is null)
+                return true;
+            var s = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return !(s is "0" || s.Equals("false", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception e) when (e is InvalidDataException or FormatException or KeyNotFoundException or InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
     /// <summary>AddStaticProps' bake test: baketoworld, or a non-uniform scale (max |s| - min |s| above 0.0001).</summary>
     internal static bool Baked(DmxBinary.Element node, DmxBinary.Element keys)
     {

@@ -21,8 +21,12 @@ namespace Source2.Compiler.Lighting;
 internal static class ChartMeshes
 {
     /// <summary>One node entry as the charting sees it.</summary>
+    /// <param name="MeshScale">The CMesh's +0x184 (V_powf(2, lightmapScaleBias) for a map mesh's face set, 1 for a model's).</param>
+    /// <param name="EntryScale">The entry's +0x9c (a prop's V_powf(2, lightmapscalebias), 1 for the world).</param>
+    /// <param name="Shared">+0x1a0 and +0xc0 bit 4: GenerateCharts charts the CMesh once and places it per instance.</param>
     public sealed record Entry(float[] Vertices, int Stride, IReadOnlyList<Physics.MeshWeld.Stream> Streams, int[] Indices, string Material,
-                               ulong Attributes, bool Baked, int TextureWidth, int TextureHeight)
+                               ulong Attributes, bool Baked, int TextureWidth, int TextureHeight, float MeshScale = 1f, float EntryScale = 1f,
+                               bool Shared = false)
     {
         public int VertexCount => Vertices.Length / Stride;
     }
@@ -69,24 +73,32 @@ internal static class ChartMeshes
     /// (<see cref="ChartMeshPrep"/>), charted (<see cref="LightmapCharts"/>),
     /// assembled (<see cref="PackingAssembly"/>) and packed
     /// (<see cref="LightmapPacker.Pack"/>), each entry through GenerateCharts'
-    /// unique-mesh path: its aspect the representative texture's width over
-    /// height (1 when either is 0), its uv set 0 and its scale 1.
+    /// unique-mesh path (180212850): its aspect the representative texture's
+    /// width over height (1 when either is 0), its uv set 0, and its scale the
+    /// CMesh's +0x184 times the entry's +0x9c (times 182a8cc50's tier for the
+    /// CMesh's +0x58 bits, none set on the maps measured).
     /// </summary>
     /// <param name="renderBackfaces">Whether a material's RenderBackfaces is non-zero.</param>
+    /// <param name="luxelUvs">Receives the luxel uvs the packer starts from, when given.</param>
     public static (PackingGeometry Geometry, bool Packed) Build(IEnumerable<Entry> entries, IReadOnlyList<System.Numerics.Vector3[]> volumes,
-                                                                Func<string, bool> renderBackfaces, LightmapSettings settings, float transitionRegion)
+                                                                Func<string, bool> renderBackfaces, LightmapSettings settings, float transitionRegion,
+                                                                List<float>? luxelUvs = null)
     {
         var identity = new float[] { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0 };
         var options = new ChartMeshPrep.Options(settings.Weld, !settings.Sh2Dc, true, transitionRegion);
         var meshes = new List<PackingAssembly.Mesh>();
         foreach (var e in Sort(entries.Select(Strip).Where(IsBaked)))
         {
+            // 1802191e0 / 1802104c0 / 18020f690: none of the maps measured has one.
+            if (e.Shared)
+                throw new NotSupportedException("a shared lightmap chart mesh (an instanced entry, +0xc0 bit 4) is not ported");
             var aspect = e.TextureWidth < 1 || e.TextureHeight < 1 ? 1f : (float)e.TextureWidth / e.TextureHeight;
-            var p = ChartMeshPrep.Prepare(e, options, false, renderBackfaces(e.Material), volumes, identity, aspect, 1f);
+            var p = ChartMeshPrep.Prepare(e, options, false, renderBackfaces(e.Material), volumes, identity, aspect, e.MeshScale * e.EntryScale);
             meshes.Add(new PackingAssembly.Mesh(LightmapCharts.Run(p.Input), p.Input.Stride, p.Input.PositionOffset, p.NormalOffset, p.TangentOffset,
                                                 identity, 0, false, 1f, []));
         }
         var (geometry, uvs) = PackingAssembly.Assemble(meshes);
+        luxelUvs?.AddRange(uvs);
         var packed = LightmapPacker.Pack(geometry, uvs, settings.Width, settings.Height, settings.Mip, settings.Passes);
         return (new PackingGeometry
         {

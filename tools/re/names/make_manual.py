@@ -124,7 +124,7 @@ RESOURCECOMPILER = [
     ("1810dff20", "CMapMesh_ConvertMeshForBuilder", G, "the DMX of the mesh the builder reads"),
     ("180ffd010", "MapMeshBuffer_Unserialize", G, "hammerMeshDataBuffer; then the 0xf0 record's fields from ConvertMeshForBuilder's (+0x24 tint, +0x28/+0x2c fades, +0x35 lighting mode, +0x36 visexclude, +0x37 disablemerging, +0x38 renderwithdynamic, +0x39 renderToCubemaps, +0x3a emissive, +0x3c boost, +0x48 bakelighting)"),
     ("180d47810", "DmeMeshToCMeshes", G, ""),
-    ("180d47b90", "DmeMeshToCMesh", G, "stream layout from the DMX"),
+    ("180d47b90", "DmeMeshToCMesh", G, "stream layout from the DMX; CMesh +0x184 = V_powf(2, the face set's lightmapScaleBias)"),
     ("180d5c570", "CMesh_WriteDmeMesh", G, ""),
     ("1810c1eb0", "HammerMesh_CopyFrom", G, ""),
     ("1810c4e50", "HammerMesh_TransformToWorld", G, "normals and tangents rotated, not renormalised"),
@@ -415,6 +415,10 @@ RESOURCECOMPILER = [
     ("18025db60", "CWorldRendererBuilderNode::BakeLightMaps", BAKE, "strips PerVertexLighting from every entry (1812e2ec0 until gone), moves out entries with no 0x2000000909, bit 29 and +0x98, bakes, appends them back"),
     ("18021b530", "BakeLighting_SortEntries", BAKE, "MSVC std::sort of 0x238 entries; comparison 18021e610: more vertices first, then memcmp of the vertex floats"),
     ("180212850", "GenerateCharts_ChartJob", BAKE, "scale = mesh +0x184 * entry +0x9c * 182a8cc50[min(ctz(mesh +0x58), 4)]; unique: PrepareChartMesh(weld, uv set, arg 2, importance on); shared: 1802104c0 + 18020f690"),
+    ("1802191e0", "GenerateCharts_PrepareSharedMeshes", BAKE, "per shared holder (key: CMesh, aspect, uv set): PrepareChartMesh with 182771b20, no importance, scale 1; the CMesh takes the chart mesh's vertices and indices and a LightmapUV of ((i + 0.5) / n, 0)"),
+    ("1802104c0", "GenerateCharts_InstanceChartScales", BAKE, "an instance's importance scales (18020f910 with its matrix); when they vary, per chart sqrt(min * max) of its triangles'"),
+    ("18020f690", "GenerateCharts_InstanceScale", BAKE, "1 unless the matrix's axis scales (1812586a0) differ from 1 by 1e-4; else sqrt(transformed / original triangle area sums)"),
+    ("1802190e0", "GenerateCharts_NewSharedHolder", BAKE, "0x40: uv set, aspect, CMesh, +0x18 = CMesh +0x40 && !(+0x58 & 1) (chart records' bit 30), instance count 1"),
     ("1801f86f0", "CStaticLightingProcessor::SetImportanceVolumes", BAKE, "vf 0x48: copies the hull list into +0x5e8"),
     ("1801f8770", "CStaticLightingProcessor::GetImportanceVolumes", BAKE, "vf 0x50: +0x5e8"),
     ("18020f910", "StaticLighting_ImportanceScales", BAKE, "per-triangle scale: 1 without volumes or with a volume within the region of all 8 bounds corners; near volumes (d < region or region/d > 0.01, GJK 181267a70); per triangle the volumes with a hull point in front, min GJK distance (181266fc0) to the corners and centroid; region/d clamped to 0.01"),
@@ -903,7 +907,7 @@ RESOURCECOMPILER = [
     ("180f7b6a0", "CMapNode_RaytraceFlags", LIGHTS, "0x20 when node +0x278 is 0; 0x1000000, 0x2000000, 0x4000000 by parent and +0x2d0"),
     # Entities.
     ("180244d30", "EntityLump_ExportDriver", ENT, "per-entity export driver; writes vDirToSun"),
-    ("180245770", "EntityLump_StaticModelRecord", ENT, "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging"),
+    ("180245770", "EntityLump_StaticModelRecord", ENT, "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"),
     # Per-entity lump export: probe, cubemap and light keys (2026-09-28).
     ("1800fd550", "ResourceCompilerMap_CompileMap", LIGHTS, "sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting"),
     ("1801f7960", "CMapBuilderContext_Ctor", LUMP, "+0x10c = content-relative map path, no extension"),

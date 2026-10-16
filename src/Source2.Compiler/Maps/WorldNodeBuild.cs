@@ -56,9 +56,22 @@ internal static class WorldNodeBuild
     }
 
     /// <summary>The baked static props' entries (<see cref="NodePropEntries"/>) with their headers.</summary>
-    public static List<Node> PropEntries(DmxBinary.Document doc, GameContent content, ShaderLibrary shaders, List<string>? notes = null)
-        => [.. NodePropEntries.FromWorld(doc, content, notes).Select(o => new Node(o, NodeEntryHeader.Prop(o.Source!, o.NodeId, o.Source!.Get<string>("model") ?? "", o.Record,
-               content.Material(o.Material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty)))];
+    /// <param name="buildBakes">Whether the build bakes lighting: each prop's entries then carry its lightmapped flag (<see cref="NodePropEntries.Lightmapped"/>).</param>
+    public static List<Node> PropEntries(DmxBinary.Document doc, GameContent content, ShaderLibrary shaders, List<string>? notes = null, bool buildBakes = false)
+    {
+        var entries = NodePropEntries.FromWorld(doc, content, notes);
+        MaterialAttributes Attributes(string material) => content.Material(material) is { } info ? MaterialAttributes.Of(info, shaders, content.TextureSize) : MaterialAttributes.Empty;
+        var lightmapped = new Dictionary<DmxBinary.Element, bool>(ReferenceEqualityComparer.Instance);
+        if (buildBakes)
+            foreach (var prop in entries.GroupBy(o => o.Source!, ReferenceEqualityComparer.Instance))
+            {
+                var keys = (DmxBinary.Element)prop.Key!;
+                lightmapped[keys] = NodePropEntries.Lightmapped(keys, content, [.. prop.Select(o => o.Material).Distinct(StringComparer.OrdinalIgnoreCase)],
+                                                               m => Attributes(m).Bool(MeshEntryFlags.Key("SupportsLightmapping")) == true);
+            }
+        return [.. entries.Select(o => new Node(o, NodeEntryHeader.Prop(o.Source!, o.NodeId, o.Source!.Get<string>("model") ?? "", o.Record, Attributes(o.Material),
+                                                                         baked: lightmapped.GetValueOrDefault(o.Source!))))];
+    }
 
     /// <summary>
     /// BuildNode over the world's entries then the props' (Step256690's input

@@ -496,7 +496,7 @@
    "addr": "180d47b90",
    "name": "DmeMeshToCMesh",
    "module": "s2c:geometry/mesh-export",
-   "note": "stream layout from the DMX"
+   "note": "stream layout from the DMX; CMesh +0x184 = V_powf(2, the face set's lightmapScaleBias)"
   },
   {
    "addr": "180d5c570",
@@ -2231,6 +2231,30 @@
    "name": "GenerateCharts_ChartJob",
    "module": "s2c:baked/lighting",
    "note": "scale = mesh +0x184 * entry +0x9c * 182a8cc50[min(ctz(mesh +0x58), 4)]; unique: PrepareChartMesh(weld, uv set, arg 2, importance on); shared: 1802104c0 + 18020f690"
+  },
+  {
+   "addr": "1802191e0",
+   "name": "GenerateCharts_PrepareSharedMeshes",
+   "module": "s2c:baked/lighting",
+   "note": "per shared holder (key: CMesh, aspect, uv set): PrepareChartMesh with 182771b20, no importance, scale 1; the CMesh takes the chart mesh's vertices and indices and a LightmapUV of ((i + 0.5) / n, 0)"
+  },
+  {
+   "addr": "1802104c0",
+   "name": "GenerateCharts_InstanceChartScales",
+   "module": "s2c:baked/lighting",
+   "note": "an instance's importance scales (18020f910 with its matrix); when they vary, per chart sqrt(min * max) of its triangles'"
+  },
+  {
+   "addr": "18020f690",
+   "name": "GenerateCharts_InstanceScale",
+   "module": "s2c:baked/lighting",
+   "note": "1 unless the matrix's axis scales (1812586a0) differ from 1 by 1e-4; else sqrt(transformed / original triangle area sums)"
+  },
+  {
+   "addr": "1802190e0",
+   "name": "GenerateCharts_NewSharedHolder",
+   "module": "s2c:baked/lighting",
+   "note": "0x40: uv set, aspect, CMesh, +0x18 = CMesh +0x40 && !(+0x58 & 1) (chart records' bit 30), instance count 1"
   },
   {
    "addr": "1801f86f0",
@@ -5032,7 +5056,7 @@
    "addr": "180245770",
    "name": "EntityLump_StaticModelRecord",
    "module": "s2c:entities",
-   "note": "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging"
+   "note": "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"
   },
   {
    "addr": "1800fd550",

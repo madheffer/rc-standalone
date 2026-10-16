@@ -93,7 +93,8 @@ public sealed record NodeEntryHeader
     /// +0x1a0 is 1, +0x1a3 emissive, +0x80 no lighting origin (FLT_MAX).
     /// </summary>
     public static NodeEntryHeader Prop(DmxBinary.Element keys, int nodeId, string model, MeshEntryFlags.Record record,
-                                       MeshEntryFlags.IAttributes material, int placementFlags = PropTransform.Place | PropTransform.Texcoords)
+                                       MeshEntryFlags.IAttributes material, int placementFlags = PropTransform.Place | PropTransform.Texcoords,
+                                       bool baked = false)
     {
         string? Key(string name) => keys.Get<string>(name);
         bool On(string name) => Key(name) is "1" or "true" or "True";
@@ -105,7 +106,9 @@ public sealed record NodeEntryHeader
             if (parts.Length >= 3)
                 tint = new Vector4(parts[0] * 0.003921569f, parts[1] * 0.003921569f, parts[2] * 0.003921569f, parts.Length > 3 ? parts[3] * 0.003921569f : 1f);
         }
-        var flags = MeshEntryFlags.Compute(material, record);
+        // +0x98 is the prop record's +0x17c (NodePropEntries.Lightmapped), which
+        // also clears NeedsLightProbe through the record.
+        var flags = MeshEntryFlags.Compute(material, baked ? record with { Baked = true } : record);
         var objectFlags = (model.ContainsAscii(".vmdl") ? 8u : 0u) | (On("disableinlowquality") ? 0x80u : 0u)
             | (On("rendertocubemaps") ? 0x400u : 0u) | ((placementFlags & 2) != 0 ? 0x20000u : 0u);
         return new NodeEntryHeader
@@ -117,6 +120,9 @@ public sealed record NodeEntryHeader
             FadeMax = Number("fademaxdist", 0f),
             EmissiveBoost = Number("emissive_lighting_boost", 1f),
             ObjectFlags = objectFlags,
+            Baked = baked,
+            // EntityLump_StaticModelRecord's +0x214: V_powf(2, lightmapscalebias).
+            Field9c = LightPow.Pow(2f, Number("lightmapscalebias", 0f)),
             Fieldc0 = placementFlags,
             Byte1a0 = 1,
             Byte1a2 = 0,

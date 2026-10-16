@@ -27,13 +27,15 @@ public class ChartMeshesTests(ITestOutputHelper output)
         using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
         var doc = MapSource.Read(vmap);
         var world = WorldNodeBuild.WorldEntries(doc, content, shaders, NodeEntriesFromVmap.RendersAsWorld(game), buildBakes: true);
-        var props = WorldNodeBuild.PropEntries(doc, content, shaders);
+        var props = WorldNodeBuild.PropEntries(doc, content, shaders, buildBakes: true);
         var built = WorldNodeBuild.BeforeWeld(world, props);
         var backfaces = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         foreach (var m in built.Select(b => b.Source.Entry.Material).Distinct())
             backfaces[m] = content.Material(m) is { } info && (MaterialAttributes.Of(info, shaders, content.TextureSize).Int(MeshEntryFlags.Key("renderbackfaces")) ?? 0) != 0;
         return new Inputs([.. built.Select(b => new ChartMeshes.Entry(b.Vertices, b.Source.Entry.Stride, b.Source.Entry.Streams, b.Indices, b.Source.Entry.Material,
-                                                                    b.Source.Header.Attributes, b.Source.Header.Baked, b.Source.Header.TextureWidth, b.Source.Header.TextureHeight))],
+                                                                    b.Source.Header.Attributes, b.Source.Header.Baked, b.Source.Header.TextureWidth, b.Source.Header.TextureHeight,
+                                                                    b.Source.Header.Byte1a0 != 0 ? 1f : LightPow.Pow(2f, b.Source.Entry.LightmapBias), b.Source.Header.Field9c,
+                                                                    b.Source.Header.Byte1a0 != 0 && (b.Source.Header.Fieldc0 & 0x10) != 0))],
                           WorldNodeBuild.ImportanceVolumes(world, props), backfaces);
     }
 
@@ -47,6 +49,16 @@ public class ChartMeshesTests(ITestOutputHelper output)
         var valve = NodeEntriesFromVmap.Read(path).Where(c => c.Stage == "GenerateCharts:in").ToList();
         var ours = ChartMeshes.Sort(entries.Select(ChartMeshes.Strip).Where(ChartMeshes.IsBaked));
         output.WriteLine($"node entries {entries.Count}, charted: ours {ours.Length}, valve {valve.Count}");
+        // The node's entries as BakeLightMaps finds them, where the choice differs.
+        var before = NodeEntriesFromVmap.Read(path).Where(c => c.Stage == "BakeLightMaps:in").ToList();
+        for (var i = 0; i < Math.Min(entries.Count, before.Count); i++)
+        {
+            var (o, v) = (ChartMeshes.Strip(entries[i]), before[i]);
+            var vBaked = v.Raw[0x98] != 0;
+            var vAttr = BitConverter.ToUInt64(v.Raw, 0x1b0);
+            if (o.Baked != vBaked || o.Attributes != vAttr || o.VertexCount != v.Vertices.Length / v.Stride)
+                output.WriteLine($"  node {i} {Path.GetFileName(v.Material)}: ours {o.VertexCount} v, baked {o.Baked}, {o.Attributes:x}; valve {v.Vertices.Length / v.Stride} v, baked {vBaked}, {vAttr:x}");
+        }
         var misses = new List<string>();
         for (var i = 0; i < Math.Max(ours.Length, valve.Count); i++)
         {
@@ -104,7 +116,7 @@ public class ChartMeshesTests(ITestOutputHelper output)
         {
             var aspect = e.TextureWidth > 0 && e.TextureHeight > 0 ? (float)e.TextureWidth / e.TextureHeight : 1f;
             var ours = ChartMeshPrep.Prepare(e, options, false, inputs.RenderBackfaces.GetValueOrDefault(e.Material), volumes,
-                                             [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], aspect, 1f).Input;
+                                             [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], aspect, e.MeshScale * e.EntryScale).Input;
             var match = enters.FirstOrDefault(x => Convert.FromHexString(x.GetProperty("vertices").GetString()!).AsSpan().SequenceEqual(ours.Vertices));
             if (match.ValueKind == System.Text.Json.JsonValueKind.Undefined)
             {
@@ -149,7 +161,18 @@ public class ChartMeshesTests(ITestOutputHelper output)
             .Where(a => a.Value is string).ToDictionary(a => a.Key, a => (string)a.Value!) ?? [];
         var settings = LightmapSettings.From(keys, 0x1000, 4096, sh2Dc: false);
         output.WriteLine($"settings {settings}");
-        var (ours, packed) = ChartMeshes.Build(inputs.Entries, inputs.Volumes, m => inputs.RenderBackfaces.GetValueOrDefault(m), settings, 120f);
+        var luxel = new List<float>();
+        var (ours, packed) = ChartMeshes.Build(inputs.Entries, inputs.Volumes, m => inputs.RenderBackfaces.GetValueOrDefault(m), settings, 120f, luxel);
+        // With the packer capture (PACKCAP), the luxel uvs the packer starts from against Valve's.
+        if (Environment.GetEnvironmentVariable("PACKCAP") is { } packcap)
+        {
+            var enter = File.ReadLines(packcap).Select(l => System.Text.Json.JsonDocument.Parse(l).RootElement.Clone()).First(l => l.GetProperty("stage").GetString() == "pack_enter");
+            var (_, valveUvs) = LightmapPackerTests.Geometry(enter);
+            var wrong = Enumerable.Range(0, Math.Min(luxel.Count, valveUvs.Length)).Where(i => BitConverter.SingleToInt32Bits(luxel[i]) != BitConverter.SingleToInt32Bits(valveUvs[i])).ToList();
+            output.WriteLine($"luxel uvs: {wrong.Count} of {luxel.Count} floats differ");
+            foreach (var i in wrong.Take(6))
+                output.WriteLine($"  float {i} (vertex {i / 2}): ours {luxel[i]:R} valve {valveUvs[i]:R}");
+        }
         var valve = PackingGeometry.Read(File.ReadAllBytes(dat));
         var misses = new List<string>();
         void Check(string what, bool same) { if (!same) misses.Add(what); }

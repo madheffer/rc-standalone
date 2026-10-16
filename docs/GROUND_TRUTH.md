@@ -820,11 +820,21 @@ game can answer is raised with the user first, and runs with -insecure.
     with 4 passes (lightmapVRadQuality 0). Lighting/ChartMeshes.cs,
     ChartMeshPrep.cs, PackingAssembly.cs and LightmapSettings.cs write
     lightmap_packing_geometry.dat byte for byte as Valve's on probe01 and
-    cardtest (15 chart meshes, 434 vertices, 71 charts); the vertex ids and
+    cardtest (15 chart meshes, 434 vertices, 71 charts) and ze_hold_em_p
+    (50 chart meshes, 40,662 vertices, 2,083 charts); the vertex ids and
     corners match all 80 captured meshes of the three maps.
+    A baked prop's entry takes +0x98 from the prop record's +0x17c
+    (180245770): bakelighting 1 or 0 decides, -1 (the default) means the
+    model's prop_data bakelighting (true when absent) and any of its
+    materials with SupportsLightmapping; its +0x9c is V_powf(2,
+    lightmapscalebias). A map mesh's CMesh +0x184 is V_powf(2, the face
+    set's lightmapScaleBias) (DmeMeshToCMesh 180d47b90), and the chart
+    scale is +0x184 times +0x9c (ze_hold_em_p's two bias-1 meshes chart at
+    2). Its props are unique entries (no +0xc0 bit 4), in world space.
     Not ported: GenerateCharts' shared-mesh and instance path (1802191e0,
-    1802104c0, 18020f690), which ze_hold_em_p's props take (ours 19 of its
-    2,083 charts); GJK's bits for a scale strictly between 0.01 and 1
+    1802104c0, 18020f690), which no measured map takes (ChartMeshes.Build
+    throws); the tier scale for a CMesh's +0x58 bits (182a8cc50, none
+    set); GJK's bits for a scale strictly between 0.01 and 1
     (ConvexDistance is exact geometry; none on these maps); where the
     builder's requested size (+0x2f8) and the map's lightmap settings come
     from (absent on these maps: the defaults).

@@ -49,6 +49,9 @@ internal static class NodeMeshEntries
         /// on; DmeMeshToCMesh_StreamLayout then flags the streams (GROUND_TRUTH 44).
         /// </summary>
         public bool PreciseTexcoords { get; init; }
+
+        /// <summary>The face set's lightmapScaleBias; DmeMeshToCMesh (180d47b90) makes the CMesh's +0x184 V_powf(2, it).</summary>
+        public int LightmapBias { get; init; }
     }
 
     /// <param name="keepsTexcoords">Whether a material stops the texcoord shift
@@ -106,7 +109,7 @@ internal static class NodeMeshEntries
                     }
                 }
                 var name = piece.Material < names.Length ? names[piece.Material] : "";
-                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn, Record = RecordOf(mesh.Element), Source = mesh.Element, Instances = mesh.Instances, PreciseTexcoords = precise });
+                entries.Add(new Entry(mesh.NodeId, name, s, piece.Streams, v, piece.Indices) { Stored = piece.Vertices, Turn = turn, Record = RecordOf(mesh.Element), Source = mesh.Element, Instances = mesh.Instances, PreciseTexcoords = precise, LightmapBias = piece.Bias });
             }
         }
         return entries;

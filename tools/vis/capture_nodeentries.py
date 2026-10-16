@@ -118,6 +118,7 @@ def main():
     p.add_argument("map")
     p.add_argument("--out")
     p.add_argument("--full", action="store_true", help="a full compile rather than -world -fshallow")
+    p.add_argument("--stages", help="comma list of the steps to hook (default all), e.g. BakeLightMaps,GenerateCharts")
     a = p.parse_args()
     if running("cs2.exe"):
         raise SystemExit("CS2 is running; not starting")
@@ -159,7 +160,10 @@ def main():
     dev.on("output", lambda _pid, _fd, data: rc_log.write(data or b""))
     pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    steps = [(installed("resourcecompiler", rva), name, arg) for rva, name, arg in STEPS]
+    wanted = set(a.stages.split(",")) if a.stages else None
+    # BuildNode stays hooked: it numbers the calls the other steps report under.
+    steps = [(installed("resourcecompiler", rva), name, arg) for rva, name, arg in STEPS
+             if wanted is None or name in wanted or name == "BuildNode"]
     sc = ses.create_script(AGENT % {"steps": json.dumps(steps)})
     sc.on("message", on_message)
     sc.load()

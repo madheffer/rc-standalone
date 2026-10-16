@@ -102,8 +102,12 @@ in make_manual's BAKE list, ADDRESSES.md):
   - it flips away-facing triangles of RenderBackfaces materials;
   - it takes per-triangle importance scales (18020f910, region 120 in CS2);
   - it makes the corner adjacency from vertex ids (18020e6a0, 18020efc0).
-  Shared meshes and instances (1802191e0, 1802104c0) are not ported yet;
-  ze_hold_em_p's props take that path. The charting core (18022d920,
+  The chart scale is the CMesh's +0x184 (2^lightmapScaleBias of a map
+  mesh's face set) times the entry's +0x9c (2^lightmapscalebias of a prop).
+  A prop bakes per its bakelighting key, else its model's prop_data and its
+  materials' SupportsLightmapping. Shared meshes and instances (+0xc0 bit
+  4; 1802191e0, 1802104c0, 18020f690) are read but not ported, since no
+  measured map has one. ze_hold_em_p's props are unique entries. The charting core (18022d920,
   Lighting/LightmapCharts.cs) builds a record per triangle (18022c740)
   from the mesh's own uvs (`UnwrapUsingUvsFromMesh`, default true; without
   it a box projection by the normal's dominant axis, codes 0-5, tables at
@@ -116,8 +120,8 @@ in make_manual's BAKE list, ADDRESSES.md):
   indices, a chart per triangle (-1 for none) and 0x1c chart records. The
   atlas settings (Lighting/LightmapSettings.cs) are lightmapMaxResolution,
   the mips against MinSpecLightmapSize, and lightmapChartPackIterations.
-  On probe01 and cardtest the .dat is Valve's byte for byte from the .vmap
-  (ChartMeshesTests.PackingGeometryIsValves).
+  On probe01, cardtest and ze_hold_em_p the .dat is Valve's byte for byte
+  from the .vmap (ChartMeshesTests.PackingGeometryIsValves).
 - `NUVChartPacker` (uvchartpacker.cpp), ported in Lighting/LightmapPacker.cs
   (ledger 63): `PackCharts` seeds SFMT-19937 (0x777f17e) for the debug
   colours, runs `FindBestRotation` per chart, then for each scale pass
@@ -134,9 +138,9 @@ in make_manual's BAKE list, ADDRESSES.md):
 Ground truth per map: `compile_fresh.py --full` keeps the addon's `_vrad3`
 folder beside the package (`<out>.vrad3`), since the next bake overwrites it.
 The first milestone, our lightmap_packing_geometry.dat equal to Valve's on
-probe01, is reached (2026-10-17). Next come the shared-mesh path
-(ze_hold_em_p), then lightmap_info.dat, the seams and the scene, and the
-lightmap uvs the world nodes take from the packing (GEOMETRY.md).
+probe01, is reached (2026-10-17), and ze_hold_em_p follows. Next come
+lightmap_info.dat, the seams and the scene, and the lightmap uvs the world
+nodes take from the packing (GEOMETRY.md).
 
 ## AMD GPUs (future plan)
 
