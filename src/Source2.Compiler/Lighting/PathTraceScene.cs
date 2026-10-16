@@ -64,6 +64,81 @@ internal static class PathTraceScene
         return meshes;
     }
 
+    /// <summary>
+    /// 180285eb0's instance flags: from attribute bits 17 and 16, 1 (both),
+    /// 5 (16 only) or 7; 8 more when bit 19 is clear and bit 1 is set; 0x100
+    /// for an emissive entry (+0x1a3, object flags without 0x100000); 0x800
+    /// for +0x99.
+    /// </summary>
+    public static uint InstanceFlags(ulong attributes, bool emissive, bool byte99)
+    {
+        var b16 = (attributes >> 16 & 1) != 0;
+        var b17 = (attributes >> 17 & 1) != 0;
+        var f = b17 ? (b16 ? 1u : 7u) : (b16 ? 5u : 7u);
+        if ((attributes >> 19 & 1) == 0 && (f & 2) != 0)
+            f |= 8;
+        if (emissive)
+            f |= 0x100;
+        if (byte99)
+            f |= 0x800;
+        return f;
+    }
+
+    /// <summary>18126a710: a colour channel clamped, sRGB to linear.</summary>
+    public static float Linear(float c)
+    {
+        c = 0f <= c ? (c <= 1f ? c : 1f) : 0f;
+        return c <= 0.04045f ? c / 12.92f : Maps.LightPow.Pow((c + 0.055f) / 1.055f, 2.4f);
+    }
+
+    /// <summary>
+    /// 180285eb0's instances for the world entries (the same ones as <see cref="WorldMeshes"/>):
+    /// mesh, material, a tint not all ones (rgb made linear), an
+    /// emissive_lighting_boost not 1, and the flags.
+    /// </summary>
+    public static List<KVObject> WorldInstances(IReadOnlyList<Maps.WorldNodeBuild.Node> world)
+    {
+        var list = new List<KVObject>();
+        foreach (var n in world)
+        {
+            var h = n.Header;
+            if ((h.Attributes & 0x2000000001UL) != 0)
+                continue;
+            var o = KVObject.Collection();
+            o.Add("mesh", new KVObject(list.Count));
+            o.Add("material", new KVObject(n.Entry.Material) { Flag = KVFlag.ResourceName });
+            if (h.Tint != System.Numerics.Vector4.One)
+            {
+                var t = KVObject.Array();
+                foreach (var c in new[] { Linear(h.Tint.X), Linear(h.Tint.Y), Linear(h.Tint.Z), h.Tint.W })
+                    t.Add(new KVObject((double)c));
+                o.Add("tint_color", t);
+            }
+            if (h.EmissiveBoost != 1f)
+                o.Add("emissive_lighting_boost", new KVObject((double)h.EmissiveBoost));
+            o.Add("flags", new KVObject(InstanceFlags(h.Attributes, h.Byte1a3 != 0 && (h.ObjectFlags & 0x100000) == 0, false)));
+            list.Add(o);
+        }
+        return list;
+    }
+
+    /// <summary>scene_info.kv3's text: mesh_file, instances, ibl (null without a sky light), lights.</summary>
+    public static string InfoFile(IEnumerable<KVObject> instances, KVObject? ibl, IEnumerable<KVObject> lights)
+    {
+        var root = KVObject.Collection();
+        root.Add("mesh_file", new KVObject("scene_meshes.kv3"));
+        var i = KVObject.Array();
+        foreach (var x in instances)
+            i.Add(x);
+        root.Add("instances", i);
+        root.Add("ibl", ibl ?? KVObject.Null());
+        var l = KVObject.Array();
+        foreach (var x in lights)
+            l.Add(x);
+        root.Add("lights", l);
+        return Kv3TextWriter.Write(root, GenericFormat);
+    }
+
     /// <summary>scene_meshes.kv3's bytes.</summary>
     public static byte[] MeshesFile(IReadOnlyList<Mesh> meshes)
     {

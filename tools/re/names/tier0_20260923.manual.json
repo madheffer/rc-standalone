@@ -217,6 +217,18 @@
    "note": "export; text encodings here, binary through 1800c7220"
   },
   {
+   "addr": "1800d92a0",
+   "name": "KV3Text_WriteHeader",
+   "module": "s2c:io",
+   "note": "<!-- kv3 encoding:text:version{...} format:...:version{...} -->, CRLF"
+  },
+  {
+   "addr": "1800d7940",
+   "name": "KV3Text_WriteNode",
+   "module": "s2c:io",
+   "note": "member = value; tables and multi-line arrays on the next line; arrays of fewer than 5 plain scalars inline, else one element a line (scalars four a line) with a comma each; floats by V_FloatToString_NoExponent; flag prefixes"
+  },
+  {
    "addr": "1800c7220",
    "name": "SaveKV3_Binary",
    "module": "s2c:io",

@@ -410,7 +410,19 @@ RESOURCECOMPILER = [
     ("18129b7b0", "SegmentIntersectsBox", LIGHTS, "SSE slab test: refined rcpps of the delta, exit capped at 1, entry floored at 0"),
     ("180248800", "WRB_BakePrecomputedShadows", BAKE, "direct_light_shadows"),
     ("18023af80", "Vrad3_Init", BAKE, "VRAD3_PATH, Vrad3_Init_SearchPath"),
-    ("180285eb0", "WRB_BuildPathTraceSceneInfo", BAKE, "lights, cameras, instances, mesh_file"),
+    ("180285eb0", "WRB_BuildPathTraceSceneInfo", BAKE, "scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights)"),
+    ("180284aa0", "WRB_PathTraceStaticModels", BAKE, "one model's records: LOD groups (1802b4ab0), WRB_LoadPropMeshes per group, per draw call (draw record +0x64 bit 0x800 skips) then per prop: a shared CMesh (+0x100 per-vertex data copies it, 1812ddd80, 1812d6420), instance mesh, transform (+0x10), material (1802b6830), tint (per-draw override at +0x120 times +0x148..+0x154), emissive_lighting_boost (+0x174), flags (+0x16f, +0x210, +0x1f0 bit 19, +0x173/+0x178, +0x17d)"),
+    ("180285bf0", "WRB_PathTraceInstancedModels", BAKE, "the +0x1e0 table's entries (model and skin to transforms): records through 180285810, then 180284aa0; empty on the maps measured"),
+    ("180285810", "WRB_PathTraceInstanceRecords", BAKE, "0x220 records from 0x30 transforms: QuaternionMatrix times the scale, colour bytes / 255 at +0x148; +0x17e = 0x101, skin hash at +0x188"),
+    ("1802b6830", "WRB_PropDrawMaterial", BAKE, "a prop draw call's material: the record's overrides (+0x118) by mesh and draw id, else the skin's material group (+0x188 hash)"),
+    ("1801d3050", "WRB_MaterialAttributeBySemantic", WN, "the material's vertex attribute (0xc4 records) whose semantic name (+0x80) and index (+0xc0) match; its name at +0x40"),
+    ("1812e4550", "CMesh_WriteKV3", BAKE, "vertex_count, vertex_stride, vertices, index_count, indices, meshlet_count, attribute_count, attributes, lod_group_mask, material_name, mesh_name, mesh_id, tint_color, lightmap_scale (+0x184), no_collapse (twice, +0x152 last), pack_sharedvb, use_basevertex, use_tint_color, is_line_mesh, baked_twosided, collision_type"),
+    ("181113f20", "LightingProcessor_PathTraceLights", BAKE, "vf 0x40: the lights (181112e80) and the ibl: path_trace_light_flags, the env_sky transform, scale, material, sky_bounce, sky_bounce_scale, sun_light_min_brightness; null without a sky light"),
+    ("181112e80", "LightingProcessor_PathTraceLightList", BAKE, "per light its LightShape (181297030) and info (180eece60); the sky light found by dynamic cast of the entity's components"),
+    ("181297030", "LightShape_WriteKV3", BAKE, "the 300-byte record: m_mToClipSpace, m_mFromClipSpace, m_vNearPlane, m_vLightPosition, m_vInnerRadius, m_flShape, m_vSkirt, m_vColor, m_nCookie, m_vDistanceFade, m_qOrientation, m_vAngleFade, m_nLuminaireType, m_flLightColorToRadiance, m_bLightInsideFrustum, m_bSphericalCookie, m_Luminaire"),
+    ("181294010", "LightShape_FromLegacy", BAKE, "type 2 (directional): ortho +-262144, depth 524288, orientation from VectorAngles(-dir), a disc luminaire of tan(angulardiameter / 2)"),
+    ("18125b9e0", "VectorAngles", X, "pitch and yaw in [0, 360), roll 0"),
+    ("18126a710", "SrgbToLinear", X, "clamped to [0, 1]; c / 12.92 up to 0.04045, else V_powf((c + 0.055) / 1.055, 2.4)"),
     ("180217740", "CStaticLightingProcessor::BakeLighting", BAKE, "lightmapMaxResolution (4096; >= 512, power of two), lightmapMipCount (1) and MinSpecLightmapSize, lightmapNoWeld, lightmapChartPackIterations (4/7/9 by lightmapVRadQuality, 182a8cc68), GenerateCharts arg 2 = directional_irradiance_sh2_dc output; std::sort of the entries (18021b530) then 180210fa0, 180214960"),
     ("18025db60", "CWorldRendererBuilderNode::BakeLightMaps", BAKE, "strips PerVertexLighting from every entry (1812e2ec0 until gone), moves out entries with no 0x2000000909, bit 29 and +0x98, bakes, appends them back"),
     ("18021b530", "BakeLighting_SortEntries", BAKE, "MSVC std::sort of 0x238 entries; comparison 18021e610: more vertices first, then memcmp of the vertex floats"),
@@ -522,7 +534,7 @@ RESOURCECOMPILER = [
     # The entity lump: FGD, key typing, template pass, paths, vmap upgrade.
     ("18009fe10", "Fgd_TypeAliases", LUMP, "the aliases and extension each type stands for"),
     ("1801fdae0", "TemplatePass_RewriteReferences", LUMP, ""),
-    ("180240a60", "EntityLump_ExportNodeLate", LUMP, "cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes)"),
+    ("180240a60", "EntityLump_ExportNodeLate", LUMP, "a brush entity's generated model (entities/%s_%s.vmdl) becomes a static model record (180245770) when its lightmapstatic is set (and one mesh list without +0x108); cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes)"),
     ("18024a970", "TemplatePass_RemoveOriginals", LUMP, ""),
     ("18024c6d0", "TemplatePass_Step_18024c6d0", LUMP, "a template pass piece"),
     ("18024c910", "TemplatePass_RenameCopies", LUMP, ""),
@@ -909,7 +921,7 @@ RESOURCECOMPILER = [
     ("180f7b6a0", "CMapNode_RaytraceFlags", LIGHTS, "0x20 when node +0x278 is 0; 0x1000000, 0x2000000, 0x4000000 by parent and +0x2d0"),
     # Entities.
     ("180244d30", "EntityLump_ExportDriver", ENT, "per-entity export driver; writes vDirToSun"),
-    ("180245770", "EntityLump_StaticModelRecord", ENT, "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"),
+    ("180245770", "EntityLump_StaticModelRecord", ENT, "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"),
     # Per-entity lump export: probe, cubemap and light keys (2026-09-28).
     ("1800fd550", "ResourceCompilerMap_CompileMap", LIGHTS, "sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting"),
     ("1801f7960", "CMapBuilderContext_Ctor", LUMP, "+0x10c = content-relative map path, no extension"),
@@ -1779,6 +1791,8 @@ TIER0 = [
     ("1803ab28c", "Crt_Fma3Flag", X, "data: CPU flag selecting the FMA3 libm paths"),
     # Binary KV3 v5 (Kv3V5Writer).
     ("180124b00", "SaveKV3", IO, "export; text encodings here, binary through 1800c7220"),
+    ("1800d92a0", "KV3Text_WriteHeader", IO, "<!-- kv3 encoding:text:version{...} format:...:version{...} -->, CRLF"),
+    ("1800d7940", "KV3Text_WriteNode", IO, "member = value; tables and multi-line arrays on the next line; arrays of fewer than 5 plain scalars inline, else one element a line (scalars four a line) with a comma each; floats by V_FloatToString_NoExponent; flag prefixes"),
     ("1800c7220", "SaveKV3_Binary", IO, "binary_auto: raw under 0x100 bytes, LZ4 (1800c8790) under 0x80001, else zstd (1800c8d80); the 100-byte header (nodes, objects, arrays, main arrays and their elements); blob lengths and 0xFFEEDD00 after the types"),
     ("1800c6eb0", "KV3Binary_WriteRoot", IO, "with flag 2 seeds the string table from the KV3 context's symbols first"),
     ("1800c6c20", "KV3Binary_WriteNode", IO, "type byte (0x80 | type, then the flag byte, for flags 1-7): ints fitting 32 bits INT32/UINT32, 0/1 the zero/one types, doubles 0/1; arrays of one kind typed: < 0x100 byte length (0x18, or 0x19 auxiliary for int/uint/double), else 0x0a"),
@@ -1805,6 +1819,9 @@ MESHSYSTEM = [
     ("1800119a0", "CMeshSystem::GetTraceData", LIGHTS, "vfn 0xf0: mesh +0x200, the per draw call trace data (TraceDataForDraw_t, 0x70 each)"),
     ("180021010", "CMeshRayTrace_ctor", LIGHTS, "per draw call: flags from the material's ten int attributes, TraceVertex_t (0x48) triangles by index, a RayTracingEnvironment"),
     ("18000b6c4", "RenderMesh_LoadBlocks", LIGHTS, "loads MRPH and the tools vb block (m_nToolsVBBlock); stock models carry none"),
+    ("18002af80", "TraceDataForDraw_Build", BAKE, "a draw call's fields: position, normal, tangent (+0x67 when float), blend data by semantic; a shader semantic through 180036aa0, else the semantic: texcoord 0 and 1 (+0x66 when R32G32_FLOAT), the vertex colour (+0x60, a color field of the lowest index); the 18 floats at +0x08, the rest as extra fields (+0x40) unpacked by 180029c10"),
+    ("180036aa0", "MeshSemantic_Lookup", BAKE, "the table at 180174d50 (0x1f entries: name, standard name, index, name index at +0x14): a name match with the given index, or a standard-name match at its index"),
+    ("180029c10", "VertexField_Unpack", BAKE, "a field's components as floats by format"),
 ]
 
 HAMMER = [

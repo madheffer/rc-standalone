@@ -209,11 +209,14 @@ internal static class NodePropEntries
 
     // WRB_LoadPropMeshes' 18 floats a vertex from meshsystem's geometry.
     internal static (float[] Vertices, bool Color) Vertices(VBIB.OnDiskBufferData vb, int lo, int count)
+        => Vertices(vb, lo, count, vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "COLOR"));
+
+    /// <param name="cf">The geometry's vertex colour field (none: a zero colour).</param>
+    internal static (float[] Vertices, bool Color) Vertices(VBIB.OnDiskBufferData vb, int lo, int count, VBIB.RenderInputLayoutField cf)
     {
         var positions = VBIB.GetVector3AttributeArray(vb, vb.InputLayoutFields.First(f => f.SemanticName == "POSITION"));
         var nf = vb.InputLayoutFields.First(f => f.SemanticName == "NORMAL");
         var tf = vb.InputLayoutFields.First(f => f.SemanticName == "TEXCOORD");
-        var cf = vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "COLOR");
         var t1 = vb.InputLayoutFields.FirstOrDefault(f => f.SemanticName == "TEXCOORD" && f.SemanticIndex == 1);
         var hasColor = cf.SemanticName != null;
         var v = new float[count * Stride];

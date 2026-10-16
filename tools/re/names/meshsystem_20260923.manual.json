@@ -23,6 +23,24 @@
    "name": "RenderMesh_LoadBlocks",
    "module": "s2c:baked/light-keys",
    "note": "loads MRPH and the tools vb block (m_nToolsVBBlock); stock models carry none"
+  },
+  {
+   "addr": "18002af80",
+   "name": "TraceDataForDraw_Build",
+   "module": "s2c:baked/lighting",
+   "note": "a draw call's fields: position, normal, tangent (+0x67 when float), blend data by semantic; a shader semantic through 180036aa0, else the semantic: texcoord 0 and 1 (+0x66 when R32G32_FLOAT), the vertex colour (+0x60, a color field of the lowest index); the 18 floats at +0x08, the rest as extra fields (+0x40) unpacked by 180029c10"
+  },
+  {
+   "addr": "180036aa0",
+   "name": "MeshSemantic_Lookup",
+   "module": "s2c:baked/lighting",
+   "note": "the table at 180174d50 (0x1f entries: name, standard name, index, name index at +0x14): a name match with the given index, or a standard-name match at its index"
+  },
+  {
+   "addr": "180029c10",
+   "name": "VertexField_Unpack",
+   "module": "s2c:baked/lighting",
+   "note": "a field's components as floats by format"
   }
  ]
 }

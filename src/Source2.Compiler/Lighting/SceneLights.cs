@@ -59,6 +59,226 @@ internal static class SceneLights
         return r;
     }
 
+    /// <summary>
+    /// A light_environment's (or light_directional's) scene record:
+    /// Light_LegacyDescription (180eed570) then FUN_181294010's directional
+    /// branch. The description's colour is brightness times brightnessscale
+    /// times "color" made linear; its direction is the light's forward axis
+    /// negated (MatrixAngles of its matrix, AngleVectors). The record is an
+    /// orthographic box of +-262144 by 524288 looking down x (all powers of
+    /// two), its near plane, the direction as position (w 0), inner radius
+    /// 0.9999999 both ways, cookie -1, distance fade (1, 0), angle fade (1, 0,
+    /// 0), the orientation AngleQuaternion(VectorAngles(-direction)), and with
+    /// an angular diameter a disc luminaire of tan(diameter / 2) both ways
+    /// (FUN_1812a8060, FUN_181296170); then moved by the identity (18129a8d0).
+    /// </summary>
+    public static LightShape Directional(LightPrecompute.KeyReader key, Vector3 origin, Vector3 angles)
+    {
+        float Float(string name, float fallback) => key(name) is { } v ? CNumbers.ToFloat32(v) : fallback;
+        var brightness = Float("brightness", 1f) * Float("brightnessscale", 1f);
+        var c = Color(key, "color", Vector3.Zero);
+        var color = new Vector3(brightness * c.X, brightness * c.Y, brightness * c.Z);
+        var direction = -Forward(origin, angles);
+        const float R = 262144f;
+        var r = new LightShape();
+        float[] to = [0f, -1f / R, 0f, 0f, 0f, 0f, 1f / R, 0f, 1f / (R + R), 0f, 0f, 0.5f, 0f, 0f, 0f, 1f];
+        float[] from = [0f, 0f, R + R, -R, -R, 0f, 0f, 0f, 0f, R, 0f, 0f, 0f, 0f, 0f, 1f];
+        to.CopyTo(r.Matrix);
+        from.CopyTo(r.Inverse);
+        var plane = LightBuild.Plane(r.Inverse);
+        r[0x80] = plane.X;
+        r[0x84] = plane.Y;
+        r[0x88] = plane.Z;
+        r[0x8c] = plane.W;
+        r.SetV3(0x90, direction);
+        r[0x9c] = 0f;
+        r[0xa0] = r[0xa4] = BitConverter.Int32BitsToSingle(0x3f7ffffe);
+        r.SetV3(0xb4, color);
+        BitConverter.TryWriteBytes(r.Raw.AsSpan(0xc4), -1);
+        r[0xc8] = 1f;
+        r.Orientation = CTransform.AngleQuaternion(VectorAngles(-direction));
+        r[0xe0] = 1f;
+        if (!string.IsNullOrEmpty(key("lightcookie")))
+            throw new NotSupportedException("a light cookie's texture index is not ported");
+        var tan = LightCrt.Tan(MathF.Max(Float("angulardiameter", 0f), 0f) * 0.5f * 0.017453292f);
+        if (0f < tan)
+            LightBuild.DiscLuminaire(r, tan, tan);
+        LightBuild.Transform(r, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
+        return r;
+    }
+
+    // The light's forward axis as VisConfig.SunOf takes it: its matrix back to
+    // angles (MatrixAngles), then AngleVectors.
+    private static Vector3 Forward(Vector3 origin, Vector3 angles)
+    {
+        var local = MapMeshes.AngleMatrix(angles);
+        local[3] = origin.X;
+        local[7] = origin.Y;
+        local[11] = origin.Z;
+        var a = SettleWorld.MatrixAngles(MapMeshes.Concat([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], local));
+        const float Radians = 0.017453292f;
+        float sp = Simulation.CrtMath.Sin(a.X * Radians), cp = Simulation.CrtMath.Cos(a.X * Radians);
+        float sy = Simulation.CrtMath.Sin(a.Y * Radians), cy = Simulation.CrtMath.Cos(a.Y * Radians);
+        return new Vector3(cy * cp, sy * cp, -sp);
+    }
+
+    /// <summary>FUN_18125b9e0 (VectorAngles): pitch and yaw in [0, 360) degrees, roll 0.</summary>
+    public static Vector3 VectorAngles(Vector3 v)
+    {
+        float yaw, pitch;
+        if (v.Y != 0f || v.X != 0f)
+        {
+            yaw = LightCrt.Atan2(v.Y, v.X) * 57.295776f;
+            if (yaw < 0f)
+                yaw += 360f;
+            pitch = LightCrt.Atan2(-v.Z, MathF.Sqrt(v.X * v.X + v.Y * v.Y)) * 57.295776f;
+            if (pitch < 0f)
+                pitch += 360f;
+        }
+        else
+        {
+            yaw = 0f;
+            pitch = v.Z <= 0f ? 90f : 270f;
+        }
+        return new Vector3(pitch, yaw, 0f);
+    }
+
+    /// <summary>
+    /// 181113f20's <c>ibl</c> from the scene's sky light (its first
+    /// light_environment) and the env_sky its skytexture names: path_trace_light_flags
+    /// (0x40 for bouncelight 2, else 1); the env_sky's matrix; scale,
+    /// skytexturescale times brightnessscale times the env_sky's brightness
+    /// and tint; its skyname; sky_bounce, skyambientbounce made linear with
+    /// alpha 1; sky_bounce_scale, skybouncescale times brightnessscale when
+    /// bouncelight is 1 (or, unset, directlight 1 or 3), else 0; and
+    /// sun_light_min_brightness. Null without a sky light.
+    /// </summary>
+    /// <remarks>The light's fields are read through their getters (180edb540,
+    /// 180edb430, 180edb490, 1801bc490) and named after the keys whose values
+    /// they hold on probe01. Not ported: no skytexture (the sky colour,
+    /// 180edb4d0), sky_lightingonly_name, a tinted env_sky.</remarks>
+    public static KVObject? Ibl(LightPrecompute.KeyReader? light, Func<string, (LightPrecompute.KeyReader Key, float[] Matrix)?> skyNamed)
+    {
+        if (light is null)
+            return null;
+        static float Float(LightPrecompute.KeyReader k, string name, float fallback) => k(name) is { } v ? CNumbers.ToFloat32(v) : fallback;
+        static int Int(LightPrecompute.KeyReader k, string name, int fallback) => k(name) is { } v ? (int)CNumbers.Atoi(v) : fallback;
+        var ibl = KVObject.Collection();
+        var bounce = (sbyte)Int(light, "bouncelight", -1);
+        ibl.Add("path_trace_light_flags", new KVObject(bounce == 2 ? 0x40 : 1));
+        var name = light("skytexture") ?? "";
+        if (name.Length == 0 || skyNamed(name) is not { } sky)
+            throw new NotSupportedException("a sky light without an env_sky (the sky colour, 180edb4d0) is not ported");
+        if (!string.IsNullOrEmpty(sky.Key("sky_lightingonly_name")))
+            throw new NotSupportedException("an env_sky's sky_lightingonly_name is not ported");
+        var tint = sky.Key("tint_color") ?? "255 255 255";
+        if (tint.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries) is not ["255", "255", "255", ..])
+            throw new NotSupportedException("a tinted env_sky is not ported");
+        var a = KVObject.Array();
+        foreach (var x in sky.Matrix)
+            a.Add(new KVObject((double)x));
+        ibl.Add("transform", a);
+        var scale = Float(light, "brightnessscale", 1f) * Float(light, "skytexturescale", 1f) * Float(sky.Key, "brightnessscale", 1f);
+        var sv = KVObject.Array();
+        for (var i = 0; i < 3; i++)
+            sv.Add(new KVObject((double)scale));
+        ibl.Add("scale", sv);
+        ibl.Add("material", new KVObject(sky.Key("skyname") ?? "") { Flag = KVFlag.ResourceName });
+        var bounceColor = Color(light, "skyambientbounce", Vector3.Zero);
+        var bv = KVObject.Array();
+        foreach (var x in new[] { bounceColor.X, bounceColor.Y, bounceColor.Z, 1f })
+            bv.Add(new KVObject((double)x));
+        ibl.Add("sky_bounce", bv);
+        var direct = (sbyte)Int(light, "directlight", 2);
+        var bounces = bounce == -1 ? direct is 1 or 3 : bounce == 1;
+        ibl.Add("sky_bounce_scale", new KVObject((double)(bounces ? Float(light, "skybouncescale", 1f) * Float(light, "brightnessscale", 1f) : 0f)));
+        ibl.Add("sun_light_min_brightness", new KVObject((double)Float(light, "sunlightminbrightness", 0f)));
+        return ibl;
+    }
+
+    /// <summary>
+    /// FUN_180eece60's light info: directlight (default 2), bouncelight (-1:
+    /// 1 for direct 1 or 3, 0 for 2), bouncescale, castshadows,
+    /// bakedshadowindex (a signed byte) and the precomputed OBB.
+    /// </summary>
+    public sealed record Info(int Direct, int Bounce, float BounceScale, bool CastShadows, int BakedShadowIndex, LightObb.Box? Volume);
+
+    public static Info InfoOf(LightPrecompute.KeyReader key)
+    {
+        int Int(string name, int fallback) => key(name) is { } v ? (int)CNumbers.Atoi(v) : fallback;
+        Vector3 Vec(string name)
+        {
+            var parts = (key(name) ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            float P(int i) => i < parts.Length ? CNumbers.ToFloat32(parts[i]) : 0f;
+            return new Vector3(P(0), P(1), P(2));
+        }
+        var direct = (int)(sbyte)Int("directlight", 2);
+        var bounce = (int)(sbyte)Int("bouncelight", -1);
+        if (bounce == -1)
+            bounce = direct is 1 or 3 ? 1 : direct == 2 ? 0 : bounce;
+        LightObb.Box? volume = Int("precomputedfieldsvalid", 0) != 0
+            ? new LightObb.Box(CTransform.AngleQuaternion(Vec("precomputedobbangles")), Vec("precomputedobborigin"), Vec("precomputedobbextent"))
+            : null;
+        return new Info(direct, bounce, key("bouncescale") is { } b ? CNumbers.ToFloat32(b) : 1f, (sbyte)Int("castshadows", 0) != 0,
+                        (sbyte)Int("bakedshadowindex", -1), volume);
+    }
+
+    /// <summary>
+    /// 181112e80's entry for one light: its barn table, path_trace_light_flags
+    /// (8 when it casts shadows, 6 for direct light 1 or 3, then 1 for bounce
+    /// 1 at bounce scale 1, 0x40 for bounce 2), baked_shadow_index, with an
+    /// index baked_shadow_light_id (the lights so far on that index), and with
+    /// precomputed fields its illumination_volume. Null for a light the scene
+    /// leaves out (direct 1 and not enabled).
+    /// </summary>
+    public static KVObject? Entry(LightPrecompute.KeyReader key, LightShape record, Dictionary<int, int> shadowIds)
+    {
+        var info = InfoOf(key);
+        var enabled = key("enabled") is not { } en || CNumbers.Atoi(en) != 0;
+        var bounce = info.Bounce;
+        if (info.Direct == 1 && !enabled)
+            return null;
+        if (info.Direct == 3 && !enabled)
+            bounce = 0;
+        var flags = info.CastShadows ? 8u : 0u;
+        if (info.Direct is 1 or 3)
+            flags |= 6;
+        if (bounce == 1 || (bounce == -1 && info.Direct is 1 or 3))
+        {
+            if (info.BounceScale != 1f)
+                throw new NotSupportedException("a light's separate bounce light at a bounce scale other than 1 (181113af0) is not ported");
+            flags |= 1;
+        }
+        else if (bounce == 2)
+            flags |= 0x40;
+        var e = KVObject.Collection();
+        e.Add("barn", Table(record));
+        e.Add("path_trace_light_flags", new KVObject(flags));
+        e.Add("baked_shadow_index", new KVObject(info.BakedShadowIndex));
+        if (info.BakedShadowIndex != -1)
+        {
+            var id = shadowIds.GetValueOrDefault(info.BakedShadowIndex);
+            shadowIds[info.BakedShadowIndex] = id + 1;
+            e.Add("baked_shadow_light_id", new KVObject((uint)(byte)id));
+        }
+        if (info.Volume is { } v)
+        {
+            KVObject F(params float[] f)
+            {
+                var a = KVObject.Array();
+                foreach (var x in f)
+                    a.Add(new KVObject((double)x));
+                return a;
+            }
+            var volume = KVObject.Collection();
+            volume.Add("m_qOrientation", F(v.Rotation.X, v.Rotation.Y, v.Rotation.Z, v.Rotation.W));
+            volume.Add("m_vCenter", F(v.Origin.X, v.Origin.Y, v.Origin.Z));
+            volume.Add("m_vExtent", F(v.Extent.X, v.Extent.Y, v.Extent.Z));
+            e.Add("illumination_volume", volume);
+        }
+        return e;
+    }
+
     private static readonly string[] LuminaireTypes = ["PUNCTUAL", "QUAD", "DISK", "SPHERE", "TUBE", "TUBE_WITH_END_CAPS"];
 
     /// <summary>181297030: the record's barn table.</summary>

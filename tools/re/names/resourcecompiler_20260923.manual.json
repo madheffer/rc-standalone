@@ -2206,7 +2206,79 @@
    "addr": "180285eb0",
    "name": "WRB_BuildPathTraceSceneInfo",
    "module": "s2c:baked/lighting",
-   "note": "lights, cameras, instances, mesh_file"
+   "note": "scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights)"
+  },
+  {
+   "addr": "180284aa0",
+   "name": "WRB_PathTraceStaticModels",
+   "module": "s2c:baked/lighting",
+   "note": "one model's records: LOD groups (1802b4ab0), WRB_LoadPropMeshes per group, per draw call (draw record +0x64 bit 0x800 skips) then per prop: a shared CMesh (+0x100 per-vertex data copies it, 1812ddd80, 1812d6420), instance mesh, transform (+0x10), material (1802b6830), tint (per-draw override at +0x120 times +0x148..+0x154), emissive_lighting_boost (+0x174), flags (+0x16f, +0x210, +0x1f0 bit 19, +0x173/+0x178, +0x17d)"
+  },
+  {
+   "addr": "180285bf0",
+   "name": "WRB_PathTraceInstancedModels",
+   "module": "s2c:baked/lighting",
+   "note": "the +0x1e0 table's entries (model and skin to transforms): records through 180285810, then 180284aa0; empty on the maps measured"
+  },
+  {
+   "addr": "180285810",
+   "name": "WRB_PathTraceInstanceRecords",
+   "module": "s2c:baked/lighting",
+   "note": "0x220 records from 0x30 transforms: QuaternionMatrix times the scale, colour bytes / 255 at +0x148; +0x17e = 0x101, skin hash at +0x188"
+  },
+  {
+   "addr": "1802b6830",
+   "name": "WRB_PropDrawMaterial",
+   "module": "s2c:baked/lighting",
+   "note": "a prop draw call's material: the record's overrides (+0x118) by mesh and draw id, else the skin's material group (+0x188 hash)"
+  },
+  {
+   "addr": "1801d3050",
+   "name": "WRB_MaterialAttributeBySemantic",
+   "module": "s2c:geometry/world-nodes",
+   "note": "the material's vertex attribute (0xc4 records) whose semantic name (+0x80) and index (+0xc0) match; its name at +0x40"
+  },
+  {
+   "addr": "1812e4550",
+   "name": "CMesh_WriteKV3",
+   "module": "s2c:baked/lighting",
+   "note": "vertex_count, vertex_stride, vertices, index_count, indices, meshlet_count, attribute_count, attributes, lod_group_mask, material_name, mesh_name, mesh_id, tint_color, lightmap_scale (+0x184), no_collapse (twice, +0x152 last), pack_sharedvb, use_basevertex, use_tint_color, is_line_mesh, baked_twosided, collision_type"
+  },
+  {
+   "addr": "181113f20",
+   "name": "LightingProcessor_PathTraceLights",
+   "module": "s2c:baked/lighting",
+   "note": "vf 0x40: the lights (181112e80) and the ibl: path_trace_light_flags, the env_sky transform, scale, material, sky_bounce, sky_bounce_scale, sun_light_min_brightness; null without a sky light"
+  },
+  {
+   "addr": "181112e80",
+   "name": "LightingProcessor_PathTraceLightList",
+   "module": "s2c:baked/lighting",
+   "note": "per light its LightShape (181297030) and info (180eece60); the sky light found by dynamic cast of the entity's components"
+  },
+  {
+   "addr": "181297030",
+   "name": "LightShape_WriteKV3",
+   "module": "s2c:baked/lighting",
+   "note": "the 300-byte record: m_mToClipSpace, m_mFromClipSpace, m_vNearPlane, m_vLightPosition, m_vInnerRadius, m_flShape, m_vSkirt, m_vColor, m_nCookie, m_vDistanceFade, m_qOrientation, m_vAngleFade, m_nLuminaireType, m_flLightColorToRadiance, m_bLightInsideFrustum, m_bSphericalCookie, m_Luminaire"
+  },
+  {
+   "addr": "181294010",
+   "name": "LightShape_FromLegacy",
+   "module": "s2c:baked/lighting",
+   "note": "type 2 (directional): ortho +-262144, depth 524288, orientation from VectorAngles(-dir), a disc luminaire of tan(angulardiameter / 2)"
+  },
+  {
+   "addr": "18125b9e0",
+   "name": "VectorAngles",
+   "module": "s2c:math",
+   "note": "pitch and yaw in [0, 360), roll 0"
+  },
+  {
+   "addr": "18126a710",
+   "name": "SrgbToLinear",
+   "module": "s2c:math",
+   "note": "clamped to [0, 1]; c / 12.92 up to 0.04045, else V_powf((c + 0.055) / 1.055, 2.4)"
   },
   {
    "addr": "180217740",
@@ -2842,7 +2914,7 @@
    "addr": "180240a60",
    "name": "EntityLump_ExportNodeLate",
    "module": "s2c:entities/lump",
-   "note": "cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes)"
+   "note": "a brush entity's generated model (entities/%s_%s.vmdl) becomes a static model record (180245770) when its lightmapstatic is set (and one mesh list without +0x108); cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes)"
   },
   {
    "addr": "18024a970",
@@ -5068,7 +5140,7 @@
    "addr": "180245770",
    "name": "EntityLump_StaticModelRecord",
    "module": "s2c:entities",
-   "note": "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"
+   "note": "prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias)"
   },
   {
    "addr": "1800fd550",

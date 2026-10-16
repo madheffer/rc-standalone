@@ -59,7 +59,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
 - SHA-256 `11203f370437e5d55dbec46f530812b6a6f92c894e8f1c85f3c3b6e8773dc1d6`
 - installed: a different build
-- 4 addresses
+- 7 addresses
 
 ### s2c:baked/light-keys
 
@@ -69,6 +69,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800119a0` | `CMeshSystem::GetTraceData` | vfn 0xf0: mesh +0x200, the per draw call trace data (TraceDataForDraw_t, 0x70 each) |  |
 | `180011ba0` | `CMeshSystem::GetMeshRayTrace` | vfn 0xe8: a render mesh's cached CMeshRayTrace, built on first use |  |
 | `180021010` | `CMeshRayTrace_ctor` | per draw call: flags from the material's ten int attributes, TraceVertex_t (0x48) triangles by index, a RayTracingEnvironment |  |
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `180029c10` | `VertexField_Unpack` | a field's components as floats by format | `src/Source2.Compiler/Lighting/MeshGeometry.cs:22`, `src/Source2.Compiler/Lighting/MeshGeometry.cs:121`, `src/Source2.Compiler/Lighting/MeshGeometry.cs:136` |
+| `18002af80` | `TraceDataForDraw_Build` | a draw call's fields: position, normal, tangent (+0x67 when float), blend data by semantic; a shader semantic through 180036aa0, else the semantic: texcoord 0 and 1 (+0x66 when R32G32_FLOAT), the vertex colour (+0x60, a color field of the lowest index); the 18 floats at +0x08, the rest as extra fields (+0x40) unpacked by 180029c10 | `src/Source2.Compiler/Lighting/MeshGeometry.cs:7`, `src/Source2.Compiler/Lighting/MeshGeometry.cs:48`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:171` |
+| `180036aa0` | `MeshSemantic_Lookup` | the table at 180174d50 (0x1f entries: name, standard name, index, name index at +0x14): a name match with the given index, or a standard-name match at its index | `src/Source2.Compiler/Lighting/MeshGeometry.cs:48` |
 
 ## physicsbuilder.dll, build 20260924
 
@@ -169,7 +177,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 928 addresses
+- 940 addresses
 
 ### s2c:baked/light-keys
 
@@ -194,8 +202,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180251040` | `Matrix4x4_Project` | a point through the 4x4, divided by w | `src/Source2.Compiler/Maps/LightTrace.cs:59` |
 | `180dd2630` | `EntityClass_HasStaticProp` | class metadata key static_prop |  |
 | `180ee9e30` | `LightBuild_TransformVolume` |  | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
-| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Maps/LightBuild.cs:6`, `src/Source2.Compiler/Maps/LightBuild.cs:321`, `src/Source2.Compiler/Maps/LightPrecompute.cs:96` +2 |
-| `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:108` |
+| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:37`, `src/Source2.Compiler/Maps/LightBuild.cs:6` +4 |
+| `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Lighting/SceneLights.cs:200`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:108` |
 | `180eed3c0` | `Light_BrightnessFromUnits` | 0 exp2(brightness)*scale, 1 lumens/factor, 2 nits*area*pi*0.00064516/factor, 3 legacy*scale, 4 candelas*solid/factor | `src/Source2.Compiler/Maps/LightUnits.cs:11`, `src/Source2.Compiler/Maps/LightUnits.cs:74` |
 | `180eedfe0` | `Light_LegacyDescriptionAt` | step matrix, then Light_LegacyDescription |  |
 | `180eee040` | `Light_LegacyType` | 1 omni/capsule, 3 spot, 2 directional/environment, 4 ortho, else 0 |  |
@@ -270,7 +278,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181293b30` | `LightRecord_FalloffRange` | -a/b of the distance falloff when w and b are nonzero, else FLT_MAX |  |
 | `181293b70` | `LightTrace_BarnShape` | the barn's cross-section at a clip point | `src/Source2.Compiler/Maps/LightTrace.cs:142` |
 | `181294fc0` | `LightSampler_Ray` | one ray for four Halton numbers; the reach | `src/Source2.Compiler/Maps/LightSampler.cs:7`, `src/Source2.Compiler/Maps/LightSampler.cs:173`, `src/Source2.Compiler/Maps/LightSampler.cs:271` |
-| `181296170` | `LightBuild_DiscLuminaire` | type 2 | `src/Source2.Compiler/Maps/LightBuild.cs:207` |
+| `181296170` | `LightBuild_DiscLuminaire` | type 2 | `src/Source2.Compiler/Lighting/SceneLights.cs:73`, `src/Source2.Compiler/Maps/LightBuild.cs:207` |
 | `181296340` | `LightBuild_RectLuminaire` | type 1 | `src/Source2.Compiler/Maps/LightBuild.cs:177` |
 | `1812966c0` | `LightBuild_SphereLuminaire` | type 3 | `src/Source2.Compiler/Maps/LightBuild.cs:273` |
 | `181296730` | `LightBuild_CapsuleLuminaire` | type 4, or 5 capped; LightBuild.CapsuleLuminaire | `src/Source2.Compiler/Maps/LightBuild.cs:286` |
@@ -288,7 +296,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18129a6d0` | `LightUnits_Square` | x * x |  |
 | `18129a6e0` | `LightUnits_BarnScale` | 1 / (w / (sqrt(w) + d)^2) with w = +0x9c | `src/Source2.Compiler/Maps/LightUnits.cs:122` |
 | `18129a760` | `LightBuild_BarnMatrix` | the barn's frustum down x | `src/Source2.Compiler/Maps/LightBuild.cs:15` |
-| `18129a8d0` | `LightBuild_TransformRecord` | the record moved by a 3x4 | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
+| `18129a8d0` | `LightBuild_TransformRecord` | the record moved by a 3x4 | `src/Source2.Compiler/Lighting/SceneLights.cs:42`, `src/Source2.Compiler/Lighting/SceneLights.cs:73`, `src/Source2.Compiler/Maps/LightBuild.cs:223` |
 | `18129b7b0` | `SegmentIntersectsBox` | SSE slab test: refined rcpps of the delta, exit capped at 1, entry floored at 0 | `src/Source2.Compiler/Maps/LightVisClusters.cs:54` |
 | `1813c3b60` | `MeshTessellation_PatchIndices` | a patch grid's cells as [a, right, b], [a, b, below] | `src/Source2.Compiler/Maps/MeshTessellation.cs:54` |
 | `1813c7970` | `MeshTessellation_FaceLevel` | the level of the face's first corner |  |
@@ -378,9 +386,18 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18023af80` | `Vrad3_Init` | VRAD3_PATH, Vrad3_Init_SearchPath |  |
 | `180248800` | `WRB_BakePrecomputedShadows` | direct_light_shadows |  |
 | `18025db60` | `CWorldRendererBuilderNode::BakeLightMaps` | strips PerVertexLighting from every entry (1812e2ec0 until gone), moves out entries with no 0x2000000909, bit 29 and +0x98, bakes, appends them back | `src/Source2.Compiler/Lighting/ChartMeshes.cs:11`, `src/Source2.Compiler/Lighting/ChartMeshes.cs:34`, `src/Source2.Compiler/Maps/WorldNodeBuild.cs:95` |
-| `180285eb0` | `WRB_BuildPathTraceSceneInfo` | lights, cameras, instances, mesh_file |  |
+| `180284aa0` | `WRB_PathTraceStaticModels` | one model's records: LOD groups (1802b4ab0), WRB_LoadPropMeshes per group, per draw call (draw record +0x64 bit 0x800 skips) then per prop: a shared CMesh (+0x100 per-vertex data copies it, 1812ddd80, 1812d6420), instance mesh, transform (+0x10), material (1802b6830), tint (per-draw override at +0x120 times +0x148..+0x154), emissive_lighting_boost (+0x174), flags (+0x16f, +0x210, +0x1f0 bit 19, +0x173/+0x178, +0x17d) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:11`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:33`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:64` +1 |
+| `180285810` | `WRB_PathTraceInstanceRecords` | 0x220 records from 0x30 transforms: QuaternionMatrix times the scale, colour bytes / 255 at +0x148; +0x17e = 0x101, skin hash at +0x188 |  |
+| `180285bf0` | `WRB_PathTraceInstancedModels` | the +0x1e0 table's entries (model and skin to transforms): records through 180285810, then 180284aa0; empty on the maps measured |  |
+| `180285eb0` | `WRB_BuildPathTraceSceneInfo` | scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights) | `src/Source2.Compiler/Lighting/PathTraceScene.cs:8`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:44`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:68` +1 |
+| `1802b6830` | `WRB_PropDrawMaterial` | a prop draw call's material: the record's overrides (+0x118) by mesh and draw id, else the skin's material group (+0x188 hash) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:23` |
 | `180f4eae0` | `Hammer_LoadOptions` | Hammer's options table (BuildMapEnvMaps is a Hammer setting) |  |
 | `180fb0680` | `Hammer_LoadGameSettings` | gameinfo's Hammer section (BakeOnlyCubemaps among the map builder switches) |  |
+| `181112e80` | `LightingProcessor_PathTraceLightList` | per light its LightShape (181297030) and info (180eece60); the sky light found by dynamic cast of the entity's components | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:227` |
+| `181113f20` | `LightingProcessor_PathTraceLights` | vf 0x40: the lights (181112e80) and the ibl: path_trace_light_flags, the env_sky transform, scale, material, sky_bounce, sky_bounce_scale, sun_light_min_brightness; null without a sky light | `src/Source2.Compiler/Lighting/SceneLights.cs:147` |
+| `181294010` | `LightShape_FromLegacy` | type 2 (directional): ortho +-262144, depth 524288, orientation from VectorAngles(-dir), a disc luminaire of tan(angulardiameter / 2) | `src/Source2.Compiler/Lighting/SceneLights.cs:64` |
+| `181297030` | `LightShape_WriteKV3` | the 300-byte record: m_mToClipSpace, m_mFromClipSpace, m_vNearPlane, m_vLightPosition, m_vInnerRadius, m_flShape, m_vSkirt, m_vColor, m_nCookie, m_vDistanceFade, m_qOrientation, m_vAngleFade, m_nLuminaireType, m_flLightColorToRadiance, m_bLightInsideFrustum, m_bSphericalCookie, m_Luminaire | `src/Source2.Compiler/Lighting/SceneLights.cs:11`, `src/Source2.Compiler/Lighting/SceneLights.cs:284`, `src/Source2.Compiler/Lighting/SceneLights.cs:323` |
+| `1812e4550` | `CMesh_WriteKV3` | vertex_count, vertex_stride, vertices, index_count, indices, meshlet_count, attribute_count, attributes, lod_group_mask, material_name, mesh_name, mesh_id, tint_color, lightmap_scale (+0x184), no_collapse (twice, +0x152 last), pack_sharedvb, use_basevertex, use_tint_color, is_line_mesh, baked_twosided, collision_type | `src/Source2.Compiler/Lighting/PathTraceScene.cs:11`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:20`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:37` +1 |
 | `181c46e60` | `SFMT19937_Refill` | POS1 122, SL1 18, SR1 11, one-byte SL2/SR2 | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
 | `181c473c0` | `SFMT19937_Seed` | the packer's debug colours (seed 0x777f17e); state words read without tempering | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
 | `181ed64a0` | `tinybvh::BVH::Build` | binned SAH, 16 bins, axes past root extent * 1e-20, split if c_int / SA * (ANL + ANR) + c_trav < count * c_int, in-place partition, 256-entry task stack; threaded at 50000 primitives | `src/Source2.Compiler/Lighting/TinyBvh.cs:8` |
@@ -440,7 +457,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun |  |
-| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias) | `src/Source2.Compiler/Maps/NodeEntryHeader.cs:89`, `src/Source2.Compiler/Maps/NodePropEntries.cs:59`, `src/Source2.Compiler/Maps/NodePropEntries.cs:191` +2 |
+| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:14`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:33`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:38` +5 |
 | `18024adc0` | `WRB_WriteEntityLump` | entity_lump_params, entities\ |  |
 | `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:13`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:166` |
 | `180f77240` | `CMapNode_PassesFilter` | node filter by flags: +0x366, vfn 0x408, editorOnly (vfn 0x440 or +0x365) under flag bits 1, 2 or 4 without 0, vfn 0x410, 0x150, 0x438 | `src/Source2.Compiler/Maps/MapEntities.cs:226` |
@@ -459,7 +476,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f8cf0` | `CMapBuilderContext::vf14` | +0x10c, e.g. maps\cardtest; seeds handshake and texture paths |  |
 | `1801fdae0` | `TemplatePass_RewriteReferences` |  | `src/Source2.Compiler/Maps/EntityLumpSet.cs:259` |
 | `18023ae00` | `LightProbe_GridSize` | ceil(extent / max(voxel,1)), 128 cap, x and y aligned | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:331` |
-| `180240a60` | `EntityLump_ExportNodeLate` | cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes) | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:186`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:310`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:640` +2 |
+| `180240a60` | `EntityLump_ExportNodeLate` | a brush entity's generated model (entities/%s_%s.vmdl) becomes a static model record (180245770) when its lightmapstatic is set (and one mesh list without +0x108); cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:15`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:28`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:186` +4 |
 | `180244420` | `EntityLump_CopyBakeTexture` | no-bake branch: if <old>_c loads, key := new path and <new>_c is written |  |
 | `1802470f0` | `EntityLump_FindByIdPath` | lump entities whose id path hashes and compares equal |  |
 | `18024a970` | `TemplatePass_RemoveOriginals` |  |  |
@@ -528,7 +545,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181c1e340` | `EntityKv_FixupResourceValue` | resource path fix-up run by EntityKv_SetResource |  |
 | `181c1ee80` | `EntityLump_FixupResource` | a resource reference as the lump writer fixes it | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:823`, `src/Source2.Compiler/Maps/ResourcePath.cs:4` |
 | `181eb82c0` | `Kv3_SetColor` | the KV3 colour setter | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:815` |
-| `181eb8970` | `KV3_SetMemberInt` | find or append member, type 3 with the given subtype |  |
+| `181eb8970` | `KV3_SetMemberInt` | find or append member, type 3 with the given subtype | `src/Source2.Compiler/Lighting/PathTraceScene.cs:174` |
 | `182349b48` | `CMapInstance_Vtable` | data: vtable; slot 0x860 (vf268) calls the collapse |  |
 | `182fe7b08` | `MapDoc_UpgradeTable` | data: vmap upgrade steps; slot 36 is the vmap<38 worldspawn step |  |
 | `182fe9f60` | `Fgd_TypeTable` | data: FGD key types {type, pad, name ptr} |  |
@@ -743,7 +760,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800d3020` | `NullSub_ret0` | vf 0x28 of the instanced, no-split and baked prop lists: they stash per (node, +0xa8) group in vf 0x38 | `src/Source2.Compiler/Maps/WorldNodeCompile.cs:252` |
-| `1801d30d0` | `WRB_LoadPropMeshes` | a model's draw calls as CMeshes of 18 floats a vertex (position, normal, tangent, texcoord, color, texcoord); vertices from the resource system's geometry info (vf 0xf0), unpacked there |  |
+| `1801d3050` | `WRB_MaterialAttributeBySemantic` | the material's vertex attribute (0xc4 records) whose semantic name (+0x80) and index (+0xc0) match; its name at +0x40 | `src/Source2.Compiler/Lighting/MeshGeometry.cs:115` |
+| `1801d30d0` | `WRB_LoadPropMeshes` | a model's draw calls as CMeshes of 18 floats a vertex (position, normal, tangent, texcoord, color, texcoord); vertices from the resource system's geometry info (vf 0xf0), unpacked there | `src/Source2.Compiler/Lighting/PathTraceProps.cs:19` |
 | `1801fee20` | `WRB_MeshesToModelDoc` | (CMesh, group) pairs into meshSet_%i nodes by (CMesh +0x58, group); ConvertFromCMesh each |  |
 | `18022bec0` | `UtlHashtable_Rehash` | power of two at least 32, old slots re-placed last to first through 18022b530 | `src/Source2.Compiler/Maps/UtlHashtable.cs:5`, `src/Source2.Compiler/Maps/UtlHashtable.cs:132` |
 | `18022c170` | `UtlHashtable_Bump` | moves an entry to the first free slot past its chain | `src/Source2.Compiler/Maps/UtlHashtable.cs:5`, `src/Source2.Compiler/Maps/UtlHashtable.cs:83` |
@@ -967,6 +985,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
 | `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:524`, `src/Source2.Compiler/Maps/SettleWorld.cs:651`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:677` |
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
+| `18125b9e0` | `VectorAngles` | pitch and yaw in [0, 360), roll 0 | `src/Source2.Compiler/Lighting/SceneLights.cs:125` |
 | `18125bad0` | `Matrix3x4_Column0` |  |  |
 | `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:85` |
 | `18125c070` | `Matrix3x4_Identity` |  |  |
@@ -993,6 +1012,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812644b0` | `Matrix4x4_Transpose` |  | `src/Source2.Compiler/Maps/LightMath.cs:22` |
 | `181264c60` | `AngleMatrix_Translation` | a 3x4 with a translation | `src/Source2.Compiler/Maps/TemplateTransform.cs:27` |
 | `1812651f0` | `Ray_SphereIntersect` | false when it misses | `src/Source2.Compiler/Maps/LightSampler.cs:326` |
+| `18126a710` | `SrgbToLinear` | clamped to [0, 1]; c / 12.92 up to 0.04045, else V_powf((c + 0.055) / 1.055, 2.4) | `src/Source2.Compiler/Lighting/PathTraceScene.cs:87` |
 | `18129b520` | `Ray_PlaneIntersect` | 0 when parallel | `src/Source2.Compiler/Maps/LightSampler.cs:317` |
 | `182035f5c` | `nexttowardf` | CRT | `src/Source2.Compiler/Maps/LightOmni.cs:16` |
 
@@ -1178,7 +1198,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1801f9ad0` | `CMapBuilderContext::InitializeIntermediateOutputDir` |  |  |
-| `1802472a0` | `CWorldRendererBuilder::Build` | the -world phase: dirs, scene, RTE, world, entity lumps; the RTE only when baking or vis (vf29 2, unless norte), the vis builder only with vis |  |
+| `1802472a0` | `CWorldRendererBuilder::Build` | the -world phase: dirs, scene, RTE, world, entity lumps; the RTE only when baking or vis (vf29 2, unless norte), the vis builder only with vis | `src/Source2.Compiler/Lighting/PathTraceScene.cs:8` |
 | `180f679c0` | `Step_LoadingMap` | Loading map: %s |  |
 
 ### s2c:smartprops
@@ -1226,7 +1246,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802597d0` | `WRB_RteSkipBoxes` | oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified |  |
 | `1802821f0` | `WRB_EmitRteTriangles` | ORs in the material's flag bits; drops a sliver (longest edge under 0.0001, or times 1.0001 over the other two) | `src/Source2.Compiler/Maps/MapGeometry.cs:53` |
 | `1802839d0` | `WRB_CollectRteMeshes` | each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80 | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:14` |
-| `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:110` |
+| `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Lighting/SceneLights.cs:64`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:110` |
 | `1810045b0` | `CMapEntity::vf219` | 2 when the entity's class renders as world | `src/Source2.Compiler/Maps/MapGeometry.cs:10` |
 | `181265950` | `TriBoxOverlap` | box centre, half extents, three corners, epsilon | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:543` |
 | `1812d6c70` | `CMesh_Append` | streams matched by name; vertices appended, indices offset by the old vertex count | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:47` |
@@ -1312,7 +1332,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
-- 47 addresses
+- 49 addresses
 
 ### s2c:containers
 
@@ -1347,6 +1367,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800c80c0` | `KV3Binary_StringId` | first-use ids; an empty string -1 |  |
 | `1800c8790` | `KV3Binary_CompressLz4` | LZ4 HC level 12 over buffer 1 and the rest; blobs via 1800c7080; kept when raw / 20 <= raw - compressed | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:411` |
 | `1800c8d80` | `KV3Binary_CompressZstd` | level 7, checksums, nbWorkers over 1 MB; streamed through 64 KB: buffer 1, buffer 2 and the non-empty blobs as three frames | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:299`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:411` |
+| `1800d7940` | `KV3Text_WriteNode` | member = value; tables and multi-line arrays on the next line; arrays of fewer than 5 plain scalars inline, else one element a line (scalars four a line) with a comma each; floats by V_FloatToString_NoExponent; flag prefixes | `src/Source2.Compiler/Containers/Kv3TextWriter.cs:8`, `src/Source2.Compiler/Containers/Kv3TextWriter.cs:151` |
+| `1800d92a0` | `KV3Text_WriteHeader` | <!-- kv3 encoding:text:version{...} format:...:version{...} -->, CRLF | `src/Source2.Compiler/Containers/Kv3TextWriter.cs:8` |
 | `180124b00` | `SaveKV3` | export; text encodings here, binary through 1800c7220 |  |
 | `18012bec0` | `V_LZ4_compress_HC` | export; level 12 when none is given |  |
 | `18017ebf0` | `CVertexKDTree_Partition` | from the middle up, below the split swapped down | `src/Source2.Compiler/Maps/VertexKdTree.cs:69`, `src/Source2.Compiler/Physics/MeshWeld.cs:270` |

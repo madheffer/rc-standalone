@@ -137,15 +137,22 @@ in make_manual's BAKE list, ADDRESSES.md):
   1024-luxel blocks. It is exact on probe01 and ze_hold_em_p. `WriteLightmapEdgeSeamsForVrad3` writes
   lightmap_seams.dat. This is ported in Lighting/LightmapSeams.cs (ledger
   66): uvs snapped to a 16-bit grid, a cross-mesh weld, corner adjacency
-  and a record per seam edge. It is exact on probe01 and ze_hold_em_p. `WRB_BuildPathTraceSceneInfo` scene_info.kv3 and its
-  mesh file.
+  and a record per seam edge. It is exact on probe01 and ze_hold_em_p.
+- `WRB_BuildPathTraceSceneInfo` writes scene_info.kv3 and its mesh file,
+  scene_meshes.kv3 (ledger 67). This is ported in Lighting/PathTraceScene.cs
+  (world meshes and instances, the KV3 files), PathTraceProps.cs and
+  MeshGeometry.cs (the static models: prop_statics and lightmapstatic
+  brush-entity models, meshsystem's field rules) and SceneLights.cs (barns,
+  the sun, the sky light). Both files are exact on probe01 and
+  ze_hold_em_p.
 
 Ground truth per map: `compile_fresh.py --full` keeps the addon's `_vrad3`
 folder beside the package (`<out>.vrad3`), since the next bake overwrites it.
 The first milestone, our lightmap_packing_geometry.dat equal to Valve's on
 probe01, is reached (2026-10-17), and ze_hold_em_p follows. Next come
-lightmap_info.dat and the seams (done, ledgers 65 and 66), the scene, and the
-lightmap uvs the world nodes take from the packing (GEOMETRY.md).
+lightmap_info.dat and the seams (done, ledgers 65 and 66), the scene (done,
+ledger 67), and the lightmap uvs the world nodes take from the packing
+(GEOMETRY.md).
 
 ## AMD GPUs (future plan)
 

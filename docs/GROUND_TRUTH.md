@@ -871,6 +871,40 @@ game can answer is raised with the user first, and runs with -insecure.
     exactly. Lighting/LightmapSeams.cs writes it byte for byte as Valve's
     on probe01 (30 records) and ze_hold_em_p (7,786). Not seen: an entry
     matrix other than identity, a non-zero tier byte.
+67. **The path-trace scene: scene_meshes.kv3 and scene_info.kv3** (settled
+    2026-10-17 by decompile; 0923 WRB_BuildPathTraceSceneInfo 180285eb0, its
+    static models 180284aa0, WRB_LoadPropMeshes 1801d30d0, CMesh's KV3
+    writer 1812e4550, the record EntityLump_StaticModelRecord 180245770,
+    meshsystem's geometry info 18002af80 and its semantic lookup 180036aa0,
+    the light info 180eece60, the light-shape writer 181297030, the sky light
+    181113f20; SceneInfoTests with SCENEINFO / SCENEMESHES). The meshes are
+    binary KV3 v5, generic format, uncompressed; the info is tier0's KV3 text
+    (CRLF, no final newline, arrays of fewer than five scalars inline,
+    V_FloatToString_NoExponent floats). Instances, in order: the world entries
+    BuildNode receives (attributes 0x2000000001 left out), with a linear tint
+    and flags from attribute bits 16, 17 and 19, emissive and +0x99; then the
+    builder's prop map (+0x198) model by model in ordinal order, its records
+    from every prop_static and every brush entity with lightmapstatic set:
+    per draw call of the model's LOD 0, one shared mesh and an instance per
+    prop (matrix, the skin's material, rendercolor and renderamt over 255,
+    emissive_lighting_boost, flags from disableshadows, lightmapstatic,
+    emissive (default 1) with emissive_mode and bakelightdoublesided). A
+    prop's CMesh has the 18 standard floats and, after them, every vertex
+    field meshsystem does not consume, named by its shader semantic: a COLOR
+    field is the vertex colour only without a shader semantic (or one that
+    looks up as color), so a brush entity model's COLOR0, tagged
+    VertexPaintTintColor, is an extra stream and its "color" stays zero. A
+    float texcoord 0 or 1 marks the texcoord streams uncompressed. Lights:
+    each light_barn's or light_environment's 300-byte LightShape with its
+    light info (path_trace_light_flags, baked shadow ids, the precomputed
+    box); the ibl from the first light_environment and its env_sky (null
+    without one). Lighting/PathTraceScene.cs, PathTraceProps.cs,
+    MeshGeometry.cs and SceneLights.cs write both files byte for byte as
+    Valve's on probe01 (15 meshes; 3,625 characters) and ze_hold_em_p (75
+    meshes, 159 instances, 37 barns; 107,650 characters). Not seen: per-prop
+    vertex data (+0x100), material overrides, deformers, lodlevel 0 or
+    more, smart props, other light classes, a sky colour without an env_sky,
+    the 180240a60 brush-entity tests beyond lightmapstatic.
 
 ## Resolved
 
