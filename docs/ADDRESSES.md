@@ -166,7 +166,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 880 addresses
+- 898 addresses
 
 ### s2c:baked/light-keys
 
@@ -322,12 +322,30 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `180133da0` | `Texture_CheckCubemapFaces` | Cubemap %i, face %i has Inf/NaN/extremely bright pixel |  |
 | `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array |  |
+| `1801ec580` | `PackingGeometry_t::Serialize` | lightmap_packing_geometry.dat |  |
+| `1801eda50` | `NLightBaker_WriteLightmapScript` | the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks |  |
 | `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume |  |
 | `1801ee9f0` | `NLightBaker_WriteFarfieldScript` | // Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0) |  |
 | `1801f01a0` | `NLightBaker_WriteFogIrradianceScript` | // Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu) |  |
 | `1801f0dd0` | `NLightBaker_LoadFarfield` | reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures |  |
 | `1801f2240` | `NLightBaker::RunVrad3` | writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries |  |
+| `1801f32f0` | `NLightBaker::RasterizeAndSetupTexels` | 'charts have no luxels assigned' |  |
+| `1801f3920` | `NLightBaker::SetupTexels` | ==== Baking %d x %d lightmap ====; RasterizeSliceAndProcessTexels |  |
+| `18020e230` | `StaticLighting_LoadChartRepacking` | chart_repacking.dat from VRAD3_PATH (optional) |  |
+| `180210730` | `StaticLighting_PrepareChartMesh` | a mesh's LightmapUV / texcoord / position streams; ImportanceVolumeTransitionRegion |  |
+| `180210fa0` | `CStaticLightingProcessor::GenerateCharts` | ChartMeshes: one 0xb8 entry per mesh; shared meshes (1802191e0), instances and unique meshes (180212850 jobs); gameinfo ImportanceVolumeTransitionRegion (72) |  |
+| `180213290` | `WriteLightmapEdgeSeamsForVrad3` | lightmap_seams.dat |  |
+| `180214960` | `CStaticLightingProcessor::PackCharts` | fills PackingGeometry_t (stride 0x28, attribute offsets 0/0xc/0x18; vertices, indices, triangle charts, 0x1c chart records whose flags take the mesh's bit 30 and its +0x14 low 28 bits), then NUVChartPacker::PackCharts; warns on charts over 1/16 of the atlas |  |
+| `1802163b0` | `StaticLighting_WriteLightmapQueryData` | lightmap_query_data.kv3 (simplified LightmapUV geometry) |  |
 | `180217740` | `CStaticLightingProcessor::BakeLighting` |  |  |
+| `1802191e0` | `StaticLighting_ChartSharedMeshes` | Prepare; LightmapUV |  |
+| `1802235d0` | `NUVChartPacker::InitializeChartUVs` | gameinfo LightmapGutterSize (1); a thread pool job per chart (180223970), then a parallel sort of the 0x70 chart records (180228480) |  |
+| `180223970` | `NUVChartPacker_InitializeChartJob` | per chart: rotates its uvs by the candidate angles (cos/sin of +0x64), scaled, and keeps the bounds |  |
+| `180226370` | `NUVChartPacker::TryPack` | lambda_3; gameinfo DeterministicBuild; logs the share of positions that needed a full test |  |
+| `1802272d0` | `NUVChartPacker::PackCharts` | FindBestRotation; 'Too many charts for the lightmap' |  |
+| `180228480` | `ParallelSort_Charts` | ParallelSort / ParallelInplaceMerge |  |
+| `18022c740` | `StaticLighting_ChartTriangle` | unit normal; without UnwrapUsingUvsFromMesh a box projection by the normal's dominant axis (codes 0-5: -X,-Y,-Z,+X,+Y,+Z; bases at 182a8d3b0/182a8d400) |  |
+| `18022d920` | `StaticLighting_ChartMesh` | the charting core: a 200-byte record per triangle (18022c740), then grouping into charts |  |
 | `18023af80` | `Vrad3_Init` | VRAD3_PATH, Vrad3_Init_SearchPath |  |
 | `180248800` | `WRB_BakePrecomputedShadows` | direct_light_shadows |  |
 | `18025db60` | `CWorldRendererBuilderNode::BakeLightMaps` |  |  |

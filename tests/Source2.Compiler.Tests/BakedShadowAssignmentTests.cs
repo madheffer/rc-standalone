@@ -14,8 +14,8 @@ namespace Source2.Compiler.Tests;
 public sealed class BakedShadowAssignmentTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
-    [InlineData("s2probe", "probe_classes")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "probe_classes")]
     public void SlotsMatchValve(string addon, string map)
     {
         if (MapFixtures.VmapSource(addon, map) is not { } source || MapFixtures.RcCompiledLumps(source) is not { } lumps)
@@ -107,7 +107,7 @@ public sealed class BakedShadowAssignmentTests(ITestOutputHelper output)
     /// The port, told lighting is not baked, writes nothing.
     /// </summary>
     [Theory]
-    [InlineData("s2probe", "atixref")]
+    [InlineData("s2c_rc_probe", "atixref")]
     [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p")]
     public void UnbakedCompilesWriteNothing(string addon, string map)
     {
@@ -155,9 +155,9 @@ public sealed class BakedShadowAssignmentTests(ITestOutputHelper output)
             return;
         var maps = new List<(string Name, IReadOnlyDictionary<string, byte[]>? Lumps)>
         {
-            ("ze_hold_em_p", MapFixtures.VmapSource("s2c_lighting", "ze_hold_em_p") is { } a ? MapFixtures.RcCompiledLumps(a) : null),
-            ("probe_classes", MapFixtures.VmapSource("s2probe", "probe_classes") is { } b ? MapFixtures.RcCompiledLumps(b) : null),
-            ("atixref", MapFixtures.VmapSource("s2probe", "atixref") is { } c ? MapFixtures.RcCompiledLumps(c) : null),
+            ("ze_hold_em_p", MapFixtures.VmapSource("s2c_rc_probe", "ze_hold_em_p") is { } a ? MapFixtures.RcCompiledLumps(a) : null),
+            ("probe_classes", MapFixtures.VmapSource("s2c_rc_probe", "probe_classes") is { } b ? MapFixtures.RcCompiledLumps(b) : null),
+            ("atixref", MapFixtures.VmapSource("s2c_rc_probe", "atixref") is { } c ? MapFixtures.RcCompiledLumps(c) : null),
             ("mako", MapFixtures.AddonLumps("s2c_big", "ze_ffvii_mako_reactor_v6_p")),
         };
         foreach (var (name, lumps) in maps)

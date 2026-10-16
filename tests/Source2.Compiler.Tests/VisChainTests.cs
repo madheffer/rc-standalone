@@ -168,7 +168,7 @@ public class VisChainTests(ITestOutputHelper output)
             var ours = vxvs.WriteVxvs();
             // Kept before anything else can fail: a whole run takes hours on a big map.
             File.WriteAllBytes(capture[..^".pvs.bin".Length] + ".ours.vxvs", ours);
-            var (_, shipped) = VisFixtures.RayTraceScene(Environment.GetEnvironmentVariable("VISCHAIN_ADDON") ?? "s2probe", map)
+            var (_, shipped) = VisFixtures.RayTraceScene(Environment.GetEnvironmentVariable("VISCHAIN_ADDON") ?? "s2c_rc_probe", map)
                                ?? throw new InvalidOperationException($"no shipped visibility for {map} in VISCHAIN_ADDON's package");
             var theirs = shipped.WriteVxvs();
             Say($"VXVS ours {ours.Length:n0} valve {theirs.Length:n0}, same {ours.AsSpan().SequenceEqual(theirs)}");

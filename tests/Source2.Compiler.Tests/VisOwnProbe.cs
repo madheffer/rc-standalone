@@ -15,7 +15,7 @@ public class VisOwnProbe(ITestOutputHelper output)
     [Theory]
     [InlineData("s2c_rc_probe", "probe01")]
     [InlineData("s2c_rc_probe", "cardtest")]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
     [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p")]
     public void Bounds(string addon, string map)
     {
@@ -46,7 +46,7 @@ public class VisConfigDump(ITestOutputHelper output)
     [Theory]
     [InlineData("s2c_rc_probe", "probe01")]
     [InlineData("s2c_rc_probe", "cardtest")]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
     [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p")]
     public void Keys(string addon, string map)
     {

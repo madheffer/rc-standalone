@@ -83,6 +83,44 @@ unconfirmed.
    EXRs: direct light, then bounce, then the AHD encode.
 3. Light probe volumes, cubemaps, then nav (`CNavMesh`) and Steam Audio.
 
+## Lightmap charts in resourcecompiler
+
+Step 1 of the port is the input side: what resourcecompiler writes into
+`_vrad3/` before vrad3 runs. Read from the 20260923 build (2026-10-16; names
+in make_manual's BAKE list, ADDRESSES.md):
+- `CStaticLightingProcessor::GenerateCharts` (staticlightingprocessor.cpp)
+  makes one 0xb8 "chart mesh" per mesh (shared meshes, instances, unique
+  meshes, each through a thread pool job), from the LightmapUV, texcoord and
+  position streams. Gameinfo `ResourceCompiler/BakedLighting/
+  ImportanceVolumeTransitionRegion` (72 by default, 120 in CS2's gameinfo)
+  takes part. The charting core (18022d920) builds a 200-byte record per
+  triangle (18022c740): its unit normal (VectorNormalize, slow path below
+  1e-17), and, unless `UnwrapUsingUvsFromMesh` is set (CS2 leaves it unset),
+  a box projection: the normal's dominant axis picks one of six bases
+  (+-X, +-Y, +-Z; codes 0-5, tables at 182a8d3b0 / 182a8d400) that map the
+  three corners to chart uvs. With the flag, the mesh's own uvs are used,
+  their v scaled by the chart's aspect.
+- `CStaticLightingProcessor::PackCharts` concatenates them into
+  `PackingGeometry_t`, the layout `Lighting/PackingGeometry.cs` already
+  round-trips byte for byte: stride 0x28 vertices with attribute offsets 0,
+  0xc and 0x18; indices; a chart per triangle (-1 for none); 0x1c chart
+  records whose flags take the mesh's bit 30 and its low 28 bits.
+- `NUVChartPacker` (uvchartpacker.cpp): `InitializeChartUVs` (gutter
+  `LightmapGutterSize`, 1) rotates each chart's uvs through candidate angles
+  and keeps the bounds, then sorts the charts in parallel; `PackCharts` seeds
+  an RNG (0x777f17e), runs `FindBestRotation` per chart and several passes of
+  `TryPack` (scored; `DeterministicBuild` in gameinfo), and writes x, y, w, h
+  into the chart records.
+- `NLightBaker::RasterizeAndSetupTexels` / `SetupTexels` give each luxel its
+  chart (lightmap_info.dat); `WriteLightmapEdgeSeamsForVrad3` writes
+  lightmap_seams.dat; `WRB_BuildPathTraceSceneInfo` scene_info.kv3 and its
+  mesh file.
+
+Ground truth per map: `compile_fresh.py --full` keeps the addon's `_vrad3`
+folder beside the package (`<out>.vrad3`), since the next bake overwrites it.
+The first milestone is our lightmap_packing_geometry.dat equal to Valve's on
+probe01; it also gives the world nodes their lightmap uvs (GEOMETRY.md).
+
 ## AMD GPUs (future plan)
 
 **Report (2026-10-05, from a user, not yet reproduced):** on AMD GPUs,

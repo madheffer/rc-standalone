@@ -39,7 +39,7 @@ public class VisRayReplay(ITestOutputHelper output)
         }
         else
         {
-            var addon = map == "ze_hold_em_p" ? "s2c_lighting" : "s2c_rc_probe";
+            var addon = "s2c_rc_probe";
             rte = RayTraceEnvironment.ReadFile(Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".rte"));
             lines = File.ReadAllLines(Path.Combine(Path.GetTempPath(), "vis_capture", map + ".rays.jsonl"));
         }

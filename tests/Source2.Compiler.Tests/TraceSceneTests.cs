@@ -14,10 +14,10 @@ namespace Source2.Compiler.Tests;
 public class TraceSceneTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("s2probe", "probe01", "s2c_rc_probe", true)]
+    [InlineData("s2c_rc_probe", "probe01", "s2c_rc_probe", true)]
     [InlineData("ze_doom_p2", "cardtest", "s2c_rc_probe", true)]
-    [InlineData("s2c_lighting", "ze_hold_em_p", "s2c_lighting", true)]
-    [InlineData("s2probe", "atixref", "s2probe", true)]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p", "s2c_rc_probe", true)]
+    [InlineData("s2c_rc_probe", "atixref", "s2c_rc_probe", true)]
     [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p", "s2c_big", true)]
     public void FlagsAreTheFiles(string addon, string map, string compiledIn, bool flags)
     {

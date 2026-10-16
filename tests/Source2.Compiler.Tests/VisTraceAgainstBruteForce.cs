@@ -120,9 +120,9 @@ public class VisTraceAgainstBruteForce(ITestOutputHelper output)
     [Fact]
     public void TheKdTreeFindsWhatAScanOfEveryTriangleFinds()
     {
-        if (VisFixtures.RayTraceScene("s2c_lighting", "ze_hold_em_p") is not var (rte, valve))
+        if (VisFixtures.RayTraceScene("s2c_rc_probe", "ze_hold_em_p") is not var (rte, valve))
             return;
-        var path = Path.Combine(Path.GetTempPath(), "csgo_addons", "s2c_lighting",
+        var path = Path.Combine(Path.GetTempPath(), "csgo_addons", "s2c_rc_probe",
                                 "maps", "ze_hold_em_p.rte");
         var file = File.ReadAllBytes(path);
 

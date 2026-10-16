@@ -18,7 +18,7 @@ public class TracerKdReplay(ITestOutputHelper output)
     {
         if (Environment.GetEnvironmentVariable("KD") is not { Length: > 0 } map)
             return;
-        var addon = map == "ze_hold_em_p" ? "s2c_lighting" : "s2c_rc_probe";
+        var addon = "s2c_rc_probe";
         var rte = RayTraceEnvironment.ReadFile(
             Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".rte"));
         byte[] nodes = [], index = [];

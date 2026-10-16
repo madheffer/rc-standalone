@@ -17,7 +17,7 @@ namespace Source2.Compiler.Tests;
 public class VisRegionsTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
     [InlineData("s2c_rc_probe", "cardtest")]
     [InlineData("s2c_rc_probe", "probe01")]
     public void RegionsPartitionTheOpenSpaceOfEveryLeaf(string addon, string map)

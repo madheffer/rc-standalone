@@ -16,7 +16,7 @@ public class VisBuildTests(ITestOutputHelper output)
     {
         { "s2c_rc_probe", "probe01" },
         { "s2c_rc_probe", "cardtest" },
-        { "s2c_lighting", "ze_hold_em_p" },
+        { "s2c_rc_probe", "ze_hold_em_p" },
     };
 
     [Theory]
@@ -104,10 +104,10 @@ public class VisBuildTests(ITestOutputHelper output)
 
     public static TheoryData<string, string, string> Sources => new()
     {
-        { "s2probe", "probe01", "s2c_rc_probe" },
+        { "s2c_rc_probe", "probe01", "s2c_rc_probe" },
         { "ze_doom_p2", "cardtest", "s2c_rc_probe" },
-        { "s2c_lighting", "ze_hold_em_p", "s2c_lighting" },
-        { "s2probe", "atixref", "s2probe" },
+        { "s2c_rc_probe", "ze_hold_em_p", "s2c_rc_probe" },
+        { "s2c_rc_probe", "atixref", "s2c_rc_probe" },
         { "s2c_big", "ze_ffvii_mako_reactor_v6_p", "s2c_big" },
     };
 

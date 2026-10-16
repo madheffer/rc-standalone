@@ -27,7 +27,12 @@ public class WorldNodeModelTreesTests(ITestOutputHelper output)
     [InlineData("atixref")]
     public void BuildsEveryNodeModel(string map)
     {
-        var vpk = Path.Combine(@"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe\maps", map + ".vpk");
+        // An unlit build (the trees model no baked lighting): the -world -fshallow
+        // reference cs2_closed_session.py compiles into %TEMP%/nobake_refs, else
+        // the addon's own package.
+        var vpk = Path.Combine(Path.GetTempPath(), "nobake_refs", map + ".vpk");
+        if (!File.Exists(vpk))
+            vpk = Path.Combine(@"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe\maps", map + ".vpk");
         if (!File.Exists(vpk))
             return;
         using var package = new Package();

@@ -15,7 +15,7 @@ public class VisMarchWalk(ITestOutputHelper output)
     {
         if (Environment.GetEnvironmentVariable("WALK") is not { Length: > 0 })
             return;
-        if (VisFixtures.RayTraceScene("s2c_lighting", "ze_hold_em_p") is not var (rte, valve))
+        if (VisFixtures.RayTraceScene("s2c_rc_probe", "ze_hold_em_p") is not var (rte, valve))
             return;
 
         var tree = VisVoxelizer.Build(rte, valve.MinBounds, valve.MaxBounds, valve.GridSize);

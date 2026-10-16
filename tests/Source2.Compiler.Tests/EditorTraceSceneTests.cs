@@ -20,7 +20,7 @@ public sealed class EditorTraceSceneTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("ETS_RAYS") is not { } spec || CS2Fixtures.StockPak() is not { } pak)
             return;
         var p = spec.Split('|');
-        var addon = p[0] == "atixref" ? "s2probe" : "s2c_lighting";
+        var addon = "s2c_rc_probe";
         var source = MapFixtures.VmapSource(addon, p[0])!;
         var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
         using var content = new GameContent(pak, Path.Combine(game, "csgo_addons", addon));
@@ -145,8 +145,8 @@ public sealed class EditorTraceSceneTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
-    [InlineData("s2probe", "atixref")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "atixref")]
     public void PrecomputedKeysAgainstValve(string addon, string map)
     {
         // A diagnostic that prints and asserts nothing, and traces every

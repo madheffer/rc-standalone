@@ -18,7 +18,7 @@ public class VisClustersTests(ITestOutputHelper output)
 
     private static readonly Specimen[] Maps =
     [
-        new("s2c_lighting", "ze_hold_em_p", 10_554, 93_354),
+        new("s2c_rc_probe", "ze_hold_em_p", 10_554, 93_354),
         new("s2c_rc_probe", "cardtest", 7_416, 81_991),
         new("s2c_rc_probe", "probe01", 7_316, 81_707),
     ];
@@ -139,7 +139,7 @@ public class VisClustersTests(ITestOutputHelper output)
     /// mask is a voxel out, and this is what says whether a map has any.</para>
     /// </summary>
     [Theory]
-    [InlineData("s2c_lighting", "ze_hold_em_p", 93_354)]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p", 93_354)]
     [InlineData("s2c_rc_probe", "cardtest", 81_991)]
     public void WhereTheRegionsSitAroundTheMergeTarget(string addon, string map, int clusters)
     {
@@ -191,7 +191,7 @@ public class VisClustersTests(ITestOutputHelper output)
     /// outside pass and the compaction are all right together.</para>
     /// </summary>
     [Theory]
-    [InlineData("s2c_lighting", "ze_hold_em_p", 1_344)]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p", 1_344)]
     [InlineData("s2c_rc_probe", "cardtest", 864)]
     [InlineData("s2c_rc_probe", "probe01", 864)]
     public void TheTargetClusterCountFallsOutOfTheEnclosedVolume(string addon, string map, int target)

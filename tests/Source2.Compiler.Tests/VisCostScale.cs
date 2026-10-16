@@ -21,7 +21,7 @@ public class VisCostScale(ITestOutputHelper output)
 
         foreach (var (addon, map, target, compile) in new[]
         {
-            ("s2c_lighting", "ze_hold_em_p", 1_342, 21_940.0f),
+            ("s2c_rc_probe", "ze_hold_em_p", 1_342, 21_940.0f),
             ("s2c_rc_probe", "probe01", 862, 110_760.1f),
         })
         {

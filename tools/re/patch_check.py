@@ -33,6 +33,7 @@ depends on needs attention:
 """
 import argparse
 import datetime
+import difflib
 import glob
 import hashlib
 import json
@@ -371,6 +372,18 @@ def main():
     lines += ["", "## Game data", ""]
     for p in sorted(glob.glob(os.path.join(CS2, "game", "csgo", "*.fgd")) + glob.glob(os.path.join(CS2, "game", "core", "*.fgd"))):
         state["fgd"][os.path.relpath(p, CS2).replace("\\", "/")] = md5(p)
+    # The compile settings (content_* keys, ModelDoc, the map builder's) live in gameinfo.gi.
+    state["gameinfo"] = {}
+    for game in ("csgo", "csgo_core", "core"):
+        p = os.path.join(CS2, "game", game, "gameinfo.gi")
+        if os.path.exists(p):
+            state["gameinfo"][os.path.relpath(p, CS2).replace("\\", "/")] = md5(p)
+    # A copy of each text file per patch, so the next change can be diffed.
+    for rel in list(state["fgd"]) + list(state["gameinfo"]):
+        keep = os.path.join(STATE_DIR, "files", patch, rel)
+        if not os.path.exists(keep):
+            os.makedirs(os.path.dirname(keep), exist_ok=True)
+            shutil.copy2(os.path.join(CS2, rel), keep)
     for game in ("csgo", "core"):
         p = os.path.join(CS2, "game", game, "pak01_dir.vpk")
         state["pak"][game] = vpk_manifest(p)
@@ -383,10 +396,21 @@ def main():
     if os.path.exists(prev_path):
         prev = json.load(open(prev_path, encoding="utf-8"))
         lines.append(f"Compared with the state saved for patch {prev.get('patch')}.")
+        def text_diff(rel):
+            old = os.path.join(STATE_DIR, "files", str(prev.get("patch")), rel)
+            if not os.path.exists(old):
+                return "no copy of the previous version kept"
+            with open(old, encoding="utf-8", errors="replace") as f1, open(os.path.join(CS2, rel), encoding="utf-8", errors="replace") as f2:
+                changed = [l for l in difflib.unified_diff(f1.readlines(), f2.readlines(), n=0) if l[:1] in "+-" and l[:3] not in ("+++", "---")]
+            return f"{len(changed)} lines differ (diff {old} against the installed file)"
         for k, h in state["fgd"].items():
             if prev["fgd"].get(k) != h:
-                lines.append(f"- FGD changed: {k}")
+                lines.append(f"- FGD changed: {k}: {text_diff(k)}")
                 attention.append(f"FGD changed: {k} (entity lump: FgdSchema)")
+        for k, h in state["gameinfo"].items():
+            if k in prev.get("gameinfo", {}) and prev["gameinfo"][k] != h:
+                lines.append(f"- gameinfo changed: {k}: {text_diff(k)}")
+                attention.append(f"gameinfo changed: {k} (compile settings: content_*, ModelDoc, map builder keys)")
         for game, man in state["pak"].items():
             old = prev["pak"].get(game, {})
             added = [k for k in man if k not in old]

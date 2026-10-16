@@ -21,7 +21,7 @@ public class VisAgainstValve(ITestOutputHelper output)
 
         foreach (var map in new[] { "ze_hold_em_p", "cardtest", "probe01" })
         {
-            var addon = map == "ze_hold_em_p" ? "s2c_lighting" : "s2c_rc_probe";
+            var addon = "s2c_rc_probe";
             if (VisFixtures.RayTraceScene(addon, map) is not var (rte, valve))
                 continue;
 

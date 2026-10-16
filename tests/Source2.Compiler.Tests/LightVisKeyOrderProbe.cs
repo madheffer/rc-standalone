@@ -13,7 +13,7 @@ public class LightVisKeyOrderProbe(ITestOutputHelper output)
     public void Order()
     {
         if (Environment.GetEnvironmentVariable("LVKORDER") != "1"
-            || MapFixtures.VmapSource("s2c_lighting", "ze_hold_em_p") is not { } source || MapFixtures.RcCompiledLumps(source) is not { } lumps)
+            || MapFixtures.VmapSource("s2c_rc_probe", "ze_hold_em_p") is not { } source || MapFixtures.RcCompiledLumps(source) is not { } lumps)
             return;
         var tally = new SortedDictionary<string, int>();
         foreach (var (path, bytes) in lumps)

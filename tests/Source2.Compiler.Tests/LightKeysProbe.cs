@@ -9,9 +9,9 @@ namespace Source2.Compiler.Tests;
 public sealed class LightKeysProbe(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("s2probe", "atixref")]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
-    [InlineData("s2probe", "probe01")]
+    [InlineData("s2c_rc_probe", "atixref")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "probe01")]
     [InlineData("ze_doom_p2", "cardtest")]
     public void DumpLightDifferences(string addon, string map)
     {
@@ -51,8 +51,8 @@ public sealed class LightKeysProbe(ITestOutputHelper output)
 public sealed class LightPrecomputeProbe(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("s2probe", "atixref")]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "atixref")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
     public void CompareWithEmptyScene(string addon, string map)
     {
         var dump = Environment.GetEnvironmentVariable("LIGHT_DUMP");

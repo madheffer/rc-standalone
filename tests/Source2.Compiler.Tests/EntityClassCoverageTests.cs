@@ -28,22 +28,22 @@ public partial class EntityClassCoverageTests(ITestOutputHelper output)
     [
         ("gflscripts", "untitled_1"),
         ("ze_doom_p2", "cardtest"),
-        ("s2probe", "probe01"),
-        ("s2c_lighting", "ze_hold_em_p"),
+        ("s2c_rc_probe", "probe01"),
+        ("s2c_rc_probe", "ze_hold_em_p"),
         // Chosen by greedy coverage over all 135 local sources. These three take
         // the corpus from 43 entity classes to 93 over 1,820 entities, and atixref
         // alone carries 52 buttons, which nothing else here had. The last two live
         // under maps/prefabs/<parent>/, which is why VmapSource searches.
-        ("s2probe", "atixref"),
-        ("doom_p2", "ze_doom_p2_c_gameplay"),
+        ("s2c_rc_probe", "atixref"),
+        ("s2c_rc_probe", "ze_doom_p2_c_gameplay"),
         ("c2m2", "c2m2_fairgrounds_csgo_gameplay"),
         // The only local source with multi-node paths: ropes of four, five, six and
         // seven nodes, the path_particle_rope class, and path_node_generic children.
         ("c2m2", "c2m2_fairgrounds_csgo_environment_prefab"),
         // Every class csgo.fgd offers, bare and with every key set
         // (tools/coverage/probe_map.py).
-        ("s2probe", "probe_classes"),
-        ("s2probe", "probe_cable"),
+        ("s2c_rc_probe", "probe_classes"),
+        ("s2c_rc_probe", "probe_cable"),
     ];
 
     /// <summary>

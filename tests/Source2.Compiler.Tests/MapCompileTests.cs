@@ -17,10 +17,10 @@ public class MapCompileTests(ITestOutputHelper output)
 
     [Theory]
     [InlineData("ze_doom_p2", "cardtest")]
-    [InlineData("s2probe", "atixref")]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "atixref")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
     [InlineData("c2m2", "c2m2_fairgrounds_csgo_gameplay")]
-    [InlineData("s2probe", "probe_classes")]
+    [InlineData("s2c_rc_probe", "probe_classes")]
     public void EntityLumpsAreTheTestedOnes(string addon, string map)
     {
         var source = MapFixtures.VmapSource(addon, map);

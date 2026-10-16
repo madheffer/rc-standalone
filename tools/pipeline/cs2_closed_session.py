@@ -10,10 +10,15 @@
 3. Each fresh reference's write time is printed beside the game's
    pak01_dir.vpk time, so a missing or stale one shows at once.
 4. The fresh references are copied to the dev box (~/s2c/refs/nobake_refs).
-5. With --fixtures, the addon packages tests read but cannot rebuild on demand
-   (InstanceExpansionTests, SettleLumpTests; FIXTURES below) are rebuilt in
-   place with -world -fshallow, which refreshes the world and the entity lumps
-   and keeps the rest; each package is copied to %TEMP%/fixture_backups first.
+5. With --fixtures, the addon packages tests read (every s2c_rc_probe package,
+   and FIXTURES below) that are older than the installed resourcecompiler.exe,
+   plus any --fixture-maps addon/map, are rebuilt in place; each package is
+   copied to %TEMP%/fixture_backups first (write time kept). s2c_rc_probe's are
+   full builds (-f), as MapFixtures.CompileWithRc makes them: the lump tests
+   read the bake's keys (bakedshadowindex, light_map_uniqueid...), which a
+   world-only build leaves out; atixref (UNBAKED) stays world-only. FIXTURES get -world -fshallow, which refreshes
+   the world and the entity lumps and keeps the rest (Mako's bake takes hours).
+   The unlit world the node model tests read is step 1's references.
 6. With --partial, the two partial-build facts still open (GROUND_TRUTH 55):
    capture_overrides.py on probe01 with -world -vis -fshallow (the vvis's
    ___OverrideInputData___ text), and a -world -fshallow build of probe01
@@ -41,8 +46,12 @@ TEMP = os.environ.get("TEMP", ".")
 ADDON = "s2c_rc_probe"
 MAPS = ["atixref", "probe01", "cardtest", "ze_hold_em_p"]
 DEVBOX = "dev@192.168.20.32"
-# Addon packages older than the installed resourcecompiler that the suite reads (2026-10-07).
-FIXTURES = [("s2probe", "atixref"), ("doom_p2", "ze_doom_p2_c_gameplay"), ("s2c_big", "ze_ffvii_mako_reactor_v6_p")]
+# Addon packages the suite reads besides s2c_rc_probe's own (every one of which counts):
+# --fixtures rebuilds those older than the installed resourcecompiler.exe (2026-10-16).
+FIXTURES = [("ze_doom_p2", "cardtest"), ("s2c_big", "ze_ffvii_mako_reactor_v6_p")]
+# s2c_rc_probe packages the tests read unbaked (BakedShadowAssignmentTests.UnbakedCompilesWriteNothing,
+# and the light_omni2 shadow slot a baked atixref lump needs is not ported).
+UNBAKED = {"atixref"}
 KEY = os.path.expanduser("~/.ssh/vpkworker")
 
 
@@ -66,6 +75,7 @@ def main():
     p.add_argument("--skip-captures", action="store_true")
     p.add_argument("--no-devbox", action="store_true")
     p.add_argument("--fixtures", action="store_true", help="also rebuild the stale addon fixture packages in place")
+    p.add_argument("--fixture-maps", default="", help="addon/map,... rebuilt with --fixtures however new their package looks")
     p.add_argument("--partial", action="store_true", help="also settle the open partial-build facts (vvis fingerprint, a kept vvis)")
     a = p.parse_args()
     if running("cs2.exe"):
@@ -122,19 +132,28 @@ def main():
         backups = os.path.join(TEMP, "fixture_backups")
         os.makedirs(backups, exist_ok=True)
         bin_dir = os.path.join(CS2, "game", "bin", "win64")
-        for addon, m in FIXTURES:
+        rc_time = os.path.getmtime(os.path.join(bin_dir, "resourcecompiler.exe"))
+        forced = {tuple(x.split("/", 1)) for x in a.fixture_maps.split(",") if "/" in x}
+        probe = os.path.join(CS2, "game", "csgo_addons", ADDON, "maps")
+        wanted = FIXTURES + [(ADDON, os.path.splitext(f)[0]) for f in sorted(os.listdir(probe)) if f.endswith(".vpk")]
+        for addon, m in wanted:
             vpk = os.path.join(CS2, "game", "csgo_addons", addon, "maps", m + ".vpk")
-            source = os.path.join(CS2, "content", "csgo_addons", addon, "maps", m + ".vmap")
-            if not os.path.exists(source):
+            if os.path.exists(vpk) and os.path.getmtime(vpk) >= rc_time and (addon, m) not in forced:
+                continue
+            # A prefab's source sits under maps/prefabs/..., as MapFixtures.VmapSource finds it.
+            maps_dir = os.path.join(CS2, "content", "csgo_addons", addon, "maps")
+            source = next(iter(glob.glob(os.path.join(maps_dir, "**", m + ".vmap"), recursive=True)), None)
+            if source is None:
                 print(f"{addon}/{m}: no source, skipped")
                 continue
             if os.path.exists(vpk):
-                shutil.copyfile(vpk, os.path.join(backups, f"{addon}__{m}.vpk"))
+                shutil.copy2(vpk, os.path.join(backups, f"{addon}__{m}.vpk"))
             if running("cs2.exe"):
                 raise SystemExit("CS2 started; stopping")
+            switches = ["-f"] if addon == ADDON and m not in UNBAKED else ["-world", "-fshallow"]
             with open(os.path.join(backups, f"{addon}__{m}.log"), "wb") as log:
                 code = subprocess.run([os.path.join(bin_dir, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
-                                       "-i", source, "-world", "-fshallow"], cwd=bin_dir, stdout=log, stderr=subprocess.STDOUT).returncode
+                                       "-i", source] + switches, cwd=bin_dir, stdout=log, stderr=subprocess.STDOUT).returncode
             print(f"{addon}/{m}: rc exit {code}")
 
     step("6. partial builds")

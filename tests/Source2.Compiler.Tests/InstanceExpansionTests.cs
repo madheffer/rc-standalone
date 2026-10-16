@@ -18,8 +18,8 @@ namespace Source2.Compiler.Tests;
 public class InstanceExpansionTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("s2probe", "atixref", 821)]
-    [InlineData("doom_p2", "ze_doom_p2_c_gameplay", 640)]
+    [InlineData("s2c_rc_probe", "atixref", 821)]
+    [InlineData("s2c_rc_probe", "ze_doom_p2_c_gameplay", 640)]
     [InlineData("c2m2", "c2m2_fairgrounds_csgo_gameplay", 103)]
     public void EveryEntityHasValvesOwnIdentityInValvesOwnOrder(string addon, string map, int expected)
     {

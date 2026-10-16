@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
@@ -42,9 +43,12 @@ def main():
     vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
     backup = out_path + ".orig.bak"
     if os.path.exists(vpk):
-        shutil.copyfile(vpk, backup)
+        # copy2 keeps the write time: tests take a package newer than the installed
+        # resourcecompiler.exe as its output, so a restored old compile must keep its date.
+        shutil.copy2(vpk, backup)
         os.remove(vpk)
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
+    started = time.time()
     cmd = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
     if not a.full:
         cmd += ["-world", "-fshallow"]
@@ -55,8 +59,16 @@ def main():
     if os.path.exists(vpk):
         shutil.copyfile(vpk, out_path)
         print("kept", out_path)
+    # A build that bakes leaves vrad3's inputs and outputs in the addon's _vrad3
+    # folder, which the next bake overwrites: keep this map's beside the package.
+    vrad3 = os.path.join(CS2, "game", "csgo_addons", a.addon, "_vrad3")
+    if os.path.isdir(vrad3) and os.path.getmtime(os.path.join(vrad3, "script-gpu.vrad3")) >= started:
+        dest = out_path + ".vrad3"
+        shutil.rmtree(dest, ignore_errors=True)
+        shutil.copytree(vrad3, dest)
+        print("kept", dest)
     if os.path.exists(backup):
-        shutil.copyfile(backup, vpk)
+        shutil.copy2(backup, vpk)
         ok = filecmp.cmp(backup, vpk, shallow=False)
         print("restored" if ok else "RESTORE CMP FAILED", vpk)
         if ok:

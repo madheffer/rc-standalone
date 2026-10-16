@@ -21,17 +21,17 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData("ze_doom_p2", "cardtest")]
-    [InlineData("s2probe", "probe01")]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
-    [InlineData("s2probe", "atixref")]
-    [InlineData("doom_p2", "ze_doom_p2_c_gameplay")]
+    [InlineData("s2c_rc_probe", "probe01")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "atixref")]
+    [InlineData("s2c_rc_probe", "ze_doom_p2_c_gameplay")]
     [InlineData("c2m2", "c2m2_fairgrounds_csgo_gameplay")]
     // Every class csgo.fgd offers, twice: bare and with every key set
     // (tools/coverage/probe_map.py over cardtest).
-    [InlineData("s2probe", "probe_classes")]
+    [InlineData("s2c_rc_probe", "probe_classes")]
     // Mako's cable_dynamic on cardtest, its tintColor (1 2 3) apart from its
     // rendercolor key (12 34 56).
-    [InlineData("s2probe", "probe_cable")]
+    [InlineData("s2c_rc_probe", "probe_cable")]
     public void EveryLump_DiffersOnlyInTheDocumentedGaps(string addon, string map)
     {
         var source = MapFixtures.VmapSource(addon, map);

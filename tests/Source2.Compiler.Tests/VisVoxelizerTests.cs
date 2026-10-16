@@ -24,7 +24,7 @@ public class VisVoxelizerTests(ITestOutputHelper output)
 
     private static readonly Specimen[] Maps =
     [
-        new("s2c_lighting", "ze_hold_em_p", 81_625, 0),
+        new("s2c_rc_probe", "ze_hold_em_p", 81_625, 0),
         new("s2c_rc_probe", "cardtest", 17_297, 0.003),
         new("s2c_rc_probe", "probe01", 17_169, 0.003),
     ];

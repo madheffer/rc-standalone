@@ -16,7 +16,7 @@ namespace Source2.Compiler.Tests;
 public class VisLeafDiffTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("s2c_lighting", "ze_hold_em_p")]
+    [InlineData("s2c_rc_probe", "ze_hold_em_p")]
     [InlineData("s2c_rc_probe", "probe01")]
     public void WhereOurLeavesAndTheShippedOnesDisagree(string addon, string map)
     {

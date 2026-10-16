@@ -19,7 +19,7 @@ public class VisMergeHalt(ITestOutputHelper output)
 
         foreach (var (addon, map, target) in new[]
         {
-            ("s2c_lighting", "ze_hold_em_p", 1_342),
+            ("s2c_rc_probe", "ze_hold_em_p", 1_342),
             ("s2c_rc_probe", "probe01", 862),
         })
         {

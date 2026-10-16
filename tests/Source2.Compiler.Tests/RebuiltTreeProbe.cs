@@ -8,7 +8,7 @@ namespace Source2.Compiler.Tests;
 /// Where <see cref="RayTraceEnvironment.WithTracerTree"/> parts from the file
 /// it was made from: the scene facts, then the vis stages up to cluster
 /// generation, stopping at the first that differs. RTREE=&lt;map&gt; (an
-/// s2c_rc_probe or s2c_lighting compile).
+/// s2c_rc_probe compile).
 /// </summary>
 public class RebuiltTreeProbe(ITestOutputHelper output)
 {
@@ -17,7 +17,7 @@ public class RebuiltTreeProbe(ITestOutputHelper output)
     {
         if (Environment.GetEnvironmentVariable("RTREE") is not { Length: > 0 } map)
             return;
-        var addon = map == "ze_hold_em_p" ? "s2c_lighting" : "s2c_rc_probe";
+        var addon = "s2c_rc_probe";
         if (VisFixtures.RayTraceScene(addon, map) is not var (file, _))
             return;
         var rebuilt = file.WithTracerTree();

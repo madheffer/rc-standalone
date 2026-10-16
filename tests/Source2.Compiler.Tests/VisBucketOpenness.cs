@@ -21,7 +21,7 @@ public class VisBucketOpenness(ITestOutputHelper output)
 
         foreach (var (addon, map) in new[]
         {
-            ("s2c_lighting", "ze_hold_em_p"),
+            ("s2c_rc_probe", "ze_hold_em_p"),
             ("s2c_rc_probe", "probe01"),
         })
         {

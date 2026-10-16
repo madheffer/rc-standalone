@@ -254,7 +254,11 @@ internal static class MapFixtures
             if (disk is not null && File.Exists(disk))
                 return RcCache[sourcePath] = File.ReadAllBytes(disk);
 
-            var bytes = CompileWithRc(sourcePath, lump);
+            // The addon's own package, when the installed compiler wrote it after the
+            // source last changed, is the current answer already: s2c_rc_probe's
+            // packages are full builds, by this method or cs2_closed_session.py
+            // --fixtures (a full compile of atixref is half an hour).
+            var bytes = FreshPackageLump(sourcePath, lump) ?? CompileWithRc(sourcePath, lump);
             if (bytes is not null && disk is not null)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(disk)!);
@@ -386,6 +390,24 @@ internal static class MapFixtures
                             $"{Path.GetFileNameWithoutExtension(sourcePath)}.{stamp}.vents_c");
     }
 
+    private static byte[]? FreshPackageLump(string sourcePath, string lump)
+    {
+        var compiled = RcOutputPath(sourcePath);
+        if (compiled is null || !File.Exists(compiled) || OlderThanCompiler(compiled)
+            || File.GetLastWriteTimeUtc(compiled) < File.GetLastWriteTimeUtc(sourcePath))
+            return null;
+        // The package is named after the map only: it is this source's when the
+        // source s2c_rc_probe compiled is this one, byte for byte.
+        var staged = Path.Combine(Path.GetDirectoryName(compiled)!.Replace(Path.Combine("game", "csgo_addons"), Path.Combine("content", "csgo_addons")),
+                                  Path.GetFileName(sourcePath));
+        if (!File.Exists(staged) || !File.ReadAllBytes(staged).AsSpan().SequenceEqual(File.ReadAllBytes(sourcePath)))
+            return null;
+        using var pkg = new Package();
+        pkg.Read(compiled);
+        var entry = Io.VpkEntries.FirstEndingWith(pkg, $"/{lump}.vents_c");
+        return entry is null ? null : Io.VpkEntries.Read(pkg, entry);
+    }
+
     private static byte[]? CompileWithRc(string sourcePath, string lump)
     {
         var cs2 = CS2Fixtures.StockPak();
@@ -408,7 +430,9 @@ internal static class MapFixtures
         var compiled = Path.Combine(root, "game", "csgo_addons", addon, "maps", name + ".vpk");
         Directory.CreateDirectory(content);
         var staged = Path.Combine(content, name + ".vmap");
-        File.Copy(sourcePath, staged, overwrite: true);
+        // A source already in s2c_rc_probe compiles where it is.
+        if (!string.Equals(Path.GetFullPath(sourcePath), Path.GetFullPath(staged), StringComparison.OrdinalIgnoreCase))
+            File.Copy(sourcePath, staged, overwrite: true);
 
         var started = DateTime.UtcNow;
         var run = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(rc)

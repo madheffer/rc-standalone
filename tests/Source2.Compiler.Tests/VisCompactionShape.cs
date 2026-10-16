@@ -19,7 +19,7 @@ public class VisCompactionShape(ITestOutputHelper output)
 
         foreach (var (addon, map, assigned) in new[]
         {
-            ("s2c_lighting", "ze_hold_em_p", 103_358),
+            ("s2c_rc_probe", "ze_hold_em_p", 103_358),
             ("s2c_rc_probe", "cardtest", 30_817),
             ("s2c_rc_probe", "probe01", 30_665),
         })

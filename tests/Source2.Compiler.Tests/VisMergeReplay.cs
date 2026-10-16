@@ -33,7 +33,7 @@ public class VisMergeReplay(ITestOutputHelper output)
 
     private static readonly Dictionary<string, string> Addons = new()
     {
-        ["probe01"] = "s2c_rc_probe", ["cardtest"] = "s2c_rc_probe", ["ze_hold_em_p"] = "s2c_lighting",
+        ["probe01"] = "s2c_rc_probe", ["cardtest"] = "s2c_rc_probe", ["ze_hold_em_p"] = "s2c_rc_probe",
     };
 
     [Fact]
