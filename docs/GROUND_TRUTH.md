@@ -838,6 +838,22 @@ game can answer is raised with the user first, and runs with -insecure.
     (ConvexDistance is exact geometry; none on these maps); where the
     builder's requested size (+0x2f8) and the map's lightmap settings come
     from (absent on these maps: the defaults).
+65. **lightmap_info.dat** (settled 2026-10-17 by decompile; 0923
+    RasterizeAndSetupTexels 1801f32f0, the triangle rasteriser 1801f5020,
+    RunVrad3's writer in 1801f2240; ChartMeshesTests.LightmapInfoIsValves
+    with LMINFO). Triangles in index order, atlas uvs times the packing size
+    (the atlas over 2^(mip - 1)); a chart small in both axes (flags bits 28
+    and 29) takes the luxel at its first corner, any other is rasterised
+    conservatively: counter-clockwise, luxel centres tested against the
+    three edge functions, each pushed half a luxel outwards along both
+    axes, in Valve's operation order. Each packing luxel covers a
+    2^(mip - 1) square, and each luxel keeps the first chart to reach it
+    (0xFFFFFFFF none). The file is the ids in 1024-luxel blocks (2048 with
+    vrad3LargeBlockSize or off a customer machine; at most the smaller
+    side), row-major over blocks and within each. Lighting/LightmapTexels.cs
+    writes it byte for byte as Valve's on probe01 and ze_hold_em_p (from the
+    .vmap, through ChartMeshes.Build). Not seen: mips above 1, an atlas
+    smaller than a block, the 2048 block.
 
 ## Resolved
 

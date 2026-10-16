@@ -131,7 +131,10 @@ in make_manual's BAKE list, ADDRESSES.md):
   order, Lighting/TinyBvh.cs), and writes x, y, w, h into the chart records
   and the atlas uvs. Exact on probe01 and ze_hold_em_p.
 - `NLightBaker::RasterizeAndSetupTexels` / `SetupTexels` give each luxel its
-  chart (lightmap_info.dat); `WriteLightmapEdgeSeamsForVrad3` writes
+  chart (lightmap_info.dat). This is ported in Lighting/LightmapTexels.cs
+  (ledger 65): small charts take one luxel, other triangles are rasterised
+  conservatively, the first chart wins, and the file is written in
+  1024-luxel blocks. It is exact on probe01 and ze_hold_em_p. `WriteLightmapEdgeSeamsForVrad3` writes
   lightmap_seams.dat; `WRB_BuildPathTraceSceneInfo` scene_info.kv3 and its
   mesh file.
 
@@ -139,8 +142,8 @@ Ground truth per map: `compile_fresh.py --full` keeps the addon's `_vrad3`
 folder beside the package (`<out>.vrad3`), since the next bake overwrites it.
 The first milestone, our lightmap_packing_geometry.dat equal to Valve's on
 probe01, is reached (2026-10-17), and ze_hold_em_p follows. Next come
-lightmap_info.dat, the seams and the scene, and the lightmap uvs the world
-nodes take from the packing (GEOMETRY.md).
+lightmap_info.dat (done, ledger 65), the seams and the scene, and the
+lightmap uvs the world nodes take from the packing (GEOMETRY.md).
 
 ## AMD GPUs (future plan)
 

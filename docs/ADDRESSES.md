@@ -169,7 +169,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 926 addresses
+- 927 addresses
 
 ### s2c:baked/light-keys
 
@@ -332,9 +332,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801ee9f0` | `NLightBaker_WriteFarfieldScript` | // Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0) |  |
 | `1801f01a0` | `NLightBaker_WriteFogIrradianceScript` | // Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu) |  |
 | `1801f0dd0` | `NLightBaker_LoadFarfield` | reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures |  |
-| `1801f2240` | `NLightBaker::RunVrad3` | writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries |  |
-| `1801f32f0` | `NLightBaker::RasterizeAndSetupTexels` | 'charts have no luxels assigned' |  |
+| `1801f2240` | `NLightBaker::RunVrad3` | lightmap_info.dat as blocks of 1024 (2048 with vrad3LargeBlockSize or off a customer machine, at most the smaller side), row-major, clipped; writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries | `src/Source2.Compiler/Lighting/LightmapTexels.cs:15` |
+| `1801f32f0` | `NLightBaker::RasterizeAndSetupTexels` | per triangle, atlas uv * (size >> (mip - 1)); charts with flags bits 28\|29 fill the luxel at the first corner, others through 1801f5020; 2^(mip-1) square per packing luxel, first chart wins; 'charts have no luxels assigned' | `src/Source2.Compiler/Lighting/LightmapTexels.cs:7` |
 | `1801f3920` | `NLightBaker::SetupTexels` | ==== Baking %d x %d lightmap ====; RasterizeSliceAndProcessTexels |  |
+| `1801f5020` | `NLightBaker_RasterizeTriangle` | conservative: counter-clockwise, luxel centres against the three edge functions each pushed half a luxel out along both axes, floor/ceil bounds | `src/Source2.Compiler/Lighting/LightmapTexels.cs:10`, `src/Source2.Compiler/Lighting/LightmapTexels.cs:69` |
 | `1801f86f0` | `CStaticLightingProcessor::SetImportanceVolumes` | vf 0x48: copies the hull list into +0x5e8 |  |
 | `1801f8770` | `CStaticLightingProcessor::GetImportanceVolumes` | vf 0x50: +0x5e8 |  |
 | `18020e230` | `StaticLighting_LoadChartRepacking` | chart_repacking.dat from VRAD3_PATH (optional) |  |

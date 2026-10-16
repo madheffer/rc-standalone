@@ -2320,7 +2320,7 @@
    "addr": "1801f2240",
    "name": "NLightBaker::RunVrad3",
    "module": "s2c:baked/lighting",
-   "note": "writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"
+   "note": "lightmap_info.dat as blocks of 1024 (2048 with vrad3LargeBlockSize or off a customer machine, at most the smaller side), row-major, clipped; writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"
   },
   {
    "addr": "180210fa0",
@@ -2488,7 +2488,13 @@
    "addr": "1801f32f0",
    "name": "NLightBaker::RasterizeAndSetupTexels",
    "module": "s2c:baked/lighting",
-   "note": "'charts have no luxels assigned'"
+   "note": "per triangle, atlas uv * (size >> (mip - 1)); charts with flags bits 28|29 fill the luxel at the first corner, others through 1801f5020; 2^(mip-1) square per packing luxel, first chart wins; 'charts have no luxels assigned'"
+  },
+  {
+   "addr": "1801f5020",
+   "name": "NLightBaker_RasterizeTriangle",
+   "module": "s2c:baked/lighting",
+   "note": "conservative: counter-clockwise, luxel centres against the three edge functions each pushed half a luxel out along both axes, floor/ceil bounds"
   },
   {
    "addr": "1801f3920",

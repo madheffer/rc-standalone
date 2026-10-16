@@ -234,6 +234,38 @@ public class ChartMeshesTests(ITestOutputHelper output)
         Assert.Equal(total, split);
     }
 
+    /// <summary>
+    /// lightmap_info.dat from our packed geometry (<see cref="LightmapTexels"/>)
+    /// against Valve's (<c>LMINFO=&lt;dat&gt;</c>, with <c>NODEENTRIES_VMAP</c>).
+    /// </summary>
+    [Fact]
+    public void LightmapInfoIsValves()
+    {
+        if (Environment.GetEnvironmentVariable("LMINFO") is not { } dat
+            || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap || OurInputs(vmap) is not { } inputs)
+            return;
+        var keys = MapSource.Read(vmap).OfType("CMapWorld").FirstOrDefault()?.Get<DmxBinary.Element>("entity_properties")?.Attributes
+            .Where(a => a.Value is string).ToDictionary(a => a.Key, a => (string)a.Value!) ?? [];
+        var settings = LightmapSettings.From(keys, 0x1000, 4096, sh2Dc: false);
+        var (geometry, _) = ChartMeshes.Build(inputs.Entries, inputs.Volumes, m => inputs.RenderBackfaces.GetValueOrDefault(m), settings, 120f);
+        var ids = LightmapTexels.ChartIds(geometry, settings.Width, settings.Height, settings.Mip);
+        var valve = File.ReadAllBytes(dat);
+        foreach (var block in new[] { 0x400, 0x800 })
+        {
+            var ours = LightmapTexels.Write(ids, settings.Width, settings.Height, block);
+            var differ = ours.Length != valve.Length ? -1 : Enumerable.Range(0, ours.Length / 4).Count(i => BitConverter.ToUInt32(ours, i * 4) != BitConverter.ToUInt32(valve, i * 4));
+            output.WriteLine($"block {block}: {differ} of {ids.Length} luxels differ");
+            if (differ == 0)
+                return;
+        }
+        // Where the block-1024 layout differs, by luxel.
+        var mine = LightmapTexels.Write(ids, settings.Width, settings.Height);
+        var first = Enumerable.Range(0, mine.Length / 4).Where(i => BitConverter.ToUInt32(mine, i * 4) != BitConverter.ToUInt32(valve, i * 4)).Take(8);
+        foreach (var i in first)
+            output.WriteLine($"  word {i}: ours {BitConverter.ToUInt32(mine, i * 4):x} valve {BitConverter.ToUInt32(valve, i * 4):x}");
+        Assert.Fail("lightmap_info.dat differs");
+    }
+
     private static int[] Ints(System.Text.Json.JsonElement e, string name)
     {
         var b = Convert.FromHexString(e.GetProperty(name).GetString() ?? "");

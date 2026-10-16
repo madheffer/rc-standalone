@@ -431,7 +431,7 @@ RESOURCECOMPILER = [
     ("1801ee9f0", "NLightBaker_WriteFarfieldScript", BAKE, "// Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0)"),
     ("1801f01a0", "NLightBaker_WriteFogIrradianceScript", BAKE, "// Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu)"),
     ("1801f0dd0", "NLightBaker_LoadFarfield", BAKE, "reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures"),
-    ("1801f2240", "NLightBaker::RunVrad3", BAKE, "writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"),
+    ("1801f2240", "NLightBaker::RunVrad3", BAKE, "lightmap_info.dat as blocks of 1024 (2048 with vrad3LargeBlockSize or off a customer machine, at most the smaller side), row-major, clipped; writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"),
     # The lightmap charts (staticlightingprocessor.cpp, uvchartpacker.cpp): docs/BAKED.md "Lightmap charts".
     ("180210fa0", "CStaticLightingProcessor::GenerateCharts", BAKE, "ChartMeshes: one 0xb8 entry per mesh; shared meshes (1802191e0), instances and unique meshes (180212850 jobs); gameinfo ImportanceVolumeTransitionRegion (72)"),
     ("180210730", "StaticLighting_PrepareChartMesh", BAKE, "drops LightmapUV, optional CMesh_Weld, copies streams (position, texcoord set, normal, tangent) and indices; winding flip for flagged materials; importance volume scales (18020f910); UnwrapUsingUvsFromMesh default true; then 18022d920"),
@@ -460,7 +460,8 @@ RESOURCECOMPILER = [
     ("181ed64a0", "tinybvh::BVH::Build", BAKE, "binned SAH, 16 bins, axes past root extent * 1e-20, split if c_int / SA * (ANL + ANR) + c_trav < count * c_int, in-place partition, 256-entry task stack; threaded at 50000 primitives"),
     ("181c473c0", "SFMT19937_Seed", BAKE, "the packer's debug colours (seed 0x777f17e); state words read without tempering"),
     ("181c46e60", "SFMT19937_Refill", BAKE, "POS1 122, SL1 18, SR1 11, one-byte SL2/SR2"),
-    ("1801f32f0", "NLightBaker::RasterizeAndSetupTexels", BAKE, "'charts have no luxels assigned'"),
+    ("1801f32f0", "NLightBaker::RasterizeAndSetupTexels", BAKE, "per triangle, atlas uv * (size >> (mip - 1)); charts with flags bits 28|29 fill the luxel at the first corner, others through 1801f5020; 2^(mip-1) square per packing luxel, first chart wins; 'charts have no luxels assigned'"),
+    ("1801f5020", "NLightBaker_RasterizeTriangle", BAKE, "conservative: counter-clockwise, luxel centres against the three edge functions each pushed half a luxel out along both axes, floor/ceil bounds"),
     ("1801f3920", "NLightBaker::SetupTexels", BAKE, "==== Baking %d x %d lightmap ====; RasterizeSliceAndProcessTexels"),
     ("180213290", "WriteLightmapEdgeSeamsForVrad3", BAKE, "lightmap_seams.dat"),
     ("1801eda50", "NLightBaker_WriteLightmapScript", BAKE, "the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks"),
