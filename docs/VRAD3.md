@@ -292,6 +292,15 @@ semantics, min/max/clamp preferring the operand that is not NaN).
   groups' material values, not the lightmap sampler, the raygen or the light
   data.
 
+  2026-10-18, found with vrad3's own raw image (CS2 closed; deterministic,
+  material swaps in scene_info): the excess is all in
+  concrete_slabs_wet_1 (csgo_simple_2way_blend). Its blend weights come
+  from texcoord slot 4, a field scene_meshes names VertexPaintBlendParams,
+  and RtxScene skipped it. Mapping the field through the material's input
+  signature, as scenesystem 180093f10 does for semantic index -1, gives
+  0.987 of Valve on block 5. The fix is behind `RtxScene.MapBySignature`
+  until the -1 rule is read; see docs/LIGHTING_ROADMAP.md (M1).
+
 `CpuBakeTests.Bake` (`CPUBAKE=<vrad3 folder>`, `CPUBAKE_ADDON`,
 `CPUBAKE_BLOCK` for one block into a block-sized image, `CPUBAKE_FILTER=1`
 for the script's firefly and median filters on it, `CPUBAKE_STRIDE`)

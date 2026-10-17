@@ -450,13 +450,22 @@ public sealed class RtxScene
         var vf = new float[meshes.Count][];
         var vu = new uint[meshes.Count][];
         var ib = new uint[meshes.Count][];
+        // Each mesh's material input signature (the first instance's material), for fields named by semantic.
+        var signatures = new IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement>?[meshes.Count];
+        if (MapBySignature)
+            foreach (var inst in scene.Instances)
+                if (signatures[inst.Mesh] == null && read(inst.Material.Name + "_c") is { } vmat)
+                {
+                    try { signatures[inst.Mesh] = MaterialAuthor.ExtractInputSignature(vmat); }
+                    catch (InvalidOperationException) { }
+                }
         for (var m = 0; m < meshes.Count; m++)
         {
             var mesh = meshes[m];
             vf[m] = mesh.Vertices;
             vu[m] = System.Runtime.InteropServices.MemoryMarshal.Cast<float, uint>(mesh.Vertices).ToArray();
             ib[m] = [.. mesh.Indices.Select(i => (uint)i)];
-            geometries[m] = Geometry(mesh, m);
+            geometries[m] = Geometry(mesh, m, signatures[m]);
         }
         var textures = new List<BindlessTexture>();
         var textureIndex = new Dictionary<(string, bool), int>();
@@ -537,8 +546,16 @@ public sealed class RtxScene
         return new RtxScene(scene, hit, Factory, notes);
     }
 
+    /// <summary>
+    /// Experiment: a field whose name is not a D3D semantic (VertexPaintBlendParams...) takes the
+    /// D3D semantic name and index the material's input signature gives that semantic, as
+    /// scenesystem 180093f10 does for a layout field of semantic index -1.
+    /// </summary>
+    public static bool MapBySignature { get; set; }
+
     // GeometryInfo_t for one scene mesh: one stream, its float fields (scenesystem 180093f10's formats).
-    private static GeometryInfo_t_natural Geometry(BakeScene.Mesh mesh, int index)
+    private static GeometryInfo_t_natural Geometry(BakeScene.Mesh mesh, int index,
+        IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement>? signature = null)
     {
         static int Format(int size) => size switch { 1 => 41, 2 => 16, 3 => 6, _ => 2 };
         var g = new GeometryInfo_t_natural
@@ -549,10 +566,16 @@ public sealed class RtxScene
             m_vTexCoordFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
             m_vColorFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
         };
-        foreach (var f in mesh.Fields)
+        foreach (var field in mesh.Fields)
         {
+            var f = field;
             var info = new ivec4(f.Offset * 4, Format(f.Size), 0, 0);
-            switch (f.Name.ToLowerInvariant())
+            var (name, semanticIndex) = (f.Name, f.SemanticIndex);
+            if (signature?.FirstOrDefault(e => e.Semantic.Equals(f.Name, StringComparison.OrdinalIgnoreCase)) is { D3DSemanticName.Length: > 0 } element
+                && f.Name.ToLowerInvariant() is not ("texcoord" or "color" or "normal" or "tangent" or "position"))
+                (name, semanticIndex) = (element.D3DSemanticName, element.D3DSemanticIndex);
+            f = f with { SemanticIndex = semanticIndex };
+            switch (name.ToLowerInvariant())
             {
                 case "normal" when f.SemanticIndex == 0 && f.Size == 3:
                     g.m_vNormalFieldInfo = info;

@@ -22,6 +22,20 @@ public class CpuBakeTests(ITestOutputHelper output)
     {
         if (Environment.GetEnvironmentVariable("CPUBAKE") is not { } folder || CS2Fixtures.StockPak() is not { } pak)
             return;
+        // RayScene.Build recurses deeper than Windows' 1 MB default stack on ze_hold_em_p.
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        var thread = new Thread(() =>
+        {
+            try { BakeOnThread(folder, pak); }
+            catch (Exception e) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e); }
+        }, 256 << 20);
+        thread.Start();
+        thread.Join();
+        failure?.Throw();
+    }
+
+    private void BakeOnThread(string folder, string pak)
+    {
         var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
         var loose = Environment.GetEnvironmentVariable("CPUBAKE_ADDON") is { } addon ? new[] { Path.Combine(game, "csgo_addons", addon) } : [];
         using var content = new GameContent(pak, loose);
@@ -65,14 +79,15 @@ public class CpuBakeTests(ITestOutputHelper output)
             return (new BakeCubemap(faces), bias);
         }
         KVObject sceneInfo;
-        using (var s = File.OpenRead(Path.Combine(folder, "scene_info.kv3")))
+        // CPUBAKE_SCENE: another scene file in the folder (a vrad3_variant.py experiment's).
+        using (var s = File.OpenRead(Path.Combine(folder, Environment.GetEnvironmentVariable("CPUBAKE_SCENE") ?? "scene_info.kv3")))
             sceneInfo = KVSerializer.Create(KVSerializationFormat.KeyValues3Text).Deserialize(s);
         var sceneMeshes = SceneInfoTests.ReadBinary(Path.Combine(folder, "scene_meshes.kv3"));
         var scene = BakeScene.Load(sceneInfo, sceneMeshes, Material, Cubemap);
         output.WriteLine($"{scene.Instances.Count} instances, {scene.Meshes.Count} meshes, {scene.Lights.Count} lights");
         if (Environment.GetEnvironmentVariable("CPUBAKE_INSTANCES") == "1")
             foreach (var inst in scene.Instances)
-                output.WriteLine($"  mesh {inst.Mesh} {inst.Material.Name}: mask {inst.Mask:x2} material flags {inst.MaterialFlags:x} instance flags {inst.InstanceFlags:x} and {inst.Material.MaskAnd:x} or {inst.Material.MaskOr:x}, colour {(inst.Material.Color is { } c ? $"{c.Width}x{c.Height}" : "none")} tint {inst.Material.ColorTint}");
+                output.WriteLine($"  mesh {inst.Mesh} {inst.Material.Name}: mask {inst.Mask:x2} material flags {inst.MaterialFlags:x} instance flags {inst.InstanceFlags:x} and {inst.Material.MaskAnd:x} or {inst.Material.MaskOr:x}, colour {(inst.Material.Color is { } c ? $"{c.Width}x{c.Height}" : "none")} tint {inst.Material.ColorTint}, fields {string.Join(" ", scene.Meshes[inst.Mesh].Fields.Select(f => $"{f.Name}{f.SemanticIndex}@{f.Offset}x{f.Size}"))}");
         var packing = PackingGeometry.Read(File.ReadAllBytes(Path.Combine(folder, "lightmap_packing_geometry.dat")));
         using var halton = LoadResource(Core("textures/dev/scrambled_halton.vdata_c")!);
         var permutations = HaltonSamples.Permutations(((BinaryKV3)halton.DataBlock!).Data.Root["permutations"].AsBlob());
@@ -80,6 +95,7 @@ public class CpuBakeTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("CPUBAKE_RTX") != "0")
         {
             using var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
+            RtxScene.MapBySignature = Environment.GetEnvironmentVariable("CPUBAKE_SIGMAP") == "1";
             rtx = RtxScene.Build(scene, content.Material, rtxShaders, Read);
             output.WriteLine($"material hit groups: {Enumerable.Range(0, scene.Instances.Count).Count(rtx.Has)} of {scene.Instances.Count} instances");
             foreach (var note in rtx.Notes)
@@ -179,6 +195,27 @@ public class CpuBakeTests(ITestOutputHelper output)
                 traced[i] = image.SampleCount(i) > 0;
             var bx = baker.Width / baker.BlockSize;
             var (ox, oy) = (block % bx * baker.BlockSize, block / bx * baker.BlockSize);
+            if (Environment.GetEnvironmentVariable("CPUBAKE_PREPOST") is { Length: > 0 } prePost)
+            {
+                // Before any post-process: our block's channels against vrad3's lightmap_image_save
+                // of the same compute (post_oracle.py bake, vrad3_variant.py), channel for channel.
+                foreach (var c in new[] { LightmapImage.Ch.Irradiance, LightmapImage.Ch.ShR, LightmapImage.Ch.AmbientOcclusion })
+                {
+                    var path = Path.Combine(prePost, $"channel{c:00}.exr");
+                    if (image.Channels[c] is not { } channel || !File.Exists(path))
+                        continue;
+                    var names = new[] { "R", "G", "B", "A" }.Where((_, k) => (channel.Mask >> k & 1) != 0).ToArray();
+                    var ours = new Vrad3Exr(image.Width, image.Height, names);
+                    foreach (var (n, k) in names.Select(n => (n, "RGBA".IndexOf(n[0]))))
+                    {
+                        var plane = ours.Plane(n);
+                        for (var i = 0; i < plane.Length; i++)
+                            plane[i] = (Half)channel.Data[i * 4 + k];
+                    }
+                    Compare($"channel{c:00}", ours, Vrad3Exr.Read(File.ReadAllBytes(path)), traced, ox, oy);
+                }
+                return;
+            }
             if (Environment.GetEnvironmentVariable("CPUBAKE_FILTER") == "1")
             {
                 // The script's fireflies (4) and median (7) on the block, the charts moved into it and clipped.
