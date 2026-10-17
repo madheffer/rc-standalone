@@ -292,6 +292,25 @@ public class HitShaderOracleTests(ITestOutputHelper output)
             var data = new byte[size];
             vtex.ReadTextureMipLevel(data, (uint)level);
             File.WriteAllBytes(Path.Combine(outDir, $"tex{dumpIndex}_blocks.bin"), data);
+            // and 65536 bilinear samples at random uvs (uv pairs, then the float4 results)
+            const int samples = 65536;
+            var uv = new float[samples * 2];
+            var sq = new byte[samples * 32];
+            for (var k = 0; k < samples; k++)
+            {
+                uv[k * 2] = random.NextSingle() * 3f - 1f;
+                uv[k * 2 + 1] = random.NextSingle() * 3f - 1f;
+                var w = sq.AsSpan(k * 32, 32);
+                BinaryPrimitives.WriteSingleLittleEndian(w, uv[k * 2]);
+                BinaryPrimitives.WriteSingleLittleEndian(w[4..], uv[k * 2 + 1]);
+                BinaryPrimitives.WriteSingleLittleEndian(w[12..], 1f);
+                BinaryPrimitives.WriteUInt32LittleEndian(w[16..], (uint)dumpIndex);
+                BinaryPrimitives.WriteUInt32LittleEndian(w[20..], (uint)linear);
+            }
+            var filtered = probe.Run((uint)samples, [new ComputeOracle.Buffers(0, 60, [sq])],
+                [new ComputeOracle.Images(1, 46, [.. images.Select(i => i.View)])], [new ComputeOracle.Samplers(1, 29, samplers)], [], (0, 61, (ulong)samples * 16));
+            File.WriteAllBytes(Path.Combine(outDir, $"tex{dumpIndex}_uv.bin"), System.Runtime.InteropServices.MemoryMarshal.AsBytes(uv.AsSpan()).ToArray());
+            File.WriteAllBytes(Path.Combine(outDir, $"tex{dumpIndex}_bilinear.bin"), filtered);
             output.WriteLine($"dumped texture {dumpIndex} {dumpPath}: {vtex.Format} level {level} {tex.Width}x{tex.Height} srgb {rtx.TextureSources[dumpIndex].Srgb}");
         }
         for (var t = 0; t < rtx.TextureSources.Count; t++)

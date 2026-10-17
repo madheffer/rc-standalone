@@ -1141,13 +1141,18 @@ game can answer is raised with the user first, and runs with -insecure.
     - sRGB 8-bit to linear: a fixed 256-entry table of half floats (up to
       0.00375 off the exact curve), measured from an R8G8B8A8_SRGB texture.
     - BC1: every palette entry is an 8-bit code p (UNORM p / 255, sRGB the
-      table above at p); endpoints are the usual 565 expansion. How p is
-      interpolated (index 2 and 3, and the three-colour mode's index 2) is
-      not one of the usual roundings: not yet fitted. Data in
-      %TEMP%/hitoracle_tex (Bc1Decode, HITORACLE_BC1=1).
-    - Bilinear: with BC7 texels equal, filtered results still differ by up
-      to 0.0017; the filter arithmetic is not yet modelled (1/256 weights
-      alone do not explain it).
+      table above at p); endpoints are the usual 565 expansion. Red and blue
+      (5 bits a, b): four-colour mode p = ((2a + b) 22) >> 3 (and with a, b
+      swapped for index 3), three-colour mode p = ((a + b) 33) >> 3, index 3
+      black; exact on all 2,048 cases each. Green (6 bits) fits no
+      linear integer formula on the raw or expanded values (11/16 weights
+      on the expanded value miss 368 of 8,192 by one): tabulate it (64 x 64,
+      measured by Bc1Decode, HITORACLE_BC1=1, data in %TEMP%/hitoracle_tex).
+    - Bilinear: with BC7 texels equal, 65,536 filtered samples still differ
+      by up to 0.0011 (mean 3e-5) from exact float weights; 1/256 weights
+      (rounded: mean 2.2e-5) or coarser coordinates, half or 16-bit output
+      rounding do not make it exact, and the error does not grow with the
+      coordinate. The filter arithmetic is still to find.
     - Payload half fields come back unrounded from the compute rewrite
       (reflectance 0.0400000028): whether vrad3's real ray tracing payload
       rounds them is not known; ours does.

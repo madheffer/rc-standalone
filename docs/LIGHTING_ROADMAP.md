@@ -209,6 +209,22 @@ difference looks like GPU float evaluation (not isolated yet); see ledger
   cause is the texture unit: BC4 and sRGB decode measured, BC1
   interpolation and the bilinear filter still to fit, then port.
 
+### Parked items (to rank)
+
+Briefs collected for ranking (vpkstuff ROADMAP item 16 points here).
+Origin: the two 10-18 lighting sessions ("Own lighting to 80% from the
+roadmap", closed; "Lighting compilation parity with Valve").
+
+| id | item | area | done when |
+|---|---|---|---|
+| L1 | GPU ground truth for the hit shaders (ledger 78, 79) | HitShaderOracleTests, HitContext, RtxScene.LoadTexture | BC4 / sRGB / BC1 decode and the bilinear filter emulated as the RTX 4070 does them, and only_slabs' per-luxel correlation near refl30all's (0.97). Decode measured; BC1 green table and the filter arithmetic open. |
+| L2 | BC6H hue-shift fixup encoder (port RC 180c46dd0 and helpers) | LightmapTextures, Texture/Rc | probe01's -lightmapVRadQuality 2 irradiance byte-exact (5 of 1,048,576 blocks differ today). |
+| L3 | bc7e mismatch on a few blocks (main first, then map-authoring) | Native/bc7e | ze_hold_em_p's probe atlas (2 blocks) and probe01 quality 2 (5 blocks) byte-exact. Changes vpkstuff's texture output: reaches vpkstuff only through publish-to-vpkstuff and its golden tests. |
+| L4 | Baked world node with -vrad3output (F19) | MapCompile, WorldNodeFiles | a -vrad3output package's world node equals Valve's baked one (lightmap uvs, bake keys). |
+| L5 | M4 specimens: a light cookie, a fog irradiance volume, an env_farfield_probe_volume, compiled with Valve's tools plus vrad3 captures | captures (CS2 closed, with the operator) | each specimen captured, so M4's cookies, fog and far field can be ported against it. |
+| L6 | main-side fixes F26 to F29 and F33 | Texture/IspcTexcomp, Rc/RcMipChain, AtiCompress docs | the review findings fixed or corrected on main and mirrored here. |
+| L7 | F40, stale luxels in the LPV convergence test | LightProbeVolumeBaker | ported (only matters with err > 0, which resourcecompiler's 64 / 64 never uses). |
+
 ### M4. Unported vrad3 features (+9%): not started, needs specimens
 
 Take these in the order the ze maps need them. As of 2026-10-18 no map the
