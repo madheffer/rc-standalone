@@ -196,6 +196,23 @@ both light probe volume atlases.
   - the three texture compiler special dependencies;
   - HiddenAssetFlag and IsChildResource.
 
+`lightmap_query_data.kv3` (1802163b0, Lighting/LightmapQueryData.cs) is
+byte-identical on probe01 and cardtest (`CpuBakeProbe.QueryDataDump`,
+`QUERYDATA=`). It is built from the packing geometry in five steps:
+1. A mesh of positions and lightmap uvs. Each uv is quantised as
+   V_roundf(uv / (65535 / a) * 65535), with a = (float)(int)(floor(32767 /
+   size) x size x 2); a is 57344 at 4096.
+2. When the map has resolution volumes, triangles that overlap none of
+   their boxes grown by 240 are culled (180216090).
+3. CMesh_Weld at 1/32.
+4. meshoptimizer's simplify (meshoptimizer v1.1 to v1.2, ported in
+   Meshopt/MeshoptSimplify.cs) to half the indices, error 0.05.
+5. KV3 v5: three floats and two u16 per vertex, u32 indices.
+
+The cull reads the importance volumes as plain point boxes. probe01 culls
+nothing, so this is not yet checked; a baked ze_hold_em_p package would
+settle it.
+
 Open:
 - RED2's `___OverrideInputData___` is the CRC32 of the texture descriptor
   written as KV3 text through its transfer function (181e8e7c0). It depends
@@ -204,10 +221,6 @@ Open:
   buffer (capture_overrides.py hooks the recorder).
 - The ImageArg fingerprint of a lightmap and of dlshd is computed from the
   bitmap (the call passes -1). The ambient cube's is the 1 RC passes.
-- `lightmap_query_data.kv3` (1802163b0): a CMesh of positions and u16
-  lightmap uvs, welded at 1/32, simplified by meshoptimizer (error 0.05,
-  target half the indices), written as KV3 with vertex_count, index_count,
-  vertices and indices. It needs a port of meshopt simplify.
 - BC6H still loads Valve's ispc_texcomp.dll. The kernel is open source (MIT)
   and can be built like bc7e for Linux.
 

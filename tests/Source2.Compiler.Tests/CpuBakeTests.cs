@@ -1000,6 +1000,69 @@ public class CpuBakeProbe(ITestOutputHelper output)
         Assert.Equal(0, different);
     }
 
+    /// <summary>
+    /// <c>QUERYDATA=&lt;vrad3 folder&gt;|&lt;map vpk&gt;|&lt;map&gt;</c>: the shipped lightmap_query_data.kv3 decoded (keys,
+    /// counts, the first vertices and indices) beside the packing geometry it comes from.
+    /// </summary>
+    [Fact]
+    public void QueryDataDump()
+    {
+        if (Environment.GetEnvironmentVariable("QUERYDATA") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var vpk, var map])
+            return;
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        pkg.ReadEntry(pkg.FindEntry($"maps/{map}/lightmaps/lightmap_query_data.kv3")!, out var bytes);
+        output.WriteLine($"file {bytes.Length} bytes, head {Convert.ToHexString(bytes.AsSpan(0, 64))}");
+        var root = SceneInfoTests.ReadBinary(bytes);
+        foreach (var c in root.Children)
+            output.WriteLine($"  {c.Key}: {SceneInfoTests.Render(c.Value)}");
+        var vertices = root["vertices"].AsBlob();
+        var indices = root["indices"].AsBlob();
+        output.WriteLine($"vertices blob {vertices.Length}, indices blob {indices.Length}");
+        for (var i = 0; i < 6 && i * 16 < vertices.Length; i++)
+            output.WriteLine($"  v{i}: {BitConverter.ToSingle(vertices, i * 16)} {BitConverter.ToSingle(vertices, i * 16 + 4)} {BitConverter.ToSingle(vertices, i * 16 + 8)} uv {BitConverter.ToUInt16(vertices, i * 16 + 12)} {BitConverter.ToUInt16(vertices, i * 16 + 14)}");
+        output.WriteLine("  indices " + Convert.ToHexString(indices.AsSpan(0, Math.Min(48, indices.Length))));
+        var g = PackingGeometry.Read(File.ReadAllBytes(Path.Combine(folder, "lightmap_packing_geometry.dat")));
+        output.WriteLine($"packing: {g.VertexCount} vertices (stride {g.VertexStride}), {g.Indices.Length} indices, offsets {string.Join(",", g.Offsets)}");
+        for (var i = 0; i < 6; i++)
+            output.WriteLine($"  p{i}: {BitConverter.ToSingle(g.Vertices, i * g.VertexStride)} {BitConverter.ToSingle(g.Vertices, i * g.VertexStride + 4)} {BitConverter.ToSingle(g.Vertices, i * g.VertexStride + 8)} uv {g.AtlasUv[i * 2]} {g.AtlasUv[i * 2 + 1]}");
+        output.WriteLine($"  uv range {g.AtlasUv.Min()} .. {g.AtlasUv.Max()}");
+
+        // Rebuilt from the packing geometry (probe01's log: no triangle is culled, so no volumes are needed).
+        var ours = LightmapQueryData.Build(g, 4096, 4096, []);
+        var mine = SceneInfoTests.ReadBinary(ours);
+        output.WriteLine($"ours: {ours.Length} bytes, vertex_count {mine["vertex_count"]}, index_count {mine["index_count"]}");
+        var ov = mine["vertices"].AsBlob();
+        var oi = mine["indices"].AsBlob();
+        output.WriteLine($"  vertices identical {ov.AsSpan().SequenceEqual(vertices)}, indices identical {oi.AsSpan().SequenceEqual(indices)}");
+        if (!ov.AsSpan().SequenceEqual(vertices))
+        {
+            var first = Enumerable.Range(0, Math.Min(ov.Length, vertices.Length) / 16).FirstOrDefault(v => !ov.AsSpan(v * 16, 16).SequenceEqual(vertices.AsSpan(v * 16, 16)), -1);
+            output.WriteLine($"  first vertex difference {first}: ours {Convert.ToHexString(ov.AsSpan(Math.Max(0, first) * 16, 16))} valve {Convert.ToHexString(vertices.AsSpan(Math.Max(0, first) * 16, 16))}");
+        }
+        if (!oi.AsSpan().SequenceEqual(indices))
+        {
+            var first = Enumerable.Range(0, Math.Min(oi.Length, indices.Length) / 4).FirstOrDefault(i => BitConverter.ToUInt32(oi, i * 4) != BitConverter.ToUInt32(indices, i * 4), -1);
+            output.WriteLine($"  first index difference at {first} of {oi.Length / 4} / {indices.Length / 4}");
+        }
+        var firstByte = Enumerable.Range(0, Math.Min(ours.Length, bytes.Length)).FirstOrDefault(i => ours[i] != bytes[i], -1);
+        output.WriteLine($"  file {(firstByte < 0 && ours.Length == bytes.Length ? "identical" : $"differs at {firstByte}")}");
+        Assert.Equal(bytes, ours);
+    }
+
+    /// <summary><c>QUERYBUILD=&lt;vrad3 folder&gt;</c>: lightmap_query_data.kv3 built from a packing geometry alone (no reference), its counts and time.</summary>
+    [Fact]
+    public void QueryDataBuild()
+    {
+        if (Environment.GetEnvironmentVariable("QUERYBUILD") is not { Length: > 0 } folder)
+            return;
+        var g = PackingGeometry.Read(File.ReadAllBytes(Path.Combine(folder, "lightmap_packing_geometry.dat")));
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var bytes = LightmapQueryData.Build(g, 4096, 4096, []);
+        var root = SceneInfoTests.ReadBinary(bytes);
+        output.WriteLine($"packing {g.VertexCount} vertices, {g.Indices.Length} indices -> {bytes.Length} bytes, vertex_count {root["vertex_count"]}, index_count {root["index_count"]} in {watch.ElapsedMilliseconds} ms");
+    }
+
     [Fact]
     public void TextureApi()
     {

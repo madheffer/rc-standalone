@@ -974,6 +974,16 @@ game can answer is raised with the user first, and runs with -insecure.
     shadow dilation runs two rounds. The solid masks and the open band
     equal Valve's. The atlas copy equals resourcecompiler's on both atlases.
 
+74. **Lightmap query data** (settled 2026-10-18 by decompile and byte
+    comparison). StaticLighting_WriteLightmapQueryData (1802163b0) quantises
+    the atlas uvs with the caller's scale, welds at 1/32, and simplifies with
+    meshoptimizer's simplifyEdge. The meshoptimizer version was identified
+    from the decompile: v1.1 to v1.2, with 15 arguments, RegularizeLight
+    tested and no PreserveFolds or ErrorClamped. The output is KV3 v5.
+    probe01's and cardtest's files are rebuilt byte for byte. The resolution
+    volume cull (180216090) is ported as read but unexercised: probe01
+    culls nothing.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
