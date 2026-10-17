@@ -1,0 +1,37 @@
+        // vpkstuff patch: the ceiling vrf-kv3-size-guard holds a block's declared uncompressed
+        // size to. A host parsing untrusted files lowers it per async flow.
+        /// <summary>512 MB: the largest real block measured is 303,244,222 bytes (de_boulder's world_physics PHYS).</summary>
+        public const long DefaultMaxUncompressedBytes = 512L << 20;
+
+        private static readonly System.Threading.AsyncLocal<long?> maxUncompressedBytes = new();
+
+        /// <summary>The ceiling in force: the innermost <see cref="UseMaxUncompressedBytes"/>, else the default.</summary>
+        public static long MaxUncompressedBytes => maxUncompressedBytes.Value ?? DefaultMaxUncompressedBytes;
+
+        /// <summary>Lower the ceiling for this async flow until the result is disposed; never raises it.</summary>
+        public static IDisposable UseMaxUncompressedBytes(long bytes)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+            var outer = maxUncompressedBytes.Value;
+            maxUncompressedBytes.Value = Math.Min(bytes, outer ?? DefaultMaxUncompressedBytes);
+            return new LimitScope(outer);
+        }
+
+        private sealed class LimitScope(long? outer) : IDisposable
+        {
+            private bool disposed;
+
+            public void Dispose()
+            {
+                if (disposed)
+                {
+                    return;
+                }
+
+                disposed = true;
+                maxUncompressedBytes.Value = outer;
+            }
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BinaryKV3"/> class with DATA block type.

@@ -198,6 +198,18 @@ public class Kv3TreeTests
     }
 
     [Fact]
+    public void Vrf_holds_a_kv3_to_the_limit_in_scope()
+    {
+        var written = Standalone(Kv3Compression.Lz4, new Kv3Node { Type = Kv3Type.BinaryBlob, Blob = new byte[3 << 20] });
+        using (VrfKv3ReadLimit.Use(1 << 20))
+        {
+            Assert.Contains("over the 1048576-byte limit", Assert.Throws<InvalidDataException>(() => ReadStandalone(written)).Message);
+            Assert.Throws<InvalidDataException>(() => Kv3Tree.Read(written));
+        }
+        Assert.NotNull(ReadStandalone(written).Data);
+    }
+
+    [Fact]
     public void Vrf_refuses_a_standalone_kv3_storing_more_than_its_stream_holds()
     {
         var items = Enumerable.Range(0, 100_000).Select(i => Scalar(Kv3Type.UInt32, (ulong)(i * 7919 % 100_003)));

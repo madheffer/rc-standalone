@@ -98,12 +98,83 @@ public class HostileInputTests
     }
 
     [Fact]
-    public void Kv3Limits_AnUnboundedBlock_DoesNotWrapTheExpansionBound()
+    public void Kv3ReadLimit_ScopesOnlyLowerAndRestore()
     {
-        Assert.True(Kv3Limits.Expandable(long.MaxValue) > long.MaxValue / 2);
-        Kv3Limits.CheckSizes(3 << 20, 1000, long.MaxValue, compressed: true, 3 << 20, 1000);
-        Assert.Equal(4096L * 10 + (1 << 20), Kv3Limits.Expandable(10));
-        Assert.Throws<InvalidDataException>(() => Kv3Limits.CheckSizes(3 << 20, 1000, 10, compressed: true));
+        Assert.Equal(Kv3ReadLimit.DefaultMaxUncompressedBytes, Kv3ReadLimit.MaxUncompressedBytes);
+        using (Kv3ReadLimit.Use(64 << 20))
+        {
+            using (Kv3ReadLimit.Use(1L << 40))
+                Assert.Equal(64 << 20, Kv3ReadLimit.MaxUncompressedBytes);
+            using (Kv3ReadLimit.Use(1 << 20))
+                Assert.Equal(1 << 20, Kv3ReadLimit.MaxUncompressedBytes);
+            Assert.Equal(64 << 20, Kv3ReadLimit.MaxUncompressedBytes);
+        }
+        Assert.Equal(Kv3ReadLimit.DefaultMaxUncompressedBytes, Kv3ReadLimit.MaxUncompressedBytes);
+
+        // An unbounded remaining (a standalone KV3 on a stream that cannot seek) never overflows.
+        Kv3Limits.CheckSizes(3 << 20, 1000, long.MaxValue, 3 << 20, 1000);
+        var ex = Assert.Throws<InvalidDataException>(() => Kv3Limits.CheckSizes(Kv3ReadLimit.DefaultMaxUncompressedBytes + 1, 1000, long.MaxValue));
+        Assert.Contains($"over the {Kv3ReadLimit.DefaultMaxUncompressedBytes}-byte limit", ex.Message);
+    }
+
+    // The audit's bomb: a real vdata_c whose DATA is a KV3 v4 zstd block of zeros declaring more
+    // than the limit, padded to pass the old 4096x ratio, which let it rent the whole declared size.
+    private static byte[] ZstdBombBlock(long declared)
+    {
+        using var ms = new MemoryStream();
+        using (var z = new ZstdSharp.CompressionStream(ms, 1, leaveOpen: true))
+        {
+            var zeros = new byte[1 << 20];
+            for (long w = 0; w < declared; w += zeros.Length)
+                z.Write(zeros, 0, (int)Math.Min(zeros.Length, declared - w));
+        }
+        var frame = ms.ToArray();
+        using var o = new MemoryStream();
+        using var bw = new BinaryWriter(o);
+        bw.Write(0x4B563304); bw.Write(new byte[16]); bw.Write(2u); bw.Write((ushort)0); bw.Write((ushort)0);
+        bw.Write((int)(declared - 64)); bw.Write(1); bw.Write(0); bw.Write(1); bw.Write((ushort)0); bw.Write((ushort)0);
+        bw.Write((int)declared); bw.Write(frame.Length); bw.Write(0); bw.Write(0); bw.Write(0); bw.Write(0);
+        bw.Write(frame);
+        bw.Write(new byte[Math.Max(0, (int)(declared / 4096) - (int)o.Length)]);
+        return o.ToArray();
+    }
+
+    private const string Kv3TextHeader = "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n";
+
+    [Fact]
+    public void Kv3ZstdBomb_IsRefusedFromItsHeader()
+    {
+        var block = ZstdBombBlock(600L << 20);
+        var res = CompiledResource.Read(Kv3SourceCompiler.Compile(System.Text.Encoding.UTF8.GetBytes(Kv3TextHeader + "{ a = 1 }"), ".vdata", "x.vdata"));
+        res.SetRaw("DATA", block);
+        var upload = res.Write();
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Null(ResourceDecompiler.DataBlockToKv3(CompiledResource.Read(upload), out var reason));
+        var vrf = new ValveResourceFormat.ResourceTypes.BinaryKV3(ValveResourceFormat.BlockType.Undefined) { Resource = null! };
+        using (var r = new BinaryReader(new MemoryStream(block)))
+            Assert.Contains("-byte limit", Assert.Throws<InvalidDataException>(() => vrf.Read(r)).Message);
+        Assert.Contains("-byte limit", reason);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(1), $"took {clock.Elapsed}");
+        var used = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        Assert.True(used < 32L << 20, $"allocated {used:N0} bytes");
+    }
+
+    // A valid file that compresses very well: the old ratio refused this compiler's own output.
+    [Fact]
+    public void Kv3_OutputThatCompressesWell_RoundTripsUnderARouteLimit()
+    {
+        var sb = new System.Text.StringBuilder(Kv3TextHeader + "{ a = [");
+        for (var i = 0; i < 1_100_000; i++)
+            sb.Append("{},");
+        sb.Append("{}] }");
+        var compiled = Kv3SourceCompiler.Compile(System.Text.Encoding.UTF8.GetBytes(sb.ToString()), ".vdata", "x.vdata");
+        Assert.True(compiled.Length < 16 << 10, $"{compiled.Length} bytes");
+
+        using var limit = VrfKv3ReadLimit.Use(64 << 20);
+        var text = ResourceDecompiler.DataBlockToKv3(CompiledResource.Read(compiled), out var reason);
+        Assert.True(text is not null, reason);
     }
 
     [Fact]

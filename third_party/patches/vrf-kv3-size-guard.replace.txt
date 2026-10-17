@@ -1,26 +1,31 @@
             // vpkstuff patch: every size above comes from the file. Check them against the
             // block before renting buffers sized by them: a few hundred hostile bytes could
             // otherwise ask for gigabytes (found by s2c fuzz). What is stored must fit in what
-            // is left of the block; what it decompresses to may not exceed 4096 times that plus
-            // 1 MB (real CS2 blocks stay far below), and nothing may be negative. The same
-            // decompressed size sets the node budget ReadBinaryValue enforces. A standalone KV3
-            // (Size 0, e.g. a nav mesh) is bounded by the stream instead, and the bound saturates:
-            // long.MaxValue * 4096 wraps to -4096 and refused every such KV3 over about 1 MB.
+            // is left of the block (of the stream, for a standalone KV3 with Size 0), nothing may
+            // be negative, and what it decompresses to may not exceed MaxUncompressedBytes
+            // (vrf-kv3-read-limit). A ratio to the stored size cannot bound memory: a 454 KB zstd
+            // block declaring 1.9 GB passed 4096x and peaked at 1.8 GB. The same decompressed
+            // size sets the node budget ReadBinaryValue enforces.
             {
                 var remaining = Size > 0 ? Offset + Size - reader.BaseStream.Position
                     : reader.BaseStream.CanSeek ? reader.BaseStream.Length - reader.BaseStream.Position : long.MaxValue;
-                var expandable = Math.Min(Math.Max(remaining, 0), long.MaxValue / 4096 - (1 << 8)) * 4096L + (1 << 20);
                 var declared = (long)sizeUncompressedBuffer1 + sizeUncompressedBuffer2 + sizeBinaryBlobsBytes;
                 var stored = compressionMethod == KV3BinaryCompressionMethod.Uncompressed
                     ? declared
                     : version >= 5 ? (long)sizeCompressedBuffer1 + sizeCompressedBuffer2 : sizeCompressedTotal;
                 if (sizeUncompressedBuffer1 < 0 || sizeUncompressedBuffer2 < 0 || sizeBinaryBlobsBytes < 0
                     || sizeCompressedBuffer1 < 0 || sizeCompressedBuffer2 < 0 || sizeCompressedTotal < 0
-                    || stored > remaining
-                    || (compressionMethod != KV3BinaryCompressionMethod.Uncompressed && declared > expandable))
+                    || stored > remaining)
                 {
                     throw new InvalidDataException($"KV3 block declares {declared} bytes ({stored} stored) but holds {remaining}; refusing to parse (malformed or hostile resource).");
                 }
+
+                var limit = MaxUncompressedBytes;
+                if (declared > limit)
+                {
+                    throw new InvalidDataException($"KV3 block declares {declared} bytes, over the {limit}-byte limit; refusing to parse (malformed or hostile resource).");
+                }
+
                 context.NodeBudget = (1 << 20) + 16L * declared;
             }
 

@@ -305,7 +305,7 @@ public sealed class Kv3Tree
         var compressed = t.Compression != 0;
         long declared = (long)unc1 + unc2 + sizeBlobs;
         long stored = compressed ? (long)cmp1 + cmp2 : declared;
-        Kv3Limits.CheckSizes(declared, stored, block.Length - Kv3Block.HeaderSize, compressed,
+        Kv3Limits.CheckSizes(declared, stored, block.Length - Kv3Block.HeaderSize,
             unc1, cmp1, unc2, cmp2, sizeBlobs, countBlocks, countTypes, countBytes1, countBytes2, countBytes4, countBytes8,
             b2Bytes1, b2Bytes2, b2Bytes4, b2Bytes8, b2Objects, h[17]);
 

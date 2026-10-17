@@ -277,12 +277,13 @@ internal sealed partial class Kv3BinaryReader
         // buffers sized by them, so a few hundred hostile bytes cannot ask for gigabytes (found by
         // s2c fuzz). The decompressed size also bounds how many values the block may hold.
         {
-            var remaining = Size > 0 ? Offset + Size - reader.BaseStream.Position : long.MaxValue;
+            var remaining = Size > 0 ? Offset + Size - reader.BaseStream.Position
+                : reader.BaseStream.CanSeek ? reader.BaseStream.Length - reader.BaseStream.Position : long.MaxValue;
             var declared = (long)sizeUncompressedBuffer1 + sizeUncompressedBuffer2 + sizeBinaryBlobsBytes;
             var compressed = compressionMethod != Kv3Compression.Uncompressed;
             var stored = !compressed ? declared
                 : version >= 5 ? (long)sizeCompressedBuffer1 + sizeCompressedBuffer2 : sizeCompressedTotal;
-            Kv3Limits.CheckSizes(declared, stored, remaining, compressed, sizeUncompressedBuffer1, sizeUncompressedBuffer2,
+            Kv3Limits.CheckSizes(declared, stored, remaining, sizeUncompressedBuffer1, sizeUncompressedBuffer2,
                 sizeBinaryBlobsBytes, sizeCompressedBuffer1, sizeCompressedBuffer2, sizeCompressedTotal, countBlocks);
             context.Budget = new Kv3Limits.Budget(Kv3Limits.NodeBudget(declared));
         }

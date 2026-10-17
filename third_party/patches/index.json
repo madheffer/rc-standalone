@@ -63,7 +63,15 @@
       "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
       "find": "vrf-kv3-size-guard.find.txt",
       "replace": "vrf-kv3-size-guard.replace.txt",
-      "description": "Check a KV3 block's declared buffer, blob and compressed sizes against the block before renting buffers sized by them, and set the node budget from them. A standalone KV3 (Size 0, e.g. a nav mesh) is bounded by the rest of the stream, and the 4096x bound saturates instead of wrapping. SECURITY: a few hundred hostile bytes otherwise asked for gigabytes (s2c fuzz, 2026-10-12)."
+      "description": "Check a KV3 block's declared buffer, blob and compressed sizes against the block before renting buffers sized by them, and set the node budget from them. The decompressed total may not exceed BinaryKV3.MaxUncompressedBytes (vrf-kv3-read-limit); a standalone KV3 (Size 0, e.g. a nav mesh) is bounded by the rest of the stream. SECURITY: a few hundred hostile bytes otherwise asked for gigabytes (s2c fuzz, 2026-10-12), and a 454 KB zstd block declaring 1.9 GB passed the old 4096x ratio (2026-10-18)."
+    },
+    {
+      "id": "vrf-kv3-read-limit",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
+      "find": "vrf-kv3-read-limit.find.txt",
+      "replace": "vrf-kv3-read-limit.replace.txt",
+      "description": "BinaryKV3.MaxUncompressedBytes (default 512 MB, above the largest real block measured: 303 MB, de_boulder world_physics PHYS) and UseMaxUncompressedBytes, an AsyncLocal scope that only lowers it. The ceiling vrf-kv3-size-guard enforces. SECURITY: lets a host bound per-request memory on untrusted uploads."
     },
     {
       "id": "vrf-kv3-string-count-guard",

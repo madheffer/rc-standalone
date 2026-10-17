@@ -39,7 +39,7 @@ internal sealed partial class Kv3BinaryReader
             {
                 var info = BlockCompress.GetDecompressedSize(reader);
                 outBufferLength = info.Size;
-                Kv3Limits.CheckSizes(outBufferLength, 0, Remaining(), compressed: true, outBufferLength);
+                Kv3Limits.CheckSizes(outBufferLength, 0, Remaining(), outBufferLength);
                 outputBuf = ArrayPool<byte>.Shared.Rent(outBufferLength);
 
                 BlockCompress.FastDecompress(info, reader, outputBuf.AsSpan(0, outBufferLength));
@@ -48,7 +48,7 @@ internal sealed partial class Kv3BinaryReader
             {
                 outBufferLength = reader.ReadInt32();
                 var compressedSize = (int)Remaining();
-                Kv3Limits.CheckSizes(outBufferLength, compressedSize, Remaining(), compressed: true, outBufferLength);
+                Kv3Limits.CheckSizes(outBufferLength, compressedSize, Remaining(), outBufferLength);
                 outputBuf = ArrayPool<byte>.Shared.Rent(outBufferLength);
                 DecompressLZ4(reader, outputBuf.AsSpan(0, outBufferLength), compressedSize);
             }

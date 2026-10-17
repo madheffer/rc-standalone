@@ -1,0 +1,2 @@
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BinaryKV3"/> class with DATA block type.

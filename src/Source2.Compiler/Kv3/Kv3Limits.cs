@@ -11,33 +11,26 @@ internal static class Kv3Limits
     /// and a stack overflow ends the process where no catch can stop it.</summary>
     public const int MaxDepth = 512;
 
-    /// <summary>The most a compressed section may expand: 4096 times its stored size, plus 1 MB.</summary>
-    private const long MaxExpansion = 4096;
-
     /// <summary>
     /// Check sizes read from a block header before anything is allocated from them: none negative,
     /// what is stored no more than <paramref name="remaining"/> bytes, and what it decompresses to
-    /// within <see cref="MaxExpansion"/> of that.
+    /// no more than <see cref="Kv3ReadLimit.MaxUncompressedBytes"/>.
     /// </summary>
     /// <param name="declared">Bytes the sections hold once decompressed.</param>
     /// <param name="stored">Bytes the sections take in the block.</param>
     /// <param name="remaining">Bytes of the block left to hold them.</param>
-    /// <param name="compressed">Whether the sections are compressed.</param>
     /// <param name="sizes">Every size field read, each of which must be non-negative.</param>
-    public static void CheckSizes(long declared, long stored, long remaining, bool compressed, params ReadOnlySpan<long> sizes)
+    public static void CheckSizes(long declared, long stored, long remaining, params ReadOnlySpan<long> sizes)
     {
         foreach (var size in sizes)
             if (size < 0)
                 throw Hostile($"a negative size ({size})");
-        if (stored > remaining || (compressed && declared > Expandable(remaining)))
+        if (stored > remaining)
             throw Hostile($"{declared} bytes ({stored} stored) in a block that holds {remaining}");
+        var limit = Kv3ReadLimit.MaxUncompressedBytes;
+        if (declared > limit)
+            throw Hostile($"{declared} bytes, over the {limit}-byte limit");
     }
-
-    /// <summary>The most <paramref name="remaining"/> stored bytes may decompress to, saturating: an
-    /// unbounded remaining (long.MaxValue) times 4096 wraps to -4096 and would refuse everything
-    /// over 1 MB.</summary>
-    public static long Expandable(long remaining) =>
-        Math.Min(Math.Max(remaining, 0), long.MaxValue / MaxExpansion - (1 << 8)) * MaxExpansion + (1 << 20);
 
     /// <summary>The most values a block of <paramref name="declared"/> decompressed bytes may hold.
     /// A typed array of a zero-width type (NULL, BOOLEAN_TRUE, INT64_ZERO) states any length in four
