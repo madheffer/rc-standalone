@@ -2446,7 +2446,7 @@
    "addr": "1812b8710",
    "name": "meshopt_simplify",
    "module": "s2c:baked/lighting",
-   "note": "jumps to meshopt_simplifyEdge with no attributes (meshoptimizer v1.1 to v1.2)"
+   "note": "calls meshopt_simplifyEdge (a stack frame, not a tail jump) with no attributes (meshoptimizer v1.1 to v1.2)"
   },
   {
    "addr": "1812b39f0",

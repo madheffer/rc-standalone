@@ -1019,14 +1019,14 @@ public class CpuBakeProbe(ITestOutputHelper output)
         }
         var (places, size) = ProbeAtlas.PackWithSize(volumes.Select(v => new ProbeAtlas.Place(v.X, v.Y, v.Z)).ToList());
         var list = volumes.Select((v, i) => new LightProbeAtlasImages.Volume(v.X, v.Y, v.Z, places[i],
-            LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_ambientcube.exr")))),
-            LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr")))))).ToList();
+            LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_ambientcube.exr"))))!,
+            LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr"))))!)).ToList();
         output.WriteLine($"atlas {size.X}x{size.Y}x{size.Z} (boxes' extent {LightProbeAtlasImages.Size(list)}); places {string.Join(" ", places.Select(p => $"({p.X},{p.Y},{p.Z})"))}");
         var different = 0;
         foreach (var (file, image) in new[] { ("lpv_atlas_ambientcube.exr", LightProbeAtlasImages.AmbientCube(size, list)), ("lpv_atlas_dlshd.exr", LightProbeAtlasImages.Shadows(size, list)) })
         {
             var valve = Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, file)));
-            var ours = LightProbeAtlasImages.Rgba(valve);
+            var ours = LightProbeAtlasImages.Rgba(valve)!;
             var same = 0;
             var n = Math.Min(ours.Length, image.Length);
             for (var i = 0; i < n; i++)

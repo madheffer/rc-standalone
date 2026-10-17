@@ -86,8 +86,12 @@ public static class LightProbeAtlasImages
         return image;
     }
 
-    /// <summary>An EXR's channels as RGBA floats (R, G, B, A interleaved; a missing channel 0).</summary>
-    public static float[] Rgba(Vrad3Exr exr)
+    /// <summary>
+    /// An EXR's channels as RGBA floats, R, G, B, A interleaved, as LoadFromInMemoryEXR
+    /// (180c40c20) fills them: alpha 1 when the EXR has none; null when R, G or B is missing,
+    /// where Valve's load fails (and SerializeLightProbeVolumes writes no atlas).
+    /// </summary>
+    public static float[]? Rgba(Vrad3Exr exr)
     {
         var n = exr.Width * exr.Height;
         var rgba = new float[n * 4];
@@ -95,7 +99,13 @@ public static class LightProbeAtlasImages
         for (var c = 0; c < 4; c++)
         {
             if (!exr.Channels.Contains(names[c]))
+            {
+                if (c < 3)
+                    return null;
+                for (var i = 0; i < n; i++)
+                    rgba[i * 4 + 3] = 1f;
                 continue;
+            }
             var plane = exr.Plane(names[c]);
             for (var i = 0; i < n; i++)
                 rgba[i * 4 + c] = (float)plane[i];

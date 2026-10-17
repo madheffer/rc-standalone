@@ -99,9 +99,20 @@ public static class LightmapOutputs
         if (options.LpvAtlas && Volumes(Path.Combine(folder, "script-gpu.vrad3")) is { Count: > 0 } volumes)
         {
             var (places, size) = ProbeAtlas.PackWithSize(volumes.Select(v => new ProbeAtlas.Place(v.X, v.Y, v.Z)).ToList());
-            var list = volumes.Select((v, i) => new LightProbeAtlasImages.Volume(v.X, v.Y, v.Z, places[i],
-                LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_ambientcube.exr")))),
-                LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr")))))).ToList();
+            // A volume image that does not load (missing, or without R, G or B) fails the atlas
+            // builders (1801f64f0 / 1801f69c0 return 0) and 1801eee20 writes no probe volume texture.
+            float[]? Load(string name)
+            {
+                var path = Path.Combine(folder, name);
+                return File.Exists(path) ? LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(path))) : null;
+            }
+            var images = volumes.Select(v => (Ambient: Load($"lpv_{v.Id}_ambientcube.exr"), Shadows: Load($"lpv_{v.Id}_dlshd.exr"))).ToList();
+            if (images.Any(i => i.Ambient is null || i.Shadows is null))
+            {
+                note?.Invoke("a light probe volume image is missing or has no R, G or B: no probe volume atlas (as resourcecompiler)");
+                return outputs;
+            }
+            var list = volumes.Select((v, i) => new LightProbeAtlasImages.Volume(v.X, v.Y, v.Z, places[i], images[i].Ambient!, images[i].Shadows!)).ToList();
             var ambient = new RcTexture.RcMipChain.Level(size.X * size.Z, size.Y * 7, LightProbeAtlasImages.AmbientCube(size, list));
             var shadows = new RcTexture.RcMipChain.Level(size.X * size.Z, size.Y, LightProbeAtlasImages.Shadows(size, list));
             outputs.Add(new($"{prefix}env_light_probe_volume_atlas.vtex_c",

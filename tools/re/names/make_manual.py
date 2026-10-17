@@ -453,7 +453,7 @@ RESOURCECOMPILER = [
     ("1802163b0", "StaticLighting_WriteLightmapQueryData", BAKE, "lightmap_query_data.kv3 (Lighting/LightmapQueryData.cs, probe01 byte for byte): a CMesh of position and LightmapUV, V_roundf(uv / (65535 / a) * 65535) with a = (float)(int)(floor(32767 / size) size 2); 180216090; CMesh_Weld 1/32; meshopt_simplify (1812b8710, half the indices, error 0.05, options 0); KV3 binary_auto: version, vertex_count, index_count, vertices (3 floats + 2 u16), indices (u32)"),
     ("180216090", "StaticLighting_CullQueryTriangles", BAKE, "with lightmap resolution volumes (180215bf0): a triangle overlapping no volume box grown by 240 (TriBoxOverlap) becomes 0, 0, 0; logs the share"),
     ("180215bf0", "StaticLighting_ResolutionVolumeBoxes", BAKE, "the context's resolution volumes (vf 0x50) as AABBs of their points times the entry's +0x10 scale, 24 bytes each"),
-    ("1812b8710", "meshopt_simplify", BAKE, "jumps to meshopt_simplifyEdge with no attributes (meshoptimizer v1.1 to v1.2)"),
+    ("1812b8710", "meshopt_simplify", BAKE, "calls meshopt_simplifyEdge (a stack frame, not a tail jump) with no attributes (meshoptimizer v1.1 to v1.2)"),
     ("1812b39f0", "meshopt_simplifyEdge", BAKE, "meshoptimizer v1.1/v1.2 simplifyEdge (15 arguments; RegularizeLight tested, no PreserveFolds); ported in Meshopt/MeshoptSimplify.cs"),
     ("181e8e7c0", "KV3_SaveTransferToBuffer", BAKE, "text buffer, generic format, through the transfer save context (181e8ca00)"),
     ("180174ce0", "CResourceCompilerContext::SetImageArg", BAKE, "vf9 of the argument interface (vtable 18277e630): stores a copy of the bitmap; fingerprint -1 = CRC32 of height, width, depth then each masked channel's plane rows"),

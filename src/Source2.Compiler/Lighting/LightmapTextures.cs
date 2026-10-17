@@ -14,9 +14,11 @@ namespace Source2.Compiler.Lighting;
 /// resourcecompiler's SerializeLightMap (lightbaker.cpp, 1801f3f40) writes them.
 /// <list type="bullet">
 /// <item>Each channel's float bitmap is halved with <c>FloatBitMap_t::QuarterSize</c>
-/// (180c43450) while its shorter side is over the channel's
-/// <c>LightmapChannels/&lt;channel&gt;/MaxResolution</c>.</item>
-/// <item>It becomes a <c>2DARRAY</c>, linear, no mips, child-resource texture.</item>
+/// (180c43450) while its shorter side is over max(the channel's
+/// <c>LightmapChannels/&lt;channel&gt;/MaxResolution</c>, the atlas' shorter side
+/// &gt;&gt; (mips - 1)), one mip off each time (<see cref="Vtex"/>).</item>
+/// <item>It becomes a <c>2DARRAY</c>, linear, child-resource texture, with Box mips
+/// while more than one mip is left.</item>
 /// <item>The format is picked by channel (compressed / uncompressed):
 ///   <list type="bullet">
 ///   <item>irradiance and sh2_dc: BC6H / RGBA16161616F;</item>

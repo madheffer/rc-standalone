@@ -13,8 +13,9 @@
 namespace Source2.Compiler.Meshopt;
 
 /// <summary>
-/// meshopt_simplify as resourcecompiler links it (0923 1812b8710, a jump to
-/// meshopt_simplifyEdge 1812b39f0: the v1.1 to v1.2 signature with vertex_lock,
+/// meshopt_simplify as resourcecompiler links it (0923 1812b8710, a wrapper that
+/// calls meshopt_simplifyEdge 1812b39f0 with no attributes, weights or lock: the
+/// v1.1 to v1.2 signature with vertex_lock,
 /// RegularizeLight tested, no PreserveFolds or ErrorClamped). Every float
 /// operation keeps the C++ order; collapses are ranked by quadric error and
 /// counting-sorted on the top 12 bits of the error.

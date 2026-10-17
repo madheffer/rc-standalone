@@ -12,7 +12,8 @@ namespace Source2.Compiler.Lighting;
 /// <list type="number">
 /// <item>A CMesh of five floats per vertex: the position, and the atlas uv as
 /// V_roundf(uv / (65535 / a) * 65535) per axis, with a = (float)(int)(floor(32767 /
-/// size) size 2) (57344 for 4096; the caller's 1802171b0 setup).</item>
+/// side) side 2) (57344 for 4096), side being what is left after BakeLighting's
+/// mip and MinSpecLightmapSize halvings (180217740, 18021808b).</item>
 /// <item>180216090: when the map has lightmap resolution volumes, a triangle
 /// that overlaps none of their boxes grown by 240 (TriBoxOverlap) becomes
 /// 0, 0, 0.</item>
@@ -64,8 +65,9 @@ public static class LightmapQueryData
             BitConverter.TryWriteBytes(vertexBlob.AsSpan(i * 16), welded[i * stride]);
             BitConverter.TryWriteBytes(vertexBlob.AsSpan(i * 16 + 4), welded[i * stride + 1]);
             BitConverter.TryWriteBytes(vertexBlob.AsSpan(i * 16 + 8), welded[i * stride + 2]);
-            BitConverter.TryWriteBytes(vertexBlob.AsSpan(i * 16 + 12), (ushort)(uint)welded[i * stride + 3]);
-            BitConverter.TryWriteBytes(vertexBlob.AsSpan(i * 16 + 14), (ushort)(uint)welded[i * stride + 4]);
+            // cvttss2si to an int, its low 16 bits stored (180216aa4 / 180216b82): -1 is 0xffff.
+            BitConverter.TryWriteBytes(vertexBlob.AsSpan(i * 16 + 12), (ushort)Cvttss2si(welded[i * stride + 3]));
+            BitConverter.TryWriteBytes(vertexBlob.AsSpan(i * 16 + 14), (ushort)Cvttss2si(welded[i * stride + 4]));
         }
         var indexBlob = new byte[indexCount * 4];
         for (var i = 0; i < indexCount; i++)
@@ -79,6 +81,8 @@ public static class LightmapQueryData
         root.Add("indices", KVObject.Blob(indexBlob));
         return Kv3V5Writer.Write(root, GenericFormat);
     }
+
+    private static int Cvttss2si(float f) => float.IsNaN(f) || f >= 2147483648f || f < -2147483648f ? int.MinValue : (int)f;
 
     private static readonly Guid GenericFormat = new("7412167c-06e9-4698-aff2-e63eb59037e7");
 
