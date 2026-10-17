@@ -1,0 +1,8 @@
+                if (stringList != null && index < stringList.Length)
+                {
+                    result[i] = stringList[index];
+                }
+                else
+                {
+                    result[i] = $"{index} <INVALID: string not in DATA string list>";
+                }

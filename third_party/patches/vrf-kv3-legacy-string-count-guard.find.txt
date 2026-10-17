@@ -1,0 +1,2 @@
+                var stringCount = outRead.ReadUInt32();
+                context.Strings = new string[stringCount];

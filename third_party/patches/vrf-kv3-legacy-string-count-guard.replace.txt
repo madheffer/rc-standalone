@@ -1,0 +1,10 @@
+                var stringCount = outRead.ReadUInt32();
+
+                // vpkstuff patch: the string table was sized from this count alone (0x0FFFFFFF in
+                // 56 bytes allocated 2 GB). Every string takes at least its terminator.
+                if (stringCount > outBufferLength)
+                {
+                    throw new InvalidDataException($"KV3 block declares {stringCount} strings in {outBufferLength} bytes; refusing to parse (malformed or hostile resource).");
+                }
+
+                context.Strings = new string[stringCount];

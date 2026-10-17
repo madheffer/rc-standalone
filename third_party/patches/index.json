@@ -111,7 +111,23 @@
       "file": "ValveResourceFormat/Resource/Blocks/ParticleSnapshot.cs",
       "find": "vrf-particle-snapshot-count-guard.find.txt",
       "replace": "vrf-particle-snapshot-count-guard.replace.txt",
-      "description": "num_particles (from the DATA block) sizes one array per attribute before any is read; every attribute reads at least 4 bytes per particle, so the count may not exceed the decompressed size / 4. SECURITY."
+      "description": "num_particles (from the DATA block) sizes one array per attribute before any is read. Held to what the decompressed data can hold, per attribute (float3/vector 12 bytes, skinning 24, the rest 4), and its values (skinning 9 per particle) to BinaryKV3.MaxValues. SECURITY."
+    },
+    {
+      "id": "vrf-particle-snapshot-invalid-string",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Blocks/ParticleSnapshot.cs",
+      "find": "vrf-particle-snapshot-invalid-string.find.txt",
+      "replace": "vrf-particle-snapshot-invalid-string.replace.txt",
+      "description": "An out-of-range string index built a new ~130-byte placeholder string per 4-byte index (about 36x the input: 16 MB of indices made 579 MB); it is one interned literal now. SECURITY."
+    },
+    {
+      "id": "vrf-kv3-legacy-string-count-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Legacy.cs",
+      "find": "vrf-kv3-legacy-string-count-guard.find.txt",
+      "replace": "vrf-kv3-legacy-string-count-guard.replace.txt",
+      "description": "The legacy VKV3 reader sized its string table from an unchecked uint (0x0FFFFFFF in a 56-byte file allocated 2 GB); the count may not exceed the decompressed buffer, since each string takes at least its terminator. SECURITY."
     },
     {
       "id": "vrf-kv3-read-limit",

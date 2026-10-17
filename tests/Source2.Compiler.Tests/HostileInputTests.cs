@@ -364,6 +364,51 @@ public class HostileInputTests
         Assert.Contains("particles", Assert.Throws<InvalidDataException>(() => VrfResourceRead(res.Write())).Message);
     }
 
+    // The legacy string table was sized from an unchecked uint: 56 bytes asked for 2 GB.
+    [Fact]
+    public void LegacyKv3_HugeStringCount_IsRefusedByVrf()
+    {
+        var o = new MemoryStream();
+        o.Write(BitConverter.GetBytes(0x03564B56));
+        o.Write(Kv3Formats.Get("binary").Id.ToByteArray());
+        o.Write(Kv3Formats.Get("generic").Id.ToByteArray());
+        o.Write(BitConverter.GetBytes(0x0FFFFFFF));
+        o.Write(new byte[4]);
+        var block = o.ToArray();
+        AssertRefusedSmall(() => VrfRead(new MemoryStream(block), (uint)block.Length));
+        AssertRefusedSmall(() => Kv3Binary.Read(block));
+    }
+
+    private static byte[] SnapFile(string attributes, int particles, byte[] snapData)
+    {
+        var res = CompiledResource.Read(Kv3SourceCompiler.Compile(System.Text.Encoding.UTF8.GetBytes(
+            Kv3TextHeader + $"{{ num_particles = {particles} attributes = [ {attributes} ] string_list = [ \"a\" ] }}"), ".vdata", "x.vdata"));
+        var snap = new byte[4 + snapData.Length];
+        BinaryPrimitives.WriteUInt32LittleEndian(snap, 0x80000000u | (uint)snapData.Length);
+        snapData.CopyTo(snap, 4);
+        res.SetRaw("SNAP", snap);
+        return res.Write();
+    }
+
+    // Out-of-range string indices each built a new ~130-byte string from 4 input bytes (36x), and a
+    // float3 or skinning attribute allocated more per particle than the 4-byte bound allowed.
+    [Fact]
+    public void Vrf_ParticleSnapshotAttributes_DoNotAmplify()
+    {
+        const int particles = 1 << 20;
+        var indices = new byte[particles * 4];
+        for (var i = 0; i < particles; i++)
+            BinaryPrimitives.WriteInt32LittleEndian(indices.AsSpan(i * 4), 1000 + i);
+        var allocated = GC.GetAllocatedBytesForCurrentThread();
+        VrfResourceRead(SnapFile("{ name = \"s\" type = \"string\" }", particles, indices));
+        var used = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        Assert.True(used < 3L * indices.Length + (16L << 20), $"allocated {used:N0} bytes for {indices.Length:N0} input");
+
+        Assert.Contains("particles", Assert.Throws<InvalidDataException>(() => VrfResourceRead(SnapFile("{ name = \"p\" type = \"float3\" }", particles, new byte[particles * 4]))).Message);
+        Assert.Contains("particles", Assert.Throws<InvalidDataException>(() => VrfResourceRead(SnapFile("{ name = \"k\" type = \"skinning\" }", particles, new byte[particles * 4]))).Message);
+        VrfResourceRead(SnapFile("{ name = \"p\" type = \"float3\" }", 1000, new byte[12_000]));
+    }
+
     // A valid file that compresses very well: the old ratio refused this compiler's own output.
     [Fact]
     public void Kv3_OutputThatCompressesWell_RoundTripsUnderARouteLimit()

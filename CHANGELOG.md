@@ -52,7 +52,9 @@ version that changes something a host sees.
   deep file overflowed the stack; a typed array of nulls built billions of nodes) and pre-sized
   arrays from file counts.
 - VRF refuses a block whose table size runs past the end of the file (every block reader trusted
-  it), and bounds particle snapshot (SNAP) blocks, which it reads from any file's table.
+  it), and bounds particle snapshot (SNAP) blocks, which it reads from any file's table: their
+  size, their particle count per attribute, and out-of-range string indices. The legacy reader's
+  string table count is checked too.
 
 ### Added (limits)
 - `Kv3.Kv3ReadLimit`: `MaxUncompressedBytes` (default 512 MB; the largest real block measured is
@@ -63,7 +65,8 @@ version that changes something a host sees.
   is refused; a host parsing uploads scopes both lower.
   Newly required VRF patches: `vrf-kv3-read-limit`, `vrf-kv3-legacy-size-guard`,
   `vrf-kv3-legacy-value-guard`, `vrf-kv3-legacy-capacity-guard`, `vrf-resource-block-bounds-guard`,
-  `vrf-particle-snapshot-size-guard`, `vrf-particle-snapshot-count-guard`.
+  `vrf-particle-snapshot-size-guard`, `vrf-particle-snapshot-count-guard`,
+  `vrf-particle-snapshot-invalid-string`, `vrf-kv3-legacy-string-count-guard`.
 
 ## 0.1.106 (production cleanup, 2026-10-14)
 

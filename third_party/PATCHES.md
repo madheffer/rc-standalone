@@ -97,7 +97,8 @@ before allocating:
 | `vrf-kv3-legacy-value-guard` | `ResourceTypes/BinaryKV3.Legacy.cs` | the legacy reader's depth (512) and node budget, which it had neither of: a deep file overflowed the stack, typed zero-width arrays built billions of nodes |
 | `vrf-kv3-legacy-capacity-guard` | `ResourceTypes/BinaryKV3.Legacy.cs` | the legacy reader's array, typed-array and object counts become a capacity hint clamped to 4096, and a blob's length must fit the data left (`ReadBytes` allocates it up front) |
 | `vrf-resource-block-bounds-guard` | `Resource/Resource.cs` | a block's offset + size must lie within the file; every block reader trusts that size |
-| `vrf-particle-snapshot-size-guard`, `vrf-particle-snapshot-count-guard` | `Blocks/ParticleSnapshot.cs` | a SNAP block's declared size held to `MaxUncompressedBytes` (and a stored copy to the block); `num_particles` at most the decompressed size / 4 |
+| `vrf-particle-snapshot-size-guard`, `vrf-particle-snapshot-count-guard`, `vrf-particle-snapshot-invalid-string` | `Blocks/ParticleSnapshot.cs` | a SNAP block's declared size held to `MaxUncompressedBytes` (and a stored copy to the block); `num_particles` held to the data per attribute (float3 12 bytes, skinning 24, the rest 4) and its values to `MaxValues`; an out-of-range string index shares one interned placeholder (a new string each built 36x the input) |
+| `vrf-kv3-legacy-string-count-guard` | `ResourceTypes/BinaryKV3.Legacy.cs` | the legacy string table's count at most the decompressed buffer (56 bytes asked for 2 GB) |
 | `vrf-kv3-string-count-guard` | `ResourceTypes/BinaryKV3.cs` | string count against buffer 1's bytes |
 | `vrf-kv3-capacity-array`, `-typed-array`, `-object` | `ResourceTypes/BinaryKV3.cs` | a length from the file is clamped to 4096 where it is only a capacity hint |
 

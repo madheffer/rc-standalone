@@ -1,7 +1,27 @@
                 var numParticles = data.GetIntegerProperty("num_particles");
+                var attributes = data.GetArray("attributes");
+                var stringList = data.GetArray<string>("string_list");
 
-                // vpkstuff patch: arrays of num_particles are allocated before any is read.
-                if (numParticles < 0 || numParticles > info.Size / 4)
+                // vpkstuff patch: every attribute array is allocated from num_particles before any
+                // is read. Hold the count to what the data can hold, per attribute (float3 12 bytes,
+                // skinning 24, the rest 4), and its values to BinaryKV3.MaxValues (a skinning entry
+                // builds 9 objects, about 170 bytes, from its 24).
+                long bytesPerParticle = 0, valuesPerParticle = 0;
+                foreach (var attribute in attributes)
                 {
-                    throw new InvalidDataException($"Particle snapshot declares {numParticles} particles in {info.Size} bytes; refusing to parse (malformed or hostile resource).");
+                    var (bytes, values) = attribute.GetStringProperty("type") switch
+                    {
+                        "float3" or "vector" => (12, 1),
+                        "skinning" => (24, 9),
+                        _ => (4, 1),
+                    };
+                    bytesPerParticle += bytes;
+                    valuesPerParticle += values;
+                }
+
+                if (numParticles < 0 || numParticles > info.Size
+                    || numParticles * bytesPerParticle > info.Size
+                    || numParticles * valuesPerParticle > ResourceTypes.BinaryKV3.MaxValues)
+                {
+                    throw new InvalidDataException($"Particle snapshot declares {numParticles} particles of {bytesPerParticle} bytes in {info.Size} bytes; refusing to parse (malformed or hostile resource).");
                 }

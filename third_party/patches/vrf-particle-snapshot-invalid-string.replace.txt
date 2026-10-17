@@ -1,0 +1,10 @@
+                if (stringList != null && index < stringList.Length)
+                {
+                    result[i] = stringList[index];
+                }
+                else
+                {
+                    // vpkstuff patch: one interned placeholder; a new string per 4-byte index built
+                    // about 36 times the input (16 MB of indices made 579 MB).
+                    result[i] = "<INVALID: string not in DATA string list>";
+                }

@@ -1,1 +1,3 @@
                 var numParticles = data.GetIntegerProperty("num_particles");
+                var attributes = data.GetArray("attributes");
+                var stringList = data.GetArray<string>("string_list");

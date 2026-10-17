@@ -58,10 +58,12 @@ public static class VrfRequirements
         "vrf-kv3-legacy-size-guard",
         "vrf-kv3-legacy-value-guard",
         "vrf-kv3-legacy-capacity-guard",
+        "vrf-kv3-legacy-string-count-guard",
         // Any file through Resource.Read: block sizes within the file, and SNAP blocks bounded.
         "vrf-resource-block-bounds-guard",
         "vrf-particle-snapshot-size-guard",
         "vrf-particle-snapshot-count-guard",
+        "vrf-particle-snapshot-invalid-string",
         "vrf-kv3-string-count-guard",
         "vrf-kv3-capacity-array",
         "vrf-kv3-capacity-typed-array",
