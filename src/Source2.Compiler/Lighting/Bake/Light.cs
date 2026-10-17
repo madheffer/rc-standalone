@@ -20,9 +20,11 @@ namespace Source2.Compiler.Lighting.Bake;
 /// luminaire's (quad corners; disc centre, tangents, normal; sphere centre
 /// and radius; tube ends, axes, radius and cap flag);</item>
 /// <item>the illumination volume as m_mBarnIlluminationFromWorld (the box's
-/// inverse rotation and translation scaled by 1 / extent; zero without one,
-/// which keeps every point inside); the path trace flags, baked shadow
-/// index and the shadowed light id.</item>
+/// inverse rotation and translation scaled by 1 / extent,
+/// <see cref="PathTraceBounds.IlluminationFromWorld"/>; zero without one,
+/// which keeps every point inside), its centre, orientation and extent, and
+/// the light's bounds; the path trace flags, baked shadow index and the
+/// shadowed light id.</item>
 /// </list>
 /// </summary>
 public sealed class Light
@@ -32,6 +34,13 @@ public sealed class Light
     public readonly Vector4[] Luminaire = new Vector4[5];
     /// <summary>Rows of the 3x4 world to illumination-box matrix.</summary>
     public Vector4 IlluminationRow0, IlluminationRow1, IlluminationRow2;
+    /// <summary>
+    /// m_vMinBounds / m_vMaxBounds (w 0): the clip box's AABB (1804a2b70), cut by the illumination
+    /// box's AABB when there is one (maxss / minss); the light binner's input.
+    /// </summary>
+    public Vector4 MinBounds, MaxBounds;
+    /// <summary>m_vIlluminationBoundsCenter (w 0), m_qIlluminationBoundsOrient, m_vIlluminationBoundsExtent (w 0); zero without a volume.</summary>
+    public Vector4 IlluminationCenter, IlluminationOrientation, IlluminationExtent;
     public int Cookie = -1, LuminaireType, PathTraceFlags, SphericalCookie, BakedShadowIndex = -1, ShadowedLightId = 0xff;
 
     /// <summary>A light of scene_info.kv3's lights array.</summary>
@@ -81,20 +90,28 @@ public sealed class Light
         l.PathTraceFlags = BakeScene.Opt(entry, "path_trace_light_flags") is { } f ? (int)f.ToInt64(null) : 0;
         l.BakedShadowIndex = BakeScene.Opt(entry, "baked_shadow_index") is { } b ? (int)b.ToInt64(null) : -1;
         l.ShadowedLightId = BakeScene.Opt(entry, "baked_shadow_light_id") is { } s ? (int)s.ToInt64(null) : 0xff;
+        var (min, max) = PathTraceBounds.ClipBounds(r.F.Slice(16, 16).ToArray());
         if (BakeScene.Opt(entry, "illumination_volume") is { ValueType: KVValueType.Collection } v)
         {
-            var q = BakeScene.Floats(v["m_qOrientation"]);
-            var c = BakeScene.Floats(v["m_vCenter"]);
-            var e = BakeScene.Floats(v["m_vExtent"]);
-            var rot = Matrix4x4.CreateFromQuaternion(new Quaternion(q[0], q[1], q[2], q[3]));
-            // World to box: R^T (p - c), each axis over its extent.
-            var col = new[] { new Vector3(rot.M11, rot.M12, rot.M13), new Vector3(rot.M21, rot.M22, rot.M23), new Vector3(rot.M31, rot.M32, rot.M33) };
-            var centre = new Vector3(c[0], c[1], c[2]);
-            Vector4 RowOf(int i, float extent) => new Vector4(col[i] / extent, -Vector3.Dot(col[i], centre) / extent);
-            l.IlluminationRow0 = RowOf(0, e[0]);
-            l.IlluminationRow1 = RowOf(1, e[1]);
-            l.IlluminationRow2 = RowOf(2, e[2]);
+            var qf = BakeScene.Floats(v["m_qOrientation"]);
+            var cf = BakeScene.Floats(v["m_vCenter"]);
+            var ef = BakeScene.Floats(v["m_vExtent"]);
+            var q = new Vector4(qf[0], qf[1], qf[2], qf[3]);
+            var c = new Vector3(cf[0], cf[1], cf[2]);
+            var e = new Vector3(ef[0], ef[1], ef[2]);
+            var m = PathTraceBounds.IlluminationFromWorld(q, c, e);
+            l.IlluminationRow0 = new Vector4(m[0], m[1], m[2], m[3]);
+            l.IlluminationRow1 = new Vector4(m[4], m[5], m[6], m[7]);
+            l.IlluminationRow2 = new Vector4(m[8], m[9], m[10], m[11]);
+            (l.IlluminationCenter, l.IlluminationOrientation, l.IlluminationExtent) = (new Vector4(c, 0f), q, new Vector4(e, 0f));
+            var (bmin, bmax) = PathTraceBounds.BoxBounds(q, c, e);
+            min = new Vector3(PathTraceBounds.MaxSs(min.X, bmin.X), PathTraceBounds.MaxSs(min.Y, bmin.Y), PathTraceBounds.MaxSs(min.Z, bmin.Z));
+            max = new Vector3(PathTraceBounds.MinSs(max.X, bmax.X), PathTraceBounds.MinSs(max.Y, bmax.Y), PathTraceBounds.MinSs(max.Z, bmax.Z));
         }
+        else
+            // No volume (18009347c): orientation zero, extents FLT_MAX (not yet checked against a capture).
+            l.IlluminationExtent = new Vector4(float.MaxValue, float.MaxValue, float.MaxValue, 0f);
+        (l.MinBounds, l.MaxBounds) = (new Vector4(min, 0f), new Vector4(max, 0f));
         return l;
     }
 

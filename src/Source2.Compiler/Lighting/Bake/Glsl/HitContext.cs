@@ -134,8 +134,13 @@ public sealed class BindlessTexture(int width, int height, vec4[][] mips)
     public vec4[][] Mips { get; } = mips;
 }
 
-/// <summary>A sampler's addressing (0 wrap, 1 mirror, 2 clamp, 3 border, 4 mirror once) and filtering (point when false).</summary>
-public readonly record struct BindlessSampler(int AddressU, int AddressV, bool Linear, bool Mipmaps);
+/// <summary>
+/// A sampler's addressing (0 wrap, 1 mirror, 2 clamp, 3 border, 4 mirror once), its min / mag filter
+/// (point when Linear is false), its mip filter (Mipmaps: linear, else nearest), W addressing and the
+/// anisotropy (0 none). Every state rendersystem made in vrad3 had LOD 0..15, no bias, transparent
+/// black border (tools/vrad3/capture_samplers.py).
+/// </summary>
+public readonly record struct BindlessSampler(int AddressU, int AddressV, bool Linear, bool Mipmaps, int AddressW = 0, int MaxAniso = 0);
 
 /// <summary>One field of a shader's _RTX_MATERIAL_DATA_: its GLSL type and byte offset in the material's block (matrices row-major).</summary>
 public readonly record struct MaterialField(string Name, string Type, int Offset);

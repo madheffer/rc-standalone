@@ -32,7 +32,7 @@ namespace Source2.Compiler.Gpu;
 /// zeros), 6 (the pass: luxels, samples, light bins, Halton volume, chart ids, convergence).</item>
 /// </list>
 /// </summary>
-public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
+public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
 {
     private readonly GpuDevice _gpu;
     private readonly Vk _vk;
@@ -66,7 +66,13 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
 
     /// <param name="sh">rtx_vrad3_lightmap's D_SH_LIGHTMAPS (the CPU port runs 0).</param>
     /// <param name="executionReordering">rtx_vrad3_lightmap's S_EXECUTION_REORDERING (VK_NV_ray_tracing_invocation_reorder; not enabled here).</param>
-    public RtxBakeHost(GpuDevice gpu, BakeScene scene, RtxScene rtx, RtxShaderLibrary shaders, Func<string, byte[]?> read, int sh = 0, int executionReordering = 0)
+    /// <param name="haltonPermutations">
+    /// textures/dev/scrambled_halton.vdata's table: with it every pass's random volume comes from
+    /// Valve's rtx_generate_scrambled_halton_samples on the GPU (180187920's constants), and the
+    /// volume <see cref="Pass"/> is given is ignored.
+    /// </param>
+    public RtxBakeHost(GpuDevice gpu, BakeScene scene, RtxScene rtx, RtxShaderLibrary shaders, Func<string, byte[]?> read, int sh = 0, int executionReordering = 0,
+                       ushort[]? haltonPermutations = null)
     {
         if (!gpu.RayTracing)
             throw new ArgumentException("the device was created without ray tracing", nameof(gpu));
@@ -138,9 +144,11 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
         var material = Keep(gpu.Upload(Bytes(ctx.MatU), BufferUsageFlags.StorageBufferBit));
         var instances = Keep(gpu.Upload(Bytes(ctx.Instances), BufferUsageFlags.StorageBufferBit));
         var lights = Keep(gpu.Upload(scene.Lights.Count == 0 ? new byte[496] : scene.Lights.SelectMany(l => LightBytes(RaygenHost.GpuLight(l))).ToArray(), BufferUsageFlags.StorageBufferBit));
-        var global = Keep(gpu.Upload(GlobalBytes(RaygenHost.Globals(scene)), BufferUsageFlags.StorageBufferBit));
+        var global = Keep(gpu.Upload(GlobalBytes(RaygenHost.Globals(scene, binned: true)), BufferUsageFlags.StorageBufferBit));
         var subsurface = Keep(gpu.Upload(new byte[11792], BufferUsageFlags.UniformBufferBit));
-        _lightBins = Keep(gpu.Upload(Bytes(RaygenHost.LightBins(scene)), BufferUsageFlags.StorageBufferBit));
+        var cells = scene.Global.BinCells;
+        var masks = Math.Max(1, (scene.Lights.Count + 31) / 32);
+        _lightBins = Keep(gpu.CreateBuffer((ulong)cells.X * (ulong)cells.Y * (ulong)cells.Z * (ulong)masks * 4, BufferUsageFlags.StorageBufferBit, hostVisible: false));
         if (scene.Global.IblCubeMap != null)
             throw new NotSupportedException("an IBL cube map: not uploaded to the GPU yet");
         if (scene.Lights.Any(l => l.Cookie >= 0))
@@ -165,10 +173,10 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
             views.Add(Keep(GpuTextures.Upload(gpu, (Texture)res.DataBlock!, source.Srgb, RtxScene.TextureCap)).View);
         }
         _textures = views.Count;
-        var samplers = ctx.Samplers.Select(s => Keep(CreateSampler(s.AddressU, s.AddressV, s.Linear, s.Mipmaps))).ToArray();
+        var samplers = ctx.Samplers.Select(s => Keep(CreateSampler(s))).ToArray();
         _samplerCount = samplers.Length;
-        var sceneSampler = Keep(CreateSampler(2, 2, true, true));
-        var cookieSampler = Keep(CreateSampler(2, 2, true, true));
+        var sceneSampler = Keep(CreateSampler(new BindlessSampler(2, 2, true, true, 2)));
+        var cookieSampler = Keep(CreateSampler(new BindlessSampler(2, 2, true, true, 2)));
         var perView = Keep(gpu.Upload(new byte[640], BufferUsageFlags.UniformBufferBit));
 
         // Layouts: sets 0 to 2 empty, 3 to 6 as Valve's programs declare them.
@@ -244,6 +252,38 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
         _lightmap = Pipeline(Spirv(lightmapProgram.Rtx, lightmapStatic, lightmapDynamic), hitModules);
         var validationProgram = shaders.Get("rtx_vrad3_lightmap_sample_validation") ?? throw new FileNotFoundException("rtx_vrad3_lightmap_sample_validation");
         _validation = Pipeline(Spirv(validationProgram.Rtx, 0, 0), hitModules);
+
+        _random = Keep(Image3D(HaltonSamples.Size, HaltonSamples.Size, HaltonSamples.Layers, Format.R32G32Sfloat, ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit | ImageUsageFlags.TransferSrcBit));
+        UploadImage(_random, new byte[HaltonSamples.Size * HaltonSamples.Size * HaltonSamples.Layers * 8], HaltonSamples.Size, HaltonSamples.Size, HaltonSamples.Layers, ImageLayout.General);
+        if (haltonPermutations != null)
+            BuildHalton(shaders, haltonPermutations);
+        if (Environment.GetEnvironmentVariable("CPUBAKE_GPURASTER") != "0")
+            BuildRaster(shaders);
+
+        // The light bins: Valve's rtx_binlights over the grid (180095180's RaytraceLightBins), one
+        // launch per cell and mask word.
+        var binProgram = shaders.Get("rtx_binlights") ?? throw new FileNotFoundException("rtx_binlights");
+        var binner = Pipeline(Spirv(binProgram.Rtx, 0, 0), []);
+        var binSet = Allocate(6);
+        WriteBuffers(binSet, 158, DescriptorType.StorageBuffer, _lightBins);
+        Trace(binner, binSet, null, (uint)cells.X, (uint)cells.Y, (uint)(cells.Z * masks));
+        _vk.DestroyPipeline(gpu.Device, binner.Item1, null);
+        _vk.FreeDescriptorSets(gpu.Device, _pool, 1, &binSet);
+        Notes.Add($"light bins: {cells.X} x {cells.Y} x {cells.Z} cells, {masks} mask words, local light bounds {scene.Global.LocalLightMin} .. {scene.Global.LocalLightMax}");
+    }
+
+    /// <summary>The light bin words rtx_binlights wrote (a check).</summary>
+    public uint[] ReadLightBins()
+    {
+        var staging = _gpu.CreateBuffer(_lightBins.Size, BufferUsageFlags.TransferDstBit);
+        _gpu.Submit(cmd =>
+        {
+            var region = new BufferCopy(0, 0, _lightBins.Size);
+            _vk.CmdCopyBuffer(cmd, _lightBins.Buffer, staging.Buffer, 1, &region);
+        });
+        var words = MemoryMarshal.Cast<byte, uint>(new Span<byte>((void*)staging.Mapped, (int)_lightBins.Size)).ToArray();
+        _gpu.Destroy(staging);
+        return words;
     }
 
     private readonly GpuDevice.GpuBuffer _lightBins;
@@ -506,7 +546,8 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
         }
     }
 
-    private Sampler CreateSampler(int addressU, int addressV, bool linear, bool mipmaps)
+    // As rendersystem made every sampler vrad3 used (capture_samplers.py): LOD 0..15, no bias, transparent black border.
+    private Sampler CreateSampler(BindlessSampler s)
     {
         static SamplerAddressMode M(int m) => m switch
         {
@@ -516,13 +557,14 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
             4 => SamplerAddressMode.MirrorClampToEdge,
             _ => SamplerAddressMode.Repeat,
         };
-        var filter = linear ? Filter.Linear : Filter.Nearest;
+        var filter = s.Linear ? Filter.Linear : Filter.Nearest;
         var info = new SamplerCreateInfo
         {
             SType = StructureType.SamplerCreateInfo, MagFilter = filter, MinFilter = filter,
-            MipmapMode = linear ? SamplerMipmapMode.Linear : SamplerMipmapMode.Nearest,
-            AddressModeU = M(addressU), AddressModeV = M(addressV), AddressModeW = SamplerAddressMode.Repeat,
-            MinLod = 0, MaxLod = mipmaps ? 1000f : 0f, BorderColor = BorderColor.FloatTransparentBlack,
+            MipmapMode = s.Mipmaps ? SamplerMipmapMode.Linear : SamplerMipmapMode.Nearest,
+            AddressModeU = M(s.AddressU), AddressModeV = M(s.AddressV), AddressModeW = M(s.AddressW),
+            AnisotropyEnable = s.MaxAniso > 0, MaxAnisotropy = Math.Max(1, s.MaxAniso),
+            MinLod = 0, MaxLod = 15f, BorderColor = BorderColor.FloatTransparentBlack,
         };
         GpuDevice.Check(_vk.CreateSampler(_gpu.Device, &info, null, out var sampler), "vkCreateSampler");
         return sampler;
@@ -576,7 +618,88 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
 
     private int _w, _h;
     private GpuDevice.GpuBuffer? _luxels, _samples;
-    private GpuDevice.GpuImage? _chartIds, _converged, _random;
+    private GpuDevice.GpuImage? _chartIds, _converged;
+    private readonly GpuDevice.GpuImage _random;
+
+    // Valve's Halton generator (compute): its pipeline, set 0 (30 the permutations, 158 the volume), 48 bytes of push constants.
+    private Pipeline _halton;
+    private PipelineLayout _haltonLayout;
+    private DescriptorSetLayout _haltonSetLayout;
+    private DescriptorPool _haltonPool;
+    private DescriptorSet _haltonSet;
+
+    private void BuildHalton(RtxShaderLibrary shaders, ushort[] permutations)
+    {
+        var program = shaders.ProgramFile("rtx_generate_scrambled_halton_samples", "cs") ?? throw new FileNotFoundException("rtx_generate_scrambled_halton_samples_vulkan_60_cs");
+        var spirv = Spirv(program, 0, 0);
+        var module = Module(spirv);
+        var table = Keep(_gpu.Upload(Bytes(permutations), BufferUsageFlags.StorageBufferBit));
+        DescriptorSetLayoutBinding[] lb =
+        [
+            new(30, DescriptorType.StorageBuffer, 1, ShaderStageFlags.ComputeBit),
+            new(158, DescriptorType.StorageImage, 1, ShaderStageFlags.ComputeBit),
+        ];
+        fixed (DescriptorSetLayoutBinding* pb = lb)
+        {
+            var info = new DescriptorSetLayoutCreateInfo { SType = StructureType.DescriptorSetLayoutCreateInfo, BindingCount = 2, PBindings = pb };
+            GpuDevice.Check(_vk.CreateDescriptorSetLayout(_gpu.Device, &info, null, out _haltonSetLayout), "vkCreateDescriptorSetLayout");
+        }
+        var push = new PushConstantRange(ShaderStageFlags.ComputeBit, 0, 48);
+        var setLayout = _haltonSetLayout;
+        var layoutInfo = new PipelineLayoutCreateInfo { SType = StructureType.PipelineLayoutCreateInfo, SetLayoutCount = 1, PSetLayouts = &setLayout, PushConstantRangeCount = 1, PPushConstantRanges = &push };
+        GpuDevice.Check(_vk.CreatePipelineLayout(_gpu.Device, &layoutInfo, null, out _haltonLayout), "vkCreatePipelineLayout");
+        var entry = (byte*)SilkMarshal.StringToPtr(SpirvReflection.Parse(spirv).EntryPoints.Single(e => e.Model == 5).Name);
+        var stage = new PipelineShaderStageCreateInfo { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.ComputeBit, Module = module, PName = entry };
+        var pipelineInfo = new ComputePipelineCreateInfo { SType = StructureType.ComputePipelineCreateInfo, Stage = stage, Layout = _haltonLayout };
+        GpuDevice.Check(_vk.CreateComputePipelines(_gpu.Device, default, 1, &pipelineInfo, null, out _halton), "vkCreateComputePipelines");
+        SilkMarshal.Free((nint)entry);
+        DescriptorPoolSize[] sizes = [new(DescriptorType.StorageBuffer, 1), new(DescriptorType.StorageImage, 1)];
+        fixed (DescriptorPoolSize* ps = sizes)
+        {
+            var info = new DescriptorPoolCreateInfo { SType = StructureType.DescriptorPoolCreateInfo, MaxSets = 1, PoolSizeCount = 2, PPoolSizes = ps };
+            GpuDevice.Check(_vk.CreateDescriptorPool(_gpu.Device, &info, null, out _haltonPool), "vkCreateDescriptorPool");
+        }
+        var allocInfo = new DescriptorSetAllocateInfo { SType = StructureType.DescriptorSetAllocateInfo, DescriptorPool = _haltonPool, DescriptorSetCount = 1, PSetLayouts = &setLayout };
+        DescriptorSet set;
+        GpuDevice.Check(_vk.AllocateDescriptorSets(_gpu.Device, &allocInfo, &set), "vkAllocateDescriptorSets");
+        _haltonSet = set;
+        WriteBuffers(_haltonSet, 30, DescriptorType.StorageBuffer, table);
+        WriteImages(_haltonSet, 158, DescriptorType.StorageImage, [_random.View], ImageLayout.General);
+    }
+
+    // 180187920: (w - 1, log2 w, base-3 digits, the two scrambling multipliers, 81 w, 0, 0), then the frame; threads w x h x d.
+    private void GenerateHalton(int frame)
+    {
+        int[] push = [HaltonSamples.Size - 1, 5, 4, 81 * 17, 32 * 38, 81 * 32, 0, 0, frame, 0, 0, 0];
+        _gpu.Submit(cmd =>
+        {
+            _vk.CmdBindPipeline(cmd, PipelineBindPoint.Compute, _halton);
+            var set = _haltonSet;
+            _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Compute, _haltonLayout, 0, 1, &set, 0, null);
+            fixed (int* p = push)
+                _vk.CmdPushConstants(cmd, _haltonLayout, ShaderStageFlags.ComputeBit, 0, 48, p);
+            _vk.CmdDispatch(cmd, HaltonSamples.Size / 8, HaltonSamples.Size / 8, HaltonSamples.Layers);
+            var barrier = new MemoryBarrier { SType = StructureType.MemoryBarrier, SrcAccessMask = AccessFlags.ShaderWriteBit, DstAccessMask = AccessFlags.ShaderReadBit | AccessFlags.TransferReadBit };
+            _vk.CmdPipelineBarrier(cmd, PipelineStageFlags.ComputeShaderBit, PipelineStageFlags.RayTracingShaderBitKhr | PipelineStageFlags.TransferBit, 0, 1, &barrier, 0, null, 0, null);
+        });
+    }
+
+    /// <summary>A check: Valve's Halton volume for one frame, read back (float pairs, ((z 32 + y) 32 + x) 2).</summary>
+    public float[] ValveHalton(int frame)
+    {
+        GenerateHalton(frame);
+        var size = (ulong)(HaltonSamples.Size * HaltonSamples.Size * HaltonSamples.Layers * 8);
+        var staging = _gpu.CreateBuffer(size, BufferUsageFlags.TransferDstBit);
+        _gpu.Submit(cmd =>
+        {
+            var region = new BufferImageCopy(0, 0, 0, new ImageSubresourceLayers(ImageAspectFlags.ColorBit, 0, 0, 1), new Offset3D(0, 0, 0),
+                new Extent3D(HaltonSamples.Size, HaltonSamples.Size, HaltonSamples.Layers));
+            _vk.CmdCopyImageToBuffer(cmd, _random.Image, ImageLayout.General, staging.Buffer, 1, &region);
+        });
+        var r = MemoryMarshal.Cast<byte, float>(new Span<byte>((void*)staging.Mapped, (int)size)).ToArray();
+        _gpu.Destroy(staging);
+        return r;
+    }
     private DescriptorSet _passSet, _validationSet;
 
     public void BeginBlock(int w, int h, uint[] ids)
@@ -592,7 +715,6 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
         var ch = (uint)(h + 3) / 4;
         _converged = Image3D(cw, ch, 2, Format.R32Uint, ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit);
         UploadImage(_converged, new byte[cw * ch * 2 * 4], cw, ch, 2, ImageLayout.General);
-        _random = Image3D(HaltonSamples.Size, HaltonSamples.Size, HaltonSamples.Layers, Format.R32G32Sfloat, ImageUsageFlags.StorageBit | ImageUsageFlags.TransferDstBit);
         _passSet = Allocate(6);
         WriteImages(_passSet, 30, DescriptorType.SampledImage, [_chartIds.View], ImageLayout.ShaderReadOnlyOptimal);
         WriteBuffers(_passSet, 158, DescriptorType.StorageBuffer, _luxels);
@@ -609,14 +731,34 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
         if (samples.Length != _w * _h)
             throw new ArgumentException("one sample per luxel", nameof(samples));
         Bytes(samples).CopyTo(new Span<byte>((void*)_samples!.Mapped, samples.Length * 96));
-        Trace(_validation, _validationSet, null);
+        Trace(_validation, _validationSet, null, (uint)_w, (uint)_h, 1);
+    }
+
+    public void WriteSamples(LightmapSample_t_natural[] samples, Func<int, bool> which)
+    {
+        var dst = new Span<LightmapSample_t_natural>((void*)_samples!.Mapped, _w * _h);
+        // Every generation starts from an empty buffer (measured: keeping the last generation's samples
+        // where the new jitter covers nothing parts from vrad3 at passes 8 and 12).
+        for (var i = 0; i < samples.Length; i++)
+            dst[i] = which(i) ? samples[i] : default;
+    }
+
+    public bool RasterSamples(BlockGeometry geometry, Lighting.PackingGeometry packing, int ox, int oy, int lightmapWidth, int lightmapHeight, float jx, float jy)
+    {
+        if (_rasterPass.Handle == 0)
+            return false;
+        RasterBlock(geometry, packing, ox, oy, lightmapWidth, lightmapHeight, jx, jy);
+        return true;
     }
 
     public LightmapSample_t_natural[] ReadSamples() => MemoryMarshal.Cast<byte, LightmapSample_t_natural>(new Span<byte>((void*)_samples!.Mapped, _w * _h * 96)).ToArray();
 
     public void Pass(int pass, int dims, float[] random, Vector2 blockOffset, Vector2 lightmapSize)
     {
-        UploadImage(_random!, Bytes(random), HaltonSamples.Size, HaltonSamples.Size, HaltonSamples.Layers, ImageLayout.General);
+        if (_halton.Handle != 0)
+            GenerateHalton(pass);
+        else
+            UploadImage(_random, Bytes(random), HaltonSamples.Size, HaltonSamples.Size, HaltonSamples.Layers, ImageLayout.General);
         var push = new byte[64];
         var i = MemoryMarshal.Cast<byte, int>(push.AsSpan());
         var f = MemoryMarshal.Cast<byte, float>(push.AsSpan());
@@ -624,7 +766,7 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
         (f[4], f[5], f[6], f[7]) = (blockOffset.X, blockOffset.Y, lightmapSize.X, lightmapSize.Y);
         (f[8], f[9], f[10], f[11]) = (-float.MaxValue, -float.MaxValue, -float.MaxValue, -float.MaxValue);
         (f[12], f[13], f[14], f[15]) = (float.MaxValue, float.MaxValue, float.MaxValue, float.MaxValue);
-        Trace(_lightmap, _passSet, push);
+        Trace(_lightmap, _passSet, push, (uint)_w, (uint)_h, 1);
     }
 
     public Luxel_t_natural[] EndBlock()
@@ -634,7 +776,7 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
         return luxels;
     }
 
-    private void Trace((Pipeline Pipeline, GpuDevice.GpuBuffer Sbt, StridedDeviceAddressRegionKHR[] Regions) p, DescriptorSet pass, byte[]? push)
+    private void Trace((Pipeline Pipeline, GpuDevice.GpuBuffer Sbt, StridedDeviceAddressRegionKHR[] Regions) p, DescriptorSet pass, byte[]? push, uint width, uint height, uint depth)
     {
         _gpu.Submit(cmd =>
         {
@@ -645,7 +787,7 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
                 fixed (byte* pp = push)
                     _vk.CmdPushConstants(cmd, _pipelineLayout, ShaderStageFlags.RaygenBitKhr, 0, 64, pp);
             fixed (StridedDeviceAddressRegionKHR* r = p.Regions)
-                _cmdTraceRays(cmd, &r[0], &r[1], &r[2], &r[3], (uint)_w, (uint)_h, 1);
+                _cmdTraceRays(cmd, &r[0], &r[1], &r[2], &r[3], width, height, depth);
             var barrier = new MemoryBarrier { SType = StructureType.MemoryBarrier, SrcAccessMask = AccessFlags.ShaderWriteBit, DstAccessMask = AccessFlags.HostReadBit | AccessFlags.ShaderReadBit };
             _vk.CmdPipelineBarrier(cmd, PipelineStageFlags.RayTracingShaderBitKhr, PipelineStageFlags.HostBit | PipelineStageFlags.RayTracingShaderBitKhr, 0, 1, &barrier, 0, null, 0, null);
         });
@@ -661,7 +803,6 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
         _gpu.Destroy(_samples!);
         DestroyImage(_chartIds!);
         DestroyImage(_converged!);
-        DestroyImage(_random!);
         _luxels = null;
     }
 
@@ -751,6 +892,14 @@ public sealed unsafe class RtxBakeHost : ILightmapDevice, IDisposable
     public void Dispose()
     {
         EndResources();
+        DestroyRaster();
+        if (_halton.Handle != 0)
+        {
+            _vk.DestroyPipeline(_gpu.Device, _halton, null);
+            _vk.DestroyPipelineLayout(_gpu.Device, _haltonLayout, null);
+            _vk.DestroyDescriptorPool(_gpu.Device, _haltonPool, null);
+            _vk.DestroyDescriptorSetLayout(_gpu.Device, _haltonSetLayout, null);
+        }
         foreach (var p in new[] { _lightmap.Pipeline, _validation.Pipeline })
             _vk.DestroyPipeline(_gpu.Device, p, null);
         _vk.DestroyDescriptorPool(_gpu.Device, _pool, null);

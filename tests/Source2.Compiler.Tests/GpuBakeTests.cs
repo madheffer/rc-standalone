@@ -24,6 +24,69 @@ public class GpuBakeTests(ITestOutputHelper output)
         using var lib = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
         foreach (var name in names.Split(','))
         {
+            if (name.StartsWith("modes:", StringComparison.Ordinal))
+            {
+                // modes:<shader>: the features file's modes (name, fallback shader, static combo and value).
+                var f = lib.FeaturesOf(name[6..]) ?? throw new FileNotFoundException(name);
+                foreach (var m in f.FeaturesHeader!.Modes)
+                    output.WriteLine($"{name}: mode {m.Name} shader '{m.ShaderFallback}' static '{m.StaticComboName}' = {m.StaticComboValue}");
+                continue;
+            }
+            if (name.StartsWith("writes:", StringComparison.Ordinal) && name[7..].Split('@') is [var sh, var cb])
+            {
+                // writes:<shader>@<static combo>: the rtx program's write sequence for that combo.
+                var prog = lib.Get(sh) ?? throw new FileNotFoundException(sh);
+                var vars = prog.Rtx.VariableDescriptions;
+                foreach (var f in prog.Rtx.GetStaticCombo(long.Parse(cb, System.Globalization.CultureInfo.InvariantCulture)).AllVariables.Fields)
+                {
+                    var d = vars[f.VariableIndex];
+                    output.WriteLine($"{name}: {d.Name} reg {f.RegisterOffset} type {d.VfxType} source {d.VariableSource} regtype {d.RegisterType} ctx {d.ContextStateAffectedByVariable} srcidx {d.SourceIndex} regoff {d.RegisterOffset} bits {d.TypeSpecificBits} ints [{string.Join(",", d.IntDefs)}]");
+                }
+                continue;
+            }
+            if (name.StartsWith("file:", StringComparison.Ordinal) && name[5..].Split('@') is [var fsh, var fsuffix])
+            {
+                // file:<shader>@<level_suffix> (e.g. lightmap_rasterize@50_ps): combos, files, entries, bindings.
+                var level = fsuffix[..2];
+                var prog = lib.ProgramFile50(fsh, fsuffix) ?? throw new FileNotFoundException(name);
+                output.WriteLine($"{name}: statics [{string.Join(", ", prog.StaticComboArray.Select(c => $"{c.Name} {c.RangeMin}..{c.RangeMax}"))}] dynamics [{string.Join(", ", prog.DynamicComboArray.Select(c => $"{c.Name} {c.RangeMin}..{c.RangeMax}"))}]");
+                foreach (var id in prog.StaticComboEntries.Keys.Order())
+                {
+                    var combo = prog.GetStaticCombo(id);
+                    foreach (var rs in combo.DynamicComboRenderStates)
+                        if (rs is ValveResourceFormat.CompiledShader.VfxRenderStateInfoPixelShader ps)
+                            output.WriteLine($"  static {id} dynamic {rs.DynamicComboId} file {rs.ShaderFileId}: raster {ps.RasterizerStateDesc} depth {ps.DepthStencilStateDesc?.DepthTestEnable} write {ps.DepthStencilStateDesc?.DepthWriteEnable} func {ps.DepthStencilStateDesc?.DepthFunc} blend {ps.BlendStateDesc?.BlendEnable[0]} mask {ps.BlendStateDesc?.RenderTargetWriteMask[0]}");
+                        else
+                            output.WriteLine($"  static {id} dynamic {rs.DynamicComboId} file {rs.ShaderFileId}");
+                    for (var f = 0; f < combo.ShaderFiles.Length; f++)
+                    {
+                        var r = SpirvReflection.Parse(combo.ShaderFiles[f].Bytecode);
+                        foreach (var inp in r.Inputs)
+                            output.WriteLine($"    input location {inp.Location} {inp.Name} {inp.Type} x{inp.Components}");
+                        output.WriteLine($"  static {id} file {f}: entries [{string.Join(", ", r.EntryPoints.Select(e => $"{e.Model}:{e.Name}"))}] {string.Join("; ", r.Resources.Select(x => $"set {x.Set} b {x.Binding} {x.Kind} {x.Name} block {x.BlockSize}"))}");
+                    }
+                }
+                continue;
+            }
+            if (name.StartsWith("cs:", StringComparison.Ordinal))
+            {
+                // cs:<shader>: a compute program's static combo 0 bindings.
+                var cs = lib.ProgramFile(name[3..], "cs") ?? throw new FileNotFoundException(name);
+                var spirv = cs.GetStaticCombo(cs.StaticComboEntries.Keys.Min()).ShaderFiles[0].Bytecode;
+                var r = SpirvReflection.Parse(spirv);
+                output.WriteLine($"{name}: entries [{string.Join(", ", r.EntryPoints.Select(e => $"{e.Model}:{e.Name}"))}] caps [{string.Join(", ", r.Capabilities)}]");
+                foreach (var res in r.Resources)
+                    output.WriteLine($"  set {res.Set} binding {res.Binding} {res.Kind} x{res.ArrayLength} {res.Name} block {res.BlockSize} [{string.Join(", ", res.Members.Select(m => $"{m.Name}@{m.Offset}"))}]");
+                continue;
+            }
+            if (name.StartsWith("attrs:", StringComparison.Ordinal))
+            {
+                // attrs:<shader>: the attributes its vulkan vs / ps programs declare for static combo 0.
+                var info = new Source2.Compiler.Maps.SettleWorld.MaterialInfo(new Dictionary<string, long>(), new Dictionary<string, string>()) { Shader = name[6..] + ".vfx" };
+                foreach (var at in lib.Attributes(info))
+                    output.WriteLine($"{name}: {at.Name} 0x{at.Murmur:x8} = {at.Constant ?? at.Expression} binding {at.Binding}");
+                continue;
+            }
             var p = lib.Get(name) ?? throw new FileNotFoundException(name);
             output.WriteLine($"{name}: statics [{string.Join(", ", p.Rtx.StaticComboArray.Select(c => $"{c.Name} {c.RangeMin}..{c.RangeMax}"))}] dynamics [{string.Join(", ", p.Rtx.DynamicComboArray.Select(c => $"{c.Name} {c.RangeMin}..{c.RangeMax}"))}]");
             foreach (var id in p.Rtx.StaticComboEntries.Keys.Order().Take(4))

@@ -5,6 +5,7 @@ public static class HitShaders
 {
     public static readonly HitShader[] All =
     [
+        new CsgoComplexS0(),
         new CsgoComplexS2560(),
         new CsgoComplexS5120(),
         new CsgoEnvironmentS0(),

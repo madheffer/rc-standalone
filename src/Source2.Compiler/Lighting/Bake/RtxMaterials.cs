@@ -45,10 +45,54 @@ public sealed class RtxShaderLibrary(params string[] packages) : IDisposable
                     }
                 return null;
             }
-            var features = Load("features");
+            var features = Load("features") ?? FeaturesOf(name);
+            // A shader's RayTrace mode may name another shader (csgo_simple's is csgo_complex.vfx):
+            // its rtx program and features then stand in, with the material's own parameters.
+            if (features?.FeaturesHeader?.Modes.FirstOrDefault(m => m.Name == "RayTrace") is { ShaderFallback.Length: > 0 } mode
+                && !string.Equals(Path.GetFileNameWithoutExtension(mode.ShaderFallback), name, StringComparison.OrdinalIgnoreCase))
+            {
+                _programs[name] = null;
+                return _programs[name] = Get(mode.ShaderFallback);
+            }
             var rtx = Load("rtx");
             return _programs[name] = features is null || rtx is null ? null : new Program(name, features, rtx);
         }
+    }
+
+    /// <summary>shaders/vfx/&lt;shader&gt;_vulkan_60_&lt;suffix&gt;.vcs (cs, rtx, features...), or null.</summary>
+    public VfxProgramData? ProgramFile(string shader, string suffix) => ProgramFile50(shader, "60_" + suffix);
+
+    /// <summary>shaders/vfx/&lt;shader&gt;_vulkan_&lt;level and suffix&gt;.vcs (such as 50_ps), or null.</summary>
+    public VfxProgramData? ProgramFile50(string shader, string levelSuffix)
+    {
+        var name = Path.GetFileNameWithoutExtension(shader);
+        var suffix = levelSuffix[3..];
+        var level = levelSuffix[..2];
+        foreach (var pak in _paks)
+            if (pak.FindEntry($"shaders/vfx/{name}_vulkan_{level}_{suffix}.vcs") is { } entry)
+            {
+                pak.ReadEntry(entry, out var bytes);
+                var p = new VfxProgramData();
+                p.Read($"{name}_vulkan_{level}_{suffix}.vcs", new MemoryStream(bytes));
+                return p;
+            }
+        return null;
+    }
+
+    /// <summary>A shader's vulkan features file (level 60, else 50): its modes name each mode's fallback shader.</summary>
+    public VfxProgramData? FeaturesOf(string shader)
+    {
+        var name = Path.GetFileNameWithoutExtension(shader);
+        foreach (var level in new[] { "60", "50" })
+            foreach (var pak in _paks)
+                if (pak.FindEntry($"shaders/vfx/{name}_vulkan_{level}_features.vcs") is { } entry)
+                {
+                    pak.ReadEntry(entry, out var bytes);
+                    var p = new VfxProgramData();
+                    p.Read($"{name}_vulkan_{level}_features.vcs", new MemoryStream(bytes));
+                    return p;
+                }
+        return null;
     }
 
     /// <summary>The material's rtx static combo (ShaderDataProvider over its F_ parameters), or -1 without an rtx program.</summary>
@@ -774,9 +818,23 @@ public sealed class RtxScene
             return cache[name] = r;
         }
         // The static combo's write sequence places every variable it uses: RegisterOffset in 4-byte words of the block.
-        var writes = program.Rtx.GetStaticCombo(combo).AllVariables.Fields.Where(f => f.RegisterOffset >= 0).ToList();
+        var all = program.Rtx.GetStaticCombo(combo).AllVariables.Fields.Where(f => f.RegisterOffset >= 0).ToList();
+        // Sampler state descriptions (RegisterType SamplerState, RegisterOffset the state's number): not block words.
+        var states = new Dictionary<int, Dictionary<string, int>>();
+        foreach (var f in all.Where(f => vars[f.VariableIndex].RegisterType == VfxRegisterType.SamplerState))
+        {
+            var d = vars[f.VariableIndex];
+            var value = d.VariableSource == VfxVariableSourceType.__Expression__ && d.CompiledExpression.Length > 0
+                ? (int)(VfxEval.Evaluate(ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression), n => Value(n), features)?[0] ?? 0f)
+                : d.IntDefs[0];
+            if (!states.TryGetValue(f.RegisterOffset, out var st))
+                states[f.RegisterOffset] = st = [];
+            st[d.Name] = value;
+        }
+        var writes = all.Where(f => vars[f.VariableIndex].RegisterType != VfxRegisterType.SamplerState).ToList();
         var size = writes.Count == 0 ? 16 : writes.Max(f => f.RegisterOffset * 4 + Size(vars[f.VariableIndex].VfxType));
-        var bytes = new byte[(size + 15) & ~15];
+        // The block ends at the next multiple of 16 past the last write (measured: 348 gives 352, 432 gives 448).
+        var bytes = new byte[(size + 16) & ~15];
         foreach (var w in writes)
         {
             var desc = vars[w.VariableIndex];
@@ -791,7 +849,7 @@ public sealed class RtxScene
             }
             if (desc.VfxType == VfxVariableType.SamplerStateIndex)
             {
-                var state = SamplerFor(desc.Name, Value);
+                var state = SamplerFor(states.GetValueOrDefault(desc.TypeSpecificBits) ?? []);
                 BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(at), sampler(state));
                 log?.Invoke($"{desc.Name} @{at}: sampler {state}");
                 continue;
@@ -804,21 +862,18 @@ public sealed class RtxScene
     }
 
     /// <summary>
-    /// The sampler states by name (the named samplers' fixed states; the user
-    /// ones from g_nTextureAddressModeU/V, 0 wrap, 1 mirror, 2 clamp...). Not
-    /// read from the render state literals yet.
+    /// A sampler state description as rendersystem turns it into a VkSampler (matched slot by slot
+    /// against vrad3's bindless table, tools/vrad3/capture_samplers.py): Filter is the D3D11 enum
+    /// (0x55 anisotropic, mip / mag / min linear bits 0x1 / 0x4 / 0x10; 255 the default, trilinear),
+    /// MaxAniso only with the anisotropic filter, unset addresses wrap.
     /// </summary>
-    private static BindlessSampler SamplerFor(string name, Func<string, string?, float[]?, float[]?> value)
+    private static BindlessSampler SamplerFor(IReadOnlyDictionary<string, int> state)
     {
-        int Mode(string v) => value(v, null, null) is { } m ? (int)m[0] : 0;
-        return name switch
-        {
-            "g_sPointClamp" => new BindlessSampler(2, 2, false, false),
-            "g_sBilinearClamp" => new BindlessSampler(2, 2, true, false),
-            "g_sTrilinearClamp" => new BindlessSampler(2, 2, true, true),
-            "g_sTrilinearWrap" or "g_sAniso" => new BindlessSampler(0, 0, true, true),
-            _ => new BindlessSampler(Mode("g_nTextureAddressModeU"), Mode("g_nTextureAddressModeV"), true, true),
-        };
+        var filter = state.GetValueOrDefault("Filter", 255);
+        var aniso = filter == 0x55 ? Math.Max(1, state.GetValueOrDefault("MaxAniso", 1)) : 0;
+        var linear = filter is 0x55 or 255 || (filter & 0x14) != 0;
+        var mip = filter is 0x55 or 255 || (filter & 1) != 0;
+        return new BindlessSampler(state.GetValueOrDefault("AddressU"), state.GetValueOrDefault("AddressV"), linear, mip, state.GetValueOrDefault("AddressW"), aniso);
     }
 
     private static int Size(VfxVariableType t) => t switch

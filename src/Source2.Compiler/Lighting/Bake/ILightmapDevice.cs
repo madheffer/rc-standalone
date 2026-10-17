@@ -20,6 +20,19 @@ public interface ILightmapDevice
     /// <summary>One estimate per luxel: pass p with its Halton volume (HaltonSamples.Generate's float pairs).</summary>
     void Pass(int pass, int dims, float[] random, Vector2 blockOffset, Vector2 lightmapSize);
 
+    /// <summary>
+    /// Device-side sample generation in vrad3's order: <see cref="WriteSamples"/> the small charts'
+    /// (computed on the CPU), <see cref="RasterSamples"/> the large charts' with Valve's raster
+    /// programs (false when the device has none: then the CPU's stand), <see cref="ValidateSamples"/>.
+    /// <see cref="WriteSamples"/> empties every luxel it does not write: vrad3 starts each sample
+    /// generation from an empty buffer.
+    /// </summary>
+    void WriteSamples(LightmapSample_t_natural[] samples, Func<int, bool> which);
+
+    bool RasterSamples(BlockGeometry geometry, PackingGeometry packing, int ox, int oy, int lightmapWidth, int lightmapHeight, float jx, float jy);
+
+    void ValidateSamples();
+
     /// <summary>The block's validated samples, read back (a check).</summary>
     LightmapSample_t_natural[] ReadSamples();
 

@@ -82,6 +82,10 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
         uint[] masks = [7, 15, 15, 15, 15, 15, 15, 7, 1, 7, 1, 15, 1];
         for (var c = 0; c < masks.Length; c++)
             image.AddChannel(c, masks[c]);
+        // Ambient occlusion starts at 1 (vrad3's raw image holds 1 on every luxel no chart covers).
+        var ao = image.Channels[LightmapImage.Ch.AmbientOcclusion]!.Data;
+        for (var p = 0; p < image.Width * image.Height; p++)
+            ao[p * 4] = 1f;
         for (var p = 0; p < image.Width * image.Height; p++)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(image.LuxelRecords.AsSpan(p * 12), 0xffffffff);
@@ -129,9 +133,10 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
             Device?.BeginBlock(w, h, ids);
             for (var pass = 0; pass < Passes; pass++)
             {
+                var (jx, jy) = (0f, 0f);
                 if (pass % 4 == 0)
                 {
-                    samples = Sample(ox, oy, w, h, ids, geometry, sfmt);
+                    (samples, jx, jy) = SampleWithJitter(ox, oy, w, h, ids, geometry, sfmt);
                     if (!ValveRaygen && Device == null)
                         Validate(samples);
                 }
@@ -140,7 +145,14 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
                 if (Device != null)
                 {
                     if (pass % 4 == 0)
-                        Device.Samples([.. samples.Select(s => Vrad3Raygen.Sample(s))]);
+                    {
+                        Glsl.Raygen.LightmapSample_t_natural[] cpu = [.. samples.Select(s => Vrad3Raygen.Sample(s))];
+                        // The small charts' luxels from the CPU, the large charts' from the device's raster.
+                        Device.WriteSamples(cpu, i => ids[i] != 0xffffffff && (packing.Charts[(int)ids[i]].Flags & 0x30000000) != 0);
+                        if (!Device.RasterSamples(geometry, packing, ox, oy, Width, Height, jx, jy))
+                            Device.WriteSamples(cpu, _ => true);
+                        Device.ValidateSamples();
+                    }
                     Device.Pass(p, 4, random, new Vector2(ox, oy), new Vector2(Width, Height));
                     log?.Invoke($"block {block}: pass {pass} on the device");
                     continue;
@@ -195,7 +207,10 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
     }
 
     // The samples of one block for one sampling pass: lightmap_generate_small_chart_samples, then lightmap_rasterize over it.
-    private LightmapSample[] Sample(int ox, int oy, int w, int h, uint[] ids, BlockGeometry g, Sfmt19937 sfmt)
+    private LightmapSample[] Sample(int ox, int oy, int w, int h, uint[] ids, BlockGeometry g, Sfmt19937 sfmt) => SampleWithJitter(ox, oy, w, h, ids, g, sfmt).Samples;
+
+    // The same, with the raster pass's jitter (in atlas uv).
+    private (LightmapSample[] Samples, float Jx, float Jy) SampleWithJitter(int ox, int oy, int w, int h, uint[] ids, BlockGeometry g, Sfmt19937 sfmt)
     {
         var samples = new LightmapSample[w * h];
         var rngX = sfmt.Next();
@@ -204,7 +219,7 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
         var jy = (sfmt.Next() * 2.328306e-10f - 0.5f) / Height;
         var jx = (sfmt.Next() * 2.328306e-10f - 0.5f) / Width;
         Rasterize(ox, oy, w, h, ids, g, jx, jy, samples);
-        return samples;
+        return (samples, jx, jy);
     }
 
     private uint ChartInfo(uint chart) => packing.Charts[(int)chart].Flags & 0x0fffffff;

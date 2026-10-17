@@ -1,4 +1,4 @@
-"""capture_host.py <addon> <block> <out dir>: Valve's ray tracing host buffers for one lightmap block.
+"""capture_host.py <addon> <block> <out dir> [spp]: Valve's ray tracing host buffers for one lightmap block.
 
 Runs vrad3.exe on the addon's _vrad3 job (gpu_init, the scene, the lightmap image, one block's
 load and compute, lightmap_image_save, moved to <out>/image) under Frida, hooking scenesystem's structured
@@ -6,6 +6,8 @@ buffer upload (180099c00 in the 2026-10-15 build: holder, render context, data, 
 Every upload is saved as <out>/upload_<n>_stride<stride>_count<count>.bin, in call order:
 stride 0x20 the PackedRtxInstanceData_t table, 0x150 GeometryInfo_t, 0x1f0 PathTraceBarnLightGPU_t,
 0xc0 SceneGlobalInfoGPU_t. CpuBakeTests.Bake with CPUBAKE_HOSTCAP=<out dir> compares them with ours.
+
+spp (default 16, as the map's script) sets the block's minimum and maximum samples.
 
 Uses the GPU: run it only when CS2 is closed and the PC is free.
 """
@@ -41,17 +43,18 @@ else Process.attachModuleObserver({ onAdded(m) { if (m.name.toLowerCase() === 's
 
 
 def main():
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         print(__doc__)
         sys.exit(2)
     addon, block, out = sys.argv[1], int(sys.argv[2]), os.path.abspath(sys.argv[3])
+    spp = int(sys.argv[4]) if len(sys.argv) == 5 else 16
     os.makedirs(out, exist_ok=True)
     job = os.path.join(CS2, "game", "csgo_addons", addon, "_vrad3")
     script = open(os.path.join(job, "script-gpu.vrad3"), encoding="utf-8").read()
     vmap = next(line.split()[1] for line in script.splitlines() if line.startswith("// maps/"))
     lines = ["gpu_init", "lightmap_type ahd", "sceneinfo_gpu scene_info.kv3", "lightmap_image_gpu 4096 4096 1024",
              "lightmap_load_packing_geometry_gpu lightmap_packing_geometry.dat",
-             f"lightmap_load_block_gpu lightmap_info.dat {block}", "lightmap_compute_block_gpu 16 16 0.200",
+             f"lightmap_load_block_gpu lightmap_info.dat {block}", f"lightmap_compute_block_gpu {spp} {spp} 0.200",
              "lightmap_image_save capture_host_image", "exit 0", ""]
     name = "script-capture-host.vrad3"
     open(os.path.join(job, name), "w", encoding="utf-8").write("\n".join(lines))

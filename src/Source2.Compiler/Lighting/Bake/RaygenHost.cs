@@ -42,14 +42,20 @@ internal static class RaygenHost
         g_SubsurfaceProfile = new _Array_natural_SSProfileConstants32 { data = new SSProfileConstants_natural[32] },
     };
 
-    public static SceneGlobalInfoGPU_t_natural Globals(BakeScene scene)
+    /// <param name="binned">
+    /// The light bin grid and local light bounds as vrad3 has them (the GPU host runs Valve's
+    /// rtx_binlights over it); false gives the transpiled raygens one cell holding every light.
+    /// </param>
+    public static SceneGlobalInfoGPU_t_natural Globals(BakeScene scene, bool binned = false)
     {
         var g = scene.Global;
         var m = g.IblTransformInverse;
-        return new SceneGlobalInfoGPU_t_natural(V(g.SkyColor), V(g.SkyAmbientBounce), V(g.SunLightIrradiance), new vec4(-1e9f), new vec4(1e9f),
-            new ivec4(1, 1, 1, scene.Lights.Count),
+        var (lo, hi) = binned ? (new vec4(g.LocalLightMin.X, g.LocalLightMin.Y, g.LocalLightMin.Z, 0f), new vec4(g.LocalLightMax.X, g.LocalLightMax.Y, g.LocalLightMax.Z, 0f))
+            : (new vec4(-1e9f), new vec4(1e9f));
+        var cells = binned ? new ivec4(g.BinCells.X, g.BinCells.Y, g.BinCells.Z, scene.Lights.Count) : new ivec4(1, 1, 1, scene.Lights.Count);
+        return new SceneGlobalInfoGPU_t_natural(V(g.SkyColor), V(g.SkyAmbientBounce), V(g.SunLightIrradiance), lo, hi, cells,
             new mat4x3(new vec3(m.M11, m.M12, m.M13), new vec3(m.M21, m.M22, m.M23), new vec3(m.M31, m.M32, m.M33), new vec3(m.M41, m.M42, m.M43)),
-            V(g.IblCubeMapScale), g.IblCubeMap != null ? 0 : -1, g.IblCubeMap != null ? 0 : -1, 0, g.SkyLightFlags, -1, -1, g.SceneFlags, 0u);
+            V(g.IblCubeMapScale), g.IblCubeMap != null ? 0 : -1, g.IblCubeMap != null ? 0 : -1, 0, g.SkyLightFlags, -1, -1, g.SceneFlags, 0xffffffffu);
     }
 
     public static PathTraceBarnLightGPU_t_natural GpuLight(Light l)
@@ -62,8 +68,8 @@ internal static class RaygenHost
             new vec3(l.IlluminationRow0.Z, l.IlluminationRow1.Z, l.IlluminationRow2.Z), new vec3(l.IlluminationRow0.W, l.IlluminationRow1.W, l.IlluminationRow2.W));
         return new PathTraceBarnLightGPU_t_natural(M(l.ToClipSpace), M(l.FromClipSpace), V(l.NearPlane), V(l.Position), V(l.CookieParameters), V(l.Color), V(l.BounceColor),
             V(l.Orientation), V(l.AngleFade), V(l.DistanceFadeSkirt), new _Array_natural_vector_float_4_5 { data = lum },
-            new vec4(-1e9f), new vec4(1e9f), default, default, default, box,
-            l.Cookie, l.LuminaireType, l.PathTraceFlags, l.SphericalCookie, l.BakedShadowIndex, l.ShadowedLightId, -1, 0);
+            V(l.MinBounds), V(l.MaxBounds), V(l.IlluminationCenter), V(l.IlluminationOrientation), V(l.IlluminationExtent), box,
+            l.Cookie, l.LuminaireType, l.PathTraceFlags, l.SphericalCookie, l.BakedShadowIndex, l.ShadowedLightId, 0, 0);
     }
 
     /// <summary>imageLoad(g_RandomSamples, c) on the pass's Halton volume.</summary>

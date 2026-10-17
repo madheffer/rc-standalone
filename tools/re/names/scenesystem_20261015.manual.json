@@ -97,6 +97,36 @@
    "note": "the AABB of the clip box corners (x, y in -1, 1; z in 0, 1; order --0, +-0, ++0, -+0, then z 1) through FromClipSpace (+0x40, row major) with the w divide by a reciprocal multiply; minss / maxss from FLT_MAX"
   },
   {
+   "addr": "18049d6d0",
+   "name": "Quaternion_ToMatrix3x4",
+   "module": "s2c:baked/vrad3",
+   "note": "rows of q = (x, y, z, w) with the translation in column 3: d = 1 - y 2y - z 2z etc., off-diagonals 2y x -+ 2z w (PathTraceBounds.Rotation)"
+  },
+  {
+   "addr": "18049c3a0",
+   "name": "Matrix3x4_TransformPoint",
+   "module": "s2c:baked/vrad3",
+   "note": "per row (r3 1 + p.y r1) + (p.z r2 + p.x r0)"
+  },
+  {
+   "addr": "18049e080",
+   "name": "OrientedBox_Bounds",
+   "module": "s2c:baked/vrad3",
+   "note": "(q, centre, half extents): the eight corners through 18049d6d0 and 18049dd60, AABB from FLT_MAX (18049ddb0)"
+  },
+  {
+   "addr": "18049bfb0",
+   "name": "Aabb_Transform",
+   "module": "s2c:baked/vrad3",
+   "note": "a local AABB through a 3 x 4 matrix: centre (max + min) 0.5 transformed, extents (|ey m1| + |ex m0|) + |ez m2| per row"
+  },
+  {
+   "addr": "18049bbc0",
+   "name": "Matrix3x4_ScaleRows",
+   "module": "s2c:baked/vrad3",
+   "note": "out[r][c] = s[r] m[r][c]"
+  },
+  {
    "addr": "18009b330",
    "name": "PathTraceScene_ShaderBindingTable",
    "module": "s2c:baked/vrad3",

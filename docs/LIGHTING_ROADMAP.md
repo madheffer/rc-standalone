@@ -255,6 +255,24 @@ and `CPUBAKE_HOSTCAP` lists every differing field. Next, in order:
 Then re-measure, and move the Halton and sample passes to Valve's compute
 shaders.
 
+Done the same day: lights, globals, bins and the Halton volume are exact
+(ledger 80); csgo_simple materials take csgo_complex's rtx program; sampler
+states and block sizes match. The luxels did not move (0.65 at one sample),
+because the raygen reservoir-samples its origin among the 5 x 5
+neighbourhood's samples by their uvs. Next: Valve's sample passes on the GPU
+(small-chart compute, rasterize), then MatrixColorCorrect2.
+
+Then, also 10-18: the large-chart raster runs Valve's lightmap_rasterize on
+the GPU, each sample generation starts empty, AO starts at 1. Block 5 is now
+bit-identical to Valve on 99.99% of luxels at 1 to 16 samples (54 of 826,931
+differ at 16, one half step each: the colour matrix). Left for the GPU bake:
+- MatrixColorCorrect2 / MatrixColorTint2 (materialsystem2 180081260,
+  1800818d0) exact;
+- the small-chart compute on the GPU (block 5 has no small charts; other
+  blocks and maps do), and MSVC std::sort's order for BlockGeometry's tiles;
+- every block, the probe volumes (rtx_vrad3_lpv), then whole maps through the
+  post-process and the textures.
+
 ### Parked items (to rank)
 
 Briefs collected for ranking (vpkstuff ROADMAP item 16 points here).

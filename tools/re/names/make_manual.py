@@ -2288,6 +2288,11 @@ SCENESYSTEM = [
     ("180099c00", "PathTraceScene_UploadStructured", V3, "(holder, render context, data, stride, count): grows the buffer to count rounded up to 256 (at least 1024) records, then the context's +0x380 upload of stride x count bytes; capture_host.py hooks it"),
     ("1804c8280", "LightBinGrid_Size", V3, "(grid, budget bytes, bytes a cell, min, max): bisects the cell size from (0, largest extent) while the step is over 0.01, counts cvtss2si(extent / size) at least 1, the smaller size kept while count x bytes fits the budget (unsigned)"),
     ("1804a2b70", "LightShape_ClipBounds", V3, "the AABB of the clip box corners (x, y in -1, 1; z in 0, 1; order --0, +-0, ++0, -+0, then z 1) through FromClipSpace (+0x40, row major) with the w divide by a reciprocal multiply; minss / maxss from FLT_MAX"),
+    ("18049d6d0", "Quaternion_ToMatrix3x4", V3, "rows of q = (x, y, z, w) with the translation in column 3: d = 1 - y 2y - z 2z etc., off-diagonals 2y x -+ 2z w (PathTraceBounds.Rotation)"),
+    ("18049c3a0", "Matrix3x4_TransformPoint", V3, "per row (r3 1 + p.y r1) + (p.z r2 + p.x r0)"),
+    ("18049e080", "OrientedBox_Bounds", V3, "(q, centre, half extents): the eight corners through 18049d6d0 and 18049dd60, AABB from FLT_MAX (18049ddb0)"),
+    ("18049bfb0", "Aabb_Transform", V3, "a local AABB through a 3 x 4 matrix: centre (max + min) 0.5 transformed, extents (|ey m1| + |ex m0|) + |ez m2| per row"),
+    ("18049bbc0", "Matrix3x4_ScaleRows", V3, "out[r][c] = s[r] m[r][c]"),
     ("18009b330", "PathTraceScene_ShaderBindingTable", V3, "'PathTracingShaderBindingTable': misses Miss0..MissN (1805e9280) per ray type, then per ray type hitgroup_default_opaque:N, hitgroup_default_transparent:N and every material shader's '<shader>:N'"),
     ("180187920", "SceneUtils_GenerateScrambledHalton", V3, "ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata"),
     # The ray trace scene's vertex buffers (Lighting/Bake/SceneVertexLayout.cs): CMesh -> input layout -> packed vertices.

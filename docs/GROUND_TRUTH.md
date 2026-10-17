@@ -1276,6 +1276,73 @@ game can answer is raised with the user first, and runs with -insecure.
       (pass, 4, 0, 0), (block x, y, lightmap w, h), the cordon from
       DAT_180347f98 (not yet read); new samples on pass mod 4 = 0; the
       convergence test only at pass 0 with 16 / 16.
+    - Settled since (all against the capture):
+      - PathTraceBarnLightGPU_t is byte-identical for all 37 lights:
+        PathTraceBounds ports 1804a2b70 (the clip box through FromClipSpace,
+        reciprocal multiply), 18049d6d0 (quaternion rows), 18049c3a0 (point
+        transform: (r3 + y r1) + (z r2 + x r0)), 18049e080 (the box AABB),
+        the loader's barn matrix (inverse quaternion over dpps, rotated
+        negative centre, rows times 1 / extent, which explains the old 1 ulp
+        differences: we divided) and the bounds cut (maxss / minss). The
+        preview baked shadow index is 0.
+      - SceneGlobalInfoGPU_t is byte-identical apart from the two BRDF LUT
+        bindless slots, which no vrad3 shader reads: scene bounds from each
+        instance's mesh AABB through 18049bfb0 (centre and absolute
+        extents), the light union clipped to them, the grid from 1804c8280
+        (3114 x 147 x 18 on ze_hold_em_p), sky light flags 1 without an
+        ibl table, _unused0 -1. rtx_binlights now runs on the GPU over that
+        grid.
+      - The Halton volume: HaltonSamples equals Valve's own
+        rtx_generate_scrambled_halton_samples (run on the GPU with
+        180187920's push constants (31, 5, 4, 1377), (1216, 2592, 0, 0),
+        (frame, 0, 0, 0) over 32 x 32 x 128 threads) on every word of
+        frames 0 to 3 (CPUBAKE_HALTONCHECK). The host now generates it
+        with Valve's shader.
+      - A shader's RayTrace mode can name another shader: csgo_simple's is
+        csgo_complex.vfx (its features file's mode list). Its materials take
+        csgo_complex's rtx program with their own parameters (Valve's block
+        for flourescent_light_housing3 is a csgo_complex combo 0 block).
+      - Material blocks end at the next multiple of 16 past the last write
+        ((end + 16) & ~15: 348 gives 352, 432 gives 448).
+      - Sampler states: the rtx program's sampler descriptions are
+        RegisterType SamplerState variables (RegisterOffset = the state's
+        number, not a block word); a SamplerIndex variable names its state
+        in TypeSpecificBits. Filter is the D3D11 enum (0x55 anisotropic,
+        0x15 trilinear, 0x14 bilinear, 0 point, 255 the default:
+        trilinear), MaxAniso only with 0x55, unset addresses wrap.
+        tools/vrad3/capture_samplers.py logged vrad3's bindless table (set
+        4 binding 29): every VkSampler has LOD 0..15, no bias, transparent
+        black border; g_sAniso and the user sampler are 8x anisotropic,
+        which csgo_environment's textureGrad uses. Our slots now hold the
+        same states (the indices differ, consistently).
+      - Not yet exact in the material data: g_mTextureColorAdjust1 (the
+        environment shader's colour matrix: Valve's MatrixColorCorrect2
+        gives 1.00000024 and 1e-7 terms at its defaults; ours identity,
+        materialsystem2 180081260 not ported).
+    - Why the luxels parted (0.65 at one sample): the raygen picks its
+      origin sample from the 5 x 5 neighbourhood by reservoir sampling,
+      weighted by exp(-2 |uv - centre|^2) of each neighbour's
+      m_vLightmapUv, so the samples' positions and uvs must be exact, not
+      only their normals.
+    - The large-chart samples now come from Valve's lightmap_rasterize
+      (vulkan 50 vs / gs / ps) on the GPU (RtxBakeRaster): D_PASS 0 depth
+      LessEqual with writes, D_PASS 1 Equal without (the PS render states),
+      no culling, a depth-only target cleared to 1, g_vWindow the block's
+      uv rect plus the jitter. D_REVERSE_DEPTH stays 0 (not read from
+      rendersystem; it only decides overlaps within one chart).
+    - vrad3 starts every sample generation from an empty buffer: keeping
+      the previous generation's samples where the new jitter covers nothing
+      parted 1,382 luxels at 9 passes; clearing leaves 73.
+    - The raw image's ambient occlusion is 1 on luxels no chart covers.
+    - Result, ze_hold_em_p block 5 against Valve's raw images (vrad3 run
+      alone on the block at 1, 4, 5, 9, 13 samples and the map's 16):
+      irradiance and SH bit-identical on 99.99% of luxels at every count
+      (16 samples: 54 of 826,931 differ), AO and normals 100%. The
+      remaining luxels differ by one half-float step, always ours lower:
+      csgo_environment's g_mTextureColorAdjust1 (Valve's
+      MatrixColorCorrect2 at its defaults gives 1.00000024 on the diagonal)
+      is identity here. Next: port materialsystem2 180081260 and its
+      helpers (180081020, 180081100, 180080f40, 1800828c0) exactly.
 
 ## Resolved
 

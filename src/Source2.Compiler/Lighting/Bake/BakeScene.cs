@@ -71,8 +71,57 @@ public sealed class BakeScene
         public Matrix4x4 IblTransformInverse = Matrix4x4.Identity;
         public Vector4 IblCubeMapScale = new(1f, 1f, 1f, 1f);
         public BakeCubemap? IblCubeMap;
-        public uint SkyLightFlags;
+        /// <summary>1 unless the ibl table's path_trace_light_flags says otherwise (measured: 1 with ibl = null).</summary>
+        public uint SkyLightFlags = 1;
         public uint SceneFlags;
+        /// <summary>The instances' world AABB (180094d30 grows it by each instance's transformed mesh AABB).</summary>
+        public Vector3 SceneMin = new(float.MaxValue), SceneMax = new(-float.MaxValue);
+        /// <summary>m_vLocalLightMinBounds / MaxBounds: the lights' bounds union clipped to the scene's (180095180).</summary>
+        public Vector3 LocalLightMin, LocalLightMax;
+        /// <summary>The light bin grid (1804c8280 with 0x4000000 bytes, 4 bytes a mask word).</summary>
+        public (int X, int Y, int Z) BinCells = (1, 1, 1);
+    }
+
+    /// <summary>
+    /// The scene bounds, the local light bounds and the bin grid, as 180094d30 and 180095180 build
+    /// them. Each comparison keeps the stored value on equality, as the decompile does.
+    /// </summary>
+    public static void Bounds(Globals g, IReadOnlyList<Mesh> meshes, IReadOnlyList<Instance> instances, IReadOnlyList<Light> lights)
+    {
+        static float KeepMin(float cur, float v) => cur <= v ? cur : v;
+        static float KeepMax(float cur, float v) => v <= cur ? cur : v;
+        var local = new (Vector3 Min, Vector3 Max)[meshes.Count];
+        for (var m = 0; m < meshes.Count; m++)
+        {
+            var (lo, hi) = (new Vector3(float.MaxValue), new Vector3(-float.MaxValue));
+            foreach (var p in meshes[m].Positions)
+            {
+                lo = new Vector3(PathTraceBounds.MinSs(lo.X, p.X), PathTraceBounds.MinSs(lo.Y, p.Y), PathTraceBounds.MinSs(lo.Z, p.Z));
+                hi = new Vector3(PathTraceBounds.MaxSs(hi.X, p.X), PathTraceBounds.MaxSs(hi.Y, p.Y), PathTraceBounds.MaxSs(hi.Z, p.Z));
+            }
+            local[m] = (lo, hi);
+        }
+        foreach (var inst in instances)
+        {
+            var w = inst.ObjectToWorld;
+            float[] rows = [w.M11, w.M21, w.M31, w.M41, w.M12, w.M22, w.M32, w.M42, w.M13, w.M23, w.M33, w.M43];
+            var (lo, hi) = PathTraceBounds.TransformBounds(rows, local[inst.Mesh].Min, local[inst.Mesh].Max);
+            g.SceneMin = new Vector3(KeepMin(g.SceneMin.X, lo.X), KeepMin(g.SceneMin.Y, lo.Y), KeepMin(g.SceneMin.Z, lo.Z));
+            g.SceneMax = new Vector3(KeepMax(g.SceneMax.X, hi.X), KeepMax(g.SceneMax.Y, hi.Y), KeepMax(g.SceneMax.Z, hi.Z));
+        }
+        var (umin, umax) = (new Vector3(float.MaxValue), new Vector3(-float.MaxValue));
+        foreach (var l in lights)
+        {
+            umin = new Vector3(KeepMin(umin.X, l.MinBounds.X), KeepMin(umin.Y, l.MinBounds.Y), KeepMin(umin.Z, l.MinBounds.Z));
+            umax = new Vector3(KeepMax(umax.X, l.MaxBounds.X), KeepMax(umax.Y, l.MaxBounds.Y), KeepMax(umax.Z, l.MaxBounds.Z));
+        }
+        // min = the scene's unless it is <= the union's; max = the union's when it is <= the scene's.
+        static float ClipMin(float union, float scene) => scene <= union ? union : scene;
+        static float ClipMax(float union, float scene) => union <= scene ? union : scene;
+        g.LocalLightMin = new Vector3(ClipMin(umin.X, g.SceneMin.X), ClipMin(umin.Y, g.SceneMin.Y), ClipMin(umin.Z, g.SceneMin.Z));
+        g.LocalLightMax = new Vector3(ClipMax(umax.X, g.SceneMax.X), ClipMax(umax.Y, g.SceneMax.Y), ClipMax(umax.Z, g.SceneMax.Z));
+        var masks = Math.Max(1, (lights.Count + 31) >> 5);
+        g.BinCells = PathTraceBounds.BinGrid(0x4000000, (long)masks << 2, g.LocalLightMin, g.LocalLightMax);
     }
 
     public BakeScene(IReadOnlyList<Mesh> meshes, IReadOnlyList<Instance> instances, IReadOnlyList<Light> lights, Globals global)
@@ -176,6 +225,7 @@ public sealed class BakeScene
                 g.SkyColor = Vector4.Zero;
             }
         }
+        Bounds(g, meshes, instances, lights);
         return new BakeScene(meshes, instances, lights, g);
     }
 

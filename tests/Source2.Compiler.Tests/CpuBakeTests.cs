@@ -108,7 +108,25 @@ public class CpuBakeTests(ITestOutputHelper output)
             if (gpuDevice != null)
             {
                 var hostWatch = System.Diagnostics.Stopwatch.StartNew();
-                gpuHost = new Source2.Compiler.Gpu.RtxBakeHost(gpuDevice, scene, rtx, rtxShaders, Read);
+                gpuHost = new Source2.Compiler.Gpu.RtxBakeHost(gpuDevice, scene, rtx, rtxShaders, Read,
+                    haltonPermutations: Environment.GetEnvironmentVariable("CPUBAKE_GPUHALTON") == "0" ? null : permutations);
+                // CPUBAKE_HALTONCHECK=<frames>: Valve's generator against HaltonSamples, word for word.
+                if (int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_HALTONCHECK"), out var frames))
+                    for (var frame = 0; frame < frames; frame++)
+                    {
+                        var valve = gpuHost.ValveHalton(frame);
+                        var ours = HaltonSamples.Generate(permutations, (uint)frame);
+                        var perDim = new int[HaltonSamples.Layers * 2];
+                        for (var i = 0; i < ours.Length; i++)
+                            if (BitConverter.SingleToUInt32Bits(ours[i]) != BitConverter.SingleToUInt32Bits(valve[i]))
+                                perDim[i / 2 / (HaltonSamples.Size * HaltonSamples.Size) * 2 + i % 2]++;
+                        var bad = perDim.Select((n, d) => (n, d)).Where(x => x.n > 0).ToList();
+                        output.WriteLine($"halton frame {frame}: {bad.Sum(x => x.n)} of {ours.Length} words differ; dimensions {string.Join(", ", bad.Take(12).Select(x => $"{x.d}:{x.n}"))}");
+                        if (bad.Count > 0 && frame == 0)
+                            for (var i = 0; i < ours.Length && i < 64; i++)
+                                if (ours[i] != valve[i])
+                                    output.WriteLine($"  word {i}: ours {ours[i]:G9} valve {valve[i]:G9}");
+                    }
                 output.WriteLine($"GPU host on {gpuDevice.Name}: {hostWatch.Elapsed.TotalSeconds:F1} s");
                 foreach (var note in gpuHost.Notes)
                     output.WriteLine($"  {note}");
@@ -164,6 +182,7 @@ public class CpuBakeTests(ITestOutputHelper output)
             Threads = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_THREADS"), out var th) ? th : 4,
             CropBlock = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_BLOCK"), out var bl) ? bl : null,
             Stride = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_STRIDE"), out var st) ? st : 1,
+            Passes = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_PASSES"), out var ps) ? ps : 16,
             Device = gpuHost,
         };
         if (Environment.GetEnvironmentVariable("CPUBAKE_SUNPROBE") == "1" && baker.CropBlock is { } probeBlock)
@@ -271,6 +290,14 @@ public class CpuBakeTests(ITestOutputHelper output)
     private void CompareHost(string folder, BakeScene scene, RtxScene rtx)
     {
         var ctx = rtx.NewContext();
+        var (lo, hi) = (new Vector3(float.MaxValue), new Vector3(-float.MaxValue));
+        foreach (var inst in scene.Instances)
+            foreach (var p in scene.Meshes[inst.Mesh].Positions)
+            {
+                var w = Vector3.Transform(p, inst.ObjectToWorld);
+                (lo, hi) = (Vector3.Min(lo, w), Vector3.Max(hi, w));
+            }
+        output.WriteLine($"instances' world bounds (vertex by vertex) {lo} .. {hi}");
         byte[] Bytes<T>(T[] a) where T : struct => System.Runtime.InteropServices.MemoryMarshal.AsBytes(a.AsSpan()).ToArray();
         var ours = new Dictionary<int, (string Name, byte[] Data, string[] Fields)>
         {
@@ -278,8 +305,37 @@ public class CpuBakeTests(ITestOutputHelper output)
             [0x20] = ("PackedRtxInstanceData_t", Bytes(ctx.Instances), ["srgb", "geometry", "material", "flags", "emissive", "instFlags", "pad1", "pad2"]),
             [0x150] = ("GeometryInfo_t", [.. ctx.Geometries.SelectMany(Source2.Compiler.Gpu.RtxBakeHost.GeometryBytes)], []),
             [0x1f0] = ("PathTraceBarnLightGPU_t", [.. scene.Lights.SelectMany(l => Source2.Compiler.Gpu.RtxBakeHost.LightBytes(RaygenHost.GpuLight(l)))], []),
-            [0xc0] = ("SceneGlobalInfoGPU_t", Source2.Compiler.Gpu.RtxBakeHost.GlobalBytes(RaygenHost.Globals(scene)), []),
+            [0xc0] = ("SceneGlobalInfoGPU_t", Source2.Compiler.Gpu.RtxBakeHost.GlobalBytes(RaygenHost.Globals(scene, binned: true)), []),
         };
+        // Material blocks instance by instance (each side's nMaterialData), named by the hit group's layout.
+        if (Directory.GetFiles(folder, "upload_*_stride1_*.bin").FirstOrDefault() is { } matFile && Directory.GetFiles(folder, "upload_*_stride20_*.bin").FirstOrDefault() is { } instFile)
+        {
+            var vmat = File.ReadAllBytes(matFile);
+            var vinst = File.ReadAllBytes(instFile);
+            var omat = Bytes(ctx.MatU);
+            var seen = new HashSet<(uint, uint)>();
+            for (var i = 0; i < scene.Instances.Count; i++)
+            {
+                var vo = BitConverter.ToUInt32(vinst, i * 32 + 8);
+                var oo = ctx.Instances[i].nMaterialData;
+                if (!seen.Add((vo, oo)) || rtx.ShaderOf(i) is not { } shader)
+                    continue;
+                var size = shader.Layout.Length == 0 ? 0x20 : shader.Layout.Max(f => f.Offset) + 16;
+                var diffs = new List<string>();
+                for (var at = 0; at + 4 <= size && vo + at + 4 <= vmat.Length && oo + at + 4 <= omat.Length; at += 4)
+                {
+                    var v = BitConverter.ToUInt32(vmat, (int)vo + at);
+                    var u = BitConverter.ToUInt32(omat, (int)oo + at);
+                    if (v == u)
+                        continue;
+                    var field = shader.Layout.LastOrDefault(f => f.Offset <= at);
+                    diffs.Add($"+0x{at:x} {field.Name}+{at - field.Offset}: valve {v:x8} ({BitConverter.UInt32BitsToSingle(v):G9}) ours {u:x8} ({BitConverter.UInt32BitsToSingle(u):G9})");
+                }
+                output.WriteLine($"material {scene.Instances[i].Material.Name} ({shader.Name} {shader.Combo}): valve at {vo}, ours at {oo}, {diffs.Count} words differ");
+                foreach (var d in diffs.Take(24))
+                    output.WriteLine($"    {d}");
+            }
+        }
         foreach (var file in Directory.GetFiles(folder, "upload_*.bin").Order())
         {
             var m = System.Text.RegularExpressions.Regex.Match(Path.GetFileName(file), @"stride([0-9a-f]+)_count(\d+)");
