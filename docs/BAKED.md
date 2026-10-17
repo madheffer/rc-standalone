@@ -159,7 +159,7 @@ ledger 67), and the lightmap uvs the world nodes take from the packing
 After vrad3, resourcecompiler turns its images into `maps/<map>/lightmaps/*.vtex_c`
 (lightbaker.cpp, 20260923 build; names in make_manual's BAKE list). Ported in
 `Lighting/LightmapTextures.cs`. On probe01 all six textures are byte-identical
-to Valve's, given RED2's two hashes (`CpuBakeProbe.LightmapVtexFiles`, `LMTEX=`):
+to Valve's, RED2 included (`CpuBakeProbe.LightmapVtexFiles`, `LMTEX=`):
 irradiance, directional_irradiance, debug_chart_color, direct_light_shadows and
 both light probe volume atlases.
 
@@ -196,6 +196,22 @@ both light probe volume atlases.
   - the three texture compiler special dependencies;
   - HiddenAssetFlag and IsChildResource.
 
+RED2's two hashes are derived (2026-10-18):
+- `___OverrideInputData___` is the CRC32 of the texture descriptor as KV3
+  text. The transfer is 181e97100 (input textures 181e969d0, image
+  processors 181e96830, output channels 181e96d30); every member is written,
+  with LF line ends and no terminator.
+  - Lightmaps: `2DARRAY`, `lightmapTextureArg`, the format's name, minimum
+    dimension = the shorter side, mip `None`, the -1 defaults.
+  - Volumes: `3D`, `lightProbeVolumeTextureArg`, the slice count, width and
+    height, minimum dimension 0, the processor from gameinfo's
+    `LightProbeVolumeAlgorithm` (`None`).
+- The ImageArg fingerprint (CResourceCompilerContext vf9, 180174ce0, when
+  the caller passes -1) is the CRC32 of height, width and depth, then each
+  channel's float plane row by row. All four channels count, since the EXR
+  loader marks the alpha it fills. The ambient cube atlas passes the
+  literal 1.
+
 `lightmap_query_data.kv3` (1802163b0, Lighting/LightmapQueryData.cs) is
 byte-identical on probe01 and cardtest (`CpuBakeProbe.QueryDataDump`,
 `QUERYDATA=`). It is built from the packing geometry in five steps:
@@ -214,13 +230,6 @@ nothing, so this is not yet checked; a baked ze_hold_em_p package would
 settle it.
 
 Open:
-- RED2's `___OverrideInputData___` is the CRC32 of the texture descriptor
-  written as KV3 text through its transfer function (181e8e7c0). It depends
-  only on the descriptor, so directional and chart colour share one value.
-  Reproducing it needs that transfer function ported, or a capture of the
-  buffer (capture_overrides.py hooks the recorder).
-- The ImageArg fingerprint of a lightmap and of dlshd is computed from the
-  bitmap (the call passes -1). The ambient cube's is the 1 RC passes.
 - BC6H still loads Valve's ispc_texcomp.dll. The kernel is open source (MIT)
   and can be built like bc7e for Linux.
 

@@ -198,7 +198,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 959 addresses
+- 965 addresses
 
 ### s2c:baked/light-keys
 
@@ -355,6 +355,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004c060` | `Init_ChartNormalDot` | 183baf5c4 = V_cosf(1 degree) = 0x3f7ff605 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:35` |
 | `180133da0` | `Texture_CheckCubemapFaces` | Cubemap %i, face %i has Inf/NaN/extremely bright pixel |  |
 | `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array |  |
+| `18016a6a0` | `CResourceCompilerContext::SetOverrideInputData` | vf0 of the argument interface: ___OverrideInputData___ from a buffer (CRC32) |  |
+| `180174ce0` | `CResourceCompilerContext::SetImageArg` | vf9 of the argument interface (vtable 18277e630): stores a copy of the bitmap; fingerprint -1 = CRC32 of height, width, depth then each masked channel's plane rows | `src/Source2.Compiler/Lighting/LightmapTextures.cs:337` |
 | `1801781a0` | `CResourceCompilerContext_CheckBinaryBlobArg` | incremental check of a BinaryBlobArg dependency |  |
 | `180178400` | `CResourceCompilerContext_CheckImageArg` | incremental check of an ImageArg dependency |  |
 | `180178ff0` | `CResourceCompilerContext_GetImageArg` | the ImageArg fingerprint from the argument table (+8 of the symbol's entry) |  |
@@ -362,7 +364,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801eda50` | `NLightBaker_WriteLightmapScript` | the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks |  |
 | `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume |  |
 | `1801ee9f0` | `NLightBaker_WriteFarfieldScript` | // Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0) |  |
-| `1801eee20` | `NLightBaker::SerializeLightProbeVolumes` | lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube | `src/Source2.Compiler/Lighting/LightmapTextures.cs:141`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:337` |
+| `1801eee20` | `NLightBaker::SerializeLightProbeVolumes` | lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube | `src/Source2.Compiler/Lighting/LightmapTextures.cs:142`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:371`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:471` |
 | `1801f01a0` | `NLightBaker_WriteFogIrradianceScript` | // Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu) |  |
 | `1801f0dd0` | `NLightBaker_LoadFarfield` | reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures |  |
 | `1801f2240` | `NLightBaker::RunVrad3` | lightmap_info.dat as blocks of 1024 (2048 with vrad3LargeBlockSize or off a customer machine, at most the smaller side), row-major, clipped; writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries | `src/Source2.Compiler/Lighting/LightmapTexels.cs:15` |
@@ -423,7 +425,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180285eb0` | `WRB_BuildPathTraceSceneInfo` | scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights) | `src/Source2.Compiler/Lighting/PathTraceScene.cs:8`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:44`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:68` +1 |
 | `1802b6830` | `WRB_PropDrawMaterial` | a prop draw call's material: the record's overrides (+0x118) by mesh and draw id, else the skin's material group (+0x188 hash) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:23` |
 | `180c40290` | `FloatBitMap_t::LoadFromEXRFile` | reads the file then 180c40c20 |  |
-| `180c40c20` | `FloatBitMap_t::LoadFromInMemoryEXR` | 2D; a missing R/G/B is an error, alpha 1 when absent | `src/Source2.Compiler/Lighting/LightmapTextures.cs:204` |
+| `180c40c20` | `FloatBitMap_t::LoadFromInMemoryEXR` | 2D; a missing R/G/B is an error, alpha 1 when absent | `src/Source2.Compiler/Lighting/LightmapTextures.cs:208` |
 | `180c41d70` | `FloatBitMap_t::WriteToBuffer` | 8-bit writer: SSE x*255 round to even for widths of a multiple of 4, else (int)(clamp*255+0.5) | `src/Source2.Compiler/Texture/Rc/RcMipChain.cs:261` |
 | `180c48210` | `FloatBitMap_t::WriteToBufferDXT_atitc` | RGBA8888 writer then ATI_TC_ConvertTexture: ImageFormat 0x14/0x15 DXT1, 0x16 DXT3, 0x17 DXT5, 0x18 ATI1N as ATI_TC BC4 (31), 0x19 BC5 (32), 0x1c ATI2N_DXT5 (27); weights 1 or the perceptual 0.3086/0.6094/0.082 |  |
 | `180c494c0` | `ImageFormat_Info` | &182fe4eb0[(format + 1)], 32-byte entries: name, then sizes |  |
@@ -439,7 +441,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812e4550` | `CMesh_WriteKV3` | vertex_count, vertex_stride, vertices, index_count, indices, meshlet_count, attribute_count, attributes, lod_group_mask, material_name, mesh_name, mesh_id, tint_color, lightmap_scale (+0x184), no_collapse (twice, +0x152 last), pack_sharedvb, use_basevertex, use_tint_color, is_line_mesh, baked_twosided, collision_type | `src/Source2.Compiler/Lighting/PathTraceScene.cs:11`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:20`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:37` +1 |
 | `181c46e60` | `SFMT19937_Refill` | POS1 122, SL1 18, SR1 11, one-byte SL2/SR2 | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
 | `181c473c0` | `SFMT19937_Seed` | the packer's debug colours (seed 0x777f17e); state words read without tempering | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
-| `181e8e7c0` | `KV3_SaveTransferToBuffer` | text buffer, generic format, through the transfer save context (181e8ca00) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:44` |
+| `181e8e7c0` | `KV3_SaveTransferToBuffer` | text buffer, generic format, through the transfer save context (181e8ca00) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:372` |
+| `181e96830` | `VTexImageProcessor_Transfer` | m_algorithm, m_stringArg, m_vFloat4Arg | `src/Source2.Compiler/Lighting/LightmapTextures.cs:373` |
+| `181e969d0` | `VTexInputTexture_Transfer` | m_name, m_fileName, m_colorSpace, m_fileExt, m_nMinBitsPerChannel, m_typeString, m_bPassThroughToCompiledVtex, 3D slice count/width/height, m_imageProcessorArray | `src/Source2.Compiler/Lighting/LightmapTextures.cs:373` |
+| `181e96d30` | `VTexOutputChannel_Transfer` | m_srcChannels, m_dstChannels, m_mipAlgorithm, m_outputColorSpace, m_inputTextureArray (strings) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:374` |
+| `181e97100` | `VTexDescriptor_Transfer` | KV3 transfer of the texture descriptor: m_inputTextureArray, m_outputTypeString, m_outputFormat, m_outputClearColor, min/max dimension and reduce, m_textureOutputChannelArray, m_vClamp, the four bools, display rect, motion vectors | `src/Source2.Compiler/Lighting/LightmapTextures.cs:372` |
 | `181ed64a0` | `tinybvh::BVH::Build` | binned SAH, 16 bins, axes past root extent * 1e-20, split if c_int / SA * (ANL + ANR) + c_trav < count * c_int, in-place partition, 256-entry task stack; threaded at 50000 primitives | `src/Source2.Compiler/Lighting/TinyBvh.cs:8` |
 | `181ed77b0` | `tinybvh::BVH::Build(customGetAABB, count)` | fragments and primIdx from the callback, the root bounds, then 181ed64a0 | `src/Source2.Compiler/Lighting/TinyBvh.cs:7` |
 

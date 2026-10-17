@@ -683,8 +683,8 @@ public class CpuBakeProbe(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// <c>LMTEX=...</c>: the four 2D lightmap textures rebuilt by <see cref="LightmapTextures"/> from vrad3's
-    /// EXRs against the map's files, byte for byte (RED2's two hashes taken from the shipped file).
+    /// <c>LMTEX=...</c>: the six lightmap textures rebuilt by <see cref="LightmapTextures"/> from vrad3's
+    /// EXRs against the map's files, byte for byte, RED2's hashes derived.
     /// </summary>
     [Fact]
     public void LightmapVtexFiles()
@@ -702,14 +702,11 @@ public class CpuBakeProbe(ITestOutputHelper output)
             using var res = new ValveResourceFormat.Resource();
             res.Read(new MemoryStream(shipped));
             var args = res.EditInfo!.ArgumentDependencies;
-            var fingerprints = new LightmapTextures.Fingerprints(
-                (uint)args.First(a => a.ParameterName == "___OverrideInputData___").Fingerprint,
-                (uint)args.First(a => a.ParameterType == "ImageArg").Fingerprint);
             var image = LightmapTextures.Bitmap(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, exrName))));
             var t = (Texture)res.DataBlock!;
             var ours = channel.StartsWith("env_light_probe", StringComparison.Ordinal)
-                ? LightmapTextures.AtlasVtex(image, t.Width, t.Height, t.Depth, channel.EndsWith("dlshd", StringComparison.Ordinal) ? LightmapTextures.ImageFormat.Bc7 : LightmapTextures.ImageFormat.Bc6h, $"csgo_addons/{addon}", fingerprints, bin)
-                : LightmapTextures.Vtex(channel, image, LightmapTextures.Cs2Channels[channel], $"csgo_addons/{addon}", fingerprints, nativeFolder: bin);
+                ? LightmapTextures.AtlasVtex(image, t.Width, t.Height, t.Depth, channel.EndsWith("dlshd", StringComparison.Ordinal) ? LightmapTextures.ImageFormat.Bc7 : LightmapTextures.ImageFormat.Bc6h, $"csgo_addons/{addon}", null, bin, ambientCube: !channel.EndsWith("dlshd", StringComparison.Ordinal))
+                : LightmapTextures.Vtex(channel, image, LightmapTextures.Cs2Channels[channel], $"csgo_addons/{addon}", nativeFolder: bin);
             var first = Enumerable.Range(0, Math.Min(ours.Length, shipped.Length)).FirstOrDefault(i => ours[i] != shipped[i], -1);
             output.WriteLine($"{channel}: ours {ours.Length} shipped {shipped.Length} {(first < 0 && ours.Length == shipped.Length ? "identical" : $"first difference at {first}")}");
             if (first >= 0)
@@ -1061,6 +1058,67 @@ public class CpuBakeProbe(ITestOutputHelper output)
         var bytes = LightmapQueryData.Build(g, 4096, 4096, []);
         var root = SceneInfoTests.ReadBinary(bytes);
         output.WriteLine($"packing {g.VertexCount} vertices, {g.Indices.Length} indices -> {bytes.Length} bytes, vertex_count {root["vertex_count"]}, index_count {root["index_count"]} in {watch.ElapsedMilliseconds} ms");
+    }
+
+    /// <summary>
+    /// <c>DESCCRC=1</c>: the texture descriptor's KV3 text CRC32 under a few variants, against RED2's override
+    /// fingerprints on probe01 (DXT1 1275215511, ATI1N 3323439452, BC6H 2895899433).
+    /// </summary>
+    [Fact]
+    public void DescriptorCrc()
+    {
+        if (Environment.GetEnvironmentVariable("DESCCRC") is not { Length: > 0 })
+            return;
+        var targets = new Dictionary<string, uint> { ["DXT1"] = 1275215511, ["ATI1N"] = 3323439452, ["BC6H"] = 2895899433 };
+        var guid = new Guid("7412167c-06e9-4698-aff2-e63eb59037e7");
+        foreach (var (format, target) in targets)
+            foreach (var minBits in new[] { -1, 0 })
+                foreach (var slices in new[] { -1, 0 })
+                    foreach (var minDim in new[] { 4096, 0 })
+                    {
+                        var text = Kv3TextWriter.Write(LightmapTextures.Descriptor("2DARRAY", "lightmapTextureArg", format, minDim, 0, "None", slices, slices, slices, minBits), guid);
+                        foreach (var nul in new[] { false, true })
+                            foreach (var lf in new[] { false, true })
+                            {
+                                var t = lf ? text.Replace("\r\n", "\n") : text;
+                                var bytes = System.Text.Encoding.UTF8.GetBytes(t + (nul ? "\0" : ""));
+                                var crc = System.IO.Hashing.Crc32.HashToUInt32(bytes);
+                                if (crc == target)
+                                    output.WriteLine($"{format}: MATCH minBits {minBits} slices {slices} minDim {minDim} nul {nul} lf {lf}");
+                            }
+                    }
+        // The probe volume atlases: 36 x 44, 96 slices (ambient cube, BC6H) and 16 (dlshd, BC7).
+        foreach (var (format, count, target) in new[] { ("BC6H", 96, 1648992586u), ("BC7", 16, 3808101860u) })
+            foreach (var processor in new[] { "None", "none" })
+                foreach (var minDim in new[] { 0, 4096, 36, 44 })
+                    foreach (var nul in new[] { false, true })
+                    {
+                        var text = Kv3TextWriter.Write(LightmapTextures.Descriptor("3D", "lightProbeVolumeTextureArg", format, minDim, 0, "None", count, 36, 44, -1, processor), guid).Replace("\r\n", "\n");
+                        var crc = System.IO.Hashing.Crc32.HashToUInt32(System.Text.Encoding.UTF8.GetBytes(text + (nul ? "\0" : "")));
+                        if (crc == target)
+                            output.WriteLine($"{format}: MATCH processor {processor} minDim {minDim} nul {nul}");
+                    }
+    }
+
+    /// <summary><c>LMTEX=...</c>: the ImageArg fingerprint of each lightmap EXR against the shipped RED2.</summary>
+    [Fact]
+    public void ImageFingerprints()
+    {
+        if (Environment.GetEnvironmentVariable("LMTEX") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var vpk, var map])
+            return;
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        foreach (var (exrName, channel) in new[] { ("irradiance.exr", "irradiance"), ("directional_irradiance.exr", "directional_irradiance"), ("lightmap_chart_color.exr", "debug_chart_color"), ("direct_light_shadows.exr", "direct_light_shadows"), ("lpv_atlas_dlshd.exr", "env_light_probe_volume_atlas_dlshd") })
+        {
+            pkg.ReadEntry(pkg.FindEntry($"maps/{map}/lightmaps/{channel}.vtex_c")!, out var shipped);
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(shipped));
+            var want = (uint)res.EditInfo!.ArgumentDependencies.First(a => a.ParameterType == "ImageArg").Fingerprint;
+            var exr = Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, exrName)));
+            var image = LightmapTextures.Bitmap(exr);
+            var ours = LightmapTextures.ImageFingerprint(image, 1);
+            output.WriteLine($"{channel}: ours {ours} shipped {want} {(ours == want ? "MATCH" : "")} [{string.Join(",", exr.Channels)}]");
+        }
     }
 
     [Fact]

@@ -962,8 +962,11 @@ game can answer is raised with the user first, and runs with -insecure.
     - DXT1, ATI1N: ATI weights 1 from the 8-bit writer;
     - BC7: bc7e.
     The reflectivity was confirmed the same way: the four-lane mean, bit for
-    bit. RED2's override CRC and the computed ImageArg fingerprint are still
-    open.
+    bit. RED2's hashes (2026-10-18, decompile; all five probe01 values
+    reproduce):
+    - the override CRC is CRC32 of the descriptor's KV3 text (181e97100);
+    - the ImageArg fingerprint is CRC32 of the bitmap's dimensions and planes
+      (180174ce0).
 
 73. **The light probe volume bake** (settled 2026-10-17 by decompile,
     disassembly and comparison with vrad3's images on probe01). Voxelize,

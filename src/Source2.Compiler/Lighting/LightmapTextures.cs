@@ -37,15 +37,13 @@ namespace Source2.Compiler.Lighting;
 /// The header's reflectivity is the image's mean in four lanes. Mip 0 is LZ4 HC
 /// level 10 when that saves 5% and 32 KB. The DATA block has COMPRESSED_MIP_SIZE
 /// as its only extra data. On probe01 every block of all four 2D textures equals
-/// Valve's, and so do the headers. RED2's two fingerprints are not yet derived and
-/// are passed in:
+/// Valve's, and so do the headers. RED2's two fingerprints are derived:
 /// <list type="bullet">
 /// <item><c>___OverrideInputData___</c>, the CRC32 of the texture descriptor as KV3
-/// text (181e8e7c0). It is the same for every texture with the same descriptor:
-/// directional and chart colour share 1275215511.</item>
-/// <item>The <c>lightmapTextureArg</c> ImageArg, a hash of the float bitmap.</item>
+/// text (<see cref="Descriptor"/>, <see cref="DescriptorFingerprint"/>).</item>
+/// <item>The ImageArg, a CRC32 over the float bitmap (<see cref="ImageFingerprint"/>);
+/// the ambient cube atlas passes the literal 1.</item>
 /// </list>
-/// docs/BAKED.md has the open items.
 /// </summary>
 public static class LightmapTextures
 {
@@ -122,7 +120,7 @@ public static class LightmapTextures
     /// loaded from <paramref name="nativeFolder"/> (the install's game/bin/win64).
     /// </summary>
     public static byte[] Vtex(string channel, RcMipChain.Level image, ChannelSettings settings, string searchPath,
-        Fingerprints fingerprints, bool compressed = true, string? nativeFolder = null)
+        Fingerprints? fingerprints = null, bool compressed = true, string? nativeFolder = null)
     {
         if (settings.MaxResolution > 0)
             while (Math.Min(image.Width, image.Height) > settings.MaxResolution)
@@ -134,7 +132,10 @@ public static class LightmapTextures
                 ? named
                 : throw new NotSupportedException($"LightmapChannels/{channel}: format {overrideName} is not written here.");
 
-        return Write([image], format, FlagTextureArray, EditInfo(LightmapArgument, searchPath, fingerprints), nativeFolder);
+        var derived = fingerprints ?? new Fingerprints(
+            DescriptorFingerprint(Descriptor("2DARRAY", LightmapArgument.Name, FormatName(format), Math.Min(image.Width, image.Height), 0, "None")),
+            ImageFingerprint(image, 1));
+        return Write([image], format, FlagTextureArray, EditInfo(LightmapArgument, searchPath, derived), nativeFolder);
     }
 
     /// <summary>
@@ -150,7 +151,7 @@ public static class LightmapTextures
     /// slices in order. probe01's two atlases are identical slice for slice.
     /// </summary>
     public static byte[] AtlasVtex(RcMipChain.Level image, int sliceWidth, int sliceHeight, int sliceCount, ImageFormat format,
-        string searchPath, Fingerprints fingerprints, string? nativeFolder = null)
+        string searchPath, Fingerprints? fingerprints = null, string? nativeFolder = null, bool ambientCube = false, string algorithm = "None")
     {
         var columns = image.Width / sliceWidth;
         if (columns == 0 || (sliceCount + columns - 1) / columns * sliceHeight > image.Height)
@@ -163,7 +164,10 @@ public static class LightmapTextures
                 Array.Copy(image.Rgba, (((z / columns) * sliceHeight + y) * image.Width + (z % columns) * sliceWidth) * 4, px, y * sliceWidth * 4, sliceWidth * 4);
             slices[z] = new RcMipChain.Level(sliceWidth, sliceHeight, px);
         }
-        return Write(slices, format, FlagVolumeTexture, EditInfo(LightProbeVolumeArgument, searchPath, fingerprints), nativeFolder);
+        var derived = fingerprints ?? new Fingerprints(
+            DescriptorFingerprint(Descriptor("3D", LightProbeVolumeArgument.Name, FormatName(format), 0, 0, "None", sliceCount, sliceWidth, sliceHeight, -1, algorithm)),
+            ambientCube ? 1u : ImageFingerprint(image, 1));
+        return Write(slices, format, FlagVolumeTexture, EditInfo(LightProbeVolumeArgument, searchPath, derived), nativeFolder);
     }
 
     // The texture: every slice encoded in order as mip 0, LZ4 HC'd when that
@@ -327,6 +331,136 @@ public static class LightmapTextures
         }
         return d;
     }
+
+    /// <summary>
+    /// The ImageArg fingerprint resourcecompiler computes for a bitmap passed
+    /// with fingerprint -1 (CResourceCompilerContext vf9, 180174ce0): CRC32
+    /// over height, width and depth (int32 each, in that order), then, for each
+    /// channel present in the bitmap's mask (R, G, B, A), every row of that
+    /// channel's float plane, slice by slice. A bitmap loaded from an EXR has all
+    /// four: the loader marks the alpha it fills (probe01's irradiance has no
+    /// alpha and matches only with it).
+    /// </summary>
+    public static uint ImageFingerprint(RcMipChain.Level image, int depth, int channelMask = 15)
+    {
+        var crc = new System.IO.Hashing.Crc32();
+        Span<byte> head = stackalloc byte[12];
+        var height = image.Height / depth;
+        BinaryPrimitives.WriteInt32LittleEndian(head, height);
+        BinaryPrimitives.WriteInt32LittleEndian(head[4..], image.Width);
+        BinaryPrimitives.WriteInt32LittleEndian(head[8..], depth);
+        crc.Append(head);
+        var row = new byte[image.Width * 4];
+        for (var c = 0; c < 4; c++)
+        {
+            if ((channelMask & (1 << c)) == 0)
+                continue;
+            for (var z = 0; z < depth; z++)
+                for (var y = 0; y < height; y++)
+                {
+                    var at = ((z * height + y) * image.Width) * 4 + c;
+                    for (var x = 0; x < image.Width; x++)
+                        BinaryPrimitives.WriteSingleLittleEndian(row.AsSpan(x * 4), image.Rgba[at + x * 4]);
+                    crc.Append(row);
+                }
+        }
+        return crc.GetCurrentHashAsUInt32();
+    }
+
+    /// <summary>
+    /// The texture descriptor SerializeLightMap and 1801eee20 hand the texture
+    /// compiler, as the KV3 text 181e8e7c0 saves it (transfer 181e97100: input
+    /// textures 181e969d0 with image processors 181e96830, output channels
+    /// 181e96d30), every member written. Its CRC32 is RED2's
+    /// <c>___OverrideInputData___</c> fingerprint.
+    /// </summary>
+    public static KVObject Descriptor(string type, string argument, string format, int minDimension, int maxDimension, string mipAlgorithm,
+        int sliceCount = -1, int sliceWidth = -1, int sliceHeight = -1, int minBits = -1, string processor = "none")
+    {
+        static KVObject Floats(int n)
+        {
+            var a = KVObject.Array();
+            for (var i = 0; i < n; i++)
+                a.Add(new KVObject(0.0));
+            return a;
+        }
+        static KVObject Processor(string algorithm)
+        {
+            var p = KVObject.Collection();
+            p.Add("m_algorithm", new KVObject(algorithm));
+            p.Add("m_stringArg", new KVObject(""));
+            p.Add("m_vFloat4Arg", Floats(4));
+            return p;
+        }
+        var input = KVObject.Collection();
+        input.Add("m_name", new KVObject("inputTexture0"));
+        input.Add("m_fileName", new KVObject(argument));
+        input.Add("m_colorSpace", new KVObject("linear"));
+        input.Add("m_fileExt", new KVObject(""));
+        input.Add("m_nMinBitsPerChannel", new KVObject(minBits));
+        input.Add("m_typeString", new KVObject(type));
+        input.Add("m_bPassThroughToCompiledVtex", new KVObject(false));
+        input.Add("m_n3DSliceCount", new KVObject(sliceCount));
+        input.Add("m_n3DSliceWidth", new KVObject(sliceWidth));
+        input.Add("m_n3DSliceHeight", new KVObject(sliceHeight));
+        var processors = KVObject.Array();
+        processors.Add(Processor(processor));
+        input.Add("m_imageProcessorArray", processors);
+        var inputs = KVObject.Array();
+        inputs.Add(input);
+
+        var channel = KVObject.Collection();
+        channel.Add("m_srcChannels", new KVObject("rgba"));
+        channel.Add("m_dstChannels", new KVObject("rgba"));
+        channel.Add("m_mipAlgorithm", Processor(mipAlgorithm));
+        channel.Add("m_outputColorSpace", new KVObject("linear"));
+        var channelInputs = KVObject.Array();
+        channelInputs.Add(new KVObject("inputTexture0"));
+        channel.Add("m_inputTextureArray", channelInputs);
+        var channels = KVObject.Array();
+        channels.Add(channel);
+
+        var root = KVObject.Collection();
+        root.Add("m_inputTextureArray", inputs);
+        root.Add("m_outputTypeString", new KVObject(type));
+        root.Add("m_outputFormat", new KVObject(format));
+        root.Add("m_outputClearColor", Floats(4));
+        root.Add("m_nOutputMinDimension", new KVObject(minDimension));
+        root.Add("m_nOutputMaxDimension", new KVObject(maxDimension));
+        root.Add("m_nOutputDimensionReduce", new KVObject(0));
+        root.Add("m_textureOutputChannelArray", channels);
+        root.Add("m_vClamp", Floats(3));
+        root.Add("m_bNoLod", new KVObject(false));
+        root.Add("m_bHiddenAssetFlag", new KVObject(true));
+        root.Add("m_bNormalizeRange", new KVObject(false));
+        root.Add("m_bVirtualTexture", new KVObject(false));
+        root.Add("m_nDisplayRectWidth", new KVObject(0));
+        root.Add("m_nDisplayRectHeight", new KVObject(0));
+        root.Add("m_nMotionVectorsMaxDistanceInPixels", new KVObject(0));
+        return root;
+    }
+
+    /// <summary>
+    /// RED2's <c>___OverrideInputData___</c> fingerprint: the CRC32 of the
+    /// descriptor's KV3 text as the text CUtlBuffer holds it, LF line ends, no
+    /// terminator (probe01's three lightmap formats and both atlases).
+    /// </summary>
+    public static uint DescriptorFingerprint(KVObject descriptor)
+        => System.IO.Hashing.Crc32.HashToUInt32(System.Text.Encoding.UTF8.GetBytes(
+            Kv3TextWriter.Write(descriptor, new Guid("7412167c-06e9-4698-aff2-e63eb59037e7")).Replace("\r\n", "\n")));
+
+    /// <summary>The ImageFormat name (182fe4eb0's table) the descriptor records.</summary>
+    public static string FormatName(ImageFormat format) => format switch
+    {
+        ImageFormat.Rgba8888 => "RGBA8888",
+        ImageFormat.Rgba16161616F => "RGBA16161616F",
+        ImageFormat.Dxt1 => "DXT1",
+        ImageFormat.Ati1n => "ATI1N",
+        ImageFormat.Ati2n => "ATI2N",
+        ImageFormat.Bc6h => "BC6H",
+        ImageFormat.Bc7 => "BC7",
+        _ => throw new ArgumentOutOfRangeException(nameof(format)),
+    };
 
     /// <summary>The image argument a texture is compiled from, and the type RC records for <c>final</c>.</summary>
     public sealed record TextureArgument(string Name, string FinalType);
