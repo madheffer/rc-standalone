@@ -416,9 +416,9 @@ public sealed class VfxEval
 
 /// <summary>
 /// The scene as vrad3's hit shaders read it: per mesh a GeometryInfo_t and its
-/// vertex and index buffers (scene_meshes.kv3's float vertices: a field of
-/// size 2, 3 or 4 is R32G32 / R32G32B32 / R32G32B32A32_FLOAT, offsets times
-/// 4; 32-bit indices), per instance the PackedRtxInstanceData_t, per material
+/// vertex and index buffers (scenesystem's packed layout from the mesh's
+/// material input signature, <see cref="SceneVertexLayout"/>; 32-bit
+/// indices), per instance the PackedRtxInstanceData_t, per material
 /// its block for the selected hit group (every variable at the RegisterOffset
 /// of the static combo's write sequence, in 4-byte words), and the bindless
 /// textures and samplers. Instances whose material has no transpiled hit
@@ -450,22 +450,44 @@ public sealed class RtxScene
         var vf = new float[meshes.Count][];
         var vu = new uint[meshes.Count][];
         var ib = new uint[meshes.Count][];
-        // Each mesh's material input signature (the first instance's material), for fields named by semantic.
-        var signatures = new IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement>?[meshes.Count];
-        if (MapBySignature)
-            foreach (var inst in scene.Instances)
-                if (signatures[inst.Mesh] == null && read(inst.Material.Name + "_c") is { } vmat)
-                {
-                    try { signatures[inst.Mesh] = MaterialAuthor.ExtractInputSignature(vmat); }
-                    catch (InvalidOperationException) { }
-                }
+        // Each mesh's vertex buffer and layout as scenesystem builds them from its own material's input signature.
+        var signatures = new Dictionary<string, IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement>?>(StringComparer.OrdinalIgnoreCase);
         for (var m = 0; m < meshes.Count; m++)
         {
             var mesh = meshes[m];
-            vf[m] = mesh.Vertices;
-            vu[m] = System.Runtime.InteropServices.MemoryMarshal.Cast<float, uint>(mesh.Vertices).ToArray();
+            if (!signatures.TryGetValue(mesh.Material, out var signature))
+            {
+                signature = null;
+                if (read(mesh.Material + "_c") is { } vmat)
+                {
+                    try { signature = MaterialAuthor.ExtractInputSignature(vmat); }
+                    catch (InvalidOperationException) { }
+                }
+                signatures[mesh.Material] = signature;
+            }
             ib[m] = [.. mesh.Indices.Select(i => (uint)i)];
-            geometries[m] = Geometry(mesh, m, signatures[m]);
+            if (signature is null)
+            {
+                // 1800912d0 makes no vertex buffer for a mesh whose material it cannot load (180092bff);
+                // what the GPU then reads for its hits is not ported: no vertex fields here.
+                notes.Add($"{mesh.Material}: no material input signature; its meshes get no vertex buffer");
+                vu[m] = [];
+                vf[m] = [];
+                geometries[m] = new GeometryInfo_t_natural
+                {
+                    m_nVertexAndIndexBuffers = new ivec4(m, m, m, m), m_nBufferStrideInBytes = new ivec4(0, 0, 0, 4),
+                    m_vTexCoordFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
+                    m_vColorFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
+                };
+                continue;
+            }
+            var layout = SceneVertexLayout.Build(mesh, m, signature);
+            vu[m] = layout.Words;
+            vf[m] = System.Runtime.InteropServices.MemoryMarshal.Cast<uint, float>(layout.Words).ToArray();
+            geometries[m] = layout.Geometry;
+            foreach (var note in layout.Notes)
+                if (!notes.Contains(note))
+                    notes.Add(note);
         }
         var textures = new List<BindlessTexture>();
         var textureIndex = new Dictionary<(string, bool), int>();
@@ -510,6 +532,10 @@ public sealed class RtxScene
                         data.Add(0);
                     var offset = (uint)data.Count;
                     data.AddRange(bytes);
+                    // The hit group loads the whole _RTX_MATERIAL_DATA_ struct, trailing pads included
+                    // (csgo_environment reads its last pad at 748): zeros past what the combo writes.
+                    while (data.Count < offset + StructSize(shader.Layout))
+                        data.Add(0);
                     b = (shader, offset);
                 }
             }
@@ -546,52 +572,13 @@ public sealed class RtxScene
         return new RtxScene(scene, hit, Factory, notes);
     }
 
-    /// <summary>
-    /// Experiment: a field whose name is not a D3D semantic (VertexPaintBlendParams...) takes the
-    /// D3D semantic name and index the material's input signature gives that semantic, as
-    /// scenesystem 180093f10 does for a layout field of semantic index -1.
-    /// </summary>
-    public static bool MapBySignature { get; set; }
-
-    // GeometryInfo_t for one scene mesh: one stream, its float fields (scenesystem 180093f10's formats).
-    private static GeometryInfo_t_natural Geometry(BakeScene.Mesh mesh, int index,
-        IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement>? signature = null)
+    // std430 size of a hit group's _RTX_MATERIAL_DATA_: the last field's end, rounded to 16.
+    private static int StructSize(MaterialField[] layout)
     {
-        static int Format(int size) => size switch { 1 => 41, 2 => 16, 3 => 6, _ => 2 };
-        var g = new GeometryInfo_t_natural
-        {
-            m_nVertexAndIndexBuffers = new ivec4(index, index, index, index),
-            m_nBufferBindOffsetBytes = new ivec4(0),
-            m_nBufferStrideInBytes = new ivec4(mesh.Stride * 4, 0, 0, 4),
-            m_vTexCoordFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
-            m_vColorFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
-        };
-        foreach (var field in mesh.Fields)
-        {
-            var f = field;
-            var info = new ivec4(f.Offset * 4, Format(f.Size), 0, 0);
-            var (name, semanticIndex) = (f.Name, f.SemanticIndex);
-            if (signature?.FirstOrDefault(e => e.Semantic.Equals(f.Name, StringComparison.OrdinalIgnoreCase)) is { D3DSemanticName.Length: > 0 } element
-                && f.Name.ToLowerInvariant() is not ("texcoord" or "color" or "normal" or "tangent" or "position"))
-                (name, semanticIndex) = (element.D3DSemanticName, element.D3DSemanticIndex);
-            f = f with { SemanticIndex = semanticIndex };
-            switch (name.ToLowerInvariant())
-            {
-                case "normal" when f.SemanticIndex == 0 && f.Size == 3:
-                    g.m_vNormalFieldInfo = info;
-                    break;
-                case "tangent" when f.SemanticIndex == 0 && f.Size == 4:
-                    g.m_vTangentFieldInfo = info;
-                    break;
-                case "texcoord" when f.SemanticIndex is >= 0 and < 8:
-                    g.m_vTexCoordFieldInfo.data[f.SemanticIndex] = info;
-                    break;
-                case "color" when f.SemanticIndex is >= 0 and < 8 && f.Size == 4:
-                    g.m_vColorFieldInfo.data[f.SemanticIndex] = info;
-                    break;
-            }
-        }
-        return g;
+        var end = 0;
+        foreach (var f in layout)
+            end = Math.Max(end, f.Offset + f.Type switch { "vec2" or "ivec2" or "uvec2" => 8, "vec3" or "ivec3" or "uvec3" => 12, "vec4" or "ivec4" or "uvec4" => 16, "mat4" => 64, _ => 4 });
+        return (end + 15) & ~15;
     }
 
     // The material's _RTX_MATERIAL_DATA_ block: each field from its rtx variable (artist value, default or expression).

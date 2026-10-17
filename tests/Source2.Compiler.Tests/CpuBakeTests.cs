@@ -85,9 +85,12 @@ public class CpuBakeTests(ITestOutputHelper output)
         var sceneMeshes = SceneInfoTests.ReadBinary(Path.Combine(folder, "scene_meshes.kv3"));
         var scene = BakeScene.Load(sceneInfo, sceneMeshes, Material, Cubemap);
         output.WriteLine($"{scene.Instances.Count} instances, {scene.Meshes.Count} meshes, {scene.Lights.Count} lights");
-        if (Environment.GetEnvironmentVariable("CPUBAKE_INSTANCES") == "1")
+        // CPUBAKE_INSTANCES=1 lists each instance's mesh fields (! no_compression, d delta); =only stops there.
+        if (Environment.GetEnvironmentVariable("CPUBAKE_INSTANCES") is "1" or "only")
             foreach (var inst in scene.Instances)
-                output.WriteLine($"  mesh {inst.Mesh} {inst.Material.Name}: mask {inst.Mask:x2} material flags {inst.MaterialFlags:x} instance flags {inst.InstanceFlags:x} and {inst.Material.MaskAnd:x} or {inst.Material.MaskOr:x}, colour {(inst.Material.Color is { } c ? $"{c.Width}x{c.Height}" : "none")} tint {inst.Material.ColorTint}, fields {string.Join(" ", scene.Meshes[inst.Mesh].Fields.Select(f => $"{f.Name}{f.SemanticIndex}@{f.Offset}x{f.Size}"))}");
+                output.WriteLine($"  mesh {inst.Mesh} {inst.Material.Name}: mask {inst.Mask:x2} material flags {inst.MaterialFlags:x} instance flags {inst.InstanceFlags:x} and {inst.Material.MaskAnd:x} or {inst.Material.MaskOr:x}, colour {(inst.Material.Color is { } c ? $"{c.Width}x{c.Height}" : "none")} tint {inst.Material.ColorTint}, fields {string.Join(" ", scene.Meshes[inst.Mesh].Fields.Select(f => $"{f.Name}{f.SemanticIndex}@{f.Offset}x{f.Size}{(f.NoCompression ? "!" : "")}{(f.Delta ? "d" : "")}"))}");
+        if (Environment.GetEnvironmentVariable("CPUBAKE_INSTANCES") == "only")
+            return;
         var packing = PackingGeometry.Read(File.ReadAllBytes(Path.Combine(folder, "lightmap_packing_geometry.dat")));
         using var halton = LoadResource(Core("textures/dev/scrambled_halton.vdata_c")!);
         var permutations = HaltonSamples.Permutations(((BinaryKV3)halton.DataBlock!).Data.Root["permutations"].AsBlob());
@@ -95,7 +98,6 @@ public class CpuBakeTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("CPUBAKE_RTX") != "0")
         {
             using var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
-            RtxScene.MapBySignature = Environment.GetEnvironmentVariable("CPUBAKE_SIGMAP") == "1";
             rtx = RtxScene.Build(scene, content.Material, rtxShaders, Read);
             output.WriteLine($"material hit groups: {Enumerable.Range(0, scene.Instances.Count).Count(rtx.Has)} of {scene.Instances.Count} instances");
             foreach (var note in rtx.Notes)
@@ -1183,7 +1185,12 @@ public class CpuBakeProbe(ITestOutputHelper output)
             var same = shipped != null && shipped.AsSpan().SequenceEqual(o.Bytes);
             output.WriteLine($"{o.Path}: {o.Bytes.Length} bytes, {(shipped == null ? "not in the package" : same ? "identical" : $"differs (package {shipped.Length})")}");
             if (!same)
+            {
                 different.Add(o.Path);
+                if (shipped != null && o.Path.EndsWith(".vtex_c", StringComparison.Ordinal))
+                    foreach (var (who, bytes) in new[] { ("valve", shipped), ("ours", o.Bytes) })
+                        output.WriteLine($"  {who}: {DescribeVtex(bytes)}");
+            }
         }
         var prefix = $"maps/{map}/lightmaps/";
         foreach (var path in pkg.Entries!.Values.SelectMany(x => x).Select(x => x.GetFullPath()).Where(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
@@ -1193,6 +1200,16 @@ public class CpuBakeProbe(ITestOutputHelper output)
                 different.Add(path);
             }
         Assert.Empty(different);
+    }
+
+    // A .vtex_c's header and RED2 arguments, for the option builds' differences.
+    private static string DescribeVtex(byte[] bytes)
+    {
+        using var res = new ValveResourceFormat.Resource();
+        res.Read(new MemoryStream(bytes));
+        var t = (ValveResourceFormat.ResourceTypes.Texture)res.DataBlock!;
+        var args = string.Join(" ", res.EditInfo!.ArgumentDependencies.Select(a => $"{a.ParameterName}:{a.ParameterType}={a.Fingerprint:x}/{a.FingerprintDefault:x}"));
+        return $"{t.Width}x{t.Height}x{t.Depth} {t.Format} mips {t.NumMipLevels} flags {t.Flags} | {args}";
     }
 
     [Fact]

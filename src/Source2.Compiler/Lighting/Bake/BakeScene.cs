@@ -42,8 +42,11 @@ public sealed class BakeScene
         public IReadOnlyList<MeshField> Fields { get; init; } = [];
     }
 
-    /// <summary>One vertex field of a scene mesh: name, semantic index, offset and size in floats.</summary>
-    public readonly record struct MeshField(string Name, int SemanticIndex, int Offset, int Size);
+    /// <summary>
+    /// One vertex field of a scene mesh: name, semantic index, offset and size in floats, and the
+    /// attribute's no_compression and delta flags (CMesh attribute +0x1d / +0x1c, read by vrad3 1801fd4e0).
+    /// </summary>
+    public readonly record struct MeshField(string Name, int SemanticIndex, int Offset, int Size, bool NoCompression = false, bool Delta = false);
 
     /// <summary>One placed mesh, PackedRtxInstanceData_t's fields plus what the hit group needs.</summary>
     public sealed record Instance(int Mesh, Matrix4x4 ObjectToWorld, Matrix4x4 WorldToObject, BakeMaterial Material, uint SrgbColor, Vector3 Tint,
@@ -189,7 +192,8 @@ public sealed class BakeScene
             var name = a["name"].ToString(null);
             var index = a["semantic_index"].ToInt64(null);
             var offset = (int)a["offset"].ToInt64(null);
-            fields.Add(new MeshField(name ?? "", (int)index, offset, Opt(a, "size") is { } size ? (int)size.ToInt64(null) : 0));
+            fields.Add(new MeshField(name ?? "", (int)index, offset, Opt(a, "size") is { } size ? (int)size.ToInt64(null) : 0,
+                                     Opt(a, "no_compression") is { } nc && nc.ToBoolean(null), Opt(a, "delta") is { } d && d.ToBoolean(null)));
             if (name == "position" && position < 0)
                 position = offset;
             else if (name == "normal" && normal < 0)

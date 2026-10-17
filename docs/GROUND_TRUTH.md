@@ -987,6 +987,32 @@ game can answer is raised with the user first, and runs with -insecure.
     volume cull (180216090) is ported as read but unexercised: probe01
     culls nothing.
 
+75. **The ray trace scene's vertex layout** (settled 2026-10-18 by
+    decompile and bake). vrad3 sets no layout itself: its scene_meshes
+    reader (1801fd4e0) keeps each attribute as read, and scenesystem's
+    loader (1800912d0) builds the vertex buffer.
+    - The material comes from the mesh's own material_name.
+    - CMesh_CreateInputLayout (1804aaf20) gives every attribute a format:
+      the attribute table (18066d400) by name and index, or by size when
+      the attribute is no_compression. A compressed normal is R32_UINT,
+      the packed tangent frame, and its tangent is dropped.
+    - The material's input signature then names each field (1804aa730).
+      Each element's Semantic picks a field, which takes the element's
+      D3D semantic name and index. Fields no element takes are removed.
+      The rest are packed in CMesh order.
+    - The vertices are converted per format (1804abf60 / 1804ac280).
+    - The -1 semantic index the 10-18 experiment assumed is not on this
+      path: 180093f10 handles it, but no field reaches it here.
+    - So csgo_simple_2way_blend's TEXCOORD 4 is VertexPaintBlendParams
+      (R8G8B8A8_UNORM), and props carry half texcoords and a packed
+      tangent frame.
+    - Result (SceneVertexLayout.cs): ze_hold_em_p's 16 blocks went from
+      1.16 to 1.85 times Valve's raw image to 0.98 to 0.997, and its lit
+      probe volumes to 0.94 to 0.997. The only_c12, only_c9 and
+      only_slabs scenes give 0.99.
+    - A second, independent port (RtxVertexLayout) gave identical bytes on
+      all 90 meshes of probe01 and ze_hold_em_p.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

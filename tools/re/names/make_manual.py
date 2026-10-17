@@ -1870,6 +1870,7 @@ HAMMER = [
 # (command Run and Register functions, lambda job bodies); the rest are read.
 VRAD3 = [
     # Read by hand (decompile of vrad3 20261001).
+    ("1801fd4e0", "SceneMeshes_ReadMesh", V3, "one scene_meshes.kv3 mesh into a CMesh (0x198): vertex_count, index_count, vertex_stride, attributes (name, name_delta, semantic_index, offset, size, delta, no_compression) through 1801fd090, the blobs, material_name at +0x60; sceneinfo_gpu's Run calls it per mesh (18002bf6f)"),
     ("18001afd0", "Vrad3_LauncherMain", V3, "CAppLaunchableDLL entry: command line, minidump options, -attach debugger switches, then Vrad3_Main"),
     ("18001b0e0", "Vrad3_Main", V3, "banner, app systems (scenesystem SceneSystem_002/SceneUtils_001, vrad3 Vrad3_001), VRAD3_IN_PATH/VRAD3_OUT_PATH search paths, thread pool; each -name=value becomes script variable $name; -script runs through Vrad3_ExecuteScript; Total Time"),
     ("180019a70", "Vrad3_ExecuteScript", V3, "the script file: routines (labels), $variables (unknown one: exit 1), run <label>; each line's tokens to Vrad3_RunCommand; second argument a start routine (Couldn't find routine)"),
@@ -2272,11 +2273,22 @@ SCENESYSTEM = [
     ("18008c110", "PathTraceBarnLight_FromShape", V3, "the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record"),
     ("1804a3a60", "Luminaire_Area", V3, "the luminaire's area for the light's PDF"),
     ("1804a5570", "LightShape_ReadKV", V3, "a barn table into the 300-byte LightShape, field by field (m_vInnerRadius +0xa0, m_flShape +0xa8, m_vSkirt +0xac, m_vColor +0xb4, m_flLightColorToRadiance +0xc0, luminaire tables), then the inner radius clamped to 0.9999999"),
-    ("180093f10", "PathTraceScene_GeometryInfo", V3, "a mesh's GeometryInfo_t from its input layout: position (format 2 or 6), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream)"),
+    ("180093f10", "PathTraceScene_GeometryInfo", V3, "a mesh's GeometryInfo_t from its input layout (1804aaf20's, D3D names): position (format 2 or 6, offset 0), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream); a field of semantic index -1 takes the D3D name and index of the signature element whose Semantic equals its name"),
     ("1800999d0", "PathTraceScene_SetIbl", V3, "the ibl: SkyTexture (0xa9e45763) as g_tSkyTexture, SkyTextureFormat (0xd5faca7a), SkyBrightnessExposureBias (0xa6413f46, g_flBrightnessExposureBias) scale times exp2"),
     ("18008d1a0", "SceneGlobalInfoGPU_Construct", V3, "the 0xC0 globals block at scene +0x3e0: sun irradiance 0, sun min brightness FLT_MAX, IBL scale 1; scene flags |= 1 unless ResourceCompiler/BakedLighting/DisableCullingForShadows"),
     ("180095180", "PathTraceScene_Upload", V3, "the scene's buffers and acceleration structures to the GPU"),
     ("180187920", "SceneUtils_GenerateScrambledHalton", V3, "ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata"),
+    # The ray trace scene's vertex buffers (Lighting/Bake/SceneVertexLayout.cs): CMesh -> input layout -> packed vertices.
+    ("1804abf10", "CMesh_CreateInputLayout_Thunk", V3, "1800912d0's call (flags 0, blend weight limit 4, the material's input signature): CMesh +8 attributes, +0x20 count, to 1804aaf20"),
+    ("1804aaf20", "CMesh_CreateInputLayout", V3, "per CMesh attribute (0x28: name, name_delta, semantic_index +0x10, offset +0x14, size +0x18, delta +0x1c, no_compression +0x1d): trailing digit = semantic index; format from the attribute table 18066d400 (name +8, index +0x10, format +0x18) else by size (18066d7e0: 0, 41, 16, 6, 2); no_compression takes the size format; a compressed normal is 42 and drops a later tangent; format 0 drops the field; then 1804aa730 with the signature, unmatched fields removed, offsets packed by format size (1805ad07c) per slot"),
+    ("1804aa730", "InputLayout_MatchSignature", V3, "per signature element (0xc4: name, Semantic +0x40, D3DSemanticName +0x80, D3DSemanticIndex +0xc0): Semantic through the alias table (+0) or split at a trailing digit picks the layout field (name, index); the result takes the D3D name and index (Semantic kept at +0x2c), identical results once, 16 at most; then PerVertexLighting, LightmapUV, PropWorldOrigin, curvature, bentnormal and blend fields under their table name"),
+    ("1804abf60", "CMesh_WriteVertexBuffer", V3, "every vertex, every layout field in order at a running offset through 1804ac280; the tangent pointer from 1804aa130(\"tangent\", 4)"),
+    ("1804ac280", "CMesh_WriteVertexField", V3, "blend fields; with a packed normal, CompressTangentFrame (180567b00) of normal and tangent (default 0,0,1,1); pervertexlighting four halves; lightmapuv unorm16 of x*65535 clamped; VertexGenericIntegerData and TanFrameQuat raw; else colour from (0,0,0,1) or min(components, size) values through 1804aa4e0 with the format table 1805ad070"),
+    ("1804aa4e0", "ConvertFloatToChannel", V3, "same code as resourcecompiler 181363b90: float (4 bytes copy, 2 bytes 18015e140), unorm clamp 0..1 truncated, int clamp, snorm clamp -1..1 truncated"),
+    ("1804aa130", "CMesh_FindAttributeOffset", V3, "first attribute whose name contains the string (V_stristr) with that size (0 any): its offset, else -1"),
+    ("18015e140", "Float32ToFloat16", V3, "same code as resourcecompiler 1802ea750: truncating, saturating at 65504"),
+    ("180567b00", "CompressTangentFrame", V3, "same code as resourcecompiler 182067e80"),
+    ("18009c320", "InputSignature_Append", V3, "appends a material's input signature elements (0xc4 bytes each) to a vector; 1800912d0 takes the mesh's own material (CMesh +0x60 material_name, read at 180091e94)"),
     ("18049c8d0", "LinearToSrgb8", V3, "per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped"),
 ]
 

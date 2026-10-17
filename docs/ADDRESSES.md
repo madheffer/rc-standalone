@@ -204,7 +204,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:231`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:130` |
+| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:250`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:142` |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:121` |
 | `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:581` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
@@ -480,7 +480,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180174310` | `CResourceCompilerContext::vf11` | GetInt: falls back to (int)GetFloat |  |
 | `180188960` | `CResourceCompilerSystem::GenerateResourceFile` |  |  |
 | `18018b630` | `ResourceCompiler_ParseCommandLine` | its own switch list, else generic: %f, then %i, then string | `src/Source2.Compiler/Maps/MapCompileArgs.cs:27` |
-| `1801f7840` | `CMapBuilderContext_CompileMap` | the builder flags and steps (CompileMap) | `src/Source2.Compiler/Maps/MapCompile.cs:77`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:13`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:102` |
+| `1801f7840` | `CMapBuilderContext_CompileMap` | the builder flags and steps (CompileMap) | `src/Source2.Compiler/Maps/MapCompile.cs:77`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:13`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:114` |
 | `1801f7960` | `CMapBuilderContext_Construct` | CompileMap's flags into +0x609, its return (a builder was named: partial) into +0x607 |  |
 | `1801f9040` | `CMapBuilderContext::vf32` | BakeLighting: context +0x605 |  |
 | `1801f9a50` | `CMapBuilderContext::vf28` | IsBuilderEnabled |  |
@@ -956,7 +956,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181365ce0` | `CMesh_PackField` | one layout field of one vertex, a switch on the DXGI format | `src/Source2.Compiler/Maps/TangentFrame.cs:8`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:456` |
 | `181366d90` | `MeshSemantic_Lookup` | shader semantic or stream name in the table at 183014ae0 (0x20 rows: semantic, stream, stream index, shader index) | `src/Source2.Compiler/Maps/MaterialStreams.cs:10`, `src/Source2.Compiler/Maps/MaterialStreams.cs:23` |
 | `182067b00` | `CompressTangentFrame_SearchNormal` | third argument set: the octahedral normal by floor and search; shares the tangent part |  |
-| `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 | `src/Source2.Compiler/Maps/TangentFrame.cs:9` |
+| `182067e80` | `CompressTangentFrame` | octahedral normal 10+10 bits, tangent angle 11 bits, bitangent sign; precise path FUN_182067b00 | `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:31`, `src/Source2.Compiler/Maps/TangentFrame.cs:9` |
 
 ### s2c:infra
 
@@ -1334,7 +1334,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: this build
-- 13 addresses
+- 23 addresses
 
 ### s2c:baked/vrad3
 
@@ -1343,16 +1343,26 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18008beb0` | `PathTraceScene_AddLight` | a scene_info light (barn KV, path_trace_light_flags, baked shadow ids) into PathTraceBarnLightGPU_t (0x1f0 bytes), through 18008c110 | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9` |
 | `18008c110` | `PathTraceBarnLight_FromShape` | the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9`, `src/Source2.Compiler/Lighting/Bake/RaygenHost.cs:15` |
 | `18008d1a0` | `SceneGlobalInfoGPU_Construct` | the 0xC0 globals block at scene +0x3e0: sun irradiance 0, sun min brightness FLT_MAX, IBL scale 1; scene flags \|= 1 unless ResourceCompiler/BakedLighting/DisableCullingForShadows | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:12` |
-| `1800912d0` | `PathTraceScene_Load` | scene_info.kv3 and scene_meshes.kv3 into the GPU scene: meshes, instances (180094d30), materials (180098660), lights (18008beb0), the ibl (1800999d0), then the upload (180095180) | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:9` |
-| `180093f10` | `PathTraceScene_GeometryInfo` | a mesh's GeometryInfo_t from its input layout: position (format 2 or 6), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream) | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:540` |
+| `1800912d0` | `PathTraceScene_Load` | scene_info.kv3 and scene_meshes.kv3 into the GPU scene: meshes, instances (180094d30), materials (180098660), lights (18008beb0), the ibl (1800999d0), then the upload (180095180) | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:9`, `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:471`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:8` +1 |
+| `180093f10` | `PathTraceScene_GeometryInfo` | a mesh's GeometryInfo_t from its input layout (1804aaf20's, D3D names): position (format 2 or 6, offset 0), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream); a field of semantic index -1 takes the D3D name and index of the signature element whose Semantic equals its name | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:29`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:346`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:385` +2 |
 | `180094d30` | `PathTraceScene_AddInstance` | 0x48-byte instance record: mask = (~material and & instance flags) \| material or, packed nMaterialFlags << 16 \| instance bits, +0xc the facing-cull-disable byte = material flags & 1; grows the scene bounds | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Glsl/HitContext.cs:94` |
 | `180095180` | `PathTraceScene_Upload` | the scene's buffers and acceleration structures to the GPU | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:11` |
 | `180098660` | `PathTraceScene_MaterialFlags` | from CMaterial2 attributes: doublesided or renderbackfaces -> flags 1; Translucent or alphatest -> 2; mapbuilder.blocklight -> 5; tools.toolsmaterial -> and 1; DoNotCastShadows -> and 0xe (+1 with tools); opaque -> or 0x10 else and 0x10; 0x98bed7f6 -> or 0x20, and 0x11; 0x16458f13 -> or 0x400 | `src/Source2.Compiler/Lighting/Bake/BakeMaterial.cs:8`, `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10` |
 | `1800999d0` | `PathTraceScene_SetIbl` | the ibl: SkyTexture (0xa9e45763) as g_tSkyTexture, SkyTextureFormat (0xd5faca7a), SkyBrightnessExposureBias (0xa6413f46, g_flBrightnessExposureBias) scale times exp2 | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:11` |
+| `18009c320` | `InputSignature_Append` | appends a material's input signature elements (0xc4 bytes each) to a vector; 1800912d0 takes the mesh's own material (CMesh +0x60 material_name, read at 180091e94) |  |
+| `18015e140` | `Float32ToFloat16` | same code as resourcecompiler 1802ea750: truncating, saturating at 65504 | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:27`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:390`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:462` +1 |
 | `180187920` | `SceneUtils_GenerateScrambledHalton` | ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata | `src/Source2.Compiler/Lighting/Bake/HaltonSamples.cs:7` |
-| `18049c8d0` | `LinearToSrgb8` | per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:220` |
+| `18049c8d0` | `LinearToSrgb8` | per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:224` |
 | `1804a3a60` | `Luminaire_Area` | the luminaire's area for the light's PDF | `src/Source2.Compiler/Lighting/Bake/Light.cs:18`, `src/Source2.Compiler/Lighting/Bake/Light.cs:122` |
 | `1804a5570` | `LightShape_ReadKV` | a barn table into the 300-byte LightShape, field by field (m_vInnerRadius +0xa0, m_flShape +0xa8, m_vSkirt +0xac, m_vColor +0xb4, m_flLightColorToRadiance +0xc0, luminaire tables), then the inner radius clamped to 0.9999999 |  |
+| `1804aa130` | `CMesh_FindAttributeOffset` | first attribute whose name contains the string (V_stristr) with that size (0 any): its offset, else -1 | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:257` |
+| `1804aa4e0` | `ConvertFloatToChannel` | same code as resourcecompiler 181363b90: float (4 bytes copy, 2 bytes 18015e140), unorm clamp 0..1 truncated, int clamp, snorm clamp -1..1 truncated | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:26`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:390`, `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:34` +1 |
+| `1804aa730` | `InputLayout_MatchSignature` | per signature element (0xc4: name, Semantic +0x40, D3DSemanticName +0x80, D3DSemanticIndex +0xc0): Semantic through the alias table (+0) or split at a trailing digit picks the layout field (name, index); the result takes the D3D name and index (Semantic kept at +0x2c), identical results once, 16 at most; then PerVertexLighting, LightmapUV, PropWorldOrigin, curvature, bentnormal and blend fields under their table name | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:19`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:131`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:182` +4 |
+| `1804aaf20` | `CMesh_CreateInputLayout` | per CMesh attribute (0x28: name, name_delta, semantic_index +0x10, offset +0x14, size +0x18, delta +0x1c, no_compression +0x1d): trailing digit = semantic index; format from the attribute table 18066d400 (name +8, index +0x10, format +0x18) else by size (18066d7e0: 0, 41, 16, 6, 2); no_compression takes the size format; a compressed normal is 42 and drops a later tangent; format 0 drops the field; then 1804aa730 with the signature, unmatched fields removed, offsets packed by format size (1805ad07c) per slot | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:10`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:47`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:121` +7 |
+| `1804abf10` | `CMesh_CreateInputLayout_Thunk` | 1800912d0's call (flags 0, blend weight limit 4, the material's input signature): CMesh +8 attributes, +0x20 count, to 1804aaf20 | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:10` |
+| `1804abf60` | `CMesh_WriteVertexBuffer` | every vertex, every layout field in order at a running offset through 1804ac280; the tangent pointer from 1804aa130("tangent", 4) | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:25`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:252`, `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:29` +1 |
+| `1804ac280` | `CMesh_WriteVertexField` | blend fields; with a packed normal, CompressTangentFrame (180567b00) of normal and tangent (default 0,0,1,1); pervertexlighting four halves; lightmapuv unorm16 of x*65535 clamped; VertexGenericIntegerData and TanFrameQuat raw; else colour from (0,0,0,1) or min(components, size) values through 1804aa4e0 with the format table 1805ad070 | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:25`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:252`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:270` +3 |
+| `180567b00` | `CompressTangentFrame` | same code as resourcecompiler 182067e80 | `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:28`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:501`, `src/Source2.Compiler/Lighting/Bake/RtxVertexLayout.cs:549` +1 |
 
 ## smartprops.dll, build 20260923
 
@@ -2151,7 +2161,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
-- 364 addresses
+- 365 addresses
 
 ### s2c:baked/vrad3
 
@@ -2321,7 +2331,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002d530` | `CVrad3Command_lightmap_load_block_gpu::Run` | the command: reads the block's chart ids from lightmap_info.dat into the image's luxel records (flags bit 0 valid, bit 2 chart bit 28, bit 1 chart bit 29), LuxelChartIDs.vtex, then 'Clip packing geometry to block (CPU)': cordon-masked triangles overlapping the block as 24-byte polygons (position, uv, PackTangentFrame), std::partition (18003d8e0) large charts first, small-chart polygons split on 8 x 8 tile lines (epsilon 2^-16; split coordinate snapped, v also set when a y split was due), tile by uv centroid, sorted (std_Sort_32ByteElements), fanned into PackingGeometryVertices, ChartIDs, TriangleArea and the per-tile triangle list (Lighting/Bake/BlockGeometry.cs) | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:7` |
 | `18002ffc0` | `Vrad3_GpuTimestamp` | a timestamp query on the context, appended with its stage index (the five block compute stages) |  |
 | `180030100` | `CVrad3Command_lightmap_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:20` |
+| `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:20`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:118` |
 | `180032850` | `LightProbeGrid_VoxelizeGpu` | 32 passes: pass, three random offsets, box and local-to-world; occupancy read back (18002a320) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:15` |
 | `180032b60` | `Vrad3_MarkOccupiedCells` | occupancy of a grid under a local-to-world matrix, dilated by n cells (lpv_mark_occupied_gpu, farfield_compute_bricks) |  |
 | `1800358b0` | `FarField_ComputeLightingGpu` | rtx_vrad3_farfield over the bricks in batches |  |
@@ -2463,14 +2473,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18007e370` | `CVrad3Command_lpv_cells::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18007f720` | `BakeLightProbeImage_Dilate` | unbordered occupancy from the bordered mask, then a job per face (18007fa30) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:16` |
 | `18007fa30` | `BakeLightProbeImage_Dilate::Body` | sweeps filling solid cells: weights 0.2308/0.4615/0.3077 by Manhattan distance (1802a7900), halved off the face (1802a7a00); threshold 0.5 down by 0.1 while above 0 | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:16` |
-| `1800812a0` | `LightProbeGrid_WriteOpenBand` | band 6: RGB 0.3 open, 0 solid, alpha 1 | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:16`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:418` |
-| `180081560` | `LightProbeGrid_DilateShadowRecords` | cells with an empty light slot take it from 3x3x3 neighbours that have it, repeated until none changes | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:291` |
+| `1800812a0` | `LightProbeGrid_WriteOpenBand` | band 6: RGB 0.3 open, 0 solid, alpha 1 | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:16`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:419` |
+| `180081560` | `LightProbeGrid_DilateShadowRecords` | cells with an empty light slot take it from 3x3x3 neighbours that have it, repeated until none changes | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:292` |
 | `180082290` | `CVrad3Command_lpv_type::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180082340` | `CVrad3Command_lpv_init::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:12` |
 | `1800824e0` | `CVrad3Command_lpv_image_resolve::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180082f20` | `CVrad3Command_lpv_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180082fc0` | `CVrad3Command_lpv_image_ambient_occlusion::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:12`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:76` |
-| `180083580` | `LightProbeGrid_OcclusionFactor` | per face: 26 directions, w = ((n.d 0.5 + 0.5) - max(n.d, 0)) 0.33 + max(n.d, 0), two steps halving w, occluded from the first solid cell; 1 - weight (occ / total)^2, weights 0.7 0.7 0.85 0.7 0.7 0.9 | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:12` |
+| `180083580` | `LightProbeGrid_OcclusionFactor` | per face: 26 directions, w = ((n.d 0.5 + 0.5) - max(n.d, 0)) 0.33 + max(n.d, 0), two steps halving w, occluded from the first solid cell; 1 - weight (occ / total)^2, weights 0.7 0.7 0.85 0.7 0.7 0.9 | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:12`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:133` |
 | `180083ab0` | `CVrad3Command_lpv_image_ambient_occlusion::Run::Body` | open cells; a face's four channels times the factor when under 1 |  |
 | `180083e40` | `LightProbeGrid_RemoveFirefliesSH` |  |  |
 | `180084c50` | `LightProbeGrid_RemoveFirefliesAmbientCube` | ratio (default 4.0, integer from the script) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:14` |
@@ -2517,7 +2527,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f7ad0` | `VectorTransform_SIMD` | (x, y, z, 1) through a 3x4 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:269` |
 | `1801f91a0` | `CKMeansClustering::AssignVectorsToClusters::lambda_1` | lambda job body |  |
 | `1801fa6e0` | `AsinApprox` | sign(x) * \|((((0.430477 - 0.0594935 a) a - 1.24068) a + 0.216183) a + 1.00008) / (1 - 0.779384 a) - sqrt(1 - a a)\|, a = \|x\| (resourcecompiler FUN_181272450) |  |
+| `1801fd4e0` | `SceneMeshes_ReadMesh` | one scene_meshes.kv3 mesh into a CMesh (0x198): vertex_count, index_count, vertex_stride, attributes (name, name_delta, semantic_index, offset, size, delta, no_compression) through 1801fd090, the blobs, material_name at +0x60; sceneinfo_gpu's Run calls it per mesh (18002bf6f) | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:47`, `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:11` |
 | `1801ff440` | `Sfmt19937_GenRandAll` | SFMT-19937 refill: SL1 18, SR1 11, one-byte SL2/SR2, POS1 122 | `src/Source2.Compiler/Lighting/Bake/Sfmt19937.cs:8` |
 | `1801ff9a0` | `Sfmt19937_InitGenRand` | SFMT-19937 init_gen_rand and period certification (parity 1, 0, 0, 0x13c9e684) | `src/Source2.Compiler/Lighting/Bake/Sfmt19937.cs:6` |
-| `180217110` | `LightProbeGrid_FloodFill` | all occupied, then the empty cells reachable from the start cleared | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:23`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:235` |
-| `180217b50` | `LightProbeGrid_NearestEmptyCell` | breadth first through occupied cells (+x +y +z -x -y -z, 18028d610), Manhattan distance up to the limit; the first empty neighbour | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:21`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:207` |
+| `180217110` | `LightProbeGrid_FloodFill` | all occupied, then the empty cells reachable from the start cleared | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:23`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:245` |
+| `180217b50` | `LightProbeGrid_NearestEmptyCell` | breadth first through occupied cells (+x +y +z -x -y -z, 18028d610), Manhattan distance up to the limit; the first empty neighbour | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:21`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:217` |

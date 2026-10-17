@@ -46,7 +46,7 @@
    "addr": "180093f10",
    "name": "PathTraceScene_GeometryInfo",
    "module": "s2c:baked/vrad3",
-   "note": "a mesh's GeometryInfo_t from its input layout: position (format 2 or 6), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream)"
+   "note": "a mesh's GeometryInfo_t from its input layout (1804aaf20's, D3D names): position (format 2 or 6, offset 0), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream); a field of semantic index -1 takes the D3D name and index of the signature element whose Semantic equals its name"
   },
   {
    "addr": "1800999d0",
@@ -71,6 +71,66 @@
    "name": "SceneUtils_GenerateScrambledHalton",
    "module": "s2c:baked/vrad3",
    "note": "ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata"
+  },
+  {
+   "addr": "1804abf10",
+   "name": "CMesh_CreateInputLayout_Thunk",
+   "module": "s2c:baked/vrad3",
+   "note": "1800912d0's call (flags 0, blend weight limit 4, the material's input signature): CMesh +8 attributes, +0x20 count, to 1804aaf20"
+  },
+  {
+   "addr": "1804aaf20",
+   "name": "CMesh_CreateInputLayout",
+   "module": "s2c:baked/vrad3",
+   "note": "per CMesh attribute (0x28: name, name_delta, semantic_index +0x10, offset +0x14, size +0x18, delta +0x1c, no_compression +0x1d): trailing digit = semantic index; format from the attribute table 18066d400 (name +8, index +0x10, format +0x18) else by size (18066d7e0: 0, 41, 16, 6, 2); no_compression takes the size format; a compressed normal is 42 and drops a later tangent; format 0 drops the field; then 1804aa730 with the signature, unmatched fields removed, offsets packed by format size (1805ad07c) per slot"
+  },
+  {
+   "addr": "1804aa730",
+   "name": "InputLayout_MatchSignature",
+   "module": "s2c:baked/vrad3",
+   "note": "per signature element (0xc4: name, Semantic +0x40, D3DSemanticName +0x80, D3DSemanticIndex +0xc0): Semantic through the alias table (+0) or split at a trailing digit picks the layout field (name, index); the result takes the D3D name and index (Semantic kept at +0x2c), identical results once, 16 at most; then PerVertexLighting, LightmapUV, PropWorldOrigin, curvature, bentnormal and blend fields under their table name"
+  },
+  {
+   "addr": "1804abf60",
+   "name": "CMesh_WriteVertexBuffer",
+   "module": "s2c:baked/vrad3",
+   "note": "every vertex, every layout field in order at a running offset through 1804ac280; the tangent pointer from 1804aa130(\"tangent\", 4)"
+  },
+  {
+   "addr": "1804ac280",
+   "name": "CMesh_WriteVertexField",
+   "module": "s2c:baked/vrad3",
+   "note": "blend fields; with a packed normal, CompressTangentFrame (180567b00) of normal and tangent (default 0,0,1,1); pervertexlighting four halves; lightmapuv unorm16 of x*65535 clamped; VertexGenericIntegerData and TanFrameQuat raw; else colour from (0,0,0,1) or min(components, size) values through 1804aa4e0 with the format table 1805ad070"
+  },
+  {
+   "addr": "1804aa4e0",
+   "name": "ConvertFloatToChannel",
+   "module": "s2c:baked/vrad3",
+   "note": "same code as resourcecompiler 181363b90: float (4 bytes copy, 2 bytes 18015e140), unorm clamp 0..1 truncated, int clamp, snorm clamp -1..1 truncated"
+  },
+  {
+   "addr": "1804aa130",
+   "name": "CMesh_FindAttributeOffset",
+   "module": "s2c:baked/vrad3",
+   "note": "first attribute whose name contains the string (V_stristr) with that size (0 any): its offset, else -1"
+  },
+  {
+   "addr": "18015e140",
+   "name": "Float32ToFloat16",
+   "module": "s2c:baked/vrad3",
+   "note": "same code as resourcecompiler 1802ea750: truncating, saturating at 65504"
+  },
+  {
+   "addr": "180567b00",
+   "name": "CompressTangentFrame",
+   "module": "s2c:baked/vrad3",
+   "note": "same code as resourcecompiler 182067e80"
+  },
+  {
+   "addr": "18009c320",
+   "name": "InputSignature_Append",
+   "module": "s2c:baked/vrad3",
+   "note": "appends a material's input signature elements (0xc4 bytes each) to a vector; 1800912d0 takes the mesh's own material (CMesh +0x60 material_name, read at 180091e94)"
   },
   {
    "addr": "18049c8d0",

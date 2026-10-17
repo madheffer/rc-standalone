@@ -1,6 +1,12 @@
 {
  "functions": [
   {
+   "addr": "1801fd4e0",
+   "name": "SceneMeshes_ReadMesh",
+   "module": "s2c:baked/vrad3",
+   "note": "one scene_meshes.kv3 mesh into a CMesh (0x198): vertex_count, index_count, vertex_stride, attributes (name, name_delta, semantic_index, offset, size, delta, no_compression) through 1801fd090, the blobs, material_name at +0x60; sceneinfo_gpu's Run calls it per mesh (18002bf6f)"
+  },
+  {
    "addr": "18001afd0",
    "name": "Vrad3_LauncherMain",
    "module": "s2c:baked/vrad3",
