@@ -1174,7 +1174,12 @@ public class CpuBakeProbe(ITestOutputHelper output)
         var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vpk))!);
         using var pkg = new ValvePak.Package();
         pkg.Read(vpk);
-        var outputs = LightmapOutputs.FromVrad3(folder, map, addon, bin, []);
+        // LMTEX_ARGS: the compile's lighting arguments, "name=value;..." (a value with a dot is a float).
+        var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in (Environment.GetEnvironmentVariable("LMTEX_ARGS") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
+            if (pair.Split('=') is [var k, var v])
+                arguments[k] = v.Contains('.') ? float.Parse(v, System.Globalization.CultureInfo.InvariantCulture) : int.Parse(v, System.Globalization.CultureInfo.InvariantCulture);
+        var outputs = LightmapOutputs.FromVrad3(folder, map, addon, bin, [], LightmapOutputs.Options.From(arguments), note: output.WriteLine);
         var different = new List<string>();
         foreach (var o in outputs)
         {
@@ -1188,8 +1193,17 @@ public class CpuBakeProbe(ITestOutputHelper output)
             {
                 different.Add(o.Path);
                 if (shipped != null && o.Path.EndsWith(".vtex_c", StringComparison.Ordinal))
+                {
                     foreach (var (who, bytes) in new[] { ("valve", shipped), ("ours", o.Bytes) })
                         output.WriteLine($"  {who}: {DescribeVtex(bytes)}");
+                    var firstByte = Enumerable.Range(0, Math.Min(shipped.Length, o.Bytes.Length)).FirstOrDefault(i => shipped[i] != o.Bytes[i], -1);
+                    output.WriteLine($"  first differing byte {firstByte}" + (firstByte >= 0
+                        ? $": valve {Convert.ToHexString(shipped.AsSpan(Math.Max(0, firstByte - 8), Math.Min(24, shipped.Length - Math.Max(0, firstByte - 8))))} ours {Convert.ToHexString(o.Bytes.AsSpan(Math.Max(0, firstByte - 8), Math.Min(24, o.Bytes.Length - Math.Max(0, firstByte - 8))))}" : ""));
+                    foreach (var line in Red2Diff(shipped, o.Bytes))
+                        output.WriteLine($"  red2 {line}");
+                    for (var m = 0; m < MipCount(shipped); m++)
+                        output.WriteLine($"  mip {m}: {CompareMip0(shipped, o.Bytes, m)}");
+                }
             }
         }
         var prefix = $"maps/{map}/lightmaps/";
@@ -1200,6 +1214,57 @@ public class CpuBakeProbe(ITestOutputHelper output)
                 different.Add(path);
             }
         Assert.Empty(different);
+    }
+
+    // The RED2 blocks' KV3 trees, value types included, where they differ, and the raw block sizes.
+    private static IEnumerable<string> Red2Diff(byte[] a, byte[] b)
+    {
+        using var ra = new ValveResourceFormat.Resource();
+        ra.Read(new MemoryStream(a));
+        using var rb = new ValveResourceFormat.Resource();
+        rb.Read(new MemoryStream(b));
+        var ba = (ValveResourceFormat.Blocks.ResourceEditInfo2)ra.Blocks.First(x => x.Type == ValveResourceFormat.BlockType.RED2);
+        var bb = (ValveResourceFormat.Blocks.ResourceEditInfo2)rb.Blocks.First(x => x.Type == ValveResourceFormat.BlockType.RED2);
+        yield return $"sizes {ba.Size} vs {bb.Size}";
+        foreach (var line in KvTreeDiff.Diff(ba.Data!.Root, bb.Data!.Root))
+            yield return line;
+    }
+
+    private static int MipCount(byte[] vtex)
+    {
+        using var r = new ValveResourceFormat.Resource();
+        r.Read(new MemoryStream(vtex));
+        return ((ValveResourceFormat.ResourceTypes.Texture)r.DataBlock!).NumMipLevels;
+    }
+
+    private static string CompareMip0(byte[] a, byte[] b, int mip = 0)
+    {
+        using var ra = new ValveResourceFormat.Resource();
+        ra.Read(new MemoryStream(a));
+        using var rb = new ValveResourceFormat.Resource();
+        rb.Read(new MemoryStream(b));
+        var ta = (ValveResourceFormat.ResourceTypes.Texture)ra.DataBlock!;
+        var tb = (ValveResourceFormat.ResourceTypes.Texture)rb.DataBlock!;
+        if (ta.Width != tb.Width || ta.Height != tb.Height || ta.Depth != tb.Depth || ta.Format != tb.Format)
+            return "not comparable";
+        if (mip >= ta.NumMipLevels || mip >= tb.NumMipLevels)
+            return "missing";
+        var ma = new byte[ta.CalculateBufferSizeForMipLevel((uint)mip)];
+        ta.ReadTextureMipLevel(ma, (uint)mip);
+        var mb = new byte[tb.CalculateBufferSizeForMipLevel((uint)mip)];
+        tb.ReadTextureMipLevel(mb, (uint)mip);
+        var block = ta.Format is ValveResourceFormat.VTexFormat.DXT1 or ValveResourceFormat.VTexFormat.ATI1N ? 8 : 16;
+        var bw = (Math.Max(1, ta.Width >> mip) + 3) / 4;
+        int differ = 0, first = -1;
+        for (var k = 0; k < ma.Length / block; k++)
+            if (!ma.AsSpan(k * block, block).SequenceEqual(mb.AsSpan(k * block, block)))
+            {
+                differ++;
+                if (first < 0)
+                    first = k;
+            }
+        return differ == 0 ? "identical blocks" : $"{differ} of {ma.Length / block} blocks differ, first {first} (x {first % bw * 4}, y {first / bw * 4})"
+            + $" valve {Convert.ToHexString(ma.AsSpan(first * block, block))} ours {Convert.ToHexString(mb.AsSpan(first * block, block))}";
     }
 
     // A .vtex_c's header and RED2 arguments, for the option builds' differences.

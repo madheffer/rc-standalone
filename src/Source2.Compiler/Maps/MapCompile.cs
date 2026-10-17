@@ -230,7 +230,8 @@ public static class MapCompile
             var prefix = $"maps/{map}/lightmaps/".ToLowerInvariant();
             foreach (var old in entries.Keys.Where(k => k.StartsWithAscii(prefix)).ToList())
                 entries.Remove(old);
-            var lightmaps = Lighting.LightmapOutputs.FromVrad3(folder, map, addon, Path.Combine(game, "bin", "win64"), volumes);
+            var lightmaps = Lighting.LightmapOutputs.FromVrad3(folder, map, addon, Path.Combine(game, "bin", "win64"), volumes,
+                                                               Lighting.LightmapOutputs.Options.From(args.Arguments), note: notes.Add);
             foreach (var f in lightmaps)
                 entries[f.Path] = f.Bytes;
             log.WriteLine($"  lighting: {lightmaps.Count} files from {folder}");

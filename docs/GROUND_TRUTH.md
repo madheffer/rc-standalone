@@ -1092,6 +1092,50 @@ game can answer is raised with the user first, and runs with -insecure.
       0.991): the light bins are the next suspect (RaygenHost puts every
       light in one bin; vrad3 bins them with rtx_binlights).
 
+78. **Lightmap textures at every compile option** (settled 2026-10-18 by
+    decompile and byte comparison with Valve's probe01 builds at
+    -lightmapMaxResolution 8192, -lightmapVRadQuality 2 and
+    -lightmapCompressionDisabled; tools/re/out/captures/probe01_options).
+    - SerializeLightMap (1801f3f40) gets the mip count BakeLighting chose
+      (lightmapMipCount, then halvings to MinSpecLightmapSize).
+      - The output's minimum dimension is the atlas' shorter side >> (mips
+        - 1).
+      - A channel MaxResolution halves while the shorter side is over
+        max(that, MaxResolution), one mip off each halving.
+      - Every channel but debug_chart_color gets mip algorithm Box<n>
+        while n > 1.
+      - Shadows scan the unhalved bitmap.
+    - The texture compiler (180133da0):
+      - Box mips are QuarterSize levels.
+      - The special dependency names the mip algorithm ("... Mip Box").
+      - "Texture Encode Quality" carries the quality as user data.
+      - The header's reflectivity is the smallest mip's.
+      - Mip sizes are listed from mip 0, and the data is stored smallest
+        first.
+    - The lightmap query data's uv scale uses the halved side
+      (180218096).
+    - The RED2 arguments:
+      - `lightmapMaxResolution` and `fast` come from the compile's command
+        line (a float records its bits as a FloatArg).
+      - `final` = 182a88554[lightmapVRadQuality] = {0, 0, 1} as an IntArg.
+      - `hueShiftFixup` is IntArg 1 on BC6H when final.
+    - Quality 2 (final) raises the encode quality to 4: LZ4 HC level 12
+      instead of 10, BC6H veryslow instead of slow. The DXT1 and ATI
+      encoders take no quality, and bc7e uses level 6 at 3 and 4.
+    - The BC6H row fill (180c3ef20) truncates to half with max(0, x),
+      clears the sign and writes alpha 1. This is review finding F25: it is
+      exact on EXR halves, so it showed only on mip 1.
+    - lightmapCompressionDisabled gives RGBA16161616F (truncating halves)
+      for every channel but shadows, and RGBA8888 for shadows.
+    - Result: maxres8192, nocompress and the default build are byte-exact
+      in all seven files.
+    - Still open at quality 2:
+      - the hue-shift fixup encoder (180c46dd0): 5 of 1,048,576
+        irradiance blocks;
+      - 5 BC7 blocks of the dlshd atlas, a bc7e port difference on that
+        input;
+      - lightmap_query_data.kv3.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

@@ -42,13 +42,27 @@ internal sealed record LightmapSettings(int Width, int Height, int Mip, int Pass
             requested = size;
         if (requested < 1 || (requested & (requested - 1)) != 0)
             throw new NotSupportedException($"lightmap resolution {requested} is not a power of two");
-        int w = requested, h = requested;
+        var (mips, _, _) = MipChain(requested, Int("lightmapMipCount", 1), minSpec);
+        var quality = Int("lightmapVRadQuality", 0);
+        var passes = Int("lightmapChartPackIterations", quality is >= 0 and < 3 ? PassesByQuality[quality]
+            : throw new NotSupportedException($"lightmapVRadQuality {quality}"));
+        return new LightmapSettings(requested, requested, mips, passes, !Bool("lightmapNoWeld"), sh2Dc);
+    }
+
+    /// <summary>
+    /// BakeLighting's mip count for a square atlas of <paramref name="side"/> (180217982-180217ab2):
+    /// lightmapMipCount mips, fewer when a level would start under 512, then one more per halving until
+    /// the shorter side is within MinSpecLightmapSize (when that is at least 512). Also the sides left
+    /// after the halvings, which the query data's uv scale uses.
+    /// </summary>
+    public static (int Mips, int Width, int Height) MipChain(int side, int mipCount, int minSpec)
+    {
+        int w = side, h = side;
         var mips = 1;
-        var count = Int("lightmapMipCount", 1);
-        if (count >= 2)
+        if (mipCount >= 2)
         {
-            mips = count;
-            for (var m = 1; m < count; m++)
+            mips = mipCount;
+            for (var m = 1; m < mipCount; m++)
             {
                 if (Math.Min(w, h) < 0x201)
                 {
@@ -66,9 +80,6 @@ internal sealed record LightmapSettings(int Width, int Height, int Mip, int Pass
                 h /= 2;
                 mips++;
             }
-        var quality = Int("lightmapVRadQuality", 0);
-        var passes = Int("lightmapChartPackIterations", quality is >= 0 and < 3 ? PassesByQuality[quality]
-            : throw new NotSupportedException($"lightmapVRadQuality {quality}"));
-        return new LightmapSettings(requested, requested, mips, passes, !Bool("lightmapNoWeld"), sh2Dc);
+        return (mips, w, h);
     }
 }

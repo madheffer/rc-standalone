@@ -62,7 +62,7 @@ public static class LightmapTextures
     /// <summary>One channel's settings from gameinfo's ResourceCompiler/BakedLighting/LightmapChannels.</summary>
     public sealed record ChannelSettings(int MaxResolution = 0, string? CompressedFormat = null, string? UncompressedFormat = null);
 
-    /// <summary>RED2's two hashes that are not derived yet (see the class summary).</summary>
+    /// <summary>RED2's two hashes, when a caller passes them instead of deriving them (see the class summary).</summary>
     public readonly record struct Fingerprints(uint OverrideInputData, uint Image);
 
     /// <summary>The channels CS2 bakes: gameinfo's LightmapChannels block.</summary>
@@ -113,29 +113,97 @@ public static class LightmapTextures
     }
 
     /// <summary>
+    /// What SerializeLightMap takes from the map compile besides the image: the mip count
+    /// BakeLighting chose (lightmapMipCount and MinSpecLightmapSize, <see cref="LightmapSettings.MipChain"/>),
+    /// lightmapVRadQuality, whether lightmapCompressionDisabled is off, the compile's command-line
+    /// arguments (the texture compiler records <c>fast</c> and <c>lightmapMaxResolution</c> from
+    /// them) and gameinfo's BakedLighting/BC6HHueShiftFixup (default 1).
+    /// </summary>
+    public sealed record Serialization(int MipCount = 1, int Quality = 0, bool Compressed = true,
+        IReadOnlyDictionary<string, object>? CompileArguments = null, bool Bc6hHueShiftFixup = true)
+    {
+        public static readonly Serialization Default = new();
+    }
+
+    // 182a88554: SerializeLightMap's "final" by lightmapVRadQuality.
+    private static readonly byte[] FinalByQuality = [0, 0, 1];
+
+    /// <summary>
     /// The channel's <c>.vtex_c</c>. <paramref name="image"/> is the channel's
     /// float bitmap, RGBA (<see cref="Bitmap"/>), as LoadFromEXR fills it: a channel the EXR lacks is 0,
     /// alpha 1. <paramref name="searchPath"/> is the search path RC records for
     /// the argument file (<c>csgo_addons/&lt;addon&gt;</c>). The BC6H encoder is
     /// loaded from <paramref name="nativeFolder"/> (the install's game/bin/win64).
+    /// SerializeLightMap (1801f3f40):
+    /// <list type="bullet">
+    /// <item>the output's minimum dimension is the atlas' shorter side shifted down by mips - 1,
+    /// taken before any halving;</item>
+    /// <item>with a channel MaxResolution, the bitmap is halved while its shorter side is over
+    /// max(that minimum, MaxResolution), each halving taking one mip off;</item>
+    /// <item>the format is picked (shadows scan the unhalved bitmap), then gameinfo's
+    /// Compressed/UncompressedFormat replaces it when it names a format (its text kept as written);</item>
+    /// <item>every channel but debug_chart_color gets mip algorithm Box&lt;n&gt; while n, the mips left, is over 1;</item>
+    /// <item>final = 182a88554[quality] (an IntArg), and hueShiftFixup = 1 (IntArg) on BC6H when
+    /// final and gameinfo's BC6HHueShiftFixup are set.</item>
+    /// </list>
     /// </summary>
     public static byte[] Vtex(string channel, RcMipChain.Level image, ChannelSettings settings, string searchPath,
-        Fingerprints? fingerprints = null, bool compressed = true, string? nativeFolder = null)
+        Fingerprints? fingerprints = null, Serialization? options = null, string? nativeFolder = null, Action<string>? note = null)
     {
+        options ??= Serialization.Default;
+        var original = image;
+        var mips = options.MipCount;
+        var minDimension = Math.Min(image.Width, image.Height) >> (mips - 1);
         if (settings.MaxResolution > 0)
-            while (Math.Min(image.Width, image.Height) > settings.MaxResolution)
+        {
+            var threshold = Math.Max(minDimension, settings.MaxResolution);
+            while (Math.Min(image.Width, image.Height) > threshold)
+            {
                 image = RcMipChain.QuarterSize(image);
-        var format = Format(channel, image, compressed);
-        var overrideName = compressed ? settings.CompressedFormat : settings.UncompressedFormat;
-        if (overrideName is not null)
-            format = Enum.GetValues<ImageFormat>().FirstOrDefault(f => f.ToString().Equals(overrideName, StringComparison.OrdinalIgnoreCase), (ImageFormat)(-1)) is var named && (int)named >= 0
-                ? named
-                : throw new NotSupportedException($"LightmapChannels/{channel}: format {overrideName} is not written here.");
+                mips--;
+            }
+        }
+        var format = Format(channel, original, options.Compressed);
+        var formatName = FormatName(format);
+        var overrideName = options.Compressed ? settings.CompressedFormat : settings.UncompressedFormat;
+        if (overrideName is not null && FormatByName(overrideName) is { } named)
+        {
+            format = named;
+            formatName = overrideName;
+        }
+        var algorithm = channel != "debug_chart_color" && mips > 1 ? $"Box{mips}" : "None";
+        var final = options.Quality is >= 0 and < 3 && FinalByQuality[options.Quality] != 0;
+        var hueShiftFixup = format == ImageFormat.Bc6h && options.Bc6hHueShiftFixup && final;
+        if (hueShiftFixup)
+            note?.Invoke($"{channel}: BC6H hue-shift fixup (180c46dd0) not ported; encoded without it");
 
         var derived = fingerprints ?? new Fingerprints(
-            DescriptorFingerprint(Descriptor("2DARRAY", LightmapArgument.Name, FormatName(format), Math.Min(image.Width, image.Height), 0, "None")),
+            DescriptorFingerprint(Descriptor("2DARRAY", LightmapArgument.Name, formatName, minDimension, 0, algorithm)),
             ImageFingerprint(image, 1));
-        return Write([image], format, FlagTextureArray, EditInfo(LightmapArgument, searchPath, derived), nativeFolder);
+        var levels = algorithm == "None" ? [image] : MipLevels(image, mips);
+        // The texture compiler's quality (180133da0): 3 in a console build, 4 when final is set.
+        var quality = final ? 4 : 3;
+        var args = new TextureArguments(final ? 1 : 0, hueShiftFixup, options.CompileArguments, algorithm == "None" ? "None" : "Box", quality);
+        return Write([levels], format, FlagTextureArray, EditInfo(LightmapArgument, searchPath, derived, args), nativeFolder, quality);
+    }
+
+    // GenerateMips_Box: each level a QuarterSize of the one above.
+    private static RcMipChain.Level[] MipLevels(RcMipChain.Level top, int count)
+    {
+        var levels = new RcMipChain.Level[count];
+        levels[0] = top;
+        for (var m = 1; m < count; m++)
+            levels[m] = RcMipChain.QuarterSize(levels[m - 1]);
+        return levels;
+    }
+
+    // FUN_180c490a0: the format a name stands for, ignoring case; null when it names none of the seven here.
+    private static ImageFormat? FormatByName(string name)
+    {
+        foreach (var f in Enum.GetValues<ImageFormat>())
+            if (FormatName(f).Equals(name, StringComparison.OrdinalIgnoreCase))
+                return f;
+        return null;
     }
 
     /// <summary>
@@ -151,7 +219,8 @@ public static class LightmapTextures
     /// slices in order. probe01's two atlases are identical slice for slice.
     /// </summary>
     public static byte[] AtlasVtex(RcMipChain.Level image, int sliceWidth, int sliceHeight, int sliceCount, ImageFormat format,
-        string searchPath, Fingerprints? fingerprints = null, string? nativeFolder = null, bool ambientCube = false, string algorithm = "None")
+        string searchPath, Fingerprints? fingerprints = null, string? nativeFolder = null, bool ambientCube = false, string algorithm = "None",
+        IReadOnlyDictionary<string, object>? compileArguments = null)
     {
         var columns = image.Width / sliceWidth;
         if (columns == 0 || (sliceCount + columns - 1) / columns * sliceHeight > image.Height)
@@ -167,40 +236,52 @@ public static class LightmapTextures
         var derived = fingerprints ?? new Fingerprints(
             DescriptorFingerprint(Descriptor("3D", LightProbeVolumeArgument.Name, FormatName(format), 0, 0, "None", sliceCount, sliceWidth, sliceHeight, -1, algorithm)),
             ambientCube ? 1u : ImageFingerprint(image, 1));
-        return Write(slices, format, FlagVolumeTexture, EditInfo(LightProbeVolumeArgument, searchPath, derived), nativeFolder);
+        return Write([.. slices.Select(slice => new[] { slice })], format, FlagVolumeTexture,
+                     EditInfo(LightProbeVolumeArgument, searchPath, derived, new TextureArguments(null, false, compileArguments)), nativeFolder, 3);
     }
 
-    // The texture: every slice encoded in order as mip 0, LZ4 HC'd when that
-    // pays, behind RED2 and DATA.
-    private static byte[] Write(RcMipChain.Level[] slices, ImageFormat format, ushort flags, KVObject editInfo, string? nativeFolder)
+    // CResourceCompilerTexture's LZ4 HC level by texture quality (180133da0): 3, 4, 9, 10, 12.
+    private static int Lz4LevelFor(int quality) => quality switch { 0 => 3, 1 => 4, 3 => 10, 4 => 12, _ => 9 };
+
+    // The texture: each mip level (every slice in order) encoded, LZ4 HC'd when that pays,
+    // stored smallest first behind RED2 and DATA; the mip sizes are listed from mip 0.
+    private static byte[] Write(RcMipChain.Level[][] slices, ImageFormat format, ushort flags, KVObject editInfo, string? nativeFolder, int quality)
     {
-        var (width, height) = (slices[0].Width, slices[0].Height);
-        var mip = slices.SelectMany(slice => Encode(slice, format, nativeFolder)).ToArray();
-        var stored = mip;
-        var lz4 = false;
+        var (width, height) = (slices[0][0].Width, slices[0][0].Height);
+        var mipCount = slices[0].Length;
         var sizes = Math.Max(width, height) >= 33;
-        if (sizes)
+        var stored = new byte[mipCount][];
+        var lz4 = false;
+        for (var m = 0; m < mipCount; m++)
         {
+            var mip = slices.SelectMany(slice => Encode(slice[m], format, nativeFolder, quality)).ToArray();
+            stored[m] = mip;
+            if (!sizes)
+                continue;
             var packed = new byte[Lz4HcStream.CompressBound(mip.Length)];
-            var c = Lz4HcStream.Compress(mip, packed, Lz4Level);
+            var c = Lz4HcStream.Compress(mip, packed, Lz4LevelFor(quality));
             if (!(c == 0 || (long)mip.Length * CompressMinRatio <= (long)c * 100 || mip.Length - 0x8000 <= c))
             {
-                stored = packed[..c];
+                stored[m] = packed[..c];
                 lz4 = true;
             }
         }
 
-        var volume = slices.Length == 1 ? slices[0] : new RcMipChain.Level(width, height * slices.Length, slices.SelectMany(slice => slice.Rgba).ToArray());
-        var data = Data(width, height, slices.Length, flags, VtexFormat(format), Reflectivity(volume), sizes ? stored.Length : null, lz4);
+        // The reflectivity is the smallest mip's (maxres8192's Box2 lightmaps).
+        var last = mipCount - 1;
+        var volume = slices.Length == 1 ? slices[0][last]
+            : new RcMipChain.Level(slices[0][last].Width, slices[0][last].Height * slices.Length, slices.SelectMany(slice => slice[last].Rgba).ToArray());
+        var data = Data(width, height, slices.Length, mipCount, flags, VtexFormat(format), Reflectivity(volume), sizes ? [.. stored.Select(x => x.Length)] : null, lz4);
         using var resource = new Resource();
         Source2ContainerAuthor.SetResourceVersion(resource, 1);
         resource.Blocks.Add(AuthoredKv3.Block(editInfo, KV3IDLookup.Get("generic"), BlockType.RED2, resource));
         resource.Blocks.Add(ResourceBuilder.RawBlock(BlockType.DATA, data, resource));
         var container = ValveLayout.Serialize(resource);
-        var file = new byte[container.Length + stored.Length];
-        container.CopyTo(file, 0);
-        stored.CopyTo(file, container.Length);
-        return file;
+        var file = new List<byte>(container.Length + stored.Sum(x => x.Length));
+        file.AddRange(container);
+        for (var m = mipCount - 1; m >= 0; m--)
+            file.AddRange(stored[m]);
+        return [.. file];
     }
 
     /// <summary>
@@ -235,17 +316,29 @@ public static class LightmapTextures
         return result;
     }
 
-    private static byte[] Encode(RcMipChain.Level image, ImageFormat format, string? nativeFolder)
+    private static byte[] Encode(RcMipChain.Level image, ImageFormat format, string? nativeFolder, int quality)
     {
         switch (format)
         {
             case ImageFormat.Bc6h:
                 if (nativeFolder is null || !IspcTexcomp.Load(nativeFolder))
                     throw new InvalidOperationException("BC6H needs ispc_texcomp.dll (the CS2 install's game/bin/win64).");
+                // The row fill (180c3ef20): each of R, G, B as max(0, x) with the sign cleared through the
+                // truncating float16 (1802ea750), alpha 1.0 (0x3c00).
                 var half = new Half[image.Rgba.Length];
                 for (var i = 0; i < half.Length; i++)
-                    half[i] = (Half)image.Rgba[i];
-                return IspcTexcomp.CompressBc6h(half, image.Width, image.Height, IspcTexcomp.Bc6hProfile(3));
+                {
+                    if ((i & 3) == 3)
+                    {
+                        half[i] = BitConverter.UInt16BitsToHalf(0x3c00);
+                        continue;
+                    }
+                    var x = image.Rgba[i];
+                    var m = float.IsNaN(x) ? x : MathF.Max(0f, x);
+                    half[i] = BitConverter.UInt16BitsToHalf(Maps.WorldNodeModels.ToHalf(BitConverter.UInt32BitsToSingle(BitConverter.SingleToUInt32Bits(m) & 0x7fffffff)));
+                }
+                // EncodeBC6Blocks (180c46b20): quality 3 is the slow profile, 4 (final) veryslow.
+                return IspcTexcomp.CompressBc6h(half, image.Width, image.Height, IspcTexcomp.Bc6hProfile(quality));
             case ImageFormat.Dxt1 or ImageFormat.Ati1n or ImageFormat.Ati2n:
                 var bgra = RcMipChain.WriteRgba8(image, srgb: false);
                 for (var i = 0; i < bgra.Length; i += 4)
@@ -259,6 +352,14 @@ public static class LightmapTextures
                 return AtiCompress.Compress(bgra, image.Width, image.Height, ati, perceptual: false);
             case ImageFormat.Bc7:
                 return Bc7e.EncodeBlocks(Bc7Blocks(image), perceptual: false, Bc7Vendor.Amd);
+            case ImageFormat.Rgba16161616F:
+                // Every channel through the truncating float16 (1802ea750).
+                var f16 = new byte[image.Rgba.Length * 2];
+                for (var i = 0; i < image.Rgba.Length; i++)
+                    BinaryPrimitives.WriteUInt16LittleEndian(f16.AsSpan(i * 2), Maps.WorldNodeModels.ToHalf(image.Rgba[i]));
+                return f16;
+            case ImageFormat.Rgba8888:
+                return RcMipChain.WriteRgba8(image, srgb: false);
             default:
                 throw new NotSupportedException($"Lightmap format {format} is not encoded here yet.");
         }
@@ -300,11 +401,11 @@ public static class LightmapTextures
     // DATA: the 40-byte header (one mip), then
     // COMPRESSED_MIP_SIZE and the stored size of mip 0 when the largest side is
     // at least 33.
-    private static byte[] Data(int width, int height, int depth, ushort flags, byte format, float[] reflectivity, int? storedSize, bool lz4)
+    private static byte[] Data(int width, int height, int depth, int mips, ushort flags, byte format, float[] reflectivity, int[]? storedSizes, bool lz4)
     {
         const int header = 40;
-        var extras = storedSize is null ? 0 : 1;
-        var d = new byte[header + extras * (12 + 12 + 4)];
+        var extras = storedSizes is null ? 0 : 1;
+        var d = new byte[header + extras * (12 + 12 + 4 * mips)];
         var s = d.AsSpan();
         BinaryPrimitives.WriteUInt16LittleEndian(s, 1);
         BinaryPrimitives.WriteUInt16LittleEndian(s[2..], flags);
@@ -314,10 +415,10 @@ public static class LightmapTextures
         BinaryPrimitives.WriteUInt16LittleEndian(s[22..], (ushort)height);
         BinaryPrimitives.WriteUInt16LittleEndian(s[24..], (ushort)depth);
         d[26] = format;
-        d[27] = 1;
+        d[27] = (byte)mips;
         BinaryPrimitives.WriteUInt32LittleEndian(s[32..], 8);
         BinaryPrimitives.WriteUInt32LittleEndian(s[36..], (uint)extras);
-        if (storedSize is { } size)
+        if (storedSizes is { } sizes)
         {
             // Entry {type, offset from its field, size}, then the payload
             // {method, offset to the sizes from its field, count}, then the size.
@@ -326,8 +427,9 @@ public static class LightmapTextures
             BinaryPrimitives.WriteUInt32LittleEndian(s[48..], 12);
             BinaryPrimitives.WriteUInt32LittleEndian(s[52..], lz4 ? 1u : 0u);
             BinaryPrimitives.WriteUInt32LittleEndian(s[56..], 64 - 56);
-            BinaryPrimitives.WriteUInt32LittleEndian(s[60..], 1);
-            BinaryPrimitives.WriteUInt32LittleEndian(s[64..], (uint)size);
+            BinaryPrimitives.WriteUInt32LittleEndian(s[60..], (uint)mips);
+            for (var m = 0; m < mips; m++)
+                BinaryPrimitives.WriteUInt32LittleEndian(s[(64 + 4 * m)..], (uint)sizes[m]);
         }
         return d;
     }
@@ -477,8 +579,34 @@ public static class LightmapTextures
     /// name order (maxmipsize's fingerprint and default are 1048576f's bits), the
     /// three texture compiler special dependencies, and a hidden child resource.
     /// </summary>
-    public static KVObject EditInfo(TextureArgument argument, string searchPath, Fingerprints fingerprints)
+    /// <summary>
+    /// The texture compiler arguments RED2 records besides the image: <c>final</c> as SerializeLightMap
+    /// sets it (an IntArg; null when the caller sets none, as 1801eee20), <c>hueShiftFixup</c>
+    /// (IntArg 1 when set), and the compile's command-line arguments the texture compiler reads
+    /// (<c>fast</c>, <c>lightmapMaxResolution</c>): a float as a FloatArg of its bits, an int as an IntArg.
+    /// </summary>
+    /// <remarks>
+    /// The special dependencies follow the compile too: "Texture Compiler Version Mip &lt;algorithm&gt;"
+    /// names the mip algorithm (None, Box), and "Texture Encode Quality" carries the quality as its
+    /// user data (3; maxres8192's Box2 lightmaps and quality2's final ones).
+    /// </remarks>
+    public sealed record TextureArguments(int? Final, bool HueShiftFixup, IReadOnlyDictionary<string, object>? CompileArguments,
+        string MipAlgorithm = "None", int Quality = 3)
     {
+        public static readonly TextureArguments None = new(null, false, null);
+    }
+
+    public static KVObject EditInfo(TextureArgument argument, string searchPath, Fingerprints fingerprints, TextureArguments? textureArguments = null)
+    {
+        textureArguments ??= TextureArguments.None;
+        (string Type, uint Fingerprint) FromCompile(string name) => textureArguments.CompileArguments?.TryGetValue(name, out var v) == true
+            ? v switch
+            {
+                float f => ("FloatArg", BitConverter.SingleToUInt32Bits(f)),
+                int i => ("IntArg", (uint)i),
+                _ => ("FloatArg", 0u),
+            }
+            : ("FloatArg", 0u);
         static KVObject Argument(string name, string type, uint fingerprint, uint fingerprintDefault = 0)
         {
             var a = KVObject.Collection();
@@ -491,10 +619,12 @@ public static class LightmapTextures
         var maxMip = BitConverter.SingleToUInt32Bits(1048576f);
         var args = KVObject.Array();
         args.Add(Argument("___OverrideInputData___", "BinaryBlobArg", fingerprints.OverrideInputData));
-        args.Add(Argument("fast", "FloatArg", 0));
-        args.Add(Argument("final", argument.FinalType, 0));
-        args.Add(Argument("hueShiftFixup", "FloatArg", 0));
-        args.Add(Argument("lightmapMaxResolution", "FloatArg", 0));
+        var fast = FromCompile("fast");
+        args.Add(Argument("fast", fast.Type, fast.Fingerprint));
+        args.Add(Argument("final", textureArguments.Final is null ? argument.FinalType : "IntArg", (uint)(textureArguments.Final ?? 0)));
+        args.Add(textureArguments.HueShiftFixup ? Argument("hueShiftFixup", "IntArg", 1) : Argument("hueShiftFixup", "FloatArg", 0));
+        var maxResolution = FromCompile("lightmapMaxResolution");
+        args.Add(Argument("lightmapMaxResolution", maxResolution.Type, maxResolution.Fingerprint));
         args.Add(Argument(argument.Name, "ImageArg", fingerprints.Image));
         args.Add(Argument(argument.Name, "BinaryBlobArg", 0));
         args.Add(Argument("maxmipsize", "FloatArg", maxMip, maxMip));
@@ -511,8 +641,14 @@ public static class LightmapTextures
         additional.Add(probe);
 
         var special = KVObject.Array();
-        foreach (var dep in Source2ContainerAuthor.TextureSpecialDeps)
+        foreach (var stock in Source2ContainerAuthor.TextureSpecialDeps)
         {
+            var dep = stock.Name switch
+            {
+                "Texture Compiler Version Mip None" => stock with { Name = $"Texture Compiler Version Mip {textureArguments.MipAlgorithm}" },
+                "Texture Encode Quality" => stock with { UserData = textureArguments.Quality },
+                _ => stock,
+            };
             var d = KVObject.Collection();
             d.Add("m_String", new KVObject(dep.Name));
             d.Add("m_CompilerIdentifier", new KVObject(dep.CompilerIdentifier));

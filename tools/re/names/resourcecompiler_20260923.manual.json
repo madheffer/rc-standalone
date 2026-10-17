@@ -2144,9 +2144,9 @@
   },
   {
    "addr": "180133da0",
-   "name": "Texture_CheckCubemapFaces",
+   "name": "CResourceCompilerTexture::CompileResourceInternal",
    "module": "s2c:baked/lighting",
-   "note": "Cubemap %i, face %i has Inf/NaN/extremely bright pixel"
+   "note": "the texture compile (also the 'Cubemap %i, face %i has Inf/NaN/extremely bright pixel' check): minmipsize/maxmipsize; GetBool fast, final, hueShiftFixup; the encode quality 3 in a console build (1 with fast, 4 with final; special dependency 'Texture Encode Quality' user data), hueShiftFixup -> encode flag 4; each mip's LZ4 HC level by quality 0..4: 3, 4, 9, 10, 12 (Zstd 1, 1, 3, 12, 12)"
   },
   {
    "addr": "180fb0680",
@@ -2404,7 +2404,7 @@
    "addr": "1801f3f40",
    "name": "NLightBaker::SerializeLightMap",
    "module": "s2c:baked/lighting",
-   "note": "per channel: QuarterSize (180c43450) while the shorter side is over LightmapChannels/<c>/MaxResolution; a 2DARRAY linear no-mip descriptor; format by channel (BC6H irradiance/sh2_dc, BC7 directional/sh2/chart colour, shadows ATI1N/ATI2N/BC7 by which channels hold a value under 1, 4x4 when none), CompressedFormat/UncompressedFormat by name; the descriptor as KV3 text (181e8e7c0) is ___OverrideInputData___, the bitmap is lightmapTextureArg (fingerprint -1: computed), 'final', hueShiftFixup for BC6H with BC6HHueShiftFixup"
+   "note": "(param_5 the mip count) per channel: m_nOutputMinDimension = min(atlas w, h) >> (mips - 1); QuarterSize (180c43450) while the shorter side is over max(that, LightmapChannels/<c>/MaxResolution), one mip off each; mip algorithm Box<mips left> when over 1 (not debug_chart_color); a 2DARRAY linear descriptor; format by channel (BC6H irradiance/sh2_dc, BC7 directional/sh2/chart colour, shadows ATI1N/ATI2N/BC7 by which channels hold a value under 1, 4x4 when none), CompressedFormat/UncompressedFormat by name; the descriptor as KV3 text (181e8e7c0) is ___OverrideInputData___, the bitmap is lightmapTextureArg (fingerprint -1: computed), 'final', hueShiftFixup for BC6H with BC6HHueShiftFixup"
   },
   {
    "addr": "1801eee20",
@@ -2513,6 +2513,36 @@
    "name": "CResourceCompilerContext_CheckBinaryBlobArg",
    "module": "s2c:baked/lighting",
    "note": "incremental check of a BinaryBlobArg dependency"
+  },
+  {
+   "addr": "180c45cf0",
+   "name": "FloatBitMap_t::ConvertToFormat",
+   "module": "s2c:baked/lighting",
+   "note": "format dispatch: DXT/ATI 0x14-0x19, 0x1c -> 180c481a0 (180c48210, else 180c485b0); BC6H 0x1a -> 180c46b20, or 180c46dd0 with encode flag 4 (hue-shift fixup); BC7 0x1b -> 180c47de0; float formats through 1802ea750"
+  },
+  {
+   "addr": "180c46b20",
+   "name": "EncodeBC6Blocks",
+   "module": "s2c:baked/lighting",
+   "note": "needs width and height multiples of 4; ispc profile by encode quality 0..4: veryfast, fast, basic, slow, veryslow (table 182fe58a0 through q -> 0, 2, 3, 4, 5); rows of blocks through 180c3ef20 on the thread pool"
+  },
+  {
+   "addr": "180c3ef20",
+   "name": "EncodeBC6Blocks_FillRow",
+   "module": "s2c:baked/lighting",
+   "note": "one row of 4x4 blocks as RGBA halves: R, G, B each max(0, x) with the sign cleared through 1802ea750 (truncating), alpha 0x3c00; past the width the last texel repeats"
+  },
+  {
+   "addr": "180c46dd0",
+   "name": "EncodeBC6Blocks_HueShiftFixup",
+   "module": "s2c:baked/lighting",
+   "note": "the hue-shift fixup BC6H encoder (final quality): trial encodes with 'Color Consistency Partition %d MinBright %f' constraints (180c37680, 180c2ed30, 180c2f400); not ported (quality2 probe01: 5 of 1048576 irradiance blocks)"
+  },
+  {
+   "addr": "180c47de0",
+   "name": "FloatBitMap_t::WriteToBufferBC7",
+   "module": "s2c:baked/lighting",
+   "note": "bc7e when loaded, level by encode quality 0, 1, 2, 3/4: 1, 2, 3, 6 (else ispc_texcomp, profile 1, 2, 3, 4)"
   },
   {
    "addr": "180c48210",
