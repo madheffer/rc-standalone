@@ -2395,6 +2395,102 @@
    "note": "lightmap_info.dat as blocks of 1024 (2048 with vrad3LargeBlockSize or off a customer machine, at most the smaller side), row-major, clipped; writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"
   },
   {
+   "addr": "1801f2b00",
+   "name": "NLightBaker::ProcessReceivedLightingPackets",
+   "module": "s2c:baked/lighting",
+   "note": "loads each channel's EXR from VRAD3_PATH (irradiance, directional_irradiance, sh2_dc/r/g/b, direct_light_shadows, lightmap_chart_color) and serializes it"
+  },
+  {
+   "addr": "1801f3f40",
+   "name": "NLightBaker::SerializeLightMap",
+   "module": "s2c:baked/lighting",
+   "note": "per channel: QuarterSize (180c43450) while the shorter side is over LightmapChannels/<c>/MaxResolution; a 2DARRAY linear no-mip descriptor; format by channel (BC6H irradiance/sh2_dc, BC7 directional/sh2/chart colour, shadows ATI1N/ATI2N/BC7 by which channels hold a value under 1, 4x4 when none), CompressedFormat/UncompressedFormat by name; the descriptor as KV3 text (181e8e7c0) is ___OverrideInputData___, the bitmap is lightmapTextureArg (fingerprint -1: computed), 'final', hueShiftFixup for BC6H with BC6HHueShiftFixup"
+  },
+  {
+   "addr": "1801eee20",
+   "name": "NLightBaker::SerializeLightProbeVolumes",
+   "module": "s2c:baked/lighting",
+   "note": "lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube"
+  },
+  {
+   "addr": "1801f64f0",
+   "name": "NLightBaker_BuildLpvAtlasAmbientCube",
+   "module": "s2c:baked/lighting",
+   "note": "packs the volumes into lpv_atlas_ambientcube.exr (WriteEXR 180c44d30)"
+  },
+  {
+   "addr": "1801f69c0",
+   "name": "NLightBaker_BuildLpvAtlasDlshd",
+   "module": "s2c:baked/lighting",
+   "note": "lpv_atlas_dlshd.exr"
+  },
+  {
+   "addr": "1802163b0",
+   "name": "StaticLighting_WriteLightmapQueryData",
+   "module": "s2c:baked/lighting",
+   "note": "lightmap_query_data.kv3: version 1, a CMesh of positions and LightmapUV (u16, round(uv / atlas * 65535)), 180216090, CMesh_Weld 1/32, meshopt simplify (1812b8710, error 0.05, target half the indices), vertex_count, index_count, vertices, indices"
+  },
+  {
+   "addr": "181e8e7c0",
+   "name": "KV3_SaveTransferToBuffer",
+   "module": "s2c:baked/lighting",
+   "note": "text buffer, generic format, through the transfer save context (181e8ca00)"
+  },
+  {
+   "addr": "180178ff0",
+   "name": "CResourceCompilerContext_GetImageArg",
+   "module": "s2c:baked/lighting",
+   "note": "the ImageArg fingerprint from the argument table (+8 of the symbol's entry)"
+  },
+  {
+   "addr": "180178400",
+   "name": "CResourceCompilerContext_CheckImageArg",
+   "module": "s2c:baked/lighting",
+   "note": "incremental check of an ImageArg dependency"
+  },
+  {
+   "addr": "1801781a0",
+   "name": "CResourceCompilerContext_CheckBinaryBlobArg",
+   "module": "s2c:baked/lighting",
+   "note": "incremental check of a BinaryBlobArg dependency"
+  },
+  {
+   "addr": "180c48210",
+   "name": "FloatBitMap_t::WriteToBufferDXT_atitc",
+   "module": "s2c:baked/lighting",
+   "note": "RGBA8888 writer then ATI_TC_ConvertTexture: ImageFormat 0x14/0x15 DXT1, 0x16 DXT3, 0x17 DXT5, 0x18 ATI1N as ATI_TC BC4 (31), 0x19 BC5 (32), 0x1c ATI2N_DXT5 (27); weights 1 or the perceptual 0.3086/0.6094/0.082"
+  },
+  {
+   "addr": "180c41d70",
+   "name": "FloatBitMap_t::WriteToBuffer",
+   "module": "s2c:baked/lighting",
+   "note": "8-bit writer: SSE x*255 round to even for widths of a multiple of 4, else (int)(clamp*255+0.5)"
+  },
+  {
+   "addr": "180c72980",
+   "name": "TextureCompiler_LoadIspcTexcomp",
+   "module": "s2c:baked/lighting",
+   "note": "ispc_texcomp.dll: CompressBlocksBC1/BC3/BC6H/BC7 and GetProfile_* (BC6H slow for lightmaps)"
+  },
+  {
+   "addr": "180c494c0",
+   "name": "ImageFormat_Info",
+   "module": "s2c:baked/lighting",
+   "note": "&182fe4eb0[(format + 1)], 32-byte entries: name, then sizes"
+  },
+  {
+   "addr": "180c40290",
+   "name": "FloatBitMap_t::LoadFromEXRFile",
+   "module": "s2c:baked/lighting",
+   "note": "reads the file then 180c40c20"
+  },
+  {
+   "addr": "180c40c20",
+   "name": "FloatBitMap_t::LoadFromInMemoryEXR",
+   "module": "s2c:baked/lighting",
+   "note": "2D; a missing R/G/B is an error, alpha 1 when absent"
+  },
+  {
    "addr": "180210fa0",
    "name": "CStaticLightingProcessor::GenerateCharts",
    "module": "s2c:baked/lighting",

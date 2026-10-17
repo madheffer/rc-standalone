@@ -64,6 +64,13 @@
     <PackageReference Include="BCnEncoder.Net" Version="2.3.0" />
   </ItemGroup>
 
+  <!-- Valve's BC7 encoder (bc7e, level 6) with one CPU vendor's rcpps table each, prebuilt by
+       Native/bc7e/build.ps1 and build.sh; RcTexture.Bc7e loads them from runtimes/<rid>/native. -->
+  <ItemGroup>
+    <Content Include="Native\bc7e\prebuilt\win-x64\*.dll" Link="runtimes\win-x64\native\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" PackagePath="runtimes\win-x64\native" />
+    <Content Include="Native\bc7e\prebuilt\linux-x64\*.so" Link="runtimes\linux-x64\native\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" PackagePath="runtimes\linux-x64\native" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Optional native BC7 encoder. Absent (no C toolchain) => Bc7Native.Available
          is false and BuildTexture transparently falls back to BCnEncoder.Net.

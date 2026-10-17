@@ -1,0 +1,4 @@
+# build intermediates (build.ps1 / build.sh); bin/ is committed
+obj/
+*.exp
+*.lib

@@ -953,6 +953,18 @@ game can answer is raised with the user first, and runs with -insecure.
     bakes as 0. The transpiled shaders' min, max and clamp therefore take
     the operand that is not NaN (IEEE minNum / maxNum), as GPUs do.
 
+72. **Lightmap texture encoding** (settled 2026-10-17 by decompile and byte
+    comparison). The format per channel, slicing and header rules are in
+    SerializeLightMap (1801f3f40) and 1801eee20 (docs/BAKED.md "Lightmap
+    textures"). The encoders, profiles and weights were confirmed by
+    rebuilding probe01's six lightmap textures, identical byte for byte:
+    - BC6H: ispc slow;
+    - DXT1, ATI1N: ATI weights 1 from the 8-bit writer;
+    - BC7: bc7e.
+    The reflectivity was confirmed the same way: the four-lane mean, bit for
+    bit. RED2's override CRC and the computed ImageArg fingerprint are still
+    open.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

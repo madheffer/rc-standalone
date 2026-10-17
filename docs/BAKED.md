@@ -154,6 +154,63 @@ lightmap_info.dat and the seams (done, ledgers 65 and 66), the scene (done,
 ledger 67), and the lightmap uvs the world nodes take from the packing
 (GEOMETRY.md).
 
+## Lightmap textures
+
+After vrad3, resourcecompiler turns its images into `maps/<map>/lightmaps/*.vtex_c`
+(lightbaker.cpp, 20260923 build; names in make_manual's BAKE list). Ported in
+`Lighting/LightmapTextures.cs`. On probe01 all six textures are byte-identical
+to Valve's, given RED2's two hashes (`CpuBakeProbe.LightmapVtexFiles`, `LMTEX=`):
+irradiance, directional_irradiance, debug_chart_color, direct_light_shadows and
+both light probe volume atlases.
+
+- **Which format.** `SerializeLightMap` (1801f3f40) picks the format per channel
+  (ImageFormat names from 182fe4eb0's table), and gameinfo's
+  `LightmapChannels/<channel>/CompressedFormat` replaces it by name. CS2 sets
+  DXT1 for directional_irradiance and debug_chart_color.
+  - irradiance and sh2_dc: BC6H.
+  - directional, sh2_r/g/b and chart colour: BC7.
+  - direct_light_shadows: decided by which channels hold a value under 1.
+    Only the first gives ATI1N, the second too gives ATI2N, the third or
+    fourth gives BC7. With none, RC shrinks the texture to 4x4 (not ported).
+  - Uncompressed: RGBA16161616F, or RGBA8888 for shadows.
+- **Size.** The bitmap is halved (`QuarterSize`) while its shorter side is over
+  `MaxResolution`.
+- **Type.** 2D channels are `2DARRAY` (header flag 0x40), linear, one mip. The
+  LPV atlases (1801eee20) are `3D` (flag 0x20). Their atlas EXR is a 2D image
+  cut into slices of the volume's width x height, tiles row by row. The ambient
+  cube has six slices per layer and is BC6H; dlshd has one and is BC7. The
+  atlas EXR has one more row of tiles than the texture uses.
+- **Encoders.** Each is the one RC runs, at RC's settings:
+  - BC6H: ispc_texcomp.dll (from the CS2 install), slow profile, a row of
+    blocks per call.
+  - DXT1, ATI1N, ATI2N: the 8-bit writer (180c41d70), then ATI_Compress with
+    weights 1. Valve's ImageFormat 0x18 becomes ATI_TC's BC4 (31) and 0x19 its
+    BC5 (32). This uses main's C# port, RcTexture.AtiCompress.
+  - BC7: main's bc7e build (level 6, AMD table).
+- **Header.** Reflectivity is the mean over every texel in four lanes, slices
+  in order. COMPRESSED_MIP_SIZE is the only extra data. The mip is LZ4 HC level
+  10 when that saves 5% and 32 KB (dlshd stays raw). RED2 holds:
+  - the absent argument file `<argument>.txt` in `csgo_addons/<addon>`;
+  - nine arguments in name order (maxmipsize is 1048576f's bits, `final` an
+    IntArg for lightmaps and a FloatArg for volumes);
+  - the three texture compiler special dependencies;
+  - HiddenAssetFlag and IsChildResource.
+
+Open:
+- RED2's `___OverrideInputData___` is the CRC32 of the texture descriptor
+  written as KV3 text through its transfer function (181e8e7c0). It depends
+  only on the descriptor, so directional and chart colour share one value.
+  Reproducing it needs that transfer function ported, or a capture of the
+  buffer (capture_overrides.py hooks the recorder).
+- The ImageArg fingerprint of a lightmap and of dlshd is computed from the
+  bitmap (the call passes -1). The ambient cube's is the 1 RC passes.
+- `lightmap_query_data.kv3` (1802163b0): a CMesh of positions and u16
+  lightmap uvs, welded at 1/32, simplified by meshoptimizer (error 0.05,
+  target half the indices), written as KV3 with vertex_count, index_count,
+  vertices and indices. It needs a port of meshopt simplify.
+- BC6H still loads Valve's ispc_texcomp.dll. The kernel is open source (MIT)
+  and can be built like bc7e for Linux.
+
 ## AMD GPUs (future plan)
 
 **Report (2026-10-05, from a user, not yet reproduced):** on AMD GPUs,

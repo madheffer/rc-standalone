@@ -1,3 +1,4 @@
+using AtiFormat = Source2.Compiler.RcTexture.AtiCompress.Format;
 using System.Numerics;
 using Source2.Compiler.Lighting;
 using Source2.Compiler.Lighting.Bake;
@@ -447,6 +448,241 @@ public class CpuBakeProbe(ITestOutputHelper output)
 
     private sealed record VfxProgram(ValveResourceFormat.CompiledShader.VfxProgramData Data);
 
+    /// <summary>
+    /// <c>LMTEX=&lt;vrad3 folder&gt;|&lt;map vpk&gt;|&lt;map name&gt;</c>: irradiance.exr through the game's
+    /// ispc_texcomp.dll with each BC6H profile, against the shipped lightmaps/irradiance.vtex_c (the first
+    /// 16 block rows), and the shipped texture's header.
+    /// </summary>
+    [Fact]
+    public void LightmapEncode()
+    {
+        if (Environment.GetEnvironmentVariable("LMTEX") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var vpk, var map] || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var bin = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, "..", "bin", "win64"));
+        Assert.True(Source2.Compiler.IspcTexcomp.Load(bin), bin);
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        pkg.ReadEntry(pkg.FindEntry($"maps/{map}/lightmaps/irradiance.vtex_c")!, out var vtex);
+        using var res = new ValveResourceFormat.Resource();
+        res.Read(new MemoryStream(vtex));
+        var t = (Texture)res.DataBlock!;
+        output.WriteLine($"shipped: {t.Width}x{t.Height}x{t.Depth} {t.Format} flags {t.Flags} mips {t.NumMipLevels}");
+        var shipped = new byte[t.CalculateBufferSizeForMipLevel(0)];
+        t.ReadTextureMipLevel(shipped, 0);
+        var exr = Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, "irradiance.exr")));
+        const int rows = 16 * 4;
+        var w = exr.Width;
+        var r = exr.Plane("R");
+        var g = exr.Plane("G");
+        var b = exr.Plane("B");
+        foreach (var alpha in new[] { (Half)1f, (Half)0f })
+        {
+            var rgba = new Half[w * rows * 4];
+            for (var i = 0; i < w * rows; i++)
+                (rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]) = (r[i], g[i], b[i], alpha);
+            for (var profile = 0; profile < 5; profile++)
+            {
+                var ours = Source2.Compiler.IspcTexcomp.CompressBc6h(rgba, w, rows, Source2.Compiler.IspcTexcomp.Bc6hProfile(profile));
+                var same = 0;
+                for (var k = 0; k < ours.Length / 16; k++)
+                    if (ours.AsSpan(k * 16, 16).SequenceEqual(shipped.AsSpan(k * 16, 16)))
+                        same++;
+                output.WriteLine($"alpha {(float)alpha} profile {Source2.Compiler.IspcTexcomp.Bc6hProfiles[profile]}: {same} of {ours.Length / 16} blocks identical");
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>LMTEX=...</c> as above: directional_irradiance.exr and lightmap_chart_color.exr to 8 bits (several
+    /// candidate conversions) through ispc's BC1, against directional_irradiance.vtex_c and debug_chart_color.vtex_c.
+    /// </summary>
+    [Fact]
+    public void LightmapEncodeBc1()
+    {
+        if (Environment.GetEnvironmentVariable("LMTEX") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var vpk, var map])
+            return;
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        foreach (var (exrName, vtexName, format) in new[] { ("directional_irradiance.exr", "directional_irradiance", AtiFormat.Dxt1), ("lightmap_chart_color.exr", "debug_chart_color", AtiFormat.Dxt1), ("direct_light_shadows.exr", "direct_light_shadows", AtiFormat.Ati1n) })
+        {
+            pkg.ReadEntry(pkg.FindEntry($"maps/{map}/lightmaps/{vtexName}.vtex_c")!, out var vtex);
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(vtex));
+            var t = (Texture)res.DataBlock!;
+            var shipped = new byte[t.CalculateBufferSizeForMipLevel(0)];
+            t.ReadTextureMipLevel(shipped, 0);
+            var exr = Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, exrName)));
+            output.WriteLine($"{vtexName}: {t.Width}x{t.Height}x{t.Depth} {t.Format}; exr {exr.Width}x{exr.Height} [{string.Join(",", exr.Channels)}]");
+            var w = exr.Width;
+            var rows = 64;
+            var planes = new[] { "R", "G", "B", "A" }.Select(c => exr.Channels.Contains(c) ? exr.Plane(c) : null).ToArray();
+            var rgba = new float[w * rows * 4];
+            for (var i = 0; i < w * rows; i++)
+                for (var c = 0; c < 4; c++)
+                    rgba[i * 4 + c] = planes[c] is { } p ? (float)p[i] : c == 3 ? 1f : 0f;
+            var bytes = Source2.Compiler.RcTexture.RcMipChain.WriteRgba8(new Source2.Compiler.RcTexture.RcMipChain.Level(w, rows, rgba), srgb: false);
+            for (var i = 0; i < bytes.Length; i += 4)
+                (bytes[i], bytes[i + 2]) = (bytes[i + 2], bytes[i]);
+            var blockBytes = Source2.Compiler.RcTexture.AtiCompress.BlockSize(format);
+            foreach (var lum in new[] { false, true })
+            {
+                var ours = Source2.Compiler.RcTexture.AtiCompress.Compress(bytes, w, rows, format, lum);
+                var same = 0;
+                for (var k = 0; k < ours.Length / blockBytes; k++)
+                    if (ours.AsSpan(k * blockBytes, blockBytes).SequenceEqual(shipped.AsSpan(k * blockBytes, blockBytes)))
+                        same++;
+                output.WriteLine($"  perceptual {lum}: {same} of {ours.Length / blockBytes} blocks identical");
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>LMTEX=...</c>: the four 2D lightmap textures rebuilt by <see cref="LightmapTextures"/> from vrad3's
+    /// EXRs against the map's files, byte for byte (RED2's two hashes taken from the shipped file).
+    /// </summary>
+    [Fact]
+    public void LightmapVtexFiles()
+    {
+        if (Environment.GetEnvironmentVariable("LMTEX") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var vpk, var map] || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var bin = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, "..", "bin", "win64"));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vpk))!);
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        var different = new List<string>();
+        foreach (var (exrName, channel) in new[] { ("irradiance.exr", "irradiance"), ("directional_irradiance.exr", "directional_irradiance"), ("lightmap_chart_color.exr", "debug_chart_color"), ("direct_light_shadows.exr", "direct_light_shadows"), ("lpv_atlas_ambientcube.exr", "env_light_probe_volume_atlas"), ("lpv_atlas_dlshd.exr", "env_light_probe_volume_atlas_dlshd") })
+        {
+            pkg.ReadEntry(pkg.FindEntry($"maps/{map}/lightmaps/{channel}.vtex_c")!, out var shipped);
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(shipped));
+            var args = res.EditInfo!.ArgumentDependencies;
+            var fingerprints = new LightmapTextures.Fingerprints(
+                (uint)args.First(a => a.ParameterName == "___OverrideInputData___").Fingerprint,
+                (uint)args.First(a => a.ParameterType == "ImageArg").Fingerprint);
+            var image = LightmapTextures.Bitmap(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, exrName))));
+            var t = (Texture)res.DataBlock!;
+            var ours = channel.StartsWith("env_light_probe", StringComparison.Ordinal)
+                ? LightmapTextures.AtlasVtex(image, t.Width, t.Height, t.Depth, channel.EndsWith("dlshd", StringComparison.Ordinal) ? LightmapTextures.ImageFormat.Bc7 : LightmapTextures.ImageFormat.Bc6h, $"csgo_addons/{addon}", fingerprints, bin)
+                : LightmapTextures.Vtex(channel, image, LightmapTextures.Cs2Channels[channel], $"csgo_addons/{addon}", fingerprints, nativeFolder: bin);
+            var first = Enumerable.Range(0, Math.Min(ours.Length, shipped.Length)).FirstOrDefault(i => ours[i] != shipped[i], -1);
+            output.WriteLine($"{channel}: ours {ours.Length} shipped {shipped.Length} {(first < 0 && ours.Length == shipped.Length ? "identical" : $"first difference at {first}")}");
+            if (first >= 0)
+                output.WriteLine($"  ours {Convert.ToHexString(ours.AsSpan(Math.Max(0, first - 8), 32))}" + Environment.NewLine + $"  vrad {Convert.ToHexString(shipped.AsSpan(Math.Max(0, first - 8), 32))}");
+            if (first >= 0 || ours.Length != shipped.Length)
+                different.Add(channel);
+        }
+        Assert.Empty(different);
+    }
+
+    /// <summary>
+    /// <c>LMTEX=...</c>: the LPV atlas EXRs cut into 36x44 slices (tiles in row-major order) and encoded per slice,
+    /// BC6H for the ambient cube and BC7 for dlshd, against env_light_probe_volume_atlas(_dlshd).vtex_c; reflectivity candidates.
+    /// </summary>
+    [Fact]
+    public void LpvAtlasEncode()
+    {
+        if (Environment.GetEnvironmentVariable("LMTEX") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var vpk, var map] || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var bin = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, "..", "bin", "win64"));
+        Assert.True(Source2.Compiler.IspcTexcomp.Load(bin), bin);
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        foreach (var (exrName, vtexName) in new[] { ("lpv_atlas_ambientcube.exr", "env_light_probe_volume_atlas"), ("lpv_atlas_dlshd.exr", "env_light_probe_volume_atlas_dlshd") })
+        {
+            pkg.ReadEntry(pkg.FindEntry($"maps/{map}/lightmaps/{vtexName}.vtex_c")!, out var vtex);
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(vtex));
+            var t = (Texture)res.DataBlock!;
+            var shipped = new byte[t.CalculateBufferSizeForMipLevel(0)];
+            t.ReadTextureMipLevel(shipped, 0);
+            var image = LightmapTextures.Bitmap(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, exrName))));
+            int sw = t.Width, sh = t.Height, cols = image.Width / sw;
+            var bc7 = t.Format.ToString() == "BC7";
+            var sliceBytes = ((sw + 3) / 4) * ((sh + 3) / 4) * 16;
+            output.WriteLine($"{vtexName}: {t.Width}x{t.Height}x{t.Depth} {t.Format}, image {image.Width}x{image.Height}, shipped {shipped.Length} bytes, {sliceBytes} per slice");
+            var sliceSame = 0;
+            var all = new List<float>();
+            var slices = new List<Source2.Compiler.RcTexture.RcMipChain.Level>();
+            for (var z = 0; z < t.Depth; z++)
+            {
+                var tx = z % cols;
+                var ty = z / cols;
+                var px = new float[sw * sh * 4];
+                for (var y = 0; y < sh; y++)
+                    Array.Copy(image.Rgba, ((ty * sh + y) * image.Width + tx * sw) * 4, px, y * sw * 4, sw * 4);
+                var level = new Source2.Compiler.RcTexture.RcMipChain.Level(sw, sh, px);
+                slices.Add(level);
+                byte[] ours;
+                if (bc7)
+                {
+                    var blocks = new byte[sliceBytes / 16 * 64];
+                    var k = 0;
+                    for (var by = 0; by < sh / 4; by++)
+                        for (var bx = 0; bx < sw / 4; bx++)
+                            for (var y = 0; y < 4; y++)
+                                for (var x = 0; x < 4; x++)
+                                    for (var c = 0; c < 4; c++)
+                                        blocks[k++] = (byte)MathF.Round(MathF.Min(1f, MathF.Max(0f, px[((by * 4 + y) * sw + bx * 4 + x) * 4 + c])) * 255f, MidpointRounding.ToEven);
+                    ours = Source2.Compiler.RcTexture.Bc7e.EncodeBlocks(blocks, perceptual: false, Source2.Compiler.RcTexture.Bc7Vendor.Amd);
+                }
+                else
+                {
+                    var half = px.Select(v => (Half)v).ToArray();
+                    ours = Source2.Compiler.IspcTexcomp.CompressBc6h(half, sw, sh, Source2.Compiler.IspcTexcomp.Bc6hProfile(3));
+                }
+                if (ours.AsSpan().SequenceEqual(shipped.AsSpan(z * sliceBytes, sliceBytes)))
+                    sliceSame++;
+            }
+            output.WriteLine($"  {sliceSame} of {t.Depth} slices identical");
+            var volume = new Source2.Compiler.RcTexture.RcMipChain.Level(sw, sh * t.Depth, slices.SelectMany(l => l.Rgba).ToArray());
+            string F(float v) => $"{v:R}({BitConverter.SingleToUInt32Bits(v):x8})";
+            output.WriteLine("  shipped " + string.Join(" ", new[] { t.Reflectivity.X, t.Reflectivity.Y, t.Reflectivity.Z, t.Reflectivity.W }.Select(F)));
+            output.WriteLine("  volume  " + string.Join(" ", LightmapTextures.Reflectivity(volume).Select(F)));
+            output.WriteLine("  image   " + string.Join(" ", LightmapTextures.Reflectivity(image).Select(F)));
+        }
+    }
+
+    /// <summary><c>LMTEX=...</c>: each lightmap EXR's reflectivity candidates (the float chain's 1x1, a four-lane mean) against the shipped header.</summary>
+    [Fact]
+    public void LightmapReflectivity()
+    {
+        if (Environment.GetEnvironmentVariable("LMTEX") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var vpk, var map])
+            return;
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        foreach (var (exrName, vtexName) in new[] { ("irradiance.exr", "irradiance"), ("directional_irradiance.exr", "directional_irradiance"), ("lightmap_chart_color.exr", "debug_chart_color"), ("direct_light_shadows.exr", "direct_light_shadows") })
+        {
+            pkg.ReadEntry(pkg.FindEntry($"maps/{map}/lightmaps/{vtexName}.vtex_c")!, out var vtex);
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(vtex));
+            var t = (Texture)res.DataBlock!;
+            var exr = Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, exrName)));
+            var n = exr.Width * exr.Height;
+            var rgba = new float[n * 4];
+            var planes = new[] { "R", "G", "B", "A" }.Select(c => exr.Channels.Contains(c) ? exr.Plane(c) : null).ToArray();
+            for (var i = 0; i < n; i++)
+                for (var c = 0; c < 4; c++)
+                    rgba[i * 4 + c] = planes[c] is { } p ? (float)p[i] : 1f;
+            var chain = Source2.Compiler.RcTexture.RcMipChain.Chain(new Source2.Compiler.RcTexture.RcMipChain.Level(exr.Width, exr.Height, rgba));
+            var one = chain[^1].Rgba;
+            var lanes = new float[4];
+            var mean = new float[4];
+            for (var c = 0; c < 4; c++)
+            {
+                Array.Clear(lanes);
+                for (var i = 0; i < n; i++)
+                    lanes[i & 3] += rgba[i * 4 + c];
+                mean[c] = ((lanes[0] + lanes[1]) + (lanes[2] + lanes[3])) / n;
+            }
+            string F(float v) => $"{v:R}({BitConverter.SingleToUInt32Bits(v):x8})";
+            var shipped = new[] { t.Reflectivity.X, t.Reflectivity.Y, t.Reflectivity.Z, t.Reflectivity.W };
+            output.WriteLine($"{vtexName} [{string.Join(",", exr.Channels)}]");
+            output.WriteLine("  shipped " + string.Join(" ", shipped.Select(F)));
+            output.WriteLine("  chain   " + string.Join(" ", one.Select(F)));
+            output.WriteLine("  mean    " + string.Join(" ", mean.Select(F)));
+        }
+    }
+
     /// <summary><c>TEXPIX=&lt;vtex&gt;</c>: format, codec from the edit info, and a few texels decoded raw and with Auto.</summary>
     [Fact]
     public void TexturePixels()
@@ -532,6 +768,44 @@ public class CpuBakeProbe(ITestOutputHelper output)
             }
             output.WriteLine(line);
         }
+    }
+
+    /// <summary><c>VTEXDUMP=&lt;vpk&gt;|&lt;path part&gt;</c>: each matching .vtex_c's resource blocks, the DATA head in hex and the edit info as text.</summary>
+    [Fact]
+    public void VtexDump()
+    {
+        if (Environment.GetEnvironmentVariable("VTEXDUMP") is not { Length: > 0 } spec || spec.Split('|') is not [var vpk, var part])
+            return;
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        foreach (var e in pkg.Entries.SelectMany(x => x.Value).Where(e => e.TypeName == "vtex_c" && e.GetFullPath().Contains(part, StringComparison.OrdinalIgnoreCase)).OrderBy(e => e.GetFullPath(), StringComparer.Ordinal))
+        {
+            pkg.ReadEntry(e, out var bytes);
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(bytes));
+            output.WriteLine($"== {e.GetFullPath()} {bytes.Length} bytes, header version {res.HeaderVersion} version {res.Version}");
+            output.WriteLine("file head: " + Convert.ToHexString(bytes.AsSpan(0, Math.Min(bytes.Length, 16 + 12 * res.Blocks.Count))));
+            foreach (var b in res.Blocks)
+                output.WriteLine($"  {b.Type} offset {b.Offset} size {b.Size}");
+            var data = res.DataBlock!;
+            output.WriteLine("DATA head: " + Convert.ToHexString(bytes.AsSpan((int)data.Offset, (int)Math.Min(data.Size, 96))));
+            var t = (Texture)data;
+            output.WriteLine($"  {t.Width}x{t.Height}x{t.Depth} {t.Format} flags {t.Flags} mips {t.NumMipLevels} reflectivity {string.Join(",", t.Reflectivity)}");
+            foreach (var b in res.Blocks.Where(b => b != data))
+                output.WriteLine($"--- {b.Type}" + Environment.NewLine + b);
+        }
+    }
+
+    /// <summary><c>VPKX=&lt;vpk&gt;|&lt;entry&gt;|&lt;out file&gt;</c>: one entry's bytes to a file.</summary>
+    [Fact]
+    public void VpkExtract()
+    {
+        if (Environment.GetEnvironmentVariable("VPKX") is not { Length: > 0 } spec || spec.Split('|') is not [var vpk, var entry, var file])
+            return;
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        pkg.ReadEntry(pkg.FindEntry(entry)!, out var bytes);
+        File.WriteAllBytes(file, bytes);
     }
 
     [Fact]
