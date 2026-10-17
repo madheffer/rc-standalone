@@ -97,7 +97,7 @@ unreachable. Basis per value (VS0:3194-3260):
 | 1 | (0,0,1) | cross((0,0,1), PV_c28) |
 | 2 | (1,0,0) | (0,-1,0) |
 | 3 | from normal n = TEXCOORD4 | from n |
-| 4 | n | normalize(cross(n, PV_c28)) |
+| 4 | normalize(cross(n, PV_c28)) | n |
 
 For o = 3 and 4, alpha is also multiplied by
 `1 - smoothstep(VC_c2.x, VC_c2.y, |dot(n, normalize(cam - pos))|)` (VS0:3232, 3246).
