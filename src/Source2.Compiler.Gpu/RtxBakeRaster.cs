@@ -249,7 +249,15 @@ public sealed unsafe partial class RtxBakeHost
     }
 
     /// <summary>Validates the device's current samples in place (rtx_vrad3_lightmap_sample_validation).</summary>
-    public void ValidateSamples() => Trace(_validation, _validationSet, null, (uint)_w, (uint)_h, 1);
+    public void ValidateSamples()
+    {
+        Trace(_validation, _validationSet, null, (uint)_w, (uint)_h, 1);
+        // GPUBAKE_DUMPSAMPLES=<prefix>: each generation's validated samples, one file per host and call (a check).
+        if (Environment.GetEnvironmentVariable("GPUBAKE_DUMPSAMPLES") is { Length: > 0 } prefix)
+            File.WriteAllBytes($"{prefix}_{GetHashCode():x8}_{_dumped++}.bin", new Span<byte>((void*)_samples!.Mapped, _w * _h * 96).ToArray());
+    }
+
+    private int _dumped;
 
     private void DestroyRaster()
     {

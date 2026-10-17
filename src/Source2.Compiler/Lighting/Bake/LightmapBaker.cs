@@ -86,10 +86,17 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
         var ao = image.Channels[LightmapImage.Ch.AmbientOcclusion]!.Data;
         for (var p = 0; p < image.Width * image.Height; p++)
             ao[p * 4] = 1f;
+        // The records start as vrad3's do (measured on its raw image): chart id 0xffffffff, the
+        // sample count word over 0.5f and the flags word over 1.0f (the count and flags only take
+        // their low bits), the shadow slots' light ids 0xff and their four values 1.0f.
         for (var p = 0; p < image.Width * image.Height; p++)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(image.LuxelRecords.AsSpan(p * 12), 0xffffffff);
+            BinaryPrimitives.WriteUInt32LittleEndian(image.LuxelRecords.AsSpan(p * 12 + 4), 0x3f000000);
+            BinaryPrimitives.WriteUInt32LittleEndian(image.LuxelRecords.AsSpan(p * 12 + 8), 0x3f800000);
             image.ShadowRecords.AsSpan(p * 20, 4).Fill(0xff);
+            for (var k = 0; k < 4; k++)
+                BinaryPrimitives.WriteSingleLittleEndian(image.ShadowRecords.AsSpan(p * 20 + 4 + k * 4), 1f);
         }
         var bx = (Width + BlockSize - 1) / BlockSize;
         var by = (Height + BlockSize - 1) / BlockSize;

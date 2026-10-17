@@ -265,9 +265,12 @@ neighbourhood's samples by their uvs. Next: Valve's sample passes on the GPU
 Then, also 10-18: the large-chart raster runs Valve's lightmap_rasterize on
 the GPU, each sample generation starts empty, AO starts at 1. Block 5 is now
 bit-identical to Valve on 99.99% of luxels at 1 to 16 samples (54 of 826,931
-differ at 16, one half step each: the colour matrix). Left for the GPU bake:
-- MatrixColorCorrect2 / MatrixColorTint2 (materialsystem2 180081260,
-  1800818d0) exact;
+differ at 16, one half step each: the colour matrix). Since then block 5 is fully identical (13 channels and lightmap_data.dat,
+every run): the colour matrices are exact, the image writer rounds half ties
+away from zero, the records start as vrad3's, and the ray tracing pipelines
+are created twice (the NVIDIA driver's first creation in a process gives
+code 1 to 3 ulps off; ledger 80). Left for the GPU bake:
+- MatrixColorTint2 for coloured tints (1800818d0);
 - the small-chart compute on the GPU (block 5 has no small charts; other
   blocks and maps do), and MSVC std::sort's order for BlockGeometry's tiles;
 - every block, the probe volumes (rtx_vrad3_lpv), then whole maps through the

@@ -41,6 +41,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     private readonly List<Sampler> _samplers = [];
     private readonly List<ShaderModule> _modules = [];
     private readonly List<AccelerationStructureKHR> _structures = [];
+    private readonly List<Pipeline> _shadowPipelines = [];
 
     // VK_KHR_acceleration_structure / VK_KHR_ray_tracing_pipeline entry points.
     private readonly delegate* unmanaged<Device, AccelerationStructureCreateInfoKHR*, AllocationCallbacks*, AccelerationStructureKHR*, Result> _createAs;
@@ -166,11 +167,14 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
                     BinaryPrimitives.WriteSingleLittleEndian(texel.AsSpan(c * 4), c switch { 0 => source.Constant.x, 1 => source.Constant.y, 2 => source.Constant.z, _ => source.Constant.w });
                 UploadImage(image, texel, 1, 1, 1);
                 views.Add(image.View);
+                _textureImages.Add(image);
                 continue;
             }
             using var res = new ValveResourceFormat.Resource();
             res.Read(new MemoryStream(read(source.Path + "_c") ?? throw new FileNotFoundException(source.Path)));
-            views.Add(Keep(GpuTextures.Upload(gpu, (Texture)res.DataBlock!, source.Srgb, RtxScene.TextureCap)).View);
+            var uploaded = Keep(GpuTextures.Upload(gpu, (Texture)res.DataBlock!, source.Srgb, RtxScene.TextureCap));
+            views.Add(uploaded.View);
+            _textureImages.Add(uploaded);
         }
         _textures = views.Count;
         var samplers = ctx.Samplers.Select(s => Keep(CreateSampler(s))).ToArray();
@@ -287,6 +291,31 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     }
 
     private readonly GpuDevice.GpuBuffer _lightBins;
+    private readonly List<GpuDevice.GpuImage> _textureImages = [];
+
+    /// <summary>A check: each bindless texture's mip 0 as stored on the device (blocks or texels).</summary>
+    public List<byte[]> ReadTextures()
+    {
+        var all = new List<byte[]>();
+        foreach (var t in _textureImages)
+        {
+            var bc = t.Format.ToString().StartsWith("BC", StringComparison.Ordinal);
+            var block = t.Format.ToString().StartsWith("BC1", StringComparison.Ordinal) || t.Format.ToString().StartsWith("BC4", StringComparison.Ordinal) ? 8 : 16;
+            var size = bc ? (ulong)(((t.Width + 3) / 4) * ((t.Height + 3) / 4) * block) : (ulong)(t.Width * t.Height * (t.Format == Format.R32G32B32A32Sfloat ? 16 : 4));
+            var staging = _gpu.CreateBuffer(size, BufferUsageFlags.TransferDstBit);
+            var image = t;
+            _gpu.Submit(cmd =>
+            {
+                _gpu.Transition(cmd, image, ImageLayout.ShaderReadOnlyOptimal, ImageLayout.TransferSrcOptimal);
+                var region = new BufferImageCopy(0, 0, 0, new ImageSubresourceLayers(ImageAspectFlags.ColorBit, 0, 0, 1), new Offset3D(0, 0, 0), new Extent3D(image.Width, image.Height, 1));
+                _vk.CmdCopyImageToBuffer(cmd, image.Image, ImageLayout.TransferSrcOptimal, staging.Buffer, 1, &region);
+                _gpu.Transition(cmd, image, ImageLayout.TransferSrcOptimal, ImageLayout.ShaderReadOnlyOptimal);
+            });
+            all.Add(new Span<byte>((void*)staging.Mapped, (int)size).ToArray());
+            _gpu.Destroy(staging);
+        }
+        return all;
+    }
 
     private T Keep<T>(T item)
     {
@@ -377,6 +406,12 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
                 SType = StructureType.RayTracingPipelineCreateInfoKhr, StageCount = (uint)stageArray.Length, PStages = ps,
                 GroupCount = (uint)groupArray.Length, PGroups = pg, MaxPipelineRayRecursionDepth = 1, Layout = _pipelineLayout,
             };
+                // Created twice, the first kept alive: with an identical pipeline alive the NVIDIA driver gives
+            // the second creation different code, and only that code reproduces vrad3's luxels (measured on
+            // the RTX 4070: the first creation in a process parts on 7% of block 5's luxels by 1 to 3 ulps
+            // in the lighting sums; a second one, or any host after the first, is bit-identical).
+            GpuDevice.Check(_createPipelines(_gpu.Device, default, default, 1, &info, null, &pipeline), "vkCreateRayTracingPipelinesKHR");
+            _shadowPipelines.Add(pipeline);
             GpuDevice.Check(_createPipelines(_gpu.Device, default, default, 1, &info, null, &pipeline), "vkCreateRayTracingPipelinesKHR");
         }
         foreach (var n in names)
@@ -900,7 +935,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
             _vk.DestroyDescriptorPool(_gpu.Device, _haltonPool, null);
             _vk.DestroyDescriptorSetLayout(_gpu.Device, _haltonSetLayout, null);
         }
-        foreach (var p in new[] { _lightmap.Pipeline, _validation.Pipeline })
+        foreach (var p in new[] { _lightmap.Pipeline, _validation.Pipeline }.Concat(_shadowPipelines))
             _vk.DestroyPipeline(_gpu.Device, p, null);
         _vk.DestroyDescriptorPool(_gpu.Device, _pool, null);
         _vk.DestroyPipelineLayout(_gpu.Device, _pipelineLayout, null);

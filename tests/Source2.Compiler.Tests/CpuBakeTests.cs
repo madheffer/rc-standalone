@@ -98,9 +98,11 @@ public class CpuBakeTests(ITestOutputHelper output)
         // CPUBAKE_GPU=1: Valve's ray tracing SPIR-V on this PC's GPU (RtxBakeHost) instead of the transpiled raygens.
         using var gpuDevice = Environment.GetEnvironmentVariable("CPUBAKE_GPU") == "1" ? new Source2.Compiler.Gpu.GpuDevice(rayTracing: true) : null;
         Source2.Compiler.Gpu.RtxBakeHost? gpuHost = null;
+        RtxShaderLibrary? keepShaders = null;
         if (Environment.GetEnvironmentVariable("CPUBAKE_RTX") != "0")
         {
-            using var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
+            var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
+            keepShaders = rtxShaders;
             rtx = RtxScene.Build(scene, content.Material, rtxShaders, Read);
             output.WriteLine($"material hit groups: {Enumerable.Range(0, scene.Instances.Count).Count(rtx.Has)} of {scene.Instances.Count} instances");
             foreach (var note in rtx.Notes)
@@ -224,6 +226,60 @@ public class CpuBakeTests(ITestOutputHelper output)
         }
         var watch = System.Diagnostics.Stopwatch.StartNew();
         var image = baker.Compute(File.ReadAllBytes(Path.Combine(folder, "lightmap_info.dat")), output.WriteLine);
+        // CPUBAKE_REPEAT=1: the same compute again in this process (with a fresh GPU host when on the GPU), word for word.
+        if (Environment.GetEnvironmentVariable("CPUBAKE_REPEAT") == "1")
+        {
+            var again = baker.Compute(File.ReadAllBytes(Path.Combine(folder, "lightmap_info.dat")));
+            var differ = 0;
+            for (var i = 0; i < image.Channels[0]!.Data.Length; i++)
+                if (BitConverter.SingleToUInt32Bits(image.Channels[0]!.Data[i]) != BitConverter.SingleToUInt32Bits(again.Channels[0]!.Data[i]))
+                    differ++;
+            output.WriteLine($"repeat in process (same host): {differ} irradiance words differ");
+            if (gpuDevice != null && rtx != null && keepShaders != null)
+            {
+                using var host2 = new Source2.Compiler.Gpu.RtxBakeHost(gpuDevice, scene, rtx, keepShaders, Read, haltonPermutations: permutations);
+                var baker2 = new LightmapBaker(scene, packing, permutations) { Rtx = rtx, CropBlock = baker.CropBlock, Passes = baker.Passes, Device = host2 };
+                var third = baker2.Compute(File.ReadAllBytes(Path.Combine(folder, "lightmap_info.dat")));
+                differ = 0;
+                for (var i = 0; i < image.Channels[0]!.Data.Length; i++)
+                    if (BitConverter.SingleToUInt32Bits(image.Channels[0]!.Data[i]) != BitConverter.SingleToUInt32Bits(third.Channels[0]!.Data[i]))
+                        differ++;
+                output.WriteLine($"repeat in process (new host, new acceleration structures): {differ} irradiance words differ");
+                for (var c = 0; c < 13; c++)
+                    if (image.Channels[c] is { } c1 && third.Channels[c] is { } c3)
+                        output.WriteLine($"  channel {c}: {c1.Data.Zip(c3.Data).Count(p => BitConverter.SingleToUInt32Bits(p.First) != BitConverter.SingleToUInt32Bits(p.Second))} words differ");
+                output.WriteLine($"  shadow records: {image.ShadowRecords.Zip(third.ShadowRecords).Count(p => p.First != p.Second)} bytes differ");
+                using (var host3 = new Source2.Compiler.Gpu.RtxBakeHost(gpuDevice, scene, rtx, keepShaders, Read, haltonPermutations: permutations))
+                {
+                    var fourth = new LightmapBaker(scene, packing, permutations) { Rtx = rtx, CropBlock = baker.CropBlock, Passes = baker.Passes, Device = host3 }
+                        .Compute(File.ReadAllBytes(Path.Combine(folder, "lightmap_info.dat")));
+                    var d13 = 0;
+                    var d23 = 0;
+                    for (var i = 0; i < image.Channels[0]!.Data.Length; i++)
+                    {
+                        var w3 = BitConverter.SingleToUInt32Bits(fourth.Channels[0]!.Data[i]);
+                        d13 += BitConverter.SingleToUInt32Bits(image.Channels[0]!.Data[i]) != w3 ? 1 : 0;
+                        d23 += BitConverter.SingleToUInt32Bits(third.Channels[0]!.Data[i]) != w3 ? 1 : 0;
+                    }
+                    output.WriteLine($"third host: {d13} words differ from the first, {d23} from the second");
+                }
+                if (gpuHost != null)
+                {
+                    var b1 = gpuHost.ReadLightBins();
+                    var b2 = host2.ReadLightBins();
+                    output.WriteLine($"light bins: {b1.Zip(b2).Count(p => p.First != p.Second)} of {b1.Length} words differ; nonzero {b1.Count(x => x != 0)} / {b2.Count(x => x != 0)}");
+                    var h1 = gpuHost.ValveHalton(0);
+                    var h2 = host2.ValveHalton(0);
+                    output.WriteLine($"halton frame 0: {h1.Zip(h2).Count(p => p.First != p.Second)} words differ");
+                    var t1 = gpuHost.ReadTextures();
+                    var t2 = host2.ReadTextures();
+                    for (var t = 0; t < t1.Count; t++)
+                        if (!t1[t].AsSpan().SequenceEqual(t2[t]))
+                            output.WriteLine($"texture {t} ({rtx.TextureSources[t].Path}): {t1[t].Zip(t2[t]).Count(p => p.First != p.Second)} of {t1[t].Length} bytes differ");
+                    output.WriteLine($"{t1.Count} textures compared");
+                }
+            }
+        }
         output.WriteLine($"compute {watch.Elapsed.TotalSeconds:F1} s, NaN luxel runs {Vrad3Raygen.NanLuxels}");
         gpuHost?.Dispose();
         if (baker.CropBlock is { } block)
@@ -258,6 +314,33 @@ public class CpuBakeTests(ITestOutputHelper output)
                         File.WriteAllBytes(Path.Combine(dump, $"channel{c:00}.f32"), System.Runtime.InteropServices.MemoryMarshal.AsBytes(channel.Data.AsSpan()).ToArray());
                     }
                     Compare($"channel{c:00}", ours, Vrad3Exr.Read(File.ReadAllBytes(path)), traced, ox, oy);
+                }
+                // lightmap_data.dat: each luxel's 12-byte record (chart id, sample count, flags) and its
+                // 20-byte baked shadow record (four light ids, four sums over the unoccluded sums).
+                if (File.Exists(Path.Combine(prePost, "lightmap_data.dat")))
+                {
+                    var valveImage = LightmapImage.Load(prePost);
+                    foreach (var (name, size, ourBytes, valveBytes) in new[] { ("luxel records", 12, image.LuxelRecords, valveImage.LuxelRecords), ("shadow records", 20, image.ShadowRecords, valveImage.ShadowRecords) })
+                    {
+                        var differ = 0;
+                        var byteAt = new int[size];
+                        for (var y = 0; y < image.Height; y++)
+                            for (var x = 0; x < image.Width; x++)
+                            {
+                                var o = (y * image.Width + x) * size;
+                                var v = ((oy + y) * valveImage.Width + ox + x) * size;
+                                var any = false;
+                                for (var k = 0; k < size; k++)
+                                    if (ourBytes[o + k] != valveBytes[v + k])
+                                    {
+                                        byteAt[k]++;
+                                        any = true;
+                                    }
+                                if (any && differ++ < 5)
+                                    output.WriteLine($"  {name} {x},{y}: ours {Convert.ToHexString(ourBytes, o, size)} valve {Convert.ToHexString(valveBytes, v, size)}");
+                            }
+                        output.WriteLine($"{name}: {differ} of {image.Width * image.Height} differ; by byte [{string.Join(",", byteAt)}]");
+                    }
                 }
                 return;
             }

@@ -1352,10 +1352,28 @@ game can answer is raised with the user first, and runs with -insecure.
       tints not ported), MatrixMultiply sums in dpps order, and a Float4x4
       goes into a material block transposed. The material data is now
       byte-identical apart from bindless indices.
-    - Still open for the luxel records (lightmap_data.dat: sample counts,
-      flags, baked shadow slots), other blocks and maps (small charts:
-      their compute pass is still the CPU's), coloured tints, and the
-      post-process EXR writers' tie rounding (not yet checked on a tie).
+    - The luxel records match too once they start as vrad3's: the sample
+      count word over 0.5f, the flags word over 1.0f (only their low bits
+      are written), the four baked shadow values 1.0f. lightmap_data.dat
+      is then identical for the block.
+    - The NVIDIA driver's pipeline creation is not repeatable: the first
+      creation of the lightmap ray tracing pipeline in a process gives code
+      whose lighting sums part from vrad3's by 1 to 3 ulps on 7% of the
+      block's luxels (irradiance, SH, quadratics; AO, normals and shadows
+      equal); creating the same pipeline again while the first is alive
+      gives code that is bit-identical to vrad3. Destroying the first,
+      waiting 15 s, warming the BVHs or the raster pipelines, or disabling
+      the shader disk cache does not; a second host in the process does.
+      RtxBakeHost now creates every ray tracing pipeline twice and keeps
+      the first. Whether vrad3 gets its code by the same route (a pipeline
+      cache, a second creation) is not read yet; any other GPU or driver
+      must be checked the same way.
+    - Result: ze_hold_em_p block 5 baked on the RTX 4070 is identical to
+      vrad3's raw image in all 13 channels and in lightmap_data.dat, run
+      after run.
+    - Still open: other blocks and maps (small charts: their compute pass
+      is still the CPU's), coloured tints, and the post-process EXR
+      writers' tie rounding (not yet checked on a tie).
 
 ## Resolved
 
