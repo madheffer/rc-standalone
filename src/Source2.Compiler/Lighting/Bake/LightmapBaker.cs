@@ -44,6 +44,9 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
     /// <summary>The material hit groups (RtxScene); without them every material uses the default hit group.</summary>
     public RtxScene? Rtx { init => _hits.Rtx = value; }
 
+    /// <summary>The hits' emission scale (<see cref="BakeHits.Emission"/>).</summary>
+    public float Emission { init => _hits.Emission = value; }
+
     /// <summary>A check run: only this block, into an image of the block's size (before the post-process).</summary>
     public int? CropBlock { get; init; }
 

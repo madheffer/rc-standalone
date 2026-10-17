@@ -126,6 +126,7 @@ public class CpuBakeTests(ITestOutputHelper output)
         var baker = new LightmapBaker(scene, packing, permutations)
         {
             Rtx = rtx,
+            Emission = float.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_EMISSION"), System.Globalization.CultureInfo.InvariantCulture, out var em) ? em : 1f,
             Threads = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_THREADS"), out var th) ? th : 4,
             CropBlock = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_BLOCK"), out var bl) ? bl : null,
             Stride = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_STRIDE"), out var st) ? st : 1,

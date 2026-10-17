@@ -272,6 +272,25 @@ semantics, min/max/clamp preferring the operand that is not NaN).
   experiment, light records and their reader 1804a5570 checked against
   scenesystem). Next: capture vrad3's own pre-post-process image
   (lightmap_image_save, CS2 closed) for this map and compare luxel by luxel.
+  2026-10-18, more ruled out:
+  - Emission: baking with every hit's emission zeroed gives the same ratios
+    to four digits.
+  - The light conversion: 18008c110, the area 1804a3a60 and the record copy
+    18008beb0 were re-read against Light.cs and match.
+  - The flags: path_trace_light_flags is 15 on both maps.
+  - Cookie textures: none, and the raygen samples them only behind
+    m_nCookie != -1.
+  - All 37 lights are the same type (DISK, no cookie).
+
+  The map's eight light probe volumes give the same picture.
+  - Exact: the solid masks equal Valve's and the shadow images are
+    near-identical (12154 of 12160 texels).
+  - Too bright: the ambient cubes, which are bounce light only here, are
+    1.12 to 1.22 times Valve's.
+
+  So the excess sits in the bounce shading both bakes share, i.e. the hit
+  groups' material values, not the lightmap sampler, the raygen or the light
+  data.
 
 `CpuBakeTests.Bake` (`CPUBAKE=<vrad3 folder>`, `CPUBAKE_ADDON`,
 `CPUBAKE_BLOCK` for one block into a block-sized image, `CPUBAKE_FILTER=1`

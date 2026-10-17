@@ -40,6 +40,9 @@ public sealed class BakeHits(BakeScene scene)
     /// <summary>The transpiled material hit groups; instances without one keep the default hit group below.</summary>
     public RtxScene? Rtx { get; set; }
 
+    /// <summary>A scale on every hit's emission (1 as vrad3 bakes it; experiments set 0 to measure it).</summary>
+    public float Emission { get; set; } = 1f;
+
     private (BakeScene.Instance Inst, BakeScene.Mesh Mesh, int I0, int I1, int I2) Corners(int triangle)
     {
         var t = _scene.Rays.TriangleAt(triangle);
@@ -84,7 +87,11 @@ public sealed class BakeHits(BakeScene scene)
         {
             var tri = _scene.Rays.TriangleAt(hit.Triangle);
             if (Rtx.Shade(ref p, hit, tri.Instance, tri.Primitive, default, default))
+            {
+                if (Emission != 1f)
+                    p.Emissive *= Emission;
                 return;
+            }
         }
         var (inst, m, i0, i1, i2) = Corners(hit.Triangle);
         float b0 = 1f - hit.U - hit.V, b1 = hit.U, b2 = hit.V;
