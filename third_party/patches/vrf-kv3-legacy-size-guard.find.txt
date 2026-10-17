@@ -1,0 +1,13 @@
+                if (encoding == KV3IDLookup.Get("binary_bc"))
+                {
+                    var info = BlockCompress.GetDecompressedSize(reader);
+                    outBufferLength = info.Size;
+                    outputBuf = ArrayPool<byte>.Shared.Rent(outBufferLength);
+
+                    BlockCompress.FastDecompress(info, reader, outputBuf.AsSpan(0, outBufferLength));
+                }
+                else if (encoding == KV3IDLookup.Get("binary_lz4"))
+                {
+                    outBufferLength = reader.ReadInt32();
+                    var compressedSize = (int)(Size - (reader.BaseStream.Position - Offset));
+                    outputBuf = ArrayPool<byte>.Shared.Rent(outBufferLength);

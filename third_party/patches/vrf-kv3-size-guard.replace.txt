@@ -4,18 +4,22 @@
             // is left of the block (of the stream, for a standalone KV3 with Size 0), nothing may
             // be negative, and what it decompresses to may not exceed MaxUncompressedBytes
             // (vrf-kv3-read-limit). A ratio to the stored size cannot bound memory: a 454 KB zstd
-            // block declaring 1.9 GB passed 4096x and peaked at 1.8 GB. The same decompressed
-            // size sets the node budget ReadBinaryValue enforces.
+            // block declaring 1.9 GB passed 4096x and peaked at 1.8 GB. A v5 zstd block's blob
+            // frame is what the total leaves after buffers 1 and 2, so the total is what must fit.
+            // The same decompressed size sets the node budget ReadBinaryValue enforces.
             {
                 var remaining = Size > 0 ? Offset + Size - reader.BaseStream.Position
-                    : reader.BaseStream.CanSeek ? reader.BaseStream.Length - reader.BaseStream.Position : long.MaxValue;
+                    : reader.BaseStream.CanSeek ? reader.BaseStream.Length - reader.BaseStream.Position
+                    : throw new InvalidDataException("A standalone KV3 needs a seekable stream so its sizes can be checked; refusing to parse.");
                 var declared = (long)sizeUncompressedBuffer1 + sizeUncompressedBuffer2 + sizeBinaryBlobsBytes;
-                var stored = compressionMethod == KV3BinaryCompressionMethod.Uncompressed
-                    ? declared
-                    : version >= 5 ? (long)sizeCompressedBuffer1 + sizeCompressedBuffer2 : sizeCompressedTotal;
+                var buffers = (long)sizeCompressedBuffer1 + sizeCompressedBuffer2;
+                var zstdBlobs = version >= 5 && compressionMethod == KV3BinaryCompressionMethod.Zstd && countBlocks > 0;
+                var stored = compressionMethod == KV3BinaryCompressionMethod.Uncompressed ? declared
+                    : zstdBlobs ? sizeCompressedTotal
+                    : version >= 5 ? buffers : sizeCompressedTotal;
                 if (sizeUncompressedBuffer1 < 0 || sizeUncompressedBuffer2 < 0 || sizeBinaryBlobsBytes < 0
-                    || sizeCompressedBuffer1 < 0 || sizeCompressedBuffer2 < 0 || sizeCompressedTotal < 0
-                    || stored > remaining)
+                    || sizeCompressedBuffer1 < 0 || sizeCompressedBuffer2 < 0 || sizeCompressedTotal < 0 || countBlocks < 0
+                    || (zstdBlobs && buffers > sizeCompressedTotal) || stored > remaining)
                 {
                     throw new InvalidDataException($"KV3 block declares {declared} bytes ({stored} stored) but holds {remaining}; refusing to parse (malformed or hostile resource).");
                 }

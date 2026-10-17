@@ -1,0 +1,34 @@
+                // vpkstuff patch: both sizes come from the file, and about 40 bytes of binary_bc could
+                // rent 2 GB. Hold them to the same rule as vrf-kv3-size-guard before renting.
+                void CheckLegacySizes(long declared, long stored)
+                {
+                    var remaining = Size > 0 ? Offset + Size - reader.BaseStream.Position
+                        : reader.BaseStream.CanSeek ? reader.BaseStream.Length - reader.BaseStream.Position
+                        : throw new InvalidDataException("A standalone KV3 needs a seekable stream so its sizes can be checked; refusing to parse.");
+                    if (declared < 0 || stored < 0 || stored > remaining)
+                    {
+                        throw new InvalidDataException($"KV3 block declares {declared} bytes ({stored} stored) but holds {remaining}; refusing to parse (malformed or hostile resource).");
+                    }
+
+                    var limit = MaxUncompressedBytes;
+                    if (declared > limit)
+                    {
+                        throw new InvalidDataException($"KV3 block declares {declared} bytes, over the {limit}-byte limit; refusing to parse (malformed or hostile resource).");
+                    }
+                }
+
+                if (encoding == KV3IDLookup.Get("binary_bc"))
+                {
+                    var info = BlockCompress.GetDecompressedSize(reader);
+                    outBufferLength = info.Size;
+                    CheckLegacySizes(outBufferLength, info.IsCompressed ? 0 : outBufferLength);
+                    outputBuf = ArrayPool<byte>.Shared.Rent(outBufferLength);
+
+                    BlockCompress.FastDecompress(info, reader, outputBuf.AsSpan(0, outBufferLength));
+                }
+                else if (encoding == KV3IDLookup.Get("binary_lz4"))
+                {
+                    outBufferLength = reader.ReadInt32();
+                    var compressedSize = (int)(Size - (reader.BaseStream.Position - Offset));
+                    CheckLegacySizes(outBufferLength, compressedSize);
+                    outputBuf = ArrayPool<byte>.Shared.Rent(outBufferLength);

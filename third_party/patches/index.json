@@ -63,7 +63,15 @@
       "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
       "find": "vrf-kv3-size-guard.find.txt",
       "replace": "vrf-kv3-size-guard.replace.txt",
-      "description": "Check a KV3 block's declared buffer, blob and compressed sizes against the block before renting buffers sized by them, and set the node budget from them. The decompressed total may not exceed BinaryKV3.MaxUncompressedBytes (vrf-kv3-read-limit); a standalone KV3 (Size 0, e.g. a nav mesh) is bounded by the rest of the stream. SECURITY: a few hundred hostile bytes otherwise asked for gigabytes (s2c fuzz, 2026-10-12), and a 454 KB zstd block declaring 1.9 GB passed the old 4096x ratio (2026-10-18)."
+      "description": "Check a KV3 block's declared buffer, blob and compressed sizes against the block before renting buffers sized by them, and set the node budget from them. The decompressed total may not exceed BinaryKV3.MaxUncompressedBytes (vrf-kv3-read-limit); a standalone KV3 (Size 0, e.g. a nav mesh) is bounded by the rest of the stream. SECURITY: a few hundred hostile bytes otherwise asked for gigabytes (s2c fuzz, 2026-10-12), and a 454 KB zstd block declaring 1.9 GB passed the old 4096x ratio (2026-10-18). A v5 zstd block with blobs must fit its compressed total, which bounds the blob frame."
+    },
+    {
+      "id": "vrf-kv3-legacy-size-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Legacy.cs",
+      "find": "vrf-kv3-legacy-size-guard.find.txt",
+      "replace": "vrf-kv3-legacy-size-guard.replace.txt",
+      "description": "The legacy VKV3 reader rented binary_bc's and binary_lz4's declared decompressed size straight from the file: about 40 bytes of binary_bc rented 1907 MB (F12 review). Both are now held to vrf-kv3-size-guard's rule before renting: non-negative, stored bytes within what is left (a standalone KV3 needs a seekable stream), and at most BinaryKV3.MaxUncompressedBytes. SECURITY."
     },
     {
       "id": "vrf-kv3-read-limit",

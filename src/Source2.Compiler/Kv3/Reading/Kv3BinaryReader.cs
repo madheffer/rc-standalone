@@ -211,7 +211,7 @@ internal sealed partial class Kv3BinaryReader
             countBytes8 = reader.ReadInt32();
             sizeUncompressedTotal = reader.ReadInt32();
 
-            sizeCompressedTotal = (int)(Size - (reader.BaseStream.Position - Offset));
+            sizeCompressedTotal = (int)Math.Min(Kv3Limits.Remaining(reader, Offset, Size), int.MaxValue);
         }
         else
         {
@@ -275,14 +275,20 @@ internal sealed partial class Kv3BinaryReader
 
         // Every size above comes from the file: check them against the block before renting
         // buffers sized by them, so a few hundred hostile bytes cannot ask for gigabytes (found by
-        // s2c fuzz). The decompressed size also bounds how many values the block may hold.
+        // s2c fuzz). The decompressed size also bounds how many values the block may hold. A v5
+        // zstd block's blob frame is what the total leaves after buffers 1 and 2, so the total is
+        // what must fit, and the buffers within it.
         {
-            var remaining = Size > 0 ? Offset + Size - reader.BaseStream.Position
-                : reader.BaseStream.CanSeek ? reader.BaseStream.Length - reader.BaseStream.Position : long.MaxValue;
+            var remaining = Kv3Limits.Remaining(reader, Offset, Size);
             var declared = (long)sizeUncompressedBuffer1 + sizeUncompressedBuffer2 + sizeBinaryBlobsBytes;
             var compressed = compressionMethod != Kv3Compression.Uncompressed;
+            var buffers = (long)sizeCompressedBuffer1 + sizeCompressedBuffer2;
+            var zstdBlobs = version >= 5 && compressionMethod == Kv3Compression.Zstd && countBlocks > 0;
+            if (zstdBlobs && buffers > sizeCompressedTotal)
+                throw Kv3Limits.Hostile($"{buffers} compressed buffer bytes in a {sizeCompressedTotal}-byte total");
             var stored = !compressed ? declared
-                : version >= 5 ? (long)sizeCompressedBuffer1 + sizeCompressedBuffer2 : sizeCompressedTotal;
+                : zstdBlobs ? sizeCompressedTotal
+                : version >= 5 ? buffers : sizeCompressedTotal;
             Kv3Limits.CheckSizes(declared, stored, remaining, sizeUncompressedBuffer1, sizeUncompressedBuffer2,
                 sizeBinaryBlobsBytes, sizeCompressedBuffer1, sizeCompressedBuffer2, sizeCompressedTotal, countBlocks);
             context.Budget = new Kv3Limits.Budget(Kv3Limits.NodeBudget(declared));

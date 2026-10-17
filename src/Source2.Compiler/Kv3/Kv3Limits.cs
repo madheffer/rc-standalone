@@ -32,6 +32,18 @@ internal static class Kv3Limits
             throw Hostile($"{declared} bytes, over the {limit}-byte limit");
     }
 
+    /// <summary>Bytes left for a block's sections: the rest of the block, or for a standalone KV3
+    /// (<paramref name="size"/> 0) the rest of the stream, which must then be seekable so it can be
+    /// measured.</summary>
+    public static long Remaining(BinaryReader reader, long offset, long size)
+    {
+        if (size > 0)
+            return offset + size - reader.BaseStream.Position;
+        if (!reader.BaseStream.CanSeek)
+            throw new InvalidDataException("A standalone KV3 needs a seekable stream so its sizes can be checked; refusing to parse.");
+        return reader.BaseStream.Length - reader.BaseStream.Position;
+    }
+
     /// <summary>The most values a block of <paramref name="declared"/> decompressed bytes may hold.
     /// A typed array of a zero-width type (NULL, BOOLEAN_TRUE, INT64_ZERO) states any length in four
     /// bytes, so the count is bounded by the block's size rather than by its data.</summary>

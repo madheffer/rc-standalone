@@ -33,13 +33,13 @@ internal sealed partial class Kv3BinaryReader
             int outBufferLength;
 
             // What is left of the block bounds every size this header declares (Kv3Limits).
-            long Remaining() => Size > 0 ? Offset + Size - reader.BaseStream.Position : reader.BaseStream.Length - reader.BaseStream.Position;
+            long Remaining() => Kv3Limits.Remaining(reader, Offset, Size);
 
             if (encoding == Kv3Formats.Get("binary_bc"))
             {
                 var info = BlockCompress.GetDecompressedSize(reader);
                 outBufferLength = info.Size;
-                Kv3Limits.CheckSizes(outBufferLength, 0, Remaining(), outBufferLength);
+                Kv3Limits.CheckSizes(outBufferLength, info.IsCompressed ? 0 : outBufferLength, Remaining(), outBufferLength);
                 outputBuf = ArrayPool<byte>.Shared.Rent(outBufferLength);
 
                 BlockCompress.FastDecompress(info, reader, outputBuf.AsSpan(0, outBufferLength));

@@ -55,6 +55,7 @@ public static class VrfRequirements
         "vrf-kv3-size-guard",
         // The ceiling the size guard enforces, which VrfKv3ReadLimit scopes.
         "vrf-kv3-read-limit",
+        "vrf-kv3-legacy-size-guard",
         "vrf-kv3-string-count-guard",
         "vrf-kv3-capacity-array",
         "vrf-kv3-capacity-typed-array",

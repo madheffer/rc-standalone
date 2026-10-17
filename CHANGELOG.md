@@ -43,13 +43,15 @@ version that changes something a host sees.
   4096 times its stored size. The ratio let a 454 KB zstd block declare 1.9 GB (1.8 GB peak per
   decompile), refused valid output that compresses well (1.1M `{}` in a `.vdata` compile to 2 KB),
   and wrapped negative for a standalone KV3 (Size 0, such as a nav mesh's), refusing every one over
-  about 1 MB. A standalone KV3 is now bounded by the rest of its stream.
+  about 1 MB. A standalone KV3 is now bounded by the rest of its stream, which must be seekable.
+- A v5 zstd block's blob frame is bounded by its compressed total, and VRF's legacy VKV3 reader
+  (binary_bc, binary_lz4) checks its sizes too; each rented 1.9 GB from a few bytes before.
 
 ### Added (limits)
 - `Kv3.Kv3ReadLimit`: `MaxUncompressedBytes` (default 512 MB; the largest real block measured is
   303 MB, de_boulder's world physics) and `Use(bytes)`, an async-flow scope that only lowers it.
   `VrfKv3ReadLimit.Use` (Source2.Compiler.Vrf) scopes this package's readers and VRF's together.
-  VRF patch `vrf-kv3-read-limit` is now required.
+  VRF patches `vrf-kv3-read-limit` and `vrf-kv3-legacy-size-guard` are now required.
 
 ## 0.1.106 (production cleanup, 2026-10-14)
 

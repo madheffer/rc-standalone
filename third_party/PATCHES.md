@@ -91,7 +91,8 @@ before allocating:
 |---|---|---|
 | `vrf-resource-block-count-guard` | `Resource/Resource.cs` | block count against the 12-byte entries the stream can hold |
 | `vrf-rerl-count-guard` | `Blocks/ResourceExtRefList.cs` | RERL entry count against the 16-byte entries its block can hold (found 2026-10-13) |
-| `vrf-kv3-size-guard` | `ResourceTypes/BinaryKV3.cs` | stored sizes against the rest of the block (the rest of the stream for a standalone KV3, Size 0); the decompressed total at most `MaxUncompressedBytes`; nothing negative; sets the node budget |
+| `vrf-kv3-size-guard` | `ResourceTypes/BinaryKV3.cs` | stored sizes against the rest of the block (the rest of the stream for a standalone KV3, Size 0, which must be seekable; a v5 zstd block's compressed total, which bounds its blob frame); the decompressed total at most `MaxUncompressedBytes`; nothing negative; sets the node budget |
+| `vrf-kv3-legacy-size-guard` | `ResourceTypes/BinaryKV3.Legacy.cs` | the legacy VKV3 reader's binary_bc and binary_lz4 sizes held to the size guard's rule before renting (about 40 bytes of binary_bc rented 1.9 GB) |
 | `vrf-kv3-read-limit` | `ResourceTypes/BinaryKV3.cs` | `MaxUncompressedBytes` (512 MB default; the largest real block is 303 MB) and `UseMaxUncompressedBytes`, an AsyncLocal scope that only lowers it; replaces a 4096x ratio, which let a 454 KB zstd block declare 1.9 GB |
 | `vrf-kv3-string-count-guard` | `ResourceTypes/BinaryKV3.cs` | string count against buffer 1's bytes |
 | `vrf-kv3-capacity-array`, `-typed-array`, `-object` | `ResourceTypes/BinaryKV3.cs` | a length from the file is clamped to 4096 where it is only a capacity hint |

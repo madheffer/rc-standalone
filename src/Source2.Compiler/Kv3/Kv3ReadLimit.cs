@@ -3,7 +3,12 @@ namespace Source2.Compiler.Kv3;
 /// <summary>
 /// The most bytes a binary KV3 block may declare it decompresses to (its buffers and blobs
 /// together). Every KV3 reader in this package refuses a block over it, from the header, before
-/// anything is allocated. A host that parses untrusted files lowers it around that work.
+/// anything is allocated. A host that parses untrusted files lowers it around that work; one that
+/// also parses through VRF wants <c>Source2.Compiler.VrfKv3ReadLimit.Use</c>, which scopes both.
+/// <para>The scope is an <see cref="AsyncLocal{T}"/>: it flows into awaits and tasks started
+/// inside it, but not back out of an async method that opened it, and not into work queued with
+/// <c>UnsafeQueueUserWorkItem</c> or under <see cref="ExecutionContext.SuppressFlow"/>. Open it
+/// in the method that does the parsing.</para>
 /// </summary>
 public static class Kv3ReadLimit
 {

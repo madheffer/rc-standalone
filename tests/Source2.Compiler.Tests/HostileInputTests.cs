@@ -161,6 +161,84 @@ public class HostileInputTests
         Assert.True(used < 32L << 20, $"allocated {used:N0} bytes");
     }
 
+    private static void AssertRefusedSmall(Action read)
+    {
+        var allocated = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<InvalidDataException>(read);
+        var used = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        Assert.True(used < 32L << 20, $"allocated {used:N0} bytes");
+    }
+
+    private static ValveResourceFormat.ResourceTypes.BinaryKV3 VrfRead(Stream stream)
+    {
+        var vrf = new ValveResourceFormat.ResourceTypes.BinaryKV3(ValveResourceFormat.BlockType.Undefined) { Resource = null! };
+        using var r = new BinaryReader(stream);
+        vrf.Read(r);
+        return vrf;
+    }
+
+    // A v5 zstd block's blob frame is the compressed total less buffers 1 and 2. Only the buffers
+    // were checked, so a total patched to 2e9 rented 1907 MB in both readers.
+    [Fact]
+    public void Kv3V5Zstd_BlobFrameLargerThanTheBlock_IsRefusedByBothReaders()
+    {
+        var t = new Kv3Tree { Format = Guid.NewGuid(), Compression = (uint)Kv3Compression.Zstd };
+        var obj = new Kv3Node { Type = Kv3Type.Object, Items = [], KeyIds = [] };
+        obj.KeyIds.Add(t.StringId("blob"));
+        obj.Items.Add(new Kv3Node { Type = Kv3Type.BinaryBlob, Blob = Enumerable.Range(0, 5000).Select(i => (byte)i).ToArray() });
+        t.Root = obj;
+        var block = t.Write((uint)Kv3Compression.Zstd);
+        Assert.NotNull(Kv3Binary.Read(block));
+        Assert.True(BinaryPrimitives.ReadInt32LittleEndian(block.AsSpan(56)) > 0, "the block carries blobs");
+
+        BinaryPrimitives.WriteInt32LittleEndian(block.AsSpan(52), 2_000_000_000);   // sizeCompressedTotal
+        AssertRefusedSmall(() => Kv3Binary.Read(block));
+        AssertRefusedSmall(() => VrfRead(new MemoryStream(block)));
+    }
+
+    // VRF's legacy reader rented binary_bc's declared size with no check: about 40 bytes for 1907 MB.
+    [Theory]
+    [InlineData("binary_bc")]
+    [InlineData("binary_lz4")]
+    public void LegacyKv3_HugeDeclaredSize_IsRefusedByBothReaders(string encoding)
+    {
+        var o = new MemoryStream();
+        o.Write(BitConverter.GetBytes(0x03564B56));
+        o.Write(Kv3Formats.Get(encoding).Id.ToByteArray());
+        o.Write(Kv3Formats.Get("generic").Id.ToByteArray());
+        o.Write(BitConverter.GetBytes(2_000_000_000));
+        o.Write(new byte[16]);
+        var block = o.ToArray();
+
+        AssertRefusedSmall(() => Kv3Binary.Read(block));
+        AssertRefusedSmall(() => VrfRead(new MemoryStream(block)));
+    }
+
+    private sealed class ForwardOnly(Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    // With no block size and no stream length, nothing would bound what is stored.
+    [Fact]
+    public void Kv3_StandaloneOnAStreamThatCannotSeek_IsRefused()
+    {
+        var (block, _) = TypedNullArrayBlock();
+        Assert.NotNull(VrfRead(new MemoryStream(block)).Data);
+        Assert.Contains("seekable", Assert.Throws<InvalidDataException>(() => VrfRead(new ForwardOnly(new MemoryStream(block)))).Message);
+        using var r = new BinaryReader(new ForwardOnly(new MemoryStream(block)));
+        Assert.Throws<InvalidDataException>(() => Kv3Limits.Remaining(r, 0, 0));
+    }
+
     // A valid file that compresses very well: the old ratio refused this compiler's own output.
     [Fact]
     public void Kv3_OutputThatCompressesWell_RoundTripsUnderARouteLimit()
