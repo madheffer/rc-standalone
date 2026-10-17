@@ -75,8 +75,51 @@ public class CpuBakeTests(ITestOutputHelper output)
         var packing = PackingGeometry.Read(File.ReadAllBytes(Path.Combine(folder, "lightmap_packing_geometry.dat")));
         using var halton = LoadResource(Core("textures/dev/scrambled_halton.vdata_c")!);
         var permutations = HaltonSamples.Permutations(((BinaryKV3)halton.DataBlock!).Data.Root["permutations"].AsBlob());
+        RtxScene? rtx = null;
+        if (Environment.GetEnvironmentVariable("CPUBAKE_RTX") != "0")
+        {
+            using var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
+            rtx = RtxScene.Build(scene, content.Material, rtxShaders, Read);
+            output.WriteLine($"material hit groups: {Enumerable.Range(0, scene.Instances.Count).Count(rtx.Has)} of {scene.Instances.Count} instances");
+            foreach (var note in rtx.Notes)
+                output.WriteLine($"  {note}");
+        }
+        if (Environment.GetEnvironmentVariable("CPUBAKE_ALBEDO") == "1" && rtx != null)
+        {
+            // The same hits through the default hit group and through the material's own: albedo, normal, emission.
+            var hits = new BakeHits(scene);
+            var rtxHits = new BakeHits(scene) { Rtx = rtx };
+            var random = new Random(5);
+            var b = scene.Rays;
+            var shown = new Dictionary<string, int>();
+            for (var i = 0; i < 200000 && shown.Values.Sum() < 40; i++)
+            {
+                var inst0 = scene.Instances[random.Next(scene.Instances.Count)];
+                var m = scene.Meshes[inst0.Mesh];
+                var o = Vector3.Transform(m.Positions[random.Next(m.Positions.Length)], inst0.ObjectToWorld) + new Vector3(0, 0, 8);
+                var d = Vector3.Normalize(new Vector3(random.NextSingle() - 0.5f, random.NextSingle() - 0.5f, random.NextSingle() - 0.5f));
+                var hit = b.Trace(o, d, 0f, 1e5f, 0, 255);
+                if (!hit.Found)
+                    continue;
+                var inst = b.TriangleAt(hit.Triangle).Instance;
+                if (!rtx.Has(inst))
+                    continue;
+                var name = scene.Instances[inst].Material.Name;
+                shown.TryGetValue(name, out var count);
+                if (count >= 5)
+                    continue;
+                shown[name] = count + 1;
+                var p0 = Payload.Initial(0.5f);
+                var p1 = Payload.Initial(0.5f);
+                hits.Shade(ref p0, hit);
+                rtxHits.Shade(ref p1, hit);
+                output.WriteLine($"{Path.GetFileName(name)}: default albedo {p0.Albedo} normal {p0.Normal}; rtx albedo {p1.Albedo} normal {p1.Normal} emissive {p1.Emissive} rough {p1.Roughness} metal {p1.Metalness} face {p1.FaceNormal} flags {p1.MaterialTypeAndFlags:x}");
+            }
+            return;
+        }
         var baker = new LightmapBaker(scene, packing, permutations)
         {
+            Rtx = rtx,
             Threads = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_THREADS"), out var th) ? th : 4,
             CropBlock = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_BLOCK"), out var bl) ? bl : null,
             Stride = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_STRIDE"), out var st) ? st : 1,
@@ -113,9 +156,14 @@ public class CpuBakeTests(ITestOutputHelper output)
             }
             return;
         }
+        if (Environment.GetEnvironmentVariable("CPUBAKE_RGDEBUG") is { } at && at.Split(',') is [var dx, var dy])
+        {
+            Vrad3Raygen.DebugAt = (int.Parse(dx, System.Globalization.CultureInfo.InvariantCulture), int.Parse(dy, System.Globalization.CultureInfo.InvariantCulture));
+            Vrad3Raygen.Debug = s => { lock (output) output.WriteLine(s); };
+        }
         var watch = System.Diagnostics.Stopwatch.StartNew();
         var image = baker.Compute(File.ReadAllBytes(Path.Combine(folder, "lightmap_info.dat")), output.WriteLine);
-        output.WriteLine($"compute {watch.Elapsed.TotalSeconds:F1} s");
+        output.WriteLine($"compute {watch.Elapsed.TotalSeconds:F1} s, NaN luxel runs {Vrad3Raygen.NanLuxels}");
         if (baker.CropBlock is { } block)
         {
             // The block alone: AHD-encoded (no filtering) against the same texels of Valve's, where we traced.
@@ -228,6 +276,26 @@ public class CpuBakeTests(ITestOutputHelper output)
             }
             if (m < 2)
                 continue;
+            if (Environment.GetEnvironmentVariable("CPUBAKE_RATIOGRID") == "1" && c == "G" && name == "irradiance.exr")
+            {
+                // The bin ratio map: one character per 16 x 16 bin, '0' to '9' for ratios 1.0 to 1.9+ (below 1 '-', empty '.').
+                for (var y = 0; y < bh; y++)
+                {
+                    var line = new System.Text.StringBuilder();
+                    for (var x = 0; x < bw; x++)
+                    {
+                        var k = y * bw + x;
+                        if (bn[k] < 8 || Math.Abs(bb[k]) < 1e-6)
+                        {
+                            line.Append('.');
+                            continue;
+                        }
+                        var r = ba[k] / bb[k];
+                        line.Append(r < 1 ? '-' : (char)('0' + Math.Min(9, (int)((r - 1) * 10))));
+                    }
+                    output.WriteLine("     " + line);
+                }
+            }
             var am = xa / m;
             var bm = xb / m;
             var bc = (xab / m - am * bm) / Math.Sqrt(Math.Max(1e-30, (xaa / m - am * am) * (xbb / m - bm * bm)));
@@ -296,9 +364,14 @@ public class CpuBakeTests(ITestOutputHelper output)
         }
         else
         {
-            using var rgba = new SkiaSharp.SKBitmap(w, h, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
-            bmp.CopyTo(rgba, SkiaSharp.SKColorType.Rgba8888);
-            return BakeTexture.FromRgba8(w, h, rgba.GetPixelSpan(), true);
+            // 8-bit: the bitmap's own byte order (CopyTo between colour types can fail and leave zeros).
+            using var rgba = bmp.ColorType is SkiaSharp.SKColorType.Bgra8888 or SkiaSharp.SKColorType.Rgba8888 ? null : bmp.Copy(SkiaSharp.SKColorType.Rgba8888);
+            var src = rgba ?? bmp;
+            var bytes8 = src.GetPixelSpan().ToArray();
+            if (src.ColorType == SkiaSharp.SKColorType.Bgra8888)
+                for (var i = 0; i < bytes8.Length; i += 4)
+                    (bytes8[i], bytes8[i + 2]) = (bytes8[i + 2], bytes8[i]);
+            return BakeTexture.FromRgba8(w, h, bytes8, true);
         }
         return new BakeTexture(w, h, texels);
     }
@@ -328,6 +401,116 @@ public class CpuBakeTests(ITestOutputHelper output)
 
 public class CpuBakeProbe(ITestOutputHelper output)
 {
+    /// <summary>
+    /// <c>RTXCOMBO=&lt;scene_info.kv3&gt;</c>: each material of the scene, its shader, F_ parameters and the
+    /// static combo of the shader's _vulkan_60_rtx program (the hit group vrad3 runs).
+    /// </summary>
+    [Fact]
+    public void RtxCombos()
+    {
+        if (Environment.GetEnvironmentVariable("RTXCOMBO") is not { Length: > 0 } sceneInfo || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        using var content = new GameContent(pak);
+        using var shaders = new ValvePak.Package();
+        shaders.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        VfxProgram? Load(string name)
+        {
+            if (shaders.FindEntry($"shaders/vfx/{name}.vcs") is not { } e)
+                return null;
+            shaders.ReadEntry(e, out var bytes);
+            var p = new ValveResourceFormat.CompiledShader.VfxProgramData();
+            p.Read(name + ".vcs", new MemoryStream(bytes));
+            return new VfxProgram(p);
+        }
+        var text = File.ReadAllText(sceneInfo);
+        foreach (var m in System.Text.RegularExpressions.Regex.Matches(text, "material = resource_name:\"([^\"]+)\"").Select(m => m.Groups[1].Value).Distinct())
+        {
+            var info = content.Material(m);
+            if (info is null)
+            {
+                output.WriteLine($"{m}: missing");
+                continue;
+            }
+            var shader = Path.GetFileNameWithoutExtension(info.Shader);
+            var features = Load($"{shader}_vulkan_60_features");
+            var rtx = Load($"{shader}_vulkan_60_rtx");
+            var fparams = info.Params.Where(p => p.Key.StartsWith("F_", StringComparison.Ordinal)).ToDictionary(p => p.Key, p => (byte)p.Value);
+            var id = features is null || rtx is null ? -1
+                : ValveResourceFormat.IO.ShaderDataProvider.GetStaticConfiguration_ForFeatureState(features.Data, rtx.Data, fparams).StaticComboId;
+            var exists = rtx?.Data.StaticComboEntries.ContainsKey(id) == true;
+            output.WriteLine($"{m}: {shader} [{string.Join(" ", fparams.Select(p => $"{p.Key}={p.Value}"))}] rtx combo {id}{(exists ? "" : " (not present)")}");
+            features?.Data.Dispose();
+            rtx?.Data.Dispose();
+        }
+    }
+
+    private sealed record VfxProgram(ValveResourceFormat.CompiledShader.VfxProgramData Data);
+
+    /// <summary><c>TEXPIX=&lt;vtex&gt;</c>: format, codec from the edit info, and a few texels decoded raw and with Auto.</summary>
+    [Fact]
+    public void TexturePixels()
+    {
+        if (Environment.GetEnvironmentVariable("TEXPIX") is not { Length: > 0 } name || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        using var content = new GameContent(pak);
+        using var res = new ValveResourceFormat.Resource();
+        res.Read(new MemoryStream(content.Read(name + "_c")!));
+        var t = (Texture)res.DataBlock!;
+        output.WriteLine($"{t.Width}x{t.Height} {t.Format} flags {t.Flags} codec {t.RetrieveCodecFromResourceEditInfo()} reflectivity {t.Reflectivity}");
+        foreach (var codec in new[] { ValveResourceFormat.TextureDecoders.TextureCodec.None, ValveResourceFormat.TextureDecoders.TextureCodec.Auto })
+        {
+            using var bmp = t.GenerateBitmap(0, 0, 0, codec);
+            var px = new[] { bmp.GetPixel(bmp.Width / 2, bmp.Height / 2), bmp.GetPixel(bmp.Width / 4, bmp.Height / 4), bmp.GetPixel(bmp.Width / 3, bmp.Height * 2 / 3) };
+            output.WriteLine($"{codec}: {bmp.ColorType} {string.Join(" ", px.Select(p => $"({p.Red},{p.Green},{p.Blue},{p.Alpha})"))}");
+        }
+    }
+
+    /// <summary><c>RTXWRITES=&lt;shader&gt;|&lt;combo&gt;</c>: a static combo's variable write sequence (name, binding slot, control, layout set, register offset).</summary>
+    [Fact]
+    public void RtxWrites()
+    {
+        if (Environment.GetEnvironmentVariable("RTXWRITES") is not { Length: > 0 } spec || spec.Split('|') is not [var shader, var combo] || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        using var shaders = new ValvePak.Package();
+        shaders.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        shaders.ReadEntry(shaders.FindEntry($"shaders/vfx/{shader}_vulkan_60_rtx.vcs")!, out var bytes);
+        using var p = new ValveResourceFormat.CompiledShader.VfxProgramData();
+        p.Read(shader + "_vulkan_60_rtx.vcs", new MemoryStream(bytes));
+        var data = p.GetStaticCombo(long.Parse(combo, System.Globalization.CultureInfo.InvariantCulture));
+        void Dump(string label, ValveResourceFormat.CompiledShader.VfxVariableIndexArray a)
+        {
+            output.WriteLine($"{label}: {a.Fields.Length} fields, render state from {a.FirstRenderStateElement}, constants from {a.FirstConstantElement}");
+            foreach (var f in a.Fields)
+                output.WriteLine($"  {p.VariableDescriptions[f.VariableIndex].Name}\t{p.VariableDescriptions[f.VariableIndex].VfxType}\tslot {f.BindingSlot}\tcontrol {f.Control}\tset {f.LayoutSet}\treg {f.RegisterOffset}");
+        }
+        Dump("all", data.AllVariables);
+        for (var i = 0; i < data.DynamicComboVariables.Length; i++)
+            Dump($"dynamic {i}", data.DynamicComboVariables[i]);
+    }
+
+    /// <summary><c>RTXVARS=&lt;shader&gt;</c>: the _vulkan_60_rtx program's variables: source, defaults and dynamic expression.</summary>
+    [Fact]
+    public void RtxVariables()
+    {
+        if (Environment.GetEnvironmentVariable("RTXVARS") is not { Length: > 0 } shader || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        using var shaders = new ValvePak.Package();
+        shaders.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        shaders.ReadEntry(shaders.FindEntry($"shaders/vfx/{shader}_vulkan_60_rtx.vcs")!, out var bytes);
+        using var p = new ValveResourceFormat.CompiledShader.VfxProgramData();
+        p.Read(shader + "_vulkan_60_rtx.vcs", new MemoryStream(bytes));
+        foreach (var cb in p.ExtConstantBufferDescriptions)
+            output.WriteLine($"cbuffer {cb.Name} size {cb.BufferSize}: {string.Join(", ", cb.Variables.Select(x => $"{x.Name}@{x.Offset}[{x.VectorSize}x{x.RowCount}]"))}");
+        foreach (var v in p.VariableDescriptions)
+        {
+            var expr = v.CompiledExpression.Length > 0 ? ValveResourceFormat.CompiledShader.ShaderUtilHelpers.ParseDynamicExpression(v.CompiledExpression) : "";
+            output.WriteLine($"{v.Name}\t{v.VfxType}\t{v.VariableSource}\tsrc '{v.SourceString}'\tf [{string.Join(",", v.FloatDefs)}] i [{string.Join(",", v.IntDefs)}] tex '{v.DefaultInputTexture}'\treg {v.RegisterType} off {v.RegisterOffset} srcidx {v.SourceIndex} elems {v.RegisterElements} bits {v.TypeSpecificBits} srgb {v.SrgbRead}\t{expr.Replace("\n", " ")}");
+        }
+    }
+
     /// <summary><c>LISTVPK=&lt;vpk&gt;|&lt;substring&gt;</c>: matching entries with their sizes; textures with size, format, depth and flags.</summary>
     [Fact]
     public void ListVpk()

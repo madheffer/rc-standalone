@@ -54,6 +54,27 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `18000ba80` | `CMaterial2::GetBoolAttribute` | vf 0x48: the key in the material's attribute blocks (+0x180, chained +0x68), then its parent set (+0x60); not found returns false with the default |  |
 
+## materialsystem2.dll, build 20261015
+
+- file: `materialsystem2_20261015.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
+- SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
+- installed: this build
+- 9 addresses
+
+### s2c:infra
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `180081260` | `MatrixColorCorrect` | Haeberli-style: translate by -average, contrast, saturation about luminance (0.2125, 0.7154, 0.0721), brightness, back |  |
+| `1800818d0` | `MatrixColorTint` | tint about luminance with a powf amount term |  |
+| `180082e60` | `SrgbGammaToLinear` | clamp 0..1; x / 12.92 up to 0.04045, else powf((x + 0.055) / 1.055, 2.4) | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:382` |
+| `18009b580` | `VfxEval_SrgbGammaToLinear` | the top three components through 180082e60 | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:81`, `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:382` |
+| `18009bb70` | `VfxEval_TextureAverageColor` | the texture manager's average colour (vtable +0x2d8), w 1 | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:82` |
+| `18009bf90` | `VfxEval_MatrixMultiply` | two 4x4 off the stack, product through 180081100 | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:81` |
+| `18009c090` | `VfxEval_MatrixColorCorrect2` | (contrast, saturation, brightness), average colour -> 180081260 (not ported: identity at 1, 1, 1) | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:82` |
+| `18009c3c0` | `VfxEval_MatrixColorTint2` | (tint, amount) -> 1800818d0 (not ported: identity at white, 1) | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:81` |
+| `1800fa000` | `VfxEval_FunctionTable` | 24-byte entries {name, argument count, flag, function}: SrgbGammaToLinear, TextureAverageColor, MatrixMultiply, MatrixColorCorrect2, MatrixColorTint2 and the rest | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:80` |
+
 ## meshsystem.dll, build 20260923
 
 - file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
@@ -1288,23 +1309,25 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: this build
-- 11 addresses
+- 13 addresses
 
 ### s2c:baked/vrad3
 
 | address | name | what | cited in |
 |---|---|---|---|
 | `18008beb0` | `PathTraceScene_AddLight` | a scene_info light (barn KV, path_trace_light_flags, baked shadow ids) into PathTraceBarnLightGPU_t (0x1f0 bytes), through 18008c110 | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9` |
-| `18008c110` | `PathTraceBarnLight_FromShape` | the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9` |
+| `18008c110` | `PathTraceBarnLight_FromShape` | the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9`, `src/Source2.Compiler/Lighting/Bake/Vrad3Raygen.cs:17` |
 | `18008d1a0` | `SceneGlobalInfoGPU_Construct` | the 0xC0 globals block at scene +0x3e0: sun irradiance 0, sun min brightness FLT_MAX, IBL scale 1; scene flags \|= 1 unless ResourceCompiler/BakedLighting/DisableCullingForShadows | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:12` |
 | `1800912d0` | `PathTraceScene_Load` | scene_info.kv3 and scene_meshes.kv3 into the GPU scene: meshes, instances (180094d30), materials (180098660), lights (18008beb0), the ibl (1800999d0), then the upload (180095180) | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:9` |
-| `180094d30` | `PathTraceScene_AddInstance` | 0x48-byte instance record: mask = (~material and & instance flags) \| material or, packed nMaterialFlags << 16 \| instance bits, +0xc the facing-cull-disable byte = material flags & 1; grows the scene bounds | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10` |
+| `180093f10` | `PathTraceScene_GeometryInfo` | a mesh's GeometryInfo_t from its input layout: position (format 2 or 6), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream) | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:540` |
+| `180094d30` | `PathTraceScene_AddInstance` | 0x48-byte instance record: mask = (~material and & instance flags) \| material or, packed nMaterialFlags << 16 \| instance bits, +0xc the facing-cull-disable byte = material flags & 1; grows the scene bounds | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Glsl/HitContext.cs:94` |
 | `180095180` | `PathTraceScene_Upload` | the scene's buffers and acceleration structures to the GPU | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:11` |
 | `180098660` | `PathTraceScene_MaterialFlags` | from CMaterial2 attributes: doublesided or renderbackfaces -> flags 1; Translucent or alphatest -> 2; mapbuilder.blocklight -> 5; tools.toolsmaterial -> and 1; DoNotCastShadows -> and 0xe (+1 with tools); opaque -> or 0x10 else and 0x10; 0x98bed7f6 -> or 0x20, and 0x11; 0x16458f13 -> or 0x400 | `src/Source2.Compiler/Lighting/Bake/BakeMaterial.cs:8`, `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10` |
 | `1800999d0` | `PathTraceScene_SetIbl` | the ibl: SkyTexture (0xa9e45763) as g_tSkyTexture, SkyTextureFormat (0xd5faca7a), SkyBrightnessExposureBias (0xa6413f46, g_flBrightnessExposureBias) scale times exp2 | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:11` |
 | `180187920` | `SceneUtils_GenerateScrambledHalton` | ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata | `src/Source2.Compiler/Lighting/Bake/HaltonSamples.cs:7` |
-| `18049c8d0` | `LinearToSrgb8` | per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:207` |
+| `18049c8d0` | `LinearToSrgb8` | per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:220` |
 | `1804a3a60` | `Luminaire_Area` | the luminaire's area for the light's PDF | `src/Source2.Compiler/Lighting/Bake/Light.cs:18`, `src/Source2.Compiler/Lighting/Bake/Light.cs:122` |
+| `1804a5570` | `LightShape_ReadKV` | a barn table into the 300-byte LightShape, field by field (m_vInnerRadius +0xa0, m_flShape +0xa8, m_vSkirt +0xac, m_vColor +0xb4, m_flLightColorToRadiance +0xc0, luminaire tables), then the inner radius clamped to 0.9999999 |  |
 
 ## smartprops.dll, build 20260923
 

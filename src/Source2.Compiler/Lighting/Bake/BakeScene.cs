@@ -34,7 +34,16 @@ namespace Source2.Compiler.Lighting.Bake;
 public sealed class BakeScene
 {
     /// <summary>A mesh's vertices as the hit shaders read them, in object space.</summary>
-    public sealed record Mesh(Vector3[] Positions, Vector3[] Normals, Vector2[] Texcoords, int[] Indices, string Material);
+    public sealed record Mesh(Vector3[] Positions, Vector3[] Normals, Vector2[] Texcoords, int[] Indices, string Material)
+    {
+        /// <summary>The vertex blob as scene_meshes.kv3 holds it (all floats), its stride in floats and its fields.</summary>
+        public float[] Vertices { get; init; } = [];
+        public int Stride { get; init; }
+        public IReadOnlyList<MeshField> Fields { get; init; } = [];
+    }
+
+    /// <summary>One vertex field of a scene mesh: name, semantic index, offset and size in floats.</summary>
+    public readonly record struct MeshField(string Name, int SemanticIndex, int Offset, int Size);
 
     /// <summary>One placed mesh, PackedRtxInstanceData_t's fields plus what the hit group needs.</summary>
     public sealed record Instance(int Mesh, Matrix4x4 ObjectToWorld, Matrix4x4 WorldToObject, BakeMaterial Material, uint SrgbColor, Vector3 Tint,
@@ -174,11 +183,13 @@ public sealed class BakeScene
         var vertices = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(m["vertices"].AsBlob()).ToArray();
         var indices = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(m["indices"].AsBlob()).ToArray();
         int position = -1, normal = -1, texcoord = -1;
+        var fields = new List<MeshField>();
         foreach (var a in m["attributes"].Values)
         {
             var name = a["name"].ToString(null);
             var index = a["semantic_index"].ToInt64(null);
             var offset = (int)a["offset"].ToInt64(null);
+            fields.Add(new MeshField(name ?? "", (int)index, offset, Opt(a, "size") is { } size ? (int)size.ToInt64(null) : 0));
             if (name == "position" && position < 0)
                 position = offset;
             else if (name == "normal" && normal < 0)
@@ -198,7 +209,7 @@ public sealed class BakeScene
             if (texcoord >= 0)
                 uv[v] = new Vector2(vertices[at + texcoord], vertices[at + texcoord + 1]);
         }
-        return new Mesh(p, n, uv, indices, m["material_name"].ToString(null) ?? "");
+        return new Mesh(p, n, uv, indices, m["material_name"].ToString(null) ?? "") { Vertices = vertices, Stride = stride, Fields = fields };
     }
 
     /// <summary>A child that may be absent (KVObject's indexer throws for a missing key).</summary>

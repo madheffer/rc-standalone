@@ -2232,11 +2232,27 @@ SCENESYSTEM = [
     ("18008beb0", "PathTraceScene_AddLight", V3, "a scene_info light (barn KV, path_trace_light_flags, baked shadow ids) into PathTraceBarnLightGPU_t (0x1f0 bytes), through 18008c110"),
     ("18008c110", "PathTraceBarnLight_FromShape", V3, "the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record"),
     ("1804a3a60", "Luminaire_Area", V3, "the luminaire's area for the light's PDF"),
+    ("1804a5570", "LightShape_ReadKV", V3, "a barn table into the 300-byte LightShape, field by field (m_vInnerRadius +0xa0, m_flShape +0xa8, m_vSkirt +0xac, m_vColor +0xb4, m_flLightColorToRadiance +0xc0, luminaire tables), then the inner radius clamped to 0.9999999"),
+    ("180093f10", "PathTraceScene_GeometryInfo", V3, "a mesh's GeometryInfo_t from its input layout: position (format 2 or 6), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream)"),
     ("1800999d0", "PathTraceScene_SetIbl", V3, "the ibl: SkyTexture (0xa9e45763) as g_tSkyTexture, SkyTextureFormat (0xd5faca7a), SkyBrightnessExposureBias (0xa6413f46, g_flBrightnessExposureBias) scale times exp2"),
     ("18008d1a0", "SceneGlobalInfoGPU_Construct", V3, "the 0xC0 globals block at scene +0x3e0: sun irradiance 0, sun min brightness FLT_MAX, IBL scale 1; scene flags |= 1 unless ResourceCompiler/BakedLighting/DisableCullingForShadows"),
     ("180095180", "PathTraceScene_Upload", V3, "the scene's buffers and acceleration structures to the GPU"),
     ("180187920", "SceneUtils_GenerateScrambledHalton", V3, "ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata"),
     ("18049c8d0", "LinearToSrgb8", V3, "per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped"),
+]
+
+
+MATERIALSYSTEM_1015 = [
+    # Read by hand (decompile of materialsystem2 20261015): VfxEval's functions.
+    ("1800fa000", "VfxEval_FunctionTable", I, "24-byte entries {name, argument count, flag, function}: SrgbGammaToLinear, TextureAverageColor, MatrixMultiply, MatrixColorCorrect2, MatrixColorTint2 and the rest"),
+    ("18009b580", "VfxEval_SrgbGammaToLinear", I, "the top three components through 180082e60"),
+    ("180082e60", "SrgbGammaToLinear", I, "clamp 0..1; x / 12.92 up to 0.04045, else powf((x + 0.055) / 1.055, 2.4)"),
+    ("18009bf90", "VfxEval_MatrixMultiply", I, "two 4x4 off the stack, product through 180081100"),
+    ("18009c090", "VfxEval_MatrixColorCorrect2", I, "(contrast, saturation, brightness), average colour -> 180081260 (not ported: identity at 1, 1, 1)"),
+    ("18009c3c0", "VfxEval_MatrixColorTint2", I, "(tint, amount) -> 1800818d0 (not ported: identity at white, 1)"),
+    ("18009bb70", "VfxEval_TextureAverageColor", I, "the texture manager's average colour (vtable +0x2d8), w 1"),
+    ("180081260", "MatrixColorCorrect", I, "Haeberli-style: translate by -average, contrast, saturation about luminance (0.2125, 0.7154, 0.0721), brightness, back"),
+    ("1800818d0", "MatrixColorTint", I, "tint about luminance with a powf amount term"),
 ]
 
 
@@ -2259,4 +2275,5 @@ if __name__ == "__main__":
     write("resourcecompiler_20261006.manual.json", RESOURCECOMPILER_1006)
     write("tier0_20261015.manual.json", TIER0_1015)
     write("scenesystem_20261015.manual.json", SCENESYSTEM)
+    write("materialsystem2_20261015.manual.json", MATERIALSYSTEM_1015)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

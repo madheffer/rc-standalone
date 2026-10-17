@@ -398,7 +398,12 @@ public sealed class PathTracer(BakeScene scene, BakeHits hits)
         }
         if (chosen == null)
             return sum;
-        var c = chosenI * (wsum / chosenW);
+        return sum + ShadowedLight(v, mid, chosen, chosenI * (wsum / chosenW), chosenDir);
+    }
+
+    // One shadowed light at a bounce vertex: its BRDF-weighted contribution times the shadow ray's visibility.
+    private Vector3 ShadowedLight(in PathVertex v, Vector3 mid, Light chosen, Vector3 c, Vector4 chosenDir)
+    {
         var Lc = LightEval.V3(chosenDir);
         var bs = !(Vector3.Dot(v.Face, Lc) > 0f);
         var wic = LightEval.ToLocal(v.T, v.B, v.M.Normal, Lc);
@@ -419,7 +424,7 @@ public sealed class PathTracer(BakeScene scene, BakeHits hits)
         var aim = Vector3.Normalize(Lc * w2 + rel);
         var nonzero = contribution != Vector3.Zero;
         var vis = Visibility(origin, aim, nonzero ? w2 : 0f, ShadowCull, 2);
-        return sum + contribution * (nonzero ? vis : 0f);
+        return contribution * (nonzero ? vis : 0f);
     }
 
     // Russian roulette survived: the next direction and the throughput update.

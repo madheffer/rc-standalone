@@ -34,7 +34,7 @@ Decompiling:
   `tools/re/reva_serve.py`, called over HTTP by `tools/re/reva_call.py`.
   It locks the project while it runs. `tools/re/revaq.py dec|str|xref
   <program> ...` wraps the common calls (programs by alias: rc, vis, ms, pb,
-  pv, sp, t0, vrad3, ss).
+  pv, sp, t0, vrad3, ss, mat).
 - **Decompiling one function:** `python tools/re/dec.py <dll> <addr>` fills
   in every known name. ReVa times out on huge functions; use
   `tools/re/disx.py` (capstone, imports named) instead.

@@ -37,6 +37,18 @@
    "note": "the luminaire's area for the light's PDF"
   },
   {
+   "addr": "1804a5570",
+   "name": "LightShape_ReadKV",
+   "module": "s2c:baked/vrad3",
+   "note": "a barn table into the 300-byte LightShape, field by field (m_vInnerRadius +0xa0, m_flShape +0xa8, m_vSkirt +0xac, m_vColor +0xb4, m_flLightColorToRadiance +0xc0, luminaire tables), then the inner radius clamped to 0.9999999"
+  },
+  {
+   "addr": "180093f10",
+   "name": "PathTraceScene_GeometryInfo",
+   "module": "s2c:baked/vrad3",
+   "note": "a mesh's GeometryInfo_t from its input layout: position (format 2 or 6), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream)"
+  },
+  {
    "addr": "1800999d0",
    "name": "PathTraceScene_SetIbl",
    "module": "s2c:baked/vrad3",

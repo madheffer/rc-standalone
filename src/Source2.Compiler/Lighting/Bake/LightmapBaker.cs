@@ -35,6 +35,15 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
     public int Passes { get; init; } = 16;
     public int Threads { get; init; } = Math.Max(1, Environment.ProcessorCount / 2);
 
+    /// <summary>
+    /// The path tracer: vrad3's own ray generation shader transpiled (Vrad3Raygen, the default), or the
+    /// hand port (PathTracer) when false.
+    /// </summary>
+    public bool ValveRaygen { get; init; } = Environment.GetEnvironmentVariable("S2C_HANDPORT") != "1";
+
+    /// <summary>The material hit groups (RtxScene); without them every material uses the default hit group.</summary>
+    public RtxScene? Rtx { init => _hits.Rtx = value; }
+
     /// <summary>A check run: only this block, into an image of the block's size (before the post-process).</summary>
     public int? CropBlock { get; init; }
 
@@ -73,6 +82,7 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
         var bx = (Width + BlockSize - 1) / BlockSize;
         var by = (Height + BlockSize - 1) / BlockSize;
         var tracer = new PathTracer(scene, _hits);
+        var prototype = ValveRaygen ? new Vrad3Raygen(scene, _hits) : null;
         for (var block = 0; block < bx * by; block++)
         {
             if (CropBlock is { } only && block != only)
@@ -106,6 +116,8 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
             var geometry = BlockGeometry.Build(packing, Width, Height, ox, oy, w, h);
             log?.Invoke($"block {block}: {geometry.SmallStart} large-chart and {geometry.TriangleCount - geometry.SmallStart} clipped small-chart triangles");
             var sfmt = new Sfmt19937(0xdee533d5);
+            var gpuLuxels = new Glsl.Raygen.RtxVrad3LightmapS0F0.Luxel_t_natural[w * h];
+            var gpuSamples = Array.Empty<Glsl.Raygen.RtxVrad3LightmapS0F0.LightmapSample_t_natural>();
             for (var pass = 0; pass < Passes; pass++)
             {
                 if (pass % 4 == 0)
@@ -115,6 +127,29 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
                 }
                 var random = HaltonSamples.Generate(haltonPermutations, (uint)pass);
                 var p = pass;
+                if (ValveRaygen)
+                {
+                    if (pass % 4 == 0)
+                        gpuSamples = [.. samples.Select(s => Vrad3Raygen.Sample(s))];
+                    using var raygens = new ThreadLocal<Vrad3Raygen>(() =>
+                    {
+                        var r = new Vrad3Raygen(prototype!);
+                        r.Block(w, h, ids, gpuLuxels);
+                        r.Samples(gpuSamples);
+                        r.Pass(p, 4, random, new Vector2(ox, oy), new Vector2(Width, Height));
+                        return r;
+                    });
+                    Parallel.For(0, h, new ParallelOptions { MaxDegreeOfParallelism = Threads }, y =>
+                    {
+                        if (y % Stride != 0)
+                            return;
+                        var r = raygens.Value!;
+                        for (var x = 0; x < w; x += Stride)
+                            if (ids[y * w + x] != 0xffffffff)
+                                r.Run(x, y);
+                    });
+                    continue;
+                }
                 Parallel.For(0, h, new ParallelOptions { MaxDegreeOfParallelism = Threads }, y =>
                 {
                     if (y % Stride != 0)
@@ -124,6 +159,9 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
                             tracer.Luxel(x, y, w, h, ids, samples, random, p, new Vector2(ox, oy), new Vector2(Width, Height), ref luxels[y * w + x]);
                 });
             }
+            if (ValveRaygen)
+                for (var i = 0; i < luxels.Length; i++)
+                    luxels[i] = ids[i] == 0xffffffff ? Bake.Luxel.Empty() : Vrad3Raygen.ToLuxel(gpuLuxels[i]);
             if (CropBlock is null)
                 Readback(image, luxels, ox, oy, w, h);
             else

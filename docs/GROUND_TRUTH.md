@@ -934,6 +934,25 @@ game can answer is raised with the user first, and runs with -insecure.
     culling, probe01's sunlit blocks kept 15% of Valve's shadow; without it,
     as Valve, they match (CpuBakeTests).
 
+70. **Material data for vrad3's hit groups** (settled 2026-10-17 by the
+    compiled shaders; rtx programs in csgo/shaders_vulkan_dir.vpk,
+    materialsystem2 20261015's expression function table at 1800fa000). A
+    material's block in g_MaterialData holds every variable its static combo
+    writes, at the write sequence's RegisterOffset in 4-byte words
+    (csgo_environment combo 0: g_vColorTint 52 = byte 208, g_tColor1 178 =
+    712, as its GLSL struct reads them); values are the artist's, the VCS
+    default, or the variable's VfxEval expression; texture variables are
+    bindless indices, read through sRGB views when the variable's
+    TypeSpecificBits bit 0 (SrgbRead) is set. Inferred, not captured: the
+    GeometryInfo_t field formats for scene_meshes.kv3's float streams and
+    the missing-texture fallbacks (white, flat normal).
+
+71. **GPU min, max and clamp** (settled 2026-10-17 by a bake): the raygen
+    divides a path's radiance by its largest component and clamps the
+    result; for a zero path that is clamp(0 / 0, -1, 1) * 0, which vrad3
+    bakes as 0. The transpiled shaders' min, max and clamp therefore take
+    the operand that is not NaN (IEEE minNum / maxNum), as GPUs do.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

@@ -1,0 +1,58 @@
+{
+ "functions": [
+  {
+   "addr": "1800fa000",
+   "name": "VfxEval_FunctionTable",
+   "module": "s2c:infra",
+   "note": "24-byte entries {name, argument count, flag, function}: SrgbGammaToLinear, TextureAverageColor, MatrixMultiply, MatrixColorCorrect2, MatrixColorTint2 and the rest"
+  },
+  {
+   "addr": "18009b580",
+   "name": "VfxEval_SrgbGammaToLinear",
+   "module": "s2c:infra",
+   "note": "the top three components through 180082e60"
+  },
+  {
+   "addr": "180082e60",
+   "name": "SrgbGammaToLinear",
+   "module": "s2c:infra",
+   "note": "clamp 0..1; x / 12.92 up to 0.04045, else powf((x + 0.055) / 1.055, 2.4)"
+  },
+  {
+   "addr": "18009bf90",
+   "name": "VfxEval_MatrixMultiply",
+   "module": "s2c:infra",
+   "note": "two 4x4 off the stack, product through 180081100"
+  },
+  {
+   "addr": "18009c090",
+   "name": "VfxEval_MatrixColorCorrect2",
+   "module": "s2c:infra",
+   "note": "(contrast, saturation, brightness), average colour -> 180081260 (not ported: identity at 1, 1, 1)"
+  },
+  {
+   "addr": "18009c3c0",
+   "name": "VfxEval_MatrixColorTint2",
+   "module": "s2c:infra",
+   "note": "(tint, amount) -> 1800818d0 (not ported: identity at white, 1)"
+  },
+  {
+   "addr": "18009bb70",
+   "name": "VfxEval_TextureAverageColor",
+   "module": "s2c:infra",
+   "note": "the texture manager's average colour (vtable +0x2d8), w 1"
+  },
+  {
+   "addr": "180081260",
+   "name": "MatrixColorCorrect",
+   "module": "s2c:infra",
+   "note": "Haeberli-style: translate by -average, contrast, saturation about luminance (0.2125, 0.7154, 0.0721), brightness, back"
+  },
+  {
+   "addr": "1800818d0",
+   "name": "MatrixColorTint",
+   "module": "s2c:infra",
+   "note": "tint about luminance with a powf amount term"
+  }
+ ]
+}

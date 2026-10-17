@@ -231,6 +231,48 @@ LightmapAhd, LightmapWeld).
   fields, GPU float rounding. The bake cannot be byte for byte (GPU
   transcendentals and traversal order); the target is Valve's statistics.
 
+### Valve's shaders, run as C#
+
+Since 2026-10-17 the bake runs vrad3's own GLSL instead of hand ports:
+`tools/re/glsl_to_cs.py` transpiles the SPIR-V-Cross output statement for
+statement into C# (`Lighting/Bake/Glsl`: `GlslVectors.g.cs` from
+`tools/re/glsl_types_gen.py`, `GlslRuntime.cs` the built-ins with GPU
+semantics, min/max/clamp preferring the operand that is not NaN).
+
+- **Ray generation**: `Glsl/Raygen/RtxVrad3LightmapS0F0.g.cs` is
+  rtx_vrad3_lightmap's AHD combo; `Vrad3Raygen` hosts it: g_SceneGlobalInfo,
+  g_Lights (PathTraceBarnLightGPU_t), one light bin holding every light
+  (vrad3's binning is conservative), g_instanceBuffer, the samples, the
+  luxels, the Halton volume, and traceRayEXT on our BVH (payload 0 the
+  closest hit, payload 1 the shadow visibility). On probe01 and
+  ze_hold_em_p it gives the hand port's (PathTracer, still there with
+  `S2C_HANDPORT=1`) numbers to three decimals, so the hand port is right and
+  the raygen is now Valve's code. About 2.5 times slower.
+- **Hit groups**: each material's rtx static combo (ShaderDataProvider over
+  its F_ parameters on shaders_vulkan_dir.vpk's _vulkan_60_rtx and
+  _features programs) picks a transpiled closest hit
+  (`Glsl/Shaders/*.g.cs`, `HitShaders.All`); `RtxScene` builds what they
+  read: GeometryInfo_t per mesh (scene_meshes.kv3's float fields, R32G32 to
+  R32G32B32A32_FLOAT, offsets times 4, 32-bit indices; inferred from
+  scenesystem 180093f10 and the shaders, not captured), the vertex and
+  index buffers, PackedRtxInstanceData_t, the bindless textures (every mip,
+  sRGB views where the VCS variable has SrgbRead) and samplers, and each
+  material's data block: every variable the static combo writes, at its
+  write sequence's RegisterOffset (4-byte words), its value the artist's,
+  the VCS default or its VfxEval expression (`VfxEval`, with
+  materialsystem2's SrgbGammaToLinear and MatrixMultiply; MatrixColorTint2
+  and MatrixColorCorrect2 identity at their defaults, other values counted
+  as unported). Transpiled so far: rtx_default_hitgroup 0 and 1,
+  csgo_environment 0, csgo_complex 2560 and 5120, csgo_simple_2way_blend 0,
+  csgo_lightmappedgeneric 32 (every combo ze_hold_em_p and probe01 use;
+  `CpuBakeProbe.RtxCombos` lists a scene's).
+- **Open (ze_hold_em_p)**: with Valve's raygen and hit groups the bounce
+  irradiance stays 1.16 to 1.85 times Valve's (single bounce already 1.3,
+  the ratio smooth over each block, shape mask and reservoir ruled out by
+  experiment, light records and their reader 1804a5570 checked against
+  scenesystem). Next: capture vrad3's own pre-post-process image
+  (lightmap_image_save, CS2 closed) for this map and compare luxel by luxel.
+
 `CpuBakeTests.Bake` (`CPUBAKE=<vrad3 folder>`, `CPUBAKE_ADDON`,
 `CPUBAKE_BLOCK` for one block into a block-sized image, `CPUBAKE_FILTER=1`
 for the script's firefly and median filters on it, `CPUBAKE_STRIDE`)
