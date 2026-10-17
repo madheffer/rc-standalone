@@ -983,7 +983,7 @@ RESOURCECOMPILER = [
     ("180244420", "EntityLump_CopyBakeTexture", LUMP, "no-bake branch: if <old>_c loads, key := new path and <new>_c is written"),
     ("18023ae00", "LightProbe_GridSize", LUMP, "ceil(extent / max(voxel,1)), 128 cap, x and y aligned"),
     ("18024e890", "WRB_PushProbeRecord", LUMP, "appends a 0x8c0-byte cubemap/probe record"),
-    ("1801f5a80", "LightProbe_PackAtlas", LIGHTS, "CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z"),
+    ("1801f5a80", "LightProbe_PackAtlas", LIGHTS, "CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z; the atlas size out (+0x1e0) is the allocator dims of the last fit (1801f5fce), each rounded up to 4, 0 -> 4 (1801f6080)"),
     ("1801f5a40", "LightProbe_AtlasCompare", LIGHTS, "qsort key: size z, then y, then x, all descending"),
     ("180f67300", "MapDoc_ContentRelativePath", LIGHTS, "doc +0x6a0 through the filesystem with CONTENT, forward slashes"),
     ("180ef4c80", "BakeResource_CacheDir", LUMP, "_bakeresourcecache/<map path without extension>_baked"),

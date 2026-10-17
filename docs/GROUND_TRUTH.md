@@ -1165,6 +1165,11 @@ game can answer is raised with the user first, and runs with -insecure.
         the chart's offset (swapped with bit 0);
       - the query data is built from the moved uvs
         (LightmapChartRepacking).
+    - The light probe atlas size is LightProbe_PackAtlas's output: the
+      allocator dims of the last fit, rounded up to 4 (1801f5fce,
+      1801f6080; review finding F15), not the boxes' extent. ze_hold_em_p's
+      eight volumes give the same size either way; its outputs are
+      byte-exact apart from 2 BC7 blocks of the dlshd atlas.
     - Still open at quality 2:
       - the hue-shift fixup encoder (180c46dd0): 5 of 1,048,576
         irradiance blocks;

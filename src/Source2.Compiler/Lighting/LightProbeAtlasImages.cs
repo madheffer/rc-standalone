@@ -15,14 +15,16 @@ namespace Source2.Compiler.Lighting;
 /// <item>Direct light shadows (1801f69c0): (X Z) by Y; the range place - 1
 /// to place + size, clamped the same way.</item>
 /// </list>
-/// The atlas is the packed boxes' extent: each box's place - 1 plus
-/// (size + 5) &amp; ~3 per axis.
+/// The atlas size is <see cref="ProbeAtlas.PackWithSize"/>'s: the allocator's dims
+/// of the last fit rounded up to 4, which can exceed the packed boxes' extent
+/// (<see cref="Size"/>, kept for callers that only have the places).
 /// </summary>
 public static class LightProbeAtlasImages
 {
     /// <summary>One volume: its grid size, its atlas place, and its two images (RGBA floats).</summary>
     public sealed record Volume(int X, int Y, int Z, ProbeAtlas.Place Place, float[] AmbientCube, float[] Shadows);
 
+    /// <summary>The packed boxes' extent (each box's place - 1 plus (size + 5) &amp; ~3 per axis); not the atlas size when there are two volumes or more.</summary>
     public static (int X, int Y, int Z) Size(IReadOnlyList<Volume> volumes)
     {
         static int Cells(int size) => size == -2 ? 4 : (size + 5) & ~3;

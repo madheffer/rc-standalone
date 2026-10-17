@@ -214,6 +214,9 @@ public class CpuBakeTests(ITestOutputHelper output)
                         for (var i = 0; i < plane.Length; i++)
                             plane[i] = (Half)channel.Data[i * 4 + k];
                     }
+                    // CPUBAKE_DUMP=<dir>: our block's raw channel images, for per-luxel comparisons.
+                    if (Environment.GetEnvironmentVariable("CPUBAKE_DUMP") is { Length: > 0 } dump)
+                        File.WriteAllBytes(Path.Combine(dump, $"channel{c:00}.exr"), ours.Write());
                     Compare($"channel{c:00}", ours, Vrad3Exr.Read(File.ReadAllBytes(path)), traced, ox, oy);
                 }
                 return;
@@ -1014,12 +1017,11 @@ public class CpuBakeProbe(ITestOutputHelper output)
                 volumes.Add((id, c[0], c[1], c[2]));
             }
         }
-        var places = ProbeAtlas.Pack(volumes.Select(v => new ProbeAtlas.Place(v.X, v.Y, v.Z)).ToList());
+        var (places, size) = ProbeAtlas.PackWithSize(volumes.Select(v => new ProbeAtlas.Place(v.X, v.Y, v.Z)).ToList());
         var list = volumes.Select((v, i) => new LightProbeAtlasImages.Volume(v.X, v.Y, v.Z, places[i],
             LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_ambientcube.exr")))),
             LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr")))))).ToList();
-        var size = LightProbeAtlasImages.Size(list);
-        output.WriteLine($"atlas {size.X}x{size.Y}x{size.Z}; places {string.Join(" ", places.Select(p => $"({p.X},{p.Y},{p.Z})"))}");
+        output.WriteLine($"atlas {size.X}x{size.Y}x{size.Z} (boxes' extent {LightProbeAtlasImages.Size(list)}); places {string.Join(" ", places.Select(p => $"({p.X},{p.Y},{p.Z})"))}");
         var different = 0;
         foreach (var (file, image) in new[] { ("lpv_atlas_ambientcube.exr", LightProbeAtlasImages.AmbientCube(size, list)), ("lpv_atlas_dlshd.exr", LightProbeAtlasImages.Shadows(size, list)) })
         {

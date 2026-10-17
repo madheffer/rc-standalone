@@ -611,7 +611,9 @@ resourcecompiler's script runs one routine per volume: `lpv_type`,
   image, or an all-ones image when there are no baked shadows.
 
 resourcecompiler then builds the atlases (LPVAtlas 1). The places come from
-LightProbe_PackAtlas, ported as Maps/ProbeAtlas. The atlas is the packed
+LightProbe_PackAtlas, ported as Maps/ProbeAtlas. The atlas size is the
+allocator's dims of the last fit, each rounded up to a multiple of 4
+(1801f5fce, 1801f6080). With two or more volumes that can exceed the packed
 boxes' extent.
 - 1801f64f0 copies each volume's ambient cube over a range from
   (place - 1) & ~3 to (place + size + 4) & ~3, clamping the source texel.

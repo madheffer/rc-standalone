@@ -26,10 +26,17 @@ public static class ProbeAtlas
     /// last fit's places stand.</item>
     /// </list>
     /// </summary>
-    public static Place[] Pack(IReadOnlyList<Place> sizes)
+    public static Place[] Pack(IReadOnlyList<Place> sizes) => PackWithSize(sizes).Places;
+
+    /// <summary>
+    /// <see cref="Pack"/>, and the atlas size 1801f5a80 hands back: the allocator's dims of the
+    /// last fit (stored on each fit, 1801f5fce), each rounded up to a multiple of 4 and 0 taken
+    /// as 4 (1801f6080). It can exceed the packed boxes' extent when there are two volumes or more.
+    /// </summary>
+    public static (Place[] Places, (int X, int Y, int Z) Size) PackWithSize(IReadOnlyList<Place> sizes)
     {
         if (sizes.Count == 0)
-            return [];
+            return ([], (4, 4, 4));
         static int Cells(int size) => size == -2 ? 4 : (size + 5) & ~3;
         var order = Enumerable.Range(0, sizes.Count).ToList();
         CrtQsort.Sort(order, (a, b) => sizes[a].Z != sizes[b].Z ? sizes[b].Z - sizes[a].Z
@@ -45,6 +52,7 @@ public static class ProbeAtlas
         var allocator = new Allocator3D();
         var rects = new Allocator3D.Rect[sizes.Count];
         Allocator3D.Rect[]? best = null;
+        int[] fitDims = [0, 0, 0];
         for (var a = 0; a < 3; a++)
             for (var b = 0; b < 3; b++)
                 for (var c = 0; c < 3; c++)
@@ -85,6 +93,7 @@ public static class ProbeAtlas
                             continue;
                         }
                         best = (Allocator3D.Rect[])rects.Clone();
+                        fitDims = [dims[0], dims[1], dims[2]];
                         var j = Array.IndexOf(done, false);
                         if (j >= 0)
                         {
@@ -98,7 +107,8 @@ public static class ProbeAtlas
         var places = new Place[sizes.Count];
         for (var i = 0; i < order.Count; i++)
             places[order[i]] = new Place(best![i].X + 1, best[i].Y + 1, best[i].Z + 1);
-        return places;
+        static int Round(int d) => d == 0 ? 4 : (d + 3) & ~3;
+        return (places, (Round(fitDims[0]), Round(fitDims[1]), Round(fitDims[2])));
     }
 
     /// <summary>

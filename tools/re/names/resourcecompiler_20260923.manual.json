@@ -5500,7 +5500,7 @@
    "addr": "1801f5a80",
    "name": "LightProbe_PackAtlas",
    "module": "s2c:baked/light-keys",
-   "note": "CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z"
+   "note": "CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z; the atlas size out (+0x1e0) is the allocator dims of the last fit (1801f5fce), each rounded up to 4, 0 -> 4 (1801f6080)"
   },
   {
    "addr": "1801f5a40",

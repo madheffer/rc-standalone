@@ -98,11 +98,10 @@ public static class LightmapOutputs
 
         if (options.LpvAtlas && Volumes(Path.Combine(folder, "script-gpu.vrad3")) is { Count: > 0 } volumes)
         {
-            var places = ProbeAtlas.Pack(volumes.Select(v => new ProbeAtlas.Place(v.X, v.Y, v.Z)).ToList());
+            var (places, size) = ProbeAtlas.PackWithSize(volumes.Select(v => new ProbeAtlas.Place(v.X, v.Y, v.Z)).ToList());
             var list = volumes.Select((v, i) => new LightProbeAtlasImages.Volume(v.X, v.Y, v.Z, places[i],
                 LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_ambientcube.exr")))),
                 LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr")))))).ToList();
-            var size = LightProbeAtlasImages.Size(list);
             var ambient = new RcTexture.RcMipChain.Level(size.X * size.Z, size.Y * 7, LightProbeAtlasImages.AmbientCube(size, list));
             var shadows = new RcTexture.RcMipChain.Level(size.X * size.Z, size.Y, LightProbeAtlasImages.Shadows(size, list));
             outputs.Add(new($"{prefix}env_light_probe_volume_atlas.vtex_c",
