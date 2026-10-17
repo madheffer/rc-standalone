@@ -29,9 +29,15 @@ internal static class Kv3Limits
         foreach (var size in sizes)
             if (size < 0)
                 throw Hostile($"a negative size ({size})");
-        if (stored > remaining || (compressed && declared > Math.Max(remaining, 0) * MaxExpansion + (1 << 20)))
+        if (stored > remaining || (compressed && declared > Expandable(remaining)))
             throw Hostile($"{declared} bytes ({stored} stored) in a block that holds {remaining}");
     }
+
+    /// <summary>The most <paramref name="remaining"/> stored bytes may decompress to, saturating: an
+    /// unbounded remaining (long.MaxValue) times 4096 wraps to -4096 and would refuse everything
+    /// over 1 MB.</summary>
+    public static long Expandable(long remaining) =>
+        Math.Min(Math.Max(remaining, 0), long.MaxValue / MaxExpansion - (1 << 8)) * MaxExpansion + (1 << 20);
 
     /// <summary>The most values a block of <paramref name="declared"/> decompressed bytes may hold.
     /// A typed array of a zero-width type (NULL, BOOLEAN_TRUE, INT64_ZERO) states any length in four

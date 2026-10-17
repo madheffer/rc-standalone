@@ -38,6 +38,12 @@ version that changes something a host sees.
 - `ResourceBlock.SourceOffset`: where a block sat in the file it was read from.
 - `ShaderProgram.StaticComboRules`, `ShaderCombo.CompareValue`, `ShaderVariable.ChannelCount`.
 
+### Fixed
+- A standalone binary KV3 (no resource block, such as a nav mesh's) declaring more than about 1 MB
+  decompressed is no longer refused as hostile. The `vrf-kv3-size-guard` bound multiplied an
+  unbounded remaining size by 4096 and wrapped negative; it now bounds a standalone KV3 by the rest
+  of its stream and saturates. `Kv3Limits.CheckSizes` saturates the same way.
+
 ## 0.1.106 (production cleanup, 2026-10-14)
 
 ### Added

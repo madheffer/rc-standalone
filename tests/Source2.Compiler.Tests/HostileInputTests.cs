@@ -98,6 +98,15 @@ public class HostileInputTests
     }
 
     [Fact]
+    public void Kv3Limits_AnUnboundedBlock_DoesNotWrapTheExpansionBound()
+    {
+        Assert.True(Kv3Limits.Expandable(long.MaxValue) > long.MaxValue / 2);
+        Kv3Limits.CheckSizes(3 << 20, 1000, long.MaxValue, compressed: true, 3 << 20, 1000);
+        Assert.Equal(4096L * 10 + (1 << 20), Kv3Limits.Expandable(10));
+        Assert.Throws<InvalidDataException>(() => Kv3Limits.CheckSizes(3 << 20, 1000, 10, compressed: true));
+    }
+
+    [Fact]
     public void Kv3V5_HugeDeclaredSize_IsRefusedBeforeAllocating()
     {
         var (block, _) = TypedNullArrayBlock();

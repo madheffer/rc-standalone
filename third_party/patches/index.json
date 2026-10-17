@@ -63,7 +63,7 @@
       "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
       "find": "vrf-kv3-size-guard.find.txt",
       "replace": "vrf-kv3-size-guard.replace.txt",
-      "description": "Check a KV3 block's declared buffer, blob and compressed sizes against the block before renting buffers sized by them, and set the node budget from them. SECURITY: a few hundred hostile bytes otherwise asked for gigabytes (s2c fuzz, 2026-10-12)."
+      "description": "Check a KV3 block's declared buffer, blob and compressed sizes against the block before renting buffers sized by them, and set the node budget from them. A standalone KV3 (Size 0, e.g. a nav mesh) is bounded by the rest of the stream, and the 4096x bound saturates instead of wrapping. SECURITY: a few hundred hostile bytes otherwise asked for gigabytes (s2c fuzz, 2026-10-12)."
     },
     {
       "id": "vrf-kv3-string-count-guard",

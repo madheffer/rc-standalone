@@ -163,4 +163,49 @@ public class Kv3TreeTests
             }
         Assert.True(checkedBlocks >= 600, $"only {checkedBlocks} blocks sampled");
     }
+
+    private static byte[] Standalone(Kv3Compression compression, Kv3Node payload)
+    {
+        var t = new Kv3Tree { Format = Guid.NewGuid(), Compression = (uint)compression };
+        var obj = new Kv3Node { Type = Kv3Type.Object, Items = [], KeyIds = [] };
+        obj.KeyIds.Add(t.StringId("payload"));
+        obj.Items.Add(payload);
+        t.Root = obj;
+        return t.Write((uint)compression);
+    }
+
+    private static BinaryKV3 ReadStandalone(byte[] kv3Bytes)
+    {
+        var kv3 = new BinaryKV3(BlockType.Undefined) { Resource = null! };
+        using var r = new BinaryReader(new MemoryStream(kv3Bytes));
+        kv3.Read(r);
+        return kv3;
+    }
+
+    // A standalone KV3 (Size 0, how VRF's NavMeshFile reads one) used to be refused once it
+    // declared about 1 MB: the ratio bound multiplied long.MaxValue by 4096 and wrapped to -4096.
+    [Theory]
+    [InlineData(Kv3Compression.Lz4)]
+    [InlineData(Kv3Compression.Zstd)]
+    public void Vrf_reads_a_standalone_kv3_over_a_megabyte(Kv3Compression compression)
+    {
+        var blob = Enumerable.Range(0, 3 << 20).Select(i => (byte)(i % 251)).ToArray();
+        var written = Standalone(compression, new Kv3Node { Type = Kv3Type.BinaryBlob, Blob = blob });
+        Assert.True(written.Length < 1 << 20, $"{written.Length} bytes stored");
+
+        ValveKeyValue.KVObject d = ReadStandalone(written).Data;
+        Assert.True(d.GetArray<byte>("payload").AsSpan().SequenceEqual(blob));
+    }
+
+    [Fact]
+    public void Vrf_refuses_a_standalone_kv3_storing_more_than_its_stream_holds()
+    {
+        var items = Enumerable.Range(0, 100_000).Select(i => Scalar(Kv3Type.UInt32, (ulong)(i * 7919 % 100_003)));
+        var written = Standalone(Kv3Compression.Lz4, Typed(Kv3Type.ArrayTyped, Kv3Type.UInt32, items));
+        Assert.NotNull(ReadStandalone(written).Data);
+
+        var cut = written[..(written.Length / 2)];
+        var ex = Assert.Throws<InvalidDataException>(() => ReadStandalone(cut));
+        Assert.Contains("refusing to parse", ex.Message);
+    }
 }
