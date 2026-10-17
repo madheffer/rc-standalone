@@ -649,6 +649,42 @@ an oscillate period > 0 replaces operator time with `fmod(curTime/period, 1)`.
   bulge modes apply with no mid CP; per-axis jitter of plus or minus
   `m_fMaxDistance`; step 1/(N - 1); `m_bLoop` wraps, otherwise the path bounces.
 
+### Collection layout and helpers
+
+CParticleCollection offsets the evaluators read (not schema-bound; from the
+decompiles cited above and in the analysis scratch):
+
+<code>
++0x18          CParticleSystemDefinition** (definition handle)
++0x20 / +0x30  first child collection / next sibling (SetControlPoint* propagate to every child)
++0x28          parent collection
++0x40..0x4c    current time broadcast x4
++0x50          current time: -preSimTime at Init (0x180038c20), += dt each frame (0x180047af9)
++0x5c          time the endcap started
++0x60          operator time origin (operator time = max(0, curTime - this))
++0x64          this frame's dt
++0x68          previous non-zero dt (written only when dt != 0, 0x180047adb)
++0x74          active particle count
++0x168/+0x170  CP index -> slot byte table / control point array (0xE0 bytes each)
++0x2d8 + 8*i   attribute i stream; +0x460 + i its stride byte (>>2 = 16-byte blocks of 4 particles)
++0x4c8 + 8*i   attribute i initial-value stream; +0x650 + i its stride
++0x8bc         flags: 8 = emission stopped, 0x10 = endcap; +0x8c1 bit 6 = in endcap
++0x910/914/918 random-table counter / per-collection seed offset / per-frame operator seed
+
+control point (0xE0):
++0x00 position   +0x0c previous position   +0x18 forward   +0x24 up   +0x30 left
++0x3c/+0x48/+0x54 previous forward / up / left
++0x90 flags (0 = never set; |1 position, |0x1c orientation)   +0x94 last change time (-1.0 = never)
+</code>
+
+Helpers: `SetControlPointPosition` 0x1800364e0 (propagates to every child
+collection); `GetControlPointTransformAtTime` 0x1800c1e70 (position interpolated
+to the given time, current orientation columns forward/left/up; used by
+C_INIT_CreateWithinBox's local-space path); remap constant setup 0x18005b5b0
+(`ctx, mapType, biasType, in0, in1, out0, out1, biasParam`, argument registers
+confirmed in the disassembly). Integer attributes: mask 0xf00200004800 (11, 14,
+33, 40-43), stored int32 and read through cvtdq2ps (0x18006f510 case 0x15).
+
 ### UNSETTLED (schema and inputs)
 
 1. Where run-once pre-emission operators (`m_bRunOnce`) execute: the per-frame
