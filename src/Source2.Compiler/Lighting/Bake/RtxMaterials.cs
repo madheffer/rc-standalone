@@ -500,13 +500,32 @@ public sealed class RtxScene
 
     public IReadOnlyList<string> Notes { get; }
 
-    private RtxScene(BakeScene scene, HitShader?[] shaders, Func<HitContext> factory, IReadOnlyList<string> notes)
+    private readonly Func<HitContext> _factory;
+
+    private RtxScene(BakeScene scene, HitShader?[] shaders, Func<HitContext> factory, IReadOnlyList<string> notes, IReadOnlyList<TextureSource> textureSources)
     {
         _scene = scene;
         _shaders = shaders;
+        _factory = factory;
         _contexts = new ThreadLocal<HitContext>(factory);
         Notes = notes;
+        TextureSources = textureSources;
     }
+
+    /// <summary>Where a bindless texture came from: its path (null for a stand-in) and whether it is read sRGB, or the stand-in's value.</summary>
+    public readonly record struct TextureSource(string? Path, bool Srgb, vec4 Constant);
+
+    /// <summary>Each bindless texture's source, by index (the GPU oracle uploads the same files).</summary>
+    public IReadOnlyList<TextureSource> TextureSources { get; }
+
+    /// <summary>The instance's hit group, or null (the caller shades it).</summary>
+    public HitShader? ShaderOf(int instance) => _shaders[instance];
+
+    /// <summary>The content reader the scene was built with (the GPU oracle uploads the same files).</summary>
+    public Func<string, byte[]?>? ContentRead { get; private init; }
+
+    /// <summary>A fresh hit context over the scene's buffers (the GPU oracle's CPU side).</summary>
+    public HitContext NewContext() => _factory();
 
     public bool Has(int instance) => _shaders[instance] != null;
 
@@ -558,14 +577,20 @@ public sealed class RtxScene
                     notes.Add(note);
         }
         var textures = new List<BindlessTexture>();
+        var textureSources = new List<TextureSource>();
         var textureIndex = new Dictionary<(string, bool), int>();
         int Texture(string? path, bool srgb, bool normal)
         {
+            // CPUBAKE_FLATNORMALS=1 (a check): every normal map replaced by the flat default.
+            if (normal && Environment.GetEnvironmentVariable("CPUBAKE_FLATNORMALS") == "1")
+                path = null;
             var key = (path ?? (normal ? "<flat normal>" : "<white>"), srgb);
             if (textureIndex.TryGetValue(key, out var i))
                 return i;
             var t = path is null ? null : LoadTexture(read(path + "_c"), srgb);
-            t ??= normal ? new BindlessTexture(1, 1, [[new vec4(0.5f, 0.5f, 1f, 1f)]]) : new BindlessTexture(1, 1, [[new vec4(1f)]]);
+            var constant = normal ? new vec4(0.5f, 0.5f, 1f, 1f) : new vec4(1f);
+            textureSources.Add(t is null ? new TextureSource(null, srgb, constant) : new TextureSource(path, srgb, default));
+            t ??= new BindlessTexture(1, 1, [[constant]]);
             textureIndex[key] = textures.Count;
             textures.Add(t);
             return textures.Count - 1;
@@ -652,7 +677,7 @@ public sealed class RtxScene
         };
         if (VfxEval.UnportedColorMatrices > 0)
             notes.Add($"{VfxEval.UnportedColorMatrices} non-default colour matrices taken as identity (MatrixColorTint2 / MatrixColorCorrect2 not ported)");
-        return new RtxScene(scene, hit, Factory, notes);
+        return new RtxScene(scene, hit, Factory, notes, textureSources) { ContentRead = read };
     }
 
     /// <summary>
@@ -823,7 +848,25 @@ public sealed class RtxScene
         }
     }
 
-    /// <summary>Every mip of a texture as linear floats (8-bit sRGB through the sRGB curve when the shader reads it sRGB).</summary>
+    /// <summary>
+    /// The render system's preload cap (RenderSystem/MaxPreloadTextureResolution, 512; rendersystemvulkan
+    /// 1800f7ccc / 180104cd0, settled for physicsbuilder's sampler, Source2.Compiler.Gpu.GpuTextures):
+    /// a texture is resident from the first mip whose longer side is at most this, and vrad3 streams in no
+    /// more (scenesystem's rtx_texture_resolution, 1800058f0, defaults to the same 512), so the hit
+    /// shaders' textureLod(..., 0) reads that mip. 0 lifts the cap (CPUBAKE_TEXCAP, a check).
+    /// </summary>
+    public static int TextureCap { get; set; } = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_TEXCAP"), out var cap) ? cap : 512;
+
+    /// <summary>The first mip a texture is resident from under <see cref="TextureCap"/>.</summary>
+    public static int ResidentLevel(int width, int height, int mips)
+    {
+        var level = 0;
+        while (TextureCap > 0 && level < mips - 1 && Math.Max(width >> level, height >> level) > TextureCap)
+            level++;
+        return level;
+    }
+
+    /// <summary>The resident mips of a texture as linear floats (8-bit sRGB through the sRGB curve when the shader reads it sRGB).</summary>
     public static BindlessTexture? LoadTexture(byte[]? bytes, bool srgb)
     {
         if (bytes is null)
@@ -832,10 +875,12 @@ public sealed class RtxScene
         res.Read(new MemoryStream(bytes));
         if (res.DataBlock is not ValveResourceFormat.ResourceTypes.Texture tex)
             return null;
-        var mips = new vec4[Math.Max(1, (int)tex.NumMipLevels)][];
+        var count = Math.Max(1, (int)tex.NumMipLevels);
+        var first = ResidentLevel(tex.Width, tex.Height, count);
+        var mips = new vec4[count - first][];
         for (var m = 0; m < mips.Length; m++)
         {
-            using var bmp = tex.GenerateBitmap(0, 0, (uint)m, ValveResourceFormat.TextureDecoders.TextureCodec.None);
+            using var bmp = tex.GenerateBitmap(0, 0, (uint)(m + first), ValveResourceFormat.TextureDecoders.TextureCodec.None);
             var texels = new vec4[bmp.Width * bmp.Height];
             if (bmp.ColorType is SkiaSharp.SKColorType.RgbaF32)
             {
@@ -866,7 +911,7 @@ public sealed class RtxScene
             }
             mips[m] = texels;
         }
-        return new BindlessTexture(tex.Width, tex.Height, mips);
+        return new BindlessTexture(Math.Max(1, tex.Width >> first), Math.Max(1, tex.Height >> first), mips);
     }
 
     /// <summary>Runs the instance's hit group for an accepted hit; false when the instance has none (the caller shades it).</summary>
@@ -912,5 +957,5 @@ public sealed class RtxScene
     }
 
     // System.Numerics' row-vector matrix as GLSL's mat4x3 (columns: the basis images and the translation).
-    private static mat4x3 Mat(Matrix4x4 m) => new(new vec3(m.M11, m.M12, m.M13), new vec3(m.M21, m.M22, m.M23), new vec3(m.M31, m.M32, m.M33), new vec3(m.M41, m.M42, m.M43));
+    internal static mat4x3 Mat(Matrix4x4 m) => new(new vec3(m.M11, m.M12, m.M13), new vec3(m.M21, m.M22, m.M23), new vec3(m.M31, m.M32, m.M33), new vec3(m.M41, m.M42, m.M43));
 }

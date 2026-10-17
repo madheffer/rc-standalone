@@ -20,7 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Source2.Compiler\Source2.Compiler.csproj" />
-    <PackageReference Include="Silk.NET.Vulkan" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Vulkan" Version="2.23.0" />
+    <PackageReference Include="Silk.NET.Shaderc" Version="2.23.0" />
   </ItemGroup>
 
 </Project>

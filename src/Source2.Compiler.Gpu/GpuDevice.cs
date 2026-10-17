@@ -23,7 +23,11 @@ public sealed unsafe class GpuDevice : IDisposable
     public string Name { get; }
     private readonly PhysicalDeviceMemoryProperties _memory;
 
-    public GpuDevice()
+    /// <param name="rayTracingShaderFeatures">
+    /// Also enable what vrad3's ray tracing shaders need when they run as compute (the hit shader
+    /// oracle): 16-bit floats and integers, 16-bit storage, non-uniform storage buffer indexing.
+    /// </param>
+    public GpuDevice(bool rayTracingShaderFeatures = false)
     {
         var appName = (byte*)SilkMarshal.StringToPtr("s2c");
         var app = new ApplicationInfo { SType = StructureType.ApplicationInfo, PApplicationName = appName, ApiVersion = Vk.Version12 };
@@ -52,9 +56,18 @@ public sealed unsafe class GpuDevice : IDisposable
 
         var priority = 1f;
         var queueInfo = new DeviceQueueCreateInfo { SType = StructureType.DeviceQueueCreateInfo, QueueFamilyIndex = QueueFamily, QueueCount = 1, PQueuePriorities = &priority };
+        var v11 = new PhysicalDeviceVulkan11Features
+        {
+            SType = StructureType.PhysicalDeviceVulkan11Features,
+            StorageBuffer16BitAccess = rayTracingShaderFeatures,
+            UniformAndStorageBuffer16BitAccess = rayTracingShaderFeatures,
+        };
         var v12 = new PhysicalDeviceVulkan12Features
         {
             SType = StructureType.PhysicalDeviceVulkan12Features,
+            PNext = rayTracingShaderFeatures ? &v11 : null,
+            ShaderFloat16 = rayTracingShaderFeatures,
+            ShaderStorageBufferArrayNonUniformIndexing = rayTracingShaderFeatures,
             DescriptorIndexing = true,
             RuntimeDescriptorArray = true,
             DescriptorBindingPartiallyBound = true,
@@ -74,6 +87,7 @@ public sealed unsafe class GpuDevice : IDisposable
                 FragmentStoresAndAtomics = true,
                 ImageCubeArray = true,
                 SamplerAnisotropy = true,
+                ShaderInt16 = rayTracingShaderFeatures,
             },
         };
         var deviceInfo = new DeviceCreateInfo { SType = StructureType.DeviceCreateInfo, PNext = &features, QueueCreateInfoCount = 1, PQueueCreateInfos = &queueInfo };

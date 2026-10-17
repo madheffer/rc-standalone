@@ -1115,7 +1115,45 @@ game can answer is raised with the user first, and runs with -insecure.
     - Not yet checked: everything every textureLod reads at mip 0 in
       Valve's GPU run. That needs GPU-side ground truth (a Frida or
       RenderDoc capture of one pass, or a probe shader on the PC's RTX 4070,
-      which made the captures).
+      which made the captures). Done since: see 79.
+    - Our own bake with full-resolution against 512-capped textures
+      correlates at 0.938, and forcing the blend to layer A or B gives
+      means of 1.33 and 0.67: the blend is right on average, the per-hit
+      material differs by more than a mip level would.
+
+79. **The hit shaders on the GPU: the texture unit** (measured 2026-10-18
+    on the PC's RTX 4070 with HitShaderOracleTests; open).
+    - Oracle: tools/re/hit_to_compute.py rewrites a closest hit's GLSL as
+      compute (ray built-ins and payload from buffers), ComputeOracle
+      (Source2.Compiler.Gpu, shaderc) runs it with the scene's own buffers
+      and the textures uploaded as their stored blocks. On the blend
+      floor's hits every geometric field agrees to 1 ulp; albedo differs by
+      up to 4%, roughness 4.5%, the material normal beyond rounding.
+    - Texture residency: rendersystem's 512 preload cap (as settled for
+      physicsbuilder) also caps the raytracer's textures (scenesystem's
+      rtx_texture_resolution, 1800058f0, default 512, range 64 to 2048):
+      RtxScene.LoadTexture now starts at that mip (TextureCap). Small
+      measured gain (slabs 0.625 to 0.634).
+    - BC7: texelFetch equals VRF's decode bit for bit.
+    - BC4 UNORM: r = (r0 (257 - w) + r1 w) / 65535 with w = 36, 72, 113,
+      144, 185, 221 (r0 > r1) or 48, 96, 161, 209 (r0 <= r1), G = B = 0,
+      A = 1; VRF returns 8 bits in every channel.
+    - sRGB 8-bit to linear: a fixed 256-entry table of half floats (up to
+      0.00375 off the exact curve), measured from an R8G8B8A8_SRGB texture.
+    - BC1: every palette entry is an 8-bit code p (UNORM p / 255, sRGB the
+      table above at p); endpoints are the usual 565 expansion. How p is
+      interpolated (index 2 and 3, and the three-colour mode's index 2) is
+      not one of the usual roundings: not yet fitted. Data in
+      %TEMP%/hitoracle_tex (Bc1Decode, HITORACLE_BC1=1).
+    - Bilinear: with BC7 texels equal, filtered results still differ by up
+      to 0.0017; the filter arithmetic is not yet modelled (1/256 weights
+      alone do not explain it).
+    - Payload half fields come back unrounded from the compute rewrite
+      (reflectance 0.0400000028): whether vrad3's real ray tracing payload
+      rounds them is not known; ours does.
+    - Next: fit BC1's interpolation and the bilinear filter, then decode
+      BC1/BC4 and sRGB as measured in RtxScene.LoadTexture and filter as the
+      GPU does in HitContext, and re-measure only_slabs.
 
 79. **Lightmap textures at every compile option** (settled 2026-10-18 by
     decompile and byte comparison with Valve's probe01 builds at
