@@ -47,7 +47,18 @@ Rules that apply throughout:
 
 Percentages are judgement, weighted by remaining work.
 
-### M1. Land the blend fix (+4%)
+### M1. Land the blend fix (+4%): done 2026-10-18
+
+The -1 semantic index was not the rule. scenesystem's loader (1800912d0)
+builds each mesh's input layout from the mesh's own material's input
+signature (1804aaf20 / 1804aa730) and packs the vertices per format
+(1804abf60 / 1804ac280); `SceneVertexLayout` ports it (ledger 75), and
+`MapBySignature` is gone.
+- ze_hold_em_p's 16 blocks are at 0.98 to 0.997 of `pre_post`.
+- Its eight LPVs are at 0.94 to 0.997, near-black volumes aside (the M3 fixes
+  then took them to 0.997 to 1.000).
+- The only_c12 / only_c9 crash is fixed: the material block is padded to the
+  hit group's struct size (csgo_environment reads its last pad).
 
 **The cause.** `concrete_slabs_wet_1.vmat` (csgo_simple_2way_blend, ze's
 floor) reads its blend weights from texcoord slot 4. In scene_meshes.kv3
@@ -96,7 +107,43 @@ To do:
    with a hit group. The real maps do not trip it, which suggests a material
    block or bindless index assumption.
 
-### M2. resourcecompiler lightmap outputs at every option (+4%)
+### M2. resourcecompiler lightmap outputs at every option (+4%): done 2026-10-18, two encoders open
+
+Ledger 79. `CpuBakeProbe.LightmapOutputsFiles` (with `LMTEX_ARGS` for the
+compile's arguments) against Valve's builds:
+- **Byte-exact in all seven files:** probe01 default,
+  `-lightmapMaxResolution 8192` and `-lightmapCompressionDisabled`.
+- **ze_hold_em_p** (eight volumes): exact apart from 2 BC7 blocks of the
+  dlshd atlas.
+- **`-lightmapVRadQuality 2`:** exact apart from two encoders.
+  - The BC6H hue-shift fixup encoder (180c46dd0, 5 of 1,048,576 irradiance
+    blocks) is not ported; the note says so.
+  - bc7e gives 5 different blocks of the dlshd atlas. Its input fill
+    (180c366a0, cvtss2si) matches ours, so the difference is in main's
+    native bc7e.
+
+Verified and fixed:
+- F01/F17 (final per quality, hueShiftFixup on BC6H);
+- F02, F03, F05, F06, F07;
+- F04: lightmapMaxResolution and fast come from the command line;
+- F12/F16 (the query uv side);
+- F15 (the atlas size is the allocator's last fit rounded to 4);
+- F18 (uncompressed formats);
+- F25 (the BC6H row fill truncates; exact on EXR halves, wrong on mip 1);
+- F13, F20, F21 (the probe volume atlas side);
+- the settings plumbing (`LightmapOutputs.Options` from MapCompile).
+
+New rules, not in the review:
+- "Texture Compiler Version Mip Box" and the encode quality as special
+  dependency user data;
+- the smallest mip's reflectivity;
+- per-mip LZ4 sizes;
+- final's quality 4 (LZ4 HC 12, BC6H veryslow);
+- vrad3's chart_repacking.dat applied to the query data's uvs at quality
+  1/2 (18020e230 / 18020e4e0).
+
+Open: F19 (the world node with `-vrad3output`), F08/F09/F22/F26 (latent),
+and F27 to F29 and F33 in main's texture files.
 
 Fix and verify against the three captured Valve builds
 (`tools/re/out/captures/probe01_options/<name>.vpk`, their `.vpk.vrad3` job
@@ -161,9 +208,12 @@ difference looks like GPU float evaluation (not isolated yet); see ledger
   textured materials (ledger 78). Next step: GPU-side ground truth for one
   material's hit (capture or a probe shader on the RTX 4070).
 
-### M4. Unported vrad3 features (+9%)
+### M4. Unported vrad3 features (+9%): not started, needs specimens
 
-Take these in the order the ze maps need them.
+Take these in the order the ze maps need them. As of 2026-10-18 no map the
+user has sets a light cookie (every lightcookie key is empty), and
+neither ze_hold_em_p's nor probe01's script has fog or far field routines.
+Each feature needs a specimen map and a CS2-closed capture first.
 - **Cookies** (F37): `TextureLod2D` returns 1 in every host. Bind the
   cookie textures as vrad3 does. ze_hold_em_p has none, so find a specimen
   map first.
