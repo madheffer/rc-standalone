@@ -965,6 +965,15 @@ game can answer is raised with the user first, and runs with -insecure.
     bit. RED2's override CRC and the computed ImageArg fingerprint are still
     open.
 
+73. **The light probe volume bake** (settled 2026-10-17 by decompile,
+    disassembly and comparison with vrad3's images on probe01). Voxelize,
+    flood fill, compute and readback are in docs/VRAD3.md "Light probe
+    volumes", as are AO, fireflies, resolve and median. The random offsets
+    are SFMT-19937 (checked against its reference sequence). The AO factor
+    comes from the disassembly (Ghidra drops its float accumulation). The
+    shadow dilation runs two rounds. The solid masks and the open band
+    equal Valve's. The atlas copy equals resourcecompiler's on both atlases.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

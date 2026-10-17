@@ -362,7 +362,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801eda50` | `NLightBaker_WriteLightmapScript` | the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks |  |
 | `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume |  |
 | `1801ee9f0` | `NLightBaker_WriteFarfieldScript` | // Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0) |  |
-| `1801eee20` | `NLightBaker::SerializeLightProbeVolumes` | lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube | `src/Source2.Compiler/Lighting/LightmapTextures.cs:140`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:335` |
+| `1801eee20` | `NLightBaker::SerializeLightProbeVolumes` | lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube | `src/Source2.Compiler/Lighting/LightmapTextures.cs:141`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:337` |
 | `1801f01a0` | `NLightBaker_WriteFogIrradianceScript` | // Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu) |  |
 | `1801f0dd0` | `NLightBaker_LoadFarfield` | reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures |  |
 | `1801f2240` | `NLightBaker::RunVrad3` | lightmap_info.dat as blocks of 1024 (2048 with vrad3LargeBlockSize or off a customer machine, at most the smaller side), row-major, clipped; writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries | `src/Source2.Compiler/Lighting/LightmapTexels.cs:15` |
@@ -371,8 +371,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f3920` | `NLightBaker::SetupTexels` | ==== Baking %d x %d lightmap ====; RasterizeSliceAndProcessTexels |  |
 | `1801f3f40` | `NLightBaker::SerializeLightMap` | per channel: QuarterSize (180c43450) while the shorter side is over LightmapChannels/<c>/MaxResolution; a 2DARRAY linear no-mip descriptor; format by channel (BC6H irradiance/sh2_dc, BC7 directional/sh2/chart colour, shadows ATI1N/ATI2N/BC7 by which channels hold a value under 1, 4x4 when none), CompressedFormat/UncompressedFormat by name; the descriptor as KV3 text (181e8e7c0) is ___OverrideInputData___, the bitmap is lightmapTextureArg (fingerprint -1: computed), 'final', hueShiftFixup for BC6H with BC6HHueShiftFixup | `src/Source2.Compiler/Lighting/LightmapTextures.cs:14` |
 | `1801f5020` | `NLightBaker_RasterizeTriangle` | conservative: counter-clockwise, luxel centres against the three edge functions each pushed half a luxel out along both axes, floor/ceil bounds | `src/Source2.Compiler/Lighting/LightmapTexels.cs:10`, `src/Source2.Compiler/Lighting/LightmapTexels.cs:69` |
-| `1801f64f0` | `NLightBaker_BuildLpvAtlasAmbientCube` | packs the volumes into lpv_atlas_ambientcube.exr (WriteEXR 180c44d30) |  |
-| `1801f69c0` | `NLightBaker_BuildLpvAtlasDlshd` | lpv_atlas_dlshd.exr |  |
+| `1801f64f0` | `NLightBaker_BuildLpvAtlasAmbientCube` | packs the volumes into lpv_atlas_ambientcube.exr (WriteEXR 180c44d30) | `src/Source2.Compiler/Lighting/LightProbeAtlasImages.cs:12` |
+| `1801f69c0` | `NLightBaker_BuildLpvAtlasDlshd` | lpv_atlas_dlshd.exr | `src/Source2.Compiler/Lighting/LightProbeAtlasImages.cs:15` |
 | `1801f86f0` | `CStaticLightingProcessor::SetImportanceVolumes` | vf 0x48: copies the hull list into +0x5e8 |  |
 | `1801f8770` | `CStaticLightingProcessor::GetImportanceVolumes` | vf 0x50: +0x5e8 |  |
 | `18020e230` | `StaticLighting_LoadChartRepacking` | chart_repacking.dat from VRAD3_PATH (optional) |  |
@@ -422,7 +422,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180285eb0` | `WRB_BuildPathTraceSceneInfo` | scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights) | `src/Source2.Compiler/Lighting/PathTraceScene.cs:8`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:44`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:68` +1 |
 | `1802b6830` | `WRB_PropDrawMaterial` | a prop draw call's material: the record's overrides (+0x118) by mesh and draw id, else the skin's material group (+0x188 hash) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:23` |
 | `180c40290` | `FloatBitMap_t::LoadFromEXRFile` | reads the file then 180c40c20 |  |
-| `180c40c20` | `FloatBitMap_t::LoadFromInMemoryEXR` | 2D; a missing R/G/B is an error, alpha 1 when absent |  |
+| `180c40c20` | `FloatBitMap_t::LoadFromInMemoryEXR` | 2D; a missing R/G/B is an error, alpha 1 when absent | `src/Source2.Compiler/Lighting/LightmapTextures.cs:204` |
 | `180c41d70` | `FloatBitMap_t::WriteToBuffer` | 8-bit writer: SSE x*255 round to even for widths of a multiple of 4, else (int)(clamp*255+0.5) | `src/Source2.Compiler/Texture/Rc/RcMipChain.cs:261` |
 | `180c48210` | `FloatBitMap_t::WriteToBufferDXT_atitc` | RGBA8888 writer then ATI_TC_ConvertTexture: ImageFormat 0x14/0x15 DXT1, 0x16 DXT3, 0x17 DXT5, 0x18 ATI1N as ATI_TC BC4 (31), 0x19 BC5 (32), 0x1c ATI2N_DXT5 (27); weights 1 or the perceptual 0.3086/0.6094/0.082 |  |
 | `180c494c0` | `ImageFormat_Info` | &182fe4eb0[(format + 1)], 32-byte entries: name, then sizes |  |
@@ -1332,7 +1332,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `18008beb0` | `PathTraceScene_AddLight` | a scene_info light (barn KV, path_trace_light_flags, baked shadow ids) into PathTraceBarnLightGPU_t (0x1f0 bytes), through 18008c110 | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9` |
-| `18008c110` | `PathTraceBarnLight_FromShape` | the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9`, `src/Source2.Compiler/Lighting/Bake/Vrad3Raygen.cs:17` |
+| `18008c110` | `PathTraceBarnLight_FromShape` | the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9`, `src/Source2.Compiler/Lighting/Bake/RaygenHost.cs:15` |
 | `18008d1a0` | `SceneGlobalInfoGPU_Construct` | the 0xC0 globals block at scene +0x3e0: sun irradiance 0, sun min brightness FLT_MAX, IBL scale 1; scene flags \|= 1 unless ResourceCompiler/BakedLighting/DisableCullingForShadows | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:12` |
 | `1800912d0` | `PathTraceScene_Load` | scene_info.kv3 and scene_meshes.kv3 into the GPU scene: meshes, instances (180094d30), materials (180098660), lights (18008beb0), the ibl (1800999d0), then the upload (180095180) | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:9` |
 | `180093f10` | `PathTraceScene_GeometryInfo` | a mesh's GeometryInfo_t from its input layout: position (format 2 or 6), normal (6 or 42), tangent (2), texcoords (formats in mask 0x2410010004) and colours (2 or 28) by semantic index, each (offset, format, stream) | `src/Source2.Compiler/Lighting/Bake/RtxMaterials.cs:540` |
@@ -2142,7 +2142,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
-- 352 addresses
+- 364 addresses
 
 ### s2c:baked/vrad3
 
@@ -2299,7 +2299,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180027fa0` | `RenderResourceHandle_Release` | decrement +0x20, release through the resource system at zero |  |
 | `1800281b0` | `CVrad3LightmapImage::SetPixelRGB` | the channel's bitmap (0x9d8-byte FloatBitMap_t per channel), components masked by its attribute mask | `src/Source2.Compiler/Lighting/LightmapAhd.cs:169` |
 | `1800282c0` | `CVrad3LightmapImage::SetPixelRGBA` | as SetPixelRGB with alpha | `src/Source2.Compiler/Lighting/LightmapAhd.cs:180` |
-| `18002afc0` | `LightProbeGrid_AllocateImages` | border of one cell each side (cells + 2), box grown by a cell; occupancy bitset; GPU compute image W x H x D |  |
+| `18002a320` | `LightProbeGrid_ReadSolidMask` | bit 0 of the GPU solid mask into the bordered occupancy bitset | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:19` |
+| `18002afc0` | `LightProbeGrid_AllocateImages` | border of one cell each side (cells + 2), box grown by a cell; occupancy bitset; GPU compute image W x H x D | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:12` |
 | `18002b2e0` | `LightProbeGrid_ResetImages` | ambient cube (X*Z) x (Y*7), shadows and three SH images (X*Z) x (Y*2), or the fog image; shadow records cleared to (-1, 1.0 x4) |  |
 | `18002b5b0` | `CVrad3Command_lpv_image_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002b640` | `CVrad3Command_lpv_image_fog_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2311,13 +2312,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002d530` | `CVrad3Command_lightmap_load_block_gpu::Run` | the command: reads the block's chart ids from lightmap_info.dat into the image's luxel records (flags bit 0 valid, bit 2 chart bit 28, bit 1 chart bit 29), LuxelChartIDs.vtex, then 'Clip packing geometry to block (CPU)': cordon-masked triangles overlapping the block as 24-byte polygons (position, uv, PackTangentFrame), std::partition (18003d8e0) large charts first, small-chart polygons split on 8 x 8 tile lines (epsilon 2^-16; split coordinate snapped, v also set when a y split was due), tile by uv centroid, sorted (std_Sort_32ByteElements), fanned into PackingGeometryVertices, ChartIDs, TriangleArea and the per-tile triangle list (Lighting/Bake/BlockGeometry.cs) | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:7` |
 | `18002ffc0` | `Vrad3_GpuTimestamp` | a timestamp query on the context, appended with its stage index (the five block compute stages) |  |
 | `180030100` | `CVrad3Command_lightmap_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180032850` | `LightProbeGrid_VoxelizeGpu` | 32 passes: pass, three random offsets, box and local-to-world; occupancy read back (18002a320) |  |
+| `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:20` |
+| `180032850` | `LightProbeGrid_VoxelizeGpu` | 32 passes: pass, three random offsets, box and local-to-world; occupancy read back (18002a320) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:15` |
 | `180032b60` | `Vrad3_MarkOccupiedCells` | occupancy of a grid under a local-to-world matrix, dilated by n cells (lpv_mark_occupied_gpu, farfield_compute_bricks) |  |
 | `1800358b0` | `FarField_ComputeLightingGpu` | rtx_vrad3_farfield over the bricks in batches |  |
 | `180035ce0` | `CVrad3Command_lpv_mark_occupied_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180035df0` | `CVrad3Command_lpv_voxelize_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180035e80` | `LightProbeGrid_ComputeBlockGpu` | lpv_compute_block_gpu and _fog_gpu (fog flag): passes up to maxspp, convergence from minspp; reads back 192-byte LpvLuxel cells |  |
+| `180035e80` | `LightProbeGrid_ComputeBlockGpu` | lpv_compute_block_gpu and _fog_gpu (fog flag): passes up to maxspp, convergence from minspp; reads back 192-byte LpvLuxel cells | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:25` |
 | `1800371a0` | `CVrad3Command_lpv_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800371b0` | `CVrad3Command_lpv_compute_block_fog_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800371c0` | `CVrad3Command_render_camera::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2451,16 +2452,23 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18007dff0` | `CVrad3Command_lpv_local_to_world::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18007e230` | `CVrad3Command_lpv_box::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18007e370` | `CVrad3Command_lpv_cells::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180081560` | `LightProbeGrid_DilateShadowRecords` | cells with an empty light slot take it from 3x3x3 neighbours that have it, repeated until none changes |  |
+| `18007f720` | `BakeLightProbeImage_Dilate` | unbordered occupancy from the bordered mask, then a job per face (18007fa30) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:16` |
+| `18007fa30` | `BakeLightProbeImage_Dilate::Body` | sweeps filling solid cells: weights 0.2308/0.4615/0.3077 by Manhattan distance (1802a7900), halved off the face (1802a7a00); threshold 0.5 down by 0.1 while above 0 | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:16` |
+| `1800812a0` | `LightProbeGrid_WriteOpenBand` | band 6: RGB 0.3 open, 0 solid, alpha 1 | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:16`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:418` |
+| `180081560` | `LightProbeGrid_DilateShadowRecords` | cells with an empty light slot take it from 3x3x3 neighbours that have it, repeated until none changes | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:291` |
 | `180082290` | `CVrad3Command_lpv_type::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180082340` | `CVrad3Command_lpv_init::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180082340` | `CVrad3Command_lpv_init::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:12` |
 | `1800824e0` | `CVrad3Command_lpv_image_resolve::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180082f20` | `CVrad3Command_lpv_image_encode_sh2::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180082fc0` | `CVrad3Command_lpv_image_ambient_occlusion::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180082fc0` | `CVrad3Command_lpv_image_ambient_occlusion::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:12`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:76` |
+| `180083580` | `LightProbeGrid_OcclusionFactor` | per face: 26 directions, w = ((n.d 0.5 + 0.5) - max(n.d, 0)) 0.33 + max(n.d, 0), two steps halving w, occluded from the first solid cell; 1 - weight (occ / total)^2, weights 0.7 0.7 0.85 0.7 0.7 0.9 | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:12` |
+| `180083ab0` | `CVrad3Command_lpv_image_ambient_occlusion::Run::Body` | open cells; a face's four channels times the factor when under 1 |  |
 | `180083e40` | `LightProbeGrid_RemoveFirefliesSH` |  |  |
-| `180084c50` | `LightProbeGrid_RemoveFirefliesAmbientCube` | ratio (default 4.0, integer from the script) |  |
+| `180084c50` | `LightProbeGrid_RemoveFirefliesAmbientCube` | ratio (default 4.0, integer from the script) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:14` |
+| `1800851b0` | `LightProbeGrid_RemoveFirefliesAmbientCube::Body` | detect: luminance >= 5e-5 and a channel over ratio x the open 26-neighbour mean; fix: the mean of open, unflagged neighbours | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:14` |
 | `180085af0` | `CVrad3Command_lpv_image_remove_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `180085b60` | `CVrad3Command_lpv_image_median_filter::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `180085b60` | `CVrad3Command_lpv_image_median_filter::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:17` |
+| `1800860b0` | `CVrad3Command_lpv_image_median_filter::Run::Body` | median of the open cells reached through open face neighbours within the radius, the cell itself excluded; nth_element, mean of the middle two for an even count | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumePost.cs:18` |
 | `180086c10` | `CVrad3Command_lpv_image_median_filter_fog::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180087c30` | `CVrad3Command_lpv_image_write_fog::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180087d00` | `CVrad3Command_lpv_image_write_ambientcube::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2500,3 +2508,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f7ad0` | `VectorTransform_SIMD` | (x, y, z, 1) through a 3x4 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:269` |
 | `1801f91a0` | `CKMeansClustering::AssignVectorsToClusters::lambda_1` | lambda job body |  |
 | `1801fa6e0` | `AsinApprox` | sign(x) * \|((((0.430477 - 0.0594935 a) a - 1.24068) a + 0.216183) a + 1.00008) / (1 - 0.779384 a) - sqrt(1 - a a)\|, a = \|x\| (resourcecompiler FUN_181272450) |  |
+| `1801ff440` | `Sfmt19937_GenRandAll` | SFMT-19937 refill: SL1 18, SR1 11, one-byte SL2/SR2, POS1 122 | `src/Source2.Compiler/Lighting/Bake/Sfmt19937.cs:8` |
+| `1801ff9a0` | `Sfmt19937_InitGenRand` | SFMT-19937 init_gen_rand and period certification (parity 1, 0, 0, 0x13c9e684) | `src/Source2.Compiler/Lighting/Bake/Sfmt19937.cs:6` |
+| `180217110` | `LightProbeGrid_FloodFill` | all occupied, then the empty cells reachable from the start cleared | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:23`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:235` |
+| `180217b50` | `LightProbeGrid_NearestEmptyCell` | breadth first through occupied cells (+x +y +z -x -y -z, 18028d610), Manhattan distance up to the limit; the first empty neighbour | `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:21`, `src/Source2.Compiler/Lighting/Bake/LightProbeVolumeBaker.cs:207` |

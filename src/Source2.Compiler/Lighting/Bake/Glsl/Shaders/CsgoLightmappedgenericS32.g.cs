@@ -1084,8 +1084,8 @@ public sealed class CsgoLightmappedgenericS32 : HitShader
         payload.flHitT = ctx.RayTmax;
         payload.vFaceNormalWs = _474;
         payload.vInterpolatedNormalWs = _475;
-        vec3[] _512 = new vec3[3];
-        vec3[] _513 = new vec3[3];
+        vec3[] _512 = new vec3[] { _447, _441, _436 };
+        vec3[] _513 = new vec3[] { _446, _440, _435 };
         vec3 _2455 = ((_512[0] * ((1.0f - ctx.Barycentrics.x) - ctx.Barycentrics.y)) + (_512[1] * ctx.Barycentrics.x)) + (_512[2] * ctx.Barycentrics.y);
         vec3[] _506 = new vec3[3];
         _506[0] = _2455 - (_513[0] * dot(_2455 - _512[0], _513[0]));

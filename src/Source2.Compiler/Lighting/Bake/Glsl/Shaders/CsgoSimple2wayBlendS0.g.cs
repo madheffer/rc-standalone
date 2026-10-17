@@ -1080,8 +1080,8 @@ public sealed class CsgoSimple2wayBlendS0 : HitShader
         payload.flHitT = ctx.RayTmax;
         payload.vFaceNormalWs = _541;
         payload.vInterpolatedNormalWs = _542;
-        vec3[] _576 = new vec3[3];
-        vec3[] _577 = new vec3[3];
+        vec3[] _576 = new vec3[] { _508, _502, _497 };
+        vec3[] _577 = new vec3[] { _507, _501, _496 };
         vec3 _2607 = ((_576[0] * ((1.0f - ctx.Barycentrics.x) - ctx.Barycentrics.y)) + (_576[1] * ctx.Barycentrics.x)) + (_576[2] * ctx.Barycentrics.y);
         vec3[] _570 = new vec3[3];
         _570[0] = _2607 - (_577[0] * dot(_2607 - _576[0], _577[0]));

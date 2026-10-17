@@ -500,53 +500,94 @@ resourcecompiler's script runs one routine per volume: `lpv_type`,
 
   It also sizes the per-cell shadow records (20 bytes: four light indices,
   four floats) and the GPU compute image, W x H x D.
-- `lpv_voxelize_gpu`: 32 GPU passes over the bordered grid. Each pass gets
-  its index, three random offsets (x 2^-32), the box and the local-to-world
-  matrix. The occupancy is read back into the bitset (18002a320).
-- `lpv_flood_fill`: starts from the cell holding the local origin. If that
-  cell is occupied, it takes the nearest empty cell within 8 (180217b50);
-  if there is none it warns and stops. It fills the empty cells reachable
-  from there (180217110), and the cells it cannot reach become occupied.
-  Each cell's 0 / 1 goes to the GPU buffer DAT_180347df0.
-- `lpv_compute_block_gpu sx sy sz ex ey ez [minspp] [maxspp] [err]`: both
-  it and `_fog_gpu` jump into 180035e80 with a fog flag. minspp defaults to
-  512, maxspp to 1024 and err to 0.02. Passes run in command lists of 16,
-  up to maxspp. The convergence test (`g_BlockConverged`, `g_LpvLuxels`)
-  runs on pass 0 and from minspp on. The push constants pack the region
-  start and grid size (16 bits each), the fog flag and the local-to-world
-  matrix (shader `rtx_vrad3_lpv`). Each cell reads back as a 192-byte
-  LpvLuxel:
+- `lpv_voxelize_gpu` (180032850): 32 passes of rtx_vrad3_lpv file 0 over
+  the bordered grid, pass i with m_nEstimate i, three SFMT-19937 draws (seed
+  0xea213b00; offset x the third, z the first, each times 2^-32), the
+  bordered box and the local-to-world matrix. Each launch traces 32 rays from
+  its jittered cell position; more than 12.8 back faces mark it solid, and a
+  solid cell stays solid. 18002a320 reads bit 0 back. The generator is
+  SFMT, not MT19937 (1801ff9a0 / 1801ff440: the reference parameters).
+- `lpv_flood_fill` (1800323f0): the bordered cell holding the local origin
+  (floor((0 - min) / cell size), clamped). 180217b50 walks occupied cells
+  breadth first (+x, +y, +z, -x, -y, -z, Manhattan distance up to 8) to the
+  first empty neighbour; 180217110 starts from everything occupied and clears
+  the empty cells reachable from there. The result is uploaded as the solid
+  mask (0 / 1 per bordered cell).
+- `lpv_compute_block_gpu sx sy sz ex ey ez [minspp] [maxspp] [err]` (180035e80):
+  minspp defaults to 512, maxspp to 1024 and err to 0.02. Passes run in
+  command lists of 16, up to maxspp, each with the pass's Halton volume and a
+  second SFMT (same seed). Push constants: m_nEstimate the pass, dimension
+  count 4, filter radius 1, the fog flag, the region start with the grid's
+  counts packed 16:16, the offset, and the region's box (start x cell + min,
+  end x cell + min). The convergence test (lightmap_test_converged, the LPV
+  combo: 3 x 3 x 3 cells a group; no valid cell is converged, two or fewer is
+  not; else each face's luminance standard deviation within mean x err) runs
+  before pass 0 (err 0, writing 0) and before every pass from minspp on.
+  Each cell reads back as a 192-byte LpvLuxel:
   - six float4 ambient cube faces, RGB clamped at 0, written to the ambient
     cube image at column z x X + x, row face x Y + y;
   - three float4s copied to the SH images as they are;
   - baked shadows as four (sum, weight, light index) triples, stored as
-    sum / weight in the cell's shadow record.
+    sum / weight in the cell's shadow record when the weight is positive.
 
   With fog, the cell's first three floats go to the fog image instead.
-- `lpv_image_ambient_occlusion`: per cell and cube face, a stencil of
-  neighbour directions normalize((-1 | 0 | 1, i, j)), weights 0.7, 0.85 and
-  0.9. The face darkens by the occupancy around it; the formula is still to
-  read.
+  Ported (LightProbeVolumeBaker, Valve's raygen transpiled): probe01's two
+  volumes reach Valve's statistics, the solid mask is identical (357 and 279
+  solid cells, the open band texel for texel), the noisy and final ambient
+  cubes are within 0.2% in the mean (1% on the small volume) at correlation
+  0.98 to 0.998, and the shadow image is 8051 of 8064 and 1560 of 1560
+  texels identical (2026-10-17, dev box, 4.5 s for both).
+- `lpv_image_ambient_occlusion` (180082fc0, 180083580): per open cell and
+  face, the 26 neighbour directions d = normalize(dx, dy, dz) weighted
+  w = ((n.d 0.5 + 0.5) - max(n.d, 0)) 0.33 + max(n.d, 0). Two steps along d,
+  w halving each step, add w to the total and, from the first solid cell on,
+  to the occluded sum. The factor 1 - weight (occluded / total)^2, with
+  weights 0.7, 0.7, 0.85, 0.7, 0.7, 0.9 for +X, +Y, +Z, -X, -Y, -Z, scales the
+  face's four channels when it is under 1.
 - `lpv_image_remove_fireflies [ratio] [debug]`: the ratio is
   (float)V_atoi(argv[1]), default 4.0; Ghidra's decompile drops this float
   argument, the disassembly shows it. It runs the SH variant (180083e40) or
-  the ambient cube one (180084c50, logging "LPV Remove Fireflies AHD").
-- `lpv_image_resolve [-gamma20]`: first 180081560 dilates the shadow
-  records. Cells with an empty slot are queued, and each round fills a
-  slot from the 3x3x3 neighbours that have that slot set, until nothing
-  changes. Then it writes the direct light shadow image ((X x Z) by Y,
-  four slots per cell): an empty slot is 1, else 1 - clamp(v, 0, 1), or
-  1 - sqrt(v) with -gamma20.
-- `lpv_image_median_filter <size>`: radius (size - 1) / 2, at least 1. Size
-  0 skips it. For the cube type it is the indirect light's median over the
-  six face planes in a 3D disc of radius r ("LPV Median Filter Indirect").
+  the ambient cube one (180084c50, body 1800851b0): per face, a detect pass
+  flags an open cell whose luminance (0.2126, 0.7152, 0.0722) is at least
+  5e-5 and whose R, G or B exceeds ratio times its open 26 neighbours' mean;
+  a fix pass gives each flagged cell the mean of its open, unflagged
+  neighbours.
+- `lpv_image_resolve [-gamma20]`:
+  1. 180081560 dilates the shadow records: two rounds (not until nothing
+     changes). A cell with an empty slot that has a neighbour holding that
+     slot is ready; each ready cell takes, per empty slot, the mean of its
+     non-ready neighbours' values, marked 254, and queues its neighbours with
+     empty slots for the next round.
+  2. It writes the direct light shadow image ((X x Z) by Y, four slots per
+     cell): an empty slot is 1, else 1 - clamp(v, 0, 1), or 1 - sqrt(v) with
+     -gamma20.
+  3. For the cube type, 18007f720 dilates the ambient cube into the solid
+     cells: per face, sweeps fill each cell whose valid 3 x 3 x 3 neighbours
+     weigh more than the threshold (0.2308, 0.4615, 0.3077 by Manhattan
+     distance, halved off the face direction), alpha 1. The threshold starts
+     at 0.5 and drops by 0.1 while above 0.
+  4. 1800812a0 writes band 6: RGB 0.3 in open cells, 0 in solid ones, alpha 1.
+- `lpv_image_median_filter <size>` (1800860b0): radius (size - 1) / 2, at
+  least 1. Size 0 skips it. For the cube type, per face and open cell, each
+  of R, G and B becomes the median of the open cells reached through open
+  face neighbours within the radius, the cell itself excluded (the mean of
+  the middle two for an even count; one or none leaves it). The values
+  change after the whole face ("LPV Median Filter Indirect").
 - `lpv_image_write_ambientcube <file>` writes the ambient cube image as it
   stands. `lpv_image_write_direct_light_shadows <file>` writes the shadow
   image, or an all-ones image when there are no baked shadows.
 
+resourcecompiler then builds the atlases (LPVAtlas 1). The places come from
+LightProbe_PackAtlas, ported as Maps/ProbeAtlas. The atlas is the packed
+boxes' extent.
+- 1801f64f0 copies each volume's ambient cube over a range from
+  (place - 1) & ~3 to (place + size + 4) & ~3, clamping the source texel.
+- 1801f69c0 copies the shadows over place - 1 to place + size.
+
+Both are ported in Lighting/LightProbeAtlasImages, and are identical to
+probe01's lpv_atlas_*.exr when built from vrad3's own per-volume images.
 The SH and fog paths (`lpv_image_encode_sh2`, `lpv_image_write_sh2`,
-`_fog`, the OIDN filters) and the two grid helpers (180217b50, 180217110,
-outside the decompiled range) are still to read.
+`_fog`, the OIDN filters) are still to read.
 
 ## Far field probe volumes
 

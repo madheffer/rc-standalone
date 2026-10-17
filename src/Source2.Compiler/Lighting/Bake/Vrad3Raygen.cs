@@ -9,20 +9,10 @@ namespace Source2.Compiler.Lighting.Bake;
 /// transpiled from its GLSL by tools/re/glsl_to_cs.py) run on the CPU: the
 /// host fills its buffers from the bake scene and answers traceRayEXT with the
 /// BVH, the opacity any-hit and the hit groups (BakeHits, with RtxScene's
-/// material hit groups when present).
-/// <list type="bullet">
-/// <item>g_SceneGlobalInfo from <see cref="BakeScene.Globals"/>; the light bins
-/// one cell holding every light (vrad3's binning is conservative, so one cell
-/// with all of them changes no light that reaches a point).</item>
-/// <item>g_Lights as PathTraceBarnLightGPU_t (scenesystem 18008c110's
-/// fields from <see cref="Light"/>); g_instanceBuffer from RtxScene.</item>
-/// <item>g_LightmapSamples and g_Luxels per block, g_RandomSamples the pass's
-/// Halton volume, g_LuxelChartIDs the block's chart ids, nothing converged.</item>
-/// <item>A miss leaves the payload as the shader initialised it (vrad3 has no
-/// miss shader that writes it); shadow rays (payload 1) multiply the
-/// visibility by one minus each translucent candidate's opacity, and any
-/// opaque hit makes it 0.</item>
-/// </list>
+/// material hit groups when present); <see cref="RaygenHost"/> has the parts
+/// every raygen shares. g_LightmapSamples and g_Luxels are per block,
+/// g_RandomSamples the pass's Halton volume, g_LuxelChartIDs the block's chart
+/// ids, nothing converged.
 /// One instance per thread; the buffer arrays are shared.
 /// </summary>
 public sealed class Vrad3Raygen : RtxVrad3LightmapS0F0
@@ -33,10 +23,7 @@ public sealed class Vrad3Raygen : RtxVrad3LightmapS0F0
     private uint[] _ids = [];
     private int _w;
 
-    public Vrad3Raygen(BakeScene scene, BakeHits hits) : this(scene, hits, [.. scene.Instances.Select(i => new PackedRtxInstanceData_t_natural
-    {
-        nSrgbColor = i.SrgbColor, nTriangleGeometry = (uint)i.Mesh, nMaterialFlags_nInstanceFlags = i.Packed, fEmissiveBoost = i.EmissiveBoost, nInstanceFlags = i.InstanceFlags,
-    })])
+    public Vrad3Raygen(BakeScene scene, BakeHits hits) : this(scene, hits, RaygenHost.Instances(scene))
     {
     }
 
@@ -45,18 +32,11 @@ public sealed class Vrad3Raygen : RtxVrad3LightmapS0F0
         _scene = scene;
         _hits = hits;
         RandomSamplesSize = new ivec3(HaltonSamples.Size, HaltonSamples.Size, HaltonSamples.Layers);
-        g_SceneGlobalInfo._member0 = [Globals(scene)];
-        g_Lights_1._member0 = [.. scene.Lights.Select(GpuLight)];
-        var words = Math.Max(1, (scene.Lights.Count + 31) / 32);
-        g_LightBins_1._member0 = new uint[words];
-        for (var i = 0; i < scene.Lights.Count; i++)
-            g_LightBins_1._member0[i / 32] |= 1u << (i % 32);
+        g_SceneGlobalInfo._member0 = [RaygenHost.Globals(scene)];
+        g_Lights_1._member0 = [.. scene.Lights.Select(RaygenHost.GpuLight)];
+        g_LightBins_1._member0 = RaygenHost.LightBins(scene);
         g_instanceBuffer_1._member0 = instances;
-        SubsurfaceProfilesConstantBuffer_t = new()
-        {
-            g_vSubsurfaceSamples = new _Array_natural_vector_float_4_480 { data = new vec4[480] },
-            g_SubsurfaceProfile = new _Array_natural_SSProfileConstants32 { data = new SSProfileConstants_natural[32] },
-        };
+        SubsurfaceProfilesConstantBuffer_t = RaygenHost.NoSubsurface();
     }
 
     /// <summary>Shares another instance's buffers (one raygen per thread).</summary>
@@ -121,49 +101,10 @@ public sealed class Vrad3Raygen : RtxVrad3LightmapS0F0
         Tangent = W(l.vTangent), Normal = W(l.vNormal), Ao = W(l.flAmbientOcclusion_vPadding),
     };
 
-    protected override void TraceRay(uint flags, uint mask, uint sbtOffset, uint sbtStride, uint missIndex, vec3 origin, float tMin, vec3 direction, float tMax, int payload)
-    {
-        var o = new Vector3(origin.x, origin.y, origin.z);
-        var d = new Vector3(direction.x, direction.y, direction.z);
-        if (payload == 1)
-        {
-            var visibility = p_1.m_flVisibility;
-            var hit = _scene.Rays.Trace(o, d, tMin, tMax, flags | RayScene.TerminateOnFirstHit, mask, (tri, t, u, v, front) =>
-            {
-                visibility *= 1f - Math.Clamp(_hits.Opacity(tri, u, v), 0f, 1f);
-                return visibility <= 0f;
-            });
-            p_1.m_flVisibility = hit.Found ? 0f : visibility;
-            return;
-        }
-        var rng = p.flOpacityRng;
-        var found = _scene.Rays.Trace(o, d, tMin, tMax, flags, mask, (tri, t, u, v, front) => BakeHits.StochasticOpacity(_hits.Opacity(tri, u, v), ref rng));
-        p.flOpacityRng = rng;
-        if (_debug)
-            Debug!($"  trace flags {flags} mask {mask} o {origin} d {direction} t {tMin}..{tMax}: {(found.Found ? $"hit t {found.T} tri {found.Triangle} front {found.FrontFacing}" : "miss")}");
-        if (!found.Found)
-            return;
-        var ours = new Payload
-        {
-            SmoothPosition = P(p.vSmoothPositionWs), HitT = p.flHitT, OpacityRng = rng, Instance = p.nInstance, Flipped = p.bFlippedNormal,
-            Albedo = new Vector3(1f, 0f, 1f), Roughness = 1f, Reflectance = 0.040008545f,
-        };
-        _hits.Shade(ref ours, found);
-        p = new Payload_t(Vh(ours.SmoothPosition), Vh(ours.FaceNormal), Vh(ours.InterpolatedNormal), ours.HitT, ours.OpacityRng, ours.Instance, ours.Flipped,
-            new MaterialDataMinimal_t(GL.f16vec3(Vh(ours.Normal)), GL.f16(ours.Metalness), GL.f16vec3(Vh(ours.Albedo)), GL.f16(ours.Roughness), GL.f16vec3(Vh(ours.Emissive)),
-                GL.f16(ours.Reflectance), ours.MaterialTypeAndFlags, GL.f16vec4(new vec4(ours.MaterialBits.X, ours.MaterialBits.Y, ours.MaterialBits.Z, ours.MaterialBits.W))));
-        if (_debug)
-            Debug!($"    payload smooth {p.vSmoothPositionWs} face {p.vFaceNormalWs} interp {p.vInterpolatedNormalWs} inst {p.nInstance} normal {p.material.vNormalWs} albedo {p.material.vAlbedo} rough {p.material.flRoughness}");
-    }
+    protected override void TraceRay(uint flags, uint mask, uint sbtOffset, uint sbtStride, uint missIndex, vec3 origin, float tMin, vec3 direction, float tMax, int payload) =>
+        RaygenHost.Trace(_scene, _hits, ref p, ref p_1, flags, mask, origin, tMin, direction, tMax, payload, _debug ? Debug : null);
 
-    protected override vec4 ImageLoadRandom(ivec3 c)
-    {
-        var x = ((c.x % HaltonSamples.Size) + HaltonSamples.Size) % HaltonSamples.Size;
-        var y = ((c.y % HaltonSamples.Size) + HaltonSamples.Size) % HaltonSamples.Size;
-        var z = Math.Clamp(c.z, 0, HaltonSamples.Layers - 1);
-        var at = ((z * HaltonSamples.Size + y) * HaltonSamples.Size + x) * 2;
-        return new vec4(_random[at], _random[at + 1], 0f, 1f);
-    }
+    protected override vec4 ImageLoadRandom(ivec3 c) => RaygenHost.Random(_random, c);
 
     protected override uvec4 ImageLoadConverged(ivec3 c) => default;
 
@@ -176,40 +117,8 @@ public sealed class Vrad3Raygen : RtxVrad3LightmapS0F0
 
     protected override vec4 TextureLod2D(int texture, int sampler, vec2 uv, float lod) => new(1f);
 
-    protected override vec4 TextureLodCube(int texture, vec3 direction, float lod)
-    {
-        if (_scene.Global.IblCubeMap is not { } cube)
-            return default;
-        var c = cube.Sample(new Vector3(direction.x, direction.y, direction.z));
-        return new vec4(c.X, c.Y, c.Z, c.W);
-    }
+    protected override vec4 TextureLodCube(int texture, vec3 direction, float lod) => RaygenHost.IblCube(_scene, direction);
 
-    private static SceneGlobalInfoGPU_t_natural Globals(BakeScene scene)
-    {
-        var g = scene.Global;
-        var m = g.IblTransformInverse;
-        return new SceneGlobalInfoGPU_t_natural(V(g.SkyColor), V(g.SkyAmbientBounce), V(g.SunLightIrradiance), new vec4(-1e9f), new vec4(1e9f),
-            new ivec4(1, 1, 1, scene.Lights.Count),
-            new mat4x3(new vec3(m.M11, m.M12, m.M13), new vec3(m.M21, m.M22, m.M23), new vec3(m.M31, m.M32, m.M33), new vec3(m.M41, m.M42, m.M43)),
-            V(g.IblCubeMapScale), g.IblCubeMap != null ? 0 : -1, g.IblCubeMap != null ? 0 : -1, 0, g.SkyLightFlags, -1, -1, g.SceneFlags, 0u);
-    }
-
-    private static PathTraceBarnLightGPU_t_natural GpuLight(Light l)
-    {
-        static mat4 M(Matrix4x4 m) => new(new vec4(m.M11, m.M21, m.M31, m.M41), new vec4(m.M12, m.M22, m.M32, m.M42), new vec4(m.M13, m.M23, m.M33, m.M43), new vec4(m.M14, m.M24, m.M34, m.M44));
-        var lum = new vec4[5];
-        for (var i = 0; i < 5; i++)
-            lum[i] = V(l.Luminaire[i]);
-        var box = new mat4x3(new vec3(l.IlluminationRow0.X, l.IlluminationRow1.X, l.IlluminationRow2.X), new vec3(l.IlluminationRow0.Y, l.IlluminationRow1.Y, l.IlluminationRow2.Y),
-            new vec3(l.IlluminationRow0.Z, l.IlluminationRow1.Z, l.IlluminationRow2.Z), new vec3(l.IlluminationRow0.W, l.IlluminationRow1.W, l.IlluminationRow2.W));
-        return new PathTraceBarnLightGPU_t_natural(M(l.ToClipSpace), M(l.FromClipSpace), V(l.NearPlane), V(l.Position), V(l.CookieParameters), V(l.Color), V(l.BounceColor),
-            V(l.Orientation), V(l.AngleFade), V(l.DistanceFadeSkirt), new _Array_natural_vector_float_4_5 { data = lum },
-            new vec4(-1e9f), new vec4(1e9f), default, default, default, box,
-            l.Cookie, l.LuminaireType, l.PathTraceFlags, l.SphericalCookie, l.BakedShadowIndex, l.ShadowedLightId, -1, 0);
-    }
-
-    private static vec4 V(Vector4 v) => new(v.X, v.Y, v.Z, v.W);
-    private static vec3 Vh(Vector3 v) => new(v.X, v.Y, v.Z);
-    private static Vector3 P(vec3 v) => new(v.x, v.y, v.z);
-    private static Vector4 W(vec4 v) => new(v.x, v.y, v.z, v.w);
+    private static vec4 V(Vector4 v) => RaygenHost.V(v);
+    private static Vector4 W(vec4 v) => RaygenHost.W(v);
 }

@@ -409,6 +409,78 @@
    "note": "32 passes: pass, three random offsets, box and local-to-world; occupancy read back (18002a320)"
   },
   {
+   "addr": "180083580",
+   "name": "LightProbeGrid_OcclusionFactor",
+   "module": "s2c:baked/vrad3",
+   "note": "per face: 26 directions, w = ((n.d 0.5 + 0.5) - max(n.d, 0)) 0.33 + max(n.d, 0), two steps halving w, occluded from the first solid cell; 1 - weight (occ / total)^2, weights 0.7 0.7 0.85 0.7 0.7 0.9"
+  },
+  {
+   "addr": "180083ab0",
+   "name": "CVrad3Command_lpv_image_ambient_occlusion::Run::Body",
+   "module": "s2c:baked/vrad3",
+   "note": "open cells; a face's four channels times the factor when under 1"
+  },
+  {
+   "addr": "1800851b0",
+   "name": "LightProbeGrid_RemoveFirefliesAmbientCube::Body",
+   "module": "s2c:baked/vrad3",
+   "note": "detect: luminance >= 5e-5 and a channel over ratio x the open 26-neighbour mean; fix: the mean of open, unflagged neighbours"
+  },
+  {
+   "addr": "18007f720",
+   "name": "BakeLightProbeImage_Dilate",
+   "module": "s2c:baked/vrad3",
+   "note": "unbordered occupancy from the bordered mask, then a job per face (18007fa30)"
+  },
+  {
+   "addr": "18007fa30",
+   "name": "BakeLightProbeImage_Dilate::Body",
+   "module": "s2c:baked/vrad3",
+   "note": "sweeps filling solid cells: weights 0.2308/0.4615/0.3077 by Manhattan distance (1802a7900), halved off the face (1802a7a00); threshold 0.5 down by 0.1 while above 0"
+  },
+  {
+   "addr": "1800812a0",
+   "name": "LightProbeGrid_WriteOpenBand",
+   "module": "s2c:baked/vrad3",
+   "note": "band 6: RGB 0.3 open, 0 solid, alpha 1"
+  },
+  {
+   "addr": "1800860b0",
+   "name": "CVrad3Command_lpv_image_median_filter::Run::Body",
+   "module": "s2c:baked/vrad3",
+   "note": "median of the open cells reached through open face neighbours within the radius, the cell itself excluded; nth_element, mean of the middle two for an even count"
+  },
+  {
+   "addr": "180217b50",
+   "name": "LightProbeGrid_NearestEmptyCell",
+   "module": "s2c:baked/vrad3",
+   "note": "breadth first through occupied cells (+x +y +z -x -y -z, 18028d610), Manhattan distance up to the limit; the first empty neighbour"
+  },
+  {
+   "addr": "180217110",
+   "name": "LightProbeGrid_FloodFill",
+   "module": "s2c:baked/vrad3",
+   "note": "all occupied, then the empty cells reachable from the start cleared"
+  },
+  {
+   "addr": "1801ff9a0",
+   "name": "Sfmt19937_InitGenRand",
+   "module": "s2c:baked/vrad3",
+   "note": "SFMT-19937 init_gen_rand and period certification (parity 1, 0, 0, 0x13c9e684)"
+  },
+  {
+   "addr": "1801ff440",
+   "name": "Sfmt19937_GenRandAll",
+   "module": "s2c:baked/vrad3",
+   "note": "SFMT-19937 refill: SL1 18, SR1 11, one-byte SL2/SR2, POS1 122"
+  },
+  {
+   "addr": "18002a320",
+   "name": "LightProbeGrid_ReadSolidMask",
+   "module": "s2c:baked/vrad3",
+   "note": "bit 0 of the GPU solid mask into the bordered occupancy bitset"
+  },
+  {
    "addr": "180035e80",
    "name": "LightProbeGrid_ComputeBlockGpu",
    "module": "s2c:baked/vrad3",

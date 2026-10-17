@@ -1078,8 +1078,8 @@ public sealed class CsgoComplexS5120 : HitShader
         payload.flHitT = ctx.RayTmax;
         payload.vFaceNormalWs = _476;
         payload.vInterpolatedNormalWs = _477;
-        vec3[] _510 = new vec3[3];
-        vec3[] _511 = new vec3[3];
+        vec3[] _510 = new vec3[] { _451, _446, _441 };
+        vec3[] _511 = new vec3[] { _450, _445, _440 };
         vec3 _2385 = ((_510[0] * ((1.0f - ctx.Barycentrics.x) - ctx.Barycentrics.y)) + (_510[1] * ctx.Barycentrics.x)) + (_510[2] * ctx.Barycentrics.y);
         vec3[] _504 = new vec3[3];
         _504[0] = _2385 - (_511[0] * dot(_2385 - _510[0], _511[0]));

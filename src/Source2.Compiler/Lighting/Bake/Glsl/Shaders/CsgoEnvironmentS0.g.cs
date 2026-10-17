@@ -1731,8 +1731,8 @@ public sealed class CsgoEnvironmentS0 : HitShader
         payload.flHitT = ctx.RayTmax;
         payload.vFaceNormalWs = _904;
         payload.vInterpolatedNormalWs = _905;
-        vec3[] _947 = new vec3[3];
-        vec3[] _948 = new vec3[3];
+        vec3[] _947 = new vec3[] { _806, _800, _795 };
+        vec3[] _948 = new vec3[] { _805, _799, _794 };
         vec3 _4626 = ((_947[0] * ((1.0f - ctx.Barycentrics.x) - ctx.Barycentrics.y)) + (_947[1] * ctx.Barycentrics.x)) + (_947[2] * ctx.Barycentrics.y);
         vec3[] _941 = new vec3[3];
         _941[0] = _4626 - (_948[0] * dot(_4626 - _947[0], _948[0]));

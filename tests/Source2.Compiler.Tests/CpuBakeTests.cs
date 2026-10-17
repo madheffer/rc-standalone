@@ -118,6 +118,11 @@ public class CpuBakeTests(ITestOutputHelper output)
             }
             return;
         }
+        if (Environment.GetEnvironmentVariable("CPUBAKE_LPV") is { Length: > 0 } lpv)
+        {
+            BakeLpv(folder, scene, rtx, permutations, lpv);
+            return;
+        }
         var baker = new LightmapBaker(scene, packing, permutations)
         {
             Rtx = rtx,
@@ -304,6 +309,147 @@ public class CpuBakeTests(ITestOutputHelper output)
             string Q(double q) => ratios.Count == 0 ? "-" : ratios[(int)(q * (ratios.Count - 1))].ToString("F3");
             output.WriteLine($"     bins {m}: correlation {bc:F3}, ratio p10 {Q(0.1)} p50 {Q(0.5)} p90 {Q(0.9)}");
         }
+    }
+
+    /// <summary>
+    /// <c>CPUBAKE_LPV=&lt;volume id | all&gt;</c>: each compute_lpv routine of the script baked by
+    /// <see cref="LightProbeVolumeBaker"/> (<c>CPUBAKE_LPVSPP</c> caps the passes) against vrad3's
+    /// lpv_&lt;id&gt;_ambientcube_noisy.exr, face band by band, and the solid cells against Valve's empty ones.
+    /// </summary>
+    private void BakeLpv(string folder, BakeScene scene, RtxScene? rtx, ushort[] permutations, string which)
+    {
+        var script = File.ReadAllLines(Path.Combine(folder, "script-gpu.vrad3"));
+        string? id = null;
+        int[]? cells = null;
+        float[]? box = null, l2w = null;
+        static float[] F(string line) => line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        foreach (var raw in script)
+        {
+            var line = raw.Trim();
+            if (line.StartsWith("compute_lpv_", StringComparison.Ordinal) && line.EndsWith(':'))
+                id = line["compute_lpv_".Length..^1];
+            else if (line.StartsWith("lpv_cells ", StringComparison.Ordinal))
+                cells = F(line).Select(x => (int)x).ToArray();
+            else if (line.StartsWith("lpv_box ", StringComparison.Ordinal))
+                box = F(line);
+            else if (line.StartsWith("lpv_local_to_world ", StringComparison.Ordinal))
+                l2w = F(line);
+            else if (line.StartsWith("lpv_compute_block_gpu ", StringComparison.Ordinal) && id != null && cells != null && box != null && l2w != null)
+            {
+                if (which != "all" && which != id)
+                    continue;
+                var args = F(line);
+                var maxSpp = (int)args[7];
+                if (int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_LPVSPP"), out var cap))
+                    maxSpp = Math.Min(maxSpp, cap);
+                var baker = new LightProbeVolumeBaker(scene, new BakeHits(scene) { Rtx = rtx }, permutations)
+                {
+                    Threads = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_THREADS"), out var th) ? th : 4,
+                    Log = output.WriteLine,
+                };
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var v = new LightProbeVolumeBaker.Volume(cells[0], cells[1], cells[2], new Vector3(box[0], box[1], box[2]), new Vector3(box[3], box[4], box[5]), l2w);
+                var r = baker.Bake(v, (int)args[6], maxSpp, args[8]);
+                output.WriteLine($"lpv {id}: {cells[0]}x{cells[1]}x{cells[2]}, {maxSpp} passes in {watch.Elapsed.TotalSeconds:F1} s; solid after voxelize {r.SolidAfterVoxelize}, after flood fill {r.SolidMask.Count(m => m != 0)} of {r.SolidMask.Length}");
+                var grid = new LightProbeVolumePost.Grid(cells[0], cells[1], cells[2], r.SolidMask);
+                LightProbeVolumePost.AmbientOcclusion(r.AmbientCube, grid);
+                CompareLpv(folder, $"lpv_{id}_ambientcube_noisy.exr", r, cells);
+                var fireflies = LightProbeVolumePost.RemoveFireflies(r.AmbientCube, grid, 3f);
+                LightProbeVolumePost.DilateShadows(r.ShadowIds, r.Shadow, cells[0], cells[1], cells[2]);
+                var dlshd = LightProbeVolumePost.DirectLightShadows(r.ShadowIds, r.Shadow, cells[0], cells[1], cells[2]);
+                {
+                    var valveShadow = Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{id}_dlshd.exr")));
+                    foreach (var (c, k) in new[] { ("R", 0), ("G", 1), ("B", 2), ("A", 3) })
+                    {
+                        if (!valveShadow.Channels.Contains(c))
+                            continue;
+                        var vp = valveShadow.Plane(c);
+                        double sa = 0, sb = 0, sab = 0, saa = 0, sbb = 0;
+                        var same = 0;
+                        for (var i = 0; i < vp.Length; i++)
+                        {
+                            double xa = (float)(Half)dlshd[i * 4 + k], xb = (float)vp[i];
+                            sa += xa; sb += xb; sab += xa * xb; saa += xa * xa; sbb += xb * xb;
+                            if ((Half)dlshd[i * 4 + k] == vp[i])
+                                same++;
+                        }
+                        var m = vp.Length;
+                        var corr = (sab / m - sa / m * (sb / m)) / Math.Sqrt(Math.Max(1e-30, (saa / m - sa / m * (sa / m)) * (sbb / m - sb / m * (sb / m))));
+                        output.WriteLine($"  dlshd {c}: mean ours {sa / m:F4} valve {sb / m:F4}, correlation {corr:F3}, identical {same} of {m}");
+                    }
+                }
+                LightProbeVolumePost.Dilate(r.AmbientCube, grid);
+                LightProbeVolumePost.WriteOpenBand(r.AmbientCube, grid);
+                LightProbeVolumePost.MedianFilter(r.AmbientCube, grid, 3);
+                output.WriteLine($"  fireflies {fireflies}");
+                CompareLpv(folder, $"lpv_{id}_ambientcube.exr", r, cells);
+            }
+        }
+    }
+
+    private void CompareLpv(string folder, string file, LightProbeVolumeBaker.Result r, int[] cells)
+    {
+        var valve = Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, file)));
+        var ours = new Vrad3Exr(r.Width, r.Height, ["R", "G", "B", "A"]);
+        foreach (var (c, k) in new[] { ("R", 0), ("G", 1), ("B", 2), ("A", 3) })
+        {
+            var plane = ours.Plane(c);
+            for (var i = 0; i < r.Width * r.Height; i++)
+                plane[i] = (Half)r.AmbientCube[i * 4 + k];
+        }
+        File.WriteAllBytes(Path.Combine(Path.GetTempPath(), "ours_" + file), ours.Write());
+        int nx = cells[0], ny = cells[1], nz = cells[2];
+        output.WriteLine($"  {file}:");
+        int bothSolid = 0, oursOnly = 0, valveOnly = 0;
+        var vr = valve.Plane("R");
+        var vg = valve.Plane("G");
+        var vb = valve.Plane("B");
+        for (var z = 0; z < nz; z++)
+            for (var y = 0; y < ny; y++)
+                for (var x = 0; x < nx; x++)
+                {
+                    var empty = true;
+                    for (var f = 0; f < 6 && empty; f++)
+                    {
+                        var at = (f * ny + y) * r.Width + z * nx + x;
+                        empty = (float)vr[at] == 0f && (float)vg[at] == 0f && (float)vb[at] == 0f;
+                    }
+                    var solid = r.SolidMask[((z + 1) * (ny + 2) + y + 1) * (nx + 2) + x + 1] != 0;
+                    if (solid && empty) bothSolid++;
+                    else if (solid) oursOnly++;
+                    else if (empty) valveOnly++;
+                }
+        output.WriteLine($"    solid: both {bothSolid}, ours only {oursOnly}, valve only {valveOnly}");
+        for (var f = 0; f < 7; f++)
+            foreach (var c in new[] { "R", "G", "B", "A" })
+            {
+                var a = ours.Plane(c);
+                var b = valve.Plane(c);
+                double sa = 0, sb = 0, sab = 0, saa = 0, sbb = 0;
+                int n = 0, same = 0;
+                for (var y = 0; y < ny; y++)
+                    for (var x = 0; x < r.Width; x++)
+                    {
+                        var at = (f * ny + y) * r.Width + x;
+                        var xa = (double)a[at];
+                        var xb = (double)b[at];
+                        if (a[at] == b[at])
+                            same++;
+                        if (xa == 0 && xb == 0)
+                            continue;
+                        sa += xa; sb += xb; sab += xa * xb; saa += xa * xa; sbb += xb * xb;
+                        n++;
+                    }
+                if (n == 0)
+                {
+                    output.WriteLine($"    band {f} {c}: all zero in both");
+                    continue;
+                }
+                var ma = sa / n;
+                var mb = sb / n;
+                var corr = (sab / n - ma * mb) / Math.Sqrt(Math.Max(1e-30, (saa / n - ma * ma) * (sbb / n - mb * mb)));
+                output.WriteLine($"    band {f} {c}: {n} cells, mean ours {ma:F4} valve {mb:F4} ratio {sa / Math.Max(1e-12, sb):F3}, correlation {corr:F3}, identical texels {same} of {ny * r.Width}");
+            }
     }
 
     private void Compare(string name, Vrad3Exr ours, Vrad3Exr valve)
@@ -806,6 +952,52 @@ public class CpuBakeProbe(ITestOutputHelper output)
         pkg.Read(vpk);
         pkg.ReadEntry(pkg.FindEntry(entry)!, out var bytes);
         File.WriteAllBytes(file, bytes);
+    }
+
+    /// <summary>
+    /// <c>LPVATLAS=&lt;vrad3 folder&gt;</c>: the light probe atlases built by <see cref="LightProbeAtlasImages"/> from
+    /// vrad3's own per-volume EXRs (volumes in script order, placed by <see cref="ProbeAtlas.Pack"/>) against the
+    /// lpv_atlas_ambientcube.exr and lpv_atlas_dlshd.exr resourcecompiler wrote, texel for texel.
+    /// </summary>
+    [Fact]
+    public void LpvAtlasImages()
+    {
+        if (Environment.GetEnvironmentVariable("LPVATLAS") is not { Length: > 0 } folder)
+            return;
+        var volumes = new List<(string Id, int X, int Y, int Z)>();
+        string? id = null;
+        foreach (var raw in File.ReadAllLines(Path.Combine(folder, "script-gpu.vrad3")))
+        {
+            var line = raw.Trim();
+            if (line.StartsWith("compute_lpv_", StringComparison.Ordinal) && line.EndsWith(':'))
+                id = line["compute_lpv_".Length..^1];
+            else if (line.StartsWith("lpv_cells ", StringComparison.Ordinal) && id != null)
+            {
+                var c = line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1..].Select(int.Parse).ToArray();
+                volumes.Add((id, c[0], c[1], c[2]));
+            }
+        }
+        var places = ProbeAtlas.Pack(volumes.Select(v => new ProbeAtlas.Place(v.X, v.Y, v.Z)).ToList());
+        var list = volumes.Select((v, i) => new LightProbeAtlasImages.Volume(v.X, v.Y, v.Z, places[i],
+            LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_ambientcube.exr")))),
+            LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr")))))).ToList();
+        var size = LightProbeAtlasImages.Size(list);
+        output.WriteLine($"atlas {size.X}x{size.Y}x{size.Z}; places {string.Join(" ", places.Select(p => $"({p.X},{p.Y},{p.Z})"))}");
+        var different = 0;
+        foreach (var (file, image) in new[] { ("lpv_atlas_ambientcube.exr", LightProbeAtlasImages.AmbientCube(size, list)), ("lpv_atlas_dlshd.exr", LightProbeAtlasImages.Shadows(size, list)) })
+        {
+            var valve = Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, file)));
+            var ours = LightProbeAtlasImages.Rgba(valve);
+            var same = 0;
+            var n = Math.Min(ours.Length, image.Length);
+            for (var i = 0; i < n; i++)
+                if ((Half)image[i] == (Half)ours[i])
+                    same++;
+            output.WriteLine($"{file}: valve {valve.Width}x{valve.Height}, ours {size.X * size.Z}x{image.Length / 4 / (size.X * size.Z)}, identical {same} of {ours.Length} values");
+            if (same != ours.Length || ours.Length != image.Length)
+                different++;
+        }
+        Assert.Equal(0, different);
     }
 
     [Fact]

@@ -116,8 +116,8 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
             var geometry = BlockGeometry.Build(packing, Width, Height, ox, oy, w, h);
             log?.Invoke($"block {block}: {geometry.SmallStart} large-chart and {geometry.TriangleCount - geometry.SmallStart} clipped small-chart triangles");
             var sfmt = new Sfmt19937(0xdee533d5);
-            var gpuLuxels = new Glsl.Raygen.RtxVrad3LightmapS0F0.Luxel_t_natural[w * h];
-            var gpuSamples = Array.Empty<Glsl.Raygen.RtxVrad3LightmapS0F0.LightmapSample_t_natural>();
+            var gpuLuxels = new Glsl.Raygen.Luxel_t_natural[w * h];
+            var gpuSamples = Array.Empty<Glsl.Raygen.LightmapSample_t_natural>();
             for (var pass = 0; pass < Passes; pass++)
             {
                 if (pass % 4 == 0)

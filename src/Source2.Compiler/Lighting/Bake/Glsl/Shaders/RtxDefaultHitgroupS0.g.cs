@@ -356,8 +356,8 @@ public sealed class RtxDefaultHitgroupS0 : HitShader
             }
         }
         vec3 _1067 = normalize(cross(_348 - _349, _347 - _349));
-        vec3[] _387 = new vec3[3];
-        vec3[] _388 = new vec3[3];
+        vec3[] _387 = new vec3[] { _349, _348, _347 };
+        vec3[] _388 = new vec3[] { _346, _345, _344 };
         vec3 _1083 = ((_387[0] * ((1.0f - ctx.Barycentrics.x) - ctx.Barycentrics.y)) + (_387[1] * ctx.Barycentrics.x)) + (_387[2] * ctx.Barycentrics.y);
         vec3[] _354 = new vec3[3];
         _354[0] = _1083 - (_388[0] * dot(_1083 - _387[0], _388[0]));
