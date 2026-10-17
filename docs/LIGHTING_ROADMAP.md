@@ -209,6 +209,36 @@ difference looks like GPU float evaluation (not isolated yet); see ledger
   cause is the texture unit: BC4 and sRGB decode measured, BC1
   interpolation and the bilinear filter still to fit, then port.
 
+### Decision 2026-10-18: the bake runs on the GPU
+
+The user's target is 0% difference from Valve. The GPU oracle (ledger 79)
+showed that the CPU port cannot get there without emulating the GPU's
+texture unit and float paths, and a GPU bake is also far faster (the
+compile service will run on a RunPod GPU). So the own-lighting bake moves to
+a Vulkan ray tracing host that runs Valve's own vrad3 SPIR-V; the CPU port
+stays as the reference, debugger and perf baseline.
+
+What carries over unchanged: every host-side input the CPU port already
+builds exactly (SceneVertexLayout, the material blocks, GeometryInfo_t,
+PackedRtxInstanceData_t, the lights and bins, globals, push constants,
+BlockGeometry, the post-process, resourcecompiler's outputs).
+
+Steps:
+1. Ray tracing pipeline in Source2.Compiler.Gpu: BLAS per mesh and the TLAS
+   with scenesystem's build flags, instance masks, flags and SBT offsets
+   (read from rendersystemvulkan / scenesystem), the shader binding table
+   with Valve's raygen, miss, closest-hit and any-hit SPIR-V from the VCS
+   files, the descriptor sets vrad3 binds.
+2. Run rtx_vrad3_lightmap on one block against the captured pre_post image
+   on the RTX 4070: the target is bit-identical luxels.
+3. The rest of the block compute on the GPU too: Valve's Halton generator,
+   small-chart compute and raster sample passes, sample validation,
+   convergence test; then the probe volumes (rtx_vrad3_lpv).
+4. The RunPod GPU: Ada with RT cores (RTX 4090, L40S, RTX 6000 Ada; A100 and
+   H100 have no Vulkan ray tracing). Valve's output is only reproducible on
+   the same architecture and driver, so verify there against vrad3 run on
+   the same class of GPU.
+
 ### Parked items (to rank)
 
 Briefs collected for ranking (vpkstuff ROADMAP item 16 points here).
