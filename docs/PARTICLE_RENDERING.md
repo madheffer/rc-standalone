@@ -320,7 +320,163 @@ exposure multiply. Forward particle output is linear HDR before exposure.
 
 ## 10. The standard light (C++ side)
 
-Pending: `C_OP_RenderStandardLight` in `particles.dll`.
+Binaries: `particles.dll` md5 3f9ae2ff51c610d29884b51aaf570a83, `client.dll`
+cf8b7cd427f553732081739154c90588, `scenesystem.dll`
+3b785e13dd52e34f56b9b544956eb7b1.
+
+**A particle light never reaches the GPU as a point or spot light.** The scene
+system converts it into a barn light, the same record a `light_barn` becomes,
+and that conversion replaces the vpcf's falloff curve with plain 1/d², matched
+in brightness at 15% of the range. Linearity and the 50%/0% falloff distances
+only set overall brightness, never the curve's shape.
+
+### Fields
+
+`C_OP_RenderStandardLight`: vtable 0x180529808, constructor 0x180316320, schema
+field table 0x1805c8740; offsets and defaults checked against the constructor's
+disassembly. Each particle becomes a light description in the render function
+0x1802ee5f0 (vtable slot 48).
+
+| field | offset | default | use |
+|---|---|---|---|
+| m_nLightType | 0x230 | POINT (0) | POINT 0, SPOT 1, FX 2, CAPSULE 3. SPOT becomes light type 3, POINT/CAPSULE type 1. FX is a diffuse-only point light, no shadows or fog, linearity forced to 1 |
+| m_nMaxAllowed | 0x234 (u16) | 32 | light slots = min(particles, this) |
+| m_vecColorScale | 0x238 | literal 255,255,255 | combined with the particle tint (below) |
+| m_nColorBlendType | 0x910 | MULTIPLY (0) | below |
+| m_strLightStyle / m_flLightStyleTime | 0x918 / 0x920 | none / particle age | evaluated through the client particle query (slots 0x308, 0x310); multiplies RGB |
+| m_flIntensity | 0xa98 | 1.0 | per particle; at most 0 skips the particle |
+| m_bCastShadows | 0xc10 | false | passed through (off for FX) |
+| m_flTheta / m_flPhi | 0xd90 / 0xf08 | 45 / 60 | degrees, **half angles** from the axis: theta inner, phi outer (the barn builder uses fov = 2·phi and half-angle = fov·π/360, 0x1804a7250) |
+| m_flRadiusMultiplier | 0x1080 | **8.0** | **range = particle radius × multiplier**; 0 skips |
+| m_nAttenuationStyle | 0x11f8 | **OLD (0)** | NEW = 1 |
+| m_flFalloffLinearity | 0x1200 | 0 | clamped to [0,1]; OLD only |
+| m_flFiftyPercentFalloff / m_flZeroPercentFalloff | 0x1378 / 0x14f0 | 0.5 / 1.0 | **fractions of the range**; NEW only |
+| m_bRenderDiffuse / m_bRenderSpecular | 0x1668 / 0x1669 | true / true | passed through |
+| m_lightCookie | 0x1670 | none | MurmurHash2 (seed 0x31415926), looked up in the scene system (slot 0x200, 0x1800c55f0) |
+| m_nPriority | 0x1678 | 0 | never read outside the constructor and serialisers |
+| m_nFogLightingMode | 0x167c | NONE (0) | DYNAMIC 2, DYNAMIC_NOSHADOWS 4 |
+| m_flFogContribution | 0x1680 | 1.0 | clamped at least 0; only used when the fog mode is not NONE |
+
+Position is the particle position; direction comes from its pitch/yaw/roll
+(radians to degrees, then the angle-to-vector routine 0x18035db20). A particle
+with radius or alpha 0 is skipped.
+
+### Attenuation coefficients
+
+- **OLD** (0x1803786f0): quadratic = 1 - linearity, linear = linearity,
+  constant = 0; each is zeroed below 0.001, and if all are, constant = 1. The
+  colour is multiplied by (quadratic·10000 + linear·100 + constant).
+- **NEW** (0x180378580, which prints Source 1's warnings verbatim): d50 = range ×
+  fifty, d0 = range × zero; 1/atten(d) is fitted through (0, 1), (d50, 2),
+  (d0, 256) by Valve's monotonic quadratic solver (0x18035e120), which pulls the
+  middle point toward a line in 0.05 steps when the slope check (2a + b) has the
+  wrong sign; then scaled to exactly 50% at d50.
+- **Range clamp** (0x1803774b0, threshold 0.001), only when constant = 0 (OLD):
+  the range is cut to where luminance(colour)·atten(d) = 0.001.
+
+client.dll 0x180b849b0 copies the description unchanged into a scene light
+object.
+
+### Colour
+
+Particle tint (0-255 bytes) and colour scale, by blend type: 0 MULTIPLY scale ×
+tint; 1 and 5 scale doubled, then × tint; 2 tint / scale; 3 tint + scale·255;
+4 tint - scale·255; 6 screen; 7 / 8 per-channel max / min; 9 replace with scale;
+10 average; 11 255 - tint·scale; 12 tint × luminance(scale). Clamped to 0-255,
+then sRGB to linear (0x18035f2e0). Then
+`RGB = lerp(colour, luminance, desaturation) · style · rendererTint · intensity · alpha`
+(intensity and alpha confirmed in the disassembly), then the OLD factor above.
+
+### Conversion to a barn light
+
+The binner (scenesystem 0x1801a1460) passes every point and spot light through
+0x1804a3ce0, controlled by `lb_convert_to_barn_lights_falloff_match_point`
+(default 0.15, registered at 0x180011060). For a spot light:
+
+- m = 0.15·range (100 if that is at most 0);
+  `k = m² / (constant + linear·m + quadratic·m²)`; record colour = k × colour.
+- position.w = size² = 1 (size defaults to 1, 0x1801bf620).
+- frustum: near = size (1 unit), far = range, fov = 2·phi, aspect 1.
+- inner radius (record 0xa0/0xa4) = tan(theta)/tan(phi); shape 1 (round);
+  skirt 0; cookie copied.
+- distance fade (record 0xc8/0xcc) = (R/(R - s), 1/(s - R)) with s = 0.75R:
+  full to 75% of the range, zero at the range.
+- angle fade = (1, 0, 0): no extra angular term.
+
+The live buffer is `barnlightconstants` (320 entries × 0x1e0 = 480 bytes, created
+at 0x18019dd0d). The path tracer converts scene lights with the same function
+(0x18008c110; 0x18008cb80).
+
+### Per-pixel result, settled against the game's shader
+
+Section 8 gives the runtime evaluation. With this record it reduces to:
+
+```
+I(d, α) = k·C / max(d², 1)
+        · smoothstep(0, 1, 4 - 4d/R)
+        · smoothstep(0, 1, (1 - r)/(1 - t)),  r = tan α / tan φ,  t = tan θ / tan φ   (0 when r > 1)
+```
+
+The cone term is the round-barn branch of the runtime mask (VS0, record offset
+224: `smoothstep(1/r', t/r', 1)` with r' = |clip.xy| and exponent 2/shape = 2),
+which simplifies exactly to the expression above. It also equals vrad3's bake
+evaluation (`Lighting/Bake/LightEval.cs`), so runtime and bake agree.
+
+### Honoured or not
+
+Max allowed: honoured (slot table 0x1802edef0; particles keep their slot by ID,
+extras are dropped, unused slots are destroyed at 0x1802ee4e0). Priority:
+ignored; the binner sorts by on-screen importance, camera distance, then
+luminance (0x1801a9e70), at most 315 visible barn lights. Cookie, shadows
+(a shadowed point light becomes six faces) and diffuse/specular: honoured. Fog:
+only when the fog lighting mode is not NONE.
+
+### The two flashlights
+
+Defaults relied on, all from constructors: particle constant colour 0xFFFFFFFF;
+`C_INIT_InitFloat` / `C_OP_SetFloat` output field 3 (radius);
+`C_OP_DistanceBetweenCPsToCP` start 0, end 1, output 2, input 0-128, output 0-1,
+clamped; `C_OP_SetControlPointToImpactPoint` CP in/out 1, trace length 1024.
+
+| | GFL | kxm |
+|---|---|---|
+| theta / phi (half) | 0° / 35° (full 70°) | 40° / 80° (full 160°) |
+| range | 60 × 8 (default) = 480 | 60 × 20 = 1200 |
+| attenuation | NEW: 50% at 240, 0% at 480 | OLD (default), linearity 1: linear 1 |
+| colour | 1, 1, 1 | intensity × 100 |
+| intensity | 1.0 | particle float 10: starts 0.015, eases 12% per step to the min of the probes, 0.008 to 0.3 |
+| fitted 1/atten | 0.0306513 + 1.27716e-4·d + 3.36579e-5·d² | n/a |
+| match point m | 72 | 180 |
+| k | 24187 | 180 |
+| barn colour | about 24187 | 30 × 180 = 5400 (open space) |
+| in game | 24187/d² (4.67 at 72, 1.48 at 128, 0.42 at 240) | 5400/d² (0.167 at 180, 0.0824 at 256) |
+| distance fade | full to 360, 0 at 480 | full to 900, 0 at 1200 |
+| cone | t = 0: mask = smoothstep(1 - tan α / tan 35°) | t = 0.148: full to 40°, 0.84 at 64°, 0.56 at 72°, 0 at 80° |
+| dim case | n/a | intensity 0.008: colour 0.8, range clamp to 800, m = 120, barn colour 96, fade 600 to 800 |
+
+kxm asked for a linear falloff, but in game it is 1/d² matched at 180 units.
+GFL's alpha is a notched remap of how many copies of the system run: 1 for one
+copy; with more, alpha goes to 0 and the light is skipped. Both: diffuse on, no
+shadows, no cookie, max allowed 1; kxm turns specular off.
+
+### UNSETTLED (light side)
+
+1. The code that packs the 480-byte record. The formula above is confirmed in
+   the runtime shader's shape, but the packed values are inferred from the
+   converter, not read from the packer.
+2. Float order inside the curve solver (last digits of the fitted coefficients).
+3. Whether a literal colour scale evaluates as 1.0 or 255 per channel (no
+   difference for white).
+4. What feeds the renderer tint and desaturation inputs (0x1802f0110 copies them
+   from the caller's +0x50/+0x38).
+5. kxm's runtime probes: trace directions when none is set, and whether the 12%
+   easing is per frame or per tick.
+6. Whether GFL's notched test is inclusive at a count of exactly 1.
+7. Which exposure and tone map the barn colour is seen through (section 9).
+
+Machine-readable tables and the float32 port of both flashlights:
+`light.json` and `scripts/flashlight.py` in the analysis scratch
+(not committed; Valve-derived dumps stay out of the repo).
 
 ## 11. Schema, defaults and parameter inputs
 
