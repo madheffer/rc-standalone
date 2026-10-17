@@ -32,9 +32,9 @@ program's MD5 against the installed file before trusting a decompile.
 Decompiling:
 - **ReVa** (Ghidra MCP) serves the Ghidra project headless:
   `tools/re/reva_serve.py`, called over HTTP by `tools/re/reva_call.py`.
-  It locks the project while it runs. `tools/re/reva.py dec|str|xref
+  It locks the project while it runs. `tools/re/revaq.py dec|str|xref
   <program> ...` wraps the common calls (programs by alias: rc, vis, ms, pb,
-  pv, sp, t0, vrad3).
+  pv, sp, t0, vrad3, ss).
 - **Decompiling one function:** `python tools/re/dec.py <dll> <addr>` fills
   in every known name. ReVa times out on huge functions; use
   `tools/re/disx.py` (capstone, imports named) instead.

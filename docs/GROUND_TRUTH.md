@@ -906,6 +906,34 @@ game can answer is raised with the user first, and runs with -insecure.
     more, smart props, other light classes, a sky colour without an env_sky,
     the 180240a60 brush-entity tests beyond lightmapstatic.
 
+68. **vrad3's block geometry and lightmap samples** (settled 2026-10-17 by
+    decompile and shader; vrad3 18002d530 lightmap_load_block_gpu, the cordon
+    mask 180045400, the partition 18003d8e0, PackTangentFrame 1801f5970 with
+    its asin 1801fa6e0 and basis 1801f4060, UnpackTangentFrame 1801f5680;
+    lightmap_generate_small_chart_samples and lightmap_rasterize). The block's
+    triangles are polygons of position, uv and packed frame; large charts
+    stay whole, small-chart polygons are cut on the 8 x 8 tile lines (epsilon
+    2^-16, the cut coordinate snapped, and v also snapped to the x line's
+    value when a y cut was due too, as vrad3 writes it), tiled by uv centroid,
+    sorted and fanned. PackTangentFrame is resourcecompiler's
+    CompressTangentFrame (the same code). The small-chart sampler and the
+    raster pass are ported as the shaders run (Lighting/Bake/BlockGeometry.cs,
+    LightmapBaker.Sample). Not exact: the order of triangles inside a tile
+    (vrad3's std::sort is unstable), so which random number picks which
+    triangle can differ.
+
+69. **Shadow-ray culling in CS2's bake** (settled 2026-10-17 by decompile
+    and a bake comparison; scenesystem 180095180 sets
+    m_nSceneGlobalInfoFlags (globals +0xB8) bit 1 only when
+    ResourceCompiler/BakedLighting/DisableCullingForShadows is 0;
+    rtx_vrad3_lightmap maps bit 1 to ray flag 32, bit 2 to 16). csgo's
+    gameinfo.gi sets DisableCullingForShadows 1, so CS2's shadow rays cull
+    nothing. The ray scene's facing stays counter-clockwise-front: the
+    sample validation's backface count (a hit behind the face normal that a
+    cull-back-faces retrace no longer finds) only ever counts with it. With
+    culling, probe01's sunlit blocks kept 15% of Valve's shadow; without it,
+    as Valve, they match (CpuBakeTests).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

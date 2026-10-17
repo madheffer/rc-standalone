@@ -396,7 +396,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181112e80` | `LightingProcessor_PathTraceLightList` | per light its LightShape (181297030) and info (180eece60); the sky light found by dynamic cast of the entity's components | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:227` |
 | `181113f20` | `LightingProcessor_PathTraceLights` | vf 0x40: the lights (181112e80) and the ibl: path_trace_light_flags, the env_sky transform, scale, material, sky_bounce, sky_bounce_scale, sun_light_min_brightness; null without a sky light | `src/Source2.Compiler/Lighting/SceneLights.cs:147` |
 | `181294010` | `LightShape_FromLegacy` | type 2 (directional): ortho +-262144, depth 524288, orientation from VectorAngles(-dir), a disc luminaire of tan(angulardiameter / 2) | `src/Source2.Compiler/Lighting/SceneLights.cs:64` |
-| `181297030` | `LightShape_WriteKV3` | the 300-byte record: m_mToClipSpace, m_mFromClipSpace, m_vNearPlane, m_vLightPosition, m_vInnerRadius, m_flShape, m_vSkirt, m_vColor, m_nCookie, m_vDistanceFade, m_qOrientation, m_vAngleFade, m_nLuminaireType, m_flLightColorToRadiance, m_bLightInsideFrustum, m_bSphericalCookie, m_Luminaire | `src/Source2.Compiler/Lighting/SceneLights.cs:11`, `src/Source2.Compiler/Lighting/SceneLights.cs:284`, `src/Source2.Compiler/Lighting/SceneLights.cs:323` |
+| `181297030` | `LightShape_WriteKV3` | the 300-byte record: m_mToClipSpace, m_mFromClipSpace, m_vNearPlane, m_vLightPosition, m_vInnerRadius, m_flShape, m_vSkirt, m_vColor, m_nCookie, m_vDistanceFade, m_qOrientation, m_vAngleFade, m_nLuminaireType, m_flLightColorToRadiance, m_bLightInsideFrustum, m_bSphericalCookie, m_Luminaire | `src/Source2.Compiler/Lighting/SceneLights.cs:11`, `src/Source2.Compiler/Lighting/SceneLights.cs:284`, `src/Source2.Compiler/Lighting/SceneLights.cs:323` +1 |
 | `1812e4550` | `CMesh_WriteKV3` | vertex_count, vertex_stride, vertices, index_count, indices, meshlet_count, attribute_count, attributes, lod_group_mask, material_name, mesh_name, mesh_id, tint_color, lightmap_scale (+0x184), no_collapse (twice, +0x152 last), pack_sharedvb, use_basevertex, use_tint_color, is_line_mesh, baked_twosided, collision_type | `src/Source2.Compiler/Lighting/PathTraceScene.cs:11`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:20`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:37` +1 |
 | `181c46e60` | `SFMT19937_Refill` | POS1 122, SL1 18, SR1 11, one-byte SL2/SR2 | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
 | `181c473c0` | `SFMT19937_Seed` | the packer's debug colours (seed 0x777f17e); state words read without tempering | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
@@ -1283,6 +1283,29 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181004390` | `CMapEntity_ExportBoneTransforms` | boneTransforms "name: px py pz qx qy qz qw;" when the class has PosableSkeleton |  |
 | `18174aeb0` | `PosableSkeleton_Serialize` |  |  |
 
+## scenesystem.dll, build 20261015
+
+- file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
+- SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
+- installed: this build
+- 11 addresses
+
+### s2c:baked/vrad3
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `18008beb0` | `PathTraceScene_AddLight` | a scene_info light (barn KV, path_trace_light_flags, baked shadow ids) into PathTraceBarnLightGPU_t (0x1f0 bytes), through 18008c110 | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9` |
+| `18008c110` | `PathTraceBarnLight_FromShape` | the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10`, `src/Source2.Compiler/Lighting/Bake/Light.cs:9` |
+| `18008d1a0` | `SceneGlobalInfoGPU_Construct` | the 0xC0 globals block at scene +0x3e0: sun irradiance 0, sun min brightness FLT_MAX, IBL scale 1; scene flags \|= 1 unless ResourceCompiler/BakedLighting/DisableCullingForShadows | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:12` |
+| `1800912d0` | `PathTraceScene_Load` | scene_info.kv3 and scene_meshes.kv3 into the GPU scene: meshes, instances (180094d30), materials (180098660), lights (18008beb0), the ibl (1800999d0), then the upload (180095180) | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:9` |
+| `180094d30` | `PathTraceScene_AddInstance` | 0x48-byte instance record: mask = (~material and & instance flags) \| material or, packed nMaterialFlags << 16 \| instance bits, +0xc the facing-cull-disable byte = material flags & 1; grows the scene bounds | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10` |
+| `180095180` | `PathTraceScene_Upload` | the scene's buffers and acceleration structures to the GPU | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:11` |
+| `180098660` | `PathTraceScene_MaterialFlags` | from CMaterial2 attributes: doublesided or renderbackfaces -> flags 1; Translucent or alphatest -> 2; mapbuilder.blocklight -> 5; tools.toolsmaterial -> and 1; DoNotCastShadows -> and 0xe (+1 with tools); opaque -> or 0x10 else and 0x10; 0x98bed7f6 -> or 0x20, and 0x11; 0x16458f13 -> or 0x400 | `src/Source2.Compiler/Lighting/Bake/BakeMaterial.cs:8`, `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:10` |
+| `1800999d0` | `PathTraceScene_SetIbl` | the ibl: SkyTexture (0xa9e45763) as g_tSkyTexture, SkyTextureFormat (0xd5faca7a), SkyBrightnessExposureBias (0xa6413f46, g_flBrightnessExposureBias) scale times exp2 | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:11` |
+| `180187920` | `SceneUtils_GenerateScrambledHalton` | ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata | `src/Source2.Compiler/Lighting/Bake/HaltonSamples.cs:7` |
+| `18049c8d0` | `LinearToSrgb8` | per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:207` |
+| `1804a3a60` | `Luminaire_Area` | the luminaire's area for the light's PDF | `src/Source2.Compiler/Lighting/Bake/Light.cs:18`, `src/Source2.Compiler/Lighting/Bake/Light.cs:122` |
+
 ## smartprops.dll, build 20260923
 
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
@@ -2080,7 +2103,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
-- 348 addresses
+- 352 addresses
 
 ### s2c:baked/vrad3
 
@@ -2246,7 +2269,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002b9d0` | `CVrad3Command_lightmap_image_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002bc40` | `CVrad3Command_sceneinfo_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18002d2b0` | `CVrad3Command_lightmap_load_packing_geometry_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `18002d530` | `CVrad3Command_lightmap_load_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18002d530` | `CVrad3Command_lightmap_load_block_gpu::Run` | the command: reads the block's chart ids from lightmap_info.dat into the image's luxel records (flags bit 0 valid, bit 2 chart bit 28, bit 1 chart bit 29), LuxelChartIDs.vtex, then 'Clip packing geometry to block (CPU)': cordon-masked triangles overlapping the block as 24-byte polygons (position, uv, PackTangentFrame), std::partition (18003d8e0) large charts first, small-chart polygons split on 8 x 8 tile lines (epsilon 2^-16; split coordinate snapped, v also set when a y split was due), tile by uv centroid, sorted (std_Sort_32ByteElements), fanned into PackingGeometryVertices, ChartIDs, TriangleArea and the per-tile triangle list (Lighting/Bake/BlockGeometry.cs) | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:7` |
 | `18002ffc0` | `Vrad3_GpuTimestamp` | a timestamp query on the context, appended with its stage index (the five block compute stages) |  |
 | `180030100` | `CVrad3Command_lightmap_compute_block_gpu::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `1800323f0` | `CVrad3Command_lpv_flood_fill::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2273,6 +2296,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18003cc90` | `RenderAttributes_SetInt` | inline map: 12 int slots keyed by MurmurHash2(lowercase name, 0x31415926) |  |
 | `18003ceb0` | `RenderAttributes_SetVec4` | 8 vec4 slots keyed by name hash |  |
 | `18003d0c0` | `VectorNormalize` | returns the length; 1e-17 to 1e17 guard, zero vector to zero, else the slow path 1801f51e0 |  |
+| `18003d8e0` | `PartitionPolygons_LargeChartsFirst` | std::partition of the block's 32-byte polygons: chart flags (0x1c-byte chart +0x18) & 0x30000000 clear go first; Hoare swaps from both ends | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:15` |
 | `18003ddc0` | `CVrad3Command_path_trace_triangles_gpu::Run::lambda_3` | lambda job body |  |
 | `18003eaa0` | `std_Sort_32ByteElements` | introsort (threshold 32 elements, insertion sort below 0x40 bytes) |  |
 | `180042730` | `RGBToYCoCg` | Y = (r/4 + g/2) + b/4, Co = r/2 - b/2, Cg = (g/2 - r/4) - b/4 | `src/Source2.Compiler/Lighting/LightmapWeld.cs:327` |
@@ -2283,6 +2307,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180043e30` | `CVrad3LightmapImage::GetSH9` | 27 floats: per colour c, channel 1 + c (coefficients 0-3), channel 4 + c (4-7), channel 7 component c (8) | `src/Source2.Compiler/Lighting/LightmapPost.cs:511` |
 | `1800443d0` | `CVrad3LightmapImage::SetSH9` | the inverse of GetSH9 (unmasked) | `src/Source2.Compiler/Lighting/LightmapPost.cs:250`, `src/Source2.Compiler/Lighting/LightmapPost.cs:511` |
 | `180044bc0` | `CVrad3LightmapImage::GetTangentFrame` | columns: normalised channel 11 xyz, normalised cross(n, t) times channel 11 w, normalised channel 9 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:215`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:227` |
+| `180045400` | `ComputeLightmapPackingGeometryCordonMask` | bit per packing triangle: its world box overlaps the cordon (DAT_180347f98..fac); fatal over 0x80000000 triangles | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:11` |
 | `180045e30` | `CVrad3Command_lightmap_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047920` | `CVrad3Command_lightmap_image_save::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180047960` | `CVrad3Command_lightmap_image_load::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2420,11 +2445,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18009b140` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp::lambda_1` | lambda job body |  |
 | `18009b280` | `FloatBitMap_t::WriteToFile` | by extension (EXR through tinyexr) |  |
 | `1800b9540` | `FloatBitMap_t::WriteInMemoryEXRFast::lambda_1` | lambda job body |  |
+| `1801f4060` | `Vector_Basis` | Duff et al. basis of a unit normal: s = sign(z), k = -1 / (z + s), b1 = (x s x k + 1, x y k s, -s x), b2 = (x y k, y y k + s, -y) |  |
 | `1801f4250` | `MatrixInvert` | 3x4: transpose and -R^T t; rescaled by 1 / \|column 0\|^2 when that is off 1 by 0.001 or more | `src/Source2.Compiler/Lighting/LightmapAhd.cs:215`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:247` |
-| `1801f5110` | `TriangleArea` | 0.5 * \|(b - a) x (c - a)\| |  |
+| `1801f5110` | `TriangleArea` | 0.5 * \|(b - a) x (c - a)\| | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:260` |
 | `1801f52b0` | `Matrix3x4_TransformSIMD` | per row (w m3 + y m1) + (z m2 + x m0) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:269` |
-| `1801f5680` | `UnpackTangentFrame` | the inverse of PackTangentFrame |  |
-| `1801f5970` | `PackTangentFrame` | u32: bit 0 tangent sign (w >= 0), bits 1-11 the tangent's angle about the normal / 360 * 2047 (basis from the quantised normal, 1801f4060), bits 12-21 and 22-31 the octahedral normal (x, y) * 1023; third argument: a searched (precise) octahedral encode (1801f5300) |  |
+| `1801f5680` | `UnpackTangentFrame` | the inverse of PackTangentFrame | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:281` |
+| `1801f5970` | `PackTangentFrame` | u32: bit 0 tangent sign (w >= 0), bits 1-11 the tangent's angle about the normal / 360 * 2047 (basis from the quantised normal, 1801f4060), bits 12-21 and 22-31 the octahedral normal (x, y) * 1023; third argument: a searched (precise) octahedral encode (1801f5300) | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:273` |
 | `1801f6660` | `Vector_Dot` |  | `src/Source2.Compiler/Lighting/LightmapWeld.cs:258`, `src/Source2.Compiler/Lighting/LightmapWeld.cs:297` |
 | `1801f6a00` | `Vector_Dot2` | the dot of two different vectors |  |
 | `1801f7110` | `Vector_DoubleAxpy` | x += a p; r += b q |  |
@@ -2434,3 +2460,4 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f79a0` | `InnerProduct_ChunkJob` | four SSE lanes per chunk of 32768 groups, reduced (l2 + l3) + (l0 + l1) |  |
 | `1801f7ad0` | `VectorTransform_SIMD` | (x, y, z, 1) through a 3x4 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:269` |
 | `1801f91a0` | `CKMeansClustering::AssignVectorsToClusters::lambda_1` | lambda job body |  |
+| `1801fa6e0` | `AsinApprox` | sign(x) * \|((((0.430477 - 0.0594935 a) a - 1.24068) a + 0.216183) a + 1.00008) / (1 - 0.779384 a) - sqrt(1 - a a)\|, a = \|x\| (resourcecompiler FUN_181272450) |  |

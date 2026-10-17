@@ -2068,7 +2068,11 @@ VRAD3 = [
     ("18002b9d0", "CVrad3Command_lightmap_image_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
     ("18002bc40", "CVrad3Command_sceneinfo_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
     ("18002d2b0", "CVrad3Command_lightmap_load_packing_geometry_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
-    ("18002d530", "CVrad3Command_lightmap_load_block_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
+    ("18002d530", "CVrad3Command_lightmap_load_block_gpu::Run", V3, "the command: reads the block's chart ids from lightmap_info.dat into the image's luxel records (flags bit 0 valid, bit 2 chart bit 28, bit 1 chart bit 29), LuxelChartIDs.vtex, then 'Clip packing geometry to block (CPU)': cordon-masked triangles overlapping the block as 24-byte polygons (position, uv, PackTangentFrame), std::partition (18003d8e0) large charts first, small-chart polygons split on 8 x 8 tile lines (epsilon 2^-16; split coordinate snapped, v also set when a y split was due), tile by uv centroid, sorted (std_Sort_32ByteElements), fanned into PackingGeometryVertices, ChartIDs, TriangleArea and the per-tile triangle list (Lighting/Bake/BlockGeometry.cs)"),
+    ("180045400", "ComputeLightmapPackingGeometryCordonMask", V3, "bit per packing triangle: its world box overlaps the cordon (DAT_180347f98..fac); fatal over 0x80000000 triangles"),
+    ("18003d8e0", "PartitionPolygons_LargeChartsFirst", V3, "std::partition of the block's 32-byte polygons: chart flags (0x1c-byte chart +0x18) & 0x30000000 clear go first; Hoare swaps from both ends"),
+    ("1801fa6e0", "AsinApprox", V3, "sign(x) * |((((0.430477 - 0.0594935 a) a - 1.24068) a + 0.216183) a + 1.00008) / (1 - 0.779384 a) - sqrt(1 - a a)|, a = |x| (resourcecompiler FUN_181272450)"),
+    ("1801f4060", "Vector_Basis", V3, "Duff et al. basis of a unit normal: s = sign(z), k = -1 / (z + s), b1 = (x s x k + 1, x y k s, -s x), b2 = (x y k, y y k + s, -y)"),
     ("180030100", "CVrad3Command_lightmap_compute_block_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
     ("1800323f0", "CVrad3Command_lpv_flood_fill::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
     ("180035ce0", "CVrad3Command_lpv_mark_occupied_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
@@ -2220,6 +2224,22 @@ TIER0_1015 = [
 ]
 
 
+SCENESYSTEM = [
+    # Read by hand (decompile of scenesystem 20261015), the path-trace scene vrad3 loads.
+    ("1800912d0", "PathTraceScene_Load", V3, "scene_info.kv3 and scene_meshes.kv3 into the GPU scene: meshes, instances (180094d30), materials (180098660), lights (18008beb0), the ibl (1800999d0), then the upload (180095180)"),
+    ("180094d30", "PathTraceScene_AddInstance", V3, "0x48-byte instance record: mask = (~material and & instance flags) | material or, packed nMaterialFlags << 16 | instance bits, +0xc the facing-cull-disable byte = material flags & 1; grows the scene bounds"),
+    ("180098660", "PathTraceScene_MaterialFlags", V3, "from CMaterial2 attributes: doublesided or renderbackfaces -> flags 1; Translucent or alphatest -> 2; mapbuilder.blocklight -> 5; tools.toolsmaterial -> and 1; DoNotCastShadows -> and 0xe (+1 with tools); opaque -> or 0x10 else and 0x10; 0x98bed7f6 -> or 0x20, and 0x11; 0x16458f13 -> or 0x400"),
+    ("18008beb0", "PathTraceScene_AddLight", V3, "a scene_info light (barn KV, path_trace_light_flags, baked shadow ids) into PathTraceBarnLightGPU_t (0x1f0 bytes), through 18008c110"),
+    ("18008c110", "PathTraceBarnLight_FromShape", V3, "the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record"),
+    ("1804a3a60", "Luminaire_Area", V3, "the luminaire's area for the light's PDF"),
+    ("1800999d0", "PathTraceScene_SetIbl", V3, "the ibl: SkyTexture (0xa9e45763) as g_tSkyTexture, SkyTextureFormat (0xd5faca7a), SkyBrightnessExposureBias (0xa6413f46, g_flBrightnessExposureBias) scale times exp2"),
+    ("18008d1a0", "SceneGlobalInfoGPU_Construct", V3, "the 0xC0 globals block at scene +0x3e0: sun irradiance 0, sun min brightness FLT_MAX, IBL scale 1; scene flags |= 1 unless ResourceCompiler/BakedLighting/DisableCullingForShadows"),
+    ("180095180", "PathTraceScene_Upload", V3, "the scene's buffers and acceleration structures to the GPU"),
+    ("180187920", "SceneUtils_GenerateScrambledHalton", V3, "ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata"),
+    ("18049c8d0", "LinearToSrgb8", V3, "per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped"),
+]
+
+
 def write(name, rows):
     with open(os.path.join(HERE, name), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"functions": [{"addr": a, "name": n, "module": m, "note": note} for a, n, m, note in rows]}, f, indent=1)
@@ -2238,4 +2258,5 @@ if __name__ == "__main__":
     write("vrad3_20261001.manual.json", VRAD3)
     write("resourcecompiler_20261006.manual.json", RESOURCECOMPILER_1006)
     write("tier0_20261015.manual.json", TIER0_1015)
+    write("scenesystem_20261015.manual.json", SCENESYSTEM)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

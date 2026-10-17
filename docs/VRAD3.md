@@ -188,6 +188,74 @@ The data the ray generation shader works on:
 - The push constants: the pass and dimension count, the block's offset and
   the lightmap size, and the cordon box.
 
+## Our CPU bake
+
+`Lighting/Bake/` runs the block compute on the CPU from the same inputs vrad3
+reads (scene_info.kv3, scene_meshes.kv3, lightmap_packing_geometry.dat,
+lightmap_info.dat), the shaders ported from their GLSL and the host from the
+decompile; the post-process is the existing exact port (LightmapPost,
+LightmapAhd, LightmapWeld).
+
+- **Scene** (`BakeScene`, `RayScene`, `BakeMaterial`, `Light`): scenesystem's
+  loader (1800912d0): instance masks and packed flags from the material
+  attributes (180098660), the lights as PathTraceBarnLightGPU_t, the IBL
+  cubemap times exp2 of the sky's exposure bias, the globals. A binned-SAH
+  BVH with watertight intersection stands in for the hardware: a triangle is
+  front facing counter-clockwise from the origin (the sample validation's
+  backface count needs that), masks and cull flags as in Vulkan. Shadow
+  rays cull nothing: csgo's gameinfo.gi sets
+  BakedLighting/DisableCullingForShadows, which clears scene flag 1 (with
+  it, probe01's sun leaked through single-sided walls).
+- **Block geometry** (`BlockGeometry`): lightmap_load_block_gpu's clip
+  (18002d530): cordon-masked triangles overlapping the block, large charts
+  first (std::partition on chart flags 0x30000000), small-chart polygons cut
+  on the 8 x 8 tile lines with vrad3's epsilon, snapping and frame repacking
+  (PackTangentFrame is resourcecompiler's CompressTangentFrame), sorted by
+  tile, fanned, with world areas and the per-tile triangle lists.
+- **Samples** (`LightmapBaker.Sample`): every fourth pass, two SFMT draws
+  (seed 0xdee533d5 per block) offset the small-chart sampler's TEA, two more
+  jitter the raster window by half a luxel. The small-chart pass is the
+  compute shader exactly: per tile 16 rounds of an area reservoir over the
+  tile's triangles, the 64 shared samples matched to luxels by truncated
+  uv, a uniform reservoir over all rounds. The raster pass draws the whole
+  clipped buffer, depth TEA(primitive id), other charts discarded. Then
+  rtx_vrad3_lightmap_sample_validation (two face-normal probes, a short
+  step out, eight Hammersley rays counting backfaces).
+- **Path tracing** (`PathTracer`): rtx_vrad3_lightmap's ray generation per
+  luxel and pass (described in `PathTracer`'s summary) on the scrambled
+  Halton volume (`HaltonSamples`, the PBRT sampler of 180187920 with the
+  shader's digit groups, `tools/re/halton_table.py`).
+- **Not ported yet**: the csgo material hit shaders (every material uses
+  rtx_default_hitgroup: colour texture times tint, no emission, no
+  normal maps), cookies, subsurface, the payload's half-float material
+  fields, GPU float rounding. The bake cannot be byte for byte (GPU
+  transcendentals and traversal order); the target is Valve's statistics.
+
+`CpuBakeTests.Bake` (`CPUBAKE=<vrad3 folder>`, `CPUBAKE_ADDON`,
+`CPUBAKE_BLOCK` for one block into a block-sized image, `CPUBAKE_FILTER=1`
+for the script's firefly and median filters on it, `CPUBAKE_STRIDE`)
+compares each EXR channel with Valve's on the traced luxels, per luxel and
+over 16 x 16 bins; `tools/vrad3/bake_summary.py` tabulates the logs. A
+1024 x 1024 block takes about 15 s on six cores.
+
+Parity, 2026-10-17 (each block baked alone with the script's firefly and
+median filters, against Valve's EXRs after the full post-process):
+
+- **probe01**, all 16 blocks: irradiance mean ratio 0.983 to 1.004 per
+  block and channel, 16 x 16 bin correlation 0.93 to 1.00 (per luxel 0.68
+  to 1.00, the rest is the two bakes' noise); directional irradiance within
+  1% in the mean; direct light shadows (the sun) 0.97 to 1.00. The R
+  channel of direct_light_shadows.exr is written inverted (1 shadowed).
+- **ze_hold_em_p**, all 16 blocks (37 shadowed DISK barns, no sky): the
+  baked shadow slots match (ratio 1.000, correlation 0.98 to 1.00); the
+  irradiance (bounce light only, every light has a shadow slot) has the
+  right shape (bin correlation 0.88 to 1.00, per luxel 0.47 to 0.99) but is
+  1.16 to 1.85 times Valve's, bluer than it. The cause is the material: the
+  world is csgo_environment, whose own hit group
+  (csgo_environment_vulkan_60_rtx) takes layer 1's colour through
+  g_mTextureAdjust1, a luminance-keeping tint, and darkens it by the height
+  texture's green channel; our default hit group uses the raw colour.
+
 ## The lightmap post-process
 
 The image (`CVrad3LightmapImage`, global at DAT_180399e70) is w x h with

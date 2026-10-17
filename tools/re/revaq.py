@@ -1,8 +1,8 @@
-"""reva.py <command> <program> ... -- the ReVa calls used most, on a Ghidra program.
+"""revaq.py <command> <program> ... -- the ReVa calls used most, on a Ghidra program.
 
-    reva.py dec <program> <hex addr> [limit] [offset]   decompile (default 400 lines from 1)
-    reva.py str <program> <regex> [max]                  strings with referencing functions
-    reva.py xref <program> <hex addr> [to|from]          references
+    revaq.py dec <program> <hex addr> [limit] [offset]   decompile (default 400 lines from 1)
+    revaq.py str <program> <regex> [max]                  strings with referencing functions
+    revaq.py xref <program> <hex addr> [to|from]          references
 
 <program> is an alias from paths.ALIASES (rc, vis, ms, ms1001, pb, pv, sp, t0,
 vrad3) or a Ghidra program name (resourcecompiler_20260923.dll). The ReVa

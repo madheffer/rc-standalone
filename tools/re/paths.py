@@ -51,4 +51,5 @@ ALIASES = {
     "sp": "smartprops_20260923.dll",
     "t0": "tier0_20260923.dll",
     "vrad3": "vrad3_20261001.dll",
+    "ss": "scenesystem_20261015.dll",
 }

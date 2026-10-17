@@ -1348,7 +1348,31 @@
    "addr": "18002d530",
    "name": "CVrad3Command_lightmap_load_block_gpu::Run",
    "module": "s2c:baked/vrad3",
-   "note": "the command (virtual void Run(int argc, const char **argv))"
+   "note": "the command: reads the block's chart ids from lightmap_info.dat into the image's luxel records (flags bit 0 valid, bit 2 chart bit 28, bit 1 chart bit 29), LuxelChartIDs.vtex, then 'Clip packing geometry to block (CPU)': cordon-masked triangles overlapping the block as 24-byte polygons (position, uv, PackTangentFrame), std::partition (18003d8e0) large charts first, small-chart polygons split on 8 x 8 tile lines (epsilon 2^-16; split coordinate snapped, v also set when a y split was due), tile by uv centroid, sorted (std_Sort_32ByteElements), fanned into PackingGeometryVertices, ChartIDs, TriangleArea and the per-tile triangle list (Lighting/Bake/BlockGeometry.cs)"
+  },
+  {
+   "addr": "180045400",
+   "name": "ComputeLightmapPackingGeometryCordonMask",
+   "module": "s2c:baked/vrad3",
+   "note": "bit per packing triangle: its world box overlaps the cordon (DAT_180347f98..fac); fatal over 0x80000000 triangles"
+  },
+  {
+   "addr": "18003d8e0",
+   "name": "PartitionPolygons_LargeChartsFirst",
+   "module": "s2c:baked/vrad3",
+   "note": "std::partition of the block's 32-byte polygons: chart flags (0x1c-byte chart +0x18) & 0x30000000 clear go first; Hoare swaps from both ends"
+  },
+  {
+   "addr": "1801fa6e0",
+   "name": "AsinApprox",
+   "module": "s2c:baked/vrad3",
+   "note": "sign(x) * |((((0.430477 - 0.0594935 a) a - 1.24068) a + 0.216183) a + 1.00008) / (1 - 0.779384 a) - sqrt(1 - a a)|, a = |x| (resourcecompiler FUN_181272450)"
+  },
+  {
+   "addr": "1801f4060",
+   "name": "Vector_Basis",
+   "module": "s2c:baked/vrad3",
+   "note": "Duff et al. basis of a unit normal: s = sign(z), k = -1 / (z + s), b1 = (x s x k + 1, x y k s, -s x), b2 = (x y k, y y k + s, -y)"
   },
   {
    "addr": "180030100",

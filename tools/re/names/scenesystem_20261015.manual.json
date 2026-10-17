@@ -1,0 +1,70 @@
+{
+ "functions": [
+  {
+   "addr": "1800912d0",
+   "name": "PathTraceScene_Load",
+   "module": "s2c:baked/vrad3",
+   "note": "scene_info.kv3 and scene_meshes.kv3 into the GPU scene: meshes, instances (180094d30), materials (180098660), lights (18008beb0), the ibl (1800999d0), then the upload (180095180)"
+  },
+  {
+   "addr": "180094d30",
+   "name": "PathTraceScene_AddInstance",
+   "module": "s2c:baked/vrad3",
+   "note": "0x48-byte instance record: mask = (~material and & instance flags) | material or, packed nMaterialFlags << 16 | instance bits, +0xc the facing-cull-disable byte = material flags & 1; grows the scene bounds"
+  },
+  {
+   "addr": "180098660",
+   "name": "PathTraceScene_MaterialFlags",
+   "module": "s2c:baked/vrad3",
+   "note": "from CMaterial2 attributes: doublesided or renderbackfaces -> flags 1; Translucent or alphatest -> 2; mapbuilder.blocklight -> 5; tools.toolsmaterial -> and 1; DoNotCastShadows -> and 0xe (+1 with tools); opaque -> or 0x10 else and 0x10; 0x98bed7f6 -> or 0x20, and 0x11; 0x16458f13 -> or 0x400"
+  },
+  {
+   "addr": "18008beb0",
+   "name": "PathTraceScene_AddLight",
+   "module": "s2c:baked/vrad3",
+   "note": "a scene_info light (barn KV, path_trace_light_flags, baked shadow ids) into PathTraceBarnLightGPU_t (0x1f0 bytes), through 18008c110"
+  },
+  {
+   "addr": "18008c110",
+   "name": "PathTraceBarnLight_FromShape",
+   "module": "s2c:baked/vrad3",
+   "note": "the LightShape's matrices, colour, radiance factor, cookie, fades and luminaire into the GPU record"
+  },
+  {
+   "addr": "1804a3a60",
+   "name": "Luminaire_Area",
+   "module": "s2c:baked/vrad3",
+   "note": "the luminaire's area for the light's PDF"
+  },
+  {
+   "addr": "1800999d0",
+   "name": "PathTraceScene_SetIbl",
+   "module": "s2c:baked/vrad3",
+   "note": "the ibl: SkyTexture (0xa9e45763) as g_tSkyTexture, SkyTextureFormat (0xd5faca7a), SkyBrightnessExposureBias (0xa6413f46, g_flBrightnessExposureBias) scale times exp2"
+  },
+  {
+   "addr": "18008d1a0",
+   "name": "SceneGlobalInfoGPU_Construct",
+   "module": "s2c:baked/vrad3",
+   "note": "the 0xC0 globals block at scene +0x3e0: sun irradiance 0, sun min brightness FLT_MAX, IBL scale 1; scene flags |= 1 unless ResourceCompiler/BakedLighting/DisableCullingForShadows"
+  },
+  {
+   "addr": "180095180",
+   "name": "PathTraceScene_Upload",
+   "module": "s2c:baked/vrad3",
+   "note": "the scene's buffers and acceleration structures to the GPU"
+  },
+  {
+   "addr": "180187920",
+   "name": "SceneUtils_GenerateScrambledHalton",
+   "module": "s2c:baked/vrad3",
+   "note": "ISceneUtils slot 0x1a0, called with the block's pass: PBRT-v3 Halton on a 32 x 32 tile (scales 32 and 81, stride 2592, constants 1377 and 1216) into the 32 x 32 x 128 RG32F volume; permutations from textures/dev/scrambled_halton.vdata"
+  },
+  {
+   "addr": "18049c8d0",
+   "name": "LinearToSrgb8",
+   "module": "s2c:baked/vrad3",
+   "note": "per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped"
+  }
+ ]
+}
