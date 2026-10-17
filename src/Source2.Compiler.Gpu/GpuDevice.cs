@@ -23,12 +23,23 @@ public sealed unsafe class GpuDevice : IDisposable
     public string Name { get; }
     private readonly PhysicalDeviceMemoryProperties _memory;
 
+    /// <summary>Whether the device runs ray tracing pipelines (VK_KHR_ray_tracing_pipeline, acceleration structures, buffer device addresses).</summary>
+    public bool RayTracing { get; }
+
     /// <param name="rayTracingShaderFeatures">
     /// Also enable what vrad3's ray tracing shaders need when they run as compute (the hit shader
     /// oracle): 16-bit floats and integers, 16-bit storage, non-uniform storage buffer indexing.
     /// </param>
-    public GpuDevice(bool rayTracingShaderFeatures = false)
+    /// <param name="rayTracing">
+    /// Also enable ray tracing itself (RtxBakeHost): VK_KHR_acceleration_structure,
+    /// VK_KHR_ray_tracing_pipeline, VK_KHR_deferred_host_operations, buffer device addresses and
+    /// formatless storage image access (vrad3's raygens read g_RandomSamples without a format).
+    /// Implies <paramref name="rayTracingShaderFeatures"/>.
+    /// </param>
+    public GpuDevice(bool rayTracingShaderFeatures = false, bool rayTracing = false)
     {
+        rayTracingShaderFeatures |= rayTracing;
+        RayTracing = rayTracing;
         var appName = (byte*)SilkMarshal.StringToPtr("s2c");
         var app = new ApplicationInfo { SType = StructureType.ApplicationInfo, PApplicationName = appName, ApiVersion = Vk.Version12 };
         var info = new InstanceCreateInfo { SType = StructureType.InstanceCreateInfo, PApplicationInfo = &app };
@@ -62,10 +73,15 @@ public sealed unsafe class GpuDevice : IDisposable
             StorageBuffer16BitAccess = rayTracingShaderFeatures,
             UniformAndStorageBuffer16BitAccess = rayTracingShaderFeatures,
         };
+        var rtPipeline = new PhysicalDeviceRayTracingPipelineFeaturesKHR { SType = StructureType.PhysicalDeviceRayTracingPipelineFeaturesKhr, RayTracingPipeline = true };
+        var accel = new PhysicalDeviceAccelerationStructureFeaturesKHR { SType = StructureType.PhysicalDeviceAccelerationStructureFeaturesKhr, PNext = &rtPipeline, AccelerationStructure = true };
+        if (rayTracing)
+            v11.PNext = &accel;
         var v12 = new PhysicalDeviceVulkan12Features
         {
             SType = StructureType.PhysicalDeviceVulkan12Features,
             PNext = rayTracingShaderFeatures ? &v11 : null,
+            BufferDeviceAddress = rayTracing,
             ShaderFloat16 = rayTracingShaderFeatures,
             ShaderStorageBufferArrayNonUniformIndexing = rayTracingShaderFeatures,
             DescriptorIndexing = true,
@@ -74,6 +90,7 @@ public sealed unsafe class GpuDevice : IDisposable
             DescriptorBindingVariableDescriptorCount = true,
             ShaderSampledImageArrayNonUniformIndexing = true,
             DescriptorBindingSampledImageUpdateAfterBind = true,
+            ShaderUniformBufferArrayNonUniformIndexing = rayTracing,
         };
         var features = new PhysicalDeviceFeatures2
         {
@@ -88,10 +105,20 @@ public sealed unsafe class GpuDevice : IDisposable
                 ImageCubeArray = true,
                 SamplerAnisotropy = true,
                 ShaderInt16 = rayTracingShaderFeatures,
+                ShaderInt64 = rayTracing,
+                ShaderStorageImageReadWithoutFormat = rayTracing,
+                ShaderStorageImageWriteWithoutFormat = rayTracing,
             },
         };
-        var deviceInfo = new DeviceCreateInfo { SType = StructureType.DeviceCreateInfo, PNext = &features, QueueCreateInfoCount = 1, PQueueCreateInfos = &queueInfo };
+        string[] extensions = rayTracing ? ["VK_KHR_acceleration_structure", "VK_KHR_ray_tracing_pipeline", "VK_KHR_deferred_host_operations"] : [];
+        var extensionNames = (byte**)SilkMarshal.StringArrayToPtr(extensions);
+        var deviceInfo = new DeviceCreateInfo
+        {
+            SType = StructureType.DeviceCreateInfo, PNext = &features, QueueCreateInfoCount = 1, PQueueCreateInfos = &queueInfo,
+            EnabledExtensionCount = (uint)extensions.Length, PpEnabledExtensionNames = extensionNames,
+        };
         Check(Vk.CreateDevice(Physical, &deviceInfo, null, out var device), "vkCreateDevice");
+        SilkMarshal.Free((nint)extensionNames);
         Device = device;
         Vk.GetDeviceQueue(Device, QueueFamily, 0, out var queue);
         Queue = queue;
@@ -130,13 +157,34 @@ public sealed unsafe class GpuDevice : IDisposable
         Check(Vk.CreateBuffer(Device, &info, null, out var buffer), "vkCreateBuffer");
         Vk.GetBufferMemoryRequirements(Device, buffer, out var req);
         var flags = hostVisible ? MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit : MemoryPropertyFlags.DeviceLocalBit;
-        var alloc = new MemoryAllocateInfo { SType = StructureType.MemoryAllocateInfo, AllocationSize = req.Size, MemoryTypeIndex = MemoryType(req.MemoryTypeBits, flags) };
+        var addressFlags = new MemoryAllocateFlagsInfo { SType = StructureType.MemoryAllocateFlagsInfo, Flags = MemoryAllocateFlags.DeviceAddressBit };
+        var alloc = new MemoryAllocateInfo
+        {
+            SType = StructureType.MemoryAllocateInfo, AllocationSize = req.Size, MemoryTypeIndex = MemoryType(req.MemoryTypeBits, flags),
+            PNext = (usage & BufferUsageFlags.ShaderDeviceAddressBit) != 0 ? &addressFlags : null,
+        };
         Check(Vk.AllocateMemory(Device, &alloc, null, out var memory), "vkAllocateMemory");
         Vk.BindBufferMemory(Device, buffer, memory, 0);
         void* mapped = null;
         if (hostVisible)
             Vk.MapMemory(Device, memory, 0, size, 0, &mapped);
         return new GpuBuffer(buffer, memory, size, (nint)mapped);
+    }
+
+    /// <summary>A buffer's device address (the buffer needs ShaderDeviceAddressBit).</summary>
+    public ulong Address(GpuBuffer b)
+    {
+        var info = new BufferDeviceAddressInfo { SType = StructureType.BufferDeviceAddressInfo, Buffer = b.Buffer };
+        return Vk.GetBufferDeviceAddress(Device, &info);
+    }
+
+    /// <summary>A device-level entry point (vkGetDeviceProcAddr), for the ray tracing extensions.</summary>
+    public nint Proc(string name)
+    {
+        var p = Vk.GetDeviceProcAddr(Device, name);
+        if (p.Handle == null)
+            throw new InvalidOperationException($"{name}: not available");
+        return (nint)p.Handle;
     }
 
     public GpuBuffer Upload(ReadOnlySpan<byte> data, BufferUsageFlags usage)

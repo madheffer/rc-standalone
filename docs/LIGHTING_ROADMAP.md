@@ -239,6 +239,22 @@ Steps:
    the same architecture and driver, so verify there against vrad3 run on
    the same class of GPU.
 
+Status 2026-10-18 (ledger 80): step 1 runs (RtxBakeHost, `CPUBAKE_GPU=1`,
+6.7 s for ze block 5). Step 2 stands at irradiance correlation 0.61 against
+Valve, the same as the CPU port, because the host inputs both share differ
+from Valve's. `tools/vrad3/capture_host.py` captures Valve's host buffers
+and `CPUBAKE_HOSTCAP` lists every differing field. Next, in order:
+- scene globals: sky light flags, BRDF LUTs, local light bounds and the bin
+  grid (1804c8280);
+- light bounds (1804a2b70 and the illumination box) and the barn matrix to
+  the ulp;
+- GeometryInfo per instance;
+- the material blocks' colour matrices;
+- Valve's rtx_binlights on the GPU for the bins.
+
+Then re-measure, and move the Halton and sample passes to Valve's compute
+shaders.
+
 ### Parked items (to rank)
 
 Briefs collected for ranking (vpkstuff ROADMAP item 16 points here).

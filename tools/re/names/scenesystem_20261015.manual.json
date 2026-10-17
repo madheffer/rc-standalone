@@ -76,7 +76,31 @@
    "addr": "180095180",
    "name": "PathTraceScene_Upload",
    "module": "s2c:baked/vrad3",
-   "note": "the scene's buffers and acceleration structures to the GPU"
+   "note": "the scene's buffers and acceleration structures to the GPU: local light bounds = light bounds union clipped to the scene bounds, the bin grid (1804c8280, 0x4000000 bytes, 4 bytes x masks a cell), BRDF LUT bindless slots (scene +0x10 / +0x18), the uploads through 180099c00 (material data, instances 0x20, geometry 0x150 per instance, lights 0x1f0, globals 0xc0), SceneTLAS, RaytraceLightBins (g_binLightsSet)"
+  },
+  {
+   "addr": "180099c00",
+   "name": "PathTraceScene_UploadStructured",
+   "module": "s2c:baked/vrad3",
+   "note": "(holder, render context, data, stride, count): grows the buffer to count rounded up to 256 (at least 1024) records, then the context's +0x380 upload of stride x count bytes; capture_host.py hooks it"
+  },
+  {
+   "addr": "1804c8280",
+   "name": "LightBinGrid_Size",
+   "module": "s2c:baked/vrad3",
+   "note": "(grid, budget bytes, bytes a cell, min, max): bisects the cell size from (0, largest extent) while the step is over 0.01, counts cvtss2si(extent / size) at least 1, the smaller size kept while count x bytes fits the budget (unsigned)"
+  },
+  {
+   "addr": "1804a2b70",
+   "name": "LightShape_ClipBounds",
+   "module": "s2c:baked/vrad3",
+   "note": "the AABB of the clip box corners (x, y in -1, 1; z in 0, 1; order --0, +-0, ++0, -+0, then z 1) through FromClipSpace (+0x40, row major) with the w divide by a reciprocal multiply; minss / maxss from FLT_MAX"
+  },
+  {
+   "addr": "18009b330",
+   "name": "PathTraceScene_ShaderBindingTable",
+   "module": "s2c:baked/vrad3",
+   "note": "'PathTracingShaderBindingTable': misses Miss0..MissN (1805e9280) per ray type, then per ray type hitgroup_default_opaque:N, hitgroup_default_transparent:N and every material shader's '<shader>:N'"
   },
   {
    "addr": "180187920",

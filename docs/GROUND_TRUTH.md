@@ -1219,6 +1219,64 @@ game can answer is raised with the user first, and runs with -insecure.
       - 5 BC7 blocks of the dlshd atlas, a bc7e port difference on that
         input.
 
+80. **The GPU bake host and Valve's host buffers** (measured 2026-10-18 on
+    ze_hold_em_p block 5, RTX 4070; open).
+    - RtxBakeHost (Source2.Compiler.Gpu) runs Valve's own SPIR-V in a
+      Vulkan ray tracing pipeline: rtx_vrad3_lightmap (static 0, dynamic
+      D_SH_LIGHTMAPS 0) and rtx_vrad3_lightmap_sample_validation as raygens;
+      per material shader one module with entries ClosestHitN / AnyHitN for
+      ray type N (rtx_default_hitgroup static 1 has AnyHit0 and AnyHit1);
+      18009b330 names the SBT's misses Miss0 / Miss1, which no vrad3 program
+      has, so they are zero records. Descriptor sets 3 to 6 as the programs
+      declare them; one BLAS per mesh, the TLAS over the instances.
+    - Nothing may be forced opaque: shadow rays start at visibility 1 and
+      only the hit groups' AnyHit1 lowers it (opaque materials included).
+      With FORCE_OPAQUE every shadow was 1.
+    - vrad3's own bake is deterministic: block 5 baked alone
+      (tools/vrad3/capture_host.py) equals block 5 of the full-map bake in
+      every channel, bit for bit.
+    - Block 5 on the GPU: 6.7 s (vrad3 0.11 s for its block compute) against
+      171 s for the transpiled C# on 14 threads. GPU against CPU port:
+      irradiance correlation 0.95, shadows 99.9% equal. GPU against Valve:
+      irradiance 0.61, the same as the CPU port, AO equal on 73% of the
+      occluded luxels, shadows 0.99, normals exact. So the remaining gap is
+      in the host inputs both share, not in the shaders.
+    - The raygen sums lights over subgroupOr of the luxel's light bin masks
+      and picks among them by reservoir sampling: the bins (rtx_binlights
+      over the grid of SceneGlobalInfo) change the noise, not only which
+      lights reach a point. One all-lights bin is not equivalent.
+    - capture_host.py hooks scenesystem 180099c00 (structured buffer upload:
+      data, stride, count) during a vrad3 run. CpuBakeTests
+      (CPUBAKE_HOSTCAP=<capture>) compares ours. Differences found:
+      - SceneGlobalInfoGPU_t: local light bounds (-13707, -608, 17) to
+        (7672, 398, 144) and a 3114 x 147 x 18 bin grid (ours a 1-cell
+        placeholder); m_nSkyLightFlags 1 with no ibl table (the loader's
+        default; only ibl.path_trace_light_flags overrides it; ours 0, and
+        the raygen drops the sky when bit 0 is clear); m_nBrdfLut and
+        m_nBrdfMultiscatterLut set (textures/dev/brdf_lut and
+        brdf_multiscatter_lut, 1800065c0); _unused0 -1.
+      - PathTraceBarnLightGPU_t: min / max bounds (+0x150, +0x160: the light's
+        clip box through FromClipSpace, 1804a2b70, cut by the illumination
+        volume's box), the illumination bounds centre, orientation and
+        extent (+0x170 to +0x19c), m_nPreviewBakedShadowIndex 0 (ours -1),
+        and m_mBarnIlluminationFromWorld 1 ulp off in 31 words.
+      - GeometryInfo_t: one record per instance (159), not per mesh (75);
+        unused streams are -1.
+      - PackedRtxInstanceData_t: nTriangleGeometry, nMaterialData and
+        nInstanceFlags differ (the shaders read only nSrgbColor,
+        nMaterialData, fEmissiveBoost and nMaterialFlags_nInstanceFlags).
+      - Material data: 3,728 bytes against our 3,360 (block order and
+        bindless indices differ, which is harmless if consistent), and a
+        colour matrix of 1.00000024 and 1e-8 terms where ours is identity.
+    - The bin grid: FUN_1804c8280 bisects a cell size between 0 and the
+      largest extent until the step is 0.01, counts rounded with cvtss2si
+      (at least 1), keeping the smaller size while cells x 4 x masks fits
+      0x4000000 bytes.
+    - lightmap_compute_block_gpu (vrad3 180030100): push constants
+      (pass, 4, 0, 0), (block x, y, lightmap w, h), the cordon from
+      DAT_180347f98 (not yet read); new samples on pass mod 4 = 0; the
+      convergence test only at pass 0 with 16 / 16.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

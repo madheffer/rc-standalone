@@ -9,7 +9,7 @@ namespace Source2.Compiler.Gpu;
 public sealed class SpirvReflection
 {
     /// <summary>What a descriptor binding holds.</summary>
-    public enum Kind { UniformBuffer, StorageBuffer, SampledImage, Sampler, CombinedImageSampler, Other }
+    public enum Kind { UniformBuffer, StorageBuffer, SampledImage, Sampler, CombinedImageSampler, Other, StorageImage, AccelerationStructure }
 
     /// <summary>A member of a uniform block: its name, byte offset, byte size, and type description.</summary>
     public sealed record Member(string Name, int Offset, int Size, string Type);
@@ -25,9 +25,13 @@ public sealed class SpirvReflection
     public sealed record Input(int Location, string Name, string Type, int Components);
 
     public string EntryPoint { get; private set; } = "";
+
+    /// <summary>Every OpEntryPoint: its execution model (5313 raygen, 5314 intersection, 5315 any-hit, 5316 closest-hit, 5317 miss, 5318 callable, 5 compute) and name.</summary>
+    public List<(int Model, string Name)> EntryPoints { get; } = [];
     public List<Resource> Resources { get; } = [];
     public List<Input> Inputs { get; } = [];
     public List<int> Capabilities { get; } = [];
+    public List<string> Extensions { get; } = [];
 
     private readonly Dictionary<uint, string> _names = [];
     private readonly Dictionary<(uint, uint), string> _memberNames = [];
@@ -54,6 +58,9 @@ public sealed class SpirvReflection
             var w = words.AsSpan(i, count);
             switch (op)
             {
+                case 10: // OpExtension
+                    r.Extensions.Add(Str(w[1..]).Text);
+                    break;
                 case 17: // OpCapability
                     r.Capabilities.Add((int)w[1]);
                     break;
@@ -61,6 +68,7 @@ public sealed class SpirvReflection
                 {
                     var (name, used) = Str(w[3..]);
                     r.EntryPoint = name;
+                    r.EntryPoints.Add(((int)w[1], name));
                     foreach (var id in w[(3 + used)..])
                         interfaceIds.Add(id);
                     break;
@@ -88,7 +96,7 @@ public sealed class SpirvReflection
                     variables.Add((w[1], w[2], w[3]));
                     break;
                 default:
-                    if (op is >= 19 and <= 39 or 4472) // type declarations
+                    if (op is >= 19 and <= 39 or 4472 or 5341) // type declarations
                         r._types[w[1]] = w.ToArray();
                     break;
             }
@@ -128,7 +136,7 @@ public sealed class SpirvReflection
                     }
                     break;
                 case 25: // OpTypeImage
-                    kind = Kind.SampledImage;
+                    kind = t[7] == 2 ? Kind.StorageImage : Kind.SampledImage; // Sampled 2: read/write
                     dim = t[3] switch { 0 => "1D", 1 => "2D", 2 => "3D", 3 => "Cube", 5 => "Buffer", _ => $"dim{t[3]}" } + (t[5] == 1 ? "Array" : "");
                     break;
                 case 26: // OpTypeSampler
@@ -136,6 +144,9 @@ public sealed class SpirvReflection
                     break;
                 case 27: // OpTypeSampledImage
                     kind = Kind.CombinedImageSampler;
+                    break;
+                case 5341: // OpTypeAccelerationStructureKHR
+                    kind = Kind.AccelerationStructure;
                     break;
             }
             r.Resources.Add(new Resource((int)set, (int)binding, kind, length, size, members, name, r._names.GetValueOrDefault(element, $"_{element}"), dim));

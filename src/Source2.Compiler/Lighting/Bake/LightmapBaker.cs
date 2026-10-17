@@ -43,6 +43,9 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
     /// </summary>
     public bool ValveRaygen { get; init; } = Environment.GetEnvironmentVariable("S2C_HANDPORT") != "1";
 
+    /// <summary>Runs Valve's ray generation shaders on a device (the GPU) in place of their transpiled C#; implies <see cref="ValveRaygen"/>.</summary>
+    public ILightmapDevice? Device { get; init; }
+
     /// <summary>The material hit groups (RtxScene); without them every material uses the default hit group.</summary>
     public RtxScene? Rtx { init => _hits.Rtx = value; }
 
@@ -123,16 +126,25 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
             var sfmt = new Sfmt19937(0xdee533d5);
             var gpuLuxels = new Glsl.Raygen.Luxel_t_natural[w * h];
             var gpuSamples = Array.Empty<Glsl.Raygen.LightmapSample_t_natural>();
+            Device?.BeginBlock(w, h, ids);
             for (var pass = 0; pass < Passes; pass++)
             {
                 if (pass % 4 == 0)
                 {
                     samples = Sample(ox, oy, w, h, ids, geometry, sfmt);
-                    if (!ValveRaygen)
+                    if (!ValveRaygen && Device == null)
                         Validate(samples);
                 }
                 var random = HaltonSamples.Generate(haltonPermutations, (uint)pass);
                 var p = pass;
+                if (Device != null)
+                {
+                    if (pass % 4 == 0)
+                        Device.Samples([.. samples.Select(s => Vrad3Raygen.Sample(s))]);
+                    Device.Pass(p, 4, random, new Vector2(ox, oy), new Vector2(Width, Height));
+                    log?.Invoke($"block {block}: pass {pass} on the device");
+                    continue;
+                }
                 if (ValveRaygen)
                 {
                     if (pass % 4 == 0)
@@ -169,7 +181,9 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
                             tracer.Luxel(x, y, w, h, ids, samples, random, p, new Vector2(ox, oy), new Vector2(Width, Height), ref luxels[y * w + x]);
                 });
             }
-            if (ValveRaygen)
+            if (Device != null)
+                gpuLuxels = Device.EndBlock();
+            if (ValveRaygen || Device != null)
                 for (var i = 0; i < luxels.Length; i++)
                     luxels[i] = ids[i] == 0xffffffff ? Bake.Luxel.Empty() : Vrad3Raygen.ToLuxel(gpuLuxels[i]);
             if (CropBlock is null)

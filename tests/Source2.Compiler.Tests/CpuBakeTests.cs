@@ -95,6 +95,9 @@ public class CpuBakeTests(ITestOutputHelper output)
         using var halton = LoadResource(Core("textures/dev/scrambled_halton.vdata_c")!);
         var permutations = HaltonSamples.Permutations(((BinaryKV3)halton.DataBlock!).Data.Root["permutations"].AsBlob());
         RtxScene? rtx = null;
+        // CPUBAKE_GPU=1: Valve's ray tracing SPIR-V on this PC's GPU (RtxBakeHost) instead of the transpiled raygens.
+        using var gpuDevice = Environment.GetEnvironmentVariable("CPUBAKE_GPU") == "1" ? new Source2.Compiler.Gpu.GpuDevice(rayTracing: true) : null;
+        Source2.Compiler.Gpu.RtxBakeHost? gpuHost = null;
         if (Environment.GetEnvironmentVariable("CPUBAKE_RTX") != "0")
         {
             using var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
@@ -102,6 +105,19 @@ public class CpuBakeTests(ITestOutputHelper output)
             output.WriteLine($"material hit groups: {Enumerable.Range(0, scene.Instances.Count).Count(rtx.Has)} of {scene.Instances.Count} instances");
             foreach (var note in rtx.Notes)
                 output.WriteLine($"  {note}");
+            if (gpuDevice != null)
+            {
+                var hostWatch = System.Diagnostics.Stopwatch.StartNew();
+                gpuHost = new Source2.Compiler.Gpu.RtxBakeHost(gpuDevice, scene, rtx, rtxShaders, Read);
+                output.WriteLine($"GPU host on {gpuDevice.Name}: {hostWatch.Elapsed.TotalSeconds:F1} s");
+                foreach (var note in gpuHost.Notes)
+                    output.WriteLine($"  {note}");
+            }
+        }
+        if (Environment.GetEnvironmentVariable("CPUBAKE_HOSTCAP") is { Length: > 0 } hostCap && rtx != null)
+        {
+            CompareHost(hostCap, scene, rtx);
+            return;
         }
         if (Environment.GetEnvironmentVariable("CPUBAKE_ALBEDO") == "1" && rtx != null)
         {
@@ -148,6 +164,7 @@ public class CpuBakeTests(ITestOutputHelper output)
             Threads = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_THREADS"), out var th) ? th : 4,
             CropBlock = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_BLOCK"), out var bl) ? bl : null,
             Stride = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_STRIDE"), out var st) ? st : 1,
+            Device = gpuHost,
         };
         if (Environment.GetEnvironmentVariable("CPUBAKE_SUNPROBE") == "1" && baker.CropBlock is { } probeBlock)
         {
@@ -189,6 +206,7 @@ public class CpuBakeTests(ITestOutputHelper output)
         var watch = System.Diagnostics.Stopwatch.StartNew();
         var image = baker.Compute(File.ReadAllBytes(Path.Combine(folder, "lightmap_info.dat")), output.WriteLine);
         output.WriteLine($"compute {watch.Elapsed.TotalSeconds:F1} s, NaN luxel runs {Vrad3Raygen.NanLuxels}");
+        gpuHost?.Dispose();
         if (baker.CropBlock is { } block)
         {
             // The block alone: AHD-encoded (no filtering) against the same texels of Valve's, where we traced.
@@ -246,6 +264,50 @@ public class CpuBakeTests(ITestOutputHelper output)
         {
             File.WriteAllBytes(Path.Combine(outDir, name), ours.Write());
             Compare(name, ours, Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, name))));
+        }
+    }
+
+    // CPUBAKE_HOSTCAP=<capture_host.py folder>: Valve's uploaded host buffers against ours, record by record and word by word.
+    private void CompareHost(string folder, BakeScene scene, RtxScene rtx)
+    {
+        var ctx = rtx.NewContext();
+        byte[] Bytes<T>(T[] a) where T : struct => System.Runtime.InteropServices.MemoryMarshal.AsBytes(a.AsSpan()).ToArray();
+        var ours = new Dictionary<int, (string Name, byte[] Data, string[] Fields)>
+        {
+            [1] = ("material data", Bytes(ctx.MatU), []),
+            [0x20] = ("PackedRtxInstanceData_t", Bytes(ctx.Instances), ["srgb", "geometry", "material", "flags", "emissive", "instFlags", "pad1", "pad2"]),
+            [0x150] = ("GeometryInfo_t", [.. ctx.Geometries.SelectMany(Source2.Compiler.Gpu.RtxBakeHost.GeometryBytes)], []),
+            [0x1f0] = ("PathTraceBarnLightGPU_t", [.. scene.Lights.SelectMany(l => Source2.Compiler.Gpu.RtxBakeHost.LightBytes(RaygenHost.GpuLight(l)))], []),
+            [0xc0] = ("SceneGlobalInfoGPU_t", Source2.Compiler.Gpu.RtxBakeHost.GlobalBytes(RaygenHost.Globals(scene)), []),
+        };
+        foreach (var file in Directory.GetFiles(folder, "upload_*.bin").Order())
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(Path.GetFileName(file), @"stride([0-9a-f]+)_count(\d+)");
+            var stride = Convert.ToInt32(m.Groups[1].Value, 16);
+            var valve = File.ReadAllBytes(file);
+            if (!ours.TryGetValue(stride, out var o))
+            {
+                output.WriteLine($"{Path.GetFileName(file)}: no counterpart");
+                continue;
+            }
+            var records = stride == 1 ? 1 : valve.Length / stride;
+            var size = stride == 1 ? valve.Length : stride;
+            output.WriteLine($"{o.Name}: valve {valve.Length} bytes, ours {o.Data.Length}");
+            var words = new Dictionary<int, int>();
+            var shown = 0;
+            for (var r = 0; r < records; r++)
+                for (var w = 0; w < size / 4; w++)
+                {
+                    var at = r * size + w * 4;
+                    var v = BitConverter.ToUInt32(valve, at);
+                    var u = at + 4 <= o.Data.Length ? BitConverter.ToUInt32(o.Data, at) : 0xdeadbeefu;
+                    if (u == v)
+                        continue;
+                    words[w * 4] = words.GetValueOrDefault(w * 4) + 1;
+                    if (shown++ < 40)
+                        output.WriteLine($"  record {r} +0x{w * 4:x}: valve {v:x8} ({BitConverter.UInt32BitsToSingle(v):G9}) ours {u:x8} ({BitConverter.UInt32BitsToSingle(u):G9})");
+                }
+            output.WriteLine(words.Count == 0 ? "  identical" : $"  differing offsets: {string.Join(", ", words.OrderBy(k => k.Key).Select(k => $"+0x{k.Key:x} x{k.Value}"))}");
         }
     }
 

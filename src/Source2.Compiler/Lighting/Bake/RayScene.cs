@@ -39,6 +39,9 @@ public sealed class RayScene
     private readonly Vector3[] _v0, _v1, _v2;
     private readonly Triangle[] _tris;
     private readonly Instance[] _instances;
+
+    /// <summary>The instances, in scene order (the GPU host's TLAS takes their masks and flags).</summary>
+    public IReadOnlyList<Instance> Instances => _instances;
     private Node[] _nodes = [];
     private int[] _order = [];
 
