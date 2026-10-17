@@ -7,7 +7,7 @@
 //
 // headless usage:
 //   analyzeHeadless <proj dir> <proj> -process visbuilder.dll -noanalysis \
-//       -scriptPath D:\tools\ghidra_scripts -postScript DumpCallers.java 180049370 <outfile>
+//       -scriptPath tools\ghidra_scripts -postScript DumpCallers.java 180049370 <outfile>
 //@category Analysis
 
 import ghidra.app.decompiler.DecompInterface;

@@ -4,7 +4,7 @@ Every visbuilder address was an offset into one build. CS2 updated on
 2026-09-23 and all of them moved, which is not work to do twice by hand. This
 reads docs/visbuilder.signatures.json -- byte patterns with the linker-moved
 bytes blanked out, generated from the reference build by
-D:/tools/ghidra_scripts/MakeSignatures.java -- and resolves each one against
+tools/ghidra_scripts/MakeSignatures.java -- and resolves each one against
 whatever DLL you point it at.
 
 A symbol resolves when its pattern matches EXACTLY ONCE. A pattern that matches

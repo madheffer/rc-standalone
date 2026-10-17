@@ -7,7 +7,7 @@ it, the RIP-relative memory operands (data, vtables, strings, imports, by
 target) and the ASCII strings those land on. Load it with xrefs.load() to ask
 who calls a function, who references an address or a string.
 
-    python tools/re/xrefs.py D:/tools/binaries/vrad3_20261001.dll --out %TEMP%/vrad3re/xrefs.json
+    python tools/re/xrefs.py tools/re/binaries/vrad3_20261001.dll --out %TEMP%/vrad3re/xrefs.json
 """
 import argparse
 import json

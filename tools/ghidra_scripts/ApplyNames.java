@@ -14,10 +14,9 @@
 // directory to run; the copy here is the one under version control.
 //
 // headless usage:
-//   copy tools\ApplyNames.java <ghidra scripts dir>
 //   python tools\sigscan.py <new dll> --json scan.json     (then make names.txt)
 //   analyzeHeadless <proj dir> <proj> -process <program> -noanalysis \
-//       -scriptPath <ghidra scripts dir> -postScript ApplyNames.java names.txt
+//       -scriptPath tools\ghidra_scripts -postScript ApplyNames.java names.txt
 //@category Analysis
 
 import ghidra.app.script.GhidraScript;

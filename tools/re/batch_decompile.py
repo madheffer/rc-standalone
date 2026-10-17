@@ -14,7 +14,9 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-REVA_CALL = r"D:\tools\reva_call.py"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import paths  # noqa: E402
+REVA_CALL = paths.REVA_CALL
 
 
 def decompile(program, addr):

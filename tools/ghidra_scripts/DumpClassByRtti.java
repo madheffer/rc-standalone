@@ -9,7 +9,7 @@
 //
 // headless usage:
 //   analyzeHeadless <proj dir> <proj> -process visbuilder.dll -noanalysis \
-//       -scriptPath D:\tools\ghidra_scripts -postScript DumpClassByRtti.java CLargeClusterRegions <outfile>
+//       -scriptPath tools\ghidra_scripts -postScript DumpClassByRtti.java CLargeClusterRegions <outfile>
 //@category Analysis
 
 import ghidra.app.decompiler.DecompInterface;

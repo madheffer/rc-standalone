@@ -6,7 +6,7 @@
 //
 // headless usage:
 //   analyzeHeadless <proj dir> <proj> -process vrad3.dll -noanalysis \
-//       -scriptPath D:\tools\ghidra_scripts -postScript DumpDecompiled.java <regex> <outfile>
+//       -scriptPath tools\ghidra_scripts -postScript DumpDecompiled.java <regex> <outfile>
 //@category Analysis
 
 import ghidra.app.decompiler.DecompInterface;

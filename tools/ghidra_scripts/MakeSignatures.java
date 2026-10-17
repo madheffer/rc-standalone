@@ -21,9 +21,8 @@
 // copy here is the one under version control and the two must not drift.
 //
 // headless usage:
-//   copy tools\MakeSignatures.java <ghidra scripts dir>
 //   analyzeHeadless <proj dir> <proj> -process visbuilder.dll -noanalysis \
-//       -scriptPath <ghidra scripts dir> -postScript MakeSignatures.java \
+//       -scriptPath tools\ghidra_scripts -postScript MakeSignatures.java \
 //       <outfile.json> <name> <addr> [<name> <addr>...]
 //
 // Name and address may be joined by '=' or given as two arguments; the batch

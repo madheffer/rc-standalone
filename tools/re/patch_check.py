@@ -1,17 +1,17 @@
 """patch_check.py [--no-state] -- what a CS2 patch changed that the port depends on.
 
 Run after every CS2 update. It checks three things and writes a report to
-D:/tools/patch_reports/<date>_<patch>.md, exiting 2 when something the port
+tools/re/patch_reports/<date>_<patch>.md, exiting 2 when something the port
 depends on needs attention:
 
 1. The toolchain DLLs (resourcecompiler, vphysics2, physicsbuilder, tier0,
    visbuilder, vrad3, and the rest of DLLS). Each installed DLL is hashed and compared with the builds in
-   D:/tools/binaries (and D:/tools/ghidra_staging); a new build is copied
+   tools/re/binaries (and its staging/); a new build is copied
    there as <dll>_<yyyymmdd>.dll so it can be analysed.
 
 2. Every address the port relies on, found again in the installed build:
    - hand-kept names (tools/re/names/<dll>_<build>.manual.json),
-   - the entity side's lists (D:/tools/names/*_<dll>.txt, the analysis build),
+   - the entity side's lists (tools/re/names/*_<dll>.txt, the analysis build),
    - script RVAs (tools/re/tracked_rvas.json; script RVAs not listed there
      are reported so the list stays complete),
    - addresses cited next to a DLL's name in src/ comments.
@@ -28,7 +28,7 @@ depends on needs attention:
    or ports that use it must be updated.
 
 3. Game data the compile reads: the FGDs (hash) and the pak01 archives
-   (every entry's CRC). The state is kept in D:/tools/patch_state; each run
+   (every entry's CRC). The state is kept in tools/re/patch_state; each run
    diffs against the last one and saves its own (--no-state skips saving).
 """
 import argparse
@@ -58,10 +58,12 @@ DLLS = ["resourcecompiler", "vphysics2", "physicsbuilder", "tier0", "visbuilder"
         "rendersystemvulkan", "rendersystemdx11", "vrad3"]
 # DLLs not directly in bin/win64: Hammer's build dialog (compile-map follows its command line).
 SUBDIR = {"hammer": "tools"}
-BASELINE_DIRS = [r"D:\tools\binaries", r"D:\tools\ghidra_staging"]
-ENTITY_NAMES = r"D:\tools\names"
-STATE_DIR = r"D:\tools\patch_state"
-REPORT_DIR = r"D:\tools\patch_reports"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import paths  # noqa: E402
+BASELINE_DIRS = [paths.BINARIES, paths.STAGING]
+ENTITY_NAMES = paths.NAMES
+STATE_DIR = paths.PATCH_STATE
+REPORT_DIR = paths.PATCH_REPORTS
 BASE = 0x180000000
 
 
@@ -351,7 +353,7 @@ def main():
         for build, es in sorted(by_build.items()):
             if build not in builds:
                 rows.append(f"  - {len(es)} addresses recorded against build {build}, which is not kept: not checked")
-                attention.append(f"{dll}: keep build {build} in D:/tools/binaries to check its addresses")
+                attention.append(f"{dll}: keep build {build} in tools/re/binaries to check its addresses")
                 continue
             old = Image(builds[build])
             for addr, _, source, name in es:

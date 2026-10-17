@@ -15,9 +15,8 @@
 // directory to run; the copy here is the one under version control.
 //
 // headless usage:
-//   copy tools\NameByLogStrings.java <ghidra scripts dir>
 //   analyzeHeadless <proj dir> <proj> -process <program> -noanalysis \
-//       -scriptPath <ghidra scripts dir> -postScript NameByLogStrings.java <outfile>
+//       -scriptPath tools\ghidra_scripts -postScript NameByLogStrings.java <outfile>
 //@category Analysis
 
 import ghidra.app.script.GhidraScript;

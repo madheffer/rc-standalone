@@ -24,3 +24,11 @@ tools/map-survey/*.txt
 
 # The vis corpus is generated from the tester own CS2 content, per machine.
 tools/vis/corpus.tsv
+
+# Reverse-engineering inputs and outputs kept beside the tools that use them:
+# Valve's DLL builds (not ours to publish), patch_check's state (copies of game
+# files) and reports, and tool output.
+tools/re/binaries/
+tools/re/patch_state/
+tools/re/patch_reports/
+tools/re/out/

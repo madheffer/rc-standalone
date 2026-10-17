@@ -485,7 +485,7 @@ RESOURCECOMPILER = [
     ("1818d77e0", "CNavMesh::CreateArea", NAV, ""),
     ("1818dcb00", "CNavMesh::Update", NAV, ""),
     # From the memory notes, src/ comments and docs (2026-09-28).
-    # The physics settle (D:/tools/names/settle_*.txt, docs/SETTLE.md, Simulation/).
+    # The physics settle (tools/re/names/settle_*.txt, docs/SETTLE.md, Simulation/).
     ("180f1c060", "MapSettle_BuildExcludedSet", ST, ""),
     ("180f1e490", "MapSettle_Run", ST, "nodes from PhysDoc_GetNodes in its order; BasePhysicsSimulated, skipPreSettle, Start asleep, Motion Disabled, prop_data spawn_motion_disabled filter them"),
     ("180f38bf0", "CMapEntity_SetSpawnflagBit", ST, ""),
@@ -1040,7 +1040,7 @@ VPHYSICS2 = [
     ("18008d0b0", "TetrahedronVolume", M, ""),
     ("180166ff0", "RnMesh_OrthographicAreas", M, ""),
     # From the memory notes, src/ comments and docs (2026-09-28).
-    # The physics settle (D:/tools/names/settle_*.txt, docs/SETTLE.md, Simulation/).
+    # The physics settle (tools/re/names/settle_*.txt, docs/SETTLE.md, Simulation/).
     ("180007ae0", "Matrix3_Diagonal", ST, "the inverse inertia's diagonal"),
     ("1800123b0", "CPhysicsBody::vf56", ST, "GetTransform: the body's frame"),
     ("180058200", "CPhysicsWorld_ctor", ST, ""),

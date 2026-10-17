@@ -20,7 +20,9 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 NAMES = os.path.join(HERE, "names")
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 INSTALLED = {"hammer": os.path.join(CS2, "game", "bin", "win64", "tools", "hammer.dll")}
-BUILDS = [r"D:\tools\binaries", r"D:\tools\ghidra_staging"]
+sys.path.insert(0, HERE)
+import paths  # noqa: E402
+BUILDS = [paths.BINARIES, paths.STAGING]
 
 
 def sha256(path):
@@ -50,7 +52,7 @@ def build_file(dll, build):
 
 def patch_verdicts():
     """Per DLL, the tracked-address line of the newest patch_check report."""
-    reports = sorted(glob.glob(os.path.join(r"D:\tools\patch_reports", "*.md")), key=os.path.getmtime)
+    reports = sorted(glob.glob(os.path.join(paths.PATCH_REPORTS, "*.md")), key=os.path.getmtime)
     if not reports:
         return None, {}
     verdicts, dll = {}, None

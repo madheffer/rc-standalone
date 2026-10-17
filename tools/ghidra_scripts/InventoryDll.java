@@ -13,7 +13,7 @@
 //
 // headless usage:
 //   analyzeHeadless <proj dir> <proj> -process visbuilder.dll -noanalysis \
-//       -scriptPath D:\tools\ghidra_scripts -postScript InventoryDll.java <outfile>
+//       -scriptPath tools\ghidra_scripts -postScript InventoryDll.java <outfile>
 //@category Analysis
 
 import ghidra.app.script.GhidraScript;

@@ -18,28 +18,44 @@ in-process oracle, or a capture, never by fitting output.
 | vrad3.dll / vrad3.exe | lighting |
 | hammer.dll | the build dialog and command line (not in Ghidra; read from the PE) |
 
-Copies of each analysed build are kept in `D:/tools/binaries`; the Ghidra
-project is `D:/tools/ghidra_projects/cs2`. Check a program's MD5 against the
-installed file before trusting a decompile.
+Every tool we write lives in this repository (`tools/re/`, `tools/ghidra_scripts/`),
+and writes only inside it. Copies of each analysed build are kept in
+`tools/re/binaries` (gitignored: Valve's files), with the builds Ghidra imported
+under their original names in `binaries/staging`; tool output goes to
+`tools/re/out`. `tools/re/paths.py` holds these locations. Only the
+third-party installs stay outside, under `S2C_GHIDRA_ROOT` (default `D:/tools`):
+Ghidra, the pyghidra venv and the project `ghidra_projects/cs2`. Check a
+program's MD5 against the installed file before trusting a decompile.
 
 ## Tools
 
 Decompiling:
 - **ReVa** (Ghidra MCP) serves the Ghidra project headless:
   `tools/re/reva_serve.py`, called over HTTP by `tools/re/reva_call.py`.
-  It locks the project while it runs.
+  It locks the project while it runs. `tools/re/reva.py dec|str|xref
+  <program> ...` wraps the common calls (programs by alias: rc, vis, ms, pb,
+  pv, sp, t0, vrad3).
 - **Decompiling one function:** `python tools/re/dec.py <dll> <addr>` fills
   in every known name. ReVa times out on huge functions; use
   `tools/re/disx.py` (capstone, imports named) instead.
 - **Other helpers** in `tools/re/`:
-  - `leascan.py` (references to an address);
+  - `leascan.py` (lea of a field then a call), `ripref.py` and
+    `globref.py` (RIP-relative references to a global), `callers.py`
+    (callers of a function), `findptr.py` (data pointers to an address);
+  - `disasm.py` and `disv.py` (capstone over an archived build; disv
+    annotates float constants), `x86scan.py`, `dispscan.py`, `fieldscan.py`
+    (instruction and field-offset scans);
+  - `vt.py`, `vtname.py`, `rtti_vtable.py`, `dumptable.py` (vtables, RTTI,
+    data tables), `strxref.py`, `strfn.py`, `rcstr.py` (strings and their
+    users), `port_addr.py` (an address in a newer build);
+  - `names/apply_labels.py`, `names/verify_labels.py` (labels from a list);
   - `impcallers.py` (callers of an import);
   - `symsse.py` (the real association of SSE float chains);
   - `simd.py`, `read_rte.py`, `subdiv_sim.py`.
-- **Ghidra headless scripts:** `tools/*.java` (`ApplyNames`,
-  `MakeSignatures`, `NameByLogStrings`) and `tools/vrad3/*.java`
-  (`DumpByString`, `DumpCallers`, `InventoryDll`, `NameByAsserts`, ...).
-  Copy them into `D:/tools/ghidra_scripts` to run.
+- **Ghidra headless scripts:** `tools/ghidra_scripts/` (`ApplyNames`,
+  `MakeSignatures`, `NameByLogStrings`, `DumpByString`, `DumpCallers`,
+  `InventoryDll`, `NameByAsserts`, ...): pass `-scriptPath
+  tools/ghidra_scripts` (`tools/re/ghidra_dump.bat` does).
 
 Names and addresses:
 - `tools/re/harvest_names.py <dll> --out <json>` names a stripped DLL from
@@ -71,7 +87,7 @@ Names and addresses:
      changed or missing;
    - changes in the FGDs and pak01.
 
-   The report goes to `D:/tools/patch_reports`, and the exit code is 2 when
+   The report goes to `tools/re/patch_reports`, and the exit code is 2 when
    something needs attention.
 2. **For a new build of a DLL:**
    - Import it with full analysis:

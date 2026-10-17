@@ -30,7 +30,7 @@ import pefile
 CS2 = os.environ.get(
     "CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
-OLD_DLL = r"D:\tools\binaries\resourcecompiler_20260923.dll"
+OLD_DLL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "re", "binaries", "resourcecompiler_20260923.dll")
 # (old 09-23 address, new RVA): 0x18025xxxx moved +0x30, 0x18136xxxx +0x370 (to be checked by bytes).
 HOOKS = {"overlays": (0x18025ece0, 0x25ed10), "project": (0x181362050, 0x13623c0)}
 

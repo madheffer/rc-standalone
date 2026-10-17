@@ -6,7 +6,7 @@ at it; the vtable runs while its entries point into executable sections. For
 each class: its mangled name, and per vtable the object offset and the slot
 addresses. --match keeps classes whose name contains the substring.
 
-    python tools/re/vtables.py D:/tools/binaries/vrad3_20261001.dll --match CVrad3Command_
+    python tools/re/vtables.py tools/re/binaries/vrad3_20261001.dll --match CVrad3Command_
 """
 import argparse
 import json

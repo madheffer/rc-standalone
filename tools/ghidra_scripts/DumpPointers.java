@@ -6,7 +6,7 @@
 //
 // headless usage:
 //   analyzeHeadless <proj dir> <proj> -process visbuilder.dll -noanalysis \
-//       -scriptPath D:\tools\ghidra_scripts -postScript DumpPointers.java <addr> <count> <outfile>
+//       -scriptPath tools\ghidra_scripts -postScript DumpPointers.java <addr> <count> <outfile>
 //@category Analysis
 
 import ghidra.app.script.GhidraScript;

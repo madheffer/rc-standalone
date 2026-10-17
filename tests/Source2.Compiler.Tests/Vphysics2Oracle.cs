@@ -60,13 +60,13 @@ internal static unsafe class Vphysics2Oracle
     }
 
     /// <summary>
-    /// D:/tools/binaries' vphysics2_20260924.dll and tier0_20260923.dll (the
+    /// tools/re/binaries' vphysics2_20260924.dll and tier0_20260923.dll (the
     /// installed tier0 still) copied to a folder of their own under the
     /// names vphysics2 loads them by, or null when the archive lacks them.
     /// </summary>
     private static string? Staged()
     {
-        var archive = Environment.GetEnvironmentVariable("S2C_BINARIES") ?? @"D:\tools\binaries";
+        var archive = Environment.GetEnvironmentVariable("S2C_BINARIES") ?? System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tools", "re", "binaries");
         var (vp, t0) = (System.IO.Path.Combine(archive, "vphysics2_20260924.dll"), System.IO.Path.Combine(archive, "tier0_20260923.dll"));
         if (!File.Exists(vp) || !File.Exists(t0))
             return null;
