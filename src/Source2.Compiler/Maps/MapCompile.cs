@@ -107,9 +107,12 @@ public static class MapCompile
         var steps = args.SelectedBuilders(out _);
         var entitiesOnly = args.EntitiesOnly;
         var refused = new List<string>();
-        refused.AddRange(steps.Where(s => s is "bakedlighting" or "nav" or "sareverb" or "sapaths" or "sacustomdata"));
-        if (args.BakesLighting)
-            refused.Add("the lighting bake (a build naming no builder, or -bakelighting)");
+        var vrad3 = args.Vrad3Output;
+        if (vrad3 != null && !File.Exists(Path.Combine(vrad3, "lightmap_packing_geometry.dat")))
+            return Fail(log, $"-vrad3output: no vrad3 output in {vrad3}");
+        refused.AddRange(steps.Where(s => s is "nav" or "sareverb" or "sapaths" or "sacustomdata" || (s is "bakedlighting" && vrad3 == null)));
+        if (args.BakesLighting && vrad3 == null)
+            refused.Add("the lighting bake (a build naming no builder, or -bakelighting; -vrad3output takes vrad3's results)");
         if (refused.Count > 0 && !skipUnported)
             return Fail(log, "not ported: " + string.Join(", ", refused)
                 + ". -world (without -bakelighting), -vis, -entities and -phys builds run; --skip-unported leaves the rest as the package has it.");
@@ -215,6 +218,22 @@ public static class MapCompile
             entries[world.ModelPath] = world.Model;
             entries[world.ManifestPath] = world.Manifest;
             log.WriteLine($"  physics: {world.ModelPath}, {world.ManifestPath}");
+        }
+        if (args.Vrad3Output is { } folder && bakes && !args.EntitiesOnly)
+        {
+            // The bake's outputs from vrad3's folder: the lightmap channels, the
+            // query data and the probe volume atlases replace what was there.
+            using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+            bool RendersAsWorld(string cls) => schema.IsSolidClass(cls) && schema.HasFlag(cls, "render_as_world_but_physics_as_entity");
+            var volumes = WorldNodeBuild.ImportanceVolumes(WorldNodeBuild.WorldEntries(document, assets, shaders, RendersAsWorld, buildBakes: true),
+                                                           WorldNodeBuild.PropEntries(document, assets, shaders, buildBakes: true));
+            var prefix = $"maps/{map}/lightmaps/".ToLowerInvariant();
+            foreach (var old in entries.Keys.Where(k => k.StartsWithAscii(prefix)).ToList())
+                entries.Remove(old);
+            var lightmaps = Lighting.LightmapOutputs.FromVrad3(folder, map, addon, Path.Combine(game, "bin", "win64"), volumes);
+            foreach (var f in lightmaps)
+                entries[f.Path] = f.Bytes;
+            log.WriteLine($"  lighting: {lightmaps.Count} files from {folder}");
         }
         foreach (var note in notes.Take(10))
             log.WriteLine($"  note: {note}");

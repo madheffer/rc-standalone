@@ -1122,6 +1122,42 @@ public class CpuBakeProbe(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// <c>LMTEX=&lt;vrad3 folder&gt;|&lt;map vpk&gt;|&lt;map&gt;</c>: every lightmaps/ file <see cref="LightmapOutputs.FromVrad3"/>
+    /// writes from vrad3's folder against the package's, byte for byte, and any the package has that it does not write.
+    /// </summary>
+    [Fact]
+    public void LightmapOutputsFiles()
+    {
+        if (Environment.GetEnvironmentVariable("LMTEX") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var vpk, var map] || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var bin = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, "..", "bin", "win64"));
+        var addon = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(vpk))!);
+        using var pkg = new ValvePak.Package();
+        pkg.Read(vpk);
+        var outputs = LightmapOutputs.FromVrad3(folder, map, addon, bin, []);
+        var different = new List<string>();
+        foreach (var o in outputs)
+        {
+            var e = pkg.FindEntry(o.Path);
+            byte[]? shipped = null;
+            if (e != null)
+                pkg.ReadEntry(e, out shipped);
+            var same = shipped != null && shipped.AsSpan().SequenceEqual(o.Bytes);
+            output.WriteLine($"{o.Path}: {o.Bytes.Length} bytes, {(shipped == null ? "not in the package" : same ? "identical" : $"differs (package {shipped.Length})")}");
+            if (!same)
+                different.Add(o.Path);
+        }
+        var prefix = $"maps/{map}/lightmaps/";
+        foreach (var path in pkg.Entries!.Values.SelectMany(x => x).Select(x => x.GetFullPath()).Where(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+            if (!outputs.Any(o => o.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
+            {
+                output.WriteLine($"{path}: in the package, not written");
+                different.Add(path);
+            }
+        Assert.Empty(different);
+    }
+
     [Fact]
     public void TextureApi()
     {

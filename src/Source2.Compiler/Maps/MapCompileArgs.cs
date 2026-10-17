@@ -34,6 +34,8 @@ public sealed class MapCompileArgs
         ["pauseiferror"] = false, ["pause"] = false, ["filelist"] = true, ["i"] = true, ["game"] = true,
         ["outroot"] = true, ["html"] = false, ["crc"] = false, ["breakpad"] = false, ["logwarnings"] = false,
         ["changelist"] = true, ["skiptype"] = true,
+        // s2c's own: a folder vrad3 has already baked this map into (its EXRs and inputs).
+        ["vrad3output"] = true,
     };
 
     /// <summary>The .vmap to compile (<c>-i</c>).</summary>
@@ -41,6 +43,14 @@ public sealed class MapCompileArgs
 
     /// <summary>Where the compiled map goes (<c>-outroot</c>); null means the game folder.</summary>
     public string? OutRoot { get; private set; }
+
+    /// <summary>
+    /// <c>-vrad3output &lt;folder&gt;</c> (s2c's own): vrad3's output for this map,
+    /// from a run of Valve's vrad3 on the inputs compile-map writes. The lighting
+    /// bake then takes its results from there (LightmapOutputs) instead of being
+    /// refused.
+    /// </summary>
+    public string? Vrad3Output { get; private set; }
 
     /// <summary>The parser's own switches that were given, lower case.</summary>
     public HashSet<string> Switches { get; } = new(Tier0Strings.IgnoreCase);
@@ -74,6 +84,8 @@ public sealed class MapCompileArgs
                     parsed.Input = next;
                 else if (name.EqualsAscii("outroot"))
                     parsed.OutRoot = next;
+                else if (name.EqualsAscii("vrad3output"))
+                    parsed.Vrad3Output = next;
                 continue;
             }
             if (next is null)
