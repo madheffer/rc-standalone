@@ -701,3 +701,14 @@ confirmed in the disassembly). Integer attributes: mask 0xf00200004800 (11, 14,
 Machine-readable results (schema.json: 64 classes with every field's type,
 offset, default and evidence; inputs.json: enums, struct layouts and defaults,
 evaluation rules, per-operator maths) are in the analysis scratch, not committed.
+
+## Reproducing this
+
+The scripts that produced sections 10 and 11 are in `tools/re/particles/` (`schema/` loads
+`particles.dll` with `schemasystem.dll` in a standalone process and dumps the schema and the
+`MGetKV3ClassDefaults` defaults; `lights/` holds the float32 port of both flashlights;
+`shaders/` renames cbuffer members by packoffset and decodes enum tables). They read the CS2
+install from `CS2_GAME_DIR` and Ghidra from `S2C_GHIDRA_ROOT`. Their machine-readable results
+are in `docs/particles/` (`inputs.json`: input evaluation and per-operator maths with addresses;
+`light.json`: the standard light tables and both flashlights). Valve's own files (DLLs, shader
+dumps, serialized defaults) are never committed: re-run the scripts against the install.
