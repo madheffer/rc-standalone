@@ -28,13 +28,49 @@
    "addr": "18009c090",
    "name": "VfxEval_MatrixColorCorrect2",
    "module": "s2c:infra",
-   "note": "(contrast, saturation, brightness), average colour -> 180081260 (not ported: identity at 1, 1, 1)"
+   "note": "(contrast, saturation, brightness), average colour -> 180081260 (VfxEval.ColorCorrect)"
   },
   {
    "addr": "18009c3c0",
    "name": "VfxEval_MatrixColorTint2",
    "module": "s2c:infra",
-   "note": "(tint, amount) -> 1800818d0 (not ported: identity at white, 1)"
+   "note": "(tint, amount) -> 1800818d0 (white equals ColorCorrect(1, 1, 1) word for word; coloured not ported)"
+  },
+  {
+   "addr": "180081260",
+   "name": "ColorMatrix_Correct",
+   "module": "s2c:infra",
+   "note": "((((((D^-1 R^T) diag(sat, sat, 1)) R) D) diag(bright)) (T(a) diag(contrast)) T(-a)); R = 1800828c0(normalised (0.2125, 0.7154, 0.0721), z)"
+  },
+  {
+   "addr": "180081100",
+   "name": "Matrix4_Multiply",
+   "module": "s2c:infra",
+   "note": "row-major a x b, each element dpps: (a0 b0 + a1 b1) + (a2 b2 + a3 b3)"
+  },
+  {
+   "addr": "180081020",
+   "name": "Matrix4_Set",
+   "module": "s2c:infra",
+   "note": "16 floats row by row"
+  },
+  {
+   "addr": "180080f40",
+   "name": "Vector3_Normalize",
+   "module": "s2c:infra",
+   "note": "length sqrt((y y + z z) + x x); within 1e-17..1e17 times its reciprocal"
+  },
+  {
+   "addr": "1800828c0",
+   "name": "Matrix4_RotationBetween",
+   "module": "s2c:infra",
+   "note": "unit f to unit t: axis cross(f, t) over its length (the sine), cos = (fz tz + ty fy) + fx tx; identity when the cross is 0"
+  },
+  {
+   "addr": "1800818d0",
+   "name": "ColorMatrix_Tint",
+   "module": "s2c:infra",
+   "note": "D^-1 R^T (translate, diag(1 - s, 1 - s, 1 - pow(...) amount), translate back) R D; ported for white only"
   },
   {
    "addr": "18009bb70",

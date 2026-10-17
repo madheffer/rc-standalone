@@ -475,15 +475,14 @@ public sealed class VfxEval
             case "MatrixMultiply":
                 return Multiply(a[0], a[1]);
             case "MatrixColorTint2":
-                if (a[0].Take(3).All(x => x == 1f))
-                    return Identity();
-                UnportedColorMatrices++;
-                return Identity();
+                // 1800818d0 builds D^-1 R^T (tint terms) R D like ColorCorrect; with a white tint the tint
+                // terms are identity, and its output equals ColorCorrect(1, 1, 1) word for word
+                // (tools/vrad3/capture_colormatrix.py). Coloured tints are not ported.
+                if (!a[0].Take(3).All(x => x == 1f))
+                    UnportedColorMatrices++;
+                return ColorCorrect(1f, 1f, 1f, [0f, 0f, 0f]);
             case "MatrixColorCorrect2":
-                if (a[0].Take(3).All(x => x == 1f))
-                    return Identity();
-                UnportedColorMatrices++;
-                return Identity();
+                return ColorCorrect(a[0][0], a[0][1], a[0][2], a.Count > 1 ? a[1] : [0f, 0f, 0f]);
             case "TextureAverageColor":
                 return [0f, 0f, 0f, 1f];
             default:
@@ -502,7 +501,8 @@ public sealed class VfxEval
 
     private static float[] Identity() => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
-    // Row-major 4x4 product a * b.
+    // Row-major 4x4 product a * b (materialsystem2 180081100: each element a dpps of a row and a column,
+    // (a0 b0 + a1 b1) + (a2 b2 + a3 b3)).
     private static float[] Multiply(float[] a, float[] b)
     {
         if (a.Length != 16 || b.Length != 16)
@@ -510,8 +510,78 @@ public sealed class VfxEval
         var r = new float[16];
         for (var i = 0; i < 4; i++)
             for (var j = 0; j < 4; j++)
-                r[i * 4 + j] = a[i * 4] * b[j] + a[i * 4 + 1] * b[4 + j] + a[i * 4 + 2] * b[8 + j] + a[i * 4 + 3] * b[12 + j];
+                r[i * 4 + j] = (a[i * 4] * b[j] + a[i * 4 + 1] * b[4 + j]) + (a[i * 4 + 2] * b[8 + j] + a[i * 4 + 3] * b[12 + j]);
         return r;
+    }
+
+    private static float[] Diagonal(float x, float y, float z) => [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1];
+
+    /// <summary>
+    /// MatrixColorCorrect2 (materialsystem2 18009c090 / 180081260) of (contrast, saturation,
+    /// brightness) about the average colour a: ((((((D^-1 R^T) S) R) D) B) C), R the rotation
+    /// (1800828c0) taking the normalised luminance axis (0.2125, 0.7154, 0.0721) (180080f40) to z,
+    /// D that axis' components, S diag(saturation, saturation, 1), B diag(brightness),
+    /// C = (T(a) diag(contrast)) T(-a).
+    /// </summary>
+    public static float[] ColorCorrect(float contrast, float saturation, float brightness, float[] a)
+    {
+        float[] t = [1, 0, 0, a[0], 0, 1, 0, a[1], 0, 0, 1, a[2], 0, 0, 0, 1];
+        float[] tn = [1, 0, 0, -a[0], 0, 1, 0, -a[1], 0, 0, 1, -a[2], 0, 0, 0, 1];
+        var c = Multiply(Multiply(t, Diagonal(contrast, contrast, contrast)), tn);
+        // 180080f40: length from (y y + z z) + x x, scaled by its reciprocal.
+        float lx = 0.2125f, ly = 0.7154f, lz = 0.0721f;
+        var len = MathF.Sqrt(ly * ly + lz * lz + lx * lx);
+        if (len >= 1e-17f && len <= 1e17f)
+        {
+            var inv = 1f / len;
+            (lx, ly, lz) = (inv * lx, inv * ly, inv * lz);
+        }
+        var r = RotationBetween(lx, ly, lz, 0f, 0f, 1f);
+        float[] rt =
+        [
+            r[0], r[4], r[8], r[12], r[1], r[5], r[9], r[13], r[2], r[6], r[10], r[14], r[3], r[7], r[11], r[15],
+        ];
+        var m = Multiply(Diagonal(1f / lx, 1f / ly, 1f / lz), rt);
+        m = Multiply(m, Diagonal(saturation, saturation, 1f));
+        m = Multiply(m, r);
+        m = Multiply(m, Diagonal(lx, ly, lz));
+        m = Multiply(m, Diagonal(brightness, brightness, brightness));
+        return Multiply(m, c);
+    }
+
+    // 1800828c0: the rotation taking unit vector f to unit vector t about their cross product, with
+    // |cross| as the sine (identity when it is 0); the decompile's operation order.
+    private static float[] RotationBetween(float fx, float fy, float fz, float tx, float ty, float tz)
+    {
+        var cy = fz * tx - tz * fx;
+        var cx = tz * fy - fz * ty;
+        var cz = ty * fx - fy * tx;
+        var len = MathF.Sqrt(cz * cz + cy * cy + cx * cx);
+        var cos = fz * tz + ty * fy + fx * tx;
+        var k = 1f - cos;
+        var m = new float[16];
+        m[15] = 1f;
+        if (!(len > 0f))
+        {
+            m[0] = m[5] = m[10] = 1f;
+            return m;
+        }
+        var inv = 1f / len;
+        var ax = inv * cx;
+        var ay = inv * cy;
+        var az = inv * cz;
+        var t = ax * k;
+        m[0] = ax * t + cos;
+        m[1] = ay * t - az * len;
+        m[4] = ay * t + az * len;
+        m[5] = ay * ay * k + cos;
+        var u = az * ay * k;
+        m[2] = az * t + ay * len;
+        m[8] = az * t - ay * len;
+        m[9] = u + ax * len;
+        m[6] = u - ax * len;
+        m[10] = az * k * az + cos;
+        return m;
     }
 
     private static float[] Map(float[] a, Func<float, float> f) => [.. a.Select(f)];
@@ -720,7 +790,7 @@ public sealed class RtxScene
             MatF = matF, MatI = matI, MatU = matU, Textures = tex, Samplers = smp,
         };
         if (VfxEval.UnportedColorMatrices > 0)
-            notes.Add($"{VfxEval.UnportedColorMatrices} non-default colour matrices taken as identity (MatrixColorTint2 / MatrixColorCorrect2 not ported)");
+            notes.Add($"{VfxEval.UnportedColorMatrices} coloured MatrixColorTint2 tints taken as white (1800818d0 is ported for white only)");
         return new RtxScene(scene, hit, Factory, notes, textureSources) { ContentRead = read };
     }
 
@@ -893,6 +963,10 @@ public sealed class RtxScene
             or VfxVariableType.Bool or VfxVariableType.Bool2 or VfxVariableType.Bool3 or VfxVariableType.Bool4;
         if (t == VfxVariableType.Float4x4 && v.Length < 16)
             v = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        // A 4x4 goes into the block transposed (measured: vrad3's g_mTextureColorAdjust1 holds the
+        // expression's matrix by columns).
+        if (t == VfxVariableType.Float4x4)
+            v = [v[0], v[4], v[8], v[12], v[1], v[5], v[9], v[13], v[2], v[6], v[10], v[14], v[3], v[7], v[11], v[15]];
         for (var i = 0; i < n && at + i * 4 + 4 <= bytes.Length; i++)
         {
             var c = i < v.Length ? v[i] : 0f;

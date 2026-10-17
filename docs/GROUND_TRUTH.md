@@ -1337,12 +1337,25 @@ game can answer is raised with the user first, and runs with -insecure.
     - Result, ze_hold_em_p block 5 against Valve's raw images (vrad3 run
       alone on the block at 1, 4, 5, 9, 13 samples and the map's 16):
       irradiance and SH bit-identical on 99.99% of luxels at every count
-      (16 samples: 54 of 826,931 differ), AO and normals 100%. The
-      remaining luxels differ by one half-float step, always ours lower:
-      csgo_environment's g_mTextureColorAdjust1 (Valve's
-      MatrixColorCorrect2 at its defaults gives 1.00000024 on the diagonal)
-      is identity here. Next: port materialsystem2 180081260 and its
-      helpers (180081020, 180081100, 180080f40, 1800828c0) exactly.
+      (16 samples: 54 of 826,931 differ), AO and normals 100%.
+    - Those 54 were the image writer, not the bake: lightmap_image_save
+      rounds float to half to nearest with ties away from zero (all 54
+      irradiance and 235 SH ties; .NET's cast rounds them to even).
+      LightmapImage.ToHalfAway does it now. With it, block 5 is
+      bit-identical to vrad3's raw image in all 13 channels (irradiance, SH,
+      quadratics, AO, normal and tangent with their spreads).
+    - The colour matrices are exact too (tools/vrad3/capture_colormatrix.py
+      logged materialsystem2's results): MatrixColorCorrect2 (180081260:
+      ((((((D^-1 R^T) S) R) D) B) C), R the rotation 1800828c0 of the
+      normalised luminance axis to z, every product 180081100's dpps
+      order), MatrixColorTint2 at white equals it word for word (coloured
+      tints not ported), MatrixMultiply sums in dpps order, and a Float4x4
+      goes into a material block transposed. The material data is now
+      byte-identical apart from bindless indices.
+    - Still open for the luxel records (lightmap_data.dat: sample counts,
+      flags, baked shadow slots), other blocks and maps (small charts:
+      their compute pass is still the CPU's), coloured tints, and the
+      post-process EXR writers' tie rounding (not yet checked on a tie).
 
 ## Resolved
 

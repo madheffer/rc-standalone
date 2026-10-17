@@ -68,6 +68,14 @@ public class GpuBakeTests(ITestOutputHelper output)
                 }
                 continue;
             }
+            if (name.StartsWith("expr:", StringComparison.Ordinal) && name[5..].Split('@') is [var esh, var evar])
+            {
+                // expr:<shader>@<variable>: its compiled expressions as VRF prints them.
+                var prog = lib.Get(esh) ?? throw new FileNotFoundException(esh);
+                foreach (var d in prog.Rtx.VariableDescriptions.Where(v => v.Name == evar))
+                    output.WriteLine($"{name}: {d.VariableSource} {d.VfxType}: {(d.CompiledExpression.Length > 0 ? ValveResourceFormat.CompiledShader.ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression) : "(none)")}");
+                continue;
+            }
             if (name.StartsWith("cs:", StringComparison.Ordinal))
             {
                 // cs:<shader>: a compute program's static combo 0 bindings.

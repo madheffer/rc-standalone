@@ -238,7 +238,7 @@ public class CpuBakeTests(ITestOutputHelper output)
             {
                 // Before any post-process: our block's channels against vrad3's lightmap_image_save
                 // of the same compute (post_oracle.py bake, vrad3_variant.py), channel for channel.
-                foreach (var c in new[] { LightmapImage.Ch.Irradiance, LightmapImage.Ch.ShR, LightmapImage.Ch.AmbientOcclusion, LightmapImage.Ch.Normal })
+                foreach (var c in Enumerable.Range(0, 13))
                 {
                     var path = Path.Combine(prePost, $"channel{c:00}.exr");
                     if (image.Channels[c] is not { } channel || !File.Exists(path))
@@ -249,11 +249,14 @@ public class CpuBakeTests(ITestOutputHelper output)
                     {
                         var plane = ours.Plane(n);
                         for (var i = 0; i < plane.Length; i++)
-                            plane[i] = (Half)channel.Data[i * 4 + k];
+                            plane[i] = LightmapImage.ToHalfAway(channel.Data[i * 4 + k]);
                     }
                     // CPUBAKE_DUMP=<dir>: our block's raw channel images, for per-luxel comparisons.
                     if (Environment.GetEnvironmentVariable("CPUBAKE_DUMP") is { Length: > 0 } dump)
+                    {
                         File.WriteAllBytes(Path.Combine(dump, $"channel{c:00}.exr"), ours.Write());
+                        File.WriteAllBytes(Path.Combine(dump, $"channel{c:00}.f32"), System.Runtime.InteropServices.MemoryMarshal.AsBytes(channel.Data.AsSpan()).ToArray());
+                    }
                     Compare($"channel{c:00}", ours, Vrad3Exr.Read(File.ReadAllBytes(path)), traced, ox, oy);
                 }
                 return;

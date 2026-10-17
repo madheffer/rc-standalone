@@ -121,9 +121,25 @@ public sealed class LightmapImage
             var plane = exr.Plane(names[k]);
             var present = (channel.Mask >> k & 1) != 0;
             for (var i = 0; i < plane.Length; i++)
-                plane[i] = present ? (Half)channel.Data[i * 4 + k] : Half.Zero;
+                plane[i] = present ? ToHalfAway(channel.Data[i * 4 + k]) : Half.Zero;
         }
         return exr;
+    }
+
+    /// <summary>
+    /// lightmap_image_save's float to half: nearest, ties away from zero (measured on ze_hold_em_p's
+    /// raw image: every tie of 235 SH and 54 irradiance luxels went away from zero; .NET's cast
+    /// rounds them to even).
+    /// </summary>
+    public static Half ToHalfAway(float x)
+    {
+        var h = (Half)x;
+        if (!float.IsFinite(x) || !Half.IsFinite(h))
+            return h;
+        var other = BitConverter.UInt16BitsToHalf((ushort)(BitConverter.HalfToUInt16Bits(h) + (Math.Abs((float)h) < Math.Abs(x) ? 1 : -1)));
+        if (Half.IsFinite(other) && (float)h + ((float)other - (float)h) * 0.5f == x && Math.Abs((float)other) > Math.Abs((float)h))
+            return other;
+        return h;
     }
 
     public static LightmapImage Load(string folder)
