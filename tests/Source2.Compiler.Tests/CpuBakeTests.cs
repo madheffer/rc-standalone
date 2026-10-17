@@ -201,7 +201,7 @@ public class CpuBakeTests(ITestOutputHelper output)
             {
                 // Before any post-process: our block's channels against vrad3's lightmap_image_save
                 // of the same compute (post_oracle.py bake, vrad3_variant.py), channel for channel.
-                foreach (var c in new[] { LightmapImage.Ch.Irradiance, LightmapImage.Ch.ShR, LightmapImage.Ch.AmbientOcclusion })
+                foreach (var c in new[] { LightmapImage.Ch.Irradiance, LightmapImage.Ch.ShR, LightmapImage.Ch.AmbientOcclusion, LightmapImage.Ch.Normal })
                 {
                     var path = Path.Combine(prePost, $"channel{c:00}.exr");
                     if (image.Channels[c] is not { } channel || !File.Exists(path))

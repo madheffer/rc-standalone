@@ -225,7 +225,10 @@ LightmapAhd, LightmapWeld).
   luxel and pass (described in `PathTracer`'s summary) on the scrambled
   Halton volume (`HaltonSamples`, the PBRT sampler of 180187920 with the
   shader's digit groups, `tools/re/halton_table.py`).
-- **Not ported yet**: the csgo material hit shaders (every material uses
+- **Since 2026-10-18** (ledger 77): materials without an rtx program run the
+  transpiled rtx_default_hitgroup with 180098cd0's block, and the samples go
+  through the transpiled rtx_vrad3_lightmap_sample_validation.
+- **Not ported yet** (as of 2026-10-17): the csgo material hit shaders (every material uses
   rtx_default_hitgroup: colour texture times tint, no emission, no
   normal maps), cookies, subsurface, the payload's half-float material
   fields, GPU float rounding. The bake cannot be byte for byte (GPU

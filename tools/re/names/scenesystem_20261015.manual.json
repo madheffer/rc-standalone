@@ -19,6 +19,18 @@
    "note": "from CMaterial2 attributes: doublesided or renderbackfaces -> flags 1; Translucent or alphatest -> 2; mapbuilder.blocklight -> 5; tools.toolsmaterial -> and 1; DoNotCastShadows -> and 0xe (+1 with tools); opaque -> or 0x10 else and 0x10; 0x98bed7f6 -> or 0x20, and 0x11; 0x16458f13 -> or 0x400"
   },
   {
+   "addr": "180098cd0",
+   "name": "PathTraceScene_MaterialData",
+   "module": "s2c:baked/vrad3",
+   "note": "per material: an rtx program's block from attribute 0xab672f24's provider; without one, rtx_default_hitgroup's 0x20 bytes: LightSim_Albedo (0x6239512c) clamped 0..0.99 else colour texture LightSim_DiffuseAlbedoTexture (0x0effc516) / RepresentativeTexture (0x5d700411) bindless at +16 (rendersystem vf 0x650, 1, 0xff); opacity 1 at +12, for flag 2 texture 0xfa77b522 at +20 else LightSim_Opacity (0xe2945d83); flags at +24"
+  },
+  {
+   "addr": "1800065c0",
+   "name": "SceneSystem_RtxMaterialNames",
+   "module": "s2c:baked/vrad3",
+   "note": "static names: materials/dev/rtx/binlights, hitgroup_default_opaque (rtx_default_hitgroup combo 0), hitgroup_default_transparent (F_TRANSLUCENT, combo 1), generate_scrambled_halton_samples"
+  },
+  {
    "addr": "18008beb0",
    "name": "PathTraceScene_AddLight",
    "module": "s2c:baked/vrad3",

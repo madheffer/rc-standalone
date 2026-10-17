@@ -18,12 +18,14 @@ namespace Source2.Compiler.Lighting.Bake;
 /// slots (sum over the unoccluded sum, the light id);</item>
 /// <item>the post-process as resourcecompiler's script runs it.</item>
 /// </list>
-/// The sampling is not vrad3's to the luxel: small charts take an
-/// area-weighted point on the chart's triangles inside the luxel, large
-/// charts the jittered pixel centre's triangle (the nearest TEA depth), as
-/// lightmap_generate_small_chart_samples and lightmap_rasterize do, but
-/// without lightmap_load_block_gpu's clipping to 8 x 8 tiles, so the random
-/// numbers land elsewhere.
+/// Small charts take an area-weighted point on the chart's triangles inside
+/// the luxel, large charts the jittered pixel centre's triangle (the nearest
+/// TEA depth), as lightmap_generate_small_chart_samples and
+/// lightmap_rasterize do (hand ports over BlockGeometry's 8 x 8 tile clip).
+/// With the Valve ray generation (the default) the samples then go through
+/// vrad3's own validation shader (<see cref="SampleValidationRaygen"/>); the
+/// hand-ported Validate is kept for the hand-port path. On ze_hold_em_p's
+/// block 5 the luxel normals then equal Valve's raw image bit for bit.
 /// </summary>
 public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, ushort[] haltonPermutations)
 {
@@ -126,14 +128,19 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
                 if (pass % 4 == 0)
                 {
                     samples = Sample(ox, oy, w, h, ids, geometry, sfmt);
-                    Validate(samples);
+                    if (!ValveRaygen)
+                        Validate(samples);
                 }
                 var random = HaltonSamples.Generate(haltonPermutations, (uint)pass);
                 var p = pass;
                 if (ValveRaygen)
                 {
                     if (pass % 4 == 0)
+                    {
+                        // Valve's own sample validation, in place on the GPU samples.
                         gpuSamples = [.. samples.Select(s => Vrad3Raygen.Sample(s))];
+                        SampleValidationRaygen.Run(scene, _hits, gpuSamples, w, h, Threads);
+                    }
                     using var raygens = new ThreadLocal<Vrad3Raygen>(() =>
                     {
                         var r = new Vrad3Raygen(prototype!);

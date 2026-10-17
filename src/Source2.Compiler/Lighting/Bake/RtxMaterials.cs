@@ -60,8 +60,76 @@ public sealed class RtxShaderLibrary(params string[] packages) : IDisposable
         return (p, ValveResourceFormat.IO.ShaderDataProvider.GetStaticConfiguration_ForFeatureState(p.Features, p.Rtx, f).StaticComboId);
     }
 
+    /// <summary>One shader attribute of a material's static combo: its constant or expression, and the variable it binds (with that variable's SrgbRead).</summary>
+    public sealed record Attribute(string Name, uint Murmur, object? Constant, string? Expression, string? Binding, bool BindingSrgb);
+
+    private readonly Dictionary<string, (VfxProgramData Features, VfxProgramData[] Programs)?> _sets = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The attributes a material's shader declares for the static combo its F_ parameters select, from
+    /// its vulkan vs and ps programs (as MaterialAttributes reads the pc ones), first declaration of a name kept.
+    /// </summary>
+    public IReadOnlyList<Attribute> Attributes(SettleWorld.MaterialInfo info)
+    {
+        var name = Path.GetFileNameWithoutExtension(info.Shader ?? "");
+        (VfxProgramData Features, VfxProgramData[] Programs)? set;
+        lock (_sets)
+        {
+            if (!_sets.TryGetValue(name, out set))
+            {
+                VfxProgramData? Load(string level, string suffix)
+                {
+                    foreach (var pak in _paks)
+                        if (pak.FindEntry($"shaders/vfx/{name}_vulkan_{level}_{suffix}.vcs") is { } entry)
+                        {
+                            pak.ReadEntry(entry, out var bytes);
+                            var p = new VfxProgramData();
+                            p.Read($"{name}_vulkan_{level}_{suffix}.vcs", new MemoryStream(bytes));
+                            return p;
+                        }
+                    return null;
+                }
+                set = null;
+                foreach (var level in new[] { "60", "50" })
+                    if (Load(level, "features") is { } features)
+                    {
+                        set = (features, new[] { Load(level, "vs"), Load(level, "ps") }.OfType<VfxProgramData>().ToArray());
+                        break;
+                    }
+                _sets[name] = set;
+            }
+        }
+        if (set is not var (feats, programs))
+            return [];
+        var f = info.Params.Where(x => x.Key.StartsWith("F_", StringComparison.Ordinal)).ToDictionary(x => x.Key, x => (byte)x.Value);
+        var result = new List<Attribute>();
+        foreach (var program in programs)
+        {
+            var (config, id) = ValveResourceFormat.IO.ShaderDataProvider.GetStaticConfiguration_ForFeatureState(feats, program, f);
+            if (!program.StaticComboEntries.ContainsKey(id) && ValveResourceFormat.IO.ShaderDataProvider.TryReduceStaticConfiguration(program, config, out var reduced))
+                id = new ValveResourceFormat.CompiledShader.ComboConfigMapping(program).CalcComboIdFromValues(reduced);
+            if (!program.StaticComboEntries.ContainsKey(id))
+                continue;
+            foreach (var a in program.GetStaticCombo(id).Attributes)
+            {
+                if (result.Exists(r => r.Murmur == a.Murmur32))
+                    continue;
+                var desc = a.VariableBinding >= 0 && a.VariableBinding < program.VariableDescriptions.Length ? program.VariableDescriptions[a.VariableBinding] : null;
+                result.Add(new Attribute(a.Name, a.Murmur32, a.ConstValue,
+                    a.DynExpression is { } e ? ValveResourceFormat.CompiledShader.ShaderUtilHelpers.ParseDynamicExpression(e) : null, desc?.Name, desc?.SrgbRead ?? false));
+            }
+        }
+        return result;
+    }
+
     public void Dispose()
     {
+        foreach (var (features, programs) in _sets.Values.OfType<(VfxProgramData, VfxProgramData[])>())
+        {
+            features.Dispose();
+            foreach (var program in programs)
+                program.Dispose();
+        }
         foreach (var p in _programs.Values)
             if (p != null)
             {
@@ -520,7 +588,20 @@ public sealed class RtxScene
             if (blocks.TryGetValue(material, out var b))
                 return b;
             b = null;
-            if (materials(material) is { } info && shaders.Combo(info) is var (program, combo))
+            var info = materials(material);
+            if (info != null && shaders.Get(info.Shader) == null)
+            {
+                // No ray tracing program: rtx_default_hitgroup (180098cd0's block).
+                var flags = scene.Instances.First(x => string.Equals(x.Material.Name, material, StringComparison.OrdinalIgnoreCase)).Material.Flags;
+                var shader = HitShaders.All.First(h => h.Name == "rtx_default_hitgroup_vulkan_60_rtx" && h.Combo == ((flags & 2) != 0 ? 1 : 0));
+                var bytes = DefaultBlock(material, info, flags, shaders.Attributes(info), Texture);
+                while (data.Count % 16 != 0)
+                    data.Add(0);
+                var offset = (uint)data.Count;
+                data.AddRange(bytes);
+                b = (shader, offset);
+            }
+            else if (info != null && shaders.Combo(info) is var (program, combo))
             {
                 var shader = HitShaders.All.FirstOrDefault(h => h.Name == $"{program.Shader}_vulkan_60_rtx" && h.Combo == combo);
                 if (shader == null)
@@ -570,6 +651,42 @@ public sealed class RtxScene
         if (VfxEval.UnportedColorMatrices > 0)
             notes.Add($"{VfxEval.UnportedColorMatrices} non-default colour matrices taken as identity (MatrixColorTint2 / MatrixColorCorrect2 not ported)");
         return new RtxScene(scene, hit, Factory, notes);
+    }
+
+    /// <summary>
+    /// 180098cd0's 0x20-byte block for rtx_default_hitgroup (combo 0 from
+    /// materials/dev/rtx/hitgroup_default_opaque.vmat, 1 from _transparent.vmat
+    /// with F_TRANSLUCENT, picked by material flag 2): the albedo (attribute
+    /// LightSim_Albedo, each component clamped to 0..0.99; (0, 0, 0) without
+    /// it), the opacity at +12 (1), the colour texture's bindless index at +16
+    /// when there is no LightSim_Albedo (attribute LightSim_DiffuseAlbedoTexture,
+    /// else RepresentativeTexture; -1 without), the opacity texture at +20
+    /// (-1), the material flags at +24 (180098660's 1, 2, 5), zero at +28. The
+    /// shader reads the albedo, the colour texture times the instance colour.
+    /// Not ported (they throw): LightSim_Albedo (vf 0x70's width not read) and
+    /// a translucent material's opacity (texture 0xfa77b522, not named, else
+    /// LightSim_Opacity).
+    /// </summary>
+    private static byte[] DefaultBlock(string material, SettleWorld.MaterialInfo info, uint flags, IReadOnlyList<RtxShaderLibrary.Attribute> attributes,
+                                       Func<string?, bool, bool, int> texture)
+    {
+        var bytes = new byte[0x20];
+        BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(12), 1f);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), -1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20), -1);
+        if (attributes.Any(a => a.Name == "LightSim_Albedo"))
+            throw new NotSupportedException($"{material}: LightSim_Albedo in the default hit group block is not ported");
+        var colour = attributes.FirstOrDefault(a => a.Name == "LightSim_DiffuseAlbedoTexture") ?? attributes.FirstOrDefault(a => a.Name == "RepresentativeTexture");
+        if (colour?.Binding is { } parameter)
+        {
+            if (!info.Textures.TryGetValue(parameter, out var path))
+                throw new NotSupportedException($"{material}: {colour.Name} binds {parameter}, which the material does not set (the shader default is not ported)");
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), texture(path, colour.BindingSrgb, false));
+        }
+        if ((flags & 2) != 0)
+            throw new NotSupportedException($"{material}: a translucent material's default hit group opacity (texture 0xfa77b522 or LightSim_Opacity) is not ported");
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(24), flags);
+        return bytes;
     }
 
     // std430 size of a hit group's _RTX_MATERIAL_DATA_: the last field's end, rounded to 16.

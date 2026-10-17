@@ -1062,6 +1062,36 @@ game can answer is raised with the user first, and runs with -insecure.
       tested), and byte parity of baked lighting can only be defined
       against that GPU.
 
+77. **The default hit group and the sample validation** (settled
+    2026-10-18 by decompile and bake).
+    - A material whose shader has no _vulkan_60_rtx program is drawn by
+      rtx_default_hitgroup: combo 0 (materials/dev/rtx/
+      hitgroup_default_opaque.vmat) or 1 (hitgroup_default_transparent.vmat,
+      F_TRANSLUCENT) by material flag 2. scenesystem 180098cd0 writes its
+      0x20-byte block: the albedo from the attribute LightSim_Albedo
+      (murmur 0x6239512c), each component clamped to 0..0.99, (0, 0, 0)
+      without it; opacity 1 at +12 (a translucent material: texture
+      0xfa77b522, not named, else LightSim_Opacity 0xe2945d83); when there
+      is no LightSim_Albedo, the bindless index of LightSim_DiffuseAlbedoTexture
+      (0x0effc516), else RepresentativeTexture (0x5d700411), at +16 (-1
+      without); -1 at +20; the material flags (180098660's 1, 2, 5) at +24.
+      The attributes are the material shader's (generic.vfx binds
+      LightSim_DiffuseAlbedoTexture to g_tColor; no material tint). It
+      reads the packed vertex buffer, so its normals carry the 10-bit
+      octahedral quantisation: probe01's floor normal is (0.00098,
+      0.00098, 1) in Valve's raw image, which our hand-ported default (float
+      normals, times g_vColorTint) missed.
+    - The samples go through vrad3's own rtx_vrad3_lightmap_sample_validation
+      (transpiled, SampleValidationRaygen). The hand port kept ze_hold_em_p's
+      chart 2074 (a wall at x = 7672, 28,998 luxels of block 5) that Valve
+      invalidates.
+    - Measured on ze_hold_em_p block 5 against Valve's raw image: the luxel
+      normals equal Valve's (correlation 1.000, mean |diff| 0); AO
+      correlation 0.866 to 0.967, ratio 0.990 to 0.998. Irradiance per luxel
+      is still uncorrelated (0.31 to 0.39) at the same mean (0.989 to
+      0.991): the light bins are the next suspect (RaygenHost puts every
+      light in one bin; vrad3 bins them with rtx_binlights).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
