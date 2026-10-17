@@ -2788,7 +2788,13 @@
    "addr": "18020e230",
    "name": "StaticLighting_LoadChartRepacking",
    "module": "s2c:baked/lighting",
-   "note": "chart_repacking.dat from VRAD3_PATH (optional)"
+   "note": "chart_repacking.dat from VRAD3_PATH (optional): u32 0x0531771e, u32 chart count (= the packing's), int width, height, width x height u32 original chart ids, then per chart {x, y, flags, size}; BakeLighting loads it at quality 1/2 (182a88550) unless noRepack / NoRepack / disableLightingCalculations"
+  },
+  {
+   "addr": "18020e4e0",
+   "name": "StaticLighting_RepackUv",
+   "module": "s2c:baked/lighting",
+   "note": "one lightmap uv: texel (int)(u * w) clamped, its original chart; size > 0 moves it: flags bit 1 -> centre of the size square ((x + size * 0.5) / w), else the offset from the chart's old corner (+0x50 records, +8/+0xc), swapped with bit 0, from (x, y)"
   },
   {
    "addr": "18032e3e0",

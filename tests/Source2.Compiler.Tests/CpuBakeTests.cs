@@ -1076,6 +1076,19 @@ public class CpuBakeProbe(ITestOutputHelper output)
         {
             var first = Enumerable.Range(0, Math.Min(ov.Length, vertices.Length) / 16).FirstOrDefault(v => !ov.AsSpan(v * 16, 16).SequenceEqual(vertices.AsSpan(v * 16, 16)), -1);
             output.WriteLine($"  first vertex difference {first}: ours {Convert.ToHexString(ov.AsSpan(Math.Max(0, first) * 16, 16))} valve {Convert.ToHexString(vertices.AsSpan(Math.Max(0, first) * 16, 16))}");
+            // The vertices one side has and the other lacks, with the packing vertices at those positions.
+            var setOurs = Enumerable.Range(0, ov.Length / 16).Select(v => Convert.ToHexString(ov.AsSpan(v * 16, 16))).ToHashSet();
+            var setValve = Enumerable.Range(0, vertices.Length / 16).Select(v => Convert.ToHexString(vertices.AsSpan(v * 16, 16))).ToHashSet();
+            foreach (var v in setOurs.Except(setValve))
+                output.WriteLine($"  only ours: {v}");
+            foreach (var v in setValve.Except(setOurs))
+                output.WriteLine($"  only valve: {v}");
+            var pu = 65535f / LightmapQueryData.UvScale(4096);
+            foreach (var v in setOurs.Except(setValve).Concat(setValve.Except(setOurs)).Select(h => Convert.FromHexString(h)).ToList())
+                for (var i = 0; i < g.VertexCount; i++)
+                    if (BitConverter.ToSingle(g.Vertices, i * g.VertexStride) == BitConverter.ToSingle(v, 0) && BitConverter.ToSingle(g.Vertices, i * g.VertexStride + 4) == BitConverter.ToSingle(v, 4)
+                        && BitConverter.ToSingle(g.Vertices, i * g.VertexStride + 8) == BitConverter.ToSingle(v, 8))
+                        output.WriteLine($"    packing {i}: uv {g.AtlasUv[i * 2]:R} {g.AtlasUv[i * 2 + 1]:R} -> {MathF.Round(g.AtlasUv[i * 2] / pu * 65535f, MidpointRounding.AwayFromZero)} {MathF.Round(g.AtlasUv[i * 2 + 1] / pu * 65535f, MidpointRounding.AwayFromZero)}");
         }
         if (!oi.AsSpan().SequenceEqual(indices))
         {

@@ -1117,7 +1117,7 @@ game can answer is raised with the user first, and runs with -insecure.
       RenderDoc capture of one pass, or a probe shader on the PC's RTX 4070,
       which made the captures).
 
-78. **Lightmap textures at every compile option** (settled 2026-10-18 by
+79. **Lightmap textures at every compile option** (settled 2026-10-18 by
     decompile and byte comparison with Valve's probe01 builds at
     -lightmapMaxResolution 8192, -lightmapVRadQuality 2 and
     -lightmapCompressionDisabled; tools/re/out/captures/probe01_options).
@@ -1154,12 +1154,22 @@ game can answer is raised with the user first, and runs with -insecure.
       for every channel but shadows, and RGBA8888 for shadows.
     - Result: maxres8192, nocompress and the default build are byte-exact
       in all seven files.
+    - At quality 1 and 2 (182a88550 = {0, 1, 1}, unless noRepack,
+      gameinfo NoRepack or disableLightingCalculations), vrad3 writes
+      chart_repacking.dat (18020e230):
+      - the content: magic 0x0531771e, the chart count, the width and
+        height, a texel grid of original chart ids, and per chart
+        {x, y, flags, size};
+      - BakeLighting moves every lightmap uv through it (18020e4e0): with
+        flags bit 1 to the centre of a size x size square, otherwise by
+        the chart's offset (swapped with bit 0);
+      - the query data is built from the moved uvs
+        (LightmapChartRepacking).
     - Still open at quality 2:
       - the hue-shift fixup encoder (180c46dd0): 5 of 1,048,576
         irradiance blocks;
       - 5 BC7 blocks of the dlshd atlas, a bc7e port difference on that
-        input;
-      - lightmap_query_data.kv3.
+        input.
 
 ## Resolved
 

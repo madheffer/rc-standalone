@@ -40,6 +40,13 @@ public sealed class PackingGeometry
 
     public int VertexCount => VertexStride == 0 ? 0 : Vertices.Length / VertexStride;
 
+    /// <summary>The same geometry with other atlas uvs (after a chart repack).</summary>
+    public PackingGeometry WithAtlasUv(float[] atlasUv) => new()
+    {
+        Leading = Leading, VertexStride = VertexStride, Vertices = Vertices, AtlasUv = atlasUv, Indices = Indices,
+        Charts = Charts, TriangleCharts = TriangleCharts, Offsets = Offsets,
+    };
+
     public static PackingGeometry Read(byte[] bytes)
     {
         var r = new BinaryReader(new MemoryStream(bytes));

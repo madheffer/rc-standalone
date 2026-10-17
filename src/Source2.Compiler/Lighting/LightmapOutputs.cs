@@ -38,7 +38,7 @@ public static class LightmapOutputs
     /// and the command-line arguments the texture compiler records.
     /// </summary>
     public sealed record Options(int MipCount = 1, int Quality = 0, bool Compressed = true, int MinSpecLightmapSize = 4096,
-        bool LpvAtlas = true, IReadOnlyDictionary<string, object>? CompileArguments = null)
+        bool LpvAtlas = true, IReadOnlyDictionary<string, object>? CompileArguments = null, bool NoRepack = false)
     {
         public static readonly Options Default = new();
 
@@ -46,7 +46,8 @@ public static class LightmapOutputs
         public static Options From(IReadOnlyDictionary<string, object> arguments, int minSpec = 4096, bool lpvAtlas = true)
         {
             int Int(string name, int fallback) => arguments.TryGetValue(name, out var v) ? v switch { int i => i, float f => (int)f, _ => fallback } : fallback;
-            return new Options(Int("lightmapMipCount", 1), Int("lightmapVRadQuality", 0), Int("lightmapCompressionDisabled", 0) == 0, minSpec, lpvAtlas, arguments);
+            return new Options(Int("lightmapMipCount", 1), Int("lightmapVRadQuality", 0), Int("lightmapCompressionDisabled", 0) == 0, minSpec, lpvAtlas, arguments,
+                               Int("noRepack", 0) != 0 || Int("disableLightingCalculations", 0) != 0);
         }
     }
 
@@ -86,8 +87,13 @@ public static class LightmapOutputs
         {
             // The uv scale is from the side left after the mip and MinSpec halvings (180218096).
             var (_, w, h) = LightmapSettings.MipChain(width, options.MipCount, options.MinSpecLightmapSize);
-            outputs.Add(new($"{prefix}lightmap_query_data.kv3",
-                LightmapQueryData.Build(PackingGeometry.Read(File.ReadAllBytes(packing)), w, h, resolutionVolumes)));
+            var geometry = PackingGeometry.Read(File.ReadAllBytes(packing));
+            // At quality 1 and 2 vrad3 repacks charts; BakeLighting moves the uvs the query data sees.
+            var repacking = Path.Combine(folder, "chart_repacking.dat");
+            if (LightmapChartRepacking.RepacksAt(options.Quality) && !options.NoRepack && File.Exists(repacking)
+                && LightmapChartRepacking.Read(File.ReadAllBytes(repacking), geometry.Charts.Length) is { } repack)
+                geometry = geometry.WithAtlasUv(repack.Apply(geometry));
+            outputs.Add(new($"{prefix}lightmap_query_data.kv3", LightmapQueryData.Build(geometry, w, h, resolutionVolumes)));
         }
 
         if (options.LpvAtlas && Volumes(Path.Combine(folder, "script-gpu.vrad3")) is { Count: > 0 } volumes)
