@@ -480,4 +480,188 @@ Machine-readable tables and the float32 port of both flashlights:
 
 ## 11. Schema, defaults and parameter inputs
 
-Pending: class fields, defaults and input evaluation from `particles.dll`.
+Builds: `particles.dll` 3f9ae2ff51c610d29884b51aaf570a83, `client.dll`
+cf8b7cd427f553732081739154c90588, `schemasystem.dll`
+e2fb50a2f3b3e8fbb321b95af1ce0433, `tier0.dll` 450b7fcd7efcddc55039fb0e7fbf7400.
+Image base 0x180000000. Done in a standalone process, never attached to cs2.
+
+### Compiled files omit defaults
+
+A compiled `.vpcf_c` leaves out every top-level field whose value equals the
+class default. Of 113,540 present top-level fields in the 2,679 stock files
+(2,622 csgo, 57 core), only 20 equal the current default, all on
+CParticleSystemDefinition (`m_nAggregationMinAvailableParticles = 1`,
+`m_flMaximumSimTime`), probably defaults that changed after those files were
+built. So an absent field means "default", and the most common explicit value
+is not the default (C_OP_FadeAndKill `m_flStartAlpha` is explicitly 0.0 in 97% of
+files; its default is 1.0). Inside input structs the stock files do write every
+sub-field (41,037 of 44,095 float inputs in full form), and there the most common
+value of each scalar sub-field is its default. Some stock files carry fields the
+schema no longer has (C_INIT_CreateWithinSphereTransform
+`m_flEndCPGrowthTime`). The game is assumed to apply loaded KV3 on top of a
+default-constructed object (consistent with the allocate-and-construct
+manipulator path and with the compiler omitting defaults; the loader itself is
+not decompiled).
+
+### Where the schema and defaults come from
+
+- **Schema:** `particles.dll!InstallSchemaBindings("SchemaSystem_001")` (export
+  0x180429b50) fills static records in place: 555 classes, 103 enums. Class
+  record: +0x08 name, +0x20 size, +0x24 field count, +0x28 align, +0x29 base
+  count, +0x30 fields, +0x38 bases, +0x48 static metadata, +0x68 manipulator.
+  Field record (0x20): name, CSchemaType*, offset, metadata count, metadata.
+  Enum record: +0x18 size, +0x1c count, +0x20 enumerators (0x20 each).
+- **Defaults:** every concrete class has an `MGetKV3ClassDefaults` metadata
+  function that default-constructs it and serializes it to KV3 (C_OP_Decay's is
+  0x180226f00). Called for 520 classes; the 29 abstract bases return null, and
+  their fields hold the same default in every derived class (387 of 387
+  operators).
+- **Checked two ways, no disagreements:** constructing each class in place with
+  its manipulator (action 4) and reading memory at each field offset (1,380
+  fields, 63 classes; Color serializes as 3 components and drops alpha 255); and
+  the constant stores in 16 decompiled constructors (158 agree, 0 disagree):
+  InitFloat 0x1801b7750, RenderSprites 0x180350ef0, InstantaneousEmitter
+  0x18010b720, CreateWithinSphereTransform 0x18017c720, PositionLock
+  0x18022dd70, BasicMovement 0x1801c0870, RenderRopes 0x1802d7ac0,
+  ContinuousEmitter 0x18010c450, SetFloat 0x180261d90, CreateWithinBox
+  0x18017f3d0, RingWave 0x180173f20, plus Decay, InterpolateRadius,
+  FadeAndKill, ColorInterpolate and AlphaDecay (inline in their manipulators).
+  Shared: CParticleFunction 0x1800a0450, CParticleFloatInput 0x1803837b0,
+  literal init 0x180384040, CParticleVecInput 0x18038d330.
+
+Particle attribute names come from the pointer table at rva 0x4d7a10 (index =
+ParticleAttributeIndex_t; 19 is NONE): 0 Position, 1 Life Duration, 2 Position
+Previous, 3 Radius, 4 Roll, 5 Roll Speed, 6 Color, 7 Alpha, 8 Creation Time,
+9 Sequence Number, 10 Trail Length, 11 Particle ID, 12 Yaw, 13 Second Sequence
+Number, 14 Hitbox Index, 15 Hitbox Offset Position, 16 Alpha Alternate,
+17 Scratch Vector, 18 Scratch Float 1, 20 Pitch, 21 Normal, 22 Glow RGB,
+23 Glow Alpha, 26/27 Scratch float 2/3, 30 Scratch Vector 2, ... Roll, Roll
+Speed, Yaw and Pitch (mask 0x101030) are stored in radians and read as degrees.
+11, 14, 33 and 40-43 are int32.
+
+### Float inputs
+
+Evaluated four particles at a time: 0x18005b3b0 sets the map mode, 0x18005ad90
+calls one evaluator per map type (DIRECT 0x18005ca10, MULT d230, REMAP da90,
+REMAP_BIASED e500, CURVE f130, NOTCHED fb60, ROUND 0x1800603f0, MIN 60dc0,
+MAX 61670, MOD 61f20). Collection inputs use the first value.
+
+- **LITERAL** returns `m_flLiteralValue` unchanged under every map type.
+- **RANDOM_UNIFORM / RANDOM_BIASED** ignore `m_nMapType`: forced to REMAP (or
+  REMAP_BIASED) from [0, 1] to [min, max], clamped; the sign flip applies after
+  the clamp when a second draw is below 0.5 (0x180090850). Draws come from a
+  4,096-entry table (0x180598fa0); VARYING advances a counter per draw, CONSTANT
+  uses the seed plus the particle's ID.
+- **CONTROL_POINT_COMPONENT**: CP position component `clamp(m_nVectorComponent, 0, 3)`
+  (3 reads past the vector).
+- **COLLECTION_AGE**: the collection's current time (starts at minus the pre-sim
+  time, plus dt each frame).
+- **PARTICLE_AGE**: now minus creation time. **PARTICLE_AGE_NORMALIZED**: that
+  over lifetime, 0 if lifetime is at most 0, not clamped.
+- **PARTICLE_FLOAT**: the attribute (angles read as degrees, int attributes
+  converted). Inside initializers INITIAL_FLOAT and INITIAL_VECTOR_COMPONENT read
+  the current value.
+- **CONCURRENT_DEF_COUNT**: the number of live collections of this `.vpcf`
+  anywhere in the game, the evaluating one included, minus those whose emission
+  stopped. Counter at definition +0x3b8: incremented in CParticleCollection::Init
+  (0x180039298), decremented at shutdown (0x18003c5c0), toggled when emission
+  stops or restarts (0x1800486e0).
+
+Map types:
+- MULT: `value * m_flMultFactor`, the only use of the factor; no map type has an
+  offset term.
+- REMAP: LOOPED wraps x with period `m_flInput1` (not in1 - in0); then
+  `t = (x - in0)/(in1 - in0)` (a step at in0 when the range is zero); output
+  `out0 + t*(out1 - out0)` clamped to [min(out0, out1), max(out0, out1)].
+- NOTCHED: OutputInside when min(range) <= x <= max(range), both ends inclusive,
+  else OutputOutside; input mode not applied.
+- CURVE: under 2 points gives 0; otherwise a Hermite segment from the left
+  point's outgoing slope and the right point's incoming slope, clamped to the
+  domain's y range; LOOPED wraps with period `m_vDomainMaxs.x` (0x18036fb10).
+  Input mode is read only by REMAP, REMAP_BIASED and CURVE.
+- ROUND: nearest is half to even; FLOOR, CEIL. MIN and MAX against
+  `m_flCompareValue`; MOD truncates.
+- Bias (0x18006f1e0): STANDARD is Schlick `t/((1 - t)*k + 1)` with `k = 1/b - 2`,
+  `b = clamp((p + 1)/2)`; GAIN its two-sided form; EXPONENTIAL `t^e` with
+  `e = 1 - p` for p >= 0 and `20 - 19(p + 1)` for p < 0.
+
+### Vector inputs
+
+0x1800bfa80 / 0x1800bf0f0. LITERAL_COLOR is rgb/255 (alpha ignored); CP_VALUE is
+CP position times `m_vCPValueScale`; FLOAT_INTERP_*:
+`t = (f - in0)/(in1 - in0)` with no zero-range guard; CLAMPED clamps t, OPEN does
+not, GRADIENT samples the gradient.
+
+### Operator strength and time
+
+0x18003f820 / 0x18003f6e0: strength = `m_flOpStrength` times the fade-in/fade-out
+factor, passed to Operate; endcap gating and the time offset/scale seeds apply;
+an oscillate period > 0 replaces operator time with `fmod(curTime/period, 1)`.
+
+### Operators the flashlight and tracer use
+
+- **C_OP_SetControlPointToPlayer** (0x1802811e0; game side client.dll
+  CParticleSystemQuery, vtable 0x181c38028): CP = player position +
+  `m_vecCP1Pos`, orientation = the eye transform. Position (0x180a47d10) supports
+  ABS_ORIGIN, WORLDSPACE_CENTER and EYES; PARTICLE_FLASHLIGHT returns (0, 0, 0)
+  and leaves the radius output unwritten (radius set to 0). Orientation
+  (0x180a47ac0): with `m_bOrientToEyes` false it is re-based on world up
+  (heading kept, pitch and roll dropped).
+- **C_OP_SetControlPointToImpactPoint** (0x180283f50): at most once per
+  `m_flUpdateRate`; traces from the CP along `m_vecTraceDir` (the CP forward if
+  zero) for `m_flTraceLength`, starting `m_flStartOffset` along the ray; on a hit,
+  or with `m_bSetToEndpoint`, position = endpoint - dir*`m_flOffset`, oriented to
+  the surface normal. Needs a world trace.
+- **C_OP_DistanceBetweenCPsToCP** (0x180280be0): clamped remap of the CP distance
+  into a CP field (0x1802744e0), with set-once and set-parent modes. The LOS
+  branch normalises the end CP's position vector, not end - start.
+- **C_OP_SetControlPointFieldToScalarExpression** (0x180277070): 11 expressions
+  (divide by zero gives 0), then the output remap, then a blend toward the
+  current field by `m_flInterpolation` when it is not exactly 1.
+- **C_OP_SetVectorAttributeToVectorExpression** (0x180203ec0): result times
+  operator strength before the set method; DIVIDE uses an approximate reciprocal
+  (zero becomes 1.19e-7), normalize an approximate rsqrt; colour and alpha
+  outputs are clamped.
+- **C_OP_AlphaDecay** (0x1801d3330): kills a particle when
+  alpha*alphaAlternate <= `m_flMinAlpha` + FLT_EPSILON.
+- **C_OP_SetFloat** (0x18020bd30, init 0x18020bbc0): each set method is
+  `current + clamp(m_Lerp, 0, 1)*(target - current)`, then the output clamp, then
+  a strength blend toward the current or initial value; RAMP_CURRENT uses
+  strength*dt. Writing an angle attribute converts degrees to radians except for
+  the two SCALE methods. Alpha clamps to [0, 1], radius and trail length to >= 0.
+- **C_INIT_CreateWithinBox** (0x180136ec0): without `m_bLocalSpace`, a world-axis
+  box offset from the CP position interpolated to the creation time; with it,
+  the box is in the CP frame (x forward, y left, z up). Three table draws
+  (index = counter + 2*seed offset), or a Halton sequence (bases 2, 3, 5) with
+  distribute-evenly.
+- **C_OP_PositionLock** (0x1801d8e90): moves each particle by
+  `(CP delta*strength)*min(age, dt)/dt`, attenuated by `m_flRange` /
+  `m_flRangeBias`, scaled by `m_vecScale`; `m_flPrevPosScale` moves the previous
+  position too. `m_flJumpThreshold` applies only when `m_flStartTime_min` < 1 and
+  is compared with the squared move distance.
+- **C_INIT_RingWave** (0x1801251c0): angle = counter*(2π/particles-per-orbit),
+  or random when not evenly distributed; the ring point is rotated by
+  pitch/yaw/roll, a uniform point in a ball of radius `m_flThickness` (cube-root
+  draw) is added, then the CP transform applies. Velocity points outward from the
+  CP, scaled by the previous frame's dt; `m_bXYVelocityOnly` zeroes z.
+- **C_INIT_CreateSequentialPathV2** (0x18014e4b0): quadratic Bezier start / mid /
+  end; a given mid CP becomes `2*Mid - (S + E)/2` so the curve passes through it;
+  bulge modes apply with no mid CP; per-axis jitter of plus or minus
+  `m_fMaxDistance`; step 1/(N - 1); `m_bLoop` wraps, otherwise the path bounces.
+
+### UNSETTLED (schema and inputs)
+
+1. Where run-once pre-emission operators (`m_bRunOnce`) execute: the per-frame
+   loop 0x180047cb0 skips them.
+2. C_OP_PositionLock with `m_bLockRot`; vector RANDOM_UNIFORM / _OFFSET; PVEC
+   types 6, 10, 18; noise inputs.
+3. The random table contents and seed values (rules settled, bit-exact
+   sequences not).
+4. The world-up re-basing in client 0x181748070, and the per-instance
+   collision-group context.
+5. The client trace function (query slot 4) and the renderer operators' runtime
+   maths beyond section 10.
+
+Machine-readable results (schema.json: 64 classes with every field's type,
+offset, default and evidence; inputs.json: enums, struct layouts and defaults,
+evaluation rules, per-operator maths) are in the analysis scratch, not committed.
