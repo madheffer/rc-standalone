@@ -1,0 +1,826 @@
+{
+ "binaries": {
+  "particles.dll": "3f9ae2ff51c610d29884b51aaf570a83",
+  "client.dll": "cf8b7cd427f553732081739154c90588",
+  "scenesystem.dll": "3b785e13dd52e34f56b9b544956eb7b1"
+ },
+ "C_OP_RenderStandardLight_fields": [
+  [
+   "m_nLightType",
+   "0x230",
+   "int enum",
+   "POINT(0)",
+   "POINT 0, SPOT 1, FX 2, CAPSULE 3"
+  ],
+  [
+   "m_nMaxAllowed",
+   "0x234",
+   "read as u16",
+   "32",
+   "slot cap: min(particle count, m_nMaxAllowed) lights"
+  ],
+  [
+   "m_vecColorScale",
+   "0x238",
+   "CParticleCollectionVecInput",
+   "LITERAL_COLOR 255,255,255",
+   "per collection"
+  ],
+  [
+   "m_nColorBlendType",
+   "0x910",
+   "enum",
+   "MULTIPLY(0)",
+   ""
+  ],
+  [
+   "m_strLightStyle",
+   "0x918",
+   "vdata choice (scripts/light_styles.vdata)",
+   "empty",
+   "resolved via IParticleSystemQuery+0x308"
+  ],
+  [
+   "m_flLightStyleTime",
+   "0x920",
+   "float input (per particle)",
+   "PF_TYPE_PARTICLE_AGE (type 19)",
+   "evaluated via IParticleSystemQuery+0x310"
+  ],
+  [
+   "m_flIntensity",
+   "0xa98",
+   "float input (per particle)",
+   "1.0",
+   "multiplies colour; <=0 skips the particle"
+  ],
+  [
+   "m_bCastShadows",
+   "0xc10",
+   "bool",
+   "false",
+   "desc+0x3d; forced false for FX"
+  ],
+  [
+   "m_bDynamicBounce",
+   "0xc11",
+   "bool",
+   "false",
+   "desc+0x75 = 2 if set; attribute 0xedc61ed4 on the light"
+  ],
+  [
+   "m_flBounceScale",
+   "0xc18",
+   "float input",
+   "1.0",
+   "attribute 0x266c41fb (vec4)"
+  ],
+  [
+   "m_flTheta",
+   "0xd90",
+   "float input",
+   "45.0",
+   "inner cone HALF angle, degrees, desc+0x30"
+  ],
+  [
+   "m_flPhi",
+   "0xf08",
+   "float input",
+   "60.0",
+   "outer cone HALF angle, degrees, desc+0x34"
+  ],
+  [
+   "m_flRadiusMultiplier",
+   "0x1080",
+   "float input",
+   "8.0",
+   "range = particle radius * this, desc+0x1c; 0 skips all"
+  ],
+  [
+   "m_nAttenuationStyle",
+   "0x11f8",
+   "enum",
+   "LIGHT_STYLE_OLD(0)",
+   "NEW = 1"
+  ],
+  [
+   "m_flFalloffLinearity",
+   "0x1200",
+   "float input",
+   "0.0",
+   "clamped [0,1]; OLD only"
+  ],
+  [
+   "m_flFiftyPercentFalloff",
+   "0x1378",
+   "float input",
+   "0.5",
+   "fraction of range; NEW only"
+  ],
+  [
+   "m_flZeroPercentFalloff",
+   "0x14f0",
+   "float input",
+   "1.0",
+   "fraction of range; NEW only"
+  ],
+  [
+   "m_bRenderDiffuse",
+   "0x1668",
+   "bool",
+   "true",
+   "desc+0x78"
+  ],
+  [
+   "m_bRenderSpecular",
+   "0x1669",
+   "bool",
+   "true",
+   "desc+0x79"
+  ],
+  [
+   "m_lightCookie",
+   "0x1670",
+   "string",
+   "empty",
+   "MurmurHash2(seed 0x31415926) -> +0x1820 -> ISceneSystem vfunc 0x200 -> desc+0x38"
+  ],
+  [
+   "m_nPriority",
+   "0x1678",
+   "int",
+   "0",
+   "NEVER READ outside ctor/serialisers"
+  ],
+  [
+   "m_nFogLightingMode",
+   "0x167c",
+   "enum (byte read)",
+   "NONE(0)",
+   "desc+0x77; DYNAMIC 2, DYNAMIC_NOSHADOWS 4"
+  ],
+  [
+   "m_flFogContribution",
+   "0x1680",
+   "float input",
+   "1.0",
+   "clamped >=0, desc+0x90"
+  ],
+  [
+   "m_nCapsuleLightBehavior",
+   "0x17f8",
+   "enum",
+   "FOLLOW_DIRECTION(0)",
+   "capsule only"
+  ],
+  [
+   "m_flCapsuleLength",
+   "0x17fc",
+   "float",
+   "100.0",
+   "capsule only"
+  ]
+ ],
+ "flashlights": [
+  {
+   "name": "GFL cs2fixes/simple_flashlight.vpcf",
+   "range_before_threshold_clamp": 480.0,
+   "type": "PARTICLE_LIGHT_TYPE_SPOT -> CLightDesc type 3 -> barn LightShape luminaire 0 (punctual)",
+   "range_units": 480.0,
+   "theta_inner_half_deg": 0.0,
+   "phi_outer_half_deg": 35.0,
+   "full_cone_deg": 70.0,
+   "desc_color_linear": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "attenuation_style": "NEW",
+   "desc_atten_constant_linear_quadratic": [
+    0.030651336535811424,
+    0.00012771612091455609,
+    3.365792872500606e-05
+   ],
+   "solver_ok": true,
+   "falloff_match_distance": 72.0,
+   "barn_k": 24187.046520854747,
+   "barn_color_m_vColor": [
+    24187.046520854747,
+    24187.046520854747,
+    24187.046520854747
+   ],
+   "barn_position_w_size2": 1.0,
+   "near_plane": 1.0,
+   "far_plane": 480.0,
+   "m_vInnerRadius": [
+    0.0,
+    0.0
+   ],
+   "m_flShape": 1.0,
+   "m_vSkirt": [
+    0.0,
+    0.0
+   ],
+   "m_vDistanceFade": [
+    4.0,
+    -0.008333333333333333
+   ],
+   "distance_fade_start_end": [
+    360.0,
+    480.0
+   ],
+   "m_vAngleFade": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "samples_on_axis": {
+    "16": {
+     "barn_scalar": 94.48065047208885,
+     "barn_rgb": [
+      94.48065047208885,
+      94.48065047208885,
+      94.48065047208885
+     ],
+     "desc_quadratic_atten_times_C": [
+      24.206496388890205,
+      24.206496388890205,
+      24.206496388890205
+     ]
+    },
+    "32": {
+     "barn_scalar": 23.620162618022214,
+     "barn_rgb": [
+      23.620162618022214,
+      23.620162618022214,
+      23.620162618022214
+     ],
+     "desc_quadratic_atten_times_C": [
+      14.450037757781972,
+      14.450037757781972,
+      14.450037757781972
+     ]
+    },
+    "64": {
+     "barn_scalar": 5.905040654505553,
+     "barn_rgb": [
+      5.905040654505553,
+      5.905040654505553,
+      5.905040654505553
+     ],
+     "desc_quadratic_atten_times_C": [
+      5.659692503705368,
+      5.659692503705368,
+      5.659692503705368
+     ]
+    },
+    "72": {
+     "barn_scalar": 4.665711134424141,
+     "barn_rgb": [
+      4.665711134424141,
+      4.665711134424141,
+      4.665711134424141
+     ],
+     "desc_quadratic_atten_times_C": [
+      4.665711134424141,
+      4.665711134424141,
+      4.665711134424141
+     ]
+    },
+    "128": {
+     "barn_scalar": 1.4762601636263883,
+     "barn_rgb": [
+      1.4762601636263883,
+      1.4762601636263883,
+      1.4762601636263883
+     ],
+     "desc_quadratic_atten_times_C": [
+      1.6709819657756135,
+      1.6709819657756135,
+      1.6709819657756135
+     ]
+    },
+    "256": {
+     "barn_scalar": 0.3690650409065971,
+     "barn_rgb": [
+      0.3690650409065971,
+      0.3690650409065971,
+      0.3690650409065971
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.44069313124336046,
+      0.44069313124336046,
+      0.44069313124336046
+     ]
+    },
+    "240": {
+     "barn_scalar": 0.4199140020981727,
+     "barn_rgb": [
+      0.4199140020981727,
+      0.4199140020981727,
+      0.4199140020981727
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.5000000249710878,
+      0.5000000249710878,
+      0.5000000249710878
+     ]
+    },
+    "360": {
+     "barn_scalar": 0.18662844537696563,
+     "barn_rgb": [
+      0.18662844537696563,
+      0.18662844537696563,
+      0.18662844537696563
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.2252913562134947,
+      0.2252913562134947,
+      0.2252913562134947
+     ]
+    },
+    "420": {
+     "barn_scalar": 0.06855738809766085,
+     "barn_rgb": [
+      0.06855738809766085,
+      0.06855738809766085,
+      0.06855738809766085
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.1660701776180943,
+      0.1660701776180943,
+      0.1660701776180943
+     ]
+    },
+    "480": {
+     "barn_scalar": 0.0,
+     "barn_rgb": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.12744142967327263,
+      0.12744142967327263,
+      0.12744142967327263
+     ]
+    }
+   },
+   "cone_mask_relative_at_half_range": {
+    "0": 1.0,
+    "3.5": 0.978443244663341,
+    "7": 0.9185363969248724,
+    "10.5": 0.8269045419870577,
+    "14": 0.7099217075595077,
+    "17.5": 0.5743143689909274,
+    "21": 0.42790217995775276,
+    "24.5": 0.28059784131162596,
+    "28": 0.1458533121117885,
+    "31.5": 0.04285710563289685,
+    "35": 0.0
+   }
+  },
+  {
+   "name": "kxm cs2fixes/simple_flashlight.vpcf (open space, intensity attr 10 settled at 0.3)",
+   "range_before_threshold_clamp": 1200.0,
+   "type": "PARTICLE_LIGHT_TYPE_SPOT -> CLightDesc type 3 -> barn LightShape luminaire 0 (punctual)",
+   "range_units": 1200.0,
+   "theta_inner_half_deg": 40.0,
+   "phi_outer_half_deg": 80.0,
+   "full_cone_deg": 160.0,
+   "desc_color_linear": [
+    30.0,
+    30.0,
+    30.0
+   ],
+   "attenuation_style": "OLD",
+   "desc_atten_constant_linear_quadratic": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "solver_ok": true,
+   "falloff_match_distance": 180.0,
+   "barn_k": 180.0,
+   "barn_color_m_vColor": [
+    5400.0,
+    5400.0,
+    5400.0
+   ],
+   "barn_position_w_size2": 1.0,
+   "near_plane": 1.0,
+   "far_plane": 1200.0,
+   "m_vInnerRadius": [
+    0.1479559044790764,
+    0.1479559044790764
+   ],
+   "m_flShape": 1.0,
+   "m_vSkirt": [
+    0.0,
+    0.0
+   ],
+   "m_vDistanceFade": [
+    4.0,
+    -0.0033333333333333335
+   ],
+   "distance_fade_start_end": [
+    900.0,
+    1200.0
+   ],
+   "m_vAngleFade": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "samples_on_axis": {
+    "16": {
+     "barn_scalar": 0.703125,
+     "barn_rgb": [
+      21.09375,
+      21.09375,
+      21.09375
+     ],
+     "desc_quadratic_atten_times_C": [
+      1.875,
+      1.875,
+      1.875
+     ]
+    },
+    "32": {
+     "barn_scalar": 0.17578125,
+     "barn_rgb": [
+      5.2734375,
+      5.2734375,
+      5.2734375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.9375,
+      0.9375,
+      0.9375
+     ]
+    },
+    "64": {
+     "barn_scalar": 0.0439453125,
+     "barn_rgb": [
+      1.318359375,
+      1.318359375,
+      1.318359375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.46875,
+      0.46875,
+      0.46875
+     ]
+    },
+    "180": {
+     "barn_scalar": 0.005555555555555556,
+     "barn_rgb": [
+      0.16666666666666669,
+      0.16666666666666669,
+      0.16666666666666669
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.16666666666666669,
+      0.16666666666666669,
+      0.16666666666666669
+     ]
+    },
+    "128": {
+     "barn_scalar": 0.010986328125,
+     "barn_rgb": [
+      0.32958984375,
+      0.32958984375,
+      0.32958984375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.234375,
+      0.234375,
+      0.234375
+     ]
+    },
+    "256": {
+     "barn_scalar": 0.00274658203125,
+     "barn_rgb": [
+      0.0823974609375,
+      0.0823974609375,
+      0.0823974609375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.1171875,
+      0.1171875,
+      0.1171875
+     ]
+    },
+    "600": {
+     "barn_scalar": 0.0005,
+     "barn_rgb": [
+      0.015,
+      0.015,
+      0.015
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.05,
+      0.05,
+      0.05
+     ]
+    },
+    "900": {
+     "barn_scalar": 0.00022222222222222223,
+     "barn_rgb": [
+      0.006666666666666667,
+      0.006666666666666667,
+      0.006666666666666667
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.03333333333333333,
+      0.03333333333333333,
+      0.03333333333333333
+     ]
+    },
+    "1050": {
+     "barn_scalar": 8.163265306122438e-05,
+     "barn_rgb": [
+      0.0024489795918367315,
+      0.0024489795918367315,
+      0.0024489795918367315
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.02857142857142857,
+      0.02857142857142857,
+      0.02857142857142857
+     ]
+    },
+    "1200": {
+     "barn_scalar": 0.0,
+     "barn_rgb": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.025,
+      0.025,
+      0.025
+     ]
+    }
+   },
+   "cone_mask_relative_at_half_range": {
+    "0": 1.0,
+    "8": 1.0,
+    "16": 1.0,
+    "24": 1.0,
+    "32": 1.0,
+    "40": 1.0,
+    "48": 0.9908833603693223,
+    "56": 0.9515263786197437,
+    "64": 0.8430139783722779,
+    "72": 0.5550024213726961,
+    "80": 0.0
+   }
+  },
+  {
+   "name": "kxm cs2fixes/simple_flashlight.vpcf (floor, intensity 0.008)",
+   "range_before_threshold_clamp": 1200.0,
+   "type": "PARTICLE_LIGHT_TYPE_SPOT -> CLightDesc type 3 -> barn LightShape luminaire 0 (punctual)",
+   "range_units": 800.0,
+   "theta_inner_half_deg": 40.0,
+   "phi_outer_half_deg": 80.0,
+   "full_cone_deg": 160.0,
+   "desc_color_linear": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "attenuation_style": "OLD",
+   "desc_atten_constant_linear_quadratic": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "solver_ok": true,
+   "falloff_match_distance": 120.0,
+   "barn_k": 120.0,
+   "barn_color_m_vColor": [
+    96.0,
+    96.0,
+    96.0
+   ],
+   "barn_position_w_size2": 1.0,
+   "near_plane": 1.0,
+   "far_plane": 800.0,
+   "m_vInnerRadius": [
+    0.1479559044790764,
+    0.1479559044790764
+   ],
+   "m_flShape": 1.0,
+   "m_vSkirt": [
+    0.0,
+    0.0
+   ],
+   "m_vDistanceFade": [
+    4.0,
+    -0.005
+   ],
+   "distance_fade_start_end": [
+    600.0,
+    800.0
+   ],
+   "m_vAngleFade": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "samples_on_axis": {
+    "16": {
+     "barn_scalar": 0.46875,
+     "barn_rgb": [
+      0.375,
+      0.375,
+      0.375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.05,
+      0.05,
+      0.05
+     ]
+    },
+    "32": {
+     "barn_scalar": 0.1171875,
+     "barn_rgb": [
+      0.09375,
+      0.09375,
+      0.09375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.025,
+      0.025,
+      0.025
+     ]
+    },
+    "64": {
+     "barn_scalar": 0.029296875,
+     "barn_rgb": [
+      0.0234375,
+      0.0234375,
+      0.0234375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.0125,
+      0.0125,
+      0.0125
+     ]
+    },
+    "120": {
+     "barn_scalar": 0.008333333333333333,
+     "barn_rgb": [
+      0.006666666666666667,
+      0.006666666666666667,
+      0.006666666666666667
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.006666666666666667,
+      0.006666666666666667,
+      0.006666666666666667
+     ]
+    },
+    "128": {
+     "barn_scalar": 0.00732421875,
+     "barn_rgb": [
+      0.005859375,
+      0.005859375,
+      0.005859375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.00625,
+      0.00625,
+      0.00625
+     ]
+    },
+    "256": {
+     "barn_scalar": 0.0018310546875,
+     "barn_rgb": [
+      0.00146484375,
+      0.00146484375,
+      0.00146484375
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.003125,
+      0.003125,
+      0.003125
+     ]
+    },
+    "400": {
+     "barn_scalar": 0.00075,
+     "barn_rgb": [
+      0.0006000000000000001,
+      0.0006000000000000001,
+      0.0006000000000000001
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.002,
+      0.002,
+      0.002
+     ]
+    },
+    "600": {
+     "barn_scalar": 0.0003333333333333333,
+     "barn_rgb": [
+      0.0002666666666666667,
+      0.0002666666666666667,
+      0.0002666666666666667
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.0013333333333333335,
+      0.0013333333333333335,
+      0.0013333333333333335
+     ]
+    },
+    "700": {
+     "barn_scalar": 0.00012244897959183673,
+     "barn_rgb": [
+      9.79591836734694e-05,
+      9.79591836734694e-05,
+      9.79591836734694e-05
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.001142857142857143,
+      0.001142857142857143,
+      0.001142857142857143
+     ]
+    },
+    "800": {
+     "barn_scalar": 0.0,
+     "barn_rgb": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "desc_quadratic_atten_times_C": [
+      0.001,
+      0.001,
+      0.001
+     ]
+    }
+   },
+   "cone_mask_relative_at_half_range": {
+    "0": 1.0,
+    "8": 1.0,
+    "16": 1.0,
+    "24": 1.0,
+    "32": 1.0,
+    "40": 1.0,
+    "48": 0.9908833603693223,
+    "56": 0.9515263786197437,
+    "64": 0.8430139783722778,
+    "72": 0.5550024213726961,
+    "80": 0.0
+   }
+  }
+ ],
+ "addresses": {
+  "particles.dll (3f9ae2ff51c610d29884b51aaf570a83)": {
+   "0x180529808": "C_OP_RenderStandardLight vtable (RTTI)",
+   "0x180316320": "C_OP_RenderStandardLight ctor (defaults)",
+   "0x1805c8740": "schema field table (34 fields)",
+   "0x1802ee5f0": "render/update: vtable slot 48 (+0x180), builds CLightDesc per particle",
+   "0x1802edef0": "slot table resize: min(particle count, (u16)m_nMaxAllowed)",
+   "0x1802ee4e0": "slot 67 (+0x218): destroys lights of slots not touched this frame",
+   "0x1802edfe0": "cookie name -> MurmurHash2(seed 0x31415926) -> +0x1820",
+   "0x1802edfb0": "attribute read mask 0x1018d9 (XYZ, radius, roll, tint, alpha, particle id, yaw, pitch)",
+   "0x1802f0110": "slot 37: copies render tint/desat into instance ctx (+0x20..+0x30), sets update flag",
+   "0x1801bf620": "CLightDesc init (defaults: size +0x94 = 1, +0x90 = 1, cookie -1)",
+   "0x18035f2e0": "Color(bytes) -> linear float (sRGB EOTF: x/12.92 or ((x+0.055)/1.055)^2.4)",
+   "0x18035db20": "AngleVectors(pitch,yaw,roll deg) -> forward, up",
+   "0x1803786f0": "SetupOldStyleAttenuation(q,l,c): eps 0.001, colour *= q*10000 + l*100 + c",
+   "0x180378580": "SetupNewStyleAttenuation(d50,d0): SolveInverseQuadraticMonotonic(0,1,d50,2,d0,256), scale 2/v50",
+   "0x18035e120": "SolveInverseQuadraticMonotonic (blend mid point to linear by 0.05 while 2a+b has wrong sign)",
+   "0x1803774b0": "CLightDesc::RecalculateDerivedValues(desc, 0.001): flags, cos/tan of theta/phi, range clamp when atten0 == 0, bounds",
+   "0x18035e400": "quadratic root solver used by the range clamp"
+  },
+  "client.dll (cf8b7cd427f553732081739154c90588)": {
+   "0x181c38028": "CParticleSystemQuery vtable; slot 34 (+0x110) 0x180a57510 -> CSource2Client vfunc 0x358; slot 35 (+0x118) destroy",
+   "0x180b849b0": "CSource2Client vfunc 107: copies CLightDesc verbatim into CSceneLightObject +0xe0, ISceneSystem vfunc 0x130 create / 0xe0 update"
+  },
+  "scenesystem.dll (3b785e13dd52e34f56b9b544956eb7b1)": {
+   "0x1805f1750": "CSceneSystem vtable; slot 64 (+0x200) 0x1800c55f0 cookie lookup by hash",
+   "0x1801a1460": "CLightBinnerGPU: gather CSceneLightObject -> FUN_1804a3ce0 with lb_convert_to_barn_lights_falloff_match_point",
+   "0x180011060": "convar lb_convert_to_barn_lights_falloff_match_point, default 0.15",
+   "0x1804a3ce0": "CLightDesc -> barn LightShape(s) (point 1 or 6 shadowed faces, spot 1)",
+   "0x1804a7250": "barn frustum builder (near = size, far = range, fov = 2*phi deg, aspect 1)",
+   "0x1801a9e70": "binned light sort: +0x1bc desc, camera distance asc, colour luminance desc",
+   "0x180010c5c": "lb_max_visible_barn_lights_override (-1 -> 315 visible lights)",
+   "0x18019dd0d": "barnlightconstants structured buffer: 320 x 480 bytes",
+   "0x18008c110": "LightShape -> PathTraceBarnLightGPU_t (path tracer/bake mapping; raster 480-byte packer not located)",
+   "0x18008cb80": "CSceneLightObject -> PathTraceBarnLightGPU_t via the same 1804a3ce0"
+  }
+ },
+ "formulas": {
+  "range": "R = particle radius * m_flRadiusMultiplier; OLD only: R = min(R, d where luminance709(C) * atten(d) = 0.001)",
+  "desc_colour": "C = srgb_to_linear(sat8(blend(colourScale, tint255))) * lightStyle * lerp(c, lum(c), desat) * renderTint * intensity * alpha  (* q*10000 + l*100 + c for OLD)",
+  "old_atten": "q = 1 - linearity, l = linearity, c = 0 (c = 1 if both < 0.001); atten(d) = 1/(c + l d + q d^2)",
+  "new_atten": "d50 = R*clamp(fifty), d0 = R*zero; 1/atten fitted through (0,1),(d50,2),(d0,256) by SolveInverseQuadraticMonotonic, then scaled so 1/atten(d50) = 2",
+  "barn_k": "m = 0.15 * R (100 if <= 0); k = m^2 / (c + l m + q m^2); m_vColor = k * C",
+  "barn_eval_vrad3": "I = m_vColor * W / max(d^2, W) (W = m_vLightPosition.w = size^2 = 1) * smoothstep(0,1, 4 - 4 d / R) * cone * clip(depth 1..R)",
+  "cone": "t = tan(theta)/tan(phi); r = tan(angle to axis)/tan(phi); cone = smoothstep(0,1,(1 - r)/(1 - t)), 0 outside r > 1"
+ }
+}
