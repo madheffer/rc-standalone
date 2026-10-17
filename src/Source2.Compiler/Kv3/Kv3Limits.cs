@@ -46,8 +46,10 @@ internal static class Kv3Limits
 
     /// <summary>The most values a block of <paramref name="declared"/> decompressed bytes may hold.
     /// A typed array of a zero-width type (NULL, BOOLEAN_TRUE, INT64_ZERO) states any length in four
-    /// bytes, so the count is bounded by the block's size rather than by its data.</summary>
-    public static long NodeBudget(long declared) => (1 << 20) + 16L * declared;
+    /// bytes, so the count is bounded by the block's size rather than by its data, and never above
+    /// <see cref="Kv3ReadLimit.MaxValues"/>: zero padding that zstd stores in a few KB buys declared
+    /// bytes cheaply, and each value costs about 85 bytes of memory.</summary>
+    public static long NodeBudget(long declared) => Math.Min((1 << 20) + 16L * declared, Kv3ReadLimit.MaxValues);
 
     /// <summary>A collection capacity for a count read from a file: only a hint, never an allocation
     /// the file controls.</summary>
@@ -56,6 +58,7 @@ internal static class Kv3Limits
     /// <summary>Counts nesting and values while a reader walks a tree.</summary>
     public sealed class Budget(long nodes)
     {
+        private readonly long _limit = nodes;
         private long _nodes = nodes;
         private int _depth;
 
@@ -63,7 +66,7 @@ internal static class Kv3Limits
         public void Enter()
         {
             if (--_nodes < 0)
-                throw Hostile("more values than its size allows");
+                throw Hostile($"more than {_limit} values");
             if (++_depth > MaxDepth)
             {
                 _depth--;

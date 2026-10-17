@@ -161,17 +161,17 @@ public class HostileInputTests
         Assert.True(used < 32L << 20, $"allocated {used:N0} bytes");
     }
 
-    private static void AssertRefusedSmall(Action read)
+    private static void AssertRefusedSmall(Action read, long maxBytes = 32L << 20)
     {
         var allocated = GC.GetAllocatedBytesForCurrentThread();
         Assert.Throws<InvalidDataException>(read);
         var used = GC.GetAllocatedBytesForCurrentThread() - allocated;
-        Assert.True(used < 32L << 20, $"allocated {used:N0} bytes");
+        Assert.True(used < maxBytes, $"allocated {used:N0} bytes");
     }
 
-    private static ValveResourceFormat.ResourceTypes.BinaryKV3 VrfRead(Stream stream)
+    private static ValveResourceFormat.ResourceTypes.BinaryKV3 VrfRead(Stream stream, uint size = 0)
     {
-        var vrf = new ValveResourceFormat.ResourceTypes.BinaryKV3(ValveResourceFormat.BlockType.Undefined) { Resource = null! };
+        var vrf = new ValveResourceFormat.ResourceTypes.BinaryKV3(ValveResourceFormat.BlockType.Undefined) { Resource = null!, Size = size };
         using var r = new BinaryReader(stream);
         vrf.Read(r);
         return vrf;
@@ -237,6 +237,131 @@ public class HostileInputTests
         Assert.Contains("seekable", Assert.Throws<InvalidDataException>(() => VrfRead(new ForwardOnly(new MemoryStream(block)))).Message);
         using var r = new BinaryReader(new ForwardOnly(new MemoryStream(block)));
         Assert.Throws<InvalidDataException>(() => Kv3Limits.Remaining(r, 0, 0));
+    }
+
+    // An uncompressed v5 block whose root holds a typed array of `count` nulls (both copies of the
+    // count patched: the header hint at 116 and the array's own), behind `paddingBytes` of blob.
+    private static byte[] TypedNullsBlock(int count, int paddingBytes = 0)
+    {
+        var t = new Kv3Tree { Format = Guid.NewGuid(), Compression = (uint)Kv3Compression.Uncompressed };
+        var obj = new Kv3Node { Type = Kv3Type.Object, Items = [], KeyIds = [] };
+        obj.KeyIds.Add(t.StringId("a"));
+        obj.Items.Add(new Kv3Node { Type = Kv3Type.ArrayTyped, ElementType = Kv3Type.Null, Items = Enumerable.Range(0, 1001).Select(_ => new Kv3Node { Type = Kv3Type.Null }).ToList() });
+        if (paddingBytes > 0)
+        {
+            obj.KeyIds.Add(t.StringId("pad"));
+            obj.Items.Add(new Kv3Node { Type = Kv3Type.BinaryBlob, Blob = new byte[paddingBytes] });
+        }
+        t.Root = obj;
+        var block = t.Write((uint)Kv3Compression.Uncompressed);
+        var at = block.AsSpan(Kv3Block.HeaderSize).IndexOf(BitConverter.GetBytes(1001));
+        Assert.True(at >= 0);
+        BinaryPrimitives.WriteInt32LittleEndian(block.AsSpan(Kv3Block.HeaderSize + at), count);
+        BinaryPrimitives.WriteInt32LittleEndian(block.AsSpan(116), count);
+        return block;
+    }
+
+    private static byte[] VdataWith(Action<CompiledResource> edit)
+    {
+        var res = CompiledResource.Read(Kv3SourceCompiler.Compile(System.Text.Encoding.UTF8.GetBytes(Kv3TextHeader + "{ a = 1 }"), ".vdata", "x.vdata"));
+        edit(res);
+        return res.Write();
+    }
+
+    private static void VrfResourceRead(byte[] file)
+    {
+        using var res = new ValveResourceFormat.Resource();
+        res.Read(new MemoryStream(file));
+    }
+
+    // The audit's 179-byte file: 50,000,001 nulls. VRF had no node budget and built them all (2.7 GB).
+    // A block this small may hold 1M + 16 per declared byte, about 75 MB of nodes, before refusal.
+    [Fact]
+    public void Kv3_TypedNullArrayOfFiftyMillion_IsRefusedByBothReaders()
+    {
+        Assert.NotNull(Kv3Binary.Read(TypedNullsBlock(1001)));
+        var block = TypedNullsBlock(50_000_001);
+        var file = VdataWith(r => r.SetRaw("DATA", block));
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        AssertRefusedSmall(() => VrfResourceRead(file), 128L << 20);
+        AssertRefusedSmall(() => Kv3Binary.Read(block), 128L << 20);
+        Assert.Null(ResourceDecompiler.DataBlockToKv3(CompiledResource.Read(file), out var reason));
+        Assert.Contains("values", reason);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2), $"took {clock.Elapsed}");
+    }
+
+    // Declared bytes once bought values (1M + 16 per byte), and zstd stores zero padding in a few
+    // KB: 8 MB of padding allowed 129M nodes. The value ceiling caps it at any byte limit; at the
+    // 16M default that is still about 1 GB of nodes, which is why a route scopes values down.
+    [Fact]
+    public void Kv3_PaddedBlock_CannotBuyValuesPastTheCeiling()
+    {
+        var block = TypedNullsBlock(20_000_000, paddingBytes: 8 << 20);
+        using (VrfKv3ReadLimit.Use(64 << 20))
+        {
+            Assert.Equal(Kv3ReadLimit.DefaultMaxValues, Kv3Limits.NodeBudget(64 << 20));
+            Assert.Contains($"more than {Kv3ReadLimit.DefaultMaxValues} values", Assert.Throws<InvalidDataException>(() => Kv3Binary.Read(block)).Message);
+            Assert.Contains($"more than {Kv3ReadLimit.DefaultMaxValues} values", Assert.Throws<InvalidDataException>(() => VrfRead(new MemoryStream(block))).Message);
+        }
+        using (VrfKv3ReadLimit.Use(64 << 20, 1 << 20))
+        {
+            AssertRefusedSmall(() => Kv3Binary.Read(block), 128L << 20);
+            AssertRefusedSmall(() => VrfRead(new MemoryStream(block)), 128L << 20);
+        }
+        using (VrfKv3ReadLimit.Use(64 << 20, 1000))
+        {
+            Assert.Throws<InvalidDataException>(() => Kv3Binary.Read(TypedNullsBlock(1001)));
+            Assert.Throws<InvalidDataException>(() => VrfRead(new MemoryStream(TypedNullsBlock(1001))));
+        }
+    }
+
+    // VRF's legacy reader had no depth bound either: this overflowed the stack, which kills the process.
+    [Fact]
+    public void LegacyKv3_DeepNestingAndTypedNulls_AreRefusedByVrf()
+    {
+        var deep = new MemoryStream();
+        for (var i = 0; i < 100_000; i++)
+            deep.WriteByte((byte)Kv3Type.Array);
+        deep.WriteByte((byte)Kv3Type.Null);
+        var deepBlock = LegacyBlock(deep.ToArray());
+        Assert.Contains("nesting", Assert.Throws<InvalidDataException>(() => VrfRead(new MemoryStream(deepBlock), (uint)deepBlock.Length)).Message);
+
+        var nulls = new MemoryStream();
+        nulls.WriteByte((byte)Kv3Type.ArrayTyped);
+        nulls.Write(BitConverter.GetBytes(2_000_000_000));
+        nulls.WriteByte((byte)Kv3Type.Null);
+        var nullsBlock = LegacyBlock(nulls.ToArray());
+        AssertRefusedSmall(() => VrfRead(new MemoryStream(nullsBlock), (uint)nullsBlock.Length), 128L << 20);
+    }
+
+    // One table field: a DATA size past the end of the file defeated every check derived from it.
+    [Fact]
+    public void Vrf_BlockSizePastTheEndOfTheFile_IsRefused()
+    {
+        var file = VdataWith(_ => { });
+        var table = 8 + BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(8));
+        var count = BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(12));
+        var data = Enumerable.Range(0, count).Single(i => System.Text.Encoding.ASCII.GetString(file, table + i * 12, 4) == "DATA");
+        VrfResourceRead(file);
+        BinaryPrimitives.WriteInt32LittleEndian(file.AsSpan(table + data * 12 + 8), 2_000_000_000);
+        Assert.Contains("past the end", Assert.Throws<InvalidDataException>(() => VrfResourceRead(file)).Message);
+    }
+
+    // VRF reads a SNAP entry in any file's table: its declared size and particle count came from the file.
+    [Fact]
+    public void Vrf_ParticleSnapshotSizes_AreBounded()
+    {
+        var huge = new byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(huge, 2_000_000_000);
+        AssertRefusedSmall(() => VrfResourceRead(VdataWith(r => r.SetRaw("SNAP", huge))));
+
+        var res = CompiledResource.Read(Kv3SourceCompiler.Compile(System.Text.Encoding.UTF8.GetBytes(
+            Kv3TextHeader + "{ num_particles = 1000000000 attributes = [ { name = \"a\" type = \"float\" } ] string_list = [ ] }"), ".vdata", "x.vdata"));
+        var snap = new byte[4 + 16];
+        BinaryPrimitives.WriteUInt32LittleEndian(snap, 0x80000000u | 16);
+        res.SetRaw("SNAP", snap);
+        Assert.Contains("particles", Assert.Throws<InvalidDataException>(() => VrfResourceRead(res.Write())).Message);
     }
 
     // A valid file that compresses very well: the old ratio refused this compiler's own output.

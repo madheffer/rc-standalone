@@ -1,0 +1,2 @@
+                var offset = (uint)position + Reader.ReadUInt32();
+                var size = Reader.ReadUInt32();

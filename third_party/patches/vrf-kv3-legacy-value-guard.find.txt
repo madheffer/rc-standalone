@@ -1,0 +1,11 @@
+        private static KVObject LegacyReadBinaryValue(Context context, KV3BinaryNodeType datatype, KVFlag flagInfo, BinaryReader reader)
+        {
+            var result = LegacyReadValue(context, datatype, reader);
+
+            if (flagInfo != KVFlag.None)
+            {
+                result.Flag = flagInfo;
+            }
+
+            return result;
+        }

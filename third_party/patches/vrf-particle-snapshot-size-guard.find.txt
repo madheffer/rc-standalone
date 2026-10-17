@@ -1,0 +1,3 @@
+            // Decompress SNAP block compression
+            var info = BlockCompress.GetDecompressedSize(reader);
+            var decompressed = ArrayPool<byte>.Shared.Rent(info.Size);

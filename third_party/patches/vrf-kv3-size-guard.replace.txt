@@ -6,7 +6,8 @@
             // (vrf-kv3-read-limit). A ratio to the stored size cannot bound memory: a 454 KB zstd
             // block declaring 1.9 GB passed 4096x and peaked at 1.8 GB. A v5 zstd block's blob
             // frame is what the total leaves after buffers 1 and 2, so the total is what must fit.
-            // The same decompressed size sets the node budget ReadBinaryValue enforces.
+            // The same decompressed size sets the node budget ReadBinaryValue enforces, never above
+            // MaxValues: zstd stores zero padding in a few KB, so declared bytes alone come cheap.
             {
                 var remaining = Size > 0 ? Offset + Size - reader.BaseStream.Position
                     : reader.BaseStream.CanSeek ? reader.BaseStream.Length - reader.BaseStream.Position
@@ -30,7 +31,7 @@
                     throw new InvalidDataException($"KV3 block declares {declared} bytes, over the {limit}-byte limit; refusing to parse (malformed or hostile resource).");
                 }
 
-                context.NodeBudget = (1 << 20) + 16L * declared;
+                context.NodeBudget = Math.Min((1 << 20) + 16L * declared, MaxValues);
             }
 
             // Before version 5, zstd stores the buffer and the binary blobs as two consecutive frames,

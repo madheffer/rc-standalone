@@ -46,12 +46,24 @@ version that changes something a host sees.
   about 1 MB. A standalone KV3 is now bounded by the rest of its stream, which must be seekable.
 - A v5 zstd block's blob frame is bounded by its compressed total, and VRF's legacy VKV3 reader
   (binary_bc, binary_lz4) checks its sizes too; each rented 1.9 GB from a few bytes before.
+- Values are capped too, not only bytes: a block's node budget (1M + 16 per declared byte) is never
+  above `Kv3ReadLimit.MaxValues`, since zstd stores zero padding that buys declared bytes in a few
+  KB. VRF gains the same budget for its legacy VKV3 reader, which had no depth or value bound (a
+  deep file overflowed the stack; a typed array of nulls built billions of nodes) and pre-sized
+  arrays from file counts.
+- VRF refuses a block whose table size runs past the end of the file (every block reader trusted
+  it), and bounds particle snapshot (SNAP) blocks, which it reads from any file's table.
 
 ### Added (limits)
 - `Kv3.Kv3ReadLimit`: `MaxUncompressedBytes` (default 512 MB; the largest real block measured is
-  303 MB, de_boulder's world physics) and `Use(bytes)`, an async-flow scope that only lowers it.
-  `VrfKv3ReadLimit.Use` (Source2.Compiler.Vrf) scopes this package's readers and VRF's together.
-  VRF patches `vrf-kv3-read-limit` and `vrf-kv3-legacy-size-guard` are now required.
+  303 MB, de_boulder's world physics), `MaxValues` (default 16M; the most values counted in a real
+  block is 5,351,200, the same file) and `Use(bytes, values)`, an async-flow scope that only lowers
+  them. `VrfKv3ReadLimit.Use(bytes, values)` (Source2.Compiler.Vrf) scopes this package's readers
+  and VRF's together. At the defaults a hostile block can still cost about 1 GB of nodes before it
+  is refused; a host parsing uploads scopes both lower.
+  Newly required VRF patches: `vrf-kv3-read-limit`, `vrf-kv3-legacy-size-guard`,
+  `vrf-kv3-legacy-value-guard`, `vrf-kv3-legacy-capacity-guard`, `vrf-resource-block-bounds-guard`,
+  `vrf-particle-snapshot-size-guard`, `vrf-particle-snapshot-count-guard`.
 
 ## 0.1.106 (production cleanup, 2026-10-14)
 

@@ -74,12 +74,52 @@
       "description": "The legacy VKV3 reader rented binary_bc's and binary_lz4's declared decompressed size straight from the file: about 40 bytes of binary_bc rented 1907 MB (F12 review). Both are now held to vrf-kv3-size-guard's rule before renting: non-negative, stored bytes within what is left (a standalone KV3 needs a seekable stream), and at most BinaryKV3.MaxUncompressedBytes. SECURITY."
     },
     {
+      "id": "vrf-kv3-legacy-value-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Legacy.cs",
+      "find": "vrf-kv3-legacy-value-guard.find.txt",
+      "replace": "vrf-kv3-legacy-value-guard.replace.txt",
+      "description": "The legacy VKV3 reader's LegacyReadBinaryValue had no depth or value bound: a deep file overflowed the stack (uncatchable, kills the process) and a typed array of a zero-width type built billions of nodes from four bytes. Same 512-level depth and node budget (capped by BinaryKV3.MaxValues) as the modern reader. SECURITY."
+    },
+    {
+      "id": "vrf-kv3-legacy-capacity-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.Legacy.cs",
+      "find": "vrf-kv3-legacy-capacity-guard.find.txt",
+      "replace": "vrf-kv3-legacy-capacity-guard.replace.txt",
+      "description": "The legacy VKV3 reader pre-sized arrays, typed arrays and objects from a count in the file (KVObject.Array(2e9) is an OutOfMemoryException), and BinaryReader.ReadBytes allocates a blob's declared length before reading. Counts become a capacity hint clamped to 4096, as vrf-kv3-capacity-* do for the modern reader, and a blob must fit the data left. SECURITY."
+    },
+    {
+      "id": "vrf-resource-block-bounds-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Resource.cs",
+      "find": "vrf-resource-block-bounds-guard.find.txt",
+      "replace": "vrf-resource-block-bounds-guard.replace.txt",
+      "description": "Refuse a block whose offset + size runs past the end of the file. Every block reader bounds its reads by Block.Size, so one table field defeated all of them (a legacy binary block with Size 2e9 rented 1907 MB). SECURITY."
+    },
+    {
+      "id": "vrf-particle-snapshot-size-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Blocks/ParticleSnapshot.cs",
+      "find": "vrf-particle-snapshot-size-guard.find.txt",
+      "replace": "vrf-particle-snapshot-size-guard.replace.txt",
+      "description": "VRF reads a SNAP entry in any file's block table, and ParticleSnapshot rented its block-compressed declared size (up to 2 GB) from the file. Held to BinaryKV3.MaxUncompressedBytes, and a stored copy to the block. SECURITY."
+    },
+    {
+      "id": "vrf-particle-snapshot-count-guard",
+      "clone": "vrf",
+      "file": "ValveResourceFormat/Resource/Blocks/ParticleSnapshot.cs",
+      "find": "vrf-particle-snapshot-count-guard.find.txt",
+      "replace": "vrf-particle-snapshot-count-guard.replace.txt",
+      "description": "num_particles (from the DATA block) sizes one array per attribute before any is read; every attribute reads at least 4 bytes per particle, so the count may not exceed the decompressed size / 4. SECURITY."
+    },
+    {
       "id": "vrf-kv3-read-limit",
       "clone": "vrf",
       "file": "ValveResourceFormat/Resource/ResourceTypes/BinaryKV3.cs",
       "find": "vrf-kv3-read-limit.find.txt",
       "replace": "vrf-kv3-read-limit.replace.txt",
-      "description": "BinaryKV3.MaxUncompressedBytes (default 512 MB, above the largest real block measured: 303 MB, de_boulder world_physics PHYS) and UseMaxUncompressedBytes, an AsyncLocal scope that only lowers it. The ceiling vrf-kv3-size-guard enforces. SECURITY: lets a host bound per-request memory on untrusted uploads."
+      "description": "BinaryKV3.MaxUncompressedBytes (default 512 MB; the largest real block measured is 303 MB, de_boulder world_physics PHYS) and MaxValues (default 16M; the most values in a real block is 5,351,200), with UseReadLimits, an AsyncLocal scope that only lowers them. The limits the KV3 and snapshot guards enforce. SECURITY: lets a host bound per-request memory on untrusted uploads."
     },
     {
       "id": "vrf-kv3-string-count-guard",

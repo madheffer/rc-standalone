@@ -1,23 +1,32 @@
-        // vpkstuff patch: the ceiling vrf-kv3-size-guard holds a block's declared uncompressed
-        // size to. A host parsing untrusted files lowers it per async flow.
+        // vpkstuff patch: the limits vrf-kv3-size-guard and its siblings hold a KV3 block to: the
+        // bytes it declares it decompresses to, and the values it may build. A host parsing
+        // untrusted files lowers them per async flow (AsyncLocal: it does not flow back out of an
+        // async method that opened it, nor through UnsafeQueueUserWorkItem or SuppressFlow).
         /// <summary>512 MB: the largest real block measured is 303,244,222 bytes (de_boulder's world_physics PHYS).</summary>
         public const long DefaultMaxUncompressedBytes = 512L << 20;
 
-        private static readonly System.Threading.AsyncLocal<long?> maxUncompressedBytes = new();
+        /// <summary>16M (16,777,216). The most values counted in a real block is 5,351,200 (de_boulder's world_physics PHYS), every node and typed-array element included; a value costs about 85 bytes of memory.</summary>
+        public const long DefaultMaxValues = 16L << 20;
 
-        /// <summary>The ceiling in force: the innermost <see cref="UseMaxUncompressedBytes"/>, else the default.</summary>
-        public static long MaxUncompressedBytes => maxUncompressedBytes.Value ?? DefaultMaxUncompressedBytes;
+        private static readonly System.Threading.AsyncLocal<(long Bytes, long Values)?> readLimits = new();
 
-        /// <summary>Lower the ceiling for this async flow until the result is disposed; never raises it.</summary>
-        public static IDisposable UseMaxUncompressedBytes(long bytes)
+        /// <summary>The byte limit in force: the innermost <see cref="UseReadLimits"/>, else the default.</summary>
+        public static long MaxUncompressedBytes => readLimits.Value?.Bytes ?? DefaultMaxUncompressedBytes;
+
+        /// <summary>The value limit in force: the innermost <see cref="UseReadLimits"/>, else the default.</summary>
+        public static long MaxValues => readLimits.Value?.Values ?? DefaultMaxValues;
+
+        /// <summary>Lower both limits for this async flow until the result is disposed; never raises either.</summary>
+        public static IDisposable UseReadLimits(long maxUncompressedBytes, long maxValues)
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(bytes);
-            var outer = maxUncompressedBytes.Value;
-            maxUncompressedBytes.Value = Math.Min(bytes, outer ?? DefaultMaxUncompressedBytes);
+            ArgumentOutOfRangeException.ThrowIfNegative(maxUncompressedBytes);
+            ArgumentOutOfRangeException.ThrowIfNegative(maxValues);
+            var outer = readLimits.Value;
+            readLimits.Value = (Math.Min(maxUncompressedBytes, MaxUncompressedBytes), Math.Min(maxValues, MaxValues));
             return new LimitScope(outer);
         }
 
-        private sealed class LimitScope(long? outer) : IDisposable
+        private sealed class LimitScope((long Bytes, long Values)? outer) : IDisposable
         {
             private bool disposed;
 
@@ -29,7 +38,7 @@
                 }
 
                 disposed = true;
-                maxUncompressedBytes.Value = outer;
+                readLimits.Value = outer;
             }
         }
 

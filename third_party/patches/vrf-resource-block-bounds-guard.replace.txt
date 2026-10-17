@@ -1,0 +1,9 @@
+                var offset = (uint)position + Reader.ReadUInt32();
+                var size = Reader.ReadUInt32();
+
+                // vpkstuff patch: every block reader bounds what it reads by this size, so a size
+                // past the end of the file defeated them all (one table field rented 1907 MB).
+                if ((long)offset + size > Reader.BaseStream.Length)
+                {
+                    throw new InvalidDataException($"Block {blockType} at {offset} declares {size} bytes, past the end of the {Reader.BaseStream.Length}-byte file; refusing to parse (malformed or hostile resource).");
+                }

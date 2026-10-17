@@ -1,0 +1,34 @@
+                case KV3BinaryNodeType.BINARY_BLOB:
+                    var length = reader.ReadInt32();
+                    // vpkstuff patch: ReadBytes allocates the requested length before reading, and
+                    // the length comes from the file; it must fit the data left.
+                    if (length < 0 || length > reader.BaseStream.Length - reader.BaseStream.Position)
+                    {
+                        throw new InvalidDataException($"KV3 binary blob declares {length} bytes; refusing to parse (malformed or hostile resource).");
+                    }
+
+                    return reader.ReadBytes(length);
+                case KV3BinaryNodeType.ARRAY:
+                    var arrayLength = reader.ReadInt32();
+                    var array = KVObject.Array(Math.Clamp(arrayLength, 0, 4096)); // vpkstuff patch: a length from the file is only a capacity hint here
+
+                    for (var i = 0; i < arrayLength; i++)
+                    {
+                        LegacyParseBinaryKV3(context, reader, array);
+                    }
+
+                    return array;
+                case KV3BinaryNodeType.ARRAY_TYPED:
+                    var typeArrayLength = reader.ReadInt32();
+                    var (subType, subFlagInfo) = LegacyReadType(reader);
+                    var typedArray = KVObject.Array(Math.Clamp(typeArrayLength, 0, 4096)); // vpkstuff patch: a length from the file is only a capacity hint here
+
+                    for (var i = 0; i < typeArrayLength; i++)
+                    {
+                        typedArray.Add(LegacyReadBinaryValue(context, subType, subFlagInfo, reader));
+                    }
+
+                    return typedArray;
+                case KV3BinaryNodeType.OBJECT:
+                    var objectLength = reader.ReadInt32();
+                    var newObject = KVObject.Collection(Math.Clamp(objectLength, 0, 4096)); // vpkstuff patch: a length from the file is only a capacity hint here

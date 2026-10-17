@@ -1,0 +1,13 @@
+            // Decompress SNAP block compression
+            var info = BlockCompress.GetDecompressedSize(reader);
+
+            // vpkstuff patch: VRF reads a SNAP entry in any file's block table, and this rented the
+            // declared size (up to 2 GB) from it. Hold it to the KV3 byte limit, and a stored copy
+            // to the block. Each particle attribute then reads at least 4 bytes per particle.
+            var snapRemaining = Offset + Size - reader.BaseStream.Position;
+            if (info.Size > ResourceTypes.BinaryKV3.MaxUncompressedBytes || (!info.IsCompressed && info.Size > snapRemaining))
+            {
+                throw new InvalidDataException($"Particle snapshot declares {info.Size} bytes in a block that holds {snapRemaining} (limit {ResourceTypes.BinaryKV3.MaxUncompressedBytes}); refusing to parse (malformed or hostile resource).");
+            }
+
+            var decompressed = ArrayPool<byte>.Shared.Rent(info.Size);

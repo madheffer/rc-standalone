@@ -1,0 +1,27 @@
+                case KV3BinaryNodeType.BINARY_BLOB:
+                    var length = reader.ReadInt32();
+                    return reader.ReadBytes(length);
+                case KV3BinaryNodeType.ARRAY:
+                    var arrayLength = reader.ReadInt32();
+                    var array = KVObject.Array(arrayLength);
+
+                    for (var i = 0; i < arrayLength; i++)
+                    {
+                        LegacyParseBinaryKV3(context, reader, array);
+                    }
+
+                    return array;
+                case KV3BinaryNodeType.ARRAY_TYPED:
+                    var typeArrayLength = reader.ReadInt32();
+                    var (subType, subFlagInfo) = LegacyReadType(reader);
+                    var typedArray = KVObject.Array(typeArrayLength);
+
+                    for (var i = 0; i < typeArrayLength; i++)
+                    {
+                        typedArray.Add(LegacyReadBinaryValue(context, subType, subFlagInfo, reader));
+                    }
+
+                    return typedArray;
+                case KV3BinaryNodeType.OBJECT:
+                    var objectLength = reader.ReadInt32();
+                    var newObject = KVObject.Collection(objectLength);

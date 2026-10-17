@@ -1,0 +1,41 @@
+        private static KVObject LegacyReadBinaryValue(Context context, KV3BinaryNodeType datatype, KVFlag flagInfo, BinaryReader reader)
+        {
+            // vpkstuff patch: the legacy reader recursed and counted with no bound: a deep file
+            // overflowed the stack (uncatchable), and a typed array of a zero-width type built
+            // billions of nodes from four bytes. Same limits as the modern reader.
+            if (++context.Depth > 512)
+            {
+                context.Depth--;
+                throw new InvalidDataException("KV3 nesting exceeds 512 levels; refusing to parse (malformed or hostile resource).");
+            }
+
+            // The reader is over the decompressed buffer, whatever the encoding, so its length is
+            // the block's real size; the budget is set from it at the root.
+            if (context.Nodes == 0)
+            {
+                context.NodeBudget = Math.Min((1 << 20) + 16L * reader.BaseStream.Length, MaxValues);
+            }
+
+            var budget = context.NodeBudget;
+            if (++context.Nodes > budget)
+            {
+                context.Depth--;
+                throw new InvalidDataException($"KV3 block holds more than {budget} values; refusing to parse (malformed or hostile resource).");
+            }
+
+            try
+            {
+                var result = LegacyReadValue(context, datatype, reader);
+
+                if (flagInfo != KVFlag.None)
+                {
+                    result.Flag = flagInfo;
+                }
+
+                return result;
+            }
+            finally
+            {
+                context.Depth--;
+            }
+        }

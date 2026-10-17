@@ -1,0 +1,7 @@
+                var numParticles = data.GetIntegerProperty("num_particles");
+
+                // vpkstuff patch: arrays of num_particles are allocated before any is read.
+                if (numParticles < 0 || numParticles > info.Size / 4)
+                {
+                    throw new InvalidDataException($"Particle snapshot declares {numParticles} particles in {info.Size} bytes; refusing to parse (malformed or hostile resource).");
+                }
