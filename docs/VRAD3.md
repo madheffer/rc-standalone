@@ -550,7 +550,9 @@ resourcecompiler's script runs one routine per volume: `lpv_type`,
   end x cell + min). The convergence test (lightmap_test_converged, the LPV
   combo: 3 x 3 x 3 cells a group; no valid cell is converged, two or fewer is
   not; else each face's luminance standard deviation within mean x err) runs
-  before pass 0 (err 0, writing 0) and before every pass from minspp on.
+  before pass 0 (err 0, writing 0), then at the start of each 16-pass
+  command list that begins at or past minspp (180036258; not between the
+  passes of a list).
   Each cell reads back as a 192-byte LpvLuxel:
   - six float4 ambient cube faces, RGB clamped at 0, written to the ambient
     cube image at column z x X + x, row face x Y + y;

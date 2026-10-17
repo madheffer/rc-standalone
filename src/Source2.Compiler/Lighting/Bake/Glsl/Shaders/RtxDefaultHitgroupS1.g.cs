@@ -472,7 +472,7 @@ public sealed class RtxDefaultHitgroupS1 : HitShader
         {
             payload.material.vAlbedo = f16vec3(ctx.TextureLod((int)(uint_(_467)), (int)(-1), _1049, 0.0f).xyz);
         }
-        payload.material.vAlbedo *= f16vec3(_1134.xyz);
+        payload.material.vAlbedo = f16vec3(payload.material.vAlbedo * f16vec3(_1134.xyz));
         payload.nInstance = int_(uint_(ctx.InstanceID));
     }
 }

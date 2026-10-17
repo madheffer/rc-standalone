@@ -130,7 +130,7 @@ public static class LightProbeVolumePost
                     }
                 }
         var r = occluded / total;
-        var f = MathF.Pow(r, 2f);
+        var f = Maps.LightPow.Pow(r, 2f); // tier0!V_powf (180083580 at 1800839bd)
         return ((1f - f) - 1f) * FaceWeights[face] + 1f;
     }
 
@@ -162,7 +162,8 @@ public static class LightProbeVolumePost
                                 continue;
                             var at = g.Texel(face, x, y, z);
                             float r = image[at], gr = image[at + 1], b = image[at + 2];
-                            if (!(5e-05f <= gr * 0.7152f + r * 0.2126f + b * 0.0722f))
+                            // comiss 5e-5, lum; ja (18008550c): a NaN luminance is not skipped.
+                            if (5e-05f > gr * 0.7152f + r * 0.2126f + b * 0.0722f)
                                 continue;
                             float sr = 0f, sg = 0f, sb = 0f;
                             var count = 0;

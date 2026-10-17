@@ -126,7 +126,15 @@ with `MSYS_NO_PATHCONV=1`.
 Main's texture files (`Lz4`, `Texture/Rc/*`, `Native/bc7e`) are copies of
 main's. Any fix there has to land on main too, or stay identical to it.
 
-### M3. LPV bake fidelity (+3%)
+### M3. LPV bake fidelity (+3%): done 2026-10-18
+
+F35, F36, F41, F42, F43, F44 and F45 are verified against the
+disassembly and fixed (ledger 76). F40 stays latent (needs err > 0). With
+M1's layout, ze_hold_em_p's eight volumes are at 0.997 to 1.000 of Valve
+after the post (the 1.12 to 1.22 excess is gone). The remaining per-texel
+difference looks like GPU float evaluation (not isolated yet); see ledger
+76 on what byte parity of baked lighting can mean.
+
 
 - **F35**: the SFMT draw scale. vrad3 multiplies by 0x2f7ffffd, not 2^-32.
   Confirm it in the disassembly; probe01's masks may be insensitive to it.

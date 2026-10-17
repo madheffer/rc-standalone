@@ -1522,7 +1522,7 @@ public abstract class RtxVrad3LightmapS0F0 : RaygenShader
 #if RGTRAP
         Trap(_558, 983);
 #endif
-                    vec3 _1719 = new vec3(mix(f16vec3(_447), _450, f16vec3(_451)));
+                    vec3 _1719 = new vec3(f16vec3(mix(f16vec3(_447), _450, f16vec3(_451))));
 #if RGTRAP
         Trap(_1719, 984);
 #endif
@@ -1594,7 +1594,10 @@ public abstract class RtxVrad3LightmapS0F0 : RaygenShader
                     {
                         if ((_552 & 256) != 0)
                         {
-                            _381 *= f16(_556);
+                            _381 = f16vec3(_381 * f16(_556));
+#if RGTRAP
+        Trap(_381, 1008);
+#endif
                         }
                         else
                         {
@@ -2025,7 +2028,7 @@ public abstract class RtxVrad3LightmapS0F0 : RaygenShader
 #if RGTRAP
         Trap(_573, 1153);
 #endif
-                                vec3 _1986 = new vec3(mix(f16vec3(_460), _463, f16vec3(_464)));
+                                vec3 _1986 = new vec3(f16vec3(mix(f16vec3(_460), _463, f16vec3(_464))));
 #if RGTRAP
         Trap(_1986, 1154);
 #endif
@@ -2097,7 +2100,10 @@ public abstract class RtxVrad3LightmapS0F0 : RaygenShader
                                 {
                                     if ((_567 & 256) != 0)
                                     {
-                                        _389 *= f16(_571);
+                                        _389 = f16vec3(_389 * f16(_571));
+#if RGTRAP
+        Trap(_389, 1178);
+#endif
                                     }
                                     else
                                     {
@@ -3815,7 +3821,7 @@ public abstract class RtxVrad3LightmapS0F0 : RaygenShader
                                     }
                                     else
                                     {
-                                        vec3 _3209 = new vec3(mix(f16vec3(_468), _470, f16vec3(_471)));
+                                        vec3 _3209 = new vec3(f16vec3(mix(f16vec3(_468), _470, f16vec3(_471))));
 #if RGTRAP
         Trap(_3209, 1940);
 #endif
@@ -5565,7 +5571,7 @@ public abstract class RtxVrad3LightmapS0F0 : RaygenShader
                                 }
                                 else
                                 {
-                                    vec3 _4449 = new vec3(mix(f16vec3(_475), _477, f16vec3(_478)));
+                                    vec3 _4449 = new vec3(f16vec3(mix(f16vec3(_475), _477, f16vec3(_478))));
 #if RGTRAP
         Trap(_4449, 2727);
 #endif
@@ -6622,7 +6628,7 @@ public abstract class RtxVrad3LightmapS0F0 : RaygenShader
                             }
                             else
                             {
-                                vec3 _5054 = new vec3(mix(f16vec3(_406), _408, f16vec3(_409)));
+                                vec3 _5054 = new vec3(f16vec3(mix(f16vec3(_406), _408, f16vec3(_409))));
 #if RGTRAP
         Trap(_5054, 3202);
 #endif

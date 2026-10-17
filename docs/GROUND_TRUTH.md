@@ -1011,7 +1011,56 @@ game can answer is raised with the user first, and runs with -insecure.
       probe volumes to 0.94 to 0.997. The only_c12, only_c9 and
       only_slabs scenes give 0.99.
     - A second, independent port (RtxVertexLayout) gave identical bytes on
-      all 90 meshes of probe01 and ze_hold_em_p.
+      all 90 meshes of probe01 and ze_hold_em_p. It was then folded into
+      SceneVertexLayout: every float op and constant from the
+      disassembly, cvttss2si semantics (0x80000000 for a NaN or out of
+      range) where .NET 10's casts saturate, aa730's dedupe on name,
+      index, format, offset, slot and instanced, the -1 lookup and slot
+      check of 180093f10, and the writer's running offset. aa730's second
+      loop matches the field name against the table's Semantic (+0) and
+      its own index (+0x14), so a PerVertexLighting attribute stays as
+      color 1 (R16G16B16A16_FLOAT, 8 bytes): no hit shader reads it, but
+      it is in the stride. scenesystem's 180567b00 / 18015e140 equal the
+      resourcecompiler ports TangentFrame.Compress (2M random and edge
+      frames) and WorldNodeModels.ToHalf (all 2^32 floats).
+
+76. **Light probe volume bake details** (settled 2026-10-18 by
+    disassembly; review findings F35, F36, F41 to F45).
+    - F35: both LPV passes scale the SFMT words by the float at
+      0x1802a7e88, 0x2f7ffffd (loaded 1800328aa and 1800361e2), three
+      ulps under 2^-32, then add +0. Offset x is the third draw, y the
+      second, z the first.
+    - F36: lpv_compute_block_gpu (180035e80) tests convergence at the
+      top of each command list (180036258: pass 0, or a list starting at
+      or past minspp); a list runs up to 16 passes (180036830 to
+      1800369c3) with no test in between.
+    - F41: the flood fill's origin cell (1800323f0) is floorf, then
+      cvttss2si, then negative to 0, else min(n - 1).
+    - F42: the AO factor's (occluded / total)^2 is tier0's V_powf
+      (1800839bd, exponent from +0x320).
+    - F43: the firefly detect skips a cell only when 5e-5 > luminance
+      (comiss / ja at 18008550c): a NaN luminance is processed.
+    - F44: SPIR-V Cross leaves two kinds of half arithmetic unconverted
+      in vrad3's shaders: compound assignments to half values (emissive
+      times fEmissiveBoost in the raygens, albedo times the vertex colour
+      in rtx_default_hitgroup) and mix() of half arguments (the
+      reflectance blend). glsl_to_cs.py now rounds their results to half.
+      How the GPU evaluates the half mix inside (FMA, intermediate
+      rounding) is not known; only the result is rounded.
+    - F45: a GLSL array declared from another array copies it (Clone).
+    - F40 (stale luxels past X*Y*Z in the convergence test) is left: it
+      needs err > 0, and resourcecompiler's script bakes 64 / 64, which
+      tests only at pass 0 with err 0.
+    - Measured (CpuBakeTests CPUBAKE_LPV=all): probe01's two volumes at
+      0.998 to 1.000 of Valve per band, 39 to 56% of noisy texels
+      bit-identical and 84 to 90% within 1%; ze_hold_em_p's eight
+      volumes after the post at 0.997 to 1.000, 14 to 93% bit-identical.
+      The rest is most likely the GPU's float evaluation (FMA
+      contraction, hardware rcp / rsqrt) feeding the path tracer; not yet
+      isolated. If so, vrad3's own output depends on the GPU it ran on
+      (Valve's bake is deterministic on one GPU; a second GPU is not
+      tested), and byte parity of baked lighting can only be defined
+      against that GPU.
 
 ## Resolved
 

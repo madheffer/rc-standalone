@@ -412,7 +412,7 @@
    "addr": "180032850",
    "name": "LightProbeGrid_VoxelizeGpu",
    "module": "s2c:baked/vrad3",
-   "note": "32 passes: pass, three random offsets, box and local-to-world; occupancy read back (18002a320)"
+   "note": "32 passes: pass, three random offsets (SFMT words times 0x2f7ffffd at 0x1802a7e88, plus 0; x the third draw, z the first), box and local-to-world; occupancy read back (18002a320)"
   },
   {
    "addr": "180083580",
@@ -490,7 +490,7 @@
    "addr": "180035e80",
    "name": "LightProbeGrid_ComputeBlockGpu",
    "module": "s2c:baked/vrad3",
-   "note": "lpv_compute_block_gpu and _fog_gpu (fog flag): passes up to maxspp, convergence from minspp; reads back 192-byte LpvLuxel cells"
+   "note": "lpv_compute_block_gpu and _fog_gpu (fog flag): command lists of up to 16 passes up to maxspp, the convergence test at the top of a list (pass 0, or a list starting at or past minspp: 180036258); offsets scaled by 0x2f7ffffd; reads back 192-byte LpvLuxel cells"
   },
   {
    "addr": "180081560",

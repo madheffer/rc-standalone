@@ -100,7 +100,7 @@
    "addr": "1804ac280",
    "name": "CMesh_WriteVertexField",
    "module": "s2c:baked/vrad3",
-   "note": "blend fields; with a packed normal, CompressTangentFrame (180567b00) of normal and tangent (default 0,0,1,1); pervertexlighting four halves; lightmapuv unorm16 of x*65535 clamped; VertexGenericIntegerData and TanFrameQuat raw; else colour from (0,0,0,1) or min(components, size) values through 1804aa4e0 with the format table 1805ad070"
+   "note": "blend fields; with a packed normal, CompressTangentFrame (180567b00) of normal and tangent (default 0,0,1,1); pervertexlighting four halves; lightmapuv unorm16 of minss(maxss(x*65535, 0), 65535) truncated; VertexGenericIntegerData raw; TanFrameQuat ((x | 0x400 if w < 0) << 10 | y) << 10 | z, each clamp(-1, 1) * 0.5 + 0.5 times 1023 truncated; else colour from (0,0,0,1) or min(components, size) values through 1804aa4e0 with the format table 1805ad070"
   },
   {
    "addr": "1804aa4e0",
@@ -125,6 +125,18 @@
    "name": "CompressTangentFrame",
    "module": "s2c:baked/vrad3",
    "note": "same code as resourcecompiler 182067e80"
+  },
+  {
+   "addr": "18049aba0",
+   "name": "Vector_Basis",
+   "module": "s2c:baked/vrad3",
+   "note": "as resourcecompiler 18125a6c0 (read from both disassemblies): s = n.z >= 0 ? 1 : -1 (NaN -1), a = -1 / (n.z + s); first ((x s) x) a + 1, (x y a) s, -s x; second x y a, (y y) a + s, -y"
+  },
+  {
+   "addr": "1804a0060",
+   "name": "AsinApprox",
+   "module": "s2c:baked/vrad3",
+   "note": "as resourcecompiler 181272450 (read from both disassemblies): copysign(|((((0.430477 - 0.0594935|x|)|x| - 1.24068)|x| + 0.216183)|x| + 1.00008) / (1 - 0.779384|x|) - sqrt(1 - x^2)|, x)"
   },
   {
    "addr": "18009c320",

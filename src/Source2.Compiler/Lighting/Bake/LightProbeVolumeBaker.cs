@@ -27,7 +27,8 @@ namespace Source2.Compiler.Lighting.Bake;
 /// volume, three new SFMT draws (a second generator, same seed), the region's
 /// start and the grid's cell counts packed 16:16, filter radius 1 and the
 /// region's box. The convergence test (lightmap_test_converged, the LPV
-/// combo) runs before pass 0 and before every pass from minspp on.</item>
+/// combo) opens each 16-pass command list: pass 0, then each list that
+/// starts at or past minspp.</item>
 /// <item>The readback: each cell's six ambient cube faces (RGB, at least 0)
 /// into the ambient cube image at column z X + x, row face Y + y; the baked
 /// shadow slots as sum / weight with their light index.</item>
@@ -59,7 +60,9 @@ public sealed class LightProbeVolumeBaker(BakeScene scene, BakeHits hits, ushort
     public Action<string>? Log { get; init; }
 
     private const uint Seed = 0xea213b00;
-    private const float TwoPowMinus32 = 1f / 4294967296f;
+    // The draw scale vrad3 multiplies the SFMT words by (0x1802a7e88, read at 1800328aa and 1800361e2):
+    // 0x2f7ffffd, three ulps under 2^-32, so a draw of 0xffffffff gives 0.9999998, never 1.
+    private static readonly float DrawScale = BitConverter.UInt32BitsToSingle(0x2f7ffffd);
 
     public Result Bake(Volume v, int minSpp = 512, int maxSpp = 1024, float error = 0.02f)
     {
@@ -111,7 +114,12 @@ public sealed class LightProbeVolumeBaker(BakeScene scene, BakeHits hits, ushort
         // lpv_flood_fill
         var seedCell = new int[3];
         for (var a = 0; a < 3; a++)
-            seedCell[a] = Math.Clamp((int)MathF.Floor((0f - bmin[a]) / ((bmax[a] - bmin[a]) / bn[a])), 0, bn[a] - 1);
+        {
+            // 1800323f0: floorf, cvttss2si (NaN or out of range gives 0x80000000), then negative -> 0, else min(n - 1).
+            var q = MathF.Floor((0f - bmin[a]) / ((bmax[a] - bmin[a]) / bn[a]));
+            var i = float.IsNaN(q) || q >= 2147483648f || q < -2147483648f ? int.MinValue : (int)q;
+            seedCell[a] = i < 0 ? 0 : Math.Min(i, bn[a] - 1);
+        }
         var seed = (seedCell[2] * bn[1] + seedCell[1]) * bn[0] + seedCell[0];
         var start = NearestEmpty(occupied, bn, seed, 8);
         if (start < 0)
@@ -143,7 +151,9 @@ public sealed class LightProbeVolumeBaker(BakeScene scene, BakeHits hits, ushort
         var shared = new ComputeRaygen(scene, hits, mask, luxels, converged, n, instances, globals, lights, bins);
         for (var pass = 0; pass < maxSpp; pass++)
         {
-            if (pass == 0 || minSpp <= pass)
+            // The test opens each command list of up to 16 passes (180036258: pass 0, or a list
+            // starting at or past minspp); the passes inside a list (180036830..1800369c3) skip it.
+            if (pass % 16 == 0 && (pass == 0 || minSpp <= pass))
                 TestConverged(luxels, converged, n, pass == 0 ? 0f : error);
             var random = HaltonSamples.Generate(haltonPermutations, (uint)pass);
             var d1 = rng.Next();
@@ -192,7 +202,7 @@ public sealed class LightProbeVolumeBaker(BakeScene scene, BakeHits hits, ushort
         return new Result { AmbientCube = image, Width = w, Height = h, ShadowIds = ids, Shadow = shadow, SolidMask = mask, SolidAfterVoxelize = solidAfterVoxelize };
     }
 
-    private static vec4 Offset(uint d1, uint d2, uint d3) => new((float)d3 * TwoPowMinus32 + 0f, (float)d2 * TwoPowMinus32 + 0f, (float)d1 * TwoPowMinus32 + 0f, 0f);
+    private static vec4 Offset(uint d1, uint d2, uint d3) => new((float)d3 * DrawScale + 0f, (float)d2 * DrawScale + 0f, (float)d1 * DrawScale + 0f, 0f);
 
     private static readonly (int X, int Y, int Z)[] Neighbours = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (-1, 0, 0), (0, -1, 0), (0, 0, -1)];
 

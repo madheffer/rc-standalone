@@ -1123,7 +1123,7 @@ public abstract class RtxVrad3LpvS0F1 : RaygenShader
 #if RGTRAP
         Trap(_524, 824);
 #endif
-                vec3 _1544 = new vec3(mix(f16vec3(_430), _433, f16vec3(_434)));
+                vec3 _1544 = new vec3(f16vec3(mix(f16vec3(_430), _433, f16vec3(_434))));
 #if RGTRAP
         Trap(_1544, 825);
 #endif
@@ -1195,7 +1195,10 @@ public abstract class RtxVrad3LpvS0F1 : RaygenShader
                 {
                     if ((_518 & 256) != 0)
                     {
-                        _359 *= f16(_522);
+                        _359 = f16vec3(_359 * f16(_522));
+#if RGTRAP
+        Trap(_359, 849);
+#endif
                     }
                     else
                     {
@@ -1626,7 +1629,7 @@ public abstract class RtxVrad3LpvS0F1 : RaygenShader
 #if RGTRAP
         Trap(_539, 994);
 #endif
-                            vec3 _1811 = new vec3(mix(f16vec3(_443), _446, f16vec3(_447)));
+                            vec3 _1811 = new vec3(f16vec3(mix(f16vec3(_443), _446, f16vec3(_447))));
 #if RGTRAP
         Trap(_1811, 995);
 #endif
@@ -1698,7 +1701,10 @@ public abstract class RtxVrad3LpvS0F1 : RaygenShader
                             {
                                 if ((_533 & 256) != 0)
                                 {
-                                    _367 *= f16(_537);
+                                    _367 = f16vec3(_367 * f16(_537));
+#if RGTRAP
+        Trap(_367, 1019);
+#endif
                                 }
                                 else
                                 {
@@ -3416,7 +3422,7 @@ public abstract class RtxVrad3LpvS0F1 : RaygenShader
                                 }
                                 else
                                 {
-                                    vec3 _3034 = new vec3(mix(f16vec3(_451), _453, f16vec3(_454)));
+                                    vec3 _3034 = new vec3(f16vec3(mix(f16vec3(_451), _453, f16vec3(_454))));
 #if RGTRAP
         Trap(_3034, 1781);
 #endif
@@ -5166,7 +5172,7 @@ public abstract class RtxVrad3LpvS0F1 : RaygenShader
                             }
                             else
                             {
-                                vec3 _4274 = new vec3(mix(f16vec3(_458), _460, f16vec3(_461)));
+                                vec3 _4274 = new vec3(f16vec3(mix(f16vec3(_458), _460, f16vec3(_461))));
 #if RGTRAP
         Trap(_4274, 2568);
 #endif
@@ -6223,7 +6229,7 @@ public abstract class RtxVrad3LpvS0F1 : RaygenShader
                         }
                         else
                         {
-                            vec3 _4879 = new vec3(mix(f16vec3(_389), _391, f16vec3(_392)));
+                            vec3 _4879 = new vec3(f16vec3(mix(f16vec3(_389), _391, f16vec3(_392))));
 #if RGTRAP
         Trap(_4879, 3043);
 #endif
@@ -8925,7 +8931,7 @@ public abstract class RtxVrad3LpvS0F1 : RaygenShader
             }
             if (g_PushConstants.m_nEstimate > 0)
             {
-                vec4[] _471 = _486;
+                vec4[] _471 = (vec4[])_486.Clone();
 #if RGTRAP
         Trap(_471, 4182);
 #endif
