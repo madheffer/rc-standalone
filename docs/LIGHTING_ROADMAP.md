@@ -150,6 +150,17 @@ difference looks like GPU float evaluation (not isolated yet); see ledger
   Also check the lightmap raygen and the hit groups for the same pattern.
 - **F45**: the transpiler aliases GLSL arrays; they must copy.
 
+### Lightmap bake, 2026-10-18 (after M3)
+
+- Materials without an rtx program run Valve's rtx_default_hitgroup with
+  180098cd0's block, and samples go through Valve's own validation shader
+  (ledger 77): ze_hold_em_p block 5's luxel normals now equal Valve's raw
+  image, AO correlation 0.967, probe01's probe volumes 32 to 50% of texels
+  bit-identical.
+- Open: the irradiance noise per luxel follows Valve's only without
+  textured materials (ledger 78). Next step: GPU-side ground truth for one
+  material's hit (capture or a probe shader on the RTX 4070).
+
 ### M4. Unported vrad3 features (+9%)
 
 Take these in the order the ze maps need them.

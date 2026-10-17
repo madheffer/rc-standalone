@@ -54,4 +54,38 @@ public class DefaultHitGroupTests(ITestOutputHelper output)
             output.WriteLine($"  floats {string.Join(" ", info.Floats.Select(t => $"{t.Key}={t.Value}"))}");
         }
     }
+
+    /// <summary>A texture's format and its decoded channels' ranges as the bake loads it (<c>BAKETEX=&lt;vtex path&gt;[;...]</c>).</summary>
+    [Fact]
+    public void TextureChannels()
+    {
+        if (Environment.GetEnvironmentVariable("BAKETEX") is not { } paths || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        using var content = new GameContent(pak);
+        foreach (var path in paths.Split(';'))
+        {
+            var bytes = content.Read(path + "_c");
+            if (bytes == null)
+            {
+                output.WriteLine($"{path}: missing");
+                continue;
+            }
+            using var res = new ValveResourceFormat.Resource();
+            res.Read(new MemoryStream(bytes));
+            var tex = (ValveResourceFormat.ResourceTypes.Texture)res.DataBlock!;
+            output.WriteLine($"{path}: {tex.Format} {tex.Width}x{tex.Height} mips {tex.NumMipLevels} flags {tex.Flags}");
+            var t = Lighting.Bake.RtxScene.LoadTexture(bytes, false)!;
+            var m = t.Mips[0];
+            for (var c = 0; c < 4; c++)
+            {
+                float lo = float.MaxValue, hi = float.MinValue, sum = 0;
+                foreach (var v in m)
+                {
+                    var x = c switch { 0 => v.x, 1 => v.y, 2 => v.z, _ => v.w };
+                    lo = Math.Min(lo, x); hi = Math.Max(hi, x); sum += x;
+                }
+                output.WriteLine($"  channel {"RGBA"[c]}: min {lo:F4} max {hi:F4} mean {sum / m.Length:F4}");
+            }
+        }
+    }
 }

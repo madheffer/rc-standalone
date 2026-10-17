@@ -608,7 +608,9 @@ public sealed class RtxScene
                     notes.Add($"{material}: {program.Shader} rtx combo {combo} is not transpiled; the default hit group stands in");
                 else
                 {
-                    var bytes = MaterialBlock(program, combo, info, Texture, Sampler);
+                    // CPUBAKE_MATDUMP=1: every variable the block writes, as a note (a check against the vmat).
+                    var bytes = MaterialBlock(program, combo, info, Texture, Sampler,
+                        Environment.GetEnvironmentVariable("CPUBAKE_MATDUMP") == "1" ? line => notes.Add($"  {material} {line}") : null);
                     while (data.Count % 16 != 0)
                         data.Add(0);
                     var offset = (uint)data.Count;
@@ -700,7 +702,7 @@ public sealed class RtxScene
 
     // The material's _RTX_MATERIAL_DATA_ block: each field from its rtx variable (artist value, default or expression).
     private static byte[] MaterialBlock(RtxShaderLibrary.Program program, long combo, SettleWorld.MaterialInfo info,
-                                        Func<string?, bool, bool, int> texture, Func<BindlessSampler, int> sampler)
+                                        Func<string?, bool, bool, int> texture, Func<BindlessSampler, int> sampler, Action<string>? log = null)
     {
         var vars = program.Rtx.VariableDescriptions;
         var features = program.Features.StaticComboArray.Select(f => info.Params.TryGetValue(f.Name, out var v) ? (int)v : 0).ToArray();
@@ -757,15 +759,21 @@ public sealed class RtxScene
             if (desc.VfxType == VfxVariableType.Texture2DIndex)
             {
                 info.Textures.TryGetValue(desc.Name, out var path);
-                BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(at), texture(path, desc.SrgbRead, desc.Name.Contains("Normal", StringComparison.OrdinalIgnoreCase)));
+                var index = texture(path, desc.SrgbRead, desc.Name.Contains("Normal", StringComparison.OrdinalIgnoreCase));
+                BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(at), index);
+                log?.Invoke($"{desc.Name} @{at}: texture {index} {path ?? "(none)"}{(desc.SrgbRead ? " srgb" : "")}");
                 continue;
             }
             if (desc.VfxType == VfxVariableType.SamplerStateIndex)
             {
-                BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(at), sampler(SamplerFor(desc.Name, Value)));
+                var state = SamplerFor(desc.Name, Value);
+                BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(at), sampler(state));
+                log?.Invoke($"{desc.Name} @{at}: sampler {state}");
                 continue;
             }
-            Write(bytes, at, desc.VfxType, Value(desc.Name) ?? [0f]);
+            var v = Value(desc.Name) ?? [0f];
+            Write(bytes, at, desc.VfxType, v);
+            log?.Invoke($"{desc.Name} @{at}: {desc.VfxType} {string.Join(" ", v.Select(x => x.ToString("G6", System.Globalization.CultureInfo.InvariantCulture)))}");
         }
         return bytes;
     }

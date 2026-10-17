@@ -1090,7 +1090,32 @@ game can answer is raised with the user first, and runs with -insecure.
       correlation 0.866 to 0.967, ratio 0.990 to 0.998. Irradiance per luxel
       is still uncorrelated (0.31 to 0.39) at the same mean (0.989 to
       0.991): the light bins are the next suspect (RaygenHost puts every
-      light in one bin; vrad3 bins them with rtx_binlights).
+      light in one bin; vrad3 bins them with rtx_binlights). Read since:
+      the raygen evaluates every light of the (wave-ORed) bin mask with a
+      clip-space cull per light, so the bins cannot decorrelate the noise;
+      see 78.
+
+78. **Where the lightmap noise still parts from Valve's** (measured
+    2026-10-18 on ze_hold_em_p block 5 against Valve's raw images of the
+    scene variants; open).
+    - All materials reflectivity_30 (refl30all): irradiance correlation per
+      luxel 0.972, AO 0.993. With the real materials: 0.31 to 0.39. Per
+      material (only_<name>, the rest reflectivity_30): tintdark
+      (csgo_lightmappedgeneric) 0.931, slabs (csgo_simple_2way_blend, the
+      floor) 0.667. So the divergence is in the material hit shading, and
+      the means still agree (0.989 to 0.996).
+    - Our own bake against itself with every hit albedo times 1.003: 0.957.
+      The material outputs therefore differ by much more than a rounding.
+    - Ruled out on the slabs: bilinear weights quantised to 1/256 (as
+      NVIDIA filters) leave the correlation unchanged (0.625 to 0.624); the
+      block's texture, sampler and constant writes (CPUBAKE_MATDUMP=1) match
+      the vmat; the normal maps decode as BC7 with roughness in B (0.29 to
+      1.0 and about 0.10), the mask as BC4; no hit shader uses a random
+      number.
+    - Not yet checked: everything every textureLod reads at mip 0 in
+      Valve's GPU run. That needs GPU-side ground truth (a Frida or
+      RenderDoc capture of one pass, or a probe shader on the PC's RTX 4070,
+      which made the captures).
 
 78. **Lightmap textures at every compile option** (settled 2026-10-18 by
     decompile and byte comparison with Valve's probe01 builds at
