@@ -109,8 +109,11 @@ public sealed class Light
             max = new Vector3(PathTraceBounds.MinSs(max.X, bmax.X), PathTraceBounds.MinSs(max.Y, bmax.Y), PathTraceBounds.MinSs(max.Z, bmax.Z));
         }
         else
-            // No volume (18009347c): orientation zero, extents FLT_MAX (not yet checked against a capture).
+        {
+            // No volume (18009347c): the identity orientation, extents FLT_MAX (capture_host.py, probe01's sun).
+            l.IlluminationOrientation = new Vector4(0f, 0f, 0f, 1f);
             l.IlluminationExtent = new Vector4(float.MaxValue, float.MaxValue, float.MaxValue, 0f);
+        }
         (l.MinBounds, l.MaxBounds) = (new Vector4(min, 0f), new Vector4(max, 0f));
         return l;
     }

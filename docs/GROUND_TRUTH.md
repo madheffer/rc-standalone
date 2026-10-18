@@ -1356,24 +1356,81 @@ game can answer is raised with the user first, and runs with -insecure.
       count word over 0.5f, the flags word over 1.0f (only their low bits
       are written), the four baked shadow values 1.0f. lightmap_data.dat
       is then identical for the block.
-    - The NVIDIA driver's pipeline creation is not repeatable: the first
-      creation of the lightmap ray tracing pipeline in a process gives code
-      whose lighting sums part from vrad3's by 1 to 3 ulps on 7% of the
-      block's luxels (irradiance, SH, quadratics; AO, normals and shadows
-      equal); creating the same pipeline again while the first is alive
-      gives code that is bit-identical to vrad3. Destroying the first,
-      waiting 15 s, warming the BVHs or the raster pipelines, or disabling
-      the shader disk cache does not; a second host in the process does.
-      RtxBakeHost now creates every ray tracing pipeline twice and keeps
-      the first. Whether vrad3 gets its code by the same route (a pipeline
-      cache, a second creation) is not read yet; any other GPU or driver
-      must be checked the same way.
-    - Result: ze_hold_em_p block 5 baked on the RTX 4070 is identical to
-      vrad3's raw image in all 13 channels and in lightmap_data.dat, run
-      after run.
-    - Still open: other blocks and maps (small charts: their compute pass
-      is still the CPU's), coloured tints, and the post-process EXR
-      writers' tie rounding (not yet checked on a tie).
+    - The NVIDIA driver compiles a ray tracing pipeline into one of two
+      code variants whose lighting sums part by 1 to 3 ulps; which one
+      depends on how the pipeline is created. A second creation in the
+      process happened to give vrad3's; that workaround is gone. RtxBakeHost
+      now creates them as vrad3 does (tools/vrad3/capture_pipelines.py):
+      - a deferred operation joined by worker threads (max concurrency 17);
+      - an empty VkPipelineCache, flags 0, recursion depth 1, no dynamic
+        state;
+      - one stage per group: the raygen, every hit program's ray 0 stage,
+        then every ray 1 stage; the two rtx_default_hitgroup programs first;
+      - the three pipelines in vrad3's order: rtx_binlights (with every hit
+        group), rtx_vrad3_lightmap, rtx_vrad3_lightmap_sample_validation.
+    - The lightmap raygen is rtx_vrad3_lightmap's S_EXECUTION_REORDERING 1
+      combo (md5 of the module vrad3 creates: 183491771659...), since
+      rendersystem enables VK_NV_ray_tracing_invocation_reorder (feature
+      1000490000 on) wherever the device has it. GpuDevice enables it too.
+      Running combo 0 left 6 AO values in 4 ze_hold_em_p blocks one AO ray
+      off: a ray meeting a plane at t = 16.00015 against tMax 16, flipped by
+      a one-ulp origin.
+    - The other hit program order, after the two defaults, is not read yet
+      (vrad3: complex 2560, complex 0, complex 5120, 2way blend; ours goes
+      by first use). The output does not depend on it on ze_hold_em_p.
+    - Acceleration structures (tools/vrad3/capture_accel.py):
+      - one BLAS per mesh, flags PREFER_FAST_TRACE | ALLOW_COMPACTION;
+      - geometry flag NO_DUPLICATE_ANY_HIT_INVOCATION, R32G32B32 positions
+        straight from each mesh's vertex buffer (its stride), uint32
+        indices, no transform;
+      - all sized and created first, then each built with a compacted-size
+        query, then all compacted with COMPACT copies;
+      - the TLAS: PREFER_FAST_TRACE, instance flags 0, masks 0x11 / 0x1f;
+        custom index and SBT offset (2 x instance) per instance, with
+        GeometryInfo_t per instance (copies of the mesh's).
+      Ours keeps per-mesh custom indices and per-program SBT records, which
+      read the same data.
+    - GeometryInfo_t's m_nVertexAndIndexBuffers is (mesh, -1, -1, mesh) in
+      every capture.
+    - Set 3's samplers are immutable in the descriptor set layout
+      (capture_samplers.py, vkCreateDescriptorSetLayout):
+      - g_Sampler: linear, nearest mip, wrap;
+      - g_CookieSampler: linear, nearest mip, clamp to a transparent black
+        border.
+      Clamping g_Sampler darkened probe01's bounce light to 70% through
+      rtx_default_hitgroup's textureLod on tiled dev textures.
+    - A scene without an ibl block gets sky light flags 0. A light without
+      an illumination volume gets the identity orientation (0, 0, 0, 1).
+    - The scene's two BRDF LUT indices (248, 250) are read by no shader.
+    - Readback: 180030100 normalises the normal with VectorNormalize
+      (18003d0c0: length sqrt((y y + z z) + x x), times 1 / length) and takes
+      the tangent's length as x x + (y y + z z).
+    - std::sort's order for BlockGeometry's tiles: MsvcSort ports MSVC's
+      introsort move for move. MsvcSortTests checks it against hashes from
+      tools/re/msvc_sort_reference.cpp, built with MSVC.
+    - Result, ze_hold_em_p: all 16 blocks baked on the RTX 4070 are
+      identical to vrad3's raw image in all 13 channels and in
+      lightmap_data.dat. vrad3 itself repeats bit for bit (two runs of the
+      whole map compared).
+    - Result, probe01 with its ibl block stripped from both sides
+      (vrad3_variant.py --strip-key ibl): all 16 blocks identical. The IBL
+      cube map is not uploaded to the GPU yet.
+    - Small charts: Valve's lightmap_generate_small_chart_samples now runs
+      on the GPU (RtxBakeSmallCharts). On cs_script_demo block 12 its inputs
+      equal vrad3's word for word (tools/vrad3/capture_smallcharts.py):
+      vertices, tile starts, areas and $Globals with its hole at 0.
+    - g_nRNGOffsetX / Y are the generation's next two SFMT words, but
+      rendersystem writes int attributes clamped to the variable
+      description's default range [-999999999, 999999999]
+      (rendersystemvulkan 180254550; the VCS files declare +-1e9). The
+      second generation's words 2014350870 and -1313486101 reached the
+      shader as 999999999 and -999999999. With LightmapBaker.RenderInt
+      clamping the same way, block 12 is identical at 16 samples.
+    - ze_hold_em_p's 346 and probe01's 3 small charts are all zero-area
+      triangles, which the block clip drops, so neither map exercises this
+      pass.
+    - Still open: coloured tints, the IBL cube map, and the post-process
+      EXR writers' tie rounding (not yet checked on a tie).
 
 ## Resolved
 

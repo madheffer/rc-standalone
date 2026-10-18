@@ -76,6 +76,14 @@ public class GpuBakeTests(ITestOutputHelper output)
                     output.WriteLine($"{name}: {d.VariableSource} {d.VfxType}: {(d.CompiledExpression.Length > 0 ? ValveResourceFormat.CompiledShader.ShaderUtilHelpers.ParseDynamicExpression(d.CompiledExpression) : "(none)")}");
                 continue;
             }
+            if (name.StartsWith("vars:", StringComparison.Ordinal))
+            {
+                // vars:<shader>: a compute program's variables with their declared int ranges and defaults.
+                var cs = lib.ProgramFile(name[5..], "cs") ?? throw new FileNotFoundException(name);
+                foreach (var d in cs.VariableDescriptions)
+                    output.WriteLine($"{name}: {d.Name} {d.VfxType} source {d.VariableSource} ints def [{string.Join(",", d.IntDefs)}] min [{string.Join(",", d.IntMins)}] max [{string.Join(",", d.IntMaxs)}]");
+                continue;
+            }
             if (name.StartsWith("cs:", StringComparison.Ordinal))
             {
                 // cs:<shader>: a compute program's static combo 0 bindings.

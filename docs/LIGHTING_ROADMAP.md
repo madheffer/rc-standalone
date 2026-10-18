@@ -267,13 +267,38 @@ the GPU, each sample generation starts empty, AO starts at 1. Block 5 is now
 bit-identical to Valve on 99.99% of luxels at 1 to 16 samples (54 of 826,931
 differ at 16, one half step each: the colour matrix). Since then block 5 is fully identical (13 channels and lightmap_data.dat,
 every run): the colour matrices are exact, the image writer rounds half ties
-away from zero, the records start as vrad3's, and the ray tracing pipelines
-are created twice (the NVIDIA driver's first creation in a process gives
-code 1 to 3 ulps off; ledger 80). Left for the GPU bake:
+away from zero, and the records start as vrad3's.
+
+Later on 10-18 (ledger 80), every block matches:
+- **The pipelines** are created as vrad3 creates them: a deferred
+  operation, a pipeline cache, vrad3's stage and pipeline order, and the
+  S_EXECUTION_REORDERING 1 raygen with VK_NV_ray_tracing_invocation_reorder
+  on.
+- **The BLASes** are built and compacted as vrad3 builds them.
+- **Host inputs:** set 3's samplers are vrad3's immutable ones (wrap for
+  g_Sampler); a scene with no ibl gets sky flags 0, and a light with no
+  volume gets an identity orientation.
+- **Readback** uses VectorNormalize.
+- **Tile order:** BlockGeometry's tiles go through a port of MSVC's
+  std::sort.
+- **Small charts** run Valve's lightmap_generate_small_chart_samples on
+  the GPU, its RNG offsets clamped as rendersystem clamps int attributes
+  (+-999999999).
+
+Results:
+- ze_hold_em_p: all 16 blocks identical to vrad3 (13 channels and
+  lightmap_data.dat).
+- probe01 with the ibl stripped on both sides: all 16 blocks identical.
+- cs_script_demo, ibl stripped: block 12 identical; it has the real small
+  charts (52 x 1 strips split over tiles). ze_hold_em_p's and probe01's
+  small charts are zero-area, so they never reach the compute.
+
+Left for the GPU bake:
+- the IBL cube map (probe01 and cs_script_demo have one; RtxBakeHost refuses it);
 - MatrixColorTint2 for coloured tints (1800818d0);
-- the small-chart compute on the GPU (block 5 has no small charts; other
-  blocks and maps do), and MSVC std::sort's order for BlockGeometry's tiles;
-- every block, the probe volumes (rtx_vrad3_lpv), then whole maps through the
+- more hit group combos (each needs its transpiled layout: cs_script_demo
+  needed csgo_complex 12800), or a layout read from the SPIR-V instead;
+- the probe volumes (rtx_vrad3_lpv), then whole maps through the
   post-process and the textures.
 
 ### Parked items (to rank)

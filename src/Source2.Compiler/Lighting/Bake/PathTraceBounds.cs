@@ -21,6 +21,22 @@ namespace Source2.Compiler.Lighting.Bake;
 public static class PathTraceBounds
 {
     public static float MinSs(float a, float b) => a < b ? a : b;
+
+    /// <summary>
+    /// mathlib's VectorNormalize (vrad3 18003d0c0): length sqrt((y y + z z) + x x); within 1e-17..1e17
+    /// each component times its reciprocal, zero stays zero (1801f51e0's rescaling path for other
+    /// lengths approximated by Vector3.Normalize). Returns the vector and the length.
+    /// </summary>
+    public static (Vector3 V, float Length) Normalize(Vector3 v)
+    {
+        var len = MathF.Sqrt(v.Y * v.Y + v.Z * v.Z + v.X * v.X);
+        if (len >= 1e-17f && len <= 1e17f)
+        {
+            var inv = 1f / len;
+            return (new Vector3(inv * v.X, inv * v.Y, inv * v.Z), len);
+        }
+        return len == 0f ? (Vector3.Zero, 0f) : (Vector3.Normalize(v), len);
+    }
     public static float MaxSs(float a, float b) => a > b ? a : b;
 
     /// <summary>1804a2b70: the clip box (x, y in -1..1, z in 0..1) through the row-major FromClipSpace, divided by w.</summary>

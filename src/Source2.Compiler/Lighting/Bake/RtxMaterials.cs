@@ -676,7 +676,7 @@ public sealed class RtxScene
                 vf[m] = [];
                 geometries[m] = new GeometryInfo_t_natural
                 {
-                    m_nVertexAndIndexBuffers = new ivec4(m, m, m, m), m_nBufferStrideInBytes = new ivec4(0, 0, 0, 4),
+                    m_nVertexAndIndexBuffers = new ivec4(m, -1, -1, m), m_nBufferStrideInBytes = new ivec4(0, 0, 0, 4),
                     m_vTexCoordFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
                     m_vColorFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
                 };

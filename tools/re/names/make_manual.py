@@ -1887,7 +1887,7 @@ VRAD3 = [
     ("1801f5110", "TriangleArea", V3, "0.5 * |(b - a) x (c - a)|"),
     ("1801f5970", "PackTangentFrame", V3, "u32: bit 0 tangent sign (w >= 0), bits 1-11 the tangent's angle about the normal / 360 * 2047 (basis from the quantised normal, 1801f4060), bits 12-21 and 22-31 the octahedral normal (x, y) * 1023; third argument: a searched (precise) octahedral encode (1801f5300)"),
     ("1801f5680", "UnpackTangentFrame", V3, "the inverse of PackTangentFrame"),
-    ("18003eaa0", "std_Sort_32ByteElements", V3, "introsort (threshold 32 elements, insertion sort below 0x40 bytes)"),
+    ("18003eaa0", "std_Sort_32ByteElements", V3, "MSVC's std::sort (_Sort_unchecked): introsort, insertion sort at 32 elements or fewer, Tukey's ninther above 40, heap sort after 1.5 log2 N divisions; comparator a.tile < b.tile (+0x1c). Ported move for move as Lighting/Bake/MsvcSort.cs, checked against MSVC by MsvcSortTests"),
     ("180027ef0", "CRenderContextPtr::CRenderContextPtr", V3, "a render context from the device (vf 0x1e8)"),
     ("180027fa0", "RenderResourceHandle_Release", V3, "decrement +0x20, release through the resource system at zero"),
     ("18003cc90", "RenderAttributes_SetInt", V3, "inline map: 12 int slots keyed by MurmurHash2(lowercase name, 0x31415926)"),
@@ -2119,7 +2119,7 @@ VRAD3 = [
     ("18003d8e0", "PartitionPolygons_LargeChartsFirst", V3, "std::partition of the block's 32-byte polygons: chart flags (0x1c-byte chart +0x18) & 0x30000000 clear go first; Hoare swaps from both ends"),
     ("1801fa6e0", "AsinApprox", V3, "sign(x) * |((((0.430477 - 0.0594935 a) a - 1.24068) a + 0.216183) a + 1.00008) / (1 - 0.779384 a) - sqrt(1 - a a)|, a = |x| (resourcecompiler FUN_181272450)"),
     ("1801f4060", "Vector_Basis", V3, "Duff et al. basis of a unit normal: s = sign(z), k = -1 / (z + s), b1 = (x s x k + 1, x y k s, -s x), b2 = (x y k, y y k + s, -y)"),
-    ("180030100", "CVrad3Command_lightmap_compute_block_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
+    ("180030100", "CVrad3Command_lightmap_compute_block_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv)). Every 4 passes a sample generation: 'Sampling Small Charts' (lightmap_generate_small_chart_samples, w/8 x h/8 groups; g_nRNGOffsetX / Y the next two SFMT words, clamped by rendersystem to +-999999999), then 'Sampling Large Charts' (lightmap_rasterize, jitter y then x from the next two words); the SFMT (seed 0xdee533d5) regenerates past 0x26f; readback normalises the normal with 18003d0c0"),
     ("1800323f0", "CVrad3Command_lpv_flood_fill::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
     ("180035ce0", "CVrad3Command_lpv_mark_occupied_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
     ("180035df0", "CVrad3Command_lpv_voxelize_gpu::Run", V3, "the command (virtual void Run(int argc, const char **argv))"),
@@ -2312,6 +2312,12 @@ SCENESYSTEM = [
 ]
 
 
+RENDERSYSTEMVULKAN_1015 = [
+    # Read from the disassembly (rendersystemvulkan 20261015, md5 04e078c3a7e5a02355930f15d42d3d81).
+    ("180254550", "VfxVariableDesc_InitDefaults", BAKE, "a leaf constructor: int ranges [-999999999, 999999999] (+0x15c..+0x178), float ranges [-1e9, 1e9]. Int render attributes reach the constant buffer clamped to it: vrad3's small-chart g_nRNGOffsetX / Y (capture_smallcharts.py; the VCS files declare +-1e9). LightmapBaker.RenderInt"),
+]
+
+
 MATERIALSYSTEM_1015 = [
     # Read by hand (decompile of materialsystem2 20261015): VfxEval's functions.
     ("1800fa000", "VfxEval_FunctionTable", I, "24-byte entries {name, argument count, flag, function}: SrgbGammaToLinear, TextureAverageColor, MatrixMultiply, MatrixColorCorrect2, MatrixColorTint2 and the rest"),
@@ -2352,4 +2358,5 @@ if __name__ == "__main__":
     write("tier0_20261015.manual.json", TIER0_1015)
     write("scenesystem_20261015.manual.json", SCENESYSTEM)
     write("materialsystem2_20261015.manual.json", MATERIALSYSTEM_1015)
+    write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

@@ -184,8 +184,8 @@ public sealed class HitContext
     public required BindlessTexture[] Textures { get; init; }
     public required BindlessSampler[] Samplers { get; init; }
 
-    /// <summary>The sampler a shader names directly (g_Sampler): trilinear wrap.</summary>
-    public static readonly BindlessSampler DefaultSampler = new(0, 0, true, true);
+    /// <summary>The sampler a shader names directly (g_Sampler, set 3's immutable sampler; capture_samplers.py): linear, nearest mip, wrap.</summary>
+    public static readonly BindlessSampler DefaultSampler = new(0, 0, true, false);
 
     public vec4 TextureLod(int texture, int sampler, vec2 uv, float lod) => Sample(texture, sampler, uv, lod);
 

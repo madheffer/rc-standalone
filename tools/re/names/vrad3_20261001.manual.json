@@ -70,7 +70,7 @@
    "addr": "18003eaa0",
    "name": "std_Sort_32ByteElements",
    "module": "s2c:baked/vrad3",
-   "note": "introsort (threshold 32 elements, insertion sort below 0x40 bytes)"
+   "note": "MSVC's std::sort (_Sort_unchecked): introsort, insertion sort at 32 elements or fewer, Tukey's ninther above 40, heap sort after 1.5 log2 N divisions; comparator a.tile < b.tile (+0x1c). Ported move for move as Lighting/Bake/MsvcSort.cs, checked against MSVC by MsvcSortTests"
   },
   {
    "addr": "180027ef0",
@@ -1456,7 +1456,7 @@
    "addr": "180030100",
    "name": "CVrad3Command_lightmap_compute_block_gpu::Run",
    "module": "s2c:baked/vrad3",
-   "note": "the command (virtual void Run(int argc, const char **argv))"
+   "note": "the command (virtual void Run(int argc, const char **argv)). Every 4 passes a sample generation: 'Sampling Small Charts' (lightmap_generate_small_chart_samples, w/8 x h/8 groups; g_nRNGOffsetX / Y the next two SFMT words, clamped by rendersystem to +-999999999), then 'Sampling Large Charts' (lightmap_rasterize, jitter y then x from the next two words); the SFMT (seed 0xdee533d5) regenerates past 0x26f; readback normalises the normal with 18003d0c0"
   },
   {
    "addr": "1800323f0",

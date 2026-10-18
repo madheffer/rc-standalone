@@ -1,0 +1,10 @@
+{
+ "functions": [
+  {
+   "addr": "180254550",
+   "name": "VfxVariableDesc_InitDefaults",
+   "module": "s2c:baked/lighting",
+   "note": "a leaf constructor: int ranges [-999999999, 999999999] (+0x15c..+0x178), float ranges [-1e9, 1e9]. Int render attributes reach the constant buffer clamped to it: vrad3's small-chart g_nRNGOffsetX / Y (capture_smallcharts.py; the VCS files declare +-1e9). LightmapBaker.RenderInt"
+  }
+ ]
+}

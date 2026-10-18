@@ -21,13 +21,16 @@ public interface ILightmapDevice
     void Pass(int pass, int dims, float[] random, Vector2 blockOffset, Vector2 lightmapSize);
 
     /// <summary>
-    /// Device-side sample generation in vrad3's order: <see cref="WriteSamples"/> the small charts'
-    /// (computed on the CPU), <see cref="RasterSamples"/> the large charts' with Valve's raster
-    /// programs (false when the device has none: then the CPU's stand), <see cref="ValidateSamples"/>.
-    /// <see cref="WriteSamples"/> empties every luxel it does not write: vrad3 starts each sample
-    /// generation from an empty buffer.
+    /// Device-side sample generation in vrad3's order: <see cref="SmallChartSamples"/> the small
+    /// charts' with Valve's compute program (or, when the device has none, <see cref="WriteSamples"/>
+    /// the CPU's), <see cref="RasterSamples"/> the large charts' with Valve's raster programs (false
+    /// when the device has none: then the CPU's stand), <see cref="ValidateSamples"/>. Both first
+    /// passes write every luxel of the block: vrad3 starts each sample generation from an empty buffer.
     /// </summary>
     void WriteSamples(LightmapSample_t_natural[] samples, Func<int, bool> which);
+
+    /// <summary>lightmap_generate_small_chart_samples over the block with the generation's two SFMT words; false when the device has no such pass.</summary>
+    bool SmallChartSamples(BlockGeometry geometry, PackingGeometry packing, int ox, int oy, int lightmapWidth, int lightmapHeight, uint rngX, uint rngY);
 
     bool RasterSamples(BlockGeometry geometry, PackingGeometry packing, int ox, int oy, int lightmapWidth, int lightmapHeight, float jx, float jy);
 

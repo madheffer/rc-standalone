@@ -1,4 +1,4 @@
-"""capture_host.py <addon> <block> <out dir> [spp]: Valve's ray tracing host buffers for one lightmap block.
+"""capture_host.py <addon | job folder> <block> <out dir> [spp]: Valve's ray tracing host buffers for one lightmap block.
 
 Runs vrad3.exe on the addon's _vrad3 job (gpu_init, the scene, the lightmap image, one block's
 load and compute, lightmap_image_save, moved to <out>/image) under Frida, hooking scenesystem's structured
@@ -49,7 +49,8 @@ def main():
     addon, block, out = sys.argv[1], int(sys.argv[2]), os.path.abspath(sys.argv[3])
     spp = int(sys.argv[4]) if len(sys.argv) == 5 else 16
     os.makedirs(out, exist_ok=True)
-    job = os.path.join(CS2, "game", "csgo_addons", addon, "_vrad3")
+    # The addon's _vrad3 folder, or a job folder given as a path (it must sit inside the addon: vrad3 finds its mod from it).
+    job = addon if os.path.isdir(addon) else os.path.join(CS2, "game", "csgo_addons", addon, "_vrad3")
     script = open(os.path.join(job, "script-gpu.vrad3"), encoding="utf-8").read()
     vmap = next(line.split()[1] for line in script.splitlines() if line.startswith("// maps/"))
     lines = ["gpu_init", "lightmap_type ahd", "sceneinfo_gpu scene_info.kv3", "lightmap_image_gpu 4096 4096 1024",

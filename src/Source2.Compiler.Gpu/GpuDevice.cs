@@ -26,6 +26,21 @@ public sealed unsafe class GpuDevice : IDisposable
     /// <summary>Whether the device runs ray tracing pipelines (VK_KHR_ray_tracing_pipeline, acceleration structures, buffer device addresses).</summary>
     public bool RayTracing { get; }
 
+    /// <summary>
+    /// Whether VK_NV_ray_tracing_invocation_reorder is enabled (with ray tracing, wherever the device
+    /// has it, as vrad3's rendersystem enables it): vrad3 then runs rtx_vrad3_lightmap's
+    /// S_EXECUTION_REORDERING 1 combo.
+    /// </summary>
+    public bool InvocationReorder { get; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct InvocationReorderFeatures
+    {
+        public StructureType SType;
+        public void* PNext;
+        public uint RayTracingInvocationReorder;
+    }
+
     /// <param name="rayTracingShaderFeatures">
     /// Also enable what vrad3's ray tracing shaders need when they run as compute (the hit shader
     /// oracle): 16-bit floats and integers, 16-bit storage, non-uniform storage buffer indexing.
@@ -74,6 +89,18 @@ public sealed unsafe class GpuDevice : IDisposable
             UniformAndStorageBuffer16BitAccess = rayTracingShaderFeatures,
         };
         var rtPipeline = new PhysicalDeviceRayTracingPipelineFeaturesKHR { SType = StructureType.PhysicalDeviceRayTracingPipelineFeaturesKhr, RayTracingPipeline = true };
+        var executables = new PhysicalDevicePipelineExecutablePropertiesFeaturesKHR { SType = StructureType.PhysicalDevicePipelineExecutablePropertiesFeaturesKhr, PipelineExecutableInfo = true };
+        rtPipeline.PNext = &executables;
+        uint extensionCount = 0;
+        Vk.EnumerateDeviceExtensionProperties(Physical, (byte*)null, &extensionCount, null);
+        var available = new ExtensionProperties[extensionCount];
+        fixed (ExtensionProperties* p = available)
+            Vk.EnumerateDeviceExtensionProperties(Physical, (byte*)null, &extensionCount, p);
+        InvocationReorder = rayTracing && available.Any(e => SilkMarshal.PtrToString((nint)e.ExtensionName) == "VK_NV_ray_tracing_invocation_reorder");
+        // VkPhysicalDeviceRayTracingInvocationReorderFeaturesNV
+        var reorder = new InvocationReorderFeatures { SType = (StructureType)1000490000, RayTracingInvocationReorder = 1 };
+        if (InvocationReorder)
+            executables.PNext = &reorder;
         var accel = new PhysicalDeviceAccelerationStructureFeaturesKHR { SType = StructureType.PhysicalDeviceAccelerationStructureFeaturesKhr, PNext = &rtPipeline, AccelerationStructure = true };
         if (rayTracing)
             v11.PNext = &accel;
@@ -110,7 +137,9 @@ public sealed unsafe class GpuDevice : IDisposable
                 ShaderStorageImageWriteWithoutFormat = rayTracing,
             },
         };
-        string[] extensions = rayTracing ? ["VK_KHR_acceleration_structure", "VK_KHR_ray_tracing_pipeline", "VK_KHR_deferred_host_operations"] : [];
+        string[] extensions = rayTracing ? ["VK_KHR_acceleration_structure", "VK_KHR_ray_tracing_pipeline", "VK_KHR_deferred_host_operations", "VK_KHR_pipeline_executable_properties"] : [];
+        if (InvocationReorder)
+            extensions = [.. extensions, "VK_NV_ray_tracing_invocation_reorder"];
         var extensionNames = (byte**)SilkMarshal.StringArrayToPtr(extensions);
         var deviceInfo = new DeviceCreateInfo
         {

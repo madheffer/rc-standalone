@@ -49,6 +49,8 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     private readonly delegate* unmanaged<Device, AccelerationStructureBuildTypeKHR, AccelerationStructureBuildGeometryInfoKHR*, uint*, AccelerationStructureBuildSizesInfoKHR*, void> _buildSizes;
     private readonly delegate* unmanaged<CommandBuffer, uint, AccelerationStructureBuildGeometryInfoKHR*, AccelerationStructureBuildRangeInfoKHR**, void> _cmdBuild;
     private readonly delegate* unmanaged<Device, AccelerationStructureDeviceAddressInfoKHR*, ulong> _asAddress;
+    private readonly delegate* unmanaged<CommandBuffer, uint, AccelerationStructureKHR*, QueryType, QueryPool, uint, void> _cmdWriteAsProperties;
+    private readonly delegate* unmanaged<CommandBuffer, CopyAccelerationStructureInfoKHR*, void> _cmdCopyAs;
     private readonly delegate* unmanaged<Device, DeferredOperationKHR, PipelineCache, uint, RayTracingPipelineCreateInfoKHR*, AllocationCallbacks*, Pipeline*, Result> _createPipelines;
     private readonly delegate* unmanaged<Device, Pipeline, uint, uint, nuint, void*, Result> _groupHandles;
     private readonly delegate* unmanaged<CommandBuffer, StridedDeviceAddressRegionKHR*, StridedDeviceAddressRegionKHR*, StridedDeviceAddressRegionKHR*, StridedDeviceAddressRegionKHR*, uint, uint, uint, void> _cmdTraceRays;
@@ -66,13 +68,13 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     public List<string> Notes { get; } = [];
 
     /// <param name="sh">rtx_vrad3_lightmap's D_SH_LIGHTMAPS (the CPU port runs 0).</param>
-    /// <param name="executionReordering">rtx_vrad3_lightmap's S_EXECUTION_REORDERING (VK_NV_ray_tracing_invocation_reorder; not enabled here).</param>
+    /// <param name="executionReordering">rtx_vrad3_lightmap's S_EXECUTION_REORDERING: -1 as vrad3 picks it (1 when the device has VK_NV_ray_tracing_invocation_reorder).</param>
     /// <param name="haltonPermutations">
     /// textures/dev/scrambled_halton.vdata's table: with it every pass's random volume comes from
     /// Valve's rtx_generate_scrambled_halton_samples on the GPU (180187920's constants), and the
     /// volume <see cref="Pass"/> is given is ignored.
     /// </param>
-    public RtxBakeHost(GpuDevice gpu, BakeScene scene, RtxScene rtx, RtxShaderLibrary shaders, Func<string, byte[]?> read, int sh = 0, int executionReordering = 0,
+    public RtxBakeHost(GpuDevice gpu, BakeScene scene, RtxScene rtx, RtxShaderLibrary shaders, Func<string, byte[]?> read, int sh = 0, int executionReordering = -1,
                        ushort[]? haltonPermutations = null)
     {
         if (!gpu.RayTracing)
@@ -84,6 +86,8 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         _buildSizes = (delegate* unmanaged<Device, AccelerationStructureBuildTypeKHR, AccelerationStructureBuildGeometryInfoKHR*, uint*, AccelerationStructureBuildSizesInfoKHR*, void>)gpu.Proc("vkGetAccelerationStructureBuildSizesKHR");
         _cmdBuild = (delegate* unmanaged<CommandBuffer, uint, AccelerationStructureBuildGeometryInfoKHR*, AccelerationStructureBuildRangeInfoKHR**, void>)gpu.Proc("vkCmdBuildAccelerationStructuresKHR");
         _asAddress = (delegate* unmanaged<Device, AccelerationStructureDeviceAddressInfoKHR*, ulong>)gpu.Proc("vkGetAccelerationStructureDeviceAddressKHR");
+        _cmdWriteAsProperties = (delegate* unmanaged<CommandBuffer, uint, AccelerationStructureKHR*, QueryType, QueryPool, uint, void>)gpu.Proc("vkCmdWriteAccelerationStructuresPropertiesKHR");
+        _cmdCopyAs = (delegate* unmanaged<CommandBuffer, CopyAccelerationStructureInfoKHR*, void>)gpu.Proc("vkCmdCopyAccelerationStructureKHR");
         _createPipelines = (delegate* unmanaged<Device, DeferredOperationKHR, PipelineCache, uint, RayTracingPipelineCreateInfoKHR*, AllocationCallbacks*, Pipeline*, Result>)gpu.Proc("vkCreateRayTracingPipelinesKHR");
         _groupHandles = (delegate* unmanaged<Device, Pipeline, uint, uint, nuint, void*, Result>)gpu.Proc("vkGetRayTracingShaderGroupHandlesKHR");
         _cmdTraceRays = (delegate* unmanaged<CommandBuffer, StridedDeviceAddressRegionKHR*, StridedDeviceAddressRegionKHR*, StridedDeviceAddressRegionKHR*, StridedDeviceAddressRegionKHR*, uint, uint, uint, void>)gpu.Proc("vkCmdTraceRaysKHR");
@@ -98,8 +102,13 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         var ctx = rtx.NewContext();
         _meshes = scene.Meshes.Count;
 
-        // Hit groups: one per distinct (rtx program, static combo), in first-use order.
-        var groups = new List<HitShader>();
+        // Hit groups: hitgroup_default_opaque and _transparent first (18009b330 always adds them), then
+        // one per distinct (rtx program, static combo), in first-use order.
+        var groups = new List<HitShader>
+        {
+            Lighting.Bake.Glsl.Shaders.HitShaders.All.First(h => h.Name == "rtx_default_hitgroup_vulkan_60_rtx" && h.Combo == 0),
+            Lighting.Bake.Glsl.Shaders.HitShaders.All.First(h => h.Name == "rtx_default_hitgroup_vulkan_60_rtx" && h.Combo == 1),
+        };
         var groupOf = new int[scene.Instances.Count];
         var missing = new SortedSet<string>();
         for (var i = 0; i < scene.Instances.Count; i++)
@@ -135,9 +144,34 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
                 (p[v * 3], p[v * 3 + 1], p[v * 3 + 2]) = (positions[v].X, positions[v].Y, positions[v].Z);
             positionBuffers[m] = Keep(gpu.Upload(Bytes(p), asInput));
         }
-        var blas = new ulong[_meshes];
+        // As vrad3 builds them (tools/vrad3/capture_accel.py): every BLAS sized and created, then each
+        // built with its compacted size queried, then all compacted (COMPACT copies), then the TLAS.
+        if (Environment.GetEnvironmentVariable("GPUBAKE_LOG") == "1")
+            Console.WriteLine($"BLAS triangles: {string.Join(" ", Enumerable.Range(0, _meshes).Select(m => ctx.Indices[m].Length / 3))}");
+        var blas = new (AccelerationStructureKHR Handle, AccelerationStructureBuildGeometryInfoKHR Info, AccelerationStructureGeometryKHR Geometry, uint Triangles)[_meshes];
         for (var m = 0; m < _meshes; m++)
-            blas[m] = BuildBlas(positionBuffers[m], scene.Meshes[m].Positions.Length, indexBuffers[m], ctx.Indices[m].Length / 3);
+            blas[m] = CreateBlas(positionBuffers[m], scene.Meshes[m].Positions.Length, indexBuffers[m], ctx.Indices[m].Length / 3);
+        var compacted = new ulong[_meshes];
+        for (var m = 0; m < _meshes; m++)
+            compacted[m] = BuildAndQuery(ref blas[m].Info, ref blas[m].Geometry, blas[m].Triangles);
+        var compact = new AccelerationStructureKHR[_meshes];
+        for (var m = 0; m < _meshes; m++)
+            compact[m] = CreateStructure(AccelerationStructureTypeKHR.BottomLevelKhr, compacted[m]);
+        for (var m = 0; m < _meshes; m++)
+        {
+            var copy = new CopyAccelerationStructureInfoKHR
+            {
+                SType = StructureType.CopyAccelerationStructureInfoKhr, Src = blas[m].Handle, Dst = compact[m], Mode = CopyAccelerationStructureModeKHR.CompactKhr,
+            };
+            var pCopy = &copy;
+            gpu.Submit(cmd => _cmdCopyAs(cmd, pCopy));
+            _blasAddress.Add(Address(compact[m]));
+        }
+        foreach (var b in blas)
+        {
+            _destroyAs(_gpu.Device, b.Handle, null);
+            _structures.Remove(b.Handle);
+        }
         _tlas = BuildTlas(scene, groupOf);
 
         // Set 3: the scene.
@@ -153,7 +187,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         if (scene.Global.IblCubeMap != null)
             throw new NotSupportedException("an IBL cube map: not uploaded to the GPU yet");
         if (scene.Lights.Any(l => l.Cookie >= 0))
-            Notes.Add("light cookies: g_Sampler / g_CookieSampler states not read from rendersystem (linear clamp here)");
+            Notes.Add("light cookies: their texture upload is not checked against a capture");
 
         // Set 4: the bindless textures and samplers.
         var views = new List<ImageView>();
@@ -179,8 +213,10 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         _textures = views.Count;
         var samplers = ctx.Samplers.Select(s => Keep(CreateSampler(s))).ToArray();
         _samplerCount = samplers.Length;
-        var sceneSampler = Keep(CreateSampler(new BindlessSampler(2, 2, true, true, 2)));
-        var cookieSampler = Keep(CreateSampler(new BindlessSampler(2, 2, true, true, 2)));
+        // Set 3's immutable samplers as rendersystem makes them (capture_samplers.py): g_Sampler linear,
+        // nearest mip, wrap; g_CookieSampler linear, nearest mip, clamp to a transparent black border.
+        var sceneSampler = Keep(CreateSampler(new BindlessSampler(0, 0, true, false, 0)));
+        var cookieSampler = Keep(CreateSampler(new BindlessSampler(3, 3, true, false, 3)));
         var perView = Keep(gpu.Upload(new byte[640], BufferUsageFlags.UniformBufferBit));
 
         // Layouts: sets 0 to 2 empty, 3 to 6 as Valve's programs declare them.
@@ -250,9 +286,28 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
             var program = shaders.Get(h.Name.Replace("_vulkan_60_rtx", "", StringComparison.Ordinal)) ?? throw new FileNotFoundException(h.Name);
             return Spirv(program.Rtx, h.Combo, 0);
         }).ToArray();
+        // vrad3's three in its order (capture_pipelines.py): rtx_binlights, rtx_vrad3_lightmap,
+        // rtx_vrad3_lightmap_sample_validation, each with every hit group.
+        var binProgram = shaders.Get("rtx_binlights") ?? throw new FileNotFoundException("rtx_binlights");
+        var binner = Pipeline(Spirv(binProgram.Rtx, 0, 0), hitModules);
         var lightmapProgram = shaders.Get("rtx_vrad3_lightmap") ?? throw new FileNotFoundException("rtx_vrad3_lightmap");
+        if (executionReordering < 0)
+            executionReordering = gpu.InvocationReorder ? 1 : 0;
         var lightmapStatic = lightmapProgram.Rtx.StaticComboArray.Single(c => c.Name == "S_EXECUTION_REORDERING").ComboIndexValue * executionReordering;
         var lightmapDynamic = lightmapProgram.Rtx.DynamicComboArray.Single(c => c.Name == "D_SH_LIGHTMAPS").ComboIndexValue * sh;
+        if (Environment.GetEnvironmentVariable("GPUBAKE_LOG") == "1")
+        {
+            for (var g = 0; g < groups.Count; g++)
+                Console.WriteLine($"hit group {g}: {groups[g].Name} combo {groups[g].Combo} {Convert.ToHexStringLower(System.Security.Cryptography.MD5.HashData(hitModules[g]))} first instance {Array.IndexOf(groupOf, g)} ({(Array.IndexOf(groupOf, g) is var fi and >= 0 ? scene.Instances[fi].Material.Name : "-")})");
+            Console.WriteLine("rtx_vrad3_lightmap static combos: " + string.Join(", ", lightmapProgram.Rtx.StaticComboArray.Select(c => $"{c.Name} x{c.ComboIndexValue}")) +
+                              "; dynamic: " + string.Join(", ", lightmapProgram.Rtx.DynamicComboArray.Select(c => $"{c.Name} x{c.ComboIndexValue}")));
+            for (var st = 0; st < 16; st++)
+                for (var dy = 0; dy < 8; dy++)
+                {
+                    try { Console.WriteLine($"rtx_vrad3_lightmap static {st} dynamic {dy}: {Convert.ToHexStringLower(System.Security.Cryptography.MD5.HashData(Spirv(lightmapProgram.Rtx, st, dy)))}"); }
+                    catch (Exception) { }
+                }
+        }
         _lightmap = Pipeline(Spirv(lightmapProgram.Rtx, lightmapStatic, lightmapDynamic), hitModules);
         var validationProgram = shaders.Get("rtx_vrad3_lightmap_sample_validation") ?? throw new FileNotFoundException("rtx_vrad3_lightmap_sample_validation");
         _validation = Pipeline(Spirv(validationProgram.Rtx, 0, 0), hitModules);
@@ -263,11 +318,11 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
             BuildHalton(shaders, haltonPermutations);
         if (Environment.GetEnvironmentVariable("CPUBAKE_GPURASTER") != "0")
             BuildRaster(shaders);
+        if (Environment.GetEnvironmentVariable("CPUBAKE_GPUSMALL") != "0")
+            BuildSmallCharts(shaders);
 
         // The light bins: Valve's rtx_binlights over the grid (180095180's RaytraceLightBins), one
         // launch per cell and mask word.
-        var binProgram = shaders.Get("rtx_binlights") ?? throw new FileNotFoundException("rtx_binlights");
-        var binner = Pipeline(Spirv(binProgram.Rtx, 0, 0), []);
         var binSet = Allocate(6);
         WriteBuffers(binSet, 158, DescriptorType.StorageBuffer, _lightBins);
         Trace(binner, binSet, null, (uint)cells.X, (uint)cells.Y, (uint)(cells.Z * masks));
@@ -359,6 +414,9 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     // the hit records in group order (instance SBT offset 2 x hit module).
     private (Pipeline, GpuDevice.GpuBuffer, StridedDeviceAddressRegionKHR[]) Pipeline(byte[] raygen, byte[][] hits)
     {
+        // As vrad3 creates them (tools/vrad3/capture_pipelines.py): one stage per group, the raygen,
+        // then every hit program's ray type 0 stage, then every one's ray type 1 stage; an empty
+        // VkPipelineCache; a deferred operation joined by worker threads; recursion depth 1.
         var stages = new List<PipelineShaderStageCreateInfo>();
         var names = new List<nint>();
         int Stage(ShaderModule module, ShaderStageFlags kind, string entry)
@@ -378,14 +436,15 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
                 ClosestHitShader = Vk.ShaderUnusedKhr, AnyHitShader = Vk.ShaderUnusedKhr, IntersectionShader = Vk.ShaderUnusedKhr,
             },
         };
-        foreach (var spirv in hits)
-        {
-            var module = Module(spirv);
-            var entries = SpirvReflection.Parse(spirv).EntryPoints;
-            for (var ray = 0; ray < 2; ray++)
+        var modules = hits.Select(h => (Module: Module(h), Entries: SpirvReflection.Parse(h).EntryPoints)).ToArray();
+        var groupOfRay = new int[hits.Length, 2];
+        for (var ray = 0; ray < 2; ray++)
+            for (var h = 0; h < modules.Length; h++)
             {
+                var (module, entries) = modules[h];
                 var closest = entries.FirstOrDefault(e => e.Model == 5316 && e.Name == $"ClosestHit{ray}").Name;
                 var any = entries.FirstOrDefault(e => e.Model == 5315 && e.Name == $"AnyHit{ray}").Name;
+                groupOfRay[h, ray] = groupInfos.Count;
                 groupInfos.Add(new RayTracingShaderGroupCreateInfoKHR
                 {
                     SType = StructureType.RayTracingShaderGroupCreateInfoKhr, Type = RayTracingShaderGroupTypeKHR.TrianglesHitGroupKhr,
@@ -394,6 +453,12 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
                     AnyHitShader = any != null ? (uint)Stage(module, ShaderStageFlags.AnyHitBitKhr, any) : Vk.ShaderUnusedKhr,
                 });
             }
+        if (Environment.GetEnvironmentVariable("GPUBAKE_LOG") == "1")
+        {
+            var md5 = new Dictionary<ShaderModule, string> { [stages[0].Module] = Convert.ToHexStringLower(System.Security.Cryptography.MD5.HashData(raygen)) };
+            for (var h = 0; h < modules.Length; h++)
+                md5[modules[h].Module] = Convert.ToHexStringLower(System.Security.Cryptography.MD5.HashData(hits[h]));
+            Console.WriteLine("RT pipeline stages: " + string.Join(" ", stages.Select((st, i) => $"{(uint)st.Stage:x}:{SilkMarshal.PtrToString((nint)st.PName)}:{md5[st.Module]}")));
         }
         Pipeline pipeline;
         var stageArray = stages.ToArray();
@@ -406,13 +471,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
                 SType = StructureType.RayTracingPipelineCreateInfoKhr, StageCount = (uint)stageArray.Length, PStages = ps,
                 GroupCount = (uint)groupArray.Length, PGroups = pg, MaxPipelineRayRecursionDepth = 1, Layout = _pipelineLayout,
             };
-                // Created twice, the first kept alive: with an identical pipeline alive the NVIDIA driver gives
-            // the second creation different code, and only that code reproduces vrad3's luxels (measured on
-            // the RTX 4070: the first creation in a process parts on 7% of block 5's luxels by 1 to 3 ulps
-            // in the lighting sums; a second one, or any host after the first, is bit-identical).
-            GpuDevice.Check(_createPipelines(_gpu.Device, default, default, 1, &info, null, &pipeline), "vkCreateRayTracingPipelinesKHR");
-            _shadowPipelines.Add(pipeline);
-            GpuDevice.Check(_createPipelines(_gpu.Device, default, default, 1, &info, null, &pipeline), "vkCreateRayTracingPipelinesKHR");
+            pipeline = CreateDeferred(&info);
         }
         foreach (var n in names)
             SilkMarshal.Free(n);
@@ -425,14 +484,14 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         var missOffset = raygenSize;
         var missSize = Align(2 * record, _baseAlignment);
         var hitOffset = missOffset + missSize;
-        var hitCount = (ulong)(groupArray.Length - 1);
+        var hitCount = (ulong)(2 * hits.Length);
         var sbt = Keep(_gpu.CreateBuffer(hitOffset + hitCount * record + _baseAlignment, BufferUsageFlags.ShaderBindingTableBitKhr | BufferUsageFlags.ShaderDeviceAddressBit));
         var raw = sbt.Mapped + (nint)(Align(_gpu.Address(sbt), _baseAlignment) - _gpu.Address(sbt));
         var baseAddress = Align(_gpu.Address(sbt), _baseAlignment);
         new Span<byte>((void*)sbt.Mapped, (int)sbt.Size).Clear();
         handles.AsSpan(0, (int)_handleSize).CopyTo(new Span<byte>((void*)raw, (int)_handleSize));
         for (var g = 0; g < (int)hitCount; g++)
-            handles.AsSpan((g + 1) * (int)_handleSize, (int)_handleSize).CopyTo(new Span<byte>((void*)(raw + (nint)(hitOffset + (ulong)g * record)), (int)_handleSize));
+            handles.AsSpan(groupOfRay[g / 2, g % 2] * (int)_handleSize, (int)_handleSize).CopyTo(new Span<byte>((void*)(raw + (nint)(hitOffset + (ulong)g * record)), (int)_handleSize));
         StridedDeviceAddressRegionKHR[] regions =
         [
             new() { DeviceAddress = baseAddress, Stride = raygenSize, Size = raygenSize },
@@ -443,11 +502,105 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         return (pipeline, sbt, regions);
     }
 
-    private ulong BuildBlas(GpuDevice.GpuBuffer positions, int vertexCount, GpuDevice.GpuBuffer indices, int triangles)
+    private PipelineCache _pipelineCache;
+
+    // vkCreateRayTracingPipelinesKHR through a deferred operation joined by worker threads, with the
+    // host's pipeline cache (created empty), as vrad3 does.
+    private Pipeline CreateDeferred(RayTracingPipelineCreateInfoKHR* info)
+    {
+        var createOp = (delegate* unmanaged<Device, AllocationCallbacks*, DeferredOperationKHR*, Result>)_gpu.Proc("vkCreateDeferredOperationKHR");
+        var join = (delegate* unmanaged<Device, DeferredOperationKHR, Result>)_gpu.Proc("vkDeferredOperationJoinKHR");
+        var concurrency = (delegate* unmanaged<Device, DeferredOperationKHR, uint>)_gpu.Proc("vkGetDeferredOperationMaxConcurrencyKHR");
+        var result = (delegate* unmanaged<Device, DeferredOperationKHR, Result>)_gpu.Proc("vkGetDeferredOperationResultKHR");
+        var destroyOp = (delegate* unmanaged<Device, DeferredOperationKHR, AllocationCallbacks*, void>)_gpu.Proc("vkDestroyDeferredOperationKHR");
+        if (_pipelineCache.Handle == 0)
+        {
+            var cacheInfo = new PipelineCacheCreateInfo { SType = StructureType.PipelineCacheCreateInfo };
+            GpuDevice.Check(_vk.CreatePipelineCache(_gpu.Device, &cacheInfo, null, out _pipelineCache), "vkCreatePipelineCache");
+        }
+        DeferredOperationKHR created;
+        GpuDevice.Check(createOp(_gpu.Device, null, &created), "vkCreateDeferredOperationKHR");
+        var op = created;
+        Pipeline pipeline;
+        var r = _createPipelines(_gpu.Device, op, _pipelineCache, 1, info, null, &pipeline);
+        if ((int)r == 1000268002) // VK_OPERATION_DEFERRED_KHR
+        {
+            var device = _gpu.Device;
+            var threads = (int)Math.Max(1, Math.Min(concurrency(device, op), (uint)Environment.ProcessorCount));
+            Parallel.For(0, threads, new ParallelOptions { MaxDegreeOfParallelism = threads }, _ =>
+            {
+                while (true)
+                {
+                    var j = (int)join(device, op);
+                    if (j is 0 or 1000268001) // VK_SUCCESS, VK_THREAD_DONE_KHR
+                        break;
+                    if (j != 1000268000) // VK_THREAD_IDLE_KHR
+                        throw new InvalidOperationException($"vkDeferredOperationJoinKHR: {j}");
+                    Thread.Yield();
+                }
+            });
+            r = result(_gpu.Device, op);
+        }
+        else if ((int)r == 1000268003) // VK_OPERATION_NOT_DEFERRED_KHR
+            r = Result.Success;
+        destroyOp(_gpu.Device, op, null);
+        GpuDevice.Check(r, "vkCreateRayTracingPipelinesKHR");
+        return pipeline;
+    }
+
+    // VK_KHR_pipeline_executable_properties: every executable's statistics (a check of which code the driver gave).
+    private string Statistics(Pipeline pipeline)
+    {
+        var getProps = (delegate* unmanaged<Device, PipelineInfoKHR*, uint*, PipelineExecutablePropertiesKHR*, Result>)_gpu.Proc("vkGetPipelineExecutablePropertiesKHR");
+        var getStats = (delegate* unmanaged<Device, PipelineExecutableInfoKHR*, uint*, PipelineExecutableStatisticKHR*, Result>)_gpu.Proc("vkGetPipelineExecutableStatisticsKHR");
+        var pinfo = new PipelineInfoKHR { SType = StructureType.PipelineInfoKhr, Pipeline = pipeline };
+        uint n = 0;
+        getProps(_gpu.Device, &pinfo, &n, null);
+        var props = new PipelineExecutablePropertiesKHR[n];
+        for (var i = 0; i < n; i++)
+            props[i].SType = StructureType.PipelineExecutablePropertiesKhr;
+        fixed (PipelineExecutablePropertiesKHR* pp = props)
+            getProps(_gpu.Device, &pinfo, &n, pp);
+        var parts = new List<string>();
+        for (var e = 0u; e < n; e++)
+        {
+            var einfo = new PipelineExecutableInfoKHR { SType = StructureType.PipelineExecutableInfoKhr, Pipeline = pipeline, ExecutableIndex = e };
+            uint m = 0;
+            getStats(_gpu.Device, &einfo, &m, null);
+            var stats = new PipelineExecutableStatisticKHR[m];
+            for (var i = 0; i < m; i++)
+                stats[i].SType = StructureType.PipelineExecutableStatisticKhr;
+            fixed (PipelineExecutableStatisticKHR* ps = stats)
+                getStats(_gpu.Device, &einfo, &m, ps);
+            string name;
+            fixed (byte* pn = props[e].Name)
+                name = SilkMarshal.PtrToString((nint)pn) ?? "?";
+            var values = new List<string>();
+            foreach (var st in stats)
+            {
+                var s = st;
+                var sname = SilkMarshal.PtrToString((nint)s.Name) ?? "?";
+                var v = st.Format switch
+                {
+                    PipelineExecutableStatisticFormatKHR.Bool32Khr => st.Value.B32.ToString(),
+                    PipelineExecutableStatisticFormatKHR.Int64Khr => st.Value.I64.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    PipelineExecutableStatisticFormatKHR.Uint64Khr => st.Value.U64.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    _ => st.Value.F64.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                };
+                values.Add($"{sname}={v}");
+            }
+            parts.Add($"{name}[{string.Join(",", values)}]");
+        }
+        return string.Join(" ", parts);
+    }
+
+    private (AccelerationStructureKHR, AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureGeometryKHR, uint) CreateBlas(
+        GpuDevice.GpuBuffer positions, int vertexCount, GpuDevice.GpuBuffer indices, int triangles)
     {
         var geometry = new AccelerationStructureGeometryKHR
         {
             SType = StructureType.AccelerationStructureGeometryKhr, GeometryType = GeometryTypeKHR.TrianglesKhr,
+            Flags = GeometryFlagsKHR.NoDuplicateAnyHitInvocationBitKhr,
             Geometry = new AccelerationStructureGeometryDataKHR
             {
                 Triangles = new AccelerationStructureGeometryTrianglesDataKHR
@@ -459,8 +612,78 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
                 },
             },
         };
-        return Build(AccelerationStructureTypeKHR.BottomLevelKhr, geometry, (uint)triangles,
-            BuildAccelerationStructureFlagsKHR.PreferFastTraceBitKhr | BuildAccelerationStructureFlagsKHR.AllowCompactionBitKhr, out _);
+        var info = new AccelerationStructureBuildGeometryInfoKHR
+        {
+            SType = StructureType.AccelerationStructureBuildGeometryInfoKhr, Type = AccelerationStructureTypeKHR.BottomLevelKhr,
+            Flags = BuildAccelerationStructureFlagsKHR.PreferFastTraceBitKhr | BuildAccelerationStructureFlagsKHR.AllowCompactionBitKhr,
+            Mode = BuildAccelerationStructureModeKHR.BuildKhr, GeometryCount = 1,
+        };
+        var primitives = (uint)triangles;
+        var sizes = new AccelerationStructureBuildSizesInfoKHR { SType = StructureType.AccelerationStructureBuildSizesInfoKhr };
+        info.PGeometries = &geometry;
+        _buildSizes(_gpu.Device, AccelerationStructureBuildTypeKHR.DeviceKhr, &info, &primitives, &sizes);
+        info.PGeometries = null;
+        var handle = CreateStructure(AccelerationStructureTypeKHR.BottomLevelKhr, sizes.AccelerationStructureSize);
+        info.DstAccelerationStructure = handle;
+        return (handle, info, geometry, primitives);
+    }
+
+    private ulong BuildAndQuery(ref AccelerationStructureBuildGeometryInfoKHR info, ref AccelerationStructureGeometryKHR geometry, uint primitives)
+    {
+        var sizes = new AccelerationStructureBuildSizesInfoKHR { SType = StructureType.AccelerationStructureBuildSizesInfoKhr };
+        fixed (AccelerationStructureGeometryKHR* pg = &geometry)
+        fixed (AccelerationStructureBuildGeometryInfoKHR* pInfo = &info)
+        {
+            pInfo->PGeometries = pg;
+            _buildSizes(_gpu.Device, AccelerationStructureBuildTypeKHR.DeviceKhr, pInfo, &primitives, &sizes);
+            var scratch = _gpu.CreateBuffer(sizes.BuildScratchSize + 256, BufferUsageFlags.StorageBufferBit | BufferUsageFlags.ShaderDeviceAddressBit, hostVisible: false);
+            pInfo->ScratchData = new DeviceOrHostAddressKHR { DeviceAddress = Align(_gpu.Address(scratch), 256) };
+            var range = new AccelerationStructureBuildRangeInfoKHR { PrimitiveCount = primitives };
+            var pRange = &range;
+            var ppRange = &pRange;
+            var poolInfo = new QueryPoolCreateInfo { SType = StructureType.QueryPoolCreateInfo, QueryType = QueryType.AccelerationStructureCompactedSizeKhr, QueryCount = 1 };
+            GpuDevice.Check(_vk.CreateQueryPool(_gpu.Device, &poolInfo, null, out var pool), "vkCreateQueryPool");
+            var handle = pInfo->DstAccelerationStructure;
+            var pHandle = &handle;
+            var build = pInfo;
+            var vk = _vk;
+            _gpu.Submit(cmd =>
+            {
+                vk.CmdResetQueryPool(cmd, pool, 0, 1);
+                _cmdBuild(cmd, 1, build, ppRange);
+                var barrier = new MemoryBarrier
+                {
+                    SType = StructureType.MemoryBarrier, SrcAccessMask = AccessFlags.AccelerationStructureWriteBitKhr, DstAccessMask = AccessFlags.AccelerationStructureReadBitKhr,
+                };
+                vk.CmdPipelineBarrier(cmd, PipelineStageFlags.AccelerationStructureBuildBitKhr, PipelineStageFlags.AccelerationStructureBuildBitKhr, 0, 1, &barrier, 0, null, 0, null);
+                _cmdWriteAsProperties(cmd, 1, pHandle, QueryType.AccelerationStructureCompactedSizeKhr, pool, 0);
+            });
+            ulong compacted;
+            GpuDevice.Check(_vk.GetQueryPoolResults(_gpu.Device, pool, 0, 1, 8, &compacted, 8, QueryResultFlags.Result64Bit | QueryResultFlags.ResultWaitBit), "vkGetQueryPoolResults");
+            _vk.DestroyQueryPool(_gpu.Device, pool, null);
+            _gpu.Destroy(scratch);
+            pInfo->PGeometries = null;
+            return compacted;
+        }
+    }
+
+    private AccelerationStructureKHR CreateStructure(AccelerationStructureTypeKHR type, ulong size)
+    {
+        var storage = Keep(_gpu.CreateBuffer(size, BufferUsageFlags.AccelerationStructureStorageBitKhr | BufferUsageFlags.ShaderDeviceAddressBit, hostVisible: false));
+        var create = new AccelerationStructureCreateInfoKHR
+        {
+            SType = StructureType.AccelerationStructureCreateInfoKhr, Buffer = storage.Buffer, Size = size, Type = type,
+        };
+        AccelerationStructureKHR handle;
+        GpuDevice.Check(_createAs(_gpu.Device, &create, null, &handle), "vkCreateAccelerationStructureKHR");
+        _structures.Add(handle);
+        return handle;
+    }
+
+    private ulong Address(AccelerationStructureKHR handle)
+    {
+        var addressInfo = new AccelerationStructureDeviceAddressInfoKHR { SType = StructureType.AccelerationStructureDeviceAddressInfoKhr, AccelerationStructure = handle };
+        return _asAddress(_gpu.Device, &addressInfo);
     }
 
     private AccelerationStructureKHR BuildTlas(BakeScene scene, int[] groupOf)
@@ -486,6 +709,14 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(i * 64 + 52), (uint)(2 * groupOf[i]) & 0xffffff | flags << 24);
             BinaryPrimitives.WriteUInt64LittleEndian(data.AsSpan(i * 64 + 56), _blasAddress[inst.Mesh]);
         }
+        if (Environment.GetEnvironmentVariable("GPUBAKE_LOG") == "1")
+            for (var i = 0; i < scene.Instances.Count; i++)
+            {
+                var f = MemoryMarshal.Cast<byte, float>(data.AsSpan(i * 64, 48)).ToArray();
+                var a = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(i * 64 + 48));
+                var b = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(i * 64 + 52));
+                Console.WriteLine($"TLAS instance {i}: custom {a & 0xffffff} mask {a >> 24:x} sbt {b & 0xffffff} flags {b >> 24:x} blas {scene.Instances[i].Mesh} transform {string.Join(",", f.Select(x => x.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))}");
+            }
         var buffer = Keep(_gpu.Upload(data, BufferUsageFlags.AccelerationStructureBuildInputReadOnlyBitKhr | BufferUsageFlags.ShaderDeviceAddressBit));
         var geometry = new AccelerationStructureGeometryKHR
         {
@@ -517,14 +748,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         };
         var sizes = new AccelerationStructureBuildSizesInfoKHR { SType = StructureType.AccelerationStructureBuildSizesInfoKhr };
         _buildSizes(_gpu.Device, AccelerationStructureBuildTypeKHR.DeviceKhr, &info, &primitives, &sizes);
-        var storage = Keep(_gpu.CreateBuffer(sizes.AccelerationStructureSize, BufferUsageFlags.AccelerationStructureStorageBitKhr | BufferUsageFlags.ShaderDeviceAddressBit, hostVisible: false));
-        var create = new AccelerationStructureCreateInfoKHR
-        {
-            SType = StructureType.AccelerationStructureCreateInfoKhr, Buffer = storage.Buffer, Size = sizes.AccelerationStructureSize, Type = type,
-        };
-        AccelerationStructureKHR handle;
-        GpuDevice.Check(_createAs(_gpu.Device, &create, null, &handle), "vkCreateAccelerationStructureKHR");
-        _structures.Add(handle);
+        var handle = CreateStructure(type, sizes.AccelerationStructureSize);
         var scratch = _gpu.CreateBuffer(sizes.BuildScratchSize + 256, BufferUsageFlags.StorageBufferBit | BufferUsageFlags.ShaderDeviceAddressBit, hostVisible: false);
         info.DstAccelerationStructure = handle;
         info.ScratchData = new DeviceOrHostAddressKHR { DeviceAddress = Align(_gpu.Address(scratch), 256) };
@@ -535,11 +759,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         _gpu.Submit(cmd => _cmdBuild(cmd, 1, pInfo, ppRange));
         _gpu.Destroy(scratch);
         structure = handle;
-        var addressInfo = new AccelerationStructureDeviceAddressInfoKHR { SType = StructureType.AccelerationStructureDeviceAddressInfoKhr, AccelerationStructure = handle };
-        var address = _asAddress(_gpu.Device, &addressInfo);
-        if (type == AccelerationStructureTypeKHR.BottomLevelKhr)
-            _blasAddress.Add(address);
-        return address;
+        return Address(handle);
     }
 
     private DescriptorSet Allocate(int set)
@@ -927,7 +1147,10 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     public void Dispose()
     {
         EndResources();
+        if (_pipelineCache.Handle != 0)
+            _vk.DestroyPipelineCache(_gpu.Device, _pipelineCache, null);
         DestroyRaster();
+        DestroySmallCharts();
         if (_halton.Handle != 0)
         {
             _vk.DestroyPipeline(_gpu.Device, _halton, null);

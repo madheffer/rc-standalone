@@ -370,7 +370,8 @@ public static class SceneVertexLayout
     {
         var g = new GeometryInfo_t_natural
         {
-            m_nVertexAndIndexBuffers = new ivec4(buffer, buffer, buffer, buffer),
+            // y and z are -1 in every capture (capture_host.py on ze_hold_em_p and probe01; no shader reads them).
+            m_nVertexAndIndexBuffers = new ivec4(buffer, -1, -1, buffer),
             m_nBufferBindOffsetBytes = new ivec4(0),
             m_nBufferStrideInBytes = new ivec4(layout.Stride, 0, 0, 4),
             m_vTexCoordFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },

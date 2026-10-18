@@ -138,12 +138,15 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
             var gpuLuxels = new Glsl.Raygen.Luxel_t_natural[w * h];
             var gpuSamples = Array.Empty<Glsl.Raygen.LightmapSample_t_natural>();
             Device?.BeginBlock(w, h, ids);
+            Glsl.Raygen.LightmapSample_t_natural[]? debugSamples = null;
+            Vrad3Raygen? debugRaygen = null;
             for (var pass = 0; pass < Passes; pass++)
             {
                 var (jx, jy) = (0f, 0f);
+                var (rngX, rngY) = (0u, 0u);
                 if (pass % 4 == 0)
                 {
-                    (samples, jx, jy) = SampleWithJitter(ox, oy, w, h, ids, geometry, sfmt);
+                    (samples, rngX, rngY, jx, jy) = SampleWithJitter(ox, oy, w, h, ids, geometry, sfmt);
                     if (!ValveRaygen && Device == null)
                         Validate(samples);
                 }
@@ -154,11 +157,23 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
                     if (pass % 4 == 0)
                     {
                         Glsl.Raygen.LightmapSample_t_natural[] cpu = [.. samples.Select(s => Vrad3Raygen.Sample(s))];
-                        // The small charts' luxels from the CPU, the large charts' from the device's raster.
-                        Device.WriteSamples(cpu, i => ids[i] != 0xffffffff && (packing.Charts[(int)ids[i]].Flags & 0x30000000) != 0);
+                        // The small charts' luxels from the device's compute pass (or the CPU's), the large charts' from its raster.
+                        if (!Device.SmallChartSamples(geometry, packing, ox, oy, Width, Height, rngX, rngY))
+                            Device.WriteSamples(cpu, i => ids[i] != 0xffffffff && (packing.Charts[(int)ids[i]].Flags & 0x30000000) != 0);
                         if (!Device.RasterSamples(geometry, packing, ox, oy, Width, Height, jx, jy))
                             Device.WriteSamples(cpu, _ => true);
                         Device.ValidateSamples();
+                        if (Vrad3Raygen.Debug != null)
+                            debugSamples = Device.ReadSamples();
+                    }
+                    if (Vrad3Raygen.Debug != null && debugSamples != null)
+                    {
+                        // The debug luxel on the CPU too, from the device's own samples: its rays, logged.
+                        debugRaygen ??= new Vrad3Raygen(prototype!);
+                        debugRaygen.Block(w, h, ids, gpuLuxels);
+                        debugRaygen.Samples(debugSamples);
+                        debugRaygen.Pass(p, 4, random, new Vector2(ox, oy), new Vector2(Width, Height));
+                        debugRaygen.Run(Vrad3Raygen.DebugAt.X, Vrad3Raygen.DebugAt.Y);
                     }
                     Device.Pass(p, 4, random, new Vector2(ox, oy), new Vector2(Width, Height));
                     log?.Invoke($"block {block}: pass {pass} on the device");
@@ -216,18 +231,26 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
     // The samples of one block for one sampling pass: lightmap_generate_small_chart_samples, then lightmap_rasterize over it.
     private LightmapSample[] Sample(int ox, int oy, int w, int h, uint[] ids, BlockGeometry g, Sfmt19937 sfmt) => SampleWithJitter(ox, oy, w, h, ids, g, sfmt).Samples;
 
-    // The same, with the raster pass's jitter (in atlas uv).
-    private (LightmapSample[] Samples, float Jx, float Jy) SampleWithJitter(int ox, int oy, int w, int h, uint[] ids, BlockGeometry g, Sfmt19937 sfmt)
+    // The same, with the small-chart pass's two SFMT words and the raster pass's jitter (in atlas uv).
+    private (LightmapSample[] Samples, uint RngX, uint RngY, float Jx, float Jy) SampleWithJitter(int ox, int oy, int w, int h, uint[] ids, BlockGeometry g, Sfmt19937 sfmt)
     {
         var samples = new LightmapSample[w * h];
-        var rngX = sfmt.Next();
-        var rngY = sfmt.Next();
+        var rngX = RenderInt(sfmt.Next());
+        var rngY = RenderInt(sfmt.Next());
         SmallCharts(ox, oy, w, h, ids, g, rngX, rngY, samples);
         var jy = (sfmt.Next() * 2.328306e-10f - 0.5f) / Height;
         var jx = (sfmt.Next() * 2.328306e-10f - 0.5f) / Width;
         Rasterize(ox, oy, w, h, ids, g, jx, jy, samples);
-        return (samples, jx, jy);
+        return (samples, rngX, rngY, jx, jy);
     }
+
+    /// <summary>
+    /// An int render attribute as rendersystem writes it into a constant buffer: clamped to the variable
+    /// description's default range [-999999999, 999999999] (rendersystemvulkan 180254611; the VCS files
+    /// declare +-1e9). g_nRNGOffsetX / Y are raw SFMT words, so about half of them clamp
+    /// (capture_smallcharts.py: cs_script_demo's second generation got 999999999, -999999999).
+    /// </summary>
+    public static uint RenderInt(uint word) => (uint)Math.Clamp((int)word, -999999999, 999999999);
 
     private uint ChartInfo(uint chart) => packing.Charts[(int)chart].Flags & 0x0fffffff;
 
@@ -602,9 +625,10 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
                         image.ShadowRecords[p * 20 + k] = (byte)ids[k];
                     }
                 var n = LightEval.V3(l.Normal);
-                var nl = n.Length();
-                var nn = nl == 0f ? Vector3.Zero : n / nl;
-                var tl = LightEval.V3(l.Tangent).Length();
+                // 180030100's readback: VectorNormalize of the normal, the tangent's length (x x + (y y + z z)).
+                var (nn, nl) = PathTraceBounds.Normalize(n);
+                var tv = LightEval.V3(l.Tangent);
+                var tl = MathF.Sqrt(tv.X * tv.X + (tv.Y * tv.Y + tv.Z * tv.Z));
                 Set(LightmapImage.Ch.Normal, new Vector4(nn, 0f));
                 Set(LightmapImage.Ch.Tangent, l.Tangent);
                 image.Channels[LightmapImage.Ch.NormalSpread]!.Data[p * 4] = Spread(nl);

@@ -72,7 +72,8 @@ public sealed class BakeScene
         public Vector4 IblCubeMapScale = new(1f, 1f, 1f, 1f);
         public BakeCubemap? IblCubeMap;
         /// <summary>1 unless the ibl table's path_trace_light_flags says otherwise (measured: 1 with ibl = null).</summary>
-        public uint SkyLightFlags = 1;
+        // 0 for a scene without an ibl block, 1 for one without path_trace_light_flags (capture_host.py).
+        public uint SkyLightFlags;
         public uint SceneFlags;
         /// <summary>The instances' world AABB (180094d30 grows it by each instance's transformed mesh AABB).</summary>
         public Vector3 SceneMin = new(float.MaxValue), SceneMax = new(-float.MaxValue);

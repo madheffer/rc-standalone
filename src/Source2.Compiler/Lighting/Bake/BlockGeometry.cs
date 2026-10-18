@@ -30,8 +30,8 @@ namespace Source2.Compiler.Lighting.Bake;
 /// charts, the per-tile first triangle (the tile list for each
 /// 8 x 8 thread group).</item>
 /// </list>
-/// vrad3's std::sort is not stable: triangles within one tile may be in
-/// another order than here.
+/// The tile sort is MSVC's std::sort move for move (<see cref="MsvcSort"/>), so triangles within a
+/// tile keep vrad3's (unstable) order.
 /// </summary>
 public sealed class BlockGeometry
 {
@@ -79,8 +79,7 @@ public sealed class BlockGeometry
             var n = new Vector3(F(o + 12), F(o + 16), F(o + 20));
             var t = new Vector4(F(o + 24), F(o + 28), F(o + 32), F(o + 36));
             var t3 = new Vector3(t.X, t.Y, t.Z);
-            var len = t3.Length();
-            t3 = len == 0f ? Vector3.Zero : t3 / len;
+            (t3, _) = PathTraceBounds.Normalize(t3);
             var tangent = new Vector4(t3, t.W < 0f ? -1f : 1f);
             return new Vertex(p, new Vector2(packing.AtlasUv[index * 2], packing.AtlasUv[index * 2 + 1]), PackedFrame.Pack(n, tangent));
         }
@@ -183,11 +182,9 @@ public sealed class BlockGeometry
                 var (cn, ct) = PackedFrame.Unpack(c.Frame);
                 var (en, et) = PackedFrame.Unpack(e.Frame);
                 var ln = en * t + cn * s;
-                var lnl = ln.Length();
-                ln = lnl == 0f ? Vector3.Zero : ln / lnl;
+                (ln, _) = PathTraceBounds.Normalize(ln);
                 var lt = new Vector3(ct.X * s + et.X * t, ct.Y * s + et.Y * t, ct.Z * s + et.Z * t);
-                var ltl = lt.Length();
-                lt = ltl == 0f ? Vector3.Zero : lt / ltl;
+                (lt, _) = PathTraceBounds.Normalize(lt);
                 var w = ct.W * s + et.W * t < 0f ? -1f : 1f;
                 var mid = new Vertex(p, uv, PackedFrame.Pack(ln, new Vector4(lt, w)));
                 a.Add(mid);
@@ -214,9 +211,11 @@ public sealed class BlockGeometry
             var tv = (int)MathF.Floor(oy + cv);
             p.Tile = tu >= 0 && tu < tilesX && tv >= 0 && tv < tilesY ? tilesX * tv + tu : int.MaxValue;
         }
-        var small = polys.GetRange(smallStart, polys.Count - smallStart).OrderBy(p => p.Tile).Where(p => p.Tile != int.MaxValue).ToList();
-        polys.RemoveRange(smallStart, polys.Count - smallStart);
-        polys.AddRange(small);
+        // std::sort by tile (std_Sort_32ByteElements, MSVC's introsort: not stable), then the trailing
+        // polygons outside the block dropped.
+        MsvcSort.Sort(polys, smallStart, polys.Count, (x, y) => x.Tile < y.Tile);
+        while (polys.Count > smallStart && polys[^1].Tile == int.MaxValue)
+            polys.RemoveAt(polys.Count - 1);
         var vertices = new List<Vertex>();
         var charts = new List<uint>();
         var areas = new List<float>();

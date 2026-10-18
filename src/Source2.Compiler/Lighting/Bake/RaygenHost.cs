@@ -101,10 +101,46 @@ internal static class RaygenHost
             var visibility = p1.m_flVisibility;
             var hit = scene.Rays.Trace(o, d, tMin, tMax, flags | RayScene.TerminateOnFirstHit, mask, (tri, t, u, v, front) =>
             {
-                visibility *= 1f - Math.Clamp(hits.Opacity(tri, u, v), 0f, 1f);
+                var opacity = hits.Opacity(tri, u, v);
+                debug?.Invoke($"    any hit tri {tri} (instance {scene.Rays.TriangleAt(tri).Instance}) t {t:R} uv {u:R},{v:R} front {front} opacity {opacity:R}");
+                visibility *= 1f - Math.Clamp(opacity, 0f, 1f);
                 return visibility <= 0f;
             });
             p1.m_flVisibility = hit.Found ? 0f : visibility;
+            debug?.Invoke($"  shadow trace flags {flags} mask {mask} o {origin} d {direction} t {tMin}..{tMax}: " +
+                          (hit.Found ? $"hit t {hit.T:R} tri {hit.Triangle} (instance {scene.Rays.TriangleAt(hit.Triangle).Instance}) front {hit.FrontFacing}" : "miss") + $" visibility {p1.m_flVisibility:R}");
+            if (debug != null)
+            {
+                var near = scene.Rays.Trace(o, d, -0.05f, 0.05f, 0, 255, (_, _, _, _, _) => true);
+                debug($"    near origin: " + (near.Found ? $"t {near.T:R} tri {near.Triangle} (instance {scene.Rays.TriangleAt(near.Triangle).Instance}) front {near.FrontFacing}" : "nothing"));
+                // The near misses: triangles whose plane the ray crosses in [tMin, tMax * 1.5], by how far outside an edge.
+                var close = new List<(double Outside, int Tri, double T, double U, double V)>();
+                for (var i = 0; i < scene.Rays.TriangleCount; i++)
+                {
+                    var (a0, b0, c0) = scene.Rays.Corners(i);
+                    double ax = a0.X, ay = a0.Y, az = a0.Z;
+                    double e1x = b0.X - ax, e1y = b0.Y - ay, e1z = b0.Z - az, e2x = c0.X - ax, e2y = c0.Y - ay, e2z = c0.Z - az;
+                    double px = d.Y * e2z - d.Z * e2y, py = d.Z * e2x - d.X * e2z, pz = d.X * e2y - d.Y * e2x;
+                    var det = e1x * px + e1y * py + e1z * pz;
+                    if (Math.Abs(det) < 1e-12)
+                        continue;
+                    double sx = o.X - ax, sy = o.Y - ay, sz = o.Z - az;
+                    var u = (sx * px + sy * py + sz * pz) / det;
+                    double qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+                    var v = (d.X * qx + d.Y * qy + d.Z * qz) / det;
+                    var t = (e2x * qx + e2y * qy + e2z * qz) / det;
+                    if (t < tMin - 0.01 || t > tMax * 1.5)
+                        continue;
+                    var outside = Math.Max(Math.Max(-u, -v), u + v - 1);
+                    if (outside < 0.02)
+                        close.Add((outside, i, t, u, v));
+                }
+                foreach (var c in close.OrderBy(c => c.Outside).Take(6))
+                {
+                    var (a0, b0, c0) = scene.Rays.Corners(c.Tri);
+                    debug($"    close: tri {c.Tri} (instance {scene.Rays.TriangleAt(c.Tri).Instance}, mask {scene.Rays.Instances[scene.Rays.TriangleAt(c.Tri).Instance].Mask}) t {c.T:G9} u {c.U:G9} v {c.V:G9} outside {c.Outside:G6} corners {a0} {b0} {c0}");
+                }
+            }
             return;
         }
         var rng = p.flOpacityRng;

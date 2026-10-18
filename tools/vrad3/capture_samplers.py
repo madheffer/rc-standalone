@@ -95,6 +95,55 @@ function onTemplate(at, name) {
         }
     });
 }
+// Immutable samplers in descriptor set layouts: per binding with pImmutableSamplers, its handles.
+function onSetLayout(at) {
+    Interceptor.attach(at, {
+        onEnter(args) { this.info = args[1]; this.out = args[3]; },
+        onLeave() {
+            const n = this.info.add(20).readU32(), b = this.info.add(24).readPointer();
+            for (let k = 0; k < n; k++) {
+                const x = b.add(k * 24), imm = x.add(16).readPointer();
+                if (imm.isNull()) continue;
+                const count = x.add(8).readU32(), handles = [];
+                for (let j = 0; j < count; j++) handles.push(imm.add(j * 8).readU64().toString(16));
+                send({ kind: 'immutable', layout: this.out.readU64().toString(16), binding: x.readU32(), type: x.add(4).readU32(), handles: handles.join(',') });
+            }
+        }
+    });
+}
+// Push descriptors: vkCmdPushDescriptorSetWithTemplate(KHR)(cmd, template, layout, set, pData) and
+// vkCmdPushDescriptorSet(KHR)(cmd, bindPoint, layout, set, count, pWrites); the samplers they push.
+function onPushTemplate(at, name) {
+    Interceptor.attach(at, {
+        onEnter(args) {
+            const t = templates[args[1].toString(16)];
+            if (!t) { send({ kind: 'push', name, template: 'unknown' }); return; }
+            for (const x of t) {
+                if (x.type !== 0 && x.type !== 1)
+                    continue;
+                const handles = [];
+                for (let j = 0; j < x.count; j++)
+                    handles.push(args[4].add(x.offset + j * x.stride).readU64().toString(16));
+                send({ kind: 'push', set: args[3].toUInt32(), binding: x.binding, first: x.first, type: x.type, handles: handles.join(',') });
+            }
+        }
+    });
+}
+function onPushSet(at, name) {
+    Interceptor.attach(at, {
+        onEnter(args) {
+            const n = args[4].toUInt32(), w = args[5];
+            for (let k = 0; k < n; k++) {
+                const x = w.add(k * 64);
+                const type = x.add(36).readU32();
+                if (type !== 0 && type !== 1) continue;
+                const count = x.add(32).readU32(), images = x.add(40).readPointer(), handles = [];
+                for (let j = 0; j < count; j++) handles.push(images.add(j * 24).readU64().toString(16));
+                send({ kind: 'push', set: args[3].toUInt32(), binding: x.add(24).readU32(), first: x.add(28).readU32(), type, handles: handles.join(',') });
+            }
+        }
+    });
+}
 // VK_EXT_descriptor_buffer: vkGetDescriptorEXT(device, info {sType, pNext, type, data}, size, out).
 function onGetDescriptor(at) {
     Interceptor.attach(at, {
@@ -114,6 +163,11 @@ const wanted = {
     vkCreateDescriptorUpdateTemplate: onCreateTemplate,
     vkCreateDescriptorUpdateTemplateKHR: onCreateTemplate,
     vkUpdateDescriptorSetWithTemplate: a => onTemplate(a, 'vkUpdateDescriptorSetWithTemplate'),
+    vkCreateDescriptorSetLayout: onSetLayout,
+    vkCmdPushDescriptorSetWithTemplateKHR: a => onPushTemplate(a, 'vkCmdPushDescriptorSetWithTemplateKHR'),
+    vkCmdPushDescriptorSetWithTemplate: a => onPushTemplate(a, 'vkCmdPushDescriptorSetWithTemplate'),
+    vkCmdPushDescriptorSetKHR: a => onPushSet(a, 'vkCmdPushDescriptorSetKHR'),
+    vkCmdPushDescriptorSet: a => onPushSet(a, 'vkCmdPushDescriptorSet'),
     vkUpdateDescriptorSetWithTemplateKHR: a => onTemplate(a, 'vkUpdateDescriptorSetWithTemplateKHR'),
 };
 function hookAt(name, at) {
