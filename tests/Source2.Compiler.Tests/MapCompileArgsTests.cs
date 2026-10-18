@@ -86,9 +86,14 @@ public class MapCompileArgsTests(ITestOutputHelper output)
         var before = Io.VpkWriter.ReadAll(package);
         var log = new StringWriter();
 
-        // A builder that is not ported (the nav mesh) is refused, and leaves the package alone.
-        Assert.Equal(1, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-world", "-nav"]), log));
-        Assert.Contains("not ported: nav", log.ToString());
+        // A builder that is not ported (Steam Audio's reverb) is refused, and leaves the package alone.
+        Assert.Equal(1, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-world", "-sareverb"]), log));
+        Assert.Contains("not ported: sareverb", log.ToString());
+        Assert.Equal(before.Keys.Order(), Io.VpkWriter.ReadAll(package).Keys.Order());
+        // The nav step: s2c_rounds has no walkable seeds, so it writes the empty nav, Valve's byte for byte.
+        Assert.Equal(0, MapCompile.Run(MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, "-nav"]), log));
+        Assert.Equal(before["maps/s2c_rounds.nav"], Io.VpkWriter.ReadAll(package)["maps/s2c_rounds.nav"]);
+        File.Copy(valve, package, overwrite: true);
         // s2c_rounds has no light, so nothing stops the lump (a light would, without --accept-gaps).
         Assert.DoesNotContain(MapEntities.From(DmxBinary.ReadFile(source)), e => MapCompile.HasLumpGap(e.ClassName));
 

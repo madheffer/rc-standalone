@@ -1432,6 +1432,38 @@ game can answer is raised with the user first, and runs with -insecure.
     - Still open: coloured tints, the IBL cube map, and the post-process
       EXR writers' tie rounding (not yet checked on a tie).
 
+81. **The nav of a map with no walkable seeds** (settled 2026-10-18 by
+    decompile and by every compiled package in the addons, CS2 1.41.9.1).
+    - The nav step is resourcecompiler 1800fc370. Its settings come from
+      the map's CMapNavData node (180fafae0, the node Hammer's navigation
+      tools add). Without one it logs "Nav settings not found, using
+      default settings."
+    - The seeds are every point_nav_walkable's world origin, through prefab
+      instances (180f21760).
+    - With no seeds, navsystem.dll logs ">>NAVGEN: Skipped... no walkable
+      seeds present" and writes a mesh with no areas.
+    - Across the 26 compiled maps, every map without a point_nav_walkable
+      also lacked a CMapNavData. They all ship one identical 834-byte .nav
+      (md5 7b91f546...): ze_hold_em_p, ze_doom_p2 (both addons),
+      ze_doom_p2_c_gameplay, c2m2's gameplay and environment prefab, and
+      six probes. Every map with seeds got a generated nav.
+    - The file:
+      - magic 0xFEEDFACE, version 36, then 1, 1;
+      - an empty KV3 block, 23 zero bytes, another empty block;
+      - 119 bytes of default generation parameters (not decoded);
+      - NavGenParams { HullParams [ { Name "player", FlowMap_Enabled
+        false, FlowMap_NodeMaxRadius 400.0 } ] }, then 5 zero bytes;
+      - { arealist [] } in its own KV3 format, 29f00073-008e-45f9-...
+      Every KV3 block is uncompressed v5, and Kv3V5Writer writes all four
+      as Valve does.
+    - NavFile.EmptyDefault builds it; compile-map's nav step writes it and
+      refuses a map that needs the generator. It is byte-identical on
+      ze_hold_em_p, ze_doom_p2_c_gameplay and s2c_rounds (NavFileTests,
+      MapCompileArgsTests).
+    - Open: generating a real mesh (Recast plus 31 polygon stages in
+      navsystem), and a map with CMapNavData but no seeds (its parameters
+      would differ; not seen).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

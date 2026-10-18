@@ -76,9 +76,10 @@ public static class MapCompile
     /// A map compile from resourcecompiler's own command line, on the parts
     /// the port builds. The steps are the compile's (CompileMap, FUN_1801f7840):
     /// the world step in entities-only mode writes the entity lumps, and the
-    /// physics step writes world_physics. The full world step (render
-    /// geometry, vis inside it, the lighting bake), nav and Steam Audio are
-    /// not ported and are refused by name. Like a -fshallow build, the package
+    /// physics step writes world_physics. The nav step writes the fixed empty
+    /// nav of a map with no seeds (NavFile) and refuses one that needs the
+    /// generator. Steam Audio is not ported and is refused by name; the bake
+    /// takes vrad3's results (-vrad3output). Like a -fshallow build, the package
     /// already at the output path is kept and only these outputs replaced; a
     /// build that would start from an empty package is refused, as the
     /// compile refuses a partial build then.
@@ -110,7 +111,7 @@ public static class MapCompile
         var vrad3 = args.Vrad3Output;
         if (vrad3 != null && !File.Exists(Path.Combine(vrad3, "lightmap_packing_geometry.dat")))
             return Fail(log, $"-vrad3output: no vrad3 output in {vrad3}");
-        refused.AddRange(steps.Where(s => s is "nav" or "sareverb" or "sapaths" or "sacustomdata" || (s is "bakedlighting" && vrad3 == null)));
+        refused.AddRange(steps.Where(s => s is "sareverb" or "sapaths" or "sacustomdata" || (s is "bakedlighting" && vrad3 == null)));
         if (args.BakesLighting && vrad3 == null)
             refused.Add("the lighting bake (a build naming no builder, or -bakelighting; -vrad3output takes vrad3's results)");
         if (refused.Count > 0 && !skipUnported)
@@ -131,7 +132,7 @@ public static class MapCompile
 
         try
         {
-            return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package, bakes);
+            return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package, bakes, skipUnported);
         }
         catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
         {
@@ -143,7 +144,7 @@ public static class MapCompile
     private static int Build(MapCompileArgs args, TextWriter log, bool acceptGaps,
                              Func<GameContent, Func<string, MaterialSampler.Renderer?>?>? sampler,
                              string full, string root, string addon, string map, string game,
-                             HashSet<string> steps, string package, bool bakes = false)
+                             HashSet<string> steps, string package, bool bakes = false, bool skipUnported = false)
     {
         var document = DmxBinary.ReadFile(full);
         // A prefab's map loads from the addon's content, as Hammer's does.
@@ -218,6 +219,20 @@ public static class MapCompile
             entries[world.ModelPath] = world.Model;
             entries[world.ManifestPath] = world.Manifest;
             log.WriteLine($"  physics: {world.ModelPath}, {world.ManifestPath}");
+        }
+        if (steps.Contains("nav"))
+        {
+            // resourcecompiler's nav step (1800fc370): no point_nav_walkable seeds and no
+            // CMapNavData node give the fixed empty nav; anything else needs the generator.
+            if (!NavFile.NeedsGeneration(document))
+            {
+                entries[$"maps/{map}.nav".ToLowerInvariant()] = NavFile.EmptyDefault();
+                log.WriteLine($"  nav: maps/{map}.nav (no walkable seeds: the empty nav)");
+            }
+            else if (!skipUnported)
+                return Fail(log, "not ported: nav generation (the map has point_nav_walkable seeds or nav settings); --skip-unported leaves the package's nav");
+            else
+                log.WriteLine("  skipped (not ported): nav generation");
         }
         if (args.Vrad3Output is { } folder && bakes && !args.EntitiesOnly)
         {

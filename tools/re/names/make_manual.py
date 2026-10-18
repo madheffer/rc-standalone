@@ -515,6 +515,9 @@ RESOURCECOMPILER = [
     ("18020e4e0", "StaticLighting_RepackUv", BAKE, "one lightmap uv: texel (int)(u * w) clamped, its original chart; size > 0 moves it: flags bit 1 -> centre of the size square ((x + size * 0.5) / w), else the offset from the chart's old corner (+0x50 records, +8/+0xc), swapped with bit 0, from (x, y)"),
     ("18032e3e0", "CModelDocCompileInstance::CompilePhysics", PM, "a model's physics, world_physics.vmdl included; RED2 surface_prop = symbol table +0x458, filled at 18032ebd0 from each part's shapes' +0xf0 in order (capture_surfaceprops.py)"),
     ("1818d77e0", "CNavMesh::CreateArea", NAV, ""),
+    ("1800fc370", "MapCompile_BuildNav", NAV, "the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs)"),
+    ("180f21760", "NavGen_CollectWalkableSeeds", NAV, "every point_nav_walkable through the map's instances (180fc6f40 flag 3): each instance step matrix times the entity origin, appended to the seed list at +0x78"),
+    ("180fafae0", "MapWorld_FindNavData", NAV, "the CMapNavData node among the world's (or a group's) children; its settings at +0x498"),
     ("1818dcb00", "CNavMesh::Update", NAV, ""),
     # From the memory notes, src/ comments and docs (2026-09-28).
     # The physics settle (tools/re/names/settle_*.txt, docs/SETTLE.md, Simulation/).

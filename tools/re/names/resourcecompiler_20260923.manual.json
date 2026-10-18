@@ -2809,6 +2809,24 @@
    "note": ""
   },
   {
+   "addr": "1800fc370",
+   "name": "MapCompile_BuildNav",
+   "module": "s2c:baked/nav",
+   "note": "the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs)"
+  },
+  {
+   "addr": "180f21760",
+   "name": "NavGen_CollectWalkableSeeds",
+   "module": "s2c:baked/nav",
+   "note": "every point_nav_walkable through the map's instances (180fc6f40 flag 3): each instance step matrix times the entity origin, appended to the seed list at +0x78"
+  },
+  {
+   "addr": "180fafae0",
+   "name": "MapWorld_FindNavData",
+   "module": "s2c:baked/nav",
+   "note": "the CMapNavData node among the world's (or a group's) children; its settings at +0x498"
+  },
+  {
    "addr": "1818dcb00",
    "name": "CNavMesh::Update",
    "module": "s2c:baked/nav",
