@@ -14,6 +14,14 @@ Rules that apply throughout:
 
 ## Where it stands
 
+**2026-10-19: a lit compile with no vrad3.** `compile-map -s2cbake <folder>`
+writes the job resourcecompiler hands vrad3 (Vrad3Job), bakes it on the GPU
+with Valve's SPIR-V (OwnLightingBake: lightmaps, then light probe volumes with
+rtx_vrad3_lpv) and packages it. On ze_hold_em_p every vrad3 output is
+byte for byte: the four lightmap EXRs and the 16 probe volume EXRs. The
+package is 55 of 56 files and 99.90% of bytes (ledgers 84 to 87); the miss
+is L3's 2 BC7 blocks. The notes below are older.
+
 - **Lightmap bake** (`Lighting/Bake`):
   - Valve's own raygen and material hit groups run as C# on the CPU
     (`tools/re/glsl_to_cs.py`).
@@ -321,6 +329,10 @@ roadmap", closed; "Lighting compilation parity with Valve").
 | L10 | baked_bomb_damage.vdata_c (sacustomdata, sampled from the nav mesh; defusal maps only) | new | probe01's file byte-exact; needs L9. |
 | L11 | Three MSVC std::sort ports: Maps/MsvcSort (T[]), Simulation/MsvcSort (Span, struct comparer) and Lighting/Bake/MsvcSort (IList, 10-18) | code health | **done 10-19**: Simulation/MsvcSort is the port; Maps/MsvcSort wraps it with a delegate comparer, the Bake copy is gone; MsvcSortTests runs every entry point against MSVC's hashes. |
 | L12 | The lightmap UV snap's axes on a non-square atlas (180217740 takes u by the height's R) | LightmapNodeBake | a compile with a non-square lightmap compared (CS2's atlas is square; not seen). |
+| L13 | The IBL cube map on the GPU (RtxBakeHost throws on a scene with ibl) | RtxBakeHost, OwnLightingBake | probe01 with -s2cbake byte-exact in its lightmaps and probe volumes. |
+| L14 | -lightmapVRadQuality 1 and 2: lightmap_image_filter_oidn / lightmap_image_filter_sh_oidn and the LPV OIDN filter (Intel Open Image Denoise) | new | a quality 1 compile's EXRs byte-exact (needs OIDN's own build or a port). |
+| L15 | The adaptive pass count (lightmap_compute_block_gpu minspp under maxspp, the convergence test between command lists) on the lightmap host | LightmapBaker, RtxBakeHost | a quality 1 or 2 bake's raw image equal to vrad3's (OwnLightingBake refuses it today). |
+| L16 | -s2cbake on more maps: probe01 (after L13), cardtest, the prefab probes, c2m2, atixref (smart props in the path-trace scene are refused) | Vrad3Job, PathTraceProps | each map's own-bake package equal to its vrad3 one. |
 
 ### vmap_c (L8): what is settled, what is not
 

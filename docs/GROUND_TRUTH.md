@@ -54,6 +54,8 @@ game can answer is raised with the user first, and runs with -insecure.
    two models spell one game name differently (no specimen does).
 10. **Hammer's re-projected texcoords and normals** (about 1e-5 off on some
     faces). They do not change a hull, but the source is not read.
+    Settled 2026-10-19 for the brush entity models (ledger 87): the model
+    compile's V flip round trip, 1 - (1 - v). Earlier notes:
     2026-10-07: they are what keeps ze_hold_em_p's 7 end_breakable entity
     models from byte parity: corner texcoord 0.47777778 (3EF49F4A, nodes
     244/245) comes out of Valve's island shift as BF05B05C, one ulp from
@@ -721,7 +723,7 @@ game can answer is raised with the user first, and runs with -insecure.
     cardtest's no-lighting world nodes exact.
 
 60. **Open, 2026-10-12:**
-    - Brush entity model texcoords (ze_hold_em_p's end_breakable models,
+    - (Settled 2026-10-19, ledger 87: 1 - (1 - v).) Brush entity model texcoords (ze_hold_em_p's end_breakable models,
       12.5% of its bytes): some V values are 1 or 2 ulps from ours in both
       directions. Valve's ConvertMeshForBuilder output is ours bit for bit
       (capture_texshift.py, after HammerMesh_ShiftTexcoordIslands), so the
@@ -1612,6 +1614,34 @@ game can answer is raised with the user first, and runs with -insecure.
       for them.
     - m_SearchableUserData: IsChildResource 0, UsesBuilderEntityKeys 1,
       WorldModelDocAll 1. m_SubassetReferences: ledger 85.
+
+87. **A lit compile with no vrad3** (settled 2026-10-19 on ze_hold_em_p by
+    bytes, compile-map -s2cbake).
+    - Brush entity model texcoords: the model compile takes the mesh
+      through DMX, which flips V there and back: 1 - (1 - v), rounded.
+      All 7 end_breakable models are now exact; the round trip reproduces
+      every texcoord of every model, which closes ledger 60's open item.
+      It also makes scene_meshes.kv3 equal Valve's.
+    - Vrad3Job writes the job folder from the compile's own state. Every
+      input vrad3 reads equals resourcecompiler's: scene_info.kv3,
+      scene_meshes.kv3, lightmap_info.dat, lightmap_packing_geometry.dat
+      and lightmap_seams.dat. The script carries RC's quality tables
+      (182a88550..885c8).
+    - Light probe volumes on the GPU (RtxBakeHost.BakeLpv) with
+      rtx_vrad3_lpv. D_LPV_PASS 0 voxelizes and 1 computes, with
+      S_EXECUTION_REORDERING as the lightmap uses it. The push constants
+      are 128 bytes: the row-major mat4x3 is three 16-byte rows.
+    - The raygen indexes g_Luxels and g_LpvBlockConverged by the launch
+      (LaunchSize.x (z LaunchSize.y + y) + x). Each block places its cells
+      in its own box over the launch size. So each lpv_compute_block_gpu
+      (at most 96 cells per axis) is its own launch: region-sized luxels,
+      the block's box, its own convergence image, its random draws
+      reseeded. Only g_SolidMask reads the bordered grid, at the packed
+      start (low 16 bits) with the packed counts (high 16).
+    - Result: all 16 probe volume EXRs, the four lightmap EXRs and the
+      packaged lighting are byte for byte, except the dlshd atlas's 2 BC7
+      blocks (bc7e, LIGHTING_ROADMAP L3). The package is 55 of 56 files and
+      99.90%, the same as with vrad3's outputs; the compile takes 278 s.
 
 ## Resolved
 
