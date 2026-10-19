@@ -28,6 +28,27 @@ public static class NavGenStages
     public const float EdgeLenLimitA = 24f;
     public const float EdgeLenLimitB = 512f;
 
+    /// <summary>nav_gen_max_bottleneck_width (180134ae0): SplitBottleneckPolys' width.</summary>
+    public const float BottleneckWidth = 128f;
+
+    /// <summary>nav_gen_split_multi_connection_polys_tol (180134a30).</summary>
+    public const float MultiConnectionTol = 0.01f;
+
+    /// <summary>
+    /// Stages 023-027 without the world: GenerateConnections, SplitBottleneckPolys,
+    /// SplitPolysWithMultipleConnections, and RemoveSmallAreasOnEdge (its threshold the settings' +0x2c,
+    /// skipped when their +0x58 byte is set). Not run here: AddJumps (026), which casts the hull through
+    /// the physics world (vfn 0x580) and is not ported, and the stages before 023 that need markups
+    /// (019) or the world (022).
+    /// </summary>
+    public static void ConnectStages(NavGenPolys g, NavGenSettings settings)
+    {
+        g.GenerateConnections(new NavGenPolys.ConnectSettings());
+        g.SplitBottleneckPolys(BottleneckWidth);
+        g.SplitPolysWithMultipleConnections(MultiConnectionTol);
+        g.RemoveSmallAreasOnEdge(settings.SmallAreaOnEdgeRemovalSize, settings.Byte58 != 0);
+    }
+
     /// <summary>
     /// Stages 000-004 on the extracted polygons: ValidateVertices, WeldVertices, RemoveDegens,
     /// RemovePolysMarkedNoNav (no NONAV markups: nothing; markups not ported), TransformRecastNonZup

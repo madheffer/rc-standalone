@@ -145,6 +145,23 @@ public sealed class NavGenMergeTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>The per-polygon bounds AddJumps writes (180076d40) against stage 026's output records.</summary>
+    [Fact]
+    public void PolygonBoundsMatchValve()
+    {
+        var stages = Environment.GetEnvironmentVariable("NAVGEN_INPUT") ?? Path.Combine(Path.GetTempPath(), "navgen_capture", "probe01_in");
+        var input = Path.Combine(stages, "026_AddJumps_in.bin");
+        if (!File.Exists(input))
+            return;
+        var g = NavGenInputTests.LoadStage(input);
+        g.ComputeBounds();
+        var b = File.ReadAllBytes(Path.Combine(stages, "026_AddJumps_out.bin"));
+        for (var i = 0; i < g.Polys.Count; i++)
+            for (var k = 0; k < 6; k++)
+                Assert.Equal(System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(b.AsSpan(8 + i * 0x88 + 0x10 + k * 8)),
+                    BitConverter.DoubleToInt64Bits(g.Polys[i].Bounds![k]));
+    }
+
     /// <summary>MergePolys whole from stage 013's input, every inner call against its dump, then the stage output.</summary>
     [Fact]
     public void MergePolysMatchesValve()

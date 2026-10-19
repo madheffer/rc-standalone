@@ -86,6 +86,40 @@ public sealed partial class NavGenPolys
         }
     }
 
+    /// <summary>
+    /// 180076d40 (AddJumps, IslandRemoval): each polygon's bounds written over +0x10..+0x38 (x min, x max,
+    /// y min, y max, z min, z max; from +-FLT_MAX), and the bounds of them all.
+    /// </summary>
+    public ((double X, double Y, double Z) Min, (double X, double Y, double Z) Max) ComputeBounds()
+    {
+        double m = float.MaxValue;
+        (double X, double Y, double Z) lo = (m, m, m), hi = (-m, -m, -m);
+        foreach (var p in Polys)
+        {
+            double x0 = m, y0 = m, z0 = m, x1 = -m, y1 = -m, z1 = -m;
+            foreach (var v in p.Indices)
+            {
+                var c = Pool[v];
+                if (!(c.X <= x1)) x1 = c.X;
+                if (!(x0 <= c.X)) x0 = c.X;
+                if (!(c.Y <= y1)) y1 = c.Y;
+                if (!(y0 <= c.Y)) y0 = c.Y;
+                if (!(c.Z <= z1)) z1 = c.Z;
+                if (!(z0 <= c.Z)) z0 = c.Z;
+            }
+            p.Bounds = [x0, x1, y0, y1, z0, z1];
+            p.SortKey = x0;
+            p.Reach = x1;
+            if (x0 <= lo.X) lo.X = x0;
+            if (y0 <= lo.Y) lo.Y = y0;
+            if (z0 <= lo.Z) lo.Z = z0;
+            if (!(x1 <= hi.X)) hi.X = x1;
+            if (!(y1 <= hi.Y)) hi.Y = y1;
+            if (!(z1 <= hi.Z)) hi.Z = z1;
+        }
+        return (lo, hi);
+    }
+
     /// <summary>GenerateConnections' first steps: the keys (180077130), then MSVC std::sort on +0x10 (180067920).</summary>
     public void SortForConnections()
     {
@@ -505,9 +539,9 @@ public sealed partial class NavGenPolys
     // 180053170 (map input: no vertex attributes): edge ea of a against edge eb of b, opposite within
     // 0.001; each projected on the other (floats); both overlaps at least `overlap`; midpoints within 1
     // in XY or b's to the left of a.
-    private NavConnection Connect(int pa, int ea, int pb, int eb, double overlap)
+    private NavConnection Connect(int pa, int ea, int pb, int eb, double overlap, byte kind = 0)
     {
-        var c = new NavConnection { PolyA = pa, EdgeA = ea, PolyB = pb, EdgeB = eb };
+        var c = new NavConnection { PolyA = pa, EdgeA = ea, PolyB = pb, EdgeB = eb, Kind = kind };
         var a0 = Corner(Polys[pa], ea);
         var a1 = Corner(Polys[pa], ea + 1);
         var b0 = Corner(Polys[pb], eb);
@@ -572,6 +606,12 @@ public sealed class NavConnection
     public int PolyA, EdgeA, PolyB, EdgeB;
     public double OverlapA, StartA, OverlapB, StartB;
     public (double X, double Y, double Z) MidA, MidB;
+
+    /// <summary>+0x60: the connection's kind byte (0 from GenerateConnections; carried through splits).</summary>
+    public byte Kind;
+
+    /// <summary>+0x61: a flag byte the compaction (18006cb10) clears.</summary>
+    public byte Flag61;
 }
 
 /// <summary>
@@ -584,6 +624,8 @@ public sealed class NavLinks
     public List<int> Slots = [];
     public List<int>[] PerEdge = [[], [], [], [], []];
 
+    public int Count => Connections.Count;
+
     public int Add(NavConnection c)
     {
         var at = Connections.Count;
@@ -592,5 +634,32 @@ public sealed class NavLinks
         Slots.Add(list.Count);
         list.Add(at);
         return at;
+    }
+
+    /// <summary>
+    /// 180050240: swap-remove connection i (the last takes its place and its edge list entry follows),
+    /// then swap-remove its entry from its edge's list (the moved entry's slot follows).
+    /// </summary>
+    public void RemoveAt(int i)
+    {
+        var edge = Connections[i].EdgeA;
+        var slot = Slots[i];
+        var last = Connections.Count - 1;
+        if (i != last)
+        {
+            Connections[i] = Connections[last];
+            Slots[i] = Slots[last];
+            PerEdge[Connections[i].EdgeA][Slots[i]] = i;
+        }
+        Connections.RemoveAt(last);
+        Slots.RemoveAt(last);
+        var list = PerEdge[edge];
+        var tail = list.Count - 1;
+        if (slot != tail)
+        {
+            list[slot] = list[tail];
+            Slots[list[slot]] = slot;
+        }
+        list.RemoveAt(tail);
     }
 }

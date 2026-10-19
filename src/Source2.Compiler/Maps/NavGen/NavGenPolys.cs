@@ -28,6 +28,9 @@ public sealed class NavPoly
     /// polygon's first triangle (quads: the nearer of two) and its farthest corner from the origin.</summary>
     public double SortKey, Reach;
 
+    /// <summary>+0x10..+0x38 once 180076d40 has run: x min, x max, y min, y max, z min, z max.</summary>
+    public double[]? Bounds;
+
     /// <summary>+0x80 from GenerateConnections on: the connection block.</summary>
     public NavLinks? Links;
 
