@@ -1,6 +1,48 @@
 {
  "functions": [
   {
+   "addr": "1801f5080",
+   "name": "CRnWorld::CastShape",
+   "module": "s2c:baked/bomb",
+   "note": "by shape type: 0 ray (1801f4ad0), 1 sphere, 2 box (1801f29e0), 3, 4"
+  },
+  {
+   "addr": "1801f29e0",
+   "name": "CRnWorld::CastBox",
+   "module": "s2c:baked/bomb",
+   "note": "each broadphase tree (1801d64a0), shape vtable +0x40"
+  },
+  {
+   "addr": "1801f4ad0",
+   "name": "CRnWorld::CastRay",
+   "module": "s2c:baked/bomb",
+   "note": "each broadphase tree (1801d8580), shape vtable +0x10"
+  },
+  {
+   "addr": "1802421c0",
+   "name": "CRnMeshShape::CastBox",
+   "module": "s2c:baked/bomb",
+   "note": "unscaled shapes take 180245a10 (no scale division), else 180244dc0"
+  },
+  {
+   "addr": "180245a10",
+   "name": "RnMesh_CastBoxUnscaled",
+   "module": "s2c:baked/bomb",
+   "note": "BVH walk; triangles through 180244380, or 180243770 when the mesh has neighbour indices (+0x68)"
+  },
+  {
+   "addr": "180242360",
+   "name": "CRnMeshShape::CastRay",
+   "module": "s2c:baked/bomb",
+   "note": "1802406c0 on the shape's scale"
+  },
+  {
+   "addr": "1802406c0",
+   "name": "RnMesh_CastRay",
+   "module": "s2c:baked/bomb",
+   "note": "edge tests from the edge midpoints, front faces only (n . d below 0), t above 0 clamped to 1"
+  },
+  {
    "addr": "1801ac5c0",
    "name": "RnHullCreate",
    "module": "s2c:physics/hull",

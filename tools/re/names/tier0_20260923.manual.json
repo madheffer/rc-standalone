@@ -1,6 +1,24 @@
 {
  "functions": [
   {
+   "addr": "1800d7940",
+   "name": "KV3Text_WriteValue",
+   "module": "s2c:containers",
+   "note": "binary blob (case 6): member over 32 bytes opens line break, #[ at column 1, rows of 32 upper-case pairs, depth + 1 tabs on every row but the first, close line break, depth tabs, ]"
+  },
+  {
+   "addr": "1802bdd90",
+   "name": "crt_exp2f",
+   "module": "s2c:baked/bomb",
+   "note": "x split to n + f in [-0.5, 0.5], Cody-Waite expf of f ln2 (1802bdb54) scaled by 2^n"
+  },
+  {
+   "addr": "1802df0a4",
+   "name": "crt_acosf",
+   "module": "s2c:baked/bomb",
+   "note": "AMD libm float acosf; V_acosf (180007e80) clamps to [-1, 1] first"
+  },
+  {
    "addr": "1800c7220",
    "name": "Kv3_SaveBinary",
    "module": "s2c:containers",

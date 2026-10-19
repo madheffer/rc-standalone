@@ -1,0 +1,118 @@
+{
+ "functions": [
+  {
+   "addr": "18003ad70",
+   "name": "CMapCompileModifierCS2BombDamage::Run",
+   "module": "s2c:baked/bomb",
+   "note": "bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32"
+  },
+  {
+   "addr": "18003b5d0",
+   "name": "CCS2BombDamageBaker::GatherBombsites",
+   "module": "s2c:baked/bomb",
+   "note": "func_bomb_target entities with bomb_damage_power above 0"
+  },
+  {
+   "addr": "18003d030",
+   "name": "CCS2BombDamageBaker::SampleNavAreas",
+   "module": "s2c:baked/bomb",
+   "note": "per area, per fan triangle (v0, v[n-1], v[n-2]) down: cells of the area bounds snapped through fmod, y x z from the top, box half 10 against the triangle (1803f2400); bounds of every hit"
+  },
+  {
+   "addr": "18003b750",
+   "name": "CCS2BombDamageBaker::BuildGrid",
+   "module": "s2c:baked/bomb",
+   "note": "top seed cells lifted 30 into the node table (+0x11 written out), site membership by the trigger overlapping the cell box (vtable +0xd0); rounds of zero-length box casts (vphysics2 +0x558) growing 5 diagonal-down steps within the bounds +-30, at most 64"
+  },
+  {
+   "addr": "18003ddf0",
+   "name": "CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite",
+   "module": "s2c:baked/bomb",
+   "note": "frontier from the distance-0 nodes, every node into the site table, 26-neighbour jobs then applied in order; frontier tables swapped and emptied in place"
+  },
+  {
+   "addr": "18003eb60",
+   "name": "CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite::lambda_1",
+   "module": "s2c:baked/bomb",
+   "note": "one neighbour: parent shortcut to the grandparent when the line is clear, cost from the path, next frontier when not blocked"
+  },
+  {
+   "addr": "18003db50",
+   "name": "CCS2BombDamageBaker::LineBlocked",
+   "module": "s2c:baked/bomb",
+   "note": "a ray each way (vphysics2 +0x4f8); FLT_MAX ends blocked, equal ends clear"
+  },
+  {
+   "addr": "18003f260",
+   "name": "CCS2BombDamageBaker::BuildPath",
+   "module": "s2c:baked/bomb",
+   "note": "parents back to distance 0 or a self parent, the candidate standing in for its node; null on a cycle"
+  },
+  {
+   "addr": "18003fa60",
+   "name": "CCS2BombDamageBaker::PathLength",
+   "module": "s2c:baked/bomb",
+   "note": "segment lengths (z^2 + y^2 + x^2) summed four at a time"
+  },
+  {
+   "addr": "18003fd80",
+   "name": "CCS2BombDamageBaker::PathTurns",
+   "module": "s2c:baked/bomb",
+   "note": "acosf of each corner in degrees (57.29577637), none under 0.01 per axis"
+  },
+  {
+   "addr": "18003ffa0",
+   "name": "CCS2BombDamageBaker::GatherRuntimeData",
+   "module": "s2c:baked/bomb",
+   "note": "written-out nodes in slot order: distance clamped to 16 bits, yaw and pitch bytes, leaning to the site within 1600"
+  },
+  {
+   "addr": "180041040",
+   "name": "CCS2BombDamageBaker::WriteVdata",
+   "module": "s2c:baked/bomb",
+   "note": "positions (int16 x, y, z - 30) and damage_values blobs"
+  },
+  {
+   "addr": "180040c40",
+   "name": "CCS2BombDamageBaker::WriteHeader",
+   "module": "s2c:baked/bomb",
+   "note": "generic_data_type, header.version 2, bombsites (bounds, bomb_damage_power default 3000)"
+  },
+  {
+   "addr": "1803f2400",
+   "name": "BoxTriangleOverlap",
+   "module": "s2c:baked/bomb",
+   "note": "Akenine-Moller SAT: triangle bounds, unit edges against the axes, unit normal; tolerance added to the reach"
+  },
+  {
+   "addr": "1803f1c80",
+   "name": "VectorNormalizeWide",
+   "module": "s2c:baked/bomb",
+   "note": "double precision: (y^2 + x^2) + z^2, components times 1 / length"
+  },
+  {
+   "addr": "1803f15e0",
+   "name": "VectorAngles",
+   "module": "s2c:baked/bomb",
+   "note": "atan2f yaw and pitch in [0, 360)"
+  },
+  {
+   "addr": "180041470",
+   "name": "BombNodeTable::Insert",
+   "module": "s2c:baked/bomb",
+   "note": "CUtlHashtable, key hash MurmurHash2 mix of the float bits, seed 0xea711bd8"
+  },
+  {
+   "addr": "180042570",
+   "name": "BombNodeTable::Rehash",
+   "module": "s2c:baked/bomb",
+   "note": "next power of two of max(n, 32), re-placed from the last slot"
+  },
+  {
+   "addr": "180042800",
+   "name": "BombNodeTable::Bump",
+   "module": "s2c:baked/bomb",
+   "note": "the run's entry to the first free slot past the run, FLAG_LAST moves"
+  }
+ ]
+}

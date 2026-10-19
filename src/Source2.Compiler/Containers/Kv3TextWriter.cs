@@ -24,18 +24,55 @@ public static class Kv3TextWriter
     private const string Newline = "\r\n";
 
     public static string Write(KVObject root, Guid format, string formatName = "generic")
+        => Write(root, format, null, formatName);
+
+    /// <summary>
+    /// As above; <paramref name="positions"/>, when given, receives each node's 1-based line and
+    /// column in pre-order (a table's "{", a scalar's first character, a blob's "#["), the places
+    /// the vdata compiler's FLCI block records.
+    /// </summary>
+    public static string Write(KVObject root, Guid format, List<(int Line, int Column)>? positions, string formatName = "generic")
     {
         var s = new StringBuilder();
         s.Append("<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:")
          .Append(formatName).Append(":version{").Append(format.ToString("D")).Append("} -->").Append(Newline);
-        Table(s, root, 0);
+        marks = positions is null ? null : new Marks(positions);
+        try
+        {
+            Table(s, root, 0);
+        }
+        finally
+        {
+            marks = null;
+        }
         return s.ToString();
+    }
+
+    [ThreadStatic]
+    private static Marks? marks;
+
+    // The text end's line and column, counted on from the last mark.
+    private sealed class Marks(List<(int Line, int Column)> output)
+    {
+        private int scanned, line = 1, lineStart;
+
+        public void At(StringBuilder s)
+        {
+            for (; scanned < s.Length; scanned++)
+                if (s[scanned] == '\n')
+                {
+                    line++;
+                    lineStart = scanned + 1;
+                }
+            output.Add((line, s.Length - lineStart + 1));
+        }
     }
 
     private static void Indent(StringBuilder s, int depth) => s.Append('\t', depth);
 
     private static void Table(StringBuilder s, KVObject table, int depth)
     {
+        marks?.At(s);
         s.Append('{').Append(Newline);
         foreach (var c in table.Children)
         {
@@ -115,9 +152,14 @@ public static class Kv3TextWriter
             var bytes = v.AsBlob();
             var lines = bytes.Length > 32;
             if (member && lines)
-                s.Append(Newline).Append("#[").Append(Newline);
+            {
+                s.Append(Newline);
+                marks?.At(s);
+                s.Append("#[").Append(Newline);
+            }
             else
             {
+                marks?.At(s);
                 s.Append("#[ ");
                 if (lines)
                     s.Append(Newline);
@@ -146,6 +188,7 @@ public static class Kv3TextWriter
                 s.Append(" ]");
             return;
         }
+        marks?.At(s);
         Scalar(s, v);
     }
 

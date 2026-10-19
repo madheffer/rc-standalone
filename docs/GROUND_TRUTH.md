@@ -1717,6 +1717,94 @@ game can answer is raised with the user first, and runs with -insecure.
       disco_light_template at (-147, -3551, 281) moves its 8 lights.
     - Open: the order (LIGHTING_ROADMAP L17).
 
+91. **The CS2 bomb damage bake** (settled 2026-10-19 by decompile of csgo's
+    modtools.dll (20261015) and bytes. Fed Valve's own nav and world
+    collision, probe01's and cardtest's baked_bomb_damage.vdata_c are byte
+    for byte: positions, all 67,764 damage words, the text and the container.
+    Maps/BombDamage.cs.)
+    - Who: the map compile modifier CS2BombDamage. Bombsites are the
+      func_bomb_target entities with bomb_damage_power above 0, in entity
+      order.
+    - Grid: cells of 10. Each nav area, in the mesh's order, and each
+      triangle of its fan, from (v0, v[n-1], v[n-2]) down to
+      (v0, v[2], v[1]), visits the cells of the area's bounds.
+      - The bounds are snapped as v - fmodf(v, 10) - 5 and
+        v - fmodf(v, 10) + 10 + 5; y, then x, then z, each from the top.
+      - A cell is added when a box of half 10 meets the triangle (an
+        Akenine-Moller SAT with unit edges, tolerance 0).
+      - The bounds of every cell that meets a triangle are kept.
+    - Lift: in the seed table's slot order, a cell with no seed right above
+      it is lifted by floor(32 / 10) * 10 = 30 into the node table and marked
+      written out.
+      - A site holds the lifted node at distance 0 when its trigger collision
+        overlaps the cell's box (+-5, unlifted).
+      - The test is the trigger's vtable +0xd0 against an AABB shape. Touching
+        counts as overlapping: site 2's face at x = 640 against cell 635.
+    - Growth: rounds over the node table in slot order. A node not yet
+      visited gets a box of half 5 cast by zero at it (CVPhys2World +0x558,
+      shape type 2, delta 0).
+      - A hit marks the node blocked.
+      - Free space proposes (+-1, 0, -1), (0, +-1, -1) and (0, 0, -1) cells
+        that lie in the seed bounds grown by 30 and are not visited.
+      - The proposals join the table after the round. The rounds stop when
+        none are proposed or after 64.
+      - Only the lifted seeds are written out, but every node takes a slot,
+        and that sets the order.
+    - The mesh cast of an unscaled shape (CRnMeshShape 1802421c0 to
+      180245a10) works on the raw values.
+      - The settle port's MeshSweep divided by a refined rcpps of the scale:
+        0.99999994 for 1. That moved boxes 1e-4 off walls at x = 1280 and
+        y = 960 and changed the slot order.
+      - MeshSweep.Query now takes a null scale for this path.
+    - Distances per site (PopulateNodeDistancesFromBombsite):
+      - The frontier starts as the distance-0 nodes, and every node takes an
+        entry (FLT_MAX, no parent).
+      - Each frontier node, in slot order, runs 26 neighbour jobs on the
+        current records (steps at 180cd9170). Their results apply in step
+        order.
+      - A job runs when the node's distance is at most the neighbour's.
+        Its parent is the node's own parent when the line between that
+        parent and the neighbour is clear: a ray each way (+0x4f8), meshes
+        hit on their front only. Otherwise the parent is the node.
+      - The cost is the path back through the parents:
+        length + clamp((length - 500) / 1000) * 20 * turns.
+        - The length sums segments four at a time, each from
+          z^2 + y^2 + x^2.
+        - Turns are acosf of each corner times 57.29577637. A corner whose
+          two segments agree to 0.01 per axis counts none.
+        - A cycle gives -1.
+      - A lower cost replaces the neighbour's record. A neighbour that is not
+        blocked joins the next frontier.
+      - The two frontier tables swap; the finished one is emptied in place
+        and keeps its size.
+    - Output, in node slot order:
+      - positions: int16 x, y, z - 30 of the written-out nodes;
+      - damage_values, per site then node: uint16 of the distance clamped to
+        [0, 65535], then byte 2 = yaw / 360 * 255 and byte 3 = pitch of the
+        direction from the parent;
+      - within 1600 units the direction leans toward the site's bounds
+        centre (its floor in z) by 1 - clamp((d - 800) / 800);
+      - bombsites: mins, maxs, power per site.
+    - The file: the modifier writes the .vdata text with SaveKV3 (CRLF, no
+      final newline).
+      - A blob over 32 bytes starts a new line at column 1 with "#[". Rows of
+        32 upper-case pairs follow, every row but the first after depth + 1
+        tabs. It closes with depth tabs and "]".
+      - The text compiles as a child: RED2 with the text as an additional
+        input (CRC, csgo_addons/<addon>), the override data argument, the
+        CompileVData identities, generic_data_type and IsChildResource 1.
+        Then DATA, then FLCI.
+      - FLCI holds the content path and, per node in pre-order, the line and
+        column delta-coded. Blobs sit at column 1.
+    - CRT math as tier0 ships it: exp2f (1802bdd90) and acosf (1802df0a4).
+      CrtMath.Exp2 and CrtMath.Acos.
+    - Open:
+      - nav generation (L9), which the bake samples; until then a compile has
+        no bomb damage;
+      - the hull cast and ray (Valve's maps so far have meshes only);
+      - the neighbour-index triangle variant (180243770);
+      - the trigger overlap for a rotated or non-box trigger.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

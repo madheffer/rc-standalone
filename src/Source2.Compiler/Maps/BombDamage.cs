@@ -541,6 +541,11 @@ public static class BombDamage
     /// bombsites, positions and damage_values blobs.
     /// </summary>
     public static string VdataText(byte[] bombsites, byte[] positions, byte[] damage)
+        => VdataText(bombsites, positions, damage, null, out _);
+
+    /// <summary>The .vdata text, its tree and (when asked) each node's line and column for the FLCI block.</summary>
+    public static string VdataText(byte[] bombsites, byte[] positions, byte[] damage, List<(int Line, int Column)>? marks,
+                                   out ValveKeyValue.KVObject tree)
     {
         var root = ValveKeyValue.KVObject.Collection();
         root.Add("generic_data_type", new ValveKeyValue.KVObject("CS2_BOMB_DAMAGE_DATA"));
@@ -552,7 +557,23 @@ public static class BombDamage
         data.Add("positions", ValveKeyValue.KVObject.Blob(positions));
         data.Add("damage_values", ValveKeyValue.KVObject.Blob(damage));
         root.Add("data", data);
-        return Kv3TextWriter.Write(root, new Guid("7412167c-06e9-4698-aff2-e63eb59037e7"));
+        tree = root;
+        return Kv3TextWriter.Write(root, new Guid("7412167c-06e9-4698-aff2-e63eb59037e7"), marks);
+    }
+
+    /// <summary>
+    /// maps/&lt;map&gt;/baked_bomb_damage.vdata_c: the .vdata written to
+    /// content/csgo_addons/&lt;addon&gt;/maps/&lt;map&gt;/baked_bomb_damage.vdata and compiled as a
+    /// child of the map.
+    /// </summary>
+    public static byte[] VdataC(byte[] bombsites, byte[] positions, byte[] damage, string addon, string map)
+    {
+        var marks = new List<(int Line, int Column)>();
+        var text = VdataText(bombsites, positions, damage, marks, out var tree);
+        var relative = $"maps/{map}/baked_bomb_damage.vdata";
+        var crc = System.IO.Hashing.Crc32.HashToUInt32(System.Text.Encoding.UTF8.GetBytes(text));
+        return Source2ContainerAuthor.AuthorVdataChild(tree, text, marks, new SavedSource(relative, $"csgo_addons/{addon}", crc),
+                                                       $"content/csgo_addons/{addon}/{relative}");
     }
 
     // V_fmodf: the C fmodf, exact; C#'s float remainder is the same operation.

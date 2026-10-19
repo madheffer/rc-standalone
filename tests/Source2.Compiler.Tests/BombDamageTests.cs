@@ -226,6 +226,14 @@ public sealed class BombDamageTests(ITestOutputHelper output)
         var lf = System.IO.Hashing.Crc32.HashToUInt32(System.Text.Encoding.UTF8.GetBytes(text.Replace("\r\n", "\n")));
         output.WriteLine($"Valve's CRC {expected}, ours with CRLF {crlf}, with LF {lf}, {text.Length} chars");
         Assert.True(expected == crlf || expected == lf);
+
+        // The whole compiled file from the same blobs.
+        var ours = BombDamage.VdataC(sites, positions, damage, "s2c_rc_probe", t.Map);
+        var first = Enumerable.Range(0, Math.Min(ours.Length, vdata.Length)).FirstOrDefault(i => ours[i] != vdata[i], -1);
+        output.WriteLine($"vdata_c: ours {ours.Length} bytes, Valve's {vdata.Length}, first difference {first}");
+        if (Environment.GetEnvironmentVariable("BOMB_OUT") is { } outDir)
+            File.WriteAllBytes(Path.Combine(outDir, "ours.vdata_c"), ours);
+        Assert.Equal(vdata, ours);
     }
 
     [Fact]

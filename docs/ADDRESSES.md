@@ -105,6 +105,37 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002af80` | `TraceDataForDraw_Build` | a draw call's fields: position, normal, tangent (+0x67 when float), blend data by semantic; a shader semantic through 180036aa0, else the semantic: texcoord 0 and 1 (+0x66 when R32G32_FLOAT), the vertex colour (+0x60, a color field of the lowest index); the 18 floats at +0x08, the rest as extra fields (+0x40) unpacked by 180029c10 | `src/Source2.Compiler/Lighting/MeshGeometry.cs:7`, `src/Source2.Compiler/Lighting/MeshGeometry.cs:48`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:171` |
 | `180036aa0` | `MeshSemantic_Lookup` | the table at 180174d50 (0x1f entries: name, standard name, index, name index at +0x14): a name match with the given index, or a standard-name match at its index | `src/Source2.Compiler/Lighting/MeshGeometry.cs:48` |
 
+## modtools.dll, build 20261015
+
+- file: `modtools_20261015.dll`, 17,944,216 bytes, PE time 2026-10-14 18:40 UTC
+- SHA-256 `31a29e428fd5e9bacf66614e7d11a44d273cdd74636bb3c45256e541655c18d6`
+- installed: a different build
+- 19 addresses
+
+### s2c:baked/bomb
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7` |
+| `18003b5d0` | `CCS2BombDamageBaker::GatherBombsites` | func_bomb_target entities with bomb_damage_power above 0 |  |
+| `18003b750` | `CCS2BombDamageBaker::BuildGrid` | top seed cells lifted 30 into the node table (+0x11 written out), site membership by the trigger overlapping the cell box (vtable +0xd0); rounds of zero-length box casts (vphysics2 +0x558) growing 5 diagonal-down steps within the bounds +-30, at most 64 | `src/Source2.Compiler/Maps/BombDamage.cs:15`, `src/Source2.Compiler/Maps/BombDamage.cs:137`, `src/Source2.Compiler/Maps/BombDamage.cs:175` |
+| `18003d030` | `CCS2BombDamageBaker::SampleNavAreas` | per area, per fan triangle (v0, v[n-1], v[n-2]) down: cells of the area bounds snapped through fmod, y x z from the top, box half 10 against the triangle (1803f2400); bounds of every hit | `src/Source2.Compiler/Maps/BombDamage.cs:69`, `src/Source2.Compiler/Maps/BombDamage.cs:84` |
+| `18003db50` | `CCS2BombDamageBaker::LineBlocked` | a ray each way (vphysics2 +0x4f8); FLT_MAX ends blocked, equal ends clear | `src/Source2.Compiler/Maps/BombDamage.cs:343` |
+| `18003ddf0` | `CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite` | frontier from the distance-0 nodes, every node into the site table, 26-neighbour jobs then applied in order; frontier tables swapped and emptied in place | `src/Source2.Compiler/Maps/BombDamage.cs:250` |
+| `18003eb60` | `CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite::lambda_1` | one neighbour: parent shortcut to the grandparent when the line is clear, cost from the path, next frontier when not blocked | `src/Source2.Compiler/Maps/BombDamage.cs:241`, `src/Source2.Compiler/Maps/BombDamage.cs:304` |
+| `18003f260` | `CCS2BombDamageBaker::BuildPath` | parents back to distance 0 or a self parent, the candidate standing in for its node; null on a cycle | `src/Source2.Compiler/Maps/BombDamage.cs:358` |
+| `18003fa60` | `CCS2BombDamageBaker::PathLength` | segment lengths (z^2 + y^2 + x^2) summed four at a time | `src/Source2.Compiler/Maps/BombDamage.cs:385` |
+| `18003fd80` | `CCS2BombDamageBaker::PathTurns` | acosf of each corner in degrees (57.29577637), none under 0.01 per axis | `src/Source2.Compiler/Maps/BombDamage.cs:405` |
+| `18003ffa0` | `CCS2BombDamageBaker::GatherRuntimeData` | written-out nodes in slot order: distance clamped to 16 bits, yaw and pitch bytes, leaning to the site within 1600 | `src/Source2.Compiler/Maps/BombDamage.cs:433` |
+| `180040c40` | `CCS2BombDamageBaker::WriteHeader` | generic_data_type, header.version 2, bombsites (bounds, bomb_damage_power default 3000) | `src/Source2.Compiler/Maps/BombDamage.cs:528` |
+| `180041040` | `CCS2BombDamageBaker::WriteVdata` | positions (int16 x, y, z - 30) and damage_values blobs | `src/Source2.Compiler/Maps/BombDamage.cs:213`, `src/Source2.Compiler/Maps/BombDamage.cs:433` |
+| `180041470` | `BombNodeTable::Insert` | CUtlHashtable, key hash MurmurHash2 mix of the float bits, seed 0xea711bd8 | `src/Source2.Compiler/Maps/BombDamage.cs:37` |
+| `180042570` | `BombNodeTable::Rehash` | next power of two of max(n, 32), re-placed from the last slot |  |
+| `180042800` | `BombNodeTable::Bump` | the run's entry to the first free slot past the run, FLAG_LAST moves |  |
+| `1803f15e0` | `VectorAngles` | atan2f yaw and pitch in [0, 360) |  |
+| `1803f1c80` | `VectorNormalizeWide` | double precision: (y^2 + x^2) + z^2, components times 1 / length | `src/Source2.Compiler/Maps/BombDamage.cs:520`, `src/Source2.Compiler/Maps/BombDamage.cs:647` |
+| `1803f2400` | `BoxTriangleOverlap` | Akenine-Moller SAT: triangle bounds, unit edges against the axes, unit normal; tolerance added to the reach | `src/Source2.Compiler/Maps/BombDamage.cs:71`, `src/Source2.Compiler/Maps/BombDamage.cs:583` |
+
 ## physicsbuilder.dll, build 20260924
 
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
@@ -1458,7 +1489,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
-- 49 addresses
+- 52 addresses
+
+### s2c:baked/bomb
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1802bdd90` | `crt_exp2f` | x split to n + f in [-0.5, 0.5], Cody-Waite expf of f ln2 (1802bdb54) scaled by 2^n | `src/Source2.Compiler/Simulation/CrtMath.cs:137` |
+| `1802df0a4` | `crt_acosf` | AMD libm float acosf; V_acosf (180007e80) clamps to [-1, 1] first | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:666`, `src/Source2.Compiler/Simulation/CrtMath.cs:189` |
 
 ### s2c:containers
 
@@ -1467,6 +1505,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800c7220` | `Kv3_SaveBinary` | binary_auto: LZ4 below 0x80001 bytes, else Zstd; raw below 0x100 | `src/Source2.Compiler/Containers/AuthoredKv3.cs:26`, `src/Source2.Compiler/Containers/AuthoredKv3.cs:56`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:11` +1 |
 | `1800c8790` | `Kv3_CompressLz4` |  | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:411` |
 | `1800c8d80` | `Kv3_CompressZstd` |  | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:299`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:411` |
+| `1800d7940` | `KV3Text_WriteValue` | binary blob (case 6): member over 32 bytes opens line break, #[ at column 1, rows of 32 upper-case pairs, depth + 1 tabs on every row but the first, close line break, depth tabs, ] | `src/Source2.Compiler/Containers/Kv3TextWriter.cs:8`, `src/Source2.Compiler/Containers/Kv3TextWriter.cs:147`, `src/Source2.Compiler/Containers/Kv3TextWriter.cs:235` |
 | `180124b00` | `SaveKV3` | export |  |
 
 ### s2c:io
@@ -1493,7 +1532,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800c80c0` | `KV3Binary_StringId` | first-use ids; an empty string -1 |  |
 | `1800c8790` | `KV3Binary_CompressLz4` | LZ4 HC level 12 over buffer 1 and the rest; blobs via 1800c7080; kept when raw / 20 <= raw - compressed | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:411` |
 | `1800c8d80` | `KV3Binary_CompressZstd` | level 7, checksums, nbWorkers over 1 MB; streamed through 64 KB: buffer 1, buffer 2 and the non-empty blobs as three frames | `src/Source2.Compiler/Containers/AuthoredKv3.cs:27`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:299`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:411` |
-| `1800d7940` | `KV3Text_WriteNode` | member = value; tables and multi-line arrays on the next line; arrays of fewer than 5 plain scalars inline, else one element a line (scalars four a line) with a comma each; floats by V_FloatToString_NoExponent; flag prefixes | `src/Source2.Compiler/Containers/Kv3TextWriter.cs:8`, `src/Source2.Compiler/Containers/Kv3TextWriter.cs:151` |
+| `1800d7940` | `KV3Text_WriteNode` | member = value; tables and multi-line arrays on the next line; arrays of fewer than 5 plain scalars inline, else one element a line (scalars four a line) with a comma each; floats by V_FloatToString_NoExponent; flag prefixes | `src/Source2.Compiler/Containers/Kv3TextWriter.cs:8`, `src/Source2.Compiler/Containers/Kv3TextWriter.cs:147`, `src/Source2.Compiler/Containers/Kv3TextWriter.cs:235` |
 | `1800d92a0` | `KV3Text_WriteHeader` | <!-- kv3 encoding:text:version{...} format:...:version{...} -->, CRLF | `src/Source2.Compiler/Containers/Kv3TextWriter.cs:8` |
 | `180124b00` | `SaveKV3` | export; text encodings here, binary through 1800c7220 |  |
 | `18012bec0` | `V_LZ4_compress_HC` | export; level 12 when none is given |  |
@@ -1510,7 +1549,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18017fc30` | `CVertexKDTree_Bounds` |  | `src/Source2.Compiler/Maps/VertexKdTree.cs:55` |
 | `18017feb0` | `CVertexKDTree::BuildNode` | export; leaf at 8 or fewer, midpoint of the longest side, node numbered before its children | `src/Source2.Compiler/Maps/VertexKdTree.cs:27` |
 | `180180730` | `CVertexKDTree::BuildMidpoint` | export; point pointers in index order, then BuildNode(0, n) | `src/Source2.Compiler/Maps/VertexKdTree.cs:6` |
-| `1802df0a4` | `acosf` | CRT, rational approximation | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:666` |
+| `1802df0a4` | `acosf` | CRT, rational approximation | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:666`, `src/Source2.Compiler/Simulation/CrtMath.cs:189` |
 | `1802e0c30` | `cosf` | CRT dispatcher (AMD libm) |  |
 | `1802e0f10` | `cosf_fma3` | code label: the FMA3 path, entered by a jcc from cosf | `src/Source2.Compiler/Simulation/CrtMath.cs:11`, `src/Source2.Compiler/Simulation/CrtMath.cs:36` |
 | `1802e1d80` | `expf` | CRT dispatcher |  |
@@ -1521,7 +1560,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802e67d0` | `sinf_fma3` | code label: the FMA3 path, entered by a jcc from sinf | `src/Source2.Compiler/Simulation/CrtMath.cs:11`, `src/Source2.Compiler/Simulation/CrtMath.cs:59` |
 | `1802e7d50` | `tanf` | CRT dispatcher |  |
 | `1802e80c0` | `tanf_fma3` | code label: the FMA3 path, entered by a jcc from tanf | `src/Source2.Compiler/Maps/LightCrt.cs:23` |
-| `18033e3e0` | `Crt_TwoToJOver64` | data: 2^(j/64), j = 0..63 | `src/Source2.Compiler/Simulation/CrtMath.cs:187` |
+| `18033e3e0` | `Crt_TwoToJOver64` | data: 2^(j/64), j = 0..63 | `src/Source2.Compiler/Simulation/CrtMath.cs:240` |
 | `1803ab28c` | `Crt_Fma3Flag` | data: CPU flag selecting the FMA3 libm paths |  |
 
 ## tier0.dll, build 20261015
@@ -1760,7 +1799,19 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
-- 418 addresses
+- 425 addresses
+
+### s2c:baked/bomb
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1801f29e0` | `CRnWorld::CastBox` | each broadphase tree (1801d64a0), shape vtable +0x40 |  |
+| `1801f4ad0` | `CRnWorld::CastRay` | each broadphase tree (1801d8580), shape vtable +0x10 |  |
+| `1801f5080` | `CRnWorld::CastShape` | by shape type: 0 ray (1801f4ad0), 1 sphere, 2 box (1801f29e0), 3, 4 |  |
+| `1802406c0` | `RnMesh_CastRay` | edge tests from the edge midpoints, front faces only (n . d below 0), t above 0 clamped to 1 |  |
+| `1802421c0` | `CRnMeshShape::CastBox` | unscaled shapes take 180245a10 (no scale division), else 180244dc0 | `src/Source2.Compiler/Simulation/MeshSweep.cs:41` |
+| `180242360` | `CRnMeshShape::CastRay` | 1802406c0 on the shape's scale |  |
+| `180245a10` | `RnMesh_CastBoxUnscaled` | BVH walk; triangles through 180244380, or 180243770 when the mesh has neighbour indices (+0x68) | `src/Source2.Compiler/Simulation/MeshSweep.cs:41` |
 
 ### s2c:entities/settle
 
@@ -1891,7 +1942,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180241b10` | `CRnMeshShape::vf16` | mesh bounds; identity rotation offsets only | `src/Source2.Compiler/Simulation/BroadphaseShape.cs:116`, `src/Source2.Compiler/Simulation/BroadphaseShape.cs:165` |
 | `180242830` | `CRnMeshShape_StepUpdate2` | not ported | `src/Source2.Compiler/Simulation/StepGlue.cs:264`, `src/Source2.Compiler/Simulation/StepGlue.cs:287`, `src/Source2.Compiler/Simulation/WorldSolver.cs:291` |
 | `1802435d0` | `CRnMeshShape_StepUpdate` | mesh shape with mode other than 3; not ported | `src/Source2.Compiler/Simulation/WorldSolver.cs:291`, `src/Source2.Compiler/Simulation/WorldSolver.cs:296` |
-| `180244380` | `RnMesh_SweptTriangleTest` |  | `src/Source2.Compiler/Simulation/MeshSweep.cs:9`, `src/Source2.Compiler/Simulation/MeshSweep.cs:130` |
+| `180244380` | `RnMesh_SweptTriangleTest` |  | `src/Source2.Compiler/Simulation/MeshSweep.cs:9`, `src/Source2.Compiler/Simulation/MeshSweep.cs:139` |
 | `180249e90` | `RnMesh_SweptBoxQuery` | the triangles a swept box meets; rcpps code | `src/Source2.Compiler/Simulation/MeshSweep.cs:8`, `src/Source2.Compiler/Simulation/MeshSweep.cs:34` |
 | `18024a4a0` | `RnMesh_QueryBox` |  | `src/Source2.Compiler/Simulation/MeshQuery.cs:9` |
 | `18024b230` | `RnMesh_TriangleOverlapsBox` | separating axes | `src/Source2.Compiler/Simulation/MeshQuery.cs:61` |

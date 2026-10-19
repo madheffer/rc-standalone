@@ -1047,7 +1047,40 @@ RESOURCECOMPILER = [
     ("180ef5870", "CBakeResourceHelper::vf2", LUMP, "Hammer preview scene keys, not the lump"),
 ]
 
+BOMB = "s2c:baked/bomb"
+
+# csgo's modtools.dll (20261015): the CS2 bomb damage bake (Maps/BombDamage.cs, ledger 91).
+MODTOOLS = [
+    ("18003ad70", "CMapCompileModifierCS2BombDamage::Run", BOMB, "bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32"),
+    ("18003b5d0", "CCS2BombDamageBaker::GatherBombsites", BOMB, "func_bomb_target entities with bomb_damage_power above 0"),
+    ("18003d030", "CCS2BombDamageBaker::SampleNavAreas", BOMB, "per area, per fan triangle (v0, v[n-1], v[n-2]) down: cells of the area bounds snapped through fmod, y x z from the top, box half 10 against the triangle (1803f2400); bounds of every hit"),
+    ("18003b750", "CCS2BombDamageBaker::BuildGrid", BOMB, "top seed cells lifted 30 into the node table (+0x11 written out), site membership by the trigger overlapping the cell box (vtable +0xd0); rounds of zero-length box casts (vphysics2 +0x558) growing 5 diagonal-down steps within the bounds +-30, at most 64"),
+    ("18003ddf0", "CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite", BOMB, "frontier from the distance-0 nodes, every node into the site table, 26-neighbour jobs then applied in order; frontier tables swapped and emptied in place"),
+    ("18003eb60", "CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite::lambda_1", BOMB, "one neighbour: parent shortcut to the grandparent when the line is clear, cost from the path, next frontier when not blocked"),
+    ("18003db50", "CCS2BombDamageBaker::LineBlocked", BOMB, "a ray each way (vphysics2 +0x4f8); FLT_MAX ends blocked, equal ends clear"),
+    ("18003f260", "CCS2BombDamageBaker::BuildPath", BOMB, "parents back to distance 0 or a self parent, the candidate standing in for its node; null on a cycle"),
+    ("18003fa60", "CCS2BombDamageBaker::PathLength", BOMB, "segment lengths (z^2 + y^2 + x^2) summed four at a time"),
+    ("18003fd80", "CCS2BombDamageBaker::PathTurns", BOMB, "acosf of each corner in degrees (57.29577637), none under 0.01 per axis"),
+    ("18003ffa0", "CCS2BombDamageBaker::GatherRuntimeData", BOMB, "written-out nodes in slot order: distance clamped to 16 bits, yaw and pitch bytes, leaning to the site within 1600"),
+    ("180041040", "CCS2BombDamageBaker::WriteVdata", BOMB, "positions (int16 x, y, z - 30) and damage_values blobs"),
+    ("180040c40", "CCS2BombDamageBaker::WriteHeader", BOMB, "generic_data_type, header.version 2, bombsites (bounds, bomb_damage_power default 3000)"),
+    ("1803f2400", "BoxTriangleOverlap", BOMB, "Akenine-Moller SAT: triangle bounds, unit edges against the axes, unit normal; tolerance added to the reach"),
+    ("1803f1c80", "VectorNormalizeWide", BOMB, "double precision: (y^2 + x^2) + z^2, components times 1 / length"),
+    ("1803f15e0", "VectorAngles", BOMB, "atan2f yaw and pitch in [0, 360)"),
+    ("180041470", "BombNodeTable::Insert", BOMB, "CUtlHashtable, key hash MurmurHash2 mix of the float bits, seed 0xea711bd8"),
+    ("180042570", "BombNodeTable::Rehash", BOMB, "next power of two of max(n, 32), re-placed from the last slot"),
+    ("180042800", "BombNodeTable::Bump", BOMB, "the run's entry to the first free slot past the run, FLAG_LAST moves"),
+]
+
 VPHYSICS2 = [
+    # Shape casts the bomb damage bake runs (ledger 91).
+    ("1801f5080", "CRnWorld::CastShape", "s2c:baked/bomb", "by shape type: 0 ray (1801f4ad0), 1 sphere, 2 box (1801f29e0), 3, 4"),
+    ("1801f29e0", "CRnWorld::CastBox", "s2c:baked/bomb", "each broadphase tree (1801d64a0), shape vtable +0x40"),
+    ("1801f4ad0", "CRnWorld::CastRay", "s2c:baked/bomb", "each broadphase tree (1801d8580), shape vtable +0x10"),
+    ("1802421c0", "CRnMeshShape::CastBox", "s2c:baked/bomb", "unscaled shapes take 180245a10 (no scale division), else 180244dc0"),
+    ("180245a10", "RnMesh_CastBoxUnscaled", "s2c:baked/bomb", "BVH walk; triangles through 180244380, or 180243770 when the mesh has neighbour indices (+0x68)"),
+    ("180242360", "CRnMeshShape::CastRay", "s2c:baked/bomb", "1802406c0 on the shape's scale"),
+    ("1802406c0", "RnMesh_CastRay", "s2c:baked/bomb", "edge tests from the edge midpoints, front faces only (n . d below 0), t above 0 clamped to 1"),
     ("1801ac5c0", "RnHullCreate", H, ""),
     ("1801ac890", "RnHullCreateBox", H, ""),
     ("1801303b0", "RnHull_Aabb", H, ""),
@@ -1788,6 +1821,9 @@ SMARTPROPS = [
 ]
 
 TIER0 = [
+    ("1800d7940", "KV3Text_WriteValue", "s2c:containers", "binary blob (case 6): member over 32 bytes opens line break, #[ at column 1, rows of 32 upper-case pairs, depth + 1 tabs on every row but the first, close line break, depth tabs, ]"),
+    ("1802bdd90", "crt_exp2f", "s2c:baked/bomb", "x split to n + f in [-0.5, 0.5], Cody-Waite expf of f ln2 (1802bdb54) scaled by 2^n"),
+    ("1802df0a4", "crt_acosf", "s2c:baked/bomb", "AMD libm float acosf; V_acosf (180007e80) clamps to [-1, 1] first"),
     # Containers: resource names, KV3, RED2, manifests.
     ("1800c7220", "Kv3_SaveBinary", CT, "binary_auto: LZ4 below 0x80001 bytes, else Zstd; raw below 0x100"),
     ("1800c8790", "Kv3_CompressLz4", CT, ""),
@@ -2360,6 +2396,7 @@ if __name__ == "__main__":
     write("meshsystem_20260923.manual.json", MESHSYSTEM)
     write("materialsystem2_20261001.manual.json", MATERIALSYSTEM)
     write("vrad3_20261001.manual.json", VRAD3)
+    write("modtools_20261015.manual.json", MODTOOLS)
     write("resourcecompiler_20261006.manual.json", RESOURCECOMPILER_1006)
     write("tier0_20261015.manual.json", TIER0_1015)
     write("scenesystem_20261015.manual.json", SCENESYSTEM)
