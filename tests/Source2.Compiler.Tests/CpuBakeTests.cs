@@ -372,11 +372,11 @@ public class CpuBakeTests(ITestOutputHelper output)
             if (Environment.GetEnvironmentVariable("CPUBAKE_NOPOST") == "1")
                 return;
         }
-        var (irr, dir, shadows) = LightmapBaker.PostProcess(image, packing, File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat")));
+        var (irr, dir, shadows, chart) = LightmapBaker.PostProcess(image, packing, File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat")));
         output.WriteLine($"post {watch.Elapsed.TotalSeconds:F1} s");
         var outDir = Path.Combine(RepoRoot(), "tools", "re", "out", "cpubake", Path.GetFileName(folder.TrimEnd('/', '\\')));
         Directory.CreateDirectory(outDir);
-        foreach (var (name, ours) in new[] { ("irradiance.exr", irr), ("directional_irradiance.exr", dir), ("direct_light_shadows.exr", shadows) })
+        foreach (var (name, ours) in new[] { ("irradiance.exr", irr), ("directional_irradiance.exr", dir), ("direct_light_shadows.exr", shadows), ("lightmap_chart_color.exr", chart) })
         {
             File.WriteAllBytes(Path.Combine(outDir, name), ours.Write());
             Compare(name, ours, Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, name))));
@@ -419,9 +419,9 @@ public class CpuBakeTests(ITestOutputHelper output)
             image.Save(outDir);
             return;
         }
-        var (irr, dir, shadows) = LightmapBaker.PostProcess(image, packing, File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat")));
+        var (irr, dir, shadows, chart) = LightmapBaker.PostProcess(image, packing, File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat")));
         Directory.CreateDirectory(outDir);
-        foreach (var (name, ours) in new[] { ("irradiance.exr", irr), ("directional_irradiance.exr", dir), ("direct_light_shadows.exr", shadows) })
+        foreach (var (name, ours) in new[] { ("irradiance.exr", irr), ("directional_irradiance.exr", dir), ("direct_light_shadows.exr", shadows), ("lightmap_chart_color.exr", chart) })
             File.WriteAllBytes(Path.Combine(outDir, name), ours.Write());
     }
 

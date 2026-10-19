@@ -641,10 +641,10 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
     /// <summary>
     /// The script's post-process: consolidate small charts (mip 1), fireflies
     /// (4), median (7), JFA dilation, the AHD encode, gutters (mip 1), the seam
-    /// weld; then irradiance.exr, directional_irradiance.exr and
-    /// direct_light_shadows.exr.
+    /// weld; then irradiance.exr, directional_irradiance.exr,
+    /// direct_light_shadows.exr and lightmap_chart_color.exr (16 16).
     /// </summary>
-    public static (Vrad3Exr Irradiance, Vrad3Exr Directional, Vrad3Exr Shadows) PostProcess(LightmapImage image, PackingGeometry packing, byte[] seams)
+    public static (Vrad3Exr Irradiance, Vrad3Exr Directional, Vrad3Exr Shadows, Vrad3Exr ChartColor) PostProcess(LightmapImage image, PackingGeometry packing, byte[] seams)
     {
         LightmapPost.ConsolidateSmallCharts(image, packing.Charts, 1);
         LightmapPost.RemoveFireflies(image, packing.Charts, 4f);
@@ -653,7 +653,7 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
         LightmapAhd.Encode(image);
         LightmapPost.FillGutters(image, packing.Charts, 1);
         LightmapWeld.Weld(image, seams);
-        return (ColourExr(image), LightmapPost.AhdDirectionExr(image), LightmapPost.DirectLightShadowsExr(image));
+        return (ColourExr(image), LightmapPost.AhdDirectionExr(image), LightmapPost.DirectLightShadowsExr(image), LightmapPost.ChartColorExr(image, packing.Charts));
     }
 
     /// <summary>irradiance.exr: channel 14 as FloatBitMap_t writes it (R, G, B).</summary>

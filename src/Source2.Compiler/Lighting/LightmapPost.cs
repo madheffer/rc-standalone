@@ -471,6 +471,41 @@ public static class LightmapPost
     }
 
     /// <summary>
+    /// lightmap_image_write_chart_color &lt;file&gt; &lt;minspp&gt; &lt;maxspp&gt; (Run 180053c90, rows
+    /// 18005c5b0), an RGBA file: a luxel with no chart (id -1) is 0; else its chart's colour bytes
+    /// over 255, sRGB to linear (1801f6400), and alpha 1, or with minspp under maxspp
+    /// clamp(logf(samples / minspp) / logf(maxspp / minspp), 0, 1). A luxel the bake left invalid
+    /// is a checker of (0, 0.3, 1) where x + y is even and (1, 0, 0.3) where odd, alpha 1.
+    /// </summary>
+    public static Vrad3Exr ChartColorExr(LightmapImage image, IReadOnlyList<PackingGeometry.Chart> charts, int minSpp = 16, int maxSpp = 16)
+    {
+        var exr = new Vrad3Exr(image.Width, image.Height, ["R", "G", "B", "A"]);
+        Half[] r = exr.Plane("R"), g = exr.Plane("G"), b = exr.Plane("B"), a = exr.Plane("A");
+        var colours = charts.Select(c => SceneLights.SrgbToLinear((int)(c.Color & 0xff), (int)(c.Color >> 8 & 0xff), (int)(c.Color >> 16 & 0xff))).ToArray();
+        float invMin = 1f / minSpp, invLog = 1f / MathF.Log((float)maxSpp / minSpp);
+        for (var y = 0; y < image.Height; y++)
+            for (var x = 0; x < image.Width; x++)
+            {
+                var p = y * image.Width + x;
+                var id = (int)image.ChartId(p);
+                if (id == -1)
+                    continue;
+                var c = colours[id];
+                var alpha = 1f;
+                // vrad3 calls tier0's V_logf; MathF.Log stands in (the script's 16 16 never reaches it).
+                if (minSpp < maxSpp)
+                    alpha = Math.Clamp(MathF.Log(image.SampleCount(p) * invMin) * invLog, 0f, 1f);
+                if (!image.Valid(p))
+                {
+                    alpha = 1f;
+                    c = ((x + y) & 1) == 0 ? new System.Numerics.Vector3(0f, 0.3f, 1f) : new System.Numerics.Vector3(1f, 0f, 0.3f);
+                }
+                (r[p], g[p], b[p], a[p]) = (LightmapImage.ToHalfAway(c.X), LightmapImage.ToHalfAway(c.Y), LightmapImage.ToHalfAway(c.Z), LightmapImage.ToHalfAway(alpha));
+            }
+        return exr;
+    }
+
+    /// <summary>
     /// lightmap_image_write_direct_light_shadows (Run 180053a10, pixels
     /// 18005c100): an RGBA file of the first four shadow slots. Each starts at
     /// 1 when inverting (the default; -noinvert turns it off), else 0. Of the
