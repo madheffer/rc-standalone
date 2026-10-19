@@ -1,6 +1,276 @@
 {
  "functions": [
   {
+   "addr": "180076b70",
+   "name": "NavGen_UnTransformRecastNonZup",
+   "module": "s2c:baked/navgen",
+   "note": "only when ctx + 0x61 and a transformer; then each polygon's plane again"
+  },
+  {
+   "addr": "180074590",
+   "name": "NavGen_RemovePolysMarkedNoNav",
+   "module": "s2c:baked/navgen",
+   "note": "NONAV markups (not ported); nothing without them"
+  },
+  {
+   "addr": "180075b90",
+   "name": "NavGen_RemoveStrayVerticalPolys",
+   "module": "s2c:baked/navgen",
+   "note": "keeps |nz| > V_cosd((float)limit * 0.017453292f); everything with an oriented mesh (settings + 0x128) or off z-up"
+  },
+  {
+   "addr": "180073ba0",
+   "name": "NavGen_MergePolys",
+   "module": "s2c:baked/navgen",
+   "note": "nav_gen_opt_to_quads: six rounds of weld/degens/edge merge/weld/degens/vertex merge, then the 4-corner fan split; passes through with an oriented mesh"
+  },
+  {
+   "addr": "180027dc0",
+   "name": "NavGen_MergePolysInvoker",
+   "module": "s2c:baked/navgen",
+   "note": "closure: +0x28 angle, +0x24 deviation, +0x20/+0x1c merge tol start/end, +0x18/+0x14 weld start/end (as doubles), +0x10 rounds"
+  },
+  {
+   "addr": "180055e30",
+   "name": "NavGen_ToWidePolys",
+   "module": "s2c:baked/navgen",
+   "note": "0x88 -> 0x168-byte polygons (64 inline corners)"
+  },
+  {
+   "addr": "180056020",
+   "name": "NavGen_FromWidePolys",
+   "module": "s2c:baked/navgen",
+   "note": "0x168 -> 0x88-byte polygons, +0x60 5"
+  },
+  {
+   "addr": "180061730",
+   "name": "NavGen_WeldVerticesInto",
+   "module": "s2c:baked/navgen",
+   "note": "the weld of 180062410 on wide polygons into a new list; move check 180059f10"
+  },
+  {
+   "addr": "180059f10",
+   "name": "NavGen_WeldTryMoveWide",
+   "module": "s2c:baked/navgen",
+   "note": "18005a240 on 0x168-byte polygons"
+  },
+  {
+   "addr": "18005b3b0",
+   "name": "NavGen_RemoveDegensInto",
+   "module": "s2c:baked/navgen",
+   "note": "18005b290 per polygon into a new list"
+  },
+  {
+   "addr": "180056540",
+   "name": "NavGen_EdgeList",
+   "module": "s2c:baked/navgen",
+   "note": "corner edges hashed on min % 0xfceb, buckets sorted (180066b80) and folded, optionally lengths sorted longest first (180067200)"
+  },
+  {
+   "addr": "180066b80",
+   "name": "NavGen_SortEdgesByKey",
+   "module": "s2c:baked/navgen",
+   "note": "MSVC std::sort on (min << 32 | max)"
+  },
+  {
+   "addr": "180067200",
+   "name": "NavGen_SortEdgesByLength",
+   "module": "s2c:baked/navgen",
+   "note": "MSVC std::sort, pred a > b"
+  },
+  {
+   "addr": "18005a570",
+   "name": "NavGen_MergeAcrossEdges",
+   "module": "s2c:baked/navgen",
+   "note": "pairs across shared edges; radius gate 200, planar deviation gate"
+  },
+  {
+   "addr": "18004cd50",
+   "name": "CNavGenPoly_Radius",
+   "module": "s2c:baked/navgen",
+   "note": "farthest corner from the centroid"
+  },
+  {
+   "addr": "18004ef30",
+   "name": "CNavGenPoly_Centroid",
+   "module": "s2c:baked/navgen",
+   "note": "sum in order, times 1/n"
+  },
+  {
+   "addr": "1800541a0",
+   "name": "NavGen_PlanarDeviation",
+   "module": "s2c:baked/navgen",
+   "note": "float corners of the polygons, plane fit 1800ee9a0, largest distance above"
+  },
+  {
+   "addr": "1800ee9a0",
+   "name": "PlaneFitLeastSquares",
+   "module": "s2c:baked/navgen",
+   "note": "float z = ax + by + c, |det| > 1e-6"
+  },
+  {
+   "addr": "18001f7c0",
+   "name": "Vector_NormalizeInPlace",
+   "module": "s2c:baked/navgen",
+   "note": "float, (y\u00b2 + z\u00b2) + x\u00b2, scaled when 1e-17 <= len <= 1e17"
+  },
+  {
+   "addr": "18005ca90",
+   "name": "NavGen_MergeAtVertices",
+   "module": "s2c:baked/navgen",
+   "note": "T-junction merges through a third polygon, one per vertex per sweep"
+  },
+  {
+   "addr": "18005eb40",
+   "name": "NavGen_VertexPolyAdjacencyWide",
+   "module": "s2c:baked/navgen",
+   "note": "18005ee30 on wide polygons, removed ones included"
+  },
+  {
+   "addr": "18004fb30",
+   "name": "CNavGenPoly_IndexOf",
+   "module": "s2c:baked/navgen",
+   "note": "corner index of a vertex, -1"
+  },
+  {
+   "addr": "180081050",
+   "name": "NavGen_Collinear3",
+   "module": "s2c:baked/navgen",
+   "note": "first acute corner, nearer neighbour on the segment to the farther (1800808f0)"
+  },
+  {
+   "addr": "18005e8f0",
+   "name": "NavGen_FindThirdPoly",
+   "module": "s2c:baked/navgen",
+   "note": "the last polygon around both corners; flags and angle"
+  },
+  {
+   "addr": "18005dfa0",
+   "name": "NavGen_SplitCorners",
+   "module": "s2c:baked/navgen",
+   "note": "centroid turn about R's normal picks o1..o6; side checks 180080c10"
+  },
+  {
+   "addr": "180080c10",
+   "name": "NavGen_SameSideOfLine",
+   "module": "s2c:baked/navgen",
+   "note": "points on pts[0]'s side of a-b or collinear within tol"
+  },
+  {
+   "addr": "18005e510",
+   "name": "NavGen_CrossingOnPoly",
+   "module": "s2c:baked/navgen",
+   "note": "first edge crossed in XY (180080750), snapped or a new vertex (18004ca90)"
+  },
+  {
+   "addr": "180080750",
+   "name": "LineIntersectXY",
+   "module": "s2c:baked/navgen",
+   "note": "|det| < 1e-6f fails"
+  },
+  {
+   "addr": "18004ca90",
+   "name": "NavGenVertexData_AddVertex",
+   "module": "s2c:baked/navgen",
+   "note": "position, attribute only when set"
+  },
+  {
+   "addr": "180050750",
+   "name": "CNavGenPoly_Reverse",
+   "module": "s2c:baked/navgen",
+   "note": "corner order reversed"
+  },
+  {
+   "addr": "1800584f0",
+   "name": "NavGen_SplitToFansWide",
+   "module": "s2c:baked/navgen",
+   "note": "MergePolys' last pass at 4 corners; area gates 0.01 / 0.05 (floats)"
+  },
+  {
+   "addr": "180059240",
+   "name": "NavGen_SplitToFans",
+   "module": "s2c:baked/navgen",
+   "note": "LimitMaxPolyEdges' worker on 0x88 polygons"
+  },
+  {
+   "addr": "18004d060",
+   "name": "CNavGenPoly_FanArea",
+   "module": "s2c:baked/navgen",
+   "note": "float sum of (float)|cross|, no half"
+  },
+  {
+   "addr": "1800f3780",
+   "name": "Triangulate_EarClip",
+   "module": "s2c:baked/navgen",
+   "note": "the fan split's fallback (not ported)"
+  },
+  {
+   "addr": "180073ab0",
+   "name": "NavGen_LimitMaxPolyEdges",
+   "module": "s2c:baked/navgen",
+   "note": "180059240 at 4; passes through with an oriented mesh"
+  },
+  {
+   "addr": "180073a90",
+   "name": "NavGen_LimitMaxPolyEdgeLen",
+   "module": "s2c:baked/navgen",
+   "note": "180057b90 with nav_gen_max_edge_len, ..._split_tol"
+  },
+  {
+   "addr": "180027d90",
+   "name": "NavGen_TwoFloatInvoker",
+   "module": "s2c:baked/navgen",
+   "note": "std::function call: (double)+0x14, (double)+0x10 (weld, edge length)"
+  },
+  {
+   "addr": "180057b90",
+   "name": "NavGen_LimitEdgeLenAll",
+   "module": "s2c:baked/navgen",
+   "note": "each polygon, then each queued piece"
+  },
+  {
+   "addr": "180057de0",
+   "name": "NavGen_LimitEdgeLen",
+   "module": "s2c:baked/navgen",
+   "note": "bounding-box halving plane when an edge exceeds max(limit, 3 tol)"
+  },
+  {
+   "addr": "18004fe60",
+   "name": "NavGen_ClipPointsByPlane",
+   "module": "s2c:baked/navgen",
+   "note": "front/on to A, back to B, band +-tol"
+  },
+  {
+   "addr": "180080820",
+   "name": "PlaneSegmentIntersect",
+   "module": "s2c:baked/navgen",
+   "note": "t = (d - n.p) / n.(q - p)"
+  },
+  {
+   "addr": "18004c280",
+   "name": "NavGen_PolysFromPoints",
+   "module": "s2c:baked/navgen",
+   "note": "attributes, then 18004bbe0"
+  },
+  {
+   "addr": "18004bbe0",
+   "name": "NavGen_FanFromPoints",
+   "module": "s2c:baked/navgen",
+   "note": "quads with a triangle last over new vertices, flags 0"
+  },
+  {
+   "addr": "18004c4f0",
+   "name": "NavGen_AppendPolyCopy",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "180053d40",
+   "name": "NavGen_CopyPolys",
+   "module": "s2c:baked/navgen",
+   "note": "the pass-through of the oriented-mesh case"
+  },
+  {
    "addr": "180048b20",
    "name": "NavGen_ExtractTriangles",
    "module": "s2c:baked/navgen",
@@ -109,12 +379,6 @@
    "note": "only when ctx + 0x61 and a transformer"
   },
   {
-   "addr": "180027d90",
-   "name": "NavGen_WeldInvoker",
-   "module": "s2c:baked/navgen",
-   "note": "std::function call: (double)+0x14, (double)+0x10"
-  },
-  {
    "addr": "1800217b0",
    "name": "NavGen_Generate",
    "module": "s2c:baked/navgen",
@@ -167,24 +431,6 @@
    "name": "NavGen_RemoveDegens",
    "module": "s2c:baked/navgen",
    "note": "stage -> 18005b5f0 / 18005b290"
-  },
-  {
-   "addr": "180074590",
-   "name": "NavGen_RemovePolysMarkedNoNav",
-   "module": "s2c:baked/navgen",
-   "note": "stage"
-  },
-  {
-   "addr": "180076980",
-   "name": "NavGen_TransformRecastNonZup",
-   "module": "s2c:baked/navgen",
-   "note": "stage"
-  },
-  {
-   "addr": "180076b70",
-   "name": "NavGen_UnTransformRecastNonZup",
-   "module": "s2c:baked/navgen",
-   "note": "stage"
   },
   {
    "addr": "180074330",

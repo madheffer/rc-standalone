@@ -1952,9 +1952,108 @@ game can answer is raised with the user first, and runs with -insecure.
     - Open: generation bounds (180046fc0) and NONAV markups (180049210, the
       NoNav stage, 180074590); hull, sphere and capsule shapes (vphysics2
       1802661f0's other cases); dynamic bodies at nav time (probe01 has
-      none); the per-vertex attribute vector; Recast's settings from the
-      map's CMapNavData or the defaults and navsystem's hull table (taken
-      from the capture so far).
+      none); the per-vertex attribute vector. (Recast's settings: 94.)
+94. **Nav generation's settings and the stages after Recast** (settled
+    2026-10-19 by decompile of resourcecompiler (20260923 and the installed
+    20261015) and navsystem (20261015), and Frida captures of probe01 with
+    every MergePolys inner call dumped. From the .vmap alone, the settings
+    block and hull navsystem receives are Valve's, and stages 006 through
+    018 give Valve's 42 polygons over 63 vertices, flags included.
+    Maps/NavGen/NavGenSettings.cs, NavGenMerge.cs, NavGenStages.cs,
+    NavGenInputTests, NavGenMergeTests.)
+    - Settings (RC MapCompile_BuildNav): the project defaults start as the
+      static block (1830237b0 in 0923, 183027600 in 1015: byte 1, tile 128,
+      cell 2, cell height 2, region 8 / 20, detail 120 / 2, edge 1200 / 51,
+      verts 4, small area -1); gameinfo.gi's NavSystem keys replace them
+      through KeyValues GetFloat / GetInt (1818c8c60); NavAgentNumHulls is
+      the deprecated path (not ported); then the hulls of NavHullsPreset
+      ("default" when absent). With no CMapNavData RC logs "Nav settings not
+      found" and uses the defaults.
+    - A preset (1818c7c90) is a CNavHullPresetVData of
+      scripts/nav_hulls_presets.vdata; when found and non-empty the hull list
+      is cleared and each named CNavHullVData of scripts/nav_hulls.vdata is
+      appended (1818ca350 moves m_agentBorderErosion from +0x30 to +8).
+      CNavHullVData's constructor (1818f8200; 1818f9e80 in 1015) copies the
+      static default hull (183027660 in 1015: enabled, radius 15, erosion
+      -1, height 71, short height 35.5 off, crawl 17.5 off, climb 17.5, slope
+      50, jump down 240, horiz 64, jump up 0), clears
+      m_flowMapGenerationEnabled and sets m_flowMapNodeMaxRadius 400; the
+      vdata overrides only its listed keys.
+    - The map's block (182053dc0 from the CDmeNavData "navData"): the
+      settings* attributes, +0x58 = 0, the hulls from the settingsAgent*
+      arrays (settingsAgentNumHulls of them, flow map fields unwritten). Its
+      hulls (1818ca150): an override vdata when not using project defaults
+      (1818c8840, not ported), else the named preset, else the project's
+      hulls or the arrays. MapCompile_BuildNav then takes (1818c7960): no
+      preset named, the project's block when settingsUseProjectDefaults else
+      the map's; a preset named, the project's numbers with the map's
+      strings, hulls and +0x58/+0x59, byte 0 clear.
+    - The RC nav input's +0x128 is set when the map has an
+      info_nav_oriented_mesh (180f20e40); the input's constructor (1800fb1c0)
+      leaves it alone. With it set, RemoveStrayVerticalPolys, MergePolys and
+      LimitMaxPolyEdges pass the polygons through.
+    - Stage convars (value at *(ptr)+0x58; names from their registrations):
+      180134b20 nav_gen_degen_limit 0.001, b10 nav_gen_agent_radius_buffer
+      0.75, bf0 nav_gen_vertical_limit 88, b00 nav_gen_remove_vertical_polys,
+      b90 nav_gen_opt_to_quads, c30 ..._angle_limit 8, c00
+      ..._planar_deviation_limit 4, a40 / ba0 ..._se_limit_start / end 1e-5 /
+      0.1, a00 / 9d0 ..._weld_limit_start / end 0 / 0.01, c20 ..._num_steps
+      6, ab0 nav_gen_max_edge_len_do_clip, b30 nav_gen_max_edge_len 512, a20
+      nav_gen_max_edge_len_split_tol 24, 9f0 nav_gen_true.
+    - Recast's polygons (180082280, 18004fe30): three corners, the normal of
+      18004d9a0 over the output pool, kind and flags, +0x60 5, +0x62 0.
+      UnTransformRecastNonZup acts only off z-up; RemovePolysMarkedNoNav
+      changes nothing without NONAV markups.
+    - RemoveStrayVerticalPolys (180075b90): keeps |nz| above
+      V_cosd((float)88 * 0.017453292f).
+    - MergePolys (180073ba0 via 180027dc0) works on 0x168-byte polygons
+      (64 inline corners). Six rounds, the merge tolerance from 1e-5 and the
+      weld tolerance from 0 stepping a sixth of the way to 0.1 / 0.01 each
+      round (doubles of the floats); a round repeats weld (180061730: the
+      weld of 93 into a new list), degens, edge merge, weld, degens, vertex
+      merge while the edge merge merged, and all of it while the vertex merge
+      did; then the fan split to 4.
+      - The edge list (180056540): each live polygon's corner edges hashed on
+        their smaller vertex % 0xfceb, each bucket MSVC std::sorted on
+        (min << 32 | max) (180066b80), runs of one key folded into their
+        first entry (two polygons at most, a third clears it), buckets in
+        order; with lengths, std::sorted longest first (180067200, pred a > b).
+      - Edge merge (18005a570): until a pass merges nothing, each edge two
+        polygons share wound opposite, both live, same kind and flags,
+        normals within the angle: the first's corners from after the edge,
+        then the second's (under 65), collinear corners dropped, 3 to 16
+        left, convex, no repeated corner, the radii (18004cd50: centroid
+        18004ef30 scaled by 1/n, farthest corner) summing to 200 at most or
+        the corners within 4 of their float least-squares plane z = ax + by
+        + c (1800541a0, 1800ee9a0, normalised by 18001f7c0), still convex:
+        both removed, the merge appended to the input list.
+      - Vertex merge (18005ca90): sweeps until one merges nothing; at each
+        vertex with two or three polygons (removed ones counted), each pair
+        live, same kind and flags, normals within the angle, the vertex at a
+        T (180081050, its prev/next neighbours collinear with it); a third
+        polygon across the T (18005e8f0, the last one around both far
+        corners, flags and angle only); split corners from the centroids'
+        turn about its normal (18005dfa0) with side checks (180080c10); when
+        the cut does not clear, the first Q edge it crosses in XY (18005e510,
+        180080750) gives a corner, snapped within the tolerance or a new
+        pool vertex; the third polygon grows into the gap and Q's remainder
+        stands alone; the three are removed. One merge per vertex per sweep.
+      - The fan split (1800584f0; LimitMaxPolyEdges 180059240 the same at 4
+        on 0x88 polygons): a polygon past the limit becomes a fan of pieces
+        from the first anchor corner whose pieces keep the largest fan area
+        (18004d060, float sum of float |cross|) above 0.01 and smallest /
+        largest above 0.05; the pieces keep the polygon's normal and fields.
+    - LimitMaxPolyEdgeLen (180057b90 via 180027d90; limit 512, tol 24): each
+      polygon then each queued piece: kept when no edge (summed y², x², z²)
+      is longer than max(limit, 3 tol); else clipped (18004fe60, band ±tol,
+      crossings 180080820) by the plane halving its bounding box across its
+      longest axis (x when strictly longest, else y when longer than z, else
+      z), each side fanned (18004bbe0) into quads with a triangle last, every
+      corner a new pool vertex, normal from corners 0-1-2, flags written 0,
+      +0x62 and +0x64 kept; the pieces are queued.
+    - Open: the fan split's triangulation fallback (1800f3780, a float ear
+      clipper with 1800f3d70's scoring; throws in the port; probe01 never
+      reaches it); NONAV markups; non-z-up generation; stages 019 on.
 
 ## Resolved
 

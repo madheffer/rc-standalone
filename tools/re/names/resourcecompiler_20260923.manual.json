@@ -1,6 +1,72 @@
 {
  "functions": [
   {
+   "addr": "1818c8c60",
+   "name": "NavSettings_ReadProjectDefaults",
+   "module": "s2c:baked/nav",
+   "note": "gameinfo NavSystem keys into 1830237b0; deprecated NavAgentNumHulls (1818c84f0); NavHullsPreset ('default')"
+  },
+  {
+   "addr": "1818c7c90",
+   "name": "NavSettings_LoadHullPreset",
+   "module": "s2c:baked/nav",
+   "note": "CNavHullPresetVData -> CNavHullVData entries (1818ca350); false when missing or empty"
+  },
+  {
+   "addr": "1818ca350",
+   "name": "NavHull_FromVData",
+   "module": "s2c:baked/nav",
+   "note": "0x48-byte entry from CNavHullVData; erosion +0x30 -> +8"
+  },
+  {
+   "addr": "1818f8200",
+   "name": "CNavHullVData_Construct",
+   "module": "s2c:baked/nav",
+   "note": "static default hull, flow map off, radius 400 (1818f9e80 in 1015)"
+  },
+  {
+   "addr": "1818e51c0",
+   "name": "CNavHullVData_SchemaFactory",
+   "module": "s2c:baked/nav",
+   "note": "(1818e6e40 in 1015)"
+  },
+  {
+   "addr": "1818c7960",
+   "name": "NavSettings_Resolve",
+   "module": "s2c:baked/nav",
+   "note": "project block or map block; named preset mixes them"
+  },
+  {
+   "addr": "182053dc0",
+   "name": "CDmeNavData_ToRuntimeSettings",
+   "module": "s2c:baked/nav",
+   "note": "settings* attributes and settingsAgent* arrays; +0x58 = 0"
+  },
+  {
+   "addr": "182053aa0",
+   "name": "CDmeNavData_FromRuntimeSettings",
+   "module": "s2c:baked/nav",
+   "note": ""
+  },
+  {
+   "addr": "1818ca150",
+   "name": "NavSettings_SetHulls",
+   "module": "s2c:baked/nav",
+   "note": "override vdata (1818c8840), preset, or project / map hulls"
+  },
+  {
+   "addr": "1818c8840",
+   "name": "NavSettings_LoadHullsVDataOverride",
+   "module": "s2c:baked/nav",
+   "note": "not ported"
+  },
+  {
+   "addr": "1800fb1c0",
+   "name": "CNavGenInput_Construct",
+   "module": "s2c:baked/nav",
+   "note": "bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40"
+  },
+  {
    "addr": "180fb6de0",
    "name": "MapCompile_NavPhysicsWorld",
    "module": "s2c:baked/nav",
