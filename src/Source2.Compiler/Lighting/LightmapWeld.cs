@@ -14,8 +14,8 @@ namespace Source2.Compiler.Lighting;
 /// <item>The texels the rows name, in first-seen order, each get a data row:
 /// itself at weight n (how often the seams name it), or 0.01 when it has no
 /// samples, right-hand side its own value times that weight.</item>
-/// <item>Channels 0-3, 8 and 13-15 that exist are solved one by one, their
-/// masked components as one system, by conjugate gradient on the normal
+/// <item>Channels 0-3, 8 and 13-15 that exist, then the baked shadow slots as
+/// one RGBA bitmap, are solved one by one, their masked components as one system, by conjugate gradient on the normal
 /// equations from the current values (1e-20, 100 steps).</item>
 /// </list>
 /// Around the solve the AHD direction (channel 13) goes to world space and
@@ -50,6 +50,20 @@ public static class LightmapWeld
         foreach (var c in new[] { 0, 1, 2, 3, 8, 13, 14, 15 })
             if (image.Channels[c] is { } channel)
                 SolveChannel(image, channel, rows);
+        // The baked shadow slots weld too, last, as one RGBA bitmap (Run's lambda_1 at 18005ca30
+        // fills a slot's value, 0 for a slot with no light; lambda_10 at 18005c840 writes back the
+        // slots that have one). probe01's sun slot along its seams.
+        var pixels = image.Width * image.Height;
+        var shadows = new LightmapImage.Channel(pixels, 0xf);
+        for (var p = 0; p < pixels; p++)
+            for (var k = 0; k < 4; k++)
+                shadows.Data[p * 4 + k] = image.ShadowRecords[p * 20 + k] == 0xff ? 0f
+                    : System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(image.ShadowRecords.AsSpan(p * 20 + 4 + k * 4));
+        SolveChannel(image, shadows, rows);
+        for (var p = 0; p < pixels; p++)
+            for (var k = 0; k < 4; k++)
+                if (image.ShadowRecords[p * 20 + k] != 0xff)
+                    System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(image.ShadowRecords.AsSpan(p * 20 + 4 + k * 4), shadows.Data[p * 4 + k]);
         if (image.Channels[1] is { } back)
             TransformRgb(back, FromYCoCg);
         foreach (var c in new[] { 14, 0 })

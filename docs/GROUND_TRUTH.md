@@ -1643,6 +1643,23 @@ game can answer is raised with the user first, and runs with -insecure.
       blocks (bc7e, LIGHTING_ROADMAP L3). The package is 55 of 56 files and
       99.90%, the same as with vrad3's outputs; the compile takes 278 s.
 
+88. **The weld solves the baked shadow slots** (settled 2026-10-19 on
+    probe01 and ze_hold_em_p by bytes, vrad3 run on the same raw image).
+    - After channels 0-3, 8 and 13-15, uber_weld solves the four baked
+      shadow slots as one RGBA float bitmap, with the same rows and the same
+      conjugate gradient. lambda_1 (18005ca30) fills a slot's value, 0 where
+      its light id is 0xff; lambda_10 (18005c840) writes back only the slots
+      whose id is not 0xff.
+    - The step runs when DAT_180347d70 is set. lightmap_image_gpu and
+      lpv_image_gpu set it from vtable +0x58 of the scenesystem world
+      "vrad3_raytrace_scene_world". The standalone scripts that load a
+      saved image have no world, so the flag is off there. That is why the
+      earlier step bisect showed equal shadows.
+    - probe01's sun slot differed in 4,124 R texels along its seams; it now
+      matches. ze_hold_em_p (37 baked-shadow lights) stays exact with the step.
+      The port runs it always: with no baked-shadow light every slot is 0xff,
+      the system is zero and nothing is written back.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
