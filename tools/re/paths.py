@@ -55,4 +55,5 @@ ALIASES = {
     "mat": "materialsystem2_20261015.dll",
     "mt": "modtools_20261015.dll",
     "navs": "navsystem_20261015.dll",
+    "srv": "server_20261015.dll",
 }

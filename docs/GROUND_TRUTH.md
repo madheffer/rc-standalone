@@ -2242,6 +2242,64 @@ game can answer is raised with the user first, and runs with -insecure.
       with none added, a navProperty_NavAttributes array key (types
       0x22/0x23, 180f22330) adds one with index -1. Not ported.
 
+97. **The .nav file: CS2's nav mesh, its build and its save** (settled
+    2026-10-20 by decompile of resourcecompiler 20260923 (the Ghidra
+    build; CS2's mesh runs server.dll 20261015's copy of the same library,
+    read from its RTTI and disassembly) and navsystem 20261015. Verified:
+    Valve's stage 029 polygons and connection blocks through NavWriter
+    give Valve's .nav byte for byte up to the CS custom data on probe01,
+    cardtest, probe_classes (a movable mesh), s2c_prefabprobe5 and 6
+    (NavWriterTests). Maps/NavGen/NavWriter.cs, tools/re/navfile.py.)
+    - Which mesh: the nav step's factory (1800fd2b0) asks gameinfo's
+      CustomNavBuild (csgo: server.dll, customnavsystem001) for the mesh,
+      a CSNavMesh (vftable 1817bebd0). It overrides 0x18/0x20 (CCSNavArea),
+      0x60 (the CS analysis, called after the build), 0x70 (the custom
+      data version, 1), 0x78/0x80 (custom data save/load) and a few
+      more; the build (0x98) and the save are the shared library's.
+    - After the stage list, navsystem appends each hull's polygons
+      (18006bee0), runs JoinNonZup (180072b50, nav_gen_join_nonzup on;
+      it only touches polygons with flag 8, the oriented-mesh path) and
+      compacts the pool (180073ef0): vertices renumbered in first-use
+      order over the polygons' corners, unused ones dropped. 180022200
+      hands the pool, the polygons and the movable mesh list to vfn 0x98.
+    - The build (1818d63c0): corners are the pool as floats; area i (id
+      i + 1) is polygon i (1818ea6f0). Per edge, each connection of the
+      edge's list (block +0x390/+0x398) of kind 0 whose other polygon is
+      another area becomes (that area's id, +0xc of the connection).
+      Jumps (kind != 0) are not area connections. Attributes: flag 8 ->
+      0x8000, 0x10 -> 0x20000, kind 1 -> 0x10000, kind 2 -> 0x40000;
+      area +0x58 is the polygon's +0x62.
+    - The save (1818d1320): 0xfeedface, 36, the custom data version (1),
+      +0x101 (1), the place names (u16 count, then a byte: some area
+      uses name 0), KV3 vfn 0xd8 (movable_mesh_gravity_follows_rotation,
+      a native int16 array; null without movable meshes), the pool
+      (1818e9510: corners, polygons as byte n + n u32 + the movable mesh
+      u32 (-1), the attribute flags 0, the movable meshes as the id path
+      formatted "%d" then "%c%d" with ':' and the 3x4 matrix), KV3 vfn
+      0xe8 (null), the areas (1818cfe80: id, attributes & 0x7f002 as u64,
+      +0x58, polygon, 0.0f, per edge count + (id, edge), byte 0, u32 0,
+      ladders up/down), ladders (1818e71b0), transformed bounds, the
+      generation parameters (1818d0690: 13, the settings block, both
+      strings, the hulls, +0x59), NavGenParams (1818d18f0) and the
+      custom data. Each KV3 is binary_auto on an 8-byte boundary.
+    - The movable mesh list entry (0x70 bytes, 1818ef5e0): id path count
+      +0, ids from +4 (past five, +0x20 count and +0x28 pointer), matrix
+      +0x38, gravity +0x68 bit 0. Captured by capture_navgen.py
+      (navinput_movable.bin).
+    - Native typed KV3 arrays (tier0 1800c5ea0): int16 elements are
+      element type 0x14, uint16 0x15 (2-byte lane), as floats are 0x13;
+      Kv3V5Writer treats all-Int16 / all-UInt16 arrays as native.
+    - The custom data (CSNavMesh 0x78, 18039ac00 / 18039ad80):
+      navmeshcustomdata1 { arealist [ per area hidingspotdata,
+      spotencounterdata, order, approachdata, earliestoccupytime ] }.
+      spotencounterdata's from/to and order's id are the low dwords of
+      CNavArea* / HidingSpot* pointers at save time: heap addresses.
+      Ledger 57's run-to-run difference is exactly those fields (two
+      probe01 compiles compared field by field); everything else in the
+      block is deterministic. The analysis that fills it is not ported.
+    - Open: ladders (the build casts every 10 units through the world,
+      1818dc620; ids from a process-wide counter), the CS analysis.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

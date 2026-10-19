@@ -1,0 +1,34 @@
+{
+ "functions": [
+  {
+   "addr": "1817bebd0",
+   "name": "CSNavMesh::vftable",
+   "module": "s2c:baked/nav",
+   "note": "overrides 0x18/0x20 (CCSNavArea), 0x38, 0x50, 0x58, 0x60 (the analysis, called with 0x24 after the build), 0x70 (custom data version 1), 0x78 / 0x80 (custom data save / load), 0xb0, 0xc0; 0x98 (1814ac9c0) is the shared build"
+  },
+  {
+   "addr": "1817beb18",
+   "name": "CCSNavArea::vftable",
+   "module": "s2c:baked/nav",
+   "note": "0x40 (save) is 1802aa880"
+  },
+  {
+   "addr": "18039ac00",
+   "name": "CSNavMesh::SaveCustomData",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x78: navmeshcustomdata1 { arealist [ per area (18039ad80) ] }"
+  },
+  {
+   "addr": "18039ad80",
+   "name": "CCSNavArea::SaveCustomData",
+   "module": "s2c:baked/nav",
+   "note": "hidingspotdata, spotencounterdata (from / to: the low dword of the NavConnect at +0 / +0x18, a CNavArea* at save time; fromdir +0x10, todir +0x28; spots +0x48 / +0x50: the low dword of +8, a HidingSpot*, and t), approachdata, earliestoccupytime. The pointer dwords are heap addresses: two compiles differ there and only there"
+  },
+  {
+   "addr": "180399100",
+   "name": "CCSNavArea::LoadCustomData",
+   "module": "s2c:baked/nav",
+   "note": "the reader of 18039ad80's keys"
+  }
+ ]
+}

@@ -271,6 +271,42 @@
    "note": "world vfn 0x580 shape cast both ways"
   },
   {
+   "addr": "1800217b0",
+   "name": "NavGen_Generate",
+   "module": "s2c:baked/navgen",
+   "note": "per world: the stage input (180048b20), the stage list (180022b60), the mesh build (180022200); '>>NAVGEN: Skipped... no walkable seeds present' with no seeds"
+  },
+  {
+   "addr": "1800250e0",
+   "name": "NavGen_RunStages",
+   "module": "s2c:baked/navgen",
+   "note": "the world and each NAV_GEN_PROJ / movable mesh through the stages (1800260e0, 180026740), appended (18006bee0), JoinNonZup (180072b50, convar 180134a98 nav_gen_join_nonzup, on), compaction (180073ef0)"
+  },
+  {
+   "addr": "18006bee0",
+   "name": "NavGen_AppendPolys",
+   "module": "s2c:baked/navgen",
+   "note": "polygons and pool appended; the polygons' corners offset by the old pool size, their connections' +0 and +8 by the old polygon count"
+  },
+  {
+   "addr": "180073ef0",
+   "name": "NavGen_CompactVertices",
+   "module": "s2c:baked/navgen",
+   "note": "the pool renumbered in first-use order over the polygons (map filled with -1), unused vertices dropped; attributes kept only when some are set (ledger 97)"
+  },
+  {
+   "addr": "180072b50",
+   "name": "NavGen_JoinNonZup",
+   "module": "s2c:baked/navgen",
+   "note": "acts only on polygons with flag 8 (the oriented-mesh path)"
+  },
+  {
+   "addr": "180022200",
+   "name": "NavGen_BuildMesh",
+   "module": "s2c:baked/navgen",
+   "note": "the mesh's vfn 0x98 with the processor's pool (+0x18) and polygons (+0x48), then the debug stages"
+  },
+  {
    "addr": "180070780",
    "name": "NavGen_IslandRemoval",
    "module": "s2c:baked/navgen",

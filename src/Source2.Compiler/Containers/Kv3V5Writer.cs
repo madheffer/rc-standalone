@@ -267,7 +267,12 @@ public static class Kv3V5Writer
             c.Main.W4.Write(items.Count);
         else
             c.Main.W1.Write((byte)items.Count);
-        var native = items.All(x => x.ValueType == KVValueType.FloatingPoint);
+        // Natively typed arrays (1800c5ea0): float elements as type 0x13 (4-byte lane), int16 as
+        // 0x14 and uint16 as 0x15 (2-byte lane); only native arrays carry those element types.
+        var nativeType = items.All(x => x.ValueType == KVValueType.FloatingPoint) ? 19
+            : items.All(x => x.ValueType == KVValueType.Int16) ? 20
+            : items.All(x => x.ValueType == KVValueType.UInt16) ? 21 : 0;
+        var native = nativeType != 0;
         c.Arrays++;
         if (!native && (type != 0x19 || items.Count > 0x1f))
         {
@@ -276,10 +281,10 @@ public static class Kv3V5Writer
         }
         if (native)
         {
-            // 1800c5ea0: the element type, then the raw floats into the auxiliary lanes.
-            TypeByte(c, 19, items[0].Flag);
+            // 1800c5ea0: the element type, then the raw values into the auxiliary lanes.
+            TypeByte(c, nativeType, items[0].Flag);
             foreach (var x in items)
-                c.Aux.W4.Write((float)x);
+                Value(c, c.Aux, x, nativeType);
             return;
         }
         var lanes = type == 0x19 ? c.Aux : c.Main;

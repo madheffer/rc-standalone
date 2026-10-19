@@ -19,10 +19,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## hammer.dll, build 20260924
 
-- file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
-- SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 11 tracked addresses: ambiguous 1, moved 10
+- file: `hammer.dll`, 39,611,032 bytes, PE time 2026-10-14 18:43 UTC
+- SHA-256 `46884a34b9b51fda1d46499d6c9963b6ba218518278f76df85e042fa388c3d41`
+- installed: this build
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -43,9 +42,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## materialsystem2.dll, build 20261001
 
-- file: `materialsystem2_20261001.dll`, 1,429,144 bytes, PE time 2026-09-30 18:55 UTC
-- SHA-256 `336abe089468bd5b218f773f09da3942fa9346b7f49f24d9e3591722fc54c5e6`
-- installed: a different build
+- file: `materialsystem2.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
+- SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
+- installed: this build
 - 1 addresses
 
 ### s2c:physics/material-sampler
@@ -56,7 +55,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## materialsystem2.dll, build 20261015
 
-- file: `materialsystem2_20261015.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
+- file: `materialsystem2.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
 - installed: this build
 - 15 addresses
@@ -83,9 +82,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## meshsystem.dll, build 20260923
 
-- file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
-- SHA-256 `11203f370437e5d55dbec46f530812b6a6f92c894e8f1c85f3c3b6e8773dc1d6`
-- installed: a different build
+- file: `meshsystem.dll`, 1,664,664 bytes, PE time 2026-10-14 18:42 UTC
+- SHA-256 `f66f01a90a2b2492dd281e41291e92a2151336c733c4b85d5f577714e0dfef4b`
+- installed: this build
 - 7 addresses
 
 ### s2c:baked/light-keys
@@ -107,9 +106,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## modtools.dll, build 20261015
 
-- file: `modtools_20261015.dll`, 17,944,216 bytes, PE time 2026-10-14 18:40 UTC
-- SHA-256 `31a29e428fd5e9bacf66614e7d11a44d273cdd74636bb3c45256e541655c18d6`
-- installed: a different build
+- file: not found locally
 - 19 addresses
 
 ### s2c:baked/bomb
@@ -138,10 +135,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## navsystem.dll, build 20261015
 
-- file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
+- file: `navsystem.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: this build
-- 211 addresses
+- 217 addresses
 
 ### s2c:baked/navgen
 
@@ -152,19 +149,22 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800207c0` | `CNavGenPolyProcessorStage1::Run` | in place on *(ctx + 0x30); returns false |  |
 | `1800207f0` | `CNavGenPolyProcessorStage2::Run` | out *(ctx + 0x38), in *(ctx + 0x30); returns true |  |
 | `180020820` | `NavGen_RunStages` | the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs |  |
+| `1800217b0` | `NavGen_Generate` | per world: the stage input (180048b20), the stage list (180022b60), the mesh build (180022200); '>>NAVGEN: Skipped... no walkable seeds present' with no seeds |  |
 | `1800217b0` | `NavGen_Generate` | entry from RC's nav step: seed check, then the passes |  |
+| `180022200` | `NavGen_BuildMesh` | the mesh's vfn 0x98 with the processor's pool (+0x18) and polygons (+0x48), then the debug stages | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:10` |
 | `180022b60` | `NavGen_BuildStageList` | CNavGenPolyProcessor stages: vtable, +8 enabled, +9 drawable, +0x10 CUtlString name, +0x50 std::function | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:4` |
+| `1800250e0` | `NavGen_RunStages` | the world and each NAV_GEN_PROJ / movable mesh through the stages (1800260e0, 180026740), appended (18006bee0), JoinNonZup (180072b50, convar 180134a98 nav_gen_join_nonzup, on), compaction (180073ef0) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:8` |
 | `1800260e0` | `NavGen_RunPass` | 'pass %d/%d: orig tris': one generation pass over the input polygons |  |
 | `180027d90` | `NavGen_TwoFloatInvoker` | std::function call: (double)+0x14, (double)+0x10 (weld, edge length) | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:27` |
 | `180027dc0` | `NavGen_MergePolysInvoker` | closure: +0x28 angle, +0x24 deviation, +0x20/+0x1c merge tol start/end, +0x18/+0x14 weld start/end (as doubles), +0x10 rounds | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:18` |
 | `180027ea0` | `NavGen_ConnectionsInvoker` | dist_a, dist_b, z_mult, angle, ignore_z, overlap, allow_multiple | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:132` |
 | `180028ae0` | `NavGen_QueryAttributes` | interacts with 0xc3021 \| navclip (hash 0xdd7f7e69), excludes 0x400000, as 0x80000, ids -1, mask 0xffff, types 3, group 3, flags 0x49 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:23` |
 | `1800369e0` | `ClosestPointsSegments` | Sunday's clamped parameters | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:219` |
-| `180046720` | `NavGrid2D_Init` | cells (int)(extent / size) + 1 a side over the XY bounds | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:26`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:212` |
-| `180046c80` | `NavGrid2D_Insert` | item into every cell of its clamped range | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:212` |
+| `180046720` | `NavGrid2D_Init` | cells (int)(extent / size) + 1 a side over the XY bounds | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:26`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:208` |
+| `180046c80` | `NavGrid2D_Insert` | item into every cell of its clamped range | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:208` |
 | `180046fc0` | `NavGen_ClipToBounds` | when generation bounds are set (not ported) |  |
-| `1800475e0` | `NavGrid2D_Query` | iterator: rows, columns, cell entries, each once (180046870 init, 180046a40 get, 180046a80 next, 180048960 done) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:213` |
-| `180048b20` | `NavGen_ExtractTriangles` | bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:75`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:138` |
+| `1800475e0` | `NavGrid2D_Query` | iterator: rows, columns, cell entries, each once (180046870 init, 180046a40 get, 180046a80 next, 180048960 done) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:209` |
+| `180048b20` | `NavGen_ExtractTriangles` | bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:118`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:207` |
 | `180049210` | `NavGen_ApplyNoNavMarkups` | after extraction (not ported) |  |
 | `18004b990` | `NavGen_AddInterpolatedVertex` | attribute interpolated only when set | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:23` |
 | `18004bbe0` | `NavGen_FanFromPoints` | quads with a triangle last over new vertices, flags 0 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:739` |
@@ -228,21 +228,24 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18006a6c0` | `NavGen_PairEdges` | edge pair overlaps, best and second | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:405` |
 | `18006aec0` | `NavGen_RecordPair` | shorter edge's polygon first | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:407`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:489` |
 | `18006b160` | `NavGen_AddJumps` | capsules (physics vfn 0x1e8), candidates, casts (not ported) |  |
+| `18006bee0` | `NavGen_AppendPolys` | polygons and pool appended; the polygons' corners offset by the old pool size, their connections' +0 and +8 by the old polygon count | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9` |
 | `18006c6b0` | `NavGen_ClipPolysToHullClearance` | not ported |  |
 | `18006cb10` | `NavGen_CompactRemoved` | remap, connections to dropped polygons removed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:613`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:37`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:417` +1 |
 | `18006d260` | `NavGen_PolysOverlapXY` | separating axes from both polygons' XY edge normals, margin dist_a | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:36` |
 | `18006d550` | `NavGen_ProjectionsMeet` |  | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169` |
 | `18006d750` | `NavGen_EdgeOverlap` | Ghidra drops its tail; from the disassembly | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:302`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:405` |
-| `18006e460` | `NavGen_FindPolyNear` | first polygon in grid order a +-16 box touches | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:31`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:158` |
-| `18006e5f0` | `NavGen_FloodFill` | breadth first over connections and link pairs to removed polygons; each reached one to the callback | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:173` |
+| `18006e460` | `NavGen_FindPolyNear` | first polygon in grid order a +-16 box touches | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:31`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:154` |
+| `18006e5f0` | `NavGen_FloodFill` | breadth first over connections and link pairs to removed polygons; each reached one to the callback | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:169` |
 | `18006ea50` | `NavGen_GenerateConnections` | sort, overlapping pairs (12 thread chunks), connections both ways | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:3`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
 | `18006f350` | `NavGen_FindOverlaps` | pairs i < j; break when j's key - 2 > i's +0x18 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
 | `180070780` | `NavGen_IslandRemoval` | all removed, flooded back from links, WALKABLESEED markups, seeds (+-40), ladders; all-hulls: listed polygons pull in removed ones within 4 (ledger 96) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:30` |
+| `180072b50` | `NavGen_JoinNonZup` | acts only on polygons with flag 8 (the oriented-mesh path) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:54` |
 | `180072ef0` | `NavGen_JumpClear` | world vfn 0x580 shape cast both ways |  |
 | `1800732d0` | `NavGen_LadderConnect` | not ported |  |
 | `180073a90` | `NavGen_LimitMaxPolyEdgeLen` | 180057b90 with nav_gen_max_edge_len, ..._split_tol | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:27` |
 | `180073ab0` | `NavGen_LimitMaxPolyEdges` | 180059240 at 4; passes through with an oriented mesh |  |
 | `180073ba0` | `NavGen_MergePolys` | nav_gen_opt_to_quads: six rounds of weld/degens/edge merge/weld/degens/vertex merge, then the 4-corner fan split; passes through with an oriented mesh | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:4`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:850`, `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:18` |
+| `180073ef0` | `NavGen_CompactVertices` | the pool renumbered in first-use order over the polygons (map filled with -1), unused vertices dropped; attributes kept only when some are set (ledger 97) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:43` |
 | `180074330` | `NavGen_Recast` | Recast stage: oriented path 1800873b0 when the bounds are unset and the stage block's +0x128 is set, else the tiled path 180084da0; arg 3 the generation settings (+0x48 hull table, 0x48 an entry) | `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:16` |
 | `180074570` | `NavGen_RemoveDegens` | stage -> 18005b5f0 / 18005b290 |  |
 | `180074590` | `NavGen_RemovePolysMarkedNoNav` | NONAV markups (not ported); nothing without them |  |
@@ -260,7 +263,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180077930` | `NavGen_WeldVertices` | stage |  |
 | `180077c50` | `NavGen_IslandListAppend` | std::function slot +0x10 (vtable 1800ff790): append to the list |  |
 | `180078360` | `NavGen_MarkupTouchesPoly` | local box grown by 1 through the markup matrix, vphysics2 interface +0x190 <= 0 |  |
-| `180078490` | `NavGen_BoxTouchesPoly` | eight corners against the polygon: vphysics2 interface +0x190 <= 0 | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:142` |
+| `180078490` | `NavGen_BoxTouchesPoly` | eight corners against the polygon: vphysics2 interface +0x190 <= 0 | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:141` |
 | `1800787d0` | `SegmentProjectXYF` | float projection of q0-q1 onto p0-p1 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:501` |
 | `1800802b0` | `ClosestPointOnTriangle` | Ericson's regions, doubles | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:7` |
 | `180080750` | `LineIntersectXY` | \|det\| < 1e-6f fails | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:328` |
@@ -344,16 +347,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800ee160` | `Matrix3x4_TransformPoint` | (p0 m0 + p2 m2) + (p1 m1 + m3) per row (1800edb00) | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:21` |
 | `1800ee9a0` | `PlaneFitLeastSquares` | float z = ax + by + c, \|det\| > 1e-6 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:939`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:963` |
 | `1800ef460` | `TetrahedronBarycentric` | volumes opposite each corner, signed by the whole | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:461` |
-| `1800ef850` | `TriangleBarycentric` | areas opposite each corner about a point, squared normal | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:434` |
+| `1800ef850` | `TriangleBarycentric` | areas opposite each corner about a point, squared normal | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:433` |
 | `1800efb20` | `GjkSimplex_WitnessPoints` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:496` |
-| `1800eff20` | `Gjk_Distance` | simplex of 0x2c-byte vertices, weights at +0xb4; overlap on four vertices or a tiny direction | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:222` |
+| `1800eff20` | `Gjk_Distance` | simplex of 0x2c-byte vertices, weights at +0xb4; overlap on four vertices or a tiny direction | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:261` |
 | `1800f09d0` | `Gjk_DistanceNoCache` | empty cache | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:6` |
-| `1800f0a20` | `GjkSimplex_SearchDirection` | -w; (e x -w0) x e; the face normal away from w0 | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:183` |
-| `1800f0c80` | `GjkProxy_Support` | farthest along d from point 0, ties keep the first | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:162` |
+| `1800f0a20` | `GjkSimplex_SearchDirection` | -w; (e x -w0) x e; the face normal away from w0 | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:222` |
+| `1800f0c80` | `GjkProxy_Support` | farthest along d from point 0, ties keep the first | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:201` |
 | `1800f0f70` | `GjkSimplex_Metric` | length, area or volume |  |
 | `1800f1200` | `GjkSimplex_ReadCache` | empty cache: both first points | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:9` |
-| `1800f14b0` | `GjkSimplex_Solve3` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:264` |
-| `1800f1b80` | `GjkSimplex_Solve4` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:336` |
+| `1800f14b0` | `GjkSimplex_Solve3` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:296` |
+| `1800f1b80` | `GjkSimplex_Solve4` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:368` |
 | `1800f30b0` | `Triangulate_QuadDiagonal` | squared diagonal, 3 when both triangles face the normal, 2 if not, 0 degenerate | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:5`, `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:94` |
 | `1800f33c0` | `Triangulate_PointInTriangle` | edge sides > -1e-7 about the normal, or within 1e-7 of an edge | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:146` |
 | `1800f3780` | `Triangulate_EarClip` | the fan split's fallback (not ported) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:592`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:644`, `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:4` |
@@ -361,10 +364,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## physicsbuilder.dll, build 20260924
 
-- file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
-- SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 66 tracked addresses: ambiguous 1, changed 4, identical 4, moved 57
+- file: `physicsbuilder.dll`, 13,949,592 bytes, PE time 2026-10-14 18:41 UTC
+- SHA-256 `2b833eb7c91abe8430af9eb274d47babc458ddf0e488e189c3b846ba182e9522`
+- installed: this build
 - 60 addresses
 
 ### s2c:geometry/props
@@ -454,10 +456,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## rendersystemvulkan.dll, build 20261015
 
-- file: `rendersystemvulkan_20261015.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
+- file: `rendersystemvulkan.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `2febd86471b9ed1953e75875296f3e76999661f1e86cb68e928c0cb12a2afb4a`
 - installed: this build
-- against the installed build (20261016_1.41.9.1.md): 1 tracked addresses: identical 1
 - 1 addresses
 
 ### s2c:baked/lighting
@@ -468,11 +469,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## resourcecompiler.dll, build 20260923
 
-- file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
-- SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 1002 addresses
+- file: `resourcecompiler.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
+- SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
+- installed: this build
+- 1013 addresses
 
 ### s2c:baked/light-keys
 
@@ -738,6 +738,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800fb1c0` | `CNavGenInput_Construct` | bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40 |  |
 | `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:257`, `src/Source2.Compiler/Maps/NavFile.cs:7`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:7` +1 |
+| `1800fd2b0` | `MapCompile_CreateNavMesh` | the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720) |  |
 | `180f1ef70` | `NavGen_FindNavMarkups` | func_nav_markup entities in the map, then each sub-world's (flag 4 keeps the list) |  |
 | `180f1f830` | `NavGen_CollectNoNavBlocks` | 'prop_deformable', 'block_base_nav_mesh', 'NavGen' 'NONAV' |  |
 | `180f203b0` | `NavGen_CollectLinkAreas` | 'ai_nav_link_area' |  |
@@ -762,9 +763,19 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1818c8c60` | `NavSettings_ReadProjectDefaults` | gameinfo NavSystem keys into 1830237b0; deprecated NavAgentNumHulls (1818c84f0); NavHullsPreset ('default') |  |
 | `1818ca150` | `NavSettings_SetHulls` | override vdata (1818c8840), preset, or project / map hulls |  |
 | `1818ca350` | `NavHull_FromVData` | 0x48-byte entry from CNavHullVData; erosion +0x30 -> +8 |  |
+| `1818cfe80` | `CNavArea::Save` | id, attributes & 0x7f002 (u64), +0x58, polygon index, 0.0f, per edge count + (id, (int)(char) edge), byte 0, u32 0, ladders up / down | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:110` |
+| `1818d0690` | `CNavGenParams::Save` | 13, the block's +0 (as u32), +4 .. +0x2c, the two strings, hull count, per hull +0, +4, +0xc, +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24, +0x28, +0x2c, +0x30, +8; then +0x59 as a byte | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:110`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:181` |
+| `1818d1320` | `CNavMesh::SaveNavMeshToBuffer` | 0xfeedface, 36, vfn 0x70, +0x101, place names (1818ee8d0), KV3 vfn 0xd8, polygon pool (1818e9510), vfn 0x88, KV3 vfn 0xe8, areas (vfn 0x40), ladders (1818e71b0), transformed bounds (0x48 of each 0x50), generation parameters (1818d0690), KV3 vfn 0xf8, vfn 0x78; each KV3 8-aligned, binary_auto | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:107` |
+| `1818d18f0` | `CNavMesh::SaveGenParamsKV3` | NavGenParams { HullParams [ { Name, FlowMap_Enabled, FlowMap_NodeMaxRadius } ] } | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:111`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:219` |
+| `1818d1a70` | `CNavMesh::SaveMovableMeshKV3` | movable_mesh_gravity_follows_rotation (one bool per movable mesh); nothing without movable meshes (a null KV3) |  |
+| `1818d63c0` | `CNavMesh::BuildFromNavGenPolys` | vfn 0x98: generation parameters from the input, the pool (1818e7e50), area i from polygon i (vfn 0x18, 1818ea6f0), the grid, vfn 0x108, vfn 0x60 (CS: the analysis), ladders, transformed bounds (1818d69c0) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:11` |
 | `1818d77e0` | `CNavMesh::CreateArea` |  |  |
 | `1818dcb00` | `CNavMesh::Update` |  |  |
 | `1818e51c0` | `CNavHullVData_SchemaFactory` | (1818e6e40 in 1015) |  |
+| `1818e7e50` | `CNavGeometryManager::Build` | pool doubles to floats in order (1818e7c60), polygons in order (1818e7af0), per-vertex use counts |  |
+| `1818e9510` | `CNavGeometryManager::Save` | corner count + float3, polygon count + (byte n, n u32, the area's movable mesh u32), the attribute flags word (bit 0: count + float4), movable mesh count + (name, 12 floats) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:109`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:128` |
+| `1818ea6f0` | `CNavArea::InitFromNavGenPoly` | per edge the block's +0x390/+0x398 list: connections of kind (+0x60) 0 to another area as (that area's id, +0xc); attributes flag 8 -> 0x8000, 0x10 -> 0x20000, kind 1 -> 0x10000, kind 2 -> 0x40000; +0x58 = the polygon's +0x62 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:45` |
+| `1818ee8d0` | `CNavPlaceNames::Save` | u16 count, (u16 length + 1, bytes, 0) each, then a byte: whether any area uses name 0 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:108`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:123` |
 | `1818f8200` | `CNavHullVData_Construct` | static default hull, flow map off, radius 400 (1818f9e80 in 1015) |  |
 | `182053aa0` | `CDmeNavData_FromRuntimeSettings` |  |  |
 | `182053dc0` | `CDmeNavData_ToRuntimeSettings` | settings* attributes and settingsAgent* arrays; +0x58 = 0 |  |
@@ -1614,10 +1625,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## resourcecompiler.dll, build 20261006
 
-- file: `resourcecompiler_20261006.dll`, 56,323,736 bytes, PE time 2026-10-05 21:03 UTC
-- SHA-256 `e2cd4c06976ee54ab8d32a6b109e7adcb7b551c02766cd0c6954b492b0aedbe3`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
+- file: `resourcecompiler.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
+- SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
+- installed: this build
 - 10 addresses
 
 ### s2c:entities
@@ -1642,7 +1652,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## scenesystem.dll, build 20261015
 
-- file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
+- file: `scenesystem.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: this build
 - 36 addresses
@@ -1688,12 +1698,26 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1804c8280` | `LightBinGrid_Size` | (grid, budget bytes, bytes a cell, min, max): bisects the cell size from (0, largest extent) while the step is over 0.01, counts cvtss2si(extent / size) at least 1, the smaller size kept while count x bytes fits the budget (unsigned) | `src/Source2.Compiler/Lighting/Bake/BakeScene.cs:84`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:18`, `src/Source2.Compiler/Lighting/Bake/PathTraceBounds.cs:141` |
 | `180567b00` | `CompressTangentFrame` | same code as resourcecompiler 182067e80 | `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:30`, `src/Source2.Compiler/Lighting/Bake/SceneVertexLayout.cs:32` |
 
+## server.dll, build 20261015
+
+- file: not found locally
+- 5 addresses
+
+### s2c:baked/nav
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `180399100` | `CCSNavArea::LoadCustomData` | the reader of 18039ad80's keys |  |
+| `18039ac00` | `CSNavMesh::SaveCustomData` | vfn 0x78: navmeshcustomdata1 { arealist [ per area (18039ad80) ] } |  |
+| `18039ad80` | `CCSNavArea::SaveCustomData` | hidingspotdata, spotencounterdata (from / to: the low dword of the NavConnect at +0 / +0x18, a CNavArea* at save time; fromdir +0x10, todir +0x28; spots +0x48 / +0x50: the low dword of +8, a HidingSpot*, and t), approachdata, earliestoccupytime. The pointer dwords are heap addresses: two compiles differ there and only there |  |
+| `1817beb18` | `CCSNavArea::vftable` | 0x40 (save) is 1802aa880 |  |
+| `1817bebd0` | `CSNavMesh::vftable` | overrides 0x18/0x20 (CCSNavArea), 0x38, 0x50, 0x58, 0x60 (the analysis, called with 0x24 after the build), 0x70 (custom data version 1), 0x78 / 0x80 (custom data save / load), 0xb0, 0xc0; 0x98 (1814ac9c0) is the shared build |  |
+
 ## smartprops.dll, build 20260923
 
-- file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
-- SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 30 tracked addresses: identical 17, relocated 13
+- file: `smartprops.dll`, 1,511,576 bytes, PE time 2026-10-14 18:38 UTC
+- SHA-256 `2e7782278b4054ee286ac28c3e30310e94022b6e5ac39ea0a90e1699eed2e91a`
+- installed: this build
 - 30 addresses
 
 ### s2c:smartprops
@@ -1733,10 +1757,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## tier0.dll, build 20260923
 
-- file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
-- SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
+- file: `tier0.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
+- SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
+- installed: this build
 - 52 addresses
 
 ### s2c:baked/bomb
@@ -1813,10 +1836,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## tier0.dll, build 20261015
 
-- file: `tier0_20261015.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
+- file: `tier0.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: this build
-- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
 - 4 addresses
 
 ### s2c:io
@@ -1830,10 +1852,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## visbuilder.dll, build 20260923
 
-- file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
-- SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 201 tracked addresses: changed 36, identical 123, relocated 42
+- file: `visbuilder.dll`, 1,855,640 bytes, PE time 2026-10-14 18:41 UTC
+- SHA-256 `ff000621c4492258de141eaecf7dd29eea7cacbaa0c4ab0da7f73234b841a022`
+- installed: this build
 - 200 addresses
 
 ### s2c:visibility
@@ -2043,10 +2064,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## vphysics2.dll, build 20260924
 
-- file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
-- SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
+- file: `vphysics2.dll`, 4,829,848 bytes, PE time 2026-10-14 18:42 UTC
+- SHA-256 `1d7680455eb1ca3ad7c9b92165515351f607e96db66cf466140aaf3f00946dba`
+- installed: this build
 - 434 addresses
 
 ### s2c:baked/bomb
@@ -2070,9 +2090,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180073970` | `CVPhysics2Interface::PointSetDistance` | slot 0x190: two matrix3x4 and point lists through 18029b6f0 to 1802ec220; 0 when at most 0.125 | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:40` |
 | `1801ff7b0` | `RnQuery_ShapePasses` | body type against query +0x2f, then 1802facf0 on shape + 0x50 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32` |
 | `180260f50` | `RnMesh_EmitTriangle` | three unshared vertices times the shape scale (+0xb8) | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:16` |
-| `1802643e0` | `RnMesh_GetTriangles` | BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:117` |
+| `1802643e0` | `RnMesh_GetTriangles` | BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:186` |
 | `1802661f0` | `RnShape_GetTriangles` | by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14` |
-| `18029b6f0` | `RnGjk_PointSetDistance` | point-list proxies (scale 1, no box), 32 iterations |  |
+| `18029b6f0` | `RnGjk_PointSetDistance` | point-list proxies (scale 1, no box), 32 iterations | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:71` |
 | `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32` |
 
 ### s2c:entities/settle
@@ -2297,7 +2317,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802dddd0` | `RnTimeOfImpact` | conservative advancement | `src/Source2.Compiler/Simulation/TimeOfImpact.cs:378` |
 | `1802eb9e0` | `RnGjkProxy_Support` | vertex furthest along a direction | `src/Source2.Compiler/Simulation/Gjk.cs:53` |
 | `1802ebd20` | `RnGjk_ReadCache` |  | `src/Source2.Compiler/Simulation/Gjk.cs:175` |
-| `1802ec220` | `RnGjk_Distance` | GJK distance between two proxies (navsystem's IslandRemoval boxes through 180073970; its own variant of navsystem's 1800eff20) | `src/Source2.Compiler/Simulation/Gjk.cs:143`, `src/Source2.Compiler/Simulation/Gjk.cs:617`, `src/Source2.Compiler/Simulation/RoundCollision.cs:162` |
+| `1802ec220` | `RnGjk_Distance` | GJK distance between two proxies (navsystem's IslandRemoval boxes through 180073970; its own variant of navsystem's 1800eff20) | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:13`, `src/Source2.Compiler/Simulation/Gjk.cs:143`, `src/Source2.Compiler/Simulation/Gjk.cs:617` +1 |
 | `1802eca60` | `RnCapsuleHull_EdgeContact` |  | `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:352`, `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:526` |
 | `1802ed320` | `RnHull_EdgeContact` |  | `src/Source2.Compiler/Simulation/HullContacts.cs:133` |
 | `1802edc30` | `RnCapsuleHull_FaceContact` |  | `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:131`, `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:350`, `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:490` |
@@ -2371,8 +2391,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180313510` | `RnSolver_WriteBackBatch` |  | `src/Source2.Compiler/Simulation/WorldSolver.cs:185`, `src/Source2.Compiler/Simulation/WorldSolver.cs:211` |
 | `180313990` | `RnSolver_CopyBodyBack` |  | `src/Source2.Compiler/Simulation/IslandSolver.cs:196`, `src/Source2.Compiler/Simulation/SolverBody.cs:9`, `src/Source2.Compiler/Simulation/WorldSolver.cs:268` |
 | `180315ab0` | `RnSimplex_Add` |  | `src/Source2.Compiler/Simulation/Gjk.cs:216` |
-| `180315bb0` | `RnSimplex_TetrahedronWeights` |  | `src/Source2.Compiler/Simulation/Gjk.cs:375` |
-| `180315fa0` | `RnSimplex_TriangleWeights` |  | `src/Source2.Compiler/Simulation/Gjk.cs:316` |
+| `180315bb0` | `RnSimplex_TetrahedronWeights` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:461`, `src/Source2.Compiler/Simulation/Gjk.cs:375` |
+| `180315fa0` | `RnSimplex_TriangleWeights` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:433`, `src/Source2.Compiler/Simulation/Gjk.cs:316` |
 | `180316270` | `RnSimplex_WitnessPoints` |  | `src/Source2.Compiler/Simulation/Gjk.cs:517` |
 | `180316670` | `RnSimplex_ClosestPoint` |  | `src/Source2.Compiler/Simulation/Gjk.cs:470` |
 | `180316930` | `RnSimplex_SearchDirection` |  | `src/Source2.Compiler/Simulation/Gjk.cs:577` |
@@ -2515,10 +2535,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## vrad3.dll, build 20261001
 
-- file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
-- SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
+- file: `vrad3.dll`, 3,269,272 bytes, PE time 2026-10-14 18:42 UTC
+- SHA-256 `640aa494e082e93639fe0a6a583321abb8cb3930d6dbd9162e3a9e2a951bf9b3`
+- installed: this build
 - 365 addresses
 
 ### s2c:baked/vrad3
