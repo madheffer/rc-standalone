@@ -85,5 +85,11 @@ public class ClassOrderProbe(ITestOutputHelper output)
         var all = MapEntities.From(document).Select(e => e.ClassName).ToList();
         output.WriteLine("order: " + string.Join(" ", all));
         output.WriteLine("counts: " + string.Join(" ", all.GroupBy(c => c).Select(g => $"{g.Key}={g.Count()}")));
+        // Every element with a classname, by element type, against MapEntities' count of that class.
+        var counts = all.GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
+        var elements = document.Elements.Select(e => (e.Type, Class: e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname"))).Where(x => x.Class != null).ToList();
+        output.WriteLine("element types: " + string.Join(" ", document.Elements.GroupBy(e => e.Type).OrderByDescending(g => g.Count()).Take(30).Select(g => $"{g.Key}={g.Count()}")));
+        foreach (var g in elements.GroupBy(x => x.Class!).Where(g => g.Count() != counts.GetValueOrDefault(g.Key)))
+            output.WriteLine($"  {g.Key}: elements {g.Count()} ({string.Join(",", g.GroupBy(x => x.Type).Select(t => $"{t.Key}={t.Count()}"))}), MapEntities {counts.GetValueOrDefault(g.Key)}");
     }
 }

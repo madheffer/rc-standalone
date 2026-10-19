@@ -267,7 +267,7 @@ public class ParityReport(ITestOutputHelper output)
             Directory.CreateDirectory(Path.GetDirectoryName(package)!);
             File.WriteAllBytes(package, Io.VpkWriter.Write(new Dictionary<string, byte[]>()));
             var started = DateTime.UtcNow;
-            var code = MapCompile.Run(args, log, acceptGaps: true, skipUnported: true);
+            var code = MapCompile.Run(args, log, acceptGaps: true, skipUnported: true, ownBake: args.OwnBake != null ? Source2.Compiler.Gpu.OwnLightingBake.Run : null);
             output.WriteLine(log.ToString().TrimEnd());
             output.WriteLine($"compile-map {switches}: exit {code}, {(DateTime.UtcNow - started).TotalSeconds:F0} s");
         }

@@ -498,7 +498,7 @@ internal static class Commands
                     gpu = new Gpu.GpuMaterialSampler(Path.Combine(root, "csgo", "shaders_vulkan_dir.vpk"), content.Read);
                     return gpu.For;
                 }
-                : null, skipUnported);
+                : null, skipUnported, Gpu.OwnLightingBake.Run);
         }
         finally
         {

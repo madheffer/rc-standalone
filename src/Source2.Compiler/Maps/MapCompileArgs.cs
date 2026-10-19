@@ -36,6 +36,8 @@ public sealed class MapCompileArgs
         ["changelist"] = true, ["skiptype"] = true,
         // s2c's own: a folder vrad3 has already baked this map into (its EXRs and inputs).
         ["vrad3output"] = true,
+        // s2c's own: bake the lighting ourselves in this job folder (Vrad3Job, then the GPU bake).
+        ["s2cbake"] = true,
     };
 
     /// <summary>The .vmap to compile (<c>-i</c>).</summary>
@@ -51,6 +53,13 @@ public sealed class MapCompileArgs
     /// refused.
     /// </summary>
     public string? Vrad3Output { get; private set; }
+
+    /// <summary>
+    /// <c>-s2cbake &lt;folder&gt;</c> (s2c's own): write the vrad3 job for this map into the
+    /// folder (<see cref="Lighting.Vrad3Job"/>), bake it with our own GPU bake, and take the
+    /// lighting from there as <c>-vrad3output</c> would. vrad3 does not run.
+    /// </summary>
+    public string? OwnBake { get; private set; }
 
     /// <summary>The parser's own switches that were given, lower case.</summary>
     public HashSet<string> Switches { get; } = new(Tier0Strings.IgnoreCase);
@@ -86,6 +95,8 @@ public sealed class MapCompileArgs
                     parsed.OutRoot = next;
                 else if (name.EqualsAscii("vrad3output"))
                     parsed.Vrad3Output = next;
+                else if (name.EqualsAscii("s2cbake"))
+                    parsed.OwnBake = next;
                 continue;
             }
             if (next is null)

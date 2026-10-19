@@ -91,7 +91,7 @@ public static class MapCompile
     /// instead of refusing.</param>
     public static int Run(MapCompileArgs args, TextWriter log, bool acceptGaps = false,
                           Func<GameContent, Func<string, MaterialSampler.Renderer?>?>? sampler = null,
-                          bool skipUnported = false)
+                          bool skipUnported = false, Action<string, GameContent, TextWriter>? ownBake = null)
     {
         if (args.Input is not { } input || !File.Exists(input))
             return Fail(log, "-i must name an existing .vmap");
@@ -112,8 +112,13 @@ public static class MapCompile
         var vrad3 = args.Vrad3Output;
         if (vrad3 != null && !File.Exists(Path.Combine(vrad3, "lightmap_packing_geometry.dat")))
             return Fail(log, $"-vrad3output: no vrad3 output in {vrad3}");
-        refused.AddRange(steps.Where(s => s is "sareverb" or "sapaths" or "sacustomdata" || (s is "bakedlighting" && vrad3 == null)));
-        if (args.BakesLighting && vrad3 == null)
+        var ownBakes = args.OwnBake != null;
+        if (ownBakes && vrad3 != null)
+            return Fail(log, "-s2cbake and -vrad3output both name the bake's folder; give one");
+        if (ownBakes && ownBake == null)
+            return Fail(log, "-s2cbake: this build has no GPU bake (run it through the CLI)");
+        refused.AddRange(steps.Where(s => s is "sareverb" or "sapaths" or "sacustomdata" || (s is "bakedlighting" && vrad3 == null && !ownBakes)));
+        if (args.BakesLighting && vrad3 == null && !ownBakes)
             refused.Add("the lighting bake (a build naming no builder, or -bakelighting; -vrad3output takes vrad3's results)");
         if (refused.Count > 0 && !skipUnported)
             return Fail(log, "not ported: " + string.Join(", ", refused)
@@ -133,7 +138,7 @@ public static class MapCompile
 
         try
         {
-            return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package, bakes, skipUnported);
+            return Build(args, log, acceptGaps, sampler, full, root, addon, map, game, steps, package, bakes, skipUnported, ownBake);
         }
         catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
         {
@@ -145,8 +150,11 @@ public static class MapCompile
     private static int Build(MapCompileArgs args, TextWriter log, bool acceptGaps,
                              Func<GameContent, Func<string, MaterialSampler.Renderer?>?>? sampler,
                              string full, string root, string addon, string map, string game,
-                             HashSet<string> steps, string package, bool bakes = false, bool skipUnported = false)
+                             HashSet<string> steps, string package, bool bakes = false, bool skipUnported = false,
+                             Action<string, GameContent, TextWriter>? ownBake = null)
     {
+        // Where the bake's outputs are read from: vrad3's folder, or the job our own bake ran in.
+        var lightingFolder = args.Vrad3Output;
         var document = DmxBinary.ReadFile(full);
         // A prefab's map loads from the addon's content, as Hammer's does.
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(root, "content", "csgo_addons", addon)));
@@ -187,12 +195,23 @@ public static class MapCompile
             foreach (var m in models)
                 entries[m.Path + "_c"] = m.PhysicsOnly ? EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
             using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
+            if (bakes && args.OwnBake is { } job && lighting is not null && ownBake is not null)
+            {
+                // Our own bake: the job resourcecompiler would hand vrad3, then the GPU bake in it.
+                bool JobWorldClass(string cls) => schema.IsSolidClass(cls) && schema.HasFlag(cls, "render_as_world_but_physics_as_entity");
+                var quality = Lighting.LightmapOutputs.Options.From(args.Arguments).Quality;
+                Lighting.Vrad3Job.Write(job, document, assets, shaders, JobWorldClass, lumps.Select(l => (l.Path, l.Bytes)),
+                                        path => entries.GetValueOrDefault(path.ToLowerInvariant()), lighting.ProbeJobs, quality);
+                log.WriteLine($"  lighting: job written to {job}");
+                ownBake(job, assets, log);
+                lightingFolder = job;
+            }
             // S2C_WORLD_STAMP=<timestamp>,<fingerprint>: the .vwrld's compile time and
             // fingerprint given rather than now and random, for a reproducible build.
             var (stamp, fingerprint) = Environment.GetEnvironmentVariable("S2C_WORLD_STAMP")?.Split(",") is [var stampText, var printText]
                 ? (uint.Parse(stampText, System.Globalization.CultureInfo.InvariantCulture), (ulong?)ulong.Parse(printText, System.Globalization.CultureInfo.InvariantCulture))
                 : ((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), null);
-            var baked = bakes && args.Vrad3Output is { } bakedFolder && lighting is not null ? BakedWorldLighting(bakedFolder, map, args, lighting) : null;
+            var baked = bakes && lightingFolder is { } bakedFolder && lighting is not null ? BakedWorldLighting(bakedFolder, map, args, lighting) : null;
             var node = WorldNodeFiles.Build(document, addon, map, assets, shaders, schema, game, lighting?.Volumes ?? EnvVolumes.Set.Empty,
                                             stamp, notes, vis: steps.Contains("vis"), fingerprint: fingerprint, baked: baked, visibility: visibility);
             foreach (var f in node)
@@ -245,7 +264,7 @@ public static class MapCompile
             else
                 log.WriteLine("  skipped (not ported): nav generation");
         }
-        if (args.Vrad3Output is { } folder && bakes && !args.EntitiesOnly)
+        if (lightingFolder is { } folder && bakes && !args.EntitiesOnly)
         {
             // The bake's outputs from vrad3's folder: the lightmap channels, the
             // query data and the probe volume atlases replace what was there.

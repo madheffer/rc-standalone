@@ -66,6 +66,14 @@ public static partial class EntityLumpAuthor
         public Maps.EnvVolumes.Set Volumes { get; init; } = Maps.EnvVolumes.Set.Empty;
 
         /// <summary>
+        /// The probe volumes as the vrad3 script lists them (1801ee0b0, the 0x8c0 records in
+        /// export order): the handshake as the id, the grid, box_mins / box_maxs and the
+        /// entity's local-to-world. Voxelize and flood fill (+0x869, +0x868) are taken as set,
+        /// as on every map compiled so far.
+        /// </summary>
+        public IReadOnlyList<Source2.Compiler.Lighting.Vrad3Job.Volume> ProbeJobs { get; init; } = [];
+
+        /// <summary>
         /// The counters over the entities in export order. The handshake starts
         /// at the map path's MurmurHash2 (seed 0x3501a674, lower case, back
         /// slashes, 31 bits, backed off by 0xff near the top) and takes one per
@@ -116,6 +124,7 @@ public static partial class EntityLumpAuthor
             // targetname before any instance name fixup: GROUND_TRUTH 48).
             var cubemaps = new List<Maps.EnvVolumes.Volume>();
             var probes = new List<Maps.EnvVolumes.Volume>();
+            var jobs = new List<Source2.Compiler.Lighting.Vrad3Job.Volume>();
             foreach (var e in order)
             {
                 if (!handshake.TryGetValue(e, out var h))
@@ -127,7 +136,14 @@ public static partial class EntityLumpAuthor
                     if (r.Cubemap)
                         cubemaps.Add(r.Volume);
                     if (r.Probe)
+                    {
                         probes.Add(r.Volume);
+                        string Key(string name, string fallback) => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value ?? fallback;
+                        var mins = CNumbers.FloatArray(Key("box_mins", "-72 -72 -72"), 3);
+                        var maxs = CNumbers.FloatArray(Key("box_maxs", "72 72 72"), 3);
+                        var (gx, gy, gz) = ProbeGrid(table);
+                        jobs.Add(new(h, gx, gy, gz, new(mins[0], mins[1], mins[2]), new(maxs[0], maxs[1], maxs[2]), Maps.LightPrecompute.World(e.Origin, e.Angles)));
+                    }
                 }
             }
             return new Lighting(mapPath, baked, handshake, cube, atlas,
@@ -135,6 +151,7 @@ public static partial class EntityLumpAuthor
             {
                 ExportOrder = order,
                 Volumes = new(cubemaps, probes),
+                ProbeJobs = jobs,
                 VisClusters = baked && scene is not null && visClusterBoxes is not null
                     ? LightVisMembership(order, schema, scene, visClusterBoxes) : null,
             };

@@ -1545,6 +1545,30 @@ game can answer is raised with the user first, and runs with -insecure.
     - Rule: Ghidra may print a + (b + c) as a + b + c. Read the
       disassembly wherever float association matters.
 
+85. **The .vmap_c's m_SubassetReferences** (settled 2026-10-19 by decompile
+    and by all 24 of s2c_rc_probe's compiles, MapSubassetsTests).
+    - The collector (vtable 182353d80, add at 180fc0ac0) keeps the pairs
+      in a tier1 CUtlHashtable. Each entry is 0x20 bytes: flags and hash,
+      type, name, count. The minimum size is 32 slots, the table grows past
+      3 used per 4, a new key goes at the head of its bucket's run, and
+      FLAG_LAST marks a run's last entry (shift 180fbfe10, resize
+      180fc0110).
+    - The hash (180fbfc90) is MurmurHash2 with seed 0x3501a674 of the type
+      and of the name, each folded with h ^ h >> 15, then xored.
+    - 1800fee50 copies the table into a fresh one (180fbf9f0, from the last
+      slot back) and reports the copy slot by slot. The RED2 groups by
+      type, entity first. The .vmap's map_subasset_reference_* attributes
+      (180f71a50) are the same pairs sorted, a different list.
+    - The walk is the main lump's: instance copies are spliced in where
+      their parent's subtree ends and the templates are dropped. A path's
+      node entities come before the path. A hidden entity, worldspawn and
+      a class the FGD lacks add nothing.
+    - Each entity adds ("entity", class), then each soundevent-typed key
+      (FGD type sound, 0xd) in key-table order, class defaults included.
+    - MapSubassets implements it. Earlier tries failed for three reasons:
+      sounds added after all entities, the document order, and game
+      keys left out.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
