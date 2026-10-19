@@ -71,6 +71,8 @@ public sealed class BakeScene
         public Matrix4x4 IblTransformInverse = Matrix4x4.Identity;
         public Vector4 IblCubeMapScale = new(1f, 1f, 1f, 1f);
         public BakeCubemap? IblCubeMap;
+        /// <summary>The ibl block's material (its g_tSkyTexture is the cube map), when the cube was loaded.</summary>
+        public string? IblMaterial;
         /// <summary>1 unless the ibl table's path_trace_light_flags says otherwise (measured: 1 with ibl = null).</summary>
         // 0 for a scene without an ibl block, 1 for one without path_trace_light_flags (capture_host.py).
         public uint SkyLightFlags;
@@ -223,6 +225,7 @@ public sealed class BakeScene
                 g.IblCubeMapScale.Y *= scale[1] * exposure;
                 g.IblCubeMapScale.Z *= scale[2] * exposure;
                 g.IblCubeMap = cube.Cube;
+                g.IblMaterial = mat.ToString(null);
                 g.SkyColor = Vector4.Zero;
             }
         }

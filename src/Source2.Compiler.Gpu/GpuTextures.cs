@@ -142,4 +142,50 @@ public static unsafe class GpuTextures
         gpu.Destroy(staging);
         return image;
     }
+
+    /// <summary>
+    /// A cube map's six faces as one cube-compatible image (VRF reads a level's faces one after
+    /// another, +x -x +y -y +z -z, as Vulkan's layers), from the preload level down.
+    /// </summary>
+    public static GpuDevice.GpuImage UploadCube(GpuDevice gpu, Texture texture, bool srgb, int cap = MaxPreloadResolution)
+    {
+        var format = VulkanFormat(texture.Format, srgb) ?? throw new NotSupportedException($"a {texture.Format} cube map");
+        var first = cap > 0 ? PreloadLevel(texture.Width, texture.Height, texture.NumMipLevels, cap) : 0;
+        var levels = new List<(uint Level, int Width, int Height, byte[] Data)>();
+        foreach (var (level, _, _, _, size) in texture.GetEveryMipLevelMetrics().Where(m => m.Level >= first).OrderBy(m => m.Level))
+        {
+            var data = new byte[size];
+            texture.ReadTextureMipLevel(data, level);
+            levels.Add((level - (uint)first, Math.Max(1, texture.Width >> (int)level), Math.Max(1, texture.Height >> (int)level), data));
+        }
+        var image = gpu.CreateImage((uint)levels[0].Width, (uint)levels[0].Height, (uint)levels.Count, format, ImageUsageFlags.SampledBit | ImageUsageFlags.TransferDstBit,
+                                    ImageViewType.TypeCube, 6, ImageCreateFlags.CreateCubeCompatibleBit);
+        var total = levels.Sum(l => l.Data.Length);
+        var staging = gpu.CreateBuffer((ulong)total, BufferUsageFlags.TransferSrcBit);
+        var offsets = new ulong[levels.Count];
+        ulong at = 0;
+        for (var i = 0; i < levels.Count; i++)
+        {
+            offsets[i] = at;
+            levels[i].Data.CopyTo(new Span<byte>((byte*)staging.Mapped + (long)at, levels[i].Data.Length));
+            at += (ulong)levels[i].Data.Length;
+        }
+        gpu.Submit(cmd =>
+        {
+            gpu.Transition(cmd, image, ImageLayout.Undefined, ImageLayout.TransferDstOptimal, 6);
+            for (var i = 0; i < levels.Count; i++)
+            {
+                var face = (ulong)(levels[i].Data.Length / 6);
+                for (uint f = 0; f < 6; f++)
+                {
+                    var region = new BufferImageCopy(offsets[i] + f * face, 0, 0, new ImageSubresourceLayers(ImageAspectFlags.ColorBit, levels[i].Level, f, 1),
+                        new Offset3D(0, 0, 0), new Extent3D((uint)levels[i].Width, (uint)levels[i].Height, 1));
+                    gpu.Vk.CmdCopyBufferToImage(cmd, staging.Buffer, image.Image, ImageLayout.TransferDstOptimal, 1, &region);
+                }
+            }
+            gpu.Transition(cmd, image, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal, 6);
+        });
+        gpu.Destroy(staging);
+        return image;
+    }
 }

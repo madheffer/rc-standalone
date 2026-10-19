@@ -75,7 +75,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     /// volume <see cref="Pass"/> is given is ignored.
     /// </param>
     public RtxBakeHost(GpuDevice gpu, BakeScene scene, RtxScene rtx, RtxShaderLibrary shaders, Func<string, byte[]?> read, int sh = 0, int executionReordering = -1,
-                       ushort[]? haltonPermutations = null)
+                       ushort[]? haltonPermutations = null, string? iblTexture = null)
     {
         if (!gpu.RayTracing)
             throw new ArgumentException("the device was created without ray tracing", nameof(gpu));
@@ -179,13 +179,20 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         var material = Keep(gpu.Upload(Bytes(ctx.MatU), BufferUsageFlags.StorageBufferBit));
         var instances = Keep(gpu.Upload(Bytes(ctx.Instances), BufferUsageFlags.StorageBufferBit));
         var lights = Keep(gpu.Upload(scene.Lights.Count == 0 ? new byte[496] : scene.Lights.SelectMany(l => LightBytes(RaygenHost.GpuLight(l))).ToArray(), BufferUsageFlags.StorageBufferBit));
-        var global = Keep(gpu.Upload(GlobalBytes(RaygenHost.Globals(scene, binned: true)), BufferUsageFlags.StorageBufferBit));
+        // The IBL cube map goes after the material textures in the bindless array; vrad3 sets
+        // m_nIBLTexture -1, m_nIBLCubeMap to the cube's index and format 0 (capture_host.py on probe01).
+        var globals = RaygenHost.Globals(scene, binned: true);
+        if (scene.Global.IblCubeMap != null)
+        {
+            if (iblTexture == null)
+                throw new NotSupportedException("an IBL cube map without its texture's path");
+            (globals.m_nIBLTexture, globals.m_nIBLCubeMap, globals.m_nIBLCubeMapFormat) = (-1, rtx.TextureSources.Count, 0);
+        }
+        var global = Keep(gpu.Upload(GlobalBytes(globals), BufferUsageFlags.StorageBufferBit));
         var subsurface = Keep(gpu.Upload(new byte[11792], BufferUsageFlags.UniformBufferBit));
         var cells = scene.Global.BinCells;
         var masks = Math.Max(1, (scene.Lights.Count + 31) / 32);
         _lightBins = Keep(gpu.CreateBuffer((ulong)cells.X * (ulong)cells.Y * (ulong)cells.Z * (ulong)masks * 4, BufferUsageFlags.StorageBufferBit, hostVisible: false));
-        if (scene.Global.IblCubeMap != null)
-            throw new NotSupportedException("an IBL cube map: not uploaded to the GPU yet");
         if (scene.Lights.Any(l => l.Cookie >= 0))
             Notes.Add("light cookies: their texture upload is not checked against a capture");
 
@@ -209,6 +216,14 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
             var uploaded = Keep(GpuTextures.Upload(gpu, (Texture)res.DataBlock!, source.Srgb, RtxScene.TextureCap));
             views.Add(uploaded.View);
             _textureImages.Add(uploaded);
+        }
+        if (scene.Global.IblCubeMap != null)
+        {
+            using var sky = new ValveResourceFormat.Resource();
+            sky.Read(new MemoryStream(read(iblTexture + "_c") ?? throw new FileNotFoundException(iblTexture)));
+            var cube = Keep(GpuTextures.UploadCube(gpu, (Texture)sky.DataBlock!, false, RtxScene.TextureCap));
+            views.Add(cube.View);
+            _textureImages.Add(cube);
         }
         _textures = views.Count;
         var samplers = ctx.Samplers.Select(s => Keep(CreateSampler(s))).ToArray();

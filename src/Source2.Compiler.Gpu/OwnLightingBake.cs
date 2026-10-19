@@ -94,8 +94,9 @@ public static class OwnLightingBake
 
         var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
         var rtx = RtxScene.Build(scene, content.Material, rtxShaders, Read);
+        var sky = scene.Global.IblMaterial is { } iblMaterial && content.Material(iblMaterial) is { } skyInfo && skyInfo.Textures.TryGetValue("g_tSkyTexture", out var skyTexture) ? skyTexture : null;
         using (var device = new GpuDevice(rayTracing: true))
-        using (var host = new RtxBakeHost(device, scene, rtx, rtxShaders, Read, haltonPermutations: permutations))
+        using (var host = new RtxBakeHost(device, scene, rtx, rtxShaders, Read, haltonPermutations: permutations, iblTexture: sky))
         {
             var baker = new LightmapBaker(scene, packing, permutations) { Rtx = rtx, Device = host, Passes = script.LightmapMaxSpp };
             if (script.LightmapMinSpp != script.LightmapMaxSpp)

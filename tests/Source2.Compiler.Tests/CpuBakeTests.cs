@@ -110,8 +110,9 @@ public class CpuBakeTests(ITestOutputHelper output)
             if (gpuDevice != null)
             {
                 var hostWatch = System.Diagnostics.Stopwatch.StartNew();
+                var sky = scene.Global.IblMaterial is { } iblMaterial && content.Material(iblMaterial) is { } skyInfo && skyInfo.Textures.TryGetValue("g_tSkyTexture", out var skyTexture) ? skyTexture : null;
                 gpuHost = new Source2.Compiler.Gpu.RtxBakeHost(gpuDevice, scene, rtx, rtxShaders, Read,
-                    haltonPermutations: Environment.GetEnvironmentVariable("CPUBAKE_GPUHALTON") == "0" ? null : permutations);
+                    haltonPermutations: Environment.GetEnvironmentVariable("CPUBAKE_GPUHALTON") == "0" ? null : permutations, iblTexture: sky);
                 // CPUBAKE_HALTONCHECK=<frames>: Valve's generator against HaltonSamples, word for word.
                 if (int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_HALTONCHECK"), out var frames))
                     for (var frame = 0; frame < frames; frame++)
