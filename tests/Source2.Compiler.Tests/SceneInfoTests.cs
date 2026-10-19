@@ -332,6 +332,58 @@ public class SceneInfoTests(ITestOutputHelper output)
                 output.WriteLine("world-level lights by element index: " + string.Join(",", world.Take(30).Select(e => e.NodeId)));
                 ordered = [.. world, .. ordered.Where(e => e.Instanced)];
             }
+            if (Environment.GetEnvironmentVariable("SCENEINFO_PREORDER") == "1")
+            {
+                // Hypothesis 4 (captured world node array, capture_entitysearch.py): the collapsed tree in
+                // pre-order, each instance replaced in place by its target's subtree under the copies' ids.
+                var copyIds = new Dictionary<(DmxBinary.Element, string), int>();
+                static string Chain(IEnumerable<DmxBinary.Element> c) => string.Join("/", c.Select(e => e.GetValue<int>("nodeID") ?? -1));
+                MapInstances.Expand(document, walked, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
+                    (node, id, through, prefabs) => copyIds[(node, Chain(through))] = id);
+                var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+                foreach (var inst in document.OfType("CMapInstance"))
+                    if (inst.Get<DmxBinary.Element>("target") is { } tg)
+                        targets.Add(tg);
+                var hidden = MapEntities.HiddenNodes(document);
+                var byNode = walked.Where(e => !e.Hidden).GroupBy(e => e.NodeId).ToDictionary(g2 => g2.Key, g2 => g2.First());
+                var walkedLights = new List<MapEntities.Entity>();
+                void Walk(DmxBinary.Element node, List<DmxBinary.Element> chain)
+                {
+                    foreach (var child in node.GetElements("children"))
+                    {
+                        if (chain.Count == 0 && hidden.Contains(child.GetValue<int>("nodeID") ?? -1))
+                            continue;
+                        if (child.Type == "CMapInstance")
+                        {
+                            if (child.Get<DmxBinary.Element>("target") is { } t)
+                                Walk(t, [.. chain, child]);
+                            continue;
+                        }
+                        if (chain.Count == 0 && targets.Contains(child))
+                            continue;
+                        var id = chain.Count == 0 ? child.GetValue<int>("nodeID") ?? -1
+                               : copyIds.TryGetValue((child, Chain(chain)), out var cid) ? cid : -1;
+                        if (child.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") is { } cn && cn.StartsWith("light_", StringComparison.Ordinal))
+                        {
+                            var src = spliced.FirstOrDefault(e => e.NodeId == id);
+                            if (src is not null && !src.Hidden)
+                                walkedLights.Add(src);
+                        }
+                        Walk(child, chain);
+                    }
+                }
+                Walk(document.OfType("CMapWorld").First(), []);
+                ordered = walkedLights;
+            }
+            if (Environment.GetEnvironmentVariable("SCENEINFO_CLASSES") is { } classOrder)
+            {
+                // Hypothesis 3: one entity search per class, in this order, each in the walk's order.
+                var rank = classOrder.Split(',').Select((c, i) => (c, i)).ToDictionary(t => t.c, t => t.i);
+                ordered = [.. ordered.OrderBy(e => rank.GetValueOrDefault(e.ClassName, int.MaxValue))];
+            }
+            if (Environment.GetEnvironmentVariable("SCENEINFO_OUT") is { } idsOut)
+                File.WriteAllLines(idsOut + ".ids", ordered.Where(e => byId.ContainsKey(e.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                    .Select(e => $"{e.NodeId} {e.ClassName} {e.Instanced} {e.Prefabs?.Length ?? 0}"));
             output.WriteLine($"walk: {ordered.Count} lights, {ordered.Count(e => byId.ContainsKey(e.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture)))} found in the lumps");
             lumpLights = [.. ordered.Where(e => byId.ContainsKey(e.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                 .Select(e => { var l = byId[e.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture)]; return (l.Class, l.Key, World: (float[]?)LightPrecompute.World(e.Origin, e.Angles)); })];

@@ -164,6 +164,18 @@ public static class NavGenInput
                     }
                     continue;
                 }
+                if (shape.Type == 1 && shape.Capsule is { } capsule)
+                {
+                    // vphysics2 18016f5d0: the capsule shape's centres and radius (scaled as the
+                    // world builds the shape) tessellated with 12 segments and 2 rings.
+                    var k = shape.HullScale;
+                    var (cv, ci) = NavGenShapes.Capsule(capsule.A * k, capsule.B * k, capsule.Radius * k);
+                    var at = verts.Count;
+                    verts.AddRange(cv);
+                    foreach (var i in ci)
+                        indices.Add(at + i);
+                    continue;
+                }
                 if (shape.Mesh is not { } mesh)
                     throw new NotSupportedException($"nav input from a type {shape.Type} shape is not ported");
                 // RnMesh flags bit 3 walks the BVH leaves; map meshes have no flags.

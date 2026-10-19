@@ -2370,6 +2370,30 @@ game can answer is raised with the user first, and runs with -insecure.
       180fb1c10). s2c_prefabprobe4 has one: (1429, 830.5, 174) to
       (1429, 830.5, 40). Not ported, nor LadderConnect (028).
 
+100. **Capsules in the nav input; the world's flat node array (L17)** (decompile, disassembly and
+    capture, 2026-10-20).
+    - Capsule shapes reach nav generation through vphysics2 18016f5d0 -> 18016ed50 (12 segments,
+      2 rings): poles at (-r, 0, 0) and (L + r, 0, 0) in the capsule's frame, each segment's ring
+      angle i * -6.2831855 / 12, ring k at k * pi * 0.5 / 3; records (position, normal) then each
+      point through rows (axis, u, axis x u, centre A) as (A + y u) + (z w + x axis) (18008d6d0),
+      u from 18008d5b0 ((1 - a.z) a.y^2 + a.z, 0, -a.x) normalised, made orthogonal and normalised
+      again (180088f50: (y^2 + z^2) + x^2, untouched outside [1e-17, 1e17]). V_sinf/V_cosf are
+      tier0's statically linked CRT sinf/cosf; MathF.Sin/Cos give the same bits on 20,015 samples
+      (ctypes on tier0 20261015). NavGenShapes.Capsule; centres and radius scaled as the world
+      builds the shape. Spheres (18016c9b0 -> 18016c380) not ported.
+    - s2c_prefabprobe4's input (123,649 vertices) is not ours yet: its bodies come in an order
+      other than element order (PhysDoc's pointer-keyed table), ~14,000 triangles differ by ulps,
+      ~4,400 of ours are not Valve's and ~1,700 of Valve's (z near 14,200) are not ours.
+    - The world's flat node array (CMapWorld +0x1828 count, +0x1830 nodes; index at node +0x498,
+      set by 180ff00c0 in 10-15, appended by 180fca580 through 1800f7890) is what
+      MapWorld_FindEntitiesByClass (10-15 180fc7790) walks. Captured on atixref
+      (tools/entities/capture_entitysearch.py): 5032 nodes; the document's nodes in it are a
+      subsequence of the world tree's pre-order walk (4559 of 4559 pairs in order), so loading
+      appends in pre-order; instance copies sit partly at the end and partly in early slots, as a
+      fast remove (the last node moved into a removed node's slot) would leave them. The light
+      search ("light_*", caller 0xfc74c4) returns 241 lights in that array order. Open: the
+      collapse's appends and removals (the capture now logs every index set).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
