@@ -294,13 +294,13 @@ function hook() {
     if (any) send({tag: tag + '_conn'}, chunks(parts));
   }
   // IslandRemoval (180070780, first argument the processor): the RC's CNavGenInput at +8 (ledger 96):
-  // seeds +0x78 (float3), markups +0x90 (0x50), links +0xc0 (0x18), ladders +0x60 (0x1c); each written
+  // seeds +0x78 (float3), markups +0x90 (0x50), links +0xc0 (0x18), ladders +0x60 (0x28: top, bottom, normal, width); each written
   // as int32 count then the raw entries.
   Interceptor.attach(mod.base.add(0x70780), { onEnter(args) {
     const input = args[0].add(8).readPointer();
     if (input.isNull())
       return;
-    for (const [name, off, size] of [['seeds', 0x78, 12], ['markups', 0x90, 0x50], ['links', 0xc0, 0x18], ['ladders', 0x60, 0x1c]]) {
+    for (const [name, off, size] of [['seeds', 0x78, 12], ['markups', 0x90, 0x50], ['links', 0xc0, 0x18], ['ladders', 0x60, 0x28]]) {
       const count = input.add(off).readS32();
       send({tag: 'navinput_' + name}, chunks([ints([count]), count > 0 ? input.add(off + 8).readPointer().readByteArray(count * size) : new ArrayBuffer(0)]));
     } } });

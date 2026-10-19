@@ -12,6 +12,7 @@ spp (default 16, as the map's script) sets the block's minimum and maximum sampl
 Uses the GPU: run it only when CS2 is closed and the PC is free.
 """
 import os
+import shutil
 import sys
 import time
 
@@ -92,7 +93,7 @@ def main():
     os.makedirs(image, exist_ok=True)
     saved = os.path.join(job, "capture_host_image")
     for f in os.listdir(saved):
-        os.replace(os.path.join(saved, f), os.path.join(image, f))
+        shutil.move(os.path.join(saved, f), os.path.join(image, f))
     os.rmdir(saved)
     print("vrad3 exited;", n[0], "uploads and the image in", out, flush=True)
 

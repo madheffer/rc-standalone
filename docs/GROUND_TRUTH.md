@@ -2242,6 +2242,37 @@ game can answer is raised with the user first, and runs with -insecure.
       with none added, a navProperty_NavAttributes array key (types
       0x22/0x23, 180f22330) adds one with index -1. Not ported.
 
+99. **Nav generation on prefab and instance maps** (capture_navgen.py on
+    probe01, cardtest, probe_classes, s2c_pinst, s2c_pinst7 and
+    s2c_prefabprobe3-6 with CS2 closed, 2026-10-20; disassembly of
+    navsystem 20261015). From the .vmap, probe01, cardtest, probe_classes,
+    s2c_pinst, s2c_pinst7, s2c_prefabprobe5 and 6 are Valve's through
+    stage 025; stages 024-029 from Valve's input on all of them; the RC
+    seeds on all eight maps (NavGenSeedTests).
+    - The nav input's body transform (180049020, packed): t = 2 (v x q),
+      then ((t x q) + (w t + v)) times the scale plus the position: the
+      cross product is added to (w t + v), not (cross + w t) + v. One ulp
+      on rotated bodies otherwise.
+    - The fan split (1800584f0 MergePolys' last pass, 180059240
+      LimitMaxPolyEdges): the success flag [rsp+0x30] is set to 1 once
+      per polygon (180058785 / 1800594fd) and a rejected anchor stores 0
+      (180058b7d / 1800598e9) that nothing resets, so after anchor 0
+      fails every later anchor counts as failed and the polygon is
+      triangulated (1800f3780). Valve bug, kept: only anchor 0 is used
+      (s2c_prefabprobe5 polygon 87: anchor 1's 0.066 ratio passes the
+      0.05 test, Valve still triangulates).
+    - The settle world's body order puts a prefab map's nodes after the
+      document's, in that map's own element order (the pointer sort of
+      PhysDoc_BuildObjects over nodes loaded map by map); seen in the
+      nav input of s2c_prefabprobe5/6.
+    - The RC ladder input (CNavGenInput +0x60) is 0x28 bytes a ladder
+      (top, bottom, normal, width as floats; FUN_1818ca470), from
+      func_ladder meshes and meshes whose material has attribute
+      0x1a382654 (180fb15e0, 180fb21f0: per instance path, the face of
+      that material with the largest length times width via
+      180fb1c10). s2c_prefabprobe4 has one: (1429, 830.5, 174) to
+      (1429, 830.5, 40). Not ported, nor LadderConnect (028).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

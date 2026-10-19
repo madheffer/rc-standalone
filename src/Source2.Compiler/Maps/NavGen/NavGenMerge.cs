@@ -586,8 +586,8 @@ public sealed partial class NavGenPolys
 
     /// <summary>
     /// 1800584f0 (MergePolys' last pass, 4) and 180059240 (LimitMaxPolyEdges, 4): a polygon with more
-    /// corners becomes a fan of pieces of up to that many corners from the first anchor corner whose
-    /// pieces keep the largest fan area above 0.01 and smallest / largest above 0.05 (floats); the
+    /// corners becomes a fan of pieces of up to that many corners from its first corner when the pieces
+    /// keep the largest fan area above 0.01 and smallest / largest above 0.05 (floats); the
     /// pieces keep the polygon's normal and fields. No anchor: the triangulation of
     /// <see cref="NavGenTriangulate"/> (1800f3780).
     /// </summary>
@@ -602,8 +602,11 @@ public sealed partial class NavGenPolys
                 result.Add(x.Clone());
                 continue;
             }
+            // Valve bug kept for parity: the success flag ([rsp+0x30]) is set once per polygon and a
+            // rejected anchor clears it for good, so every later anchor counts as rejected too (both
+            // 1800584f0 and 180059240): only anchor 0 can be used, else the polygon is triangulated.
             List<NavPoly>? pieces = null;
-            for (var s = 0; s < n && pieces is null; s++)
+            for (var s = 0; s < 1 && pieces is null; s++)
             {
                 var list = new List<NavPoly>();
                 var remaining = n - 2;

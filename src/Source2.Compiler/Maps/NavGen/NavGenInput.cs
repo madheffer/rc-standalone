@@ -217,9 +217,10 @@ public static class NavGenInput
         tx += tx;
         ty += ty;
         tz += tz;
+        // Packed (180049020): the cross product added to (w t + v), not the other way round.
         return new Vector3(
-            ((tz * qy - ty * qz) + qw * tx + x) * scale + position.X,
-            ((tx * qz - tz * qx) + qw * ty + y) * scale + position.Y,
-            ((ty * qx - tx * qy) + qw * tz + z) * scale + position.Z);
+            ((tz * qy - ty * qz) + (qw * tx + x)) * scale + position.X,
+            ((tx * qz - tz * qx) + (qw * ty + y)) * scale + position.Y,
+            ((ty * qx - tx * qy) + (qw * tz + z)) * scale + position.Z);
     }
 }

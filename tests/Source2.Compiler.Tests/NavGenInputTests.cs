@@ -289,9 +289,13 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
                         got.Add(mesh.Vertices[c] * shape.MeshScale);
                     }
                 }
+                var local = got.Skip(start).ToList();
                 for (var i = start; i < got.Count; i++)
                     got[i] = NavGenInput.TransformByBody(got[i], body.Position, body.Scale, body.Orientation);
-                output.WriteLine($"body node {body.NodeId} at {body.Position} scale {body.Scale} q {body.Orientation}: {(got.Count - start) / 3} triangles, mesh flags {string.Join(",", body.Shapes.Select(s => s.Mesh?.Flags))}");
+                static string B(float f) => BitConverter.SingleToInt32Bits(f).ToString("x8");
+                var bad = Enumerable.Range(start, got.Count - start).FirstOrDefault(i => i < want.Length && got[i] != want[i], -1);
+                output.WriteLine($"body node {body.NodeId} at {body.Position} scale {body.Scale} q {body.Orientation}: {(got.Count - start) / 3} triangles, mesh flags {string.Join(",", body.Shapes.Select(s => s.Mesh?.Flags))}" +
+                    (bad >= 0 ? $"  FIRST DIFF {bad}: local {local[bad - start]} pos {B(body.Position.X)} {B(body.Position.Y)} {B(body.Position.Z)} q {B(body.Orientation.X)} {B(body.Orientation.Y)} {B(body.Orientation.Z)} {B(body.Orientation.W)} ours {B(got[bad].X)} {B(got[bad].Y)} {B(got[bad].Z)} Valve {B(want[bad].X)} {B(want[bad].Y)} {B(want[bad].Z)}" : ""));
             }
             var same = 0;
             var first = -1;
