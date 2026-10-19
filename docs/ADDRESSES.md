@@ -226,7 +226,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:343`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153` |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:165` |
-| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:581` |
+| `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
 | `1801f5a40` | `LightProbe_AtlasCompare` | qsort key: size z, then y, then x, all descending |  |
 | `1801f5a80` | `LightProbe_PackAtlas` | CUtl3DAllocator pack; writes light_probe_atlas_x/Y/Z; the atlas size out (+0x1e0) is the allocator dims of the last fit (1801f5fce), each rounded up to 4, 0 -> 4 (1801f6080) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:113`, `src/Source2.Compiler/Maps/ProbeAtlas.cs:5`, `src/Source2.Compiler/Maps/ProbeAtlas.cs:32` |
@@ -243,7 +243,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180251040` | `Matrix4x4_Project` | a point through the 4x4, divided by w | `src/Source2.Compiler/Maps/LightTrace.cs:59` |
 | `180dd2630` | `EntityClass_HasStaticProp` | class metadata key static_prop |  |
 | `180ee9e30` | `LightBuild_TransformVolume` |  | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
-| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:37`, `src/Source2.Compiler/Maps/LightBuild.cs:6` +4 |
+| `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:37`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:173` +5 |
 | `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Lighting/SceneLights.cs:200`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:108` |
 | `180eed3c0` | `Light_BrightnessFromUnits` | 0 exp2(brightness)*scale, 1 lumens/factor, 2 nits*area*pi*0.00064516/factor, 3 legacy*scale, 4 candelas*solid/factor | `src/Source2.Compiler/Maps/LightUnits.cs:11`, `src/Source2.Compiler/Maps/LightUnits.cs:74` |
 | `180eedfe0` | `Light_LegacyDescriptionAt` | step matrix, then Light_LegacyDescription |  |
@@ -261,24 +261,24 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f1def0` | `LightPrecompute_WriteKeys` | precomputed* key writer: one box per face | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
 | `180f1e0e0` | `LightPrecompute_WriteBoxes` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
 | `180f32050` | `V_atofloat32` | key reader | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:556`, `src/Source2.Compiler/Maps/LightPrecompute.cs:19`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
-| `180f32130` | `V_atoi` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:595`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
-| `180f32390` | `KeyReader_Vector` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:609`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
+| `180f32130` | `V_atoi` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:736`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
+| `180f32390` | `KeyReader_Vector` | key reader | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:750`, `src/Source2.Compiler/Maps/LightPrecompute.cs:213` |
 | `180f38940` | `MapNode_SetKeyFloat` | %g then MapNode_SetKeyValue |  |
 | `180f38990` | `MapNode_SetKeyInt` | %d then MapNode_SetKeyValue |  |
 | `180f3d040` | `CComputeBakedShadowAssignment_SortMedian` | std::sort guess median for SortWaiting |  |
-| `180f3f2c0` | `CComputeBakedShadowAssignment_SortWaiting` | std::sort, assigned neighbours then neighbours, descending | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:534` |
-| `180f3fbf0` | `CComputeBakedShadowAssignment_ctor` | icosphere (one split, scaled to its first face), cone hulls every 3 degrees to 180 |  |
-| `180f417f0` | `BakedShadow_ConeHull` | cone hull of a half angle; threshold cos(angle); not ported |  |
-| `180f43360` | `BakedShadow_SuperellipseTangent` | central difference at +-0.01 rad, times 50 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:192`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:255` |
-| `180f43680` | `BakedShadow_BoundingSphere` | mean of the moved points and the largest distance | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:265` |
-| `180f44db0` | `CComputeBakedShadowAssignment_Overlaps` | pairs i<j: directional always; spheres, precomputed boxes, GJK distance <= 1 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:292` |
-| `180f45210` | `CComputeBakedShadowAssignment_AssignSlots` | Assigned %d Light Shadow Slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:530` |
+| `180f3f2c0` | `CComputeBakedShadowAssignment_SortWaiting` | std::sort, assigned neighbours then neighbours, descending | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:675` |
+| `180f3fbf0` | `CComputeBakedShadowAssignment_ctor` | icosphere (one split, scaled to its first face), cone hulls every 3 degrees to 180 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:232`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:285` |
+| `180f417f0` | `BakedShadow_ConeHull` | cone hull of a half angle t, key cos t: rings of 24 at min(i s, t), s = min(0.3 t, 10 deg), then the apex (ledger 89) | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:285` |
+| `180f43360` | `BakedShadow_SuperellipseTangent` | central difference at +-0.01 rad, times 50 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:333`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:396` |
+| `180f43680` | `BakedShadow_BoundingSphere` | mean of the moved points and the largest distance | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:406` |
+| `180f44db0` | `CComputeBakedShadowAssignment_Overlaps` | pairs i<j: directional always; spheres, precomputed boxes, GJK distance <= 1 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:433` |
+| `180f45210` | `CComputeBakedShadowAssignment_AssignSlots` | Assigned %d Light Shadow Slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:671` |
 | `180f45900` | `CComputeBakedShadowAssignment_BuildRecord` | 0x350 record for directlight 3 with castshadows; shape by kind; precomputed box if +8 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:70`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:156` |
 | `180f46050` | `CComputeBakedShadowAssignment_IncrementalUpdate` | rebuild list, overlaps, AssignSlots; +9 threadpool job off here |  |
-| `180f461c0` | `BakedShadow_BarnHull` | 12 superellipse tangent corners at depth 0 and 1 through the record inverse | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:158`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:189` |
+| `180f461c0` | `BakedShadow_BarnHull` | 12 superellipse tangent corners at depth 0 and 1 through the record inverse | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:158`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:330` |
 | `180f47430` | `BakedShadow_ConeShape` | legacy light_spot shape; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:171` |
-| `180f48520` | `BakedShadow_HullShape` | shape from a point hull (ortho, infinite range); not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:171`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:175` |
-| `180f48c50` | `BakedShadow_SphereShape` | centre the translation, radius the range; icosphere or cone hull by cosine | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:171`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:175` |
+| `180f48520` | `BakedShadow_HullShape` | shape from a point hull (ortho, infinite range); not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:171`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:184` |
+| `180f48c50` | `BakedShadow_SphereShape` | centre the translation, radius the range, 3x4 rotation times the range; icosphere, or the tightest cone hull with cos <= the cone (ledger 89) | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:171`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:209` |
 | `180f48f20` | `CComputeBakedShadowAssignment_MatchLight` | stationary with castshadows, equal to the stored record |  |
 | `180f492b0` | `CComputeBakedShadowAssignment_ForEachLight` | rebuilds the list, calls the callback with slot +0x328 and done +0x320 |  |
 | `180f496b0` | `CComputeBakedShadowAssignment_SetWorld` | drops the records when the world changes |  |
@@ -301,22 +301,22 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810e6d10` | `CMapMesh_GetDisableShadows` | node +0x3b6c |  |
 | `18125d8e0` | `Halton_RadicalInverse` | in float | `src/Source2.Compiler/Maps/LightTrace.cs:179` |
 | `1812651a0` | `Matrix3x4_TransformPointXmm` | point in xmm0-2 through the 3x4 at rcx |  |
-| `181266fc0` | `ConvexDistance_Gjk` | GJK distance of two transformed point hulls, 0x20 iterations; modelled, not ported | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:255`, `src/Source2.Compiler/Lighting/ConvexDistance.cs:10`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:296` +1 |
+| `181266fc0` | `ConvexDistance_Gjk` | GJK distance of two transformed point hulls, 0x20 iterations; modelled, not ported | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:255`, `src/Source2.Compiler/Lighting/ConvexDistance.cs:10`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:437` +1 |
 | `181267a70` | `ConvexDistance_Thunk` | forwards to ConvexDistance_Gjk | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:255`, `src/Source2.Compiler/Lighting/ConvexDistance.cs:11` |
 | `181267d20` | `ConvexDistance_Support` | point with the largest dot product |  |
-| `181268550` | `ConvexDistance_SolveTriangle` | GJK triangle simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:404` |
-| `181268c20` | `ConvexDistance_SolveTetrahedron` | GJK tetrahedron simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:404` |
-| `181270250` | `Obb_NearestPoint` | clamps the local coordinates to the extents | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:340` |
-| `181270590` | `Obb_OverlapsObb` | 15-axis separating axis test, thresholds zero | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:295`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:356` |
-| `181271420` | `Obb_ReachesSphere` | nearest box point within the radius | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:295`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:340` |
+| `181268550` | `ConvexDistance_SolveTriangle` | GJK triangle simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:545` |
+| `181268c20` | `ConvexDistance_SolveTetrahedron` | GJK tetrahedron simplex; not read | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:545` |
+| `181270250` | `Obb_NearestPoint` | clamps the local coordinates to the extents | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:481` |
+| `181270590` | `Obb_OverlapsObb` | 15-axis separating axis test, thresholds zero | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:436`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:497` |
+| `181271420` | `Obb_ReachesSphere` | nearest box point within the radius | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:436`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:481` |
 | `18128ca90` | `RayScene_Winding` | (0,1,2), or (2,1,0) when the deformer's +0x70 is set |  |
 | `1812918f0` | `LightUnits_FrustumSolidAngle` | barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal | `src/Source2.Compiler/Maps/LightUnits.cs:181` |
 | `181292560` | `Light_ClipBox` | the clip cube's eight corners through the record matrix, min/max | `src/Source2.Compiler/Maps/LightPrecompute.cs:70` |
 | `181292ce0` | `LightBuild_OpeningPlane` |  | `src/Source2.Compiler/Maps/LightBuild.cs:63` |
-| `1812933b0` | `LightRecord_ConeRatio` | 0xe0 / 0xe4, or -1.1 / 1.1 when 0xe4 is 0 |  |
+| `1812933b0` | `LightRecord_ConeRatio` | 0xe0 / 0xe4, or -1.1 / 1.1 when 0xe4 is 0 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:204` |
 | `1812933f0` | `LightTrace_Falloff` | how much of the light reaches a point | `src/Source2.Compiler/Maps/LightTrace.cs:80` |
 | `1812938f0` | `LightUnits_LuminaireArea` | by luminaire type (+0xec): triangles, ellipse, sphere, capsule | `src/Source2.Compiler/Maps/LightUnits.cs:135` |
-| `181293b30` | `LightRecord_FalloffRange` | -a/b of the distance falloff when w and b are nonzero, else FLT_MAX |  |
+| `181293b30` | `LightRecord_FalloffRange` | -a/b of the distance falloff when w and b are nonzero, else FLT_MAX | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:200` |
 | `181293b70` | `LightTrace_BarnShape` | the barn's cross-section at a clip point | `src/Source2.Compiler/Maps/LightTrace.cs:142` |
 | `181294fc0` | `LightSampler_Ray` | one ray for four Halton numbers; the reach | `src/Source2.Compiler/Maps/LightSampler.cs:7`, `src/Source2.Compiler/Maps/LightSampler.cs:173`, `src/Source2.Compiler/Maps/LightSampler.cs:271` |
 | `181296170` | `LightBuild_DiscLuminaire` | type 2 | `src/Source2.Compiler/Lighting/SceneLights.cs:73`, `src/Source2.Compiler/Maps/LightBuild.cs:207` |

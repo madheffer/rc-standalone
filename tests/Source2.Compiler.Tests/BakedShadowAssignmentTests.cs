@@ -1,4 +1,5 @@
 using Source2.Compiler.Maps;
+using ValvePak;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -20,6 +21,30 @@ public sealed class BakedShadowAssignmentTests(ITestOutputHelper output)
     {
         if (MapFixtures.VmapSource(addon, map) is not { } source || MapFixtures.RcCompiledLumps(source) is not { } lumps)
             return;
+        Check(addon, map, source, lumps);
+    }
+
+    /// <summary>
+    /// atixref's light_omni2 shadow slots (the sphere shape, 180f48c50, with
+    /// the icosphere and cone hulls) against its full build, which
+    /// cs2_closed_session keeps beside the world-only fixture.
+    /// </summary>
+    [Fact]
+    public void AtixrefFullBuildSlotsMatchValve()
+    {
+        var full = Path.Combine(Path.GetTempPath(), "fixture_backups", "s2c_rc_probe__atixref_full.vpk");
+        if (MapFixtures.VmapSource("s2c_rc_probe", "atixref") is not { } source || !File.Exists(full))
+            return;
+        using var pkg = new Package();
+        pkg.Read(full);
+        var lumps = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+            lumps[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
+        Check("s2c_rc_probe", "atixref", source, lumps);
+    }
+
+    private void Check(string addon, string map, string source, IReadOnlyDictionary<string, byte[]> lumps)
+    {
         var valve = new Dictionary<string, EntityLumpComparison.Entity>();
         foreach (var (path, bytes) in lumps)
             foreach (var e in EntityLumpComparison.Read(bytes, path))

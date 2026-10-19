@@ -1660,6 +1660,38 @@ game can answer is raised with the user first, and runs with -insecure.
       The port runs it always: with no baked-shadow light every slot is 0xff,
       the system is zero and nothing is written back.
 
+89. **Shadow slot shapes of omni2 and rect lights** (settled 2026-10-19,
+    decompile; atixref's full build, 33 of 33 keys).
+    - BuildRecord (180f45900) reads the light's record with count 1 and
+      flags 0, the whole record.
+    - Shape (0xa8) above 0.05 gives the barn frustum hull. Otherwise:
+      - FalloffRange (181293b30) is -0xc8 / 0xcc when 0x9c and 0xcc are
+        nonzero, else FLT_MAX.
+      - At FLT_MAX the point hull shape (180f48520) applies; it is not
+        ported and the compile stops with a message.
+      - Otherwise the sphere shape (180f48c50) applies, with the cone
+        ConeRatio (1812933b0): 0xe0 / 0xe4, or -1.1 / 1.1 when 0xe4 is 0.
+        It is forced to 0 when 0xe8 > 0 and the ratio is >= 0.
+    - The sphere shape:
+      - centre: the light's position; radius: the range;
+      - 3x4: the light's with its rotation columns times the range;
+      - hull: the assigner's icosphere. The cone table is walked in cosine
+        order while cos <= the cone, so the last taken is the tightest
+        enclosing cone.
+    - The icosphere (180f3fbf0): the icosahedron (0.5257311, 0.8506508,
+      faces at 182343bc0) split once.
+      - Each edge's midpoint is normalised and kept unless it lies within
+        1e-6 squared of a point already kept.
+      - Every point is scaled by 1 / |centroid of the first triangle|
+        (1.0592947).
+    - The cone table: one entry per angle of i * 0.017453292 (i = 3, 6 ...
+      180), plus 1.5707964, sorted by cosine.
+      - Each entry (180f417f0) is keyed by cos t and holds rings at polar
+        angle min(i s, t), with s = min(0.3 t, 10 degrees).
+      - A ring has 24 points (cos p, cos a sin p, sin a sin p); an exact
+        repeat of a kept point is dropped. The rings run until the polar
+        angle reaches t - 1.1920929e-07, then the apex (0, 0, 0) is added.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

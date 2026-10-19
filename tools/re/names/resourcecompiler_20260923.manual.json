@@ -5734,7 +5734,7 @@
    "addr": "180f48c50",
    "name": "BakedShadow_SphereShape",
    "module": "s2c:baked/light-keys",
-   "note": "centre the translation, radius the range; icosphere or cone hull by cosine"
+   "note": "centre the translation, radius the range, 3x4 rotation times the range; icosphere, or the tightest cone hull with cos <= the cone (ledger 89)"
   },
   {
    "addr": "180f47430",
@@ -5752,7 +5752,7 @@
    "addr": "180f417f0",
    "name": "BakedShadow_ConeHull",
    "module": "s2c:baked/light-keys",
-   "note": "cone hull of a half angle; threshold cos(angle); not ported"
+   "note": "cone hull of a half angle t, key cos t: rings of 24 at min(i s, t), s = min(0.3 t, 10 deg), then the apex (ledger 89)"
   },
   {
    "addr": "181293b30",

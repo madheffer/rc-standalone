@@ -167,14 +167,26 @@ public static class BakedShadowAssignment
             r.Directional = true;
             return r;
         }
-        if (name != "light_barn")
+        if (name is not ("light_barn" or "light_omni2" or "light_rect"))
             throw new NotSupportedException($"{light.ClassName}'s shadow slot shape (180f48c50, 180f47430, 180f48520) is not ported");
 
-        var record = LightPrecompute.Records("light_barn", light.Key, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], split: false)[0];
-        if (record[0xa8] <= 0.05f)
-            throw new NotSupportedException("a barn with shape at or below 0.05 (180f48c50 / 180f48520) is not ported");
-        r.Hull = FrustumHull(record);
-        (r.SphereCentre, r.SphereRadius) = BoundingSphere(r.Hull, r.Xform);
+        // FUN_180eea510 with count 1 and flags 0: the whole record in the light's space.
+        var record = LightPrecompute.Records(name, light.Key, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], split: false)[0];
+        if (0.05f < record[0xa8])
+        {
+            r.Hull = FrustumHull(record);
+            (r.SphereCentre, r.SphereRadius) = BoundingSphere(r.Hull, r.Xform);
+        }
+        else
+        {
+            var range = FalloffRange(record);
+            if (float.MaxValue <= range)
+                throw new NotSupportedException($"{light.ClassName} with no falloff range: the point hull shape (180f48520) is not ported");
+            var cone = ConeRatio(record);
+            if (0f < record[0xe8] && 0f <= cone)
+                cone = 0f;
+            SphereShape(r, light.World, range, cone);
+        }
         if (Atoi(light.Key, "precomputedfieldsvalid", 0) != 0)
         {
             var angles = Vector3Key(light.Key, "precomputedobbangles", Vector3.Zero);
@@ -183,6 +195,135 @@ public static class BakedShadowAssignment
                                              Vector3Key(light.Key, "precomputedobbextent", Vector3.Zero));
         }
         return r;
+    }
+
+    /// <summary>181293b30: -a / b of the distance falloff (0xc8, 0xcc) when 0x9c and b are nonzero, else FLT_MAX.</summary>
+    public static float FalloffRange(LightShape record) =>
+        record[0x9c] != 0f && record[0xcc] != 0f ? -record[0xc8] / record[0xcc] : float.MaxValue;
+
+    /// <summary>1812933b0: 0xe0 / 0xe4, or -1.1 (0xe0 above 0) or 1.1 when 0xe4 is 0.</summary>
+    public static float ConeRatio(LightShape record) =>
+        record[0xe4] == 0f ? (0f < record[0xe0] ? -1.1f : 1.1f) : record[0xe0] / record[0xe4];
+
+    /// <summary>
+    /// 180f48c50: the sphere about the light's position with the range for
+    /// radius; the 3x4 with its rotation columns scaled by the range; the
+    /// icosphere hull, or the tightest cone hull of the table whose cosine is
+    /// at or below <paramref name="cosine"/> (the table sorted by cosine,
+    /// taken while the cosine allows).
+    /// </summary>
+    public static void SphereShape(Record r, float[] world, float range, float cosine)
+    {
+        r.SphereCentre = new Vector3(world[3], world[7], world[11]);
+        r.SphereRadius = range;
+        r.Xform = [world[0] * range, world[1] * range, world[2] * range, world[3],
+                   world[4] * range, world[5] * range, world[6] * range, world[7],
+                   world[8] * range, world[9] * range, world[10] * range, world[11]];
+        r.Hull = Icosphere.Value;
+        foreach (var (cos, hull) in ConeHulls.Value)
+        {
+            if (cosine < cos)
+                break;
+            r.Hull = hull;
+        }
+    }
+
+    /// <summary>
+    /// 180f3fbf0's icosphere: the icosahedron (0.5257311, 0.8506508) split
+    /// once, each edge's midpoint normalised (1 / length times each) and
+    /// added unless a point lies within 1e-6 squared; then every point times
+    /// 1 / |centroid of the first triangle|, so the faces enclose the unit
+    /// sphere. The point set is all a hull distance reads.
+    /// </summary>
+    private static readonly Lazy<Vector3[]> Icosphere = new(() =>
+    {
+        const float a = 0.5257311f, b = 0.8506508f;
+        var points = new List<Vector3>
+        {
+            new(-a, 0, b), new(a, 0, b), new(-a, 0, -b), new(a, 0, -b), new(0, b, a), new(0, b, -a),
+            new(0, -b, a), new(0, -b, -a), new(b, a, 0), new(-b, a, 0), new(b, -a, 0), new(-b, -a, 0),
+        };
+        short[] faces = [4, 0, 1, 9, 0, 4, 5, 9, 4, 5, 4, 8, 8, 4, 1, 10, 8, 1, 3, 8, 10, 3, 5, 8, 2, 5, 3, 7, 2, 3,
+                         10, 7, 3, 6, 7, 10, 11, 7, 6, 0, 11, 6, 1, 0, 6, 1, 6, 10, 0, 9, 11, 11, 9, 2, 2, 9, 5, 2, 7, 11];
+        Vector3 Mid(Vector3 p, Vector3 q)
+        {
+            var s = new Vector3(p.X + q.X, p.Y + q.Y, p.Z + q.Z);
+            var len = MathF.Sqrt(s.X * s.X + s.Y * s.Y + s.Z * s.Z);
+            var inv = 1f / len;
+            return new Vector3(s.X * inv, s.Y * inv, s.Z * inv);
+        }
+        void Add(Vector3 p)
+        {
+            foreach (var q in points)
+            {
+                float dx = q.X - p.X, dy = q.Y - p.Y, dz = q.Z - p.Z;
+                if (dy * dy + dx * dx + dz * dz < 1e-6f)
+                    return;
+            }
+            points.Add(p);
+        }
+        Vector3 first0 = default, firstA = default, firstC = default;
+        for (var f = 0; f < faces.Length; f += 3)
+        {
+            Vector3 v0 = points[faces[f]], v1 = points[faces[f + 1]], v2 = points[faces[f + 2]];
+            var ma = Mid(v0, v1);
+            var mc = Mid(v2, v0);
+            Add(ma);
+            Add(Mid(v1, v2));
+            Add(mc);
+            if (f == 0)
+                (first0, firstA, firstC) = (v0, ma, mc);
+        }
+        var x = (firstA.X + first0.X + firstC.X) * 0.33333334f;
+        var z = (firstC.Z + first0.Z + firstA.Z) * 0.33333334f;
+        var y = (firstC.Y + first0.Y + firstA.Y) * 0.33333334f;
+        var scale = 1f / MathF.Sqrt(x * x + z * z + y * y);
+        return [.. points.Select(p => new Vector3(scale * p.X, scale * p.Y, scale * p.Z))];
+    });
+
+    /// <summary>
+    /// 180f3fbf0's cone table: 180f417f0 at i * 0.017453292 for i = 3, 6 to
+    /// 180, and at 1.5707964, sorted by cosine (std::sort). A cone hull of
+    /// half angle t, its key cos t: rings at polar angle min(i s, t) with
+    /// s = min(0.3 t, 0.17453292), each of 24 points (cos p, cos a sin p,
+    /// sin a sin p) at a = j / 24 * 2 pi, a point equal to one already listed
+    /// dropped, until the ring reaches t - 1.1920929e-07; then the apex.
+    /// </summary>
+    private static readonly Lazy<(float Cos, Vector3[] Hull)[]> ConeHulls = new(() =>
+    {
+        var angles = new List<float>();
+        for (var i = 3; i < 0xb5; i += 3)
+            angles.Add(i * 0.017453292f);
+        angles.Add(1.5707964f);
+        return [.. angles.Select(t => (LightCrt.Cos(t), ConeHull(t))).OrderBy(e => e.Item1)];
+    });
+
+    private static Vector3[] ConeHull(float angle)
+    {
+        var step = angle * 0.3f;
+        if (0.17453292f <= step)
+            step = 0.17453292f;
+        var points = new List<Vector3>();
+        for (var ring = 0; ; ring++)
+        {
+            var polar = angle;
+            if (ring * step <= angle)
+                polar = ring * step;
+            var cp = LightCrt.Cos(polar);
+            var sp = LightCrt.Sin(polar);
+            for (var j = 0; j < 24; j++)
+            {
+                var t = (j - 0f) / (24f - 0f);
+                var az = (1f - t) * 0f + t * 6.2831855f;
+                var p = new Vector3(cp, LightCrt.Cos(az) * sp, LightCrt.Sin(az) * sp);
+                if (!points.Contains(p))
+                    points.Add(p);
+            }
+            if (angle - 1.1920929e-07f <= polar)
+                break;
+        }
+        points.Add(Vector3.Zero);
+        return [.. points];
     }
 
     /// <summary>
