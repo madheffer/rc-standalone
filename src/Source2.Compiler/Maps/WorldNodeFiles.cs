@@ -49,12 +49,32 @@ public static class WorldNodeFiles
         }
 
         // BuildNode, the mesh lists, CompileNode.
-        var world = WorldNodeBuild.WorldEntries(document, content, shaders, RendersAsWorld);
-        var props = WorldNodeBuild.PropEntries(document, content, shaders, notes);
+        // A baked compile's headers follow bakelighting, and BakeLightMaps turns the lightmapped
+        // entries into their chart meshes with lightmap uvs (Lighting.LightmapNodeBake).
+        var bakes = baked is not null;
+        var world = WorldNodeBuild.WorldEntries(document, content, shaders, RendersAsWorld, buildBakes: bakes);
+        var props = WorldNodeBuild.PropEntries(document, content, shaders, notes, buildBakes: bakes);
         var descriptors = NodeOverlays.FromWorld(document);
-        var (built, overlays) = WorldNodeBuild.BuildNode(world, props, descriptors);
+        Func<List<WorldNodeBuild.Built>, List<WorldNodeBuild.Built>>? bake = null;
+        if (bakes)
+        {
+            var keys = document.OfType("CMapWorld").FirstOrDefault()?.Get<DmxBinary.Element>("entity_properties")?.Attributes
+                .Where(a => a.Value is string).ToDictionary(a => a.Key, a => (string)a.Value!) ?? [];
+            var settings = Lighting.LightmapSettings.From(keys, 0x1000, 4096, sh2Dc: false);
+            var importance = WorldNodeBuild.ImportanceVolumes(world, props);
+            var backfaces = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            bool RenderBackfaces(string m)
+            {
+                if (!backfaces.TryGetValue(m, out var v))
+                    backfaces[m] = v = content.Material(m) is { } info
+                        && (MaterialAttributes.Of(info, shaders, content.TextureSize).Int(MeshEntryFlags.Key("renderbackfaces")) ?? 0) != 0;
+                return v;
+            }
+            bake = list => Lighting.LightmapNodeBake.Apply(list, importance, RenderBackfaces, settings, 120f);
+        }
+        var (built, overlays) = WorldNodeBuild.BuildNode(world, props, descriptors, bake);
         var envMaps = WorldNodeBuild.EnvMaps(built, volumes);
-        var lists = WorldNodeBuild.MergerInputs(built, overlays, descriptors, envMaps, content, shaders, kinds: [.. MeshLists.Order.Select(o => o.Kind)])
+        var lists = WorldNodeBuild.MergerInputs(built, overlays, descriptors, envMaps, content, shaders, keepLighting: bakes, kinds: [.. MeshLists.Order.Select(o => o.Kind)])
             .ToDictionary(kv => kv.Key, kv => kv.Value.Select(m => new WorldNodeCompile.Entry(m.Material, m.Stride, m.Vertices, m.Indices, m.Facts)).ToList());
         var (nodeMin, nodeMax) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
         foreach (var b in built)

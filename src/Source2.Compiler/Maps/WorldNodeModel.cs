@@ -38,7 +38,11 @@ public sealed record WorldNodeModel(
     public sealed record Draw(string Material, Vector3 Tint, float UvDensity, int FirstMeshlet, int MeshletCount,
                               int AppliedIndexOffset, int DepthVertexBuffer, int VertexEnd, int StartIndex, int IndexCount,
                               int IndexBufferHandle, IReadOnlyList<int> VertexBufferHandles,
-                              bool BakedLightingFromVertexStream, bool NotMatchedToMaterial);
+                              bool BakedLightingFromVertexStream, bool NotMatchedToMaterial)
+    {
+        /// <summary>The draw reads the lightmap (its mesh has a LightmapUV stream: a baked compile).</summary>
+        public bool BakedLightingFromLightMap { get; init; }
+    }
 
     /// <summary>A scene object: its bounds, draw calls, per-draw bounds and meshlets.</summary>
     public sealed record SceneObject(Vector3 Min, Vector3 Max, IReadOnlyList<Draw> Draws,

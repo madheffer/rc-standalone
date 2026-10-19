@@ -78,12 +78,17 @@ internal static class WorldNodeBuild
     /// holds both), the overlay meshes projected onto the result
     /// (<see cref="NodeOverlays"/>, Step25ece0) when descriptors are given.
     /// </summary>
+    /// <param name="bake">A baked compile's BakeLightMaps (<see cref="Lighting.LightmapNodeBake"/>), run on
+    /// the entries the T-junction fix leaves, before the overlays and the closing weld.</param>
     public static (List<Built> Entries, List<NodeOverlays.Projection> Overlays) BuildNode(IReadOnlyList<Node> world, IReadOnlyList<Node> props,
-                                                                                         IReadOnlyList<NodeOverlays.Descriptor> overlays)
+                                                                                         IReadOnlyList<NodeOverlays.Descriptor> overlays,
+                                                                                         Func<List<Built>, List<Built>>? bake = null)
     {
         // The overlays project onto the entries as the T-junction fix leaves
         // them (Step25ece0), before the closing weld.
         var fixedUp = FixTJunctions([.. world, .. props]);
+        if (bake is not null)
+            fixedUp = bake(fixedUp);
         var targets = fixedUp.Select(b => new NodeOverlays.Target(b.Vertices, b.Source.Entry.Stride, b.Source.Entry.Streams, b.Indices,
             [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], b.Source.Header.Byte1a0 != 0 ? 2 : 1, b.Source.Header.NodeId, b.Source.Header.Attributes)).ToList();
         return ([.. fixedUp.Select(Weld)], NodeOverlays.Project(overlays, targets));

@@ -59,6 +59,14 @@ internal static class ChartMeshes
         return e with { Vertices = v, Stride = stride, Streams = streams };
     }
 
+    /// <summary>The indices of the entries that bake (stripped, <see cref="IsBaked"/>), in <see cref="Sort"/>'s order.</summary>
+    public static List<int> SortedBaked(IReadOnlyList<Entry> entries)
+    {
+        var picked = entries.Select((e, i) => (Entry: Strip(e), Index: i)).Where(p => IsBaked(p.Entry)).ToArray();
+        MsvcSort.Sort(picked, (x, y) => Less(x.Entry, y.Entry));
+        return [.. picked.Select(p => p.Index)];
+    }
+
     /// <summary>18021b530's order, element for element (MSVC std::sort).</summary>
     public static Entry[] Sort(IEnumerable<Entry> entries)
     {

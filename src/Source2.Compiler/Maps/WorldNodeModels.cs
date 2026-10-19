@@ -48,7 +48,7 @@ internal static class WorldNodeModels
     }
 
     // DXGI formats the node models use.
-    private const uint R32G32B32Float = 6, R16G16B16A16Float = 10, R32G32Float = 16, R8G8B8A8Unorm = 28, R16G16Float = 34, R16G16Snorm = 37, R32Uint = 42;
+    private const uint R32G32B32Float = 6, R16G16B16A16Float = 10, R32G32Float = 16, R8G8B8A8Unorm = 28, R16G16Float = 34, R16G16Unorm = 35, R16G16Snorm = 37, R32Uint = 42;
 
     // A draw before packing: material, built geometry, stream layout and its source facts.
     private sealed record DrawInput(string Material, NodeDraw.Result Geometry, int Stride, IReadOnlyList<WrbMeshEntry.Stream> Streams, WrbMeshEntry Facts)
@@ -201,8 +201,13 @@ internal static class WorldNodeModels
                     d.Streams.Any(s => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase)),
                     // A field the material has no input for (atixref's milwall001 object keeps
                     // VertexPaintTintColor and VertexPaintBlendParams) marks the draw unmatched;
-                    // the per-vertex lighting stream (COLOR1) does not (probe01, ze_hold_em_p).
-                    slots.Any(l => l.Field.ShaderSemantic.Length == 0 && !l.Stream.StartsWith("PerVertexLighting:", StringComparison.OrdinalIgnoreCase)));
+                    // the baked lighting streams (COLOR1, the lightmap's texcoord 3) do not
+                    // (probe01, ze_hold_em_p).
+                    slots.Any(l => l.Field.ShaderSemantic.Length == 0 && !l.Stream.StartsWith("PerVertexLighting:", StringComparison.OrdinalIgnoreCase)
+                                   && !l.Stream.StartsWith("LightmapUV:", StringComparison.OrdinalIgnoreCase)))
+                {
+                    BakedLightingFromLightMap = d.Streams.Any(s => s.Name.Equals("LightmapUV", StringComparison.OrdinalIgnoreCase)),
+                };
                 vertexBase += g.VertexCount;
             }
             var elementSize = totalVertices > 0xffff ? 4 : 2;
@@ -326,9 +331,10 @@ internal static class WorldNodeModels
     // A layout field, its vertex buffer and the mesh stream it packs ("name:index").
     private sealed record Slot(WorldNodeModel.LayoutField Field, int Buffer, string Stream, int Count);
 
-    // The per-vertex lighting stream is the semantic table's color 1.
+    // The per-vertex lighting stream is the semantic table's color 1, the lightmap's uvs its texcoord 3.
     private static (string Name, int Index) Key(WrbMeshEntry.Stream s)
-        => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase) ? ("color", 1) : (s.Name, s.Index);
+        => s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase) ? ("color", 1)
+         : s.Name.Equals("LightmapUV", StringComparison.OrdinalIgnoreCase) ? ("texcoord", 3) : (s.Name, s.Index);
 
     private static bool Reads(IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement> elements, WrbMeshEntry.Stream s)
         => elements.Any(x => MaterialStreams.Inputs([x.Semantic]) is [var m] && Io.Tier0Strings.EqualsIgnoreCase(m.Name, Key(s).Name) && m.Index == Key(s).Index);
@@ -337,7 +343,8 @@ internal static class WorldNodeModels
     // (ze_hold_em_p's baked fluorescent props, streamed P N Tg T0, lay out P T0 N).
     private static int Rank(WrbMeshEntry.Stream s) => s.Name.ToLowerInvariant() switch
     {
-        "position" => 0, "texcoord" => 1, "normal" => 2, "tangent" => 3, _ => 4,
+        // The lightmap's uvs lay out among the texcoords, after them (ze_hold_em_p's baked aggregates).
+        "position" => 0, "texcoord" or "lightmapuv" => 1, "normal" => 2, "tangent" => 3, _ => 4,
     };
 
     private static List<Slot> Layout(List<DrawInput> draws, MaterialFacts facts, bool aggregate, bool mapMesh, Func<int, uint>? texcoordFormat = null)
@@ -354,7 +361,7 @@ internal static class WorldNodeModels
         {
             if (s.Name.Equals("tangent", StringComparison.OrdinalIgnoreCase))
                 continue;
-            var (stream, index) = s.Name.Equals("PerVertexLighting", StringComparison.OrdinalIgnoreCase) ? ("color", 1) : (s.Name, s.Index);
+            var (stream, index) = Key(s);
             var input = signature.FirstOrDefault(x => MaterialStreams.Inputs([x.Semantic]) is [var m] && Io.Tier0Strings.EqualsIgnoreCase(m.Name, s.Name) && m.Index == s.Index);
             uint format = s.Name.ToLowerInvariant() switch
             {
@@ -362,6 +369,7 @@ internal static class WorldNodeModels
                 "texcoord" => texcoordFormat?.Invoke(s.Index) ?? TexcoordFormat(draws, s, aggregate),
                 "normal" or "vertexgenericintegerdata" => R32Uint,
                 "pervertexlighting" => R16G16B16A16Float,
+                "lightmapuv" => R16G16Unorm,
                 _ => R8G8B8A8Unorm,
             };
             var buffer = splits && !Reads(facts.Depth, s) ? 1 : 0;
@@ -433,6 +441,10 @@ internal static class WorldNodeModels
                     for (var k = 0; k < 2; k++)
                         BitConverter.TryWriteBytes(o[(k * 2)..], Snorm16(v[at + k]));
                     break;
+                case R16G16Unorm:
+                    for (var k = 0; k < 2; k++)
+                        BitConverter.TryWriteBytes(o[(k * 2)..], Unorm16(v[at + k]));
+                    break;
                 case R16G16B16A16Float:
                     for (var k = 0; k < 4; k++)
                         BitConverter.TryWriteBytes(o[(k * 2)..], ToHalf(k < slot.Count ? v[at + k] : 1f));
@@ -458,6 +470,13 @@ internal static class WorldNodeModels
                     break;
             }
         }
+    }
+
+    // As ConvertFloatToChannel: clamped, scaled and truncated (the lightmap's texcoord 3).
+    private static ushort Unorm16(float v)
+    {
+        v = v < 0f ? 0f : v > 1f ? 1f : v;
+        return (ushort)(v * 65535f);
     }
 
     private static short Snorm16(float v)
