@@ -85,6 +85,12 @@ public class ClassOrderProbe(ITestOutputHelper output)
         var all = MapEntities.From(document).Select(e => e.ClassName).ToList();
         output.WriteLine("order: " + string.Join(" ", all));
         output.WriteLine("counts: " + string.Join(" ", all.GroupBy(c => c).Select(g => $"{g.Key}={g.Count()}")));
+        // CLASSORDER_FIND=<text>: each element attribute whose string value holds the text.
+        if (Environment.GetEnvironmentVariable("CLASSORDER_FIND") is { Length: > 0 } find)
+            foreach (var e in document.Elements)
+                foreach (var (k, v) in e.Attributes)
+                    if (v is string str && str.Contains(find, StringComparison.OrdinalIgnoreCase))
+                        output.WriteLine($"found: element {e.Type} '{e.Name}' attribute {k} = {str}");
         // Every element with a classname, by element type, against MapEntities' count of that class.
         var counts = all.GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
         var elements = document.Elements.Select(e => (e.Type, Class: e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname"))).Where(x => x.Class != null).ToList();

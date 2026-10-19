@@ -1569,6 +1569,50 @@ game can answer is raised with the user first, and runs with -insecure.
       sounds added after all entities, the document order, and game
       keys left out.
 
+86. **The .vmap_c** (settled 2026-10-19 against s2c_rc_probe's 23 current
+    compiles, MapAssetsTests and MapRootFileTests; atixref is an older
+    compile with another argument table).
+    - Blocks: RERL, RED2, an empty DATA; resource version 1.
+    - The RERL lists the children and the map's direct asset references,
+      sorted ordinal:
+      - every material on the faces of a visible mesh (prefab and instance
+        contents included). A mesh under a class with
+        auto_apply_material gives that material instead;
+      - every material an overlay's meshData lists;
+      - each walked entity's resource-typed keys from its key table, class
+        defaults included. A value without a '/' is skipped (c2m2's bare
+        particle names);
+      - instance_file keys (a skybox map) and script keys, as
+        scripts/vscripts/<value>, with .lua added when there is no
+        extension;
+      - the class's auto_apply_material;
+      - bakeresource keys. The lightprobetexture ones are left out (the
+        atlas is a child);
+      - a CMapPath's or CMapCable's materialName;
+      - a CMapSmartProp's smartPropFilename.
+      Missing assets are listed too.
+    - m_InputDependencies, sorted, in csgo_addons/<addon>:
+      - lightmaptexturearg.txt when baked;
+      - lightprobevolumetexturearg.txt when baked with probe volumes
+        (both optional and absent);
+      - each prefab's .vmap and the map, with their CRCs.
+    - m_ArgumentDependencies: ___OverrideInputData___, then the arguments
+      the steps read, sorted case-insensitively:
+      - 21 for an unbaked compile;
+      - 11 more when baked (lightmapMaxResolution twice, the second row
+        0);
+      - final and lightProbeVolumeTextureArg with probe volumes.
+      FloatArg fingerprints are the value's float bits; the defaults are
+      4, 4096, 1, 1048576 and -1.
+    - m_SpecialDependencies: the identities of the child kinds, sorted. A
+      .vdata brings KV3 Compiler Version 2 and VData Compiler Version 1,
+      both CompileVData; a .vsnap brings SNAP Compiler Version 1.
+    - The child list names entity models that failed to compile (a missing
+      material, ze_hold_em_p's 8 doors), though the package has no file
+      for them.
+    - m_SearchableUserData: IsChildResource 0, UsesBuilderEntityKeys 1,
+      WorldModelDocAll 1. m_SubassetReferences: ledger 85.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

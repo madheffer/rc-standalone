@@ -38,7 +38,7 @@ public static class EntityPhysicsModels
     /// node ids before the instance copies do (<see cref="SmartProps.NodesCreatedOnLoad"/>).</param>
     public static List<Model> Build(DmxBinary.Document doc, string mapName, Func<string, SettleWorld.MaterialInfo?> material,
         Func<string, SettleWorld.CollisionProperty?> collisionProperty, FgdSchema? schema, List<string>? notes = null,
-        Func<string, ValveKeyValue.KVObject?>? smartProp = null)
+        Func<string, ValveKeyValue.KVObject?>? smartProp = null, List<string>? failed = null)
     {
         mapName = Io.Tier0Strings.LowerAscii(mapName);
         var models = new List<Model>();
@@ -134,6 +134,8 @@ public static class EntityPhysicsModels
             if (used.FirstOrDefault(m => material(m) == null) is { } absent)
             {
                 notes?.Add($"entity {nodeId} ({className}): {absent} not found, so its model fails to compile and has no file");
+                // The map root still lists it among its children (ze_hold_em_p's 8).
+                failed?.Add(path);
                 return null;
             }
             foreach (var mesh in meshes)

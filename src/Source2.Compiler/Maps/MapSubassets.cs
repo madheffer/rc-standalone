@@ -25,16 +25,7 @@ public static class MapSubassets
     public static List<(string Type, string Name, int Count)> References(IReadOnlyList<MapEntities.Entity> entities, FgdSchema schema,
                                                                        DmxBinary.Document document)
     {
-        var (copies, templates) = MapInstances.Expand(document, entities, 0, prefabs: true);
-        var pending = copies.GroupBy(c => c.EmitAt).ToDictionary(g => g.Key, g => g.ToList());
-        var lump = new List<MapEntities.Entity>();
-        for (var i = 0; i <= entities.Count; i++)
-        {
-            if (pending.TryGetValue(i, out var here))
-                lump.AddRange(here.Select(c => entities[c.Template] with { Instanced = true }));
-            if (i < entities.Count && !templates.Contains(i))
-                lump.Add(entities[i]);
-        }
+        var lump = LumpOrder(entities, document);
         var walk = new List<MapEntities.Entity>(lump.Count);
         for (var i = 0; i < lump.Count; i++)
         {
@@ -62,6 +53,22 @@ public static class MapSubassets
         }
         // Each type is a sub-table, entity's first (measured, whatever the first slot holds).
         return [.. table.Copy().InSlotOrder().OrderBy(r => r.Type, StringComparer.Ordinal)];
+    }
+
+    /// <summary>The main lump's entities (EntityLumpSet.MainLump): instance copies spliced in where their parent's subtree ends, templates dropped.</summary>
+    public static List<MapEntities.Entity> LumpOrder(IReadOnlyList<MapEntities.Entity> entities, DmxBinary.Document document)
+    {
+        var (copies, templates) = MapInstances.Expand(document, entities, 0, prefabs: true);
+        var pending = copies.GroupBy(c => c.EmitAt).ToDictionary(g => g.Key, g => g.ToList());
+        var lump = new List<MapEntities.Entity>();
+        for (var i = 0; i <= entities.Count; i++)
+        {
+            if (pending.TryGetValue(i, out var here))
+                lump.AddRange(here.Select(c => entities[c.Template] with { Instanced = true, NodeId = c.NodeId, Prefabs = [] }));
+            if (i < entities.Count && !templates.Contains(i))
+                lump.Add(entities[i]);
+        }
+        return lump;
     }
 
     /// <summary>

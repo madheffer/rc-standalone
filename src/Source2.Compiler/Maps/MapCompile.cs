@@ -155,6 +155,8 @@ public static class MapCompile
     {
         // Where the bake's outputs are read from: vrad3's folder, or the job our own bake ran in.
         var lightingFolder = args.Vrad3Output;
+        // Entity models that failed to compile: no file, but the map root lists them.
+        var failedModels = new List<string>();
         var document = DmxBinary.ReadFile(full);
         // A prefab's map loads from the addon's content, as Hammer's does.
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(root, "content", "csgo_addons", addon)));
@@ -191,7 +193,7 @@ public static class MapCompile
                                     visClusterBoxes: visibility?.Flat);
             foreach (var lump in lumps)
                 entries[lump.Path] = lump.Bytes;
-            var models = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp);
+            var models = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp, failedModels);
             foreach (var m in models)
                 entries[m.Path + "_c"] = m.PhysicsOnly ? EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
             using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
@@ -280,6 +282,27 @@ public static class MapCompile
             foreach (var f in lightmaps)
                 entries[f.Path] = f.Bytes;
             log.WriteLine($"  lighting: {lightmaps.Count} files from {folder}");
+        }
+        if (steps.Contains("world") && !args.EntitiesOnly)
+        {
+            // The map root over what the package now holds (MapRootFile): the children are the
+            // map's compiled resources, the inputs the map and its prefabs' maps.
+            var rootPath = $"maps/{map}.vmap_c".ToLowerInvariant();
+            var childPrefix = $"maps/{map}/".ToLowerInvariant();
+            var children = entries.Keys.Where(k => k.StartsWithAscii(childPrefix) && k.EndsWithAscii("_c")).Select(k => k[..^2])
+                .Concat(failedModels.Select(Tier0Strings.LowerAscii)).ToList();
+            var addonContent = Path.Combine(root, "content", "csgo_addons", addon);
+            var inputs = new List<(string, uint)> { ($"maps/{map}.vmap", MapRootFile.Crc(File.ReadAllBytes(full))) };
+            foreach (var prefab in MapRootFile.PrefabMaps(document).Distinct(Tier0Strings.IgnoreCase))
+                if (File.Exists(Path.Combine(addonContent, prefab)))
+                    inputs.Add((prefab, MapRootFile.Crc(File.ReadAllBytes(Path.Combine(addonContent, prefab)))));
+            var walkEntities = MapEntities.From(document);
+            var bakedRoot = bakes && lightingFolder is not null;
+            var probeVolumes = children.Any(c => c.EndsWithAscii("/lightmaps/env_light_probe_volume_atlas.vtex"));
+            entries[rootPath] = MapRootFile.Write(new MapRootFile.Compile(addon, inputs, bakedRoot, probeVolumes, args.Arguments), children,
+                                                  MapAssets.References(document, MapSubassets.LumpOrder(walkEntities, document), schema, $"maps/{map}".ToLowerInvariant()),
+                                                  MapSubassets.References(walkEntities, schema, document));
+            log.WriteLine($"  map root: {rootPath}, {children.Count} children");
         }
         foreach (var note in notes.Take(10))
             log.WriteLine($"  note: {note}");
