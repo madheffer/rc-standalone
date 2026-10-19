@@ -1438,7 +1438,19 @@
    "addr": "1802ec220",
    "name": "RnGjk_Distance",
    "module": "s2c:entities/settle",
-   "note": "GJK distance between two proxies"
+   "note": "GJK distance between two proxies (navsystem's IslandRemoval boxes through 180073970; its own variant of navsystem's 1800eff20)"
+  },
+  {
+   "addr": "180073970",
+   "name": "CVPhysics2Interface::PointSetDistance",
+   "module": "s2c:baked/nav",
+   "note": "slot 0x190: two matrix3x4 and point lists through 18029b6f0 to 1802ec220; 0 when at most 0.125"
+  },
+  {
+   "addr": "18029b6f0",
+   "name": "RnGjk_PointSetDistance",
+   "module": "s2c:baked/nav",
+   "note": "point-list proxies (scale 1, no box), 32 iterations"
   },
   {
    "addr": "1802ed320",

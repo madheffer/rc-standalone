@@ -2127,6 +2127,87 @@ game can answer is raised with the user first, and runs with -insecure.
       seeds, WALKABLESEED markups and nav links from the RC input at
       ctx+8 +0x78, +0x90, +0xc0), SplitPolysByMarkup (019); the RC
       collectors that fill that input; then the .nav writer.
+96. **Nav generation's IslandRemoval (029), its GJK and the walkable seeds**
+    (decompile and disassembly of navsystem 20261015, vphysics2 20261015
+    (code identical to 20260924 at these addresses) and resourcecompiler
+    20260923 (the Ghidra build), 2026-10-20. Hand-made cases only; the distances wait on
+    tools/re/call_navsystem.py gjk with CS2 closed. Maps/NavGen
+    NavGjk.cs, NavGenIslands.cs, NavGenMapInput.cs.)
+    - Which runs: the stage list builds IslandRemoval twice, single-hull
+      (nav_gen_island_removal, 0) then all-hulls
+      (nav_gen_island_removal_all_hulls, 1), so 029 is the all-hulls one.
+      LadderConnect (028) is enabled by its convar only with ladders.
+    - IslandRemoval (180070780): marks every polygon removed, writes the
+      bounds (180076d40) and fills a grid of 32-unit cells over the XY
+      bounds (180046720: cells (int)(extent / 32) + 1 a side, none when an
+      extent is not positive; 180046c80 adds a polygon to every cell its
+      clamped truncated range covers; a query (1800475e0, 180046a40,
+      180046a80) walks rows, then columns, then each cell's entries in
+      insertion order, each entry once). Then: each nav link (+0xc0) pairs
+      the first polygon in grid order touching a ±16 box round each end
+      (18006e460; a warning when either has none); each WALKABLESEED
+      markup (+0x90, the tag name through 18001ba90) floods the removed
+      polygons its box (local min - 1 to max + 1 through its matrix,
+      180078360) touches; each walkable seed (+0x78) floods the removed
+      polygons a ±40 box (180129420) touches (180078490); each ladder's
+      connectivity (ctx+0x90, 0x1c bytes) floods its ints +0x10, +0x14,
+      +0x18, +0xc, +0, +4, +8 when not -1.
+    - The flood (18006e5f0) is breadth first from its start (cleared),
+      across connections (+8 the other polygon) then link pairs, to
+      polygons still removed; each one reached is cleared and appended to
+      a list (the std::function at 1800ff790, slot +0x10 = 180077c50). The
+      start itself is not listed. All-hulls: while the list is not empty,
+      take it and clear it; for each listed polygon, every grid neighbour
+      still removed, both of kind (+0x40) 0, whose XY outline meets it
+      (18006d260, margin 0) and whose GJK distance to it is at most 4.0
+      floods. So a seed's own polygon does not pull in stacked neighbours;
+      what its flood reaches does, and the order of seeds can matter.
+    - Compaction: kept polygons in order (output vector), removed ones'
+      blocks freed; per kept polygon each connection's +0 renumbered, its
+      +8 renumbered unless -1, and removed (180050240, revisited) when the
+      result is -1; +0x61 untouched. Ladder ints renumbered (-1 stays).
+      Settings +0x58 set: the polygons move over unchanged.
+    - The 4-unit distance is navsystem's GJK (1800a3060 -> 1800f09d0 ->
+      1800eff20, 32 iterations, empty cache): point-cloud proxies (type 4,
+      1800a2800, radius 0, scale 1) under the transform at 180139ed0,
+      which the static initialisers make the identity (180004240 writes
+      (0,0,0,1) twice before 180004200 copies it; table 1800fb948..58),
+      so support points are the input points. Simplex vertices of 0x2c
+      bytes (indices, point on A, on B, w = B - A), weights at +0xb4.
+      Start: both first points, weight 0 then 1. Each round: solve (two
+      inline; three 1800f14b0 with triangle barycentrics 1800ef850; four
+      1800f1b80 with tetrahedron 1800ef460, four vertices = overlap),
+      failing restores the last good simplex; v = the weighted w; stop
+      when |v|^2 (y, z, x) does not drop; direction 1800f0a20 (-w; edge:
+      (e x -w0) x e; face: normal flipped away from w0); |d|^2 under
+      1.17549435e-35 = overlap; supports 1800f0c80 (farthest along d
+      measured from point 0, ties keep the first) of A along -d and B
+      along d; a vertex pair already in the simplex (compared as bytes)
+      stops. Witness points 1800efb20; distance |pA - pB| (z, y, x;
+      overlap 0); 1800a3060 subtracts the radii (0) and clamps at 0.
+      symsse.py shows every sum in these functions left-nested.
+    - The seed, markup and link boxes use vphysics2 instead:
+      CVPhysics2Interface (VPhysics2_Interface_001, object 180460e60,
+      vtable 1803fbf50) slot 0x190 = 180073970: two matrix3x4 and point
+      lists through 18029b6f0 to the GJK 1802ec220 (its own variant:
+      solver 180318460, support 1802eb9e0 with a box fast path, add
+      180315ab0, distance x, y, z), then 0 when at most 0.125;
+      navsystem's test is <= 0. Both box transforms are the identity
+      (180110da0, 1800ff930). Not ported: NavGjk stands in for it
+      (call_navsystem.py gjk records both).
+    - The RC seeds (180f21760): point_nav_walkable entities
+      (FUN_180fc7220 search, flags 3), per instance path (FUN_180f88460,
+      an identity path when none) the translation of the step matrix
+      times the entity's. NavGenMapInput.Seeds takes them in the entity
+      lump's order (copies before the entity they precede, templates only
+      as copies, hidden left out); that ordering is unsettled.
+    - The RC markups (180f209f0): func_nav_markup entities (180f1ef70,
+      prefabs recursed with flag 4); each string key (type 5) named
+      navProperty_<tag> registers (tag, value) in a table (1818c7010, 0x80
+      bytes each) and adds a markup with that index (180f20720: the
+      entity's geometry bounds and matrix per instance path, 0x50 bytes);
+      with none added, a navProperty_NavAttributes array key (types
+      0x22/0x23, 180f22330) adds one with index -1. Not ported.
 
 ## Resolved
 

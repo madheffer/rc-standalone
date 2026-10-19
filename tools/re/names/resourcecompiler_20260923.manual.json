@@ -88,7 +88,31 @@
    "addr": "180f209f0",
    "name": "NavGen_CollectMarkupVolumes",
    "module": "s2c:baked/nav",
-   "note": ""
+   "note": "func_nav_markup (180f1ef70): each navProperty_<tag> string key registers (tag, value) (1818c7010) and adds a markup (180f20720); else a navProperty_NavAttributes array (180f22330) adds one with index -1; CNavGenInput +0x90"
+  },
+  {
+   "addr": "180f21d70",
+   "name": "NavGen_MarkupProperties",
+   "module": "s2c:baked/nav",
+   "note": "string keys (type 5) named navProperty_*: the name past the prefix and the value"
+  },
+  {
+   "addr": "180f20720",
+   "name": "NavGen_AddMarkup",
+   "module": "s2c:baked/nav",
+   "note": "the entity's geometry bounds and matrix per instance path (180f88460), a 0x50-byte markup"
+  },
+  {
+   "addr": "180f22330",
+   "name": "NavGen_HasNavAttributes",
+   "module": "s2c:baked/nav",
+   "note": "a navProperty_NavAttributes key of type 0x22/0x23 with entries"
+  },
+  {
+   "addr": "1818c7010",
+   "name": "NavGen_MarkupTagIndex",
+   "module": "s2c:baked/nav",
+   "note": "(tag, value) table of 0x80-byte entries at +0x38, count +0x30; added when new"
   },
   {
    "addr": "180f1f830",
@@ -3704,19 +3728,13 @@
   },
   {
    "addr": "180f1ef70",
-   "name": "Nav_GatherC",
-   "module": "s2c:coverage",
-   "note": "nav gather"
+   "name": "NavGen_FindNavMarkups",
+   "module": "s2c:baked/nav",
+   "note": "func_nav_markup entities in the map, then each sub-world's (flag 4 keeps the list)"
   },
   {
    "addr": "180f20f00",
    "name": "Nav_GatherA",
-   "module": "s2c:coverage",
-   "note": "nav gather"
-  },
-  {
-   "addr": "180f21760",
-   "name": "Nav_GatherB",
    "module": "s2c:coverage",
    "note": "nav gather"
   },

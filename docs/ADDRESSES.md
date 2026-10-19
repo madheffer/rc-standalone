@@ -141,12 +141,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: this build
-- 187 addresses
+- 211 addresses
 
 ### s2c:baked/navgen
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `180004240` | `TransformIdentity_Init` | (0,0,0,1) into 180139f10 and 180139f20; runs before 180004200 copies them to 180139ed0 |  |
 | `18001f7c0` | `Vector_NormalizeInPlace` | float, (y² + z²) + x², scaled when 1e-17 <= len <= 1e17 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:964` |
 | `1800207c0` | `CNavGenPolyProcessorStage1::Run` | in place on *(ctx + 0x30); returns false |  |
 | `1800207f0` | `CNavGenPolyProcessorStage2::Run` | out *(ctx + 0x38), in *(ctx + 0x30); returns true |  |
@@ -159,7 +160,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180027ea0` | `NavGen_ConnectionsInvoker` | dist_a, dist_b, z_mult, angle, ignore_z, overlap, allow_multiple | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:132` |
 | `180028ae0` | `NavGen_QueryAttributes` | interacts with 0xc3021 \| navclip (hash 0xdd7f7e69), excludes 0x400000, as 0x80000, ids -1, mask 0xffff, types 3, group 3, flags 0x49 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:23` |
 | `1800369e0` | `ClosestPointsSegments` | Sunday's clamped parameters | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:219` |
+| `180046720` | `NavGrid2D_Init` | cells (int)(extent / size) + 1 a side over the XY bounds | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:26`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:212` |
+| `180046c80` | `NavGrid2D_Insert` | item into every cell of its clamped range | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:212` |
 | `180046fc0` | `NavGen_ClipToBounds` | when generation bounds are set (not ported) |  |
+| `1800475e0` | `NavGrid2D_Query` | iterator: rows, columns, cell entries, each once (180046870 init, 180046a40 get, 180046a80 next, 180048960 done) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:213` |
 | `180048b20` | `NavGen_ExtractTriangles` | bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:75`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:138` |
 | `180049210` | `NavGen_ApplyNoNavMarkups` | after extraction (not ported) |  |
 | `18004b990` | `NavGen_AddInterpolatedVertex` | attribute interpolated only when set | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:23` |
@@ -225,13 +229,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18006aec0` | `NavGen_RecordPair` | shorter edge's polygon first | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:407`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:489` |
 | `18006b160` | `NavGen_AddJumps` | capsules (physics vfn 0x1e8), candidates, casts (not ported) |  |
 | `18006c6b0` | `NavGen_ClipPolysToHullClearance` | not ported |  |
-| `18006cb10` | `NavGen_CompactRemoved` | remap, connections to dropped polygons removed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:613`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:417`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:458` |
-| `18006d260` | `NavGen_PolysOverlapXY` | separating axes from both polygons' XY edge normals, margin dist_a | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169` |
+| `18006cb10` | `NavGen_CompactRemoved` | remap, connections to dropped polygons removed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:613`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:37`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:417` +1 |
+| `18006d260` | `NavGen_PolysOverlapXY` | separating axes from both polygons' XY edge normals, margin dist_a | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:36` |
 | `18006d550` | `NavGen_ProjectionsMeet` |  | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169` |
 | `18006d750` | `NavGen_EdgeOverlap` | Ghidra drops its tail; from the disassembly | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:302`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:405` |
+| `18006e460` | `NavGen_FindPolyNear` | first polygon in grid order a +-16 box touches | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:31`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:158` |
+| `18006e5f0` | `NavGen_FloodFill` | breadth first over connections and link pairs to removed polygons; each reached one to the callback | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:173` |
 | `18006ea50` | `NavGen_GenerateConnections` | sort, overlapping pairs (12 thread chunks), connections both ways | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:3`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
 | `18006f350` | `NavGen_FindOverlaps` | pairs i < j; break when j's key - 2 > i's +0x18 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
-| `180070780` | `NavGen_IslandRemoval` | seeds and nav links from the RC input (not ported) |  |
+| `180070780` | `NavGen_IslandRemoval` | all removed, flooded back from links, WALKABLESEED markups, seeds (+-40), ladders; all-hulls: listed polygons pull in removed ones within 4 (ledger 96) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:30` |
 | `180072ef0` | `NavGen_JumpClear` | world vfn 0x580 shape cast both ways |  |
 | `1800732d0` | `NavGen_LadderConnect` | not ported |  |
 | `180073a90` | `NavGen_LimitMaxPolyEdgeLen` | 180057b90 with nav_gen_max_edge_len, ..._split_tol | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:27` |
@@ -252,6 +258,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800776d0` | `NavGen_ValidateVertices` | NavGenVertexData_t: CUtlVector<Vec3D<double>> at +0x18 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:129` |
 | `180077760` | `Vector_NormalizeDouble` |  | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:407` |
 | `180077930` | `NavGen_WeldVertices` | stage |  |
+| `180077c50` | `NavGen_IslandListAppend` | std::function slot +0x10 (vtable 1800ff790): append to the list |  |
+| `180078360` | `NavGen_MarkupTouchesPoly` | local box grown by 1 through the markup matrix, vphysics2 interface +0x190 <= 0 |  |
+| `180078490` | `NavGen_BoxTouchesPoly` | eight corners against the polygon: vphysics2 interface +0x190 <= 0 | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:142` |
 | `1800787d0` | `SegmentProjectXYF` | float projection of q0-q1 onto p0-p1 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:501` |
 | `1800802b0` | `ClosestPointOnTriangle` | Ericson's regions, doubles | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:7` |
 | `180080750` | `LineIntersectXY` | \|det\| < 1e-6f fails | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:328` |
@@ -267,6 +276,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800850a0` | `CNavGenRecastTile::BuildRegions` | compact (min of three heights), Valve erode, median filter if *(1801386a8)+0x58, regions by *(1801386b8)+0x58: 0 watershed, 1 monotone, else layers | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:133` |
 | `1800852a0` | `NavGen_RecastBuildInput` | every pool vertex through the inches-to-metres matrix (recast = -0.0254y, 0.0254z, -0.0254x), bounds, fan (0, k-1, k), chunky mesh 256, then the config (settings x 0.0254; radius + *(180134b10)+0x58) | `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:7`, `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:28`, `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:108` +3 |
 | `1800873b0` | `NavGen_RecastOriented` | the oriented-mesh Recast path (not ported) |  |
+| `1800a2800` | `GjkProxy_Init` | type 0/1 sphere-like, 2 box corners, 3 capsule, 4 point list (+0x18 points, +0x20 count) |  |
+| `1800a29c0` | `PointsAABB` | float bounds of a point list |  |
+| `1800a3060` | `NavGen_HullDistance` | two proxies (1800a2800) under CTransforms, GJK (1800f09d0, 32 iterations) minus the radii, at least 0 | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:36`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:7` |
 | `1800a32b0` | `NavGen_ShapeTriangleSource` | vphysics2 interface +0x3b0 builds the per-shape source in place |  |
 | `1800a7ff0` | `rcBuildCompactHeightfield` | chf: wh 0xc, wh2 0x10, wh3 0x14, climb 0x18, border 0x1c, maxDist 0x20, maxRegions 0x22, bmin 0x24, cells 0x48, spans 0x50, dist 0x58, areas 0x60, dbg flags 0x68 | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:5`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:40` |
 | `1800a8870` | `rcCalcTileCount` | (int)((bmax - bmin) / size) + 1 | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:20` |
@@ -327,9 +339,21 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800ebd60` | `PointLineDistanceSqr` | float, parameter unclamped | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:119` |
 | `1800ec0f0` | `PointSegmentDistanceF` |  | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:131` |
 | `1800ed380` | `Matrix3x4_Invert` |  | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:73` |
+| `1800ed7d0` | `TransformAABB` | local box through a matrix3x4 to world bounds |  |
 | `1800eda30` | `VectorNormalizeDouble` | float vector normalised in doubles | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:173` |
 | `1800ee160` | `Matrix3x4_TransformPoint` | (p0 m0 + p2 m2) + (p1 m1 + m3) per row (1800edb00) | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:21` |
 | `1800ee9a0` | `PlaneFitLeastSquares` | float z = ax + by + c, \|det\| > 1e-6 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:939`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:963` |
+| `1800ef460` | `TetrahedronBarycentric` | volumes opposite each corner, signed by the whole | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:461` |
+| `1800ef850` | `TriangleBarycentric` | areas opposite each corner about a point, squared normal | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:434` |
+| `1800efb20` | `GjkSimplex_WitnessPoints` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:496` |
+| `1800eff20` | `Gjk_Distance` | simplex of 0x2c-byte vertices, weights at +0xb4; overlap on four vertices or a tiny direction | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:222` |
+| `1800f09d0` | `Gjk_DistanceNoCache` | empty cache | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:6` |
+| `1800f0a20` | `GjkSimplex_SearchDirection` | -w; (e x -w0) x e; the face normal away from w0 | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:183` |
+| `1800f0c80` | `GjkProxy_Support` | farthest along d from point 0, ties keep the first | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:162` |
+| `1800f0f70` | `GjkSimplex_Metric` | length, area or volume |  |
+| `1800f1200` | `GjkSimplex_ReadCache` | empty cache: both first points | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:9` |
+| `1800f14b0` | `GjkSimplex_Solve3` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:264` |
+| `1800f1b80` | `GjkSimplex_Solve4` |  | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:11`, `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:336` |
 | `1800f30b0` | `Triangulate_QuadDiagonal` | squared diagonal, 3 when both triangles face the normal, 2 if not, 0 degenerate | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:5`, `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:94` |
 | `1800f33c0` | `Triangulate_PointInTriangle` | edge sides > -1e-7 about the normal, or within 1e-7 of an edge | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:146` |
 | `1800f3780` | `Triangulate_EarClip` | the fan split's fallback (not ported) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:592`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:644`, `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:4` |
@@ -448,7 +472,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 999 addresses
+- 1002 addresses
 
 ### s2c:baked/light-keys
 
@@ -515,9 +539,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f49780` | `CComputeBakedShadowAssignment_RebuildList` | gathers lights, reuses matching records, else BuildRecord |  |
 | `180f67300` | `MapDoc_ContentRelativePath` | doc +0x6a0 through the filesystem with CONTENT, forward slashes |  |
 | `180f7b6a0` | `CMapNode_RaytraceFlags` | 0x20 when node +0x278 is 0; 0x1000000, 0x2000000, 0x4000000 by parent and +0x2d0 |  |
-| `180f88460` | `MapNode_InstancePaths` | every instance path that places the node |  |
+| `180f88460` | `MapNode_InstancePaths` | every instance path that places the node | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:14` |
 | `180fc6f40` | `MapWorld_FindEntitiesByClass` | thunk: match mode 2, the caller's flags (3: visible nodes, sub-worlds) |  |
-| `180fc7220` | `MapWorld_FindEntitiesByClassImpl` | the world's entity list in order, then each referenced world |  |
+| `180fc7220` | `MapWorld_FindEntitiesByClassImpl` | the world's entity list in order, then each referenced world | `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:14` |
 | `180fc9590` | `MapWorld_RayTraceSceneAt` | world +0x2bd0 |  |
 | `180fcad70` | `MapWorld_RegisterRaytraceOwner` | owner -> job at +0x2da0, then the job's update |  |
 | `180fcaec0` | `MapWorld_AddChildWorld` | a referenced world is itself an owner (+0xf8) |  |
@@ -713,20 +737,25 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800fb1c0` | `CNavGenInput_Construct` | bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40 |  |
-| `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:257`, `src/Source2.Compiler/Maps/NavFile.cs:7`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:7` |
+| `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:257`, `src/Source2.Compiler/Maps/NavFile.cs:7`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:7` +1 |
+| `180f1ef70` | `NavGen_FindNavMarkups` | func_nav_markup entities in the map, then each sub-world's (flag 4 keeps the list) |  |
 | `180f1f830` | `NavGen_CollectNoNavBlocks` | 'prop_deformable', 'block_base_nav_mesh', 'NavGen' 'NONAV' |  |
 | `180f203b0` | `NavGen_CollectLinkAreas` | 'ai_nav_link_area' |  |
-| `180f209f0` | `NavGen_CollectMarkupVolumes` |  |  |
+| `180f20720` | `NavGen_AddMarkup` | the entity's geometry bounds and matrix per instance path (180f88460), a 0x50-byte markup |  |
+| `180f209f0` | `NavGen_CollectMarkupVolumes` | func_nav_markup (180f1ef70): each navProperty_<tag> string key registers (tag, value) (1818c7010) and adds a markup (180f20720); else a navProperty_NavAttributes array (180f22330) adds one with index -1; CNavGenInput +0x90 |  |
 | `180f20c70` | `NavGen_CollectOrientedMeshClips` | debug gen/render clips |  |
 | `180f20e40` | `NavGen_CollectOrientedMeshEntities` | 'info_nav_oriented_mesh' | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:12` |
 | `180f20f00` | `NavGen_CollectSpaces` | 'info_nav_space', air nodes, path corners, hints |  |
-| `180f21760` | `NavGen_CollectWalkableSeeds` | every point_nav_walkable through the map's instances (180fc6f40 flag 3): each instance step matrix times the entity origin, appended to the seed list at +0x78 | `src/Source2.Compiler/Maps/NavFile.cs:9` |
+| `180f21760` | `NavGen_CollectWalkableSeeds` | every point_nav_walkable through the map's instances (180fc6f40 flag 3): each instance step matrix times the entity origin, appended to the seed list at +0x78 | `src/Source2.Compiler/Maps/NavFile.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenMapInput.cs:10` |
 | `180f21ac0` | `NavGen_CollectOrientedMeshes` | 'info_gravity_shift', 'CreateProjectedNavMesh', 'info_nav_oriented' |  |
+| `180f21d70` | `NavGen_MarkupProperties` | string keys (type 5) named navProperty_*: the name past the prefix and the value |  |
+| `180f22330` | `NavGen_HasNavAttributes` | a navProperty_NavAttributes key of type 0x22/0x23 with entries |  |
 | `180fafae0` | `MapWorld_FindNavData` | the CMapNavData node among the world's (or a group's) children; its settings at +0x498 | `src/Source2.Compiler/Maps/NavFile.cs:11` |
 | `180fb15e0` | `NavGen_CollectLadders` | 'func_ladder' |  |
 | `180fb5440` | `NavGen_CollectAvoidMarkups` | 'NavGen' 'AVOID' |  |
 | `180fb6cf0` | `MapCompile_NavBodyEntry` | 0x78-byte entries from the 0x90 stride list at ctx + 0x18 |  |
 | `180fb6de0` | `MapCompile_NavPhysicsWorld` | *(*(ctx + 0x18) + 8) + 8: the settle world handed to navsystem |  |
+| `1818c7010` | `NavGen_MarkupTagIndex` | (tag, value) table of 0x80-byte entries at +0x38, count +0x30; added when new |  |
 | `1818c7960` | `NavSettings_Resolve` | project block or map block; named preset mixes them |  |
 | `1818c7c90` | `NavSettings_LoadHullPreset` | CNavHullPresetVData -> CNavHullVData entries (1818ca350); false when missing or empty |  |
 | `1818c8840` | `NavSettings_LoadHullsVDataOverride` | not ported |  |
@@ -777,9 +806,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `180f1ef70` | `Nav_GatherC` | nav gather |  |
 | `180f20f00` | `Nav_GatherA` | nav gather |  |
-| `180f21760` | `Nav_GatherB` | nav gather | `src/Source2.Compiler/Maps/NavFile.cs:9` |
 | `180fbd800` | `SteamAudio_Probes` | Steam Audio probes |  |
 
 ### s2c:entities
@@ -2020,7 +2047,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
-- 432 addresses
+- 434 addresses
 
 ### s2c:baked/bomb
 
@@ -2040,10 +2067,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `18000bf60` | `CRnShapeTriangleSource::GetTriangles` | vtable slot 3 of navsystem's per-shape source -> 1802661f0 |  |
 | `180065b80` | `CRnWorld_ShapePassesQuery` | world vfn 0x4b0 -> 1801ff7b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32` |
+| `180073970` | `CVPhysics2Interface::PointSetDistance` | slot 0x190: two matrix3x4 and point lists through 18029b6f0 to 1802ec220; 0 when at most 0.125 | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:40` |
 | `1801ff7b0` | `RnQuery_ShapePasses` | body type against query +0x2f, then 1802facf0 on shape + 0x50 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32` |
 | `180260f50` | `RnMesh_EmitTriangle` | three unshared vertices times the shape scale (+0xb8) | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:16` |
 | `1802643e0` | `RnMesh_GetTriangles` | BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:117` |
 | `1802661f0` | `RnShape_GetTriangles` | by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14` |
+| `18029b6f0` | `RnGjk_PointSetDistance` | point-list proxies (scale 1, no box), 32 iterations |  |
 | `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32` |
 
 ### s2c:entities/settle
@@ -2268,7 +2297,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802dddd0` | `RnTimeOfImpact` | conservative advancement | `src/Source2.Compiler/Simulation/TimeOfImpact.cs:378` |
 | `1802eb9e0` | `RnGjkProxy_Support` | vertex furthest along a direction | `src/Source2.Compiler/Simulation/Gjk.cs:53` |
 | `1802ebd20` | `RnGjk_ReadCache` |  | `src/Source2.Compiler/Simulation/Gjk.cs:175` |
-| `1802ec220` | `RnGjk_Distance` | GJK distance between two proxies | `src/Source2.Compiler/Simulation/Gjk.cs:143`, `src/Source2.Compiler/Simulation/Gjk.cs:617`, `src/Source2.Compiler/Simulation/RoundCollision.cs:162` |
+| `1802ec220` | `RnGjk_Distance` | GJK distance between two proxies (navsystem's IslandRemoval boxes through 180073970; its own variant of navsystem's 1800eff20) | `src/Source2.Compiler/Simulation/Gjk.cs:143`, `src/Source2.Compiler/Simulation/Gjk.cs:617`, `src/Source2.Compiler/Simulation/RoundCollision.cs:162` |
 | `1802eca60` | `RnCapsuleHull_EdgeContact` |  | `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:352`, `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:526` |
 | `1802ed320` | `RnHull_EdgeContact` |  | `src/Source2.Compiler/Simulation/HullContacts.cs:133` |
 | `1802edc30` | `RnCapsuleHull_FaceContact` |  | `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:131`, `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:350`, `src/Source2.Compiler/Simulation/RoundCollision.Hull.cs:490` |

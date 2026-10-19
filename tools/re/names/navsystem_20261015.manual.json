@@ -274,7 +274,151 @@
    "addr": "180070780",
    "name": "NavGen_IslandRemoval",
    "module": "s2c:baked/navgen",
-   "note": "seeds and nav links from the RC input (not ported)"
+   "note": "all removed, flooded back from links, WALKABLESEED markups, seeds (+-40), ladders; all-hulls: listed polygons pull in removed ones within 4 (ledger 96)"
+  },
+  {
+   "addr": "180046720",
+   "name": "NavGrid2D_Init",
+   "module": "s2c:baked/navgen",
+   "note": "cells (int)(extent / size) + 1 a side over the XY bounds"
+  },
+  {
+   "addr": "180046c80",
+   "name": "NavGrid2D_Insert",
+   "module": "s2c:baked/navgen",
+   "note": "item into every cell of its clamped range"
+  },
+  {
+   "addr": "1800475e0",
+   "name": "NavGrid2D_Query",
+   "module": "s2c:baked/navgen",
+   "note": "iterator: rows, columns, cell entries, each once (180046870 init, 180046a40 get, 180046a80 next, 180048960 done)"
+  },
+  {
+   "addr": "18006e460",
+   "name": "NavGen_FindPolyNear",
+   "module": "s2c:baked/navgen",
+   "note": "first polygon in grid order a +-16 box touches"
+  },
+  {
+   "addr": "18006e5f0",
+   "name": "NavGen_FloodFill",
+   "module": "s2c:baked/navgen",
+   "note": "breadth first over connections and link pairs to removed polygons; each reached one to the callback"
+  },
+  {
+   "addr": "180077c50",
+   "name": "NavGen_IslandListAppend",
+   "module": "s2c:baked/navgen",
+   "note": "std::function slot +0x10 (vtable 1800ff790): append to the list"
+  },
+  {
+   "addr": "180078490",
+   "name": "NavGen_BoxTouchesPoly",
+   "module": "s2c:baked/navgen",
+   "note": "eight corners against the polygon: vphysics2 interface +0x190 <= 0"
+  },
+  {
+   "addr": "180078360",
+   "name": "NavGen_MarkupTouchesPoly",
+   "module": "s2c:baked/navgen",
+   "note": "local box grown by 1 through the markup matrix, vphysics2 interface +0x190 <= 0"
+  },
+  {
+   "addr": "1800ed7d0",
+   "name": "TransformAABB",
+   "module": "s2c:baked/navgen",
+   "note": "local box through a matrix3x4 to world bounds"
+  },
+  {
+   "addr": "1800a29c0",
+   "name": "PointsAABB",
+   "module": "s2c:baked/navgen",
+   "note": "float bounds of a point list"
+  },
+  {
+   "addr": "1800a3060",
+   "name": "NavGen_HullDistance",
+   "module": "s2c:baked/navgen",
+   "note": "two proxies (1800a2800) under CTransforms, GJK (1800f09d0, 32 iterations) minus the radii, at least 0"
+  },
+  {
+   "addr": "1800a2800",
+   "name": "GjkProxy_Init",
+   "module": "s2c:baked/navgen",
+   "note": "type 0/1 sphere-like, 2 box corners, 3 capsule, 4 point list (+0x18 points, +0x20 count)"
+  },
+  {
+   "addr": "1800f09d0",
+   "name": "Gjk_DistanceNoCache",
+   "module": "s2c:baked/navgen",
+   "note": "empty cache"
+  },
+  {
+   "addr": "1800eff20",
+   "name": "Gjk_Distance",
+   "module": "s2c:baked/navgen",
+   "note": "simplex of 0x2c-byte vertices, weights at +0xb4; overlap on four vertices or a tiny direction"
+  },
+  {
+   "addr": "1800f1200",
+   "name": "GjkSimplex_ReadCache",
+   "module": "s2c:baked/navgen",
+   "note": "empty cache: both first points"
+  },
+  {
+   "addr": "1800f0a20",
+   "name": "GjkSimplex_SearchDirection",
+   "module": "s2c:baked/navgen",
+   "note": "-w; (e x -w0) x e; the face normal away from w0"
+  },
+  {
+   "addr": "1800f0c80",
+   "name": "GjkProxy_Support",
+   "module": "s2c:baked/navgen",
+   "note": "farthest along d from point 0, ties keep the first"
+  },
+  {
+   "addr": "1800f14b0",
+   "name": "GjkSimplex_Solve3",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800f1b80",
+   "name": "GjkSimplex_Solve4",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800ef850",
+   "name": "TriangleBarycentric",
+   "module": "s2c:baked/navgen",
+   "note": "areas opposite each corner about a point, squared normal"
+  },
+  {
+   "addr": "1800ef460",
+   "name": "TetrahedronBarycentric",
+   "module": "s2c:baked/navgen",
+   "note": "volumes opposite each corner, signed by the whole"
+  },
+  {
+   "addr": "1800efb20",
+   "name": "GjkSimplex_WitnessPoints",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800f0f70",
+   "name": "GjkSimplex_Metric",
+   "module": "s2c:baked/navgen",
+   "note": "length, area or volume"
+  },
+  {
+   "addr": "180004240",
+   "name": "TransformIdentity_Init",
+   "module": "s2c:baked/navgen",
+   "note": "(0,0,0,1) into 180139f10 and 180139f20; runs before 180004200 copies them to 180139ed0"
   },
   {
    "addr": "1800732d0",
