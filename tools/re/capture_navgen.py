@@ -247,6 +247,32 @@ function hook() {
         chunks([ints([count]), count > 0 ? this.out.add(8).readPointer().readByteArray(count * 0x20) : new ArrayBuffer(0)]));
     }
   });
+  // The connection block a polygon holds at +0x80 from GenerateConnections on (18006ea50, 0x4a8 bytes):
+  // seven CUtlVectorFixedGrowable<_, 8> at int offsets 0 (0x68-byte connections), 0xd6, 0xe4, 0xf2,
+  // 0x100, 0x10e, 0x11c (ints): count +0, data +8, inline storage after the 0x10-byte header.
+  // <tag>_conn: per polygon int32 present; then the raw block and, per vector, its elements when they
+  // live outside the block.
+  const vecs = [[0, 0x68], [0xd6 * 4, 4], [0xe4 * 4, 4], [0xf2 * 4, 4], [0x100 * 4, 4], [0x10e * 4, 4], [0x11c * 4, 4]];
+  function dumpConnections(tag, vec) {
+    const count = vec.readS32();
+    if (count <= 0) return;
+    const data = vec.add(8).readPointer();
+    const parts = [];
+    let any = false;
+    for (let i = 0; i < count; i++) {
+      const blk = data.add(i * 0x88 + 0x80).readPointer();
+      if (blk.isNull()) { parts.push(ints([0])); continue; }
+      any = true;
+      parts.push(ints([1]), blk.readByteArray(0x4a8));
+      for (const [off, size] of vecs) {
+        const n = blk.add(off).readS32(), p = blk.add(off + 8).readPointer();
+        const inside = p.compare(blk) >= 0 && p.compare(blk.add(0x4a8)) < 0;
+        parts.push(ints([inside ? 0 : n]));
+        if (!inside && n > 0) parts.push(p.readByteArray(n * size));
+      }
+    }
+    if (any) send({tag: tag + '_conn'}, chunks(parts));
+  }
   for (const [rva, kind] of [[0x207c0, 1], [0x207f0, 2]]) {
     Interceptor.attach(mod.base.add(rva), {
       onEnter(args) {
@@ -254,9 +280,11 @@ function hook() {
         const name = args[0].add(0x10).readPointer().readCString();
         this.tag = String(n++).padStart(3, '0') + '_' + name;
         dump(this.tag + '_in', this.ctx.add(0x30).readPointer());
+        dumpConnections(this.tag + '_in', this.ctx.add(0x30).readPointer());
       },
       onLeave(ret) {
         dump(this.tag + '_out', this.ctx.add(kind === 1 ? 0x30 : 0x38).readPointer());
+        dumpConnections(this.tag + '_out', this.ctx.add(kind === 1 ? 0x30 : 0x38).readPointer());
       }
     });
   }
@@ -302,7 +330,7 @@ def main():
             tag = msg["payload"]["tag"]
             with open(os.path.join(out_dir, tag + ".bin"), "wb") as f:
                 f.write(data)
-            if not tag.startswith(("recast_", "tile_", "chf_", "collect_", "input_", "m")):
+            if not tag.startswith(("recast_", "tile_", "chf_", "collect_", "input_", "m")) and not tag.endswith("_conn"):
                 count, vcount = struct.unpack_from("<ii", data)
                 stages.append((tag, count, vcount))
 

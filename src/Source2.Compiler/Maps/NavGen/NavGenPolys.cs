@@ -24,6 +24,10 @@ public sealed class NavPoly
     /// <summary>+0x48: the unit normal, doubles.</summary>
     public double Nx, Ny, Nz;
 
+    /// <summary>+0x10 / +0x18, written by GenerateConnections (180077130): the origin's distance to the
+    /// polygon's first triangle (quads: the nearer of two) and its farthest corner from the origin.</summary>
+    public double SortKey, Reach;
+
     /// <summary>+0x60: 5 on creation.</summary>
     public short Field60 = 5;
 

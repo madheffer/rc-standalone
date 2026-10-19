@@ -121,6 +121,30 @@ public sealed class NavGenMergeTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// GenerateConnections' polygon order (stage 023): the keys of 180077130 at +0x10 / +0x18 and the
+    /// sort, against Valve's output records.
+    /// </summary>
+    [Fact]
+    public void ConnectionSortMatchesValve()
+    {
+        var stages = Environment.GetEnvironmentVariable("NAVGEN_INPUT") ?? Path.Combine(Path.GetTempPath(), "navgen_capture", "probe01_in");
+        var input = Path.Combine(stages, "023_GenerateConnections_in.bin");
+        if (!File.Exists(input))
+            return;
+        var g = NavGenInputTests.LoadStage(input);
+        g.SortForConnections();
+        var b = File.ReadAllBytes(Path.Combine(stages, "023_GenerateConnections_out.bin"));
+        var valve = NavGenInputTests.LoadStage(Path.Combine(stages, "023_GenerateConnections_out.bin"));
+        Assert.Null(NavGenInputTests.Compare(g, valve));
+        for (var i = 0; i < g.Polys.Count; i++)
+        {
+            var at = 8 + i * 0x88;
+            Assert.Equal(BitConverter.DoubleToInt64Bits(g.Polys[i].SortKey), System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(b.AsSpan(at + 0x10)));
+            Assert.Equal(BitConverter.DoubleToInt64Bits(g.Polys[i].Reach), System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(b.AsSpan(at + 0x18)));
+        }
+    }
+
     /// <summary>MergePolys whole from stage 013's input, every inner call against its dump, then the stage output.</summary>
     [Fact]
     public void MergePolysMatchesValve()

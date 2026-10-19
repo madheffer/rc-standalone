@@ -588,7 +588,8 @@ public sealed partial class NavGenPolys
     /// 1800584f0 (MergePolys' last pass, 4) and 180059240 (LimitMaxPolyEdges, 4): a polygon with more
     /// corners becomes a fan of pieces of up to that many corners from the first anchor corner whose
     /// pieces keep the largest fan area above 0.01 and smallest / largest above 0.05 (floats); the
-    /// pieces keep the polygon's normal and fields. No anchor: a triangulation (1800f3780, not ported).
+    /// pieces keep the polygon's normal and fields. No anchor: the triangulation of
+    /// <see cref="NavGenTriangulate"/> (1800f3780).
     /// </summary>
     public List<NavPoly> SplitToFans(int maxCorners)
     {
@@ -635,9 +636,23 @@ public sealed partial class NavGenPolys
                 if (ok)
                     pieces = list;
             }
-            if (pieces is null)
-                throw new NotSupportedException("polygon split needs the triangulation fallback (navsystem 1800f3780), not ported");
-            result.AddRange(pieces);
+            if (pieces is not null)
+            {
+                result.AddRange(pieces);
+                continue;
+            }
+            // No anchor: triangulate (1800f3780) the float corners about the float normal; each triangle
+            // keeps the polygon's fields with its own plane (18004d9a0). Fewer than 3 indices drop it.
+            var tris = new List<int>();
+            var count = NavGenTriangulate.Triangulate([.. x.Indices.Select(i => ((float)Pool[i].X, (float)Pool[i].Y, (float)Pool[i].Z))],
+                ((float)x.Nx, (float)x.Ny, (float)x.Nz), tris, (n - 2) * 3);
+            for (var t = 2; t < count; t += 3)
+            {
+                var tri = x.Clone();
+                tri.Indices = [x.Indices[tris[t - 2]], x.Indices[tris[t - 1]], x.Indices[tris[t]]];
+                ComputePlane(tri);
+                result.Add(tri);
+            }
         }
         return result;
     }
