@@ -11,9 +11,8 @@ namespace Source2.Compiler.Gpu;
 /// Our own bake of a vrad3 job folder (<see cref="Vrad3Job"/>), in place of vrad3: the lightmap
 /// on the GPU with Valve's own vrad3 SPIR-V (<see cref="RtxBakeHost"/>), the script's
 /// post-process and its EXRs (<see cref="LightmapBaker.PostProcess"/>; byte for byte on
-/// ze_hold_em_p, ledger 84), then the probe volumes. The probe volumes still bake on the CPU
-/// through the transpiled raygen (<see cref="LightProbeVolumeBaker"/>), close to vrad3's but not
-/// its bytes.
+/// ze_hold_em_p, ledger 84), then the probe volumes with Valve's rtx_vrad3_lpv on the same host
+/// (<see cref="RtxBakeHost.BakeLpv"/>) and the CPU post-process.
 /// </summary>
 public static class OwnLightingBake
 {
@@ -109,24 +108,24 @@ public static class OwnLightingBake
             File.WriteAllBytes(Path.Combine(folder, "direct_light_shadows.exr"), shadows.Write());
             File.WriteAllBytes(Path.Combine(folder, "lightmap_chart_color.exr"), chart.Write());
             log.WriteLine($"  bake: lightmap post-process done at {watch.Elapsed.TotalSeconds:F1} s");
+
+            foreach (var v in script.Volumes)
+            {
+                var r = host.BakeLpv(new LightProbeVolumeBaker.Volume(v.X, v.Y, v.Z, v.Mins, v.Maxs, v.LocalToWorld), v.MinSpp, v.MaxSpp, v.Error, log.WriteLine);
+                var grid = new LightProbeVolumePost.Grid(v.X, v.Y, v.Z, r.SolidMask);
+                LightProbeVolumePost.AmbientOcclusion(r.AmbientCube, grid);
+                LightProbeVolumePost.RemoveFireflies(r.AmbientCube, grid, 3f);
+                LightProbeVolumePost.DilateShadows(r.ShadowIds, r.Shadow, v.X, v.Y, v.Z);
+                var dlshd = LightProbeVolumePost.DirectLightShadows(r.ShadowIds, r.Shadow, v.X, v.Y, v.Z);
+                LightProbeVolumePost.Dilate(r.AmbientCube, grid);
+                LightProbeVolumePost.WriteOpenBand(r.AmbientCube, grid);
+                LightProbeVolumePost.MedianFilter(r.AmbientCube, grid, v.Median);
+                File.WriteAllBytes(Path.Combine(folder, $"lpv_{v.Id}_ambientcube.exr"), Rgba(r.Width, r.Height, r.AmbientCube).Write());
+                File.WriteAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr"), Rgba(v.X * v.Z, v.Y, dlshd).Write());
+                log.WriteLine($"  bake: probe volume {v.Id} ({v.X}x{v.Y}x{v.Z}) at {watch.Elapsed.TotalSeconds:F1} s");
+            }
         }
 
-        foreach (var v in script.Volumes)
-        {
-            var baker = new LightProbeVolumeBaker(scene, new BakeHits(scene) { Rtx = rtx }, permutations) { Threads = Math.Max(1, Environment.ProcessorCount / 2) };
-            var r = baker.Bake(new LightProbeVolumeBaker.Volume(v.X, v.Y, v.Z, v.Mins, v.Maxs, v.LocalToWorld), v.MinSpp, v.MaxSpp, v.Error);
-            var grid = new LightProbeVolumePost.Grid(v.X, v.Y, v.Z, r.SolidMask);
-            LightProbeVolumePost.AmbientOcclusion(r.AmbientCube, grid);
-            LightProbeVolumePost.RemoveFireflies(r.AmbientCube, grid, 3f);
-            LightProbeVolumePost.DilateShadows(r.ShadowIds, r.Shadow, v.X, v.Y, v.Z);
-            var dlshd = LightProbeVolumePost.DirectLightShadows(r.ShadowIds, r.Shadow, v.X, v.Y, v.Z);
-            LightProbeVolumePost.Dilate(r.AmbientCube, grid);
-            LightProbeVolumePost.WriteOpenBand(r.AmbientCube, grid);
-            LightProbeVolumePost.MedianFilter(r.AmbientCube, grid, v.Median);
-            File.WriteAllBytes(Path.Combine(folder, $"lpv_{v.Id}_ambientcube.exr"), Rgba(r.Width, r.Height, r.AmbientCube).Write());
-            File.WriteAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr"), Rgba(v.X * v.Z, v.Y, dlshd).Write());
-            log.WriteLine($"  bake: probe volume {v.Id} ({v.X}x{v.Y}x{v.Z}) at {watch.Elapsed.TotalSeconds:F1} s");
-        }
     }
 
     private static Vrad3Exr Rgba(int width, int height, float[] rgba)

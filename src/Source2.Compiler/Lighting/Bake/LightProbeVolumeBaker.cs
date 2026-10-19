@@ -59,7 +59,7 @@ public sealed class LightProbeVolumeBaker(BakeScene scene, BakeHits hits, ushort
     public int Threads { get; init; } = Environment.ProcessorCount;
     public Action<string>? Log { get; init; }
 
-    private const uint Seed = 0xea213b00;
+    internal const uint Seed = 0xea213b00;
     // The draw scale vrad3 multiplies the SFMT words by (0x1802a7e88, read at 1800328aa and 1800361e2):
     // 0x2f7ffffd, three ulps under 2^-32, so a draw of 0xffffffff gives 0.9999998, never 1.
     private static readonly float DrawScale = BitConverter.UInt32BitsToSingle(0x2f7ffffd);
@@ -172,7 +172,13 @@ public sealed class LightProbeVolumeBaker(BakeScene scene, BakeHits hits, ushort
                 Log?.Invoke($"lpv pass {pass + 1} of {maxSpp}");
         }
 
-        // read back
+        return ReadBack(luxels, n, mask, solidAfterVoxelize);
+    }
+
+    /// <summary>The readback: each cell's six ambient cube faces (at least 0) into the image, and the baked shadow slots as sum / weight with their light index.</summary>
+    internal static Result ReadBack(LpvLuxel_t_natural[] luxels, int[] n, uint[] mask, int solidAfterVoxelize)
+    {
+        var cells = n[0] * n[1] * n[2];
         int w = n[0] * n[2], h = n[1] * 7;
         var image = new float[w * h * 4];
         var ids = Enumerable.Repeat((byte)255, cells * 4).ToArray();
@@ -202,7 +208,7 @@ public sealed class LightProbeVolumeBaker(BakeScene scene, BakeHits hits, ushort
         return new Result { AmbientCube = image, Width = w, Height = h, ShadowIds = ids, Shadow = shadow, SolidMask = mask, SolidAfterVoxelize = solidAfterVoxelize };
     }
 
-    private static vec4 Offset(uint d1, uint d2, uint d3) => new((float)d3 * DrawScale + 0f, (float)d2 * DrawScale + 0f, (float)d1 * DrawScale + 0f, 0f);
+    internal static vec4 Offset(uint d1, uint d2, uint d3) => new((float)d3 * DrawScale + 0f, (float)d2 * DrawScale + 0f, (float)d1 * DrawScale + 0f, 0f);
 
     private static readonly (int X, int Y, int Z)[] Neighbours = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (-1, 0, 0), (0, -1, 0), (0, 0, -1)];
 

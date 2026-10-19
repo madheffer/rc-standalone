@@ -174,7 +174,7 @@ public class CpuBakeTests(ITestOutputHelper output)
         }
         if (Environment.GetEnvironmentVariable("CPUBAKE_LPV") is { Length: > 0 } lpv)
         {
-            BakeLpv(folder, scene, rtx, permutations, lpv);
+            BakeLpv(folder, scene, rtx, permutations, lpv, gpuHost);
             return;
         }
         var baker = new LightmapBaker(scene, packing, permutations)
@@ -616,7 +616,7 @@ public class CpuBakeTests(ITestOutputHelper output)
     /// <see cref="LightProbeVolumeBaker"/> (<c>CPUBAKE_LPVSPP</c> caps the passes) against vrad3's
     /// lpv_&lt;id&gt;_ambientcube_noisy.exr, face band by band, and the solid cells against Valve's empty ones.
     /// </summary>
-    private void BakeLpv(string folder, BakeScene scene, RtxScene? rtx, ushort[] permutations, string which)
+    private void BakeLpv(string folder, BakeScene scene, RtxScene? rtx, ushort[] permutations, string which, Source2.Compiler.Gpu.RtxBakeHost? gpu = null)
     {
         var script = File.ReadAllLines(Path.Combine(folder, "script-gpu.vrad3"));
         string? id = null;
@@ -649,7 +649,8 @@ public class CpuBakeTests(ITestOutputHelper output)
                 };
                 var watch = System.Diagnostics.Stopwatch.StartNew();
                 var v = new LightProbeVolumeBaker.Volume(cells[0], cells[1], cells[2], new Vector3(box[0], box[1], box[2]), new Vector3(box[3], box[4], box[5]), l2w);
-                var r = baker.Bake(v, (int)args[6], maxSpp, args[8]);
+                // CPUBAKE_GPU=1: Valve's rtx_vrad3_lpv on the GPU host.
+                var r = gpu != null ? gpu.BakeLpv(v, (int)args[6], maxSpp, args[8], output.WriteLine) : baker.Bake(v, (int)args[6], maxSpp, args[8]);
                 output.WriteLine($"lpv {id}: {cells[0]}x{cells[1]}x{cells[2]}, {maxSpp} passes in {watch.Elapsed.TotalSeconds:F1} s; solid after voxelize {r.SolidAfterVoxelize}, after flood fill {r.SolidMask.Count(m => m != 0)} of {r.SolidMask.Length}");
                 var grid = new LightProbeVolumePost.Grid(cells[0], cells[1], cells[2], r.SolidMask);
                 LightProbeVolumePost.AmbientOcclusion(r.AmbientCube, grid);

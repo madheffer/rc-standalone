@@ -29,6 +29,9 @@ public sealed class SpirvReflection
     /// <summary>Every OpEntryPoint: its execution model (5313 raygen, 5314 intersection, 5315 any-hit, 5316 closest-hit, 5317 miss, 5318 callable, 5 compute) and name.</summary>
     public List<(int Model, string Name)> EntryPoints { get; } = [];
     public List<Resource> Resources { get; } = [];
+
+    /// <summary>The push constant block, when the module declares one.</summary>
+    public Resource? PushConstants { get; private set; }
     public List<Input> Inputs { get; } = [];
     public List<int> Capabilities { get; } = [];
     public List<string> Extensions { get; } = [];
@@ -113,6 +116,23 @@ public sealed class SpirvReflection
                     var (baseType, components) = r.Scalar(pointee);
                     r.Inputs.Add(new Input((int)location, name, baseType, components));
                 }
+                continue;
+            }
+            if (storage == 9) // PushConstant: the block's members, a row_major matrix marked
+            {
+                var block = r.Unarray(pointee).Element;
+                var bt = r._types[block];
+                var pushMembers = new List<Member>();
+                var pushSize = 0;
+                for (uint m = 0; m < bt.Length - 2; m++)
+                {
+                    var offset = (int)(r.MemberDec(block, m, 35) ?? 0);
+                    var msize = r.Size(bt[2 + m], r.MemberDec(block, m, 6), r.MemberDec(block, m, 7));
+                    pushMembers.Add(new Member(r._memberNames.GetValueOrDefault((block, m), $"_m{m}"), offset, msize,
+                        r.Describe(bt[2 + m]) + (r.MemberDec(block, m, 4) != null ? " row_major" : "") + (r.MemberDec(block, m, 7) is { } stride ? $" stride {stride}" : "")));
+                    pushSize = Math.Max(pushSize, offset + msize);
+                }
+                r.PushConstants = new Resource(-1, -1, Kind.Other, 1, pushSize, pushMembers, name, r._names.GetValueOrDefault(block, $"_{block}"), "");
                 continue;
             }
             if (r.Dec(id, 34) is not { } set || r.Dec(id, 33) is not { } binding) // DescriptorSet, Binding

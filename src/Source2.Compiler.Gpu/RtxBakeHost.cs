@@ -309,6 +309,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
                 }
         }
         _lightmap = Pipeline(Spirv(lightmapProgram.Rtx, lightmapStatic, lightmapDynamic), hitModules);
+        (_hitModules, _rtxShaders, _executionReordering) = (hitModules, shaders, executionReordering);
         var validationProgram = shaders.Get("rtx_vrad3_lightmap_sample_validation") ?? throw new FileNotFoundException("rtx_vrad3_lightmap_sample_validation");
         _validation = Pipeline(Spirv(validationProgram.Rtx, 0, 0), hitModules);
 
@@ -412,7 +413,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     // A ray tracing pipeline: group 0 the raygen, then per hit module and ray type 0, 1 a triangles
     // hit group of its ClosestHitN and AnyHitN entries. The SBT: raygen, two zeroed miss records,
     // the hit records in group order (instance SBT offset 2 x hit module).
-    private (Pipeline, GpuDevice.GpuBuffer, StridedDeviceAddressRegionKHR[]) Pipeline(byte[] raygen, byte[][] hits)
+    private (Pipeline, GpuDevice.GpuBuffer, StridedDeviceAddressRegionKHR[]) Pipeline(byte[] raygen, byte[][] hits, PipelineLayout? layout = null)
     {
         // As vrad3 creates them (tools/vrad3/capture_pipelines.py): one stage per group, the raygen,
         // then every hit program's ray type 0 stage, then every one's ray type 1 stage; an empty
@@ -469,7 +470,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
             var info = new RayTracingPipelineCreateInfoKHR
             {
                 SType = StructureType.RayTracingPipelineCreateInfoKhr, StageCount = (uint)stageArray.Length, PStages = ps,
-                GroupCount = (uint)groupArray.Length, PGroups = pg, MaxPipelineRayRecursionDepth = 1, Layout = _pipelineLayout,
+                GroupCount = (uint)groupArray.Length, PGroups = pg, MaxPipelineRayRecursionDepth = 1, Layout = layout ?? _pipelineLayout,
             };
             pipeline = CreateDeferred(&info);
         }
@@ -1031,16 +1032,18 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         return luxels;
     }
 
-    private void Trace((Pipeline Pipeline, GpuDevice.GpuBuffer Sbt, StridedDeviceAddressRegionKHR[] Regions) p, DescriptorSet pass, byte[]? push, uint width, uint height, uint depth)
+    private void Trace((Pipeline Pipeline, GpuDevice.GpuBuffer Sbt, StridedDeviceAddressRegionKHR[] Regions) p, DescriptorSet pass, byte[]? push, uint width, uint height, uint depth,
+                       PipelineLayout? layout = null)
     {
+        var pl = layout ?? _pipelineLayout;
         _gpu.Submit(cmd =>
         {
             _vk.CmdBindPipeline(cmd, PipelineBindPoint.RayTracingKhr, p.Pipeline);
             var sets = stackalloc DescriptorSet[] { _scene, _bindless, _view, pass };
-            _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.RayTracingKhr, _pipelineLayout, 3, 4, sets, 0, null);
+            _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.RayTracingKhr, pl, 3, 4, sets, 0, null);
             if (push != null)
                 fixed (byte* pp = push)
-                    _vk.CmdPushConstants(cmd, _pipelineLayout, ShaderStageFlags.RaygenBitKhr, 0, 64, pp);
+                    _vk.CmdPushConstants(cmd, pl, ShaderStageFlags.RaygenBitKhr, 0, (uint)push.Length, pp);
             fixed (StridedDeviceAddressRegionKHR* r = p.Regions)
                 _cmdTraceRays(cmd, &r[0], &r[1], &r[2], &r[3], width, height, depth);
             var barrier = new MemoryBarrier { SType = StructureType.MemoryBarrier, SrcAccessMask = AccessFlags.ShaderWriteBit, DstAccessMask = AccessFlags.HostReadBit | AccessFlags.ShaderReadBit };
@@ -1147,6 +1150,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
     public void Dispose()
     {
         EndResources();
+        DestroyLpv();
         if (_pipelineCache.Handle != 0)
             _vk.DestroyPipelineCache(_gpu.Device, _pipelineCache, null);
         DestroyRaster();
