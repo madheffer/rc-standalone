@@ -72,13 +72,57 @@ public static class NavGenInput
     }
 
     /// <summary>
+    /// Which settle-world bodies are in the world navsystem reads: resourcecompiler builds that world as
+    /// its own PhysDoc whose node filter (20260923 180f4d220, 20261015 180f4d790) runs with flags 0x16
+    /// (captured: every nav compile; the settle's PhysDoc has 0). With the node's owner the nearest
+    /// entity at or above it: 0x10 and a true GenerateNav key keep it; a mesh under an entity needs
+    /// solidity 2 (a missing key reads 1) and, with 0x10, no true AlwaysSolidIgnoreNav (flag 2); an
+    /// owner whose solid key is 0 drops it (flag 4). Not modelled: flag 2's test for a non-mesh node
+    /// (the entity's +0x550 and FUN_180dd2210), smart props and physics pins, and FUN_180f4bb00.
+    /// </summary>
+    public static Func<SettleWorld.BodyBuild, bool> NavWorldFilter(DmxBinary.Document document)
+    {
+        var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        foreach (var e in SettleWorld.AllDocuments(document).SelectMany(d => d.Elements))
+            foreach (var child in e.GetElements("children"))
+                parents.TryAdd(child, e);
+        static string? Key(DmxBinary.Element entity, string name)
+        {
+            if (entity.Get<DmxBinary.Element>("entity_properties") is not { } props)
+                return null;
+            foreach (var (k, v) in props.Attributes)
+                if (string.Equals(k, name, StringComparison.OrdinalIgnoreCase))
+                    return v?.ToString();
+            return null;
+        }
+        static int Int(string? v, int fallback) => int.TryParse(v, System.Globalization.CultureInfo.InvariantCulture, out var i) ? i : fallback;
+        static bool Bool(string? v) => v is not null && (v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase) || Int(v, 0) != 0);
+        return body =>
+        {
+            if (body.Node is not { } node)
+                return true;
+            var owner = node;
+            while (owner is not null && owner.Type != "CMapEntity")
+                owner = parents.GetValueOrDefault(owner);
+            if (owner is null)
+                return true;
+            if (Bool(Key(owner, "GenerateNav")))
+                return true;
+            if (node.Type == "CMapMesh" && (Int(Key(owner, "solidity"), 1) != 2 || Bool(Key(owner, "AlwaysSolidIgnoreNav"))))
+                return false;
+            return Int(Key(owner, "solid"), -1) != 0;
+        };
+    }
+
+    /// <summary>
     /// 180048b20 without generation bounds or NONAV markups (both unported): the settle world's
     /// bodies in order (the document's own body first, which has no shapes), skipping the ones in
     /// <paramref name="dynamicBodies"/> (type 2), each passing mesh shape's triangles, then the body
-    /// transform. Shapes other than meshes are not ported and throw.
+    /// transform. Hulls fan their faces over their own vertices (vphysics2 180130e60); spheres and
+    /// capsules are not ported and throw.
     /// </summary>
     public static (List<Vector3> Verts, List<int> Indices) Extract(IReadOnlyList<SettleWorld.BodyBuild> bodies, SettleWorld.CollisionRules rules,
-                                                                  ISet<int>? dynamicBodies = null)
+                                                                  ISet<int>? dynamicBodies = null, Func<SettleWorld.BodyBuild, bool>? inNavWorld = null)
     {
         var navclip = rules.TryLayer("navclip", out var bits) ? bits : 0ul;
         var table = Simulation.CollisionGroupTable.Build();
@@ -88,13 +132,38 @@ public static class NavGenInput
         {
             var body = bodies[bi];
             var bodyType = dynamicBodies?.Contains(bi) == true ? 2 : 0;
-            if (bodyType >= 2)
+            if (bodyType >= 2 || inNavWorld?.Invoke(body) == false)
                 continue;
             var start = verts.Count;
             foreach (var shape in body.Shapes)
             {
                 if (!ShapePasses(shape.Attributes, bodyType, navclip, table))
                     continue;
+                if (shape.Hull is { } hull && shape.Type == Simulation.BroadphaseShape.HullType)
+                {
+                    // vphysics2 180130e60: the hull's vertices times its scale, then each face fanned
+                    // from its first half-edge's origin.
+                    var at = verts.Count;
+                    foreach (var p in hull.VertexPositions)
+                        verts.Add(new Vector3(p.X * shape.HullScale, p.Y * shape.HullScale, p.Z * shape.HullScale));
+                    foreach (var face in hull.Faces)
+                    {
+                        var first = hull.Edges[face];
+                        var p1 = hull.Edges[first.Next];
+                        var p2 = hull.Edges[p1.Next];
+                        while (true)
+                        {
+                            indices.Add(at + first.Origin);
+                            indices.Add(at + p1.Origin);
+                            indices.Add(at + p2.Origin);
+                            if (p2.Next == face)
+                                break;
+                            p1 = p2;
+                            p2 = hull.Edges[p2.Next];
+                        }
+                    }
+                    continue;
+                }
                 if (shape.Mesh is not { } mesh)
                     throw new NotSupportedException($"nav input from a type {shape.Type} shape is not ported");
                 // RnMesh flags bit 3 walks the BVH leaves; map meshes have no flags.

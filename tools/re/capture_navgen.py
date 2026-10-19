@@ -47,6 +47,26 @@ function dump(tag, vec) {
   all.set(new Uint8Array(verts), 8 + polys.byteLength);
   send({tag: tag}, all.buffer);
 }
+// resourcecompiler.dll 20261015: PhysDoc_ctor (180f4ab90; 20260923 180f4a620) and the node filter it
+// collects with (180f4d790; 20260923 180f4d220): each PhysDoc's flags word (+0) and who built it, and
+// the filter's rejections per flags word, as notes.
+function hookRc() {
+  const rc = Process.findModuleByName('resourcecompiler.dll');
+  if (rc === null) { setTimeout(hookRc, 5); return; }
+  Interceptor.attach(rc.base.add(0xf4ab90), { onEnter(args) {
+    send({note: 'PhysDoc flags ' + args[2].toInt32() + ' from resourcecompiler.dll+0x' + this.returnAddress.sub(rc.base).toString(16)}); } });
+  const rejected = {};
+  Interceptor.attach(rc.base.add(0xf4d790), {
+    onEnter(args) { this.flags = args[0].readU32(); },
+    onLeave(ret) {
+      if ((ret.toInt32() & 0xff) === 0) {
+        rejected[this.flags] = (rejected[this.flags] || 0) + 1;
+        if (rejected[this.flags] <= 20 || rejected[this.flags] % 100 === 0)
+          send({note: 'filter flags ' + this.flags + ' rejected ' + rejected[this.flags]});
+      }
+    } });
+}
+hookRc();
 function hook() {
   const mod = Process.findModuleByName('navsystem.dll');
   if (mod === null) { setTimeout(hook, 5); return; }
@@ -273,6 +293,17 @@ function hook() {
     }
     if (any) send({tag: tag + '_conn'}, chunks(parts));
   }
+  // IslandRemoval (180070780, first argument the processor): the RC's CNavGenInput at +8 (ledger 96):
+  // seeds +0x78 (float3), markups +0x90 (0x50), links +0xc0 (0x18), ladders +0x60 (0x1c); each written
+  // as int32 count then the raw entries.
+  Interceptor.attach(mod.base.add(0x70780), { onEnter(args) {
+    const input = args[0].add(8).readPointer();
+    if (input.isNull())
+      return;
+    for (const [name, off, size] of [['seeds', 0x78, 12], ['markups', 0x90, 0x50], ['links', 0xc0, 0x18], ['ladders', 0x60, 0x1c]]) {
+      const count = input.add(off).readS32();
+      send({tag: 'navinput_' + name}, chunks([ints([count]), count > 0 ? input.add(off + 8).readPointer().readByteArray(count * size) : new ArrayBuffer(0)]));
+    } } });
   for (const [rva, kind] of [[0x207c0, 1], [0x207f0, 2]]) {
     Interceptor.attach(mod.base.add(rva), {
       onEnter(args) {
@@ -330,7 +361,7 @@ def main():
             tag = msg["payload"]["tag"]
             with open(os.path.join(out_dir, tag + ".bin"), "wb") as f:
                 f.write(data)
-            if not tag.startswith(("recast_", "tile_", "chf_", "collect_", "input_", "m")) and not tag.endswith("_conn"):
+            if not tag.startswith(("recast_", "tile_", "chf_", "collect_", "input_", "navinput_", "m")) and not tag.endswith("_conn"):
                 count, vcount = struct.unpack_from("<ii", data)
                 stages.append((tag, count, vcount))
 

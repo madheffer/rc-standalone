@@ -2207,6 +2207,23 @@ game can answer is raised with the user first, and runs with -insecure.
       of each pair is stack garbage (probe01: 0xaa, then b9 ef e9 00 00
       00), the other zero; 18006cb10 (RemoveSmallAreasOnEdge's compaction)
       clears +0x61, so later stages see 0.
+    - The world navsystem extracts from is resourcecompiler's own PhysDoc
+      whose node filter (20260923 180f4d220, 20261015 180f4d790) runs
+      with flags 0x16; the settle's PhysDoc is built with 0 (both captured
+      by capture_navgen.py's PhysDoc/filter hooks on cardtest and
+      s2c_prefabprobe4). Owner = nearest entity at or above the node:
+      flag 0x10 with GenerateNav true keeps it; flag 2 makes a mesh under
+      an entity need solidity 2 (missing reads 1) and, with 0x10, no
+      AlwaysSolidIgnoreNav; flag 4 drops an owner whose solid key is 0.
+      cardtest's func_brush (Solidity 1) is the case seen; with it out,
+      cardtest from the .vmap is Valve's through stage 025 (292 triangles,
+      55 polygons, 178 connections). NavGenInput.NavWorldFilter; flag 2's
+      non-mesh test (entity +0x550, FUN_180dd2210), smart props and
+      physics pins, and FUN_180f4bb00 are not modelled.
+    - Hull shapes in the nav input (vphysics2 180130e60): the hull's
+      vertices times the shape scale appended once, then each face fanned
+      from its first half-edge's origin (next, next of next, until the
+      next returns to the first).
     - Fan-split triangulation (1800f3780, ledger 95): call_navsystem.py
       triangulate, 4000 cases, every index list Valve's
       (NavGenTriangulateTests). GenerateConnections' blocks: probe01's 42

@@ -17,6 +17,9 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
     private const string Content = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\content\csgo_addons\s2c_rc_probe\maps\";
     private const string AddonGame = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe";
 
+    /// <summary>The s2c_rc_probe map the dumps came from (<c>NAVGEN_MAP</c>, default probe01).</summary>
+    internal static string MapName => Environment.GetEnvironmentVariable("NAVGEN_MAP") ?? "probe01";
+
     private static string? Dir()
     {
         var dir = Environment.GetEnvironmentVariable("NAVGEN_INPUT") ?? Path.Combine(Path.GetTempPath(), "navgen_capture", "probe01_in");
@@ -151,7 +154,7 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
     {
         if (Dir() is not { } dir || !File.Exists(Path.Combine(dir, "recast_params.bin")) || CS2Fixtures.StockPak() is not { } pak)
             return;
-        var settings = MapSettings(DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")), pak);
+        var settings = MapSettings(DmxBinary.ReadFile(Path.Combine(Content, MapName + ".vmap")), pak);
         var ours = settings.Bytes();
         var valve = File.ReadAllBytes(Path.Combine(dir, "recast_params.bin"));
         foreach (var o in new[] { 0, 0x40, 0x58, 0x59 })
@@ -166,7 +169,7 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
                 continue;
             else
                 Assert.True(hull[o] == hulls[o], $"hull +{o:x}: ours {hull[o]:x2}, Valve {hulls[o]:x2}");
-        output.WriteLine($"probe01: {settings.Hulls.Count} hull ({settings.Hulls[0].Name}), cell {settings.CellSize}, edge error {settings.EdgeMaxError}; block and hull are Valve's");
+        output.WriteLine($"{MapName}: {settings.Hulls.Count} hull ({settings.Hulls[0].Name}), cell {settings.CellSize}, edge error {settings.EdgeMaxError}; block and hull are Valve's");
     }
 
     /// <summary>
@@ -180,14 +183,14 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         if (Dir() is not { } dir || !File.Exists(Path.Combine(dir, "005_Recast_out.bin")) || CS2Fixtures.StockPak() is not { } pak
             || MapFixtures.GameSchema() is not { } schema)
             return;
-        var vmap = Path.Combine(Content, "probe01.vmap");
+        var vmap = Path.Combine(Content, MapName + ".vmap");
         var document = DmxBinary.ReadFile(vmap);
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(vmap))!));
         using var models = new SettleBuildTests.PakModels(pak, AddonGame);
         var rules = new SettleWorld.CollisionRules();
         var bodies = SettleWorld.Build(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
             d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators), rules);
-        var (verts, indices) = NavGenInput.Extract(bodies, rules);
+        var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: NavGenInput.NavWorldFilter(document));
         var g = NavGenPolys.FromTriangles(verts, indices);
         Assert.Null(Compare(g, LoadStage(Path.Combine(dir, "000_ValidateVertices_out.bin"))));
         Assert.True(NavGenStages.BeforeRecast(g));
@@ -203,8 +206,25 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         var oriented = document.Elements.Any(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "info_nav_oriented_mesh");
         NavGenStages.AfterRecast(recast, oriented);
         Assert.Null(Compare(recast, LoadStage(Path.Combine(dir, "018_RemoveDegens_out.bin"))));
-        output.WriteLine($"probe01 from the map: {verts.Count / 3} triangles in, {polys.Count} polygons out of Recast, " +
-                         $"{recast.Polys.Count} polygons over {recast.Pool.Count} vertices after stage 018, all Valve's");
+        var at18 = recast.Polys.Count;
+
+        // 019 (no markups) and 022 (the hull clearance, not ported) pass these maps through.
+        var tol = (double)NavGenStages.WeldTolerance;
+        recast.Weld(tol, tol);
+        recast.RemoveDegens(tol);
+        Assert.Null(Compare(recast, LoadStage(Path.Combine(dir, "023_GenerateConnections_in.bin"))));
+        recast.GenerateConnections(new NavGenPolys.ConnectSettings());
+        recast.SplitBottleneckPolys(NavGenStages.BottleneckWidth);
+        recast.SplitPolysWithMultipleConnections(NavGenStages.MultiConnectionTol);
+        Assert.Null(Compare(recast, LoadStage(Path.Combine(dir, "025_SplitPolysWithMultipleConnections_out.bin"))));
+        var blocks = NavGenConnectionTests.LoadBlocks(Path.Combine(dir, "025_SplitPolysWithMultipleConnections_out_conn.bin"));
+        for (var i = 0; i < blocks.Count; i++)
+        {
+            var diff = NavGenConnectionTests.Compare(recast.Polys[i].Links, blocks[i], flag61: false);
+            Assert.True(diff is null, $"025 polygon {i}: {diff}");
+        }
+        output.WriteLine($"{MapName} from the map: {verts.Count / 3} triangles in, {polys.Count} polygons out of Recast, " +
+                         $"{at18} after stage 018, {recast.Polys.Count} with {recast.Polys.Sum(p => p.Links?.Count ?? 0)} connections after 025, all Valve's");
     }
 
     [Fact]
@@ -228,7 +248,7 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
     {
         if (Dir() is not { } dir || CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)
             return;
-        var vmap = Path.Combine(Content, "probe01.vmap");
+        var vmap = Path.Combine(Content, MapName + ".vmap");
         var document = DmxBinary.ReadFile(vmap);
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(vmap))!));
         using var models = new SettleBuildTests.PakModels(pak, AddonGame);
@@ -251,7 +271,11 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
                 foreach (var shape in body.Shapes)
                 {
                     if (shape.Mesh is not { } mesh)
+                    {
+                        if (bvhOrder)
+                            output.WriteLine($"  non-mesh: node {body.NodeId} {body.Node?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")} type {shape.Type} as {shape.Attributes.InteractsAs:x} with {shape.Attributes.InteractsWith:x} group {shape.Attributes.Group} flags {shape.Attributes.Flags:x} passes {NavGenInput.ShapePasses(shape.Attributes, 0, navclip, table)}");
                         continue;
+                    }
                     if (!NavGenInput.ShapePasses(shape.Attributes, 0, navclip, table))
                     {
                         output.WriteLine($"  filtered: node {body.NodeId} as {shape.Attributes.InteractsAs:x} with {shape.Attributes.InteractsWith:x} group {shape.Attributes.Group} flags {shape.Attributes.Flags:x}");

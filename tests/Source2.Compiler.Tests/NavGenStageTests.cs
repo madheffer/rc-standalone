@@ -7,11 +7,14 @@ namespace Source2.Compiler.Tests;
 
 /// <summary>
 /// Stages 024-029 one at a time from Valve's own input (polygons and connection blocks) against Valve's
-/// output, from tools/re/capture_navgen.py's dumps (<c>NAVGEN_INPUT</c>, default %TEMP%/navgen_capture/probe01_in).
+/// output, from tools/re/capture_navgen.py's dumps (<c>NAVGEN_INPUT</c>, default %TEMP%/navgen_capture/probe01_in;
+/// <c>NAVGEN_MAP</c> names the s2c_rc_probe map the dumps came from, default probe01).
 /// </summary>
 public sealed class NavGenStageTests(ITestOutputHelper output)
 {
     private const string Content = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\content\csgo_addons\s2c_rc_probe\maps\";
+
+    private static string Vmap() => Path.Combine(Content, (Environment.GetEnvironmentVariable("NAVGEN_MAP") ?? "probe01") + ".vmap");
 
     private static string Dir() => Environment.GetEnvironmentVariable("NAVGEN_INPUT") ?? Path.Combine(Path.GetTempPath(), "navgen_capture", "probe01_in");
 
@@ -56,7 +59,7 @@ public sealed class NavGenStageTests(ITestOutputHelper output)
     {
         if (CS2Fixtures.StockPak() is not { } pak)
             return;
-        var settings = NavGenInputTests.MapSettings(DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")), pak);
+        var settings = NavGenInputTests.MapSettings(DmxBinary.ReadFile(Vmap()), pak);
         Check("027_RemoveSmallAreasOnEdge", g => g.RemoveSmallAreasOnEdge(settings.SmallAreaOnEdgeRemovalSize, settings.Byte58 != 0));
     }
 
@@ -65,7 +68,7 @@ public sealed class NavGenStageTests(ITestOutputHelper output)
     {
         if (CS2Fixtures.StockPak() is not { } pak)
             return;
-        var vmap = Path.Combine(Content, "probe01.vmap");
+        var vmap = Vmap();
         var document = DmxBinary.ReadFile(vmap);
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(vmap))!));
         var settings = NavGenInputTests.MapSettings(document, pak);
