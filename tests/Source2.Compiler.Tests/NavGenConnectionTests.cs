@@ -51,7 +51,7 @@ public sealed class NavGenConnectionTests(ITestOutputHelper output)
         return blocks;
     }
 
-    private static string? Compare(NavLinks? ours, byte[][]? valve)
+    internal static string? Compare(NavLinks? ours, byte[][]? valve, bool flag61 = true)
     {
         if (ours is null || valve is null)
             return ours is null && valve is null ? null : $"block presence: ours {ours is not null}, Valve {valve is not null}";
@@ -71,6 +71,8 @@ public sealed class NavGenConnectionTests(ITestOutputHelper output)
             for (var k = 0; k < want.Length; k++)
                 if (want[k] != got[k])
                     return $"connection {i} field {k}: ours {got[k]:x}, Valve {want[k]:x}";
+            if (r[0x60] != c.Kind || (flag61 && r[0x61] != c.Flag61))
+                return $"connection {i} bytes +0x60/+0x61: ours {c.Kind}/{c.Flag61}, Valve {r[0x60]}/{r[0x61]}";
         }
         int[] Ints(byte[] bytes) => [.. Enumerable.Range(0, bytes.Length / 4).Select(k => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(k * 4)))];
         if (!ours.Slots.SequenceEqual(Ints(valve[1])))
@@ -79,6 +81,32 @@ public sealed class NavGenConnectionTests(ITestOutputHelper output)
             if (!ours.PerEdge[e].SequenceEqual(Ints(valve[2 + e])))
                 return $"edge {e}: ours [{string.Join(",", ours.PerEdge[e])}], Valve [{string.Join(",", Ints(valve[2 + e]))}]";
         return null;
+    }
+
+    /// <summary>A dumped block as ours (connections, slots, per-edge lists).</summary>
+    internal static NavLinks? ToLinks(byte[][]? valve)
+    {
+        if (valve is null)
+            return null;
+        int[] Ints(byte[] bytes) => [.. Enumerable.Range(0, bytes.Length / 4).Select(k => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(k * 4)))];
+        var links = new NavLinks();
+        for (var i = 0; i < valve[0].Length / 0x68; i++)
+        {
+            var r = valve[0].AsSpan(i * 0x68, 0x68).ToArray();
+            int I(int o) => BinaryPrimitives.ReadInt32LittleEndian(r.AsSpan(o));
+            double D(int o) => BinaryPrimitives.ReadDoubleLittleEndian(r.AsSpan(o));
+            links.Connections.Add(new NavConnection
+            {
+                PolyA = I(0), EdgeA = I(4), PolyB = I(8), EdgeB = I(0xc),
+                OverlapA = D(0x10), StartA = D(0x18), MidA = (D(0x20), D(0x28), D(0x30)),
+                OverlapB = D(0x38), StartB = D(0x40), MidB = (D(0x48), D(0x50), D(0x58)),
+                Kind = r[0x60], Flag61 = r[0x61],
+            });
+        }
+        links.Slots = [.. Ints(valve[1])];
+        for (var e = 0; e < 5; e++)
+            links.PerEdge[e] = [.. Ints(valve[2 + e])];
+        return links;
     }
 
     [Fact]
@@ -96,7 +124,8 @@ public sealed class NavGenConnectionTests(ITestOutputHelper output)
         var total = 0;
         for (var i = 0; i < blocks.Count; i++)
         {
-            Assert.True(Compare(g.Polys[i].Links, blocks[i]) is null, $"polygon {i}: {Compare(g.Polys[i].Links, blocks[i])}");
+            // +0x61 is stack garbage on one side of each pair until 18006cb10 clears it (0xaa on probe01).
+            Assert.True(Compare(g.Polys[i].Links, blocks[i], flag61: false) is null, $"polygon {i}: {Compare(g.Polys[i].Links, blocks[i], flag61: false)}");
             total += g.Polys[i].Links?.Connections.Count ?? 0;
         }
         output.WriteLine($"{g.Polys.Count} polygons, {total} connections, Valve's");

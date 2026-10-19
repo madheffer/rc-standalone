@@ -37,8 +37,7 @@ public sealed partial class NavGenPolys
     /// The polygons left removed are dropped as 18006cb10 does, but connections keep +0x61 and one to
     /// polygon -1 goes too; ladder indices follow. Skipped (nothing removed) when the settings' +0x58
     /// byte is set. The seed and link boxes are tested with vphysics2's GJK (CVPhysics2Interface vfn
-    /// 0x190, 180073970: touching when the distance is at most 0.125), stood in for here by navsystem's
-    /// (<see cref="NavGjk"/>).
+    /// 0x190, 180073970: touching when the distance is at most 0.125, <see cref="NavGjk.PhysicsDistance"/>).
     /// </summary>
     public void IslandRemoval(NavIslandInput input, bool allHulls, bool skip)
     {
@@ -149,10 +148,7 @@ public sealed partial class NavGenPolys
             (min.X - 0f, min.Y - 0f, max.Z + 0f), (max.X + 0f, min.Y - 0f, max.Z + 0f),
             (min.X - 0f, max.Y + 0f, max.Z + 0f), (max.X + 0f, max.Y + 0f, max.Z + 0f),
         ];
-        var d = NavGjk.Distance(box, polygon);
-        if (d <= 0.125f)
-            d = 0f;
-        return d <= 0f;
+        return NavGjk.PhysicsDistance(box, polygon) <= 0f;
     }
 
     // 18006e460: the first polygon in the grid's order that a 16-unit box round the point touches.

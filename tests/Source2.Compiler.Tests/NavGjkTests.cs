@@ -56,16 +56,16 @@ public sealed class NavGjkTests(ITestOutputHelper output)
                 if (bad++ < 5)
                     output.WriteLine($"case {cases - 1} ({c.GetProperty("kind").GetString()}): ours {ours:R}, navsystem {nav:R}");
             }
-            // vphysics2's own GJK: the seed and link test only reads whether it is at most 0.125.
-            if ((ours <= 0.125f) != (phys <= 0f))
+            var physOurs = NavGjk.PhysicsDistance(a, b);
+            if (BitConverter.SingleToInt32Bits(physOurs) != BitConverter.SingleToInt32Bits(phys))
             {
                 if (physBad++ < 5)
-                    output.WriteLine($"case {cases - 1} ({c.GetProperty("kind").GetString()}): ours {ours:R}, vphysics2 {phys:R}");
+                    output.WriteLine($"case {cases - 1} ({c.GetProperty("kind").GetString()}): ours {physOurs:R}, vphysics2 {phys:R}");
             }
-            if (phys > 0f && phys != ours)
+            if ((ours <= 0.125f) != (phys <= 0f))
                 physDiffer++;
         }
-        output.WriteLine($"{cases} cases, {bad} differ from navsystem, {physBad} touch tests differ from vphysics2 ({physDiffer} vphysics2 distances differ)");
+        output.WriteLine($"{cases} cases, {bad} differ from navsystem, {physBad} from vphysics2 ({physDiffer} touch tests would differ with navsystem's)");
         Assert.Equal(0, bad);
         Assert.Equal(0, physBad);
     }

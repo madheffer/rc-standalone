@@ -2130,9 +2130,12 @@ game can answer is raised with the user first, and runs with -insecure.
 96. **Nav generation's IslandRemoval (029), its GJK and the walkable seeds**
     (decompile and disassembly of navsystem 20261015, vphysics2 20261015
     (code identical to 20260924 at these addresses) and resourcecompiler
-    20260923 (the Ghidra build), 2026-10-20. Hand-made cases only; the distances wait on
-    tools/re/call_navsystem.py gjk with CS2 closed. Maps/NavGen
-    NavGjk.cs, NavGenIslands.cs, NavGenMapInput.cs.)
+    20260923 (the Ghidra build), 2026-10-20. Verified with CS2 closed:
+    tools/re/call_navsystem.py gjk, 4000 cases, both GJKs bit for bit
+    (NavGjkTests); probe01's stages 024, 025, 027 and 029 from Valve's
+    input, polygons and connection blocks exact (NavGenStageTests, seeds
+    from the .vmap: one, (512, -64, 16)). Maps/NavGen NavGjk.cs,
+    NavGenIslands.cs, NavGenMapInput.cs.)
     - Which runs: the stage list builds IslandRemoval twice, single-hull
       (nav_gen_island_removal, 0) then all-hulls
       (nav_gen_island_removal_all_hulls, 1), so 029 is the all-hulls one.
@@ -2193,8 +2196,21 @@ game can answer is raised with the user first, and runs with -insecure.
       solver 180318460, support 1802eb9e0 with a box fast path, add
       180315ab0, distance x, y, z), then 0 when at most 0.125;
       navsystem's test is <= 0. Both box transforms are the identity
-      (180110da0, 1800ff930). Not ported: NavGjk stands in for it
-      (call_navsystem.py gjk records both).
+      (180110da0, 1800ff930). It is navsystem's algorithm and layout with
+      every three-term dot product summed (x + y) + z where navsystem's
+      is (y + z) + x (edges, lengths, triangle barycentrics 180315fa0,
+      |v|^2, |d|^2, the face direction's sign test, the final distance),
+      and a vanishing direction ends without forcing 0; the support dot,
+      weighted sums and tetrahedron (180315bb0) are the same.
+      NavGjk.PhysicsDistance.
+    - Connection record +0x61..+0x67 after GenerateConnections: one side
+      of each pair is stack garbage (probe01: 0xaa, then b9 ef e9 00 00
+      00), the other zero; 18006cb10 (RemoveSmallAreasOnEdge's compaction)
+      clears +0x61, so later stages see 0.
+    - Fan-split triangulation (1800f3780, ledger 95): call_navsystem.py
+      triangulate, 4000 cases, every index list Valve's
+      (NavGenTriangulateTests). GenerateConnections' blocks: probe01's 42
+      polygons, 132 connections, Valve's (NavGenConnectionTests).
     - The RC seeds (180f21760): point_nav_walkable entities
       (FUN_180fc7220 search, flags 3), per instance path (FUN_180f88460,
       an identity path when none) the translation of the step matrix

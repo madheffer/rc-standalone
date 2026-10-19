@@ -10,9 +10,34 @@ namespace Source2.Compiler.Maps.NavGen;
 /// both first points, 1800f0a20 picks the search direction, 1800f0c80 the support, 1800f14b0 and
 /// 1800f1b80 solve three and four vertices (barycentrics 1800ef850 and 1800ef460), 1800efb20 gives
 /// the witness points. Float order is the disassembly's (tools/re/symsse.py: every sum left-nested).
+/// vphysics2's GJK (1802ec220, through CVPhysics2Interface slot 0x190) is the same algorithm and layout
+/// with every three-term dot product ending on z where navsystem's ends on x (edges, lengths, triangle
+/// barycentrics, |v|^2, |d|^2, the face direction's sign test, the final distance), and no forced zero
+/// when the direction vanishes; the support's dot and the weighted sums are the same in both.
 /// </summary>
 public static class NavGjk
 {
+    private interface IOrder
+    {
+        /// <summary>A dot product's three per-axis terms summed in the build's order.</summary>
+        static abstract float Dot(float x, float y, float z);
+
+        /// <summary>Whether a vanishing search direction counts as overlap (distance 0).</summary>
+        static abstract bool ZeroOnTinyDirection { get; }
+    }
+
+    private readonly struct NavOrder : IOrder
+    {
+        public static float Dot(float x, float y, float z) => y + z + x;
+        public static bool ZeroOnTinyDirection => true;
+    }
+
+    private readonly struct PhysicsOrder : IOrder
+    {
+        public static float Dot(float x, float y, float z) => x + y + z;
+        public static bool ZeroOnTinyDirection => false;
+    }
+
     private struct Vertex
     {
         public int IA, IB;
@@ -38,8 +63,22 @@ public static class NavGjk
         public Weights L;
     }
 
-    /// <summary>The distance between the hulls of a and b (0 when they overlap), at most 32 iterations.</summary>
+    /// <summary>navsystem's distance between the hulls of a and b (0 when they overlap), at most 32 iterations.</summary>
     public static float Distance(ReadOnlySpan<(float X, float Y, float Z)> a, ReadOnlySpan<(float X, float Y, float Z)> b, int maxIterations = 32)
+        => Run<NavOrder>(a, b, maxIterations);
+
+    /// <summary>
+    /// vphysics2's distance (18029b6f0: point lists, scale 1, 32 iterations) as CVPhysics2Interface slot
+    /// 0x190 returns it with identity matrices: 0 when at most 0.125.
+    /// </summary>
+    public static float PhysicsDistance(ReadOnlySpan<(float X, float Y, float Z)> a, ReadOnlySpan<(float X, float Y, float Z)> b)
+    {
+        var d = Run<PhysicsOrder>(a, b, 32);
+        return 0.125f >= d ? 0f : d;
+    }
+
+    private static float Run<T>(ReadOnlySpan<(float X, float Y, float Z)> a, ReadOnlySpan<(float X, float Y, float Z)> b, int maxIterations)
+        where T : struct, IOrder
     {
         var s = new Simplex { Count = 1 };
         s.V[0] = Make(a, b, 0, 0);
@@ -64,13 +103,13 @@ public static class NavGjk
                     s.L[0] = 1f;
                     break;
                 case 2:
-                    ok = Solve2(ref s);
+                    ok = Solve2<T>(ref s);
                     break;
                 case 3:
-                    ok = Solve3(ref s);
+                    ok = Solve3<T>(ref s);
                     break;
                 case 4:
-                    ok = Solve4(ref s);
+                    ok = Solve4<T>(ref s);
                     break;
             }
             if (!ok)
@@ -106,16 +145,16 @@ public static class NavGjk
                 vy = v1.Wy * s.L[1] + v0.Wy * s.L[0] + v2.Wy * s.L[2];
                 vz = v1.Wz * s.L[1] + v0.Wz * s.L[0] + v2.Wz * s.L[2];
             }
-            var distSq = vy * vy + vz * vz + vx * vx;
+            var distSq = T.Dot(vx * vx, vy * vy, vz * vz);
             if (prev <= distSq)
             {
                 s = backup;
                 break;
             }
-            var (dx, dy, dz) = SearchDirection(ref s);
-            if (dy * dy + dz * dz + dx * dx < 1.17549435e-35f)
+            var (dx, dy, dz) = SearchDirection<T>(ref s);
+            if (T.Dot(dx * dx, dy * dy, dz * dz) < 1.17549435e-35f)
             {
-                overlap = true;
+                overlap = T.ZeroOnTinyDirection;
                 break;
             }
             var ia = Support(a, -dx, -dy, -dz);
@@ -143,7 +182,7 @@ public static class NavGjk
         var ex = pa.X - pb.X;
         var ey = pa.Y - pb.Y;
         var ez = pa.Z - pb.Z;
-        return MathF.Sqrt(ez * ez + ey * ey + ex * ex);
+        return MathF.Sqrt(T.Dot(ex * ex, ey * ey, ez * ez));
     }
 
     private static Vertex Make(ReadOnlySpan<(float X, float Y, float Z)> a, ReadOnlySpan<(float X, float Y, float Z)> b, int ia, int ib)
@@ -181,7 +220,7 @@ public static class NavGjk
     }
 
     // 1800f0a20: towards the origin from the point, the segment or the triangle.
-    private static (float X, float Y, float Z) SearchDirection(ref Simplex s)
+    private static (float X, float Y, float Z) SearchDirection<T>(ref Simplex s) where T : struct, IOrder
     {
         ref var v0 = ref s.V[0];
         switch (s.Count)
@@ -210,7 +249,7 @@ public static class NavGjk
                 var ny = e2x * (v1.Wz - v0.Wz) - (v2.Wz - v0.Wz) * e1x;
                 var nx = (v2.Wz - v0.Wz) * e1y - e2y * (v1.Wz - v0.Wz);
                 var nz = e2y * e1x - e2x * e1y;
-                if (0f <= v0.Wz * nz + v0.Wy * ny + nx * v0.Wx)
+                if (0f <= T.Dot(nx * v0.Wx, v0.Wy * ny, v0.Wz * nz))
                     return (-nx, -ny, -nz);
                 return (nx, ny, nz);
             }
@@ -220,23 +259,16 @@ public static class NavGjk
     }
 
     // The inline two-vertex solve in 1800eff20.
-    private static bool Solve2(ref Simplex s)
+    private static bool Solve2<T>(ref Simplex s) where T : struct, IOrder
     {
-        ref var v0 = ref s.V[0];
-        ref var v1 = ref s.V[1];
-        var ey = v1.Wy - v0.Wy;
-        var ez = v1.Wz - v0.Wz;
-        var ex = v1.Wx - v0.Wx;
-        var u = (v1.Wz - 0f) * ez + (v1.Wy - 0f) * ey + (v1.Wx - 0f) * ex;
-        var len = ez * ez + ey * ey + ex * ex;
-        var v = -((v0.Wz - 0f) * ez + (v0.Wy - 0f) * ey + (v0.Wx - 0f) * ex);
-        if (v <= 0f)
+        var (u, v, len) = Edge<T>(s.V[0], s.V[1]);
+        if (!(0f < v))
         {
             s.Count = 1;
             s.L[0] = 1f;
             return true;
         }
-        if (u <= 0f)
+        if (!(0f < u))
         {
             s.V[0] = s.V[1];
             s.Count = 1;
@@ -250,26 +282,26 @@ public static class NavGjk
         return true;
     }
 
-    // The edge terms Solve3 and Solve4 share: u (dot(b, b - a)), v (-dot(a, b - a)) and |b - a|^2, as each writes them.
-    private static (float U, float V, float Len) Edge(in Vertex a, in Vertex b)
+    // The edge terms every solve shares: u (dot(b, b - a)), v (-dot(a, b - a)) and |b - a|^2.
+    private static (float U, float V, float Len) Edge<T>(in Vertex a, in Vertex b) where T : struct, IOrder
     {
         var ex = b.Wx - a.Wx;
         var ey = b.Wy - a.Wy;
         var ez = b.Wz - a.Wz;
-        var u = (b.Wz - 0f) * ez + (b.Wy - 0f) * ey + (b.Wx - 0f) * ex;
-        var v = -((a.Wz - 0f) * ez + (a.Wy - 0f) * ey + (a.Wx - 0f) * ex);
-        return (u, v, ez * ez + ey * ey + ex * ex);
+        var u = T.Dot((b.Wx - 0f) * ex, (b.Wy - 0f) * ey, (b.Wz - 0f) * ez);
+        var v = -T.Dot((a.Wx - 0f) * ex, (a.Wy - 0f) * ey, (a.Wz - 0f) * ez);
+        return (u, v, T.Dot(ex * ex, ey * ey, ez * ez));
     }
 
-    // 1800f14b0.
-    private static bool Solve3(ref Simplex s)
+    // 1800f14b0 (vphysics2 180316df0).
+    private static bool Solve3<T>(ref Simplex s) where T : struct, IOrder
     {
         var w0 = s.V[0];
         var w1 = s.V[1];
         var w2 = s.V[2];
-        var (u01, v01, len01) = Edge(w0, w1);
-        var (u12, v12, len12) = Edge(w1, w2);
-        var (u20, v20, len20) = Edge(w2, w0);
+        var (u01, v01, len01) = Edge<T>(w0, w1);
+        var (u12, v12, len12) = Edge<T>(w1, w2);
+        var (u20, v20, len20) = Edge<T>(w2, w0);
         if (!(0f < v01) && !(0f < u20))
         {
             s.Count = 1;
@@ -290,7 +322,7 @@ public static class NavGjk
             s.L[0] = 1f;
             return true;
         }
-        var (t0, t1, t2, t3) = Triangle(w0, w1, w2);
+        var (t0, t1, t2, t3) = Triangle<T>(w0, w1, w2);
         if (!(0f < t2) && !(u01 <= 0f) && !(v01 <= 0f))
             return Pair(ref s, w0, w1, u01, v01, len01);
         if (!(0f < t0) && !(u12 <= 0f) && !(v12 <= 0f))
@@ -333,19 +365,19 @@ public static class NavGjk
         return true;
     }
 
-    // 1800f1b80.
-    private static bool Solve4(ref Simplex s)
+    // 1800f1b80 (vphysics2 1803174c0).
+    private static bool Solve4<T>(ref Simplex s) where T : struct, IOrder
     {
         var w0 = s.V[0];
         var w1 = s.V[1];
         var w2 = s.V[2];
         var w3 = s.V[3];
-        var (u01, v01, len01) = Edge(w0, w1);
-        var (u02, v02, len02) = Edge(w0, w2);
-        var (u03, v03, len03) = Edge(w0, w3);
-        var (u12, v12, len12) = Edge12(w1, w2);
-        var (u23, v23, len23) = Edge23(w2, w3);
-        var (u31, v31, len31) = Edge31(w3, w1);
+        var (u01, v01, len01) = Edge<T>(w0, w1);
+        var (u02, v02, len02) = Edge<T>(w0, w2);
+        var (u03, v03, len03) = Edge<T>(w0, w3);
+        var (u12, v12, len12) = Edge<T>(w1, w2);
+        var (u23, v23, len23) = Edge<T>(w2, w3);
+        var (u31, v31, len31) = Edge<T>(w3, w1);
         if (v01 <= 0f && v02 <= 0f && v03 <= 0f)
             return Single(ref s, w0);
         if (u01 <= 0f && u31 <= 0f && v12 <= 0f)
@@ -354,10 +386,10 @@ public static class NavGjk
             return Single(ref s, w2);
         if (u03 <= 0f && u23 <= 0f && v31 <= 0f)
             return Single(ref s, w3);
-        var ta = Triangle(w0, w2, w1);
-        var tb = Triangle(w0, w1, w3);
-        var tc = Triangle(w0, w3, w2);
-        var td = Triangle(w1, w2, w3);
+        var ta = Triangle<T>(w0, w2, w1);
+        var tb = Triangle<T>(w0, w1, w3);
+        var tc = Triangle<T>(w0, w3, w2);
+        var td = Triangle<T>(w1, w2, w3);
         if (!(0f < tb.C) && !(0f < ta.B) && !(u01 <= 0f) && !(v01 <= 0f))
             return Pair(ref s, w0, w1, u01, v01, len01);
         if (ta.C <= 0f && tc.B <= 0f && 0f < u02 && 0f < v02)
@@ -398,41 +430,9 @@ public static class NavGjk
         return true;
     }
 
-    // Solve4's edge 1-2 terms: u = dot(w2, e) with its terms y, z, x; v = -dot(w1, e) the same.
-    private static (float U, float V, float Len) Edge12(in Vertex a, in Vertex b)
-    {
-        var ex = b.Wx - a.Wx;
-        var ez = b.Wz - a.Wz;
-        var ey = b.Wy - a.Wy;
-        var u = ey * (b.Wy - 0f) + ez * (b.Wz - 0f) + ex * (b.Wx - 0f);
-        var v = -(ey * (a.Wy - 0f) + ez * (a.Wz - 0f) + ex * (a.Wx - 0f));
-        return (u, v, ez * ez + ey * ey + ex * ex);
-    }
-
-    // Solve4's edge 2-3 terms: u = dot(w3, e) with its terms z, y, x; v = -dot(w2, e) with y, z, x.
-    private static (float U, float V, float Len) Edge23(in Vertex a, in Vertex b)
-    {
-        var ey = b.Wy - a.Wy;
-        var ex = b.Wx - a.Wx;
-        var ez = b.Wz - a.Wz;
-        var u = ez * (b.Wz - 0f) + ey * (b.Wy - 0f) + ex * (b.Wx - 0f);
-        var v = -(ey * (a.Wy - 0f) + ez * (a.Wz - 0f) + ex * (a.Wx - 0f));
-        return (u, v, ez * ez + ey * ey + ex * ex);
-    }
-
-    // Solve4's edge 3-1 terms: u = dot(w1, e) with its terms y, z, x; v = -dot(w3, e) with z, y, x.
-    private static (float U, float V, float Len) Edge31(in Vertex a, in Vertex b)
-    {
-        var ex = b.Wx - a.Wx;
-        var ey = b.Wy - a.Wy;
-        var ez = b.Wz - a.Wz;
-        var u = ey * (b.Wy - 0f) + ez * (b.Wz - 0f) + ex * (b.Wx - 0f);
-        var v = -(ez * (a.Wz - 0f) + ey * (a.Wy - 0f) + ex * (a.Wx - 0f));
-        return (u, v, ez * ez + ey * ey + ex * ex);
-    }
-
-    // 1800ef850 about the origin: the signed areas opposite a, b and c, and the squared normal.
-    private static (float A, float B, float C, float D) Triangle(in Vertex a, in Vertex b, in Vertex c)
+    // 1800ef850 (vphysics2 180315fa0) about the origin: the signed areas opposite a, b and c, and the
+    // squared normal.
+    private static (float A, float B, float C, float D) Triangle<T>(in Vertex a, in Vertex b, in Vertex c) where T : struct, IOrder
     {
         var f1 = a.Wx - 0f;
         var f2 = a.Wz - 0f;
@@ -452,13 +452,13 @@ public static class NavGjk
         var ny = f6 * f5 - f4 * f8;
         var nx = f4 * f7 - f15 * f5;
         var nz = f15 * f8 - f6 * f7;
-        return ((f12 * f14 - f11 * f16) * nz + (f11 * f13 - f10 * f14) * ny + (f10 * f16 - f12 * f13) * nx,
-                (f1 * f10 - f2 * f11) * ny + (f3 * f11 - f1 * f12) * nz + (f2 * f12 - f3 * f10) * nx,
-                (f2 * f14 - f1 * f13) * ny + (f1 * f16 - f3 * f14) * nz + (f3 * f13 - f2 * f16) * nx,
-                nz * nz + ny * ny + nx * nx);
+        return (T.Dot((f10 * f16 - f12 * f13) * nx, (f11 * f13 - f10 * f14) * ny, (f12 * f14 - f11 * f16) * nz),
+                T.Dot((f2 * f12 - f3 * f10) * nx, (f1 * f10 - f2 * f11) * ny, (f3 * f11 - f1 * f12) * nz),
+                T.Dot((f3 * f13 - f2 * f16) * nx, (f2 * f14 - f1 * f13) * ny, (f1 * f16 - f3 * f14) * nz),
+                T.Dot(nx * nx, ny * ny, nz * nz));
     }
 
-    // 1800ef460 about the origin: the signed volumes opposite each corner, made positive with the
+    // 1800ef460 (vphysics2 180315bb0, the same) about the origin: the signed volumes opposite each corner, made positive with the
     // whole volume's sign, and that volume.
     private static (float A, float B, float C, float D, float V) Tetrahedron(in Vertex a, in Vertex b, in Vertex c, in Vertex d)
     {
