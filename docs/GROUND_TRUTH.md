@@ -1804,6 +1804,67 @@ game can answer is raised with the user first, and runs with -insecure.
       - the hull cast and ray (Valve's maps so far have meshes only);
       - the neighbour-index triangle variant (180243770);
       - the trigger overlap for a rotated or non-box trigger.
+92. **Nav generation's Recast stage** (settled 2026-10-19 by decompile of
+    navsystem.dll (20261015) and a Frida capture of probe01's compile,
+    tools/re/capture_navgen.py. Fed Valve's own stage input
+    (005_Recast_in), every one of probe01's 117 tiles matches Valve through
+    the poly mesh: the filtered solid heightfield span for span, the compact
+    heightfield (connections, areas after erosion, distances, regions), and
+    the poly mesh word for word. Maps/NavGen, NavGenRecastTests.)
+    - The pipeline: RC's nav step (1800fc370) collects, then navsystem runs
+      ~31 CNavGenPolyProcessor stages on a polygon list over a double vertex
+      pool. A Stage1 works in place; a Stage2 writes a new list that the
+      runner swaps in. Recast is one stage (180074330).
+    - Input (1800852a0): every pool vertex, used or not, goes to float and
+      through a 3x4 matrix, recast = (-0.0254 y, 0.0254 z, -0.0254 x): Recast
+      runs in metres, y up. Each row sums as (p0 m0 + p2 m2) + (p1 m1 + m3).
+      Polygons fan as (i0, i[k-1], i[k]).
+    - Config: every length setting times 0.0254 (float). Hull radius plus
+      *(180134b10)+0x58 (0.75). Heights in cells by ceilf (three hull
+      heights; the second and third INT_MAX when off), climb by floorf, radius
+      by ceilf, edge length by truncation, region areas squared, detail sample
+      distance 0 under the cell size. Border = radius + 3; tile width and
+      height = tile + 2 x border.
+    - Tiles: (int)(extent / (tile x cs)) + 1 each way, x outer, z inner,
+      each one job; results are collected in that order. A tile's bounds are
+      bmin + i x tcs and (i + 1) x tcs + bmin, padded by border x cs.
+    - Chunky mesh: 256 triangles a leaf, split at the middle after the CRT
+      qsort on the longer axis' minimum; subdivide stops only past maxNodes.
+    - Rasterising is Recast 1.5's clipper with 16-bit heights (0xffff). The
+      walkable test is the unit normal's y against cosf(slope / 180 x pi).
+    - Valve's own changes, all followed:
+      - addSpan: the merged area is decided from the new span's top before
+        the merge against each overlapped span's top. Equal tops take the
+        larger area. A higher overlapped span gives its area beyond the
+        climb, area 1 when it is unwalkable under a walkable new span, else
+        its area. A lower one within the climb that is walkable under an
+        unwalkable new span makes the new span area 1.
+      - Low hanging obstacles: an unwalkable span within the climb of the
+        last walkable span below it becomes area 1.
+      - Ledges: neighbour columns outside the heightfield are skipped.
+      - Low height: clearance must exceed one of three heights; a 0x3f span
+        becomes 0x3c, 0x3d or 0x3e by the tallest it clears.
+      - Compact heightfield: neighbours connect at the smallest of the three
+        heights; three heights stored (0xc, 0x10, 0x14), climb at 0x18.
+      - Erosion (1800aa900) replaces rcErodeWalkableArea: vector distance
+        transforms (d, dx, dz) and cylinder probes into the solid heightfield
+        (1800aaff0). Area-1 spans far from walkable ones are cleared,
+        area-1 spans are classed by the first hull height that fits, spans
+        near 0x3d/0x3e spans take that class, and spans within radius + 1 of
+        a blocking column with solid across their height are cleared.
+      - Poly mesh vertex buckets: (x x 0x343 + z x 799) & 0xfff.
+      - removeVertex is Recast 1.4's: each rebuilt poly takes its first hole
+        vertex's region, no multiple-region mark.
+    - Upstream Recast 1.5 otherwise: the distance field and box blur, the
+      level-stack watershed with border paint 0x8001-0x8004, region merge and
+      filter, contours with hole merging (its diags[i] slip kept),
+      simplification, triangulation (its next(i2) slip kept), poly merging,
+      adjacency and portal edges.
+    - The span flag bits above the area are never initialised by Valve
+      (pool memory), so only the area is compared.
+    - Open: the detail mesh (1800bd2e0) and the collect into CNavGenPolys
+      (180082280); the oriented path (1800873b0); the collectors that build
+      the stage input; the other 30 stages.
 
 ## Resolved
 

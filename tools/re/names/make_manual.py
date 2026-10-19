@@ -1049,6 +1049,90 @@ RESOURCECOMPILER = [
 
 BOMB = "s2c:baked/bomb"
 
+NAVGEN = "s2c:baked/navgen"
+
+# navsystem.dll (20261015): nav generation's polygon pipeline and its Recast (Maps/NavGen, ledger 92).
+NAVSYSTEM = [
+    ('1800217b0', 'NavGen_Generate', NAVGEN, "entry from RC's nav step: seed check, then the passes"),
+    ('1800260e0', 'NavGen_RunPass', NAVGEN, "'pass %d/%d: orig tris': one generation pass over the input polygons"),
+    ('180020820', 'NavGen_RunStages', NAVGEN, 'the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs'),
+    ('180022b60', 'NavGen_BuildStageList', NAVGEN, 'CNavGenPolyProcessor stages: vtable, +8 enabled, +9 drawable, +0x10 CUtlString name, +0x50 std::function'),
+    ('1800207c0', 'CNavGenPolyProcessorStage1::Run', NAVGEN, 'in place on *(ctx + 0x30); returns false'),
+    ('1800207f0', 'CNavGenPolyProcessorStage2::Run', NAVGEN, 'out *(ctx + 0x38), in *(ctx + 0x30); returns true'),
+    ('1800776d0', 'NavGen_ValidateVertices', NAVGEN, 'NavGenVertexData_t: CUtlVector<Vec3D<double>> at +0x18'),
+    ('180077930', 'NavGen_WeldVertices', NAVGEN, 'stage'),
+    ('180074570', 'NavGen_RemoveDegens', NAVGEN, 'stage -> 18005b5f0 / 18005b290'),
+    ('180074590', 'NavGen_RemovePolysMarkedNoNav', NAVGEN, 'stage'),
+    ('180076980', 'NavGen_TransformRecastNonZup', NAVGEN, 'stage'),
+    ('180076b70', 'NavGen_UnTransformRecastNonZup', NAVGEN, 'stage'),
+    ('180074330', 'NavGen_Recast', NAVGEN, "Recast stage: oriented path 1800873b0 when the bounds are unset and the stage block's +0x128 is set, else the tiled path 180084da0; arg 3 the generation settings (+0x48 hull table, 0x48 an entry)"),
+    ('180084da0', 'NavGen_RecastTiled', NAVGEN, '1800852a0 then 180081710; every output poly +0x62 = the stage byte'),
+    ('1800873b0', 'NavGen_RecastOriented', NAVGEN, 'the oriented-mesh Recast path (not ported)'),
+    ('1800852a0', 'NavGen_RecastBuildInput', NAVGEN, 'every pool vertex through the inches-to-metres matrix (recast = -0.0254y, 0.0254z, -0.0254x), bounds, fan (0, k-1, k), chunky mesh 256, then the config (settings x 0.0254; radius + *(180134b10)+0x58)'),
+    ('180081710', 'NavGen_RecastTiles', NAVGEN, 'tiles (int)(extent / (tile x cs)) + 1 each way, x outer z inner, one CNavGenRecastTile (0x128, vtable 1800ffd40) each, thread pool, collected in order'),
+    ('180082090', 'CNavGenRecastTile::Build', NAVGEN, 'rasterise + three filters, compact/erode/regions (1800850a0), contours (flags 1), poly mesh, detail mesh'),
+    ('1800814b0', 'CNavGenRecastTile::Rasterize', NAVGEN, 'chunks overlapping the tile, per chunk mark walkable + rasterise (flagMergeThr = climb)'),
+    ('1800850a0', 'CNavGenRecastTile::BuildRegions', NAVGEN, 'compact (min of three heights), Valve erode, median filter if *(1801386a8)+0x58, regions by *(1801386b8)+0x58: 0 watershed, 1 monotone, else layers'),
+    ('180082280', 'CNavGenRecastTile::Collect', NAVGEN, 'detail vertices back through the inverse matrix into the pool; each detail triangle a 3-vertex CNavGenPoly (18004fe30); area 0x20 flag 4 else 1; area 0x3d kind 1, 0x3e kind 2'),
+    ('1800a8870', 'rcCalcTileCount', NAVGEN, '(int)((bmax - bmin) / size) + 1'),
+    ('1800bedb0', 'rcCreateChunkyTriMesh', NAVGEN, 'items bounds (x, z), nodes nchunks x 4'),
+    ('1800bf0f0', 'rcChunkyTriMesh_Subdivide', NAVGEN, "returns only past maxNodes (upstream >=); CRT qsort on the longer axis' min, comparators 1800bed70 / 1800bed90"),
+    ('1800bf020', 'rcGetChunksOverlappingRect', NAVGEN, ''),
+    ('1800a88b0', 'rcCreateHeightfield', NAVGEN, 'spans 16 bytes: smin u16, smax u16, flags u32 (area low 6 bits, rest never initialised), next'),
+    ('1800a8b70', 'rcMarkWalkableTriangles', NAVGEN, 'cosf(slope / 180 * pi)'),
+    ('1800a9780', 'rcRasterizeTriangles', NAVGEN, ''),
+    ('1800a9230', 'rasterizeTri', NAVGEN, 'Recast 1.5 clip rasteriser, heights clamped to 0xffff'),
+    ('1800a8fc0', 'dividePoly', NAVGEN, ''),
+    ('1800a8d60', 'addSpan', NAVGEN, "Valve's area merge: decided from the new top against each overlapped top (area 1 marks)"),
+    ('1800a9f50', 'rcFilterLowHangingWalkableObstacles', NAVGEN, "Valve's: area 1 when within climb of the last walkable span below"),
+    ('1800a9a70', 'rcFilterLedgeSpans', NAVGEN, 'out-of-bounds neighbours skipped'),
+    ('1800a9910', 'rcFilterWalkableLowHeightSpans', NAVGEN, 'three heights; 0x3f becomes 0x3c / 0x3d / 0x3e'),
+    ('1800a8af0', 'rcGetHeightFieldSpanCount', NAVGEN, ''),
+    ('1800a7ff0', 'rcBuildCompactHeightfield', NAVGEN, 'chf: wh 0xc, wh2 0x10, wh3 0x14, climb 0x18, border 0x1c, maxDist 0x20, maxRegions 0x22, bmin 0x24, cells 0x48, spans 0x50, dist 0x58, areas 0x60, dbg flags 0x68'),
+    ('1800aa900', 'rcErodeWalkableArea_Valve', NAVGEN, "Valve's erosion: aab30, ab1d0, aa060/aa390 sweeps, abb50, aace0, ab460, aa740"),
+    ('1800aab30', 'NavErode_ClearFarArea1', NAVGEN, 'area-1 spans at (r/2)^2 or beyond from areas above 1 cleared'),
+    ('1800ab1d0', 'NavErode_InitBoundaries', NAVGEN, 'd = 0 on unwalkable spans and spans short of a walkable neighbour (heightfield edge not counted)'),
+    ('1800aa060', 'NavErode_SweepForward', NAVGEN, 'vector distance transform (d, dx, dz)'),
+    ('1800aa390', 'NavErode_SweepBackward', NAVGEN, ''),
+    ('1800aaff0', 'NavErode_CylinderBlocked', NAVGEN, 'nearest column within r holding solid in the capsule y+r .. y+h-r'),
+    ('1800abb50', 'NavErode_ClassifyArea1', NAVGEN, ''),
+    ('1800aace0', 'NavErode_SpreadHeightClasses', NAVGEN, 'within r+1 of 0x3e / 0x3d'),
+    ('1800ab460', 'NavErode_ProbeBoundaries', NAVGEN, ''),
+    ('1800aa740', 'NavErode_CutNearObstacles', NAVGEN, ''),
+    ('1800ab780', 'rcMedianFilterWalkableArea', NAVGEN, 'behind a convar (off)'),
+    ('1800afdc0', 'rcBuildDistanceField', NAVGEN, ''),
+    ('1800ac5d0', 'calculateDistanceField', NAVGEN, ''),
+    ('1800ac260', 'boxBlur', NAVGEN, ''),
+    ('1800b05a0', 'rcBuildRegions', NAVGEN, 'Recast 1.5 watershed, 8 level stacks'),
+    ('1800b0de0', 'rcBuildRegionsMonotone', NAVGEN, ''),
+    ('1800aff50', 'rcBuildLayerRegions', NAVGEN, ''),
+    ('1800b1460', 'sortCellsByLevel', NAVGEN, ''),
+    ('1800acd10', 'expandRegions', NAVGEN, ''),
+    ('1800ad3d0', 'floodRegion', NAVGEN, ''),
+    ('1800ae7a0', 'mergeAndFilterRegions', NAVGEN, ''),
+    ('1800b1720', 'walkContour_regions', NAVGEN, ''),
+    ('1800acbd0', 'canMergeWithRegion', NAVGEN, ''),
+    ('1800af6d0', 'mergeRegions', NAVGEN, ''),
+    ('1800b2a10', 'rcBuildContours', NAVGEN, ''),
+    ('1800b4930', 'walkContour', NAVGEN, ''),
+    ('1800b1ba0', 'getCornerHeight', NAVGEN, ''),
+    ('1800b3880', 'simplifyContour', NAVGEN, ''),
+    ('1800b3700', 'removeDegenerateSegments', NAVGEN, ''),
+    ('1800b20f0', 'mergeRegionHoles', NAVGEN, 'the upstream diags[i] slip kept'),
+    ('1800b1ec0', 'intersect', NAVGEN, ''),
+    ('1800b5ce0', 'rcBuildPolyMesh', NAVGEN, 'vertex bucket (x * 0x343 + z * 799) & 0xfff'),
+    ('1800b8130', 'triangulate', NAVGEN, ''),
+    ('1800b5780', 'getPolyMergeValue', NAVGEN, ''),
+    ('1800b5120', 'canRemoveVertex', NAVGEN, ''),
+    ('1800b6b50', 'removeVertex', NAVGEN, "Recast 1.4 form: first hole vertex's region, no multiple-region mark"),
+    ('1800b4e50', 'buildMeshAdjacency', NAVGEN, ''),
+    ('1800bd2e0', 'rcBuildPolyMeshDetail', NAVGEN, ''),
+    ('1800deaf0', 'qsort', NAVGEN, 'CRT qsort, statically linked'),
+    ('1800de5f0', 'cosf', NAVGEN, 'CRT'),
+    ('1800ee160', 'Matrix3x4_TransformPoint', NAVGEN, '(p0 m0 + p2 m2) + (p1 m1 + m3) per row (1800edb00)'),
+    ('1800ed380', 'Matrix3x4_Invert', NAVGEN, ''),
+]
+
 # csgo's modtools.dll (20261015): the CS2 bomb damage bake (Maps/BombDamage.cs, ledger 91).
 MODTOOLS = [
     ("18003ad70", "CMapCompileModifierCS2BombDamage::Run", BOMB, "bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32"),
@@ -2397,6 +2481,7 @@ if __name__ == "__main__":
     write("materialsystem2_20261001.manual.json", MATERIALSYSTEM)
     write("vrad3_20261001.manual.json", VRAD3)
     write("modtools_20261015.manual.json", MODTOOLS)
+    write("navsystem_20261015.manual.json", NAVSYSTEM)
     write("resourcecompiler_20261006.manual.json", RESOURCECOMPILER_1006)
     write("tier0_20261015.manual.json", TIER0_1015)
     write("scenesystem_20261015.manual.json", SCENESYSTEM)

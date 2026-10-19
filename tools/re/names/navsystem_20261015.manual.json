@@ -1,0 +1,472 @@
+{
+ "functions": [
+  {
+   "addr": "1800217b0",
+   "name": "NavGen_Generate",
+   "module": "s2c:baked/navgen",
+   "note": "entry from RC's nav step: seed check, then the passes"
+  },
+  {
+   "addr": "1800260e0",
+   "name": "NavGen_RunPass",
+   "module": "s2c:baked/navgen",
+   "note": "'pass %d/%d: orig tris': one generation pass over the input polygons"
+  },
+  {
+   "addr": "180020820",
+   "name": "NavGen_RunStages",
+   "module": "s2c:baked/navgen",
+   "note": "the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs"
+  },
+  {
+   "addr": "180022b60",
+   "name": "NavGen_BuildStageList",
+   "module": "s2c:baked/navgen",
+   "note": "CNavGenPolyProcessor stages: vtable, +8 enabled, +9 drawable, +0x10 CUtlString name, +0x50 std::function"
+  },
+  {
+   "addr": "1800207c0",
+   "name": "CNavGenPolyProcessorStage1::Run",
+   "module": "s2c:baked/navgen",
+   "note": "in place on *(ctx + 0x30); returns false"
+  },
+  {
+   "addr": "1800207f0",
+   "name": "CNavGenPolyProcessorStage2::Run",
+   "module": "s2c:baked/navgen",
+   "note": "out *(ctx + 0x38), in *(ctx + 0x30); returns true"
+  },
+  {
+   "addr": "1800776d0",
+   "name": "NavGen_ValidateVertices",
+   "module": "s2c:baked/navgen",
+   "note": "NavGenVertexData_t: CUtlVector<Vec3D<double>> at +0x18"
+  },
+  {
+   "addr": "180077930",
+   "name": "NavGen_WeldVertices",
+   "module": "s2c:baked/navgen",
+   "note": "stage"
+  },
+  {
+   "addr": "180074570",
+   "name": "NavGen_RemoveDegens",
+   "module": "s2c:baked/navgen",
+   "note": "stage -> 18005b5f0 / 18005b290"
+  },
+  {
+   "addr": "180074590",
+   "name": "NavGen_RemovePolysMarkedNoNav",
+   "module": "s2c:baked/navgen",
+   "note": "stage"
+  },
+  {
+   "addr": "180076980",
+   "name": "NavGen_TransformRecastNonZup",
+   "module": "s2c:baked/navgen",
+   "note": "stage"
+  },
+  {
+   "addr": "180076b70",
+   "name": "NavGen_UnTransformRecastNonZup",
+   "module": "s2c:baked/navgen",
+   "note": "stage"
+  },
+  {
+   "addr": "180074330",
+   "name": "NavGen_Recast",
+   "module": "s2c:baked/navgen",
+   "note": "Recast stage: oriented path 1800873b0 when the bounds are unset and the stage block's +0x128 is set, else the tiled path 180084da0; arg 3 the generation settings (+0x48 hull table, 0x48 an entry)"
+  },
+  {
+   "addr": "180084da0",
+   "name": "NavGen_RecastTiled",
+   "module": "s2c:baked/navgen",
+   "note": "1800852a0 then 180081710; every output poly +0x62 = the stage byte"
+  },
+  {
+   "addr": "1800873b0",
+   "name": "NavGen_RecastOriented",
+   "module": "s2c:baked/navgen",
+   "note": "the oriented-mesh Recast path (not ported)"
+  },
+  {
+   "addr": "1800852a0",
+   "name": "NavGen_RecastBuildInput",
+   "module": "s2c:baked/navgen",
+   "note": "every pool vertex through the inches-to-metres matrix (recast = -0.0254y, 0.0254z, -0.0254x), bounds, fan (0, k-1, k), chunky mesh 256, then the config (settings x 0.0254; radius + *(180134b10)+0x58)"
+  },
+  {
+   "addr": "180081710",
+   "name": "NavGen_RecastTiles",
+   "module": "s2c:baked/navgen",
+   "note": "tiles (int)(extent / (tile x cs)) + 1 each way, x outer z inner, one CNavGenRecastTile (0x128, vtable 1800ffd40) each, thread pool, collected in order"
+  },
+  {
+   "addr": "180082090",
+   "name": "CNavGenRecastTile::Build",
+   "module": "s2c:baked/navgen",
+   "note": "rasterise + three filters, compact/erode/regions (1800850a0), contours (flags 1), poly mesh, detail mesh"
+  },
+  {
+   "addr": "1800814b0",
+   "name": "CNavGenRecastTile::Rasterize",
+   "module": "s2c:baked/navgen",
+   "note": "chunks overlapping the tile, per chunk mark walkable + rasterise (flagMergeThr = climb)"
+  },
+  {
+   "addr": "1800850a0",
+   "name": "CNavGenRecastTile::BuildRegions",
+   "module": "s2c:baked/navgen",
+   "note": "compact (min of three heights), Valve erode, median filter if *(1801386a8)+0x58, regions by *(1801386b8)+0x58: 0 watershed, 1 monotone, else layers"
+  },
+  {
+   "addr": "180082280",
+   "name": "CNavGenRecastTile::Collect",
+   "module": "s2c:baked/navgen",
+   "note": "detail vertices back through the inverse matrix into the pool; each detail triangle a 3-vertex CNavGenPoly (18004fe30); area 0x20 flag 4 else 1; area 0x3d kind 1, 0x3e kind 2"
+  },
+  {
+   "addr": "1800a8870",
+   "name": "rcCalcTileCount",
+   "module": "s2c:baked/navgen",
+   "note": "(int)((bmax - bmin) / size) + 1"
+  },
+  {
+   "addr": "1800bedb0",
+   "name": "rcCreateChunkyTriMesh",
+   "module": "s2c:baked/navgen",
+   "note": "items bounds (x, z), nodes nchunks x 4"
+  },
+  {
+   "addr": "1800bf0f0",
+   "name": "rcChunkyTriMesh_Subdivide",
+   "module": "s2c:baked/navgen",
+   "note": "returns only past maxNodes (upstream >=); CRT qsort on the longer axis' min, comparators 1800bed70 / 1800bed90"
+  },
+  {
+   "addr": "1800bf020",
+   "name": "rcGetChunksOverlappingRect",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800a88b0",
+   "name": "rcCreateHeightfield",
+   "module": "s2c:baked/navgen",
+   "note": "spans 16 bytes: smin u16, smax u16, flags u32 (area low 6 bits, rest never initialised), next"
+  },
+  {
+   "addr": "1800a8b70",
+   "name": "rcMarkWalkableTriangles",
+   "module": "s2c:baked/navgen",
+   "note": "cosf(slope / 180 * pi)"
+  },
+  {
+   "addr": "1800a9780",
+   "name": "rcRasterizeTriangles",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800a9230",
+   "name": "rasterizeTri",
+   "module": "s2c:baked/navgen",
+   "note": "Recast 1.5 clip rasteriser, heights clamped to 0xffff"
+  },
+  {
+   "addr": "1800a8fc0",
+   "name": "dividePoly",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800a8d60",
+   "name": "addSpan",
+   "module": "s2c:baked/navgen",
+   "note": "Valve's area merge: decided from the new top against each overlapped top (area 1 marks)"
+  },
+  {
+   "addr": "1800a9f50",
+   "name": "rcFilterLowHangingWalkableObstacles",
+   "module": "s2c:baked/navgen",
+   "note": "Valve's: area 1 when within climb of the last walkable span below"
+  },
+  {
+   "addr": "1800a9a70",
+   "name": "rcFilterLedgeSpans",
+   "module": "s2c:baked/navgen",
+   "note": "out-of-bounds neighbours skipped"
+  },
+  {
+   "addr": "1800a9910",
+   "name": "rcFilterWalkableLowHeightSpans",
+   "module": "s2c:baked/navgen",
+   "note": "three heights; 0x3f becomes 0x3c / 0x3d / 0x3e"
+  },
+  {
+   "addr": "1800a8af0",
+   "name": "rcGetHeightFieldSpanCount",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800a7ff0",
+   "name": "rcBuildCompactHeightfield",
+   "module": "s2c:baked/navgen",
+   "note": "chf: wh 0xc, wh2 0x10, wh3 0x14, climb 0x18, border 0x1c, maxDist 0x20, maxRegions 0x22, bmin 0x24, cells 0x48, spans 0x50, dist 0x58, areas 0x60, dbg flags 0x68"
+  },
+  {
+   "addr": "1800aa900",
+   "name": "rcErodeWalkableArea_Valve",
+   "module": "s2c:baked/navgen",
+   "note": "Valve's erosion: aab30, ab1d0, aa060/aa390 sweeps, abb50, aace0, ab460, aa740"
+  },
+  {
+   "addr": "1800aab30",
+   "name": "NavErode_ClearFarArea1",
+   "module": "s2c:baked/navgen",
+   "note": "area-1 spans at (r/2)^2 or beyond from areas above 1 cleared"
+  },
+  {
+   "addr": "1800ab1d0",
+   "name": "NavErode_InitBoundaries",
+   "module": "s2c:baked/navgen",
+   "note": "d = 0 on unwalkable spans and spans short of a walkable neighbour (heightfield edge not counted)"
+  },
+  {
+   "addr": "1800aa060",
+   "name": "NavErode_SweepForward",
+   "module": "s2c:baked/navgen",
+   "note": "vector distance transform (d, dx, dz)"
+  },
+  {
+   "addr": "1800aa390",
+   "name": "NavErode_SweepBackward",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800aaff0",
+   "name": "NavErode_CylinderBlocked",
+   "module": "s2c:baked/navgen",
+   "note": "nearest column within r holding solid in the capsule y+r .. y+h-r"
+  },
+  {
+   "addr": "1800abb50",
+   "name": "NavErode_ClassifyArea1",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800aace0",
+   "name": "NavErode_SpreadHeightClasses",
+   "module": "s2c:baked/navgen",
+   "note": "within r+1 of 0x3e / 0x3d"
+  },
+  {
+   "addr": "1800ab460",
+   "name": "NavErode_ProbeBoundaries",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800aa740",
+   "name": "NavErode_CutNearObstacles",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800ab780",
+   "name": "rcMedianFilterWalkableArea",
+   "module": "s2c:baked/navgen",
+   "note": "behind a convar (off)"
+  },
+  {
+   "addr": "1800afdc0",
+   "name": "rcBuildDistanceField",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800ac5d0",
+   "name": "calculateDistanceField",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800ac260",
+   "name": "boxBlur",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b05a0",
+   "name": "rcBuildRegions",
+   "module": "s2c:baked/navgen",
+   "note": "Recast 1.5 watershed, 8 level stacks"
+  },
+  {
+   "addr": "1800b0de0",
+   "name": "rcBuildRegionsMonotone",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800aff50",
+   "name": "rcBuildLayerRegions",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b1460",
+   "name": "sortCellsByLevel",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800acd10",
+   "name": "expandRegions",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800ad3d0",
+   "name": "floodRegion",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800ae7a0",
+   "name": "mergeAndFilterRegions",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b1720",
+   "name": "walkContour_regions",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800acbd0",
+   "name": "canMergeWithRegion",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800af6d0",
+   "name": "mergeRegions",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b2a10",
+   "name": "rcBuildContours",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b4930",
+   "name": "walkContour",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b1ba0",
+   "name": "getCornerHeight",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b3880",
+   "name": "simplifyContour",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b3700",
+   "name": "removeDegenerateSegments",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b20f0",
+   "name": "mergeRegionHoles",
+   "module": "s2c:baked/navgen",
+   "note": "the upstream diags[i] slip kept"
+  },
+  {
+   "addr": "1800b1ec0",
+   "name": "intersect",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b5ce0",
+   "name": "rcBuildPolyMesh",
+   "module": "s2c:baked/navgen",
+   "note": "vertex bucket (x * 0x343 + z * 799) & 0xfff"
+  },
+  {
+   "addr": "1800b8130",
+   "name": "triangulate",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b5780",
+   "name": "getPolyMergeValue",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b5120",
+   "name": "canRemoveVertex",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800b6b50",
+   "name": "removeVertex",
+   "module": "s2c:baked/navgen",
+   "note": "Recast 1.4 form: first hole vertex's region, no multiple-region mark"
+  },
+  {
+   "addr": "1800b4e50",
+   "name": "buildMeshAdjacency",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800bd2e0",
+   "name": "rcBuildPolyMeshDetail",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800deaf0",
+   "name": "qsort",
+   "module": "s2c:baked/navgen",
+   "note": "CRT qsort, statically linked"
+  },
+  {
+   "addr": "1800de5f0",
+   "name": "cosf",
+   "module": "s2c:baked/navgen",
+   "note": "CRT"
+  },
+  {
+   "addr": "1800ee160",
+   "name": "Matrix3x4_TransformPoint",
+   "module": "s2c:baked/navgen",
+   "note": "(p0 m0 + p2 m2) + (p1 m1 + m3) per row (1800edb00)"
+  },
+  {
+   "addr": "1800ed380",
+   "name": "Matrix3x4_Invert",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  }
+ ]
+}

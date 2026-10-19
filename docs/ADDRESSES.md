@@ -136,6 +136,96 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1803f1c80` | `VectorNormalizeWide` | double precision: (y^2 + x^2) + z^2, components times 1 / length | `src/Source2.Compiler/Maps/BombDamage.cs:520`, `src/Source2.Compiler/Maps/BombDamage.cs:647` |
 | `1803f2400` | `BoxTriangleOverlap` | Akenine-Moller SAT: triangle bounds, unit edges against the axes, unit normal; tolerance added to the reach | `src/Source2.Compiler/Maps/BombDamage.cs:71`, `src/Source2.Compiler/Maps/BombDamage.cs:583` |
 
+## navsystem.dll, build 20261015
+
+- file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
+- SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
+- installed: this build
+- 78 addresses
+
+### s2c:baked/navgen
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1800207c0` | `CNavGenPolyProcessorStage1::Run` | in place on *(ctx + 0x30); returns false |  |
+| `1800207f0` | `CNavGenPolyProcessorStage2::Run` | out *(ctx + 0x38), in *(ctx + 0x30); returns true |  |
+| `180020820` | `NavGen_RunStages` | the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs |  |
+| `1800217b0` | `NavGen_Generate` | entry from RC's nav step: seed check, then the passes |  |
+| `180022b60` | `NavGen_BuildStageList` | CNavGenPolyProcessor stages: vtable, +8 enabled, +9 drawable, +0x10 CUtlString name, +0x50 std::function |  |
+| `1800260e0` | `NavGen_RunPass` | 'pass %d/%d: orig tris': one generation pass over the input polygons |  |
+| `180074330` | `NavGen_Recast` | Recast stage: oriented path 1800873b0 when the bounds are unset and the stage block's +0x128 is set, else the tiled path 180084da0; arg 3 the generation settings (+0x48 hull table, 0x48 an entry) | `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:16` |
+| `180074570` | `NavGen_RemoveDegens` | stage -> 18005b5f0 / 18005b290 |  |
+| `180074590` | `NavGen_RemovePolysMarkedNoNav` | stage |  |
+| `180076980` | `NavGen_TransformRecastNonZup` | stage |  |
+| `180076b70` | `NavGen_UnTransformRecastNonZup` | stage |  |
+| `1800776d0` | `NavGen_ValidateVertices` | NavGenVertexData_t: CUtlVector<Vec3D<double>> at +0x18 |  |
+| `180077930` | `NavGen_WeldVertices` | stage |  |
+| `1800814b0` | `CNavGenRecastTile::Rasterize` | chunks overlapping the tile, per chunk mark walkable + rasterise (flagMergeThr = climb) | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:64` |
+| `180081710` | `NavGen_RecastTiles` | tiles (int)(extent / (tile x cs)) + 1 each way, x outer z inner, one CNavGenRecastTile (0x128, vtable 1800ffd40) each, thread pool, collected in order | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:5` |
+| `180082090` | `CNavGenRecastTile::Build` | rasterise + three filters, compact/erode/regions (1800850a0), contours (flags 1), poly mesh, detail mesh | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:5`, `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:34`, `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:64` +1 |
+| `180082280` | `CNavGenRecastTile::Collect` | detail vertices back through the inverse matrix into the pool; each detail triangle a 3-vertex CNavGenPoly (18004fe30); area 0x20 flag 4 else 1; area 0x3d kind 1, 0x3e kind 2 | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:6` |
+| `180084da0` | `NavGen_RecastTiled` | 1800852a0 then 180081710; every output poly +0x62 = the stage byte | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:4` |
+| `1800850a0` | `CNavGenRecastTile::BuildRegions` | compact (min of three heights), Valve erode, median filter if *(1801386a8)+0x58, regions by *(1801386b8)+0x58: 0 watershed, 1 monotone, else layers | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:88` |
+| `1800852a0` | `NavGen_RecastBuildInput` | every pool vertex through the inches-to-metres matrix (recast = -0.0254y, 0.0254z, -0.0254x), bounds, fan (0, k-1, k), chunky mesh 256, then the config (settings x 0.0254; radius + *(180134b10)+0x58) | `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:7`, `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:28`, `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:108` +3 |
+| `1800873b0` | `NavGen_RecastOriented` | the oriented-mesh Recast path (not ported) |  |
+| `1800a7ff0` | `rcBuildCompactHeightfield` | chf: wh 0xc, wh2 0x10, wh3 0x14, climb 0x18, border 0x1c, maxDist 0x20, maxRegions 0x22, bmin 0x24, cells 0x48, spans 0x50, dist 0x58, areas 0x60, dbg flags 0x68 | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:5`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:40` |
+| `1800a8870` | `rcCalcTileCount` | (int)((bmax - bmin) / size) + 1 | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:20` |
+| `1800a88b0` | `rcCreateHeightfield` | spans 16 bytes: smin u16, smax u16, flags u32 (area low 6 bits, rest never initialised), next | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:18` |
+| `1800a8af0` | `rcGetHeightFieldSpanCount` |  | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:383` |
+| `1800a8b70` | `rcMarkWalkableTriangles` | cosf(slope / 180 * pi) | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:19`, `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:45` |
+| `1800a8d60` | `addSpan` | Valve's area merge: decided from the new top against each overlapped top (area 1 marks) | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:20`, `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:215` |
+| `1800a8fc0` | `dividePoly` |  | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:20`, `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:79` |
+| `1800a9230` | `rasterizeTri` | Recast 1.5 clip rasteriser, heights clamped to 0xffff | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:19`, `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:136` |
+| `1800a9780` | `rcRasterizeTriangles` |  | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:19`, `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:67` |
+| `1800a9910` | `rcFilterWalkableLowHeightSpans` | three heights; 0x3f becomes 0x3c / 0x3d / 0x3e | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:20`, `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:357` |
+| `1800a9a70` | `rcFilterLedgeSpans` | out-of-bounds neighbours skipped | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:20`, `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:306` |
+| `1800a9f50` | `rcFilterLowHangingWalkableObstacles` | Valve's: area 1 when within climb of the last walkable span below | `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:20`, `src/Source2.Compiler/Maps/NavGen/RecastHeightfield.cs:284` |
+| `1800aa060` | `NavErode_SweepForward` | vector distance transform (d, dx, dz) | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:140` |
+| `1800aa390` | `NavErode_SweepBackward` |  | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:213` |
+| `1800aa740` | `NavErode_CutNearObstacles` |  | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:369`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:548` |
+| `1800aa900` | `rcErodeWalkableArea_Valve` | Valve's erosion: aab30, ab1d0, aa060/aa390 sweeps, abb50, aace0, ab460, aa740 | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:6`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:361` |
+| `1800aab30` | `NavErode_ClearFarArea1` | area-1 spans at (r/2)^2 or beyond from areas above 1 cleared | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:363`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:401` |
+| `1800aace0` | `NavErode_SpreadHeightClasses` | within r+1 of 0x3e / 0x3d | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:368`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:491` |
+| `1800aaff0` | `NavErode_CylinderBlocked` | nearest column within r holding solid in the capsule y+r .. y+h-r | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:316` |
+| `1800ab1d0` | `NavErode_InitBoundaries` | d = 0 on unwalkable spans and spans short of a walkable neighbour (heightfield edge not counted) | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:296`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:416` |
+| `1800ab460` | `NavErode_ProbeBoundaries` |  | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:296`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:369`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:519` |
+| `1800ab780` | `rcMedianFilterWalkableArea` | behind a convar (off) |  |
+| `1800abb50` | `NavErode_ClassifyArea1` |  | `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:366`, `src/Source2.Compiler/Maps/NavGen/RecastCompact.cs:440` |
+| `1800ac260` | `boxBlur` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:4` |
+| `1800ac5d0` | `calculateDistanceField` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:4` |
+| `1800acbd0` | `canMergeWithRegion` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:7` |
+| `1800acd10` | `expandRegions` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:5` |
+| `1800ad3d0` | `floodRegion` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:6` |
+| `1800ae7a0` | `mergeAndFilterRegions` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:6` |
+| `1800af6d0` | `mergeRegions` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:7` |
+| `1800afdc0` | `rcBuildDistanceField` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:4` |
+| `1800aff50` | `rcBuildLayerRegions` |  |  |
+| `1800b05a0` | `rcBuildRegions` | Recast 1.5 watershed, 8 level stacks | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:5` |
+| `1800b0de0` | `rcBuildRegionsMonotone` |  |  |
+| `1800b1460` | `sortCellsByLevel` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:5` |
+| `1800b1720` | `walkContour_regions` |  | `src/Source2.Compiler/Maps/NavGen/RecastRegions.cs:6` |
+| `1800b1ba0` | `getCornerHeight` |  | `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:15`, `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:175` |
+| `1800b1ec0` | `intersect` |  | `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:17` |
+| `1800b20f0` | `mergeRegionHoles` | the upstream diags[i] slip kept | `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:16`, `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:518` |
+| `1800b2a10` | `rcBuildContours` |  | `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:15` |
+| `1800b3700` | `removeDegenerateSegments` |  | `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:16`, `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:443` |
+| `1800b3880` | `simplifyContour` |  | `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:16`, `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:307` |
+| `1800b4930` | `walkContour` |  | `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:15`, `src/Source2.Compiler/Maps/NavGen/RecastContours.cs:225` |
+| `1800b4e50` | `buildMeshAdjacency` |  | `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:5`, `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:671` |
+| `1800b5120` | `canRemoveVertex` |  | `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:5`, `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:446` |
+| `1800b5780` | `getPolyMergeValue` |  | `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:4`, `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:215` |
+| `1800b5ce0` | `rcBuildPolyMesh` | vertex bucket (x * 0x343 + z * 799) & 0xfff | `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:4` |
+| `1800b6b50` | `removeVertex` | Recast 1.4 form: first hole vertex's region, no multiple-region mark | `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:5`, `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:501`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:131` +1 |
+| `1800b8130` | `triangulate` |  | `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:4`, `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:116` |
+| `1800bd2e0` | `rcBuildPolyMeshDetail` |  |  |
+| `1800bedb0` | `rcCreateChunkyTriMesh` | items bounds (x, z), nodes nchunks x 4 | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:76` |
+| `1800bf020` | `rcGetChunksOverlappingRect` |  | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:76`, `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:180` |
+| `1800bf0f0` | `rcChunkyTriMesh_Subdivide` | returns only past maxNodes (upstream >=); CRT qsort on the longer axis' min, comparators 1800bed70 / 1800bed90 | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:76` |
+| `1800de5f0` | `cosf` | CRT |  |
+| `1800deaf0` | `qsort` | CRT qsort, statically linked |  |
+| `1800ed380` | `Matrix3x4_Invert` |  | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:66`, `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:70`, `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:71` |
+| `1800ee160` | `Matrix3x4_TransformPoint` | (p0 m0 + p2 m2) + (p1 m1 + m3) per row (1800edb00) | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:21` |
+
 ## physicsbuilder.dll, build 20260924
 
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
@@ -167,7 +257,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800b6b50` | `Matrix3x4_ColumnLengths` |  | `src/Source2.Compiler/Physics/StaticPropHulls.cs:131`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:486` |
+| `1800b6b50` | `Matrix3x4_ColumnLengths` |  | `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:5`, `src/Source2.Compiler/Maps/NavGen/RecastPolyMesh.cs:501`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:131` +1 |
 | `1800b9240` | `MatrixAngles` | same as resourcecompiler's | `src/Source2.Compiler/Physics/StaticPropHulls.cs:492` |
 | `1800b9550` | `Triangle_Area` | half the cross product's length | `src/Source2.Compiler/Physics/MaterialSampler.cs:135` |
 | `1800b9810` | `Matrix3x4_TransformPointW1` | the point with w = 1 against each row | `src/Source2.Compiler/Physics/StaticPropHulls.cs:101`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:130`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:189` |
