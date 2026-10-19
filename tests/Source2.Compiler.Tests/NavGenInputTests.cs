@@ -192,9 +192,25 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
             d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators), rules);
         var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: NavGenInput.NavWorldFilter(document));
         var g = NavGenPolys.FromTriangles(verts, indices);
-        Assert.Null(Compare(g, LoadStage(Path.Combine(dir, "000_ValidateVertices_out.bin"))));
+        // NAVGEN_UNORDERED=1: the bodies' order follows Valve's node pointers (PhysDoc's table), which
+        // a big map does not keep in element order; compare the input as a multiset of triangles and
+        // require Recast's output exact.
+        var unordered = Environment.GetEnvironmentVariable("NAVGEN_UNORDERED") == "1";
+        if (unordered)
+        {
+            static List<string> Tris(NavGenPolys p) => [.. p.Polys.Select(q => string.Join(";", q.Indices.Select(i => $"{BitConverter.DoubleToInt64Bits(p.Pool[i].X):x}/{BitConverter.DoubleToInt64Bits(p.Pool[i].Y):x}/{BitConverter.DoubleToInt64Bits(p.Pool[i].Z):x}")))
+                .Order(StringComparer.Ordinal)];
+            var valveIn = LoadStage(Path.Combine(dir, "000_ValidateVertices_out.bin"));
+            var (ours0, theirs0) = (Tris(g), Tris(valveIn));
+            var diffAt = Enumerable.Range(0, Math.Min(ours0.Count, theirs0.Count)).FirstOrDefault(i => ours0[i] != theirs0[i], -1);
+            output.WriteLine($"input triangles: ours {ours0.Count}, Valve {theirs0.Count}, sorted lists first differ at {diffAt}");
+            Assert.True(ours0.Count == theirs0.Count && diffAt < 0, "the input triangles differ as a set");
+        }
+        else
+            Assert.Null(Compare(g, LoadStage(Path.Combine(dir, "000_ValidateVertices_out.bin"))));
         Assert.True(NavGenStages.BeforeRecast(g));
-        Assert.Null(Compare(g, LoadStage(Path.Combine(dir, "005_Recast_in.bin"))));
+        if (!unordered)
+            Assert.Null(Compare(g, LoadStage(Path.Combine(dir, "005_Recast_in.bin"))));
 
         var settings = MapSettings(document, pak);
         var config = RecastConfig.From(settings.Bytes(), settings.Hulls[0].Bytes(), NavGenStages.RadiusPad, 0);
@@ -276,6 +292,24 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         for (var i = 0; i < want.Length; i++)
             want[i] = new Vector3(BinaryPrimitives.ReadSingleLittleEndian(vb.AsSpan(i * 12)), BinaryPrimitives.ReadSingleLittleEndian(vb.AsSpan(i * 12 + 4)),
                 BinaryPrimitives.ReadSingleLittleEndian(vb.AsSpan(i * 12 + 8)));
+        if (Environment.GetEnvironmentVariable("NAVGEN_BODYDUMP") is { } bodyDump)
+        {
+            // Diagnostic: each body's extraction alone (filter, hulls, capsules), its node and vertex count.
+            var filter = NavGenInput.NavWorldFilter(document);
+            var lines = new List<string>();
+            foreach (var body in bodies)
+            {
+                if (!filter(body))
+                    continue;
+                var (bv, _) = NavGenInput.Extract([body], rules);
+                if (bv.Count > 0)
+                    lines.Add($"{body.NodeId} {body.Position.X:R} {body.Position.Y:R} {body.Position.Z:R} {bv.Count} {string.Join(",", body.Shapes.Select(sh => sh.Type))}");
+            }
+            File.WriteAllLines(bodyDump, lines);
+            var (all, allIdx) = NavGenInput.Extract(bodies, rules, inNavWorld: filter);
+            File.WriteAllBytes(bodyDump + ".tris", [.. allIdx.SelectMany(BitConverter.GetBytes)]);
+            File.WriteAllBytes(bodyDump + ".verts", [.. all.SelectMany(v => BitConverter.GetBytes(v.X).Concat(BitConverter.GetBytes(v.Y)).Concat(BitConverter.GetBytes(v.Z)))]);
+        }
         foreach (var bvhOrder in new[] { false, true })
         {
             var got = new List<Vector3>();
