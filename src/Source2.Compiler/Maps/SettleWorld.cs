@@ -156,12 +156,13 @@ public static partial class SettleWorld
     /// element order, then the nodes its instances place, at the ids the
     /// instance bake gives them (see <see cref="MapInstances"/>). createdOnLoad
     /// counts the nodes the loader makes before the bake (smart prop locators),
-    /// createdOnLoadIn those of a prefab's map, which widen its block.
+    /// createdOnLoadIn those of a prefab's map, which widen its block. rules, when given, receives the
+    /// layers the build registers (nav generation's query looks navclip up in them).
     /// </summary>
     public static List<BodyBuild> Build(DmxBinary.Document document, IModels models, FgdSchema? schema = null, int createdOnLoad = 0,
-                                        Func<DmxBinary.Document, int>? createdOnLoadIn = null)
+                                        Func<DmxBinary.Document, int>? createdOnLoadIn = null, CollisionRules? rules = null)
     {
-        var context = new Context(models, new CollisionRules(), schema, []);
+        var context = new Context(models, rules ?? new CollisionRules(), schema, []);
         // A group an instance places is built where the instances put it,
         // not where it stands (as MapMeshes walks it).
         var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
@@ -813,6 +814,9 @@ public static partial class SettleWorld
                 _layers[name] = bits = 1ul << _next++;
             return bits;
         }
+
+        /// <summary>A layer's bit when the rules know the name, without registering it.</summary>
+        public bool TryLayer(string name, out ulong bits) => _layers.TryGetValue(name, out bits);
 
         /// <summary>A comma separated list of layer names as one mask (the collision interface's string parse).</summary>
         public ulong Mask(string list)

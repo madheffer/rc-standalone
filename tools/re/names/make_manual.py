@@ -42,6 +42,17 @@ MS = "s2c:physics/material-sampler"
 IO = "s2c:io"
 
 RESOURCECOMPILER = [
+    ('180fb6de0', 'MapCompile_NavPhysicsWorld', NAV, '*(*(ctx + 0x18) + 8) + 8: the settle world handed to navsystem'),
+    ('180fb6cf0', 'MapCompile_NavBodyEntry', NAV, '0x78-byte entries from the 0x90 stride list at ctx + 0x18'),
+    ('180fb5440', 'NavGen_CollectAvoidMarkups', NAV, "'NavGen' 'AVOID'"),
+    ('180f209f0', 'NavGen_CollectMarkupVolumes', NAV, ''),
+    ('180f1f830', 'NavGen_CollectNoNavBlocks', NAV, "'prop_deformable', 'block_base_nav_mesh', 'NavGen' 'NONAV'"),
+    ('180f21ac0', 'NavGen_CollectOrientedMeshes', NAV, "'info_gravity_shift', 'CreateProjectedNavMesh', 'info_nav_oriented'"),
+    ('180f203b0', 'NavGen_CollectLinkAreas', NAV, "'ai_nav_link_area'"),
+    ('180fb15e0', 'NavGen_CollectLadders', NAV, "'func_ladder'"),
+    ('180f20f00', 'NavGen_CollectSpaces', NAV, "'info_nav_space', air nodes, path corners, hints"),
+    ('180f20e40', 'NavGen_CollectOrientedMeshEntities', NAV, "'info_nav_oriented_mesh'"),
+    ('180f20c70', 'NavGen_CollectOrientedMeshClips', NAV, 'debug gen/render clips'),
     ("1802c4a20", "ShapeBuilder_LoopShapes", H, "shape loop over a physics model"),
     ("180c253c0", "ShapeBuilder_BuildHullShape", H, "RnHullCreate through the interface, the region SVM, then the move"),
     ("1819595d0", "RnHull_Transform", H, "moves a cooked hull by a 3x4: planes, mass, ortho areas, SVM planes"),
@@ -1053,6 +1064,25 @@ NAVGEN = "s2c:baked/navgen"
 
 # navsystem.dll (20261015): nav generation's polygon pipeline and its Recast (Maps/NavGen, ledger 92).
 NAVSYSTEM = [
+    ('180048b20', 'NavGen_ExtractTriangles', NAVGEN, "bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0"),
+    ('180028ae0', 'NavGen_QueryAttributes', NAVGEN, 'interacts with 0xc3021 | navclip (hash 0xdd7f7e69), excludes 0x400000, as 0x80000, ids -1, mask 0xffff, types 3, group 3, flags 0x49'),
+    ('1800a32b0', 'NavGen_ShapeTriangleSource', NAVGEN, 'vphysics2 interface +0x3b0 builds the per-shape source in place'),
+    ('180049210', 'NavGen_ApplyNoNavMarkups', NAVGEN, 'after extraction (not ported)'),
+    ('180046fc0', 'NavGen_ClipToBounds', NAVGEN, 'when generation bounds are set (not ported)'),
+    ('18004e4d0', 'NavGen_PolysFromTriangles', NAVGEN, 'pool = vertices as doubles; one triangle per 3 indices, +4/+0x64 -1, +0x60 5'),
+    ('18004d9a0', 'CNavGenPoly_ComputePlane', NAVGEN, '(e2 x e1) of corners 0, 1, 2 in doubles, normalised above FLT_EPSILON, kept unless 0'),
+    ('180062410', 'NavGen_WeldVertices', NAVGEN, 'records sorted by |p| (MSVC std::sort 180068c60), clusters within tol (convar 180134b20 = 0.001), same-kind polys, move check 18005a240'),
+    ('18005ee30', 'NavGen_VertexPolyAdjacency', NAVGEN, 'one entry per corner, polygon order'),
+    ('180068c60', 'NavGen_SortWeldRecords', NAVGEN, 'std::sort of 0x38-byte records on +0x28'),
+    ('18005a240', 'NavGen_WeldTryMove', NAVGEN, 'collapse marks removed, non-convex or flipped triangle undoes'),
+    ('18005b120', 'CNavGenPoly_CollapsesCollinear', NAVGEN, '18005b290 on a copy'),
+    ('18005b290', 'CNavGenPoly_RemoveCollinear', NAVGEN, 'drops the middle corner of the first collinear run until none; degenerate below 3'),
+    ('18005af00', 'CNavGenPoly_IsConvex', NAVGEN, 'triangles pass; corners outside an edge fail unless adjacent and on its line'),
+    ('1800808f0', 'NavGen_PointOnSegment', NAVGEN, 'perpendicular distance in the plane, scaled by |b - a|, against tol'),
+    ('1800775e0', 'NavGenVertexData_SetVertex', NAVGEN, 'position and attribute'),
+    ('18005b5f0', 'NavGen_RemoveDegensImpl', NAVGEN, '18005b290 per poly, keep the rest'),
+    ('180076980', 'NavGen_TransformRecastNonZupImpl', NAVGEN, 'only when ctx + 0x61 and a transformer'),
+    ('180027d90', 'NavGen_WeldInvoker', NAVGEN, 'std::function call: (double)+0x14, (double)+0x10'),
     ('1800217b0', 'NavGen_Generate', NAVGEN, "entry from RC's nav step: seed check, then the passes"),
     ('1800260e0', 'NavGen_RunPass', NAVGEN, "'pass %d/%d: orig tris': one generation pass over the input polygons"),
     ('180020820', 'NavGen_RunStages', NAVGEN, 'the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs'),
@@ -1157,6 +1187,13 @@ MODTOOLS = [
 ]
 
 VPHYSICS2 = [
+    ('18000bf60', 'CRnShapeTriangleSource::GetTriangles', NAV, "vtable slot 3 of navsystem's per-shape source -> 1802661f0"),
+    ('1802661f0', 'RnShape_GetTriangles', NAV, 'by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound'),
+    ('1802643e0', 'RnMesh_GetTriangles', NAV, 'BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n'),
+    ('180260f50', 'RnMesh_EmitTriangle', NAV, 'three unshared vertices times the shape scale (+0xb8)'),
+    ('180065b80', 'CRnWorld_ShapePassesQuery', NAV, 'world vfn 0x4b0 -> 1801ff7b0'),
+    ('1801ff7b0', 'RnQuery_ShapePasses', NAV, 'body type against query +0x2f, then 1802facf0 on shape + 0x50'),
+    ('1802facf0', 'RnQueryAttributes_Test', NAV, 'layers, excludes, shape flag 2, function mask, group table 18045b328'),
     # Shape casts the bomb damage bake runs (ledger 91).
     ("1801f5080", "CRnWorld::CastShape", "s2c:baked/bomb", "by shape type: 0 ray (1801f4ad0), 1 sphere, 2 box (1801f29e0), 3, 4"),
     ("1801f29e0", "CRnWorld::CastBox", "s2c:baked/bomb", "each broadphase tree (1801d64a0), shape vtable +0x40"),

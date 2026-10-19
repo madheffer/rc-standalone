@@ -61,6 +61,85 @@ function hook() {
     send({tag: 'recast_params'}, args[2].readByteArray(0x60));
     send({tag: 'recast_hulls'}, args[2].add(0x48).readPointer().readByteArray(8 * 0x48));
     send({tag: 'recast_global'}, mod.base.add(0x134b10).readPointer().readByteArray(0x60)); } });
+  // The stage input (180048b20: verts vec, index vec, physics world, bounds, NONAV boxes, count, pad):
+  // each body of the world (vtable +0x1c0 count, +0x1c8 body) with its type (+0x20), AABB (+0xf8),
+  // transform (+0x1b0, 0x20 bytes) and shapes (+0x38 count, +0x40 shape), then the raw output.
+  // 1800a32b0 builds the per-shape triangle source; its vtable slot 3 does the work (vphysics2).
+  let extractCall = 0;
+  const vcall = (obj, off, ret, types) => new NativeFunction(obj.readPointer().add(off).readPointer(), ret, ['pointer'].concat(types));
+  const modOff = p => { const m = Process.findModuleByAddress(p); return m === null ? p.toString() : m.name + '+0x' + p.sub(m.base).toString(16); };
+  Interceptor.attach(mod.base.add(0x48b20), {
+    onEnter(args) {
+      this.verts = args[0];
+      this.tris = args[1];
+      this.call = extractCall++;
+      const world = args[2];
+      const bodies = [];
+      const n = vcall(world, 0x1c0, 'int', [])(world);
+      for (let i = 0; i < n; i++) {
+        const body = vcall(world, 0x1c8, 'pointer', ['int'])(world, i);
+        if (body.isNull()) { bodies.push(null); continue; }
+        const aabb = Memory.alloc(32), xf = Memory.alloc(64);
+        vcall(body, 0xf8, 'void', ['pointer'])(body, aabb);
+        vcall(body, 0x1b0, 'void', ['pointer'])(body, xf);
+        const shapes = [];
+        const ns = vcall(body, 0x38, 'int', [])(body);
+        for (let j = 0; j < ns; j++) {
+          const s = vcall(body, 0x40, 'pointer', ['int'])(body, j);
+          if (s.isNull()) { shapes.push(null); continue; }
+          // The world's shape filter (+0x4b0) against navsystem's query attributes (180028ae0).
+          const filter = Memory.alloc(0x80);
+          new NativeFunction(mod.base.add(0x28ae0), 'pointer', ['pointer'])(filter);
+          const pass = vcall(world, 0x4b0, 'uint8', ['pointer', 'pointer'])(world, s, filter);
+          shapes.push({ptr: s.toString(), vtable: modOff(s.readPointer()), pass: pass,
+            head: Array.from(new Uint32Array(s.readByteArray(0xb8))).map(x => x.toString(16)).join(' ')});
+        }
+        if (this.call === 0 && i === 0) {
+          const filter = Memory.alloc(0x80);
+          new NativeFunction(mod.base.add(0x28ae0), 'pointer', ['pointer'])(filter);
+          send({note: 'world filter fn ' + modOff(world.readPointer().add(0x4b0).readPointer()) + ' filter ' +
+            Array.from(new Uint32Array(filter.readByteArray(0x38))).map(x => x.toString(16)).join(' ')});
+        }
+        bodies.push({type: vcall(body, 0x20, 'uint', [])(body), vtable: modOff(body.readPointer()),
+          aabb: Array.from(new Float32Array(aabb.readByteArray(24))), xf: Array.from(new Float32Array(xf.readByteArray(32))), shapes: shapes});
+      }
+      if (this.call === 0) {
+        // The stage list's convars (180022b60): the value word at +0x58 of each.
+        const convars = {};
+        for (const off of [0x1349d0, 0x1349f0, 0x134a00, 0x134a20, 0x134a40, 0x134ab0, 0x134b00, 0x134b10, 0x134b20,
+                           0x134b30, 0x134b50, 0x134b90, 0x134ba0, 0x134bf0, 0x134c00, 0x134c20, 0x134c30, 0x134af0, 0x134bb0])
+          convars['18' + (0x0000000 + off).toString(16).padStart(7, '0')] = mod.base.add(off).readPointer().add(0x58).readByteArray(8);
+        const out = {};
+        for (const k in convars) {
+          const dv = new DataView(convars[k]);
+          out[k] = {u32: dv.getUint32(0, true), f32: dv.getFloat32(0, true), byte: dv.getUint8(0)};
+        }
+        send({note: 'convars ' + JSON.stringify(out)});
+      }
+      const b = args[3];
+      send({note: 'extract ' + this.call + ' bounds ' + JSON.stringify(Array.from(new Float32Array(b.readByteArray(24)))) +
+        ' markups ' + args[4] + ' x' + args[5].toInt32() + ' bodies ' + JSON.stringify(bodies)});
+    },
+    onLeave() {
+      const nv = this.verts.readS32(), nt = this.tris.readS32();
+      send({tag: 'input_' + this.call + '_verts'}, nv > 0 ? this.verts.add(8).readPointer().readByteArray(nv * 12) : new ArrayBuffer(0));
+      send({tag: 'input_' + this.call + '_tris'}, nt > 0 ? this.tris.add(8).readPointer().readByteArray(nt * 4) : new ArrayBuffer(0));
+    }
+  });
+  const seenSources = {};
+  Interceptor.attach(mod.base.add(0xa32b0), {
+    onEnter(args) { this.buf = args[0]; this.shape = args[1]; },
+    onLeave() {
+      const vt = this.buf.readPointer();
+      const key = modOff(vt);
+      if (seenSources[key] === undefined) {
+        seenSources[key] = true;
+        const slots = [];
+        for (let k = 0; k < 6; k++) slots.push(modOff(vt.add(k * 8).readPointer()));
+        send({note: 'triangle source vtable ' + key + ' slots ' + slots.join(' ') + ' shape vtable ' + modOff(this.shape.readPointer())});
+      }
+    }
+  });
   Interceptor.attach(mod.base.add(0x84da0), { onEnter(args) { send({note: 'tiled recast path 180084da0'}); } });
   Interceptor.attach(mod.base.add(0x873b0), { onEnter(args) { send({note: 'oriented mesh path 1800873b0'}); } });
   // Recast internals (one dump per tile; a tile is named by its bmin, tile + 0x98):
@@ -190,7 +269,7 @@ def main():
             tag = msg["payload"]["tag"]
             with open(os.path.join(out_dir, tag + ".bin"), "wb") as f:
                 f.write(data)
-            if not tag.startswith(("recast_", "tile_", "chf_", "collect_")):
+            if not tag.startswith(("recast_", "tile_", "chf_", "collect_", "input_")):
                 count, vcount = struct.unpack_from("<ii", data)
                 stages.append((tag, count, vcount))
 

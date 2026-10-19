@@ -18,9 +18,14 @@ public sealed class NavGenRecastTests(ITestOutputHelper output)
         return File.Exists(Path.Combine(dir, "recast_cfg.bin")) ? dir : null;
     }
 
-    internal static RecastTiles Load(string dir)
+    internal static RecastTiles Load(string dir, NavGenPolys? from = null)
     {
         var (polys, verts) = NavGenProbe.Load(Path.Combine(dir, "005_Recast_in.bin"));
+        if (from is not null)
+        {
+            polys = [.. from.Polys.Select(p => p.Indices.ToArray())];
+            verts = [.. from.Pool.Select(v => new NavGenProbe.Vector3d(v.X, v.Y, v.Z))];
+        }
         var settings = File.ReadAllBytes(Path.Combine(dir, "recast_params.bin"));
         var hulls = File.ReadAllBytes(Path.Combine(dir, "recast_hulls.bin"));
         var global = File.ReadAllBytes(Path.Combine(dir, "recast_global.bin"));

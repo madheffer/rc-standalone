@@ -1,6 +1,72 @@
 {
  "functions": [
   {
+   "addr": "180fb6de0",
+   "name": "MapCompile_NavPhysicsWorld",
+   "module": "s2c:baked/nav",
+   "note": "*(*(ctx + 0x18) + 8) + 8: the settle world handed to navsystem"
+  },
+  {
+   "addr": "180fb6cf0",
+   "name": "MapCompile_NavBodyEntry",
+   "module": "s2c:baked/nav",
+   "note": "0x78-byte entries from the 0x90 stride list at ctx + 0x18"
+  },
+  {
+   "addr": "180fb5440",
+   "name": "NavGen_CollectAvoidMarkups",
+   "module": "s2c:baked/nav",
+   "note": "'NavGen' 'AVOID'"
+  },
+  {
+   "addr": "180f209f0",
+   "name": "NavGen_CollectMarkupVolumes",
+   "module": "s2c:baked/nav",
+   "note": ""
+  },
+  {
+   "addr": "180f1f830",
+   "name": "NavGen_CollectNoNavBlocks",
+   "module": "s2c:baked/nav",
+   "note": "'prop_deformable', 'block_base_nav_mesh', 'NavGen' 'NONAV'"
+  },
+  {
+   "addr": "180f21ac0",
+   "name": "NavGen_CollectOrientedMeshes",
+   "module": "s2c:baked/nav",
+   "note": "'info_gravity_shift', 'CreateProjectedNavMesh', 'info_nav_oriented'"
+  },
+  {
+   "addr": "180f203b0",
+   "name": "NavGen_CollectLinkAreas",
+   "module": "s2c:baked/nav",
+   "note": "'ai_nav_link_area'"
+  },
+  {
+   "addr": "180fb15e0",
+   "name": "NavGen_CollectLadders",
+   "module": "s2c:baked/nav",
+   "note": "'func_ladder'"
+  },
+  {
+   "addr": "180f20f00",
+   "name": "NavGen_CollectSpaces",
+   "module": "s2c:baked/nav",
+   "note": "'info_nav_space', air nodes, path corners, hints"
+  },
+  {
+   "addr": "180f20e40",
+   "name": "NavGen_CollectOrientedMeshEntities",
+   "module": "s2c:baked/nav",
+   "note": "'info_nav_oriented_mesh'"
+  },
+  {
+   "addr": "180f20c70",
+   "name": "NavGen_CollectOrientedMeshClips",
+   "module": "s2c:baked/nav",
+   "note": "debug gen/render clips"
+  },
+  {
    "addr": "1802c4a20",
    "name": "ShapeBuilder_LoopShapes",
    "module": "s2c:physics/hull",

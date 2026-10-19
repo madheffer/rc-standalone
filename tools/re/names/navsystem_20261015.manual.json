@@ -1,6 +1,120 @@
 {
  "functions": [
   {
+   "addr": "180048b20",
+   "name": "NavGen_ExtractTriangles",
+   "module": "s2c:baked/navgen",
+   "note": "bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0"
+  },
+  {
+   "addr": "180028ae0",
+   "name": "NavGen_QueryAttributes",
+   "module": "s2c:baked/navgen",
+   "note": "interacts with 0xc3021 | navclip (hash 0xdd7f7e69), excludes 0x400000, as 0x80000, ids -1, mask 0xffff, types 3, group 3, flags 0x49"
+  },
+  {
+   "addr": "1800a32b0",
+   "name": "NavGen_ShapeTriangleSource",
+   "module": "s2c:baked/navgen",
+   "note": "vphysics2 interface +0x3b0 builds the per-shape source in place"
+  },
+  {
+   "addr": "180049210",
+   "name": "NavGen_ApplyNoNavMarkups",
+   "module": "s2c:baked/navgen",
+   "note": "after extraction (not ported)"
+  },
+  {
+   "addr": "180046fc0",
+   "name": "NavGen_ClipToBounds",
+   "module": "s2c:baked/navgen",
+   "note": "when generation bounds are set (not ported)"
+  },
+  {
+   "addr": "18004e4d0",
+   "name": "NavGen_PolysFromTriangles",
+   "module": "s2c:baked/navgen",
+   "note": "pool = vertices as doubles; one triangle per 3 indices, +4/+0x64 -1, +0x60 5"
+  },
+  {
+   "addr": "18004d9a0",
+   "name": "CNavGenPoly_ComputePlane",
+   "module": "s2c:baked/navgen",
+   "note": "(e2 x e1) of corners 0, 1, 2 in doubles, normalised above FLT_EPSILON, kept unless 0"
+  },
+  {
+   "addr": "180062410",
+   "name": "NavGen_WeldVertices",
+   "module": "s2c:baked/navgen",
+   "note": "records sorted by |p| (MSVC std::sort 180068c60), clusters within tol (convar 180134b20 = 0.001), same-kind polys, move check 18005a240"
+  },
+  {
+   "addr": "18005ee30",
+   "name": "NavGen_VertexPolyAdjacency",
+   "module": "s2c:baked/navgen",
+   "note": "one entry per corner, polygon order"
+  },
+  {
+   "addr": "180068c60",
+   "name": "NavGen_SortWeldRecords",
+   "module": "s2c:baked/navgen",
+   "note": "std::sort of 0x38-byte records on +0x28"
+  },
+  {
+   "addr": "18005a240",
+   "name": "NavGen_WeldTryMove",
+   "module": "s2c:baked/navgen",
+   "note": "collapse marks removed, non-convex or flipped triangle undoes"
+  },
+  {
+   "addr": "18005b120",
+   "name": "CNavGenPoly_CollapsesCollinear",
+   "module": "s2c:baked/navgen",
+   "note": "18005b290 on a copy"
+  },
+  {
+   "addr": "18005b290",
+   "name": "CNavGenPoly_RemoveCollinear",
+   "module": "s2c:baked/navgen",
+   "note": "drops the middle corner of the first collinear run until none; degenerate below 3"
+  },
+  {
+   "addr": "18005af00",
+   "name": "CNavGenPoly_IsConvex",
+   "module": "s2c:baked/navgen",
+   "note": "triangles pass; corners outside an edge fail unless adjacent and on its line"
+  },
+  {
+   "addr": "1800808f0",
+   "name": "NavGen_PointOnSegment",
+   "module": "s2c:baked/navgen",
+   "note": "perpendicular distance in the plane, scaled by |b - a|, against tol"
+  },
+  {
+   "addr": "1800775e0",
+   "name": "NavGenVertexData_SetVertex",
+   "module": "s2c:baked/navgen",
+   "note": "position and attribute"
+  },
+  {
+   "addr": "18005b5f0",
+   "name": "NavGen_RemoveDegensImpl",
+   "module": "s2c:baked/navgen",
+   "note": "18005b290 per poly, keep the rest"
+  },
+  {
+   "addr": "180076980",
+   "name": "NavGen_TransformRecastNonZupImpl",
+   "module": "s2c:baked/navgen",
+   "note": "only when ctx + 0x61 and a transformer"
+  },
+  {
+   "addr": "180027d90",
+   "name": "NavGen_WeldInvoker",
+   "module": "s2c:baked/navgen",
+   "note": "std::function call: (double)+0x14, (double)+0x10"
+  },
+  {
    "addr": "1800217b0",
    "name": "NavGen_Generate",
    "module": "s2c:baked/navgen",

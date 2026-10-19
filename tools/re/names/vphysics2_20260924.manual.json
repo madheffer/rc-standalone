@@ -1,6 +1,48 @@
 {
  "functions": [
   {
+   "addr": "18000bf60",
+   "name": "CRnShapeTriangleSource::GetTriangles",
+   "module": "s2c:baked/nav",
+   "note": "vtable slot 3 of navsystem's per-shape source -> 1802661f0"
+  },
+  {
+   "addr": "1802661f0",
+   "name": "RnShape_GetTriangles",
+   "module": "s2c:baked/nav",
+   "note": "by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound"
+  },
+  {
+   "addr": "1802643e0",
+   "name": "RnMesh_GetTriangles",
+   "module": "s2c:baked/nav",
+   "note": "BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n"
+  },
+  {
+   "addr": "180260f50",
+   "name": "RnMesh_EmitTriangle",
+   "module": "s2c:baked/nav",
+   "note": "three unshared vertices times the shape scale (+0xb8)"
+  },
+  {
+   "addr": "180065b80",
+   "name": "CRnWorld_ShapePassesQuery",
+   "module": "s2c:baked/nav",
+   "note": "world vfn 0x4b0 -> 1801ff7b0"
+  },
+  {
+   "addr": "1801ff7b0",
+   "name": "RnQuery_ShapePasses",
+   "module": "s2c:baked/nav",
+   "note": "body type against query +0x2f, then 1802facf0 on shape + 0x50"
+  },
+  {
+   "addr": "1802facf0",
+   "name": "RnQueryAttributes_Test",
+   "module": "s2c:baked/nav",
+   "note": "layers, excludes, shape flag 2, function mask, group table 18045b328"
+  },
+  {
    "addr": "1801f5080",
    "name": "CRnWorld::CastShape",
    "module": "s2c:baked/bomb",

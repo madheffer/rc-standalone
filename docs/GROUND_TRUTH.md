@@ -1898,6 +1898,63 @@ game can answer is raised with the user first, and runs with -insecure.
       from the DLL but not yet hit by a capture; the RC collectors and the
       stages before Recast (ValidateVertices, WeldVertices, RemoveDegens,
       RemovePolysMarkedNoNav, TransformRecastNonZup); the 25 stages after.
+93. **Nav generation's input and the stages before Recast** (settled
+    2026-10-19 by decompile of resourcecompiler (20260923, ported to the
+    installed 20261015), navsystem and vphysics2 (20261015), and a Frida
+    capture of probe01. From the .vmap alone, the extracted triangles, the
+    stage-000 polygons and pool, and the welded input to Recast are Valve's
+    bit for bit; through the ported Recast stage, so is its output (232
+    polygons over 480 vertices). Maps/NavGen/NavGenInput.cs, NavGenPolys.cs,
+    NavGenInputTests.)
+    - resourcecompiler does not collect geometry. MapCompile_BuildNav
+      (1800fc370) runs its collectors (seeds, markups, ladders, links,
+      spaces; 180f21760 onward) into a CNavGenInput, and hands navsystem the
+      physics world its map compile built (the settle world: one static body
+      per map mesh, the document's own body first) and the world's other
+      bodies.
+    - navsystem extracts (180048b20): each body of type below 2, in world
+      order, whose bounds overlap the generation bounds when set and are not
+      inside a NONAV markup, then each shape that passes the world's query
+      test, through vphysics2's triangle source.
+      - The query (180028ae0): interacts with solid, npcclip, window,
+        passbullets, player, npc (0xc3021) plus navclip when the rules know
+        it (name hash 0xdd7f7e69); excludes NavIgnore; queries as npc;
+        static and keyframed bodies; group 3; flags 0x49. The test is
+        vphysics2 1802facf0 on the shape's attributes (+0x50) after the body
+        type check (1801ff7b0). probe01's sky shape (sky + StaticLevel) fails.
+      - A mesh shape (type 3, 1802643e0) gives its triangles in BVH leaf
+        order when its flags have bit 3, else in array order; three unshared
+        vertices each, each the mesh vertex times the shape's scale
+        (180260f50).
+      - The body transform (vfn 0x1b0: position, scale, quaternion) on the
+        new vertices: t = 2 (q x v), v' = ((q x t) + w t + v) s + p, summed
+        as the code does.
+    - Polygons (18004e4d0): the vertices onto the pool as doubles; one
+      triangle per three indices, +4 and +0x64 -1, +0x60 5, the rest zero,
+      the normal (18004d9a0) = (e2 x e1) of corners 0, 1, 2 in doubles,
+      normalised above FLT_EPSILON and kept unless its length is 0.
+    - ValidateVertices (1800776d0) fails on an infinite or NaN coordinate.
+    - WeldVertices (180062410, tolerance the convar at *(180134b20)+0x58,
+      0.001, as both doubles): each vertex's polygons per corner; a record per
+      used vertex with its distance from the origin; MSVC std::sort on it;
+      each record in that order opens a cluster and takes every later one
+      nearer in distance than the tolerance, whose polygons all share its
+      polygons' kind, within the tolerance of it, and whose move onto it
+      passes 18005a240. The move check: each of the vertex's polygons that a
+      collinear sweep (1800808f0) collapses is marked removed; a non-convex
+      one (18005af00) or a triangle whose normal flips undoes the move.
+      Polygons not removed are renumbered; the pool is one vertex per
+      cluster at its first record's position.
+    - RemoveDegens (18005b5f0): collinear corners dropped in place
+      (18005b290), polygons left with fewer than three removed.
+    - RemovePolysMarkedNoNav acts on NONAV volumes only;
+      TransformRecastNonZup only when the map is not z-up.
+    - Open: generation bounds (180046fc0) and NONAV markups (180049210, the
+      NoNav stage, 180074590); hull, sphere and capsule shapes (vphysics2
+      1802661f0's other cases); dynamic bodies at nav time (probe01 has
+      none); the per-vertex attribute vector; Recast's settings from the
+      map's CMapNavData or the defaults and navsystem's hull table (taken
+      from the capture so far).
 
 ## Resolved
 
