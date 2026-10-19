@@ -106,6 +106,11 @@ internal static class EntityRenderModels
                 normals[c] = NodeMeshEntries.Normalise(NodeMeshEntries.Rotate(toEntity, NodeMeshEntries.Rotate(toWorld, new Vector3(v[o + n], v[o + n + 1], v[o + n + 2]))));
                 (v[o + n], v[o + n + 1], v[o + n + 2]) = (normals[c].X, normals[c].Y, normals[c].Z);
             }
+            // The model compile takes the mesh through DMX, which flips V there and back:
+            // 1 - (1 - v), which rounds (ze_hold_em_p's end_breakable texcoords, -0.5222222 to BF05B05C).
+            foreach (var s in piece.Streams)
+                if (s.Name == "texcoord" && s.Count >= 2)
+                    v[o + s.First + 1] = 1f - (1f - v[o + s.First + 1]);
             if (at.TryGetValue("texcoord", out var t))
                 uvs[c] = new Vector2(v[o + t], v[o + t + 1]);
         }

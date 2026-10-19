@@ -247,3 +247,86 @@ public class MapRootFileTests(ITestOutputHelper output)
         }
     }
 }
+
+/// <summary>
+/// <c>TEXBIAS=&lt;our vpk&gt;|&lt;valve vpk&gt;|&lt;model substring&gt;</c>: each matching model's texcoords, ours against
+/// Valve's, and how many match after (v + B) - B for a bias B taken per draw or per model.
+/// </summary>
+public class TexcoordBiasProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Score()
+    {
+        if (Environment.GetEnvironmentVariable("TEXBIAS") is not { Length: > 0 } spec || spec.Split('|') is not [var oursVpk, var valveVpk, var part])
+            return;
+        using var ours = new Package();
+        ours.Read(oursVpk);
+        using var valve = new Package();
+        valve.Read(valveVpk);
+        foreach (var entry in valve.Entries.GetValueOrDefault("vmdl_c") ?? [])
+        {
+            var path = entry.GetFullPath();
+            if (!path.Contains(part, StringComparison.Ordinal) || ours.FindEntry(path) is not { } mine)
+                continue;
+            var a = Draws(Io.VpkEntries.Read(ours, mine));
+            var b = Draws(Io.VpkEntries.Read(valve, entry));
+            if (a.Count != b.Count) { output.WriteLine($"{path}: {a.Count} vs {b.Count} draws"); continue; }
+            var variants = new Dictionary<string, int>();
+            var total = 0;
+            var raw = 0;
+            float Apply(float v, float bias) => (v + bias) - bias;
+            var modelMin = new float[2];
+            modelMin[0] = a.Min(d => d.Min(t => t.X));
+            modelMin[1] = a.Min(d => d.Min(t => t.Y));
+            for (var d = 0; d < a.Count; d++)
+            {
+                var drawMin = new[] { a[d].Min(t => t.X), a[d].Min(t => t.Y) };
+                for (var i = 0; i < a[d].Count && i < b[d].Count; i++)
+                    for (var k = 0; k < 2; k++)
+                    {
+                        float x = k == 0 ? a[d][i].X : a[d][i].Y, want = k == 0 ? b[d][i].X : b[d][i].Y;
+                        total++;
+                        raw += x == want ? 1 : 0;
+                        if (x != want && Environment.GetEnvironmentVariable("TEXBIAS_LIST") == "1")
+                        {
+                            var fits = Enumerable.Range(-8, 17).Where(bias => Apply(x, bias) == want).ToList();
+                            var other = k == 0 ? a[d][i].Y : a[d][i].X;
+                            output.WriteLine($"  draw {d} vertex {i} {(k == 0 ? "u" : "v")}: ours {x:R} ({BitConverter.SingleToInt32Bits(x):X8}) valve {want:R} ({BitConverter.SingleToInt32Bits(want):X8}) other {other:R}; B in {string.Join(",", fits)}");
+                        }
+                        foreach (var fixedBias in new[] { -4, -3, -2, -1, 1, 2, 3, 4 })
+                        {
+                            var key = $"{(k == 0 ? "u" : "v")} fixed {fixedBias}";
+                            variants[key] = variants.GetValueOrDefault(key) + (Apply(x, fixedBias) == want ? 1 : 0);
+                        }
+                        foreach (var (name, min) in new[] { ("draw", drawMin[k]), ("model", modelMin[k]) })
+                        {
+                            void Count(string rule, float bias) { var key = name + " " + rule; variants[key] = variants.GetValueOrDefault(key) + (Apply(x, bias) == want ? 1 : 0); }
+                            Count("-floor", -MathF.Floor(min));
+                            Count("-floor if <0", min < 0 ? -MathF.Floor(min) : 0);
+                            Count("ceil(-min)", MathF.Ceiling(-min));
+                        }
+                    }
+            }
+            output.WriteLine($"{path}: {total} values, {raw} equal as they are; " + string.Join(", ", variants.Select(v => $"{v.Key} {v.Value}")));
+        }
+    }
+
+    private static List<List<System.Numerics.Vector2>> Draws(byte[] bytes)
+    {
+        using var resource = new ValveResourceFormat.Resource();
+        resource.Read(new MemoryStream(bytes));
+        var model = (ValveResourceFormat.ResourceTypes.Model)resource.DataBlock!;
+        var result = new List<List<System.Numerics.Vector2>>();
+        foreach (var (mesh, _, _, _) in model.GetEmbeddedMeshesAndLoD())
+            foreach (var call in mesh.Data.GetArray("m_sceneObjects").SelectMany(o => o.GetArray("m_drawCalls")))
+            {
+                var m = Lighting.PathTraceProps.DrawMesh(mesh.VBIB, call, "");
+                var t = m.Streams.First(s => s.Name == "texcoord").Offset;
+                var list = new List<System.Numerics.Vector2>();
+                for (var v = 0; v < m.VertexCount; v++)
+                    list.Add(new(m.Vertices[v * m.Stride + t], m.Vertices[v * m.Stride + t + 1]));
+                result.Add(list);
+            }
+        return result;
+    }
+}
