@@ -23,12 +23,15 @@ public static class WorldNodeFiles
     /// <param name="timestamp">The compile's time, for .vwrld.</param>
     /// <param name="fingerprint">The .vwrld's compile fingerprint, which RC draws anew for
     /// every compile; random unless given (a reproducible build).</param>
+    /// <param name="visibility">Vis already built (<see cref="Visibility"/>), used instead of building it again.</param>
+    /// <param name="baked">A baked compile's lighting info for world.vwrld (<see cref="WorldTrees.BakedLighting"/>).</param>
     /// <param name="vis">The vis builder is on (CWorldRendererBuilder::Build reads the
     /// context's builder flag, vf29 index 2): without it there is no
     /// world_visibility.vvis_c and CompileNode clusters nothing, as a -world build shows.</param>
     public static List<Output> Build(DmxBinary.Document document, string addon, string map, GameContent content, ShaderLibrary shaders,
                                      FgdSchema schema, string game, EnvVolumes.Set volumes, uint timestamp, List<string> notes,
-                                     bool vis = true, ulong? fingerprint = null)
+                                     bool vis = true, ulong? fingerprint = null, WorldTrees.BakedLighting? baked = null,
+                                     (byte[] Vvis, List<(Vector3 Min, Vector3 Max)>[] Flat)? visibility = null)
     {
         map = Io.Tier0Strings.LowerAscii(map);
         var outputs = new List<Output>();
@@ -39,7 +42,7 @@ public static class WorldNodeFiles
         float[][]? mutual = null;
         if (vis)
         {
-            var (vvis, visFlat) = Visibility(document, addon, map, content, schema, game, RendersAsWorld);
+            var (vvis, visFlat) = visibility ?? Visibility(document, addon, map, content, schema, game, RendersAsWorld);
             outputs.Add(new($"maps/{map}/world_visibility.vvis_c", vvis));
             flat = visFlat;
             mutual = VisOutput.MutualVisibility(VoxelVisibilityReader.Read(vvis));
@@ -148,15 +151,19 @@ public static class WorldNodeFiles
                                                                          ValveResourceFormat.Serialization.KeyValues.KV3IDLookup.Get("generic"), ".vwnod")));
         outputs.Add(new($"maps/{map}/worldnodes/n0.vrman_c", ResourceManifestAuthor.AuthorSaved([vwnod], $"maps/{map}/worldnodes/n0.vrman", addon, [Backslashed(vwnod)])));
         var vwrld = WorldTrees.Data(1024f, [new WorldTrees.Node(nodeMin, nodeMax, $"maps\\{map.Replace('/', '\\')}\\worldnodes\\n0")],
-                                    [$"maps/{map}/entities/default_ents.vents"], timestamp, fingerprint ?? (ulong)Random.Shared.NextInt64());
+                                    [$"maps/{map}/entities/default_ents.vents"], timestamp, fingerprint ?? (ulong)Random.Shared.NextInt64(), baked);
         outputs.Add(new($"maps/{map}/world.vwrld_c", Source2ContainerAuthor.AuthorKv3Tree(vwrld, ValveResourceFormat.Serialization.KeyValues.KV3IDLookup.Get("generic"), ".vwrld")));
         string[] worldManifest = [$"maps/{map}/world.vwrld", $"maps/{map}/world_physics.vrman", $"maps/{map}/world_visibility.vvis"];
         outputs.Add(new($"maps/{map}/world.vrman_c", ResourceManifestAuthor.AuthorOverride(worldManifest, [.. worldManifest.Select(Backslashed)])));
         return outputs;
     }
 
-    // The vis builder's output: the trace scene's visibility and its flat clusters.
-    private static (byte[] Vvis, List<(Vector3 Min, Vector3 Max)>[] Flat) Visibility(DmxBinary.Document document, string addon, string map,
+    /// <summary>
+    /// The vis builder's output: the trace scene's visibility and its flat clusters, which the
+    /// entity lump's lights read too (precomputed_vis_clusters), so a baked compile builds it
+    /// before the lumps and hands it to <see cref="Build"/>.
+    /// </summary>
+    public static (byte[] Vvis, List<(Vector3 Min, Vector3 Max)>[] Flat) Visibility(DmxBinary.Document document, string addon, string map,
         GameContent content, FgdSchema schema, string game, Func<string, bool> rendersAsWorld)
     {
         var packages = new[] { "csgo", "core" }.Select(d => { var pk = new Package(); pk.Read(Path.Combine(game, d, "pak01_dir.vpk")); return pk; }).ToList();

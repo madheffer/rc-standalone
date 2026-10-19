@@ -21,7 +21,8 @@ public static class MapCompile
     /// </summary>
     public static List<Output> EntityLumps(DmxBinary.Document document, string worldName, FgdSchema schema,
                                            GameContent content, bool settle, bool bakedLighting = false,
-                                           bool entitiesOnly = false, Action<EntityLumpAuthor.Lighting>? lighting = null)
+                                           bool entitiesOnly = false, Action<EntityLumpAuthor.Lighting>? lighting = null,
+                                           List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[]? visClusterBoxes = null)
     {
         var locators = Locators(content);
         var settled = settle
@@ -32,7 +33,7 @@ public static class MapCompile
         var scene = EditorTraceScene.ForMap(document, content);
         return [.. EntityLumpSet.Author(MapEntities.From(document), schema, worldName,
                                         MapEntities.FixupEntityNames(document), document, locators, settled,
-                                        bakedLighting, entitiesOnly, scene, lighting: lighting)
+                                        bakedLighting, entitiesOnly, scene, visClusterBoxes: visClusterBoxes, lighting: lighting)
             .Select(l => new Output(l.Path, l.Bytes))];
     }
 
@@ -170,7 +171,16 @@ public static class MapCompile
                                                         || k.StartsWithAscii($"maps/{map}/entities/".ToLowerInvariant())).ToList())
                 entries.Remove(old);
             EntityLumpAuthor.Lighting? lighting = null;
-            var lumps = EntityLumps(document, map, schema, assets, args.Settle, bakes, entitiesOnly: false, lighting: l => lighting = l);
+            // A baked compile's lights list the vis clusters they touch (precomputed_vis_clusters),
+            // so vis is built first and its flat clusters handed to the lumps.
+            (byte[] Vvis, List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[] Flat)? visibility = null;
+            if (bakes && steps.Contains("vis"))
+            {
+                bool WorldClass(string cls) => schema.IsSolidClass(cls) && schema.HasFlag(cls, "render_as_world_but_physics_as_entity");
+                visibility = WorldNodeFiles.Visibility(document, addon, Io.Tier0Strings.LowerAscii(map), assets, schema, game, WorldClass);
+            }
+            var lumps = EntityLumps(document, map, schema, assets, args.Settle, bakes, entitiesOnly: false, lighting: l => lighting = l,
+                                    visClusterBoxes: visibility?.Flat);
             foreach (var lump in lumps)
                 entries[lump.Path] = lump.Bytes;
             var models = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp);
@@ -182,8 +192,9 @@ public static class MapCompile
             var (stamp, fingerprint) = Environment.GetEnvironmentVariable("S2C_WORLD_STAMP")?.Split(",") is [var stampText, var printText]
                 ? (uint.Parse(stampText, System.Globalization.CultureInfo.InvariantCulture), (ulong?)ulong.Parse(printText, System.Globalization.CultureInfo.InvariantCulture))
                 : ((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), null);
+            var baked = bakes && args.Vrad3Output is { } bakedFolder && lighting is not null ? BakedWorldLighting(bakedFolder, map, args, lighting) : null;
             var node = WorldNodeFiles.Build(document, addon, map, assets, shaders, schema, game, lighting?.Volumes ?? EnvVolumes.Set.Empty,
-                                            stamp, notes, vis: steps.Contains("vis"), fingerprint: fingerprint);
+                                            stamp, notes, vis: steps.Contains("vis"), fingerprint: fingerprint, baked: baked, visibility: visibility);
             foreach (var f in node)
                 entries[f.Path] = f.Bytes;
             log.WriteLine($"  world: {lumps.Count} lumps, {models.Count} entity models, {node.Count} node files"
@@ -259,6 +270,30 @@ public static class MapCompile
         File.Move(written, package, overwrite: true);
         log.WriteLine($"  wrote {entries.Count:n0} entries");
         return 0;
+    }
+
+    /// <summary>
+    /// world.vwrld's lighting info for a baked compile from vrad3's output: the uv scale from the
+    /// irradiance atlas' side (after the mip and MinSpec halvings, as the query data's), the
+    /// switches the bake ran with (compression, the packer's passes, the vrad quality), the
+    /// lightmaps vrad3 wrote, and the lights' baked shadows (<see cref="EntityLumpAuthor.Lighting.BakedShadows"/>).
+    /// </summary>
+    private static WorldTrees.BakedLighting? BakedWorldLighting(string folder, string map, MapCompileArgs args, EntityLumpAuthor.Lighting lighting)
+    {
+        var irradiance = Path.Combine(folder, "irradiance.exr");
+        if (!File.Exists(irradiance))
+            return null;
+        var side = Lighting.Vrad3Exr.Read(File.ReadAllBytes(irradiance)).Width;
+        var options = Lighting.LightmapOutputs.Options.From(args.Arguments);
+        var (_, w, h) = Lighting.LightmapSettings.MipChain(side, options.MipCount, options.MinSpecLightmapSize);
+        int Int(string name, int fallback) => args.Arguments.TryGetValue(name, out var v) ? v switch { int i => i, float f => (int)f, _ => fallback } : fallback;
+        var passes = Int("lightmapChartPackIterations", options.Quality switch { 0 => 4, 1 => 7, 2 => 9, _ => 4 });
+        // The channels in the order the world lists them, those vrad3 wrote.
+        (string Exr, string Channel)[] order = [("direct_light_shadows.exr", "direct_light_shadows"), ("irradiance.exr", "irradiance"),
+                                                ("lightmap_chart_color.exr", "debug_chart_color"), ("directional_irradiance.exr", "directional_irradiance")];
+        var maps = order.Where(c => File.Exists(Path.Combine(folder, c.Exr))).Select(c => $"maps/{map}/lightmaps/{c.Channel}.vtex").ToList();
+        return new(65535f / Lighting.LightmapQueryData.UvScale(w), 65535f / Lighting.LightmapQueryData.UvScale(h), options.Compressed,
+                   (uint)passes, (uint)options.Quality, maps, lighting.BakedShadows());
     }
 
     /// <summary>

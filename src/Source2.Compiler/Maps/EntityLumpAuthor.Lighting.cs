@@ -36,6 +36,32 @@ public static partial class EntityLumpAuthor
         /// </summary>
         public IReadOnlyDictionary<MapEntities.Entity, int[]>? VisClusters { get; init; }
 
+        /// <summary>The entities in export order (the lump's order).</summary>
+        public IReadOnlyList<MapEntities.Entity> ExportOrder { get; init; } = [];
+
+        /// <summary>
+        /// world.vwrld's m_bakedShadows: in export order, each light the shadow slot step gave a
+        /// channel (bakedshadowindex 0 to 3), with its light_path_uniqueid and light_map_uniqueid
+        /// (ze_hold_em_p: all 37, in the lump's order). A light left at -1 is not listed (not
+        /// seen in a capture yet).
+        /// </summary>
+        public IReadOnlyList<WorldTrees.BakedShadow> BakedShadows()
+        {
+            var list = new List<WorldTrees.BakedShadow>();
+            if (LightWrites is null)
+                return list;
+            foreach (var e in ExportOrder)
+            {
+                if (!LightWrites.TryGetValue(e, out var keys))
+                    continue;
+                string? Get(string k) => keys.LastOrDefault(kv => kv.Key == k).Value;
+                if (Get("bakedshadowindex") is { } slot && int.TryParse(slot, CultureInfo.InvariantCulture, out var channel) && channel >= 0
+                    && Get("light_path_uniqueid") is { } path && Get("light_map_uniqueid") is { } mapId)
+                    list.Add(new(unchecked((uint)int.Parse(path, CultureInfo.InvariantCulture)), unchecked((uint)int.Parse(mapId, CultureInfo.InvariantCulture)), channel));
+            }
+            return list;
+        }
+
         /// <summary>The cubemap and light probe volume records the export hands the world renderer builder (<see cref="Maps.EnvVolumes"/>).</summary>
         public Maps.EnvVolumes.Set Volumes { get; init; } = Maps.EnvVolumes.Set.Empty;
 
@@ -107,6 +133,7 @@ public static partial class EntityLumpAuthor
             return new Lighting(mapPath, baked, handshake, cube, atlas,
                                 scene is null ? null : LightKeys(mapPath, baked, order, schema, scene))
             {
+                ExportOrder = order,
                 Volumes = new(cubemaps, probes),
                 VisClusters = baked && scene is not null && visClusterBoxes is not null
                     ? LightVisMembership(order, schema, scene, visClusterBoxes) : null,
