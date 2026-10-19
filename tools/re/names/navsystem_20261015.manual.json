@@ -514,7 +514,67 @@
    "addr": "18006c6b0",
    "name": "NavGen_ClipPolysToHullClearance",
    "module": "s2c:baked/navgen",
-   "note": "not ported"
+   "note": "skipped for an oriented mesh or a crawling hull; short height when enabled; NavGenClip.cs, exact (ledger 101)"
+  },
+  {
+   "addr": "1800544e0",
+   "name": "NavGen_ClipPolysToHullClearanceInternal",
+   "module": "s2c:baked/navgen",
+   "note": "work list passes until empty; five non-reducing passes warn and stop"
+  },
+  {
+   "addr": "180054ae0",
+   "name": "NavGen_ClipProcessList",
+   "module": "s2c:baked/navgen",
+   "note": "edges clear, else first clear point (0.2 apart), forward and back walks, midpoint split or clip plane"
+  },
+  {
+   "addr": "180052f40",
+   "name": "NavGen_EdgeClear",
+   "module": "s2c:baked/navgen",
+   "note": "the edge pulled in by min(inset, centroid distance), cast with climb + 2.5"
+  },
+  {
+   "addr": "18004f280",
+   "name": "NavGen_PolySupport",
+   "module": "s2c:baked/navgen",
+   "note": "largest (y n.y + x n.x) + z n.z over the corners"
+  },
+  {
+   "addr": "18004b370",
+   "name": "NavGen_HullBoxCast",
+   "module": "s2c:baked/navgen",
+   "note": "box (-r/sqrt2, -r/sqrt2, climb)..(r/sqrt2, r/sqrt2, height) through world vfn 0x558, lifted by 18004b580"
+  },
+  {
+   "addr": "18004b580",
+   "name": "NavGen_GroundLift",
+   "module": "s2c:baked/navgen",
+   "note": "four zero-width drop casts at 0, 1/3, 2/3, 1; the deepest stop"
+  },
+  {
+   "addr": "180053e40",
+   "name": "NavGen_BoundaryLength",
+   "module": "s2c:baked/navgen",
+   "note": "from (back edge, t) forward to (hit edge, t)"
+  },
+  {
+   "addr": "18005c130",
+   "name": "NavGen_BoundaryPoint",
+   "module": "s2c:baked/navgen",
+   "note": "the point at a length along the boundary, cast-checked"
+  },
+  {
+   "addr": "18004ea70",
+   "name": "NavGen_FindClipDistance",
+   "module": "s2c:baked/navgen",
+   "note": "the clip plane distance (d - 0.1) - 0.5"
+  },
+  {
+   "addr": "180052b10",
+   "name": "NavGen_ClipDirectionClear",
+   "module": "s2c:baked/navgen",
+   "note": ""
   },
   {
    "addr": "180075f40",

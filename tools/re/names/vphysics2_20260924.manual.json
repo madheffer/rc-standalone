@@ -73,6 +73,216 @@
    "note": "BVH walk; triangles through 180244380, or 180243770 when the mesh has neighbour indices (+0x68)"
   },
   {
+   "addr": "180065360",
+   "name": "CVPhys2World::CastShape",
+   "module": "s2c:baked/navgen",
+   "note": "world vfn 0x558 -> 1801f5080"
+  },
+  {
+   "addr": "1801d64a0",
+   "name": "RnBroadphase_CastBox",
+   "module": "s2c:baked/navgen",
+   "note": "a broadphase tree's walk for CastBox"
+  },
+  {
+   "addr": "180244dc0",
+   "name": "RnMesh_CastBoxTransformed",
+   "module": "s2c:baked/navgen",
+   "note": "start and half extents into the mesh frame, triangle box (min - 1/32) - h; Simulation/BoxCast.MeshTransformed"
+  },
+  {
+   "addr": "180243770",
+   "name": "RnMesh_SweptTriangleTestWings",
+   "module": "s2c:baked/navgen",
+   "note": "180244380 for triangles with three wings; the same fraction, another normal"
+  },
+  {
+   "addr": "18024ac40",
+   "name": "RnMesh_CastBoxClosed",
+   "module": "s2c:baked/navgen",
+   "note": "closed meshes (+0xb4 bit 0): the start inside (180248a30) makes the fraction 0"
+  },
+  {
+   "addr": "180248a30",
+   "name": "RnMesh_PointInsideClosed",
+   "module": "s2c:baked/navgen",
+   "note": "ray to the nearest bound face (ties z, then y) through 18023fe00; inside when the hit faces along it"
+  },
+  {
+   "addr": "18023fe00",
+   "name": "RnMesh_RayNormal",
+   "module": "s2c:baked/navgen",
+   "note": "BVH ray with the hit triangle's unit normal"
+  },
+  {
+   "addr": "180250540",
+   "name": "CRnHullShape::CastBox",
+   "module": "s2c:baked/navgen",
+   "note": "180251800 with the shape's hull (+0xc0) and scale (+0xb8)"
+  },
+  {
+   "addr": "180251800",
+   "name": "RnHull_CastBox",
+   "module": "s2c:baked/navgen",
+   "note": "points scaled and moved to the transformed reference point's frame; the GJK ray cast; Simulation/HullCast.Cast"
+  },
+  {
+   "addr": "1802e2c30",
+   "name": "GjkRay_Init",
+   "module": "s2c:baked/navgen",
+   "note": "start, end, delta, unit dir (180088f50), length, 1/length"
+  },
+  {
+   "addr": "1802e2b90",
+   "name": "GjkBoxSupport_Init",
+   "module": "s2c:baked/navgen",
+   "note": "vtable 1803e3128: slot 1 1802ea210 picks +h or -h by sign bit"
+  },
+  {
+   "addr": "1802e2ce0",
+   "name": "GjkCast_Init",
+   "module": "s2c:baked/navgen",
+   "note": "v = start, margin, tol 1/32, fraction 1"
+  },
+  {
+   "addr": "1802e7fc0",
+   "name": "GjkCast_Result",
+   "module": "s2c:baked/navgen",
+   "note": "fraction (+0x44), point, normal, start solid (+0x50)"
+  },
+  {
+   "addr": "1802e8060",
+   "name": "GjkCast_Cast",
+   "module": "s2c:baked/navgen",
+   "note": "rays over 512 clipped to the hull's slab first"
+  },
+  {
+   "addr": "1802eacc0",
+   "name": "GjkCast_Run",
+   "module": "s2c:baked/navgen",
+   "note": "GJK on the box swept along the ray minus the hull, 100 steps"
+  },
+  {
+   "addr": "1802e7840",
+   "name": "GjkCast_Separated",
+   "module": "s2c:baked/navgen",
+   "note": "advancement after a separating direction, 20 steps"
+  },
+  {
+   "addr": "1802e6ed0",
+   "name": "GjkSimplex_Add",
+   "module": "s2c:baked/navgen",
+   "note": "by count: point, segment, 1802e8750, 1802e8cc0"
+  },
+  {
+   "addr": "1802e8750",
+   "name": "GjkSimplex_Triangle",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1802e8cc0",
+   "name": "GjkSimplex_Tetra",
+   "module": "s2c:baked/navgen",
+   "note": "eight cases behind the jump table at 1802ea1f0"
+  },
+  {
+   "addr": "1802eaa40",
+   "name": "GjkHullSupport",
+   "module": "s2c:baked/navgen",
+   "note": "vtable 1803e1250 slot 1: the first point with the greatest dot"
+  },
+  {
+   "addr": "1802e7120",
+   "name": "GjkCast_Toi",
+   "module": "s2c:baked/navgen",
+   "note": "time of impact along the ray"
+  },
+  {
+   "addr": "1802e4cd0",
+   "name": "GjkToi_Init",
+   "module": "s2c:baked/navgen",
+   "note": "the tetrahedron face the ray leaves through"
+  },
+  {
+   "addr": "1802e4900",
+   "name": "GjkToi_Step",
+   "module": "s2c:baked/navgen",
+   "note": "replace the vertex of the exit face"
+  },
+  {
+   "addr": "1802e52c0",
+   "name": "GjkToi_Triangle",
+   "module": "s2c:baked/navgen",
+   "note": "edge planes along the ray plus tol over the slope"
+  },
+  {
+   "addr": "1802e5ab0",
+   "name": "GjkCast_Contact",
+   "module": "s2c:baked/navgen",
+   "note": "depth by simplex size; distance = ray length - depth"
+  },
+  {
+   "addr": "1802e4200",
+   "name": "GjkCast_VertexDepth",
+   "module": "s2c:baked/navgen",
+   "note": "segment-sphere clip (18037d090), the larger t"
+  },
+  {
+   "addr": "1802e2e80",
+   "name": "GjkCast_EdgeDepth",
+   "module": "s2c:baked/navgen",
+   "note": "ray against the capsule round the edge"
+  },
+  {
+   "addr": "1802e3460",
+   "name": "GjkCast_FaceDepth",
+   "module": "s2c:baked/navgen",
+   "note": "plane distance, then the edge capsules"
+  },
+  {
+   "addr": "1802eb5e0",
+   "name": "GjkCast_EdgeCapsule",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1802e5c80",
+   "name": "GjkCast_RefineVertex",
+   "module": "s2c:baked/navgen",
+   "note": "grow to an edge or face, 32 steps"
+  },
+  {
+   "addr": "1802e6780",
+   "name": "GjkCast_RefineEdge",
+   "module": "s2c:baked/navgen",
+   "note": "grow to a face, 32 steps"
+  },
+  {
+   "addr": "18016caf0",
+   "name": "RayCapsuleCast",
+   "module": "s2c:baked/navgen",
+   "note": "fraction, point, normal, start solid (+0x30)"
+  },
+  {
+   "addr": "18016b0e0",
+   "name": "RaySphereCast",
+   "module": "s2c:baked/navgen",
+   "note": "capsules under 0.001; inside via 18016b2f0"
+  },
+  {
+   "addr": "18037d090",
+   "name": "SegmentSphereClip",
+   "module": "s2c:baked/navgen",
+   "note": "18037cd90 clipped to [0, 1]"
+  },
+  {
+   "addr": "18008d5b0",
+   "name": "Vector_Perpendicular",
+   "module": "s2c:baked/navgen",
+   "note": "((1 - z) y^2 + z, 0, -x) normalised, made orthogonal, normalised"
+  },
+  {
    "addr": "180242360",
    "name": "CRnMeshShape::CastRay",
    "module": "s2c:baked/bomb",

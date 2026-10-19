@@ -139,4 +139,35 @@ public sealed class NavCastTests(ITestOutputHelper output)
         output.WriteLine($"{same} of {total} mesh casts Valve's ({missing} on shapes not dumped, {closedSkipped} on closed meshes)");
         Assert.Equal(total, same);
     }
+
+    [Fact]
+    public void HullBoxCastsMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navcast_shapedata.bin")))
+            return;
+        var (_, hulls) = Shapes(dir);
+        int total = 0, same = 0, missing = 0, shown = 0, hits = 0;
+        foreach (var c in ShapeCasts(dir))
+        {
+            if (c.Type != 2)
+                continue;
+            if (!hulls.TryGetValue(c.Shape, out var h))
+            {
+                missing++;
+                continue;
+            }
+            total++;
+            var hit = HullCast.Cast(h.Reference, h.Points, h.Scale, c.Transform, c.Centre, c.Delta, c.Half);
+            if (c.Returned)
+                hits++;
+            if (hit.Found == c.Returned && (!hit.Found || BitConverter.SingleToInt32Bits(hit.Fraction) == BitConverter.SingleToInt32Bits(c.Fraction)))
+                same++;
+            else if (shown++ < 15)
+                output.WriteLine($"cast {total}: ours {hit.Found} {hit.Fraction:R}{(hit.StartSolid ? " solid" : "")}, Valve {c.Returned} {c.Fraction:R}; " +
+                                 $"start {c.Centre} delta {c.Delta} half {c.Half}");
+        }
+        output.WriteLine($"{same} of {total} hull casts Valve's ({hits} hits; {missing} on shapes not dumped)");
+        Assert.Equal(total, same);
+    }
 }

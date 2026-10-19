@@ -18,6 +18,11 @@ hull 180250540, sphere 18024bc00, capsule 18024e6b0) made inside one:
                             scale (+0xb8, 4) and the hull's first 0x80 bytes then its points
                             (+0x70 count, +0x78, 12 each).
 
+--with-navgen also loads capture_navgen.py's agent into the same process, so its stage files
+(<n>_<stage>_in.bin / _out.bin, the same layout) come from the run the casts do: Valve's polygons
+differ from run to run, so a cast replay needs both from one run. --stop-after <prefix> kills the
+compile once that stage's _out file is written (default 029, before Compute Approach areas).
+
 The records go through a 1 MB buffer flushed as it fills. The RVAs are 20261015's; check them with
 patch_check.py after an update.
 """
@@ -158,6 +163,8 @@ def main():
     p.add_argument("map")
     p.add_argument("--out")
     p.add_argument("--switches", default="-world -phys -nav")
+    p.add_argument("--with-navgen", action="store_true")
+    p.add_argument("--stop-after", default="029")
     a = p.parse_args()
     if running("cs2.exe"):
         raise SystemExit("CS2 is running; not starting")
@@ -189,6 +196,22 @@ def main():
     sc = ses.create_script(AGENT)
     sc.on("message", on_message)
     sc.load()
+    stop = threading.Event()
+    if a.with_navgen:
+        import capture_navgen
+
+        def on_navgen(msg, data):
+            if msg.get("type") != "send":
+                print("navgen agent:", msg.get("description") or msg)
+            elif "tag" in msg["payload"]:
+                tag = msg["payload"]["tag"]
+                with open(os.path.join(out_dir, tag + ".bin"), "wb") as f:
+                    f.write(data)
+                if tag.startswith(a.stop_after + "_") and tag.endswith("_out"):
+                    stop.set()
+        ng = ses.create_script(capture_navgen.AGENT)
+        ng.on("message", on_navgen)
+        ng.load()
     done = threading.Event()
     ses.on("detached", lambda *x: done.set())
     # Flush before the process ends: watch for navsystem's last stage by polling the RPC.
@@ -198,7 +221,13 @@ def main():
             sc.exports_sync.flush()
         except Exception:
             pass
-        if running("cs2.exe"):
+        if running("cs2.exe") or stop.is_set():
+            if stop.is_set():
+                print("stage", a.stop_after, "done; stopping the compile")
+                try:
+                    sc.exports_sync.flush()
+                except Exception:
+                    pass
             subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
     for f in files.values():
         f.close()

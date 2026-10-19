@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using Source2.Compiler.Maps;
 using Source2.Compiler.Maps.NavGen;
 using Xunit;
@@ -20,6 +21,8 @@ public sealed class NavGenClipTests(ITestOutputHelper output)
     {
         private readonly Dictionary<(int, int, int, int, int, int, int, int, int, int, int, int), float> _answers = [];
         public int Asked, Unknown, FirstUnknown = -1;
+        public string? FirstKey;
+        public Stream? Log;
 
         public ReplayWorld(string path)
         {
@@ -40,11 +43,15 @@ public sealed class NavGenClipTests(ITestOutputHelper output)
         {
             static int B(float v) => BitConverter.SingleToInt32Bits(v);
             Asked++;
+            Log?.Write(MemoryMarshal.AsBytes<int>([B(mins.X), B(mins.Y), B(mins.Z), B(maxs.X), B(maxs.Y), B(maxs.Z), B(start.X), B(start.Y), B(start.Z), B(delta.X), B(delta.Y), B(delta.Z)]));
             var key = (B(mins.X), B(mins.Y), B(mins.Z), B(maxs.X), B(maxs.Y), B(maxs.Z), B(start.X), B(start.Y), B(start.Z), B(delta.X), B(delta.Y), B(delta.Z));
             if (_answers.TryGetValue(key, out var fraction))
                 return fraction;
             if (Unknown++ == 0)
+            {
                 FirstUnknown = Asked;
+                FirstKey = $"mins {mins} maxs {maxs} start {start.X:R} {start.Y:R} {start.Z:R} delta {delta.X:R} {delta.Y:R} {delta.Z:R}";
+            }
             return 1f;
         }
     }
@@ -68,7 +75,11 @@ public sealed class NavGenClipTests(ITestOutputHelper output)
     [InlineData("s2c_prefabprobe4")]
     public void ClipMatchesValveOnReplayedCasts(string map)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "navgen_capture", map + "_in");
+        // Valve's polygons vary from run to run, so the stage files and the casts must come from one
+        // compile: <map>_same is a capture_navcast.py --with-navgen run; <map>_in holds capture_navgen
+        // and capture_navcast output, which match only when the map builds the same each time.
+        var same = Path.Combine(Path.GetTempPath(), "navgen_capture", map + "_same");
+        var dir = Directory.Exists(same) ? same : Path.Combine(Path.GetTempPath(), "navgen_capture", map + "_in");
         var casts = Environment.GetEnvironmentVariable("NAVCAST_WORLD") ?? Path.Combine(dir, "navcast_world.bin");
         if (!File.Exists(Path.Combine(dir, "022_ClipPolysToHullClearance_in.bin")) || !File.Exists(casts) || CS2Fixtures.StockPak() is not { } pak)
             return;
@@ -76,11 +87,15 @@ public sealed class NavGenClipTests(ITestOutputHelper output)
         var g = Load(Path.Combine(dir, "022_ClipPolysToHullClearance_in.bin"));
         var valve = Load(Path.Combine(dir, "022_ClipPolysToHullClearance_out.bin"));
         var world = new ReplayWorld(casts);
+        using var log = Environment.GetEnvironmentVariable("NAVCAST_LOG") is { } lp ? File.Create(Path.Combine(lp, map + ".asks")) : null;
+        world.Log = log;
         var before = g.Polys.Count;
         g.ClipPolysToHullClearance(settings.Hulls[0], world, orientedMesh: false);
         var diff = NavGenInputTests.Compare(g, valve);
         output.WriteLine($"{map}: {before} -> {g.Polys.Count} polygons (Valve {valve.Polys.Count}), {g.Pool.Count} vertices (Valve {valve.Pool.Count}); " +
                          $"{world.Asked} casts asked, {world.Unknown} not among Valve's {world.Count} (first at ask {world.FirstUnknown}); {diff ?? "Valve's"}");
+        if (world.FirstKey != null)
+            output.WriteLine("first unknown: " + world.FirstKey);
         Assert.Null(diff);
         Assert.Equal(0, world.Unknown);
     }

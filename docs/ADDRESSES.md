@@ -138,7 +138,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `navsystem.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: this build
-- 225 addresses
+- 235 addresses
 
 ### s2c:baked/navgen
 
@@ -164,11 +164,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180046c80` | `NavGrid2D_Insert` | item into every cell of its clamped range | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:208` |
 | `180046fc0` | `NavGen_ClipToBounds` | when generation bounds are set (not ported) |  |
 | `1800475e0` | `NavGrid2D_Query` | iterator: rows, columns, cell entries, each once (180046870 init, 180046a40 get, 180046a80 next, 180048960 done) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:209` |
-| `180048b20` | `NavGen_ExtractTriangles` | bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:118`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:207` |
+| `180048b20` | `NavGen_ExtractTriangles` | bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:118`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:219` |
 | `180049210` | `NavGen_ApplyNoNavMarkups` | after extraction (not ported) |  |
+| `18004b370` | `NavGen_HullBoxCast` | box (-r/sqrt2, -r/sqrt2, climb)..(r/sqrt2, r/sqrt2, height) through world vfn 0x558, lifted by 18004b580 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:7`, `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:265` |
+| `18004b580` | `NavGen_GroundLift` | four zero-width drop casts at 0, 1/3, 2/3, 1; the deepest stop | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:265` |
 | `18004b990` | `NavGen_AddInterpolatedVertex` | attribute interpolated only when set | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:23` |
-| `18004bbe0` | `NavGen_FanFromPoints` | quads with a triangle last over new vertices, flags 0 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:742` |
-| `18004c280` | `NavGen_PolysFromPoints` | attributes, then 18004bbe0 |  |
+| `18004bbe0` | `NavGen_FanFromPoints` | quads with a triangle last over new vertices, flags 0 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:552`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:742` |
+| `18004c280` | `NavGen_PolysFromPoints` | attributes, then 18004bbe0 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:552` |
 | `18004c4f0` | `NavGen_AppendPolyCopy` |  |  |
 | `18004c650` | `NavGen_AddPoly` | creation defaults | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:12` |
 | `18004c780` | `NavLinks_Add` | 0x68 record, slot, per-edge list | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:139`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:618` |
@@ -181,13 +183,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004dd20` | `NavGen_AddJumpConnection` | this side unless already connected to the other polygon; the other side (180053170 overlap 1, kind = !(dist < max(MaxClimb, MaxJumpUpDist))) unless already connected back | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:36`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:238` |
 | `18004e040` | `NavGen_TransferEdge` | connections of src's edge made from dst's edge, and back | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:56`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:107` |
 | `18004e4d0` | `NavGen_PolysFromTriangles` | pool = vertices as doubles; one triangle per 3 indices, +4/+0x64 -1, +0x60 5 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:65` |
+| `18004ea70` | `NavGen_FindClipDistance` | the clip plane distance (d - 0.1) - 0.5 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:427` |
 | `18004ef30` | `CNavGenPoly_Centroid` | sum in order, times 1/n | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:907` |
 | `18004f120` | `NavGenPoly_EdgeOutward` | unit edge direction u (kept when \|u\| <= FLT_EPSILON) cross the polygon normal | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:28`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:121` |
+| `18004f280` | `NavGen_PolySupport` | largest (y n.y + x n.x) + z n.z over the corners | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:251` |
 | `18004fb30` | `CNavGenPoly_IndexOf` | corner index of a vertex, -1 |  |
 | `18004fb70` | `CNavGenPoly_CornerXY` | corner with z 0 |  |
 | `18004fd70` | `CNavGenPoly_EdgeHasConnection` |  |  |
 | `18004fdb0` | `CNavGenPoly_AttributesUnset` | every corner's attribute unset (map input: true) |  |
-| `18004fe60` | `NavGen_ClipPointsByPlane` | front/on to A, back to B, band +-tol | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:663` |
+| `18004fe60` | `NavGen_ClipPointsByPlane` | front/on to A, back to B, band +-tol | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:473`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:663` |
 | `180050240` | `NavLinks_RemoveAt` | swap with the last, per-edge list fixed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:640`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:418` |
 | `180050400` | `NavGen_RemovePoly` | last polygon moves in, links rebuilt | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:106` |
 | `180050750` | `CNavGenPoly_Reverse` | corner order reversed |  |
@@ -195,9 +199,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180051990` | `NavGen_SplitAlong` | offsets along a direction from a corner | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:324`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:507` |
 | `180051cb0` | `NavGen_SplitCornerEdge` | cut edge pieces at overlap 0.1 | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:190`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:326` |
 | `1800521d0` | `NavGen_SplitCorners` |  | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:146`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:245`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:325` |
+| `180052b10` | `NavGen_ClipDirectionClear` |  | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:427`, `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:438` |
+| `180052f40` | `NavGen_EdgeClear` | the edge pulled in by min(inset, centroid distance), cast with climb + 2.5 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:231` |
 | `180053170` | `NavGen_Connect` | edges opposite, projected both ways (1800787d0), overlap gate, midpoint side | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:139`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:539`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:30` +2 |
 | `180053d40` | `NavGen_CopyPolys` | the pass-through of the oriented-mesh case |  |
+| `180053e40` | `NavGen_BoundaryLength` | from (back edge, t) forward to (hit edge, t) | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:294` |
 | `1800541a0` | `NavGen_PlanarDeviation` | float corners of the polygons, plane fit 1800ee9a0, largest distance above | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:941` |
+| `1800544e0` | `NavGen_ClipPolysToHullClearanceInternal` | work list passes until empty; five non-reducing passes warn and stop | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:31` |
+| `180054ae0` | `NavGen_ClipProcessList` | edges clear, else first clear point (0.2 apart), forward and back walks, midpoint split or clip plane | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:57`, `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:155` |
 | `180055e30` | `NavGen_ToWidePolys` | 0x88 -> 0x168-byte polygons (64 inline corners) |  |
 | `180056020` | `NavGen_FromWidePolys` | 0x168 -> 0x88-byte polygons, +0x60 5 |  |
 | `180056260` | `NavGen_MultiConnectionCorner` | sorted by (polygon, edge) (180068680) | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:389` |
@@ -215,6 +224,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18005b3b0` | `NavGen_RemoveDegensInto` | 18005b290 per polygon into a new list |  |
 | `18005b5f0` | `NavGen_RemoveDegensImpl` | 18005b290 per poly, keep the rest | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:248` |
 | `18005be20` | `NavGen_SplitPolysWithMultipleConnections` |  | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:505` |
+| `18005c130` | `NavGen_BoundaryPoint` | the point at a length along the boundary, cast-checked | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:333` |
 | `18005ca90` | `NavGen_MergeAtVertices` | T-junction merges through a third polygon, one per vertex per sweep | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:410` |
 | `18005dfa0` | `NavGen_SplitCorners` | centroid turn about R's normal picks o1..o6; side checks 180080c10 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:272`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:414` |
 | `18005e510` | `NavGen_CrossingOnPoly` | first edge crossed in XY (180080750), snapped or a new vertex (18004ca90) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:342`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:415` |
@@ -233,7 +243,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18006b160` | `NavGen_AddJumps` | stage 026 (ledger 98): capsules per kind (physics vfn 0x1e8: (0,0,climb)-(0,0,h/2+climb), radius), 32-unit grid, candidate edges, pairs, MSVC sort by squared midpoint distance, adds and marks | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:25` |
 | `18006bee0` | `NavGen_AppendPolys` | polygons and pool appended; the polygons' corners offset by the old pool size, their connections' +0 and +8 by the old polygon count | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9` |
 | `18006bfc0` | `NavGen_JumpPairs` | edge pairs (180053170, overlap radius * nav_gen_jump_connection_min_overlap_ratio) dropping more than climb + 4 and at most MaxJumpDownDist, kind rule, XY within MaxJumpHorizDistBase, clear, not covered (+0x61 sticky per target polygon) | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:30`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:155` |
-| `18006c6b0` | `NavGen_ClipPolysToHullClearance` | not ported |  |
+| `18006c6b0` | `NavGen_ClipPolysToHullClearance` | skipped for an oriented mesh or a crawling hull; short height when enabled; NavGenClip.cs, exact (ledger 101) | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:29` |
 | `18006cb10` | `NavGen_CompactRemoved` | remap, connections to dropped polygons removed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:613`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:37`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:417` +1 |
 | `18006cf00` | `NavGen_JumpTargets` | grid query over the XY box of the edge and the edge moved out by MaxJumpHorizDistBase; each polygon once | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:29`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:138` |
 | `18006d260` | `NavGen_PolysOverlapXY` | separating axes from both polygons' XY edge normals, margin dist_a | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:36` |
@@ -275,7 +285,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800787d0` | `SegmentProjectXYF` | float projection of q0-q1 onto p0-p1 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:501` |
 | `1800802b0` | `ClosestPointOnTriangle` | Ericson's regions, doubles | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:7` |
 | `180080750` | `LineIntersectXY` | \|det\| < 1e-6f fails | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:328` |
-| `180080820` | `PlaneSegmentIntersect` | t = (d - n.p) / n.(q - p) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:664` |
+| `180080820` | `PlaneSegmentIntersect` | t = (d - n.p) / n.(q - p) | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:489`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:664` |
 | `1800808f0` | `NavGen_PointOnSegment` | perpendicular distance in the plane, scaled by \|b - a\|, against tol | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:155`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:139` |
 | `180080c10` | `NavGen_SameSideOfLine` | points on pts[0]'s side of a-b or collinear within tol | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:182` |
 | `180081050` | `NavGen_Collinear3` | first acute corner, nearer neighbour on the segment to the farther (1800808f0) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:153`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:413` |
@@ -2075,19 +2085,19 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2.dll`, 4,829,848 bytes, PE time 2026-10-14 18:42 UTC
 - SHA-256 `1d7680455eb1ca3ad7c9b92165515351f607e96db66cf466140aaf3f00946dba`
 - installed: this build
-- 434 addresses
+- 469 addresses
 
 ### s2c:baked/bomb
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1801f29e0` | `CRnWorld::CastBox` | each broadphase tree (1801d64a0), shape vtable +0x40 |  |
+| `1801f29e0` | `CRnWorld::CastBox` | each broadphase tree (1801d64a0), shape vtable +0x40 | `src/Source2.Compiler/Simulation/BoxCast.cs:10` |
 | `1801f4ad0` | `CRnWorld::CastRay` | each broadphase tree (1801d8580), shape vtable +0x10 |  |
-| `1801f5080` | `CRnWorld::CastShape` | by shape type: 0 ray (1801f4ad0), 1 sphere, 2 box (1801f29e0), 3, 4 |  |
+| `1801f5080` | `CRnWorld::CastShape` | by shape type: 0 ray (1801f4ad0), 1 sphere, 2 box (1801f29e0), 3, 4 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:5`, `src/Source2.Compiler/Simulation/BoxCast.cs:9` |
 | `1802406c0` | `RnMesh_CastRay` | edge tests from the edge midpoints, front faces only (n . d below 0), t above 0 clamped to 1 |  |
-| `1802421c0` | `CRnMeshShape::CastBox` | unscaled shapes take 180245a10 (no scale division), else 180244dc0 | `src/Source2.Compiler/Simulation/MeshSweep.cs:41` |
+| `1802421c0` | `CRnMeshShape::CastBox` | unscaled shapes take 180245a10 (no scale division), else 180244dc0 | `src/Source2.Compiler/Simulation/BoxCast.cs:47`, `src/Source2.Compiler/Simulation/MeshSweep.cs:41` |
 | `180242360` | `CRnMeshShape::CastRay` | 1802406c0 on the shape's scale |  |
-| `180245a10` | `RnMesh_CastBoxUnscaled` | BVH walk; triangles through 180244380, or 180243770 when the mesh has neighbour indices (+0x68) | `src/Source2.Compiler/Simulation/MeshSweep.cs:41` |
+| `180245a10` | `RnMesh_CastBoxUnscaled` | BVH walk; triangles through 180244380, or 180243770 when the mesh has neighbour indices (+0x68) | `src/Source2.Compiler/Simulation/BoxCast.cs:31`, `src/Source2.Compiler/Simulation/BoxCast.cs:47`, `src/Source2.Compiler/Simulation/BoxCast.cs:140` +1 |
 
 ### s2c:baked/nav
 
@@ -2098,10 +2108,50 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180073970` | `CVPhysics2Interface::PointSetDistance` | slot 0x190: two matrix3x4 and point lists through 18029b6f0 to 1802ec220; 0 when at most 0.125 | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:40` |
 | `1801ff7b0` | `RnQuery_ShapePasses` | body type against query +0x2f, then 1802facf0 on shape + 0x50 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32` |
 | `180260f50` | `RnMesh_EmitTriangle` | three unshared vertices times the shape scale (+0xb8) | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:16` |
-| `1802643e0` | `RnMesh_GetTriangles` | BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:186` |
-| `1802661f0` | `RnShape_GetTriangles` | by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14` |
+| `1802643e0` | `RnMesh_GetTriangles` | BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:198` |
+| `1802661f0` | `RnShape_GetTriangles` | by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenShapes.cs:6` |
 | `18029b6f0` | `RnGjk_PointSetDistance` | point-list proxies (scale 1, no box), 32 iterations | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:71` |
 | `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32` |
+
+### s2c:baked/navgen
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `180065360` | `CVPhys2World::CastShape` | world vfn 0x558 -> 1801f5080 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:5`, `src/Source2.Compiler/Simulation/BoxCast.cs:9` |
+| `18008d5b0` | `Vector_Perpendicular` | ((1 - z) y^2 + z, 0, -x) normalised, made orthogonal, normalised | `src/Source2.Compiler/Maps/NavGen/NavGenShapes.cs:96`, `src/Source2.Compiler/Simulation/HullCast.cs:1632` |
+| `18016b0e0` | `RaySphereCast` | capsules under 0.001; inside via 18016b2f0 | `src/Source2.Compiler/Simulation/HullCast.cs:1590` |
+| `18016caf0` | `RayCapsuleCast` | fraction, point, normal, start solid (+0x30) | `src/Source2.Compiler/Simulation/HullCast.cs:1408` |
+| `1801d64a0` | `RnBroadphase_CastBox` | a broadphase tree's walk for CastBox | `src/Source2.Compiler/Simulation/BoxCast.cs:10` |
+| `18023fe00` | `RnMesh_RayNormal` | BVH ray with the hit triangle's unit normal | `src/Source2.Compiler/Simulation/BoxCast.cs:297`, `src/Source2.Compiler/Simulation/BoxCast.cs:332` |
+| `180243770` | `RnMesh_SweptTriangleTestWings` | 180244380 for triangles with three wings; the same fraction, another normal | `src/Source2.Compiler/Simulation/BoxCast.cs:53`, `src/Source2.Compiler/Simulation/BoxCast.cs:160` |
+| `180244dc0` | `RnMesh_CastBoxTransformed` | start and half extents into the mesh frame, triangle box (min - 1/32) - h; Simulation/BoxCast.MeshTransformed | `src/Source2.Compiler/Maps/NavGen/NavTriangleWorld.cs:7`, `src/Source2.Compiler/Simulation/BoxCast.cs:151` |
+| `180248a30` | `RnMesh_PointInsideClosed` | ray to the nearest bound face (ties z, then y) through 18023fe00; inside when the hit faces along it | `src/Source2.Compiler/Simulation/BoxCast.cs:57`, `src/Source2.Compiler/Simulation/BoxCast.cs:294` |
+| `18024ac40` | `RnMesh_CastBoxClosed` | closed meshes (+0xb4 bit 0): the start inside (180248a30) makes the fraction 0 | `src/Source2.Compiler/Simulation/BoxCast.cs:162`, `src/Source2.Compiler/Simulation/BoxCast.cs:283` |
+| `180250540` | `CRnHullShape::CastBox` | 180251800 with the shape's hull (+0xc0) and scale (+0xb8) | `src/Source2.Compiler/Simulation/HullCast.cs:6` |
+| `180251800` | `RnHull_CastBox` | points scaled and moved to the transformed reference point's frame; the GJK ray cast; Simulation/HullCast.Cast | `src/Source2.Compiler/Maps/NavGen/NavTriangleWorld.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:6`, `src/Source2.Compiler/Simulation/HullCast.cs:55` +1 |
+| `1802e2b90` | `GjkBoxSupport_Init` | vtable 1803e3128: slot 1 1802ea210 picks +h or -h by sign bit |  |
+| `1802e2c30` | `GjkRay_Init` | start, end, delta, unit dir (180088f50), length, 1/length | `src/Source2.Compiler/Simulation/HullCast.cs:27` |
+| `1802e2ce0` | `GjkCast_Init` | v = start, margin, tol 1/32, fraction 1 | `src/Source2.Compiler/Simulation/HullCast.cs:34` |
+| `1802e2e80` | `GjkCast_EdgeDepth` | ray against the capsule round the edge | `src/Source2.Compiler/Simulation/HullCast.cs:1076` |
+| `1802e3460` | `GjkCast_FaceDepth` | plane distance, then the edge capsules | `src/Source2.Compiler/Simulation/HullCast.cs:1130` |
+| `1802e4200` | `GjkCast_VertexDepth` | segment-sphere clip (18037d090), the larger t | `src/Source2.Compiler/Simulation/HullCast.cs:998` |
+| `1802e4900` | `GjkToi_Step` | replace the vertex of the exit face | `src/Source2.Compiler/Simulation/HullCast.cs:832` |
+| `1802e4cd0` | `GjkToi_Init` | the tetrahedron face the ray leaves through | `src/Source2.Compiler/Simulation/HullCast.cs:870` |
+| `1802e52c0` | `GjkToi_Triangle` | edge planes along the ray plus tol over the slope | `src/Source2.Compiler/Simulation/HullCast.cs:938` |
+| `1802e5ab0` | `GjkCast_Contact` | depth by simplex size; distance = ray length - depth | `src/Source2.Compiler/Simulation/HullCast.cs:8`, `src/Source2.Compiler/Simulation/HullCast.cs:971` |
+| `1802e5c80` | `GjkCast_RefineVertex` | grow to an edge or face, 32 steps | `src/Source2.Compiler/Simulation/HullCast.cs:1291` |
+| `1802e6780` | `GjkCast_RefineEdge` | grow to a face, 32 steps | `src/Source2.Compiler/Simulation/HullCast.cs:1345` |
+| `1802e6ed0` | `GjkSimplex_Add` | by count: point, segment, 1802e8750, 1802e8cc0 | `src/Source2.Compiler/Simulation/HullCast.cs:482` |
+| `1802e7120` | `GjkCast_Toi` | time of impact along the ray | `src/Source2.Compiler/Simulation/HullCast.cs:8`, `src/Source2.Compiler/Simulation/HullCast.cs:750` |
+| `1802e7840` | `GjkCast_Separated` | advancement after a separating direction, 20 steps | `src/Source2.Compiler/Simulation/HullCast.cs:367` |
+| `1802e7fc0` | `GjkCast_Result` | fraction (+0x44), point, normal, start solid (+0x50) |  |
+| `1802e8060` | `GjkCast_Cast` | rays over 512 clipped to the hull's slab first | `src/Source2.Compiler/Simulation/HullCast.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:205` |
+| `1802e8750` | `GjkSimplex_Triangle` |  | `src/Source2.Compiler/Simulation/HullCast.cs:469`, `src/Source2.Compiler/Simulation/HullCast.cs:524` |
+| `1802e8cc0` | `GjkSimplex_Tetra` | eight cases behind the jump table at 1802ea1f0 | `src/Source2.Compiler/Simulation/HullCast.cs:579` |
+| `1802eaa40` | `GjkHullSupport` | vtable 1803e1250 slot 1: the first point with the greatest dot | `src/Source2.Compiler/Simulation/HullCast.cs:99` |
+| `1802eacc0` | `GjkCast_Run` | GJK on the box swept along the ray minus the hull, 100 steps | `src/Source2.Compiler/Simulation/HullCast.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:278` |
+| `1802eb5e0` | `GjkCast_EdgeCapsule` |  | `src/Source2.Compiler/Simulation/HullCast.cs:1268` |
+| `18037d090` | `SegmentSphereClip` | 18037cd90 clipped to [0, 1] | `src/Source2.Compiler/Simulation/HullCast.cs:1024` |
 
 ### s2c:entities/settle
 
@@ -2118,7 +2168,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180075b60` | `CVPhysics2Interface_SimulateWorlds` |  |  |
 | `1800899b0` | `Quat_Mul` |  | `src/Source2.Compiler/Simulation/RnMath.cs:11` |
 | `180089a30` | `Quaternion_Between` | the rotation taking unit vector a to b | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:289`, `src/Source2.Compiler/Simulation/RnMassUpdate.cs:339` |
-| `18008d4e0` | `Vector_NormalizeDouble` | normalises in double | `src/Source2.Compiler/Simulation/HullReduce.cs:173`, `src/Source2.Compiler/Simulation/MeshTriangles.cs:61` |
+| `18008d4e0` | `Vector_NormalizeDouble` | normalises in double | `src/Source2.Compiler/Simulation/HullCast.cs:135`, `src/Source2.Compiler/Simulation/HullReduce.cs:173`, `src/Source2.Compiler/Simulation/MeshTriangles.cs:61` |
 | `18012e550` | `RnGjkProxy_ctor` | 0x40-byte convex proxy | `src/Source2.Compiler/Simulation/Gjk.cs:8`, `src/Source2.Compiler/Simulation/Gjk.cs:25` |
 | `18012e600` | `RnGjkProxy_Capsule` | two points, radius the scaled radius, at least 1/16 | `src/Source2.Compiler/Simulation/MeshConvex.cs:93` |
 | `18012e650` | `RnGjkProxy_Sphere` | one point, radius (+0x38, +0x3c) the scaled radius, at least 1/16 | `src/Source2.Compiler/Simulation/MeshConvex.cs:93` |
@@ -2232,7 +2282,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180241b10` | `CRnMeshShape::vf16` | mesh bounds; identity rotation offsets only | `src/Source2.Compiler/Simulation/BroadphaseShape.cs:116`, `src/Source2.Compiler/Simulation/BroadphaseShape.cs:165` |
 | `180242830` | `CRnMeshShape_StepUpdate2` | not ported | `src/Source2.Compiler/Simulation/StepGlue.cs:264`, `src/Source2.Compiler/Simulation/StepGlue.cs:287`, `src/Source2.Compiler/Simulation/WorldSolver.cs:291` |
 | `1802435d0` | `CRnMeshShape_StepUpdate` | mesh shape with mode other than 3; not ported | `src/Source2.Compiler/Simulation/WorldSolver.cs:291`, `src/Source2.Compiler/Simulation/WorldSolver.cs:296` |
-| `180244380` | `RnMesh_SweptTriangleTest` |  | `src/Source2.Compiler/Simulation/MeshSweep.cs:9`, `src/Source2.Compiler/Simulation/MeshSweep.cs:139` |
+| `180244380` | `RnMesh_SweptTriangleTest` |  | `src/Source2.Compiler/Simulation/BoxCast.cs:53`, `src/Source2.Compiler/Simulation/BoxCast.cs:159`, `src/Source2.Compiler/Simulation/MeshSweep.cs:9` +2 |
 | `180249e90` | `RnMesh_SweptBoxQuery` | the triangles a swept box meets; rcpps code | `src/Source2.Compiler/Simulation/MeshSweep.cs:8`, `src/Source2.Compiler/Simulation/MeshSweep.cs:34` |
 | `18024a4a0` | `RnMesh_QueryBox` |  | `src/Source2.Compiler/Simulation/MeshQuery.cs:9` |
 | `18024b230` | `RnMesh_TriangleOverlapsBox` | separating axes | `src/Source2.Compiler/Simulation/MeshQuery.cs:61` |
