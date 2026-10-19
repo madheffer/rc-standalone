@@ -544,6 +544,18 @@ RESOURCECOMPILER = [
     ("18020e4e0", "StaticLighting_RepackUv", BAKE, "one lightmap uv: texel (int)(u * w) clamped, its original chart; size > 0 moves it: flags bit 1 -> centre of the size square ((x + size * 0.5) / w), else the offset from the chart's old corner (+0x50 records, +8/+0xc), swapped with bit 0, from (x, y)"),
     ("18032e3e0", "CModelDocCompileInstance::CompilePhysics", PM, "a model's physics, world_physics.vmdl included; RED2 surface_prop = symbol table +0x458, filled at 18032ebd0 from each part's shapes' +0xf0 in order (capture_surfaceprops.py)"),
     ("1818d77e0", "CNavMesh::CreateArea", NAV, ""),
+    # The .nav writer and the mesh build (ledger 97).
+    ("1818d1320", "CNavMesh::SaveNavMeshToBuffer", NAV, "0xfeedface, 36, vfn 0x70, +0x101, place names (1818ee8d0), KV3 vfn 0xd8, polygon pool (1818e9510), vfn 0x88, KV3 vfn 0xe8, areas (vfn 0x40), ladders (1818e71b0), transformed bounds (0x48 of each 0x50), generation parameters (1818d0690), KV3 vfn 0xf8, vfn 0x78; each KV3 8-aligned, binary_auto"),
+    ("1818ee8d0", "CNavPlaceNames::Save", NAV, "u16 count, (u16 length + 1, bytes, 0) each, then a byte: whether any area uses name 0"),
+    ("1818e9510", "CNavGeometryManager::Save", NAV, "corner count + float3, polygon count + (byte n, n u32, the area's movable mesh u32), the attribute flags word (bit 0: count + float4), movable mesh count + (name, 12 floats)"),
+    ("1818e7e50", "CNavGeometryManager::Build", NAV, "pool doubles to floats in order (1818e7c60), polygons in order (1818e7af0), per-vertex use counts"),
+    ("1818d63c0", "CNavMesh::BuildFromNavGenPolys", NAV, "vfn 0x98: generation parameters from the input, the pool (1818e7e50), area i from polygon i (vfn 0x18, 1818ea6f0), the grid, vfn 0x108, vfn 0x60 (CS: the analysis), ladders, transformed bounds (1818d69c0)"),
+    ("1818ea6f0", "CNavArea::InitFromNavGenPoly", NAV, "per edge the block's +0x390/+0x398 list: connections of kind (+0x60) 0 to another area as (that area's id, +0xc); attributes flag 8 -> 0x8000, 0x10 -> 0x20000, kind 1 -> 0x10000, kind 2 -> 0x40000; +0x58 = the polygon's +0x62"),
+    ("1818cfe80", "CNavArea::Save", NAV, "id, attributes & 0x7f002 (u64), +0x58, polygon index, 0.0f, per edge count + (id, (int)(char) edge), byte 0, u32 0, ladders up / down"),
+    ("1818d0690", "CNavGenParams::Save", NAV, "13, the block's +0 (as u32), +4 .. +0x2c, the two strings, hull count, per hull +0, +4, +0xc, +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24, +0x28, +0x2c, +0x30, +8; then +0x59 as a byte"),
+    ("1818d18f0", "CNavMesh::SaveGenParamsKV3", NAV, "NavGenParams { HullParams [ { Name, FlowMap_Enabled, FlowMap_NodeMaxRadius } ] }"),
+    ("1818d1a70", "CNavMesh::SaveMovableMeshKV3", NAV, "movable_mesh_gravity_follows_rotation (one bool per movable mesh); nothing without movable meshes (a null KV3)"),
+    ("1800fd2b0", "MapCompile_CreateNavMesh", NAV, "the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720)"),
     ("1800fc370", "MapCompile_BuildNav", NAV, "the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs)"),
     ("180f21760", "NavGen_CollectWalkableSeeds", NAV, "every point_nav_walkable through the map's instances (180fc6f40 flag 3): each instance step matrix times the entity origin, appended to the seed list at +0x78"),
     ("180fafae0", "MapWorld_FindNavData", NAV, "the CMapNavData node among the world's (or a group's) children; its settings at +0x498"),
@@ -1123,6 +1135,12 @@ NAVSYSTEM = [
     ('180076d40', 'NavGen_ComputeBounds', NAVGEN, '+0x10..+0x38 per polygon'),
     ('18006b160', 'NavGen_AddJumps', NAVGEN, 'capsules (physics vfn 0x1e8), candidates, casts (not ported)'),
     ('180072ef0', 'NavGen_JumpClear', NAVGEN, 'world vfn 0x580 shape cast both ways'),
+    ('1800217b0', 'NavGen_Generate', NAVGEN, "per world: the stage input (180048b20), the stage list (180022b60), the mesh build (180022200); '>>NAVGEN: Skipped... no walkable seeds present' with no seeds"),
+    ('1800250e0', 'NavGen_RunStages', NAVGEN, 'the world and each NAV_GEN_PROJ / movable mesh through the stages (1800260e0, 180026740), appended (18006bee0), JoinNonZup (180072b50, convar 180134a98 nav_gen_join_nonzup, on), compaction (180073ef0)'),
+    ('18006bee0', 'NavGen_AppendPolys', NAVGEN, "polygons and pool appended; the polygons' corners offset by the old pool size, their connections' +0 and +8 by the old polygon count"),
+    ('180073ef0', 'NavGen_CompactVertices', NAVGEN, 'the pool renumbered in first-use order over the polygons (map filled with -1), unused vertices dropped; attributes kept only when some are set (ledger 97)'),
+    ('180072b50', 'NavGen_JoinNonZup', NAVGEN, 'acts only on polygons with flag 8 (the oriented-mesh path)'),
+    ('180022200', 'NavGen_BuildMesh', NAVGEN, "the mesh's vfn 0x98 with the processor's pool (+0x18) and polygons (+0x48), then the debug stages"),
     ('180070780', 'NavGen_IslandRemoval', NAVGEN, 'all removed, flooded back from links, WALKABLESEED markups, seeds (+-40), ladders; all-hulls: listed polygons pull in removed ones within 4 (ledger 96)'),
     ('180046720', 'NavGrid2D_Init', NAVGEN, 'cells (int)(extent / size) + 1 a side over the XY bounds'),
     ('180046c80', 'NavGrid2D_Insert', NAVGEN, 'item into every cell of its clamped range'),
@@ -2631,6 +2649,16 @@ MATERIALSYSTEM_1015 = [
 ]
 
 
+SERVER_1015 = [
+    # Read from the disassembly and RTTI (server.dll 20261015): CS2's nav mesh (ledger 97).
+    ("1817bebd0", "CSNavMesh::vftable", NAV, "overrides 0x18/0x20 (CCSNavArea), 0x38, 0x50, 0x58, 0x60 (the analysis, called with 0x24 after the build), 0x70 (custom data version 1), 0x78 / 0x80 (custom data save / load), 0xb0, 0xc0; 0x98 (1814ac9c0) is the shared build"),
+    ("1817beb18", "CCSNavArea::vftable", NAV, "0x40 (save) is 1802aa880"),
+    ("18039ac00", "CSNavMesh::SaveCustomData", NAV, "vfn 0x78: navmeshcustomdata1 { arealist [ per area (18039ad80) ] }"),
+    ("18039ad80", "CCSNavArea::SaveCustomData", NAV, "hidingspotdata, spotencounterdata (from / to: the low dword of the NavConnect at +0 / +0x18, a CNavArea* at save time; fromdir +0x10, todir +0x28; spots +0x48 / +0x50: the low dword of +8, a HidingSpot*, and t), approachdata, earliestoccupytime. The pointer dwords are heap addresses: two compiles differ there and only there"),
+    ("180399100", "CCSNavArea::LoadCustomData", NAV, "the reader of 18039ad80's keys"),
+]
+
+
 def write(name, rows):
     with open(os.path.join(HERE, name), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"functions": [{"addr": a, "name": n, "module": m, "note": note} for a, n, m, note in rows]}, f, indent=1)
@@ -2654,4 +2682,5 @@ if __name__ == "__main__":
     write("scenesystem_20261015.manual.json", SCENESYSTEM)
     write("materialsystem2_20261015.manual.json", MATERIALSYSTEM_1015)
     write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
+    write("server_20261015.manual.json", SERVER_1015)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

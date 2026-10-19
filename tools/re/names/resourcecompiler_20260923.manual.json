@@ -2983,6 +2983,72 @@
    "note": ""
   },
   {
+   "addr": "1818d1320",
+   "name": "CNavMesh::SaveNavMeshToBuffer",
+   "module": "s2c:baked/nav",
+   "note": "0xfeedface, 36, vfn 0x70, +0x101, place names (1818ee8d0), KV3 vfn 0xd8, polygon pool (1818e9510), vfn 0x88, KV3 vfn 0xe8, areas (vfn 0x40), ladders (1818e71b0), transformed bounds (0x48 of each 0x50), generation parameters (1818d0690), KV3 vfn 0xf8, vfn 0x78; each KV3 8-aligned, binary_auto"
+  },
+  {
+   "addr": "1818ee8d0",
+   "name": "CNavPlaceNames::Save",
+   "module": "s2c:baked/nav",
+   "note": "u16 count, (u16 length + 1, bytes, 0) each, then a byte: whether any area uses name 0"
+  },
+  {
+   "addr": "1818e9510",
+   "name": "CNavGeometryManager::Save",
+   "module": "s2c:baked/nav",
+   "note": "corner count + float3, polygon count + (byte n, n u32, the area's movable mesh u32), the attribute flags word (bit 0: count + float4), movable mesh count + (name, 12 floats)"
+  },
+  {
+   "addr": "1818e7e50",
+   "name": "CNavGeometryManager::Build",
+   "module": "s2c:baked/nav",
+   "note": "pool doubles to floats in order (1818e7c60), polygons in order (1818e7af0), per-vertex use counts"
+  },
+  {
+   "addr": "1818d63c0",
+   "name": "CNavMesh::BuildFromNavGenPolys",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x98: generation parameters from the input, the pool (1818e7e50), area i from polygon i (vfn 0x18, 1818ea6f0), the grid, vfn 0x108, vfn 0x60 (CS: the analysis), ladders, transformed bounds (1818d69c0)"
+  },
+  {
+   "addr": "1818ea6f0",
+   "name": "CNavArea::InitFromNavGenPoly",
+   "module": "s2c:baked/nav",
+   "note": "per edge the block's +0x390/+0x398 list: connections of kind (+0x60) 0 to another area as (that area's id, +0xc); attributes flag 8 -> 0x8000, 0x10 -> 0x20000, kind 1 -> 0x10000, kind 2 -> 0x40000; +0x58 = the polygon's +0x62"
+  },
+  {
+   "addr": "1818cfe80",
+   "name": "CNavArea::Save",
+   "module": "s2c:baked/nav",
+   "note": "id, attributes & 0x7f002 (u64), +0x58, polygon index, 0.0f, per edge count + (id, (int)(char) edge), byte 0, u32 0, ladders up / down"
+  },
+  {
+   "addr": "1818d0690",
+   "name": "CNavGenParams::Save",
+   "module": "s2c:baked/nav",
+   "note": "13, the block's +0 (as u32), +4 .. +0x2c, the two strings, hull count, per hull +0, +4, +0xc, +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24, +0x28, +0x2c, +0x30, +8; then +0x59 as a byte"
+  },
+  {
+   "addr": "1818d18f0",
+   "name": "CNavMesh::SaveGenParamsKV3",
+   "module": "s2c:baked/nav",
+   "note": "NavGenParams { HullParams [ { Name, FlowMap_Enabled, FlowMap_NodeMaxRadius } ] }"
+  },
+  {
+   "addr": "1818d1a70",
+   "name": "CNavMesh::SaveMovableMeshKV3",
+   "module": "s2c:baked/nav",
+   "note": "movable_mesh_gravity_follows_rotation (one bool per movable mesh); nothing without movable meshes (a null KV3)"
+  },
+  {
+   "addr": "1800fd2b0",
+   "name": "MapCompile_CreateNavMesh",
+   "module": "s2c:baked/nav",
+   "note": "the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720)"
+  },
+  {
    "addr": "1800fc370",
    "name": "MapCompile_BuildNav",
    "module": "s2c:baked/nav",
