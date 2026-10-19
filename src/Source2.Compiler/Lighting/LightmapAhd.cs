@@ -66,7 +66,8 @@ public static class LightmapAhd
                     continue;
                 }
                 float dx = -lum[3], dy = -lum[1], dz = lum[2];
-                Normalize(ref dx, ref dy, ref dz, dx * dx + dz * dz + dy * dy, fallbackZ: 1f);
+                // 18004d64e: dx dx + (dz dz + dy dy); Ghidra prints it without the grouping.
+                Normalize(ref dx, ref dy, ref dz, dz * dz + dy * dy + dx * dx, fallbackZ: 1f);
                 if (0f > dz && MathF.Sqrt(dy * dy + dx * dx) < 0.0001f)
                 {
                     if (x < 1 || image.ChartId(p - 1) != image.ChartId(p))

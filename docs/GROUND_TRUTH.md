@@ -1521,6 +1521,30 @@ game can answer is raised with the user first, and runs with -insecure.
       gap), 2 BC7 blocks of ze's probe atlas (bc7e), the .vmap_c (see
       LIGHTING_ROADMAP "vmap_c").
 
+84. **The whole-map post-process and its EXR writers** (settled 2026-10-19 by
+    oracle and disassembly, vrad3 2026-10-01, ze_hold_em_p).
+    - Our GPU bake of all 16 blocks equals vrad3's raw image (pre_post) in
+      all 13 channels and in lightmap_data.dat. lightmap_image_save writes
+      halves, so this proves the raw image to half precision only.
+    - The oracle: vrad3 runs the script's post steps on that saved image
+      (lightmap_image_load, steps 1..k, lightmap_image_save), and our port
+      runs the same steps on the same file (CpuBakeTests.PostFromValvesRaw,
+      POSTFULL / POSTFULL_STEPS / POSTFULL_FIRST). Consolidate, fireflies,
+      median, JFA, gutters and the weld were exact at full scale.
+    - The AHD encode (18004cfc0) normalises the direction with the squared
+      length dx dx + (dz dz + dy dy) (18004d64e). Ghidra prints it without
+      the grouping. With (dx dx + dz dz) + dy dy, 350 direction and 479
+      ambient texels differed by one ulp. Fixed, the encode is exact.
+    - lightmap_image_write_ahd and lightmap_image_write_direct_light_shadows
+      convert float to half rounding ties away from zero, as
+      lightmap_image_save does. Every remaining difference was a tie:
+      Valve's value was one ulp larger in magnitude, ours was even.
+    - Result: our own bake, from scene_info.kv3 to the three EXRs,
+      reproduces ze_hold_em_p's irradiance.exr, directional_irradiance.exr
+      and direct_light_shadows.exr byte for byte. vrad3 itself does not run.
+    - Rule: Ghidra may print a + (b + c) as a + b + c. Read the
+      disassembly wherever float association matters.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

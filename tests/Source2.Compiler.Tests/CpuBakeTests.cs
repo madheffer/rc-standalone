@@ -361,6 +361,17 @@ public class CpuBakeTests(ITestOutputHelper output)
                 Compare(name, ours, Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, name))), traced, ox, oy);
             return;
         }
+        // CPUBAKE_RAWOUT=<dir>: the whole raw image before the post-process, as lightmap_image_save
+        // writes it (half floats) plus each channel's float32 words (channelNN.f32); CPUBAKE_NOPOST=1 stops there.
+        if (Environment.GetEnvironmentVariable("CPUBAKE_RAWOUT") is { Length: > 0 } rawOut)
+        {
+            image.Save(rawOut);
+            for (var c = 0; c < image.Channels.Length; c++)
+                if (image.Channels[c] is { } channel)
+                    File.WriteAllBytes(Path.Combine(rawOut, $"channel{c:00}.f32"), System.Runtime.InteropServices.MemoryMarshal.AsBytes(channel.Data.AsSpan()).ToArray());
+            if (Environment.GetEnvironmentVariable("CPUBAKE_NOPOST") == "1")
+                return;
+        }
         var (irr, dir, shadows) = LightmapBaker.PostProcess(image, packing, File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat")));
         output.WriteLine($"post {watch.Elapsed.TotalSeconds:F1} s");
         var outDir = Path.Combine(RepoRoot(), "tools", "re", "out", "cpubake", Path.GetFileName(folder.TrimEnd('/', '\\')));
@@ -370,6 +381,48 @@ public class CpuBakeTests(ITestOutputHelper output)
             File.WriteAllBytes(Path.Combine(outDir, name), ours.Write());
             Compare(name, ours, Vrad3Exr.Read(File.ReadAllBytes(Path.Combine(folder, name))));
         }
+    }
+
+    /// <summary>
+    /// <c>POSTFULL=&lt;vrad3 folder&gt;|&lt;raw image dir&gt;|&lt;out dir&gt;</c>: our whole post-process on vrad3's
+    /// own raw image (lightmap_image_save before the script's filters), its three EXRs written to the
+    /// out dir, so the post-process is scored apart from the bake.
+    /// </summary>
+    [Fact]
+    public void PostFromValvesRaw()
+    {
+        if (Environment.GetEnvironmentVariable("POSTFULL") is not { Length: > 0 } spec || spec.Split('|') is not [var folder, var raw, var outDir])
+            return;
+        var packing = PackingGeometry.Read(File.ReadAllBytes(Path.Combine(folder, "lightmap_packing_geometry.dat")));
+        var image = LightmapImage.Load(raw);
+        // channelNN.f32 (CPUBAKE_RAWOUT) replaces the half-float channel with its exact words.
+        for (var c = 0; c < image.Channels.Length; c++)
+            if (image.Channels[c] is { } channel && File.Exists(Path.Combine(raw, $"channel{c:00}.f32")) && Environment.GetEnvironmentVariable("POSTFULL_HALF") != "1")
+                System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(File.ReadAllBytes(Path.Combine(raw, $"channel{c:00}.f32"))).CopyTo(channel.Data);
+        // POSTFULL_STEPS=k: only the first k steps, the image saved to the out dir as lightmap_image_save writes it.
+        if (int.TryParse(Environment.GetEnvironmentVariable("POSTFULL_STEPS"), out var steps))
+        {
+            var seams = File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat"));
+            Action[] all =
+            [
+                () => LightmapPost.ConsolidateSmallCharts(image, packing.Charts, 1),
+                () => LightmapPost.RemoveFireflies(image, packing.Charts, 4f),
+                () => LightmapPost.FilterMedian(image, packing.Charts, 7),
+                () => LightmapPost.DilateOverInvalidJfa(image),
+                () => LightmapAhd.Encode(image),
+                () => LightmapPost.FillGutters(image, packing.Charts, 1),
+                () => LightmapWeld.Weld(image, seams),
+            ];
+            var first = int.TryParse(Environment.GetEnvironmentVariable("POSTFULL_FIRST"), out var f1) ? f1 : 1;
+            foreach (var step in all.Take(steps).Skip(first - 1))
+                step();
+            image.Save(outDir);
+            return;
+        }
+        var (irr, dir, shadows) = LightmapBaker.PostProcess(image, packing, File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat")));
+        Directory.CreateDirectory(outDir);
+        foreach (var (name, ours) in new[] { ("irradiance.exr", irr), ("directional_irradiance.exr", dir), ("direct_light_shadows.exr", shadows) })
+            File.WriteAllBytes(Path.Combine(outDir, name), ours.Write());
     }
 
     // CPUBAKE_HOSTCAP=<capture_host.py folder>: Valve's uploaded host buffers against ours, record by record and word by word.

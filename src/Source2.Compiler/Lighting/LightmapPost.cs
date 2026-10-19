@@ -461,11 +461,11 @@ public static class LightmapPost
         var a = ao is null ? null : exr.Plane("A");
         for (var p = 0; p < r.Length; p++)
         {
-            r[p] = (Half)(((vector.Mask & 1) != 0 ? vector.Data[p * 4] : 0f) * 0.5f + 0.5f);
-            g[p] = (Half)(((vector.Mask & 2) != 0 ? vector.Data[p * 4 + 1] : 0f) * 0.5f + 0.5f);
-            b[p] = (Half)ambient.Data[p * 4];
+            r[p] = LightmapImage.ToHalfAway(((vector.Mask & 1) != 0 ? vector.Data[p * 4] : 0f) * 0.5f + 0.5f);
+            g[p] = LightmapImage.ToHalfAway(((vector.Mask & 2) != 0 ? vector.Data[p * 4 + 1] : 0f) * 0.5f + 0.5f);
+            b[p] = LightmapImage.ToHalfAway(ambient.Data[p * 4]);
             if (a is not null)
-                a[p] = (Half)ao!.Data[p * 4];
+                a[p] = LightmapImage.ToHalfAway(ao!.Data[p * 4]);
         }
         return exr;
     }
@@ -503,7 +503,7 @@ public static class LightmapPost
                 slots[k] = v;
             }
             for (var k = 0; k < 4; k++)
-                planes[k][p] = (Half)slots[k];
+                planes[k][p] = LightmapImage.ToHalfAway(slots[k]);
         }
         return exr;
     }

@@ -666,9 +666,9 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
         var b = exr.Plane("B");
         for (var p = 0; p < image.Width * image.Height; p++)
         {
-            r[p] = (Half)c[p * 4];
-            g[p] = (Half)c[p * 4 + 1];
-            b[p] = (Half)c[p * 4 + 2];
+            r[p] = LightmapImage.ToHalfAway(c[p * 4]);
+            g[p] = LightmapImage.ToHalfAway(c[p * 4 + 1]);
+            b[p] = LightmapImage.ToHalfAway(c[p * 4 + 2]);
         }
         return exr;
     }
