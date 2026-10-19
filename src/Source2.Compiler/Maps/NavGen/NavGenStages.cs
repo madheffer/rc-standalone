@@ -35,17 +35,19 @@ public static class NavGenStages
     public const float MultiConnectionTol = 0.01f;
 
     /// <summary>
-    /// Stages 023-027 without the world: GenerateConnections, SplitBottleneckPolys,
-    /// SplitPolysWithMultipleConnections, and RemoveSmallAreasOnEdge (its threshold the settings' +0x2c,
-    /// skipped when their +0x58 byte is set). Not run here: AddJumps (026), which casts the hull through
-    /// the physics world (vfn 0x580) and is not ported, and the stages before 023 that need markups
-    /// (019) or the world (022).
+    /// Stages 023-027: GenerateConnections, SplitBottleneckPolys, SplitPolysWithMultipleConnections,
+    /// AddJumps (026, nav_gen_add_jumps 1; skipped without a <paramref name="world"/> to cast through)
+    /// for the first hull, and RemoveSmallAreasOnEdge (its threshold the settings' +0x2c, skipped when
+    /// their +0x58 byte is set). The stages before 023 that need markups (019) or the world (022) are
+    /// not run here.
     /// </summary>
-    public static void ConnectStages(NavGenPolys g, NavGenSettings settings)
+    public static void ConnectStages(NavGenPolys g, NavGenSettings settings, INavJumpWorld? world = null)
     {
         g.GenerateConnections(new NavGenPolys.ConnectSettings());
         g.SplitBottleneckPolys(BottleneckWidth);
         g.SplitPolysWithMultipleConnections(MultiConnectionTol);
+        if (world is not null)
+            g.AddJumps(settings.Hulls[0], world, new NavGenPolys.JumpSettings());
         g.RemoveSmallAreasOnEdge(settings.SmallAreaOnEdgeRemovalSize, settings.Byte58 != 0);
     }
 

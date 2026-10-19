@@ -213,18 +213,32 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         recast.Weld(tol, tol);
         recast.RemoveDegens(tol);
         Assert.Null(Compare(recast, LoadStage(Path.Combine(dir, "023_GenerateConnections_in.bin"))));
+        void Blocks(string stage, bool flag61)
+        {
+            Assert.Null(Compare(recast, LoadStage(Path.Combine(dir, stage + ".bin"))));
+            var blocks = NavGenConnectionTests.LoadBlocks(Path.Combine(dir, stage + "_conn.bin"));
+            for (var i = 0; i < blocks.Count; i++)
+            {
+                var diff = NavGenConnectionTests.Compare(recast.Polys[i].Links, blocks[i], flag61);
+                Assert.True(diff is null, $"{stage} polygon {i}: {diff}");
+            }
+        }
         recast.GenerateConnections(new NavGenPolys.ConnectSettings());
         recast.SplitBottleneckPolys(NavGenStages.BottleneckWidth);
         recast.SplitPolysWithMultipleConnections(NavGenStages.MultiConnectionTol);
-        Assert.Null(Compare(recast, LoadStage(Path.Combine(dir, "025_SplitPolysWithMultipleConnections_out.bin"))));
-        var blocks = NavGenConnectionTests.LoadBlocks(Path.Combine(dir, "025_SplitPolysWithMultipleConnections_out_conn.bin"));
-        for (var i = 0; i < blocks.Count; i++)
-        {
-            var diff = NavGenConnectionTests.Compare(recast.Polys[i].Links, blocks[i], flag61: false);
-            Assert.True(diff is null, $"025 polygon {i}: {diff}");
-        }
+        Blocks("025_SplitPolysWithMultipleConnections_out", false);
+        var at25 = (recast.Polys.Count, recast.Polys.Sum(p => p.Links?.Count ?? 0));
+        // 026 AddJumps through the nav world's triangles (the cast is a stand-in, ledger 98), 027, then
+        // 028 (LadderConnect, not ported: these maps have no ladders) and 029 IslandRemoval.
+        recast.AddJumps(settings.Hulls[0], new NavTriangleWorld([.. verts], [.. indices]), new NavGenPolys.JumpSettings());
+        Blocks("026_AddJumps_out", false);
+        recast.RemoveSmallAreasOnEdge(settings.SmallAreaOnEdgeRemovalSize, settings.Byte58 != 0);
+        Blocks("027_RemoveSmallAreasOnEdge_out", true);
+        NavGenStages.IslandStage(recast, NavIslandInput.FromSeeds(NavGenMapInput.Seeds(document)), settings);
+        Blocks("029_IslandRemoval_out", true);
         output.WriteLine($"{MapName} from the map: {verts.Count / 3} triangles in, {polys.Count} polygons out of Recast, " +
-                         $"{at18} after stage 018, {recast.Polys.Count} with {recast.Polys.Sum(p => p.Links?.Count ?? 0)} connections after 025, all Valve's");
+                         $"{at18} after stage 018, {at25.Item1} with {at25.Item2} connections after 025, " +
+                         $"{recast.Polys.Count} with {recast.Polys.Sum(p => p.Links?.Count ?? 0)} after 029, all Valve's");
     }
 
     [Fact]
