@@ -2394,6 +2394,53 @@ game can answer is raised with the user first, and runs with -insecure.
       search ("light_*", caller 0xfc74c4) returns 241 lights in that array order. Open: the
       collapse's appends and removals (the capture now logs every index set).
 
+101. **vphysics2's box cast and nav generation's ClipPolysToHullClearance (022)** (settled
+    2026-10-20 by decompile of vphysics2 20260924 (instruction-identical in 20261015 at these
+    functions) and navsystem 20261015; captured with tools/re/capture_navcast.py with CS2 closed).
+    Verified: every shape cast navsystem made on s2c_prefabprobe3 and 4 replays bit for bit
+    through Simulation/BoxCast.cs and HullCast.cs (NavCastTests: 955,324 + 549,575 mesh casts,
+    17,467 + 37,112 hull casts, 10,109 + 21,190 of them hits); Valve's 022 input through
+    NavGenPolys.ClipPolysToHullClearance with Valve's casts replayed asks exactly Valve's casts and
+    gives Valve's polygons and vertices (NavGenClipTests): 243,480 casts, 10,497 polygons, 17,589
+    vertices on prefabprobe3; 96,685, 3,966 and 7,056 on prefabprobe4 (one --with-navgen run).
+    The hull cast also against vphysics2's 180251800 called directly (tools/re/hullcast_oracle.py,
+    ctypes on the installed DLL): 300,000 random cases (boxes, clouds, slabs, points and segments,
+    long rays, exact flush contacts), 144,084 hits, fraction and start-solid bit for bit
+    (HullCastOracleTests). Never reached by either, so checked only against the decompile: capsule
+    edges under 0.001 (the sphere cast), capsule rays under 1e-4 and parallel to the axis, the
+    second face normal (0.5), Separated with four points, the double normalisation.
+    - The path: world vfn 0x558 (180065360) -> CRnWorld::CastShape (1801f5080), type 2 ->
+      CastBox (1801f29e0), the broadphase (1801d64a0), each shape's vfn 0x40. Meshes: 1802421c0
+      picks 180245a10 (no shape flag, identity rotation, no translation) or 180244dc0 (local start
+      ((sy t1 + sx t0) + t2 sz) + ((t1 n10 + t0 n9) + t2 n11), half extents |M| h, vertices
+      row3 + (row2 z + (row1 y + row0 x)), the triangle box (min - 1/32) - h); triangles 180244380
+      (180243770 for three wings, the same fraction). Closed meshes (+0xb4 bit 0): 18024ac40 ->
+      180248a30, the start inside when the ray to the nearest bound face (ties z, then y; 18023fe00)
+      hits a triangle facing along it, which makes the fraction 0.
+    - The world's fraction is the least fraction of the shape casts that returned (1 when none):
+      all 243,480 world calls on prefabprobe3. Which shapes are cast is the query's (static bodies,
+      group 4, interacts with 0xc3021, excludes 0x400000); hulls take no max fraction.
+    - Hulls: 180250540 -> 180251800. The hull's points scaled, moved to the frame of its
+      transformed reference point; the box (support by sign bit, -0 picks -h) swept along the ray
+      minus the hull is GJK'd (1802e8060: rays over 512 are first clipped to the hull's slab along
+      the ray with 8/32 slack; 1802eacc0: up to 100 steps, simplex 1802e6ed0 / 1802e8750 /
+      1802e8cc0, whose eight cases sit behind the jump table at 1802ea1f0; a repeated support point
+      on a triangle tries the face normal, |n . p0| < 0.001; touching at w ~ 0 shortens the ray by
+      tol 0.05 once). Separation seen: 1802e7840 (20 steps, 1e-4). Enclosed: the time of impact
+      1802e7120 (1802e4cd0, 1802e4900 steps with 1/256 slack, 1802e52c0 for a triangle), then the
+      contact depth 1802e5ab0 with margin 0 + tol 1/32 by simplex size: 1802e4200 (point; the
+      segment-sphere clip 18037d090 takes the larger t), 1802e2e80 (edge; ray-capsule 18016caf0,
+      ray-sphere 18016b0e0 / 18016b2f0 under 0.001, perpendicular 18008d5b0), 1802e3460 (face),
+      refined through 1802eb5e0, 1802e5c80 (32 steps) and 1802e6780 (32 steps). The fraction is
+      (ray length - depth) / length; a negative distance starts solid with tol / 4.
+    - 022 (180054ae0 and helpers, NavGenClip.cs): the box (-r/sqrt2, -r/sqrt2, climb) ..
+      (r/sqrt2, r/sqrt2, height) cast along each edge pulled in by min(0, centroid distance) with
+      climb + 2.5, lifted by the deepest of four zero-width drop casts (half r/sqrt2/2, from
+      min(climb + 5, height - r/sqrt2/2)); the first clear point 0.2 apart, the walks forward and
+      back to the blocked stretches, then a midpoint split (length over 36, eps 0.5) or the
+      perpendicular clip plane (d - 0.1 - 0.5, eps 0.1, the back kept); five non-reducing passes.
+    - Valve's polygons vary from run to run on prefabprobe4 (ledger 100): its 022 input and its
+      casts must come from one compile (capture_navcast.py --with-navgen).
 102. **The world's node array after the instance collapse; scene light order and placement (L17)**
     (capture and simulation, 2026-10-20; ledger 100's open item). Verified: MapWorldOrder rebuilds
     the captured array of atixref (5032 nodes, all 854 SetIndexInWorld mutations in order),

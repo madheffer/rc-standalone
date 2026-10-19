@@ -146,7 +146,18 @@ public static class MeshSweep
     /// </summary>
     public static bool TriangleHit(Vector128<float> p, Vector128<float> direction, Vector128<float> h, Vector128<float> length,
                                    Vector128<float> v0, Vector128<float> v1, Vector128<float> v2)
+        => TriangleCast(p, direction, h, length, v0, v1, v2, out _, out _);
+
+    /// <summary>
+    /// FUN_180244380 with what it writes on a hit (180244a84 .. 180244c5a): the fraction at +0xc, 0
+    /// when the box overlaps the triangle at its start (the flag at +0x10), else the latest entry time
+    /// clamped at 0. The normal it also writes (+0) is not computed here.
+    /// </summary>
+    public static bool TriangleCast(Vector128<float> p, Vector128<float> direction, Vector128<float> h, Vector128<float> length,
+                                    Vector128<float> v0, Vector128<float> v1, Vector128<float> v2, out float fraction, out bool startOverlap)
     {
+        fraction = 1f;
+        startOverlap = false;
         var zero = Vector128<float>.Zero;
         var a = Sse.Subtract(p, v0);
         var e2 = Sse.Subtract(v2, v0);
@@ -267,6 +278,10 @@ public static class MeshSweep
         if (tEnter >= 1f)
             return false;
         var len = Lane(length, 0);
-        return len != 0f || overlapping;
+        if (len == 0f && !overlapping)
+            return false;
+        startOverlap = overlapping;
+        fraction = overlapping ? 0f : tEnter;
+        return true;
     }
 }
