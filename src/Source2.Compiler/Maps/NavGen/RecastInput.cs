@@ -63,13 +63,41 @@ public sealed class RecastInput
         return input;
     }
 
-    /// <summary>The detail vertices back to the pool: the inverse matrix (1800ed380 of the same matrix).</summary>
+    /// <summary>The detail vertices back to the pool through the inverted matrix (180082280).</summary>
     public static (float X, float Y, float Z) FromRecast(float x, float y, float z)
         => Transform(FromRecastMatrix, x, y, z);
 
-    // 1800ed380 inverts the matrix in float; for this one it is the transpose with 1 / 0.0254.
-    // TODO: settle the inverse's exact entries from 1800ed380 against the capture.
-    public static float[] FromRecastMatrix = [0f, 0f, -1f / RecastConfig.Inch, 0f, -1f / RecastConfig.Inch, 0f, 0f, 0f, 0f, 1f / RecastConfig.Inch, 0f, 0f];
+    public static readonly float[] FromRecastMatrix = Invert(ToRecast);
+
+    /// <summary>
+    /// 1800ed380: the transpose of the 3x3 part, the translation -(R^T t), then, when the first
+    /// column's squared length s = m4^2 + m0^2 + m8^2 is 0.001 or more from 1, everything times 1 / s.
+    /// </summary>
+    public static float[] Invert(float[] m)
+    {
+        var o = new float[12];
+        o[0] = m[0];
+        o[1] = m[4];
+        o[2] = m[8];
+        o[4] = m[1];
+        o[5] = m[5];
+        o[6] = m[9];
+        o[8] = m[2];
+        o[9] = m[6];
+        o[10] = m[10];
+        float t0 = m[3], t1 = m[7], t2 = m[11];
+        o[3] = -(t2 * o[2] + t1 * o[1] + t0 * o[0]);
+        o[7] = -(o[6] * t2 + o[5] * t1 + t0 * o[4]);
+        o[11] = -(o[10] * t2 + o[9] * t1 + t0 * o[8]);
+        var s = m[4] * m[4] + m[0] * m[0] + m[8] * m[8];
+        if (MathF.Abs(s - 1.0f) >= 0.001f)
+        {
+            var f = s != 0f ? 1.0f / s : 1.0f;
+            for (var i = 0; i < 12; i++)
+                o[i] *= f;
+        }
+        return o;
+    }
 }
 
 /// <summary>

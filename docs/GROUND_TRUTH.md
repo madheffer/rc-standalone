@@ -1807,10 +1807,12 @@ game can answer is raised with the user first, and runs with -insecure.
 92. **Nav generation's Recast stage** (settled 2026-10-19 by decompile of
     navsystem.dll (20261015) and a Frida capture of probe01's compile,
     tools/re/capture_navgen.py. Fed Valve's own stage input
-    (005_Recast_in), every one of probe01's 117 tiles matches Valve through
-    the poly mesh: the filtered solid heightfield span for span, the compact
-    heightfield (connections, areas after erosion, distances, regions), and
-    the poly mesh word for word. Maps/NavGen, NavGenRecastTests.)
+    (005_Recast_in), every one of probe01's 117 tiles matches Valve: the
+    filtered solid heightfield span for span, the compact heightfield
+    (connections, areas after erosion, distances, regions), the poly mesh
+    word for word and the detail mesh bit for bit; the stage's output, 232
+    polygons over 480 pool vertices, is exact. Maps/NavGen,
+    NavGenRecastTests.)
     - The pipeline: RC's nav step (1800fc370) collects, then navsystem runs
       ~31 CNavGenPolyProcessor stages on a polygon list over a double vertex
       pool. A Stage1 works in place; a Stage2 writes a new list that the
@@ -1860,11 +1862,42 @@ game can answer is raised with the user first, and runs with -insecure.
       filter, contours with hole merging (its diags[i] slip kept),
       simplification, triangulation (its next(i2) slip kept), poly merging,
       adjacency and portal edges.
+    - The detail mesh (1800bd2e0) is Recast 1.5.0's with older pieces:
+      - getHeightData seeds from the polygon's own region (no
+        multiple-region guard); when the region has no span in the patch, the
+        Recast 1.4 seeding (1800bc070): each polygon vertex's nearest span
+        among 9 cells, then a depth-first walk that stops within one cell of
+        the centre.
+      - getHeight is 1.4's: floorf(f x ics + 0.01f), then the 8 neighbours
+        (-1,0), (-1,-1), (0,-1), (1,-1), (1,0), (1,1), (0,1), (-1,1) by
+        |h x ch - y| when the cell is unset.
+      - triangulateHull is 1.5.0's first form: dmin starts at 0, so no ear
+        is ever chosen and the fan starts at hull[0], left 1, right n - 1;
+        then the shorter of the two perimeters (sqrt of z^2 + x^2) advances.
+      - Edge samples: 1 + floorf(d / sampleDist), capped at 31 and at 126
+        total vertices, simplified to sampleMaxError^2.
+      - Interior samples only when the minimum extent is at least twice the
+        sample distance (probe01 never is): jitter
+        ((i x 0x8da6b343 & 0xffff) / 65535 x 2 - 1) x cs x 0.1, all float;
+        delaunayHull with the 1.5 circumcircle (relative to p1).
+      - No setTriFlags; the driver writes each triangle's edge flags with a
+        0.001^2 threshold (1800bb260).
+      - Vertices to world: x + bmin.x, y + (bmin.y + ch), z + bmin.z.
+    - Collect (180082280): the output replaces both the polygons and the
+      vertex pool. Each detail vertex goes through the inverted matrix
+      (1800ed380: transpose, -(R^T t), all over s = m4^2 + m0^2 + m8^2 when
+      |s - 1| >= 0.001) into the pool as doubles, tiles in order. Each
+      detail triangle becomes a three-index CNavGenPoly (18004fe30): +0x40
+      kind 1 for area 0x3d, 2 for 0x3e, else 0; +0x44 flags 4 for area 0x20,
+      else 1; +0x60 5, +0x64 -1; +0x62 the stage's byte (180084da0).
     - The span flag bits above the area are never initialised by Valve
       (pool memory), so only the area is compared.
-    - Open: the detail mesh (1800bd2e0) and the collect into CNavGenPolys
-      (180082280); the oriented path (1800873b0); the collectors that build
-      the stage input; the other 30 stages.
+    - Open: the CNavGenPoly plane fields (18004d9a0); the oriented path
+      (1800873b0); the monotone and layer region builds and the median
+      filter (convars, off); delaunayHull and the 1.4 seeding are ported
+      from the DLL but not yet hit by a capture; the RC collectors and the
+      stages before Recast (ValidateVertices, WeldVertices, RemoveDegens,
+      RemovePolysMarkedNoNav, TransformRecastNonZup); the 25 stages after.
 
 ## Resolved
 

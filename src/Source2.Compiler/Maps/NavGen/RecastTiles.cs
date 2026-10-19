@@ -23,6 +23,51 @@ public sealed class RecastTiles
         TilesZ = (int)((input.BMax[2] - input.BMin[2]) / tcs) + 1;
     }
 
+    /// <summary>One output polygon of the Recast stage: a detail triangle (CNavGenPoly via 18004fe30).</summary>
+    public readonly record struct OutputPoly(int A, int B, int C, byte Kind, int Flags);
+
+    /// <summary>
+    /// The whole tiled stage (180084da0): each tile built, then collected in order (180082280). Every
+    /// detail vertex goes back through the inverted matrix and onto the pool as doubles; each detail
+    /// triangle becomes a three-index polygon over the pool, kind 1 for area 0x3d, 2 for 0x3e, else
+    /// 0, flags 4 for area 0x20, else 1. The input polygons and the input pool are both dropped:
+    /// the output pool holds the detail vertices only.
+    /// </summary>
+    public (List<OutputPoly> Polys, List<(double X, double Y, double Z)> Pool) Run()
+    {
+        var polys = new List<OutputPoly>();
+        var outPool = new List<(double X, double Y, double Z)>();
+        foreach (var tile in Tiles())
+        {
+            tile.Rasterize();
+            tile.BuildRegions();
+            tile.BuildPolyMesh();
+            if (tile.DetailMesh is not { } dm || tile.PolyMesh is not { } pm)
+                continue;
+            var baseIndex = outPool.Count;
+            for (var i = 0; i < dm.NVerts; i++)
+            {
+                var (x, y, z) = RecastInput.FromRecast(dm.Verts[i * 3], dm.Verts[i * 3 + 1], dm.Verts[i * 3 + 2]);
+                outPool.Add((x, y, z));
+            }
+            for (var m = 0; m < dm.NMeshes; m++)
+            {
+                var vbase = (int)dm.Meshes[m * 4] + baseIndex;
+                var tbase = (int)dm.Meshes[m * 4 + 2];
+                var ntris = (int)dm.Meshes[m * 4 + 3];
+                var area = pm.Areas[m];
+                var kind = area == 0x3d ? (byte)1 : area == 0x3e ? (byte)2 : (byte)0;
+                var flags = area == 0x20 ? 4 : 1;
+                for (var t = 0; t < ntris; t++)
+                {
+                    var tri = (tbase + t) * 4;
+                    polys.Add(new OutputPoly(dm.Tris[tri] + vbase, dm.Tris[tri + 1] + vbase, dm.Tris[tri + 2] + vbase, kind, flags));
+                }
+            }
+        }
+        return (polys, outPool);
+    }
+
     public IEnumerable<RecastTile> Tiles()
     {
         for (var x = 0; x < TilesX; x++)
@@ -112,5 +157,8 @@ public sealed class RecastTile
         if (Contours.Contours.Count == 0)
             return;
         PolyMesh = RecastPolyMesh.Build(Contours, c.Nvp);
+        DetailMesh = RecastDetailMesh.Build(PolyMesh, Chf, c.SampleDist, c.SampleMaxError);
     }
+
+    public RecastDetailMesh? DetailMesh;
 }

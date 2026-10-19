@@ -217,13 +217,13 @@ public sealed class NavGenRecastTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void PolyMeshesMatchValve()
+    public void PolyAndDetailMeshesMatchValve()
     {
         if (Dir() is not { } dir)
             return;
         var tiles = Load(dir);
         var files = Directory.GetFiles(dir, "collect_*.bin").OrderBy(f => f, StringComparer.Ordinal).ToList();
-        int index = 0, bad = 0, withPoly = 0;
+        int index = 0, bad = 0, withPoly = 0, withDetail = 0;
         foreach (var tile in tiles.Tiles())
         {
             var dump = CollectDump.Load(files[index++]);
@@ -253,6 +253,27 @@ public sealed class NavGenRecastTests(ITestOutputHelper output)
                             diffs.Add($"poly {i} reg/area: ours {pm.Regs[i]}/{pm.Areas[i]}, Valve {dump.Regs[i]}/{dump.Areas[i]}");
                 }
             }
+            var dm = tile.DetailMesh;
+            if (diffs.Count == 0 && (dm is null) != !dump.HasDetail)
+                diffs.Add($"detail mesh: ours {(dm is null ? "none" : "present")}, Valve {(dump.HasDetail ? "present" : "none")}");
+            else if (diffs.Count == 0 && dm is not null)
+            {
+                withDetail++;
+                if (dm.NMeshes != dump.NMeshes || dm.NVerts != dump.NDVerts || dm.NTris != dump.NTris)
+                    diffs.Add($"detail counts: ours {dm.NMeshes}/{dm.NVerts}/{dm.NTris}, Valve {dump.NMeshes}/{dump.NDVerts}/{dump.NTris}");
+                else
+                {
+                    for (var i = 0; i < dm.Meshes.Length && diffs.Count < 3; i++)
+                        if (dm.Meshes[i] != dump.Meshes[i])
+                            diffs.Add($"detail mesh word {i}: ours {dm.Meshes[i]}, Valve {dump.Meshes[i]}");
+                    for (var i = 0; i < dm.Verts.Count && diffs.Count < 3; i++)
+                        if (BitConverter.SingleToInt32Bits(dm.Verts[i]) != BitConverter.SingleToInt32Bits(dump.DVerts[i]))
+                            diffs.Add($"detail vert {i / 3}.{i % 3}: ours {dm.Verts[i]:R}, Valve {dump.DVerts[i]:R}");
+                    for (var i = 0; i < dm.Tris.Count && diffs.Count < 3; i++)
+                        if (dm.Tris[i] != dump.Tris[i])
+                            diffs.Add($"detail tri {i / 4} byte {i % 4}: ours {dm.Tris[i]}, Valve {dump.Tris[i]}");
+                }
+            }
             if (diffs.Count > 0)
             {
                 bad++;
@@ -260,8 +281,43 @@ public sealed class NavGenRecastTests(ITestOutputHelper output)
                     output.WriteLine($"tile {tile.TileX},{tile.TileZ}:\n  " + string.Join("\n  ", diffs));
             }
         }
-        output.WriteLine($"{index} tiles, {withPoly} with a poly mesh, {bad} differ");
+        output.WriteLine($"{index} tiles, {withPoly} with a poly mesh, {withDetail} with a detail mesh, {bad} differ");
         Assert.Equal(0, bad);
+    }
+
+    [Fact]
+    public void StageOutputMatchesValve()
+    {
+        if (Dir() is not { } dir)
+            return;
+        var tiles = Load(dir);
+        var (polys, pool) = tiles.Run();
+        var b = File.ReadAllBytes(Path.Combine(dir, "005_Recast_out.bin"));
+        int n = BinaryPrimitives.ReadInt32LittleEndian(b), nv = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(4));
+        output.WriteLine($"ours {polys.Count} polys {pool.Count} vertices, Valve {n} polys {nv} vertices");
+        output.WriteLine($"Valve poly 0 raw: {Convert.ToHexString(b.AsSpan(8, 0x88))}");
+        Assert.Equal(nv, pool.Count);
+        var vo = 8 + n * 0x88;
+        for (var i = 0; i < nv; i++)
+        {
+            var x = BinaryPrimitives.ReadInt64LittleEndian(b.AsSpan(vo + i * 24));
+            var y = BinaryPrimitives.ReadInt64LittleEndian(b.AsSpan(vo + i * 24 + 8));
+            var z = BinaryPrimitives.ReadInt64LittleEndian(b.AsSpan(vo + i * 24 + 16));
+            Assert.True(x == BitConverter.DoubleToInt64Bits(pool[i].X) && y == BitConverter.DoubleToInt64Bits(pool[i].Y) && z == BitConverter.DoubleToInt64Bits(pool[i].Z),
+                $"pool vertex {i}: ours {pool[i]}, Valve ({BitConverter.Int64BitsToDouble(x)}, {BitConverter.Int64BitsToDouble(y)}, {BitConverter.Int64BitsToDouble(z)})");
+        }
+        Assert.Equal(n, polys.Count);
+        for (var i = 0; i < n; i++)
+        {
+            var at = 8 + i * 0x88;
+            var p = polys[i];
+            Assert.Equal(3, BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(at)));
+            Assert.Equal(p.A, BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(at + 0x68)));
+            Assert.Equal(p.B, BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(at + 0x6c)));
+            Assert.Equal(p.C, BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(at + 0x70)));
+            Assert.Equal(p.Kind, b[at + 0x40]);
+            Assert.Equal(p.Flags, BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(at + 0x44)));
+        }
     }
 
     [Fact]
