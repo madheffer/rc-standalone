@@ -72,3 +72,18 @@ public class NavFileProbe(ITestOutputHelper output)
             output.WriteLine($"{indent}{name} = {o} ({o.ValueType})");
     }
 }
+
+/// <summary><c>CLASSORDER=&lt;vmap&gt;</c>: the map's entity classes in document order (MapEntities.From), with counts.</summary>
+public class ClassOrderProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Dump()
+    {
+        if (Environment.GetEnvironmentVariable("CLASSORDER") is not { Length: > 0 } path)
+            return;
+        var document = DmxBinary.ReadFile(path);
+        var all = MapEntities.From(document).Select(e => e.ClassName).ToList();
+        output.WriteLine("order: " + string.Join(" ", all));
+        output.WriteLine("counts: " + string.Join(" ", all.GroupBy(c => c).Select(g => $"{g.Key}={g.Count()}")));
+    }
+}

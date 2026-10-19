@@ -2284,13 +2284,31 @@
    "addr": "180217740",
    "name": "CStaticLightingProcessor::BakeLighting",
    "module": "s2c:baked/lighting",
-   "note": "lightmapMaxResolution (4096; >= 512, power of two), lightmapMipCount (1) and MinSpecLightmapSize, lightmapNoWeld, lightmapChartPackIterations (4/7/9 by lightmapVRadQuality, 182a8cc68), GenerateCharts arg 2 = directional_irradiance_sh2_dc output; std::sort of the entries (18021b530) then 180210fa0, 180214960"
+   "note": "lightmapMaxResolution (4096; >= 512, power of two), lightmapMipCount (1) and MinSpecLightmapSize, lightmapNoWeld, lightmapChartPackIterations (4/7/9 by lightmapVRadQuality, 182a8cc68), GenerateCharts arg 2 = directional_irradiance_sh2_dc output; std::sort of the entries (18021b530) then 180210fa0, 180214960; after PackCharts snaps each chart mesh's uvs (+0xa8) to floorf(u / (1 / R) + 0.5) (1 / R), R = floor(32767 / side) side 2 (u by the height's), and writes the world's uv scale 65535 / R; 1802171b0 then appends them as the LightmapUV stream (Lighting/LightmapNodeBake.cs)"
   },
   {
    "addr": "18025db60",
    "name": "CWorldRendererBuilderNode::BakeLightMaps",
    "module": "s2c:baked/lighting",
-   "note": "strips PerVertexLighting from every entry (1812e2ec0 until gone), moves out entries with no 0x2000000909, bit 29 and +0x98, bakes, appends them back"
+   "note": "strips PerVertexLighting from every entry (1812e2ec0 until gone), moves out entries with no 0x2000000909, bit 29 and +0x98, bakes, appends them back after the others in BakeLighting's sorted order (Lighting/LightmapNodeBake.cs)"
+  },
+  {
+   "addr": "1802171b0",
+   "name": "StaticLighting_WriteLightmapUvs",
+   "module": "s2c:baked/lighting",
+   "note": "per chart mesh (0xb8 records), the welded mesh with a LightmapUV stream (CMesh add stream, 2 floats) filled from the record's snapped uvs (+0xa8); the entry's mesh replaced"
+  },
+  {
+   "addr": "180f71a50",
+   "name": "MapDoc_BuildSubassetReferences",
+   "module": "s2c:baked/lighting",
+   "note": "map_asset_references, then the subasset references collected in a hash container (entries 0x20: hash, type, name, count), copied to a vector, std::sorted (180f5c680, strcmp on type then name) into map_subasset_reference_types / _names / _counts"
+  },
+  {
+   "addr": "180f5c680",
+   "name": "std_Sort_SubassetReferences",
+   "module": "s2c:baked/lighting",
+   "note": "MSVC introsort over 0x18-byte (type, name, count) records, insertion sort under 0x318 bytes (180f59640: strcmp type, then name)"
   },
   {
    "addr": "18021b530",

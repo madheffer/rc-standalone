@@ -1464,6 +1464,63 @@ game can answer is raised with the user first, and runs with -insecure.
       navsystem), and a map with CMapNavData but no seeds (its parameters
       would differ; not seen).
 
+82. **A baked compile's world file and lights** (settled 2026-10-19 against
+    Valve's lit packages: ze_hold_em_p, probe01, cardtest, cs_script_demo).
+    - world.vwrld:
+      - m_bBuildBakedLighting is set, and m_builderParams.m_bakedLightingInfo
+        stays the empty one;
+      - m_worldLightingInfo holds lightmap version 8, game version 2,
+        m_bHasLightmaps, compression (!lightmapCompressionDisabled),
+        m_nLPVEncoding and m_nLightmapEncoding 0, the packer's passes, and
+        the vrad quality;
+      - m_vLightmapUvScale is 65535 / R per axis, where R = floor(32767 /
+        side) × side × 2 on the side left after the mip and MinSpec halvings:
+        1.14284 at 4096 and 1.032242 at 1024 (180217740 writes it as
+        65535 / R);
+      - m_lightMaps lists direct_light_shadows, irradiance,
+        debug_chart_color, directional_irradiance as resources, in that
+        order on every map;
+      - m_bakedShadows lists, in the lump's export order, each light the
+        shadow slot step gave a channel: light_path_uniqueid,
+        light_map_uniqueid (both as uint) and bakedshadowindex
+        (ze_hold_em_p: all 37). A light left at -1 is not listed; no
+        capture has one yet.
+    - The entity lump: each light's precomputed_vis_clusters needs vis's
+      flat clusters, so compile-map now builds vis before the lumps and the
+      world node step reuses it.
+    - Result: both files are identical on ze_hold_em_p and probe01.
+
+83. **BakeLightMaps' write-back into the world node** (settled 2026-10-19 by
+    decompile, 18025db60, 180217740 and 1802171b0, and by
+    tools/vis/capture_nodeentries.py --full on ze_hold_em_p).
+    - The node keeps the entries that do not bake in their order. The 50
+      baked ones follow, in BakeLighting's sorted order (std::sort,
+      18021b530).
+    - Each baked entry is now its chart mesh: the 1/32 weld of
+      StaticLighting_PrepareChartMesh, without PerVertexLighting, with a
+      LightmapUV stream (two floats, type 0x2b) appended.
+    - The closing steps change none of the 93 entries.
+    - The uvs are the packed atlas uvs, snapped after PackCharts (180217740):
+      u = floorf(u / (1 / R) + 0.5) × (1 / R), u by the height's R and v by
+      the width's, then stored times R / 65535. All 81,324 values match bit
+      for bit, ties included. Multiplying by R instead of dividing by 1 / R
+      parts on 0.1%.
+    - The models:
+      - LightmapUV lays out as texcoord 3 in R16G16_UNORM, truncated, among
+        the texcoords and after them;
+      - those draws are m_bHasBakedLightingFromLightMap and not unmatched;
+      - lightmapped meshes' probe handshake becomes 0 in the .vwnod, which
+        follows from the headers' bake fields.
+    - LightmapNodeBake implements it, and a -vrad3output compile runs it.
+    - Result:
+      - ze_hold_em_p: all nine world node files identical; the lit package
+        is 47 of 56 files and 99.09% of bytes.
+      - probe01 lit: 22 of 25 files. Missing are the generated nav, the
+        bomb damage file and the .vmap_c.
+    - Open: the 7 end_breakable entity models (texcoord ulps, a geometry
+      gap), 2 BC7 blocks of ze's probe atlas (bc7e), the .vmap_c (see
+      LIGHTING_ROADMAP "vmap_c").
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

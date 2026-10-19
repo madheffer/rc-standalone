@@ -316,6 +316,38 @@ roadmap", closed; "Lighting compilation parity with Valve").
 | L5 | M4 specimens: a light cookie, a fog irradiance volume, an env_farfield_probe_volume, compiled with Valve's tools plus vrad3 captures | captures (CS2 closed, with the operator) | each specimen captured, so M4's cookies, fog and far field can be ported against it. |
 | L6 | main-side fixes F26 to F29 and F33 | Texture/IspcTexcomp, Rc/RcMipChain, AtiCompress docs | the review findings fixed or corrected on main and mirrored here. |
 | L7 | F40, stale luxels in the LPV convergence test | LightProbeVolumeBaker | ported (only matters with err > 0, which resourcecompiler's 64 / 64 never uses). |
+| L8 | The .vmap_c (every map; see "vmap_c" below) | Source2ContainerAuthor.MapRoot, MapCompile | ze_hold_em_p's, probe01's and s2c_rounds' .vmap_c byte-exact from compile-map. |
+| L9 | Nav generation for maps with point_nav_walkable seeds (navsystem.dll: Recast, then 31 polygon stages) | Maps/NavFile | probe01's nav byte-exact up to Valve's own run-to-run AI data (ledger 57: two compiles differ from byte 5,421). |
+| L10 | baked_bomb_damage.vdata_c (sacustomdata, sampled from the nav mesh; defusal maps only) | new | probe01's file byte-exact; needs L9. |
+| L11 | Three MSVC std::sort ports: Maps/MsvcSort (T[]), Simulation/MsvcSort (Span, struct comparer) and Lighting/Bake/MsvcSort (IList, 10-18) | code health | one port, checked by MsvcSortTests' MSVC hashes, the others removed; every caller's output unchanged. |
+| L12 | The lightmap UV snap's axes on a non-square atlas (180217740 takes u by the height's R) | LightmapNodeBake | a compile with a non-square lightmap compared (CS2's atlas is square; not seen). |
+
+### vmap_c (L8): what is settled, what is not
+
+The map root's RED2 is the rest of a compile's index role. As of 2026-10-19
+compile-map does not write it. Read so far:
+- m_InputDependencies: lightmaptexturearg.txt and
+  lightprobevolumetexturearg.txt (optional, absent) before the .vmap in a
+  baked compile.
+- m_ArgumentDependencies: 35 rows, resourcecompiler's map arguments in its
+  own order. Each FloatArg's fingerprint is the float bits of its value:
+  lightmapChartPackIterations 4.0, lightmapMaxResolution 4096.0 (and a
+  second row at 0), lightmapMipCount 1.0, maxmipsize 1048576.0,
+  meshletMaxTriangles and meshletMaxVertices -1.0, the rest 0. Dump:
+  tools/re/out/captures (DUMPRES of Valve's ze_hold_em_p.vmap_c).
+- m_SearchableUserData gains UsesBuilderEntityKeys 1.
+- m_SubassetReferences:
+  - the counts: entity class counts over the .vmap's entities, worldspawn
+    and game_weapon_manager excluded; soundevent counts;
+  - resourcecompiler 180f71a50 collects them in a hash container, copies
+    them to a vector and std::sorts it (180f5c680) by (type, name) strcmp
+    into the map's map_subasset_reference_types / _names / _counts
+    attributes;
+  - the order the RED2 shows is neither that sorted order nor the
+    document's, nor any plain hash order tried (Murmur2 with three seeds,
+    CRC32, FNV and others, as sorted keys or open addressing at 4 to 65536
+    slots). s2c_rounds' three classes already reorder. Next: find who
+    copies the attributes into the RED2 table.
 
 ### M4. Unported vrad3 features (+9%): not started, needs specimens
 
