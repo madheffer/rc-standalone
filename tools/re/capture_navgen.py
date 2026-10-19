@@ -214,6 +214,39 @@ function hook() {
         dm.add(8).readPointer().readByteArray(nv * 12), dm.add(0x10).readPointer().readByteArray(nt * 4));
     }
     send({tag: 'collect_' + String(tiles++).padStart(3, '0') + '_' + tileName(tile)}, chunks(parts)); } });
+  // MergePolys (180073ba0) inside: its polygon lists are 0x168-byte records (up to 64 inline corners at
+  // +0x68) and the pool is the vector at ctx + 0x18 (count +0, data +8). Each call writes
+  // m<seq>_<fn>_in / _out: int32 count, int32 vertex count, int32 0x168, the records, the pool.
+  // 180056540 (the edge list) writes m<seq>_edges: int32 count, then the 0x20-byte entries.
+  function dumpWide(tag, vec, poolVec) {
+    const count = vec.readS32();
+    const polys = count > 0 ? vec.add(8).readPointer().readByteArray(count * 0x168) : new ArrayBuffer(0);
+    const vcount = poolVec.readS32();
+    const verts = vcount > 0 ? poolVec.add(8).readPointer().readByteArray(vcount * 24) : new ArrayBuffer(0);
+    send({tag: tag}, chunks([ints([count, vcount, 0x168]), polys, verts]));
+  }
+  let m = 0;
+  const wide = [[0x61730, 'Weld', 2], [0x5b3b0, 'Degens', 2], [0x5a570, 'MergeEdges', 2], [0x5ca90, 'MergeVerts', 2],
+                [0x584f0, 'Final', 4]];
+  for (const [rva, name, poolArg] of wide) {
+    Interceptor.attach(mod.base.add(rva), {
+      onEnter(args) {
+        this.out = args[0];
+        this.pool = poolArg === 2 ? args[2] : this.context.rsp.add(0x28).readPointer();
+        this.tag = 'm' + String(m++).padStart(4, '0') + '_' + name;
+        dumpWide(this.tag + '_in', args[1], this.pool);
+      },
+      onLeave() { dumpWide(this.tag + '_out', this.out, this.pool); }
+    });
+  }
+  Interceptor.attach(mod.base.add(0x56540), {
+    onEnter(args) { this.out = args[0]; },
+    onLeave() {
+      const count = this.out.readS32();
+      send({tag: 'm' + String(m++).padStart(4, '0') + '_edges'},
+        chunks([ints([count]), count > 0 ? this.out.add(8).readPointer().readByteArray(count * 0x20) : new ArrayBuffer(0)]));
+    }
+  });
   for (const [rva, kind] of [[0x207c0, 1], [0x207f0, 2]]) {
     Interceptor.attach(mod.base.add(rva), {
       onEnter(args) {
@@ -269,7 +302,7 @@ def main():
             tag = msg["payload"]["tag"]
             with open(os.path.join(out_dir, tag + ".bin"), "wb") as f:
                 f.write(data)
-            if not tag.startswith(("recast_", "tile_", "chf_", "collect_", "input_")):
+            if not tag.startswith(("recast_", "tile_", "chf_", "collect_", "input_", "m")):
                 count, vcount = struct.unpack_from("<ii", data)
                 stages.append((tag, count, vcount))
 

@@ -46,7 +46,7 @@ public sealed class NavPoly
 /// CUtlVector of Vec3D&lt;double&gt;; the per-vertex attribute vector is empty for map input), and the
 /// stages before Recast (navsystem 20261015).
 /// </summary>
-public sealed class NavGenPolys
+public sealed partial class NavGenPolys
 {
     public List<NavPoly> Polys = [];
     public List<(double X, double Y, double Z)> Pool = [];
@@ -63,6 +63,22 @@ public sealed class NavGenPolys
         for (var t = 0; t + 2 < indices.Count; t += 3)
         {
             var p = new NavPoly { Indices = [indices[t], indices[t + 1], indices[t + 2]] };
+            g.ComputePlane(p);
+            g.Polys.Add(p);
+        }
+        return g;
+    }
+
+    /// <summary>
+    /// The Recast stage's polygons (180082280): each detail triangle through 18004fe30 (three corners,
+    /// not removed, its normal from 18004d9a0 over the output pool), its kind and flags; +0x60 5, +0x62 0.
+    /// </summary>
+    public static NavGenPolys FromRecast(IEnumerable<RecastTiles.OutputPoly> polys, IEnumerable<(double X, double Y, double Z)> pool)
+    {
+        var g = new NavGenPolys { Pool = [.. pool] };
+        foreach (var o in polys)
+        {
+            var p = new NavPoly { Indices = [o.A, o.B, o.C], Kind = o.Kind, Flags = o.Flags };
             g.ComputePlane(p);
             g.Polys.Add(p);
         }

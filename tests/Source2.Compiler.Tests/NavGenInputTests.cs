@@ -76,9 +76,100 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         return null;
     }
 
+    private const string GameInfo = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo\gameinfo.gi";
+
+    /// <summary>gameinfo.gi's NavSystem block as key/value pairs (null when absent).</summary>
+    private static Dictionary<string, string>? NavSystemBlock(string path)
+    {
+        if (!File.Exists(path))
+            return null;
+        var lines = File.ReadAllLines(path);
+        var start = Array.FindIndex(lines, l => l.Trim() == "NavSystem");
+        if (start < 0)
+            return null;
+        var keys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var depth = 0;
+        for (var i = start + 1; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var comment = line.IndexOf("//", StringComparison.Ordinal);
+            if (comment >= 0)
+                line = line[..comment];
+            line = line.Trim();
+            if (line == "{") { depth++; continue; }
+            if (line == "}") { if (--depth == 0) break; continue; }
+            var m = System.Text.RegularExpressions.Regex.Match(line, @"^""([^""]*)""\s+""([^""]*)""");
+            if (depth == 1 && m.Success)
+                keys[m.Groups[1].Value] = m.Groups[2].Value;
+        }
+        return keys;
+    }
+
+    /// <summary>scripts/nav_hulls.vdata and scripts/nav_hulls_presets.vdata from the stock pak.</summary>
+    internal static NavGenSettings.VData HullVData(string pak)
+    {
+        using var package = new ValvePak.Package();
+        package.Read(pak);
+        ValveKeyValue.KVObject Root(string name)
+        {
+            package.ReadEntry(package.FindEntry(name)!, out var bytes);
+            using var resource = new ValveResourceFormat.Resource();
+            resource.Read(new MemoryStream(bytes));
+            return ((ValveResourceFormat.ResourceTypes.BinaryKV3)resource.DataBlock!).Data.Root;
+        }
+        static object Scalar(ValveKeyValue.KVObject v) => v.ValueType == ValveKeyValue.KVValueType.Boolean ? (bool)v : (double)v;
+        var hulls = new Dictionary<string, IReadOnlyDictionary<string, object>>();
+        foreach (var (name, hull) in Root("scripts/nav_hulls.vdata_c").Children)
+            if (hull.ValueType == ValveKeyValue.KVValueType.Collection)
+                hulls[name] = hull.Children.Where(c => c.Value.ValueType != ValveKeyValue.KVValueType.String)
+                    .ToDictionary(c => c.Key, c => Scalar(c.Value));
+        var presets = new Dictionary<string, IReadOnlyList<string>>();
+        foreach (var (name, preset) in Root("scripts/nav_hulls_presets.vdata_c").Children)
+            if (preset.ValueType == ValveKeyValue.KVValueType.Collection && preset["m_vecNavHulls"] is { } list)
+                presets[name] = [.. list.Values.Select(v => v.ToString()!)];
+        return new NavGenSettings.VData(hulls, presets);
+    }
+
+    /// <summary>The settings resourcecompiler hands navsystem for a map: gameinfo, the hull vdata, the CMapNavData.</summary>
+    internal static NavGenSettings MapSettings(DmxBinary.Document document, string pak)
+    {
+        var vdata = HullVData(pak);
+        var block = NavSystemBlock(GameInfo);
+        var defaults = NavGenSettings.ProjectDefaults(block is null ? null : k => block.TryGetValue(k, out var v) ? v : null, vdata);
+        var navData = document.OfType("CMapNavData").Single().Get<DmxBinary.Element>("navData")!;
+        return NavGenSettings.FromMap(navData, defaults, vdata);
+    }
+
+    /// <summary>
+    /// The settings block and hull from the .vmap, gameinfo and the vdata against the ones navsystem received
+    /// (recast_params.bin, recast_hulls.bin), every word Recast reads.
+    /// </summary>
+    [Fact]
+    public void SettingsFromTheMapMatchValve()
+    {
+        if (Dir() is not { } dir || !File.Exists(Path.Combine(dir, "recast_params.bin")) || CS2Fixtures.StockPak() is not { } pak)
+            return;
+        var settings = MapSettings(DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")), pak);
+        var ours = settings.Bytes();
+        var valve = File.ReadAllBytes(Path.Combine(dir, "recast_params.bin"));
+        foreach (var o in new[] { 0, 0x40, 0x58, 0x59 })
+            Assert.True(ours[o] == valve[o], $"settings +{o:x}: ours {ours[o]:x2}, Valve {valve[o]:x2}");
+        for (var o = 4; o < 0x30; o++)
+            Assert.True(ours[o] == valve[o], $"settings +{o:x}: ours {ours[o]:x2}, Valve {valve[o]:x2}");
+        var hull = settings.Hulls[0].Bytes();
+        var hulls = File.ReadAllBytes(Path.Combine(dir, "recast_hulls.bin"));
+        // +0x35..0x37 and +0x3c are padding (uninitialised in Valve's vector).
+        for (var o = 0; o < 0x3c; o++)
+            if (o is 1 or 2 or 3 or 0x11 or 0x12 or 0x13 or 0x19 or 0x1a or 0x1b or 0x35 or 0x36 or 0x37)
+                continue;
+            else
+                Assert.True(hull[o] == hulls[o], $"hull +{o:x}: ours {hull[o]:x2}, Valve {hulls[o]:x2}");
+        output.WriteLine($"probe01: {settings.Hulls.Count} hull ({settings.Hulls[0].Name}), cell {settings.CellSize}, edge error {settings.EdgeMaxError}; block and hull are Valve's");
+    }
+
     /// <summary>
     /// The map alone through the Recast stage: settle bodies, extraction, polygons, the stages before
-    /// Recast, then Recast with the captured settings, each against Valve's dumps.
+    /// Recast, then Recast with the settings from the map, gameinfo and the hull vdata, each against Valve's dumps.
     /// </summary>
     [Fact]
     public void FromTheMapThroughRecastMatchesValve()
@@ -102,7 +193,9 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         g.RemoveDegens(tol);
         Assert.Null(Compare(g, LoadStage(Path.Combine(dir, "005_Recast_in.bin"))));
 
-        var tiles = NavGenRecastTests.Load(dir, g);
+        var settings = MapSettings(document, pak);
+        var config = RecastConfig.From(settings.Bytes(), settings.Hulls[0].Bytes(), NavGenStages.RadiusPad, 0);
+        var tiles = new RecastTiles(config, RecastInput.From([.. g.Pool], [.. g.Polys.Select(p => p.Indices.ToArray())]));
         var (polys, pool) = tiles.Run();
         var valve = LoadStage(Path.Combine(dir, "005_Recast_out.bin"));
         Assert.Equal(valve.Polys.Count, polys.Count);
