@@ -91,6 +91,59 @@ public sealed class NavGenMergeTests(ITestOutputHelper output)
         return (weld, merge);
     }
 
+    /// <summary>The stages between Recast and MergePolys (006-012) and after LimitMaxPolyEdgeLen (016-018), each from Valve's input.</summary>
+    [Fact]
+    public void StagesAroundMergeMatchValve()
+    {
+        var dir = Environment.GetEnvironmentVariable("NAVGEN_INPUT") ?? Path.Combine(Path.GetTempPath(), "navgen_capture", "probe01_in");
+        if (!File.Exists(Path.Combine(dir, "006_UnTransformRecastNonZup_in.bin")))
+            return;
+        var tol = (double)NavGenStages.WeldTolerance;
+        foreach (var (stage, run) in new (string, Action<NavGenPolys>)[]
+        {
+            ("006_UnTransformRecastNonZup", _ => { }),
+            ("007_WeldVertices", g => g.Weld(tol, tol)),
+            ("008_RemoveDegens", g => g.RemoveDegens(tol)),
+            ("009_RemovePolysMarkedNoNav", _ => { }),
+            ("010_RemoveStrayVerticalPolys", g => g.RemoveStrayVerticalPolys(NavGenStages.StrayVerticalAngle, false)),
+            ("011_WeldVertices", g => g.Weld(tol, tol)),
+            ("012_RemoveDegens", g => g.RemoveDegens(tol)),
+            ("014_LimitMaxPolyEdges", g => g.Polys = g.SplitToFans(4)),
+            ("015_LimitMaxPolyEdgeLen", g => g.LimitMaxPolyEdgeLen(NavGenStages.EdgeLenLimitB, NavGenStages.EdgeLenLimitA)),
+            ("016_RemoveStrayVerticalPolys", g => g.RemoveStrayVerticalPolys(NavGenStages.StrayVerticalAngle, false)),
+            ("017_WeldVertices", g => g.Weld(tol, tol)),
+            ("018_RemoveDegens", g => g.RemoveDegens(tol)),
+        })
+        {
+            var g = NavGenInputTests.LoadStage(Path.Combine(dir, stage + "_in.bin"));
+            run(g);
+            Assert.True(NavGenInputTests.Compare(g, NavGenInputTests.LoadStage(Path.Combine(dir, stage + "_out.bin"))) is null, stage);
+        }
+    }
+
+    /// <summary>MergePolys whole from stage 013's input, every inner call against its dump, then the stage output.</summary>
+    [Fact]
+    public void MergePolysMatchesValve()
+    {
+        var stages = Environment.GetEnvironmentVariable("NAVGEN_INPUT") ?? Path.Combine(Path.GetTempPath(), "navgen_capture", "probe01_in");
+        if (Dir() is not { } dir || !File.Exists(Path.Combine(stages, "013_MergePolys_in.bin")))
+            return;
+        var calls = Directory.GetFiles(dir, "m*_out.bin").Select(Path.GetFileName).Order(StringComparer.Ordinal).ToList();
+        var g = NavGenInputTests.LoadStage(Path.Combine(stages, "013_MergePolys_in.bin"));
+        var at = 0;
+        g.MergePolys(false, (name, now) =>
+        {
+            Assert.True(at < calls.Count, $"extra call {name}");
+            var file = calls[at++]!;
+            Assert.EndsWith("_" + name + "_out.bin", file);
+            var diff = NavGenInputTests.Compare(now, LoadWide(Path.Combine(dir, file)));
+            Assert.True(diff is null, $"{file}: {diff}");
+        });
+        Assert.Equal(calls.Count, at);
+        Assert.Null(NavGenInputTests.Compare(g, NavGenInputTests.LoadStage(Path.Combine(stages, "013_MergePolys_out.bin"))));
+        output.WriteLine($"MergePolys: {at} inner calls, {g.Polys.Count} polygons over {g.Pool.Count} vertices, Valve's");
+    }
+
     [Fact]
     public void FirstRoundPassesMatchValve()
     {
@@ -122,6 +175,12 @@ public sealed class NavGenMergeTests(ITestOutputHelper output)
             });
             Assert.Null(NavGenInputTests.Compare(With(g, result), LoadWide(P(m + "_out"))));
             output.WriteLine($"{m}: {pass} edge passes, {g.Polys.Count(p => !p.Removed)} polygons, Valve's");
+        }
+        foreach (var m in new[] { "m0013_MergeVerts", "m0021_MergeVerts", "m0028_MergeVerts" })
+        {
+            var g = LoadWide(P(m + "_in"));
+            var result = g.MergeVerts(8, tol);
+            Assert.True(NavGenInputTests.Compare(With(g, result), LoadWide(P(m + "_out"))) is not { } diff, $"{m}: {NavGenInputTests.Compare(With(g, result), LoadWide(P(m + "_out")))}");
         }
     }
 }

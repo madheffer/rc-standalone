@@ -24,7 +24,45 @@ public static class NavGenStages
     public const float MergeWeldEnd = 0.01f;          // 1801349d0
     public const int MergeRounds = 6;                 // 180134c20
 
-    /// <summary>LimitMaxPolyEdgeLen (180073a90): 180134a20 and 180134b30.</summary>
+    /// <summary>LimitMaxPolyEdgeLen (180073a90 via 180027d90): nav_gen_max_edge_len_split_tol (180134a20) and nav_gen_max_edge_len (180134b30).</summary>
     public const float EdgeLenLimitA = 24f;
     public const float EdgeLenLimitB = 512f;
+
+    /// <summary>
+    /// Stages 000-004 on the extracted polygons: ValidateVertices, WeldVertices, RemoveDegens,
+    /// RemovePolysMarkedNoNav (no NONAV markups: nothing; markups not ported), TransformRecastNonZup
+    /// (Z-up generation: nothing).
+    /// </summary>
+    public static bool BeforeRecast(NavGenPolys g)
+    {
+        if (!g.ValidateVertices())
+            return false;
+        var tol = (double)WeldTolerance;
+        g.Weld(tol, tol);
+        g.RemoveDegens(tol);
+        return true;
+    }
+
+    /// <summary>
+    /// Stages 006-018 on Recast's polygons: UnTransformRecastNonZup (Z-up: nothing), WeldVertices,
+    /// RemoveDegens, RemovePolysMarkedNoNav, RemoveStrayVerticalPolys, WeldVertices, RemoveDegens,
+    /// MergePolys, LimitMaxPolyEdges (4; the polygons pass through with an info_nav_oriented_mesh),
+    /// LimitMaxPolyEdgeLen, RemoveStrayVerticalPolys, WeldVertices, RemoveDegens.
+    /// </summary>
+    public static void AfterRecast(NavGenPolys g, bool orientedMesh)
+    {
+        var tol = (double)WeldTolerance;
+        g.Weld(tol, tol);
+        g.RemoveDegens(tol);
+        g.RemoveStrayVerticalPolys(StrayVerticalAngle, orientedMesh);
+        g.Weld(tol, tol);
+        g.RemoveDegens(tol);
+        g.MergePolys(orientedMesh);
+        if (!orientedMesh)
+            g.Polys = g.SplitToFans(4);
+        g.LimitMaxPolyEdgeLen(EdgeLenLimitB, EdgeLenLimitA);
+        g.RemoveStrayVerticalPolys(StrayVerticalAngle, orientedMesh);
+        g.Weld(tol, tol);
+        g.RemoveDegens(tol);
+    }
 }

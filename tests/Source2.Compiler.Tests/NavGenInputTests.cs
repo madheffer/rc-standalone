@@ -72,6 +72,8 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
                 return $"poly {i} normal: ours ({a.Nx:R}, {a.Ny:R}, {a.Nz:R}), Valve ({b.Nx:R}, {b.Ny:R}, {b.Nz:R})";
             if (a.Kind != b.Kind)
                 return $"poly {i} kind: ours {a.Kind}, Valve {b.Kind}";
+            if (a.Flags != b.Flags)
+                return $"poly {i} flags: ours {a.Flags}, Valve {b.Flags}";
         }
         return null;
     }
@@ -168,11 +170,12 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The map alone through the Recast stage: settle bodies, extraction, polygons, the stages before
-    /// Recast, then Recast with the settings from the map, gameinfo and the hull vdata, each against Valve's dumps.
+    /// The map alone through stage 018: settle bodies, extraction, polygons, the stages before Recast,
+    /// Recast with the settings from the map, gameinfo and the hull vdata, then the stages after it
+    /// (MergePolys, the edge limits), each against Valve's dumps.
     /// </summary>
     [Fact]
-    public void FromTheMapThroughRecastMatchesValve()
+    public void FromTheMapThroughStage18MatchesValve()
     {
         if (Dir() is not { } dir || !File.Exists(Path.Combine(dir, "005_Recast_out.bin")) || CS2Fixtures.StockPak() is not { } pak
             || MapFixtures.GameSchema() is not { } schema)
@@ -187,24 +190,21 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         var (verts, indices) = NavGenInput.Extract(bodies, rules);
         var g = NavGenPolys.FromTriangles(verts, indices);
         Assert.Null(Compare(g, LoadStage(Path.Combine(dir, "000_ValidateVertices_out.bin"))));
-        var tol = (double)0.001f;
-        Assert.True(g.ValidateVertices());
-        g.Weld(tol, tol);
-        g.RemoveDegens(tol);
+        Assert.True(NavGenStages.BeforeRecast(g));
         Assert.Null(Compare(g, LoadStage(Path.Combine(dir, "005_Recast_in.bin"))));
 
         var settings = MapSettings(document, pak);
         var config = RecastConfig.From(settings.Bytes(), settings.Hulls[0].Bytes(), NavGenStages.RadiusPad, 0);
         var tiles = new RecastTiles(config, RecastInput.From([.. g.Pool], [.. g.Polys.Select(p => p.Indices.ToArray())]));
         var (polys, pool) = tiles.Run();
-        var valve = LoadStage(Path.Combine(dir, "005_Recast_out.bin"));
-        Assert.Equal(valve.Polys.Count, polys.Count);
-        Assert.Equal(valve.Pool.Count, pool.Count);
-        for (var i = 0; i < polys.Count; i++)
-            Assert.Equal(valve.Polys[i].Indices, [polys[i].A, polys[i].B, polys[i].C]);
-        for (var i = 0; i < pool.Count; i++)
-            Assert.Equal(valve.Pool[i], pool[i]);
-        output.WriteLine($"probe01 from the map: {verts.Count / 3} triangles in, {polys.Count} polygons over {pool.Count} vertices out of Recast, all Valve's");
+        var recast = NavGenPolys.FromRecast(polys, pool);
+        Assert.Null(Compare(recast, LoadStage(Path.Combine(dir, "005_Recast_out.bin"))));
+
+        var oriented = document.Elements.Any(e => e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "info_nav_oriented_mesh");
+        NavGenStages.AfterRecast(recast, oriented);
+        Assert.Null(Compare(recast, LoadStage(Path.Combine(dir, "018_RemoveDegens_out.bin"))));
+        output.WriteLine($"probe01 from the map: {verts.Count / 3} triangles in, {polys.Count} polygons out of Recast, " +
+                         $"{recast.Polys.Count} polygons over {recast.Pool.Count} vertices after stage 018, all Valve's");
     }
 
     [Fact]
