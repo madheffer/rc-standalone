@@ -19,10 +19,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## hammer.dll, build 20260924
 
-- file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
-- SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 11 tracked addresses: ambiguous 1, moved 10
+- file: `hammer.dll`, 39,611,032 bytes, PE time 2026-10-14 18:43 UTC
+- SHA-256 `46884a34b9b51fda1d46499d6c9963b6ba218518278f76df85e042fa388c3d41`
+- installed: this build
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -43,9 +42,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## materialsystem2.dll, build 20261001
 
-- file: `materialsystem2_20261001.dll`, 1,429,144 bytes, PE time 2026-09-30 18:55 UTC
-- SHA-256 `336abe089468bd5b218f773f09da3942fa9346b7f49f24d9e3591722fc54c5e6`
-- installed: a different build
+- file: `materialsystem2.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
+- SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
+- installed: this build
 - 1 addresses
 
 ### s2c:physics/material-sampler
@@ -56,7 +55,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## materialsystem2.dll, build 20261015
 
-- file: `materialsystem2_20261015.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
+- file: `materialsystem2.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
 - installed: this build
 - 15 addresses
@@ -83,9 +82,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## meshsystem.dll, build 20260923
 
-- file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
-- SHA-256 `11203f370437e5d55dbec46f530812b6a6f92c894e8f1c85f3c3b6e8773dc1d6`
-- installed: a different build
+- file: `meshsystem.dll`, 1,664,664 bytes, PE time 2026-10-14 18:42 UTC
+- SHA-256 `f66f01a90a2b2492dd281e41291e92a2151336c733c4b85d5f577714e0dfef4b`
+- installed: this build
 - 7 addresses
 
 ### s2c:baked/light-keys
@@ -107,9 +106,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## modtools.dll, build 20261015
 
-- file: `modtools_20261015.dll`, 17,944,216 bytes, PE time 2026-10-14 18:40 UTC
-- SHA-256 `31a29e428fd5e9bacf66614e7d11a44d273cdd74636bb3c45256e541655c18d6`
-- installed: a different build
+- file: not found locally
 - 19 addresses
 
 ### s2c:baked/bomb
@@ -138,10 +135,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## navsystem.dll, build 20261015
 
-- file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
+- file: `navsystem.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: this build
-- 217 addresses
+- 225 addresses
 
 ### s2c:baked/navgen
 
@@ -178,11 +175,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004ca90` | `NavGenVertexData_AddVertex` | position, attribute only when set | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:344`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:23` |
 | `18004cd50` | `CNavGenPoly_Radius` | farthest corner from the centroid | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:922` |
 | `18004d060` | `CNavGenPoly_FanArea` | float sum of (float)\|cross\|, no half | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:563`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:457` |
+| `18004d540` | `NavGenConnection_Segments` | each side's overlap segment on its edge: start, start + overlap along the unit edge | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:199`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:220` |
 | `18004d9a0` | `CNavGenPoly_ComputePlane` | (e2 x e1) of corners 0, 1, 2 in doubles, normalised above FLT_EPSILON, kept unless 0 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:648`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:66`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:84` +1 |
 | `18004db20` | `NavGen_LinkTo` | kept at overlap 0 or when valid | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:41`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:56` |
+| `18004dd20` | `NavGen_AddJumpConnection` | this side unless already connected to the other polygon; the other side (180053170 overlap 1, kind = !(dist < max(MaxClimb, MaxJumpUpDist))) unless already connected back | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:36`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:238` |
 | `18004e040` | `NavGen_TransferEdge` | connections of src's edge made from dst's edge, and back | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:56`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:107` |
 | `18004e4d0` | `NavGen_PolysFromTriangles` | pool = vertices as doubles; one triangle per 3 indices, +4/+0x64 -1, +0x60 5 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:65` |
 | `18004ef30` | `CNavGenPoly_Centroid` | sum in order, times 1/n | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:907` |
+| `18004f120` | `NavGenPoly_EdgeOutward` | unit edge direction u (kept when \|u\| <= FLT_EPSILON) cross the polygon normal | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:28`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:121` |
 | `18004fb30` | `CNavGenPoly_IndexOf` | corner index of a vertex, -1 |  |
 | `18004fb70` | `CNavGenPoly_CornerXY` | corner with z 0 |  |
 | `18004fd70` | `CNavGenPoly_EdgeHasConnection` |  |  |
@@ -195,7 +195,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180051990` | `NavGen_SplitAlong` | offsets along a direction from a corner | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:324`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:507` |
 | `180051cb0` | `NavGen_SplitCornerEdge` | cut edge pieces at overlap 0.1 | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:190`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:326` |
 | `1800521d0` | `NavGen_SplitCorners` |  | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:146`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:245`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:325` |
-| `180053170` | `NavGen_Connect` | edges opposite, projected both ways (1800787d0), overlap gate, midpoint side | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:139`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:539`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:42` |
+| `180053170` | `NavGen_Connect` | edges opposite, projected both ways (1800787d0), overlap gate, midpoint side | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:139`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:539`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:30` +2 |
 | `180053d40` | `NavGen_CopyPolys` | the pass-through of the oriented-mesh case |  |
 | `1800541a0` | `NavGen_PlanarDeviation` | float corners of the polygons, plane fit 1800ee9a0, largest distance above | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:941` |
 | `180055e30` | `NavGen_ToWidePolys` | 0x88 -> 0x168-byte polygons (64 inline corners) |  |
@@ -230,10 +230,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180068c60` | `NavGen_SortWeldRecords` | std::sort of 0x38-byte records on +0x28 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:265` |
 | `18006a6c0` | `NavGen_PairEdges` | edge pair overlaps, best and second | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:405` |
 | `18006aec0` | `NavGen_RecordPair` | shorter edge's polygon first | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:407`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:489` |
-| `18006b160` | `NavGen_AddJumps` | capsules (physics vfn 0x1e8), candidates, casts (not ported) |  |
+| `18006b160` | `NavGen_AddJumps` | stage 026 (ledger 98): capsules per kind (physics vfn 0x1e8: (0,0,climb)-(0,0,h/2+climb), radius), 32-unit grid, candidate edges, pairs, MSVC sort by squared midpoint distance, adds and marks | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:25` |
 | `18006bee0` | `NavGen_AppendPolys` | polygons and pool appended; the polygons' corners offset by the old pool size, their connections' +0 and +8 by the old polygon count | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9` |
+| `18006bfc0` | `NavGen_JumpPairs` | edge pairs (180053170, overlap radius * nav_gen_jump_connection_min_overlap_ratio) dropping more than climb + 4 and at most MaxJumpDownDist, kind rule, XY within MaxJumpHorizDistBase, clear, not covered (+0x61 sticky per target polygon) | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:30`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:155` |
 | `18006c6b0` | `NavGen_ClipPolysToHullClearance` | not ported |  |
 | `18006cb10` | `NavGen_CompactRemoved` | remap, connections to dropped polygons removed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:613`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:37`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:417` +1 |
+| `18006cf00` | `NavGen_JumpTargets` | grid query over the XY box of the edge and the edge moved out by MaxJumpHorizDistBase; each polygon once | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:29`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:138` |
 | `18006d260` | `NavGen_PolysOverlapXY` | separating axes from both polygons' XY edge normals, margin dist_a | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:36` |
 | `18006d550` | `NavGen_ProjectionsMeet` |  | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169` |
 | `18006d750` | `NavGen_EdgeOverlap` | Ghidra drops its tail; from the disassembly | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:302`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:405` |
@@ -241,10 +243,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18006e5f0` | `NavGen_FloodFill` | breadth first over connections and link pairs to removed polygons; each reached one to the callback | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:169` |
 | `18006ea50` | `NavGen_GenerateConnections` | sort, overlapping pairs (12 thread chunks), connections both ways | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:3`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
 | `18006f350` | `NavGen_FindOverlaps` | pairs i < j; break when j's key - 2 > i's +0x18 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
+| `18006fcf0` | `NavGen_JumpEdges` | edges of polygons with a block whose connections leave the overlap sum <= 0 or at least 2 radius open (edge length 18004e9e0) | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:26`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:96` |
 | `180070780` | `NavGen_IslandRemoval` | all removed, flooded back from links, WALKABLESEED markups, seeds (+-40), ladders; all-hulls: listed polygons pull in removed ones within 4 (ledger 96) | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:30` |
 | `180072b50` | `NavGen_JoinNonZup` | acts only on polygons with flag 8 (the oriented-mesh path) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:84` |
-| `180072ef0` | `NavGen_JumpClear` | world vfn 0x580 shape cast both ways |  |
+| `180072ef0` | `NavGen_JumpClear` | the path (18004d540, 180077e40): a mid, above b mid at a height, b mid; each leg cast both ways through world vfn 0x580 (type 4 shape cast), blocked when the fraction is below 1 | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:10`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:34`, `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:199` |
 | `1800732d0` | `NavGen_LadderConnect` | not ported |  |
+| `180073a20` | `NavGen_JumpLess` | squared midpoint distance (y, x, z) less-than | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:35` |
 | `180073a90` | `NavGen_LimitMaxPolyEdgeLen` | 180057b90 with nav_gen_max_edge_len, ..._split_tol | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:27` |
 | `180073ab0` | `NavGen_LimitMaxPolyEdges` | 180059240 at 4; passes through with an oriented mesh |  |
 | `180073ba0` | `NavGen_MergePolys` | nav_gen_opt_to_quads: six rounds of weld/degens/edge merge/weld/degens/vertex merge, then the 4-corner fan split; passes through with an oriented mesh | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:4`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:853`, `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:18` |
@@ -265,6 +269,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180077760` | `Vector_NormalizeDouble` |  | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:407` |
 | `180077930` | `NavGen_WeldVertices` | stage |  |
 | `180077c50` | `NavGen_IslandListAppend` | std::function slot +0x10 (vtable 1800ff790): append to the list |  |
+| `180077e40` | `NavGen_JumpPath` | four float points at t: lerp(a0, a1) with a z, lerp(b1, b0) at a z (twice), lerp(b1, b0) | `src/Source2.Compiler/Maps/NavGen/NavGenJumps.cs:199` |
 | `180078360` | `NavGen_MarkupTouchesPoly` | local box grown by 1 through the markup matrix, vphysics2 interface +0x190 <= 0 |  |
 | `180078490` | `NavGen_BoxTouchesPoly` | eight corners against the polygon: vphysics2 interface +0x190 <= 0 | `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavGenIslands.cs:141` |
 | `1800787d0` | `SegmentProjectXYF` | float projection of q0-q1 onto p0-p1 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:501` |
@@ -367,10 +372,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## physicsbuilder.dll, build 20260924
 
-- file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
-- SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 66 tracked addresses: ambiguous 1, changed 4, identical 4, moved 57
+- file: `physicsbuilder.dll`, 13,949,592 bytes, PE time 2026-10-14 18:41 UTC
+- SHA-256 `2b833eb7c91abe8430af9eb274d47babc458ddf0e488e189c3b846ba182e9522`
+- installed: this build
 - 60 addresses
 
 ### s2c:geometry/props
@@ -460,10 +464,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## rendersystemvulkan.dll, build 20261015
 
-- file: `rendersystemvulkan_20261015.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
+- file: `rendersystemvulkan.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `2febd86471b9ed1953e75875296f3e76999661f1e86cb68e928c0cb12a2afb4a`
 - installed: this build
-- against the installed build (20261016_1.41.9.1.md): 1 tracked addresses: identical 1
 - 1 addresses
 
 ### s2c:baked/lighting
@@ -474,10 +477,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## resourcecompiler.dll, build 20260923
 
-- file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
-- SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
+- file: `resourcecompiler.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
+- SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
+- installed: this build
 - 1013 addresses
 
 ### s2c:baked/light-keys
@@ -1631,10 +1633,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## resourcecompiler.dll, build 20261006
 
-- file: `resourcecompiler_20261006.dll`, 56,323,736 bytes, PE time 2026-10-05 21:03 UTC
-- SHA-256 `e2cd4c06976ee54ab8d32a6b109e7adcb7b551c02766cd0c6954b492b0aedbe3`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
+- file: `resourcecompiler.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
+- SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
+- installed: this build
 - 10 addresses
 
 ### s2c:entities
@@ -1659,7 +1660,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## scenesystem.dll, build 20261015
 
-- file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
+- file: `scenesystem.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: this build
 - 36 addresses
@@ -1707,9 +1708,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## server.dll, build 20261015
 
-- file: `server_20261015.dll`, 34,628,248 bytes, PE time 2026-10-14 18:43 UTC
-- SHA-256 `09e8c04c5f44040155d04fa79a3f43491d542a386f45807ed77785729e5925a9`
-- installed: a different build
+- file: not found locally
 - 5 addresses
 
 ### s2c:baked/nav
@@ -1724,10 +1723,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## smartprops.dll, build 20260923
 
-- file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
-- SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 30 tracked addresses: identical 17, relocated 13
+- file: `smartprops.dll`, 1,511,576 bytes, PE time 2026-10-14 18:38 UTC
+- SHA-256 `2e7782278b4054ee286ac28c3e30310e94022b6e5ac39ea0a90e1699eed2e91a`
+- installed: this build
 - 30 addresses
 
 ### s2c:smartprops
@@ -1767,10 +1765,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## tier0.dll, build 20260923
 
-- file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
-- SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
+- file: `tier0.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
+- SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
+- installed: this build
 - 52 addresses
 
 ### s2c:baked/bomb
@@ -1847,10 +1844,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## tier0.dll, build 20261015
 
-- file: `tier0_20261015.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
+- file: `tier0.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: this build
-- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
 - 4 addresses
 
 ### s2c:io
@@ -1864,10 +1860,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## visbuilder.dll, build 20260923
 
-- file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
-- SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 201 tracked addresses: changed 36, identical 123, relocated 42
+- file: `visbuilder.dll`, 1,855,640 bytes, PE time 2026-10-14 18:41 UTC
+- SHA-256 `ff000621c4492258de141eaecf7dd29eea7cacbaa0c4ab0da7f73234b841a022`
+- installed: this build
 - 200 addresses
 
 ### s2c:visibility
@@ -2077,10 +2072,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## vphysics2.dll, build 20260924
 
-- file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
-- SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
+- file: `vphysics2.dll`, 4,829,848 bytes, PE time 2026-10-14 18:42 UTC
+- SHA-256 `1d7680455eb1ca3ad7c9b92165515351f607e96db66cf466140aaf3f00946dba`
+- installed: this build
 - 434 addresses
 
 ### s2c:baked/bomb
@@ -2549,10 +2543,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## vrad3.dll, build 20261001
 
-- file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
-- SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
-- installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
+- file: `vrad3.dll`, 3,269,272 bytes, PE time 2026-10-14 18:42 UTC
+- SHA-256 `640aa494e082e93639fe0a6a583321abb8cb3930d6dbd9162e3a9e2a951bf9b3`
+- installed: this build
 - 365 addresses
 
 ### s2c:baked/vrad3
