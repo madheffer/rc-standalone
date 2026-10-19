@@ -293,6 +293,25 @@ function hook() {
     }
     if (any) send({tag: tag + '_conn'}, chunks(parts));
   }
+  // NavGen_BuildMesh (180022200): its fifth argument is the movable mesh list (CUtlVector: count +0,
+  // entries +8, 0x70 bytes: 3x4 matrix +0, name source +0x30, gravity_follows_rotation byte +0x68).
+  // Written as int32 count then the raw entries; each entry's +0x30 qword, when it reads as a pointer
+  // to a string, as navinput_movable_name_<i>.bin.
+  Interceptor.attach(mod.base.add(0x22200), { onEnter(args) {
+    const vec = args[4];
+    if (vec.isNull())
+      return;
+    const count = vec.readS32();
+    const data = vec.add(8).readPointer();
+    send({tag: 'navinput_movable'}, chunks([ints([count]), count > 0 ? data.readByteArray(count * 0x70) : new ArrayBuffer(0)]));
+    for (let i = 0; i < count; i++) {
+      try {
+        const p = data.add(i * 0x70 + 0x30).readPointer();
+        send({tag: 'navinput_movable_name_' + i}, p.readByteArray(0x100));
+      } catch (e) {
+        send({note: 'movable ' + i + ' +0x30 is not a pointer'});
+      }
+    } } });
   // IslandRemoval (180070780, first argument the processor): the RC's CNavGenInput at +8 (ledger 96):
   // seeds +0x78 (float3), markups +0x90 (0x50), links +0xc0 (0x18), ladders +0x60 (0x28: top, bottom, normal, width); each written
   // as int32 count then the raw entries.
