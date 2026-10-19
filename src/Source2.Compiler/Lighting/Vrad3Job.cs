@@ -111,8 +111,8 @@ public static class Vrad3Job
         foreach (var (cls, key) in lumpEntities)
         {
             LightShape shape;
-            if (cls == "light_barn")
-                shape = SceneLights.Barn(key, LightPrecompute.World(Vec(key("origin")), Vec(key("angles"))));
+            if (cls is "light_barn" or "light_rect" or "light_omni2")
+                shape = SceneLights.Record(cls, key, LightPrecompute.World(Vec(key("origin")), Vec(key("angles"))));
             else if (cls is "light_environment" or "light_directional")
             {
                 shape = SceneLights.Directional(key, Vec(key("origin")), Vec(key("angles")));

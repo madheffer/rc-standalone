@@ -41,13 +41,21 @@ internal static class SceneLights
     /// frustum's solid angle) times brightnessscale, its cookie (-1 without
     /// one), then moved to the world (18129a8d0).
     /// </summary>
-    public static LightShape Barn(LightPrecompute.KeyReader key, float[] world)
+    public static LightShape Barn(LightPrecompute.KeyReader key, float[] world) => Record("light_barn", key, world);
+
+    /// <summary>
+    /// A light_barn's, light_rect's or light_omni2's scene record: as
+    /// <see cref="Barn"/>, the intensity from the class's unit terms
+    /// (<see cref="LightUnits.Terms"/>).
+    /// </summary>
+    public static LightShape Record(string className, LightPrecompute.KeyReader key, float[] world)
     {
-        var r = LightPrecompute.Records("light_barn", key, null, split: false, units: true)[0];
+        var r = LightPrecompute.Records(className, key, null, split: false, units: true)[0];
         if (CNumbers.Atoi(key("colormode") ?? "0") != 0)
             throw new NotSupportedException("a light's colortemperature (181007c90) is not ported");
         var color = Color(key, "color", Vector3.Zero);
-        var intensity = LightUnits.FromUnits(key, LightUnits.BarnScale(r, 100f), LightUnits.FrustumSolidAngle(r, BitConverter.Int32BitsToSingle(0x3c026136)), 0f, 0f);
+        var (unitScale, factor, area, solid) = LightUnits.Terms(className, r);
+        var intensity = LightUnits.FromUnits(key, unitScale, factor, area, solid);
         color = new Vector3(intensity * color.X, intensity * color.Y, intensity * color.Z);
         var scale = key("brightnessscale") is { } s ? CNumbers.ToFloat32(s) : 1f;
         color = new Vector3(scale * color.X, scale * color.Y, scale * color.Z);

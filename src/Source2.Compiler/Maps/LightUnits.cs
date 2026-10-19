@@ -26,29 +26,7 @@ public static class LightUnits
         var records = LightPrecompute.Records(className, key, null, split: false, units: true);
         if (records.Length != 1)
             return written;
-        var r = records[0];
-        float scale = 0f, factor = 0f, area = 0f, solid = 0f;
-        if (className.EqualsAscii("light_barn"))
-        {
-            scale = BarnScale(r, 100f);
-            factor = FrustumSolidAngle(r, BitConverter.Int32BitsToSingle(0x3c026136));
-        }
-        else if (className.EqualsAscii("light_rect"))
-        {
-            scale = 100f * 100f;
-            factor = 0.025f;
-            area = LuminaireArea(r);
-            solid = SolidAngle(r.Type, 180f, 180f);
-        }
-        else if (className.EqualsAscii("light_omni2"))
-        {
-            var outer = ConeAngle(r);
-            var inner = InnerConeAngle(r);
-            solid = SolidAngle(r.Type, inner, outer);
-            scale = 100f * 100f;
-            factor = solid * 0.007957747f;
-            area = LuminaireArea(r);
-        }
+        var (scale, factor, area, solid) = Terms(className, records[0]);
         var intensity = FromUnits(key, scale, factor, area, solid);
         var lumens = intensity * factor;
         var units = CNumbers.Atoi(key("brightness_units") ?? "0");
@@ -68,6 +46,26 @@ public static class LightUnits
         if (units != 3)
             Write("brightness_legacy", MathF.Floor(intensity / scale * 256f + 0.5f) * 0.00390625f);
         return written;
+    }
+
+    /// <summary>
+    /// The unit terms of a class's whole record: a barn's scale (BarnScale at
+    /// 100) and frustum solid angle; a rect's 100^2, 0.025, luminaire area and
+    /// the solid angle of 180 by 180; an omni's 100^2, its cone's solid angle
+    /// (inner to outer) times 1 / (4 pi), luminaire area and that solid angle.
+    /// </summary>
+    public static (float Scale, float Factor, float Area, float Solid) Terms(string className, LightShape r)
+    {
+        if (className.EqualsAscii("light_barn"))
+            return (BarnScale(r, 100f), FrustumSolidAngle(r, BitConverter.Int32BitsToSingle(0x3c026136)), 0f, 0f);
+        if (className.EqualsAscii("light_rect"))
+            return (100f * 100f, 0.025f, LuminaireArea(r), SolidAngle(r.Type, 180f, 180f));
+        if (className.EqualsAscii("light_omni2"))
+        {
+            var solid = SolidAngle(r.Type, InnerConeAngle(r), ConeAngle(r));
+            return (100f * 100f, solid * 0.007957747f, LuminaireArea(r), solid);
+        }
+        return (0f, 0f, 0f, 0f);
     }
 
     /// <summary>
