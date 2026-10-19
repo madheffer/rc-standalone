@@ -126,13 +126,9 @@ public sealed class NavCastTests(ITestOutputHelper output)
             var closed = (m.Mesh.Flags & 1) != 0;
             var hit = Unscaled(m, c.Transform)
                 ? BoxCast.MeshUnscaled(m.Mesh, c.Centre, c.Delta, c.Half, c.MaxFraction)
-                : BoxCast.MeshTransformed(m.Mesh, m.Scale, c.Transform, c.Centre, c.Delta, c.Half, c.MaxFraction, skipClosedTest: true);
-            // The closed mesh's inside test (18024ac40) runs whenever the best fraction is not 0: not ported.
-            if (closed && !(hit.Found && hit.Fraction == 0f))
-            {
+                : BoxCast.MeshTransformed(m.Mesh, m.Scale, c.Transform, c.Centre, c.Delta, c.Half, c.MaxFraction);
+            if (closed)
                 closedSkipped++;
-                continue;
-            }
             total++;
             var ours = hit.Found ? hit.Fraction : 1f;
             if (hit.Found == c.Returned && BitConverter.SingleToInt32Bits(ours) == BitConverter.SingleToInt32Bits(c.Fraction))
@@ -140,7 +136,7 @@ public sealed class NavCastTests(ITestOutputHelper output)
             else if (shown++ < 10)
                 output.WriteLine($"cast {total}: ours {hit.Found} {ours:R}, Valve {c.Returned} {c.Fraction:R}, max {c.MaxFraction:R}");
         }
-        output.WriteLine($"{same} of {total} mesh casts Valve's ({missing} on shapes not dumped, {closedSkipped} closed-mesh casts skipped)");
+        output.WriteLine($"{same} of {total} mesh casts Valve's ({missing} on shapes not dumped, {closedSkipped} on closed meshes)");
         Assert.Equal(total, same);
     }
 }
