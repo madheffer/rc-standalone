@@ -2394,6 +2394,31 @@ game can answer is raised with the user first, and runs with -insecure.
       search ("light_*", caller 0xfc74c4) returns 241 lights in that array order. Open: the
       collapse's appends and removals (the capture now logs every index set).
 
+102. **The world's node array after the instance collapse; scene light order and placement (L17)**
+    (capture and simulation, 2026-10-20; ledger 100's open item). Verified: MapWorldOrder rebuilds
+    the captured array of atixref (5032 nodes, all 854 SetIndexInWorld mutations in order),
+    cardtest, probe01, s2c_pinst and s2c_pinst7 exactly (MapWorldOrderTests), and atixref's
+    scene_info.kv3 lights (243) are Valve's text in order (SceneInfoTests.LightsAreValves,
+    BarnTablesAreValves).
+    - Load appends the world (its own id first), then every CMapEntity, CMapInstance, CMapPath and
+      CMapPathNode in pre-order of the whole tree, target groups included. Meshes, groups, overlays,
+      smart props and the loader's locator nodes are never appended.
+    - One pass over the array by index, always advancing: a slot is not looked at again after a
+      removal fills it. Each instance that is not inside a target group collapses: it appends its
+      target's entity-like copies sorted by copy id (MapInstances.Expand's ids; a nested instance
+      copy takes its block slot, start + its pre-order slot over every node of the target) and
+      queues the nested instance copies; when no other live instance in the array uses the target,
+      the target's own entity-like nodes are removed in pre-order; then the instance is removed.
+      Removal is a fast remove: the last node moves into the slot, the removed node's index is -1.
+    - The queue then collapses first in first out, by the same rule.
+    - The scene build's light search walks this array, and places each light as its node is (the
+      map's origin and angles, or the collapse's for a copy), not from the lump's origin: atixref's
+      point_template 236 ships its eight lights only in its own lump (236#entitylumpname) relative
+      to the template, and Valve's scene has them where the map puts them. One light per node.
+      Vrad3Job.InSearchOrder.
+    - Not captured: prefabs and hidden instances (MapWorldOrder refuses; Vrad3Job keeps the lump
+      order for them).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

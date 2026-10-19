@@ -104,18 +104,20 @@ public static class Vrad3Job
         }
         PathTraceProps.Add(meshes, instances, records, Load);
 
-        // The lights and the sky, from the compiled lumps' keys.
+        // The lights and the sky, from the compiled lumps' keys, in the order the scene build's class
+        // searches find them: the world's node array after the instance collapse (L17, ledger 101).
         var ids = new Dictionary<int, int>();
         var lights = new List<KVObject>();
         LightPrecompute.KeyReader? sky = null;
-        foreach (var (cls, key) in lumpEntities)
+        foreach (var (cls, key, origin, angles) in InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document,
+                     path => content.SmartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0), lumpEntities))
         {
             LightShape shape;
             if (cls is "light_barn" or "light_rect" or "light_omni2")
-                shape = SceneLights.Record(cls, key, LightPrecompute.World(Vec(key("origin")), Vec(key("angles"))));
+                shape = SceneLights.Record(cls, key, LightPrecompute.World(origin, angles));
             else if (cls is "light_environment" or "light_directional")
             {
-                shape = SceneLights.Directional(key, Vec(key("origin")), Vec(key("angles")));
+                shape = SceneLights.Directional(key, origin, angles);
                 if (cls == "light_environment")
                     sky ??= key;
             }
@@ -197,6 +199,51 @@ public static class Vrad3Job
             s.Append(c, $"    lpv_image_write_ambientcube lpv_{v.Id}_ambientcube.exr\n    lpv_image_write_direct_light_shadows  lpv_{v.Id}_dlshd.exr\n    done\n");
         }
         return s.ToString();
+    }
+
+    /// <summary>
+    /// The lump entities in the world's node array order (<see cref="MapWorldOrder"/>), one per node
+    /// (matched by hammeruniqueid; a copy's is its collapse id), each placed as its node is: the map's
+    /// origin and angles, or the collapse's for a copy. The scene build reads the nodes, not the lumps:
+    /// atixref's point_template 236 ships its eight lights only in its own lump, relative to the
+    /// template, and Valve's scene has them where the map puts them. Entities the array does not hold
+    /// follow in lump order. A map whose order is not captured (prefabs, hidden instances) keeps the
+    /// lumps' order and placement.
+    /// </summary>
+    public static List<(string Class, LightPrecompute.KeyReader Key, Vector3 Origin, Vector3 Angles)> InSearchOrder(
+        DmxBinary.Document document, int createdOnLoad, List<(string Class, LightPrecompute.KeyReader Key)> entities)
+    {
+        List<int> order;
+        try
+        {
+            order = MapWorldOrder.NodeIds(document, createdOnLoad);
+        }
+        catch (NotSupportedException)
+        {
+            return [.. entities.Select(e => (e.Class, e.Key, Vec(e.Key("origin")), Vec(e.Key("angles"))))];
+        }
+        var rank = new Dictionary<int, int>();
+        for (var i = 0; i < order.Count; i++)
+            rank.TryAdd(order[i], i);
+        var walked = MapEntities.From(document);
+        var placed = new Dictionary<int, (Vector3 Origin, Vector3 Angles)>();
+        foreach (var e in walked)
+            placed.TryAdd(e.NodeId, (e.Origin, e.Angles));
+        foreach (var c in MapInstances.Expand(document, walked, createdOnLoad).Copies)
+            placed[c.NodeId] = (c.Origin, c.Angles);
+        var seen = new HashSet<int>();
+        var ordered = new List<(int Rank, string Class, LightPrecompute.KeyReader Key, Vector3 Origin, Vector3 Angles)>();
+        foreach (var (cls, key) in entities)
+        {
+            if (!int.TryParse(key("hammeruniqueid"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) || !rank.TryGetValue(id, out var r))
+                ordered.Add((int.MaxValue, cls, key, Vec(key("origin")), Vec(key("angles"))));
+            else if (seen.Add(id))
+            {
+                var (origin, angles) = placed.TryGetValue(id, out var p) ? p : (Vec(key("origin")), Vec(key("angles")));
+                ordered.Add((r, cls, key, origin, angles));
+            }
+        }
+        return [.. ordered.OrderBy(e => e.Rank).Select(e => (e.Class, e.Key, e.Origin, e.Angles))];
     }
 
     /// <summary>A compiled lump's entities as key readers (strings as the entity system holds them), with their class names.</summary>
