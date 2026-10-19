@@ -210,12 +210,17 @@ public static partial class SettleWorld
         // PhysDoc_BuildObjects std::sorts the collected nodes by pointer. The
         // loader allocates them in element order, so element order is that
         // sort but for where entity and mesh allocations interleave by page
-        // (3955 of atixref's 4143 neighbours agree); copies come last.
+        // (3955 of atixref's 4143 neighbours agree); copies come last. A
+        // prefab's map is loaded after the document, so its nodes follow in
+        // that map's own element order (the nav input of s2c_prefabprobe5
+        // and 6, captured).
         var index = new Dictionary<DmxBinary.Element, int>(ReferenceEqualityComparer.Instance);
-        for (var i = 0; i < document.Elements.Count; i++)
-            index[document.Elements[i]] = i;
+        var next = 0;
+        foreach (var d in AllDocuments(document))
+            foreach (var e in d.Elements)
+                index.TryAdd(e, next++);
         return [.. context.Bodies.Select((b, i) => (b, i))
-            .OrderBy(t => t.b.Node is { } n && t.b.NodeId == (n.GetValue<int>("nodeID") ?? -1) && index.TryGetValue(n, out var at) ? at : int.MaxValue)
+            .OrderBy(t => t.b.Node is { } n && (t.b.IdPath is not null || t.b.NodeId == (n.GetValue<int>("nodeID") ?? -1)) && index.TryGetValue(n, out var at) ? at : int.MaxValue)
             .ThenBy(t => t.i).Select(t => t.b)];
     }
 

@@ -12,6 +12,10 @@ How it works: each waiter writes a ticket (<dir>/tickets/<time>_<pid>.json); the
 whose process still exists runs when the lock file is free, holding an exclusive msvcrt lock on
 <dir>/heavy.lock for the command's lifetime (released by the OS even if the process dies). The holder
 is described in <dir>/current.json. <dir> is %LOCALAPPDATA%/s2c-heavy, shared by every checkout.
+Priority by agreement, not by code: while CS2 is closed, jobs that need it closed (resourcecompiler,
+vrad3, captures) go first; long jobs that do not (Ghidra imports and analysis, offline test sweeps)
+wait for CS2 to be open again or run on the dev box (dev@192.168.20.32).
+
 Refuses to start an RC job while cs2.exe runs (the rule for resourcecompiler on this PC); pass
 --allow-cs2 for jobs that do not touch the game.
 """
