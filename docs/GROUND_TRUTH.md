@@ -2054,6 +2054,79 @@ game can answer is raised with the user first, and runs with -insecure.
     - Open: the fan split's triangulation fallback (1800f3780, a float ear
       clipper with 1800f3d70's scoring; throws in the port; probe01 never
       reaches it); NONAV markups; non-z-up generation; stages 019 on.
+      (Triangulation and stages 019-029: 95.)
+95. **Nav generation after stage 018: triangulation, connections, splits**
+    (decompile and disassembly of navsystem 20261015, 2026-10-20; checked
+    against probe01's stage dumps where they show it. The connection blocks
+    and the triangulation wait on oracles that need CS2 closed:
+    capture_navgen.py now dumps each polygon's connection block and
+    tools/re/call_navsystem.py calls 1800f3780 directly. Maps/NavGen
+    NavGenTriangulate.cs, NavGenConnections.cs, NavGenSplits.cs.)
+    - Ghidra prints right-nested float sums without parentheses: the ear
+      score is inv + ((1 - c) + (1 - c)), printed as inv + (1-c) + (1-c).
+      Float sums in this area are taken from the disassembly.
+    - Convars: each registers its default (nav_gen_* init functions:
+      dist_a 1, dist_b 1.5, dist_z_mult 0.5, connect_angle 0.75,
+      angle_ignore_z 1, connect_overlap 0.5, allow_multiple 1,
+      max_bottleneck_width 128, split_multi_connection_polys_tol 0.01,
+      island_removal 0, island_removal_all_hulls 1, add_jumps 1,
+      agent_radius_buffer 0.5, jump_connection_min_overlap_ratio 1, ...);
+      csgo/gameinfo.gi's ConVars block sets agent_radius_buffer 0.75 and
+      jump_connection_min_overlap_ratio 0.1, which is what runs.
+    - Fan-split fallback (1800f3780, floats): 4 corners choose diagonal
+      0-2 or 1-3 (1800f30b0: both triangles over 1e-7, facing the normal
+      scores 3 else 2; diagonal 0-2 when its score is not lower and its
+      squared length is within 1.01f of the other's; a corner within 1e-7
+      of an edge fails when only one diagonal is valid); more corners clip
+      the best-scoring ear (1800f3d70: area about the normal over 1e-7, no
+      other corner inside (1800f33c0) unless it repeats a corner; score
+      1 / max(min of its and its neighbours' ear areas, 1) + 2(1 - largest
+      cosine)), rescoring the two neighbours; no ear scores 0 indices.
+      Each triangle keeps the polygon's fields with its own plane; under 3
+      indices drops the polygon.
+    - GenerateConnections (18006ea50; invoker 180027ea0): keys
+      (180077130: +0x10 the origin's distance to triangle 0-1-2, quads the
+      nearer of 0-1-2 and 0-2-3 (Ericson's closest point 1800802b0);
+      +0x18 the farthest corner, x²+y²+z² in the four-wide loop, y²+x²+z²
+      after) and MSVC std::sort on +0x10 (180067920) match stage 023 bit
+      for bit. Pairs i < j in that order (twelve thread chunks concatenate
+      to it), j cut off when its key passes i's +0x18 by 2; an XY
+      separating-axis prefilter on both polygons' edge normals with margin
+      dist_a (18006d260, 18006d550; corners with z 0); per edge pair the
+      overlap of 18006d750 (opposite directions, |cos| of the XY directions
+      at least V_cosd(0.75), closest points (1800369e0) within dist_a with
+      z times 0.5, clamped projection ends within dist_b with 6 units of
+      height slack; the length run); the best pair, and the second when
+      both run at least 1 and their edges are adjacent and within 60
+      degrees on one polygon; recorded shorter edge first (18006aec0). Each
+      pair is evaluated both ways (180053170: edges opposite within 0.001,
+      each projected on the other in XY in floats (1800787d0), both
+      overlaps at least 0.5, midpoints within 1 in XY or on the left);
+      both valid adds each side to its polygon's block (18004c780: the
+      0x68-byte records, each record's slot in its edge's list, five
+      per-edge lists).
+    - Connection-keeping splits: edge transfer (18004e040), link
+      (18004db20, kept at overlap 0 or when valid), connection removal
+      (180050240, swap with the last), polygon removal (180050400, the last
+      polygon moves in and its links are rebuilt), corner split (1800521d0),
+      corner-to-edge split (180051cb0, the cut edge's pieces at 0.1),
+      two-edge split (1800507e0, at most 4 corners a piece).
+      SplitBottleneckPolys (180075cc0) cuts a quad with no connections on
+      edges 1 and 3 when edge 0 or 2 exceeds 128. SplitPolysWithMultiple
+      Connections (18005be20) finds a corner between two edges reaching
+      the same polygon (180056260, sorted by (polygon, edge)) and cuts
+      across its neighbours' direction (180051990). RemoveSmallAreasOnEdge
+      (180075900) drops one-connection polygons under the settings' small
+      area (-1: none), compacting through 18006cb10.
+    - AddJumps and IslandRemoval write each polygon's bounds over
+      +0x10..+0x38 (180076d40); they match stage 026 bit for bit.
+    - Open: AddJumps (18006b160: capsules per hull height from the
+      physics interface vfn 0x1e8, world shape casts vfn 0x580 both ways
+      in 180072ef0), ClipPolysToHullClearance (022, the world),
+      LadderConnect (028, func_ladder input), IslandRemoval (029, walkable
+      seeds, WALKABLESEED markups and nav links from the RC input at
+      ctx+8 +0x78, +0x90, +0xc0), SplitPolysByMarkup (019); the RC
+      collectors that fill that input; then the .nav writer.
 
 ## Resolved
 

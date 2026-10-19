@@ -1,6 +1,300 @@
 {
  "functions": [
   {
+   "addr": "1800f30b0",
+   "name": "Triangulate_QuadDiagonal",
+   "module": "s2c:baked/navgen",
+   "note": "squared diagonal, 3 when both triangles face the normal, 2 if not, 0 degenerate"
+  },
+  {
+   "addr": "1800f3d70",
+   "name": "Triangulate_EarScore",
+   "module": "s2c:baked/navgen",
+   "note": "1 / max(min ear area, 1) + 2 (1 - max cosine); -1 when not an ear"
+  },
+  {
+   "addr": "1800f33c0",
+   "name": "Triangulate_PointInTriangle",
+   "module": "s2c:baked/navgen",
+   "note": "edge sides > -1e-7 about the normal, or within 1e-7 of an edge"
+  },
+  {
+   "addr": "1800ebd60",
+   "name": "PointLineDistanceSqr",
+   "module": "s2c:baked/navgen",
+   "note": "float, parameter unclamped"
+  },
+  {
+   "addr": "1800ebad0",
+   "name": "ClosestPointOnSegmentF",
+   "module": "s2c:baked/navgen",
+   "note": "float, parameter clamped"
+  },
+  {
+   "addr": "1800ec0f0",
+   "name": "PointSegmentDistanceF",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "1800eda30",
+   "name": "VectorNormalizeDouble",
+   "module": "s2c:baked/navgen",
+   "note": "float vector normalised in doubles"
+  },
+  {
+   "addr": "18006ea50",
+   "name": "NavGen_GenerateConnections",
+   "module": "s2c:baked/navgen",
+   "note": "sort, overlapping pairs (12 thread chunks), connections both ways"
+  },
+  {
+   "addr": "180027ea0",
+   "name": "NavGen_ConnectionsInvoker",
+   "module": "s2c:baked/navgen",
+   "note": "dist_a, dist_b, z_mult, angle, ignore_z, overlap, allow_multiple"
+  },
+  {
+   "addr": "180077130",
+   "name": "NavGen_ComputeSortKeys",
+   "module": "s2c:baked/navgen",
+   "note": "+0x10 origin distance to triangle 0-1-2 (quads: min with 0-2-3), +0x18 farthest corner"
+  },
+  {
+   "addr": "1800802b0",
+   "name": "ClosestPointOnTriangle",
+   "module": "s2c:baked/navgen",
+   "note": "Ericson's regions, doubles"
+  },
+  {
+   "addr": "180067920",
+   "name": "NavGen_SortPolysByKey",
+   "module": "s2c:baked/navgen",
+   "note": "MSVC std::sort on +0x10"
+  },
+  {
+   "addr": "18006f350",
+   "name": "NavGen_FindOverlaps",
+   "module": "s2c:baked/navgen",
+   "note": "pairs i < j; break when j's key - 2 > i's +0x18"
+  },
+  {
+   "addr": "18006a6c0",
+   "name": "NavGen_PairEdges",
+   "module": "s2c:baked/navgen",
+   "note": "edge pair overlaps, best and second"
+  },
+  {
+   "addr": "18006d260",
+   "name": "NavGen_PolysOverlapXY",
+   "module": "s2c:baked/navgen",
+   "note": "separating axes from both polygons' XY edge normals, margin dist_a"
+  },
+  {
+   "addr": "18006d550",
+   "name": "NavGen_ProjectionsMeet",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "18004fb70",
+   "name": "CNavGenPoly_CornerXY",
+   "module": "s2c:baked/navgen",
+   "note": "corner with z 0"
+  },
+  {
+   "addr": "18004fdb0",
+   "name": "CNavGenPoly_AttributesUnset",
+   "module": "s2c:baked/navgen",
+   "note": "every corner's attribute unset (map input: true)"
+  },
+  {
+   "addr": "18006d750",
+   "name": "NavGen_EdgeOverlap",
+   "module": "s2c:baked/navgen",
+   "note": "Ghidra drops its tail; from the disassembly"
+  },
+  {
+   "addr": "1800369e0",
+   "name": "ClosestPointsSegments",
+   "module": "s2c:baked/navgen",
+   "note": "Sunday's clamped parameters"
+  },
+  {
+   "addr": "18006aec0",
+   "name": "NavGen_RecordPair",
+   "module": "s2c:baked/navgen",
+   "note": "shorter edge's polygon first"
+  },
+  {
+   "addr": "180077760",
+   "name": "Vector_NormalizeDouble",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "180053170",
+   "name": "NavGen_Connect",
+   "module": "s2c:baked/navgen",
+   "note": "edges opposite, projected both ways (1800787d0), overlap gate, midpoint side"
+  },
+  {
+   "addr": "1800787d0",
+   "name": "SegmentProjectXYF",
+   "module": "s2c:baked/navgen",
+   "note": "float projection of q0-q1 onto p0-p1"
+  },
+  {
+   "addr": "18004c780",
+   "name": "NavLinks_Add",
+   "module": "s2c:baked/navgen",
+   "note": "0x68 record, slot, per-edge list"
+  },
+  {
+   "addr": "180050240",
+   "name": "NavLinks_RemoveAt",
+   "module": "s2c:baked/navgen",
+   "note": "swap with the last, per-edge list fixed"
+  },
+  {
+   "addr": "18004e040",
+   "name": "NavGen_TransferEdge",
+   "module": "s2c:baked/navgen",
+   "note": "connections of src's edge made from dst's edge, and back"
+  },
+  {
+   "addr": "18004db20",
+   "name": "NavGen_LinkTo",
+   "module": "s2c:baked/navgen",
+   "note": "kept at overlap 0 or when valid"
+  },
+  {
+   "addr": "180050400",
+   "name": "NavGen_RemovePoly",
+   "module": "s2c:baked/navgen",
+   "note": "last polygon moves in, links rebuilt"
+  },
+  {
+   "addr": "1800521d0",
+   "name": "NavGen_SplitCorners",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "180051cb0",
+   "name": "NavGen_SplitCornerEdge",
+   "module": "s2c:baked/navgen",
+   "note": "cut edge pieces at overlap 0.1"
+  },
+  {
+   "addr": "1800507e0",
+   "name": "NavGen_SplitEdges",
+   "module": "s2c:baked/navgen",
+   "note": "two edge points, pieces past 4 corners split again"
+  },
+  {
+   "addr": "180051990",
+   "name": "NavGen_SplitAlong",
+   "module": "s2c:baked/navgen",
+   "note": "offsets along a direction from a corner"
+  },
+  {
+   "addr": "180056260",
+   "name": "NavGen_MultiConnectionCorner",
+   "module": "s2c:baked/navgen",
+   "note": "sorted by (polygon, edge) (180068680)"
+  },
+  {
+   "addr": "180068680",
+   "name": "NavGen_SortConnections",
+   "module": "s2c:baked/navgen",
+   "note": "MSVC std::sort, (PolyB, EdgeA)"
+  },
+  {
+   "addr": "18004c650",
+   "name": "NavGen_AddPoly",
+   "module": "s2c:baked/navgen",
+   "note": "creation defaults"
+  },
+  {
+   "addr": "18004b990",
+   "name": "NavGen_AddInterpolatedVertex",
+   "module": "s2c:baked/navgen",
+   "note": "attribute interpolated only when set"
+  },
+  {
+   "addr": "18004fd70",
+   "name": "CNavGenPoly_EdgeHasConnection",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "180075cc0",
+   "name": "NavGen_SplitBottleneckPolys",
+   "module": "s2c:baked/navgen",
+   "note": "quads, edges 1 and 3 unconnected, edge 0 or 2 over the width"
+  },
+  {
+   "addr": "18005be20",
+   "name": "NavGen_SplitPolysWithMultipleConnections",
+   "module": "s2c:baked/navgen",
+   "note": ""
+  },
+  {
+   "addr": "180075900",
+   "name": "NavGen_RemoveSmallAreasOnEdge",
+   "module": "s2c:baked/navgen",
+   "note": "settings +0x2c threshold, +0x58 skips"
+  },
+  {
+   "addr": "18006cb10",
+   "name": "NavGen_CompactRemoved",
+   "module": "s2c:baked/navgen",
+   "note": "remap, connections to dropped polygons removed"
+  },
+  {
+   "addr": "180076d40",
+   "name": "NavGen_ComputeBounds",
+   "module": "s2c:baked/navgen",
+   "note": "+0x10..+0x38 per polygon"
+  },
+  {
+   "addr": "18006b160",
+   "name": "NavGen_AddJumps",
+   "module": "s2c:baked/navgen",
+   "note": "capsules (physics vfn 0x1e8), candidates, casts (not ported)"
+  },
+  {
+   "addr": "180072ef0",
+   "name": "NavGen_JumpClear",
+   "module": "s2c:baked/navgen",
+   "note": "world vfn 0x580 shape cast both ways"
+  },
+  {
+   "addr": "180070780",
+   "name": "NavGen_IslandRemoval",
+   "module": "s2c:baked/navgen",
+   "note": "seeds and nav links from the RC input (not ported)"
+  },
+  {
+   "addr": "1800732d0",
+   "name": "NavGen_LadderConnect",
+   "module": "s2c:baked/navgen",
+   "note": "not ported"
+  },
+  {
+   "addr": "18006c6b0",
+   "name": "NavGen_ClipPolysToHullClearance",
+   "module": "s2c:baked/navgen",
+   "note": "not ported"
+  },
+  {
+   "addr": "180075f40",
+   "name": "NavGen_SplitPolysByMarkup",
+   "module": "s2c:baked/navgen",
+   "note": "not ported"
+  },
+  {
    "addr": "180076b70",
    "name": "NavGen_UnTransformRecastNonZup",
    "module": "s2c:baked/navgen",

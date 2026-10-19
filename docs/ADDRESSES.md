@@ -141,13 +141,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: this build
-- 138 addresses
+- 187 addresses
 
 ### s2c:baked/navgen
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18001f7c0` | `Vector_NormalizeInPlace` | float, (y² + z²) + x², scaled when 1e-17 <= len <= 1e17 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:949` |
+| `18001f7c0` | `Vector_NormalizeInPlace` | float, (y² + z²) + x², scaled when 1e-17 <= len <= 1e17 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:964` |
 | `1800207c0` | `CNavGenPolyProcessorStage1::Run` | in place on *(ctx + 0x30); returns false |  |
 | `1800207f0` | `CNavGenPolyProcessorStage2::Run` | out *(ctx + 0x38), in *(ctx + 0x30); returns true |  |
 | `180020820` | `NavGen_RunStages` | the stage list in order; a Stage2 swaps the in/out polygon lists (ctx + 0x30 / + 0x38) after it runs |  |
@@ -156,71 +156,113 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800260e0` | `NavGen_RunPass` | 'pass %d/%d: orig tris': one generation pass over the input polygons |  |
 | `180027d90` | `NavGen_TwoFloatInvoker` | std::function call: (double)+0x14, (double)+0x10 (weld, edge length) | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:27` |
 | `180027dc0` | `NavGen_MergePolysInvoker` | closure: +0x28 angle, +0x24 deviation, +0x20/+0x1c merge tol start/end, +0x18/+0x14 weld start/end (as doubles), +0x10 rounds | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:18` |
+| `180027ea0` | `NavGen_ConnectionsInvoker` | dist_a, dist_b, z_mult, angle, ignore_z, overlap, allow_multiple | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:132` |
 | `180028ae0` | `NavGen_QueryAttributes` | interacts with 0xc3021 \| navclip (hash 0xdd7f7e69), excludes 0x400000, as 0x80000, ids -1, mask 0xffff, types 3, group 3, flags 0x49 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:23` |
+| `1800369e0` | `ClosestPointsSegments` | Sunday's clamped parameters | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:219` |
 | `180046fc0` | `NavGen_ClipToBounds` | when generation bounds are set (not ported) |  |
 | `180048b20` | `NavGen_ExtractTriangles` | bodies of type < 2 in world order (vfn 0x1c0/0x1c8), bounds and NONAV skips, shapes passing world vfn 0x4b0 with the 180028ae0 query, triangles via vphysics2's source (1800a32b0, vfn 0x18), then the body transform from vfn 0x1b0 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:75`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:138` |
 | `180049210` | `NavGen_ApplyNoNavMarkups` | after extraction (not ported) |  |
-| `18004bbe0` | `NavGen_FanFromPoints` | quads with a triangle last over new vertices, flags 0 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:724` |
+| `18004b990` | `NavGen_AddInterpolatedVertex` | attribute interpolated only when set | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:23` |
+| `18004bbe0` | `NavGen_FanFromPoints` | quads with a triangle last over new vertices, flags 0 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:739` |
 | `18004c280` | `NavGen_PolysFromPoints` | attributes, then 18004bbe0 |  |
 | `18004c4f0` | `NavGen_AppendPolyCopy` |  |  |
-| `18004ca90` | `NavGenVertexData_AddVertex` | position, attribute only when set | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:344` |
-| `18004cd50` | `CNavGenPoly_Radius` | farthest corner from the centroid | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:904` |
-| `18004d060` | `CNavGenPoly_FanArea` | float sum of (float)\|cross\|, no half | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:563` |
-| `18004d9a0` | `CNavGenPoly_ComputePlane` | (e2 x e1) of corners 0, 1, 2 in doubles, normalised above FLT_EPSILON, kept unless 0 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:56`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:74`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:89` |
-| `18004e4d0` | `NavGen_PolysFromTriangles` | pool = vertices as doubles; one triangle per 3 indices, +4/+0x64 -1, +0x60 5 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:55` |
-| `18004ef30` | `CNavGenPoly_Centroid` | sum in order, times 1/n | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:889` |
+| `18004c650` | `NavGen_AddPoly` | creation defaults | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:12` |
+| `18004c780` | `NavLinks_Add` | 0x68 record, slot, per-edge list | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:139`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:618` |
+| `18004ca90` | `NavGenVertexData_AddVertex` | position, attribute only when set | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:344`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:23` |
+| `18004cd50` | `CNavGenPoly_Radius` | farthest corner from the centroid | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:919` |
+| `18004d060` | `CNavGenPoly_FanArea` | float sum of (float)\|cross\|, no half | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:563`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:457` |
+| `18004d9a0` | `CNavGenPoly_ComputePlane` | (e2 x e1) of corners 0, 1, 2 in doubles, normalised above FLT_EPSILON, kept unless 0 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:645`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:66`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:84` +1 |
+| `18004db20` | `NavGen_LinkTo` | kept at overlap 0 or when valid | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:41`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:56` |
+| `18004e040` | `NavGen_TransferEdge` | connections of src's edge made from dst's edge, and back | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:56`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:107` |
+| `18004e4d0` | `NavGen_PolysFromTriangles` | pool = vertices as doubles; one triangle per 3 indices, +4/+0x64 -1, +0x60 5 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:65` |
+| `18004ef30` | `CNavGenPoly_Centroid` | sum in order, times 1/n | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:904` |
 | `18004fb30` | `CNavGenPoly_IndexOf` | corner index of a vertex, -1 |  |
-| `18004fe60` | `NavGen_ClipPointsByPlane` | front/on to A, back to B, band +-tol | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:645` |
+| `18004fb70` | `CNavGenPoly_CornerXY` | corner with z 0 |  |
+| `18004fd70` | `CNavGenPoly_EdgeHasConnection` |  |  |
+| `18004fdb0` | `CNavGenPoly_AttributesUnset` | every corner's attribute unset (map input: true) |  |
+| `18004fe60` | `NavGen_ClipPointsByPlane` | front/on to A, back to B, band +-tol | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:660` |
+| `180050240` | `NavLinks_RemoveAt` | swap with the last, per-edge list fixed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:640`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:418` |
+| `180050400` | `NavGen_RemovePoly` | last polygon moves in, links rebuilt | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:106` |
 | `180050750` | `CNavGenPoly_Reverse` | corner order reversed |  |
+| `1800507e0` | `NavGen_SplitEdges` | two edge points, pieces past 4 corners split again | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:242`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:476` |
+| `180051990` | `NavGen_SplitAlong` | offsets along a direction from a corner | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:324`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:507` |
+| `180051cb0` | `NavGen_SplitCornerEdge` | cut edge pieces at overlap 0.1 | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:190`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:326` |
+| `1800521d0` | `NavGen_SplitCorners` |  | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:146`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:245`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:325` |
+| `180053170` | `NavGen_Connect` | edges opposite, projected both ways (1800787d0), overlap gate, midpoint side | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:139`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:539`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:42` |
 | `180053d40` | `NavGen_CopyPolys` | the pass-through of the oriented-mesh case |  |
-| `1800541a0` | `NavGen_PlanarDeviation` | float corners of the polygons, plane fit 1800ee9a0, largest distance above | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:923` |
+| `1800541a0` | `NavGen_PlanarDeviation` | float corners of the polygons, plane fit 1800ee9a0, largest distance above | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:938` |
 | `180055e30` | `NavGen_ToWidePolys` | 0x88 -> 0x168-byte polygons (64 inline corners) |  |
 | `180056020` | `NavGen_FromWidePolys` | 0x168 -> 0x88-byte polygons, +0x60 5 |  |
+| `180056260` | `NavGen_MultiConnectionCorner` | sorted by (polygon, edge) (180068680) | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:389` |
 | `180056540` | `NavGen_EdgeList` | corner edges hashed on min % 0xfceb, buckets sorted (180066b80) and folded, optionally lengths sorted longest first (180067200) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:22`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:28` |
-| `180057b90` | `NavGen_LimitEdgeLenAll` | each polygon, then each queued piece | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:761` |
-| `180057de0` | `NavGen_LimitEdgeLen` | bounding-box halving plane when an edge exceeds max(limit, 3 tol) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:762` |
+| `180057b90` | `NavGen_LimitEdgeLenAll` | each polygon, then each queued piece | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:776` |
+| `180057de0` | `NavGen_LimitEdgeLen` | bounding-box halving plane when an edge exceeds max(limit, 3 tol) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:777` |
 | `1800584f0` | `NavGen_SplitToFansWide` | MergePolys' last pass at 4 corners; area gates 0.01 / 0.05 (floats) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:588` |
 | `180059240` | `NavGen_SplitToFans` | LimitMaxPolyEdges' worker on 0x88 polygons | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:588` |
 | `180059f10` | `NavGen_WeldTryMoveWide` | 18005a240 on 0x168-byte polygons |  |
-| `18005a240` | `NavGen_WeldTryMove` | collapse marks removed, non-convex or flipped triangle undoes | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:258`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:345` |
-| `18005a570` | `NavGen_MergeAcrossEdges` | pairs across shared edges; radius gate 200, planar deviation gate | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:1002` |
-| `18005af00` | `CNavGenPoly_IsConvex` | triangles pass; corners outside an edge fail unless adjacent and on its line | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:197` |
-| `18005b120` | `CNavGenPoly_CollapsesCollinear` | 18005b290 on a copy | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:171` |
-| `18005b290` | `CNavGenPoly_RemoveCollinear` | drops the middle corner of the first collinear run until none; degenerate below 3 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:171` |
+| `18005a240` | `NavGen_WeldTryMove` | collapse marks removed, non-convex or flipped triangle undoes | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:268`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:355` |
+| `18005a570` | `NavGen_MergeAcrossEdges` | pairs across shared edges; radius gate 200, planar deviation gate | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:1017` |
+| `18005af00` | `CNavGenPoly_IsConvex` | triangles pass; corners outside an edge fail unless adjacent and on its line | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:207` |
+| `18005b120` | `CNavGenPoly_CollapsesCollinear` | 18005b290 on a copy | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:181` |
+| `18005b290` | `CNavGenPoly_RemoveCollinear` | drops the middle corner of the first collinear run until none; degenerate below 3 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:181` |
 | `18005b3b0` | `NavGen_RemoveDegensInto` | 18005b290 per polygon into a new list |  |
-| `18005b5f0` | `NavGen_RemoveDegensImpl` | 18005b290 per poly, keep the rest | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:238` |
+| `18005b5f0` | `NavGen_RemoveDegensImpl` | 18005b290 per poly, keep the rest | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:248` |
+| `18005be20` | `NavGen_SplitPolysWithMultipleConnections` |  | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:505` |
 | `18005ca90` | `NavGen_MergeAtVertices` | T-junction merges through a third polygon, one per vertex per sweep | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:410` |
 | `18005dfa0` | `NavGen_SplitCorners` | centroid turn about R's normal picks o1..o6; side checks 180080c10 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:272`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:414` |
 | `18005e510` | `NavGen_CrossingOnPoly` | first edge crossed in XY (180080750), snapped or a new vertex (18004ca90) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:342`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:415` |
 | `18005e8f0` | `NavGen_FindThirdPoly` | the last polygon around both corners; flags and angle | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:231`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:414` |
 | `18005eb40` | `NavGen_VertexPolyAdjacencyWide` | 18005ee30 on wide polygons, removed ones included | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:411` |
-| `18005ee30` | `NavGen_VertexPolyAdjacency` | one entry per corner, polygon order | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:253` |
+| `18005ee30` | `NavGen_VertexPolyAdjacency` | one entry per corner, polygon order | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:263` |
 | `180061730` | `NavGen_WeldVerticesInto` | the weld of 180062410 on wide polygons into a new list; move check 180059f10 |  |
-| `180062410` | `NavGen_WeldVertices` | records sorted by \|p\| (MSVC std::sort 180068c60), clusters within tol (convar 180134b20 = 0.001), same-kind polys, move check 18005a240 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:251` |
+| `180062410` | `NavGen_WeldVertices` | records sorted by \|p\| (MSVC std::sort 180068c60), clusters within tol (convar 180134b20 = 0.001), same-kind polys, move check 18005a240 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:261` |
 | `180066b80` | `NavGen_SortEdgesByKey` | MSVC std::sort on (min << 32 \| max) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:29` |
 | `180067200` | `NavGen_SortEdgesByLength` | MSVC std::sort, pred a > b | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:32` |
-| `180068c60` | `NavGen_SortWeldRecords` | std::sort of 0x38-byte records on +0x28 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:255` |
+| `180067920` | `NavGen_SortPolysByKey` | MSVC std::sort on +0x10 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:123` |
+| `180068680` | `NavGen_SortConnections` | MSVC std::sort, (PolyB, EdgeA) | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:389` |
+| `180068c60` | `NavGen_SortWeldRecords` | std::sort of 0x38-byte records on +0x28 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:265` |
+| `18006a6c0` | `NavGen_PairEdges` | edge pair overlaps, best and second | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:405` |
+| `18006aec0` | `NavGen_RecordPair` | shorter edge's polygon first | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:407`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:489` |
+| `18006b160` | `NavGen_AddJumps` | capsules (physics vfn 0x1e8), candidates, casts (not ported) |  |
+| `18006c6b0` | `NavGen_ClipPolysToHullClearance` | not ported |  |
+| `18006cb10` | `NavGen_CompactRemoved` | remap, connections to dropped polygons removed | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:613`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:417`, `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:458` |
+| `18006d260` | `NavGen_PolysOverlapXY` | separating axes from both polygons' XY edge normals, margin dist_a | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169` |
+| `18006d550` | `NavGen_ProjectionsMeet` |  | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:169` |
+| `18006d750` | `NavGen_EdgeOverlap` | Ghidra drops its tail; from the disassembly | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:302`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:405` |
+| `18006ea50` | `NavGen_GenerateConnections` | sort, overlapping pairs (12 thread chunks), connections both ways | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:3`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
+| `18006f350` | `NavGen_FindOverlaps` | pairs i < j; break when j's key - 2 > i's +0x18 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:137` |
+| `180070780` | `NavGen_IslandRemoval` | seeds and nav links from the RC input (not ported) |  |
+| `180072ef0` | `NavGen_JumpClear` | world vfn 0x580 shape cast both ways |  |
+| `1800732d0` | `NavGen_LadderConnect` | not ported |  |
 | `180073a90` | `NavGen_LimitMaxPolyEdgeLen` | 180057b90 with nav_gen_max_edge_len, ..._split_tol | `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:27` |
 | `180073ab0` | `NavGen_LimitMaxPolyEdges` | 180059240 at 4; passes through with an oriented mesh |  |
-| `180073ba0` | `NavGen_MergePolys` | nav_gen_opt_to_quads: six rounds of weld/degens/edge merge/weld/degens/vertex merge, then the 4-corner fan split; passes through with an oriented mesh | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:4`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:835`, `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:18` |
+| `180073ba0` | `NavGen_MergePolys` | nav_gen_opt_to_quads: six rounds of weld/degens/edge merge/weld/degens/vertex merge, then the 4-corner fan split; passes through with an oriented mesh | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:4`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:850`, `src/Source2.Compiler/Maps/NavGen/NavGenStages.cs:18` |
 | `180074330` | `NavGen_Recast` | Recast stage: oriented path 1800873b0 when the bounds are unset and the stage block's +0x128 is set, else the tiled path 180084da0; arg 3 the generation settings (+0x48 hull table, 0x48 an entry) | `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:16` |
 | `180074570` | `NavGen_RemoveDegens` | stage -> 18005b5f0 / 18005b290 |  |
 | `180074590` | `NavGen_RemovePolysMarkedNoNav` | NONAV markups (not ported); nothing without them |  |
+| `180075900` | `NavGen_RemoveSmallAreasOnEdge` | settings +0x2c threshold, +0x58 skips | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:456` |
 | `180075b90` | `NavGen_RemoveStrayVerticalPolys` | keeps \|nz\| > V_cosd((float)limit * 0.017453292f); everything with an oriented mesh (settings + 0x128) or off z-up | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:10` |
+| `180075cc0` | `NavGen_SplitBottleneckPolys` | quads, edges 1 and 3 unconnected, edge 0 or 2 over the width | `src/Source2.Compiler/Maps/NavGen/NavGenSplits.cs:474` |
+| `180075f40` | `NavGen_SplitPolysByMarkup` | not ported |  |
 | `180076980` | `NavGen_TransformRecastNonZupImpl` | only when ctx + 0x61 and a transformer |  |
 | `180076b70` | `NavGen_UnTransformRecastNonZup` | only when ctx + 0x61 and a transformer; then each polygon's plane again |  |
+| `180076d40` | `NavGen_ComputeBounds` | +0x10..+0x38 per polygon | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:90`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:31` |
+| `180077130` | `NavGen_ComputeSortKeys` | +0x10 origin distance to triangle 0-1-2 (quads: min with 0-2-3), +0x18 farthest corner | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:57`, `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:123`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:27` |
 | `1800775e0` | `NavGenVertexData_SetVertex` | position and attribute |  |
-| `1800776d0` | `NavGen_ValidateVertices` | NavGenVertexData_t: CUtlVector<Vec3D<double>> at +0x18 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:119` |
+| `1800776d0` | `NavGen_ValidateVertices` | NavGenVertexData_t: CUtlVector<Vec3D<double>> at +0x18 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:129` |
+| `180077760` | `Vector_NormalizeDouble` |  | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:407` |
 | `180077930` | `NavGen_WeldVertices` | stage |  |
+| `1800787d0` | `SegmentProjectXYF` | float projection of q0-q1 onto p0-p1 | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:501` |
+| `1800802b0` | `ClosestPointOnTriangle` | Ericson's regions, doubles | `src/Source2.Compiler/Maps/NavGen/NavGenConnections.cs:7` |
 | `180080750` | `LineIntersectXY` | \|det\| < 1e-6f fails | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:328` |
-| `180080820` | `PlaneSegmentIntersect` | t = (d - n.p) / n.(q - p) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:646` |
-| `1800808f0` | `NavGen_PointOnSegment` | perpendicular distance in the plane, scaled by \|b - a\|, against tol | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:155`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:129` |
+| `180080820` | `PlaneSegmentIntersect` | t = (d - n.p) / n.(q - p) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:661` |
+| `1800808f0` | `NavGen_PointOnSegment` | perpendicular distance in the plane, scaled by \|b - a\|, against tol | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:155`, `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:139` |
 | `180080c10` | `NavGen_SameSideOfLine` | points on pts[0]'s side of a-b or collinear within tol | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:182` |
 | `180081050` | `NavGen_Collinear3` | first acute corner, nearer neighbour on the segment to the farther (1800808f0) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:153`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:413` |
 | `1800814b0` | `CNavGenRecastTile::Rasterize` | chunks overlapping the tile, per chunk mark walkable + rasterise (flagMergeThr = climb) | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:109` |
 | `180081710` | `NavGen_RecastTiles` | tiles (int)(extent / (tile x cs)) + 1 each way, x outer z inner, one CNavGenRecastTile (0x128, vtable 1800ffd40) each, thread pool, collected in order | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:5` |
 | `180082090` | `CNavGenRecastTile::Build` | rasterise + three filters, compact/erode/regions (1800850a0), contours (flags 1), poly mesh, detail mesh | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:5`, `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:79`, `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:109` +1 |
-| `180082280` | `CNavGenRecastTile::Collect` | detail vertices back through the inverse matrix into the pool; each detail triangle a 3-vertex CNavGenPoly (18004fe30); area 0x20 flag 4 else 1; area 0x3d kind 1, 0x3e kind 2 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:73`, `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:66`, `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:6` +1 |
+| `180082280` | `CNavGenRecastTile::Collect` | detail vertices back through the inverse matrix into the pool; each detail triangle a 3-vertex CNavGenPoly (18004fe30); area 0x20 flag 4 else 1; area 0x3d kind 1, 0x3e kind 2 | `src/Source2.Compiler/Maps/NavGen/NavGenPolys.cs:83`, `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:66`, `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:6` +1 |
 | `180084da0` | `NavGen_RecastTiled` | 1800852a0 then 180081710; every output poly +0x62 = the stage byte | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:4`, `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:30` |
 | `1800850a0` | `CNavGenRecastTile::BuildRegions` | compact (min of three heights), Valve erode, median filter if *(1801386a8)+0x58, regions by *(1801386b8)+0x58: 0 watershed, 1 monotone, else layers | `src/Source2.Compiler/Maps/NavGen/RecastTiles.cs:133` |
 | `1800852a0` | `NavGen_RecastBuildInput` | every pool vertex through the inches-to-metres matrix (recast = -0.0254y, 0.0254z, -0.0254x), bounds, fan (0, k-1, k), chunky mesh 256, then the config (settings x 0.0254; radius + *(180134b10)+0x58) | `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:7`, `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:28`, `src/Source2.Compiler/Maps/NavGen/RecastConfig.cs:108` +3 |
@@ -281,10 +323,17 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1800bf0f0` | `rcChunkyTriMesh_Subdivide` | returns only past maxNodes (upstream >=); CRT qsort on the longer axis' min, comparators 1800bed70 / 1800bed90 | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:104` |
 | `1800de5f0` | `cosf` | CRT |  |
 | `1800deaf0` | `qsort` | CRT qsort, statically linked |  |
+| `1800ebad0` | `ClosestPointOnSegmentF` | float, parameter clamped | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:131` |
+| `1800ebd60` | `PointLineDistanceSqr` | float, parameter unclamped | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:119` |
+| `1800ec0f0` | `PointSegmentDistanceF` |  | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:131` |
 | `1800ed380` | `Matrix3x4_Invert` |  | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:73` |
+| `1800eda30` | `VectorNormalizeDouble` | float vector normalised in doubles | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:173` |
 | `1800ee160` | `Matrix3x4_TransformPoint` | (p0 m0 + p2 m2) + (p1 m1 + m3) per row (1800edb00) | `src/Source2.Compiler/Maps/NavGen/RecastInput.cs:21` |
-| `1800ee9a0` | `PlaneFitLeastSquares` | float z = ax + by + c, \|det\| > 1e-6 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:924`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:948` |
-| `1800f3780` | `Triangulate_EarClip` | the fan split's fallback (not ported) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:591`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:639` |
+| `1800ee9a0` | `PlaneFitLeastSquares` | float z = ax + by + c, \|det\| > 1e-6 | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:939`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:963` |
+| `1800f30b0` | `Triangulate_QuadDiagonal` | squared diagonal, 3 when both triangles face the normal, 2 if not, 0 degenerate | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:5`, `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:94` |
+| `1800f33c0` | `Triangulate_PointInTriangle` | edge sides > -1e-7 about the normal, or within 1e-7 of an edge | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:146` |
+| `1800f3780` | `Triangulate_EarClip` | the fan split's fallback (not ported) | `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:592`, `src/Source2.Compiler/Maps/NavGen/NavGenMerge.cs:644`, `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:4` |
+| `1800f3d70` | `Triangulate_EarScore` | 1 / max(min ear area, 1) + 2 (1 - max cosine); -1 when not an ear | `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavGenTriangulate.cs:182` |
 
 ## physicsbuilder.dll, build 20260924
 
