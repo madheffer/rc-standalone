@@ -36,13 +36,22 @@ public static class MeshSweep
     /// <paramref name="delta"/> (all in scaled mesh space, divided by the scale
     /// through a refined rcpps), walking the BVH front to back along the
     /// motion. With <paramref name="boxesOnly"/> false each triangle whose
-    /// grown box passes also goes through <see cref="TriangleHit"/>.
+    /// grown box passes also goes through <see cref="TriangleHit"/>. With a null
+    /// <paramref name="scale"/> nothing is divided: the box cast of an unscaled
+    /// mesh shape (FUN_180245a10, called by CRnMeshShape's cast 1802421c0 when the
+    /// shape has no scale or transform) walks the same tree on the raw values.
     /// </summary>
-    public static void Query(RnMesh mesh, Vec3 scale, Vec3 start, Vec3 delta, Vec3 half, bool boxesOnly, List<int> output)
+    public static void Query(RnMesh mesh, Vec3? scale, Vec3 start, Vec3 delta, Vec3 half, bool boxesOnly, List<int> output)
     {
-        var s = L3(scale);
-        var r = CpuEstimate.Rcp(s);
-        var inverse = Sse.Subtract(Sse.Add(r, r), Sse.Multiply(Sse.Multiply(r, r), s));
+        Vector128<float> inverse;
+        if (scale is { } sc)
+        {
+            var s = L3(sc);
+            var r = CpuEstimate.Rcp(s);
+            inverse = Sse.Subtract(Sse.Add(r, r), Sse.Multiply(Sse.Multiply(r, r), s));
+        }
+        else
+            inverse = Vector128.Create(1f, 1f, 1f, 0f);
         var d = Sse.Multiply(L3(delta), inverse);
         var p = Sse.Multiply(L3(start), inverse);
         var h = Sse.Multiply(L3(half), inverse);

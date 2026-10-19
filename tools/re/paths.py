@@ -53,4 +53,6 @@ ALIASES = {
     "vrad3": "vrad3_20261001.dll",
     "ss": "scenesystem_20261015.dll",
     "mat": "materialsystem2_20261015.dll",
+    "mt": "modtools_20261015.dll",
+    "navs": "navsystem_20261015.dll",
 }

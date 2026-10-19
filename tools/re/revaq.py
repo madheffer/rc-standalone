@@ -4,7 +4,7 @@
     revaq.py str <program> <regex> [max]                  strings with referencing functions
     revaq.py xref <program> <hex addr> [to|from]          references
 
-<program> is an alias from paths.ALIASES (rc, vis, ms, ms1001, pb, pv, sp, t0,
+<program> is an alias from paths.ALIASES (rc, vis, ms, ms1001, pb, pv, sp, t0, mt, navs,
 vrad3) or a Ghidra program name (resourcecompiler_20260923.dll). The ReVa
 server must be up (reva_serve.py).
 """
