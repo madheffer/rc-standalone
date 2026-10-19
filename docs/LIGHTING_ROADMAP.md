@@ -333,6 +333,9 @@ roadmap", closed; "Lighting compilation parity with Valve").
 | L14 | -lightmapVRadQuality 1 and 2: lightmap_image_filter_oidn / lightmap_image_filter_sh_oidn and the LPV OIDN filter (Intel Open Image Denoise) | new | a quality 1 compile's EXRs byte-exact (needs OIDN's own build or a port). |
 | L15 | The adaptive pass count (lightmap_compute_block_gpu minspp under maxspp, the convergence test between command lists) on the lightmap host | LightmapBaker, RtxBakeHost | a quality 1 or 2 bake's raw image equal to vrad3's (OwnLightingBake refuses it today). |
 | L16 | -s2cbake on more maps: probe01 (after L13), cardtest, the prefab probes, c2m2, atixref (smart props in the path-trace scene are refused) | Vrad3Job, PathTraceProps | each map's own-bake package equal to its vrad3 one. |
+| L17 | The path-trace scene's light order on maps with instances and templates: Valve walks the world's flat node array (MapWorld_FindEntitiesByClass 180fc7220 over world +0x1830, flag 3 recursing into sub-worlds); a point_template's lump lights are placed by the template (ledger 90) | Vrad3Job, SceneLights | atixref's lights array equal to Valve's (`%TEMP%/vrad3_refs/atixref.vpk.vrad3`; SceneInfoTests.LightsAreValves with SCENEINFO_WALK=1 gives every entry, 234 of 243 in place; the tree walk matches 125 of 242 neighbours, DMX element order 95). |
+| L18 | A smart prop's path-trace records (Vrad3Job refuses CMapSmartProp) | Vrad3Job, PathTraceProps | atixref's scene_info instances equal to Valve's. |
+| L19 | A material vrad3 cannot load (cardtest's materials/doomtextures/teleport02.vmat lives in another addon): which hit group and vertex buffer it gets | RtxBakeHost, RtxMaterials | cardtest's -s2cbake bake (its job inputs are already all five byte for byte); capture with capture_host.py on `%TEMP%/vrad3_refs/cardtest.vpk.vrad3` (CS2 closed). |
 
 ### vmap_c (L8): what is settled, what is not
 

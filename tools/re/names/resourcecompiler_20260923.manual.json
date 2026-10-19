@@ -2254,7 +2254,7 @@
    "addr": "181112e80",
    "name": "LightingProcessor_PathTraceLightList",
    "module": "s2c:baked/lighting",
-   "note": "per light its LightShape (181297030) and info (180eece60); the sky light found by dynamic cast of the entity's components"
+   "note": "per light (MapDoc_GatherLights order) its LightShape (181297030) and info (180eece60); a bounce light at bounce scale != 1 gets a separate entry first, colour times the scale, flags 1 or 9 (ledger 90); the sky light found by dynamic cast of the entity's components"
   },
   {
    "addr": "181297030",

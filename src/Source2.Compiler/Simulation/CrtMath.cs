@@ -133,6 +133,57 @@ public static class CrtMath
         return (float)(q * BitConverter.UInt64BitsToDouble((ulong)(m + 1023) << 52));
     }
 
+    /// <summary>
+    /// exp2f (tier0 V_exp2f, 1802bdd90), the CRT's single precision path:
+    /// x split into its integer part n (truncated) and f = x - n, moved into
+    /// [-0.5, 0.5]; y = f ln2 (0.6931472f); then the Cody-Waite float exp
+    /// (1802bdb54): k = trunc(y / ln2 +- 0.5), g = (y - k 0.69287109375) -
+    /// k 0.00027608682, and for |g| at least 2^-25 the rational
+    /// ((g P + Q) + 1) / ((Q - g P) + 1) with g P = (0.0083208261 g^2 + 0.5) g
+    /// and Q = 0.099974856 g^2; scaled by 2^(k + n). Every step is a float.
+    /// Overflow, underflow and |x| of 2^31 or more are not read, and throw.
+    /// </summary>
+    public static float Exp2(float x)
+    {
+        if (x == 0f)
+            return 1f;
+        if (!float.IsFinite(x) || x <= -2147483648f || 2147483648f <= x)
+            throw new NotSupportedException("exp2f of a non-finite or huge argument is not ported");
+        var whole = MathF.Truncate(x);
+        var n = (int)whole;
+        var f = x - whole;
+        if (f > 0.5f)
+        {
+            f -= 1f;
+            n++;
+        }
+        else if (-0.5f > f)
+        {
+            f += 1f;
+            n--;
+        }
+        var y = f * 0.6931472f;
+        var t = y * 1.442695f;
+        var k = (int)((0f > t ? -0.5f : 0.5f) + t);
+        var kf = (float)k;
+        var lo = kf * 0.00027608682f;
+        var hi = kf * 0.69287109375f;
+        var g = y - hi;
+        g -= lo;
+        var r = 1f;
+        if (!(-2.9802322e-08f < g && 2.9802322e-08f > g))
+        {
+            var z = g * g;
+            var gp = (z * 0.0083208261f + 0.5f) * g;
+            var q = z * 0.099974856f;
+            r = (gp + q + 1f) / (q - gp + 1f);
+        }
+        var e = k + n;
+        if (e is < -126 or > 127)
+            throw new NotSupportedException("exp2f overflow and underflow are not ported");
+        return r * BitConverter.Int32BitsToSingle((e + 127) << 23);
+    }
+
     /// <summary>2^(j/64), j = 0..63, as tier0 stores them (tier0 18033e3e0).</summary>
     private static readonly ulong[] TwoToTheJOver64 =
     [

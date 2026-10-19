@@ -240,12 +240,23 @@ internal static class SceneLights
     /// leaves out (direct 1 and not enabled).
     /// </summary>
     public static KVObject? Entry(LightPrecompute.KeyReader key, LightShape record, Dictionary<int, int> shadowIds)
+        => Entries(key, record, shadowIds).LastOrDefault();
+
+    /// <summary>
+    /// The light's entries: <see cref="Entry"/>, after it, for a bounce light
+    /// whose bounce scale is not 1, a separate bounce entry first: the record
+    /// with its colour times the bounce scale, flags 1 (9 when it casts
+    /// shadows), baked_shadow_index -1 and the light's illumination volume;
+    /// the light's own entry then has no bounce flag.
+    /// </summary>
+    public static List<KVObject> Entries(LightPrecompute.KeyReader key, LightShape record, Dictionary<int, int> shadowIds)
     {
+        var entries = new List<KVObject>();
         var info = InfoOf(key);
         var enabled = key("enabled") is not { } en || CNumbers.Atoi(en) != 0;
         var bounce = info.Bounce;
         if (info.Direct == 1 && !enabled)
-            return null;
+            return entries;
         if (info.Direct == 3 && !enabled)
             bounce = 0;
         var flags = info.CastShadows ? 8u : 0u;
@@ -254,22 +265,35 @@ internal static class SceneLights
         if (bounce == 1 || (bounce == -1 && info.Direct is 1 or 3))
         {
             if (info.BounceScale != 1f)
-                throw new NotSupportedException("a light's separate bounce light at a bounce scale other than 1 (181113af0) is not ported");
-            flags |= 1;
+            {
+                var separate = record.Clone();
+                var c = separate.V3(0xb4);
+                separate.SetV3(0xb4, new Vector3(c.X * info.BounceScale, c.Y * info.BounceScale, c.Z * info.BounceScale));
+                entries.Add(Write(separate, info.CastShadows ? 9u : 1u, -1, info.Volume, shadowIds));
+            }
+            else
+                flags |= 1;
         }
         else if (bounce == 2)
             flags |= 0x40;
+        entries.Add(Write(record, flags, info.BakedShadowIndex, info.Volume, shadowIds));
+        return entries;
+    }
+
+    // 181113af0: one entry.
+    private static KVObject Write(LightShape record, uint flags, int bakedShadowIndex, LightObb.Box? volume, Dictionary<int, int> shadowIds)
+    {
         var e = KVObject.Collection();
         e.Add("barn", Table(record));
         e.Add("path_trace_light_flags", new KVObject(flags));
-        e.Add("baked_shadow_index", new KVObject(info.BakedShadowIndex));
-        if (info.BakedShadowIndex != -1)
+        e.Add("baked_shadow_index", new KVObject(bakedShadowIndex));
+        if (bakedShadowIndex != -1)
         {
-            var id = shadowIds.GetValueOrDefault(info.BakedShadowIndex);
-            shadowIds[info.BakedShadowIndex] = id + 1;
+            var id = shadowIds.GetValueOrDefault(bakedShadowIndex);
+            shadowIds[bakedShadowIndex] = id + 1;
             e.Add("baked_shadow_light_id", new KVObject((uint)(byte)id));
         }
-        if (info.Volume is { } v)
+        if (volume is { } v)
         {
             KVObject F(params float[] f)
             {
@@ -278,11 +302,11 @@ internal static class SceneLights
                     a.Add(new KVObject((double)x));
                 return a;
             }
-            var volume = KVObject.Collection();
-            volume.Add("m_qOrientation", F(v.Rotation.X, v.Rotation.Y, v.Rotation.Z, v.Rotation.W));
-            volume.Add("m_vCenter", F(v.Origin.X, v.Origin.Y, v.Origin.Z));
-            volume.Add("m_vExtent", F(v.Extent.X, v.Extent.Y, v.Extent.Z));
-            e.Add("illumination_volume", volume);
+            var box = KVObject.Collection();
+            box.Add("m_qOrientation", F(v.Rotation.X, v.Rotation.Y, v.Rotation.Z, v.Rotation.W));
+            box.Add("m_vCenter", F(v.Origin.X, v.Origin.Y, v.Origin.Z));
+            box.Add("m_vExtent", F(v.Extent.X, v.Extent.Y, v.Extent.Z));
+            e.Add("illumination_volume", box);
         }
         return e;
     }
@@ -325,6 +349,41 @@ internal static class SceneLights
             tangents.Add(Floats(0x108, 3));
             l.Add("m_ScaledTangents", tangents);
             l.Add("m_vNormal", Floats(0x114, 3));
+            t.Add("m_Luminaire", l);
+        }
+        else if (r.Type == 1)
+        {
+            // 1812909e0: the rectangle's four corners and its normal.
+            var l = KVObject.Collection();
+            var positions = KVObject.Array();
+            for (var i = 0; i < 4; i++)
+                positions.Add(Floats(0xf0 + i * 12, 3));
+            l.Add("m_Positions", positions);
+            l.Add("m_vNormal", Floats(0x120, 3));
+            t.Add("m_Luminaire", l);
+        }
+        else if (r.Type == 3)
+        {
+            // 181290c70: the sphere's position and radius.
+            var l = KVObject.Collection();
+            l.Add("m_vPosition", Floats(0xf0, 3));
+            l.Add("m_flRadius", new KVObject((double)r[0xfc]));
+            t.Add("m_Luminaire", l);
+        }
+        else if (r.Type is 4 or 5)
+        {
+            // 181296d40: the capsule's two ends, its two axes, radius and end-cap share.
+            var l = KVObject.Collection();
+            var ends = KVObject.Array();
+            ends.Add(Floats(0xf0, 3));
+            ends.Add(Floats(0xfc, 3));
+            l.Add("m_Endpoints", ends);
+            var axes = KVObject.Array();
+            axes.Add(Floats(0x108, 3));
+            axes.Add(Floats(0x114, 3));
+            l.Add("m_Tangents", axes);
+            l.Add("m_flRadius", new KVObject((double)r[0x120]));
+            l.Add("m_flEndcapAreaPercentage", new KVObject((double)r[0x124]));
             t.Add("m_Luminaire", l);
         }
         else if (r.Type != 0)

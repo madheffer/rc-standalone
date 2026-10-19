@@ -244,11 +244,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180dd2630` | `EntityClass_HasStaticProp` | class metadata key static_prop |  |
 | `180ee9e30` | `LightBuild_TransformVolume` |  | `src/Source2.Compiler/Maps/LightBuild.cs:223` |
 | `180eea510` | `LightBuild_Record` | a light record: barn, luminaire, volume | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:37`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:173` +5 |
-| `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Lighting/SceneLights.cs:200`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:108` |
-| `180eed3c0` | `Light_BrightnessFromUnits` | 0 exp2(brightness)*scale, 1 lumens/factor, 2 nits*area*pi*0.00064516/factor, 3 legacy*scale, 4 candelas*solid/factor | `src/Source2.Compiler/Maps/LightUnits.cs:11`, `src/Source2.Compiler/Maps/LightUnits.cs:74` |
+| `180eece60` | `Light_ReadKeys` | directlight, bouncelight, castshadows, bakedshadowindex, precomputed* | `src/Source2.Compiler/Lighting/SceneLights.cs:208`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:108` |
+| `180eed3c0` | `Light_BrightnessFromUnits` | 0 exp2(brightness)*scale, 1 lumens/factor, 2 nits*area*pi*0.00064516/factor, 3 legacy*scale, 4 candelas*solid/factor | `src/Source2.Compiler/Maps/LightUnits.cs:11`, `src/Source2.Compiler/Maps/LightUnits.cs:72` |
 | `180eedfe0` | `Light_LegacyDescriptionAt` | step matrix, then Light_LegacyDescription |  |
 | `180eee040` | `Light_LegacyType` | 1 omni/capsule, 3 spot, 2 directional/environment, 4 ortho, else 0 |  |
-| `180eee150` | `Light_SyncBrightnessUnits` | flags-2 record; scale/factor/area/solid angle per class; writes brightness, lumens, nits, candelas, legacy by brightness_units (LightUnits.Sync) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:291`, `src/Source2.Compiler/Maps/LightUnits.cs:8`, `src/Source2.Compiler/Maps/LightUnits.cs:58` |
+| `180eee150` | `Light_SyncBrightnessUnits` | flags-2 record; scale/factor/area/solid angle per class; writes brightness, lumens, nits, candelas, legacy by brightness_units (LightUnits.Sync) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:291`, `src/Source2.Compiler/Maps/LightUnits.cs:8`, `src/Source2.Compiler/Maps/LightUnits.cs:36` |
 | `180f06c20` | `CModelHelper_Init` | +0xb2 when the class metadata has static_prop |  |
 | `180f0d670` | `CModelHelper_RaytraceFlags` | 0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided | `src/Source2.Compiler/Maps/EditorTraceScene.cs:145` |
 | `180f18820` | `LightPrecompute_TraceRay` |  | `src/Source2.Compiler/Maps/LightTrace.cs:45` |
@@ -310,16 +310,16 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181270590` | `Obb_OverlapsObb` | 15-axis separating axis test, thresholds zero | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:436`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:497` |
 | `181271420` | `Obb_ReachesSphere` | nearest box point within the radius | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:436`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:481` |
 | `18128ca90` | `RayScene_Winding` | (0,1,2), or (2,1,0) when the deformer's +0x70 is set |  |
-| `1812918f0` | `LightUnits_FrustumSolidAngle` | barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal | `src/Source2.Compiler/Maps/LightUnits.cs:181` |
+| `1812918f0` | `LightUnits_FrustumSolidAngle` | barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal | `src/Source2.Compiler/Maps/LightUnits.cs:179` |
 | `181292560` | `Light_ClipBox` | the clip cube's eight corners through the record matrix, min/max | `src/Source2.Compiler/Maps/LightPrecompute.cs:70` |
 | `181292ce0` | `LightBuild_OpeningPlane` |  | `src/Source2.Compiler/Maps/LightBuild.cs:63` |
 | `1812933b0` | `LightRecord_ConeRatio` | 0xe0 / 0xe4, or -1.1 / 1.1 when 0xe4 is 0 | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:204` |
 | `1812933f0` | `LightTrace_Falloff` | how much of the light reaches a point | `src/Source2.Compiler/Maps/LightTrace.cs:80` |
-| `1812938f0` | `LightUnits_LuminaireArea` | by luminaire type (+0xec): triangles, ellipse, sphere, capsule | `src/Source2.Compiler/Maps/LightUnits.cs:135` |
+| `1812938f0` | `LightUnits_LuminaireArea` | by luminaire type (+0xec): triangles, ellipse, sphere, capsule | `src/Source2.Compiler/Maps/LightUnits.cs:133` |
 | `181293b30` | `LightRecord_FalloffRange` | -a/b of the distance falloff when w and b are nonzero, else FLT_MAX | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:200` |
 | `181293b70` | `LightTrace_BarnShape` | the barn's cross-section at a clip point | `src/Source2.Compiler/Maps/LightTrace.cs:142` |
 | `181294fc0` | `LightSampler_Ray` | one ray for four Halton numbers; the reach | `src/Source2.Compiler/Maps/LightSampler.cs:7`, `src/Source2.Compiler/Maps/LightSampler.cs:173`, `src/Source2.Compiler/Maps/LightSampler.cs:271` |
-| `181296170` | `LightBuild_DiscLuminaire` | type 2 | `src/Source2.Compiler/Lighting/SceneLights.cs:73`, `src/Source2.Compiler/Maps/LightBuild.cs:207` |
+| `181296170` | `LightBuild_DiscLuminaire` | type 2 | `src/Source2.Compiler/Lighting/SceneLights.cs:81`, `src/Source2.Compiler/Maps/LightBuild.cs:207` |
 | `181296340` | `LightBuild_RectLuminaire` | type 1 | `src/Source2.Compiler/Maps/LightBuild.cs:177` |
 | `1812966c0` | `LightBuild_SphereLuminaire` | type 3 | `src/Source2.Compiler/Maps/LightBuild.cs:273` |
 | `181296730` | `LightBuild_CapsuleLuminaire` | type 4, or 5 capped; LightBuild.CapsuleLuminaire | `src/Source2.Compiler/Maps/LightBuild.cs:286` |
@@ -329,15 +329,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181298170` | `LightOmni_Records` | an omni light's records in its own space | `src/Source2.Compiler/Maps/LightOmni.cs:6` |
 | `181298a90` | `LightOmni_FaceJumpTable` | data: jump table in LightOmni_Records, face rotations | `src/Source2.Compiler/Maps/LightOmni.cs:26` |
 | `181298aa8` | `LightOmni_FaceJumpTable2` | data: jump table, second pass rows | `src/Source2.Compiler/Maps/LightOmni.cs:26` |
-| `181298c00` | `LightUnits_SolidAngle` | pi for luminaire types 1, 2; the cone between two angles for 3 to 5 | `src/Source2.Compiler/Maps/LightUnits.cs:93` |
+| `181298c00` | `LightUnits_SolidAngle` | pi for luminaire types 1, 2; the cone between two angles for 3 to 5 | `src/Source2.Compiler/Maps/LightUnits.cs:91` |
 | `181299bc0` | `LightSampler_CapsulePoint` | caps then side; never scaled by the radius | `src/Source2.Compiler/Maps/LightSampler.cs:85` |
 | `18129a0e0` | `LightSampler_LuminairePoint` | a point on the luminaire and its normal | `src/Source2.Compiler/Maps/LightSampler.cs:24` |
 | `18129a5b0` | `LightBuild_ShapeCurve` | shape key into [0.125, 1] | `src/Source2.Compiler/Maps/LightBuild.cs:93` |
 | `18129a5f0` | `LightBuild_Skirt` | reciprocal fade lengths | `src/Source2.Compiler/Maps/LightBuild.cs:106` |
 | `18129a6d0` | `LightUnits_Square` | x * x |  |
-| `18129a6e0` | `LightUnits_BarnScale` | 1 / (w / (sqrt(w) + d)^2) with w = +0x9c | `src/Source2.Compiler/Maps/LightUnits.cs:122` |
+| `18129a6e0` | `LightUnits_BarnScale` | 1 / (w / (sqrt(w) + d)^2) with w = +0x9c | `src/Source2.Compiler/Maps/LightUnits.cs:120` |
 | `18129a760` | `LightBuild_BarnMatrix` | the barn's frustum down x | `src/Source2.Compiler/Maps/LightBuild.cs:15` |
-| `18129a8d0` | `LightBuild_TransformRecord` | the record moved by a 3x4 | `src/Source2.Compiler/Lighting/SceneLights.cs:42`, `src/Source2.Compiler/Lighting/SceneLights.cs:73`, `src/Source2.Compiler/Maps/LightBuild.cs:223` |
+| `18129a8d0` | `LightBuild_TransformRecord` | the record moved by a 3x4 | `src/Source2.Compiler/Lighting/SceneLights.cs:42`, `src/Source2.Compiler/Lighting/SceneLights.cs:81`, `src/Source2.Compiler/Maps/LightBuild.cs:223` |
 | `18129b7b0` | `SegmentIntersectsBox` | SSE slab test: refined rcpps of the delta, exit capped at 1, entry floored at 0 | `src/Source2.Compiler/Maps/LightVisClusters.cs:54` |
 | `1813c3b60` | `MeshTessellation_PatchIndices` | a patch grid's cells as [a, right, b], [a, b, below] | `src/Source2.Compiler/Maps/MeshTessellation.cs:54` |
 | `1813c7970` | `MeshTessellation_FaceLevel` | the level of the face's first corner |  |
@@ -381,8 +381,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180178400` | `CResourceCompilerContext_CheckImageArg` | incremental check of an ImageArg dependency |  |
 | `180178ff0` | `CResourceCompilerContext_GetImageArg` | the ImageArg fingerprint from the argument table (+8 of the symbol's entry) |  |
 | `1801ec580` | `PackingGeometry_t::Serialize` | lightmap_packing_geometry.dat |  |
-| `1801eda50` | `NLightBaker_WriteLightmapScript` | the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:148` |
-| `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:148`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:69` |
+| `1801eda50` | `NLightBaker_WriteLightmapScript` | the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:147` |
+| `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:147`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:69` |
 | `1801ee9f0` | `NLightBaker_WriteFarfieldScript` | // Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0) |  |
 | `1801eee20` | `NLightBaker::SerializeLightProbeVolumes` | lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube | `src/Source2.Compiler/Lighting/LightmapOutputs.cs:103`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:212`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:475` +2 |
 | `1801f01a0` | `NLightBaker_WriteFogIrradianceScript` | // Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu) |  |
@@ -461,10 +461,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f5c680` | `std_Sort_SubassetReferences` | MSVC introsort over 0x18-byte (type, name, count) records, insertion sort under 0x318 bytes (180f59640: strcmp type, then name) |  |
 | `180f71a50` | `MapDoc_BuildSubassetReferences` | map_asset_references, then the subasset references collected in a hash container (entries 0x20: hash, type, name, count), copied to a vector, std::sorted (180f5c680, strcmp on type then name) into map_subasset_reference_types / _names / _counts | `src/Source2.Compiler/Maps/MapAssets.cs:7`, `src/Source2.Compiler/Maps/MapSubassets.cs:11` |
 | `180fb0680` | `Hammer_LoadGameSettings` | gameinfo's Hammer section (BakeOnlyCubemaps among the map builder switches) |  |
-| `181112e80` | `LightingProcessor_PathTraceLightList` | per light its LightShape (181297030) and info (180eece60); the sky light found by dynamic cast of the entity's components | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:227` |
-| `181113f20` | `LightingProcessor_PathTraceLights` | vf 0x40: the lights (181112e80) and the ibl: path_trace_light_flags, the env_sky transform, scale, material, sky_bounce, sky_bounce_scale, sun_light_min_brightness; null without a sky light | `src/Source2.Compiler/Lighting/SceneLights.cs:147` |
-| `181294010` | `LightShape_FromLegacy` | type 2 (directional): ortho +-262144, depth 524288, orientation from VectorAngles(-dir), a disc luminaire of tan(angulardiameter / 2) | `src/Source2.Compiler/Lighting/SceneLights.cs:64` |
-| `181297030` | `LightShape_WriteKV3` | the 300-byte record: m_mToClipSpace, m_mFromClipSpace, m_vNearPlane, m_vLightPosition, m_vInnerRadius, m_flShape, m_vSkirt, m_vColor, m_nCookie, m_vDistanceFade, m_qOrientation, m_vAngleFade, m_nLuminaireType, m_flLightColorToRadiance, m_bLightInsideFrustum, m_bSphericalCookie, m_Luminaire | `src/Source2.Compiler/Lighting/SceneLights.cs:11`, `src/Source2.Compiler/Lighting/SceneLights.cs:284`, `src/Source2.Compiler/Lighting/SceneLights.cs:323` +1 |
+| `181112e80` | `LightingProcessor_PathTraceLightList` | per light (MapDoc_GatherLights order) its LightShape (181297030) and info (180eece60); a bounce light at bounce scale != 1 gets a separate entry first, colour times the scale, flags 1 or 9 (ledger 90); the sky light found by dynamic cast of the entity's components | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:235` |
+| `181113f20` | `LightingProcessor_PathTraceLights` | vf 0x40: the lights (181112e80) and the ibl: path_trace_light_flags, the env_sky transform, scale, material, sky_bounce, sky_bounce_scale, sun_light_min_brightness; null without a sky light | `src/Source2.Compiler/Lighting/SceneLights.cs:155` |
+| `181294010` | `LightShape_FromLegacy` | type 2 (directional): ortho +-262144, depth 524288, orientation from VectorAngles(-dir), a disc luminaire of tan(angulardiameter / 2) | `src/Source2.Compiler/Lighting/SceneLights.cs:72` |
+| `181297030` | `LightShape_WriteKV3` | the 300-byte record: m_mToClipSpace, m_mFromClipSpace, m_vNearPlane, m_vLightPosition, m_vInnerRadius, m_flShape, m_vSkirt, m_vColor, m_nCookie, m_vDistanceFade, m_qOrientation, m_vAngleFade, m_nLuminaireType, m_flLightColorToRadiance, m_bLightInsideFrustum, m_bSphericalCookie, m_Luminaire | `src/Source2.Compiler/Lighting/SceneLights.cs:11`, `src/Source2.Compiler/Lighting/SceneLights.cs:316`, `src/Source2.Compiler/Lighting/SceneLights.cs:390` +1 |
 | `1812b39f0` | `meshopt_simplifyEdge` | meshoptimizer v1.1/v1.2 simplifyEdge (15 arguments; RegularizeLight tested, no PreserveFolds); ported in Meshopt/MeshoptSimplify.cs | `src/Source2.Compiler/Meshopt/MeshoptSimplify.cs:17` |
 | `1812b8710` | `meshopt_simplify` | calls meshopt_simplifyEdge (a stack frame, not a tail jump) with no attributes (meshoptimizer v1.1 to v1.2) | `src/Source2.Compiler/Meshopt/MeshoptSimplify.cs:16` |
 | `1812e4550` | `CMesh_WriteKV3` | vertex_count, vertex_stride, vertices, index_count, indices, meshlet_count, attribute_count, attributes, lod_group_mask, material_name, mesh_name, mesh_id, tint_color, lightmap_scale (+0x184), no_collapse (twice, +0x152 last), pack_sharedvb, use_basevertex, use_tint_color, is_line_mesh, baked_twosided, collision_type | `src/Source2.Compiler/Lighting/PathTraceScene.cs:11`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:20`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:37` +1 |
@@ -1063,7 +1063,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
 | `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:524`, `src/Source2.Compiler/Maps/SettleWorld.cs:651`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:677` |
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
-| `18125b9e0` | `VectorAngles` | pitch and yaw in [0, 360), roll 0 | `src/Source2.Compiler/Lighting/SceneLights.cs:125` |
+| `18125b9e0` | `VectorAngles` | pitch and yaw in [0, 360), roll 0 | `src/Source2.Compiler/Lighting/SceneLights.cs:133` |
 | `18125bad0` | `Matrix3x4_Column0` |  |  |
 | `18125bfe0` | `Matrix3x4_ScaleColumns` | columns times a scale vector | `src/Source2.Compiler/Maps/EditorTraceScene.cs:85` |
 | `18125c070` | `Matrix3x4_Identity` |  |  |
@@ -1324,7 +1324,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802597d0` | `WRB_RteSkipBoxes` | oriented boxes from builder +0x238 that overlap the mesh entry; what places them is not identified |  |
 | `1802821f0` | `WRB_EmitRteTriangles` | ORs in the material's flag bits; drops a sliver (longest edge under 0.0001, or times 1.0001 over the other two) | `src/Source2.Compiler/Maps/MapGeometry.cs:53` |
 | `1802839d0` | `WRB_CollectRteMeshes` | each mesh entry's .rte flags: shadow mode bits 16/17 to 0xa000/0x2000, 0x800 unless traced, object flag 0x80 | `src/Source2.Compiler/Maps/MaterialVisFlags.cs:14` |
-| `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Lighting/SceneLights.cs:64`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:110` |
+| `180eed570` | `Light_LegacyDescription` | direction from the world matrix, sign flip for type 2 | `src/Source2.Compiler/Lighting/SceneLights.cs:72`, `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:110` |
 | `1810045b0` | `CMapEntity::vf219` | 2 when the entity's class renders as world | `src/Source2.Compiler/Maps/MapGeometry.cs:10` |
 | `181265950` | `TriBoxOverlap` | box centre, half extents, three corners, epsilon | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:543` |
 | `1812d6c70` | `CMesh_Append` | streams matched by name; vertices appended, indices offset by the old vertex count | `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:47` |
@@ -1521,7 +1521,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802e67d0` | `sinf_fma3` | code label: the FMA3 path, entered by a jcc from sinf | `src/Source2.Compiler/Simulation/CrtMath.cs:11`, `src/Source2.Compiler/Simulation/CrtMath.cs:59` |
 | `1802e7d50` | `tanf` | CRT dispatcher |  |
 | `1802e80c0` | `tanf_fma3` | code label: the FMA3 path, entered by a jcc from tanf | `src/Source2.Compiler/Maps/LightCrt.cs:23` |
-| `18033e3e0` | `Crt_TwoToJOver64` | data: 2^(j/64), j = 0..63 | `src/Source2.Compiler/Simulation/CrtMath.cs:136` |
+| `18033e3e0` | `Crt_TwoToJOver64` | data: 2^(j/64), j = 0..63 | `src/Source2.Compiler/Simulation/CrtMath.cs:187` |
 | `1803ab28c` | `Crt_Fma3Flag` | data: CPU flag selecting the FMA3 libm paths |  |
 
 ## tier0.dll, build 20261015

@@ -123,8 +123,7 @@ public static class Vrad3Job
                 throw new NotSupportedException($"{cls} in the path-trace scene");
             else
                 continue;
-            if (SceneLights.Entry(key, shape, ids) is { } e)
-                lights.Add(e);
+            lights.AddRange(SceneLights.Entries(key, shape, ids));
         }
         (LightPrecompute.KeyReader, float[])? SkyNamed(string name)
         {

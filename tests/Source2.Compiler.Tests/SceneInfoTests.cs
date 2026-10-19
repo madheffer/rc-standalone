@@ -278,22 +278,84 @@ public class SceneInfoTests(ITestOutputHelper output)
     // Text KV3 reads every int as Int64; the width is the writer's, not the value's.
     internal static string Loose(string rendered) => rendered.Replace("UInt32:", "Int:").Replace("UInt64:", "Int:").Replace("Int32:", "Int:").Replace("Int64:", "Int:");
 
-    /// <summary>scene_info.kv3's whole lights array for a map of barns (<c>SCENEINFO</c>, <c>NODEENTRIES_VMAP</c>), as text.</summary>
+    /// <summary>The map's compiled lumps, from <c>SCENEINFO_PKG</c> (a package) when set.</summary>
+    private static IReadOnlyDictionary<string, byte[]>? Lumps(string vmap)
+    {
+        if (Environment.GetEnvironmentVariable("SCENEINFO_PKG") is not { } package)
+            return MapFixtures.RcCompiledLumps(vmap);
+        using var pkg = new ValvePak.Package();
+        pkg.Read(package);
+        var lumps = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+            lumps[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
+        return lumps;
+    }
+
+    /// <summary>scene_info.kv3's whole lights array (barns, rects, omni2s, directionals; <c>SCENEINFO_PKG</c> for the lumps) (<c>SCENEINFO</c>, <c>NODEENTRIES_VMAP</c>), as text.</summary>
     [Fact]
     public void LightsAreValves()
     {
         if (Environment.GetEnvironmentVariable("SCENEINFO") is not { } path || Environment.GetEnvironmentVariable("NODEENTRIES_VMAP") is not { } vmap
-            || MapFixtures.RcCompiledLumps(vmap) is not { } lumps)
+            || Lumps(vmap) is not { } lumps)
             return;
         using var stream = File.OpenRead(path);
         var valve = Floats(KVSerializer.Create(KVSerializationFormat.KeyValues3Text).Deserialize(stream))["lights"];
         var ids = new Dictionary<int, int>();
         var ours = KVObject.Array();
-        foreach (var (cls, key) in lumps.SelectMany(l => LumpEntities(l.Value, l.Key)).Where(e => e.Class == "light_barn"))
-            if (SceneLights.Entry(key, SceneLights.Barn(key, LightPrecompute.World(Vec(key("origin")), Vec(key("angles")))), ids) is { } entry)
+        var keyDump = Environment.GetEnvironmentVariable("SCENEINFO_KEYS") is { } keyPath ? new System.Text.StringBuilder() : null;
+        var lumpLights = lumps.SelectMany(l => LumpEntities(l.Value, l.Key)).Select(e => (e.Class, e.Key, World: (float[]?)null)).ToList();
+        if (Environment.GetEnvironmentVariable("SCENEINFO_WALK") == "1")
+        {
+            // Hypothesis: the document's walk (the world's lights, then instance copies), placed by the document.
+            var byId = lumpLights.Where(e => e.Key("hammeruniqueid") is not null).GroupBy(e => e.Key("hammeruniqueid")!).ToDictionary(g => g.Key, g => g.First());
+            var document = DmxBinary.ReadFile(vmap);
+            var walked = MapEntities.From(document);
+            var (copies, templates) = MapInstances.Expand(document, walked, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators));
+            var pending = copies.GroupBy(c => c.EmitAt).ToDictionary(g => g.Key, g => g.ToList());
+            var spliced = new List<MapEntities.Entity>();
+            for (var i = 0; i <= walked.Count; i++)
+            {
+                if (pending.TryGetValue(i, out var here))
+                    spliced.AddRange(here.Select(c => walked[c.Template] with { Instanced = true, NodeId = c.NodeId, Origin = c.Origin, Angles = c.Angles }));
+                if (i < walked.Count && !templates.Contains(i))
+                    spliced.Add(walked[i]);
+            }
+            var ordered = spliced.Where(e => !e.Hidden && e.ClassName.StartsWith("light_", StringComparison.Ordinal)).ToList();
+            if (Environment.GetEnvironmentVariable("SCENEINFO_WALK_ELEMENTS") == "1")
+            {
+                // Hypothesis 2: the world's flat node list in DMX element order; copies keep their spliced place.
+                var elementIndex = new Dictionary<int, int>();
+                for (var i = 0; i < document.Elements.Count; i++)
+                    if (document.Elements[i].GetValue<int>("nodeID") is { } id && !elementIndex.ContainsKey(id))
+                        elementIndex[id] = i;
+                var world = ordered.Where(e => !e.Instanced).OrderBy(e => elementIndex.GetValueOrDefault(e.NodeId, int.MaxValue)).ToList();
+                output.WriteLine("world-level lights by element index: " + string.Join(",", world.Take(30).Select(e => e.NodeId)));
+                ordered = [.. world, .. ordered.Where(e => e.Instanced)];
+            }
+            output.WriteLine($"walk: {ordered.Count} lights, {ordered.Count(e => byId.ContainsKey(e.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture)))} found in the lumps");
+            lumpLights = [.. ordered.Where(e => byId.ContainsKey(e.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                .Select(e => { var l = byId[e.NodeId.ToString(System.Globalization.CultureInfo.InvariantCulture)]; return (l.Class, l.Key, World: (float[]?)LightPrecompute.World(e.Origin, e.Angles)); })];
+        }
+        foreach (var (cls, key, placed) in lumpLights)
+        {
+            if (keyDump != null && cls.StartsWith("light_", StringComparison.Ordinal))
+                keyDump.AppendLine(string.Join(" | ", new[] { "classname", "origin", "shape", "size_params", "color", "colormode", "brightness_units", "brightness", "brightness_lumens", "brightness_legacy", "brightnessscale", "outer_angle", "inner_angle", "range", "bouncescale" }.Select(k => $"{k}={key(k)}")));
+            LightShape record;
+            if (cls is "light_barn" or "light_rect" or "light_omni2")
+                record = SceneLights.Record(cls, key, placed ?? LightPrecompute.World(Vec(key("origin")), Vec(key("angles"))));
+            else if (cls is "light_environment" or "light_directional")
+                record = SceneLights.Directional(key, Vec(key("origin")), Vec(key("angles")));
+            else
+                continue;
+            foreach (var entry in SceneLights.Entries(key, record, ids))
                 ours.Add(entry);
+        }
         string Text(KVObject lights) { var root = KVObject.Collection(); root.Add("lights", lights); return Kv3TextWriter.Write(root, PathTraceScene.GenericFormat); }
         var (a, b) = (Text(ours), Text(valve));
+        if (Environment.GetEnvironmentVariable("SCENEINFO_OUT") is { } outPath)
+            File.WriteAllText(outPath, a);
+        if (keyDump != null)
+            File.WriteAllText(Environment.GetEnvironmentVariable("SCENEINFO_KEYS")!, keyDump.ToString());
         var at = Enumerable.Range(0, Math.Min(a.Length, b.Length)).FirstOrDefault(i => a[i] != b[i], -1);
         output.WriteLine($"{a.Length} vs {b.Length} chars, first difference {at}");
         if (at >= 0)
@@ -363,8 +425,7 @@ public class SceneInfoTests(ITestOutputHelper output)
                 throw new NotSupportedException(cls);
             else
                 continue;
-            if (SceneLights.Entry(key, record, ids) is { } e)
-                lights.Add(e);
+            lights.AddRange(SceneLights.Entries(key, record, ids));
         }
         (LightPrecompute.KeyReader, float[])? SkyNamed(string name)
         {

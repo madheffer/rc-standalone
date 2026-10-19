@@ -1692,6 +1692,31 @@ game can answer is raised with the user first, and runs with -insecure.
         repeat of a kept point is dropped. The rings run until the polar
         angle reaches t - 1.1920929e-07, then the apex (0, 0, 0) is added.
 
+90. **The path-trace scene's lights beyond barns** (settled 2026-10-19 on
+    atixref's full build: 234 of its 243 light entries byte for byte; ze's
+    lights unchanged).
+    - Brightness: units 0 is tier0's V_exp2f(brightness) times the scale.
+      That is the CRT's float exp2f (CrtMath.Exp2):
+      - n = trunc(x), f = x - n, moved into [-0.5, 0.5];
+      - Cody-Waite expf of f * 0.6931472f (1802bdb54).
+      .NET's float.Exp2 differs by an ULP on fractional brightness, which
+      put 84 colours off.
+    - Luminaire tables (181297030):
+      - QUAD: m_Positions (4 x 3 from 0xf0) and m_vNormal (0x120), 1812909e0;
+      - SPHERE: m_vPosition (0xf0) and m_flRadius (0xfc), 181290c70;
+      - TUBE / TUBE_WITH_END_CAPS: m_Endpoints (0xf0, 0xfc), m_Tangents
+        (0x108, 0x114), m_flRadius (0x120) and m_flEndcapAreaPercentage
+        (0x124), 181296d40.
+    - Bounce scale other than 1 (181112e80): a separate entry first.
+      - It is the record with its colour times bouncescale, flags 1 (9
+        when it casts shadows), baked_shadow_index -1 and the light's
+        illumination volume.
+      - The light's own entry then has no bounce flag.
+    - A point_template's lump (entitylumpname) holds its entities in the
+      template's space. The scene places them by the template:
+      disco_light_template at (-147, -3551, 281) moves its 8 lights.
+    - Open: the order (LIGHTING_ROADMAP L17).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

@@ -70,7 +70,7 @@ public static class LightUnits
 
     /// <summary>
     /// Light_BrightnessFromUnits (180eed3c0): by brightness_units, 0
-    /// exp2(brightness) times the scale, 1 lumens over the factor, 2 nits times
+    /// V_exp2f(brightness) (<see cref="Simulation.CrtMath.Exp2"/>) times the scale, 1 lumens over the factor, 2 nits times
     /// the area, pi and 0.00064516 over the factor, 3 legacy times the scale, 4
     /// candelas times the solid angle over the factor; anything else 0.
     /// </summary>
@@ -79,7 +79,7 @@ public static class LightUnits
         float Read(string name) => key(name) is { } v ? CNumbers.ToFloat32(v) : 0f;
         return CNumbers.Atoi(key("brightness_units") ?? "0") switch
         {
-            0 => float.Exp2(Read("brightness")) * scale,
+            0 => Simulation.CrtMath.Exp2(Read("brightness")) * scale,
             1 => Read("brightness_lumens") / factor,
             2 => Read("brightness_nits") * area * 3.1415927f * 0.00064516f / factor,
             3 => Read("brightness_legacy") * scale,
