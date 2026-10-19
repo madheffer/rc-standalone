@@ -30,7 +30,7 @@ namespace Source2.Compiler.Lighting.Bake;
 /// charts, the per-tile first triangle (the tile list for each
 /// 8 x 8 thread group).</item>
 /// </list>
-/// The tile sort is MSVC's std::sort move for move (<see cref="MsvcSort"/>), so triangles within a
+/// The tile sort is MSVC's std::sort move for move (<see cref="Maps.MsvcSort"/>), so triangles within a
 /// tile keep vrad3's (unstable) order.
 /// </summary>
 public sealed class BlockGeometry
@@ -213,7 +213,7 @@ public sealed class BlockGeometry
         }
         // std::sort by tile (std_Sort_32ByteElements, MSVC's introsort: not stable), then the trailing
         // polygons outside the block dropped.
-        MsvcSort.Sort(polys, smallStart, polys.Count, (x, y) => x.Tile < y.Tile);
+        Maps.MsvcSort.Sort(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(polys)[smallStart..], (x, y) => x.Tile < y.Tile);
         while (polys.Count > smallStart && polys[^1].Tile == int.MaxValue)
             polys.RemoveAt(polys.Count - 1);
         var vertices = new List<Vertex>();

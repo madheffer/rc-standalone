@@ -319,7 +319,7 @@ roadmap", closed; "Lighting compilation parity with Valve").
 | L8 | The .vmap_c (every map; see "vmap_c" below) | Source2ContainerAuthor.MapRoot, MapCompile | ze_hold_em_p's, probe01's and s2c_rounds' .vmap_c byte-exact from compile-map. |
 | L9 | Nav generation for maps with point_nav_walkable seeds (navsystem.dll: Recast, then 31 polygon stages) | Maps/NavFile | probe01's nav byte-exact up to Valve's own run-to-run AI data (ledger 57: two compiles differ from byte 5,421). |
 | L10 | baked_bomb_damage.vdata_c (sacustomdata, sampled from the nav mesh; defusal maps only) | new | probe01's file byte-exact; needs L9. |
-| L11 | Three MSVC std::sort ports: Maps/MsvcSort (T[]), Simulation/MsvcSort (Span, struct comparer) and Lighting/Bake/MsvcSort (IList, 10-18) | code health | one port, checked by MsvcSortTests' MSVC hashes, the others removed; every caller's output unchanged. |
+| L11 | Three MSVC std::sort ports: Maps/MsvcSort (T[]), Simulation/MsvcSort (Span, struct comparer) and Lighting/Bake/MsvcSort (IList, 10-18) | code health | **done 10-19**: Simulation/MsvcSort is the port; Maps/MsvcSort wraps it with a delegate comparer, the Bake copy is gone; MsvcSortTests runs every entry point against MSVC's hashes. |
 | L12 | The lightmap UV snap's axes on a non-square atlas (180217740 takes u by the height's R) | LightmapNodeBake | a compile with a non-square lightmap compared (CS2's atlas is square; not seen). |
 
 ### vmap_c (L8): what is settled, what is not
