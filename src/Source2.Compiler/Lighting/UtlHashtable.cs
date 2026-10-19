@@ -90,6 +90,13 @@ internal sealed class UtlHashtable<TKey, TValue> where TKey : IEquatable<TKey>
 
     public ref TValue Value(int slot) => ref _values[slot];
 
+    /// <summary>RemoveAll: every slot freed, the slot array kept (its size, and so the slot order of what comes next).</summary>
+    public void Clear()
+    {
+        Array.Fill(_words, Free);
+        Count = 0;
+    }
+
     public TKey Key(int slot) => _keys[slot];
 
     /// <summary>The occupied slots in slot order.</summary>

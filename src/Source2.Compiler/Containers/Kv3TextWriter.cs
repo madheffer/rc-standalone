@@ -105,6 +105,47 @@ public static class Kv3TextWriter
             Table(s, v, depth);
             return;
         }
+        if (v.ValueType == KVValueType.BinaryBlob)
+        {
+            // tier0's text writer (1800d7940, case 6): a member blob over 32 bytes opens on a new
+            // line at column 1 (a line break, "#[", a line break); anything else opens "#[ " inline. The
+            // bytes are upper-case hex pairs, a space apart, a line break and depth + 1 tabs
+            // before every 32nd after the first (the first row is not indented). It closes " ]"
+            // inline, or with a line break, depth tabs and "]".
+            var bytes = v.AsBlob();
+            var lines = bytes.Length > 32;
+            if (member && lines)
+                s.Append(Newline).Append("#[").Append(Newline);
+            else
+            {
+                s.Append("#[ ");
+                if (lines)
+                    s.Append(Newline);
+            }
+            for (var i = 0; i < bytes.Length; i++)
+            {
+                if (i > 0)
+                {
+                    if ((i & 0x1f) == 0)
+                    {
+                        s.Append(Newline);
+                        Indent(s, depth + 1);
+                    }
+                    else
+                        s.Append(' ');
+                }
+                s.Append(bytes[i].ToString("X2", CultureInfo.InvariantCulture));
+            }
+            if (lines)
+            {
+                s.Append(Newline);
+                Indent(s, depth);
+                s.Append(']');
+            }
+            else
+                s.Append(" ]");
+            return;
+        }
         Scalar(s, v);
     }
 

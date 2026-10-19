@@ -184,6 +184,59 @@ public static class CrtMath
         return r * BitConverter.Int32BitsToSingle((e + 127) << 23);
     }
 
+    /// <summary>
+    /// acosf (tier0 V_acosf, 180007e80: the argument clamped to [-1, 1], then the CRT's
+    /// 1802df0a4). |x| below 2^-26 gives pi / 2; |x| of 1 gives 0 or pi. Otherwise
+    /// r = x^2 (|x| below 0.5) or r = (1 - |x|) / 2 with s = sqrt(r), and the float rational
+    /// u = r ((((-0.013381929 - 0.0039613745 r) r - 0.05652987) r + 0.1841616)) /
+    /// (1.1049696 - 0.8364113 r). Small |x|: pi/2 - (x - (pio2_lo - u x)) in double; x at or
+    /// past 0.5: 2 s u + 2 (r - c^2) / (c + s) + 2 c with c = s with its low 16 bits cleared;
+    /// x at or below -0.5: pi - 2 ((u s - pio2_lo) + s) in double.
+    /// </summary>
+    public static float Acos(float x)
+    {
+        x = MathF.Max(x, -1f);
+        x = MathF.Min(x, 1f);
+        var ux = BitConverter.SingleToUInt32Bits(x);
+        var exponent = (int)((ux >> 23) & 0xff);
+        if (exponent < 0x65)
+            return 1.5707964f;
+        if (exponent >= 0x7f)
+            return x == 1f ? 0f : x == -1f ? 3.1415927f : float.NaN;
+        var negative = (int)ux < 0;
+        var a = negative ? -x : x;
+        float r, s = 0f;
+        var large = exponent >= 0x7e;
+        if (large)
+        {
+            r = (1f - a) * 0.5f;
+            s = MathF.Sqrt(r);
+            a = s;
+        }
+        else
+            r = a * a;
+        var num = -0.013381929f - r * 0.0039613745f;
+        num *= r;
+        num -= 0.05652987f;
+        num *= r;
+        num += 0.1841616f;
+        num *= r;
+        var den = 1.1049696f - r * 0.8364113f;
+        var u = num / den;
+        const double pio2Hi = 1.5707963267948966, pio2Lo = 6.123233995736766e-17, pi = 3.141592653589793;
+        if (!large)
+            return (float)(pio2Hi - ((double)x - (pio2Lo - (double)(u * x))));
+        if (negative)
+        {
+            var t = (double)(u * a) - pio2Lo + (double)s;
+            return (float)(pi - (t + t));
+        }
+        var c = BitConverter.UInt32BitsToSingle(BitConverter.SingleToUInt32Bits(s) & 0xffff0000);
+        var correction = (r - c * c) / (c + s);
+        var twoS = a + a;
+        return twoS * u + (correction + correction) + c * 2f;
+    }
+
     /// <summary>2^(j/64), j = 0..63, as tier0 stores them (tier0 18033e3e0).</summary>
     private static readonly ulong[] TwoToTheJOver64 =
     [

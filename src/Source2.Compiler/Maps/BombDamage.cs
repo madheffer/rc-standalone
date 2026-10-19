@@ -29,6 +29,9 @@ public static class BombDamage
     {
         /// <summary>A box of this half size at the point, cast by zero: true when nothing is hit.</summary>
         bool BoxFree(Vector3 centre, float half);
+
+        /// <summary>A ray from start by delta (CVPhys2World vtable +0x4f8): true when it hits before its end.</summary>
+        bool RayHits(Vector3 start, Vector3 delta);
     }
 
     // The point key's hash (180041470): MurmurHash2's mix over the three floats' bits, seed 0xea711bd8.
@@ -123,6 +126,10 @@ public static class BombDamage
         public Vector3 Min, Max;
     }
 
+    private static readonly Vector3 Far = new(float.MaxValue);
+
+    private static readonly SiteNode Unreached = new() { Distance = float.MaxValue, From = Far };
+
     /// <summary>The height the sampled cells are lifted by: floor(32 / cell) cells (30).</summary>
     internal static float Lift => MathF.Floor(32f / Cell) * Cell;
 
@@ -157,7 +164,10 @@ public static class BombDamage
             for (var s = 0; s < sites.Count; s++)
                 if (sites[s].Contains(p))
                 {
-                    var n = grid.Sites[s].FindOrInsert(q, Hash(q), out _);
+                    // 1800417e0 makes the entry at FLT_MAX with no parent; the lift sets the distance only.
+                    var n = grid.Sites[s].FindOrInsert(q, Hash(q), out var added);
+                    if (added)
+                        grid.Sites[s].Value(n) = Unreached;
                     grid.Sites[s].Value(n).Distance = 0f;
                 }
         }
@@ -216,6 +226,333 @@ public static class BombDamage
                 bytes.AddRange(BitConverter.GetBytes((short)(int)v));
         }
         return [.. bytes];
+    }
+
+    /// <summary>The 26 neighbour steps of the distance pass (180cd9170), in table order.</summary>
+    private static readonly Vector3[] Neighbours =
+    [
+        new(1, 0, 0), new(-1, 0, 0), new(0, 1, 0), new(0, -1, 0), new(0, 0, 1), new(0, 0, -1),
+        new(1, 1, 0), new(-1, 1, 0), new(1, -1, 0), new(-1, -1, 0), new(0, 1, 1), new(0, -1, 1),
+        new(0, 1, -1), new(0, -1, -1), new(1, 0, 1), new(-1, 0, 1), new(1, 0, -1), new(-1, 0, -1),
+        new(1, 1, 1), new(-1, 1, 1), new(1, -1, 1), new(1, 1, -1), new(-1, -1, 1), new(1, -1, -1),
+        new(-1, 1, -1), new(-1, -1, -1),
+    ];
+
+    /// <summary>One neighbour's outcome (the 0x28-byte records 18003eb60 fills): a new record for a slot, and a node to visit next.</summary>
+    private struct Relax
+    {
+        public SiteNode Record;
+        public int Slot;
+        public Vector3? Visit;
+    }
+
+    /// <summary>
+    /// 18003ddf0, PopulateNodeDistancesFromBombsite, for one site. The frontier starts as the
+    /// site's distance-0 nodes (in its table's slot order); every grid node then takes an entry
+    /// (FLT_MAX, no parent). Each frontier node in slot order runs its 26 neighbour jobs on the
+    /// current records (in parallel in the binary, each writing only its own result), then the
+    /// results are applied in neighbour order: the neighbour's record replaced, and a neighbour
+    /// whose grid node is not blocked added to the next frontier. Frontiers run until empty.
+    /// False when the site's table does not cover every grid node.
+    /// </summary>
+    internal static bool Distances(Grid grid, int site, IWorld world)
+    {
+        var table = grid.Sites[site];
+        var frontier = new Lighting.UtlHashtable<Vector3, byte>();
+        foreach (var slot in table.Slots().ToList())
+        {
+            var k = table.Key(slot);
+            frontier.FindOrInsert(k, Hash(k), out _);
+        }
+        foreach (var slot in grid.Nodes.Slots().ToList())
+        {
+            var k = grid.Nodes.Key(slot);
+            var at = table.FindOrInsert(k, Hash(k), out var added);
+            if (added)
+                table.Value(at) = Unreached;
+        }
+        if (table.Count != grid.Nodes.Count)
+            return false;
+        var results = new Relax[Neighbours.Length];
+        // The two frontiers swap; the finished one is emptied in place (its slots kept) to be the next.
+        var next = new Lighting.UtlHashtable<Vector3, byte>();
+        while (frontier.Count > 0)
+        {
+            foreach (var slot in frontier.Slots().ToList())
+            {
+                var p = frontier.Key(slot);
+                var own = table.Find(p, Hash(p));
+                if (own < 0)
+                    continue;
+                for (var d = 0; d < Neighbours.Length; d++)
+                    results[d] = Neighbour(grid, table, world, p, own, Neighbours[d]);
+                foreach (var r in results)
+                {
+                    if (r.Slot < 0)
+                        continue;
+                    table.Value(r.Slot) = r.Record;
+                    if (r.Visit is { } v)
+                        next.FindOrInsert(v, Hash(v), out _);
+                }
+            }
+            frontier.Clear();
+            (frontier, next) = (next, frontier);
+        }
+        return true;
+    }
+
+    // 18003eb60: one neighbour job.
+    private static Relax Neighbour(Grid grid, Lighting.UtlHashtable<Vector3, SiteNode> table, IWorld world, Vector3 p, int own, Vector3 step)
+    {
+        var none = new Relax { Slot = -1, Record = Unreached };
+        var n = new Vector3(Cell * step.X + p.X, Cell * step.Y + p.Y, Cell * step.Z + p.Z);
+        var slot = table.Find(n, Hash(n));
+        if (slot < 0)
+            return none;
+        var current = table.Value(own);
+        var neighbour = table.Value(slot);
+        if (!(current.Distance <= neighbour.Distance))
+            return none;
+        var candidate = neighbour;
+        candidate.From = LineBlocked(world, n, current.From) ? p : current.From;
+        if (candidate.From == n)
+            return none;
+        var path = PathTo(n, table, slot, candidate);
+        float distance;
+        if (path is null)
+            distance = -1f;
+        else
+        {
+            var length = PathLength(path);
+            var turns = Turns(path);
+            var t = (length - 500f) / 1000f;
+            if (t <= 0f)
+                t = 0f;
+            if (1f <= t)
+                t = 1f;
+            distance = (t * 20f + 0f) * turns + length;
+        }
+        candidate.Distance = distance;
+        if (distance == -1f || !(distance < neighbour.Distance))
+            return none;
+        var node = grid.Nodes.Find(n, Hash(n));
+        return new Relax { Slot = slot, Record = candidate, Visit = node >= 0 && !grid.Nodes.Value(node).Blocked ? n : null };
+    }
+
+    /// <summary>
+    /// 18003db50: whether the line between two points is blocked: a far point (FLT_MAX) always
+    /// is, the same point never is; else a ray each way (meshes take rays on their front only).
+    /// </summary>
+    private static bool LineBlocked(IWorld world, Vector3 a, Vector3 b)
+    {
+        if (a == Far || b == Far)
+            return true;
+        if (b.X == a.X && b.Y == a.Y && b.Z == a.Z)
+            return false;
+        if (world.RayHits(a, new Vector3(b.X - a.X, b.Y - a.Y, b.Z - a.Z)))
+            return true;
+        return world.RayHits(b, new Vector3(a.X - b.X, a.Y - b.Y, a.Z - b.Z));
+    }
+
+    /// <summary>
+    /// 18003f260: the path from a node back along the parents (the candidate standing in for
+    /// the neighbour's own record), to a node at distance 0 or its own parent, or to a point the
+    /// table lacks. Null when the walk comes back to a point (a cycle).
+    /// </summary>
+    private static List<Vector3>? PathTo(Vector3 start, Lighting.UtlHashtable<Vector3, SiteNode> table, int candidateSlot, SiteNode candidate)
+    {
+        var visited = new Lighting.UtlHashtable<Vector3, byte>();
+        var path = new List<Vector3>();
+        var pt = start;
+        var record = candidate;
+        while (true)
+        {
+            var h = Hash(pt);
+            if (visited.Find(pt, h) >= 0)
+                return null;
+            visited.FindOrInsert(pt, h, out _);
+            path.Add(pt);
+            if (record.Distance <= 0f || record.From == pt)
+                return path;
+            pt = record.From;
+            var slot = table.Find(pt, Hash(pt));
+            if (slot < 0)
+                return path;
+            record = slot == candidateSlot ? candidate : table.Value(slot);
+        }
+    }
+
+    /// <summary>18003fa60: the path's length, the segments' lengths (from z^2 + y^2 + x^2) summed four at a time.</summary>
+    private static float PathLength(List<Vector3> p)
+    {
+        float Segment(int k)
+        {
+            float dx = p[k].X - p[k + 1].X, dy = p[k].Y - p[k + 1].Y, dz = p[k].Z - p[k + 1].Z;
+            return MathF.Sqrt(dz * dz + dy * dy + dx * dx);
+        }
+        var n = p.Count - 1;
+        var sum = 0f;
+        var k = 0;
+        if (n >= 4)
+            for (; k + 4 <= ((n - 4) >> 2) * 4 + 4; k += 4)
+                sum = Segment(k) + sum + Segment(k + 1) + Segment(k + 2) + Segment(k + 3);
+        for (; k < n; k++)
+            sum += Segment(k);
+        return sum;
+    }
+
+    /// <summary>
+    /// 18003fd80: the turning along the path in degrees: at each inner point the angle between
+    /// the segments in and out (acosf of their dot over their lengths, clamped to [-1, 1]), none
+    /// where the two differ by under 0.01 on every axis.
+    /// </summary>
+    private static float Turns(List<Vector3> p)
+    {
+        var sum = 0f;
+        for (var i = 0; i + 2 < p.Count; i++)
+        {
+            float ax = p[i + 1].X - p[i].X, ay = p[i + 1].Y - p[i].Y, az = p[i + 1].Z - p[i].Z;
+            float bx = p[i + 2].X - p[i + 1].X, by = p[i + 2].Y - p[i + 1].Y, bz = p[i + 2].Z - p[i + 1].Z;
+            var angle = 0f;
+            if (!(MathF.Abs(ax - bx) < 0.01f && MathF.Abs(ay - by) < 0.01f && MathF.Abs(az - bz) < 0.01f))
+            {
+                var la = MathF.Sqrt(ax * ax + ay * ay + az * az);
+                var lb = MathF.Sqrt(bx * bx + by * by + bz * bz);
+                var dot = ay * by + ax * bx + az * bz;
+                var c = dot * (1f / lb * (1f / la));
+                c = MathF.Max(c, -1f);
+                c = MathF.Min(c, 1f);
+                angle = Simulation.CrtMath.Acos(c);
+            }
+            sum += MathF.Abs(angle * BitConverter.Int32BitsToSingle(0x42652ee0));
+        }
+        return sum;
+    }
+
+    /// <summary>
+    /// 18003ffa0 and 180041040's damage_values: per site, per written-out node in slot order, a
+    /// 32-bit word: the distance clamped to [0, 65535] (16 bits), then bytes 2 and 3 the yaw and
+    /// pitch / 360 * 255 of the direction from the parent to the node; within 1600 units the
+    /// direction leans toward the site (its bounds' centre in x and y, its floor in z) by
+    /// 1 - clamp((distance - 800) / 800).
+    /// </summary>
+    internal static byte[] DamageValues(Grid grid, IReadOnlyList<Site> sites)
+    {
+        var bytes = new List<byte>();
+        for (var s = 0; s < sites.Count; s++)
+        {
+            var table = grid.Sites[s];
+            foreach (var slot in grid.Nodes.Slots())
+            {
+                if (!grid.Nodes.Value(slot).Sampled)
+                    continue;
+                var p = grid.Nodes.Key(slot);
+                var record = table.Value(table.Find(p, Hash(p)));
+                var d = record.Distance;
+                var clamped = 0f <= d ? (d <= 65535f ? d : 65535f) : 0f;
+                var word = new byte[4];
+                BitConverter.TryWriteBytes(word, (ushort)(short)(int)clamped);
+                var v1 = Unit3(p.X - record.From.X, p.Y - record.From.Y, p.Z - record.From.Z);
+                var (pitch, yaw) = Angles(v1);
+                word[3] = AngleByte(pitch);
+                word[2] = AngleByte(yaw);
+                var w = (clamped - 800f) / 800f;
+                if (w <= 0f)
+                    w = 0f;
+                if (1f <= w)
+                    w = 1f;
+                w = 1f - w;
+                if (0f < w)
+                {
+                    var site = sites[s];
+                    var v2 = Unit3(p.X - (site.Maxs.X + site.Mins.X) * 0.5f, p.Y - (site.Maxs.Y + site.Mins.Y) * 0.5f, p.Z - site.Mins.Z);
+                    var blend = Unit3((v2.X - v1.X) * w + v1.X, (v2.Y - v1.Y) * w + v1.Y, (v2.Z - v1.Z) * w + v1.Z);
+                    (pitch, yaw) = Angles(blend);
+                    word[3] = AngleByte(pitch);
+                    word[2] = AngleByte(yaw);
+                }
+                bytes.AddRange(word);
+            }
+        }
+        return [.. bytes];
+    }
+
+    private static (float Pitch, float Yaw) Angles(Vector3 v)
+    {
+        var a = Lighting.SceneLights.VectorAngles(v);
+        return (Wrap(a.X), Wrap(a.Y));
+    }
+
+    // The angle normalised to [-180, 180] when outside it (floor(a / 360 + 0.5) turns off), then made positive.
+    private static float Wrap(float a)
+    {
+        if (a < -180f || 180f < a)
+        {
+            a -= MathF.Floor(a * 0.0027777778f + 0.5f) * 360f;
+            if (a <= -180f)
+                a = -180f;
+            if (180f <= a)
+                a = 180f;
+        }
+        if (a < 0f)
+            a += 360f;
+        return a;
+    }
+
+    private static byte AngleByte(float a) => (byte)(sbyte)(int)(a / 360f * 255f);
+
+    // The vector normalised as the bake's helpers do: length from x, y, z as each call orders
+    // them is the caller's concern; here (y^2 + z^2) + x^2 for the parent direction and the blend.
+    private static Vector3 Unit3(float x, float y, float z)
+    {
+        var len = MathF.Sqrt(y * y + z * z + x * x);
+        if (len < 1e-17f || 1e17f < len)
+        {
+            if (len == 0f)
+                return Vector3.Zero;
+            var (dx, dy, dz) = Wide(x, y, z);
+            return new Vector3(dx, dy, dz);
+        }
+        var inv = 1f / len;
+        return new Vector3(x * inv, y * inv, z * inv);
+    }
+
+    // 1803f1c80: a tiny or huge vector normalised in double: (y^2 + x^2) + z^2, each component times 1 / length.
+    private static (float X, float Y, float Z) Wide(float x, float y, float z)
+    {
+        double dx = x, dy = y, dz = z;
+        var inv = 1.0 / Math.Sqrt(dy * dy + dx * dx + dz * dz);
+        return ((float)(inv * dx), (float)(inv * dy), (float)(inv * dz));
+    }
+
+    /// <summary>180040c40's bombsites blob: per site its bounds' mins and maxs and its power (7 floats).</summary>
+    internal static byte[] Bombsites(IReadOnlyList<Site> sites)
+    {
+        var bytes = new List<byte>();
+        foreach (var s in sites)
+            foreach (var f in new[] { s.Mins.X, s.Mins.Y, s.Mins.Z, s.Maxs.X, s.Maxs.Y, s.Maxs.Z, s.Power })
+                bytes.AddRange(BitConverter.GetBytes(f));
+        return [.. bytes];
+    }
+
+    /// <summary>
+    /// The .vdata the modifier writes into the map's content folder (SaveKV3, generic format):
+    /// generic_data_type "CS2_BOMB_DAMAGE_DATA", header { version = 2 }, and data with the
+    /// bombsites, positions and damage_values blobs.
+    /// </summary>
+    public static string VdataText(byte[] bombsites, byte[] positions, byte[] damage)
+    {
+        var root = ValveKeyValue.KVObject.Collection();
+        root.Add("generic_data_type", new ValveKeyValue.KVObject("CS2_BOMB_DAMAGE_DATA"));
+        var header = ValveKeyValue.KVObject.Collection();
+        header.Add("version", new ValveKeyValue.KVObject(2));
+        root.Add("header", header);
+        var data = ValveKeyValue.KVObject.Collection();
+        data.Add("bombsites", ValveKeyValue.KVObject.Blob(bombsites));
+        data.Add("positions", ValveKeyValue.KVObject.Blob(positions));
+        data.Add("damage_values", ValveKeyValue.KVObject.Blob(damage));
+        root.Add("data", data);
+        return Kv3TextWriter.Write(root, new Guid("7412167c-06e9-4698-aff2-e63eb59037e7"));
     }
 
     // V_fmodf: the C fmodf, exact; C#'s float remainder is the same operation.
@@ -293,7 +630,7 @@ public static class BombDamage
         if (len == 0f)
             return (0f, 0f, 0f);
         if (len < 1e-17f || 1e17f < len)
-            throw new NotSupportedException("1803f1c80 (normalising a tiny or huge vector) is not ported");
+            return Wide(x, y, z);
         var inv = 1f / len;
         return (x * inv, y * inv, z * inv);
     }
