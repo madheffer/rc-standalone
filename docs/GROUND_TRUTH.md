@@ -2299,6 +2299,46 @@ game can answer is raised with the user first, and runs with -insecure.
       block is deterministic. The analysis that fills it is not ported.
     - Open: ladders (the build casts every 10 units through the world,
       1818dc620; ids from a process-wide counter), the CS analysis.
+98. **Nav generation's AddJumps (026)** (settled 2026-10-20 by decompile
+    of navsystem 20261015 and vphysics2 20260924 (world vfn 0x580 is
+    180065410 in both 0924 and 1015). Verified: Valve's stage 026 input
+    through NavGenPolys.AddJumps gives Valve's polygons and connection
+    blocks on probe01, cardtest, probe_classes, s2c_prefabprobe5 and 6
+    (NavGenJumpTests; 8 and 16 connections added, 14 of 62 casts blocked
+    on prefabprobe5). Maps/NavGen NavGenJumps.cs, NavTriangleWorld.cs.)
+    - Capsules (the physics interface's vfn 0x1e8, 180071d70): from
+      (0, 0, MaxClimb) to (0, 0, height / 2 + MaxClimb), the hull's radius;
+      height, short height and crawl height for polygon kinds 0, 1, 2.
+    - Candidates (18006fcf0): each edge of a polygon with a connection
+      block whose connections' overlaps sum to at most 0 or leave at least
+      twice the radius open. Polygons without a block have none.
+    - Targets (18006cf00): a 32-unit grid over the polygons' bounds (as
+      IslandRemoval's), queried over the XY box of the edge and the edge
+      moved by MaxJumpHorizDistBase along u x n (18004f120).
+    - Pairs (18006bfc0, against every edge of every other target):
+      180053170 with overlap radius x jump_connection_min_overlap_ratio
+      (0.1 from gameinfo); kept when the overlap is not 0, the drop
+      (midpoint z) is more than MaxClimb + 4 and at most MaxJumpDownDist,
+      the target's kind is not above the source's, the midpoints are within
+      MaxJumpHorizDistBase in XY, the cast is clear and no connection on the
+      source edge covers the pair's midpoint. That flag (+0x61) is cleared
+      per target polygon only, so it holds for the target's later edges.
+    - The cast (180072ef0): a 4-point float path (180077e40, t 0.5): the
+      source overlap's midpoint, above the target's at the source's height,
+      the target's midpoint; each leg both ways through world vfn 0x580
+      (a type-4 shape cast, 180201b00), blocked when the fraction is below
+      1. Not ported: our NavTriangleWorld tests the swept axis against the
+      nav world's triangles within the radius, Valve's verdict on every
+      cast seen; vphysics2's hull (180251800) and mesh (180244dc0) casts
+      and their margins are open.
+    - Order (18006b160): pairs sorted by squared midpoint distance (MSVC
+      std::sort, 180073a20); each unmarked pair adds its connection
+      (18004dd20): this side as found (kind 0) unless the polygon already
+      connects to the other; the other side's pair (overlap 1) with kind 0
+      when the distance is below max(MaxClimb, MaxJumpUpDist), else 1,
+      unless already connected back. Later pairs whose midpoint lies in
+      either side's span on the same edge are marked.
+
 99. **Nav generation on prefab and instance maps** (capture_navgen.py on
     probe01, cardtest, probe_classes, s2c_pinst, s2c_pinst7 and
     s2c_prefabprobe3-6 with CS2 closed, 2026-10-20; disassembly of

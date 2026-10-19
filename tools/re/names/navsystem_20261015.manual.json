@@ -262,13 +262,61 @@
    "addr": "18006b160",
    "name": "NavGen_AddJumps",
    "module": "s2c:baked/navgen",
-   "note": "capsules (physics vfn 0x1e8), candidates, casts (not ported)"
+   "note": "stage 026 (ledger 98): capsules per kind (physics vfn 0x1e8: (0,0,climb)-(0,0,h/2+climb), radius), 32-unit grid, candidate edges, pairs, MSVC sort by squared midpoint distance, adds and marks"
   },
   {
    "addr": "180072ef0",
    "name": "NavGen_JumpClear",
    "module": "s2c:baked/navgen",
-   "note": "world vfn 0x580 shape cast both ways"
+   "note": "the path (18004d540, 180077e40): a mid, above b mid at a height, b mid; each leg cast both ways through world vfn 0x580 (type 4 shape cast), blocked when the fraction is below 1"
+  },
+  {
+   "addr": "18006fcf0",
+   "name": "NavGen_JumpEdges",
+   "module": "s2c:baked/navgen",
+   "note": "edges of polygons with a block whose connections leave the overlap sum <= 0 or at least 2 radius open (edge length 18004e9e0)"
+  },
+  {
+   "addr": "18006cf00",
+   "name": "NavGen_JumpTargets",
+   "module": "s2c:baked/navgen",
+   "note": "grid query over the XY box of the edge and the edge moved out by MaxJumpHorizDistBase; each polygon once"
+  },
+  {
+   "addr": "18006bfc0",
+   "name": "NavGen_JumpPairs",
+   "module": "s2c:baked/navgen",
+   "note": "edge pairs (180053170, overlap radius * nav_gen_jump_connection_min_overlap_ratio) dropping more than climb + 4 and at most MaxJumpDownDist, kind rule, XY within MaxJumpHorizDistBase, clear, not covered (+0x61 sticky per target polygon)"
+  },
+  {
+   "addr": "18004dd20",
+   "name": "NavGen_AddJumpConnection",
+   "module": "s2c:baked/navgen",
+   "note": "this side unless already connected to the other polygon; the other side (180053170 overlap 1, kind = !(dist < max(MaxClimb, MaxJumpUpDist))) unless already connected back"
+  },
+  {
+   "addr": "180073a20",
+   "name": "NavGen_JumpLess",
+   "module": "s2c:baked/navgen",
+   "note": "squared midpoint distance (y, x, z) less-than"
+  },
+  {
+   "addr": "18004f120",
+   "name": "NavGenPoly_EdgeOutward",
+   "module": "s2c:baked/navgen",
+   "note": "unit edge direction u (kept when |u| <= FLT_EPSILON) cross the polygon normal"
+  },
+  {
+   "addr": "18004d540",
+   "name": "NavGenConnection_Segments",
+   "module": "s2c:baked/navgen",
+   "note": "each side's overlap segment on its edge: start, start + overlap along the unit edge"
+  },
+  {
+   "addr": "180077e40",
+   "name": "NavGen_JumpPath",
+   "module": "s2c:baked/navgen",
+   "note": "four float points at t: lerp(a0, a1) with a z, lerp(b1, b0) at a z (twice), lerp(b1, b0)"
   },
   {
    "addr": "1800217b0",
