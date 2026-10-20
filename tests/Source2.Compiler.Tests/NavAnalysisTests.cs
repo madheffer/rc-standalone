@@ -595,4 +595,57 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         output.WriteLine($"{snap.Records.Count - bad} of {snap.Records.Count} records Valve's after the hiding-spot step");
         Assert.Equal(0, bad);
     }
+
+    /// <summary>
+    /// The hiding-spot step after our occupy step: the spots against the .nav's (id, position, flags),
+    /// the trace count against Valve's for the step, and the records against Valve's as the encounter
+    /// step starts.
+    /// </summary>
+    [Fact]
+    public void HidingSpotsMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var trace = Probe01Trace(out var keep);
+        using var _ = keep;
+        if (trace is null)
+            return;
+        var b = File.ReadAllBytes(Path.Combine(dir, "navan_calls.bin"));
+        int? valveTraces = null;
+        var inStep = false;
+        for (var p = 0; p < b.Length; p += RecordSize(b, p))
+        {
+            var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
+            if (kind == 7)
+            {
+                var stage = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p + 4));
+                if (stage == 2)
+                {
+                    inStep = true;
+                    valveTraces = 0;
+                }
+                else if (inStep)
+                    inStep = false;
+            }
+            else if (kind == 4 && inStep)
+                valveTraces++;
+        }
+        var traces = 0;
+        var an = new NavAnalysis(ReadNav(nav)) { Trace = (s, e) => { traces++; return trace(s, e); } };
+        var entities = Source2.Compiler.MapEntities.From(Source2.Compiler.DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")));
+        List<NavAnalysis.V> Spawns(string cls) => [.. entities.Where(e => e.ClassName == cls).Select(e => new NavAnalysis.V(e.Origin.X, e.Origin.Y, e.Origin.Z))];
+        an.EarliestOccupyTimes(Spawns("info_player_terrorist"), Spawns("info_player_counterterrorist"));
+        traces = 0;
+        an.ComputeHidingSpots();
+        var ours = an.Areas.SelectMany(a => an.Spots[a]).Select(s => $"{s.Id} {s.Pos} {s.Flags}").ToList();
+        var valve = NavHidingSpots(nav).Select(s => $"{s.Id} {s.Pos} {s.Flags}").ToList();
+        output.WriteLine($"ours [{string.Join(", ", ours)}]");
+        output.WriteLine($"Valve [{string.Join(", ", valve)}]");
+        output.WriteLine($"traces: ours {traces}, Valve {valveTraces}");
+        Assert.Equal(valve, ours);
+        Assert.Equal(valveTraces, traces);
+        var snap = Snapshots(b).First(s => s.Stage == 3);
+        Assert.Equal(0, CompareRecords(an, snap.Records, AreaIdsByPointer(dir), "after hiding spots"));
+    }
 }
