@@ -33,12 +33,19 @@ public static class NavGenInput
     /// the body type against the type mask, then the shape's collision attributes.
     /// </summary>
     public static bool ShapePasses(in Simulation.CollisionAttributes s, int bodyType, ulong navclipBits, ushort[] groupTable)
+        => ShapePasses(s, bodyType, QueryInteractsWith(navclipBits), 3, 3, groupTable);
+
+    /// <summary>
+    /// The same test for a query with its own interacts-with layers, body type mask and collision group
+    /// (the box casts' query, 18004b370: 0xc3021, static bodies only, group 4).
+    /// </summary>
+    public static bool ShapePasses(in Simulation.CollisionAttributes s, int bodyType, ulong interactsWith, byte typeMask, byte queryGroup,
+                                   ushort[] groupTable)
     {
-        const byte typeMask = 3, queryGroup = 3, queryFlags = 0x49;
+        const byte queryFlags = 0x49;
         const ulong excludeAs = 0x400000, queryAs = 0x80000;
         const ushort functionMask = 0xffff;
         const byte functionIndex = 0;
-        var interactsWith = QueryInteractsWith(navclipBits);
         if (bodyType is >= 0 and <= 2 && (typeMask & (1 << bodyType)) == 0)
             return false;
         // q + 0x31 bit 0x20 (pass everything) is clear.
@@ -76,11 +83,13 @@ public static class NavGenInput
     /// its own PhysDoc whose node filter (20260923 180f4d220, 20261015 180f4d790) runs with flags 0x16
     /// (captured: every nav compile; the settle's PhysDoc has 0). With the node's owner the nearest
     /// entity at or above it: 0x10 and a true GenerateNav key keep it; a mesh under an entity needs
-    /// solidity 2 (a missing key reads 1) and, with 0x10, no true AlwaysSolidIgnoreNav (flag 2); an
-    /// owner whose solid key is 0 drops it (flag 4). Not modelled: flag 2's test for a non-mesh node
-    /// (the entity's +0x550 and FUN_180dd2210), smart props and physics pins, and FUN_180f4bb00.
+    /// solidity 2 (a missing key reads 1) and, with 0x10, no true AlwaysSolidIgnoreNav (flag 2); any
+    /// other node under an entity needs the entity's FGD class (+0x550) with true has_static_mesh
+    /// metadata (FUN_180dd2210: prop_static and cable_static in base.fgd), so prop_physics,
+    /// prop_dynamic and prop_door_rotating are not in the nav world (flag 2); an owner whose solid key
+    /// is 0 drops it (flag 4). Not modelled: smart props and physics pins (refused), FUN_180f4bb00.
     /// </summary>
-    public static Func<SettleWorld.BodyBuild, bool> NavWorldFilter(DmxBinary.Document document)
+    public static Func<SettleWorld.BodyBuild, bool> NavWorldFilter(DmxBinary.Document document, FgdSchema schema)
     {
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var e in SettleWorld.AllDocuments(document).SelectMany(d => d.Elements))
@@ -104,11 +113,19 @@ public static class NavGenInput
             var owner = node;
             while (owner is not null && owner.Type != "CMapEntity")
                 owner = parents.GetValueOrDefault(owner);
+            if (owner is not null && Bool(Key(owner, "GenerateNav")))
+                return true;
+            // A physics pin is never in it; a smart prop is not when its +0x688 is 0 (not modelled).
+            if (node.Type is "CMapSmartProp" or "CMapPhysicsPin")
+                throw new NotSupportedException($"the nav world's filter for a {node.Type} is not ported");
             if (owner is null)
                 return true;
-            if (Bool(Key(owner, "GenerateNav")))
-                return true;
-            if (node.Type == "CMapMesh" && (Int(Key(owner, "solidity"), 1) != 2 || Bool(Key(owner, "AlwaysSolidIgnoreNav"))))
+            if (node.Type == "CMapMesh")
+            {
+                if (Int(Key(owner, "solidity"), 1) != 2 || Bool(Key(owner, "AlwaysSolidIgnoreNav")))
+                    return false;
+            }
+            else if (Key(owner, "classname") is not { } cls || !schema.HasClass(cls) || !schema.HasFlag(cls, "has_static_mesh"))
                 return false;
             return Int(Key(owner, "solid"), -1) != 0;
         };

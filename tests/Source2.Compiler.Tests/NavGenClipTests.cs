@@ -99,4 +99,67 @@ public sealed class NavGenClipTests(ITestOutputHelper output)
         Assert.Null(diff);
         Assert.Equal(0, world.Unknown);
     }
+
+    /// <summary>Asks our world and Valve's answers side by side; answers Valve's, so the clip asks what Valve's did.</summary>
+    private sealed class CheckedWorld(INavBoxWorld ours, ReplayWorld valve) : INavBoxWorld
+    {
+        public int Asked, Differ;
+        public string? First;
+
+        public float CastBox((float X, float Y, float Z) mins, (float X, float Y, float Z) maxs, (float X, float Y, float Z) start,
+                             (float X, float Y, float Z) delta)
+        {
+            Asked++;
+            var a = ours.CastBox(mins, maxs, start, delta);
+            var b = valve.CastBox(mins, maxs, start, delta);
+            if (BitConverter.SingleToInt32Bits(a) != BitConverter.SingleToInt32Bits(b) && Differ++ == 0)
+            {
+                First = $"cast {Asked}: ours {a:R} Valve {b:R}; mins {mins} maxs {maxs} start {start.X:R} {start.Y:R} {start.Z:R} delta {delta.X:R} {delta.Y:R} {delta.Z:R}";
+                if (ours is NavBoxWorld w)
+                    w.CastBox(mins, maxs, start, delta, (i, type, f, t) => First += $"{Environment.NewLine}  shape {i} type {type} body {w.BodyOf(i).NodeId} {w.BodyOf(i).Node?.Type} {w.BodyOf(i).Node?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname")} hit {f:R} t [{string.Join(", ", t.Select(v => v.ToString("R")))}]");
+            }
+            return b;
+        }
+    }
+
+    /// <summary>
+    /// 022 from Valve's input with the casts answered by <see cref="NavBoxWorld"/> over our settle bodies:
+    /// every cast's fraction equal to Valve's (when the map's casts were captured) and Valve's output.
+    /// </summary>
+    [Theory]
+    [InlineData("probe01")]
+    [InlineData("cardtest")]
+    [InlineData("s2c_prefabprobe3")]
+    public void ClipMatchesValveOnOurWorld(string map)
+    {
+        var same = Path.Combine(Path.GetTempPath(), "navgen_capture", map + "_same");
+        var dir = Directory.Exists(same) ? same : Path.Combine(Path.GetTempPath(), "navgen_capture", map + "_in");
+        var casts = Path.Combine(dir, "navcast_world.bin");
+        if (!File.Exists(Path.Combine(dir, "022_ClipPolysToHullClearance_in.bin")) || CS2Fixtures.StockPak() is not { } pak
+            || MapFixtures.GameSchema() is not { } schema)
+            return;
+        var document = DmxBinary.ReadFile(Path.Combine(Content, map + ".vmap"));
+        MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(Path.Combine(Content, map + ".vmap")))!));
+        using var models = new SettleBuildTests.PakModels(pak, @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe");
+        var bodies = SettleWorld.Build(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
+            d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators), new SettleWorld.CollisionRules());
+        var ours = new NavBoxWorld(bodies, NavGenInput.NavWorldFilter(document, schema));
+        var settings = NavGenInputTests.MapSettings(document, pak);
+        var g = Load(Path.Combine(dir, "022_ClipPolysToHullClearance_in.bin"));
+        var valve = Load(Path.Combine(dir, "022_ClipPolysToHullClearance_out.bin"));
+        if (File.Exists(casts))
+        {
+            var check = new CheckedWorld(ours, new ReplayWorld(casts));
+            g.ClipPolysToHullClearance(settings.Hulls[0], check, orientedMesh: false);
+            output.WriteLine($"{map}: {check.Asked} casts, {check.Differ} answered otherwise than Valve");
+            if (check.First != null)
+                output.WriteLine("first: " + check.First);
+            Assert.Equal(0, check.Differ);
+        }
+        else
+            g.ClipPolysToHullClearance(settings.Hulls[0], ours, orientedMesh: false);
+        var diff = NavGenInputTests.Compare(g, valve);
+        output.WriteLine($"{map}: {g.Polys.Count} polygons (Valve {valve.Polys.Count}); {diff ?? "Valve's"}");
+        Assert.Null(diff);
+    }
 }

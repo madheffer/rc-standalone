@@ -25,7 +25,7 @@ public class NavWriterTests(ITestOutputHelper output)
         return g;
     }
 
-    private static byte[] ValveNav(string map)
+    internal static byte[] ValveNav(string map)
     {
         using var package = new ValvePak.Package();
         package.Read(Path.Combine(AddonMaps, map + ".vpk"));
@@ -34,7 +34,7 @@ public class NavWriterTests(ITestOutputHelper output)
     }
 
     // navsystem's movable mesh list as captured at 180022200 (navinput_movable.bin: count, 0x70-byte entries).
-    private static IEnumerable<NavWriter.MovableMesh> Movable(string dir)
+    internal static IEnumerable<NavWriter.MovableMesh> Movable(string dir)
     {
         var path = Path.Combine(dir, "navinput_movable.bin");
         if (!File.Exists(path))
@@ -45,7 +45,7 @@ public class NavWriterTests(ITestOutputHelper output)
     }
 
     // The custom data block's offset: the last KV3 (magic 05 33 56 4b) in the file.
-    private static int CustomDataAt(byte[] nav)
+    internal static int CustomDataAt(byte[] nav)
     {
         var at = -1;
         for (var i = 0; i + 4 <= nav.Length; i += 8)

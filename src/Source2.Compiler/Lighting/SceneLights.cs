@@ -14,14 +14,57 @@ internal static class SceneLights
 {
     /// <summary>18126a5a0: a colour's bytes over 255, clamped, sRGB to linear (V_powf at 2.4).</summary>
     public static Vector3 SrgbToLinear(int r, int g, int b)
+        => new(Channel(r * 0.003921569f), Channel(g * 0.003921569f), Channel(b * 0.003921569f));
+
+    // 18126a710: clamped to [0, 1] (NaN to 0), then the sRGB curve.
+    private static float Channel(float c)
     {
-        static float Channel(float c)
-        {
-            c = 0f <= c ? (c <= 1f ? c : 1f) : 0f;
-            return 0.04045f < c ? LightPow.Pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
-        }
-        return new Vector3(Channel(r * 0.003921569f), Channel(g * 0.003921569f), Channel(b * 0.003921569f));
+        c = 0f <= c ? (c <= 1f ? c : 1f) : 0f;
+        return 0.04045f < c ? LightPow.Pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
     }
+
+    /// <summary>
+    /// 181007c90: a colour temperature in kelvin as a linear colour (Tanner Helland's fit): t = K / 100;
+    /// above 66, red 329.69873 (t - 60)^-0.13320476 and green 288.12216 (t - 60)^-0.075514846, else
+    /// green 99.4708 ln t - 161.11957; below 66, blue 138.51773 ln(t - 10) - 305.0448; the rest 255;
+    /// each clamped to [0, 255] and made linear over 255. tier0's V_powf / V_logf are MathF's
+    /// (207,687 samples, Tier0MathTests).
+    /// </summary>
+    public static Vector3 ColorTemperature(float kelvin)
+    {
+        var t = kelvin / 100f;
+        float red = 255f, blue = 255f, green;
+        if (66f < t)
+        {
+            red = MathF.Pow(t - 60f, -0.13320476f) * 329.69873f;
+            green = MathF.Pow(t - 60f, -0.075514846f) * 288.12216f;
+        }
+        else
+            green = MathF.Log(t) * 99.4708f - 161.11957f;
+        if (t < 66f)
+            blue = MathF.Log(t - 10f) * 138.51773f - 305.0448f;
+        static float Clamp(float v)
+        {
+            if (v <= 0f)
+                v = 0f;
+            if (255f <= v)
+                v = 255f;
+            return v;
+        }
+        return new Vector3(Channel(Clamp(red) / 255f), Channel(Clamp(green) / 255f), Channel(Clamp(blue) / 255f));
+    }
+
+    /// <summary>
+    /// A light's colour (180eed4c0 and the barn branch of 180eea510): colormode 0 its "color", 1 its
+    /// colortemperature (<see cref="ColorTemperature"/>), anything else <paramref name="fallback"/>.
+    /// </summary>
+    public static Vector3 LightColor(LightPrecompute.KeyReader key, Vector3 fallback)
+        => (int)CNumbers.Atoi(key("colormode") ?? "0") switch
+        {
+            0 => Color(key, "color", fallback),
+            1 => ColorTemperature(key("colortemperature") is { } k ? CNumbers.ToFloat32(k) : 0f),
+            _ => fallback,
+        };
 
     /// <summary>FUN_180f32200 for "color": "%d %d %d" as bytes, linear (<see cref="SrgbToLinear"/>); the default when absent.</summary>
     public static Vector3 Color(LightPrecompute.KeyReader key, string name, Vector3 fallback)
@@ -51,9 +94,7 @@ internal static class SceneLights
     public static LightShape Record(string className, LightPrecompute.KeyReader key, float[] world)
     {
         var r = LightPrecompute.Records(className, key, null, split: false, units: true)[0];
-        if (CNumbers.Atoi(key("colormode") ?? "0") != 0)
-            throw new NotSupportedException("a light's colortemperature (181007c90) is not ported");
-        var color = Color(key, "color", Vector3.Zero);
+        var color = LightColor(key, Vector3.Zero);
         var (unitScale, factor, area, solid) = LightUnits.Terms(className, r);
         var intensity = LightUnits.FromUnits(key, unitScale, factor, area, solid);
         color = new Vector3(intensity * color.X, intensity * color.Y, intensity * color.Z);
@@ -84,7 +125,7 @@ internal static class SceneLights
     {
         float Float(string name, float fallback) => key(name) is { } v ? CNumbers.ToFloat32(v) : fallback;
         var brightness = Float("brightness", 1f) * Float("brightnessscale", 1f);
-        var c = Color(key, "color", Vector3.Zero);
+        var c = LightColor(key, Vector3.Zero);
         var color = new Vector3(brightness * c.X, brightness * c.Y, brightness * c.Z);
         var direction = -Forward(origin, angles);
         const float R = 262144f;
@@ -200,7 +241,9 @@ internal static class SceneLights
         var direct = (sbyte)Int(light, "directlight", 2);
         var bounces = bounce == -1 ? direct is 1 or 3 : bounce == 1;
         ibl.Add("sky_bounce_scale", new KVObject((double)(bounces ? Float(light, "skybouncescale", 1f) * Float(light, "brightnessscale", 1f) : 0f)));
-        ibl.Add("sun_light_min_brightness", new KVObject((double)Float(light, "sunlightminbrightness", 0f)));
+        // Unset (csgo.fgd removes the key), the light keeps lights_base.fgd's default 32: atixref's
+        // light_environment has no such key and Valve's scene_info has 32.
+        ibl.Add("sun_light_min_brightness", new KVObject((double)Float(light, "sunlightminbrightness", 32f)));
         return ibl;
     }
 

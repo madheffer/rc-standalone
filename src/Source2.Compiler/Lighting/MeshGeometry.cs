@@ -57,7 +57,7 @@ internal static class MeshGeometry
         return null;
     }
 
-    public static Result Classify(VBIB.OnDiskBufferData vb)
+    public static Result Classify(VBIB.OnDiskBufferData vb, Func<string, int, string?>? materialAttribute = null)
     {
         var fields = vb.InputLayoutFields;
         var consumed = new bool[fields.Length];
@@ -89,7 +89,12 @@ internal static class MeshGeometry
                 (standard, index) = ("texcoord", pairs.IndexOf(f.SemanticIndex));
             }
             else if (Is(semantic, "texcoord") && f.Format.ToString() == "R8G8B8A8_UNORM")
-                throw new NotSupportedException("an unnamed RGBA8 texcoord (meshsystem's VertexPaintBlendParams rename) is not ported");
+            {
+                // The material's input signature names it (VertexPaintBlendParams on a 2-way blend).
+                if (materialAttribute?.Invoke(f.SemanticName, f.SemanticIndex) is not { Length: > 0 } named)
+                    throw new NotSupportedException("an unnamed RGBA8 texcoord with no material attribute for it (meshsystem's VertexPaintBlendParams rename) is not ported");
+                (standard, index) = Lookup(named) ?? (named.ToLowerInvariant(), f.SemanticIndex);
+            }
             else
                 (standard, index) = (semantic.ToLowerInvariant(), f.SemanticIndex);
             if (Is(standard, "texcoord") && index is 0 or 1)
@@ -111,9 +116,12 @@ internal static class MeshGeometry
             if (consumed[i])
                 continue;
             var f = fields[i];
-            if (string.IsNullOrEmpty(f.ShaderSemantic))
-                throw new NotSupportedException($"an extra vertex field without a shader semantic ({f.SemanticName}{f.SemanticIndex}: the material's attribute name, 1801d3050) is not ported");
-            extras.Add(new Extra(f, f.ShaderSemantic, Components(f)));
+            // Without a shader semantic of its own the field takes the material's vertex attribute of the
+            // same semantic name and index (1801d3050: the INSG element's m_pSemantic).
+            var name = string.IsNullOrEmpty(f.ShaderSemantic) ? materialAttribute?.Invoke(f.SemanticName, f.SemanticIndex) : f.ShaderSemantic;
+            if (string.IsNullOrEmpty(name))
+                throw new NotSupportedException($"an extra vertex field without a shader semantic ({f.SemanticName}{f.SemanticIndex}) and no material attribute for it (1801d3050)");
+            extras.Add(new Extra(f, name, Components(f)));
         }
         return new Result(color >= 0 ? fields[color] : default, extras, floatTexcoords, floatTangents);
     }

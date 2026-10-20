@@ -80,7 +80,14 @@ public static class Vrad3Job
             if (ent.Hidden)
                 continue;
             if (ent.Element.Type == "CMapSmartProp")
-                throw new NotSupportedException("a smart prop's path-trace records are not ported");
+            {
+                // Its models as the world's props take them: prop_static records with the node's
+                // keys and the element's material group as the skin.
+                foreach (var (model, smartKeys, matrix, skin) in NodePropAggregates.SmartPropModels(ent, content))
+                    if (PathTraceProps.Record(model, k => k == "skin" ? skin : smartKeys.Get<string>(k), matrix, true) is { } smartRecord)
+                        records.Add(smartRecord);
+                continue;
+            }
             var props0 = ent.Element.Get<DmxBinary.Element>("entity_properties");
             if (props0?.Get<string>("classname") != "prop_static")
                 continue;
@@ -102,20 +109,23 @@ public static class Vrad3Job
             resource.Read(new MemoryStream(bytes));
             return (Model)resource.DataBlock!;
         }
-        PathTraceProps.Add(meshes, instances, records, Load);
+        PathTraceProps.Add(meshes, instances, records, Load, content.Read);
 
-        // The lights and the sky, from the compiled lumps' keys.
+        // The lights and the sky, from the compiled lumps' keys, in the order the scene build's class
+        // searches find them: the world's node array after the instance collapse (L17, ledger 101).
         var ids = new Dictionary<int, int>();
         var lights = new List<KVObject>();
         LightPrecompute.KeyReader? sky = null;
-        foreach (var (cls, key) in lumpEntities)
+        int Locators(string path) => content.SmartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0;
+        foreach (var (cls, key, origin, angles) in InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document, Locators), lumpEntities,
+                     d => SmartProps.NodesCreatedOnLoad(d, Locators)))
         {
             LightShape shape;
             if (cls is "light_barn" or "light_rect" or "light_omni2")
-                shape = SceneLights.Record(cls, key, LightPrecompute.World(Vec(key("origin")), Vec(key("angles"))));
+                shape = SceneLights.Record(cls, key, LightPrecompute.World(origin, angles));
             else if (cls is "light_environment" or "light_directional")
             {
-                shape = SceneLights.Directional(key, Vec(key("origin")), Vec(key("angles")));
+                shape = SceneLights.Directional(key, origin, angles);
                 if (cls == "light_environment")
                     sky ??= key;
             }
@@ -197,6 +207,56 @@ public static class Vrad3Job
             s.Append(c, $"    lpv_image_write_ambientcube lpv_{v.Id}_ambientcube.exr\n    lpv_image_write_direct_light_shadows  lpv_{v.Id}_dlshd.exr\n    done\n");
         }
         return s.ToString();
+    }
+
+    /// <summary>
+    /// The lump entities in the world's node array order (<see cref="MapWorldOrder"/>), one per node
+    /// (matched by hammeruniqueid; a copy's is its collapse id), each placed as its node is: the map's
+    /// origin and angles, or the collapse's for a copy. The scene build reads the nodes, not the lumps:
+    /// atixref's point_template 236 ships its eight lights only in its own lump, relative to the
+    /// template, and Valve's scene has them where the map puts them. Entities the array does not hold
+    /// follow in lump order. A map whose order is not captured (hidden instances, a prefab inside a
+    /// prefab) keeps the lumps' order and placement.
+    /// </summary>
+    public static List<(string Class, LightPrecompute.KeyReader Key, Vector3 Origin, Vector3 Angles)> InSearchOrder(
+        DmxBinary.Document document, int createdOnLoad, List<(string Class, LightPrecompute.KeyReader Key)> entities,
+        Func<DmxBinary.Document, int>? createdOnLoadIn = null)
+    {
+        List<int> order;
+        Dictionary<string, int> byIdPath;
+        try
+        {
+            (order, byIdPath) = MapWorldOrder.Order(document, createdOnLoad, createdOnLoadIn);
+        }
+        catch (NotSupportedException)
+        {
+            return [.. entities.Select(e => (e.Class, e.Key, Vec(e.Key("origin")), Vec(e.Key("angles"))))];
+        }
+        var rank = new Dictionary<int, int>();
+        for (var i = 0; i < order.Count; i++)
+            rank.TryAdd(order[i], i);
+        var walked = MapEntities.From(document);
+        var placed = new Dictionary<int, (Vector3 Origin, Vector3 Angles)>();
+        foreach (var e in walked)
+            placed.TryAdd(e.NodeId, (e.Origin, e.Angles));
+        foreach (var c in MapInstances.Expand(document, walked, createdOnLoad).Copies)
+            placed[c.NodeId] = (c.Origin, c.Angles);
+        var seen = new HashSet<int>();
+        var ordered = new List<(int Rank, string Class, LightPrecompute.KeyReader Key, Vector3 Origin, Vector3 Angles)>();
+        foreach (var (cls, key) in entities)
+        {
+            // A prefab map's entity is named by its id path ("prefab:node"), its array id is its block's.
+            var unique = key("hammeruniqueid");
+            if (!(unique is not null && byIdPath.TryGetValue(unique, out var id) || int.TryParse(unique, NumberStyles.Integer, CultureInfo.InvariantCulture, out id))
+                || !rank.TryGetValue(id, out var r))
+                ordered.Add((int.MaxValue, cls, key, Vec(key("origin")), Vec(key("angles"))));
+            else if (seen.Add(id))
+            {
+                var (origin, angles) = placed.TryGetValue(id, out var p) ? p : (Vec(key("origin")), Vec(key("angles")));
+                ordered.Add((r, cls, key, origin, angles));
+            }
+        }
+        return [.. ordered.OrderBy(e => e.Rank).Select(e => (e.Class, e.Key, e.Origin, e.Angles))];
     }
 
     /// <summary>A compiled lump's entities as key readers (strings as the entity system holds them), with their class names.</summary>
