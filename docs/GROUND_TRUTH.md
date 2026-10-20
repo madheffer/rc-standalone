@@ -1217,7 +1217,7 @@ game can answer is raised with the user first, and runs with -insecure.
       byte-exact apart from 2 BC7 blocks of the dlshd atlas.
     - Still open at quality 2:
       - the hue-shift fixup encoder (180c46dd0): 5 of 1,048,576
-        irradiance blocks;
+        irradiance blocks; fixed, ledger 111;
       - 5 BC7 blocks of the dlshd atlas: fixed, ledger 110 (bc7e's 8-wide
         target).
 
@@ -2770,6 +2770,47 @@ game can answer is raised with the user first, and runs with -insecure.
     - bc7e.ispc is vendored in Native/bc7e (bc7enc_rdo c4a839c, Apache 2.0, NOTICE.md); the build
       no longer downloads it. Windows ispc 1.24.0 lives in D:/tools/ispc-v1.24.0-windows.
     - vpkstuff's BC7 output moves to these blocks with its next compiler package.
+
+111. **The BC6H hue-shift fixup encoder** (settled 2026-10-20 by disassembly of resourcecompiler
+    20260923 and tier0 20261015, with an in-process tier0 oracle). Verified: probe01's
+    -lightmapVRadQuality 2 lightmaps/ files are all byte for byte, irradiance.vtex_c included
+    (CpuBakeProbe.LightmapOutputsFiles); the default build still is. Texture/Rc/Bc6hHueShift.cs.
+    - A final-quality lightmap's BC6H (hueShiftFixup, encode flag 4) goes through
+      FloatBitMap_t::WriteToBufferBC6H_ispctexcomp_highest_quality_tweaked (180c46dd0). Each block
+      keeps the encode with the lowest error over a list of trials, starting from FLT_MAX:
+      - unmodified;
+      - colour consistency over the whole block at a minimum brightness of 0, 0.005, 0.01, 0.015,
+        0.02, 0.025, 0.05, 0.075 and 0.1;
+      - colour consistency per BC6H partition 0..31 at 0.01, 0.03 and 0.05 (the partition table at
+        182290480 is the standard one);
+      - k-means quantisation to 15 down to 3 colours.
+    - A trial takes a block only when its best error is at least 1.0, and only when every pixel's
+      (r^2 + g^2) + b^2 is below 1e12, before and after the change.
+    - Trials queue blocks. The queue holds max(block rows >> 5, 256) rows of blocks and is flushed
+      when an enqueue finds it full and once at the end, so a trial sees only the errors of
+      flushed batches. A flush encodes the batch (veryslow, the quality-4 settings), decodes it to
+      half floats and scores each block; a lower error replaces the block's.
+    - The error (180c360c0): per pixel s = 0.5 / maxss(0.25, the largest of the channels clamped
+      at 0); the clamped original and the decoded pixel times s go to CIE Lab (D65, 181269b90) and
+      the squared differences are summed as (dL^2 + da^2) + db^2 over the 16 pixels in order.
+    - Colour consistency (180c2ed30): per region the Y-weighted mean of the xy chromaticity and the
+      brightest Y (normalised by max(sum Y, 1e-8)); each pixel becomes the mean xy at
+      max(Y, brightest * minBright), back through XYZ to unclamped RGB. A block whose regions both
+      have sum Y <= 0 is skipped.
+    - Quantisation: mathlib's CKMeansClustering on the 16 pixels with one thread. Centres start at
+      distinct pixels picked by tier0's CUniformRandomStream seeded -0x75b2fe6f. Assignment takes
+      the first nearest centre. Each round: an empty cluster takes the first largest cluster's
+      last member, centres become means ((1 / n) * sum), a move over 0.001 or an empty cluster
+      asks for another round (at most 64). The pixels then take their cluster's mean.
+    - Lab's cube root is tier0's powf (V_powf -> 1802e5130), FMA3 build (1802e5896), which every
+      FMA3 CPU runs: ln x from a 257-entry table and a cubic (within 1/16 of 1 a series that
+      joins the SSE2 build's exp), then exp from 2^(j/64). CrtMath.Pow equals the installed
+      tier0's V_powf on 554,490 inputs (Tier0TrigOracleTests.PowIsTier0s).
+    - BC6H decoding is the D3D11 spec's integer decode (Texture/Rc/Bc6hDecoder.cs), equal to
+      TinyBCSharp's on 200,000 random blocks of all 18 mode codes (Bc6hDecoderTests).
+    - Open: our flush applies results in slot order; Valve's runs them in parallel, so only an
+      exact error tie between two trials of one block in one batch could differ.
+
 
 ## Resolved
 

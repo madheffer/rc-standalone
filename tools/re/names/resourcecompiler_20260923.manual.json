@@ -2744,9 +2744,87 @@
   },
   {
    "addr": "180c46dd0",
-   "name": "EncodeBC6Blocks_HueShiftFixup",
+   "name": "FloatBitMap_t::WriteToBufferBC6H_ispctexcomp_highest_quality_tweaked",
    "module": "s2c:baked/lighting",
-   "note": "the hue-shift fixup BC6H encoder (final quality): trial encodes with 'Color Consistency Partition %d MinBright %f' constraints (180c37680, 180c2ed30, 180c2f400); not ported (quality2 probe01: 5 of 1048576 irradiance blocks)"
+   "note": "the hue-shift fixup BC6H encoder (encode flag 4): best error per block from FLT_MAX; trials Unmodified, colour consistency (partition -1 at 0 .. 0.1, partitions 0..31 at 0.01 / 0.03 / 0.05), Quantize to 15..3; queue of max(block rows >> 5, 256) rows flushed when full and at the end (ledger 111)"
+  },
+  {
+   "addr": "180c2f400",
+   "name": "BC6HTweak_Unmodified",
+   "module": "s2c:baked/lighting",
+   "note": "blocks whose best error is at least 1.0, valid when (r^2 + g^2) + b^2 < 1e12, queued as is (flush 180c37470 when full)"
+  },
+  {
+   "addr": "180c2ed30",
+   "name": "BC6HTweak_ColourConsistency",
+   "module": "s2c:baked/lighting",
+   "note": "{minBright, partition}: per region the Y-weighted mean xy and the brightest Y; each pixel gets the mean xy with max(Y, brightest * minBright); regions from the partition table 182290480 (-1: one region)"
+  },
+  {
+   "addr": "180c37680",
+   "name": "BC6HTweak_ColourConsistencyNamed",
+   "module": "s2c:baked/lighting",
+   "note": "180c2ed30 with the trial's name registered"
+  },
+  {
+   "addr": "180c2f890",
+   "name": "BC6HTweak_Quantize",
+   "module": "s2c:baked/lighting",
+   "note": "180c37720 then the validity check and the queue"
+  },
+  {
+   "addr": "180c37720",
+   "name": "BC6HTweak_QuantizeBlock",
+   "module": "s2c:baked/lighting",
+   "note": "the 16 pixels through CKMeansClustering (18126add0) to N clusters, each member set to its cluster's mean (summed in member order, times 1 / count)"
+  },
+  {
+   "addr": "180c37470",
+   "name": "BC6HTweak_Flush",
+   "module": "s2c:baked/lighting",
+   "note": "encode the batch (180c46b20, settings quality 4), decode (180c3f4e0 to RGBA16F), ProcessBC6HResults per slot"
+  },
+  {
+   "addr": "180c360c0",
+   "name": "BC6HTweak_ProcessResult",
+   "module": "s2c:baked/lighting",
+   "note": "error: per pixel s = 0.5 / maxss(0.25, max of the clamped channels), both scaled, CIE Lab (181269b90 3 -> 4), summed (dL^2 + da^2) + db^2; a lower error replaces the block"
+  },
+  {
+   "addr": "181269b90",
+   "name": "ColorSpace_Convert",
+   "module": "s2c:baked/lighting",
+   "note": "from / to: 1 xyY, 2/3 linear RGB (3 unclamped out), 4 Lab (D65, cube root by V_powf above 0.008856); float order in Bc6hHueShift"
+  },
+  {
+   "addr": "18126add0",
+   "name": "CKMeansClustering::AssignVectorsToClusters",
+   "module": "s2c:baked/lighting",
+   "note": "init 18126b2e0, assign, then up to 64 rounds of fix-empty (18126ba50), recentre (18126bde0, 0.001), reassign while moved or empty"
+  },
+  {
+   "addr": "18126b2e0",
+   "name": "CKMeansClustering::InitClusters",
+   "module": "s2c:baked/lighting",
+   "note": "centres at distinct vectors from tier0's CUniformRandomStream seeded -0x75b2fe6f (RandomInt 0..count-1, repicked when taken)"
+  },
+  {
+   "addr": "18126ab10",
+   "name": "CKMeansClustering::AssignVectorsToClusters::lambda_1",
+   "module": "s2c:baked/lighting",
+   "note": "each vector to the first nearest centre (18126b170: summed squared differences), appended to its member list"
+  },
+  {
+   "addr": "18126ba50",
+   "name": "CKMeansClustering::FixEmptyClusters",
+   "module": "s2c:baked/lighting",
+   "note": "an empty cluster takes the last member of the first largest and its vector as centre"
+  },
+  {
+   "addr": "18126bde0",
+   "name": "CKMeansClustering::UpdateCentres",
+   "module": "s2c:baked/lighting",
+   "note": "members summed in order, times 1 / count; moved when |old - new| > 0.001f"
   },
   {
    "addr": "180c47de0",

@@ -13,6 +13,18 @@
    "note": "one build: double, reduced at 0.4375 / 0.6875 / 1.1875 / 2.4375, a 3 / 3 rational; Simulation/CrtMath.Atan (ledger 108)"
   },
   {
+   "addr": "1800081a0",
+   "name": "V_powf",
+   "module": "s2c:io",
+   "note": "jumps to the CRT's powf 1802e5130"
+  },
+  {
+   "addr": "1802e5130",
+   "name": "CRT_powf",
+   "module": "s2c:io",
+   "note": "double: ln x from a 257-entry table and a cubic (x within 1/16 of 1: a series), times y, exp from 2^(j/64); FMA3 build from 1802e5896 (ledger 111); Simulation/CrtMath.Pow"
+  },
+  {
    "addr": "1800c4120",
    "name": "KV3Binary_ReadValue",
    "module": "s2c:io",

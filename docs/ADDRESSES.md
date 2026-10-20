@@ -517,7 +517,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 1024 addresses
+- 1037 addresses
 
 ### s2c:baked/light-keys
 
@@ -675,10 +675,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `18004c060` | `Init_ChartNormalDot` | 183baf5c4 = V_cosf(1 degree) = 0x3f7ff605 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:35` |
-| `180133da0` | `CResourceCompilerTexture::CompileResourceInternal` | the texture compile (also the 'Cubemap %i, face %i has Inf/NaN/extremely bright pixel' check): minmipsize/maxmipsize; GetBool fast, final, hueShiftFixup; the encode quality 3 in a console build (1 with fast, 4 with final; special dependency 'Texture Encode Quality' user data), hueShiftFixup -> encode flag 4; each mip's LZ4 HC level by quality 0..4: 3, 4, 9, 10, 12 (Zstd 1, 1, 3, 12, 12) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:186`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:245` |
+| `180133da0` | `CResourceCompilerTexture::CompileResourceInternal` | the texture compile (also the 'Cubemap %i, face %i has Inf/NaN/extremely bright pixel' check): minmipsize/maxmipsize; GetBool fast, final, hueShiftFixup; the encode quality 3 in a console build (1 with fast, 4 with final; special dependency 'Texture Encode Quality' user data), hueShiftFixup -> encode flag 4; each mip's LZ4 HC level by quality 0..4: 3, 4, 9, 10, 12 (Zstd 1, 1, 3, 12, 12) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:184`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:243` |
 | `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array |  |
 | `18016a6a0` | `CResourceCompilerContext::SetOverrideInputData` | vf0 of the argument interface: ___OverrideInputData___ from a buffer (CRC32) |  |
-| `180174ce0` | `CResourceCompilerContext::SetImageArg` | vf9 of the argument interface (vtable 18277e630): stores a copy of the bitmap; fingerprint -1 = CRC32 of height, width, depth then each masked channel's plane rows | `src/Source2.Compiler/Lighting/LightmapTextures.cs:441` |
+| `180174ce0` | `CResourceCompilerContext::SetImageArg` | vf9 of the argument interface (vtable 18277e630): stores a copy of the bitmap; fingerprint -1 = CRC32 of height, width, depth then each masked channel's plane rows | `src/Source2.Compiler/Lighting/LightmapTextures.cs:442` |
 | `1801781a0` | `CResourceCompilerContext_CheckBinaryBlobArg` | incremental check of a BinaryBlobArg dependency |  |
 | `180178400` | `CResourceCompilerContext_CheckImageArg` | incremental check of an ImageArg dependency |  |
 | `180178ff0` | `CResourceCompilerContext_GetImageArg` | the ImageArg fingerprint from the argument table (+8 of the symbol's entry) |  |
@@ -686,7 +686,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801eda50` | `NLightBaker_WriteLightmapScript` | the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:163` |
 | `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:163`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:69` |
 | `1801ee9f0` | `NLightBaker_WriteFarfieldScript` | // Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0) |  |
-| `1801eee20` | `NLightBaker::SerializeLightProbeVolumes` | lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube | `src/Source2.Compiler/Lighting/LightmapOutputs.cs:103`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:212`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:475` +2 |
+| `1801eee20` | `NLightBaker::SerializeLightProbeVolumes` | lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube | `src/Source2.Compiler/Lighting/LightmapOutputs.cs:103`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:210`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:476` +2 |
 | `1801f01a0` | `NLightBaker_WriteFogIrradianceScript` | // Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu) |  |
 | `1801f0dd0` | `NLightBaker_LoadFarfield` | reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures |  |
 | `1801f2240` | `NLightBaker::RunVrad3` | lightmap_info.dat as blocks of 1024 (2048 with vrad3LargeBlockSize or off a customer machine, at most the smaller side), row-major, clipped; writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries | `src/Source2.Compiler/Lighting/LightmapTexels.cs:15` |
@@ -748,13 +748,20 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180285bf0` | `WRB_PathTraceInstancedModels` | the +0x1e0 table's entries (model and skin to transforms): records through 180285810, then 180284aa0; empty on the maps measured |  |
 | `180285eb0` | `WRB_BuildPathTraceSceneInfo` | scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights); cameras (180285ff1) from the compile's list (+0x210 -> +0x78 count, +0x80 records of 0x28: name, origin, angles, fov), only when non-empty | `src/Source2.Compiler/Lighting/PathTraceScene.cs:8`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:44`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:68` +2 |
 | `1802b6830` | `WRB_PropDrawMaterial` | a prop draw call's material: the record's overrides (+0x118) by mesh and draw id, else the skin's material group (+0x188 hash) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:23` |
-| `180c3ef20` | `EncodeBC6Blocks_FillRow` | one row of 4x4 blocks as RGBA halves: R, G, B each max(0, x) with the sign cleared through 1802ea750 (truncating), alpha 0x3c00; past the width the last texel repeats | `src/Source2.Compiler/Lighting/LightmapTextures.cs:328` |
+| `180c2ed30` | `BC6HTweak_ColourConsistency` | {minBright, partition}: per region the Y-weighted mean xy and the brightest Y; each pixel gets the mean xy with max(Y, brightest * minBright); regions from the partition table 182290480 (-1: one region) | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:164`, `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:187` |
+| `180c2f400` | `BC6HTweak_Unmodified` | blocks whose best error is at least 1.0, valid when (r^2 + g^2) + b^2 < 1e12, queued as is (flush 180c37470 when full) | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:164` |
+| `180c2f890` | `BC6HTweak_Quantize` | 180c37720 then the validity check and the queue | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:164` |
+| `180c360c0` | `BC6HTweak_ProcessResult` | error: per pixel s = 0.5 / maxss(0.25, max of the clamped channels), both scaled, CIE Lab (181269b90 3 -> 4), summed (dL^2 + da^2) + db^2; a lower error replaces the block | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:242` |
+| `180c37470` | `BC6HTweak_Flush` | encode the batch (180c46b20, settings quality 4), decode (180c3f4e0 to RGBA16F), ProcessBC6HResults per slot | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:242` |
+| `180c37680` | `BC6HTweak_ColourConsistencyNamed` | 180c2ed30 with the trial's name registered |  |
+| `180c37720` | `BC6HTweak_QuantizeBlock` | the 16 pixels through CKMeansClustering (18126add0) to N clusters, each member set to its cluster's mean (summed in member order, times 1 / count) | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:220` |
+| `180c3ef20` | `EncodeBC6Blocks_FillRow` | one row of 4x4 blocks as RGBA halves: R, G, B each max(0, x) with the sign cleared through 1802ea750 (truncating), alpha 0x3c00; past the width the last texel repeats | `src/Source2.Compiler/Lighting/LightmapTextures.cs:331`, `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:23` |
 | `180c40290` | `FloatBitMap_t::LoadFromEXRFile` | reads the file then 180c40c20 |  |
-| `180c40c20` | `FloatBitMap_t::LoadFromInMemoryEXR` | 2D; a missing R/G/B is an error, alpha 1 when absent | `src/Source2.Compiler/Lighting/LightmapTextures.cs:291`, `src/Source2.Compiler/Lighting/LightProbeAtlasImages.cs:91` |
+| `180c40c20` | `FloatBitMap_t::LoadFromInMemoryEXR` | 2D; a missing R/G/B is an error, alpha 1 when absent | `src/Source2.Compiler/Lighting/LightmapTextures.cs:290`, `src/Source2.Compiler/Lighting/LightProbeAtlasImages.cs:91` |
 | `180c41d70` | `FloatBitMap_t::WriteToBuffer` | 8-bit writer: SSE x*255 round to even for widths of a multiple of 4, else (int)(clamp*255+0.5) | `src/Source2.Compiler/Texture/Rc/RcMipChain.cs:261` |
 | `180c45cf0` | `FloatBitMap_t::ConvertToFormat` | format dispatch: DXT/ATI 0x14-0x19, 0x1c -> 180c481a0 (180c48210, else 180c485b0); BC6H 0x1a -> 180c46b20, or 180c46dd0 with encode flag 4 (hue-shift fixup); BC7 0x1b -> 180c47de0; float formats through 1802ea750 |  |
-| `180c46b20` | `EncodeBC6Blocks` | needs width and height multiples of 4; ispc profile by encode quality 0..4: veryfast, fast, basic, slow, veryslow (table 182fe58a0 through q -> 0, 2, 3, 4, 5); rows of blocks through 180c3ef20 on the thread pool | `src/Source2.Compiler/Lighting/LightmapTextures.cs:342` |
-| `180c46dd0` | `EncodeBC6Blocks_HueShiftFixup` | the hue-shift fixup BC6H encoder (final quality): trial encodes with 'Color Consistency Partition %d MinBright %f' constraints (180c37680, 180c2ed30, 180c2f400); not ported (quality2 probe01: 5 of 1048576 irradiance blocks) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:180` |
+| `180c46b20` | `EncodeBC6Blocks` | needs width and height multiples of 4; ispc profile by encode quality 0..4: veryfast, fast, basic, slow, veryslow (table 182fe58a0 through q -> 0, 2, 3, 4, 5); rows of blocks through 180c3ef20 on the thread pool | `src/Source2.Compiler/Lighting/LightmapTextures.cs:343` |
+| `180c46dd0` | `FloatBitMap_t::WriteToBufferBC6H_ispctexcomp_highest_quality_tweaked` | the hue-shift fixup BC6H encoder (encode flag 4): best error per block from FLT_MAX; trials Unmodified, colour consistency (partition -1 at 0 .. 0.1, partitions 0..31 at 0.01 / 0.03 / 0.05), Quantize to 15..3; queue of max(block rows >> 5, 256) rows flushed when full and at the end (ledger 111) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:327`, `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:7`, `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:92` |
 | `180c47de0` | `FloatBitMap_t::WriteToBufferBC7` | bc7e when loaded, level by encode quality 0, 1, 2, 3/4: 1, 2, 3, 6 (else ispc_texcomp, profile 1, 2, 3, 4) |  |
 | `180c48210` | `FloatBitMap_t::WriteToBufferDXT_atitc` | RGBA8888 writer then ATI_TC_ConvertTexture: ImageFormat 0x14/0x15 DXT1, 0x16 DXT3, 0x17 DXT5, 0x18 ATI1N as ATI_TC BC4 (31), 0x19 BC5 (32), 0x1c ATI2N_DXT5 (27); weights 1 or the perceptual 0.3086/0.6094/0.082 |  |
 | `180c494c0` | `ImageFormat_Info` | &182fe4eb0[(format + 1)], 32-byte entries: name, then sizes |  |
@@ -765,6 +772,12 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180fb0680` | `Hammer_LoadGameSettings` | gameinfo's Hammer section (BakeOnlyCubemaps among the map builder switches) |  |
 | `181112e80` | `LightingProcessor_PathTraceLightList` | per light (MapDoc_GatherLights order) its LightShape (181297030) and info (180eece60); a bounce light at bounce scale != 1 gets a separate entry first, colour times the scale, flags 1 or 9 (ledger 90); the sky light found by dynamic cast of the entity's components | `src/Source2.Compiler/Lighting/SceneLights.cs:9`, `src/Source2.Compiler/Lighting/SceneLights.cs:317` |
 | `181113f20` | `LightingProcessor_PathTraceLights` | vf 0x40: the lights (181112e80) and the ibl: path_trace_light_flags, the env_sky transform, scale, material, sky_bounce, sky_bounce_scale, sun_light_min_brightness; null without a sky light | `src/Source2.Compiler/Lighting/SceneLights.cs:235` |
+| `181269b90` | `ColorSpace_Convert` | from / to: 1 xyY, 2/3 linear RGB (3 unclamped out), 4 Lab (D65, cube root by V_powf above 0.008856); float order in Bc6hHueShift | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:35`, `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:41`, `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:47` +2 |
+| `18126ab10` | `CKMeansClustering::AssignVectorsToClusters::lambda_1` | each vector to the first nearest centre (18126b170: summed squared differences), appended to its member list | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:315` |
+| `18126add0` | `CKMeansClustering::AssignVectorsToClusters` | init 18126b2e0, assign, then up to 64 rounds of fix-empty (18126ba50), recentre (18126bde0, 0.001), reassign while moved or empty | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:313` |
+| `18126b2e0` | `CKMeansClustering::InitClusters` | centres at distinct vectors from tier0's CUniformRandomStream seeded -0x75b2fe6f (RandomInt 0..count-1, repicked when taken) | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:314` |
+| `18126ba50` | `CKMeansClustering::FixEmptyClusters` | an empty cluster takes the last member of the first largest and its vector as centre | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:316` |
+| `18126bde0` | `CKMeansClustering::UpdateCentres` | members summed in order, times 1 / count; moved when \|old - new\| > 0.001f | `src/Source2.Compiler/Texture/Rc/Bc6hHueShift.cs:317` |
 | `181294010` | `LightShape_FromLegacy` | type 2 (directional): ortho +-262144, depth 524288, orientation from VectorAngles(-dir), a disc luminaire of tan(angulardiameter / 2) | `src/Source2.Compiler/Lighting/SceneLights.cs:152` |
 | `181297030` | `LightShape_WriteKV3` | the 300-byte record: m_mToClipSpace, m_mFromClipSpace, m_vNearPlane, m_vLightPosition, m_vInnerRadius, m_flShape, m_vSkirt, m_vColor, m_nCookie, m_vDistanceFade, m_qOrientation, m_vAngleFade, m_nLuminaireType, m_flLightColorToRadiance, m_bLightInsideFrustum, m_bSphericalCookie, m_Luminaire | `src/Source2.Compiler/Lighting/SceneLights.cs:11`, `src/Source2.Compiler/Lighting/SceneLights.cs:398`, `src/Source2.Compiler/Lighting/SceneLights.cs:472` +1 |
 | `1812b39f0` | `meshopt_simplifyEdge` | meshoptimizer v1.1/v1.2 simplifyEdge (15 arguments; RegularizeLight tested, no PreserveFolds); ported in Meshopt/MeshoptSimplify.cs | `src/Source2.Compiler/Meshopt/MeshoptSimplify.cs:17` |
@@ -772,11 +785,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1812e4550` | `CMesh_WriteKV3` | vertex_count, vertex_stride, vertices, index_count, indices, meshlet_count, attribute_count, attributes, lod_group_mask, material_name, mesh_name, mesh_id, tint_color, lightmap_scale (+0x184), no_collapse (twice, +0x152 last), pack_sharedvb, use_basevertex, use_tint_color, is_line_mesh, baked_twosided, collision_type | `src/Source2.Compiler/Lighting/PathTraceScene.cs:11`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:20`, `src/Source2.Compiler/Lighting/PathTraceScene.cs:37` +1 |
 | `181c46e60` | `SFMT19937_Refill` | POS1 122, SL1 18, SR1 11, one-byte SL2/SR2 | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
 | `181c473c0` | `SFMT19937_Seed` | the packer's debug colours (seed 0x777f17e); state words read without tempering | `src/Source2.Compiler/Lighting/Sfmt19937.cs:5` |
-| `181e8e7c0` | `KV3_SaveTransferToBuffer` | text buffer, generic format, through the transfer save context (181e8ca00) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:476` |
-| `181e96830` | `VTexImageProcessor_Transfer` | m_algorithm, m_stringArg, m_vFloat4Arg | `src/Source2.Compiler/Lighting/LightmapTextures.cs:477` |
-| `181e969d0` | `VTexInputTexture_Transfer` | m_name, m_fileName, m_colorSpace, m_fileExt, m_nMinBitsPerChannel, m_typeString, m_bPassThroughToCompiledVtex, 3D slice count/width/height, m_imageProcessorArray | `src/Source2.Compiler/Lighting/LightmapTextures.cs:477` |
-| `181e96d30` | `VTexOutputChannel_Transfer` | m_srcChannels, m_dstChannels, m_mipAlgorithm, m_outputColorSpace, m_inputTextureArray (strings) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:478` |
-| `181e97100` | `VTexDescriptor_Transfer` | KV3 transfer of the texture descriptor: m_inputTextureArray, m_outputTypeString, m_outputFormat, m_outputClearColor, min/max dimension and reduce, m_textureOutputChannelArray, m_vClamp, the four bools, display rect, motion vectors | `src/Source2.Compiler/Lighting/LightmapTextures.cs:476` |
+| `181e8e7c0` | `KV3_SaveTransferToBuffer` | text buffer, generic format, through the transfer save context (181e8ca00) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:477` |
+| `181e96830` | `VTexImageProcessor_Transfer` | m_algorithm, m_stringArg, m_vFloat4Arg | `src/Source2.Compiler/Lighting/LightmapTextures.cs:478` |
+| `181e969d0` | `VTexInputTexture_Transfer` | m_name, m_fileName, m_colorSpace, m_fileExt, m_nMinBitsPerChannel, m_typeString, m_bPassThroughToCompiledVtex, 3D slice count/width/height, m_imageProcessorArray | `src/Source2.Compiler/Lighting/LightmapTextures.cs:478` |
+| `181e96d30` | `VTexOutputChannel_Transfer` | m_srcChannels, m_dstChannels, m_mipAlgorithm, m_outputColorSpace, m_inputTextureArray (strings) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:479` |
+| `181e97100` | `VTexDescriptor_Transfer` | KV3 transfer of the texture descriptor: m_inputTextureArray, m_outputTypeString, m_outputFormat, m_outputClearColor, min/max dimension and reduce, m_textureOutputChannelArray, m_vClamp, the four bools, display rect, motion vectors | `src/Source2.Compiler/Lighting/LightmapTextures.cs:477` |
 | `181ed64a0` | `tinybvh::BVH::Build` | binned SAH, 16 bins, axes past root extent * 1e-20, split if c_int / SA * (ANL + ANR) + c_trav < count * c_int, in-place partition, 256-entry task stack; threaded at 50000 primitives | `src/Source2.Compiler/Lighting/TinyBvh.cs:8` |
 | `181ed77b0` | `tinybvh::BVH::Build(customGetAABB, count)` | fragments and primIdx from the callback, the root bounds, then 181ed64a0 | `src/Source2.Compiler/Lighting/TinyBvh.cs:7` |
 
@@ -1946,18 +1959,20 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: this build
 - against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
-- 6 addresses
+- 8 addresses
 
 ### s2c:io
 
 | address | name | what | cited in |
 |---|---|---|---|
 | `180007ef0` | `V_atanf` | jumps to the CRT's atanf 1802e057c | `src/Source2.Compiler/Simulation/CrtMath.cs:241` |
+| `1800081a0` | `V_powf` | jumps to the CRT's powf 1802e5130 | `src/Source2.Compiler/Simulation/CrtMath.cs:457` |
 | `1800be850` | `KV3_SetInt64Subtyped` | basic type 3, the value in +8 |  |
 | `1800be890` | `KV3_SetUInt64Subtyped` | basic type 4, the value in +8 |  |
 | `1800c4120` | `KV3Binary_ReadValue` | switch on type - 1 up to 0x1a: 26 and 27 need format >= 5 and build an unsigned 0 / 1 (1800be890: basic type 4, subtype 0x17, as UINT32 = 12 does); 15 / 16 stay signed (1800be850, type 3, subtype 0x16) |  |
 | `1800c5f60` | `KV3Binary_ChooseNodeType` | bool 13/14; int 11 when it fits 32 bits else 3, uint 12 else 4, double 5; with the compact flag (r8b; its one caller 1800c6ef3 passes 1) int 0/1 -> 15/16, uint 0/1 -> 26/27, double 0/1 -> 17/18; arrays 8, 0x18/0x19 under 0x100 elements, else 0x0a. The 20261006 build (inlined at 1800c6cb3) wrote a uint 0/1 as 15/16 | `src/Source2.Compiler/Containers/Kv3V5Writer.cs:13`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:128` |
 | `1802e057c` | `CRT_atanf` | one build: double, reduced at 0.4375 / 0.6875 / 1.1875 / 2.4375, a 3 / 3 rational; Simulation/CrtMath.Atan (ledger 108) | `src/Source2.Compiler/Simulation/CrtMath.cs:241` |
+| `1802e5130` | `CRT_powf` | double: ln x from a 257-entry table and a cubic (x within 1/16 of 1: a series), times y, exp from 2^(j/64); FMA3 build from 1802e5896 (ledger 111); Simulation/CrtMath.Pow | `src/Source2.Compiler/Simulation/CrtMath.cs:457` |
 
 ## visbuilder.dll, build 20260923
 

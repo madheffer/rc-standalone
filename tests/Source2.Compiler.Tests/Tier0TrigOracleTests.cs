@@ -14,6 +14,17 @@ public sealed class Tier0TrigOracleTests(ITestOutputHelper output)
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate float FloatFn(float x);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate float FloatFn2(float x, float y);
+
+    private static FloatFn2? Export2(string name)
+    {
+        var dir = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game", "bin", "win64");
+        if (!NativeLibrary.TryLoad(Path.Combine(dir, "tier0.dll"), out var handle))
+            return null;
+        return Marshal.GetDelegateForFunctionPointer<FloatFn2>(NativeLibrary.GetExport(handle, name));
+    }
+
     private static FloatFn? Export(string name)
     {
         var dir = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game", "bin", "win64");
@@ -88,6 +99,45 @@ public sealed class Tier0TrigOracleTests(ITestOutputHelper output)
                 output.WriteLine($"acosf({x:R}): ours {got:R}, tier0 {want:R}");
         }
         output.WriteLine($"{total - differ} of {total} acosf results tier0's");
+        Assert.Equal(0, differ);
+    }
+
+    /// <summary>
+    /// CrtMath.Pow against V_powf: every 9973rd positive float to the 1/3 (the Lab conversion's exponent), then
+    /// random x in (0, 4) and y in (-8, 8). Arguments the port refuses (overflow, underflow) are skipped.
+    /// </summary>
+    [Fact]
+    public void PowIsTier0s()
+    {
+        if (Export2("V_powf") is not { } powf)
+            return;
+        int total = 0, differ = 0, skipped = 0;
+        void Check(float x, float y)
+        {
+            float got;
+            try
+            {
+                got = CrtMath.Pow(x, y);
+            }
+            catch (NotSupportedException)
+            {
+                skipped++;
+                return;
+            }
+            var want = powf(x, y);
+            total++;
+            if (BitConverter.SingleToInt32Bits(got) != BitConverter.SingleToInt32Bits(want) && differ++ < 10)
+                output.WriteLine($"powf({x:R}, {y:R}): ours {got:R}, tier0 {want:R}");
+        }
+        var third = BitConverter.Int32BitsToSingle(0x3eaaaaab);
+        for (uint bits = 1; bits < 0x7f800000u; bits += 9973)
+            Check(BitConverter.UInt32BitsToSingle(bits), third);
+        for (var k = -20000; k <= 20000; k++)
+            Check(1f + k * 1e-5f, third);
+        var rng = new Random(77);
+        for (var i = 0; i < 300000; i++)
+            Check((float)(rng.NextDouble() * 4), (float)(rng.NextDouble() * 16 - 8));
+        output.WriteLine($"{total - differ} of {total} powf results tier0's ({skipped} refused)");
         Assert.Equal(0, differ);
     }
 }

@@ -176,8 +176,6 @@ public static class LightmapTextures
         var algorithm = channel != "debug_chart_color" && mips > 1 ? $"Box{mips}" : "None";
         var final = options.Quality is >= 0 and < 3 && FinalByQuality[options.Quality] != 0;
         var hueShiftFixup = format == ImageFormat.Bc6h && options.Bc6hHueShiftFixup && final;
-        if (hueShiftFixup)
-            note?.Invoke($"{channel}: BC6H hue-shift fixup (180c46dd0) not ported; encoded without it");
 
         var derived = fingerprints ?? new Fingerprints(
             DescriptorFingerprint(Descriptor("2DARRAY", LightmapArgument.Name, formatName, minDimension, 0, algorithm)),
@@ -186,7 +184,7 @@ public static class LightmapTextures
         // The texture compiler's quality (180133da0): 3 in a console build, 4 when final is set.
         var quality = final ? 4 : 3;
         var args = new TextureArguments(final ? 1 : 0, hueShiftFixup, options.CompileArguments, algorithm == "None" ? "None" : "Box", quality);
-        return Write([levels], format, FlagTextureArray, EditInfo(LightmapArgument, searchPath, derived, args), nativeFolder, quality);
+        return Write([levels], format, FlagTextureArray, EditInfo(LightmapArgument, searchPath, derived, args), nativeFolder, quality, hueShiftFixup);
     }
 
     // GenerateMips_Box: each level a QuarterSize of the one above.
@@ -247,7 +245,8 @@ public static class LightmapTextures
 
     // The texture: each mip level (every slice in order) encoded, LZ4 HC'd when that pays,
     // stored smallest first behind RED2 and DATA; the mip sizes are listed from mip 0.
-    private static byte[] Write(RcMipChain.Level[][] slices, ImageFormat format, ushort flags, KVObject editInfo, string? nativeFolder, int quality)
+    private static byte[] Write(RcMipChain.Level[][] slices, ImageFormat format, ushort flags, KVObject editInfo, string? nativeFolder, int quality,
+                                bool hueShiftFixup = false)
     {
         var (width, height) = (slices[0][0].Width, slices[0][0].Height);
         var mipCount = slices[0].Length;
@@ -256,7 +255,7 @@ public static class LightmapTextures
         var lz4 = false;
         for (var m = 0; m < mipCount; m++)
         {
-            var mip = slices.SelectMany(slice => Encode(slice[m], format, nativeFolder, quality)).ToArray();
+            var mip = slices.SelectMany(slice => Encode(slice[m], format, nativeFolder, quality, hueShiftFixup)).ToArray();
             stored[m] = mip;
             if (!sizes)
                 continue;
@@ -318,13 +317,17 @@ public static class LightmapTextures
         return result;
     }
 
-    private static byte[] Encode(RcMipChain.Level image, ImageFormat format, string? nativeFolder, int quality)
+    private static byte[] Encode(RcMipChain.Level image, ImageFormat format, string? nativeFolder, int quality, bool hueShiftFixup = false)
     {
         switch (format)
         {
             case ImageFormat.Bc6h:
                 if (nativeFolder is null || !IspcTexcomp.Load(nativeFolder))
                     throw new InvalidOperationException("BC6H needs ispc_texcomp.dll (the CS2 install's game/bin/win64).");
+                // The texture compiler's encode flag 4 (hueShiftFixup): 180c46dd0, its trial encodes at quality 4.
+                if (hueShiftFixup)
+                    return Bc6hHueShift.Encode(image.Rgba, image.Width, image.Height, 1,
+                        (h, w, ht) => IspcTexcomp.CompressBc6h(h, w, ht, IspcTexcomp.Bc6hProfile(4)));
                 // The row fill (180c3ef20): each of R, G, B as max(0, x) with the sign cleared through the
                 // truncating float16 (1802ea750), alpha 1.0 (0x3c00).
                 var half = new Half[image.Rgba.Length];
@@ -335,9 +338,7 @@ public static class LightmapTextures
                         half[i] = BitConverter.UInt16BitsToHalf(0x3c00);
                         continue;
                     }
-                    var x = image.Rgba[i];
-                    var m = float.IsNaN(x) ? x : MathF.Max(0f, x);
-                    half[i] = BitConverter.UInt16BitsToHalf(Maps.WorldNodeModels.ToHalf(BitConverter.UInt32BitsToSingle(BitConverter.SingleToUInt32Bits(m) & 0x7fffffff)));
+                    half[i] = BitConverter.UInt16BitsToHalf(Bc6hHueShift.FillHalf(image.Rgba[i]));
                 }
                 // EncodeBC6Blocks (180c46b20): quality 3 is the slow profile, 4 (final) veryslow.
                 return IspcTexcomp.CompressBc6h(half, image.Width, image.Height, IspcTexcomp.Bc6hProfile(quality));

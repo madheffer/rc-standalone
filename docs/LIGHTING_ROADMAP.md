@@ -125,7 +125,7 @@ compile's arguments) against Valve's builds:
   dlshd atlas.
 - **`-lightmapVRadQuality 2`:** exact apart from two encoders.
   - The BC6H hue-shift fixup encoder (180c46dd0, 5 of 1,048,576 irradiance
-    blocks) is not ported; the note says so.
+    blocks): ported 10-20 (ledger 111).
   - bc7e gave 5 different blocks of the dlshd atlas: fixed 10-20 (ledger
     110), the native build is now ISPC's avx2-i32x8 as the game's bc7e.dll.
 
@@ -318,7 +318,7 @@ roadmap", closed; "Lighting compilation parity with Valve").
 | id | item | area | done when |
 |---|---|---|---|
 | L1 | GPU ground truth for the hit shaders (ledger 78, 79) | HitShaderOracleTests, HitContext, RtxScene.LoadTexture | BC4 / sRGB / BC1 decode and the bilinear filter emulated as the RTX 4070 does them, and only_slabs' per-luxel correlation near refl30all's (0.97). Decode measured; BC1 green table and the filter arithmetic open. |
-| L2 | BC6H hue-shift fixup encoder (port RC 180c46dd0 and helpers) | LightmapTextures, Texture/Rc | probe01's -lightmapVRadQuality 2 irradiance byte-exact (5 of 1,048,576 blocks differ today). |
+| L2 | BC6H hue-shift fixup encoder (port RC 180c46dd0 and helpers) | LightmapTextures, Texture/Rc | **done 10-20** (ledger 111): Bc6hHueShift with its trials, k-means and Lab error, tier0's powf (CrtMath.Pow) and a spec BC6H decoder; probe01's -lightmapVRadQuality 2 lightmaps/ files all byte for byte. |
 | L3 | bc7e mismatch on a few blocks | Native/bc7e | **done 10-20** (ledger 110): the native build is ISPC's avx2-i32x8, as the game's bc7e.dll runs on AVX2 and AVX-512 CPUs; Bc7eOracleTests matches the game's DLL on every block, ze_hold_em_p's seven lightmaps/ files and probe01 quality 2's dlshd atlas are byte for byte. vpkstuff's BC7 output follows with its next package. |
 | L4 | Baked world node with -vrad3output (F19) | MapCompile, WorldNodeFiles | a -vrad3output package's world node equals Valve's baked one (lightmap uvs, bake keys). |
 | L5 | M4 specimens: a light cookie, a fog irradiance volume, an env_farfield_probe_volume, compiled with Valve's tools plus vrad3 captures | captures (CS2 closed, with the operator) | each specimen captured, so M4's cookies, fog and far field can be ported against it. |
