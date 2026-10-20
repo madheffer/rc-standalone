@@ -79,8 +79,8 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         return mesh;
     }
 
-    /// <summary>The size of a navan_calls.bin record of <paramref name="kind"/>, its kind and thread id included.</summary>
-    internal static int RecordSize(int kind) => kind switch
+    /// <summary>The size of the navan_calls.bin record at <paramref name="p"/>.</summary>
+    internal static int RecordSize(byte[] b, int p) => BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p)) switch
     {
         1 => 8 + 0x80 + 8 + 0x1c + 12,
         2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4,
@@ -88,7 +88,9 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         4 => 8 + 12 + 12 + 8 + 0xd0,
         5 => 8 + 0x30 + 12 + 12 + 0x38 + 4 + 4 + 4,
         6 => 4 + 4 + 8 + 12 + 12 + 4 + 4 + 4 + 4 + 4, // no thread id
-        _ => throw new InvalidDataException($"record kind {kind}"),
+        7 => 16 + BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p + 12)) * (8 + 0x30),
+        9 => 8 + 16 * 0x38 + 4,
+        var kind => throw new InvalidDataException($"record kind {kind}"),
     };
 
     private static float F(byte[] b, int p) => BinaryPrimitives.ReadSingleLittleEndian(b.AsSpan(p));
@@ -173,7 +175,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = RecordSize(kind);
+            var n = RecordSize(b, p);
             if (kind == 1)
             {
                 var req = p + 8;
@@ -216,7 +218,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = RecordSize(kind);
+            var n = RecordSize(b, p);
             if (kind == 3)
             {
                 var id = BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 24));
@@ -246,7 +248,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = RecordSize(kind);
+            var n = RecordSize(b, p);
             if (kind == 2)
             {
                 var r = b.AsSpan(p + 8);
@@ -299,7 +301,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
                 else if (shown++ < 10)
                     output.WriteLine($"cast {total}: {start} + {delta} r {radius} max {max:R}: ours {got.Found} {got.Fraction:R}, Valve {returned} {want:R}");
             }
-            p += RecordSize(kind);
+            p += RecordSize(b, p);
         }
         output.WriteLine($"{same} of {total} mesh sphere casts Valve's");
         Assert.Equal(total, same);
@@ -339,9 +341,125 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
                 else if (shown++ < 10)
                     output.WriteLine($"world cast {total}: {start} + {delta}: ours {hits} {got:R}, Valve {wantHits} {want:R}");
             }
-            p += RecordSize(kind);
+            p += RecordSize(b, p);
         }
         output.WriteLine($"{same} of {total} world sphere casts Valve's");
         Assert.Equal(total, same);
+    }
+
+    /// <summary>The .nav's last KV3 block (the CS custom data), read back.</summary>
+    internal static ValveKeyValue.KVObject CustomData(byte[] nav)
+    {
+        var start = nav.AsSpan().LastIndexOf(new byte[] { 0x05, 0x33, 0x56, 0x4b });
+        using var holder = new ValveResourceFormat.Resource();
+        var kv3 = new ValveResourceFormat.ResourceTypes.BinaryKV3 { Resource = holder, Offset = (uint)start, Size = (uint)(nav.Length - start) };
+        using var reader = new BinaryReader(new MemoryStream(nav));
+        reader.BaseStream.Position = start;
+        kv3.Read(reader);
+        return kv3.Data.Root;
+    }
+
+    [Fact]
+    public void DumpCustomData()
+    {
+        if (Environment.GetEnvironmentVariable("NAV_DUMP") is not { Length: > 0 } path)
+            return;
+        File.WriteAllText(path, Source2.Compiler.Kv3TextWriter.Write(CustomData(BuiltNav(Dir(), "probe01")!), Guid.Empty));
+    }
+
+    /// <summary>The A* record snapshots (kind 7): stage, area id, and per area its id and the 0x30 record bytes.</summary>
+    internal static List<(int Stage, uint Area, List<(uint Id, byte[] Raw)> Records)> Snapshots(byte[] b)
+    {
+        var list = new List<(int, uint, List<(uint, byte[])>)>();
+        for (var p = 0; p < b.Length; p += RecordSize(b, p))
+        {
+            if (BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p)) != 7)
+                continue;
+            var n = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p + 12));
+            var recs = new List<(uint, byte[])>();
+            for (var i = 0; i < n; i++)
+            {
+                var o = p + 16 + i * 0x38;
+                recs.Add((BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(o)), b.AsSpan(o + 8, 0x30).ToArray()));
+            }
+            list.Add((BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p + 4)), BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 8)), recs));
+        }
+        return list;
+    }
+
+    /// <summary>Area pointer to id; the first Analyze call's dump (the mesh the custom data comes from) wins where a later one reused an address.</summary>
+    internal static Dictionary<ulong, uint> AreaIdsByPointer(string dir)
+    {
+        var ids = new Dictionary<ulong, uint>();
+        foreach (var f in Directory.GetFiles(dir, "navan_areas*.bin").OrderByDescending(f => f.Length).ThenByDescending(f => f, StringComparer.Ordinal))
+        {
+            var b = File.ReadAllBytes(f);
+            var n = BinaryPrimitives.ReadInt32LittleEndian(b);
+            var p = 4;
+            for (var i = 0; i < n; i++)
+            {
+                var ptr = BinaryPrimitives.ReadUInt64LittleEndian(b.AsSpan(p));
+                ids[ptr] = BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 8 + 0x60));
+                p += 8 + 0x490 + 0x14;
+                var edges = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
+                p += 4;
+                for (var e = 0; e < edges; e++)
+                {
+                    var c = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
+                    p += 4 + c * 0x10;
+                }
+            }
+        }
+        return ids;
+    }
+
+    /// <summary>
+    /// Our records against a snapshot: position bits, parent, how and back edge per area; the number
+    /// that differ, the first few written to the output.
+    /// </summary>
+    private int CompareRecords(NavAnalysis an, List<(uint Id, byte[] Raw)> valve, Dictionary<ulong, uint> idOf, string label)
+    {
+        var byId = an.Areas.ToDictionary(a => a.Id);
+        var bad = 0;
+        foreach (var (id, raw) in valve)
+        {
+            var area = byId[id];
+            var parentPtr = BinaryPrimitives.ReadUInt64LittleEndian(raw.AsSpan(0x18));
+            uint? parent = parentPtr == 0 ? null : idOf.TryGetValue(parentPtr, out var pid) ? pid : 0xdeadu;
+            var how = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(0x28));
+            var back = raw[0x2c];
+            var want = (F(raw, 0), F(raw, 4), F(raw, 8));
+            var ours = an.Records.GetValueOrDefault(area);
+            var same = ours != null && BitConverter.SingleToInt32Bits(ours.Pos.X) == BitConverter.SingleToInt32Bits(want.Item1)
+                       && BitConverter.SingleToInt32Bits(ours.Pos.Y) == BitConverter.SingleToInt32Bits(want.Item2)
+                       && BitConverter.SingleToInt32Bits(ours.Pos.Z) == BitConverter.SingleToInt32Bits(want.Item3)
+                       && ours.Parent?.Id == parent && ours.How == how && ours.BackEdge == back;
+            if (same)
+                continue;
+            if (bad++ < 8)
+                output.WriteLine($"{label} area {id}: ours {(ours == null ? "none" : $"{ours.Pos} parent {ours.Parent?.Id} how {ours.How} back {ours.BackEdge}")}, "
+                                 + $"Valve ({want.Item1:R}, {want.Item2:R}, {want.Item3:R}) parent {parent} how {how} back {back}");
+        }
+        return bad;
+    }
+
+    /// <summary>The records the occupy step's searches leave, against Valve's as the hiding-spot step starts.</summary>
+    [Fact]
+    public void RecordsAfterOccupyMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var b = File.ReadAllBytes(Path.Combine(dir, "navan_calls.bin"));
+        var snap = Snapshots(b).FirstOrDefault(s => s.Stage == 2);
+        if (snap.Records is null)
+            return;
+        var an = new NavAnalysis(ReadNav(nav));
+        var entities = Source2.Compiler.MapEntities.From(Source2.Compiler.DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")));
+        List<NavAnalysis.V> Spawns(string cls) => [.. entities.Where(e => e.ClassName == cls).Select(e => new NavAnalysis.V(e.Origin.X, e.Origin.Y, e.Origin.Z))];
+        an.EarliestOccupyTimes(Spawns("info_player_terrorist"), Spawns("info_player_counterterrorist"));
+        var bad = CompareRecords(an, snap.Records, AreaIdsByPointer(dir), "after occupy");
+        output.WriteLine($"{snap.Records.Count - bad} of {snap.Records.Count} records Valve's after the occupy step");
+        Assert.Equal(0, bad);
     }
 }

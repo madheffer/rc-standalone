@@ -7,7 +7,7 @@ namespace Source2.Compiler.Maps.NavGen;
 /// centre, bounds and grid server.dll 20261015 derives from its polygon; the .nav's corner pool,
 /// polygons and area order are the in-memory mesh's.
 /// </summary>
-public sealed class NavAnalysis
+public sealed partial class NavAnalysis
 {
     public readonly struct V(float x, float y, float z)
     {
@@ -600,12 +600,11 @@ public sealed class NavAnalysis
         public float F, G, Len;
     }
 
-    /// <summary>The open heap (min on F, 18039a3c0 / 18039a5d0 / 180397ef0), each area's crossing point and the closed set.</summary>
+    /// <summary>The open heap (min on F, 18039a3c0 / 18039a5d0 / 180397ef0) and the closed set (1814d3980 / 1814d3ac0 / 1814d3c70).</summary>
     private sealed class Search
     {
         public readonly List<HeapEntry> Heap = [];
         public readonly Dictionary<Area, int> Open = [];
-        public readonly Dictionary<Area, V> Pos = [];
         public readonly HashSet<Area> Closed = [];
 
         private void Swap(int i, int j)
@@ -678,31 +677,89 @@ public sealed class NavAnalysis
         }
     }
 
+    /// <summary>
+    /// An area's A* record (0x30 bytes, 1814d7200: indexed by area +0x64): the search position (+0), the
+    /// parent (+0x18), how the parent reached it (+0x28: the edge, 9 for a search's start) and the edge
+    /// back (+0x2c, 0xff for a start). Every search shares them and leaves them as they are, so a cost
+    /// that reads a neighbour's position before the search sets it sees an earlier search's.
+    /// </summary>
+    public sealed class Record
+    {
+        public V Pos;
+        public Area? Parent;
+        public int How;
+        public byte BackEdge;
+    }
+
+    /// <summary>Each area's record as the searches so far left it (absent: never searched).</summary>
+    public readonly Dictionary<Area, Record> Records = [];
+
+    private Record RecordOf(Area a)
+    {
+        if (!Records.TryGetValue(a, out var r))
+            Records[a] = r = new Record();
+        return r;
+    }
+
     private static float Dist(V a, V b)
         => MathF.Sqrt((a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z) + (a.X - b.X) * (a.X - b.X));
 
-    /// <summary>
-    /// 1814d96f0 -> 1814d9810 with CNavPathCost (walk links only): A* from <paramref name="start"/> at
-    /// <paramref name="startPos"/> to <paramref name="goal"/>; each step crosses the shared edge at
-    /// <see cref="Crossing"/> toward <paramref name="goalPos"/>, costing the straight distance (the
-    /// cost's vfn 0x80 returns it); f = g + |crossing - goal| * <paramref name="heuristic"/>. The path
-    /// length (the sum of those distances), or -1 when the goal is not reached.
-    /// </summary>
-    public float TravelDistance(Area start, Area goal, V startPos, V goalPos, float heuristic, int hull = 0)
+    /// <summary>A path cost's edge cost (the CNavPathCost family's vfn 0x90).</summary>
+    private interface IPathCost
     {
+        /// <summary>The cost of the step (negative refuses it); <paramref name="pos"/> is the search's position variable, which the cost may move.</summary>
+        float Cost(NavAnalysis nav, Area from, Area to, Link link, int edge, V goalPos, ref V pos);
+    }
+
+    /// <summary>
+    /// 1814d3e40 (CNavPathCost): the step crosses the shared edge at <see cref="Crossing"/> toward the
+    /// goal, the position moves there and the cost is the straight distance (vfn 0x80 returns it).
+    /// </summary>
+    private sealed class CrossingCost : IPathCost
+    {
+        public static readonly CrossingCost Instance = new();
+
+        public float Cost(NavAnalysis nav, Area from, Area to, Link link, int edge, V goalPos, ref V pos)
+        {
+            var curPos = nav.RecordOf(from).Pos;
+            var (p0, p1) = Portal(to, from, link.BackEdge, edge);
+            var cross = Crossing(p0, p1, curPos, goalPos);
+            pos = cross;
+            return MathF.Sqrt((curPos.Y - cross.Y) * (curPos.Y - cross.Y) + (curPos.Z - cross.Z) * (curPos.Z - cross.Z)
+                              + (curPos.X - cross.X) * (curPos.X - cross.X));
+        }
+    }
+
+    /// <summary>
+    /// 1814d9810, the A*: from <paramref name="start"/> (its record at <paramref name="startPos"/>, how 9)
+    /// to <paramref name="goal"/>. Each neighbour of the hull that is not closed (edge by edge, connections
+    /// in order: 1814e1950 with flags 1) costs <paramref name="cost"/>; f = g + |pos - goalPos| *
+    /// <paramref name="heuristic"/>. A neighbour already open with an f no greater is left alone; else its
+    /// record takes the position variable, the parent and the edge, and it goes on the heap. Whether the
+    /// goal was reached, and the path length (the sum of |pos - parent's position| along the way).
+    /// </summary>
+    private (bool Found, float Len) AStar(Area start, Area goal, V startPos, V goalPos, float heuristic, int hull, IPathCost cost)
+    {
+        var rs = RecordOf(start);
+        rs.Parent = null;
+        rs.How = 9;
+        rs.BackEdge = 0xff;
         if (start == goal)
-            return Dist(startPos, goalPos);
+        {
+            rs.Pos = startPos;
+            return (true, Dist(startPos, goalPos));
+        }
+        var pos = startPos;
         var s = new Search();
-        s.Pos[start] = startPos;
-        s.Push(start, Dist(startPos, goalPos) * heuristic + 0f, 0f, 0f);
+        rs.Pos = pos;
+        s.Push(start, Dist(pos, goalPos) * heuristic + 0f, 0f, 0f);
         while (s.Heap.Count > 0)
         {
             var cur = s.Pop();
             var area = cur.Area;
             s.Closed.Add(area);
             if (area == goal)
-                return cur.Len;
-            var curPos = s.Pos[area];
+                return (true, cur.Len);
             for (var e = 0; e < area.Links.Length; e++)
                 foreach (var link in area.Links[e])
                 {
@@ -711,24 +768,37 @@ public sealed class NavAnalysis
                         continue;
                     if (hull != -1 && n.Hull != hull)
                         continue;
-                    var (p0, p1) = Portal(n, area, link.BackEdge, e);
-                    var cross = Crossing(p0, p1, curPos, goalPos);
-                    var cost = MathF.Sqrt((curPos.Y - cross.Y) * (curPos.Y - cross.Y) + (curPos.Z - cross.Z) * (curPos.Z - cross.Z)
-                                          + (curPos.X - cross.X) * (curPos.X - cross.X));
-                    if (!(0f <= cost))
+                    var c = cost.Cost(this, area, n, link, e, goalPos, ref pos);
+                    if (!(0f <= c))
                         continue;
-                    var g = cur.G + cost;
-                    var len = MathF.Sqrt((cross.Y - curPos.Y) * (cross.Y - curPos.Y) + (cross.Z - curPos.Z) * (cross.Z - curPos.Z)
-                                         + (cross.X - curPos.X) * (cross.X - curPos.X)) + cur.Len;
-                    var f = MathF.Sqrt((cross.Z - goalPos.Z) * (cross.Z - goalPos.Z) + (cross.Y - goalPos.Y) * (cross.Y - goalPos.Y)
-                                       + (cross.X - goalPos.X) * (cross.X - goalPos.X)) * heuristic + g;
+                    var g = cur.G + c;
+                    var curPos = RecordOf(area).Pos;
+                    var len = MathF.Sqrt((pos.Y - curPos.Y) * (pos.Y - curPos.Y) + (pos.Z - curPos.Z) * (pos.Z - curPos.Z)
+                                         + (pos.X - curPos.X) * (pos.X - curPos.X)) + cur.Len;
+                    var f = MathF.Sqrt((pos.Z - goalPos.Z) * (pos.Z - goalPos.Z) + (pos.Y - goalPos.Y) * (pos.Y - goalPos.Y)
+                                       + (pos.X - goalPos.X) * (pos.X - goalPos.X)) * heuristic + g;
                     if (s.Open.TryGetValue(n, out var idx) && idx >= 0 && s.Heap[idx].F <= f)
                         continue;
-                    s.Pos[n] = cross;
+                    var r = RecordOf(n);
+                    r.Parent = area;
+                    r.How = e;
+                    r.BackEdge = (byte)link.BackEdge;
+                    r.Pos = pos;
                     s.Push(n, f, g, len);
                 }
         }
-        return -1f;
+        return (false, 0f);
+    }
+
+    /// <summary>
+    /// 1814d96f0 -> 1814d9810 with CNavPathCost (<see cref="CrossingCost"/>): the path length from
+    /// <paramref name="start"/> at <paramref name="startPos"/> to <paramref name="goal"/> at
+    /// <paramref name="goalPos"/>, or -1 when the goal is not reached.
+    /// </summary>
+    public float TravelDistance(Area start, Area goal, V startPos, V goalPos, float heuristic, int hull = 0)
+    {
+        var (found, len) = AStar(start, goal, startPos, goalPos, heuristic, hull, CrossingCost.Instance);
+        return found ? len : -1f;
     }
 
     // ---- earliest occupy times ----

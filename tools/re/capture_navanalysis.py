@@ -29,6 +29,12 @@ computes the .nav's custom data (ledger 103):
                                  sphere 18024c210, capsule 18024f080) inside one, with no thread id: u32 shape type, u64
                                  shape, local start 12, local delta 12, radius, max fraction, u32
                                  returned, f32 result fraction, u32 index of the world call.
+                         kind 7: the A* records (1814d7200) when an analysis step starts, with no thread
+                                 id: u32 stage (1 occupy, 2 hiding spots, 3 encounter spots, 4 one
+                                 area's approach areas, 5 1803957f0), u32 area id (stage 4) or -1, u32
+                                 area count, then per area (mesh order) u32 id (+0x60), u32 +0x64, 0x30;
+                         kind 9: after 180393060, no thread id: u32 area id, the 16 approach entries
+                                 (+0x108, 0x38 each), 4 bytes from +0x488 (the count).
   <out>/navan_shapedata.bin  each shape once, as capture_navcast.py's navcast_shapedata.bin.
   A second Analyze call (the mesh analysed again) writes navan_areas_2.bin.
 """
@@ -189,6 +195,28 @@ function hook() {
     onLeave(ret) {
       put(cat([u32(3), u32(Process.getCurrentThreadId()), u64(this.area), this.area.add(200).readByteArray(8), u32(this.area.add(0x60).readU32())]));
     }
+  });
+  // The A* records (0x30 bytes each, 1814d7200: by area +0x64) as each analysis step starts and as
+  // each area's approach areas are computed, then the approach result.
+  const recordOf = new NativeFunction(base.add(0x1814d7200), 'pointer', ['pointer']);
+  function snapshot(stage, id) {
+    try {
+      const mesh = base.add(0x182341968).readPointer();
+      const n = mesh.add(8).readS32();
+      const arr = mesh.add(0x10).readPointer();
+      const parts = [u32(7), u32(stage), u32(id), u32(n)];
+      for (let i = 0; i < n; i++) {
+        const a = arr.add(i * 8).readPointer();
+        parts.push(u32(a.add(0x60).readU32()), u32(a.add(0x64).readU32()), recordOf(a).readByteArray(0x30));
+      }
+      put(cat(parts));
+    } catch (e) { err(e); }
+  }
+  for (const [rva, stage] of [[0x1803935e0, 1], [0x180394b10, 2], [0x180393ea0, 3], [0x1803957f0, 5]])
+    Interceptor.attach(base.add(rva), { onEnter() { snapshot(stage, 0xffffffff); } });
+  Interceptor.attach(base.add(0x180393060), {
+    onEnter(a) { this.area = a[0]; snapshot(4, a[0].add(0x60).readU32()); },
+    onLeave() { try { put(cat([u32(9), u32(this.area.add(0x60).readU32()), this.area.add(0x108).readByteArray(16 * 0x38), this.area.add(0x488).readByteArray(4)])); } catch (e) { err(e); } }
   });
   const traceHook = {
     onEnter(a) { this.s = a[1].readByteArray(12); this.e = a[2].readByteArray(12); this.f = a[3]; this.r = a[4]; },
