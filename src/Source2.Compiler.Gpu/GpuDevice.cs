@@ -88,9 +88,11 @@ public sealed unsafe class GpuDevice : IDisposable
             StorageBuffer16BitAccess = rayTracingShaderFeatures,
             UniformAndStorageBuffer16BitAccess = rayTracingShaderFeatures,
         };
-        var rtPipeline = new PhysicalDeviceRayTracingPipelineFeaturesKHR { SType = StructureType.PhysicalDeviceRayTracingPipelineFeaturesKhr, RayTracingPipeline = true };
+        // Ray queries for the far field's metrics compute (rtx_vrad3_farfield_metrics).
+        var rayQuery = new PhysicalDeviceRayQueryFeaturesKHR { SType = StructureType.PhysicalDeviceRayQueryFeaturesKhr, RayQuery = true };
+        var rtPipeline = new PhysicalDeviceRayTracingPipelineFeaturesKHR { SType = StructureType.PhysicalDeviceRayTracingPipelineFeaturesKhr, PNext = &rayQuery, RayTracingPipeline = true };
         var executables = new PhysicalDevicePipelineExecutablePropertiesFeaturesKHR { SType = StructureType.PhysicalDevicePipelineExecutablePropertiesFeaturesKhr, PipelineExecutableInfo = true };
-        rtPipeline.PNext = &executables;
+        rayQuery.PNext = &executables;
         uint extensionCount = 0;
         Vk.EnumerateDeviceExtensionProperties(Physical, (byte*)null, &extensionCount, null);
         var available = new ExtensionProperties[extensionCount];
@@ -137,7 +139,7 @@ public sealed unsafe class GpuDevice : IDisposable
                 ShaderStorageImageWriteWithoutFormat = rayTracing,
             },
         };
-        string[] extensions = rayTracing ? ["VK_KHR_acceleration_structure", "VK_KHR_ray_tracing_pipeline", "VK_KHR_deferred_host_operations", "VK_KHR_pipeline_executable_properties"] : [];
+        string[] extensions = rayTracing ? ["VK_KHR_acceleration_structure", "VK_KHR_ray_tracing_pipeline", "VK_KHR_deferred_host_operations", "VK_KHR_pipeline_executable_properties", "VK_KHR_ray_query"] : [];
         if (InvocationReorder)
             extensions = [.. extensions, "VK_NV_ray_tracing_invocation_reorder"];
         var extensionNames = (byte**)SilkMarshal.StringArrayToPtr(extensions);

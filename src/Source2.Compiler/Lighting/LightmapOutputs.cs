@@ -131,7 +131,72 @@ public static class LightmapOutputs
             outputs.Add(new($"{prefix}fog_irradiance_volume.vtex_c",
                 LightmapTextures.FogIrradianceVtex(image, fog.X, fog.Y, fog.Z, searchPath, nativeFolder, options.CompileArguments)));
         }
+        Farfields(folder, prefix, searchPath, nativeFolder, options, outputs, note);
         return outputs;
+    }
+
+    /// <summary>
+    /// The far field textures (resourcecompiler 1801f0dd0), per compute_farfield_&lt;n&gt; routine in the
+    /// script: farfield_&lt;n&gt;_bricks.kv3's cells and descriptors into env_farfield_&lt;n&gt;_indirection,
+    /// then ff/farfield_&lt;n&gt;_{dc,sh1_r,sh1_g,sh1_b}_zNN.exr into _sh2_dc, _sh2_l1r, _sh2_l1g and
+    /// _sh2_l1b. RC stops at the first file that does not load, a zero cell count, a brick count
+    /// outside 1..0x7c0, or a slice that is not 1056 by the atlas height rounded up to 4 (so a far
+    /// field of 32 bricks or fewer, whose 33-row slices fall short of 36, gets its indirection only).
+    /// </summary>
+    private static void Farfields(string folder, string prefix, string searchPath, string nativeFolder, Options options,
+                                  List<MapCompile.Output> outputs, Action<string>? note)
+    {
+        var script = Path.Combine(folder, "script-gpu.vrad3");
+        if (!File.Exists(script))
+            return;
+        var indices = File.ReadLines(script).Select(l => l.Trim())
+            .Where(l => l.StartsWith("compute_farfield_", StringComparison.Ordinal) && l.EndsWith(':'))
+            .Select(l => int.Parse(l["compute_farfield_".Length..^1], CultureInfo.InvariantCulture)).ToList();
+        foreach (var n in indices)
+        {
+            var bricksFile = Path.Combine(folder, $"farfield_{n}_bricks.kv3");
+            if (!File.Exists(bricksFile))
+            {
+                note?.Invoke($"far field {n}: no {Path.GetFileName(bricksFile)} (as resourcecompiler, no far field textures from here on)");
+                return;
+            }
+            var text = File.ReadAllText(bricksFile);
+            int Int(string key) => System.Text.RegularExpressions.Regex.Match(text, $@"\b{key} = (\d+)") is { Success: true } m ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
+            int x = Int("cells_x"), y = Int("cells_y"), z = Int("cells_z");
+            var bricks = System.Text.RegularExpressions.Regex.Matches(text, @"\blevel = ").Count;
+            if (x == 0 || y == 0 || z == 0 || (uint)(bricks - 1) > 0x7bf)
+                return;
+            var at = text.IndexOf("cell_descriptors", StringComparison.Ordinal);
+            var descriptors = System.Text.RegularExpressions.Regex.Matches(text[at..], @"\d+").Select(m => uint.Parse(m.Value, CultureInfo.InvariantCulture)).ToArray();
+            if (descriptors.Length != x * y * z)
+                return;
+            outputs.Add(new($"{prefix}env_farfield_{n}_indirection.vtex_c", LightmapTextures.FarfieldIndirectionVtex(descriptors, x, y, z, searchPath, options.CompileArguments)));
+            var height = ((bricks + 31) >> 5) * 33;
+            height = height == 0 ? 4 : (height + 3) & ~3;
+            foreach (var (image, name, format) in new[]
+                     {
+                         ("dc", "sh2_dc", LightmapTextures.ImageFormat.Bc6h), ("sh1_r", "sh2_l1r", LightmapTextures.ImageFormat.Bc7),
+                         ("sh1_g", "sh2_l1g", LightmapTextures.ImageFormat.Bc7), ("sh1_b", "sh2_l1b", LightmapTextures.ImageFormat.Bc7),
+                     })
+            {
+                var rgba = new float[FarfieldAtlas.Width * height * 33 * 4];
+                for (var slice = 0; slice < 33; slice++)
+                {
+                    var path = Path.Combine(folder, "ff", $"farfield_{n}_{image}_z{slice:D2}.exr");
+                    if (!File.Exists(path))
+                        return;
+                    var exr = Vrad3Exr.Read(File.ReadAllBytes(path));
+                    if (exr.Width != FarfieldAtlas.Width || exr.Height != height)
+                    {
+                        note?.Invoke($"far field {n}: {Path.GetFileName(path)} is {exr.Width}x{exr.Height}, resourcecompiler expects {FarfieldAtlas.Width}x{height} (no more far field textures, as resourcecompiler)");
+                        return;
+                    }
+                    LightmapTextures.Bitmap(exr).Rgba.CopyTo(rgba, slice * FarfieldAtlas.Width * height * 4);
+                }
+                var stacked = new RcTexture.RcMipChain.Level(FarfieldAtlas.Width, height * 33, rgba);
+                outputs.Add(new($"{prefix}env_farfield_{n}_{name}.vtex_c", LightmapTextures.FarfieldAtlasVtex(stacked, height, format, searchPath, nativeFolder, options.CompileArguments)));
+            }
+        }
     }
 
     /// <summary>The script's fog_irradiance_volume routine's lpv_cells, or null without one.</summary>

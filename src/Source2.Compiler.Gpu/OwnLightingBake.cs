@@ -18,13 +18,16 @@ namespace Source2.Compiler.Gpu;
 public static class OwnLightingBake
 {
     /// <summary>Bakes the job in <paramref name="folder"/>, writing the EXRs vrad3 would beside its inputs.</summary>
-    public static void Run(string folder, GameContent content, TextWriter log)
+    public static void Run(string folder, GameContent content, TextWriter log) => Run(folder, content, log, false);
+
+    /// <summary>As above; <paramref name="farfieldOnly"/> skips the lightmap, the probe volumes and the fog (a check of the far field alone).</summary>
+    public static void Run(string folder, GameContent content, TextWriter log, bool farfieldOnly)
     {
         // RayScene.Build recurses deeper than Windows' 1 MB default stack on a whole map.
         System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
         var thread = new Thread(() =>
         {
-            try { RunOnThread(folder, content, log); }
+            try { RunOnThread(folder, content, log, farfieldOnly); }
             catch (Exception e) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e); }
         }, 256 << 20);
         thread.Start();
@@ -32,7 +35,7 @@ public static class OwnLightingBake
         failure?.Throw();
     }
 
-    private static void RunOnThread(string folder, GameContent content, TextWriter log)
+    private static void RunOnThread(string folder, GameContent content, TextWriter log, bool farfieldOnly)
     {
         var game = Path.GetDirectoryName(Path.GetDirectoryName(content.PakPath)!)!;
         using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
@@ -93,7 +96,7 @@ public static class OwnLightingBake
         var scriptLines = File.ReadAllLines(Path.Combine(folder, "script-gpu.vrad3"));
         var script = Script.Parse(scriptLines);
         var routine = scriptLines.SkipWhile(l => l.Trim() != "process_all_lightmap_blocks:").Skip(1).ToList();
-        if (routine.Count == 0)
+        if (routine.Count == 0 && !farfieldOnly)
             throw new InvalidDataException("script-gpu.vrad3 has no process_all_lightmap_blocks routine");
         log.WriteLine($"  bake: {scene.Instances.Count} instances, {scene.Meshes.Count} meshes, {scene.Lights.Count} lights, {script.Volumes.Count} probe volumes");
 
@@ -103,6 +106,11 @@ public static class OwnLightingBake
         using (var device = new GpuDevice(rayTracing: true))
         using (var host = new RtxBakeHost(device, scene, rtx, rtxShaders, Read, haltonPermutations: permutations, iblTexture: sky))
         {
+            if (farfieldOnly)
+            {
+                Farfields(host, scene, scriptLines, folder, log);
+                return;
+            }
             var baker = new LightmapBaker(scene, packing, permutations)
             {
                 Rtx = rtx, Device = host, Passes = script.LightmapMaxSpp, MinSpp = script.LightmapMinSpp, Error = script.LightmapError,
@@ -147,8 +155,117 @@ public static class OwnLightingBake
                 File.WriteAllBytes(Path.Combine(folder, f.Output), Rgba(f.X * f.Z, f.Y, fog).Write());
                 log.WriteLine($"  bake: fog irradiance volume ({f.X}x{f.Y}x{f.Z}) at {watch.Elapsed.TotalSeconds:F1} s");
             }
+
+            Farfields(host, scene, scriptLines, folder, log);
         }
 
+    }
+
+    /// <summary>
+    /// Each compute_farfield_&lt;n&gt; routine's commands in order: farfield_box, farfield_local_to_world,
+    /// farfield_cells, farfield_max_memory, farfield_compute_bricks (<see cref="FarfieldBricks"/>; the
+    /// metrics on the GPU), farfield_voxelize_bricks (run with the lighting), farfield_compute_lighting
+    /// [spp] [bricks per batch] (<see cref="RtxBakeHost.FarfieldLighting"/>, <see cref="FarfieldAtlas"/>),
+    /// farfield_write_atlas &lt;path&gt; [-suffix &lt;s&gt;].
+    /// </summary>
+    private static void Farfields(RtxBakeHost host, BakeScene scene, string[] lines, string folder, TextWriter log)
+    {
+        float[]? box = null, l2w = null;
+        int[]? cells = null;
+        var maxMb = FarfieldBricks.DefaultMaxMegabytes;
+        FarfieldBricks.Grid? grid = null;
+        FarfieldBricks.Result? bricks = null;
+        FarfieldAtlas? atlas = null;
+        uint[]? solid = null;
+        static float[] F(string line) => line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => float.Parse(x, CultureInfo.InvariantCulture)).ToArray();
+        foreach (var raw in lines)
+        {
+            var line = raw.Trim();
+            var words = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length == 0 || line.StartsWith("//", StringComparison.Ordinal))
+                continue;
+            switch (words[0])
+            {
+                case "farfield_box":
+                    box = F(line);
+                    break;
+                case "farfield_local_to_world":
+                    l2w = F(line);
+                    break;
+                case "farfield_cells":
+                    cells = [.. F(line).Select(x => (int)x)];
+                    break;
+                case "farfield_max_memory":
+                    maxMb = F(line)[0];
+                    break;
+                case "farfield_compute_bricks" when box != null && l2w != null && cells != null:
+                {
+                    grid = new FarfieldBricks.Grid(new(box[0], box[1], box[2]), new(box[3], box[4], box[5]), l2w, cells[0], cells[1], cells[2]);
+                    var occupied = FarfieldBricks.Occupancy(grid, Triangles(scene));
+                    var samples = host.FarfieldMetrics(grid, occupied);
+                    bricks = FarfieldBricks.Compute(grid, samples, maxMb, m => log.WriteLine(m));
+                    File.WriteAllText(Path.Combine(folder, words[1]), FarfieldBricks.Kv3(grid, bricks));
+                    log.WriteLine($"  bake: far field {words[1]}, {bricks.Bricks.Count - 1} bricks");
+                    break;
+                }
+                case "farfield_compute_lighting" when grid != null && bricks != null:
+                {
+                    var spp = words.Length > 1 ? int.Parse(words[1], CultureInfo.InvariantCulture) : 0x80;
+                    var batch = words.Length > 2 ? int.Parse(words[2], CultureInfo.InvariantCulture) : 0x200;
+                    (var luxels, solid) = host.FarfieldLighting(grid, bricks.Bricks, spp, batch, m => log.WriteLine(m));
+                    atlas = FarfieldAtlas.FromLuxels(bricks.Bricks.Count, luxels, m => log.WriteLine(m));
+                    break;
+                }
+                case "farfield_median_filter" when atlas != null:
+                {
+                    var passes = words.Length > 1 ? Math.Max(int.Parse(words[1], CultureInfo.InvariantCulture), 0) : 1;
+                    if (passes > 0)
+                        FarfieldFilters.Median(atlas, solid, passes);
+                    break;
+                }
+                case "farfield_dilate" when atlas != null && solid != null && grid != null && bricks != null:
+                {
+                    var passes = words.Length > 1 ? Math.Max(int.Parse(words[1], CultureInfo.InvariantCulture), 0) : 2;
+                    if (passes > 0)
+                        FarfieldFilters.Dilate(atlas, solid, grid, bricks.Bricks, bricks.Descriptors, passes, m => log.WriteLine(m));
+                    break;
+                }
+                case "farfield_filter_fireflies" when atlas != null:
+                {
+                    var multiplier = words.Length > 1 ? Math.Max(float.Parse(words[1], CultureInfo.InvariantCulture), 0f) : 4f;
+                    if (multiplier > 0f)
+                        FarfieldFilters.Fireflies(atlas, multiplier, m => log.WriteLine(m));
+                    break;
+                }
+                case "farfield_resample_borders" when atlas != null && grid != null && bricks != null:
+                    FarfieldFilters.ResampleBorders(atlas, grid, bricks.Bricks, bricks.Descriptors);
+                    break;
+                case "farfield_write_atlas" when atlas != null:
+                {
+                    var at = Array.IndexOf(words, "-suffix");
+                    atlas.Write(Path.Combine(folder, words[1]), at > 0 && at + 1 < words.Length ? words[at + 1] : "");
+                    break;
+                }
+                default:
+                    if (words[0].StartsWith("farfield_", StringComparison.Ordinal) && words[0] != "farfield_voxelize_bricks")
+                        log.WriteLine($"  bake: {words[0]} is not ported");
+                    break;
+            }
+        }
+    }
+
+    // Every instance's triangles in world space, as sceneinfo_gpu's instance transforms place them.
+    private static IEnumerable<(System.Numerics.Vector3, System.Numerics.Vector3, System.Numerics.Vector3)> Triangles(BakeScene scene)
+    {
+        foreach (var inst in scene.Instances)
+        {
+            var mesh = scene.Meshes[inst.Mesh];
+            var m = inst.ObjectToWorld;
+            float[] t = [m.M11, m.M21, m.M31, m.M41, m.M12, m.M22, m.M32, m.M42, m.M13, m.M23, m.M33, m.M43];
+            var world = mesh.Positions.Select(p => FarfieldBricks.Transform(t, p)).ToArray();
+            for (var i = 0; i + 2 < mesh.Indices.Length; i += 3)
+                yield return (world[mesh.Indices[i]], world[mesh.Indices[i + 1]], world[mesh.Indices[i + 2]]);
+        }
     }
 
     private static Vrad3Exr Rgba(int width, int height, float[] rgba)

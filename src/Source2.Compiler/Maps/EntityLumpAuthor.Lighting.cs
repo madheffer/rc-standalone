@@ -80,6 +80,16 @@ public static partial class EntityLumpAuthor
         public Source2.Compiler.Lighting.Vrad3Job.FogVolume? Fog { get; init; }
 
         /// <summary>
+        /// The far field probe volumes (180240a60): every env_farfield_probe_volume in export order,
+        /// numbered by the export's counter (+0x314), its local box_mins / box_maxs, its local-to-world
+        /// and cell_size (256).
+        /// </summary>
+        public IReadOnlyList<Source2.Compiler.Lighting.Vrad3Job.FarfieldVolume> Farfields { get; init; } = [];
+
+        /// <summary>Each env_farfield_probe_volume's index in <see cref="Farfields"/>.</summary>
+        public IReadOnlyDictionary<MapEntities.Entity, int> FarfieldIndex { get; init; } = new Dictionary<MapEntities.Entity, int>();
+
+        /// <summary>
         /// The counters over the entities in export order. The handshake starts
         /// at the map path's MurmurHash2 (seed 0x3501a674, lower case, back
         /// slashes, 31 bits, backed off by 0xff near the top) and takes one per
@@ -138,6 +148,20 @@ public static partial class EntityLumpAuthor
                 var o = fogEntity.Origin;
                 fog = new(fx, fy, fz, new(o.X + mins[0], o.Y + mins[1], o.Z + mins[2]), new(o.X + maxs[0], o.Y + maxs[1], o.Z + maxs[2]));
             }
+            var farfields = new List<Source2.Compiler.Lighting.Vrad3Job.FarfieldVolume>();
+            var farfieldIndex = new Dictionary<MapEntities.Entity, int>(ReferenceEqualityComparer.Instance);
+            foreach (var e in order)
+            {
+                if (!e.ClassName.EqualsAscii(FarfieldClass))
+                    continue;
+                var table = KeyTable(e, schema);
+                string? Key(string name) => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
+                var mins = CNumbers.FloatArray(Key("box_mins") ?? "0 0 0", 3);
+                var maxs = CNumbers.FloatArray(Key("box_maxs") ?? "0 0 0", 3);
+                var cell = Key("cell_size") is { } size ? CNumbers.FloatArray(size, 1)[0] : 256f;
+                farfieldIndex[e] = farfields.Count;
+                farfields.Add(new(farfields.Count, new(mins[0], mins[1], mins[2]), new(maxs[0], maxs[1], maxs[2]), Maps.LightPrecompute.World(e.Origin, e.Angles), cell));
+            }
             foreach (var e in order)
             {
                 if (!handshake.TryGetValue(e, out var h))
@@ -166,6 +190,8 @@ public static partial class EntityLumpAuthor
                 Volumes = new(cubemaps, probes),
                 ProbeJobs = jobs,
                 Fog = fog,
+                Farfields = farfields,
+                FarfieldIndex = farfieldIndex,
                 VisClusters = baked && scene is not null && visClusterBoxes is not null
                     ? LightVisMembership(order, schema, scene, visClusterBoxes) : null,
             };
@@ -386,6 +412,18 @@ public static partial class EntityLumpAuthor
             if (lighting.Baked)
                 Put(values, "fogirradiancevolume", ResourceValue($"{lighting.MapPath}/lightmaps/fog_irradiance_volume.vtex"));
         }
+        // The far field's texture keys: empty without baked lighting, else the env_farfield textures
+        // (EntityKv_SetResource). Valve's %d is a local only the probe branch sets (uninitialised for
+        // a far field; 0 on s2c_l5farfield128); the volume's own index is written, which RC names the textures by.
+        if (lighting.FarfieldIndex.TryGetValue(entity, out var ff))
+        {
+            string Texture(string suffix) => lighting.Baked ? $"{lighting.MapPath}/lightmaps/env_farfield_{ff}_{suffix}.vtex" : "";
+            Put(values, "farfield_indirection", ResourceValue(Texture("indirection")));
+            Put(values, "farfield_sh2_dc", ResourceValue(Texture("sh2_dc")));
+            Put(values, "farfield_sh2_l1_r", ResourceValue(Texture("sh2_l1r")));
+            Put(values, "farfield_sh2_l1_g", ResourceValue(Texture("sh2_l1g")));
+            Put(values, "farfield_sh2_l1_b", ResourceValue(Texture("sh2_l1b")));
+        }
         if (lighting.CubeIndex.TryGetValue(entity, out var index)
             && !(values.ContainsKey("customcubemaptexture") && values["customcubemaptexture"] is { } custom && IsTrue(custom)))
         {
@@ -395,6 +433,8 @@ public static partial class EntityLumpAuthor
     }
 
     private const string FogClass = "env_volumetric_fog_controller";
+
+    private const string FarfieldClass = "env_farfield_probe_volume";
 
     /// <summary>
     /// A fog controller's irradiance grid (180240a60, every env_volumetric_fog_controller, IndirectEnabled

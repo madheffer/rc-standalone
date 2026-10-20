@@ -233,7 +233,8 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         var perView = Keep(gpu.Upload(new byte[640], BufferUsageFlags.UniformBufferBit));
 
         // Layouts: sets 0 to 2 empty, 3 to 6 as Valve's programs declare them.
-        const ShaderStageFlags rt = ShaderStageFlags.RaygenBitKhr | ShaderStageFlags.ClosestHitBitKhr | ShaderStageFlags.AnyHitBitKhr | ShaderStageFlags.MissBitKhr;
+        // Compute too: the far field metrics read set 3's acceleration structure with ray queries.
+        const ShaderStageFlags rt = ShaderStageFlags.RaygenBitKhr | ShaderStageFlags.ClosestHitBitKhr | ShaderStageFlags.AnyHitBitKhr | ShaderStageFlags.MissBitKhr | ShaderStageFlags.ComputeBit;
         (int Set, uint Binding, DescriptorType Type, uint Count)[] bindings =
         [
             (3, 0, DescriptorType.UniformBuffer, 1), (3, 14, DescriptorType.Sampler, 1), (3, 15, DescriptorType.Sampler, 1),
@@ -1170,6 +1171,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         DestroyRaster();
         DestroySmallCharts();
         DestroyTestConverged();
+        DestroyFarfield();
         if (_halton.Handle != 0)
         {
             _vk.DestroyPipeline(_gpu.Device, _halton, null);

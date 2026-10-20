@@ -31,6 +31,12 @@ public static class Vrad3Job
     /// <summary>The fog irradiance volume: its grid and its world box (identity local-to-world).</summary>
     public sealed record FogVolume(int X, int Y, int Z, Vector3 Mins, Vector3 Maxs);
 
+    /// <summary>
+    /// A far field probe volume (180240a60's 0xa50 record): its index (the export's counter), the
+    /// local box_mins / box_maxs, the local-to-world from origin and angles, and cell_size (256).
+    /// </summary>
+    public sealed record FarfieldVolume(int Index, Vector3 Mins, Vector3 Maxs, float[] LocalToWorld, float CellSize);
+
     /// <summary>lpv_compute_block_fog_gpu's samples per quality (182a88578 min, 182a88568 max) and the fog median (182a885a8).</summary>
     internal static readonly int[] FogMinSpp = [64, 256, 512], FogMaxSpp = [64, 512, 1024], FogMedian = [3, 3, 3];
 
@@ -42,7 +48,7 @@ public static class Vrad3Job
     public static void Write(string folder, DmxBinary.Document document, GameContent content, ShaderLibrary shaders,
                              Func<string, bool> rendersAsWorld, IEnumerable<(string Path, byte[] Bytes)> lumps,
                              Func<string, byte[]?> packageModel, IReadOnlyList<Volume> volumes, int quality = 0, bool? repack = null,
-                             IReadOnlyDictionary<string, object>? arguments = null, FogVolume? fog = null)
+                             IReadOnlyDictionary<string, object>? arguments = null, FogVolume? fog = null, IReadOnlyList<FarfieldVolume>? farfields = null)
     {
         if (quality is < 0 or > 2)
             throw new NotSupportedException($"-lightmapVRadQuality {quality}");
@@ -159,7 +165,7 @@ public static class Vrad3Job
         File.WriteAllBytes(Path.Combine(folder, "scene_meshes.kv3"), PathTraceScene.MeshesFile(meshes));
         File.WriteAllText(Path.Combine(folder, "scene_info.kv3"), PathTraceScene.InfoFile(instances, SceneLights.Ibl(sky, SkyNamed), lights, cameras));
         File.WriteAllText(Path.Combine(folder, "script-gpu.vrad3"), Script(settings.Width >> (settings.Mip - 1), settings.Height >> (settings.Mip - 1), blockSize, settings.Mip, volumes, quality,
-                                                                                         repack ?? LightmapChartRepacking.RepacksAt(quality), fog));
+                                                                                         repack ?? LightmapChartRepacking.RepacksAt(quality), fog, farfields));
     }
 
     /// <summary>
@@ -170,7 +176,7 @@ public static class Vrad3Job
     /// adds lightmap_ameliorate_block_compression_artefacts after the weld.
     /// </summary>
     public static string Script(int width, int height, int blockSize, int mips, IReadOnlyList<Volume> volumes, int quality = 0, bool repack = false,
-                                FogVolume? fog = null)
+                                FogVolume? fog = null, IReadOnlyList<FarfieldVolume>? farfields = null)
     {
         var c = CultureInfo.InvariantCulture;
         var s = new StringBuilder();
@@ -201,7 +207,7 @@ public static class Vrad3Job
         }
         s.Append("    timer_stop\n    timer_poll\n    println Lightmapping took $timer seconds\n    done\n\nlightmap_free_memory\n");
         if (volumes.Count == 0)
-            return s.Append(FogRoutine(fog, quality)).ToString();
+            return s.Append(FogRoutine(fog, quality)).Append(FarfieldRoutines(farfields)).ToString();
         s.Append("\n//\n// Light Probe Volumes\n//\nlpv_type ambient_cube\n");
         foreach (var v in volumes)
             s.Append(c, $"run compute_lpv_{v.Id}\n");
@@ -225,7 +231,35 @@ public static class Vrad3Job
             s.Append(c, $"    lpv_image_remove_fireflies 3 lpv_{v.Id}_fireflies.exr\n    lpv_image_resolve \n    lpv_image_median_filter {LpvMedian[quality]}\n");
             s.Append(c, $"    lpv_image_write_ambientcube lpv_{v.Id}_ambientcube.exr\n    lpv_image_write_direct_light_shadows  lpv_{v.Id}_dlshd.exr\n    done\n");
         }
-        return s.Append(FogRoutine(fog, quality)).ToString();
+        return s.Append(FogRoutine(fog, quality)).Append(FarfieldRoutines(farfields)).ToString();
+    }
+
+    /// <summary>
+    /// The far field routines (resourcecompiler 1801ee9f0), after the fog: a run line per volume, then
+    /// each compute_farfield_&lt;n&gt;: the box, the local-to-world, the cells (round to nearest even of
+    /// the box's side over cell_size, at least 1), the bricks file, the voxelize, 1024 spp, median 1,
+    /// dilate 3, fireflies 4.0, the borders and the atlas (the commented-out debug writes left out).
+    /// </summary>
+    private static string FarfieldRoutines(IReadOnlyList<FarfieldVolume>? farfields)
+    {
+        if (farfields is not { Count: > 0 })
+            return "";
+        var c = CultureInfo.InvariantCulture;
+        var s = new StringBuilder("\n//\n// Farfield Probe Volumes\n//\n");
+        foreach (var f in farfields)
+            s.Append(c, $"run compute_farfield_{f.Index}\n");
+        foreach (var f in farfields)
+        {
+            int Cells(float lo, float hi) => Math.Max((int)MathF.Round((hi - lo) / f.CellSize, MidpointRounding.ToEven), 1);
+            s.Append(c, $"\ncompute_farfield_{f.Index}:\n");
+            s.Append(c, $"    farfield_box {f.Mins.X:F6} {f.Mins.Y:F6} {f.Mins.Z:F6} {f.Maxs.X:F6} {f.Maxs.Y:F6} {f.Maxs.Z:F6}\n");
+            s.Append("    farfield_local_to_world " + string.Join(' ', f.LocalToWorld.Select(v => v.ToString("F6", c))) + "\n");
+            s.Append(c, $"    farfield_cells {Cells(f.Mins.X, f.Maxs.X)} {Cells(f.Mins.Y, f.Maxs.Y)} {Cells(f.Mins.Z, f.Maxs.Z)}\n");
+            s.Append(c, $"    farfield_compute_bricks farfield_{f.Index}_bricks.kv3\n    farfield_voxelize_bricks\n    farfield_compute_lighting 1024\n");
+            s.Append("    farfield_median_filter 1\n    farfield_dilate 3\n    farfield_filter_fireflies 4.0\n    farfield_resample_borders\n");
+            s.Append(c, $"    farfield_write_atlas ff/farfield_{f.Index}\n    done\n");
+        }
+        return s.ToString();
     }
 
     /// <summary>

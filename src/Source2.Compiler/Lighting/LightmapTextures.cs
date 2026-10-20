@@ -59,6 +59,7 @@ public static class LightmapTextures
         Ati2n = 0x19,
         Bc6h = 0x1a,
         Bc7 = 0x1b,
+        R32Uint = 0x36,
     }
 
     /// <summary>One channel's settings from gameinfo's ResourceCompiler/BakedLighting/LightmapChannels.</summary>
@@ -77,7 +78,7 @@ public static class LightmapTextures
     };
 
     private const int CompressMinRatio = 95, Lz4Level = 10;
-    private const ushort FlagVolumeTexture = 0x20, FlagTextureArray = 0x40;
+    private const ushort FlagNoLod = 0x8, FlagVolumeTexture = 0x20, FlagTextureArray = 0x40;
     private const uint ExtraCompressedMipSize = 4;
 
     /// <summary>
@@ -250,6 +251,54 @@ public static class LightmapTextures
         IReadOnlyDictionary<string, object>? compileArguments = null)
         => AtlasVtex(image, x, y, z, ImageFormat.Bc6h, searchPath, nativeFolder: nativeFolder, algorithm: "none", compileArguments: compileArguments, argument: FogIrradianceVolumeArgument, channels: "rgb");
 
+    /// <summary>
+    /// env_farfield_&lt;n&gt;_indirection.vtex (resourcecompiler 1801f0dd0): the bricks file's cell
+    /// descriptors, their bits in the red channel of an x by y * z float bitmap (channel mask 1), as a
+    /// <c>3D</c> R32_UINT texture of z slices, linear, no mips, no LOD, through
+    /// farfieldIndirectionTextureArg, output channel r from r.
+    /// </summary>
+    public static byte[] FarfieldIndirectionVtex(uint[] descriptors, int x, int y, int z, string searchPath, IReadOnlyDictionary<string, object>? compileArguments = null)
+    {
+        var rgba = new float[x * y * z * 4];
+        for (var i = 0; i < descriptors.Length; i++)
+            rgba[i * 4] = BitConverter.Int32BitsToSingle((int)descriptors[i]);
+        var image = new RcMipChain.Level(x, y * z, rgba);
+        var slices = new RcMipChain.Level[z];
+        for (var k = 0; k < z; k++)
+            slices[k] = new RcMipChain.Level(x, y, rgba[(k * x * y * 4)..((k + 1) * x * y * 4)]);
+        var argument = FarfieldIndirectionArgument;
+        var fingerprints = new Fingerprints(
+            DescriptorFingerprint(Descriptor("3D", argument.Name, FormatName(ImageFormat.R32Uint), 0, 0, "None", z, x, y, -1, "none", "r", noLod: true)),
+            ImageFingerprint(image, 1, channelMask: 1));
+        return Write([.. slices.Select(s => new[] { s })], ImageFormat.R32Uint, (ushort)(FlagVolumeTexture | FlagNoLod),
+                     EditInfo(argument, searchPath, fingerprints, new TextureArguments(null, false, compileArguments)), null, 3);
+    }
+
+    /// <summary>
+    /// env_farfield_&lt;n&gt;_sh2_{dc,l1r,l1g,l1b}.vtex (resourcecompiler 1801f0dd0): the 33 slices
+    /// ff/farfield_&lt;n&gt;_&lt;image&gt;_zNN.exr (1056 by the atlas height rounded up to 4, which the
+    /// EXRs must be) stacked into one 1056 by 33 * height float bitmap of R, G, B (channel mask 7), as
+    /// a <c>3D</c> texture of 33 slices, BC6H for dc and BC7 for the sh1 images, linear, no mips, no
+    /// LOD, through farfieldAtlasTextureArg, output channels rgb from rgb.
+    /// </summary>
+    public static byte[] FarfieldAtlasVtex(RcMipChain.Level stacked, int sliceHeight, ImageFormat format, string searchPath, string? nativeFolder = null,
+        IReadOnlyDictionary<string, object>? compileArguments = null)
+    {
+        const int slicesCount = 33;
+        var width = stacked.Width;
+        // RC's bitmap holds R, G and B only (mask 7): alpha reads 0.
+        stacked = new RcMipChain.Level(width, stacked.Height, [.. stacked.Rgba.Select((v, i) => (i & 3) == 3 ? 0f : v)]);
+        var slices = new RcMipChain.Level[slicesCount];
+        for (var k = 0; k < slicesCount; k++)
+            slices[k] = new RcMipChain.Level(width, sliceHeight, stacked.Rgba[(k * width * sliceHeight * 4)..((k + 1) * width * sliceHeight * 4)]);
+        var argument = FarfieldAtlasArgument;
+        var fingerprints = new Fingerprints(
+            DescriptorFingerprint(Descriptor("3D", argument.Name, FormatName(format), 0, 0, "None", slicesCount, width, sliceHeight, -1, "none", "rgb", noLod: true)),
+            ImageFingerprint(stacked, 1, channelMask: 7));
+        return Write([.. slices.Select(s => new[] { s })], format, (ushort)(FlagVolumeTexture | FlagNoLod),
+                     EditInfo(argument, searchPath, fingerprints, new TextureArguments(null, false, compileArguments)), nativeFolder, 3);
+    }
+
     // CResourceCompilerTexture's LZ4 HC level by texture quality (180133da0): 3, 4, 9, 10, 12.
     private static int Lz4LevelFor(int quality) => quality switch { 0 => 3, 1 => 4, 3 => 10, 4 => 12, _ => 9 };
 
@@ -373,6 +422,12 @@ public static class LightmapTextures
                 return f16;
             case ImageFormat.Rgba8888:
                 return RcMipChain.WriteRgba8(image, srgb: false);
+            case ImageFormat.R32Uint:
+                // The red channel's bits as they are (the far field indirection: uint bits in a float bitmap).
+                var r32 = new byte[image.Width * image.Height * 4];
+                for (var i = 0; i < image.Width * image.Height; i++)
+                    BinaryPrimitives.WriteInt32LittleEndian(r32.AsSpan(i * 4), BitConverter.SingleToInt32Bits(image.Rgba[i * 4]));
+                return r32;
             default:
                 throw new NotSupportedException($"Lightmap format {format} is not encoded here yet.");
         }
@@ -408,6 +463,7 @@ public static class LightmapTextures
         ImageFormat.Bc7 => 20,
         ImageFormat.Ati2n => 21,
         ImageFormat.Ati1n => 27,
+        ImageFormat.R32Uint => 31,
         _ => throw new ArgumentOutOfRangeException(nameof(format)),
     };
 
@@ -429,7 +485,8 @@ public static class LightmapTextures
         BinaryPrimitives.WriteUInt16LittleEndian(s[24..], (ushort)depth);
         d[26] = format;
         d[27] = (byte)mips;
-        BinaryPrimitives.WriteUInt32LittleEndian(s[32..], 8);
+        // The extra data's offset from its field and count; 0 and 0 with none (the far field's 12 x 16 indirection).
+        BinaryPrimitives.WriteUInt32LittleEndian(s[32..], extras > 0 ? 8u : 0u);
         BinaryPrimitives.WriteUInt32LittleEndian(s[36..], (uint)extras);
         if (storedSizes is { } sizes)
         {
@@ -490,7 +547,7 @@ public static class LightmapTextures
     /// <c>___OverrideInputData___</c> fingerprint.
     /// </summary>
     public static KVObject Descriptor(string type, string argument, string format, int minDimension, int maxDimension, string mipAlgorithm,
-        int sliceCount = -1, int sliceWidth = -1, int sliceHeight = -1, int minBits = -1, string processor = "none", string outputChannels = "rgba")
+        int sliceCount = -1, int sliceWidth = -1, int sliceHeight = -1, int minBits = -1, string processor = "none", string outputChannels = "rgba", bool noLod = false)
     {
         static KVObject Floats(int n)
         {
@@ -545,7 +602,7 @@ public static class LightmapTextures
         root.Add("m_nOutputDimensionReduce", new KVObject(0));
         root.Add("m_textureOutputChannelArray", channels);
         root.Add("m_vClamp", Floats(3));
-        root.Add("m_bNoLod", new KVObject(false));
+        root.Add("m_bNoLod", new KVObject(noLod));
         root.Add("m_bHiddenAssetFlag", new KVObject(true));
         root.Add("m_bNormalizeRange", new KVObject(false));
         root.Add("m_bVirtualTexture", new KVObject(false));
@@ -574,6 +631,7 @@ public static class LightmapTextures
         ImageFormat.Ati2n => "ATI2N",
         ImageFormat.Bc6h => "BC6H",
         ImageFormat.Bc7 => "BC7",
+        ImageFormat.R32Uint => "R32_UINT",
         _ => throw new ArgumentOutOfRangeException(nameof(format)),
     };
 
@@ -587,6 +645,10 @@ public static class LightmapTextures
     public static readonly TextureArgument LightProbeVolumeArgument = new("lightProbeVolumeTextureArg", "FloatArg");
 
     public static readonly TextureArgument FogIrradianceVolumeArgument = new("fogIrradianceVolumeTextureArg", "FloatArg");
+
+    public static readonly TextureArgument FarfieldIndirectionArgument = new("farfieldIndirectionTextureArg", "FloatArg");
+
+    public static readonly TextureArgument FarfieldAtlasArgument = new("farfieldAtlasTextureArg", "FloatArg");
 
     /// <summary>
     /// RED2 as RC records a lightmap texture: the argument file it probes (the

@@ -4,8 +4,9 @@
     probe volumes;
   - an env_volumetric_fog_controller with IndirectEnabled 1 (64 voxels a side) over probe01's play
     area, so the compile bakes a fog irradiance volume (lpv_compute_block_fog_gpu).
-With "farfield", also an env_farfield_probe_volume (box_mins, box_maxs, cell_size: the keys
-resourcecompiler's 180240a60 reads). CS2's FGDs have no such class, so Hammer cannot place one, but the
+With "farfield" (cell_size 256) or "farfield128", also an env_farfield_probe_volume (box_mins,
+box_maxs, cell_size: the keys resourcecompiler's 180240a60 reads), and bouncelight 2 on the lights and
+the light_environment so the far field has lighting to gather. CS2's FGDs have no such class, so Hammer cannot place one, but the
 compile still bakes it. Built through Valve's dmxconvert as tools/coverage/probe_map.py does."""
 import os
 import sys
@@ -58,6 +59,15 @@ def main(base, out, extra=None):
                                                  ("box_maxs", "768 896 176")], (512, 96, 112), "0 0 0"),
     ]
     if extra in ("farfield", "farfield128"):
+        # Far field lighting gathers only lights and a sky whose path-trace flags carry 0x40, which
+        # bouncelight 2 ("Realtime", commented out of lights2.fgd) gives: on the two lights and on
+        # the base map's light_environment (its sky).
+        for e in added[:2]:
+            e.get("entity_properties").set("bouncelight", "string", "2")
+        for e in everything:
+            props = e.get("entity_properties") if e.type == "CMapEntity" else None
+            if isinstance(props, pm.Element) and props.get("classname") == "light_environment":
+                props.set("bouncelight", "string", "2")
         added.append(entity("env_farfield_probe_volume", [("targetname", "l5_farfield"), ("box_mins", "-768 -1088 -112"),
                                                           ("box_maxs", "768 896 176"), ("cell_size", "128" if extra == "farfield128" else "256")], (512, 96, 112), "0 0 0"))
     for k, e in enumerate(added):

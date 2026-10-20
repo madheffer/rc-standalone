@@ -2608,7 +2608,7 @@
    "addr": "1801f0dd0",
    "name": "NLightBaker_LoadFarfield",
    "module": "s2c:baked/lighting",
-   "note": "reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures"
+   "note": "farfield_<n>_bricks.kv3's descriptors into env_farfield_<n>_indirection (3D R32_UINT), the ff/ atlas slices into _sh2_dc (BC6H) and _sh2_l1r/g/b (BC7); no LOD, processor none (ledger 116)"
   },
   {
    "addr": "1801f2240",

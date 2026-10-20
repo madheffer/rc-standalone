@@ -2954,7 +2954,83 @@ game can answer is raised with the user first, and runs with -insecure.
       grid (s2c_l5farfield, cell_size 256) fails: "Farfield atlas slice ... is 1056x33, expected
       1056x36", then "Light mapper didn't return valid triangles", map build FAILED. With cell_size
       128 (s2c_l5farfield128, 12 x 16 x 2) it builds and ships env_farfield_0_indirection, _sh2_dc
-      and _sh2_l1r/g/b; vrad3 reports its far field lighting 100% black on this map. Not ported.
+      and _sh2_l1r/g/b; vrad3 reports its far field lighting 100% black on this map. Ported: ledger 116 (the black lighting was bouncelight).
+
+116. **The far field probe volume** (settled 2026-10-20 on a specimen, s2c_l5farfield128: s2c_l5probe
+    plus an env_farfield_probe_volume, box -768 -1088 -112 to 768 896 176 at 512 96 112, cell_size 128,
+    and bouncelight 2 on the two lights and the light_environment; tools/vrad3/l5_specimen.py farfield128;
+    Valve's compile in tools/re/out/captures/l5probe/ff128.*; tools/vrad3/ff_oracle.py reruns vrad3's
+    far field routine alone with the atlas saved after each stage, ff128_stages and ff128_stages2).
+    - Lighting only gathers lights with path_trace_light_flags & 0x40 and the sky with
+      m_nSkyLightFlags & 0x40: bouncelight 2 ("Realtime", commented out of lights2.fgd). Without it
+      the far field is black.
+    - resourcecompiler 180240a60: each env_farfield_probe_volume takes the next +0x314 index and a
+      0xa50 record (+0 local-to-world from origin and angles, +0x30 box_mins, +0x3c box_maxs, +0x48
+      cell_size, default 256, +0x4c index). After hammerUniqueId: farfield_indirection, farfield_sh2_dc,
+      farfield_sh2_l1_r/_g/_b through EntityKv_SetResource, empty without baked lighting, else
+      <map>/lightmaps/env_farfield_%d_{indirection,sh2_dc,sh2_l1r,sh2_l1g,sh2_l1b}.vtex. The %d is
+      local_1a98, which only the cubemap / probe branch sets (the +0x310 counter): the export runs
+      once per entity, so for a far field it is an uninitialised local; 0 in Valve's capture. We
+      write the volume's own index (what 1801f0dd0 names the textures by).
+    - Script (1801ee9f0), after the fog: run compute_farfield_<n> per volume, then each routine:
+      farfield_box, farfield_local_to_world (%f), farfield_cells = round to nearest even of the box's
+      side over cell_size, at least 1, farfield_compute_bricks farfield_<n>_bricks.kv3,
+      farfield_voxelize_bricks, farfield_compute_lighting 1024, farfield_median_filter 1,
+      farfield_dilate 3, farfield_filter_fireflies 4.0, farfield_resample_borders,
+      farfield_write_atlas ff/farfield_<n>; not quality dependent.
+    - farfield_compute_bricks (vrad3 1800204d0), farfield_0_bricks.kv3 byte for byte:
+      the grid record g_Grids (0x8c: world to cell = 1801f4490's inverse with row i times 1 / cell
+      size less mins / cell size, cell to world, the box's world bounds by 1801f4f70, counts);
+      occupancy = rtx_vrad3_mark_occupied D_MODE 0 (a triangle against the cell grown to 0.5001 on
+      13 axes; ported on the CPU, the OR makes dispatch order immaterial) and D_MODE 1, 26-neighbour
+      dilation, ceil(2 max cell / max cell) = 2 passes; metrics = rtx_vrad3_farfield_metrics (Valve's
+      SPIR-V on our device with VK_KHR_ray_query, 8 samples a cell at the half-cell sub-centres, 64
+      rays of length 2 max cell (max cell 32 * 0.03125 * 2), flags 2 unoccupied, 1 backface majority
+      over 0.4); levels 18001fa00 (min usable escaping fraction f over the 8; all flag 1 0xff, none
+      usable 7; else cvtss2si(max(0, c - 1) + 5 remap(f)) clamped 0..5, remap through 0.4 - 0.4 c);
+      budget 18001fc60 ((int)(MB * 1 MiB / 143748), cap 0x7c0, less 1, at least 1; MB 271.99 default
+      0x4387fdf8; over budget bisects c in [0, 6] 12 times, then steps 0.05); allocation 18001e4b0
+      over the six axis orders, the fewest bricks, first on a tie; 18001ea40 level 0..5 in the
+      order's loop nest, a cell at the level and uncovered gets a brick, level 0 the cell, else the
+      first of the 8 corner placements covering the most uncovered cells under level 6; sort 180026b70
+      by level, z, y, x; root (level 7) in front; descriptors 18001f590: the finest brick over each
+      cell, the first on a tie, index | level << 12 | dx << 15 | dy << 20 | dz << 25, 0x7000 for none;
+      the KV3: bricks {level, origin, min, max (box space)}, cell_count, cells_x/y/z, cell_descriptors.
+    - voxelize + lighting (180035580, 1800358b0, set g_vrad3FarfieldSet 180034a80: g_Luxels 158 of
+      48-byte FarfieldLuxel_t, g_SolidMaskBits 159, g_LightBins 160, g_RandomSamples 161, g_Bricks 162 a
+      buffer; push FarfieldPushConstants_t 80 bytes: estimate, dimension count 4, filter radius 1,
+      first brick, cell counts, cell to world rows): D 0 then, per batch of 512 bricks, D 1 spp times
+      with the Halton volume regenerated per pass, launch 512 x 64 x bricks. The atlas (180021fb0):
+      4 images x 33 slices of 1056 x ceil(bricks / 32) * 33 RGB floats, brick b's tile at
+      ((b & 31) * 33, (b >> 5) * 33), dc = floats 0, 4, 8, sh1_r 1-3, sh1_g 5-7, sh1_b 9-11. The raw
+      atlas is vrad3's byte for byte (132 EXRs), with its solid count and DC statistics.
+    - Median (180023510): per brick from a snapshot; taps self, -x, +x, -y, +y, -z, +z in the brick and
+      not solid, insertion-sorted by 0.2126 r + 0.7152 g + 0.0722 b of dc (ties after); odd count the
+      middle (written unless it is the texel), even (hi - lo) * 0.5 + lo. Byte for byte.
+    - Dilate (180022330, 180022b90): passes of copy-valid, then per brick the solid texels with valid
+      27-neighbours (outside the brick through the descriptors, 180021480, cvtss2si clamped 0..31;
+      none for the root) take sum * (1 / n). Valve's 12 sums start at each texel from the stack slots
+      of the last mean written and are never cleared (asm 180022cf6), and a brick's first fill from
+      whatever the worker's stack held: Valve's own two runs differ (40 of 132 slices; 2,764 texel
+      channels). Ported as one thread in brick order with the carry kept; the 678 channels we differ
+      on where Valve's runs agree all lie in chunk-start bricks (chunks of bricks / (2 (threads + 1)))
+      and the bricks after them. 92/132 slices exact.
+    - Fireflies (180023dc0): per brick, dc luminance g 0.7152 + r 0.2126 + b 0.0722 snapshot; a texel
+      with l > 0 whose in-brick 26 neighbours' mean times 4.0 is in (0, l) has all 12 values times
+      m / l. Borders (180024400, 180021670): each tile's 33rd row, column and slice, trilinear (x, then
+      y, then z; corners clamped 0..31, fractions to [0, 1]) in the brick the position falls in (its
+      own at its own coordinates over the root). Every final-stage difference is a border or a texel
+      the dilate already changed.
+    - Textures (1801f0dd0): env_farfield_<n>_indirection = the descriptors' bits in the red of an x by
+      y * z bitmap, 3D R32_UINT (VTexFormat 31), z slices, no extras (DATA's extra offset 0);
+      _sh2_dc BC6H and _sh2_l1r/g/b BC7 from the 33 EXRs stacked (1056 by the atlas height rounded up
+      to 4: RC fails a 33-row atlas expecting 36, Valve's 256 build); RGB bitmaps (mask 7, alpha 0 in
+      the reflectivity and the BC7 input); descriptors "3D", processor none, linear, no mips,
+      m_bNoLod and hidden set (flags 0x28), output channels r / rgb; arguments
+      farfieldIndirectionTextureArg, farfieldAtlasTextureArg. All five byte for byte from vrad3's files.
+    - End to end: compile-map -s2cbake on s2c_l5farfield128 against Valve's package: the entity lump
+      (far field keys included), env_farfield_0_indirection and the other eight lightmaps/ files byte
+      for byte; the four atlases differ only through the dilate above (sizes within 27 bytes).
 
 ## Resolved
 

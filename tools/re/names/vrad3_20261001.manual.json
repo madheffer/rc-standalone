@@ -493,6 +493,144 @@
    "note": "lpv_compute_block_gpu and _fog_gpu (fog flag): command lists of up to 16 passes up to maxspp, the convergence test at the top of a list (pass 0, or a list starting at or past minspp: 180036258); offsets scaled by 0x2f7ffffd; reads back 192-byte LpvLuxel cells"
   },
   {
+   "addr": "1801f4490",
+   "name": "Matrix3x4_Inverse",
+   "module": "s2c:baked/vrad3",
+   "note": "3x4 inverse; identity under |det| 1.17549435e-35"
+  },
+  {
+   "addr": "1801f3df0",
+   "name": "Matrix3x4_Concat",
+   "module": "s2c:baked/vrad3",
+   "note": "a after b, 3x4 rows"
+  },
+  {
+   "addr": "1801f4f70",
+   "name": "Matrix3x4_TransformAabb",
+   "module": "s2c:baked/vrad3",
+   "note": "box centre through the matrix (1801f7ad0), half extents through its absolute"
+  },
+  {
+   "addr": "1800347e0",
+   "name": "FarField_ComputeMetricsGpu",
+   "module": "s2c:baked/vrad3",
+   "note": "rtx_vrad3_farfield_metrics cs: 8 samples a cell, ray length (xmm1) 2 max cell, dispatch 0x200 x ceil(samples / 512); 16-byte samples (min t, max t, escape fraction, flags) read back into DAT_180399378"
+  },
+  {
+   "addr": "18001fa00",
+   "name": "FarField_CellLevels",
+   "module": "s2c:baked/vrad3",
+   "note": "a cell's level from its 8 samples: min usable escape fraction, remapped by the coarsening, cvtss2si(max(0, c - 1) + 5 f) clamped 0..5; 7 none usable, 0xff all backface"
+  },
+  {
+   "addr": "18001fc60",
+   "name": "FarField_FitBudget",
+   "module": "s2c:baked/vrad3",
+   "note": "budget (int)(MB * 1 MiB / 143748) capped 0x7c0, less 1; over budget bisect the coarsening in [0, 6] 12 times, then step 0.05"
+  },
+  {
+   "addr": "18001e4b0",
+   "name": "FarField_AllocateBricks",
+   "module": "s2c:baked/vrad3",
+   "note": "18001ea40 over the six axis orders (DAT_1802a0760, thread pool), the fewest bricks, first on a tie"
+  },
+  {
+   "addr": "18001ea40",
+   "name": "FarField_AllocateBricksInOrder",
+   "module": "s2c:baked/vrad3",
+   "note": "level 0..5 in the order's loop nest: an uncovered cell at the level gets a brick, level 0 the cell, else the first of 8 corner placements covering the most uncovered cells under level 6"
+  },
+  {
+   "addr": "180026b70",
+   "name": "FarField_SortBricks",
+   "module": "s2c:baked/vrad3",
+   "note": "introsort by level (unsigned), z, y, x"
+  },
+  {
+   "addr": "18001f210",
+   "name": "FarField_ValidateBricks",
+   "module": "s2c:baked/vrad3",
+   "note": "warns of cells under level 6 no brick covers or whose finest brick is coarser"
+  },
+  {
+   "addr": "18001f590",
+   "name": "FarField_CellDescriptors",
+   "module": "s2c:baked/vrad3",
+   "note": "finest brick over each cell (first on a tie, root skipped): index | level << 12 | dx << 15 | dy << 20 | dz << 25; 0x7000 none"
+  },
+  {
+   "addr": "180034a80",
+   "name": "FarField_CreateResources",
+   "module": "s2c:baked/vrad3",
+   "note": "FarfieldLuxels (48 bytes), FarfieldSolidMask, FarfieldBricks (16 bytes) and g_vrad3FarfieldSet; the two rtx_vrad3_farfield pipelines"
+  },
+  {
+   "addr": "180035410",
+   "name": "FarField_PushConstants",
+   "module": "s2c:baked/vrad3",
+   "note": "FarfieldPushConstants_t: estimate 0, dimension count 4, filter radius 1, first brick, cell counts, cell to world (l2w after diag cell size + mins)"
+  },
+  {
+   "addr": "180035580",
+   "name": "FarField_VoxelizeBricksGpu",
+   "module": "s2c:baked/vrad3",
+   "note": "rtx_vrad3_farfield D 0, launch 512 x 64 x bricks, the solid mask read back"
+  },
+  {
+   "addr": "180021fb0",
+   "name": "FarField_CopyLuxelsToAtlas",
+   "module": "s2c:baked/vrad3",
+   "note": "a batch's luxels into the four images' tiles ((b & 31) * 33, (b >> 5) * 33), slices z; dc 0/4/8, sh1 r 1-3, g 5-7, b 9-11; the DC statistics"
+  },
+  {
+   "addr": "1800210c0",
+   "name": "FarField_AtlasReadLuxel",
+   "module": "s2c:baked/vrad3",
+   "note": "a texel's 12 floats in FarfieldLuxel_t order"
+  },
+  {
+   "addr": "180021290",
+   "name": "FarField_AtlasWriteLuxel",
+   "module": "s2c:baked/vrad3",
+   "note": "the inverse of 1800210c0"
+  },
+  {
+   "addr": "180021480",
+   "name": "FarField_LocateCell",
+   "module": "s2c:baked/vrad3",
+   "note": "cell position to the brick over it (descriptors) and the position in its 32^3; false over the root"
+  },
+  {
+   "addr": "180021670",
+   "name": "FarField_SampleBrickTrilinear",
+   "module": "s2c:baked/vrad3",
+   "note": "trilinear in a brick, corners clamped 0..31, x then y then z"
+  },
+  {
+   "addr": "180023510",
+   "name": "FarField_MedianBrick",
+   "module": "s2c:baked/vrad3",
+   "note": "per brick from a snapshot: self and six face taps not solid, insertion-sorted by dc luminance, odd middle / even (hi - lo) * 0.5 + lo"
+  },
+  {
+   "addr": "180022b90",
+   "name": "FarField_DilateBrick",
+   "module": "s2c:baked/vrad3",
+   "note": "solid texels take the mean of their valid 27 neighbours (across bricks through 180021480); the sums start from the last written mean (stack slots never cleared, 180022cf6): run to run differences"
+  },
+  {
+   "addr": "180023dc0",
+   "name": "FarField_FirefliesBrick",
+   "module": "s2c:baked/vrad3",
+   "note": "a texel brighter than 4.0 times its in-brick 26 neighbours' mean dc luminance scaled to it"
+  },
+  {
+   "addr": "180024400",
+   "name": "FarField_ResampleBordersBrick",
+   "module": "s2c:baked/vrad3",
+   "note": "each tile's 33rd row, column and slice from the brick the position falls in"
+  },
+  {
    "addr": "180081560",
    "name": "LightProbeGrid_DilateShadowRecords",
    "module": "s2c:baked/vrad3",
@@ -517,34 +655,10 @@
    "note": "occupancy of a grid under a local-to-world matrix, dilated by n cells (lpv_mark_occupied_gpu, farfield_compute_bricks)"
   },
   {
-   "addr": "18001fa00",
-   "name": "FarField_BuildBricks",
-   "module": "s2c:baked/vrad3",
-   "note": "sparse bricks over the occupied cells"
-  },
-  {
-   "addr": "180023510",
-   "name": "FarField_MedianFilterBrick",
-   "module": "s2c:baked/vrad3",
-   "note": "one brick's median pass"
-  },
-  {
-   "addr": "180023dc0",
-   "name": "FarField_FilterFirefliesBrick",
-   "module": "s2c:baked/vrad3",
-   "note": "clamp a brick's samples above the ratio"
-  },
-  {
-   "addr": "180024400",
-   "name": "FarField_ResampleBrickBorders",
-   "module": "s2c:baked/vrad3",
-   "note": "fill a brick's border plane from its neighbours"
-  },
-  {
    "addr": "1800358b0",
    "name": "FarField_ComputeLightingGpu",
    "module": "s2c:baked/vrad3",
-   "note": "rtx_vrad3_farfield over the bricks in batches"
+   "note": "rtx_vrad3_farfield: 180034a80, the voxelize again, then per batch D 1 spp times (Halton per pass, m_nEstimate the pass), launch 512 x 64 x batch; 180021fb0 per batch"
   },
   {
    "addr": "18005cf40",
