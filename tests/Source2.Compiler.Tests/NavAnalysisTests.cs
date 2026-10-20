@@ -78,6 +78,18 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         return mesh;
     }
 
+    /// <summary>The size of a navan_calls.bin record of <paramref name="kind"/>, its kind and thread id included.</summary>
+    internal static int RecordSize(int kind) => kind switch
+    {
+        1 => 8 + 0x80 + 8 + 0x1c + 12,
+        2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4,
+        3 => 8 + 8 + 4 + 4 + 4,
+        4 => 8 + 12 + 12 + 8 + 0xd0,
+        5 => 8 + 0x30 + 12 + 12 + 0x38 + 4 + 4 + 4,
+        6 => 4 + 4 + 8 + 12 + 12 + 4 + 4 + 4 + 4 + 4, // no thread id
+        _ => throw new InvalidDataException($"record kind {kind}"),
+    };
+
     private static float F(byte[] b, int p) => BinaryPrimitives.ReadSingleLittleEndian(b.AsSpan(p));
 
     private static int Kv3End(byte[] b, int at) => b.AsSpan(at).IndexOf(new byte[] { 0, 0xdd, 0xee, 0xff }) + at + 4;
@@ -160,7 +172,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, 4 => 8 + 12 + 12 + 8 + 0xd0, _ => 8 + 8 + 8 + 4 };
+            var n = RecordSize(kind);
             if (kind == 1)
             {
                 var req = p + 8;
@@ -203,7 +215,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, 4 => 8 + 12 + 12 + 8 + 0xd0, _ => 8 + 8 + 8 + 4 };
+            var n = RecordSize(kind);
             if (kind == 3)
             {
                 var id = BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 24));
@@ -233,7 +245,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, 4 => 8 + 12 + 12 + 8 + 0xd0, _ => 8 + 8 + 8 + 4 };
+            var n = RecordSize(kind);
             if (kind == 2)
             {
                 var r = b.AsSpan(p + 8);
@@ -254,6 +266,41 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
             p += n;
         }
         output.WriteLine($"{same} of {total} nearest-area lookups Valve's");
+        Assert.Equal(total, same);
+    }
+
+    /// <summary>Each mesh sphere cast (kind 6, type 3) the analysis made, replayed through <see cref="Simulation.SphereCast.Mesh"/>.</summary>
+    [Fact]
+    public void MeshSphereCastsMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || !File.Exists(Path.Combine(dir, "navan_shapedata.bin")))
+            return;
+        var (meshes, _) = NavCastTests.Shapes(dir, "navan_shapedata.bin");
+        var b = File.ReadAllBytes(Path.Combine(dir, "navan_calls.bin"));
+        int p = 0, total = 0, same = 0, shown = 0;
+        System.Numerics.Vector3 V3(int o) => new(F(b, o), F(b, o + 4), F(b, o + 8));
+        while (p < b.Length)
+        {
+            var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
+            if (kind == 6 && BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 4)) == 3
+                && meshes.TryGetValue(BinaryPrimitives.ReadUInt64LittleEndian(b.AsSpan(p + 8)), out var m))
+            {
+                var start = V3(p + 16);
+                var delta = V3(p + 28);
+                float radius = F(b, p + 40), max = F(b, p + 44);
+                var returned = b[p + 48] != 0;
+                var want = F(b, p + 52);
+                var got = Simulation.SphereCast.Mesh(m.Mesh, m.Scale, start, delta, radius, max);
+                total++;
+                if (got.Found == returned && (!returned || BitConverter.SingleToInt32Bits(got.Fraction) == BitConverter.SingleToInt32Bits(want)))
+                    same++;
+                else if (shown++ < 10)
+                    output.WriteLine($"cast {total}: {start} + {delta} r {radius} max {max:R}: ours {got.Found} {got.Fraction:R}, Valve {returned} {want:R}");
+            }
+            p += RecordSize(kind);
+        }
+        output.WriteLine($"{same} of {total} mesh sphere casts Valve's");
         Assert.Equal(total, same);
     }
 }

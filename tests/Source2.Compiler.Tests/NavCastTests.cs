@@ -25,9 +25,9 @@ public sealed class NavCastTests(ITestOutputHelper output)
                                                            BinaryPrimitives.ReadSingleLittleEndian(b[8..]));
 
     /// <summary>The shapes navcast_shapedata.bin dumped, by pointer.</summary>
-    internal static (Dictionary<ulong, CapturedMesh> Meshes, Dictionary<ulong, CapturedHull> Hulls) Shapes(string dir)
+    internal static (Dictionary<ulong, CapturedMesh> Meshes, Dictionary<ulong, CapturedHull> Hulls) Shapes(string dir, string file = "navcast_shapedata.bin")
     {
-        var b = File.ReadAllBytes(Path.Combine(dir, "navcast_shapedata.bin"));
+        var b = File.ReadAllBytes(Path.Combine(dir, file));
         var meshes = new Dictionary<ulong, CapturedMesh>();
         var hulls = new Dictionary<ulong, CapturedHull>();
         var at = 0;

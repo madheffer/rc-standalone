@@ -22,6 +22,14 @@ computes the .nav's custom data (ledger 103):
                          kind 3: u64 area, f32 time T, f32 time CT, u32 area id;
                          kind 4: a trace through the mesh's trace object (CSNavMesh +0x50, vfn 8):
                                  start 12, end 12, u64 filter argument, the 0xd0-byte result.
+                         kind 5: a vphysics2 world vfn 0x560 call (180065370, the all-hits shape cast)
+                                 made from server.dll: shape descriptor 0x30, start 12, delta 12, query
+                                 0x38, u32 hit count, f32 least fraction, u32 index;
+                         kind 6: a shape's vfn 0x20 (the sphere cast; mesh 180242750, hull 180250b20,
+                                 sphere 18024c210, capsule 18024f080) inside one, with no thread id: u32 shape type, u64
+                                 shape, local start 12, local delta 12, radius, max fraction, u32
+                                 returned, f32 result fraction, u32 index of the world call.
+  <out>/navan_shapedata.bin  each shape once, as capture_navcast.py's navcast_shapedata.bin.
   A second Analyze call (the mesh analysed again) writes navan_areas_2.bin.
 """
 import argparse
@@ -56,10 +64,37 @@ function cat(parts) {
 }
 function u32(v) { const b = new ArrayBuffer(4); new DataView(b).setUint32(0, v >>> 0, true); return b; }
 function u64(p) { const b = new ArrayBuffer(8); new DataView(b).setBigUint64(0, BigInt(p.toString()), true); return b; }
+const seenShapes = new Set();
+function dumpShape(shape, type) {
+  const key = shape.toString();
+  if (seenShapes.has(key)) return;
+  seenShapes.add(key);
+  const head = new ArrayBuffer(12);
+  const dv = new DataView(head);
+  dv.setBigUint64(0, BigInt(key), true);
+  dv.setUint32(8, type, true);
+  let parts = [head];
+  if (type === 3) {
+    const m = shape.add(0xc8).readPointer();
+    const nn = m.add(0x18).readS32(), nv = m.add(0x30).readS32(), nt = m.add(0x48).readS32(), nw = m.add(0x60).readS32();
+    parts.push(shape.add(0xb8).readByteArray(12), shape.add(0xd1).readByteArray(1), m.readByteArray(0xc0));
+    parts.push(nn > 0 ? m.add(0x20).readPointer().readByteArray(nn * 0x20) : new ArrayBuffer(0));
+    parts.push(nv > 0 ? m.add(0x38).readPointer().readByteArray(nv * 12) : new ArrayBuffer(0));
+    parts.push(nt > 0 ? m.add(0x50).readPointer().readByteArray(nt * 12) : new ArrayBuffer(0));
+    parts.push(nw > 0 ? m.add(0x68).readPointer().readByteArray(nw * 12) : new ArrayBuffer(0));
+  } else if (type === 2) {
+    const h = shape.add(0xc0).readPointer();
+    const n = h.add(0x70).readS32();
+    parts.push(shape.add(0xb8).readByteArray(4), h.readByteArray(0x80));
+    parts.push(n > 0 ? h.add(0x78).readPointer().readByteArray(n * 12) : new ArrayBuffer(0));
+  }
+  const body = cat(parts);
+  send({tag: 'shapedata'}, cat([u32(body.byteLength), body]));
+}
 let nput = 0, nerr = 0;
 function flush() { if (buf.n) { send({tag: 'calls'}, buf.b.slice(0, buf.n)); buf.n = 0; } }
 function err(e) { if (nerr++ < 5) send({note: 'hook error: ' + e}); }
-let analyses = 0, cvarsSent = false, base = null, traceHooked = new Set();
+let srvMod = null, analyses = 0, cvarsSent = false, base = null, traceHooked = new Set();
 function dumpAreas(mesh) {
   const n = mesh.add(8).readS32();
   const arr = mesh.add(0x10).readPointer();
@@ -98,6 +133,7 @@ function hook() {
   if (srv === undefined) { setTimeout(hook, 5); return; }
   send({note: 'server.dll at ' + srv.base + ' ' + srv.path});
   base = srv.base.sub(0x180000000);
+  srvMod = srv;
   Interceptor.attach(base.add(0x18039a7c0), { onEnter(args) {
     dumpAreas(args[0]);
     try {
@@ -161,6 +197,51 @@ function hook() {
   Interceptor.attach(base.add(0x1814eb500), traceHook);
   const nav = Process.enumerateModules().find(m => m.name.toLowerCase() === 'navsystem.dll');
   if (nav) Interceptor.attach(nav.base.add(0x79100), traceHook);
+  const vp = Process.enumerateModules().find(m => m.name.toLowerCase() === 'vphysics2.dll');
+  let worldActive = 0, worldIndex = -1;
+  if (vp) {
+    Interceptor.attach(vp.base.add(0x65370), {
+      onEnter(a) {
+        const ra = this.returnAddress;
+        this.mine = ra.compare(srvMod.base) >= 0 && ra.compare(srvMod.base.add(srvMod.size)) < 0;
+        if (!this.mine) return;
+        worldIndex++;
+        worldActive++;
+        try { this.rec = [u32(5), u32(Process.getCurrentThreadId()), a[2].readByteArray(0x30), a[3].readByteArray(12), a[4].readByteArray(12), a[5].readByteArray(0x38)]; this.res = a[1]; } catch (e) { err(e); this.rec = null; }
+      },
+      onLeave(ret) {
+        if (!this.mine) return;
+        worldActive--;
+        if (!this.rec) return;
+        try {
+          const n = this.res.readS32();
+          const arr = this.res.add(8).readPointer();
+          const best = new ArrayBuffer(4); new DataView(best).setFloat32(0, 1.0, true);
+          let bf = 1.0;
+          for (let i = 0; i < n; i++) { const f = arr.add(i * 0x48 + 0x34).readFloat(); if (f < bf) bf = f; }
+          new DataView(best).setFloat32(0, bf, true);
+          put(cat(this.rec.concat([u32(n), best, u32(worldIndex)])));
+        } catch (e) { err(e); }
+      }
+    });
+    for (const [rva, type] of [[0x24c210, 0], [0x24f080, 1], [0x250b20, 2], [0x242750, 3]]) {
+      Interceptor.attach(vp.base.add(rva), {
+        onEnter(a) {
+          this.on = worldActive > 0;
+          if (!this.on) return;
+          try {
+            this.rec = [u32(6), u32(type), u64(a[0]), a[2].readByteArray(12), a[3].readByteArray(12), u32(a[4].toUInt32()), u32(a[5].toUInt32())];
+            this.r = a[1];
+            dumpShape(a[0], type);
+          } catch (e) { err(e); this.on = false; }
+        },
+        onLeave(ret) {
+          if (!this.on) return;
+          try { put(cat(this.rec.concat([u32(ret.toUInt32() & 0xff), this.r.readByteArray(4), u32(worldIndex)]))); } catch (e) { err(e); }
+        }
+      });
+    }
+  }
   for (const name of ['ExitProcess', 'TerminateProcess']) {
     const f = Module.findExportByName('kernel32.dll', name);
     if (f) Interceptor.attach(f, { onEnter() { flush(); } });
@@ -196,6 +277,7 @@ def main():
     if os.path.exists(vpk):
         shutil.copy2(vpk, backup)
     calls = open(os.path.join(out_dir, "navan_calls.bin"), "wb")
+    shapedata = open(os.path.join(out_dir, "navan_shapedata.bin"), "wb")
     hooked = threading.Event()
 
     def on_message(msg, data):
@@ -205,6 +287,8 @@ def main():
             print(msg["payload"]["note"])
         elif msg["payload"].get("hooked"):
             hooked.set()
+        elif msg["payload"]["tag"] == "shapedata":
+            shapedata.write(data)
         elif msg["payload"]["tag"] == "mesh":
             with open(os.path.join(out_dir, "navan_mesh.bin"), "wb") as f:
                 f.write(data)
@@ -240,6 +324,7 @@ def main():
     except Exception as e:
         print("no stats:", e)
     calls.close()
+    shapedata.close()
     print(os.path.join(out_dir, "navan_calls.bin"), os.path.getsize(os.path.join(out_dir, "navan_calls.bin")), "bytes")
     print("(hooked)" if hooked.is_set() else "(NEVER HOOKED)")
     if os.path.exists(vpk):
