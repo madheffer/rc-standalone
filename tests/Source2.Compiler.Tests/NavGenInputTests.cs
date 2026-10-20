@@ -190,7 +190,7 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         var rules = new SettleWorld.CollisionRules();
         var bodies = SettleWorld.Build(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
             d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators), rules);
-        var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: NavGenInput.NavWorldFilter(document));
+        var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: NavGenInput.NavWorldFilter(document, schema));
         var g = NavGenPolys.FromTriangles(verts, indices);
         // NAVGEN_UNORDERED=1: the bodies' order follows Valve's node pointers (PhysDoc's table), which
         // a big map does not keep in element order; compare the input as a multiset of triangles and
@@ -295,7 +295,7 @@ public sealed class NavGenInputTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("NAVGEN_BODYDUMP") is { } bodyDump)
         {
             // Diagnostic: each body's extraction alone (filter, hulls, capsules), its node and vertex count.
-            var filter = NavGenInput.NavWorldFilter(document);
+            var filter = NavGenInput.NavWorldFilter(document, schema);
             var lines = new List<string>();
             foreach (var body in bodies)
             {
