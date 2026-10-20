@@ -2710,6 +2710,13 @@ SERVER_1015 = [
     ("18039ac00", "CSNavMesh::SaveCustomData", NAV, "vfn 0x78: navmeshcustomdata1 { arealist [ per area (18039ad80) ] }"),
     ("18039ad80", "CCSNavArea::SaveCustomData", NAV, "hidingspotdata, spotencounterdata (from / to: the low dword of the NavConnect at +0 / +0x18, a CNavArea* at save time; fromdir +0x10, todir +0x28; spots +0x48 / +0x50: the low dword of +8, a HidingSpot*, and t), approachdata, earliestoccupytime. The pointer dwords are heap addresses: two compiles differ there and only there"),
     ("180399100", "CCSNavArea::LoadCustomData", NAV, "the reader of 18039ad80's keys"),
+    ("18039a7c0", "CSNavMesh::Analyze", NAV, "vfn 0x60: 18039aa00 (CS pre-step), the shared 1814cfaa0, then 18039a730 per entry of +0x480"),
+    ("1803906a0", "CSNavMesh_ComputeAIData", NAV, "'CSGO Compute AI Data': 1803935e0 occupy times, 180394b10 hiding spots, 180393ea0 encounter spots, then 180393060 per area (approach areas); a map with trigger_survival_playarea skips them (occupy 120, approach count 0)"),
+    ("1803935e0", "CSNavMesh_ComputeEarliestOccupyTimes", NAV, "origins of info_player_terrorist then info_player_counterterrorist (entity order), 180394e20 per area"),
+    ("180394e20", "CCSNavArea::ComputeEarliestOccupyTimes", NAV, "+0xc8 / +0xcc start at 120; per spawn: nearest area (1814b3a10, 10000), travel distance (1814d96f0, cost functor 1817a7d48) / 260, the least kept"),
+    ("180394b10", "CSNavMesh_ComputeHidingSpots", NAV, "per area 180394340"),
+    ("180393ea0", "CSNavMesh_ComputeEncounterSpots", NAV, "180391710, 18039a860, 1814e1950"),
+    ("180393060", "CCSNavArea::ComputeApproachAreas", NAV, "+0x488 count (at most 16), entries of 0x38 from +0x108; shortest paths both ways (1810ce520), 180398290 visibility"),
 ]
 
 
