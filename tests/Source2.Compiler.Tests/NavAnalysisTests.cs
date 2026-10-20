@@ -648,4 +648,58 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         var snap = Snapshots(b).First(s => s.Stage == 3);
         Assert.Equal(0, CompareRecords(an, snap.Records, AreaIdsByPointer(dir), "after hiding spots"));
     }
+
+    /// <summary>A KV3 integer's low 32 bits, whatever its stored type.</summary>
+    private static uint Dword(KVObject o) => unchecked((uint)(long)o);
+
+    /// <summary>Our analysis of probe01 through the given step (1 occupy, 2 hiding spots, 3 encounter spots).</summary>
+    private NavAnalysis Probe01Analysis(byte[] nav, Func<NavAnalysis.V, NavAnalysis.V, float> trace, int through)
+    {
+        var an = new NavAnalysis(ReadNav(nav)) { Trace = trace };
+        var entities = Source2.Compiler.MapEntities.From(Source2.Compiler.DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")));
+        List<NavAnalysis.V> Spawns(string cls) => [.. entities.Where(e => e.ClassName == cls).Select(e => new NavAnalysis.V(e.Origin.X, e.Origin.Y, e.Origin.Z))];
+        an.EarliestOccupyTimes(Spawns("info_player_terrorist"), Spawns("info_player_counterterrorist"));
+        if (through >= 2)
+            an.ComputeHidingSpots();
+        if (through >= 3)
+            an.ComputeEncounterSpots();
+        return an;
+    }
+
+    /// <summary>
+    /// The encounter step after ours: per area, each encounter's from / fromdir / to / todir (Valve's area
+    /// pointers' low dwords resolved through the area dump) and the area's order (the last encounter's
+    /// spots: t, the spot pointers masked).
+    /// </summary>
+    [Fact]
+    public void EncounterSpotsMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var trace = Probe01Trace(out var keep);
+        using var _ = keep;
+        if (trace is null)
+            return;
+        var an = Probe01Analysis(nav, trace, 3);
+        var low = AreaIdsByPointer(dir).GroupBy(kv => (uint)kv.Key).ToDictionary(g => g.Key, g => g.First().Value);
+        var areas = CustomData(nav)["arealist"]!.Values.ToList();
+        int same = 0, shown = 0;
+        for (var i = 0; i < an.Areas.Count; i++)
+        {
+            var area = an.Areas[i];
+            var want = areas[i]["spotencounterdata"]!.Values.Select(e =>
+                $"{(low.TryGetValue(Dword(e["from"]!), out var f) ? f : 0)}/{(int)e["fromdir"]!}>{(low.TryGetValue(Dword(e["to"]!), out var t) ? t : 0)}/{(int)e["todir"]!}").ToList();
+            var wantOrder = areas[i]["order"]!.Values.Select(o => ((float)o["t"]!).ToString("R")).ToList();
+            var encs = an.Encounters[area];
+            var got = encs.Select(e => $"{e.From.Id}/{e.FromDir}>{e.To.Id}/{e.ToDir}").ToList();
+            var gotOrder = encs.Count == 0 ? [] : encs[^1].Spots.Select(s => s.T.ToString("R")).ToList();
+            if (got.SequenceEqual(want) && gotOrder.SequenceEqual(wantOrder))
+                same++;
+            else if (shown++ < 6)
+                output.WriteLine($"area {area.Id}: ours [{string.Join(" ", got)}] order [{string.Join(" ", gotOrder)}]; Valve [{string.Join(" ", want)}] order [{string.Join(" ", wantOrder)}]");
+        }
+        output.WriteLine($"{same} of {an.Areas.Count} areas' encounters Valve's");
+        Assert.Equal(an.Areas.Count, same);
+    }
 }
