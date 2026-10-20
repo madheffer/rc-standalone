@@ -13,7 +13,7 @@ python (Join-Path $S "prepare.py") --out $obj
 foreach ($v in @(@("amd", ""), @("intel", "-DBC7E_RCP_INTEL"))) {
   $name = $v[0]
   $args2 = @("-O2", (Join-Path $obj "bc7e_rcp.ispc"), "-o", (Join-Path $obj "bc7e_$name.obj"), "-h", (Join-Path $obj "bc7e_ispc.h"),
-             "--target=avx2-i32x4", "--opt=fast-math", "--opt=disable-assertions")
+             "--target=avx2-i32x8", "--opt=fast-math", "--opt=disable-assertions")
   if ($v[1]) { $args2 += $v[1] }
   & $ispc @args2
   if ($LASTEXITCODE -ne 0) { throw "ispc failed" }

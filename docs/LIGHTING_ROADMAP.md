@@ -126,9 +126,8 @@ compile's arguments) against Valve's builds:
 - **`-lightmapVRadQuality 2`:** exact apart from two encoders.
   - The BC6H hue-shift fixup encoder (180c46dd0, 5 of 1,048,576 irradiance
     blocks) is not ported; the note says so.
-  - bc7e gives 5 different blocks of the dlshd atlas. Its input fill
-    (180c366a0, cvtss2si) matches ours, so the difference is in main's
-    native bc7e.
+  - bc7e gave 5 different blocks of the dlshd atlas: fixed 10-20 (ledger
+    110), the native build is now ISPC's avx2-i32x8 as the game's bc7e.dll.
 
 Verified and fixed:
 - F01/F17 (final per quality, hueShiftFixup on BC6H);
@@ -178,8 +177,9 @@ with `MSYS_NO_PATHCONV=1`.
   probe01's irradiance is byte-exact. Check it against the disassembly
   before changing anything.
 
-Main's texture files (`Lz4`, `Texture/Rc/*`, `Native/bc7e`) are copies of
-main's. Any fix there has to land on main too, or stay identical to it.
+The texture code (`Lz4`, `Texture/Rc/*`, `Native/bc7e`) lives in this repo
+and depends on no other repo (user, 2026-10-20); fixes land here and reach
+main with the branch.
 
 ### M3. LPV bake fidelity (+3%): done 2026-10-18
 
@@ -319,7 +319,7 @@ roadmap", closed; "Lighting compilation parity with Valve").
 |---|---|---|---|
 | L1 | GPU ground truth for the hit shaders (ledger 78, 79) | HitShaderOracleTests, HitContext, RtxScene.LoadTexture | BC4 / sRGB / BC1 decode and the bilinear filter emulated as the RTX 4070 does them, and only_slabs' per-luxel correlation near refl30all's (0.97). Decode measured; BC1 green table and the filter arithmetic open. |
 | L2 | BC6H hue-shift fixup encoder (port RC 180c46dd0 and helpers) | LightmapTextures, Texture/Rc | probe01's -lightmapVRadQuality 2 irradiance byte-exact (5 of 1,048,576 blocks differ today). |
-| L3 | bc7e mismatch on a few blocks (main first, then map-authoring) | Native/bc7e | ze_hold_em_p's probe atlas (2 blocks) and probe01 quality 2 (5 blocks) byte-exact. Changes vpkstuff's texture output: reaches vpkstuff only through publish-to-vpkstuff and its golden tests. |
+| L3 | bc7e mismatch on a few blocks | Native/bc7e | **done 10-20** (ledger 110): the native build is ISPC's avx2-i32x8, as the game's bc7e.dll runs on AVX2 and AVX-512 CPUs; Bc7eOracleTests matches the game's DLL on every block, ze_hold_em_p's seven lightmaps/ files and probe01 quality 2's dlshd atlas are byte for byte. vpkstuff's BC7 output follows with its next package. |
 | L4 | Baked world node with -vrad3output (F19) | MapCompile, WorldNodeFiles | a -vrad3output package's world node equals Valve's baked one (lightmap uvs, bake keys). |
 | L5 | M4 specimens: a light cookie, a fog irradiance volume, an env_farfield_probe_volume, compiled with Valve's tools plus vrad3 captures | captures (CS2 closed, with the operator) | each specimen captured, so M4's cookies, fog and far field can be ported against it. |
 | L6 | main-side fixes F26 to F29 and F33 | Texture/IspcTexcomp, Rc/RcMipChain, AtiCompress docs | the review findings fixed or corrected on main and mirrored here. |

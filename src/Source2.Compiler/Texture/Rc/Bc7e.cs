@@ -19,6 +19,9 @@ public enum Bc7Vendor
 /// </summary>
 public static unsafe class Bc7e
 {
+    /// <summary>Tests: sees each call's input blocks and the blocks encoded from them.</summary>
+    internal static Action<byte[], byte[]>? Observer;
+
     private static readonly Lazy<nint>[] Encoders =
         [new(() => Load(Bc7Vendor.Amd)), new(() => Load(Bc7Vendor.Intel))];
 
@@ -45,6 +48,7 @@ public static unsafe class Bc7e
         fixed (byte* src = rgbaBlocks)
         fixed (byte* dst = output)
             fn((uint*)src, (ulong*)dst, (uint)blocks, perceptual ? 1 : 0);
+        Observer?.Invoke(rgbaBlocks.ToArray(), output);
         return output;
     }
 

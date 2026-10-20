@@ -1,22 +1,24 @@
 """prepare.py [--out dir]: bc7e.ispc with rcpps taken from a table, so BC7 output does not depend on the CPU.
 
-Fetches bc7e.ispc (richgel999/bc7enc_rdo c4a839c, Apache 2.0; the encoder in Valve's bc7e.dll)
-and writes bc7e_rcp.ispc. Under --opt=fast-math ISPC emits a / b as
+Reads bc7e.ispc (vendored beside this script: richgel999/bc7enc_rdo c4a839c, Apache 2.0, see
+NOTICE.md; the encoder in Valve's bc7e.dll) and writes bc7e_rcp.ispc. Under --opt=fast-math ISPC emits a / b as
     iv = rcpps(b); a * (iv * (2 - b * iv))
 and rcpps is the only instruction in the encoder whose result differs between CPU vendors
 (FMA and sqrt are exact). Each variable division is rewritten as that same expression with iv
 from rcp_amd.txt, or rcp_intel.txt when compiled with -DBC7E_RCP_INTEL. For x = s * 2^e * 1.m
 both vendors return s * 2^-e * table[top 12 bits of m] (rcpedge.c checks every exponent).
 
-Build exactly as Valve's avx2 path: ispc 1.13..1.24, --target=avx2-i32x4 --opt=fast-math
---opt=disable-assertions. Checked on 101,632 blocks: the AMD table on an Intel CPU equals AMD
+Build exactly as Valve's avx2 path: ispc 1.13..1.24, --target=avx2-i32x8 --opt=fast-math
+--opt=disable-assertions. The game's bc7e.dll runs that 8-wide target on every AVX2 CPU (its
+dispatcher sends levels 3 to 5, AVX2 to AVX-512, to one function); a 4-wide build differs on a few
+blocks (probe01 -lightmapVRadQuality 2: 5 of 1,584, Bc7eOracleTests). Checked on 101,632 blocks: the AMD table on an Intel CPU equals AMD
 hardware, the Intel table on AMD equals Intel hardware, and the AMD build matches
 resourcecompiler's BC7 (compiled on AMD) block for block.
 """
-import argparse, os, urllib.request
+import argparse, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-URL = "https://raw.githubusercontent.com/richgel999/bc7enc_rdo/c4a839c/bc7e.ispc"
+SOURCE = os.path.join(HERE, "bc7e.ispc")
 
 
 def table(name):
@@ -95,8 +97,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--out", default=HERE)
     a = p.parse_args()
-    with urllib.request.urlopen(URL) as r:
-        src = r.read().decode("latin-1")
+    with open(SOURCE, encoding="latin-1", newline="") as f:
+        src = f.read()
     for old, new in REWRITES:
         assert old in src, old
         src = src.replace(old, new)

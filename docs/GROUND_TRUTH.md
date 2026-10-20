@@ -1218,8 +1218,8 @@ game can answer is raised with the user first, and runs with -insecure.
     - Still open at quality 2:
       - the hue-shift fixup encoder (180c46dd0): 5 of 1,048,576
         irradiance blocks;
-      - 5 BC7 blocks of the dlshd atlas, a bc7e port difference on that
-        input.
+      - 5 BC7 blocks of the dlshd atlas: fixed, ledger 110 (bc7e's 8-wide
+        target).
 
 80. **The GPU bake host and Valve's host buffers** (measured 2026-10-18 on
     ze_hold_em_p block 5, RTX 4070; open).
@@ -1520,7 +1520,7 @@ game can answer is raised with the user first, and runs with -insecure.
       - probe01 lit: 22 of 25 files. Missing are the generated nav, the
         bomb damage file and the .vmap_c.
     - Open: the 7 end_breakable entity models (texcoord ulps, a geometry
-      gap), 2 BC7 blocks of ze's probe atlas (bc7e), the .vmap_c (see
+      gap), 2 BC7 blocks of ze's probe atlas (fixed, ledger 110), the .vmap_c (see
       LIGHTING_ROADMAP "vmap_c").
 
 84. **The whole-map post-process and its EXR writers** (settled 2026-10-19 by
@@ -1640,8 +1640,9 @@ game can answer is raised with the user first, and runs with -insecure.
       start (low 16 bits) with the packed counts (high 16).
     - Result: all 16 probe volume EXRs, the four lightmap EXRs and the
       packaged lighting are byte for byte, except the dlshd atlas's 2 BC7
-      blocks (bc7e, LIGHTING_ROADMAP L3). The package is 55 of 56 files and
-      99.90%, the same as with vrad3's outputs; the compile takes 278 s.
+      blocks (bc7e, LIGHTING_ROADMAP L3; fixed by ledger 110). The package
+      was 55 of 56 files and 99.90%, the same as with vrad3's outputs; the
+      compile takes 278 s.
 
 88. **The weld solves the baked shadow slots** (settled 2026-10-19 on
     probe01 and ze_hold_em_p by bytes, vrad3 run on the same raw image).
@@ -2751,6 +2752,24 @@ game can answer is raised with the user first, and runs with -insecure.
       were compiled in s2c_rc_probe.
     - Open: the region SVM pass and scaled hulls in the sphere cast; whether the late three casts
       come from a step that writes anything; the survival play area path.
+
+110. **bc7e is the 8-wide AVX2 build** (settled 2026-10-20 by disassembly of the game's bc7e.dll
+    and an in-process oracle, Bc7eOracleTests). Verified: the BC7 blocks probe01's
+    -lightmapVRadQuality 2 build encodes equal the game's bc7e.dll (level 6, not perceptual) on all
+    1,584 (5 differed); probe01's default, -lightmapMaxResolution 8192 and
+    -lightmapCompressionDisabled lightmaps/ files are still byte for byte; quality 2's dlshd atlas
+    is now too (its irradiance waits on the BC6H hue-shift encoder, L2); ze_hold_em_p's seven
+    lightmaps/ files are byte for byte, the probe atlas's 2 blocks included (CpuBakeProbe
+    .LightmapOutputsFiles).
+    - bc7e.dll's dispatcher (180001000) ranks the CPU 0 to 5 (SSE2, SSE4, AVX, AVX2, AVX-512 KNL,
+      AVX-512 SKX); bc7e_compress (1800014d0) runs one function, 180166df0, for 3 and up, so AVX2
+      and AVX-512 CPUs both run it. It works on ymm registers: ISPC's avx2-i32x8 target.
+    - Our build was avx2-i32x4, which encodes 5 blocks (4 distinct inputs) differently. Rebuilt
+      avx2-i32x8 (ispc 1.24, the rcpps table rewrite unchanged), it gives the game's blocks on all
+      of them, on Linux and Windows.
+    - bc7e.ispc is vendored in Native/bc7e (bc7enc_rdo c4a839c, Apache 2.0, NOTICE.md); the build
+      no longer downloads it. Windows ispc 1.24.0 lives in D:/tools/ispc-v1.24.0-windows.
+    - vpkstuff's BC7 output moves to these blocks with its next compiler package.
 
 ## Resolved
 

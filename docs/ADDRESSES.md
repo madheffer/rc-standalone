@@ -17,11 +17,29 @@ slot, `CVoxelSampler3::MergeClusterSet` an assert string). The harvested
 names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 `tools/re/names/<dll>_<build>.json`, not here.
 
+## bc7e.dll, build 20261015
+
+- file: `bc7e_20261015.dll`, 1,529,856 bytes, PE time 2022-05-26 03:42 UTC
+- SHA-256 `a340167d3d9e2576b7d0d1ade6d9a290c10b9c747ac7f621e4da3b4dfc1196ee`
+- installed: this build
+- 5 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `180001000` | `bc7e_DetectTarget` | cpuid / xgetbv: 5 AVX-512 SKX, 4 AVX-512 KNL, 3 AVX2, 2 AVX, 1 SSE4, 0 SSE2 |  |
+| `1800010c0` | `bc7e_TargetOnce` | 180001000 once into 180177000 |  |
+| `1800014d0` | `bc7e_compress` | export: target 3 and up (AVX2 and AVX-512 alike) run 180166df0, the ISPC avx2-i32x8 build (ymm); 2: 1801212b0, 1: 1800c68e0, 0: 180068da0 |  |
+| `180166df0` | `bc7e_compress_blocks_avx2` | the 8-wide AVX2 target: a 4-wide build (avx2-i32x4) differs on a few blocks (Bc7eOracleTests) |  |
+| `180169300` | `bc7e_init_params` | export (level 0..6, perceptual, params): a jump table onto the ISPC params initialisers; level 6 is slowest |  |
+
 ## hammer.dll, build 20260924
 
-- file: `hammer.dll`, 39,611,032 bytes, PE time 2026-10-14 18:43 UTC
-- SHA-256 `46884a34b9b51fda1d46499d6c9963b6ba218518278f76df85e042fa388c3d41`
-- installed: this build
+- file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
+- SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 11 tracked addresses: ambiguous 1, moved 10
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -42,9 +60,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## materialsystem2.dll, build 20261001
 
-- file: `materialsystem2.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
-- SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
-- installed: this build
+- file: `materialsystem2_20261001.dll`, 1,429,144 bytes, PE time 2026-09-30 18:55 UTC
+- SHA-256 `336abe089468bd5b218f773f09da3942fa9346b7f49f24d9e3591722fc54c5e6`
+- installed: a different build
 - 1 addresses
 
 ### s2c:physics/material-sampler
@@ -55,7 +73,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## materialsystem2.dll, build 20261015
 
-- file: `materialsystem2.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
+- file: `materialsystem2_20261015.dll`, 1,429,144 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `b4d5c667eb65f13d9193d743a88eb1f9dfa623cc8f745cef764d9977969e38b6`
 - installed: this build
 - 15 addresses
@@ -82,9 +100,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## meshsystem.dll, build 20260923
 
-- file: `meshsystem.dll`, 1,664,664 bytes, PE time 2026-10-14 18:42 UTC
-- SHA-256 `f66f01a90a2b2492dd281e41291e92a2151336c733c4b85d5f577714e0dfef4b`
-- installed: this build
+- file: `meshsystem_20260923.dll`, 1,664,664 bytes, PE time 2026-09-21 20:51 UTC
+- SHA-256 `11203f370437e5d55dbec46f530812b6a6f92c894e8f1c85f3c3b6e8773dc1d6`
+- installed: a different build
 - 7 addresses
 
 ### s2c:baked/light-keys
@@ -106,7 +124,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## modtools.dll, build 20261015
 
-- file: not found locally
+- file: `modtools_20261015.dll`, 17,944,216 bytes, PE time 2026-10-14 18:40 UTC
+- SHA-256 `31a29e428fd5e9bacf66614e7d11a44d273cdd74636bb3c45256e541655c18d6`
+- installed: a different build
 - 19 addresses
 
 ### s2c:baked/bomb
@@ -135,7 +155,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## navsystem.dll, build 20261015
 
-- file: `navsystem.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
+- file: `navsystem_20261015.dll`, 1,314,968 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `919803ec647ac53c95524a6be8193fb19fddede2936ed05a8b8cda984f33098e`
 - installed: this build
 - 239 addresses
@@ -386,9 +406,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## physicsbuilder.dll, build 20260924
 
-- file: `physicsbuilder.dll`, 13,949,592 bytes, PE time 2026-10-14 18:41 UTC
-- SHA-256 `2b833eb7c91abe8430af9eb274d47babc458ddf0e488e189c3b846ba182e9522`
-- installed: this build
+- file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
+- SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 66 tracked addresses: ambiguous 1, changed 4, identical 4, moved 57
 - 60 addresses
 
 ### s2c:geometry/props
@@ -478,9 +499,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## rendersystemvulkan.dll, build 20261015
 
-- file: `rendersystemvulkan.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
+- file: `rendersystemvulkan_20261015.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `2febd86471b9ed1953e75875296f3e76999661f1e86cb68e928c0cb12a2afb4a`
 - installed: this build
+- against the installed build (20261016_1.41.9.1.md): 1 tracked addresses: identical 1
 - 1 addresses
 
 ### s2c:baked/lighting
@@ -491,9 +513,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## resourcecompiler.dll, build 20260923
 
-- file: `resourcecompiler.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
-- SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
-- installed: this build
+- file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
+- SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
 - 1024 addresses
 
 ### s2c:baked/light-keys
@@ -1658,9 +1681,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## resourcecompiler.dll, build 20261006
 
-- file: `resourcecompiler.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
-- SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
-- installed: this build
+- file: `resourcecompiler_20261006.dll`, 56,323,736 bytes, PE time 2026-10-05 21:03 UTC
+- SHA-256 `e2cd4c06976ee54ab8d32a6b109e7adcb7b551c02766cd0c6954b492b0aedbe3`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
 - 10 addresses
 
 ### s2c:entities
@@ -1685,9 +1709,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## resourcecompiler.dll, build 20261015
 
-- file: `resourcecompiler.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
+- file: `resourcecompiler_20261015.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
 - SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
 - installed: this build
+- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
 - 1 addresses
 
 ### s2c:baked/nav
@@ -1698,7 +1723,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## scenesystem.dll, build 20261015
 
-- file: `scenesystem.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
+- file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: this build
 - 36 addresses
@@ -1746,7 +1771,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## server.dll, build 20261015
 
-- file: not found locally
+- file: `server_20261015.dll`, 34,628,248 bytes, PE time 2026-10-14 18:43 UTC
+- SHA-256 `09e8c04c5f44040155d04fa79a3f43491d542a386f45807ed77785729e5925a9`
+- installed: a different build
 - 36 addresses
 
 ### s2c:baked/nav
@@ -1792,9 +1819,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## smartprops.dll, build 20260923
 
-- file: `smartprops.dll`, 1,511,576 bytes, PE time 2026-10-14 18:38 UTC
-- SHA-256 `2e7782278b4054ee286ac28c3e30310e94022b6e5ac39ea0a90e1699eed2e91a`
-- installed: this build
+- file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
+- SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 30 tracked addresses: identical 17, relocated 13
 - 30 addresses
 
 ### s2c:smartprops
@@ -1834,9 +1862,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## tier0.dll, build 20260923
 
-- file: `tier0.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
-- SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
-- installed: this build
+- file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
+- SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
 - 52 addresses
 
 ### s2c:baked/bomb
@@ -1913,9 +1942,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## tier0.dll, build 20261015
 
-- file: `tier0.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
+- file: `tier0_20261015.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: this build
+- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
 - 6 addresses
 
 ### s2c:io
@@ -1931,9 +1961,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## visbuilder.dll, build 20260923
 
-- file: `visbuilder.dll`, 1,855,640 bytes, PE time 2026-10-14 18:41 UTC
-- SHA-256 `ff000621c4492258de141eaecf7dd29eea7cacbaa0c4ab0da7f73234b841a022`
-- installed: this build
+- file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
+- SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -2143,9 +2174,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## vphysics2.dll, build 20260924
 
-- file: `vphysics2.dll`, 4,829,848 bytes, PE time 2026-10-14 18:42 UTC
-- SHA-256 `1d7680455eb1ca3ad7c9b92165515351f607e96db66cf466140aaf3f00946dba`
-- installed: this build
+- file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
+- SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
 - 490 addresses
 
 ### s2c:baked/bomb
@@ -2675,9 +2707,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 ## vrad3.dll, build 20261001
 
-- file: `vrad3.dll`, 3,269,272 bytes, PE time 2026-10-14 18:42 UTC
-- SHA-256 `640aa494e082e93639fe0a6a583321abb8cb3930d6dbd9162e3a9e2a951bf9b3`
-- installed: this build
+- file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
+- SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
+- installed: a different build
+- against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
 - 365 addresses
 
 ### s2c:baked/vrad3

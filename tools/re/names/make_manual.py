@@ -2794,6 +2794,15 @@ RESOURCECOMPILER_1015 = [
     ("1800fe5f0", "MapCompile_RunPostMapBuildSteps", NAV, "after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40)"),
 ]
 
+# bc7e.dll as installed (PE time 2026-01-01; unchanged by the 10-15 update), copied as bc7e_20261015.dll.
+BC7E = [
+    ("180001000", "bc7e_DetectTarget", BAKE, "cpuid / xgetbv: 5 AVX-512 SKX, 4 AVX-512 KNL, 3 AVX2, 2 AVX, 1 SSE4, 0 SSE2"),
+    ("1800010c0", "bc7e_TargetOnce", BAKE, "180001000 once into 180177000"),
+    ("1800014d0", "bc7e_compress", BAKE, "export: target 3 and up (AVX2 and AVX-512 alike) run 180166df0, the ISPC avx2-i32x8 build (ymm); 2: 1801212b0, 1: 1800c68e0, 0: 180068da0"),
+    ("180166df0", "bc7e_compress_blocks_avx2", BAKE, "the 8-wide AVX2 target: a 4-wide build (avx2-i32x4) differs on a few blocks (Bc7eOracleTests)"),
+    ("180169300", "bc7e_init_params", BAKE, "export (level 0..6, perceptual, params): a jump table onto the ISPC params initialisers; level 6 is slowest"),
+]
+
 if __name__ == "__main__":
     write("resourcecompiler_20260923.manual.json", RESOURCECOMPILER)
     write("vphysics2_20260924.manual.json", VPHYSICS2)
@@ -2814,4 +2823,5 @@ if __name__ == "__main__":
     write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
     write("server_20261015.manual.json", SERVER_1015)
     write("resourcecompiler_20261015.manual.json", RESOURCECOMPILER_1015)
+    write("bc7e_20261015.manual.json", BC7E)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

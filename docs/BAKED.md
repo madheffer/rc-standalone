@@ -186,7 +186,7 @@ both light probe volume atlases.
   - DXT1, ATI1N, ATI2N: the 8-bit writer (180c41d70), then ATI_Compress with
     weights 1. Valve's ImageFormat 0x18 becomes ATI_TC's BC4 (31) and 0x19 its
     BC5 (32). This uses main's C# port, RcTexture.AtiCompress.
-  - BC7: main's bc7e build (level 6, AMD table).
+  - BC7: our bc7e build (level 6, AMD table, ISPC avx2-i32x8 as the game's; ledger 110).
 - **Header.** Reflectivity is the mean over every texel in four lanes, slices
   in order. COMPRESSED_MIP_SIZE is the only extra data. The mip is LZ4 HC level
   10 when that saves 5% and 32 KB (dlshd stays raw). RED2 holds:
