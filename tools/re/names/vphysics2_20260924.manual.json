@@ -2813,6 +2813,72 @@
    "name": "CVPhysics2Interface_Vtable",
    "module": "s2c:physics/hull",
    "note": "data: vtable; slot 0x1f8 is RnHullCreate"
+  },
+  {
+   "addr": "180065370",
+   "name": "CPhysicsWorld::CastShapeAllHits",
+   "module": "s2c:baked/navgen",
+   "note": "world vfn 0x560 -> 1801f4e40; the sphere type (descriptor +0x28 = 1: centre +0, radius +0xc) to 1801f5360"
+  },
+  {
+   "addr": "1801f5360",
+   "name": "CRnWorld::CastSphere",
+   "module": "s2c:baked/navgen",
+   "note": "ray clip 1801c4370 past the coordinate limit; per tree 1801da640 with the best fraction; the clip's remap of each hit's fraction (ledger 103)"
+  },
+  {
+   "addr": "1801c4370",
+   "name": "Ray_ClipToWorld",
+   "module": "s2c:baked/navgen",
+   "note": "only when |delta| exceeds g_flConfigMaxCoord: the slab clip to +-2 max coord; offset and scale for the fractions"
+  },
+  {
+   "addr": "1801da640",
+   "name": "Broadphase_CastSphere",
+   "module": "s2c:baked/navgen",
+   "note": "shape frame R^T (start - origin), delta (dy r1 + dx r0) + dz r2; shape vfn 0x20; static bodies keep the nearest hit and shrink the limit, others add every hit"
+  },
+  {
+   "addr": "180242750",
+   "name": "CRnMeshShape::CastSphere",
+   "module": "s2c:baked/navgen",
+   "note": "180247c30 with the shape's scale (+0xb8)"
+  },
+  {
+   "addr": "180247c30",
+   "name": "RnMesh_CastSphere",
+   "module": "s2c:baked/navgen",
+   "note": "BVH walk with the swept sphere (node box grown by the half extent, three cross-axis tests); triangle box +-1/32 and radius; 1803157c0 / 180315820 per triangle; closed meshes 18024ac40; Simulation/SphereCast.Mesh"
+  },
+  {
+   "addr": "1803157c0",
+   "name": "SphereTriangle_Setup",
+   "module": "s2c:baked/navgen",
+   "note": "edges, unit normal, edge-plane normals, dot products; margin radius + 1/32"
+  },
+  {
+   "addr": "180315820",
+   "name": "SphereTriangle_Sweep",
+   "module": "s2c:baked/navgen",
+   "note": "the start's region picks the feature: entries V0 180313b80, V1 180314a70, V2 180315110, E0 180313e10, E1 180314d30, E2 1803153d0, face 180314170"
+  },
+  {
+   "addr": "180339a30",
+   "name": "SphereTriangle_SweepVertex",
+   "module": "s2c:baked/navgen",
+   "note": "quadratic against the vertex, exits through the two edge planes (1, 2)"
+  },
+  {
+   "addr": "180339fc0",
+   "name": "SphereTriangle_SweepEdge",
+   "module": "s2c:baked/navgen",
+   "note": "cylinder about the edge, exits to its end vertices (1, 2) or the face (3)"
+  },
+  {
+   "addr": "180339120",
+   "name": "SphereTriangle_SweepFace",
+   "module": "s2c:baked/navgen",
+   "note": "slab within the margin, exits through the edge planes"
   }
  ]
 }

@@ -2466,6 +2466,75 @@ game can answer is raised with the user first, and runs with -insecure.
     - Not captured: prefabs and hidden instances (MapWorldOrder refuses; Vrad3Job keeps the lump
       order for them).
 
+103. **The .nav's CS custom data: earliest occupy times, hiding spots, encounter spots, approach
+    areas; vphysics2's sphere cast** (settled 2026-10-20 by decompile and disassembly of server.dll
+    20261015 and vphysics2 20260924 (identical in 20261015 at these functions); captured with
+    tools/re/capture_navanalysis.py, CS2 closed, probe01 with -world -phys -nav -fshallow).
+    Verified on probe01 from one same-run capture (NavAnalysisTests): the 42 areas, grid and 1386
+    nearest-area lookups; 1344 A* travel distances and the 42 areas' occupy times; 25,269 mesh
+    sphere casts and 15,842 world sphere casts (the analysis's traces, our settle bodies); the 42
+    A* records after the occupy step and after the hiding-spot step; six hiding spots (ids,
+    positions, flags) with 918 of 918 traces; the 42 areas' encounters; the 42 areas' approach
+    entries, chained from our records; and the custom data block itself, 4220 of 4220 bytes once
+    Valve's heap pointer dwords are put in.
+    - Order (1803906a0): occupy times (1803935e0 / 180394e20), hiding spots (180394b10 /
+      180394340, sniper classification 1803925e0), encounter spots (180393ea0 / 180391710), then
+      approach areas per area (180393060). A trigger_survival_playarea skips the first three's work
+      (refused).
+    - Traces: the mesh's trace object (1814eb500 -> 1814eb630 -> 1814ea9a0) casts a sphere of
+      radius 0.1 through vphysics2's world vfn 0x560 (180065370 -> 1801f5360) with the query
+      0x3021, every body type, group 3, flags 0x49; static bodies keep their nearest hit, others
+      add every hit; the broadphase (1801da640) moves start and delta into the shape's frame
+      (R^T (start - origin); the delta (dy r1 + dx r0) + dz r2). The result's fraction is the least
+      hit and its end start + delta * fraction. The mesh sphere cast is 180247c30 (BVH walk) with
+      the triangle feature sweep 1803157c0 / 180315820 (entries 180313b80.., plain sweeps 180339a30
+      vertex, 180339fc0 edge, 180339120 face), transcribed in Simulation/SphereCast.cs.
+    - A* records (1814d7200, 0x30 per area by +0x64): position, parent, how (the edge, 9 at a
+      start), edge back (0xff at a start). Every search shares them and leaves them as they are; a
+      neighbour's record takes the search's position variable when pushed. CNavPathCost moves that
+      variable to the portal crossing; the approach cost (1817bee30, vfn 0x90 180392280) leaves it
+      at the start's centre and costs the distance between the two areas' record positions, so it
+      reads positions an earlier search left. Approach areas therefore depend on the hiding step's
+      sniper searches.
+    - Hiding spots: a corner whose two edges have no connections (out or in), no spot of the area
+      within 30 and an area under it (GetNavArea 1814b2910 with flags 2: the point's cell, contains
+      in XY within 0.05, z from 80 below to 18 above, the nearest z, a later area winning a tie).
+      Cover: from 35.5 up, a trace 20 up; clear, 16 traces 100 out (and 35.5 up) every pi/8, more
+      than 7 blocked is in cover (1), else exposed (8); the first trace blocked is in cover.
+      ClassifySniperSpot: the eye 62 up (attribute bit 10) else 37; a navsystem Dijkstra from the
+      spot's area at its centre (1810f5f80 / 1810fb4e0; 1802c7fe0: the portal's closest point to
+      the area's position, range 2000, areas whose closest point is 2000 or more away closed), then
+      rings of hex-lattice samples over the visited areas inside the origin's 2000 box (spacing
+      10/3 times 1.7 per ring, out to 4.1 times it, then 1.7 times the ring, the next from 1.01
+      times the last), traced from the eye to 35.5 above; clear traces 1000 or more long count:
+      ideal (4) when count * 100 >= 40000 or the longest >= 1500, else good (2), when the longest
+      >= 1000.
+    - Encounters: every ordered pair of an area's connections to different areas; the path between
+      the portal midpoints, 62 above each area's z there; every 25 along it and at its end, each
+      in-cover spot not yet seen on the path within 2000 (spot 62 up) with a clear trace to 35.5
+      above it is seen, and kept when the dot of the directions lies strictly within +-0.7071 and
+      the point is past the start, at its fraction of the path.
+    - Approach areas: the eye over the centre (ground height 1814b22d0 down from 35.501 above, then
+      63.9 up, 31.95 crouching); far areas at least 200 on each side
+      (nav_approach_points_area_size_threshold) that are not potentially visible (180398290: the
+      centre 53.25 up, corners 106.5 up whose direction differs by a dot below 0.98,
+      nav_potentially_visible_dot_tolerance); the A* path both ways, its first area not potentially
+      visible (one back at the far area) the next, the area before it here; the next goes on a
+      blocked list and the path is rebuilt until it fails, is shorter than 3, the list holds 256
+      (the area is done) or 16 entries exist.
+    - The save (18039ad80): hidingspotdata, spotencounterdata (from / to the low dwords of area
+      pointers; each encounter rewrites the area's order array, so it keeps the last encounter's
+      spots: the spot pointer's low dword and t), approachdata (-1 for no area), earliestoccupytime;
+      integers 0 and 1 as the int64 zero / one types, t and times as doubles.
+    - Not ported (refused): the survival play area path, areas without polygons, start-solid
+      traces, special edges in GetNavArea, hulls in the analysis traces. V_sinf / V_cosf are taken as
+      MathF (only clear-or-blocked depends on them).
+    - Open (inferred, not yet settled from the DLLs): the incoming-connection lists (CNavArea +0x90)
+      the hiding-spot corner test reads are taken as the one-way connections into the area (another
+      area connects to it on that edge and it does not connect back); probe01 has none. Not
+      exercised by probe01: crouch areas (31.95 / 37), the second GetZ triangle, blocked-list
+      exhaustion (256), hull sphere casts.
+
 104. **The nav world's box casts from our own bodies; the nav world keeps no movable props**
     (decompile of resourcecompiler 20260923 and vphysics2 20260924 / 20261015, captured with CS2
     closed, 2026-10-20). Verified: NavBoxWorld over our settle bodies answers every one of the

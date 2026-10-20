@@ -1723,22 +1723,45 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 ## server.dll, build 20261015
 
 - file: not found locally
-- 12 addresses
+- 35 addresses
 
 ### s2c:baked/nav
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1803906a0` | `CSNavMesh_ComputeAIData` | 'CSGO Compute AI Data': 1803935e0 occupy times, 180394b10 hiding spots, 180393ea0 encounter spots, then 180393060 per area (approach areas); a map with trigger_survival_playarea skips them (occupy 120, approach count 0) |  |
-| `180393060` | `CCSNavArea::ComputeApproachAreas` | +0x488 count (at most 16), entries of 0x38 from +0x108; shortest paths both ways (1810ce520), 180398290 visibility |  |
-| `1803935e0` | `CSNavMesh_ComputeEarliestOccupyTimes` | origins of info_player_terrorist then info_player_counterterrorist (entity order), 180394e20 per area | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:737` |
-| `180393ea0` | `CSNavMesh_ComputeEncounterSpots` | 180391710, 18039a860, 1814e1950 |  |
-| `180394b10` | `CSNavMesh_ComputeHidingSpots` | per area 180394340 |  |
-| `180394e20` | `CCSNavArea::ComputeEarliestOccupyTimes` | +0xc8 / +0xcc start at 120; per spawn: nearest area (1814b3a10, 10000), travel distance (1814d96f0, cost functor 1817a7d48) / 260, the least kept | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:737` |
+| `1802c7fe0` | `CNavAreaSearch_Expand` | cost via 1810e5330; areas 2000 or more from the origin closed, crossings beyond it skipped; push 1802e3c80 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:156` |
+| `1803906a0` | `CSNavMesh_ComputeAIData` | 'CSGO Compute AI Data': 1803935e0 occupy times, 180394b10 hiding spots, 180393ea0 encounter spots, then 180393060 per area (approach areas); a map with trigger_survival_playarea skips them (occupy 120, approach count 0) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.CustomData.cs:14` |
+| `180390ca0` | `ApproachAreaCost::ApproachAreaCost` | vtable 1817bee30 over CNavPathCost 1817a7d48 (hull +8) |  |
+| `180391710` | `CCSNavArea::AddSpotEncounter` | the path between the two portals' midpoints, 62 up; spots every 25 within 2000 with a clear trace, dot within +-0.7071; marker 181fa564c | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Encounter.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Encounter.cs:43` |
+| `180392280` | `ApproachAreaCost::EdgeCost` | vfn 0x90 of 1817bee30: -1 for a blocked id, else \|record pos(from) - record pos(to)\|; the search's position is left alone | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:90` |
+| `1803925e0` | `ClassifySniperSpot` | eye 62 (attribute bit 10) or 37 up; 1810f5f80 / 1810fb4e0 with range 2000, spacing 10 and the collector 1817bf1a8 (18039c7c0); ideal 4 / good 2 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:291` |
+| `180393060` | `CCSNavArea::ComputeApproachAreas` | +0x488 count (at most 16), entries of 0x38 from +0x108; shortest paths both ways (1810ce520), 180398290 visibility; the next area's id (+0x60) goes on a blocked list (181fa56f0, count 181fa5af0) and the path is rebuilt (ledger 103) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:101` |
+| `1803935e0` | `CSNavMesh_ComputeEarliestOccupyTimes` | origins of info_player_terrorist then info_player_counterterrorist (entity order), 180394e20 per area | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:807` |
+| `180393ea0` | `CSNavMesh_ComputeEncounterSpots` | 180391710, 18039a860, 1814e1950 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Encounter.cs:22` |
+| `180394340` | `CCSNavArea::ComputeHidingSpots` | corners with both edges unconnected (out +0x70, in +0x90), no spot within 30, GetNavArea there; cover traces (20 up, 16 out 100); 1803925e0 per spot | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:240` |
+| `180394b10` | `CSNavMesh_ComputeHidingSpots` | per area 180394340 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:240` |
+| `180394e20` | `CCSNavArea::ComputeEarliestOccupyTimes` | +0xc8 / +0xcc start at 120; per spawn: nearest area (1814b3a10, 10000), travel distance (1814d96f0, cost functor 1817a7d48) / 260, the least kept | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:807` |
+| `180395650` | `HidingSpot_Create` | 0x28 bytes; id from the counter 181da14e0 (reset by Compute AI Data); added to the mesh's list +0x478 / +0x480 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:222` |
+| `180397850` | `GetNavAreaForHull` | 1814b2910 with flags 2 and the hull record 1802b11b0 (80, 18, 16), tolerance 0.05 |  |
+| `180398290` | `CCSNavArea::IsPotentiallyVisible` | centre 53.25 up, then corners 106.5 up whose direction from the eye has a dot below nav_potentially_visible_dot_tolerance (0.98) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:67` |
 | `180399100` | `CCSNavArea::LoadCustomData` | the reader of 18039ad80's keys |  |
 | `18039a7c0` | `CSNavMesh::Analyze` | vfn 0x60: 18039aa00 (CS pre-step), the shared 1814cfaa0, then 18039a730 per entry of +0x480 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:5` |
-| `18039ac00` | `CSNavMesh::SaveCustomData` | vfn 0x78: navmeshcustomdata1 { arealist [ per area (18039ad80) ] } |  |
-| `18039ad80` | `CCSNavArea::SaveCustomData` | hidingspotdata, spotencounterdata (from / to: the low dword of the NavConnect at +0 / +0x18, a CNavArea* at save time; fromdir +0x10, todir +0x28; spots +0x48 / +0x50: the low dword of +8, a HidingSpot*, and t), approachdata, earliestoccupytime. The pointer dwords are heap addresses: two compiles differ there and only there |  |
+| `18039a860` | `CCSNavArea::ClearSpotEncounters` | frees +0xc0's encounters (0x60 bytes each) |  |
+| `18039ac00` | `CSNavMesh::SaveCustomData` | vfn 0x78: navmeshcustomdata1 { arealist [ per area (18039ad80) ] } | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.CustomData.cs:30` |
+| `18039ad80` | `CCSNavArea::SaveCustomData` | hidingspotdata, spotencounterdata (from / to: the low dword of the NavConnect at +0 / +0x18, a CNavArea* at save time; fromdir +0x10, todir +0x28; spots +0x48 / +0x50: the low dword of +8, a HidingSpot*, and t), approachdata, earliestoccupytime. The pointer dwords are heap addresses: two compiles differ there and only there; each encounter rewrites the area's order array (the last one's spots kept); 0 / 1 as the int64 zero / one types, t and times as doubles | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.CustomData.cs:30` |
+| `1810ce520` | `NavAreaBuildPath` | fills the 1814d9810 request: start / goal areas, no positions, the cost, max length -1, the closest-area out |  |
+| `1810f5f80` | `CNavAreaSearch_Init` | origin, start area, range (+0x264), spacing (+0x260), the visit lambda 181a145a0 (181108dc0 -> 1810f6dd0: areas in the origin's box) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:155` |
+| `1810fb4e0` | `CNavAreaSearch_Run` | the Dijkstra (1802cdb70 / 180324230 / 1802c7fe0), then rings of samples 1810fb740 / 1810f76b0 (hex lattice) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:155`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:330` |
+| `1814b22d0` | `CNavMesh_GetGroundHeight` | down 10000 from 35.501 above; a hit 35.5 or more from the start, else again from 35.501 above it (16 tries) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:26` |
+| `1814b2910` | `CNavMesh_GetNavArea` | the point's cell (or rings), contains-XY 1814c5a00, z 1814c43b0 in the hull record's window, the nearest z (ties to the later) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:108` |
+| `1814c1ff0` | `CNavArea::NearestCorner` | XY, the first of equals | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:5` |
+| `1814c2ee0` | `Polygon_ClosestPoint` | fan triangles (v0, v[i], v[i-1]) from the last, 1814762f0 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:376` |
+| `1814c43b0` | `CNavArea::GetZ` | fan triangle (previous, nearest 1814c1ff0, next corner); the one two corners on when the first is degenerate or the point lies outside | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:25` |
+| `1814c5a00` | `CNavArea::ContainsXY` | bounds and each edge's outward half-plane grown by the tolerance | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:74` |
+| `1814d4260` | `NavPathCost_Step` | vfn 0x68 (1814d4980) with no target: the crossing toward the area's own position | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:159` |
+| `1814d7200` | `NavArea_SearchRecord` | 0x30 bytes by area +0x64: position, open index +0xc, parent handle +0x10, how +0x28, edge back +0x2c | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:681` |
+| `1814d9810` | `CNavMesh_AStar` | records 1814d7200 shared by every search; push writes position / parent / edge (1814d3930 / 1814d3940); heap 180397ef0 / 18039a3c0 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:734`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:794` |
+| `1814e1950` | `CNavArea_CollectNeighbours` | flags 1: connections edge by edge: area, how (edge), edge back (+0xc), +0x18 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:736`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Encounter.cs:22` |
 | `1817beb18` | `CCSNavArea::vftable` | 0x40 (save) is 1802aa880 |  |
 | `1817bebd0` | `CSNavMesh::vftable` | overrides 0x18/0x20 (CCSNavArea), 0x38, 0x50, 0x58, 0x60 (the analysis, called with 0x24 after the build), 0x70 (custom data version 1), 0x78 / 0x80 (custom data save / load), 0xb0, 0xc0; 0x98 (1814ac9c0) is the shared build |  |
 
@@ -2096,7 +2119,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2.dll`, 4,829,848 bytes, PE time 2026-10-14 18:42 UTC
 - SHA-256 `1d7680455eb1ca3ad7c9b92165515351f607e96db66cf466140aaf3f00946dba`
 - installed: this build
-- 469 addresses
+- 480 addresses
 
 ### s2c:baked/bomb
 
@@ -2122,20 +2145,26 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802643e0` | `RnMesh_GetTriangles` | BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:215` |
 | `1802661f0` | `RnShape_GetTriangles` | by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenShapes.cs:6` |
 | `18029b6f0` | `RnGjk_PointSetDistance` | point-list proxies (scale 1, no box), 32 iterations | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:71` |
-| `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32` |
+| `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:51` |
 
 ### s2c:baked/navgen
 
 | address | name | what | cited in |
 |---|---|---|---|
 | `180065360` | `CVPhys2World::CastShape` | world vfn 0x558 -> 1801f5080 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:5`, `src/Source2.Compiler/Simulation/BoxCast.cs:9` |
+| `180065370` | `CPhysicsWorld::CastShapeAllHits` | world vfn 0x560 -> 1801f4e40; the sphere type (descriptor +0x28 = 1: centre +0, radius +0xc) to 1801f5360 | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:9` |
 | `18008d5b0` | `Vector_Perpendicular` | ((1 - z) y^2 + z, 0, -x) normalised, made orthogonal, normalised | `src/Source2.Compiler/Maps/NavGen/NavGenShapes.cs:96`, `src/Source2.Compiler/Simulation/HullCast.cs:1632` |
 | `18016b0e0` | `RaySphereCast` | capsules under 0.001; inside via 18016b2f0 | `src/Source2.Compiler/Simulation/HullCast.cs:1590` |
 | `18016caf0` | `RayCapsuleCast` | fraction, point, normal, start solid (+0x30) | `src/Source2.Compiler/Simulation/HullCast.cs:1408` |
+| `1801c4370` | `Ray_ClipToWorld` | only when \|delta\| exceeds g_flConfigMaxCoord: the slab clip to +-2 max coord; offset and scale for the fractions | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:12`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:82` |
 | `1801d64a0` | `RnBroadphase_CastBox` | a broadphase tree's walk for CastBox: each leaf's body type against the query's mask (+0x2f), 1802facf0, the shape transform from the body (q rows, world mass centre less q (s c)), shape vfn 0x40 with the best fraction, kept strictly below it; a fraction of 0 ends the walk | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:67`, `src/Source2.Compiler/Simulation/BoxCast.cs:10` |
+| `1801da640` | `Broadphase_CastSphere` | shape frame R^T (start - origin), delta (dy r1 + dx r0) + dz r2; shape vfn 0x20; static bodies keep the nearest hit and shrink the limit, others add every hit | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:15`, `src/Source2.Compiler/Simulation/SphereCast.cs:11` |
+| `1801f5360` | `CRnWorld::CastSphere` | ray clip 1801c4370 past the coordinate limit; per tree 1801da640 with the best fraction; the clip's remap of each hit's fraction (ledger 103) | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:12` |
 | `18023fe00` | `RnMesh_RayNormal` | BVH ray with the hit triangle's unit normal | `src/Source2.Compiler/Simulation/BoxCast.cs:297`, `src/Source2.Compiler/Simulation/BoxCast.cs:332` |
+| `180242750` | `CRnMeshShape::CastSphere` | 180247c30 with the shape's scale (+0xb8) | `src/Source2.Compiler/Simulation/SphereCast.cs:7` |
 | `180243770` | `RnMesh_SweptTriangleTestWings` | 180244380 for triangles with three wings; the same fraction, another normal | `src/Source2.Compiler/Simulation/BoxCast.cs:53`, `src/Source2.Compiler/Simulation/BoxCast.cs:160` |
 | `180244dc0` | `RnMesh_CastBoxTransformed` | start and half extents into the mesh frame, triangle box (min - 1/32) - h; Simulation/BoxCast.MeshTransformed | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:16`, `src/Source2.Compiler/Maps/NavGen/NavTriangleWorld.cs:7`, `src/Source2.Compiler/Simulation/BoxCast.cs:151` |
+| `180247c30` | `RnMesh_CastSphere` | BVH walk with the swept sphere (node box grown by the half extent, three cross-axis tests); triangle box +-1/32 and radius; 1803157c0 / 180315820 per triangle; closed meshes 18024ac40; Simulation/SphereCast.Mesh | `src/Source2.Compiler/Simulation/SphereCast.cs:7`, `src/Source2.Compiler/Simulation/SphereCast.cs:782` |
 | `180248a30` | `RnMesh_PointInsideClosed` | ray to the nearest bound face (ties z, then y) through 18023fe00; inside when the hit faces along it | `src/Source2.Compiler/Simulation/BoxCast.cs:57`, `src/Source2.Compiler/Simulation/BoxCast.cs:294` |
 | `18024ac40` | `RnMesh_CastBoxClosed` | closed meshes (+0xb4 bit 0): the start inside (180248a30) makes the fraction 0 | `src/Source2.Compiler/Simulation/BoxCast.cs:162`, `src/Source2.Compiler/Simulation/BoxCast.cs:283` |
 | `180250540` | `CRnHullShape::CastBox` | 180251800 with the shape's hull (+0xc0) and scale (+0xb8) | `src/Source2.Compiler/Simulation/HullCast.cs:6` |
@@ -2162,6 +2191,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802eaa40` | `GjkHullSupport` | vtable 1803e1250 slot 1: the first point with the greatest dot | `src/Source2.Compiler/Simulation/HullCast.cs:99` |
 | `1802eacc0` | `GjkCast_Run` | GJK on the box swept along the ray minus the hull, 100 steps | `src/Source2.Compiler/Simulation/HullCast.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:278` |
 | `1802eb5e0` | `GjkCast_EdgeCapsule` |  | `src/Source2.Compiler/Simulation/HullCast.cs:1268` |
+| `1803157c0` | `SphereTriangle_Setup` | edges, unit normal, edge-plane normals, dot products; margin radius + 1/32 | `src/Source2.Compiler/Simulation/SphereCast.cs:8`, `src/Source2.Compiler/Simulation/SphereCast.cs:19`, `src/Source2.Compiler/Simulation/SphereCast.cs:34` |
+| `180315820` | `SphereTriangle_Sweep` | the start's region picks the feature: entries V0 180313b80, V1 180314a70, V2 180315110, E0 180313e10, E1 180314d30, E2 1803153d0, face 180314170 | `src/Source2.Compiler/Simulation/SphereCast.cs:8`, `src/Source2.Compiler/Simulation/SphereCast.cs:88` |
+| `180339120` | `SphereTriangle_SweepFace` | slab within the margin, exits through the edge planes | `src/Source2.Compiler/Simulation/SphereCast.cs:548`, `src/Source2.Compiler/Simulation/SphereCast.cs:659` |
+| `180339a30` | `SphereTriangle_SweepVertex` | quadratic against the vertex, exits through the two edge planes (1, 2) | `src/Source2.Compiler/Simulation/SphereCast.cs:180` |
+| `180339fc0` | `SphereTriangle_SweepEdge` | cylinder about the edge, exits to its end vertices (1, 2) or the face (3) | `src/Source2.Compiler/Simulation/SphereCast.cs:302` |
 | `18037d090` | `SegmentSphereClip` | 18037cd90 clipped to [0, 1] | `src/Source2.Compiler/Simulation/HullCast.cs:1024` |
 
 ### s2c:entities/settle

@@ -22,7 +22,7 @@
    "addr": "18039ad80",
    "name": "CCSNavArea::SaveCustomData",
    "module": "s2c:baked/nav",
-   "note": "hidingspotdata, spotencounterdata (from / to: the low dword of the NavConnect at +0 / +0x18, a CNavArea* at save time; fromdir +0x10, todir +0x28; spots +0x48 / +0x50: the low dword of +8, a HidingSpot*, and t), approachdata, earliestoccupytime. The pointer dwords are heap addresses: two compiles differ there and only there"
+   "note": "hidingspotdata, spotencounterdata (from / to: the low dword of the NavConnect at +0 / +0x18, a CNavArea* at save time; fromdir +0x10, todir +0x28; spots +0x48 / +0x50: the low dword of +8, a HidingSpot*, and t), approachdata, earliestoccupytime. The pointer dwords are heap addresses: two compiles differ there and only there; each encounter rewrites the area's order array (the last one's spots kept); 0 / 1 as the int64 zero / one types, t and times as doubles"
   },
   {
    "addr": "180399100",
@@ -70,7 +70,145 @@
    "addr": "180393060",
    "name": "CCSNavArea::ComputeApproachAreas",
    "module": "s2c:baked/nav",
-   "note": "+0x488 count (at most 16), entries of 0x38 from +0x108; shortest paths both ways (1810ce520), 180398290 visibility"
+   "note": "+0x488 count (at most 16), entries of 0x38 from +0x108; shortest paths both ways (1810ce520), 180398290 visibility; the next area's id (+0x60) goes on a blocked list (181fa56f0, count 181fa5af0) and the path is rebuilt (ledger 103)"
+  },
+  {
+   "addr": "180394340",
+   "name": "CCSNavArea::ComputeHidingSpots",
+   "module": "s2c:baked/nav",
+   "note": "corners with both edges unconnected (out +0x70, in +0x90), no spot within 30, GetNavArea there; cover traces (20 up, 16 out 100); 1803925e0 per spot"
+  },
+  {
+   "addr": "1803925e0",
+   "name": "ClassifySniperSpot",
+   "module": "s2c:baked/nav",
+   "note": "eye 62 (attribute bit 10) or 37 up; 1810f5f80 / 1810fb4e0 with range 2000, spacing 10 and the collector 1817bf1a8 (18039c7c0); ideal 4 / good 2"
+  },
+  {
+   "addr": "180395650",
+   "name": "HidingSpot_Create",
+   "module": "s2c:baked/nav",
+   "note": "0x28 bytes; id from the counter 181da14e0 (reset by Compute AI Data); added to the mesh's list +0x478 / +0x480"
+  },
+  {
+   "addr": "180397850",
+   "name": "GetNavAreaForHull",
+   "module": "s2c:baked/nav",
+   "note": "1814b2910 with flags 2 and the hull record 1802b11b0 (80, 18, 16), tolerance 0.05"
+  },
+  {
+   "addr": "180391710",
+   "name": "CCSNavArea::AddSpotEncounter",
+   "module": "s2c:baked/nav",
+   "note": "the path between the two portals' midpoints, 62 up; spots every 25 within 2000 with a clear trace, dot within +-0.7071; marker 181fa564c"
+  },
+  {
+   "addr": "18039a860",
+   "name": "CCSNavArea::ClearSpotEncounters",
+   "module": "s2c:baked/nav",
+   "note": "frees +0xc0's encounters (0x60 bytes each)"
+  },
+  {
+   "addr": "180398290",
+   "name": "CCSNavArea::IsPotentiallyVisible",
+   "module": "s2c:baked/nav",
+   "note": "centre 53.25 up, then corners 106.5 up whose direction from the eye has a dot below nav_potentially_visible_dot_tolerance (0.98)"
+  },
+  {
+   "addr": "180392280",
+   "name": "ApproachAreaCost::EdgeCost",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x90 of 1817bee30: -1 for a blocked id, else |record pos(from) - record pos(to)|; the search's position is left alone"
+  },
+  {
+   "addr": "180390ca0",
+   "name": "ApproachAreaCost::ApproachAreaCost",
+   "module": "s2c:baked/nav",
+   "note": "vtable 1817bee30 over CNavPathCost 1817a7d48 (hull +8)"
+  },
+  {
+   "addr": "1810ce520",
+   "name": "NavAreaBuildPath",
+   "module": "s2c:baked/nav",
+   "note": "fills the 1814d9810 request: start / goal areas, no positions, the cost, max length -1, the closest-area out"
+  },
+  {
+   "addr": "1814d9810",
+   "name": "CNavMesh_AStar",
+   "module": "s2c:baked/nav",
+   "note": "records 1814d7200 shared by every search; push writes position / parent / edge (1814d3930 / 1814d3940); heap 180397ef0 / 18039a3c0"
+  },
+  {
+   "addr": "1814d7200",
+   "name": "NavArea_SearchRecord",
+   "module": "s2c:baked/nav",
+   "note": "0x30 bytes by area +0x64: position, open index +0xc, parent handle +0x10, how +0x28, edge back +0x2c"
+  },
+  {
+   "addr": "1814d4260",
+   "name": "NavPathCost_Step",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x68 (1814d4980) with no target: the crossing toward the area's own position"
+  },
+  {
+   "addr": "1814e1950",
+   "name": "CNavArea_CollectNeighbours",
+   "module": "s2c:baked/nav",
+   "note": "flags 1: connections edge by edge: area, how (edge), edge back (+0xc), +0x18"
+  },
+  {
+   "addr": "1814b2910",
+   "name": "CNavMesh_GetNavArea",
+   "module": "s2c:baked/nav",
+   "note": "the point's cell (or rings), contains-XY 1814c5a00, z 1814c43b0 in the hull record's window, the nearest z (ties to the later)"
+  },
+  {
+   "addr": "1814b22d0",
+   "name": "CNavMesh_GetGroundHeight",
+   "module": "s2c:baked/nav",
+   "note": "down 10000 from 35.501 above; a hit 35.5 or more from the start, else again from 35.501 above it (16 tries)"
+  },
+  {
+   "addr": "1814c43b0",
+   "name": "CNavArea::GetZ",
+   "module": "s2c:baked/nav",
+   "note": "fan triangle (previous, nearest 1814c1ff0, next corner); the one two corners on when the first is degenerate or the point lies outside"
+  },
+  {
+   "addr": "1814c5a00",
+   "name": "CNavArea::ContainsXY",
+   "module": "s2c:baked/nav",
+   "note": "bounds and each edge's outward half-plane grown by the tolerance"
+  },
+  {
+   "addr": "1814c1ff0",
+   "name": "CNavArea::NearestCorner",
+   "module": "s2c:baked/nav",
+   "note": "XY, the first of equals"
+  },
+  {
+   "addr": "1814c2ee0",
+   "name": "Polygon_ClosestPoint",
+   "module": "s2c:baked/nav",
+   "note": "fan triangles (v0, v[i], v[i-1]) from the last, 1814762f0"
+  },
+  {
+   "addr": "1810f5f80",
+   "name": "CNavAreaSearch_Init",
+   "module": "s2c:baked/nav",
+   "note": "origin, start area, range (+0x264), spacing (+0x260), the visit lambda 181a145a0 (181108dc0 -> 1810f6dd0: areas in the origin's box)"
+  },
+  {
+   "addr": "1810fb4e0",
+   "name": "CNavAreaSearch_Run",
+   "module": "s2c:baked/nav",
+   "note": "the Dijkstra (1802cdb70 / 180324230 / 1802c7fe0), then rings of samples 1810fb740 / 1810f76b0 (hex lattice)"
+  },
+  {
+   "addr": "1802c7fe0",
+   "name": "CNavAreaSearch_Expand",
+   "module": "s2c:baked/nav",
+   "note": "cost via 1810e5330; areas 2000 or more from the origin closed, crossings beyond it skipped; push 1802e3c80"
   }
  ]
 }
