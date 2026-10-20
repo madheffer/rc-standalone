@@ -1507,6 +1507,96 @@
    "note": "k 0..3: SH channels' component k; 4..7: quadratic channels' component k - 4; 8: the final quadratic channel's RGB"
   },
   {
+   "addr": "1800672e0",
+   "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "-mips n: sanitize line charts, zero-variation charts to pixel charts, luxel hashes, aliases, line charts by length, chart_repacking.dat (magic 0x0531771e), temporary rows, the clear, free 4x4-block lines, the longest-first packing, the copies back, the repack iterations when charts are left (not ported), FillBlocks, alias records"
+  },
+  {
+   "addr": "180066bb0",
+   "name": "AmeliorateBlockCompressionArtefacts_SanitizeLineCharts",
+   "module": "s2c:baked/vrad3",
+   "note": "job 180066c60 per chart: line charts (flags bit 29 without 28) fill empty texels from the last filled one to the left, then to the right; the last texel carries over rows"
+  },
+  {
+   "addr": "1800653b0",
+   "name": "CVrad3LightmapImage::CopyLuxel",
+   "module": "s2c:baked/vrad3",
+   "note": "luxel record, shadow record and each live channel's components (source mask in, target mask out)"
+  },
+  {
+   "addr": "180064f30",
+   "name": "CVrad3LightmapImage::LuxelsSimilar",
+   "module": "s2c:baked/vrad3",
+   "note": "channels 8-13, 15, 17-19: R within 0.04; others: each component within max(1, larger magnitude) * 0.015; shadow floats 1..4 agree on zero and within 0.04; NaN is different"
+  },
+  {
+   "addr": "1800648f0",
+   "name": "CVrad3LightmapImage::HashLuxel",
+   "module": "s2c:baked/vrad3",
+   "note": "seed 0x7a17e123; per live channel Murmur2 mix (0xbe0adc34) of 4 components (scalar channels floor(v / 0.1 + 0.5) * 0.1, else 0 below 0.01 and bits & 0xffc00000), boost-combined; then the shadow record (0x4ec335e0): index bytes 0xff where the 0.1-rounded float is 1"
+  },
+  {
+   "addr": "18006caa0",
+   "name": "Ameliorate_MarkVaryingCharts",
+   "module": "s2c:baked/vrad3",
+   "note": "per row: a sampled texel unlike its chart's first texel (lambda_6 180074670) marks the chart varying; the inverse (180062930) is the pixel-chart set"
+  },
+  {
+   "addr": "18006cc70",
+   "name": "Ameliorate_AliasBucket",
+   "module": "s2c:baked/vrad3",
+   "note": "per hash bucket: pixel texels (last first) alias the first matching other-chart texel (chart, offset); remaining pixel texels alias later matching ones (offset 0); FastRemove"
+  },
+  {
+   "addr": "18006d430",
+   "name": "Ameliorate_CopyToTemporary",
+   "module": "s2c:baked/vrad3",
+   "note": "pixel/line charts into the temporary rows (a pixel chart's first texel, a line chart's row)"
+  },
+  {
+   "addr": "18006dbc0",
+   "name": "Ameliorate_ClearMovedLuxels",
+   "module": "s2c:baked/vrad3",
+   "note": "empty, small-y or pixel-chart texels: luxel {-1, 0, flags & ~7 (rest stack)}, shadow {0xffffffff, 1, 1, 1, 1}, channels 0, free bit set"
+  },
+  {
+   "addr": "1800743a0",
+   "name": "Ameliorate_MarkFreeBlocks",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda_18: a 4x4 block whose texels are all free"
+  },
+  {
+   "addr": "180065690",
+   "name": "FindLongestLinesCoveringCells",
+   "module": "s2c:baked/vrad3",
+   "note": "rounds of 180065bb0 (run lengths right-to-left / bottom-up), 180065d20 (propagated along runs), 180065e50 (row runs with across >= down, column runs with down > across, become lines; 180065a70 emits) until no cell is left"
+  },
+  {
+   "addr": "18006ca60",
+   "name": "Ameliorate_SortLines",
+   "module": "s2c:baked/vrad3",
+   "note": "std::sort (180074f70) of the lines: length, horizontal first, y, x"
+  },
+  {
+   "addr": "18006def0",
+   "name": "Ameliorate_CopyFromTemporary",
+   "module": "s2c:baked/vrad3",
+   "note": "each placed chart's texels from its temporary row to its new line (along x, or y when vertical); free bit cleared"
+  },
+  {
+   "addr": "180066230",
+   "name": "AmeliorateBlockCompressionArtefacts_FillBlocks",
+   "module": "s2c:baked/vrad3",
+   "note": "per 4x4 block with 1..15 filled texels and live channel: a 32-slot CUtlHashtable (1800770e0, bump 18007cb50, rehash 18007c8b0) keyed by V_roundf(v * 255) / 255 of R, G, A (B dropped) and [rsp+0x74] never written (0 on workers, small on the dispatching thread); the most common key (then largest squared length, then slot order) fills the empty texels with its first texel's value"
+  },
+  {
+   "addr": "1800741b0",
+   "name": "Ameliorate_AliasRecords",
+   "module": "s2c:baked/vrad3",
+   "note": "lambda_40: an aliased chart's record {1, target's new corner or packing corner + offset (swapped for a vertical target), 0}"
+  },
+  {
    "addr": "180030100",
    "name": "CVrad3Command_lightmap_compute_block_gpu::Run",
    "module": "s2c:baked/vrad3",

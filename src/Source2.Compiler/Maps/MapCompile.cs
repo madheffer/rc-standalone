@@ -202,9 +202,10 @@ public static class MapCompile
             {
                 // Our own bake: the job resourcecompiler would hand vrad3, then the GPU bake in it.
                 bool JobWorldClass(string cls) => schema.IsSolidClass(cls) && schema.HasFlag(cls, "render_as_world_but_physics_as_entity");
-                var quality = Lighting.LightmapOutputs.Options.From(args.Arguments).Quality;
+                var options = Lighting.LightmapOutputs.Options.From(args.Arguments);
                 Lighting.Vrad3Job.Write(job, document, assets, shaders, JobWorldClass, lumps.Select(l => (l.Path, l.Bytes)),
-                                        path => entries.GetValueOrDefault(path.ToLowerInvariant()), lighting.ProbeJobs, quality);
+                                        path => entries.GetValueOrDefault(path.ToLowerInvariant()), lighting.ProbeJobs, options.Quality,
+                                        Lighting.LightmapChartRepacking.RepacksAt(options.Quality) && !options.NoRepack, args.Arguments);
                 log.WriteLine($"  lighting: job written to {job}");
                 ownBake(job, assets, log);
                 lightingFolder = job;
@@ -216,7 +217,8 @@ public static class MapCompile
                 : ((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), null);
             var baked = bakes && lightingFolder is { } bakedFolder && lighting is not null ? BakedWorldLighting(bakedFolder, map, args, lighting) : null;
             var node = WorldNodeFiles.Build(document, addon, map, assets, shaders, schema, game, lighting?.Volumes ?? EnvVolumes.Set.Empty,
-                                            stamp, notes, vis: steps.Contains("vis"), fingerprint: fingerprint, baked: baked, visibility: visibility);
+                                            stamp, notes, vis: steps.Contains("vis"), fingerprint: fingerprint, baked: baked, visibility: visibility,
+                                            arguments: args.Arguments);
             foreach (var f in node)
                 entries[f.Path] = f.Bytes;
             log.WriteLine($"  world: {lumps.Count} lumps, {models.Count} entity models, {node.Count} node files"

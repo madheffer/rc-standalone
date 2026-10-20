@@ -2861,6 +2861,64 @@ game can answer is raised with the user first, and runs with -insecure.
       - Irradiance and L0 line charts are not scaled; coefficient line charts are.
     - Open: lightmap_ameliorate_block_compression_artefacts -mips 1, which quality 1 and 2 run
       after the weld (it changes 0.53% of the AHD texels and most of channel 8 on probe01).
+      Settled in ledger 114.
+
+114. **vrad3's lightmap_ameliorate_block_compression_artefacts** (settled 2026-10-20 by decompile of
+    vrad3 (Run 1800672e0, vrad3_lightmap_ameliorate_bc_artefacts.cpp), Frida traces of FillBlocks and
+    vrad3 itself run on saved images with CS2 closed). Verified: on probe01 and ze_hold_em_p quality 1
+    images saved right before the command, Lighting/LightmapAmeliorate gives vrad3's image (channels
+    as half floats, shadow records, luxel records apart from the bits below) and chart_repacking.dat
+    byte for byte (LightmapAmeliorateTests, AMELORACLE). An oracle must load the saved image: run
+    straight on from uber_weld, vrad3 sees floats the halves round, and FillBlocks keys differ.
+    - Phases: sanitize line charts (180066c60; empty texels copy the last filled one to their left,
+      then right, the last texel carried from row to row); each chart's first texel of its own id
+      (lambda_6); a chart is a pixel chart unless one of its sampled texels differs from that first
+      texel (18006caa0, compare 180064f30: R only within 0.04 for channels 8-13, 15, 17-19, else
+      each component within 1.5% of the larger magnitude and at least 1, then the shadow floats'
+      zero-ness and 0.04; a NaN difference counts as different).
+    - The luxel hash (1800648f0, seed 0x7a17e123, MurmurHash2 mixing, boost combine): per live
+      channel the four components, 0.1-rounded for the scalar channels, else 0 below 0.01f and the
+      bits masked 0xffc00000; then the shadow record, floats 0.1-rounded and each light index byte
+      read as 0xff where its float rounds to 1.
+    - Buckets of texels sharing a hash (a pixel chart counts only its first texel), then aliases
+      (18006cc70): each pixel texel, last first, takes the first other-chart texel it matches (its
+      chart and offset); the pixel texels left alias later matching ones to themselves.
+    - Pixel charts (length 1) and unaliased line charts (height must be 1) group by length. None:
+      the command ends without a file. Else chart_repacking.dat's header and per-texel chart ids,
+      longest first into temporary rows (first fit), then the clear (18006dbc0): empty texels, the
+      luxel flags' small-y bit and pixel charts become {-1, 0, flags 0xfffffff8} (vrad3 leaves the
+      bits above the three flags from the stack: 0xfffffff8 on every probe01 texel, other values
+      on ze_hold_em_p, different on each run of Valve's own), shadow {0xffffffff, 1, 1, 1, 1},
+      channels 0.
+    - Free lines (FindLongestLinesCoveringCells 180065690): rounds over the fully cleared 4x4
+      blocks; each cell gets its row and column run lengths; a row run whose cells are all at
+      least as long across becomes a line, a column run whose cells are all longer down; sorted by
+      length, horizontal first, y, x (a total order, so the jobs' order does not matter). Longest
+      lengths first go into the longest lines, from each length's list end; leftovers re-sorted
+      until a round places nothing; then the copies back (18006def0).
+    - FillBlocks (180066230): a 4x4 block with 1 to 15 filled texels fills its empty ones per
+      channel with the most common colour of its filled texels, keyed in a 32-slot CUtlHashtable
+      by R, G and A rounded to 1/255 with V_roundf (B is computed and dropped: a typo), the first
+      texel's exact value per key; among equally common keys the largest squared length, then slot
+      order. The key's fourth float is a stack slot never written: Frida reads 0 on vrad3's 15
+      worker threads and a run-dependent small value (0x495, 0x34b, 0x50a as bits) on the thread
+      that dispatches. It moves only exact ties: 113 of ze_hold_em_p's part-filled blocks tie and
+      Valve's run disagrees with slot order 0 in two of them (24 texels), probe01's one tie agrees.
+      We use 0; Valve's own output can differ there run to run.
+    - The record per chart: {x, y, flags (bit 0 vertical, bit 1 pixel), size}; an aliased chart
+      takes its target's new corner (or its packing corner) plus the offset, swapped for a
+      vertical target (lambda_40).
+    - Quality scripts (resourcecompiler 1801eda50): the OIDN flag (182a88550) replaces the median
+      with filter_oidn and filter_sh_oidn; ameliorate follows the weld when BakeLighting repacks
+      (quality 1 or 2, no noRepack, gameinfo NoRepack or disableLightingCalculations).
+    - The packer's passes follow -lightmapVRadQuality (lightmapChartPackIterations' default 4, 7, 9):
+      Vrad3Job and the world node bake now read the compile's arguments over the world keys, and
+      probe01's packing geometry equals Valve's quality 1 and 2 jobs byte for byte (ChartMeshesTests
+      .PackingGeometryIsValves, LMGEOM_ARGS). Which wins when the map's world keys also hold a
+      setting is not settled (probe01 holds none).
+    - Open: the repack iterations (Run 18006e380 on: Update Block Endpoints ... Execute) that run
+      when charts are left after the free lines; neither map reaches them, and the port throws.
+      Also -mips above 1 (the mip image and the upsample back); the scripts pass the map's mips.
 
 
 ## Resolved

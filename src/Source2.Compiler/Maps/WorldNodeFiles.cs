@@ -24,6 +24,7 @@ public static class WorldNodeFiles
     /// <param name="fingerprint">The .vwrld's compile fingerprint, which RC draws anew for
     /// every compile; random unless given (a reproducible build).</param>
     /// <param name="visibility">Vis already built (<see cref="Visibility"/>), used instead of building it again.</param>
+    /// <param name="arguments">The compile's arguments, over the map's lighting keys (<see cref="Lighting.LightmapSettings.Keys"/>).</param>
     /// <param name="baked">A baked compile's lighting info for world.vwrld (<see cref="WorldTrees.BakedLighting"/>).</param>
     /// <param name="vis">The vis builder is on (CWorldRendererBuilder::Build reads the
     /// context's builder flag, vf29 index 2): without it there is no
@@ -31,7 +32,8 @@ public static class WorldNodeFiles
     public static List<Output> Build(DmxBinary.Document document, string addon, string map, GameContent content, ShaderLibrary shaders,
                                      FgdSchema schema, string game, EnvVolumes.Set volumes, uint timestamp, List<string> notes,
                                      bool vis = true, ulong? fingerprint = null, WorldTrees.BakedLighting? baked = null,
-                                     (byte[] Vvis, List<(Vector3 Min, Vector3 Max)>[] Flat)? visibility = null)
+                                     (byte[] Vvis, List<(Vector3 Min, Vector3 Max)>[] Flat)? visibility = null,
+                                     IReadOnlyDictionary<string, object>? arguments = null)
     {
         map = Io.Tier0Strings.LowerAscii(map);
         var outputs = new List<Output>();
@@ -58,9 +60,7 @@ public static class WorldNodeFiles
         Func<List<WorldNodeBuild.Built>, List<WorldNodeBuild.Built>>? bake = null;
         if (bakes)
         {
-            var keys = document.OfType("CMapWorld").FirstOrDefault()?.Get<DmxBinary.Element>("entity_properties")?.Attributes
-                .Where(a => a.Value is string).ToDictionary(a => a.Key, a => (string)a.Value!) ?? [];
-            var settings = Lighting.LightmapSettings.From(keys, 0x1000, 4096, sh2Dc: false);
+            var settings = Lighting.LightmapSettings.From(Lighting.LightmapSettings.Keys(document, arguments), 0x1000, 4096, sh2Dc: false);
             var importance = WorldNodeBuild.ImportanceVolumes(world, props);
             var backfaces = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             bool RenderBackfaces(string m)

@@ -25,6 +25,25 @@ internal sealed record LightmapSettings(int Width, int Height, int Mip, int Pass
 {
     private static readonly int[] PassesByQuality = [4, 7, 9];
 
+    /// <summary>
+    /// The settings by name: the map's world keys, then the compile's arguments over them (the
+    /// command line is where Hammer's build dialog puts -lightmapVRadQuality and the other switches;
+    /// an argument is read as GetInt reads it, a float truncated).
+    /// </summary>
+    public static Dictionary<string, string> Keys(DmxBinary.Document document, IReadOnlyDictionary<string, object>? arguments)
+    {
+        var keys = document.OfType("CMapWorld").FirstOrDefault()?.Get<DmxBinary.Element>("entity_properties")?.Attributes
+            .Where(a => a.Value is string).ToDictionary(a => a.Key, a => (string)a.Value!) ?? [];
+        foreach (var (name, value) in arguments ?? new Dictionary<string, object>())
+            keys[name] = value switch
+            {
+                int i => i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                float f => ((int)f).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                _ => value.ToString() ?? "",
+            };
+        return keys;
+    }
+
     /// <param name="settings">The map's lighting settings by name (absent ones take their defaults).</param>
     /// <param name="requested">The builder's requested size (+0x2f8).</param>
     /// <param name="minSpec">gameinfo MinSpecLightmapSize (0: none).</param>

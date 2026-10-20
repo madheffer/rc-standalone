@@ -133,7 +133,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7`, `src/Source2.Compiler/Maps/MapCompile.cs:284`, `src/Source2.Compiler/Maps/NavCompile.cs:119` |
+| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7`, `src/Source2.Compiler/Maps/MapCompile.cs:285`, `src/Source2.Compiler/Maps/NavCompile.cs:119` |
 | `18003b5d0` | `CCS2BombDamageBaker::GatherBombsites` | func_bomb_target entities with bomb_damage_power above 0 | `src/Source2.Compiler/Maps/NavCompile.cs:69` |
 | `18003b750` | `CCS2BombDamageBaker::BuildGrid` | top seed cells lifted 30 into the node table (+0x11 written out), site membership by the trigger overlapping the cell box (vtable +0xd0); rounds of zero-length box casts (vphysics2 +0x558) growing 5 diagonal-down steps within the bounds +-30, at most 64 | `src/Source2.Compiler/Maps/BombDamage.cs:15`, `src/Source2.Compiler/Maps/BombDamage.cs:210`, `src/Source2.Compiler/Maps/BombDamage.cs:248` |
 | `18003d030` | `CCS2BombDamageBaker::SampleNavAreas` | per area, per fan triangle (v0, v[n-1], v[n-2]) down: cells of the area bounds snapped through fmod, y x z from the top, box half 10 against the triangle (1803f2400); bounds of every hit | `src/Source2.Compiler/Maps/BombDamage.cs:142`, `src/Source2.Compiler/Maps/BombDamage.cs:157` |
@@ -523,7 +523,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:376`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153` |
+| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:377`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153` |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:165` |
 | `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
@@ -683,8 +683,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180178400` | `CResourceCompilerContext_CheckImageArg` | incremental check of an ImageArg dependency |  |
 | `180178ff0` | `CResourceCompilerContext_GetImageArg` | the ImageArg fingerprint from the argument table (+8 of the symbol's entry) |  |
 | `1801ec580` | `PackingGeometry_t::Serialize` | lightmap_packing_geometry.dat |  |
-| `1801eda50` | `NLightBaker_WriteLightmapScript` | the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:163` |
-| `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:163`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:69` |
+| `1801eda50` | `NLightBaker_WriteLightmapScript` | the // Lightmap section: lightmap_image_gpu, lightmap_load_packing_geometry_gpu, compute_all_lightmap_blocks | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:162` |
+| `1801ee0b0` | `NLightBaker_WriteLpvScript` | // Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume | `src/Source2.Compiler/Lighting/Vrad3Job.cs:16`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:162`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:69` |
 | `1801ee9f0` | `NLightBaker_WriteFarfieldScript` | // Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0) |  |
 | `1801eee20` | `NLightBaker::SerializeLightProbeVolumes` | lpv_<id>_ambientcube/_dlshd (or lpv_atlas_*.exr after 1801f64f0/1801f69c0 build the atlases): a 3D linear descriptor, slices W x H, count D*6 for the ambient cube (BC6H, WorldRenderer/LightProbeVolumeCompressedFormat) and D for dlshd (BC7); lightProbeVolumeTextureArg with fingerprint 1 for the ambient cube | `src/Source2.Compiler/Lighting/LightmapOutputs.cs:103`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:210`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:476` +2 |
 | `1801f01a0` | `NLightBaker_WriteFogIrradianceScript` | // Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu) |  |
@@ -798,7 +798,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800fb1c0` | `CNavGenInput_Construct` | bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40 |  |
-| `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:259`, `src/Source2.Compiler/Maps/NavCompile.cs:21`, `src/Source2.Compiler/Maps/NavFile.cs:7` +3 |
+| `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:260`, `src/Source2.Compiler/Maps/NavCompile.cs:21`, `src/Source2.Compiler/Maps/NavFile.cs:7` +3 |
 | `1800fd2b0` | `MapCompile_CreateNavMesh` | the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720) |  |
 | `180dd2210` | `EntityClass_HasStaticMesh` | the FGD class's metadata (+0xc0) bool has_static_mesh (hash 0x2755870d, default 0): prop_static and cable_static | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:88` |
 | `180f1ef70` | `NavGen_FindNavMarkups` | func_nav_markup entities in the map, then each sub-world's (flag 4 keeps the list) |  |
@@ -1732,7 +1732,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fe5f0` | `MapCompile_RunPostMapBuildSteps` | after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40) | `src/Source2.Compiler/Maps/MapCompile.cs:283` |
+| `1800fe5f0` | `MapCompile_RunPostMapBuildSteps` | after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40) | `src/Source2.Compiler/Maps/MapCompile.cs:284` |
 
 ## scenesystem.dll, build 20261015
 
@@ -2726,7 +2726,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
-- 374 addresses
+- 389 addresses
 
 ### s2c:baked/vrad3
 
@@ -3021,9 +3021,23 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180062ec0` | `std_sort_SparseTriplet` | MSVC introsort by (row, column) |  |
 | `1800639c0` | `std_Guess_median_unchecked_float` | MSVC: med3, Tukey's ninther above 40 elements |  |
 | `180063cf0` | `CVrad3Command_uber_weld::Run::lambda_1` | lambda job body |  |
+| `1800648f0` | `CVrad3LightmapImage::HashLuxel` | seed 0x7a17e123; per live channel Murmur2 mix (0xbe0adc34) of 4 components (scalar channels floor(v / 0.1 + 0.5) * 0.1, else 0 below 0.01 and bits & 0xffc00000), boost-combined; then the shadow record (0x4ec335e0): index bytes 0xff where the 0.1-rounded float is 1 | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:17`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:474`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:493` |
+| `180064f30` | `CVrad3LightmapImage::LuxelsSimilar` | channels 8-13, 15, 17-19: R within 0.04; others: each component within max(1, larger magnitude) * 0.015; shadow floats 1..4 agree on zero and within 0.04; NaN is different | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:15`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:436`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:474` |
+| `1800653b0` | `CVrad3LightmapImage::CopyLuxel` | luxel record, shadow record and each live channel's components (source mask in, target mask out) | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:320` |
+| `180065690` | `FindLongestLinesCoveringCells` | rounds of 180065bb0 (run lengths right-to-left / bottom-up), 180065d20 (propagated along runs), 180065e50 (row runs with across >= down, column runs with down > across, become lines; 180065a70 emits) until no cell is left | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:25`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:582` |
+| `180066230` | `AmeliorateBlockCompressionArtefacts_FillBlocks` | per 4x4 block with 1..15 filled texels and live channel: a 32-slot CUtlHashtable (1800770e0, bump 18007cb50, rehash 18007c8b0) keyed by V_roundf(v * 255) / 255 of R, G, A (B dropped) and [rsp+0x74] never written (0 on workers, small on the dispatching thread); the most common key (then largest squared length, then slot order) fills the empty texels with its first texel's value | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:27`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:673` |
+| `180066bb0` | `AmeliorateBlockCompressionArtefacts_SanitizeLineCharts` | job 180066c60 per chart: line charts (flags bit 29 without 28) fill empty texels from the last filled one to the left, then to the right; the last texel carries over rows |  |
 | `180067160` | `CVrad3Command_lightmap_analyze_image_error::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `1800672e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `1800741b0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_40` | lambda job body |  |
+| `1800672e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run` | -mips n: sanitize line charts, zero-variation charts to pixel charts, luxel hashes, aliases, line charts by length, chart_repacking.dat (magic 0x0531771e), temporary rows, the clear, free 4x4-block lines, the longest-first packing, the copies back, the repack iterations when charts are left (not ported), FillBlocks, alias records | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:6` |
+| `1800672e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:6` |
+| `18006ca60` | `Ameliorate_SortLines` | std::sort (180074f70) of the lines: length, horizontal first, y, x | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:571` |
+| `18006caa0` | `Ameliorate_MarkVaryingCharts` | per row: a sampled texel unlike its chart's first texel (lambda_6 180074670) marks the chart varying; the inverse (180062930) is the pixel-chart set | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:15`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:412` |
+| `18006cc70` | `Ameliorate_AliasBucket` | per hash bucket: pixel texels (last first) alias the first matching other-chart texel (chart, offset); remaining pixel texels alias later matching ones (offset 0); FastRemove | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:19`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:529` |
+| `18006d430` | `Ameliorate_CopyToTemporary` | pixel/line charts into the temporary rows (a pixel chart's first texel, a line chart's row) | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:23` |
+| `18006dbc0` | `Ameliorate_ClearMovedLuxels` | empty, small-y or pixel-chart texels: luxel {-1, 0, flags & ~7 (rest stack)}, shadow {0xffffffff, 1, 1, 1, 1}, channels 0, free bit set | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:23`, `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:337` |
+| `18006def0` | `Ameliorate_CopyFromTemporary` | each placed chart's texels from its temporary row to its new line (along x, or y when vertical); free bit cleared | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:26` |
+| `1800741b0` | `Ameliorate_AliasRecords` | lambda_40: an aliased chart's record {1, target's new corner or packing corner + offset (swapped for a vertical target), 0} | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:27` |
+| `1800741b0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_40` | lambda job body | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:27` |
 | `1800742c0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_39` | lambda job body |  |
 | `1800742d0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_38` | lambda job body |  |
 | `1800742e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_37` | lambda job body |  |
@@ -3033,14 +3047,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180074370` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_29` | lambda job body |  |
 | `180074380` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_1` | lambda job body |  |
 | `180074390` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_22` | lambda job body |  |
-| `1800743a0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_18` | lambda job body |  |
+| `1800743a0` | `Ameliorate_MarkFreeBlocks` | lambda_18: a 4x4 block whose texels are all free | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:24` |
+| `1800743a0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_18` | lambda job body | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:24` |
 | `1800744d0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_17` | lambda job body |  |
 | `1800744e0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_16` | lambda job body |  |
 | `1800744f0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_15` | lambda job body |  |
 | `180074590` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_14` | lambda job body |  |
 | `1800745a0` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_13` | lambda job body |  |
 | `180074660` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_7` | lambda job body |  |
-| `180074670` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_6` | lambda job body |  |
+| `180074670` | `CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run::lambda_6` | lambda job body | `src/Source2.Compiler/Lighting/LightmapAmeliorate.cs:15` |
 | `18007dbe0` | `CVrad3Command_lpv_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18007dff0` | `CVrad3Command_lpv_local_to_world::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18007e230` | `CVrad3Command_lpv_box::Run` | the command (virtual void Run(int argc, const char **argv)) |  |

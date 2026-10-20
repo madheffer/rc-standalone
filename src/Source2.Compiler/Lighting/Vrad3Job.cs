@@ -35,20 +35,17 @@ public static class Vrad3Job
     /// </summary>
     public static void Write(string folder, DmxBinary.Document document, GameContent content, ShaderLibrary shaders,
                              Func<string, bool> rendersAsWorld, IEnumerable<(string Path, byte[] Bytes)> lumps,
-                             Func<string, byte[]?> packageModel, IReadOnlyList<Volume> volumes, int quality = 0)
+                             Func<string, byte[]?> packageModel, IReadOnlyList<Volume> volumes, int quality = 0, bool? repack = null,
+                             IReadOnlyDictionary<string, object>? arguments = null)
     {
         if (quality is < 0 or > 2)
             throw new NotSupportedException($"-lightmapVRadQuality {quality}");
-        if (Oidn[quality])
-            throw new NotSupportedException($"-lightmapVRadQuality {quality} denoises with OIDN (lightmap_image_filter_oidn), which is not ported");
         Directory.CreateDirectory(folder);
         var world = WorldNodeBuild.WorldEntries(document, content, shaders, rendersAsWorld, buildBakes: true);
         var props = WorldNodeBuild.PropEntries(document, content, shaders, buildBakes: true);
 
         // The charts: BakeLighting's inputs as the node bake sees them (LightmapNodeBake).
-        var keys = document.OfType("CMapWorld").FirstOrDefault()?.Get<DmxBinary.Element>("entity_properties")?.Attributes
-            .Where(a => a.Value is string).ToDictionary(a => a.Key, a => (string)a.Value!) ?? [];
-        var settings = LightmapSettings.From(keys, 0x1000, 4096, sh2Dc: false);
+        var settings = LightmapSettings.From(LightmapSettings.Keys(document, arguments), 0x1000, 4096, sh2Dc: false);
         var backfaces = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         bool RenderBackfaces(string m)
         {
@@ -155,14 +152,18 @@ public static class Vrad3Job
         }
         File.WriteAllBytes(Path.Combine(folder, "scene_meshes.kv3"), PathTraceScene.MeshesFile(meshes));
         File.WriteAllText(Path.Combine(folder, "scene_info.kv3"), PathTraceScene.InfoFile(instances, SceneLights.Ibl(sky, SkyNamed), lights, cameras));
-        File.WriteAllText(Path.Combine(folder, "script-gpu.vrad3"), Script(settings.Width >> (settings.Mip - 1), settings.Height >> (settings.Mip - 1), blockSize, settings.Mip, volumes, quality));
+        File.WriteAllText(Path.Combine(folder, "script-gpu.vrad3"), Script(settings.Width >> (settings.Mip - 1), settings.Height >> (settings.Mip - 1), blockSize, settings.Mip, volumes, quality,
+                                                                                         repack ?? LightmapChartRepacking.RepacksAt(quality)));
     }
 
     /// <summary>
-    /// script-gpu.vrad3 for an AHD lightmap at the default switches (no debug outputs, no
-    /// ameliorate pass): the commands 1801eda50 and 1801ee0b0 print, with the quality's tables.
+    /// script-gpu.vrad3 for an AHD lightmap with direct light shadows and no debug outputs: the
+    /// commands 1801eda50 and 1801ee0b0 print, with the quality's tables. The denoise is the median
+    /// (182a885b8) where the quality's OIDN flag (182a88550) is off, else lightmap_image_filter_oidn and
+    /// _sh_oidn; <paramref name="repack"/> (the settings' +0x39: BakeLighting repacks, <see cref="LightmapChartRepacking"/>)
+    /// adds lightmap_ameliorate_block_compression_artefacts after the weld.
     /// </summary>
-    public static string Script(int width, int height, int blockSize, int mips, IReadOnlyList<Volume> volumes, int quality = 0)
+    public static string Script(int width, int height, int blockSize, int mips, IReadOnlyList<Volume> volumes, int quality = 0, bool repack = false)
     {
         var c = CultureInfo.InvariantCulture;
         var s = new StringBuilder();
@@ -172,10 +173,15 @@ public static class Vrad3Job
         s.Append("process_all_lightmap_blocks:\n");
         s.Append(c, $"    lightmap_image_consolidate_small_charts {mips}\n");
         s.Append("    lightmap_image_remove_fireflies 4.0 fireflies.exr\n");
-        s.Append(c, $"    lightmap_image_filter_median {LightmapMedian[quality]}\n");
+        if (Oidn[quality])
+            s.Append(c, $"    lightmap_image_filter_oidn {mips}\n    lightmap_image_filter_sh_oidn {mips}\n");
+        else if (LightmapMedian[quality] != 0)
+            s.Append(c, $"    lightmap_image_filter_median {LightmapMedian[quality]}\n");
         s.Append("    lightmap_image_dilate_over_invalid_jfa\n    lightmap_image_encode_ahd\n");
         s.Append(c, $"    lightmap_image_fill_gutters {mips}\n");
         s.Append("    uber_weld lightmap_seams.dat\n");
+        if (repack)
+            s.Append(c, $"    lightmap_ameliorate_block_compression_artefacts -mips {mips}\n");
         s.Append("    lightmap_image_write_ahd irradiance.exr directional_irradiance.exr\n");
         s.Append("    lightmap_image_write_direct_light_shadows direct_light_shadows.exr -indexlights 4 \n");
         s.Append(c, $"    lightmap_image_write_chart_color   lightmap_chart_color.exr {LightmapMinSpp[quality]} {LightmapMaxSpp[quality]}\n");

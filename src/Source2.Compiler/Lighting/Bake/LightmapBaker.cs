@@ -669,6 +669,75 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
         return (ColourExr(image), LightmapPost.AhdDirectionExr(image), LightmapPost.DirectLightShadowsExr(image), LightmapPost.ChartColorExr(image, packing.Charts));
     }
 
+    /// <summary>
+    /// The script's process_all_lightmap_blocks routine (<paramref name="routine"/>, its lines up to
+    /// done), command by command as vrad3 runs them, the files it writes into <paramref name="folder"/>:
+    /// quality 0's median, quality 1 and 2's OIDN filters (<paramref name="oidn"/>, opened when first
+    /// needed) and lightmap_ameliorate_block_compression_artefacts (chart_repacking.dat). A command
+    /// not ported throws.
+    /// </summary>
+    public static void PostProcess(LightmapImage image, PackingGeometry packing, string folder, IEnumerable<string> routine, Func<Oidn> oidn,
+                                   Action<string>? log = null)
+    {
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        foreach (var raw in routine)
+        {
+            var a = raw.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (a.Length == 0 || a[0].StartsWith("//", StringComparison.Ordinal))
+                continue;
+            int Int(int i) => int.Parse(a[i], c);
+            string Path(int i) => System.IO.Path.Combine(folder, a[i]);
+            switch (a[0])
+            {
+                case "done":
+                    return;
+                case "lightmap_image_consolidate_small_charts":
+                    LightmapPost.ConsolidateSmallCharts(image, packing.Charts, Int(1));
+                    break;
+                case "lightmap_image_remove_fireflies":
+                    LightmapPost.RemoveFireflies(image, packing.Charts, float.Parse(a[1], c));
+                    break;
+                case "lightmap_image_filter_median":
+                    LightmapPost.FilterMedian(image, packing.Charts, Int(1));
+                    break;
+                case "lightmap_image_filter_oidn":
+                    LightmapOidn.Filter(image, packing, Int(1), oidn());
+                    break;
+                case "lightmap_image_filter_sh_oidn":
+                    LightmapOidn.FilterSh(image, packing, Int(1), oidn());
+                    break;
+                case "lightmap_image_dilate_over_invalid_jfa":
+                    LightmapPost.DilateOverInvalidJfa(image);
+                    break;
+                case "lightmap_image_encode_ahd":
+                    LightmapAhd.Encode(image);
+                    break;
+                case "lightmap_image_fill_gutters":
+                    LightmapPost.FillGutters(image, packing.Charts, Int(1));
+                    break;
+                case "uber_weld":
+                    LightmapWeld.Weld(image, File.ReadAllBytes(Path(1)));
+                    break;
+                case "lightmap_ameliorate_block_compression_artefacts" when a is [_, "-mips", _]:
+                    if (LightmapAmeliorate.Run(image, packing.Charts, Int(2), log) is { } repacking)
+                        File.WriteAllBytes(System.IO.Path.Combine(folder, "chart_repacking.dat"), repacking);
+                    break;
+                case "lightmap_image_write_ahd":
+                    File.WriteAllBytes(Path(1), ColourExr(image).Write());
+                    File.WriteAllBytes(Path(2), LightmapPost.AhdDirectionExr(image).Write());
+                    break;
+                case "lightmap_image_write_direct_light_shadows" when a is [_, _, "-indexlights", _]:
+                    File.WriteAllBytes(Path(1), LightmapPost.DirectLightShadowsExr(image, Int(3)).Write());
+                    break;
+                case "lightmap_image_write_chart_color":
+                    File.WriteAllBytes(Path(1), LightmapPost.ChartColorExr(image, packing.Charts, Int(2), Int(3)).Write());
+                    break;
+                default:
+                    throw new NotSupportedException($"{raw.Trim()}: not ported");
+            }
+        }
+    }
+
     /// <summary>irradiance.exr: channel 14 as FloatBitMap_t writes it (R, G, B).</summary>
     public static Vrad3Exr ColourExr(LightmapImage image)
     {

@@ -10,8 +10,9 @@ namespace Source2.Compiler.Gpu;
 /// <summary>
 /// Our own bake of a vrad3 job folder (<see cref="Vrad3Job"/>), in place of vrad3: the lightmap
 /// on the GPU with Valve's own vrad3 SPIR-V (<see cref="RtxBakeHost"/>), the script's
-/// post-process and its EXRs (<see cref="LightmapBaker.PostProcess"/>; byte for byte on
-/// ze_hold_em_p, ledger 84), then the probe volumes with Valve's rtx_vrad3_lpv on the same host
+/// process_all_lightmap_blocks routine and its EXRs (<see cref="LightmapBaker.PostProcess(LightmapImage, PackingGeometry, string, IEnumerable{string}, Func{Oidn}, Action{string})"/>;
+/// quality 0 byte for byte on ze_hold_em_p, ledger 84; quality 1 and 2 add the OIDN filters and
+/// chart_repacking.dat, ledgers 113 and 114), then the probe volumes with Valve's rtx_vrad3_lpv on the same host
 /// (<see cref="RtxBakeHost.BakeLpv"/>) and the CPU post-process.
 /// </summary>
 public static class OwnLightingBake
@@ -90,12 +91,10 @@ public static class OwnLightingBake
         halton.Read(new MemoryStream(Core("textures/dev/scrambled_halton.vdata_c") ?? throw new InvalidOperationException("core's scrambled_halton.vdata_c is missing")));
         var permutations = HaltonSamples.Permutations(((BinaryKV3)halton.DataBlock!).Data.Root["permutations"].AsBlob());
         var scriptLines = File.ReadAllLines(Path.Combine(folder, "script-gpu.vrad3"));
-        // Quality 1 and 2's post-process (OIDN filters, the block compression pass) is not ported yet (L14).
-        if (scriptLines.Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("lightmap_image_filter_oidn", StringComparison.Ordinal)
-                                                                   || l.StartsWith("lightmap_image_filter_sh_oidn", StringComparison.Ordinal)
-                                                                   || l.StartsWith("lightmap_ameliorate_block_compression_artefacts", StringComparison.Ordinal)) is { } unported)
-            throw new NotSupportedException($"{unported}: the quality 1 / 2 lightmap post-process is not ported");
         var script = Script.Parse(scriptLines);
+        var routine = scriptLines.SkipWhile(l => l.Trim() != "process_all_lightmap_blocks:").Skip(1).ToList();
+        if (routine.Count == 0)
+            throw new InvalidDataException("script-gpu.vrad3 has no process_all_lightmap_blocks routine");
         log.WriteLine($"  bake: {scene.Instances.Count} instances, {scene.Meshes.Count} meshes, {scene.Lights.Count} lights, {script.Volumes.Count} probe volumes");
 
         var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
@@ -110,11 +109,18 @@ public static class OwnLightingBake
             };
             var image = baker.Compute(File.ReadAllBytes(Path.Combine(folder, "lightmap_info.dat")));
             log.WriteLine($"  bake: lightmap on {device.Name} in {watch.Elapsed.TotalSeconds:F1} s");
-            var (irradiance, directional, shadows, chart) = LightmapBaker.PostProcess(image, packing, File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat")));
-            File.WriteAllBytes(Path.Combine(folder, "irradiance.exr"), irradiance.Write());
-            File.WriteAllBytes(Path.Combine(folder, "directional_irradiance.exr"), directional.Write());
-            File.WriteAllBytes(Path.Combine(folder, "direct_light_shadows.exr"), shadows.Write());
-            File.WriteAllBytes(Path.Combine(folder, "lightmap_chart_color.exr"), chart.Write());
+            // Quality 1 and 2 denoise with the game's own OpenImageDenoise (vrad3's device: CUDA on an NVIDIA card).
+            Oidn? oidn = null;
+            try
+            {
+                LightmapBaker.PostProcess(image, packing, folder, routine,
+                    () => oidn ??= Oidn.Open(Path.Combine(game, "bin", "win64")) ?? throw new InvalidOperationException("no OpenImageDenoise.dll in the game's bin/win64"),
+                    m => log.WriteLine("  bake: " + m));
+            }
+            finally
+            {
+                oidn?.Dispose();
+            }
             log.WriteLine($"  bake: lightmap post-process done at {watch.Elapsed.TotalSeconds:F1} s");
 
             foreach (var v in script.Volumes)

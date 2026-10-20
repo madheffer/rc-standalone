@@ -157,9 +157,10 @@ public class ChartMeshesTests(ITestOutputHelper output)
             return;
         // The world's keys (none of the lightmap ones on probe01), CS2's MinSpecLightmapSize
         // and its LightmapChannels (no directional_irradiance_sh2_dc).
-        var keys = MapSource.Read(vmap).OfType("CMapWorld").FirstOrDefault()?.Get<DmxBinary.Element>("entity_properties")?.Attributes
-            .Where(a => a.Value is string).ToDictionary(a => a.Key, a => (string)a.Value!) ?? [];
-        var settings = LightmapSettings.From(keys, 0x1000, 4096, sh2Dc: false);
+        // LMGEOM_ARGS="name=value;...": the build's compile arguments (as -lightmapVRadQuality 1), over the keys.
+        var arguments = (Environment.GetEnvironmentVariable("LMGEOM_ARGS") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(kv => kv.Split('=')).ToDictionary(kv => kv[0], kv => (object)int.Parse(kv[1], System.Globalization.CultureInfo.InvariantCulture));
+        var settings = LightmapSettings.From(LightmapSettings.Keys(MapSource.Read(vmap), arguments), 0x1000, 4096, sh2Dc: false);
         output.WriteLine($"settings {settings}");
         var luxel = new List<float>();
         var (ours, packed) = ChartMeshes.Build(inputs.Entries, inputs.Volumes, m => inputs.RenderBackfaces.GetValueOrDefault(m), settings, 120f, luxel);
