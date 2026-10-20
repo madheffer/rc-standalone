@@ -212,6 +212,7 @@ function hook() {
       put(cat(parts));
     } catch (e) { err(e); }
   }
+  // Stage 1 finds no records: the array is allocated by the first search.
   for (const [rva, stage] of [[0x1803935e0, 1], [0x180394b10, 2], [0x180393ea0, 3], [0x1803957f0, 5]])
     Interceptor.attach(base.add(rva), { onEnter() { snapshot(stage, 0xffffffff); } });
   Interceptor.attach(base.add(0x180393060), {
@@ -271,7 +272,8 @@ function hook() {
     }
   }
   for (const name of ['ExitProcess', 'TerminateProcess']) {
-    const f = Module.findExportByName('kernel32.dll', name);
+    const k32 = Process.findModuleByName('kernel32.dll');
+    const f = k32 ? k32.findExportByName(name) : null;
     if (f) Interceptor.attach(f, { onEnter() { flush(); } });
   }
   send({hooked: true});
