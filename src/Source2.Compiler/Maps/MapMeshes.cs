@@ -241,6 +241,38 @@ public static class MapMeshes
         return faces;
     }
 
+    /// <summary>
+    /// A mesh's faces before placement, as <see cref="Faces"/> walks them: each face's corners (positions
+    /// times the node's scales) from its first half-edge, its materialindex, and the mesh's material list.
+    /// </summary>
+    internal static (Vector3[][] Corners, int[] Material, string[] Materials) LocalFaces(DmxBinary.Element mesh)
+    {
+        var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
+        var positions = Stream(data, "vertexData", "position");
+        var materials = Ints(data, "faceData", "materialindex");
+        var names = (data.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").ToArray();
+        var next = IntArray(data, "edgeNextIndices");
+        var to = IntArray(data, "edgeVertexIndices");
+        var first = IntArray(data, "faceEdgeIndices");
+        var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
+        var corners = new Vector3[first.Length][];
+        var index = new int[first.Length];
+        for (var f = 0; f < first.Length; f++)
+        {
+            var loop = new List<Vector3>();
+            var e = first[f];
+            do
+            {
+                loop.Add((Vector3)positions[to[e]]! * scales);
+                e = next[e];
+            }
+            while (e != first[f] && loop.Count <= next.Length);
+            corners[f] = [.. loop];
+            index[f] = f < materials.Length ? materials[f] : -1;
+        }
+        return (corners, index, names);
+    }
+
     // Matrices are Valve's matrix3x4_t: three rows of (axis x, axis y, axis z,
     // translation), row major.
     private static readonly float[] Identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];

@@ -54,7 +54,7 @@ public static class NavGenStages
     /// <summary>
     /// Stage 029, IslandRemoval in its all-hulls form (nav_gen_island_removal_all_hulls 1; the
     /// single-hull stage before it is off, nav_gen_island_removal 0), skipped with the settings' +0x58
-    /// byte. LadderConnect (028) before it is not ported.
+    /// byte. LadderConnect (028) before it gives the ladders' polygons (<see cref="NavGenPolys.LadderConnect"/>).
     /// </summary>
     public static void IslandStage(NavGenPolys g, NavIslandInput input, NavGenSettings settings)
         => g.IslandRemoval(input, allHulls: true, skip: settings.Byte58 != 0);

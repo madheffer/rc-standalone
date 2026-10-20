@@ -4,7 +4,7 @@ namespace Source2.Compiler.Maps.NavGen;
 /// The RC side of nav generation's input (resourcecompiler 20260923, the collectors 1800fc370 runs
 /// into CNavGenInput): what is ported so far.
 /// </summary>
-public static class NavGenMapInput
+public static partial class NavGenMapInput
 {
     /// <summary>
     /// 180f21760 into CNavGenInput +0x78: every point_nav_walkable's world origin (the translation of

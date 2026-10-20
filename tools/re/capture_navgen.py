@@ -314,8 +314,11 @@ function hook() {
     } } });
   // IslandRemoval (180070780, first argument the processor): the RC's CNavGenInput at +8 (ledger 96):
   // seeds +0x78 (float3), markups +0x90 (0x50), links +0xc0 (0x18), ladders +0x60 (0x28: top, bottom, normal, width); each written
-  // as int32 count then the raw entries.
+  // as int32 count then the raw entries. Also LadderConnect's (1800732d0) per-ladder connectivity on the processor
+  // (+0x88 count, +0x90 entries of seven int32 polygon indices) as navinput_ladderconn.
   Interceptor.attach(mod.base.add(0x70780), { onEnter(args) {
+    const lc = args[0].add(0x88).readS32();
+    send({tag: 'navinput_ladderconn'}, chunks([ints([lc]), lc > 0 ? args[0].add(0x90).readPointer().readByteArray(lc * 0x1c) : new ArrayBuffer(0)]));
     const input = args[0].add(8).readPointer();
     if (input.isNull())
       return;

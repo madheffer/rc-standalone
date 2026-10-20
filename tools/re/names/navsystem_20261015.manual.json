@@ -508,7 +508,31 @@
    "addr": "1800732d0",
    "name": "NavGen_LadderConnect",
    "module": "s2c:baked/navgen",
-   "note": "not ported"
+   "note": "stage 028 (ledger 107): 32-unit grid, per ladder (18001b740) four top probes and three bottom ones (18006e170) into ctx+0x90 (0x1c bytes); a top equal to its bottom is -1, a bottom more than 71 below the ladder is -1"
+  },
+  {
+   "addr": "18001b740",
+   "name": "NavGenInput_GetLadder",
+   "module": "s2c:baked/navgen",
+   "note": "ladder i of +0x68 (0x28 bytes): top, bottom, normal, width"
+  },
+  {
+   "addr": "18006e170",
+   "name": "NavGen_LadderProbe",
+   "module": "s2c:baked/navgen",
+   "note": "up to 3 steps of 16 traced from the start (world vfn 0x4f8, layers 0x3021, group 4, static), a blocked trace ends the try; 7 tries moving z by 25 / 6"
+  },
+  {
+   "addr": "18006de40",
+   "name": "NavGen_LadderPolyAt",
+   "module": "s2c:baked/navgen",
+   "note": "grid polygons in +-0.45, kinds 1-2 skipped for bottoms, corners within +18 / -height in z; the nearest by 18004cc30, strictly"
+  },
+  {
+   "addr": "18004cc30",
+   "name": "NavGen_PolyDistanceSqr",
+   "module": "s2c:baked/navgen",
+   "note": "least squared distance to the fan (v0, v[n-1], v[n-2]) .. (v0, v2, v1) via 1800802b0"
   },
   {
    "addr": "18006c6b0",

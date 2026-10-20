@@ -14,14 +14,15 @@ namespace Source2.Compiler.Maps.NavGen;
 /// orientation, scale and mass centres (<see cref="Transform"/>). Meshes take the unscaled cast
 /// (180245a10) when the shape has no scale flag (+0xd1) and the transform's diagonal is 1 with no
 /// translation, else the transformed one (180244dc0); hulls take 180251800 about their centroid. Spheres
-/// and capsules are not ported (refused).
+/// and capsules are not ported (refused). Rays (<see cref="CastRay"/>) go through the same bodies.
 /// </summary>
-public sealed class NavBoxWorld : INavBoxWorld
+public sealed class NavBoxWorld : INavBoxWorld, INavRayWorld
 {
     private readonly record struct Cast(int Type, RnMesh? Mesh, Vector3 MeshScale, bool ScaleFlag, RnHull? Hull, float HullScale,
                                         float[] T, Vector3 Min, Vector3 Max);
 
     private readonly List<Cast> _shapes = [];
+    private readonly List<Cast> _rayShapes = [];
     private readonly List<SettleWorld.BodyBuild> _bodyOf = [];
 
     /// <summary>The body a shape index (as <see cref="CastBox(ValueTuple{float, float, float}, ValueTuple{float, float, float}, ValueTuple{float, float, float}, ValueTuple{float, float, float}, Action{int, int, float, float[]}?)"/> reports it) belongs to.</summary>
@@ -39,13 +40,16 @@ public sealed class NavBoxWorld : INavBoxWorld
             var t = Transform(state);
             foreach (var shape in kept[i].Shapes)
             {
-                if (!NavGenInput.ShapePasses(shape.Attributes, state.BodyType, 0xc3021ul, 1, 4, table))
+                var boxes = NavGenInput.ShapePasses(shape.Attributes, state.BodyType, 0xc3021ul, 1, 4, table);
+                // LadderConnect's rays (18006e170): layers 0x3021, nothing excluded or queried as.
+                var rays = NavGenInput.ShapePasses(shape.Attributes, state.BodyType, 0x3021ul, 1, 4, table, 0, 0);
+                if (!boxes && !rays)
                     continue;
+                Cast cast;
                 if (shape.Type == BroadphaseShape.HullType && shape.Hull is { } hull)
                 {
                     var (min, max) = Bounds(hull.VertexPositions.Select(p => p * shape.HullScale), t);
-                    _bodyOf.Add(kept[i]);
-                    _shapes.Add(new Cast(2, null, default, false, hull, shape.HullScale, t, min, max));
+                    cast = new Cast(2, null, default, false, hull, shape.HullScale, t, min, max);
                 }
                 else if (shape.Mesh is { } mesh)
                 {
@@ -54,11 +58,17 @@ public sealed class NavBoxWorld : INavBoxWorld
                         corners.Add(new Vector3((c & 1) != 0 ? mesh.Max.X : mesh.Min.X, (c & 2) != 0 ? mesh.Max.Y : mesh.Min.Y,
                                                 (c & 4) != 0 ? mesh.Max.Z : mesh.Min.Z) * shape.MeshScale);
                     var (min, max) = Bounds(corners, t);
-                    _bodyOf.Add(kept[i]);
-                    _shapes.Add(new Cast(3, mesh, shape.MeshScale, shape.MeshScale != Vector3.One, null, 0f, t, min, max));
+                    cast = new Cast(3, mesh, shape.MeshScale, shape.MeshScale != Vector3.One, null, 0f, t, min, max);
                 }
                 else
                     throw new NotSupportedException($"a nav box cast against a type {shape.Type} shape is not ported");
+                if (boxes)
+                {
+                    _bodyOf.Add(kept[i]);
+                    _shapes.Add(cast);
+                }
+                if (rays)
+                    _rayShapes.Add(cast);
             }
         }
     }
@@ -149,5 +159,121 @@ public sealed class NavBoxWorld : INavBoxWorld
                 best = fraction;
         }
         return best;
+    }
+
+    /// <summary>
+    /// CRnWorld::CastRay (1801f4ad0) as LadderConnect asks it: the static tree's shapes (1801d8580) that
+    /// pass the query, each with the best fraction so far as its limit, a hit kept when strictly below
+    /// it. The ray goes into the shape's frame through the transform's rows (start less the translation;
+    /// each component y, then x, then z). Meshes (CRnMeshShape vfn 0x10, 1802406c0) take it divided by
+    /// their scale and are hit on their front only; hulls (1802505c0, 1802544a0) clip it by their planes.
+    /// </summary>
+    public float CastRay((float X, float Y, float Z) start, (float X, float Y, float Z) delta)
+    {
+        var p = new Vector3(start.X, start.Y, start.Z);
+        var d = new Vector3(delta.X, delta.Y, delta.Z);
+        var lo = Vector3.Min(p, p + d);
+        var hi = Vector3.Max(p, p + d);
+        // A hit below the limit becomes the result; only a fraction above 0 lowers the limit (a hull
+        // entered from within its 1/32 margin gives a negative one), and 0 ends the walk.
+        var limit = 1f;
+        var result = 1f;
+        foreach (var s in _rayShapes)
+        {
+            if (s.Max.X < lo.X || s.Min.X > hi.X || s.Max.Y < lo.Y || s.Min.Y > hi.Y || s.Max.Z < lo.Z || s.Min.Z > hi.Z)
+                continue;
+            var t = s.T;
+            float px = p.X - t[9], py = p.Y - t[10], pz = p.Z - t[11];
+            var o = new Vector3((py * t[1] + t[0] * px) + pz * t[2], (py * t[4] + t[3] * px) + pz * t[5], (py * t[7] + t[6] * px) + pz * t[8]);
+            var dir = new Vector3((d.Y * t[1] + d.X * t[0]) + d.Z * t[2], (d.Y * t[4] + d.X * t[3]) + d.Z * t[5], (d.Y * t[7] + d.X * t[6]) + d.Z * t[8]);
+            var fraction = s.Type == 3 ? MeshRay(s.Mesh!, s.MeshScale, o, dir, limit) : HullRay(s.Hull!, s.HullScale, o, dir);
+            if (!(fraction < limit))
+                continue;
+            result = fraction;
+            if (fraction == 0f)
+                break;
+            if (0f < fraction)
+                limit = fraction;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// 1802406c0's triangle test on the ray divided by the mesh's scale: crossed when no edge crossing
+    /// (from the edge midpoints) is negative, the normal (v2 - v0) x (v1 - v0) faces the ray (d . n
+    /// below 0), at t = ((v0 - o) . n) / (d . n) above 0, clamped to 1; the least t below the limit.
+    /// </summary>
+    internal static float MeshRay(RnMesh mesh, Vector3 scale, Vector3 start, Vector3 delta, float limit)
+    {
+        var o = start / scale;
+        var d = delta / scale;
+        var best = limit;
+        foreach (var (ia, ib, ic) in mesh.Triangles)
+        {
+            Vector3 v0 = mesh.Vertices[ia], v1 = mesh.Vertices[ib], v2 = mesh.Vertices[ic];
+            float ex = v1.X - v0.X, ey = v1.Y - v0.Y, ez = v1.Z - v0.Z;
+            float m12x = (v2.X + v1.X) * 0.5f - o.X, m12y = (v2.Y + v1.Y) * 0.5f - o.Y, m12z = (v2.Z + v1.Z) * 0.5f - o.Z;
+            float m02x = 0.5f * (v2.X + v0.X) - o.X, m02y = 0.5f * (v2.Y + v0.Y) - o.Y, m02z = 0.5f * (v2.Z + v0.Z) - o.Z;
+            float m01x = 0.5f * (v1.X + v0.X) - o.X, m01y = 0.5f * (v1.Y + v0.Y) - o.Y, m01z = 0.5f * (v1.Z + v0.Z) - o.Z;
+            float cx = m01z * ey - m01y * ez, cy = m01x * ez - m01z * ex, cz = m01y * ex - m01x * ey;
+            var lane2 = d.Z * cz + d.Y * cy + d.X * cx;
+            float fx = v0.X - v2.X, fy = v0.Y - v2.Y, fz = v0.Z - v2.Z;
+            var lane1 = d.Z * (m02y * fx - m02x * fy) + d.Y * (m02x * fz - m02z * fx) + d.X * (m02z * fy - m02y * fz);
+            float gx = v2.X - v1.X, gy = v2.Y - v1.Y, gz = v2.Z - v1.Z;
+            var lane0 = d.Z * (m12y * gx - m12x * gy) + d.Y * (m12x * gz - m12z * gx) + d.X * (m12z * gy - m12y * gz);
+            if (lane0 < 0f || lane1 < 0f || lane2 < 0f)
+                continue;
+            float hx = v2.X - v0.X, hy = v2.Y - v0.Y, hz = v2.Z - v0.Z;
+            float nx = hz * ey - hy * ez, ny = hx * ez - hz * ex, nz = hy * ex - hx * ey;
+            var denom = nx * d.X + ny * d.Y + nz * d.Z;
+            if (0f <= denom)
+                continue;
+            var t = ((v0.X - o.X) * nx + (v0.Y - o.Y) * ny + (v0.Z - o.Z) * nz) / denom;
+            if (t <= 0f)
+                continue;
+            t = Math.Min(t, 1f);
+            if (t < best)
+                best = t;
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// 1802544a0 through 180251dc0: each plane's distance at the start (n . o less the scale times the
+    /// offset) and at the end; both outside misses; planes the ray enters raise the entry to (d0 - 1/32)
+    /// / (d0 - d1), the others lower the exit to (d0 + 1/32) / (d0 - d1); an entry not below the exit
+    /// misses. A start inside every plane hits at 0. 1 when missed.
+    /// </summary>
+    internal static float HullRay(RnHull hull, float scale, Vector3 o, Vector3 d)
+    {
+        var enter = -float.MaxValue;
+        var exit = float.MaxValue;
+        var inside = true;
+        foreach (var (n, offset) in hull.Planes)
+        {
+            var d0 = (n.Z * o.Z + o.Y * n.Y + n.X * o.X) - scale * offset;
+            var d1 = (n.Z * d.Z + d.Y * n.Y + n.X * d.X) + d0;
+            if (0f < d0 && 0f < d1)
+                return 1f;
+            if (!(0f < d0) && !(0f < d1))
+                continue;
+            if (0f < d0)
+                inside = false;
+            if (d0 <= d1)
+            {
+                var t = (d0 + 0.03125f) / (d0 - d1);
+                if (t < exit)
+                    exit = t;
+            }
+            else
+            {
+                var t = (d0 - 0.03125f) / (d0 - d1);
+                if (enter < t)
+                    enter = t;
+            }
+        }
+        if (hull.Planes.Length != 0 && exit <= enter)
+            return 1f;
+        return inside ? 0f : enter;
     }
 }
