@@ -147,6 +147,81 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
            && BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(o + 8)) == BitConverter.SingleToInt32Bits(v.Z);
 
     [Fact]
+    public void TravelDistancesMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var an = new NavAnalysis(ReadNav(nav));
+        var byId = an.Areas.ToDictionary(a => a.Id);
+        var heuristic = float.TryParse(Environment.GetEnvironmentVariable("NAV_HEURISTIC"), out var h) ? h : 1f;
+        var b = File.ReadAllBytes(Path.Combine(dir, "navan_calls.bin"));
+        int p = 0, total = 0, same = 0, shown = 0;
+        while (p < b.Length)
+        {
+            var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
+            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, _ => 8 + 8 + 8 + 4 };
+            if (kind == 1)
+            {
+                var req = p + 8;
+                var want = F(b, req + 0x84);
+                var startId = BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(req + 0x80 + 8 + 0x1c));
+                var goalId = BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(req + 0x80 + 8 + 0x1c + 4));
+                if (!float.IsNaN(want) && b[req + 0x34] != 0 && b[req + 0x5c] != 0 && F(b, req + 0x60) < 0f && F(b, req + 0x64) < 0f
+                    && byId.TryGetValue(startId, out var s) && byId.TryGetValue(goalId, out var g))
+                {
+                    var sp = new NavAnalysis.V(F(b, req + 0x28), F(b, req + 0x2c), F(b, req + 0x30));
+                    var gp = new NavAnalysis.V(F(b, req + 0x50), F(b, req + 0x54), F(b, req + 0x58));
+                    var got = an.TravelDistance(s, g, sp, gp, heuristic);
+                    total++;
+                    if (BitConverter.SingleToInt32Bits(got) == BitConverter.SingleToInt32Bits(want))
+                        same++;
+                    else if (shown++ < 10)
+                        output.WriteLine($"path {total}: {startId} -> {goalId}, ours {got:R}, Valve {want:R}");
+                }
+            }
+            p += n;
+        }
+        output.WriteLine($"{same} of {total} travel distances Valve's (heuristic {heuristic})");
+        Assert.Equal(total, same);
+    }
+
+    private const string Content = @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\content\csgo_addons\s2c_rc_probe\maps\";
+
+    [Fact]
+    public void EarliestOccupyTimesMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var an = new NavAnalysis(ReadNav(nav));
+        var entities = Source2.Compiler.MapEntities.From(Source2.Compiler.DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")));
+        List<NavAnalysis.V> Spawns(string cls) => [.. entities.Where(e => e.ClassName == cls).Select(e => new NavAnalysis.V(e.Origin.X, e.Origin.Y, e.Origin.Z))];
+        var times = an.EarliestOccupyTimes(Spawns("info_player_terrorist"), Spawns("info_player_counterterrorist"));
+        var b = File.ReadAllBytes(Path.Combine(dir, "navan_calls.bin"));
+        int p = 0, total = 0, same = 0, shown = 0;
+        while (p < b.Length)
+        {
+            var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
+            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, _ => 8 + 8 + 8 + 4 };
+            if (kind == 3)
+            {
+                var id = BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 24));
+                float wt = F(b, p + 16), wct = F(b, p + 20);
+                var i = an.Areas.FindIndex(a => a.Id == id);
+                total++;
+                if (BitConverter.SingleToInt32Bits(times[i].T) == BitConverter.SingleToInt32Bits(wt) && BitConverter.SingleToInt32Bits(times[i].CT) == BitConverter.SingleToInt32Bits(wct))
+                    same++;
+                else if (shown++ < 10)
+                    output.WriteLine($"area {id}: ours {times[i].T:R} / {times[i].CT:R}, Valve {wt:R} / {wct:R}");
+            }
+            p += n;
+        }
+        output.WriteLine($"{same} of {total} areas' occupy times Valve's");
+        Assert.Equal(total, same);
+    }
+
+    [Fact]
     public void NearestAreaMatchesValve()
     {
         var dir = Dir();

@@ -57,7 +57,7 @@ function u64(p) { const b = new ArrayBuffer(8); new DataView(b).setBigUint64(0, 
 let nput = 0, nerr = 0;
 function flush() { if (buf.n) { send({tag: 'calls'}, buf.b.slice(0, buf.n)); buf.n = 0; } }
 function err(e) { if (nerr++ < 5) send({note: 'hook error: ' + e}); }
-let analyses = 0;
+let analyses = 0, cvarsSent = false, base = null;
 function dumpAreas(mesh) {
   const n = mesh.add(8).readS32();
   const arr = mesh.add(0x10).readPointer();
@@ -95,10 +95,18 @@ function hook() {
   const srv = Process.enumerateModules().find(m => m.name.toLowerCase() === 'server.dll');
   if (srv === undefined) { setTimeout(hook, 5); return; }
   send({note: 'server.dll at ' + srv.base + ' ' + srv.path});
-  const base = srv.base.sub(0x180000000);
+  base = srv.base.sub(0x180000000);
   Interceptor.attach(base.add(0x18039a7c0), { onEnter(args) { dumpAreas(args[0]); } });
   Interceptor.attach(base.add(0x1814d9810), {
     onEnter(args) { try {
+      if (!cvarsSent) {
+        cvarsSent = true;
+        const vals = [];
+        for (const a of [0x182343030, 0x182343040, 0x182343050, 0x182343060, 0x182343070, 0x182343080, 0x182343090, 0x181e81d18, 0x181e81d1c])
+          vals.push(a.toString(16) + ': ' + (a >= 0x182000000 ? (() => { const q = base.add(a).readPointer().add(0x58); return q.readFloat() + ' / ' + q.readS32(); })()
+                                                                : base.add(a).readFloat() + ' / ' + base.add(a).readS32()));
+        send({note: 'cvars ' + vals.join(', ')});
+      }
       this.req = args[0]; this.head = args[0].readByteArray(0x80);
       const s = args[0].add(0x18).readPointer(), g = args[0].add(0x40).readPointer();
       this.ids = cat([u32(s.isNull() ? 0xffffffff : s.add(0x60).readU32()), u32(g.isNull() ? 0xffffffff : g.add(0x60).readU32())]);

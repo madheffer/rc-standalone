@@ -27,6 +27,14 @@ public sealed class NavAnalysis
         public uint Flags;
         public byte Hull;
         public byte Blocked;
+        public List<Link>[] Links = [];
+    }
+
+    /// <summary>Per edge: the connected area and the edge on it that comes back (the connection block's entries in order).</summary>
+    public sealed class Link(Area to, int backEdge)
+    {
+        public readonly Area To = to;
+        public readonly int BackEdge = backEdge;
     }
 
     /// <summary>The grid (CSNavMesh +0xb8): cell size +0xc8, cells +0xcc x +0xd0 from +0xd4 / +0xd8.</summary>
@@ -53,6 +61,9 @@ public sealed class NavAnalysis
             (area.Min, area.Max) = Bounds(area.Corners);
             Areas.Add(area);
         }
+        var byId = Areas.ToDictionary(a => a.Id);
+        for (var i = 0; i < Areas.Count; i++)
+            Areas[i].Links = [.. mesh.Areas[i].Connections.Select(list => list.Where(c => byId.ContainsKey(c.Area)).Select(c => new Link(byId[c.Area], c.Edge)).ToList())];
         BuildGrid();
     }
 
@@ -464,5 +475,295 @@ public sealed class NavAnalysis
             }
         }
         return found;
+    }
+
+    // ---- paths ----
+
+    /// <summary>
+    /// 1814eabb0: the stretch of edge a-b that edge c-d covers once both are projected on a-b in XY;
+    /// <paramref name="hi"/> is the far end, <paramref name="lo"/> the near one.
+    /// </summary>
+    private static void EdgeOverlap(V a, V b, V c, V d, out V lo, out V hi)
+    {
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        var inv = 0f;
+        var len = MathF.Sqrt(dx * dx + dy * dy);
+        if (len <= 1.1920929e-07f)
+        {
+            dx = 1f;
+            dy = 0f;
+        }
+        else
+        {
+            inv = 1f / len;
+            dx *= inv;
+            dy *= inv;
+        }
+        var tc = (c.X - a.X) * dx + (c.Y - a.Y) * dy;
+        var td = (d.Y - a.Y) * dy + (d.X - a.X) * dx;
+        if (tc <= 0f)
+            tc = 0f;
+        if (td <= 0f)
+            td = 0f;
+        if (len <= tc)
+            tc = len;
+        if (len <= td)
+            td = len;
+        tc *= inv;
+        td *= inv;
+        var h = td;
+        var l = tc;
+        if (td < tc)
+        {
+            h = tc;
+            l = td;
+        }
+        lo = new V((b.X - a.X) * l + a.X, (b.Y - a.Y) * l + a.Y, (b.Z - a.Z) * l + a.Z);
+        hi = new V((b.X - a.X) * h + a.X, (b.Y - a.Y) * h + a.Y, (b.Z - a.Z) * h + a.Z);
+    }
+
+    /// <summary>1814c76a0 (walk links): the portal between the neighbour's back edge and the current area's edge.</summary>
+    private static (V P0, V P1) Portal(Area to, Area from, int backEdge, int edge)
+    {
+        if (backEdge == 8)
+            throw new NotSupportedException("nav portal of kind 8 (1814e5480) is not ported");
+        if (((to.Attributes >> 15) & 1) != 0 || ((from.Attributes >> 15) & 1) != 0)
+            throw new NotSupportedException("nav portal across a 0x8000 area (1814eada0) is not ported");
+        var e1 = backEdge != 7 ? backEdge : 0;
+        var e2 = edge != 7 ? edge : 2;
+        var tc = to.Corners;
+        var fc = from.Corners;
+        EdgeOverlap(tc[e1], tc[(e1 + 1) % tc.Length], fc[e2], fc[(e2 + 1) % fc.Length], out var lo, out var hi);
+        return (hi, lo);
+    }
+
+    /// <summary>181465740: the closest point of segment a-b to p.</summary>
+    private static V ClosestOnSegment(V p, V a, V b)
+    {
+        var dy = b.Y - a.Y;
+        var dz = b.Z - a.Z;
+        var dx = b.X - a.X;
+        var l2 = dz * dz + dy * dy + dx * dx;
+        var t = 0f;
+        if (1e-05f <= l2)
+            t = (dz * p.Z + dy * p.Y + dx * p.X - (dy * a.Y + dz * a.Z + dx * a.X)) / l2;
+        var f = 0f;
+        if (0f <= t)
+        {
+            f = 1f;
+            if (t <= 1f)
+                f = t;
+        }
+        return new V(f * dx + a.X, dy * f + a.Y, dz * f + a.Z);
+    }
+
+    /// <summary>
+    /// 1814e8f50: where the line from <paramref name="from"/> toward <paramref name="target"/> crosses the
+    /// portal in XY (1814824a0), kept 0.25 / max(2.5, portal length) from its ends; the closest point
+    /// to the target when the lines are parallel, to <paramref name="from"/> when the portal is behind.
+    /// </summary>
+    private static V Crossing(V p0, V p1, V from, V target)
+    {
+        float ax = from.X, ay = from.Y, adx = target.X - from.X, ady = target.Y - from.Y;
+        float bx = p0.X, by = p0.Y, bdx = p1.X - p0.X, bdy = p1.Y - p0.Y;
+        var den = bdy * adx - bdx * ady;
+        if (MathF.Abs(den) < 1e-06f)
+            return ClosestOnSegment(target, p0, p1);
+        var s = ((bx - ax) * bdy + (ay - by) * bdx) / den;
+        float t;
+        if (MathF.Abs(bdy) < MathF.Abs(bdx))
+            t = (s * adx + (ax - bx)) / bdx;
+        else
+            t = (s * ady + (ay - by)) / bdy;
+        if (!(0f <= s))
+            return ClosestOnSegment(from, p0, p1);
+        var l = MathF.Sqrt((p0.Z - p1.Z) * (p0.Z - p1.Z) + (p0.Y - p1.Y) * (p0.Y - p1.Y) + (p0.X - p1.X) * (p0.X - p1.X));
+        var m = 2.5f;
+        if (2.5f <= l)
+            m = l;
+        if (t <= 0f)
+            t = 0f;
+        m = 0.25f / m;
+        if (1f <= t)
+            t = 1f;
+        if (t <= m)
+            t = m;
+        if (1f - m <= t)
+            t = 1f - m;
+        return new V((p1.X - p0.X) * t + p0.X, (p1.Y - p0.Y) * t + p0.Y, (p1.Z - p0.Z) * t + p0.Z);
+    }
+
+    private struct HeapEntry
+    {
+        public Area Area;
+        public float F, G, Len;
+    }
+
+    /// <summary>The open heap (min on F, 18039a3c0 / 18039a5d0 / 180397ef0), each area's crossing point and the closed set.</summary>
+    private sealed class Search
+    {
+        public readonly List<HeapEntry> Heap = [];
+        public readonly Dictionary<Area, int> Open = [];
+        public readonly Dictionary<Area, V> Pos = [];
+        public readonly HashSet<Area> Closed = [];
+
+        private void Swap(int i, int j)
+        {
+            (Heap[i], Heap[j]) = (Heap[j], Heap[i]);
+            Open[Heap[i].Area] = i;
+            Open[Heap[j].Area] = j;
+        }
+
+        public int Down(int i)
+        {
+            var n = Heap.Count;
+            if (n / 2 <= i)
+                return i;
+            do
+            {
+                var best = i;
+                var l = 2 * i + 1;
+                if (l < n && Heap[l].F <= Heap[i].F)
+                    best = l;
+                var r = 2 * i + 2;
+                if (r < n && Heap[r].F <= Heap[best].F)
+                    best = r;
+                if (best == i)
+                    break;
+                Swap(i, best);
+                i = best;
+            } while (i < n / 2);
+            return i;
+        }
+
+        public void Up(int i)
+        {
+            while (i != 0)
+            {
+                var parent = ((i + 1) >> 1) - 1;
+                if (Heap[parent].F <= Heap[i].F)
+                    return;
+                Swap(i, parent);
+                i = parent;
+            }
+        }
+
+        public void Push(Area a, float f, float g, float len)
+        {
+            if (!Open.TryGetValue(a, out var idx) || idx < 0)
+            {
+                Heap.Add(new HeapEntry { Area = a, F = f, G = g, Len = len });
+                Open[a] = Heap.Count - 1;
+                Up(Heap.Count - 1);
+                return;
+            }
+            Heap[idx] = new HeapEntry { Area = a, F = f, G = g, Len = len };
+            if (Down(idx) == idx)
+                Up(idx);
+        }
+
+        public HeapEntry Pop()
+        {
+            var root = Heap[0];
+            Open[root.Area] = -1;
+            var n = Heap.Count;
+            if (1 < n)
+                Heap[0] = Heap[n - 1];
+            Heap.RemoveAt(n - 1);
+            if (0 < Heap.Count)
+                Open[Heap[0].Area] = 0;
+            Down(0);
+            return root;
+        }
+    }
+
+    private static float Dist(V a, V b)
+        => MathF.Sqrt((a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z) + (a.X - b.X) * (a.X - b.X));
+
+    /// <summary>
+    /// 1814d96f0 -> 1814d9810 with CNavPathCost (walk links only): A* from <paramref name="start"/> at
+    /// <paramref name="startPos"/> to <paramref name="goal"/>; each step crosses the shared edge at
+    /// <see cref="Crossing"/> toward <paramref name="goalPos"/>, costing the straight distance (the
+    /// cost's vfn 0x80 returns it); f = g + |crossing - goal| * <paramref name="heuristic"/>. The path
+    /// length (the sum of those distances), or -1 when the goal is not reached.
+    /// </summary>
+    public float TravelDistance(Area start, Area goal, V startPos, V goalPos, float heuristic, int hull = 0)
+    {
+        if (start == goal)
+            return Dist(startPos, goalPos);
+        var s = new Search();
+        s.Pos[start] = startPos;
+        s.Push(start, Dist(startPos, goalPos) * heuristic + 0f, 0f, 0f);
+        while (s.Heap.Count > 0)
+        {
+            var cur = s.Pop();
+            var area = cur.Area;
+            s.Closed.Add(area);
+            if (area == goal)
+                return cur.Len;
+            var curPos = s.Pos[area];
+            for (var e = 0; e < area.Links.Length; e++)
+                foreach (var link in area.Links[e])
+                {
+                    var n = link.To;
+                    if (n == area || s.Closed.Contains(n))
+                        continue;
+                    if (hull != -1 && n.Hull != hull)
+                        continue;
+                    var (p0, p1) = Portal(n, area, link.BackEdge, e);
+                    var cross = Crossing(p0, p1, curPos, goalPos);
+                    var cost = MathF.Sqrt((curPos.Y - cross.Y) * (curPos.Y - cross.Y) + (curPos.Z - cross.Z) * (curPos.Z - cross.Z)
+                                          + (curPos.X - cross.X) * (curPos.X - cross.X));
+                    if (!(0f <= cost))
+                        continue;
+                    var g = cur.G + cost;
+                    var len = MathF.Sqrt((cross.Y - curPos.Y) * (cross.Y - curPos.Y) + (cross.Z - curPos.Z) * (cross.Z - curPos.Z)
+                                         + (cross.X - curPos.X) * (cross.X - curPos.X)) + cur.Len;
+                    var f = MathF.Sqrt((cross.Z - goalPos.Z) * (cross.Z - goalPos.Z) + (cross.Y - goalPos.Y) * (cross.Y - goalPos.Y)
+                                       + (cross.X - goalPos.X) * (cross.X - goalPos.X)) * heuristic + g;
+                    if (s.Open.TryGetValue(n, out var idx) && idx >= 0 && s.Heap[idx].F <= f)
+                        continue;
+                    s.Pos[n] = cross;
+                    s.Push(n, f, g, len);
+                }
+        }
+        return -1f;
+    }
+
+    // ---- earliest occupy times ----
+
+    /// <summary>
+    /// 1803935e0 / 180394e20: per area, each team's earliest arrival in seconds (CCSNavArea +0xc8 T,
+    /// +0xcc CT): 120 at most; for each spawn of the team, the travel distance from the area nearest
+    /// the spawn (at the spawn) to the area nearest the area's centre (at the centre), over 260 units
+    /// a second. Both lookups take 10000 units and the hull record (80, 18, 16).
+    /// </summary>
+    public (float T, float CT)[] EarliestOccupyTimes(IReadOnlyList<V> terroristSpawns, IReadOnlyList<V> ctSpawns, float heuristic = 1f)
+    {
+        var q = new NearestQuery();
+        var times = new (float, float)[Areas.Count];
+        for (var i = 0; i < Areas.Count; i++)
+        {
+            var area = Areas[i];
+            var center = area.Center;
+            var goal = NearestArea(center, 10000f, q);
+            float Team(IReadOnlyList<V> spawns)
+            {
+                var t = 120f;
+                foreach (var spawn in spawns)
+                {
+                    var start = NearestArea(spawn, 10000f, q);
+                    if (start is null || goal is null)
+                        continue;
+                    var d = TravelDistance(start, goal, spawn, center, heuristic);
+                    if (0f <= d && d / 260f < t)
+                        t = d / 260f;
+                }
+                return t;
+            }
+            times[i] = (Team(terroristSpawns), Team(ctSpawns));
+        }
+        return times;
     }
 }
