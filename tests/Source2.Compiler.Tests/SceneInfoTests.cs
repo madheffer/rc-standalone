@@ -254,9 +254,9 @@ public class SceneInfoTests(ITestOutputHelper output)
         using var stream = File.OpenRead(path);
         var valve = Floats(KVSerializer.Create(KVSerializationFormat.KeyValues3Text).Deserialize(stream))["lights"].Values.ToList();
         // Vrad3Job's order and placement (L17); a directional light's entries hold no barn table.
-        var document = DmxBinary.ReadFile(vmap);
+        var document = MapSource.Read(vmap);
         var entities = Vrad3Job.InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
-            [.. lumps.SelectMany(l => LumpEntities(l.Value, l.Key))]);
+            [.. lumps.SelectMany(l => LumpEntities(l.Value, l.Key))], d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators));
         var ids = new Dictionary<int, int>();
         var tables = new List<KVObject?>();
         foreach (var (cls, key, origin, angles) in entities)
@@ -326,10 +326,10 @@ public class SceneInfoTests(ITestOutputHelper output)
         var lumpLights = lumps.SelectMany(l => LumpEntities(l.Value, l.Key)).Select(e => (e.Class, e.Key, World: (float[]?)null)).ToList();
         if (Environment.GetEnvironmentVariable("SCENEINFO_WALK") != "1")
         {
-            // L17 (ledger 101): the world's node array after the collapse, as Vrad3Job orders them.
-            var document = DmxBinary.ReadFile(vmap);
+            // L17 (ledgers 102, 106): the world's node array after the collapse, as Vrad3Job orders them.
+            var document = MapSource.Read(vmap);
             var keyed = Vrad3Job.InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
-                [.. lumpLights.Select(e => (e.Class, e.Key))]);
+                [.. lumpLights.Select(e => (e.Class, e.Key))], d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators));
             lumpLights = [.. keyed.Select(e => (e.Class, e.Key, World: e.Class.StartsWith("light_", StringComparison.Ordinal)
                                                     ? (float[]?)LightPrecompute.World(e.Origin, e.Angles) : null))];
         }
@@ -491,8 +491,9 @@ public class SceneInfoTests(ITestOutputHelper output)
         var ids = new Dictionary<int, int>();
         var lights = new List<KVObject>();
         LightPrecompute.KeyReader? sky = null;
-        var document = DmxBinary.ReadFile(vmap);
-        foreach (var (cls, key, origin, angles) in Vrad3Job.InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators), entities))
+        var document = MapSource.Read(vmap);
+        foreach (var (cls, key, origin, angles) in Vrad3Job.InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators), entities,
+                     d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators)))
         {
             LightShape record;
             if (cls is "light_barn" or "light_rect" or "light_omni2")

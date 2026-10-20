@@ -116,8 +116,9 @@ public static class Vrad3Job
         var ids = new Dictionary<int, int>();
         var lights = new List<KVObject>();
         LightPrecompute.KeyReader? sky = null;
-        foreach (var (cls, key, origin, angles) in InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document,
-                     path => content.SmartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0), lumpEntities))
+        int Locators(string path) => content.SmartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0;
+        foreach (var (cls, key, origin, angles) in InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document, Locators), lumpEntities,
+                     d => SmartProps.NodesCreatedOnLoad(d, Locators)))
         {
             LightShape shape;
             if (cls is "light_barn" or "light_rect" or "light_omni2")
@@ -214,16 +215,18 @@ public static class Vrad3Job
     /// origin and angles, or the collapse's for a copy. The scene build reads the nodes, not the lumps:
     /// atixref's point_template 236 ships its eight lights only in its own lump, relative to the
     /// template, and Valve's scene has them where the map puts them. Entities the array does not hold
-    /// follow in lump order. A map whose order is not captured (prefabs, hidden instances) keeps the
-    /// lumps' order and placement.
+    /// follow in lump order. A map whose order is not captured (hidden instances, a prefab inside a
+    /// prefab) keeps the lumps' order and placement.
     /// </summary>
     public static List<(string Class, LightPrecompute.KeyReader Key, Vector3 Origin, Vector3 Angles)> InSearchOrder(
-        DmxBinary.Document document, int createdOnLoad, List<(string Class, LightPrecompute.KeyReader Key)> entities)
+        DmxBinary.Document document, int createdOnLoad, List<(string Class, LightPrecompute.KeyReader Key)> entities,
+        Func<DmxBinary.Document, int>? createdOnLoadIn = null)
     {
         List<int> order;
+        Dictionary<string, int> byIdPath;
         try
         {
-            order = MapWorldOrder.NodeIds(document, createdOnLoad);
+            (order, byIdPath) = MapWorldOrder.Order(document, createdOnLoad, createdOnLoadIn);
         }
         catch (NotSupportedException)
         {
@@ -242,7 +245,10 @@ public static class Vrad3Job
         var ordered = new List<(int Rank, string Class, LightPrecompute.KeyReader Key, Vector3 Origin, Vector3 Angles)>();
         foreach (var (cls, key) in entities)
         {
-            if (!int.TryParse(key("hammeruniqueid"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) || !rank.TryGetValue(id, out var r))
+            // A prefab map's entity is named by its id path ("prefab:node"), its array id is its block's.
+            var unique = key("hammeruniqueid");
+            if (!(unique is not null && byIdPath.TryGetValue(unique, out var id) || int.TryParse(unique, NumberStyles.Integer, CultureInfo.InvariantCulture, out id))
+                || !rank.TryGetValue(id, out var r))
                 ordered.Add((int.MaxValue, cls, key, Vec(key("origin")), Vec(key("angles"))));
             else if (seen.Add(id))
             {

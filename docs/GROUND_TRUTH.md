@@ -2516,6 +2516,26 @@ game can answer is raised with the user first, and runs with -insecure.
       Tier0MathTests). Open: probe_classes' lumens barn is 3 ulps off in its intensity, and
       s2c_prefabprobe5's lights need the world order with prefabs (not captured).
 
+106. **The world's node array with prefabs (L17)** (capture and simulation, 2026-10-20). Verified:
+    MapWorldOrder rebuilds the captured arrays of s2c_prefabprobe5 (145 nodes) and 6 (152) exactly,
+    the earlier five maps still exactly, and s2c_prefabprobe5's light search (77, 2245, 2203, 2248,
+    2246) is Valve's; its scene lights then differ only in one light's intensity by a few ulps
+    (as probe_classes' lumens barn).
+    - A prefab's map is loaded as a world of its own (its own array, indices from 0), and its
+      CMapPrefab node is entity-like in the main array.
+    - In the main pass the prefab collapses like an instance: its map's entity-like nodes are
+      appended in pre-order under Expand's ids (block start + PrefabSlots slot), its map's
+      instances among them queue (never collapsed by the pass), then the prefab is fast-removed.
+      The queued instance collapses as before, its target's originals being the renumbered nodes.
+    - The prefab's own array is drained into the main one node by node (fast removes there, by an
+      always-advancing index, then the moved-in nodes in their original order); only the append
+      order matters to the main array.
+    - The entity lump names a prefab map's entity by its id path (hammeruniqueid "2140:77"); the
+      scene's light lookup maps it to the array id (MapWorldOrder.Order's ByIdPath).
+    - Open: s2c_prefabprobe3 (Valve's id set, a few nodes in another order from index 2463) and
+      s2c_prefabprobe4 (its prefab map, atixref with a smart prop, numbered one off from
+      PrefabSlots in places: 697 ids). Captures in %TEMP%/entitysearch_capture.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
