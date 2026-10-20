@@ -140,8 +140,8 @@ internal static class SceneLights
         var scale = key("brightnessscale") is { } s ? CNumbers.ToFloat32(s) : 1f;
         color = new Vector3(scale * color.X, scale * color.Y, scale * color.Z);
         r.SetV3(0xb4, color);
-        if (!string.IsNullOrEmpty(key("lightcookie")))
-            throw new NotSupportedException("a light cookie's texture index is not ported");
+        if (key("lightcookie") is { Length: > 0 } cookie)
+            r.Cookie = cookie;
         BitConverter.TryWriteBytes(r.Raw.AsSpan(0xc4), -1);
         LightBuild.Transform(r, world);
         return r;
@@ -362,10 +362,13 @@ internal static class SceneLights
         return entries;
     }
 
-    // 181113af0: one entry.
+    // 181113af0: one entry; a cookie light's first field is its cookie's resource name (the record's
+    // 0xc4 handle, then reset to -1).
     private static KVObject Write(LightShape record, uint flags, int bakedShadowIndex, LightObb.Box? volume, Dictionary<int, int> shadowIds)
     {
         var e = KVObject.Collection();
+        if (record.Cookie is { } cookie)
+            e.Add("light_cookie", new KVObject(cookie) { Flag = KVFlag.ResourceName });
         e.Add("barn", Table(record));
         e.Add("path_trace_light_flags", new KVObject(flags));
         e.Add("baked_shadow_index", new KVObject(bakedShadowIndex));

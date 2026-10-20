@@ -438,8 +438,10 @@ public static class LightProbeVolumePost
     /// max(1, (size - 1) / 2) (squared distance), the cell itself not counted;
     /// the mean of the middle two for an even count; unchanged with one or
     /// none. The results replace the face's values after the whole face.
+    /// lpv_image_median_filter_fog (180086c10) runs the same job (1800870e0) once on the fog image:
+    /// <paramref name="faces"/> 1.
     /// </summary>
-    public static void MedianFilter(float[] image, Grid g, int size)
+    public static void MedianFilter(float[] image, Grid g, int size, int faces = 6)
     {
         if (size == 0)
             return;
@@ -448,7 +450,7 @@ public static class LightProbeVolumePost
         var list = new List<(int X, int Y, int Z)>();
         var seen = new HashSet<int>();
         var values = new[] { new List<float>(), new List<float>(), new List<float>() };
-        for (var face = 0; face < 6; face++)
+        for (var face = 0; face < faces; face++)
         {
             var result = new float[g.X * g.Y * g.Z * 3];
             for (var z = 0; z < g.Z; z++)

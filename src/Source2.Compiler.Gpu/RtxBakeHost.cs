@@ -193,8 +193,6 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
         var cells = scene.Global.BinCells;
         var masks = Math.Max(1, (scene.Lights.Count + 31) / 32);
         _lightBins = Keep(gpu.CreateBuffer((ulong)cells.X * (ulong)cells.Y * (ulong)cells.Z * (ulong)masks * 4, BufferUsageFlags.StorageBufferBit, hostVisible: false));
-        if (scene.Lights.Any(l => l.Cookie >= 0))
-            Notes.Add("light cookies: their texture upload is not checked against a capture");
 
         // Set 4: the bindless textures and samplers.
         var views = new List<ImageView>();

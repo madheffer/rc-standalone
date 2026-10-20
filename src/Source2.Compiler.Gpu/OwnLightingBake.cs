@@ -138,6 +138,15 @@ public static class OwnLightingBake
                 File.WriteAllBytes(Path.Combine(folder, $"lpv_{v.Id}_dlshd.exr"), Rgba(v.X * v.Z, v.Y, dlshd).Write());
                 log.WriteLine($"  bake: probe volume {v.Id} ({v.X}x{v.Y}x{v.Z}) at {watch.Elapsed.TotalSeconds:F1} s");
             }
+
+            // The fog irradiance volume: the probe compute with the fog flag, its median, fiv.exr.
+            if (script.Fog is { } f)
+            {
+                var (fog, solid) = host.BakeFog(new LightProbeVolumeBaker.Volume(f.X, f.Y, f.Z, f.Mins, f.Maxs, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]), f.MinSpp, f.MaxSpp, log.WriteLine);
+                LightProbeVolumePost.MedianFilter(fog, new LightProbeVolumePost.Grid(f.X, f.Y, f.Z, solid), f.Median, faces: 1);
+                File.WriteAllBytes(Path.Combine(folder, f.Output), Rgba(f.X * f.Z, f.Y, fog).Write());
+                log.WriteLine($"  bake: fog irradiance volume ({f.X}x{f.Y}x{f.Z}) at {watch.Elapsed.TotalSeconds:F1} s");
+            }
         }
 
     }
@@ -154,8 +163,8 @@ public static class OwnLightingBake
         return exr;
     }
 
-    /// <summary>What the bake reads from script-gpu.vrad3: the lightmap's pass counts and each compute_lpv routine.</summary>
-    private sealed record Script(int LightmapMinSpp, int LightmapMaxSpp, float LightmapError, List<ScriptVolume> Volumes)
+    /// <summary>What the bake reads from script-gpu.vrad3: the lightmap's pass counts, each compute_lpv routine and the fog_irradiance_volume routine.</summary>
+    private sealed record Script(int LightmapMinSpp, int LightmapMaxSpp, float LightmapError, List<ScriptVolume> Volumes, ScriptFog? Fog)
     {
         public static Script Parse(IEnumerable<string> lines)
         {
@@ -167,6 +176,12 @@ public static class OwnLightingBake
             float[]? box = null, l2w = null;
             var median = 3;
             (int Min, int Max, float Error)? spp = null;
+            var inFog = false;
+            int[]? fogCells = null;
+            float[]? fogBox = null;
+            (int Min, int Max)? fogSpp = null;
+            var fogMedian = 0;
+            string? fogOutput = null;
             static float[] F(string line) => line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => float.Parse(x, CultureInfo.InvariantCulture)).ToArray();
             void Close()
             {
@@ -187,8 +202,27 @@ public static class OwnLightingBake
                 else if (line.StartsWith("compute_lpv_", StringComparison.Ordinal) && line.EndsWith(':'))
                 {
                     Close();
+                    inFog = false;
                     id = int.Parse(line["compute_lpv_".Length..^1], CultureInfo.InvariantCulture);
                 }
+                else if (line == "fog_irradiance_volume:")
+                {
+                    Close();
+                    inFog = true;
+                }
+                else if (inFog && line.StartsWith("lpv_cells ", StringComparison.Ordinal))
+                    fogCells = [.. F(line).Select(x => (int)x)];
+                else if (inFog && line.StartsWith("lpv_box ", StringComparison.Ordinal))
+                    fogBox = F(line);
+                else if (line.StartsWith("lpv_compute_block_fog_gpu ", StringComparison.Ordinal))
+                {
+                    var a = F(line);
+                    fogSpp ??= ((int)a[6], (int)a[7]);
+                }
+                else if (line.StartsWith("lpv_image_median_filter_fog ", StringComparison.Ordinal))
+                    fogMedian = (int)F(line)[0];
+                else if (line.StartsWith("lpv_image_write_fog ", StringComparison.Ordinal))
+                    fogOutput = line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1];
                 else if (line.StartsWith("lpv_cells ", StringComparison.Ordinal))
                     cells = [.. F(line).Select(x => (int)x)];
                 else if (line.StartsWith("lpv_box ", StringComparison.Ordinal))
@@ -206,9 +240,14 @@ public static class OwnLightingBake
                     median = (int)F(line)[0];
             }
             Close();
-            return new(min, max, error, volumes);
+            var fog = fogCells != null && fogBox != null && fogSpp is { } fs && fogOutput != null
+                ? new ScriptFog(fogCells[0], fogCells[1], fogCells[2], new(fogBox[0], fogBox[1], fogBox[2]), new(fogBox[3], fogBox[4], fogBox[5]), fs.Min, fs.Max, fogMedian, fogOutput)
+                : null;
+            return new(min, max, error, volumes, fog);
         }
     }
+
+    private sealed record ScriptFog(int X, int Y, int Z, System.Numerics.Vector3 Mins, System.Numerics.Vector3 Maxs, int MinSpp, int MaxSpp, int Median, string Output);
 
     private sealed record ScriptVolume(int Id, int X, int Y, int Z, System.Numerics.Vector3 Mins, System.Numerics.Vector3 Maxs, float[] LocalToWorld,
                                        int MinSpp, int MaxSpp, float Error, int Median);

@@ -43,12 +43,23 @@ public sealed class Light
     public Vector4 IlluminationCenter, IlluminationOrientation, IlluminationExtent;
     public int Cookie = -1, LuminaireType, PathTraceFlags, SphericalCookie, BakedShadowIndex = -1, ShadowedLightId = 0xff;
 
+    /// <summary>
+    /// The entry's light_cookie (a .vtex), or null. The loader holds it as a resource handle in the
+    /// record's 0xc4, and 18008c110 makes <see cref="Cookie"/> its bindless texture index
+    /// (<see cref="RtxScene.Build"/> assigns ours).
+    /// </summary>
+    public string? CookiePath;
+
     /// <summary>A light of scene_info.kv3's lights array.</summary>
     public static Light FromEntry(KVObject entry)
     {
         var r = Shape(entry["barn"]);
+        var cookiePath = BakeScene.Opt(entry, "light_cookie")?.ToString(null);
+        if (cookiePath is { Length: > 0 })
+            BitConverter.TryWriteBytes(r.Raw.AsSpan(0xc4), 0);
         var l = new Light
         {
+            CookiePath = cookiePath is { Length: > 0 } ? cookiePath : null,
             ToClipSpace = Row(r.F[..16]),
             FromClipSpace = Row(r.F[16..32]),
             NearPlane = V4(r, 0x80),
@@ -205,6 +216,13 @@ public sealed class Light
                 r.SetV3(0xfc, new Vector3(tangents[0][0], tangents[0][1], tangents[0][2]));
                 r.SetV3(0x108, new Vector3(tangents[1][0], tangents[1][1], tangents[1][2]));
                 r.SetV3(0x114, new Vector3(n[0], n[1], n[2]));
+            }
+            else if (r.Type == 3)
+            {
+                // SceneLights.Table's sphere: m_vPosition at 0xf0, m_flRadius at 0xfc.
+                var p = BakeScene.Floats(lum["m_vPosition"]);
+                r.SetV3(0xf0, new Vector3(p[0], p[1], p[2]));
+                r[0xfc] = (float)lum["m_flRadius"].ToDouble(null);
             }
             else
                 throw new NotSupportedException($"the {type} luminaire's table is not ported");

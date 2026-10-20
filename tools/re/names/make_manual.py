@@ -477,6 +477,8 @@ RESOURCECOMPILER = [
     ("1801ee0b0", "NLightBaker_WriteLpvScript", BAKE, "// Light Probe Volumes: lpv_type, then a compute_lpv_<id> routine per volume"),
     ("1801ee9f0", "NLightBaker_WriteFarfieldScript", BAKE, "// Farfield Probe Volumes: compute_farfield_<n> (compute_lighting 1024, median 1, dilate 3, fireflies 4.0)"),
     ("1801f01a0", "NLightBaker_WriteFogIrradianceScript", BAKE, "// Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu)"),
+    ("1801f07d0", "NLightBaker_CompileFogIrradianceVolume", BAKE, "fiv.exr as a 3D BC6H texture (z slices of x by y, no mips), fogIrradianceVolumeTextureArg, output rgb from rgb, processor none -> lightmaps/fog_irradiance_volume.vtex (ledger 115)"),
+    ("181113af0", "PathTraceScene_WriteLightEntry", BAKE, "one scene_info light: light_cookie = the record's 0xc4 cookie handle's resource name (then 0xc4 = -1), barn table, flags, baked shadow index, illumination volume"),
     ("1801f0dd0", "NLightBaker_LoadFarfield", BAKE, "reads farfield_<n>_bricks.kv3 and the ff/ atlas slices into the indirection and SH2 textures"),
     ("1801f2240", "NLightBaker::RunVrad3", BAKE, "lightmap_info.dat as blocks of 1024 (2048 with vrad3LargeBlockSize or off a customer machine, at most the smaller side), row-major, clipped; writes lightmap_info.dat, lightmap_packing_geometry.dat, the script; runs vrad3.exe -map -script script-gpu.vrad3 -trackmemorycounts -aftermath -aftermath_full -vulkan -gpuraytracing -allthreads -unbufferedio, with retries"),
     # The lightmap textures (lightbaker.cpp; Lighting/LightmapTextures.cs, docs/BAKED.md "Lightmap textures").
@@ -2543,6 +2545,8 @@ VRAD3 = [
     ("180057d80", "Vrad3_OidnFilterShL0", V3, "SH channels' component 0, scaled as the irradiance"),
     ("1800597d0", "Vrad3_OidnFilterShCoefficient", V3, "coefficient k (180044810) over max(L0, 1e-5) per colour, directional, times L0 after; line charts the same"),
     ("180044810", "CVrad3LightmapImage::GetShCoefficient", V3, "k 0..3: SH channels' component k; 4..7: quadratic channels' component k - 4; 8: the final quadratic channel's RGB"),
+    ("18002b640", "CVrad3Command_lpv_image_fog_gpu::Run", V3, "clears the probe images, the fog image (x * z by y RGBA, 0), then the grid as lpv_image_gpu (ledger 115)"),
+    ("180086c10", "CVrad3Command_lpv_image_median_filter_fog::Run", V3, "the probe median job (1800870e0, as 1800860b0) once over the fog image"),
     # lightmap_ameliorate_block_compression_artefacts (Lighting/LightmapAmeliorate.cs, ledger 114).
     ("1800672e0", "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run", V3, "-mips n: sanitize line charts, zero-variation charts to pixel charts, luxel hashes, aliases, line charts by length, chart_repacking.dat (magic 0x0531771e), temporary rows, the clear, free 4x4-block lines, the longest-first packing, the copies back, the repack iterations when charts are left (not ported), FillBlocks, alias records"),
     ("180066bb0", "AmeliorateBlockCompressionArtefacts_SanitizeLineCharts", V3, "job 180066c60 per chart: line charts (flags bit 29 without 28) fill empty texels from the last filled one to the left, then to the right; the last texel carries over rows"),

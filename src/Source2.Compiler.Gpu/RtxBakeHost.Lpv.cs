@@ -58,6 +58,36 @@ public sealed unsafe partial class RtxBakeHost
     /// </summary>
     public LightProbeVolumeBaker.Result BakeLpv(LightProbeVolumeBaker.Volume v, int minSpp, int maxSpp, float error, Action<string>? log = null)
     {
+        var (result, solid, solidAfterVoxelize) = ComputeLpv(v, minSpp, maxSpp, error, fog: false, log);
+        return LightProbeVolumeBaker.ReadBack(result, [v.CellsX, v.CellsY, v.CellsZ], solid, solidAfterVoxelize);
+    }
+
+    /// <summary>
+    /// The fog_irradiance_volume routine: lpv_image_fog_gpu (the grid, a cleared x * z by y RGBA image),
+    /// lpv_voxelize_gpu with no flood fill, then lpv_compute_block_fog_gpu (180035e80 with the fog flag:
+    /// m_nFog 1, the error left at its default 0.02), whose readback puts each cell's first ambient cube
+    /// vector's RGB, unclamped, at (z * X + x, y); alpha stays 0. Also the bordered solid mask the median
+    /// reads.
+    /// </summary>
+    public (float[] Image, uint[] Solid) BakeFog(LightProbeVolumeBaker.Volume v, int minSpp, int maxSpp, Action<string>? log = null)
+    {
+        var (result, solid, _) = ComputeLpv(v, minSpp, maxSpp, 0.02f, fog: true, log);
+        int x = v.CellsX, y = v.CellsY, z = v.CellsZ, width = x * z;
+        var image = new float[width * y * 4];
+        for (var cz = 0; cz < z; cz++)
+            for (var cy = 0; cy < y; cy++)
+                for (var cx = 0; cx < x; cx++)
+                {
+                    var f = result[(cz * y + cy) * x + cx].vAmbientCube.data[0];
+                    var at = (cy * width + cz * x + cx) * 4;
+                    (image[at], image[at + 1], image[at + 2]) = (f.x, f.y, f.z);
+                }
+        return (image, solid);
+    }
+
+    private (LpvLuxel_t_natural[] Result, uint[] Solid, int SolidAfterVoxelize) ComputeLpv(LightProbeVolumeBaker.Volume v, int minSpp, int maxSpp, float error,
+                                                                                          bool fog, Action<string>? log)
+    {
         CreateLpv();
         var n = new[] { v.CellsX, v.CellsY, v.CellsZ };
         var min = new[] { v.BoxMin.X, v.BoxMin.Y, v.BoxMin.Z };
@@ -90,7 +120,7 @@ public sealed unsafe partial class RtxBakeHost
             for (var pass = 0; pass < 32; pass++)
             {
                 var (d1, d2, d3) = (rng.Next(), rng.Next(), rng.Next());
-                var push = Push(pass, default, LightProbeVolumeBaker.Offset(d1, d2, d3), new vec4(bmin[0], bmin[1], bmin[2], 0f), new vec4(bmax[0], bmax[1], bmax[2], 0f), localToWorld);
+                var push = Push(pass, default, LightProbeVolumeBaker.Offset(d1, d2, d3), new vec4(bmin[0], bmin[1], bmin[2], 0f), new vec4(bmax[0], bmax[1], bmax[2], 0f), localToWorld, fog);
                 Trace(_lpvVoxelize, set, push, (uint)bn[0], (uint)bn[1], (uint)bn[2], _lpvLayout);
             }
             var words = new Span<uint>((void*)mask.Mapped, bordered);
@@ -99,23 +129,26 @@ public sealed unsafe partial class RtxBakeHost
                 occupied[i] = (words[i] & 1) != 0;
             var solidAfterVoxelize = occupied.Count(o => o);
 
-            // lpv_flood_fill (1800323f0), on the CPU as vrad3.
-            var seedCell = new int[3];
-            for (var a = 0; a < 3; a++)
+            // lpv_flood_fill (1800323f0), on the CPU as vrad3; the fog routine has none.
+            if (!fog)
             {
-                var q = MathF.Floor((0f - bmin[a]) / ((bmax[a] - bmin[a]) / bn[a]));
-                var i = float.IsNaN(q) || q >= 2147483648f || q < -2147483648f ? int.MinValue : (int)q;
-                seedCell[a] = i < 0 ? 0 : Math.Min(i, bn[a] - 1);
-            }
-            var start = LightProbeVolumeBaker.NearestEmpty(occupied, bn, (seedCell[2] * bn[1] + seedCell[1]) * bn[0] + seedCell[0], 8);
-            if (start < 0)
-                log?.Invoke("Cannot flood fill light probe volume - no empty space near center");
-            else
-            {
-                var filled = LightProbeVolumeBaker.FloodFill(occupied, bn, start);
-                if (filled.All(o => o))
-                    filled[start] = false;
-                occupied = filled;
+                var seedCell = new int[3];
+                for (var a = 0; a < 3; a++)
+                {
+                    var q = MathF.Floor((0f - bmin[a]) / ((bmax[a] - bmin[a]) / bn[a]));
+                    var i = float.IsNaN(q) || q >= 2147483648f || q < -2147483648f ? int.MinValue : (int)q;
+                    seedCell[a] = i < 0 ? 0 : Math.Min(i, bn[a] - 1);
+                }
+                var start = LightProbeVolumeBaker.NearestEmpty(occupied, bn, (seedCell[2] * bn[1] + seedCell[1]) * bn[0] + seedCell[0], 8);
+                if (start < 0)
+                    log?.Invoke("Cannot flood fill light probe volume - no empty space near center");
+                else
+                {
+                    var filled = LightProbeVolumeBaker.FloodFill(occupied, bn, start);
+                    if (filled.All(o => o))
+                        filled[start] = false;
+                    occupied = filled;
+                }
             }
             var solid = new uint[bordered];
             for (var i = 0; i < bordered; i++)
@@ -159,7 +192,7 @@ public sealed unsafe partial class RtxBakeHost
                             }
                             GenerateHalton(pass);
                             var (d1, d2, d3) = (rng.Next(), rng.Next(), rng.Next());
-                            Trace(_lpvCompute, set, Push(pass, packed, LightProbeVolumeBaker.Offset(d1, d2, d3), regionMin, regionMax, localToWorld),
+                            Trace(_lpvCompute, set, Push(pass, packed, LightProbeVolumeBaker.Offset(d1, d2, d3), regionMin, regionMax, localToWorld, fog),
                                   (uint)rn[0], (uint)rn[1], (uint)rn[2], _lpvLayout);
                         }
                         var block = Decode(lux);
@@ -170,7 +203,7 @@ public sealed unsafe partial class RtxBakeHost
                         DestroyImage(blockConverged);
                     }
 
-            return LightProbeVolumeBaker.ReadBack(result, n, solid, solidAfterVoxelize);
+            return (result, solid, solidAfterVoxelize);
         }
         finally
         {
@@ -202,15 +235,16 @@ public sealed unsafe partial class RtxBakeHost
         return result;
     }
 
-    // LpvPushConstants_t: m_nEstimate, m_nDimensionCount 4, m_nFilterRadius 1, m_nFog 0, the packed start
-    // and count, the offset, the bounds and the row-major local-to-world (three rows of four, 128 bytes).
-    private static byte[] Push(int pass, uvec4 packed, vec4 offset, vec4 boundsMin, vec4 boundsMax, mat4x3 l2w)
+    // LpvPushConstants_t: m_nEstimate, m_nDimensionCount 4, m_nFilterRadius 1, m_nFog (1 for the fog
+    // routine, 1800361a4), the packed start and count, the offset, the bounds and the row-major
+    // local-to-world (three rows of four, 128 bytes).
+    private static byte[] Push(int pass, uvec4 packed, vec4 offset, vec4 boundsMin, vec4 boundsMax, mat4x3 l2w, bool fog)
     {
         var w = new Writer(128);
         w.I(pass);
         w.I(4);
         w.I(1);
-        w.I(0);
+        w.I(fog ? 1 : 0);
         w.U(packed.x); w.U(packed.y); w.U(packed.z); w.U(packed.w);
         w.V(offset);
         w.V(boundsMin);

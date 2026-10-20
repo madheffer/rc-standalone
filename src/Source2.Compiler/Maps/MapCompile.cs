@@ -205,7 +205,7 @@ public static class MapCompile
                 var options = Lighting.LightmapOutputs.Options.From(args.Arguments);
                 Lighting.Vrad3Job.Write(job, document, assets, shaders, JobWorldClass, lumps.Select(l => (l.Path, l.Bytes)),
                                         path => entries.GetValueOrDefault(path.ToLowerInvariant()), lighting.ProbeJobs, options.Quality,
-                                        Lighting.LightmapChartRepacking.RepacksAt(options.Quality) && !options.NoRepack, args.Arguments);
+                                        Lighting.LightmapChartRepacking.RepacksAt(options.Quality) && !options.NoRepack, args.Arguments, lighting.Fog);
                 log.WriteLine($"  lighting: job written to {job}");
                 ownBake(job, assets, log);
                 lightingFolder = job;

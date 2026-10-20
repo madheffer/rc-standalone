@@ -122,7 +122,36 @@ public static class LightmapOutputs
                 LightmapTextures.AtlasVtex(shadows, size.X, size.Y, size.Z, LightmapTextures.ImageFormat.Bc7, searchPath, nativeFolder: nativeFolder,
                                            compileArguments: options.CompileArguments)));
         }
+
+        // The fog irradiance volume (1801f07d0): fiv.exr, when the script has the routine and the image loads.
+        var fiv = Path.Combine(folder, "fiv.exr");
+        if (FogCells(Path.Combine(folder, "script-gpu.vrad3")) is { } fog && File.Exists(fiv))
+        {
+            var image = new RcTexture.RcMipChain.Level(fog.X * fog.Z, fog.Y, LightProbeAtlasImages.Rgba(Vrad3Exr.Read(File.ReadAllBytes(fiv))));
+            outputs.Add(new($"{prefix}fog_irradiance_volume.vtex_c",
+                LightmapTextures.FogIrradianceVtex(image, fog.X, fog.Y, fog.Z, searchPath, nativeFolder, options.CompileArguments)));
+        }
         return outputs;
+    }
+
+    /// <summary>The script's fog_irradiance_volume routine's lpv_cells, or null without one.</summary>
+    public static (int X, int Y, int Z)? FogCells(string script)
+    {
+        if (!File.Exists(script))
+            return null;
+        var inFog = false;
+        foreach (var raw in File.ReadLines(script))
+        {
+            var line = raw.Trim();
+            if (line == "fog_irradiance_volume:")
+                inFog = true;
+            else if (inFog && line.StartsWith("lpv_cells ", StringComparison.Ordinal))
+            {
+                var c = line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1..].Select(s => int.Parse(s, CultureInfo.InvariantCulture)).ToArray();
+                return (c[0], c[1], c[2]);
+            }
+        }
+        return null;
     }
 
     /// <summary>The script's compute_lpv routines in order: each volume's id and lpv_cells.</summary>

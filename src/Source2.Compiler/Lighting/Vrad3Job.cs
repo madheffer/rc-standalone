@@ -28,6 +28,12 @@ public static class Vrad3Job
     /// <summary>One probe volume's compute_lpv routine: the volume's id, grid, local box and local-to-world (3 x 4, row major).</summary>
     public sealed record Volume(int Id, int X, int Y, int Z, Vector3 Mins, Vector3 Maxs, float[] LocalToWorld, bool Voxelize = true, bool FloodFill = true);
 
+    /// <summary>The fog irradiance volume: its grid and its world box (identity local-to-world).</summary>
+    public sealed record FogVolume(int X, int Y, int Z, Vector3 Mins, Vector3 Maxs);
+
+    /// <summary>lpv_compute_block_fog_gpu's samples per quality (182a88578 min, 182a88568 max) and the fog median (182a885a8).</summary>
+    internal static readonly int[] FogMinSpp = [64, 256, 512], FogMaxSpp = [64, 512, 1024], FogMedian = [3, 3, 3];
+
     /// <summary>
     /// Writes the job into <paramref name="folder"/>. <paramref name="lumps"/> are the compile's
     /// entity lumps (path, bytes) in the order they were written and <paramref name="packageModel"/>
@@ -36,7 +42,7 @@ public static class Vrad3Job
     public static void Write(string folder, DmxBinary.Document document, GameContent content, ShaderLibrary shaders,
                              Func<string, bool> rendersAsWorld, IEnumerable<(string Path, byte[] Bytes)> lumps,
                              Func<string, byte[]?> packageModel, IReadOnlyList<Volume> volumes, int quality = 0, bool? repack = null,
-                             IReadOnlyDictionary<string, object>? arguments = null)
+                             IReadOnlyDictionary<string, object>? arguments = null, FogVolume? fog = null)
     {
         if (quality is < 0 or > 2)
             throw new NotSupportedException($"-lightmapVRadQuality {quality}");
@@ -153,7 +159,7 @@ public static class Vrad3Job
         File.WriteAllBytes(Path.Combine(folder, "scene_meshes.kv3"), PathTraceScene.MeshesFile(meshes));
         File.WriteAllText(Path.Combine(folder, "scene_info.kv3"), PathTraceScene.InfoFile(instances, SceneLights.Ibl(sky, SkyNamed), lights, cameras));
         File.WriteAllText(Path.Combine(folder, "script-gpu.vrad3"), Script(settings.Width >> (settings.Mip - 1), settings.Height >> (settings.Mip - 1), blockSize, settings.Mip, volumes, quality,
-                                                                                         repack ?? LightmapChartRepacking.RepacksAt(quality)));
+                                                                                         repack ?? LightmapChartRepacking.RepacksAt(quality), fog));
     }
 
     /// <summary>
@@ -163,7 +169,8 @@ public static class Vrad3Job
     /// _sh_oidn; <paramref name="repack"/> (the settings' +0x39: BakeLighting repacks, <see cref="LightmapChartRepacking"/>)
     /// adds lightmap_ameliorate_block_compression_artefacts after the weld.
     /// </summary>
-    public static string Script(int width, int height, int blockSize, int mips, IReadOnlyList<Volume> volumes, int quality = 0, bool repack = false)
+    public static string Script(int width, int height, int blockSize, int mips, IReadOnlyList<Volume> volumes, int quality = 0, bool repack = false,
+                                FogVolume? fog = null)
     {
         var c = CultureInfo.InvariantCulture;
         var s = new StringBuilder();
@@ -194,7 +201,7 @@ public static class Vrad3Job
         }
         s.Append("    timer_stop\n    timer_poll\n    println Lightmapping took $timer seconds\n    done\n\nlightmap_free_memory\n");
         if (volumes.Count == 0)
-            return s.ToString();
+            return s.Append(FogRoutine(fog, quality)).ToString();
         s.Append("\n//\n// Light Probe Volumes\n//\nlpv_type ambient_cube\n");
         foreach (var v in volumes)
             s.Append(c, $"run compute_lpv_{v.Id}\n");
@@ -218,6 +225,30 @@ public static class Vrad3Job
             s.Append(c, $"    lpv_image_remove_fireflies 3 lpv_{v.Id}_fireflies.exr\n    lpv_image_resolve \n    lpv_image_median_filter {LpvMedian[quality]}\n");
             s.Append(c, $"    lpv_image_write_ambientcube lpv_{v.Id}_ambientcube.exr\n    lpv_image_write_direct_light_shadows  lpv_{v.Id}_dlshd.exr\n    done\n");
         }
+        return s.Append(FogRoutine(fog, quality)).ToString();
+    }
+
+    /// <summary>
+    /// The fog_irradiance_volume routine (resourcecompiler 1801f01a0), after the probe volumes: the grid,
+    /// the world box, the identity local-to-world, lpv_image_fog_gpu 96 96 96, lpv_voxelize_gpu (no flood
+    /// fill), lpv_compute_block_fog_gpu per block of 96 (z, then y, then x) with the quality's samples, the
+    /// fog median and fiv.exr. Valve's progress prints are left out, as in the probe volume routines.
+    /// </summary>
+    private static string FogRoutine(FogVolume? fog, int quality)
+    {
+        if (fog is null)
+            return "";
+        var c = CultureInfo.InvariantCulture;
+        var s = new StringBuilder("\n//\n// Fog Irradiance Volume\n//\n\nrun fog_irradiance_volume\n\nfog_irradiance_volume:\n");
+        s.Append(c, $"    lpv_cells {fog.X} {fog.Y} {fog.Z}\n");
+        s.Append(c, $"    lpv_box {fog.Mins.X:F6} {fog.Mins.Y:F6} {fog.Mins.Z:F6} {fog.Maxs.X:F6} {fog.Maxs.Y:F6} {fog.Maxs.Z:F6}\n");
+        s.Append("    lpv_local_to_world 1.000000 0.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 0.000000 1.000000 0.000000\n");
+        s.Append("    lpv_init\n    lpv_image_fog_gpu 96 96 96\n    lpv_voxelize_gpu\n");
+        for (var z = 0; z < fog.Z; z += 96)
+            for (var y = 0; y < fog.Y; y += 96)
+                for (var x = 0; x < fog.X; x += 96)
+                    s.Append(c, $"    lpv_compute_block_fog_gpu {x} {y} {z} {Math.Min(x + 96, fog.X)} {Math.Min(y + 96, fog.Y)} {Math.Min(z + 96, fog.Z)} {FogMinSpp[quality]} {FogMaxSpp[quality]}\n");
+        s.Append(c, $"    lpv_image_median_filter_fog {FogMedian[quality]}\n    lpv_image_write_fog fiv.exr\n    done\n");
         return s.ToString();
     }
 

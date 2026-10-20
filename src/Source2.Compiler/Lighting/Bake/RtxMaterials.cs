@@ -770,6 +770,10 @@ public sealed class RtxScene
                 nMaterialFlags_nInstanceFlags = inst.Packed, fEmissiveBoost = inst.EmissiveBoost, nInstanceFlags = inst.InstanceFlags,
             };
         }
+        // Light cookies (18008c110): each cookie texture's bindless index into the light's m_nCookie.
+        foreach (var light in scene.Lights)
+            if (light.CookiePath is { } cookie)
+                light.Cookie = Texture(cookie, CookieSrgb, false);
         while (data.Count % 4 != 0)
             data.Add(0);
         var raw = data.ToArray();
@@ -978,6 +982,12 @@ public sealed class RtxScene
     /// more (scenesystem's rtx_texture_resolution, 1800058f0, defaults to the same 512), so the hit
     /// shaders' textureLod(..., 0) reads that mip. 0 lifts the cap (CPUBAKE_TEXCAP, a check).
     /// </summary>
+    /// <summary>
+    /// Light cookies are read sRGB: with it, s2c_l5probe's block 0 (a cookie light_barn and light_omni2) is
+    /// vrad3's raw image bit for bit on all 40 planes; read linear, 4,300 to 6,900 irradiance texels differ.
+    /// </summary>
+    public const bool CookieSrgb = true;
+
     public static int TextureCap { get; set; } = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_TEXCAP"), out var cap) ? cap : 512;
 
     /// <summary>The first mip a texture is resident from under <see cref="TextureCap"/>.</summary>

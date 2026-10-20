@@ -61,9 +61,15 @@ public sealed class LightShape
 
     public Span<float> Inverse => F[16..32];
 
+    /// <summary>
+    /// The light's cookie texture (its lightcookie key), which resourcecompiler holds at 0xc4 as a
+    /// resource handle and writes into scene_info.kv3 as light_cookie (181113af0); null for none.
+    /// </summary>
+    public string? Cookie { get; set; }
+
     public LightShape Clone()
     {
-        var c = new LightShape();
+        var c = new LightShape { Cookie = Cookie };
         Raw.CopyTo(c.Raw, 0);
         return c;
     }

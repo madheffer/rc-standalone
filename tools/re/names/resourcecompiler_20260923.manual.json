@@ -2593,6 +2593,18 @@
    "note": "// Fog Irradiance Volume: fog_irradiance_volume routine (lpv_image_fog_gpu, lpv_compute_block_fog_gpu)"
   },
   {
+   "addr": "1801f07d0",
+   "name": "NLightBaker_CompileFogIrradianceVolume",
+   "module": "s2c:baked/lighting",
+   "note": "fiv.exr as a 3D BC6H texture (z slices of x by y, no mips), fogIrradianceVolumeTextureArg, output rgb from rgb, processor none -> lightmaps/fog_irradiance_volume.vtex (ledger 115)"
+  },
+  {
+   "addr": "181113af0",
+   "name": "PathTraceScene_WriteLightEntry",
+   "module": "s2c:baked/lighting",
+   "note": "one scene_info light: light_cookie = the record's 0xc4 cookie handle's resource name (then 0xc4 = -1), barn table, flags, baked shadow index, illumination volume"
+  },
+  {
    "addr": "1801f0dd0",
    "name": "NLightBaker_LoadFarfield",
    "module": "s2c:baked/lighting",

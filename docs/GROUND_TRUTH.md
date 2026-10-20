@@ -2921,6 +2921,41 @@ game can answer is raised with the user first, and runs with -insecure.
       Also -mips above 1 (the mip image and the upsample back); the scripts pass the map's mips.
 
 
+115. **Light cookies and the fog irradiance volume** (settled 2026-10-20 on a specimen, s2c_l5probe:
+    probe01 plus a baked light_barn and light_omni2 with materials/effects/lightcookies/box.vtex and an
+    env_volumetric_fog_controller with IndirectEnabled 1; tools/vrad3/l5_specimen.py, compiled with
+    Valve's tools, captures in tools/re/out/captures/l5probe). Verified: compile-map -s2cbake on it
+    writes all eight lightmaps/ files byte for byte (the four lightmaps, query data, both probe atlases,
+    fog_irradiance_volume.vtex), the entity lump and scene_info.kv3; package 99.92% (nav and .vmap_c).
+    - scene_info.kv3 (181113af0): a cookie light keeps m_nCookie -1 in its barn table and gets a first
+      field light_cookie = resource_name:"<the lightcookie key>"; omni2's m_bSphericalCookie as before.
+    - vrad3 (scenesystem 18008c110): the cookie becomes a bindless texture index and m_vCookieParameters
+      (0, 0, 1, 1). The texture is read sRGB: block 0's raw image is then vrad3's on all 40 planes (read
+      linear, 4,300 to 6,900 irradiance texels differ). The light buffer otherwise equals vrad3's capture.
+    - A sphere luminaire's scene table: m_vPosition (0xf0) and m_flRadius (0xfc).
+    - Fog (resourcecompiler 180240a60): every env_volumetric_fog_controller gets IndirectVoxelDimX/Y/Z
+      after hammerUniqueId: IndirectVoxelDim (256) / the box's longest side scales each side, truncated;
+      x and y at least 4, rounded up to 4; z at least 1; each at most the dim. A baked compile adds
+      fogirradiancevolume = maps/<map>/lightmaps/fog_irradiance_volume.vtex. The first controller in
+      export order is the volume: its box moved by its origin, identity local-to-world.
+    - Script (1801f01a0): fog_irradiance_volume routine after the probe volumes: lpv_cells, lpv_box,
+      lpv_image_fog_gpu 96 96 96, lpv_voxelize_gpu (no flood fill), lpv_compute_block_fog_gpu per 96
+      block with samples (64, 64), (256, 512), (512, 1024) by quality, lpv_image_median_filter_fog 3,
+      lpv_image_write_fog fiv.exr. Valve's progress print says X x X x Z.
+    - vrad3 180035e80 with the fog flag: m_nFog 1, error 0.02 (the line has none), readback of each
+      cell's first ambient cube vector RGB (unclamped) at (z * X + x, y); alpha 0. The fog median is
+      the probe median's job once (one face). fiv.exr byte for byte.
+    - fog_irradiance_volume.vtex (1801f07d0): 3D BC6H, z slices of x by y, no mips, argument
+      fogIrradianceVolumeTextureArg, output channel rgb from rgb, image processor "none". RED2's
+      arguments sort by name ignoring case after ___OverrideInputData___ (the fog argument lands
+      between final and hueShiftFixup; the lightmap and probe atlas orders are unchanged).
+    - Far field: CS2's FGDs lack env_farfield_probe_volume but 180240a60 handles it (box_mins,
+      box_maxs, cell_size 256, five env_farfield_<n>_* textures). Valve's own compile of a 6 x 8 x 1
+      grid (s2c_l5farfield, cell_size 256) fails: "Farfield atlas slice ... is 1056x33, expected
+      1056x36", then "Light mapper didn't return valid triangles", map build FAILED. With cell_size
+      128 (s2c_l5farfield128, 12 x 16 x 2) it builds and ships env_farfield_0_indirection, _sh2_dc
+      and _sh2_l1r/g/b; vrad3 reports its far field lighting 100% black on this map. Not ported.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

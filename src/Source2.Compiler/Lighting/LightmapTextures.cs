@@ -220,8 +220,9 @@ public static class LightmapTextures
     /// </summary>
     public static byte[] AtlasVtex(RcMipChain.Level image, int sliceWidth, int sliceHeight, int sliceCount, ImageFormat format,
         string searchPath, Fingerprints? fingerprints = null, string? nativeFolder = null, bool ambientCube = false, string algorithm = "None",
-        IReadOnlyDictionary<string, object>? compileArguments = null)
+        IReadOnlyDictionary<string, object>? compileArguments = null, TextureArgument? argument = null, string channels = "rgba")
     {
+        argument ??= LightProbeVolumeArgument;
         var columns = image.Width / sliceWidth;
         if (columns == 0 || (sliceCount + columns - 1) / columns * sliceHeight > image.Height)
             throw new ArgumentException($"A {image.Width}x{image.Height} image does not hold {sliceCount} slices of {sliceWidth}x{sliceHeight}.", nameof(image));
@@ -234,11 +235,20 @@ public static class LightmapTextures
             slices[z] = new RcMipChain.Level(sliceWidth, sliceHeight, px);
         }
         var derived = fingerprints ?? new Fingerprints(
-            DescriptorFingerprint(Descriptor("3D", LightProbeVolumeArgument.Name, FormatName(format), 0, 0, "None", sliceCount, sliceWidth, sliceHeight, -1, algorithm)),
+            DescriptorFingerprint(Descriptor("3D", argument.Name, FormatName(format), 0, 0, "None", sliceCount, sliceWidth, sliceHeight, -1, algorithm, channels)),
             ambientCube ? 1u : ImageFingerprint(image, 1));
         return Write([.. slices.Select(slice => new[] { slice })], format, FlagVolumeTexture,
-                     EditInfo(LightProbeVolumeArgument, searchPath, derived, new TextureArguments(null, false, compileArguments)), nativeFolder, 3);
+                     EditInfo(argument, searchPath, derived, new TextureArguments(null, false, compileArguments)), nativeFolder, 3);
     }
+
+    /// <summary>
+    /// fog_irradiance_volume.vtex (resourcecompiler 1801f07d0): fiv.exr, an x * z by y image, as a
+    /// <c>3D</c> BC6H texture of z slices of x by y (slice k the k-th column block), linear, no mips,
+    /// through fogIrradianceVolumeTextureArg, its output channel rgb from rgb.
+    /// </summary>
+    public static byte[] FogIrradianceVtex(RcMipChain.Level image, int x, int y, int z, string searchPath, string? nativeFolder = null,
+        IReadOnlyDictionary<string, object>? compileArguments = null)
+        => AtlasVtex(image, x, y, z, ImageFormat.Bc6h, searchPath, nativeFolder: nativeFolder, algorithm: "none", compileArguments: compileArguments, argument: FogIrradianceVolumeArgument, channels: "rgb");
 
     // CResourceCompilerTexture's LZ4 HC level by texture quality (180133da0): 3, 4, 9, 10, 12.
     private static int Lz4LevelFor(int quality) => quality switch { 0 => 3, 1 => 4, 3 => 10, 4 => 12, _ => 9 };
@@ -480,7 +490,7 @@ public static class LightmapTextures
     /// <c>___OverrideInputData___</c> fingerprint.
     /// </summary>
     public static KVObject Descriptor(string type, string argument, string format, int minDimension, int maxDimension, string mipAlgorithm,
-        int sliceCount = -1, int sliceWidth = -1, int sliceHeight = -1, int minBits = -1, string processor = "none")
+        int sliceCount = -1, int sliceWidth = -1, int sliceHeight = -1, int minBits = -1, string processor = "none", string outputChannels = "rgba")
     {
         static KVObject Floats(int n)
         {
@@ -515,8 +525,8 @@ public static class LightmapTextures
         inputs.Add(input);
 
         var channel = KVObject.Collection();
-        channel.Add("m_srcChannels", new KVObject("rgba"));
-        channel.Add("m_dstChannels", new KVObject("rgba"));
+        channel.Add("m_srcChannels", new KVObject(outputChannels));
+        channel.Add("m_dstChannels", new KVObject(outputChannels));
         channel.Add("m_mipAlgorithm", Processor(mipAlgorithm));
         channel.Add("m_outputColorSpace", new KVObject("linear"));
         var channelInputs = KVObject.Array();
@@ -576,6 +586,8 @@ public static class LightmapTextures
     /// <summary>1801eee20's argument (<c>final</c> recorded as a float).</summary>
     public static readonly TextureArgument LightProbeVolumeArgument = new("lightProbeVolumeTextureArg", "FloatArg");
 
+    public static readonly TextureArgument FogIrradianceVolumeArgument = new("fogIrradianceVolumeTextureArg", "FloatArg");
+
     /// <summary>
     /// RED2 as RC records a lightmap texture: the argument file it probes (the
     /// argument's name lowercased, <c>.txt</c>, absent), the texture compiler's arguments in
@@ -622,16 +634,23 @@ public static class LightmapTextures
         var maxMip = BitConverter.SingleToUInt32Bits(1048576f);
         var args = KVObject.Array();
         args.Add(Argument("___OverrideInputData___", "BinaryBlobArg", fingerprints.OverrideInputData));
+        // The rest by name, ignoring case (the image argument's ImageArg before its BinaryBlobArg):
+        // fogIrradianceVolumeTextureArg sorts between final and hueShiftFixup.
         var fast = FromCompile("fast");
-        args.Add(Argument("fast", fast.Type, fast.Fingerprint));
-        args.Add(Argument("final", textureArguments.Final is null ? argument.FinalType : "IntArg", (uint)(textureArguments.Final ?? 0)));
-        args.Add(textureArguments.HueShiftFixup ? Argument("hueShiftFixup", "IntArg", 1) : Argument("hueShiftFixup", "FloatArg", 0));
         var maxResolution = FromCompile("lightmapMaxResolution");
-        args.Add(Argument("lightmapMaxResolution", maxResolution.Type, maxResolution.Fingerprint));
-        args.Add(Argument(argument.Name, "ImageArg", fingerprints.Image));
-        args.Add(Argument(argument.Name, "BinaryBlobArg", 0));
-        args.Add(Argument("maxmipsize", "FloatArg", maxMip, maxMip));
-        args.Add(Argument("minmipsize", "FloatArg", 0));
+        var rest = new List<KVObject>
+        {
+            Argument("fast", fast.Type, fast.Fingerprint),
+            Argument("final", textureArguments.Final is null ? argument.FinalType : "IntArg", (uint)(textureArguments.Final ?? 0)),
+            textureArguments.HueShiftFixup ? Argument("hueShiftFixup", "IntArg", 1) : Argument("hueShiftFixup", "FloatArg", 0),
+            Argument("lightmapMaxResolution", maxResolution.Type, maxResolution.Fingerprint),
+            Argument(argument.Name, "ImageArg", fingerprints.Image),
+            Argument(argument.Name, "BinaryBlobArg", 0),
+            Argument("maxmipsize", "FloatArg", maxMip, maxMip),
+            Argument("minmipsize", "FloatArg", 0),
+        };
+        foreach (var a in rest.OrderBy(a => (string)a["m_ParameterName"], StringComparer.OrdinalIgnoreCase))
+            args.Add(a);
 
         var probe = KVObject.Collection();
         probe.Add("m_RelativeFilename", new KVObject(argument.Name.ToLowerInvariant() + ".txt"));

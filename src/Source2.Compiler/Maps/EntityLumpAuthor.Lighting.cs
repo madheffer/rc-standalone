@@ -74,6 +74,12 @@ public static partial class EntityLumpAuthor
         public IReadOnlyList<Source2.Compiler.Lighting.Vrad3Job.Volume> ProbeJobs { get; init; } = [];
 
         /// <summary>
+        /// The fog irradiance volume (180240a60): the first env_volumetric_fog_controller in export order,
+        /// its grid (<see cref="FogGrid"/>) and its box moved by its origin (angles ignored); null without one.
+        /// </summary>
+        public Source2.Compiler.Lighting.Vrad3Job.FogVolume? Fog { get; init; }
+
+        /// <summary>
         /// The counters over the entities in export order. The handshake starts
         /// at the map path's MurmurHash2 (seed 0x3501a674, lower case, back
         /// slashes, 31 bits, backed off by 0xff near the top) and takes one per
@@ -125,6 +131,13 @@ public static partial class EntityLumpAuthor
             var cubemaps = new List<Maps.EnvVolumes.Volume>();
             var probes = new List<Maps.EnvVolumes.Volume>();
             var jobs = new List<Source2.Compiler.Lighting.Vrad3Job.Volume>();
+            Source2.Compiler.Lighting.Vrad3Job.FogVolume? fog = null;
+            if (order.FirstOrDefault(e => e.ClassName.EqualsAscii(FogClass)) is { } fogEntity)
+            {
+                var (fx, fy, fz, mins, maxs) = FogGrid(KeyTable(fogEntity, schema));
+                var o = fogEntity.Origin;
+                fog = new(fx, fy, fz, new(o.X + mins[0], o.Y + mins[1], o.Z + mins[2]), new(o.X + maxs[0], o.Y + maxs[1], o.Z + maxs[2]));
+            }
             foreach (var e in order)
             {
                 if (!handshake.TryGetValue(e, out var h))
@@ -152,6 +165,7 @@ public static partial class EntityLumpAuthor
                 ExportOrder = order,
                 Volumes = new(cubemaps, probes),
                 ProbeJobs = jobs,
+                Fog = fog,
                 VisClusters = baked && scene is not null && visClusterBoxes is not null
                     ? LightVisMembership(order, schema, scene, visClusterBoxes) : null,
             };
@@ -363,12 +377,50 @@ public static partial class EntityLumpAuthor
             Put(values, "lightprobetexture_sh2_dc", ResourceValue(""));
             Put(values, "lightprobetexture_sh2_l1", ResourceValue(""));
         }
+        if (entity.ClassName.EqualsAscii(FogClass))
+        {
+            var (x, y, z, _, _) = FogGrid(table);
+            values.Add("IndirectVoxelDimX", new KVObject(x));
+            values.Add("IndirectVoxelDimY", new KVObject(y));
+            values.Add("IndirectVoxelDimZ", new KVObject(z));
+            if (lighting.Baked)
+                Put(values, "fogirradiancevolume", ResourceValue($"{lighting.MapPath}/lightmaps/fog_irradiance_volume.vtex"));
+        }
         if (lighting.CubeIndex.TryGetValue(entity, out var index)
             && !(values.ContainsKey("customcubemaptexture") && values["customcubemaptexture"] is { } custom && IsTrue(custom)))
         {
             Put(values, "cubemaptexture", ResourceValue($"{lighting.MapPath}/cubemaps/env_cubemap_array.vtex"));
             values.Add("array_index", Integer(index));
         }
+    }
+
+    private const string FogClass = "env_volumetric_fog_controller";
+
+    /// <summary>
+    /// A fog controller's irradiance grid (180240a60, every env_volumetric_fog_controller, IndirectEnabled
+    /// or not): IndirectVoxelDim (256) over the box's longest side scales each side, truncated; x and y
+    /// at least 4 and rounded up to a multiple of 4, z at least 1; each at most IndirectVoxelDim. Also the
+    /// box_mins and box_maxs it is taken from.
+    /// </summary>
+    private static (int X, int Y, int Z, float[] Mins, float[] Maxs) FogGrid(List<KeyValuePair<string, string>> table)
+    {
+        string? Key(string name) => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
+        var mins = CNumbers.FloatArray(Key("box_mins") ?? "0 0 0", 3);
+        var maxs = CNumbers.FloatArray(Key("box_maxs") ?? "0 0 0", 3);
+        var dim = Key("IndirectVoxelDim") is { } d ? (int)CNumbers.Atoi(d) : 256;
+        float dx = maxs[0] - mins[0], dy = maxs[1] - mins[1], dz = maxs[2] - mins[2];
+        var longest = MathF.Abs(dx);
+        if (longest <= MathF.Abs(dy))
+            longest = MathF.Abs(dy);
+        if (longest <= MathF.Abs(dz))
+            longest = MathF.Abs(dz);
+        var scale = dim / longest;
+        var x = Math.Max((int)(scale * dx), 4);
+        var y = Math.Max((int)(scale * dy), 4);
+        var z = Math.Max((int)(scale * dz), 1);
+        x = (x + 3) & ~3;
+        y = (y + 3) & ~3;
+        return (Math.Min(x, dim), Math.Min(y, dim), Math.Min(z, dim), mins, maxs);
     }
 
     /// <summary>

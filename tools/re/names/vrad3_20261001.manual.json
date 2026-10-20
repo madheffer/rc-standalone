@@ -1507,6 +1507,18 @@
    "note": "k 0..3: SH channels' component k; 4..7: quadratic channels' component k - 4; 8: the final quadratic channel's RGB"
   },
   {
+   "addr": "18002b640",
+   "name": "CVrad3Command_lpv_image_fog_gpu::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "clears the probe images, the fog image (x * z by y RGBA, 0), then the grid as lpv_image_gpu (ledger 115)"
+  },
+  {
+   "addr": "180086c10",
+   "name": "CVrad3Command_lpv_image_median_filter_fog::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "the probe median job (1800870e0, as 1800860b0) once over the fog image"
+  },
+  {
    "addr": "1800672e0",
    "name": "CVrad3Command_lightmap_ameliorate_block_compression_artefacts::Run",
    "module": "s2c:baked/vrad3",

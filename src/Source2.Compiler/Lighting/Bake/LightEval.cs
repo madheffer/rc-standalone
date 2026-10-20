@@ -16,7 +16,7 @@ internal static class LightEval
     /// volume ([-1, 1] x [-1, 1] x [0, 1]) or its illumination box; the bounce
     /// or direct colour, a luminaire's radiance factor over pi or a point
     /// light's falloff, the distance fades, the angle fade (punctual, sphere and
-    /// tube), the shape mask without a cookie. Cookies are not sampled.
+    /// tube), the shape mask without a cookie. Cookies are not sampled on the CPU (the GPU host binds them, RtxScene.Build).
     /// </summary>
     public static Vector3 Intensity(Light l, Vector3 p, bool bounce)
     {
