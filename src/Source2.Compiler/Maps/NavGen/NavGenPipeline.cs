@@ -9,11 +9,11 @@ namespace Source2.Compiler.Maps.NavGen;
 /// navsystem: the settings (gameinfo's NavSystem block, the hull vdata, the map's CMapNavData), the
 /// nav world's triangles (the settle world through the nav node filter), then the stage list
 /// (180022b60) through IslandRemoval (029), ClipPolysToHullClearance (022) casting through
-/// <see cref="NavBoxWorld"/>. What is not ported refuses with <see cref="NotSupportedException"/>:
-/// func_nav_markup properties (markups, 019, NONAV), nav links, func_ladder (028), sphere shapes and
-/// casts against spheres and capsules, smart props and physics pins in the nav world's filter,
-/// several hulls, a deprecated agent setup. Ladders made from ladder-material meshes (180fb21f0) are
-/// not detected yet.
+/// <see cref="NavBoxWorld"/>, and LadderConnect (028) on the ladders of mapbuilder.ladder meshes
+/// (<see cref="NavGenMapInput.Ladders"/>) tracing through it. What is not ported refuses with
+/// <see cref="NotSupportedException"/>: func_nav_markup properties (markups, 019, NONAV), nav links,
+/// func_ladder, sphere shapes and casts against spheres and capsules, smart props and physics pins in
+/// the nav world's filter, several hulls, a deprecated agent setup.
 /// </summary>
 public static class NavGenPipeline
 {
@@ -81,10 +81,12 @@ public static class NavGenPipeline
     /// <summary>
     /// The stage list on the map's settle world (<paramref name="bodies"/>, from
     /// <see cref="SettleWorld.Build"/>; unsettled placement) through 029. <paramref name="stage"/>, when
-    /// given, sees the polygons after stages 005, 018, 021, 022, 027 and 029 (by their number).
+    /// given, sees the polygons after stages 005, 018, 021, 022, 027 and 029 (by their number);
+    /// <paramref name="material"/> finds a compiled material's attributes (the ladders' mapbuilder.ladder).
     /// </summary>
     public static Result Generate(DmxBinary.Document document, IReadOnlyList<SettleWorld.BodyBuild> bodies, SettleWorld.CollisionRules rules,
-                                  NavGenSettings settings, FgdSchema schema, Action<string, NavGenPolys>? stage = null)
+                                  NavGenSettings settings, FgdSchema schema, Func<string, SettleWorld.MaterialInfo?> material,
+                                  Action<string, NavGenPolys>? stage = null)
     {
         foreach (var e in SettleWorld.AllDocuments(document).SelectMany(d => d.Elements))
         {
@@ -100,6 +102,7 @@ public static class NavGenPipeline
         }
         if (settings.Hulls.Count != 1)
             throw new NotSupportedException($"nav generation with {settings.Hulls.Count} hulls is not ported");
+        var ladders = NavGenMapInput.Ladders(document, material);
         var inNavWorld = NavGenInput.NavWorldFilter(document, schema);
         var (verts, indices) = NavGenInput.Extract(bodies, rules, inNavWorld: inNavWorld);
         var g = NavGenPolys.FromTriangles(verts, indices);
@@ -118,12 +121,14 @@ public static class NavGenPipeline
         recast.Weld(tol, tol);
         recast.RemoveDegens(tol);
         stage?.Invoke("021", recast);
-        recast.ClipPolysToHullClearance(settings.Hulls[0], new NavBoxWorld(bodies, inNavWorld), oriented);
+        var world = new NavBoxWorld(bodies, inNavWorld);
+        recast.ClipPolysToHullClearance(settings.Hulls[0], world, oriented);
         stage?.Invoke("022", recast);
         NavGenStages.ConnectStages(recast, settings, new NavTriangleWorld([.. verts], [.. indices]));
         stage?.Invoke("027", recast);
-        // 028 LadderConnect (no ladders: nothing), 029 IslandRemoval.
-        NavGenStages.IslandStage(recast, NavIslandInput.FromSeeds(NavGenMapInput.Seeds(document)), settings);
+        // 028 LadderConnect (its convar is on only with ladders), 029 IslandRemoval.
+        var connectivity = ladders.Count == 0 ? [] : recast.LadderConnect(ladders, world);
+        NavGenStages.IslandStage(recast, new NavIslandInput(NavGenMapInput.Seeds(document), [], connectivity), settings);
         stage?.Invoke("029", recast);
         return new Result(recast, settings, verts, indices);
     }

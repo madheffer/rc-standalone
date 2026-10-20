@@ -37,13 +37,13 @@ public static class NavGenInput
 
     /// <summary>
     /// The same test for a query with its own interacts-with layers, body type mask and collision group
-    /// (the box casts' query, 18004b370: 0xc3021, static bodies only, group 4).
+    /// (the box casts' query, 18004b370: 0xc3021, static bodies only, group 4), and its own excluded
+    /// (+8) and queried-as (+0x10) layers (LadderConnect's rays, 18006e170: none of either).
     /// </summary>
     public static bool ShapePasses(in Simulation.CollisionAttributes s, int bodyType, ulong interactsWith, byte typeMask, byte queryGroup,
-                                   ushort[] groupTable)
+                                   ushort[] groupTable, ulong excludeAs = 0x400000, ulong queryAs = 0x80000)
     {
         const byte queryFlags = 0x49;
-        const ulong excludeAs = 0x400000, queryAs = 0x80000;
         const ushort functionMask = 0xffff;
         const byte functionIndex = 0;
         if (bodyType is >= 0 and <= 2 && (typeMask & (1 << bodyType)) == 0)

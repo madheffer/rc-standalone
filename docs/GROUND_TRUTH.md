@@ -2536,6 +2536,74 @@ game can answer is raised with the user first, and runs with -insecure.
       s2c_prefabprobe4 (its prefab map, atixref with a smart prop, numbered one off from
       PrefabSlots in places: 697 ids). Captures in %TEMP%/entitysearch_capture.
 
+107. **Nav generation's ladders: the RC collector and LadderConnect (028)** (settled 2026-10-20
+    by decompile and disassembly of resourcecompiler 20260923, navsystem 20261015 and vphysics2
+    20260924. Verified on s2c_prefabprobe3: the collector gives the captured ladder bit for bit,
+    (1712, -3219, 198) to (1712, -3219, 64), normal (-4.371139e-8, 1, 0), width 32
+    (NavGenLadderTests). LadderConnect from Valve's 028 input, tracing through our nav world,
+    gives Valve's connectivity (5048, 5046, 5048, 4705, 4727, 4727, 4973; captured by
+    capture_navgen.py as navinput_ladderconn.bin), then Valve's 029. Maps/NavGen
+    NavGenLadders.cs, NavBoxWorld.CastRay.)
+    - The collector (180fb15e0) fills CNavGenInput +0x60. First the func_ladder entities: the
+      flat node array's (+0x1828/+0x1830, byte +0x370 set), then each sub-map's (180fb1380,
+      180fc8c80). Then the root's children, skipping those entities (180fb2830): a mesh
+      (vfn 0x138) whose material list holds a material with a non-zero int "mapbuilder.ladder"
+      (hash 0x1a382654, material vfn 0x50) goes to 180fb21f0; any other node recurses into its
+      children. Last, each func_ladder entity's child meshes go to 180fb21f0 too. A func_ladder
+      mesh without a ladder material gives nothing (180fb21f0 needs one).
+    - Per instance path (180f88460, 0x58 bytes), 180fb21f0 takes the path's step matrix times
+      the node's own (vfn 0xa0, 181258890). Among the faces whose material is the first ladder
+      material in the list, in face order, it keeps the largest |top - bottom| x width; the
+      first face wins a tie. One ladder per placement.
+    - A face's ladder (180fb1c10):
+      - min and max of the corners through the matrix (1810ce420 -> 18139b130 -> 18125d1f0,
+        the same transform as MapMeshes.Transform); the centre is (max + min) x 0.5;
+      - n is the face's Newell normal (181384e40) rotated by the matrix (18125d1b0);
+      - u = (nz 0 - ny, nx - nz 0, ny 0 - nx 0), normalised with squares summed y, z, x;
+      - v = n x u, normalised with squares summed z, y, x. Lengths between 1e-17 and 1e17 use
+        the reciprocal; zero stays zero; others go through VectorNormalize_Slow;
+      - half = |(vz dz + vy dy) + vx dx| x 0.5 and width = |(uz dz + uy dy) + ux dx| over
+        d = max - min;
+      - top = v half + centre, bottom = centre - v half; the normal is n.
+    - LadderConnect (1800732d0) fills ctx+0x88/0x90 with seven polygon indices per ladder.
+      The polygons go into IslandRemoval's 32-unit grid. The probe height is
+      (top.z - bottom.z) x 0.5, at most 120 (minss).
+      - Bottoms start at (bottom.x + 0, bottom.y + 0, bottom.z + 25) + n x 16. They probe along
+        n, (-ny, -nx, -0) and (ny, nx, 0), into +0x10, +0x14, +0x18. The second direction is
+        not a perpendicular in general (Valve's, kept).
+      - Tops start at n x 16 + top. They probe along -n, (-ny, -nx, -0), (ny, nx, 0) and n,
+        into +0, +4, +8, +0xc. A top equal to the bottom found the same way (-n and n against
+        the n bottom) becomes -1.
+      - Then each bottom polygon whose lowest corner (float) is more than 71 below the
+        ladder's bottom becomes -1. "Unconnected ladder" messages only report.
+    - A probe (18006e170) takes up to three steps of 16 along its direction, accumulated in
+      float. Each step is traced from the start to the step's end through the world (vfn
+      0x4f8). A fraction below 1 ends the try; otherwise 18006de40 looks for a polygon at the
+      step's end. Seven tries; each moves the start's z by 25 / 6 (up for tops, down for
+      bottoms; x and y get + 0). None found gives -1.
+    - 18006de40 queries the grid over the point's XY +- 0.45 (doubles). Bottom probes skip
+      kinds 1 and 2. A polygon counts when no corner lies above the point's z + 18 or below
+      z - height. The nearest wins, by 18004cc30's squared distance, a later one only when
+      strictly nearer. 18004cc30 takes the least over the fan (v0, v[n-1], v[n-2]) down to
+      (v0, v2, v1), through 1800802b0, summed dy^2 + dx^2 + dz^2.
+    - The trace: CRnWorld::CastRay (1801f4ad0 via 180064f20). The query has layers 0x3021,
+      none excluded or queried as, group 4, flags 0x49, static bodies only (+0x2f = 1).
+      - Each shape (1801d8580) gets the ray in its frame: the start less the translation,
+        then each component (y t1 + x t0) + z t2 against NavBoxWorld.Transform's rows.
+      - Meshes (180242360 -> 1802406c0) divide the ray by their scale and are hit on their
+        front only. Hulls (1802505c0 -> 180251dc0 -> 1802544a0) clip it by their planes with
+        a 1/32 margin: entering raises (d0 - 1/32) / (d0 - d1), leaving lowers
+        (d0 + 1/32) / (d0 - d1). A start inside every plane hits at 0.
+      - A hit below the best so far is the result. Only a fraction above 0 lowers the best,
+        so a negative hull entry still blocks. 0 ends the walk.
+    - IslandRemoval floods each ladder's ints (ledger 96). On s2c_prefabprobe3 the ladder
+      does not change 029: from Valve's 028 input, 8,562 polygons with or without it. Its
+      029 gap from the .vmap (210 polygons) is AddJumps (026): from Valve's 026 input our
+      NavTriangleWorld casts give 30,074 connections, Valve 30,606 (2,036 of 15,106 blocked).
+    - Open: func_ladder (the pipeline refuses it: its nav world and order are not
+      verified), the order of several ladders, hidden ladder meshes (left out, as the
+      compile leaves hidden meshes out).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

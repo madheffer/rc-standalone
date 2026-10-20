@@ -136,7 +136,43 @@
    "addr": "180fb15e0",
    "name": "NavGen_CollectLadders",
    "module": "s2c:baked/nav",
-   "note": "'func_ladder'"
+   "note": "CNavGenInput +0x60 (ledger 107): meshes under the root (180fb2830) with a mapbuilder.ladder material (int attribute 0x1a382654, material vfn 0x50) through 180fb21f0, func_ladder entities' meshes last; FUN_1818ca470 adds each (top, bottom, normal, width)"
+  },
+  {
+   "addr": "180fb1380",
+   "name": "NavGen_CollectFuncLadders",
+   "module": "s2c:baked/nav",
+   "note": "'func_ladder' entities of the flat node array (+0x1828/+0x1830, flag 1: byte +0x370 set), then of each sub-map (180fc8c80) with flag 4"
+  },
+  {
+   "addr": "180fb2830",
+   "name": "NavGen_LadderWalk",
+   "module": "s2c:baked/nav",
+   "note": "skips func_ladder entities; a mesh (vfn 0x138) with a ladder material goes to 180fb21f0, any other node recurses into its children"
+  },
+  {
+   "addr": "180fb21f0",
+   "name": "NavGen_LadderFromMesh",
+   "module": "s2c:baked/nav",
+   "note": "per instance path (180f88460): the path's step matrix times the node's (vfn 0xa0); among faces of the first ladder material the one with the largest |top - bottom| x width (180fb1c10), first wins ties"
+  },
+  {
+   "addr": "180fb1c10",
+   "name": "NavGen_LadderFromFace",
+   "module": "s2c:baked/nav",
+   "note": "bounds of the transformed corners (1810ce420), Newell normal (181384e40) rotated (18125d1b0); u = up x n, v = n x u; centre +- v |v . extent| / 2, width |u . extent|"
+  },
+  {
+   "addr": "1810ce420",
+   "name": "HalfEdge_FaceBoundsTransformed",
+   "module": "s2c:baked/nav",
+   "note": "the face's corners through the matrix (18139b130 -> 1812651a0) into min/max"
+  },
+  {
+   "addr": "18139b130",
+   "name": "HalfEdge_FacePositionsTransformed",
+   "module": "s2c:baked/nav",
+   "note": "each corner from the face's first half-edge through 1812651a0 (18125d1f0)"
   },
   {
    "addr": "180f20f00",

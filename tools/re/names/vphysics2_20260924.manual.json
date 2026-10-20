@@ -61,6 +61,36 @@
    "note": "each broadphase tree (1801d8580), shape vtable +0x10"
   },
   {
+   "addr": "180064f20",
+   "name": "CVPhys2World::CastRay",
+   "module": "s2c:baked/navgen",
+   "note": "world vfn 0x4f8 -> 1801f4ad0"
+  },
+  {
+   "addr": "1801d8580",
+   "name": "RnBroadphase_CastRay",
+   "module": "s2c:baked/navgen",
+   "note": "a tree's walk for CastRay: the ray into the shape's frame (q rows, world mass centre less q (s c)), shape vfn 0x10 with the best fraction; a hit below it is kept, only one above 0 lowers it, 0 ends the walk"
+  },
+  {
+   "addr": "1802505c0",
+   "name": "CRnHullShape::CastRay",
+   "module": "s2c:baked/navgen",
+   "note": "180251dc0 with the shape's hull (+0xc0) and scale (+0xb8)"
+  },
+  {
+   "addr": "180251dc0",
+   "name": "RnHull_CastRay",
+   "module": "s2c:baked/navgen",
+   "note": "1802544a0; inside gives 0 and the reversed ray direction as normal"
+  },
+  {
+   "addr": "1802544a0",
+   "name": "RnHull_ClipRayPlanes",
+   "module": "s2c:baked/navgen",
+   "note": "planes (n . o - s d): entry (d0 - 1/32) / (d0 - d1), exit (d0 + 1/32) / (d0 - d1); both ends outside a plane misses"
+  },
+  {
    "addr": "1802421c0",
    "name": "CRnMeshShape::CastBox",
    "module": "s2c:baked/bomb",

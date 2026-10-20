@@ -56,12 +56,19 @@ public sealed class NavGenPipelineTests(ITestOutputHelper output)
                 var stages = Environment.GetEnvironmentVariable("NAVGEN_STAGES") == "1";
                 string? firstStage = null;
                 result = NavGenPipeline.Generate(document, bodies, rules, NavGenPipeline.Settings(document, vdata, navSystem), schema,
-                    stages ? (n, polys) =>
+                    models.Material, stages ? (n, polys) =>
                     {
                         if (firstStage != null || Directory.GetFiles(dir, n + "_*_out.bin").FirstOrDefault() is not { } file)
                             return;
                         if (NavGenInputTests.Compare(polys, NavGenInputTests.LoadStage(file)) is { } d)
                             firstStage = $"{Path.GetFileName(file)}: {d}";
+                        else if (File.Exists(file[..^4] + "_conn.bin"))
+                        {
+                            var valveBlocks = NavGenConnectionTests.LoadBlocks(file[..^4] + "_conn.bin");
+                            for (var i = 0; firstStage == null && i < valveBlocks.Count; i++)
+                                if (NavGenConnectionTests.Compare(polys.Polys[i].Links, valveBlocks[i]) is { } c)
+                                    firstStage = $"{Path.GetFileName(file)} connections, polygon {i}: {c}";
+                        }
                     } : null);
                 if (stages)
                     output.WriteLine($"{map}: first stage that differs: {firstStage ?? "none"}; seeds {string.Join(" ", NavGenMapInput.Seeds(document).Select(p => $"({p.X:R} {p.Y:R} {p.Z:R})"))}");
@@ -96,9 +103,10 @@ public sealed class NavGenPipelineTests(ITestOutputHelper output)
                 failures.Add(map);
         }
         output.WriteLine($"{passed} exact, {refused} refused, {failures.Count} differ ({string.Join(", ", failures)})");
-        // s2c_prefabprobe3: Valve's through 027 from the .vmap; IslandRemoval (029) keeps 210 polygons fewer:
-        // the map has a ladder (navinput_ladders.bin, from a ladder-material mesh, not detected), which
-        // Valve's island walk presumably crosses. prefabprobe4's input is open (ledger 100).
+        // s2c_prefabprobe3: the polygons are Valve's through 027 from the .vmap, but AddJumps (026) adds 532
+        // connections fewer than Valve's (our NavTriangleWorld's casts block more; NavGenJumpTests from Valve's
+        // 026 input shows it), so IslandRemoval (029) keeps 210 polygons fewer. Its ladder is Valve's and does
+        // not change 029 (NavGenLadderTests). prefabprobe4's input is open (ledger 100).
         Assert.Empty(failures.Except(["s2c_prefabprobe3", "s2c_prefabprobe4"]));
     }
 }
