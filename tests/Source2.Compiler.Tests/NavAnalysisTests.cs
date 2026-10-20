@@ -702,4 +702,106 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         output.WriteLine($"{same} of {an.Areas.Count} areas' encounters Valve's");
         Assert.Equal(an.Areas.Count, same);
     }
+
+    /// <summary>Walks two KV3 trees, collecting differences in keys, value types and values (order ids skipped).</summary>
+    private static void Diff(KVObject ours, KVObject valve, string path, List<string> diffs)
+    {
+        if (diffs.Count > 20)
+            return;
+        if (ours.ValueType != valve.ValueType || ours.IsArray != valve.IsArray)
+        {
+            diffs.Add($"{path}: ours {ours.ValueType}{(ours.IsArray ? "[]" : "")}, Valve {valve.ValueType}{(valve.IsArray ? "[]" : "")}");
+            return;
+        }
+        if (ours.IsArray)
+        {
+            var a = ours.Values.ToList();
+            var b = valve.Values.ToList();
+            if (a.Count != b.Count)
+                diffs.Add($"{path}: ours {a.Count} items, Valve {b.Count}");
+            for (var i = 0; i < Math.Min(a.Count, b.Count); i++)
+                Diff(a[i], b[i], $"{path}[{i}]", diffs);
+            return;
+        }
+        if (ours.ValueType == KVValueType.Collection)
+        {
+            var ak = ours.Children.Select(c => c.Key).ToList();
+            var bk = valve.Children.Select(c => c.Key).ToList();
+            if (!ak.SequenceEqual(bk))
+                diffs.Add($"{path}: keys ours [{string.Join(",", ak)}], Valve [{string.Join(",", bk)}]");
+            foreach (var c in ours.Children)
+                if (valve[c.Key] is { } v && !(path.Contains(".order[") && c.Key == "id"))
+                    Diff(c.Value, v, $"{path}.{c.Key}", diffs);
+            return;
+        }
+        if (ours.ToString() != valve.ToString())
+            diffs.Add($"{path}: ours {ours}, Valve {valve}");
+    }
+
+    /// <summary>
+    /// Our probe01 analysis end to end into the custom data, against the .nav's: every key, value type
+    /// and value, the area pointers in from / to taken from the capture's area dump, the order ids
+    /// (spot pointers) skipped.
+    /// </summary>
+    [Fact]
+    public void CustomDataMatchesValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_areas.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var trace = Probe01Trace(out var keep);
+        using var _ = keep;
+        if (trace is null)
+            return;
+        var an = new NavAnalysis(ReadNav(nav)) { Trace = trace };
+        var entities = Source2.Compiler.MapEntities.From(Source2.Compiler.DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")));
+        List<NavAnalysis.V> Spawns(string cls) => [.. entities.Where(e => e.ClassName == cls).Select(e => new NavAnalysis.V(e.Origin.X, e.Origin.Y, e.Origin.Z))];
+        an.Analyze(Spawns("info_player_terrorist"), Spawns("info_player_counterterrorist"));
+        var pointerOf = CapturedAreas(dir).ToDictionary(c => BinaryPrimitives.ReadUInt32LittleEndian(c.Raw.AsSpan(0x60)), c => unchecked((int)(uint)c.Ptr));
+        var ours = an.CustomData(a => pointerOf[a.Id]);
+        var diffs = new List<string>();
+        Diff(ours, CustomData(nav), "", diffs);
+        foreach (var d in diffs)
+            output.WriteLine(d);
+        Assert.Empty(diffs);
+    }
+
+    /// <summary>
+    /// The custom data block's bytes: ours (with Valve's area and spot pointer dwords put in, the only
+    /// values a compile cannot reproduce) through Kv3V5Writer, against the last KV3 block of Valve's .nav.
+    /// </summary>
+    [Fact]
+    public void CustomDataBytesMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_areas.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var trace = Probe01Trace(out var keep);
+        using var _ = keep;
+        if (trace is null)
+            return;
+        var entities = Source2.Compiler.MapEntities.From(Source2.Compiler.DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")));
+        List<NavAnalysis.V> Spawns(string cls) => [.. entities.Where(e => e.ClassName == cls).Select(e => new NavAnalysis.V(e.Origin.X, e.Origin.Y, e.Origin.Z))];
+        var fresh = new NavAnalysis(ReadNav(nav)) { Trace = trace };
+        fresh.Analyze(Spawns("info_player_terrorist"), Spawns("info_player_counterterrorist"));
+        var pointerOf = CapturedAreas(dir).ToDictionary(c => BinaryPrimitives.ReadUInt32LittleEndian(c.Raw.AsSpan(0x60)), c => unchecked((int)(uint)c.Ptr));
+        var valveTree = CustomData(nav);
+        var valveAreas = valveTree["arealist"]!.Values.ToList();
+        var spotPointer = new Dictionary<NavAnalysis.HidingSpot, int>();
+        for (var i = 0; i < fresh.Areas.Count; i++)
+        {
+            var encs = fresh.Encounters[fresh.Areas[i]];
+            if (encs.Count == 0)
+                continue;
+            var ids = valveAreas[i]["order"]!.Values.Select(o => unchecked((int)Dword(o["id"]!))).ToList();
+            for (var k = 0; k < ids.Count; k++)
+                spotPointer[encs[^1].Spots[k].Spot] = ids[k];
+        }
+        var ours = Kv3V5Writer.Write(fresh.CustomData(a => pointerOf[a.Id], s => spotPointer.GetValueOrDefault(s)), NavWriter.CustomDataFormat);
+        var start = nav.AsSpan().LastIndexOf(new byte[] { 0x05, 0x33, 0x56, 0x4b });
+        var valve = nav.AsSpan(start).ToArray();
+        output.WriteLine($"ours {ours.Length} bytes, Valve {valve.Length}");
+        var first = Enumerable.Range(0, Math.Min(ours.Length, valve.Length)).FirstOrDefault(i => ours[i] != valve[i], -1);
+        Assert.True(first < 0 && ours.Length == valve.Length, $"first difference at byte {first}");
+    }
 }
