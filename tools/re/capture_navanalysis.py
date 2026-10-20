@@ -13,11 +13,14 @@ computes the .nav's custom data (ledger 103):
   <out>/navan_areas.bin  u32 area count, then per area: u64 pointer, 0x490 bytes of the area, the
                          0x14-byte polygon record (*(area+0x50)+0x70)[area+8] (zeros when +8 is -1),
                          u32 edge count, then per edge u32 connection count and 0x10 bytes each.
+  <out>/navan_mesh.bin   u64 CSNavMesh, its first 0x400 bytes, u64 polygon mesh (area +0x50), its first 0x200.
   <out>/navan_calls.bin  records: u32 kind (1 path, 2 nearest, 3 occupy), u32 thread id, then
-                         kind 1: request 0x80, u8 return, 3 pad, f32 distance, closest 0x1c;
+                         kind 1: request 0x80, u8 return, 3 pad, f32 distance, closest 0x1c,
+                                 u32 start area id, u32 goal area id, u32 closest area id;
                          kind 2: u64 mesh, pos 12, u64 arg3, u64 arg4, u64 arg5, u32 arg6 bits,
-                                 hull record 0x48, u64 returned area;
-                         kind 3: u64 area, f32 time T, f32 time CT.
+                                 hull record 0x48, u64 returned area, u32 its id;
+                         kind 3: u64 area, f32 time T, f32 time CT, u32 area id.
+  A second Analyze call (the mesh analysed again) writes navan_areas_2.bin.
 """
 import argparse
 import filecmp
@@ -36,6 +39,7 @@ AGENT = r"""
 const SIZE = 1 << 20;
 const buf = {b: new ArrayBuffer(SIZE), n: 0};
 function put(bytes) {
+  nput++;
   if (buf.n + bytes.byteLength > SIZE) { send({tag: 'calls'}, buf.b.slice(0, buf.n)); buf.n = 0; }
   new Uint8Array(buf.b, buf.n, bytes.byteLength).set(new Uint8Array(bytes));
   buf.n += bytes.byteLength;
@@ -50,7 +54,10 @@ function cat(parts) {
 }
 function u32(v) { const b = new ArrayBuffer(4); new DataView(b).setUint32(0, v >>> 0, true); return b; }
 function u64(p) { const b = new ArrayBuffer(8); new DataView(b).setBigUint64(0, BigInt(p.toString()), true); return b; }
+let nput = 0, nerr = 0;
 function flush() { if (buf.n) { send({tag: 'calls'}, buf.b.slice(0, buf.n)); buf.n = 0; } }
+function err(e) { if (nerr++ < 5) send({note: 'hook error: ' + e}); }
+let analyses = 0;
 function dumpAreas(mesh) {
   const n = mesh.add(8).readS32();
   const arr = mesh.add(0x10).readPointer();
@@ -75,7 +82,9 @@ function dumpAreas(mesh) {
       if (c > 0) parts.push(blk.add(8).readByteArray(c * 0x10));
     }
   }
-  send({tag: 'areas'}, cat(parts));
+  send({tag: 'areas', n: ++analyses}, cat(parts));
+  const pm = n > 0 ? arr.readPointer().add(0x50).readPointer() : ptr(0);
+  send({tag: 'mesh'}, cat([u64(mesh), mesh.readByteArray(0x400), u64(pm), pm.isNull() ? new ArrayBuffer(0x200) : pm.readByteArray(0x200)]));
 }
 const seenMods = new Set();
 function hook() {
@@ -89,17 +98,23 @@ function hook() {
   const base = srv.base.sub(0x180000000);
   Interceptor.attach(base.add(0x18039a7c0), { onEnter(args) { dumpAreas(args[0]); } });
   Interceptor.attach(base.add(0x1814d9810), {
-    onEnter(args) { this.req = args[0]; this.head = args[0].readByteArray(0x80); },
-    onLeave(ret) {
+    onEnter(args) { try {
+      this.req = args[0]; this.head = args[0].readByteArray(0x80);
+      const s = args[0].add(0x18).readPointer(), g = args[0].add(0x40).readPointer();
+      this.ids = cat([u32(s.isNull() ? 0xffffffff : s.add(0x60).readU32()), u32(g.isNull() ? 0xffffffff : g.add(0x60).readU32())]);
+    } catch (e) { err(e); } },
+    onLeave(ret) { try {
       const dp = this.req.add(0x78).readPointer();
       const cp = this.req.add(0x70).readPointer();
       const tail = new ArrayBuffer(8);
       const dv = new DataView(tail);
       dv.setUint8(0, ret.toUInt32() & 0xff);
       dv.setFloat32(4, dp.isNull() ? NaN : dp.readFloat(), true);
+      const ca = cp.isNull() ? ptr(0) : cp.add(8).readPointer();
       put(cat([u32(1), u32(Process.getCurrentThreadId()), this.head, tail,
-               cp.isNull() ? new ArrayBuffer(0x1c) : cp.readByteArray(0x1c)]));
-    }
+               cp.isNull() ? new ArrayBuffer(0x1c) : cp.readByteArray(0x1c), this.ids,
+               u32(ca.isNull() ? 0xffffffff : ca.add(0x60).readU32())]));
+    } catch (e) { err(e); } }
   });
   Interceptor.attach(base.add(0x1814b3a10), {
     onEnter(args) {
@@ -107,18 +122,18 @@ function hook() {
                   u64(args[2]), u64(args[3]), u64(args[4]), u32(args[5].toUInt32()),
                   args[6].isNull() ? new ArrayBuffer(0x48) : args[6].readByteArray(0x48)];
     },
-    onLeave(ret) { this.rec.push(u64(ret)); put(cat(this.rec)); }
+    onLeave(ret) { try { this.rec.push(u64(ret), u32(ret.isNull() ? 0xffffffff : ret.add(0x60).readU32())); put(cat(this.rec)); } catch (e) { err(e); } }
   });
   Interceptor.attach(base.add(0x180394e20), {
     onEnter(args) { this.area = args[0]; },
     onLeave(ret) {
-      put(cat([u32(3), u32(Process.getCurrentThreadId()), u64(this.area), this.area.add(200).readByteArray(8)]));
+      put(cat([u32(3), u32(Process.getCurrentThreadId()), u64(this.area), this.area.add(200).readByteArray(8), u32(this.area.add(0x60).readU32())]));
     }
   });
   send({hooked: true});
 }
 hook();
-rpc.exports = { flush() { flush(); } };
+rpc.exports = { flush() { flush(); }, stats() { return [nput, nerr]; } };
 Process.setExceptionHandler(() => { flush(); return false; });
 """
 
@@ -155,8 +170,12 @@ def main():
             print(msg["payload"]["note"])
         elif msg["payload"].get("hooked"):
             hooked.set()
+        elif msg["payload"]["tag"] == "mesh":
+            with open(os.path.join(out_dir, "navan_mesh.bin"), "wb") as f:
+                f.write(data)
         elif msg["payload"]["tag"] == "areas":
-            with open(os.path.join(out_dir, "navan_areas.bin"), "wb") as f:
+            name = "navan_areas.bin" if msg["payload"].get("n", 1) == 1 else f"navan_areas_{msg['payload']['n']}.bin"
+            with open(os.path.join(out_dir, name), "wb") as f:
                 f.write(data)
             print("areas dumped:", len(data), "bytes")
         else:
