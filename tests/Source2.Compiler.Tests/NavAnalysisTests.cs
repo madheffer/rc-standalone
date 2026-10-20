@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 
+using Source2.Compiler.Maps;
 using Source2.Compiler.Maps.NavGen;
 using Xunit;
 using Xunit.Abstractions;
@@ -301,6 +302,46 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
             p += RecordSize(kind);
         }
         output.WriteLine($"{same} of {total} mesh sphere casts Valve's");
+        Assert.Equal(total, same);
+    }
+
+    /// <summary>Each world sphere cast (kind 5) replayed through <see cref="NavSphereWorld"/> over our settle bodies of probe01.</summary>
+    [Fact]
+    public void WorldSphereCastsMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)
+            return;
+        var document = DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap"));
+        MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(Path.Combine(Content, "probe01.vmap")))!));
+        using var models = new SettleBuildTests.PakModels(pak, @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe");
+        var bodies = SettleWorld.Build(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
+            d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators), new SettleWorld.CollisionRules());
+        var world = new NavSphereWorld(bodies);
+        var b = File.ReadAllBytes(Path.Combine(dir, "navan_calls.bin"));
+        int p = 0, total = 0, same = 0, shown = 0;
+        System.Numerics.Vector3 V3(int o) => new(F(b, o), F(b, o + 4), F(b, o + 8));
+        while (p < b.Length)
+        {
+            var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
+            if (kind == 5)
+            {
+                var radius = F(b, p + 8 + 0xc);
+                var start = V3(p + 8 + 0x30);
+                var delta = V3(p + 8 + 0x30 + 12);
+                var r = p + 8 + 0x30 + 24 + 0x38;
+                var wantHits = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(r));
+                var want = F(b, r + 4);
+                var (hits, got) = world.CastSphere(start, delta, radius);
+                total++;
+                if (hits == wantHits && BitConverter.SingleToInt32Bits(got) == BitConverter.SingleToInt32Bits(want))
+                    same++;
+                else if (shown++ < 10)
+                    output.WriteLine($"world cast {total}: {start} + {delta}: ours {hits} {got:R}, Valve {wantHits} {want:R}");
+            }
+            p += RecordSize(kind);
+        }
+        output.WriteLine($"{same} of {total} world sphere casts Valve's");
         Assert.Equal(total, same);
     }
 }
