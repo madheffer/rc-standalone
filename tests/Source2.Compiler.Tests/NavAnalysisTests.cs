@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 
 using Source2.Compiler.Maps;
 using Source2.Compiler.Maps.NavGen;
+using ValveKeyValue;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -550,5 +551,48 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         output.WriteLine($"{same} of {total} areas' approach entries Valve's" + (chained ? $"; records Valve's before {recordsSame} of {recordsTotal} areas" : ""));
         Assert.Equal(total, same);
         Assert.Equal(recordsTotal, recordsSame);
+    }
+
+    /// <summary>The hiding spots the .nav's custom data lists, area by area: id, position, flags.</summary>
+    internal static List<(uint Id, NavAnalysis.V Pos, uint Flags)> NavHidingSpots(byte[] nav)
+    {
+        var list = new List<(uint, NavAnalysis.V, uint)>();
+        foreach (var area in CustomData(nav)["arealist"]!.Values)
+            foreach (var spot in area["hidingspotdata"]!.Values)
+            {
+                var pos = spot["pos"]!.Values.Select(v => (float)v).ToArray();
+                list.Add(((uint)spot["id"]!, new NavAnalysis.V(pos[0], pos[1], pos[2]), (uint)spot["flags"]!));
+            }
+        return list;
+    }
+
+    /// <summary>
+    /// The records after the hiding-spot step from ours after the occupy step: each spot's sniper search
+    /// (from the area GetNavArea finds under it, at that area's centre, range 2000) in turn, against
+    /// Valve's as the encounter step starts.
+    /// </summary>
+    [Fact]
+    public void RecordsAfterSniperSearchesMatchValve()
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var b = File.ReadAllBytes(Path.Combine(dir, "navan_calls.bin"));
+        var snap = Snapshots(b).FirstOrDefault(s => s.Stage == 3);
+        if (snap.Records is null)
+            return;
+        var an = new NavAnalysis(ReadNav(nav));
+        var entities = Source2.Compiler.MapEntities.From(Source2.Compiler.DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap")));
+        List<NavAnalysis.V> Spawns(string cls) => [.. entities.Where(e => e.ClassName == cls).Select(e => new NavAnalysis.V(e.Origin.X, e.Origin.Y, e.Origin.Z))];
+        an.EarliestOccupyTimes(Spawns("info_player_terrorist"), Spawns("info_player_counterterrorist"));
+        foreach (var (_, pos, _) in NavHidingSpots(nav))
+        {
+            var area = an.GetNavArea(pos);
+            Assert.NotNull(area);
+            an.SurroundingSearch(area, area.Center, 2000f);
+        }
+        var bad = CompareRecords(an, snap.Records, AreaIdsByPointer(dir), "after sniper searches");
+        output.WriteLine($"{snap.Records.Count - bad} of {snap.Records.Count} records Valve's after the hiding-spot step");
+        Assert.Equal(0, bad);
     }
 }
