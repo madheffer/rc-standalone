@@ -336,6 +336,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
             BuildRaster(shaders);
         if (Environment.GetEnvironmentVariable("CPUBAKE_GPUSMALL") != "0")
             BuildSmallCharts(shaders);
+        BuildTestConverged(shaders);
 
         // The light bins: Valve's rtx_binlights over the grid (180095180's RaytraceLightBins), one
         // launch per cell and mask word.
@@ -1170,6 +1171,7 @@ public sealed unsafe partial class RtxBakeHost : ILightmapDevice, IDisposable
             _vk.DestroyPipelineCache(_gpu.Device, _pipelineCache, null);
         DestroyRaster();
         DestroySmallCharts();
+        DestroyTestConverged();
         if (_halton.Handle != 0)
         {
             _vk.DestroyPipeline(_gpu.Device, _halton, null);

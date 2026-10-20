@@ -44,3 +44,22 @@ skips a map loaded into itself.
 - **To settle:** what resourcecompiler does with such a node. It may skip it, load it once, or
   stop at a depth. Capture or decompile the prefab loader, then match it in MapPrefabs (ledger
   entry when settled).
+
+## S5. Do entity Lua vscripts still run? (asked 2026-10-20)
+
+20 of the 40 Port-Vmaps maps name .lua scripts in entity script keys: precache scripts
+(frostdrake/precachesoundevents.lua, ze_hold_em/precache.lua), game_ui.lua, filter.lua, and
+mako's gravity_color_randomizer.lua, which mako names beside scripts/vscripts/makomagic.vjs. The
+maps play fine on servers. Whether the service keeps, strips or converts them (to cs_script .vjs,
+or soundevents_addon.vsndevts for the precache ones) depends on whether the game still runs them.
+
+- Seen in strings only (1.41.9.1), nothing settled: vscript.dll ships a Lua runtime (lua_debug,
+  lua_is_currently_executing, a "?.lua" search path, core's animationsysteminit.lua); server.dll
+  has "vscripts", "scripts/vscripts/%s", script_reload, script_reload_code and
+  script_reload_entity_code, but no RunScriptFile; base.fgd still declares the script (0x19) and
+  scriptlist (0x1a) key types; point_script's cs_script key is resource:vjs.
+- **To settle:** whether server.dll loads and runs an entity's vscripts .lua at spawn, or the path
+  is stubbed or gated (a cvar, -tools, a leftover). Read the entity spawn path in server.dll, then
+  test in game under netcon: a map with a logic_script whose .lua prints.
+- Until then the service packs a .lua as an ordinary file at scripts/vscripts/<value> and makes no
+  claim about whether it runs. The compile already copies such keys as written.

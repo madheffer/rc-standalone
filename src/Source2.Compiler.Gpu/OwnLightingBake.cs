@@ -89,7 +89,13 @@ public static class OwnLightingBake
         using var halton = new ValveResourceFormat.Resource();
         halton.Read(new MemoryStream(Core("textures/dev/scrambled_halton.vdata_c") ?? throw new InvalidOperationException("core's scrambled_halton.vdata_c is missing")));
         var permutations = HaltonSamples.Permutations(((BinaryKV3)halton.DataBlock!).Data.Root["permutations"].AsBlob());
-        var script = Script.Parse(File.ReadAllLines(Path.Combine(folder, "script-gpu.vrad3")));
+        var scriptLines = File.ReadAllLines(Path.Combine(folder, "script-gpu.vrad3"));
+        // Quality 1 and 2's post-process (OIDN filters, the block compression pass) is not ported yet (L14).
+        if (scriptLines.Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("lightmap_image_filter_oidn", StringComparison.Ordinal)
+                                                                   || l.StartsWith("lightmap_image_filter_sh_oidn", StringComparison.Ordinal)
+                                                                   || l.StartsWith("lightmap_ameliorate_block_compression_artefacts", StringComparison.Ordinal)) is { } unported)
+            throw new NotSupportedException($"{unported}: the quality 1 / 2 lightmap post-process is not ported");
+        var script = Script.Parse(scriptLines);
         log.WriteLine($"  bake: {scene.Instances.Count} instances, {scene.Meshes.Count} meshes, {scene.Lights.Count} lights, {script.Volumes.Count} probe volumes");
 
         var rtxShaders = new RtxShaderLibrary(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), Path.Combine(game, "core", "shaders_vulkan_dir.vpk"));
@@ -98,9 +104,10 @@ public static class OwnLightingBake
         using (var device = new GpuDevice(rayTracing: true))
         using (var host = new RtxBakeHost(device, scene, rtx, rtxShaders, Read, haltonPermutations: permutations, iblTexture: sky))
         {
-            var baker = new LightmapBaker(scene, packing, permutations) { Rtx = rtx, Device = host, Passes = script.LightmapMaxSpp };
-            if (script.LightmapMinSpp != script.LightmapMaxSpp)
-                throw new NotSupportedException($"lightmap_compute_block_gpu {script.LightmapMinSpp} {script.LightmapMaxSpp}: the adaptive pass count is not ported");
+            var baker = new LightmapBaker(scene, packing, permutations)
+            {
+                Rtx = rtx, Device = host, Passes = script.LightmapMaxSpp, MinSpp = script.LightmapMinSpp, Error = script.LightmapError,
+            };
             var image = baker.Compute(File.ReadAllBytes(Path.Combine(folder, "lightmap_info.dat")));
             log.WriteLine($"  bake: lightmap on {device.Name} in {watch.Elapsed.TotalSeconds:F1} s");
             var (irradiance, directional, shadows, chart) = LightmapBaker.PostProcess(image, packing, File.ReadAllBytes(Path.Combine(folder, "lightmap_seams.dat")));
@@ -142,11 +149,12 @@ public static class OwnLightingBake
     }
 
     /// <summary>What the bake reads from script-gpu.vrad3: the lightmap's pass counts and each compute_lpv routine.</summary>
-    private sealed record Script(int LightmapMinSpp, int LightmapMaxSpp, List<ScriptVolume> Volumes)
+    private sealed record Script(int LightmapMinSpp, int LightmapMaxSpp, float LightmapError, List<ScriptVolume> Volumes)
     {
         public static Script Parse(IEnumerable<string> lines)
         {
             int min = 16, max = 16;
+            var error = 0.02f;
             var volumes = new List<ScriptVolume>();
             int? id = null;
             int[]? cells = null;
@@ -167,6 +175,8 @@ public static class OwnLightingBake
                 {
                     var a = F(line);
                     (min, max) = ((int)a[0], (int)a[1]);
+                    if (a.Length > 2)
+                        error = a[2];
                 }
                 else if (line.StartsWith("compute_lpv_", StringComparison.Ordinal) && line.EndsWith(':'))
                 {
@@ -190,7 +200,7 @@ public static class OwnLightingBake
                     median = (int)F(line)[0];
             }
             Close();
-            return new(min, max, volumes);
+            return new(min, max, error, volumes);
         }
     }
 

@@ -1456,7 +1456,7 @@
    "addr": "180030100",
    "name": "CVrad3Command_lightmap_compute_block_gpu::Run",
    "module": "s2c:baked/vrad3",
-   "note": "the command (virtual void Run(int argc, const char **argv)). Every 4 passes a sample generation: 'Sampling Small Charts' (lightmap_generate_small_chart_samples, w/8 x h/8 groups; g_nRNGOffsetX / Y the next two SFMT words, clamped by rendersystem to +-999999999), then 'Sampling Large Charts' (lightmap_rasterize, jitter y then x from the next two words); the SFMT (seed 0xdee533d5) regenerates past 0x26f; readback normalises the normal with 18003d0c0"
+   "note": "the command (virtual void Run(int argc, const char **argv)). Every 4 passes a sample generation: 'Sampling Small Charts' (lightmap_generate_small_chart_samples, w/8 x h/8 groups; g_nRNGOffsetX / Y the next two SFMT words, clamped by rendersystem to +-999999999), then 'Sampling Large Charts' (lightmap_rasterize, jitter y then x from the next two words); the SFMT (seed 0xdee533d5) regenerates past 0x26f; readback normalises the normal with 18003d0c0. Args minspp (128), maxspp (256), err (0.02); before pass 0 (tolerance 0) and before each 16-pass command list from minspp on, lightmap_test_converged (combo 0) over w x h with g_nBlockWidth / Height, the tolerance and the converged texture (ledger 112)"
   },
   {
    "addr": "1800323f0",

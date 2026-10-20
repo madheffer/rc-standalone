@@ -186,6 +186,9 @@ public class CpuBakeTests(ITestOutputHelper output)
             CropBlock = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_BLOCK"), out var bl) ? bl : null,
             Stride = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_STRIDE"), out var st) ? st : 1,
             Passes = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_PASSES"), out var ps) ? ps : 16,
+            // CPUBAKE_MINSPP / CPUBAKE_ERR: lightmap_compute_block_gpu's minspp and err (the adaptive pass count).
+            MinSpp = int.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_MINSPP"), out var mspp) ? mspp : null,
+            Error = float.TryParse(Environment.GetEnvironmentVariable("CPUBAKE_ERR"), System.Globalization.CultureInfo.InvariantCulture, out var err) ? err : 0.02f,
             Device = gpuHost,
         };
         if (Environment.GetEnvironmentVariable("CPUBAKE_SUNPROBE") == "1" && baker.CropBlock is { } probeBlock)
@@ -527,11 +530,14 @@ public class CpuBakeTests(ITestOutputHelper output)
             var b = valve.Plane(c);
             double sa = 0, sb = 0, err = 0, saa = 0, sbb = 0, sab = 0;
             var n = 0;
+            var unequal = 0;
             for (var y = 0; y < ours.Height; y++)
                 for (var x = 0; x < ours.Width; x++)
                 {
                     if (!traced[y * ours.Width + x])
                         continue;
+                    if (BitConverter.HalfToInt16Bits(a[y * ours.Width + x]) != BitConverter.HalfToInt16Bits(b[(oy + y) * valve.Width + ox + x]))
+                        unequal++;
                     var u = (double)a[y * ours.Width + x];
                     var v = (double)b[(oy + y) * valve.Width + ox + x];
                     sa += u;
@@ -545,7 +551,7 @@ public class CpuBakeTests(ITestOutputHelper output)
             var ma = sa / Math.Max(1, n);
             var mb = sb / Math.Max(1, n);
             var corr = (sab / n - ma * mb) / Math.Sqrt(Math.Max(1e-30, (saa / n - ma * ma) * (sbb / n - mb * mb)));
-            output.WriteLine($"  {c}: {n} luxels, mean ours {ma:F4} valve {mb:F4} ratio {sa / Math.Max(1e-9, sb):F3}, mean |diff| {err / Math.Max(1, n):F4}, correlation {corr:F3}");
+            output.WriteLine($"  {c}: {n} luxels, mean ours {ma:F4} valve {mb:F4} ratio {sa / Math.Max(1e-9, sb):F3}, mean |diff| {err / Math.Max(1, n):F4}, correlation {corr:F3}, {unequal} not bit-equal");
             // 16 x 16 bins: the noise averaged out, the structure compared.
             const int bin = 16;
             var bw = (ours.Width + bin - 1) / bin;

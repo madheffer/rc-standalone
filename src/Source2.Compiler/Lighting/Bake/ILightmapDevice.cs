@@ -39,6 +39,12 @@ public interface ILightmapDevice
     /// <summary>The block's validated samples, read back (a check).</summary>
     LightmapSample_t_natural[] ReadSamples();
 
+    /// <summary>
+    /// lightmap_test_converged over the block (vrad3 runs it before pass 0 with tolerance 0, then before
+    /// each 16-pass command list from minspp on); false when the device has no such pass.
+    /// </summary>
+    bool TestConverged(float tolerance) => false;
+
     /// <summary>Ends the block: its luxel accumulators.</summary>
     Luxel_t_natural[] EndBlock();
 }

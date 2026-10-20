@@ -2811,6 +2811,25 @@ game can answer is raised with the user first, and runs with -insecure.
     - Open: our flush applies results in slot order; Valve's runs them in parallel, so only an
       exact error tie between two trials of one block in one batch could differ.
 
+112. **The lightmap's adaptive pass count** (settled 2026-10-20 by decompile of vrad3 (1001 build;
+    the installed one keeps its addresses) and a raw-image capture with CS2 closed). Verified:
+    probe01's -lightmapVRadQuality 1 job (lightmap_compute_block_gpu 128 512 0.050), block 0 baked
+    by the GPU host is vrad3's lightmap_image_save image bit for bit: all 40 channel planes and the
+    luxel records, sample counts included (CpuBakeTests.Bake, CPUBAKE_MINSPP / CPUBAKE_ERR;
+    tools/vrad3/post_oracle.py bake made the capture).
+    - lightmap_compute_block_gpu [minspp 128] [maxspp 256] [err 0.02] (180030100) runs passes in
+      command lists of 16. Before pass 0 and before each list that starts at or past minspp it
+      dispatches lightmap_test_converged (static combo 0) over the block with g_nBlockWidth,
+      g_nBlockHeight, the tolerance (0 at pass 0), the luxels and the converged texture. Passes
+      inside a list skip the test. The raygen skips converged 4 x 4 groups.
+    - The test (4 x 4 luxels a group): no luxel with a sample is converged, two or fewer is not;
+      otherwise converged when the luminance's standard deviation (wave sums) is within the mean
+      times the tolerance. Our host runs Valve's SPIR-V for it (RtxBakeConverged), since the wave
+      sums' order is the GPU's.
+    - Quality 1 and 2 also change the post-process: lightmap_image_filter_oidn 1 and
+      lightmap_image_filter_sh_oidn 1 in place of the median filter, and
+      lightmap_ameliorate_block_compression_artefacts -mips 1 after the weld (L14, open).
+
 
 ## Resolved
 

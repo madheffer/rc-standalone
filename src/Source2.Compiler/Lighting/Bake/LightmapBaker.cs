@@ -35,6 +35,15 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
     public int Height { get; init; } = 4096;
     public int BlockSize { get; init; } = 1024;
     public int Passes { get; init; } = 16;
+
+    /// <summary>
+    /// lightmap_compute_block_gpu's minspp and err: from minspp on, each 16-pass command list starts with
+    /// the convergence test at this tolerance (180030100; pass 0 tests at 0). Equal to <see cref="Passes"/>,
+    /// only pass 0 tests.
+    /// </summary>
+    public int? MinSpp { get; init; }
+
+    public float Error { get; init; } = 0.02f;
     public int Threads { get; init; } = Math.Max(1, Environment.ProcessorCount / 2);
 
     /// <summary>
@@ -140,6 +149,8 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
             Device?.BeginBlock(w, h, ids);
             Glsl.Raygen.LightmapSample_t_natural[]? debugSamples = null;
             Vrad3Raygen? debugRaygen = null;
+            if (Device == null && (MinSpp ?? Passes) < Passes)
+                throw new NotSupportedException("the adaptive pass count on the CPU (lightmap_test_converged) is not ported");
             for (var pass = 0; pass < Passes; pass++)
             {
                 var (jx, jy) = (0f, 0f);
@@ -175,6 +186,8 @@ public sealed class LightmapBaker(BakeScene scene, PackingGeometry packing, usho
                         debugRaygen.Pass(p, 4, random, new Vector2(ox, oy), new Vector2(Width, Height));
                         debugRaygen.Run(Vrad3Raygen.DebugAt.X, Vrad3Raygen.DebugAt.Y);
                     }
+                    if (pass % 16 == 0 && (pass == 0 || (MinSpp ?? Passes) <= pass) && !Device.TestConverged(pass == 0 ? 0f : Error) && (MinSpp ?? Passes) < Passes)
+                        throw new NotSupportedException("the adaptive pass count needs the device's lightmap_test_converged");
                     Device.Pass(p, 4, random, new Vector2(ox, oy), new Vector2(Width, Height));
                     log?.Invoke($"block {block}: pass {pass} on the device");
                     continue;
