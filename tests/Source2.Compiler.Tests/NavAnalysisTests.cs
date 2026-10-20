@@ -462,4 +462,93 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         output.WriteLine($"{snap.Records.Count - bad} of {snap.Records.Count} records Valve's after the occupy step");
         Assert.Equal(0, bad);
     }
+
+    /// <summary>probe01's world for the analysis traces: our settle bodies through <see cref="NavSphereWorld"/>.</summary>
+    private static Func<NavAnalysis.V, NavAnalysis.V, float>? Probe01Trace(out IDisposable? keep)
+    {
+        keep = null;
+        if (CS2Fixtures.StockPak() is not { } pak || MapFixtures.GameSchema() is not { } schema)
+            return null;
+        var document = DmxBinary.ReadFile(Path.Combine(Content, "probe01.vmap"));
+        MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(Path.Combine(Content, "probe01.vmap")))!));
+        var models = new SettleBuildTests.PakModels(pak, @"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\csgo_addons\s2c_rc_probe");
+        keep = models;
+        var bodies = SettleWorld.Build(document, models, schema, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
+            d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators), new SettleWorld.CollisionRules());
+        var world = new NavSphereWorld(bodies);
+        return (s, e) => world.CastSphere(new System.Numerics.Vector3(s.X, s.Y, s.Z), new System.Numerics.Vector3(e.X - s.X, e.Y - s.Y, e.Z - s.Z)).Fraction;
+    }
+
+    /// <summary>
+    /// Each area's approach entries (kind 9) from the records Valve's analysis held as that area's
+    /// approach step began (the kind 7 snapshot just before it); chained, only the first area starts
+    /// from Valve's records and each later one from ours, which must equal Valve's snapshot.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ApproachAreasMatchValveFromValvesRecords(bool chained)
+    {
+        var dir = Dir();
+        if (!File.Exists(Path.Combine(dir, "navan_calls.bin")) || BuiltNav(dir, "probe01") is not { } nav)
+            return;
+        var trace = Probe01Trace(out var keep);
+        using var _ = keep;
+        if (trace is null)
+            return;
+        var an = new NavAnalysis(ReadNav(nav)) { Trace = trace };
+        var byId = an.Areas.ToDictionary(a => a.Id);
+        var idOf = AreaIdsByPointer(dir);
+        var b = File.ReadAllBytes(Path.Combine(dir, "navan_calls.bin"));
+        List<(uint Id, byte[] Raw)>? state = null;
+        int total = 0, same = 0, shown = 0, recordsSame = 0, recordsTotal = 0;
+        string Name(ulong ptr) => ptr == 0 ? "-" : idOf.TryGetValue(ptr, out var id) ? id.ToString() : $"?{ptr:x}";
+        for (var p = 0; p < b.Length; p += RecordSize(b, p))
+        {
+            var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
+            if (kind == 7 && BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p + 4)) == 4)
+                state = Snapshots(b[p..(p + RecordSize(b, p))]).Single().Records;
+            if (kind != 9 || state is null)
+                continue;
+            if (chained && total > 0)
+            {
+                var badRecords = CompareRecords(an, state, idOf, $"before area {BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 4))}");
+                recordsSame += badRecords == 0 ? 1 : 0;
+                recordsTotal++;
+                state = null;
+            }
+            if (state is not null)
+                an.Records.Clear();
+            foreach (var (id, raw) in state ?? [])
+            {
+                var parent = BinaryPrimitives.ReadUInt64LittleEndian(raw.AsSpan(0x18));
+                an.Records[byId[id]] = new NavAnalysis.Record
+                {
+                    Pos = new NavAnalysis.V(F(raw, 0), F(raw, 4), F(raw, 8)),
+                    Parent = parent != 0 && idOf.TryGetValue(parent, out var pid) ? byId[pid] : null,
+                    How = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(0x28)),
+                    BackEdge = raw[0x2c],
+                };
+            }
+            var area = byId[BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 4))];
+            var count = b[p + 8 + 16 * 0x38];
+            var want = new List<string>();
+            for (var k = 0; k < count; k++)
+            {
+                var e = b.AsSpan(p + 8 + k * 0x38, 0x38);
+                want.Add($"{Name(BinaryPrimitives.ReadUInt64LittleEndian(e[0x10..]))} {Name(BinaryPrimitives.ReadUInt64LittleEndian(e))}/{e[8]} "
+                         + $"{Name(BinaryPrimitives.ReadUInt64LittleEndian(e[0x20..]))}/{e[0x28]} {BinaryPrimitives.ReadUInt16LittleEndian(e[0x30..])}/{BinaryPrimitives.ReadUInt16LittleEndian(e[0x32..])}");
+            }
+            var got = an.ApproachAreas(area).Select(e => $"{(e.Prev is null ? "-" : e.Prev.Id.ToString())} {e.Here.Id}/{e.HereBackEdge} {e.Next.Id}/{e.NextBackEdge} "
+                                                         + $"{e.PrevToHereHow}/{e.HereToNextHow}").ToList();
+            total++;
+            if (got.SequenceEqual(want))
+                same++;
+            else if (shown++ < 6)
+                output.WriteLine($"area {area.Id}: ours [{string.Join(", ", got)}], Valve [{string.Join(", ", want)}]");
+        }
+        output.WriteLine($"{same} of {total} areas' approach entries Valve's" + (chained ? $"; records Valve's before {recordsSame} of {recordsTotal} areas" : ""));
+        Assert.Equal(total, same);
+        Assert.Equal(recordsTotal, recordsSame);
+    }
 }
