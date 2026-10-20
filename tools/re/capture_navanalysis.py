@@ -19,7 +19,9 @@ computes the .nav's custom data (ledger 103):
                                  u32 start area id, u32 goal area id, u32 closest area id;
                          kind 2: u64 mesh, pos 12, u64 arg3, u64 arg4, u64 arg5, u32 arg6 bits,
                                  hull record 0x48, u64 returned area, u32 its id;
-                         kind 3: u64 area, f32 time T, f32 time CT, u32 area id.
+                         kind 3: u64 area, f32 time T, f32 time CT, u32 area id;
+                         kind 4: a trace through the mesh's trace object (CSNavMesh +0x50, vfn 8):
+                                 start 12, end 12, u64 filter argument, the 0xd0-byte result.
   A second Analyze call (the mesh analysed again) writes navan_areas_2.bin.
 """
 import argparse
@@ -57,7 +59,7 @@ function u64(p) { const b = new ArrayBuffer(8); new DataView(b).setBigUint64(0, 
 let nput = 0, nerr = 0;
 function flush() { if (buf.n) { send({tag: 'calls'}, buf.b.slice(0, buf.n)); buf.n = 0; } }
 function err(e) { if (nerr++ < 5) send({note: 'hook error: ' + e}); }
-let analyses = 0, cvarsSent = false, base = null;
+let analyses = 0, cvarsSent = false, base = null, traceHooked = new Set();
 function dumpAreas(mesh) {
   const n = mesh.add(8).readS32();
   const arr = mesh.add(0x10).readPointer();
@@ -96,7 +98,21 @@ function hook() {
   if (srv === undefined) { setTimeout(hook, 5); return; }
   send({note: 'server.dll at ' + srv.base + ' ' + srv.path});
   base = srv.base.sub(0x180000000);
-  Interceptor.attach(base.add(0x18039a7c0), { onEnter(args) { dumpAreas(args[0]); } });
+  Interceptor.attach(base.add(0x18039a7c0), { onEnter(args) {
+    dumpAreas(args[0]);
+    try {
+      const tr = args[0].add(0x50).readPointer();
+      const vt = tr.readPointer();
+      const slots = [];
+      for (let i = 0; i < 6; i++) {
+        const f = vt.add(i * 8).readPointer();
+        const m = Process.findModuleByAddress(f);
+        slots.push(i * 8 + ':' + (m ? m.name + '+' + f.sub(m.base).toString(16) : f));
+      }
+      const m = Process.findModuleByAddress(vt);
+      send({note: 'trace object ' + tr + ' vtable ' + (m ? m.name + '+' + vt.sub(m.base).toString(16) : vt) + ' slots ' + slots.join(' ')});
+    } catch (e) { err(e); }
+  } });
   Interceptor.attach(base.add(0x1814d9810), {
     onEnter(args) { try {
       if (!cvarsSent) {
@@ -138,6 +154,17 @@ function hook() {
       put(cat([u32(3), u32(Process.getCurrentThreadId()), u64(this.area), this.area.add(200).readByteArray(8), u32(this.area.add(0x60).readU32())]));
     }
   });
+  const traceHook = {
+    onEnter(a) { this.s = a[1].readByteArray(12); this.e = a[2].readByteArray(12); this.f = a[3]; this.r = a[4]; },
+    onLeave(ret) { try { put(cat([u32(4), u32(Process.getCurrentThreadId()), this.s, this.e, u64(this.f), this.r.readByteArray(0xd0)])); } catch (e) { err(e); } }
+  };
+  Interceptor.attach(base.add(0x1814eb500), traceHook);
+  const nav = Process.enumerateModules().find(m => m.name.toLowerCase() === 'navsystem.dll');
+  if (nav) Interceptor.attach(nav.base.add(0x79100), traceHook);
+  for (const name of ['ExitProcess', 'TerminateProcess']) {
+    const f = Module.findExportByName('kernel32.dll', name);
+    if (f) Interceptor.attach(f, { onEnter() { flush(); } });
+  }
   send({hooked: true});
 }
 hook();
@@ -208,6 +235,10 @@ def main():
             pass
         if running("cs2.exe"):
             subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+    try:
+        print("hook stats (puts, errors):", sc.exports_sync.stats())
+    except Exception as e:
+        print("no stats:", e)
     calls.close()
     print(os.path.join(out_dir, "navan_calls.bin"), os.path.getsize(os.path.join(out_dir, "navan_calls.bin")), "bytes")
     print("(hooked)" if hooked.is_set() else "(NEVER HOOKED)")

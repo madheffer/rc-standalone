@@ -160,7 +160,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, _ => 8 + 8 + 8 + 4 };
+            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, 4 => 8 + 12 + 12 + 8 + 0xd0, _ => 8 + 8 + 8 + 4 };
             if (kind == 1)
             {
                 var req = p + 8;
@@ -203,7 +203,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, _ => 8 + 8 + 8 + 4 };
+            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, 4 => 8 + 12 + 12 + 8 + 0xd0, _ => 8 + 8 + 8 + 4 };
             if (kind == 3)
             {
                 var id = BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p + 24));
@@ -233,7 +233,7 @@ public sealed class NavAnalysisTests(ITestOutputHelper output)
         while (p < b.Length)
         {
             var kind = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(p));
-            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, _ => 8 + 8 + 8 + 4 };
+            var n = kind switch { 1 => 8 + 0x80 + 8 + 0x1c + 12, 2 => 8 + 8 + 12 + 24 + 4 + 0x48 + 8 + 4, 4 => 8 + 12 + 12 + 8 + 0xd0, _ => 8 + 8 + 8 + 4 };
             if (kind == 2)
             {
                 var r = b.AsSpan(p + 8);
