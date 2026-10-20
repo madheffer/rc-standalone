@@ -104,7 +104,7 @@ public static class LightUnits
     public static float ConeAngle(LightShape r)
     {
         if (r[0xe4] != 0f)
-            return MathF.Acos(Math.Clamp(r[0xe0] / r[0xe4], -1f, 1f)) * 57.295776f;
+            return Simulation.CrtMath.Acos(Math.Clamp(r[0xe0] / r[0xe4], -1f, 1f)) * 57.295776f;
         return r[0xe0] == 1f ? 180f : 0f;
     }
 
@@ -113,7 +113,7 @@ public static class LightUnits
     {
         var w = r[0xe4];
         if (w != 0f)
-            return MathF.Acos(Math.Clamp(r[0xe0] / w - 1f / w, -1f, 1f)) * 57.295776f;
+            return Simulation.CrtMath.Acos(Math.Clamp(r[0xe0] / w - 1f / w, -1f, 1f)) * 57.295776f;
         return r[0xe0] == 1f ? 180f : 0f;
     }
 
@@ -219,21 +219,24 @@ public static class LightUnits
             {
                 var s = (b1 + a1 + c1a) * 0.5f;
                 float ss = LightCrt.Sin(s), sa = LightCrt.Sin(s - a1), sb = LightCrt.Sin(s - b1), sc = LightCrt.Sin(s - c1a);
-                var t = MathF.Atan(MathF.Sqrt(sc * sa / (sb * ss)));
-                t += MathF.Atan(MathF.Sqrt(sc * sb / (sa * ss)));
-                var u = MathF.Atan(MathF.Sqrt(sb * sa / (sc * ss)));
-                first = u + t + u + t - 3.1415927f;
+                var t = Simulation.CrtMath.Atan(MathF.Sqrt(sc * sa / (sb * ss)));
+                t += Simulation.CrtMath.Atan(MathF.Sqrt(sc * sb / (sa * ss)));
+                var u = Simulation.CrtMath.Atan(MathF.Sqrt(sb * sa / (sc * ss)));
+                // (u + t) doubled, as the binary sums it (181292344).
+                var ut = u + t;
+                first = ut + ut - 3.1415927f;
             }
-            float a2 = Angle(d3, d2), b2 = Angle(d3, d0), c2a = MathF.Acos(Math.Clamp(Dot(d2, d0), -1f, 1f));
+            float a2 = Angle(d3, d2), b2 = Angle(d3, d0), c2a = Simulation.CrtMath.Acos(Math.Clamp(Dot(d2, d0), -1f, 1f));
             var second = 0f;
             if (a2 != 0f && b2 != 0f && c2a != 0f)
             {
                 var s = (b2 + a2 + c2a) * 0.5f;
                 float ss = LightCrt.Sin(s), sa = LightCrt.Sin(s - a2), sb = LightCrt.Sin(s - b2), sc = LightCrt.Sin(s - c2a);
-                var t1 = MathF.Atan(MathF.Sqrt(sc * sa / (sb * ss)));
-                var t2 = MathF.Atan(MathF.Sqrt(sc * sb / (sa * ss)));
-                var t3 = MathF.Atan(MathF.Sqrt(sb * sa / (sc * ss)));
-                var sum = t3 + t1 + t2;
+                var t1 = Simulation.CrtMath.Atan(MathF.Sqrt(sc * sa / (sb * ss)));
+                var t2 = Simulation.CrtMath.Atan(MathF.Sqrt(sc * sb / (sa * ss)));
+                var t3 = Simulation.CrtMath.Atan(MathF.Sqrt(sb * sa / (sc * ss)));
+                // t3 + (t1 + t2), as the binary sums it (1812924e8).
+                var sum = t3 + (t1 + t2);
                 second = sum + sum - 3.1415927f;
             }
             result = (second + first) * w;
@@ -263,7 +266,7 @@ public static class LightUnits
     private static float Dot(Vector3 a, Vector3 b) => a.Z * b.Z + a.Y * b.Y + a.X * b.X;
 
     // acos of a clamped dot product, summed z, y, x as the binary does.
-    private static float Angle(Vector3 a, Vector3 b) => MathF.Acos(Math.Clamp(Dot(a, b), -1f, 1f));
+    private static float Angle(Vector3 a, Vector3 b) => Simulation.CrtMath.Acos(Math.Clamp(Dot(a, b), -1f, 1f));
 
     // The unit vector (length summed y, z, x, or z, y, x for the last corner),
     // VectorNormalize_Slow outside [1e-17, 1e17], or zero.

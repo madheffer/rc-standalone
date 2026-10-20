@@ -237,6 +237,61 @@ public static class CrtMath
         return twoS * u + (correction + correction) + c * 2f;
     }
 
+    /// <summary>
+    /// atanf (tier0 V_atanf 180007ef0 -> the CRT's 1802e057c; one build, no CPU dispatch): in double,
+    /// a = |x| reduced by range: below 0.4375 as is (hi 0); below 0.6875 to (2a - 1) / (a + 2) (hi
+    /// atan 0.5); below 1.1875 to (a - 1) / (a + 1) (hi atan 1); below 2.4375 to (a - 1.5) / (a 1.5 +
+    /// 1) (hi atan 1.5); else -1 / a (hi pi / 2), past 5.5e18 (infinity too) straight to the float pi / 2. Then
+    /// hi - ((((z2 p2 + p1) z2 + p0) (z2 z)) / ((z2 q2 + q1) z2 + q0) - z), the sign put back, rounded
+    /// once to float. NaN goes to a path that is not read and throws.
+    /// </summary>
+    public static float Atan(float x)
+    {
+        double a = x;
+        var negative = BitConverter.DoubleToInt64Bits(a) < 0;
+        if (negative)
+            a = -a;
+        var bits = BitConverter.DoubleToInt64Bits(a);
+        double hi, z;
+        if (bits < 0x3fdc000000000000)
+        {
+            hi = 0.0;
+            z = a;
+        }
+        else if (bits < 0x3fe6000000000000)
+        {
+            hi = BitConverter.Int64BitsToDouble(0x3fddac670561bb4f);
+            z = (a + a - 1.0) / (a + 2.0);
+        }
+        else if (bits < 0x3ff3000000000000)
+        {
+            hi = BitConverter.Int64BitsToDouble(0x3fe921fb54442d18);
+            z = (a - 1.0) / (a + 1.0);
+        }
+        else if (bits < 0x4003800000000000)
+        {
+            hi = BitConverter.Int64BitsToDouble(0x3fef730bd281f69b);
+            z = (a - 1.5) / (a * 1.5 + 1.0);
+        }
+        else if (bits > 0x7ff0000000000000)
+            throw new NotSupportedException("atanf of NaN (the CRT's error path) is not ported");
+        else if (a > BitConverter.Int64BitsToDouble(0x43d3200000000000))
+            return negative ? -1.5707964f : 1.5707964f;
+        else
+        {
+            hi = BitConverter.Int64BitsToDouble(0x3ff921fb54442d18);
+            z = -1.0 / a;
+        }
+        var z2 = z * z;
+        var num = (z2 * BitConverter.Int64BitsToDouble(0x3f73476a758da22a) + BitConverter.Int64BitsToDouble(0x3fc89e173a81ee7f)) * z2
+                  + BitConverter.Int64BitsToDouble(0x3fd2fa5316907834);
+        num *= z2 * z;
+        var den = (z2 * BitConverter.Int64BitsToDouble(0x3fd327e3df2cf2aa) + BitConverter.Int64BitsToDouble(0x3ff1c58793da6ea4)) * z2
+                  + BitConverter.Int64BitsToDouble(0x3fec777ca21053f0);
+        var r = hi - (num / den - z);
+        return (float)(negative ? -r : r);
+    }
+
     /// <summary>2^(j/64), j = 0..63, as tier0 stores them (tier0 18033e3e0).</summary>
     private static readonly ulong[] TwoToTheJOver64 =
     [

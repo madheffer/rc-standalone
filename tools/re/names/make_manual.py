@@ -247,7 +247,7 @@ RESOURCECOMPILER = [
     ("181298c00", "LightUnits_SolidAngle", LIGHTS, "pi for luminaire types 1, 2; the cone between two angles for 3 to 5"),
     ("1812938f0", "LightUnits_LuminaireArea", LIGHTS, "by luminaire type (+0xec): triangles, ellipse, sphere, capsule"),
     ("18129a6e0", "LightUnits_BarnScale", LIGHTS, "1 / (w / (sqrt(w) + d)^2) with w = +0x9c"),
-    ("1812918f0", "LightUnits_FrustumSolidAngle", LIGHTS, "barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal"),
+    ("1812918f0", "LightUnits_FrustumSolidAngle", LIGHTS, "barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal; V_acosf / V_atanf (tier0); the first triangle (u + t) + (u + t) - pi, the second t3 + (t1 + t2) (ledger 108)"),
     ("181366d90", "MeshSemantic_Lookup", WN, "shader semantic or stream name in the table at 183014ae0 (0x20 rows: semantic, stream, stream index, shader index)"),
     ("1802b4d50", "WRBMeshList_MaterialStreams", WN, "a material's 0xc4-byte inputs (semantic at +0x40) to (stream, index) pairs through 181366d90; unknown semantics as their own name at 0"),
     ("1812e03a0", "Material_InputLayout", WN, "the material's input layout lists (0xc4 entries) and its mapbuilder.nodraw/occluder flag; materials/error.vmat when it does not load"),
@@ -442,7 +442,7 @@ RESOURCECOMPILER = [
     ("18129b7b0", "SegmentIntersectsBox", LIGHTS, "SSE slab test: refined rcpps of the delta, exit capped at 1, entry floored at 0"),
     ("180248800", "WRB_BakePrecomputedShadows", BAKE, "direct_light_shadows"),
     ("18023af80", "Vrad3_Init", BAKE, "VRAD3_PATH, Vrad3_Init_SearchPath"),
-    ("180285eb0", "WRB_BuildPathTraceSceneInfo", BAKE, "scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights)"),
+    ("180285eb0", "WRB_BuildPathTraceSceneInfo", BAKE, "scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights); cameras (180285ff1) from the compile's list (+0x210 -> +0x78 count, +0x80 records of 0x28: name, origin, angles, fov), only when non-empty"),
     ("180284aa0", "WRB_PathTraceStaticModels", BAKE, "one model's records: LOD groups (1802b4ab0), WRB_LoadPropMeshes per group, per draw call (draw record +0x64 bit 0x800 skips) then per prop: a shared CMesh (+0x100 per-vertex data copies it, 1812ddd80, 1812d6420), instance mesh, transform (+0x10), material (1802b6830), tint (per-draw override at +0x120 times +0x148..+0x154), emissive_lighting_boost (+0x174), flags (+0x16f, +0x210, +0x1f0 bit 19, +0x173/+0x178, +0x17d)"),
     ("180285bf0", "WRB_PathTraceInstancedModels", BAKE, "the +0x1e0 table's entries (model and skin to transforms): records through 180285810, then 180284aa0; empty on the maps measured"),
     ("180285810", "WRB_PathTraceInstanceRecords", BAKE, "0x220 records from 0x30 transforms: QuaternionMatrix times the scale, colour bytes / 255 at +0x148; +0x17e = 0x101, skin hash at +0x188"),
@@ -923,7 +923,8 @@ RESOURCECOMPILER = [
     ("1801f6f40", "CMapWorld_RayTraceScene", LIGHTS, "the editor ray-trace scene at world +0x2bd0"),
     ("180251040", "Matrix4x4_Project", LIGHTS, "a point through the 4x4, divided by w"),
     ("180ee9e30", "LightBuild_TransformVolume", LIGHTS, ""),
-    ("180eea510", "LightBuild_Record", LIGHTS, "a light record: barn, luminaire, volume"),
+    ("180243b04", "MapCompile_CollectPointCamera", LIGHTS, "in the entity pass: point_camera's targetname, placed origin and angles, FOV (default 0) into the scene info's camera list (ledger 108)"),
+    ("180eea510", "LightBuild_Record", LIGHTS, "a light record: barn, luminaire, volume; the omni branch's cone from the keys: outer_angle in [1, 180], inner_angle in [0, outer], 180 when absent (180eeae24, ledger 108)"),
     ("181007c90", "ColorTemperatureToLinear", LIGHTS, "kelvin / 100: Tanner Helland's fit (329.69873 (t-60)^-0.13320476, 288.12216 (t-60)^-0.075514846, 99.4708 ln t - 161.11957, 138.51773 ln(t-10) - 305.0448), each clamped to [0, 255] and through 18126a710 over 255"),
     ("180eed4c0", "Light_Color", LIGHTS, "colormode 0: color (180f32200), 1: colortemperature (181007c90), else the default"),
     ("180f18820", "LightPrecompute_TraceRay", LIGHTS, ""),
@@ -2659,6 +2660,8 @@ RESOURCECOMPILER_1006 = [
 # tier0 20261015 (CS2 1.41.9.1): the KV3 binary reader and writer gained
 # UINT32_ZERO (26) and UINT32_ONE (27).
 TIER0_1015 = [
+    ("180007ef0", "V_atanf", IO, "jumps to the CRT's atanf 1802e057c"),
+    ("1802e057c", "CRT_atanf", IO, "one build: double, reduced at 0.4375 / 0.6875 / 1.1875 / 2.4375, a 3 / 3 rational; Simulation/CrtMath.Atan (ledger 108)"),
     ("1800c4120", "KV3Binary_ReadValue", IO, "switch on type - 1 up to 0x1a: 26 and 27 need format >= 5 and build an unsigned 0 / 1 (1800be890: basic type 4, subtype 0x17, as UINT32 = 12 does); 15 / 16 stay signed (1800be850, type 3, subtype 0x16)"),
     ("1800be850", "KV3_SetInt64Subtyped", IO, "basic type 3, the value in +8"),
     ("1800be890", "KV3_SetUInt64Subtyped", IO, "basic type 4, the value in +8"),

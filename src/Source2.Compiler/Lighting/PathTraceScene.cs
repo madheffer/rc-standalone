@@ -123,7 +123,7 @@ internal static class PathTraceScene
     }
 
     /// <summary>scene_info.kv3's text: mesh_file, instances, ibl (null without a sky light), lights.</summary>
-    public static string InfoFile(IEnumerable<KVObject> instances, KVObject? ibl, IEnumerable<KVObject> lights)
+    public static string InfoFile(IEnumerable<KVObject> instances, KVObject? ibl, IEnumerable<KVObject> lights, IReadOnlyList<KVObject>? cameras = null)
     {
         var root = KVObject.Collection();
         root.Add("mesh_file", new KVObject("scene_meshes.kv3"));
@@ -136,6 +136,14 @@ internal static class PathTraceScene
         foreach (var x in lights)
             l.Add(x);
         root.Add("lights", l);
+        // 180285ff1: the map's point_cameras (SceneLights.Camera), only when there are any.
+        if (cameras is { Count: > 0 })
+        {
+            var c = KVObject.Array();
+            foreach (var x in cameras)
+                c.Add(x);
+            root.Add("cameras", c);
+        }
         return Kv3TextWriter.Write(root, GenericFormat);
     }
 

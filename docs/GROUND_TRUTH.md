@@ -2673,6 +2673,40 @@ game can answer is raised with the user first, and runs with -insecure.
       verified), the order of several ladders, hidden ladder meshes (left out, as the
       compile leaves hidden meshes out).
 
+108. **Light unit maths and the scene's cameras (L21); a material vrad3 cannot load (L19)**
+    (settled 2026-10-20 by disassembly of resourcecompiler 20260923, tier0 20261015 and
+    scenesystem 20261015, and vrad3's host upload captured on cardtest with CS2 closed).
+    Verified: probe_classes' and s2c_prefabprobe5's whole scene_info.kv3 are Valve's (lights,
+    cameras), with atixref, cardtest and probe01 still Valve's (SceneInfoTests); cardtest's four
+    lightmap EXRs from a GPU bake are byte for byte vrad3's (CpuBakeTests, CPUBAKE_GPU=1).
+    - FUN_1812918f0 (a barn frustum's solid angle) calls tier0's V_acosf and V_atanf, and sums
+      the first spherical triangle as (u + t) + (u + t) - pi and the second as
+      t3 + (t1 + t2) (181292344, 1812924e8). ConeAngle (181298b90) and the inner cone
+      (1812969d0) call V_acosf too. tier0's atanf (V_atanf 180007ef0 -> 1802e057c, one
+      build) is ported as CrtMath.Atan: in double, the argument reduced at 0.4375, 0.6875,
+      1.1875, 2.4375 (hi atan 0.5, atan 1, atan 1.5, pi / 2) and a 3 / 3 rational; it and
+      CrtMath.Acos equal the installed tier0's V_atanf / V_acosf on 629,132 and 413,800 inputs
+      (Tier0TrigOracleTests, called in-process).
+    - The scene record's omni branch (180eea510, 180eeae24) takes the cone from the keys:
+      outer_angle clamped to [1, 180], inner_angle to [0, outer], 180 when absent; the solid
+      angle (1 - (cos inner + cos outer) / 2) 2 pi, the lumens factor that times 1 / (4 pi).
+      Light_SyncBrightnessUnits keeps the record's acos round trip (LightUnits.Terms).
+    - Cameras: the map compile's entity pass keeps each point_camera (180243b04): targetname
+      ("" without one), its placed origin and angles, FOV (0 when absent); scene_info.kv3
+      writes them after the lights as cameras { name, origin, angles, fov } when there are any
+      (180285ff1).
+    - A material vrad3 cannot load (cardtest's teleport02, in another addon) is drawn with
+      rtx_default_hitgroup and the attribute-less block (0, 0, 0, 1, -1, -1, flags, 0), first in
+      instance order, and its mesh's vertex buffer holds the position alone (stride 12, no field
+      infos): GeometryInfo_t, the material data and every material offset equal the capture.
+    - The IBL transform's inverse is MatrixInvertTR (the rotation transposed, translation
+      -(t . row)): it keeps the transform's -0 (m_mIBLTransformI col 0 z on cardtest).
+    - Not equal, and not read by any shader: bindless texture / sampler indices (vrad3's run
+      from 248 up), the global BRDF LUT and IBL texture indices, PackedRtxInstanceData_t
+      +0x14..+0x1c (Valve's are uninitialised memory). Open: cardtest's probe volume 471278508
+      differs in 1 to 3 of 8,064 texels per band (ours deterministic over two runs); its
+      471278509 is identical.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

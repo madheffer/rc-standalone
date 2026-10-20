@@ -77,6 +77,29 @@ internal static class SceneLights
     }
 
     /// <summary>
+    /// A point_camera's entry in scene_info.kv3's cameras (collected in the map compile's entity pass,
+    /// 180243b04; written by WRB_BuildPathTraceSceneInfo, 180286050): its targetname ("" without one),
+    /// its placed origin and angles, and FOV (0 when absent), each float as a double.
+    /// </summary>
+    public static KVObject Camera(LightPrecompute.KeyReader key, Vector3 origin, Vector3 angles)
+    {
+        static KVObject Vec(Vector3 v)
+        {
+            var a = KVObject.Array();
+            a.Add(new KVObject((double)v.X));
+            a.Add(new KVObject((double)v.Y));
+            a.Add(new KVObject((double)v.Z));
+            return a;
+        }
+        var c = KVObject.Collection();
+        c.Add("name", new KVObject(key("targetname") ?? ""));
+        c.Add("origin", Vec(origin));
+        c.Add("angles", Vec(angles));
+        c.Add("fov", new KVObject((double)(key("FOV") is { } f ? CNumbers.ToFloat32(f) : 0f)));
+        return c;
+    }
+
+    /// <summary>
     /// A light_barn's scene record: FUN_180eea510's barn branch in the light's
     /// space with the unit pass (luminaire 0 a disc), its colour (colormode 0's
     /// color) times the intensity its brightness units give
@@ -96,6 +119,22 @@ internal static class SceneLights
         var r = LightPrecompute.Records(className, key, null, split: false, units: true)[0];
         var color = LightColor(key, Vector3.Zero);
         var (unitScale, factor, area, solid) = LightUnits.Terms(className, r);
+        if (className == "light_omni2")
+        {
+            // 180eea510's omni branch takes the cone from the keys, not from the record (180eeae24):
+            // outer_angle clamped to [1, 180], inner_angle to [0, outer], both 180 when absent.
+            float Angle(string name) => key(name) is { } v ? CNumbers.ToFloat32(v) : 180f;
+            var outer = Angle("outer_angle");
+            outer = outer > 1f ? outer : 1f;
+            outer = outer < 180f ? outer : 180f;
+            var inner = Angle("inner_angle");
+            inner = inner > 0f ? inner : 0f;
+            inner = inner < outer ? inner : outer;
+            var co = LightCrt.Cos(outer * 0.017453292f);
+            var ci = LightCrt.Cos(inner * 0.017453292f);
+            solid = (1f - (ci + co) * 0.5f) * 6.2831855f;
+            factor = solid * 0.007957747f;
+        }
         var intensity = LightUnits.FromUnits(key, unitScale, factor, area, solid);
         color = new Vector3(intensity * color.X, intensity * color.Y, intensity * color.Z);
         var scale = key("brightnessscale") is { } s ? CNumbers.ToFloat32(s) : 1f;

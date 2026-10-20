@@ -1228,7 +1228,7 @@
    "addr": "1812918f0",
    "name": "LightUnits_FrustumSolidAngle",
    "module": "s2c:baked/light-keys",
-   "note": "barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal"
+   "note": "barn opening's solid angle by L'Huilier over two spherical triangles, times w; parallel: area along the normal; V_acosf / V_atanf (tier0); the first triangle (u + t) + (u + t) - pi, the second t3 + (t1 + t2) (ledger 108)"
   },
   {
    "addr": "181366d90",
@@ -2398,7 +2398,7 @@
    "addr": "180285eb0",
    "name": "WRB_BuildPathTraceSceneInfo",
    "module": "s2c:baked/lighting",
-   "note": "scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights)"
+   "note": "scene_info.kv3 (mesh_file, instances, ibl, lights, cameras) and scene_meshes.kv3: the world entries BuildNode receives (attributes 0x2000000001 out; flags from bits 16, 17, 19, emissive, +0x99), the prop map (+0x198) model by model through 180284aa0, the +0x1e0 table through 180285bf0, lights and ibl from the lighting processor (vf 0x40, 181113f20); ported (PathTraceScene, PathTraceProps, SceneLights); cameras (180285ff1) from the compile's list (+0x210 -> +0x78 count, +0x80 records of 0x28: name, origin, angles, fov), only when non-empty"
   },
   {
    "addr": "180284aa0",
@@ -5149,10 +5149,16 @@
    "note": ""
   },
   {
+   "addr": "180243b04",
+   "name": "MapCompile_CollectPointCamera",
+   "module": "s2c:baked/light-keys",
+   "note": "in the entity pass: point_camera's targetname, placed origin and angles, FOV (default 0) into the scene info's camera list (ledger 108)"
+  },
+  {
    "addr": "180eea510",
    "name": "LightBuild_Record",
    "module": "s2c:baked/light-keys",
-   "note": "a light record: barn, luminaire, volume"
+   "note": "a light record: barn, luminaire, volume; the omni branch's cone from the keys: outer_angle in [1, 180], inner_angle in [0, outer], 180 when absent (180eeae24, ledger 108)"
   },
   {
    "addr": "181007c90",

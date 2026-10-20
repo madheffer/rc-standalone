@@ -490,12 +490,18 @@ public class SceneInfoTests(ITestOutputHelper output)
         var entities = lumps.SelectMany(l => LumpEntities(l.Value, l.Key)).ToList();
         var ids = new Dictionary<int, int>();
         var lights = new List<KVObject>();
+        var cameras = new List<KVObject>();
         LightPrecompute.KeyReader? sky = null;
         var document = MapSource.Read(vmap);
         foreach (var (cls, key, origin, angles) in Vrad3Job.InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators), entities,
                      d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators)))
         {
             LightShape record;
+            if (cls == "point_camera")
+            {
+                cameras.Add(SceneLights.Camera(key, origin, angles));
+                continue;
+            }
             if (cls is "light_barn" or "light_rect" or "light_omni2")
                 record = SceneLights.Record(cls, key, LightPrecompute.World(origin, angles));
             else if (cls is "light_environment" or "light_directional")
@@ -522,7 +528,7 @@ public class SceneInfoTests(ITestOutputHelper output)
                 }
             return null;
         }
-        var ours = PathTraceScene.InfoFile(OurScene(vmap)!.Value.Instances, SceneLights.Ibl(sky, SkyNamed), lights);
+        var ours = PathTraceScene.InfoFile(OurScene(vmap)!.Value.Instances, SceneLights.Ibl(sky, SkyNamed), lights, cameras);
         var text = File.ReadAllText(path);
         var at = Enumerable.Range(0, Math.Min(ours.Length, text.Length)).FirstOrDefault(i => ours[i] != text[i], -1);
         output.WriteLine($"{ours.Length} vs {text.Length} chars, first difference {at}");

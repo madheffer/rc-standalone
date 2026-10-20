@@ -115,12 +115,18 @@ public static class Vrad3Job
         // searches find them: the world's node array after the instance collapse (L17, ledger 101).
         var ids = new Dictionary<int, int>();
         var lights = new List<KVObject>();
+        var cameras = new List<KVObject>();
         LightPrecompute.KeyReader? sky = null;
         int Locators(string path) => content.SmartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0;
         foreach (var (cls, key, origin, angles) in InSearchOrder(document, SmartProps.NodesCreatedOnLoad(document, Locators), lumpEntities,
                      d => SmartProps.NodesCreatedOnLoad(d, Locators)))
         {
             LightShape shape;
+            if (cls == "point_camera")
+            {
+                cameras.Add(SceneLights.Camera(key, origin, angles));
+                continue;
+            }
             if (cls is "light_barn" or "light_rect" or "light_omni2")
                 shape = SceneLights.Record(cls, key, LightPrecompute.World(origin, angles));
             else if (cls is "light_environment" or "light_directional")
@@ -148,7 +154,7 @@ public static class Vrad3Job
             return null;
         }
         File.WriteAllBytes(Path.Combine(folder, "scene_meshes.kv3"), PathTraceScene.MeshesFile(meshes));
-        File.WriteAllText(Path.Combine(folder, "scene_info.kv3"), PathTraceScene.InfoFile(instances, SceneLights.Ibl(sky, SkyNamed), lights));
+        File.WriteAllText(Path.Combine(folder, "scene_info.kv3"), PathTraceScene.InfoFile(instances, SceneLights.Ibl(sky, SkyNamed), lights, cameras));
         File.WriteAllText(Path.Combine(folder, "script-gpu.vrad3"), Script(settings.Width >> (settings.Mip - 1), settings.Height >> (settings.Mip - 1), blockSize, settings.Mip, volumes, quality));
     }
 

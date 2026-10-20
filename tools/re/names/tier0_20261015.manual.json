@@ -1,6 +1,18 @@
 {
  "functions": [
   {
+   "addr": "180007ef0",
+   "name": "V_atanf",
+   "module": "s2c:io",
+   "note": "jumps to the CRT's atanf 1802e057c"
+  },
+  {
+   "addr": "1802e057c",
+   "name": "CRT_atanf",
+   "module": "s2c:io",
+   "note": "one build: double, reduced at 0.4375 / 0.6875 / 1.1875 / 2.4375, a 3 / 3 rational; Simulation/CrtMath.Atan (ledger 108)"
+  },
+  {
    "addr": "1800c4120",
    "name": "KV3Binary_ReadValue",
    "module": "s2c:io",

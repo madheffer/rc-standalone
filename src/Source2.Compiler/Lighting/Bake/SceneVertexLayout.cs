@@ -41,8 +41,9 @@ namespace Source2.Compiler.Lighting.Bake;
 /// A PerVertexLighting attribute is kept by 1804aa730's second loop as color 1
 /// (R16G16B16A16_FLOAT): the hit shaders never read it, but it is in the
 /// stride. Not ported (they throw): blend weights and indices (scene meshes
-/// carry no skinning), and a mesh whose material is missing (1800912d0 then
-/// makes no vertex buffer, 180092bff).
+/// carry no skinning). A mesh whose material vrad3 cannot load gets the
+/// position alone, stride 12 (captured on cardtest; RtxScene.Build asks for
+/// it with a one-element signature).
 /// </summary>
 public static class SceneVertexLayout
 {
@@ -53,7 +54,7 @@ public static class SceneVertexLayout
     public static Result Build(BakeScene.Mesh mesh, int index, Signature? signature)
     {
         if (signature == null)
-            throw new InvalidOperationException($"mesh {index}: material {mesh.Material} has no input signature (scenesystem 1800912d0 makes no vertex buffer without it)");
+            throw new InvalidOperationException($"mesh {index}: material {mesh.Material} has no input signature (an unloadable material takes the position alone: pass that signature)");
         var attributes = Attributes(mesh);
         var layout = Build(attributes, signature);
         var bytes = Write(mesh, attributes, layout);

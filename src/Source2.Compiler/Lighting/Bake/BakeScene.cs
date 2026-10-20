@@ -212,13 +212,9 @@ public sealed class BakeScene
             g.SunLightIrradiance.W = BakeScene.Opt(ibl, "sun_light_min_brightness") is { } smb ? (float)smb.ToDouble(null) : 0f;
             if (BakeScene.Opt(ibl, "material") is { } mat && cubemap?.Invoke(mat.ToString(null) ?? "") is { } cube)
             {
-                var transform = Matrix4x4.Identity;
+                g.IblTransformInverse = Matrix4x4.Identity;
                 if (BakeScene.Opt(ibl, "transform") is { } tr)
-                {
-                    var f = Floats(tr);
-                    transform = new Matrix4x4(f[0], f[4], f[8], 0f, f[1], f[5], f[9], 0f, f[2], f[6], f[10], 0f, f[3], f[7], f[11], 1f);
-                }
-                Matrix4x4.Invert(transform, out g.IblTransformInverse);
+                    g.IblTransformInverse = InvertTR(Floats(tr));
                 var scale = BakeScene.Opt(ibl, "scale") is { } sc ? Floats(sc) : [1f, 1f, 1f];
                 var exposure = MathF.Pow(2f, cube.Brightness);
                 g.IblCubeMapScale.X *= scale[0] * exposure;
@@ -271,6 +267,23 @@ public sealed class BakeScene
     }
 
     /// <summary>A child that may be absent (KVObject's indexer throws for a missing key).</summary>
+    /// <summary>
+    /// MatrixInvertTR on a scene_info 3x4 (rows of four): the rotation transposed, the translation
+    /// -(t . row) per row of the result, summed x, y, z. vrad3's uploaded m_mIBLTransformI is this
+    /// (captured: cardtest's -0 from the transform's -0 at row 2, column 0).
+    /// </summary>
+    internal static Matrix4x4 InvertTR(float[] f)
+    {
+        var o = new float[3, 4];
+        for (var i = 0; i < 3; i++)
+            for (var j = 0; j < 3; j++)
+                o[i, j] = f[j * 4 + i];
+        float t0 = f[3], t1 = f[7], t2 = f[11];
+        for (var i = 0; i < 3; i++)
+            o[i, 3] = -(t0 * o[i, 0] + t1 * o[i, 1] + t2 * o[i, 2]);
+        return new Matrix4x4(o[0, 0], o[1, 0], o[2, 0], 0f, o[0, 1], o[1, 1], o[2, 1], 0f, o[0, 2], o[1, 2], o[2, 2], 0f, o[0, 3], o[1, 3], o[2, 3], 1f);
+    }
+
     internal static KVObject? Opt(KVObject o, string key) => o.ContainsKey(key) ? o[key] : null;
 
     internal static float[] Floats(KVObject a) => [.. a.Values.Select(v => (float)v.ToDouble(null))];

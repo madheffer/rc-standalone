@@ -669,18 +669,11 @@ public sealed class RtxScene
             ib[m] = [.. mesh.Indices.Select(i => (uint)i)];
             if (signature is null)
             {
-                // 1800912d0 makes no vertex buffer for a mesh whose material it cannot load (180092bff);
-                // what the GPU then reads for its hits is not ported: no vertex fields here.
-                notes.Add($"{mesh.Material}: no material input signature; its meshes get no vertex buffer");
-                vu[m] = [];
-                vf[m] = [];
-                geometries[m] = new GeometryInfo_t_natural
-                {
-                    m_nVertexAndIndexBuffers = new ivec4(m, -1, -1, m), m_nBufferStrideInBytes = new ivec4(0, 0, 0, 4),
-                    m_vTexCoordFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
-                    m_vColorFieldInfo = new _Array_natural_vector_int_4_8 { data = new ivec4[8] },
-                };
-                continue;
+                // A material vrad3 cannot load (cardtest's teleport02 lives in another addon): its mesh's
+                // buffer holds positions alone, stride 12, and no field infos (captured: cardtest block 0,
+                // GeometryInfo_t record 0), as a signature asking for the position only gives.
+                notes.Add($"{mesh.Material}: not loadable; its meshes take positions only and the default hit group");
+                signature = [new(Name: "vPositionOs", Semantic: "PosXyz", D3DSemanticName: "POSITION", D3DSemanticIndex: 0)];
             }
             var layout = SceneVertexLayout.Build(mesh, m, signature);
             vu[m] = layout.Words;
@@ -728,12 +721,13 @@ public sealed class RtxScene
                 return b;
             b = null;
             var info = materials(material);
-            if (info != null && shaders.Get(info.Shader) == null)
+            if (info == null || shaders.Get(info.Shader) == null)
             {
-                // No ray tracing program: rtx_default_hitgroup (180098cd0's block).
+                // No ray tracing program, or a material vrad3 cannot load: rtx_default_hitgroup
+                // (180098cd0's block; the unloadable one with no attributes, captured on cardtest).
                 var flags = scene.Instances.First(x => string.Equals(x.Material.Name, material, StringComparison.OrdinalIgnoreCase)).Material.Flags;
                 var shader = HitShaders.All.First(h => h.Name == "rtx_default_hitgroup_vulkan_60_rtx" && h.Combo == ((flags & 2) != 0 ? 1 : 0));
-                var bytes = DefaultBlock(material, info, flags, shaders.Attributes(info), Texture);
+                var bytes = DefaultBlock(material, info, flags, info == null ? [] : shaders.Attributes(info), Texture);
                 while (data.Count % 16 != 0)
                     data.Add(0);
                 var offset = (uint)data.Count;
@@ -808,7 +802,7 @@ public sealed class RtxScene
     /// a translucent material's opacity (texture 0xfa77b522, not named, else
     /// LightSim_Opacity).
     /// </summary>
-    private static byte[] DefaultBlock(string material, SettleWorld.MaterialInfo info, uint flags, IReadOnlyList<RtxShaderLibrary.Attribute> attributes,
+    private static byte[] DefaultBlock(string material, SettleWorld.MaterialInfo? info, uint flags, IReadOnlyList<RtxShaderLibrary.Attribute> attributes,
                                        Func<string?, bool, bool, int> texture)
     {
         var bytes = new byte[0x20];
@@ -820,7 +814,7 @@ public sealed class RtxScene
         var colour = attributes.FirstOrDefault(a => a.Name == "LightSim_DiffuseAlbedoTexture") ?? attributes.FirstOrDefault(a => a.Name == "RepresentativeTexture");
         if (colour?.Binding is { } parameter)
         {
-            if (!info.Textures.TryGetValue(parameter, out var path))
+            if (info == null || !info.Textures.TryGetValue(parameter, out var path))
                 throw new NotSupportedException($"{material}: {colour.Name} binds {parameter}, which the material does not set (the shader default is not ported)");
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), texture(path, colour.BindingSrgb, false));
         }
