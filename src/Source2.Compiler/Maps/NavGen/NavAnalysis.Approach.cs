@@ -25,7 +25,7 @@ public sealed partial class NavAnalysis
     /// <summary>
     /// 1814b22d0 with the direction (0, 0, -1) (18029a0d0): down 10000 from 35.501 above the point; a hit
     /// counts when the start is clear and the trace either hits nothing or ends at least 35.5 from its
-    /// start, else it tries again from 35.501 above where it ended (16 tries, while the end is less than
+    /// start, else it tries again from 35.501 above where it ended (its start when it started solid) (16 tries, while the end is less than
     /// 100 above the point). The ground's z, or null.
     /// </summary>
     public float? GroundHeight(V pos)
@@ -36,9 +36,10 @@ public sealed partial class NavAnalysis
         var dot = (end.Z - pos.Z) * dz + (end.Y - pos.Y) * dy + (end.X - pos.X) * dx;
         for (var i = 0; -dot < 100f && i < 16; i++)
         {
+            // A start-solid trace (its flag at +0x2b) goes on from its start (1814b2585 picks the start over
+            // the end position); its fraction is 0, so the end position below is that start and the
+            // retry is the same as for a hit closer than 35.5.
             var f = TraceFraction(start, end);
-            if (f == 0f)
-                throw new NotSupportedException("a start-solid ground trace (the server's start-solid flag) is not modelled");
             var hit = new V((end.X - start.X) * f + start.X, (end.Y - start.Y) * f + start.Y, (end.Z - start.Z) * f + start.Z);
             if (f == 1f || 1260.25f <= (start.Y - hit.Y) * (start.Y - hit.Y) + (start.X - hit.X) * (start.X - hit.X) + (start.Z - hit.Z) * (start.Z - hit.Z))
                 return hit.Z;

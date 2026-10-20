@@ -24,26 +24,40 @@ public sealed class NavSphereWorld
 {
     public const float MaxDelta = 16384f;
 
-    private readonly record struct Cast(RnMesh Mesh, Vector3 Scale, bool Static, float[] T);
+    private readonly record struct Cast(RnMesh? Mesh, Vector3 Scale, Vector3[]? Hull, bool Static, float[] T);
 
     private readonly List<Cast> _shapes = [];
 
-    /// <summary>The world from <paramref name="bodies"/> as the game loaded them.</summary>
-    public NavSphereWorld(IReadOnlyList<SettleWorld.BodyBuild> bodies)
+    /// <summary>
+    /// The world from <paramref name="bodies"/>: the nav PhysDoc's world, the bodies
+    /// <paramref name="inNavWorld"/> keeps (<see cref="NavGenInput.NavWorldFilter"/>), as navsystem's.
+    /// </summary>
+    public NavSphereWorld(IReadOnlyList<SettleWorld.BodyBuild> bodies, Func<SettleWorld.BodyBuild, bool>? inNavWorld = null)
     {
         var table = CollisionGroupTable.Build();
-        var world = SettleWorld.CreateWorld(bodies, []);
-        for (var i = 0; i < bodies.Count; i++)
+        var kept = bodies.Where(b => inNavWorld?.Invoke(b) != false).ToList();
+        var world = SettleWorld.CreateWorld(kept, []);
+        for (var i = 0; i < kept.Count; i++)
         {
             var state = world.Bodies[i + 1].State;
             var t = NavBoxWorld.Transform(state);
-            foreach (var shape in bodies[i].Shapes)
+            foreach (var shape in kept[i].Shapes)
             {
                 if (!Passes(shape.Attributes, state.BodyType, table))
                     continue;
-                if (shape.Type == BroadphaseShape.HullType || shape.Mesh is not { } mesh)
+                if (shape.Type == BroadphaseShape.HullType && shape.Hull is { } hull)
+                {
+                    // 180250b20: a hull with a region SVM (+0xa8) runs the SVM pass 180257420 first; a scaled one the scaled support.
+                    if (hull.RegionSvm != null)
+                        throw new NotSupportedException("a nav analysis sphere cast against a hull with a region SVM (180257420) is not ported");
+                    if (shape.HullScale != 1f)
+                        throw new NotSupportedException("a nav analysis sphere cast against a scaled hull (1802e2bd0) is not ported");
+                    _shapes.Add(new Cast(null, Vector3.One, hull.VertexPositions, state.BodyType == 0, t));
+                    continue;
+                }
+                if (shape.Mesh is not { } mesh)
                     throw new NotSupportedException($"a nav analysis sphere cast against a type {shape.Type} shape is not ported");
-                _shapes.Add(new Cast(mesh, shape.MeshScale, state.BodyType == 0, t));
+                _shapes.Add(new Cast(mesh, shape.MeshScale, null, state.BodyType == 0, t));
             }
         }
     }
@@ -91,9 +105,12 @@ public sealed class NavSphereWorld
             var ls = new Vector3(t[0] * ox + t[1] * oy + t[2] * oz, t[3] * ox + t[4] * oy + t[5] * oz, t[6] * ox + t[7] * oy + t[8] * oz);
             var ld = new Vector3(delta.Y * t[1] + delta.X * t[0] + delta.Z * t[2], delta.Y * t[4] + delta.X * t[3] + delta.Z * t[5],
                                  delta.Y * t[7] + delta.X * t[6] + delta.Z * t[8]);
-            var hit = SphereCast.Mesh(s.Mesh, s.Scale, ls, ld, radius, best);
-            if (!hit.Found)
+            var (found, fraction) = s.Hull is { } points
+                ? HullCast.CastSphere(points, ls, ld, radius, best) is var h ? (h.Found, h.Fraction) : default
+                : SphereCast.Mesh(s.Mesh!, s.Scale, ls, ld, radius, best) is var m ? (m.Found, m.Fraction) : default;
+            if (!found)
                 continue;
+            var hit = (Found: found, Fraction: fraction);
             if (s.Static)
             {
                 if (kept < 0f)

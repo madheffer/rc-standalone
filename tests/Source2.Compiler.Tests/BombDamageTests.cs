@@ -40,20 +40,16 @@ public sealed class BombDamageTests(ITestOutputHelper output)
         return (d["bombsites"].AsBlob(), d["positions"].AsBlob(), d["damage_values"].AsBlob());
     }
 
-    /// <summary>The world's collision as vphysics2 holds it: meshes and hulls of world_physics.vmdl_c.</summary>
+    /// <summary>The world's collision as vphysics2 holds it: <see cref="BombDamage.MeshWorld"/> with a hull stand-in.</summary>
     private sealed class World(List<RnMesh> meshes, List<RnHull> hulls) : BombDamage.IWorld
     {
+        private readonly BombDamage.MeshWorld _meshes = new(meshes);
+
         public bool BoxFree(Vector3 centre, float half)
         {
-            var hits = new List<int>();
             var adjust = float.TryParse(Environment.GetEnvironmentVariable("BOMB_HALF_ADJUST"), System.Globalization.CultureInfo.InvariantCulture, out var a) ? a : 0f;
-            var h = new Vec3(half + adjust, half + adjust, half + adjust);
-            foreach (var m in meshes)
-            {
-                MeshSweep.Query(m, null, new Vec3(centre.X, centre.Y, centre.Z), new Vec3(0f, 0f, 0f), h, false, hits);
-                if (hits.Count > 0)
-                    return false;
-            }
+            if (!_meshes.BoxFree(centre, half, adjust))
+                return false;
             foreach (var hull in hulls)
             {
                 // A stand-in until the hull cast (180251800) is ported: the box against the hull's planes.
@@ -77,57 +73,8 @@ public sealed class BombDamageTests(ITestOutputHelper output)
             return true;
         }
 
-        /// <summary>
-        /// The mesh ray (1802406c0's triangle test): the three edge tests of the ray against each
-        /// edge (from the edge's midpoint relative to the origin; any negative misses), then the
-        /// front face only (n = e01 x e02, n . d below 0), t = (v0 - o) . n / (n . d) above 0,
-        /// at most 1; a hit when the least t is below 1.
-        /// </summary>
         public bool RayHits(Vector3 o, Vector3 d)
-        {
-            if (hulls.Count > 0)
-                throw new NotSupportedException("the hull ray (1802505c0) is not ported");
-            var lo = Vector3.Min(o, o + d);
-            var hi = Vector3.Max(o, o + d);
-            foreach (var m in meshes)
-                foreach (var (ia, ib, ic) in m.Triangles)
-                {
-                    Vector3 v0 = m.Vertices[ia], v1 = m.Vertices[ib], v2 = m.Vertices[ic];
-                    if (Math.Max(v0.X, Math.Max(v1.X, v2.X)) < lo.X || hi.X < Math.Min(v0.X, Math.Min(v1.X, v2.X))
-                        || Math.Max(v0.Y, Math.Max(v1.Y, v2.Y)) < lo.Y || hi.Y < Math.Min(v0.Y, Math.Min(v1.Y, v2.Y))
-                        || Math.Max(v0.Z, Math.Max(v1.Z, v2.Z)) < lo.Z || hi.Z < Math.Min(v0.Z, Math.Min(v1.Z, v2.Z)))
-                        continue;
-                    if (TriangleT(o, d, v0, v1, v2) < 1f)
-                        return true;
-                }
-            return false;
-        }
-
-        private static float TriangleT(Vector3 o, Vector3 d, Vector3 v0, Vector3 v1, Vector3 v2)
-        {
-            float ex = v1.X - v0.X, ey = v1.Y - v0.Y, ez = v1.Z - v0.Z;
-            // Edge midpoints relative to the origin.
-            float m12x = (v2.X + v1.X) * 0.5f - o.X, m12y = (v2.Y + v1.Y) * 0.5f - o.Y, m12z = (v2.Z + v1.Z) * 0.5f - o.Z;
-            float m02x = 0.5f * (v2.X + v0.X) - o.X, m02y = 0.5f * (v2.Y + v0.Y) - o.Y, m02z = 0.5f * (v2.Z + v0.Z) - o.Z;
-            float m01x = 0.5f * (v1.X + v0.X) - o.X, m01y = 0.5f * (v1.Y + v0.Y) - o.Y, m01z = 0.5f * (v1.Z + v0.Z) - o.Z;
-            float cx = m01z * ey - m01y * ez, cy = m01x * ez - m01z * ex, cz = m01y * ex - m01x * ey;
-            var lane2 = d.Z * cz + d.Y * cy + d.X * cx;
-            float fx = v0.X - v2.X, fy = v0.Y - v2.Y, fz = v0.Z - v2.Z;
-            var lane1 = d.Z * (m02y * fx - m02x * fy) + d.Y * (m02x * fz - m02z * fx) + d.X * (m02z * fy - m02y * fz);
-            float gx = v2.X - v1.X, gy = v2.Y - v1.Y, gz = v2.Z - v1.Z;
-            var lane0 = d.Z * (m12y * gx - m12x * gy) + d.Y * (m12x * gz - m12z * gx) + d.X * (m12z * gy - m12y * gz);
-            if (lane0 < 0f || lane1 < 0f || lane2 < 0f)
-                return 1f;
-            float hx = v2.X - v0.X, hy = v2.Y - v0.Y, hz = v2.Z - v0.Z;
-            float nx = hz * ey - hy * ez, ny = hx * ez - hz * ex, nz = hy * ex - hx * ey;
-            var denom = nx * d.X + ny * d.Y + nz * d.Z;
-            if (0f <= denom)
-                return 1f;
-            var t = ((v0.X - o.X) * nx + (v0.Y - o.Y) * ny + (v0.Z - o.Z) * nz) / denom;
-            if (t <= 0f)
-                return 1f;
-            return Math.Min(t, 1f);
-        }
+            => hulls.Count > 0 ? throw new NotSupportedException("the hull ray (1802505c0) is not ported") : _meshes.RayHits(o, d);
     }
 
     /// <summary>Exploration (BOMB_MARGIN=1): the boxes a 0.0005 margin blocks that the exact test leaves free, with the triangles they meet.</summary>

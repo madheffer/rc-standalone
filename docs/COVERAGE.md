@@ -55,13 +55,16 @@ What runs today:
 - The physics step: world_physics.
 
 The world step bakes when no builder is named or `-bakelighting` is given,
-unless `-nobakedlighting` is given. The bake, nav and Steam Audio are refused
-by name. `--skip-unported` runs the rest and leaves those parts as the
+unless `-nobakedlighting` is given. The bake and Steam Audio are refused by
+name; the nav step generates the nav with its CS custom data, and the CS2 bomb
+damage post step runs after every build (ledger 109); a nav or bomb damage the
+port refuses (func_ladder, markups, nav links, movable meshes, hull worlds) refuses
+the build. `--skip-unported` runs the rest and leaves those parts as the
 package has them, for quick test builds. A lump whose lights or probe
 volumes would lose their bake keys is refused unless `--accept-gaps` is
 passed. Hammer's Only Entities preset (`-entities -skipauxfiles
 -nolightmaps`) runs as is. Fast Compile (`-world -skipauxfiles -nolightmaps
--phys -nav`) runs with `--skip-unported` (nav).
+-phys -nav`) runs as is on a map the nav port covers.
 
 Status words:
 - **ported**: the part this option drives matches Valve's output.
@@ -111,7 +114,7 @@ says so.
 | `-nolightmaps` | no label found | no output: resourcecompiler has no such argument |
 | `-vis` | Build vis | compile-map: off without it (no vvis, grid clustering); every vis stage exact against captured inputs, Mako included; not yet end to end on our own geometry |
 | `-phys` | Build physics | compile-map: world_physics, exact against Valve's decoded trees on 9 maps |
-| `-nav` | Nav | not started |
+| `-nav` | Nav | compile-map: generated from the .vmap with the CS custom data and the bomb damage after it; probe01 and cardtest Valve's (the custom data's heap pointer fields aside), ledger 109; markups, nav links and movable meshes refused |
 | `-navdbg` | Save debug stages to file | not started |
 | `-gridnav` | Grid Nav, Build grid nav | not started |
 | `-lod` | Build LOD | not read |
@@ -212,7 +215,7 @@ exact 22, partial 10, unpinned 0, no sample 0
 | path_node_particle_rope | PathNode | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only | lump ported; vmap upgrader not ported | exact |
 | path_track | Point | resourcecompiler | editor only (clone chaining) | nothing to port for the compile | exact |
 | point_camera | Point | resourcecompiler | kept; a camera record added to a world list | lump ported; where the list is written not read | exact |
-| point_nav_walkable | Point | resourcecompiler | nav: walkable seed | lump ported; nav not started | exact |
+| point_nav_walkable | Point | resourcecompiler | nav: walkable seed | lump ported; nav generated (ledger 109) | exact |
 | point_scale_reference_human | Point | resourcecompiler | dropped from the lump | ported | exact |
 | point_template | Point | resourcecompiler | entities it names are left out of the settle | ported (settle) | exact |
 | prop_physics_override | Point | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: spawnflags to gravity-grab keys | lump and settle ported; vmap upgrader not ported | exact |

@@ -1,0 +1,10 @@
+{
+ "functions": [
+  {
+   "addr": "1800fe5f0",
+   "name": "MapCompile_RunPostMapBuildSteps",
+   "module": "s2c:baked/nav",
+   "note": "after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40)"
+  }
+ ]
+}

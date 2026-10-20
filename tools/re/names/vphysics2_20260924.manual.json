@@ -151,6 +151,36 @@
    "note": "180251800 with the shape's hull (+0xc0) and scale (+0xb8)"
   },
   {
+   "addr": "180250b20",
+   "name": "CRnHullShape::CastSphere",
+   "module": "s2c:baked/navgen",
+   "note": "vfn 0x20: a hull with a region SVM (+0xa8) runs 180257420 first and falls back on its +0x82 flag; else 180253ac0 with the hull (+0xc0), scale (+0xb8), radius and max fraction"
+  },
+  {
+   "addr": "180253ac0",
+   "name": "RnHull_CastSphereGjk",
+   "module": "s2c:baked/navgen",
+   "note": "ray 1802e2c30 cut by 1802e6e60 to the max fraction; scale 1: point support 18006d110 (0, 0, 0) and the hull support over +0x70 / +0x78, margin the radius; else 1802e2bd0 scaled; 1802e2ce0, 1802e7fc0"
+  },
+  {
+   "addr": "1802e6e60",
+   "name": "GjkRay_Trim",
+   "module": "s2c:baked/navgen",
+   "note": "fraction f = min(1 / length * 0.3125 + max fraction, 1) into +0x3c; length +0x30 = f * +0x34, end = start + delta * f; delta and direction kept"
+  },
+  {
+   "addr": "18006d110",
+   "name": "GjkPointSupport",
+   "module": "s2c:baked/navgen",
+   "note": "vtable 1803df308 slot 1: the point at +8, (0, 0, 0) for the sphere cast"
+  },
+  {
+   "addr": "180257420",
+   "name": "RnHull_CastSphereSvm",
+   "module": "s2c:baked/navgen",
+   "note": "a hull with a region SVM: 180257690 (with SVM nodes) or 180257fa0; +0x82 set asks for the GJK cast. Not ported (refused)"
+  },
+  {
    "addr": "180251800",
    "name": "RnHull_CastBox",
    "module": "s2c:baked/navgen",

@@ -1393,6 +1393,11 @@ VPHYSICS2 = [
     ("180248a30", "RnMesh_PointInsideClosed", NAVGEN, "ray to the nearest bound face (ties z, then y) through 18023fe00; inside when the hit faces along it"),
     ("18023fe00", "RnMesh_RayNormal", NAVGEN, "BVH ray with the hit triangle's unit normal"),
     ("180250540", "CRnHullShape::CastBox", NAVGEN, "180251800 with the shape's hull (+0xc0) and scale (+0xb8)"),
+    ("180250b20", "CRnHullShape::CastSphere", NAVGEN, "vfn 0x20: a hull with a region SVM (+0xa8) runs 180257420 first and falls back on its +0x82 flag; else 180253ac0 with the hull (+0xc0), scale (+0xb8), radius and max fraction"),
+    ("180253ac0", "RnHull_CastSphereGjk", NAVGEN, "ray 1802e2c30 cut by 1802e6e60 to the max fraction; scale 1: point support 18006d110 (0, 0, 0) and the hull support over +0x70 / +0x78, margin the radius; else 1802e2bd0 scaled; 1802e2ce0, 1802e7fc0"),
+    ("1802e6e60", "GjkRay_Trim", NAVGEN, "fraction f = min(1 / length * 0.3125 + max fraction, 1) into +0x3c; length +0x30 = f * +0x34, end = start + delta * f; delta and direction kept"),
+    ("18006d110", "GjkPointSupport", NAVGEN, "vtable 1803df308 slot 1: the point at +8, (0, 0, 0) for the sphere cast"),
+    ("180257420", "RnHull_CastSphereSvm", NAVGEN, "a hull with a region SVM: 180257690 (with SVM nodes) or 180257fa0; +0x82 set asks for the GJK cast. Not ported (refused)"),
     ("180251800", "RnHull_CastBox", NAVGEN, "points scaled and moved to the transformed reference point's frame; the GJK ray cast; Simulation/HullCast.Cast"),
     ("1802e2c30", "GjkRay_Init", NAVGEN, "start, end, delta, unit dir (180088f50), length, 1/length"),
     ("1802e2b90", "GjkBoxSupport_Init", NAVGEN, "vtable 1803e3128: slot 1 1802ea210 picks +h or -h by sign bit"),
@@ -2768,6 +2773,7 @@ SERVER_1015 = [
     ("1814e1950", "CNavArea_CollectNeighbours", NAV, "flags 1: connections edge by edge: area, how (edge), edge back (+0xc), +0x18"),
     ("1814b2910", "CNavMesh_GetNavArea", NAV, "the point's cell (or rings), contains-XY 1814c5a00, z 1814c43b0 in the hull record's window, the nearest z (ties to the later)"),
     ("1814b22d0", "CNavMesh_GetGroundHeight", NAV, "down 10000 from 35.501 above; a hit 35.5 or more from the start, else again from 35.501 above it (16 tries)"),
+    ("1814b2585", "CNavMesh_GetGroundHeight_StartSolid", NAV, "the retry point: the trace's start when its start-solid flag (+0x2b) is set, else its end position; a start-solid trace has fraction 0, so both are the start"),
     ("1814c43b0", "CNavArea::GetZ", NAV, "fan triangle (previous, nearest 1814c1ff0, next corner); the one two corners on when the first is degenerate or the point lies outside"),
     ("1814c5a00", "CNavArea::ContainsXY", NAV, "bounds and each edge's outward half-plane grown by the tolerance"),
     ("1814c1ff0", "CNavArea::NearestCorner", NAV, "XY, the first of equals"),
@@ -2782,6 +2788,11 @@ def write(name, rows):
     with open(os.path.join(HERE, name), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"functions": [{"addr": a, "name": n, "module": m, "note": note} for a, n, m, note in rows]}, f, indent=1)
 
+
+# resourcecompiler.dll as installed since the 10-15 update (tools/re/binaries/resourcecompiler_20261015.dll).
+RESOURCECOMPILER_1015 = [
+    ("1800fe5f0", "MapCompile_RunPostMapBuildSteps", NAV, "after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40)"),
+]
 
 if __name__ == "__main__":
     write("resourcecompiler_20260923.manual.json", RESOURCECOMPILER)
@@ -2802,4 +2813,5 @@ if __name__ == "__main__":
     write("materialsystem2_20261015.manual.json", MATERIALSYSTEM_1015)
     write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
     write("server_20261015.manual.json", SERVER_1015)
+    write("resourcecompiler_20261015.manual.json", RESOURCECOMPILER_1015)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

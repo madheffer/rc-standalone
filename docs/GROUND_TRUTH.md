@@ -1799,8 +1799,7 @@ game can answer is raised with the user first, and runs with -insecure.
     - CRT math as tier0 ships it: exp2f (1802bdd90) and acosf (1802df0a4).
       CrtMath.Exp2 and CrtMath.Acos.
     - Open:
-      - nav generation (L9), which the bake samples; until then a compile has
-        no bomb damage;
+      - nav generation (L9), which the bake samples: done, ledger 109;
       - the hull cast and ray (Valve's maps so far have meshes only);
       - the neighbour-index triangle variant (180243770);
       - the trigger overlap for a rotated or non-box trigger.
@@ -2526,14 +2525,14 @@ game can answer is raised with the user first, and runs with -insecure.
       pointers; each encounter rewrites the area's order array, so it keeps the last encounter's
       spots: the spot pointer's low dword and t), approachdata (-1 for no area), earliestoccupytime;
       integers 0 and 1 as the int64 zero / one types, t and times as doubles.
-    - Not ported (refused): the survival play area path, areas without polygons, start-solid
-      traces, special edges in GetNavArea, hulls in the analysis traces. V_sinf / V_cosf are taken as
+    - Not ported (refused): the survival play area path, areas without polygons, special edges
+      in GetNavArea. Start-solid traces and hull sphere casts: ledger 109. V_sinf / V_cosf are taken as
       MathF (only clear-or-blocked depends on them).
     - Open (inferred, not yet settled from the DLLs): the incoming-connection lists (CNavArea +0x90)
       the hiding-spot corner test reads are taken as the one-way connections into the area (another
       area connects to it on that edge and it does not connect back); probe01 has none. Not
       exercised by probe01: crouch areas (31.95 / 37), the second GetZ triangle, blocked-list
-      exhaustion (256), hull sphere casts.
+      exhaustion (256).
 
 104. **The nav world's box casts from our own bodies; the nav world keeps no movable props**
     (decompile of resourcecompiler 20260923 and vphysics2 20260924 / 20261015, captured with CS2
@@ -2706,6 +2705,52 @@ game can answer is raised with the user first, and runs with -insecure.
       +0x14..+0x1c (Valve's are uninitialised memory). Open: cardtest's probe volume 471278508
       differs in 1 to 3 of 8,064 texels per band (ours deterministic over two runs); its
       471278509 is identical.
+
+109. **compile-map generates the nav with its CS custom data and bakes the bomb damage from it**
+    (settled 2026-10-20 by disassembly of resourcecompiler 20261015, server 20261015 and vphysics2
+    20260924 / 20261015, and a Frida capture of cardtest's analysis with CS2 closed,
+    tools/re/capture_navanalysis.py s2c_rc_probe cardtest). Verified from the .vmap alone, against
+    Valve's full compiles in %TEMP%/vrad3_refs: on probe01 and cardtest the .nav is Valve's up to the
+    custom data, the custom data is Valve's but for the heap pointer fields (spotencounterdata
+    from / to, the order ids; their KV3 type follows their value), and baked_bomb_damage.vdata_c is
+    Valve's byte for byte (390,594 and 391,043 bytes), through MapCompile.Run -nav as well
+    (NavCompileTests).
+    - The nav step (Maps/NavCompile.cs) runs NavGenPipeline on the map's settle world (unsettled),
+      builds the mesh, then CS's Compute AI Data and the save. The spawns are the visible
+      info_player_terrorist and info_player_counterterrorist entities in entity order. Our
+      pointer fields are the area and spot ids. Movable meshes and trigger_survival_playarea are
+      refused; with --skip-unported a refused nav leaves the package's.
+    - The analysis traces the nav PhysDoc's world: the bodies NavGenInput.NavWorldFilter keeps
+      (flags 0x16), not the whole settle world. cardtest's Solidity 1 func_brush (node 2139) is
+      the difference: with the filter all 29,866 world casts up to the last area's approach step
+      are Valve's; without it 329 are not and area 24 gains an approach entry. Three casts after
+      the last approach step (one ground search at (-0.25, 0.25, 44)) do meet that func_brush;
+      nothing of them reaches the .nav, and which step makes them is not read.
+    - The hull's sphere cast (CRnHullShape vfn 0x20, 180250b20): a hull with a region SVM (+0xa8)
+      runs 180257420 first (not ported, refused). Otherwise 180253ac0: the ray (1802e2c30) cut by
+      1802e6e60 to f = min(1 / length * 0.3125 + the max fraction, 1) of its delta (length and end;
+      the delta and direction stay), then the GJK cast HullCast already ports (1802e2ce0,
+      1802e7fc0 -> 1802e8060) on the point (0, 0, 0) (18006d110) with the radius as its margin,
+      against the hull's points as stored. A scaled hull uses 1802e2bd0 (not ported, refused).
+      HullCast.CastSphere answers cardtest's 4 hull sphere casts bit for bit.
+    - A start-solid ground trace (1814b2585): the next try starts from the trace's start when its
+      start-solid flag (+0x2b) is set, else from its end position. A start-solid cast has fraction
+      0, so the end position is the start and the two agree; the refusal is gone.
+    - The bomb damage is a post-build step: after every compile resourcecompiler (1800fe5f0) runs
+      each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps as a map compile
+      modifier; CS2 lists cs2_bomb_damage (modtools 18003ad70). compile-map runs it after the nav
+      step on whatever nav the package then holds, before the map root, so the .vmap_c lists the
+      file as Valve's does.
+      - The sites: func_bomb_target entities with bomb_damage_power above 0 (the FGD's 3000 when
+        unset), in entity order; bounds from the trigger mesh's world corners. Only an
+        axis-aligned box trigger outside instances and prefabs is ported (the overlap is then the
+        box test); others are refused.
+      - The world: world_physics.vmdl_c's meshes (BombDamage.MeshWorld); a world with hulls,
+        spheres or capsules is refused (the hull box cast and ray are not ported for the bake).
+    - The RED2 of the bomb damage file records the addon the map compiled in: Valve's references
+      were compiled in s2c_rc_probe.
+    - Open: the region SVM pass and scaled hulls in the sphere cast; whether the late three casts
+      come from a step that writes anything; the survival play area path.
 
 ## Resolved
 

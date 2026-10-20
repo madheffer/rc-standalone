@@ -40,6 +40,7 @@ public static class HullCast
         public bool StartSolid, Shrunk, Sep;
         public Ray Ray = null!;
         public V Half;
+        public bool Point;
         public V[] Points = null!;
     }
 
@@ -89,10 +90,38 @@ public static class HullCast
         return new Hit(true, g.Frac, g.StartSolid);
     }
 
+    /// <summary>
+    /// 180253ac0 at scale 1 (the hull shape's vfn 0x20, 180250b20, for a hull with no region SVM): a
+    /// sphere of <paramref name="radius"/> cast from <paramref name="start"/> by <paramref name="delta"/>
+    /// in the hull's frame. The ray (1802e2c30) is cut by 1802e6e60 to min(1 / length * 0.3125 +
+    /// <paramref name="limit"/>, 1) of the delta (its length and end; the delta stays), then the GJK cast
+    /// (1802e2ce0, 1802e7fc0 -> 1802e8060) runs on the point (0, 0, 0) with the radius as the margin
+    /// against the hull's points as stored.
+    /// </summary>
+    public static Hit CastSphere(Vector3[] points, Vector3 start, Vector3 delta, float radius, float limit)
+    {
+        var pts = new V[points.Length];
+        for (var i = 0; i < points.Length; i++)
+            pts[i] = new V(points[i].X, points[i].Y, points[i].Z);
+        var s = new V(start.X, start.Y, start.Z);
+        var ray = new Ray { Start = s, Delta = new V(delta.X, delta.Y, delta.Z), Dir = new V(delta.X, delta.Y, delta.Z) };
+        var len = Normalize(ref ray.Dir);
+        ray.Len = ray.Len0 = len;
+        ray.Inv = 0f < len ? 1f / len : 0f;
+        var f = ray.Inv * 0.3125f + limit;
+        f = f < 1f ? f : 1f;
+        ray.Len = f * ray.Len0;
+        ray.End = new V(delta.X * f + s.X, delta.Y * f + s.Y, delta.Z * f + s.Z);
+        var g = new Gjk { V0 = s, Ray = ray, Point = true, Points = pts, Margin = radius };
+        if (!CastRay(g))
+            return default;
+        return new Hit(true, g.Frac, g.StartSolid);
+    }
+
     // ---- supports ----
 
-    /// <summary>1802ea210: the box's corner by the sign bit of each component.</summary>
-    private static V SupA(Gjk g, V d) => new(BitConverter.SingleToInt32Bits(d.X) < 0 ? -g.Half.X : g.Half.X,
+    /// <summary>1802ea210: the box's corner by the sign bit of each component; 18006d110 for a sphere's point: its centre, (0, 0, 0).</summary>
+    private static V SupA(Gjk g, V d) => g.Point ? default : new(BitConverter.SingleToInt32Bits(d.X) < 0 ? -g.Half.X : g.Half.X,
                                              BitConverter.SingleToInt32Bits(d.Y) < 0 ? -g.Half.Y : g.Half.Y,
                                              BitConverter.SingleToInt32Bits(d.Z) < 0 ? -g.Half.Z : g.Half.Z);
 
@@ -247,7 +276,7 @@ public static class HullCast
         var sl = Normalize(ref sub.Dir);
         sub.Len = sub.Len0 = sl;
         sub.Inv = 0f < sl ? 1f / sl : 0f;
-        var h = new Gjk { V0 = g.V0, Ray = sub, Half = g.Half, Points = g.Points, Margin = g.Margin };
+        var h = new Gjk { V0 = g.V0, Ray = sub, Half = g.Half, Point = g.Point, Points = g.Points, Margin = g.Margin };
         if (!Run(h))
             return false;
         g.Frac = sub.Inv * h.Dist * (c1 - c0) + c0;

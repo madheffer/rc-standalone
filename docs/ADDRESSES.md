@@ -113,25 +113,25 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7` |
-| `18003b5d0` | `CCS2BombDamageBaker::GatherBombsites` | func_bomb_target entities with bomb_damage_power above 0 |  |
-| `18003b750` | `CCS2BombDamageBaker::BuildGrid` | top seed cells lifted 30 into the node table (+0x11 written out), site membership by the trigger overlapping the cell box (vtable +0xd0); rounds of zero-length box casts (vphysics2 +0x558) growing 5 diagonal-down steps within the bounds +-30, at most 64 | `src/Source2.Compiler/Maps/BombDamage.cs:15`, `src/Source2.Compiler/Maps/BombDamage.cs:137`, `src/Source2.Compiler/Maps/BombDamage.cs:175` |
-| `18003d030` | `CCS2BombDamageBaker::SampleNavAreas` | per area, per fan triangle (v0, v[n-1], v[n-2]) down: cells of the area bounds snapped through fmod, y x z from the top, box half 10 against the triangle (1803f2400); bounds of every hit | `src/Source2.Compiler/Maps/BombDamage.cs:69`, `src/Source2.Compiler/Maps/BombDamage.cs:84` |
-| `18003db50` | `CCS2BombDamageBaker::LineBlocked` | a ray each way (vphysics2 +0x4f8); FLT_MAX ends blocked, equal ends clear | `src/Source2.Compiler/Maps/BombDamage.cs:343` |
-| `18003ddf0` | `CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite` | frontier from the distance-0 nodes, every node into the site table, 26-neighbour jobs then applied in order; frontier tables swapped and emptied in place | `src/Source2.Compiler/Maps/BombDamage.cs:250` |
-| `18003eb60` | `CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite::lambda_1` | one neighbour: parent shortcut to the grandparent when the line is clear, cost from the path, next frontier when not blocked | `src/Source2.Compiler/Maps/BombDamage.cs:241`, `src/Source2.Compiler/Maps/BombDamage.cs:304` |
-| `18003f260` | `CCS2BombDamageBaker::BuildPath` | parents back to distance 0 or a self parent, the candidate standing in for its node; null on a cycle | `src/Source2.Compiler/Maps/BombDamage.cs:358` |
-| `18003fa60` | `CCS2BombDamageBaker::PathLength` | segment lengths (z^2 + y^2 + x^2) summed four at a time | `src/Source2.Compiler/Maps/BombDamage.cs:385` |
-| `18003fd80` | `CCS2BombDamageBaker::PathTurns` | acosf of each corner in degrees (57.29577637), none under 0.01 per axis | `src/Source2.Compiler/Maps/BombDamage.cs:405` |
-| `18003ffa0` | `CCS2BombDamageBaker::GatherRuntimeData` | written-out nodes in slot order: distance clamped to 16 bits, yaw and pitch bytes, leaning to the site within 1600 | `src/Source2.Compiler/Maps/BombDamage.cs:433` |
-| `180040c40` | `CCS2BombDamageBaker::WriteHeader` | generic_data_type, header.version 2, bombsites (bounds, bomb_damage_power default 3000) | `src/Source2.Compiler/Maps/BombDamage.cs:528` |
-| `180041040` | `CCS2BombDamageBaker::WriteVdata` | positions (int16 x, y, z - 30) and damage_values blobs | `src/Source2.Compiler/Maps/BombDamage.cs:213`, `src/Source2.Compiler/Maps/BombDamage.cs:433` |
-| `180041470` | `BombNodeTable::Insert` | CUtlHashtable, key hash MurmurHash2 mix of the float bits, seed 0xea711bd8 | `src/Source2.Compiler/Maps/BombDamage.cs:37` |
+| `18003ad70` | `CMapCompileModifierCS2BombDamage::Run` | bombsites, build, distances, then the .vdata (cs2_baked_bomb_damage_data, /baked_bomb_damage.vdata) saved as a child; grid 10, 32 | `src/Source2.Compiler/Maps/BombDamage.cs:7`, `src/Source2.Compiler/Maps/MapCompile.cs:284`, `src/Source2.Compiler/Maps/NavCompile.cs:119` |
+| `18003b5d0` | `CCS2BombDamageBaker::GatherBombsites` | func_bomb_target entities with bomb_damage_power above 0 | `src/Source2.Compiler/Maps/NavCompile.cs:69` |
+| `18003b750` | `CCS2BombDamageBaker::BuildGrid` | top seed cells lifted 30 into the node table (+0x11 written out), site membership by the trigger overlapping the cell box (vtable +0xd0); rounds of zero-length box casts (vphysics2 +0x558) growing 5 diagonal-down steps within the bounds +-30, at most 64 | `src/Source2.Compiler/Maps/BombDamage.cs:15`, `src/Source2.Compiler/Maps/BombDamage.cs:210`, `src/Source2.Compiler/Maps/BombDamage.cs:248` |
+| `18003d030` | `CCS2BombDamageBaker::SampleNavAreas` | per area, per fan triangle (v0, v[n-1], v[n-2]) down: cells of the area bounds snapped through fmod, y x z from the top, box half 10 against the triangle (1803f2400); bounds of every hit | `src/Source2.Compiler/Maps/BombDamage.cs:142`, `src/Source2.Compiler/Maps/BombDamage.cs:157` |
+| `18003db50` | `CCS2BombDamageBaker::LineBlocked` | a ray each way (vphysics2 +0x4f8); FLT_MAX ends blocked, equal ends clear | `src/Source2.Compiler/Maps/BombDamage.cs:416` |
+| `18003ddf0` | `CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite` | frontier from the distance-0 nodes, every node into the site table, 26-neighbour jobs then applied in order; frontier tables swapped and emptied in place | `src/Source2.Compiler/Maps/BombDamage.cs:323` |
+| `18003eb60` | `CCS2BombDamageBaker::PopulateNodeDistancesFromBombsite::lambda_1` | one neighbour: parent shortcut to the grandparent when the line is clear, cost from the path, next frontier when not blocked | `src/Source2.Compiler/Maps/BombDamage.cs:314`, `src/Source2.Compiler/Maps/BombDamage.cs:377` |
+| `18003f260` | `CCS2BombDamageBaker::BuildPath` | parents back to distance 0 or a self parent, the candidate standing in for its node; null on a cycle | `src/Source2.Compiler/Maps/BombDamage.cs:431` |
+| `18003fa60` | `CCS2BombDamageBaker::PathLength` | segment lengths (z^2 + y^2 + x^2) summed four at a time | `src/Source2.Compiler/Maps/BombDamage.cs:458` |
+| `18003fd80` | `CCS2BombDamageBaker::PathTurns` | acosf of each corner in degrees (57.29577637), none under 0.01 per axis | `src/Source2.Compiler/Maps/BombDamage.cs:478` |
+| `18003ffa0` | `CCS2BombDamageBaker::GatherRuntimeData` | written-out nodes in slot order: distance clamped to 16 bits, yaw and pitch bytes, leaning to the site within 1600 | `src/Source2.Compiler/Maps/BombDamage.cs:506` |
+| `180040c40` | `CCS2BombDamageBaker::WriteHeader` | generic_data_type, header.version 2, bombsites (bounds, bomb_damage_power default 3000) | `src/Source2.Compiler/Maps/BombDamage.cs:601` |
+| `180041040` | `CCS2BombDamageBaker::WriteVdata` | positions (int16 x, y, z - 30) and damage_values blobs | `src/Source2.Compiler/Maps/BombDamage.cs:286`, `src/Source2.Compiler/Maps/BombDamage.cs:506` |
+| `180041470` | `BombNodeTable::Insert` | CUtlHashtable, key hash MurmurHash2 mix of the float bits, seed 0xea711bd8 | `src/Source2.Compiler/Maps/BombDamage.cs:110` |
 | `180042570` | `BombNodeTable::Rehash` | next power of two of max(n, 32), re-placed from the last slot |  |
 | `180042800` | `BombNodeTable::Bump` | the run's entry to the first free slot past the run, FLAG_LAST moves |  |
 | `1803f15e0` | `VectorAngles` | atan2f yaw and pitch in [0, 360) |  |
-| `1803f1c80` | `VectorNormalizeWide` | double precision: (y^2 + x^2) + z^2, components times 1 / length | `src/Source2.Compiler/Maps/BombDamage.cs:520`, `src/Source2.Compiler/Maps/BombDamage.cs:647` |
-| `1803f2400` | `BoxTriangleOverlap` | Akenine-Moller SAT: triangle bounds, unit edges against the axes, unit normal; tolerance added to the reach | `src/Source2.Compiler/Maps/BombDamage.cs:71`, `src/Source2.Compiler/Maps/BombDamage.cs:583` |
+| `1803f1c80` | `VectorNormalizeWide` | double precision: (y^2 + x^2) + z^2, components times 1 / length | `src/Source2.Compiler/Maps/BombDamage.cs:593`, `src/Source2.Compiler/Maps/BombDamage.cs:720` |
+| `1803f2400` | `BoxTriangleOverlap` | Akenine-Moller SAT: triangle bounds, unit edges against the axes, unit normal; tolerance added to the reach | `src/Source2.Compiler/Maps/BombDamage.cs:144`, `src/Source2.Compiler/Maps/BombDamage.cs:656` |
 
 ## navsystem.dll, build 20261015
 
@@ -500,7 +500,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:343`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153` |
+| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:376`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153` |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:165` |
 | `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
@@ -762,7 +762,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800fb1c0` | `CNavGenInput_Construct` | bounds FLT_MAX/-FLT_MAX, +0x120 15.0; +0x128 left to 180f20e40 |  |
-| `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:257`, `src/Source2.Compiler/Maps/NavFile.cs:7`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:7` +2 |
+| `1800fc370` | `MapCompile_BuildNav` | the nav step: settings from the map's CMapNavData (180fafae0) or 'Nav settings not found, using default settings.', the seed and markup collectors (180f21760 first), navsystem's generation ('>>NAVGEN: Skipped... no walkable seeds present' with no seeds), then maps/<map>.nav, .navdbg, .navspace and .navflowmap. No seeds and no settings give the fixed 834-byte nav (Maps/NavFile.cs) | `src/Source2.Compiler/Maps/MapCompile.cs:259`, `src/Source2.Compiler/Maps/NavCompile.cs:21`, `src/Source2.Compiler/Maps/NavFile.cs:7` +3 |
 | `1800fd2b0` | `MapCompile_CreateNavMesh` | the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720) |  |
 | `180dd2210` | `EntityClass_HasStaticMesh` | the FGD class's metadata (+0xc0) bool has_static_mesh (hash 0x2755870d, default 0): prop_static and cable_static | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:88` |
 | `180f1ef70` | `NavGen_FindNavMarkups` | func_nav_markup entities in the map, then each sub-world's (flag 4 keeps the list) |  |
@@ -1683,6 +1683,19 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181004390` | `CMapEntity_ExportBoneTransforms` | boneTransforms "name: px py pz qx qy qz qw;" when the class has PosableSkeleton |  |
 | `18174aeb0` | `PosableSkeleton_Serialize` |  |  |
 
+## resourcecompiler.dll, build 20261015
+
+- file: `resourcecompiler.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
+- SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
+- installed: this build
+- 1 addresses
+
+### s2c:baked/nav
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1800fe5f0` | `MapCompile_RunPostMapBuildSteps` | after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40) | `src/Source2.Compiler/Maps/MapCompile.cs:283` |
+
 ## scenesystem.dll, build 20261015
 
 - file: `scenesystem.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
@@ -1734,7 +1747,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 ## server.dll, build 20261015
 
 - file: not found locally
-- 35 addresses
+- 36 addresses
 
 ### s2c:baked/nav
 
@@ -1744,9 +1757,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1803906a0` | `CSNavMesh_ComputeAIData` | 'CSGO Compute AI Data': 1803935e0 occupy times, 180394b10 hiding spots, 180393ea0 encounter spots, then 180393060 per area (approach areas); a map with trigger_survival_playarea skips them (occupy 120, approach count 0) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.CustomData.cs:14` |
 | `180390ca0` | `ApproachAreaCost::ApproachAreaCost` | vtable 1817bee30 over CNavPathCost 1817a7d48 (hull +8) |  |
 | `180391710` | `CCSNavArea::AddSpotEncounter` | the path between the two portals' midpoints, 62 up; spots every 25 within 2000 with a clear trace, dot within +-0.7071; marker 181fa564c | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Encounter.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Encounter.cs:43` |
-| `180392280` | `ApproachAreaCost::EdgeCost` | vfn 0x90 of 1817bee30: -1 for a blocked id, else \|record pos(from) - record pos(to)\|; the search's position is left alone | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:90` |
+| `180392280` | `ApproachAreaCost::EdgeCost` | vfn 0x90 of 1817bee30: -1 for a blocked id, else \|record pos(from) - record pos(to)\|; the search's position is left alone | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:91` |
 | `1803925e0` | `ClassifySniperSpot` | eye 62 (attribute bit 10) or 37 up; 1810f5f80 / 1810fb4e0 with range 2000, spacing 10 and the collector 1817bf1a8 (18039c7c0); ideal 4 / good 2 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:291` |
-| `180393060` | `CCSNavArea::ComputeApproachAreas` | +0x488 count (at most 16), entries of 0x38 from +0x108; shortest paths both ways (1810ce520), 180398290 visibility; the next area's id (+0x60) goes on a blocked list (181fa56f0, count 181fa5af0) and the path is rebuilt (ledger 103) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:101` |
+| `180393060` | `CCSNavArea::ComputeApproachAreas` | +0x488 count (at most 16), entries of 0x38 from +0x108; shortest paths both ways (1810ce520), 180398290 visibility; the next area's id (+0x60) goes on a blocked list (181fa56f0, count 181fa5af0) and the path is rebuilt (ledger 103) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:102` |
 | `1803935e0` | `CSNavMesh_ComputeEarliestOccupyTimes` | origins of info_player_terrorist then info_player_counterterrorist (entity order), 180394e20 per area | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:807` |
 | `180393ea0` | `CSNavMesh_ComputeEncounterSpots` | 180391710, 18039a860, 1814e1950 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Encounter.cs:22` |
 | `180394340` | `CCSNavArea::ComputeHidingSpots` | corners with both edges unconnected (out +0x70, in +0x90), no spot within 30, GetNavArea there; cover traces (20 up, 16 out 100); 1803925e0 per spot | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:240` |
@@ -1754,7 +1767,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180394e20` | `CCSNavArea::ComputeEarliestOccupyTimes` | +0xc8 / +0xcc start at 120; per spawn: nearest area (1814b3a10, 10000), travel distance (1814d96f0, cost functor 1817a7d48) / 260, the least kept | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:807` |
 | `180395650` | `HidingSpot_Create` | 0x28 bytes; id from the counter 181da14e0 (reset by Compute AI Data); added to the mesh's list +0x478 / +0x480 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:222` |
 | `180397850` | `GetNavAreaForHull` | 1814b2910 with flags 2 and the hull record 1802b11b0 (80, 18, 16), tolerance 0.05 |  |
-| `180398290` | `CCSNavArea::IsPotentiallyVisible` | centre 53.25 up, then corners 106.5 up whose direction from the eye has a dot below nav_potentially_visible_dot_tolerance (0.98) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:67` |
+| `180398290` | `CCSNavArea::IsPotentiallyVisible` | centre 53.25 up, then corners 106.5 up whose direction from the eye has a dot below nav_potentially_visible_dot_tolerance (0.98) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:68` |
 | `180399100` | `CCSNavArea::LoadCustomData` | the reader of 18039ad80's keys |  |
 | `18039a7c0` | `CSNavMesh::Analyze` | vfn 0x60: 18039aa00 (CS pre-step), the shared 1814cfaa0, then 18039a730 per entry of +0x480 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:5` |
 | `18039a860` | `CCSNavArea::ClearSpotEncounters` | frees +0xc0's encounters (0x60 bytes each) |  |
@@ -1764,6 +1777,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810f5f80` | `CNavAreaSearch_Init` | origin, start area, range (+0x264), spacing (+0x260), the visit lambda 181a145a0 (181108dc0 -> 1810f6dd0: areas in the origin's box) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:155` |
 | `1810fb4e0` | `CNavAreaSearch_Run` | the Dijkstra (1802cdb70 / 180324230 / 1802c7fe0), then rings of samples 1810fb740 / 1810f76b0 (hex lattice) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:155`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:330` |
 | `1814b22d0` | `CNavMesh_GetGroundHeight` | down 10000 from 35.501 above; a hit 35.5 or more from the start, else again from 35.501 above it (16 tries) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:26` |
+| `1814b2585` | `CNavMesh_GetGroundHeight_StartSolid` | the retry point: the trace's start when its start-solid flag (+0x2b) is set, else its end position; a start-solid trace has fraction 0, so both are the start | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:39` |
 | `1814b2910` | `CNavMesh_GetNavArea` | the point's cell (or rings), contains-XY 1814c5a00, z 1814c43b0 in the hull record's window, the nearest z (ties to the later) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:108` |
 | `1814c1ff0` | `CNavArea::NearestCorner` | XY, the first of equals | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:5` |
 | `1814c2ee0` | `Polygon_ClosestPoint` | fan triangles (v0, v[i], v[i-1]) from the last, 1814762f0 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:376` |
@@ -2132,7 +2146,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2.dll`, 4,829,848 bytes, PE time 2026-10-14 18:42 UTC
 - SHA-256 `1d7680455eb1ca3ad7c9b92165515351f607e96db66cf466140aaf3f00946dba`
 - installed: this build
-- 485 addresses
+- 490 addresses
 
 ### s2c:baked/bomb
 
@@ -2141,8 +2155,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f29e0` | `CRnWorld::CastBox` | each broadphase tree whose kind (+0x50) meets the query's type mask (+0x2f; 0xf takes all), walked by 1801d64a0; shape vtable +0x40 | `src/Source2.Compiler/Simulation/BoxCast.cs:10` |
 | `1801f4ad0` | `CRnWorld::CastRay` | each broadphase tree (1801d8580), shape vtable +0x10 | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:165`, `src/Source2.Compiler/Maps/NavGen/NavGenLadders.cs:8` |
 | `1801f5080` | `CRnWorld::CastShape` | by shape type: 0 ray (1801f4ad0), 1 sphere, 2 box (1801f29e0), 3, 4 | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:9`, `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:5`, `src/Source2.Compiler/Simulation/BoxCast.cs:9` |
-| `1802406c0` | `RnMesh_CastRay` | edge tests from the edge midpoints, front faces only (n . d below 0), t above 0 clamped to 1 | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:168`, `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:202` |
-| `1802421c0` | `CRnMeshShape::CastBox` | unscaled shapes take 180245a10 (no scale division), else 180244dc0 | `src/Source2.Compiler/Simulation/BoxCast.cs:47`, `src/Source2.Compiler/Simulation/MeshSweep.cs:41` |
+| `1802406c0` | `RnMesh_CastRay` | edge tests from the edge midpoints, front faces only (n . d below 0), t above 0 clamped to 1 | `src/Source2.Compiler/Maps/BombDamage.cs:60`, `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:168`, `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:202` |
+| `1802421c0` | `CRnMeshShape::CastBox` | unscaled shapes take 180245a10 (no scale division), else 180244dc0 | `src/Source2.Compiler/Maps/BombDamage.cs:42`, `src/Source2.Compiler/Simulation/BoxCast.cs:47`, `src/Source2.Compiler/Simulation/MeshSweep.cs:41` |
 | `180242360` | `CRnMeshShape::CastRay` | 1802406c0 on the shape's scale |  |
 | `180245a10` | `RnMesh_CastBoxUnscaled` | BVH walk; triangles through 180244380, or 180243770 when the mesh has neighbour indices (+0x68) | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:15`, `src/Source2.Compiler/Simulation/BoxCast.cs:31`, `src/Source2.Compiler/Simulation/BoxCast.cs:47` +2 |
 
@@ -2158,7 +2172,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802643e0` | `RnMesh_GetTriangles` | BVH leaves in node order when flags (+0xb4) have bit 3, else 0..n | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:215` |
 | `1802661f0` | `RnShape_GetTriangles` | by shape type: 0 sphere, 1 capsule, 2 hull (180130e60), 3 mesh (1802643e0), 4 compound | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:14`, `src/Source2.Compiler/Maps/NavGen/NavGenShapes.cs:6` |
 | `18029b6f0` | `RnGjk_PointSetDistance` | point-list proxies (scale 1, no box), 32 iterations | `src/Source2.Compiler/Maps/NavGen/NavGjk.cs:71` |
-| `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:51` |
+| `1802facf0` | `RnQueryAttributes_Test` | layers, excludes, shape flag 2, function mask, group table 18045b328 | `src/Source2.Compiler/Maps/NavGen/NavGenInput.cs:32`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:65` |
 
 ### s2c:baked/navgen
 
@@ -2167,10 +2181,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180064f20` | `CVPhys2World::CastRay` | world vfn 0x4f8 -> 1801f4ad0 |  |
 | `180065360` | `CVPhys2World::CastShape` | world vfn 0x558 -> 1801f5080 | `src/Source2.Compiler/Maps/NavGen/NavGenClip.cs:5`, `src/Source2.Compiler/Simulation/BoxCast.cs:9` |
 | `180065370` | `CPhysicsWorld::CastShapeAllHits` | world vfn 0x560 -> 1801f4e40; the sphere type (descriptor +0x28 = 1: centre +0, radius +0xc) to 1801f5360 | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:9` |
-| `18008d5b0` | `Vector_Perpendicular` | ((1 - z) y^2 + z, 0, -x) normalised, made orthogonal, normalised | `src/Source2.Compiler/Maps/NavGen/NavGenShapes.cs:96`, `src/Source2.Compiler/Simulation/HullCast.cs:1632` |
-| `18016b0e0` | `RaySphereCast` | capsules under 0.001; inside via 18016b2f0 | `src/Source2.Compiler/Simulation/HullCast.cs:1590` |
-| `18016caf0` | `RayCapsuleCast` | fraction, point, normal, start solid (+0x30) | `src/Source2.Compiler/Simulation/HullCast.cs:1408` |
-| `1801c4370` | `Ray_ClipToWorld` | only when \|delta\| exceeds g_flConfigMaxCoord: the slab clip to +-2 max coord; offset and scale for the fractions | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:12`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:82` |
+| `18006d110` | `GjkPointSupport` | vtable 1803df308 slot 1: the point at +8, (0, 0, 0) for the sphere cast | `src/Source2.Compiler/Simulation/HullCast.cs:123` |
+| `18008d5b0` | `Vector_Perpendicular` | ((1 - z) y^2 + z, 0, -x) normalised, made orthogonal, normalised | `src/Source2.Compiler/Maps/NavGen/NavGenShapes.cs:96`, `src/Source2.Compiler/Simulation/HullCast.cs:1661` |
+| `18016b0e0` | `RaySphereCast` | capsules under 0.001; inside via 18016b2f0 | `src/Source2.Compiler/Simulation/HullCast.cs:1619` |
+| `18016caf0` | `RayCapsuleCast` | fraction, point, normal, start solid (+0x30) | `src/Source2.Compiler/Simulation/HullCast.cs:1437` |
+| `1801c4370` | `Ray_ClipToWorld` | only when \|delta\| exceeds g_flConfigMaxCoord: the slab clip to +-2 max coord; offset and scale for the fractions | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:12`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:96` |
 | `1801d64a0` | `RnBroadphase_CastBox` | a broadphase tree's walk for CastBox: each leaf's body type against the query's mask (+0x2f), 1802facf0, the shape transform from the body (q rows, world mass centre less q (s c)), shape vfn 0x40 with the best fraction, kept strictly below it; a fraction of 0 ends the walk | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:77`, `src/Source2.Compiler/Simulation/BoxCast.cs:10` |
 | `1801d8580` | `RnBroadphase_CastRay` | a tree's walk for CastRay: the ray into the shape's frame (q rows, world mass centre less q (s c)), shape vfn 0x10 with the best fraction; a hit below it is kept, only one above 0 lowers it, 0 ends the walk | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:165` |
 | `1801da640` | `Broadphase_CastSphere` | shape frame R^T (start - origin), delta (dy r1 + dx r0) + dz r2; shape vfn 0x20; static bodies keep the nearest hit and shrink the limit, others add every hit | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:15`, `src/Source2.Compiler/Simulation/SphereCast.cs:11` |
@@ -2184,37 +2199,41 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18024ac40` | `RnMesh_CastBoxClosed` | closed meshes (+0xb4 bit 0): the start inside (180248a30) makes the fraction 0 | `src/Source2.Compiler/Simulation/BoxCast.cs:162`, `src/Source2.Compiler/Simulation/BoxCast.cs:283` |
 | `180250540` | `CRnHullShape::CastBox` | 180251800 with the shape's hull (+0xc0) and scale (+0xb8) | `src/Source2.Compiler/Simulation/HullCast.cs:6` |
 | `1802505c0` | `CRnHullShape::CastRay` | 180251dc0 with the shape's hull (+0xc0) and scale (+0xb8) | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:169` |
+| `180250b20` | `CRnHullShape::CastSphere` | vfn 0x20: a hull with a region SVM (+0xa8) runs 180257420 first and falls back on its +0x82 flag; else 180253ac0 with the hull (+0xc0), scale (+0xb8), radius and max fraction | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:50`, `src/Source2.Compiler/Simulation/HullCast.cs:94` |
 | `180251800` | `RnHull_CastBox` | points scaled and moved to the transformed reference point's frame; the GJK ray cast; Simulation/HullCast.Cast | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:16`, `src/Source2.Compiler/Maps/NavGen/NavTriangleWorld.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:6` +2 |
 | `180251dc0` | `RnHull_CastRay` | 1802544a0; inside gives 0 and the reversed ray direction as normal | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:242` |
+| `180253ac0` | `RnHull_CastSphereGjk` | ray 1802e2c30 cut by 1802e6e60 to the max fraction; scale 1: point support 18006d110 (0, 0, 0) and the hull support over +0x70 / +0x78, margin the radius; else 1802e2bd0 scaled; 1802e2ce0, 1802e7fc0 | `src/Source2.Compiler/Simulation/HullCast.cs:94` |
 | `1802544a0` | `RnHull_ClipRayPlanes` | planes (n . o - s d): entry (d0 - 1/32) / (d0 - d1), exit (d0 + 1/32) / (d0 - d1); both ends outside a plane misses | `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:169`, `src/Source2.Compiler/Maps/NavGen/NavBoxWorld.cs:242` |
+| `180257420` | `RnHull_CastSphereSvm` | a hull with a region SVM: 180257690 (with SVM nodes) or 180257fa0; +0x82 set asks for the GJK cast. Not ported (refused) | `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:50`, `src/Source2.Compiler/Maps/NavGen/NavSphereWorld.cs:52` |
 | `1802e2b90` | `GjkBoxSupport_Init` | vtable 1803e3128: slot 1 1802ea210 picks +h or -h by sign bit |  |
-| `1802e2c30` | `GjkRay_Init` | start, end, delta, unit dir (180088f50), length, 1/length | `src/Source2.Compiler/Simulation/HullCast.cs:27` |
-| `1802e2ce0` | `GjkCast_Init` | v = start, margin, tol 1/32, fraction 1 | `src/Source2.Compiler/Simulation/HullCast.cs:34` |
-| `1802e2e80` | `GjkCast_EdgeDepth` | ray against the capsule round the edge | `src/Source2.Compiler/Simulation/HullCast.cs:1076` |
-| `1802e3460` | `GjkCast_FaceDepth` | plane distance, then the edge capsules | `src/Source2.Compiler/Simulation/HullCast.cs:1130` |
-| `1802e4200` | `GjkCast_VertexDepth` | segment-sphere clip (18037d090), the larger t | `src/Source2.Compiler/Simulation/HullCast.cs:998` |
-| `1802e4900` | `GjkToi_Step` | replace the vertex of the exit face | `src/Source2.Compiler/Simulation/HullCast.cs:832` |
-| `1802e4cd0` | `GjkToi_Init` | the tetrahedron face the ray leaves through | `src/Source2.Compiler/Simulation/HullCast.cs:870` |
-| `1802e52c0` | `GjkToi_Triangle` | edge planes along the ray plus tol over the slope | `src/Source2.Compiler/Simulation/HullCast.cs:938` |
-| `1802e5ab0` | `GjkCast_Contact` | depth by simplex size; distance = ray length - depth | `src/Source2.Compiler/Simulation/HullCast.cs:8`, `src/Source2.Compiler/Simulation/HullCast.cs:971` |
-| `1802e5c80` | `GjkCast_RefineVertex` | grow to an edge or face, 32 steps | `src/Source2.Compiler/Simulation/HullCast.cs:1291` |
-| `1802e6780` | `GjkCast_RefineEdge` | grow to a face, 32 steps | `src/Source2.Compiler/Simulation/HullCast.cs:1345` |
-| `1802e6ed0` | `GjkSimplex_Add` | by count: point, segment, 1802e8750, 1802e8cc0 | `src/Source2.Compiler/Simulation/HullCast.cs:482` |
-| `1802e7120` | `GjkCast_Toi` | time of impact along the ray | `src/Source2.Compiler/Simulation/HullCast.cs:8`, `src/Source2.Compiler/Simulation/HullCast.cs:750` |
-| `1802e7840` | `GjkCast_Separated` | advancement after a separating direction, 20 steps | `src/Source2.Compiler/Simulation/HullCast.cs:367` |
-| `1802e7fc0` | `GjkCast_Result` | fraction (+0x44), point, normal, start solid (+0x50) |  |
-| `1802e8060` | `GjkCast_Cast` | rays over 512 clipped to the hull's slab first | `src/Source2.Compiler/Simulation/HullCast.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:205` |
-| `1802e8750` | `GjkSimplex_Triangle` |  | `src/Source2.Compiler/Simulation/HullCast.cs:469`, `src/Source2.Compiler/Simulation/HullCast.cs:524` |
-| `1802e8cc0` | `GjkSimplex_Tetra` | eight cases behind the jump table at 1802ea1f0 | `src/Source2.Compiler/Simulation/HullCast.cs:579` |
-| `1802eaa40` | `GjkHullSupport` | vtable 1803e1250 slot 1: the first point with the greatest dot | `src/Source2.Compiler/Simulation/HullCast.cs:99` |
-| `1802eacc0` | `GjkCast_Run` | GJK on the box swept along the ray minus the hull, 100 steps | `src/Source2.Compiler/Simulation/HullCast.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:278` |
-| `1802eb5e0` | `GjkCast_EdgeCapsule` |  | `src/Source2.Compiler/Simulation/HullCast.cs:1268` |
+| `1802e2c30` | `GjkRay_Init` | start, end, delta, unit dir (180088f50), length, 1/length | `src/Source2.Compiler/Simulation/HullCast.cs:27`, `src/Source2.Compiler/Simulation/HullCast.cs:96` |
+| `1802e2ce0` | `GjkCast_Init` | v = start, margin, tol 1/32, fraction 1 | `src/Source2.Compiler/Simulation/HullCast.cs:34`, `src/Source2.Compiler/Simulation/HullCast.cs:98` |
+| `1802e2e80` | `GjkCast_EdgeDepth` | ray against the capsule round the edge | `src/Source2.Compiler/Simulation/HullCast.cs:1105` |
+| `1802e3460` | `GjkCast_FaceDepth` | plane distance, then the edge capsules | `src/Source2.Compiler/Simulation/HullCast.cs:1159` |
+| `1802e4200` | `GjkCast_VertexDepth` | segment-sphere clip (18037d090), the larger t | `src/Source2.Compiler/Simulation/HullCast.cs:1027` |
+| `1802e4900` | `GjkToi_Step` | replace the vertex of the exit face | `src/Source2.Compiler/Simulation/HullCast.cs:861` |
+| `1802e4cd0` | `GjkToi_Init` | the tetrahedron face the ray leaves through | `src/Source2.Compiler/Simulation/HullCast.cs:899` |
+| `1802e52c0` | `GjkToi_Triangle` | edge planes along the ray plus tol over the slope | `src/Source2.Compiler/Simulation/HullCast.cs:967` |
+| `1802e5ab0` | `GjkCast_Contact` | depth by simplex size; distance = ray length - depth | `src/Source2.Compiler/Simulation/HullCast.cs:8`, `src/Source2.Compiler/Simulation/HullCast.cs:1000` |
+| `1802e5c80` | `GjkCast_RefineVertex` | grow to an edge or face, 32 steps | `src/Source2.Compiler/Simulation/HullCast.cs:1320` |
+| `1802e6780` | `GjkCast_RefineEdge` | grow to a face, 32 steps | `src/Source2.Compiler/Simulation/HullCast.cs:1374` |
+| `1802e6e60` | `GjkRay_Trim` | fraction f = min(1 / length * 0.3125 + max fraction, 1) into +0x3c; length +0x30 = f * +0x34, end = start + delta * f; delta and direction kept | `src/Source2.Compiler/Simulation/HullCast.cs:96` |
+| `1802e6ed0` | `GjkSimplex_Add` | by count: point, segment, 1802e8750, 1802e8cc0 | `src/Source2.Compiler/Simulation/HullCast.cs:511` |
+| `1802e7120` | `GjkCast_Toi` | time of impact along the ray | `src/Source2.Compiler/Simulation/HullCast.cs:8`, `src/Source2.Compiler/Simulation/HullCast.cs:779` |
+| `1802e7840` | `GjkCast_Separated` | advancement after a separating direction, 20 steps | `src/Source2.Compiler/Simulation/HullCast.cs:396` |
+| `1802e7fc0` | `GjkCast_Result` | fraction (+0x44), point, normal, start solid (+0x50) | `src/Source2.Compiler/Simulation/HullCast.cs:98` |
+| `1802e8060` | `GjkCast_Cast` | rays over 512 clipped to the hull's slab first | `src/Source2.Compiler/Simulation/HullCast.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:98`, `src/Source2.Compiler/Simulation/HullCast.cs:234` |
+| `1802e8750` | `GjkSimplex_Triangle` |  | `src/Source2.Compiler/Simulation/HullCast.cs:498`, `src/Source2.Compiler/Simulation/HullCast.cs:553` |
+| `1802e8cc0` | `GjkSimplex_Tetra` | eight cases behind the jump table at 1802ea1f0 | `src/Source2.Compiler/Simulation/HullCast.cs:608` |
+| `1802eaa40` | `GjkHullSupport` | vtable 1803e1250 slot 1: the first point with the greatest dot | `src/Source2.Compiler/Simulation/HullCast.cs:128` |
+| `1802eacc0` | `GjkCast_Run` | GJK on the box swept along the ray minus the hull, 100 steps | `src/Source2.Compiler/Simulation/HullCast.cs:7`, `src/Source2.Compiler/Simulation/HullCast.cs:307` |
+| `1802eb5e0` | `GjkCast_EdgeCapsule` |  | `src/Source2.Compiler/Simulation/HullCast.cs:1297` |
 | `1803157c0` | `SphereTriangle_Setup` | edges, unit normal, edge-plane normals, dot products; margin radius + 1/32 | `src/Source2.Compiler/Simulation/SphereCast.cs:8`, `src/Source2.Compiler/Simulation/SphereCast.cs:19`, `src/Source2.Compiler/Simulation/SphereCast.cs:34` |
 | `180315820` | `SphereTriangle_Sweep` | the start's region picks the feature: entries V0 180313b80, V1 180314a70, V2 180315110, E0 180313e10, E1 180314d30, E2 1803153d0, face 180314170 | `src/Source2.Compiler/Simulation/SphereCast.cs:8`, `src/Source2.Compiler/Simulation/SphereCast.cs:88` |
 | `180339120` | `SphereTriangle_SweepFace` | slab within the margin, exits through the edge planes | `src/Source2.Compiler/Simulation/SphereCast.cs:548`, `src/Source2.Compiler/Simulation/SphereCast.cs:659` |
 | `180339a30` | `SphereTriangle_SweepVertex` | quadratic against the vertex, exits through the two edge planes (1, 2) | `src/Source2.Compiler/Simulation/SphereCast.cs:180` |
 | `180339fc0` | `SphereTriangle_SweepEdge` | cylinder about the edge, exits to its end vertices (1, 2) or the face (3) | `src/Source2.Compiler/Simulation/SphereCast.cs:302` |
-| `18037d090` | `SegmentSphereClip` | 18037cd90 clipped to [0, 1] | `src/Source2.Compiler/Simulation/HullCast.cs:1024` |
+| `18037d090` | `SegmentSphereClip` | 18037cd90 clipped to [0, 1] | `src/Source2.Compiler/Simulation/HullCast.cs:1053` |
 
 ### s2c:entities/settle
 
@@ -2231,7 +2250,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180075b60` | `CVPhysics2Interface_SimulateWorlds` |  |  |
 | `1800899b0` | `Quat_Mul` |  | `src/Source2.Compiler/Simulation/RnMath.cs:11` |
 | `180089a30` | `Quaternion_Between` | the rotation taking unit vector a to b | `src/Source2.Compiler/Simulation/RnMassUpdate.cs:289`, `src/Source2.Compiler/Simulation/RnMassUpdate.cs:339` |
-| `18008d4e0` | `Vector_NormalizeDouble` | normalises in double | `src/Source2.Compiler/Simulation/HullCast.cs:135`, `src/Source2.Compiler/Simulation/HullReduce.cs:173`, `src/Source2.Compiler/Simulation/MeshTriangles.cs:61` |
+| `18008d4e0` | `Vector_NormalizeDouble` | normalises in double | `src/Source2.Compiler/Simulation/HullCast.cs:164`, `src/Source2.Compiler/Simulation/HullReduce.cs:173`, `src/Source2.Compiler/Simulation/MeshTriangles.cs:61` |
 | `18012e550` | `RnGjkProxy_ctor` | 0x40-byte convex proxy | `src/Source2.Compiler/Simulation/Gjk.cs:8`, `src/Source2.Compiler/Simulation/Gjk.cs:25` |
 | `18012e600` | `RnGjkProxy_Capsule` | two points, radius the scaled radius, at least 1/16 | `src/Source2.Compiler/Simulation/MeshConvex.cs:93` |
 | `18012e650` | `RnGjkProxy_Sphere` | one point, radius (+0x38, +0x3c) the scaled radius, at least 1/16 | `src/Source2.Compiler/Simulation/MeshConvex.cs:93` |

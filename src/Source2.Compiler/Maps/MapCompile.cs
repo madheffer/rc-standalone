@@ -78,8 +78,9 @@ public static class MapCompile
     /// the port builds. The steps are the compile's (CompileMap, FUN_1801f7840):
     /// the world step in entities-only mode writes the entity lumps, and the
     /// physics step writes world_physics. The nav step writes the fixed empty
-    /// nav of a map with no seeds (NavFile) and refuses one that needs the
-    /// generator. Steam Audio is not ported and is refused by name; the bake
+    /// nav of a map with no seeds (NavFile) and otherwise generates it with its
+    /// CS custom data (NavCompile); after every build the CS2 bomb damage post
+    /// step bakes the map's bombsites over the package's nav. Steam Audio is not ported and is refused by name; the bake
     /// takes vrad3's results (-vrad3output). Like a -fshallow build, the package
     /// already at the output path is kept and only these outputs replaced; a
     /// build that would start from an empty package is refused, as the
@@ -252,6 +253,7 @@ public static class MapCompile
             entries[world.ManifestPath] = world.Manifest;
             log.WriteLine($"  physics: {world.ModelPath}, {world.ManifestPath}");
         }
+        NavCompile.Nav? generatedNav = null;
         if (steps.Contains("nav"))
         {
             // resourcecompiler's nav step (1800fc370): no point_nav_walkable seeds and no
@@ -261,10 +263,41 @@ public static class MapCompile
                 entries[$"maps/{map}.nav".ToLowerInvariant()] = NavFile.EmptyDefault();
                 log.WriteLine($"  nav: maps/{map}.nav (no walkable seeds: the empty nav)");
             }
-            else if (!skipUnported)
-                return Fail(log, "not ported: nav generation (the map has point_nav_walkable seeds or nav settings); --skip-unported leaves the package's nav");
             else
-                log.WriteLine("  skipped (not ported): nav generation");
+            {
+                // The generator, the mesh and CS's AI data (NavCompile); a part it does not port refuses the build.
+                try
+                {
+                    generatedNav = NavCompile.Generate(document, schema, assets, Path.Combine(game, "csgo", "gameinfo.gi"), MapEntities.From(document));
+                    entries[$"maps/{map}.nav".ToLowerInvariant()] = generatedNav.Bytes;
+                    log.WriteLine($"  nav: maps/{map}.nav ({generatedNav.Mesh.Areas.Count} areas)");
+                }
+                catch (NotSupportedException ex) when (skipUnported)
+                {
+                    log.WriteLine($"  skipped (not ported): nav generation ({ex.Message})");
+                }
+            }
+        }
+        try
+        {
+            // gameinfo's GameSpecificPostMapBuildSteps (1800fe5f0) run after every build: CS2's
+            // cs2_bomb_damage (modtools 18003ad70) samples the nav over the world's collision.
+            var sites = NavCompile.Sites(document, schema, MapEntities.From(document));
+            var navPath = $"maps/{map}.nav".ToLowerInvariant();
+            var physicsPath = $"maps/{map}/world_physics.vmdl_c".ToLowerInvariant();
+            if (sites.Count > 0)
+            {
+                if (!entries.TryGetValue(navPath, out var navBytes) || !entries.TryGetValue(physicsPath, out var physicsBytes))
+                    return Fail(log, $"bomb damage: the package has no {navPath} or {physicsPath} to sample");
+                var areas = generatedNav is { } nav ? NavCompile.Areas(nav.Mesh) : NavCompile.Areas(navBytes);
+                var file = NavCompile.BombDamageFile(areas, sites, NavCompile.World(physicsBytes), addon, map)!;
+                entries[$"maps/{map}/baked_bomb_damage.vdata_c".ToLowerInvariant()] = file;
+                log.WriteLine($"  bomb damage: {sites.Count} sites over {areas.Count} nav areas");
+            }
+        }
+        catch (NotSupportedException ex) when (skipUnported)
+        {
+            log.WriteLine($"  skipped (not ported): bomb damage ({ex.Message})");
         }
         if (lightingFolder is { } folder && bakes && !args.EntitiesOnly)
         {

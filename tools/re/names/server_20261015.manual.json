@@ -169,6 +169,12 @@
    "note": "down 10000 from 35.501 above; a hit 35.5 or more from the start, else again from 35.501 above it (16 tries)"
   },
   {
+   "addr": "1814b2585",
+   "name": "CNavMesh_GetGroundHeight_StartSolid",
+   "module": "s2c:baked/nav",
+   "note": "the retry point: the trace's start when its start-solid flag (+0x2b) is set, else its end position; a start-solid trace has fraction 0, so both are the start"
+  },
+  {
    "addr": "1814c43b0",
    "name": "CNavArea::GetZ",
    "module": "s2c:baked/nav",
