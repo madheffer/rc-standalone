@@ -20,6 +20,8 @@ for i in md.disasm(pe.get_data(start - base, end - start), start):
         if op.type == capstone.x86.X86_OP_MEM and op.mem.base == capstone.x86.X86_REG_RIP:
             a = i.address + i.size + op.mem.disp
             raw = pe.get_data(a - base, 8)
+            if len(raw) < 8:
+                continue
             f = struct.unpack('<f', raw[:4])[0]
             d = struct.unpack('<d', raw)[0]
             print("%x: %-8s %-40s -> %x  f=%r (0x%08x)  d=%r" % (i.address, i.mnemonic, i.op_str, a, f, struct.unpack('<I', raw[:4])[0], d))

@@ -12,6 +12,11 @@
         folder. The packing geometry loader builds render buffers, so every
         run needs the GPU.
 
+    post_oracle.py chain <addon> <in image> <command; command; ...>
+        As run, with several commands in one vrad3 run; "save <name>" saves the image
+        there (lightmap_image_save), so one run can keep the image before and after a
+        command (the quality 1 / 2 post-process before ameliorate, then after it).
+
     post_oracle.py oracle <addon>
         LightmapPostOracleTests' synthetic 256 x 256 atlas (oracle_in and
         oracle_packing_geometry.dat, written by the test's first run): each
@@ -78,6 +83,19 @@ def run(addon, source, target, command, geometry="lightmap_packing_geometry.dat"
     return vrad3(addon, name)
 
 
+def chain(addon, source, commands, geometry="lightmap_packing_geometry.dat", size=(4096, 4096, 1024)):
+    d = folder(addon)
+    lines = ["gpu_init", "lightmap_type ahd", "lightmap_image_gpu %d %d %d" % size,
+             f"lightmap_load_packing_geometry_gpu {geometry}", f"lightmap_image_load {source}"]
+    for c in commands:
+        c = c.strip()
+        lines.append("lightmap_image_save " + c[5:].strip() if c.startswith("save ") else c)
+    lines += ["exit 0", ""]
+    name = "script-oracle-chain.vrad3"
+    open(os.path.join(d, name), "w", encoding="utf-8").write("\n".join(lines))
+    return vrad3(addon, name)
+
+
 def oracle(addon):
     if not os.path.exists(os.path.join(folder(addon), "oracle_in", "lightmap_data.dat")):
         raise SystemExit("no oracle_in: run LightmapPostOracleTests once with VRAD3ORACLE set")
@@ -100,6 +118,8 @@ def main():
         sys.exit(bake(sys.argv[2], sys.argv[3]))
     if len(sys.argv) >= 3 and sys.argv[1] == "oracle":
         sys.exit(oracle(sys.argv[2]))
+    if len(sys.argv) >= 5 and sys.argv[1] == "chain":
+        sys.exit(chain(sys.argv[2], sys.argv[3], " ".join(sys.argv[4:]).split(";")))
     if len(sys.argv) >= 6 and sys.argv[1] == "run":
         sys.exit(run(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:]))
     print(__doc__)

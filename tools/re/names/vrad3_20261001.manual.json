@@ -1453,6 +1453,60 @@
    "note": "Duff et al. basis of a unit normal: s = sign(z), k = -1 / (z + s), b1 = (x s x k + 1, x y k s, -s x), b2 = (x y k, y y k + s, -y)"
   },
   {
+   "addr": "18004c9b0",
+   "name": "CVrad3Command_lightmap_image_filter_oidn::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "<mipcount>: an OIDN device of type 0 (the default: CUDA on an NVIDIA card), the AO pass 180054f50 and the irradiance pass 180056470 (ledger 113)"
+  },
+  {
+   "addr": "18004cb00",
+   "name": "CVrad3Command_lightmap_image_filter_sh_oidn::Run",
+   "module": "s2c:baked/vrad3",
+   "note": "<mipcount>: SH radiance L0 (180057d80), then c1..c8 (1800597d0, directional), one device"
+  },
+  {
+   "addr": "18004c970",
+   "name": "Vrad3_OidnLargeLuxel",
+   "module": "s2c:baked/vrad3",
+   "note": "valid, a chart, neither small-chart flag (luxel flags bits 1 and 2)"
+  },
+  {
+   "addr": "180054f50",
+   "name": "Vrad3_OidnFilterAo",
+   "module": "s2c:baked/vrad3",
+   "note": "large texels into a float3 image, two 3 x 3 mean fills of empty texels (more than one valid neighbour), RTLightmap (maxMemoryMB 6000), written back; then the line charts in bands of five rows (180056030)"
+  },
+  {
+   "addr": "180056030",
+   "name": "Vrad3_OidnFilterLines",
+   "module": "s2c:baked/vrad3",
+   "note": "one 'sm' batch: RTLightmap over width x band rows, the first 2^(mips - 1) chart rows written back"
+  },
+  {
+   "addr": "180056470",
+   "name": "Vrad3_OidnFilterIrradiance",
+   "module": "s2c:baked/vrad3",
+   "note": "as the AO pass with each chart scaled by count 0.25 / ((g 0.7152 + r 0.2126) + b 0.0722 summed) before and its inverse after; line charts unscaled"
+  },
+  {
+   "addr": "180057d80",
+   "name": "Vrad3_OidnFilterShL0",
+   "module": "s2c:baked/vrad3",
+   "note": "SH channels' component 0, scaled as the irradiance"
+  },
+  {
+   "addr": "1800597d0",
+   "name": "Vrad3_OidnFilterShCoefficient",
+   "module": "s2c:baked/vrad3",
+   "note": "coefficient k (180044810) over max(L0, 1e-5) per colour, directional, times L0 after; line charts the same"
+  },
+  {
+   "addr": "180044810",
+   "name": "CVrad3LightmapImage::GetShCoefficient",
+   "module": "s2c:baked/vrad3",
+   "note": "k 0..3: SH channels' component k; 4..7: quadratic channels' component k - 4; 8: the final quadratic channel's RGB"
+  },
+  {
    "addr": "180030100",
    "name": "CVrad3Command_lightmap_compute_block_gpu::Run",
    "module": "s2c:baked/vrad3",

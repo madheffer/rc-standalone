@@ -2830,6 +2830,38 @@ game can answer is raised with the user first, and runs with -insecure.
       lightmap_image_filter_sh_oidn 1 in place of the median filter, and
       lightmap_ameliorate_block_compression_artefacts -mips 1 after the weld (L14, open).
 
+113. **vrad3's OIDN lightmap filters** (settled 2026-10-20 by decompile of vrad3 and vrad3 itself run on
+    the same image with CS2 closed, tools/vrad3/post_oracle.py run). Verified: on probe01 quality 1's
+    raw image (lightmap_image_save after the compute), Lighting/LightmapOidn.Filter and FilterSh
+    give vrad3's lightmap_image_filter_oidn 1 and lightmap_image_filter_sh_oidn 1 output bit for
+    bit on every channel (LightmapOidnTests, saved as half floats).
+    - The filters call Intel Open Image Denoise 2 (the game's OpenImageDenoise.dll and device
+      modules) with a device of type 0, the default, which picks CUDA on this RTX 4070, then
+      RTLightmap with float3 colour and output in device buffers, maxMemoryMB 6000. OIDN on CUDA
+      repeats exactly, so calling the same library on the same device type reproduces vrad3.
+      Valve's output therefore depends on the compiling machine's GPU vendor, as bc7e and powf
+      depend on its CPU (ledgers 110, 111).
+    - filter_oidn: ambient occlusion (180054f50), then irradiance (180056470); filter_sh_oidn: SH L0
+      (180057d80), then coefficients c1..c8 (1800597d0, directional).
+    - A pass ("lg") takes the texels of large charts (valid, a chart, neither small-chart flag)
+      into a width x height float3 image, zero elsewhere.
+      - Twice, each empty texel with more than one valid texel in its clamped 3 x 3 window takes
+        their mean, summed in row order and multiplied by 1 / n. It counts as valid only after
+        the round.
+      - The filter runs, and its output goes back to the large texels.
+    - Irradiance and L0 scale each chart by count 0.25 / sum of ((g 0.7152 + r 0.2126) + b 0.0722)
+      first, and by the inverse after. A chart whose sum is 0 keeps scale 0 and comes back 0.
+    - Coefficients are divided per colour by max(L0, 1e-5), with L0 as the L0 pass left it, and
+      multiplied by L0 after.
+    - Line charts (small in y only) then go ("sm") into bands five rows high across the image: the
+      chart's first row three times, its end texels repeated one column out, 8 texels apart.
+      - A batch (width x band rows) is filtered when the next band would leave fewer than 10 rows.
+      - Its results go to the chart's first 2^(mips - 1) rows.
+      - After the last chart a batch is filtered only when more than one band was used.
+      - Irradiance and L0 line charts are not scaled; coefficient line charts are.
+    - Open: lightmap_ameliorate_block_compression_artefacts -mips 1, which quality 1 and 2 run
+      after the weld (it changes 0.53% of the AHD texels and most of channel 8 on probe01).
+
 
 ## Resolved
 

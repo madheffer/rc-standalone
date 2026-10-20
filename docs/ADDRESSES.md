@@ -2726,7 +2726,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
-- 365 addresses
+- 374 addresses
 
 ### s2c:baked/vrad3
 
@@ -2926,10 +2926,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180042730` | `RGBToYCoCg` | Y = (r/4 + g/2) + b/4, Co = r/2 - b/2, Cg = (g/2 - r/4) - b/4 | `src/Source2.Compiler/Lighting/LightmapWeld.cs:341` |
 | `1800427b0` | `YCoCgToRGB` | each colour clamped at 0 | `src/Source2.Compiler/Lighting/LightmapWeld.cs:345` |
 | `180042a90` | `PackingGeometry_t::Unserialize` | g_PackingGeometry (DAT_1803ab940): u32 n + n u32; u32 stride (40), u32 count + vertices (position, normal, tangent+sign); count x float2 atlas uv; u32 C + C indices; u32 D + D 28-byte charts (ARGB debug colour, index, x, y, w, h, flags word); C/3 u32 triangle charts; 6 u32 trailing fields; exact on probe01's file | `src/Source2.Compiler/Lighting/PackingGeometry.cs:5` |
-| `180043bf0` | `CVrad3LightmapImage::GetPixelRGB` | a channel's x, y, z, masked components else 0 |  |
+| `180043bf0` | `CVrad3LightmapImage::GetPixelRGB` | a channel's x, y, z, masked components else 0 | `src/Source2.Compiler/Lighting/LightmapOidn.cs:38` |
 | `180043cf0` | `CVrad3LightmapImage::GetPixelRGBA` | as GetPixelRGB with w |  |
 | `180043e30` | `CVrad3LightmapImage::GetSH9` | 27 floats: per colour c, channel 1 + c (coefficients 0-3), channel 4 + c (4-7), channel 7 component c (8) | `src/Source2.Compiler/Lighting/LightmapPost.cs:546` |
 | `1800443d0` | `CVrad3LightmapImage::SetSH9` | the inverse of GetSH9 (unmasked) | `src/Source2.Compiler/Lighting/LightmapPost.cs:250`, `src/Source2.Compiler/Lighting/LightmapPost.cs:546` |
+| `180044810` | `CVrad3LightmapImage::GetShCoefficient` | k 0..3: SH channels' component k; 4..7: quadratic channels' component k - 4; 8: the final quadratic channel's RGB | `src/Source2.Compiler/Lighting/LightmapOidn.cs:74` |
 | `180044bc0` | `CVrad3LightmapImage::GetTangentFrame` | columns: normalised channel 11 xyz, normalised cross(n, t) times channel 11 w, normalised channel 9 | `src/Source2.Compiler/Lighting/LightmapAhd.cs:216`, `src/Source2.Compiler/Lighting/LightmapAhd.cs:228` |
 | `180045400` | `ComputeLightmapPackingGeometryCordonMask` | bit per packing triangle: its world box overlaps the cordon (DAT_180347f98..fac); fatal over 0x80000000 triangles | `src/Source2.Compiler/Lighting/Bake/BlockGeometry.cs:11` |
 | `180045e30` | `CVrad3Command_lightmap_free_memory::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
@@ -2946,8 +2947,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004a3b0` | `CVrad3Command_lightmap_image_filter_median::Run::lambda_1_Body` | a row: median of irradiance, AO and SH coefficients 0-3 per colour over same-chart, valid, normal within 15 degrees, disc radius r in the chart rect; nth_element at n/2 (even n: again at n/2 + 1, averaged with [n/2 - 1]); into a zeroed record, so SH 4-8 become 0 | `src/Source2.Compiler/Lighting/LightmapPost.cs:240`, `src/Source2.Compiler/Lighting/LightmapPost.cs:579` |
 | `18004b530` | `CVrad3Command_lightmap_image_remove_fireflies::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapPost.cs:332` |
 | `18004ba20` | `CVrad3Command_lightmap_image_remove_fireflies::Run::lambda_1_Body` | a row: the 8 same-chart neighbours (valid, luminance >= 0.0005, unflagged in pass 1), mean RGB and mean SH at each one's normal (clamped at 0), times 1/n; pass 0 flags against the threshold, pass 1 writes the mean | `src/Source2.Compiler/Lighting/LightmapPost.cs:333` |
-| `18004c9b0` | `CVrad3Command_lightmap_image_filter_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
-| `18004cb00` | `CVrad3Command_lightmap_image_filter_sh_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
+| `18004c970` | `Vrad3_OidnLargeLuxel` | valid, a chart, neither small-chart flag (luxel flags bits 1 and 2) | `src/Source2.Compiler/Lighting/LightmapOidn.cs:8` |
+| `18004c9b0` | `CVrad3Command_lightmap_image_filter_oidn::Run` | <mipcount>: an OIDN device of type 0 (the default: CUDA on an NVIDIA card), the AO pass 180054f50 and the irradiance pass 180056470 (ledger 113) | `src/Source2.Compiler/Lighting/LightmapOidn.cs:4` |
+| `18004c9b0` | `CVrad3Command_lightmap_image_filter_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapOidn.cs:4` |
+| `18004cb00` | `CVrad3Command_lightmap_image_filter_sh_oidn::Run` | <mipcount>: SH radiance L0 (180057d80), then c1..c8 (1800597d0, directional), one device | `src/Source2.Compiler/Lighting/LightmapOidn.cs:5` |
+| `18004cb00` | `CVrad3Command_lightmap_image_filter_sh_oidn::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapOidn.cs:5` |
 | `18004cc20` | `CVrad3Command_lightmap_image_write_debug_oidn_mask::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `18004ce00` | `CVrad3Command_lightmap_image_encode_ahd::Run` | the command (virtual void Run(int argc, const char **argv)) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:4` |
 | `18004cfc0` | `CVrad3Command_lightmap_image_encode_ahd::Run::lambda_3_Body` | a row: SH to tangent space, luminance L1 direction (clamped 5 degrees above the surface), least squares over the 256 directions at DAT_1802e99e0 for ambient vs directional; channel 1 = (d, clamp(x, 0, 1)) | `src/Source2.Compiler/Lighting/LightmapAhd.cs:4` |
@@ -2969,6 +2973,11 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180054200` | `CVrad3Command_lightmap_image_write_convergence::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180054790` | `CVrad3Command_lightmap_image_show_valid_luxels::Run` | the command (virtual void Run(int argc, const char **argv)) |  |
 | `180054c70` | `SH9_EvaluateRGB` | 27 coefficients at a direction: 0.282095, 0.325735 (-y, z, -x), 0.273137 (xy, -yz, -xz), 0.078848 (3z^2 - 1), 0.136569 (x^2 - y^2) | `src/Source2.Compiler/Lighting/LightmapPost.cs:337`, `src/Source2.Compiler/Lighting/LightmapPost.cs:432` |
+| `180054f50` | `Vrad3_OidnFilterAo` | large texels into a float3 image, two 3 x 3 mean fills of empty texels (more than one valid neighbour), RTLightmap (maxMemoryMB 6000), written back; then the line charts in bands of five rows (180056030) | `src/Source2.Compiler/Lighting/LightmapOidn.cs:5`, `src/Source2.Compiler/Lighting/LightmapOidn.cs:88`, `src/Source2.Compiler/Lighting/LightmapOidn.cs:196` |
+| `180056030` | `Vrad3_OidnFilterLines` | one 'sm' batch: RTLightmap over width x band rows, the first 2^(mips - 1) chart rows written back | `src/Source2.Compiler/Lighting/LightmapOidn.cs:196` |
+| `180056470` | `Vrad3_OidnFilterIrradiance` | as the AO pass with each chart scaled by count 0.25 / ((g 0.7152 + r 0.2126) + b 0.0722 summed) before and its inverse after; line charts unscaled | `src/Source2.Compiler/Lighting/LightmapOidn.cs:5`, `src/Source2.Compiler/Lighting/LightmapOidn.cs:99` |
+| `180057d80` | `Vrad3_OidnFilterShL0` | SH channels' component 0, scaled as the irradiance | `src/Source2.Compiler/Lighting/LightmapOidn.cs:6`, `src/Source2.Compiler/Lighting/LightmapOidn.cs:48` |
+| `1800597d0` | `Vrad3_OidnFilterShCoefficient` | coefficient k (180044810) over max(L0, 1e-5) per colour, directional, times L0 after; line charts the same | `src/Source2.Compiler/Lighting/LightmapOidn.cs:6`, `src/Source2.Compiler/Lighting/LightmapOidn.cs:49` |
 | `18005aed0` | `LeastSquaresSolve` | A^T (copied), A^T b, then the CG solver; tolerance argument 1e-20 from encode_ahd | `src/Source2.Compiler/Lighting/LightmapAhd.cs:131` |
 | `18005b1c0` | `CUtlBlockVector_TexelCoord_AddToTail` |  |  |
 | `18005b2b0` | `SparseLeastSquares` | A^T, A^T b, then conjugate gradient (serial under 16384 columns) | `src/Source2.Compiler/Lighting/LightmapWeld.cs:271` |
