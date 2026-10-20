@@ -20,11 +20,12 @@ namespace Source2.Compiler.Lighting;
 /// its first instance (a prop with per-vertex data, +0x100, would copy it:
 /// not ported).</item>
 /// <item>An instance: the mesh, the prop's matrix, the material through the
-/// skin's material group (1802b6830), a tint not all ones (rendercolor and
+/// skin's material group (1802b6830) or the prop's materialoverride (+0x118)
+/// in its place, a tint not all ones (rendercolor and
 /// renderamt over 255; per-draw tint overrides not ported), an
 /// emissive_lighting_boost not 1, and the flags (<see cref="Flags"/>).</item>
 /// </list>
-/// Not ported: materialoverride, deformers, a lodlevel of 0 or more,
+/// Not ported: deformers, a lodlevel of 0 or more,
 /// clutter, draw records flagged 0x800, 180240a60's other conditions on
 /// a brush entity (its +0x108 and one-model tests).
 /// </summary>
@@ -32,7 +33,11 @@ internal static class PathTraceProps
 {
     /// <summary>The record fields 180284aa0 reads, by the keys 180245770 fills them from.</summary>
     public sealed record Prop(string Model, float[] Matrix, Vector4 Tint, string? Skin, int DisableShadows, int LightmapStatic, bool Emissive,
-                              int EmissiveMode, float EmissiveBoost, bool DoubleSided, int LodLevel);
+                              int EmissiveMode, float EmissiveBoost, bool DoubleSided, int LodLevel)
+    {
+        /// <summary>materialoverride (the record's +0x118): every draw's material in the instance, or null.</summary>
+        public string? MaterialOverride { get; init; }
+    }
 
     /// <summary>
     /// 180245770's record: disableshadows (+0x16f, 0), emissive (+0x173,
@@ -48,8 +53,6 @@ internal static class PathTraceProps
         var lightmapStatic = Int("lightmapstatic", propStatic ? 1 : 0);
         if (!propStatic && lightmapStatic == 0)
             return null;
-        if (!string.IsNullOrEmpty(key("materialoverride")))
-            throw new NotSupportedException($"{model}: a materialoverride (the record's +0x118) is not ported");
         if (Bool("clutterinstance", false))
             throw new NotSupportedException($"{model}: a clutter instance is not ported");
         var color = (key("rendercolor") ?? "255 255 255").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
@@ -57,7 +60,10 @@ internal static class PathTraceProps
         var amount = Int("renderamt", 255);
         var boost = key("emissive_lighting_boost") is { Length: > 0 } b ? CNumbers.ToFloat32(b) : 1f;
         return new Prop(model, matrix, new Vector4(Channel(0), Channel(1), Channel(2), amount * 0.003921569f), key("skin"), Int("disableshadows", 0),
-                        lightmapStatic, Bool("emissive", true), Int("emissive_mode", 0), boost, Bool("bakelightdoublesided", false), Int("lodlevel", -1));
+                        lightmapStatic, Bool("emissive", true), Int("emissive_mode", 0), boost, Bool("bakelightdoublesided", false), Int("lodlevel", -1))
+        {
+            MaterialOverride = key("materialoverride") is { Length: > 0 } o ? o : null,
+        };
     }
 
     /// <summary>
@@ -88,7 +94,8 @@ internal static class PathTraceProps
     /// appended to <paramref name="meshes"/> and the instances name them by
     /// their index there.
     /// </summary>
-    public static void Add(List<PathTraceScene.Mesh> meshes, List<KVObject> instances, IEnumerable<Prop> props, Func<string, Model?> loadModel)
+    public static void Add(List<PathTraceScene.Mesh> meshes, List<KVObject> instances, IEnumerable<Prop> props, Func<string, Model?> loadModel,
+                           Func<string, byte[]?>? readMaterial = null)
     {
         foreach (var group in props.GroupBy(p => p.Model, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
         {
@@ -96,7 +103,7 @@ internal static class PathTraceProps
                 continue;
             if (group.Any(p => p.LodLevel >= 0))
                 throw new NotSupportedException($"{group.Key}: a lodlevel (180284aa0's LOD groups, FUN_18174c9c0) is not ported");
-            var calls = Draws(model, 0).ToList();
+            var calls = Draws(model, 0, readMaterial).ToList();
             foreach (var (mesh, material) in calls)
             {
                 var index = -1;
@@ -108,7 +115,7 @@ internal static class PathTraceProps
                         meshes.Add(mesh);
                     }
                     var remap = NodePropEntries.MaterialGroup(model, p.Skin);
-                    instances.Add(Instance(index, p, remap.GetValueOrDefault(material, material)));
+                    instances.Add(Instance(index, p, p.MaterialOverride ?? remap.GetValueOrDefault(material, material)));
                 }
             }
         }
@@ -142,7 +149,7 @@ internal static class PathTraceProps
     /// whose mesh group mask meets the default one), as CMeshes, with the
     /// draw call's own material.
     /// </summary>
-    public static IEnumerable<(PathTraceScene.Mesh Mesh, string Material)> Draws(Model model, int lod)
+    public static IEnumerable<(PathTraceScene.Mesh Mesh, string Material)> Draws(Model model, int lod, Func<string, byte[]?>? readMaterial = null)
     {
         var all = model.GetEmbeddedMeshesAndLoD().ToList();
         var groupMasks = model.Data.GetArray<ulong>("m_refMeshGroupMasks");
@@ -162,7 +169,7 @@ internal static class PathTraceProps
                 foreach (var call in sceneObject.GetArray("m_drawCalls"))
                 {
                     var material = call.GetStringProperty("m_material") ?? "";
-                    yield return (DrawMesh(mesh.VBIB, call, material), material);
+                    yield return (DrawMesh(mesh.VBIB, call, material, readMaterial), material);
                 }
         }
     }
@@ -173,7 +180,7 @@ internal static class PathTraceProps
     /// WRB_LoadPropMeshes appends as streams of their own after the six
     /// standard ones, named by their shader semantic, in field order.
     /// </summary>
-    public static PathTraceScene.Mesh DrawMesh(VBIB vbib, KVObject call, string material)
+    public static PathTraceScene.Mesh DrawMesh(VBIB vbib, KVObject call, string material, Func<string, byte[]?>? readMaterial = null)
     {
         var vb = vbib.VertexBuffers[call.GetArray("m_vertexBuffers")[0].GetInt32Property("m_hBuffer")];
         var ib = vbib.IndexBuffers[call.GetSubCollection("m_indexBuffer").GetInt32Property("m_hBuffer")];
@@ -183,7 +190,14 @@ internal static class PathTraceProps
         var bas = call.GetInt32Property("m_nBaseVertex");
         var lo = Enumerable.Range(start, count).Min(Index) + bas;
         var vertexCount = Enumerable.Range(start, count).Max(Index) + bas - lo + 1;
-        var geometry = MeshGeometry.Classify(vb);
+        IReadOnlyList<Source2ContainerAuthor.MaterialAuthoring.InputSignatureElement>? signature = null;
+        string? Attribute(string semantic, int index)
+        {
+            if (signature is null && readMaterial?.Invoke(material + "_c") is { } bytes)
+                signature = MaterialAuthor.ExtractInputSignature(bytes);
+            return signature?.FirstOrDefault(e => e.D3DSemanticName.Equals(semantic, StringComparison.OrdinalIgnoreCase) && e.D3DSemanticIndex == index)?.Semantic;
+        }
+        var geometry = MeshGeometry.Classify(vb, Attribute);
         var (standard, hasColor) = NodePropEntries.Vertices(vb, lo, vertexCount, geometry.Color);
         var extraSize = geometry.Extras.Sum(e => e.Components);
         var stride = NodePropEntries.Stride + extraSize;

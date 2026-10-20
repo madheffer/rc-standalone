@@ -80,7 +80,14 @@ public static class Vrad3Job
             if (ent.Hidden)
                 continue;
             if (ent.Element.Type == "CMapSmartProp")
-                throw new NotSupportedException("a smart prop's path-trace records are not ported");
+            {
+                // Its models as the world's props take them: prop_static records with the node's
+                // keys and the element's material group as the skin.
+                foreach (var (model, smartKeys, matrix, skin) in NodePropAggregates.SmartPropModels(ent, content))
+                    if (PathTraceProps.Record(model, k => k == "skin" ? skin : smartKeys.Get<string>(k), matrix, true) is { } smartRecord)
+                        records.Add(smartRecord);
+                continue;
+            }
             var props0 = ent.Element.Get<DmxBinary.Element>("entity_properties");
             if (props0?.Get<string>("classname") != "prop_static")
                 continue;
@@ -102,7 +109,7 @@ public static class Vrad3Job
             resource.Read(new MemoryStream(bytes));
             return (Model)resource.DataBlock!;
         }
-        PathTraceProps.Add(meshes, instances, records, Load);
+        PathTraceProps.Add(meshes, instances, records, Load, content.Read);
 
         // The lights and the sky, from the compiled lumps' keys, in the order the scene build's class
         // searches find them: the world's node array after the instance collapse (L17, ledger 101).

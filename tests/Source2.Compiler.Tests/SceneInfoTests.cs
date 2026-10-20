@@ -102,7 +102,12 @@ public class SceneInfoTests(ITestOutputHelper output)
             if (ent.Hidden)
                 continue;
             if (ent.Element.Type == "CMapSmartProp")
-                throw new NotSupportedException("a smart prop's records are not ported");
+            {
+                foreach (var (model, k0, matrix, skin) in NodePropAggregates.SmartPropModels(ent, content))
+                    if (PathTraceProps.Record(model, k => k == "skin" ? skin : k0.Get<string>(k), matrix, true) is { } r)
+                        props.Add(r);
+                continue;
+            }
             var keys = ent.Element.Get<DmxBinary.Element>("entity_properties");
             if (keys?.Get<string>("classname") != "prop_static")
                 continue;
@@ -126,7 +131,7 @@ public class SceneInfoTests(ITestOutputHelper output)
             resource.Read(new MemoryStream(Source2.Compiler.Io.VpkEntries.Read(package, entry)));
             return (Model)resource.DataBlock!;
         }
-        PathTraceProps.Add(meshes, instances, props, Load);
+        PathTraceProps.Add(meshes, instances, props, Load, content.Read);
         return (meshes, instances);
     }
 
@@ -319,7 +324,7 @@ public class SceneInfoTests(ITestOutputHelper output)
         var ours = KVObject.Array();
         var keyDump = Environment.GetEnvironmentVariable("SCENEINFO_KEYS") is { } keyPath ? new System.Text.StringBuilder() : null;
         var lumpLights = lumps.SelectMany(l => LumpEntities(l.Value, l.Key)).Select(e => (e.Class, e.Key, World: (float[]?)null)).ToList();
-        if (Environment.GetEnvironmentVariable("SCENEINFO_WORLDORDER") == "1")
+        if (Environment.GetEnvironmentVariable("SCENEINFO_WALK") != "1")
         {
             // L17 (ledger 101): the world's node array after the collapse, as Vrad3Job orders them.
             var document = DmxBinary.ReadFile(vmap);

@@ -241,6 +241,15 @@ internal static class NodePropAggregates
     // A prop as the node's prop map holds it: model as named, keys, placement, node id, skin.
     private sealed record Placed(string Model, DmxBinary.Element Keys, float[] Matrix, int NodeId, string? Skin);
 
+    /// <summary>
+    /// A smart prop's models as the world's props take them (<see cref="SmartPropChildren"/>): model,
+    /// the keys that stand in for an entity's, the placement and the material group as the skin.
+    /// </summary>
+    public static IEnumerable<(string Model, DmxBinary.Element Keys, float[] Matrix, string? Skin)> SmartPropModels(
+        MapMeshes.EntityNode entity, GameContent content, List<string>? notes = null)
+        => SmartPropChildren(entity, entity.Element.Get<DmxBinary.Element>("entity_properties"), entity.Element.GetValue<int>("nodeID") ?? -1, content, notes)
+            .Select(p => (p.Model, p.Keys, p.Matrix, p.Skin));
+
     // A smart prop's models (CMapSmartProp, evaluated as the collision does),
     // each a prop_static with the node's keys and the element's material
     // group as its skin; non-uniformly scaled ones are baked instead (not

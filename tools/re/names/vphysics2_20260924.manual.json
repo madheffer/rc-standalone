@@ -52,7 +52,7 @@
    "addr": "1801f29e0",
    "name": "CRnWorld::CastBox",
    "module": "s2c:baked/bomb",
-   "note": "each broadphase tree (1801d64a0), shape vtable +0x40"
+   "note": "each broadphase tree whose kind (+0x50) meets the query's type mask (+0x2f; 0xf takes all), walked by 1801d64a0; shape vtable +0x40"
   },
   {
    "addr": "1801f4ad0",
@@ -82,7 +82,7 @@
    "addr": "1801d64a0",
    "name": "RnBroadphase_CastBox",
    "module": "s2c:baked/navgen",
-   "note": "a broadphase tree's walk for CastBox"
+   "note": "a broadphase tree's walk for CastBox: each leaf's body type against the query's mask (+0x2f), 1802facf0, the shape transform from the body (q rows, world mass centre less q (s c)), shape vfn 0x40 with the best fraction, kept strictly below it; a fraction of 0 ends the walk"
   },
   {
    "addr": "180244dc0",

@@ -3049,6 +3049,18 @@
    "note": "the custom nav factory (1800fbe80: gameinfo CustomNavBuild ModuleName / Interface; CS2 server.dll customnavsystem001) vfn 0x58, else a CNavMesh (0x428 bytes, 1818d4720)"
   },
   {
+   "addr": "180f4d220",
+   "name": "PhysDoc_NodeFilter",
+   "module": "s2c:baked/nav",
+   "note": "flags 0x16 for the nav world: GenerateNav (0x10); a smart prop with +0x688 0 and a physics pin out; flag 2: a mesh under an entity needs solidity 2 and no AlwaysSolidIgnoreNav, any other node its entity's FGD class (+0x550) with has_static_mesh (180dd2210); flag 4: solid 0 out; then 180f4bb00 (10-15: 180f4d790)"
+  },
+  {
+   "addr": "180dd2210",
+   "name": "EntityClass_HasStaticMesh",
+   "module": "s2c:baked/nav",
+   "note": "the FGD class's metadata (+0xc0) bool has_static_mesh (hash 0x2755870d, default 0): prop_static and cable_static"
+  },
+  {
    "addr": "1800fc370",
    "name": "MapCompile_BuildNav",
    "module": "s2c:baked/nav",
@@ -5105,6 +5117,18 @@
    "name": "LightBuild_Record",
    "module": "s2c:baked/light-keys",
    "note": "a light record: barn, luminaire, volume"
+  },
+  {
+   "addr": "181007c90",
+   "name": "ColorTemperatureToLinear",
+   "module": "s2c:baked/light-keys",
+   "note": "kelvin / 100: Tanner Helland's fit (329.69873 (t-60)^-0.13320476, 288.12216 (t-60)^-0.075514846, 99.4708 ln t - 161.11957, 138.51773 ln(t-10) - 305.0448), each clamped to [0, 255] and through 18126a710 over 255"
+  },
+  {
+   "addr": "180eed4c0",
+   "name": "Light_Color",
+   "module": "s2c:baked/light-keys",
+   "note": "colormode 0: color (180f32200), 1: colortemperature (181007c90), else the default"
   },
   {
    "addr": "180f18820",

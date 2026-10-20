@@ -2466,6 +2466,56 @@ game can answer is raised with the user first, and runs with -insecure.
     - Not captured: prefabs and hidden instances (MapWorldOrder refuses; Vrad3Job keeps the lump
       order for them).
 
+104. **The nav world's box casts from our own bodies; the nav world keeps no movable props**
+    (decompile of resourcecompiler 20260923 and vphysics2 20260924 / 20261015, captured with CS2
+    closed, 2026-10-20). Verified: NavBoxWorld over our settle bodies answers every one of the
+    243,480 box casts ClipPolysToHullClearance made on s2c_prefabprobe3 with Valve's fraction bit for
+    bit, and 022 from Valve's input then gives Valve's 10,497 polygons (NavGenClipTests
+    .ClipMatchesValveOnOurWorld; probe01 and cardtest likewise). NavGenPipeline now runs 022.
+    - A world cast (CastShape 1801f5080 -> CastBox 1801f29e0): the box's centre is (mins + maxs) * 0.5
+      plus the start, its half extents (maxs - mins) * 0.5. Each broadphase tree whose kind (+0x50)
+      meets the query's type mask (+0x2f) is walked (1801d64a0); nav's query (18004b370) is
+      interacts 0xc3021, excludes 0x400000, as 0x80000, static only (1), group 4, flags 0x49.
+    - Each leaf: the body type against the mask, the attribute test (1802facf0), then the shape's
+      cast (vfn 0x40) with the best fraction so far, kept strictly below it; a fraction of 0 ends the
+      walk. The shape transform: q (+0x120) as rows, doubled sums taken once and added to
+      themselves (t0 = 1 - 2(z z + y y), t1 = 2(w z + y x), ...), and the world mass centre (+0xfc)
+      less q times the scaled local mass centre (+0x88 times +0xc8). Meshes take 180245a10 when the
+      shape has no scale flag (+0xd1) and t's diagonal is 1 with no translation, else 180244dc0;
+      hulls 180251800 about their centroid. Our bodies are SettleWorld.CreateWorld's (mass update
+      included).
+    - The nav world (PhysDoc filter 180f4d220 with flags 0x16) drops every non-mesh node under an
+      entity whose FGD class (+0x550) lacks has_static_mesh metadata (180dd2210; only prop_static
+      and cable_static set it in base.fgd): prop_physics, prop_dynamic and prop_door_rotating are
+      neither extracted nor cast against. Captured (tools/re/capture_bodytypes.py): every body
+      navsystem tests on s2c_prefabprobe3 is static (type 0) in broadphase tree 0, 1,156 of them;
+      our extraction without those props has Valve's 305,836 input polygons, with them 317,508.
+    - Not ported: casts against spheres and capsules, a smart prop's +0x688 test and physics pins in
+      the filter (refused).
+
+105. **atixref's path-trace scene from the .vmap: smart props, material overrides, unnamed vertex
+    fields, the IBL's sun threshold** (oracle: Valve's scene_info.kv3, 2026-10-20). Verified:
+    atixref's whole scene_info.kv3 (1,869,622 characters: 4,945 instances, the IBL and 243 lights)
+    is Valve's text (SceneInfoTests.SceneInfoIsValves); probe01 and cardtest still are.
+    - A CMapSmartProp's models enter the scene as the world's props take them
+      (NodePropAggregates.SmartPropModels): prop_static records with the node's keys and the
+      element's material group as the skin.
+    - materialoverride (the record's +0x118) replaces the material of every draw of that instance;
+      the shared mesh keeps the draw's own.
+    - A vertex field without a shader semantic takes the name of the draw material's input
+      signature element (INSG m_elems, the 0xc4-byte records 1801d3050 reads) with its D3D semantic
+      name and index: m_pSemantic. That covers the unnamed RGBA8 TEXCOORD4 of a 2-way blend
+      (VertexPaintBlendParams) too.
+    - sun_light_min_brightness is 32 when the light has no sunlightminbrightness key (csgo.fgd
+      removes the key; lights_base.fgd's default is 32): atixref's light_environment has none and
+      Valve writes 32.0, as in every reference scene.
+    - colormode 1 takes the light's colour from colortemperature (181007c90, Tanner Helland's fit
+      with its float constants from the disassembly; through 180eed4c0 for directional lights and
+      180eea510's barn branch for the rest); any other mode leaves the colour 0. tier0's V_powf and
+      V_logf equal MathF.Pow / MathF.Log on 207,687 inputs (tools/re/tier0_powlog_oracle.py,
+      Tier0MathTests). Open: probe_classes' lumens barn is 3 ulps off in its intensity, and
+      s2c_prefabprobe5's lights need the world order with prefabs (not captured).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
