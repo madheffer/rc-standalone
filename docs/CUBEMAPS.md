@@ -259,6 +259,39 @@ rendering: 1024x1024, storage: 256x256"). `GameCubemapTests`
 So everything after the render is exact against the game. What remains is the
 render of each face itself.
 
+## The render, captured (2026-10-21)
+
+The game's own RenderDoc hook, inside cubehost only (Steam closed, no Steam
+code; never cs2.exe): `run_probe.py --renderdoc <cube>` runs the engine with
+`-renderdoc` (rendersystemvulkan 1015 0d7ca0 loads
+`C:\Program Files\RenderDoc\renderdoc.dll`), and BuildCubemaps starts a
+capture (render device vfunc 0x638) when the cube counter equals
+`buildcubemaps_renderdoc_capture`, ending it (0x640) after that cube's six
+faces. The convar is development-only (client 1800538d8 registers it with
+flags 2): release builds hide it from the console and the command line, so
+cubehost writes it in its own process (`--renderdoc-capture`, the cvar data
+at client's global 18237eab0, name checked, int value at +0x58). The engine
+writes `%TEMP%/RenderDoc/cubehost_<date>_capture.rdc` and opens it in
+qrenderdoc, which the runner closes. `tools/cubehost/rdc_summary.py` (run in
+RenderDoc's Python: `qrenderdoc --python`) lists the actions.
+
+probe01 cube 0 (1.75 GB capture, no debug markers in a release build):
+138 draws and 12 dispatches, the same sequence for each of the six faces:
+
+1. clear the sun's shadow atlas (4352 x 5248 D16), two culling dispatches,
+   four cascade passes into it;
+2. clear the face targets (1024 x 1024 RGBA16F colour, D24S8 depth);
+3. depth prepass (opaque meshes: indirect draws of 1 + 3 + 2);
+4. a full-screen triangle-strip draw on a 1280 x 720 D24S8 target (the main
+   view's size), then a cleared target;
+5. forward opaque pass into the RGBA16F face (1 + 3 indirect draws), then a
+   36-index cube (the sky);
+6. stencil clear, two image copies, a 256 x 256 D24S8 draw;
+7. `vkCmdCopyImageToBuffer`: the readback that `CubemapFaceExr` starts from.
+
+This is the per-pass ground truth for porting the face render: each pass's
+shaders, constants and outputs can be read from the capture.
+
 ## Open
 
 - DX11 float parity for the GPU pass (only matters where a 1-ulp difference
@@ -266,4 +299,5 @@ render of each face itself.
 - The BC6H encoder is ispc_texcomp.dll from the game's bin folder (as for the
   lightmaps); building it from Intel's source, as bc7e was, removes that
   dependency.
-- The game half: rendering the probes with the game's renderer. Not started.
+- The face render (the "Game" pipeline for the BuildCubemaps view): captured
+  pass by pass (above); the port is not started.

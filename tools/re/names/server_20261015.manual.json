@@ -215,6 +215,12 @@
    "name": "CNavAreaSearch_Expand",
    "module": "s2c:baked/nav",
    "note": "cost via 1810e5330; areas 2000 or more from the origin closed, crossings beyond it skipped; push 1802e3c80"
+  },
+  {
+   "addr": "180991359",
+   "name": "SteamWorksGameStats_RequestSessionId",
+   "module": "s2c:baked/lighting",
+   "note": "\"Steamworks Stats: %s Requesting session id.\" then a call through the object at this +0x80 without a check: a Steam interface from ISteamClient. cubehost's stub answers NULL to every ISteamClient method (a zeroed dummy crashed here after BeginMatch)"
   }
  ]
 }

@@ -39,6 +39,7 @@ static void *zero(void)
 }
 
 static void *ret0(void) { return zero_block; }
+static void *ret_null(void) { return NULL; }
 
 /* A method returning a class by value (MSVC: hidden result pointer after this) that the caller reads: a zeroed
  * 8-byte result (CSteamID 0), returned as the pointer. */
@@ -79,6 +80,11 @@ static const char *const no_steam_modules[] = { "networksystem.dll", "steamnetwo
  * running with '-nosteam' but Steam is present"). */
 static const char *const absent[] = { "STEAMAPPS_INTERFACE_VERSION" };
 
+/* Interfaces whose every method answers NULL. ISteamClient's methods hand out interfaces (or pipe and user handles,
+ * 0 either way): the zero block would be taken for an object with no vtable (server.dll 10-15 991359, "Steamworks
+ * Stats: Requesting session id", crashed on it after BeginMatch). */
+static const char *const null_methods[] = { "SteamClient" };
+
 static void module_of(void *address, char *name, size_t size)
 {
     HMODULE m = NULL;
@@ -117,6 +123,10 @@ static void *dummy(const char *version, void *caller)
     strncpy(dummies[d].version, version, sizeof dummies[d].version - 1);
     for (int i = 0; i < DUMMY_SLOTS; i++)
         dummies[d].vtable[i] = (void *)ret0;
+    for (size_t p = 0; p < sizeof null_methods / sizeof null_methods[0]; p++)
+        if (strncmp(version, null_methods[p], strlen(null_methods[p])) == 0)
+            for (int i = 0; i < DUMMY_SLOTS; i++)
+                dummies[d].vtable[i] = (void *)ret_null;
     for (size_t o = 0; o < sizeof overrides / sizeof overrides[0]; o++)
         if (strncmp(version, overrides[o].prefix, strlen(overrides[o].prefix)) == 0)
             dummies[d].vtable[overrides[o].slot] = overrides[o].function;

@@ -1,6 +1,12 @@
 {
  "functions": [
   {
+   "addr": "1800d7ca0",
+   "name": "RenderDoc_Hook",
+   "module": "s2c:baked/lighting",
+   "note": "with -renderdoc (called at 180093907 and 1800992c8): the RenderDoc path from the registry, loads renderdoc.dll from the RenderDoc install folder and takes its API; returns 1 on success (\"Attempted to hook renderdoc ... Result: 'Success'\"). tools/cubehost run_probe.py --renderdoc, docs/CUBEMAPS.md"
+  },
+  {
    "addr": "180254550",
    "name": "VfxVariableDesc_InitDefaults",
    "module": "s2c:baked/lighting",

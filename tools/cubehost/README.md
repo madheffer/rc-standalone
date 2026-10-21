@@ -27,6 +27,8 @@ run where it can be observed and captured without touching cs2.exe.
   - other interfaces are dummies whose methods return a zeroed block at a
     4 GB-aligned address (0 as an int or bool, an empty string or struct as a
     pointer); `ISteamUser::GetSteamID` writes a zero CSteamID;
+  - every `ISteamClient` method answers NULL (it hands out interfaces; a zeroed
+    block taken for one crashed server.dll's Steamworks stats after BeginMatch);
   - the listen server's game server init succeeds locally.
 
 ## Safety (enforced by the host)
@@ -50,3 +52,24 @@ Copies the map's compiled package into the scratch addon `s2c_cubeprobe`,
 runs the engine, keeps changed files, host output and the console log (the
 user's own console.log is restored) under `%TEMP%/cubehost_run/<map>`.
 `dbwin.py` captures OutputDebugString of a run. Steam must be closed.
+
+The game's mode configs put bots back on every map load; the runner writes
+`gamemode_*_server.cfg` overrides into the scratch addon to keep them out.
+
+## RenderDoc capture of a cubemap
+
+```
+python tools/cubehost/run_probe.py --renderdoc 0
+```
+
+Adds `-renderdoc` (the engine's own hook loads the installed RenderDoc into
+cubehost.exe; never into cs2.exe) and passes `--renderdoc-capture 0` to the
+host, which sets the development-only convar `buildcubemaps_renderdoc_capture`
+in its own process (release builds hide it from the console and command
+line). BuildCubemaps captures that cube's six faces; the runner closes the
+qrenderdoc window the engine opens and moves the .rdc next to the run's logs.
+`rdc_summary.py` lists a capture's passes from RenderDoc's own Python:
+
+```
+RDC_IN=<capture.rdc> RDC_OUT=<summary.txt> "C:\Program Files\RenderDoc\qrenderdoc.exe" --python tools/cubehost/rdc_summary.py
+```

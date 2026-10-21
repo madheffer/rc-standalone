@@ -34,6 +34,22 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180166df0` | `bc7e_compress_blocks_avx2` | the 8-wide AVX2 target: a 4-wide build (avx2-i32x4) differs on a few blocks (Bc7eOracleTests) |  |
 | `180169300` | `bc7e_init_params` | export (level 0..6, perceptual, params): a jump table onto the ISPC params initialisers; level 6 is slowest |  |
 
+## client.dll, build 20261015
+
+- file: `client_20261015.dll`, 39,205,528 bytes, PE time 2026-10-14 23:41 UTC
+- SHA-256 `659940c1db362ed981d1df10637cec8c2a3d99409b77fc3b73e435e4649e36b0`
+- installed: a different build
+- 4 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1800538d8` | `Convar_buildcubemaps_renderdoc_capture` | registration of buildcubemaps_renderdoc_capture ("Capture a specific cubemap with RenderDoc during buildcubemaps.") with flags 2, development-only: a release build hides it from the console and the command line; its data pointer is the global 18237eab0 |  |
+| `1802091d0` | `BuildCubemaps_WriteExr` | the strip as an uncompressed half EXR through tinyexr's fast writer (1813dede0), channels B, G, R; Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8` |
+| `18020e130` | `BuildCubemaps_FaceToStrip` | a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8` |
+| `18237eab0` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process |  |
+
 ## hammer.dll, build 20260924
 
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
@@ -503,12 +519,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `2febd86471b9ed1953e75875296f3e76999661f1e86cb68e928c0cb12a2afb4a`
 - installed: this build
 - against the installed build (20261016_1.41.9.1.md): 1 tracked addresses: identical 1
-- 1 addresses
+- 2 addresses
 
 ### s2c:baked/lighting
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `1800d7ca0` | `RenderDoc_Hook` | with -renderdoc (called at 180093907 and 1800992c8): the RenderDoc path from the registry, loads renderdoc.dll from the RenderDoc install folder and takes its API; returns 1 on success ("Attempted to hook renderdoc ... Result: 'Success'"). tools/cubehost run_probe.py --renderdoc, docs/CUBEMAPS.md |  |
 | `180254550` | `VfxVariableDesc_InitDefaults` | a leaf constructor: int ranges [-999999999, 999999999] (+0x15c..+0x178), float ranges [-1e9, 1e9]. Int render attributes reach the constant buffer clamped to it: vrad3's small-chart g_nRNGOffsetX / Y (capture_smallcharts.py; the VCS files declare +-1e9). LightmapBaker.RenderInt |  |
 
 ## resourcecompiler.dll, build 20260923
@@ -677,7 +694,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18004c060` | `Init_ChartNormalDot` | 183baf5c4 = V_cosf(1 degree) = 0x3f7ff605 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:35` |
 | `1800caa20` | `GGXMipBlur_BuildTapTable` | (table, size, roughness): Hammersley binary search for the n in (0x800, 0x4000) with at most 0x800 reflected taps above the horizon; taps (2c sin cos phi, 2c sin sin phi, 2c^2 - 1, lod 0.5 log2(2pi / (pdf 2048) / (4pi / (6 size^2))) + 1), weights at +0x8000 normalised to sum 1 (GgxCubeMapBlur.GgxTable; emu_cubeblur_tables.py) | `src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs:93` |
 | `1800caf90` | `GGXMipBlur_RenderLayer` | the 'cubeblur' quad (four 0x30-byte strip vertices: position (x, y, 0) at 0, direction (1, y, -x) at 20), source cube bound as g_tCubemap (0xbc1f50cb); mip 0 copied face by face (vf 0x2a8); per mip from 1: the tap table (1800caa20, or the inline cosine loop at 1800cb526 when flag 1 and mip >= count - 3; roughness mip / (count - 4 or count - 1), squared with flag 2) into a 64 KB buffer (FilterTapConstantBuffer_t 0x76121c6d), g_nSampleCount (0x79f9c124) 0x800, per face the face index (0xa1d51fd8) and g_vMatRow0..2 (0x3c8ace17, 0x23eda2e5, 0xe3ea92da) from 1827685f0, a strip of 4 into the RT, copied into the destination's mip and face (src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs) | `src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs:13` |
-| `180133da0` | `CResourceCompilerTexture::CompileResourceInternal` | the texture compile (also the 'Cubemap %i, face %i has Inf/NaN/extremely bright pixel' check): minmipsize/maxmipsize; GetBool fast, final, hueShiftFixup; the encode quality 3 in a console build (1 with fast, 4 with final; special dependency 'Texture Encode Quality' user data), hueShiftFixup -> encode flag 4; each mip's LZ4 HC level by quality 0..4: 3, 4, 9, 10, 12 (Zstd 1, 1, 3, 12, 12) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:185`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:302` |
+| `180133da0` | `CResourceCompilerTexture::CompileResourceInternal` | the texture compile (also the 'Cubemap %i, face %i has Inf/NaN/extremely bright pixel' check): minmipsize/maxmipsize; GetBool fast, final, hueShiftFixup; the encode quality 3 in a console build (1 with fast, 4 with final; special dependency 'Texture Encode Quality' user data), hueShiftFixup -> encode flag 4; each mip's LZ4 HC level by quality 0..4: 3, 4, 9, 10, 12 (Zstd 1, 1, 3, 12, 12) | `src/Source2.Compiler/Cubemaps/CubemapArrayVtex.cs:158`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:185`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:302` |
 | `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array: per input cube, its six faces as RGBA32F (0x13) into GGXCubeMapBlur_SourceCubemap.vtex (full mip chain, vf 0x270 then 0x2a0), destination GGXCubeMapBlur_DestCubemapArray.vtex, target GGXMipBlurRT.vtex; layer 1800caf90 with flags 3; mips from 1 read back (vf 0x250) into the frame's levels, mip 0 the input (180c3c3c0). Errors: one input, six faces, square, not volume, power of two (src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs) | `src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs:9` |
 | `18016a6a0` | `CResourceCompilerContext::SetOverrideInputData` | vf0 of the argument interface: ___OverrideInputData___ from a buffer (CRC32) |  |
 | `180174ce0` | `CResourceCompilerContext::SetImageArg` | vf9 of the argument interface (vtable 18277e630): stores a copy of the bitmap; fingerprint -1 = CRC32 of height, width, depth then each masked channel's plane rows | `src/Source2.Compiler/Lighting/LightmapTextures.cs:509` |
@@ -1792,7 +1809,13 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `server_20261015.dll`, 34,628,248 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `09e8c04c5f44040155d04fa79a3f43491d542a386f45807ed77785729e5925a9`
 - installed: a different build
-- 36 addresses
+- 37 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `180991359` | `SteamWorksGameStats_RequestSessionId` | "Steamworks Stats: %s Requesting session id." then a call through the object at this +0x80 without a check: a Steam interface from ISteamClient. cubehost's stub answers NULL to every ISteamClient method (a zeroed dummy crashed here after BeginMatch) |  |
 
 ### s2c:baked/nav
 

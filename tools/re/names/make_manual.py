@@ -2788,6 +2788,7 @@ SCENESYSTEM = [
 
 RENDERSYSTEMVULKAN_1015 = [
     # Read from the disassembly (rendersystemvulkan 20261015, md5 04e078c3a7e5a02355930f15d42d3d81).
+    ("1800d7ca0", "RenderDoc_Hook", BAKE, "with -renderdoc (called at 180093907 and 1800992c8): the RenderDoc path from the registry, loads renderdoc.dll from the RenderDoc install folder and takes its API; returns 1 on success (\"Attempted to hook renderdoc ... Result: 'Success'\"). tools/cubehost run_probe.py --renderdoc, docs/CUBEMAPS.md"),
     ("180254550", "VfxVariableDesc_InitDefaults", BAKE, "a leaf constructor: int ranges [-999999999, 999999999] (+0x15c..+0x178), float ranges [-1e9, 1e9]. Int render attributes reach the constant buffer clamped to it: vrad3's small-chart g_nRNGOffsetX / Y (capture_smallcharts.py; the VCS files declare +-1e9). LightmapBaker.RenderInt"),
 ]
 
@@ -2859,6 +2860,19 @@ def write(name, rows):
         json.dump({"functions": [{"addr": a, "name": n, "module": m, "note": note} for a, n, m, note in rows]}, f, indent=1)
 
 
+# client.dll 20261015 (tools/re/binaries/client_20261015.dll): the game half of buildcubemaps (docs/CUBEMAPS.md).
+CLIENT_1015 = [
+    ("18020e130", "BuildCubemaps_FaceToStrip", BAKE, "a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs"),
+    ("1802091d0", "BuildCubemaps_WriteExr", BAKE, "the strip as an uncompressed half EXR through tinyexr's fast writer (1813dede0), channels B, G, R; Cubemaps/CubemapFaceExr.cs"),
+    ("1800538d8", "Convar_buildcubemaps_renderdoc_capture", BAKE, "registration of buildcubemaps_renderdoc_capture (\"Capture a specific cubemap with RenderDoc during buildcubemaps.\") with flags 2, development-only: a release build hides it from the console and the command line; its data pointer is the global 18237eab0"),
+    ("18237eab0", "g_buildcubemaps_renderdoc_capture", BAKE, "the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process"),
+]
+
+# server.dll 20261015 under cubehost (no Steam).
+SERVER_1015_CUBEHOST = [
+    ("180991359", "SteamWorksGameStats_RequestSessionId", BAKE, "\"Steamworks Stats: %s Requesting session id.\" then a call through the object at this +0x80 without a check: a Steam interface from ISteamClient. cubehost's stub answers NULL to every ISteamClient method (a zeroed dummy crashed here after BeginMatch)"),
+]
+
 # resourcecompiler.dll as installed since the 10-15 update (tools/re/binaries/resourcecompiler_20261015.dll).
 RESOURCECOMPILER_1015 = [
     ("1800fe5f0", "MapCompile_RunPostMapBuildSteps", NAV, "after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40)"),
@@ -2891,7 +2905,8 @@ if __name__ == "__main__":
     write("scenesystem_20261015.manual.json", SCENESYSTEM)
     write("materialsystem2_20261015.manual.json", MATERIALSYSTEM_1015)
     write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
-    write("server_20261015.manual.json", SERVER_1015)
+    write("server_20261015.manual.json", SERVER_1015 + SERVER_1015_CUBEHOST)
     write("resourcecompiler_20261015.manual.json", RESOURCECOMPILER_1015)
     write("bc7e_20261015.manual.json", BC7E)
+    write("client_20261015.manual.json", CLIENT_1015)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))

@@ -33,9 +33,12 @@ static class Program
         var split = Array.IndexOf(args, "--");
         var own = split < 0 ? args : args[..split];
         var engineArgs = split < 0 ? [] : args[(split + 1)..];
+        int? renderDocCapture = null;
         for (var i = 0; i + 1 < own.Length; i++)
             if (own[i] == "--cs2")
                 cs2 = own[i + 1];
+            else if (own[i] == "--renderdoc-capture")
+                renderDocCapture = int.Parse(own[i + 1]);
 
         var running = Process.GetProcesses().Select(p => p.ProcessName.ToLowerInvariant()).Where(n => Forbidden.Contains(n)).Distinct().ToList();
         if (running.Count > 0)
@@ -88,6 +91,8 @@ static class Program
             Console.Error.WriteLine($"cubehost: steam_api64.dll is {bound ?? "not loaded"}, not the stub {stub} (build it with build_stub.ps1); refusing.");
             return 2;
         }
+        if (renderDocCapture is { } capture)
+            SetRenderDocCapture(capture);
         var main = Marshal.GetDelegateForFunctionPointer<Source2Main>(NativeLibrary.GetExport(module, "Source2Main"));
 
         // The command line handed to Source2Main, as cs2.exe hands its own: the program first (CreateCmdLine
@@ -107,5 +112,44 @@ static class Program
             Marshal.FreeCoTaskMem(baseUtf8);
             Marshal.FreeCoTaskMem(gameUtf8);
         }
+    }
+
+    // client.dll's buildcubemaps_renderdoc_capture (which cubemap BuildCubemaps captures with RenderDoc under
+    // -renderdoc) is development-only (registered with flags 2, client 10-15 1800538d8): neither the console nor
+    // the command line sets it in a release build. In our own process we set it the way the convar system would:
+    // the cvar's data pointer is client's global 18237eab0 (the one the capture test reads), its name at +0 and
+    // its int value at +0x58. The name is checked first; another client build is left alone.
+    private const string RenderDocConvar = "buildcubemaps_renderdoc_capture";
+    private const int ClientConvarGlobal = 0x237eab0;
+
+    private static void SetRenderDocCapture(int index)
+    {
+        var thread = new Thread(() =>
+        {
+            var name = Marshal.StringToHGlobalUni("client.dll");
+            for (var tries = 0; tries < 6000; tries++, Thread.Sleep(50))
+            {
+                var client = GetModuleHandleW(name);
+                if (client == 0)
+                    continue;
+                var data = Marshal.ReadIntPtr(client + ClientConvarGlobal);
+                if (data == 0)
+                    continue;
+                var convarName = Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(data));
+                // Until the convar registers, the global points at the convar system's placeholder.
+                if (convarName == "<undefined>")
+                    continue;
+                if (convarName != RenderDocConvar)
+                {
+                    Console.WriteLine($"cubehost: client's convar at +{ClientConvarGlobal:x} is \"{convarName}\", not {RenderDocConvar}; not set (another client build).");
+                    return;
+                }
+                Marshal.WriteInt32(data + 0x58, index);
+                Console.WriteLine($"cubehost: {RenderDocConvar} = {index}");
+                return;
+            }
+            Console.WriteLine($"cubehost: {RenderDocConvar} not found; not set.");
+        }) { IsBackground = true };
+        thread.Start();
     }
 }

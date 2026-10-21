@@ -1,0 +1,28 @@
+{
+ "functions": [
+  {
+   "addr": "18020e130",
+   "name": "BuildCubemaps_FaceToStrip",
+   "module": "s2c:baked/lighting",
+   "note": "a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs"
+  },
+  {
+   "addr": "1802091d0",
+   "name": "BuildCubemaps_WriteExr",
+   "module": "s2c:baked/lighting",
+   "note": "the strip as an uncompressed half EXR through tinyexr's fast writer (1813dede0), channels B, G, R; Cubemaps/CubemapFaceExr.cs"
+  },
+  {
+   "addr": "1800538d8",
+   "name": "Convar_buildcubemaps_renderdoc_capture",
+   "module": "s2c:baked/lighting",
+   "note": "registration of buildcubemaps_renderdoc_capture (\"Capture a specific cubemap with RenderDoc during buildcubemaps.\") with flags 2, development-only: a release build hides it from the console and the command line; its data pointer is the global 18237eab0"
+  },
+  {
+   "addr": "18237eab0",
+   "name": "g_buildcubemaps_renderdoc_capture",
+   "module": "s2c:baked/lighting",
+   "note": "the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process"
+  }
+ ]
+}

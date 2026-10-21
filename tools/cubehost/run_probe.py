@@ -84,7 +84,11 @@ def drive(host, a, seen):
     def wait_for(words, seconds):
         until = min(deadline, time.time() + seconds)
         while time.time() < until and host.poll() is None:
-            for line in console.drain(2):
+            try:
+                lines = console.drain(2)
+            except OSError:
+                return None
+            for line in lines:
                 seen.append(line)
                 for w in words:
                     if w.lower() in line.lower():
@@ -100,11 +104,16 @@ def drive(host, a, seen):
     loaded = wait_for([f'Map: "{a.map}"', "invalid map name"], 300)
     if not loaded or "invalid" in loaded:
         return f"map did not load ({loaded})"
+    console.send("bot_kick")
     wait_for(["OnSwitchLoopModeFinished"], 60)
+    console.send("bot_kick")
     console.send("buildcubemaps")
     done = wait_for(["Finished building cubemaps", "Failed to compile cubemaps", "Finished ("], a.timeout)
     wait_for(["Finished building cubemaps"], 20)
-    console.send("quit")
+    try:
+        console.send("quit")
+    except OSError:
+        pass
     try:
         host.wait(60)
     except subprocess.TimeoutExpired:
@@ -121,6 +130,8 @@ def main():
     p.add_argument("--from", dest="source", default="s2c_rc_probe")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--netcon", type=int, default=29000)
+    p.add_argument("--renderdoc", type=int, metavar="CUBEMAP",
+                   help="capture that cubemap's render with RenderDoc (inside cubehost.exe only; Steam closed)")
     p.add_argument("--keep-intermediates", action="store_true",
                    help="copy the game's _buildcubemaps EXRs and .vtex as they appear (into <out>/intermediates)")
     a = p.parse_args(argv)
@@ -136,7 +147,14 @@ def main():
     os.makedirs(os.path.join(game, "maps"), exist_ok=True)
     os.makedirs(content, exist_ok=True)
     shutil.copy2(os.path.join(CS2, "game", "csgo_addons", a.source, "maps", a.map + ".vpk"), os.path.join(game, "maps", a.map + ".vpk"))
-    out = os.path.join(os.environ.get("TEMP", "."), "cubehost_run", a.map)
+    # The game mode's cfg runs on every map load and puts the bots back; its _server.cfg runs after it and
+    # takes them out again (in the scratch addon only, never the game's cfg folder).
+    os.makedirs(os.path.join(game, "cfg"), exist_ok=True)
+    for name in os.listdir(os.path.join(CS2, "game", "csgo", "cfg")):
+        if name.startswith("gamemode_") and name.endswith(".cfg") and not name.endswith("_server.cfg"):
+            with open(os.path.join(game, "cfg", name[:-4] + "_server.cfg"), "w") as f:
+                f.write("bot_quota 0\nbot_quota_mode normal\nbot_kick\n")
+    out =os.path.join(os.environ.get("TEMP", "."), "cubehost_run", a.map)
     os.makedirs(out, exist_ok=True)
     before = {**snapshot(game), **snapshot(content)}
     # -condebug appends to the game's console.log (the user's own): keep it aside and restore it after.
@@ -146,8 +164,14 @@ def main():
     if had_console:
         shutil.copy2(console, console_backup)
     console_start = os.path.getsize(console) if had_console else 0
-    cmd = [HOST, "--", "-insecure", "-nosteam", "-nobreakpad", "-vulkan", "-novid", "-console", "-condebug",
-           "-addon", ADDON, "-tools", "-netconport", str(a.netcon), *extra]
+    cmd = [HOST, *(["--renderdoc-capture", str(a.renderdoc)] if a.renderdoc is not None else []), "--", "-insecure", "-nosteam", "-nobreakpad", "-vulkan", "-novid", "-console", "-condebug",
+           "-addon", ADDON, "-tools", "-netconport", str(a.netcon), *(["-renderdoc"] if a.renderdoc is not None else []), *extra]
+    # RenderDoc loads into cubehost.exe only (the game's own -renderdoc support), never cs2.exe; its captures land
+    # in %TEMP%/RenderDoc and are collected after the run. buildcubemaps_renderdoc_capture is development-only
+    # (client 10-15 1800538d8 registers it with flags 2): neither the console nor the command line sets it, so
+    # the host writes it in its own process (--renderdoc-capture, Program.cs).
+    rdc_dir = os.path.join(os.environ.get("TEMP", "."), "RenderDoc")
+    rdc_before = set(os.listdir(rdc_dir)) if os.path.isdir(rdc_dir) else set()
     print(" ".join(cmd))
     started = time.time()
     seen = []
@@ -157,7 +181,10 @@ def main():
         stop = threading.Event()
         keeper = keep_intermediates([game, content], out, stop, seen) if a.keep_intermediates else None
         try:
-            code = drive(host, a, seen)
+            try:
+                code = drive(host, a, seen)
+            except OSError as e:
+                code = f"console lost ({e}); exit {host.poll()}"
         finally:
             if host.poll() is None:
                 subprocess.run(["taskkill", "/F", "/IM", "cubehost.exe"], capture_output=True)
@@ -165,6 +192,20 @@ def main():
             stop.set()
     with open(os.path.join(out, "netcon.log"), "w", encoding="utf-8") as f:
         f.write("\n".join(seen) + "\n")
+    if os.path.isdir(rdc_dir):
+        # The engine opens each capture it writes in RenderDoc's UI (qrenderdoc, several GB for a cubemap): close
+        # the ones it opened on this run's captures (and their crash handlers) so the files can be moved.
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        "Get-CimInstance Win32_Process -Filter \"Name='qrenderdoc.exe'\" | "
+                        "Where-Object { $_.CommandLine -like '*RenderDoc\\cubehost_*.rdc*' } | "
+                        "ForEach-Object { Get-CimInstance Win32_Process -Filter \"ParentProcessId=$($_.ProcessId)\" | "
+                        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Stop-Process -Id $_.ProcessId -Force }"],
+                       capture_output=True)
+        time.sleep(1)
+        for n in sorted(set(os.listdir(rdc_dir)) - rdc_before):
+            if n.endswith(".rdc"):
+                shutil.move(os.path.join(rdc_dir, n), os.path.join(out, n))
+                print("  capture " + n)
     after = {**snapshot(game), **snapshot(content)}
     changed = [f for f, v in after.items() if before.get(f) != v]
     for f in changed:
