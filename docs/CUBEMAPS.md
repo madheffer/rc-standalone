@@ -33,6 +33,21 @@ Read from resourcecompiler 0923 (addresses in ADDRESSES.md, BAKE rows); the
 - The render itself is the game's scene renderer drawing the map from the probe
   (objects flagged rendertocubemaps, barn lights' bakespeculartocubemaps,
   r_render_to_cubemap_* convars). Not ported; this is the large remaining piece.
+- Per cubemap and face (client 18020e130, decompiled from the 10-15 build in
+  Ghidra, alias `client`): the face's angles from a six-entry table (client
+  181ad10d0, 0x28 bytes each), the probe origin (record floats 0..2), FOV 90,
+  near / far from record floats 6 and 7, aspect 1; a view "BuildCubemaps" on
+  the "Game" rendering pipeline into `scratchcolor` (render format 0xf, read
+  back as RGBA16F halves) and `scratchdepth` (0x2a), render size square. With
+  r_draw3dskybox, a second view from the sky camera (client 180acb130: origin
+  +0x13d4, scale +0x13d0; position = origin + probe / scale) goes in as
+  render attribute 0xaa7a6a35. View attributes: 0xd7f4028 and 0x7052a413 the
+  targets, 0x7de7125 = 1, 0xae401481 = 0, 0x8cd2032 / 0x987b4595 the two
+  skybox convars, 0x654ec82e / 0xf820ab6c the record's byte 0x24 == 0,
+  0x64a9813a the sky camera position, 0x1e961ef / 0x821e2402 a list from the
+  sky camera's index. A half with exponent 0x7c00 logs "Invalid Pixel" (and
+  exits with a command-line switch). The halves go into a float frame (client
+  1813db210, format 0xf) and 1802091d0 reduces, composites and writes.
 
 ## The array's source
 

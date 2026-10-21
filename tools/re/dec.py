@@ -22,6 +22,7 @@ PROGRAMS = {
     "tier0": "/tier0_20260923.dll",
     "visbuilder": "/visbuilder_20260923.dll",
     "meshsystem": "/meshsystem_20260923.dll",
+    "client": "/client_20261015.dll",
 }
 
 

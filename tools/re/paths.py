@@ -56,4 +56,5 @@ ALIASES = {
     "mt": "modtools_20261015.dll",
     "navs": "navsystem_20261015.dll",
     "srv": "server_20261015.dll",
+    "cl": "client_20261015.dll",
 }
