@@ -234,6 +234,74 @@ public class MapRootFileTests(ITestOutputHelper output)
         Assert.Empty(failed);
     }
 
+    /// <summary>
+    /// Unlit compiles (ledger 119): Valve's world-only references (%TEMP%/nobake_refs, fresh_refs) and its
+    /// -world -phys -vis -nav ones (%TEMP%/nolight_1016), each .vmap_c against ours built with the same
+    /// builders, byte for byte. Their argument tables have no lighting rows, bakelighting instead, and
+    /// flattenPropsWithBakedLighting where a static model record is made.
+    /// </summary>
+    [Fact]
+    public void UnlitMapRootsEqualValves()
+    {
+        if (CS2Fixtures.StockPak() is not { } pak)
+        {
+            MapFixtures.Skip("CS2");
+            return;
+        }
+        var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
+        var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
+        var sets = new (string Folder, string[] Steps)[]
+        {
+            ("nobake_refs", ["world"]), ("fresh_refs", ["world"]), ("nolight_1016", ["world", "phys", "vis", "nav"]),
+        };
+        var failed = new List<string>();
+        var compared = 0;
+        foreach (var (folder, steps) in sets)
+        {
+            var dir = Path.Combine(Path.GetTempPath(), folder);
+            if (!Directory.Exists(dir))
+                continue;
+            foreach (var vpk in Directory.GetFiles(dir, "*.vpk").Order(StringComparer.Ordinal))
+            {
+                var map = Path.GetFileNameWithoutExtension(vpk);
+                if (MapFixtures.VmapSource("s2c_rc_probe", map) is not { } source)
+                    continue;
+                using var package = new Package();
+                package.Read(vpk);
+                if (package.FindEntry($"maps/{map}.vmap_c") is not { } entry)
+                    continue;
+                var valve = Io.VpkEntries.Read(package, entry);
+                using var res = ResourceTrees.Read(valve, "map.vmap_c");
+                var red2 = ((ValveResourceFormat.Blocks.ResourceEditInfo2)res.EditInfo!).Data!.Root;
+                var children = red2.GetArray<string>("m_ChildResourceList")!.ToList();
+                var content = Path.GetDirectoryName(Path.GetDirectoryName(source))!;
+                var document = DmxBinary.ReadFile(source);
+                MapPrefabs.Attach(document, MapPrefabs.FromContent(content));
+                var inputs = new List<(string, uint)> { ($"maps/{map}.vmap", MapRootFile.Crc(File.ReadAllBytes(source))) };
+                foreach (var path in Prefabs(document).Distinct(StringComparer.OrdinalIgnoreCase))
+                    inputs.Add((path, MapRootFile.Crc(File.ReadAllBytes(Path.Combine(content, path)))));
+                var entities = MapEntities.From(document);
+                var compile = new MapRootFile.Compile("s2c_rc_probe", inputs, false, false, new Dictionary<string, object>(),
+                                                      steps.ToHashSet(), MapRootFile.ReadsStaticModelRecords(document));
+                var ours = MapRootFile.Write(compile, children, MapAssets.References(document, MapSubassets.LumpOrder(entities, document), schema, $"maps/{map}"),
+                                             MapSubassets.References(entities, schema, document));
+                compared++;
+                var same = ours.AsSpan().SequenceEqual(valve);
+                output.WriteLine($"{folder}/{map}: {(same ? "equal" : $"DIFFER ({ours.Length} vs {valve.Length} bytes)")}");
+                if (same)
+                    continue;
+                failed.Add($"{folder}/{map}");
+                using var mine = ResourceTrees.Read(ours, "map.vmap_c");
+                static string Names(KVObject root) => string.Join(" ", root.GetArray("m_ArgumentDependencies")!.Select(a => a.GetStringProperty("m_ParameterName")));
+                output.WriteLine($"  ours  {Names(((ValveResourceFormat.Blocks.ResourceEditInfo2)mine.EditInfo!).Data!.Root)}");
+                output.WriteLine($"  valve {Names(red2)}");
+            }
+        }
+        if (compared == 0)
+            MapFixtures.Skip("Valve's unlit references (%TEMP%/nobake_refs, fresh_refs, nolight_1016)");
+        Assert.Empty(failed);
+    }
+
     private static IEnumerable<string> Prefabs(DmxBinary.Document document)
     {
         foreach (var p in document.OfType("CMapPrefab"))

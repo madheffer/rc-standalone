@@ -334,7 +334,9 @@ public static class MapCompile
             var walkEntities = MapEntities.From(document);
             var bakedRoot = bakes && lightingFolder is not null;
             var probeVolumes = children.Any(c => c.EndsWithAscii("/lightmaps/env_light_probe_volume_atlas.vtex"));
-            entries[rootPath] = MapRootFile.Write(new MapRootFile.Compile(addon, inputs, bakedRoot, probeVolumes, args.Arguments), children,
+            entries[rootPath] = MapRootFile.Write(new MapRootFile.Compile(addon, inputs, bakedRoot, probeVolumes, args.Arguments,
+                                                                              bakes ? [.. steps, "bakedlighting"] : steps,
+                                                                              !bakes && MapRootFile.ReadsStaticModelRecords(document)), children,
                                                   MapAssets.References(document, MapSubassets.LumpOrder(walkEntities, document), schema, $"maps/{map}".ToLowerInvariant()),
                                                   MapSubassets.References(walkEntities, schema, document));
             log.WriteLine($"  map root: {rootPath}, {children.Count} children");

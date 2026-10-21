@@ -20,11 +20,44 @@ public static class MapRootFile
     /// <summary>What the compile was.</summary>
     /// <param name="Addon">The addon (the inputs' search path is csgo_addons/&lt;addon&gt;).</param>
     /// <param name="Inputs">Each .vmap read (the map and its prefabs' maps) with its bytes' CRC32.</param>
-    /// <param name="Baked">The compile baked lighting.</param>
+    /// <param name="Baked">The compile produced lightmaps (their texture arguments are read).</param>
     /// <param name="ProbeVolumes">The map has light probe volumes (the probe texture argument is read).</param>
     /// <param name="Arguments">The compile's arguments as MapCompileArgs types them.</param>
+    /// <param name="Steps">The builders that ran (MapCompileArgs.Builders names); null for a full build.</param>
+    /// <param name="FlattenProps">A static model record is made (<see cref="ReadsStaticModelRecords"/>).</param>
     public sealed record Compile(string Addon, IReadOnlyList<(string Path, uint Crc)> Inputs, bool Baked, bool ProbeVolumes,
-                                 IReadOnlyDictionary<string, object> Arguments);
+                                 IReadOnlyDictionary<string, object> Arguments, IReadOnlySet<string>? Steps = null,
+                                 bool FlattenProps = false)
+    {
+        public bool Runs(string step) => Steps is null ? step is "world" or "phys" or "vis" or "bakedlighting" : Steps.Contains(step);
+    }
+
+    /// <summary>
+    /// Whether EntityLump_StaticModelRecord (0923 180245770) runs: for every visible prop_static and smart
+    /// prop model (180244d30) and every brush entity whose model has lightmapstatic set (180240a60; its
+    /// other conditions are not read). Without baked lighting it reads flattenPropsWithBakedLighting.
+    /// </summary>
+    public static bool ReadsStaticModelRecords(DmxBinary.Document document)
+    {
+        var (_, entities) = MapMeshes.ReadWithEntities(document);
+        foreach (var ent in entities)
+        {
+            if (ent.Hidden)
+                continue;
+            if (ent.Element.Type == "CMapSmartProp")
+                return true;
+            var props = ent.Element.Get<DmxBinary.Element>("entity_properties");
+            if (props?.Get<string>("classname") == "prop_static")
+                return true;
+            if (props?.Get<string>("lightmapstatic") is { Length: > 0 } v && CNumbers.Atoi(v) != 0 && HasMesh(ent.Element))
+                return true;
+        }
+        return false;
+    }
+
+    // A brush entity: a CMapMesh among its children (the model it gets).
+    private static bool HasMesh(DmxBinary.Element element)
+        => element.GetElements("children").Any(c => c.Type == "CMapMesh" || HasMesh(c));
 
     public static uint Crc(byte[] bytes) => Crc32.HashToUInt32(bytes);
 
@@ -58,30 +91,53 @@ public static class MapRootFile
         return ValveLayout.Serialize(resource);
     }
 
-    /// <summary>The 22 arguments every map compile's steps read; a baked compile reads 11 more (and 2 with probe volumes).</summary>
-    private static readonly string[] Unbaked =
+    // The arguments a compile's steps read (ArgumentDependencies records each one read), by step. Readers
+    // in resourcecompiler 0923: skipmapload 1800fd550, skipauxfiles 180244d30, force_up_to_date_materials
+    // 1802f9cc0; debugColorClustering CVisibilityMeshMerger_MergeMeshes and meshletMax* the node models'
+    // mesh build (18025fab0), so only with world node models; keep_vertices and mapbuilder_entity_classname
+    // the physics compile; norte CWorldRendererBuilder_Build when vis is on (CMapBuilderContext vfunc 0xe8,
+    // the builder table at +0x609, index 2) or the context's +0x605 flag (vfunc 0x100, not read yet), then
+    // debugvisgeo and dumptris in CreateRayTracingEnvironment, disablevis in the vis builder;
+    // flattenPropsWithBakedLighting 180245770 when the compile does not bake (vfunc 0x108), and bakelighting
+    // when it does not. Measured on 56 Valve compiles (world only, world+phys+vis+nav, full; ledger 119).
+    private static readonly string[] Always = ["force_up_to_date_materials", "skipauxfiles", "skipmapload"];
+    private static readonly string[] WorldNodeModels = ["debugColorClustering", "meshletMaxTriangles", "meshletMaxVertices"];
+    private static readonly string[] Physics = ["keep_vertices", "mapbuilder_entity_classname"];
+    private static readonly string[] Visibility = ["debugvisgeo", "disablevis", "dumptris", "norte"];
+
+    private static readonly string[] Lighting =
     [
-        "debugLightmapSets", "debugvisgeo", "disableLightingCalculations", "disablevis", "dumptris", "force_up_to_date_materials",
-        "keep_vertices", "lightmapChartPackIterations", "lightmapCompressionDisabled", "lightmapMaxResolution", "lightmapMipCount",
-        "lightmapNoWeld", "lightmapVRadQuality", "mapbuilder_entity_classname", "nobakedlighting", "noLightProbeVolumes", "noRepack",
-        "norte", "noVolumetricFog", "skipauxfiles", "skipmapload",
+        "debugLightmapSets", "disableLightingCalculations", "lightmapChartPackIterations", "lightmapCompressionDisabled",
+        "lightmapMaxResolution", "lightmapMipCount", "lightmapNoWeld", "lightmapVRadQuality", "nobakedlighting",
+        "noLightProbeVolumes", "noRepack", "noVolumetricFog",
     ];
 
-    private static readonly string[] BakedExtra =
+    // The lightmaps' texture compiles read these (only when there are lightmaps).
+    private static readonly string[] LightmapTextures =
     [
-        "debugColorClustering", "fast", "hueShiftFixup", "lightmapDisableFiltering", "lightmapMaxResolution#texture", "lightmapTextureArg",
-        "maxmipsize", "meshletMaxTriangles", "meshletMaxVertices", "minmipsize", "vrad3LargeBlockSize",
+        "fast", "hueShiftFixup", "lightmapDisableFiltering", "lightmapMaxResolution#texture", "lightmapTextureArg",
+        "maxmipsize", "minmipsize", "vrad3LargeBlockSize",
     ];
 
     private static KVObject EditInfo(Compile compile, IReadOnlyList<string> children, IReadOnlyList<(string Type, string Name, int Count)> subassets)
     {
         var searchPath = $"csgo_addons/{compile.Addon}";
+        bool Child(string suffix) => children.Any(c => c.Contains("/lightmaps/", StringComparison.Ordinal) && c.EndsWith(suffix, StringComparison.Ordinal));
+        var fog = compile.Baked && Child("/fog_irradiance_volume.vtex");
+        var farfield = compile.Baked && Child("_indirection.vtex");
         var inputs = new List<(string Path, uint Crc, bool Optional, bool Exists)>();
         if (compile.Baked)
         {
             inputs.Add(("lightmaptexturearg.txt", 0, true, false));
             if (compile.ProbeVolumes)
                 inputs.Add(("lightprobevolumetexturearg.txt", 0, true, false));
+            if (fog)
+                inputs.Add(("fogirradiancevolumetexturearg.txt", 0, true, false));
+            if (farfield)
+            {
+                inputs.Add(("farfieldatlastexturearg.txt", 0, true, false));
+                inputs.Add(("farfieldindirectiontexturearg.txt", 0, true, false));
+            }
         }
         inputs.AddRange(compile.Inputs.Select(i => (i.Path, i.Crc, false, true)));
         var inputArray = KVObject.Array();
@@ -98,12 +154,32 @@ public static class MapRootFile
         }
 
         // The arguments, case-insensitively sorted with ___OverrideInputData___ first.
-        var names = new List<string>(Unbaked);
-        if (compile.Baked)
+        var names = new List<string>(Always);
+        if (children.Any(c => c.Contains("/worldnodes/", StringComparison.Ordinal) && c.EndsWith(".vmdl", StringComparison.Ordinal)))
+            names.AddRange(WorldNodeModels);
+        if (compile.Runs("phys"))
+            names.AddRange(Physics);
+        if (compile.Runs("vis"))
+            names.AddRange(Visibility);
+        if (compile.Runs("bakedlighting"))
         {
-            names.AddRange(BakedExtra);
-            if (compile.ProbeVolumes)
-                names.AddRange(["final", "lightProbeVolumeTextureArg"]);
+            names.AddRange(Lighting);
+            if (compile.Baked)
+            {
+                names.AddRange(LightmapTextures);
+                if (compile.ProbeVolumes)
+                    names.AddRange(["final", "lightProbeVolumeTextureArg"]);
+                if (fog)
+                    names.Add("fogIrradianceVolumeTextureArg");
+                if (farfield)
+                    names.AddRange(["farfieldAtlasTextureArg", "farfieldIndirectionTextureArg"]);
+            }
+        }
+        else
+        {
+            names.Add("bakelighting");
+            if (compile.FlattenProps)
+                names.Add("flattenPropsWithBakedLighting");
         }
         var args = KVObject.Array();
         args.Add(Argument("___OverrideInputData___", "BinaryBlobArg", 0, 0));
@@ -112,7 +188,8 @@ public static class MapRootFile
             var plain = name.Split('#')[0];
             var (type, value, fallback) = plain switch
             {
-                "lightmapTextureArg" or "lightProbeVolumeTextureArg" => ("BinaryBlobArg", 0u, 0u),
+                "lightmapTextureArg" or "lightProbeVolumeTextureArg" or "fogIrradianceVolumeTextureArg" or "farfieldAtlasTextureArg"
+                    or "farfieldIndirectionTextureArg" => ("BinaryBlobArg", 0u, 0u),
                 "mapbuilder_entity_classname" => ("StringArg", 0u, 0u),
                 _ => ("FloatArg", FloatBits(compile.Arguments, name), FloatBits(null, name)),
             };

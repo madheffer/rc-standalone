@@ -6,6 +6,25 @@ using System.Security.Cryptography;
 using ValvePak;
 using ValveResourceFormat.CompiledShader;
 
+// --res <file>...: a compiled resource's blocks as text (RED2 edit info, DATA), for diffing ours against Valve's.
+if (args[0] == "--res")
+{
+    foreach (var path in args.Skip(1))
+    {
+        using var res = new ValveResourceFormat.Resource();
+        res.Read(path);
+        Console.WriteLine($"== {path}");
+        foreach (var block in res.Blocks)
+        {
+            Console.WriteLine($"-- {block.Type}");
+            using var iw = new ValveResourceFormat.Utils.IndentedTextWriter();
+            block.WriteText(iw);
+            Console.WriteLine(iw.ToString());
+        }
+    }
+    return;
+}
+
 // --entities <vmap> <class substring>...: matching CMapEntity elements with their origin, angles and keys, for
 // finding a probe's or light's numbers in a capture's buffers.
 if (args[0] == "--entities")

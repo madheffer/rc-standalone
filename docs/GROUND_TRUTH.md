@@ -3098,6 +3098,36 @@ game can answer is raised with the user first, and runs with -insecure.
       the per-view block (fog: the env_cubemap_fog origin and its keys appear there), per-draw constants,
       the shadow cascades' views, the face-0 signed zero.
 
+119. **The .vmap_c argument table by builder** (2026-10-22, decompile of resourcecompiler 0923 and 56 Valve
+    compiles: world only, -world -phys -vis -nav, full; MapRootFileTests).
+    - Found by a whole-package parity run (ParityReport on the dev box, probe01 -world -phys -vis -nav against
+      Valve's 10-16 build): the writer gave every compile without lightmaps the lit table, so every unlit build
+      (the service's Fast and Entities presets, any -world build) had a wrong .vmap_c.
+    - Settled: the table is the arguments the steps read. Always force_up_to_date_materials (1802f9cc0),
+      skipauxfiles (180244d30), skipmapload (1800fd550); debugColorClustering (CVisibilityMeshMerger_
+      MergeMeshes) and meshletMaxTriangles / Vertices (18025fab0) only with world node models (the gameplay
+      maps, whose nodes hold only n0.vwnod, lack them); keep_vertices and mapbuilder_entity_classname with
+      -phys (the physics compile); norte with vis (CWorldRendererBuilder_Build: CMapBuilderContext vfunc 0xe8
+      returns the builder table at +0x609, filled by 1801f7840 in builder order, index 2 = vis) or the
+      context's +0x605 flag (vfunc 0x100; its writer not found), then debugvisgeo and dumptris in
+      CreateRayTracingEnvironment and disablevis (not a resourcecompiler string: the vis builder); with
+      -bakelighting the 12 lighting arguments, plus the 8 texture arguments when lightmaps are written, plus
+      final + lightProbeVolumeTextureArg (probe volumes), fogIrradianceVolumeTextureArg (fog volume) and the two
+      far field texture arguments, with their optional input files; without it bakelighting, and
+      flattenPropsWithBakedLighting when EntityLump_StaticModelRecord (180245770) runs: every visible
+      prop_static and smart prop (180244d30) and brush entities with lightmapstatic (180240a60), its read
+      gated by vfunc 0x108 (the compile does not bake).
+    - Verified: 23 lit fixture compiles and all 11 unlit references (nobake_refs, fresh_refs, nolight_1016)
+      byte for byte.
+    - Open: s2c_l5probe and s2c_l5farfield128 (fog, far field) have the two lightmapMaxResolution rows the
+      other way round (the texture row, 0, first); same rows and sizes otherwise. The order of equal names
+      is presumably an unstable sort over the read order (36 or more rows); not read. The +0x605 flag;
+      which of -phys / -vis a -world -phys -nav build (Fast) reads, from a Valve compile of that preset.
+    - Also from the run: probe01's world_visibility.vvis_c differs only in 4 bytes at 551 (the fingerprint,
+      a CRC over a path blob, and the dev box compiled under /tmp); Valve's own probe01 .nav is 9,556, 9,580
+      and 9,608 bytes across its runs, so the nav is compared within one run (ledger 109), never against a
+      single Valve file.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
