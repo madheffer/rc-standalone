@@ -45,6 +45,31 @@ public static class CubemapArrayVtex
     ];
 
     /// <summary>
+    /// The array's source the game writes beside the EXRs (client.dll's template, file offset 0x1ad0c70 in
+    /// the 10-15 build), filled as csgo's gameinfo sets it: CUBEARRAY, BC6H, GGXCubeMapBlur, linear. Written in
+    /// text mode, so CRLF line ends (the game's own file, 2026-10-21 capture), no BOM; its CRC is the last input
+    /// dependency's.
+    /// </summary>
+    public static string Source(IReadOnlyList<string> exrPaths)
+    {
+        var s = new System.Text.StringBuilder();
+        s.Append("<!-- dmx encoding keyvalues2_noids 4 format vtex 1 -->\n\"CDmeVtex\"\n{\n\t\"m_inputTextureArray\" \"element_array\"\n\t[\n");
+        for (var i = 0; i < exrPaths.Count; i++)
+            s.Append($"\t\t\"CDmeInputTexture\"\n\t\t{{\n\t\t\t\"m_name\" \"string\" \"inputTexture{i}\"\n\t\t\t\"m_fileName\" \"string\" \"{exrPaths[i]}\"\n"
+                     + "\t\t\t\"m_colorSpace\" \"string\" \"linear\"\n\t\t\t\"m_typeString\" \"string\" \"CUBE\"\n"
+                     + $"\t\t\t\"m_imageProcessorArray\" \"element_array\"\n\t\t\t[\n\t\t\t]\n\t\t}}{(i + 1 < exrPaths.Count ? "," : "")}\n");
+        s.Append("\t]\n\t\"m_outputTypeString\" \"string\" \"CUBEARRAY\"\n\t\"m_outputFormat\" \"string\" \"BC6H\"\n"
+                 + "\t\"m_textureOutputChannelArray\" \"element_array\"\n\t[\n\t\t\"CDmeTextureOutputChannel\"\n\t\t{\n"
+                 + "\t\t\t\"m_srcChannels\" \"string\" \"rgba\"\n\t\t\t\"m_dstChannels\" \"string\" \"rgba\"\n"
+                 + "\t\t\t\"m_mipAlgorithm\" \"CDmeImageProcessor\"\n\t\t\t{\n\t\t\t\t\"m_algorithm\" \"string\" \"GGXCubeMapBlur\"\n\t\t\t}\n"
+                 + "\t\t\t\"m_outputColorSpace\" \"string\" \"linear\"\n\t\t\t\"m_inputTextureArray\" \"string_array\"\n\t\t\t[\n");
+        for (var i = 0; i < exrPaths.Count; i++)
+            s.Append($"\t\t\t\t\"inputTexture{i}\"{(i + 1 < exrPaths.Count ? "," : "")}\n");
+        s.Append("\t\t\t]\n\t\t}\n\t]\n\t\"m_bHiddenAssetFlag\" \"bool\" \"1\"\n}\n");
+        return s.ToString().Replace("\n", "\r\n");
+    }
+
+    /// <summary>
     /// The faces of a CUBE input from its EXR's RGBA bitmap: six size x size tiles left to right (a 6 x 1
     /// strip, as client.dll composites the readback; to be confirmed by tools/re/cubemap_oracle.py).
     /// </summary>

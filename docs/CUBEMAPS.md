@@ -241,12 +241,28 @@ build alone (2 cubes of 256 in 2 s on the RTX 4070; VRF reads the result).
 - `CubemapArrayVtex.Build`'s file equals RC's `-vulkan` BC6H file byte for byte,
   and RC's DX11 and `-vulkan` BC6H files are identical on this input.
 
+## Against the game's own build (2026-10-21)
+
+tools/cubehost runs the game's engine and Workshop Tools in our own process
+with no Steam (tools/cubehost/README.md). `run_probe.py --keep-intermediates`
+loads probe01 over netcon (`map probe01 nomapvalidation=true`, then
+`buildcubemaps`) and copies the game's `_buildcubemaps` files before it deletes
+them: two EXRs, the .vtex and the compiled array ("Building 2 cubemaps,
+rendering: 1024x1024, storage: 256x256"). `GameCubemapTests`
+(`CUBEGAME=<intermediates>`):
+- `CubemapArrayVtex.Source` equals the game's .vtex (CRLF line ends);
+- each game EXR (1536 x 256, channels B, G, R: no alpha) re-written from its
+  own values through Vrad3Exr is the same file;
+- `CubemapArrayVtex.Build` on the game's EXRs equals the game's
+  env_cubemap_array.vtex_c byte for byte (945,886 bytes).
+
+So everything after the render is exact against the game. What remains is the
+render of each face itself.
+
 ## Open
 
 - DX11 float parity for the GPU pass (only matters where a 1-ulp difference
   survives BC6H; none did on the oracle's input).
-- The EXR the game writes: pixel type (half assumed) and header; needs one
-  game-side buildcubemaps capture.
 - The BC6H encoder is ispc_texcomp.dll from the game's bin folder (as for the
   lightmaps); building it from Intel's source, as bc7e was, removes that
   dependency.

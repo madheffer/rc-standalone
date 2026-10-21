@@ -3067,8 +3067,10 @@ game can answer is raised with the user first, and runs with -insecure.
       - The BC6H file: CubemapArrayVtex.Build equals RC -vulkan's byte for byte (816,556 bytes: RED2,
         DATA, quality-3 ispc BC6H, LZ4 per mip). RC's DX11 and -vulkan BC6H files are identical too (the
         1-ulp float differences vanish in the encode on this input; not guaranteed for every input).
-    - Open: the game half (rendering the probes, client.dll); the EXR's pixel type as the game writes
-      it (half assumed).
+    - Settled 2026-10-21 against the game's own build (tools/cubehost: the engine in our own process,
+      no Steam; GameCubemapTests): the .vtex source (CRLF), the EXR (half, uncompressed, channels B G R,
+      Vrad3Exr byte for byte) and the compiled array (945,886 bytes) are the game's byte for byte.
+    - Open: the render of each face (client.dll's BuildCubemaps view on the Game pipeline).
 
 ## Resolved
 

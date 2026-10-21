@@ -12,7 +12,8 @@ namespace Source2.Compiler.Cubemaps;
 /// a strip of six faces left to right (181756620 at x = face * size; the strip starts as (0, 0, 0, 1)).
 /// The strip is written as an uncompressed half EXR through tinyexr's fast writer (1813dede0 with
 /// compression 0 and half pixels: the code vrad3's FloatBitMap_t::WriteToFile runs, so
-/// <see cref="Vrad3Exr"/> and its ties-away rounding), channels R, G, B, A.
+/// <see cref="Vrad3Exr"/> and its ties-away rounding), channels R, G and B (the readback frame has no alpha: the
+/// game's EXRs list B, G, R, 2026-10-21 capture).
 /// </summary>
 public static class CubemapFaceExr
 {
@@ -41,10 +42,10 @@ public static class CubemapFaceExr
                 Array.Copy(level.Rgba, from, strip, (y * 6 * faceSize + f * faceSize) * 4, faceSize * 4);
             }
         }
-        var exr = new Vrad3Exr(6 * faceSize, faceSize, ["R", "G", "B", "A"]);
-        for (var c = 0; c < 4; c++)
+        var exr = new Vrad3Exr(6 * faceSize, faceSize, ["R", "G", "B"]);
+        for (var c = 0; c < 3; c++)
         {
-            var plane = exr.Plane("RGBA"[c].ToString());
+            var plane = exr.Plane("RGB"[c].ToString());
             for (var i = 0; i < plane.Length; i++)
                 plane[i] = LightmapImage.ToHalfAway(strip[i * 4 + c]);
         }

@@ -35,6 +35,37 @@ def snapshot(root):
     return files
 
 
+def keep_intermediates(roots, out, stop, seen):
+    """Copies every file that appears under a _buildcubemaps folder of the roots into out/intermediates while the
+    build runs (the game deletes them after compiling); nothing in the engine is hooked."""
+    import threading
+    keep = os.path.join(out, "intermediates")
+    os.makedirs(keep, exist_ok=True)
+    copied = {}
+
+    def watch():
+        while not stop.is_set():
+            for root in roots:
+                for d, _, names in os.walk(root):
+                    if "_buildcubemaps" not in d.lower():
+                        continue
+                    for n in names:
+                        f = os.path.join(d, n)
+                        try:
+                            st = os.stat(f)
+                            if copied.get(f) != (st.st_size, st.st_mtime_ns):
+                                shutil.copy2(f, os.path.join(keep, n))
+                                copied[f] = (st.st_size, st.st_mtime_ns)
+                                seen.append(f"kept {f} ({st.st_size} bytes)")
+                        except OSError:
+                            pass
+            stop.wait(0.05)
+
+    t = threading.Thread(target=watch, daemon=True)
+    t.start()
+    return t
+
+
 def drive(host, a, seen):
     """The console steps once the engine listens: load the map (tools mode needs nomapvalidation), build the
     cubemaps, quit. Returns how it ended."""
@@ -61,6 +92,10 @@ def drive(host, a, seen):
         return None
 
     wait_for(["Source2Init OK", "Host activate"], 180)
+    # No bots: they joined probe maps without a nav mesh and the engine crashed after BeginMatch.
+    for c in ("bot_quota 0", "bot_quota_mode normal", "bot_kick"):
+        console.send(c)
+        time.sleep(0.3)
     console.send(f"map {a.map} nomapvalidation=true")
     loaded = wait_for([f'Map: "{a.map}"', "invalid map name"], 300)
     if not loaded or "invalid" in loaded:
@@ -86,6 +121,8 @@ def main():
     p.add_argument("--from", dest="source", default="s2c_rc_probe")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--netcon", type=int, default=29000)
+    p.add_argument("--keep-intermediates", action="store_true",
+                   help="copy the game's _buildcubemaps EXRs and .vtex as they appear (into <out>/intermediates)")
     a = p.parse_args(argv)
     if (r := running()):
         raise SystemExit(f"close {', '.join(r)} first (Steam must be fully closed)")
@@ -116,12 +153,16 @@ def main():
     seen = []
     with open(os.path.join(out, "host.log"), "wb") as log:
         host = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
+        import threading
+        stop = threading.Event()
+        keeper = keep_intermediates([game, content], out, stop, seen) if a.keep_intermediates else None
         try:
             code = drive(host, a, seen)
         finally:
             if host.poll() is None:
                 subprocess.run(["taskkill", "/F", "/IM", "cubehost.exe"], capture_output=True)
                 host.wait(30)
+            stop.set()
     with open(os.path.join(out, "netcon.log"), "w", encoding="utf-8") as f:
         f.write("\n".join(seen) + "\n")
     after = {**snapshot(game), **snapshot(content)}
