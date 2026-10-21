@@ -278,8 +278,8 @@ RenderDoc's Python: `qrenderdoc --python`) lists the actions.
 probe01 cube 0 (1.75 GB capture, no debug markers in a release build):
 138 draws and 12 dispatches, the same sequence for each of the six faces:
 
-1. clear the sun's shadow atlas (4352 x 5248 D16), two culling dispatches,
-   four cascade passes into it;
+1. clear the sun's shadow atlas (4352 x 5248 D16), the light binner's two
+   dispatches (not culling: see below), four cascade passes into it;
 2. clear the face targets (1024 x 1024 RGBA16F colour, D24S8 depth);
 3. depth prepass (opaque meshes: indirect draws of 1 + 3 + 2);
 4. a full-screen triangle-strip draw on a 1280 x 720 D24S8 target (the main
@@ -292,6 +292,70 @@ probe01 cube 0 (1.75 GB capture, no debug markers in a release build):
 This is the per-pass ground truth for porting the face render: each pass's
 shaders, constants and outputs can be read from the capture.
 
+### Read without RenderDoc (2026-10-22)
+
+`tools/cubehost/rdc_stream.py` reads the .rdc itself (RenderDoc 1.44 layout:
+one frame-capture section, LZ4 in 1 MB pages that each refer back into the
+previous one, chunks padded to 64 bytes), one page at a time, so it runs in
+a few MB with no GPU. `rdc_actions.py` lists the frame in execution order
+(each command buffer's recording where a vkQueueSubmit lists it), resolves
+every draw's pipeline through its pipeline libraries (the game links
+VK_EXT_graphics_pipeline_library pipelines from one-stage libraries) to the
+shader modules, and prints the engine's annotations: the game calls
+RenderDoc's SetCommandAnnotation for every batch (`batchlist.descriptor`,
+`batchlist.flags_str`, `aggregate.model_name`, `aggregate.material_name`,
+`materialsystem.mode_evaluated`...), which stand in for the debug markers a
+release build lacks.
+
+    python tools/cubehost/rdc_spirv.py <capture.rdc> <dir>      # each module as <resource id>.spv
+    dotnet run -c Release --project tools/cubehost/spvmatch -- <dir> 3000000 <game>/core/shaders_vulkan_dir.vpk <game>/csgo/shaders_vulkan_dir.vpk
+    python tools/cubehost/rdc_actions.py <capture.rdc> [modules.txt] > actions.txt
+
+(modules.txt: `<resource id hex> <name>` lines from spvmatch's output.)
+
+The whole frame holds 10 shader modules. Each one's SPIR-V is byte for byte
+a file of Valve's .vcs (`shaders_vulkan_dir.vpk`, core and csgo; matched by
+hash over every static combo's shader files):
+
+| module | program | static combo | dynamic combo |
+| --- | --- | --- | --- |
+| 4dd | generic_vulkan_50_vs (also csgo_glass_vs 17/19) | 4: S_MODE_TOOLS_VIS=1 | D_BAKED_LIGHTING_FROM_LIGHTMAP=1, D_COMPRESSED_NORMALS_AND_TANGENTS=1 |
+| 4f3 | generic_vulkan_50_ps | 4: S_MODE_TOOLS_VIS=1, all else 0 | 4: D_BAKED_LIGHTING_FROM_LIGHTMAP=1, no static specular cube, no MBOIT |
+| 4ea | csgo_depth_only_vulkan_50_vs | 0 | 0 and 1 (D_COMPRESSED_NORMALS_AND_TANGENTS) |
+| 6f7 | compute_depthbin_cullbits_vulkan_50_cs | 0 | 0 |
+| 6f9 | compute_tile_cullbits_vulkan_50_cs | 0 | D_SUBGROUP_SIZE_32=1 |
+| 577d | downsample_depth_vulkan_50_vs (shared by copytexture and others) | 0 | 0 |
+| 5806 | downsample_depth_vulkan_50_ps | 0 | 17: D_MINMAX_CHECKER_2X2=1, D_NON_MSAA_DEPTH=1 |
+| 5808 | downsample_depth_vulkan_50_ps | 0 | 20: D_MAX=1, D_NON_MSAA_DEPTH=1 |
+| 6860 | sky_vulkan_50_vs | 0 | 0 |
+| 6861 | sky_vulkan_50_ps | 0/2/4/6 (S_TEXTURE_FORMAT, same code) | 0: D_FOG_TYPE=0 |
+
+So the face renders with Valve's own shader binaries, which the port can run
+as the GPU bake already runs vrad3's. Per face (submit), from the list:
+
+1. light binner: `compute_depthbin_cullbits` 256 x 1 x 1, then
+   `compute_tile_cullbits` 16 x 32 x 1 (the "two culling dispatches" above);
+2. sun shadow, four cascades: `csgo_depth_only` (mode Depth) over the world
+   node aggregates, flags `USES_SHADOW_FAST_PATH`; every batch names
+   `materials/dev/reflectivity_90.vmat` as its material here, whatever its
+   own (to explain);
+3. `CLightProbeVolumeObjectDescGpu` and `CDirectionalLightObjectDescGpu`
+   batches (an empty rendering pass);
+4. depth prepass: `csgo_depth_only` (mode Depth), the aggregates
+   `n0_lr0_agg_merge_reflectivity_30_0` and `..._dev_measuregeneric01_0`;
+5. `downsample_depth` dynamic 17 (checkerboard min/max) as a 4-vertex
+   strip: the 1280 x 720 draw above;
+6. colour: `generic` in material mode **ToolsVis** (not Forward) for both
+   aggregates, lit from the lightmap; then the sky
+   (`toolscene_lighting_sky_dust.vmat`, `CSkyBoxObjectDesc`, mode Forward,
+   36 indices); `CWorldTextSceneObjectDesc` batches are empty;
+7. two image copies, `downsample_depth` dynamic 20 (max), the readback.
+
+probe01's materials are core dev materials on generic.vfx; why the view
+evaluates ToolsVis (the engine runs with -tools, as Hammer's build does) and
+which mode a csgo_environment material takes are not read yet. The prop
+(trashclusters01, csgo_vertexlitgeneric) draws nowhere in cube 0.
+
 ## Open
 
 - DX11 float parity for the GPU pass (only matters where a 1-ulp difference
@@ -300,4 +364,7 @@ shaders, constants and outputs can be read from the capture.
   lightmaps); building it from Intel's source, as bc7e was, removes that
   dependency.
 - The face render (the "Game" pipeline for the BuildCubemaps view): captured
-  pass by pass (above); the port is not started.
+  pass by pass and every shader identified (above); the port is not started.
+  Next, with RenderDoc replay (CS2 closed): each draw's constant buffers,
+  descriptor bindings, indirect arguments and render state, and the view
+  constants against client 18020e130's view setup.

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Built against the test project's Release output (VRF with the VCS 72 patch): build that first. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Bin>$(MSBuildThisFileDirectory)../../../tests/Source2.Compiler.Tests/bin/Release/net10.0</Bin>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ValvePak"><HintPath>$(Bin)/ValvePak.dll</HintPath></Reference>
+    <Reference Include="ValveResourceFormat"><HintPath>$(Bin)/ValveResourceFormat.dll</HintPath></Reference>
+    <Reference Include="ZstdSharp"><HintPath>$(Bin)/ZstdSharp.dll</HintPath></Reference>
+    <Reference Include="ValveKeyValue"><HintPath>$(Bin)/ValveKeyValue.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>
