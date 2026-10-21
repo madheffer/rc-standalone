@@ -16,7 +16,7 @@ import time
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 HERE = os.path.dirname(os.path.abspath(__file__))
-HOST = os.path.join(HERE, "bin", "Release", "net10.0", "cubehost.exe")
+HOST = os.path.join(HERE, "out", "bin", "win64", "cubehost.exe")
 ADDON = "s2c_cubeprobe"
 
 
@@ -46,6 +46,11 @@ def main():
     a = p.parse_args(argv)
     if (r := running()):
         raise SystemExit(f"close {', '.join(r)} first (Steam must be fully closed)")
+    # The game/bin files the engine looks for beside its executable's folder (assettypes_common.txt and the rest).
+    for name in os.listdir(os.path.join(CS2, "game", "bin")):
+        source = os.path.join(CS2, "game", "bin", name)
+        if os.path.isfile(source):
+            shutil.copy2(source, os.path.join(HERE, "out", "bin", name))
     game = os.path.join(CS2, "game", "csgo_addons", ADDON)
     content = os.path.join(CS2, "content", "csgo_addons", ADDON)
     os.makedirs(os.path.join(game, "maps"), exist_ok=True)
@@ -54,7 +59,14 @@ def main():
     out = os.path.join(os.environ.get("TEMP", "."), "cubehost_run", a.map)
     os.makedirs(out, exist_ok=True)
     before = {**snapshot(game), **snapshot(content)}
-    cmd = [HOST, "--", "-insecure", "-nosteam", "-vulkan", "-novid", "-console", "-condebug", "-addon", ADDON,
+    # -condebug appends to the game's console.log (the user's own): keep it aside and restore it after.
+    console = os.path.join(CS2, "game", "csgo", "console.log")
+    console_backup = os.path.join(out, "console.log.user")
+    had_console = os.path.exists(console)
+    if had_console:
+        shutil.copy2(console, console_backup)
+    console_start = os.path.getsize(console) if had_console else 0
+    cmd = [HOST, "--", "-insecure", "-nosteam", "-nobreakpad", "-vulkan", "-novid", "-console", "-condebug", "-addon", ADDON,
            "+map", a.map, "-buildcubemaps", *extra]
     print(" ".join(cmd))
     started = time.time()
@@ -62,6 +74,7 @@ def main():
         try:
             code = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=a.timeout).returncode
         except subprocess.TimeoutExpired:
+            subprocess.run(["taskkill", "/F", "/IM", "cubehost.exe"], capture_output=True)
             code = "timeout"
     after = {**snapshot(game), **snapshot(content)}
     changed = [f for f, v in after.items() if before.get(f) != v]
@@ -69,9 +82,16 @@ def main():
         rel = os.path.relpath(f, os.path.join(CS2))
         dest = os.path.join(out, rel.replace(os.sep, "__"))
         shutil.copy2(f, dest)
-    console = os.path.join(CS2, "game", "csgo", "console.log")
-    if os.path.exists(console) and os.stat(console).st_mtime >= started:
-        shutil.copy2(console, os.path.join(out, "console.log"))
+    if os.path.exists(console):
+        with open(console, "rb") as f:
+            f.seek(console_start if os.path.getsize(console) >= console_start else 0)
+            with open(os.path.join(out, "console.log"), "wb") as o:
+                o.write(f.read())
+        if had_console:
+            shutil.copy2(console_backup, console)
+            os.remove(console_backup)
+        else:
+            os.remove(console)
     print(f"exit {code} after {time.time() - started:.0f} s; {len(changed)} files changed, kept in {out}")
     for f in changed:
         print("  " + os.path.relpath(f, CS2))

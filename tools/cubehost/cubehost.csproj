@@ -7,6 +7,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The engine takes EXECUTABLE_PATH and GAMEBIN from where the exe sits: the game's own layout,
+         <root>/bin/win64/<exe> with game/bin's text files one level up (run_probe.py copies them). -->
+    <OutputPath>$(MSBuildThisFileDirectory)out\bin\win64\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
 </Project>
