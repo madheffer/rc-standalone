@@ -3087,8 +3087,11 @@ game can answer is raised with the user first, and runs with -insecure.
       matrix at +0x288, transposed, equals the uploaded per-view matrix (block offset 192) bit for bit on
       faces 1 to 5 of cube 0 with near 1 and far 10000; face 0 differs in one word, -0.0 uploaded where the
       view holds +0.0 (row 1, column 2), not explained by the record's signed zeros, extra projection
-      rebuilds or the angles themselves (the upload is probably multiplied again downstream; a zero
-      coefficient's sign cannot change a rasterised pixel unless every other term is zero too).
+      rebuilds or the angles themselves. Cause found: that element's four products are all -0.0; the
+      upload is a plain four-term sum (-0.0) while client.dll's 4 x 4 multiply 181746490 starts from +0
+      (+0.0), so the game multiplies the upload elsewhere (presumably scenesystem). The camera-relative
+      matrix of the 640-byte per-view block (projection x world-to-view without translation, transposed)
+      is bit for bit 181746490's on faces 1 to 5, the same single signed zero on face 0.
     - Read: the face table (client 181ad10d0) is (pitch, yaw, roll) (0,0,90) +X, (0,180,-90) -X, (0,90,0)
       +Y, (0,-90,180) -Y, (-90,90,0) +Z, (90,-90,0) -Z, FOV 90 each; the capture's faces come in that order.
       The quaternion round trip turns 90 into 89.99999237, which is where the matrices' 1.94707184e-07

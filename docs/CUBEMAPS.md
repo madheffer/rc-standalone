@@ -307,6 +307,31 @@ bit for bit on faces 1 to 5; face 0 differs only in one signed zero. Depth
 is 0..1, not reversed. The six faces of the capture are the table's order:
 +X, -X, +Y, -Y, +Z, -Z.
 
+### What the face shaders read (2026-10-22)
+
+`tools/cubehost/spv_usage.py` lists each module's uniform and storage blocks
+and the members it reads. generic's vertex shader reads set 0 binding 1 at
++0 and +384 and binding 3 at +560 only; the pixel shader reads 17 members of
+its _Globals_ (set 1 binding 0), five of binding 1 (+296 .. +416), 19 of
+binding 3 and 28 of a large set 3 block (lights and the binner's output, up to
++31808); csgo_depth_only reads binding 1 (+0, +384) and the transforms.
+
+Binding 1 is a 640-byte per-view block (one per layer of the face, 49 per
+face in the upload): camera-relative rendering. +0 (and again at +560) is the
+world-to-projection with the translation taken out, applied to
+`position + (-camera)` from +384; +64 is the view object's +0x2c8 matrix
+transposed, +128 its world-to-view (+0x1d8, 3 x 4) transposed, +192 its
+projection (+0x208); +320 the viewport (1024 x 1024 and 1 / 1024); +368
+(0, 0.95, 1, 10000); +400 the face angles in radians; +416 the camera; +464
+(10000, 9999, -10000); +528 (1 / 1280, 1 / 720, 0.8, 1.4222), from the
+1280 x 720 main window, not the face. The camera-relative matrix is the
+projection times the world-to-view without its translation, transposed:
+client.dll's own 4 x 4 multiply (181746490, under unicorn) gives it bit for
+bit on faces 1 to 5. On face 0 one element's four terms are all -0.0: the
+upload has -0.0 (a plain four-term sum), 181746490 gives +0.0 (it starts
+from +0), so the game builds the upload with another multiply (presumably
+scenesystem's); every other word agrees.
+
 ### Read without RenderDoc (2026-10-22)
 
 `tools/cubehost/rdc_stream.py` reads the .rdc itself (RenderDoc 1.44 layout:
