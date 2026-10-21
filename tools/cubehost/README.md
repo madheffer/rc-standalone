@@ -37,7 +37,8 @@ run where it can be observed and captured without touching cs2.exe.
   session and nothing for VAC to attach to.
 
 Running the tools while CS2 itself is open (mapping while playing) is not
-allowed by these guards; it needs its own safety review first.
+allowed by these guards; it needs its own safety review first (roadmap:
+docs/ROADMAP_TOOLS_WITHOUT_STEAM.md, out of scope for the compile port).
 
 ## Running
 
