@@ -185,6 +185,54 @@ public static class CrtMath
     }
 
     /// <summary>
+    /// log2f (tier0 V_log2f 180008130 -> the CRT's 1802e3540, the float log family 1802e33b0 with
+    /// selector -1). All in float, no CPU dispatch: x = m 2^e with m in [0.5, 1) (1802e93e0; a denormal
+    /// is normalised first by 1802dc380, exactly), doubled with e less one when m is under sqrt(1/2);
+    /// f = m - 1, s = f / (m + 1), w = s^2, R = ((w A + B) w + C) w, q = s (f - R); log2 x = ((f C2 -
+    /// q C1) + f C3) + e, with C1 = C3 = log2(e) and C2 its tail. Zero gives -Inf, +Inf and NaN come
+    /// back as they are, and a negative x (or -Inf) gives the NaN 0x7fc00000; errno is not modelled.
+    /// </summary>
+    public static float Log2(float x)
+    {
+        var bits = BitConverter.SingleToUInt32Bits(x);
+        var exponent = (int)(bits >> 23 & 0xff);
+        if (exponent == 0xff)
+            return (bits & 0x7fffff) != 0 || (int)bits >= 0 ? x : BitConverter.UInt32BitsToSingle(0x7fc00000);
+        if ((bits & 0x7fffffff) == 0)
+            return float.NegativeInfinity;
+        if ((int)bits < 0)
+            return BitConverter.UInt32BitsToSingle(0x7fc00000);
+        float m;
+        int e;
+        if (exponent == 0)
+        {
+            // Denormal: m 2^e exactly, m in [0.5, 1).
+            var shift = System.Numerics.BitOperations.LeadingZeroCount(bits) - 8;
+            m = BitConverter.UInt32BitsToSingle((bits << shift) & 0x007fffff | 0x3f000000);
+            e = -125 - shift;
+        }
+        else
+        {
+            m = BitConverter.UInt32BitsToSingle(bits & 0x807fffff | 0x3f000000);
+            e = exponent - 0x7e;
+        }
+        if (BitConverter.UInt32BitsToSingle(0x3f3504f3) > m)
+        {
+            m += m;
+            e--;
+        }
+        var ef = (float)e;
+        var f = m - 1f;
+        var s = f / (m + 1f);
+        var w = s * s;
+        var r = ((w * BitConverter.UInt32BitsToSingle(0x3e990215) + BitConverter.UInt32BitsToSingle(0x3eccae11)) * w
+                 + BitConverter.UInt32BitsToSingle(0x3f2aaac0)) * w;
+        var q = s * (f - r);
+        var log2e = BitConverter.UInt32BitsToSingle(0x3fb8aa3b);
+        return f * BitConverter.UInt32BitsToSingle(0x32a57060) - q * log2e + f * log2e + ef;
+    }
+
+    /// <summary>
     /// acosf (tier0 V_acosf, 180007e80: the argument clamped to [-1, 1], then the CRT's
     /// 1802df0a4). |x| below 2^-26 gives pi / 2; |x| of 1 gives 0 or pi. Otherwise
     /// r = x^2 (|x| below 0.5) or r = (1 - |x|) / 2 with s = sqrt(r), and the float rational

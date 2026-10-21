@@ -77,7 +77,7 @@ public static class LightmapTextures
         ["debug_chart_color"] = new(4096, "DXT1"),
     };
 
-    private const int CompressMinRatio = 95, Lz4Level = 10;
+    internal const int CompressMinRatio = 95, Lz4Level = 10;
     private const ushort FlagNoLod = 0x8, FlagVolumeTexture = 0x20, FlagTextureArray = 0x40;
     private const uint ExtraCompressedMipSize = 4;
 
@@ -300,7 +300,7 @@ public static class LightmapTextures
     }
 
     // CResourceCompilerTexture's LZ4 HC level by texture quality (180133da0): 3, 4, 9, 10, 12.
-    private static int Lz4LevelFor(int quality) => quality switch { 0 => 3, 1 => 4, 3 => 10, 4 => 12, _ => 9 };
+    internal static int Lz4LevelFor(int quality) => quality switch { 0 => 3, 1 => 4, 3 => 10, 4 => 12, _ => 9 };
 
     // The texture: each mip level (every slice in order) encoded, LZ4 HC'd when that pays,
     // stored smallest first behind RED2 and DATA; the mip sizes are listed from mip 0.
@@ -376,7 +376,7 @@ public static class LightmapTextures
         return result;
     }
 
-    private static byte[] Encode(RcMipChain.Level image, ImageFormat format, string? nativeFolder, int quality, bool hueShiftFixup = false)
+    internal static byte[] Encode(RcMipChain.Level image, ImageFormat format, string? nativeFolder, int quality, bool hueShiftFixup = false)
     {
         switch (format)
         {
@@ -454,7 +454,7 @@ public static class LightmapTextures
     }
 
     // The .vtex_c format byte (VTexFormat) for an image format.
-    private static byte VtexFormat(ImageFormat format) => format switch
+    internal static byte VtexFormat(ImageFormat format) => format switch
     {
         ImageFormat.Dxt1 => 1,
         ImageFormat.Rgba8888 => 4,

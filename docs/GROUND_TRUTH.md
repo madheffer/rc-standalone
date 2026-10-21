@@ -3032,6 +3032,44 @@ game can answer is raised with the user first, and runs with -insecure.
       (far field keys included), env_farfield_0_indirection and the other eight lightmaps/ files byte
       for byte; the four atlases differ only through the dilate above (sizes within 27 bytes).
 
+117. **The cubemap array's compile: GGXCubeMapBlur and the radiance SH** (2026-10-21, decompile and
+    disassembly of resourcecompiler 0923, the same code in 1015 at +0x40; docs/CUBEMAPS.md).
+    - Settled by oracle: the GGX and cosine tap tables (rc 1800caa20 and the layer's inline loop).
+      `tools/re/emu_cubeblur_tables.py` runs the installed resourcecompiler.dll's own code under unicorn
+      with tier0's V_sincosf / V_log2f through ctypes; GgxCubeMapBlur.GgxTable / CosineTable equal all
+      1,001 tables (sizes 16 to 1024, every (mip / d) and (mip / d)^2 for d up to 15) byte for byte.
+    - Settled by oracle: tier0's V_log2f (the CRT's float log family 1802e33b0, selector -1, all float, no
+      dispatch; not correctly rounded, so log2 in double is 1 to 2 ulps off on many inputs).
+      CrtMath.Log2 equals it on 1,166,310 inputs (tools/re/tier0_log2_oracle.py), zeros, denormals,
+      infinities, NaN and negatives included.
+    - Read: the schedule's mip count is the destination's full chain (rc 180c49440, 8 for 128), not the
+      6 the texture keeps; flags 3: GGX at (mip / (count - 4))^2 on mips 1 to count - 4, cosine on the
+      last three. The quad, the face rows (rc 1827685f0), the strip, g_nSampleCount 2048, the RGBA32F
+      target, mip 0 the input itself; rendersystemvulkan builds the source mips by blits
+      (r_mipgen_compute_shader defaults to 0).
+    - Read: the radiance SH (rc 1801378c0 .. 180138100, basis 18125d4d0, VectorNormalize 18013e340):
+      the weight is (m k)(m m), not ((m k) m) m as Ghidra prints it.
+    - Approximate first (GpuCubemapBlurProbe on ze_fast_escape_p's shipped array, its BC6H mip 0 as the
+      input): GpuCubemapBlur with Valve's convolve_environment_map SPIR-V on the RTX 4070 gives mips 1 to
+      5 within 1 to 5% mean relative error and the SH within 0.2 to 0.4% of the shipped floats, BC6H's
+      noise in and out. With a 6-mip schedule, mips 1 to 3 were 20 to 90% off, which is how the full
+      chain rule showed.
+    - Settled 2026-10-21 by oracle (tools/re/cubemap_oracle.py: RC 1015 on a synthetic _buildcubemaps
+      folder, three 256 cubes, half EXRs; CubemapOracleTests):
+      - The CUBE input is a 6 x 1 strip, faces left to right (a 1 x 6 strip fails; RC also takes 4 x 3
+        and 3 x 4 crosses, the layouts the client composites with its flag).
+      - GpuCubemapBlur on the RTX 4070 equals RC -vulkan's RGBA32F output on all 1,572,840 floats of
+        the 9 mips; RC's default DX11 compile differs from it (and from ours) by 1 ulp on 17,771.
+      - The radiance SH: 81 of 81 floats.
+      - The reflectivity: per cube the faces' 1 x 1 last-mip values (the full chain's, below the
+        texture's 7 mips) added in face order times 1 / 6, the cubes added in order over their count
+        (decompile: the per-frame loop over 180c3bb80); all four channels of all four compiles.
+      - The BC6H file: CubemapArrayVtex.Build equals RC -vulkan's byte for byte (816,556 bytes: RED2,
+        DATA, quality-3 ispc BC6H, LZ4 per mip). RC's DX11 and -vulkan BC6H files are identical too (the
+        1-ulp float differences vanish in the encode on this input; not guaranteed for every input).
+    - Open: the game half (rendering the probes, client.dll); the EXR's pixel type as the game writes
+      it (half assumed).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

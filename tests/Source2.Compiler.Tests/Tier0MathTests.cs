@@ -31,4 +31,27 @@ public sealed class Tier0MathTests(ITestOutputHelper output)
         output.WriteLine($"{total - differ} of {total} equal");
         Assert.Equal(0, differ);
     }
+
+    /// <summary>CrtMath.Log2 against tier0's V_log2f on tools/re/tier0_log2_oracle.py's sweep (%TEMP%/tier0_log2.bin).</summary>
+    [Fact]
+    public void Log2IsTier0s()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "tier0_log2.bin");
+        if (!File.Exists(path))
+            return;
+        var b = File.ReadAllBytes(path);
+        int total = 0, differ = 0;
+        for (var at = 0; at + 8 <= b.Length; at += 8)
+        {
+            var x = BitConverter.ToSingle(b, at);
+            var want = BitConverter.ToSingle(b, at + 4);
+            var got = Simulation.CrtMath.Log2(x);
+            total++;
+            if (BitConverter.SingleToInt32Bits(got) != BitConverter.SingleToInt32Bits(want) && differ++ < 10)
+                output.WriteLine($"log2f({x:R} = 0x{BitConverter.SingleToUInt32Bits(x):x8}): ours {got:R}, tier0 {want:R}");
+        }
+        output.WriteLine($"{total - differ} of {total} equal");
+        Assert.True(total > 0);
+        Assert.Equal(0, differ);
+    }
 }

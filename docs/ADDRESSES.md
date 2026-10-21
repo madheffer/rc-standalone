@@ -517,7 +517,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
-- 1039 addresses
+- 1042 addresses
 
 ### s2c:baked/light-keys
 
@@ -675,8 +675,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `18004c060` | `Init_ChartNormalDot` | 183baf5c4 = V_cosf(1 degree) = 0x3f7ff605 | `src/Source2.Compiler/Lighting/ChartMeshPrep.cs:35` |
+| `1800caa20` | `GGXMipBlur_BuildTapTable` | (table, size, roughness): Hammersley binary search for the n in (0x800, 0x4000) with at most 0x800 reflected taps above the horizon; taps (2c sin cos phi, 2c sin sin phi, 2c^2 - 1, lod 0.5 log2(2pi / (pdf 2048) / (4pi / (6 size^2))) + 1), weights at +0x8000 normalised to sum 1 (GgxCubeMapBlur.GgxTable; emu_cubeblur_tables.py) | `src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs:93` |
+| `1800caf90` | `GGXMipBlur_RenderLayer` | the 'cubeblur' quad (four 0x30-byte strip vertices: position (x, y, 0) at 0, direction (1, y, -x) at 20), source cube bound as g_tCubemap (0xbc1f50cb); mip 0 copied face by face (vf 0x2a8); per mip from 1: the tap table (1800caa20, or the inline cosine loop at 1800cb526 when flag 1 and mip >= count - 3; roughness mip / (count - 4 or count - 1), squared with flag 2) into a 64 KB buffer (FilterTapConstantBuffer_t 0x76121c6d), g_nSampleCount (0x79f9c124) 0x800, per face the face index (0xa1d51fd8) and g_vMatRow0..2 (0x3c8ace17, 0x23eda2e5, 0xe3ea92da) from 1827685f0, a strip of 4 into the RT, copied into the destination's mip and face (src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs) | `src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs:13` |
 | `180133da0` | `CResourceCompilerTexture::CompileResourceInternal` | the texture compile (also the 'Cubemap %i, face %i has Inf/NaN/extremely bright pixel' check): minmipsize/maxmipsize; GetBool fast, final, hueShiftFixup; the encode quality 3 in a console build (1 with fast, 4 with final; special dependency 'Texture Encode Quality' user data), hueShiftFixup -> encode flag 4; each mip's LZ4 HC level by quality 0..4: 3, 4, 9, 10, 12 (Zstd 1, 1, 3, 12, 12) | `src/Source2.Compiler/Lighting/LightmapTextures.cs:185`, `src/Source2.Compiler/Lighting/LightmapTextures.cs:302` |
-| `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array |  |
+| `180150130` | `CTextureFrame::GenerateMips_GGXCubeMapBlur` | GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array: per input cube, its six faces as RGBA32F (0x13) into GGXCubeMapBlur_SourceCubemap.vtex (full mip chain, vf 0x270 then 0x2a0), destination GGXCubeMapBlur_DestCubemapArray.vtex, target GGXMipBlurRT.vtex; layer 1800caf90 with flags 3; mips from 1 read back (vf 0x250) into the frame's levels, mip 0 the input (180c3c3c0). Errors: one input, six faces, square, not volume, power of two (src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs) | `src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs:9` |
 | `18016a6a0` | `CResourceCompilerContext::SetOverrideInputData` | vf0 of the argument interface: ___OverrideInputData___ from a buffer (CRC32) |  |
 | `180174ce0` | `CResourceCompilerContext::SetImageArg` | vf9 of the argument interface (vtable 18277e630): stores a copy of the bitmap; fingerprint -1 = CRC32 of height, width, depth then each masked channel's plane rows | `src/Source2.Compiler/Lighting/LightmapTextures.cs:509` |
 | `1801781a0` | `CResourceCompilerContext_CheckBinaryBlobArg` | incremental check of a BinaryBlobArg dependency |  |
@@ -794,6 +796,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181e97100` | `VTexDescriptor_Transfer` | KV3 transfer of the texture descriptor: m_inputTextureArray, m_outputTypeString, m_outputFormat, m_outputClearColor, min/max dimension and reduce, m_textureOutputChannelArray, m_vClamp, the four bools, display rect, motion vectors | `src/Source2.Compiler/Lighting/LightmapTextures.cs:544` |
 | `181ed64a0` | `tinybvh::BVH::Build` | binned SAH, 16 bins, axes past root extent * 1e-20, split if c_int / SA * (ANL + ANR) + c_trav < count * c_int, in-place partition, 256-entry task stack; threaded at 50000 primitives | `src/Source2.Compiler/Lighting/TinyBvh.cs:8` |
 | `181ed77b0` | `tinybvh::BVH::Build(customGetAABB, count)` | fragments and primIdx from the callback, the root bounds, then 181ed64a0 | `src/Source2.Compiler/Lighting/TinyBvh.cs:7` |
+| `1827685f0` | `GGXMipBlur_FaceBasis` | six faces of three float3 rows (g_vMatRow0..2) | `src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs:31` |
 
 ### s2c:baked/nav
 
@@ -1404,7 +1407,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Maps/LightMath.cs:184`, `src/Source2.Compiler/Maps/OverlayProjector.cs:448`, `src/Source2.Compiler/Maps/PropTransform.cs:15` +2 |
+| `18013e340` | `VectorNormalize` | length sqrt((y y + z z) + x x) | `src/Source2.Compiler/Cubemaps/CubemapRadianceSh.cs:10`, `src/Source2.Compiler/Cubemaps/CubemapRadianceSh.cs:100`, `src/Source2.Compiler/Maps/LightMath.cs:184` +4 |
 | `1801fea30` | `Vector_SafeNormal` | zero when it has no length | `src/Source2.Compiler/Maps/LightSampler.cs:249` |
 | `1802b1ff0` | `CMesh_TransformByMatrix` | flag 1: positions by the matrix, normals by its inverse transposed (181263c30), tangents by it, both renormalised; flag 2: texcoords (u about 0, 1 - v about 1) scaled by column lengths named by TexCoord(2)ScaleByModelU/V; PropTransform | `src/Source2.Compiler/Maps/CTransform.cs:13`, `src/Source2.Compiler/Maps/PropTransform.cs:8` |
 | `181046990` | `Vector_Lerp` | (b - a) * t + a | `src/Source2.Compiler/Maps/MeshTessellation.cs:90`, `src/Source2.Compiler/Maps/MeshTessellation.cs:520` |
@@ -1888,7 +1891,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1802bdd90` | `crt_exp2f` | x split to n + f in [-0.5, 0.5], Cody-Waite expf of f ln2 (1802bdb54) scaled by 2^n | `src/Source2.Compiler/Simulation/CrtMath.cs:137` |
-| `1802df0a4` | `crt_acosf` | AMD libm float acosf; V_acosf (180007e80) clamps to [-1, 1] first | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:666`, `src/Source2.Compiler/Simulation/CrtMath.cs:189` |
+| `1802df0a4` | `crt_acosf` | AMD libm float acosf; V_acosf (180007e80) clamps to [-1, 1] first | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:666`, `src/Source2.Compiler/Simulation/CrtMath.cs:237` |
 
 ### s2c:containers
 
@@ -1941,7 +1944,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18017fc30` | `CVertexKDTree_Bounds` |  | `src/Source2.Compiler/Maps/VertexKdTree.cs:55` |
 | `18017feb0` | `CVertexKDTree::BuildNode` | export; leaf at 8 or fewer, midpoint of the longest side, node numbered before its children | `src/Source2.Compiler/Maps/VertexKdTree.cs:27` |
 | `180180730` | `CVertexKDTree::BuildMidpoint` | export; point pointers in index order, then BuildNode(0, n) | `src/Source2.Compiler/Maps/VertexKdTree.cs:6` |
-| `1802df0a4` | `acosf` | CRT, rational approximation | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:666`, `src/Source2.Compiler/Simulation/CrtMath.cs:189` |
+| `1802df0a4` | `acosf` | CRT, rational approximation | `src/Source2.Compiler/Simulation/ContinuousSolve.cs:666`, `src/Source2.Compiler/Simulation/CrtMath.cs:237` |
 | `1802e0c30` | `cosf` | CRT dispatcher (AMD libm) |  |
 | `1802e0f10` | `cosf_fma3` | code label: the FMA3 path, entered by a jcc from cosf | `src/Source2.Compiler/Simulation/CrtMath.cs:11`, `src/Source2.Compiler/Simulation/CrtMath.cs:36` |
 | `1802e1d80` | `expf` | CRT dispatcher |  |
@@ -1952,7 +1955,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802e67d0` | `sinf_fma3` | code label: the FMA3 path, entered by a jcc from sinf | `src/Source2.Compiler/Simulation/CrtMath.cs:11`, `src/Source2.Compiler/Simulation/CrtMath.cs:59` |
 | `1802e7d50` | `tanf` | CRT dispatcher |  |
 | `1802e80c0` | `tanf_fma3` | code label: the FMA3 path, entered by a jcc from tanf | `src/Source2.Compiler/Maps/LightCrt.cs:23` |
-| `18033e3e0` | `Crt_TwoToJOver64` | data: 2^(j/64), j = 0..63 | `src/Source2.Compiler/Simulation/CrtMath.cs:295` |
+| `18033e3e0` | `Crt_TwoToJOver64` | data: 2^(j/64), j = 0..63 | `src/Source2.Compiler/Simulation/CrtMath.cs:343` |
 | `1803ab28c` | `Crt_Fma3Flag` | data: CPU flag selecting the FMA3 libm paths |  |
 
 ## tier0.dll, build 20261015
@@ -1961,20 +1964,23 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: this build
 - against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
-- 8 addresses
+- 11 addresses
 
 ### s2c:io
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `180007ef0` | `V_atanf` | jumps to the CRT's atanf 1802e057c | `src/Source2.Compiler/Simulation/CrtMath.cs:241` |
-| `1800081a0` | `V_powf` | jumps to the CRT's powf 1802e5130 | `src/Source2.Compiler/Simulation/CrtMath.cs:457` |
+| `180007ef0` | `V_atanf` | jumps to the CRT's atanf 1802e057c | `src/Source2.Compiler/Simulation/CrtMath.cs:289` |
+| `180008130` | `V_log2f` | jumps to the CRT's log2f 1802e3680 (edx -1, then the float log family 1802e34f0) | `src/Source2.Compiler/Simulation/CrtMath.cs:188` |
+| `1800081a0` | `V_powf` | jumps to the CRT's powf 1802e5130 | `src/Source2.Compiler/Simulation/CrtMath.cs:505` |
 | `1800be850` | `KV3_SetInt64Subtyped` | basic type 3, the value in +8 |  |
 | `1800be890` | `KV3_SetUInt64Subtyped` | basic type 4, the value in +8 |  |
 | `1800c4120` | `KV3Binary_ReadValue` | switch on type - 1 up to 0x1a: 26 and 27 need format >= 5 and build an unsigned 0 / 1 (1800be890: basic type 4, subtype 0x17, as UINT32 = 12 does); 15 / 16 stay signed (1800be850, type 3, subtype 0x16) |  |
 | `1800c5f60` | `KV3Binary_ChooseNodeType` | bool 13/14; int 11 when it fits 32 bits else 3, uint 12 else 4, double 5; with the compact flag (r8b; its one caller 1800c6ef3 passes 1) int 0/1 -> 15/16, uint 0/1 -> 26/27, double 0/1 -> 17/18; arrays 8, 0x18/0x19 under 0x100 elements, else 0x0a. The 20261006 build (inlined at 1800c6cb3) wrote a uint 0/1 as 15/16 | `src/Source2.Compiler/Containers/Kv3V5Writer.cs:13`, `src/Source2.Compiler/Containers/Kv3V5Writer.cs:128` |
-| `1802e057c` | `CRT_atanf` | one build: double, reduced at 0.4375 / 0.6875 / 1.1875 / 2.4375, a 3 / 3 rational; Simulation/CrtMath.Atan (ledger 108) | `src/Source2.Compiler/Simulation/CrtMath.cs:241` |
-| `1802e5130` | `CRT_powf` | double: ln x from a 257-entry table and a cubic (x within 1/16 of 1: a series), times y, exp from 2^(j/64); FMA3 build from 1802e5896 (ledger 111); Simulation/CrtMath.Pow | `src/Source2.Compiler/Simulation/CrtMath.cs:457` |
+| `1802e057c` | `CRT_atanf` | one build: double, reduced at 0.4375 / 0.6875 / 1.1875 / 2.4375, a 3 / 3 rational; Simulation/CrtMath.Atan (ledger 108) | `src/Source2.Compiler/Simulation/CrtMath.cs:289` |
+| `1802e34f0` | `CRT_FloatLogFamily` | logf / log2f / log10f by edx (0 / -1 / 1): frexp 1802e9520, m doubled under sqrt(1/2), s = (m - 1) / (m + 1), a 3-term odd series in s^2, log2(e) split in two; zero -> -Inf, negatives -> NaN; all float, no dispatch (ledger 117); Simulation/CrtMath.Log2 |  |
+| `1802e5130` | `CRT_powf` | double: ln x from a 257-entry table and a cubic (x within 1/16 of 1: a series), times y, exp from 2^(j/64); FMA3 build from 1802e5896 (ledger 111); Simulation/CrtMath.Pow | `src/Source2.Compiler/Simulation/CrtMath.cs:505` |
+| `1802e9520` | `CRT_FloatFrexp` | class (0 zero, 1 Inf, 2 NaN, -1 finite) and m in [0.5, 1) with its exponent; denormals through 1802dc4c0 |  |
 
 ## visbuilder.dll, build 20260923
 

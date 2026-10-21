@@ -2332,7 +2332,25 @@
    "addr": "180150130",
    "name": "CTextureFrame::GenerateMips_GGXCubeMapBlur",
    "module": "s2c:baked/lighting",
-   "note": "GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array"
+   "note": "GPU mip filter through materials/dev/convolve_environment_map.vmat; source cubemap to cubemap array: per input cube, its six faces as RGBA32F (0x13) into GGXCubeMapBlur_SourceCubemap.vtex (full mip chain, vf 0x270 then 0x2a0), destination GGXCubeMapBlur_DestCubemapArray.vtex, target GGXMipBlurRT.vtex; layer 1800caf90 with flags 3; mips from 1 read back (vf 0x250) into the frame's levels, mip 0 the input (180c3c3c0). Errors: one input, six faces, square, not volume, power of two (src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs)"
+  },
+  {
+   "addr": "1800caf90",
+   "name": "GGXMipBlur_RenderLayer",
+   "module": "s2c:baked/lighting",
+   "note": "the 'cubeblur' quad (four 0x30-byte strip vertices: position (x, y, 0) at 0, direction (1, y, -x) at 20), source cube bound as g_tCubemap (0xbc1f50cb); mip 0 copied face by face (vf 0x2a8); per mip from 1: the tap table (1800caa20, or the inline cosine loop at 1800cb526 when flag 1 and mip >= count - 3; roughness mip / (count - 4 or count - 1), squared with flag 2) into a 64 KB buffer (FilterTapConstantBuffer_t 0x76121c6d), g_nSampleCount (0x79f9c124) 0x800, per face the face index (0xa1d51fd8) and g_vMatRow0..2 (0x3c8ace17, 0x23eda2e5, 0xe3ea92da) from 1827685f0, a strip of 4 into the RT, copied into the destination's mip and face (src/Source2.Compiler/Cubemaps/GgxCubeMapBlur.cs)"
+  },
+  {
+   "addr": "1800caa20",
+   "name": "GGXMipBlur_BuildTapTable",
+   "module": "s2c:baked/lighting",
+   "note": "(table, size, roughness): Hammersley binary search for the n in (0x800, 0x4000) with at most 0x800 reflected taps above the horizon; taps (2c sin cos phi, 2c sin sin phi, 2c^2 - 1, lod 0.5 log2(2pi / (pdf 2048) / (4pi / (6 size^2))) + 1), weights at +0x8000 normalised to sum 1 (GgxCubeMapBlur.GgxTable; emu_cubeblur_tables.py)"
+  },
+  {
+   "addr": "1827685f0",
+   "name": "GGXMipBlur_FaceBasis",
+   "module": "s2c:baked/lighting",
+   "note": "six faces of three float3 rows (g_vMatRow0..2)"
   },
   {
    "addr": "180133da0",

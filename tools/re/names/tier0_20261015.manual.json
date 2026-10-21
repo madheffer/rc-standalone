@@ -19,6 +19,24 @@
    "note": "jumps to the CRT's powf 1802e5130"
   },
   {
+   "addr": "180008130",
+   "name": "V_log2f",
+   "module": "s2c:io",
+   "note": "jumps to the CRT's log2f 1802e3680 (edx -1, then the float log family 1802e34f0)"
+  },
+  {
+   "addr": "1802e34f0",
+   "name": "CRT_FloatLogFamily",
+   "module": "s2c:io",
+   "note": "logf / log2f / log10f by edx (0 / -1 / 1): frexp 1802e9520, m doubled under sqrt(1/2), s = (m - 1) / (m + 1), a 3-term odd series in s^2, log2(e) split in two; zero -> -Inf, negatives -> NaN; all float, no dispatch (ledger 117); Simulation/CrtMath.Log2"
+  },
+  {
+   "addr": "1802e9520",
+   "name": "CRT_FloatFrexp",
+   "module": "s2c:io",
+   "note": "class (0 zero, 1 Inf, 2 NaN, -1 finite) and m in [0.5, 1) with its exponent; denormals through 1802dc4c0"
+  },
+  {
    "addr": "1802e5130",
    "name": "CRT_powf",
    "module": "s2c:io",

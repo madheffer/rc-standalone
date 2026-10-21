@@ -26,7 +26,8 @@ public sealed unsafe class ProgramRunner : IDisposable
     private readonly List<GpuDevice.GpuBuffer> _buffers = [];
     public Format TargetFormat { get; }
 
-    public ProgramRunner(GpuDevice gpu, ValveProgram vs, ValveProgram ps, uint[] strides, Attribute[] attributes, Format targetFormat, CullModeFlags cull = CullModeFlags.None, FrontFace front = FrontFace.CounterClockwise)
+    public ProgramRunner(GpuDevice gpu, ValveProgram vs, ValveProgram ps, uint[] strides, Attribute[] attributes, Format targetFormat, CullModeFlags cull = CullModeFlags.None, FrontFace front = FrontFace.CounterClockwise,
+                         PrimitiveTopology topology = PrimitiveTopology.TriangleList)
     {
         _gpu = gpu;
         _vk = gpu.Vk;
@@ -110,7 +111,7 @@ public sealed unsafe class ProgramRunner : IDisposable
             VertexAttributeDescriptionCount = (uint)attributes.Length,
             PVertexAttributeDescriptions = vattr,
         };
-        var assembly = new PipelineInputAssemblyStateCreateInfo { SType = StructureType.PipelineInputAssemblyStateCreateInfo, Topology = PrimitiveTopology.TriangleList };
+        var assembly = new PipelineInputAssemblyStateCreateInfo { SType = StructureType.PipelineInputAssemblyStateCreateInfo, Topology = topology };
         var viewportState = new PipelineViewportStateCreateInfo { SType = StructureType.PipelineViewportStateCreateInfo, ViewportCount = 1, ScissorCount = 1 };
         var raster = new PipelineRasterizationStateCreateInfo { SType = StructureType.PipelineRasterizationStateCreateInfo, PolygonMode = PolygonMode.Fill, CullMode = cull, FrontFace = front, LineWidth = 1f };
         var multisample = new PipelineMultisampleStateCreateInfo { SType = StructureType.PipelineMultisampleStateCreateInfo, RasterizationSamples = SampleCountFlags.Count1Bit };
