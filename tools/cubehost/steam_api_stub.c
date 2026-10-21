@@ -44,6 +44,18 @@ static void *ret0(void) { return zero_block; }
  * 8-byte result (CSteamID 0), returned as the pointer. */
 static void *ret_zero_struct(void *self, uint64_t *result) { (void)self; *result = 0; return result; }
 
+/* ISteamUser::GetAuthSessionTicket (engine2 180053550 calls slot 13 and needs a handle): an 8-byte zero ticket and
+ * handle 1. The listen server's dummy BeginAuthSession answers 0 (OK); nothing leaves the process. */
+static uint32_t auth_ticket(void *self, void *ticket, int max, uint32_t *size, const void *identity)
+{
+    (void)self; (void)identity;
+    if (ticket && max >= 8)
+        memset(ticket, 0, 8);
+    if (size)
+        *size = 8;
+    return 1;
+}
+
 #define DUMMY_SLOTS 1024
 typedef struct { void **vtable; char padding[256]; } Dummy;
 typedef struct { const char *prefix; int slot; void *function; } Override;
@@ -51,6 +63,7 @@ typedef struct { const char *prefix; int slot; void *function; } Override;
 /* Methods that cannot answer 0, by interface version prefix and vtable slot. */
 static const Override overrides[] = {
     { "SteamUser", 2, (void *)ret_zero_struct },  /* ISteamUser::GetSteamID */
+    { "SteamUser", 13, (void *)auth_ticket },     /* ISteamUser::GetAuthSessionTicket */
 };
 
 #define MAX_DUMMIES 64
