@@ -3072,6 +3072,32 @@ game can answer is raised with the user first, and runs with -insecure.
       Vrad3Exr byte for byte) and the compiled array (945,886 bytes) are the game's byte for byte.
     - Open: the render of each face (client.dll's BuildCubemaps view on the Game pipeline).
 
+118. **The cubemap face render's inputs: its shaders and its views** (2026-10-22, offline: the probe01 cube 0
+    RenderDoc capture from cubehost read without replay, client.dll decompile and unicorn; docs/CUBEMAPS.md).
+    - Settled by capture: the frame holds 10 shader modules and each one's SPIR-V is byte for byte a file of
+      Valve's .vcs (tools/cubehost/rdc_spirv.py + spvmatch): generic static 4 (S_MODE_TOOLS_VIS) with the
+      lightmap dynamic combo for colour, csgo_depth_only for depth and the sun's cascades, the two cullbits
+      compute shaders (the light binner), downsample_depth (dynamic 17 and 20) and sky.
+    - Settled by emulation against the capture: each face's world-to-projection matrix. tools/re/
+      emu_cube_views.py runs client.dll's own face setup (18020e5bc .. 18020e728: AngleQuaternion
+      1817445e0 on the record's and the table's angles, product 181745900, QuaternionMatrix + MatrixAngles
+      1817463a0 -> 1817439d0 through V_atan2f, view constructor 18174e140 from its static template
+      (18174dd60: FOV 90, aspect 1, near 10, far 100), 18174fd60, the projection 18174fe70 on the record's
+      near / far, 18174f330) with tier0's V_sincosf / V_atan2f / V_tanf through ctypes. The view object's
+      matrix at +0x288, transposed, equals the uploaded per-view matrix (block offset 192) bit for bit on
+      faces 1 to 5 of cube 0 with near 1 and far 10000; face 0 differs in one word, -0.0 uploaded where the
+      view holds +0.0 (row 1, column 2), not explained by the record's signed zeros, extra projection
+      rebuilds or the angles themselves (the upload is probably multiplied again downstream; a zero
+      coefficient's sign cannot change a rasterised pixel unless every other term is zero too).
+    - Read: the face table (client 181ad10d0) is (pitch, yaw, roll) (0,0,90) +X, (0,180,-90) -X, (0,90,0)
+      +Y, (0,-90,180) -Y, (-90,90,0) +Z, (90,-90,0) -Z, FOV 90 each; the capture's faces come in that order.
+      The quaternion round trip turns 90 into 89.99999237, which is where the matrices' 1.94707184e-07
+      terms come from. The client update of 2026-10-21 (2000934) left every client address the cubemap
+      work cites identical (patch_check now tracks client.dll).
+    - Open: where the record's near 1 / far 10000 come from (entity keys or client defaults), the rest of
+      the per-view block (fog: the env_cubemap_fog origin and its keys appear there), per-draw constants,
+      the shadow cascades' views, the face-0 signed zero.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
