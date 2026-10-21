@@ -292,6 +292,21 @@ probe01 cube 0 (1.75 GB capture, no debug markers in a release build):
 This is the per-pass ground truth for porting the face render: each pass's
 shaders, constants and outputs can be read from the capture.
 
+### The views, checked against the game (2026-10-22, ledger 118)
+
+Each face's per-view constants are one 1024-byte block in a coherent upload
+buffer (11 identical copies per face, the probe position at +560, the
+`env_cubemap_fog` origin and keys at +512 and +432). The 4 x 4 at +192 is the
+world-to-projection matrix, and `tools/re/emu_cube_views.py` reproduces it by
+running client.dll's own face setup under unicorn (tier0's V_sincosf,
+V_atan2f and V_tanf through ctypes): the face angles go through a
+quaternion and back (`89.99999237`, not 90), then a view object from the
+client's static template (FOV 90, aspect 1) with the record's origin and
+near 1 / far 10000. The view's matrix at +0x288, transposed, is the upload
+bit for bit on faces 1 to 5; face 0 differs only in one signed zero. Depth
+is 0..1, not reversed. The six faces of the capture are the table's order:
++X, -X, +Y, -Y, +Z, -Z.
+
 ### Read without RenderDoc (2026-10-22)
 
 `tools/cubehost/rdc_stream.py` reads the .rdc itself (RenderDoc 1.44 layout:

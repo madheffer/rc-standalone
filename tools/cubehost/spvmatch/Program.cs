@@ -1,9 +1,49 @@
 // Finds the .vcs program, static combo and dynamic combos each SPIR-V module came from (modules written by
 // rdc_spirv.py from a capture), by hashing every static combo's shader files in the given shader vpks.
+//   dotnet run -c Release -- --cbuffers <vpk> <vcs path>...
 //   dotnet run -c Release -- <dir of .spv> <max compressed vcs bytes> <shaders_vulkan_dir.vpk>...
 using System.Security.Cryptography;
 using ValvePak;
 using ValveResourceFormat.CompiledShader;
+
+// --entities <vmap> <class substring>...: matching CMapEntity elements with their origin, angles and keys, for
+// finding a probe's or light's numbers in a capture's buffers.
+if (args[0] == "--entities")
+{
+    var doc = Source2.Compiler.DmxBinary.ReadFile(args[1]);
+    foreach (var e in doc.OfType("CMapEntity"))
+    {
+        var props = e.Get<Source2.Compiler.DmxBinary.Element>("entity_properties");
+        var cls = props?.Attributes.GetValueOrDefault("classname") as string ?? "";
+        if (!args.Skip(2).Any(s => cls.Contains(s, StringComparison.OrdinalIgnoreCase)))
+            continue;
+        Console.WriteLine($"{cls} origin {e.Attributes.GetValueOrDefault("origin")} angles {e.Attributes.GetValueOrDefault("angles")}");
+        foreach (var kv in props!.Attributes)
+            Console.WriteLine($"    {kv.Key} = {kv.Value}");
+    }
+    return;
+}
+
+// --cbuffers <vpk> <vcs path>...: each program's constant buffer layouts (name, size, members with byte
+// offsets), the names Valve's SPIR-V leaves out.
+if (args[0] == "--cbuffers")
+{
+    using var pak = new Package();
+    pak.Read(args[1]);
+    foreach (var path in args.Skip(2))
+    {
+        pak.ReadEntry(pak.FindEntry(path)!, out var bytes);
+        using var p = new VfxProgramData();
+        p.Read(Path.GetFileName(path), new MemoryStream(bytes));
+        foreach (var b in p.ExtConstantBufferDescriptions)
+        {
+            Console.WriteLine($"{path}: {b.Name} size {b.BufferSize} push {b.IsPushConstantBuffer} type {b.Type} crc {b.BlockCrc:x8}");
+            foreach (var v in b.Variables)
+                Console.WriteLine($"    +{v.Offset * 4,-5} {v.Name} vec{v.VectorSize} rows {v.RowCount} x{v.ElementCount}");
+        }
+    }
+    return;
+}
 
 var files = Directory.GetFiles(args[0], "*.spv");
 var want = files.ToDictionary(f => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(f))), Path.GetFileName);

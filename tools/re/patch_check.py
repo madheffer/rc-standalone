@@ -54,10 +54,12 @@ CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Globa
 BIN = os.path.join(CS2, "game", "bin", "win64")
 # rendersystemvulkan and rendersystemdx11: the material sampler's render (texture preload cap).
 # vrad3: the lighting baker resourcecompiler runs (docs/VRAD3.md), being reversed for our own bake.
+# client: the game half of the cubemap build (docs/CUBEMAPS.md: face views, readback, strip, EXR).
 DLLS = ["resourcecompiler", "vphysics2", "physicsbuilder", "tier0", "visbuilder", "smartprops", "hammer",
-        "rendersystemvulkan", "rendersystemdx11", "vrad3"]
-# DLLs not directly in bin/win64: Hammer's build dialog (compile-map follows its command line).
-SUBDIR = {"hammer": "tools"}
+        "rendersystemvulkan", "rendersystemdx11", "vrad3", "client"]
+# DLLs not directly in bin/win64: Hammer's build dialog (compile-map follows its command line), the game's
+# client (csgo/bin/win64).
+SUBDIR = {"hammer": "tools", "client": os.path.join("..", "..", "csgo", "bin", "win64")}
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import paths  # noqa: E402
 BASELINE_DIRS = [paths.BINARIES, paths.STAGING]

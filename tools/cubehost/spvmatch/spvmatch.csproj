@@ -11,6 +11,7 @@
     <Reference Include="ValvePak"><HintPath>$(Bin)/ValvePak.dll</HintPath></Reference>
     <Reference Include="ValveResourceFormat"><HintPath>$(Bin)/ValveResourceFormat.dll</HintPath></Reference>
     <Reference Include="ZstdSharp"><HintPath>$(Bin)/ZstdSharp.dll</HintPath></Reference>
+    <Reference Include="Source2.Compiler"><HintPath>$(Bin)/Source2.Compiler.dll</HintPath></Reference>
     <Reference Include="ValveKeyValue"><HintPath>$(Bin)/ValveKeyValue.dll</HintPath></Reference>
   </ItemGroup>
 </Project>
