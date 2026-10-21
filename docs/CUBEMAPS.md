@@ -48,6 +48,22 @@ Read from resourcecompiler 0923 (addresses in ADDRESSES.md, BAKE rows); the
   sky camera's index. A half with exponent 0x7c00 logs "Invalid Pixel" (and
   exits with a command-line switch). The halves go into a float frame (client
   1813db210, format 0xf) and 1802091d0 reduces, composites and writes.
+- After the render (ported: `Cubemaps/CubemapFaceExr.cs`): QuarterSize from
+  the render size to the face size (client 1813ddd00: the same code as RC's
+  180c43450 instruction for instruction, callees included, but for the
+  allocator and job launcher, so RcMipChain.QuarterSize), a vertical flip
+  (1813dc290: rows y and h - 1 - y swapped), the face copied into the strip at
+  x = face * size (181756620; the strip starts as (0, 0, 0, 1)), and
+  1813dede0(strip, path, 0, 1): compression 0, half pixels, tinyexr's fast
+  writer, the same code as vrad3's FloatBitMap_t::WriteToFile (so Vrad3Exr with
+  ties-away rounding). To confirm on a game-written EXR: the channel set (R, G,
+  B, A assumed) and 1813db210's half to float.
+- The "Game" pipeline the view runs (client strings, CRenderingPipelineCsgo):
+  GPU culling (two pass, compute), depth prepasses, the light binner, the CS2
+  shadow pipeline, SSAO and AO proxies, volumetric fog, static and dynamic
+  opaque forward, decals, water refraction, MBOIT translucency, the 3D skybox
+  views, MSAA resolves, bloom and post-processing. Which of these the
+  BuildCubemaps view enables (its render attributes) is not read yet.
 
 ## The array's source
 
