@@ -302,7 +302,8 @@ running client.dll's own face setup under unicorn (tier0's V_sincosf,
 V_atan2f and V_tanf through ctypes): the face angles go through a
 quaternion and back (`89.99999237`, not 90), then a view object from the
 client's static template (FOV 90, aspect 1) with the record's origin and
-near 1 / far 10000. The view's matrix at +0x288, transposed, is the upload
+near 1 / far 10000 (constants the buildcubemaps command writes into each record, client
+1801ea0a0; ledger 118). The view's matrix at +0x288, transposed, is the upload
 bit for bit on faces 1 to 5; face 0 differs only in one signed zero. Depth
 is 0..1, not reversed. The six faces of the capture are the table's order:
 +X, -X, +Y, -Y, +Z, -Z.

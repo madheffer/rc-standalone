@@ -3097,9 +3097,17 @@ game can answer is raised with the user first, and runs with -insecure.
       The quaternion round trip turns 90 into 89.99999237, which is where the matrices' 1.94707184e-07
       terms come from. The client update of 2026-10-21 (2000934) left every client address the cubemap
       work cites identical (patch_check now tracks client.dll).
-    - Open: where the record's near 1 / far 10000 come from (entity keys or client defaults), the rest of
-      the per-view block (fog: the env_cubemap_fog origin and its keys appear there), per-draw constants,
-      the shadow cascades' views, the face-0 signed zero.
+    - Read (client 1801ea0a0, the buildcubemaps command): the records, 0xf8 bytes each, gathered class by
+      class (env_cubemap, env_cubemap_box, env_combined_light_probe_volume, func_combined_light_probe_volume),
+      each class in entity-list order (1809dfb70), skipping a component with +0x20 set: floats 0..2 the
+      scene node's origin, 3..5 its angles, 6 = 1.0 and 7 = 10000.0 (constants: the near and far), +0x20
+      the cube array index (component +0x48) when EnvironmentMapUseCubeArray else 0, byte +0x24 the
+      component's +0x65, then the EXR path "%s/_buildcubemaps/env_cubemap_%d.exr" with the component's
+      +0x44 (the handshake), lowercased with backslashes.
+    - Open: the rest of the per-view blocks (fog: the env_cubemap_fog origin and keys appear there),
+      per-draw constants and bindings (generic's _Globals_ for these materials is csgo's generic, 116 bytes,
+      with g_bRenderingToCubemaps and g_nToolsVisMode among its attributes; core's generic is another
+      program), the shadow cascades' views.
 
 119. **The .vmap_c argument table by builder** (2026-10-22, decompile of resourcecompiler 0923 and 56 Valve
     compiles: world only, -world -phys -vis -nav, full; MapRootFileTests).
