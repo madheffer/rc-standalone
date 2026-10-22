@@ -115,7 +115,7 @@ carries the same state per item.
 7. **Visibility:** Mako end to end, and wiring vis into a world build.
 8. **Entities:** the light keys are done (atixref and Mako 0 differences, 2026-10-22). Left: prefabs with
    fixupEntityNames, a prefab in a prefab, a prefab beside the map's own instances (refused, not captured);
-   s2c_prefabprobe4's vis clusters under LUMP_VIS=1 (an atixref-sized vis run, not yet done).
+   our vis end to end on atixref-sized maps (prefabprobe4 vis clusters are exact from Valve's captured boxes).
 9. **Containers and resources:** compiling the addon content a map
    references, a package made only of our outputs; glTF export, model
    internals, shaders.

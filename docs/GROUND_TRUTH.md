@@ -3338,6 +3338,17 @@ game can answer is raised with the user first, and runs with -insecure.
       the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
       lights; chaining a whole face from cleared targets.
 
+122. **Which lights list precomputed_vis_clusters** (2026-10-22, Valve's compiles of s2c_prefabprobe4: the
+    installed lit build and a capture_pvs.py capture of its FlatVisClusterVector; LUMP_FLATBOXES).
+    - Settled: WRB_PrecomputeLightVisMembership reads the light's direct light mode from the node after the
+      map preprocess, so the shadow slot step's rewrite (1800fe7b0: a stationary light with castshadows 0
+      becomes directlight 2, one with no free channel directlight 1) takes it out. Twelve atixref lights
+      authored directlight 3 with castshadows 0 (2140:228 to 235, 6789, 7197, 7198, 7203) carry no key in
+      Valve's lump; ours listed them until the gate read the written keys (EntityLumpAuthor
+      LightVisMembership). ze_hold_em_p's 37 all cast shadows, so it never showed.
+    - Verified: with Valve's own cluster boxes, the 6 lights Valve lists are exact in value and place and
+      no other light gets the key, so the light half (trace, bounds, cluster test) is exact apart from vis.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

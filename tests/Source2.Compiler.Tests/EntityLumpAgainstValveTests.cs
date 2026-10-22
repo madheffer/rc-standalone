@@ -130,6 +130,10 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("LUMP_VIS") == "1" && VisFixtures.RayTraceScene(addon, map) is var (rte, _))
             boxes = Maps.VisBuild.RunWithBlocks(rte, Maps.VisConfig.Read(
                 Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".viscfg"))).FlatClusterBoxes;
+        // LUMP_FLATBOXES=<capture_pvs.py capture>: Valve's own FlatVisClusterVector instead of our vis, so the
+        // lights' cluster lists are checked apart from the vis port.
+        if (Environment.GetEnvironmentVariable("LUMP_FLATBOXES") is { Length: > 0 } capture)
+            boxes = CapturedFlatBoxes(capture);
         var ours = EntityLumpSet.Author(MapEntities.From(document), MapFixtures.GameSchema(), map,
                                         MapEntities.FixupEntityNames(document), document, MapFixtures.SmartPropLocators,
                                         SettleLumpTests.Settle(document, source), BakedIn(valve),
@@ -195,6 +199,24 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
             output.WriteLine($"  differs: {group.Key} {group.Count()}");
         Assert.True(unexplained.Count == 0,
             $"{map}: differences outside the documented gaps. " + EntityLumpComparison.Summarize(unexplained));
+    }
+
+    /// <summary>The <c>flatboxes</c> record of a capture_pvs.py capture: per cluster an i32 count, then that many 24-byte boxes.</summary>
+    private static List<(System.Numerics.Vector3, System.Numerics.Vector3)>[] CapturedFlatBoxes(string path)
+    {
+        using var capture = new VisBigReplay.CaptureFile(path);
+        var blob = capture.Blob("flatboxes");
+        var clusters = new List<List<(System.Numerics.Vector3, System.Numerics.Vector3)>>();
+        static System.Numerics.Vector3 V(byte[] b, int at)
+            => new(BitConverter.ToSingle(b, at), BitConverter.ToSingle(b, at + 4), BitConverter.ToSingle(b, at + 8));
+        for (var at = 0; at < blob.Length;)
+        {
+            var count = BitConverter.ToInt32(blob, at);
+            at += 4;
+            clusters.Add([.. Enumerable.Range(0, count).Select(k => (V(blob, at + k * 24), V(blob, at + k * 24 + 12)))]);
+            at += count * 24;
+        }
+        return [.. clusters];
     }
 
     /// <summary>

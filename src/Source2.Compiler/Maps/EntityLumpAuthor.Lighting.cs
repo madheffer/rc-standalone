@@ -183,8 +183,8 @@ public static partial class EntityLumpAuthor
                     }
                 }
             }
-            return new Lighting(mapPath, baked, handshake, cube, atlas,
-                                scene is null ? null : LightKeys(mapPath, baked, order, schema, scene))
+            var lightKeys = scene is null ? null : LightKeys(mapPath, baked, order, schema, scene);
+            return new Lighting(mapPath, baked, handshake, cube, atlas, lightKeys)
             {
                 ExportOrder = order,
                 Volumes = new(cubemaps, probes),
@@ -192,8 +192,8 @@ public static partial class EntityLumpAuthor
                 Fog = fog,
                 Farfields = farfields,
                 FarfieldIndex = farfieldIndex,
-                VisClusters = baked && scene is not null && visClusterBoxes is not null
-                    ? LightVisMembership(order, schema, scene, visClusterBoxes) : null,
+                VisClusters = baked && scene is not null && lightKeys is not null && visClusterBoxes is not null
+                    ? LightVisMembership(order, schema, scene, visClusterBoxes, lightKeys) : null,
             };
         }
     }
@@ -257,10 +257,15 @@ public static partial class EntityLumpAuthor
     /// WRB_PrecomputeLightVisMembership (180247d40): each light_barn,
     /// light_rect and light_omni2 whose direct light mode is 3 and that gets a
     /// record, traced again and measured against the vis cluster boxes. A
-    /// light the port cannot shape gets none.
+    /// light the port cannot shape gets none. The mode is the node's after the
+    /// map preprocess wrote its keys (<paramref name="written"/>): the shadow
+    /// slot step (1800fe7b0) has turned a stationary light with no shadows to
+    /// directlight 2 and one with no free channel to 1, and neither gets the key
+    /// (s2c_prefabprobe4: 12 such lights, none listed by Valve's compile).
     /// </summary>
     private static Dictionary<MapEntities.Entity, int[]> LightVisMembership(IReadOnlyList<MapEntities.Entity> order,
-        FgdSchema? schema, Maps.ILightTracer scene, List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[] boxes)
+        FgdSchema? schema, Maps.ILightTracer scene, List<(System.Numerics.Vector3 Min, System.Numerics.Vector3 Max)>[] boxes,
+        Dictionary<MapEntities.Entity, List<KeyValuePair<string, string>>> written)
     {
         var lights = order.Where(e => e.ClassName is "light_barn" or "light_rect" or "light_omni2").ToList();
         var found = new int[]?[lights.Count];
@@ -271,7 +276,11 @@ public static partial class EntityLumpAuthor
             var table = KeyTable(e, schema);
             string? Key(string name) => table.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
             var world = Maps.LightPrecompute.World(e.Origin, e.Angles);
-            if (Maps.BakedShadowAssignment.Mode(new Maps.BakedShadowAssignment.Light(e.ClassName, Key, world, [e.NodeId])).Mode != 3)
+            var node = KeyTable(e, schema);
+            foreach (var (k, v) in written.GetValueOrDefault(e) ?? [])
+                Set(node, k, v);
+            string? NodeKey(string name) => node.FirstOrDefault(k => k.Key.EqualsAscii(name)).Value;
+            if (Maps.BakedShadowAssignment.Mode(new Maps.BakedShadowAssignment.Light(e.ClassName, NodeKey, world, [e.NodeId])).Mode != 3)
                 return;
             try
             {

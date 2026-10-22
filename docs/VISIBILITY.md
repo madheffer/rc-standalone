@@ -206,7 +206,18 @@ carry `precomputed_vis_clusters` from the same boxes (ENTITIES.md,
 
 ## Measured costs
 
-On Mako's 1,299 s compile, visibility takes 1,088.7 s (83.8%) and lighting
+Our port (2026-10-22, ze_hold_em_p from the .vmap, dev box i5-8600, nice 15):
+130 s, of which cluster generation 62 s and the five merge passes 61 s; the
+PVS scan, vis-cluster merge, borders, sky and sun together take under 5 s.
+A dotnet-trace sample puts 97% of the busy time in VisClusterSample's per-cluster
+sampling: 43% in VisVisibility.Crossed (the cells a ray crosses in a leaf,
+recomputed for every reached cluster although a set's clusters share one leaf)
+and about 30% in the kd tracer. Caching Crossed per ray and leaf (a pure
+function, VXVS unchanged) brought it to 95 s. On atixref-sized maps the
+sampling grows past an hour (prefabprobe4 did not finish in 3 h on the box), so
+this is where a speed pass starts, after parity (user, 2026-10-22).
+
+Valve's, on Mako's 1,299 s compile, visibility takes 1,088.7 s (83.8%) and lighting
 16 s:
 - LOS ray scan: 568 s, of which boundary points take 309 s and large cluster
   regions take 252 s. That generator casts 608 million rays for 383 useful

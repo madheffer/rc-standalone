@@ -60,6 +60,9 @@ Light keys (done):
     run: 0 differences on both). The one-face omni2 misses (7306, 7318,
     7348) closed with the packet-of-4 ray tracer and the kd leaf rule
     (GROUND_TRUTH 31, 2026-10-09).
+  - **precomputed_vis_clusters** goes only on lights still directlight 3
+    after the shadow slot step (ledger 122); s2c_prefabprobe4 is exact
+    against Valve's captured cluster boxes (`LUMP_FLATBOXES=<capture>`).
   - **The lump test allows no light or baked-key difference** since
     2026-10-22. The only allowance left is `precomputed_vis_clusters`
     missing on our side when the test does not run vis; `LUMP_VIS=1` runs

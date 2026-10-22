@@ -188,15 +188,19 @@ public static class VisClusterSample
             for (var j = 0; j < aimed; j++)
                 directions[j] = sphere ? Sphere[j] : Direction(centres[j] - from);
             var segments = Rays(scene, from, directions, reach);
+            // The cells a ray crosses in a leaf depend on the ray and the leaf alone, and a set's
+            // clusters mostly share one leaf, so each ray computes them once per leaf.
+            var crossed = new Dictionary<int, ulong>();
             for (var j = 0; j < aimed; j++)
             {
                 var segment = segments[j];
                 var to = new Vector3(segment.X + from.X, segment.Y + from.Y, segment.Z + from.Z);
                 reached.Clear();
                 index.Crossed(from, to, reached);
+                crossed.Clear();
 
                 foreach (var k in reached)
-                    if (Occupied(clusters, k, cube, from, segment))
+                    if (Occupied(clusters, k, cube, from, segment, crossed))
                         bits[k >> 6] |= 1UL << (k & 63);
             }
             clusters[i].Visibility = bits;
@@ -297,7 +301,7 @@ public static class VisClusterSample
     /// is all there is, so it counts on the box alone.
     /// </summary>
     private static bool Occupied(
-        IReadOnlyList<VisMerge.Cluster> clusters, int entry, LeafCube cube, Vector3 from, Vector3 segment)
+        IReadOnlyList<VisMerge.Cluster> clusters, int entry, LeafCube cube, Vector3 from, Vector3 segment, Dictionary<int, ulong> crossed)
     {
         if (entry >= clusters.Count)
             return true;
@@ -309,8 +313,12 @@ public static class VisClusterSample
         {
             if (leaf != last)
             {
-                var (corner, side) = cube(leaf);
-                cells = VisVisibility.Crossed(from, inverse, corner, side, 4);
+                if (!crossed.TryGetValue(leaf, out cells))
+                {
+                    var (corner, side) = cube(leaf);
+                    cells = VisVisibility.Crossed(from, inverse, corner, side, 4);
+                    crossed[leaf] = cells;
+                }
                 last = leaf;
             }
             if ((mask & cells) != 0)
