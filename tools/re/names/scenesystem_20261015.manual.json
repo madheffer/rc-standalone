@@ -229,6 +229,18 @@
    "note": "one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit"
   },
   {
+   "addr": "18003c5a0",
+   "name": "Aggregate_CullAndBuildDraws",
+   "module": "s2c:baked/lighting",
+   "note": "a world aggregate in one view (CPU; sc_aggregate_gpu_culling off): walks the fragment BVH (desc +0x1c8 -> +0xb0, 0x20-byte nodes: min xyz, first, max xyz, count) with the view's 8 frustum planes (view +0x460, two SIMD groups of 4, p-vertex test relative to the camera at +0x430), each surviving leaf's fragments through 18003d380; then one 0x20-byte instance record per visible fragment (tint x alpha, transform index +0x20 + base, flags) and the indirect draws: a fragment joins the previous draw when sc_aggregate_fragment_merging (18089cf28) is on, it has the same draw group (+0x20) and is not flagged (bit 0), else takes the next draw (desc +0x210) and its index count (+0x1c) adds to desc +0x214"
+  },
+  {
+   "addr": "18003d380",
+   "name": "Aggregate_CullFragment",
+   "module": "s2c:baked/lighting",
+   "note": "one fragment (0x20-byte bounds at desc +0x180): the frustum p-vertex test, then the culling boxes (sc_aggregate_fragment_culling_boxes 18089cf18, OBBs via DPPS), then the rest (not read yet); appends the fragment index when visible"
+  },
+  {
    "addr": "1801a5c28",
    "name": "CSM_SetupForView",
    "module": "s2c:baked/lighting",

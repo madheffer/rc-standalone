@@ -67,7 +67,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180130342` | `Convar_csm_viewmodel_max_shadow_dist` | registration, default 21 (csm_viewmodel_max_visible_dist 1000 at 1801303f2, csm_viewmodel_nearz 0.5 at 1801304a2) |  |
 | `1808898d0` | `Csm_ScriptedCameraCascade0` | 75.0 (.rdata 181b14fe0) when 180cb2100 returns a camera, else 0 (its argument is unused) | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:30` |
 | `180cb2100` | `GetScriptedCamera` | the Panorama StartCamera camera when 1825c9e3b is set (180dfd030), else FindEntityByClassname end_of_match_camera (flag 1825c8832) or team_select_camera (1825c9e65), else NULL | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:31` |
-| `180df0f20` | `VideoConfig_ShadowQuality2` | the shadow-quality 2 preset as setting.* convars (value pushed before the name): csm_max_num_cascades_override 3, csm_viewmodel_shadows 1, csm_max_shadow_dist_override 560, lb_csm_cascade_size_override 1280, lb_shadow_texture 4352 x 5248, lb_csm_cross_fade_override 0.1, lb_csm_distance_fade_override 0.05; CubemapShadowCascades.Inputs | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:43` |
+| `180df0f20` | `VideoConfig_ShadowQuality2` | the shadow-quality 2 preset as setting.* convars (value pushed before the name): csm_max_num_cascades_override 3, csm_viewmodel_shadows 1, csm_max_shadow_dist_override 560, lb_csm_cascade_size_override 1280, lb_shadow_texture 4352 x 5248, lb_csm_cross_fade_override 0.1, lb_csm_distance_fade_override 0.05; CubemapShadowCascades.Inputs | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:42` |
 | `180df13a0` | `VideoConfig_ShadowQuality0` | quality 0: 2 cascades of 768, csm_max_shadow_dist_override 560, no viewmodel shadows | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23` |
 | `180df1820` | `VideoConfig_ShadowQuality1` | quality 1: 2 cascades of 1024, csm_max_shadow_dist_override 560 | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23` |
 | `180df1ca0` | `VideoConfig_ShadowQuality3` | quality 3: 3 cascades of 2048, csm_max_shadow_dist_override 560 | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23` |
@@ -564,7 +564,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:380`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153`, `src/Source2.Compiler/Maps/MapRootFile.cs:95` |
+| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:380`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153`, `src/Source2.Compiler/Maps/MapRootFile.cs:97` |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:205` |
 | `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
@@ -939,7 +939,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun | `src/Source2.Compiler/Maps/MapRootFile.cs:37`, `src/Source2.Compiler/Maps/MapRootFile.cs:95` |
+| `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun | `src/Source2.Compiler/Maps/MapRootFile.cs:39`, `src/Source2.Compiler/Maps/MapRootFile.cs:97` |
 | `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:14`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:34`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:43` +7 |
 | `18024adc0` | `WRB_WriteEntityLump` | entity_lump_params, entities\ |  |
 | `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:13`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:166` |
@@ -1277,7 +1277,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18025ece0` | `WRBNode_GenerateOverlayMeshes` | "Generate Overlay Meshes...": per overlay of node +0x1f8/+0x200, targets gathered, projected, one entry per target with a non-empty result (356 on atixref from 297 CMapStaticOverlay) | `src/Source2.Compiler/Maps/NodeOverlays.cs:130` |
 | `18025f9d0` | `WRB_UseAggregateInstances` | gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge |  |
 | `18025fa40` | `WRB_UseStaticEnvMapForObjectsWithLightingOrigin` | gameinfo ResourceCompiler/WorldRendererBuilder/UseStaticEnvMapForObjectsWithLightingOrigin, default false |  |
-| `18025fab0` | `WRB_CompileNodeModel` | the CMesh list to an in-memory ModelDoc (1801fee20) and compiled as <name>.vmdl; meshletMaxVertices/Triangles | `src/Source2.Compiler/Maps/MapRootFile.cs:97` |
+| `18025fab0` | `WRB_CompileNodeModel` | the CMesh list to an in-memory ModelDoc (1801fee20) and compiled as <name>.vmdl; meshletMaxVertices/Triangles | `src/Source2.Compiler/Maps/MapRootFile.cs:99` |
 | `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris | `src/Source2.Compiler/Maps/WorldNodeModels.cs:234` |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |
 | `180268e80` | `WRB_BuildAggregate` | Added aggregate with %i meshes, %i fragments; %s_lr%i_%s | `src/Source2.Compiler/Maps/NodePropAggregates.cs:68`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:37`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
@@ -1340,8 +1340,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802f5680` | `ModelCompile_MeshInputLayouts` | per mesh (0x148 bytes): the full layout, and with a material depth list (INSG m_depth_elems) the depth (flags \| 8) and remainder (flags \| 0x10) layouts; a fourth for non-map meshes | `src/Source2.Compiler/Maps/WorldNodeModels.cs:353` |
 | `1802f6840` | `WRB_CompressTexcoordsToSnorm` | per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990) | `src/Source2.Compiler/Maps/NodeDraw.cs:39`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:355` |
 | `1802f69f0` | `ModelCompile_BuildDrawSets` | draw-set groups (400 bytes: four layouts, then the meshes) from the mesh list (+0x14c instanced, +0x14d), each through 1802f6840 |  |
-| `1802f9cc0` | `ModelCompile_ReadMeshArgs` | globals from the compile arguments: create_pooled_vb (18307e22c), embedded_map_mesh (18307e218), embedded_aggregate_mesh, meshlets; SceneSystem/RenderMeshlets, RayTraceProxyEnabled | `src/Source2.Compiler/Maps/MapRootFile.cs:96`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
-| `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 | `src/Source2.Compiler/Maps/MapRootFile.cs:96`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
+| `1802f9cc0` | `ModelCompile_ReadMeshArgs` | globals from the compile arguments: create_pooled_vb (18307e22c), embedded_map_mesh (18307e218), embedded_aggregate_mesh, meshlets; SceneSystem/RenderMeshlets, RayTraceProxyEnabled | `src/Source2.Compiler/Maps/MapRootFile.cs:98`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
+| `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 | `src/Source2.Compiler/Maps/MapRootFile.cs:98`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
 | `1802fc990` | `CMesh_StreamWithinUnitRange` | min >= -1 and max <= 1 over a two-float stream | `src/Source2.Compiler/Maps/NodeDraw.cs:39` |
 | `1802fcb30` | `CMesh_Stream4WithinUnitRange` | as 1802fc990 for a four-float stream |  |
 | `180301650` | `CMeshletBuilder_Init` | max vertices/triangles from 1802f9cc0, SceneSystem/RenderMeshlets, MeshCompiler/MeshletConeWeight 0.05, optimize level 4 |  |
@@ -1785,15 +1785,17 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: this build
-- 39 addresses
+- 41 addresses
 
 ### s2c:baked/lighting
 
 | address | name | what | cited in |
 |---|---|---|---|
+| `18003c5a0` | `Aggregate_CullAndBuildDraws` | a world aggregate in one view (CPU; sc_aggregate_gpu_culling off): walks the fragment BVH (desc +0x1c8 -> +0xb0, 0x20-byte nodes: min xyz, first, max xyz, count) with the view's 8 frustum planes (view +0x460, two SIMD groups of 4, p-vertex test relative to the camera at +0x430), each surviving leaf's fragments through 18003d380; then one 0x20-byte instance record per visible fragment (tint x alpha, transform index +0x20 + base, flags) and the indirect draws: a fragment joins the previous draw when sc_aggregate_fragment_merging (18089cf28) is on, it has the same draw group (+0x20) and is not flagged (bit 0), else takes the next draw (desc +0x210) and its index count (+0x1c) adds to desc +0x214 |  |
+| `18003d380` | `Aggregate_CullFragment` | one fragment (0x20-byte bounds at desc +0x180): the frustum p-vertex test, then the culling boxes (sc_aggregate_fragment_culling_boxes 18089cf18, OBBs via DPPS), then the rest (not read yet); appends the fragment index when visible |  |
 | `1801a5c28` | `CSM_SetupForView` | calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero |  |
-| `180494b40` | `CSM_FitCascade` | one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:7`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:124`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:178` |
-| `180496ef0` | `CSM_SetupCascades` | count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:6`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:53` +1 |
+| `180494b40` | `CSM_FitCascade` | one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:7`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:126`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:180` |
+| `180496ef0` | `CSM_SetupCascades` | count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:6`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:55` +1 |
 
 ### s2c:baked/vrad3
 

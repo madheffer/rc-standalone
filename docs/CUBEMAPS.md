@@ -464,7 +464,13 @@ ledger 120.
   no cull_aggregate_fragments dispatch runs. scenesystem's convars name the
   parts: sc_aggregate_fragment_culling_boxes, sc_aggregate_fragment_merging
   (the merged sub-draws), sc_aggregate_gpu_culling (off here);
-  CAggregateSceneObject::GatherData is the entry to read.
+  CAggregateSceneObject::GatherData is the entry to read. Read 10-22
+  (decompiles in tools/re/out/culling): 18003c5a0 culls one aggregate per
+  view (fragment BVH against the view's 8 frustum planes, then 18003d380 per
+  fragment: frustum, culling boxes, ...), writes an instance record per
+  visible fragment, and merges adjacent visible fragments of one draw group
+  into one indirect draw (sc_aggregate_fragment_merging). Port next, checked
+  against both captures' draw arguments.
 - The cascade inputs depend on the game's video settings, not the map: the
   shadow-quality preset (the run detects level 2) sets
   csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles
