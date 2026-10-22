@@ -229,6 +229,9 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
         public void Buffer(int set, int binding, uint element, GpuDevice.GpuBuffer buffer, ulong offset, ulong range) => Buffers.Add((set, binding, element, buffer, offset, range));
         public void Image(int set, int binding, uint element, ImageView view) => Images.Add((set, binding, element, view));
         public void Sampler(int set, int binding, uint element, Sampler sampler) => Samplers.Add((set, binding, element, sampler));
+
+        /// <summary>The push constant bytes (vkCmdPushConstants at offset 0), when the programs declare a block.</summary>
+        public byte[]? PushConstants { get; set; }
     }
 
     /// <summary>
@@ -346,6 +349,7 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
             if (setCount > 0)
                 fixed (DescriptorSet* ps0 = sets)
                     _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, pipelineLayout, 0, (uint)setCount, ps0, 0, null);
+            descriptors.Push(cmd);
             if (vertexBuffers.Length > 0)
             {
                 var buffers = stackalloc Silk.NET.Vulkan.Buffer[vertexBuffers.Length];
@@ -400,6 +404,7 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
             if (descriptors.Sets.Length > 0)
                 fixed (DescriptorSet* sets = descriptors.Sets)
                     _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Compute, descriptors.Layout, 0, (uint)descriptors.Sets.Length, sets, 0, null);
+            descriptors.Push(cmd);
             _vk.CmdDispatch(cmd, x, y, z);
             MemoryBarrier(_vk, cmd);
         });
@@ -416,10 +421,20 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
     }
 
     /// <summary>A draw's or dispatch's descriptor sets and pipeline layout, destroyed together.</summary>
-    private sealed class Descriptors(Vk vk, Device device, DescriptorSetLayout[] setLayouts, DescriptorPool pool, DescriptorSet[] sets, PipelineLayout layout) : IDisposable
+    private sealed class Descriptors(Vk vk, Device device, DescriptorSetLayout[] setLayouts, DescriptorPool pool, DescriptorSet[] sets, PipelineLayout layout,
+                                     ShaderStageFlags pushStages, byte[]? push) : IDisposable
     {
         public DescriptorSet[] Sets { get; } = sets;
         public PipelineLayout Layout { get; } = layout;
+
+        /// <summary>Records the push constants, if any, into <paramref name="cmd"/>.</summary>
+        public void Push(CommandBuffer cmd)
+        {
+            if (push is null || push.Length == 0)
+                return;
+            fixed (byte* p = push)
+                vk.CmdPushConstants(cmd, Layout, pushStages, 0, (uint)push.Length, p);
+        }
 
         public void Dispose()
         {
@@ -486,7 +501,16 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
                 var alloc = new DescriptorSetAllocateInfo { SType = StructureType.DescriptorSetAllocateInfo, DescriptorPool = pool, DescriptorSetCount = (uint)setCount, PSetLayouts = pl };
                 GpuDevice.Check(_vk.AllocateDescriptorSets(gpu.Device, &alloc, pset), "vkAllocateDescriptorSets");
             }
-            var layoutInfo = new PipelineLayoutCreateInfo { SType = StructureType.PipelineLayoutCreateInfo, SetLayoutCount = (uint)setCount, PSetLayouts = pl };
+            // A push constant range as large as the largest block the programs declare (the bytes pushed may be fewer).
+            var pushSize = reflections.Max(r => r.PushConstants?.BlockSize ?? 0);
+            if (bindings.PushConstants is { } given)
+                pushSize = Math.Max(pushSize, given.Length);
+            var range = new PushConstantRange(stages, 0, (uint)pushSize);
+            var layoutInfo = new PipelineLayoutCreateInfo
+            {
+                SType = StructureType.PipelineLayoutCreateInfo, SetLayoutCount = (uint)setCount, PSetLayouts = pl,
+                PushConstantRangeCount = pushSize > 0 ? 1u : 0u, PPushConstantRanges = &range,
+            };
             GpuDevice.Check(_vk.CreatePipelineLayout(gpu.Device, &layoutInfo, null, out pipelineLayout), "vkCreatePipelineLayout");
         }
 
@@ -515,7 +539,7 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
             _vk.UpdateDescriptorSets(gpu.Device, 1, &write, 0, null);
         }
 
-        return new Descriptors(_vk, gpu.Device, setLayouts, pool, sets, pipelineLayout);
+        return new Descriptors(_vk, gpu.Device, setLayouts, pool, sets, pipelineLayout, stages, bindings.PushConstants);
     }
 
     private ShaderModule Module(byte[] spirv)

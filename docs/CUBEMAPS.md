@@ -452,6 +452,11 @@ ledger 120.
   per-view culling that merges surviving fragments into indirect sub-draws
   (the draw arguments are still the capture's), then all faces, then reduce
   to the EXR and compare with the game's.
+- A second map, s2c_l5probe (omni2 and barn lights; capture and dumps in
+  %TEMP%/cubehost_run/s2c_l5probe), replays face 0 bit for bit (38 actions,
+  push constants for the light binner). Its frame also draws 16 animatable
+  models per face (presumably the spawned player): none reaches face 0's
+  pixels; check the other faces and the game's EXR before porting.
 - The cascade inputs depend on the game's video settings, not the map: the
   shadow-quality preset (the run detects level 2) sets
   csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles

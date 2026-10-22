@@ -383,6 +383,13 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             "R32_UINT" => Silk.NET.Vulkan.Format.R32Uint,
             "R32G32B32A32_UINT" => Silk.NET.Vulkan.Format.R32G32B32A32Uint,
             "R16G16_UNORM" => Silk.NET.Vulkan.Format.R16G16Unorm,
+            "R16G16_SNORM" => Silk.NET.Vulkan.Format.R16G16SNorm,
+            "R16G16B16A16_SNORM" => Silk.NET.Vulkan.Format.R16G16B16A16SNorm,
+            "R16G16B16A16_UNORM" => Silk.NET.Vulkan.Format.R16G16B16A16Unorm,
+            "R8G8B8A8_SNORM" => Silk.NET.Vulkan.Format.R8G8B8A8SNorm,
+            "R10G10B10A2_UNORM" => Silk.NET.Vulkan.Format.A2B10G10R10UnormPack32,
+            "R16_FLOAT" => Silk.NET.Vulkan.Format.R16Sfloat,
+            "R32G32_UINT" => Silk.NET.Vulkan.Format.R32G32Uint,
             "R16G16_FLOAT" => Silk.NET.Vulkan.Format.R16G16Sfloat,
             "R8G8B8A8_UINT" => Silk.NET.Vulkan.Format.R8G8B8A8Uint,
             "D16" => Silk.NET.Vulkan.Format.D16Unorm,
@@ -494,6 +501,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 {
                     var block = cb!["block"]!;
                     var bytes = cb["bytes"]!;
+                    // A block not backed by a buffer is the push constants (RenderDoc reads them from the command buffer).
+                    if (block["bufferBacked"] is { } backed && !(bool)backed)
+                    {
+                        bindings.PushConstants = Blob((string)bytes["sha1"]!);
+                        continue;
+                    }
                     bindings.Buffer((int)block["fixedBindSetOrSpace"]!, (int)block["fixedBindNumber"]!, (uint)(int)cb["access"]!["arrayElement"]!,
                         Buffer((string)bytes["sha1"]!), 0, (ulong)(long)bytes["size"]!);
                 }
@@ -644,6 +657,11 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             foreach (var cb in cs["constantBlocks"]!.AsArray())
             {
                 var block = cb!["block"]!;
+                if (block["bufferBacked"] is { } backed && !(bool)backed)
+                {
+                    bindings.PushConstants = Blob((string)cb["bytes"]!["sha1"]!);
+                    continue;
+                }
                 bindings.Buffer((int)block["fixedBindSetOrSpace"]!, (int)block["fixedBindNumber"]!, (uint)(int)cb["access"]!["arrayElement"]!,
                     Buffer((string)cb["bytes"]!["sha1"]!), 0, (ulong)(long)cb["bytes"]!["size"]!);
             }

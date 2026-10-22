@@ -3282,6 +3282,13 @@ game can answer is raised with the user first, and runs with -insecure.
       downsample 64018 differs only where no draw writes (nothing reads it), and against the capture only draws
       478 / 484 differ (1 and 3 bytes), the two the GTX 1080 already differs on unchained; on the RTX 4070 it
       passes against the capture (below).
+    - Settled by replay (2026-10-22, CS2 closed; s2c_l5probe cube 0, a RenderDoc capture with an omni2 and a barn
+      light): all 38 actions of face 0 (+X) bit for bit on our device (DrawsEqualTheCapture), the light binner
+      with real lights included. Its three new dispatches (eid 132, 135, 138) take a 44-byte push constant block
+      (RenderDoc: bufferBacked false, from the command buffer); SceneDrawRunner.Bindings.PushConstants carries
+      it. The frame has 24 shader modules (probe01: 10) and 16 CAnimatableSceneObjectDesc batches per face
+      (mode Default; a 10,818-index model, presumably the spawned player) plus an ambient occlusion proxy;
+      the animatable draws change no pixel of face 0. Whether they reach another face is not checked yet.
     - Open: the cascade camera's y offset (1 ulp, no effect);
       the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
       lights; chaining a whole face from cleared targets.
