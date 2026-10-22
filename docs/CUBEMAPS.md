@@ -446,8 +446,8 @@ ledger 120.
   buffer it reads built from our data (CubemapFaceViews, CubemapFaceConstants,
   CubemapShadowCascades; ledgers 120, 121) with the face unchanged, and the
   face chained from cleared targets on our blocks
-  (`ChainedFaceEqualsTheCapture`; dev box: equal apart from the GTX 1080's
-  known drift; RTX 4070 check queued). The vertex, index, lightmap and
+  (`ChainedFaceEqualsTheCapture`: bit for bit against the capture on the
+  RTX 4070, 10-22). The vertex, index, lightmap and
   material inputs already equal the package's data (ledger 120). Next: the
   per-view culling that merges surviving fragments into indirect sub-draws
   (the draw arguments are still the capture's), then all faces, then reduce
@@ -455,6 +455,5 @@ ledger 120.
 - The cascade inputs depend on the game's video settings, not the map: the
   shadow-quality preset (the run detects level 2) sets
   csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles
-  (`CubemapShadowCascades.Inputs`, ledger 121). Cascade 0's 75 comes, as far
-  as the binaries show, from the render pipeline's scripted-camera path;
-  a run with CS2 closed should confirm it fires during buildcubemaps.
+  (`CubemapShadowCascades.Inputs`, ledger 121). Cascade 0's 75 is set by the
+  render pipeline on every game view, the cubemap view included (captured 10-22).

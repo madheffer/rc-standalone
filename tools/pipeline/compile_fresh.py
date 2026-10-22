@@ -1,4 +1,4 @@
-"""compile_fresh.py <addon> <map> [--out file] [--full] [-- extra rc args]: a fresh compile kept aside.
+"""compile_fresh.py <addon> <map> [--out file] [--full] [--over] [-- extra rc args]: a fresh compile kept aside.
 
 Compiles <addon>'s <map>.vmap with the installed resourcecompiler (-world
 -fshallow by default, the whole map with --full) and keeps the package it
@@ -33,6 +33,8 @@ def main():
     p.add_argument("map")
     p.add_argument("--out")
     p.add_argument("--full", action="store_true")
+    p.add_argument("--over", action="store_true",
+                   help="compile over the existing package (an Entities-only build reads its world and lightmaps)")
     a = p.parse_args(argv)
     if running("cs2.exe") or running("resourcecompiler.exe"):
         raise SystemExit("CS2 or a compile is running; not starting")
@@ -46,7 +48,8 @@ def main():
         # copy2 keeps the write time: tests take a package newer than the installed
         # resourcecompiler.exe as its output, so a restored old compile must keep its date.
         shutil.copy2(vpk, backup)
-        os.remove(vpk)
+        if not a.over:
+            os.remove(vpk)
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     started = time.time()
     cmd = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]

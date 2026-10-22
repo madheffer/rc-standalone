@@ -26,10 +26,9 @@ public static class CubemapShadowCascades
         public const float MaxShadowDistance = 560f;
 
         /// <summary>
-        /// The view attribute 0x61fac369, which replaces cascade 0's distance after the split. Its only constant
-        /// source is the render pipeline (client 1811d9d30 at 1811da3f4): 1808898d0 returns 75 (.rdata 181b14fe0)
-        /// when 180cb2100 finds a scripted camera (Panorama StartCamera, end_of_match_camera, team_select_camera),
-        /// else 0, which leaves the attribute unset. Not yet seen to fire during buildcubemaps (needs a run).
+        /// The view attribute 0x61fac369, which replaces cascade 0's distance after the split: the render pipeline
+        /// (client 1811d9d30, at 1811da3f4) sets it to 1808898d0's 75.0 (.rdata 181b14fe0) on every game view when
+        /// 180cb2100 finds a scripted camera, which it does during buildcubemaps (captured 10-22, ledger 121).
         /// </summary>
         public const float Cascade0Distance = 75f;
 

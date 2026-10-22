@@ -19,7 +19,7 @@ for r in records:
 for kind in ("module", "hooked", "mismatch", "error"):
     for r in by.get(kind, []):
         print(kind, {k: v for k, v in r.items() if k != "kind"})
-for kind in ("set", "camera", "enter", "far", "split", "d0"):
+for kind in ("set", "camera", "enter", "lookup"):
     rows = by.get(kind, [])
     print(f"\n{kind}: {len(rows)} distinct")
     for r in rows[:12]:
@@ -30,5 +30,5 @@ cameras = by.get("camera", [])
 print("\nverdict:")
 print("  0x61fac369 set:", ", ".join(f"{r['value']} by {r['caller']}" for r in sets) or "never")
 print("  scripted camera found:", sorted({r["found"] for r in cameras}) or "180cb2100 never called from 1808898d0")
-print("  cascade 0 after the attribute pass:", sorted({r["d0"] for r in by.get("d0", [])}))
-print("  M inputs (ShadowFarZ, override):", sorted({(r["shadowFarZ"], r["csm_max_shadow_dist_override"]) for r in by.get("far", [])}))
+print("  cascade 0 read by the setup:", sorted({(r["module"], r["value"], r["caller"]) for r in by.get("lookup", []) if r["name"] == "cascade0"}))
+print("  ShadowFarZ read:", sorted({(r["module"], r["value"]) for r in by.get("lookup", []) if r["name"] == "ShadowFarZ"}))

@@ -3237,7 +3237,7 @@ game can answer is raised with the user first, and runs with -insecure.
       the server's CLightComponent constructor (18017c8d0) zeroes them. 180496ef0 then takes, in order:
       the light's distances (+0x48, each later one doubled from the last given; none here), the convars
       csm_cascadeN_override_dist when above 0 (default -1), the practical split, then the view attributes
-      0x61fac369 / 0x70644345 / ... replace distance N when set (1804976e5 on). Its whole range M is
+      0x61fac369 / 0x6914dd11 / 0xc69b8e6e / ... replace distance N when set (1804976e5 on). Its whole range M is
       csm_max_shadow_dist_override when above 0 and the view's flag bit 4 is clear, else the view attribute
       ShadowFarZ (0x7b2a64e1, default 1000, set by no code), at most the view frustum's far (view + 0x10 +
       0x24, 10000 here). csm_max_shadow_dist_override is "560" in all four shadow-quality presets the video
@@ -3248,21 +3248,31 @@ game can answer is raised with the user first, and runs with -insecure.
       (0xb506b94b) and CsmPushbackDistance (0xb7a3d0d5); the viewmodel cascade is csm_viewmodel_max_shadow_dist
       21, csm_viewmodel_nearz 0.5, csm_viewmodel_max_visible_dist 1000, r_csgo_viewmodel_csm_pushback_distance
       1500. Names from MurmurHash2 (lowercase, seed 0x31415926); no DLL holds those strings.
-    - Narrowed, not settled: d0 = 75 is the attribute 0x61fac369. Its only constant source is the render
-      pipeline (client 1811d9d30 at 1811da3f4, with a local pawn's camera services at +0x1328): 1808898d0
-      returns 75.0 (.rdata 181b14fe0) when 180cb2100 finds a scripted camera (the Panorama StartCamera flag
-      1825c9e3b, end_of_match_camera, team_select_camera), else 0, which leaves it unset. No convar, cfg or
-      immediate gives 75 (convar defaults dumped; no 75.0 immediate in client .text). The run loads Panorama
-      UI scenes (ui/xpshop_item), so the path is plausible; confirming it fires during buildcubemaps needs a
-      run with CS2 closed (hook 180cb2100's result at 1808898d4 and 180496ef0's attribute lookup).
+    - Settled by capture (2026-10-22, CS2 closed; run_probe.py --frida tools/cubehost/cascade_sources.js,
+      cascade_summary.py): d0 = 75 is the view attribute 0x61fac369, set by the render pipeline (client
+      1811d9d30, the call returning to 1811da424) on every game view, the BuildCubemaps view included: the local
+      pawn's camera services exist and 180cb2100 finds a scripted camera, so 1808898d0 returns 75.0 (.rdata
+      181b14fe0). The cubemap view's block takes no FOV attribute (0x172c3cca is set only when the pawn's FOV
+      differs from its default) and then 180496ef0 runs with the face frustum (FOV 90, near 1, far 10000) and
+      the light's distances all 0 (count 0). Read in the same run: ShadowFarZ 1000 (unset, the default) at
+      1804975e5, csm_max_shadow_dist_override 560, CsmMaxVisibleDistance 7500, CsmPushbackDistance 7000, so the
+      split is 35.206184, 113.89898, 560.1 before the attribute and 75, 113.89898, 560.1 after. Which of
+      180cb2100's cameras answers is not logged (Panorama's StartCamera, end_of_match_camera or
+      team_select_camera); the value is 75 whichever. The pipeline also sets 0x70644345 to 1 (1811da71c); that is
+      not a cascade distance (cascade 1 and 2 are 0x6914dd11, 0xc69b8e6e).
+    - Lesson (the same run): Frida hooks inside 180496ef0 (1804975e5, 1804976e5, 1804977d0) stopped the engine
+      as the cubemap build began: an inline hook overwrites past its instruction and 18049784d jumps to
+      1804977d5. The agent hooks function entries and the lookup functions (18004d270, 18036d160) only.
+    - Settled by replay on the RTX 4070 (2026-10-22, CS2 closed): ChainedFaceEqualsTheCapture from cleared targets
+      passes against the capture itself, every action of face 0 bit for bit.
     - Settled by replay on the dev box (2026-10-22, CubemapFaceReplayTests.ChainedFaceEqualsTheCapture): face 0
       chained, every dispatch and draw in order on live targets with all our constant blocks, so each draw reads
       what our earlier ones made (binner buffers, shadow atlas, prepass depth, its downsample). Against the same
       GPU's chained run with the captured blocks: every action equal. From cleared targets (CUBEREPLAY_START=
       clear: colour 0, depth far) instead of the capture's leftovers: the colour result is unchanged, the
       downsample 64018 differs only where no draw writes (nothing reads it), and against the capture only draws
-      478 / 484 differ (1 and 3 bytes), the two the GTX 1080 already differs on unchained. The strict check on
-      the RTX 4070 is queued (cs2_closed_session.py --cascades).
+      478 / 484 differ (1 and 3 bytes), the two the GTX 1080 already differs on unchained; on the RTX 4070 it
+      passes against the capture (below).
     - Open: the cascade camera's y offset (1 ulp, no effect);
       the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
       lights; chaining a whole face from cleared targets.
