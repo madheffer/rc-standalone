@@ -121,6 +121,31 @@ def drive(host, a, seen):
     return f"build: {done}"
 
 
+def attach_agent(pid, path, out):
+    """Loads a Frida agent into cubehost.exe (our own process, never cs2.exe); each message is a JSON line."""
+    import json
+    import frida
+    log = open(os.path.join(out, "frida.jsonl"), "w", encoding="utf-8")
+
+    def on_message(m, _data):
+        log.write(json.dumps(m["payload"] if m["type"] == "send" else m) + "\n")
+        log.flush()
+
+    session = frida.get_local_device().attach(pid)
+    script = session.create_script(open(path, encoding="utf-8").read())
+    script.on("message", on_message)
+    script.load()
+
+    class Agent:
+        def close(self):
+            try:
+                log.write(json.dumps({"kind": "counts", "counts": script.exports_sync.counts()}) + "\n")
+            except Exception:  # the process is usually gone by now
+                pass
+            log.close()
+    return Agent()
+
+
 def main():
     argv = sys.argv[1:]
     extra = argv[argv.index("--") + 1:] if "--" in argv else []
@@ -132,6 +157,9 @@ def main():
     p.add_argument("--netcon", type=int, default=29000)
     p.add_argument("--renderdoc", type=int, metavar="CUBEMAP",
                    help="capture that cubemap's render with RenderDoc (inside cubehost.exe only; Steam closed)")
+    p.add_argument("--frida", metavar="AGENT.js",
+                   help="attach a Frida agent to cubehost.exe as it starts; its messages go to <out>/frida.jsonl "
+                        "(cascade_sources.js: where the cascade inputs come from)")
     p.add_argument("--keep-intermediates", action="store_true",
                    help="copy the game's _buildcubemaps EXRs and .vtex as they appear (into <out>/intermediates)")
     a = p.parse_args(argv)
@@ -177,6 +205,7 @@ def main():
     seen = []
     with open(os.path.join(out, "host.log"), "wb") as log:
         host = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
+        agent = attach_agent(host.pid, a.frida, out) if a.frida else None
         import threading
         stop = threading.Event()
         keeper = keep_intermediates([game, content], out, stop, seen) if a.keep_intermediates else None
@@ -190,6 +219,8 @@ def main():
                 subprocess.run(["taskkill", "/F", "/IM", "cubehost.exe"], capture_output=True)
                 host.wait(30)
             stop.set()
+            if agent:
+                agent.close()
     with open(os.path.join(out, "netcon.log"), "w", encoding="utf-8") as f:
         f.write("\n".join(seen) + "\n")
     if os.path.isdir(rdc_dir):

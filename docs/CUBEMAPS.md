@@ -231,6 +231,13 @@ GpuCubemapBlur float for float (DX11 and -vulkan), the SH and reflectivity, and
 the whole BC6H file against CubemapArrayVtex.Build. `CUBEBUILD=<dir>` runs the
 build alone (2 cubes of 256 in 2 s on the RTX 4070; VRF reads the result).
 
+Cascade inputs (ledger 121's open 75): `python tools/pipeline/cs2_closed_session.py
+--skip-captures --cascades` (Steam closed too), or directly `run_probe.py --frida
+tools/cubehost/cascade_sources.js` then `cascade_summary.py`. The agent logs every
+cascade attribute set with its caller, 180cb2100's result for 1808898d0, and what
+the cascade setup reads (both scenesystem's and the client's copy); its byte checks
+and hooks were tried on the DLLs mapped without initialisation (10 hooks).
+
 ## Oracle results (2026-10-21, CS2 closed)
 
 `tools/re/cubemap_oracle.py` then `CubemapOracleTests` (`CUBEORACLE=%TEMP%/cubemap_oracle`):

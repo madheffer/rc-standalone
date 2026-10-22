@@ -24,7 +24,11 @@
    ___OverrideInputData___ text), and a -world -fshallow build of probe01
    over its pre-10-07 package, which holds a world_visibility.vvis_c: whether
    a build without vis keeps it (listed after, from %TEMP%/partial_check).
-7. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
+7. With --cascades (Steam must be closed too: cubehost refuses otherwise),
+   probe01's buildcubemaps in tools/cubehost with the Frida agent
+   cascade_sources.js, then cascade_summary.py: whether cascade 0's 75 comes
+   from client 1808898d0's scripted-camera path (ledger 121).
+8. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
    session, and any atixref.vpk a capture left in the addon's maps folder
    beyond the user's own (its backup is restored by the tools themselves).
 
@@ -76,6 +80,7 @@ def main():
     p.add_argument("--no-devbox", action="store_true")
     p.add_argument("--fixtures", action="store_true", help="also rebuild the stale addon fixture packages in place")
     p.add_argument("--fixture-maps", default="", help="addon/map,... rebuilt with --fixtures however new their package looks")
+    p.add_argument("--cascades", action="store_true", help="also run probe01's buildcubemaps with the cascade-sources Frida agent (Steam closed)")
     p.add_argument("--partial", action="store_true", help="also settle the open partial-build facts (vvis fingerprint, a kept vvis)")
     a = p.parse_args()
     if running("cs2.exe"):
@@ -181,7 +186,13 @@ def main():
             names = sorted(vpklib.open(os.path.join(check, "probe01_after.vpk")))
             print("world_visibility kept" if any(n.endswith("world_visibility.vvis_c") for n in names) else "world_visibility DROPPED")
 
-    step("7. cleanup")
+    step("7. cubemap cascade sources")
+    if a.cascades:
+        cube = os.path.join(ROOT, "tools", "cubehost")
+        run([sys.executable, os.path.join(cube, "run_probe.py"), "--frida", os.path.join(cube, "cascade_sources.js")])
+        run([sys.executable, os.path.join(cube, "cascade_summary.py")])
+
+    step("8. cleanup")
     for dump in glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.dmp")) + glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.mdmp")):
         if os.path.getmtime(dump) >= started:
             os.remove(dump)
