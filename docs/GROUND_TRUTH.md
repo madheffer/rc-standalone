@@ -3288,7 +3288,7 @@ game can answer is raised with the user first, and runs with -insecure.
       (RenderDoc: bufferBacked false, from the command buffer); SceneDrawRunner.Bindings.PushConstants carries
       it. The frame has 24 shader modules (probe01: 10) and 16 CAnimatableSceneObjectDesc batches per face
       (mode Default; a 10,818-index model, presumably the spawned player) plus an ambient occlusion proxy;
-      the animatable draws change no pixel of face 0. Whether they reach another face is not checked yet.
+      the animatable draws change no pixel of face 0, and neither cube's EXR from the game shows a model.
     - Open: the cascade camera's y offset (1 ulp, no effect);
       the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
       lights; chaining a whole face from cleared targets.

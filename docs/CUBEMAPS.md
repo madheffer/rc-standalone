@@ -456,7 +456,7 @@ ledger 120.
   %TEMP%/cubehost_run/s2c_l5probe), replays face 0 bit for bit (38 actions,
   push constants for the light binner). Its frame also draws 16 animatable
   models per face (presumably the spawned player): none reaches face 0's
-  pixels; check the other faces and the game's EXR before porting.
+  pixels, and neither cube's game EXR shows any model (10-22).
 - The cascade inputs depend on the game's video settings, not the map: the
   shadow-quality preset (the run detects level 2) sets
   csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles
