@@ -458,8 +458,11 @@ ledger 120.
   models per face (presumably the spawned player): none reaches face 0's
   pixels, and neither cube's game EXR shows any model (10-22).
 - atixref (42 cubes, world-only build) is captured too (%TEMP%/cubehost_run/atixref,
-  face 0 dumped, 7 GB): 254 of its face 0 actions replay equal; the rest wait
-  on bindless material textures and one shadow draw (ledger 121).
+  face 0 dumped, 7 GB): 335 of its face 0's 336 actions replay bit for bit; draw
+  2305 is one half-float ulp off on 38 pixels, presumably the pipeline build
+  (the game links stage libraries; ledger 121). The RenderDoc tools for
+  comparing a draw on both sides are in tools/cubehost (rdc_postvs.py,
+  rdc_debugpixel.py, rdc_pixelhistory.py, rdc_bindings.py, rdc_events.py).
 - The per-view culling (the draw arguments) is CPU side in these captures:
   no cull_aggregate_fragments dispatch runs. scenesystem's convars name the
   parts: sc_aggregate_fragment_culling_boxes, sc_aggregate_fragment_merging

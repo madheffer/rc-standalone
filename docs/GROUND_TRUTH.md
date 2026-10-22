@@ -3289,16 +3289,28 @@ game can answer is raised with the user first, and runs with -insecure.
       it. The frame has 24 shader modules (probe01: 10) and 16 CAnimatableSceneObjectDesc batches per face
       (mode Default; a 10,818-index model, presumably the spawned player) plus an ambient occlusion proxy;
       the animatable draws change no pixel of face 0, and neither cube's EXR from the game shows a model.
-    - Captured (2026-10-22, CS2 closed), not yet reproduced: atixref cube 0 (42 cubes on the map; world-only
-      build, no lightmaps; %TEMP%/cubehost_run/atixref: the .rdc, the whole-frame replay, face 0's dump of 7 GB
-      for events 335-2867, 104 shader modules, and all 42 game EXRs). Per-draw replay: 254 actions equal, 11
-      differ before our device was lost at a colour draw. (a) Depth draw 1019 into the sun atlas writes
-      nothing on our device (the game's writes 35,532 bytes). (b) From 2193 on, colour draws the game leaves
-      unchanged (single indirect draws, stencil NOT_EQUAL bit 0 against reference 3 on an all-zero stencil, so
-      the stencil is not why) write pixels on ours; these draws list no read-only resources, so bindless
-      texture arrays the replay does not populate are the first suspect, which would also explain the
-      device loss (at 2249 in one run, past it in another). probe_classes crashes the engine while spawning
-      its entities (an access violation; some entity models missing from its package), so it has no capture.
+    - Settled by replay (2026-10-22, CS2 closed; atixref cube 0, 42 cubes, world-only build; the .rdc, face 0's
+      7 GB dump for events 335-2867, 104 shader modules and all 42 game EXRs in %TEMP%/cubehost_run/atixref):
+      335 of face 0's 336 actions equal the capture bit for bit on our device. What it took, each settled by
+      RenderDoc on both sides (tools/cubehost/rdc_postvs.py, rdc_debugpixel.py, rdc_pixelhistory.py,
+      rdc_bindings.py and rdc_events.py; our own draw captured in-process by RenderDocInApp with
+      ENABLE_VULKAN_RENDERDOC_CAPTURE=1, CUBEREPLAY_RENDERDOC=<eid>):
+      (a) a single indirect draw (vkCmdDraw*Indirect(1) without sub-commands) has an internal "Indirect
+      sub-command" event at eventId - 1 that already holds its output, so its targets' before-state is at
+      eventId - 2 (after any render pass clear): rdc_replay.py dumps it so now, rdc_targets_before.py fixes older
+      dumps (targets_before.json, 153 draws here);
+      (b) one bindless binding (set 4 binding 46) is declared per module under several image types (2D, 3D, 2D
+      array, cube): each element's view type comes from the declaration RenderDoc names (res<SPIR-V id> of that
+      stage's module); taking the first declaration gave the foliage pixel shader's BC7 texture a 3D view, so
+      its alpha read 0 and every fragment was discarded (sun draw 1019; the colour draws from 2193 on);
+      (c) runtime descriptor arrays are sized to the highest slot bound (slots reach 9302), and the device enables
+      scalarBlockLayout and uniformBufferStandardLayout (the material blocks are scalar: a vec3 at 60).
+      Left: draw 2305 (vkCmdDrawIndexedIndirect, 16380 indices, depth EQUAL) differs by one half-float ulp on 38
+      scattered pixels of 1.9 MB written; post-VS outputs and every input match, so the suspect is how the
+      pipeline is compiled: the game links one-stage pipeline libraries (VK_EXT_graphics_pipeline_library) and
+      we build whole pipelines. A first library build crashed the driver on every draw (an access violation in
+      our code, backed out); that is the next thing to try. probe_classes crashes the engine while spawning its
+      entities, so it has no capture.
     - Open: the cascade camera's y offset (1 ulp, no effect);
       the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
       lights; chaining a whole face from cleared targets.

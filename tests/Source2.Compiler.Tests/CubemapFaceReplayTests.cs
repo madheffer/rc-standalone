@@ -292,6 +292,47 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         private byte[] Blob(string sha1) => File.ReadAllBytes(Path.Combine(dir, "blobs", sha1 + ".bin"));
 
         /// <summary>
+        /// A target's contents before an action, by eid and target name. Dumps made before 10-22 read a single indirect
+        /// draw's targets at eventId - 1, RenderDoc's internal "Indirect sub-command" event that already holds the
+        /// draw: rdc_targets_before.py writes the real ones (eventId - 2) as targets_before.json; without it the
+        /// previous action's "after" stands in, which misses a render pass clear in between. rdc_replay.py now
+        /// dumps them right.
+        /// </summary>
+        private readonly Dictionary<(int Eid, string Name), string> _targetBefore = TargetsBefore(dir);
+
+        private static Dictionary<(int, string), string> TargetsBefore(string dir)
+        {
+            var map = new Dictionary<(int, string), string>();
+            var fixedPath = Path.Combine(dir, "targets_before.json");
+            if (File.Exists(fixedPath))
+            {
+                foreach (var (eid, targets) in JsonNode.Parse(File.ReadAllText(fixedPath))!.AsObject())
+                    foreach (var (name, sha) in targets!.AsObject())
+                        map[(int.Parse(eid, System.Globalization.CultureInfo.InvariantCulture), name)] = (string)sha!;
+                return map;
+            }
+            var last = new Dictionary<string, string>();
+            foreach (var line in File.ReadLines(Path.Combine(dir, "actions.jsonl")))
+            {
+                var rec = JsonNode.Parse(line)!;
+                if (rec["contents"] is not { } c || c["after"] is not JsonObject after)
+                    continue;
+                var single = ((string)rec["name"]!).Contains("Indirect(1)", StringComparison.Ordinal);
+                foreach (var (name, value) in after)
+                {
+                    if (single && last.TryGetValue(name, out var previous))
+                        map[((int)rec["eid"]!, name)] = previous;
+                    if (value is JsonArray subs && subs.Count > 0)
+                        last[name] = (string)subs[0]!["sha1"]!;
+                }
+            }
+            return map;
+        }
+
+        private string BeforeSha(JsonNode rec, JsonNode before, string name) =>
+            _targetBefore.TryGetValue(((int)rec["eid"]!, name), out var sha) ? sha : (string)before[name]![0]!["sha1"]!;
+
+        /// <summary>
         /// When set, targets are compared with the first (unperturbed) run of each action on this device instead of the
         /// capture: CUBEREPLAY_BASELINE=1, for sensitivity sweeps on a GPU other than the one that made the capture.
         /// </summary>
@@ -344,8 +385,15 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             FirstUses.Clear();
         }
 
-        private GpuDevice.GpuBuffer Input(string name, JsonNode before) =>
-            Chain && _liveBuffers.TryGetValue(name, out var live) ? live : Buffer((string)before[name]!["sha1"]!);
+        private GpuDevice.GpuBuffer Input(string name, JsonNode before)
+        {
+            if (Chain && _liveBuffers.TryGetValue(name, out var live))
+                return live;
+            var sha = (string)before[name]!["sha1"]!;
+            if (Blank.Contains(name))
+                Overrides[sha] = new byte[Blob(sha).Length];
+            return Buffer(sha);
+        }
 
         private GpuDevice.GpuBuffer Buffer(string sha1)
         {
@@ -476,6 +524,19 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             var t = resources["textures"]![name]!;
             var mips = (uint)(int)t["mips"]!;
             var layers = (uint)Math.Max(1, (int)t["arraysize"]!);
+            // CUBEREPLAY_WHITE=<name>: that texture as opaque white RGBA8 of the same size, to test a format path.
+            if (Environment.GetEnvironmentVariable("CUBEREPLAY_WHITE") == name)
+            {
+                var white = runner.CreateImage(Silk.NET.Vulkan.Format.R8G8B8A8Unorm, (uint)(int)t["width"]!, (uint)(int)t["height"]!, 1, mips, layers, viewType, usage);
+                for (var m = 0u; m < mips; m++)
+                    for (var l = 0u; l < layers; l++)
+                    {
+                        var data = new byte[Math.Max(1, (int)t["width"]! >> (int)m) * Math.Max(1, (int)t["height"]! >> (int)m) * 4];
+                        Array.Fill(data, (byte)0xff);
+                        runner.Write(white, m, l, data);
+                    }
+                return _images[key] = white;
+            }
             image = runner.CreateImage(format, (uint)(int)t["width"]!, (uint)(int)t["height"]!, (uint)Math.Max(1, (int)t["depth"]!), mips, layers, viewType, usage);
             foreach (var s in subs)
             {
@@ -489,6 +550,14 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
 
         private static string Sha1(byte[] data) => Convert.ToHexStringLower(SHA1.HashData(data));
 
+        /// <summary>The declaration at set/binding that RenderDoc's res&lt;id&gt; names (our reflection names it _&lt;id&gt;), else the first there.</summary>
+        private static SpirvReflection.Resource Declaration(IEnumerable<SpirvReflection.Resource> resources, int set, int binding, string? renderDocName)
+        {
+            var id = renderDocName is { Length: > 3 } n && n.StartsWith("res", StringComparison.Ordinal) ? "_" + n[3..] : renderDocName;
+            return resources.FirstOrDefault(r => r.Set == set && r.Binding == binding && r.Name == id)
+                ?? resources.First(r => r.Set == set && r.Binding == binding);
+        }
+
         public string Run(JsonNode rec)
         {
             var before = rec["contents"]!["before"]!;
@@ -498,8 +567,13 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             byte[] Spirv(JsonNode stage) => File.ReadAllBytes(Path.Combine(spirvDir, $"{int.Parse(((string)stage["shader"]!).Split(' ')[^1]):x}.spv"));
             var vsCode = Spirv(vs);
             var psCode = ps != null ? Spirv(ps) : null;
-            var reflections = new[] { SpirvReflection.Parse(vsCode) }.Concat(psCode != null ? [SpirvReflection.Parse(psCode)] : Array.Empty<SpirvReflection>()).ToArray();
-            SpirvReflection.Resource Reflected(int set, int binding) => reflections.SelectMany(r => r.Resources).First(r => r.Set == set && r.Binding == binding);
+            var vsReflection = SpirvReflection.Parse(vsCode);
+            var psReflection = psCode != null ? SpirvReflection.Parse(psCode) : null;
+            // One binding can be declared under several names of different image types (atixref's bindless set 4
+            // binding 46: 2D, 3D, 2D array, cube), in each stage's own module; RenderDoc names the declaration an
+            // element is read through as res<SPIR-V id> of that stage's module.
+            SpirvReflection.Resource Reflected(JsonNode stage, int set, int binding, string? name) =>
+                Declaration((ReferenceEquals(stage, vs) ? vsReflection : psReflection!).Resources, set, binding, name);
 
             var bindings = new SceneDrawRunner.Bindings();
             foreach (var stage in new[] { vs, ps }.Where(s => s != null))
@@ -514,8 +588,31 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                         bindings.PushConstants = Blob((string)bytes["sha1"]!);
                         continue;
                     }
+                    // CUBEREPLAY_PATCHCB=<eid>:<set>:<binding>:<byte offset>:<value>[;...]: floats (or i<int>) of constant
+                    // blocks (diagnosis).
+                    var cbSha = (string)bytes["sha1"]!;
+                    byte[]? patched = null;
+                    foreach (var patch in (Environment.GetEnvironmentVariable("CUBEREPLAY_PATCHCB") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (patch.Split(':') is not [var pe, var ps2, var pb, var po, var pv]
+                            || pe != ((int)rec["eid"]!).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                            || int.Parse(ps2, System.Globalization.CultureInfo.InvariantCulture) != (int)block["fixedBindSetOrSpace"]!
+                            || int.Parse(pb, System.Globalization.CultureInfo.InvariantCulture) != (int)block["fixedBindNumber"]!)
+                            continue;
+                        patched ??= Blob(cbSha);
+                        var at = patched.AsSpan(int.Parse(po, System.Globalization.CultureInfo.InvariantCulture));
+                        if (pv.StartsWith('i'))   // i<int>: an integer member
+                            BitConverter.TryWriteBytes(at, int.Parse(pv[1..], System.Globalization.CultureInfo.InvariantCulture));
+                        else
+                            BitConverter.TryWriteBytes(at, float.Parse(pv, System.Globalization.CultureInfo.InvariantCulture));
+                    }
+                    if (patched != null)
+                    {
+                        cbSha += "_patched";
+                        Overrides[cbSha] = patched;
+                    }
                     bindings.Buffer((int)block["fixedBindSetOrSpace"]!, (int)block["fixedBindNumber"]!, (uint)(int)cb["access"]!["arrayElement"]!,
-                        Buffer((string)bytes["sha1"]!), 0, (ulong)(long)bytes["size"]!);
+                        Buffer(cbSha), 0, (ulong)(long)bytes["size"]!);
                 }
                 foreach (var rw in stage["readWrite"]!.AsArray().Concat(stage["readOnly"]!.AsArray()))
                 {
@@ -525,8 +622,11 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     var (set, binding, element) = ((int)bind["set"]!, (int)bind["binding"]!, (uint)(int)rw["access"]!["arrayElement"]!);
                     if (before[name] is JsonArray subs)
                     {
-                        var image = Image(name, subs, Format((string)d["format"]!), ViewType(Reflected(set, binding).Dim));
+                        var image = Image(name, subs, Format((string)d["format"]!), ViewType(Reflected(stage, set, binding, (string?)bind["name"]).Dim));
                         bindings.Image(set, binding, element, image.View);
+                        // CUBEREPLAY_ALSO=<element>: every image also bound at that slot (diagnosis of high slots).
+                        if (Environment.GetEnvironmentVariable("CUBEREPLAY_ALSO") is { } also)
+                            bindings.Image(set, binding, uint.Parse(also, System.Globalization.CultureInfo.InvariantCulture), image.View);
                     }
                     else
                     {
@@ -576,6 +676,19 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             };
             if (blends.Any(b => (bool)b!["enabled"]!))
                 return "blending not modelled";
+            // CUBEREPLAY_LOOSE=<eid>: that draw with no depth or stencil test, no culling and the whole target as
+            // viewport and scissor, to see where its triangles land at all.
+            if (Environment.GetEnvironmentVariable("CUBEREPLAY_LOOSE") is { } loose && loose == ((int)rec["eid"]!).ToString(System.Globalization.CultureInfo.InvariantCulture))
+            {
+                var whole = resources["textures"]![colorName ?? depthName!]!;
+                var (tw, th) = ((uint)(int)whole["width"]!, (uint)(int)whole["height"]!);
+                state = state with
+                {
+                    DepthTest = false, StencilTest = false, Cull = CullModeFlags.None, DepthWrite = true, DepthClamp = true,
+                    Viewport = state.Viewport with { X = 0, Y = 0, Width = tw, Height = th },
+                    Scissor = new Rect2D(new Offset2D(0, 0), new Extent2D(tw, th)),
+                };
+            }
 
             var vertexBuffers = vbs.Select(b => (Input((string)b!["resourceId"]!, before), (ulong)b["byteOffset"]!)).ToArray();
             var ib = rec["ibuffer"]!;
@@ -586,6 +699,11 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 ? new SceneDrawArgs(true, (uint)rec["numIndices"]!, (uint)rec["numInstances"]!, (uint)rec["indexOffset"]!, (int)rec["baseVertex"]!, (uint)rec["instanceOffset"]!)
                 : new SceneDrawArgs(false, (uint)rec["numIndices"]!, (uint)rec["numInstances"]!, (uint)rec["vertexOffset"]!, 0, (uint)rec["instanceOffset"]!);
 
+            // CUBEREPLAY_ARGS=<eid>:<first index>:<count>: that indexed draw over another index range (diagnosis).
+            if (Environment.GetEnvironmentVariable("CUBEREPLAY_ARGS") is { } over && over.Split(':') is [var oe, var of, var oc]
+                && oe == ((int)rec["eid"]!).ToString(System.Globalization.CultureInfo.InvariantCulture) && args.Indexed)
+                args = args with { First = uint.Parse(of, System.Globalization.CultureInfo.InvariantCulture), Count = uint.Parse(oc, System.Globalization.CultureInfo.InvariantCulture) };
+
             // Fresh targets from the capture's contents before the draw.
             SceneDrawRunner.SceneImage? Target(string? name, ImageUsageFlags usage)
             {
@@ -595,7 +713,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     return drawn;
                 var t = resources["textures"]![name]!;
                 var image = runner.CreateImage(Format((string)t["format"]!), (uint)(int)t["width"]!, (uint)(int)t["height"]!, 1, 1, 1, ImageViewType.Type2D, usage);
-                var start = Blob((string)before[name]![0]!["sha1"]!);
+                var start = Blob(BeforeSha(rec, before, name));
                 if (Chain && StartCleared)
                     start = Cleared(image.Format, image.Width, image.Height, start.Length);
                 runner.Write(image, 0, 0, start);
@@ -610,7 +728,13 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             }
             var color = Target(colorName, ImageUsageFlags.ColorAttachmentBit);
             var depth = Target(depthName, ImageUsageFlags.DepthStencilAttachmentBit);
+            // CUBEREPLAY_RENDERDOC=<eid>: our device's draw captured by RenderDoc (ENABLE_VULKAN_RENDERDOC_CAPTURE=1).
+            var capture = Environment.GetEnvironmentVariable("CUBEREPLAY_RENDERDOC") == ((int)rec["eid"]!).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (capture)
+                RenderDocInApp.Start();
             runner.Draw(state, bindings, vertexBuffers, index, args, color, depth);
+            if (capture)
+                RenderDocInApp.End();
 
             var report = new List<string>();
             var equal = true;
@@ -620,6 +744,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     continue;
                 var ours = runner.Read(image, texel);
                 var theirs = Blob((string)after[name]![0]!["sha1"]!);
+                // CUBEREPLAY_SAVE=<dir>: our target after the draw, as <eid>_<target>.bin, beside the capture's sha.
+                if (Environment.GetEnvironmentVariable("CUBEREPLAY_SAVE") is { Length: > 0 } save)
+                {
+                    Directory.CreateDirectory(save);
+                    File.WriteAllBytes(Path.Combine(save, $"{rec["eid"]}_{name.Split(' ')[^1]}.bin"), ours);
+                }
                 if (Baselines != null)
                 {
                     // Against this device's own unperturbed run (another GPU need not reproduce the capture's bits).
@@ -628,7 +758,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                         Baselines[key] = baseline = ours;
                     theirs = baseline;
                 }
-                var beforeBytes = Blob((string)before[name]![0]!["sha1"]!);
+                var beforeBytes = Blob(BeforeSha(rec, before, name));
                 var diff = 0;
                 var kept = 0;
                 for (var i = 0; i < Math.Min(ours.Length, theirs.Length); i++)
@@ -681,7 +811,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 var (set, binding, element) = ((int)bind["set"]!, (int)bind["binding"]!, (uint)(int)r["access"]!["arrayElement"]!);
                 if (before[name] is JsonArray subs)
                 {
-                    bindings.Image(set, binding, element, Image(name, subs, Format((string)d["format"]!), ViewType(reflection.Resources.First(x => x.Set == set && x.Binding == binding).Dim)).View);
+                    bindings.Image(set, binding, element, Image(name, subs, Format((string)d["format"]!), ViewType(Declaration(reflection.Resources, set, binding, (string?)bind["name"]).Dim)).View);
                     continue;
                 }
                 var buffer = written.FirstOrDefault(w => w.Name == name).Buffer;

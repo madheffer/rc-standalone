@@ -145,8 +145,10 @@ def buffer_whole(rid):
     return {"sha1": h, "size": len(data)}
 
 
-def contents(a, pipe, compute):
-    """The resources a draw reads (at its event, before it runs) and its targets after it."""
+def contents(a, pipe, compute, prev_eid):
+    """The resources a draw reads (at its event, before it runs) and its targets after it. A single indirect draw
+    (vkCmdDraw*Indirect(1) with no sub-commands) has an internal "Indirect sub-command" event at eventId - 1 that
+    already holds its output, so its targets are read at eventId - 2 (after any render pass clear; atixref 10-22)."""
     c = {"before": {}, "after": {}}
     stages = [rd.ShaderStage.Compute] if compute else [rd.ShaderStage.Vertex, rd.ShaderStage.Pixel]
     rids = set()
@@ -165,9 +167,14 @@ def contents(a, pipe, compute):
     if a.depthOut != rd.ResourceId.Null():
         outs.append(a.depthOut)
     # The bindings were read at the draw's event; their contents are the ones the draw sees.
+    single_indirect = prev_eid is not None and "Indirect(1)" in a.GetName(sf) and len(a.children) == 0
+    if single_indirect:
+        controller.SetFrameEvent(a.eventId - 2, True)
+        for r in outs:
+            c["before"][names.get(r, str(r))] = texture_blobs(r)
     controller.SetFrameEvent(a.eventId - 1, True)
     for r in sorted(rids | set(outs), key=str):
-        if r != rd.ResourceId.Null():
+        if r != rd.ResourceId.Null() and not (single_indirect and r in outs):
             c["before"][names.get(r, str(r))] = texture_blobs(r)
     for r in sorted(bufs, key=str):
         if r != rd.ResourceId.Null():
@@ -205,8 +212,10 @@ try:
 
     walk(controller.GetRootActions())
     log.write("%d actions\n" % len(actions))
+    prev_eid = None
     for a in actions:
         if a.eventId < first or a.eventId > last:
+            prev_eid = a.eventId
             continue
         rec = {"eid": a.eventId, "name": a.GetName(sf), "flags": str(a.flags),
                "numIndices": a.numIndices, "numInstances": a.numInstances, "indexOffset": a.indexOffset,
@@ -236,11 +245,12 @@ try:
                     rec["vbuffers"] = [plain(v) for v in pipe.GetVBuffers()]
                     rec["vertexInputs"] = [plain(v) for v in pipe.GetVertexInputs()]
                 if dump:
-                    rec["contents"] = contents(a, pipe, compute)
+                    rec["contents"] = contents(a, pipe, compute, prev_eid)
             except Exception:
                 rec["error"] = traceback.format_exc()
         out.write(json.dumps(rec) + "\n")
         out.flush()
+        prev_eid = a.eventId
     out.close()
     with open(os.path.join(dst, "resources.json"), "w") as f:
         json.dump({"textures": {names.get(t.resourceId, str(t.resourceId)): {

@@ -448,7 +448,7 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
 
     /// <summary>
     /// Sets laid out from the programs' reflection (merged by set and binding, every binding partially
-    /// bound, runtime arrays 4096 long), with <paramref name="bindings"/> written into them.
+    /// bound, runtime arrays 4096 long or up to the highest element bound), with <paramref name="bindings"/> written into them.
     /// </summary>
     private Descriptors Prepare(SpirvReflection[] reflections, ShaderStageFlags stages, Bindings bindings)
     {
@@ -465,7 +465,12 @@ public sealed unsafe class SceneDrawRunner(GpuDevice gpu)
                 SpirvReflection.Kind.CombinedImageSampler => DescriptorType.CombinedImageSampler,
                 _ => throw new NotSupportedException($"{r.Name}: {r.Kind}"),
             };
-            var count = (uint)(r.ArrayLength == 0 ? 4096 : Math.Max(1, r.ArrayLength));
+            // A runtime array holds at least 4096 and every element bound into it (bindless slots reach 9302 on atixref).
+            var bound = bindings.Images.Where(i => i.Set == r.Set && i.Binding == r.Binding).Select(i => i.Element + 1)
+                .Concat(bindings.Buffers.Where(i => i.Set == r.Set && i.Binding == r.Binding).Select(i => i.Element + 1))
+                .Concat(bindings.Samplers.Where(i => i.Set == r.Set && i.Binding == r.Binding).Select(i => i.Element + 1))
+                .DefaultIfEmpty(0u).Max();
+            var count = r.ArrayLength == 0 ? Math.Max(4096u, bound) : (uint)Math.Max(1, r.ArrayLength);
             if (layout.TryGetValue((r.Set, r.Binding), out var had) && had.Type != type)
                 throw new NotSupportedException($"set {r.Set} binding {r.Binding}: {had.Type} and {type}");
             layout[(r.Set, r.Binding)] = (type, Math.Max(count, had.Count));

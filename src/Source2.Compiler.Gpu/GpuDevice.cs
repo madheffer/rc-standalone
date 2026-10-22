@@ -120,6 +120,10 @@ public sealed unsafe class GpuDevice : IDisposable
             ShaderSampledImageArrayNonUniformIndexing = true,
             DescriptorBindingSampledImageUpdateAfterBind = true,
             ShaderUniformBufferArrayNonUniformIndexing = rayTracing,
+            // Valve's material shaders lay uniform blocks out scalar (a vec3 at 60, a vec4 at 220; atixref's foliage
+            // and environment programs): without the feature the driver need not honour those offsets.
+            ScalarBlockLayout = true,
+            UniformBufferStandardLayout = true,
         };
         var features = new PhysicalDeviceFeatures2
         {
