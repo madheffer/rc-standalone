@@ -167,8 +167,25 @@ def main():
     p.add_argument("--origin", default="512,96,112")
     p.add_argument("--near", type=float, default=1.0)
     p.add_argument("--far", type=float, default=10000.0)
+    p.add_argument("--cases", type=int, default=0, help="random records (angles, origin) as JSON lines instead")
     a = p.parse_args()
     emu = Emulator(a.dll)
+    if a.cases:
+        # Oracle cases for CubemapFaceViewsTests: the view's angles, camera-to-world (+0x1a8) and world-to-view
+        # (+0x1d8) as float bits. Not the projection products: unicorn sums DPPS from +0, the hardware does not.
+        import json
+        import random
+        rng = random.Random(1)
+        for i in range(a.cases):
+            origin = [f32(rng.uniform(-16384, 16384)) for _ in range(3)]
+            angles = [f32(rng.choice([0.0, 90.0, -90.0, 180.0, rng.uniform(-360, 360)])) for _ in range(3)]
+            for face in range(6):
+                view, ang = emu.face_view(origin, angles, 1.0, 10000.0, face)
+                words = struct.unpack("<%dI" % (len(view) // 4), view)
+                print(json.dumps({"origin": [fbits(v) for v in origin], "angles": [fbits(v) for v in angles], "face": face,
+                                  "viewAngles": [fbits(v) for v in ang], "cameraToWorld": list(words[0x1a8 // 4:0x1a8 // 4 + 12]),
+                                  "worldToView": list(words[0x1d8 // 4:0x1d8 // 4 + 12])}))
+        return
     origin = [float(v) for v in a.origin.split(",")]
     for face in range(6):
         view, ang = emu.face_view(origin, (0.0, 0.0, 0.0), a.near, a.far, face)

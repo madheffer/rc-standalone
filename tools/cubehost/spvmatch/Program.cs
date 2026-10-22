@@ -43,6 +43,55 @@ if (args[0] == "--entities")
     return;
 }
 
+// --bytecode <vpk> <vcs path> <static id> <dynamic id> <out file>: one combo's shader bytecode (DXBC from
+// shaders_pc, whose RDEF names the constant buffers the Vulkan SPIR-V leaves anonymous).
+if (args[0] == "--bytecode")
+{
+    using var pak = new Package();
+    pak.Read(args[1]);
+    pak.ReadEntry(pak.FindEntry(args[2])!, out var bytes);
+    using var p = new VfxProgramData();
+    p.Read(Path.GetFileName(args[2]), new MemoryStream(bytes));
+    var combo = p.GetStaticCombo(long.Parse(args[3]));
+    var index = combo.GetDynamicComboIndex(long.Parse(args[4]));
+    var fileId = combo.DynamicComboRenderStates[index].ShaderFileId;
+    var file = fileId >= 0 && fileId < combo.ShaderFiles.Length ? combo.ShaderFiles[fileId] : combo.ShaderFiles[index];
+    File.WriteAllBytes(args[5], file.Bytecode);
+    Console.WriteLine($"{args[2]} static {args[3]} dynamic {args[4]}: {file.Bytecode.Length} bytes");
+    return;
+}
+
+// --allbytecode <vpk> <out dir>: the first shader file of every program in the vpk, as <program>.dxbc, for a
+// sweep of the reflection (rdef) the files that keep it carry.
+if (args[0] == "--allbytecode")
+{
+    using var pak = new Package();
+    pak.Read(args[1]);
+    Directory.CreateDirectory(args[2]);
+    foreach (var entry in pak.Entries!.GetValueOrDefault("vcs") ?? [])
+    {
+        if (entry.FileName.EndsWith("_features", StringComparison.Ordinal))
+            continue;
+        try
+        {
+            pak.ReadEntry(entry, out var bytes);
+            using var p = new VfxProgramData();
+            p.Read(entry.FileName + ".vcs", new MemoryStream(bytes));
+            foreach (var id in p.StaticComboEntries.Keys.Order().Take(1))
+            {
+                var combo = p.GetStaticCombo(id);
+                if (combo.ShaderFiles.Length > 0)
+                    File.WriteAllBytes(Path.Combine(args[2], entry.FileName + ".dxbc"), combo.ShaderFiles[0].Bytecode);
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"{entry.FileName}: {e.Message}");
+        }
+    }
+    return;
+}
+
 // --vcsinfo <vpk> <vcs path>: every collection property of the program file with its count, to find where a
 // VCS version keeps a table.
 if (args[0] == "--vcsinfo")

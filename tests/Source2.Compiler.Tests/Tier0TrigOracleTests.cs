@@ -84,6 +84,62 @@ public sealed class Tier0TrigOracleTests(ITestOutputHelper output)
         Assert.Equal(0, differ);
     }
 
+    /// <summary>
+    /// CrtMath.Atan2 against V_atan2f: pairs from the float sweep against a second sweep, random pairs of
+    /// every sign and magnitude, the special values (zeros, infinities, equal and near-equal magnitudes), and
+    /// the near-axis pairs the cubemap views produce. Pairs the port refuses (the denormal quotient) are skipped.
+    /// </summary>
+    [Fact]
+    public void Atan2IsTier0s()
+    {
+        if (Export2("V_atan2f") is not { } atan2f)
+            return;
+        int total = 0, differ = 0, skipped = 0;
+        void Check(float y, float x)
+        {
+            float got;
+            try
+            {
+                got = CrtMath.Atan2(y, x);
+            }
+            catch (NotSupportedException)
+            {
+                skipped++;
+                return;
+            }
+            var want = atan2f(y, x);
+            total++;
+            if (BitConverter.SingleToInt32Bits(got) != BitConverter.SingleToInt32Bits(want) && differ++ < 10)
+                output.WriteLine($"atan2f({y:R}, {x:R}): ours {got:R}, tier0 {want:R}");
+        }
+        float[] specials = [0f, -0f, 1f, -1f, float.PositiveInfinity, float.NegativeInfinity, float.Epsilon, -float.Epsilon, 1e-30f, 3e38f, 1.94707184e-07f, -1.94707184e-07f, 0.0625f, 1.0001f];
+        foreach (var y in specials)
+            foreach (var x in specials)
+                Check(y, x);
+        var rng = new Random(4242);
+        for (var i = 0; i < 400000; i++)
+        {
+            var y = BitConverter.Int32BitsToSingle(rng.Next() | (rng.Next(2) << 31));
+            var x = BitConverter.Int32BitsToSingle(rng.Next() | (rng.Next(2) << 31));
+            if (!float.IsNaN(x) && !float.IsNaN(y))
+                Check(y, x);
+            Check((float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1));
+            var a = (float)(rng.NextDouble() * 100 - 50);
+            Check(a, BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(a) + rng.Next(-8, 9)));
+        }
+        output.WriteLine($"{total - differ} of {total} atan2f results tier0's ({skipped} refused)");
+        Assert.Equal(0, differ);
+    }
+
+    /// <summary>tier0's V_tanf at the cubemap views' half FOV (90 * 0.5 * 0.017453292): exactly 1.</summary>
+    [Fact]
+    public void TanOfTheCubemapHalfFovIsOne()
+    {
+        if (Export("V_tanf") is not { } tanf)
+            return;
+        Assert.Equal(1f, tanf(90f * 0.5f * 0.017453292f));
+    }
+
     [Fact]
     public void AcosIsTier0s()
     {

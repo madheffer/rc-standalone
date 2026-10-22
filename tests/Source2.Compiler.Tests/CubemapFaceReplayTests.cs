@@ -47,6 +47,112 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         Assert.Empty(failures);
     }
 
+    /// <summary>
+    /// Face 0 of probe01's cube 0 with our constant blocks in place of the captured ones: the per-view blocks
+    /// (world, depth range 0 .. 0.95; sky, 1 .. 1), PerViewConstantBufferCsgo_t and
+    /// BakedLightingConstantBuffer_t from <see cref="Cubemaps.CubemapFaceConstants"/>. Every draw that reads them
+    /// must still equal the capture.
+    /// </summary>
+    [Fact]
+    public void OurBlocksKeepTheFace()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEREPLAY") is not { Length: > 0 } dir
+            || Environment.GetEnvironmentVariable("CUBEREPLAY_SPIRV") is not { Length: > 0 } spirvDir)
+            return;
+        var view = Cubemaps.CubemapFaceViews.Face(new System.Numerics.Vector3(512, 96, 112), System.Numerics.Vector3.Zero, 1f, 10000f, 0);
+        var fog = new Cubemaps.CubemapFaceConstants.CubeFog(400f, 12000f, 0.5f, 1.2f, new System.Numerics.Vector4(0f, 2000f, 1f, 1f),
+            System.Numerics.Matrix4x4.CreateTranslation(512, 112, 80));
+        var ours = new Dictionary<string, byte[]>
+        {
+            ["9cb9e491"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 0f, 0.95f),
+            ["1b1f6cc0"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 1f, 1f),
+            ["37c443a8"] = Cubemaps.CubemapFaceConstants.Csgo(view, fog, 4096f),
+            ["d831320f"] = Cubemaps.CubemapFaceConstants.BakedLighting(new System.Numerics.Vector2(1.1428397f, 1.1428397f), 4096, 4096, false),
+        };
+        var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
+        using var gpu = new GpuDevice(rayTracingShaderFeatures: true);
+        var runner = new SceneDrawRunner(gpu);
+        using var replay = new Replay(dir, spirvDir, resources, gpu, runner);
+        foreach (var (prefix, bytes) in ours)
+        {
+            var sha = Path.GetFileNameWithoutExtension(Directory.GetFiles(Path.Combine(dir, "blobs"), prefix + "*.bin").Single());
+            var theirs = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
+            var same = Enumerable.Range(0, theirs.Length / 4).Count(i => BitConverter.ToUInt32(theirs, i * 4) == BitConverter.ToUInt32(bytes, i * 4));
+            output.WriteLine($"{prefix}: {same} of {theirs.Length / 4} words the capture's");
+            replay.Overrides[sha] = bytes;
+        }
+        var failures = new List<string>();
+        foreach (var line in File.ReadLines(Path.Combine(dir, "actions.jsonl")))
+        {
+            if (!ours.Keys.Any(k => line.Contains(k, StringComparison.Ordinal)))
+                continue;
+            var rec = JsonNode.Parse(line)!;
+            if (rec["contents"] is null || rec["stages"]?["vs"] is null)
+                continue;
+            var result = replay.Run(rec);
+            output.WriteLine($"{rec["eid"]} {rec["name"]}: {result}");
+            if (!result.StartsWith("equal", StringComparison.Ordinal))
+                failures.Add($"{rec["eid"]}: {result}");
+        }
+        Assert.Empty(failures);
+    }
+
+    /// <summary>
+    /// <c>CUBEREPLAY_SENSE=&lt;sha1 prefix&gt;</c>: which words of a captured block or buffer the face depends on.
+    /// Each non-zero word is zeroed and, separately, has its lowest bit flipped; each all-zero 16-byte row is set
+    /// to 1.0s; the actions that read the blob run again and any change to their targets marks the word.
+    /// </summary>
+    [Fact]
+    public void Sensitivity()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEREPLAY") is not { Length: > 0 } dir
+            || Environment.GetEnvironmentVariable("CUBEREPLAY_SPIRV") is not { Length: > 0 } spirvDir
+            || Environment.GetEnvironmentVariable("CUBEREPLAY_SENSE") is not { Length: > 0 } prefix)
+            return;
+        var sha = Directory.GetFiles(Path.Combine(dir, "blobs"), prefix + "*.bin").Select(Path.GetFileNameWithoutExtension).Single()!;
+        var data = File.ReadAllBytes(Path.Combine(dir, "blobs", sha + ".bin"));
+        var users = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!)
+            .Where(r => r["contents"] is not null && r["stages"]?["vs"] is not null && r.ToJsonString().Contains(sha, StringComparison.Ordinal)).ToList();
+        output.WriteLine($"{sha}: {data.Length} bytes, read by {string.Join(", ", users.Select(u => (int)u["eid"]!))}");
+        var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
+        using var gpu = new GpuDevice(rayTracingShaderFeatures: true);
+        var runner = new SceneDrawRunner(gpu);
+        using var replay = new Replay(dir, spirvDir, resources, gpu, runner);
+        bool Changes(byte[] modified)
+        {
+            replay.Overrides[sha] = modified;
+            var any = users.Any(u => !replay.Run(u).StartsWith("equal", StringComparison.Ordinal));
+            replay.Overrides.Remove(sha);
+            return any;
+        }
+        var sensitive = new List<string>();
+        for (var o = 0; o < data.Length; o += 16)
+        {
+            if (data.AsSpan(o, Math.Min(16, data.Length - o)).IndexOfAnyExcept((byte)0) < 0)
+            {
+                var m = (byte[])data.Clone();
+                for (var w = o; w < Math.Min(o + 16, data.Length); w += 4)
+                    BitConverter.TryWriteBytes(m.AsSpan(w), 1f);
+                if (Changes(m))
+                    sensitive.Add($"+{o} (zero row)");
+                continue;
+            }
+            for (var w = o; w < Math.Min(o + 16, data.Length); w += 4)
+            {
+                if (BitConverter.ToUInt32(data, w) == 0)
+                    continue;
+                var zeroed = (byte[])data.Clone();
+                BitConverter.TryWriteBytes(zeroed.AsSpan(w), 0);
+                var flipped = (byte[])data.Clone();
+                flipped[w] ^= 1;
+                var (z, f) = (Changes(zeroed), Changes(flipped));
+                if (z || f)
+                    sensitive.Add($"+{w} ({BitConverter.ToSingle(data, w):G9} / {BitConverter.ToUInt32(data, w):x8}){(f ? " exact" : "")}");
+            }
+        }
+        output.WriteLine("sensitive: " + string.Join(", ", sensitive));
+    }
+
     /// <summary>A RenderDoc dump turned into <see cref="SceneDrawRunner"/> calls, resources shared by content.</summary>
     private sealed unsafe class Replay(string dir, string spirvDir, JsonNode resources, GpuDevice gpu, SceneDrawRunner runner) : IDisposable
     {
@@ -62,8 +168,18 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
 
         private byte[] Blob(string sha1) => File.ReadAllBytes(Path.Combine(dir, "blobs", sha1 + ".bin"));
 
+        /// <summary>Buffer contents to use in place of the captured blob of that hash (constant blocks we build).</summary>
+        public Dictionary<string, byte[]> Overrides { get; } = [];
+        private readonly List<GpuDevice.GpuBuffer> _overridden = [];
+
         private GpuDevice.GpuBuffer Buffer(string sha1)
         {
+            if (Overrides.TryGetValue(sha1, out var replaced))
+            {
+                var fresh = gpu.Upload(replaced, BufferUsageFlags.UniformBufferBit | BufferUsageFlags.StorageBufferBit | BufferUsageFlags.VertexBufferBit | BufferUsageFlags.IndexBufferBit);
+                _overridden.Add(fresh);
+                return fresh;
+            }
             if (!_buffers.TryGetValue(sha1, out var b))
                 _buffers[sha1] = b = gpu.Upload(Blob(sha1), BufferUsageFlags.UniformBufferBit | BufferUsageFlags.StorageBufferBit | BufferUsageFlags.VertexBufferBit | BufferUsageFlags.IndexBufferBit);
             return b;
@@ -365,6 +481,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
 
         public void Dispose()
         {
+            foreach (var b in _overridden)
+                gpu.Destroy(b);
             foreach (var b in _buffers.Values)
                 gpu.Destroy(b);
             foreach (var i in _images.Values)
