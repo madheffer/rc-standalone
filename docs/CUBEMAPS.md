@@ -457,6 +457,14 @@ ledger 120.
   push constants for the light binner). Its frame also draws 16 animatable
   models per face (presumably the spawned player): none reaches face 0's
   pixels, and neither cube's game EXR shows any model (10-22).
+- atixref (42 cubes, world-only build) is captured too (%TEMP%/cubehost_run/atixref,
+  face 0 dumped, 7 GB): 254 of its face 0 actions replay equal; the rest wait
+  on bindless material textures and one shadow draw (ledger 121).
+- The per-view culling (the draw arguments) is CPU side in these captures:
+  no cull_aggregate_fragments dispatch runs. scenesystem's convars name the
+  parts: sc_aggregate_fragment_culling_boxes, sc_aggregate_fragment_merging
+  (the merged sub-draws), sc_aggregate_gpu_culling (off here);
+  CAggregateSceneObject::GatherData is the entry to read.
 - The cascade inputs depend on the game's video settings, not the map: the
   shadow-quality preset (the run detects level 2) sets
   csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles

@@ -3289,6 +3289,16 @@ game can answer is raised with the user first, and runs with -insecure.
       it. The frame has 24 shader modules (probe01: 10) and 16 CAnimatableSceneObjectDesc batches per face
       (mode Default; a 10,818-index model, presumably the spawned player) plus an ambient occlusion proxy;
       the animatable draws change no pixel of face 0, and neither cube's EXR from the game shows a model.
+    - Captured (2026-10-22, CS2 closed), not yet reproduced: atixref cube 0 (42 cubes on the map; world-only
+      build, no lightmaps; %TEMP%/cubehost_run/atixref: the .rdc, the whole-frame replay, face 0's dump of 7 GB
+      for events 335-2867, 104 shader modules, and all 42 game EXRs). Per-draw replay: 254 actions equal, 11
+      differ before our device was lost at a colour draw. (a) Depth draw 1019 into the sun atlas writes
+      nothing on our device (the game's writes 35,532 bytes). (b) From 2193 on, colour draws the game leaves
+      unchanged (single indirect draws, stencil NOT_EQUAL bit 0 against reference 3 on an all-zero stencil, so
+      the stencil is not why) write pixels on ours; these draws list no read-only resources, so bindless
+      texture arrays the replay does not populate are the first suspect, which would also explain the
+      device loss (at 2249 in one run, past it in another). probe_classes crashes the engine while spawning
+      its entities (an access violation; some entity models missing from its package), so it has no capture.
     - Open: the cascade camera's y offset (1 ulp, no effect);
       the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
       lights; chaining a whole face from cleared targets.
