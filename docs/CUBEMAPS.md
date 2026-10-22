@@ -444,9 +444,14 @@ ledger 120.
 - The face render (the "Game" pipeline for the BuildCubemaps view): every
   action of face 0 reproduced on our device, and every constant block and
   buffer it reads built from our data (CubemapFaceViews, CubemapFaceConstants,
-  CubemapShadowCascades; ledgers 120, 121) with the face unchanged. Next:
-  chain a whole face from cleared targets with our geometry, lightmaps and
-  textures, then all faces, then reduce to the EXR and compare with the game's.
+  CubemapShadowCascades; ledgers 120, 121) with the face unchanged, and the
+  face chained from cleared targets on our blocks
+  (`ChainedFaceEqualsTheCapture`; dev box: equal apart from the GTX 1080's
+  known drift; RTX 4070 check queued). The vertex, index, lightmap and
+  material inputs already equal the package's data (ledger 120). Next: the
+  per-view culling that merges surviving fragments into indirect sub-draws
+  (the draw arguments are still the capture's), then all faces, then reduce
+  to the EXR and compare with the game's.
 - The cascade inputs depend on the game's video settings, not the map: the
   shadow-quality preset (the run detects level 2) sets
   csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles

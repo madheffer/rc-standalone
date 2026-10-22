@@ -27,7 +27,8 @@
 7. With --cascades (Steam must be closed too: cubehost refuses otherwise),
    probe01's buildcubemaps in tools/cubehost with the Frida agent
    cascade_sources.js, then cascade_summary.py: whether cascade 0's 75 comes
-   from client 1808898d0's scripted-camera path (ledger 121).
+   from client 1808898d0's scripted-camera path (ledger 121); then face 0
+   chained from cleared targets on the RTX 4070 (ChainedFaceEqualsTheCapture).
 8. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
    session, and any atixref.vpk a capture left in the addon's maps folder
    beyond the user's own (its backup is restored by the tools themselves).
@@ -191,6 +192,13 @@ def main():
         cube = os.path.join(ROOT, "tools", "cubehost")
         run([sys.executable, os.path.join(cube, "run_probe.py"), "--frida", os.path.join(cube, "cascade_sources.js")])
         run([sys.executable, os.path.join(cube, "cascade_summary.py")])
+        # Face 0 chained from cleared targets with our blocks, on the GPU that made the capture (the dev box's
+        # GTX 1080 drifts by 4 bytes in the colour draws): CubemapFaceReplayTests.ChainedFaceEqualsTheCapture.
+        replay = os.path.join(TEMP, "cubehost_run", "probe01")
+        env = dict(os.environ, CUBEREPLAY=os.path.join(replay, "replay_face0"), CUBEREPLAY_SPIRV=os.path.join(replay, "spirv"), CUBEREPLAY_START="clear")
+        print("chained face 0:", subprocess.run(["dotnet", "test", os.path.join(ROOT, "tests", "Source2.Compiler.Tests"), "-c", "Release",
+                                                 "--filter", "FullyQualifiedName~CubemapFaceReplayTests.ChainedFaceEqualsTheCapture",
+                                                 "--logger", "console;verbosity=detailed"], env=env).returncode)
 
     step("8. cleanup")
     for dump in glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.dmp")) + glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.mdmp")):

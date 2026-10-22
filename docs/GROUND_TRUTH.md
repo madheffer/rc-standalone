@@ -3255,6 +3255,14 @@ game can answer is raised with the user first, and runs with -insecure.
       immediate gives 75 (convar defaults dumped; no 75.0 immediate in client .text). The run loads Panorama
       UI scenes (ui/xpshop_item), so the path is plausible; confirming it fires during buildcubemaps needs a
       run with CS2 closed (hook 180cb2100's result at 1808898d4 and 180496ef0's attribute lookup).
+    - Settled by replay on the dev box (2026-10-22, CubemapFaceReplayTests.ChainedFaceEqualsTheCapture): face 0
+      chained, every dispatch and draw in order on live targets with all our constant blocks, so each draw reads
+      what our earlier ones made (binner buffers, shadow atlas, prepass depth, its downsample). Against the same
+      GPU's chained run with the captured blocks: every action equal. From cleared targets (CUBEREPLAY_START=
+      clear: colour 0, depth far) instead of the capture's leftovers: the colour result is unchanged, the
+      downsample 64018 differs only where no draw writes (nothing reads it), and against the capture only draws
+      478 / 484 differ (1 and 3 bytes), the two the GTX 1080 already differs on unchained. The strict check on
+      the RTX 4070 is queued (cs2_closed_session.py --cascades).
     - Open: the cascade camera's y offset (1 ulp, no effect);
       the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
       lights; chaining a whole face from cleared targets.

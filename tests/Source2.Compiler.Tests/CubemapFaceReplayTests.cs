@@ -59,34 +59,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("CUBEREPLAY") is not { Length: > 0 } dir
             || Environment.GetEnvironmentVariable("CUBEREPLAY_SPIRV") is not { Length: > 0 } spirvDir)
             return;
-        var view = Cubemaps.CubemapFaceViews.Face(new System.Numerics.Vector3(512, 96, 112), System.Numerics.Vector3.Zero, 1f, 10000f, 0);
-        var fog = new Cubemaps.CubemapFaceConstants.CubeFog(400f, 12000f, 0.5f, 1.2f, new System.Numerics.Vector4(0f, 2000f, 1f, 1f),
-            System.Numerics.Matrix4x4.CreateTranslation(512, 112, 80));
-        var ours = new Dictionary<string, byte[]>
-        {
-            ["9cb9e491"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 0f, 0.95f),
-            ["1b1f6cc0"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 1f, 1f),
-            ["37c443a8"] = Cubemaps.CubemapFaceConstants.Csgo(view, fog, 4096f),
-            ["d831320f"] = Cubemaps.CubemapFaceConstants.BakedLighting(new System.Numerics.Vector2(1.1428397f, 1.1428397f), 4096, 4096, false),
-            // Our own slots: two identity transforms, every instance pointing at the second.
-            ["40190a9e"] = Cubemaps.CubemapFaceConstants.Transforms([Cubemaps.CubemapFaceConstants.Identity3x4, Cubemaps.CubemapFaceConstants.Identity3x4]),
-            ["5708ccca"] = Cubemaps.CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, 63)]),
-        };
-        // The sun cascades' per-view blocks (face 0: three cascades and the viewmodel one).
-        var (sun, _, cameraDirection) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
-        var cascades = Cubemaps.CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f);
-        string[] cascadeShas = ["c84b0bea", "14ee9dcb", "4db015a3", "f0d466f1"];
-        int[][] tiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
-        for (var k = 0; k < 4; k++)
-            ours[cascadeShas[k]] = Cubemaps.CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1], 1280, 4352, 5248);
-        // The light block: probe01's light_environment and light probe volume.
-        var (_, lightDir, _) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
-        var sunLight = new Cubemaps.CubemapFaceConstants.Sun(lightDir, Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f, 0.1f, 0.05f,
-            Lighting.SceneLights.SrgbToLinear(138, 200, 255), 0.875f);
-        var volume = new Cubemaps.CubemapFaceConstants.LightProbeVolume(new System.Numerics.Vector3(512, 96, 112), new System.Numerics.Vector3(-768, -1088, -112),
-            new System.Numerics.Vector3(768, 896, 176), new System.Numerics.Vector3(0, 32, 0));
-        var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.GameDistances(1f, 10000f)[^1]).Diameter * 1.42f;
-        ours["37b7646c"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volume, cascades, tiles, 1280, 4352, 5248, new System.Numerics.Vector3(512, 96, 112), stretched);
+        var ours = OurBlocks();
         var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
         using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
         var runner = new SceneDrawRunner(gpu);
@@ -113,6 +86,87 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             if (!result.StartsWith("equal", StringComparison.Ordinal))
                 failures.Add($"{rec["eid"]}: {result}");
         }
+        Assert.Empty(failures);
+    }
+
+    /// <summary>
+    /// Every constant block and buffer of probe01 cube 0's face 0 from our own data, by the capture's blob hash prefix:
+    /// the per-view blocks (world, depth range 0 .. 0.95; sky, 1 .. 1), PerViewConstantBufferCsgo_t,
+    /// BakedLightingConstantBuffer_t, transforms and instances, the four cascade per-view blocks and the light block.
+    /// </summary>
+    private static Dictionary<string, byte[]> OurBlocks()
+    {
+        var view = Cubemaps.CubemapFaceViews.Face(new System.Numerics.Vector3(512, 96, 112), System.Numerics.Vector3.Zero, 1f, 10000f, 0);
+        var fog = new Cubemaps.CubemapFaceConstants.CubeFog(400f, 12000f, 0.5f, 1.2f, new System.Numerics.Vector4(0f, 2000f, 1f, 1f),
+            System.Numerics.Matrix4x4.CreateTranslation(512, 112, 80));
+        var ours = new Dictionary<string, byte[]>
+        {
+            ["9cb9e491"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 0f, 0.95f),
+            ["1b1f6cc0"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 1f, 1f),
+            ["37c443a8"] = Cubemaps.CubemapFaceConstants.Csgo(view, fog, 4096f),
+            ["d831320f"] = Cubemaps.CubemapFaceConstants.BakedLighting(new System.Numerics.Vector2(1.1428397f, 1.1428397f), 4096, 4096, false),
+            // Our own slots: two identity transforms, every instance pointing at the second.
+            ["40190a9e"] = Cubemaps.CubemapFaceConstants.Transforms([Cubemaps.CubemapFaceConstants.Identity3x4, Cubemaps.CubemapFaceConstants.Identity3x4]),
+            ["5708ccca"] = Cubemaps.CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, 63)]),
+        };
+        // The sun cascades' per-view blocks (face 0: three cascades and the viewmodel one).
+        var (sun, _, cameraDirection) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
+        var cascades = Cubemaps.CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f);
+        string[] cascadeShas = ["c84b0bea", "14ee9dcb", "4db015a3", "f0d466f1"];
+        int[][] tiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
+        for (var k = 0; k < 4; k++)
+            ours[cascadeShas[k]] = Cubemaps.CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1], Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight);
+        // The light block: probe01's light_environment and light probe volume.
+        var (_, lightDir, _) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
+        var sunLight = new Cubemaps.CubemapFaceConstants.Sun(lightDir, Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f, 0.1f, 0.05f,
+            Lighting.SceneLights.SrgbToLinear(138, 200, 255), 0.875f);
+        var volume = new Cubemaps.CubemapFaceConstants.LightProbeVolume(new System.Numerics.Vector3(512, 96, 112), new System.Numerics.Vector3(-768, -1088, -112),
+            new System.Numerics.Vector3(768, 896, 176), new System.Numerics.Vector3(0, 32, 0));
+        var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.GameDistances(1f, 10000f)[^1]).Diameter * 1.42f;
+        ours["37b7646c"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volume, cascades, tiles, Cubemaps.CubemapShadowCascades.Inputs.Resolution, Cubemaps.CubemapShadowCascades.Inputs.AtlasWidth, Cubemaps.CubemapShadowCascades.Inputs.AtlasHeight, new System.Numerics.Vector3(512, 96, 112), stretched);
+        return ours;
+    }
+
+    /// <summary>
+    /// Face 0 chained: every dispatch and draw in order on live targets (each pass from its cleared target), with our
+    /// constant blocks, so each draw reads what our earlier draws made (shadow atlas, prepass depth, its downsample)
+    /// instead of the capture's. Every action's output must equal the capture's (with CUBEREPLAY_BASELINE, this
+    /// device's unchained run with the captured blocks).
+    /// </summary>
+    [Fact]
+    public void ChainedFaceEqualsTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("CUBEREPLAY") is not { Length: > 0 } dir
+            || Environment.GetEnvironmentVariable("CUBEREPLAY_SPIRV") is not { Length: > 0 } spirvDir)
+            return;
+        var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
+        using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
+        var runner = new SceneDrawRunner(gpu);
+        using var replay = new Replay(dir, spirvDir, resources, gpu, runner);
+        var actions = File.ReadLines(Path.Combine(dir, "actions.jsonl")).Select(l => JsonNode.Parse(l)!)
+            .Where(r => r["contents"] is not null && (r["stages"]?["vs"] is not null || r["stages"]?["cs"] is not null)).ToList();
+        string Step(JsonNode r) => r["stages"]!["cs"] is not null ? replay.RunCompute(r) : replay.Run(r);
+        // With baselines: this device's chained run with the captured blocks is the reference, so only our data differs.
+        if (replay.Baselines != null)
+        {
+            replay.Chain = true;
+            foreach (var r in actions)
+                Step(r);
+            replay.ResetChain();
+        }
+        foreach (var (prefix, bytes) in OurBlocks())
+            replay.Overrides[Path.GetFileNameWithoutExtension(Directory.GetFiles(Path.Combine(dir, "blobs"), prefix + "*.bin").Single())] = bytes;
+        replay.Chain = true;
+        var failures = new List<string>();
+        foreach (var r in actions)
+        {
+            var result = Step(r);
+            output.WriteLine($"{r["eid"]} {r["name"]}: {result}");
+            if (!result.StartsWith("equal", StringComparison.Ordinal))
+                failures.Add($"{r["eid"]}: {result}");
+        }
+        foreach (var f in replay.FirstUses)
+            output.WriteLine(f);
         Assert.Empty(failures);
     }
 
@@ -247,6 +301,52 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         public Dictionary<string, byte[]> Overrides { get; } = [];
         private readonly List<GpuDevice.GpuBuffer> _overridden = [];
 
+        /// <summary>
+        /// Chained: each target and dispatch output stays alive under its resource name, later actions draw into and
+        /// read it instead of the capture's contents; a target's first use starts from the capture's before (the pass's
+        /// clear: <see cref="FirstUses"/> says whether it was one uniform value).
+        /// </summary>
+        public bool Chain { get; set; }
+        private readonly Dictionary<string, SceneDrawRunner.SceneImage> _live = [];
+        private readonly Dictionary<string, GpuDevice.GpuBuffer> _liveBuffers = [];
+        public List<string> FirstUses { get; } = [];
+
+        /// <summary>
+        /// CUBEREPLAY_START=clear: a chained target's first use starts from a clear (colour 0, depth far, stencil 0)
+        /// instead of the capture's contents, which hold earlier renders' leftovers.
+        /// </summary>
+        public static bool StartCleared { get; } = Environment.GetEnvironmentVariable("CUBEREPLAY_START") == "clear";
+
+        private static byte[] Cleared(Format format, uint width, uint height, int size)
+        {
+            var data = new byte[size];
+            var texels = (int)(width * height);
+            if (format == Silk.NET.Vulkan.Format.D16Unorm)
+                data.AsSpan(0, texels * 2).Fill(0xff);
+            else if (format == Silk.NET.Vulkan.Format.D24UnormS8Uint)
+                for (var i = 0; i < texels; i++)
+                    data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = 0xff;
+            else if (format == Silk.NET.Vulkan.Format.D32Sfloat)
+                for (var i = 0; i < texels; i++)
+                    BitConverter.TryWriteBytes(data.AsSpan(i * 4), 1f);
+            return data;
+        }
+
+        /// <summary>Drops the chained state (live targets and dispatch outputs) for another chained run.</summary>
+        public void ResetChain()
+        {
+            foreach (var b in _liveBuffers.Values)
+                gpu.Destroy(b);
+            foreach (var i in _live.Values)
+                runner.Destroy(i);
+            _liveBuffers.Clear();
+            _live.Clear();
+            FirstUses.Clear();
+        }
+
+        private GpuDevice.GpuBuffer Input(string name, JsonNode before) =>
+            Chain && _liveBuffers.TryGetValue(name, out var live) ? live : Buffer((string)before[name]!["sha1"]!);
+
         private GpuDevice.GpuBuffer Buffer(string sha1)
         {
             if (Overrides.TryGetValue(sha1, out var replaced))
@@ -350,6 +450,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         /// <summary>A texture's whole contents (every subresource dumped) as an image with the shader's view type.</summary>
         private SceneDrawRunner.SceneImage Image(string name, JsonArray subs, Format format, ImageViewType viewType, ImageUsageFlags usage = 0)
         {
+            if (Chain && _live.TryGetValue(name, out var drawn))
+            {
+                if (drawn.Format != format || viewType != ImageViewType.Type2D)
+                    throw new NotSupportedException($"{name} read as {format} {viewType}, drawn as {drawn.Format}");
+                return drawn;
+            }
             var key = $"{name}|{format}|{viewType}|{string.Join(",", subs.Select(s => (string)s!["sha1"]!))}";
             if (_images.TryGetValue(key, out var image))
                 return image;
@@ -405,7 +511,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                     else
                     {
                         var size = (ulong)d["byteSize"]!;
-                        bindings.Buffer(set, binding, element, Buffer((string)before[name]!["sha1"]!), (ulong)d["byteOffset"]!, size >= (1UL << 40) ? Vk.WholeSize : size);
+                        bindings.Buffer(set, binding, element, Input(name, before), (ulong)d["byteOffset"]!, size >= (1UL << 40) ? Vk.WholeSize : size);
                     }
                 }
                 foreach (var smp in stage["samplers"]!.AsArray())
@@ -451,10 +557,10 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             if (blends.Any(b => (bool)b!["enabled"]!))
                 return "blending not modelled";
 
-            var vertexBuffers = vbs.Select(b => (Buffer((string)before[(string)b!["resourceId"]!]!["sha1"]!), (ulong)b["byteOffset"]!)).ToArray();
+            var vertexBuffers = vbs.Select(b => (Input((string)b!["resourceId"]!, before), (ulong)b["byteOffset"]!)).ToArray();
             var ib = rec["ibuffer"]!;
             (GpuDevice.GpuBuffer, ulong, IndexType)? index = flags.Contains("Indexed")
-                ? (Buffer((string)before[(string)ib["resourceId"]!]!["sha1"]!), (ulong)ib["byteOffset"]!, (int)ib["byteStride"]! == 4 ? IndexType.Uint32 : IndexType.Uint16)
+                ? (Input((string)ib["resourceId"]!, before), (ulong)ib["byteOffset"]!, (int)ib["byteStride"]! == 4 ? IndexType.Uint32 : IndexType.Uint16)
                 : null;
             var args = flags.Contains("Indexed")
                 ? new SceneDrawArgs(true, (uint)rec["numIndices"]!, (uint)rec["numInstances"]!, (uint)rec["indexOffset"]!, (int)rec["baseVertex"]!, (uint)rec["instanceOffset"]!)
@@ -465,9 +571,21 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             {
                 if (name == null)
                     return null;
+                if (Chain && _live.TryGetValue(name, out var drawn))
+                    return drawn;
                 var t = resources["textures"]![name]!;
                 var image = runner.CreateImage(Format((string)t["format"]!), (uint)(int)t["width"]!, (uint)(int)t["height"]!, 1, 1, 1, ImageViewType.Type2D, usage);
-                runner.Write(image, 0, 0, Blob((string)before[name]![0]!["sha1"]!));
+                var start = Blob((string)before[name]![0]!["sha1"]!);
+                if (Chain && StartCleared)
+                    start = Cleared(image.Format, image.Width, image.Height, start.Length);
+                runner.Write(image, 0, 0, start);
+                if (Chain)
+                {
+                    _live[name] = image;
+                    var texel = SceneDrawRunner.IsDepth(image.Format) ? (int)SceneDrawRunner.DepthTexelBytes(image.Format) : 8;
+                    var uniform = Enumerable.Range(0, start.Length / texel).All(i => start.AsSpan(i * texel, texel).SequenceEqual(start.AsSpan(0, texel)));
+                    FirstUses.Add($"{rec["eid"]} {name}: starts {(uniform ? "uniform 0x" + Convert.ToHexString(start, 0, texel) : "NOT uniform")}");
+                }
                 return image;
             }
             var color = Target(colorName, ImageUsageFlags.ColorAttachmentBit);
@@ -492,16 +610,24 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 }
                 var beforeBytes = Blob((string)before[name]![0]!["sha1"]!);
                 var diff = 0;
+                var kept = 0;
                 for (var i = 0; i < Math.Min(ours.Length, theirs.Length); i++)
                     if (ours[i] != theirs[i])
-                        diff++;
+                    {
+                        // From a cleared start, bytes no draw wrote keep our clear where the capture kept leftovers.
+                        if (Chain && StartCleared && Baselines == null && theirs[i] == beforeBytes[i])
+                            kept++;
+                        else
+                            diff++;
+                    }
                 var changed = 0;
                 for (var i = 0; i < theirs.Length; i++)
                     if (theirs[i] != beforeBytes[i])
                         changed++;
                 equal &= diff == 0 && ours.Length == theirs.Length;
-                report.Add($"{name}: {(diff == 0 ? "same" : $"{diff} bytes differ")} ({changed} bytes changed by the draw{(ours.Length != theirs.Length ? $", sizes {ours.Length} / {theirs.Length}" : "")})");
-                runner.Destroy(image);
+                report.Add($"{name}: {(diff == 0 ? "same" : $"{diff} bytes differ")}{(kept > 0 ? $", {kept} kept from the clear" : "")} ({changed} bytes changed by the draw{(ours.Length != theirs.Length ? $", sizes {ours.Length} / {theirs.Length}" : "")})");
+                if (!Chain)
+                    runner.Destroy(image);
             }
             return (equal ? "equal; " : "DIFFERENT; ") + string.Join("; ", report);
         }
@@ -536,9 +662,16 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 var buffer = written.FirstOrDefault(w => w.Name == name).Buffer;
                 if (buffer == null && after[name] != null)
                 {
-                    buffer = gpu.Upload(Blob((string)before[name]!["sha1"]!), BufferUsageFlags.StorageBufferBit | BufferUsageFlags.UniformBufferBit);
+                    if (!(Chain && _liveBuffers.TryGetValue(name, out buffer)))
+                    {
+                        buffer = gpu.Upload(Blob((string)before[name]!["sha1"]!), BufferUsageFlags.StorageBufferBit | BufferUsageFlags.UniformBufferBit | BufferUsageFlags.VertexBufferBit | BufferUsageFlags.IndexBufferBit);
+                        if (Chain)
+                            _liveBuffers[name] = buffer;
+                    }
                     written.Add((name, buffer));
                 }
+                else if (buffer == null && Chain && _liveBuffers.TryGetValue(name, out var live))
+                    buffer = live;
                 var size = (ulong)d["byteSize"]!;
                 bindings.Buffer(set, binding, element, buffer ?? Buffer((string)before[name]!["sha1"]!), (ulong)d["byteOffset"]!, size >= (1UL << 40) ? Vk.WholeSize : size);
             }
@@ -557,7 +690,8 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
                 var changed = Enumerable.Range(0, theirs.Length).Count(i => beforeBytes[i] != theirs[i]);
                 equal &= diff == 0;
                 report.Add($"{name}: {(diff == 0 ? "same" : $"{diff} bytes differ")} ({changed} bytes changed by the dispatch)");
-                gpu.Destroy(buffer);
+                if (!Chain)
+                    gpu.Destroy(buffer);
             }
             return (equal ? "equal; " : "DIFFERENT; ") + string.Join("; ", report);
         }
@@ -566,6 +700,10 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         {
             foreach (var b in _overridden)
                 gpu.Destroy(b);
+            foreach (var b in _liveBuffers.Values)
+                gpu.Destroy(b);
+            foreach (var i in _live.Values)
+                runner.Destroy(i);
             foreach (var b in _buffers.Values)
                 gpu.Destroy(b);
             foreach (var i in _images.Values)

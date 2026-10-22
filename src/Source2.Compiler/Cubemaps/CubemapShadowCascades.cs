@@ -45,6 +45,9 @@ public static class CubemapShadowCascades
         /// </summary>
         public const int Count = 3, Resolution = 1280;
 
+        /// <summary>lb_shadow_texture_width_override / lb_shadow_texture_height_override of shadow quality 2: the shadow atlas.</summary>
+        public const int AtlasWidth = 4352, AtlasHeight = 5248;
+
         /// <summary>The viewmodel cascade: csm_viewmodel_max_shadow_dist 21, csm_viewmodel_nearz 0.5, csm_viewmodel_max_visible_dist 1000, r_csgo_viewmodel_csm_pushback_distance 1500.</summary>
         public const float ViewmodelDistance = 21f, ViewmodelNear = 0.5f, ViewmodelMaxVisible = 1000f, ViewmodelPushback = 1500f;
     }
