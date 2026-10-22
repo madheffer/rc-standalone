@@ -125,6 +125,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             replay.Overrides.Remove(sha);
             return any;
         }
+        if (Environment.GetEnvironmentVariable("CUBEREPLAY_SENSE_WHOLE") == "1")
+        {
+            // The whole blob zeroed, and the whole blob set to 0xff bytes.
+            output.WriteLine($"zeroed: {(Changes(new byte[data.Length]) ? "changes the face" : "no change")}; all ones: {(Changes(Enumerable.Repeat((byte)0xff, data.Length).ToArray()) ? "changes the face" : "no change")}");
+            return;
+        }
         var sensitive = new List<string>();
         for (var o = 0; o < data.Length; o += 16)
         {

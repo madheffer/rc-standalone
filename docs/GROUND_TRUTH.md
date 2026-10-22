@@ -3177,6 +3177,46 @@ game can answer is raised with the user first, and runs with -insecure.
       transform and instance buffers and the binner's inputs, from our own data; then the whole face chained
       from cleared targets; the reduction to the EXR (547, 549, 581 are copies).
 
+121. **The cubemap face render's constant blocks from our own data** (2026-10-22: DX11 reflection, decompile of
+    client 10-15/10-21 and scenesystem 10-15, the replay's per-word sensitivity sweep; CubemapFaceViews,
+    CubemapFaceConstants, CubemapFaceViewsTests, CubemapFaceReplayTests.OurBlocksKeepTheFace).
+    - Settled, layouts: the Vulkan SPIR-V is nameless, but the DX11 programs in shaders_pc_dir.vpk keep their
+      RDEF (tools/re/dxbc_rdef.py over every program, spvmatch --allbytecode): PerViewConstantBuffer_t (640),
+      PerViewConstantBufferCsgo_t (656), BakedLightingConstantBuffer_t (64), PerViewLightingConstantBufferGpu_t
+      (32224 in DX11, its fake_out_fxc arrays the Vulkan block's 4-element ones), CullParams_t (160),
+      g_transformBuffer (48 each), g_instanceBuffer (32 each), g_BarnLights (480 each).
+    - Settled, which words the face reads (CubemapFaceReplayTests.Sensitivity: each non-zero word zeroed and
+      its low bit flipped, each zero row set to 1.0, the draws that read the block rerun): per-view, the
+      camera-relative g_matWorldToProjection, g_vWorldToCameraOffset, g_vCameraPositionWs; csgo,
+      g_bOtherFxEnabled.x, g_bOtherEnabled3 (zero), g_flMinSpecLightmapSize, the cube fog offset, scale,
+      exponent, height .x, culling .y and max opacity, g_vHighPrecisionLightingOffsetWs; lightmap block,
+      g_vLightmapUvScale; transforms, the two the world draws' instances point at (4 and 5 here).
+    - Settled by port, bit for bit: the face views. CubemapFaceViews ports client.dll's chain
+      (AngleQuaternion 1817445e0, QuaternionMult 181745900, QuaternionMatrix + MatrixAngles 1817463a0 ->
+      1817439d0, AngleMatrix 18173cd10, ConcatTransforms 18173fd50 with the axis swap 182291300 (its +0.0 lane
+      adds), MatrixInvert 181741a70, the perspective 18174fb00 / 18174ef50 (tan 45 is V_tanf's exact 1), the
+      4 x 4 multiply 181746490). All six faces' g_matWorldToProjection, g_matWorldToView and
+      g_matViewToProjection equal the game's upload; 1800 random records equal client.dll's own code under
+      unicorn. 181746490 multiplies with DPPS, whose hardware sum is (p0 + p1) + (p2 + p3); unicorn sums from
+      +0, which is ledger 118's face-0 signed zero (no other multiply is involved). V_atan2f is the CRT's
+      atan2f (tier0 1802e0184), ported as CrtMath.Atan2 with its 241-entry table (Valve's values, not
+      correctly rounded): 1,188,513 pairs equal tier0's.
+    - Settled by decompile: g_flMinSpecLightmapSize is gameinfo ResourceCompiler/BakedLighting/
+      MinSpecLightmapSize as int then float (client 181206bfe; csgo 4096). The cube fog terms (client
+      181217e20 over the attributes 180206e50 sets from the fog entity): offset (-start) / (end - start), scale
+      1 / (end - start), LOD bias, exponent; culling (start^2, +inf, sign, max opacity); probe01's equal
+      height start and end take the default height terms. g_vShaderIDColor as ledger 120.
+    - Settled by capture: the sky's pixel _Globals_ is ProgramGlobals.Fill for its material with csgo's sky
+      program; its vertex block is AngleMatrix(env_sky angles) transposed (m20 = -sin 0 = -0.0).
+    - With our per-view (world and sky), csgo and lightmap blocks in place, face 0's depth prepass, colour
+      draws and sky equal the capture.
+    - Open: the general height-fog mapping (entity keys to the 0xd0dd9453 vector); the lightmap block's writer
+      in worldrenderer (taken from m_vLightmapUvScale and the lightmap size); the projection-to-world inverse
+      and clocks (not read by the face); instances and the light block (sweep running); the sun direction
+      from light_environment; the cascade fit (180496ef0, 180494b40: practical splits blended 0.85 with
+      linear, slice bounding spheres, light-space bounds, texel-snapped ortho 180498af0); the binner's
+      inputs.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

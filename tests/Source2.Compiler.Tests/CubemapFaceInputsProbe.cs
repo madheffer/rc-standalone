@@ -29,7 +29,7 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
             return;
         var game = Path.Combine(Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive", "game");
         using var shaders = new ValvePak.Package();
-        shaders.Read(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"));
+        shaders.Read(Path.Combine(game, Environment.GetEnvironmentVariable("CUBEREPLAY_SHADERVPK") ?? "csgo", "shaders_vulkan_dir.vpk"));
         byte[]? material = null;
         foreach (var pak in new[] { Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "core", "pak01_dir.vpk") })
         {
@@ -42,9 +42,13 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
         resource.Read(new MemoryStream(material ?? throw new FileNotFoundException(materialPath)));
         var mat = (Material)resource.DataBlock!;
         var features = mat.IntParams.ToDictionary(kv => kv.Key, kv => (int)kv.Value);
-        var program = Gpu.ValveProgram.Load(shaders, "generic", "vulkan_50", "ps",
-            new Dictionary<string, int> { ["S_MODE_TOOLS_VIS"] = 1 }, new Dictionary<string, int> { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = 1 }, features);
-        var captured = File.ReadAllBytes(Path.Combine(spirvDir, "4f3.spv"));
+        // CUBEREPLAY_PROGRAM=<shader>|<module id>|<statics>|<dynamics> (pairs name=value, comma separated);
+        // generic's colour combo by default.
+        var spec = (Environment.GetEnvironmentVariable("CUBEREPLAY_PROGRAM") ?? "generic|1267|S_MODE_TOOLS_VIS=1|D_BAKED_LIGHTING_FROM_LIGHTMAP=1").Split('|');
+        static Dictionary<string, int> Pairs(string text) => text.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=')).ToDictionary(p => p[0], p => int.Parse(p[1]));
+        var module = int.Parse(spec[1]);
+        var program = Gpu.ValveProgram.Load(shaders, spec[0], "vulkan_50", "ps", Pairs(spec[2]), Pairs(spec.Length > 3 ? spec[3] : ""), features);
+        var captured = File.ReadAllBytes(Path.Combine(spirvDir, $"{module:x}.spv"));
         output.WriteLine($"{program.Name}: SPIR-V {(program.Spirv.AsSpan().SequenceEqual(captured) ? "equals" : "DIFFERS from")} the capture's module");
         var attributes = (Environment.GetEnvironmentVariable("CUBEREPLAY_ATTRS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(a => a.Split('=')).ToDictionary(a => a[0], a => Gpu.VfxExpression.Value.Of(float.Parse(a[1], System.Globalization.CultureInfo.InvariantCulture)));
@@ -84,7 +88,7 @@ public sealed class CubemapFaceInputsProbe(ITestOutputHelper output)
         foreach (var line in File.ReadLines(Path.Combine(dir, "actions.jsonl")))
         {
             var rec = JsonNode.Parse(line)!;
-            if (rec["stages"]?["ps"] is not { } ps || !((string)ps["shader"]!).EndsWith(" 1267", StringComparison.Ordinal))
+            if (rec["stages"]?["ps"] is not { } ps || !((string)ps["shader"]!).EndsWith($" {module}", StringComparison.Ordinal))
                 continue;
             foreach (var ro in ps["readOnly"]!.AsArray())
             {
