@@ -397,6 +397,26 @@ evaluates ToolsVis (the engine runs with -tools, as Hammer's build does) and
 which mode a csgo_environment material takes are not read yet. The prop
 (trashclusters01, csgo_vertexlitgeneric) draws nowhere in cube 0.
 
+### Replayed on our own device (2026-10-22, ledger 120)
+
+RenderDoc's replay (CS2 closed; 16 s for the whole frame) gives every draw's
+state; `rdc_replay.py` writes it as JSON lines, and with `RDC_DUMP=1` also the
+contents each action reads and its targets (or written buffers) after it:
+
+    RDC_IN=<capture.rdc> RDC_OUT=<dir> RDC_DUMP=1 RDC_FIRST=140 RDC_LAST=581 qrenderdoc.exe --python tools/cubehost/rdc_replay.py
+    python tools/cubehost/rdc_spirv.py <capture.rdc> <spirv dir>
+    CUBEREPLAY=<dir> CUBEREPLAY_SPIRV=<spirv dir> dotnet test --filter CubemapFaceReplayTests
+
+(Depth-stencil dumps are a 4-byte depth plane then a 1-byte stencil plane;
+3D textures come back a whole mip at a time.) `CubemapFaceReplayTests` runs
+each action of face 0 through `SceneDrawRunner` (Source2.Compiler.Gpu): Valve's
+SPIR-V, descriptor sets laid out from its reflection, the captured samplers,
+vertex layout, raster, depth and stencil state, from the captured targets
+before the action. All 30 actions (the binner's two dispatches, four sun
+cascades, depth prepass, depth downsample, the colour draws, sky, max
+downsample) equal the capture bit for bit. The render state they use is in
+ledger 120.
+
 ## Open
 
 - DX11 float parity for the GPU pass (only matters where a 1-ulp difference
@@ -404,8 +424,10 @@ which mode a csgo_environment material takes are not read yet. The prop
 - The BC6H encoder is ispc_texcomp.dll from the game's bin folder (as for the
   lightmaps); building it from Intel's source, as bc7e was, removes that
   dependency.
-- The face render (the "Game" pipeline for the BuildCubemaps view): captured
-  pass by pass and every shader identified (above); the port is not started.
-  Next, with RenderDoc replay (CS2 closed): each draw's constant buffers,
-  descriptor bindings, indirect arguments and render state, and the view
-  constants against client 18020e130's view setup.
+- The face render (the "Game" pipeline for the BuildCubemaps view): every
+  action of face 0 reproduced on our device from the captured inputs (above).
+  Next: replace the captured inputs with our own one at a time, each checked
+  by the replay test (views from emu_cube_views, the world's vertex and index
+  streams from our compile, lightmaps from our bake, material constants and
+  textures, the light block and the binner's input), then chain the whole
+  face from cleared targets and reduce it to the EXR.

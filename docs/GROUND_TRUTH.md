@@ -3139,6 +3139,28 @@ game can answer is raised with the user first, and runs with -insecure.
       and 9,608 bytes across its runs, so the nav is compared within one run (ledger 109), never against a
       single Valve file.
 
+120. **The cubemap face render's GPU state, reproduced draw by draw** (2026-10-22, RenderDoc 1.44 replay of
+    the probe01 cube 0 capture, CS2 closed; tools/cubehost/rdc_replay.py, CubemapFaceReplayTests).
+    - Settled by replay: every action of face 0 (+X) from the light binner to the max downsample, 30 in all
+      (the two cullbits dispatches, four sun cascades into the 4352 x 5248 D16 atlas, the depth prepass, the
+      checkerboard depth downsample, the generic ToolsVis colour draws, the sky, downsample_depth max), run on
+      our own Vulkan device (SceneDrawRunner) with Valve's SPIR-V and the captured constants, bindings,
+      samplers, vertex layouts, indirect arguments and render state, from the capture's targets before each
+      action, equals the capture's targets (or written buffers) after it bit for bit. So what is left for the
+      face render is producing the inputs, not the GPU state.
+    - Read from the replay: world draws use viewport depth 0 .. 0.95 and LESS_OR_EQUAL, back-face culling
+      with counter-clockwise front faces; the sky draws at depth 1 .. 1 without depth writes and without
+      culling. Colour draws test stencil NOT_EQUAL against 3 under mask 1 with keep everywhere. The colour
+      pass samples the four 4096 lightmaps (BC4, BC6H, BC1, BC1 sRGB), a 512 x 512 x 4 BGRA8 sRGB volume,
+      the sun atlas through a LESS_OR_EQUAL comparison sampler, a 2040-layer 256 BC6H cube array (7 mips),
+      and the half-resolution depth the downsample writes into a 1280 x 720 scratch target (its first
+      512 x 512); vertex streams are the world mesh (28-byte stride: position, uv, a packed uint, a 16-bit
+      lightmap uv), a per-instance uint and a stride-0 uint4.
+    - Open: the inputs from our own data, one at a time against this harness (views from ledger 118, the
+      light and binner blocks, the world vertex and index streams, the material constants and textures),
+      then the whole face chained from the cleared targets; the 305 pass (clears, no draws) and the reduction
+      to the EXR (547, 549, 581 are copies).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
