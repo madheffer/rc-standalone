@@ -25,9 +25,11 @@ public static class MapRootFile
     /// <param name="Arguments">The compile's arguments as MapCompileArgs types them.</param>
     /// <param name="Steps">The builders that ran (MapCompileArgs.Builders names); null for a full build.</param>
     /// <param name="FlattenProps">A static model record is made (<see cref="ReadsStaticModelRecords"/>).</param>
+    /// <param name="EntitiesOnly">An Only Entities build (MapCompileArgs.EntitiesOnly): no bake decision is read.</param>
+    /// <param name="MaterialMissing">A model the build compiles references a material that does not load.</param>
     public sealed record Compile(string Addon, IReadOnlyList<(string Path, uint Crc)> Inputs, bool Baked, bool ProbeVolumes,
                                  IReadOnlyDictionary<string, object> Arguments, IReadOnlySet<string>? Steps = null,
-                                 bool FlattenProps = false)
+                                 bool FlattenProps = false, bool EntitiesOnly = false, bool MaterialMissing = false)
     {
         public bool Runs(string step) => Steps is null ? step is "world" or "phys" or "vis" or "bakedlighting" : Steps.Contains(step);
     }
@@ -154,7 +156,9 @@ public static class MapRootFile
         }
 
         // The arguments, case-insensitively sorted with ___OverrideInputData___ first.
-        var names = new List<string>(Always);
+        // An Only Entities build (Valve's probe01 and cardtest, 10-22) reads force_up_to_date_materials only where a
+        // model's material does not load (cardtest's impmodel; its reader there is not read yet, ledger 119).
+        var names = new List<string>(compile.EntitiesOnly && !compile.MaterialMissing ? Always.Skip(1) : Always);
         if (children.Any(c => c.Contains("/worldnodes/", StringComparison.Ordinal) && c.EndsWith(".vmdl", StringComparison.Ordinal)))
             names.AddRange(WorldNodeModels);
         if (compile.Runs("phys"))
@@ -175,7 +179,7 @@ public static class MapRootFile
                     names.AddRange(["farfieldAtlasTextureArg", "farfieldIndirectionTextureArg"]);
             }
         }
-        else
+        else if (!compile.EntitiesOnly)
         {
             names.Add("bakelighting");
             if (compile.FlattenProps)
@@ -191,6 +195,8 @@ public static class MapRootFile
                 "lightmapTextureArg" or "lightProbeVolumeTextureArg" or "fogIrradianceVolumeTextureArg" or "farfieldAtlasTextureArg"
                     or "farfieldIndirectionTextureArg" => ("BinaryBlobArg", 0u, 0u),
                 "mapbuilder_entity_classname" => ("StringArg", 0u, 0u),
+                // A switch given bare (-skipauxfiles) is an int 1 (Valve's Fast and Only Entities compiles, 10-22).
+                _ when !name.Contains('#') && compile.Arguments.TryGetValue(plain, out var given) && given is int i => ("IntArg", (uint)i, FloatBits(null, name)),
                 _ => ("FloatArg", FloatBits(compile.Arguments, name), FloatBits(null, name)),
             };
             args.Add(Argument(plain, type, value, fallback));

@@ -236,7 +236,8 @@ public class MapRootFileTests(ITestOutputHelper output)
 
     /// <summary>
     /// Unlit compiles (ledger 119): Valve's world-only references (%TEMP%/nobake_refs, fresh_refs) and its
-    /// -world -phys -vis -nav ones (%TEMP%/nolight_1016), each .vmap_c against ours built with the same
+    /// -world -phys -vis -nav ones (%TEMP%/nolight_1016), Hammer's Fast and Only Entities presets (%TEMP%/preset_fast,
+    /// preset_entities), each .vmap_c against ours built with the same
     /// builders, byte for byte. Their argument tables have no lighting rows, bakelighting instead, and
     /// flattenPropsWithBakedLighting where a static model record is made.
     /// </summary>
@@ -250,14 +251,20 @@ public class MapRootFileTests(ITestOutputHelper output)
         }
         var game = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(pak)!, ".."));
         var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
-        var sets = new (string Folder, string[] Steps)[]
+        // Each set's switches as Valve's compile took them (steps and arguments as MapCompileArgs reads them):
+        // world only, -world -phys -vis -nav, and Hammer's Fast Compile and Only Entities presets (10-22).
+        var sets = new (string Folder, string[] Switches)[]
         {
-            ("nobake_refs", ["world"]), ("fresh_refs", ["world"]), ("nolight_1016", ["world", "phys", "vis", "nav"]),
+            ("nobake_refs", ["-world", "-fshallow"]), ("fresh_refs", ["-world", "-fshallow"]), ("nolight_1016", ["-world", "-phys", "-vis", "-nav"]),
+            ("preset_fast", ["-world", "-skipauxfiles", "-nolightmaps", "-phys", "-nav"]),
+            ("preset_entities", ["-entities", "-skipauxfiles", "-nolightmaps", "-fshallow"]),
         };
         var failed = new List<string>();
         var compared = 0;
-        foreach (var (folder, steps) in sets)
+        foreach (var (folder, switches) in sets)
         {
+            var args = MapCompileArgs.Parse(switches);
+            var steps = args.SelectedBuilders(out _);
             var dir = Path.Combine(Path.GetTempPath(), folder);
             if (!Directory.Exists(dir))
                 continue;
@@ -281,8 +288,9 @@ public class MapRootFileTests(ITestOutputHelper output)
                 foreach (var path in Prefabs(document).Distinct(StringComparer.OrdinalIgnoreCase))
                     inputs.Add((path, MapRootFile.Crc(File.ReadAllBytes(Path.Combine(content, path)))));
                 var entities = MapEntities.From(document);
-                var compile = new MapRootFile.Compile("s2c_rc_probe", inputs, false, false, new Dictionary<string, object>(),
-                                                      steps.ToHashSet(), MapRootFile.ReadsStaticModelRecords(document));
+                // cardtest's impmodel references materials/doom_npcs/imp_atlas.vmat, which lives in another addon.
+                var compile = new MapRootFile.Compile("s2c_rc_probe", inputs, false, false, args.Arguments,
+                                                      steps, MapRootFile.ReadsStaticModelRecords(document), args.EntitiesOnly, map == "cardtest");
                 var ours = MapRootFile.Write(compile, children, MapAssets.References(document, MapSubassets.LumpOrder(entities, document), schema, $"maps/{map}"),
                                              MapSubassets.References(entities, schema, document));
                 compared++;
@@ -295,6 +303,8 @@ public class MapRootFileTests(ITestOutputHelper output)
                 static string Names(KVObject root) => string.Join(" ", root.GetArray("m_ArgumentDependencies")!.Select(a => a.GetStringProperty("m_ParameterName")));
                 output.WriteLine($"  ours  {Names(((ValveResourceFormat.Blocks.ResourceEditInfo2)mine.EditInfo!).Data!.Root)}");
                 output.WriteLine($"  valve {Names(red2)}");
+                foreach (var line in KvTreeDiff.Diff(red2, ((ValveResourceFormat.Blocks.ResourceEditInfo2)mine.EditInfo!).Data!.Root, 40))
+                    output.WriteLine($"  {line}");
             }
         }
         if (compared == 0)

@@ -3132,8 +3132,17 @@ game can answer is raised with the user first, and runs with -insecure.
       byte for byte.
     - Open: s2c_l5probe and s2c_l5farfield128 (fog, far field) have the two lightmapMaxResolution rows the
       other way round (the texture row, 0, first); same rows and sizes otherwise. The order of equal names
-      is presumably an unstable sort over the read order (36 or more rows); not read. The +0x605 flag;
-      which of -phys / -vis a -world -phys -nav build (Fast) reads, from a Valve compile of that preset.
+      is presumably an unstable sort over the read order (36 or more rows); not read. The +0x605 flag.
+    - Settled by capture (2026-10-22, CS2 closed: Valve's compiles of probe01 and cardtest with Hammer's Fast
+      Compile, -world -skipauxfiles -nolightmaps -phys -nav, and Only Entities, -entities -skipauxfiles
+      -nolightmaps -fshallow over the existing package; %TEMP%/preset_fast, preset_entities): a switch given bare
+      is recorded as an IntArg with value 1 (skipauxfiles), a valued one as a FloatArg; Fast reads the same rows
+      as -world -phys (no vis rows: Fast runs no vis). Only Entities reads neither bakelighting nor
+      flattenPropsWithBakedLighting, and force_up_to_date_materials only on cardtest, whose impmodel fails on a
+      material from another addon (probe01's entity models compile and do not record it); that reader is not
+      read yet. Without -fshallow an Only Entities compile of an up-to-date map is skipped whole ("1 skipped")
+      and leaves the package as it was. UnlitMapRootsEqualValves: all 15 Valve references byte for byte.
+      MapCompile does not yet know when a material is missing (MapRootFile.Compile.MaterialMissing).
     - Also from the run: probe01's world_visibility.vvis_c differs only in 4 bytes at 551 (the fingerprint,
       a CRC over a path blob, and the dev box compiled under /tmp); Valve's own probe01 .nav is 9,556, 9,580
       and 9,608 bytes across its runs, so the nav is compared within one run (ledger 109), never against a
