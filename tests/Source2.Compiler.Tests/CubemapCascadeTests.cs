@@ -151,3 +151,71 @@ public sealed class CubemapSunProbe(ITestOutputHelper output)
             output.WriteLine($"pos candidates: {(-m[0] * d):R} {(0.258819252f * d):R} {(0.25881922f * d):R}");
     }
 }
+
+/// <summary>Scratch: how the light block's g_mWorldToShadowCascade relates to the cascade matrices.</summary>
+public sealed class CubemapLightCascadeProbe(ITestOutputHelper output)
+{
+    [Fact]
+    public void Candidates()
+    {
+        if (Environment.GetEnvironmentVariable("CUBELIGHTBLOCK") is not { Length: > 0 } path)
+            return;
+        var block = File.ReadAllBytes(path);
+        var view = CubemapFaceViews.Face(new Vector3(512, 96, 112), Vector3.Zero, 1f, 10000f, 0);
+        var (sun, _, _) = CubemapShadowCascades.SunDirections(new Vector3(74.99999f, 180.00002f, 0f));
+        var cascades = CubemapShadowCascades.Fit(view, sun, CubemapShadowCascades.SplitDistances([75f], 3, 1f, 560f), 1f, 7500f, 7000f, 1280);
+        cascades.AddRange(CubemapShadowCascades.Fit(view, sun, [21f], 0.5f, 1000f, 1500f, 1280));
+        float[] I = [1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f];
+        float[] T(Vector3 o) => [1f, 0f, 0f, o.X, 0f, 1f, 0f, o.Y, 0f, 0f, 1f, o.Z, 0f, 0f, 0f, 1f];
+        var o = new Vector3(512, 96, 112);
+        for (var k = 0; k < 4; k++)
+        {
+            var c = cascades[k];
+            var p = CubemapFaceViews.Mul4(I, c.Projection);
+            var cands = new Dictionary<string, float[]>
+            {
+                ["(PV)T"] = CubemapFaceViews.Mul4(CubemapFaceViews.Mul4(p, c.View), T(o)),
+                ["P(VT)"] = CubemapFaceViews.Mul4(p, CubemapFaceViews.Mul4(c.View, T(o))),
+                ["(P0V)T"] = CubemapFaceViews.Mul4(CubemapFaceViews.Mul4(c.Projection, c.View), T(o)),
+                ["P0(VT)"] = CubemapFaceViews.Mul4(c.Projection, CubemapFaceViews.Mul4(c.View, T(o))),
+            };
+            var off = 31296 + k * 64;
+            foreach (var (name, m) in cands)
+            {
+                var diff = Enumerable.Range(0, 16).Count(i => BitConverter.SingleToUInt32Bits(m[(i % 4) * 4 + i / 4]) != BitConverter.ToUInt32(block, off + i * 4));
+                output.WriteLine($"cascade {k} {name}: {16 - diff} of 16 words equal");
+            }
+        }
+    }
+}
+
+/// <summary>
+/// <see cref="CubemapFaceConstants.LightBlock"/> against probe01 face 0's captured light block
+/// (<c>CUBELIGHTBLOCK=&lt;the 32256-byte blob&gt;</c>): every word that differs, by offset.
+/// </summary>
+public sealed class CubemapLightBlockTests(ITestOutputHelper output)
+{
+    [Fact]
+    public void AgainstTheCapture()
+    {
+        if (Environment.GetEnvironmentVariable("CUBELIGHTBLOCK") is not { Length: > 0 } path)
+            return;
+        var theirs = File.ReadAllBytes(path);
+        var view = CubemapFaceViews.Face(new Vector3(512, 96, 112), Vector3.Zero, 1f, 10000f, 0);
+        var (toSun, lightDir, _) = CubemapShadowCascades.SunDirections(new Vector3(74.99999f, 180.00002f, 0f));
+        var distances = CubemapShadowCascades.SplitDistances([75f], 3, 1f, 560f);
+        var cascades = CubemapShadowCascades.Fit(view, toSun, distances, 1f, 7500f, 7000f, 1280);
+        cascades.AddRange(CubemapShadowCascades.Fit(view, toSun, [21f], 0.5f, 1000f, 1500f, 1280));
+        var color = Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f;
+        var sky = Lighting.SceneLights.SrgbToLinear(138, 200, 255);
+        var sun = new CubemapFaceConstants.Sun(lightDir, color, 0.1f, 0.05f, sky, 0.875f);
+        var volume = new CubemapFaceConstants.LightProbeVolume(new Vector3(512, 96, 112), new Vector3(-768, -1088, -112), new Vector3(768, 896, 176), new Vector3(0, 32, 0));
+        var stretched = CubemapShadowCascades.Slice(view, 1f, distances[^1]).Diameter * 1.42f;
+        int[][] tiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
+        var ours = CubemapFaceConstants.LightBlock(sun, volume, cascades, tiles, 1280, 4352, 5248, new Vector3(512, 96, 112), stretched);
+        var diffs = Enumerable.Range(0, theirs.Length / 4).Where(i => BitConverter.ToUInt32(ours, i * 4) != BitConverter.ToUInt32(theirs, i * 4)).ToList();
+        output.WriteLine($"{theirs.Length / 4 - diffs.Count} of {theirs.Length / 4} words equal");
+        foreach (var i in diffs)
+            output.WriteLine($"  +{i * 4}: ours {BitConverter.ToSingle(ours, i * 4):G9} ({BitConverter.ToUInt32(ours, i * 4):x8}), game {BitConverter.ToSingle(theirs, i * 4):G9} ({BitConverter.ToUInt32(theirs, i * 4):x8})");
+    }
+}

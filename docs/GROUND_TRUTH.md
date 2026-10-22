@@ -3210,12 +3210,32 @@ game can answer is raised with the user first, and runs with -insecure.
       program; its vertex block is AngleMatrix(env_sky angles) transposed (m20 = -sin 0 = -0.0).
     - With our per-view (world and sky), csgo and lightmap blocks in place, face 0's depth prepass, colour
       draws and sky equal the capture.
-    - Open: the general height-fog mapping (entity keys to the 0xd0dd9453 vector); the lightmap block's writer
-      in worldrenderer (taken from m_vLightmapUvScale and the lightmap size); the projection-to-world inverse
-      and clocks (not read by the face); instances and the light block (sweep running); the sun direction
-      from light_environment; the cascade fit (180496ef0, 180494b40: practical splits blended 0.85 with
-      linear, slice bounding spheres, light-space bounds, texel-snapped ortho 180498af0); the binner's
-      inputs.
+    - Settled by port and replay (2026-10-22, later; CubemapShadowCascades, CubemapCascadeTests,
+      CubemapLightBlockTests): the sun cascades. scenesystem's fit (180494b40) over the split distances
+      (180496ef0: the light's given distances, then ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1), the light
+      view 180156120, slices and diameters 1804969e0 (the client's frustum corners, same code), light-space
+      bounds stretched toward the sun by L = max(1.42 x the whole range's diameter, max(max visible,
+      pushback)) (client r_csgo_csm_max_visible_distance 7500, r_csgo_csm_pushback_distance 7000; the
+      viewmodel cascade 0.5 .. 21 with 1000 / 1500), texel-snapped (floorf) x/y, ceilf depth, the
+      double-precision ortho 180498af0, all products through the DPPS 4 x 4 (1804983c0 = client 181746490):
+      all 20 rendered cascades of cube 0 (faces 0-3 and 5; +Z renders none) equal the game's matrices bit for
+      bit. The sun is minus the forward of QuaternionMatrix(AngleQuaternion(light_environment angles)); the
+      light block's direction is that times 1/length, the cascade cameras' direction that divided by length.
+    - Settled by replay: instance records (tint word, 1.0 word and the transform behind the index are read;
+      ours keep the face), the light block (a per-word sweep on the dev box; ours equal every word it reads:
+      PCF terms, AO proxies, sun direction and colour (sRGB to linear times brightness), baked shadow mask,
+      cascade count, receiver bias, sample threshold, cross-fade and distance-fade lerps (1.42 x diameter),
+      g_mWorldToShadowCascade = ((jitter P) V) T(lighting offset) transposed, atlas offsets x/W + half/W),
+      the cascade per-view blocks. With every constant block and buffer of face 0 built by us, the face
+      equals the run with the captured ones. The light binner's outputs and the stride-0 uint4 stream do not
+      affect probe01 (zeroed or all ones): no point lights or env maps there.
+    - The dev box's GTX 1080 (Linux, NVIDIA 580) reproduces the 4070 capture bit for bit on most draws (two
+      colour draws differ by a few bytes), so sweeps and checks there compare with that GPU's own run
+      (CUBEREPLAY_BASELINE, CUBEREPLAY_BASIC_DEVICE).
+    - Open: where d0 = 75 and the max distance 560 come from (the light's cascade distance and shadow far;
+      csgo.fgd removes those keys, defaults not found); the cascade camera's y offset (1 ulp, no effect);
+      the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
+      lights; chaining a whole face from cleared targets.
 
 ## Resolved
 

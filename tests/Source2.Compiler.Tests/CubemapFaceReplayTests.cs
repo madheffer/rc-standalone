@@ -80,6 +80,14 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         int[][] tiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
         for (var k = 0; k < 4; k++)
             ours[cascadeShas[k]] = Cubemaps.CubemapFaceConstants.CascadePerView(cascades[k], cameraDirection, tiles[k][0], tiles[k][1], 1280, 4352, 5248);
+        // The light block: probe01's light_environment and light probe volume.
+        var (_, lightDir, _) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
+        var sunLight = new Cubemaps.CubemapFaceConstants.Sun(lightDir, Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f, 0.1f, 0.05f,
+            Lighting.SceneLights.SrgbToLinear(138, 200, 255), 0.875f);
+        var volume = new Cubemaps.CubemapFaceConstants.LightProbeVolume(new System.Numerics.Vector3(512, 96, 112), new System.Numerics.Vector3(-768, -1088, -112),
+            new System.Numerics.Vector3(768, 896, 176), new System.Numerics.Vector3(0, 32, 0));
+        var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.SplitDistances([75f], 3, 1f, 560f)[^1]).Diameter * 1.42f;
+        ours["37b7646c"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volume, cascades, tiles, 1280, 4352, 5248, new System.Numerics.Vector3(512, 96, 112), stretched);
         var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
         using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");
         var runner = new SceneDrawRunner(gpu);

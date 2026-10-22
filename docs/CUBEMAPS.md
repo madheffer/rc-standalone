@@ -435,9 +435,8 @@ ledger 120.
   lightmaps); building it from Intel's source, as bc7e was, removes that
   dependency.
 - The face render (the "Game" pipeline for the BuildCubemaps view): every
-  action of face 0 reproduced on our device from the captured inputs (above).
-  Next: replace the captured inputs with our own one at a time, each checked
-  by the replay test (views from emu_cube_views, the world's vertex and index
-  streams from our compile, lightmaps from our bake, material constants and
-  textures, the light block and the binner's input), then chain the whole
-  face from cleared targets and reduce it to the EXR.
+  action of face 0 reproduced on our device, and every constant block and
+  buffer it reads built from our data (CubemapFaceViews, CubemapFaceConstants,
+  CubemapShadowCascades; ledgers 120, 121) with the face unchanged. Next:
+  chain a whole face from cleared targets with our geometry, lightmaps and
+  textures, then all faces, then reduce to the EXR and compare with the game's.

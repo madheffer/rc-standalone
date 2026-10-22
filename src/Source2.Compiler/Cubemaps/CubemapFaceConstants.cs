@@ -327,6 +327,131 @@ public static class CubemapFaceConstants
         return b;
     }
 
+    /// <summary>A light probe volume as the light block carries it (env_combined_light_probe_volume).</summary>
+    public sealed record LightProbeVolume(Vector3 Origin, Vector3 BoxMins, Vector3 BoxMaxs, Vector3 EdgeFadeDists);
+
+    /// <summary>The sun as the light block carries it.</summary>
+    public sealed record Sun(Vector3 Direction, Vector3 Color, float CrossFade, float DistanceFade, Vector3 SkyColorLinear, float SkyIntensity);
+
+    /// <summary>
+    /// PerViewLightingConstantBufferGpu_t (scenesystem 1801af7b0; the Vulkan block is 32256 bytes, the cascade
+    /// arrays 4 long). In progress: the fields decoded so far, the rest left 0, compared word for word in
+    /// CubemapLightBlockTests. Cascades: g_mWorldToShadowCascade = ((jitter x P) V) T(lighting offset), transposed
+    /// (checked on all four of probe01's); atlas offsets (tile centre / atlas, half tile / atlas, y negated).
+    /// </summary>
+    public static byte[] LightBlock(Sun sun, LightProbeVolume? volume, IReadOnlyList<CubemapShadowCascades.Cascade> cascades, int[][] tiles, int tileSize,
+                                    int atlasWidth, int atlasHeight, Vector3 lightingOffset, float maxShadowDistance, int frame = 0)
+    {
+        var b = new byte[32256];
+        void F(int offset, float value) => BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(offset), value);
+        void I(int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(b.AsSpan(offset), value);
+        // g_vShadow3x3PCFTermC0..C3: the kernel weights (scenesystem 1806006e0) and texel steps.
+        float[] c0 = [0.0037453184f, 0.026217228f, 0.014981274f, 0.074906364f, 0.123595506f, 0.205992505f, 0f, 0f];
+        for (var i = 0; i < 8; i++)
+            F(i * 4, c0[i]);
+        float[] steps = [-2f, -1f, 1f, 2f];
+        for (var i = 0; i < 4; i++)
+        {
+            F(32 + i * 4, steps[i] / atlasWidth);
+            F(48 + i * 4, steps[i] / atlasHeight);
+        }
+        F(88, 0.00390625f);                                            // g_vScreenSpaceDitherParams.z (1 / 256); x, y random, w from a convar
+        F(92, 0.003921569f);
+        F(100, 1f);                                                    // g_vCubemapNormalizationParams
+        // g_vAmbientLightingSH: z and w of each channel, the sky colour times intensity times 0.5.
+        var sh = new[] { sun.SkyColorLinear.X, sun.SkyColorLinear.Y, sun.SkyColorLinear.Z }.Select(c => c * sun.SkyIntensity * 0.5f).ToArray();
+        for (var i = 0; i < 3; i++)
+        {
+            F(112 + i * 16 + 8, sh[i]);
+            F(112 + i * 16 + 12, sh[i]);
+        }
+        var lum = sh[2] * 0.0722f + sh[1] * 0.7152f + sh[0] * 0.2126f;  // g_vAmbientLightingNormalizationSH
+        var lum95 = lum * 0.95f;
+        F(168, lum <= lum95 ? lum : lum95);
+        F(172, lum);
+        float[] ao = [0.5547002f, 0f, 0.8320503f, 0f, -0.5547002f, 0f, 0.8320503f, 0f, 0f, 0.5547002f, 0.8320503f, 0f, 0f, -0.5547002f, 0.8320503f, 0f,
+                      0.3f, 0.3f, 0.3f, 0.3f, 1f, 1f, 1f, 1f, 0.2f, 0f, 0f, 0f];
+        for (var i = 0; i < ao.Length; i++)
+            F(176 + i * 4, ao[i]);
+        I(308, 8192);                                                  // g_vLightCullParams
+        I(324, 8192);                                                  // g_vEnvMapCullParams
+        I(340, 8192);                                                  // g_vLPVCullParams
+        I(344, volume != null ? 1 : 0);
+        I(352, 3);                                                     // g_vTileCullParams
+        I(356, 128);
+        I(360, 128);
+        I(364, 8);
+        F(368, 0.8192f);                                               // g_vDepthCullParams
+        F(372, 8191f);
+        F(384, 256f);                                                  // g_vEnvironmentMapSizeConstants
+        F(388, 5f);
+        F(392, 8f);
+        if (volume != null)
+        {
+            // g_VisibleLPV[0]: world to volume (a translation), the box padded by 0.1, 1 / edge fade (FLT_MAX for 0).
+            float[] rows = [1f, 0f, -0f, -volume.Origin.X, 0f, 1f, 0f, -volume.Origin.Y, 0f, 0f, 1f, -volume.Origin.Z];
+            for (var i = 0; i < 12; i++)
+                F(18832 + i * 4, rows[i]);
+            F(18880, volume.BoxMins.X - 0.1f);
+            F(18884, volume.BoxMins.Y - 0.1f);
+            F(18888, volume.BoxMins.Z - 0.1f);
+            F(18896, volume.BoxMaxs.X + 0.1f);
+            F(18900, volume.BoxMaxs.Y + 0.1f);
+            F(18904, volume.BoxMaxs.Z + 0.1f);
+            float Inv(float d) => d != 0f ? 1f / d : 3.4028235e38f;
+            F(18912, Inv(volume.EdgeFadeDists.X));
+            F(18916, Inv(volume.EdgeFadeDists.Y));
+            F(18920, Inv(volume.EdgeFadeDists.Z));
+        }
+        F(31120, sun.Direction.X);                                     // g_vFastPathSunLightDir
+        F(31124, sun.Direction.Y);
+        F(31128, sun.Direction.Z);
+        F(31132, 0.04f);
+        F(31136, sun.Color.X);                                         // g_vFastPathSunLightColor
+        F(31140, sun.Color.Y);
+        F(31144, sun.Color.Z);
+        F(31152, 1f);                                                  // g_vFastPathSunLightBakedShadowMask
+        I(31168, -1);
+        I(31172, -1);
+        I(31176, 65535);
+        I(31248, cascades.Count - 1);                                  // g_nShadowCascadeCount (the viewmodel cascade not counted)
+        I(31252, 2);
+        F(31256, -1.526e-05f);                                         // g_flShadowCascadeReceiverDepthBias
+        F(31260, -0.00015f);
+        for (var i = 0; i < 4; i++)
+            F(31264 + i * 4, 1f);                                      // g_vShadowCascadeSampleThreshold
+        var cf = Math.Clamp(sun.CrossFade, 0.001f, 0.5f);
+        F(31280, -(1f - cf) / cf);                                     // split lerp
+        F(31284, 1f / cf);
+        var df = Math.Clamp(sun.DistanceFade, 0.001f, 0.5f);
+        var fadeRange = maxShadowDistance * df;
+        F(31288, -((1f - df) * maxShadowDistance) / fadeRange);        // z lerp
+        F(31292, 1f / fadeRange);
+        float[] identity = [1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f];
+        float[] shift = [1f, 0f, 0f, lightingOffset.X, 0f, 1f, 0f, lightingOffset.Y, 0f, 0f, 1f, lightingOffset.Z, 0f, 0f, 0f, 1f];
+        for (var k = 0; k < cascades.Count && k < 4; k++)
+        {
+            var m = CubemapFaceViews.Mul4(CubemapFaceViews.Mul4(CubemapFaceViews.Mul4(identity, cascades[k].Projection), cascades[k].View), shift);
+            for (var r = 0; r < 4; r++)
+                for (var c = 0; c < 4; c++)
+                    F(31296 + k * 64 + (r * 4 + c) * 4, m[c * 4 + r]);
+            var half = tileSize * 0.5f;
+            F(31808 + k * 16, (float)tiles[k][0] / atlasWidth + half / atlasWidth);   // g_vShadowCascadeAtlasOffset
+            F(31812 + k * 16, (float)tiles[k][1] / atlasHeight + half / atlasHeight);
+            F(31816 + k * 16, half / atlasWidth);
+            F(31820 + k * 16, -(half / atlasHeight));
+        }
+        I(31960, volume != null ? 1 : 0);                              // g_nNumLPVs
+        for (var i = 0; i < 16; i++)
+        {
+            // g_vShadowSampleRotations: V_sincosf(i / 16 * 2 pi + (frame mod 32) * golden ratio).
+            var a = i * 0.0625f * 6.2831855f + (frame & 31) * 1.618034f;
+            F(31968 + i * 16, Simulation.CrtMath.Sin(a));
+            F(31972 + i * 16, Simulation.CrtMath.Cos(a));
+        }
+        return b;
+    }
+
     /// <summary>The inverse of the full world-to-projection (projection times world-to-view, translation included).</summary>
     private static float[] ProjectionToWorld(CubemapFaceViews.View v)
     {
