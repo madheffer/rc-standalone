@@ -34,6 +34,7 @@ public class VisMergeReplay(ITestOutputHelper output)
     private static readonly Dictionary<string, string> Addons = new()
     {
         ["probe01"] = "s2c_rc_probe", ["cardtest"] = "s2c_rc_probe", ["ze_hold_em_p"] = "s2c_rc_probe",
+        ["s2c_prefabprobe4"] = "s2c_rc_probe",
     };
 
     [Fact]
@@ -309,6 +310,7 @@ public class VisMergeReplay(ITestOutputHelper output)
         if (VisFixtures.RayTraceScene(Addons[map], map) is not var (rte, shipped))
             return;
 
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         var tree = VisVoxelizer.Build(rte, shipped.MinBounds, shipped.MaxBounds, shipped.GridSize);
         var side = VisVoxelizer.VoxelsPerRoot(shipped.MinBounds, shipped.MaxBounds, shipped.GridSize)
                  / VisVoxelizer.VoxelsPerLeaf;
@@ -316,8 +318,10 @@ public class VisMergeReplay(ITestOutputHelper output)
         var inside = VisOutside.Detect(tree, regions, rte, shipped.GridSize);
         var compact = VisRegions.Compact(regions, inside.Regions);
         var cube = VisClusters.Cubes(tree, compact);
+        output.WriteLine($"voxelize, outside, compact: {clock.Elapsed.TotalSeconds:F0} s");
         var sets = VisClusters.Generate(rte, tree, compact);
         var generated = sets.Sum(x => x.Clusters.Count);
+        output.WriteLine($"generation: {clock.Elapsed.TotalSeconds:F0} s");
         var ourRounds = new List<List<(Vector3 Mins, Vector3 Maxs)>>();
         var pre = VisPreMerge.Run(sets, r => ourRounds.Add([.. r]));
         var premerge = Path.Combine(Path.GetTempPath(), "vis_capture", map + ".premerge.jsonl");
@@ -443,9 +447,10 @@ public class VisMergeReplay(ITestOutputHelper output)
             output.WriteLine($"chain final: {sets.Sum(x => x.Clusters.Count)} clusters (target {target})");
         }
 
+        // A --passes capture carries no leaf boxes: its pairs are then compared by mask alone.
         string Key(VisMerge.Cluster c, Func<int, Vector3> corner)
             => $"{c.Mins}{c.Maxs}|{c.VoxelCount}|{c.VoxelSize}|{c.Tag}|{c.OpenSpace}|"
-             + string.Join(",", c.Voxels.Select(v => $"{v.Mask:x}@{corner(v.Leaf)}").Order());
+             + string.Join(",", c.Voxels.Select(v => leaves.Count == 0 ? $"{v.Mask:x}" : $"{v.Mask:x}@{corner(v.Leaf)}").Order());
         Vector3 Ours(int leaf) => cube(leaf).Corner;
         Vector3 Theirs(int leaf) => leaves.TryGetValue(leaf, out var b) ? b.Item1 : new Vector3(float.NaN);
 
@@ -592,6 +597,110 @@ public class VisMergeReplay(ITestOutputHelper output)
             Voxels = [.. c.Voxels], Mins = c.Mins, Maxs = c.Maxs, VoxelCount = c.VoxelCount,
             VoxelSize = c.VoxelSize, Tag = c.Tag, OpenSpace = c.OpenSpace,
         })];
+
+    /// <summary>
+    /// Each merge pass on its own, from the sets Valve handed it, against the sets Valve handed the next pass
+    /// (the last against its "passout"): <c>PASSREPLAY=&lt;map&gt;</c> over a capture_merge.py --passes capture
+    /// (%TEMP%/vis_capture/&lt;map&gt;.bin, .merge.rte, .merge.viscfg); <c>PASSREPLAY_PASS=k</c> runs one pass.
+    /// Valve's leaf ids map to ours through the region list (OutsideCaptureTests shows both the same, in order),
+    /// so no pass waits on generation or on the passes before it. Pass k's cost limit is the chain's: the
+    /// threshold for pass 0, else what our replay of pass k - 1 returned (PASSREPLAY_LIMIT=&lt;float bits hex&gt;
+    /// gives it instead).
+    /// </summary>
+    [Fact]
+    public void EachPassFromValvesInput()
+    {
+        if (Environment.GetEnvironmentVariable("PASSREPLAY") is not { Length: > 0 } map)
+            return;
+        var stem = Path.Combine(Path.GetTempPath(), "vis_capture", map);
+        Read(stem + ".bin");
+        var passOuts = PassOuts(stem + ".bin");
+        var rte = RayTraceEnvironment.ReadFile(stem + ".merge.rte");
+        var config = VisConfig.Read(stem + ".merge.viscfg");
+        const float voxel = 8f;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var (mins, maxs) = rte.TracedBounds;
+        var (min, max) = VisVoxelizer.RootCube(mins, maxs, voxel);
+        var tree = VisVoxelizer.Build(rte, min, max, voxel, VisVoxelizer.VoxelHints(config.Hints, mins, maxs, min, max, voxel));
+        var regions = VisRegions.Build(tree, VisVoxelizer.VoxelsPerRoot(min, max, voxel) / VisVoxelizer.VoxelsPerLeaf);
+        var inside = VisOutside.Detect(tree, regions, rte, voxel);
+        var compact = VisRegions.Compact(regions, inside.Regions);
+        var target = VisClusters.PassTarget(tree, compact);
+        var cube = VisClusters.Cubes(tree, regions);
+
+        // Valve's leaf id -> our (uncompacted) leaf index, region by region.
+        using var capture = new VisBigReplay.CaptureFile(stem + ".bin");
+        var entry = capture.Blob("regions");
+        var valveLeaves = Enumerable.Range(0, entry.Length / 16).Where(i => (BitConverter.ToUInt32(entry, i * 16 + 4) & 2) == 0)
+                                    .Select(i => (int)(BitConverter.ToUInt32(entry, i * 16 + 4) >> 2)).ToArray();
+        Assert.Equal(regions.Regions.Count, valveLeaves.Length);
+        var toOurs = new Dictionary<int, int>();
+        for (var i = 0; i < valveLeaves.Length; i++)
+            toOurs[valveLeaves[i]] = regions.Regions[i].Leaf;
+        output.WriteLine($"front stages {clock.Elapsed.TotalSeconds:F0} s, target {target}, leaves mapped {toOurs.Count:n0}");
+
+        List<VisClusterSet.Set> Ours(List<List<VisMerge.Cluster>> sets) => [.. sets.Select(s => new VisClusterSet.Set
+        {
+            Clusters = [.. s.Select(c => new VisMerge.Cluster
+            {
+                Voxels = [.. c.Voxels.Select(v => (v.Mask, toOurs.TryGetValue(v.Leaf, out var o) ? o : throw new InvalidOperationException($"Valve leaf {v.Leaf} has no region"))) ],
+                Mins = c.Mins, Maxs = c.Maxs, VoxelCount = c.VoxelCount, VoxelSize = c.VoxelSize, Tag = c.Tag, OpenSpace = c.OpenSpace,
+            })],
+        })];
+        string Brief(VisMerge.Cluster c) => $"{c.Mins}{c.Maxs}|{c.VoxelCount}|{c.VoxelSize}|{c.Tag}|{c.OpenSpace}|"
+                                           + string.Join(",", c.Voxels.Select(v => $"{v.Mask:x}@{cube(v.Leaf).Corner}"));
+
+        var only = int.TryParse(Environment.GetEnvironmentVariable("PASSREPLAY_PASS"), out var p) ? p : -1;
+        var limit = VisClusters.MergeThreshold;
+        if (Environment.GetEnvironmentVariable("PASSREPLAY_LIMIT") is { Length: > 0 } hex)
+            limit = BitConverter.Int32BitsToSingle(Convert.ToInt32(hex, 16));
+        for (var k = 0; k < VisClusterSet.Passes.Length; k++)
+        {
+            if (only >= 0 && k != only)
+                continue;
+            var pass = VisClusterSet.Passes[k];
+            var sets = Ours(Entries[k].Sets);
+            var started = clock.Elapsed.TotalSeconds;
+            var returned = VisClusterSet.Regrid(rte, sets, pass.Cell, pass.Margin, limit, (int)(target * pass.Budget), cube);
+            var valveOut = Ours(k + 1 < VisClusterSet.Passes.Length ? Entries[k + 1].Sets : passOuts[k]);
+            var mine = sets.Select(s => string.Join(";", s.Clusters.Select(Brief))).ToList();
+            var theirs = valveOut.Select(s => string.Join(";", s.Clusters.Select(Brief))).ToList();
+            var differing = Enumerable.Range(0, Math.Min(mine.Count, theirs.Count)).Where(i => mine[i] != theirs[i]).ToList();
+            output.WriteLine($"pass {k}: {clock.Elapsed.TotalSeconds - started:F0} s, limit {limit:R} -> {returned:R}; sets ours {mine.Count} valve {theirs.Count},"
+                           + $" clusters ours {sets.Sum(s => s.Clusters.Count)} valve {valveOut.Sum(s => s.Clusters.Count)}, differing sets {differing.Count}"
+                           + (differing.Count > 0 ? $" first {differing[0]}" : ""));
+            if (differing.Count > 0)
+            {
+                var i = differing[0];
+                output.WriteLine($"  set {i} ours   {mine[i][..Math.Min(400, mine[i].Length)]}");
+                output.WriteLine($"  set {i} valve  {theirs[i][..Math.Min(400, theirs[i].Length)]}");
+            }
+            limit = returned;
+        }
+    }
+
+    // capture_merge.py --passes's "passout" records: the sets each pass leaves.
+    private static Dictionary<int, List<List<VisMerge.Cluster>>> PassOuts(string path)
+    {
+        var found = new Dictionary<int, List<List<VisMerge.Cluster>>>();
+        using var reader = new BinaryReader(File.OpenRead(path));
+        while (reader.BaseStream.Position < reader.BaseStream.Length)
+        {
+            var head = JsonDocument.Parse(reader.ReadBytes(reader.ReadInt32())).RootElement;
+            var blob = reader.ReadBytes(reader.ReadInt32());
+            if (head.GetProperty("ev").GetString() != "passout")
+                continue;
+            var sets = new List<List<VisMerge.Cluster>>();
+            for (var at = 0; at < blob.Length;)
+            {
+                var length = BitConverter.ToInt32(blob, at + 4);
+                sets.Add(Clusters(blob[(at + 8)..(at + 8 + length)]));
+                at += 8 + length;
+            }
+            found[head.GetProperty("pass").GetInt32()] = sets;
+        }
+        return found;
+    }
 
     private sealed record Entry(Vector3 SceneMins, Vector3 SceneMaxs, List<List<VisMerge.Cluster>> Sets);
 

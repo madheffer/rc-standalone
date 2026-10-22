@@ -608,7 +608,22 @@ public class VisBigReplay(ITestOutputHelper output)
         var sizes = Enumerable.Range(0, infos.Length / 4).Select(i => (int)BitConverter.ToUInt16(infos, i * 4)).ToArray();
         var volume = VisClusterList.Volume(s, steps.GetProperty("premergeVolume").GetDouble(), steps.GetProperty("premergeGroups").GetInt32());
         output.WriteLine($"volume {volume:n0}, target {VisClusterList.Target(volume)}");
+        // BIGMERGE_TRACE=<from>,<to>: our rounds and takes around those merge indices.
+        var traced = new List<string>();
+        if (Environment.GetEnvironmentVariable("BIGMERGE_TRACE") is { Length: > 0 } window && window.Split(',') is [var fromText, var toText])
+        {
+            var (from, to) = (int.Parse(fromText), int.Parse(toText));
+            VisClusterList.Trace = line =>
+            {
+                var at = int.Parse(System.Text.RegularExpressions.Regex.Match(line, @"(?:take|merge) (\d+)").Groups[1].Value);
+                if (from <= at && at <= to)
+                    lock (traced) traced.Add(line);
+            };
+        }
         var result = VisClusterList.Run(s, Matrix(cap, "matrix"), sizes, volume);
+        VisClusterList.Trace = null;
+        foreach (var line in traced)
+            output.WriteLine(line);
 
         var theirs = new List<(int, int)>();
         for (var k = 0; cap.Has("merges" + k); k++)

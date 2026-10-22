@@ -6,17 +6,57 @@ stage by stage. Function addresses are in [`ADDRESSES.md`](ADDRESSES.md)
 
 ## Status
 
-Every stage is exact, on Valve's captured inputs and end to end:
+Every stage is exact on the maps below, on Valve's captured inputs and end to end (atixref-sized maps: see Open):
 - **From Valve's .rte:** probe01, cardtest and ze_hold_em_p give a
   byte-identical VXVS (239,244, 243,546 and 129,978 bytes). Mako's captured
   run is exact in every stage, VXVS 6,561,250 bytes.
 - **From our own trace scene (built from the .vmap):** probe01, cardtest and
-  ze_hold_em_p give a byte-identical VXVS. atixref and Mako have not been run
-  end to end; atixref's cluster generation alone takes about an hour.
+  ze_hold_em_p give a byte-identical VXVS. On s2c_prefabprobe4 (atixref as a
+  prefab) the chain took 5.5 h and differs (Open).
 - **Visibility hints** come from the .vmap: Mako's `.viscfg` hints are
   rebuilt bit for bit, and its octree node count matches Valve's (2,643,577).
 
 Open:
+- **atixref-sized maps diverge (s2c_prefabprobe4, 2026-10-23).** Section by
+  section against Valve's own state (captures below), on the 10-15 build:
+  - Exact: voxelize, regions (316,957) and outside verdicts (OutsideCaptureTests,
+    9 s); cluster generation and the pre-merge, 164,252 sets in content and
+    position (TheGenerationAgainstTheCapture, 136 s); from Valve's scan-entry
+    state: the first scan generator, the pair limit, borders and their claims,
+    the rewrite, AssignClusters2, FlatVisClusterVector (4,096/4,096), sky, sun,
+    the collapse, the output and the tracer tree.
+  - **Divergence 1, cluster centres** (`TheClusterCentresOnABigMap`, 6 min):
+    the boundary-point generator's pass 0 pairs equal Valve's; pass 1 gives
+    44,756,786 pairs against Valve's 44,756,944, passes 2 to 4 differ after it,
+    5 to 9 equal. The pairs are made from the matrix pass 0 left, so look first
+    at what pass 0's rays set (the pairs agree, the matrix after may not).
+  - **Divergence 2, large cluster regions** (`TheLargeClusterRegions`, 4 min):
+    both passes' pairs equal Valve's in order (387,305 and 10), but the matrix
+    after has 5 of 23,534 rows differing (2 bits ours only, 6 Valve's only),
+    so a few rays decide differently: 155 million rays, find them with
+    BIGSEG/BIGKD on the differing rows' clusters.
+  - **Divergence 3, the vis-cluster merge** (`TheSteppedAndPartitionedMerge`,
+    6 min, on Valve's post-scan matrix): 19,438 merges each, the first 9,115
+    identical; then Valve takes (13977, 14235), (7507, 7515), (16382, 16383)
+    and we take (16382, 16383) first. All three are partition 2 (16,384 records,
+    5 partitions), so either our cost for 16382 is lower or our round boundary
+    falls elsewhere. `BIGMERGE_TRACE=9100,9125` prints our rounds and takes
+    there (VisClusterList.Trace); it has not been run yet.
+  - **Not measured: the five merge passes.** `PASSREPLAY=s2c_prefabprobe4`
+    (VisMergeReplay.EachPassFromValvesInput) runs each pass from Valve's own
+    input and compares with Valve's next input; it was stopped unrun for the
+    CS2 update. The passes are where the 5.5 h end-to-end run went (generation
+    is 136 s), so expect a pass to take long; `PASSREPLAY_PASS=k` runs one.
+  - Captures (CS2 10-15 build, %TEMP%/vis_capture): s2c_prefabprobe4.pvs.bin
+    with .rte/.viscfg (capture_pvs.py, the back half: BIGPVS=s2c_prefabprobe4
+    BIGPVS_ADDON=s2c_rc_probe), s2c_prefabprobe4.bin with .merge.rte/.merge.viscfg
+    (capture_merge.py --passes: OUTSIDECAP=… OUTSIDECAP_PASSES=…, REPLAY=…,
+    PASSREPLAY=…). They are data and stay valid as long as the map, the .rte
+    and our port are unchanged; after a CS2 update run tools/re/patch_check.py
+    first, and recapture if visbuilder changed (Valve's whole front half under
+    --passes is 6 min, capture_pvs.py about 25 min).
+  - `TheBordersOnABigMap` also needs the map's installed package (for its
+    vvis); it failed only because a capture had the package moved aside.
 - The whole chain is not yet called by `compile-map`; `TheWholeBuild` is the
   reference order.
 - Split hints (types 4 to 6) are ported but untested: no specimen has one.

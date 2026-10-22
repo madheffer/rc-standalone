@@ -112,7 +112,9 @@ carries the same state per item.
    where it is made is not traced), Steam Audio (no workshop map has it).
 6. **Geometry:** heap-ordered prop aggregate parts (Valve varies run to run),
    subdivided entries' tangents, overlay tangents, detail grass.
-7. **Visibility:** Mako end to end, and wiring vis into a world build.
+7. **Visibility:** atixref-sized maps diverge in three back-half stages and the merge
+   passes are unmeasured: VISIBILITY.md Open has each divergence, its test and the
+   captures (in progress 2026-10-23, stopped for a CS2 update). Then wiring vis into a world build.
 8. **Entities:** the light keys are done (atixref and Mako 0 differences, 2026-10-22). Left: prefabs with
    fixupEntityNames, a prefab in a prefab, a prefab beside the map's own instances (refused, not captured);
    our vis end to end on atixref-sized maps (prefabprobe4 vis clusters are exact from Valve's captured boxes).
@@ -120,7 +122,26 @@ carries the same state per item.
    references, a package made only of our outputs; glTF export, model
    internals, shaders.
 
-## Latest session (2026-10-22)
+## Latest session (2026-10-22/23, ended for a CS2 update)
+
+- First after the update: `tools/re/patch_check.py` then `build_diff.py`; the
+  10-15 addresses in tools/re/capture_argdeps.py (WRITER_RVA, RECORDER_RVA)
+  and the vis captures' hooks may move.
+- .vmap_c: argument rows in read order then MSVC std::sort (ledger 119); all 40
+  Valve roots exact; Hammer's Only Entities preset whole-package exact (ParityReport
+  PARITY_BASE). Tool: tools/re/capture_argdeps.py (Frida on resourcecompiler).
+- Entity lumps: the test allows no light or baked-key difference; the prefab probes
+  run again from the addon's packages; precomputed_vis_clusters only on lights still
+  directlight 3 after the shadow slot step (ledger 122); LUMP_FLATBOXES=<capture>
+  checks lights against Valve's own cluster boxes.
+- Visibility on atixref-sized maps: stage-by-stage status, three divergences, the
+  unmeasured merge passes and the captures are in VISIBILITY.md Open. Valve's front
+  half is 6 min, ours 5.5 h (the merge passes); speed work waits for parity (user).
+- Machines: run on this PC (Ryzen); the dev box only when the user says the PC is busy.
+- Full suite last run 984/984 before the lump-test tightening; the lump, vis and
+  .vmap_c tests touched since pass (33/33 and the prefab probes).
+
+## Previous session (2026-10-22)
 
 - Cascade inputs traced to the binaries and settled by a Frida capture in
   cubehost (`cs2_closed_session.py --cascades`): 560 is

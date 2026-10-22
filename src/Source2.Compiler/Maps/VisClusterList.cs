@@ -299,6 +299,9 @@ public static class VisClusterList
     // Logs_MergedToClustersInSSRecomputePasses: recompute the stale cost lists,
     // take every candidate within the factor of the cheapest and merge it, until
     // the live count reaches the target; then renumber.
+    /// <summary>Diagnostics: told each round of the merge and each pair it takes with its cost and threshold.</summary>
+    public static Action<string>? Trace { get; set; }
+
     private static void Merge(List list, VisPvs.Matrix matrix, int target, int reserved, float factor,
                               List<(int, int)> merges)
     {
@@ -333,6 +336,8 @@ public static class VisClusterList
                     Recompute(list, matrix, partition);
                     candidates = PartitionCandidates(list, partition);
                 }
+                Trace?.Invoke($"round {round} partition {partition} candidates {candidates.Count} at merge {merges.Count} live {list.Live}: "
+                              + string.Join(" ", candidates.Take(12).Select(x => $"{x.Id}:{x.Cost}")));
                 if (candidates.Count != 0)
                     Take(list, matrix, candidates, target, factor, merges);
                 if (!(target < list.Live) || ++round >= 32)
@@ -362,6 +367,7 @@ public static class VisClusterList
             if (other < c || list.Records[other].Weight == 0)
                 break;
             Pair(list, matrix, c, other);
+            Trace?.Invoke($"  take {merges.Count}: ({c}, {other}) cost {cost} threshold {threshold}");
             merges.Add((c, other));
             remaining--;
         }
