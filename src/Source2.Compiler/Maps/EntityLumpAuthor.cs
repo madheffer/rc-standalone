@@ -111,7 +111,8 @@ public static partial class EntityLumpAuthor
     /// A full world build's lump: RED2 lists every distinct resource_name value
     /// of the lump, sorted, as weak references, and says UsesBuilderEntityKeys
     /// (probe01's default_ents: the cubemap array, the brush models, the sky
-    /// material, the post process). An entities-only build writes neither.
+    /// material, the post process). An Only Entities build writes the same (Valve's
+    /// probe01 and cardtest, 10-22: its default_ents equals the full build's; ledger 119).
     /// </summary>
     public static byte[] CompileFull(KVObject lump) => Source2ContainerAuthor.AuthorKv3Tree(lump, Format, ".vents", red2 =>
     {

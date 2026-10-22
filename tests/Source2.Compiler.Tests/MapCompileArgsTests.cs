@@ -119,8 +119,14 @@ public class MapCompileArgsTests(ITestOutputHelper output)
         var world = Physics.WorldPhysicsFiles.Build(document, "s2c_rc_probe", "s2c_rounds", assets, null, []);
         expected[world.ModelPath] = world.Model;
         expected[world.ManifestPath] = world.Manifest;
+        // Only Entities compiles the entity models again and writes the map root (ledger 119; the root's
+        // bytes are MapRootFileTests').
+        foreach (var m in Physics.EntityPhysicsModels.Build(document, "s2c_rounds", assets.Material, assets.CollisionProperty, MapFixtures.GameSchema(), null, assets.SmartProp))
+            expected[m.Path + "_c"] = m.PhysicsOnly ? Physics.EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
         foreach (var (path, bytes) in after)
         {
+            if (path == "maps/s2c_rounds.vmap_c")
+                continue;
             var want = expected.TryGetValue(path, out var built) ? built : before[path];
             Assert.True(want.AsSpan().SequenceEqual(bytes), $"{path} is not what the build wrote");
         }

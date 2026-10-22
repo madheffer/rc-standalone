@@ -142,7 +142,7 @@ public static class EntityLumpSet
             children.AddRange(TemplatePass(items, schema, worldName));
 
         var lumps = new List<Lump>();
-        Func<KVObject, byte[]> compile = entitiesOnly || document is null ? EntityLumpAuthor.Compile : EntityLumpAuthor.CompileFull;
+        Func<KVObject, byte[]> compile = document is null ? EntityLumpAuthor.Compile : EntityLumpAuthor.CompileFull;
         foreach (var (name, items) in worlds)
             lumps.Add(new Lump(PathOf(worldName, name), name, compile(
                 EntityLumpAuthor.Lump(name,

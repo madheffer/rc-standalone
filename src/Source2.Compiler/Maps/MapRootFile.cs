@@ -26,10 +26,11 @@ public static class MapRootFile
     /// <param name="Steps">The builders that ran (MapCompileArgs.Builders names); null for a full build.</param>
     /// <param name="FlattenProps">A static model record is made (<see cref="ReadsStaticModelRecords"/>).</param>
     /// <param name="EntitiesOnly">An Only Entities build (MapCompileArgs.EntitiesOnly): no bake decision is read.</param>
-    /// <param name="MaterialMissing">A model the build compiles references a material that does not load.</param>
+    /// <param name="EntityRenderModels">The build compiles an entity model with a render mesh, or one that fails on a
+    /// missing material (<see cref="ReadsMeshArguments"/>).</param>
     public sealed record Compile(string Addon, IReadOnlyList<(string Path, uint Crc)> Inputs, bool Baked, bool ProbeVolumes,
                                  IReadOnlyDictionary<string, object> Arguments, IReadOnlySet<string>? Steps = null,
-                                 bool FlattenProps = false, bool EntitiesOnly = false, bool MaterialMissing = false)
+                                 bool FlattenProps = false, bool EntitiesOnly = false, bool EntityRenderModels = false)
     {
         public bool Runs(string step) => Steps is null ? step is "world" or "phys" or "vis" or "bakedlighting" : Steps.Contains(step);
     }
@@ -56,6 +57,16 @@ public static class MapRootFile
         }
         return false;
     }
+
+    /// <summary>
+    /// Whether the entity models' compiles read the mesh arguments (ModelCompile_ReadMeshArgs, 0923 1802f9cc0):
+    /// a model with a render mesh does, and so does one that fails on a missing material (cardtest's impmodel
+    /// reads them first). force_up_to_date_materials is given to no context, so its row goes up to the map;
+    /// a physics-only model reads only keep_vertices and its classname, which its own context is given
+    /// (capture_argdeps.py --trace on Valve's Only Entities compiles of probe01 and cardtest, ledger 119).
+    /// </summary>
+    public static bool ReadsMeshArguments(IEnumerable<Physics.EntityPhysicsModels.Model> models, IReadOnlyCollection<string> failed)
+        => failed.Count > 0 || models.Any(m => !m.PhysicsOnly);
 
     // A brush entity: a CMapMesh among its children (the model it gets).
     private static bool HasMesh(DmxBinary.Element element)
@@ -176,9 +187,8 @@ public static class MapRootFile
         }
 
         // The arguments in read order, then MSVC's std::sort by V_stricmp_fast (ReadOrder).
-        // An Only Entities build (Valve's probe01 and cardtest, 10-22) reads force_up_to_date_materials only where a
-        // model's material does not load (cardtest's impmodel; its reader there is not read yet, ledger 119).
-        var names = new List<string>(compile.EntitiesOnly && !compile.MaterialMissing ? Always.Skip(1) : Always);
+        // An Only Entities build reads force_up_to_date_materials only through its entity models (ReadsMeshArguments).
+        var names = new List<string>(compile.EntitiesOnly && !compile.EntityRenderModels ? Always.Skip(1) : Always);
         if (children.Any(c => c.Contains("/worldnodes/", StringComparison.Ordinal) && c.EndsWith(".vmdl", StringComparison.Ordinal)))
             names.AddRange(WorldNodeModels);
         if (compile.Runs("phys"))

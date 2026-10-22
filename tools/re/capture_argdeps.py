@@ -1,11 +1,12 @@
-"""capture_argdeps.py <addon> <map> [--out file] [--full] [-- extra rc args]: each resource's argument rows in read order.
+"""capture_argdeps.py <addon> <map> [--out file] [--full] [--over] [--trace name]... [-- extra rc args]: argument rows in read order.
 
 Hooks the edit info writer (09-23 FUN_18016c650, 10-15 0x18016c880) on entry: the compile context
 holds the m_ArgumentDependencies rows at +0x158 (count) / +0x160 (24-byte entries: CUtlString name,
 CUtlString type, fingerprint, default) in the order the steps first read them (the recorder
 FUN_180174f90 appends a row it has not seen to the context and each parent). The writer then
 std::sorts them by V_stricmp_fast on the name (FUN_18017a9c0), so this is the sort's input. One JSON
-line per resource: its names at +0x80 / +0x90 and the rows. Ledger 119.
+line per resource: its names at +0x80 / +0x90 and the rows. --trace hooks the recorder (10-15 0x1801751c0)
+and sends a backtrace each time the named argument is recorded. Ledger 119.
 
 CS2 must be closed (the compile is killed if it starts), 10 GB must be free, and the map's package is
 backed up first and restored, cmp-checked, afterwards; the compile's own package is kept at <out>.vpk.
@@ -23,8 +24,9 @@ import frida
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
-# resourcecompiler.dll 2026-10-15 (port_addr.py from the 09-23 build's 18016c650).
+# resourcecompiler.dll 2026-10-15 (port_addr.py from the 09-23 build's 18016c650 and 180174f90).
 WRITER_RVA = 0x16c880
+RECORDER_RVA = 0x1751c0
 
 AGENT = r"""
 'use strict';
@@ -46,6 +48,18 @@ function hook() {
       send({ev: 'args', a: cstr(ctx.add(0x80).readPointer()), b: cstr(ctx.add(0x90).readPointer()), rows: rows});
     }
   });
+  const trace = %(trace)s;
+  if (trace.length) Interceptor.attach(mod.base.add(%(recorder)d), {
+    onEnter(args) {
+      const name = cstr(args[2].readPointer());
+      if (trace.indexOf(name) < 0) return;
+      const frames = Thread.backtrace(this.context, Backtracer.ACCURATE).map(f => {
+        const m = Process.findModuleByAddress(f);
+        return m === null ? f.toString() : m.name + '+0x' + f.sub(m.base).toString(16);
+      });
+      send({ev: 'trace', name: name, ctx: cstr(args[0].add(0x90).readPointer()), frames: frames});
+    }
+  });
 }
 hook();
 """
@@ -65,6 +79,8 @@ def main():
     p.add_argument("map")
     p.add_argument("--out")
     p.add_argument("--full", action="store_true", help="a full compile rather than -world -fshallow")
+    p.add_argument("--over", action="store_true", help="compile over the existing package (no -world -fshallow added)")
+    p.add_argument("--trace", action="append", default=[], help="argument name: a backtrace each time it is recorded")
     a = p.parse_args(argv)
     if running("cs2.exe") or running("resourcecompiler.exe"):
         raise SystemExit("CS2 or a compile is running; not starting")
@@ -77,7 +93,8 @@ def main():
     backup = out_path + ".vpk.bak"
     if os.path.exists(vpk):
         shutil.copy2(vpk, backup)  # keeps the write time (tests take a newer package as a compile's output)
-        os.remove(vpk)  # a current package makes RC skip the compile
+        if not a.over:
+            os.remove(vpk)  # a current package makes RC skip the compile
 
     out = open(out_path, "w", encoding="utf-8")
     lock = threading.Lock()
@@ -89,19 +106,19 @@ def main():
             return
         pay = msg["payload"]
         stats[pay["ev"]] = stats.get(pay["ev"], 0) + 1
-        if pay["ev"] == "args":
+        if pay["ev"] in ("args", "trace"):
             with lock:
                 out.write(json.dumps(pay) + "\n")
 
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     cmd = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
-    if not a.full:
+    if not a.full and not a.over:
         cmd += ["-world", "-fshallow"]
     cmd += extra
     dev = frida.get_local_device()
     pid = dev.spawn(cmd, cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT % {"rva": WRITER_RVA})
+    sc = ses.create_script(AGENT % {"rva": WRITER_RVA, "recorder": RECORDER_RVA, "trace": json.dumps(a.trace)})
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

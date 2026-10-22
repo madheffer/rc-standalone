@@ -11,7 +11,8 @@ namespace Source2.Compiler.Tests;
 /// it against Valve's package: per role, how many of Valve's files we write
 /// byte for byte and what share of Valve's bytes they hold. A file we do not
 /// write, or write differently, scores nothing. <c>PARITY_KEEP=1</c> leaves
-/// our package in place; <c>PARITY_LIST=n</c> lists the n largest misses.
+/// our package in place; <c>PARITY_LIST=n</c> lists the n largest misses;
+/// <c>PARITY_BASE=&lt;vpk&gt;</c> starts from that package instead of an empty one.
 /// </summary>
 public class ParityReport(ITestOutputHelper output)
 {
@@ -265,7 +266,11 @@ public class ParityReport(ITestOutputHelper output)
             var log = new StringWriter();
             var args = MapCompileArgs.Parse(["-i", source, "-outroot", outRoot, .. switches.Split(' ', StringSplitOptions.RemoveEmptyEntries)]);
             Directory.CreateDirectory(Path.GetDirectoryName(package)!);
-            File.WriteAllBytes(package, Io.VpkWriter.Write(new Dictionary<string, byte[]>()));
+            // PARITY_BASE=<vpk>: start from that package (the one Valve's build ran over, for an Only Entities build).
+            if (Environment.GetEnvironmentVariable("PARITY_BASE") is { Length: > 0 } basePackage)
+                File.Copy(basePackage, package, overwrite: true);
+            else
+                File.WriteAllBytes(package, Io.VpkWriter.Write(new Dictionary<string, byte[]>()));
             var started = DateTime.UtcNow;
             var code = MapCompile.Run(args, log, acceptGaps: true, skipUnported: true, ownBake: args.OwnBake != null ? Source2.Compiler.Gpu.OwnLightingBake.Run : null);
             output.WriteLine(log.ToString().TrimEnd());

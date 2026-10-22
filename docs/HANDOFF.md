@@ -57,7 +57,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 
 | module | doc | state (2026-10-22) |
 |---|---|---|
-| containers and packaging | [CONTAINERS.md](CONTAINERS.md), [RESOURCES.md](RESOURCES.md) | 97%: every container authored; KV3 v5, VPK and the map root (.vmap_c) byte for byte, Hammer's Fast and Only Entities presets included |
+| containers and packaging | [CONTAINERS.md](CONTAINERS.md), [RESOURCES.md](RESOURCES.md) | 98%: every container authored; KV3 v5, VPK and the map root (.vmap_c) byte for byte on all 40 Valve references; Hammer's Only Entities preset whole-package exact |
 | geometry | [GEOMETRY.md](GEOMETRY.md) | 99%: probe01's -world package equals Valve's but a per-compile stamp; ze_hold_em_p world 100% |
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 97%: every stage exact; byte-identical VXVS from the .vmap on three maps |
 | physics | [PHYSICS.md](PHYSICS.md) | 97%: world_physics and entity models whole-file exact on every map with a compile |
@@ -101,9 +101,9 @@ carries the same state per item.
      part after the render is already exact).
    - probe_classes crashes the engine on load (its package is missing entity
      models): recompile it, then capture its rect lights.
-2. **.vmap_c leftovers** (ledger 119): force_up_to_date_materials' reader
-   in Only Entities builds; MapCompile knowing a missing material. (The l5
-   row order is settled: read order plus MSVC std::sort.)
+2. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,
+   15 unlit), and Hammer's Only Entities preset whole-package exact. Left:
+   the context's +0x605 flag, unread.
 3. **Nav** (LIGHTING_ROADMAP L9, L22, L23): markups, links, ladders, movable
    meshes, spheres and capsules in the casts.
 4. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through
@@ -133,7 +133,7 @@ carries the same state per item.
   Valve compiles (ledger 119).
 - The aggregate culling located in scenesystem (decompiles in
   tools/re/out/culling).
-- Full suite on the PC: 982 of 983 (the known l5 row order).
+- Full suite on the PC: 984 of 984 (after the .vmap_c row order and Only Entities fixes).
 - New tools: tools/cubehost/cascade_sources.js and cascade_summary.py,
   run_probe.py --frida, compile_fresh.py --over, rdc_postvs.py,
   rdc_debugpixel.py, rdc_pixelhistory.py, rdc_bindings.py, rdc_events.py,

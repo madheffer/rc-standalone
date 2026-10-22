@@ -3143,6 +3143,16 @@ game can answer is raised with the user first, and runs with -insecure.
       indirection, far field atlas, lightmap), the meshlet rows, force_up_to_date_materials, the physics
       two. MapRootFile.ReadOrder; all 25 lit and 15 unlit references byte for byte. Still open: the +0x605
       flag; where flattenPropsWithBakedLighting is read (it ties with nothing).
+    - Settled (2026-10-22, capture_argdeps.py --over --trace on Valve's Only Entities compiles of probe01 and
+      cardtest): an Only Entities build compiles every entity model again and writes default_ents and the
+      map root. A physics-only model reads keep_vertices and mapbuilder_entity_classname, which its own
+      context is given, so they stay there; a model with a render mesh, or one that fails on a missing
+      material (cardtest's impmodel), runs ModelCompile_ReadMeshArgs (1802f9cc0), whose
+      force_up_to_date_materials no context is given, so its row goes up to the map
+      (MapRootFile.ReadsMeshArguments). The lump's RED2 is the full build's (weak references,
+      UsesBuilderEntityKeys); the root's children are what the build compiled: the lumps, the entity models
+      (failed ones too), world.vrman and baked_bomb_damage.vdata. compile-map's Only Entities build over the
+      package Valve's ran over now equals Valve's whole package on both maps (ParityReport with PARITY_BASE).
     - Settled by capture (2026-10-22, CS2 closed: Valve's compiles of probe01 and cardtest with Hammer's Fast
       Compile, -world -skipauxfiles -nolightmaps -phys -nav, and Only Entities, -entities -skipauxfiles
       -nolightmaps -fshallow over the existing package; %TEMP%/preset_fast, preset_entities): a switch given bare
@@ -3152,7 +3162,7 @@ game can answer is raised with the user first, and runs with -insecure.
       material from another addon (probe01's entity models compile and do not record it); that reader is not
       read yet. Without -fshallow an Only Entities compile of an up-to-date map is skipped whole ("1 skipped")
       and leaves the package as it was. UnlitMapRootsEqualValves: all 15 Valve references byte for byte.
-      MapCompile does not yet know when a material is missing (MapRootFile.Compile.MaterialMissing).
+      (Which entity models make the map read force_up_to_date_materials: settled below.)
     - Also from the run: probe01's world_visibility.vvis_c differs only in 4 bytes at 551 (the fingerprint,
       a CRC over a path blob, and the dev box compiled under /tmp); Valve's own probe01 .nav is 9,556, 9,580
       and 9,608 bytes across its runs, so the nav is compared within one run (ledger 109), never against a

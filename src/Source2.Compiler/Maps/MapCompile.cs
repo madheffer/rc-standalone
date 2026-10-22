@@ -158,6 +158,9 @@ public static class MapCompile
         var lightingFolder = args.Vrad3Output;
         // Entity models that failed to compile: no file, but the map root lists them.
         var failedModels = new List<string>();
+        List<Physics.EntityPhysicsModels.Model> entityModels = [];
+        // What an Only Entities build compiles, the map root's children in that build.
+        var entitiesOnlyChildren = new List<string>();
         var document = DmxBinary.ReadFile(full);
         // A prefab's map loads from the addon's content, as Hammer's does.
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(root, "content", "csgo_addons", addon)));
@@ -194,7 +197,7 @@ public static class MapCompile
                                     visClusterBoxes: visibility?.Flat);
             foreach (var lump in lumps)
                 entries[lump.Path] = lump.Bytes;
-            var models = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp, failedModels);
+            var models = entityModels = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp, failedModels);
             foreach (var m in models)
                 entries[m.Path + "_c"] = m.PhysicsOnly ? EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
             using var shaders = new ShaderLibrary(Path.Combine(game, "csgo", "shaders_pc_dir.vpk"), Path.Combine(game, "core", "shaders_pc_dir.vpk"));
@@ -233,9 +236,10 @@ public static class MapCompile
             if (gaps.Count > 0 && !acceptGaps)
                 return Fail(log, $"the lump would lose the bake keys of {string.Join(", ", gaps)} (not ported); pass --accept-gaps to write it anyway");
             // The world step clears the map's entity lumps before writing its own.
-            // Whether it also clears the entities' models (.vmdl_c) and the
-            // flammables folder in an entities-only build is not settled; both
-            // are kept, since an entities-only build does not make them again.
+            // It compiles every entity model again (Valve's Only Entities builds of
+            // probe01 and cardtest, 10-22, capture_argdeps.py); whether it also
+            // clears models or the flammables folder a build no longer makes is not
+            // settled, so those are kept.
             var prefix = $"maps/{map}/entities/".ToLowerInvariant();
             foreach (var old in entries.Keys.Where(k => k.StartsWithAscii(prefix)
                                                         && k.EndsWithAscii(".vents_c")).ToList())
@@ -244,7 +248,14 @@ public static class MapCompile
                                     entitiesOnly: true);
             foreach (var lump in lumps)
                 entries[lump.Path] = lump.Bytes;
-            log.WriteLine($"  entities: {lumps.Count} lumps{(args.Settle ? "" : ", not settled")}");
+            entityModels = EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, notes, assets.SmartProp, failedModels);
+            foreach (var m in entityModels)
+                entries[m.Path + "_c"] = m.PhysicsOnly ? EntityPhysicsModels.Author(m, assets.SurfaceName) : EntityRenderModels.Author(m, assets);
+            // Valve's Only Entities root lists the lumps, the entity models and world.vrman (probe01, cardtest 10-22).
+            entitiesOnlyChildren.AddRange([.. lumps.Select(l => l.Path), .. entityModels.Select(m => m.Path + "_c")]);
+            if (entries.ContainsKey($"maps/{map}/world.vrman_c".ToLowerInvariant()))
+                entitiesOnlyChildren.Add($"maps/{map}/world.vrman_c".ToLowerInvariant());
+            log.WriteLine($"  entities: {lumps.Count} lumps, {entityModels.Count} entity models{(args.Settle ? "" : ", not settled")}");
         }
         if (steps.Contains("phys"))
         {
@@ -294,6 +305,7 @@ public static class MapCompile
                 var areas = generatedNav is { } nav ? NavCompile.Areas(nav.Mesh) : NavCompile.Areas(navBytes);
                 var file = NavCompile.BombDamageFile(areas, sites, NavCompile.World(physicsBytes), addon, map)!;
                 entries[$"maps/{map}/baked_bomb_damage.vdata_c".ToLowerInvariant()] = file;
+                entitiesOnlyChildren.Add($"maps/{map}/baked_bomb_damage.vdata_c".ToLowerInvariant());
                 log.WriteLine($"  bomb damage: {sites.Count} sites over {areas.Count} nav areas");
             }
         }
@@ -318,13 +330,15 @@ public static class MapCompile
                 entries[f.Path] = f.Bytes;
             log.WriteLine($"  lighting: {lightmaps.Count} files from {folder}");
         }
-        if (steps.Contains("world") && !args.EntitiesOnly)
+        if (steps.Contains("world"))
         {
             // The map root over what the package now holds (MapRootFile): the children are the
-            // map's compiled resources, the inputs the map and its prefabs' maps.
+            // map's compiled resources, the inputs the map and its prefabs' maps. An Only Entities
+            // build writes it too, with its own argument table (ledger 119).
             var rootPath = $"maps/{map}.vmap_c".ToLowerInvariant();
             var childPrefix = $"maps/{map}/".ToLowerInvariant();
-            var children = entries.Keys.Where(k => k.StartsWithAscii(childPrefix) && k.EndsWithAscii("_c")).Select(k => k[..^2])
+            var children = (args.EntitiesOnly ? entitiesOnlyChildren : entries.Keys.Where(k => k.StartsWithAscii(childPrefix) && k.EndsWithAscii("_c")))
+                .Select(k => k[..^2])
                 .Concat(failedModels.Select(Tier0Strings.LowerAscii)).ToList();
             var addonContent = Path.Combine(root, "content", "csgo_addons", addon);
             var inputs = new List<(string, uint)> { ($"maps/{map}.vmap", MapRootFile.Crc(File.ReadAllBytes(full))) };
@@ -336,7 +350,8 @@ public static class MapCompile
             var probeVolumes = children.Any(c => c.EndsWithAscii("/lightmaps/env_light_probe_volume_atlas.vtex"));
             entries[rootPath] = MapRootFile.Write(new MapRootFile.Compile(addon, inputs, bakedRoot, probeVolumes, args.Arguments,
                                                                               bakes ? [.. steps, "bakedlighting"] : steps,
-                                                                              !bakes && MapRootFile.ReadsStaticModelRecords(document), args.EntitiesOnly), children,
+                                                                              !bakes && MapRootFile.ReadsStaticModelRecords(document), args.EntitiesOnly,
+                                                                              MapRootFile.ReadsMeshArguments(entityModels, failedModels)), children,
                                                   MapAssets.References(document, MapSubassets.LumpOrder(walkEntities, document), schema, $"maps/{map}".ToLowerInvariant()),
                                                   MapSubassets.References(walkEntities, schema, document));
             log.WriteLine($"  map root: {rootPath}, {children.Count} children");

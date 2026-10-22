@@ -261,6 +261,7 @@ public class MapRootFileTests(ITestOutputHelper output)
         };
         var failed = new List<string>();
         var compared = 0;
+        using var assets = new GameContent(pak, Path.Combine(game, "csgo_addons", "s2c_rc_probe"));
         foreach (var (folder, switches) in sets)
         {
             var args = MapCompileArgs.Parse(switches);
@@ -288,9 +289,13 @@ public class MapRootFileTests(ITestOutputHelper output)
                 foreach (var path in Prefabs(document).Distinct(StringComparer.OrdinalIgnoreCase))
                     inputs.Add((path, MapRootFile.Crc(File.ReadAllBytes(Path.Combine(content, path)))));
                 var entities = MapEntities.From(document);
-                // cardtest's impmodel references materials/doom_npcs/imp_atlas.vmat, which lives in another addon.
+                // The entity models the build compiles (cardtest's impmodel fails on materials/doom_npcs/imp_atlas.vmat,
+                // which lives in another addon, after reading the mesh arguments).
+                var failedModels = new List<string>();
+                var models = Physics.EntityPhysicsModels.Build(document, map, assets.Material, assets.CollisionProperty, schema, null, assets.SmartProp, failedModels);
                 var compile = new MapRootFile.Compile("s2c_rc_probe", inputs, false, false, args.Arguments,
-                                                      steps, MapRootFile.ReadsStaticModelRecords(document), args.EntitiesOnly, map == "cardtest");
+                                                      steps, MapRootFile.ReadsStaticModelRecords(document), args.EntitiesOnly,
+                                                      MapRootFile.ReadsMeshArguments(models, failedModels));
                 var ours = MapRootFile.Write(compile, children, MapAssets.References(document, MapSubassets.LumpOrder(entities, document), schema, $"maps/{map}"),
                                              MapSubassets.References(entities, schema, document));
                 compared++;
