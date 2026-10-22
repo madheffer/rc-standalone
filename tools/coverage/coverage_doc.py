@@ -12,15 +12,11 @@ PLACEABLE = ("PointClass", "SolidClass", "NPCClass", "KeyFrameClass", "MoveClass
 # Maps whose every lump EntityLumpAgainstValveTests compares against Valve's compile.
 PINNED = ["probe_classes", "cardtest", "probe01", "ze_hold_em_p", "atixref", "ze_doom_p2_c_gameplay",
           "c2m2_fairgrounds_csgo_gameplay", "ze_ffvii_mako_reactor_v6_p"]
-# Classes that still differ in those tests (their "differs:" lines), with the reason.
-LIGHT = "light export (shape keys, matrix angles) and baked keys not ported"
-PROBE = "baked keys (atlas textures, handshake, size) not ported"
-ANGLES = "Mako world-layer instance copies: angles 1 or 2 ulps off (parked)"
-GAPS = {"light_omni2": LIGHT, "light_barn": LIGHT, "light_environment": LIGHT, "light_rect": LIGHT,
-        "env_combined_light_probe_volume": PROBE, "env_light_probe_volume": PROBE,
-        "env_cubemap_box": "baked keys (cubemaptexture, handshake) not ported",
-        "cable_dynamic": "rendercolor ships untyped; the write is not read yet",
-        "func_movelinear": ANGLES, "info_particle_system": ANGLES, "point_soundevent": ANGLES}
+# Classes that still differ, with the reason.
+# Every pinned map's lumps match Valve's with no allowed difference (2026-10-22; light shape and baked keys
+# included). What stays partial is output outside the lump.
+GAPS = {"func_movelinear": "movable nav mesh not started",
+        "info_particle_system": ".vsnap not generated"}
 
 def gap(name):
     return GAPS.get(name)

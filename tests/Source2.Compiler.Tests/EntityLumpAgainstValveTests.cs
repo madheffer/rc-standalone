@@ -85,13 +85,19 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     {
         var source = MapFixtures.VmapSource("s2c_rc_probe", map);
         var package = Path.Combine(Path.GetTempPath(), "gt", map + ".vpk");
-        if (source is null || !File.Exists(package)) { MapFixtures.Skip($"the {map} source and its compile"); return; }
-        using var pkg = new ValvePak.Package();
-        pkg.Read(package);
-        var valve = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
-            valve[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
-        Check(map, source, valve);
+        // Else the addon's own package when it is newer than the installed compiler.
+        var valve = File.Exists(package) ? null : MapFixtures.AddonLumps("s2c_rc_probe", map);
+        if (source is null || !File.Exists(package) && valve is null) { MapFixtures.Skip($"the {map} source and its compile"); return; }
+        if (valve is null)
+        {
+            using var pkg = new ValvePak.Package();
+            pkg.Read(package);
+            var read = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+                read[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
+            valve = read;
+        }
+        Check(map, source!, valve);
     }
 
     /// <summary>Any map against a compiled package: <c>LUMPMAP=&lt;addon&gt;|&lt;map&gt;|&lt;vpk&gt;</c>.</summary>
@@ -180,7 +186,7 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
                 foreach (var line in report.Where(l => l.Contains(shown, StringComparison.Ordinal)).Take(Environment.GetEnvironmentVariable("LUMPDIFF_ALL") is null ? 60 : int.MaxValue))
                     output.WriteLine($"    {Path.GetFileName(lump.Path)} {line}");
             classes.AddRange(report.Select(line => ClassOf().Match(line)).Where(m => m.Success).Select(m => m.Groups[1].Value));
-            unexplained.AddRange(report.Where(line => !IsKnownGap(line) && !UnstableSettle(map, line))
+            unexplained.AddRange(report.Where(line => !(boxes is null && VisNotRun().IsMatch(line)) && !UnstableSettle(map, line))
                                        .Select(line => $"{Path.GetFileName(lump.Path)}: {line}"));
         }
         output.WriteLine($"{map}: {ours.Count} lumps, {total} difference(s), {unexplained.Count} unexplained");
@@ -198,19 +204,6 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     internal static bool BakedIn(IReadOnlyDictionary<string, byte[]> valve)
         => valve.Any(l => EntityLumpComparison.Read(l.Value, l.Key).Any(e => e.Values.ContainsKey("light_map_uniqueid")
                || e.Values.TryGetValue("lightprobetexture", out var v) && v.Value.EndsWith("env_light_probe_volume_atlas.vtex", StringComparison.Ordinal)));
-
-    /// <summary>The gaps, each with its reason. Keep in step with
-    /// docs/ENTITIES.md.</summary>
-    private static bool IsKnownGap(string line)
-        // The light export is not ported (FUN_180240a60's light half and the
-        // shape passes FUN_180f1def0, FUN_180f1e0e0, FUN_180f19f20): it adds the
-        // precomputed bounds, oriented boxes and sub-frusta, rewrites a light's
-        // angles through its matrix and sets directlight, and every key it adds
-        // moves the light's key order.
-        => LightClass().IsMatch(line)
-        // The bake writes its results back into the lump: a light's shadow index
-        // and unique ids, a probe volume's atlas textures, handshake and size.
-        || BakedKeys().IsMatch(line);
 
     /// <summary>
     /// A settled pose Valve's own compiles disagree on (ledger 52): the order
@@ -237,17 +230,18 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         ["dkr_m3_tunneloflove"] = ["3:2151", "3:2152", "3:2153"],
         // Exact body for body (38,633) and in Valve's captured order (882 of 882).
         ["dkr_onelevel"] = ["6:2418", "6:2419", "6:2420", "6:2424", "6:2425", "6:2426", "14:2311"],
+        // atixref as a prefab: Valve's 10-20 and 10-22 compiles (the same resourcecompiler) disagree on these
+        // two in the last bits; ours equals the 10-22 one, whose whole lump we match.
+        ["s2c_prefabprobe4"] = ["2140:476", "2140:477"],
     };
 
-    [GeneratedRegex(@"^\[prop_physics#([0-9:]+)\] (origin|angles): ")]
+    [GeneratedRegex(@"^\[prop_physics(?:_override)?#([0-9:]+)\] (origin|angles): ")]
     private static partial Regex SettledPose();
 
-    [GeneratedRegex(@"^\[(light_\w+|env_combined_light_probe_volume|env_light_probe_volume|env_cubemap\w*)#")]
-    private static partial Regex LightClass();
-
-    [GeneratedRegex(@"\] (bakedshadowindex|light_map_uniqueid|light_path_uniqueid|brightness_legacy|brightness_lumens"
-                  + @"|lightprobetexture\w*|cubemaptexture|handshake|light_probe_size_\w|light_probe_atlas\w*|array_index): ")]
-    private static partial Regex BakedKeys();
+    // A baked compile's lights list the vis clusters they light (WRB_PrecomputeLightVisMembership), which
+    // takes the map's vis; without LUMP_VIS=1 the test does not run it, so the key is missing on our side.
+    [GeneratedRegex(@"^\[light_\w+#[0-9:]+\] precomputed_vis_clusters: missing ")]
+    private static partial Regex VisNotRun();
 
     [GeneratedRegex(@"^\[([^#\]]+)#")]
     private static partial Regex ClassOf();

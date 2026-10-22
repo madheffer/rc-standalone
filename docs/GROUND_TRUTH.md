@@ -518,6 +518,9 @@ game can answer is raised with the user first, and runs with -insecure.
     exact, 195 of 195 in Valve's order) and dkr_m5_stadium 3:1704 (our order
     settles all 110 as a fresh compile did; the corpus compile differs).
     capture_settle.py --settle-only stops at the settle (25 s a capture).
+    2026-10-22: s2c_prefabprobe4 (atixref as a prefab) 2140:476 and 2140:477, last-bit origin and yaw;
+    Valve's 10-20 and 10-22 compiles with the same resourcecompiler disagree, and our whole lump equals
+    the 10-22 one (0 differences).
 
 53. **dkr_m3_tunneloflove's settle** (settled 2026-10-06 by decompile and
     capture). A model with a bind pose for each part (counts at +0x58 and

@@ -189,14 +189,14 @@ Status:
 
 ### Classes the compile handles
 
-exact 22, partial 10, unpinned 0, no sample 0
+exact 30, partial 2, unpinned 0, no sample 0
 
 | class | kind | named by | what the compile does | port | status |
 |---|---|---|---|---|---|
-| cable_dynamic | Cable | resourcecompiler | lump: rendercolor written as the text "%i %i %i"; secondary_material added to the material list | path keys ported; rendercolor text write not ported; secondary material not checked | partial (rendercolor ships untyped; the write is not read yet) |
-| env_combined_light_probe_volume | Point | resourcecompiler | cubemap and probe records for the bake; cubemaptexture, array_index and lightprobetexture* keys added; kept | kept; baked keys not ported (probes, cubemaps) | partial (baked keys (atlas textures, handshake, size) not ported) |
-| env_cubemap_box | Point | resourcecompiler, physicsbuilder, vrad3 | as env_cubemap with box bounds; upgrade of older vmaps only renames boxproject_* keys | baked keys not ported; vmap upgrader not ported | partial (baked keys (cubemaptexture, handshake) not ported) |
-| env_light_probe_volume | Point | resourcecompiler | probe record for the bake; lightprobetexture* keys added; kept | kept; baked keys not ported (probes) | partial (baked keys (atlas textures, handshake, size) not ported) |
+| cable_dynamic | Cable | resourcecompiler | lump: rendercolor written as the text "%i %i %i"; secondary_material added to the material list | lump exact (probe_cable, probe_classes); secondary material not checked | exact |
+| env_combined_light_probe_volume | Point | resourcecompiler | cubemap and probe records for the bake; cubemaptexture, array_index and lightprobetexture* keys added; kept | lump keys exact on every pinned map, baked keys included (atlas textures, handshake, size) | exact |
+| env_cubemap_box | Point | resourcecompiler, physicsbuilder, vrad3 | as env_cubemap with box bounds; upgrade of older vmaps only renames boxproject_* keys | lump keys exact on every pinned map, baked keys included (cubemaptexture, handshake); vmap upgrader not ported | exact |
+| env_light_probe_volume | Point | resourcecompiler | probe record for the bake; lightprobetexture* keys added; kept | lump keys exact on every pinned map, baked keys included (atlas textures, handshake, size) | exact |
 | env_sky | Point | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: skyname gets .vmat | lump pass-through ported; vmap upgrader not ported | exact |
 | func_movelinear | Solid | resourcecompiler | nav: movable nav mesh when CreateMovableNavMesh is set | lump ported; nav not started | partial (movable nav mesh not started) |
 | func_nav_markup | Solid | resourcecompiler | nav: markup volumes | lump ported; nav not started | exact |
@@ -204,10 +204,10 @@ exact 22, partial 10, unpinned 0, no sample 0
 | info_cull_triangles | Point | resourcecompiler | dropped from the lump; a record for render-mesh triangle culling | dropped as Valve does; culling not ported (render geometry) | exact |
 | info_particle_system | Point | resourcecompiler, physicsbuilder, vrad3 | snapshot_mesh naming a map node: snapshot_file set to maps/<map>/particle_snapshots/node_<id>.vsnap and the snapshot generated from the node; upgrade of older vmaps: snapshot_file gets .vsnap | snapshot_file key ported (not inside instances); .vsnap not generated; vmap upgrader not ported | partial (.vsnap not generated) |
 | info_player_start | Point | resourcecompiler | Hammer's map check only | nothing to port for the compile | exact |
-| light_barn | Point | resourcecompiler, physicsbuilder, vrad3 | light description for precompute, bake and vis membership; precomputed* keys, directlight, lightcookie resource; upgrade of older vmaps only converts light_spot/omni/ortho | precompute exact against an empty scene; lump keys, bake and vis membership not ported; vmap upgrader not ported | partial (light export (shape keys, matrix angles) and baked keys not ported) |
-| light_environment | Point | resourcecompiler, physicsbuilder, vrad3 | legacy directional light for bake and shadows; lump through the light path; upgrade of older vmaps only | lump partial; bake not ported; vmap upgrader not ported | partial (light export (shape keys, matrix angles) and baked keys not ported) |
-| light_omni2 | Point | resourcecompiler, physicsbuilder, vrad3 | as light_barn | as light_barn | partial (light export (shape keys, matrix angles) and baked keys not ported) |
-| light_rect | Point | resourcecompiler | as light_barn (no upgrader) | as light_barn | partial (light export (shape keys, matrix angles) and baked keys not ported) |
+| light_barn | Point | resourcecompiler, physicsbuilder, vrad3 | light description for precompute, bake and vis membership; precomputed* keys, directlight, lightcookie resource; upgrade of older vmaps only converts light_spot/omni/ortho | lump keys exact on every pinned map (precomputed shape keys, matrix angles, brightness units, baked shadow keys, vis membership); bake: the own lighting port (VRAD3.md) | exact |
+| light_environment | Point | resourcecompiler, physicsbuilder, vrad3 | legacy directional light for bake and shadows; lump through the light path; upgrade of older vmaps only | lump keys exact on every pinned map (precomputed shape keys, matrix angles, brightness units, baked shadow keys, vis membership); bake: the own lighting port (VRAD3.md) | exact |
+| light_omni2 | Point | resourcecompiler, physicsbuilder, vrad3 | as light_barn | lump keys exact on every pinned map (precomputed shape keys, matrix angles, brightness units, baked shadow keys, vis membership); bake: the own lighting port (VRAD3.md) | exact |
+| light_rect | Point | resourcecompiler | as light_barn (no upgrader) | lump keys exact on every pinned map (precomputed shape keys, matrix angles, brightness units, baked shadow keys, vis membership); bake: the own lighting port (VRAD3.md) | exact |
 | path_corner | Point | resourcecompiler | nav: air-nav hint when info_nav_space exists | lump ported; nav not started | exact |
 | path_generic | Path | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only: classnames on paths, nodes and cables | lump ported; vmap upgrader not ported | exact |
 | path_node_cable | PathNode | resourcecompiler, physicsbuilder, vrad3 | upgrade of older vmaps only | lump ported; vmap upgrader not ported | exact |
@@ -228,7 +228,7 @@ exact 22, partial 10, unpinned 0, no sample 0
 
 ### Classes that only pass through the lump
 
-exact 321, partial 1, unpinned 0, no sample 0
+exact 322, partial 0, unpinned 0, no sample 0
 
 | class | kind | fgd | local maps | status |
 |---|---|---|---|---|

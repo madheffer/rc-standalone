@@ -61,7 +61,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | geometry | [GEOMETRY.md](GEOMETRY.md) | 99%: probe01's -world package equals Valve's but a per-compile stamp; ze_hold_em_p world 100% |
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 97%: every stage exact; byte-identical VXVS from the .vmap on three maps |
 | physics | [PHYSICS.md](PHYSICS.md) | 97%: world_physics and entity models whole-file exact on every map with a compile |
-| entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99%: every lump exact outside a few light keys |
+| entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99%: every lump of every pinned map and probe exact, light and baked keys included (the test allows none); left: the prefab variants still refused (fixupEntityNames, nested prefabs) |
 | baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 80%: lightmaps, probes, far field, fog, nav, bomb damage and .vmap_c done; cubemaps in progress |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
 
@@ -113,7 +113,9 @@ carries the same state per item.
 6. **Geometry:** heap-ordered prop aggregate parts (Valve varies run to run),
    subdivided entries' tangents, overlay tangents, detail grass.
 7. **Visibility:** Mako end to end, and wiring vis into a world build.
-8. **Entities:** atixref's one-face omni2 lights, Mako's light pass.
+8. **Entities:** the light keys are done (atixref and Mako 0 differences, 2026-10-22). Left: prefabs with
+   fixupEntityNames, a prefab in a prefab, a prefab beside the map's own instances (refused, not captured);
+   s2c_prefabprobe4's vis clusters under LUMP_VIS=1 (an atixref-sized vis run, not yet done).
 9. **Containers and resources:** compiling the addon content a map
    references, a package made only of our outputs; glTF export, model
    internals, shaders.

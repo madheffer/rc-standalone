@@ -7,14 +7,18 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
 
 ## Status
 
-- **Pinned maps:** every lump of the 8 pinned maps matches Valve's outside
-  the documented gaps (atixref, ze_hold_em_p, Mako, cardtest, probe01,
-  ze_doom_p2's gameplay, c2m2's gameplay and its environment prefab). So do
-  both prefab probes.
+- **Pinned maps:** every lump of the pinned maps (atixref, ze_hold_em_p,
+  Mako, cardtest, probe01, ze_doom_p2's gameplay, c2m2's gameplay,
+  probe_classes, probe_cable) and of the 10 prefab, instance and deformer
+  probes matches Valve's with lights and baked keys included; the only
+  allowances are Valve's own run-to-run settle poses (below) and vis
+  clusters when the test runs no vis.
 - **The comparison is strict:** types to the array element, KV3 flags, key
   and entity order, every connection field.
 - **Coverage:** all 354 classes Hammer offers are measured through the probe
-  map (every class bare and with every key set), and 343 are exact.
+  map (every class bare and with every key set), and 352 are exact: the
+  two left (func_movelinear, info_particle_system) lack outputs outside the
+  lump (a movable nav mesh, a .vsnap).
   [COVERAGE.md](COVERAGE.md) has the list.
 - **The settle** runs in the lump build, and its output is exact, except
   where Valve's own output varies between compiles: a stack of props whose
@@ -27,10 +31,10 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
   the documented gaps (dkr_onelevel's 38,633 settle bodies exact, its 882
   props exact in Valve's captured order).
 
-Open:
+Light keys (done):
 - **Light keys:** the precomputed shape keys and, when baked, the shadow
-  slot keys are in the lump (the lights are still a documented gap in the
-  lump test while these close):
+  slot keys and probe and cubemap keys are in the lump, exact on every
+  pinned map:
   - **ze_hold_em_p (baked):** every light's shape keys are exact, and so
     is `precomputed_vis_clusters` on all 37 (value and place, last of the
     values; `LUMP_VIS=1` runs vis for it): the whole lump has no
@@ -52,12 +56,15 @@ Open:
     lumens rounded (not 1), nits with an area (not 2), candelas with a
     solid angle (not 4), legacy (not 3). An invalid unit gives intensity
     0. Every barn, rect and omni2 of the lump specimens is exact.
-  - **atixref:** 236 of 239 lights exact, key order included. Omni2 lights
-    7306, 7318 and 7348 are each off by 0.01 to 0.03 on one cube face.
-    Traced with `LightRayProbe`, 7306's face 4 comes down to single rays
-    grazing prop geometry: the one that reaches Valve's bound lands on a
-    box's corner edge (local 6.00, -6.00). No single prop or material
-    explains it (GROUND_TRUTH 31).
+  - **atixref and Mako:** every light exact, key order included (2026-10-22
+    run: 0 differences on both). The one-face omni2 misses (7306, 7318,
+    7348) closed with the packet-of-4 ray tracer and the kd leaf rule
+    (GROUND_TRUTH 31, 2026-10-09).
+  - **The lump test allows no light or baked-key difference** since
+    2026-10-22. The only allowance left is `precomputed_vis_clusters`
+    missing on our side when the test does not run vis; `LUMP_VIS=1` runs
+    it and checks the key value and place.
+Open:
 - **Prefabs:** prefabs with `fixupEntityNames`, a prefab inside a prefab,
   and a prefab beside instances of the map's own are refused (not
   captured).
