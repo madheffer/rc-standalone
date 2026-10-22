@@ -215,6 +215,24 @@
    "name": "LinearToSrgb8",
    "module": "s2c:baked/vrad3",
    "note": "per channel: clamp 0..1, > 0.0031308 ? powf(x, 0.41666666) * 1.055 - 0.055 : x * 12.92, times 255 clamped, rounded; alpha round(a * 255) unclamped"
+  },
+  {
+   "addr": "180496ef0",
+   "name": "CSM_SetupCascades",
+   "module": "s2c:baked/lighting",
+   "note": "count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance"
+  },
+  {
+   "addr": "180494b40",
+   "name": "CSM_FitCascade",
+   "module": "s2c:baked/lighting",
+   "note": "one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit"
+  },
+  {
+   "addr": "1801a5c28",
+   "name": "CSM_SetupForView",
+   "module": "s2c:baked/lighting",
+   "note": "calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero"
   }
  ]
 }

@@ -47,15 +47,39 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800538d8` | `Convar_buildcubemaps_renderdoc_capture` | registration of buildcubemaps_renderdoc_capture ("Capture a specific cubemap with RenderDoc during buildcubemaps.") with flags 2, development-only: a release build hides it from the console and the command line; its data pointer is the global 18237eab0 |  |
 | `1802091d0` | `BuildCubemaps_WriteExr` | the strip as an uncompressed half EXR through tinyexr's fast writer (1813dede0), channels B, G, R; Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8` |
-| `18020e130` | `BuildCubemaps_FaceToStrip` | a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8` |
+| `18020e130` | `BuildCubemaps_FaceToStrip` | a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs | `src/Source2.Compiler/Cubemaps/CubemapFaceExr.cs:8`, `src/Source2.Compiler/Cubemaps/CubemapFaceViews.cs:9` |
 | `18237eab0` | `g_buildcubemaps_renderdoc_capture` | the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process |  |
+
+## client.dll, build 20261021
+
+- file: `client_20261021.dll`, 39,205,528 bytes, PE time 2026-10-20 18:34 UTC
+- SHA-256 `5a46a09b521bbd607012146364dafae2abfa50364246638391990d4c7dfb9d49`
+- installed: a different build
+- 12 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1801223f2` | `Convar_r_csgo_csm_pushback_distance` | registration, default 7000 (r_csgo_csm_max_visible_distance 7500 at 180122202, r_csgo_viewmodel_csm_pushback_distance 1500) |  |
+| `18012f4d2` | `Convar_csm_cascade0_override_dist` | registration, default -1 (cascade 1..3 follow at 0xb0 strides) |  |
+| `18012f9a6` | `Convar_csm_max_shadow_dist_override` | registration, default -1 |  |
+| `180130342` | `Convar_csm_viewmodel_max_shadow_dist` | registration, default 21 (csm_viewmodel_max_visible_dist 1000 at 1801303f2, csm_viewmodel_nearz 0.5 at 1801304a2) |  |
+| `1808898d0` | `Csm_ScriptedCameraCascade0` | 75.0 (.rdata 181b14fe0) when 180cb2100 returns a camera, else 0 (its argument is unused) | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:30` |
+| `180cb2100` | `GetScriptedCamera` | the Panorama StartCamera camera when 1825c9e3b is set (180dfd030), else FindEntityByClassname end_of_match_camera (flag 1825c8832) or team_select_camera (1825c9e65), else NULL | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:31` |
+| `180df0f20` | `VideoConfig_ShadowQuality2` | the shadow-quality 2 preset as setting.* convars (value pushed before the name): csm_max_num_cascades_override 3, csm_viewmodel_shadows 1, csm_max_shadow_dist_override 560, lb_csm_cascade_size_override 1280, lb_shadow_texture 4352 x 5248, lb_csm_cross_fade_override 0.1, lb_csm_distance_fade_override 0.05; CubemapShadowCascades.Inputs | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:43` |
+| `180df13a0` | `VideoConfig_ShadowQuality0` | quality 0: 2 cascades of 768, csm_max_shadow_dist_override 560, no viewmodel shadows | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23` |
+| `180df1820` | `VideoConfig_ShadowQuality1` | quality 1: 2 cascades of 1024, csm_max_shadow_dist_override 560 | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23` |
+| `180df1ca0` | `VideoConfig_ShadowQuality3` | quality 3: 3 cascades of 2048, csm_max_shadow_dist_override 560 | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23` |
+| `180e0ed60` | `Panorama_StartCamera` | sets 1825c9e3b (StopCamera 180e0ee40 clears it); registered beside CloseScoreboard / ClearModels |  |
+| `1811d9d30` | `RenderPipeline_SetViewAttributes` | game pipeline view attributes; at 1811da3f4 cascade 0's distance (0x61fac369) = 1808898d0() when above 0, after the local pawn's camera-services FOV (0x172c3cca); 1811da45f..1811da4fc copies 0x172c3cca / 0x61fac369 / 0x70644345 from another view's attributes when above 0; then CsmPushbackDistance (0xb7a3d0d5) and CsmMaxVisibleDistance (0xb506b94b) from convars | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:30` |
 
 ## hammer.dll, build 20260924
 
 - file: `hammer_20260924.dll`, 39,597,208 bytes, PE time 2026-09-23 22:00 UTC
 - SHA-256 `c638a81a542ab960e2a51cceaa4d5cfeaa62fa555df117be8293bdc887cb1395`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 11 tracked addresses: ambiguous 1, moved 10
+- against the installed build (20261022_1.41.9.1.md): 11 tracked addresses: ambiguous 1, moved 10
 - 11 addresses
 
 ### s2c:containers/compile-map
@@ -425,7 +449,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `physicsbuilder_20260924.dll`, 13,936,280 bytes, PE time 2026-09-23 21:59 UTC
 - SHA-256 `1c324870ffbf4ece889329238a340cecb2fcbedd44664d06c4eedce1729c391b`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 66 tracked addresses: ambiguous 1, changed 4, identical 4, moved 57
+- against the installed build (20261022_1.41.9.1.md): 66 tracked addresses: ambiguous 1, changed 4, identical 4, moved 57
 - 60 addresses
 
 ### s2c:geometry/props
@@ -518,7 +542,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `rendersystemvulkan_20261015.dll`, 6,248,600 bytes, PE time 2026-10-14 18:39 UTC
 - SHA-256 `2febd86471b9ed1953e75875296f3e76999661f1e86cb68e928c0cb12a2afb4a`
 - installed: this build
-- against the installed build (20261016_1.41.9.1.md): 1 tracked addresses: identical 1
+- against the installed build (20261022_1.41.9.1.md): 4 tracked addresses: identical 4
 - 2 addresses
 
 ### s2c:baked/lighting
@@ -533,14 +557,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
+- against the installed build (20261022_1.41.9.1.md): 1130 tracked addresses: ambiguous 62, changed 15, identical 62, moved 988, relocated 3
 - 1042 addresses
 
 ### s2c:baked/light-keys
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:378`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153` |
+| `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:380`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153`, `src/Source2.Compiler/Maps/MapRootFile.cs:95` |
 | `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:205` |
 | `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
@@ -915,8 +939,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 
 | address | name | what | cited in |
 |---|---|---|---|
-| `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun |  |
-| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:14`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:34`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:43` +5 |
+| `180244d30` | `EntityLump_ExportDriver` | per-entity export driver; writes vDirToSun | `src/Source2.Compiler/Maps/MapRootFile.cs:37`, `src/Source2.Compiler/Maps/MapRootFile.cs:95` |
+| `180245770` | `EntityLump_StaticModelRecord` | prop record; +0x10 = Concat(AngleMatrix(angles), Matrix3x4_Scale(scales)) with the origin; +0x160/+0x164 fademindist/fademaxdist, +0x16c visoccluder, +0x16d baketoworld, +0x16f disableshadows, +0x170 disableinlowquality, +0x172 rendertocubemaps, +0x173 emissive, +0x174 emissive_lighting_boost, +0x178 emissive_mode, +0x17d bakelightdoublesided, +0x148 rendercolor / 255, +0x154 renderamt / 255, +0x1e4 lodlevel (-1), +0x210 lightmapstatic (default 1 for a prop_static; any other class without it makes no record), +0x173 emissive defaults to 1; +0x1f0 bit 2 donotcollapse or disablemerging; +0x17c lightmapped (bakelighting key, else model prop_data bakelighting and a SupportsLightmapping material; only when the builder bakes or flattenPropsWithBakedLighting), +0x214 = V_powf(2, lightmapscalebias) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:14`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:34`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:43` +7 |
 | `18024adc0` | `WRB_WriteEntityLump` | entity_lump_params, entities\ |  |
 | `18024d710` | `WRB_CreateEntityTemplateLumps` | create_entity_template_lumps; the template pass driver (TemplatePass_Run) | `src/Source2.Compiler/Maps/EntityLumpSet.cs:13`, `src/Source2.Compiler/Maps/EntityLumpSet.cs:166` |
 | `180f77240` | `CMapNode_PassesFilter` | node filter by flags: +0x366, vfn 0x408, editorOnly (vfn 0x440 or +0x365) under flag bits 1, 2 or 4 without 0, vfn 0x410, 0x150, 0x438 | `src/Source2.Compiler/Maps/MapEntities.cs:226` |
@@ -935,7 +959,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f8cf0` | `CMapBuilderContext::vf14` | +0x10c, e.g. maps\cardtest; seeds handshake and texture paths |  |
 | `1801fdae0` | `TemplatePass_RewriteReferences` |  | `src/Source2.Compiler/Maps/EntityLumpSet.cs:259` |
 | `18023ae00` | `LightProbe_GridSize` | ceil(extent / max(voxel,1)), 128 cap, x and y aligned | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:467` |
-| `180240a60` | `EntityLump_ExportNodeLate` | a brush entity's generated model (entities/%s_%s.vmdl) becomes a static model record (180245770) when its lightmapstatic is set (and one mesh list without +0x108); cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:15`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:29`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:35` +8 |
+| `180240a60` | `EntityLump_ExportNodeLate` | a brush entity's generated model (entities/%s_%s.vmdl) becomes a static model record (180245770) when its lightmapstatic is set (and one mesh list without +0x108); cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:15`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:29`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:35` +9 |
 | `180244420` | `EntityLump_CopyBakeTexture` | no-bake branch: if <old>_c loads, key := new path and <new>_c is written |  |
 | `1802470f0` | `EntityLump_FindByIdPath` | lump entities whose id path hashes and compares equal |  |
 | `18024a970` | `TemplatePass_RemoveOriginals` |  |  |
@@ -1253,7 +1277,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18025ece0` | `WRBNode_GenerateOverlayMeshes` | "Generate Overlay Meshes...": per overlay of node +0x1f8/+0x200, targets gathered, projected, one entry per target with a non-empty result (356 on atixref from 297 CMapStaticOverlay) | `src/Source2.Compiler/Maps/NodeOverlays.cs:130` |
 | `18025f9d0` | `WRB_UseAggregateInstances` | gameinfo ResourceCompiler/WorldRendererBuilder/UseAggregateInstances; enables agg_prop and agg_merge |  |
 | `18025fa40` | `WRB_UseStaticEnvMapForObjectsWithLightingOrigin` | gameinfo ResourceCompiler/WorldRendererBuilder/UseStaticEnvMapForObjectsWithLightingOrigin, default false |  |
-| `18025fab0` | `WRB_CompileNodeModel` | the CMesh list to an in-memory ModelDoc (1801fee20) and compiled as <name>.vmdl; meshletMaxVertices/Triangles |  |
+| `18025fab0` | `WRB_CompileNodeModel` | the CMesh list to an in-memory ModelDoc (1801fee20) and compiled as <name>.vmdl; meshletMaxVertices/Triangles | `src/Source2.Compiler/Maps/MapRootFile.cs:97` |
 | `180260710` | `Step_SplittingMeshWith` | Splitting mesh with %i verts %i tris | `src/Source2.Compiler/Maps/WorldNodeModels.cs:234` |
 | `1802636b0` | `CWorldRendererBuilderNode::BuildAggregateRTProxies` |  |  |
 | `180268e80` | `WRB_BuildAggregate` | Added aggregate with %i meshes, %i fragments; %s_lr%i_%s | `src/Source2.Compiler/Maps/NodePropAggregates.cs:68`, `src/Source2.Compiler/Maps/WorldNodeCompile.cs:37`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:14` |
@@ -1316,8 +1340,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1802f5680` | `ModelCompile_MeshInputLayouts` | per mesh (0x148 bytes): the full layout, and with a material depth list (INSG m_depth_elems) the depth (flags \| 8) and remainder (flags \| 0x10) layouts; a fourth for non-map meshes | `src/Source2.Compiler/Maps/WorldNodeModels.cs:353` |
 | `1802f6840` | `WRB_CompressTexcoordsToSnorm` | per layout stream: an unflagged two-component texcoord becomes R16G16_SNORM (0x25), four-component 0xd, when every mesh's values lie in [-1, 1] (1802fc990) | `src/Source2.Compiler/Maps/NodeDraw.cs:39`, `src/Source2.Compiler/Maps/NodePropAggregates.cs:355` |
 | `1802f69f0` | `ModelCompile_BuildDrawSets` | draw-set groups (400 bytes: four layouts, then the meshes) from the mesh list (+0x14c instanced, +0x14d), each through 1802f6840 |  |
-| `1802f9cc0` | `ModelCompile_ReadMeshArgs` | globals from the compile arguments: create_pooled_vb (18307e22c), embedded_map_mesh (18307e218), embedded_aggregate_mesh, meshlets; SceneSystem/RenderMeshlets, RayTraceProxyEnabled | `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
-| `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 | `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
+| `1802f9cc0` | `ModelCompile_ReadMeshArgs` | globals from the compile arguments: create_pooled_vb (18307e22c), embedded_map_mesh (18307e218), embedded_aggregate_mesh, meshlets; SceneSystem/RenderMeshlets, RayTraceProxyEnabled | `src/Source2.Compiler/Maps/MapRootFile.cs:96`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
+| `1802f9cc0` | `WRB_MeshletSettings` | SceneSystem/MeshletMaxVertexCount 255, MeshletMaxTriangleCount 48 | `src/Source2.Compiler/Maps/MapRootFile.cs:96`, `src/Source2.Compiler/Maps/WorldNodeModels.cs:66` |
 | `1802fc990` | `CMesh_StreamWithinUnitRange` | min >= -1 and max <= 1 over a two-float stream | `src/Source2.Compiler/Maps/NodeDraw.cs:39` |
 | `1802fcb30` | `CMesh_Stream4WithinUnitRange` | as 1802fc990 for a four-float stream |  |
 | `180301650` | `CMeshletBuilder_Init` | max vertices/triangles from 1802f9cc0, SceneSystem/RenderMeshlets, MeshCompiler/MeshletConeWeight 0.05, optimize level 4 |  |
@@ -1719,7 +1743,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261006.dll`, 56,323,736 bytes, PE time 2026-10-05 21:03 UTC
 - SHA-256 `e2cd4c06976ee54ab8d32a6b109e7adcb7b551c02766cd0c6954b492b0aedbe3`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
+- against the installed build (20261022_1.41.9.1.md): 1130 tracked addresses: ambiguous 62, changed 15, identical 62, moved 988, relocated 3
 - 10 addresses
 
 ### s2c:entities
@@ -1747,7 +1771,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20261015.dll`, 56,337,048 bytes, PE time 2026-10-14 18:44 UTC
 - SHA-256 `204e16e550fd3936585bd467303b9b2033fdd7de9f1038c045095b3f5e15ac78`
 - installed: this build
-- against the installed build (20261016_1.41.9.1.md): 975 tracked addresses: ambiguous 56, changed 18, identical 4, moved 895, relocated 2
+- against the installed build (20261022_1.41.9.1.md): 1130 tracked addresses: ambiguous 62, changed 15, identical 62, moved 988, relocated 3
 - 1 addresses
 
 ### s2c:baked/nav
@@ -1761,7 +1785,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `scenesystem_20261015.dll`, 7,094,936 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `040eb851fa7875523346b890f1ed6e158abc59e08bccbd8dc60539435277efa5`
 - installed: this build
-- 36 addresses
+- 39 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `1801a5c28` | `CSM_SetupForView` | calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero |  |
+| `180494b40` | `CSM_FitCascade` | one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:7`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:124`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:178` |
+| `180496ef0` | `CSM_SetupCascades` | count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:6`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:23`, `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:53` +1 |
 
 ### s2c:baked/vrad3
 
@@ -1858,12 +1890,25 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1817beb18` | `CCSNavArea::vftable` | 0x40 (save) is 1802aa880 |  |
 | `1817bebd0` | `CSNavMesh::vftable` | overrides 0x18/0x20 (CCSNavArea), 0x38, 0x50, 0x58, 0x60 (the analysis, called with 0x24 after the build), 0x70 (custom data version 1), 0x78 / 0x80 (custom data save / load), 0xb0, 0xc0; 0x98 (1814ac9c0) is the shared build |  |
 
+## server.dll, build 20261021
+
+- file: `server_20261021.dll`, 34,628,248 bytes, PE time 2026-10-20 18:34 UTC
+- SHA-256 `05e6f04972bb2983f463c08824c3133626e0703e881443589288b68e200acc4d`
+- installed: a different build
+- 1 addresses
+
+### s2c:baked/lighting
+
+| address | name | what | cited in |
+|---|---|---|---|
+| `18017c8d0` | `CLightComponent_Construct` | every cascade field zeroed (+0xe4 .. +0xf8 through the network-var initialisers 18017c390 .. 18017c3e0): with csgo.fgd's remove_key the light gives no cascade distances | `src/Source2.Compiler/Cubemaps/CubemapShadowCascades.cs:16` |
+
 ## smartprops.dll, build 20260923
 
 - file: `smartprops_20260923.dll`, 1,511,576 bytes, PE time 2026-09-21 21:05 UTC
 - SHA-256 `383e57f1eb82a84157e537050a81fa598a4676389598778bdd9ea4167ea16545`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 30 tracked addresses: identical 17, relocated 13
+- against the installed build (20261022_1.41.9.1.md): 30 tracked addresses: identical 17, relocated 13
 - 30 addresses
 
 ### s2c:smartprops
@@ -1906,7 +1951,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20260923.dll`, 3,979,416 bytes, PE time 2026-09-21 20:48 UTC
 - SHA-256 `4e0dcb0af3f6953f37ddaed0f4e67a56d031f1e84964a262148f8a6f80547791`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
+- against the installed build (20261022_1.41.9.1.md): 77 tracked addresses: changed 9, identical 42, missing 1, moved 22, relocated 3
 - 52 addresses
 
 ### s2c:baked/bomb
@@ -1986,7 +2031,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `tier0_20261015.dll`, 3,979,928 bytes, PE time 2026-10-14 18:37 UTC
 - SHA-256 `990ea56bf1626d299ba54b64b423f2e409bd592bb737c7a5edf7972ad5c7143e`
 - installed: this build
-- against the installed build (20261016_1.41.9.1.md): 56 tracked addresses: changed 8, identical 24, missing 1, moved 20, relocated 3
+- against the installed build (20261022_1.41.9.1.md): 77 tracked addresses: changed 9, identical 42, missing 1, moved 22, relocated 3
 - 11 addresses
 
 ### s2c:io
@@ -2010,7 +2055,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `visbuilder_20260923.dll`, 1,855,640 bytes, PE time 2026-09-21 20:55 UTC
 - SHA-256 `4381c507be2cc8f783a0cd262e18759bb1ef0399ba2ca2deef6d236cde17c3cf`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 201 tracked addresses: changed 36, identical 123, relocated 42
+- against the installed build (20261022_1.41.9.1.md): 201 tracked addresses: changed 36, identical 123, relocated 42
 - 200 addresses
 
 ### s2c:visibility
@@ -2223,7 +2268,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 419 tracked addresses: changed 2, identical 311, moved 1, relocated 105
+- against the installed build (20261022_1.41.9.1.md): 497 tracked addresses: changed 2, identical 357, moved 1, relocated 137
 - 490 addresses
 
 ### s2c:baked/bomb
@@ -2756,7 +2801,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vrad3_20261001.dll`, 3,269,272 bytes, PE time 2026-09-30 18:56 UTC
 - SHA-256 `172f7513161afca8e7c28fed95bb0abe9fae58f4377b49eea1bf9ae9322b722c`
 - installed: a different build
-- against the installed build (20261016_1.41.9.1.md): 348 tracked addresses: identical 348
+- against the installed build (20261022_1.41.9.1.md): 407 tracked addresses: identical 407
 - 410 addresses
 
 ### s2c:baked/vrad3

@@ -440,3 +440,9 @@ ledger 120.
   CubemapShadowCascades; ledgers 120, 121) with the face unchanged. Next:
   chain a whole face from cleared targets with our geometry, lightmaps and
   textures, then all faces, then reduce to the EXR and compare with the game's.
+- The cascade inputs depend on the game's video settings, not the map: the
+  shadow-quality preset (the run detects level 2) sets
+  csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles
+  (`CubemapShadowCascades.Inputs`, ledger 121). Cascade 0's 75 comes, as far
+  as the binaries show, from the render pipeline's scripted-camera path;
+  a run with CS2 closed should confirm it fires during buildcubemaps.

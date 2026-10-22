@@ -11,7 +11,7 @@ namespace Source2.Compiler.Tests;
 /// frame&gt;</c>: probe01 cube 0's sun cascades on all six faces (the per-view block of each cascade's
 /// csm_depth_only draws, by atlas viewport: (0, 0), (1280, 0), (2560, 0) for the three cascades, (0, 2048) for
 /// the viewmodel cascade), word for word against our fit. Inputs: the sun direction as the light block carries
-/// it, distances 75 then the practical split to 560 (sources open, ledger 121), near 1, max visible 7500,
+/// it, the game's inputs (CubemapShadowCascades.Inputs, ledger 121): split to 560, cascade 0 at 75, near 1, max visible 7500,
 /// pushback 7000, resolution 1280; the viewmodel cascade 0.5 .. 21 with max visible 1000.
 /// </summary>
 public sealed class CubemapCascadeTests(ITestOutputHelper output)
@@ -42,7 +42,7 @@ public sealed class CubemapCascadeTests(ITestOutputHelper output)
         // (g_matWorldToView column 2); not the light block's g_vFastPathSunLightDir, which differs in the last bits.
         var (sun, _, cameraDirection) = CubemapShadowCascades.SunDirections(new Vector3(74.99999f, 180.00002f, 0f));
         output.WriteLine($"sun {sun.X:R} {sun.Y:R} {sun.Z:R}");
-        var distances = CubemapShadowCascades.SplitDistances([75f], 3, 1f, 560f);
+        var distances = CubemapShadowCascades.GameDistances(1f, 10000f);
         output.WriteLine($"distances {string.Join(", ", distances.Select(d => d.ToString("R")))}");
         var failures = 0;
         // The +Z face (4) sees only sky here and renders no cascades: the fifth group is face 5.
@@ -51,8 +51,7 @@ public sealed class CubemapCascadeTests(ITestOutputHelper output)
         {
             var f = faceOf[g];
             var view = CubemapFaceViews.Face(new Vector3(512, 96, 112), Vector3.Zero, 1f, 10000f, f);
-            var ours = CubemapShadowCascades.Fit(view, sun, distances, 1f, 7500f, 7000f, 1280);
-            ours.AddRange(CubemapShadowCascades.Fit(view, sun, [21f], 0.5f, 1000f, 1500f, 1280));
+            var ours = CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f);
             foreach (var (slot, b) in faces[g].OrderBy(k => k.Key))
             {
                 var c = ours[slot];
@@ -163,8 +162,7 @@ public sealed class CubemapLightCascadeProbe(ITestOutputHelper output)
         var block = File.ReadAllBytes(path);
         var view = CubemapFaceViews.Face(new Vector3(512, 96, 112), Vector3.Zero, 1f, 10000f, 0);
         var (sun, _, _) = CubemapShadowCascades.SunDirections(new Vector3(74.99999f, 180.00002f, 0f));
-        var cascades = CubemapShadowCascades.Fit(view, sun, CubemapShadowCascades.SplitDistances([75f], 3, 1f, 560f), 1f, 7500f, 7000f, 1280);
-        cascades.AddRange(CubemapShadowCascades.Fit(view, sun, [21f], 0.5f, 1000f, 1500f, 1280));
+        var cascades = CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f);
         float[] I = [1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f];
         float[] T(Vector3 o) => [1f, 0f, 0f, o.X, 0f, 1f, 0f, o.Y, 0f, 0f, 1f, o.Z, 0f, 0f, 0f, 1f];
         var o = new Vector3(512, 96, 112);
@@ -203,9 +201,8 @@ public sealed class CubemapLightBlockTests(ITestOutputHelper output)
         var theirs = File.ReadAllBytes(path);
         var view = CubemapFaceViews.Face(new Vector3(512, 96, 112), Vector3.Zero, 1f, 10000f, 0);
         var (toSun, lightDir, _) = CubemapShadowCascades.SunDirections(new Vector3(74.99999f, 180.00002f, 0f));
-        var distances = CubemapShadowCascades.SplitDistances([75f], 3, 1f, 560f);
-        var cascades = CubemapShadowCascades.Fit(view, toSun, distances, 1f, 7500f, 7000f, 1280);
-        cascades.AddRange(CubemapShadowCascades.Fit(view, toSun, [21f], 0.5f, 1000f, 1500f, 1280));
+        var distances = CubemapShadowCascades.GameDistances(1f, 10000f);
+        var cascades = CubemapShadowCascades.GameCascades(view, toSun, 1f, 10000f);
         var color = Lighting.SceneLights.SrgbToLinear(248, 249, 232) * 2.25f;
         var sky = Lighting.SceneLights.SrgbToLinear(138, 200, 255);
         var sun = new CubemapFaceConstants.Sun(lightDir, color, 0.1f, 0.05f, sky, 0.875f);

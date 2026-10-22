@@ -74,8 +74,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         };
         // The sun cascades' per-view blocks (face 0: three cascades and the viewmodel one).
         var (sun, _, cameraDirection) = Cubemaps.CubemapShadowCascades.SunDirections(new System.Numerics.Vector3(74.99999f, 180.00002f, 0f));
-        var cascades = Cubemaps.CubemapShadowCascades.Fit(view, sun, Cubemaps.CubemapShadowCascades.SplitDistances([75f], 3, 1f, 560f), 1f, 7500f, 7000f, 1280);
-        cascades.AddRange(Cubemaps.CubemapShadowCascades.Fit(view, sun, [21f], 0.5f, 1000f, 1500f, 1280));
+        var cascades = Cubemaps.CubemapShadowCascades.GameCascades(view, sun, 1f, 10000f);
         string[] cascadeShas = ["c84b0bea", "14ee9dcb", "4db015a3", "f0d466f1"];
         int[][] tiles = [[0, 0], [1280, 0], [2560, 0], [0, 2048]];
         for (var k = 0; k < 4; k++)
@@ -86,7 +85,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             Lighting.SceneLights.SrgbToLinear(138, 200, 255), 0.875f);
         var volume = new Cubemaps.CubemapFaceConstants.LightProbeVolume(new System.Numerics.Vector3(512, 96, 112), new System.Numerics.Vector3(-768, -1088, -112),
             new System.Numerics.Vector3(768, 896, 176), new System.Numerics.Vector3(0, 32, 0));
-        var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.SplitDistances([75f], 3, 1f, 560f)[^1]).Diameter * 1.42f;
+        var stretched = Cubemaps.CubemapShadowCascades.Slice(view, 1f, Cubemaps.CubemapShadowCascades.GameDistances(1f, 10000f)[^1]).Diameter * 1.42f;
         ours["37b7646c"] = Cubemaps.CubemapFaceConstants.LightBlock(sunLight, volume, cascades, tiles, 1280, 4352, 5248, new System.Numerics.Vector3(512, 96, 112), stretched);
         var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
         using var gpu = new GpuDevice(rayTracingShaderFeatures: Environment.GetEnvironmentVariable("CUBEREPLAY_BASIC_DEVICE") != "1");

@@ -1,0 +1,10 @@
+{
+ "functions": [
+  {
+   "addr": "18017c8d0",
+   "name": "CLightComponent_Construct",
+   "module": "s2c:baked/lighting",
+   "note": "every cascade field zeroed (+0xe4 .. +0xf8 through the network-var initialisers 18017c390 .. 18017c3e0): with csgo.fgd's remove_key the light gives no cascade distances"
+  }
+ ]
+}

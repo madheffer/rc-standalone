@@ -3232,8 +3232,30 @@ game can answer is raised with the user first, and runs with -insecure.
     - The dev box's GTX 1080 (Linux, NVIDIA 580) reproduces the 4070 capture bit for bit on most draws (two
       colour draws differ by a few bytes), so sweeps and checks there compare with that GPU's own run
       (CUBEREPLAY_BASELINE, CUBEREPLAY_BASIC_DEVICE).
-    - Open: where d0 = 75 and the max distance 560 come from (the light's cascade distance and shadow far;
-      csgo.fgd removes those keys, defaults not found); the cascade camera's y offset (1 ulp, no effect);
+    - Settled by decompile (2026-10-22; client and scenesystem as installed 10-21; CubemapShadowCascades.Inputs):
+      the cascade inputs. The light gives none: csgo.fgd removes every cascade key from light_environment and
+      the server's CLightComponent constructor (18017c8d0) zeroes them. 180496ef0 then takes, in order:
+      the light's distances (+0x48, each later one doubled from the last given; none here), the convars
+      csm_cascadeN_override_dist when above 0 (default -1), the practical split, then the view attributes
+      0x61fac369 / 0x70644345 / ... replace distance N when set (1804976e5 on). Its whole range M is
+      csm_max_shadow_dist_override when above 0 and the view's flag bit 4 is clear, else the view attribute
+      ShadowFarZ (0x7b2a64e1, default 1000, set by no code), at most the view frustum's far (view + 0x10 +
+      0x24, 10000 here). csm_max_shadow_dist_override is "560" in all four shadow-quality presets the video
+      settings apply (client 180df0f20 = quality 2, 180df13a0 = 0, 180df1820 = 1, 180df1ca0 = 3; value
+      pushed before the name), so M = 560. The capture's run logged "Detected video config level 2": quality
+      2 also gives csm_max_num_cascades_override 3 and lb_csm_cascade_size_override 1280 (the 1280 tiles),
+      cross fade 0.1, distance fade 0.05. The 7500 / 7000 go in as the attributes CsmMaxVisibleDistance
+      (0xb506b94b) and CsmPushbackDistance (0xb7a3d0d5); the viewmodel cascade is csm_viewmodel_max_shadow_dist
+      21, csm_viewmodel_nearz 0.5, csm_viewmodel_max_visible_dist 1000, r_csgo_viewmodel_csm_pushback_distance
+      1500. Names from MurmurHash2 (lowercase, seed 0x31415926); no DLL holds those strings.
+    - Narrowed, not settled: d0 = 75 is the attribute 0x61fac369. Its only constant source is the render
+      pipeline (client 1811d9d30 at 1811da3f4, with a local pawn's camera services at +0x1328): 1808898d0
+      returns 75.0 (.rdata 181b14fe0) when 180cb2100 finds a scripted camera (the Panorama StartCamera flag
+      1825c9e3b, end_of_match_camera, team_select_camera), else 0, which leaves it unset. No convar, cfg or
+      immediate gives 75 (convar defaults dumped; no 75.0 immediate in client .text). The run loads Panorama
+      UI scenes (ui/xpshop_item), so the path is plausible; confirming it fires during buildcubemaps needs a
+      run with CS2 closed (hook 180cb2100's result at 1808898d4 and 180496ef0's attribute lookup).
+    - Open: the cascade camera's y offset (1 ulp, no effect);
       the general height-fog mapping; the lightmap block's writer in worldrenderer; the binner for maps with
       lights; chaining a whole face from cleared targets.
 

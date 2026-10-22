@@ -12,6 +12,70 @@ public static class CubemapShadowCascades
     public sealed record Cascade(float[] View, float[] Projection, float MinX, float MaxX, float MinY, float MaxY, float Depth, float Diameter);
 
     /// <summary>
+    /// Where the game's cascade inputs come from (client 10-21). csgo.fgd removes every cascade key from
+    /// light_environment and the server's CLightComponent constructor (18017c8d0) zeroes them, so the light gives no
+    /// distances and the convars and view attributes decide.
+    /// </summary>
+    public static class Inputs
+    {
+        /// <summary>
+        /// csm_max_shadow_dist_override: "560" in all four shadow-quality presets the video settings apply (client
+        /// 180df0f20, 180df13a0, 180df1820, 180df1ca0; the convar's own default is -1). 180496ef0 uses it when it is
+        /// above 0, else the view attribute ShadowFarZ (0x7b2a64e1, default 1000, never set).
+        /// </summary>
+        public const float MaxShadowDistance = 560f;
+
+        /// <summary>
+        /// The view attribute 0x61fac369, which replaces cascade 0's distance after the split. Its only constant
+        /// source is the render pipeline (client 1811d9d30 at 1811da3f4): 1808898d0 returns 75 (.rdata 181b14fe0)
+        /// when 180cb2100 finds a scripted camera (Panorama StartCamera, end_of_match_camera, team_select_camera),
+        /// else 0, which leaves the attribute unset. Not yet seen to fire during buildcubemaps (needs a run).
+        /// </summary>
+        public const float Cascade0Distance = 75f;
+
+        /// <summary>r_csgo_csm_max_visible_distance (default 7500), set as the view attribute CsmMaxVisibleDistance (0xb506b94b).</summary>
+        public const float MaxVisible = 7500f;
+
+        /// <summary>r_csgo_csm_pushback_distance (default 7000), set as the view attribute CsmPushbackDistance (0xb7a3d0d5).</summary>
+        public const float Pushback = 7000f;
+
+        /// <summary>
+        /// csm_max_num_cascades_override and lb_csm_cascade_size_override of shadow quality 2 (client 180df0f20): 3
+        /// cascades of 1280 (qualities 0, 1, 3: 2 of 768, 2 of 1024, 3 of 2048).
+        /// </summary>
+        public const int Count = 3, Resolution = 1280;
+
+        /// <summary>The viewmodel cascade: csm_viewmodel_max_shadow_dist 21, csm_viewmodel_nearz 0.5, csm_viewmodel_max_visible_dist 1000, r_csgo_viewmodel_csm_pushback_distance 1500.</summary>
+        public const float ViewmodelDistance = 21f, ViewmodelNear = 0.5f, ViewmodelMaxVisible = 1000f, ViewmodelPushback = 1500f;
+    }
+
+    /// <summary>
+    /// 180496ef0's whole range M: the override when above 0 (and the view's flag bit 4 is clear), else ShadowFarZ,
+    /// at most the view's far plane.
+    /// </summary>
+    public static float MaxDistance(float viewFar, float maxShadowOverride = Inputs.MaxShadowDistance, float shadowFarZ = 1000f)
+        => Min(maxShadowOverride > 0f ? maxShadowOverride : shadowFarZ, viewFar);
+
+    /// <summary>
+    /// A cubemap face's split distances from the game's inputs: the practical split of the whole range, then cascade
+    /// 0 replaced by the 0x61fac369 attribute (1804976e5, after the split).
+    /// </summary>
+    public static float[] GameDistances(float near, float viewFar)
+    {
+        var d = SplitDistances([], Inputs.Count, near, MaxDistance(viewFar));
+        d[0] = Inputs.Cascade0Distance;
+        return d;
+    }
+
+    /// <summary>A cubemap face's sun cascades as the game renders them: the <see cref="Inputs.Count"/> view cascades, then the viewmodel cascade.</summary>
+    public static List<Cascade> GameCascades(CubemapFaceViews.View v, Vector3 sunDirection, float near, float viewFar)
+    {
+        var cascades = Fit(v, sunDirection, GameDistances(near, viewFar), near, Inputs.MaxVisible, Inputs.Pushback, Inputs.Resolution);
+        cascades.AddRange(Fit(v, sunDirection, [Inputs.ViewmodelDistance], Inputs.ViewmodelNear, Inputs.ViewmodelMaxVisible, Inputs.ViewmodelPushback, Inputs.Resolution));
+        return cascades;
+    }
+
+    /// <summary>
     /// The frustum's four corners at a distance (client 18174ef50 = scenesystem 1804a8450, the same code): centre
     /// C = forward * d, U = up * (tan / max(1/1024, aspect)) d, R = -left * tan d; corner (x, y) = ((R x + C) + U y),
     /// for (x0, y0), (x1, y0), (x0, y1), (x1, y1). FOV 90 only (tan 1, see <see cref="CubemapFaceViews"/>).

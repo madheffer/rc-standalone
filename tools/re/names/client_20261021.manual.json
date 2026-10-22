@@ -1,0 +1,76 @@
+{
+ "functions": [
+  {
+   "addr": "1811d9d30",
+   "name": "RenderPipeline_SetViewAttributes",
+   "module": "s2c:baked/lighting",
+   "note": "game pipeline view attributes; at 1811da3f4 cascade 0's distance (0x61fac369) = 1808898d0() when above 0, after the local pawn's camera-services FOV (0x172c3cca); 1811da45f..1811da4fc copies 0x172c3cca / 0x61fac369 / 0x70644345 from another view's attributes when above 0; then CsmPushbackDistance (0xb7a3d0d5) and CsmMaxVisibleDistance (0xb506b94b) from convars"
+  },
+  {
+   "addr": "1808898d0",
+   "name": "Csm_ScriptedCameraCascade0",
+   "module": "s2c:baked/lighting",
+   "note": "75.0 (.rdata 181b14fe0) when 180cb2100 returns a camera, else 0 (its argument is unused)"
+  },
+  {
+   "addr": "180cb2100",
+   "name": "GetScriptedCamera",
+   "module": "s2c:baked/lighting",
+   "note": "the Panorama StartCamera camera when 1825c9e3b is set (180dfd030), else FindEntityByClassname end_of_match_camera (flag 1825c8832) or team_select_camera (1825c9e65), else NULL"
+  },
+  {
+   "addr": "180e0ed60",
+   "name": "Panorama_StartCamera",
+   "module": "s2c:baked/lighting",
+   "note": "sets 1825c9e3b (StopCamera 180e0ee40 clears it); registered beside CloseScoreboard / ClearModels"
+  },
+  {
+   "addr": "180df0f20",
+   "name": "VideoConfig_ShadowQuality2",
+   "module": "s2c:baked/lighting",
+   "note": "the shadow-quality 2 preset as setting.* convars (value pushed before the name): csm_max_num_cascades_override 3, csm_viewmodel_shadows 1, csm_max_shadow_dist_override 560, lb_csm_cascade_size_override 1280, lb_shadow_texture 4352 x 5248, lb_csm_cross_fade_override 0.1, lb_csm_distance_fade_override 0.05; CubemapShadowCascades.Inputs"
+  },
+  {
+   "addr": "180df13a0",
+   "name": "VideoConfig_ShadowQuality0",
+   "module": "s2c:baked/lighting",
+   "note": "quality 0: 2 cascades of 768, csm_max_shadow_dist_override 560, no viewmodel shadows"
+  },
+  {
+   "addr": "180df1820",
+   "name": "VideoConfig_ShadowQuality1",
+   "module": "s2c:baked/lighting",
+   "note": "quality 1: 2 cascades of 1024, csm_max_shadow_dist_override 560"
+  },
+  {
+   "addr": "180df1ca0",
+   "name": "VideoConfig_ShadowQuality3",
+   "module": "s2c:baked/lighting",
+   "note": "quality 3: 3 cascades of 2048, csm_max_shadow_dist_override 560"
+  },
+  {
+   "addr": "18012f9a6",
+   "name": "Convar_csm_max_shadow_dist_override",
+   "module": "s2c:baked/lighting",
+   "note": "registration, default -1"
+  },
+  {
+   "addr": "18012f4d2",
+   "name": "Convar_csm_cascade0_override_dist",
+   "module": "s2c:baked/lighting",
+   "note": "registration, default -1 (cascade 1..3 follow at 0xb0 strides)"
+  },
+  {
+   "addr": "1801223f2",
+   "name": "Convar_r_csgo_csm_pushback_distance",
+   "module": "s2c:baked/lighting",
+   "note": "registration, default 7000 (r_csgo_csm_max_visible_distance 7500 at 180122202, r_csgo_viewmodel_csm_pushback_distance 1500)"
+  },
+  {
+   "addr": "180130342",
+   "name": "Convar_csm_viewmodel_max_shadow_dist",
+   "module": "s2c:baked/lighting",
+   "note": "registration, default 21 (csm_viewmodel_max_visible_dist 1000 at 1801303f2, csm_viewmodel_nearz 0.5 at 1801304a2)"
+  }
+ ]
+}

@@ -2868,6 +2868,34 @@ CLIENT_1015 = [
     ("18237eab0", "g_buildcubemaps_renderdoc_capture", BAKE, "the convar's data pointer (name at +0, int value at +0x58); BuildCubemaps compares the value with the cube counter (from 0) and calls the render device's StartCapture (vfunc 0x638) and EndCapture (0x640) around that cube; read at 18020e5cc and 18020f5b2. cubehost --renderdoc-capture writes it in its own process"),
 ]
 
+# scenesystem 20261015 (installed): the sun cascades of a cubemap face (CubemapShadowCascades, ledger 121).
+SCENESYSTEM_CASCADES = [
+    ("180496ef0", "CSM_SetupCascades", BAKE, "count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance"),
+    ("180494b40", "CSM_FitCascade", BAKE, "one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit"),
+    ("1801a5c28", "CSM_SetupForView", BAKE, "calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero"),
+]
+
+# client.dll 20261021 (installed; tools/re/binaries/client_20261021.dll): where the cascade inputs come from.
+CLIENT_1021 = [
+    ("1811d9d30", "RenderPipeline_SetViewAttributes", BAKE, "game pipeline view attributes; at 1811da3f4 cascade 0's distance (0x61fac369) = 1808898d0() when above 0, after the local pawn's camera-services FOV (0x172c3cca); 1811da45f..1811da4fc copies 0x172c3cca / 0x61fac369 / 0x70644345 from another view's attributes when above 0; then CsmPushbackDistance (0xb7a3d0d5) and CsmMaxVisibleDistance (0xb506b94b) from convars"),
+    ("1808898d0", "Csm_ScriptedCameraCascade0", BAKE, "75.0 (.rdata 181b14fe0) when 180cb2100 returns a camera, else 0 (its argument is unused)"),
+    ("180cb2100", "GetScriptedCamera", BAKE, "the Panorama StartCamera camera when 1825c9e3b is set (180dfd030), else FindEntityByClassname end_of_match_camera (flag 1825c8832) or team_select_camera (1825c9e65), else NULL"),
+    ("180e0ed60", "Panorama_StartCamera", BAKE, "sets 1825c9e3b (StopCamera 180e0ee40 clears it); registered beside CloseScoreboard / ClearModels"),
+    ("180df0f20", "VideoConfig_ShadowQuality2", BAKE, "the shadow-quality 2 preset as setting.* convars (value pushed before the name): csm_max_num_cascades_override 3, csm_viewmodel_shadows 1, csm_max_shadow_dist_override 560, lb_csm_cascade_size_override 1280, lb_shadow_texture 4352 x 5248, lb_csm_cross_fade_override 0.1, lb_csm_distance_fade_override 0.05; CubemapShadowCascades.Inputs"),
+    ("180df13a0", "VideoConfig_ShadowQuality0", BAKE, "quality 0: 2 cascades of 768, csm_max_shadow_dist_override 560, no viewmodel shadows"),
+    ("180df1820", "VideoConfig_ShadowQuality1", BAKE, "quality 1: 2 cascades of 1024, csm_max_shadow_dist_override 560"),
+    ("180df1ca0", "VideoConfig_ShadowQuality3", BAKE, "quality 3: 3 cascades of 2048, csm_max_shadow_dist_override 560"),
+    ("18012f9a6", "Convar_csm_max_shadow_dist_override", BAKE, "registration, default -1"),
+    ("18012f4d2", "Convar_csm_cascade0_override_dist", BAKE, "registration, default -1 (cascade 1..3 follow at 0xb0 strides)"),
+    ("1801223f2", "Convar_r_csgo_csm_pushback_distance", BAKE, "registration, default 7000 (r_csgo_csm_max_visible_distance 7500 at 180122202, r_csgo_viewmodel_csm_pushback_distance 1500)"),
+    ("180130342", "Convar_csm_viewmodel_max_shadow_dist", BAKE, "registration, default 21 (csm_viewmodel_max_visible_dist 1000 at 1801303f2, csm_viewmodel_nearz 0.5 at 1801304a2)"),
+]
+
+# server.dll 20261021 (installed; tools/re/binaries/server_20261021.dll).
+SERVER_1021 = [
+    ("18017c8d0", "CLightComponent_Construct", BAKE, "every cascade field zeroed (+0xe4 .. +0xf8 through the network-var initialisers 18017c390 .. 18017c3e0): with csgo.fgd's remove_key the light gives no cascade distances"),
+]
+
 # server.dll 20261015 under cubehost (no Steam).
 SERVER_1015_CUBEHOST = [
     ("180991359", "SteamWorksGameStats_RequestSessionId", BAKE, "\"Steamworks Stats: %s Requesting session id.\" then a call through the object at this +0x80 without a check: a Steam interface from ISteamClient. cubehost's stub answers NULL to every ISteamClient method (a zeroed dummy crashed here after BeginMatch)"),
@@ -2902,11 +2930,13 @@ if __name__ == "__main__":
     write("navsystem_20261015.manual.json", NAVSYSTEM)
     write("resourcecompiler_20261006.manual.json", RESOURCECOMPILER_1006)
     write("tier0_20261015.manual.json", TIER0_1015)
-    write("scenesystem_20261015.manual.json", SCENESYSTEM)
+    write("scenesystem_20261015.manual.json", SCENESYSTEM + SCENESYSTEM_CASCADES)
     write("materialsystem2_20261015.manual.json", MATERIALSYSTEM_1015)
     write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
     write("server_20261015.manual.json", SERVER_1015 + SERVER_1015_CUBEHOST)
     write("resourcecompiler_20261015.manual.json", RESOURCECOMPILER_1015)
     write("bc7e_20261015.manual.json", BC7E)
     write("client_20261015.manual.json", CLIENT_1015)
+    write("client_20261021.manual.json", CLIENT_1021)
+    write("server_20261021.manual.json", SERVER_1021)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))
