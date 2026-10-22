@@ -101,9 +101,9 @@ carries the same state per item.
      part after the render is already exact).
    - probe_classes crashes the engine on load (its package is missing entity
      models): recompile it, then capture its rect lights.
-2. **.vmap_c leftovers** (ledger 119): the two l5 specimens' row order;
-   force_up_to_date_materials' reader in Only Entities builds; MapCompile
-   knowing a missing material.
+2. **.vmap_c leftovers** (ledger 119): force_up_to_date_materials' reader
+   in Only Entities builds; MapCompile knowing a missing material. (The l5
+   row order is settled: read order plus MSVC std::sort.)
 3. **Nav** (LIGHTING_ROADMAP L9, L22, L23): markups, links, ladders, movable
    meshes, spheres and capsules in the casts.
 4. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through

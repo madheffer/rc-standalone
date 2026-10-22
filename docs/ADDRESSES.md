@@ -558,7 +558,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
 - against the installed build (20261022_1.41.9.1.md): 1130 tracked addresses: ambiguous 62, changed 15, identical 62, moved 988, relocated 3
-- 1042 addresses
+- 1045 addresses
 
 ### s2c:baked/light-keys
 
@@ -901,6 +901,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 |---|---|---|---|
 | `1800c7c10` | `MurmurHash2LowerCase` | ToLowerFast then MurmurHash2, seed 0x31415926 | `src/Source2.Compiler/Io/ResourceNames.cs:8`, `src/Source2.Compiler/Io/ResourceNames.cs:57`, `src/Source2.Compiler/Maps/SettleWorld.Meshes.cs:344` |
 | `1800ff1f0` | `ResourceManifest_BuildWorld` | world.vrman built in memory, no file |  |
+| `18016c650` | `CResourceCompilerContext_WriteEditInfo` | copies the context's rows into the RED2 lists, logs each argument when ctx +0x52 (-v) and the channel is detailed, std::sorts each list, writes the edit info (181c24a70); 10-15 18016c880 | `src/Source2.Compiler/Maps/MapRootFile.cs:125` |
+| `180174f90` | `CResourceCompilerContext_RecordArgument` | appends an m_ArgumentDependencies row (name, type, fingerprint, default) not yet in ctx +0x158/+0x160 (24-byte rows), to the context and each parent up to the owner: the rows' read order | `src/Source2.Compiler/Maps/MapRootFile.cs:124` |
+| `18017a9c0` | `std_Sort_ArgumentDependencies` | MSVC _Sort_unchecked over 40-byte rows by V_stricmp_fast(name) < 0: insertion sort at 32 or fewer (18017db30), else the median-guess partition (18017e0b0) | `src/Source2.Compiler/Maps/MapRootFile.cs:125` |
 | `1801f9550` | `CMapBuilderContext::vf23` | AddManifest: a physics or world node manifest (.vrman) | `src/Source2.Compiler/Containers/ResourceManifestAuthor.cs:52` |
 | `181c1dca0` | `FixupResourceName_NoExtension` |  | `src/Source2.Compiler/Maps/ResourcePath.cs:10` |
 | `181c1e120` | `FixupResourceName` | adds the extension ('vmat'); refuses absolute or rooted paths | `src/Source2.Compiler/Io/ResourceNames.cs:7`, `src/Source2.Compiler/Maps/ResourcePath.cs:8` |

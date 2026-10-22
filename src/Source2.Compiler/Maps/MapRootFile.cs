@@ -121,6 +121,26 @@ public static class MapRootFile
         "maxmipsize", "minmipsize", "vrad3LargeBlockSize",
     ];
 
+    // The order a compile's steps first read each argument: the recorder (0923 180174f90) appends a row the
+    // context has not seen, and the edit info writer (18016c650) std::sorts that list (18017a9c0) by
+    // V_stricmp_fast on the name, so the two lightmapMaxResolution rows keep whatever order the sort leaves
+    // them in. Captured with tools/re/capture_argdeps.py (s2c_l5probe and s2c_l5farfield128 full,
+    // probe01 -world -phys -vis -nav; ledger 119). flattenPropsWithBakedLighting's place is not captured; it
+    // ties with no other name, so it cannot move a row.
+    private static readonly string[] ReadOrder =
+    [
+        "___OverrideInputData___", "skipmapload", "nobakedlighting", "bakelighting", "skipauxfiles", "flattenPropsWithBakedLighting",
+        "norte", "dumptris", "debugvisgeo", "disablevis",
+        "disableLightingCalculations", "lightmapMaxResolution", "lightmapMipCount", "lightmapNoWeld", "lightmapVRadQuality",
+        "lightmapCompressionDisabled", "noVolumetricFog", "noLightProbeVolumes", "debugLightmapSets", "lightmapChartPackIterations",
+        "noRepack", "lightmapDisableFiltering", "vrad3LargeBlockSize",
+        "minmipsize", "maxmipsize", "fast", "final", "hueShiftFixup", "lightmapMaxResolution#texture",
+        "lightProbeVolumeTextureArg", "fogIrradianceVolumeTextureArg", "farfieldIndirectionTextureArg", "farfieldAtlasTextureArg",
+        "lightmapTextureArg",
+        "debugColorClustering", "meshletMaxVertices", "meshletMaxTriangles", "force_up_to_date_materials",
+        "keep_vertices", "mapbuilder_entity_classname",
+    ];
+
     private static KVObject EditInfo(Compile compile, IReadOnlyList<string> children, IReadOnlyList<(string Type, string Name, int Count)> subassets)
     {
         var searchPath = $"csgo_addons/{compile.Addon}";
@@ -155,7 +175,7 @@ public static class MapRootFile
             inputArray.Add(d);
         }
 
-        // The arguments, case-insensitively sorted with ___OverrideInputData___ first.
+        // The arguments in read order, then MSVC's std::sort by V_stricmp_fast (ReadOrder).
         // An Only Entities build (Valve's probe01 and cardtest, 10-22) reads force_up_to_date_materials only where a
         // model's material does not load (cardtest's impmodel; its reader there is not read yet, ledger 119).
         var names = new List<string>(compile.EntitiesOnly && !compile.MaterialMissing ? Always.Skip(1) : Always);
@@ -185,15 +205,18 @@ public static class MapRootFile
             if (compile.FlattenProps)
                 names.Add("flattenPropsWithBakedLighting");
         }
+        names.Add("___OverrideInputData___");
+        var rows = names.OrderBy(n => Array.IndexOf(ReadOrder, n) is var i and >= 0 ? i
+                                     : throw new InvalidOperationException($"{n} has no read position")).ToArray();
+        MsvcSort.Sort(rows, (a, b) => Tier0Strings.StricmpFast(a.Split('#')[0], b.Split('#')[0]) < 0);
         var args = KVObject.Array();
-        args.Add(Argument("___OverrideInputData___", "BinaryBlobArg", 0, 0));
-        foreach (var name in names.OrderBy(n => n.Split('#')[0], StringComparer.OrdinalIgnoreCase).ThenBy(n => n.Contains('#')))
+        foreach (var name in rows)
         {
             var plain = name.Split('#')[0];
             var (type, value, fallback) = plain switch
             {
-                "lightmapTextureArg" or "lightProbeVolumeTextureArg" or "fogIrradianceVolumeTextureArg" or "farfieldAtlasTextureArg"
-                    or "farfieldIndirectionTextureArg" => ("BinaryBlobArg", 0u, 0u),
+                "___OverrideInputData___" or "lightmapTextureArg" or "lightProbeVolumeTextureArg" or "fogIrradianceVolumeTextureArg"
+                    or "farfieldAtlasTextureArg" or "farfieldIndirectionTextureArg" => ("BinaryBlobArg", 0u, 0u),
                 "mapbuilder_entity_classname" => ("StringArg", 0u, 0u),
                 // A switch given bare (-skipauxfiles) is an int 1 (Valve's Fast and Only Entities compiles, 10-22).
                 _ when !name.Contains('#') && compile.Arguments.TryGetValue(plain, out var given) && given is int i => ("IntArg", (uint)i, FloatBits(null, name)),

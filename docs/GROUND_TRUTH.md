@@ -3130,9 +3130,19 @@ game can answer is raised with the user first, and runs with -insecure.
       gated by vfunc 0x108 (the compile does not bake).
     - Verified: 23 lit fixture compiles and all 11 unlit references (nobake_refs, fresh_refs, nolight_1016)
       byte for byte.
-    - Open: s2c_l5probe and s2c_l5farfield128 (fog, far field) have the two lightmapMaxResolution rows the
-      other way round (the texture row, 0, first); same rows and sizes otherwise. The order of equal names
-      is presumably an unstable sort over the read order (36 or more rows); not read. The +0x605 flag.
+    - Settled (2026-10-22, decompile and capture): the row order. The recorder (180174f90) appends each row
+      a context has not seen, to it and each parent, so the list is in first-read order; the edit info
+      writer (18016c650) std::sorts it (18017a9c0, MSVC's introsort: insertion sort at 32 rows or fewer,
+      else the median-guess partition) by V_stricmp_fast on the name alone. The two lightmapMaxResolution
+      rows tie, so the 36- and 38-row tables of s2c_l5probe and s2c_l5farfield128 (fog, far field) come out
+      texture row first and the 35-row ones value row first. Read order captured from Valve's compiles with
+      tools/re/capture_argdeps.py (Frida on the writer's entry: s2c_l5probe and s2c_l5farfield128 full,
+      probe01 -world -phys -vis -nav): skipmapload, nobakedlighting or bakelighting, skipauxfiles, the vis
+      four, the 13 lighting rows, the texture compiles' rows (minmipsize, maxmipsize, fast, final,
+      hueShiftFixup, lightmapMaxResolution 0, then the texture arguments: probe volume, fog, far field
+      indirection, far field atlas, lightmap), the meshlet rows, force_up_to_date_materials, the physics
+      two. MapRootFile.ReadOrder; all 25 lit and 15 unlit references byte for byte. Still open: the +0x605
+      flag; where flattenPropsWithBakedLighting is read (it ties with nothing).
     - Settled by capture (2026-10-22, CS2 closed: Valve's compiles of probe01 and cardtest with Hammer's Fast
       Compile, -world -skipauxfiles -nolightmaps -phys -nav, and Only Entities, -entities -skipauxfiles
       -nolightmaps -fshallow over the existing package; %TEMP%/preset_fast, preset_entities): a switch given bare

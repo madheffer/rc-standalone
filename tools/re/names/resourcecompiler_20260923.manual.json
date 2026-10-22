@@ -3829,6 +3829,24 @@
    "note": "AddManifest: a physics or world node manifest (.vrman)"
   },
   {
+   "addr": "180174f90",
+   "name": "CResourceCompilerContext_RecordArgument",
+   "module": "s2c:containers",
+   "note": "appends an m_ArgumentDependencies row (name, type, fingerprint, default) not yet in ctx +0x158/+0x160 (24-byte rows), to the context and each parent up to the owner: the rows' read order"
+  },
+  {
+   "addr": "18016c650",
+   "name": "CResourceCompilerContext_WriteEditInfo",
+   "module": "s2c:containers",
+   "note": "copies the context's rows into the RED2 lists, logs each argument when ctx +0x52 (-v) and the channel is detailed, std::sorts each list, writes the edit info (181c24a70); 10-15 18016c880"
+  },
+  {
+   "addr": "18017a9c0",
+   "name": "std_Sort_ArgumentDependencies",
+   "module": "s2c:containers",
+   "note": "MSVC _Sort_unchecked over 40-byte rows by V_stricmp_fast(name) < 0: insertion sort at 32 or fewer (18017db30), else the median-guess partition (18017e0b0)"
+  },
+  {
    "addr": "181c1dca0",
    "name": "FixupResourceName_NoExtension",
    "module": "s2c:containers",
