@@ -216,6 +216,12 @@ and about 30% in the kd tracer. Caching Crossed per ray and leaf (a pure
 function, VXVS unchanged) brought it to 95 s. On atixref-sized maps the
 sampling grows past an hour (prefabprobe4 did not finish in 3 h on the box), so
 this is where a speed pass starts, after parity (user, 2026-10-22).
+On the PC (Ryzen 7800X3D, below normal) the whole chain on s2c_prefabprobe4
+(atixref as a prefab) took 5.5 h, and its clusters are not Valve's: the 6
+lights' precomputed_vis_clusters were 0/6 against Valve's lists, while
+Valve's captured cluster boxes give 6/6 (ENTITIES ledger 122). Valve's state
+for the same compile is in %TEMP%/vis_capture/s2c_prefabprobe4.pvs.bin for a
+stage-by-stage comparison.
 
 Valve's, on Mako's 1,299 s compile, visibility takes 1,088.7 s (83.8%) and lighting
 16 s:
