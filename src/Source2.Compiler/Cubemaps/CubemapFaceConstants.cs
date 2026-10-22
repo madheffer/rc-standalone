@@ -212,6 +212,121 @@ public static class CubemapFaceConstants
         return b;
     }
 
+    /// <summary>g_transformBuffer: one row-major 3 x 4 (48 bytes) per transform.</summary>
+    public static byte[] Transforms(IReadOnlyList<float[]> transforms)
+    {
+        var b = new byte[transforms.Count * 48];
+        for (var t = 0; t < transforms.Count; t++)
+            for (var i = 0; i < 12; i++)
+                BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(t * 48 + i * 4), transforms[t][i]);
+        return b;
+    }
+
+    /// <summary>The identity 3 x 4 a world node aggregate draws with.</summary>
+    public static readonly float[] Identity3x4 = [1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f];
+
+    /// <summary>
+    /// g_instanceBuffer: 32 bytes per instance. A world node aggregate's draws each have their own record, as the
+    /// capture shows them: (tint 0xffffffff, its transform's index, 0xffffffff, 0, 0, 0x00100000, 0, 1.0f); of
+    /// these the face reads the transform index (the replay with these records equals the capture). Instance 0
+    /// is the capture's null record (the sky's, which its shaders do not read).
+    /// </summary>
+    public static byte[] Instances(IReadOnlyList<int> transformIndices)
+    {
+        var b = new byte[(transformIndices.Count + 1) * 32];
+        uint[] none = [0xffffffff, 0, 0xffffffff, 0xffffffff, 0xffffffff, 0, 0, 0x3f800000];
+        for (var i = 0; i < 8; i++)
+            BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(i * 4), none[i]);
+        for (var n = 0; n < transformIndices.Count; n++)
+        {
+            uint[] r = [0xffffffff, (uint)transformIndices[n], 0xffffffff, 0, 0, 0x00100000, 0, 0x3f800000];
+            for (var i = 0; i < 8; i++)
+                BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan((n + 1) * 32 + i * 4), r[i]);
+        }
+        return b;
+    }
+
+    /// <summary>
+    /// PerViewConstantBuffer_t for a sun cascade (an orthographic view into the shadow atlas tile at
+    /// <paramref name="x"/>, <paramref name="y"/>). The cascade's csm_depth_only draws read the camera-relative
+    /// g_matWorldToProjection (the projection, through the identity jitter multiply, times the view's rotation)
+    /// and g_vWorldToCameraOffset (minus the camera: the view's translation taken back through its rotation).
+    /// The other words follow the capture for a cascade view.
+    /// </summary>
+    public static byte[] CascadePerView(CubemapShadowCascades.Cascade c, Vector3 cameraDirection, int x, int y, int size, int atlasWidth, int atlasHeight)
+    {
+        var b = new byte[640];
+        void F(int offset, float value) => BinaryPrimitives.WriteSingleLittleEndian(b.AsSpan(offset), value);
+        void I(int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(b.AsSpan(offset), value);
+        void Transposed(int offset, float[] m)
+        {
+            for (var r = 0; r < 4; r++)
+                for (var k = 0; k < 4; k++)
+                    F(offset + (r * 4 + k) * 4, m[k * 4 + r]);
+        }
+        float[] identity = [1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f];
+        var projection = CubemapFaceViews.Mul4(identity, c.Projection);
+        var v = c.View;
+        float[] rotation = [v[0], v[1], v[2], 0f, v[4], v[5], v[6], 0f, v[8], v[9], v[10], 0f, 0f, 0f, 0f, 1f];
+        var relative = CubemapFaceViews.Mul4(projection, rotation);
+        // The camera: the sun's normalised direction times the view's depth offset (the capture's values).
+        var depthOffset = v[11];
+        var camera = new Vector3(cameraDirection.X * depthOffset, cameraDirection.Y * depthOffset, cameraDirection.Z * depthOffset);
+        Transposed(0, relative);                                       // g_matWorldToProjection
+        Transposed(128, v);                                            // g_matWorldToView
+        for (var i = 0; i < 16; i++)                                   // g_matViewToProjection
+            F(192 + i * 4, projection[i]);
+        F(256, c.Depth);                                               // g_vInvProjLowerRight2x2 as the capture shows it
+        F(268, 1f);
+        F(284, -0f);                                                   // g_vClipPlane0.w
+        F(288, 1f);
+        F(292, 1f);
+        F(304, (float)size / atlasWidth);                              // g_vViewportToGBufferRatio
+        F(308, (float)size / atlasHeight);
+        F(312, 1f);                                                    // g_fInvViewportZRange (0 .. 1)
+        F(316, -0f);
+        F(320, x);                                                     // g_vViewportOffset
+        F(324, y);
+        F(328, size);                                                  // g_vViewportSize
+        F(332, size);
+        F(336, 1f / size);
+        F(340, 1f / size);
+        F(344, atlasWidth);                                            // g_vRenderTargetSize
+        F(348, atlasHeight);
+        F(352, 1f / atlasWidth);                                       // g_vInvGBufferSize
+        F(356, 1f / atlasHeight);
+        F(372, 1f);                                                    // g_flViewportMaxZ
+        F(380, c.Depth);                                               // g_flFarPlane
+        F(384, -camera.X);                                             // g_vWorldToCameraOffset
+        F(388, -camera.Y);
+        F(392, -camera.Z);
+        F(416, camera.X);                                              // g_vCameraPositionWs
+        F(420, camera.Y);
+        F(424, camera.Z);
+        F(448, -cameraDirection.X);                                    // g_vCameraDirWs
+        F(452, -cameraDirection.Y);
+        F(456, -cameraDirection.Z);
+        F(460, 1f);
+        F(468, c.Depth);                                               // g_vDepthPsToVsConversion (0, far, -far)
+        F(472, -c.Depth);
+        I(476, 1);
+        F(480, 2048f);
+        F(484, 2048f);
+        F(528, 1f / 1280f);                                            // g_vFrameBufferCopyInvSizeAndUvScale
+        F(532, 1f / 720f);
+        F(536, (float)size / 1280f);
+        F(540, (float)size / 720f);
+        F(544, -camera.X);                                             // g_vPrevWorldToCameraOffset
+        F(548, -camera.Y);
+        F(552, -camera.Z);
+        Transposed(560, relative);                                     // g_matPrevWorldToProjection
+        F(624, 1f);
+        F(628, 1f);
+        F(632, 1f);
+        F(636, 1f);
+        return b;
+    }
+
     /// <summary>The inverse of the full world-to-projection (projection times world-to-view, translation included).</summary>
     private static float[] ProjectionToWorld(CubemapFaceViews.View v)
     {

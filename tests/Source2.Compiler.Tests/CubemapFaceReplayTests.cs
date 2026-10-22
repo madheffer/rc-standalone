@@ -50,7 +50,7 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
     /// <summary>
     /// Face 0 of probe01's cube 0 with our constant blocks in place of the captured ones: the per-view blocks
     /// (world, depth range 0 .. 0.95; sky, 1 .. 1), PerViewConstantBufferCsgo_t and
-    /// BakedLightingConstantBuffer_t from <see cref="Cubemaps.CubemapFaceConstants"/>. Every draw that reads them
+    /// BakedLightingConstantBuffer_t, the transform and instance buffers from <see cref="Cubemaps.CubemapFaceConstants"/>. Every draw that reads them
     /// must still equal the capture.
     /// </summary>
     [Fact]
@@ -68,6 +68,9 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             ["1b1f6cc0"] = Cubemaps.CubemapFaceConstants.PerView(view, 1024, 1f, 1f),
             ["37c443a8"] = Cubemaps.CubemapFaceConstants.Csgo(view, fog, 4096f),
             ["d831320f"] = Cubemaps.CubemapFaceConstants.BakedLighting(new System.Numerics.Vector2(1.1428397f, 1.1428397f), 4096, 4096, false),
+            // Our own slots: two identity transforms, every instance pointing at the second.
+            ["40190a9e"] = Cubemaps.CubemapFaceConstants.Transforms([Cubemaps.CubemapFaceConstants.Identity3x4, Cubemaps.CubemapFaceConstants.Identity3x4]),
+            ["5708ccca"] = Cubemaps.CubemapFaceConstants.Instances([.. Enumerable.Repeat(1, 63)]),
         };
         var resources = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "resources.json")))!;
         using var gpu = new GpuDevice(rayTracingShaderFeatures: true);
