@@ -43,6 +43,23 @@ if (args[0] == "--entities")
     return;
 }
 
+// --vcsinfo <vpk> <vcs path>: every collection property of the program file with its count, to find where a
+// VCS version keeps a table.
+if (args[0] == "--vcsinfo")
+{
+    using var pak = new Package();
+    pak.Read(args[1]);
+    pak.ReadEntry(pak.FindEntry(args[2])!, out var bytes);
+    using var p = new VfxProgramData();
+    p.Read(Path.GetFileName(args[2]), new MemoryStream(bytes));
+    foreach (var prop in p.GetType().GetProperties())
+    {
+        var v = prop.GetValue(p);
+        Console.WriteLine($"{prop.Name}: {(v is System.Collections.ICollection c ? $"{c.Count} items" : v)}");
+    }
+    return;
+}
+
 // --cbuffers <vpk> <vcs path>...: each program's constant buffer layouts (name, size, members with byte
 // offsets), the names Valve's SPIR-V leaves out.
 if (args[0] == "--cbuffers")

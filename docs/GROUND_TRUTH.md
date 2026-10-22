@@ -3156,10 +3156,26 @@ game can answer is raised with the user first, and runs with -insecure.
       and the half-resolution depth the downsample writes into a 1280 x 720 scratch target (its first
       512 x 512); vertex streams are the world mesh (28-byte stride: position, uv, a packed uint, a 16-bit
       lightmap uv), a per-instance uint and a stride-0 uint4.
-    - Open: the inputs from our own data, one at a time against this harness (views from ledger 118, the
-      light and binner blocks, the world vertex and index streams, the material constants and textures),
-      then the whole face chained from the cleared targets; the 305 pass (clears, no draws) and the reduction
-      to the EXR (547, 549, 581 are copies).
+    - Settled, inputs (CubemapFaceInputsProbe): each world draw's vertex stream is its world node model's
+      decoded vertex buffer, byte for byte, and the pooled index buffer holds each model's indices whole
+      (reflectivity_30's at byte 0, dev_measuregeneric01's at 624); per view, the surviving fragments of a
+      model are merged into indirect sub-draws where they are adjacent (cascade 1: draws 0+1, 5, 9). The
+      colour pass's lightmaps are the package's lightmaps/*.vtex_c (irradiance, directional_irradiance,
+      direct_light_shadows, debug_chart_color) and each material texture its .vtex_c's whole mip chain.
+      generic's _Globals_ (set 1 binding 0) is ProgramGlobals.Fill's for both materials word for word with the
+      render attribute g_bRenderingToCubemaps = 1 and g_vShaderIDColor from gameinfo's
+      MaterialSystem2/ShaderIDColors (materialsystem2 180035b2a reads the section; 180082cf0 makes each byte
+      linear: over 255 (0.003921569), clamped, x / 12.92 at or below 0.04045, else V_powf((x + 0.055) / 1.055,
+      2.4); alpha 1; generic.vfx is "255 255 255").
+    - Settled by blanking each input in the replay: the face depends on the sun atlas, irradiance,
+      directional irradiance, direct_light_shadows (the reflectivity draw only), the material textures and a
+      1280 x 720 sRGB colour target whose first 512 x 512 is cleared to white each face (the AO target; pass
+      429 clears it, no draws). It does not depend on the 512 x 512 x 4 volume, the 2040-layer cube array,
+      the half-resolution depth, debug_chart_color or the 1 x 1 defaults. The face's colour and depth targets
+      are loaded, not cleared, and already hold the same face from an earlier frame of the build.
+    - Open: the per-view (640 bytes), scene (656) and lightmap (64) blocks, the 32 KB light block, the
+      transform and instance buffers and the binner's inputs, from our own data; then the whole face chained
+      from cleared targets; the reduction to the EXR (547, 549, 581 are copies).
 
 ## Resolved
 

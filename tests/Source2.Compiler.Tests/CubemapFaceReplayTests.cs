@@ -54,6 +54,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
         private readonly Dictionary<string, SceneDrawRunner.SceneImage> _images = [];
         private readonly Dictionary<string, Sampler> _samplers = [];
 
+        /// <summary>
+        /// CUBEREPLAY_BLANK: resources uploaded as zeros, to see whether a draw's output depends on them
+        /// (an input that changes nothing need not be reproduced).
+        /// </summary>
+        private static readonly HashSet<string> Blank = [.. (Environment.GetEnvironmentVariable("CUBEREPLAY_BLANK") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries)];
+
         private byte[] Blob(string sha1) => File.ReadAllBytes(Path.Combine(dir, "blobs", sha1 + ".bin"));
 
         private GpuDevice.GpuBuffer Buffer(string sha1)
@@ -161,7 +167,12 @@ public sealed class CubemapFaceReplayTests(ITestOutputHelper output)
             var layers = (uint)Math.Max(1, (int)t["arraysize"]!);
             image = runner.CreateImage(format, (uint)(int)t["width"]!, (uint)(int)t["height"]!, (uint)Math.Max(1, (int)t["depth"]!), mips, layers, viewType, usage);
             foreach (var s in subs)
-                runner.Write(image, (uint)(int)s!["mip"]!, (uint)(int)s["slice"]!, Blob((string)s["sha1"]!));
+            {
+                var data = Blob((string)s!["sha1"]!);
+                if (Blank.Contains(name))
+                    data = new byte[data.Length];
+                runner.Write(image, (uint)(int)s["mip"]!, (uint)(int)s["slice"]!, data);
+            }
             return _images[key] = image;
         }
 

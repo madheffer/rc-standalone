@@ -417,6 +417,16 @@ cascades, depth prepass, depth downsample, the colour draws, sky, max
 downsample) equal the capture bit for bit. The render state they use is in
 ledger 120.
 
+`CUBEREPLAY_EIDS=<eid,...>` runs a subset; `CUBEREPLAY_BLANK=<resource;...>`
+uploads those resources as zeros, which shows whether the face depends on
+them at all. `CubemapFaceInputsProbe` (with `CUBEREPLAY_VPK`, the captured
+map's package, and `CUBEREPLAY_MATERIAL`) traces the captured inputs back to
+our data: the world streams to the world node models, the lightmaps and
+material textures to their .vtex_c, generic's `_Globals_` to
+`ProgramGlobals.Fill` (equal word for word with g_bRenderingToCubemaps = 1
+and gameinfo's ShaderIDColors). What is settled and what is left is in
+ledger 120.
+
 ## Open
 
 - DX11 float parity for the GPU pass (only matters where a 1-ulp difference
