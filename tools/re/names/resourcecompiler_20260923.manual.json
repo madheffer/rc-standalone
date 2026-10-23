@@ -3676,13 +3676,13 @@
    "addr": "180f5ff40",
    "name": "MapDoc_CollapseInstance",
    "module": "s2c:entities/lump",
-   "note": ""
+   "note": "the copy from vf 0x860 (CMapInstance::vf268), then the id remap 180f90cb0"
   },
   {
    "addr": "180f60740",
    "name": "MapDoc_BakeInstances",
    "module": "s2c:entities/lump",
-   "note": ""
+   "note": "rounds until none collapses: tile meshes, then every CMapInstance-typed node (prefabs too) in tree order"
   },
   {
    "addr": "180f7aa30",
@@ -3718,7 +3718,7 @@
    "addr": "181004020",
    "name": "CMapEntity_ExportToLump",
    "module": "s2c:entities/lump",
-   "note": ""
+   "note": "keys in the table's own iteration order (180f30fd0 first, 180f33d10 next), then class_game_keys"
   },
   {
    "addr": "181013ec0",
@@ -3730,7 +3730,7 @@
    "addr": "181017820",
    "name": "CMapInstance_Collapse",
    "module": "s2c:entities/lump",
-   "note": ""
+   "note": "the copy added as the last child of the instance's parent (vf 0x1c8)"
   },
   {
    "addr": "181089940",
@@ -6011,6 +6011,12 @@
    "name": "MapDoc_GatherLights",
    "module": "s2c:baked/light-keys",
    "note": "lights of the world and of +0x6b8 docs"
+  },
+  {
+   "addr": "18100c780",
+   "name": "MapDoc_ListLoadedDocs",
+   "module": "s2c:baked/light-keys",
+   "note": "the +0x6b8 vector's documents in order, loaded ones when asked; no recursion"
   },
   {
    "addr": "180f1c8b0",

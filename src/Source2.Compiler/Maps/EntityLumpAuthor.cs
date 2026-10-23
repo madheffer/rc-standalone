@@ -218,6 +218,13 @@ public static partial class EntityLumpAuthor
         // classname last, and worldspawn's steamaudio defaults lead in reverse FGD
         // order. An empty value is typed like any other and ships as "" or a zero.
         var table = KeyTable(entity, schema);
+        // A prefab map's node exported again (KeysForward) holds classname, then the
+        // rest of its table reversed; the preprocess appends to that as to any table
+        // (s2c_prefabprobe9's second placements: source keys in order, classname
+        // last, a light's written keys first).
+        if (entity.KeysForward)
+            table = [.. table.Where(k => k.Key.EqualsAscii("classname")),
+                     .. table.Where(k => !k.Key.EqualsAscii("classname")).Reverse()];
         Preprocess(entity, table, schema, context.LightingKeys);
         if (context.LightingKeys?.LightWrites is { } lightWrites && lightWrites.TryGetValue(entity, out var written))
             foreach (var (key, value) in written)

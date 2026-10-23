@@ -237,7 +237,21 @@ public static partial class EntityLumpAuthor
             writes[lights[i]] = shaped[i];
         if (baked)
         {
-            var gather = lights.Where(e => !e.Instanced).Concat(lights.Where(e => e.Instanced)).ToList();
+            // The worlds a map references are gathered breadth first: s2c_prefabprobe7's prefab 109
+            // takes its slot before 108:2140, the prefab inside its sibling 108 (OrderBy is stable).
+            // A prefab map is one document however often it is placed, and the
+            // gather (180f1c660) takes the documents after the world: each one's
+            // placements breadth first (s2c_prefabprobe9: s2c_fixinner's 115 before
+            // 112:2156), a placement's lights in walk order except the document's
+            // first placement, whose come last to first (s2c_prefabprobe11 and 12:
+            // 108:2149 takes the slot left, then 109:2146 and 110:2146). Measured,
+            // not read: the order of the document list (+0x6b8) and the reversal.
+            var placed = lights.Where(e => !e.Instanced && e.Prefabs.Length > 0).OrderBy(e => e.Prefabs.Length).ToList();
+            var gather = lights.Where(e => !e.Instanced && e.Prefabs.Length == 0)
+                               .Concat(placed.GroupBy(e => e.PrefabMap)
+                                             .SelectMany(d => d.GroupBy(e => string.Join(':', e.Prefabs))
+                                                               .SelectMany((p, k) => k == 0 ? p.Reverse() : p)))
+                               .Concat(lights.Where(e => e.Instanced)).ToList();
             var assigned = Maps.BakedShadowAssignment.Assign([.. gather.Select(e =>
             {
                 var table = KeyTable(e, schema);

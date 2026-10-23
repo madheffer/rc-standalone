@@ -354,6 +354,7 @@ public static class EntityLumpSet
                 smartPropLocators is null ? 0 : SmartProps.NodesCreatedOnLoad(document, smartPropLocators), prefabs: true,
                 createdOnLoadIn: smartPropLocators is null ? null : d => SmartProps.NodesCreatedOnLoad(d, smartPropLocators));
 
+        var sourceIds = MapEntities.SourceIds(entities, out var forward);
         var pending = new Dictionary<int, List<EntityLumpAuthor.Emission>>();
         foreach (var copy in copies)
         {
@@ -370,7 +371,7 @@ public static class EntityLumpSet
                     // A copy made inside a prefab's map ships with a plain id (GROUND_TRUTH 46).
                     Prefabs = [],
                 }),
-                copy.Template));
+                sourceIds[copy.Template]));
         }
 
         var emit = new List<EntityLumpAuthor.Emission>();
@@ -379,7 +380,7 @@ public static class EntityLumpSet
             if (pending.TryGetValue(i, out var here))
                 emit.AddRange(here);
             if (i < entities.Count && !templates.Contains(i))
-                emit.Add(new EntityLumpAuthor.Emission(Settle(entities[i]), i));
+                emit.Add(new EntityLumpAuthor.Emission(forward[i] ? Settle(entities[i]) with { KeysForward = true } : Settle(entities[i]), sourceIds[i]));
         }
         return emit;
     }

@@ -73,6 +73,15 @@ public static class MapEntities
         /// </summary>
         public string? NamePrefix { get; init; }
 
+        /// <summary>The targetMapPath of the innermost prefab the node lies in, lowercase with
+        /// forward slashes; null for a node of the map's own. A prefab map placed twice is one
+        /// source: its nodes take one compile_source_id (<see cref="SourceIds"/>).</summary>
+        public string? PrefabMap { get; init; }
+
+        /// <summary>The keys ship in table order rather than backwards: a prefab map's node
+        /// exported for the second, fourth... time (<see cref="SourceIds"/>).</summary>
+        public bool KeysForward { get; init; }
+
         /// <summary>The node's id path as the compile formats it (NodeIdPath_Format):
         /// the prefab ids, then the node's own, joined by ':'.</summary>
         public string IdPath => Prefabs.Length == 0
@@ -124,13 +133,51 @@ public static class MapEntities
         var entities = new List<Entity>();
         if (Read(world, isWorld: true) is { } worldspawn)
             entities.Add(Upgrade(worldspawn, document.FormatVersion));
-        Walk(world, entities, new HashSet<DmxBinary.Element>(), null, new Prefab([], [], HiddenNodes(document), false, null));
+        Walk(world, entities, new HashSet<DmxBinary.Element>(), null, new Prefab([], [], HiddenNodes(document), false, null, null));
         return entities;
     }
 
     /// <summary>Where a walk stands in prefabs: the prefab ids and elements outside it,
     /// the hidden node ids of the map being walked, and whether a hidden node encloses it.</summary>
-    private sealed record Prefab(int[] Ids, DmxBinary.Element[] Chain, HashSet<int> Hidden, bool Enclosed, string? NamePrefix);
+    private sealed record Prefab(int[] Ids, DmxBinary.Element[] Chain, HashSet<int> Hidden, bool Enclosed, string? NamePrefix, string? Map);
+
+    private static string MapPathOf(DmxBinary.Element prefab)
+        => Tier0Strings.LowerAscii((prefab.Get<string>("targetMapPath") ?? "").Replace('\\', '/'));
+
+    /// <summary>
+    /// Each walked entity's compile_source_id: its walk index, except that a
+    /// prefab map is one source however often it is placed. The first placement
+    /// in the walk numbers its nodes, and every later one reuses those numbers
+    /// (s2c_prefabprobe9: all three s2c_fixmid prefabs carry 18 to 101 and every
+    /// s2c_fixinner one, nested or not, 103 to 179), as an instance copy carries
+    /// its template's. <paramref name="forward"/> marks the placements whose keys
+    /// ship in table order: the shared node's table is written backwards once
+    /// per export, so every second placement of a map reads it forwards
+    /// (s2c_prefabprobe9: s2c_fixmid's 112 and 114 backwards, 113 forwards; its
+    /// ten s2c_fixinner placements alternate the same way, fixup or not).
+    /// </summary>
+    public static int[] SourceIds(IReadOnlyList<Entity> entities, out bool[] forward)
+    {
+        var ids = new int[entities.Count];
+        forward = new bool[entities.Count];
+        var first = new Dictionary<(string Map, int Node), (int Id, int Seen)>();
+        var next = 0;
+        for (var i = 0; i < entities.Count; i++)
+        {
+            var e = entities[i];
+            if (e.PrefabMap is { } map && first.TryGetValue((map, e.NodeId), out var earlier))
+            {
+                ids[i] = earlier.Id;
+                forward[i] = earlier.Seen % 2 == 1;
+                first[(map, e.NodeId)] = (earlier.Id, earlier.Seen + 1);
+                continue;
+            }
+            if (e.PrefabMap is { } m)
+                first[(m, e.NodeId)] = (next, 1);
+            ids[i] = next++;
+        }
+        return ids;
+    }
 
     /// <summary>
     /// The map loader's upgrade for files saved before vmap 38 (FUN_180d7c3f0,
@@ -228,7 +275,7 @@ public static class MapEntities
                 var editorOnly = child.GetValue<bool>("editorOnly") == true;
                 if (editorOnly && child.GetElements("children").Any())
                     throw new NotSupportedException($"node {id}: an editorOnly node with children is not measured");
-                entity = entity with { Layer = layer, Hidden = prefab.Enclosed || prefab.Hidden.Contains(id) || editorOnly, Prefabs = prefab.Ids, NamePrefix = prefab.NamePrefix };
+                entity = entity with { Layer = layer, Hidden = prefab.Enclosed || prefab.Hidden.Contains(id) || editorOnly, Prefabs = prefab.Ids, NamePrefix = prefab.NamePrefix, PrefabMap = prefab.Map };
                 // A node of a prefab's map is placed as the prefab moves it.
                 if (prefab.Chain.Length > 0)
                 {
@@ -253,27 +300,27 @@ public static class MapEntities
         foreach (var (child, id, prefabWorld) in prefabs)
         {
             // fixupEntityNames prefixes the contents' names with the prefab's
-            // node id (captured on carnival_d, where the prefab has no
-            // targetName and useTargetNameAsPrefix off). A targetName prefix
-            // and a fixup prefab inside another are not measured.
+            // targetName when useTargetNameAsPrefix is on and it has one, else
+            // its node id (a targetName alone does not count), then "_"; a fixup
+            // prefab inside another appends its own to the outer prefix, and a
+            // prefab without fixup keeps the outer one (carnival_d's 10665_;
+            // s2c_prefabprobe9: 112_2156_, outerpre_tnpre_, 115_, 112:2158 under 112_).
             var namePrefix = prefab.NamePrefix;
             if (child.GetValue<bool>("fixupEntityNames") == true)
             {
-                if (child.GetValue<bool>("useTargetNameAsPrefix") == true && !string.IsNullOrEmpty(child.Get<string>("targetName")))
-                    throw new NotSupportedException($"prefab {id}: useTargetNameAsPrefix is not measured");
-                if (namePrefix != null)
-                    throw new NotSupportedException($"prefab {id}: a fixup prefab inside another is not measured");
-                namePrefix = id.ToString(CultureInfo.InvariantCulture) + "_";
+                var own = child.GetValue<bool>("useTargetNameAsPrefix") == true && child.Get<string>("targetName") is { Length: > 0 } name
+                    ? name : id.ToString(CultureInfo.InvariantCulture);
+                namePrefix += own + "_";
             }
             // The compile numbers one node ahead of the prefab's contents
             // (s2c_prefabprobe: 108:3 is compile_source_id 14 after the map's
             // own 13); taken here as the prefab map's world, walked and never
             // shipped. Whether it is that world or the prefab node is not read.
             if (Read(prefabWorld, isWorld: false) is { } nested)
-                entities.Add(nested with { Layer = layer, Hidden = true, Prefabs = [.. prefab.Ids, id] });
+                entities.Add(nested with { Layer = layer, Hidden = true, Prefabs = [.. prefab.Ids, id], PrefabMap = MapPathOf(child) });
             Walk(prefabWorld, entities, seen, layer,
                  new Prefab([.. prefab.Ids, id], [.. prefab.Chain, child],
-                            child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed, namePrefix));
+                            child.Get<HashSet<int>>(Maps.MapPrefabs.HiddenKey) ?? [], prefab.Enclosed, namePrefix, MapPathOf(child)));
         }
     }
 

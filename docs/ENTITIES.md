@@ -9,7 +9,7 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
 
 - **Pinned maps:** every lump of the pinned maps (atixref, ze_hold_em_p,
   Mako, cardtest, probe01, ze_doom_p2's gameplay, c2m2's gameplay,
-  probe_classes, probe_cable) and of the 10 prefab, instance and deformer
+  probe_classes, probe_cable) and of the 13 prefab, instance and deformer
   probes matches Valve's with lights and baked keys included; the only
   allowances are Valve's own run-to-run settle poses (below) and vis
   clusters when the test runs no vis.
@@ -67,10 +67,16 @@ Light keys (done):
     2026-10-22. The only allowance left is `precomputed_vis_clusters`
     missing on our side when the test does not run vis; `LUMP_VIS=1` runs
     it and checks the key value and place.
-Open:
-- **Prefabs:** prefabs with `fixupEntityNames`, a prefab inside a prefab,
-  and a prefab beside instances of the map's own are refused (not
-  captured).
+- **Prefabs (done 2026-10-23):** the three layouts once refused are measured
+  on Valve compiles of probes 7 to 9 (`tools/entities/prefab_nest_probes.py`)
+  and exact: a prefab inside a prefab, a prefab's instances beside a nested
+  instance of the map's own, and fixup prefabs inside fixup prefabs with
+  either prefix kind. Probes 11 and 12 place one map holding stationary
+  lights three times (apart, and at one spot so the shadow slots run out).
+
+Open: nothing measured. Read from output only: the order of the loaded
+prefab documents in the light gather (and the first placement's reversed
+lights), and the node copy behind the key flip.
 
 ## Rules
 
@@ -109,6 +115,23 @@ What goes in:
   - Id paths look like `108:3`: that is `hammerUniqueId`, and brush models
     are named `<name>_108_3.vmdl`.
   - One extra `compile_source_id` is numbered before the prefab's contents.
+    A prefab map is one source however often it is placed: the first
+    placement in the walk numbers its nodes and every later one, nested or
+    not, reuses those numbers (s2c_prefabprobe9: three placements of
+    s2c_fixmid all carry 18 to 101).
+  - A repeated placement's keys: CMapEntity_ExportToLump (181004020)
+    writes the table in its stored order and leaves it alone, so the flip
+    comes from copying the node. Every second placement of a map ships its
+    source keys in table order with classname still last, and the keys the
+    preprocess writes (lights, probe volumes) first, as always
+    (`Entity.KeysForward`): what a copy that sets the class first and adds
+    every other key at the head of its table gives, each placement copied
+    from the one before. The copy itself is not read.
+  - Prefabs inside prefabs ship by the whole id path (`108:2140:4`).
+  - `fixupEntityNames`: the prefix is the prefab's targetName when
+    useTargetNameAsPrefix is on and it has one, else its node id, then `_`;
+    nested fixup prefabs append theirs to the outer prefix (`112_2156_`,
+    `outerpre_tnpre_`), and a prefab without fixup keeps its parent's.
   - A prefab with `loadAtRuntime` is skipped.
   - The instances inside a prefab's map (GROUND_TRUTH 46, captured): the
     prefab collapses first, its block its map's copy count (every node,
@@ -116,6 +139,28 @@ What goes in:
     target) plus its loader's nodes plus one; then those instances in tree
     order, one inside a target group after every first-round block. Their
     copies ship with plain ids.
+  - The rounds, read in MapDoc_BakeInstances (180f60740) and
+    CMapInstance_Collapse (181017820): until nothing collapses, each round
+    walks the tree in preorder and collapses every instance-typed node it
+    holds, prefabs included; a copy (or a prefab's map) is added as the
+    last child of the node's parent, so later rounds find what it holds
+    there. `MapInstances.Expand` simulates exactly that (`BakeNode`).
+    Checked on s2c_prefabprobe3 to 9 and 11 and the pinned maps.
+  - Lump order: a copy is written after its parent's own subtree and after
+    the maps of the parent's prefabs collapsed before it; copies sharing a
+    place follow the final tree (a nested copy inside its outer one).
+  - Lights are gathered for the shadow slots as MapDoc_GatherLights
+    (180f1c660) does: the world's own through every placement, then each
+    loaded prefab document of the +0x6b8 list (18100c780, no recursion).
+    Measured on s2c_prefabprobe7, 9, 11 and 12 (12: nine stationary omni2
+    at one spot for one free slot): documents in first-placement order,
+    breadth first; a document's placements breadth first, each placement's
+    lights in walk order, except the document's first placement, whose
+    lights come last to first. The list's order and that reversal are not
+    read in the binary.
+  - A prefab inside an instanced group (s2c_prefabprobe10) crashes Valve's
+    compiler in the light preprocess, so it has no reference and is out of
+    scope.
 - **World layers:** each `CMapWorldLayer` is its own lump,
   `world_layer_<name>.vents_c`. Numbering stays global.
   `info_world_layer` gets `world_layer_` prefixed and `worldname` last.
@@ -296,8 +341,11 @@ Keys:
   while CS2 or another resourcecompiler runs.
 - **Probe maps:**
   - `tools/coverage/probe_map.py` builds the class probe, and
-    `tools/physics/prefab_probe_map.py`, `prop_override_map.py` and
-    `settle_round_map.py` the others.
+    `tools/physics/prefab_probe_map.py`, `prop_override_map.py`,
+    `settle_round_map.py` and `tools/entities/prefab_nest_probes.py` the
+    others.
+  - `LUMPDUMP=<vpk>` (`DumpPackage`) prints a package's entities one per
+    line; `LUMPKEYS=<hammer id>` both sides' key order.
   - They live in `content/csgo_addons/s2probe/maps/`, not in the repo.
 - **Captures:**
   - `tools/entities/capture_instances.py` and `find_new_nodes.py` record

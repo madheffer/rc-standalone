@@ -61,7 +61,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 | geometry | [GEOMETRY.md](GEOMETRY.md) | 99%: probe01's -world package equals Valve's but a per-compile stamp; ze_hold_em_p world 100% |
 | visibility | [VISIBILITY.md](VISIBILITY.md) | 97%: every stage exact; byte-identical VXVS from the .vmap on three maps |
 | physics | [PHYSICS.md](PHYSICS.md) | 97%: world_physics and entity models whole-file exact on every map with a compile |
-| entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99%: every lump of every pinned map and probe exact, light and baked keys included (the test allows none); left: the prefab variants still refused (fixupEntityNames, nested prefabs) |
+| entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.5%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact (2026-10-23: nested prefabs, prefabs beside nested instances, nested fixups, repeated prefab maps); on fresh Valve references of the 14 prefab corpus maps, left: two lights' precomputed keys a hair off inside prefabs (c2m2 3:2184, coaster 3:1209) and the dkr maps' settle differences |
 | baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 80%: lightmaps, probes, far field, fog, nav, bomb damage and .vmap_c done; cubemaps in progress |
 | own lighting (vrad3 port) | [VRAD3.md](VRAD3.md), [LIGHTING_ROADMAP.md](LIGHTING_ROADMAP.md) | 94%: `compile-map -s2cbake` bakes with no vrad3; ze_hold_em_p 99.90% of bytes |
 
@@ -125,9 +125,10 @@ carries the same state per item.
    scan's ray length fixed 2026-10-23, ledger 123; the vis-cluster merge earlier); left are
    the five merge passes, unmeasured (PASSREPLAY, VISIBILITY.md Open), then our chain end
    to end on s2c_prefabprobe4. Then wiring vis into a world build.
-8. **Entities:** the light keys are done (atixref and Mako 0 differences, 2026-10-22). Left: prefabs with
-   fixupEntityNames, a prefab in a prefab, a prefab beside the map's own instances (refused, not captured);
-   our vis end to end on atixref-sized maps (prefabprobe4 vis clusters are exact from Valve's captured boxes).
+8. **Entities:** the prefab layouts are done (2026-10-23, probes 7 to 12; the instance rounds read in
+   MapDoc_BakeInstances and simulated). Left: two lights' precomputed keys inside prefabs (c2m2 3:2184,
+   coaster 3:1209; Valve ray captures in %TEMP%/lightrays_prefab), the dkr maps' settle differences on
+   fresh references (%TEMP%/fresh_corpus), and two orders read only from output (GROUND_TRUTH 46).
 9. **Containers and resources:** compiling the addon content a map
    references, a package made only of our outputs; glTF export, model
    internals, shaders.

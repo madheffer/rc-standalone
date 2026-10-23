@@ -78,6 +78,15 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
     [InlineData("s2c_pinst")]
     [InlineData("s2c_prefabprobe5")]
     [InlineData("s2c_prefabprobe6")]
+    // tools/entities/prefab_nest_probes.py: a prefab in a prefab (7), a prefab's instances beside a
+    // nested instance of the map's own (8), fixup prefabs in fixup prefabs and targetName prefixes (9).
+    [InlineData("s2c_prefabprobe7")]
+    [InlineData("s2c_prefabprobe8")]
+    [InlineData("s2c_prefabprobe9")]
+    // A prefab map holding lights placed three times. (s2c_prefabprobe10, a prefab inside an instanced
+    // group, crashes Valve's compiler while it preprocesses lights, so it has no reference.)
+    [InlineData("s2c_prefabprobe11")]
+    [InlineData("s2c_prefabprobe12")]
     // Hammer's lattice and bend deformers (tools/physics/deformer_probe_map.py, deformer_probe2.py).
     [InlineData("deformerprobe")]
     [InlineData("deformerprobe2")]
@@ -115,6 +124,27 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
         foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
             valve[entry.GetFullPath()] = Io.VpkEntries.Read(pkg, entry);
         Check(p[1], source!, valve);
+    }
+
+    /// <summary><c>LUMPDUMP=&lt;vpk&gt;</c>: every entity of a package's lumps, one line each: id, class, source id,
+    /// origin, targetname and the connections.</summary>
+    [Fact]
+    public void DumpPackage()
+    {
+        if (Environment.GetEnvironmentVariable("LUMPDUMP") is not { Length: > 0 } path)
+            return;
+        using var pkg = new ValvePak.Package();
+        pkg.Read(path);
+        string V(EntityLumpComparison.Entity e, string key) => e.Values.TryGetValue(key, out var v) ? v.Value : "";
+        // LUMPDUMP_KEY=<key>: that key's value too, last on the line.
+        var extra = Environment.GetEnvironmentVariable("LUMPDUMP_KEY");
+        foreach (var entry in pkg.Entries.GetValueOrDefault("vents_c") ?? [])
+        {
+            output.WriteLine($"== {entry.GetFullPath()}");
+            foreach (var e in EntityLumpComparison.Read(Io.VpkEntries.Read(pkg, entry), entry.GetFullPath()))
+                output.WriteLine($"{e.HammerId}\t{e.ClassName}\tsrc {V(e, "compile_source_id")}\t{V(e, "origin")}\t{V(e, "targetname")}\t"
+                                 + string.Join(" | ", e.Connections) + (extra is null ? "" : "	" + V(e, extra)));
+        }
     }
 
     private void Check(string map, string source, IReadOnlyDictionary<string, byte[]> valve)
@@ -174,6 +204,11 @@ public partial class EntityLumpAgainstValveTests(ITestOutputHelper output)
                 foreach (var (side, bytes) in new[] { ("valve", valve[lump.Path]), ("ours", lump.Bytes) })
                     foreach (var e in EntityLumpComparison.Read(bytes, lump.Path).Where(e => e.Values.TryGetValue("classname", out var c) && c.Value.Contains(listed, StringComparison.Ordinal)))
                         output.WriteLine($"    list {side}: {e.HammerId} {(e.Values.TryGetValue("hammeruniqueid", out var h) ? h.Value : "")} {(e.Values.TryGetValue("origin", out var o) ? o.Value : "")} src {(e.Values.TryGetValue("compile_source_id", out var sid) ? sid.Value : "")}");
+            // LUMPKEYS=<hammer id>: both sides' key order for that entity.
+            if (Environment.GetEnvironmentVariable("LUMPKEYS") is { Length: > 0 } keyed)
+                foreach (var (side, bytes) in new[] { ("valve", valve[lump.Path]), ("ours", lump.Bytes) })
+                    foreach (var e in EntityLumpComparison.Read(bytes, lump.Path).Where(e => e.HammerId == keyed))
+                        output.WriteLine($"    keys {side}: {string.Join(' ', e.KeyOrder)}");
             // LUMPMISSING=1: the entities only one side has, by id and class.
             if (Environment.GetEnvironmentVariable("LUMPMISSING") == "1")
             {

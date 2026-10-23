@@ -119,11 +119,23 @@ game can answer is raised with the user first, and runs with -insecure.
     order from the end of the prefab's block; one inside a target group
     waits for its group's copies, past every first-round block, as in a
     map of its own. Their copies ship with plain ids. All eleven prefab
-    probes' lumps are within their documented gaps. Not captured: a prefab
-    beside instances of the map's own, and a prefab inside a prefab (both
-    throw). c2m3_coaster_d_d is the first: its prefab 3 sits beside
-    instances of its own, so its lump and settle wait on that capture. The
-    settle takes its copy ids from this same expansion (prefabs on).
+    probes' lumps are within their documented gaps. The settle takes its
+    copy ids from this same expansion (prefabs on).
+    Settled 2026-10-23 (read, then checked on Valve compiles of
+    s2c_prefabprobe7 to 12, tools/entities/prefab_nest_probes.py): the
+    rounds are MapDoc_BakeInstances (180f60740): until nothing collapses,
+    every instance-typed node (prefabs too) in tree preorder, each copy
+    added as the last child of its parent (CMapInstance_Collapse
+    181017820, vf 0x1c8); MapInstances.Expand simulates that tree. A
+    prefab map placed again reuses its compile_source_ids; fixup prefixes
+    nest outer first, a targetName prefix only with useTargetNameAsPrefix.
+    Still from output only (two open points): the order of the +0x6b8
+    prefab documents in MapDoc_GatherLights (documents and placements
+    breadth first, the first placement's lights last to first: probes 9,
+    11 and 12 tell these apart and fit nothing else tried), and the
+    node copy that flips a repeated placement's keys (ExportToLump writes
+    the table as stored, 181004020). A prefab inside an instanced group
+    crashes Valve's compiler (s2c_prefabprobe10).
 
 47. **Order of baked props within a model.** NodePropEntries orders a
     model's baked props last to first in the walk (measured on atixref's

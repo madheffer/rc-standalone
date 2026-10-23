@@ -85,60 +85,90 @@ public static class MapInstances
         // the first round; it is reached through its group's copies, in a later
         // one (captured on atixref, c2m2's environment prefab and Mako).
         var next = document.Elements.Max(e => e.GetValue<int>("nodeID") ?? 0) + 1 + createdOnLoad;
-        var block = new Dictionary<DmxBinary.Element, int>();
-        var first = tree.Instances.Where(i => i.Prefabs.Length == 0 && !tree.InsideTarget.Contains(i.Node)).ToList();
-        var inner = tree.Instances.Where(i => i.Prefabs.Length > 0 && !tree.InsideTarget.Contains(i.Node)).ToList();
-        // Captured (capture_collapse.py): the prefab first, its root the next id,
-        // then its map's instances in tree order from the end of its block
-        // (s2c_prefabprobe3: 69); an instance inside a target group of the
-        // prefab's map waits for its group's copies, past every block of the
-        // first round, as in a map of its own (s2c_prefabprobe4: atixref's four
-        // nested copies). Prefabs and the map's own instances share the first
-        // round in tree order (c2m3_coaster_d_d: prefabs 2, 3, 5, 6 and 7,
-        // hidden ones too, then instance 2118; roots 2119 to 4755). Not
-        // captured: a prefab inside a prefab.
-        if (tree.Instances.Any(i => i.Prefab && i.Prefabs.Length > 0))
-            throw new NotSupportedException("a prefab inside a prefab: the collapse order is not captured");
-        // A prefab's block also holds the nodes its map's loader made (its smart
-        // props' locators): c2m2's environment prefab is two nodes wider than its
-        // tree, atixref as a prefab one.
-        foreach (var instance in first)
+        // Captured (capture_collapse.py): a prefab's block holds its map's copy
+        // count plus one (s2c_prefabprobe3: 69), and also the nodes its map's
+        // loader made (its smart props' locators): c2m2's environment prefab is
+        // two nodes wider than its tree, atixref as a prefab one.
+        //
+        // The order is the bake's own (MapDoc_BakeInstances 180f60740): rounds
+        // until none collapses, each walking the document tree and collapsing,
+        // in that order, every instance-typed node it holds (CMapPrefab is one);
+        // CMapInstance_Collapse (181017820) adds the copy as the LAST child of
+        // the instance's parent (vf 0x1c8), so a later round finds an instance
+        // of a copy, or of a prefab's map, where that copy now stands. An
+        // instance inside a target group is never walked as itself (only its
+        // group's copies are). This gives coaster's first round (prefabs 2, 3,
+        // 5, 6, 7, instance 2118), atixref's nested copies past every top-level
+        // block, and s2c_prefabprobe7 and 8's rounds (a prefab's prefab, a
+        // prefab's instance beside a nested instance of the map's own).
+        var due = tree.Instances.Where(i => !tree.InsideTarget.Contains(i.Node))
+                      .ToDictionary(i => i.Node);
+        var nested = tree.Instances.ToDictionary(i => i.Node);
+        var templates = new HashSet<int>(hiddenTemplates);
+        var prefabsDone = new Dictionary<DmxBinary.Element, int>();
+        var root = BakeNode.Original(world, null, due);
+
+        // Where a copy lands in the lump: after its parent's own subtree and after
+        // the maps of the parent's prefabs collapsed before it, which the walk puts
+        // at the parent's end in child order; a copy inside a copy lands with it.
+        int EmitAt(BakeNode parent)
         {
-            block[instance.Node] = next + 1;
-            if (instance.Prefab)
-                prefabBlock?.Invoke(instance.Node, next + 1);
+            if (parent.EmitAt is { } inherited)
+                return inherited;
+            var done = prefabsDone.GetValueOrDefault(parent.Element);
+            return tree.PrefabStarts.TryGetValue(parent.Element, out var starts) && done < starts.Count
+                ? starts[done]
+                : tree.SubtreeEnd.GetValueOrDefault(parent.Element, walked.Count);
+        }
+
+        void Collapse(BakeNode node)
+        {
+            var instance = node.Collapses!;
+            node.Collapses = null;
+            var parent = node.Parent!;
+            var start = next + 1;
             next += tree.Nodes.GetValueOrDefault(instance.Target) + 1
                     + (instance.Prefab && createdOnLoadIn is not null && instance.Node.Get<DmxBinary.Document>(Maps.MapPrefabs.DocumentKey) is { } loaded
                         ? createdOnLoadIn(loaded) : 0);
+            if (instance.Prefab)
+            {
+                prefabBlock?.Invoke(instance.Node, start);
+                parent.Kids.Add(BakeNode.Original(instance.Target, parent, due));
+                prefabsDone[parent.Element] = prefabsDone.GetValueOrDefault(parent.Element) + 1;
+                return;
+            }
+            IReadOnlyList<DmxBinary.Element> through = [.. node.Through, instance.Node];
+            var copy = new BakeNode(instance.Target, parent)
+            {
+                Through = through, EmitAt = EmitAt(parent), Layer = node.Layer ?? LayerOf(instance.Node, tree),
+            };
+            // A copy's id is its slot within the block, counted over EVERY node of the
+            // group and not only the entities, so a filtered prop_static still takes
+            // its place.
+            var slot = 0;
+            Emit(instance.Target, instance.Prefabs, copy, byNode, nested, templates, placed, start, ref slot);
+            parent.Kids.Add(copy);
         }
-        if (inner.Count > 0 && tree.Instances.Any(i => i.Prefabs.Length == 0 && tree.InsideTarget.Contains(i.Node)))
-            throw new NotSupportedException("prefab instances beside nested instances of the map's own: the round order is not captured");
-        foreach (var instance in inner)
+
+        while (true)
         {
-            block[instance.Node] = next + 1;
-            next += tree.Nodes.GetValueOrDefault(instance.Target) + 1;
+            var round = new List<BakeNode>();
+            root.Due(round);
+            if (round.Count == 0)
+                break;
+            foreach (var node in round)
+                Collapse(node);
         }
 
+        // Lump order is the walk with each instance's copies inserted at their
+        // EmitAt, copies sharing one in the final tree's order (a nested copy
+        // inside its outer one, s2c_prefabprobe4). atixref's 17 instances under one group land at walk 672, where
+        // that group ends, and its 126 root instances land after every walked
+        // entity because the world's subtree ends there; s2c_prefabprobe8's root
+        // instance's copies come before its prefab's entities.
         var copies = new List<Copy>();
-        var templates = new HashSet<int>(hiddenTemplates);
-        foreach (var instance in first.Where(i => !i.Prefab).Concat(inner))
-            Place(instance, Transform.Identity, [], tree, byNode, block, ref next, copies, templates, placed,
-                  tree.SubtreeEnd.GetValueOrDefault(instance.Parent, walked.Count), LayerOf(instance.Node, tree));
-
-        // Lump order is the walk with each instance's copies inserted where its
-        // PARENT's subtree finishes. atixref's 17 instances under one group land at
-        // walk 672, where that group ends, and its 126 root instances land after
-        // every walked entity because the world's subtree ends there.
+        root.Written(copies);
         return ([.. copies.OrderBy(c => c.EmitAt)], templates);
-    }
-
-    /// <summary>A placement's position and rotation, composed as instances nest.</summary>
-    private readonly record struct Transform(Vector3 Origin, Vector3 Angles)
-    {
-        public static Transform Identity => new(Vector3.Zero, Vector3.Zero);
-
-        public Transform Then(Vector3 origin, Vector3 angles)
-            => new(Origin + Vector3.Transform(origin, Rotation(Angles)), Angles + angles);
     }
 
     /// <summary>A collapse: an instance, or with <see cref="Prefab"/> a CMapPrefab whose target is its map's world.
@@ -154,6 +184,7 @@ public static class MapInstances
     private sealed record Tree(
         List<Instance> Instances,
         Dictionary<DmxBinary.Element, int> SubtreeEnd,
+        Dictionary<DmxBinary.Element, List<int>> PrefabStarts,
         Dictionary<DmxBinary.Element, int> Nodes,
         Dictionary<DmxBinary.Element, DmxBinary.Element> Parents,
         HashSet<DmxBinary.Element> InsideTarget);
@@ -166,7 +197,7 @@ public static class MapInstances
     /// </summary>
     private static Tree Survey(DmxBinary.Element world, IReadOnlyList<MapEntities.Entity> walked, HashSet<int>? prefabsHidden)
     {
-        var tree = new Tree([], [], [], [], []);
+        var tree = new Tree([], [], [], [], [], []);
         var seen = new HashSet<DmxBinary.Element>();
         var produced = walked.Count > 0 && walked[0].IsWorld ? 1 : 0;
         Descend(world, tree, seen, ref produced, prefabsHidden is null ? null : new Within([], prefabsHidden, false));
@@ -223,6 +254,9 @@ public static class MapInstances
         }
         foreach (var (child, prefabWorld, _) in prefabs)
         {
+            if (!tree.PrefabStarts.TryGetValue(node, out var starts))
+                tree.PrefabStarts[node] = starts = [];
+            starts.Add(produced);
             if (MapEntities.ReadsAsEntity(prefabWorld))
                 produced++;
             tree.Parents[prefabWorld] = child;
@@ -314,92 +348,92 @@ public static class MapInstances
     }
 
     /// <summary>
-    /// Write one placement's copies, then recurse into any instance the group
-    /// holds. A nested placement's ids continue past every top-level block, which
-    /// is where atixref's four copies of its one nested group get 7882 to 7888.
+    /// A node of the tree the bake walks: an original (one of the map's, or of a
+    /// collapsed prefab's map) or a copy an instance made. <see cref="Collapses"/>
+    /// is the instance or prefab it still has to collapse.
     /// </summary>
-    private static void Place(
-        Instance instance, Transform outer, IReadOnlyList<DmxBinary.Element> path, Tree tree, Dictionary<string, int> byNode,
-        Dictionary<DmxBinary.Element, int> block, ref int next,
-        List<Copy> copies, HashSet<int> templates, Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>, DmxBinary.Element[]>? placed,
-        int emitAt, string? layer)
+    private sealed class BakeNode(DmxBinary.Element element, BakeNode? parent)
     {
-        var at = outer.Then(
-            instance.Node.GetValue<Vector3>("origin") ?? Vector3.Zero,
-            instance.Node.GetValue<Vector3>("angles") ?? Vector3.Zero);
+        public DmxBinary.Element Element { get; } = element;
+        public BakeNode? Parent { get; } = parent;
+        public List<BakeNode> Kids { get; } = [];
+        public Instance? Collapses { get; set; }
+        /// <summary>The instances a copy came through, outermost first; empty for an original.</summary>
+        public IReadOnlyList<DmxBinary.Element> Through { get; init; } = [];
+        /// <summary>A copy's lump position, which everything inside it shares; null for an original.</summary>
+        public int? EmitAt { get; init; }
+        public string? Layer { get; init; }
+        /// <summary>The copy of an entity this node writes, if it is one.</summary>
+        public Copy? Writes { get; set; }
 
-        // A copy's id is its slot within the block, counted over EVERY node of the
-        // group and not only the entities, so a filtered prop_static still takes
-        // its place.
-        var slot = 0;
-        var nested = new List<DmxBinary.Element>();
-        IReadOnlyList<DmxBinary.Element> through = [.. path, instance.Node];
-        Emit(instance.Target, instance.Prefabs, through, byNode, copies, templates, placed, emitAt,
-             block.GetValueOrDefault(instance.Node), ref slot, nested, layer);
+        /// <summary>An original node and its subtree, a prefab's map left out until it collapses.</summary>
+        public static BakeNode Original(DmxBinary.Element element, BakeNode? parent, Dictionary<DmxBinary.Element, Instance> due)
+        {
+            var node = new BakeNode(element, parent) { Collapses = due.GetValueOrDefault(element) };
+            if (node.Collapses is not { Prefab: true })
+                foreach (var child in element.GetElements("children"))
+                    node.Kids.Add(Original(child, node, due));
+            return node;
+        }
 
-        foreach (var inner in nested)
-            if (tree.Instances.FirstOrDefault(i => i.Node == inner) is { } found)
-            {
-                block[found.Node] = next + 1;
-                next += tree.Nodes.GetValueOrDefault(found.Target) + 1;
-                Place(found, at, through, tree, byNode, block, ref next, copies, templates, placed, emitAt, layer);
-            }
+        /// <summary>The copies written, in preorder: the order the final tree is walked in.</summary>
+        public void Written(List<Copy> into)
+        {
+            if (Writes is not null)
+                into.Add(Writes);
+            foreach (var kid in Kids)
+                kid.Written(into);
+        }
+
+        /// <summary>The nodes still to collapse, in preorder.</summary>
+        public void Due(List<BakeNode> into)
+        {
+            if (Collapses is not null)
+                into.Add(this);
+            foreach (var kid in Kids)
+                kid.Due(into);
+        }
     }
 
+    /// <summary>
+    /// Write one copy's entities and build its subtree under <paramref name="copy"/>:
+    /// an instance in it becomes a node due in a later round.
+    /// </summary>
     private static void Emit(
-        DmxBinary.Element group, DmxBinary.Element[] prefabs, IReadOnlyList<DmxBinary.Element> through, Dictionary<string, int> byNode,
-        List<Copy> copies, HashSet<int> templates, Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>, DmxBinary.Element[]>? placed,
-        int emitAt, int start, ref int slot,
-        List<DmxBinary.Element> nested, string? layer)
+        DmxBinary.Element group, DmxBinary.Element[] prefabs, BakeNode copy, Dictionary<string, int> byNode,
+        Dictionary<DmxBinary.Element, Instance> instances, HashSet<int> templates,
+        Action<DmxBinary.Element, int, IReadOnlyList<DmxBinary.Element>, DmxBinary.Element[]>? placed,
+        int start, ref int slot)
     {
         foreach (var child in group.GetElements("children"))
         {
             var index = slot++;
-            if (child.Type is not "CMapInstance")
-                placed?.Invoke(child, start + index, through, prefabs);
+            var node = new BakeNode(child, copy) { Through = copy.Through, EmitAt = copy.EmitAt, Layer = copy.Layer };
+            copy.Kids.Add(node);
             if (child.Type is "CMapInstance")
             {
-                nested.Add(child);
+                node.Collapses = instances.GetValueOrDefault(child);
             }
-            else if (MapEntities.CarriesGameKeys(child)
-                     && byNode.TryGetValue(IdPath(child, prefabs), out var template))
+            else
             {
-                templates.Add(template);
-                // The copy's placement is the collapse's own (TransformBy through
-                // each instance's baked matrix, SettleWorld.BakedPlacement): on
-                // atixref it rebuilds all 199 instanced lights bit for bit, where
-                // adding Euler angles and rotating by quaternion did not.
-                // Inside a prefab's map the prefabs move first, then the instances collapse.
-                var (origin, angles) = prefabs.Length == 0
-                    ? Maps.SettleWorld.BakedPlacement(child, through)
-                    : Maps.SettleWorld.NestedPlacement(child.GetValue<Vector3>("origin") ?? Vector3.Zero,
-                                                       child.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
-                copies.Add(new Copy(emitAt, template, start + index, origin, angles, layer));
+                placed?.Invoke(child, start + index, copy.Through, prefabs);
+                if (MapEntities.CarriesGameKeys(child)
+                    && byNode.TryGetValue(IdPath(child, prefabs), out var template))
+                {
+                    templates.Add(template);
+                    // The copy's placement is the collapse's own (TransformBy through
+                    // each instance's baked matrix, SettleWorld.BakedPlacement): on
+                    // atixref it rebuilds all 199 instanced lights bit for bit, where
+                    // adding Euler angles and rotating by quaternion did not.
+                    // Inside a prefab's map the prefabs move first, then the instances collapse.
+                    var (origin, angles) = prefabs.Length == 0
+                        ? Maps.SettleWorld.BakedPlacement(child, copy.Through)
+                        : Maps.SettleWorld.NestedPlacement(child.GetValue<Vector3>("origin") ?? Vector3.Zero,
+                                                           child.GetValue<Vector3>("angles") ?? Vector3.Zero, copy.Through, prefabs);
+                    node.Writes = new Copy(copy.EmitAt!.Value, template, start + index, origin, angles, copy.Layer);
+                }
             }
-            Emit(child, prefabs, through, byNode, copies, templates, placed, emitAt, start, ref slot, nested, layer);
+            Emit(child, prefabs, node, byNode, instances, templates, placed, start, ref slot);
         }
-    }
-
-    /// <summary>Source angles are pitch, yaw and roll about Y, Z and X, yaw
-    /// first.</summary>
-    private static Quaternion Rotation(Vector3 angles)
-        => Quaternion.CreateFromAxisAngle(Vector3.UnitZ, Radians(angles.Y))
-         * Quaternion.CreateFromAxisAngle(Vector3.UnitY, Radians(angles.X))
-         * Quaternion.CreateFromAxisAngle(Vector3.UnitX, Radians(angles.Z));
-
-    private static float Radians(float degrees) => degrees * MathF.PI / 180f;
-
-    /// <summary>
-    /// Angles compose by addition wrapped into [0, 360). One atixref template at
-    /// yaw 270.00006 ships at 180.00006, 0, 270.00006 and 90.00005 under
-    /// placements at yaw 270, 90, 0 and 180.
-    /// </summary>
-    private static Vector3 Wrap(Vector3 angles)
-        => new(Wrap(angles.X), Wrap(angles.Y), Wrap(angles.Z));
-
-    private static float Wrap(float degrees)
-    {
-        var wrapped = degrees % 360f;
-        return wrapped < 0 ? wrapped + 360f : wrapped;
     }
 }
