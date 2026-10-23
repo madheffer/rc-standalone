@@ -17,18 +17,33 @@ public class VisBuildTests(ITestOutputHelper output)
         { "s2c_rc_probe", "probe01" },
         { "s2c_rc_probe", "cardtest" },
         { "s2c_rc_probe", "ze_hold_em_p" },
+        // probe01 with split hints (types 4 to 6) and voxel hints: tools/vis/hint_probe_map.py.
+        { "s2c_rc_probe", "s2c_vishints" },
     };
 
     [Theory]
     [MemberData(nameof(Specimens))]
     public void FromValvesScene(string addon, string map) => Check(addon, map, rte => rte);
 
-    /// <summary>Any one map the same way: <c>VISBUILD_ONE=&lt;addon&gt;|&lt;map&gt;</c> (atixref: over an hour).</summary>
+    /// <summary>
+    /// Any one map the same way: <c>VISBUILD_ONE=&lt;addon&gt;|&lt;map&gt;</c> (atixref: over an hour), or
+    /// <c>&lt;addon&gt;|&lt;map&gt;|&lt;stem&gt;</c> to read <c>&lt;stem&gt;.rte</c> and <c>.viscfg</c> (a capture's)
+    /// in place of the temp folder's. VISBUILD_PROGRESS logs each stage as for <see cref="FromTheMap"/>.
+    /// </summary>
     [Fact]
     public void OneMapFromValvesScene()
     {
-        if (Environment.GetEnvironmentVariable("VISBUILD_ONE") is { Length: > 0 } spec && spec.Split('|') is [var addon, var map])
-            Check(addon, map, rte => rte);
+        if (Environment.GetEnvironmentVariable("VISBUILD_ONE") is not { Length: > 0 } spec)
+            return;
+        switch (spec.Split('|'))
+        {
+            case [var addon, var map]:
+                Check(addon, map, rte => rte);
+                break;
+            case [var addon, var map, var stem]:
+                Check(addon, map, _ => RayTraceEnvironment.ReadFile(stem + ".rte"), stem + ".viscfg");
+                break;
+        }
     }
 
     /// <summary>The .viscfg built from the map: pvstype, the sun and the visibility hints, bit for bit.</summary>
@@ -44,7 +59,7 @@ public class VisBuildTests(ITestOutputHelper output)
             return;
         }
         var valve = VisConfig.Read(path);
-        var ours = VisConfig.FromMap(MapEntities.From(DmxBinary.ReadFile(source)), schema);
+        var ours = VisConfig.FromMap(MapEntities.From(MapFixtures.ReadAsCompiled(source)), schema);
         output.WriteLine($"{map}: pvstype {ours.PvsType}/{valve.PvsType}, sun {ours.DirToSun}/{valve.DirToSun}, hints {ours.Hints.Count}/{valve.Hints.Count}");
         Assert.Equal(valve.PvsType, ours.PvsType);
         Assert.Equal(valve.Hints.Count, ours.Hints.Count);
@@ -71,7 +86,7 @@ public class VisBuildTests(ITestOutputHelper output)
     [MemberData(nameof(Sources))]
     public void FromTheMap(string addon, string map, string compiledIn)
     {
-        if (map is "atixref" or "ze_ffvii_mako_reactor_v6_p" && Environment.GetEnvironmentVariable("VISBUILD_BIG") != "1")
+        if (map is "atixref" or "s2c_prefabprobe4" or "ze_ffvii_mako_reactor_v6_p" && Environment.GetEnvironmentVariable("VISBUILD_BIG") != "1")
         {
             output.WriteLine($"{map}: set VISBUILD_BIG=1 to run it (hours)");
             return;
@@ -88,7 +103,7 @@ public class VisBuildTests(ITestOutputHelper output)
         var packages = new[] { "csgo", "core" }.Select(d => { var p = new ValvePak.Package(); p.Read(Path.Combine(game, d, "pak01_dir.vpk")); return p; }).ToList();
         var visFlags = new MaterialVisFlags.Source([Path.Combine(game, "csgo_addons", addon)], packages);
         bool RendersAsWorld(string c) => schema.IsSolidClass(c) && schema.HasFlag(c, "render_as_world_but_physics_as_entity");
-        var document = DmxBinary.ReadFile(source);
+        var document = MapFixtures.ReadAsCompiled(source);
         var scene = TraceScene.Environment(TraceScene.Triangles(MapMeshes.Read(document), content.Material, m => visFlags[m], RendersAsWorld));
         // VISBUILD_PROGRESS names a file each finished stage is appended to, with its time.
         var progress = Environment.GetEnvironmentVariable("VISBUILD_PROGRESS");
@@ -107,19 +122,24 @@ public class VisBuildTests(ITestOutputHelper output)
         { "s2c_rc_probe", "probe01", "s2c_rc_probe" },
         { "ze_doom_p2", "cardtest", "s2c_rc_probe" },
         { "s2c_rc_probe", "ze_hold_em_p", "s2c_rc_probe" },
+        { "s2c_rc_probe", "s2c_vishints", "s2c_rc_probe" },
         { "s2c_rc_probe", "atixref", "s2c_rc_probe" },
+        { "s2c_rc_probe", "s2c_prefabprobe4", "s2c_rc_probe" },
         { "s2c_big", "ze_ffvii_mako_reactor_v6_p", "s2c_big" },
     };
 
-    private void Check(string addon, string map, Func<RayTraceEnvironment, RayTraceEnvironment> scene)
+    private void Check(string addon, string map, Func<RayTraceEnvironment, RayTraceEnvironment> scene, string? viscfg = null)
     {
         if (VisFixtures.RayTraceScene(addon, map) is not var (rte, shipped))
         {
             MapFixtures.Skip($"{map}'s .rte and compile");
             return;
         }
-        var config = VisConfig.Read(Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".viscfg"));
-        var ours = VisBuild.Run(scene(rte), config).WriteVxvs();
+        var config = VisConfig.Read(viscfg ?? Path.Combine(Path.GetTempPath(), "csgo_addons", addon, "maps", map + ".viscfg"));
+        var progress = Environment.GetEnvironmentVariable("VISBUILD_PROGRESS");
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var ours = VisBuild.Run(scene(rte), config, stage: progress is { Length: > 0 }
+            ? name => File.AppendAllText(progress, $"{map} {name} {clock.Elapsed.TotalSeconds:F0} s{Environment.NewLine}") : null).WriteVxvs();
         var theirs = shipped.WriteVxvs();
         var differing = Enumerable.Range(0, Math.Min(ours.Length, theirs.Length)).Count(i => ours[i] != theirs[i])
                         + Math.Abs(ours.Length - theirs.Length);

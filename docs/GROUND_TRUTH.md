@@ -3468,6 +3468,20 @@ game can answer is raised with the user first, and runs with -insecure.
       (two of s2c_cablecoll's 43), as for other nodes (SETTLE.md); the water_tube branches (no such
       shader ships); cables inside instances or prefabs.
 
+127. **Visibility end to end on atixref-sized maps, split hints and the sampler switches** (2026-10-23,
+    Valve's compiles of s2c_prefabprobe4 and s2c_vishints; capture_merge.py --passes; visbuilder decompile).
+    - Verified: each of the five merge passes run from Valve's captured input leaves Valve's next input,
+      every set in order (PASSREPLAY); the whole chain on s2c_prefabprobe4 gives Valve's VXVS byte for
+      byte (4,085,234) from Valve's .rte and from our trace scene, which equals the .rte triangle for
+      triangle (33,153, flags and ids).
+    - Verified: split hints (CandidateBoxes, SplitOne, GenerateRegionClusters' deal) and four voxel-hint
+      types on s2c_vishints: VXVS 262,660 bytes identical from both scenes; Valve's output identical over
+      two runs.
+    - Settled: SampleVisForClusters (180037ee0) reads `updateloshints` only when DeterministicBuild is 0 or
+      `-oldvis` is given; measured, `-updateloshints` alone leaves the package Valve's stock one and writes
+      no .los. `-oldvis` takes Sampler_Original, whose output differs run to run in Valve's own tool (three
+      runs, three vvis), so it has no byte reference and is not ported.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

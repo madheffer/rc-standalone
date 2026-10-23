@@ -8,7 +8,7 @@ That makes Valve's builder usable as an ORACLE at iteration speed - ze_hold_em_p
 rebuilds its visibility in 8.5 seconds inside a 14 second invocation, against 50
 seconds for a full compile - which is what a comparison harness needs.
 
-    python rebuild_vis.py <addon> <map> [--runs 2]
+    python rebuild_vis.py <addon> <map> [--runs 2] [--extra "-oldvis"]
 
 Each run prints the stage timings visbuilder logs and the hash of the
 world_visibility.vvis_c that landed in the map VPK, so repeated runs answer
@@ -38,7 +38,7 @@ STAGES = re.compile(
     r"|Visibility complete .*|Sample vis for .*|.*useful LOS rays.*)")
 
 
-def compile_world(addon, map_name, touch=False):
+def compile_world(addon, map_name, touch=False, extra=()):
     """Run the world phase, which is the one that builds visibility.
 
     RC skips the phase when its output is current, and a skipped run prints no
@@ -57,7 +57,7 @@ def compile_world(addon, map_name, touch=False):
     argv = [os.path.join(CS2, "game", "bin", "win64", "resourcecompiler.exe"),
             "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
             "-i", source,
-            "-world", "-vis", "-fshallow"]
+            "-world", "-vis", "-fshallow", *extra]
     started = time.time()
     done = subprocess.run(argv, capture_output=True, text=True, errors="replace",
                           cwd=os.path.join(CS2, "game", "bin", "win64"))
@@ -84,6 +84,8 @@ def main():
     ap.add_argument("addon")
     ap.add_argument("map")
     ap.add_argument("--runs", type=int, default=1)
+    ap.add_argument("--extra", default="",
+                    help="more compiler arguments, space separated (visbuilder reads the process command line: -oldvis)")
     ap.add_argument("--keep", help="directory to save each run's vvis_c into")
     ap.add_argument("--no-force", action="store_true",
                     help="leave the existing map VPK in place (the phase will likely skip)")
@@ -94,7 +96,7 @@ def main():
 
     digests = []
     for run in range(1, args.runs + 1):
-        log, wall = compile_world(args.addon, args.map, touch=not args.no_force)
+        log, wall = compile_world(args.addon, args.map, touch=not args.no_force, extra=args.extra.split())
         print(f"=== run {run}  ({wall:.1f}s wall) ===")
         stages = [l.strip() for l in log.splitlines() if STAGES.fullmatch(l.strip())]
         for line in stages:
