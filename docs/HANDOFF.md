@@ -59,7 +59,7 @@ map loading ─┬─ mesh export ─┬─ trace scene ── visibility ─┬
 |---|---|---|
 | containers and packaging | [CONTAINERS.md](CONTAINERS.md), [RESOURCES.md](RESOURCES.md) | 98%: every container authored; KV3 v5, VPK and the map root (.vmap_c) byte for byte on all 40 Valve references; Hammer's Only Entities preset whole-package exact |
 | geometry | [GEOMETRY.md](GEOMETRY.md) | 99%: probe01's -world package equals Valve's but a per-compile stamp; ze_hold_em_p world 100% |
-| visibility | [VISIBILITY.md](VISIBILITY.md) | 97%: every stage exact; byte-identical VXVS from the .vmap on three maps |
+| visibility | [VISIBILITY.md](VISIBILITY.md) | 100% of the deterministic build: byte-identical VXVS from the .vmap on five maps incl. atixref-sized s2c_prefabprobe4 and split hints (2026-10-23); `-oldvis` is not reproducible in Valve's own tool |
 | physics | [PHYSICS.md](PHYSICS.md) | 97%: world_physics and entity models whole-file exact on every map with a compile |
 | entity lump | [ENTITIES.md](ENTITIES.md), [SETTLE.md](SETTLE.md) | 99.9%: every lump of every pinned map and all 15 prefab, instance and deformer probes exact; the 14 prefab corpus maps against fresh Valve references (2026-10-23) differ only in Valve's run-to-run settle poses; left: two orders read from output only (GROUND_TRUTH 46) |
 | baked outputs | [BAKED.md](BAKED.md), [CUBEMAPS.md](CUBEMAPS.md) | 80%: lightmaps, probes, far field, fog, nav, bomb damage and .vmap_c done; cubemaps in progress |
@@ -121,10 +121,10 @@ carries the same state per item.
    where it is made is not traced), Steam Audio (no workshop map has it).
 6. **Geometry:** heap-ordered prop aggregate parts (Valve varies run to run),
    subdivided entries' tangents, overlay tangents, detail grass.
-7. **Visibility:** on atixref-sized maps the back half is exact from Valve's state (the
-   scan's ray length fixed 2026-10-23, ledger 123; the vis-cluster merge earlier); left are
-   the five merge passes, unmeasured (PASSREPLAY, VISIBILITY.md Open), then our chain end
-   to end on s2c_prefabprobe4. Then wiring vis into a world build.
+7. **Visibility:** done for parity (2026-10-23, ledger 126): s2c_prefabprobe4 byte-identical
+   from the .vmap end to end, split hints exact on s2c_vishints, `-updateloshints` a no-op on
+   a stock build. Left is speed (the PVS scan is ~90 of the 113 min on prefabprobe4), which
+   waits for the user's OK for anything that could change bytes.
 8. **Entities:** done as measured (2026-10-23): prefab layouts (probes 7 to 12, the instance rounds
    read in MapDoc_BakeInstances and simulated) and the trace scene's inverse (translation summed as
    18125ade0 does), which closed the last light keys on c2m2 and coaster. Against fresh Valve
@@ -152,9 +152,10 @@ carries the same state per item.
   run again from the addon's packages; precomputed_vis_clusters only on lights still
   directlight 3 after the shadow slot step (ledger 122); LUMP_FLATBOXES=<capture>
   checks lights against Valve's own cluster boxes.
-- Visibility on atixref-sized maps: stage-by-stage status, three divergences, the
-  unmeasured merge passes and the captures are in VISIBILITY.md Open. Valve's front
-  half is 6 min, ours 5.5 h (the merge passes); speed work waits for parity (user).
+- Visibility (2026-10-23, later): the five merge passes exact from Valve's input, then
+  s2c_prefabprobe4 byte-identical end to end from Valve's .rte and from the .vmap (113 min
+  on the PC); split hints exact on the new s2c_vishints; -oldvis measured non-deterministic
+  in Valve's tool, -updateloshints inert on a stock build (ledger 126).
 - Machines: run on this PC (Ryzen); the dev box only when the user says the PC is busy.
 - Full suite last run 984/984 before the lump-test tightening; the lump, vis and
   .vmap_c tests touched since pass (33/33 and the prefab probes).

@@ -6,19 +6,23 @@ stage by stage. Function addresses are in [`ADDRESSES.md`](ADDRESSES.md)
 
 ## Status
 
-Every stage is exact on the maps below, on Valve's captured inputs and end to end (atixref-sized maps: see Open):
+Every stage is exact on the maps below, on Valve's captured inputs and end to end:
 - **From Valve's .rte:** probe01, cardtest and ze_hold_em_p give a
   byte-identical VXVS (239,244, 243,546 and 129,978 bytes). Mako's captured
   run is exact in every stage, VXVS 6,561,250 bytes.
-- **From our own trace scene (built from the .vmap):** probe01, cardtest and
-  ze_hold_em_p give a byte-identical VXVS. On s2c_prefabprobe4 (atixref as a
-  prefab) the chain took 5.5 h and differs (Open).
+- **From our own trace scene (built from the .vmap):** probe01, cardtest,
+  ze_hold_em_p and s2c_vishints give a byte-identical VXVS, and so does
+  s2c_prefabprobe4 (atixref as a prefab, 4,085,234 bytes, 2026-10-23; its
+  trace scene is Valve's .rte triangle for triangle, 33,153 with flags and
+  ids). On Valve's own .rte the same map is byte-identical too.
+- **Split hints** (types 4 to 6): s2c_vishints, probe01 with 7 split and 4
+  voxel hints (`tools/vis/hint_probe_map.py`), 262,660 bytes, from Valve's
+  scene and from the .vmap.
 - **Visibility hints** come from the .vmap: Mako's `.viscfg` hints are
   rebuilt bit for bit, and its octree node count matches Valve's (2,643,577).
 
-Open:
-- **atixref-sized maps diverge (s2c_prefabprobe4, 2026-10-23).** Section by
-  section against Valve's own state (captures below), on the 10-15 build:
+How atixref-sized maps were brought to parity (s2c_prefabprobe4, 2026-10-23),
+section by section against Valve's own state (captures below):
   - Exact: voxelize, regions (316,957) and outside verdicts (OutsideCaptureTests,
     9 s); cluster generation and the pre-merge, 164,252 sets in content and
     position (TheGenerationAgainstTheCapture, 136 s); from Valve's scan-entry
@@ -52,11 +56,10 @@ Open:
     float, which rounds `cost * 1.05` differently and moved a round's threshold
     past (13977, 14235) at merge 9,115. `BIGMERGE_TRACE=from,to` prints rounds
     and takes (VisClusterList.Trace).
-  - **Not measured: the five merge passes.** `PASSREPLAY=s2c_prefabprobe4`
-    (VisMergeReplay.EachPassFromValvesInput) runs each pass from Valve's own
-    input and compares with Valve's next input; it was stopped unrun for the
-    CS2 update. The passes are where the 5.5 h end-to-end run went (generation
-    is 136 s), so expect a pass to take long; `PASSREPLAY_PASS=k` runs one.
+  - **Exact 2026-10-23, the five merge passes** (`PASSREPLAY=s2c_prefabprobe4`,
+    VisMergeReplay.EachPassFromValvesInput, 6.6 min on the PC): each pass run
+    from Valve's own input leaves Valve's next input, every set in order
+    (38,644, 38,148, 35,801, 35,289 and 23,532 clusters).
   - Captures (CS2 10-15 build, %TEMP%/vis_capture; Valve's output is unchanged
     on 1.41.9.2, a 10-23 recapture gives the same matrices): s2c_prefabprobe4.pvs.bin
     with .rte/.viscfg (capture_pvs.py, the back half: BIGPVS=s2c_prefabprobe4
@@ -70,11 +73,21 @@ Open:
     --passes is 6 min, capture_pvs.py about 25 min).
   - `TheBordersOnABigMap` also needs the map's installed package (for its
     vvis); it failed only because a capture had the package moved aside.
-- The whole chain is not yet called by `compile-map`; `TheWholeBuild` is the
-  reference order.
-- Split hints (types 4 to 6) are ported but untested: no specimen has one.
-- `-updateloshints` and the legacy sampler are not ported. These are the
-  non-deterministic paths, and a stock compile uses `DeterministicBuild 1`.
+- `compile-map` builds visibility in the world step when `-vis` is on
+  (`WorldNodeFiles.Visibility`, `VisBuild.RunWithBlocks`); a baked compile
+  builds it before the entity lumps, whose lights read its flat clusters.
+- Split hints (types 4 to 6) are exact on s2c_vishints (probe01 with 7 split
+  and 4 voxel hints, `tools/vis/hint_probe_map.py`): VXVS 262,660 bytes
+  byte-identical from Valve's scene and from the .vmap, the 11 hints bit for
+  bit (2026-10-23).
+- `-oldvis` (or `DeterministicBuild 0`) runs the original sampler
+  (`Sampler_Original`), which is not ported: Valve's own output is not
+  reproducible under it (s2c_vishints, three runs, three different vvis of
+  263,662, 262,874 and 262,822 bytes), so there is nothing to match byte for
+  byte. `SampleVisForClusters` (180037ee0) reads `updateloshints` only on that
+  path, so on a stock build `-updateloshints` is a no-op: measured, the
+  package is Valve's stock one (only world.vwrld_c's stamp differs) and no
+  `.los` is written. compile-map passes both through as plain arguments.
 
 ## The output: VXVS
 
@@ -267,12 +280,12 @@ and about 30% in the kd tracer. Caching Crossed per ray and leaf (a pure
 function, VXVS unchanged) brought it to 95 s. On atixref-sized maps the
 sampling grows past an hour (prefabprobe4 did not finish in 3 h on the box), so
 this is where a speed pass starts, after parity (user, 2026-10-22).
-On the PC (Ryzen 7800X3D, below normal) the whole chain on s2c_prefabprobe4
-(atixref as a prefab) took 5.5 h, and its clusters are not Valve's: the 6
-lights' precomputed_vis_clusters were 0/6 against Valve's lists, while
-Valve's captured cluster boxes give 6/6 (ENTITIES ledger 122). Valve's state
-for the same compile is in %TEMP%/vis_capture/s2c_prefabprobe4.pvs.bin for a
-stage-by-stage comparison.
+On the PC (Ryzen 7800X3D, normal priority, two chains at once) the whole
+chain on s2c_prefabprobe4 takes 1 h 53 min: voxelize and outside 6 to 11 s,
+cluster generation 2 to 5 min, the five merge passes 10 min, the PVS scan
+about 90 min (6,244 s with the start), the vis-cluster merge 9 min, the rest
+seconds. The earlier 5.5 h run was the pre-fix chain at below normal. The
+scan is now where a speed pass starts.
 
 Valve's, on Mako's 1,299 s compile, visibility takes 1,088.7 s (83.8%) and lighting
 16 s:

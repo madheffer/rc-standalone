@@ -227,6 +227,22 @@ internal static class MapFixtures
     }
 
     /// <summary>
+    /// A map source as compile-map reads it (MapCompile.Build): its prefabs loaded
+    /// from the addon's content and its deformers applied. The addon's content is
+    /// the folder above the source's <c>maps</c>.
+    /// </summary>
+    public static DmxBinary.Document ReadAsCompiled(string source)
+    {
+        var document = DmxBinary.ReadFile(source);
+        var maps = Path.GetDirectoryName(source)!;
+        while (!Path.GetFileName(maps).Equals("maps", StringComparison.OrdinalIgnoreCase))
+            maps = Path.GetDirectoryName(maps)!;
+        Maps.MapPrefabs.Attach(document, Maps.MapPrefabs.FromContent(Path.GetDirectoryName(maps)!));
+        Maps.MapDeformers.Apply(document);
+        return document;
+    }
+
+    /// <summary>
     /// Compile a map source with the game's own <c>resourcecompiler.exe</c> and hand
     /// back the entity lump it produced.
     ///

@@ -18,6 +18,7 @@ public class TraceSceneTests(ITestOutputHelper output)
     [InlineData("ze_doom_p2", "cardtest", "s2c_rc_probe", true)]
     [InlineData("s2c_rc_probe", "ze_hold_em_p", "s2c_rc_probe", true)]
     [InlineData("s2c_rc_probe", "atixref", "s2c_rc_probe", true)]
+    [InlineData("s2c_rc_probe", "s2c_prefabprobe4", "s2c_rc_probe", true)]
     [InlineData("s2c_big", "ze_ffvii_mako_reactor_v6_p", "s2c_big", true)]
     public void FlagsAreTheFiles(string addon, string map, string compiledIn, bool flags)
     {
@@ -33,7 +34,7 @@ public class TraceSceneTests(ITestOutputHelper output)
         var packages = new[] { "csgo", "core" }.Select(d => { var p = new Package(); p.Read(Path.Combine(game, d, "pak01_dir.vpk")); return p; }).ToList();
         var visFlags = new MaterialVisFlags.Source([Path.Combine(game, "csgo_addons", addon)], packages);
         bool RendersAsWorld(string c) => schema.IsSolidClass(c) && schema.HasFlag(c, "render_as_world_but_physics_as_entity");
-        var meshes = MapMeshes.Read(DmxBinary.ReadFile(source));
+        var meshes = MapMeshes.Read(MapFixtures.ReadAsCompiled(source));
         var ours = TraceScene.Triangles(meshes, content.Material, m => visFlags[m], RendersAsWorld);
 
         var rte = RayTraceEnvironment.ReadFile(rtePath);
