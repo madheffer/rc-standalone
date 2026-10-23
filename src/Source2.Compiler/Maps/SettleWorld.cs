@@ -162,7 +162,13 @@ public static partial class SettleWorld
     public static List<BodyBuild> Build(DmxBinary.Document document, IModels models, FgdSchema? schema = null, int createdOnLoad = 0,
                                         Func<DmxBinary.Document, int>? createdOnLoadIn = null, CollisionRules? rules = null)
     {
-        var context = new Context(models, rules ?? new CollisionRules(), schema, []);
+        // Each node's map format version (the main map's, or its prefab map's),
+        // for the loader upgrades that depend on it.
+        var versions = new Dictionary<DmxBinary.Element, int>(ReferenceEqualityComparer.Instance);
+        foreach (var d in AllDocuments(document))
+            foreach (var e in d.Elements)
+                versions.TryAdd(e, d.FormatVersion);
+        var context = new Context(models, rules ?? new CollisionRules(), schema, []) { Versions = versions, Version = document.FormatVersion };
         // A group an instance places is built where the instances put it,
         // not where it stands (as MapMeshes walks it).
         var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
@@ -298,7 +304,14 @@ public static partial class SettleWorld
     private static float[] NodeWorld(float[] local) => MapMeshes.Concat([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], local);
 
     /// <summary>What every builder reads and where the bodies go.</summary>
-    private sealed record Context(IModels Models, CollisionRules Rules, FgdSchema? Schema, List<BodyBuild> Bodies);
+    private sealed record Context(IModels Models, CollisionRules Rules, FgdSchema? Schema, List<BodyBuild> Bodies)
+    {
+        /// <summary>Each node's map format version; <see cref="Version"/> for one not found.</summary>
+        public IReadOnlyDictionary<DmxBinary.Element, int> Versions { get; init; } = new Dictionary<DmxBinary.Element, int>();
+
+        /// <summary>The main map's format version.</summary>
+        public int Version { get; init; } = 40;
+    }
 
     private static PhysAggregateData? ModelOf(DmxBinary.Element node, IModels models)
         => node.Type == "CMapEntity" && node.Get<DmxBinary.Element>("entity_properties") is { } props

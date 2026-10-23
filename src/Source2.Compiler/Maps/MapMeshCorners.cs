@@ -197,6 +197,32 @@ internal static class MapMeshCorners
     /// material) as for an unbaked mesh. Measured on atixref's 44 subdivided
     /// entries.
     /// </summary>
+    /// <summary>
+    /// The faceVertexData streams a bake carries, in the .vmap's order, and
+    /// each corner's floats for them (as <see cref="Baked"/> hands
+    /// <see cref="SubdivisionBake.Bake"/>).
+    /// </summary>
+    internal static (List<(string Full, string Name, int Count)> Layout, Func<int, float[]> Corner) BakeStreams(DmxBinary.Element data, bool withTangent = true)
+    {
+        var raw = new List<(string Full, string Name, object?[] Data, int Count)>();
+        foreach (var s in data.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams") ?? [])
+        {
+            var name = s.Name.Split(':')[0];
+            if (name == "tangent" && !withTangent)
+                continue;
+            var values = s.Get<object?[]>("data") ?? [];
+            raw.Add((s.Name, name, values, Width(values)));
+        }
+        float[] Corner(int d)
+        {
+            var v = new List<float>();
+            foreach (var (_, _, values, count) in raw)
+                Append(v, d >= 0 && d < values.Length ? values[d] : null, count);
+            return [.. v];
+        }
+        return ([.. raw.Select(x => (x.Full, x.Name, x.Count))], Corner);
+    }
+
     private static List<Piece> Baked(DmxBinary.Element mesh, DmxBinary.Element data, bool shiftTexcoords, Func<Vector3, Vector3>? cutSpace, bool withTangent,
                                      Vector3 scales, int[] faceData, int[] materials, int[] biases)
     {

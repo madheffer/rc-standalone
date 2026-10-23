@@ -125,6 +125,9 @@ public static class EntityPhysicsModels
             var path = EntityLumpAuthor.BrushModelPath(EntityLumpAuthor.FixedName(targetName, fixup, schema), idPath, mapName);
             var pieces = new List<WorldCollision.Piece>();
             var physicsOnly = true;
+            // A prefab's meshes were saved in the prefab's own map.
+            var version = prefabs.Length > 0 && prefabs[^1].Attributes.TryGetValue(MapPrefabs.DocumentKey, out var loaded) && loaded is DmxBinary.Document prefabDoc
+                ? prefabDoc.FormatVersion : doc.FormatVersion;
             var applied = schema?.MetadataOf(className, "auto_apply_material") is { Length: > 0 } a ? a : null;
             // A class that applies its own material replaces the mesh's, so a
             // missing mesh material does not stop it (ze_doom_p2_c's 38 triggers
@@ -144,7 +147,7 @@ public static class EntityPhysicsModels
                 var type = BrushHulls.Resolve(PhysicsTypeOf(mesh), true, className == "func_shatterglass", false, false);
                 // The applied material is found or added in the mesh's list (181378b30).
                 int? whole = applied == null ? null : Array.FindIndex(names, x => x as string == applied) is var at and >= 0 ? at : names.Length;
-                BrushHulls.RefuseSimplification(mesh);
+                var simplify = WorldCollision.SimplificationError(mesh, version);
                 foreach (var (slot, positions, faces, local) in BrushHulls.Pieces(mesh, entity, transformOf: transformOf, wholeMeshMaterial: whole))
                 {
                     var own = slot < names.Length ? (names[slot] as string ?? "") : "";
@@ -157,8 +160,8 @@ public static class EntityPhysicsModels
                         continue;
                     if (type == BrushHulls.PhysicsType.Mesh)
                         continue;
-                    var physics = WorldCollision.ReadMaterial(material(name), collisionProperty, shaderTranslucency: false);
-                    foreach (var input in BrushHulls.Inputs(positions, faces, type, local))
+                    var physics = WorldCollision.WithMeshSettings(WorldCollision.ReadMaterial(material(name), collisionProperty, shaderTranslucency: false), mesh, collisionProperty, exclude: false);
+                    foreach (var input in BrushHulls.Inputs(positions, faces, type, local, simplify: simplify))
                     {
                         var qh = RnHullBuilder.BuildHull(input, RnHullBuilder.Options.MapBuilder, out _);
                         var points = qh == null ? null : BrushHulls.ShapePoints([.. qh.HullVertices.Select(v => new System.Numerics.Vector3(v.X, v.Y, v.Z))]);
@@ -179,12 +182,14 @@ public static class EntityPhysicsModels
                     {
                         var own = slot < names.Length ? (names[slot] as string ?? "") : "";
                         var name = applied ?? own;
-                        var physics = WorldCollision.ReadMaterial(material(name), collisionProperty, shaderTranslucency: false);
-                        var (points, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners);
+                        var physics = WorldCollision.WithMeshSettings(WorldCollision.ReadMaterial(material(name), collisionProperty, shaderTranslucency: false), mesh, collisionProperty, exclude: false);
+                        var (points, triangles) = BrushHulls.Simplified(BrushHulls.TriangleMesh(positions, faces, local, corners), simplify);
                         var indices = new int[triangles.Count * 3];
                         for (var t = 0; t < triangles.Count; t++)
                             (indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]) = triangles[t];
-                        pieces.Add(new WorldCollision.Piece(nodeId, slot, name, physics, [.. points], indices) { ToolMaterial = name });
+                        // A simplified shape's vertices are listed by first use, as the world's are.
+                        var (shapePoints, shapeIndices) = simplify > 0f ? WorldCollision.FirstUse(([.. points], indices)) : ([.. points], indices);
+                        pieces.Add(new WorldCollision.Piece(nodeId, slot, name, physics, shapePoints, shapeIndices) { ToolMaterial = name });
                     }
                 }
             }

@@ -306,8 +306,9 @@ public static class WorldPhysicsTrees
     }
 
     /// <summary>The embedded physics aggregate: one part holding every shape, and the tables.</summary>
-    /// <param name="partFlags">The part's flags: 2 for the world, 0 for a brush entity's model.</param>
-    public static KVObject Phys(WorldPhysics model, uint partFlags = 2)
+    /// <param name="partFlags">The part's flags; by default 2 when the part has triangle meshes, else 0
+    /// (a world of hulls alone: s2c_simplify_types, every world mesh convex or simplified to hulls).</param>
+    public static KVObject Phys(WorldPhysics model, uint? partFlags = null)
     {
         var shape = Collection(
             ("m_spheres", Array([.. model.Spheres.Select(s => ShapeDesc(s, "m_Sphere", Collection(
@@ -321,7 +322,7 @@ public static class WorldPhysicsTrees
             ("m_CollisionAttributeIndices", model.AllShapes.All(s => s.Attribute == 0) ? Empty()
                 : Array([.. model.AllShapes.Select(s => new KVObject((uint)s.Attribute))])));
         var part = Collection(
-            ("m_nFlags", U(partFlags)), ("m_flMass", new KVObject(0.0)), ("m_rnShape", shape),
+            ("m_nFlags", U(partFlags ?? (model.Meshes.Count > 0 ? 2u : 0u))), ("m_flMass", new KVObject(0.0)), ("m_rnShape", shape),
             ("m_nCollisionAttributeIndex", new KVObject(0u)), ("m_nReserved", new KVObject(0u)),
             ("m_flInertiaScale", new KVObject(1.0)), ("m_flLinearDamping", new KVObject(0.0)), ("m_flAngularDamping", new KVObject(0.0)),
             ("m_flLinearDrag", new KVObject(1.0)), ("m_flAngularDrag", new KVObject(1.0)),

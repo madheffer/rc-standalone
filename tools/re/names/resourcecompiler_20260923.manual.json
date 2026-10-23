@@ -442,7 +442,49 @@
    "addr": "1813089b0",
    "name": "MapBuilder_MeshFromMapMesh",
    "module": "s2c:mapbuilder",
-   "note": ""
+   "note": "a brush piece's triangle mesh (181310620); with physicsSimplificationError above 0 (4+ vertices, 2+ triangles) the edge collapse runs on it as it stands, no weld, before MapBuilder_TriangleMesh"
+  },
+  {
+   "addr": "1813cb3d0",
+   "name": "CMesh_Simplify",
+   "module": "s2c:physics/simplifier",
+   "note": "rc's copy of physicsbuilder's 1800c5b90"
+  },
+  {
+   "addr": "181bf9d70",
+   "name": "MeshQem_Simplifier_Simplify",
+   "module": "s2c:physics/simplifier",
+   "note": "rc's copy of physicsbuilder's 18060fdf0"
+  },
+  {
+   "addr": "181bf7640",
+   "name": "MeshQem_Simplifier_Init",
+   "module": "s2c:physics/simplifier",
+   "note": "rc's copy of physicsbuilder's 18060d6c0"
+  },
+  {
+   "addr": "181bf60d0",
+   "name": "MeshQem_EdgeCost",
+   "module": "s2c:physics/simplifier",
+   "note": "rc's copy of physicsbuilder's 18060c150"
+  },
+  {
+   "addr": "18105bb20",
+   "name": "PhysMesh_SimplifySoup",
+   "module": "s2c:entities/settle",
+   "note": "a soup welded at 1/32 and through CMesh_Simplify, when the mesh's vf 0x6c0 error is above 0"
+  },
+  {
+   "addr": "181156860",
+   "name": "CMapCable_SimplifyPhysics",
+   "module": "s2c:mapbuilder",
+   "note": "the cable's physics mesh welded at 1/32 and simplified (error squared)"
+  },
+  {
+   "addr": "180d7f9c0",
+   "name": "MapDoc_UpgradeSimplification",
+   "module": "s2c:entities/lump",
+   "note": "upgrade step 27 (vmap 27 to 28): physicsSimplificationError becomes its square root, the override set"
   },
   {
    "addr": "181308060",
@@ -670,7 +712,7 @@
    "addr": "1810dff20",
    "name": "CMapMesh_ConvertMeshForBuilder",
    "module": "s2c:geometry/mesh-export",
-   "note": "the DMX of the mesh the builder reads"
+   "note": "the DMX of the mesh the builder reads; DmeMesh attributes collisionGroup, interactAs/With/Exclude; the builder record keeps collision property (+0xa0), group, as, with (+0xb8) but no exclude, then detail layers (vf 0x6b0) and the simplification error (vf 0x6c0, +0x90)"
   },
   {
    "addr": "180ffd010",

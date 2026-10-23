@@ -12,9 +12,19 @@ resourcecompiler (rc) 20260923, and physicsbuilder (pb) and vphysics2 (vp)
 ## Status
 
 world_physics is whole-file exact on every map with a current compile:
-atixref, cardtest, s2c_rounds, the four ze_hold_em builds, c2m2's prefab,
-Mako, and the prop-override probe. "Whole-file" means the decoded trees and
+the 34 maps tools/physics/corpus.py compiles on 1.41.9.2 (atixref, cardtest,
+cs_script_demo, ze_hold_em_p, c2m2's prefab, the probe maps), Mako, and the
+Hammer-option probes below. "Whole-file" means the decoded trees and
 container facts; compressed bytes are encoder defined.
+
+Hammer's per-mesh physics options are covered, each on a probe map Valve
+compiled (2026-10-23):
+- **Physics type** none, default, mesh, convex_single, convex_multi.
+- **Physics simplification** (override and error): world pieces, painted
+  layers, tessellated meshes, brush entity hulls and meshes, and the
+  pre-settle world (s2c_simplify, s2c_simplify_types; ledger 124).
+- **Collision property, group, interacts as, with and exclude** (s2c_meshcoll,
+  s2c_meshcoll_hold; ledger 125). Detail layers are refused: CS2 defines none.
 
 Brush entity models:
 - **Physics-only models** are whole-file exact: atixref 86, ze_hold_em_p 24,
@@ -30,6 +40,8 @@ Open:
   instances inside prefabs.
 - **The bake wrapper's steps:** MergeVertices and AssignSmoothingModeToEdges;
   no map needs them yet.
+- **Cables:** a cable's physics (and its simplification, 181156860) with the
+  cable model.
 - **ze_hold_em_p's six doors:** a toolsclip mesh ships no hull, because the
   .vmap is older than the compile.
 - **Render meshes** of entity models, and the cable model (geometry).
@@ -117,9 +129,8 @@ Only a full compile (no `-fshallow`) ships world_physics.
    by triangle corners over the vertex buffer, in order of each group's
    lowest vertex, vertices in buffer order. A painted layer is grouped the
    same way.
-   - A mesh whose physicsSimplificationOverride is set with a non-zero
-     error would be simplified by physicsbuilder (not ported); the build
-     stops on it (`BrushHulls.RefuseSimplification`).
+   - A simplified piece hulls what the simplifier left, in its buffer
+     order (see "Mesh simplification").
 5. **Painted blend layers** (`BlendSplit`). The layer count comes from the
    compiled shader's attributes (`ShaderAttributeProbe`). Each triangle
    averages its corners' paint:
@@ -142,10 +153,15 @@ Only a full compile (no `-fshallow`) ships world_physics.
      of 3,816 points differ by one step between the two APIs.
    - Textures load at the preload cap: the first mip with
      `max(w, h) <= 512`.
-7. **Order.** Each shape is appended and the list re-sorted by type with
+7. **The mesh's own settings** (180016cf0): physicsCollisionProperty, when
+   scripts/collision_properties.txt has it (case folded), replaces the
+   material's group and interact lists; physicsGroup then replaces the
+   group, and physicsInteractsAs, With and Exclude are appended after a
+   space (`WorldCollision.WithMeshSettings`).
+8. **Order.** Each shape is appended and the list re-sorted by type with
    tier0 `V_qsort`, the MSVC CRT qsort (`Maps/CrtQsort.cs`, unstable on ties
    of 8 or fewer).
-8. **Soups.** One per collision attribute, in first-appearance order. A
+9. **Soups.** One per collision attribute, in first-appearance order. A
    shape starts a new soup when it would need a per-triangle surface index
    above 255.
    - Name: the members' non-empty names joined with "; ". Past 50
@@ -153,6 +169,51 @@ Only a full compile (no `-fshallow`) ships world_physics.
    - Tool hash: the one member hash with triangles, else 0 (rc 180c28690).
      The hash is `FixupResourceName` plus lowercase MurmurHash2, seed
      0x31415926.
+
+The part's flags are 2 when it has a triangle mesh, else 0: a world of
+hulls alone ships 0, as an entity model does.
+
+### Mesh simplification (`Physics/MeshSimplifier.cs`)
+
+Hammer's physicsSimplificationOverride and physicsSimplificationError. The
+error passed is the stored one squared (CMapMesh vf216); a vmap older than
+28 stored it squared, and the loader takes the square root (rc 180d7f9c0).
+CS2's gameinfo default is 0.0, so only the override simplifies.
+
+The simplifier (pb 18060xxxx, rc's copy 181bfxxxx) is a Garland-Heckbert
+edge collapse in double:
+- **Quadrics:** each face's plane weighted by its area; each boundary edge's
+  plane, perpendicular to its first face, weighted 1000 x its length squared.
+- **Edges:** one heap entry each. An edge is rejected (cost DBL_MAX) when it
+  has no faces or more than two, joins two boundary vertices without being
+  one, touches a vertex whose two-face edge has both faces one way, or shares
+  more than two neighbours. A boundary end may only move along its boundary.
+- **Target:** the quadric's minimum by the 3x3 inverse, or with a determinant
+  not above 2.2e-305 (or NaN) the cheaper end, ties to the higher vertex.
+- **Cost:** the quadric at the target over the summed area, plus 0.05 x error
+  for each face that gets worse (circumradius over inradius) and for each
+  edge of valence above 6. A face that would fold (normal under 5e-5 long or
+  turned past 60 degrees) rejects the edge.
+- **Loop:** collapse the heap top while its cost is not above the error, at
+  most vertices - 4 times. The output keeps live vertices and faces in their
+  original order.
+
+Where it runs:
+- **World pieces** (PhysicsBuilder_MeshPieces): a copy welded at 1/32 over
+  all its streams, then CMesh_Simplify (needs 4 vertices, 6 indices). The
+  CMesh carries eight streams when the mesh has vertex paint (position, two
+  texcoords, normal, tangent, PerVertexLighting, tint, paint), else
+  positions only. A painted piece is split into layers first, each layer
+  simplified.
+- **Brush entity models** (MapBuilder_MeshFromMapMesh): the piece's triangle
+  mesh goes through the collapse as it stands, no weld, before the half-edge
+  mesh is built.
+- **The pre-settle world** (18105bb20): each soup welded and simplified.
+- **Triangle-mesh shapes** made from a simplified piece list their vertices
+  by first use.
+
+`MeshSimplifierOracleTests` runs Valve's own functions in the archived
+physicsbuilder 0924 against the port.
 
 ### `RnMeshCreate` (`Physics/RnMeshBuilder.cs`)
 
@@ -254,6 +315,10 @@ Which models, and what they hold:
   - With no shapes left, the file is RED2 and DATA alone.
 - **Auto-applied materials:** `auto_apply_material` (the triggers'
   toolstrigger) names that material in every slot.
+- **Mesh settings:** as for world pieces (`WorldCollision.WithMeshSettings`),
+  but never a mesh's physicsInteractsExclude: ConvertMeshForBuilder's record
+  for the map builder has no exclude list.
+- **Simplification:** see "Mesh simplification".
 - **Physics type:** "default" resolves to mesh for world geometry and for
   `PhysicsTypeOverride_Mesh` classes, to convex_single for
   `PhysicsTypeOverride_SingleConvex`, and otherwise to convex_multi.
@@ -364,6 +429,12 @@ The path is `Physics/BrushHulls.cs`, bit for bit on Mako (1,266), atixref
     builds from the .vmap and diffs the trees.
   - `WPAUTHOR` re-authors Valve's own trees.
   - `ENTBUILD=` does the same for entity models.
+- **Simplification:** `MeshSimplifierOracleTests` (Valve's DLL, random
+  meshes), `SIMPLIFY_CAPTURE=` and `SIMPLIFY_INPUTS=` (world pieces,
+  `tools/physics/capture_simplify.py`), `MAPSIMPLIFY=`,
+  `MAPSIMPLIFY_INPUTS=` and `SETTLESIMPLIFY=` (entity pieces and the
+  pre-settle world, `tools/physics/capture_mapsimplify.py`). Probe maps:
+  `tools/physics/simplify_probe_map.py`, `mesh_collision_probe_map.py`.
 - **Captures** (Frida on resourcecompiler, CS2 closed):
   - `tools/physics/capture_physshapes.py` (`--full --rnmesh --vulkan`);
   - `capture_rnmesh.py`, `capture_convex.py` and `capture_bake.py`;

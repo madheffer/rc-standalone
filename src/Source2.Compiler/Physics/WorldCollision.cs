@@ -386,9 +386,16 @@ public static class WorldCollision
             // atixref's railing kit and fluorescent lights are such meshes.
             if (Tier0Strings.EqualsIgnoreCase(mesh.Element!.Get<string>("physicsType"), "none"))
                 continue;
-            BrushHulls.RefuseSimplification(mesh.Element!);
+            var simplify = SimplificationError(mesh.Element!, VersionOf(mesh, doc));
             var names = mesh.Element!.Get<DmxBinary.Element>("meshData")?.Get<object?[]>("materials") ?? [];
+            var meshNode = mesh.Element!;
+            MaterialPhysics PiecePhysics(string name) => WithMeshSettings(materials(name), meshNode, collisionProperty);
             var paint = PaintStream(mesh.Element!);
+            // With simplification on, each piece's CMesh as physicsbuilder gets
+            // it: all eight streams when the mesh is painted, else positions
+            // only (s2c_simplify: nodes 12 and 13 without paint come as
+            // positions, node 409 with paint streams as 26 floats a vertex).
+            List<BrushHulls.BuilderMesh>? builder = simplify > 0f && paint != null ? [] : null;
             NameSurfaces(result.Count);
             // A world mesh set to convex_single or convex_multi is hulled as a
             // brush entity's is, in the world's space (Mako: 90 such meshes).
@@ -425,21 +432,27 @@ public static class WorldCollision
                 {
                     var layers = SplitLayers(blend, points, indices, piecePaint, sampled);
                     for (var s = 0; s < layers.Count; s++)
-                        if (layers[s].Indices.Length > 0)
-                            AddHulls(material, name, Inputs(layers[s].Points, layers[s].Indices), physics with { SurfaceProperty = blend.Surfaces[s] }, $" [{blend.Surfaces[s]}]", "");
+                    {
+                        var (layerPoints, layerIndices) = simplify > 0f ? Simplify(simplify, layers[s].Points, layers[s].Indices) : layers[s];
+                        if (layerIndices.Length > 0)
+                            AddHulls(material, name, Inputs(layerPoints, layerIndices), physics with { SurfaceProperty = blend.Surfaces[s] }, $" [{blend.Surfaces[s]}]", "");
+                    }
                 }
                 // A subdivided mesh reaches physicsbuilder tessellated, positions
                 // only: the pieces the mesh path cuts (Mako's pipes: 492 vertices a
                 // pipe against 126 .vmap vertices, captured).
                 if (Subdivided(mesh.Element!))
                 {
-                    var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var convexCovered, Placed(mesh));
+                    var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var convexCovered, Placed(mesh),
+                        builder, !names.Any(n => n is string m && materials(m).KeepsTexcoords));
+                    var tessellatedPiece = -1;
                     if (!convexCovered)
                         notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
                     foreach (var (material, points, indices, piecePaint) in tessellated)
                     {
+                        tessellatedPiece++;
                         var name = material < names.Length ? (names[material] as string ?? "") : "";
-                        var physics = materials(name);
+                        var physics = PiecePhysics(name);
                         if (!physics.Solid)
                             continue;
                         if (physics.Blend is { } blend)
@@ -451,16 +464,20 @@ public static class WorldCollision
                                 continue;
                             }
                         }
-                        AddHulls(material, name, Inputs(points, indices), physics, "", name);
+                        var (hullPoints, hullIndices) = simplify <= 0f ? (points, indices)
+                            : builder != null ? Simplify(simplify, builder[tessellatedPiece]) : Simplify(simplify, points, indices);
+                        AddHulls(material, name, Inputs(hullPoints, hullIndices), physics, "", name);
                     }
                     continue;
                 }
                 // The same per-material mesh the mesh path reads, texcoord shift included.
+                var convexPiece = -1;
                 foreach (var (material, positions, faces, local, corners, _, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null,
-                             !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh)))
+                             !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh), builderMeshes: builder))
                 {
+                    convexPiece++;
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
-                    var physics = materials(name);
+                    var physics = PiecePhysics(name);
                     if (!physics.Solid)
                         continue;
                     // A blend material's hull takes its first layer's surface, as an
@@ -478,7 +495,15 @@ public static class WorldCollision
                     // piece's triangle mesh does: 106 of Mako's convex_single inputs
                     // match the captured CMesh vertex buffers point for point.
                     // convex_multi groups that CMesh by connectivity (18001ac20).
-                    if (type == BrushHulls.PhysicsType.ConvexMulti)
+                    // A simplified piece hulls what the simplifier left.
+                    if (simplify > 0f)
+                    {
+                        var (meshPoints, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners);
+                        var (simplePoints, simpleIndices) = builder != null ? Simplify(simplify, builder[convexPiece])
+                            : Simplify(simplify, [.. meshPoints], [.. triangles.SelectMany(t => new[] { t.A, t.B, t.C })]);
+                        AddHulls(material, name, Inputs(simplePoints, simpleIndices), physics, "", name);
+                    }
+                    else if (type == BrushHulls.PhysicsType.ConvexMulti)
                     {
                         var (meshPoints, triangles) = BrushHulls.TriangleMesh(positions, faces, local, corners);
                         AddHulls(material, name, BrushHulls.BufferGroups([.. meshPoints], [.. triangles.SelectMany(t => new[] { t.A, t.B, t.C })]), physics, "", name);
@@ -493,34 +518,42 @@ public static class WorldCollision
                 // The baked mesh's paint comes from the tessellation, which
                 // lerps it over each patch as the bake does; a mesh with faces
                 // stitched to finer neighbours has no ported paint there.
-                var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var covered, Placed(mesh));
+                var tessellated = TessellatedPieces(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null, out var covered, Placed(mesh),
+                    builder, !names.Any(n => n is string m && materials(m).KeepsTexcoords));
+                var tessellatedPiece = -1;
                 if (!covered)
                     notes?.Add($"node {mesh.NodeId}: subdivided faces stitched to finer neighbours, cut order not ported");
                 foreach (var (material, points, indices, piecePaint) in tessellated)
                 {
+                    tessellatedPiece++;
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
-                    var physics = Painted(materials(name), paint);
+                    var physics = Painted(PiecePhysics(name), paint);
                     if (!physics.Solid)
                         continue;
                     if (physics.Blend != null && paint != null && !covered && Splits(physics.Blend))
                     {
                         notes?.Add($"node {mesh.NodeId} material {material}: stitched subdivided mesh, not split");
-                        result.Add(new Piece(mesh.NodeId, material, name, physics, points, indices) { ToolMaterial = name });
+                        var (stitchedPoints, stitchedIndices) = simplify <= 0f ? (points, indices)
+                            : FirstUse(builder != null ? Simplify(simplify, builder[tessellatedPiece]) : Simplify(simplify, points, indices));
+                        result.Add(new Piece(mesh.NodeId, material, name, physics, stitchedPoints, stitchedIndices) { ToolMaterial = name });
                         continue;
                     }
                     if (physics.Blend is { Sampled: true, NewBlending: true } && paint != null && Splits(physics.Blend))
                         notes?.Add($"node {mesh.NodeId} material {material}: subdivided new-blending piece, texcoords not carried through the tessellation; the 0.5 rule stands in");
-                    AddPieces(result, mesh.NodeId, material, name, physics, physics.Blend != null ? piecePaint : null, points, indices);
+                    AddPieces(result, mesh.NodeId, material, name, physics, physics.Blend != null ? piecePaint : null, points, indices, simplify: simplify,
+                              whole: builder?[tessellatedPiece]);
                 }
                 continue;
             }
             var firstCorners = paint == null ? null : FirstCorners(mesh.Element!);
             var texcoords = paint == null ? null : TexcoordStream(mesh.Element!);
+            var meshPiece = -1;
             foreach (var (material, positions, faces, local, corners, cornerData, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null,
-                         !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh)))
+                         !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh), builderMeshes: builder))
             {
+                meshPiece++;
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
-                var physics = Painted(materials(name), paint);
+                var physics = Painted(PiecePhysics(name), paint);
                 if (!physics.Solid)
                     continue;
                 var made = new List<(int Face, int Corner)>();
@@ -549,7 +582,7 @@ public static class WorldCollision
                             notes?.Add($"node {mesh.NodeId} material {material}: new-blending layers need the material sampler's GPU render; the 0.5 rule stands in");
                     }
                 }
-                AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices, sampled);
+                AddPieces(result, mesh.NodeId, material, name, physics, vertexPaint, [.. points], indices, sampled, simplify, builder?[meshPiece]);
             }
         }
         NameSurfaces(result.Count);
@@ -766,17 +799,31 @@ public static class WorldCollision
     // A piece as physicsbuilder's shape step hands it on (0924: 180016230):
     // whole, or cut by painted layer when its material has a blend and its
     // mesh a paint stream.
-    private static void AddPieces(List<Piece> result, int node, int material, string name, MaterialPhysics physics, Vector4[]? paint, Vector3[] points, int[] indices, int[]? sampled = null)
+    // A piece with a simplification error above 0 goes through Simplify: the
+    // whole piece (its CMesh, or positions only when there is none), or each
+    // painted layer after the split (180016230).
+    private static void AddPieces(List<Piece> result, int node, int material, string name, MaterialPhysics physics, Vector4[]? paint, Vector3[] points, int[] indices, int[]? sampled = null,
+                                  float simplify = 0f, BrushHulls.BuilderMesh? whole = null)
     {
+        (Vector3[] Points, int[] Indices) Whole()
+            => simplify <= 0f ? (points, indices) : FirstUse(whole != null ? Simplify(simplify, whole) : Simplify(simplify, points, indices));
         if (physics.Blend is not { } blend || paint == null)
-            result.Add(new Piece(node, material, name, physics, points, indices) { ToolMaterial = name });
+        {
+            var (p, i) = Whole();
+            result.Add(new Piece(node, material, name, physics, p, i) { ToolMaterial = name });
+        }
         else if (!Splits(blend))
-            result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[0] }, points, indices) { ToolMaterial = name });
+        {
+            var (p, i) = Whole();
+            result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[0] }, p, i) { ToolMaterial = name });
+        }
         else
         {
             var layers = SplitLayers(blend, points, indices, paint, sampled);
             for (var s = 0; s < layers.Count; s++)
-                result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[s] }, layers[s].Points, layers[s].Indices)
+            {
+                var (p, i) = simplify > 0f ? FirstUse(Simplify(simplify, layers[s].Points, layers[s].Indices)) : layers[s];
+                result.Add(new Piece(node, material, name, physics with { SurfaceProperty = blend.Surfaces[s] }, p, i)
                 {
                     // No tool material: physicsbuilder 180015930 builds each layer's
                     // mesh without a material name, and a node's tool material is
@@ -784,7 +831,137 @@ public static class WorldCollision
                     ToolMaterial = "",
                     Name = $" [{blend.Surfaces[s]}]",
                 });
+            }
         }
+    }
+
+    /// <summary>
+    /// A mesh node's own collision settings over its material's
+    /// (physicsbuilder 180016cf0, called by PhysicsBuilder_NodeMeshes 180016e90
+    /// on each piece's strings): physicsCollisionProperty, when it names an
+    /// entry of scripts/collision_properties.txt, replaces the group and the
+    /// three lists with the entry's (each list joined as authored, as a prop's
+    /// collision_override is); then a physicsGroup replaces the group, and
+    /// physicsInteractsAs, With and Exclude are each appended to their list
+    /// after a space. The two detail layer lists (vf 0x148) name layers from
+    /// scripts/collision_detail_layers.vdata, which CS2 does not ship, so
+    /// Hammer offers none; a mesh that still lists one stops the build.
+    /// </summary>
+    /// <param name="exclude">False for a brush entity's model: the record CMapMesh_ConvertMeshForBuilder
+    /// (rc 1810dff20) fills for the map builder holds the property (+0xa0), group, as and with (+0xb8) but
+    /// no exclude list, which only reaches the DmeMesh physicsbuilder reads (s2c_meshcoll_hold: every
+    /// entity mesh with only that key ships without it; a property's exclude list does reach the model).</param>
+    internal static MaterialPhysics WithMeshSettings(MaterialPhysics physics, DmxBinary.Element mesh, Func<string, Maps.SettleWorld.CollisionProperty?>? collisionProperty, bool exclude = true)
+    {
+        foreach (var key in new[] { "physicsIncludedDetailLayers", "physicsMissingDetailLayers" })
+            if (mesh.Attributes.TryGetValue(key, out var layers) && layers is System.Collections.IList { Count: > 0 })
+                throw new NotSupportedException($"mesh {mesh.GetValue<int>("nodeID")}: {key} set; CS2 ships no collision detail layers, so what physicsbuilder makes of one is not measured");
+        if (mesh.Get<string>("physicsCollisionProperty") is { Length: > 0 } property && collisionProperty?.Invoke(property) is { } over)
+            physics = physics with
+            {
+                CollisionGroup = over.Group,
+                InteractAs = Commas(over.InteractAs),
+                InteractWith = Commas(over.InteractWith),
+                InteractExclude = Commas(over.InteractExclude),
+            };
+        if (mesh.Get<string>("physicsGroup") is { Length: > 0 } group)
+            physics = physics with { CollisionGroup = group };
+        static string Append(string list, string? add) => add is not { Length: > 0 } ? list : list.Length > 0 ? list + " " + add : add;
+        return physics with
+        {
+            InteractAs = Append(physics.InteractAs, mesh.Get<string>("physicsInteractsAs")),
+            InteractWith = Append(physics.InteractWith, mesh.Get<string>("physicsInteractsWith")),
+            InteractExclude = exclude ? Append(physics.InteractExclude, mesh.Get<string>("physicsInteractsExclude")) : physics.InteractExclude,
+        };
+    }
+
+    /// <summary>
+    /// The physicsSimplificationError ConvertMeshForBuilder hands physicsbuilder
+    /// (Hammer 1810e0290 through CMapMesh vf216, 181083ae0): with the override
+    /// set, the stored error squared. Without it, 0 when one of the mesh's
+    /// materials carries attribute 0x184fc5, else gameinfo's
+    /// PhysicsBuilder/DefaultHammerMeshSimplification squared, and CS2's
+    /// gameinfo sets that to "0.0" (read 2026-10-23), so 0. A map saved before
+    /// vmap 28 stored the squared error and no override: the loader's step from
+    /// 27 (rc 180d7f9c0, entry 27 of the upgrade table at 182fe7b00, whose
+    /// entry 37 is the step to 38) takes the square root and sets the override.
+    /// </summary>
+    internal static float SimplificationError(DmxBinary.Element mesh, int formatVersion)
+    {
+        var error = mesh.Attributes.TryGetValue("physicsSimplificationError", out var e) && e is float f ? f : 0f;
+        var on = mesh.Attributes.TryGetValue("physicsSimplificationOverride", out var o) && o is true;
+        if (formatVersion < 28 && error > 0f)
+            (error, on) = (MathF.Sqrt(error), true);
+        return on ? error * error : 0f;
+    }
+
+    // The format version of the map a mesh comes from: a prefab's own map, or the main one.
+    private static int VersionOf(Maps.MapMeshes.Mesh mesh, DmxBinary.Document doc)
+        => mesh.PrefabChain.Count > 0 && mesh.PrefabChain[^1].Attributes.TryGetValue(Maps.MapPrefabs.DocumentKey, out var d) && d is DmxBinary.Document own
+            ? own.FormatVersion : doc.FormatVersion;
+
+    /// <summary>
+    /// PhysicsBuilder_MeshPieces (180016230) with an error above 0: the piece
+    /// is copied, welded at 1/32 over all its streams (CMesh_WeldPositions
+    /// 1800c1ad0, as <see cref="MeshWeld"/>) and simplified
+    /// (<see cref="MeshSimplifier"/>, positions only out); a mesh too small to
+    /// simplify stays the welded copy. Replayed bit for bit on every captured
+    /// call (SimplifyReplay).
+    /// </summary>
+    internal static (Vector3[] Points, int[] Indices) Simplify(float error, BrushHulls.BuilderMesh mesh)
+        => Simplify(error, mesh.Vertices, mesh.Stride, mesh.Indices, mesh.Streams);
+
+    /// <summary>
+    /// A triangle-mesh shape's vertices renumbered in the order its triangles
+    /// first use them. The simplifier keeps its input's order, but the soup
+    /// RnMeshCreate gets lists them by first use (s2c_simplify's first soup,
+    /// capture_rnmesh.py); every other mesh piece is in that order already.
+    /// A hull keeps the buffer order (s2c_simplify_types).
+    /// </summary>
+    internal static (Vector3[] Points, int[] Indices) FirstUse((Vector3[] Points, int[] Indices) mesh)
+    {
+        var map = new int[mesh.Points.Length];
+        Array.Fill(map, -1);
+        var points = new List<Vector3>();
+        var indices = new int[mesh.Indices.Length];
+        for (var k = 0; k < indices.Length; k++)
+        {
+            var v = mesh.Indices[k];
+            if (map[v] < 0)
+            {
+                map[v] = points.Count;
+                points.Add(mesh.Points[v]);
+            }
+            indices[k] = map[v];
+        }
+        return ([.. points], indices);
+    }
+
+    /// <summary>As above for a positions-only piece: a painted layer, or an unpainted mesh's.</summary>
+    internal static (Vector3[] Points, int[] Indices) Simplify(float error, Vector3[] points, int[] indices)
+    {
+        var flat = new float[points.Length * 3];
+        for (var i = 0; i < points.Length; i++)
+            (flat[i * 3], flat[(i * 3) + 1], flat[(i * 3) + 2]) = (points[i].X, points[i].Y, points[i].Z);
+        return Simplify(error, flat, 3, indices, [new MeshWeld.Stream("position", 0, 3, false, 42)]);
+    }
+
+    /// <summary>Each CMesh handed to <see cref="Simplify(float, BrushHulls.BuilderMesh)"/>, before the weld (tests).</summary>
+    [ThreadStatic]
+    internal static Action<float[], int, int[], float>? SimplifyTrace;
+
+    private static (Vector3[] Points, int[] Indices) Simplify(float error, float[] vertices, int stride, int[] indices, IReadOnlyList<MeshWeld.Stream> streams)
+    {
+        SimplifyTrace?.Invoke(vertices, stride, indices, error);
+        var (welded, weldedIndices) = vertices.Length == 0 ? (vertices, indices) : MeshWeld.Weld(vertices, stride, indices, streams, 1f / 32f);
+        var positions = new float[welded.Length / stride * 3];
+        for (var v = 0; v < positions.Length / 3; v++)
+            Array.Copy(welded, v * stride, positions, v * 3, 3);
+        var (outPositions, outIndices) = MeshSimplifier.Simplify(positions, weldedIndices, error) ?? (positions, weldedIndices);
+        var result = new Vector3[outPositions.Length / 3];
+        for (var i = 0; i < result.Length; i++)
+            result[i] = new Vector3(outPositions[i * 3], outPositions[(i * 3) + 1], outPositions[(i * 3) + 2]);
+        return (result, outIndices);
     }
 
     // A painted piece's triangle mesh with the paint and sampled layers the
@@ -874,7 +1051,12 @@ public static class WorldCollision
     /// material first meets it; positions are scaled and moved like the
     /// other pieces'.
     /// </summary>
-    internal static List<(int Material, Vector3[] Points, int[] Indices, Vector4[]? Paint)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered, float[]? placed = null)
+    /// <param name="builders">When given, receives each piece's CMesh as physicsbuilder gets it from a painted mesh
+    /// (<see cref="BrushHulls.BuilderMesh"/>): the bake carries every faceVertexData stream, the texcoords shifted
+    /// unless <paramref name="shiftTexcoords"/> is false, and each welded vertex keeps the streams of the member
+    /// whose position it keeps.</param>
+    internal static List<(int Material, Vector3[] Points, int[] Indices, Vector4[]? Paint)> TessellatedPieces(DmxBinary.Element mesh, DmxBinary.Element world, float[]? path, out bool covered, float[]? placed = null,
+        List<BrushHulls.BuilderMesh>? builders = null, bool shiftTexcoords = true)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData")!;
         var faceData = (data.Get<object?[]>("faceDataIndices") ?? []).Select(x => x is int i ? i : 0).ToArray();
@@ -899,17 +1081,22 @@ public static class WorldCollision
             var p = Maps.MapMeshes.Transform(toEntity, Maps.MapMeshes.Transform(toWorld, local * scales));
             return path == null ? p : Maps.MapMeshes.Transform(path, p);
         }
-        var cut = Maps.SubdivisionBake.Bake(data, Place);
+        (List<(string Full, string Name, int Count)> Layout, Func<int, float[]> Corner)? streams = builders == null ? null : Maps.MapMeshCorners.BakeStreams(data);
+        var cut = streams is { } bs
+            ? Maps.SubdivisionBake.Bake(data, Place, bs.Corner, layout: [.. bs.Layout.Select(x => (x.Full, x.Count))],
+                                        smoothingAngle: mesh.GetValue<float>("smoothingAngle") ?? 40f, shiftTexcoords: shiftTexcoords)
+            : Maps.SubdivisionBake.Bake(data, Place);
         covered = true;
+        var rowWidth = streams?.Layout.Sum(x => x.Count) ?? 0;
         // One piece per (lightmap scale bias, material), as the exported mesh's face sets.
-        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of, List<Vector4> Paint, List<int> Source)>();
+        var byMaterial = new SortedDictionary<(int Bias, int Material), (List<Vector3> Points, List<int> Indices, Dictionary<int, int> Of, List<Vector4> Paint, List<int> Source, List<float[]> Rows)>();
         for (var t = 0; t < cut.Faces.Count; t++)
         {
             var f = cut.Faces[t];
             var material = faceMaterials.Length == 0 ? 0 : faceMaterials[faceData[f]];
             var bias = faceBiases.Length == 0 ? 0 : faceBiases[faceData[f]];
             if (!byMaterial.TryGetValue((bias, material), out var piece))
-                byMaterial[(bias, material)] = piece = ([], [], [], [], []);
+                byMaterial[(bias, material)] = piece = ([], [], [], [], [], []);
             for (var k = 0; k < 3; k++)
             {
                 var v = cut.Indices[(t * 3) + k];
@@ -924,6 +1111,8 @@ public static class WorldCollision
                     // corner that first meets it here.
                     if (cut.Paint != null)
                         piece.Paint.Add(cut.Paint[(t * 3) + k]);
+                    if (streams != null)
+                        piece.Rows.Add(cut.CornerData![(t * 3) + k]);
                 }
                 piece.Indices.Add(at);
             }
@@ -942,7 +1131,8 @@ public static class WorldCollision
             var paint = kv.Value.Paint;
             // Position, paint (ignored by the weld) and the baked vertex: the
             // world mesh weld never joins two vertices, as for plain meshes.
-            const int Stride = 8;
+            // The bake's other streams ride along after them, ignored too.
+            var Stride = 8 + rowWidth;
             var flat = new float[pts.Count * Stride];
             for (var i = 0; i < pts.Count; i++)
             {
@@ -950,15 +1140,69 @@ public static class WorldCollision
                 if (cut.Paint != null)
                     (flat[(i * Stride) + 3], flat[(i * Stride) + 4], flat[(i * Stride) + 5], flat[(i * Stride) + 6]) = (paint[i].X, paint[i].Y, paint[i].Z, paint[i].W);
                 flat[(i * Stride) + 7] = kv.Value.Source[i];
+                if (streams != null)
+                    Array.Copy(kv.Value.Rows[i], 0, flat, (i * Stride) + 8, Math.Min(rowWidth, kv.Value.Rows[i].Length));
             }
             long[]? latest = cut.Written == null ? null : [.. kv.Value.Source.Select(i => cut.Written[i])];
-            var (v, ix) = MeshWeld.Weld(flat, Stride, [.. kv.Value.Indices],
-                [new MeshWeld.Stream("position", 0, 3, false, 42), new MeshWeld.Stream("VertexPaintBlendParams", 3, 4, true, 42), new MeshWeld.Stream("vertex", 7, 1, false, 0x22)], 1f / 32f, true, null, latest);
+            List<MeshWeld.Stream> weldStreams = [new("position", 0, 3, false, 42), new("VertexPaintBlendParams", 3, 4, true, 42), new("vertex", 7, 1, false, 0x22)];
+            if (rowWidth > 0)
+                weldStreams.Add(new("baked", 8, rowWidth, true, 0));
+            var (v, ix) = MeshWeld.Weld(flat, Stride, [.. kv.Value.Indices], weldStreams, 1f / 32f, true, null, latest);
             var n = v.Length / Stride;
+            if (streams != null)
+                builders!.Add(BakedBuilder(v, Stride, ix, streams.Value.Layout, path == null ? toWorld : null));
             result.Add((kv.Key.Material, [.. Enumerable.Range(0, n).Select(i => new Vector3(v[i * Stride], v[(i * Stride) + 1], v[(i * Stride) + 2]))], ix,
                 cut.Paint == null ? null : [.. Enumerable.Range(0, n).Select(i => new Vector4(v[(i * Stride) + 3], v[(i * Stride) + 4], v[(i * Stride) + 5], v[(i * Stride) + 6]))]));
         }
         return result;
+    }
+
+    // A tessellated piece's welded rows (position, paint, vertex, then the
+    // bake's streams in the .vmap's order) in physicsbuilder's eight-stream
+    // layout; normals and tangents turned into the world as the plain pieces'.
+    private static BrushHulls.BuilderMesh BakedBuilder(float[] rows, int stride, int[] indices, IReadOnlyList<(string Full, string Name, int Count)> layout, float[]? toWorld)
+    {
+        var offsets = new List<(string Name, int At, int Count)>();
+        var at = 8;
+        foreach (var (_, name, count) in layout)
+        {
+            offsets.Add((name, at, count));
+            at += count;
+        }
+        int Find(string name, int nth = 0) => offsets.Where(x => x.Name == name).Skip(nth).Select(x => x.At).DefaultIfEmpty(-1).First();
+        var (uv, uv2, normal, tangent, lighting, tint, blend) = (Find("texcoord"), Find("texcoord", 1), Find("normal"), Find("tangent"), Find("PerVertexLighting"), Find("VertexPaintTintColor"), Find("VertexPaintBlendParams"));
+        var n = rows.Length / stride;
+        var v = new float[n * 26];
+        for (var i = 0; i < n; i++)
+        {
+            int r = i * stride, o = i * 26;
+            void Copy(int from, int to, int count, float[]? fallback = null)
+            {
+                for (var c = 0; c < count; c++)
+                    v[o + to + c] = from >= 0 ? rows[r + from + c] : fallback?[c] ?? 0f;
+            }
+            Copy(0, 0, 3);
+            Copy(uv, 3, 2);
+            Copy(uv2, 5, 2);
+            if (normal >= 0)
+            {
+                var d = new Vector3(rows[r + normal], rows[r + normal + 1], rows[r + normal + 2]);
+                if (toWorld != null)
+                    d = Maps.NodeMeshEntries.Rotate(toWorld, d);
+                (v[o + 7], v[o + 8], v[o + 9]) = (d.X, d.Y, d.Z);
+            }
+            if (tangent >= 0)
+            {
+                var d = new Vector3(rows[r + tangent], rows[r + tangent + 1], rows[r + tangent + 2]);
+                if (toWorld != null)
+                    d = Maps.NodeMeshEntries.Rotate(toWorld, d);
+                (v[o + 10], v[o + 11], v[o + 12], v[o + 13]) = (d.X, d.Y, d.Z, rows[r + tangent + 3]);
+            }
+            Copy(lighting, 14, 4);
+            Copy(tint, 18, 4, [1f, 1f, 1f, 1f]);
+            Copy(blend >= 0 ? 3 : -1, 22, 4);
+        }
+        return new BrushHulls.BuilderMesh(v, 26, indices, BrushHulls.BuilderMesh.Layout);
     }
 
     /// <summary>

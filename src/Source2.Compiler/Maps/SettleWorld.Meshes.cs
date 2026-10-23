@@ -46,10 +46,22 @@ public static partial class SettleWorld
             .Select(c => MathF.Sqrt(((world[c] * world[c]) + (world[4 + c] * world[4 + c])) + (world[8 + c] * world[8 + c])))
             .Aggregate(0f, (a, b) => a <= b ? b : a);
         var body = new BodyBuild(nodeId, new Vector3(world[3], world[7], world[11]), longest, Orientation(Unscaled(world)), []) { Node = mesh };
+        var simplify = Physics.WorldCollision.SimplificationError(mesh, context.Versions.GetValueOrDefault(mesh, context.Version));
         foreach (var soup in Soups(mesh, owner, context))
         {
             if (soup.Record.Dropped || soup.Points.Count == 0 || soup.Indices.Count <= 2)
                 continue;
+            // With a simplification error (the mesh's vf216, read at vf 0x6c0)
+            // each soup goes through 18105bb20: welded at 1/32 and simplified
+            // (CMesh_Simplify, rc 1813cb3d0), as physicsbuilder does a world piece.
+            if (simplify > 0f)
+            {
+                var (points, indices) = Physics.WorldCollision.Simplify(simplify, [.. soup.Points], [.. soup.Indices]);
+                soup.Points.Clear();
+                soup.Points.AddRange(points);
+                soup.Indices.Clear();
+                soup.Indices.AddRange(indices);
+            }
             var name = soup.Record.Name;
             switch (type)
             {

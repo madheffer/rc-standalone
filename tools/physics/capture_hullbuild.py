@@ -13,9 +13,11 @@ With --trimesh it also records each MapBuilder_TriangleMesh call (0923:
 triangles): the vertex buffer and triangles the half-edge mesh is built
 from, whose vertices the hull groups are made of.
 
-The compile is forced (-f) and overwrites the map's .vpk, so the .vpk is
-backed up beside the output and restored. CS2 must be closed; the script
-refuses to start if it is running or another compile is.
+The compile is -world -phys -fshallow (or the whole map with --full); the
+map's .vpk is moved aside first (a current one makes RC skip the compile,
+and -f with -world does not build) and put back after, byte checked
+(tools/package_guard.py). CS2 must be closed; the script refuses to start
+if it is running or another compile is.
 """
 import argparse
 import filecmp
@@ -30,6 +32,8 @@ import frida
 from capture_physshapes import BIN, CS2, busy, low_disk
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
 from rva_map import installed  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from package_guard import PackageGuard  # noqa: E402
 
 AGENT = r"""
 'use strict';
@@ -117,13 +121,10 @@ def main():
     if low_disk():
         raise SystemExit("under 10 GB free on the game drive; not starting")
     vpk = os.path.join(CS2, "game", "csgo_addons", a.addon, "maps", a.map + ".vpk")
-    backup = a.out + ".vpk.bak"
-    if os.path.exists(vpk):
-        shutil.copyfile(vpk, backup)
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
-    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
+    argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
     if not a.full:
-        argv += ["-world", "-fshallow"]
+        argv += ["-world", "-phys", "-fshallow"]
     calls = []
     lock = threading.Lock()
 
@@ -138,27 +139,23 @@ def main():
         with lock:
             calls.append(pay)
 
-    dev = frida.get_local_device()
-    pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
-    ses = dev.attach(pid)
-    sc = ses.create_script(AGENT % {"rva": rva, "trimesh": trimesh, "weld": weld, "weldmin": a.weld or 0})
-    sc.on("message", on_message)
-    sc.load()
-    done = threading.Event()
-    ses.on("detached", lambda *x: done.set())
-    dev.resume(pid)
-    done.wait()
-    with open(a.out, "w", encoding="utf-8") as fh:
-        json.dump(calls, fh)
-    print(a.out, len(calls), "calls")
-    if os.path.exists(vpk):
-        shutil.copyfile(vpk, a.out + ".vpk")
-    if os.path.exists(backup):
-        shutil.copyfile(backup, vpk)
-        ok = filecmp.cmp(backup, vpk, shallow=False)
-        print("restored" if ok else "RESTORE CMP FAILED", vpk)
-        if ok:
-            os.remove(backup)
+    with PackageGuard(vpk, a.out + ".vpk.bak") as guard:
+        dev = frida.get_local_device()
+        pid = dev.spawn(argv, cwd=BIN, stdio="pipe")
+        guard.pid = pid
+        ses = dev.attach(pid)
+        sc = ses.create_script(AGENT % {"rva": rva, "trimesh": trimesh, "weld": weld, "weldmin": a.weld or 0})
+        sc.on("message", on_message)
+        sc.load()
+        done = threading.Event()
+        ses.on("detached", lambda *x: done.set())
+        dev.resume(pid)
+        done.wait()
+        with open(a.out, "w", encoding="utf-8") as fh:
+            json.dump(calls, fh)
+        print(a.out, len(calls), "calls")
+        if os.path.exists(vpk):
+            shutil.copyfile(vpk, a.out + ".vpk")
 
 
 if __name__ == "__main__":

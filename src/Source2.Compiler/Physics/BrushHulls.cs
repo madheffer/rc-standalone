@@ -34,23 +34,6 @@ public static class BrushHulls
     }
 
     /// <summary>
-    /// Stops a build that physicsbuilder would simplify. ConvertMeshForBuilder
-    /// (1810e0290) hands the builder physicsSimplificationError from CMapMesh
-    /// vf216 (181083ae0): with physicsSimplificationOverride set, the error
-    /// squared; otherwise 0 when one of the mesh's materials carries attribute
-    /// 0x184fc5, else gameinfo's PhysicsBuilder/DefaultHammerMeshSimplification
-    /// squared (read at 180fb12c2; CS2 ships 0.0). Above 0, physicsbuilder
-    /// welds each piece at 1/32 and simplifies it (180016230 through
-    /// 1800c5b90), which is not ported. No installed map sets the override.
-    /// </summary>
-    public static void RefuseSimplification(DmxBinary.Element mesh)
-    {
-        if (mesh.Attributes.TryGetValue("physicsSimplificationOverride", out var o) && o is true
-            && mesh.Attributes.TryGetValue("physicsSimplificationError", out var e) && e is float error && error * error > 0)
-            throw new NotSupportedException($"mesh {mesh.GetValue<int>("nodeID")}: physicsSimplificationOverride with error {error}; physicsbuilder's mesh simplification (1800c5b90) is not ported");
-    }
-
-    /// <summary>
     /// FUN_181083540: "default" inside an entity is convex_multi unless the
     /// class inherits one of the PhysicsTypeOverride base classes; outside one
     /// it is a mesh.
@@ -89,8 +72,11 @@ public static class BrushHulls
     /// <param name="placed">A world mesh's matrix as the instance collapse left it (its node
     /// moved through the instances, then its own AngleMatrix), used instead of the node's
     /// matrix and <paramref name="path"/>.</param>
-    public static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData, int Bias)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true,
-        Func<DmxBinary.Element, Maps.CTransform>? transformOf = null, float[]? placed = null, int? wholeMeshMaterial = null)
+    /// <param name="builderMeshes">When given, receives each piece's CMesh as physicsbuilder gets it from a painted mesh
+    /// (<see cref="BuilderMesh"/>), piece for piece.</param>
+    internal static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData, int Bias)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true,
+        Func<DmxBinary.Element, Maps.CTransform>? transformOf = null, float[]? placed = null, int? wholeMeshMaterial = null,
+        List<BuilderMesh>? builderMeshes = null)
     {
         transformOf ??= Maps.CTransform.FromNode;
         if (placed != null)
@@ -150,14 +136,114 @@ public static class BrushHulls
                 cornerData[t] = piece.CornerData.Length == 0 ? [] : [piece.CornerData[src], piece.CornerData[src + 1], piece.CornerData[src + 2]];
             }
             result.Add((piece.Material, positions, faces, local, corners, cornerData, piece.Bias));
+            if (builderMeshes != null)
+                builderMeshes.Add(Builder(mesh, piece, v, stride, positions, faces, local, corners, cornerData, entity.Type == "CMapWorld" ? toWorld : null));
         }
         return result;
     }
 
-    /// <summary>The point lists the map builder hulls, in its order.</summary>
-    public static List<Vector3[]> Inputs(Vector3[] positions, int[][] faces, PhysicsType type, Vector3[]? local = null, int[][]? cornerIds = null)
+    /// <summary>Each triangle mesh <see cref="Simplified"/> hands the simplifier (tests).</summary>
+    [ThreadStatic]
+    internal static Action<List<Vector3>, List<(int A, int B, int C)>, float>? SimplifyTrace;
+
+    /// <summary>
+    /// MapBuilder_MeshFromMapMesh (rc 0923: the function at 181308a42): with a
+    /// physicsSimplificationError above 0, a brush entity piece's triangle mesh
+    /// (<see cref="TriangleMesh"/>'s, the gather 181310620 makes) goes through
+    /// the edge collapse as it stands, no weld first (<see cref="MeshSimplifier"/>,
+    /// whose copy in rc is 181bf9d70), and MapBuilder_TriangleMesh (181308060)
+    /// gets the result. Fewer than 4 vertices or 2 triangles are left alone.
+    /// Every call of a compile replays bit for bit (MapSimplifyReplay: 167 on
+    /// s2c_simplify). What is left stands where <see cref="TriangleMesh"/>'s
+    /// output would.
+    /// </summary>
+    internal static (List<Vector3> Points, List<(int A, int B, int C)> Triangles) Simplified((List<Vector3> Points, List<(int A, int B, int C)> Triangles) mesh, float simplify)
     {
-        var (points, triangles) = TriangleMesh(positions, faces, local, cornerIds);
+        if (simplify <= 0f)
+            return mesh;
+        SimplifyTrace?.Invoke(mesh.Points, mesh.Triangles, simplify);
+        if (mesh.Points.Count < 4 || mesh.Triangles.Count < 2)
+            return mesh;
+        var flat = new float[mesh.Points.Count * 3];
+        for (var i = 0; i < mesh.Points.Count; i++)
+            (flat[i * 3], flat[(i * 3) + 1], flat[(i * 3) + 2]) = (mesh.Points[i].X, mesh.Points[i].Y, mesh.Points[i].Z);
+        var (positions, indices) = MeshSimplifier.Run(flat, [.. mesh.Triangles.SelectMany(t => new[] { t.A, t.B, t.C })], simplify, -1);
+        var points = new List<Vector3>(positions.Length / 3);
+        for (var i = 0; i < positions.Length; i += 3)
+            points.Add(new Vector3((float)positions[i], (float)positions[i + 1], (float)positions[i + 2]));
+        var triangles = new List<(int A, int B, int C)>(indices.Length / 3);
+        for (var t = 0; t < indices.Length; t += 3)
+            triangles.Add((indices[t], indices[t + 1], indices[t + 2]));
+        return (points, triangles);
+    }
+
+    /// <summary>
+    /// A painted mesh's piece as PhysicsBuilder_MeshPieces (180016230)
+    /// receives it: one vertex per .vmap vertex in <see cref="TriangleMesh"/>'s
+    /// order, with the triangles, each vertex carrying the streams of the
+    /// corner that made it (position, two texcoords, normal, tangent,
+    /// PerVertexLighting, VertexPaintTintColor, VertexPaintBlendParams; 26
+    /// floats). Captured on s2c_simplify (capture_simplify.py): no two vertices
+    /// share a position; a world mesh's positions in the world, the first
+    /// texcoord shifted, the second at its default, the rest as the .vmap
+    /// stores them. An unpainted mesh's piece comes as positions only.
+    /// </summary>
+    internal sealed record BuilderMesh(float[] Vertices, int Stride, int[] Indices, IReadOnlyList<MeshWeld.Stream> Streams)
+    {
+        /// <summary>The stream layout physicsbuilder's CMesh carries.</summary>
+        public static readonly IReadOnlyList<MeshWeld.Stream> Layout =
+        [
+            new("position", 0, 3, false, 42), new("texcoord", 3, 2, false, 41), new("texcoord", 5, 2, false, 41), new("normal", 7, 3, false, 42),
+            new("tangent", 10, 4, false, 43), new("PerVertexLighting", 14, 4, false, 43), new("VertexPaintTintColor", 18, 4, false, 43),
+            new("VertexPaintBlendParams", 22, 4, false, 43),
+        ];
+    }
+
+    private static BuilderMesh Builder(DmxBinary.Element mesh, Maps.MapMeshCorners.Piece piece, float[] welded, int stride, Vector3[] positions, int[][] faces,
+                                       Vector3[] local, int[][] corners, int[][] cornerData, float[]? toWorld)
+    {
+        int Offset(string name) => piece.Streams.FirstOrDefault(x => x.Name == name) is { Count: > 0 } x ? x.First : -1;
+        var (texcoord, normal, lighting) = (Offset("texcoord"), Offset("normal"), Offset("PerVertexLighting"));
+        var streams = mesh.Get<DmxBinary.Element>("meshData")?.Get<DmxBinary.Element>("faceVertexData")?.GetElements("streams") ?? [];
+        object?[]? Stream(string name) => streams.FirstOrDefault(x => x.Name.Split(':')[0] == name)?.Get<object?[]>("data");
+        var (tangents, tints, paints) = (Stream("tangent"), Stream("VertexPaintTintColor"), Stream("VertexPaintBlendParams"));
+        var made = new List<(int Face, int Corner)>();
+        var (points, triangles) = TriangleMesh(positions, faces, local, corners, made);
+        var result = new float[points.Count * 26];
+        for (var i = 0; i < points.Count; i++)
+        {
+            var (f, j) = made[i];
+            var at = faces[f][j] * stride;
+            var data = cornerData[f].Length > j ? cornerData[f][j] : -1;
+            var o = i * 26;
+            (result[o], result[o + 1], result[o + 2]) = (points[i].X, points[i].Y, points[i].Z);
+            if (texcoord >= 0)
+                (result[o + 3], result[o + 4]) = (welded[at + texcoord], welded[at + texcoord + 1]);
+            var n = normal >= 0 ? new Vector3(welded[at + normal], welded[at + normal + 1], welded[at + normal + 2]) : Vector3.Zero;
+            if (toWorld != null)
+                n = Maps.NodeMeshEntries.Rotate(toWorld, n);
+            (result[o + 7], result[o + 8], result[o + 9]) = (n.X, n.Y, n.Z);
+            if (tangents != null && data >= 0 && data < tangents.Length && tangents[data] is Vector4 t)
+            {
+                var d = new Vector3(t.X, t.Y, t.Z);
+                if (toWorld != null)
+                    d = Maps.NodeMeshEntries.Rotate(toWorld, d);
+                (result[o + 10], result[o + 11], result[o + 12], result[o + 13]) = (d.X, d.Y, d.Z, t.W);
+            }
+            if (lighting >= 0)
+                (result[o + 14], result[o + 15], result[o + 16], result[o + 17]) = (welded[at + lighting], welded[at + lighting + 1], welded[at + lighting + 2], welded[at + lighting + 3]);
+            (result[o + 18], result[o + 19], result[o + 20], result[o + 21]) = tints != null && data >= 0 && data < tints.Length && tints[data] is Vector4 c ? (c.X, c.Y, c.Z, c.W) : (1f, 1f, 1f, 1f);
+            if (paints != null && data >= 0 && data < paints.Length && paints[data] is Vector4 p)
+                (result[o + 22], result[o + 23], result[o + 24], result[o + 25]) = (p.X, p.Y, p.Z, p.W);
+        }
+        return new BuilderMesh(result, 26, [.. triangles.SelectMany(t => new[] { t.A, t.B, t.C })], BuilderMesh.Layout);
+    }
+
+    /// <summary>The point lists the map builder hulls, in its order.</summary>
+    /// <param name="simplify">The mesh's physicsSimplificationError as the builder gets it (<see cref="Simplified"/>).</param>
+    public static List<Vector3[]> Inputs(Vector3[] positions, int[][] faces, PhysicsType type, Vector3[]? local = null, int[][]? cornerIds = null, float simplify = 0f)
+    {
+        var (points, triangles) = Simplified(TriangleMesh(positions, faces, local, cornerIds), simplify);
         if (type == PhysicsType.ConvexSingle)
             return [[.. points]];
         if (type != PhysicsType.ConvexMulti)

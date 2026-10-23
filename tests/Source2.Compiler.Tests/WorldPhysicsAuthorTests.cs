@@ -130,6 +130,10 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                 }
                 var vv = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector3>(blob.AsSpan(off, head.GetProperty("vcount").GetInt32() * 12)).ToArray();
                 output.WriteLine($"soupin: ours {tris} tris {ov.Length} verts, Valve call {head.GetProperty("id")} {vv.Length} verts; vertices same {ov.SequenceEqual(vv)}, indices same {oi.SequenceEqual(vi)}, materials same {(om ?? []).SequenceEqual(vm ?? [])}");
+                var firstVertex = Enumerable.Range(0, Math.Min(ov.Length, vv.Length)).FirstOrDefault(k => ov[k] != vv[k], -1);
+                if (firstVertex >= 0)
+                    for (var k = Math.Max(0, firstVertex - 2); k < Math.Min(Math.Min(ov.Length, vv.Length), firstVertex + 6); k++)
+                        output.WriteLine($"  vertex {k}: ours {ov[k]:R} valve {vv[k]:R} bits {BitConverter.SingleToInt32Bits(ov[k].X):x8} {BitConverter.SingleToInt32Bits(ov[k].Y):x8} {BitConverter.SingleToInt32Bits(ov[k].Z):x8} vs {BitConverter.SingleToInt32Bits(vv[k].X):x8} {BitConverter.SingleToInt32Bits(vv[k].Y):x8} {BitConverter.SingleToInt32Bits(vv[k].Z):x8}");
                 var shown3 = 0;
                 for (var t = 0; t < tris && shown3 < 8; t++)
                 {

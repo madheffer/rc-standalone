@@ -3377,6 +3377,54 @@ game can answer is raised with the user first, and runs with -insecure.
       (divps) and normalisation (rcpps + one Newton step), OctantMask and CellMask (max of the enters
       with 0 against min of the leaves with 1).
 
+124. **Hammer's mesh physics simplification, everywhere it acts** (2026-10-23: decompile and
+    disassembly of physicsbuilder 0924 and resourcecompiler 0923, an in-process oracle, Frida
+    captures and Valve compiles of s2c_simplify and s2c_simplify_types, ze_hold_em_p with every mesh's
+    physicsSimplificationOverride on at errors 0.25 to 64 and, in the second, its physics type cycled).
+    - Settled: the simplifier is one edge-collapse library in double (pb 18060xxxx, copied into rc at
+      181bfxxxx), ported as Physics/MeshSimplifier.cs. MeshSimplifierOracleTests runs Valve's own
+      functions from the archived physicsbuilder 0924 on 50,000 random meshes (grids, closed boxes,
+      fans past 32 edges a vertex, non-manifold soups with NaN quadrics): every output double and
+      index equal. Every float expression keeps the disassembly's grouping (two face-quadric terms
+      are w * (c * a) and w * (a * -d), not Ghidra's left-to-right), and every comparison its
+      comisd/jcc behaviour on NaN (a NaN determinant takes the endpoint branch; sift-up stops unless
+      the parent is greater).
+    - Settled: where it runs. World pieces: PhysicsBuilder_MeshPieces welds a copy at 1/32 over all
+      its streams and calls CMesh_Simplify, per blend layer after the split or per unsplit piece.
+      The piece's CMesh carries eight streams (26 floats) when the mesh has vertex paint, else
+      positions only; one vertex per .vmap vertex in the triangle mesh's order. Brush entity models:
+      MapBuilder_MeshFromMapMesh (1813089b0) runs the collapse on the piece's triangle mesh directly,
+      no weld, when it has 4+ vertices and 2+ triangles. The pre-settle world: PhysMesh_Shapes'
+      18105bb20 welds and simplifies each soup. Cables: 181156860 (cables are not ported).
+    - Settled: the error is the stored one squared (CMapMesh vf216, read at vf 0x6c0); a vmap older
+      than 28 stored it squared with no override, and loader step 27 (rc 180d7f9c0, entry 27 of the
+      upgrade table at 182fe7b00 whose entry 37 is the step to 38) takes its square root and sets the
+      override. CS2's gameinfo DefaultHammerMeshSimplification is 0.0.
+    - Verified: SimplifyReplay (9 world pieces, weld and simplify bit for bit), SimplifyInputs (our 9
+      CMeshes byte for byte, streams included), MapSimplifyReplay (167 entity pieces and 322 soups),
+      MapSimplifyInputs (157 of 157 entity inputs among Valve's) and SettleSimplifyInputs (56 of 56
+      soups); world physics and all 32 entity models of both probes whole-file exact, the entity lump
+      unchanged.
+    - Measured, not read: a simplified mesh shape's vertices are listed by first use (the world soup
+      RnMeshCreate gets, and an entity's mesh-type shape), which the simplifier's own output is not;
+      the world part's flags are 2 only with a triangle mesh (a world of hulls ships 0), as the entity
+      models' already were.
+
+125. **A mesh's own collision settings** (2026-10-23: decompile of physicsbuilder 180016cf0 and
+    resourcecompiler's CMapMesh_ConvertMeshForBuilder 1810dff20; Valve compiles of s2c_meshcoll and
+    s2c_meshcoll_hold, cardtest and ze_hold_em_p with each mesh given one of 13 settings).
+    - Settled: physicsCollisionProperty, when scripts/collision_properties.txt has the name (case
+      folded; an unknown name changes nothing), replaces the material's group and its three interact
+      lists with the entry's; then physicsGroup replaces the group, and physicsInteractsAs, With and
+      Exclude are appended to their lists after a space. World pieces and brush entity models alike,
+      except that the map builder's record (ConvertMeshForBuilder: property +0xa0, group, as, with
+      +0xb8, then the detail layers) has no exclude list, so an entity model never takes a mesh's
+      physicsInteractsExclude (a property's exclude list it does). The pre-settle world reads group,
+      as, with and exclude (vf 0x690 to 0x6a8) but not the property.
+    - Verified: world physics and every entity model of both probes whole-file exact.
+    - Not ported, refused: physicsIncludedDetailLayers and physicsMissingDetailLayers name layers
+      from scripts/collision_detail_layers.vdata, which CS2 does not ship, so Hammer offers none.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
@@ -3556,9 +3604,9 @@ game can answer is raised with the user first, and runs with -insecure.
   from CMapMesh vf216: with physicsSimplificationOverride set, the error
   squared; else 0 when a material carries attribute 0x184fc5; else
   gameinfo's PhysicsBuilder/DefaultHammerMeshSimplification squared (CS2:
-  0.0). Above 0 the piece is welded at 1/32 and simplified (1800c5b90,
-  not ported; BrushHulls.RefuseSimplification stops such a build). None of
-  the 227 installed maps sets the override.
+  0.0). Above 0 the piece is welded at 1/32 and simplified (1800c5b90).
+  None of the 227 installed maps sets the override. Ported 2026-10-23 with
+  the entity and pre-settle paths: item 124.
 
 - **Texcoord transform defaults** (ledger 9, settled 2026-10-04 from the
   compiled shaders' variable defaults, ShaderDefaultsProbe): a parameter a

@@ -154,6 +154,18 @@ these; a few are only reachable from resourcecompiler's command line.
 | `suppress_texture_compiles`, `permissive_panorama_compiles` | not read |
 | `compress` | not read |
 
+### Mesh object properties
+
+What Hammer's object properties set on a `CMapMesh` for physics, each
+compiled by Valve on a probe map and matched whole-file (docs/PHYSICS.md):
+
+| property | state |
+|---|---|
+| `physicsType` (none, default, mesh, convex_single, convex_multi) | exact, world and brush entities (s2c_simplify_types) |
+| `physicsSimplificationOverride`, `physicsSimplificationError` | exact: world, painted layers, tessellated meshes, brush entity hulls and meshes, pre-settle world (GROUND_TRUTH 124) |
+| `physicsCollisionProperty`, `physicsGroup`, `physicsInteractsAs`, `physicsInteractsWith`, `physicsInteractsExclude` | exact, world and brush entities (GROUND_TRUTH 125) |
+| `physicsIncludedDetailLayers`, `physicsMissingDetailLayers` | refused when set: CS2 ships no scripts/collision_detail_layers.vdata, so Hammer offers no layer |
+
 ### resourcecompiler command line
 
 | option | state |

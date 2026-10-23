@@ -178,7 +178,169 @@
    "addr": "1800c5b90",
    "name": "CMesh_Simplify",
    "module": "s2c:physics/world",
-   "note": "QEM simplify in double (18060xxxx) to an error; needs 4 vertices and 6 indices, else a copy; not ported (BrushHulls.RefuseSimplification)"
+   "note": "QEM simplify in double (18060xxxx) to an error; needs 4 vertices and 6 indices and an error above 0, else a copy; positions-only CMesh out"
+  },
+  {
+   "addr": "180016cf0",
+   "name": "PhysicsBuilder_MeshSettings",
+   "module": "s2c:physics/world",
+   "note": "the node's collision property (vf 0x120, found in collision_properties.txt) replaces group and lists; physicsGroup (0x128) replaces the group; interacts as/with/exclude (0x130-0x140) appended after a space; detail layers (0x148)"
+  },
+  {
+   "addr": "18060aa30",
+   "name": "MeshQem_Input_ctor",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "18060aa70",
+   "name": "MeshQem_Input_SetTriangles",
+   "module": "s2c:physics/simplifier",
+   "note": "copies count * 3 ints"
+  },
+  {
+   "addr": "18060ab00",
+   "name": "MeshQem_Input_SetPositions",
+   "module": "s2c:physics/simplifier",
+   "note": "floats to doubles, any stride"
+  },
+  {
+   "addr": "18060b810",
+   "name": "MeshQem_Simplifier_ctor",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "18060fdf0",
+   "name": "MeshQem_Simplifier_Simplify",
+   "module": "s2c:physics/simplifier",
+   "note": "stores the error at +0x68; collapses the heap top while its cost is not above the error, at most vertices - 4 times"
+  },
+  {
+   "addr": "18060d6c0",
+   "name": "MeshQem_Simplifier_Init",
+   "module": "s2c:physics/simplifier",
+   "note": "vertices 0x128, faces 0x38, edges 0x68; area-weighted face quadrics (w * (c * a), w * (a * -d)), boundary planes weighted 1000 x length squared; heap of every edge"
+  },
+  {
+   "addr": "18060c150",
+   "name": "MeshQem_EdgeCost",
+   "module": "s2c:physics/simplifier",
+   "note": "link condition, boundary rules, 3x3 solve or the cheaper end (ties and NaN to hi), / area, flip and valence penalties"
+  },
+  {
+   "addr": "18060b940",
+   "name": "MeshQem_Collapse",
+   "module": "s2c:physics/simplifier",
+   "note": "lo into hi; faces off the edge dropped; lo's edges and faces moved; hi's edges std::sorted and duplicates merged back to front; 2-ring edges re-costed"
+  },
+  {
+   "addr": "18060c990",
+   "name": "MeshQem_Output",
+   "module": "s2c:physics/simplifier",
+   "note": "live vertices and faces in their original order"
+  },
+  {
+   "addr": "18060b850",
+   "name": "MeshQem_Heap_SiftDown",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "18060b020",
+   "name": "MeshQem_SortEdges",
+   "module": "s2c:physics/simplifier",
+   "note": "MSVC std::sort on (lo, hi) addresses"
+  },
+  {
+   "addr": "180610260",
+   "name": "MeshQem_CollectRing",
+   "module": "s2c:physics/simplifier",
+   "note": "every edge at every neighbour, once (flag +0x60)"
+  },
+  {
+   "addr": "180610620",
+   "name": "MeshQem_CanMoveOnto",
+   "module": "s2c:physics/simplifier",
+   "note": "interior, or boundary edges along q - p within 0.99999"
+  },
+  {
+   "addr": "18060fe70",
+   "name": "MeshQem_Flips",
+   "module": "s2c:physics/simplifier",
+   "note": "a face shorter than 5e-5 or turned past dot 0.5 rejects; worse quality adds 0.05 x error x the loss"
+  },
+  {
+   "addr": "180610f40",
+   "name": "MeshQem_FaceQuality",
+   "module": "s2c:physics/simplifier",
+   "note": "abc / (8 (s - a)(s - b)(s - c))"
+  },
+  {
+   "addr": "180611390",
+   "name": "MeshQem_EdgeIsBoundary",
+   "module": "s2c:physics/simplifier",
+   "note": "one face, or two with normals' dot below -0.99999"
+  },
+  {
+   "addr": "1806113f0",
+   "name": "MeshQem_EdgeIsValid",
+   "module": "s2c:physics/simplifier",
+   "note": "one or two faces"
+  },
+  {
+   "addr": "180610960",
+   "name": "MeshQem_VertexIsBoundary",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1806108c0",
+   "name": "MeshQem_VertexIsTwisted",
+   "module": "s2c:physics/simplifier",
+   "note": "an edge whose two faces run the same way"
+  },
+  {
+   "addr": "180611280",
+   "name": "MeshQem_FaceOrientation",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1806112d0",
+   "name": "MeshQem_FaceOpposite",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "180610ab0",
+   "name": "MeshQem_FindEdge",
+   "module": "s2c:physics/simplifier",
+   "note": "searches the endpoint with more edges"
+  },
+  {
+   "addr": "180610b20",
+   "name": "MeshQem_MoveEdges",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "180610d30",
+   "name": "MeshQem_MoveFaces",
+   "module": "s2c:physics/simplifier",
+   "note": "fresh normals for the moved faces only"
+  },
+  {
+   "addr": "180611130",
+   "name": "MeshQem_FaceNormal",
+   "module": "s2c:physics/simplifier",
+   "note": ""
+  },
+  {
+   "addr": "1806109b0",
+   "name": "MeshQem_MarkNeighbours",
+   "module": "s2c:physics/simplifier",
+   "note": ""
   },
   {
    "addr": "1800a6b80",
