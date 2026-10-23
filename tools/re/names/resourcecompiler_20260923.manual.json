@@ -481,6 +481,108 @@
    "note": "the cable's physics mesh welded at 1/32 and simplified (error squared)"
   },
   {
+   "addr": "18114d850",
+   "name": "CMapCable_CollisionTube",
+   "module": "s2c:physics/world",
+   "note": "vf277 (vtable 0x8a8): sides up to 8, 8 below 18, half below 32, 16 from there; radius * 1.025f; tube, then 181156860 when the error is above 0 (Physics/CableCollision.cs)"
+  },
+  {
+   "addr": "18114c1b0",
+   "name": "CMapCable_BuilderExport",
+   "module": "s2c:physics/world",
+   "note": "vf200: export 0/2 the render tube (181151b30), 1 with collisionEnabled the collision tube (vf277); world space when param_3 is 0 (Matrix3x4_TransformPointXmm); DmeMesh (1810bcbc0) with CollisionType vf680 and the raw physicsSimplificationError; record +0x8c, +0x90 raw error, +0x6a; water_tube +0x81..+0x83; DMX serialised binary into +0x18"
+  },
+  {
+   "addr": "181151b30",
+   "name": "CMapCable_RenderTube",
+   "module": "s2c:physics/world",
+   "note": "1810b8270 with texture distances, scales * radius, tube 1810b8ae0 with the full side count; texcoords and caps (water_tube) beside it"
+  },
+  {
+   "addr": "1810bcbc0",
+   "name": "CMapCable_DmeMesh",
+   "module": "s2c:physics/world",
+   "note": "a DmeMesh of the tube: one vertex per position (identity indices), a triangle face set, the material, streams position/normal/tangent/texcoord/tint"
+  },
+  {
+   "addr": "1810b8270",
+   "name": "CMapPath_Samples",
+   "module": "s2c:physics/world",
+   "note": "IsLoop's controls through 1812802d0 (mode 0) and each sample's radius/height scale lerped over its node pair by i / span, a shared sample the later pair's"
+  },
+  {
+   "addr": "1812802d0",
+   "name": "Spline_SampleBeziers",
+   "module": "s2c:physics/world",
+   "note": "each node pair a cubic Bezier (P1 = node + out, P2 = next + in); mode 0: max(4, ceilf(length / spacing)) samples, 2: max(2, V_roundf); pairs after the first drop their first sample; node starts out"
+  },
+  {
+   "addr": "18110fc80",
+   "name": "Bezier_Length",
+   "module": "s2c:physics/world",
+   "note": "polyline of 2, 4 .. 128 points (t = i / (n - 1)) doubled until |L - Lprev| / L < tolerance / 100"
+  },
+  {
+   "addr": "1810bb3f0",
+   "name": "Bezier_Sample",
+   "module": "s2c:physics/world",
+   "note": "((a t t t + b t t) + c t) + P0, t summed by 1 / (n - 1); derivatives when asked"
+  },
+  {
+   "addr": "1812820e0",
+   "name": "Spline_Frames",
+   "module": "s2c:physics/world",
+   "note": "rotation minimising frames from +z (DAT_1827686c8): turn by V_acosd(dot) * 57.29577951308232 about prev x cur (skipped past 0.999), then squared up (N x T, T x b); last copies the one before"
+  },
+  {
+   "addr": "1810b8ae0",
+   "name": "Tube_Build",
+   "module": "s2c:physics/world",
+   "note": "profile cos/sin of a summed 6.2831855f / sides step, frames, a closed loop's last frame its first, rings (1810bbc40), two triangles a side (flipped order with flipFaces)"
+  },
+  {
+   "addr": "1810bbc40",
+   "name": "Tube_Ring",
+   "module": "s2c:physics/world",
+   "note": "s = normalise(N x T); point j = ((sin s) r + (cos N) h) + centre for j in 0..sides (j % sides); normals, tangents, texcoords, tint"
+  },
+  {
+   "addr": "1810be5b0",
+   "name": "CMapPath_PreviousNode",
+   "module": "s2c:entities/lump",
+   "note": "the node before; the first node's is the last on a supports_loop closed loop of 2+ nodes"
+  },
+  {
+   "addr": "1810be2f0",
+   "name": "CMapPath_NextNode",
+   "module": "s2c:entities/lump",
+   "note": "the node after; the last node's is the first on a supports_loop closed loop of 2+ nodes"
+  },
+  {
+   "addr": "1810b66e0",
+   "name": "CMapPath_FirstNodeMoved",
+   "module": "s2c:entities/lump",
+   "note": "vf274: when the node that changed is the path's first CMapPathNode child, the path's origin is set to it (CMapNode::vf17) and the path refreshed (vf 0x8b8)"
+  },
+  {
+   "addr": "1801ae2c0",
+   "name": "CMapNode_NoSimplificationError",
+   "module": "s2c:physics/world",
+   "note": "vf216 for a node without its own: returns 0 (CMapCable's, so physicsbuilder never simplifies a cable piece)"
+  },
+  {
+   "addr": "180209e20",
+   "name": "EntityModel_AddNodeMeshes",
+   "module": "s2c:mapbuilder",
+   "note": "per export record: CMeshes back from the DMX (180ffd350), tangent stream dropped, CMesh_Weld 1/32, CMesh_TransformByMatrix to world then into the entity, MapBuilder_CMeshToHalfEdge, HalfEdge_JoinCoincident(3, 1e-7), a ModelDoc node"
+  },
+  {
+   "addr": "18023ce80",
+   "name": "EntityModel_Build",
+   "module": "s2c:mapbuilder",
+   "note": "an entity's model in the map compile: its keys, then each node's meshes (180209e20)"
+  },
+  {
    "addr": "180d7f9c0",
    "name": "MapDoc_UpgradeSimplification",
    "module": "s2c:entities/lump",
@@ -4978,7 +5080,7 @@
    "addr": "180c28230",
    "name": "ShapeBuilder_BuildPart",
    "module": "s2c:physics/world",
-   "note": "spheres, capsules, hulls, then meshes"
+   "note": "spheres, capsules, hulls, then meshes; flag 2 when +0x9c is not 2, when a mesh's attribute names no detail layer (+0x50 list) or one the intersection dictionary (g_pVPhysics2Interface vf 0xd8, empty in resourcecompiler) lacks or holds with +0x10 clear, and when there are shapes and every one's attribute names one"
   },
   {
    "addr": "180c28690",

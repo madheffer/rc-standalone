@@ -116,7 +116,7 @@ public class MapCompileArgsTests(ITestOutputHelper output)
         var expected = MapCompile.EntityLumps(document, "s2c_rounds", MapFixtures.GameSchema()!, assets, settle: false,
                                               bakedLighting: baked, entitiesOnly: true)
             .ToDictionary(l => l.Path, l => l.Bytes);
-        var world = Physics.WorldPhysicsFiles.Build(document, "s2c_rc_probe", "s2c_rounds", assets, null, []);
+        var world = Physics.WorldPhysicsFiles.Build(document, "s2c_rc_probe", "s2c_rounds", assets, null, [], MapFixtures.GameSchema());
         expected[world.ModelPath] = world.Model;
         expected[world.ManifestPath] = world.Manifest;
         // Only Entities compiles the entity models again and writes the map root (ledger 119; the root's

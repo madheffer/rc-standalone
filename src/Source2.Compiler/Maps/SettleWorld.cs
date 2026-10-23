@@ -205,6 +205,8 @@ public static partial class SettleWorld
             var world = NodeWorld(prefabs.Length == 0 ? Baked(node, through) : NestedPlacement(node, through, prefabs));
             if (ModelOf(node, models) is { } phys)
                 FromModel(node, world, id, phys, context);
+            else if (node.Type == "CMapCable" && Physics.CableCollision.Collides(node))
+                context.Bodies.Add(new BodyBuild(id, default, 1f, Quaternion.Identity, []) { Node = node, Unsupported = "a cable inside an instance or prefab" });
             else if (node.Type == "CMapMesh")
             {
                 var owner = parents.GetValueOrDefault(node);
@@ -333,6 +335,8 @@ public static partial class SettleWorld
                 FromModel(child, NodeWorld(MapMeshes.Local(child)), child.GetValue<int>("nodeID") ?? -1, phys, context);
             else if (child.Type == "CMapMesh")
                 FromMesh(child, NodeWorld(MapMeshes.Local(child)), child.GetValue<int>("nodeID") ?? -1, owner, context);
+            else if (child.Type == "CMapCable")
+                FromCable(child, context);
             if (child.Type != "CMapInstance" && !targets.Contains(child))
                 Walk(child, child.Type == "CMapEntity" ? child : owner, context, targets, hidden);
         }

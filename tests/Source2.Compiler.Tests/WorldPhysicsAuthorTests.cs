@@ -325,7 +325,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
                 output.WriteLine($"found: {source}");
             return;
         }
-        var files = Physics.WorldPhysicsFiles.Build(doc, p[0], p[1], models, gpu == null ? null : gpu.For, notes);
+        var files = Physics.WorldPhysicsFiles.Build(doc, p[0], p[1], models, gpu == null ? null : gpu.For, notes, MapFixtures.GameSchema());
         var mine = files.Model;
         var valve = Read(p[2], files.ModelPath);
         // WPBUILD_SAVE=<path>: our world_physics.vmdl_c, for inspection.

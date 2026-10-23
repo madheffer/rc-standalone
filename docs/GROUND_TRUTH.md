@@ -3395,7 +3395,7 @@ game can answer is raised with the user first, and runs with -insecure.
       positions only; one vertex per .vmap vertex in the triangle mesh's order. Brush entity models:
       MapBuilder_MeshFromMapMesh (1813089b0) runs the collapse on the piece's triangle mesh directly,
       no weld, when it has 4+ vertices and 2+ triangles. The pre-settle world: PhysMesh_Shapes'
-      18105bb20 welds and simplifies each soup. Cables: 181156860 (cables are not ported).
+      18105bb20 welds and simplifies each soup. Cables: 181156860 (item 126).
     - Settled: the error is the stored one squared (CMapMesh vf216, read at vf 0x6c0); a vmap older
       than 28 stored it squared with no override, and loader step 27 (rc 180d7f9c0, entry 27 of the
       upgrade table at 182fe7b00 whose entry 37 is the step to 38) takes its square root and sets the
@@ -3405,10 +3405,8 @@ game can answer is raised with the user first, and runs with -insecure.
       MapSimplifyInputs (157 of 157 entity inputs among Valve's) and SettleSimplifyInputs (56 of 56
       soups); world physics and all 32 entity models of both probes whole-file exact, the entity lump
       unchanged.
-    - Measured, not read: a simplified mesh shape's vertices are listed by first use (the world soup
-      RnMeshCreate gets, and an entity's mesh-type shape), which the simplifier's own output is not;
-      the world part's flags are 2 only with a triangle mesh (a world of hulls ships 0), as the entity
-      models' already were.
+    - Settled since (item 126): a simplified mesh shape's vertices are listed by first use, and the
+      part's flags.
 
 125. **A mesh's own collision settings** (2026-10-23: decompile of physicsbuilder 180016cf0 and
     resourcecompiler's CMapMesh_ConvertMeshForBuilder 1810dff20; Valve compiles of s2c_meshcoll and
@@ -3424,6 +3422,51 @@ game can answer is raised with the user first, and runs with -insecure.
     - Verified: world physics and every entity model of both probes whole-file exact.
     - Not ported, refused: physicsIncludedDetailLayers and physicsMissingDetailLayers name layers
       from scripts/collision_detail_layers.vdata, which CS2 does not ship, so Hammer offers none.
+
+126. **Cable collision, and the two rules item 124 had measured** (2026-10-23: decompile and
+    disassembly of resourcecompiler 0923, physicsbuilder and vphysics2 0924; Frida captures
+    capture_cable.py, capture_simplify.py, capture_mapsimplify.py, capture_layers.py and
+    capture_settle.py; Valve's compile of s2c_cablecoll, 17 collision cables over every cable setting:
+    simplification errors 0 to 2, sides 3 to 40, closed loops, interpolation 0 to 2, flipped faces,
+    rotated, cable_static and cable_dynamic).
+    - Settled: the tube. Control points (1810b7ca0, 181110ba0) with the path's origin its first node's
+      (CMapPath::vf274, 1810b66e0, on every change of that node, loading included: Valve's lump ships
+      every probe cable at its first node whatever origin the source stores) and a supports_loop
+      closed loop's ends each other's neighbours (1810be5b0, 1810be2f0); Bezier samples (1812802d0,
+      18110fc80, 1810bb3f0), per-sample scales (1810b8270), rotation minimising frames (1812820e0:
+      the quaternion rotate sums (q x t) + (w t + v), read from the packed SSE; Ghidra prints it left to
+      right), rings and triangles (1810b8ae0, 1810bbc40); the collision tube's sides and 1.025f
+      radius (vf277, 18114d850) and its 1/32 weld and simplification with the error squared
+      (181156860). The factories (1810b3e90, 18114e350) start interpolationType at 1 and a cable at 8
+      sides, spacing 16, radius 16, collision on, error 2.
+    - Settled: where it goes. The physics document's filter (180f4d220) keeps a non-mesh entity node
+      only for a class with has_static_mesh, so cable_static's tube (vf200 export 1, moved by the
+      node matrix) is the world's and cable_dynamic's is not; physicsbuilder takes the node's
+      simplification error from the node (vf216), which for a cable is 1801ae2c0, returning 0. A
+      cable_dynamic's model takes the render export (181151b30: full side count, plain radius) through
+      the entity model step (180209e20: corners read back, weld, world and back, half-edge join) and
+      the map builder's simplification with the record's error unsquared. The pre-settle world builds
+      every collision cable as a mesh body (PhysMesh_Shapes' path branch, 181057020) with its
+      material and surface_properties key (PhysMesh_MaterialRecord, 1810564a0).
+    - Settled (item 124's first rule): a triangle-mesh shape lists its vertices by first use because
+      physicsbuilder makes each piece's CMesh from the exported DmeMesh corner by corner (pb
+      180085e80); captured, the CMesh MeshPieces receives is in first-use order for a simplified and
+      an unsimplified cable piece alike.
+    - Settled (item 124's second rule): ShapeBuilder_BuildPart (rc 180c28230) sets flag 2 when the
+      shape builder's type is not 2, when a mesh shape's attribute names no detail layer (the string
+      list at +0x50 of the 0x80-byte attribute) or one the intersection dictionary lacks or holds with
+      +0x10 clear, and when there are shapes and every one's attribute names a detail layer. The
+      dictionary (g_pVPhysics2Interface vf 0xd8, looked up by CIntersectionDictionary vf5, vp
+      180296c00) holds 0 entries in resourcecompiler, read live at the first part built, and CS2
+      defines no detail layers; so the flags are 2 exactly with a mesh. Not the interact-as list:
+      atixref's func_breakable hulls carry interact-as tags and ship 0 (corpus regression).
+    - Verified: CableReplay (controls, samples, tubes, simplified meshes on 38 calls; 20 DmeMesh
+      exports), world physics of s2c_cablecoll whole-file exact, its 15 cable models' physics and
+      5 brush entity models exact, the settle world's 43 bodies (transforms, shapes, attributes,
+      materials) exact.
+    - Not settled: the settle's body order where a cable's object sits elsewhere in the pointer sort
+      (two of s2c_cablecoll's 43), as for other nodes (SETTLE.md); the water_tube branches (no such
+      shader ships); cables inside instances or prefabs.
 
 ## Resolved
 

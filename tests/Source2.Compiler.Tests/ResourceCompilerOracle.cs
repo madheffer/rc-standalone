@@ -29,11 +29,11 @@ internal static unsafe class ResourceCompilerOracle
             if (_tried)
                 return _module == 0 ? null : _module;
             _tried = true;
-            if (Path() is not { } dll)
+            // The installed DLL when it is the build read, else the archived copy
+            // of that build staged beside the tier0 it imports.
+            var dll = new[] { Path(), Staged() }.FirstOrDefault(d => d != null && IsBuild(d));
+            if (dll == null)
                 return null;
-            using (var stream = File.OpenRead(dll))
-                if (Convert.ToHexStringLower(SHA256.HashData(stream)) != Build)
-                    return null;
             if (NativeLibrary.TryLoad(dll, typeof(ResourceCompilerOracle).Assembly,
                     DllImportSearchPath.UseDllDirectoryForDependencies | DllImportSearchPath.System32,
                     out var handle))
@@ -48,6 +48,40 @@ internal static unsafe class ResourceCompilerOracle
     /// <summary>A tier0 export, from the tier0.dll resourcecompiler loaded.</summary>
     public static nint Tier0(string name)
         => NativeLibrary.GetExport(NativeLibrary.Load("tier0.dll"), name);
+
+    private static bool IsBuild(string dll)
+    {
+        using var stream = File.OpenRead(dll);
+        return Convert.ToHexStringLower(SHA256.HashData(stream)) == Build;
+    }
+
+    /// <summary>
+    /// tools/re/binaries' resourcecompiler_20260924.dll and tier0_20260923.dll
+    /// copied to a folder of their own under the names the DLL loads, with the
+    /// third-party DLLs it imports (fbx, embree, steam_api, v8) taken from the
+    /// game's bin folder; null when the archive or the game lacks them.
+    /// </summary>
+    private static string? Staged()
+    {
+        var archive = Environment.GetEnvironmentVariable("S2C_BINARIES") ?? System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tools", "re", "binaries");
+        var (rc, t0) = (System.IO.Path.Combine(archive, "resourcecompiler_20260924.dll"), System.IO.Path.Combine(archive, "tier0_20260923.dll"));
+        if (!File.Exists(rc) || !File.Exists(t0) || CS2Fixtures.StockPak() is not { } pak)
+            return null;
+        var bin = System.IO.Path.Combine(System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(pak)!, "..")), "bin", "win64");
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "s2c_resourcecompiler_20260924");
+        Directory.CreateDirectory(dir);
+        void Stage(string from, string name)
+        {
+            var to = System.IO.Path.Combine(dir, name);
+            if (!File.Exists(to) && File.Exists(from))
+                File.Copy(from, to);
+        }
+        Stage(rc, "resourcecompiler.dll");
+        Stage(t0, "tier0.dll");
+        foreach (var name in new[] { "libfbxsdk_2020_3_1.dll", "embree3.dll", "steam_api64.dll", "v8.dll", "v8_libbase.dll", "v8_icui18n.dll", "v8_icuuc.dll", "v8_zlib.dll", "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll" })
+            Stage(System.IO.Path.Combine(bin, name), name);
+        return System.IO.Path.Combine(dir, "resourcecompiler.dll");
+    }
 
     private static string? Path()
     {

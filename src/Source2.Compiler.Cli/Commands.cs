@@ -413,10 +413,11 @@ internal static class Commands
         using var content = new Maps.GameContent(Path.Combine(game, "csgo", "pak01_dir.vpk"), Path.Combine(game, "csgo_addons", addon));
         using var gpu = a.Contains("--gpu") ? new Gpu.GpuMaterialSampler(Path.Combine(game, "csgo", "shaders_vulkan_dir.vpk"), content.Read) : null;
         var notes = new List<string>();
+        var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
         Physics.WorldPhysicsFiles.Files? files = null;
         try
         {
-            files = Physics.WorldPhysicsFiles.Build(DmxBinary.ReadFile(vmap), addon, map, content, gpu is null ? null : gpu.For, notes);
+            files = Physics.WorldPhysicsFiles.Build(DmxBinary.ReadFile(vmap), addon, map, content, gpu is null ? null : gpu.For, notes, schema);
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
         {
@@ -426,7 +427,6 @@ internal static class Commands
 
         // Brush entities whose models hold only physics (triggers, clips, water):
         // the whole file is ours. The others carry render meshes, not ported.
-        var schema = FgdSchema.Load(Path.Combine(game, "csgo", "csgo.fgd"), [Path.Combine(game, "core"), Path.Combine(game, "csgo")]);
         var entityModels = Physics.EntityPhysicsModels.Build(DmxBinary.ReadFile(vmap), map, content.Material, content.CollisionProperty, schema, notes, content.SmartProp)
             .Where(m => m.PhysicsOnly).Select(m => (Path: m.Path + "_c", Bytes: Physics.EntityPhysicsModels.Author(m, content.SurfaceName))).ToList();
         var written = new List<(string Path, byte[] Bytes)>();

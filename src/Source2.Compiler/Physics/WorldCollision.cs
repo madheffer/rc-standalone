@@ -305,12 +305,14 @@ public static class WorldCollision
     /// <paramref name="sampler"/> draws a new-blending material's sample points
     /// (<see cref="MaterialSampler.Layers"/>) by material name; without one,
     /// or when it cannot, such pieces take the builder's 0.5 rule and are listed.
+    /// <paramref name="schema"/> tells which cables are the world's (<see cref="CablePieces"/>).
     /// </summary>
     public static List<Piece> Pieces(DmxBinary.Document doc, Func<string, MaterialPhysics> materials, List<string>? notes = null,
                                      Func<string, MaterialSampler.Renderer?>? sampler = null,
                                      Func<string, ValveResourceFormat.ResourceTypes.PhysAggregateData?>? propPhysics = null,
                                      Func<string, ValveKeyValue.KVObject?>? smartProps = null,
-                                     Func<string, Maps.SettleWorld.CollisionProperty?>? collisionProperty = null)
+                                     Func<string, Maps.SettleWorld.CollisionProperty?>? collisionProperty = null,
+                                     FgdSchema? schema = null)
     {
         var world = doc.OfType("CMapWorld").First();
         var result = new List<Piece>();
@@ -319,7 +321,7 @@ public static class WorldCollision
         // entities, then its children).
         var sequences = new List<int>();
         var last = 0;
-        var (meshes, entities) = Maps.MapMeshes.ReadWithEntities(doc);
+        var (meshes, entities, cables) = Maps.MapMeshes.ReadWithCables(doc);
         // A mesh cut by painted layers names every piece's surface, a material
         // with none as "default" (c2m2's prefab lists "default" where such a
         // mesh first meets one). Applied to the previous mesh's pieces when the
@@ -599,8 +601,56 @@ public static class WorldCollision
                 }
             }
         }
+        foreach (var cable in cables.Where(c => !Hides(c.Element, c.Prefabs, c.Hidden)))
+        {
+            foreach (var piece in CablePieces(cable, materials, schema, notes))
+            {
+                result.Add(piece);
+                sequences.Add(cable.Sequence);
+            }
+        }
         // A stable sort on the walk place: each node's pieces keep their order.
         return [.. result.Select((p, i) => (p, i)).OrderBy(t => sequences[t.i]).ThenBy(t => t.i).Select(t => t.p)];
+    }
+
+    /// <summary>
+    /// A cable's piece of the world: only a class with has_static_mesh passes
+    /// the physics document's filter (rc 180f4d220; cable_static, while a
+    /// cable_dynamic gets a model of its own, <see cref="EntityPhysicsModels"/>),
+    /// and only with collisionEnabled does CMapCable::vf200 (18114c1b0) export
+    /// anything for physics. The export is the collision tube
+    /// (<see cref="CableCollision.Build"/>, vf277) moved by the cable's node
+    /// matrix (Matrix3x4_TransformPointXmm, 1812651a0), one mesh in the cable's
+    /// material; physicsbuilder takes it as it is (s2c_cablecoll: no further
+    /// simplification, measured with capture_simplify.py).
+    /// </summary>
+    private static IEnumerable<Piece> CablePieces(Maps.MapMeshes.EntityNode node, Func<string, MaterialPhysics> materials, FgdSchema? schema, List<string>? notes)
+    {
+        var element = node.Element;
+        if (MapEntities.ReadNode(element) is not { } cable)
+            yield break;
+        if (schema?.HasFlag(cable.ClassName, "has_static_mesh") != true || !CableCollision.Collides(element))
+            yield break;
+        // The filter's flag 4: an entity whose solid key is 0 is out.
+        if (cable.Keys.FirstOrDefault(k => Tier0Strings.EqualsIgnoreCase(k.Key, "solid")).Value is { } solid && CNumbers.Atoi(solid) == 0)
+            yield break;
+        if (node.Instances.Length > 0 || node.Prefabs.Length > 0)
+        {
+            notes?.Add($"cable {cable.NodeId}: inside an instance or prefab, placement not ported");
+            yield break;
+        }
+        var name = element.Get<string>("materialName") ?? "";
+        var physics = materials(name);
+        if (!physics.Solid)
+            yield break;
+        var (controls, scales) = EntityLumpAuthor.PathControls(cable, schema);
+        // physicsbuilder's CMesh is made from the export's DmeMesh corner by
+        // corner (pb 180085e80), so its vertices come in first-use order.
+        var (points, indices) = FirstUse(CableCollision.Build(controls, scales, CableCollision.SettingsOf(element)));
+        if (indices.Length == 0)
+            yield break;
+        var matrix = CableCollision.NodeMatrix(cable);
+        yield return new Piece(cable.NodeId, 0, name, physics, [.. points.Select(p => Maps.MapMeshes.Transform(matrix, p))], indices) { ToolMaterial = name };
     }
 
     /// <summary>

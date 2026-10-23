@@ -32,13 +32,18 @@ public static class EntityPhysicsModels
         public IReadOnlyList<DmxBinary.Element> Meshes { get; init; } = [];
         public Func<DmxBinary.Element, Maps.CTransform>? TransformOf { get; init; }
         public string? Applied { get; init; }
+
+        /// <summary>A cable's model (<see cref="CableModel"/>): its physics is ported, its render meshes are not.</summary>
+        public bool Cable { get; init; }
     }
 
     /// <param name="smartProp">A smart prop definition by path, whose locators take
     /// node ids before the instance copies do (<see cref="SmartProps.NodesCreatedOnLoad"/>).</param>
+    /// <param name="cables">Also the cables' models (<see cref="CableModel"/>), whose render
+    /// half is not ported; without it each is listed in <paramref name="notes"/> instead.</param>
     public static List<Model> Build(DmxBinary.Document doc, string mapName, Func<string, SettleWorld.MaterialInfo?> material,
         Func<string, SettleWorld.CollisionProperty?> collisionProperty, FgdSchema? schema, List<string>? notes = null,
-        Func<string, ValveKeyValue.KVObject?>? smartProp = null, List<string>? failed = null)
+        Func<string, ValveKeyValue.KVObject?>? smartProp = null, List<string>? failed = null, bool cables = false)
     {
         mapName = Io.Tier0Strings.LowerAscii(mapName);
         var models = new List<Model>();
@@ -51,6 +56,7 @@ public static class EntityPhysicsModels
         var mapHidden = MapEntities.HiddenNodes(doc);
         var entities = new List<(DmxBinary.Element Element, int NodeId, IReadOnlyList<DmxBinary.Element> Through, string IdPath,
                                  DmxBinary.Element[] Prefabs, HashSet<int> Hidden)>();
+        var cableNodes = new List<(DmxBinary.Element Element, string IdPath, bool Placed)>();
         // A prefab's map is walked where the prefab stands, with its own hidden
         // nodes and instance targets; its entities are named by id path
         // (s2c_prefabprobe2: unnamed_108_3.vmdl).
@@ -64,6 +70,8 @@ public static class EntityPhysicsModels
                     continue;
                 if (child.Type == "CMapEntity")
                     entities.Add((child, id, [], prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture), prefabs, hidden));
+                if (child.Type == "CMapCable")
+                    cableNodes.Add((child, prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture), prefabs.Length > 0));
                 if (child.Type == "CMapPrefab" && child.Get<DmxBinary.Element>(MapPrefabs.WorldKey) is { } prefabWorld)
                 {
                     Walk(prefabWorld, prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_", [.. prefabs, child],
@@ -89,6 +97,20 @@ public static class EntityPhysicsModels
         {
             if (One(entity, nodeId, through, idPath, prefabs, hidden) is { } model)
                 models.Add(model);
+        }
+        foreach (var (cable, idPath, placed) in cableNodes)
+        {
+            if (placed)
+            {
+                notes?.Add($"cable {idPath}: inside a prefab, placement not ported");
+                continue;
+            }
+            if (CableModel(cable, idPath, mapName, material, collisionProperty, schema, notes, failed) is not { } model)
+                continue;
+            if (cables)
+                models.Add(model);
+            else
+                notes?.Add($"{model.Path}: a cable's model, render meshes not ported, not written");
         }
         return models;
 
@@ -205,9 +227,73 @@ public static class EntityPhysicsModels
         }
     }
 
+    /// <summary>
+    /// A cable's model: every cable whose class lacks has_static_mesh (the
+    /// world takes those, rc 180f4d220), a cable_dynamic. Its physics is the
+    /// render export (CMapCable::vf200 with export 0, 181151b30:
+    /// <see cref="CableCollision.RenderTube"/>, the full side count and the
+    /// radius as it is) when collisionEnabled makes its CollisionType 4 (a
+    /// triangle mesh), and nothing otherwise. The entity model step (rc
+    /// 180209e20, as for a brush entity's meshes) reads the export's DmeMesh
+    /// back corner by corner (first use), welds it at 1/32, moves it to the
+    /// world and back into the cable's space (the two CMesh_TransformByMatrix,
+    /// the Place of <see cref="BrushHulls.PiecesWithCorners"/>), turns it into
+    /// a half-edge mesh with coincident vertices joined (the seam column,
+    /// <see cref="BrushHulls.TriangleMesh"/>), and the map builder simplifies
+    /// it with the export record's error (+0x90): the cable's own, not squared
+    /// (s2c_cablecoll, capture_mapsimplify.py: errors 2, 0.5, 1 and 0.25). The
+    /// origin and the angles are the cable's, the origin its first node's
+    /// (<see cref="MapEntities.ReadNode"/>).
+    /// <para>The 1/32 weld compares the render streams too, and the texcoords
+    /// (1810bbc40: u by the place round the ring, v by the length along the
+    /// cable) tell every two vertices of a tube apart, so it joins none; the
+    /// closed loop's last ring, which lies on its first, stays too
+    /// (s2c_cablecoll's two loops). Only a cable whose texture scales are 0
+    /// could weld there, which is not ported.</para>
+    /// </summary>
+    private static Model? CableModel(DmxBinary.Element element, string idPath, string mapName, Func<string, SettleWorld.MaterialInfo?> material,
+        Func<string, SettleWorld.CollisionProperty?> collisionProperty, FgdSchema? schema, List<string>? notes, List<string>? failed)
+    {
+        if (MapEntities.ReadNode(element) is not { } cable || schema?.HasFlag(cable.ClassName, "has_static_mesh") == true)
+            return null;
+        var targetName = cable.Keys.FirstOrDefault(k => Io.Tier0Strings.EqualsIgnoreCase(k.Key, "targetname")).Value ?? "";
+        var path = EntityLumpAuthor.BrushModelPath(EntityLumpAuthor.FixedName(targetName, null, schema), idPath, mapName);
+        var name = element.Get<string>("materialName") ?? "";
+        if (material(name) == null)
+        {
+            notes?.Add($"cable {cable.NodeId} ({cable.ClassName}): {name} not found, so its model fails to compile and has no file");
+            failed?.Add(path);
+            return null;
+        }
+        var pieces = new List<WorldCollision.Piece>();
+        if (CableCollision.Collides(element))
+        {
+            var settings = CableCollision.SettingsOf(element);
+            var (controls, scales) = EntityLumpAuthor.PathControls(cable, schema);
+            var (local, indices) = WorldCollision.FirstUse(CableCollision.RenderTube(controls, scales, settings));
+            if (indices.Length > 0)
+            {
+                var transform = new CTransform(cable.Origin, 1f, CTransform.AngleQuaternion(cable.Angles));
+                var (toWorld, toEntity) = (transform.Matrix(), transform.Inverse().Matrix());
+                var placed = local.Select(p => MapMeshes.Transform(toEntity, MapMeshes.Transform(toWorld, p))).ToArray();
+                var faces = new int[indices.Length / 3][];
+                for (var t = 0; t < faces.Length; t++)
+                    faces[t] = [indices[t * 3], indices[(t * 3) + 1], indices[(t * 3) + 2]];
+                var (points, triangles) = BrushHulls.Simplified(BrushHulls.TriangleMesh(placed, faces, local), settings.Error);
+                var shapeIndices = new int[triangles.Count * 3];
+                for (var t = 0; t < triangles.Count; t++)
+                    (shapeIndices[t * 3], shapeIndices[(t * 3) + 1], shapeIndices[(t * 3) + 2]) = triangles[t];
+                var (shapePoints, shapeTriangles) = settings.Error > 0f ? WorldCollision.FirstUse(([.. points], shapeIndices)) : ([.. points], shapeIndices);
+                var physics = WorldCollision.ReadMaterial(material(name), collisionProperty, shaderTranslucency: false);
+                pieces.Add(new WorldCollision.Piece(cable.NodeId, 0, name, physics, shapePoints, shapeTriangles) { ToolMaterial = name });
+            }
+        }
+        return new Model(cable.NodeId, cable.ClassName, path, false, WorldPhysics.Build(pieces, entityModel: true)) { Entity = element, Cable = true };
+    }
+
     /// <summary>The model file for one that holds only physics (RED2 and DATA alone when it has no shapes).</summary>
     public static byte[] Author(Model model, Func<uint, string?> surfaceName)
-        => WorldPhysicsAuthor.Container(model.Physics.AllShapes.Any() ? WorldPhysicsTrees.Phys(model.Physics, partFlags: model.Physics.Meshes.Count > 0 ? 2u : 0u) : null,
+        => WorldPhysicsAuthor.Container(model.Physics.AllShapes.Any() ? WorldPhysicsTrees.Phys(model.Physics) : null,
             WorldPhysicsTrees.Red2(model.Physics, surfaceName, model.ClassName), WorldPhysicsTrees.ModelData(model.Path));
 
     // Meshes under a node, depth first in children order.

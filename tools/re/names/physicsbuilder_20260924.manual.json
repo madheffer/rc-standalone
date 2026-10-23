@@ -352,7 +352,19 @@
    "addr": "180016e90",
    "name": "PhysicsBuilder_NodeMeshes",
    "module": "s2c:physics/world",
-   "note": ""
+   "note": "each CMesh the node's export gives, through PhysicsBuilder_MeshPieces with the node (whose vf 0x150 gives the simplification error)"
+  },
+  {
+   "addr": "180085d10",
+   "name": "PhysicsBuilder_DmeMeshToCMeshes",
+   "module": "s2c:physics/world",
+   "note": "an export's DmeMesh into CMeshes, one per face set (180085e80)"
+  },
+  {
+   "addr": "180085e80",
+   "name": "PhysicsBuilder_FaceSetToCMesh",
+   "module": "s2c:physics/world",
+   "note": "streams by name (position, normal, tangent ...); a vertex per new corner, met face by face: the CMesh lists vertices by first use (capture_simplify.py 'piece' records)"
   },
   {
    "addr": "180017d90",

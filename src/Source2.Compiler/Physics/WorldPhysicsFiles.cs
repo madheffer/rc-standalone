@@ -15,15 +15,16 @@ public static class WorldPhysicsFiles
 
     /// <summary>
     /// Build both from the map. <paramref name="sample"/> gives new-blending
-    /// materials their layers (the GPU sampler), null for none.
+    /// materials their layers (the GPU sampler), null for none. <paramref name="schema"/>
+    /// picks the world's cables (cable_static); without it no cable is the world's.
     /// </summary>
     public static Files Build(DmxBinary.Document document, string addon, string mapName, GameContent content,
-        Func<string, MaterialSampler.Renderer?>? sample, List<string> notes)
+        Func<string, MaterialSampler.Renderer?>? sample, List<string> notes, FgdSchema? schema = null)
     {
         mapName = Io.Tier0Strings.LowerAscii(mapName);
         var pieces = WorldCollision.Pieces(document,
             name => WorldCollision.ReadMaterial(name, content.Material, content.CollisionProperty),
-            notes, sample, content.Physics, content.SmartProp, content.CollisionProperty);
+            notes, sample, content.Physics, content.SmartProp, content.CollisionProperty, schema);
         var model = WorldPhysics.Build(pieces, content.SurfaceName);
         var bytes = WorldPhysicsAuthor.Container(WorldPhysicsTrees.Phys(model), WorldPhysicsTrees.Red2(model, content.SurfaceName),
             WorldPhysicsTrees.Data(mapName));

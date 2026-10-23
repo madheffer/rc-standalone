@@ -1,6 +1,12 @@
 {
  "functions": [
   {
+   "addr": "180296c00",
+   "name": "CIntersectionDictionary_Find",
+   "module": "s2c:physics/world",
+   "note": "vf5 (vtable 0x28): the entry for a name hash (MurmurHash2 lower case, seed 0x31415926), or null; resourcecompiler registers none (capture_layers.py)"
+  },
+  {
    "addr": "18000bf60",
    "name": "CRnShapeTriangleSource::GetTriangles",
    "module": "s2c:baked/nav",

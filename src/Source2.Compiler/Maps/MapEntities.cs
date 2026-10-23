@@ -353,6 +353,9 @@ public static class MapEntities
     /// <summary>Whether the walk reads the node as an entity (as it does a prefab map's world, never shipped).</summary>
     internal static bool ReadsAsEntity(DmxBinary.Element element) => Read(element, isWorld: false) is not null;
 
+    /// <summary>The node as the walk reads it, where it stands in the source (no prefab or instance placement); null when it is no entity.</summary>
+    internal static Entity? ReadNode(DmxBinary.Element element) => Read(element, isWorld: false);
+
     private static Entity? Read(DmxBinary.Element element, bool isWorld)
     {
         if (element.Get<DmxBinary.Element>("entity_properties") is not { } props)
@@ -371,11 +374,19 @@ public static class MapEntities
         if (className is null)
             return null;
 
+        // A path's origin follows its first node: CMapPath::vf274 (rc 1810b66e0)
+        // sets it from that node's whenever the node changes, loading included,
+        // so whatever the source stores for the path itself never ships
+        // (s2c_cablecoll: cables moved off their nodes keep the first node's
+        // origin in Valve's lump and their nodes relative to it).
+        var pathNodes = ReadPathNodes(element);
+        var origin = pathNodes is [var first, ..] ? first.Origin : element.GetValue<Vector3>("origin") ?? Vector3.Zero;
+
         return new Entity(
             className,
             (int)(element.GetValue<int>("nodeID") ?? 0),
             keys,
-            element.GetValue<Vector3>("origin") ?? Vector3.Zero,
+            origin,
             element.GetValue<Vector3>("angles") ?? Vector3.Zero,
             element.GetValue<Vector3>("scales") ?? Vector3.One,
             isWorld,
@@ -386,9 +397,10 @@ public static class MapEntities
             // own, unnamed_20788.vmdl.
             !isWorld && (element.Type is "CMapCable" || element.GetElements("children").Any(c => c.Type is "CMapMesh")),
             Hidden: false,
-            PathNodes: ReadPathNodes(element),
+            PathNodes: pathNodes,
             ClosedLoop: element.GetValue<bool>("closedLoop") ?? false,
-            InterpolationType: element.GetValue<int>("interpolationType") ?? 0,
+            // CMapPath's and CMapCable's factories (rc 1810b3e90, 18114e350) start it at 1.
+            InterpolationType: element.GetValue<int>("interpolationType") ?? 1,
             // A cable's tint, which a cable_dynamic ships as its rendercolor. The
             // node starts white (0xffffffff, CMapCable's factory).
             Tint: element.Type is "CMapCable" ? element.Get<byte[]>("tintColor") ?? [255, 255, 255, 255] : null);

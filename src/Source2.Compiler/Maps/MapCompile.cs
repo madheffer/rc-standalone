@@ -49,7 +49,7 @@ public static class MapCompile
         var outputs = new List<Output>();
         try
         {
-            var files = WorldPhysicsFiles.Build(document, addon, mapName, content, sample, notes);
+            var files = WorldPhysicsFiles.Build(document, addon, mapName, content, sample, notes, schema);
             outputs.Add(new(files.ModelPath, files.Model));
             outputs.Add(new(files.ManifestPath, files.Manifest));
         }
@@ -261,7 +261,7 @@ public static class MapCompile
         {
             // The physics step writes the world's collision; the brush entity
             // models are the world step's, which an entities-only build skips.
-            var world = WorldPhysicsFiles.Build(document, addon, map, assets, sampler?.Invoke(assets), notes);
+            var world = WorldPhysicsFiles.Build(document, addon, map, assets, sampler?.Invoke(assets), notes, schema);
             entries[world.ModelPath] = world.Model;
             entries[world.ManifestPath] = world.Manifest;
             log.WriteLine($"  physics: {world.ModelPath}, {world.ManifestPath}");

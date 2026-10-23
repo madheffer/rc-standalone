@@ -70,7 +70,16 @@ public static class MapDeformers
             stream.Attributes["data"] = positions.Select(p => (object?)evaluator.Deform((Vector3)p!)).ToArray();
             mesh.Attributes[AppliedKey] = true;
         }
+        // PhysMesh_Shapes (181057020) runs a path's collision soup through its
+        // deformer too (PropDeformer_ApplyArrays), which is not ported: such a
+        // cable is marked for the settle to refuse (SettleWorld.FromCable).
+        foreach (var cable in document.Elements.Where(e => e.Type == "CMapCable"))
+            if (Lookup(cable, parents) is { } node && LatticeDeformer.FromNode(node).Enabled)
+                cable.Attributes[CableKey] = true;
     }
+
+    /// <summary>Set on a cable a deformer reaches (<see cref="Apply"/>).</summary>
+    internal const string CableKey = "\u0001s2c.cabledeformed";
 
     // Each corner's position index: half-edge e's corner (edgeVertexDataIndices)
     // stands at its vertex (edgeVertexIndices) through vertexDataIndices.

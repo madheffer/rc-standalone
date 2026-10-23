@@ -29,7 +29,7 @@ public class EntityPhysicsModelTests(ITestOutputHelper output)
         Maps.MapPrefabs.Attach(doc, Maps.MapPrefabs.FromContent(Path.Combine(cs2, "content", "csgo_addons", p[0])));
         Maps.MapDeformers.Apply(doc);
         var notes = new List<string>();
-        var models = Physics.EntityPhysicsModels.Build(doc, p[1], content.Material, content.CollisionProperty, MapFixtures.GameSchema(), notes, content.SmartProp);
+        var models = Physics.EntityPhysicsModels.Build(doc, p[1], content.Material, content.CollisionProperty, MapFixtures.GameSchema(), notes, content.SmartProp, cables: true);
         // ENTBUILD_PREFABNODE=<prefab id>:<node id>: that node of the prefab's map, its
         // parents, children and whether the prefab's hidden set holds it.
         if (Environment.GetEnvironmentVariable("ENTBUILD_PREFABNODE") is { Length: > 0 } pn && pn.Split(':') is [var pid, var nid])

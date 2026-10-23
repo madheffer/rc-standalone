@@ -205,7 +205,7 @@ exact 30, partial 2, unpinned 0, no sample 0
 
 | class | kind | named by | what the compile does | port | status |
 |---|---|---|---|---|---|
-| cable_dynamic | Cable | resourcecompiler | lump: rendercolor written as the text "%i %i %i"; secondary_material added to the material list | lump exact (probe_cable, probe_classes); secondary material not checked | exact |
+| cable_dynamic | Cable | resourcecompiler | lump: rendercolor written as the text "%i %i %i"; secondary_material added to the material list; model: collision from the render tube, the pre-settle world's mesh body | lump exact (probe_cable, probe_classes); model physics exact (s2c_cablecoll, 15 models), render half not ported; secondary material not checked | exact |
 | env_combined_light_probe_volume | Point | resourcecompiler | cubemap and probe records for the bake; cubemaptexture, array_index and lightprobetexture* keys added; kept | lump keys exact on every pinned map, baked keys included (atlas textures, handshake, size) | exact |
 | env_cubemap_box | Point | resourcecompiler, physicsbuilder, vrad3 | as env_cubemap with box bounds; upgrade of older vmaps only renames boxproject_* keys | lump keys exact on every pinned map, baked keys included (cubemaptexture, handshake); vmap upgrader not ported | exact |
 | env_light_probe_volume | Point | resourcecompiler | probe record for the bake; lightprobetexture* keys added; kept | lump keys exact on every pinned map, baked keys included (atlas textures, handshake, size) | exact |
@@ -245,7 +245,7 @@ exact 322, partial 0, unpinned 0, no sample 0
 | class | kind | fgd | local maps | status |
 |---|---|---|---|---|
 | ambient_generic | Point | base.fgd | ze_hold_em_p, probe_classes +3 | exact |
-| cable_static | Cable | base.fgd | probe_classes | exact |
+| cable_static | Cable | base.fgd | probe_classes; world physics: the collision tube in the world's soups, s2c_cablecoll whole-file exact | exact |
 | chicken | Point | csgo.fgd | probe_classes | exact |
 | commentary_auto | Point | base.fgd | probe_classes | exact |
 | counterterrorist_rush_intro | Point | csgo.fgd | probe_classes | exact |

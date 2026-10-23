@@ -1,7 +1,8 @@
 """capture_simplify.py <addon> <map> [--out file]: physicsbuilder's mesh simplification during a map compile.
 
 Every CMesh_Simplify call (pb 1800c5b90 on 0924, through rva_map) is recorded
-three times: 'weld' is the piece as PhysicsBuilder_MeshPieces (180016230)
+three times ('piece' records also give every CMesh PhysicsBuilder_MeshPieces
+is handed, simplified or not): 'weld' is the piece as PhysicsBuilder_MeshPieces (180016230)
 hands it to CMesh_WeldPositions (1800c1ad0) just before, 'in' is the welded
 copy the simplifier reads, and 'out' is what it returns. The error arrives in
 xmm2, which Frida's context lacks; 18060fdf0 stores it at simplifier + 0x68
@@ -66,6 +67,11 @@ function hook() {
   const m = Process.findModuleByName('physicsbuilder.dll');
   if (m === null) { setTimeout(hook, 5); return; }
   send({ev: 'hooked', base: m.base.toString()});
+  // Every piece PhysicsBuilder_MeshPieces is handed (its third argument),
+  // simplified or not: 'piece' records.
+  Interceptor.attach(m.base.add(%(pieces_lo)d), {
+    onEnter(args) { dump(args[2], 'piece', {}); }
+  });
   Interceptor.attach(m.base.add(%(weld)d), {
     onEnter(args) {
       const caller = this.returnAddress.sub(m.base).toInt32();

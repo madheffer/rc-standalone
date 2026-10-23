@@ -25,6 +25,9 @@ compiled (2026-10-23):
   pre-settle world (s2c_simplify, s2c_simplify_types; ledger 124).
 - **Collision property, group, interacts as, with and exclude** (s2c_meshcoll,
   s2c_meshcoll_hold; ledger 125). Detail layers are refused: CS2 defines none.
+- **Cables** (s2c_cablecoll, 17 collision cables over every cable setting;
+  ledger 126): cable_static's tube in the world, cable_dynamic's model
+  physics, and both in the pre-settle world.
 
 Brush entity models:
 - **Physics-only models** are whole-file exact: atixref 86, ze_hold_em_p 24,
@@ -40,11 +43,11 @@ Open:
   instances inside prefabs.
 - **The bake wrapper's steps:** MergeVertices and AssignSmoothingModeToEdges;
   no map needs them yet.
-- **Cables:** a cable's physics (and its simplification, 181156860) with the
-  cable model.
+- **Cables inside instances or prefabs:** placement not ported (listed).
 - **ze_hold_em_p's six doors:** a toolsclip mesh ships no hull, because the
   .vmap is older than the compile.
-- **Render meshes** of entity models, and the cable model (geometry).
+- **Render meshes** of entity models, and the cable models' render half (so
+  the compile writes no cable model yet; their physics is ported).
 - **Ledger items** in GROUND_TRUTH.md.
 
 ## The container
@@ -170,8 +173,65 @@ Only a full compile (no `-fshallow`) ships world_physics.
      The hash is `FixupResourceName` plus lowercase MurmurHash2, seed
      0x31415926.
 
-The part's flags are 2 when it has a triangle mesh, else 0: a world of
-hulls alone ships 0, as an entity model does.
+The part's flags (ShapeBuilder_BuildPart, rc 180c28230; `WorldPhysics.PartFlags`)
+are 2 when a mesh shape's attribute names no detail layer, or one vphysics2's
+intersection dictionary lacks (empty in resourcecompiler, capture_layers.py),
+and 2 when there are shapes and every one's attribute names a detail layer.
+CS2 defines no detail layers, so the flags are 2 exactly with a triangle
+mesh: a world of hulls alone ships 0, as a hull-only entity model does
+(interact-as tags do not count: atixref's func_breakables carry them).
+
+Every triangle-mesh shape lists its vertices by first use: physicsbuilder
+makes its CMesh from the export's DmeMesh corner by corner (pb 180085e80),
+so a simplified piece, whose simplifier keeps its input order, is renumbered
+(`WorldCollision.FirstUse`); the other pieces are in that order already.
+
+### Cables (`Physics/CableCollision.cs`)
+
+A cable with collisionEnabled (on by default) ships a triangle mesh. The
+geometry, rc 0923, replayed bit for bit on 38 captured calls and 20 DmeMesh
+exports (CableReplay, capture_cable.py):
+- **Control points** (CMapPath_IsLoop 1810b7ca0): per node its position
+  relative to the path and its in and out tangents (FUN_181110ba0). The
+  path's origin is its first node's (CMapPath::vf274, 1810b66e0); a closed
+  loop of a supports_loop class repeats the first node at the end and its
+  ends neighbour each other (1810be5b0, 1810be2f0). interpolationType
+  starts at 1 (the factories).
+- **Samples** (1812802d0): each node pair a cubic Bezier, sampled at
+  max(4, ceilf(length / tessellationSpacing)) parameters summed by
+  1 / (n - 1); the length is a polyline doubled from 2 to 128 points
+  (18110fc80). Each sample's radius and height scale is lerped over its pair
+  (1810b8270).
+- **Frames** (1812820e0): rotation minimising from +z, turned by
+  `V_acosd(dot) * 57.29577951308232` degrees about the tangents' cross
+  product. The quaternion rotate sums `(q x t) + (w t + v)`, not Ghidra's
+  left-to-right.
+- **Tube** (1810b8ae0, rings 1810bbc40): cos/sin of a summed
+  `6.2831855f / sides` step; point `((sin s) r + (cos N) h) + centre` with
+  `s = normalise(N x T)`; sides + 1 points a ring, two triangles a side.
+- **Collision tube** (vf277, 18114d850): the side count reduced (up to 8
+  kept, 8 below 18, half below 32, else 16) and the radius times 1.025f;
+  with physicsSimplificationError above 0, welded at 1/32 and simplified
+  with the error squared (181156860, rc's copy of CMesh_Simplify).
+
+Where it goes:
+- **cable_static** (`has_static_mesh`; the physics document's filter,
+  rc 180f4d220): the collision tube moved by the cable's node matrix joins
+  the world's soups (`WorldCollision.CablePieces`) in walk order.
+  physicsbuilder does not simplify it again: the cable's vf216 is 1801ae2c0,
+  which returns 0.
+- **cable_dynamic:** its own model (`EntityPhysicsModels.CableModel`). The
+  physics is the render tube (181151b30: the cable's own side count, the
+  radius as it is), read back corner by corner, moved to the world and back
+  into the cable's space, its seam joined by the half-edge join, and
+  simplified by the map builder with the error unsquared (the export
+  record's +0x90). Only with collisionEnabled (CollisionType 4).
+- **The pre-settle world** (PhysMesh_Shapes' path branch, 181057020): every
+  collision cable, dynamic or static, as one triangle mesh at its node
+  matrix, the record from its material with its surface_properties key.
+
+Not ported: the water_tube shader's branches (CS2 ships no such shader),
+cables inside instances or prefabs, and the cable model's render half.
 
 ### Mesh simplification (`Physics/MeshSimplifier.cs`)
 
@@ -324,7 +384,8 @@ Which models, and what they hold:
   `PhysicsTypeOverride_SingleConvex`, and otherwise to convex_multi.
   - Mesh-type pieces are cut and welded like the world's, in entity space.
 - **Flags and RED2:**
-  - The part flags are 0, or 2 with meshes.
+  - The part flags as the world's (`WorldPhysics.PartFlags`): 0, or 2 with
+    meshes.
   - `keep_vertices` is an IntArg.
   - `mapbuilder_entity_classname` is fingerprinted by its string token.
 

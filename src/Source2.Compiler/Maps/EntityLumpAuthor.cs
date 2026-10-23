@@ -426,10 +426,11 @@ public static partial class EntityLumpAuthor
         // A closed loop repeats its first node at the end, when the class allows
         // loops and there is more than one node (FUN_1810b7ca0).
         var loops = schema?.HasFlag(entity.ClassName, "supports_loop") == true;
+        var wraps = Wraps(entity, schema);
         var rows = new List<string>();
         for (var i = 0; i < nodes.Count; i++)
-            rows.Add(Kv3Array(PathNode(entity, nodes, i), 2));
-        if (entity.ClosedLoop && loops && nodes.Count > 1)
+            rows.Add(Kv3Array(PathNode(entity, nodes, i, wraps), 2));
+        if (wraps)
             rows.Add(rows[0]);
         yield return new("pathNodes", new KVObject(Kv3Rows(rows)));
 
@@ -461,16 +462,41 @@ public static partial class EntityLumpAuthor
     }
 
     /// <summary>
+    /// A path's control points as CMapPath_IsLoop (1810b7ca0) gives them: nine
+    /// floats a node, and for a closed loop of a class with supports_loop and
+    /// more than one node the first node again at the end; with each of those
+    /// nodes' radius and height scales (FUN_181111cc0).
+    /// </summary>
+    internal static (float[] Controls, (float Radius, float Height)[] Scales) PathControls(MapEntities.Entity entity, FgdSchema? schema)
+    {
+        var nodes = entity.PathNodes ?? [];
+        var wraps = Wraps(entity, schema);
+        var order = Enumerable.Range(0, nodes.Count).ToList();
+        if (wraps)
+            order.Add(0);
+        return ([.. order.SelectMany(i => PathNode(entity, nodes, i, wraps))], [.. order.Select(i => RadiusScales(nodes[i], schema))]);
+    }
+
+    /// <summary>
+    /// A closed loop of more than one node on a class with supports_loop: the
+    /// first node is repeated at the end (1810b7ca0) and the ends are each
+    /// other's neighbours (1810be5b0, 1810be2f0).
+    /// </summary>
+    private static bool Wraps(MapEntities.Entity entity, FgdSchema? schema)
+        => entity.ClosedLoop && entity.PathNodes is { Count: > 1 } && schema?.HasFlag(entity.ClassName, "supports_loop") == true;
+
+    /// <summary>
     /// One node's nine floats: its position relative to the path, then its in and
     /// out tangents (FUN_1810b7ca0, FUN_181110ba0). The path's interpolationType 0
     /// or 1 decides the tangent type of every node; otherwise each node's own does.
-    /// A missing neighbour at an end is the node itself.
+    /// A missing neighbour at an end is the node itself, unless the loop
+    /// <paramref name="wraps"/>: then the ends neighbour each other.
     /// </summary>
-    private static float[] PathNode(MapEntities.Entity path, IReadOnlyList<MapEntities.PathNode> nodes, int i)
+    private static float[] PathNode(MapEntities.Entity path, IReadOnlyList<MapEntities.PathNode> nodes, int i, bool wraps)
     {
         var here = nodes[i].Origin;
-        var previous = i > 0 ? nodes[i - 1].Origin : here;
-        var next = i < nodes.Count - 1 ? nodes[i + 1].Origin : here;
+        var previous = i > 0 ? nodes[i - 1].Origin : wraps ? nodes[^1].Origin : here;
+        var next = i < nodes.Count - 1 ? nodes[i + 1].Origin : wraps ? nodes[0].Origin : here;
         int TypeOf(int own) => path.InterpolationType is 0 or 1 ? path.InterpolationType : own;
         // FUN_1810b7ca0: the path's vtable 0xa8, the inverse (18125aba0) of its
         // node matrix (FUN_181255fb0), each node's stored origin through it

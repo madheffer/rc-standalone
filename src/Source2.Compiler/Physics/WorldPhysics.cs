@@ -305,9 +305,21 @@ public static class WorldPhysicsTrees
             ("m_SubassetDefinitions", KVObject.Null()));
     }
 
+    /// <summary>
+    /// The part's flags as ShapeBuilder_BuildPart (rc 180c28230) sets them for
+    /// a map's part (shape builder type 2, no 0x10 or 0x20): 2 when a mesh's
+    /// collision attribute names no detail layer (its string list at + 0x50),
+    /// or one the intersection dictionary does not hold with its byte at
+    /// + 0x10 set; and 2 when there are shapes and every one's attribute names
+    /// a detail layer. Detail layers are refused (CS2 defines none) and the
+    /// dictionary is empty in resourcecompiler (capture_layers.py), so it is 2
+    /// exactly when the part has a triangle mesh. (Interact-as tags do not
+    /// count: atixref's func_breakable hulls carry them and ship 0.)
+    /// </summary>
+    public static uint PartFlags(WorldPhysics model) => model.Meshes.Count > 0 ? 2u : 0u;
+
     /// <summary>The embedded physics aggregate: one part holding every shape, and the tables.</summary>
-    /// <param name="partFlags">The part's flags; by default 2 when the part has triangle meshes, else 0
-    /// (a world of hulls alone: s2c_simplify_types, every world mesh convex or simplified to hulls).</param>
+    /// <param name="partFlags">The part's flags; <see cref="PartFlags"/> by default.</param>
     public static KVObject Phys(WorldPhysics model, uint? partFlags = null)
     {
         var shape = Collection(
@@ -322,7 +334,7 @@ public static class WorldPhysicsTrees
             ("m_CollisionAttributeIndices", model.AllShapes.All(s => s.Attribute == 0) ? Empty()
                 : Array([.. model.AllShapes.Select(s => new KVObject((uint)s.Attribute))])));
         var part = Collection(
-            ("m_nFlags", U(partFlags ?? (model.Meshes.Count > 0 ? 2u : 0u))), ("m_flMass", new KVObject(0.0)), ("m_rnShape", shape),
+            ("m_nFlags", U(partFlags ?? PartFlags(model))), ("m_flMass", new KVObject(0.0)), ("m_rnShape", shape),
             ("m_nCollisionAttributeIndex", new KVObject(0u)), ("m_nReserved", new KVObject(0u)),
             ("m_flInertiaScale", new KVObject(1.0)), ("m_flLinearDamping", new KVObject(0.0)), ("m_flAngularDamping", new KVObject(0.0)),
             ("m_flLinearDrag", new KVObject(1.0)), ("m_flAngularDrag", new KVObject(1.0)),

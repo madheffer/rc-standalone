@@ -43,7 +43,7 @@ internal static class EntityRenderModels
             var b = WorldNodeModels.Build(model.Path, [p.Entry], false, Material, mapMesh: false, layout: new WorldNodeModels.MaterialFacts(p.Layout, []));
             return new EntityModelAuthor.Mesh(p.Name, b.Model with { EntityClass = model.ClassName }, b.Buffers, b.References);
         }).ToList();
-        return EntityModelAuthor.Container(meshes, Physics.WorldPhysicsTrees.Phys(model.Physics, partFlags: model.Physics.Meshes.Count > 0 ? 2u : 0u),
+        return EntityModelAuthor.Container(meshes, Physics.WorldPhysicsTrees.Phys(model.Physics),
                                            Physics.WorldPhysicsTrees.Red2(model.Physics, content.SurfaceName, model.ClassName));
     }
 

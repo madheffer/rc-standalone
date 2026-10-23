@@ -274,6 +274,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
         var ourOrder = bodies.Select((b, i) => (b.NodeId, bodies.Take(i).Count(x => x.NodeId == b.NodeId))).ToList();
         var adjacent = ourOrder.Zip(ourOrder.Skip(1)).Count(p => position.TryGetValue(p.First, out var a) && position.TryGetValue(p.Second, out var c) && c == a + 1);
         output.WriteLine($"order: {adjacent} of {ourOrder.Count - 1} consecutive pairs as in the capture; same sequence {ourOrder.SequenceEqual(capturedOrder)}");
+        if (Environment.GetEnvironmentVariable("SETTLE_ORDER") == "1")
+            output.WriteLine($"  valve {string.Join(",", capturedOrder.Select(x => x.Node))} | ours {string.Join(",", ourOrder.Select(x => x.NodeId))}");
         var missing = captured.Where(o => !seen.ContainsKey(o.Node)).ToList();
         output.WriteLine($"{captured.Count} captured objects ({captured.Sum(o => o.Bodies.Count)} bodies); ours {bodies.Count} bodies; {missing.Count} captured objects we do not build");
         foreach (var o in missing)

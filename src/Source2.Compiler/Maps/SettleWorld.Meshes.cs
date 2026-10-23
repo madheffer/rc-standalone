@@ -84,6 +84,41 @@ public static partial class SettleWorld
     }
 
     /// <summary>
+    /// A cable's body (PhysMesh_Shapes, rc 181057020, its CMapPath branch):
+    /// with collisionEnabled (vf 0x8a0; CollisionType, vf 0x680, is then 4)
+    /// one soup, the collision tube vf277 gives (<see cref="Physics.CableCollision.Build"/>)
+    /// in the cable's space and in vf277's order, under the record
+    /// PhysMesh_MaterialRecord makes of the cable's material with its
+    /// surface_properties key, the cable its own owner. No further
+    /// simplification (the cable's vf 0x6c0 is 1801ae2c0, 0). The body stands
+    /// at the cable's node matrix, as a mesh's does, and takes the soup as a
+    /// triangle mesh.
+    /// </summary>
+    private static void FromCable(DmxBinary.Element node, Context context)
+    {
+        if (!Physics.CableCollision.Collides(node) || MapEntities.ReadNode(node) is not { } cable)
+            return;
+        var world = NodeWorld(Physics.CableCollision.NodeMatrix(cable));
+        var longest = Enumerable.Range(0, 3)
+            .Select(c => MathF.Sqrt(((world[c] * world[c]) + (world[4 + c] * world[4 + c])) + (world[8 + c] * world[8 + c])))
+            .Aggregate(0f, (a, b) => a <= b ? b : a);
+        var body = new BodyBuild(cable.NodeId, new Vector3(world[3], world[7], world[11]), longest, Orientation(Unscaled(world)), []) { Node = node };
+        if (node.Attributes.ContainsKey(MapDeformers.CableKey))
+        {
+            context.Bodies.Add(body with { Unsupported = "a cable under a deformer" });
+            return;
+        }
+        var (controls, scales) = EntityLumpAuthor.PathControls(cable, context.Schema);
+        var (points, indices) = Physics.CableCollision.Build(controls, scales, Physics.CableCollision.SettingsOf(node));
+        var surface = cable.Keys.FirstOrDefault(k => Io.Tier0Strings.EqualsIgnoreCase(k.Key, "surface_properties")).Value;
+        var record = MaterialRecord(node.Get<string>("materialName") ?? "", node, node, context, surface);
+        if (!record.Dropped && points.Length > 0 && indices.Length > 2
+            && RnMeshBuilder.Create(indices, points, null) is { } triangles)
+            body.Shapes.Add(new ShapeBuild(BroadphaseShape.MeshType, null, 0, triangles, Vector3.One, record.Attributes, record.Material, record.Name));
+        context.Bodies.Add(body);
+    }
+
+    /// <summary>
     /// RnHullCreate's options for a map mesh hull: none at all for type 2,
     /// which RnHullCreate fills with a 5 degree merge angle, and the same
     /// block spelled out for type 3 (FUN_1819c9db0).
@@ -205,8 +240,10 @@ public static partial class SettleWorld
     /// gets its layer lists, its group (Default, with CONTENTS_SOLID when it
     /// names no layer, if the group is unknown), the mesh node's overrides,
     /// then the owner's rules (FUN_18105ce70) or, in the world, StaticLevel.
+    /// <paramref name="surfaceKey"/> is the record's surface when the game knows it
+    /// (a path's surface_properties), the material's otherwise.
     /// </summary>
-    private static Record MaterialRecord(string path, DmxBinary.Element mesh, DmxBinary.Element? owner, Context context)
+    private static Record MaterialRecord(string path, DmxBinary.Element mesh, DmxBinary.Element? owner, Context context, string? surfaceKey = null)
     {
         var dropped = new CollisionAttributes { EntityId = -1, OwnerId = -1, Group = 1, Flags = 7 };
         // A material the compile cannot find still loads (as the error
@@ -217,6 +254,8 @@ public static partial class SettleWorld
         // finds "default"), so surfaces differing only in case, or two
         // unknown ones, merge (FUN_1810578b0 compares the names).
         var stated = info.Strings.GetValueOrDefault("PhysicsSurfaceProperties", "");
+        if (surfaceKey is { Length: > 0 } && context.Models.Surface(NameHash(surfaceKey)) != null)
+            stated = surfaceKey;
         var hash = stated.Length > 0 && context.Models.Surface(NameHash(stated)) != null ? NameHash(stated) : DefaultSurface;
         var surface = context.Models.SurfaceName(hash) ?? "default";
         var material = SurfaceMaterial(stated, context.Models);
