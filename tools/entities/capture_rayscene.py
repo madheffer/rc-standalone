@@ -12,7 +12,8 @@ flags; 2: scene, id, flags, 0; 3: scene, instance, 0, 0; 4 and 5: scene),
 then 14 floats (1 and 3: the 3x4; 2: a, b, c). Kinds 6 and 7 mark
 MapDoc_PreprocessLights (180f1d100) starting and returning; kind 8 is a live
 instance (parent, child, instance, owner flags, 3x4) read at the first
-LightPrecompute_TraceRay (180f18820), the scene the lights see.
+LightPrecompute_TraceRay (180f18820), the scene the lights see; kind 9
+follows each with the instance's stored inverse (+0x40, 181c19970).
 EditorSceneCapture reads them back and diffs them against EditorTraceScene.
 
 CS2 must be closed; the map's package is backed up and restored.
@@ -136,6 +137,7 @@ function hook() {
             const inst = data.add(i * 8).readPointer();
             const child = inst.readPointer();
             put(8, scene, child, inst, child.isNull() ? 0 : child.readU32(), matrix(inst.add(0x10)));
+            put(9, scene, child, inst, 0, matrix(inst.add(0x40)));
           }
         } catch (e) { send({unreadable: key}); }
       }

@@ -353,10 +353,14 @@ public sealed partial class EditorTraceScene : ILightTracer
         o[8] = (m9 * m4 - m5 * m8) * k;
         o[9] = (m1 * m8 - m9 * m0) * k;
         o[10] = (m5 * m0 - m1 * m4) * k;
+        // The translation is one SIMD pass (18125b064 on): the negated translation
+        // times each row, transposed, then (x + y) + z per row. Summing z first
+        // put c2m2's prop 4371 (a prop tilted on every axis) 2 ulps off, and its
+        // light's precomputed OBB with it.
         float tx = -m[3], ty = -m[7], tz = -m[11];
-        o[3] = (tz * o[2] + ty * o[1]) + tx * o[0];
-        o[7] = (tz * o[6] + ty * o[5]) + tx * o[4];
-        o[11] = (tz * o[10] + ty * o[9]) + tx * o[8];
+        o[3] = (tx * o[0] + ty * o[1]) + tz * o[2];
+        o[7] = (tx * o[4] + ty * o[5]) + tz * o[6];
+        o[11] = (tx * o[8] + ty * o[9]) + tz * o[10];
         return o;
     }
 

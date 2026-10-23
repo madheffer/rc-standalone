@@ -31,6 +31,7 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
         // (bumped when one is made there), a triangle clear empties it.
         var generation = new Dictionary<ulong, ulong>();
         ulong Scene(ulong address) => address == 0 ? 0 : (address << 12) ^ generation.GetValueOrDefault(address);
+        var inverses = new Dictionary<ulong, float[]>();  // kind 9: an instance's stored inverse, by handle
         for (var at = 0; at + 96 <= data.Length; at += 96)
         {
             var kind = BitConverter.ToUInt32(data, at);
@@ -70,6 +71,8 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
                 f[..12].CopyTo(moved.Matrix, 0);
             else if (kind == 8)
                 live.Add(new ValveInstance(Scene(a), Scene(b), c, f[..12], (uint)BitConverter.ToUInt64(data, at + 32)));
+            else if (kind == 9)
+                inverses[c] = f[..12];
         }
         // The scene as the first light ray found it (capture_rayscene.py's kind
         // 8), when the capture has it: instance handles are reused, so the
@@ -162,6 +165,47 @@ public class EditorSceneCaptureTests(ITestOutputHelper output)
         // RAYSCENE_PREFABLOCAL=1: each prefab's own map meshes, unmoved, as a second copy.
         foreach (var inst in prefabLocal)
             Ours(inst, inst.ToWorld, "prefab-local " + inst.Source);
+        // RAYSCENE_INSTANCE=<our source, e.g. prop 4371>: our instance's matrix beside the nearest of
+        // Valve's top-level instances (by translation), every float round-trip printed.
+        if (Environment.GetEnvironmentVariable("RAYSCENE_INSTANCE") is { Length: > 0 } wanted)
+            foreach (var inst in scene.Instances.Where(i => i.Source == wanted))
+            {
+                var at = new Vector3(inst.ToWorld[3], inst.ToWorld[7], inst.ToWorld[11]);
+                var near = byParent[top].OrderBy(k => (new Vector3(k.Matrix[3], k.Matrix[7], k.Matrix[11]) - at).LengthSquared()).First();
+                foreach (var k in byParent[top].Where(k => (new Vector3(k.Matrix[3], k.Matrix[7], k.Matrix[11]) - at).Length() < 8f))
+                    output.WriteLine($"  valve near: 0x{k.Child:x} at {k.Matrix[3]:R} {k.Matrix[7]:R} {k.Matrix[11]:R}");
+                foreach (var o in scene.Instances.Where(o => (new Vector3(o.ToWorld[3], o.ToWorld[7], o.ToWorld[11]) - at).Length() < 8f))
+                    output.WriteLine($"  ours near: {o.Source} at {o.ToWorld[3]:R} {o.ToWorld[7]:R} {o.ToWorld[11]:R}");
+                output.WriteLine($"ours  {wanted}: {string.Join(" ", inst.ToWorld.Select(x => x.ToString("R")))}");
+                output.WriteLine($"valve 0x{near.Child:x}: {string.Join(" ", near.Matrix.Select(x => x.ToString("R")))}");
+                output.WriteLine($"ours  inverse: {string.Join(" ", inst.ToLocal.Select(x => x.ToString("R")))}");
+                if (inverses.TryGetValue(near.Handle, out var valveInverse))
+                    output.WriteLine($"valve inverse: {string.Join(" ", valveInverse.Select(x => x.ToString("R")))}");
+                // Each mesh's triangle count and first triangle, in the model's space, on both sides.
+                foreach (var (k, mesh) in (inst.Children ?? []).Select((m, k) => (k, m)))
+                    output.WriteLine($"  ours mesh {k}: {mesh.Flags.Length} tris, first {string.Join(" ", mesh.Records.Skip(13).Take(9).Select(x => x.ToString("R")))}");
+                foreach (var (k, kid) in (byParent.GetValueOrDefault(near.Child) ?? []).Where(c => triangles.ContainsKey(c.Child)).Select((c, k) => (k, c)))
+                {
+                    var t0 = triangles[kid.Child][0];
+                    output.WriteLine($"  valve mesh {k}: {triangles[kid.Child].Count} tris, first {t0.A.X:R} {t0.A.Y:R} {t0.A.Z:R} {t0.B.X:R} {t0.B.Y:R} {t0.B.Z:R} {t0.C.X:R} {t0.C.Y:R} {t0.C.Z:R}");
+                    if (inst.Children is { } ours && k < ours.Count)
+                    {
+                        var list = triangles[kid.Child];
+                        var differ = 0;
+                        for (var i = 0; i < Math.Min(list.Count, ours[k].Flags.Length); i++)
+                        {
+                            var r = ours[k].Records.AsSpan(i * 22 + 13, 9);
+                            var o = (new Vector3(r[0], r[1], r[2]), new Vector3(r[3], r[4], r[5]), new Vector3(r[6], r[7], r[8]));
+                            if (o != (list[i].A, list[i].B, list[i].C))
+                            {
+                                if (differ++ < 3)
+                                    output.WriteLine($"    tri {i}: ours {o}, valve {(list[i].A, list[i].B, list[i].C)}, flags ours 0x{ours[k].Flags[i]:x} valve 0x{list[i].Flags:x}");
+                            }
+                        }
+                        output.WriteLine($"    {differ} triangles differ");
+                    }
+                }
+            }
         output.WriteLine($"valve top 0x{top:x}: {valveTris.Count} distinct triangles; ours {ourTris.Count}");
         output.WriteLine($"our instances: {string.Join(", ", scene.Instances.GroupBy(i => i.Source.Split(' ')[0]).Select(g => $"{g.Key} {g.Count()}"))}");
         output.WriteLine($"valve top children: {byParent[top].Count(k => triangles.ContainsKey(k.Child))} with triangles, {byParent[top].Count(k => byParent.ContainsKey(k.Child))} with instances, {byParent[top].Count(k => !triangles.ContainsKey(k.Child) && !byParent.ContainsKey(k.Child))} empty");

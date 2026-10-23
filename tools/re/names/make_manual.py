@@ -1021,7 +1021,7 @@ RESOURCECOMPILER = [
     ("181f06ff0", "Model_MeshSelected", LIGHTS, "LOD 0 (or no LOD) and the mesh group mask"),
     ("180f06c20", "CModelHelper_Init", LIGHTS, "+0xb2 when the class metadata has static_prop"),
     ("180dd2630", "EntityClass_HasStaticProp", LIGHTS, "class metadata key static_prop"),
-    ("18125ade0", "MatrixInvertGeneral", X, "3x4 inverse by the adjugate; identity below 1.17549435e-35"),
+    ("18125ade0", "MatrixInvertGeneral", X, "3x4 inverse by the adjugate; identity below 1.17549435e-35; translation (x + y) + z per row in one SIMD pass"),
     ("18125bfe0", "Matrix3x4_ScaleColumns", X, "columns times a scale vector"),
     ("180f0d670", "CModelHelper_RaytraceFlags", LIGHTS, "0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided"),
     ("180fff060", "CBaseHelper_RaytraceFlags", LIGHTS, "the helper's entity node flags (its raytrace owner vf 0x30)"),

@@ -5734,7 +5734,7 @@
    "addr": "18125ade0",
    "name": "MatrixInvertGeneral",
    "module": "s2c:math",
-   "note": "3x4 inverse by the adjugate; identity below 1.17549435e-35"
+   "note": "3x4 inverse by the adjugate; identity below 1.17549435e-35; translation (x + y) + z per row in one SIMD pass"
   },
   {
    "addr": "18125bfe0",

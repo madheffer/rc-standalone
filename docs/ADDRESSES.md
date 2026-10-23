@@ -574,7 +574,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | address | name | what | cited in |
 |---|---|---|---|
 | `1800fd550` | `ResourceCompilerMap_CompileMap` | sets ctx +0x605/+0x606 (bake now / baked lighting available): with gameinfo DefaultMapBuilders/bakedlighting, world off or entities only reads the lightmaps there, else bake = (not partial (+0x607) or bakelighting) and not nobakedlighting | `src/Source2.Compiler/Maps/MapCompile.cs:395`, `src/Source2.Compiler/Maps/MapCompileArgs.cs:153`, `src/Source2.Compiler/Maps/MapRootFile.cs:108` |
-| `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:205`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:272` |
+| `1800fe7b0` | `CResourceCompilerMap_AssignBakedShadowIndices` | directlight 2 for unshadowed stationary; shadow slots | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:60`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:205`, `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:276` |
 | `180105f50` | `NodeIdPath_Hash` | MurmurHash2 of heap ids then inline ids, seed 0x3501a674; light_path_uniqueid | `src/Source2.Compiler/Maps/BakedShadowAssignment.cs:722` |
 | `180107cb0` | `AssignBakedShadowIndices_PerLight` | light_path_uniqueid, light_map_uniqueid, bakedshadowindex |  |
 | `1801f5a40` | `LightProbe_AtlasCompare` | qsort key: size z, then y, then x, all descending |  |
@@ -585,7 +585,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f9040` | `CMapBuilderContext::vf32` | +0x605: lighting is baked in this compile |  |
 | `1801f9050` | `CMapBuilderContext::vf33` | +0x606: baked lighting available (baking now or lightmaps on disk) |  |
 | `180243b04` | `MapCompile_CollectPointCamera` | in the entity pass: point_camera's targetname, placed origin and angles, FOV (default 0) into the scene info's camera list (ledger 108) | `src/Source2.Compiler/Lighting/SceneLights.cs:81` |
-| `180247d40` | `WRB_PrecomputeLightVisMembership` | baked (direct_light_shadows): barn, rect and omni2 lights of direct light mode 3 sampled again; the sorted clusters their rays reach, written last as precomputed_vis_clusters; ported (LightVisClusters), ze_hold_em_p 37/37 | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:267`, `src/Source2.Compiler/Maps/LightVisClusters.cs:9` |
+| `180247d40` | `WRB_PrecomputeLightVisMembership` | baked (direct_light_shadows): barn, rect and omni2 lights of direct light mode 3 sampled again; the sorted clusters their rays reach, written last as precomputed_vis_clusters; ported (LightVisClusters), ze_hold_em_p 37/37 | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:271`, `src/Source2.Compiler/Maps/LightVisClusters.cs:9` |
 | `180248440` | `LightVisMembership_Callback` | the trace's callback: clusters with a box overlapping the light bounds become candidates for TestClusters | `src/Source2.Compiler/Maps/LightVisClusters.cs:11` |
 | `180248440` | `LightVis_CollectClusters` | clusters whose boxes overlap the light bounds, then TestClusters | `src/Source2.Compiler/Maps/LightVisClusters.cs:11` |
 | `18024ee30` | `LightVisMembership_TestClusters` | thread pool job: a candidate goes in when a ray segment reaches one of its boxes (eps 0.001) | `src/Source2.Compiler/Maps/LightVisClusters.cs:15` |
@@ -599,15 +599,15 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180eed4c0` | `Light_Color` | colormode 0: color (180f32200), 1: colortemperature (181007c90), else the default | `src/Source2.Compiler/Lighting/SceneLights.cs:58` |
 | `180eedfe0` | `Light_LegacyDescriptionAt` | step matrix, then Light_LegacyDescription |  |
 | `180eee040` | `Light_LegacyType` | 1 omni/capsule, 3 spot, 2 directional/environment, 4 ortho, else 0 |  |
-| `180eee150` | `Light_SyncBrightnessUnits` | flags-2 record; scale/factor/area/solid angle per class; writes brightness, lumens, nits, candelas, legacy by brightness_units (LightUnits.Sync) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:350`, `src/Source2.Compiler/Maps/LightUnits.cs:8`, `src/Source2.Compiler/Maps/LightUnits.cs:36` |
+| `180eee150` | `Light_SyncBrightnessUnits` | flags-2 record; scale/factor/area/solid angle per class; writes brightness, lumens, nits, candelas, legacy by brightness_units (LightUnits.Sync) | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:354`, `src/Source2.Compiler/Maps/LightUnits.cs:8`, `src/Source2.Compiler/Maps/LightUnits.cs:36` |
 | `180f06c20` | `CModelHelper_Init` | +0xb2 when the class metadata has static_prop |  |
 | `180f0d670` | `CModelHelper_RaytraceFlags` | 0x80b0000 with static_prop metadata else 0x80b4000; disableshadows 1/2 adds 0xa000/0x2000; 0x80 disableinlowquality; 2 bakelightdoublesided | `src/Source2.Compiler/Maps/EditorTraceScene.cs:145` |
 | `180f18820` | `LightPrecompute_TraceRay` |  | `src/Source2.Compiler/Maps/LightTrace.cs:45` |
 | `180f19840` | `LightPrecompute_TraceSamples` |  | `src/Source2.Compiler/Maps/LightTrace.cs:45` |
 | `180f19f20` | `LightPrecompute_SampleVolume` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:9`, `src/Source2.Compiler/Maps/LightPrecompute.cs:73` |
 | `180f1aa70` | `LightPrecompute_FitObb` | every orientation on a 5 degree grid | `src/Source2.Compiler/Maps/LightObb.cs:7` |
-| `180f1c660` | `MapDoc_GatherLights` | lights of the world and of +0x6b8 docs |  |
-| `180f1c8b0` | `MapWorld_GatherLights` | light_* legacy classes plus barn/rect/omni2, one entry per world transform | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:243` |
+| `180f1c660` | `MapDoc_GatherLights` | lights of the world and of +0x6b8 docs | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:243` |
+| `180f1c8b0` | `MapWorld_GatherLights` | light_* legacy classes plus barn/rect/omni2, one entry per world transform |  |
 | `180f1d100` | `MapDoc_PreprocessLights` | Preprocessing Lights: brightness units, lightcookie, precompute keys |  |
 | `180f1def0` | `LightPrecompute_WriteKeys` | precomputed* key writer: one box per face | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
 | `180f1e0e0` | `LightPrecompute_WriteBoxes` |  | `src/Source2.Compiler/Maps/LightPrecompute.cs:12` |
@@ -699,8 +699,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181c02a20` | `RayScene_TracePacket` | per-scene dispatch on mode; regroups lanes of mixed signs | `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:13`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:235` |
 | `181c065f0` | `RayScene_TraceMode1` | keeps hits with denom > 0 unless flag 2 |  |
 | `181c0a000` | `RayScene_TraceMode2` | keeps hits with denom < 0 unless flag 2; \|denom\| > 1e-10; triangle skipped on mask & flags | `src/Source2.Compiler/Maps/TracerKd.cs:56`, `src/Source2.Compiler/Maps/TracerKd.cs:369` |
-| `181c10ea0` | `RayScene_TraceInstances` | ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance | `src/Source2.Compiler/Maps/EditorTraceScene.cs:363`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:67` |
-| `181c12720` | `Matrix3x4_TransformPoints4` | t + ((x m0 + y m1) + z m2) per row, four lanes | `src/Source2.Compiler/Maps/EditorTraceScene.cs:363` |
+| `181c10ea0` | `RayScene_TraceInstances` | ray into instance space (rsqrtps, rcpps refined), back to world, sqrt distance | `src/Source2.Compiler/Maps/EditorTraceScene.cs:367`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:67` |
+| `181c12720` | `Matrix3x4_TransformPoints4` | t + ((x m0 + y m1) + z m2) per row, four lanes | `src/Source2.Compiler/Maps/EditorTraceScene.cs:367` |
 | `181c13950` | `RayScene_SortInstancesByAxis` | std::sort (introsort) of instance pointers on one axis |  |
 | `181c13ac0` | `RayScene_AddInstance` | 0xd0-byte instance of a child scene | `src/Source2.Compiler/Maps/EditorTraceScene.cs:14` |
 | `181c14020` | `RayScene_AddTriangles` |  |  |
@@ -710,7 +710,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181c15d00` | `RayScene_InstanceNodeHit` | instance tree node box test: true when any lane meets it (exact 1/d) | `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:10`, `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:352` |
 | `181c16b90` | `RayScene_RefineNode` | kd build: split past 10 triangles (32 when the scene word holds 0x10000), depth 22, cost 167; +0x1c4 stops it | `src/Source2.Compiler/Maps/TracerKd.cs:41` |
 | `181c19970` | `RayScene_SetInstanceTransform` | +0x10 local to world, +0x40 its inverse (FUN_18125ade0), +0x70 box | `src/Source2.Compiler/Maps/EditorTraceScene.cs:15` |
-| `181c19be0` | `RayScene_SetupAccelerationStructure` | corners to CacheOptimizedTriangle, kd build | `src/Source2.Compiler/Maps/EditorTraceScene.cs:475`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:515` |
+| `181c19be0` | `RayScene_SetupAccelerationStructure` | corners to CacheOptimizedTriangle, kd build | `src/Source2.Compiler/Maps/EditorTraceScene.cs:479`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:519` |
 | `181c1ae90` | `RayScene_BuildInstanceTree` | 0x30-byte nodes, leaf = one instance; sorts by the longest axis, splits at (n+1)/2 |  |
 | `181c1bd70` | `RayBatch_AddSecond` | the same, for the flag 8 second rays |  |
 | `181c1bf10` | `RayBatch_Add` | files a segment by delta sign octant; traces a full packet | `src/Source2.Compiler/Maps/EditorTraceScene.Packets.cs:6` |
@@ -971,7 +971,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801f8c80` | `CMapBuilderContext::vf11` | map usage type of the world (0 standard .. 4 sharedenvironment) |  |
 | `1801f8cf0` | `CMapBuilderContext::vf14` | +0x10c, e.g. maps\cardtest; seeds handshake and texture paths |  |
 | `1801fdae0` | `TemplatePass_RewriteReferences` |  | `src/Source2.Compiler/Maps/EntityLumpSet.cs:259` |
-| `18023ae00` | `LightProbe_GridSize` | ceil(extent / max(voxel,1)), 128 cap, x and y aligned | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:486` |
+| `18023ae00` | `LightProbe_GridSize` | ceil(extent / max(voxel,1)), 128 cap, x and y aligned | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:490` |
 | `180240a60` | `EntityLump_ExportNodeLate` | a brush entity's generated model (entities/%s_%s.vmdl) becomes a static model record (180245770) when its lightmapstatic is set (and one mesh list without +0x108); cubemap and light probe volume records (0x8c0 bytes: AngleMatrix with origin, influenceradius +0x30, box_mins/maxs +0x34/+0x40, box +0x4c, handshake +0x50, indoor_outdoor_level +0x54, moveable +0x58, targetname +0x60) appended to builder +0x48 (cubemaps) and +0x30 (probes) | `src/Source2.Compiler/Lighting/PathTraceProps.cs:15`, `src/Source2.Compiler/Lighting/PathTraceProps.cs:29`, `src/Source2.Compiler/Lighting/Vrad3Job.cs:35` +9 |
 | `180244420` | `EntityLump_CopyBakeTexture` | no-bake branch: if <old>_c loads, key := new path and <new>_c is written |  |
 | `1802470f0` | `EntityLump_FindByIdPath` | lump entities whose id path hashes and compares equal |  |
@@ -997,7 +997,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180dd70d0` | `FgdVariable_FlagsDefault` | flags default: OR of the on-bits | `src/Source2.Compiler/Maps/FgdSchema.cs:189` |
 | `180dd7810` | `FgdVariable_ReadDefault` |  | `src/Source2.Compiler/Maps/FgdSchema.cs:177`, `src/Source2.Compiler/Maps/FgdSchema.cs:189`, `src/Source2.Compiler/Maps/FgdSchema.cs:528` |
 | `180dda5c0` | `Fgd_ResolveType` | aliases before the type table | `src/Source2.Compiler/Maps/FgdSchema.cs:757`, `src/Source2.Compiler/Maps/FgdSchema.cs:806` |
-| `180ef48e0` | `BakeResource_FillEmptyKeys` | empty bakeresource keys get the cache path; set ones get custom<key> 1 | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:347` |
+| `180ef48e0` | `BakeResource_FillEmptyKeys` | empty bakeresource keys get the cache path; set ones get custom<key> 1 | `src/Source2.Compiler/Maps/EntityLumpAuthor.Lighting.cs:351` |
 | `180ef4c80` | `BakeResource_CacheDir` | _bakeresourcecache/<map path without extension>_baked |  |
 | `180ef4ef0` | `BakeResource_FilePath` | %s.%s, or %s_%s.%s with the node id path joined by _ |  |
 | `180ef5870` | `CBakeResourceHelper::vf2` | Hammer preview scene keys, not the lump |  |
@@ -1477,7 +1477,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `181258890` | `ConcatTransforms` | SIMD 3x4 product, row sums ((a2 B2 + a1 B1) + a0 B0) | `src/Source2.Compiler/Maps/LightMath.cs:90`, `src/Source2.Compiler/Maps/MapMeshes.cs:315` |
 | `18125a6c0` | `Vector_Basis` | Frisvad's basis with the sign of z | `src/Source2.Compiler/Maps/LightSampler.cs:261`, `src/Source2.Compiler/Maps/TangentFrame.cs:90` |
 | `18125aba0` | `MatrixInvert` | transpose; translation rotated back | `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:475`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:489`, `src/Source2.Compiler/Maps/MapMeshes.cs:328` |
-| `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35 | `src/Source2.Compiler/Maps/EditorTraceScene.cs:27`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:336` |
+| `18125ade0` | `MatrixInvertGeneral` | 3x4 inverse by the adjugate; identity below 1.17549435e-35; translation (x + y) + z per row in one SIMD pass | `src/Source2.Compiler/Maps/EditorTraceScene.cs:27`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:336` |
 | `18125b130` | `MatrixInvertRigid` | rotation transposed, translation turned back | `src/Source2.Compiler/Maps/LightMath.cs:100` |
 | `18125b270` | `Matrix3x4_Unscale` | each column divided by its length | `src/Source2.Compiler/Maps/SettleWorld.cs:530`, `src/Source2.Compiler/Maps/SettleWorld.cs:657`, `src/Source2.Compiler/Maps/SmartPropEvaluator.cs:677` |
 | `18125b510` | `NewellNormal` | scaled by 1 / (length + FLT_EPSILON) | `src/Source2.Compiler/Maps/PolygonTriangulator.cs:8`, `src/Source2.Compiler/Maps/PolygonTriangulator.cs:72` |
@@ -1487,7 +1487,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18125c070` | `Matrix3x4_Identity` |  |  |
 | `18125c200` | `Matrix3x4_Scale` | diag(x, y, z), zero translation | `src/Source2.Compiler/Maps/SettleWorld.cs:537` |
 | `18125cba0` | `MatrixAngles` | yaw from the first column | `src/Source2.Compiler/Maps/SettleWorld.cs:468`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:492`, `src/Source2.Compiler/Simulation/SettleWriteBack.cs:84` |
-| `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/EditorTraceScene.cs:60`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:516`, `src/Source2.Compiler/Maps/NodeOverlays.cs:200` |
+| `18125cd10` | `Matrix3x4_TransformAABB` | centre and extents | `src/Source2.Compiler/Maps/EditorTraceScene.cs:60`, `src/Source2.Compiler/Maps/EditorTraceScene.cs:520`, `src/Source2.Compiler/Maps/NodeOverlays.cs:200` |
 | `18125d000` | `VectorNormalize_Slow` | out-of-range lengths (under 1e-17, over 1e17), normalised in double; ported in VisibilityMeshMerger.TriBoxOverlap | `src/Source2.Compiler/Maps/VectorNormalizeSlow.cs:6`, `src/Source2.Compiler/Maps/VisibilityMeshMerger.cs:547`, `src/Source2.Compiler/Physics/HullSimplifier.cs:146` +2 |
 | `18125d0d0` | `VectorPerpendicular` | ((1 - z)(y y - 0) + z, 0, -x) normalised, orthogonalised, normalised | `src/Source2.Compiler/Physics/StaticPropHulls.cs:327`, `src/Source2.Compiler/Physics/StaticPropHulls.cs:375` |
 | `18125d1b0` | `Matrix3x4_Rotate` | (x r0 + y r1) + z r2 | `src/Source2.Compiler/Lighting/PackingAssembly.cs:14`, `src/Source2.Compiler/Lighting/PackingAssembly.cs:112`, `src/Source2.Compiler/Maps/EntityLumpAuthor.cs:478` +5 |

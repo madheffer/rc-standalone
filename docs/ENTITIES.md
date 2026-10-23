@@ -27,6 +27,13 @@ settle that moves physics props is in [SETTLE.md](SETTLE.md).
   map in the lump test (`UnstableSettle`): coaster, dkr_m4_ferris,
   dkr_m2_carnival, dkr_m5_stadium and dkr_m3_tunneloflove, each measured against two compiles
   or Valve's captured order.
+- **Prefab corpus against fresh references (2026-10-23):** the 14 corpus
+  maps with prefabs, recompiled by Valve that day (`%TEMP%/fresh_corpus`),
+  differ only in settle poses Valve itself varies between compiles. The
+  last light keys (c2m2 3:2184, coaster 3:1209) closed with the trace
+  scene's inverse: its translation is summed (x + y) + z per row
+  (18125ade0), which a prop tilted on every axis showed (every ray of both
+  lights now matches `capture_lightrays.py` bit for bit).
 - **Corpus sweep (2026-10-06):** all 80 compiled corpus maps are within
   the documented gaps (dkr_onelevel's 38,633 settle bodies exact, its 882
   props exact in Valve's captured order).
