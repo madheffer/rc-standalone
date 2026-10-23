@@ -857,7 +857,8 @@ public static class VisPvs
     /// </summary>
     public static int Passes(State s, Neighbor[] neighbours, RayTraceEnvironment rte, Matrix matrix,
                              Action<int, int, List<Ray>> raysFor, Func<int, int, bool>? accept = null,
-                             int limit = int.MaxValue, Action<List<(int A, int B)>, long>? passDone = null)
+                             int limit = int.MaxValue, Action<List<(int A, int B)>, long>? passDone = null,
+                             Action<int, Ray, Vector3?, int[]?>? walked = null)
     {
         var tested = Diagonal(s.Clusters);
         var reach = Reach(rte);
@@ -879,10 +880,18 @@ public static class VisPvs
                 for (var i = 0; i < list.Count; i++)
                 {
                     if (Traced(rte, list[i], 2, true, reach, hits[i]) is not { } end)
+                    {
+                        walked?.Invoke(passes, list[i], null, null);
                         continue;
+                    }
                     if (!WalkInto(s, list[i].Origin, end, true, local.Ids) || local.Ids.Count == 0)
+                    {
+                        walked?.Invoke(passes, list[i], end, null);
                         continue;
-                    local.Sets.Add(SortedUnique(local.Ids));
+                    }
+                    var set = SortedUnique(local.Ids);
+                    walked?.Invoke(passes, list[i], end, set);
+                    local.Sets.Add(set);
                 }
                 Interlocked.Add(ref cast, list.Count);
                 if (local.Sets.Count > 4096)
@@ -982,11 +991,12 @@ public static class VisPvs
     /// clusters' centre points, with no filter and no pair limit.
     /// </summary>
     public static int ClusterCentres(State s, Neighbor[] neighbours, RayTraceEnvironment rte, Matrix matrix,
-                                     Action<List<(int A, int B)>, long>? passDone = null)
+                                     Action<List<(int A, int B)>, long>? passDone = null,
+                                     Action<int, Ray, Vector3?, int[]?>? walked = null)
     {
         var centres = Centres(s);
         return Passes(s, neighbours, rte, matrix, (lo, hi, rays) => rays.Add(Toward(centres[lo], centres[hi])),
-                      passDone: passDone);
+                      passDone: passDone, walked: walked);
     }
 
     private static readonly Vector3[] Sides =
@@ -1170,7 +1180,8 @@ public static class VisPvs
     /// other (<c>FUN_180021190</c>), at most 8,000,000 pairs a pass.
     /// </summary>
     public static int LargeClusterRegions(State s, Neighbor[] neighbours, RayTraceEnvironment rte, Matrix matrix,
-                                          Action<List<(int A, int B)>, long>? passDone = null)
+                                          Action<List<(int A, int B)>, long>? passDone = null,
+                                          Action<int, Ray, Vector3?, int[]?>? walked = null)
     {
         var lists = EntriesByCluster(s);
         return Passes(s, neighbours, rte, matrix, (lo, hi, rays) =>
@@ -1180,11 +1191,11 @@ public static class VisPvs
                 foreach (var b in lists[hi])
                     rays.Add(Toward(Jittered(s, a, lo), Jittered(s, b, hi)));
             }
-        }, (c, t) => Distant(s, c, t), 8_000_000, passDone);
+        }, (c, t) => Distant(s, c, t), 8_000_000, passDone, walked);
     }
 
     // An entry box's centre moved +-c/n per axis, the sign from c's low bits.
-    private static Vector3 Jittered(State s, int entry, int c)
+    internal static Vector3 Jittered(State s, int entry, int c)
     {
         var (lo, hi) = RegionBox(s, s.Entries[entry]);
         var f = (float)c / s.Clusters;

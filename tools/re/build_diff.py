@@ -1,4 +1,4 @@
-"""build_diff.py <old.dll> <new.dll> [--names report.md] [--out file]: which functions a new build really changed.
+"""build_diff.py <old.dll> <new.dll> [--names report.md] [--strings] [--out file]: which functions a new build really changed.
 
 Every function (.pdata primary chunk) of both builds is masked as patch_check
 masks it (RIP-relative displacements and rel32 branch targets zeroed) and
@@ -83,12 +83,35 @@ def relocation_only(old, new, x, y):
     return True
 
 
+def strings_of(img, rva, limit=3):
+    """Up to limit C strings the function at rva addresses RIP-relatively: a hint at what an unnamed function is."""
+    end = img.bounds.get(rva)
+    if end is None:
+        return []
+    found = []
+    for ins in img.md.disasm(bytes(img.img[rva:end]), rva):
+        m = re.search(r"\[rip ([+-]) (0x[0-9a-f]+)\]", ins.op_str)
+        if not m:
+            continue
+        target = ins.address + ins.size + int(m.group(2), 16) * (1 if m.group(1) == "+" else -1)
+        raw = bytes(img.img[target:target + 120]).split(b"\0")[0]
+        if len(raw) >= 4 and all(32 <= c < 127 for c in raw):
+            s = raw.decode()
+            if s not in found:
+                found.append(s)
+                if len(found) == limit:
+                    break
+    return found
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("old")
     p.add_argument("new")
     p.add_argument("--names")
     p.add_argument("--out")
+    p.add_argument("--strings", action="store_true",
+                   help="label real changes and one-build functions with the strings they reference")
     a = p.parse_args()
     old, new = Image(a.old), Image(a.new)
     ho, hn_ = hashes(old), hashes(new)
@@ -125,11 +148,15 @@ def main():
              f"({len(changed) - len(real)} only in image-relative constants, {len(real)} real); only old {len(only_old)}; only new {len(only_new)}"]
     for x, y, lo, ln, d, reloc in sorted(changed, key=lambda r: (r[5], -r[4])):
         name = labels.get(old.base + x, "")
+        if a.strings and not reloc:
+            name += "  " + " | ".join(strings_of(new, y))
         lines.append(f"  {'relocated' if reloc else 'changed'} {old.base + x:#x} -> {new.base + y:#x}  {lo} -> {ln} bytes, {d} masked bytes differ  {name}")
     for x in only_old:
-        lines.append(f"  only old {old.base + x:#x} ({old.bounds[x] - x} bytes) {labels.get(old.base + x, '')}")
+        hint = "  " + " | ".join(strings_of(old, x)) if a.strings else ""
+        lines.append(f"  only old {old.base + x:#x} ({old.bounds[x] - x} bytes) {labels.get(old.base + x, '')}{hint}")
     for y in only_new:
-        lines.append(f"  only new {new.base + y:#x} ({new.bounds[y] - y} bytes)")
+        hint = "  " + " | ".join(strings_of(new, y)) if a.strings else ""
+        lines.append(f"  only new {new.base + y:#x} ({new.bounds[y] - y} bytes){hint}")
     text = "\n".join(lines)
     if a.out:
         open(a.out, "w", encoding="utf-8").write(text + "\n")

@@ -325,7 +325,8 @@ public static class MapRootFile
                 case ".vents": deps.Add(("Entity Lump Compiler Version", "CompileEntityLump", 3, 0)); break;
                 case ".vdata":
                     deps.Add(("KV3 Compiler Version", "CompileVData", 2, 0));
-                    deps.Add(("VData Compiler Version", "CompileVData", 1, 0));
+                    deps.Add(("VData Compiler Version", "CompileVData", 2, 0));
+                    deps.Add(("VData ModTools Stripping Version", "CompileVData", unchecked((int)Source2ContainerAuthor.VDataModToolsFingerprint), 0));
                     break;
                 case ".vmdl": deps.Add(("ModelDoc Compiler Version", "CompileModel", 3, 0)); break;
                 case ".vsnap": deps.Add(("SNAP Compiler Version", "CompileSnap", 1, 0)); break;

@@ -138,7 +138,8 @@ def main():
         backups = os.path.join(TEMP, "fixture_backups")
         os.makedirs(backups, exist_ok=True)
         bin_dir = os.path.join(CS2, "game", "bin", "win64")
-        rc_time = os.path.getmtime(os.path.join(bin_dir, "resourcecompiler.exe"))
+        # The exe is a stub an update can leave alone (1.41.9.2 shipped a new dll beside the 10-15 exe).
+        rc_time = max(os.path.getmtime(os.path.join(bin_dir, n)) for n in ("resourcecompiler.exe", "resourcecompiler.dll"))
         forced = {tuple(x.split("/", 1)) for x in a.fixture_maps.split(",") if "/" in x}
         probe = os.path.join(CS2, "game", "csgo_addons", ADDON, "maps")
         wanted = FIXTURES + [(ADDON, os.path.splitext(f)[0]) for f in sorted(os.listdir(probe)) if f.endswith(".vpk")]

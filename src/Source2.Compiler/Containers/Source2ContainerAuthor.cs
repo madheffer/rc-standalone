@@ -49,8 +49,10 @@ public static partial class Source2ContainerAuthor
         new Dictionary<string, ContainerSpec>(StringComparer.OrdinalIgnoreCase)
         {
             [".vsndevts"] = new(1, [new("Sound Event Script Version", "CompileSoundEventScript", 10)]),
+            // RC 1.41.9.2 (2026-10-23): VData Compiler Version 2 and the ModTools stripping row (18015adb0).
             [".vdata"] = new(0, [new("KV3 Compiler Version", "CompileVData", 2),
-                                    new("VData Compiler Version", "CompileVData", 1)]),
+                                    new("VData Compiler Version", "CompileVData", 2),
+                                    new("VData ModTools Stripping Version", "CompileVData", unchecked((int)VDataModToolsFingerprint))]),
             [".vpcf"] = new(1, [new("KV3 Compiler Version", "CompileParticle", 2),
                                     new("Particle Compiler Version", "CompileParticle", 2)]),
             // .vagrp is extinct in CS2 content (0 in pak01 + every base pack,

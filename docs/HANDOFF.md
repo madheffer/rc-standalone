@@ -104,6 +104,15 @@ carries the same state per item.
 2. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,
    15 unlit), and Hammer's Only Entities preset whole-package exact. Left:
    the context's +0x605 flag, unread.
+   - **Reopened by 1.41.9.2 (2026-10-23):** Valve's Only Entities build
+     (`-entities -skipauxfiles -nolightmaps -fshallow`) now also compiles the
+     world (world.vwrld, worldnodes n0.vwnod/.vrman and the node models: 13
+     children against 8 on 10-22), over a lit, an unlit or a Fast base alike,
+     and its root reads bakelighting, debugColorClustering,
+     force_up_to_date_materials and meshletMax*. The step table is unchanged,
+     so the cause is elsewhere (an up-to-date check?). %TEMP%/preset_entities
+     holds the new references (the 10-16 ones in preset_entities_1016);
+     UnlitMapRootsEqualValves fails on these two only.
 3. **Nav** (LIGHTING_ROADMAP L9, L22, L23): markups, links, ladders, movable
    meshes, spheres and capsules in the casts.
 4. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through
@@ -121,6 +130,12 @@ carries the same state per item.
 9. **Containers and resources:** compiling the addon content a map
    references, a package made only of our outputs; glTF export, model
    internals, shaders.
+10. **Map scripts (user, 2026-10-23), once visibility is 100%:** compile cs_script
+    sources (.js/.ts) to `.vjs_c` ourselves; today resourcecompiler does it and the
+    service only checks the file exists. The 1.41.9.2 update changed the compiler
+    (new "Panorama Compiler Conditionals Fingerprint", every shipped `.vjs_c`
+    rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
+    what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
 ## Latest session (2026-10-22/23, ended for a CS2 update)
 

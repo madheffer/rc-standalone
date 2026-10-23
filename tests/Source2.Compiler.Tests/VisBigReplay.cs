@@ -167,12 +167,41 @@ public class VisBigReplay(ITestOutputHelper output)
         var pass = 0;
         var samePasses = 0;
         var clock = System.Diagnostics.Stopwatch.StartNew();
+        // BIGWATCHIDS=id,...: every pass-0 ray whose walk lists one of them; BIGSTOP0=1 stops after pass 0.
+        var watchIds = (Environment.GetEnvironmentVariable("BIGWATCHIDS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToHashSet();
+        var seen = new List<string>();
+        Action<int, VisPvs.Ray, Vector3?, int[]?>? walked = watchIds.Count == 0 ? null : (p, ray, end, set) =>
+        {
+            if (p != 0 || set is null || !set.Any(watchIds.Contains))
+                return;
+            lock (seen)
+                seen.Add($"    ray {ray.Origin} dir {ray.Direction} end {end} walk [{string.Join(" ", set)}]");
+        };
         var passes = VisPvs.ClusterCentres(s, VisPvs.Neighbors(s), rte, matrix, (pairs, rays) =>
         {
+            if (pass == 0 && watchIds.Count > 0)
+            {
+                foreach (var line in seen.Order(StringComparer.Ordinal))
+                    output.WriteLine(line);
+                if (Environment.GetEnvironmentVariable("BIGSTOP0") == "1")
+                    throw new InvalidOperationException("stopped after pass 0 (BIGSTOP0)");
+            }
             var theirs = Pairs(cap.Blob("pairs" + (first + pass)));
             var same = pairs.SequenceEqual(theirs);
             samePasses += same ? 1 : 0;
             output.WriteLine($"  pass {pass}: pairs ours {pairs.Count:n0} valve {theirs.Count:n0}, in order {same}; {rays:n0} rays ({clock.Elapsed.TotalSeconds:0}s)");
+            // BIGPAIRS=1: at the first pass that differs, the pairs only one side has (each stands for a
+            // cell the passes before set differently), then stop.
+            if (!same && Environment.GetEnvironmentVariable("BIGPAIRS") == "1")
+            {
+                var ours = pairs.ToHashSet();
+                var valve = theirs.ToHashSet();
+                foreach (var p in pairs.Where(p => !valve.Contains(p)).Take(60))
+                    output.WriteLine($"    ours only {p}");
+                foreach (var p in theirs.Where(p => !ours.Contains(p)).Take(60))
+                    output.WriteLine($"    valve only {p}");
+                throw new InvalidOperationException($"stopped after pass {pass} (BIGPAIRS)");
+            }
             pass++;
         });
         var (rows, same, mine, valve) = VisPvsReplay.Diff(matrix, cap.Blob("after0"));
@@ -272,6 +301,82 @@ public class VisBigReplay(ITestOutputHelper output)
                      && BitConverter.ToInt32(e, i * 16 + 4) == st.Entries[i].Packed && BitConverter.ToUInt64(e, i * 16 + 8) == st.Entries[i].Cells)
                && Enumerable.Range(0, st.NodeWords.Length).All(i => BitConverter.ToUInt32(n, i * 8) == st.NodeWords[i]
                      && BitConverter.ToUInt16(n, i * 8 + 4) == st.NodeCounts[i]);
+    }
+
+    /// <summary>
+    /// A large-cluster-regions pair's rays, <c>BIGPAIR=a,b</c>: whether the pair is in
+    /// the generator's first pass (Valve's list), and each ray traced alone and in one
+    /// packet list, with where it ends and whether its walk reaches the other cluster.
+    /// </summary>
+    [Fact]
+    public void PairRays()
+    {
+        if (Environment.GetEnvironmentVariable("BIGPAIR") is not { Length: > 0 } spec || Environment.GetEnvironmentVariable("BIGPVS") is null)
+            return;
+        using var cap = Open(out _);
+        if (cap is null)
+            return;
+        var s = StateOf(cap);
+        var ids = spec.Split(',').Select(int.Parse).ToArray();
+        int lo = Math.Min(ids[0], ids[1]), hi = Math.Max(ids[0], ids[1]);
+        var first = FirstPass(cap, 2);
+        for (var k = first; cap.Has("pairs" + k) && cap.Head("pairs" + k).GetProperty("generator").GetInt32() == 2; k++)
+        {
+            var at = Pairs(cap.Blob("pairs" + k)).FindIndex(p => (Math.Min(p.Item1, p.Item2), Math.Max(p.Item1, p.Item2)) == (lo, hi));
+            output.WriteLine($"pass {k - first}: pair {(at < 0 ? "absent" : $"at {at:n0}")}");
+        }
+        var rte = Scene();
+        var reach = VisPvs.Reach(rte);
+        var lists = VisPvs.EntriesByCluster(s);
+        var rays = new List<VisPvs.Ray>();
+        foreach (var a in lists[lo])
+            foreach (var b in lists[hi])
+                rays.Add(VisPvs.Toward(VisPvs.Jittered(s, a, lo), VisPvs.Jittered(s, b, hi)));
+        var packets = rte.Segments(rays.Select(r => (r.Origin, VisPvs.End(r, reach))).ToArray(), 0x4801);
+        output.WriteLine($"{rays.Count} rays ({lists[lo].Count} x {lists[hi].Count} entries)");
+        for (var i = 0; i < rays.Count; i++)
+        {
+            var single = rte.Segment(rays[i].Origin, VisPvs.End(rays[i], reach), 0x4801);
+            var end = VisPvs.Traced(rte, rays[i], 2, true, reach, packets[i]);
+            var walk = end is { } e ? VisPvs.Walk(s, rays[i].Origin, e, through: true) ?? [] : [];
+            var ties = rte.SegmentTies(rays[i].Origin, VisPvs.End(rays[i], reach), 0x4801).Count;
+            var differs = single?.Triangle != packets[i]?.Triangle || single?.Distance != packets[i]?.Distance;
+            if (walk.Contains(hi) || walk.Contains(lo) && walk.Contains(hi) || differs || ties > 1 || i < 4)
+                output.WriteLine($"  ray {i} {rays[i].Origin} dir {rays[i].Direction}: packet {(packets[i] is { } p ? $"tri {p.Triangle} t {p.Distance:R}" : "miss")}"
+                               + $"{(differs ? $" ALONE {(single is { } q ? $"tri {q.Triangle} t {q.Distance:R}" : "miss")}" : "")} ties {ties}"
+                               + $" reaches {walk.Contains(hi)} end {end}");
+        }
+    }
+
+    /// <summary>
+    /// One scan ray, <c>BIGRAY=ox,oy,oz;dx,dy,dz</c> (round-trip floats, as BIGWATCH prints
+    /// them): the nearest hit, every triangle tied with it, where the trace sends the
+    /// walk, and the walk's clusters.
+    /// </summary>
+    [Fact]
+    public void RayDetail()
+    {
+        if (Environment.GetEnvironmentVariable("BIGRAY") is not { Length: > 0 } spec || Environment.GetEnvironmentVariable("BIGPVS") is null)
+            return;
+        using var cap = Open(out _);
+        if (cap is null)
+            return;
+        var s = StateOf(cap);
+        var parts = spec.Split(';');
+        Vector3 P(string t) { var f = t.Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray(); return new(f[0], f[1], f[2]); }
+        var ray = new VisPvs.Ray(P(parts[0]), P(parts[1]));
+        var rte = Scene();
+        var reach = VisPvs.Reach(rte);
+        var far = VisPvs.End(ray, reach);
+        var hit = rte.Segment(ray.Origin, far, 0x4801);
+        output.WriteLine($"ray {ray.Origin} dir {ray.Direction} to {far}: "
+                       + (hit is { } h ? $"tri {h.Triangle} t {h.Distance:R} n {h.Normal} flags {rte.Flags(h.Triangle):x4}" : "miss"));
+        foreach (var t in rte.SegmentTies(ray.Origin, far, 0x4801))
+            output.WriteLine($"  tied: tri {t.Triangle} t {t.Distance:R} n {t.Normal} corners [{string.Join(" ", rte.TracedCorners(t.Triangle) ?? [])}]");
+        var end = VisPvs.Traced(rte, ray, 2, true, reach, hit);
+        output.WriteLine($"  end {end}");
+        if (end is { } e)
+            output.WriteLine($"  walk [{string.Join(" ", VisPvs.Walk(s, ray.Origin, e, through: true) ?? [])}]");
     }
 
     /// <summary>
@@ -581,14 +686,38 @@ public class VisBigReplay(ITestOutputHelper output)
         var matrix = Matrix(cap, "after1");
         var first = FirstPass(cap, 2);
         var pass = 0;
+        // BIGWATCH=r:c,...: every ray whose walk lists r or c, with its pass, segment and walk.
+        var watch = (Environment.GetEnvironmentVariable("BIGWATCH") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Split(':')).Select(x => (R: int.Parse(x[0]), C: int.Parse(x[1]))).ToList();
+        var ids = watch.SelectMany(w => new[] { w.R, w.C }).ToHashSet();
+        var seen = new List<string>();
+        Action<int, VisPvs.Ray, Vector3?, int[]?>? walked = watch.Count == 0 ? null : (p, ray, end, set) =>
+        {
+            if (set is null || !set.Any(ids.Contains))
+                return;
+            var both = watch.Where(w => set.Contains(w.R) && set.Contains(w.C)).Select(w => $"{w.R}:{w.C}").ToList();
+            if (both.Count == 0)
+                return;
+            lock (seen)
+                seen.Add($"  pass {p} {ray.Origin} -> {end} sets [{string.Join(" ", both)}] walk [{string.Join(" ", set)}]"
+                       + $" BIGRAY={R(ray.Origin)};{R(ray.Direction)}");
+            static string R(Vector3 v) => string.Join(",", new[] { v.X, v.Y, v.Z }.Select(f => f.ToString("R", System.Globalization.CultureInfo.InvariantCulture)));
+        };
         var passes = VisPvs.LargeClusterRegions(s, VisPvs.Neighbors(s), rte, matrix, (pairs, rays) =>
         {
             var theirs = Pairs(cap.Blob("pairs" + (first + pass)));
             output.WriteLine($"  pass {pass}: pairs ours {pairs.Count:n0} valve {theirs.Count:n0}, in order {pairs.SequenceEqual(theirs)}; {rays:n0} rays");
             pass++;
-        });
-        var (rows, same, mine, valve) = VisPvsReplay.Diff(matrix, cap.Blob("after2"));
+        }, walked);
+        foreach (var line in seen.Order(StringComparer.Ordinal).Take(400))
+            output.WriteLine(line);
+        var after = cap.Blob("after2");
+        var (rows, same, mine, valve) = VisPvsReplay.Diff(matrix, after);
         output.WriteLine($"large cluster regions: {passes} passes; rows identical {same}/{rows}, bits ours-only {mine:n0} valve-only {valve:n0}");
+        // BIGBITS=1: each differing cell, as row:column and whose bit it is.
+        if (Environment.GetEnvironmentVariable("BIGBITS") == "1")
+            foreach (var (r, c, ours) in VisPvsReplay.DiffBits(matrix, after))
+                output.WriteLine($"  cell {r}:{c} {(ours ? "ours only" : "valve only")}");
         Assert.Equal(rows, same);
     }
 

@@ -352,7 +352,7 @@ public static class VisClusterList
     private static void Take(List list, VisPvs.Matrix matrix, List<(int Id, ulong Cost)> candidates, int target,
                              float factor, List<(int, int)> merges)
     {
-        var threshold = ToCount(ToFloat(candidates[0].Cost) * factor);
+        var threshold = Limit(candidates[0].Cost, factor);
         var remaining = list.Live - target;
         foreach (var (c, cost) in candidates)
         {
@@ -511,7 +511,7 @@ public static class VisClusterList
             found.Add((c, cost));
             if (cost < cheapest)
             {
-                limit = ToCount(ToFloat(cost) * factor);
+                limit = Limit(cost, factor);
                 cheapest = cost;
             }
         }
@@ -686,7 +686,10 @@ public static class VisClusterList
         return s with { ClusterMins = mins, ClusterMaxs = maxs };
     }
 
-    private static float ToFloat(ulong v) => v < 1UL << 63 ? (long)v : (float)v;
+    // 180044060 and 180044490: the cost to double (cvtsi2sd, halved and doubled past 2^63),
+    // times the factor widened to double, back to a count. All double: a float cost
+    // keeps 24 bits and moves the threshold on any cost past 2^24.
+    private static ulong Limit(ulong cost, float factor) => ToCount((double)cost * (double)factor);
 
     // MSVC's float or double to unsigned 64 bit: truncate, with values past
     // 2^63 taken down by 2^63 first and the top bit put back.

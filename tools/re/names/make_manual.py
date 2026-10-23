@@ -2911,6 +2911,18 @@ RESOURCECOMPILER_1015 = [
     ("1800fe5f0", "MapCompile_RunPostMapBuildSteps", NAV, "after the builder steps of every compile: each key of gameinfo ResourceCompiler/GameSpecificPostMapBuildSteps names a map compile modifier (CS2: cs2_bomb_damage, modtools 18003ad70), run with its flags (vfn 0x20, 3) and its vfn 0x28 value (0x40)"),
 ]
 
+# resourcecompiler.dll as installed since the 10-23 update, 1.41.9.2 (tools/re/binaries/resourcecompiler_20261023.dll).
+RESOURCECOMPILER_1023 = [
+    ("18015adb0", "CompileVData_SpecialDependencyFingerprint", CT, "\"VData Compiler Version\" 2 (1 before 10-23), \"VData ModTools Stripping Version\" 18015bc50 over the strip rules the game's ModTools (183b64970, vfn 0x80) returns ({0, 0} without one), \"KV3 Compiler Version\" 2; Source2ContainerAuthor.SpecByExtension"),
+    ("18015ae70", "CompileVData_ModToolsStrippingVersion", CT, "2 for the named identity, else 1: a dependency's own version check"),
+    ("18015bc50", "VDataStrip_RulesFingerprint", CT, "per 24-byte rule {char *file, int, char *member}: FNV-1a of each string folded (h << 17 ^ h) + (h >> 21), the int through murmur3's finaliser, combined boost-style (0x9e3779b9); no rules gives 0; Source2ContainerAuthor.ModToolsStripFingerprint"),
+]
+
+# csgo's modtools.dll 20261023 (tools/re/binaries/modtools_20261023.dll).
+MODTOOLS_1023 = [
+    ("18002e190", "CModTools_VDataStripRules", CT, "Source2ModTools001 (object 180ef5be0) vfn 0x80: a thread-safe static list of one rule, {\"scripts/weapons.vdata\", 1, \"weapon_m14\"} (built at 18002e1ef); its fingerprint is 2278732723"),
+]
+
 # bc7e.dll as installed (PE time 2026-01-01; unchanged by the 10-15 update), copied as bc7e_20261015.dll.
 BC7E = [
     ("180001000", "bc7e_DetectTarget", BAKE, "cpuid / xgetbv: 5 AVX-512 SKX, 4 AVX-512 KNL, 3 AVX2, 2 AVX, 1 SSE4, 0 SSE2"),
@@ -2940,6 +2952,8 @@ if __name__ == "__main__":
     write("rendersystemvulkan_20261015.manual.json", RENDERSYSTEMVULKAN_1015)
     write("server_20261015.manual.json", SERVER_1015 + SERVER_1015_CUBEHOST)
     write("resourcecompiler_20261015.manual.json", RESOURCECOMPILER_1015)
+    write("resourcecompiler_20261023.manual.json", RESOURCECOMPILER_1023)
+    write("modtools_20261023.manual.json", MODTOOLS_1023)
     write("bc7e_20261015.manual.json", BC7E)
     write("client_20261015.manual.json", CLIENT_1015)
     write("client_20261021.manual.json", CLIENT_1021)

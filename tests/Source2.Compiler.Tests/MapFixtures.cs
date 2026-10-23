@@ -374,8 +374,17 @@ internal static class MapFixtures
         var cs2 = CS2Fixtures.StockPak();
         if (cs2 is null)
             return false;
-        var rc = Path.Combine(Path.GetDirectoryName(cs2)!, "..", "bin", "win64", "resourcecompiler.exe");
-        return File.Exists(rc) && File.GetLastWriteTimeUtc(compiled) < File.GetLastWriteTimeUtc(rc);
+        return RcWriteTimeUtc(cs2) is { } rc && File.GetLastWriteTimeUtc(compiled) < rc;
+    }
+
+    /// <summary>When the installed compiler last changed: the newer of resourcecompiler.exe and its dll
+    /// (the exe is a stub an update can leave alone; 1.41.9.2 shipped a new dll beside the 10-15 exe).</summary>
+    private static DateTime? RcWriteTimeUtc(string stockPak)
+    {
+        var bin = Path.Combine(Path.GetDirectoryName(stockPak)!, "..", "bin", "win64");
+        var times = new[] { "resourcecompiler.exe", "resourcecompiler.dll" }
+            .Select(n => Path.Combine(bin, n)).Where(File.Exists).Select(File.GetLastWriteTimeUtc).ToList();
+        return times.Count == 0 ? null : times.Max();
     }
 
     private static string? DiskCachePath(string sourcePath)
@@ -383,9 +392,8 @@ internal static class MapFixtures
         var cs2 = CS2Fixtures.StockPak();
         if (cs2 is null || !File.Exists(sourcePath))
             return null;
-        var rc = Path.Combine(Path.GetDirectoryName(cs2)!, "..", "bin", "win64", "resourcecompiler.exe");
         var stamp = $"{new FileInfo(sourcePath).LastWriteTimeUtc.Ticks:x}-"
-                  + $"{(File.Exists(rc) ? new FileInfo(rc).LastWriteTimeUtc.Ticks : 0):x}";
+                  + $"{(RcWriteTimeUtc(cs2) is { } rc ? rc.Ticks : 0):x}";
         return Path.Combine(Path.GetTempPath(), "s2c_rc_cache",
                             $"{Path.GetFileNameWithoutExtension(sourcePath)}.{stamp}.vents_c");
     }

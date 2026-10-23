@@ -1,0 +1,22 @@
+{
+ "functions": [
+  {
+   "addr": "18015adb0",
+   "name": "CompileVData_SpecialDependencyFingerprint",
+   "module": "s2c:containers",
+   "note": "\"VData Compiler Version\" 2 (1 before 10-23), \"VData ModTools Stripping Version\" 18015bc50 over the strip rules the game's ModTools (183b64970, vfn 0x80) returns ({0, 0} without one), \"KV3 Compiler Version\" 2; Source2ContainerAuthor.SpecByExtension"
+  },
+  {
+   "addr": "18015ae70",
+   "name": "CompileVData_ModToolsStrippingVersion",
+   "module": "s2c:containers",
+   "note": "2 for the named identity, else 1: a dependency's own version check"
+  },
+  {
+   "addr": "18015bc50",
+   "name": "VDataStrip_RulesFingerprint",
+   "module": "s2c:containers",
+   "note": "per 24-byte rule {char *file, int, char *member}: FNV-1a of each string folded (h << 17 ^ h) + (h >> 21), the int through murmur3's finaliser, combined boost-style (0x9e3779b9); no rules gives 0; Source2ContainerAuthor.ModToolsStripFingerprint"
+  }
+ ]
+}

@@ -33,15 +33,16 @@ Open:
   - **Divergence 2, large cluster regions** (`TheLargeClusterRegions`, 4 min):
     both passes' pairs equal Valve's in order (387,305 and 10), but the matrix
     after has 5 of 23,534 rows differing (2 bits ours only, 6 Valve's only),
-    so a few rays decide differently: 155 million rays, find them with
-    BIGSEG/BIGKD on the differing rows' clusters.
-  - **Divergence 3, the vis-cluster merge** (`TheSteppedAndPartitionedMerge`,
-    6 min, on Valve's post-scan matrix): 19,438 merges each, the first 9,115
-    identical; then Valve takes (13977, 14235), (7507, 7515), (16382, 16383)
-    and we take (16382, 16383) first. All three are partition 2 (16,384 records,
-    5 partitions), so either our cost for 16382 is lower or our round boundary
-    falls elsewhere. `BIGMERGE_TRACE=9100,9125` prints our rounds and takes
-    there (VisClusterList.Trace); it has not been run yet.
+    all on cluster 12075: Valve links it to 5345, 5689 and 5742, we link it to
+    5745. `BIGBITS=1` lists the cells, `BIGWATCH=r:c,...` the rays whose walk
+    lists those clusters (segment and walk); then BIGSEG/BIGKD on the ray.
+  - **Fixed 2026-10-23, the vis-cluster merge** (`TheSteppedAndPartitionedMerge`,
+    12 min, on Valve's post-scan matrix): all 19,438 merges identical. The
+    candidate limit (180044060) and the take threshold (180044490) are
+    `(double)cost * (double)factor` truncated to a count; the port multiplied in
+    float, which rounds `cost * 1.05` differently and moved a round's threshold
+    past (13977, 14235) at merge 9,115. `BIGMERGE_TRACE=from,to` prints rounds
+    and takes (VisClusterList.Trace).
   - **Not measured: the five merge passes.** `PASSREPLAY=s2c_prefabprobe4`
     (VisMergeReplay.EachPassFromValvesInput) runs each pass from Valve's own
     input and compares with Valve's next input; it was stopped unrun for the
@@ -60,8 +61,6 @@ Open:
 - The whole chain is not yet called by `compile-map`; `TheWholeBuild` is the
   reference order.
 - Split hints (types 4 to 6) are ported but untested: no specimen has one.
-- `NormaliseSlowPath` (lengths under 1e-17 or over 1e17) is approximated by a
-  double normalise in three places; no specimen reaches it.
 - `-updateloshints` and the legacy sampler are not ported. These are the
   non-deterministic paths, and a stock compile uses `DeterministicBuild 1`.
 

@@ -236,7 +236,7 @@ public class MapRootFileTests(ITestOutputHelper output)
 
     /// <summary>
     /// Unlit compiles (ledger 119): Valve's world-only references (%TEMP%/nobake_refs, fresh_refs) and its
-    /// -world -phys -vis -nav ones (%TEMP%/nolight_1016), Hammer's Fast and Only Entities presets (%TEMP%/preset_fast,
+    /// -world -phys -vis -nav ones (%TEMP%/nolight_1023), Hammer's Fast and Only Entities presets (%TEMP%/preset_fast,
     /// preset_entities), each .vmap_c against ours built with the same
     /// builders, byte for byte. Their argument tables have no lighting rows, bakelighting instead, and
     /// flattenPropsWithBakedLighting where a static model record is made.
@@ -255,7 +255,7 @@ public class MapRootFileTests(ITestOutputHelper output)
         // world only, -world -phys -vis -nav, and Hammer's Fast Compile and Only Entities presets (10-22).
         var sets = new (string Folder, string[] Switches)[]
         {
-            ("nobake_refs", ["-world", "-fshallow"]), ("fresh_refs", ["-world", "-fshallow"]), ("nolight_1016", ["-world", "-phys", "-vis", "-nav"]),
+            ("nobake_refs", ["-world", "-fshallow"]), ("fresh_refs", ["-world", "-fshallow"]), ("nolight_1023", ["-world", "-phys", "-vis", "-nav"]),
             ("preset_fast", ["-world", "-skipauxfiles", "-nolightmaps", "-phys", "-nav"]),
             ("preset_entities", ["-entities", "-skipauxfiles", "-nolightmaps", "-fshallow"]),
         };
@@ -313,7 +313,7 @@ public class MapRootFileTests(ITestOutputHelper output)
             }
         }
         if (compared == 0)
-            MapFixtures.Skip("Valve's unlit references (%TEMP%/nobake_refs, fresh_refs, nolight_1016)");
+            MapFixtures.Skip("Valve's unlit references (%TEMP%/nobake_refs, fresh_refs, nolight_1023)");
         Assert.Empty(failed);
     }
 

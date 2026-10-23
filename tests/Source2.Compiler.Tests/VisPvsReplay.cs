@@ -80,6 +80,25 @@ public class VisPvsReplay(ITestOutputHelper output)
         return (m.Rows.Length, same, mine, theirs);
     }
 
+    /// <summary>Every cell where a matrix and a captured one differ, and whether the bit is ours.</summary>
+    internal static IEnumerable<(int Row, int Column, bool Ours)> DiffBits(VisPvs.Matrix m, byte[] blob)
+    {
+        var words = m.Words;
+        for (var r = 0; r < m.Rows.Length; r++)
+        {
+            for (var w = 0; w < words; w++)
+            {
+                var v = BitConverter.ToUInt32(blob, ((r * words) + w) * 4);
+                var o = m.Rows[r][w];
+                for (var b = 0; b < 32; b++)
+                {
+                    if (((o ^ v) >> b & 1) != 0)
+                        yield return (r, (w << 5) + b, (o >> b & 1) != 0);
+                }
+            }
+        }
+    }
+
     [Fact]
     public void TheClusterCentreGenerator()
     {
