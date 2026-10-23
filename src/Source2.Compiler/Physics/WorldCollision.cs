@@ -327,34 +327,13 @@ public static class WorldCollision
         // mesh first meets one). Applied to the previous mesh's pieces when the
         // next begins, and to the last at the end.
         var meshStart = 0;
-        // A mesh inside an instance is placed as the collapse left it: its node
-        // moved through the instances (BakedPlacement), then its own matrix
-        // (Mako's pipes and train rails, where the path applied after the
-        // node's own matrix drifts by up to 5e-4).
-        var instanceById = doc.OfType("CMapInstance").GroupBy(e => e.GetValue<int>("nodeID") ?? -1).ToDictionary(g => g.Key, g => g.First());
-        float[]? Placed(Maps.MapMeshes.Mesh mesh)
-        {
-            if (mesh.Element == null)
-                return null;
-            if (mesh.Instances.Length == 0)
-            {
-                if (mesh.PrefabChain.Count == 0)
-                    return null;
-                // A mesh in a prefab's map: its node moved through the prefabs as
-                // the prefab's entities are (PrefabPlacement), then its own matrix.
-                var (at, turn) = Maps.SettleWorld.PrefabPlacement(mesh.Element.GetValue<Vector3>("origin") ?? Vector3.Zero,
-                                                                  mesh.Element.GetValue<Vector3>("angles") ?? Vector3.Zero, mesh.PrefabChain);
-                var pm = Maps.MapMeshes.AngleMatrix(turn);
-                (pm[3], pm[7], pm[11]) = (at.X, at.Y, at.Z);
-                return pm;
-            }
-            if (mesh.PrefabChain.Count > 0)
-                return Maps.SettleWorld.NestedPlacement(mesh.Element, mesh.Through, mesh.PrefabChain);
-            var (origin, angles) = Maps.SettleWorld.BakedPlacement(mesh.Element, [.. mesh.Instances.Select(i => instanceById[i])]);
-            var m = Maps.MapMeshes.AngleMatrix(angles);
-            (m[3], m[7], m[11]) = (origin.X, origin.Y, origin.Z);
-            return m;
-        }
+        // A mesh inside an instance or a prefab's map is placed as the collapse
+        // left it: its node moved through them (MapMeshes' walk: BakedPlacement,
+        // PrefabPlacement, or a deformer's move), then its own matrix (Mako's
+        // pipes and train rails, where the path applied after the node's own
+        // matrix drifts by up to 5e-4).
+        static float[]? Placed(Maps.MapMeshes.Mesh mesh)
+            => mesh.Element == null || (mesh.Instances.Length == 0 && mesh.PrefabChain.Count == 0) ? null : mesh.World;
         void NameSurfaces(int end)
         {
             if (Enumerable.Range(meshStart, end - meshStart).Any(i => result[i].Name.Length > 0))
@@ -475,7 +454,7 @@ public static class WorldCollision
                 // The same per-material mesh the mesh path reads, texcoord shift included.
                 var convexPiece = -1;
                 foreach (var (material, positions, faces, local, corners, _, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null,
-                             !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh), builderMeshes: builder))
+                             !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh), builderMeshes: builder, sourcePositions: mesh.DeformedPositions))
                 {
                     convexPiece++;
                     var name = material < names.Length ? (names[material] as string ?? "") : "";
@@ -551,7 +530,7 @@ public static class WorldCollision
             var texcoords = paint == null ? null : TexcoordStream(mesh.Element!);
             var meshPiece = -1;
             foreach (var (material, positions, faces, local, corners, cornerData, bias) in BrushHulls.PiecesWithCorners(mesh.Element!, world, mesh.Instances.Length > 0 || mesh.Prefabs.Length > 0 ? mesh.Path : null,
-                         !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh), builderMeshes: builder))
+                         !names.Any(n => n is string m && materials(m).KeepsTexcoords), placed: Placed(mesh), builderMeshes: builder, sourcePositions: mesh.DeformedPositions))
             {
                 meshPiece++;
                 var name = material < names.Length ? (names[material] as string ?? "") : "";
@@ -629,16 +608,13 @@ public static class WorldCollision
         var element = node.Element;
         if (MapEntities.ReadNode(element) is not { } cable)
             yield break;
+        // Inside an instance or prefab, the path where the collapse moved it.
+        cable = Maps.SettleWorld.PlacedPath(cable, node.Through, node.PrefabChain, node.UnderDeformer);
         if (schema?.HasFlag(cable.ClassName, "has_static_mesh") != true || !CableCollision.Collides(element))
             yield break;
         // The filter's flag 4: an entity whose solid key is 0 is out.
         if (cable.Keys.FirstOrDefault(k => Tier0Strings.EqualsIgnoreCase(k.Key, "solid")).Value is { } solid && CNumbers.Atoi(solid) == 0)
             yield break;
-        if (node.Instances.Length > 0 || node.Prefabs.Length > 0)
-        {
-            notes?.Add($"cable {cable.NodeId}: inside an instance or prefab, placement not ported");
-            yield break;
-        }
         var name = element.Get<string>("materialName") ?? "";
         var physics = materials(name);
         if (!physics.Solid)
@@ -646,10 +622,12 @@ public static class WorldCollision
         var (controls, scales) = EntityLumpAuthor.PathControls(cable, schema);
         // physicsbuilder's CMesh is made from the export's DmeMesh corner by
         // corner (pb 180085e80), so its vertices come in first-use order.
-        var (points, indices) = FirstUse(CableCollision.Build(controls, scales, CableCollision.SettingsOf(element)));
+        var matrix = CableCollision.NodeMatrix(cable);
+        // The export is not deformed: only the pre-settle world runs a cable
+        // through its deformer (s2c_deformplace).
+        var (points, indices) = FirstUse(CableCollision.Build(controls, scales, node.Through.Count > 0 ? CableCollision.Copied(CableCollision.SettingsOf(element)) : CableCollision.SettingsOf(element)));
         if (indices.Length == 0)
             yield break;
-        var matrix = CableCollision.NodeMatrix(cable);
         yield return new Piece(cable.NodeId, 0, name, physics, [.. points.Select(p => Maps.MapMeshes.Transform(matrix, p))], indices) { ToolMaterial = name };
     }
 
@@ -821,7 +799,10 @@ public static class WorldCollision
         var model = e.Get<DmxBinary.Element>("entity_properties")?.Get<string>("model") ?? "";
         var origin = e.GetValue<Vector3>("origin") ?? Vector3.Zero;
         var angles = e.GetValue<Vector3>("angles") ?? Vector3.Zero;
-        if (entity.Through.Count > 0 && entity.PrefabChain.Count > 0)
+        // A node under a deformer is moved by the deformer's own TransformBy (SettleWorld.UnderDeformer).
+        if (entity.UnderDeformer && (entity.Through.Count > 0 || entity.PrefabChain.Count > 0))
+            (origin, angles) = Maps.SettleWorld.UnderDeformer(origin, angles, entity.Through, entity.PrefabChain);
+        else if (entity.Through.Count > 0 && entity.PrefabChain.Count > 0)
             (origin, angles) = Maps.SettleWorld.NestedPlacement(origin, angles, entity.Through, entity.PrefabChain);
         else if (entity.Through.Count > 0)
             (origin, angles) = Maps.SettleWorld.BakedPlacement(e, entity.Through);
@@ -832,9 +813,8 @@ public static class WorldCollision
         Maps.LatticeDeformer? deformer = null;
         if (entity.Deformer != null && keys?.Get<string>("classname") == "prop_static")
         {
-            if (entity.Through.Count > 0 || entity.PrefabChain.Count > 0)
-                throw new NotSupportedException("a deformed prop inside an instance or prefab is not ported");
-            deformer = Maps.LatticeDeformer.FromNode(entity.Deformer);
+            // Inside an instance or prefab, where the placement moves it.
+            deformer = Maps.LatticeDeformer.FromNode(entity.Deformer, entity.Through, entity.PrefabChain);
             if (!deformer.Enabled)
                 deformer = null;
         }

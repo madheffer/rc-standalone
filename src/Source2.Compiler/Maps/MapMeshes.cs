@@ -44,6 +44,12 @@ public static class MapMeshes
         /// <summary>The world matrix the faces were placed with (matrix3x4, row major).</summary>
         internal float[] World { get; init; } = [];
 
+        /// <summary>
+        /// A placed copy's vertex positions deformed at its own placement
+        /// (<see cref="MapDeformers.PlacedPositions"/>), or null.
+        /// </summary>
+        internal object?[]? DeformedPositions { get; init; }
+
         /// <summary>The instance path's matrix alone, without the node's own transform.</summary>
         internal float[] Path { get; init; } = [];
 
@@ -92,6 +98,13 @@ public static class MapMeshes
         public bool Hidden { get; init; }
 
         /// <summary>
+        /// Whether a CMapDeformer of the instance copy or prefab map the node
+        /// was reached through stands above it: the deformer's TransformBy, not
+        /// the step's, then moves it (<see cref="SettleWorld.UnderDeformer"/>).
+        /// </summary>
+        public bool UnderDeformer { get; init; }
+
+        /// <summary>
         /// The CMapDeformer node whose lattice the entity takes (181022540),
         /// when the climb from its parent reaches one; see <see cref="DeformerBelow"/>.
         /// </summary>
@@ -129,11 +142,13 @@ public static class MapMeshes
     /// <summary>
     /// As <see cref="ReadWithEntities"/>, with the <c>CMapCable</c> nodes too,
     /// each in its place in the walk (physicsbuilder takes a node's own export
-    /// before its children's, 180014aa0).
+    /// before its children's, 180014aa0). The walk is the baked document's:
+    /// a prefab's map, like an instance's copy, comes after its siblings, in
+    /// the bake's tree order (s2c_cableinst's world soup).
     /// </summary>
     public static (List<Mesh> Meshes, List<EntityNode> Entities, List<EntityNode> Cables) ReadWithCables(DmxBinary.Document doc)
     {
-        var (meshes, entities, _, cables) = ReadAll(doc, false);
+        var (meshes, entities, _, cables) = ReadAll(doc, false, prefabsLast: true);
         return (meshes, entities, cables);
     }
 
@@ -144,7 +159,7 @@ public static class MapMeshes
     /// </summary>
     public static List<Mesh> ReadOverlays(DmxBinary.Document doc) => ReadAll(doc, true).Overlays!;
 
-    private static (List<Mesh> Meshes, List<EntityNode> Entities, List<Mesh>? Overlays, List<EntityNode> Cables) ReadAll(DmxBinary.Document doc, bool withOverlays)
+    private static (List<Mesh> Meshes, List<EntityNode> Entities, List<Mesh>? Overlays, List<EntityNode> Cables) ReadAll(DmxBinary.Document doc, bool withOverlays, bool prefabsLast = false)
     {
         List<Mesh>? overlays = withOverlays ? [] : null;
         var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
@@ -159,18 +174,21 @@ public static class MapMeshes
         var sequence = 0;
         var hidden = MapEntities.HiddenNodes(doc);
         foreach (var world in doc.OfType("CMapWorld"))
-            Walk(world, world, Identity, [], [], [], [], targets, hidden, false, meshes, entities, overlays, cables, ref sequence, null);
+            Walk(world, world, Identity, [], [], [], [], targets, hidden, false, meshes, entities, overlays, cables, ref sequence, null, prefabsLast);
         return (meshes, entities, overlays, cables);
     }
 
     private static void Walk(DmxBinary.Element node, DmxBinary.Element parent, float[] path, int[] instances, DmxBinary.Element[] through,
                              int[] prefabs, DmxBinary.Element[] prefabChain, HashSet<DmxBinary.Element> targets, HashSet<int> hiddenIds, bool hidden, List<Mesh> meshes,
-                             List<EntityNode> entities, List<Mesh>? overlays, List<EntityNode> cables, ref int sequence, DmxBinary.Element? deformer = null)
+                             List<EntityNode> entities, List<Mesh>? overlays, List<EntityNode> cables, ref int sequence, DmxBinary.Element? deformer = null,
+                             bool prefabsLast = false, bool underDeformer = false)
     {
         // A collapsed instance's copy is appended to its parent's children
-        // (CMapInstance_Collapse), so instances come after their siblings.
+        // (CMapInstance_Collapse), so instances come after their siblings;
+        // with prefabsLast, prefabs too (the bake collapses both in tree order).
         var children = node.GetElements("children").ToList();
-        foreach (var child in children.Where(c => c.Type != "CMapInstance").Concat(children.Where(c => c.Type == "CMapInstance")))
+        bool Collapsed(DmxBinary.Element c) => c.Type == "CMapInstance" || (prefabsLast && c.Type == "CMapPrefab");
+        foreach (var child in children.Where(c => !Collapsed(c)).Concat(children.Where(Collapsed)))
         {
             var hides = hidden || hiddenIds.Contains(child.GetValue<int>("nodeID") ?? int.MinValue);
             switch (child.Type)
@@ -179,13 +197,17 @@ public static class MapMeshes
                     var className = parent.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname");
                     // A prefab's map is collapsed into the document as an instance
                     // is (captured), its nodes moved as the collapse moves them.
+                    // Under a deformer of the copy, the deformer's TransformBy moved it (SettleWorld.UnderDeformer).
                     var placed = through.Length == 0 && prefabs.Length == 0 ? Concat(path, Local(child))
+                               : underDeformer ? SettleWorld.UnderDeformerMatrix(child, through, prefabChain)
                                : prefabs.Length == 0 ? SettleWorld.Baked(child, through)
                                : SettleWorld.NestedPlacement(child, through, prefabChain);
+                    var deformed = through.Length == 0 && prefabs.Length == 0 ? null : MapDeformers.PlacedPositions(child, placed, through, prefabChain);
                     meshes.Add(new Mesh(child.GetValue<int>("nodeID") ?? -1, parent.Type, className,
                                         child.GetValue<Vector3>("origin") ?? Vector3.Zero, child.GetValue<Vector3>("angles") ?? Vector3.Zero,
-                                        child.GetValue<Vector3>("scales") ?? Vector3.One, Faces(child, placed))
-                               { Element = child, Instances = instances, Through = through, World = placed, Path = path, Sequence = sequence++, Hidden = hides, Prefabs = prefabs, PrefabChain = prefabChain });
+                                        child.GetValue<Vector3>("scales") ?? Vector3.One, Faces(child, placed, deformed))
+                               { Element = child, Instances = instances, Through = through, World = placed, Path = path, Sequence = sequence++, Hidden = hides, Prefabs = prefabs, PrefabChain = prefabChain,
+                                 DeformedPositions = deformed });
                     break;
                 case "CMapStaticOverlay" when overlays != null:
                 {
@@ -204,33 +226,34 @@ public static class MapMeshes
                     Walk(prefabWorld, prefabWorld, Concat(path, Local(child)), instances, through,
                          [.. prefabs, child.GetValue<int>("nodeID") ?? -1], [.. prefabChain, child],
                          new HashSet<DmxBinary.Element>(child.Get<List<DmxBinary.Element>>(MapPrefabs.TargetsKey) ?? [], ReferenceEqualityComparer.Instance),
-                         child.Get<HashSet<int>>(MapPrefabs.HiddenKey) ?? [], hidden, meshes, entities, overlays, cables, ref sequence);
+                         child.Get<HashSet<int>>(MapPrefabs.HiddenKey) ?? [], hidden, meshes, entities, overlays, cables, ref sequence, null, prefabsLast, false);
                     break;
                 case "CMapInstance":
                     if (child.Get<DmxBinary.Element>("target") is not { } target)
                         break;
                     var step = Concat(Local(child), Invert(Local(target)));
                     Walk(target, target, Concat(path, step), [.. instances, child.GetValue<int>("nodeID") ?? -1], [.. through, child], prefabs, prefabChain, targets, hiddenIds, hides,
-                         meshes, entities, overlays, cables, ref sequence, deformer);
+                         meshes, entities, overlays, cables, ref sequence, deformer, prefabsLast, false);
                     break;
                 default:
                     if (targets.Contains(child))
                         break;
                     // An entity's own shapes come before its children's.
                     if (child.Type is "CMapEntity" or "CMapSmartProp")
-                        entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through, Prefabs = prefabs, PrefabChain = prefabChain, Hidden = hides, Deformer = deformer });
+                        entities.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through, Prefabs = prefabs, PrefabChain = prefabChain, Hidden = hides, Deformer = deformer, UnderDeformer = underDeformer });
                     else if (child.Type is "CMapCable")
-                        cables.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through, Prefabs = prefabs, PrefabChain = prefabChain, Hidden = hides, Deformer = deformer });
-                    Walk(child, child, path, instances, through, prefabs, prefabChain, targets, hiddenIds, hides, meshes, entities, overlays, cables, ref sequence, DeformerBelow(child, deformer));
+                        cables.Add(new EntityNode(sequence++, child, instances) { Path = path, Through = through, Prefabs = prefabs, PrefabChain = prefabChain, Hidden = hides, Deformer = deformer, UnderDeformer = underDeformer });
+                    Walk(child, child, path, instances, through, prefabs, prefabChain, targets, hiddenIds, hides, meshes, entities, overlays, cables, ref sequence, DeformerBelow(child, deformer), prefabsLast,
+                         underDeformer || child.Type.StartsWith("CMapDeformer", StringComparison.Ordinal));
                     break;
             }
         }
     }
 
-    private static Face[] Faces(DmxBinary.Element mesh, float[] world)
+    private static Face[] Faces(DmxBinary.Element mesh, float[] world, object?[]? deformed = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
-        var positions = Stream(data, "vertexData", "position");
+        var positions = deformed ?? Stream(data, "vertexData", "position");
         var materials = Ints(data, "faceData", "materialindex");
         var names = (data.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").ToArray();
         var next = IntArray(data, "edgeNextIndices");

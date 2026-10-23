@@ -475,6 +475,51 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             }
             return;
         }
+        // WPBUILD_TRI=<soup>,<first>,<count>: those triangles' corners on each side.
+        if (Environment.GetEnvironmentVariable("WPBUILD_TRI") is { Length: > 0 } triSpec)
+        {
+            var at = triSpec.Split(',').Select(x => int.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            foreach (var (label, bytes) in new[] { ("valve", valve), ("ours", mine) })
+            {
+                var mesh = Trees(bytes)["PHYS"]["m_parts"]![0]!["m_rnShape"]!["m_meshes"]![at[0]]!["m_Mesh"]!;
+                var v = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector3>(mesh["m_Vertices"]!.AsBlob()).ToArray();
+                var t = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(mesh["m_Triangles"]!.AsBlob()).ToArray();
+                for (var i = at[1]; i < at[1] + at[2]; i++)
+                    output.WriteLine($"tri {label} {i}: {t[i * 3]} {t[(i * 3) + 1]} {t[(i * 3) + 2]} = {v[t[i * 3]]:R} {v[t[(i * 3) + 1]]:R} {v[t[(i * 3) + 2]]:R}");
+            }
+            return;
+        }
+        // WPBUILD_PARTS=<soup>: the soup's connected pieces on each side, by
+        // bounds and triangle count, in the order their first triangle comes.
+        if (Environment.GetEnvironmentVariable("WPBUILD_PARTS") is { Length: > 0 } partsText)
+        {
+            var soup = int.Parse(partsText, System.Globalization.CultureInfo.InvariantCulture);
+            foreach (var (label, bytes) in new[] { ("valve", valve), ("ours", mine) })
+            {
+                var mesh = Trees(bytes)["PHYS"]["m_parts"]![0]!["m_rnShape"]!["m_meshes"]![soup]!["m_Mesh"]!;
+                var v = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector3>(mesh["m_Vertices"]!.AsBlob()).ToArray();
+                var t = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(mesh["m_Triangles"]!.AsBlob()).ToArray();
+                var parent = Enumerable.Range(0, v.Length).ToArray();
+                int Find(int x) => parent[x] == x ? x : parent[x] = Find(parent[x]);
+                for (var i = 0; i < t.Length; i += 3)
+                {
+                    parent[Find(t[i + 1])] = Find(t[i]);
+                    parent[Find(t[i + 2])] = Find(t[i]);
+                }
+                var parts = new Dictionary<int, (Vector3 Min, Vector3 Max, int Count, int First, int Low, int High)>();
+                for (var i = 0; i < t.Length; i += 3)
+                {
+                    var root = Find(t[i]);
+                    var (min, max, count, first, low, high) = parts.TryGetValue(root, out var x) ? x : (new Vector3(float.MaxValue), new Vector3(float.MinValue), 0, i / 3, int.MaxValue, -1);
+                    foreach (var c in t.AsSpan(i, 3))
+                        (min, max, low, high) = (Vector3.Min(min, v[c]), Vector3.Max(max, v[c]), Math.Min(low, c), Math.Max(high, c));
+                    parts[root] = (min, max, count + 1, first, low, high);
+                }
+                foreach (var part in parts.Values.OrderBy(x => x.First))
+                    output.WriteLine($"parts {label}: {part.Count} tris from {part.First}, vertices {part.Low}..{part.High}, {part.Min:R} .. {part.Max:R}");
+            }
+            return;
+        }
         // WPBUILD_TRICMP=<soup>: triangles (as sorted corner triples) only one
         // side has, with the piece (node/material) owning their corners on ours.
         if (Environment.GetEnvironmentVariable("WPBUILD_TRICMP") is { Length: > 0 } triText)
@@ -529,7 +574,7 @@ public class WorldPhysicsAuthorTests(ITestOutputHelper output)
             foreach (var d in diffs.Take(show))
                 output.WriteLine($"  {name}{d}");
         }
-        foreach (var note in notes.Take(10))
+        foreach (var note in notes.Take(int.TryParse(Environment.GetEnvironmentVariable("WPBUILD_NOTES"), out var noteCount) ? noteCount : 10))
             output.WriteLine($"note: {note}");
         if (Environment.GetEnvironmentVariable("WPBUILD_SURFACES") == "1")
         {

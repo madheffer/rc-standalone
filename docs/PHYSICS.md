@@ -39,15 +39,27 @@ In game, ze_hold_em_p and atixref with our physics load and collide as
 Valve's do.
 
 Open:
-- **Props:** bone overrides (PosableSkeleton), the lattice deformer, and
-  instances inside prefabs.
+- **Deformed props in the settle world:** Valve's settle tessellates and
+  deforms a deformed prop's shapes; ours builds them undeformed (ledger
+  129). World physics and entity models of deformed props, meshes and
+  cables placed through instances and prefabs are ported (s2c_deformplace
+  whole-file exact). Prop bone overrides need nothing: a compile poses only
+  ragdolls (Resolved, "Prop bone overrides").
+- **A lattice inside an instance:** its clone makes control point locators
+  again (18116f970); no probe yet.
+- **Instances inside a prefab's map:** their copies' brush entity models are
+  listed, not built.
 - **The bake wrapper's steps:** MergeVertices and AssignSmoothingModeToEdges;
   no map needs them yet.
-- **Cables inside instances or prefabs:** placement not ported (listed).
 - **ze_hold_em_p's six doors:** a toolsclip mesh ships no hull, because the
   .vmap is older than the compile.
 - **Render meshes** of entity models, and the cable models' render half (so
   the compile writes no cable model yet; their physics is ported).
+- **Unreachable from a map compile:** RnHullCreate's simplify algorithms 1
+  and 2, its minimum radius check and RnMeshCreate's simplifier take option
+  values only a model compile sets (the map passes the MapBuilder, Compile
+  and mesh hull blocks). The agglomerator's split into separate clusters has
+  no specimen.
 - **Ledger items** in GROUND_TRUTH.md.
 
 ## The container
@@ -230,8 +242,29 @@ Where it goes:
   collision cable, dynamic or static, as one triangle mesh at its node
   matrix, the record from its material with its surface_properties key.
 
-Not ported: the water_tube shader's branches (CS2 ships no such shader),
-cables inside instances or prefabs, and the cable model's render half.
+Inside instances and prefabs (s2c_cableinst, s2c_cableinst2; ledger 128):
+- **Placement:** every path node is a node of its own, so the collapse
+  (an instance's, or a prefab's group setter, 181019d00 -> 180fc1bf0)
+  moves each stored node origin by the step matrix, and a path node's
+  TransformBy (18110eae0) turns its stored tangents by the step's rotation;
+  the path's origin follows its moved first node and its angles turn with
+  the step (`SettleWorld.PlacedPath`). Under a deformer the deformer's own
+  move places them instead (ledger 129). Moving the finished tube by one
+  matrix is off by ulps.
+- **Settings:** an instance's copy is a new node from the factory given
+  CMapCable::CopyFrom (rc 18114b270), which clamps numSides to 3..1000 and
+  the spacing and radius to 0.01f..1e5f but does not copy
+  physicsSimplificationError: the copy simplifies with the factory's 2
+  (`CableCollision.Copied`). A prefab's nodes are not cloned and keep theirs
+  (captured: every vf277 call of the prefab copy sees the source's error).
+- **Order:** the bake collapses instances and prefabs alike in tree order,
+  each copy appended after its siblings, so in the world soup a prefab's
+  map comes after its siblings too (`MapMeshes.ReadWithCables`).
+
+A cable under a deformer: the world export is not deformed; the pre-settle
+world runs the tube through the deformer with the cable's node matrix
+(`CableCollision.Deformed`). Not ported: the water_tube shader's branches
+(CS2 ships no such shader) and the cable model's render half.
 
 ### Mesh simplification (`Physics/MeshSimplifier.cs`)
 

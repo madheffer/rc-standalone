@@ -65,8 +65,10 @@ internal static class MapMeshCorners
     /// auto_apply_material to all faces, so the mesh is one piece.</remarks>
     /// <param name="vertexLighting">The mesh instance's vertexLightingData (<see cref="NodeMeshEntries.VertexLighting"/>):
     /// one RGBA8 per face vertex, replacing the PerVertexLighting stream as byte / 255 when the counts agree.</param>
+    /// <param name="positions">The vertex positions to use in place of the mesh's own (a placed copy's
+    /// deformation, <see cref="MapDeformers.PlacedPositions"/>).</param>
     public static List<Piece> Build(DmxBinary.Element mesh, bool shiftTexcoords, Func<Vector3, Vector3>? cutSpace, bool withTangent, bool allStreams, int? wholeMeshMaterial = null,
-                                    object?[]? vertexLighting = null)
+                                    object?[]? vertexLighting = null, object?[]? positions = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
         var scales = mesh.GetValue<Vector3>("scales") ?? Vector3.One;
@@ -76,7 +78,7 @@ internal static class MapMeshCorners
         var vertexData = Ints(data, "vertexDataIndices");
         var cornerData = Ints(data, "edgeVertexDataIndices");
         var faceData = Ints(data, "faceDataIndices");
-        var positions = StreamData(data, "vertexData", "position");
+        positions ??= StreamData(data, "vertexData", "position");
         var materials = (StreamData(data, "faceData", "materialindex") ?? []).Select(x => x is int i ? i : 0).ToArray();
         if (wholeMeshMaterial is int whole)
             materials = [.. materials.Select(_ => whole)];

@@ -351,8 +351,8 @@ public static class EntityLumpSet
         var (copies, templates) = document is null
             ? ((IReadOnlyList<MapInstances.Copy>)[], (IReadOnlySet<int>)new HashSet<int>())
             : MapInstances.Expand(document, entities,
-                smartPropLocators is null ? 0 : SmartProps.NodesCreatedOnLoad(document, smartPropLocators), prefabs: true,
-                createdOnLoadIn: smartPropLocators is null ? null : d => SmartProps.NodesCreatedOnLoad(d, smartPropLocators));
+                SmartProps.NodesCreatedOnLoad(document, smartPropLocators ?? (_ => 0)), prefabs: true,
+                createdOnLoadIn: d => SmartProps.NodesCreatedOnLoad(d, smartPropLocators ?? (_ => 0)));
 
         var sourceIds = MapEntities.SourceIds(entities, out var forward);
         var pending = new Dictionary<int, List<EntityLumpAuthor.Emission>>();

@@ -12,17 +12,25 @@ namespace Source2.Compiler.Maps;
 /// before the move to the world. Every later step, render and physics, reads
 /// the deformed mesh; so does the port, the positions being replaced in the
 /// document once when it is loaded (<see cref="Apply"/>).
-/// <para>Not ported, and thrown: a subdivided mesh (the bake runs before the
-/// deformer), a scaled mesh, a mesh reached through an instance or prefab.
-/// The normals and tangents the deformer also turns are left as they are
-/// (only positions reach collision).</para>
+/// <para>A copy an instance or prefab places is deformed at its own
+/// placement (<see cref="PlacedPositions"/>). Not ported, and thrown: a
+/// subdivided mesh (the bake runs before the deformer), a scaled mesh.</para>
 /// </summary>
 public static class MapDeformers
 {
     private const string AppliedKey = "\u0001s2c.deformed";
 
-    /// <summary>Deforms, in place, every mesh of the document that a deformer reaches.</summary>
+    /// <summary>
+    /// Deforms, in place, every mesh of the document, and of each prefab map
+    /// loaded under it (<see cref="MapPrefabs"/>), that a deformer reaches.
+    /// </summary>
     public static void Apply(DmxBinary.Document document)
+    {
+        foreach (var d in SettleWorld.AllDocuments(document))
+            ApplyOne(d);
+    }
+
+    private static void ApplyOne(DmxBinary.Document document)
     {
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var e in document.Elements)
@@ -69,16 +77,36 @@ public static class MapDeformers
             }
             stream.Attributes["data"] = positions.Select(p => (object?)evaluator.Deform((Vector3)p!)).ToArray();
             mesh.Attributes[AppliedKey] = true;
+            mesh.Attributes[OriginalKey] = positions;
+            mesh.Attributes[MeshDeformerKey] = node;
         }
         // PhysMesh_Shapes (181057020) runs a path's collision soup through its
-        // deformer too (PropDeformer_ApplyArrays), which is not ported: such a
-        // cable is marked for the settle to refuse (SettleWorld.FromCable).
+        // deformer too (PropDeformer_ApplyArrays): the cable keeps the node
+        // for Physics.CableCollision.Deformed.
         foreach (var cable in document.Elements.Where(e => e.Type == "CMapCable"))
             if (Lookup(cable, parents) is { } node && LatticeDeformer.FromNode(node).Enabled)
-                cable.Attributes[CableKey] = true;
+                cable.Attributes[CableKey] = node;
     }
 
-    /// <summary>Set on a cable a deformer reaches (<see cref="Apply"/>).</summary>
+    private const string OriginalKey = "s2c.undeformed";
+    private const string MeshDeformerKey = "s2c.meshdeformer";
+
+    /// <summary>
+    /// A deformed mesh's positions for a copy an instance or prefab placed:
+    /// the source positions through the deformer moved as the copy is
+    /// (<see cref="SettleWorld.PlacedDeformer"/>), with the copy's node matrix
+    /// (<paramref name="placed"/>), as HammerMesh_ApplyDeformer (1810c4000)
+    /// runs on the collapsed copy. Null for a mesh no deformer reaches.
+    /// </summary>
+    internal static object?[]? PlacedPositions(DmxBinary.Element mesh, float[] placed, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        if (mesh.Get<object?[]>(OriginalKey) is not { } original || mesh.Get<DmxBinary.Element>(MeshDeformerKey) is not { } node)
+            return null;
+        var evaluator = LatticeDeformer.FromNode(node, through, prefabs).For(placed);
+        return [.. original.Select(p => (object?)evaluator.Deform((Vector3)p!))];
+    }
+
+    /// <summary>The deformer node that reaches a cable (<see cref="Apply"/>).</summary>
     internal const string CableKey = "\u0001s2c.cabledeformed";
 
     // Each corner's position index: half-edge e's corner (edgeVertexDataIndices)

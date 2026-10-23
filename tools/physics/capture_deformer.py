@@ -1,7 +1,7 @@
 """capture_deformer.py <addon> <map> [--out file]: every prop deformation of a compile.
 
 Hooks PropDeformer_Transform (resourcecompiler 181288080 in the 09-23
-analysis build, 1812883f0 in the installed 10-01 build) during a -world
+analysis build, mapped to the installed build by rva_map) during a -world
 -phys -fshallow compile. Each call writes a record: the deformer struct's
 first 0x80 bytes, its control points (+0x48, (segments + 1) * (divisionsY +
 1) * (divisionsZ + 1) float3s) and tangents (+0x60, twice as many, when the
@@ -20,9 +20,13 @@ import os
 import shutil
 import struct
 import subprocess
+import sys
 import threading
 
 import frida
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed  # noqa: E402
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
@@ -31,7 +35,7 @@ AGENT = r"""
 function hook() {
   const mod = Process.findModuleByName('resourcecompiler.dll');
   if (mod === null) { setTimeout(hook, 5); return; }
-  Interceptor.attach(mod.base.add(0x12883f0), {
+  Interceptor.attach(mod.base.add(TRANSFORM_RVA), {
     onEnter(args) {
       const d = args[0];
       this.stride = args[2].toInt32();
@@ -131,7 +135,7 @@ def main():
     pid = dev.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
                      "-i", source, "-world", "-phys", "-fshallow"], cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT)
+    sc = ses.create_script(AGENT.replace("TRANSFORM_RVA", hex(installed("resourcecompiler", 0x1288080, build="20260923"))))
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

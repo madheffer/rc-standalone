@@ -230,6 +230,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
                 else
                 {
                     Count($"geometry differs: {geometry.Split(':')[0]}");
+                    if (Environment.GetEnvironmentVariable("SETTLE_LIST") == "1")
+                        output.WriteLine($"  geometry: node {body.NodeId} ({body.IdPath} {body.Node?.Type}) shape {i}: {geometry}");
                     Example($"geometry {geometry.Split(':')[0]}", $"node {body.NodeId} ({body.IdPath} {body.Node?.Type} {body.Node?.Get<DmxBinary.Element>("entity_properties")?.Get<string>("model")}) shape {i}: {geometry}");
                 }
                 var scale = ours.Type == 2 ? BitConverter.GetBytes(ours.HullScale) : Bytes(ours.MeshScale);
@@ -373,7 +375,7 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
     {
         var header = raw["mesh"];
         if (!Bytes(m.Min).AsSpan().SequenceEqual(header.AsSpan(0, 12)) || !Bytes(m.Max).AsSpan().SequenceEqual(header.AsSpan(12, 12)))
-            return "bounds";
+            return $"bounds: ours {m.Min:R} {m.Max:R} valve {MemoryMarshal.Read<Vector3>(header)} {MemoryMarshal.Read<Vector3>(header.AsSpan(12))}, vertices {m.Vertices.Length} valve {raw["mverts"].Length / 12}";
         var arrays = new (string Name, byte[] Ours)[]
         {
             ("nodes", m.Nodes.SelectMany(n => (byte[])[.. Bytes(n.Min), .. BitConverter.GetBytes(n.Children), .. Bytes(n.Max), .. BitConverter.GetBytes(n.TriangleOffset)]).ToArray()),

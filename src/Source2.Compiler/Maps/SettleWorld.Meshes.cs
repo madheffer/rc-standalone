@@ -94,22 +94,26 @@ public static partial class SettleWorld
     /// at the cable's node matrix, as a mesh's does, and takes the soup as a
     /// triangle mesh.
     /// </summary>
-    private static void FromCable(DmxBinary.Element node, Context context)
+    /// <param name="through">The instances a placed copy was reached through:
+    /// it stands at its first node moved as the collapse moves it, and has the
+    /// settings CMapCable::CopyFrom gives it (<see cref="Physics.CableCollision.Copied"/>).</param>
+    /// <param name="prefabs">The prefabs a placed copy hangs under.</param>
+    private static void FromCable(DmxBinary.Element node, Context context, int? id = null, IReadOnlyList<DmxBinary.Element>? through = null,
+                                  IReadOnlyList<DmxBinary.Element>? prefabs = null, bool underDeformer = false)
     {
         if (!Physics.CableCollision.Collides(node) || MapEntities.ReadNode(node) is not { } cable)
             return;
+        through ??= [];
+        cable = PlacedPath(cable, through, prefabs ?? [], underDeformer);
         var world = NodeWorld(Physics.CableCollision.NodeMatrix(cable));
         var longest = Enumerable.Range(0, 3)
             .Select(c => MathF.Sqrt(((world[c] * world[c]) + (world[4 + c] * world[4 + c])) + (world[8 + c] * world[8 + c])))
             .Aggregate(0f, (a, b) => a <= b ? b : a);
-        var body = new BodyBuild(cable.NodeId, new Vector3(world[3], world[7], world[11]), longest, Orientation(Unscaled(world)), []) { Node = node };
-        if (node.Attributes.ContainsKey(MapDeformers.CableKey))
-        {
-            context.Bodies.Add(body with { Unsupported = "a cable under a deformer" });
-            return;
-        }
+        var body = new BodyBuild(id ?? cable.NodeId, new Vector3(world[3], world[7], world[11]), longest, Orientation(Unscaled(world)), []) { Node = node };
         var (controls, scales) = EntityLumpAuthor.PathControls(cable, context.Schema);
-        var (points, indices) = Physics.CableCollision.Build(controls, scales, Physics.CableCollision.SettingsOf(node));
+        var (points, indices) = Physics.CableCollision.Deformed(
+            Physics.CableCollision.Build(controls, scales, through.Count > 0 ? Physics.CableCollision.Copied(Physics.CableCollision.SettingsOf(node)) : Physics.CableCollision.SettingsOf(node)),
+            node, Physics.CableCollision.NodeMatrix(cable), through, prefabs ?? []);
         var surface = cable.Keys.FirstOrDefault(k => Io.Tier0Strings.EqualsIgnoreCase(k.Key, "surface_properties")).Value;
         var record = MaterialRecord(node.Get<string>("materialName") ?? "", node, node, context, surface);
         if (!record.Dropped && points.Length > 0 && indices.Length > 2

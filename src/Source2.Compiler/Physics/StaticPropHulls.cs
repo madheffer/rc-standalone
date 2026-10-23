@@ -75,8 +75,9 @@ public static class StaticPropHulls
     /// The hull nodes physicsbuilder makes for a prop, body by body and hull by
     /// hull. A hull its quickhull check rejects (18015fb60: invalid, or more
     /// than 256 faces, half-edges or vertices) makes none. Bone overrides by
-    /// body name (the instance's table at +0x268) and the lattice branch (a
-    /// hull turned into a mesh node) are not ported.
+    /// body name (the instance's table at +0x268) never reach a compiled
+    /// prop_static (GROUND_TRUTH, Resolved); under a deformer the hulls are
+    /// meshes instead (<see cref="DeformedHulls"/>).
     /// </summary>
     public static List<HullNode> Nodes(Prop prop, PhysAggregateData phys) => Nodes(prop, phys, out _);
 
@@ -128,8 +129,8 @@ public static class StaticPropHulls
     /// The sphere nodes physicsbuilder makes for a prop (180153740) and its
     /// capsule nodes (180152230), body by body: each centre moved by the prop
     /// matrix times the bind pose (1800b9810), the radius times the largest of
-    /// that matrix's column lengths (1800b6b50). The lattice branch (the shape
-    /// turned into a mesh node) is not ported.
+    /// that matrix's column lengths (1800b6b50). Under a deformer they are
+    /// meshes instead (<see cref="DeformedRounds"/>).
     /// </summary>
     public static (List<RoundNode> Spheres, List<RoundNode> Capsules) Rounds(Prop prop, PhysAggregateData phys)
     {
@@ -187,7 +188,7 @@ public static class StaticPropHulls
     /// first, then, for its triangles in order, each vertex they use appended
     /// again on first use, the indices pointing at the appended copies. Every
     /// point is moved by the prop matrix times the bind pose (1800b9810),
-    /// scaled or not; the lattice branch is not ported.
+    /// scaled or not, and under a deformer deformed (<see cref="Deformed"/>).
     /// </summary>
     public static List<MeshNode> Meshes(Prop prop, PhysAggregateData phys)
     {

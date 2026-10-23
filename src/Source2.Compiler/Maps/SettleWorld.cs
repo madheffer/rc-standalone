@@ -189,12 +189,12 @@ public static partial class SettleWorld
         var placements = new List<(DmxBinary.Element Node, int Id, IReadOnlyList<DmxBinary.Element> Through, DmxBinary.Element[] Prefabs)>();
         MapInstances.Expand(document, MapEntities.From(document), createdOnLoad, (node, id, through, prefabs) => placements.Add((node, id, through, prefabs)),
                             prefabs: true, createdOnLoadIn: createdOnLoadIn, prefabBlock: (prefab, start) => blocks[prefab] = start);
-        foreach (var world in document.OfType("CMapWorld"))
-            Prefabs(world, [], [], hidden, context, blocks);
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var e in AllDocuments(document).SelectMany(d => d.Elements))
             foreach (var child in e.GetElements("children"))
                 parents.TryAdd(child, e);
+        foreach (var world in document.OfType("CMapWorld"))
+            Prefabs(world, [], [], hidden, context, blocks);
         // A placed node stands where the bake moved its copy (see Baked), one
         // in a prefab's map where the prefabs then move it (NestedPlacement).
         // The ids are the lump's: each prefab takes its block first.
@@ -202,11 +202,12 @@ public static partial class SettleWorld
         {
             if (targets.Contains(node))
                 continue;
-            var world = NodeWorld(prefabs.Length == 0 ? Baked(node, through) : NestedPlacement(node, through, prefabs));
+            var under = IsUnderDeformer(node, parents, targets);
+            var world = NodeWorld(under ? UnderDeformerMatrix(node, through, prefabs) : prefabs.Length == 0 ? Baked(node, through) : NestedPlacement(node, through, prefabs));
             if (ModelOf(node, models) is { } phys)
                 FromModel(node, world, id, phys, context);
-            else if (node.Type == "CMapCable" && Physics.CableCollision.Collides(node))
-                context.Bodies.Add(new BodyBuild(id, default, 1f, Quaternion.Identity, []) { Node = node, Unsupported = "a cable inside an instance or prefab" });
+            else if (node.Type == "CMapCable")
+                FromCable(node, context, id, through, prefabs, under);
             else if (node.Type == "CMapMesh")
             {
                 var owner = parents.GetValueOrDefault(node);
@@ -260,7 +261,7 @@ public static partial class SettleWorld
                 if (!blocks.TryGetValue(child, out var start))
                     throw new NotSupportedException($"prefab {child.GetValue<int>("nodeID")}: no block in the expansion (a prefab inside a prefab?)");
                 var slots = MapInstances.PrefabSlots(world, out _);
-                PrefabWalk(world, null, inner, innerIds, targets, innerHidden, context, start, slots);
+                PrefabWalk(world, null, inner, innerIds, targets, innerHidden, context, start, slots, false);
                 Prefabs(world, inner, innerIds, innerHidden, context, blocks);
             }
             else if (child.Type != "CMapInstance")
@@ -273,7 +274,7 @@ public static partial class SettleWorld
     // slot) and its id path. What its instances place is MapInstances.Expand's.
     private static void PrefabWalk(DmxBinary.Element node, DmxBinary.Element? owner, DmxBinary.Element[] chain, int[] ids,
                                    HashSet<DmxBinary.Element> targets, HashSet<int> hidden, Context context,
-                                   int start, Dictionary<DmxBinary.Element, int> slots)
+                                   int start, Dictionary<DmxBinary.Element, int> slots, bool underDeformer)
     {
         foreach (var child in node.GetElements("children"))
         {
@@ -281,7 +282,9 @@ public static partial class SettleWorld
                 continue;
             var origin = child.GetValue<Vector3>("origin") ?? Vector3.Zero;
             var angles = child.GetValue<Vector3>("angles") ?? Vector3.Zero;
-            var (at, turn) = PrefabPlacement(origin, angles, chain);
+            // A deformer of the prefab's map moves itself and what is below it (UnderDeformer).
+            var under = underDeformer || child.Type.StartsWith("CMapDeformer", StringComparison.Ordinal);
+            var (at, turn) = under ? UnderDeformer(origin, angles, [], chain) : PrefabPlacement(origin, angles, chain);
             var placed = MapMeshes.AngleMatrix(turn);
             (placed[3], placed[7], placed[11]) = (at.X, at.Y, at.Z);
             var before = context.Bodies.Count;
@@ -290,11 +293,13 @@ public static partial class SettleWorld
                 FromModel(child, NodeWorld(placed), id, phys, context);
             else if (child.Type == "CMapMesh")
                 FromMesh(child, NodeWorld(placed), id, owner, context);
+            else if (child.Type == "CMapCable")
+                FromCable(child, context, id, prefabs: chain, underDeformer: under);
             var path = string.Join(":", ids.Append(child.GetValue<int>("nodeID") ?? -1));
             for (var b = before; b < context.Bodies.Count; b++)
                 context.Bodies[b] = context.Bodies[b] with { IdPath = path };
             if (child.Type is not "CMapInstance" and not "CMapPrefab" && !targets.Contains(child))
-                PrefabWalk(child, child.Type == "CMapEntity" ? child : owner, chain, ids, targets, hidden, context, start, slots);
+                PrefabWalk(child, child.Type == "CMapEntity" ? child : owner, chain, ids, targets, hidden, context, start, slots, under);
         }
     }
 
@@ -382,6 +387,20 @@ public static partial class SettleWorld
     /// outside it) collapses.
     /// </summary>
     internal static (Vector3 Origin, Vector3 Angles) NestedPlacement(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+        => Step(through, prefabs) is { } delta ? Moved(delta, origin, angles) : (origin, angles);
+
+    /// <summary>
+    /// The step matrix the last move hands a node reached through
+    /// <paramref name="prefabs"/> then <paramref name="through"/>, or null when
+    /// nothing moves. Each move is 180f834d0 (MapInstance_BakedMatrix): the new
+    /// placement's AngleMatrixDouble against the inverse of the old one's,
+    /// nothing when the two agree. An instance collapses from its target
+    /// group's placement; a prefab (181019d00, through the group setter
+    /// 180fc1bf0) sets its content group from the origin to its own, so its
+    /// step has no inverse to apply. Each outer step first moves the inner
+    /// prefab or instance node itself.
+    /// </summary>
+    internal static float[]? Step(IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
     {
         float[]? delta = null;
         foreach (var prefab in prefabs)
@@ -404,9 +423,7 @@ public static partial class SettleWorld
             delta = at == from && turn == fromAngles ? null
                   : MapMeshes.Concat(AngleMatrixDouble(turn, at), MapMeshes.Invert(AngleMatrixDouble(fromAngles, from)));
         }
-        if (delta != null)
-            (origin, angles) = Moved(delta, origin, angles);
-        return (origin, angles);
+        return delta;
     }
 
     /// <summary>The origin and angles a node's copy carries once the bake has moved it (<see cref="Baked"/>).</summary>
@@ -432,6 +449,117 @@ public static partial class SettleWorld
         if (delta != null)
             (origin, angles) = Moved(delta, origin, angles);
         return (origin, angles);
+    }
+
+    /// <summary>
+    /// <see cref="NestedPlacement(Vector3, Vector3, IReadOnlyList{DmxBinary.Element}, IReadOnlyList{DmxBinary.Element})"/>
+    /// for a deformer or a node under one, in an instance copy or a prefab's
+    /// map alike (both move their nodes by TransformBy with the
+    /// <see cref="Step"/> matrix). CMapDeformer's TransformBy (vf 0xc8, rc
+    /// 181076410) takes the step as a CTransform (its translation,
+    /// MatrixQuaternion 18125de90, scale 1) and moves itself and every node
+    /// below it (181076680, 181076850) by 181076a70: the node's CTransform
+    /// (origin, AngleQuaternion of its angles) composed after the step
+    /// (CTransform_Compose 181253510), the origin stored (180fded80, the store
+    /// capture_originwrites.py finds for s2c_deformplace's prefab props) and
+    /// the angles QuaternionAngles (181260200) through the angle setter
+    /// (180fdeda0). Its scale branches apply only to a scaled node or step.
+    /// </summary>
+    internal static (Vector3 Origin, Vector3 Angles) UnderDeformer(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through,
+                                                                   IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        if (Step(through, prefabs) is not { } delta)
+            return (origin, angles);
+        var step = new CTransform(new Vector3(delta[3], delta[7], delta[11]), 1f, SmartPropEvaluator.MatrixQuaternion(delta));
+        var moved = CTransform.Compose(step, new CTransform(origin, 1f, CTransform.AngleQuaternion(angles)));
+        var q = moved.Rotation;
+        var a = Simulation.SettleWriteBack.CleanAngles(Simulation.SettleWriteBack.Angles(new Simulation.Quat(q.X, q.Y, q.Z, q.W)));
+        return (moved.Position, new Vector3(a.X, a.Y, a.Z));
+    }
+
+    /// <summary>
+    /// A node's origin and angles where the collapse leaves it: through its
+    /// instances (<see cref="BakedPlacement(Vector3, Vector3, IReadOnlyList{DmxBinary.Element})"/>),
+    /// its prefabs (<see cref="PrefabPlacement"/>), or both (<see cref="NestedPlacement(Vector3, Vector3, IReadOnlyList{DmxBinary.Element}, IReadOnlyList{DmxBinary.Element})"/>).
+    /// </summary>
+    internal static (Vector3 Origin, Vector3 Angles) Placed(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+        => through.Count > 0 && prefabs.Count > 0 ? NestedPlacement(origin, angles, through, prefabs)
+         : through.Count > 0 ? BakedPlacement(origin, angles, through)
+         : prefabs.Count > 0 ? PrefabPlacement(origin, angles, prefabs) : (origin, angles);
+
+    /// <summary>
+    /// Whether a CMapDeformer stands at or above <paramref name="node"/> inside
+    /// the instance target group or prefab map it was copied from, so that the
+    /// deformer's TransformBy moves it (<see cref="UnderDeformer"/>).
+    /// </summary>
+    internal static bool IsUnderDeformer(DmxBinary.Element node, IReadOnlyDictionary<DmxBinary.Element, DmxBinary.Element> parents,
+                                         IReadOnlySet<DmxBinary.Element> targets)
+    {
+        for (var e = node; e != null && e.Type != "CMapWorld" && !targets.Contains(e); e = parents.GetValueOrDefault(e))
+            if (e.Type.StartsWith("CMapDeformer", StringComparison.Ordinal))
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    /// A node's matrix (AngleMatrix of its angles with its origin, 181255fb0)
+    /// at its <see cref="UnderDeformer"/> placement.
+    /// </summary>
+    internal static float[] UnderDeformerMatrix(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        var (origin, angles) = UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
+        var m = MapMeshes.AngleMatrix(angles);
+        (m[3], m[7], m[11]) = (origin.X, origin.Y, origin.Z);
+        return m;
+    }
+
+    /// <summary>
+    /// The transform a deformer reaching a placed prop or cable is evaluated
+    /// with: the struct (+0x4c0) the deformer node keeps, at the node's
+    /// placement (<see cref="UnderDeformer"/>), as PropDeformer_Transform is
+    /// handed it on s2c_deformplace.
+    /// </summary>
+    internal static CTransform PlacedDeformer(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        var (origin, angles) = UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
+        return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
+    }
+
+    /// <summary>
+    /// A path (a cable) where the collapse leaves it: each path node is a node
+    /// of its own, moved as any node is, so its stored origin goes through the
+    /// step on its own; the path's origin follows its first node
+    /// (CMapPath::vf274) and its angles turn by the step. Through
+    /// <paramref name="through"/>, then the prefab chain. CMapPathNode's
+    /// TransformBy (18110eae0) also turns its two stored tangents by the step's
+    /// rotation (flags 0x41: x' = (x m0 + y m1) + z m2, row by row). Under a
+    /// deformer the deformer's move (<see cref="UnderDeformer"/>) places the
+    /// nodes instead, and that sets origin and angles alone.
+    /// </summary>
+    internal static MapEntities.Entity PlacedPath(MapEntities.Entity path, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs,
+                                                  bool underDeformer = false)
+    {
+        if (through.Count == 0 && prefabs.Count == 0)
+            return path;
+        if (underDeformer)
+        {
+            var (o, a) = UnderDeformer(path.Origin, path.Angles, through, prefabs);
+            var moved = path.PathNodes?.Select(n => n with { Origin = UnderDeformer(n.Origin, Vector3.Zero, through, prefabs).Origin }).ToList();
+            return path with { Origin = moved is [var head, ..] ? head.Origin : o, Angles = a, PathNodes = moved };
+        }
+        if (Step(through, prefabs) is not { } m)
+            return path;
+        static Vector3 Turn(float[] m, Vector3 t) => new(((t.X * m[0]) + (t.Y * m[1])) + (t.Z * m[2]),
+                                                         ((t.X * m[4]) + (t.Y * m[5])) + (t.Z * m[6]),
+                                                         ((t.X * m[8]) + (t.Y * m[9])) + (t.Z * m[10]));
+        var (origin, angles) = Moved(m, path.Origin, path.Angles);
+        var nodes = path.PathNodes?.Select(n => n with
+        {
+            Origin = Moved(m, n.Origin, Vector3.Zero).Origin,
+            InTangent = Turn(m, n.InTangent),
+            OutTangent = Turn(m, n.OutTangent),
+        }).ToList();
+        return path with { Origin = nodes is [var first, ..] ? first.Origin : origin, Angles = angles, PathNodes = nodes };
     }
 
     /// <summary>

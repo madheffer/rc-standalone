@@ -91,8 +91,13 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
             pointsExact += same;
             if (same == c.In.Length)
                 exact++;
+            else if (Environment.GetEnvironmentVariable("DEFORMCAP_LIST") == "1")
+                output.WriteLine($"inexact: {c.In.Length - same}/{c.In.Length} points, mode {c.Deformer.Mode}, at {c.Deformer.Transform.Position:R} {c.Deformer.Transform.Rotation:R}, matrix {string.Join(" ", c.Matrix.Select(x => x.ToString("R", null)))}");
         }
         output.WriteLine($"{calls.Count} calls, {exact} exact; {pointsExact}/{points} points");
+        if (Environment.GetEnvironmentVariable("DEFORMCAP_MATRICES") == "1")
+            foreach (var g in calls.GroupBy(c => $"{c.Deformer.Transform.Position:R} | {string.Join(" ", c.Matrix.Select(x => x.ToString("R", null)))}"))
+                output.WriteLine($"matrices: {g.Count()} calls, {g.Sum(c => c.In.Length)} points, normals {g.Sum(c => c.NormalsIn.Length)}: {g.Key}; first in {g.First().In[0]:R}");
         // Normals and tangents, where the call carried them.
         int normals = 0, normalsExact = 0, tangents = 0, tangentsExact = 0;
         static bool Same(Vector3 a, Vector3 b)
@@ -164,5 +169,136 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
                 bad++;
         }
         Assert.Equal(0, bad);
+    }
+    /// <summary>
+    /// Deformers moved by a collapse (DEFORMVMAP with instances or prefabs):
+    /// each placed deformer's transform as the port computes it
+    /// (<see cref="SettleWorld.PlacedDeformer"/>) against the captured transform
+    /// nearest it, bit for bit.
+    /// </summary>
+    [Fact]
+    public void PlacedDeformersAgainstCapture()
+    {
+        if (Environment.GetEnvironmentVariable("DEFORMCAP") is not { } path || Environment.GetEnvironmentVariable("DEFORMVMAP") is not { } vmap)
+            return;
+        var structs = Read(path).Select(c => c.Deformer).ToList();
+        var captured = structs.Select(c => c.Transform).ToList();
+        var doc = MapSource.Read(vmap);
+        var (_, entities) = MapMeshes.ReadWithEntities(doc);
+        var seen = new HashSet<string>();
+        var bad = 0;
+        foreach (var entity in entities.Where(e => e.Deformer != null && (e.Through.Count > 0 || e.PrefabChain.Count > 0)))
+        {
+            var d = entity.Deformer!;
+            var ours = SettleWorld.PlacedDeformer(d, entity.Through, entity.PrefabChain);
+            var key = $"{ours.Position:R} {ours.Rotation}";
+            if (!seen.Add(key))
+                continue;
+            var want = captured.OrderBy(c => Vector3.Distance(c.Position, ours.Position)).First();
+            output.WriteLine($"deformer {d.GetValue<int>("nodeID")} via {entity.Through.Count} instances, {entity.PrefabChain.Count} prefabs: ours {ours.Position:R} {ours.Rotation:R} valve {want.Position:R} {want.Rotation:R}");
+            if (ours.Position != want.Position || ours.Rotation != want.Rotation)
+                bad++;
+            var full = structs.First(c => c.Transform.Position == want.Position && c.Transform.Rotation == want.Rotation);
+            var mine = LatticeDeformer.FromNode(d, entity.Through, entity.PrefabChain);
+            // The capture reads twice as many handles as the port keeps (as NodesAgainstCapture compares: the port's).
+            if (mine.Size != full.Size || !mine.Points.SequenceEqual(full.Points) || !mine.Handles.SequenceEqual(full.Handles.Take(mine.Handles.Length)))
+            {
+                var first = Enumerable.Range(0, Math.Min(mine.Points.Length, full.Points.Length)).FirstOrDefault(i => mine.Points[i] != full.Points[i], -1);
+                var h = Enumerable.Range(0, Math.Min(mine.Handles.Length, full.Handles.Length)).FirstOrDefault(i => mine.Handles[i] != full.Handles[i], -1);
+                output.WriteLine($"  struct differs: size {mine.Size:R} vs {full.Size:R}; point {first}: {(first >= 0 ? $"{mine.Points[first]:R} vs {full.Points[first]:R}" : "-")}; "
+                                 + $"handles {mine.Handles.Length} vs {full.Handles.Length}, first {h}: {(h >= 0 ? $"{mine.Handles[h]:R} vs {full.Handles[h]:R}" : "-")}");
+                bad++;
+            }
+        }
+        Assert.Equal(0, bad);
+    }
+    /// <summary>
+    /// PROPMATRIXCAP=&lt;capture_propmatrix.py output&gt; with DEFORMVMAP: each
+    /// prop_static under a prefab, the angles and origin the port hands
+    /// physicsbuilder against the captured call nearest it, bit for bit.
+    /// </summary>
+    [Fact]
+    public void PrefabPropTransformsAgainstCapture()
+    {
+        if (Environment.GetEnvironmentVariable("PROPMATRIXCAP") is not { } path || Environment.GetEnvironmentVariable("DEFORMVMAP") is not { } vmap)
+            return;
+        static float F(System.Text.Json.JsonElement e, int i) => BitConverter.Int32BitsToSingle(unchecked((int)e[i].GetUInt32()));
+        var captured = File.ReadLines(path).Select(l => System.Text.Json.JsonDocument.Parse(l).RootElement)
+            .Where(r => r.GetProperty("ev").GetString() == "prop")
+            .Select(r => (Origin: new Vector3(F(r.GetProperty("origin"), 0), F(r.GetProperty("origin"), 1), F(r.GetProperty("origin"), 2)),
+                          Angles: new Vector3(F(r.GetProperty("angles"), 0), F(r.GetProperty("angles"), 1), F(r.GetProperty("angles"), 2)))).ToList();
+        var (_, entities) = MapMeshes.ReadWithEntities(MapSource.Read(vmap));
+        int bad = 0, shown = 0;
+        foreach (var entity in entities.Where(e => (e.PrefabChain.Count > 0 || e.Through.Count > 0)
+                                                   && e.Element.Get<DmxBinary.Element>("entity_properties")?.Get<string>("classname") == "prop_static"))
+        {
+            var o = entity.Element.GetValue<Vector3>("origin") ?? Vector3.Zero;
+            var a = entity.Element.GetValue<Vector3>("angles") ?? Vector3.Zero;
+            var placed = Physics.WorldCollision.PropOf(entity) is var prop ? (Origin: prop.Origin, Angles: prop.Angles) : default;
+            var want = captured.OrderBy(c => Vector3.Distance(c.Origin, placed.Origin)).First();
+            static bool Bits(Vector3 x, Vector3 y) => BitConverter.SingleToInt32Bits(x.X) == BitConverter.SingleToInt32Bits(y.X)
+                && BitConverter.SingleToInt32Bits(x.Y) == BitConverter.SingleToInt32Bits(y.Y) && BitConverter.SingleToInt32Bits(x.Z) == BitConverter.SingleToInt32Bits(y.Z);
+            var ok = Bits(placed.Origin, want.Origin) && Bits(placed.Angles, want.Angles);
+            if (!ok)
+                bad++;
+            if (!ok && shown++ < 12)
+                output.WriteLine($"prop {entity.Element.GetValue<int>("nodeID")} angles {a:R}: ours {placed.Origin:R} {placed.Angles:R}; valve {want.Origin:R} {want.Angles:R}");
+        }
+        output.WriteLine($"{bad} prefab props differ");
+        Assert.Equal(0, bad);
+    }
+    /// <summary>
+    /// PBMESHCAP=&lt;capture_pbmeshnode.py output&gt; with DEFORMVMAP: each of
+    /// physicsbuilder's deformed mesh nodes replayed from its captured points
+    /// and matrix through the port's deformer for that placement
+    /// (<see cref="SettleWorld.PlacedDeformer"/>, matched by position), bit for bit.
+    /// </summary>
+    [Fact]
+    public void PhysicsBuilderMeshNodesAgainstCapture()
+    {
+        if (Environment.GetEnvironmentVariable("PBMESHCAP") is not { } path || Environment.GetEnvironmentVariable("DEFORMVMAP") is not { } vmap)
+            return;
+        static float F(System.Text.Json.JsonElement e, int i) => BitConverter.Int32BitsToSingle(unchecked((int)e[i].GetUInt32()));
+        var doc = MapSource.Read(vmap);
+        var (_, entities) = MapMeshes.ReadWithEntities(doc);
+        var deformers = entities.Where(e => e.Deformer != null).Select(e => (Node: e.Deformer!, e.Through, e.PrefabChain)).ToList();
+        int calls = 0, exact = 0, shown = 0;
+        foreach (var line in File.ReadLines(path))
+        {
+            var r = System.Text.Json.JsonDocument.Parse(line).RootElement;
+            if (r.GetProperty("ev").GetString() != "node")
+                continue;
+            calls++;
+            var m = Enumerable.Range(0, 12).Select(i => F(r.GetProperty("matrix"), i)).ToArray();
+            var d = r.GetProperty("deformer");
+            var at = new Vector3(F(d, 0), F(d, 1), F(d, 2));
+            var match = deformers.Select(x => (x, T: SettleWorld.PlacedDeformer(x.Node, x.Through, x.PrefabChain))).FirstOrDefault(x => x.T.Position == at);
+            if (match.x.Node == null)
+            {
+                output.WriteLine($"no deformer at {at:R}");
+                continue;
+            }
+            var deformer = LatticeDeformer.FromNode(match.x.Node, match.x.Through, match.x.PrefabChain);
+            var evaluator = deformer.For([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
+            var input = r.GetProperty("in");
+            var outPts = r.GetProperty("out");
+            var ok = true;
+            for (var v = 0; v * 3 < input.GetArrayLength(); v++)
+            {
+                var moved = MapMeshes.Transform(m, new Vector3(F(input, v * 3), F(input, (v * 3) + 1), F(input, (v * 3) + 2)));
+                var got = evaluator.Deform(moved);
+                var want = new Vector3(F(outPts, v * 3), F(outPts, (v * 3) + 1), F(outPts, (v * 3) + 2));
+                if (got != want)
+                {
+                    ok = false;
+                    if (shown++ < 6)
+                        output.WriteLine($"deformer at {at:R} mode {deformer.Mode}: moved {moved:R} ours {got:R} valve {want:R}");
+                }
+            }
+            if (ok)
+                exact++;
+        }
+        output.WriteLine($"{calls} calls, {exact} exact");
+        Assert.Equal(calls, exact);
     }
 }

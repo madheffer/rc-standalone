@@ -153,11 +153,10 @@ internal sealed class LatticeDeformer
             for (var s = -1; s <= d.Segments; s++)
                 for (var cell = 0; cell < cells; cell++)
                     _frames[k++] = PowerBasis(d.Bezier(s, cell));
+            // ConcatTransforms (181258890) of the inverse transform's matrix and
+            // the caller's, and back by MatrixInvertGeneral (18125ade0).
             _toLattice = MapMeshes.Concat(d.Transform.Inverse().Matrix(), matrix);
-            var inverse = new float[16];
-            LightMath.Inverse4(LightMath.To4(_toLattice), inverse);
-            _fromLattice = [inverse[0], inverse[1], inverse[2], inverse[3], inverse[4], inverse[5], inverse[6], inverse[7],
-                            inverse[8], inverse[9], inverse[10], inverse[11]];
+            _fromLattice = EditorTraceScene.Invert(_toLattice);
         }
 
         // Matrix3x4_TransformPoint of a frame: a t^3 + b t^2 + c t + d, as the row dot (t^3, t^2, t) plus d.
@@ -301,6 +300,37 @@ internal sealed class LatticeDeformer
     /// Checked against the structs PropDeformer_Transform was handed
     /// (capture_deformer.py on deformerprobe): all three bit for bit.
     /// </summary>
+    /// <summary>
+    /// <see cref="FromNode(DmxBinary.Element)"/> for a deformer node an
+    /// instance copy or a prefab's map placed. Its transform is the node's
+    /// placement (<see cref="SettleWorld.PlacedDeformer"/>). A lattice's
+    /// control points live on as CMapLatticeControlPointLocator children
+    /// (1811758d0: each at the node matrix, 181255fb0, times its point,
+    /// Matrix3x4_TransformPoint 18125d1f0) that the deformer's TransformBy moves
+    /// with it (181076850, mode 1), and the change hook TransformBy's caller
+    /// fires (vf 0x80 with 3, 18116faa0) reads them back (181175e60): each point
+    /// is the inverse of the moved node's matrix (vf 0xa8, MatrixInvert
+    /// 18125aba0) times its locator.
+    /// </summary>
+    public static LatticeDeformer FromNode(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        var d = FromNode(node);
+        if (through.Count == 0 && prefabs.Count == 0)
+            return d;
+        d.Transform = SettleWorld.PlacedDeformer(node, through, prefabs);
+        if (node.Type == "CMapDeformerLattice")
+        {
+            var before = MapMeshes.Local(node);
+            var (origin, angles) = SettleWorld.UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero,
+                                                             through, prefabs);
+            var after = MapMeshes.AngleMatrix(angles);
+            (after[3], after[7], after[11]) = (origin.X, origin.Y, origin.Z);
+            var back = MapMeshes.Invert(after);
+            d.Points = [.. d.Points.Select(p => MapMeshes.Transform(back, SettleWorld.UnderDeformer(MapMeshes.Transform(before, p), Vector3.Zero, through, prefabs).Origin))];
+        }
+        return d;
+    }
+
     public static LatticeDeformer FromNode(DmxBinary.Element node)
     {
         if ((node.GetValue<Vector3>("scales") ?? Vector3.One) != Vector3.One)

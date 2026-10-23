@@ -50,8 +50,13 @@ public static class SmartProps
     }
 
     /// <summary>
-    /// The nodes the loader creates for a map's smart props, given a way to count
-    /// one definition's locators by its path.
+    /// The nodes the loader creates for a map: its smart props' locators, given
+    /// a way to count one definition's locators by its path, and one
+    /// CMapLatticeControlPointLocator per control point of each lattice
+    /// deformer. The document's post-load pass (180f69c50 -> 180f677a0) gives
+    /// each pending node vf 0x248, which for CMapDeformerLattice is 1811758d0:
+    /// a locator from the node factory for every control point without one
+    /// (s2c_deformplace: Valve's ids past the 24 points of its 5x1x1 lattice).
     /// </summary>
     public static int NodesCreatedOnLoad(DmxBinary.Document document, Func<string, int> locatorsOf)
     {
@@ -60,6 +65,8 @@ public static class SmartProps
         return document.OfType("CMapSmartProp")
             .Select(e => e.Get<string>("smartPropFilename") ?? "")
             .Where(p => p.Length > 0)
-            .Sum(locatorsOf);
+            .Sum(locatorsOf)
+            + document.OfType("CMapDeformerLattice")
+                .Sum(e => e.Get<DmxBinary.Element>("nodeData")?.Get<object?[]>("controlPoints")?.Length ?? 0);
     }
 }

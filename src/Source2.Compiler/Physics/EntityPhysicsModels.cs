@@ -54,9 +54,15 @@ public static class EntityPhysicsModels
             if (instance.Get<DmxBinary.Element>("target") is { } target)
                 targets.Add(target);
         var mapHidden = MapEntities.HiddenNodes(doc);
+        // Every node's parent, over the document and its prefab maps, so a node
+        // under a deformer of its copy is placed as the deformer moves it.
+        var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        foreach (var e in SettleWorld.AllDocuments(doc).SelectMany(d => d.Elements))
+            foreach (var child in e.GetElements("children"))
+                parents.TryAdd(child, e);
         var entities = new List<(DmxBinary.Element Element, int NodeId, IReadOnlyList<DmxBinary.Element> Through, string IdPath,
                                  DmxBinary.Element[] Prefabs, HashSet<int> Hidden)>();
-        var cableNodes = new List<(DmxBinary.Element Element, string IdPath, bool Placed)>();
+        var cableNodes = new List<(DmxBinary.Element Element, int NodeId, string IdPath, IReadOnlyList<DmxBinary.Element> Through, DmxBinary.Element[] Prefabs)>();
         // A prefab's map is walked where the prefab stands, with its own hidden
         // nodes and instance targets; its entities are named by id path
         // (s2c_prefabprobe2: unnamed_108_3.vmdl).
@@ -71,7 +77,7 @@ public static class EntityPhysicsModels
                 if (child.Type == "CMapEntity")
                     entities.Add((child, id, [], prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture), prefabs, hidden));
                 if (child.Type == "CMapCable")
-                    cableNodes.Add((child, prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture), prefabs.Length > 0));
+                    cableNodes.Add((child, id, prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture), [], prefabs));
                 if (child.Type == "CMapPrefab" && child.Get<DmxBinary.Element>(MapPrefabs.WorldKey) is { } prefabWorld)
                 {
                     Walk(prefabWorld, prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_", [.. prefabs, child],
@@ -86,26 +92,33 @@ public static class EntityPhysicsModels
             Walk(world, "", [], mapHidden, targets);
         // Each copy an instance places is the template entity under the copy's
         // own id (MapInstances.Expand), named after the template.
-        var createdOnLoad = smartProp == null ? 0
-            : SmartProps.NodesCreatedOnLoad(doc, path => smartProp(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0);
-        MapInstances.Expand(doc, MapEntities.From(doc), createdOnLoad, (node, id, through, _) =>
+        Func<DmxBinary.Document, int> createdIn = d =>
+            SmartProps.NodesCreatedOnLoad(d, path => smartProp?.Invoke(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0);
+        // The prefabs take their blocks of ids in the bake as instances do
+        // (s2c_cableinst: the nested copy after a prefab is 2647). What
+        // instances inside a prefab's map place is not built yet.
+        MapInstances.Expand(doc, MapEntities.From(doc), createdIn(doc), (node, id, through, inPrefabs) =>
         {
+            if (inPrefabs.Length > 0)
+            {
+                if (node.Type is "CMapEntity" or "CMapCable")
+                    notes?.Add($"{node.Type} {id}: placed by an instance inside a prefab, not built");
+                return;
+            }
             if (node.Type == "CMapEntity")
                 entities.Add((node, id, through, id.ToString(System.Globalization.CultureInfo.InvariantCulture), [], mapHidden));
-        });
+            if (node.Type == "CMapCable")
+                cableNodes.Add((node, id, id.ToString(System.Globalization.CultureInfo.InvariantCulture), through, []));
+        }, prefabs: true, createdOnLoadIn: createdIn);
         foreach (var (entity, nodeId, through, idPath, prefabs, hidden) in entities)
         {
             if (One(entity, nodeId, through, idPath, prefabs, hidden) is { } model)
                 models.Add(model);
         }
-        foreach (var (cable, idPath, placed) in cableNodes)
+        foreach (var (cable, nodeId, idPath, through, prefabs) in cableNodes)
         {
-            if (placed)
-            {
-                notes?.Add($"cable {idPath}: inside a prefab, placement not ported");
-                continue;
-            }
-            if (CableModel(cable, idPath, mapName, material, collisionProperty, schema, notes, failed) is not { } model)
+            var underDeformer = (through.Count > 0 || prefabs.Length > 0) && SettleWorld.IsUnderDeformer(cable, parents, targets);
+            if (CableModel(cable, nodeId, idPath, through, prefabs, underDeformer, mapName, material, collisionProperty, schema, notes, failed) is not { } model)
                 continue;
             if (cables)
                 models.Add(model);
@@ -120,15 +133,11 @@ public static class EntityPhysicsModels
             // An instance copy's entity and meshes are where the collapse moved
             // them (Mako's spawn train doors and rotated func_doors); a prefab's
             // where the prefab moves them.
-            Func<DmxBinary.Element, CTransform>? transformOf = through.Count > 0 ? node =>
+            Func<DmxBinary.Element, CTransform>? transformOf = through.Count > 0 || prefabs.Length > 0 ? node =>
             {
-                var (origin, angles) = SettleWorld.BakedPlacement(node, through);
-                return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
-            }
-            : prefabs.Length > 0 ? node =>
-            {
-                var (origin, angles) = SettleWorld.PrefabPlacement(node.GetValue<Vector3>("origin") ?? Vector3.Zero,
-                                                                   node.GetValue<Vector3>("angles") ?? Vector3.Zero, prefabs);
+                var (o, a) = (node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero);
+                var (origin, angles) = SettleWorld.IsUnderDeformer(node, parents, targets) ? SettleWorld.UnderDeformer(o, a, through, prefabs)
+                    : through.Count > 0 ? SettleWorld.BakedPlacement(node, through) : SettleWorld.PrefabPlacement(o, a, prefabs);
                 return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
             }
             : null;
@@ -251,11 +260,16 @@ public static class EntityPhysicsModels
     /// (s2c_cablecoll's two loops). Only a cable whose texture scales are 0
     /// could weld there, which is not ported.</para>
     /// </summary>
-    private static Model? CableModel(DmxBinary.Element element, string idPath, string mapName, Func<string, SettleWorld.MaterialInfo?> material,
+    private static Model? CableModel(DmxBinary.Element element, int nodeId, string idPath, IReadOnlyList<DmxBinary.Element> through, DmxBinary.Element[] prefabs,
+        bool underDeformer,
+        string mapName, Func<string, SettleWorld.MaterialInfo?> material,
         Func<string, SettleWorld.CollisionProperty?> collisionProperty, FgdSchema? schema, List<string>? notes, List<string>? failed)
     {
         if (MapEntities.ReadNode(element) is not { } cable || schema?.HasFlag(cable.ClassName, "has_static_mesh") == true)
             return null;
+        // A copy an instance or prefab placed: its path where the collapse
+        // moved it, with the settings an instance's clone has.
+        cable = SettleWorld.PlacedPath(cable, through, prefabs, underDeformer) with { NodeId = nodeId };
         var targetName = cable.Keys.FirstOrDefault(k => Io.Tier0Strings.EqualsIgnoreCase(k.Key, "targetname")).Value ?? "";
         var path = EntityLumpAuthor.BrushModelPath(EntityLumpAuthor.FixedName(targetName, null, schema), idPath, mapName);
         var name = element.Get<string>("materialName") ?? "";
@@ -268,7 +282,7 @@ public static class EntityPhysicsModels
         var pieces = new List<WorldCollision.Piece>();
         if (CableCollision.Collides(element))
         {
-            var settings = CableCollision.SettingsOf(element);
+            var settings = through.Count > 0 ? CableCollision.Copied(CableCollision.SettingsOf(element)) : CableCollision.SettingsOf(element);
             var (controls, scales) = EntityLumpAuthor.PathControls(cable, schema);
             var (local, indices) = WorldCollision.FirstUse(CableCollision.RenderTube(controls, scales, settings));
             if (indices.Length > 0)

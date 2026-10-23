@@ -30,8 +30,8 @@ public sealed class RegionSvm
 /// region runs off to) w 0.</para>
 ///
 /// <para>Not ported: the clipping of a region a split crosses, which a flag
-/// no code sets turns off, and the normalising of a degenerate edge plane
-/// (FUN_18125d000), which unit face normals never reach.</para>
+/// no code sets turns off. A degenerate edge plane, which unit face normals
+/// never make, goes through VectorNormalize_Slow (FUN_18125d000).</para>
 /// </summary>
 public static class RegionSvmBuilder
 {
@@ -127,9 +127,16 @@ public static class RegionSvmBuilder
             var my = (f.X * nz) - (nx * f.Z);
             var lengthM = MathF.Sqrt(((my * my) + (mz * mz)) + (mx * mx));
             if (1e-17f > lengthM || lengthM > 1e17f)
-                throw new NotSupportedException("region SVM: a degenerate edge plane (FUN_18125d000) is not ported");
-            var invM = 1f / lengthM;
-            (mx, my, mz) = (invM * mx, my * invM, mz * invM);
+            {
+                // 1819d08a0: zero stays zero, anything else the slow path.
+                var slow = lengthM == 0f ? Vector3.Zero : Maps.VectorNormalizeSlow.Normalise(new Vector3(mx, my, mz));
+                (mx, my, mz) = (slow.X, slow.Y, slow.Z);
+            }
+            else
+            {
+                var invM = 1f / lengthM;
+                (mx, my, mz) = (invM * mx, my * invM, mz * invM);
+            }
             planes.Add(new Vector4(mx, my, mz, ((az * mz) + (my * ay)) + (mx * ax)));
         }
 

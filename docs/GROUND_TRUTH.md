@@ -3482,6 +3482,74 @@ game can answer is raised with the user first, and runs with -insecure.
       no .los. `-oldvis` takes Sampler_Original, whose output differs run to run in Valve's own tool (three
       runs, three vvis), so it has no byte reference and is not ported.
 
+128. **Cables inside instances and prefabs** (2026-10-23: decompile of resourcecompiler 0923
+    CloneObjects 180f616e0, the node clone 180f86a90 / 180f86650 and CMapCable::CopyFrom 18114b270;
+    Frida captures capture_cable.py and capture_settle.py with settle_bundle.js; Valve's compiles of
+    s2c_cableinst (four cables in a turned instance with a nested instance, the cable probe as a turned
+    prefab) and s2c_cableinst2 (eleven cables, one setting changed each, each in its own instance)).
+    - Settled: an instance's clone is a new node from the class factory (mapnodefactory, 180f86650)
+      given CopyFrom (vf 0x3d8). CMapCable's (18114b270) copies the material, tint, numSides clamped to
+      3..1000, tessellationSpacing and radius clamped to 0.01f..1e5f (maxss, minss), the texture
+      settings, flipFaces, collisionEnabled and visOccluder, but not physicsSimplificationError
+      (+0x18a4), so the copy keeps the factory's 2. Measured on s2c_cableinst2: error 0 and 0.5 copies
+      simplify as 2; sides, radius, spacing, flip, loop, interpolation and material carry over.
+    - Settled: a prefab's nodes are not cloned. CMapPrefab's collapse (vf 0x860, 180f96d40) adds a
+      group (FUN_180f5f230, appended through AddChild 180f75010 and SetParent 180f752a0, which moves
+      nothing) and reparents the prefab map's nodes to it; 181019d00 then sets the group's origin
+      and angles through the group setter 180fc1bf0, which moves every node by 180f834d0 from the
+      origin to the prefab's placement, as an instance collapse moves its copy (the same step
+      matrix, AngleMatrixDouble against the old placement's inverse). So a prefab's cables keep
+      their error (captured too: every vf277 call of the prefab copy).
+    - Settled: each path node is moved on its own: the base TransformBy (180f7c570) moves the node's
+      origin by the step (180fdef60) and recurses into its children with the same matrix; a path
+      node's own TransformBy (18110eae0) also turns its two stored tangents by the step's rotation
+      ((x m0 + y m1) + z m2 per row). The path's origin follows its first node (vf274).
+    - Settled: the bake collapses instances and prefabs in tree order, each new node appended to its
+      parent's children (FUN_180f5f230 -> vf 0x1c8), so a prefab's map comes after its siblings in
+      the world soup as an instance's copy does: s2c_cableinst's instance copy precedes its prefab.
+    - Verified: world physics of s2c_cableinst and s2c_cableinst2 whole-file exact; s2c_cableinst's
+      43 entity models (33 cable models' physics) exact, the nested copy named after the id the
+      prefab's block shifts (2647); its settle world's 91 bodies exact (transforms, shapes, mass).
+    - Not settled: instances inside a prefab's map for entity models (listed, not built); no probe
+      turns an explicit tangent yet (the rotation above is ported from 18110eae0 alone).
+
+129. **Deformers placed through instances and prefabs, and cables under deformers** (2026-10-23:
+    decompile of resourcecompiler 0923 and physicsbuilder 0924; Frida captures capture_deformer.py,
+    capture_propmatrix.py (physicsbuilder's PropMatrix_Angles inputs), capture_pbmeshnode.py
+    (physicsbuilder's InitMeshShapeFromVertices), capture_originwrites.py (who stores a node origin)
+    and capture_settle.py; Valve's compile of s2c_deformplace: s2c_cablecoll cables under deformerprobe2's
+    two bend deformers and its lattice, a bend deformer group through a turned instance, the whole map
+    as a turned prefab, one prop_physics).
+    - Settled: CMapDeformer's TransformBy (vf 0xc8, 181076410) turns the step matrix into a CTransform
+      (translation, MatrixQuaternion 18125de90) and moves itself and every descendant (181076680,
+      181076850, iterator 180f8b7c0; mode vf 0x7e8 is 2 while the deformer's +0x4b1 is set, which the
+      constructor 181175fc0 sets and no .vmap key clears) by 181076a70: Compose(step, node)
+      (181253510), the origin stored (180fded80, the store capture_originwrites finds for the prefab
+      props), the angles QuaternionAngles (181260200) through the setter 180fdeda0. Ordinary nodes
+      take the step's TransformBy (180f7c570 / 180fdef60). (SettleWorld.UnderDeformer, Step.)
+    - Settled: a lattice keeps its control points as CMapLatticeControlPointLocator children, made at
+      load by vf 0x248 (1811758d0, from the document's post-load pass 180f69c50 -> 180f677a0): one
+      per control point, through the node factory, so each takes a node id before the bake
+      (SmartProps.NodesCreatedOnLoad; s2c_deformplace's 5x1x1 lattice shifts the copies by 24). They
+      move with the lattice (mode 1), and the change hook TransformBy's caller fires (vf 0x80 with 3,
+      18116faa0) reads them back (181175e60): each point is the inverse of the moved node's matrix
+      (vf 0xa8, MatrixInvert 18125aba0) times its locator (Matrix3x4_TransformPoint 18125d1f0).
+    - Settled: PropDeformer_Init (18128d980; physicsbuilder's copy 1800bf910) builds the lattice
+      matrix as ConcatTransforms (181258890) of the inverse transform's matrix and the caller's, and
+      back by MatrixInvertGeneral (18125ade0; 1800b83a0, the same code): the port's 4x4 inverse was
+      ulps off on turned deformers.
+    - Settled: a mesh is deformed by HammerMesh_ApplyDeformer with its own node matrix (vf 0xa0,
+      181255fb0) and the deformer struct its lookup returns (181022480, the node's +0x4c0), on the
+      moved copy; the cable's world export (vf200, 18114c1b0) does not deform, the pre-settle world
+      does (PhysMesh_Shapes 181057020, ApplyArrays with the cable's node matrix, the whole index list
+      reversed for a mirrored lattice).
+    - Verified: s2c_deformplace's world physics and its 14 entity models whole-file exact against a
+      fresh Valve compile; 1,606 resourcecompiler and 171 physicsbuilder deform calls bit for bit;
+      every placed prop's transform and placed deformer struct bit for bit.
+    - Not settled: the settle world of a prop under a deformer (Valve's settle tessellates and deforms
+      its shapes; ours builds them undeformed and stops on its spheres); a lattice cloned by an
+      instance (its CopyFrom 18116f970 makes locators again; no probe).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

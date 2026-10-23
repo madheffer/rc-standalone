@@ -42,6 +42,44 @@ internal static class CableCollision
         cable.GetValue<int>("numSides") ?? 8, cable.GetValue<float>("tessellationSpacing") ?? 16f, cable.GetValue<float>("radius") ?? 16f,
         cable.GetValue<bool>("flipFaces") ?? false, cable.GetValue<bool>("closedLoop") ?? false, cable.GetValue<float>("physicsSimplificationError") ?? 2f);
 
+    /// <summary>
+    /// The settings of a cable an instance collapse copied: the clone is a
+    /// new node from the factory (18114e350) given CMapCable::CopyFrom
+    /// (vf 0x3d8, rc 18114b270), which clamps numSides to 3..1000 and the
+    /// spacing and radius to 0.01f..1e5f (maxss, then minss) and copies
+    /// flipFaces and collisionEnabled, but not physicsSimplificationError
+    /// (+0x18a4): the copy keeps the factory's 2 (s2c_cableinst2). A prefab's
+    /// nodes are not cloned and keep their own.
+    /// </summary>
+    internal static Settings Copied(Settings cable)
+    {
+        static float Clamp(float x)
+        {
+            x = x > 0.01f ? x : 0.01f;
+            return x < 100000f ? x : 100000f;
+        }
+        return cable with { Sides = cable.Sides <= 3 ? 3 : cable.Sides < 1000 ? cable.Sides : 1000, Spacing = Clamp(cable.Spacing), Radius = Clamp(cable.Radius), Error = 2f };
+    }
+
+    /// <summary>
+    /// The tube, in the cable's space, through the deformer that reaches the
+    /// cable (PhysMesh_Shapes, rc 181057020: PropDeformer_ApplyArrays with the
+    /// cable's node matrix), the whole index list reversed when the lattice is
+    /// mirrored. The deformer node is moved by the collapse as the cable is.
+    /// Without a deformer the tube is as it was.
+    /// </summary>
+    internal static (Vector3[] Points, int[] Indices) Deformed((Vector3[] Points, int[] Indices) tube, DmxBinary.Element cable, float[] nodeMatrix,
+                                                               IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        if (cable.Get<DmxBinary.Element>(Maps.MapDeformers.CableKey) is not { } node)
+            return tube;
+        var deformer = Maps.LatticeDeformer.FromNode(node, through, prefabs);
+        if (!deformer.Enabled)
+            return tube;
+        var evaluator = deformer.For(nodeMatrix);
+        return ([.. tube.Points.Select(evaluator.Deform)], deformer.Mirror ? [.. tube.Indices.Reverse()] : tube.Indices);
+    }
+
     /// <summary>collisionEnabled (+0x18a0, CMapCable vf 0x8a0), on unless the source turns it off; it makes CollisionType 4 (CMapPath vf208, 1810b5e00) and the physics export.</summary>
     internal static bool Collides(DmxBinary.Element cable) => cable.GetValue<bool>("collisionEnabled") ?? true;
 
@@ -412,6 +450,6 @@ internal static class CableCollision
         }
         if (length == 0f)
             return Vector3.Zero;
-        throw new NotSupportedException("VectorNormalize_Slow (18125d000) is not ported: a cable frame vector of length " + length);
+        return Maps.VectorNormalizeSlow.Normalise(new Vector3(x, y, z));
     }
 }

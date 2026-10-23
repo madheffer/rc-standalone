@@ -76,7 +76,7 @@ public static class BrushHulls
     /// (<see cref="BuilderMesh"/>), piece for piece.</param>
     internal static List<(int Material, Vector3[] Positions, int[][] Faces, Vector3[] Local, int[][] CornerIds, int[][] CornerData, int Bias)> PiecesWithCorners(DmxBinary.Element mesh, DmxBinary.Element entity, float[]? path = null, bool shiftTexcoords = true,
         Func<DmxBinary.Element, Maps.CTransform>? transformOf = null, float[]? placed = null, int? wholeMeshMaterial = null,
-        List<BuilderMesh>? builderMeshes = null)
+        List<BuilderMesh>? builderMeshes = null, object?[]? sourcePositions = null)
     {
         transformOf ??= Maps.CTransform.FromNode;
         if (placed != null)
@@ -98,7 +98,8 @@ public static class BrushHulls
         // corners, a rotated cylinder's caps) break near ties the other way.
         // A brush entity's stay in its own space.
         var result = new List<(int, Vector3[], int[][], Vector3[], int[][], int[][], int)>();
-        foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords, entity.Type == "CMapWorld" ? Place : null, withTangent: false, allStreams: false, wholeMeshMaterial))
+        foreach (var piece in Maps.MapMeshCorners.Build(mesh, shiftTexcoords, entity.Type == "CMapWorld" ? Place : null, withTangent: false, allStreams: false, wholeMeshMaterial,
+                                                        positions: sourcePositions))
         {
             var kept = new List<int>();
             var (vertices, stride, streams) = (piece.Vertices, piece.Stride, piece.Streams);
