@@ -2092,7 +2092,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180018500` | `Sampler_Original` | the original sampler: DeterministicBuild 0 or -oldvis |  |
 | `180019760` | `GeneratorSetup` | the deterministic generator set |  |
 | `180019940` | `GeneratorRun` |  |  |
-| `180019c40` | `SamplerDriver` | the sampler's ray loop (thread pool) |  |
+| `180019c40` | `SamplerDriver` | the sampler's ray loop (thread pool); ray length = sqrt(dx^2 + (dy^2 + dz^2)) of the tracer box |  |
 | `18001c1f0` | `MatrixCreate` | the mutual visibility matrix | `src/Source2.Compiler/Maps/VisPvs.cs:355` |
 | `18001c3c0` | `MatrixOr` | every listed cluster sees every other; returns words changed | `src/Source2.Compiler/Maps/VisPvs.cs:380` |
 | `18001c890` | `Ray_Toward` | a sampling ray: origin and unit direction toward a point | `src/Source2.Compiler/Maps/VisPvs.cs:410`, `src/Source2.Compiler/Maps/VisPvs.cs:414` |
@@ -2101,14 +2101,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18001e490` | `ClosFill` |  |  |
 | `18001e7c0` | `NeighborsBuild` | CNeighboringClustersList::Build (assert) |  |
 | `18001edc0` | `BeginPass` | the shared begin-pass over clusters from 2 on | `src/Source2.Compiler/Maps/VisPvs.cs:540` |
-| `18001f990` | `FillRays` |  | `src/Source2.Compiler/Maps/VisPvs.cs:854` |
+| `18001f990` | `FillRays` |  | `src/Source2.Compiler/Maps/VisPvs.cs:868` |
 | `18001fd30` | `CentreRays` |  |  |
 | `18001fda0` | `CentrePoints` | the point a cluster-centre ray starts from | `src/Source2.Compiler/Maps/VisPvs.cs:432` |
 | `1800202a0` | `BuildTracePoints` | NeighborsScan BuildTracePointsForClusters |  |
-| `1800204f0` | `BoundaryPairRays` | a boundary-point pair's rays, every point of one to every point of the other | `src/Source2.Compiler/Maps/VisPvs.cs:1142` |
-| `180020bc0` | `FacingPoints` | the points of a cluster to cast from | `src/Source2.Compiler/Maps/VisPvs.cs:1102` |
-| `180021190` | `LargeRegionRays` | at most 8,000,000 pairs a pass | `src/Source2.Compiler/Maps/VisPvs.cs:1170` |
-| `1800216b0` | `LargeRegionFilter` | the boxes at least 256 apart | `src/Source2.Compiler/Maps/VisPvs.cs:1195` |
+| `1800204f0` | `BoundaryPairRays` | a boundary-point pair's rays, every point of one to every point of the other | `src/Source2.Compiler/Maps/VisPvs.cs:1166` |
+| `180020bc0` | `FacingPoints` | the points of a cluster to cast from | `src/Source2.Compiler/Maps/VisPvs.cs:1126` |
+| `180021190` | `LargeRegionRays` | at most 8,000,000 pairs a pass | `src/Source2.Compiler/Maps/VisPvs.cs:1194` |
+| `1800216b0` | `LargeRegionFilter` | the boxes at least 256 apart | `src/Source2.Compiler/Maps/VisPvs.cs:1220` |
 | `180021940` | `VectorOr` |  |  |
 | `1800233f0` | `Rte_TriangleCorners` | a triangle's three corners from its record: normal, plane, edges | `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:763`, `src/Source2.Compiler/Maps/RayTraceEnvironment.cs:842` |
 | `180023f70` | `SunJob` |  |  |
@@ -2129,7 +2129,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002ced0` | `Hints_AddVoxelHint` | box sides past the scene's bounds moved to the root's; voxel size in [4, 256]; region size | `src/Source2.Compiler/Maps/VisVoxelizer.cs:239` |
 | `18002d140` | `CandidateBoxes_SplitOne` | one split in x, y or z, recursing into CandidateBoxes | `src/Source2.Compiler/Maps/VisClusters.cs:285` |
 | `18002d320` | `CandidateBoxes` | a leaf box split by the hint lists, each piece tagged | `src/Source2.Compiler/Maps/VisClusters.cs:284` |
-| `18002d710` | `RayFold` | the fold's walk of one traced segment | `src/Source2.Compiler/Maps/VisPvs.cs:654` |
+| `18002d710` | `RayFold` | the fold's walk of one traced segment | `src/Source2.Compiler/Maps/VisPvs.cs:658` |
 | `18002dd90` | `ClusterQuery` | the cluster-id form of the box walk | `src/Source2.Compiler/Maps/VisClusterList.cs:277`, `src/Source2.Compiler/Maps/VisPvs.cs:246` |
 | `18002dfe0` | `ClusterBoxQuery` |  |  |
 | `18002e0d0` | `EntryNeighbourClusters` |  |  |
@@ -2137,8 +2137,8 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18002e8b0` | `EntryNeighbours` | open records within the base voxel size | `src/Source2.Compiler/Maps/VisBorders.cs:140` |
 | `18002ea10` | `Region_OfPoint` | a point to its region |  |
 | `18002ebf0` | `LeafEntries` | a leaf's 4x4x4 mask; pushes its regions (and solid records, flag bit 1) as the depth-first build meets the leaf: a branch is recursed into at its octant, so region order is not slot order | `src/Source2.Compiler/Maps/VisRegions.cs:40` |
-| `18002ef60` | `SegmentWalk` | a segment through the octree, breadth first | `src/Source2.Compiler/Maps/VisPvs.cs:684` |
-| `18002f1c0` | `SunWalk` | cells cut to the leaf's open cells | `src/Source2.Compiler/Maps/VisPvs.cs:688` |
+| `18002ef60` | `SegmentWalk` | a segment through the octree, breadth first, in a 4,096-node ring that overwrites on overflow | `src/Source2.Compiler/Maps/VisPvs.cs:688` |
+| `18002f1c0` | `SunWalk` | cells cut to the leaf's open cells | `src/Source2.Compiler/Maps/VisPvs.cs:692` |
 | `18002f430` | `MarchRay` | breadth-first ring of 4096; a branch takes OctantMask(o, inv, min, MIN): both box arguments the node's minimum, so an octant opens only on an exact corner pass; in practice it returns 0 and the second pass answers outside (atixref: all 1,029) | `src/Source2.Compiler/Maps/VisOutside.cs:265` |
 | `18002f5d0` | `ClassifyRegion` | second pass: centre outside the tracer's bounds (sampler +0xe8) is outside; else GatherRays again and MarchRay each facing record to max(t - 8, 0.1); inside when votes > 2n or (> n and outside < 5) | `src/Source2.Compiler/Maps/VisOutside.cs:142` |
 | `18002f890` | `Voxelize` | the call the Voxelize timer brackets; takes the voxel size; the first touching voxel hint stops or forces the split | `src/Source2.Compiler/Maps/VisVoxelizer.cs:182` |
@@ -2176,9 +2176,9 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18003a1a0` | `BorderBoxes` |  | `src/Source2.Compiler/Maps/VisOutput.cs:206` |
 | `18003a440` | `FlatClusterBoxes` | pieces to their cluster, no range check | `src/Source2.Compiler/Maps/VisOutput.cs:204` |
 | `18003a630` | `BorderRewrite` | the entry array rebuilt leaf by leaf in node order | `src/Source2.Compiler/Maps/VisBorders.cs:240` |
-| `18003ae80` | `SideFace` | the four corners of a box's face at the side's far end | `src/Source2.Compiler/Maps/VisPvs.cs:1071` |
-| `18003afc0` | `SideKeep` | a point moved 0.01 toward the centre of its entry's box | `src/Source2.Compiler/Maps/VisPvs.cs:1019` |
-| `18003b440` | `SidePoints` | every voxel face of the cluster facing the side | `src/Source2.Compiler/Maps/VisPvs.cs:1015` |
+| `18003ae80` | `SideFace` | the four corners of a box's face at the side's far end | `src/Source2.Compiler/Maps/VisPvs.cs:1095` |
+| `18003afc0` | `SideKeep` | a point moved 0.01 toward the centre of its entry's box | `src/Source2.Compiler/Maps/VisPvs.cs:1043` |
+| `18003b440` | `SidePoints` | every voxel face of the cluster facing the side | `src/Source2.Compiler/Maps/VisPvs.cs:1039` |
 | `18003c070` | `Cluster_VoxelBoxes` | a cluster's voxel boxes: one for a full leaf, else one per cell | `src/Source2.Compiler/Maps/VisPvs.cs:518` |
 | `18003c3d0` | `SampleBorders` | CVoxelSampler3::AdaptivelySampleBorders (assert) |  |
 | `18003cbc0` | `BorderJob` | job body for one border record | `src/Source2.Compiler/Maps/VisBorders.cs:73` |

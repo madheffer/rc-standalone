@@ -22,20 +22,29 @@ Open:
   - Exact: voxelize, regions (316,957) and outside verdicts (OutsideCaptureTests,
     9 s); cluster generation and the pre-merge, 164,252 sets in content and
     position (TheGenerationAgainstTheCapture, 136 s); from Valve's scan-entry
-    state: the first scan generator, the pair limit, borders and their claims,
-    the rewrite, AssignClusters2, FlatVisClusterVector (4,096/4,096), sky, sun,
-    the collapse, the output and the tracer tree.
-  - **Divergence 1, cluster centres** (`TheClusterCentresOnABigMap`, 6 min):
-    the boundary-point generator's pass 0 pairs equal Valve's; pass 1 gives
-    44,756,786 pairs against Valve's 44,756,944, passes 2 to 4 differ after it,
-    5 to 9 equal. The pairs are made from the matrix pass 0 left, so look first
-    at what pass 0's rays set (the pairs agree, the matrix after may not).
-  - **Divergence 2, large cluster regions** (`TheLargeClusterRegions`, 4 min):
-    both passes' pairs equal Valve's in order (387,305 and 10), but the matrix
-    after has 5 of 23,534 rows differing (2 bits ours only, 6 Valve's only),
-    all on cluster 12075: Valve links it to 5345, 5689 and 5742, we link it to
-    5745. `BIGBITS=1` lists the cells, `BIGWATCH=r:c,...` the rays whose walk
-    lists those clusters (segment and walk); then BIGSEG/BIGKD on the ray.
+    state: the whole PVS scan (cluster centres 10 passes, boundary points 28,
+    large cluster regions 2, every pass's pairs in order and the matrix it
+    leaves, 23,534/23,534 rows), borders and their claims, the rewrite,
+    AssignClusters2, FlatVisClusterVector (4,096/4,096), sky, sun, the
+    collapse, the output and the tracer tree.
+  - **Fixed 2026-10-23, the scan's ray length** (divergences 1 and 2: the
+    cluster centres from pass 0, ~900 cells; large cluster regions, cluster
+    12075's 8 cells). SamplerDriver (180019c40) sums the tracer box's diagonal
+    as `dx² + (dy² + dz²)`; the port summed `(dx² + dy²) + dz²`, which on this
+    map's box rounds one ulp apart. The reach sets every segment's far end, so
+    the batch tracer's renormalised direction and hit t moved by an ulp, and the
+    segment end (`t·d + o − d`) with it. The rays that showed it run exactly
+    along a diagonal (two direction components equal in magnitude, common
+    between grid-aligned centres) and so cross a cell edge exactly, where that
+    ulp decides which of the two diagonal cells the walk enters. Found by
+    capturing Valve's traced segments (tools/vis/capture_segments.py, RayFold)
+    and comparing them bit for bit (`SegmentsAgainstValve`, BIGSEGS=<jsonl>):
+    19 of 19 identical after the fix. `TheClusterCentresOnABigMap` with a
+    `--passin` capture compares the matrix after every pass (BIGPVS_CAPTURE).
+  - **Ported 2026-10-23, the walk's ring:** SegmentWalk (18002ef60) and SunWalk
+    queue nodes in a 4,096-entry ring that overwrites on overflow and stops
+    when the read index meets the write index; the port's queue was unbounded.
+    No specimen ray has been seen to overflow it.
   - **Fixed 2026-10-23, the vis-cluster merge** (`TheSteppedAndPartitionedMerge`,
     12 min, on Valve's post-scan matrix): all 19,438 merges identical. The
     candidate limit (180044060) and the take threshold (180044490) are
@@ -48,9 +57,12 @@ Open:
     input and compares with Valve's next input; it was stopped unrun for the
     CS2 update. The passes are where the 5.5 h end-to-end run went (generation
     is 136 s), so expect a pass to take long; `PASSREPLAY_PASS=k` runs one.
-  - Captures (CS2 10-15 build, %TEMP%/vis_capture): s2c_prefabprobe4.pvs.bin
+  - Captures (CS2 10-15 build, %TEMP%/vis_capture; Valve's output is unchanged
+    on 1.41.9.2, a 10-23 recapture gives the same matrices): s2c_prefabprobe4.pvs.bin
     with .rte/.viscfg (capture_pvs.py, the back half: BIGPVS=s2c_prefabprobe4
-    BIGPVS_ADDON=s2c_rc_probe), s2c_prefabprobe4.bin with .merge.rte/.merge.viscfg
+    BIGPVS_ADDON=s2c_rc_probe), passin/s2c_prefabprobe4.pvs.bin (the same with
+    --passin, 4.6 GB: the matrix entering every pass), s2c_prefabprobe4.segments.jsonl
+    (capture_segments.py: three origins' segments in passes 0 and 40), s2c_prefabprobe4.bin with .merge.rte/.merge.viscfg
     (capture_merge.py --passes: OUTSIDECAP=… OUTSIDECAP_PASSES=…, REPLAY=…,
     PASSREPLAY=…). They are data and stay valid as long as the map, the .rte
     and our port are unchanged; after a CS2 update run tools/re/patch_check.py

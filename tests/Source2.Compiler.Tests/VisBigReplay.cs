@@ -190,6 +190,15 @@ public class VisBigReplay(ITestOutputHelper output)
             var same = pairs.SequenceEqual(theirs);
             samePasses += same ? 1 : 0;
             output.WriteLine($"  pass {pass}: pairs ours {pairs.Count:n0} valve {theirs.Count:n0}, in order {same}; {rays:n0} rays ({clock.Elapsed.TotalSeconds:0}s)");
+            // A --passin capture: the matrix this pass left, against the one Valve's next pass began from.
+            if (cap.Has("passin" + (first + pass + 1)) && cap.Head("passin" + (first + pass + 1)).GetProperty("generator").GetInt32() == 0)
+            {
+                var next = cap.Blob("passin" + (first + pass + 1));
+                var (r, sr, m, v) = VisPvsReplay.Diff(matrix, next);
+                output.WriteLine($"    matrix after: rows identical {sr}/{r}, bits ours-only {m:n0} valve-only {v:n0}");
+                foreach (var (row, col, ours) in VisPvsReplay.DiffBits(matrix, next).Where(b => b.Item1 < b.Item2).Take(40))
+                    output.WriteLine($"    cell {row}:{col} {(ours ? "ours only" : "valve only")}");
+            }
             // BIGPAIRS=1: at the first pass that differs, the pairs only one side has (each stands for a
             // cell the passes before set differently), then stop.
             if (!same && Environment.GetEnvironmentVariable("BIGPAIRS") == "1")
@@ -346,6 +355,148 @@ public class VisBigReplay(ITestOutputHelper output)
                                + $"{(differs ? $" ALONE {(single is { } q ? $"tri {q.Triangle} t {q.Distance:R}" : "miss")}" : "")} ties {ties}"
                                + $" reaches {walk.Contains(hi)} end {end}");
         }
+    }
+
+    /// <summary>
+    /// The large-cluster-regions rays that could set a cell, <c>BIGCELL=r:c</c>: every
+    /// first-pass ray whose whole line (untraced) walks through both clusters, in its
+    /// own ray list as the pass builds them, with the packet and the lone trace's hit,
+    /// the end, and whether the traced walk still lists both.
+    /// </summary>
+    [Fact]
+    public void CellRays()
+    {
+        if (Environment.GetEnvironmentVariable("BIGCELL") is not { Length: > 0 } spec || Environment.GetEnvironmentVariable("BIGPVS") is null)
+            return;
+        using var cap = Open(out _);
+        if (cap is null)
+            return;
+        var s = StateOf(cap);
+        var cell = spec.Split(':').Select(int.Parse).ToArray();
+        var rte = Scene();
+        var reach = VisPvs.Reach(rte);
+        var lists = VisPvs.EntriesByCluster(s);
+        // BIGCELL_GEN=0: the cluster-centre generator's first pass instead.
+        var centres = Environment.GetEnvironmentVariable("BIGCELL_GEN") == "0" ? VisPvs.Centres(s) : null;
+        var pairs = Pairs(cap.Blob("pairs" + FirstPass(cap, centres is null ? 2 : 0)));
+        var found = new List<string>();
+        var numbered = VisPvs.RayLists(pairs, (lo, hi, rays) =>
+        {
+            if (centres is not null)
+            {
+                rays.Add(VisPvs.Toward(centres[lo], centres[hi]));
+                return;
+            }
+            foreach (var a in lists[lo])
+                foreach (var b in lists[hi])
+                    rays.Add(VisPvs.Toward(VisPvs.Jittered(s, a, lo), VisPvs.Jittered(s, b, hi)));
+        }).Select((list, index) => (list, index));
+        Parallel.ForEach(numbered, item =>
+        {
+            var (list, index) = item;
+            var wanted = new List<int>();
+            for (var i = 0; i < list.Count; i++)
+            {
+                var line = VisPvs.Walk(s, list[i].Origin, VisPvs.End(list[i], reach), through: true) ?? [];
+                if (line.Contains(cell[0]) && line.Contains(cell[1]))
+                    wanted.Add(i);
+            }
+            if (wanted.Count > 0)
+            {
+                var packets = rte.Segments(list.Select(r => (r.Origin, VisPvs.End(r, reach))).ToArray(), 0x4801);
+                foreach (var i in wanted)
+                {
+                    var single = rte.Segment(list[i].Origin, VisPvs.End(list[i], reach), 0x4801);
+                    var end = VisPvs.Traced(rte, list[i], 2, true, reach, packets[i]);
+                    var walk = end is { } e ? VisPvs.Walk(s, list[i].Origin, e, through: true) ?? [] : [];
+                    var text = $"list {index:d6} ray {i} {list[i].Origin} dir {list[i].Direction}: packet "
+                             + $"{(packets[i] is { } p ? $"tri {p.Triangle} t {p.Distance:R}" : "miss")} alone "
+                             + $"{(single is { } q ? $"tri {q.Triangle} t {q.Distance:R}" : "miss")} end {end} both {walk.Contains(cell[0]) && walk.Contains(cell[1])}"
+                             + $" walk [{string.Join(" ", walk)}]";
+                    lock (found)
+                        found.Add(text);
+                }
+            }
+        });
+        foreach (var line in found.Order(StringComparer.Ordinal))
+            output.WriteLine(line);
+    }
+
+    /// <summary>
+    /// Valve's traced segments for chosen rays (tools/vis/capture_segments.py,
+    /// <c>BIGSEGS=&lt;jsonl&gt;</c>) against ours: each segment of a cluster-centre
+    /// (pass 0) or large-region (pass 40) ray matched by its start and its place in
+    /// the ray list, the ends bit for bit, and the walks of both.
+    /// </summary>
+    [Fact]
+    public void SegmentsAgainstValve()
+    {
+        if (Environment.GetEnvironmentVariable("BIGSEGS") is not { Length: > 0 } path || Environment.GetEnvironmentVariable("BIGPVS") is null)
+            return;
+        using var cap = Open(out _);
+        if (cap is null)
+            return;
+        var s = StateOf(cap);
+        var rte = Scene();
+        var reach = VisPvs.Reach(rte);
+        var lists = VisPvs.EntriesByCluster(s);
+        var centres = VisPvs.Centres(s);
+        var rows = File.ReadAllLines(path).Select(l => JsonDocument.Parse(l).RootElement).ToList();
+        foreach (var pass in rows.Select(r => r.GetProperty("pass").GetInt32()).Distinct())
+        {
+            var generator = cap.Head("pairs" + pass).GetProperty("generator").GetInt32();
+            var mine = rows.Where(r => r.GetProperty("pass").GetInt32() == pass).ToList();
+            var starts = mine.Select(r => Hex(r, 0)).ToHashSet();
+            var rays = new List<(int Index, VisPvs.Ray Ray)>();
+            foreach (var list in VisPvs.RayLists(Pairs(cap.Blob("pairs" + pass)), (lo, hi, into) =>
+            {
+                if (generator == 0)
+                    into.Add(VisPvs.Toward(centres[lo], centres[hi]));
+                else
+                    foreach (var a in lists[lo])
+                        foreach (var b in lists[hi])
+                            into.Add(VisPvs.Toward(VisPvs.Jittered(s, a, lo), VisPvs.Jittered(s, b, hi)));
+            }))
+            {
+                for (var i = 0; i < list.Count; i++)
+                    if (starts.Contains(list[i].Origin))
+                        rays.Add((i, list[i]));
+            }
+            int same = 0, shown = 0;
+            foreach (var r in mine)
+            {
+                var index = r.GetProperty("index").GetInt32();
+                var (start, theirs) = (Hex(r, 0), Hex(r, 12));
+                // Valve's index counts only rays that kept a segment, so match on the start alone.
+                var candidates = rays.Where(x => x.Ray.Origin == start).ToList();
+                if (candidates.Count == 0)
+                {
+                    output.WriteLine($"pass {pass} index {index}: no ray of ours");
+                    continue;
+                }
+                var ray = candidates.MinBy(x => Vector3.DistanceSquared(VisPvs.Sight(rte, x.Ray, reach) ?? Vector3.Zero, theirs)).Ray;
+                var ours = VisPvs.Sight(rte, ray, reach);
+                var exact = ours is { } o && o == theirs;
+                same += exact ? 1 : 0;
+                var walkOurs = ours is { } e ? VisPvs.Walk(s, start, e, through: true) ?? [] : [];
+                var walkTheirs = VisPvs.Walk(s, start, theirs, through: true) ?? [];
+                if (!exact || !walkOurs.Order().SequenceEqual(walkTheirs.Order()))
+                {
+                    if (shown++ < 40)
+                        output.WriteLine($"pass {pass} index {index} dir {R(ray.Direction)}: end ours {(ours is { } q ? R(q) : "none")} valve {R(theirs)}"
+                                       + $"\n    walk ours [{string.Join(" ", walkOurs.Distinct().Order())}] on valve's [{string.Join(" ", walkTheirs.Distinct().Order())}]");
+                }
+            }
+            output.WriteLine($"pass {pass}: {same}/{mine.Count} segment ends bit-identical");
+        }
+
+        static Vector3 Hex(JsonElement row, int at)
+        {
+            var b = Convert.FromHexString(row.GetProperty("hex").GetString()!);
+            return V(b, at);
+        }
+
+        static string R(Vector3 v) => string.Join(",", new[] { v.X, v.Y, v.Z }.Select(f => f.ToString("R", System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     /// <summary>

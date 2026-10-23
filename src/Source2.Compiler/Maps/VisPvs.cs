@@ -600,12 +600,16 @@ public static class VisPvs
         return rows;
     }
 
-    /// <summary>The scan's ray length, the tracer box's diagonal summed x, y, z.</summary>
+    /// <summary>
+    /// The scan's ray length (<c>SamplerDriver</c>): the tracer box's diagonal,
+    /// summed x + (y + z). Grouped as (x + y) + z it rounds differently on
+    /// s2c_prefabprobe4 and moves every segment end by an ulp.
+    /// </summary>
     public static float Reach(RayTraceEnvironment rte)
     {
         var (lo, hi) = rte.TracedBounds;
         float dx = hi.X - lo.X, dy = hi.Y - lo.Y, dz = hi.Z - lo.Z;
-        return MathF.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
+        return MathF.Sqrt((dx * dx) + ((dy * dy) + (dz * dz)));
     }
 
     /// <summary>
@@ -694,8 +698,13 @@ public static class VisPvs
         return WalkInto(s, o, end, through, ids, open) ? ids : null;
     }
 
+    // The walk's queue: a ring of 4,096 on the stack. A push past it overwrites
+    // the oldest unread node, and the walk ends whenever the read index meets the
+    // write index after a node, so an overflow loses nodes or ends the walk.
+    private const int WalkRing = 0x1000;
+
     [ThreadStatic]
-    private static Queue<(int Node, Vector3 Corner, float Size)>? _walkQueue;
+    private static (int Node, Vector3 Corner, float Size)[]? _walkRing;
 
     /// <summary><see cref="Walk"/> into a list the caller owns: false where Walk gives null.</summary>
     public static bool WalkInto(State s, Vector3 o, Vector3 end, bool through, List<int> ids, ulong[]? open = null)
@@ -703,13 +712,12 @@ public static class VisPvs
         var inv = new Vector3(1f / Guard(end.X - o.X), 1f / Guard(end.Y - o.Y), 1f / Guard(end.Z - o.Z));
         ids.Clear();
         var last = -1;
-        var queue = _walkQueue ??= new Queue<(int Node, Vector3 Corner, float Size)>();
-        queue.Clear();
+        var ring = _walkRing ??= new (int, Vector3, float)[WalkRing];
+        int read = 0, write = 0;
         var root = s.NodeMins[0];
-        queue.Enqueue((0, root, s.NodeMaxs[0].X - root.X));
-        while (queue.Count > 0)
+        var (node, c, size) = (0, root, s.NodeMaxs[0].X - root.X);
+        while (true)
         {
-            var (node, c, size) = queue.Dequeue();
             var word = s.NodeWords[node];
             if ((word & 1) == 0)
             {
@@ -722,35 +730,41 @@ public static class VisPvs
                     var at = new Vector3((size * ((oct & 1) != 0 ? 0.5f : 0f)) + c.X,
                                          (size * ((oct & 2) != 0 ? 0.5f : 0f)) + c.Y,
                                          (size * ((oct & 4) != 0 ? 0.5f : 0f)) + c.Z);
-                    queue.Enqueue((first + oct, at, size * 0.5f));
+                    ring[write] = (first + oct, at, size * 0.5f);
+                    write = (write + 1) & (WalkRing - 1);
                 }
-                continue;
             }
-            var cells = CellMask(o, inv, c, size + c.X);
-            if (open is not null)
-                cells &= open[node];
-            var start = (int)(word >> 1);
-            for (var k = 0; k < s.NodeCounts[node]; k++)
+            else
             {
-                var e = s.Entries[start + k];
-                var kind = e.Kind;
-                if (kind == VisVisibility.Skipped)
-                    continue;
-                if ((kind == VisVisibility.Blocking || e.Cluster != last) && (e.Cells & cells) != 0)
+                var cells = CellMask(o, inv, c, size + c.X);
+                if (open is not null)
+                    cells &= open[node];
+                var start = (int)(word >> 1);
+                for (var k = 0; k < s.NodeCounts[node]; k++)
                 {
-                    if (kind == VisVisibility.Open)
+                    var e = s.Entries[start + k];
+                    var kind = e.Kind;
+                    if (kind == VisVisibility.Skipped)
+                        continue;
+                    if ((kind == VisVisibility.Blocking || e.Cluster != last) && (e.Cells & cells) != 0)
                     {
-                        ids.Add(e.Cluster);
-                        last = e.Cluster;
-                    }
-                    else if (!through)
-                    {
-                        return false;
+                        if (kind == VisVisibility.Open)
+                        {
+                            ids.Add(e.Cluster);
+                            last = e.Cluster;
+                        }
+                        else if (!through)
+                        {
+                            return false;
+                        }
                     }
                 }
             }
+            if (read == write)
+                return true;
+            (node, c, size) = ring[read];
+            read = (read + 1) & (WalkRing - 1);
         }
-        return true;
     }
 
     // divps against 1 with the FLT_EPSILON bits ORed in below FLT_MIN.

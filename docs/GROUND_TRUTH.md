@@ -3349,6 +3349,22 @@ game can answer is raised with the user first, and runs with -insecure.
     - Verified: with Valve's own cluster boxes, the 6 lights Valve lists are exact in value and place and
       no other light gets the key, so the light half (trace, bounds, cluster test) is exact apart from vis.
 
+123. **The PVS scan's ray length and walk queue** (2026-10-23, visbuilder decompile and disassembly plus
+    Valve's s2c_prefabprobe4 scan: a capture_pvs.py --passin capture and capture_segments.py's RayFold
+    segments).
+    - Settled: SamplerDriver (180019c40) computes the ray length as sqrt(dx² + (dy² + dz²)) over the
+      tracer box (addss y² + z² first, then x²). BatchTracer sends each ray to reach · d + o; the packet
+      renormalises end − o, so the length's grouping reaches every hit t and segment end. Grouped
+      (x² + y²) + z² it rounds one ulp apart on prefabprobe4's box; with Valve's grouping all 19 captured
+      segments are bit-identical and the three scan generators match Valve pass by pass (centres 10,
+      boundary points 28, large regions 2; 23,534/23,534 rows).
+    - Settled: SegmentWalk (18002ef60) and SunWalk (18002f1c0) queue nodes in a ring of 4,096 (index
+      & 0xfff) with no overflow check, ending when the read index meets the write index after a node.
+    - Verified unchanged by reading beside the port: CentrePoints (18001fda0) and its fill (18001fad0),
+      CentreRays, LargeRegionRays (180021190), Ray_Toward, FillRays, BatchRay, the packet triangle test
+      (divps) and normalisation (rcpps + one Newton step), OctantMask and CellMask (max of the enters
+      with 0 against min of the leaves with 1).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

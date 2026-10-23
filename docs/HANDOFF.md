@@ -121,9 +121,10 @@ carries the same state per item.
    where it is made is not traced), Steam Audio (no workshop map has it).
 6. **Geometry:** heap-ordered prop aggregate parts (Valve varies run to run),
    subdivided entries' tangents, overlay tangents, detail grass.
-7. **Visibility:** atixref-sized maps diverge in three back-half stages and the merge
-   passes are unmeasured: VISIBILITY.md Open has each divergence, its test and the
-   captures (in progress 2026-10-23, stopped for a CS2 update). Then wiring vis into a world build.
+7. **Visibility:** on atixref-sized maps the back half is exact from Valve's state (the
+   scan's ray length fixed 2026-10-23, ledger 123; the vis-cluster merge earlier); left are
+   the five merge passes, unmeasured (PASSREPLAY, VISIBILITY.md Open), then our chain end
+   to end on s2c_prefabprobe4. Then wiring vis into a world build.
 8. **Entities:** the light keys are done (atixref and Mako 0 differences, 2026-10-22). Left: prefabs with
    fixupEntityNames, a prefab in a prefab, a prefab beside the map's own instances (refused, not captured);
    our vis end to end on atixref-sized maps (prefabprobe4 vis clusters are exact from Valve's captured boxes).

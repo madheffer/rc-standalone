@@ -478,7 +478,7 @@
    "addr": "180019c40",
    "name": "SamplerDriver",
    "module": "s2c:visibility",
-   "note": "the sampler's ray loop (thread pool)"
+   "note": "the sampler's ray loop (thread pool); ray length = sqrt(dx^2 + (dy^2 + dz^2)) of the tracer box"
   },
   {
    "addr": "180018500",
@@ -622,7 +622,7 @@
    "addr": "18002ef60",
    "name": "SegmentWalk",
    "module": "s2c:visibility",
-   "note": "a segment through the octree, breadth first"
+   "note": "a segment through the octree, breadth first, in a 4,096-node ring that overwrites on overflow"
   },
   {
    "addr": "18002f1c0",
