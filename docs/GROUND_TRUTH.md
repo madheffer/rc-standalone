@@ -3510,8 +3510,16 @@ game can answer is raised with the user first, and runs with -insecure.
     - Verified: world physics of s2c_cableinst and s2c_cableinst2 whole-file exact; s2c_cableinst's
       43 entity models (33 cable models' physics) exact, the nested copy named after the id the
       prefab's block shifts (2647); its settle world's 91 bodies exact (transforms, shapes, mass).
-    - Not settled: instances inside a prefab's map for entity models (listed, not built); no probe
-      turns an explicit tangent yet (the rotation above is ported from 18110eae0 alone).
+    - Fixed 2026-10-24: the entity lump placed a path's copy by its node alone, keeping the template's
+      path nodes, so s2c_cableinst's three turned copies differed in origin and pathNodes; it now
+      places each copy as the physics side does (SettleWorld.PlacedPath: every path node moved, the
+      origin its moved first node, under a deformer the deformer's move). s2c_cableinst,
+      s2c_cableinst2, s2c_deformplace and atixref lumps: 0 differences.
+    - Ported (2026-10-24, from the lump's rules, no probe yet): brush entity and cable models of what
+      instances inside a prefab's map place, named by the copy's plain id (item 46) with the template's
+      name fixup, placed by the prefabs then the instances (SettleWorld.NestedPlacement).
+    - Not settled: no probe turns an explicit tangent yet (the rotation above is ported from 18110eae0
+      alone).
 
 129. **Deformers placed through instances and prefabs, and cables under deformers** (2026-10-23:
     decompile of resourcecompiler 0923 and physicsbuilder 0924; Frida captures capture_deformer.py,
@@ -3541,14 +3549,59 @@ game can answer is raised with the user first, and runs with -insecure.
     - Settled: a mesh is deformed by HammerMesh_ApplyDeformer with its own node matrix (vf 0xa0,
       181255fb0) and the deformer struct its lookup returns (181022480, the node's +0x4c0), on the
       moved copy; the cable's world export (vf200, 18114c1b0) does not deform, the pre-settle world
-      does (PhysMesh_Shapes 181057020, ApplyArrays with the cable's node matrix, the whole index list
-      reversed for a mirrored lattice).
+      does not (corrected 2026-10-24, item 130): PhysMesh_Shapes (181057020) only deforms with the
+      deformer PhysMesh_Build (18105d760) hands it, 181022480 of the node, which a cable class never
+      answers (the node must be of kind 3).
     - Verified: s2c_deformplace's world physics and its 14 entity models whole-file exact against a
       fresh Valve compile; 1,606 resourcecompiler and 171 physicsbuilder deform calls bit for bit;
       every placed prop's transform and placed deformer struct bit for bit.
-    - Not settled: the settle world of a prop under a deformer (Valve's settle tessellates and deforms
-      its shapes; ours builds them undeformed and stops on its spheres); a lattice cloned by an
-      instance (its CopyFrom 18116f970 makes locators again; no probe).
+    - Settled 2026-10-24 (item 130): the settle world of a prop under a deformer, and a lattice cloned
+      by an instance (its CopyFrom 18116f970 makes no locators: the clone copies them).
+
+130. **The settle world under deformers, lattice locators in copies, and the lattice's settings**
+    (2026-10-24: decompile of resourcecompiler 0923; verified against the 10-23 capture_settle.py
+    capture of s2c_deformplace: 147 of 147 bodies, 140 of 140 shapes, every body exact at step 0 and
+    the settled prop exact after 2,700 steps; the earlier port stopped on the capture's deformed
+    shapes).
+    - Settled: a prop's settle record (CMapEntity vf 0x6f8, 181003930) holds the node matrix's
+      position, its largest column scale and MatrixQuaternion (18125de90) of the rotation, before the
+      compose the body transform gets, and the deformer 181022540 copies, composed after the node's
+      step as a CTransform (181288690; the identity step after the bake). 181022540 answers only for
+      a node of kind 3 (vf 0x4a0, 181002590: a class with the static_prop or deformable flag,
+      180dd54d0), climbing groups and such props to the nearest CMapDeformer.
+    - Settled: with a deformer PhysPart_BuildFromModel (18105dbd0) takes the matrix path and turns
+      every shape into a deformed mesh: spheres by 1819d5810 (5 meridians, 12 latitudes, poles on x),
+      capsules by 1819d5950 (12 meridians, 2 latitudes a hemisphere, turned onto the axis by the frame
+      of 18125d0d0), hulls by 1819589f0 (a fan per face), meshes as they are; points through the
+      placement matrix, PropDeformer_Transform with the record's matrix (1801feb70), RnMeshCreate
+      (vphysics2 vf 0x238), each triangle's first and third corner swapped for a mirrored lattice,
+      added at scale 1 (1810557d0, 181054970, 181054e80, 1810554d0). SettleWorld.Deformed.cs.
+    - Settled: PhysMesh_Build hands PhysMesh_Shapes 181022480 of the node, so a cable (kind 0) is
+      never deformed in the settle world (the eight cables of s2c_deformplace are straight in Valve's
+      capture), and PhysObj_Build (18105c5b5) sends CMapPath as well as CMapMesh there, so a cable's
+      body has its damping and drag zeroed too (all eight differed at step 0 before).
+    - Settled: an instance's clone (180f86a90: factory, then CopyFrom, then the children) copies a
+      lattice's control point locators like any child (their vf 0x188 is 1800de990, false), each with
+      an id after the lattice's own subtree; the lattice's CopyFrom (18116f970) calls 1811758d0, which
+      does nothing because the clone has no parent yet (vf 0x4f8, 180f78950, finds the document
+      through the parent). In a prefab's map the locators are the lattice's last children too, so they
+      take the slots after its subtree (Valve's ids for s2c_deformplace's prefab nodes after its
+      lattice are 24 higher), not the end of the block (MapInstances.ClonedLocators, PrefabSlots).
+      No .vmap stores a locator, Valve's own zoo maps included.
+    - Settled: the lattice's settings. The divisions setter (1812907e0) takes at least one segment and
+      1..3 divisions in y and z, regridding on a change; the interpolation name is matched by
+      V_stricmp against LINEAR, B_SPLINE, CATMUL_ROM, BEZIER (183011390, 0..3), an unknown name 0;
+      the bend axis Y or Z (1830114d0), an unknown name 1, and the simple deformer's constructor
+      (181175fc0) starts it at 1. The cubic cell blend for four cells (18127fdc0) weighs
+      g^3, (g g 3) t, (g 3)(t t), (t t) t and sums ((w1 p1 + g^3 p0) + w2 p2) + t^3 p3 (disassembly).
+      A node's scales reach neither the deformer's transform (the change hook 181020fa0) nor its size
+      (181022b60 -> SetSize 1812908b0), and the node matrix is unscaled (vf 0xa0, 181255fb0); only the
+      simple deformer's bend takes them, re-bent on each transform change (1811764f0).
+    - Not settled: BEZIER lattices, whose handles 18128cab0 resets on the grid whenever the mode or
+      the divisions change, so they depend on the order the load sets size, divisions and mode (the
+      attributes go through the DMX element machinery; a capture of PropDeformer_Transform's struct
+      settles it); a stored control point array of another length (181290340 copies the overlap over
+      whatever the lattice held); CMapDeformerPath (decompile mapped in PHYSICS.md, not ported).
 
 ## Resolved
 

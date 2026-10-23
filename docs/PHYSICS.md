@@ -38,28 +38,43 @@ Brush entity models:
 In game, ze_hold_em_p and atixref with our physics load and collide as
 Valve's do.
 
+The settle world under deformers is exact on s2c_deformplace (147 bodies,
+140 shapes, step 0 and the settled prop; ledger 130): deformed props become
+deformed meshes, cables stay straight, and copies of deformed meshes deform
+at their own placement.
+
 Open:
-- **Deformed props in the settle world:** Valve's settle tessellates and
-  deforms a deformed prop's shapes; ours builds them undeformed (ledger
-  129). World physics and entity models of deformed props, meshes and
-  cables placed through instances and prefabs are ported (s2c_deformplace
-  whole-file exact). Prop bone overrides need nothing: a compile poses only
-  ragdolls (Resolved, "Prop bone overrides").
-- **A lattice inside an instance:** its clone makes control point locators
-  again (18116f970); no probe yet.
-- **Instances inside a prefab's map:** their copies' brush entity models are
-  listed, not built.
-- **The bake wrapper's steps:** MergeVertices and AssignSmoothingModeToEdges;
-  no map needs them yet.
+- **CMapDeformerPath:** its update (18117a900) builds a Bezier polygon from
+  the target CMapPath's nodes (1810b7ca0) in the deformer's space and fits a
+  mode 3 lattice along it (18128dc90: the path resampled and fitted to the
+  maxError tolerance by 18128f4d0, 100 samples a segment, frames by
+  181281aa0, each corner of the 1 x 1 section fitted as a cubic by
+  1812858b0). Its start and end setters clamp against each other
+  (18117a8b0, 18117a820), so the result depends on the load's property
+  order. Not ported; throws.
+- **BEZIER lattices:** the handles 18128cab0 resets on the grid depend on the
+  same property order (ledger 130). Throws; a capture of the struct
+  PropDeformer_Transform gets settles it.
+- **Aggregates in the settle:** a prop whose model has several physics parts,
+  or a bind pose, needs vphysics2's joints, compound shapes and the
+  aggregate write-back, none ported; the settle refuses such a map. No
+  corpus map has one.
+- **An edge between two coincident baked vertices:** MergeVertices
+  (1813a8840) takes CollapseEdge (181383600 -> 181382170, with the
+  attribute snapshots 1813a3d50 and 1813a3f40) on Hammer's 22-bit handle
+  tables; not ported, no specimen. The rest of the bake wrapper (1810c65c0:
+  merge at 1e-6, AssignSmoothingModeToEdges soft, normals) is.
+- **Instances inside a prefab's map:** their copies' brush entity and cable
+  models are built by the lump's rules (ledger 128), with no Valve probe yet.
 - **ze_hold_em_p's six doors:** a toolsclip mesh ships no hull, because the
   .vmap is older than the compile.
 - **Render meshes** of entity models, and the cable models' render half (so
-  the compile writes no cable model yet; their physics is ported).
-- **Unreachable from a map compile:** RnHullCreate's simplify algorithms 1
-  and 2, its minimum radius check and RnMeshCreate's simplifier take option
-  values only a model compile sets (the map passes the MapBuilder, Compile
-  and mesh hull blocks). The agglomerator's split into separate clusters has
-  no specimen.
+  the compile writes no cable model yet; their physics is ported). These
+  are the model compile's render side, not physics.
+- **Model compiles only:** RnHullCreate's simplify algorithms 1 and 2, its
+  minimum radius check and RnMeshCreate's simplifier take option values only
+  a model compile sets (the map passes the MapBuilder, Compile and mesh hull
+  blocks). The agglomerator's split into separate clusters has no specimen.
 - **Ledger items** in GROUND_TRUTH.md.
 
 ## The container

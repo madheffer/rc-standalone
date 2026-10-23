@@ -36,6 +36,9 @@ internal sealed class LatticeDeformer
     public Vector3[] Handles = [];
     public bool Mirror;
 
+    // 183011390: the interpolation enum in value order.
+    private static readonly string[] InterpolationNames = ["LINEAR", "B_SPLINE", "CATMUL_ROM", "BEZIER"];
+
     public int CellsY => DivisionsY + 1;
     public int CellsZ => DivisionsZ + 1;
 
@@ -177,7 +180,20 @@ internal sealed class LatticeDeformer
                 return new Vector3(g * p[i].X + f * p[i + 1].X, g * p[i].Y + f * p[i + 1].Y, g * p[i].Z + f * p[i + 1].Z);
             }
             if (count == 4)
-                throw new NotSupportedException("the cubic cell blend (18127fdc0) is not ported");
+            {
+                // 18127fdc0, association from the disassembly: the third weight is
+                // (g * 3) * (t * t), and each axis sums ((w1 p1 + g^3 p0) + w2 p2) + t^3 p3.
+                var g = 1f - f;
+                var gg = g * g;
+                var g3 = gg * g;
+                var w1 = gg * 3f * f;
+                var tt = f * f;
+                var w2 = g * 3f * tt;
+                var t3 = tt * f;
+                return new Vector3(w1 * p[1].X + g3 * p[0].X + w2 * p[2].X + t3 * p[3].X,
+                                   w1 * p[1].Y + g3 * p[0].Y + w2 * p[2].Y + t3 * p[3].Y,
+                                   w1 * p[1].Z + g3 * p[0].Z + w2 * p[2].Z + t3 * p[3].Z);
+            }
             if (count == 3)
             {
                 var g = 1f - f;
@@ -295,8 +311,8 @@ internal sealed class LatticeDeformer
     /// CATMUL_ROM, BEZIER: 0 to 3) and nodeData's control points; a simple
     /// deformer its size and the bend (<see cref="Bend"/>). The mirror flag is
     /// only ever set by a KV3 load or a copy (18128eaf0, 180246d70); a map's
-    /// node leaves it clear. Not ported, and thrown: a scaled node, a lattice
-    /// in BEZIER mode (its handles' source is not read), CMapDeformerPath.
+    /// node leaves it clear. Not ported, and thrown: a lattice in BEZIER mode
+    /// (its handles depend on the load's property order), CMapDeformerPath.
     /// Checked against the structs PropDeformer_Transform was handed
     /// (capture_deformer.py on deformerprobe): all three bit for bit.
     /// </summary>
@@ -331,10 +347,40 @@ internal sealed class LatticeDeformer
         return d;
     }
 
+    /// <summary>
+    /// The control points a CMapDeformerLattice node's deformer holds after the
+    /// load, one locator each (1811758d0 walks the struct's points,
+    /// 18128b5d0): the grid's count from the clamped dimensions, whatever the
+    /// .vmap stores (181290340 copies a stored array of another length only
+    /// over the overlap).
+    /// </summary>
+    public static int ControlPointCount(DmxBinary.Element node)
+    {
+        if (node.Type != "CMapDeformerLattice")
+            return 0;
+        var d = new LatticeDeformer();
+        d.ReadDimensions(node);
+        return (d.Segments + 1) * (d.DivisionsY + 1) * (d.DivisionsZ + 1);
+    }
+
+    private void ReadDimensions(DmxBinary.Element node)
+    {
+        // The constructor (18116dcb0) leaves every dimension 0. The divisions
+        // setter (1812907e0) takes at least one segment and 1..3 divisions in y
+        // and z, so a lattice never has more than four cells a side.
+        Segments = node.GetValue<int>("numSegments") is { } segments ? Math.Max(segments, 1) : 0;
+        DivisionsY = node.GetValue<int>("numDivisionsY") is { } y ? Math.Clamp(y, 1, 3) : 0;
+        DivisionsZ = node.GetValue<int>("numDivisionsZ") is { } z ? Math.Clamp(z, 1, 3) : 0;
+    }
+
     public static LatticeDeformer FromNode(DmxBinary.Element node)
     {
-        if ((node.GetValue<Vector3>("scales") ?? Vector3.One) != Vector3.One)
-            throw new NotSupportedException($"{node.Type} {node.GetValue<int>("nodeID")}: a scaled deformer is not ported");
+        // A node's scales reach neither the transform (the change hook 181020fa0
+        // takes origin and angles, scale 1) nor the size (181022b60 hands the
+        // node's own size to SetSize 1812908b0), and the node matrix the lattice
+        // places its locators by is AngleMatrix and origin (vf 0xa0, 181255fb0).
+        // Only the simple deformer's bend takes them (+0xb8, re-bent by its
+        // change hook 1811764f0 on every transform change).
         var d = new LatticeDeformer
         {
             Transform = CTransform.FromNode(node),
@@ -343,16 +389,13 @@ internal sealed class LatticeDeformer
         switch (node.Type)
         {
             case "CMapDeformerLattice":
-                d.Segments = node.GetValue<int>("numSegments") ?? 0;
-                d.DivisionsY = node.GetValue<int>("numDivisionsY") ?? 0;
-                d.DivisionsZ = node.GetValue<int>("numDivisionsZ") ?? 0;
-                d.Mode = (node.Get<string>("interpolationMode") ?? "B_SPLINE") switch
-                {
-                    "LINEAR" => 0,
-                    "B_SPLINE" => 1,
-                    "CATMUL_ROM" => 2,
-                    var m => throw new NotSupportedException($"lattice deformer {node.GetValue<int>("nodeID")}: interpolation {m} is not ported"),
-                };
+                d.ReadDimensions(node);
+                // The constructor starts the mode at 1; 181172a70: the enum table (183011390) by V_stricmp, an unknown name 0.
+                d.Mode = node.Get<string>("interpolationMode") is { } name
+                    ? Array.FindIndex(InterpolationNames, n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)) is var m and >= 0 ? m : 0
+                    : 1;
+                if (d.Mode == 3)
+                    throw new NotSupportedException($"lattice deformer {node.GetValue<int>("nodeID")}: BEZIER's handles depend on the order the load sets size, divisions and mode (18128cab0 resets them on the grid), which is not read");
                 var count = (d.Segments + 1) * (d.DivisionsY + 1) * (d.DivisionsZ + 1);
                 var points = node.Get<DmxBinary.Element>("nodeData")?.Get<object?[]>("controlPoints") ?? [];
                 if (points.Length != count)
@@ -360,15 +403,13 @@ internal sealed class LatticeDeformer
                 d.Points = [.. points.Select(p => (Vector3)p!)];
                 break;
             case "CMapDeformerSimple":
-                var axis = (node.Get<string>("bendAxis") ?? "Y") switch
-                {
-                    "Y" => 0,
-                    "Z" => 1,
-                    var a => throw new NotSupportedException($"simple deformer {node.GetValue<int>("nodeID")}: bend axis {a}"),
-                };
+                // 1811770f0: Y 0, Z 1 by V_stricmp, an unknown name 1; the constructor
+                // (181175fc0) starts at 1.
+                var axis = string.Equals(node.Get<string>("bendAxis") ?? "Z", "Y", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
                 // The angle setter (1811781b0) clamps to [-360, 360].
                 var angle = Math.Clamp(node.GetValue<float>("bendAngle") ?? 0f, -360f, 360f);
-                d.Bend(axis, angle, node.GetValue<float>("bendPoint") ?? 0f, node.GetValue<float>("bendRadius") ?? 0f, Vector3.One);
+                d.Bend(axis, angle, node.GetValue<float>("bendPoint") ?? 0f, node.GetValue<float>("bendRadius") ?? 0f,
+                       node.GetValue<Vector3>("scales") ?? Vector3.One);
                 break;
             default:
                 throw new NotSupportedException($"{node.Type} {node.GetValue<int>("nodeID")}: not ported");

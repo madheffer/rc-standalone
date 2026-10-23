@@ -40,6 +40,9 @@ public static class MeshTessellation
 
     public static Result Triangulate(DmxBinary.Element data) => Build(data, false).ToResult();
 
+    /// <summary><see cref="Triangulate(DmxBinary.Element)"/> with the vertex positions given (a deformed copy's).</summary>
+    public static Result Triangulate(DmxBinary.Element data, object?[]? positions) => Build(data, false, positionsGiven: positions).ToResult();
+
     /// <summary>
     /// The mesh as the editor's ray scene takes it (RayScene_AddFace,
     /// resourcecompiler 0923: 1813ccd20): face by face, unwelded, three
@@ -109,7 +112,7 @@ public static class MeshTessellation
         public Result ToResult() => new(Positions, Indices, Faces) { Paint = Paint, Written = Written };
     }
 
-    private static BuiltResult Build(DmxBinary.Element data, bool builderOrder, bool rayScene = false)
+    private static BuiltResult Build(DmxBinary.Element data, bool builderOrder, bool rayScene = false, object?[]? positionsGiven = null)
     {
         var next = Ints(data, "edgeNextIndices");
         var to = Ints(data, "edgeVertexIndices");
@@ -118,7 +121,7 @@ public static class MeshTessellation
         var cornerData = Ints(data, "edgeVertexDataIndices");
         var first = Ints(data, "faceEdgeIndices");
         var vertexData = Ints(data, "vertexDataIndices");
-        var positions = Stream(data.Get<DmxBinary.Element>("vertexData"), "position");
+        var positions = positionsGiven ?? Stream(data.Get<DmxBinary.Element>("vertexData"), "position");
         var subdivision = data.Get<DmxBinary.Element>("subdivisionData");
         var levels = subdivision?.Get<object?[]>("subdivisionLevels")?.Select(x => x is int i ? i : 0).ToArray() ?? [];
         var hasSubdivision = subdivision != null && levels.Length > 0;

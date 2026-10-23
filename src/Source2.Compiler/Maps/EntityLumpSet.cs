@@ -356,16 +356,36 @@ public static class EntityLumpSet
 
         var sourceIds = MapEntities.SourceIds(entities, out var forward);
         var pending = new Dictionary<int, List<EntityLumpAuthor.Emission>>();
+        // A path's copy is placed node by node, as the collapse moves each path
+        // node (ledger 128: its origin follows its moved first node), and under a
+        // deformer of the copy by the deformer's move (SettleWorld.PlacedPath).
+        var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        if (document is not null && copies.Any(c => entities[c.Template].PathNodes is not null))
+            foreach (var d in Maps.SettleWorld.AllDocuments(document))
+            {
+                foreach (var e in d.Elements)
+                    foreach (var child in e.GetElements("children"))
+                        parents.TryAdd(child, e);
+                foreach (var instance in d.OfType("CMapInstance"))
+                    if (instance.Get<DmxBinary.Element>("target") is { } target)
+                        targets.Add(target);
+            }
         foreach (var copy in copies)
         {
             if (!pending.TryGetValue(copy.EmitAt, out var here))
                 pending[copy.EmitAt] = here = [];
+            var template = entities[copy.Template];
+            var path = template.PathNodes is not null && copy.Node is { } node && (copy.Through.Count > 0 || copy.Prefabs.Length > 0)
+                ? Maps.SettleWorld.PlacedPath(template, copy.Through, copy.Prefabs, Maps.SettleWorld.IsUnderDeformer(node, parents, targets))
+                : null;
             here.Add(new EntityLumpAuthor.Emission(
-                Settle(entities[copy.Template] with
+                Settle(template with
                 {
                     NodeId = copy.NodeId,
-                    Origin = copy.Origin,
-                    Angles = copy.Angles,
+                    Origin = path?.Origin ?? copy.Origin,
+                    Angles = path?.Angles ?? copy.Angles,
+                    PathNodes = path?.PathNodes ?? template.PathNodes,
                     Layer = copy.Layer,
                     Instanced = true,
                     // A copy made inside a prefab's map ships with a plain id (GROUND_TRUTH 46).

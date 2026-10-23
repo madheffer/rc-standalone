@@ -156,6 +156,8 @@ public sealed class SettleBuildTests(ITestOutputHelper output)
         var document = DmxBinary.ReadFile(Vmap);
         // As the compile loads it: prefab maps attached, so their blocks are reserved.
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.GetDirectoryName(Path.GetDirectoryName(Vmap))!));
+        // As the compile does, the deformers applied to the meshes they reach.
+        MapDeformers.Apply(document);
         var bodies = SettleWorld.Build(document, models, MapFixtures.GameSchema(), SmartProps.NodesCreatedOnLoad(document, MapFixtures.SmartPropLocators),
             d => SmartProps.NodesCreatedOnLoad(d, MapFixtures.SmartPropLocators));
 

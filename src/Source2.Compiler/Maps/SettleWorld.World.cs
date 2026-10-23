@@ -32,10 +32,12 @@ public static partial class SettleWorld
         {
             var q = new Quat(body.Orientation.X, body.Orientation.Y, body.Orientation.Z, body.Orientation.W);
             var b = w.AddBody(NewBody(new Vec3(body.Position.X, body.Position.Y, body.Position.Z), body.Scale, q));
-            if (body.Node?.Type == "CMapMesh")
+            if (body.Node?.Type is "CMapMesh" or "CMapCable")
             {
                 // FUN_18105d760 zeroes a map mesh body's damping and drag
-                // (body vfns 0x2f0, 0x2c0, 0x300, 0x2d0).
+                // (body vfns 0x2f0, 0x2c0, 0x300, 0x2d0). PhysObj_Build (18105c5b5)
+                // sends a CMapPath there too, so a cable's body is the same
+                // (s2c_deformplace's eight cables, captured).
                 b.State.LinearDamping = 0f;
                 b.State.AngularDamping = 0f;
                 b.State.LinearDrag = 0f;

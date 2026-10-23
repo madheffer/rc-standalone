@@ -66,7 +66,6 @@ public static class SmartProps
             .Select(e => e.Get<string>("smartPropFilename") ?? "")
             .Where(p => p.Length > 0)
             .Sum(locatorsOf)
-            + document.OfType("CMapDeformerLattice")
-                .Sum(e => e.Get<DmxBinary.Element>("nodeData")?.Get<object?[]>("controlPoints")?.Length ?? 0);
+            + document.OfType("CMapDeformerLattice").Sum(Maps.LatticeDeformer.ControlPointCount);
     }
 }

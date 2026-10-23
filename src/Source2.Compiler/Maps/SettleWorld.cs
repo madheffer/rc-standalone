@@ -1,4 +1,4 @@
-using Source2.Compiler.Io;
+﻿using Source2.Compiler.Io;
 using System.Numerics;
 using Source2.Compiler.Physics;
 using Source2.Compiler.Simulation;
@@ -168,7 +168,11 @@ public static partial class SettleWorld
         foreach (var d in AllDocuments(document))
             foreach (var e in d.Elements)
                 versions.TryAdd(e, d.FormatVersion);
-        var context = new Context(models, rules ?? new CollisionRules(), schema, []) { Versions = versions, Version = document.FormatVersion };
+        var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        foreach (var e in AllDocuments(document).SelectMany(d => d.Elements))
+            foreach (var child in e.GetElements("children"))
+                parents.TryAdd(child, e);
+        var context = new Context(models, rules ?? new CollisionRules(), schema, []) { Versions = versions, Version = document.FormatVersion, Parents = parents };
         // A group an instance places is built where the instances put it,
         // not where it stands (as MapMeshes walks it).
         var targets = new HashSet<DmxBinary.Element>(ReferenceEqualityComparer.Instance);
@@ -189,10 +193,6 @@ public static partial class SettleWorld
         var placements = new List<(DmxBinary.Element Node, int Id, IReadOnlyList<DmxBinary.Element> Through, DmxBinary.Element[] Prefabs)>();
         MapInstances.Expand(document, MapEntities.From(document), createdOnLoad, (node, id, through, prefabs) => placements.Add((node, id, through, prefabs)),
                             prefabs: true, createdOnLoadIn: createdOnLoadIn, prefabBlock: (prefab, start) => blocks[prefab] = start);
-        var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
-        foreach (var e in AllDocuments(document).SelectMany(d => d.Elements))
-            foreach (var child in e.GetElements("children"))
-                parents.TryAdd(child, e);
         foreach (var world in document.OfType("CMapWorld"))
             Prefabs(world, [], [], hidden, context, blocks);
         // A placed node stands where the bake moved its copy (see Baked), one
@@ -203,9 +203,10 @@ public static partial class SettleWorld
             if (targets.Contains(node))
                 continue;
             var under = IsUnderDeformer(node, parents, targets);
-            var world = NodeWorld(under ? UnderDeformerMatrix(node, through, prefabs) : prefabs.Length == 0 ? Baked(node, through) : NestedPlacement(node, through, prefabs));
+            var matrix = under ? UnderDeformerMatrix(node, through, prefabs) : prefabs.Length == 0 ? Baked(node, through) : NestedPlacement(node, through, prefabs);
+            var world = NodeWorld(matrix);
             if (ModelOf(node, models) is { } phys)
-                FromModel(node, world, id, phys, context);
+                FromModel(node, world, id, phys, context, PropDeformer(node, parents, through, prefabs, schema));
             else if (node.Type == "CMapCable")
                 FromCable(node, context, id, through, prefabs, under);
             else if (node.Type == "CMapMesh")
@@ -213,7 +214,8 @@ public static partial class SettleWorld
                 var owner = parents.GetValueOrDefault(node);
                 while (owner != null && owner.Type != "CMapEntity")
                     owner = parents.GetValueOrDefault(owner);
-                FromMesh(node, world, id, owner, context);
+                // A copy's deformed positions are its own placement's (MapDeformers.PlacedPositions).
+                FromMesh(node, world, id, owner, context, MapDeformers.PlacedPositions(node, matrix, through, prefabs));
             }
         }
         // PhysDoc_BuildObjects std::sorts the collected nodes by pointer. The
@@ -290,9 +292,9 @@ public static partial class SettleWorld
             var before = context.Bodies.Count;
             var id = start + slots[child];
             if (ModelOf(child, context.Models) is { } phys)
-                FromModel(child, NodeWorld(placed), id, phys, context);
+                FromModel(child, NodeWorld(placed), id, phys, context, PropDeformer(child, context.Parents, [], chain, context.Schema));
             else if (child.Type == "CMapMesh")
-                FromMesh(child, NodeWorld(placed), id, owner, context);
+                FromMesh(child, NodeWorld(placed), id, owner, context, MapDeformers.PlacedPositions(child, placed, [], chain));
             else if (child.Type == "CMapCable")
                 FromCable(child, context, id, prefabs: chain, underDeformer: under);
             var path = string.Join(":", ids.Append(child.GetValue<int>("nodeID") ?? -1));
@@ -318,6 +320,9 @@ public static partial class SettleWorld
 
         /// <summary>The main map's format version.</summary>
         public int Version { get; init; } = 40;
+
+        /// <summary>Each node's parent, over the document and its prefab maps.</summary>
+        public IReadOnlyDictionary<DmxBinary.Element, DmxBinary.Element> Parents { get; init; } = new Dictionary<DmxBinary.Element, DmxBinary.Element>();
     }
 
     private static PhysAggregateData? ModelOf(DmxBinary.Element node, IModels models)
@@ -337,7 +342,7 @@ public static partial class SettleWorld
             if (hidden.Contains(child.GetValue<int>("nodeID") ?? -1))
                 continue;
             if (ModelOf(child, context.Models) is { } phys)
-                FromModel(child, NodeWorld(MapMeshes.Local(child)), child.GetValue<int>("nodeID") ?? -1, phys, context);
+                FromModel(child, NodeWorld(MapMeshes.Local(child)), child.GetValue<int>("nodeID") ?? -1, phys, context, PropDeformer(child, context.Parents, [], [], context.Schema));
             else if (child.Type == "CMapMesh")
                 FromMesh(child, NodeWorld(MapMeshes.Local(child)), child.GetValue<int>("nodeID") ?? -1, owner, context);
             else if (child.Type == "CMapCable")
@@ -654,7 +659,8 @@ public static partial class SettleWorld
     /// transform, decomposed into position, uniform scale and orientation,
     /// and each hull and mesh of the part at that scale.
     /// </summary>
-    private static void FromModel(DmxBinary.Element node, float[] local, int nodeId, PhysAggregateData phys, Context context)
+    private static void FromModel(DmxBinary.Element node, float[] local, int nodeId, PhysAggregateData phys, Context context,
+                                  LatticeDeformer? deformer = null)
     {
         var (models, rules, bodies) = (context.Models, context.Rules, context.Bodies);
         var parts = phys.Parts;
@@ -693,6 +699,13 @@ public static partial class SettleWorld
             matrix = MapMeshes.Concat(MapMeshes.Invert(Physics.StaticPropHulls.BindPose(phys, 0)),
                                       MapMeshes.Concat(s, Physics.StaticPropHulls.BindPose(phys, 0)));
         }
+        // A deformer takes the matrix path too (rc 18105e443), and every shape
+        // becomes a deformed mesh (SettleWorld.Deformed.cs).
+        if (deformer != null)
+            matrix ??= [scale.X, 0, 0, 0, 0, scale.Y, 0, 0, 0, 0, scale.Z, 0];
+        // The record's transform (181003930): the matrix's position, largest
+        // column scale and MatrixQuaternion, before the compose the body gets.
+        var record = deformer != null ? RecordMatrix(body.Position, longest, Orientation(Unscaled(local))) : null;
         var shape = parts[0].Shape;
         var props = node.Get<DmxBinary.Element>("entity_properties")!;
         var table = phys.CollisionAttributes.Select(rules.Convert).ToArray();
@@ -707,16 +720,30 @@ public static partial class SettleWorld
         // the identity when the scale is uniform, so a uniform scale leaves it
         // where the model has it (FUN_1810557d0). A capsule's centres go
         // through the matrix, or times the scale when uniform (FUN_181054970).
-        // With a lattice both become meshes, which is not ported.
         var place = matrix ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+        void AddDeformed((Vector3[] Points, int[] Indices) soup, byte[]? materials, int attributes, int surface, string? name)
+        {
+            if (DeformedMesh(soup.Points, soup.Indices, materials, place, record!, deformer!) is { } mesh)
+                body.Shapes.Add(new ShapeBuild(BroadphaseShape.MeshType, null, 0, mesh, Vector3.One, Attributes(attributes), Material(surface), name ?? ""));
+        }
         foreach (var s in shape.Spheres)
         {
+            if (deformer != null)
+            {
+                AddDeformed(SphereMesh(s.Shape.Center, s.Shape.Radius), null, s.CollisionAttributeIndex, s.SurfacePropertyIndex, s.UserFriendlyName);
+                continue;
+            }
             body.Shapes.Add(new ShapeBuild(SphereType, null, 1f, null, Vector3.One, Attributes(s.CollisionAttributeIndex),
                                            Material(s.SurfacePropertyIndex), s.UserFriendlyName ?? "")
                             { Sphere = (LightMath.Transform34(place, s.Shape.Center), u * s.Shape.Radius) });
         }
         foreach (var c in shape.Capsules)
         {
+            if (deformer != null)
+            {
+                AddDeformed(CapsuleMesh(c.Shape.Center[0], c.Shape.Center[1], c.Shape.Radius), null, c.CollisionAttributeIndex, c.SurfacePropertyIndex, c.UserFriendlyName);
+                continue;
+            }
             Vector3 a = c.Shape.Center[0], b = c.Shape.Center[1];
             var ends = matrix != null
                 ? (LightMath.Transform34(matrix, a), LightMath.Transform34(matrix, b))
@@ -728,6 +755,11 @@ public static partial class SettleWorld
         foreach (var h in shape.Hulls)
         {
             var hull = Hull(h.Shape);
+            if (deformer != null)
+            {
+                AddDeformed(HullMesh(hull), null, h.CollisionAttributeIndex, h.SurfacePropertyIndex, h.UserFriendlyName);
+                continue;
+            }
             if (matrix != null)
             {
                 var points = hull.VertexPositions.Select(v => MapMeshes.Transform(matrix, v)).ToArray();
@@ -739,6 +771,12 @@ public static partial class SettleWorld
         foreach (var m in shape.Meshes)
         {
             var mesh = Mesh(m.Shape);
+            if (deformer != null)
+            {
+                AddDeformed((mesh.Vertices, [.. mesh.Triangles.SelectMany(t => new[] { t.A, t.B, t.C })]), mesh.Materials.Length > 0 ? mesh.Materials : null,
+                            m.CollisionAttributeIndex, m.SurfacePropertyIndex, m.UserFriendlyName);
+                continue;
+            }
             if (matrix != null)
             {
                 var points = mesh.Vertices.Select(v => MapMeshes.Transform(matrix, v)).ToArray();

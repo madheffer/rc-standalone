@@ -23,7 +23,14 @@ public static class MapInstances
     /// <param name="Layer">The world layer the placing instance sits in, whose lump
     /// the copy ships in; null for the world's own.</param>
     public sealed record Copy(int EmitAt, int Template, int NodeId, Vector3 Origin, Vector3 Angles,
-                              string? Layer = null);
+                              string? Layer = null)
+    {
+        /// <summary>The template node, the instances it was copied through (outermost first) and the prefabs it hangs
+        /// under: a path's copy is placed node by node (<see cref="Maps.SettleWorld.PlacedPath"/>).</summary>
+        public DmxBinary.Element? Node { get; init; }
+        public IReadOnlyList<DmxBinary.Element> Through { get; init; } = [];
+        public DmxBinary.Element[] Prefabs { get; init; } = [];
+    }
 
     /// <summary>
     /// Every copy the map's instances produce, in lump order, and the walk indices
@@ -127,9 +134,10 @@ public static class MapInstances
             node.Collapses = null;
             var parent = node.Parent!;
             var start = next + 1;
+            // A prefab's lattice locators already have their slots in its copy count.
             next += tree.Nodes.GetValueOrDefault(instance.Target) + 1
                     + (instance.Prefab && createdOnLoadIn is not null && instance.Node.Get<DmxBinary.Document>(Maps.MapPrefabs.DocumentKey) is { } loaded
-                        ? createdOnLoadIn(loaded) : 0);
+                        ? createdOnLoadIn(loaded) - loaded.OfType("CMapDeformerLattice").Sum(Maps.LatticeDeformer.ControlPointCount) : 0);
             if (instance.Prefab)
             {
                 prefabBlock?.Invoke(instance.Node, start);
@@ -332,6 +340,10 @@ public static class MapInstances
                 if (child.Type is "CMapInstance" && child.Get<DmxBinary.Element>("target") is { } target && copied.Add(target))
                     next += 1 + Count(target);
                 Walk(child);
+                // A lattice's control point locators are its last children in the
+                // loaded map, so they take the slots after its own subtree
+                // (s2c_deformplace: the prefab's nodes after its lattice are 24 on).
+                next += ClonedLocators(child);
             }
         }
         Walk(world);
@@ -343,9 +355,23 @@ public static class MapInstances
     {
         var total = 0;
         foreach (var child in group.GetElements("children"))
-            total += 1 + Count(child);
+            total += 1 + Count(child) + ClonedLocators(child);
         return total;
     }
+
+    /// <summary>
+    /// The CMapLatticeControlPointLocator children a lattice holds in the loaded
+    /// document but not in the .vmap (none is ever saved, Valve's zoo maps
+    /// included). The loader appends one per control point after the lattice's
+    /// own children (1811758d0 through 180f5f230), and an instance's clone
+    /// (180f86a90) copies them as it does any child (their vf 0x188 is
+    /// 1800de990, false), each from the node factory and so with an id. The
+    /// lattice's CopyFrom (18116f970) makes none: 1811758d0 needs the document,
+    /// which vf 0x4f8 (180f78950) finds through the parent, and a fresh clone
+    /// has none yet.
+    /// </summary>
+    internal static int ClonedLocators(DmxBinary.Element node)
+        => Maps.LatticeDeformer.ControlPointCount(node);
 
     /// <summary>
     /// A node of the tree the bake walks: an original (one of the map's, or of a
@@ -430,10 +456,14 @@ public static class MapInstances
                         ? Maps.SettleWorld.BakedPlacement(child, copy.Through)
                         : Maps.SettleWorld.NestedPlacement(child.GetValue<Vector3>("origin") ?? Vector3.Zero,
                                                            child.GetValue<Vector3>("angles") ?? Vector3.Zero, copy.Through, prefabs);
-                    node.Writes = new Copy(copy.EmitAt!.Value, template, start + index, origin, angles, copy.Layer);
+                    node.Writes = new Copy(copy.EmitAt!.Value, template, start + index, origin, angles, copy.Layer)
+                    {
+                        Node = child, Through = copy.Through, Prefabs = prefabs,
+                    };
                 }
             }
             Emit(child, prefabs, node, byNode, instances, templates, placed, start, ref slot);
+            slot += ClonedLocators(child);
         }
     }
 }

@@ -33,9 +33,11 @@ inside the lump build (`SettleWorld.Run` then `EntityLumpSet.Author`) in about
   - the time of impact through each shape's proxy (vfn 0xb0).
 
 Open:
-- **Not ported:** joints (and their colouring), compound shapes, and a
-  lattice deformer on a round prop (Valve tessellates the shape into a
-  mesh).
+- **Not ported:** joints (and their colouring) and compound shapes, so a
+  prop whose model has several parts or a bind pose refuses the settle.
+- **Deformed props** (2026-10-24, ledger 130): a prop_static under a
+  deformer has every shape tessellated, deformed and cooked as a mesh
+  (`SettleWorld.Deformed.cs`); exact on s2c_deformplace.
 - **The out-of-world-bounds fix-up** (`CRnWorld_ClampToWorldBounds`,
   ported 2026-10-06): exact in lockstep with Valve's world for bodies
   leaving one per step, alone and touching others

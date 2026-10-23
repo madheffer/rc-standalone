@@ -29,7 +29,15 @@
    cascade_sources.js, then cascade_summary.py: whether cascade 0's 75 comes
    from client 1808898d0's scripted-camera path (ledger 121); then face 0
    chained from cleared targets on the RTX 4070 (ChainedFaceEqualsTheCapture).
-8. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
+8. With --physics, the probes for the physics rules ported from the decompile
+   alone (ledger 128 and 130; maps from tools/physics/physics_closeout_maps.py):
+   Valve's -world -phys -fshallow compiles of s2c_physmore, s2c_pinstbrush and
+   s2c_physbezier into %TEMP%/physcorpus (corpus.py then checks world physics
+   and entity models), capture_settle.py --settle-only on s2c_physmore and
+   s2c_physbezier (SETTLE= for SettleBuildTests and SettleFromMapTests), and
+   capture_deformer.py on s2c_physbezier (the handles a BEZIER lattice loads
+   with, at +0x60 of each record's struct).
+9. Cleanup: crash dumps resourcecompiler left in the game's bin folder in this
    session, and any atixref.vpk a capture left in the addon's maps folder
    beyond the user's own (its backup is restored by the tools themselves).
 
@@ -83,6 +91,7 @@ def main():
     p.add_argument("--fixture-maps", default="", help="addon/map,... rebuilt with --fixtures however new their package looks")
     p.add_argument("--cascades", action="store_true", help="also run probe01's buildcubemaps with the cascade-sources Frida agent (Steam closed)")
     p.add_argument("--partial", action="store_true", help="also settle the open partial-build facts (vvis fingerprint, a kept vvis)")
+    p.add_argument("--physics", action="store_true", help="also compile and capture the physics close-out probes (ledger 128, 130)")
     a = p.parse_args()
     if running("cs2.exe"):
         raise SystemExit("CS2 is running; close it first")
@@ -201,7 +210,19 @@ def main():
                                                  "--filter", "FullyQualifiedName~CubemapFaceReplayTests.ChainedFaceEqualsTheCapture",
                                                  "--logger", "console;verbosity=detailed"], env=env).returncode)
 
-    step("8. cleanup")
+    step("8. physics close-out probes")
+    if a.physics:
+        corpus = os.path.join(TEMP, "physcorpus")
+        os.makedirs(corpus, exist_ok=True)
+        for name in ("s2c_pinstbrush", "s2c_physmore", "s2c_physbezier"):
+            run([sys.executable, os.path.join(HERE, "compile_fresh.py"), ADDON, name, "--out", os.path.join(corpus, f"{ADDON}__{name}.vpk"), "--", "-phys"])
+        for name in ("s2c_physmore", "s2c_physbezier"):
+            run([sys.executable, os.path.join(ROOT, "tools", "settle", "capture_settle.py"), ADDON, name, "--out", os.path.join(TEMP, f"settle_{name}"),
+                 "--agent", os.path.join(ROOT, "tools", "settle", "probes", "settle_bundle.js"), "--settle-only"])
+        run([sys.executable, os.path.join(ROOT, "tools", "physics", "capture_deformer.py"), ADDON, "s2c_physbezier",
+             "--out", os.path.join(TEMP, "deformer_physbezier.bin")])
+
+    step("9. cleanup")
     for dump in glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.dmp")) + glob.glob(os.path.join(CS2, "game", "bin", "win64", "*.mdmp")):
         if os.path.getmtime(dump) >= started:
             os.remove(dump)

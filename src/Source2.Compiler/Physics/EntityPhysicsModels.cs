@@ -54,6 +54,10 @@ public static class EntityPhysicsModels
             if (instance.Get<DmxBinary.Element>("target") is { } target)
                 targets.Add(target);
         var mapHidden = MapEntities.HiddenNodes(doc);
+        // A prefab map's instance groups end the climb to a deformer too.
+        foreach (var prefab in SettleWorld.AllDocuments(doc).SelectMany(d => d.OfType("CMapPrefab")))
+            foreach (var target in prefab.Get<List<DmxBinary.Element>>(MapPrefabs.TargetsKey) ?? [])
+                targets.Add(target);
         // Every node's parent, over the document and its prefab maps, so a node
         // under a deformer of its copy is placed as the deformer moves it.
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
@@ -95,20 +99,17 @@ public static class EntityPhysicsModels
         Func<DmxBinary.Document, int> createdIn = d =>
             SmartProps.NodesCreatedOnLoad(d, path => smartProp?.Invoke(path) is { } definition ? SmartProps.LocatorsOf(definition) : 0);
         // The prefabs take their blocks of ids in the bake as instances do
-        // (s2c_cableinst: the nested copy after a prefab is 2647). What
-        // instances inside a prefab's map place is not built yet.
+        // (s2c_cableinst: the nested copy after a prefab is 2647). A copy an
+        // instance inside a prefab's map places is moved by the prefabs, then
+        // the instances (SettleWorld.NestedPlacement), and ships with a plain id
+        // (GROUND_TRUTH 46), keeping its template's name fixup as the lump does.
         MapInstances.Expand(doc, MapEntities.From(doc), createdIn(doc), (node, id, through, inPrefabs) =>
         {
-            if (inPrefabs.Length > 0)
-            {
-                if (node.Type is "CMapEntity" or "CMapCable")
-                    notes?.Add($"{node.Type} {id}: placed by an instance inside a prefab, not built");
-                return;
-            }
+            var hidden = inPrefabs.Length == 0 ? mapHidden : inPrefabs[^1].Get<HashSet<int>>(MapPrefabs.HiddenKey) ?? [];
             if (node.Type == "CMapEntity")
-                entities.Add((node, id, through, id.ToString(System.Globalization.CultureInfo.InvariantCulture), [], mapHidden));
+                entities.Add((node, id, through, id.ToString(System.Globalization.CultureInfo.InvariantCulture), inPrefabs, hidden));
             if (node.Type == "CMapCable")
-                cableNodes.Add((node, id, id.ToString(System.Globalization.CultureInfo.InvariantCulture), through, []));
+                cableNodes.Add((node, id, id.ToString(System.Globalization.CultureInfo.InvariantCulture), through, inPrefabs));
         }, prefabs: true, createdOnLoadIn: createdIn);
         foreach (var (entity, nodeId, through, idPath, prefabs, hidden) in entities)
         {
@@ -137,6 +138,7 @@ public static class EntityPhysicsModels
             {
                 var (o, a) = (node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero);
                 var (origin, angles) = SettleWorld.IsUnderDeformer(node, parents, targets) ? SettleWorld.UnderDeformer(o, a, through, prefabs)
+                    : through.Count > 0 && prefabs.Length > 0 ? SettleWorld.NestedPlacement(o, a, through, prefabs)
                     : through.Count > 0 ? SettleWorld.BakedPlacement(node, through) : SettleWorld.PrefabPlacement(o, a, prefabs);
                 return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
             }

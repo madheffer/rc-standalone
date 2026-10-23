@@ -37,7 +37,7 @@ public static partial class SettleWorld
     /// of triangles joined by a vertex, 4 makes a triangle mesh. Type 0
     /// ("none") makes no body at all.
     /// </summary>
-    private static void FromMesh(DmxBinary.Element mesh, float[] world, int nodeId, DmxBinary.Element? owner, Context context)
+    private static void FromMesh(DmxBinary.Element mesh, float[] world, int nodeId, DmxBinary.Element? owner, Context context, object?[]? positions = null)
     {
         var type = MeshPhysicsType(mesh, owner, context.Schema);
         if (type == 0)
@@ -47,7 +47,7 @@ public static partial class SettleWorld
             .Aggregate(0f, (a, b) => a <= b ? b : a);
         var body = new BodyBuild(nodeId, new Vector3(world[3], world[7], world[11]), longest, Orientation(Unscaled(world)), []) { Node = mesh };
         var simplify = Physics.WorldCollision.SimplificationError(mesh, context.Versions.GetValueOrDefault(mesh, context.Version));
-        foreach (var soup in Soups(mesh, owner, context))
+        foreach (var soup in Soups(mesh, owner, context, positions))
         {
             if (soup.Record.Dropped || soup.Points.Count == 0 || soup.Indices.Count <= 2)
                 continue;
@@ -111,9 +111,15 @@ public static partial class SettleWorld
             .Aggregate(0f, (a, b) => a <= b ? b : a);
         var body = new BodyBuild(id ?? cable.NodeId, new Vector3(world[3], world[7], world[11]), longest, Orientation(Unscaled(world)), []) { Node = node };
         var (controls, scales) = EntityLumpAuthor.PathControls(cable, context.Schema);
-        var (points, indices) = Physics.CableCollision.Deformed(
-            Physics.CableCollision.Build(controls, scales, through.Count > 0 ? Physics.CableCollision.Copied(Physics.CableCollision.SettingsOf(node)) : Physics.CableCollision.SettingsOf(node)),
-            node, Physics.CableCollision.NodeMatrix(cable), through, prefabs ?? []);
+        var tube = Physics.CableCollision.Build(controls, scales, through.Count > 0 ? Physics.CableCollision.Copied(Physics.CableCollision.SettingsOf(node)) : Physics.CableCollision.SettingsOf(node));
+        // PhysMesh_Build hands PhysMesh_Shapes the deformer 181022480 finds,
+        // which needs the node itself of kind 3: an entity class with the
+        // static_prop or deformable flag (180dd54d0). No cable class has one,
+        // so Valve's settle world keeps every cable straight (s2c_deformplace's
+        // eight cables under deformers, captured).
+        var (points, indices) = Deformable(cable.ClassName, context.Schema)
+            ? Physics.CableCollision.Deformed(tube, node, Physics.CableCollision.NodeMatrix(cable), through, prefabs ?? [])
+            : tube;
         var surface = cable.Keys.FirstOrDefault(k => Io.Tier0Strings.EqualsIgnoreCase(k.Key, "surface_properties")).Value;
         var record = MaterialRecord(node.Get<string>("materialName") ?? "", node, node, context, surface);
         if (!record.Dropped && points.Length > 0 && indices.Length > 2
@@ -173,7 +179,7 @@ public static partial class SettleWorld
     /// material's soup, a vertex taking a new point the first time that soup
     /// meets it.
     /// </summary>
-    private static List<Soup> Soups(DmxBinary.Element mesh, DmxBinary.Element? owner, Context context)
+    private static List<Soup> Soups(DmxBinary.Element mesh, DmxBinary.Element? owner, Context context, object?[]? placedPositions = null)
     {
         var data = mesh.Get<DmxBinary.Element>("meshData") ?? throw new InvalidDataException("CMapMesh without meshData.");
         var next = MeshInts(data, "edgeNextIndices");
@@ -181,7 +187,7 @@ public static partial class SettleWorld
         var first = MeshInts(data, "faceEdgeIndices");
         var vertexData = MeshInts(data, "vertexDataIndices");
         var faceData = MeshInts(data, "faceDataIndices");
-        var positions = MeshStream(data, "vertexData", "position");
+        var positions = placedPositions ?? MeshStream(data, "vertexData", "position");
         var faceMaterials = MeshStream(data, "faceData", "materialindex").Select(x => x is int i ? i : 0).ToArray();
         var names = (data.Get<object?[]>("materials") ?? []).Select(x => x as string ?? "").ToArray();
         // An entity class with auto_apply_material metadata (the triggers'
@@ -211,7 +217,7 @@ public static partial class SettleWorld
 
         // The faces as the mesh library cuts them (subdivided faces into
         // patches), with equal corner positions welded into one vertex.
-        var cut = MeshTessellation.Triangulate(data);
+        var cut = MeshTessellation.Triangulate(data, placedPositions);
         var pointOf = soups.Select(_ => Enumerable.Repeat(-1, cut.Positions.Count).ToArray()).ToArray();
         for (var t = 0; t < cut.Faces.Count; t++)
         {
