@@ -313,9 +313,9 @@ public unsafe class JointSolverOracleTests
         return b;
     }
 
-    private static float F(Random random, double lo, double hi) => (float)(lo + random.NextDouble() * (hi - lo));
+    internal static float F(Random random, double lo, double hi) => (float)(lo + random.NextDouble() * (hi - lo));
 
-    private static Vec3 V(Random random, double r) => new(F(random, -r, r), F(random, -r, r), F(random, -r, r));
+    internal static Vec3 V(Random random, double r) => new(F(random, -r, r), F(random, -r, r), F(random, -r, r));
 
     private static Vec3 Unit(Random random)
     {
@@ -324,16 +324,16 @@ public unsafe class JointSolverOracleTests
         return n < 1e-3f ? new(1, 0, 0) : new(v.X / n, v.Y / n, v.Z / n);
     }
 
-    private static Quat UnitQuat(Random random)
+    internal static Quat UnitQuat(Random random)
     {
         var q = new Quat(F(random, -1, 1), F(random, -1, 1), F(random, -1, 1), F(random, -1, 1));
         var n = MathF.Sqrt(q.X * q.X + q.Y * q.Y + q.Z * q.Z + q.W * q.W);
         return n < 1e-3f ? Quat.Identity : new(q.X / n, q.Y / n, q.Z / n, q.W / n);
     }
 
-    private static float InvMass(Random random) => random.Next(8) == 0 ? 0f : F(random, 0.001, 1);
+    internal static float InvMass(Random random) => random.Next(8) == 0 ? 0f : F(random, 0.001, 1);
 
-    private static Mat3 Inertia(Random random)
+    internal static Mat3 Inertia(Random random)
     {
         if (random.Next(8) == 0)
             return default;
@@ -348,7 +348,7 @@ public unsafe class JointSolverOracleTests
         return m;
     }
 
-    private static bool HasNaN(in SolverBody b)
+    internal static bool HasNaN(in SolverBody b)
     {
         var floats = MemoryMarshal.Cast<byte, float>(Bytes(b).AsSpan(0, 0xb0));
         foreach (var f in floats)

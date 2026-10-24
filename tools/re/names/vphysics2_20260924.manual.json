@@ -805,6 +805,114 @@
    "note": "0x130 bytes: 1802135a0 (vtable 0x1803e07e8) or 180213270"
   },
   {
+   "addr": "1802135a0",
+   "name": "CRnRevoluteJoint_ctor",
+   "module": "s2c:entities/settle",
+   "note": "type 3, vtable 0x1803e07e8; mode 3, frequency 10, damping 1, limit [-pi, pi]"
+  },
+  {
+   "addr": "180213270",
+   "name": "CRnRevoluteBlockJoint_ctor",
+   "module": "s2c:entities/settle",
+   "note": "VPhysXJoint_t flags bit 1; vtable 0x1803e0850, record 6 (not ported)"
+  },
+  {
+   "addr": "180216240",
+   "name": "CRnRevoluteJoint_Prepare",
+   "module": "s2c:entities/settle",
+   "note": "vtable +0x28; record 5, 0x198 bytes"
+  },
+  {
+   "addr": "1802143a0",
+   "name": "CRnRevoluteBlockJoint_Prepare",
+   "module": "s2c:entities/settle",
+   "note": "vtable +0x28; record 6"
+  },
+  {
+   "addr": "18021bcd0",
+   "name": "CRnRevoluteJoint_SolveVelocity",
+   "module": "s2c:entities/settle",
+   "note": "record 5; motor clamp comiss + minss, limits maxss + minss"
+  },
+  {
+   "addr": "180219190",
+   "name": "CRnRevoluteJoint_SolvePosition",
+   "module": "s2c:entities/settle",
+   "note": "limit 0.7 of the error capped at 0.1396 rad; hinge x then y to zero; anchors capped at 8"
+  },
+  {
+   "addr": "18021ac10",
+   "name": "CRnRevoluteJoint_StoreImpulses",
+   "module": "s2c:entities/settle",
+   "note": "after the last velocity iteration"
+  },
+  {
+   "addr": "18021ac80",
+   "name": "CRnRevoluteJoint_ScaleImpulses",
+   "module": "s2c:entities/settle",
+   "note": "vtable +0x18"
+  },
+  {
+   "addr": "180213d10",
+   "name": "RnJoint_MotorRow",
+   "module": "s2c:entities/settle",
+   "note": "1 / (a . (IA + IB) a + softness), zero when its square is tiny; IA a, IB a"
+  },
+  {
+   "addr": "180213aa0",
+   "name": "RnJoint_RevoluteLimitRow",
+   "module": "s2c:entities/settle",
+   "note": "as 180229380 but zero mass when k squared is tiny"
+  },
+  {
+   "addr": "180213870",
+   "name": "RnJoint_HingeRow",
+   "module": "s2c:entities/settle",
+   "note": "unbounded angular row: axis, mass, impulse, IA a, IB a"
+  },
+  {
+   "addr": "180205e70",
+   "name": "RnJoint_Plasticity",
+   "module": "s2c:entities/settle",
+   "note": "target += sign(d) min(max(|d| - threshold, 0) rate dt, that)"
+  },
+  {
+   "addr": "1802142d0",
+   "name": "RnSolverBody_ScaledInvInertia",
+   "module": "s2c:entities/settle",
+   "note": "world inverse inertia times the header scale"
+  },
+  {
+   "addr": "18021b090",
+   "name": "CRnRevoluteJoint_SetMode",
+   "module": "s2c:entities/settle",
+   "note": "+0xe0; clears the motor impulse"
+  },
+  {
+   "addr": "18021af30",
+   "name": "CRnRevoluteJoint_SetFriction",
+   "module": "s2c:entities/settle",
+   "note": "mode 1, torque from 180204d70"
+  },
+  {
+   "addr": "18021ade0",
+   "name": "CRnRevoluteJoint_SetElasticity",
+   "module": "s2c:entities/settle",
+   "note": "mode 0; frequency and threshold from 180204520, plasticity +0xf8"
+  },
+  {
+   "addr": "18021acf0",
+   "name": "CRnRevoluteJoint_EnableLimit",
+   "module": "s2c:entities/settle",
+   "note": "+0x100; clears the limit impulses"
+  },
+  {
+   "addr": "18021ad30",
+   "name": "CRnRevoluteJoint_SetLimit",
+   "module": "s2c:entities/settle",
+   "note": "+0x104 / +0x108 in radians"
+  },
+  {
    "addr": "1801fd720",
    "name": "CRnWorld_AddJoint",
    "module": "s2c:entities/settle",

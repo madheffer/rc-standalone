@@ -3761,6 +3761,23 @@ game can answer is raised with the user first, and runs with -insecure.
       motor (modes 0 and 2, 180205bd0), the revolute joint, the aggregate build and SetType sequence, joints
       in islands, the solver loop and sleep, and the bone write-back to boneTransforms.
 
+136. **The revolute joint's solve, ported** (2026-10-25: decompile and disassembly of vphysics2 0924).
+    - Settled from the decompile: a VPhysXJoint_t of type 3 becomes CRnRevoluteJoint (0x130 bytes, vtable
+      0x1803e07e8) when its flags' bit 1 is clear and CRnRevoluteBlockJoint (record 6) when set
+      (180047600 writes desc +0x90 = (m_nFlags >> 1) & 1; 1801f0750 picks the class). ctm_sas's 14 joints:
+      12 type 4, the two knees type 3, all flags 0 (ModelPhysicsProbe).
+    - Ported and exact against vphysics2 (RevoluteJointOracleTests, 20,000 random cases each, every motor
+      mode): the prepare 180216240 (record 5: motor row 180213d10, limit rows 180213aa0, hinge rows 180213870,
+      the point block; the spring's plasticity 180205e70), the velocity iteration 18021bcd0, the store
+      18021ac10, the scaling 18021ac80, the position iteration 180219190.
+    - Read from the disassembly, not the decompile: the motor clamp is comiss then minss and the limit
+      rows' clamp maxss then minss, so a NaN passes the motor and becomes the limit's minimum (the conical
+      joint's limit rows use the same pair; JointRows.SolveLimit now does, identical for any other value);
+      the hinge axis rotates as (q x t) + (v + w t), not as Ghidra prints it; the position pass sums
+      a . (IA + IB) a as the conical joint's does, whatever order Ghidra prints.
+    - Not ported: CRnRevoluteBlockJoint, and the ctor defaults and desc setters as the aggregate build
+      calls them (roadmap step 5).
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

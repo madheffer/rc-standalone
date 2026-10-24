@@ -93,18 +93,18 @@ The fit itself is bit for bit against resourcecompiler's own functions on
 Open:
 - **Aggregates in the settle (ragdolls):** a prop whose model has several
   physics parts or a joint (ledger 135). Valve's truth is captured
-  (s2c_ragdollprobe); CRnConicalJoint's solve is ported and oracle-exact.
-  The settle still refuses such a map. Roadmap, in order, each step checked
-  against the capture before the next:
-  1. Revolute joint (VPhysX type 3, world type 3, CRnWorld_CreateRevoluteJoint
-     1801f0750; 0x130 bytes, ctor 1802135a0 with vtable 0x1803e07e8 when the
-     record's flags bit 1 is clear, 180213270 when set): the ctor and the
-     desc setters of 18005cb80 (18021b090, 18021b0d0, 18021aee0, 18021ad90,
-     18021b120, 18021b040, friction 18021af30, elasticity 18021ade0, twist
-     limit 18021acf0/18021ad30), then from its vtable the prepare (+0x28),
-     the record type it returns and that record's velocity, position and
-     store functions (dispatch 180312650, 1803120f0, 18030f860). Oracle test
-     each as JointSolverOracleTests does the conical joint. ctm_sas has two.
+  (s2c_ragdollprobe); CRnConicalJoint's and CRnRevoluteJoint's solves are
+  ported and oracle-exact. The settle still refuses such a map. Roadmap, in
+  order, each step checked against the capture before the next:
+  1. Done (2026-10-25, ledger 136): CRnRevoluteJoint (VPhysX type 3 with
+     flags bit 1 clear, as ctm_sas's two knees): prepare (every motor mode,
+     the plasticity, the limit, the two hinge rows, the point block, the
+     warm start), velocity iteration, impulse store and scaling, position
+     iteration; Simulation/RevoluteJoint.cs, RevoluteJointOracleTests. Left
+     for step 5: the ctor defaults and desc setters as the aggregate build
+     calls them (friction torque 180204d70, elasticity 180204520), and
+     CRnRevoluteBlockJoint (flags bit 1, 180213270, record 6), which no
+     corpus model is known to use.
   2. The conical joint's spring and velocity motor (modes 0 and 2,
      180205bd0 and the motor block of 180229870), oracle-tested.
   3. The joint wrapper 18030f0b0 (priority and infinite-mass gating, record

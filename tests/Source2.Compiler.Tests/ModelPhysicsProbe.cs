@@ -22,6 +22,10 @@ public class ModelPhysicsProbe(ITestOutputHelper output)
             return;
         }
         output.WriteLine($"parts {phys.Parts.Length}, joints {(phys.Data.ContainsKey("m_joints") ? phys.Data.GetArray<ValveKeyValue.KVObject>("m_joints").Length : 0)}, bind pose {phys.BindPose.Length}, bones {string.Join(",", phys.BoneNames ?? [])}");
+        // Each joint's type and flags (flags bit 1 picks CRnRevoluteBlockJoint for a type 3).
+        if (phys.Data.ContainsKey("m_joints"))
+            foreach (var j in phys.Data.GetArray("m_joints"))
+                output.WriteLine($"joint type {j.GetIntegerProperty("m_nType")} flags {j.GetIntegerProperty("m_nFlags")} bodies {j.GetIntegerProperty("m_nBody1")},{j.GetIntegerProperty("m_nBody2")}");
         for (var i = 0; i < phys.Parts.Length; i++)
         {
             var s = phys.Parts[i].Shape;
