@@ -279,13 +279,16 @@ public static class MapEntities
                 // A node of a prefab's map is placed as the prefab moves it.
                 if (prefab.Chain.Length > 0)
                 {
-                    var (origin, angles) = Maps.SettleWorld.PrefabPlacement(entity.Origin, entity.Angles, prefab.Chain);
-                    // A path's nodes are nodes of the map too; the collapse moves them as it moves the path.
-                    var nodes = entity.PathNodes?.Select(n => n with
+                    // A path's nodes are nodes of the map too; the collapse moves each as it moves the path, its
+                    // stored tangents turned (18110eae0), or under a deformer by the deformer's move
+                    // (SettleWorld.PlacedPath; s2c_prefabinst's tangents).
+                    if (entity.PathNodes is not null)
+                        entity = Maps.SettleWorld.PlacedPath(entity, [], prefab.Chain, Maps.PathDeformer.UnderAnyDeformer(child), child);
+                    else
                     {
-                        Origin = Maps.SettleWorld.PrefabPlacement(n.Origin, Vector3.Zero, prefab.Chain).Origin,
-                    }).ToList();
-                    entity = entity with { Origin = origin, Angles = angles, PathNodes = nodes ?? entity.PathNodes };
+                        var (origin, angles) = Maps.SettleWorld.PrefabPlacement(entity.Origin, entity.Angles, prefab.Chain);
+                        entity = entity with { Origin = origin, Angles = angles };
+                    }
                 }
                 entities.Add(entity);
             }

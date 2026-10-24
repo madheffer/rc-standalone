@@ -91,13 +91,40 @@ The fit itself is bit for bit against resourcecompiler's own functions on
 - A mesh straight under any deformer is world geometry, as under a group.
 
 Open:
-- **BEZIER lattices:** the handles 18128cab0 resets on the grid depend on the
-  same property order (ledger 130). Throws; a capture of the struct
-  PropDeformer_Transform gets settles it.
-- **Aggregates in the settle:** a prop whose model has several physics parts,
-  or a bind pose, needs vphysics2's joints, compound shapes and the
-  aggregate write-back, none ported; the settle refuses such a map. No
-  corpus map has one.
+- **Aggregates in the settle (ragdolls):** a prop whose model has several
+  physics parts or a joint (ledger 135). Valve's truth is captured
+  (s2c_ragdollprobe); CRnConicalJoint's solve is ported and oracle-exact.
+  The settle still refuses such a map. Roadmap, in order, each step checked
+  against the capture before the next:
+  1. Revolute joint (VPhysX type 3, world type 3, CRnWorld_CreateRevoluteJoint
+     1801f0750; 0x130 bytes, ctor 1802135a0 with vtable 0x1803e07e8 when the
+     record's flags bit 1 is clear, 180213270 when set): the ctor and the
+     desc setters of 18005cb80 (18021b090, 18021b0d0, 18021aee0, 18021ad90,
+     18021b120, 18021b040, friction 18021af30, elasticity 18021ade0, twist
+     limit 18021acf0/18021ad30), then from its vtable the prepare (+0x28),
+     the record type it returns and that record's velocity, position and
+     store functions (dispatch 180312650, 1803120f0, 18030f860). Oracle test
+     each as JointSolverOracleTests does the conical joint. ctm_sas has two.
+  2. The conical joint's spring and velocity motor (modes 0 and 2,
+     180205bd0 and the motor block of 180229870), oracle-tested.
+  3. The joint wrapper 18030f0b0 (priority and infinite-mass gating, record
+     0x12) and joints in the island solver: prepared first, iterated before
+     the contacts, position-solved first, impulses stored on the last
+     velocity iteration; vt 0x38 break test.
+  4. Joints in the island manager (notes_joints.md "Islands"): activate,
+     deactivate, merge (joints first), split flood fill (joints first), the
+     colouring's joint buckets; SetType's leave-and-return with
+     ContinuousSolve/WorldSolver's JoinedToDynamic walk of body +0x70.
+  5. The aggregate build from the model (180042ba0: bodies, part shapes,
+     mass, damping, drag, joints with the degrees round trip and friction
+     torque), rc's attribute pass and bone poses (18105dbd0), then
+     made dynamic body by body; check the step-0 world, joints and islands
+     against the capture byte for byte.
+  6. Step in lockstep with the capture's bodies and joints (SettleReplay
+     with joints), sleep with joints.
+  7. The write-back: bone 0 through bind pose 0 to the entity, the other
+     bones local into boneTransforms (18105b350, 18105cac0, 181004390,
+     serializer 18174aeb0); s2c_ragdollprobe's lump 0 differences.
 - **An edge between two coincident baked vertices:** MergeVertices
   (1813a8840) takes CollapseEdge (181383600 -> 181382170, with the
   attribute snapshots 1813a3d50 and 1813a3f40) on Hammer's 22-bit handle

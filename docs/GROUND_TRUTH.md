@@ -3719,6 +3719,45 @@ game can answer is raised with the user first, and runs with -insecure.
     - Not probed: an instance inside an instance whose target group lies inside the outer target (the
       port steps such a copy once from the source, as before).
 
+134. **Lattice interpolation, instance targets, the lump's tangents and prefab copies** (2026-10-25:
+    decompile of resourcecompiler 0923; capture_collapse.py --clones --parents and capture_deformerevents.py
+    on s2c_instnest (tools/physics/instance_nest_map.py), s2c_tangentinst and s2c_prefabinst
+    (cable_tangent_map.py)).
+    - Settled from the decompile: a lattice's interpolationMode goes through the table at 183011390 and is
+      clamped to 1 (181175260), so BEZIER deforms as smooth; LatticeDeformer no longer refuses it.
+    - Settled by capture: at load, an instance or prefab whose target is not a child of its world is moved
+      under that world, last in its children (MapPrefabs.ReparentTargets); the inner copy of a nested
+      instance is then made from the original, not the outer copy.
+    - Settled: explicit path tangents of type 2 and 3 are turned by the instance step (18110eae0) and
+      written un-turned in the lump's pathNodes; a path in a prefab's copy keeps its own stored origin,
+      angles and nodes before the prefab chain places it (EntityLumpSet, MapEntities).
+    - Verified: s2c_instnest, s2c_tangentinst and s2c_prefabinst entity lumps 0 differences and world
+      physics whole-file exact; the 23-map corpus regression (tools/physics/corpus.py) all exact. Closes
+      ledger 128's tangent and prefab-instance items.
+
+135. **Ragdolls in the settle: truth captured, the conical joint ported** (2026-10-25: decompile and
+    disassembly of resourcecompiler 0923 and vphysics2 0924; notes in tools/re/out/settle_notes/notes_joints.md).
+    - Truth: Valve's compile of s2c_ragdollprobe (ledger 56's probe) settles the two CT agents through
+      their joints and writes boneTransforms; the chickens settle as single bodies. Capture:
+      capture_settle.py with settle_bundle.js and the new settle_joints.js (aggregates as built, the 56
+      joints every recorded step, the island manager at steps 0..3 and every 100th).
+    - Settled from the decompile: a model with 2+ parts or any joint goes to world vfn 0x418
+      (CPhysAggregateInstance, 180042ba0): keyframed bodies at xf o bind pose, shapes, mass, inertia scale,
+      damping and drag from the parts, then the joints by m_nType (4 and 10 -> CRnConicalJoint type 10, 3 ->
+      revolute type 3). The VPhysXJoint_t offsets come from vphysics2's schema table
+      (tools/re/schema_fields.py). Limits make a degrees round trip (x * 57.295776f * 0.017453292f).
+      Friction mode 1 with torque r |g| m friction from the bodies' mass properties at creation.
+    - Settled: made dynamic body by body (1800488d0 -> SetType 2), each SetType takes the body out of the
+      island manager (its joints deactivated, leaving holes) and back (joints reactivated): the captured
+      islands' 13 holes and joint order 12, 11, 2, 3, 0, ... follow.
+    - Ported and exact against vphysics2 (JointSolverOracleTests, 20,000 random cases each): the world
+      anchor, the limit row, the angular and point blocks, CRnConicalJoint's prepare (friction and no motor),
+      velocity iteration, impulse store and position iteration (its linear block generated from a lanesym
+      trace, the new --callout option).
+    - Not ported yet (the order of work is PHYSICS.md's ragdoll roadmap): the conical spring and velocity
+      motor (modes 0 and 2, 180205bd0), the revolute joint, the aggregate build and SetType sequence, joints
+      in islands, the solver loop and sleep, and the bone write-back to boneTransforms.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

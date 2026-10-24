@@ -37,6 +37,7 @@ public static class MapPrefabs
     {
         if (depth > 32)
             throw new InvalidDataException("prefabs nested more than 32 deep; a prefab referencing itself?");
+        ReparentTargets(doc);
         foreach (var prefab in doc.OfType("CMapPrefab"))
         {
             if (prefab.Attributes.ContainsKey(WorldKey))
@@ -55,6 +56,52 @@ public static class MapPrefabs
             prefab.Attributes[HiddenKey] = MapEntities.HiddenNodes(loaded);
             prefab.Attributes[TargetsKey] = loaded.OfType("CMapInstance")
                 .Select(i => i.Get<DmxBinary.Element>("target")).OfType<DmxBinary.Element>().ToList();
+        }
+    }
+
+    /// <summary>
+    /// What the load's last pass (resourcecompiler 0923 180f69c50) does to
+    /// instance targets: every CMapInstance-typed node of the map (prefabs
+    /// too), listed in tree order first (180f86e70 with flags 8, nested
+    /// worlds included), whose target group's parent is not the instance's
+    /// world (180f8c120: the nearest world above it) has the group appended to
+    /// that world's children (vf 0x1c8, AddChild 180f75010); vf 0x888 and
+    /// vf 0x858, which could exempt one, return 0 for both classes. A target
+    /// inside another instance's target is so not copied with it, and the
+    /// inner copy is made from the original (captured on s2c_instnest:
+    /// capture_collapse.py --parents and --clones).
+    /// </summary>
+    public static void ReparentTargets(DmxBinary.Document doc)
+    {
+        var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
+        foreach (var e in doc.Elements)
+            foreach (var child in e.GetElements("children"))
+                parents.TryAdd(child, e);
+        var instances = new List<DmxBinary.Element>();
+        void Walk(DmxBinary.Element node)
+        {
+            foreach (var child in node.GetElements("children"))
+            {
+                if (child.Type is "CMapInstance" or "CMapPrefab")
+                    instances.Add(child);
+                Walk(child);
+            }
+        }
+        foreach (var world in doc.OfType("CMapWorld").Where(w => !parents.ContainsKey(w)))
+            Walk(world);
+        foreach (var instance in instances)
+        {
+            if (instance.Get<DmxBinary.Element>("target") is not { } target)
+                continue;
+            var world = parents.GetValueOrDefault(instance);
+            while (world != null && world.Type != "CMapWorld")
+                world = parents.GetValueOrDefault(world);
+            if (world == null || ReferenceEquals(parents.GetValueOrDefault(target), world))
+                continue;
+            if (parents.GetValueOrDefault(target) is { } old && old.Get<object?[]>("children") is { } siblings)
+                old.Attributes["children"] = siblings.Where(c => !ReferenceEquals(c, target)).ToArray();
+            world.Attributes["children"] = (world.Get<object?[]>("children") ?? []).Append(target).ToArray();
+            parents[target] = world;
         }
     }
 

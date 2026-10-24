@@ -392,6 +392,9 @@ internal static partial class PathDeformer
         return false;
     }
 
+    /// <summary>Whether a CMapDeformer of any kind stands above a node in its map (its TransformBy moves the node), from the links <see cref="Resolve"/> leaves.</summary>
+    internal static bool UnderAnyDeformer(DmxBinary.Element node) => UnderDeformer(node);
+
     // Whether a CMapDeformer of any kind stands above the node in its map (its TransformBy moves the node).
     private static bool UnderDeformer(DmxBinary.Element node)
     {

@@ -9,7 +9,7 @@ installed build by rva_map) and writes one JSON line per entry and per exit, in 
 - 181076410 CMapDeformer_TransformBy, 181076850 the deformer's subtree move and 180fded80 the node origin store (the
   value stored in `to`): the node and its origin before and after;
 - 1810191b0 CMapPrefab_SetPlaced, 181019d00 CMapPrefab_PlaceGroup, 180f96d40 CMapPrefab_Collapse, 180f834d0 the
-  group transform setter: the node and its origin;
+  group transform setter: the node and its origin (the setter's old and new placement in `from`, `to`, `toAngles`);
 - 181288080 PropDeformer_Transform: the lattice transform's position.
 Each node is given by pointer, nodeID (+0x300) and vtable RVA. CS2 must be closed; the map's package is backed up
 and restored.
@@ -65,6 +65,7 @@ function hook() {
           if (name === 'copyfrom') { r.from = node(args[1]); r.flags = args[2].toInt32(); }
           if (name === 'setplaced') r.placed = args[1].toInt32() & 0xff;
           if (name === 'placegroup' || name === 'groupset') { try { r.to = v3(name === 'groupset' ? args[3] : args[1]); } catch (e) {} }
+          if (name === 'groupset') { try { r.from = {o: v3(args[1]), a: v3(args[2])}; r.toAngles = v3(args[4]); } catch (e) {} }
           if (name === 'setorigin') { try { r.to = v3(args[1]); } catch (e) {} }
           if (name === 'subtree') { try { r.pivot = v3(args[1]); } catch (e) {} }
         }

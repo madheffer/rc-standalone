@@ -376,8 +376,13 @@ public static class EntityLumpSet
             if (!pending.TryGetValue(copy.EmitAt, out var here))
                 pending[copy.EmitAt] = here = [];
             var template = entities[copy.Template];
+            // A prefab map's template stands where the prefab put it (MapEntities); its copy is placed from the node
+            // as stored, through the prefabs and the instances (s2c_prefabinst's cable_dynamic copy).
             var path = template.PathNodes is not null && copy.Node is { } node && (copy.Through.Count > 0 || copy.Prefabs.Length > 0)
-                ? Maps.SettleWorld.PlacedPath(template, copy.Through, copy.Prefabs, Maps.SettleWorld.IsUnderDeformer(node, parents, targets), node)
+                ? Maps.SettleWorld.PlacedPath(copy.Prefabs.Length > 0 && MapEntities.ReadNode(node) is { } stored
+                                                  ? template with { Origin = stored.Origin, Angles = stored.Angles, PathNodes = stored.PathNodes }
+                                                  : template,
+                                              copy.Through, copy.Prefabs, Maps.SettleWorld.IsUnderDeformer(node, parents, targets), node)
                 : null;
             here.Add(new EntityLumpAuthor.Emission(
                 Settle(template with

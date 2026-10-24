@@ -715,6 +715,198 @@
    "note": ""
   },
   {
+   "addr": "1801b1570",
+   "name": "RnSolverBody_ApplyAngularPositionImpulse",
+   "module": "s2c:entities/settle",
+   "note": "q += ((I L) / 2, 0) q, renormalised; the angular half of 1801b1750"
+  },
+  {
+   "addr": "180209820",
+   "name": "RnSolverBody_WorldPoint",
+   "module": "s2c:entities/settle",
+   "note": "a body-local point in the world: centre less the rotated mass centre, plus p + 2 (q x (q x p + w p))"
+  },
+  {
+   "addr": "180206120",
+   "name": "RnJoint_AngularBlock",
+   "module": "s2c:entities/settle",
+   "note": "three angular axes as one block: inverse of (IB + IA) + softness"
+  },
+  {
+   "addr": "180229380",
+   "name": "RnJoint_AngularLimitRow",
+   "module": "s2c:entities/settle",
+   "note": "one limited angular axis: 1 / (a . (IA + IB) a), IA a, IB a"
+  },
+  {
+   "addr": "1802064a0",
+   "name": "RnJoint_PointBlock",
+   "module": "s2c:entities/settle",
+   "note": "point-to-point 3x3 block and its inverse"
+  },
+  {
+   "addr": "1802292e0",
+   "name": "RnConicalJoint_SwingAngle",
+   "module": "s2c:entities/settle",
+   "note": "2 atan2(|xy|, |zw|) of the relative rotation"
+  },
+  {
+   "addr": "180229870",
+   "name": "CRnConicalJoint_Prepare",
+   "module": "s2c:entities/settle",
+   "note": "vtable +0x28; record 0x0b, 0x1d4 bytes"
+  },
+  {
+   "addr": "18022c860",
+   "name": "CRnConicalJoint_SolveVelocity",
+   "module": "s2c:entities/settle",
+   "note": "record 0x0b"
+  },
+  {
+   "addr": "18022ab10",
+   "name": "CRnConicalJoint_SolvePosition",
+   "module": "s2c:entities/settle",
+   "note": "twist/swing 0.7 of the error capped at 0.1396 rad; anchors capped at 8"
+  },
+  {
+   "addr": "18022c390",
+   "name": "CRnConicalJoint_StoreImpulses",
+   "module": "s2c:entities/settle",
+   "note": "after the last velocity iteration"
+  },
+  {
+   "addr": "180228c70",
+   "name": "CRnConicalJoint_ctor",
+   "module": "s2c:entities/settle",
+   "note": "type 10, 0x150 bytes, vtable 0x1803e0a70"
+  },
+  {
+   "addr": "1802042b0",
+   "name": "CRnJoint_ctor",
+   "module": "s2c:entities/settle",
+   "note": "flags +0x28 from the desc bytes 0x10..0x13"
+  },
+  {
+   "addr": "18005d370",
+   "name": "CPhysicsWorld_CreateConicalJoint",
+   "module": "s2c:entities/settle",
+   "note": "desc type 10; degrees back to radians"
+  },
+  {
+   "addr": "18005cb80",
+   "name": "CPhysicsWorld_CreateRevoluteJoint",
+   "module": "s2c:entities/settle",
+   "note": "desc type 3"
+  },
+  {
+   "addr": "1801f0750",
+   "name": "CRnWorld_CreateRevoluteJoint",
+   "module": "s2c:entities/settle",
+   "note": "0x130 bytes: 1802135a0 (vtable 0x1803e07e8) or 180213270"
+  },
+  {
+   "addr": "1801fd720",
+   "name": "CRnWorld_AddJoint",
+   "module": "s2c:entities/settle",
+   "note": "world +0x6a8 / +0x6b8 list, body edges, island state"
+  },
+  {
+   "addr": "1802055f0",
+   "name": "CRnJoint_SetBodies",
+   "module": "s2c:entities/settle",
+   "note": "edges prepended to body +0x70; activates or deactivates in islands"
+  },
+  {
+   "addr": "1802cb0a0",
+   "name": "RnIslandManager_ActivateJoint",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802cd5b0",
+   "name": "RnIslandManager_DeactivateJoint",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1802ca9c0",
+   "name": "RnIsland_AppendJoint",
+   "module": "s2c:entities/settle",
+   "note": "list0, joint +0x3c, colour from body masks bits 0..9"
+  },
+  {
+   "addr": "1802cb9e0",
+   "name": "RnIsland_RegisterJointBodies",
+   "module": "s2c:entities/settle",
+   "note": "solver indices at joint +0x68 / +0x6c"
+  },
+  {
+   "addr": "1802cc290",
+   "name": "RnIsland_FloodJoints",
+   "module": "s2c:entities/settle",
+   "note": "split flood fill over the body's joints"
+  },
+  {
+   "addr": "1802cc370",
+   "name": "RnIslandManager_RelinkJoints",
+   "module": "s2c:entities/settle",
+   "note": "a body back in the manager: its joints activated or deactivated"
+  },
+  {
+   "addr": "1802ccbb0",
+   "name": "RnIslandManager_RemoveBody",
+   "module": "s2c:entities/settle",
+   "note": "joints deactivated, +0x45 = 3"
+  },
+  {
+   "addr": "1802ce270",
+   "name": "RnIslandManager_ReturnBody",
+   "module": "s2c:entities/settle",
+   "note": "+0x45 = 0, node added, joints, type-1, contacts"
+  },
+  {
+   "addr": "1801bd3e0",
+   "name": "CRnBody_SetType",
+   "module": "s2c:entities/settle",
+   "note": ""
+  },
+  {
+   "addr": "1800614f0",
+   "name": "CPhysicsWorld_CreateAggregateInstance",
+   "module": "s2c:entities/settle",
+   "note": "world vfn 0x418"
+  },
+  {
+   "addr": "180042ba0",
+   "name": "CPhysAggregateInstance_ctor",
+   "module": "s2c:entities/settle",
+   "note": "bodies 180045630, constraints2 180046ea0, joints 180047600"
+  },
+  {
+   "addr": "180045630",
+   "name": "CPhysAggregateInstance_CreateBodies",
+   "module": "s2c:entities/settle",
+   "note": "a body per part at xf o bind pose"
+  },
+  {
+   "addr": "180044bc0",
+   "name": "CPhysAggregateInstance_BuildPart",
+   "module": "s2c:entities/settle",
+   "note": "type, shapes, materials, attributes, mass, damping, drag"
+  },
+  {
+   "addr": "180047600",
+   "name": "CPhysAggregateInstance_CreateJoints",
+   "module": "s2c:entities/settle",
+   "note": "VPhysXJoint_t by m_nType"
+  },
+  {
+   "addr": "1800488d0",
+   "name": "CPhysAggregateInstance_SetMotion",
+   "module": "s2c:entities/settle",
+   "note": "vt 0x30: SetType per body by the part flags"
+  },
+  {
    "addr": "1801b2450",
    "name": "RnClampAngularVelocity",
    "module": "s2c:entities/settle",

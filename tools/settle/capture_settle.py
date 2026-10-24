@@ -11,7 +11,7 @@ FUN_180200840). This hooks both and sends:
     {"ev": "settle_done"}                  the settle returned
     {"ev": "done"}                         the settle returned and no probe holds the compile
 
-    python capture_settle.py <addon> <map> [--out dir] [--agent extra.js]
+    python capture_settle.py <addon> <map> [--out dir] [--agent extra.js ...]
 
 Everything lands in <out>/events.jsonl, and each blob in <out>/<name>.bin. The
 agent source has an EXTRA hook point: --agent appends a JS file that may assign
@@ -56,10 +56,10 @@ def rebase_tables(js):
         return "%s: 0x%x" % (e.group(1), find(dll, int(e.group(2), 16)))
 
     def table(m):
-        dll = "resourcecompiler" if m.group(1) == "RC" else "vphysics2"
+        dll = "resourcecompiler" if m.group(1).startswith("RC") else "vphysics2"
         body = re.sub(r"(\w+): (0x[0-9a-fA-F]+)", lambda e: entry(dll, e), m.group(2))
         return "const %s = {%s};" % (m.group(1), body)
-    return re.sub(r"const (RC|VP) = \{(.*?)\};", table, js, flags=re.S)
+    return re.sub(r"const ((?:RC|VP)\w*) = \{(.*?)\};", table, js, flags=re.S)
 
 AGENT = r"""
 'use strict';
@@ -139,7 +139,7 @@ def main():
     parser.add_argument("addon")
     parser.add_argument("map")
     parser.add_argument("--out")
-    parser.add_argument("--agent", help="extra JS appended to the agent")
+    parser.add_argument("--agent", action="append", default=[], help="extra JS appended to the agent, in order (repeatable)")
     parser.add_argument("--settle-only", action="store_true", help="stop when the settle returns; probes skip their later hooks")
     args = parser.parse_args()
     if cs2_running():
@@ -189,8 +189,8 @@ def main():
 
     source_js = AGENT % {"settle": installed("resourcecompiler", SETTLE_RVA), "step": installed("vphysics2", STEP_RVA),
                          "settle_only": "true" if args.settle_only else "false"}
-    if args.agent:
-        with open(args.agent, encoding="utf-8") as f:
+    for agent in args.agent:
+        with open(agent, encoding="utf-8") as f:
             source_js += "\n" + rebase_tables(f.read())
 
     argv = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-f",

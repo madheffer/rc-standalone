@@ -33,8 +33,13 @@ inside the lump build (`SettleWorld.Run` then `EntityLumpSet.Author`) in about
   - the time of impact through each shape's proxy (vfn 0xb0).
 
 Open:
-- **Not ported:** joints (and their colouring) and compound shapes, so a
-  prop whose model has several parts or a bind pose refuses the settle.
+- **Joints:** CRnConicalJoint's prepare, velocity, store and position
+  iterations are ported and exact against vphysics2 (ConicalJoint.cs,
+  JointRows.cs, JointSolverOracleTests). Not yet wired into the world, and
+  the revolute joint, the aggregate build and the islands' joint side are
+  not ported (PHYSICS.md's ragdoll roadmap), so a prop whose model has
+  several parts or a joint still refuses the settle. Compound shapes are
+  not ported.
 - **Deformed props** (2026-10-24, ledger 130): a prop_static under a
   deformer has every shape tessellated, deformed and cooked as a mesh
   (`SettleWorld.Deformed.cs`); exact on s2c_deformplace.

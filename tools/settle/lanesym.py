@@ -13,7 +13,9 @@ in full. --regs prints the xmm registers at the end; --ssa N names every
 expression longer than N characters as a temp; --quiet <reg> drops stores through
 that base register (callee-saved spills through rax, say); --set name=value
 presets xmmN lane 0, a GPR, or a stack slot like rsp+0x40 (@SIGN is the sign
-mask), for tracing a loop body with named inputs.
+mask), for tracing a loop body with named inputs; --callout addr=slot:n:name
+makes the call at addr write n fresh floats name.0.. at a stack slot like
+rsp+0x50 (an out parameter), and every call clobbers xmm0-xmm5.
 
 Handled: scalar and packed add/sub/mul/div/min/max/sqrt, rcp/rsqrt, mov*,
 shufps, unpck[lh]ps, movlhps/movhlps, insertps, dpps, xor/and/andn/or with
@@ -47,6 +49,7 @@ class Tracer:
         self.versions = {}
         self.ssa = 0
         self.quiet = set()
+        self.callouts = {}
 
     # -- operands -----------------------------------------------------------
     def reg(self, r):
@@ -301,7 +304,13 @@ class Tracer:
         if m == 'call':
             print(f'{at} CALL {x.op_str}  xmm0={self.reg("xmm0")[0]} xmm1={self.reg("xmm1")[0]}  '
                   f'rcx={self.gpr_alias.get("rcx")} rdx={self.gpr_alias.get("rdx")} r8={self.gpr_alias.get("r8")}')
+            for r in range(6):
+                self.xmm.pop(f'xmm{r}', None)
             self.xmm['xmm0'] = ['ret.0', 'ret.1', 'ret.2', 'ret.3']
+            for slot, n, name in self.callouts.get(x.address, []):
+                base, off = re.fullmatch(r'(\w+)([+-]0x[0-9a-f]+)', slot).groups()
+                for i in range(n):
+                    self.mem[(base, int(off, 16) + 4 * i)] = f'{name}.{i}'
             return
         if m.startswith('j') or m == 'ret':
             print(f'{at} {m} {x.op_str}')
@@ -320,7 +329,7 @@ class Tracer:
 def main():
     args = sys.argv[1:]
     dll, spec = args[0], args[1]
-    aliases, show, ssa, quiet, sets = [], False, 0, set(), []
+    aliases, show, ssa, quiet, sets, callouts = [], False, 0, set(), [], []
     rest = args[2:]
     i = 0
     while i < len(rest):
@@ -333,6 +342,13 @@ def main():
             i += 1
             while i < len(rest) and '=' in rest[i]:
                 sets.append(tuple(rest[i].split('=', 1)))
+                i += 1
+        elif rest[i] == '--callout':
+            i += 1
+            while i < len(rest) and '=' in rest[i]:
+                at, out = rest[i].split('=', 1)
+                slot, n, name = out.split(':')
+                callouts.append((int(at, 16), slot, int(n), name))
                 i += 1
         elif rest[i] == '--ssa':
             ssa = int(rest[i + 1])
@@ -348,6 +364,8 @@ def main():
     ranges = [tuple(int(p, 16) for p in r.split('-')) for r in spec.split(',')]
     t = Tracer(dll, aliases)
     t.ssa, t.quiet = ssa, quiet
+    for at, slot, n, name in callouts:
+        t.callouts.setdefault(at, []).append((slot, n, name))
     for k, v in sets:
         v = ('mask', SIGN) if v == '@SIGN' else v
         if XMM.match(k):

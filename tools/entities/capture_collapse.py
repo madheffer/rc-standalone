@@ -1,7 +1,7 @@
 """capture_collapse.py <addon> <map> [--out file]: the order the bake collapses instances in.
 
 Hooks MapDoc_CollapseInstance (resourcecompiler 180f5ff40 in the 09-23
-analysis build, 180f602b0 in the installed 10-01 build) during a -world
+analysis build, mapped to the installed build by rva_map) during a -world
 -phys -fshallow compile. Each call logs one JSON line: the call's index, the
 instance's node id (+0x300), origin (+0xa0) and angles (+0xac), and the node
 id of the copy's root the collapse returns. Settles how the copies of
@@ -18,17 +18,22 @@ import struct
 import subprocess
 import threading
 
+import sys
+
 import frida
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "re"))
+from rva_map import installed  # noqa: E402
 
 CS2 = os.environ.get("CS2_DIR", r"D:\Steam\steamapps\common\Counter-Strike Global Offensive")
 BIN = os.path.join(CS2, "game", "bin", "win64")
 AGENT = r"""
 'use strict';
-let n = 0;
+let n = 0, current = -1;
 function hook() {
   const mod = Process.findModuleByName('resourcecompiler.dll');
   if (mod === null) { setTimeout(hook, 5); return; }
-  Interceptor.attach(mod.base.add(0xf602b0), {
+  Interceptor.attach(mod.base.add(COLLAPSE_RVA), {
     onEnter(args) {
       // The instance is the first argument past the document that points at
       // readable memory (the 10-01 build passes it third).
@@ -36,7 +41,12 @@ function hook() {
       for (const a of [args[1], args[2], args[3]])
         if (a.compare(ptr(0x10000)) > 0) { try { a.add(0x300).readS32(); i = a; break; } catch (e) {} }
       if (i === null) { send({call: n++, error: [args[1], args[2], args[3]].map(String)}); this.rec = null; return; }
-      this.rec = {call: n++, id: i.add(0x300).readS32(),
+      current = n;
+      let target = null;
+      try { const t = i.add(0x550).readPointer(); if (!t.isNull()) { const up = t.add(0x198).readPointer();
+        target = {id: t.add(0x300).readS32(), children: t.add(0x1f8).readS32(),
+                  parent: up.isNull() ? null : {id: up.add(0x300).readS32(), vt: up.readPointer().sub(mod.base).toInt32()}}; } } catch (e) {}
+      this.rec = {call: n++, id: i.add(0x300).readS32(), target: target,
                   origin: [i.add(0xa0).readFloat(), i.add(0xa4).readFloat(), i.add(0xa8).readFloat()],
                   angles: [i.add(0xac).readFloat(), i.add(0xb0).readFloat(), i.add(0xb4).readFloat()]};
     },
@@ -44,8 +54,37 @@ function hook() {
       if (this.rec === null) return;
       this.rec.root = ret.isNull() ? null : ret.add(0x300).readS32();
       send(this.rec);
+      current = -1;
     }
   });
+  if (PARENTS) {
+    // 180f75010 AddChild(parent, child): every reparenting, with the caller.
+    Interceptor.attach(mod.base.add(ADDCHILD_RVA), {
+      onEnter(args) {
+        try {
+          const old = args[1].add(0x198).readPointer();
+          const rec = {addchild: args[0].add(0x300).readS32(), child: args[1].add(0x300).readS32(),
+                       from: old.isNull() ? null : old.add(0x300).readS32(), during: current};
+          // A reparenting (the child had a parent): who did it, as installed-build RVAs.
+          if (!old.isNull())
+            rec.stack = Thread.backtrace(this.context, Backtracer.ACCURATE).slice(0, 12)
+              .map(a => a.compare(mod.base) >= 0 && a.compare(mod.base.add(mod.size)) < 0 ? a.sub(mod.base).toInt32() : null);
+          send(rec);
+        } catch (e) {}
+      }
+    });
+  }
+  if (CLONES) {
+    // 180f86a90: one node's clone and its children's, during a collapse; null for a node it skips.
+    Interceptor.attach(mod.base.add(CLONE_RVA), {
+      onEnter(args) { this.src = args[0]; this.on = current >= 0; },
+      onLeave(ret) {
+        if (!this.on) return;
+        send({clone: current, src: this.src.add(0x300).readS32(), vt: this.src.readPointer().sub(mod.base).toInt32(),
+              copy: ret.isNull() ? null : ret.add(0x300).readS32()});
+      }
+    });
+  }
 }
 hook();
 """
@@ -60,6 +99,8 @@ def main():
     p.add_argument("addon")
     p.add_argument("map")
     p.add_argument("--out")
+    p.add_argument("--clones", action="store_true", help="also log every node the collapse's clone (180f86a90) copies or skips")
+    p.add_argument("--parents", action="store_true", help="also log every AddChild (180f75010): parent, child, old parent, caller")
     a = p.parse_args()
     if running("cs2.exe") or running("resourcecompiler.exe"):
         raise SystemExit("CS2 or a compile is running; not starting")
@@ -87,7 +128,11 @@ def main():
     pid = dev.spawn([os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"),
                      "-i", source, "-world", "-phys", "-fshallow"], cwd=BIN, stdio="pipe")
     ses = dev.attach(pid)
-    sc = ses.create_script(AGENT)
+    sc = ses.create_script(AGENT.replace("COLLAPSE_RVA", hex(installed("resourcecompiler", 0xf5ff40, build="20260923")))
+                           .replace("CLONE_RVA", hex(installed("resourcecompiler", 0xf86a90, build="20260923")))
+                           .replace("ADDCHILD_RVA", hex(installed("resourcecompiler", 0xf75010, build="20260923")))
+                           .replace("PARENTS", "true" if a.parents else "false")
+                           .replace("CLONES", "true" if a.clones else "false"))
     sc.on("message", on_message)
     sc.load()
     done = threading.Event()

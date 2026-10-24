@@ -307,16 +307,14 @@ internal sealed class LatticeDeformer
     /// The deformer a CMapDeformerLattice or CMapDeformerSimple node keeps at
     /// +0x4c0, as a map load leaves it. The transform is the node's origin and
     /// angles (the map's nodes keep world placements). A lattice takes its
-    /// size, segments, divisions, interpolation mode (LINEAR, B_SPLINE,
-    /// CATMUL_ROM, BEZIER: 0 to 3) and nodeData's control points; a simple
-    /// deformer its size and the bend (<see cref="Bend"/>). The mirror flag is
-    /// only ever set by a KV3 load or a copy (18128eaf0, 180246d70); a map's
-    /// node leaves it clear. A CMapDeformerPath fits its lattice along its
-    /// target path (<see cref="PathDeformer"/>). Not ported, and thrown: a
-    /// lattice in BEZIER mode (its handles depend on the load's property
-    /// order).
+    /// size, segments, divisions, interpolation mode (LINEAR 0, B_SPLINE 1;
+    /// CATMUL_ROM and BEZIER clamp to 1, 181175260) and nodeData's control
+    /// points; a simple deformer its size and the bend (<see cref="Bend"/>).
+    /// The mirror flag is only ever set by a KV3 load or a copy (18128eaf0,
+    /// 180246d70); a map's node leaves it clear. A CMapDeformerPath fits its
+    /// lattice along its target path (<see cref="PathDeformer"/>).
     /// Checked against the structs PropDeformer_Transform was handed
-    /// (capture_deformer.py on deformerprobe): all three bit for bit.
+    /// (capture_deformer.py on deformerprobe and s2c_physbezier) bit for bit.
     /// </summary>
     /// <summary>
     /// <see cref="FromNode(DmxBinary.Element)"/> for a deformer node an
@@ -400,12 +398,13 @@ internal sealed class LatticeDeformer
         {
             case "CMapDeformerLattice":
                 d.ReadDimensions(node);
-                // The constructor starts the mode at 1; 181172a70: the enum table (183011390) by V_stricmp, an unknown name 0.
+                // The constructor starts the mode at 1; 181172a70: the enum table (183011390: LINEAR 0, B_SPLINE 1,
+                // CATMUL_ROM 2, BEZIER 3) by V_stricmp, an unknown name 0. The lattice's setter (181175260) then
+                // clamps anything above 1 to 1, so CATMUL_ROM and BEZIER load as B_SPLINE (s2c_physbezier's
+                // captured struct is mode 1); the handles 18128cab0 resets are only read in mode 3.
                 d.Mode = node.Get<string>("interpolationMode") is { } name
-                    ? Array.FindIndex(InterpolationNames, n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)) is var m and >= 0 ? m : 0
+                    ? Array.FindIndex(InterpolationNames, n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)) is var m and >= 0 ? Math.Min(m, 1) : 0
                     : 1;
-                if (d.Mode == 3)
-                    throw new NotSupportedException($"lattice deformer {node.GetValue<int>("nodeID")}: BEZIER's handles depend on the order the load sets size, divisions and mode (18128cab0 resets them on the grid), which is not read");
                 var count = (d.Segments + 1) * (d.DivisionsY + 1) * (d.DivisionsZ + 1);
                 var points = node.Get<DmxBinary.Element>("nodeData")?.Get<object?[]>("controlPoints") ?? [];
                 if (points.Length != count)
