@@ -43,9 +43,10 @@ The settle world under deformers is exact on s2c_deformplace (147 bodies,
 deformed meshes, cables stay straight, and copies of deformed meshes deform
 at their own placement.
 
-CMapDeformerPath (`Maps/PathDeformer.cs`, ledger 131) is exact on
+CMapDeformerPath (`Maps/PathDeformer.cs`, ledgers 131 and 132) is exact on
 s2c_deformpath (four path deformers, plain and turned, with start, end and
-maxError set or left at the factory's): every deformer struct
+maxError set or left at the factory's) and s2c_deformpath2 (close start/end
+pairs, closed and hidden targets, instance and prefab copies): every deformer struct
 PropDeformer_Transform is handed, the world physics and the entity models.
 The fit itself is bit for bit against resourcecompiler's own functions on
 20,000 random paths (`PathDeformerOracleTests`):
@@ -62,9 +63,20 @@ The fit itself is bit for bit against resourcecompiler's own functions on
   16) of Schneider cubics within maxError per cent of the length; the cut
   curve sampled at i / 99 and framed from the cut's normal; each corner of
   the 1 x 1 section fitted per segment, giving the control points and handles.
-- **Settings:** start clamps to [0, end - 0.01], end to [start + 0.01, 1];
-  a pair that two load orders leave apart is thrown, as are closed or hidden
-  target paths and a path deformer an instance or prefab copies.
+- **Settings:** start clamps to [0, end - 0.01], end to [start + 0.01, 1],
+  start first: the load applies embedded properties in the order the class
+  registers them (targetPath, start, end, maxError), not the file's order
+  (ledger 132).
+- **Closed and hidden targets:** a closed loop repeats its first node when
+  the class has supports_loop (the FGD, as for the entity lump). A hidden
+  target is recentred like any other, because resourcecompiler never sets the
+  visibility state the recentre checks.
+- **Copies:** an instance's or prefab's copy is moved as any deformer, then
+  recentred on its target where the collapse moved it, its subtree along. A
+  target left outside the instance keeps the moved origin. A prefab's copy is
+  recentred back to the source centre and forward again, which moves its
+  subtree in the last bits (s2c_deformpath2: world physics, entity models and
+  every deformer struct exact).
 - A mesh straight under any deformer is world geometry, as under a group.
 
 Open:

@@ -238,7 +238,7 @@ internal static class MapFixtures
         while (!Path.GetFileName(maps).Equals("maps", StringComparison.OrdinalIgnoreCase))
             maps = Path.GetDirectoryName(maps)!;
         Maps.MapPrefabs.Attach(document, Maps.MapPrefabs.FromContent(Path.GetDirectoryName(maps)!));
-        Maps.MapDeformers.Apply(document);
+        Maps.MapDeformers.Apply(document, MapFixtures.GameSchema());
         return document;
     }
 

@@ -264,7 +264,7 @@ public class EntityRenderProbe(ITestOutputHelper output)
         var cs2 = Environment.GetEnvironmentVariable("CS2_DIR") ?? @"D:\Steam\steamapps\common\Counter-Strike Global Offensive";
         var doc = DmxBinary.ReadFile(Path.Combine(cs2, "content", "csgo_addons", addon, "maps", map + ".vmap"));
         MapPrefabs.Attach(doc, MapPrefabs.FromContent(Path.Combine(cs2, "content", "csgo_addons", addon)));
-        MapDeformers.Apply(doc);
+        MapDeformers.Apply(doc, MapFixtures.GameSchema());
         using var content = new GameContent(Path.Combine(cs2, "game", "csgo", "pak01_dir.vpk"), Path.Combine(cs2, "game", "csgo_addons", addon));
         var models = Physics.EntityPhysicsModels.Build(doc, map, content.Material, content.CollisionProperty, MapFixtures.GameSchema(), null, content.SmartProp);
         using var package = new Package();

@@ -23,16 +23,18 @@ public static class MapDeformers
     /// <summary>
     /// Deforms, in place, every mesh of the document, and of each prefab map
     /// loaded under it (<see cref="MapPrefabs"/>), that a deformer reaches.
+    /// A path deformer over a closed loop needs <paramref name="schema"/> (its
+    /// class's supports_loop).
     /// </summary>
-    public static void Apply(DmxBinary.Document document)
+    public static void Apply(DmxBinary.Document document, FgdSchema? schema = null)
     {
         foreach (var d in SettleWorld.AllDocuments(document))
-            ApplyOne(d);
+            ApplyOne(d, schema);
     }
 
-    private static void ApplyOne(DmxBinary.Document document)
+    private static void ApplyOne(DmxBinary.Document document, FgdSchema? schema)
     {
-        PathDeformer.Resolve(document);
+        PathDeformer.Resolve(document, schema);
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var e in document.Elements)
             foreach (var child in e.GetElements("children"))

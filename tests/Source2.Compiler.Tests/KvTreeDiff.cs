@@ -65,6 +65,15 @@ internal static class KvTreeDiff
                     while (at < Math.Min(ab.Length, bb.Length) && ab[at] == bb[at])
                         at++;
                     report.Add($"{path}: blob {ab.Length} vs {bb.Length} bytes, first difference at {at}");
+                    // KVDIFF_VERTS=1: a vertex blob's differing float3s, by index.
+                    if (Environment.GetEnvironmentVariable("KVDIFF_VERTS") == "1" && path.EndsWith("m_Vertices", StringComparison.Ordinal) && ab.Length == bb.Length)
+                        for (int i = 0, shown = 0; i + 12 <= ab.Length && shown < 40; i += 12)
+                            if (!ab.AsSpan(i, 12).SequenceEqual(bb.AsSpan(i, 12)))
+                            {
+                                float F(byte[] x, int o) => BitConverter.ToSingle(x, i + o);
+                                report.Add($"    vertex {i / 12}: ({F(ab, 0):R}, {F(ab, 4):R}, {F(ab, 8):R}) vs ({F(bb, 0):R}, {F(bb, 4):R}, {F(bb, 8):R})");
+                                shown++;
+                            }
                 }
                 break;
             }

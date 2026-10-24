@@ -612,7 +612,7 @@ public static class WorldCollision
         if (MapEntities.ReadNode(element) is not { } cable)
             yield break;
         // Inside an instance or prefab, the path where the collapse moved it.
-        cable = Maps.SettleWorld.PlacedPath(cable, node.Through, node.PrefabChain, node.UnderDeformer);
+        cable = Maps.SettleWorld.PlacedPath(cable, node.Through, node.PrefabChain, node.UnderDeformer, element);
         if (schema?.HasFlag(cable.ClassName, "has_static_mesh") != true || !CableCollision.Collides(element))
             yield break;
         // The filter's flag 4: an entity whose solid key is 0 is out.
@@ -804,7 +804,7 @@ public static class WorldCollision
         var angles = e.GetValue<Vector3>("angles") ?? Vector3.Zero;
         // A node under a deformer is moved by the deformer's own TransformBy (SettleWorld.UnderDeformer).
         if (entity.UnderDeformer && (entity.Through.Count > 0 || entity.PrefabChain.Count > 0))
-            (origin, angles) = Maps.SettleWorld.UnderDeformer(origin, angles, entity.Through, entity.PrefabChain);
+            (origin, angles) = Maps.SettleWorld.UnderDeformer(origin, angles, entity.Through, entity.PrefabChain, e);
         else if (entity.Through.Count > 0 && entity.PrefabChain.Count > 0)
             (origin, angles) = Maps.SettleWorld.NestedPlacement(origin, angles, entity.Through, entity.PrefabChain);
         else if (entity.Through.Count > 0)

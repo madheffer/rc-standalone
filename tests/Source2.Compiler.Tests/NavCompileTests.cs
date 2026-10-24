@@ -101,7 +101,7 @@ public sealed class NavCompileTests(ITestOutputHelper output)
         var root = Path.GetFullPath(Path.Combine(Csgo, "..", ".."));
         var document = DmxBinary.ReadFile(Path.Combine(root, "content", "csgo_addons", "s2c_rc_probe", "maps", "cardtest.vmap"));
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(root, "content", "csgo_addons", "s2c_rc_probe")));
-        MapDeformers.Apply(document);
+        MapDeformers.Apply(document, MapFixtures.GameSchema());
         using var assets = new GameContent(pak, Path.Combine(root, "game", "csgo_addons", "s2c_rc_probe"));
         var locators = MapCompile.Locators(assets);
         var bodies = SettleWorld.Build(document, assets, schema, SmartProps.NodesCreatedOnLoad(document, locators),
@@ -194,7 +194,7 @@ public sealed class NavCompileTests(ITestOutputHelper output)
         }
         var document = DmxBinary.ReadFile(vmap);
         MapPrefabs.Attach(document, MapPrefabs.FromContent(Path.Combine(root, "content", "csgo_addons", addon)));
-        MapDeformers.Apply(document);
+        MapDeformers.Apply(document, MapFixtures.GameSchema());
         using var assets = new GameContent(pak, Path.Combine(root, "game", "csgo_addons", addon));
         using var package = new ValvePak.Package();
         package.Read(reference);

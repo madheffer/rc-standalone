@@ -336,7 +336,10 @@ internal sealed class LatticeDeformer
         if (through.Count == 0 && prefabs.Count == 0)
             return d;
         if (node.Type == "CMapDeformerPath")
-            throw new NotSupportedException($"path deformer {node.GetValue<int>("nodeID")}: a copy an instance or prefab places is not ported (its target path is resolved and refitted after the collapse)");
+        {
+            PathDeformer.Place(d, node, through, prefabs);
+            return d;
+        }
         d.Transform = SettleWorld.PlacedDeformer(node, through, prefabs);
         if (node.Type == "CMapDeformerLattice")
         {

@@ -104,7 +104,7 @@ public static partial class SettleWorld
         if (!Physics.CableCollision.Collides(node) || MapEntities.ReadNode(node) is not { } cable)
             return;
         through ??= [];
-        cable = PlacedPath(cable, through, prefabs ?? [], underDeformer);
+        cable = PlacedPath(cable, through, prefabs ?? [], underDeformer, node);
         var world = NodeWorld(Physics.CableCollision.NodeMatrix(cable));
         var longest = Enumerable.Range(0, 3)
             .Select(c => MathF.Sqrt(((world[c] * world[c]) + (world[4 + c] * world[4 + c])) + (world[8 + c] * world[8 + c])))

@@ -3625,10 +3625,53 @@ game can answer is raised with the user first, and runs with -insecure.
       four meshes under the path deformers; the port's filter took world, group and layer only).
     - Settled from the setters (18117a8b0, 18117a820): start = minss(maxss(v, 0), end - 0.01f),
       end = minss(maxss(v, start + 0.01f), 1); CopyFrom (181178b00) copies all three unclamped.
-    - Not settled, and thrown: the load order of start and end when the clamps make it matter; a
-      closed target path (1810b7ca0 repeats the first node only for a class with supports_loop); a
-      hidden target (1810be450 skips the recentre); a path deformer an instance or prefab copies (the
-      reference is resolved and the lattice refitted after the collapse).
+    - Settled 2026-10-24 by item 132: the load order of start and end, closed and hidden target
+      paths, and path deformers an instance or a prefab copies.
+
+132. **CMapDeformerPath: load order, closed and hidden targets, copies** (2026-10-24: decompile of
+    resourcecompiler 0923; capture_deformer.py and a fresh Valve compile of s2c_deformpath2, built by
+    tools/physics/path_deformer_map2.py from s2c_deformpath: start/end pairs under 0.01 apart stored
+    start first (0.5, 0.505) and end first (0.3, 0.7), an end of 0.004 alone, a closed-loop
+    cable_static target, a force_hidden target, a target with one force_hidden path node, a path and
+    its deformer in a group placed by a turned instance, a deformer in an instance whose path stays in
+    the world, and s2c_deformpath as a turned prefab; 1,924 PropDeformer_Transform calls).
+    - Settled from the decompile: the load sets embedded properties in the order the class registers
+      them, whatever order the file stores them in. 180f77eba gets the list from vf 0xe8 (181178650:
+      CMapNode's 180f88d80, CMapDeformer's 181022620, then 181179840: targetPath, start, end,
+      maxError) and 180f84b70 (mode 1) finds each attribute by its serialization name, checks its
+      type, sets it through the setter (180f94f70) and removes it. So start clamps against the
+      factory's end of 1, then end against that start (PathDeformer.SettingsOf). Captured: all three
+      pairs exact.
+    - Settled from the decompile: a closed loop goes through 1810b7ca0's supports_loop test like the
+      entity lump's (EntityLumpAuthor.Wraps), so the deformer needs the FGD (MapDeformers.Apply and
+      MapSource.Read take or find it). Captured exact.
+    - Settled from the decompile: 18117aeb0 skips the recentre when 1810be450 reports a visibility
+      state (+0x3c8 of the path or of a path node), but in resourcecompiler only the node
+      constructor (180f8f920) writes +0x3c8 (a sweep of every store to [reg+0x3c8]), and force_hidden
+      goes to +0x366 (180f94900). A hidden target is recentred as any other; both hidden cases are
+      exact in the capture.
+    - Settled by capture: a copy is moved as any deformer (SettleWorld.UnderDeformer) and refitted
+      along its target where the collapse left it. When the collapse moved the target too (one in the
+      instance's target, or the prefab), the deformer is then recentred on the moved path, its
+      subtree moved along (181077c20, 181076850). A target outside the instance stays where it is and
+      leaves the moved origin. A prefab's copy is recentred twice more, back to the source centre
+      (the deformer keeping its turned angles) and to the moved one again; the deformer ends where it
+      was, but its subtree takes two more moves, which shifts the prefab copy's meshes in the last
+      bits (PathDeformer.FollowRecentre). The double recentre is read from the capture's call order
+      (each of the four prefab copies); what re-resolves the reference twice is not decompiled.
+    - Settled by capture, for every deformer: the move reads the node's quaternion from its angles as
+      the setter 180fdeda0 keeps them (a yaw of -20 held as 340, the quaternion's sign turned). The
+      port took the raw angles, which put a pitched or rolled copy's angles a few ulps off (the prefab
+      copy of the (10 -20 5) deformer: (9.999998, 69.99999, 4.9999995) against Valve's (9.999997,
+      69.999985, 5.0000005)). Earlier probes turned only yaw-only deformers, which the two agree on.
+    - Verified: every captured struct (NodesAgainstCapture, PlacedDeformersAgainstCapture) and all
+      1,924 calls' 306,992 points (PointsAgainstCapture) bit for bit; world physics (WPBUILD: 0
+      differences), the 10 entity models and the entity lump of s2c_deformpath2 whole-file exact;
+      s2c_deformpath unchanged.
+    - Not settled: a nested prefab, or two prefabs of one map (the double recentre is fitted to one
+      turned prefab); a deformer under another path deformer (each recentre moves the whole subtree,
+      ported, not probed); a path node an instance copy moves under a recentred deformer (the port
+      moves it as any child).
 
 ## Resolved
 

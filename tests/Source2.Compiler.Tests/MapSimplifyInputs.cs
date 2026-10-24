@@ -30,7 +30,7 @@ public class MapSimplifyInputs(ITestOutputHelper output)
         {
             var doc = DmxBinary.ReadFile(vmap);
             Maps.MapPrefabs.Attach(doc, Maps.MapPrefabs.FromContent(Path.Combine(cs2, "content", "csgo_addons", parts[0])));
-            Maps.MapDeformers.Apply(doc);
+            Maps.MapDeformers.Apply(doc, MapFixtures.GameSchema());
             EntityPhysicsModels.Build(doc, parts[1], content.Material, content.CollisionProperty, MapFixtures.GameSchema(), null, content.SmartProp);
         }
         finally

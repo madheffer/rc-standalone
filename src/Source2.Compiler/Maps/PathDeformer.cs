@@ -32,23 +32,35 @@ namespace Source2.Compiler.Maps;
 internal static class PathDeformer
 {
     /// <summary>The target path's world control points, attached to the deformer node by <see cref="Resolve"/>.</summary>
-    internal const string ControlsKey = "s2c.pathcontrols";
+    internal const string ControlsKey = "s2c.pathcontrols";
+
+    // The target path's element and whether its first node is repeated (a closed loop of a supports_loop class).
+    private const string TargetKey = "s2c.pathtarget";
+    private const string WrapsKey = "s2c.pathwraps";
+
+    // On every node below a path deformer: the nearest one, whose recentre moves it.
+    private const string UnderKey = "s2c.underpathdeformer";
 
     /// <summary>
     /// What the load leaves of every CMapDeformerPath of the document. Its
     /// targetPath (an embedded CMapNodeReference, its targetReferenceID) names
     /// a node of the same document by referenceID (181072aa0), which must be a
     /// path (vf 0x770 IsA CMapPath; a cable is one). Its target's world control
-    /// points are attached to the node for the fit. Each setter first recentres
-    /// the node (18117aeb0): its origin moves to the path's point at
-    /// (end + start) 0.5 of its length (<see cref="Centre"/>, through
-    /// 181077c20), which takes every node below it along (181076850: the old
-    /// origin the pivot, the move the delta, 181076a70). An unresolved
-    /// reference leaves the node where it is and the lattice unfitted. A
-    /// closed loop would need the path class's supports_loop flag (FGD), and a
-    /// hidden path skips the recentre (1810be450), so both are thrown.
+    /// points are attached to the node for the fit (1810b7ca0: a closed loop
+    /// of more than one node repeats its first node when the class has
+    /// supports_loop, which is why a closed one needs <paramref name="schema"/>).
+    /// Each setter first recentres the node (18117aeb0): its origin moves to
+    /// the path's point at (end + start) 0.5 of its length (<see cref="Centre"/>,
+    /// through 181077c20), which takes every node below it along (181076850:
+    /// the old origin the pivot, the move the delta, 181076a70). An unresolved
+    /// reference leaves the node where it is and the lattice unfitted. The
+    /// recentre is skipped for a path whose visibility state (+0x3c8,
+    /// 1810be450) is set, on it or on a path node; resourcecompiler only ever
+    /// zeroes it (the node constructor 180f8f920 is its one writer; force_hidden
+    /// goes to +0x366 through 180f94900), so a hidden path is recentred like
+    /// any other.
     /// </summary>
-    internal static void Resolve(DmxBinary.Document document)
+    internal static void Resolve(DmxBinary.Document document, FgdSchema? schema = null)
     {
         Dictionary<ulong, DmxBinary.Element>? byReference = null;
         foreach (var node in document.Elements.Where(e => e.Type == "CMapDeformerPath"))
@@ -63,17 +75,97 @@ internal static class PathDeformer
                 continue;
             if (MapEntities.ReadNode(path) is not { PathNodes: { } nodes } entity)
                 continue;
-            var nodeId = node.GetValue<int>("nodeID");
-            if (entity.ClosedLoop && nodes.Count > 1)
-                throw new NotSupportedException($"path deformer {nodeId}: a closed target path is not ported");
-            if ((path.GetValue<bool>("force_hidden") ?? false) || path.GetElements("children").Any(c => c.GetValue<bool>("force_hidden") ?? false))
-                throw new NotSupportedException($"path deformer {nodeId}: a hidden target path is not ported");
-            var controls = EntityLumpAuthor.PathControlsWorld(entity, null);
+            if (entity.ClosedLoop && nodes.Count > 1 && schema == null)
+                throw new NotSupportedException($"path deformer {node.GetValue<int>("nodeID")}: a closed target path needs the FGD (supports_loop)");
+            var wraps = EntityLumpAuthor.Wraps(entity, schema);
+            var controls = EntityLumpAuthor.PathControlsWorld(entity, wraps);
             node.Attributes[ControlsKey] = controls;
+            node.Attributes[TargetKey] = path;
+            node.Attributes[WrapsKey] = wraps;
+            foreach (var below in Descendants(node))
+                below.Attributes[UnderKey] = node;
             if (Centre(controls, SettingsOf(node)) is { } centre)
                 MoveTo(node, centre);
         }
     }
+
+    /// <summary>
+    /// The deformer of a CMapDeformerPath node an instance copy or a prefab's
+    /// map placed. The collapse moves the node as any deformer
+    /// (<see cref="SettleWorld.UnderDeformer"/>), whose change hook refits the
+    /// lattice along the target as it stands (vf 0x80 with 3, 181178bc0: the
+    /// update alone). When the collapse moved the target too (an instance
+    /// whose target holds it, or the prefab), its move reaches the deformer
+    /// through the reference (vf 0x740, 181178ce0: the recentre, then the
+    /// update) once both have moved: the node's origin goes to the moved
+    /// path's point (<see cref="Centre"/>), taking its subtree along
+    /// (<see cref="FollowRecentre"/>), and the lattice is fitted there. A
+    /// target the collapse leaves in place (one outside the instance) keeps
+    /// the moved origin. A prefab's copy is recentred twice more, back onto
+    /// the path where the prefab's own map has it and onto the moved one
+    /// again, which leaves the deformer where it was but moves its subtree in
+    /// the last bits (<see cref="FollowRecentre"/>). Settled by capture on
+    /// s2c_deformpath2 (every PropDeformer_Transform call of an instance's and
+    /// a prefab's copies, in order, and the world physics they feed).
+    /// </summary>
+    internal static void Place(LatticeDeformer d, DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        var (_, final, angles, controls) = Placement(node, through, prefabs);
+        d.Transform = LatticeTransform(final, angles, d.Size);
+        if (controls == null)
+            return;
+        d.Points = [];
+        d.Handles = [];
+        d.Segments = d.DivisionsY = d.DivisionsZ = 0;
+        d.Mode = 1;
+        if (Polygon(controls, d.Transform) is { Length: > 0 } polygon)
+            FitLattice(d, polygon, SettingsOf(node));
+    }
+
+    // The copy's origin after its move and after the recentre, its angles, and its target's world control points
+    // where the collapse left them (null when the reference did not resolve).
+    private static (Vector3 Moved, Vector3 Final, Vector3 Angles, float[]? Controls) Placement(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through,
+                                                                                              IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        var (origin, angles) = SettleWorld.UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
+        if (node.Get<DmxBinary.Element>(TargetKey) is not { } path || MapEntities.ReadNode(path) is not { } entity)
+            return (origin, origin, angles, null);
+        var moves = through.TakeWhile(i => i.Get<DmxBinary.Element>("target") is { } target && Below(path, target)).ToList();
+        var placed = SettleWorld.PlacedPath(entity, moves, prefabs);
+        var controls = EntityLumpAuthor.PathControlsWorld(placed, node.GetValue<bool>(WrapsKey) ?? false);
+        var final = origin;
+        if ((moves.Count > 0 || prefabs.Count > 0) && Centre(controls, SettingsOf(node)) is { } centre)
+            final = centre;
+        return (origin, final, angles, controls);
+    }
+
+    /// <summary>
+    /// A node below a copied path deformer, placed by its move
+    /// (<paramref name="placed"/>), then moved as 181077c20 moves the
+    /// deformer's subtree when the recentre changes its origin (<see cref="MoveTo"/>:
+    /// the moved origin the pivot, the change the move).
+    /// </summary>
+    internal static (Vector3 Origin, Vector3 Angles) FollowRecentre(DmxBinary.Element node, (Vector3 Origin, Vector3 Angles) placed,
+                                                                    IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
+    {
+        if (node.Get<DmxBinary.Element>(UnderKey) is not { } deformer)
+            return placed;
+        var (from, to, _, _) = Placement(deformer, through, prefabs);
+        if (from.X == to.X && from.Y == to.Y && from.Z == to.Z)
+            return placed;
+        var moved = Moved(placed.Origin, placed.Angles, from, to);
+        if (prefabs.Count == 0)
+            return moved;
+        // A prefab's copy is recentred twice more, as s2c_deformpath2's capture shows for each of its four:
+        // back onto the path where the prefab's own map has it (the source recentre's point, the node's
+        // origin here), the deformer keeping its turned angles, then onto the moved path again.
+        var source = deformer.GetValue<Vector3>("origin") ?? Vector3.Zero;
+        moved = Moved(moved.Origin, moved.Angles, to, source);
+        return Moved(moved.Origin, moved.Angles, source, to);
+    }
+
+    private static bool Below(DmxBinary.Element node, DmxBinary.Element root)
+        => ReferenceEquals(node, root) || root.GetElements("children").Any(c => Below(node, c));
 
     /// <summary>
     /// 18117aeb0's point: the path's own curve (1810c0530: its world control
@@ -119,24 +211,31 @@ internal static class PathDeformer
         if (origin.X == centre.X && origin.Y == centre.Y && origin.Z == centre.Z)
             return;
         node.Attributes["origin"] = centre;
-        var pivot = new CTransform(origin, 1f, Quaternion.Identity);
-        var move = new CTransform(new Vector3(centre.X - origin.X, centre.Y - origin.Y, centre.Z - origin.Z), 1f, Quaternion.Identity);
-        var back = pivot.Inverse();
         foreach (var child in Descendants(node))
         {
             if (child.GetValue<Vector3>("origin") is not { } at)
                 continue;
             var angles = child.GetValue<Vector3>("angles") ?? Vector3.Zero;
-            var own = new CTransform(at, 1f, CTransform.AngleQuaternion(SettleWorld.SetAngles(angles)));
-            var moved = CTransform.Compose(pivot, CTransform.Compose(move, CTransform.Compose(back, own)));
-            child.Attributes["origin"] = moved.Position;
+            var (o, a) = Moved(at, angles, origin, centre);
+            child.Attributes["origin"] = o;
             if (angles != Vector3.Zero)
-            {
-                var q = moved.Rotation;
-                var a = Simulation.SettleWriteBack.CleanAngles(Simulation.SettleWriteBack.Angles(new Simulation.Quat(q.X, q.Y, q.Z, q.W)));
-                child.Attributes["angles"] = new Vector3(a.X, a.Y, a.Z);
-            }
+                child.Attributes["angles"] = a;
         }
+    }
+
+    // 181076a70 for one node: pivot o move o pivot^-1 o node, its angles from the quaternion through the setter (an
+    // unturned node's are left as they are, as the port has always kept them).
+    private static (Vector3 Origin, Vector3 Angles) Moved(Vector3 at, Vector3 angles, Vector3 from, Vector3 to)
+    {
+        var pivot = new CTransform(from, 1f, Quaternion.Identity);
+        var move = new CTransform(new Vector3(to.X - from.X, to.Y - from.Y, to.Z - from.Z), 1f, Quaternion.Identity);
+        var own = new CTransform(at, 1f, CTransform.AngleQuaternion(SettleWorld.SetAngles(angles)));
+        var moved = CTransform.Compose(pivot, CTransform.Compose(move, CTransform.Compose(pivot.Inverse(), own)));
+        if (angles == Vector3.Zero)
+            return (moved.Position, angles);
+        var q = moved.Rotation;
+        var a = Simulation.SettleWriteBack.CleanAngles(Simulation.SettleWriteBack.Angles(new Simulation.Quat(q.X, q.Y, q.Z, q.W)));
+        return (moved.Position, new Vector3(a.X, a.Y, a.Z));
     }
 
     private static IEnumerable<DmxBinary.Element> Descendants(DmxBinary.Element node)
@@ -179,28 +278,23 @@ internal static class PathDeformer
     /// <summary>
     /// The settings a load leaves: the start setter (18117a8b0) clamps to
     /// [0, end - 0.01], the end setter (18117a820) to [start + 0.01, 1], each
-    /// against the other's value at the time (maxss, then minss). The load's
-    /// order is not settled, so a pair that two orders leave apart is thrown.
+    /// against the other's value at the time (maxss, then minss). The load
+    /// (180f77eba: 180f84b70 in mode 1) walks the class's embedded properties
+    /// in the order vf 0xe8 (181178650) registers them, CMapNode's, then
+    /// CMapDeformer's, then targetPath, start, end, maxError (181179840),
+    /// whatever order the file stores them in: each found by name, set
+    /// through its setter and removed. So start is clamped against the
+    /// factory's end of 1, and end against that start.
     /// </summary>
     internal static Settings SettingsOf(DmxBinary.Element node)
     {
-        var start = node.GetValue<float>("start");
-        var end = node.GetValue<float>("end");
-        var maxError = node.GetValue<float>("maxError") ?? 0.5f;
-        static float SetStart(float value, float end) => MinSs(MaxSs(value, 0f), end - 0.01f);
-        static float SetEnd(float value, float start) => MinSs(MaxSs(value, start + 0.01f), 1f);
-        float s1 = 0f, e1 = 1f, s2 = 0f, e2 = 1f;
-        if (start is { } a)
-            s1 = SetStart(a, e1);
-        if (end is { } b)
-            e1 = SetEnd(b, s1);
-        if (end is { } c)
-            e2 = SetEnd(c, s2);
-        if (start is { } d)
-            s2 = SetStart(d, e2);
-        if (BitConverter.SingleToUInt32Bits(s1) != BitConverter.SingleToUInt32Bits(s2) || BitConverter.SingleToUInt32Bits(e1) != BitConverter.SingleToUInt32Bits(e2))
-            throw new NotSupportedException($"path deformer {node.GetValue<int>("nodeID")}: start {start} and end {end} clamp differently by load order, which is not settled");
-        return new(s1, e1, maxError);
+        var start = 0f;
+        var end = 1f;
+        if (node.GetValue<float>("start") is { } a)
+            start = MinSs(MaxSs(a, 0f), end - 0.01f);
+        if (node.GetValue<float>("end") is { } b)
+            end = MinSs(MaxSs(b, start + 0.01f), 1f);
+        return new(start, end, node.GetValue<float>("maxError") ?? 0.5f);
     }
 
     // maxss and minss: the second operand when the comparison fails (NaN included).

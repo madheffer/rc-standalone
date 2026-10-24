@@ -377,7 +377,7 @@ public static class EntityLumpSet
                 pending[copy.EmitAt] = here = [];
             var template = entities[copy.Template];
             var path = template.PathNodes is not null && copy.Node is { } node && (copy.Through.Count > 0 || copy.Prefabs.Length > 0)
-                ? Maps.SettleWorld.PlacedPath(template, copy.Through, copy.Prefabs, Maps.SettleWorld.IsUnderDeformer(node, parents, targets))
+                ? Maps.SettleWorld.PlacedPath(template, copy.Through, copy.Prefabs, Maps.SettleWorld.IsUnderDeformer(node, parents, targets), node)
                 : null;
             here.Add(new EntityLumpAuthor.Emission(
                 Settle(template with

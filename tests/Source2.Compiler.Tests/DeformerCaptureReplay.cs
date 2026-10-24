@@ -137,7 +137,7 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
             return;
         var captured = Read(path).Select(c => c.Deformer).ToList();
         var doc = DmxBinary.ReadFile(vmap);
-        PathDeformer.Resolve(doc);
+        PathDeformer.Resolve(doc, MapFixtures.GameSchema());
         static bool Same(float a, float b) => BitConverter.SingleToInt32Bits(a) == BitConverter.SingleToInt32Bits(b);
         static bool SameV(Vector3 a, Vector3 b) => Same(a.X, b.X) && Same(a.Y, b.Y) && Same(a.Z, b.Z);
         var bad = 0;
@@ -191,7 +191,9 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
         foreach (var entity in entities.Where(e => e.Deformer != null && (e.Through.Count > 0 || e.PrefabChain.Count > 0)))
         {
             var d = entity.Deformer!;
-            var ours = SettleWorld.PlacedDeformer(d, entity.Through, entity.PrefabChain);
+            // A path deformer's struct holds the lattice's transform (PathDeformer.LatticeTransform), not the node's.
+            var ours = d.Type == "CMapDeformerPath" ? LatticeDeformer.FromNode(d, entity.Through, entity.PrefabChain).Transform
+                                                     : SettleWorld.PlacedDeformer(d, entity.Through, entity.PrefabChain);
             var key = $"{ours.Position:R} {ours.Rotation}";
             if (!seen.Add(key))
                 continue;

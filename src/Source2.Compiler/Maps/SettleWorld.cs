@@ -286,7 +286,7 @@ public static partial class SettleWorld
             var angles = child.GetValue<Vector3>("angles") ?? Vector3.Zero;
             // A deformer of the prefab's map moves itself and what is below it (UnderDeformer).
             var under = underDeformer || child.Type.StartsWith("CMapDeformer", StringComparison.Ordinal);
-            var (at, turn) = under ? UnderDeformer(origin, angles, [], chain) : PrefabPlacement(origin, angles, chain);
+            var (at, turn) = under ? UnderDeformer(origin, angles, [], chain, child) : PrefabPlacement(origin, angles, chain);
             var placed = MapMeshes.AngleMatrix(turn);
             (placed[3], placed[7], placed[11]) = (at.X, at.Y, at.Z);
             var before = context.Bodies.Count;
@@ -468,18 +468,24 @@ public static partial class SettleWorld
     /// (CTransform_Compose 181253510), the origin stored (180fded80, the store
     /// capture_originwrites.py finds for s2c_deformplace's prefab props) and
     /// the angles QuaternionAngles (181260200) through the angle setter
-    /// (180fdeda0). Its scale branches apply only to a scaled node or step.
+    /// (180fdeda0). The node's quaternion is of its angles as that setter
+    /// keeps them (a yaw of -20 held as 340 turns the quaternion's sign, which
+    /// moves a pitched or rolled copy's angles in the last bits: s2c_deformpath2's
+    /// prefab copy of a (10 -20 5) deformer). Its scale branches apply only to
+    /// a scaled node or step. A <paramref name="node"/> under a path deformer
+    /// the collapse recentres is moved along with it (<see cref="PathDeformer.FollowRecentre"/>).
     /// </summary>
     internal static (Vector3 Origin, Vector3 Angles) UnderDeformer(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through,
-                                                                   IReadOnlyList<DmxBinary.Element> prefabs)
+                                                                   IReadOnlyList<DmxBinary.Element> prefabs, DmxBinary.Element? node = null)
     {
         if (Step(through, prefabs) is not { } delta)
             return (origin, angles);
         var step = new CTransform(new Vector3(delta[3], delta[7], delta[11]), 1f, SmartPropEvaluator.MatrixQuaternion(delta));
-        var moved = CTransform.Compose(step, new CTransform(origin, 1f, CTransform.AngleQuaternion(angles)));
+        var moved = CTransform.Compose(step, new CTransform(origin, 1f, CTransform.AngleQuaternion(SetAngles(angles))));
         var q = moved.Rotation;
         var a = Simulation.SettleWriteBack.CleanAngles(Simulation.SettleWriteBack.Angles(new Simulation.Quat(q.X, q.Y, q.Z, q.W)));
-        return (moved.Position, new Vector3(a.X, a.Y, a.Z));
+        var placed = (moved.Position, new Vector3(a.X, a.Y, a.Z));
+        return node is null ? placed : PathDeformer.FollowRecentre(node, placed, through, prefabs);
     }
 
     /// <summary>
@@ -512,7 +518,7 @@ public static partial class SettleWorld
     /// </summary>
     internal static float[] UnderDeformerMatrix(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
     {
-        var (origin, angles) = UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
+        var (origin, angles) = UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs, node);
         var m = MapMeshes.AngleMatrix(angles);
         (m[3], m[7], m[11]) = (origin.X, origin.Y, origin.Z);
         return m;
@@ -542,14 +548,14 @@ public static partial class SettleWorld
     /// nodes instead, and that sets origin and angles alone.
     /// </summary>
     internal static MapEntities.Entity PlacedPath(MapEntities.Entity path, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs,
-                                                  bool underDeformer = false)
+                                                  bool underDeformer = false, DmxBinary.Element? element = null)
     {
         if (through.Count == 0 && prefabs.Count == 0)
             return path;
         if (underDeformer)
         {
-            var (o, a) = UnderDeformer(path.Origin, path.Angles, through, prefabs);
-            var moved = path.PathNodes?.Select(n => n with { Origin = UnderDeformer(n.Origin, Vector3.Zero, through, prefabs).Origin }).ToList();
+            var (o, a) = UnderDeformer(path.Origin, path.Angles, through, prefabs, element);
+            var moved = path.PathNodes?.Select(n => n with { Origin = UnderDeformer(n.Origin, Vector3.Zero, through, prefabs, element).Origin }).ToList();
             return path with { Origin = moved is [var head, ..] ? head.Origin : o, Angles = a, PathNodes = moved };
         }
         if (Step(through, prefabs) is not { } m)

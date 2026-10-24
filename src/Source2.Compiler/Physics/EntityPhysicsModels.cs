@@ -137,7 +137,7 @@ public static class EntityPhysicsModels
             Func<DmxBinary.Element, CTransform>? transformOf = through.Count > 0 || prefabs.Length > 0 ? node =>
             {
                 var (o, a) = (node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero);
-                var (origin, angles) = SettleWorld.IsUnderDeformer(node, parents, targets) ? SettleWorld.UnderDeformer(o, a, through, prefabs)
+                var (origin, angles) = SettleWorld.IsUnderDeformer(node, parents, targets) ? SettleWorld.UnderDeformer(o, a, through, prefabs, node)
                     : through.Count > 0 && prefabs.Length > 0 ? SettleWorld.NestedPlacement(o, a, through, prefabs)
                     : through.Count > 0 ? SettleWorld.BakedPlacement(node, through) : SettleWorld.PrefabPlacement(o, a, prefabs);
                 return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
@@ -271,7 +271,7 @@ public static class EntityPhysicsModels
             return null;
         // A copy an instance or prefab placed: its path where the collapse
         // moved it, with the settings an instance's clone has.
-        cable = SettleWorld.PlacedPath(cable, through, prefabs, underDeformer) with { NodeId = nodeId };
+        cable = SettleWorld.PlacedPath(cable, through, prefabs, underDeformer, element) with { NodeId = nodeId };
         var targetName = cable.Keys.FirstOrDefault(k => Io.Tier0Strings.EqualsIgnoreCase(k.Key, "targetname")).Value ?? "";
         var path = EntityLumpAuthor.BrushModelPath(EntityLumpAuthor.FixedName(targetName, null, schema), idPath, mapName);
         var name = element.Get<string>("materialName") ?? "";

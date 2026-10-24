@@ -483,10 +483,12 @@ public static partial class EntityLumpAuthor
     /// each node's stored origin and tangents only pass through it (a -0
     /// becomes +0). CMapDeformerPath's update (18117a900) reads it.
     /// </summary>
-    internal static float[] PathControlsWorld(MapEntities.Entity entity, FgdSchema? schema)
+    internal static float[] PathControlsWorld(MapEntities.Entity entity, FgdSchema? schema) => PathControlsWorld(entity, Wraps(entity, schema));
+
+    /// <summary><see cref="PathControlsWorld(MapEntities.Entity, FgdSchema?)"/> with the loop decided (<see cref="Wraps"/>).</summary>
+    internal static float[] PathControlsWorld(MapEntities.Entity entity, bool wraps)
     {
         var nodes = entity.PathNodes ?? [];
-        var wraps = Wraps(entity, schema);
         var order = Enumerable.Range(0, nodes.Count).ToList();
         if (wraps)
             order.Add(0);
@@ -508,7 +510,7 @@ public static partial class EntityLumpAuthor
     /// first node is repeated at the end (1810b7ca0) and the ends are each
     /// other's neighbours (1810be5b0, 1810be2f0).
     /// </summary>
-    private static bool Wraps(MapEntities.Entity entity, FgdSchema? schema)
+    internal static bool Wraps(MapEntities.Entity entity, FgdSchema? schema)
         => entity.ClosedLoop && entity.PathNodes is { Count: > 1 } && schema?.HasFlag(entity.ClassName, "supports_loop") == true;
 
     /// <summary>
