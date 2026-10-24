@@ -97,8 +97,12 @@ carries the same state per item.
      of adjacent fragments) and 18003d380 (per fragment), checked against the
      draw arguments of probe01, s2c_l5probe and atixref.
    - The light binner's inputs from our own lights, then all six faces of a
-     cube, then the readback, QuarterSize, the EXR strip and the array (the
-     part after the render is already exact).
+     cube. The readback, QuarterSize, the EXR strip and the array are exact
+     against the game from the captured readbacks (ledger 137).
+   - atixref cube 0's readbacks miss the game's EXR on one mesh's material
+     (ledger 137): run atixref's buildcubemaps twice without RenderDoc (CS2
+     and Steam closed) and compare the EXRs to see whether Valve's own output
+     varies there.
    - probe_classes crashes the engine on load (its package is missing entity
      models): recompile it, then capture its rect lights.
 2. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,

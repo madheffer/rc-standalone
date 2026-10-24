@@ -266,6 +266,24 @@ rendering: 1024x1024, storage: 256x256"). `GameCubemapTests`
 So everything after the render is exact against the game. What remains is the
 render of each face itself.
 
+The step before the EXR is checked too (2026-10-25, ledger 137):
+`tools/cubehost/rdc_readback.py` writes the image each `vkCmdCopyImageToBuffer`
+of a capture reads back (the 1024 x 1024 RGBA16F colour target, one per face),
+and `GameCubemapReadbackTests` (`CUBEREADBACK=<dir>`,
+`CUBEREADBACK_EXR=<the game's EXR of that cube from the same run>`) runs the
+six through `CubemapFaceExr.Build`. probe01 cube 0 and s2c_l5probe cube 0
+equal the game's EXR byte for byte. atixref cube 0 does not: three compact
+regions, all last written by one mesh's material (a 12,840-index draw), differ
+between the live run and RenderDoc's replay of it, presumably a texture the
+live game was still streaming. Two runs without RenderDoc will show whether
+Valve's own EXRs vary there.
+
+    RDC_IN=<capture.rdc> RDC_OUT=<dir> qrenderdoc.exe --python tools/cubehost/rdc_readback.py
+
+(The first run of the session sat idle with the capture loaded and never
+reached the first copy; killed and started again it finished in about a
+minute.)
+
 ## The render, captured (2026-10-21)
 
 The game's own RenderDoc hook, inside cubehost only (Steam closed, no Steam
@@ -448,7 +466,9 @@ ledger 120.
   face chained from cleared targets on our blocks
   (`ChainedFaceEqualsTheCapture`: bit for bit against the capture on the
   RTX 4070, 10-22). The vertex, index, lightmap and
-  material inputs already equal the package's data (ledger 120). Next: the
+  material inputs already equal the package's data (ledger 120). The
+  readback after the colour pass makes the game's EXR byte for byte (ledger
+  137). Next: the
   per-view culling that merges surviving fragments into indirect sub-draws
   (the draw arguments are still the capture's), then all faces, then reduce
   to the EXR and compare with the game's.

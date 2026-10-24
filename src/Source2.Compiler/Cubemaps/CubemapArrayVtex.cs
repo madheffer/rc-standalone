@@ -20,8 +20,8 @@ namespace Source2.Compiler.Cubemaps;
 /// (cube, array), depth the cube count, BC6H, the mips down to 4 x 4, then COMPRESSED_MIP_SIZE (method,
 /// the stored size of each mip from mip 0) and CUBEMAP_RADIANCE_SH (offset 8, 27 floats a cube). The
 /// payload is the mips smallest first, each cube by cube and face by face.
-/// Not yet compared against a compile of known inputs: the mips' lower bound, the reflectivity source
-/// and the face split of the EXR (a 6 x 1 strip, as client.dll composites it).
+/// Byte for byte against resourcecompiler on known inputs (tools/re/cubemap_oracle.py, CubemapOracleTests) and
+/// against the game's own build (GameCubemapTests); ledger 117.
 /// </summary>
 public static class CubemapArrayVtex
 {
@@ -71,7 +71,7 @@ public static class CubemapArrayVtex
 
     /// <summary>
     /// The faces of a CUBE input from its EXR's RGBA bitmap: six size x size tiles left to right (a 6 x 1
-    /// strip, as client.dll composites the readback; to be confirmed by tools/re/cubemap_oracle.py).
+    /// strip, as client.dll composites the readback; RC's own cut by oracle, ledger 117).
     /// </summary>
     public static float[][] FacesFromStrip(RcMipChain.Level image)
     {

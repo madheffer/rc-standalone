@@ -3778,6 +3778,24 @@ game can answer is raised with the user first, and runs with -insecure.
     - Not ported: CRnRevoluteBlockJoint, and the ctor defaults and desc setters as the aggregate build
       calls them (roadmap step 5).
 
+137. **The cubemap face readback to the EXR, against the game** (2026-10-25: three cubehost captures, each
+    with the game EXRs of the same run; tools/cubehost/rdc_readback.py, GameCubemapReadbackTests).
+    - Settled: the six images each cube reads back (vkCmdCopyImageToBuffer from the 1024 x 1024
+      R16G16B16A16_FLOAT colour attachment, one per face, faces in order) through CubemapFaceExr.Build
+      (half to float, QuarterSize twice, the vertical flip, the 6 x 1 strip, Vrad3Exr) are the game's
+      EXR byte for byte on probe01 cube 0 and s2c_l5probe cube 0 (2,363,705 bytes each). So the whole
+      chain after the colour pass (readback, reduce, strip, EXR, the array's compile: ledger 117) is
+      exact against the game; what is left is the colour pass itself.
+    - Open: atixref cube 0 differs on 1,527 to 1,532 of 393,216 halves per channel, in three compact
+      regions (face 1 x 0..42 y 84..241, face 2 x 16..101 y 213..255, face 5 x 196..251 y 126..198 of
+      256). RenderDoc's pixel history puts the last write of each region's texels on the same mesh
+      (a 12,840-index indirect draw: eids 4001, 5284 and 11114), whose material reads two 512 BC7/BC1
+      textures with full chains, 4 x 4 placeholders, the main view's 1280 x 720 colour and depth, and the
+      package's previous BC6H cube array. The replay and the live run disagree on that one material, so
+      something it reads changed between the capture's snapshot and the GPU's execution (texture
+      streaming is the suspect). To settle: two atixref buildcubemaps runs without RenderDoc (CS2 and
+      Steam closed); if their EXRs differ, Valve's own output varies run to run there.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).
