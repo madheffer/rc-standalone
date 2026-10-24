@@ -311,8 +311,10 @@ internal sealed class LatticeDeformer
     /// CATMUL_ROM, BEZIER: 0 to 3) and nodeData's control points; a simple
     /// deformer its size and the bend (<see cref="Bend"/>). The mirror flag is
     /// only ever set by a KV3 load or a copy (18128eaf0, 180246d70); a map's
-    /// node leaves it clear. Not ported, and thrown: a lattice in BEZIER mode
-    /// (its handles depend on the load's property order), CMapDeformerPath.
+    /// node leaves it clear. A CMapDeformerPath fits its lattice along its
+    /// target path (<see cref="PathDeformer"/>). Not ported, and thrown: a
+    /// lattice in BEZIER mode (its handles depend on the load's property
+    /// order).
     /// Checked against the structs PropDeformer_Transform was handed
     /// (capture_deformer.py on deformerprobe): all three bit for bit.
     /// </summary>
@@ -333,6 +335,8 @@ internal sealed class LatticeDeformer
         var d = FromNode(node);
         if (through.Count == 0 && prefabs.Count == 0)
             return d;
+        if (node.Type == "CMapDeformerPath")
+            throw new NotSupportedException($"path deformer {node.GetValue<int>("nodeID")}: a copy an instance or prefab places is not ported (its target path is resolved and refitted after the collapse)");
         d.Transform = SettleWorld.PlacedDeformer(node, through, prefabs);
         if (node.Type == "CMapDeformerLattice")
         {
@@ -380,10 +384,13 @@ internal sealed class LatticeDeformer
         // node's own size to SetSize 1812908b0), and the node matrix the lattice
         // places its locators by is AngleMatrix and origin (vf 0xa0, 181255fb0).
         // Only the simple deformer's bend takes them (+0xb8, re-bent by its
-        // change hook 1811764f0 on every transform change).
+        // change hook 1811764f0 on every transform change). The hook reads the
+        // angles as the load's angle setter left them (180fdeda0: a negative yaw
+        // is held plus 360, which turns the quaternion; ledger 131).
         var d = new LatticeDeformer
         {
-            Transform = CTransform.FromNode(node),
+            Transform = new CTransform(node.GetValue<Vector3>("origin") ?? Vector3.Zero, 1f,
+                                       CTransform.AngleQuaternion(SettleWorld.SetAngles(node.GetValue<Vector3>("angles") ?? Vector3.Zero))),
             Size = node.GetValue<Vector3>("size") ?? Vector3.Zero,
         };
         switch (node.Type)
@@ -411,10 +418,34 @@ internal sealed class LatticeDeformer
                 d.Bend(axis, angle, node.GetValue<float>("bendPoint") ?? 0f, node.GetValue<float>("bendRadius") ?? 0f,
                        node.GetValue<Vector3>("scales") ?? Vector3.One);
                 break;
+            case "CMapDeformerPath":
+                // The factory (181178e70) leaves the lattice in mode 1 with no
+                // dimensions; the update (18117a900) fits it along the target
+                // path that MapDeformers.Apply resolved, or leaves it on its
+                // (empty) grid.
+                d.Mode = 1;
+                d.Transform = PathDeformer.LatticeTransform(node.GetValue<Vector3>("origin") ?? Vector3.Zero, SettleWorld.SetAngles(node.GetValue<Vector3>("angles") ?? Vector3.Zero), d.Size);
+                if (node.Get<float[]>(PathDeformer.ControlsKey) is { } controls && PathDeformer.Polygon(controls, d.Transform) is { Length: > 0 } polygon)
+                    PathDeformer.FitLattice(d, polygon, PathDeformer.SettingsOf(node));
+                break;
             default:
                 throw new NotSupportedException($"{node.Type} {node.GetValue<int>("nodeID")}: not ported");
         }
         return d;
+    }
+
+    /// <summary>The mode setter's path (18128dc90 sets +0x38 and calls 18128cab0): the handles reset on the grid.</summary>
+    internal void SetMode(int mode)
+    {
+        Mode = mode;
+        DefaultHandles();
+    }
+
+    /// <summary>New dimensions, the point array resized, and the grid (181290410).</summary>
+    internal void Regrid(int segments, int divisionsY, int divisionsZ)
+    {
+        (Segments, DivisionsY, DivisionsZ) = (segments, divisionsY, divisionsZ);
+        Grid();
     }
 
     // 181290410: every control point back on the regular grid over the size,

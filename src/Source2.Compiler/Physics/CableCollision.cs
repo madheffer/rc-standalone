@@ -229,7 +229,7 @@ internal static class CableCollision
     }
 
     /// <summary>The cubic's coefficients a, b and c (18110fc80, 1810bb3f0).</summary>
-    private static (Vector3 A, Vector3 B, Vector3 C) Coefficients(Vector3[] p)
+    internal static (Vector3 A, Vector3 B, Vector3 C) Coefficients(Vector3[] p)
     {
         static float Ca(float p0, float p1, float p2, float p3) => ((p1 * 3f - p0 * 1f) - p2 * 3f) + p3;
         static float Cb(float p0, float p1, float p2) => (p0 * 3f - p1 * 6f) + p2 * 3f;
@@ -241,7 +241,7 @@ internal static class CableCollision
 
     private static float Poly(float a, float b, float c, float p0, float t) => ((a * t * t * t + b * t * t) + c * t) + p0;
 
-    private static Vector3 Point((Vector3 A, Vector3 B, Vector3 C) k, Vector3 p0, float t)
+    internal static Vector3 Point((Vector3 A, Vector3 B, Vector3 C) k, Vector3 p0, float t)
         => new(Poly(k.A.X, k.B.X, k.C.X, p0.X, t), Poly(k.A.Y, k.B.Y, k.C.Y, p0.Y, t), Poly(k.A.Z, k.B.Z, k.C.Z, p0.Z, t));
 
     /// <summary>
@@ -249,7 +249,7 @@ internal static class CableCollision
     /// doubled until a step changes it by less than tolerance / 100 of itself.
     /// Each point's parameter is i / (n - 1); the polyline starts at P0.
     /// </summary>
-    private static float Length(Vector3[] p, float tolerance)
+    internal static float Length(Vector3[] p, float tolerance)
     {
         var k = Coefficients(p);
         var n = 2;
@@ -372,7 +372,7 @@ internal static class CableCollision
     /// <paramref name="axis"/>, sin and cos of half the angle in radians
     /// (V_sincosf); identity for a zero axis or angle.
     /// </summary>
-    private static Quaternion AxisAngle(Vector3 axis, float degrees)
+    internal static Quaternion AxisAngle(Vector3 axis, float degrees)
     {
         var radians = degrees * 0.017453292f;
         if (axis == Vector3.Zero || radians == 0f)
@@ -386,7 +386,7 @@ internal static class CableCollision
     /// <summary>The vector turned by the quaternion: t = 2 (q x v), then
     /// (q x t) + (w t + v), packed (1812825e8; Ghidra prints the sum as
     /// ((q x t) + w t) + v, which it is not).</summary>
-    private static Vector3 Rotate(Quaternion q, Vector3 v)
+    internal static Vector3 Rotate(Quaternion q, Vector3 v)
     {
         var tx = v.Z * q.Y - v.Y * q.Z;
         var ty = v.X * q.Z - v.Z * q.X;
@@ -422,7 +422,7 @@ internal static class CableCollision
     /// 18125d0d0: (1 - v.z) (v.y^2 - 0) + v.z, 0, -v.x normalised, the part
     /// along v taken out and normalised again (VectorNormalize, 18013e340).
     /// </summary>
-    private static Vector3 Perpendicular(Vector3 v)
+    internal static Vector3 Perpendicular(Vector3 v)
     {
         var p = NormaliseYzx((1f - v.Z) * (v.Y * v.Y - 0f) + v.Z, 0f, -v.X);
         var d = p.Z * v.Z + v.Y * p.Y + p.X * v.X;
@@ -438,7 +438,7 @@ internal static class CableCollision
 
     /// <summary>The inline normalise: the squared length summed z, y, x; 1 /
     /// length times each component.</summary>
-    private static Vector3 Normalise(float x, float y, float z)
+    internal static Vector3 Normalise(float x, float y, float z)
         => Scale(x, y, z, MathF.Sqrt(z * z + y * y + x * x));
 
     private static Vector3 Scale(float x, float y, float z, float length)

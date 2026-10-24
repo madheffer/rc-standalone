@@ -429,7 +429,7 @@ public static partial class EntityLumpAuthor
         var wraps = Wraps(entity, schema);
         var rows = new List<string>();
         for (var i = 0; i < nodes.Count; i++)
-            rows.Add(Kv3Array(PathNode(entity, nodes, i, wraps), 2));
+            rows.Add(Kv3Array(PathNode(entity, nodes, i, wraps, PathToLocal(entity)), 2));
         if (wraps)
             rows.Add(rows[0]);
         yield return new("pathNodes", new KVObject(Kv3Rows(rows)));
@@ -474,7 +474,33 @@ public static partial class EntityLumpAuthor
         var order = Enumerable.Range(0, nodes.Count).ToList();
         if (wraps)
             order.Add(0);
-        return ([.. order.SelectMany(i => PathNode(entity, nodes, i, wraps))], [.. order.Select(i => RadiusScales(nodes[i], schema))]);
+        return ([.. order.SelectMany(i => PathNode(entity, nodes, i, wraps, PathToLocal(entity)))], [.. order.Select(i => RadiusScales(nodes[i], schema))]);
+    }
+
+    /// <summary>
+    /// <see cref="PathControls"/> in world space: CMapPath_IsLoop's mode 1
+    /// (1810b7ca0) takes the identity for the path's inverse node matrix, so
+    /// each node's stored origin and tangents only pass through it (a -0
+    /// becomes +0). CMapDeformerPath's update (18117a900) reads it.
+    /// </summary>
+    internal static float[] PathControlsWorld(MapEntities.Entity entity, FgdSchema? schema)
+    {
+        var nodes = entity.PathNodes ?? [];
+        var wraps = Wraps(entity, schema);
+        var order = Enumerable.Range(0, nodes.Count).ToList();
+        if (wraps)
+            order.Add(0);
+        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+        return [.. order.SelectMany(i => PathNode(entity, nodes, i, wraps, identity))];
+    }
+
+    // FUN_1810b7ca0's mode 0: the path's vtable 0xa8, the inverse (18125aba0)
+    // of its node matrix (FUN_181255fb0).
+    private static float[] PathToLocal(MapEntities.Entity path)
+    {
+        var frame = Maps.MapMeshes.AngleMatrix(path.Angles);
+        (frame[3], frame[7], frame[11]) = (path.Origin.X, path.Origin.Y, path.Origin.Z);
+        return InvertNodeMatrix(frame);
     }
 
     /// <summary>
@@ -492,19 +518,15 @@ public static partial class EntityLumpAuthor
     /// A missing neighbour at an end is the node itself, unless the loop
     /// <paramref name="wraps"/>: then the ends neighbour each other.
     /// </summary>
-    private static float[] PathNode(MapEntities.Entity path, IReadOnlyList<MapEntities.PathNode> nodes, int i, bool wraps)
+    private static float[] PathNode(MapEntities.Entity path, IReadOnlyList<MapEntities.PathNode> nodes, int i, bool wraps, float[] toLocal)
     {
         var here = nodes[i].Origin;
         var previous = i > 0 ? nodes[i - 1].Origin : wraps ? nodes[^1].Origin : here;
         var next = i < nodes.Count - 1 ? nodes[i + 1].Origin : wraps ? nodes[0].Origin : here;
         int TypeOf(int own) => path.InterpolationType is 0 or 1 ? path.InterpolationType : own;
-        // FUN_1810b7ca0: the path's vtable 0xa8, the inverse (18125aba0) of its
-        // node matrix (FUN_181255fb0), each node's stored origin through it
+        // FUN_1810b7ca0: each node's stored origin through the matrix
         // (Matrix3x4_TransformPoint, 18125d1f0) and its tangents rotated
         // (18125d1b0).
-        var frame = Maps.MapMeshes.AngleMatrix(path.Angles);
-        (frame[3], frame[7], frame[11]) = (path.Origin.X, path.Origin.Y, path.Origin.Z);
-        var toLocal = InvertNodeMatrix(frame);
         var inward = Rotate(toLocal, Tangent(TypeOf(nodes[i].InTangentType), next, here, previous, nodes[i].InTangent));
         var outward = Rotate(toLocal, Tangent(TypeOf(nodes[i].OutTangentType), previous, here, next, nodes[i].OutTangent));
         var local = Maps.MapMeshes.Transform(toLocal, here);

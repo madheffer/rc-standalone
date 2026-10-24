@@ -1495,6 +1495,144 @@
    "note": "CMapDeformerSimple: mode 3, ceil(|angle| / 90) segments, axis tables DAT_183013dc0 (Y) / DAT_183013df0 (Z), circle of the bend radius"
   },
   {
+   "addr": "18117a900",
+   "name": "CMapDeformerPath_Update",
+   "module": "s2c:geometry/mesh-export",
+   "note": "lattice regridded; the target CMapPath's world polygon (1810b7ca0 mode 1) moved by the lattice's inverse transform, then 18128dc90 with start +0x578, end +0x57c, maxError +0x580"
+  },
+  {
+   "addr": "18117aeb0",
+   "name": "CMapDeformerPath_Recentre",
+   "module": "s2c:geometry/mesh-export",
+   "note": "unless +0x584: the node's origin to the path's point at (end + start) 0.5 (1810c0530, 181282e60) through 181077c20, children along"
+  },
+  {
+   "addr": "18117a8b0",
+   "name": "CMapDeformerPath_SetStart",
+   "module": "s2c:geometry/mesh-export",
+   "note": "maxss 0, minss end - 0.01f; recentre and update"
+  },
+  {
+   "addr": "18117a820",
+   "name": "CMapDeformerPath_SetEnd",
+   "module": "s2c:geometry/mesh-export",
+   "note": "maxss start + 0.01f, minss 1; recentre and update"
+  },
+  {
+   "addr": "18117a870",
+   "name": "CMapDeformerPath_SetMaxError",
+   "module": "s2c:geometry/mesh-export",
+   "note": "per cent of the cut path's length; recentre and update"
+  },
+  {
+   "addr": "181178e70",
+   "name": "CMapDeformerPath_Factory",
+   "module": "s2c:geometry/mesh-export",
+   "note": "start 0, end 1, maxError 0.5; targetPath CMapNodeReference at +0x548"
+  },
+  {
+   "addr": "181178520",
+   "name": "CMapDeformerPath_vf10",
+   "module": "s2c:geometry/mesh-export",
+   "note": "pivot mode +0x4ac = 1 (181022b50): 181020fa0 offsets the lattice by the turned half size"
+  },
+  {
+   "addr": "181178bc0",
+   "name": "CMapDeformerPath_TransformChanged",
+   "module": "s2c:geometry/mesh-export",
+   "note": "181020fa0, then the update on a transform change (3)"
+  },
+  {
+   "addr": "181020fa0",
+   "name": "CMapDeformer_TransformChanged",
+   "module": "s2c:geometry/mesh-export",
+   "note": "lattice transform from origin and AngleQuaternion(angles); pivot mode 1 subtracts (q x t) + (w t + h), h = size / 2"
+  },
+  {
+   "addr": "18128dc90",
+   "name": "LatticeDeformer_FitPath",
+   "module": "s2c:geometry/mesh-export",
+   "note": "mode 3; 18128f4d0's curve sampled at i / 99, frames 181281aa0; 1 x 1 section, corners DAT_1823f8570 (+-0.5), each fitted per segment by 1812858b0"
+  },
+  {
+   "addr": "18128f4d0",
+   "name": "PathCurve_CutAndFit",
+   "module": "s2c:geometry/mesh-export",
+   "note": "polygon to curve (181283930 mode 2), 100 samples a segment (181282b90), frames 1812820e0, cut to [start, end], refit by 181285470 with 2 x the spanned segments (2..16)"
+  },
+  {
+   "addr": "181283930",
+   "name": "PathCurve_FromPolygon",
+   "module": "s2c:geometry/mesh-export",
+   "note": "mode 2: node 3k, in to 3k - 1, out to 3k + 1; then 181285b50"
+  },
+  {
+   "addr": "181285b50",
+   "name": "PathCurve_Measure",
+   "module": "s2c:geometry/mesh-export",
+   "note": "segment lengths (18110fc80, tolerance 1), running sums over the total"
+  },
+  {
+   "addr": "181285360",
+   "name": "PathCurve_SegmentAt",
+   "module": "s2c:geometry/mesh-export",
+   "note": "cached segment (+0x4c), scan under 64 segments, else bisection"
+  },
+  {
+   "addr": "181282e60",
+   "name": "PathCurve_PointAt",
+   "module": "s2c:geometry/mesh-export",
+   "note": "segment, its parameter by the shares, Bernstein sum ((w1 p1 + g3 p0) + w2 p2) + t3 p3"
+  },
+  {
+   "addr": "181285470",
+   "name": "PathCurve_FitPoints",
+   "module": "s2c:geometry/mesh-export",
+   "note": "1..maxSegments runs split at rounded j (n - 1) / runs, fitted until within maxError"
+  },
+  {
+   "addr": "1812858b0",
+   "name": "Bezier_FitPoints",
+   "module": "s2c:geometry/mesh-export",
+   "note": "chord parameters, up to 10 rounds of 181280e20 / 181281360 / 181285e60 while the error is not under (length 0.001)^2; error sqrt / length clamped, times 100"
+  },
+  {
+   "addr": "181280a60",
+   "name": "Bezier_ChordParameters",
+   "module": "s2c:geometry/mesh-export",
+   "note": "running chord lengths over the total; returns the total"
+  },
+  {
+   "addr": "181280e20",
+   "name": "Bezier_LeastSquares",
+   "module": "s2c:geometry/mesh-export",
+   "note": "Schneider's two-alpha fit along the end tangents, each accumulator acc + ((z + y) + x); chord / 3 under FLT_EPSILON"
+  },
+  {
+   "addr": "181281360",
+   "name": "Bezier_WorstDistance",
+   "module": "s2c:geometry/mesh-export",
+   "note": "largest squared distance, summed y, x, z"
+  },
+  {
+   "addr": "181285e60",
+   "name": "Bezier_Reparameterise",
+   "module": "s2c:geometry/mesh-export",
+   "note": "Newton step (slope / ((curvature . diff) + (d . d))), undone when worse, then a line search of 10 when above 1e-4"
+  },
+  {
+   "addr": "1812835e0",
+   "name": "Polyline_CentralTangent",
+   "module": "s2c:geometry/mesh-export",
+   "note": "the two chords normalised, summed, normalised"
+  },
+  {
+   "addr": "181281aa0",
+   "name": "Frames_FromTangents",
+   "module": "s2c:geometry/mesh-export",
+   "note": "given up normalised less the tangent (VectorPerpendicular under 2^-23), then turned by the tangents' angle"
+  },
+  {
    "addr": "1811763c0",
    "name": "CMapDeformerSimple_CopyFrom",
    "module": "s2c:geometry/mesh-export",

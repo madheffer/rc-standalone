@@ -137,6 +137,7 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
             return;
         var captured = Read(path).Select(c => c.Deformer).ToList();
         var doc = DmxBinary.ReadFile(vmap);
+        PathDeformer.Resolve(doc);
         static bool Same(float a, float b) => BitConverter.SingleToInt32Bits(a) == BitConverter.SingleToInt32Bits(b);
         static bool SameV(Vector3 a, Vector3 b) => Same(a.X, b.X) && Same(a.Y, b.Y) && Same(a.Z, b.Z);
         var bad = 0;

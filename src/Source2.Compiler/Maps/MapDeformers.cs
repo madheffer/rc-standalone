@@ -32,6 +32,7 @@ public static class MapDeformers
 
     private static void ApplyOne(DmxBinary.Document document)
     {
+        PathDeformer.Resolve(document);
         var parents = new Dictionary<DmxBinary.Element, DmxBinary.Element>(ReferenceEqualityComparer.Instance);
         foreach (var e in document.Elements)
             foreach (var child in e.GetElements("children"))

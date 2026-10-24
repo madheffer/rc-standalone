@@ -358,7 +358,10 @@ public static class WorldCollision
         // A prefab's nodes carry the walk's own hidden flag: node ids repeat
         // across the prefab maps, so the id set above does not reach them.
         bool Hides(DmxBinary.Element element, int[] prefabs, bool walked) => prefabs.Length > 0 ? walked : hidden.Contains(element);
-        foreach (var mesh in meshes.Where(m => m.ParentType is "CMapWorld" or "CMapGroup" or "CMapWorldLayer" && !Hides(m.Element!, m.Prefabs, m.Hidden)))
+        // A mesh straight under a deformer is world geometry too (s2c_deformpath's
+        // meshes under CMapDeformerPath nodes are in Valve's world soup).
+        foreach (var mesh in meshes.Where(m => (m.ParentType is "CMapWorld" or "CMapGroup" or "CMapWorldLayer" || m.ParentType.StartsWith("CMapDeformer", StringComparison.Ordinal))
+                                               && !Hides(m.Element!, m.Prefabs, m.Hidden)))
         {
             while (sequences.Count < result.Count)
                 sequences.Add(last);

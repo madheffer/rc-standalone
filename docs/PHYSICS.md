@@ -43,15 +43,31 @@ The settle world under deformers is exact on s2c_deformplace (147 bodies,
 deformed meshes, cables stay straight, and copies of deformed meshes deform
 at their own placement.
 
+CMapDeformerPath (`Maps/PathDeformer.cs`, ledger 131) is exact on
+s2c_deformpath (four path deformers, plain and turned, with start, end and
+maxError set or left at the factory's): every deformer struct
+PropDeformer_Transform is handed, the world physics and the entity models.
+The fit itself is bit for bit against resourcecompiler's own functions on
+20,000 random paths (`PathDeformerOracleTests`):
+- **Target:** targetPath, an embedded CMapNodeReference, names a path
+  (a cable is one) by its referenceID; the path's world control points
+  (1810b7ca0, mode 1) make the Bezier polygon.
+- **Recentre** (18117aeb0, each setter): the node's origin moves to the
+  path's point at (end + start) 0.5 of its length, and the nodes below it
+  move along (181076850 with the old origin as pivot). Its pivot mode is 1
+  (vf10), so the lattice sits half the turned size back from the origin
+  (181020fa0) and the section is centred on the curve.
+- **Fit** (18128dc90): the polygon resampled at 100 points a segment, framed
+  from +z, cut to [start, end] and refitted as 2 x the spanned segments (up to
+  16) of Schneider cubics within maxError per cent of the length; the cut
+  curve sampled at i / 99 and framed from the cut's normal; each corner of
+  the 1 x 1 section fitted per segment, giving the control points and handles.
+- **Settings:** start clamps to [0, end - 0.01], end to [start + 0.01, 1];
+  a pair that two load orders leave apart is thrown, as are closed or hidden
+  target paths and a path deformer an instance or prefab copies.
+- A mesh straight under any deformer is world geometry, as under a group.
+
 Open:
-- **CMapDeformerPath:** its update (18117a900) builds a Bezier polygon from
-  the target CMapPath's nodes (1810b7ca0) in the deformer's space and fits a
-  mode 3 lattice along it (18128dc90: the path resampled and fitted to the
-  maxError tolerance by 18128f4d0, 100 samples a segment, frames by
-  181281aa0, each corner of the 1 x 1 section fitted as a cubic by
-  1812858b0). Its start and end setters clamp against each other
-  (18117a8b0, 18117a820), so the result depends on the load's property
-  order. Not ported; throws.
 - **BEZIER lattices:** the handles 18128cab0 resets on the grid depend on the
   same property order (ledger 130). Throws; a capture of the struct
   PropDeformer_Transform gets settles it.

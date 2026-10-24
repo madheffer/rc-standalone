@@ -3601,7 +3601,34 @@ game can answer is raised with the user first, and runs with -insecure.
       the divisions change, so they depend on the order the load sets size, divisions and mode (the
       attributes go through the DMX element machinery; a capture of PropDeformer_Transform's struct
       settles it); a stored control point array of another length (181290340 copies the overlap over
-      whatever the lattice held); CMapDeformerPath (decompile mapped in PHYSICS.md, not ported).
+      whatever the lattice held). CMapDeformerPath: settled by item 131.
+
+131. **CMapDeformerPath** (2026-10-24: decompile of resourcecompiler 0923; oracle on the archived
+    0924 build; capture_deformer.py and a fresh Valve compile of s2c_deformpath, built by
+    tools/physics/path_deformer_map.py: four path deformers over cable paths of two to five nodes,
+    angles (0 0 0), (0 30 0), (10 -20 5) and (0 90 0), start, end and maxError stored or not).
+    - Settled by oracle (PathDeformerOracleTests, 5,000 random paths per piece, bit for bit): the
+      lattice fit 18128dc90 and its pieces, 181280a60 (chord parameters), 181280e20 (least squares:
+      each accumulator acc + ((z + y) + x), symsse), 181281360, 181285e60 (the Newton step's
+      denominator (curvature . diff) + (d . d), symsse), 1812858b0 (its loop runs while the worst
+      distance is not under (length 0.001)^2, disassembly), 181285470 (the curve, its shares and
+      total) and 181281aa0.
+    - Settled by capture: the update is a pure function of the final state; the node's origin is
+      the path's point at (end + start) 0.5 (18117aeb0 -> 1810c0530, 181282e60, 181077c20), its
+      children moved along by 181076850 (pivot the old origin, the delta the move: pivot o move o
+      pivot^-1 o child); the lattice transform is the origin less the turned half size
+      (181020fa0, pivot mode 1 from vf10 181178520 -> 181022b50); the node's angles are the angle
+      setter's (180fdeda0: a yaw of -20 is held as 340, which turns the quaternion's sign).
+      Every deformer struct of the probe and 472 PropDeformer_Transform calls bit for bit; world
+      physics and the 5 entity models whole-file exact.
+    - Settled: a mesh whose parent is a deformer node is world geometry (Valve's world soup has the
+      four meshes under the path deformers; the port's filter took world, group and layer only).
+    - Settled from the setters (18117a8b0, 18117a820): start = minss(maxss(v, 0), end - 0.01f),
+      end = minss(maxss(v, start + 0.01f), 1); CopyFrom (181178b00) copies all three unclamped.
+    - Not settled, and thrown: the load order of start and end when the clamps make it matter; a
+      closed target path (1810b7ca0 repeats the first node only for a class with supports_loop); a
+      hidden target (1810be450 skips the recentre); a path deformer an instance or prefab copies (the
+      reference is resolved and the lattice refitted after the collapse).
 
 ## Resolved
 
