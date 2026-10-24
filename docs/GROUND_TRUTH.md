@@ -3177,6 +3177,9 @@ game can answer is raised with the user first, and runs with -insecure.
       material from another addon (probe01's entity models compile and do not record it); that reader is not
       read yet. Without -fshallow an Only Entities compile of an up-to-date map is skipped whole ("1 skipped")
       and leaves the package as it was. UnlitMapRootsEqualValves: all 15 Valve references byte for byte.
+      Rechecked on CS2 1.41.9.2 (2026-10-25, the same switches over the addon's lit 10-23 packages): unchanged,
+      8 compiled, no world; the 10-23 references that built the world had -world -fshallow added by
+      compile_fresh.py.
       (Which entity models make the map read force_up_to_date_materials: settled below.)
     - Also from the run: probe01's world_visibility.vvis_c differs only in 4 bytes at 551 (the fingerprint,
       a CRC over a path blob, and the dev box compiled under /tmp); Valve's own probe01 .nav is 9,556, 9,580

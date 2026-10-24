@@ -104,15 +104,14 @@ carries the same state per item.
 2. **.vmap_c**: done (ledger 119). Every Valve root byte for byte (25 lit,
    15 unlit), and Hammer's Only Entities preset whole-package exact. Left:
    the context's +0x605 flag, unread.
-   - **Reopened by 1.41.9.2 (2026-10-23):** Valve's Only Entities build
-     (`-entities -skipauxfiles -nolightmaps -fshallow`) now also compiles the
-     world (world.vwrld, worldnodes n0.vwnod/.vrman and the node models: 13
-     children against 8 on 10-22), over a lit, an unlit or a Fast base alike,
-     and its root reads bakelighting, debugColorClustering,
-     force_up_to_date_materials and meshletMax*. The step table is unchanged,
-     so the cause is elsewhere (an up-to-date check?). %TEMP%/preset_entities
-     holds the new references (the 10-16 ones in preset_entities_1016);
-     UnlitMapRootsEqualValves fails on these two only.
+   - The 10-23 "reopened by 1.41.9.2" was our tooling, not Valve
+     (2026-10-25): compile_fresh.py added its `-world -fshallow` default to
+     the Only Entities switches. Recompiled on 1.41.9.2 with the switches
+     alone over the addon's lit packages, Valve's build has 8 children as
+     on 10-22, and ours equals it whole-package on probe01 and cardtest
+     (ParityReport with PARITY_BASE, 25/25 and 27/27 files);
+     UnlitMapRootsEqualValves passes. %TEMP%/preset_entities holds the new
+     references; the wrong ones are in preset_entities_1023_withworld.
 3. **Nav** (LIGHTING_ROADMAP L9, L22, L23): markups, links, ladders, movable
    meshes, spheres and capsules in the casts.
 4. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through

@@ -1,7 +1,8 @@
 """compile_fresh.py <addon> <map> [--out file] [--full] [--over] [-- extra rc args]: a fresh compile kept aside.
 
 Compiles <addon>'s <map>.vmap with the installed resourcecompiler (-world
--fshallow by default, the whole map with --full) and keeps the package it
+-fshallow by default, the whole map with --full, only the extra arguments
+when they name -world or -entities) and keeps the package it
 writes at --out (default %TEMP%/fresh_compile/<map>.vpk). The map's own
 package is backed up first and restored, cmp-checked, afterwards, so the
 user's addon is left as it was.
@@ -53,7 +54,9 @@ def main():
     source = os.path.join(CS2, "content", "csgo_addons", a.addon, "maps", a.map + ".vmap")
     started = time.time()
     cmd = [os.path.join(BIN, "resourcecompiler.exe"), "-nop4", "-game", os.path.join(CS2, "game", "csgo"), "-i", source]
-    if not a.full:
+    # The -world -fshallow default only when the extra arguments pick no builder: added to
+    # Only Entities' switches it also builds the world (the 10-23 references were made so).
+    if not a.full and not any(x in ("-world", "-entities") for x in extra):
         cmd += ["-world", "-fshallow"]
     cmd += extra
     with open(out_path + ".log", "wb") as log:
