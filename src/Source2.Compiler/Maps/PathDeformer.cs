@@ -29,7 +29,7 @@ namespace Source2.Compiler.Maps;
 /// </list>
 /// Every float expression keeps the order the binary computes it in.
 /// </summary>
-internal static class PathDeformer
+internal static partial class PathDeformer
 {
     /// <summary>The target path's world control points, attached to the deformer node by <see cref="Resolve"/>.</summary>
     internal const string ControlsKey = "s2c.pathcontrols";
@@ -37,9 +37,6 @@ internal static class PathDeformer
     // The target path's element and whether its first node is repeated (a closed loop of a supports_loop class).
     private const string TargetKey = "s2c.pathtarget";
     private const string WrapsKey = "s2c.pathwraps";
-
-    // On every node below a path deformer: the nearest one, whose recentre moves it.
-    private const string UnderKey = "s2c.underpathdeformer";
 
     /// <summary>
     /// What the load leaves of every CMapDeformerPath of the document. Its
@@ -49,24 +46,44 @@ internal static class PathDeformer
     /// points are attached to the node for the fit (1810b7ca0: a closed loop
     /// of more than one node repeats its first node when the class has
     /// supports_loop, which is why a closed one needs <paramref name="schema"/>).
-    /// Each setter first recentres the node (18117aeb0): its origin moves to
-    /// the path's point at (end + start) 0.5 of its length (<see cref="Centre"/>,
-    /// through 181077c20), which takes every node below it along (181076850:
-    /// the old origin the pivot, the move the delta, 181076a70). An unresolved
-    /// reference leaves the node where it is and the lattice unfitted. The
-    /// recentre is skipped for a path whose visibility state (+0x3c8,
-    /// 1810be450) is set, on it or on a path node; resourcecompiler only ever
-    /// zeroes it (the node constructor 180f8f920 is its one writer; force_hidden
-    /// goes to +0x366 through 180f94900), so a hidden path is recentred like
-    /// any other.
+    /// Once the load has made the nodes, each reference resolves (180fca9b0)
+    /// in tree order and its change (vf 0x740, 181178ce0) recentres the node
+    /// (18117aeb0): its origin moves to the path's point at (end + start) 0.5
+    /// of its length (<see cref="Centre"/>, through 181077c20), which takes
+    /// every node below it along (181076850: the old origin the pivot, the
+    /// move the delta, 181076a70), then the lattice is fitted (18117a900) to
+    /// the path as it then stands, which the move has carried along when the
+    /// path is below the deformer (captured, s2c_deformnest: the load sends no
+    /// change of the path back to it). An unresolved reference leaves the node
+    /// where it is and the lattice unfitted. The recentre is skipped for a path
+    /// whose visibility state (+0x3c8, 1810be450) is set, on it or on a path
+    /// node; resourcecompiler only ever zeroes it (the node constructor
+    /// 180f8f920 is its one writer; force_hidden goes to +0x366 through
+    /// 180f94900), so a hidden path is recentred like any other. Each node
+    /// also learns its parent and the path deformers above it, and each
+    /// instance's target that it is one, for the copies (<see cref="Place"/>).
     /// </summary>
     internal static void Resolve(DmxBinary.Document document, FgdSchema? schema = null)
     {
+        foreach (var e in document.Elements)
+            foreach (var child in e.GetElements("children"))
+                child.Attributes.TryAdd(ParentKey, e);
+        foreach (var instance in document.OfType("CMapInstance"))
+            if (instance.Get<DmxBinary.Element>("target") is { } group)
+                group.Attributes[TargetGroupKey] = true;
         Dictionary<ulong, DmxBinary.Element>? byReference = null;
-        foreach (var node in document.Elements.Where(e => e.Type == "CMapDeformerPath"))
+        var order = document.OfType("CMapWorld").SelectMany(w => Descendants(w)).Where(e => e.Type == "CMapDeformerPath").ToList();
+        order.AddRange(document.Elements.Where(e => e.Type == "CMapDeformerPath").Except(order));
+        foreach (var node in order)
         {
             if (node.Attributes.ContainsKey(ControlsKey))
                 continue;
+            foreach (var below in Descendants(node))
+            {
+                var above = below.Get<DmxBinary.Element[]>(AboveKey) ?? [];
+                if (!above.Contains(node))
+                    below.Attributes[AboveKey] = (DmxBinary.Element[])[.. above, node];
+            }
             if (node.Get<DmxBinary.Element>("targetPath")?.GetValue<ulong>("targetReferenceID") is not { } id || id == 0)
                 continue;
             byReference ??= document.Elements.Where(e => e.GetValue<ulong>("referenceID") is not null)
@@ -79,93 +96,16 @@ internal static class PathDeformer
                 throw new NotSupportedException($"path deformer {node.GetValue<int>("nodeID")}: a closed target path needs the FGD (supports_loop)");
             var wraps = EntityLumpAuthor.Wraps(entity, schema);
             var controls = EntityLumpAuthor.PathControlsWorld(entity, wraps);
-            node.Attributes[ControlsKey] = controls;
             node.Attributes[TargetKey] = path;
             node.Attributes[WrapsKey] = wraps;
-            foreach (var below in Descendants(node))
-                below.Attributes[UnderKey] = node;
             if (Centre(controls, SettingsOf(node)) is { } centre)
+            {
                 MoveTo(node, centre);
+                controls = EntityLumpAuthor.PathControlsWorld(MapEntities.ReadNode(path)!, wraps);
+            }
+            node.Attributes[ControlsKey] = controls;
         }
     }
-
-    /// <summary>
-    /// The deformer of a CMapDeformerPath node an instance copy or a prefab's
-    /// map placed. The collapse moves the node as any deformer
-    /// (<see cref="SettleWorld.UnderDeformer"/>), whose change hook refits the
-    /// lattice along the target as it stands (vf 0x80 with 3, 181178bc0: the
-    /// update alone). When the collapse moved the target too (an instance
-    /// whose target holds it, or the prefab), its move reaches the deformer
-    /// through the reference (vf 0x740, 181178ce0: the recentre, then the
-    /// update) once both have moved: the node's origin goes to the moved
-    /// path's point (<see cref="Centre"/>), taking its subtree along
-    /// (<see cref="FollowRecentre"/>), and the lattice is fitted there. A
-    /// target the collapse leaves in place (one outside the instance) keeps
-    /// the moved origin. A prefab's copy is recentred twice more, back onto
-    /// the path where the prefab's own map has it and onto the moved one
-    /// again, which leaves the deformer where it was but moves its subtree in
-    /// the last bits (<see cref="FollowRecentre"/>). Settled by capture on
-    /// s2c_deformpath2 (every PropDeformer_Transform call of an instance's and
-    /// a prefab's copies, in order, and the world physics they feed).
-    /// </summary>
-    internal static void Place(LatticeDeformer d, DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
-    {
-        var (_, final, angles, controls) = Placement(node, through, prefabs);
-        d.Transform = LatticeTransform(final, angles, d.Size);
-        if (controls == null)
-            return;
-        d.Points = [];
-        d.Handles = [];
-        d.Segments = d.DivisionsY = d.DivisionsZ = 0;
-        d.Mode = 1;
-        if (Polygon(controls, d.Transform) is { Length: > 0 } polygon)
-            FitLattice(d, polygon, SettingsOf(node));
-    }
-
-    // The copy's origin after its move and after the recentre, its angles, and its target's world control points
-    // where the collapse left them (null when the reference did not resolve).
-    private static (Vector3 Moved, Vector3 Final, Vector3 Angles, float[]? Controls) Placement(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through,
-                                                                                              IReadOnlyList<DmxBinary.Element> prefabs)
-    {
-        var (origin, angles) = SettleWorld.UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
-        if (node.Get<DmxBinary.Element>(TargetKey) is not { } path || MapEntities.ReadNode(path) is not { } entity)
-            return (origin, origin, angles, null);
-        var moves = through.TakeWhile(i => i.Get<DmxBinary.Element>("target") is { } target && Below(path, target)).ToList();
-        var placed = SettleWorld.PlacedPath(entity, moves, prefabs);
-        var controls = EntityLumpAuthor.PathControlsWorld(placed, node.GetValue<bool>(WrapsKey) ?? false);
-        var final = origin;
-        if ((moves.Count > 0 || prefabs.Count > 0) && Centre(controls, SettingsOf(node)) is { } centre)
-            final = centre;
-        return (origin, final, angles, controls);
-    }
-
-    /// <summary>
-    /// A node below a copied path deformer, placed by its move
-    /// (<paramref name="placed"/>), then moved as 181077c20 moves the
-    /// deformer's subtree when the recentre changes its origin (<see cref="MoveTo"/>:
-    /// the moved origin the pivot, the change the move).
-    /// </summary>
-    internal static (Vector3 Origin, Vector3 Angles) FollowRecentre(DmxBinary.Element node, (Vector3 Origin, Vector3 Angles) placed,
-                                                                    IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
-    {
-        if (node.Get<DmxBinary.Element>(UnderKey) is not { } deformer)
-            return placed;
-        var (from, to, _, _) = Placement(deformer, through, prefabs);
-        if (from.X == to.X && from.Y == to.Y && from.Z == to.Z)
-            return placed;
-        var moved = Moved(placed.Origin, placed.Angles, from, to);
-        if (prefabs.Count == 0)
-            return moved;
-        // A prefab's copy is recentred twice more, as s2c_deformpath2's capture shows for each of its four:
-        // back onto the path where the prefab's own map has it (the source recentre's point, the node's
-        // origin here), the deformer keeping its turned angles, then onto the moved path again.
-        var source = deformer.GetValue<Vector3>("origin") ?? Vector3.Zero;
-        moved = Moved(moved.Origin, moved.Angles, to, source);
-        return Moved(moved.Origin, moved.Angles, source, to);
-    }
-
-    private static bool Below(DmxBinary.Element node, DmxBinary.Element root)
-        => ReferenceEquals(node, root) || root.GetElements("children").Any(c => Below(node, c));
 
     /// <summary>
     /// 18117aeb0's point: the path's own curve (1810c0530: its world control

@@ -1585,6 +1585,78 @@
    "note": "reference (181072aa0), start, end and maxError unclamped; recentre and update unless flags & 6; then CMapDeformer's (1810205e0)"
   },
   {
+   "addr": "18117a810",
+   "name": "CMapDeformerPath_PropertyChangeBegin",
+   "module": "s2c:geometry/mesh-export",
+   "note": "an embedded property's change of kind 1 sets +0x584, which holds the recentre off"
+  },
+  {
+   "addr": "18117a7d0",
+   "name": "CMapDeformerPath_PropertyChangeEnd",
+   "module": "s2c:geometry/mesh-export",
+   "note": "kind 3 with +0x584 set: clears it, recentres (18117aeb0)"
+  },
+  {
+   "addr": "180f8f5a0",
+   "name": "CMapNode_NotifyChanged",
+   "module": "s2c:geometry/mesh-export",
+   "note": "unless kind 1 or already notifying (+0x2c8): each listener of the node (+0x2f0, +0x2e8) through vf 0x20, i.e. a reference's change"
+  },
+  {
+   "addr": "180fca9b0",
+   "name": "CMapWorld_RegisterReference",
+   "module": "s2c:geometry/mesh-export",
+   "note": "the reference listed by its target id (+0x2b68), then resolved by the world's referenceID table (+0x2b48, first holder kept) through 181075180"
+  },
+  {
+   "addr": "181075180",
+   "name": "CMapNodeReference_SetResolved",
+   "module": "s2c:geometry/mesh-export",
+   "note": "+0x28; on a change the old node's listener removed (180aff500), the new one's added (180f82810), then vf 0x18 (the owner's vf 0x740)"
+  },
+  {
+   "addr": "181075d90",
+   "name": "CMapNodeReference_SetTargetId",
+   "module": "s2c:geometry/mesh-export",
+   "note": "a new id: unregistered, looked up in the world, registered again (180fca9b0)"
+  },
+  {
+   "addr": "180f75580",
+   "name": "CMapNode_RemapReferences",
+   "module": "s2c:geometry/mesh-export",
+   "note": "vf 0x210: each reference (+0x2d8) whose id the remap table holds gets the new node's referenceID (+0x348, 181075d90)"
+  },
+  {
+   "addr": "180f90cb0",
+   "name": "CMapNode_WalkTree",
+   "module": "s2c:geometry/mesh-export",
+   "note": "vf 0x210 over a subtree, the collapse's id remap"
+  },
+  {
+   "addr": "1810191b0",
+   "name": "CMapPrefab_SetPlaced",
+   "module": "s2c:geometry/mesh-export",
+   "note": "placing: its map's prefabs set unplaced first, then 181019d00 at the prefab's transform; unplacing: the map back to the identity"
+  },
+  {
+   "addr": "180f96d40",
+   "name": "CMapPrefab_Collapse",
+   "module": "s2c:geometry/mesh-export",
+   "note": "a group at the prefab's transform, 181018e50 places the map, its nodes move into the group (vf 0x1c8), then the remap"
+  },
+  {
+   "addr": "181114940",
+   "name": "MapInstance_DeltaMatrix",
+   "module": "s2c:geometry/mesh-export",
+   "note": "AngleMatrixDouble (1811145c0) of the new placement times MatrixInvert (18125aba0) of the old"
+  },
+  {
+   "addr": "181076a70",
+   "name": "CMapDeformer_MoveNode",
+   "module": "s2c:geometry/mesh-export",
+   "note": "pivot o step o pivot^-1 o node (CTransform_Compose 181253510 each, renormalising), its angles through QuaternionAngles (181260200)"
+  },
+  {
    "addr": "1810be450",
    "name": "CMapPath_HiddenState",
    "module": "s2c:geometry/mesh-export",

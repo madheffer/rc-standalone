@@ -520,7 +520,73 @@
    "addr": "180165350",
    "name": "RnMesh_TrianglePairTouches",
    "module": "s2c:physics/mesh",
-   "note": "skips a shared vertex; touching below 1.19e-7"
+   "note": "skips a shared vertex; touching when Shape_Distance (180129800) of the two triangles is below 1.19e-7"
+  },
+  {
+   "addr": "180129800",
+   "name": "Shape_Distance",
+   "module": "s2c:physics/mesh",
+   "note": "proxies of two shapes (180128cf0) at their frames, the GJK 18037a1c0 (32 iterations), less both radii, clamped at 0"
+  },
+  {
+   "addr": "180129c50",
+   "name": "Shape_PolytopeFromPoints",
+   "module": "s2c:physics/mesh",
+   "note": "type 4: the points through the transform, and their box"
+  },
+  {
+   "addr": "180128cf0",
+   "name": "Shape_GjkProxy",
+   "module": "s2c:physics/mesh",
+   "note": "scale 1, radius +0x78 (0 for a polytope)"
+  },
+  {
+   "addr": "18037a1c0",
+   "name": "MeshGjk_Distance",
+   "module": "s2c:physics/mesh",
+   "note": "vphysics2's second GJK: cache read 18037b4a0, inline edge solve, 18037b750, 18037be20, direction 18037acc0, support 18037af20; witness 180316270"
+  },
+  {
+   "addr": "18037b4a0",
+   "name": "MeshGjk_ReadCache",
+   "module": "s2c:physics/mesh",
+   "note": "the cached simplex, or vertex 0 of each with weight 0"
+  },
+  {
+   "addr": "18037b750",
+   "name": "MeshGjk_Solve3",
+   "module": "s2c:physics/mesh",
+   "note": "edge sums z, y, x; triangle weights 180379ef0"
+  },
+  {
+   "addr": "18037be20",
+   "name": "MeshGjk_Solve4",
+   "module": "s2c:physics/mesh",
+   "note": "edges ab, ac, ad z-y-x, bc and db y-z-x, cd mixed; tetrahedron 180315bb0"
+  },
+  {
+   "addr": "180379ef0",
+   "name": "MeshGjk_TriangleWeights",
+   "module": "s2c:physics/mesh",
+   "note": "the weights of three points about a fourth and |n|^2"
+  },
+  {
+   "addr": "18037acc0",
+   "name": "MeshGjk_SearchDirection",
+   "module": "s2c:physics/mesh",
+   "note": ""
+  },
+  {
+   "addr": "18037af20",
+   "name": "MeshGjk_Support",
+   "module": "s2c:physics/mesh",
+   "note": "measured from vertex 0, the first of equals winning"
+  },
+  {
+   "addr": "18037b210",
+   "name": "MeshGjk_Metric",
+   "module": "s2c:physics/mesh",
+   "note": ""
   },
   {
    "addr": "18008d0b0",

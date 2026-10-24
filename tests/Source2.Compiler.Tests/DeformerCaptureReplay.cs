@@ -199,6 +199,9 @@ public class DeformerCaptureReplay(ITestOutputHelper output)
                 continue;
             var want = captured.OrderBy(c => Vector3.Distance(c.Position, ours.Position)).First();
             output.WriteLine($"deformer {d.GetValue<int>("nodeID")} via {entity.Through.Count} instances, {entity.PrefabChain.Count} prefabs: ours {ours.Position:R} {ours.Rotation:R} valve {want.Position:R} {want.Rotation:R}");
+            if (Environment.GetEnvironmentVariable("DEFORMCAP_STATES") == "1" && d.Type == "CMapDeformerPath")
+                foreach (var line in PathDeformer.Describe(d, entity.Through, entity.PrefabChain))
+                    output.WriteLine("  " + line);
             if (ours.Position != want.Position || ours.Rotation != want.Rotation)
                 bad++;
             var full = structs.First(c => c.Transform.Position == want.Position && c.Transform.Rotation == want.Rotation);

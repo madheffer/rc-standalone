@@ -43,10 +43,13 @@ The settle world under deformers is exact on s2c_deformplace (147 bodies,
 deformed meshes, cables stay straight, and copies of deformed meshes deform
 at their own placement.
 
-CMapDeformerPath (`Maps/PathDeformer.cs`, ledgers 131 and 132) is exact on
+CMapDeformerPath (`Maps/PathDeformer.cs`, ledgers 131 to 133) is exact on
 s2c_deformpath (four path deformers, plain and turned, with start, end and
-maxError set or left at the factory's) and s2c_deformpath2 (close start/end
-pairs, closed and hidden targets, instance and prefab copies): every deformer struct
+maxError set or left at the factory's), s2c_deformpath2 (close start/end
+pairs, closed and hidden targets, instance and prefab copies), s2c_deformnest
+and s2c_deformnest2 (deformers inside deformers, deformers holding their own
+target, in instances) and s2c_deformpath3/4 (two prefabs of one map, a nested
+prefab, both with and without the host holding the prefabs' ids): every deformer struct
 PropDeformer_Transform is handed, the world physics and the entity models.
 The fit itself is bit for bit against resourcecompiler's own functions on
 20,000 random paths (`PathDeformerOracleTests`):
@@ -71,12 +74,20 @@ The fit itself is bit for bit against resourcecompiler's own functions on
   the class has supports_loop (the FGD, as for the entity lump). A hidden
   target is recentred like any other, because resourcecompiler never sets the
   visibility state the recentre checks.
-- **Copies:** an instance's or prefab's copy is moved as any deformer, then
-  recentred on its target where the collapse moved it, its subtree along. A
-  target left outside the instance keeps the moved origin. A prefab's copy is
-  recentred back to the source centre and forward again, which moves its
-  subtree in the last bits (s2c_deformpath2: world physics, entity models and
-  every deformer struct exact).
+- **Copies** (`Maps/PathDeformer.Copies.cs`, ledger 133): each instance copy
+  and prefab map is simulated as the bake runs it. An instance copy is
+  recentred where its source stands when its reference is remapped, moved by
+  the step, then recentred in tree order on every path the step moved (outer
+  deformers before inner ones). A prefab's map is placed and every path
+  deformer recentred once; then, as its nodes enter the host world, each
+  reference resolves by its old referenceID to the first holder of that id
+  (the host's own node, an earlier prefab's copy, or its own), and the remap
+  brings it back to its own copy. A deformer holding its own target is
+  recentred k + 3 times (k path nodes) when a reference change starts it.
+  Copies inside a prefab's map start from the state the prefab left.
+- **Moves:** a deformer and its subtree move by pivot o step o pivot^-1 with
+  the identity as pivot (each compose renormalises), and TransformBy reads a
+  node's angles as the angle setter keeps them (-20 held as 340).
 - A mesh straight under any deformer is world geometry, as under a group.
 
 Open:
@@ -368,8 +379,9 @@ Bit for bit on every captured call (`RnMeshReplay`):
    half-edge has exactly one twin and nothing self-touches within 1.19e-7;
    inverted when the signed volume is negative.
 
-The self-touch test is an exact distance, not vphysics2's GJK. The optional
-simplifier is not ported.
+The self-touch test is vphysics2's own triangle GJK (`Physics/MeshGjk.cs`,
+18037a1c0, ledger 133), each pair both ways round. The optional simplifier
+is not ported.
 
 ### Static props (`StaticPropHulls`, `WorldCollision.PropPieces`)
 

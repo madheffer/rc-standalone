@@ -30,6 +30,7 @@ public static class MapDeformers
     {
         foreach (var d in SettleWorld.AllDocuments(document))
             ApplyOne(d, schema);
+        PathDeformer.AttachHosts(document, schema);
     }
 
     private static void ApplyOne(DmxBinary.Document document, FgdSchema? schema)

@@ -345,11 +345,11 @@ internal sealed class LatticeDeformer
         {
             var before = MapMeshes.Local(node);
             var (origin, angles) = SettleWorld.UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero,
-                                                             through, prefabs);
+                                                             through, prefabs, node);
             var after = MapMeshes.AngleMatrix(angles);
             (after[3], after[7], after[11]) = (origin.X, origin.Y, origin.Z);
             var back = MapMeshes.Invert(after);
-            d.Points = [.. d.Points.Select(p => MapMeshes.Transform(back, SettleWorld.UnderDeformer(MapMeshes.Transform(before, p), Vector3.Zero, through, prefabs).Origin))];
+            d.Points = [.. d.Points.Select(p => MapMeshes.Transform(back, SettleWorld.UnderDeformer(MapMeshes.Transform(before, p), Vector3.Zero, through, prefabs, node).Origin))];
         }
         return d;
     }

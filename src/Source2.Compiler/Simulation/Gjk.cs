@@ -373,7 +373,7 @@ public static unsafe class Gjk
     }
 
     /// <summary>FUN_180315bb0 with the origin: the weights of a, b, c, d and the signed volume, all made positive by its sign.</summary>
-    private static (float A, float B, float C, float D, float Volume) Tetrahedron(Vec3 a, Vec3 b, Vec3 c, Vec3 d)
+    internal static (float A, float B, float C, float D, float Volume) Tetrahedron(Vec3 a, Vec3 b, Vec3 c, Vec3 d)
     {
         var volume = ((((d.Z - a.Z) * (c.Y - a.Y)) - ((d.Y - a.Y) * (c.Z - a.Z))) * (b.X - a.X)
                       - (((d.Z - a.Z) * (b.Y - a.Y)) - ((d.Y - a.Y) * (b.Z - a.Z))) * (c.X - a.X))

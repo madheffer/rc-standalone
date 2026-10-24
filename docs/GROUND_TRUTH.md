@@ -3668,10 +3668,56 @@ game can answer is raised with the user first, and runs with -insecure.
       1,924 calls' 306,992 points (PointsAgainstCapture) bit for bit; world physics (WPBUILD: 0
       differences), the 10 entity models and the entity lump of s2c_deformpath2 whole-file exact;
       s2c_deformpath unchanged.
-    - Not settled: a nested prefab, or two prefabs of one map (the double recentre is fitted to one
-      turned prefab); a deformer under another path deformer (each recentre moves the whole subtree,
-      ported, not probed); a path node an instance copy moves under a recentred deformer (the port
-      moves it as any child).
+    - Settled 2026-10-25 by item 133: nested prefabs, two prefabs of one map, path deformers inside
+      path deformers, a deformer holding its own target; the prefab copy's "double recentre" was the
+      host's own copy of the path (s2c_deformpath2 is built on s2c_deformpath), not a rule.
+
+133. **Path deformer copies step by step; the angle setter in TransformBy; the mesh self-touch GJK**
+    (2026-10-25: decompile of resourcecompiler 0923 and vphysics2 0924; tools/physics/capture_deformerevents.py,
+    which logs every recentre, update, reference change, deformer TransformBy, subtree move, node origin
+    store, prefab place and collapse in call order, and capture_deformer.py, on four new probes:
+    s2c_deformnest (tools/physics/path_deformer_map3.py: an outer path deformer holding a mesh and an inner
+    one whose path is in the world or in the outer one, a deformer holding its own target, both in turned
+    instances), s2c_deformpath3 (two prefabs of s2c_deformpath, one turned (10 45 0), a prefab of
+    s2c_deformpath2, which holds a prefab of s2c_deformpath, and one of s2c_deformnest, on a host built from
+    s2c_deformpath), s2c_deformnest2 and s2c_deformpath4 (path_deformer_map4.py: deformers holding their own
+    2, 3 and 4 node targets in the world and in turned instances; the same prefabs plus s2c_deformnest2 on a
+    host without the prefab maps' nodes)).
+    - Settled from the decompile and the event capture, the load: each reference resolves in tree order
+      (180fca9b0 through 181075180 to vf 0x740) and recentres its node, then the lattice is fitted to the path
+      as it stands, which the move has carried along when the path is below the deformer. The load sends no
+      change back to it (one recentre).
+    - Settled, a change of the path (180f8f5a0) reaches its listeners only while it is not already
+      notifying (+0x2c8): a recentre that a reference change started and that moves the deformer's own target
+      is told of the move again for each of k + 2 changes (k nodes), k + 3 recentres in all (5, 6, 7 captured
+      for 2, 3, 4 nodes); one the path's own notification started is not.
+    - Settled, an instance copy (PathDeformer.Copies, Stage.Instance): the id remap points the copy's
+      reference at its copied target, recentred where the source stands (the cascade above for a target below
+      it; a target outside the copy is recentred on where it stands, which moves a copy in a prefab onto the
+      prefab-placed path before the step: s2c_deformpath3's 7260 lattice). Then the group setter (180f834d0)
+      moves the copy by the step and each path it moved recentres its deformers in tree order, outer before
+      inner, the inner carried by the outer's move.
+    - Settled, a prefab (Stage.Prefab): its map loads on its own, its world is placed (181019d00; the group
+      setter skips instance targets, 180f8ba70) and every path deformer of it recentres once, target groups'
+      too. Its nodes move into the host world (180f96d40) and each reference resolves again by its old id in
+      the host's referenceID table, which keeps the first holder: the host's own nodes, then each prefab's in
+      collapse order (a prefab's node takes an id nobody holds). Recentred there; the remap then gives a
+      reference the host had taken its own copy back, recentred again. s2c_deformpath3's prefabs find the
+      host's copy of s2c_deformpath's paths, s2c_deformpath4's second prefab of it the first one's.
+    - Settled by capture and then the decompile: CMapDeformer's move (181076a70) composes pivot o step o
+      pivot^-1 o node with the identity as pivot; each composition renormalises (a 60 degree prefab turns a 30
+      degree deformer to 90.0000076, not 89.99999). TransformBy 0x41 (SettleWorld.Moved) reads the node's
+      angles as the setter 180fdeda0 keeps them (an instance's (10 -20 5) as (10 340 5) gives Valve's
+      (10 39.999985 4.999999) in a prefab turned (0 60 0)).
+    - Settled from the decompile: RnMesh_TrianglePairTouches measures with vphysics2's second GJK
+      (180129800 to 18037a1c0, ported as Physics/MeshGjk.cs, every sum in the DLL's order), not an exact
+      distance; with deformed tubes ~1e4 from the origin the two disagree (s2c_deformnest2's mesh 2 is closed
+      in Valve's).
+    - Verified: every deformer struct of all six path deformer probes (NodesAgainstCapture,
+      PlacedDeformersAgainstCapture) and the world physics of s2c_deformnest, s2c_deformnest2, s2c_deformpath3
+      and s2c_deformpath4 whole-file exact; s2c_deformpath, s2c_deformpath2, s2c_deformplace unchanged.
+    - Not probed: an instance inside an instance whose target group lies inside the outer target (the
+      port steps such a copy once from the source, as before).
 
 ## Resolved
 

@@ -464,28 +464,41 @@ public static partial class SettleWorld
     /// 181076410) takes the step as a CTransform (its translation,
     /// MatrixQuaternion 18125de90, scale 1) and moves itself and every node
     /// below it (181076680, 181076850) by 181076a70: the node's CTransform
-    /// (origin, AngleQuaternion of its angles) composed after the step
-    /// (CTransform_Compose 181253510), the origin stored (180fded80, the store
+    /// (origin, AngleQuaternion of its angles) composed after the step about
+    /// the struct's pivot, the identity (pivot o step o pivot^-1 o node,
+    /// CTransform_Compose 181253510 each, which renormalises: s2c_deformpath4's
+    /// copies in prefabs turned (0 60 0) and (10 45 0)), the origin stored (180fded80, the store
     /// capture_originwrites.py finds for s2c_deformplace's prefab props) and
     /// the angles QuaternionAngles (181260200) through the angle setter
     /// (180fdeda0). The node's quaternion is of its angles as that setter
     /// keeps them (a yaw of -20 held as 340 turns the quaternion's sign, which
     /// moves a pitched or rolled copy's angles in the last bits: s2c_deformpath2's
     /// prefab copy of a (10 -20 5) deformer). Its scale branches apply only to
-    /// a scaled node or step. A <paramref name="node"/> under a path deformer
-    /// the collapse recentres is moved along with it (<see cref="PathDeformer.FollowRecentre"/>).
+    /// a scaled node or step. A <paramref name="node"/> below a path deformer,
+    /// or one itself, also takes the recentres the collapse makes
+    /// (<see cref="PathDeformer.Placed"/>).
     /// </summary>
     internal static (Vector3 Origin, Vector3 Angles) UnderDeformer(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through,
                                                                    IReadOnlyList<DmxBinary.Element> prefabs, DmxBinary.Element? node = null)
+        => node != null && (through.Count > 0 || prefabs.Count > 0) && PathDeformer.Recentred(node)
+            ? PathDeformer.Placed(node, (origin, angles), through, prefabs)
+            : UnderDeformerStep(origin, angles, through, prefabs);
+
+    /// <summary><see cref="UnderDeformer"/>'s move alone: the step composed with the node's own transform.</summary>
+    internal static (Vector3 Origin, Vector3 Angles) UnderDeformerStep(Vector3 origin, Vector3 angles, IReadOnlyList<DmxBinary.Element> through,
+                                                                       IReadOnlyList<DmxBinary.Element> prefabs)
     {
         if (Step(through, prefabs) is not { } delta)
             return (origin, angles);
         var step = new CTransform(new Vector3(delta[3], delta[7], delta[11]), 1f, SmartPropEvaluator.MatrixQuaternion(delta));
-        var moved = CTransform.Compose(step, new CTransform(origin, 1f, CTransform.AngleQuaternion(SetAngles(angles))));
+        // 181076a70 moves about the struct's pivot, the identity: pivot o step o pivot^-1 o node, each
+        // composition renormalising the quaternion (a 60 degree prefab turns a 30 degree node to 90.00001).
+        var pivot = new CTransform(Vector3.Zero, 1f, Quaternion.Identity);
+        var own = new CTransform(origin, 1f, CTransform.AngleQuaternion(SetAngles(angles)));
+        var moved = CTransform.Compose(pivot, CTransform.Compose(step, CTransform.Compose(pivot.Inverse(), own)));
         var q = moved.Rotation;
         var a = Simulation.SettleWriteBack.CleanAngles(Simulation.SettleWriteBack.Angles(new Simulation.Quat(q.X, q.Y, q.Z, q.W)));
-        var placed = (moved.Position, new Vector3(a.X, a.Y, a.Z));
-        return node is null ? placed : PathDeformer.FollowRecentre(node, placed, through, prefabs);
+        return (moved.Position, new Vector3(a.X, a.Y, a.Z));
     }
 
     /// <summary>
@@ -532,7 +545,7 @@ public static partial class SettleWorld
     /// </summary>
     internal static CTransform PlacedDeformer(DmxBinary.Element node, IReadOnlyList<DmxBinary.Element> through, IReadOnlyList<DmxBinary.Element> prefabs)
     {
-        var (origin, angles) = UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs);
+        var (origin, angles) = UnderDeformer(node.GetValue<Vector3>("origin") ?? Vector3.Zero, node.GetValue<Vector3>("angles") ?? Vector3.Zero, through, prefabs, node);
         return new CTransform(origin, 1f, CTransform.AngleQuaternion(angles));
     }
 
@@ -600,13 +613,17 @@ public static partial class SettleWorld
     /// the origin through the matrix as a 4x4 with a last row of (0, 0, 0, 1)
     /// (FUN_180fdef60), the angles as the matrix's own angles rebuilt, times
     /// the node's (FUN_180fdf210), and stored through SetAngles (FUN_180fdeda0).
+    /// The node's angles are the setter's too, as the load stored them: a yaw
+    /// of -20 is held as 340, whose AngleMatrix differs in the last bits
+    /// (s2c_deformpath4's instance turned (10 -20 5) inside a prefab turned
+    /// (0 60 0): Valve's (10 39.999985 4.999999)).
     /// </summary>
     private static (Vector3 Origin, Vector3 Angles) Moved(float[] m, Vector3 o, Vector3 a)
     {
         Vector3 origin = new((((m[0] * o.X) + (m[1] * o.Y)) + (m[2] * o.Z)) + m[3],
                              (((m[4] * o.X) + (m[5] * o.Y)) + (m[6] * o.Z)) + m[7],
                              (((m[8] * o.X) + (m[9] * o.Y)) + (m[10] * o.Z)) + m[11]);
-        var turned = MatrixAngles(MapMeshes.Concat(MapMeshes.AngleMatrix(MatrixAngles(m)), MapMeshes.AngleMatrix(a)));
+        var turned = MatrixAngles(MapMeshes.Concat(MapMeshes.AngleMatrix(MatrixAngles(m)), MapMeshes.AngleMatrix(SetAngles(a))));
         return (origin, SetAngles(turned));
     }
 

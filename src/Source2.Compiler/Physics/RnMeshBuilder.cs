@@ -48,9 +48,9 @@ public sealed class RnMesh
 /// <para>A closed mesh must also not touch itself: two triangles that share
 /// no vertex may not come within 1.19e-7 (FUN_180164000 walks the BVH
 /// against itself; FUN_180165350 skips pairs sharing a vertex and measures
-/// the rest). One that does gets no flags and bit 0 of the second flag word
-/// (+0xb8). The distance here is exact, not vphysics2's GJK, so a pair
-/// right at the threshold could come out differently.</para>
+/// the rest by vphysics2's mesh GJK, <see cref="MeshGjk"/>, the triangles'
+/// boxes overlapping, edges included). One that does gets no flags and bit 0
+/// of the second flag word (+0xb8).</para>
 ///
 /// <para>Not ported: the simplifier the options can ask for.</para>
 /// </summary>
@@ -420,103 +420,15 @@ public static class RnMeshBuilder
                 var (d, e, f) = tris[j];
                 if (a == d || a == e || a == f || b == d || b == e || b == f || c == d || c == e || c == f)
                     continue;
-                if (lo[i].X > hi[j].X + 1e-6f || lo[j].X > hi[i].X + 1e-6f || lo[i].Y > hi[j].Y + 1e-6f || lo[j].Y > hi[i].Y + 1e-6f
-                    || lo[i].Z > hi[j].Z + 1e-6f || lo[j].Z > hi[i].Z + 1e-6f)
+                if (lo[i].X > hi[j].X || lo[j].X > hi[i].X || lo[i].Y > hi[j].Y || lo[j].Y > hi[i].Y || lo[i].Z > hi[j].Z || lo[j].Z > hi[i].Z)
                     continue;
-                if (TriangleDistance([v[a], v[b], v[c]], [v[d], v[e], v[f]]) < 1.1920929e-07)
+                // The BVH meets itself both ways round, so each pair is measured as A, B and as B, A.
+                Vector3[] p = [v[a], v[b], v[c]], q = [v[d], v[e], v[f]];
+                if (MeshGjk.Distance(p, q) < 1.1920929e-07f || MeshGjk.Distance(q, p) < 1.1920929e-07f)
                     return true;
             }
         }
         return false;
-    }
-
-    // The distance between two triangles, in double: zero when an edge of
-    // one crosses the other, else the least vertex-triangle or edge-edge gap.
-    private static double TriangleDistance(Vector3[] p, Vector3[] q)
-    {
-        static Vector3D D(Vector3 x) => new(x.X, x.Y, x.Z);
-        Vector3D[] a = [D(p[0]), D(p[1]), D(p[2])], b = [D(q[0]), D(q[1]), D(q[2])];
-        for (var k = 0; k < 3; k++)
-        {
-            if (SegmentHitsTriangle(a[k], a[(k + 1) % 3], b) || SegmentHitsTriangle(b[k], b[(k + 1) % 3], a))
-                return 0;
-        }
-        var best = double.MaxValue;
-        for (var k = 0; k < 3; k++)
-        {
-            best = Math.Min(best, PointTriangle(a[k], b));
-            best = Math.Min(best, PointTriangle(b[k], a));
-            for (var m = 0; m < 3; m++)
-                best = Math.Min(best, SegmentSegment(a[k], a[(k + 1) % 3], b[m], b[(m + 1) % 3]));
-        }
-        return best;
-    }
-
-    private readonly record struct Vector3D(double X, double Y, double Z)
-    {
-        public static Vector3D operator -(Vector3D a, Vector3D b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
-        public static Vector3D operator +(Vector3D a, Vector3D b) => new(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
-        public static Vector3D operator *(Vector3D a, double s) => new(a.X * s, a.Y * s, a.Z * s);
-        public double Dot(Vector3D b) => (X * b.X) + (Y * b.Y) + (Z * b.Z);
-        public Vector3D Cross(Vector3D b) => new((Y * b.Z) - (Z * b.Y), (Z * b.X) - (X * b.Z), (X * b.Y) - (Y * b.X));
-        public double Length => Math.Sqrt(Dot(this));
-    }
-
-    private static bool SegmentHitsTriangle(Vector3D s0, Vector3D s1, Vector3D[] t)
-    {
-        var n = (t[1] - t[0]).Cross(t[2] - t[0]);
-        double d0 = n.Dot(s0 - t[0]), d1 = n.Dot(s1 - t[0]);
-        if ((d0 > 0 && d1 > 0) || (d0 < 0 && d1 < 0) || d0 == d1)
-            return false;
-        var x = s0 + ((s1 - s0) * (d0 / (d0 - d1)));
-        return PointTriangle(x, t) == 0;
-    }
-
-    private static double PointTriangle(Vector3D x, Vector3D[] t)
-    {
-        // Ericson, closest point on a triangle.
-        Vector3D a = t[0], b = t[1], c = t[2];
-        Vector3D ab = b - a, ac = c - a, ap = x - a;
-        double d1 = ab.Dot(ap), d2 = ac.Dot(ap);
-        if (d1 <= 0 && d2 <= 0) return (x - a).Length;
-        var bp = x - b;
-        double d3 = ab.Dot(bp), d4 = ac.Dot(bp);
-        if (d3 >= 0 && d4 <= d3) return (x - b).Length;
-        var vc = (d1 * d4) - (d3 * d2);
-        if (vc <= 0 && d1 >= 0 && d3 <= 0) return (x - (a + (ab * (d1 / (d1 - d3))))).Length;
-        var cp = x - c;
-        double d5 = ab.Dot(cp), d6 = ac.Dot(cp);
-        if (d6 >= 0 && d5 <= d6) return (x - c).Length;
-        var vb = (d5 * d2) - (d1 * d6);
-        if (vb <= 0 && d2 >= 0 && d6 <= 0) return (x - (a + (ac * (d2 / (d2 - d6))))).Length;
-        var va = (d3 * d6) - (d5 * d4);
-        if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) return (x - (b + ((c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)))))).Length;
-        var denom = 1 / (va + vb + vc);
-        return (x - (a + (ab * (vb * denom)) + (ac * (vc * denom)))).Length;
-    }
-
-    private static double SegmentSegment(Vector3D p1, Vector3D q1, Vector3D p2, Vector3D q2)
-    {
-        Vector3D d1 = q1 - p1, d2 = q2 - p2, r = p1 - p2;
-        double a = d1.Dot(d1), e = d2.Dot(d2), f = d2.Dot(r);
-        double s, t;
-        if (a <= 1e-30 && e <= 1e-30) return r.Length;
-        if (a <= 1e-30) { s = 0; t = Math.Clamp(f / e, 0, 1); }
-        else
-        {
-            var c = d1.Dot(r);
-            if (e <= 1e-30) { t = 0; s = Math.Clamp(-c / a, 0, 1); }
-            else
-            {
-                var b = d1.Dot(d2);
-                var denom = (a * e) - (b * b);
-                s = denom != 0 ? Math.Clamp(((b * f) - (c * e)) / denom, 0, 1) : 0;
-                t = ((b * s) + f) / e;
-                if (t < 0) { t = 0; s = Math.Clamp(-c / a, 0, 1); }
-                else if (t > 1) { t = 1; s = Math.Clamp((b - c) / a, 0, 1); }
-            }
-        }
-        return ((p1 + (d1 * s)) - (p2 + (d2 * t))).Length;
     }
 
     // FUN_18008d0b0: |det| / 6 of the tetrahedron.
