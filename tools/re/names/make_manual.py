@@ -1593,6 +1593,7 @@ VPHYSICS2 = [
     ("18022ab10", "CRnConicalJoint_SolvePosition", ST, "twist/swing 0.7 of the error capped at 0.1396 rad; anchors capped at 8"),
     ("18022c390", "CRnConicalJoint_StoreImpulses", ST, "after the last velocity iteration"),
     ("180228c70", "CRnConicalJoint_ctor", ST, "type 10, 0x150 bytes, vtable 0x1803e0a70"),
+    ("180205bd0", "RnConicalJoint_Plasticity", ST, "target moved towards the joint: copysign(2, w) xyz past the threshold, rate dt of it, exp (sincosf or the series below 0.0186), renormalised"),
     ("1802042b0", "CRnJoint_ctor", ST, "flags +0x28 from the desc bytes 0x10..0x13"),
     ("18005d370", "CPhysicsWorld_CreateConicalJoint", ST, "desc type 10; degrees back to radians"),
     ("18005cb80", "CPhysicsWorld_CreateRevoluteJoint", ST, "desc type 3"),

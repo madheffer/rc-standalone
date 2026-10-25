@@ -3796,6 +3796,25 @@ game can answer is raised with the user first, and runs with -insecure.
       streaming is the suspect). To settle: two atixref buildcubemaps runs without RenderDoc (CS2 and
       Steam closed); if their EXRs differ, Valve's own output varies run to run there.
 
+138. **The conical joint's spring motor and plasticity, ported** (2026-10-25: disassembly and a lanesym trace of
+    vphysics2 0924's 180229870 and 180205bd0).
+    - Settled from the code: modes 0 and 2 with a frequency hold the joint at its target (+0xe0) by one spring
+      per world axis. The error is Mul(target, conj(rel)) as copysign(2, w) times its xyz, negated and rotated
+      by qa; each axis's mass is that diagonal entry of (IB + IA)^-1 by cofactors (zeros when |det| < 1.2e-35);
+      k = omega m omega, softness 1 / (2 m zeta omega + k dt) / dt, bias k softness dt error; mode 2 subtracts
+      the target velocity (+0xfc) and bounds the block by max torque dt, mode 0 by FLT_MAX.
+    - The plasticity (+0x10c rate, +0x110 threshold; the struct had them as TargetSpeed/TargetStep): Mul(rel,
+      conj(target)) as copysign(2, w) xyz, per axis max(|v| - threshold, 0) at most rate dt of it with v's sign
+      (NaN takes -1), then exp: below length 0.01858136 xyz (0.5 - len^2 / 48) and w = cosf(len / 2), else
+      sinf(len / 2) (xyz / len) and cosf (V_sincosf = sinf + cosf), identity when xyz / len is zero; times the
+      target, renormalised.
+    - Read from the disassembly: the cofactor inverses of the angular and point blocks (180206120, 1802064a0)
+      test tiny > |det| (comiss then jbe), so a NaN determinant still inverts; JointRows.Inverse now does.
+      Ghidra prints the plasticity's exp as sin x len^-1 x xyz; the code scales xyz by 1 / len first.
+    - Exact against vphysics2 (JointSolverOracleTests, every mode, random targets and plasticity). Velocity
+      trials whose prepared record holds a NaN (a spring between two bodies with no inertia: infinite
+      softness) are skipped like the position test's NaN trials; under 5% of them.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

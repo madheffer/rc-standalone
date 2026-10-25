@@ -2397,7 +2397,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `vphysics2_20260924.dll`, 4,829,848 bytes, PE time 2026-09-23 21:58 UTC
 - SHA-256 `0f896375fa9233196e3de769f23ce3c21907c1adab81a786418822da75518228`
 - installed: a different build
-- 552 addresses
+- 553 addresses
 
 ### s2c:baked/bomb
 
@@ -2518,7 +2518,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1801a4a40` | `RnPairSet_Place` | claims the home bucket | `src/Source2.Compiler/Simulation/PairSet.cs:108` |
 | `1801a4e90` | `RnPairSet_Grow` | the next power of two | `src/Source2.Compiler/Simulation/PairSet.cs:177` |
 | `1801b1250` | `CRnBody_Advance` | moves the body's start on to a fraction | `src/Source2.Compiler/Simulation/Continuous.cs:148` |
-| `1801b1570` | `RnSolverBody_ApplyAngularPositionImpulse` | q += ((I L) / 2, 0) q, renormalised; the angular half of 1801b1750 | `src/Source2.Compiler/Simulation/JointRows.cs:225` |
+| `1801b1570` | `RnSolverBody_ApplyAngularPositionImpulse` | q += ((I L) / 2, 0) q, renormalised; the angular half of 1801b1750 | `src/Source2.Compiler/Simulation/JointRows.cs:226` |
 | `1801b1750` | `RnSolverBody_ApplyPositionImpulse` |  | `src/Source2.Compiler/Simulation/ContactSolver.cs:531` |
 | `1801b1a30` | `CRnBody_ComputeAabb` | its shapes' boxes (vfn 0x80) at its frame, unioned into a box that starts at zero (not FLT_MAX) | `src/Source2.Compiler/Simulation/StepGlue.cs:183` |
 | `1801b2450` | `RnClampAngularVelocity` |  | `src/Source2.Compiler/Simulation/Continuous.cs:28`, `src/Source2.Compiler/Simulation/Integrator.cs:17`, `src/Source2.Compiler/Simulation/RnMath.cs:119` |
@@ -2626,9 +2626,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180203fc0` | `CRnWorld_NotifyWake` |  | `src/Source2.Compiler/Simulation/ContactLifecycle.cs:117` |
 | `1802042b0` | `CRnJoint_ctor` | flags +0x28 from the desc bytes 0x10..0x13 |  |
 | `1802055f0` | `CRnJoint_SetBodies` | edges prepended to body +0x70; activates or deactivates in islands |  |
+| `180205bd0` | `RnConicalJoint_Plasticity` | target moved towards the joint: copysign(2, w) xyz past the threshold, rate dt of it, exp (sincosf or the series below 0.0186), renormalised | `src/Source2.Compiler/Simulation/ConicalJoint.cs:52`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:261` |
 | `180205e70` | `RnJoint_Plasticity` | target += sign(d) min(max(\|d\| - threshold, 0) rate dt, that) | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:57`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:435` |
-| `180206120` | `RnJoint_AngularBlock` | three angular axes as one block: inverse of (IB + IA) + softness | `src/Source2.Compiler/Simulation/JointRows.cs:39`, `src/Source2.Compiler/Simulation/JointRows.cs:120` |
-| `1802064a0` | `RnJoint_PointBlock` | point-to-point 3x3 block and its inverse | `src/Source2.Compiler/Simulation/JointRows.cs:57`, `src/Source2.Compiler/Simulation/JointRows.cs:159` |
+| `180206120` | `RnJoint_AngularBlock` | three angular axes as one block: inverse of (IB + IA) + softness | `src/Source2.Compiler/Simulation/JointRows.cs:39`, `src/Source2.Compiler/Simulation/JointRows.cs:121` |
+| `1802064a0` | `RnJoint_PointBlock` | point-to-point 3x3 block and its inverse | `src/Source2.Compiler/Simulation/JointRows.cs:57`, `src/Source2.Compiler/Simulation/JointRows.cs:160` |
 | `180209820` | `RnSolverBody_WorldPoint` | a body-local point in the world: centre less the rotated mass centre, plus p + 2 (q x (q x p + w p)) | `src/Source2.Compiler/Simulation/JointRows.cs:83` |
 | `180213270` | `CRnRevoluteBlockJoint_ctor` | VPhysXJoint_t flags bit 1; vtable 0x1803e0850, record 6 (not ported) | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:10` |
 | `1802135a0` | `CRnRevoluteJoint_ctor` | type 3, vtable 0x1803e07e8; mode 3, frequency 10, damping 1, limit [-pi, pi] | `src/Source2.Compiler/Simulation/RevoluteJoint.cs:11` |
@@ -2646,14 +2647,14 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `18021ade0` | `CRnRevoluteJoint_SetElasticity` | mode 0; frequency and threshold from 180204520, plasticity +0xf8 |  |
 | `18021af30` | `CRnRevoluteJoint_SetFriction` | mode 1, torque from 180204d70 |  |
 | `18021b090` | `CRnRevoluteJoint_SetMode` | +0xe0; clears the motor impulse |  |
-| `18021bcd0` | `CRnRevoluteJoint_SolveVelocity` | record 5; motor clamp comiss + minss, limits maxss + minss | `src/Source2.Compiler/Simulation/JointRows.cs:254`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:122`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:239` |
+| `18021bcd0` | `CRnRevoluteJoint_SolveVelocity` | record 5; motor clamp comiss + minss, limits maxss + minss | `src/Source2.Compiler/Simulation/JointRows.cs:255`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:122`, `src/Source2.Compiler/Simulation/RevoluteJoint.cs:239` |
 | `180228c70` | `CRnConicalJoint_ctor` | type 10, 0x150 bytes, vtable 0x1803e0a70 |  |
-| `1802292e0` | `RnConicalJoint_SwingAngle` | 2 atan2(\|xy\|, \|zw\|) of the relative rotation | `src/Source2.Compiler/Simulation/ConicalJoint.cs:356` |
-| `180229380` | `RnJoint_AngularLimitRow` | one limited angular axis: 1 / (a . (IA + IB) a), IA a, IB a | `src/Source2.Compiler/Simulation/JointRows.cs:21`, `src/Source2.Compiler/Simulation/JointRows.cs:135` |
-| `180229870` | `CRnConicalJoint_Prepare` | vtable +0x28; record 0x0b, 0x1d4 bytes | `src/Source2.Compiler/Simulation/ConicalJoint.cs:83` |
-| `18022ab10` | `CRnConicalJoint_SolvePosition` | twist/swing 0.7 of the error capped at 0.1396 rad; anchors capped at 8 | `src/Source2.Compiler/Simulation/ConicalJoint.cs:79`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:263` |
-| `18022c390` | `CRnConicalJoint_StoreImpulses` | after the last velocity iteration | `src/Source2.Compiler/Simulation/ConicalJoint.cs:252` |
-| `18022c860` | `CRnConicalJoint_SolveVelocity` | record 0x0b | `src/Source2.Compiler/Simulation/ConicalJoint.cs:79`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:205`, `src/Source2.Compiler/Simulation/JointRows.cs:253` |
+| `1802292e0` | `RnConicalJoint_SwingAngle` | 2 atan2(\|xy\|, \|zw\|) of the relative rotation | `src/Source2.Compiler/Simulation/ConicalJoint.cs:462` |
+| `180229380` | `RnJoint_AngularLimitRow` | one limited angular axis: 1 / (a . (IA + IB) a), IA a, IB a | `src/Source2.Compiler/Simulation/JointRows.cs:21`, `src/Source2.Compiler/Simulation/JointRows.cs:136` |
+| `180229870` | `CRnConicalJoint_Prepare` | vtable +0x28; record 0x0b, 0x1d4 bytes | `src/Source2.Compiler/Simulation/ConicalJoint.cs:88`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:214` |
+| `18022ab10` | `CRnConicalJoint_SolvePosition` | twist/swing 0.7 of the error capped at 0.1396 rad; anchors capped at 8 | `src/Source2.Compiler/Simulation/ConicalJoint.cs:84`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:366` |
+| `18022c390` | `CRnConicalJoint_StoreImpulses` | after the last velocity iteration | `src/Source2.Compiler/Simulation/ConicalJoint.cs:355` |
+| `18022c860` | `CRnConicalJoint_SolveVelocity` | record 0x0b | `src/Source2.Compiler/Simulation/ConicalJoint.cs:84`, `src/Source2.Compiler/Simulation/ConicalJoint.cs:308`, `src/Source2.Compiler/Simulation/JointRows.cs:254` |
 | `180241b10` | `CRnMeshShape::vf16` | mesh bounds; identity rotation offsets only | `src/Source2.Compiler/Simulation/BroadphaseShape.cs:116`, `src/Source2.Compiler/Simulation/BroadphaseShape.cs:165` |
 | `180242830` | `CRnMeshShape_StepUpdate2` | not ported | `src/Source2.Compiler/Simulation/StepGlue.cs:264`, `src/Source2.Compiler/Simulation/StepGlue.cs:287`, `src/Source2.Compiler/Simulation/WorldSolver.cs:291` |
 | `1802435d0` | `CRnMeshShape_StepUpdate` | mesh shape with mode other than 3; not ported | `src/Source2.Compiler/Simulation/WorldSolver.cs:291`, `src/Source2.Compiler/Simulation/WorldSolver.cs:296` |

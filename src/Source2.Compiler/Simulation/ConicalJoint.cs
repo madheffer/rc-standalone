@@ -48,8 +48,13 @@ public struct ConicalJointState
     [FieldOffset(0xf8)] public float DampingRatio;
     [FieldOffset(0xfc)] public Vec3 TargetVelocity;
     [FieldOffset(0x108)] public float MaxTorque;
-    [FieldOffset(0x10c)] public float TargetSpeed;
-    [FieldOffset(0x110)] public float TargetStep;
+
+    /// <summary>+0x10c: the rate at which the target follows the joint's rotation (FUN_180205bd0).</summary>
+    [FieldOffset(0x10c)] public float Plasticity;
+
+    /// <summary>+0x110: the angle (per axis) the joint may stray from the target before the plasticity moves it.</summary>
+    [FieldOffset(0x110)] public float PlasticThreshold;
+
     [FieldOffset(0x114)] public byte TwistLimited;
     [FieldOffset(0x118)] public float TwistMin;
     [FieldOffset(0x11c)] public float TwistMax;
@@ -110,7 +115,11 @@ public static class ConicalJoint
         if ((j.Mode & ~2) == 0)
         {
             if (j.Frequency > 0f)
-                throw new NotSupportedException("the conical joint's spring and velocity motor (modes 0 and 2) are not ported yet");
+            {
+                if (j.Plasticity > 0f)
+                    j.Target = Plastic(j.Target, rel, j.PlasticThreshold, j.Plasticity, dt);
+                Spring(ref rec.Motor, j, ia, ib, qa, rel, dt);
+            }
         }
         else if (j.Mode == 1 && j.MaxTorque > 0f)
         {
@@ -199,6 +208,100 @@ public static class ConicalJoint
                       ((ib.M5 * vy + ib.M2 * vx) + ib.M8 * vz) + b.W.Z);
         }
         return RecordType;
+    }
+
+    /// <summary>
+    /// The spring motor block (modes 0 and 2 of FUN_180229870): the rotation
+    /// from the joint to its target, in the world, held by one spring per
+    /// axis whose mass is that axis's diagonal entry of (IB + IA)^-1. Mode 2
+    /// also drives the target velocity, at most max torque dt.
+    /// </summary>
+    private static void Spring(ref AngularBlock motor, in ConicalJointState j, in Mat3 ia, in Mat3 ib, Quat qa, Quat rel, float dt)
+    {
+        var e = RnMath.Mul(j.Target, JointRows.Conjugate(rel));
+        var sign = float.CopySign(2f, e.W);
+        var err = RnMath.Rotate(qa, new(-(sign * e.X), -(sign * e.Y), -(sign * e.Z)));
+        float k0 = ib.M0 + ia.M0, k1 = ib.M1 + ia.M1, k2 = ib.M2 + ia.M2, k3 = ib.M3 + ia.M3, k4 = ib.M4 + ia.M4;
+        float k5 = ib.M5 + ia.M5, k6 = ib.M6 + ia.M6, k7 = ib.M7 + ia.M7, k8 = ib.M8 + ia.M8;
+        var c0 = k4 * k8 - k7 * k5;
+        var det = ((k6 * k5 - k3 * k8) * k1 + k0 * c0) + (k7 * k3 - k4 * k6) * k2;
+        // The diagonal of the inverse; DAT_18055e880's zeros when singular.
+        float m0 = 0f, m4 = 0f, m8 = 0f;
+        if (!(1.17549435e-35f > MathF.Abs(det)))
+        {
+            var inv = 1f / det;
+            m0 = inv * c0;
+            m4 = (k8 * k0 - k2 * k6) * inv;
+            m8 = (k4 * k0 - k3 * k1) * inv;
+        }
+        var omega = j.Frequency * 6.2831855f;
+        var (s0, b0) = Axis(m0, omega, j.DampingRatio, dt, err.X);
+        var (s1, b1) = Axis(m4, omega, j.DampingRatio, dt, err.Y);
+        var (s2, b2) = Axis(m8, omega, j.DampingRatio, dt, err.Z);
+        var max = float.MaxValue;
+        if (j.Mode == 2)
+        {
+            b0 -= j.TargetVelocity.X;
+            b1 -= j.TargetVelocity.Y;
+            b2 -= j.TargetVelocity.Z;
+            max = dt * j.MaxTorque;
+        }
+        JointRows.Angular(ref motor, ia, ib, new(b0, b1, b2), new(s0, s1, s2), j.MotorImpulse, max);
+    }
+
+    /// <summary>One axis of the spring: softness 1 / (2 m zeta omega + k dt) / dt and bias k softness dt error, k = omega m omega.</summary>
+    private static (float Softness, float Bias) Axis(float m, float omega, float damping, float dt, float error)
+    {
+        var k = omega * m * omega;
+        var softness = (1f / ((m + m) * damping * omega + k * dt)) / dt;
+        return (softness, k * softness * dt * error);
+    }
+
+    /// <summary>
+    /// The plasticity (FUN_180205bd0): the rotation from the target to the
+    /// joint's, as a vector (twice the imaginary part on the positive-w side),
+    /// past the threshold per axis, at most rate dt of that, turned back into
+    /// a quaternion (sincosf, or the series below 0.0186) that moves the
+    /// target; renormalised.
+    /// </summary>
+    private static Quat Plastic(Quat target, Quat rel, float threshold, float rate, float dt)
+    {
+        var d = RnMath.Mul(rel, JointRows.Conjugate(target));
+        var sign = float.CopySign(2f, d.W);
+        var v = new Vec3(d.X * sign, d.Y * sign, d.Z * sign);
+        var step = rate * dt;
+        var ex = Max0(MathF.Abs(v.X) - threshold);
+        var ey = Max0(MathF.Abs(v.Y) - threshold);
+        var ez = Max0(MathF.Abs(v.Z) - threshold);
+        float mx = ex * step, my = ey * step, mz = ez * step;
+        mx = mx < ex ? mx : ex;
+        my = my < ey ? my : ey;
+        mz = mz < ez ? mz : ez;
+        // comiss then jb: negative (or NaN) takes -1.
+        var sx = (v.X >= 0f ? 1f : -1f) * mx;
+        var sy = (v.Y >= 0f ? 1f : -1f) * my;
+        var sz = (v.Z >= 0f ? 1f : -1f) * mz;
+        var length = MathF.Sqrt((sy * sy + sz * sz) + sx * sx);
+        Quat delta;
+        if (0.01858136f > length)
+        {
+            var f = 0.5f - (length * length) / 48f;
+            delta = new(sx * f, sy * f, sz * f, CrtMath.Cos(length * 0.5f));
+        }
+        else
+        {
+            var inv = 1f / length;
+            float nx = sx * inv, ny = sy * inv, nz = sz * inv;
+            if ((nx == 0f && ny == 0f && nz == 0f) || length == 0f)
+                delta = Quat.Identity;
+            else
+            {
+                var half = length * 0.5f;
+                var sin = CrtMath.Sin(half);
+                delta = new(sin * nx, sin * ny, sin * nz, CrtMath.Cos(half));
+            }
+        }
+        return RnMath.Normalize(RnMath.Mul(delta, target));
     }
 
     /// <summary>
@@ -327,6 +430,9 @@ public static class ConicalJoint
     }
 
     private static float Max(float a, float b) => a > b ? a : b;
+
+    /// <summary>maxps against zero: a NaN becomes zero.</summary>
+    private static float Max0(float a) => a > 0f ? a : 0f;
 
     private static float Min(float a, float b) => a < b ? a : b;
 

@@ -781,6 +781,12 @@
    "note": "type 10, 0x150 bytes, vtable 0x1803e0a70"
   },
   {
+   "addr": "180205bd0",
+   "name": "RnConicalJoint_Plasticity",
+   "module": "s2c:entities/settle",
+   "note": "target moved towards the joint: copysign(2, w) xyz past the threshold, rate dt of it, exp (sincosf or the series below 0.0186), renormalised"
+  },
+  {
    "addr": "1802042b0",
    "name": "CRnJoint_ctor",
    "module": "s2c:entities/settle",

@@ -167,6 +167,7 @@ public unsafe class JointSolverOracleTests
         var joint = (ConicalJointState*)NativeMemory.AlignedAlloc((nuint)sizeof(ConicalJointState), 16);
         var bodies = (SolverBody*)NativeMemory.AlignedAlloc((nuint)(2 * sizeof(SolverBody)), 16);
         var stream = (byte*)NativeMemory.AlignedAlloc(0x400, 16);
+        var skipped = 0;
         try
         {
             for (var i = 0; i < Trials; i++)
@@ -185,6 +186,15 @@ public unsafe class JointSolverOracleTests
                 bodies[1].W = V(random, 10);
 
                 var record = *(ConicalRecord*)(stream + 0x14);
+                // A spring between two bodies with no inertia has infinite
+                // softness and a NaN block (the wrapper never prepares such a
+                // pair); a NaN's sign follows operand order, which the JIT
+                // may swap, so such trials stop.
+                if (HasNaN(Bytes(record)))
+                {
+                    skipped++;
+                    continue;
+                }
                 Span<SolverBody> mine = [bodies[0], bodies[1]];
                 var ours = *joint;
                 for (var k = 0; k < 3; k++)
@@ -209,6 +219,7 @@ public unsafe class JointSolverOracleTests
             NativeMemory.AlignedFree(bodies);
             NativeMemory.AlignedFree(stream);
         }
+        Assert.True(skipped < Trials / 20, $"{skipped} prepared records held a NaN");
     }
 
     [Fact]
@@ -284,8 +295,11 @@ public unsafe class JointSolverOracleTests
             WorldIndex = 0, Type = 10, Flags = (ushort)(random.Next(4) == 0 ? 4 : 0),
             Frame1 = UnitQuat(random), Frame2 = UnitQuat(random),
             Anchor1 = V(random, 15), Anchor2 = V(random, 15), Size = 0x1e8,
-            Target = Quat.Identity, Mode = random.Next(2) == 0 ? 1 : 3,
-            Frequency = 0f, DampingRatio = 1f, MaxTorque = random.Next(5) == 0 ? 0f : F(random, 0, 50000),
+            Target = random.Next(4) == 0 ? Quat.Identity : UnitQuat(random), Mode = random.Next(4),
+            Frequency = random.Next(5) == 0 ? 0f : F(random, 0, 20), DampingRatio = F(random, 0, 2),
+            TargetVelocity = random.Next(3) == 0 ? default : V(random, 10),
+            Plasticity = random.Next(2) == 0 ? 0f : F(random, 0, 5), PlasticThreshold = random.Next(4) == 0 ? 0f : F(random, 0, 0.5),
+            MaxTorque = random.Next(5) == 0 ? 0f : F(random, 0, 50000),
             TwistLimited = (byte)random.Next(2), SwingLimited = (byte)random.Next(2),
         };
         j.TwistMin = F(random, -1.5, 0.2);
@@ -348,9 +362,11 @@ public unsafe class JointSolverOracleTests
         return m;
     }
 
-    internal static bool HasNaN(in SolverBody b)
+    internal static bool HasNaN(in SolverBody b) => HasNaN(Bytes(b).AsSpan(0, 0xb0));
+
+    internal static bool HasNaN(ReadOnlySpan<byte> bytes)
     {
-        var floats = MemoryMarshal.Cast<byte, float>(Bytes(b).AsSpan(0, 0xb0));
+        var floats = MemoryMarshal.Cast<byte, float>(bytes);
         foreach (var f in floats)
             if (float.IsNaN(f))
                 return true;

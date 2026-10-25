@@ -106,7 +106,8 @@ public static class JointRows
         var c1 = k5 * k6 - k3 * k8;
         var c2 = k3 * k7 - k4 * k6;
         var det = c0 * k0 + c1 * k1 + c2 * k2;
-        if (!(Tiny <= MathF.Abs(det)))
+        // comiss then jbe: a NaN determinant still inverts.
+        if (Tiny > MathF.Abs(det))
             return default;
         var inv = 1f / det;
         return new Mat3
