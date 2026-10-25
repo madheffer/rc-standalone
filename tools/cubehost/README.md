@@ -52,6 +52,11 @@ Copies the map's compiled package into the scratch addon `s2c_cubeprobe`,
 runs the engine, keeps changed files, host output and the console log (the
 user's own console.log is restored) under `%TEMP%/cubehost_run/<map>`.
 `dbwin.py` captures OutputDebugString of a run. Steam must be closed.
+`--out NAME` keeps a run beside another of the same map, `--from s2c_cubeprobe`
+reruns the package already in the scratch addon, `--settle 20` waits after the
+load so texture streaming finishes (unsettled builds sample whichever mips are
+resident and differ run to run; docs/CUBEMAPS.md, ledger 144) and `--before CMD`
+sends console commands just before `buildcubemaps`.
 
 The game's mode configs put bots back on every map load; the runner writes
 `gamemode_*_server.cfg` overrides into the scratch addon to keep them out.

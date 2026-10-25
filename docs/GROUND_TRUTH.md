@@ -3918,6 +3918,21 @@ game can answer is raised with the user first, and runs with -insecure.
       rule (1818ea6f0) keeps (LIGHTING_ROADMAP L24); the CS analysis' sphere casts against round shapes
       (NavSphereWorld), LadderConnect's rays against them and bomb damage over such a world are not ported.
 
+144. **The game's cubemap build run to run, and the shadowed light's views' cull** (2026-10-25: repeated cubehost
+    builds without RenderDoc, CS2 and Steam closed (run_probe.py --out, --settle, --before); the atixref capture's
+    per-view blocks, AggregateCullingCaptureTests).
+    - Settled by experiment: probe01's EXRs are reproducible after a 20 s settle (two settled runs, a cold run and
+      the 10-21 capture's run bit-identical); a warm run started at once differs on 6,366 and 1,558 pixels, only on
+      the edges of high-contrast texture features (up to 315 half ulps), a finer mip resident. s2c_l5probe the same.
+    - Settled by experiment: atixref's 42 EXRs differ between any two runs, settled or not and with the server
+      paused (185 to 243,548 pixels per cube): foliage and shadows from it, objects at other places. Its single
+      game build is no byte reference; the render depends on the time and entity state at the build.
+    - Settled against the capture: the shadowed light_omni2's six atlas tiles ((0, 1536), (384, 1536), (1024,
+      1536), (1344, 1536), (1664, 1536), (0, 1280), faces 0 and 3) cull with the plain frustum of their per-view
+      blocks (zero-to-one near plane) through 18003d380: all 96 lists equal, no culling box sets.
+    - Open: the light's view setup (six projections from its precomputed sub-frusta, the tile sizes and places)
+      and its constant blocks; what reference and which time to render at for time-dependent scenes.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

@@ -21,7 +21,8 @@ namespace Source2.Compiler.Tests;
 /// by one constant (the game hands out each view's instance block per aggregate in thread order). The face view's
 /// depth prepass lists are matched against the Large / Small split (<see cref="AggregateCulling.PrepassSplit"/>);
 /// each sun cascade's lists (by their atlas tile) against its shadow view, its predecessor's exclusion volume and the
-/// fit's caster volume. Other atlas tiles (shadowed lights' own views) are not compared.
+/// fit's caster volume. Other atlas tiles (shadowed lights' own views) are culled with the frustum of the captured
+/// per-view block (their view setup is not ported), which checks the cull alone.
 /// </summary>
 public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
 {
@@ -146,6 +147,28 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>Diagnosis: the captured package's light entities, every key (which of them cast shadows into the atlas).</summary>
+    [Fact]
+    public void LightEntities()
+    {
+        if (Environment.GetEnvironmentVariable("CUBECULL") is not { Length: > 0 } dir)
+            return;
+        using var package = new ValvePak.Package();
+        package.Read(Directory.GetFiles(dir, "*.vpk").Single());
+        foreach (var entry in package.Entries!.GetValueOrDefault("vents_c") ?? [])
+        {
+            package.ReadEntry(entry, out var bytes);
+            using var resource = ResourceTrees.Read(bytes, entry.GetFullPath());
+            foreach (var entity in ((EntityLump)resource.DataBlock!).Data.GetArray("m_entityKeyValues"))
+            {
+                var values = entity.GetSubCollection("keyValues3Data")?.GetSubCollection("values")?.Children.ToList() ?? [];
+                var cls = values.FirstOrDefault(v => v.Key == "classname").Value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
+                if (cls.Contains("light", StringComparison.Ordinal))
+                    output.WriteLine($"{entry.GetFullPath()} {cls}: {string.Join(" | ", values.Select(v => v.Key + "=" + (v.Value.IsArray ? string.Join(" ", v.Value.Values.Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture))) : v.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))))}");
+            }
+        }
+    }
+
     [Fact]
     public void FaceDrawsEqualTheCapture()
     {
@@ -170,6 +193,24 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
 
     /// <summary>The cascade tiles in the shadow atlas (shadow quality 2): cascades 0 to 2 in the top row, the viewmodel cascade below.</summary>
     private static readonly (int X, int Y)[] CascadeTiles = [(0, 0), (1280, 0), (2560, 0), (0, 2048)];
+
+    /// <summary>
+    /// A view's frustum from a captured draw's per-view block (the first vertex-stage constant block on binding 1,
+    /// at the draw or the next one that has it): the camera-relative g_matWorldToProjection at +0 (transposed) and
+    /// g_vWorldToCameraOffset (minus the camera) at +384; planes with the zero-to-one near plane, as shadow views take.
+    /// </summary>
+    private static AggregateCulling.Frustum CapturedFrustum(string dir, List<JsonNode> actions, int eid)
+    {
+        var action = actions.Where(r => (int)r["eid"]! >= eid && r["stages"]?["vs"]?["constantBlocks"] is JsonArray).OrderBy(r => (int)r["eid"]!).First();
+        var cb = action["stages"]!["vs"]!["constantBlocks"]!.AsArray().First(c => (int)c!["block"]!["fixedBindNumber"]! == 1)!;
+        var b = File.ReadAllBytes(Path.Combine(dir, "replay", "blobs", (string)cb["bytes"]!["sha1"]! + ".bin"));
+        var m = new float[16];
+        for (var r = 0; r < 4; r++)
+            for (var k = 0; k < 4; k++)
+                m[r * 4 + k] = BitConverter.ToSingle(b, (k * 4 + r) * 4);
+        var camera = -new Vector3(BitConverter.ToSingle(b, 384), BitConverter.ToSingle(b, 388), BitConverter.ToSingle(b, 392));
+        return new AggregateCulling.Frustum(camera, AggregateCulling.Pack(AggregateCulling.ExtractPlanes(m, zeroToOneDepth: true)));
+    }
 
     private void CompareFace(string dir, Vector3 origin, Vector3 sunAngles, int face, List<Aggregate> aggregates, List<string> failures)
     {
@@ -210,6 +251,7 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
         var streamOf = actions.Where(r => r["vbuffers"] is JsonArray { Count: > 0 }).ToDictionary(r => (int)r["eid"]!,
             r => ((long)buffers[(string)r["vbuffers"]![0]!["resourceId"]!]!, (uint)r["vbuffers"]![0]!["byteStride"]!));
         var offsets = new Dictionary<(int View, int Aggregate), int>();
+        var lightTiles = new Dictionary<(int X, int Y), int>();
         var scissorOf = actions.Where(r => r["viewportScissor"]?["viewportScissors"] is JsonArray { Count: > 0 }).ToDictionary(r => (int)r["eid"]!,
             r => ((int)r["viewportScissor"]!["viewportScissors"]![0]!["scissor"]!["x"]!, (int)r["viewportScissor"]!["viewportScissors"]![0]!["scissor"]!["y"]!));
         foreach (var line in File.ReadLines(Path.Combine(dir, "indirect.jsonl")))
@@ -232,13 +274,19 @@ public sealed class AggregateCullingCaptureTests(ITestOutputHelper output)
                 viewKey = Array.IndexOf(CascadeTiles, tile);
                 if (viewKey < 0 || viewKey >= cascades.Count)
                 {
-                    // Another tile of the atlas: a shadowed light's own shadow view (atixref's), not a sun cascade.
-                    output.WriteLine($"face {face} {eid}: a light shadow view at {tile}, not compared");
-                    continue;
+                    // Another tile of the atlas: a shadowed light's own shadow view (atixref's), not a sun cascade. Its
+                    // view setup is not ported: the frustum comes from the captured per-view block, which checks the cull.
+                    if (!lightTiles.TryGetValue(tile, out viewKey))
+                    {
+                        viewKey = lightTiles[tile] = 100 + lightTiles.Count;
+                        var frustum = CapturedFrustum(dir, actions, eid);
+                        visibleOf[viewKey] = [.. aggregates.Select(a => AggregateCulling.Visible(frustum, a.Fragments, a.Lods, origin))];
+                        output.WriteLine($"face {face} {eid}: light view {viewKey} at {tile}, camera {frustum.Origin}");
+                    }
                 }
             }
             var visible = visibleOf[viewKey];
-            var viewName = viewKey < 0 ? "face" : $"cascade {viewKey}";
+            var viewName = viewKey < 0 ? "face" : viewKey >= 100 ? $"light view {viewKey}" : $"cascade {viewKey}";
             var (streamBytes, streamStride) = streamOf.GetValueOrDefault(eid, streamOf.Where(kv => kv.Key > eid).OrderBy(kv => kv.Key).Select(kv => kv.Value).FirstOrDefault());
             var captured = cmds.Select(c => c!.AsArray().Select(v => (int)v!).ToArray())
                 .Select(c => new AggregateCulling.Command(c[0], c[1], c[2], c[3], c[4])).ToList();

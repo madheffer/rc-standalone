@@ -88,15 +88,22 @@ carries the same state per item.
 
 ## Roadmap: what is left, in the order worth taking it
 
-1. **Cubemaps, the face render** ([CUBEMAPS.md](CUBEMAPS.md), ledgers 117-121, 137-140; the
+1. **Cubemaps, the face render** ([CUBEMAPS.md](CUBEMAPS.md), ledgers 117-121, 137-140, 144; the
    ordered plan to the array from the .vmap is CUBEMAPS.md "Roadmap"):
+   - The reference (ledger 144): the game's own build is not reproducible as
+     is. probe01 is with a settle before the build (`run_probe.py --settle 20`;
+     an unsettled warm run samples finer mips); atixref differs on every cube
+     run to run (foliage and moving entities follow time; pausing does not
+     help). Deciding what a byte reference is for animated scenes, and which
+     time our compile renders at, comes before the atixref parity work.
    - atixref draw 2305: one half-float ulp on 38 pixels. Build the pipeline
      from one-stage libraries (VK_EXT_graphics_pipeline_library) as the game
      does; the first attempt crashed with an access violation in our code.
    - The per-view culling: the face views are done (ledger 139, every
      face-view draw list of probe01, s2c_l5probe and atixref), the sun
-     cascades too (ledger 140, every cascade list). Left: shadowed lights'
-     own shadow views (atixref), LOD cross-fades, the per-view PVS test,
+     cascades too (ledger 140, every cascade list), and the shadowed light's
+     views of atixref given their captured frusta (ledger 144, 96 lists).
+     Left: those lights' view setup from their sub-frusta, LOD cross-fades, the per-view PVS test,
      and the generic culling of non-aggregate scene objects (42 atixref
      draws).
    - The light binner's inputs from our own lights, then all six faces of a

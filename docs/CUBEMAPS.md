@@ -275,14 +275,45 @@ six through `CubemapFaceExr.Build`. probe01 cube 0 and s2c_l5probe cube 0
 equal the game's EXR byte for byte. atixref cube 0 does not: three compact
 regions, all last written by one mesh's material (a 12,840-index draw), differ
 between the live run and RenderDoc's replay of it, presumably a texture the
-live game was still streaming. Two runs without RenderDoc will show whether
-Valve's own EXRs vary there.
+live game was still streaming. Two runs without RenderDoc settled it: the
+game's own EXRs of atixref vary from run to run everywhere (below).
 
     RDC_IN=<capture.rdc> RDC_OUT=<dir> qrenderdoc.exe --python tools/cubehost/rdc_readback.py
 
 (The first run of the session sat idle with the capture loaded and never
 reached the first copy; killed and started again it finished in about a
 minute.)
+
+### The game's build, run to run (2026-10-25, ledger 144)
+
+Repeated `buildcubemaps` runs of one package in cubehost, no RenderDoc, CS2
+and Steam closed (`run_probe.py --out <name>` keeps each run apart;
+`--from s2c_cubeprobe` reruns the package already in the scratch addon):
+
+- **probe01**: the EXRs depend on texture streaming at the moment of the
+  build. Of four runs started the moment the map loaded, the earlier capture's
+  run, a first (cold, 104 s) run and both 20 s settled runs (`--settle 20`)
+  are bit-identical; one warm run (42 s) is sharper: 6,366 and 1,558 pixels
+  differ, only on the edges of high-contrast texture features (the stripes),
+  up to 315 half ulps, the signature of a finer mip being resident. The
+  settled state is the reproducible one and equals what the captures (and so
+  the replays and readback tests) hold. s2c_l5probe behaves the same.
+- **atixref**: no two runs agree on any of its 42 cubes, settled or not, and
+  pausing the server before the build (`--before "sv_pausable 1" --before
+  setpause`) does not help (0 of 42 equal). From 185 to 243,548 pixels per
+  cube differ, far beyond rounding: in env_cubemap_245678519 every tree and every surface
+  that receives their shadows (foliage moving with time), in env_cubemap_245678535 an object
+  at the top of faces 4 and 5 at another place. The scene is time-dependent,
+  so a single game build of atixref is no byte reference: its render depends
+  on the time and entity state at the build, which no compile from the .vmap
+  can know.
+
+So the reference for byte parity needs fixing per map: for static scenes, the
+game's build after a settle (reproducible); for scenes with animated materials
+or moving entities, the inputs of one captured run (its time constants and
+entity transforms, read from the capture) rather than its output alone, and a
+choice of time for our own compile. After a settled run the engine sometimes
+crashes reloading the map (access violation; the EXRs are written by then).
 
 ## The render, captured (2026-10-21)
 
@@ -493,7 +524,7 @@ go through scenesystem's generic object culling, not this port.
 
 **The sun cascades** (ledger 140) are ported too: every cascade list of the
 three captures equals ours (39, 39 and 225 lists; atixref's other atlas tiles
-are its shadowed lights' own views, 96 draws, not compared). Per fit
+are its shadowed lights' own views, below). Per fit
 (scenesystem 180494b40: the three view cascades, then the viewmodel cascade
 on its own):
 
@@ -515,16 +546,33 @@ on its own):
   (SunDirections' ToSun is already the fit's normalised vector; normalising
   again moves its bits).
 
+**Shadowed lights' views** (atixref's one shadowed light_omni2, castshadows 2
+with six precomputed sub-frusta, camera at its origin 295 -1746.13 14307):
+six atlas tiles below the cascades, (0, 1536), (384, 1536), (1024, 1536),
+(1344, 1536), (1664, 1536) and (0, 1280), drawn on faces 0 and 3. Culled with
+the frustum of each tile's captured per-view block (camera-relative
+world-to-projection, zero-to-one near plane) through the same aggregate cull,
+all 96 lists equal the capture: no culling box beyond the frustum. What is not
+ported is the view setup itself (the light's six projections from its
+sub-frusta, the tile sizes and places in the atlas) and their constant blocks.
+
 ## Roadmap to env_cubemap_array.vtex_c from the .vmap (2026-10-25)
 
 Done: the array's compile (ledger 117), readback -> EXR (137), face views,
 constant blocks and the chained face 0 (118-121), and the per-view culling of
 world aggregates for faces and sun cascades (139, 140). In order:
 
-1. **Shadowed lights' own shadow views** (atixref's other atlas tiles, 96
-   draws per capture): their view and frustum setup, their culling and
-   constant blocks. Check: `AggregateCullingCaptureTests` compares those
-   tiles too; the face's replay with our blocks. Read offline (CS2 open OK).
+0. **The reference** (ledger 144): the game's build differs run to run with
+   texture streaming (settle first) and, on atixref, with time (foliage,
+   moving entities). Decide per map what a byte reference is (a settled build;
+   for animated scenes the captured run's inputs) and which time our compile
+   renders at.
+1. **Shadowed lights' own shadow views** (atixref's six tiles, 96 draws per
+   capture): the culling is settled (the frustum alone, all 96 lists equal);
+   left are the view setup from the light's precomputed sub-frusta, the
+   atlas tiles and their constant blocks. Check: `AggregateCullingCaptureTests`
+   with our frusta instead of the captured blocks; the face's replay with our
+   blocks. Read offline (CS2 open OK).
 2. **Non-aggregate scene objects** (atixref's 42 draws: static props kept as
    their own objects, entity models): scenesystem's generic object culling,
    their instance records and draw lists. Check: the same test with those
@@ -562,8 +610,7 @@ world aggregates for faces and sun cascades (139, 140). In order:
 10. **More maps and the open questions**: a ze map and a workshop map with
     props, decals, overlays, water and translucency in view (passes the
     three captures do not exercise: MBOIT, water refraction, decals, sky
-    variants, fog volumes); atixref's live-versus-replay difference on one
-    material (two runs without RenderDoc, CS2 and Steam closed); the
+    variants, fog volumes); the
     CPU-vendor dependent rsqrtss in the size metric (an AMD reference).
 11. **Independence**: the BC6H encoder from Intel's source instead of the
     game's ispc_texcomp.dll; DX11 float parity of the blur only if a

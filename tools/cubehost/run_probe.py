@@ -1,4 +1,4 @@
-"""run_probe.py [--map probe01] [--from s2c_rc_probe] [--timeout 600] [-- extra engine args]: the game's cubemap build in cubehost.
+"""run_probe.py [--map probe01] [--from s2c_rc_probe] [--out NAME] [--timeout 600] [-- extra engine args]: the game's cubemap build in cubehost.
 
 Copies <from>'s compiled <map>.vpk into the scratch addon s2c_cubeprobe (game/csgo_addons/s2c_cubeprobe/maps), so
 the user's own addons are never written, runs tools/cubehost (engine2's Source2Main in our own process, never cs2.exe)
@@ -107,6 +107,11 @@ def drive(host, a, seen):
     console.send("bot_kick")
     wait_for(["OnSwitchLoopModeFinished"], 60)
     console.send("bot_kick")
+    if a.settle:
+        wait_for([], a.settle)
+    for c in a.before:
+        console.send(c)
+        time.sleep(0.5)
     console.send("buildcubemaps")
     done = wait_for(["Finished building cubemaps", "Failed to compile cubemaps", "Finished ("], a.timeout)
     wait_for(["Finished building cubemaps"], 20)
@@ -160,6 +165,13 @@ def main():
     p.add_argument("--frida", metavar="AGENT.js",
                    help="attach a Frida agent to cubehost.exe as it starts; its messages go to <out>/frida.jsonl "
                         "(cascade_sources.js: where the cascade inputs come from)")
+    p.add_argument("--out", metavar="NAME",
+                   help="keep the run under %%TEMP%%/cubehost_run/NAME instead of the map's name (repeat runs beside a capture)")
+    p.add_argument("--settle", type=float, default=0, metavar="SECONDS",
+                   help="wait this long after the map loads before buildcubemaps (texture streaming finishes; "
+                        "without it the build samples whatever mips are resident and runs differ)")
+    p.add_argument("--before", action="append", default=[], metavar="COMMAND",
+                   help="console command sent just before buildcubemaps (repeatable), e.g. sv_pausable 1, setpause")
     p.add_argument("--keep-intermediates", action="store_true",
                    help="copy the game's _buildcubemaps EXRs and .vtex as they appear (into <out>/intermediates)")
     a = p.parse_args(argv)
@@ -174,7 +186,9 @@ def main():
     content = os.path.join(CS2, "content", "csgo_addons", ADDON)
     os.makedirs(os.path.join(game, "maps"), exist_ok=True)
     os.makedirs(content, exist_ok=True)
-    shutil.copy2(os.path.join(CS2, "game", "csgo_addons", a.source, "maps", a.map + ".vpk"), os.path.join(game, "maps", a.map + ".vpk"))
+    # --from s2c_cubeprobe reruns the package already in the scratch addon (a capture's own input).
+    if a.source != ADDON:
+        shutil.copy2(os.path.join(CS2, "game", "csgo_addons", a.source, "maps", a.map + ".vpk"), os.path.join(game, "maps", a.map + ".vpk"))
     # The game mode's cfg runs on every map load and puts the bots back; its _server.cfg runs after it and
     # takes them out again (in the scratch addon only, never the game's cfg folder).
     os.makedirs(os.path.join(game, "cfg"), exist_ok=True)
@@ -182,7 +196,7 @@ def main():
         if name.startswith("gamemode_") and name.endswith(".cfg") and not name.endswith("_server.cfg"):
             with open(os.path.join(game, "cfg", name[:-4] + "_server.cfg"), "w") as f:
                 f.write("bot_quota 0\nbot_quota_mode normal\nbot_kick\n")
-    out =os.path.join(os.environ.get("TEMP", "."), "cubehost_run", a.map)
+    out =os.path.join(os.environ.get("TEMP", "."), "cubehost_run", a.out or a.map)
     os.makedirs(out, exist_ok=True)
     before = {**snapshot(game), **snapshot(content)}
     # -condebug appends to the game's console.log (the user's own): keep it aside and restore it after.
