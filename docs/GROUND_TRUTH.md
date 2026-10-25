@@ -3913,8 +3913,8 @@ game can answer is raised with the user first, and runs with -insecure.
       as margin; the segment's support takes the second centre on a tie (18006d070).
     - Verified: all 525 sphere and capsule casts of s2c_navround replay bit for bit (NavCastTests), and s2c_navround
       from the .vmap is Valve's through 029 (extraction, 022, AddJumps' stand-in, 029).
-    - Open: Valve's saved .nav lacks the connection between areas 59 and 60 that its 029 blocks hold and the build
-      rule (1818ea6f0) keeps (LIGHTING_ROADMAP L24); the CS analysis' sphere casts against round shapes
+    - Open: (Valve's saved .nav lacking the connection between areas 59 and 60 is the analysis' overlap removal,
+      ported since: ledger 146.) The CS analysis' sphere casts against round shapes
       (NavSphereWorld), LadderConnect's rays against them and bomb damage over such a world are not ported.
 
 144. **The game's cubemap build run to run, and the shadowed light's views' cull** (2026-10-25: repeated cubehost
@@ -3945,6 +3945,27 @@ game can answer is raised with the user first, and runs with -insecure.
       lump (which ships 330 for -30, 0 for -0.0001) has no difference. s2c_navangles is Valve's through 029.
     - Ported in DmxBinary.ReadFile for every .vmap (SettleWorld.SetAngles, which the deformer and prefab moves already
       used for their stores). A Hammer-saved map already holds such angles, so the pinned maps do not change.
+
+146. **The analysis' overlapping connections** (2026-10-25: decompile and disassembly of server.dll 20261015's
+    CSNavMesh::Analyze chain: 1814cfaa0, 1814cf8d0, 1814c67b0, 1814be420, 1814b86f0, 1814ada50, 1814c76a0,
+    1814eabb0, 1814655e0, 1814669d0, 1814a9280, the comparator 1814cb4f0; .data bytes at 181e81d00..181e81d18;
+    Maps/NavGen/NavMeshOverlaps.cs).
+    - Settled from the code: before the AI data, the shared step turns ids into pointers (area vfn 0x50, a -1 edge
+      becoming the opposite one), puts each one-way connection on its target's incoming list (+0x90, unsaved;
+      sorted by the target's heap address and edge), checks the mesh (1814be420, messages only) and removes
+      overlapping connections (1814b86f0, behind the bool at 181e81d01).
+    - Settled from the code: an edge's intervals are its connections whose area's edge holds this one back, whose
+      edges' closest points (segment pair in double) are within 181e81d18 and whose 2D overlap (1814eabb0) is at
+      least 1.1920929e-07, the overlap's ends projected on the edge from its end corner; stable sort by start.
+      Where the next interval starts more than 1.1920929e-07 before the current one ends, the connection whose
+      area's edge is farther from the point at (next end + the larger start) / 2 goes both ways (the next on a
+      tie), and the interval indices past it shift down (the back indices do not).
+    - Settled from the .data: 181e81d00 and 181e81d01 are 1 and 181e81d18 is 18.0. No code writes them (Ghidra
+      xrefs: reads only), so the values are taken as constant.
+    - Verified: s2c_navround's .nav is Valve's up to the custom data (areas 59 and 60 lose their link, LIGHTING_ROADMAP
+      L24) from both capture runs' 029, and the other six writer maps are unchanged.
+    - Open: the oriented path (attribute 0x8000, 1814eada0) and direction 8 are refused; more than 32 intervals on
+      one edge (the introsort) is refused.
 
 ## Resolved
 

@@ -57,6 +57,7 @@ public class NavWriterTests(ITestOutputHelper output)
     /// <summary>
     /// Valve's stage 029 output through the mesh build and the save: every byte before the CS custom
     /// data (whose spot encounter ids are heap addresses) is Valve's, on probe01 and cardtest.
+    /// <c>NAVWRITER_SUFFIX</c> picks another capture run (default <c>_in</c>; s2c_navround's package is from <c>_full</c>).
     /// </summary>
     [Theory]
     [InlineData("probe01")]
@@ -65,9 +66,10 @@ public class NavWriterTests(ITestOutputHelper output)
     [InlineData("s2c_prefabprobe4")]
     [InlineData("s2c_prefabprobe5")]
     [InlineData("s2c_prefabprobe6")]
+    [InlineData("s2c_navround")]
     public void FileBeforeCustomDataMatchesValve(string map)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "navgen_capture", map + "_in");
+        var dir = Path.Combine(Path.GetTempPath(), "navgen_capture", map + (Environment.GetEnvironmentVariable("NAVWRITER_SUFFIX") ?? "_in"));
         if (!File.Exists(Path.Combine(dir, "029_IslandRemoval_out_conn.bin")) || CS2Fixtures.StockPak() is not { } pak)
             return;
         // Ladders (the mesh build's 10-unit casts, 1818dc620) are not ported.

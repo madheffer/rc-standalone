@@ -130,6 +130,9 @@ public static class NavWriter
             area.Attributes = attributes;
             mesh.Areas.Add(area);
         }
+        // CSNavMesh::Analyze's shared step (1814cfaa0): one-way connections only go on the target's incoming
+        // lists (+0x90, 1814c67b0), which the save does not write; then the overlapping connections go.
+        NavMeshOverlaps.Remove(mesh);
         return mesh;
     }
 

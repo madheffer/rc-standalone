@@ -136,11 +136,10 @@ carries the same state per item.
      (ParityReport with PARITY_BASE, 25/25 and 27/27 files);
      UnlitMapRootsEqualValves passes. %TEMP%/preset_entities holds the new
      references; the wrong ones are in preset_entities_1023_withworld.
-4. **Nav** (LIGHTING_ROADMAP L9, L24): markups (L23) and spheres and
-   capsules (L22) done 10-25 (ledgers 142, 143). Left: nav links, func_ladder
+4. **Nav** (LIGHTING_ROADMAP L9): markups (L23), spheres and capsules (L22)
+   and the analysis' overlap removal (L24) done 10-25 (ledgers 142, 143, 146). Left: nav links, func_ladder
    ladders, movable meshes, markups in instances or prefabs, the NONAV blocks
-   collector (180f1f830: prop_deformable, block_base_nav_mesh), L24 (one area
-   connection s2c_navround's saved mesh drops), the CS analysis' casts and
+   collector (180f1f830: prop_deformable, block_base_nav_mesh), the CS analysis' casts and
    LadderConnect's rays against round shapes, bomb damage over hull, sphere or
    capsule worlds (L10).
 5. **Own lighting:** OIDN for quality 1 and 2 end to end, more maps through
@@ -168,7 +167,15 @@ carries the same state per item.
     rebuilt) and server.dll's script API; first get a pre-update `.vjs_c` to see
     what changed, and Valve's fresh `cs_script_demo` compile as the reference.
 
-## Latest session (2026-10-25, nav markups and round shapes)
+## Latest session (2026-10-25, the nav analysis' overlapping connections)
+
+- L24 closed (ledger 146, Maps/NavGen/NavMeshOverlaps.cs): CSNavMesh::Analyze's shared step (server.dll
+  1814cfaa0) removes overlapping connections per edge (1814b86f0 over 1814ada50's intervals) before the AI
+  data; NavWriter.Build runs it, so the .nav and NavAnalysis see Valve's mesh. s2c_navround's .nav is Valve's
+  up to the custom data from both capture runs (NAVWRITER_SUFFIX=_full is the run its package came from), and
+  NavGenPipelineTests no longer excuses it. One-way connections only go on the unsaved incoming lists.
+
+## Earlier session (2026-10-25, nav markups and round shapes)
 
 - Lightmaps: BakeLighting's atlas side caps at worldspawn's max_lightmap_resolution (the builder's
   +0x2f8, not a fixed 4096) and the world node's uv snap takes the halved side (ledger 141); review

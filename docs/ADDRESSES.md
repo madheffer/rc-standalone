@@ -946,19 +946,19 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1818c8c60` | `NavSettings_ReadProjectDefaults` | gameinfo NavSystem keys into 1830237b0; deprecated NavAgentNumHulls (1818c84f0); NavHullsPreset ('default') |  |
 | `1818ca150` | `NavSettings_SetHulls` | override vdata (1818c8840), preset, or project / map hulls |  |
 | `1818ca350` | `NavHull_FromVData` | 0x48-byte entry from CNavHullVData; erosion +0x30 -> +8 |  |
-| `1818cfe80` | `CNavArea::Save` | id, attributes & 0x7f002 (u64), +0x58, polygon index, 0.0f, per edge count + (id, (int)(char) edge), byte 0, u32 0, ladders up / down | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:140` |
-| `1818d0690` | `CNavGenParams::Save` | 13, the block's +0 (as u32), +4 .. +0x2c, the two strings, hull count, per hull +0, +4, +0xc, +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24, +0x28, +0x2c, +0x30, +8; then +0x59 as a byte | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:140`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:230` |
-| `1818d1320` | `CNavMesh::SaveNavMeshToBuffer` | 0xfeedface, 36, vfn 0x70, +0x101, place names (1818ee8d0), KV3 vfn 0xd8, polygon pool (1818e9510), vfn 0x88, KV3 vfn 0xe8, areas (vfn 0x40), ladders (1818e71b0), transformed bounds (0x48 of each 0x50), generation parameters (1818d0690), KV3 vfn 0xf8, vfn 0x78; each KV3 8-aligned, binary_auto | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:137` |
-| `1818d18f0` | `CNavMesh::SaveGenParamsKV3` | NavGenParams { HullParams [ { Name, FlowMap_Enabled, FlowMap_NodeMaxRadius } ] } | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:141`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:268` |
-| `1818d1a70` | `CNavMesh::SaveMovableMeshKV3` | movable_mesh_gravity_follows_rotation (one bool per movable mesh); nothing without movable meshes (a null KV3) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:43`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:217` |
+| `1818cfe80` | `CNavArea::Save` | id, attributes & 0x7f002 (u64), +0x58, polygon index, 0.0f, per edge count + (id, (int)(char) edge), byte 0, u32 0, ladders up / down | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:143` |
+| `1818d0690` | `CNavGenParams::Save` | 13, the block's +0 (as u32), +4 .. +0x2c, the two strings, hull count, per hull +0, +4, +0xc, +0x10, +0x14, +0x18, +0x1c, +0x20, +0x24, +0x28, +0x2c, +0x30, +8; then +0x59 as a byte | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:143`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:233` |
+| `1818d1320` | `CNavMesh::SaveNavMeshToBuffer` | 0xfeedface, 36, vfn 0x70, +0x101, place names (1818ee8d0), KV3 vfn 0xd8, polygon pool (1818e9510), vfn 0x88, KV3 vfn 0xe8, areas (vfn 0x40), ladders (1818e71b0), transformed bounds (0x48 of each 0x50), generation parameters (1818d0690), KV3 vfn 0xf8, vfn 0x78; each KV3 8-aligned, binary_auto | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:13`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:140` |
+| `1818d18f0` | `CNavMesh::SaveGenParamsKV3` | NavGenParams { HullParams [ { Name, FlowMap_Enabled, FlowMap_NodeMaxRadius } ] } | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:144`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:271` |
+| `1818d1a70` | `CNavMesh::SaveMovableMeshKV3` | movable_mesh_gravity_follows_rotation (one bool per movable mesh); nothing without movable meshes (a null KV3) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:43`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:220` |
 | `1818d63c0` | `CNavMesh::BuildFromNavGenPolys` | vfn 0x98: generation parameters from the input, the pool (1818e7e50), area i from polygon i (vfn 0x18, 1818ea6f0), the grid, vfn 0x108, vfn 0x60 (CS: the analysis), ladders, transformed bounds (1818d69c0) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:11` |
 | `1818d77e0` | `CNavMesh::CreateArea` |  |  |
 | `1818dcb00` | `CNavMesh::Update` |  |  |
 | `1818e51c0` | `CNavHullVData_SchemaFactory` | (1818e6e40 in 1015) |  |
 | `1818e7e50` | `CNavGeometryManager::Build` | pool doubles to floats in order (1818e7c60), polygons in order (1818e7af0), per-vertex use counts |  |
-| `1818e9510` | `CNavGeometryManager::Save` | corner count + float3, polygon count + (byte n, n u32, the area's movable mesh u32), the attribute flags word (bit 0: count + float4), movable mesh count + (name, 12 floats) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:42`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:139`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:158` |
+| `1818e9510` | `CNavGeometryManager::Save` | corner count + float3, polygon count + (byte n, n u32, the area's movable mesh u32), the attribute flags word (bit 0: count + float4), movable mesh count + (name, 12 floats) | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:42`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:142`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:161` |
 | `1818ea6f0` | `CNavArea::InitFromNavGenPoly` | per edge the block's +0x390/+0x398 list: connections of kind (+0x60) 0 to another area as (that area's id, +0xc); attributes flag 8 -> 0x8000, 0x10 -> 0x20000, kind 1 -> 0x10000, kind 2 -> 0x40000; +0x58 = the polygon's +0x62 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:18`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:75` |
-| `1818ee8d0` | `CNavPlaceNames::Save` | u16 count, (u16 length + 1, bytes, 0) each, then a byte: whether any area uses name 0 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:138`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:153` |
+| `1818ee8d0` | `CNavPlaceNames::Save` | u16 count, (u16 length + 1, bytes, 0) each, then a byte: whether any area uses name 0 | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:141`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:156` |
 | `1818f8200` | `CNavHullVData_Construct` | static default hull, flow map off, radius 400 (1818f9e80 in 1015) |  |
 | `182053aa0` | `CDmeNavData_FromRuntimeSettings` |  |  |
 | `182053dc0` | `CDmeNavData_ToRuntimeSettings` | settings* attributes and settingsAgent* arrays; +0x58 = 0 |  |
@@ -2015,7 +2015,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `server_20261015.dll`, 34,628,248 bytes, PE time 2026-10-14 18:43 UTC
 - SHA-256 `09e8c04c5f44040155d04fa79a3f43491d542a386f45807ed77785729e5925a9`
 - installed: a different build
-- 37 addresses
+- 47 addresses
 
 ### s2c:baked/lighting
 
@@ -2050,17 +2050,27 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `1810ce520` | `NavAreaBuildPath` | fills the 1814d9810 request: start / goal areas, no positions, the cost, max length -1, the closest-area out |  |
 | `1810f5f80` | `CNavAreaSearch_Init` | origin, start area, range (+0x264), spacing (+0x260), the visit lambda 181a145a0 (181108dc0 -> 1810f6dd0: areas in the origin's box) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:155` |
 | `1810fb4e0` | `CNavAreaSearch_Run` | the Dijkstra (1802cdb70 / 180324230 / 1802c7fe0), then rings of samples 1810fb740 / 1810f76b0 (hex lattice) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:155`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:330` |
+| `1814655e0` | `CalcClosestPointOnLineSegment` | parameter clamped to [0, 1], 1e-05 length floor | `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:71` |
+| `1814669d0` | `CalcDistanceToLineSegment` | 1814655e0 and the 3D distance | `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:60` |
+| `1814ada50` | `CNavArea::GetConnectionIntervals` | connections held back (1814ca550), edges' closest points in double within 181e81d18 (18), overlap (1814c76a0) >= 1.1920929e-07, 181e81d00 (1): same 0x8000 bit; ends projected (1814655e0); std::sort by start (1814a9280) | `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:6`, `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:86`, `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:127` |
 | `1814b22d0` | `CNavMesh_GetGroundHeight` | down 10000 from 35.501 above; a hit 35.5 or more from the start, else again from 35.501 above it (16 tries) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:26` |
 | `1814b2585` | `CNavMesh_GetGroundHeight_StartSolid` | the retry point: the trace's start when its start-solid flag (+0x2b) is set, else its end position; a start-solid trace has fraction 0, so both are the start | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Approach.cs:39` |
 | `1814b2910` | `CNavMesh_GetNavArea` | the point's cell (or rings), contains-XY 1814c5a00, z 1814c43b0 in the hull record's window, the nearest z (ties to the later) | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:108` |
+| `1814b86f0` | `CNavMesh::RemoveOverlappingConnections` | behind 181e81d01 (1): per edge the intervals (1814ada50); next start + 1.1920929e-07 < current end: the connection whose edge is farther (1814669d0) from (next end + larger start) / 2 goes both ways | `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:4`, `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:22` |
+| `1814be420` | `CNavMesh::ValidateConnections` | messages only: duplicate, one-way and incoming mismatches |  |
 | `1814c1ff0` | `CNavArea::NearestCorner` | XY, the first of equals | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:5` |
 | `1814c2ee0` | `Polygon_ClosestPoint` | fan triangles (v0, v[i], v[i-1]) from the last, 1814762f0 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:376` |
 | `1814c43b0` | `CNavArea::GetZ` | fan triangle (previous, nearest 1814c1ff0, next corner); the one two corners on when the first is degenerate or the point lies outside | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:25` |
 | `1814c5a00` | `CNavArea::ContainsXY` | bounds and each edge's outward half-plane grown by the tolerance | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:74` |
+| `1814c67b0` | `CNavArea::AddIncomingConnection` | the +0x90 list of the edge, unless the area is on it | `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:134` |
+| `1814c76a0` | `CNavArea::ComputePortalOverlap` | edge 7 as 0, the other's 7 as 2; 2D (1814eabb0) or oriented (1814eada0) for attribute 0x8000; +0x18 the 2D length | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:526`, `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:88`, `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:201` |
+| `1814cf8d0` | `CNavArea::PostLoad` | vfn 0x50: connection ids to areas (1814b27c0), a -1 edge becomes (k + 2) & 3 |  |
+| `1814cfaa0` | `CNavMesh::AnalyzeConnections` | area vfn 0x50 each, one-way connections onto the target's incoming lists (V_qsort, 1814cb4f0: target address / 0x4e8, then edge; 1814ac8c0), 1814be420, +0x100 = 1, 1814b86f0 | `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:5`, `src/Source2.Compiler/Maps/NavGen/NavWriter.cs:133` |
 | `1814d4260` | `NavPathCost_Step` | vfn 0x68 (1814d4980) with no target: the crossing toward the area's own position | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Hiding.cs:159` |
 | `1814d7200` | `NavArea_SearchRecord` | 0x30 bytes by area +0x64: position, open index +0xc, parent handle +0x10, how +0x28, edge back +0x2c | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:681` |
 | `1814d9810` | `CNavMesh_AStar` | records 1814d7200 shared by every search; push writes position / parent / edge (1814d3930 / 1814d3940); heap 180397ef0 / 18039a3c0 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:734`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:794` |
 | `1814e1950` | `CNavArea_CollectNeighbours` | flags 1: connections edge by edge: area, how (edge), edge back (+0xc), +0x18 | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:736`, `src/Source2.Compiler/Maps/NavGen/NavAnalysis.Encounter.cs:22` |
+| `1814eabb0` | `SegmentOverlap2D` | the second segment projected on the first in 2D, clamped; far point, near point, parameters | `src/Source2.Compiler/Maps/NavGen/NavAnalysis.cs:483`, `src/Source2.Compiler/Maps/NavGen/NavMeshOverlaps.cs:202` |
 | `1817beb18` | `CCSNavArea::vftable` | 0x40 (save) is 1802aa880 |  |
 | `1817bebd0` | `CSNavMesh::vftable` | overrides 0x18/0x20 (CCSNavArea), 0x38, 0x50, 0x58, 0x60 (the analysis, called with 0x24 after the build), 0x70 (custom data version 1), 0x78 / 0x80 (custom data save / load), 0xb0, 0xc0; 0x98 (1814ac9c0) is the shared build |  |
 

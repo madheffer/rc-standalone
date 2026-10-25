@@ -37,6 +37,66 @@
    "note": "vfn 0x60: 18039aa00 (CS pre-step), the shared 1814cfaa0, then 18039a730 per entry of +0x480"
   },
   {
+   "addr": "1814cfaa0",
+   "name": "CNavMesh::AnalyzeConnections",
+   "module": "s2c:baked/nav",
+   "note": "area vfn 0x50 each, one-way connections onto the target's incoming lists (V_qsort, 1814cb4f0: target address / 0x4e8, then edge; 1814ac8c0), 1814be420, +0x100 = 1, 1814b86f0"
+  },
+  {
+   "addr": "1814cf8d0",
+   "name": "CNavArea::PostLoad",
+   "module": "s2c:baked/nav",
+   "note": "vfn 0x50: connection ids to areas (1814b27c0), a -1 edge becomes (k + 2) & 3"
+  },
+  {
+   "addr": "1814c67b0",
+   "name": "CNavArea::AddIncomingConnection",
+   "module": "s2c:baked/nav",
+   "note": "the +0x90 list of the edge, unless the area is on it"
+  },
+  {
+   "addr": "1814be420",
+   "name": "CNavMesh::ValidateConnections",
+   "module": "s2c:baked/nav",
+   "note": "messages only: duplicate, one-way and incoming mismatches"
+  },
+  {
+   "addr": "1814b86f0",
+   "name": "CNavMesh::RemoveOverlappingConnections",
+   "module": "s2c:baked/nav",
+   "note": "behind 181e81d01 (1): per edge the intervals (1814ada50); next start + 1.1920929e-07 < current end: the connection whose edge is farther (1814669d0) from (next end + larger start) / 2 goes both ways"
+  },
+  {
+   "addr": "1814ada50",
+   "name": "CNavArea::GetConnectionIntervals",
+   "module": "s2c:baked/nav",
+   "note": "connections held back (1814ca550), edges' closest points in double within 181e81d18 (18), overlap (1814c76a0) >= 1.1920929e-07, 181e81d00 (1): same 0x8000 bit; ends projected (1814655e0); std::sort by start (1814a9280)"
+  },
+  {
+   "addr": "1814c76a0",
+   "name": "CNavArea::ComputePortalOverlap",
+   "module": "s2c:baked/nav",
+   "note": "edge 7 as 0, the other's 7 as 2; 2D (1814eabb0) or oriented (1814eada0) for attribute 0x8000; +0x18 the 2D length"
+  },
+  {
+   "addr": "1814eabb0",
+   "name": "SegmentOverlap2D",
+   "module": "s2c:baked/nav",
+   "note": "the second segment projected on the first in 2D, clamped; far point, near point, parameters"
+  },
+  {
+   "addr": "1814655e0",
+   "name": "CalcClosestPointOnLineSegment",
+   "module": "s2c:baked/nav",
+   "note": "parameter clamped to [0, 1], 1e-05 length floor"
+  },
+  {
+   "addr": "1814669d0",
+   "name": "CalcDistanceToLineSegment",
+   "module": "s2c:baked/nav",
+   "note": "1814655e0 and the 3D distance"
+  },
+  {
    "addr": "1803906a0",
    "name": "CSNavMesh_ComputeAIData",
    "module": "s2c:baked/nav",
