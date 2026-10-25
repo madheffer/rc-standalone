@@ -57,4 +57,6 @@ ALIASES = {
     "navs": "navsystem_20261015.dll",
     "srv": "server_20261015.dll",
     "cl": "client_20261015.dll",
+    "wr": "worldrenderer_20261023.dll",
+    "ss1023": "scenesystem_20261023.dll",
 }

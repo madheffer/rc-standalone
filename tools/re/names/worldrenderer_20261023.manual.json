@@ -1,0 +1,22 @@
+{
+ "functions": [
+  {
+   "addr": "18001e920",
+   "name": "WorldRenderer_CreateAggregates",
+   "module": "s2c:baked/lighting",
+   "note": "per AggregateSceneObject_t: the scene object, then per AggregateMeshInfo_t (0x2c bytes) the aggregate transform times the fragment's (1800b9a60), the model's draw bounds through it (1800ba270) and CAggregateSceneObject::AddFragment (vfunc 0x28)"
+  },
+  {
+   "addr": "1800ba270",
+   "name": "Matrix3x4_TransformAABB",
+   "module": "s2c:baked/lighting",
+   "note": "the same code as scenesystem 18049bfb0"
+  },
+  {
+   "addr": "1800b9a60",
+   "name": "Matrix3x4_Concat",
+   "module": "s2c:baked/lighting",
+   "note": "a b, each element (a2 b2j + a1 b1j) + a0 b0j + (0 or a's translation); AggregateCulling.Concat"
+  }
+ ]
+}

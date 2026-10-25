@@ -1,6 +1,36 @@
 {
  "functions": [
   {
+   "addr": "1817465f0",
+   "name": "Frustum_PlanesFromMatrix",
+   "module": "s2c:baked/lighting",
+   "note": "six planes from a row-major world-to-projection: r3 - r0, r3 + r0, r3 - r1, r3 + r1, r3 + r2 (r2 with the flag), r3 - r2 (the near plane when degenerate); (n, -w) normalised by 1 / sqrt((x x + y y) + z z) when >= 1e-20; AggregateCulling.ExtractPlanes"
+  },
+  {
+   "addr": "1817435e0",
+   "name": "Frustum_PackPlanes",
+   "module": "s2c:baked/lighting",
+   "note": "six planes as two SoA blocks of four (normals, d, sign masks, absolute normals) at view +0x30; AggregateCulling.Pack"
+  },
+  {
+   "addr": "18174fe70",
+   "name": "View_BuildProjection",
+   "module": "s2c:baked/lighting",
+   "note": "the projection, then +0x288 (18174f330), the planes (1817465f0) moved to the camera, d + ((nz (-oz) + ny (-oy)) + nx (-ox)), and packed (1817435e0); AggregateCulling.FaceFrustum"
+  },
+  {
+   "addr": "181201670",
+   "name": "GamePipeline_DepthPrepassLayers",
+   "module": "s2c:baked/lighting",
+   "note": "the game view's prepass layers: Large +0x6d0 = r_csgo_depth_prepass_cull_threshold (1825f6150, 60) / 100, Small = -that; AggregateCulling.PrepassSplit"
+  },
+  {
+   "addr": "1811d5ae0",
+   "name": "Pipeline_DepthPrepassLayers",
+   "module": "s2c:baked/lighting",
+   "note": "creates Depth Prepass Large / Small / AlphaTested with +0x6d0 = threshold / 100 and its negation (the 3D skybox passes r_csgo_depth_prepass_skybox_small_cull_threshold)"
+  },
+  {
    "addr": "18020e130",
    "name": "BuildCubemaps_FaceToStrip",
    "module": "s2c:baked/lighting",

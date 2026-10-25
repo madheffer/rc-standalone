@@ -3815,6 +3815,32 @@ game can answer is raised with the user first, and runs with -insecure.
       trials whose prepared record holds a NaN (a spring between two bodies with no inertia: infinite
       softness) are skipped like the position test's NaN trials; under 5% of them.
 
+
+139. **The per-view culling of world aggregates, face views** (2026-10-25: decompile and disassembly of scenesystem
+    10-15, client 10-15 and worldrenderer 10-23 (the 10-15 build was not archived); three cubehost captures,
+    tools/cubehost/rdc_indirect.py, AggregateCullingCaptureTests; Cubemaps/AggregateCulling.cs).
+    - Settled against the captures: every face-view indirect draw list (colour and depth prepass) of all six faces
+      of probe01, s2c_l5probe and atixref cube 0 (25, 25 and 335 lists): same commands, merges, splits and
+      instancing, first instances at one offset per view and aggregate.
+    - Read: the frustum is the view's world-to-projection through client 1817465f0 (six planes, (x x + y y) + z z
+      normalisation), moved to the camera (d + ((nz (-oz) + ny (-oy)) + nx (-ox))) and packed by 1817435e0;
+      18003d380 culls on (px nx + py ny) + pz nz < d with the box relative to the camera.
+    - Read: fragment bounds are the draw call's bounds through 18049bfb0 (worldrenderer 1800ba270 is the same
+      code); transform slots follow AddFragment 1800380a0 (transform within 1e-5, packed tint, base vertex);
+      above 128 fragments tinybvh (c_trav 16, c_int 1, resourcecompiler's build) reorders them into leaf order,
+      which is then the visit order.
+    - Read: DrawArray (180042330) merges a list's following entries while the transform slot is the first's and
+      the first index continues; aggregates with a transform per fragment draw consecutive positions of one draw
+      call instanced. The depth prepass layers split by the size metric 18004c390 (rsqrtss, CPU-vendor
+      dependent in its low bits) at r_csgo_depth_prepass_cull_threshold / 100 = 0.6 (180041a00, client
+      181201670). LOD setups pick the highest LOD whose switch distance is below 50 / (size x view height).
+    - Read: the +0x34 / +0x38 draw slots 18003c5a0 assigns belong to the GPU-driven path; the CPU commands come
+      from DrawArray. Instance blocks come from an atomic counter per (view, aggregate), so their order is
+      thread timing (it differs between views of one frame); the image does not depend on it.
+    - Open: the sun cascades' culling (180494b40: shadow view 1804a7a60, the previous cascade's box shrunk by 15%
+      as six inverted planes for the culling-box test), LOD cross-fades and forced LODs, the per-view PVS test
+      (FUN_180036840), the small-object fade, and the non-aggregate scene objects' culling.
+
 ## Resolved
 
 - **Prop bone overrides** (ledger 45, settled 2026-10-08 by decompile).

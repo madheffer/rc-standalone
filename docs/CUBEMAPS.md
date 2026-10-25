@@ -452,6 +452,56 @@ material textures to their .vtex_c, generic's `_Globals_` to
 and gameinfo's ShaderIDColors). What is settled and what is left is in
 ledger 120.
 
+## The per-view culling (2026-10-25, ledger 139)
+
+Ported in `Cubemaps/AggregateCulling.cs`; `AggregateCullingCaptureTests`
+(`CUBECULL=<capture dir>`, with `indirect.jsonl` from
+`tools/cubehost/rdc_indirect.py` and `replay/` from rdc_replay.py) checks it
+against every face-view draw list of probe01, s2c_l5probe and atixref, all six
+faces: 25, 25 and 335 lists, every command equal. How the game gets from a
+world node aggregate to a view's indirect draws, all CPU in these captures:
+
+1. **Frustum** (client): the view's world-to-projection (+0x288) gives six
+   planes (1817465f0, Gribb-Hartmann, normalised), moved to the camera and
+   packed as two SoA blocks of four with sign masks (1817435e0); scenesystem's
+   view copies them (+0x430 camera, +0x460 planes).
+2. **Fragments** (worldrenderer 18001e920 -> CAggregateSceneObject::AddFragment
+   1800380a0): one per AggregateMeshInfo_t; bounds are the draw call's bounds
+   through the fragment's transform (18049bfb0); a transform slot is shared
+   with the previous fragment while transform (1e-5), packed tint and base
+   vertex match. Above 128 fragments the setup (180038650) builds tinybvh
+   (c_trav 16, c_int 1) and reorders the fragments into leaf order.
+3. **Cull** (18003c5a0 / 18003d380): fragments in (BVH) order, the
+   camera-relative box against the eight planes; fragments with a LOD setup
+   keep only the LOD 1800450f0 picks (size metric, 50 / (size x 1024), the
+   switch distances). The visible order is the instance order.
+4. **Layer lists** (180041a00): each layer's list of (fragment, position) in
+   visible order. The depth prepass is split by the size metric (18004c390,
+   rsqrtss): "Large" keeps size >= 0.6, "Small" min(size, aggregate size) <
+   0.6 (r_csgo_depth_prepass_cull_threshold 60 / 100, client 181201670).
+5. **Draws** (DrawArray 180042330): per list, a command per entry extended
+   over following entries while the transform slot is the same and the first
+   index continues the range; aggregates whose fragments all have their own
+   transform instead draw consecutive positions of one draw call instanced.
+   First instance = the view's instance block + position; blocks are handed
+   out per (view, aggregate) by an atomic counter, so their order follows
+   thread timing and differs between views of one frame (the test compares up
+   to that offset; the instance records' content is the same either way).
+
+The 42 atixref draws that are not aggregate draws (individual scene objects)
+go through scenesystem's generic object culling, not this port.
+
+The cascades (`CUBECULL_CASCADES=1`): taking the face's way on the cascade's
+orthographic matrices is too loose (probe01 cube 0: 8 of the cascade lists
+differ). The fit (scenesystem 180494b40) gives each cascade its own shadow
+view (1804a7a60) and turns the previous cascade's box, shrunk by 15%, into
+six inverted planes (the call to 180498520 with the zero-to-one flag), which
+18003d380's culling-box test uses to skip fragments the finer cascade already
+covers. Port next, checked against the same captures' cascade lists (the sun
+angles also need their exact source: the lump's angles through the
+quaternion give 74.999985, -179.99997 where the capture settled 74.99999,
+180.00002).
+
 ## Open
 
 - DX11 float parity for the GPU pass (only matters where a 1-ulp difference
@@ -468,10 +518,9 @@ ledger 120.
   RTX 4070, 10-22). The vertex, index, lightmap and
   material inputs already equal the package's data (ledger 120). The
   readback after the colour pass makes the game's EXR byte for byte (ledger
-  137). Next: the
-  per-view culling that merges surviving fragments into indirect sub-draws
-  (the draw arguments are still the capture's), then all faces, then reduce
-  to the EXR and compare with the game's.
+  137). The face views' draw arguments come from our culling now (ledger
+  139); the cascades' do not yet. Next: the cascades' culling, then all faces
+  chained, then reduce to the EXR and compare with the game's.
 - A second map, s2c_l5probe (omni2 and barn lights; capture and dumps in
   %TEMP%/cubehost_run/s2c_l5probe), replays face 0 bit for bit (38 actions,
   push constants for the light binner). Its frame also draws 16 animatable
@@ -483,17 +532,8 @@ ledger 120.
   (the game links stage libraries; ledger 121). The RenderDoc tools for
   comparing a draw on both sides are in tools/cubehost (rdc_postvs.py,
   rdc_debugpixel.py, rdc_pixelhistory.py, rdc_bindings.py, rdc_events.py).
-- The per-view culling (the draw arguments) is CPU side in these captures:
-  no cull_aggregate_fragments dispatch runs. scenesystem's convars name the
-  parts: sc_aggregate_fragment_culling_boxes, sc_aggregate_fragment_merging
-  (the merged sub-draws), sc_aggregate_gpu_culling (off here);
-  CAggregateSceneObject::GatherData is the entry to read. Read 10-22
-  (decompiles in tools/re/out/culling): 18003c5a0 culls one aggregate per
-  view (fragment BVH against the view's 8 frustum planes, then 18003d380 per
-  fragment: frustum, culling boxes, ...), writes an instance record per
-  visible fragment, and merges adjacent visible fragments of one draw group
-  into one indirect draw (sc_aggregate_fragment_merging). Port next, checked
-  against both captures' draw arguments.
+- The per-view culling: the face views are done (above, ledger 139); the sun
+  cascades' own culling is the open part.
 - The cascade inputs depend on the game's video settings, not the map: the
   shadow-quality preset (the run detects level 2) sets
   csm_max_shadow_dist_override 560, 3 cascades and 1280 tiles

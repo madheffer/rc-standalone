@@ -92,10 +92,13 @@ carries the same state per item.
    - atixref draw 2305: one half-float ulp on 38 pixels. Build the pipeline
      from one-stage libraries (VK_EXT_graphics_pipeline_library) as the game
      does; the first attempt crashed with an access violation in our code.
-   - The per-view culling that makes the draw arguments: port scenesystem
-     18003c5a0 (fragment BVH against the frustum, instance records, merging
-     of adjacent fragments) and 18003d380 (per fragment), checked against the
-     draw arguments of probe01, s2c_l5probe and atixref.
+   - The per-view culling: the face views are done (ledger 139, every
+     face-view draw list of probe01, s2c_l5probe and atixref). Left: the sun
+     cascades' culling (scenesystem 180494b40: shadow view 1804a7a60, the
+     previous cascade's box shrunk 15% as exclusion planes, 18003d380's
+     culling-box test), the sun angles' exact source, LOD cross-fades, the
+     per-view PVS test, and the generic culling of non-aggregate scene
+     objects (42 atixref draws).
    - The light binner's inputs from our own lights, then all six faces of a
      cube. The readback, QuarterSize, the EXR strip and the array are exact
      against the game from the captured readbacks (ledger 137).

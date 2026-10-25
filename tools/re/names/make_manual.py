@@ -3029,6 +3029,11 @@ def write(name, rows):
 
 # client.dll 20261015 (tools/re/binaries/client_20261015.dll): the game half of buildcubemaps (docs/CUBEMAPS.md).
 CLIENT_1015 = [
+    ("1817465f0", "Frustum_PlanesFromMatrix", BAKE, "six planes from a row-major world-to-projection: r3 - r0, r3 + r0, r3 - r1, r3 + r1, r3 + r2 (r2 with the flag), r3 - r2 (the near plane when degenerate); (n, -w) normalised by 1 / sqrt((x x + y y) + z z) when >= 1e-20; AggregateCulling.ExtractPlanes"),
+    ("1817435e0", "Frustum_PackPlanes", BAKE, "six planes as two SoA blocks of four (normals, d, sign masks, absolute normals) at view +0x30; AggregateCulling.Pack"),
+    ("18174fe70", "View_BuildProjection", BAKE, "the projection, then +0x288 (18174f330), the planes (1817465f0) moved to the camera, d + ((nz (-oz) + ny (-oy)) + nx (-ox)), and packed (1817435e0); AggregateCulling.FaceFrustum"),
+    ("181201670", "GamePipeline_DepthPrepassLayers", BAKE, "the game view's prepass layers: Large +0x6d0 = r_csgo_depth_prepass_cull_threshold (1825f6150, 60) / 100, Small = -that; AggregateCulling.PrepassSplit"),
+    ("1811d5ae0", "Pipeline_DepthPrepassLayers", BAKE, "creates Depth Prepass Large / Small / AlphaTested with +0x6d0 = threshold / 100 and its negation (the 3D skybox passes r_csgo_depth_prepass_skybox_small_cull_threshold)"),
     ("18020e130", "BuildCubemaps_FaceToStrip", BAKE, "a face's RGBA16F readback to a float bitmap (1813db210), QuarterSize (1813ddd00) down to EnvironmentMapFaceSize, flipped (1813dc290), copied into the 6x1 strip at x = face * size (181756620); Cubemaps/CubemapFaceExr.cs"),
     ("1802091d0", "BuildCubemaps_WriteExr", BAKE, "the strip as an uncompressed half EXR through tinyexr's fast writer (1813dede0), channels B, G, R; Cubemaps/CubemapFaceExr.cs"),
     ("1800538d8", "Convar_buildcubemaps_renderdoc_capture", BAKE, "registration of buildcubemaps_renderdoc_capture (\"Capture a specific cubemap with RenderDoc during buildcubemaps.\") with flags 2, development-only: a release build hides it from the console and the command line; its data pointer is the global 18237eab0"),
@@ -3039,9 +3044,27 @@ CLIENT_1015 = [
 SCENESYSTEM_CASCADES = [
     ("180496ef0", "CSM_SetupCascades", BAKE, "count = min(view +0x38, light desc +0x3e) or csm_max_num_cascades_override (> 0); distances: the light desc's +0x48 (each later one doubled from the last given), csm_cascadeN_override_dist (> 0), the practical split ((V_powf(M/n, k/N) n - lin) 0.85 + lin) + 0.1 from n = max(0.125, frustum near), then the view attributes 0x61fac369, 0x70644345, ... replace each (1804976e5 on); M = csm_max_shadow_dist_override (> 0, view flag bit 4 clear) else ShadowFarZ (0x7b2a64e1, default 1000) at most the frustum far (+0x24 of the frustum at r8 +0x18); CubemapShadowCascades.SplitDistances / MaxDistance"),
     ("180494b40", "CSM_FitCascade", BAKE, "one cascade's light view, ortho and snapped bounds; CubemapShadowCascades.Fit"),
-    ("18003c5a0", "Aggregate_CullAndBuildDraws", BAKE, "a world aggregate in one view (CPU; sc_aggregate_gpu_culling off): walks the fragment BVH (desc +0x1c8 -> +0xb0, 0x20-byte nodes: min xyz, first, max xyz, count) with the view's 8 frustum planes (view +0x460, two SIMD groups of 4, p-vertex test relative to the camera at +0x430), each surviving leaf's fragments through 18003d380; then one 0x20-byte instance record per visible fragment (tint x alpha, transform index +0x20 + base, flags) and the indirect draws: a fragment joins the previous draw when sc_aggregate_fragment_merging (18089cf28) is on, it has the same draw group (+0x20) and is not flagged (bit 0), else takes the next draw (desc +0x210) and its index count (+0x1c) adds to desc +0x214"),
-    ("18003d380", "Aggregate_CullFragment", BAKE, "one fragment (0x20-byte bounds at desc +0x180): the frustum p-vertex test, then the culling boxes (sc_aggregate_fragment_culling_boxes 18089cf18, OBBs via DPPS), then the rest (not read yet); appends the fragment index when visible"),
+    ("18003c5a0", "Aggregate_CullView", BAKE, "CAggregateSceneObjectDesc vfunc 0x38: a world aggregate in one view (CPU). Fragments in order (desc +0x194), or with sc_aggregate_bvh (18089cf98) and a BVH (+0x1c8, built above sc_aggregate_bvh_threshold 128) its nodes against the view's 8 planes (+0x460, camera +0x430), each surviving fragment through 18003d380 into the visible list (per-view data +0x30); then one 0x20-byte instance record per visible fragment at the view's instance block (an atomic counter, so block order follows thread timing). The +0x34/+0x38 draw slots it assigns serve the GPU-driven path, not DrawArray; Cubemaps/AggregateCulling.cs"),
+    ("18003d380", "Aggregate_CullFragment", BAKE, "one fragment: the frustum p-vertex test ((px nx + py ny) + pz nz < d on the camera-relative box), the culling boxes (view +0xf34), the LOD test (+0x22 setup, +0x24 mask, 1800450f0), the per-view PVS (FUN_180036840), the small-object fade; the size metric (18004c390) into the per-view record +0; appends the fragment when visible; AggregateCulling.Outside / Visible"),
+    ("180042330", "AggregateDesc_DrawArray", BAKE, "vfunc 0x8: per draw primitive (0x70) its (fragment, visible position) list; fragment count = transform count: consecutive positions on one draw call become one instanced command; else a command per entry extended while the transform slot (+0x20) is the first's and the next first index continues the range (sc_aggregate_fragment_merging 18089cf28); first instance = view block + position; commands appended to desc +0x68 (20 bytes each); AggregateCulling.Commands"),
+    ("180041a00", "AggregateDesc_LayerFragmentList", BAKE, "one layer's (fragment, position) list from the visible list in order: layer flag masks on fragment +0x14, the layer's plane test (+0xc08..+0xc14), then the size split on layer +0x6d0 (positive: keep size >= it; negative: keep min(size, aggregate size) < -it); +0x20 the largest size times +0x44 (the primitive's 16-bit sort key); AggregateCulling.InLayer"),
+    ("1800380a0", "CAggregateSceneObject_AddFragment", BAKE, "vfunc 0x28 (worldrenderer 18001e920 per AggregateMeshInfo_t): a transform slot (0x38 each at +0x150) unless the last slot has the same base vertex (draw +0x54), packed tint (18049ca70 then 18049c8d0) and transform within 1e-5 (18049ad90); the 0x50-byte fragment record (+0x14 flags, +0x16 meshlets, +0x18 draw call, +0x1c index count, +0x20 slot, +0x22 LOD setup, +0x24 LOD mask, +0x28 tint); bounds (+0x180, 0x20 each) the draw's bounds through 18049bfb0 when it has meshlets, radius 0.5 sqrt((dz dz + dy dy) + dx dx); AggregateCulling.Fragments"),
+    ("180038650", "CAggregateSceneObject_Setup", BAKE, "vfunc 0x30: above sc_aggregate_bvh_threshold (18089cfa8) builds tinybvh (1804c9ad0, c_trav 16, c_int 1) over the fragment bounds and reorders fragments and bounds into left-first leaf order; AggregateCulling.CullOrder"),
+    ("1804c9ad0", "TinyBvh_BuildCustomAabb", BAKE, "tiny_bvh.h BVH::Build(customGetAABB, count): root bounds, then 1804c87c0 (the same build as resourcecompiler's 181ed64a0); Lighting/TinyBvh.cs"),
+    ("18049dd60", "Matrix3x4_TransformPoint", BAKE, "through 18049c3a0: x' = (y m1 + m3) + (x m0 + z m2); AggregateCulling.TransformPoint"),
+    ("18004c390", "View_SphereScreenSize", BAKE, "clamp(r cot rsqrtss((dy dy + dx dx) + dz dz), 0, 1), 1 inside the sphere; orthographic views 2r / height; AggregateCulling.ScreenSize"),
+    ("1800450f0", "Aggregate_SelectLods", BAKE, "per LOD setup (0x34 bytes): size as 18004c390 with the setup's scale, f = 50 / (size x view height), the highest LOD whose switch distance is below f; cross-fade bytes under the LOD fade convars; AggregateCulling.SelectLod"),
+    ("180047530", "AggregateDesc_OnBeginRenderingFrame", BAKE, "per aggregate: fragment draw slots +0x34/+0x38 to -1, +0x210/+0x214 from +0x1fc/+0x200, the transform block +500 to -1"),
+    ("18003c2a0", "AggregateDesc_UploadDraws", BAKE, "vfunc 0x50: uploads the frame's indirect commands (desc +0x68, count +0x60, 20 bytes each) to the buffer at +0x80"),
+    ("180498520", "Frustum_PlanesFromMatrix", BAKE, "scenesystem's copy of client 1817465f0; the cascade fit calls it with the zero-to-one flag"),
     ("1801a5c28", "CSM_SetupForView", BAKE, "calls 180496ef0 with the frustum at view +0x10 (or vfunc 0x240's +0x10 under view flag bit 0xc), copied with +0x18 replaced by a view attribute when non-zero"),
+]
+
+# worldrenderer 20261023 (installed since 1.41.9.2; the captures ran the 10-15 build, not archived): aggregate creation.
+WORLDRENDERER_1023 = [
+    ("18001e920", "WorldRenderer_CreateAggregates", BAKE, "per AggregateSceneObject_t: the scene object, then per AggregateMeshInfo_t (0x2c bytes) the aggregate transform times the fragment's (1800b9a60), the model's draw bounds through it (1800ba270) and CAggregateSceneObject::AddFragment (vfunc 0x28)"),
+    ("1800ba270", "Matrix3x4_TransformAABB", BAKE, "the same code as scenesystem 18049bfb0"),
+    ("1800b9a60", "Matrix3x4_Concat", BAKE, "a b, each element (a2 b2j + a1 b1j) + a0 b0j + (0 or a's translation); AggregateCulling.Concat"),
 ]
 
 # client.dll 20261021 (installed; tools/re/binaries/client_20261021.dll): where the cascade inputs come from.
@@ -3121,5 +3144,6 @@ if __name__ == "__main__":
     write("bc7e_20261015.manual.json", BC7E)
     write("client_20261015.manual.json", CLIENT_1015)
     write("client_20261021.manual.json", CLIENT_1021)
+    write("worldrenderer_20261023.manual.json", WORLDRENDERER_1023)
     write("server_20261021.manual.json", SERVER_1021)
     print(len(RESOURCECOMPILER), len(VPHYSICS2), len(PHYSICSBUILDER), len(VISBUILDER), len(SMARTPROPS), len(TIER0), len(HAMMER))
