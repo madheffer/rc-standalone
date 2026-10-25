@@ -3899,9 +3899,8 @@ game can answer is raised with the user first, and runs with -insecure.
       Valve's through 029, its .nav up to the custom data, the custom data and the bomb damage (NavCompileTests);
       probe_classes is Valve's through 029. IslandRemoval's WALKABLESEED floods (strcmp) are ported but no captured
       map floods from one that the seed does not reach already.
-    - Open: markups in instances or prefabs (several instance paths) are refused; resourcecompiler normalises a
-      negative node angle into [0, 360) when it loads a node (a -30 yaw is built as 330), which no part of the port
-      models; Hammer writes angles in that range.
+    - Open: markups in instances or prefabs (several instance paths) are refused. (resourcecompiler's node angle
+      setter, which builds a -30 yaw as 330, is ported since: ledger 145.)
 143. **Spheres and capsules in the nav world** (2026-10-25: disassembly of vphysics2 20261015 (18016c380, 18024bc00,
     18024e6b0, 18006d070; unchanged in 10-23); Frida captures of s2c_navround (tools/coverage/nav_round_specimen.py,
     prop_static spheres and capsules) with every shape cast (capture_navcast.py --with-navgen, now with the sphere and
@@ -3934,6 +3933,18 @@ game can answer is raised with the user first, and runs with -insecure.
       and its constant blocks; what the build's state depends on (clocks, entity simulation, animated materials,
       texture residency), pinning it so a Valve build of atixref repeats, and porting it: animated scenes are in
       scope (1:1 with Valve in every aspect, user 2026-10-25; CUBEMAPS.md roadmap 0a-0e).
+
+145. **Node angles as the load holds them** (2026-10-25: disassembly of resourcecompiler 20260923's CMapPoint and
+    CMapNode angle setters 180fdeda0 / 180f770a0; a Frida capture of s2c_navangles (tools/coverage/nav_angle_specimen.py,
+    16 markups at odd angles) and its compiled lump; Maps/MapNodeAngles.cs).
+    - Settled from the code: every node's angles are stored through CMapNode's setter (vfn 0x18) into CMapPoint's: a
+      component whose magnitude is under 0.001 becomes +0, a negative yaw gains 360 until it is not negative; pitch
+      and roll keep their sign, and a yaw past 360 stays.
+    - Verified: the 16 markup matrices navsystem received (yaw -30, -390, 390, 720.25, -0.5, -180, -360, 360, -1e-06;
+      pitch -45 and -0.0001; roll -100; mixed sets) equal ours bit for bit, zero signs included, and the map's entity
+      lump (which ships 330 for -30, 0 for -0.0001) has no difference. s2c_navangles is Valve's through 029.
+    - Ported in DmxBinary.ReadFile for every .vmap (SettleWorld.SetAngles, which the deformer and prefab moves already
+      used for their stores). A Hammer-saved map already holds such angles, so the pinned maps do not change.
 
 ## Resolved
 

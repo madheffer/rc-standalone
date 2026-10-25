@@ -156,11 +156,14 @@ public static class DmxBinary
         return new Document(encoding, encodingVersion, format, formatVersion, elements, prefix, r.Remaining);
     }
 
-    /// <summary>Parse a file, binary or keyvalues2 text (<see cref="DmxText"/>).</summary>
+    /// <summary>
+    /// Parse a file, binary or keyvalues2 text (<see cref="DmxText"/>). A .vmap's nodes hold their angles as resourcecompiler's load leaves them
+    /// (<see cref="Maps.MapNodeAngles"/>), applied once here so every reader of the map sees them.
+    /// </summary>
     public static Document ReadFile(string path)
     {
         var bytes = File.ReadAllBytes(path);
-        return DmxText.IsText(bytes) ? DmxText.Read(bytes) : Read(bytes);
+        return Maps.MapNodeAngles.Apply(DmxText.IsText(bytes) ? DmxText.Read(bytes) : Read(bytes));
     }
 
     /// <summary>An element for another reader of the format to fill.</summary>

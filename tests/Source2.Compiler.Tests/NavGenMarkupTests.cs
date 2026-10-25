@@ -50,14 +50,20 @@ public sealed class NavGenMarkupTests(ITestOutputHelper output)
         return input;
     }
 
+    /// <summary>
+    /// s2c_navangles (tools/coverage/nav_angle_specimen.py) holds markups at node angles outside [0, 360) (negative
+    /// yaws, tiny angles, pitch and roll below 0, yaws past 360): their matrices are those of the angles CMapPoint's
+    /// setter leaves (<see cref="MapNodeAngles"/>), read through <see cref="MapSource.Read"/>.
+    /// </summary>
     [Theory]
     [InlineData("s2c_navmarkup")]
     [InlineData("probe_classes")]
+    [InlineData("s2c_navangles")]
     public void CollectorMatchesValve(string map)
     {
         if (Captured(map) is not { } valve || MapFixtures.GameSchema() is not { } schema || !File.Exists(Content + map + ".vmap"))
             return;
-        var ours = NavMarkupInput.Collect(DmxBinary.ReadFile(Content + map + ".vmap"), schema);
+        var ours = NavMarkupInput.Collect(MapSource.Read(Content + map + ".vmap", schema), schema);
         output.WriteLine($"{map}: ours {ours.Markups.Count} markups {ours.Tags.Count} tags, Valve {valve.Markups.Count} markups {valve.Tags.Count} tags");
         if (File.Exists(Path.Combine(Dir(map), "navinput_tags.bin")))
             Assert.Equal(valve.Tags, ours.Tags);

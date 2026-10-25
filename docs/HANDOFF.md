@@ -185,6 +185,9 @@ carries the same state per item.
   until its records are flushed. A map whose package is up to date makes resourcecompiler skip the
   nav: delete the .vpk first.
 - COVERAGE.md's compile options and class rows refreshed (they predated the bake and vis work).
+- Node angles (ledger 145): every .vmap read now holds its nodes' angles as resourcecompiler's load
+  setter leaves them (|a| < 0.001 to 0, a negative yaw plus 360); s2c_navangles' markups and lump are
+  Valve's.
 
 ## Earlier session (2026-10-25)
 

@@ -3802,7 +3802,13 @@
    "addr": "180fdeda0",
    "name": "CMapPoint::vf18",
    "module": "s2c:entities/settle",
-   "note": "SetAngles: under 0.001 becomes 0, yaw made non-negative"
+   "note": "SetAngles: a component under 0.001 becomes 0, a negative yaw gains 360 until it is not; every node load and move stores through it (MapNodeAngles, ledger 145)"
+  },
+  {
+   "addr": "180f770a0",
+   "name": "CMapNode::vf18",
+   "module": "s2c:entities/settle",
+   "note": "SetAngles: CMapPoint's (180fdeda0), then the children told"
   },
   {
    "addr": "180fdef60",

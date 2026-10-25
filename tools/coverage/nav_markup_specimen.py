@@ -12,8 +12,7 @@ scaled per axis), so every markup path of the nav build runs:
   - a NONAV box holding the whole pad body at (944, -848) (the extraction leaves the body out);
   - NavAttributes "AVOID,SPLIT", and two navProperty keys the FGD does not declare (string keys:
     "FOO", and a lowercase "walkableseed" that 019 skips case-blind and 029 does not flood, strcmp).
-Angles are written as Hammer keeps them, in [0, 360): resourcecompiler normalises a negative one
-when it loads the node (a -30 yaw gives the matrix of 330), which the port does not model.
+Angles are written as Hammer keeps them, in [0, 360); nav_angle_specimen.py covers the others.
 Built through Valve's dmxconvert as probe_map.py does."""
 import copy
 import os
@@ -39,7 +38,8 @@ MARKUPS = [
 ]
 
 
-def main(base, out):
+def main(base, out, markups=None):
+    markups = markups or MARKUPS
     work = tempfile.mkdtemp(prefix="nav_markup_")
     text_path = os.path.join(work, "base.vmap")
     pm.convert(base, text_path, "keyvalues2")
@@ -74,7 +74,7 @@ def main(base, out):
         return c
 
     added = []
-    for k, (keys, origin, angles, half) in enumerate(MARKUPS):
+    for k, (keys, origin, angles, half) in enumerate(markups):
         e = deep(template)
         props = e.get("entity_properties")
         props.set("classname", "string", "func_nav_markup")

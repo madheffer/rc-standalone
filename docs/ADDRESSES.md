@@ -618,7 +618,7 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 - file: `resourcecompiler_20260923.dll`, 56,313,496 bytes, PE time 2026-09-22 19:17 UTC
 - SHA-256 `0d1da6a140d203a2818ab567ca91cb8b513757983afa503121f3e21a62befdbf`
 - installed: a different build
-- 1124 addresses
+- 1125 addresses
 
 ### s2c:baked/light-keys
 
@@ -1124,9 +1124,10 @@ names (asserts, RTTI, log strings; tens of thousands per DLL) are in
 | `180f4c560` | `PhysDoc_GetObjectsOfNode` |  |  |
 | `180f4c9e0` | `PhysDoc_BuildObjects` |  | `src/Source2.Compiler/Maps/SettleWorld.cs:14` |
 | `180f4d380` | `PhysDoc_Simulate` |  |  |
+| `180f770a0` | `CMapNode::vf18` | SetAngles: CMapPoint's (180fdeda0), then the children told | `src/Source2.Compiler/Maps/MapNodeAngles.cs:7` |
 | `180f834d0` | `MapInstance_BakedMatrix` | the instance's matrix against the target's inverse, in double | `src/Source2.Compiler/Maps/PathDeformer.Copies.cs:34`, `src/Source2.Compiler/Maps/SettleWorld.cs:359`, `src/Source2.Compiler/Maps/SettleWorld.cs:400` |
 | `180f8b770` | `MapNode_OwnerEntity` | the nearest entity above | `src/Source2.Compiler/Maps/SettleWorld.cs:335` |
-| `180fdeda0` | `CMapPoint::vf18` | SetAngles: under 0.001 becomes 0, yaw made non-negative | `src/Source2.Compiler/Maps/LatticeDeformer.cs:389`, `src/Source2.Compiler/Maps/PathDeformer.cs:194`, `src/Source2.Compiler/Maps/SettleWorld.cs:473` +3 |
+| `180fdeda0` | `CMapPoint::vf18` | SetAngles: a component under 0.001 becomes 0, a negative yaw gains 360 until it is not; every node load and move stores through it (MapNodeAngles, ledger 145) | `src/Source2.Compiler/Maps/LatticeDeformer.cs:389`, `src/Source2.Compiler/Maps/MapNodeAngles.cs:7`, `src/Source2.Compiler/Maps/PathDeformer.cs:194` +4 |
 | `180fdef60` | `CMapPoint::vf25` | TransformBy: angles rebuilt from the matrix | `src/Source2.Compiler/Maps/SettleWorld.cs:614` |
 | `180fdf210` | `CMapPoint_Angles` | the node's angles | `src/Source2.Compiler/Maps/SettleWorld.cs:615` |
 | `181001820` | `CMapEntity::vf25` | TransformBy (flags 0x41) | `src/Source2.Compiler/Maps/SettleWorld.cs:612` |
